@@ -57,7 +57,7 @@ func ParseSearch(input string, now time.Time) SearchFilter {
 			case fieldTerm(value):
 				filter.SenderField = value
 			case strings.Contains(value, ":"):
-				filter.Sender = value // a full ID, colons and all
+				filter.Sender = TypedUserID(value) // a full ID, colons and all
 			default:
 				filter.Sender = strings.TrimPrefix(value, "@") // typed either way
 			}

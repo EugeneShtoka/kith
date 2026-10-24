@@ -13,7 +13,7 @@ func manyRooms(n int) []domain.Room {
 	rooms := make([]domain.Room, n)
 	for i := range rooms {
 		rooms[i] = domain.Room{
-			ID:   domain.RoomID(fmt.Sprintf("!r%02d:x", i)),
+			ID:   domain.RoomID(fmt.Sprintf(mx+"!r%02d:x", i)),
 			Name: fmt.Sprintf("Room %02d", i),
 		}
 	}
@@ -28,7 +28,7 @@ func TestRoomListScrollsUnderTheCursor(t *testing.T) {
 	m.focus = paneRooms
 	for _, cursor := range []int{0, 12, 30, 39} {
 		// The highlight follows the selection, so select to move it.
-		m.openRoom = domain.RoomID(fmt.Sprintf("!r%02d:x", cursor))
+		m.openRoom = domain.RoomID(fmt.Sprintf(mx+"!r%02d:x", cursor))
 		frame := stripStyles(m.View().Content)
 		want := fmt.Sprintf("▸ Room %02d", cursor)
 		if !strings.Contains(frame, want) {
@@ -48,7 +48,7 @@ func TestRoomListScrollsUnderTheCursor(t *testing.T) {
 		}
 	}
 	// The header says where you are.
-	m.openRoom = "!r30:x"
+	m.openRoom = mx + "!r30:x"
 	if frame := stripStyles(m.View().Content); !strings.Contains(frame, "31/40") {
 		t.Error("a list longer than the pane should say the position in its header")
 	}
@@ -81,7 +81,7 @@ func TestRailScrollsPastItsSeparators(t *testing.T) {
 	spaces := make([]domain.Space, 40)
 	for i := range spaces {
 		spaces[i] = domain.Space{
-			ID:   domain.SpaceID(fmt.Sprintf("!s%02d:x", i)),
+			ID:   domain.SpaceID(fmt.Sprintf(mx+"!s%02d:x", i)),
 			Name: fmt.Sprintf("Space %02d", i),
 		}
 	}

@@ -102,8 +102,8 @@ func TestSaveIdentities(t *testing.T) {
 
 	cfg := minimal()
 	cfg.Display.Identities = []Identity{
-		{Alias: "Dana", Color: "#8ff586", IDs: []string{"@dana:x", "@whatsapp_dana:x"}},
-		{Alias: "יבגני", IDs: []string{"@rtl:x"}},
+		{Alias: "Dana", Color: "#8ff586", IDs: []string{"matrix:@dana:x", "matrix:@whatsapp_dana:x"}},
+		{Alias: "יבגני", IDs: []string{"matrix:@rtl:x"}},
 	}
 	body, path := saved(t, cfg)
 
@@ -129,18 +129,18 @@ func TestSaveRoundTripsEveryShape(t *testing.T) {
 
 	yes, no := true, false
 	cfg := minimal()
-	cfg.AllowTokenFile = true                                                                        // bool
-	cfg.Display.MaxNameLength = 20                                                                   // int
-	cfg.Display.ColorMessages = true                                                                 // bool in a table
-	cfg.Display.OpenInInsert = &no                                                                   // *bool, set false
-	cfg.Display.RoomNameRules = &yes                                                                 // *bool, set true
-	cfg.Display.Rail.Order = []string{"tag:Unread", "-"}                                             // []string in a table
-	cfg.Display.Rail.Hidden = []string{"tag:All"}                                                    //
-	cfg.Display.Names = []DisplayName{{Target: NameTargetSpace + "Work", Name: "Job"}}               // one list
-	cfg.Display.Media.Mode = "inline"                                                                // string in a nested table
-	cfg.Display.Media.MaxHeight = 12                                                                 //
-	cfg.Display.Reactions.Static = []string{"👍", "🎉"}                                                // non-ASCII array
-	cfg.Display.Names = append(cfg.Display.Names, DisplayName{Target: "!a:x", Name: `He said "hi"`}) // escaping
+	cfg.AllowTokenFile = true                                                                             // bool
+	cfg.Display.MaxNameLength = 20                                                                        // int
+	cfg.Display.ColorMessages = true                                                                      // bool in a table
+	cfg.Display.OpenInInsert = &no                                                                        // *bool, set false
+	cfg.Display.RoomNameRules = &yes                                                                      // *bool, set true
+	cfg.Display.Rail.Order = []string{"tag:Unread", "-"}                                                  // []string in a table
+	cfg.Display.Rail.Hidden = []string{"tag:All"}                                                         //
+	cfg.Display.Names = []DisplayName{{Target: NameTargetSpace + "Work", Name: "Job"}}                    // one list
+	cfg.Display.Media.Mode = "inline"                                                                     // string in a nested table
+	cfg.Display.Media.MaxHeight = 12                                                                      //
+	cfg.Display.Reactions.Static = []string{"👍", "🎉"}                                                     // non-ASCII array
+	cfg.Display.Names = append(cfg.Display.Names, DisplayName{Target: mx + "!a:x", Name: `He said "hi"`}) // escaping
 	cfg.Display.SpaceRules = []SpaceRule{{Space: "Work", FirstNameOnly: true}}
 	cfg.Notifications.Enabled = true
 	cfg.Notifications.Rules = []Rule{{Match: "Work", Show: "all", When: "22:00-08:00"}}
@@ -161,8 +161,8 @@ func TestSaveIsIdempotent(t *testing.T) {
 	t.Parallel()
 
 	cfg := minimal()
-	cfg.Display.Names = []DisplayName{{Target: "!z:x", Name: "Z"}, {Target: "!a:x", Name: "A"}, {Target: "!m:x", Name: "M"}}
-	cfg.Display.Identities = []Identity{{Alias: "A", IDs: []string{"@a:x"}}}
+	cfg.Display.Names = []DisplayName{{Target: mx + "!z:x", Name: "Z"}, {Target: mx + "!a:x", Name: "A"}, {Target: mx + "!m:x", Name: "M"}}
+	cfg.Display.Identities = []Identity{{Alias: "A", IDs: []string{"matrix:@a:x"}}}
 
 	path := filepath.Join(t.TempDir(), "config.toml")
 	if err := Save(path, cfg); err != nil {
@@ -418,7 +418,7 @@ func TestALongArrayIsWrittenOnePerLine(t *testing.T) {
 	long := cfg
 	for i := range 30 {
 		long.Display.Priority = append(long.Display.Priority,
-			fmt.Sprintf("!room%02daaaaaaaaaaaaaaaaaa:example.org", i))
+			fmt.Sprintf(mx+"!room%02daaaaaaaaaaaaaaaaaa:example.org", i))
 	}
 
 	for name, tc := range map[string]struct {
@@ -455,11 +455,11 @@ func TestRoomNamesTakesEveryRoomID(t *testing.T) {
 
 	native := "whatsapp:44000000001/120363000000000001@g.us"
 	d := Display{Names: []DisplayName{
-		{Target: "!a:x", Name: "A"}, {Target: native, Name: "Choir"},
-		{Target: NameTargetSpace + "Work", Name: "W"}, {Target: NameTargetThread + "$e", Name: "T"},
+		{Target: mx + "!a:x", Name: "A"}, {Target: native, Name: "Choir"},
+		{Target: NameTargetSpace + "Work", Name: "W"}, {Target: NameTargetThread + mx + "$e", Name: "T"},
 	}}
 	got := d.RoomNames()
-	if len(got) != 2 || got["!a:x"] != "A" || got[native] != "Choir" {
+	if len(got) != 2 || got[mx+"!a:x"] != "A" || got[native] != "Choir" {
 		t.Errorf("RoomNames() = %v", got)
 	}
 }

@@ -23,7 +23,7 @@ func (b *InProc) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 		return nil, fmt.Errorf("matrix: read cached unread: %w", err)
 	}
 	// Only Matrix rooms: another network counts its own, by its own receipts.
-	u = slices.DeleteFunc(u, func(x domain.Unread) bool { return !domain.MatrixRooms.Owns(x.RoomID) })
+	u = slices.DeleteFunc(u, func(x domain.Unread) bool { return !b.ids.owner().Owns(x.RoomID) })
 	// Local counts replace the server's where available (see domain.Unread.Count).
 	local, err := b.cache.CountUnreadAll(ctx, b.me())
 	if err != nil {

@@ -29,7 +29,7 @@ func TestRecentVocabTokensAgreeWithTheIndex(t *testing.T) {
 		"Straße GROSS Überraschung façade piñata",
 		"emoji 🎉 then words: résumé, coöperate, jalapeño",
 	}
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x"}}); err != nil {
 		t.Fatal(err)
 	}
 	// A temp vocabulary view; the schema has none since only this test reads it.
@@ -38,8 +38,8 @@ func TestRecentVocabTokensAgreeWithTheIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, body := range bodies {
-		if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{{ID: domain.EventID(fmt.Sprintf("$%d", i)),
-			RoomID: "!a:x", Body: body, Timestamp: time.Unix(int64(1_700_000_000+i), 0)}}); err != nil {
+		if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{{ID: domain.EventID(fmt.Sprintf(mx+"$%d", i)),
+			RoomID: mx + "!a:x", Body: body, Timestamp: time.Unix(int64(1_700_000_000+i), 0)}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -55,7 +55,7 @@ func TestRecentVocabTokensAgreeWithTheIndex(t *testing.T) {
 				var term string
 				err := rows.Scan(&term)
 				return term, err
-			}, fmt.Sprintf("$%d", i))
+			}, fmt.Sprintf(mx+"$%d", i))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -146,7 +146,7 @@ func TestRecentBodies(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x"}, {ID: "!b:x"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x"}, {ID: mx + "!b:x"}}); err != nil {
 		t.Fatal(err)
 	}
 	for i, m := range []struct {
@@ -154,15 +154,15 @@ func TestRecentBodies(t *testing.T) {
 		sender string
 		body   string
 	}{
-		{"!a:x", "@me:x", "first"}, {"!b:x", "@dana:x", "second"}, {"!a:x", "@dana:x", "third"},
-		{"!a:x", "@me:x", "taken back"}, {"!b:x", "whatsapp:44880000001@s.whatsapp.net", "fourth"},
+		{mx + "!a:x", "matrix:@me:x", "first"}, {mx + "!b:x", "matrix:@dana:x", "second"}, {mx + "!a:x", "matrix:@dana:x", "third"},
+		{mx + "!a:x", "matrix:@me:x", "taken back"}, {mx + "!b:x", "whatsapp:44880000001@s.whatsapp.net", "fourth"},
 	} {
-		if err := cache.SaveMessages(ctx, m.room, []domain.Message{{ID: domain.EventID(fmt.Sprintf("$%d", i)),
+		if err := cache.SaveMessages(ctx, m.room, []domain.Message{{ID: domain.EventID(fmt.Sprintf(mx+"$%d", i)),
 			RoomID: m.room, Sender: m.sender, Body: m.body, Timestamp: time.Unix(int64(1_700_000_000+i), 0)}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := cache.MarkRedacted(ctx, "!a:x", "$3", "@me:x", "", time.Time{}, false); err != nil {
+	if err := cache.MarkRedacted(ctx, mx+"!a:x", mx+"$3", "matrix:@me:x", "", time.Time{}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -175,9 +175,9 @@ func TestRecentBodies(t *testing.T) {
 	}{
 		{"everything, newest first", domain.EveryRoom(), nil, 10, []string{"fourth", "third", "second", "first"}},
 		{"bounded", domain.EveryRoom(), nil, 2, []string{"fourth", "third"}},
-		{"one room", domain.TheseRooms([]domain.RoomID{"!a:x"}), nil, 10, []string{"third", "first"}},
-		{"one sender", domain.EveryRoom(), []string{"@me:x"}, 10, []string{"first"}},
-		{"one person on two networks", domain.EveryRoom(), []string{"@me:x", "whatsapp:44880000001@s.whatsapp.net"}, 10, []string{"fourth", "first"}},
+		{"one room", domain.TheseRooms([]domain.RoomID{mx + "!a:x"}), nil, 10, []string{"third", "first"}},
+		{"one sender", domain.EveryRoom(), []string{"matrix:@me:x"}, 10, []string{"first"}},
+		{"one person on two networks", domain.EveryRoom(), []string{"matrix:@me:x", "whatsapp:44880000001@s.whatsapp.net"}, 10, []string{"fourth", "first"}},
 		{"none asked for", domain.EveryRoom(), nil, 0, nil},
 		{"no rooms named", domain.TheseRooms(nil), nil, 10, nil},
 	}

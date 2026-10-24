@@ -17,10 +17,10 @@ func TestConnectionSettingsSurviveAReplacedConnection(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!r:x", Name: "R"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!r:x", Name: "R"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
-	mustSave(t, cache, "!r:x", domain.Message{ID: "$e:x", Body: "hi"})
+	mustSave(t, cache, mx+"!r:x", domain.Message{ID: mx + "$e:x", Body: "hi"})
 
 	// Retire the connection Open configured.
 	cache.db.SetMaxIdleConns(0)
@@ -40,12 +40,12 @@ func TestConnectionSettingsSurviveAReplacedConnection(t *testing.T) {
 	}
 
 	// The cascade must still fire.
-	if _, err := cache.db.ExecContext(ctx, "DELETE FROM rooms WHERE id = '!r:x'"); err != nil {
+	if _, err := cache.db.ExecContext(ctx, "DELETE FROM rooms WHERE id = 'matrix:0123456789abcdef/!r:x'"); err != nil {
 		t.Fatalf("delete room error = %v", err)
 	}
 	var orphans int
 	if err := cache.db.QueryRowContext(ctx,
-		"SELECT count(*) FROM messages WHERE room_id = '!r:x'").Scan(&orphans); err != nil {
+		"SELECT count(*) FROM messages WHERE room_id = 'matrix:0123456789abcdef/!r:x'").Scan(&orphans); err != nil {
 		t.Fatalf("count error = %v", err)
 	}
 	if orphans != 0 {

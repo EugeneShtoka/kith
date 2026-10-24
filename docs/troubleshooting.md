@@ -6,7 +6,7 @@ fix each one. Most problems start in the daemon, so [read its log](#logs) first.
 ## Logs
 
 All three programs write the same kind of log: one line per event, as
-`level=WARN msg="mark room read failed" op="mark room read" room=!abc:example.org err="…"`.
+`level=WARN msg="mark room read failed" op="mark room read" room=matrix:4f1c9e2a7b3d5c60/!abc:example.org err="…"`.
 Lines name rooms, events and users by ID. They never contain message text, access
 tokens, passwords or keys; anything shaped like one is replaced with `[REDACTED]`.
 
@@ -32,7 +32,7 @@ of its own, upper-cased: `room=` is `ROOM=`, `op=` is `OP=`, `err=` is `ERR=`, a
 group's attributes are joined with `_`. Filter on them:
 
 ```sh
-journalctl --user ROOM='!abc:example.org'
+journalctl --user ROOM='matrix:4f1c9e2a7b3d5c60/!abc:example.org'
 journalctl --user -t kith PRIORITY=4 -o verbose   # warnings, with every field
 ```
 

@@ -34,7 +34,7 @@ body  = "{body}"                         # default
 | `{space}` | The room's space, or tag. If it is in several, the first one by `[display] priority` (a tag reads by its name) |
 | `{room}` | The room's name as kith shows it, aliases included |
 | `{sender}` | The sender as the timeline names them: your alias for them, a name you saved for them on any account (an address book, a contact), their display name now, or the name they chose, first name only where the space's rule says so (their ID if nothing names them) |
-| `{mxid}` | The sender's Matrix ID |
+| `{sender_id}` | The sender's ID on their network |
 | `{body}` | The message text, cut to 140 characters, a mention written with the name of the person it mentions as `{sender}` is |
 | `{protocol}` | The network the sender is on, taken from their MXID: `WhatsApp`, `Telegram`, `Signal`, `Slack`, `Matrix`, … |
 | `{date}`, `{time}` | When it was sent, in local time, as `[display] short_date_format` and `time_format` write it (by default `2026-08-21`, `14:05`) |
@@ -50,7 +50,7 @@ If a field is empty, one separator next to it is dropped too. A room in no space
 | Variable | Contents |
 | --- | --- |
 | `KITH_TITLE`, `KITH_BODY` | The rendered title and body templates |
-| `KITH_SENDER`, `KITH_MXID`, `KITH_ROOM`, `KITH_SPACE`, `KITH_PROTOCOL` | The raw fields |
+| `KITH_SENDER`, `KITH_SENDER_ID`, `KITH_ROOM`, `KITH_SPACE`, `KITH_PROTOCOL` | The raw fields |
 | `KITH_MESSAGE` | The message text |
 | `KITH_DATE`, `KITH_TIME` | The send time, always ISO (`2026-08-21`, `14:05`) whatever `[display]` says, so a script can parse it |
 
@@ -76,8 +76,8 @@ A rule says **where** it applies, **when** it applies, and **what gets through**
 ```toml
 [[notifications.rule]]
 name   = "the boss"            # optional; shown when this rule is the one that decided
-match  = "!standup:example.org"
-sender = "@alice:example.org"
+match  = "matrix:4f1c9e2a7b3d5c60/!standup:example.org"
+sender = "matrix:@alice:example.org"
 when   = "09:00-18:00"
 thread = "any"
 show   = "all"
@@ -89,7 +89,7 @@ sound  = "/home/you/sounds/boss.wav"
 | --- | --- | --- |
 | `name` | What to call the rule in the status line and the `W` overlay | Any text. Optional |
 | `match` | The place it applies to. Empty means anywhere | See [Naming a place](#naming-a-place) |
-| `sender` | One person | An MXID. Empty means anyone |
+| `sender` | One person | Their ID, `matrix:@alice:example.org` for a Matrix person. Empty means anyone |
 | `when` | A daily window when the rule is in force. It wraps past midnight if the end is before the start | `"HH:MM-HH:MM"`. Absent means always |
 | `thread` | Where in a conversation it applies | `any` (default), `participating` (only threads you have written in), `none` (only messages outside threads) |
 | `show` | The bar a message must clear to raise a popup | `none`, `mention`, `dm`, `all` |
@@ -108,7 +108,7 @@ A misspelled level, window or thread value is an error at startup, and on reload
 
 | Entry | Matches |
 | --- | --- |
-| `!abc:example.org` | That room, by ID |
+| `matrix:4f1c9e2a7b3d5c60/!abc:example.org` | That room, by ID |
 | `room:Standup` | The room shown under that name |
 | `space:Work` | Every room in that space |
 | `protocol:WhatsApp` | Every room on that network |
@@ -156,15 +156,15 @@ show  = "all"
 
 # Mute one room…
 [[notifications.rule]]
-match = "!standup:example.org"
+match = "matrix:4f1c9e2a7b3d5c60/!standup:example.org"
 show  = "none"
 
 # …except for one person in it. This rule is narrower than quiet hours and
 # do-not-disturb, so it gets through both.
 [[notifications.rule]]
 name   = "the boss"
-match  = "!standup:example.org"
-sender = "@alice:example.org"
+match  = "matrix:4f1c9e2a7b3d5c60/!standup:example.org"
+sender = "matrix:@alice:example.org"
 show   = "all"
 sound  = "/home/you/sounds/boss.wav"
 
@@ -175,11 +175,11 @@ ring  = "none"
 
 # A busy room where only the threads you joined matter.
 [[notifications.rule]]
-match = "!busy:example.org"
+match = "matrix:4f1c9e2a7b3d5c60/!busy:example.org"
 show  = "none"
 
 [[notifications.rule]]
-match  = "!busy:example.org"
+match  = "matrix:4f1c9e2a7b3d5c60/!busy:example.org"
 thread = "participating"
 show   = "all"
 
@@ -309,7 +309,7 @@ notify = true                 # default false
 words  = ["invoice"]
 in     = ["space:Work"]
 except = ["room:Noise"]
-from   = ["@dana:example.org"]
+from   = ["matrix:@dana:example.org"]
 notify = true                 # overrides the switch above, for these words
 ```
 

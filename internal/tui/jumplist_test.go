@@ -14,23 +14,23 @@ func TestJumplistRecordsArrivals(t *testing.T) {
 	t.Parallel()
 
 	var j jumplist
-	j = j.arrived("!a:x") // the first place: nowhere to come back to yet
-	j = j.arrived("!a:x") // opening the room you are already in
+	j = j.arrived(mx + "!a:x") // the first place: nowhere to come back to yet
+	j = j.arrived(mx + "!a:x") // opening the room you are already in
 	if len(j.back) != 0 {
 		t.Fatalf("back = %v, want empty — neither of those left anywhere", j.back)
 	}
 
-	j = j.arrived("!b:x")
+	j = j.arrived(mx + "!b:x")
 	next, to, ok := j.goingBack(anyRoom)
-	if !ok || to != "!a:x" {
+	if !ok || to != mx+"!a:x" {
 		t.Fatalf("back gave (%q, %v), want !a:x", to, ok)
 	}
 	j = next
-	if j.anchor != "!a:x" {
+	if j.anchor != mx+"!a:x" {
 		t.Errorf("anchor = %q after going back, want !a:x", j.anchor)
 	}
 	fwd, to, ok := j.goingForward(anyRoom)
-	if !ok || to != "!b:x" {
+	if !ok || to != mx+"!b:x" {
 		t.Fatalf("forward gave (%q, %v), want !b:x", to, ok)
 	}
 	j = fwd
@@ -39,13 +39,13 @@ func TestJumplistRecordsArrivals(t *testing.T) {
 	}
 
 	// The landing is announced again by the room opener and must not double-count.
-	j = j.arrived("!b:x")
+	j = j.arrived(mx + "!b:x")
 	if len(j.back) != 1 {
 		t.Errorf("back = %v after re-announcing the place we are at, want it unchanged", j.back)
 	}
 
 	// Opening somewhere new drops the forward entries.
-	j = j.arrived("!c:x")
+	j = j.arrived(mx + "!c:x")
 	if len(j.forward) != 0 {
 		t.Errorf("forward = %v after opening somewhere new, want it dropped", j.forward)
 	}
@@ -71,14 +71,14 @@ func TestJumplistIsBounded(t *testing.T) {
 
 	var j jumplist
 	for i := range jumpDepth * 2 {
-		j = j.arrived(domain.RoomID("!" + string(rune('a'+i%26)) + string(rune('a'+i/26)) + ":x"))
+		j = j.arrived(domain.RoomID(mx + "!" + string(rune('a'+i%26)) + string(rune('a'+i/26)) + ":x"))
 	}
 	if len(j.back) > jumpDepth {
 		t.Errorf("back holds %d entries, want at most %d", len(j.back), jumpDepth)
 	}
 
 	// Back and forward between two rooms, twice round: one entry each side.
-	pair := jumplist{}.arrived("!a:x").arrived("!b:x")
+	pair := jumplist{}.arrived(mx + "!a:x").arrived(mx + "!b:x")
 	for range 2 {
 		next, _, ok := pair.goingBack(anyRoom)
 		if !ok {
@@ -100,20 +100,20 @@ func TestJumplistIsBounded(t *testing.T) {
 func TestJumplistStepsOverAGoneRoom(t *testing.T) {
 	t.Parallel()
 
-	j := jumplist{anchor: "!here:x", back: []domain.RoomID{"!a:x", "!gone:x"}}
-	next, to, ok := j.goingBack(func(id domain.RoomID) bool { return id != "!gone:x" })
-	if !ok || to != "!a:x" {
+	j := jumplist{anchor: mx + "!here:x", back: []domain.RoomID{mx + "!a:x", mx + "!gone:x"}}
+	next, to, ok := j.goingBack(func(id domain.RoomID) bool { return id != mx+"!gone:x" })
+	if !ok || to != mx+"!a:x" {
 		t.Fatalf("back gave (%q, %v), want it to step over the gone room to !a:x", to, ok)
 	}
 	if len(next.back) != 0 {
 		t.Errorf("back = %v, want both entries consumed", next.back)
 	}
-	if len(next.forward) != 1 || next.forward[0] != "!here:x" {
+	if len(next.forward) != 1 || next.forward[0] != mx+"!here:x" {
 		t.Errorf("forward = %v, want the place we left", next.forward)
 	}
 
 	// Only dead entries is the same as none.
-	dead := jumplist{anchor: "!here:x", back: []domain.RoomID{"!gone:x"}}
+	dead := jumplist{anchor: mx + "!here:x", back: []domain.RoomID{mx + "!gone:x"}}
 	if _, _, ok := dead.goingBack(func(domain.RoomID) bool { return false }); ok {
 		t.Error("a list of gone rooms claimed somewhere to go")
 	}

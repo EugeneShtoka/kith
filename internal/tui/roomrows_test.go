@@ -18,10 +18,10 @@ func withThreadRows(t *testing.T, display config.Display) Model {
 	t.Helper()
 	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, display)))
 	return update(t, m, unreadUpdateMsg{u: domain.Unread{
-		RoomID: "!a:x", Counted: true, Messages: 3,
+		RoomID: mx + "!a:x", Counted: true, Messages: 3,
 		Threads: []domain.ThreadUnread{
-			{Root: "$one", Unread: 2, Latest: "$l1", Title: "ship the release notes"},
-			{Root: "$two", Unread: 1, Latest: "$l2", Title: "Q3 planning"},
+			{Root: mx + "$one", Unread: 2, Latest: mx + "$l1", Title: "ship the release notes"},
+			{Root: mx + "$two", Unread: 1, Latest: mx + "$l2", Title: "Q3 planning"},
 		},
 	}})
 }
@@ -80,11 +80,11 @@ func TestTheCursorWalksRoomsAndThreadsAsOneList(t *testing.T) {
 	}
 
 	m, _ = m.stepRow(1)
-	if m.rows.cursor != "$one" {
+	if m.rows.cursor != mx+"$one" {
 		t.Fatalf("threadCursor = %q, want the first thread row", m.rows.cursor)
 	}
 	m, _ = m.stepRow(1)
-	if m.openRoom != "!b:x" || m.rows.cursor != "" {
+	if m.openRoom != mx+"!b:x" || m.rows.cursor != "" {
 		t.Errorf("stepped to open=%q thread=%q, want Bravo's own row", m.openRoom, m.rows.cursor)
 	}
 }
@@ -96,8 +96,8 @@ func TestMarkingAThreadReadFromItsRow(t *testing.T) {
 	b := &readBackend{}
 	m := sized(t, withRooms(t, starterNew(b, config.Display{})))
 	m = update(t, m, unreadUpdateMsg{u: domain.Unread{
-		RoomID: "!a:x", Counted: true, Messages: 2,
-		Threads: []domain.ThreadUnread{{Root: "$one", Unread: 2, Latest: "$l1", Title: "ship it"}},
+		RoomID: mx + "!a:x", Counted: true, Messages: 2,
+		Threads: []domain.ThreadUnread{{Root: mx + "$one", Unread: 2, Latest: mx + "$l1", Title: "ship it"}},
 	}})
 	m.focus = paneRooms
 	m, _ = m.selectRoom(m.filteredRooms()[0])
@@ -110,7 +110,7 @@ func TestMarkingAThreadReadFromItsRow(t *testing.T) {
 	m, cmd := m.markThreadRowRead(row)
 	deliver(t, m, cmd)
 
-	if len(b.threads) != 1 || b.threads[0] != [2]domain.EventID{"$one", "$l1"} {
+	if len(b.threads) != 1 || b.threads[0] != [2]domain.EventID{mx + "$one", mx + "$l1"} {
 		t.Errorf("thread receipts = %v, want $one read to its newest unread reply", b.threads)
 	}
 	if len(b.main) != 0 {
@@ -124,19 +124,19 @@ func TestTheSelectedThreadRowSurvivesBeingRead(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = update(t, m, unreadUpdateMsg{u: domain.Unread{
-		RoomID: "!a:x", Counted: true, Messages: 2,
-		Threads: []domain.ThreadUnread{{Root: "$root", Unread: 2, Latest: "$r2", Title: "ship it"}},
+		RoomID: mx + "!a:x", Counted: true, Messages: 2,
+		Threads: []domain.ThreadUnread{{Root: mx + "$root", Unread: 2, Latest: mx + "$r2", Title: "ship it"}},
 	}})
 	m, _ = m.selectRoom(m.filteredRooms()[0])
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: threaded()})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: threaded()})
 	m, _ = m.stepRow(1)
-	if m.rows.cursor != "$root" {
+	if m.rows.cursor != mx+"$root" {
 		t.Fatalf("threadCursor = %q, want the thread row", m.rows.cursor)
 	}
 
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!a:x", Counted: true}})
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!a:x", Counted: true}})
 	row, ok := m.selectedRow()
-	if !ok || !row.isThread() || row.thread.Root != "$root" {
+	if !ok || !row.isThread() || row.thread.Root != mx+"$root" {
 		t.Fatalf("the row under the cursor went away: %+v", row)
 	}
 	if row.thread.Unread != 0 {
@@ -150,8 +150,8 @@ func TestOpeningAThreadRowOpensTheThread(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = update(t, m, unreadUpdateMsg{u: domain.Unread{
-		RoomID: "!a:x", Counted: true, Messages: 2,
-		Threads: []domain.ThreadUnread{{Root: "$root", Unread: 2, Latest: "$r2", Title: "ship it"}},
+		RoomID: mx + "!a:x", Counted: true, Messages: 2,
+		Threads: []domain.ThreadUnread{{Root: mx + "$root", Unread: 2, Latest: mx + "$r2", Title: "ship it"}},
 	}})
 	m.focus = paneRooms
 	m, _ = m.selectRoom(m.filteredRooms()[0])
@@ -161,11 +161,11 @@ func TestOpeningAThreadRowOpensTheThread(t *testing.T) {
 	if m.thread.open() {
 		t.Fatal("the thread opened before its room's history arrived")
 	}
-	if m.rows.opening != "$root" {
+	if m.rows.opening != mx+"$root" {
 		t.Fatalf("openingThread = %q, want the row's thread held until the history lands", m.rows.opening)
 	}
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: threaded()})
-	if m.thread.root != "$root" {
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: threaded()})
+	if m.thread.root != mx+"$root" {
 		t.Errorf("thread root = %q, want the row's thread once the history landed", m.thread.root)
 	}
 	if m.rows.opening != "" {
@@ -180,16 +180,16 @@ func TestSendingMarksTheConversationRead(t *testing.T) {
 
 	m, _ := attaching(t)
 	m = m.setMessages([]domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@them:x", Body: "one"},
-		{ID: "$2", RoomID: "!a:x", Sender: "@them:x", Body: "two"},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@them:x", Body: "one"},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@them:x", Body: "two"},
 	})
-	if m.receipts.marked == "$2" || m.receipts.sending == "$2" {
+	if m.receipts.marked == mx+"$2" || m.receipts.sending == mx+"$2" {
 		t.Fatal("already marked read before sending — the test proves nothing")
 	}
 
 	sent, cmd := asModel(m.Update(sentMsg{}))
-	if sent.receipts.sending != "$2" {
-		t.Errorf("receipt sent for %q after sending, want the newest message %q", sent.receipts.sending, "$2")
+	if sent.receipts.sending != mx+"$2" {
+		t.Errorf("receipt sent for %q after sending, want the newest message %q", sent.receipts.sending, mx+"$2")
 	}
 	if cmd == nil {
 		t.Error("sending issued no read receipt")
@@ -202,15 +202,15 @@ func TestSendingInAThreadMarksOnlyThatThread(t *testing.T) {
 
 	m, _ := attaching(t)
 	m = m.setMessages([]domain.Message{
-		{ID: "$main", RoomID: "!a:x", Sender: "@them:x", Body: "on the main timeline"},
-		{ID: "$root", RoomID: "!a:x", Sender: "@them:x", Body: "thread root"},
-		{ID: "$reply", RoomID: "!a:x", Sender: "@them:x", ThreadRoot: "$root", Body: "in the thread"},
+		{ID: mx + "$main", RoomID: mx + "!a:x", Sender: "matrix:@them:x", Body: "on the main timeline"},
+		{ID: mx + "$root", RoomID: mx + "!a:x", Sender: "matrix:@them:x", Body: "thread root"},
+		{ID: mx + "$reply", RoomID: mx + "!a:x", Sender: "matrix:@them:x", ThreadRoot: mx + "$root", Body: "in the thread"},
 	})
-	m.thread = threadState{root: "$root"}
+	m.thread = threadState{root: mx + "$root"}
 
 	sent, _ := asModel(m.Update(sentMsg{}))
-	if sent.receipts.sending != "$reply" {
-		t.Errorf("receipt sent for %q, want the thread's newest %q", sent.receipts.sending, "$reply")
+	if sent.receipts.sending != mx+"$reply" {
+		t.Errorf("receipt sent for %q, want the thread's newest %q", sent.receipts.sending, mx+"$reply")
 	}
 }
 
@@ -219,10 +219,10 @@ func TestAFailedSendMarksNothing(t *testing.T) {
 	t.Parallel()
 
 	m, _ := attaching(t)
-	m = m.setMessages([]domain.Message{{ID: "$1", RoomID: "!a:x", Sender: "@them:x", Body: "one"}})
+	m = m.setMessages([]domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@them:x", Body: "one"}})
 
 	failed, _ := asModel(m.Update(sentMsg{err: context.Canceled}))
-	if failed.receipts.marked == "$1" || failed.receipts.sending == "$1" {
+	if failed.receipts.marked == mx+"$1" || failed.receipts.sending == mx+"$1" {
 		t.Error("a failed send marked the conversation read")
 	}
 }

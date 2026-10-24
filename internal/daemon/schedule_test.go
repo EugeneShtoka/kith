@@ -64,8 +64,8 @@ func TestStartSendsWhatCameDueWhileTheDaemonWasDown(t *testing.T) {
 	s, sender, store := newScheduler(t, now, 24*time.Hour)
 
 	if err := store.Save([]domain.ScheduledMessage{
-		{ID: "due", RoomID: "!a:x", Body: "good morning", At: now.Add(-2 * time.Hour), Written: now.Add(-3 * time.Hour)},
-		{ID: "later", RoomID: "!a:x", Body: "not yet", At: now.Add(time.Hour), Written: now},
+		{ID: "due", RoomID: mx + "!a:x", Body: "good morning", At: now.Add(-2 * time.Hour), Written: now.Add(-3 * time.Hour)},
+		{ID: "later", RoomID: mx + "!a:x", Body: "not yet", At: now.Add(time.Hour), Written: now},
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestAMessagePastTheCutoffIsHeldNotSent(t *testing.T) {
 	s.report = func(_ slog.Level, line string) { lines = append(lines, line) }
 
 	if err := store.Save([]domain.ScheduledMessage{
-		{ID: "ancient", RoomID: "!a:x", Body: "last tuesday", At: now.Add(-72 * time.Hour), Written: now.Add(-73 * time.Hour)},
+		{ID: "ancient", RoomID: mx + "!a:x", Body: "last tuesday", At: now.Add(-72 * time.Hour), Written: now.Add(-73 * time.Hour)},
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestACutoffOfZeroSendsAnythingOverdue(t *testing.T) {
 	now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 	s, sender, store := newScheduler(t, now, 0)
 	if err := store.Save([]domain.ScheduledMessage{
-		{ID: "ancient", RoomID: "!a:x", Body: "whenever", At: now.Add(-1000 * time.Hour)},
+		{ID: "ancient", RoomID: mx + "!a:x", Body: "whenever", At: now.Add(-1000 * time.Hour)},
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestAScheduledThreadReplyKeepsItsRoot(t *testing.T) {
 	s, sender, _ := newScheduler(t, now, 24*time.Hour)
 
 	if err := s.Add(domain.ScheduledMessage{
-		ID: "t1", RoomID: "!a:x", Body: "in the thread", ThreadRoot: "$root",
+		ID: "t1", RoomID: mx + "!a:x", Body: "in the thread", ThreadRoot: mx + "$root",
 		Emote: true, At: now.Add(-time.Second),
 	}); err != nil {
 		t.Fatalf("Add: %v", err)
@@ -168,7 +168,7 @@ func TestAScheduledThreadReplyKeepsItsRoot(t *testing.T) {
 	if sender.count() != 1 {
 		t.Fatalf("sent %d, want the due message", sender.count())
 	}
-	if got := sender.sent[0].ThreadRoot; got != "$root" {
+	if got := sender.sent[0].ThreadRoot; got != mx+"$root" {
 		t.Errorf("ThreadRoot = %q, want it kept", got)
 	}
 	if !sender.sent[0].Emote {
@@ -183,7 +183,7 @@ func TestCancelRemovesFromTheQueueAndTheFile(t *testing.T) {
 	now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 	s, sender, store := newScheduler(t, now, 24*time.Hour)
 	if err := s.Add(domain.ScheduledMessage{
-		ID: "x1", RoomID: "!a:x", Body: "never mind", At: now.Add(time.Hour),
+		ID: "x1", RoomID: mx + "!a:x", Body: "never mind", At: now.Add(time.Hour),
 	}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestAMessageThatCouldNotBeSavedIsNotQueued(t *testing.T) {
 	t.Cleanup(s.Stop)
 
 	err := s.Add(domain.ScheduledMessage{
-		ID: "doomed", RoomID: "!a:x", Body: "never lands", At: now.Add(time.Hour),
+		ID: "doomed", RoomID: mx + "!a:x", Body: "never lands", At: now.Add(time.Hour),
 	})
 	if err == nil {
 		t.Fatal("an unwritable queue accepted a message")
@@ -309,7 +309,7 @@ func TestAQueueThatCannotBeWrittenSendsNothingRatherThanTwice(t *testing.T) {
 
 	now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 	store := &flakyQueue{onDisk: []domain.ScheduledMessage{
-		{ID: "due", RoomID: "!a:x", Body: "hello", At: now.Add(-time.Minute)},
+		{ID: "due", RoomID: mx + "!a:x", Body: "hello", At: now.Add(-time.Minute)},
 	}}
 	sender := &recordingSender{}
 	start := func() *Scheduler {
@@ -364,7 +364,7 @@ func TestAFailedSendGoesBackOnDisk(t *testing.T) {
 
 	now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 	store := &flakyQueue{onDisk: []domain.ScheduledMessage{
-		{ID: "due", RoomID: "!a:x", Body: "hello", At: now.Add(-time.Minute)},
+		{ID: "due", RoomID: mx + "!a:x", Body: "hello", At: now.Add(-time.Minute)},
 	}}
 	sender := &recordingSender{fail: context.DeadlineExceeded}
 	s := NewScheduler(store, sender, func() time.Duration { return 24 * time.Hour }, nil)
@@ -391,8 +391,8 @@ func TestShutdownMidPassReturnsUnsentMessages(t *testing.T) {
 
 	now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 	store := &flakyQueue{onDisk: []domain.ScheduledMessage{
-		{ID: "a", RoomID: "!a:x", Body: "first", At: now.Add(-2 * time.Minute)},
-		{ID: "b", RoomID: "!a:x", Body: "second", At: now.Add(-time.Minute)},
+		{ID: "a", RoomID: mx + "!a:x", Body: "first", At: now.Add(-2 * time.Minute)},
+		{ID: "b", RoomID: mx + "!a:x", Body: "second", At: now.Add(-time.Minute)},
 	}}
 	sender := &recordingSender{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -423,7 +423,7 @@ func TestAMessageAddedByAnRPCStillSendsAfterThatRPCReturns(t *testing.T) {
 	// As the handler does: its own request context, canceled on return.
 	_, done := context.WithCancel(daemonCtx)
 	if err := s.Add(domain.ScheduledMessage{
-		ID: "soon", RoomID: "!a:x", Body: "after the handler is gone",
+		ID: "soon", RoomID: mx + "!a:x", Body: "after the handler is gone",
 		At: time.Now().Add(40 * time.Millisecond), Written: time.Now(),
 	}); err != nil {
 		t.Fatalf("Add() = %v", err)
@@ -454,7 +454,7 @@ func TestStopWaitsForAPassThatIsAlreadySending(t *testing.T) {
 	added := make(chan error, 1)
 	go func() {
 		added <- s.Add(domain.ScheduledMessage{
-			ID: "due", RoomID: "!a:x", Body: "going out now",
+			ID: "due", RoomID: mx + "!a:x", Body: "going out now",
 			At: time.Now().Add(-time.Minute), Written: time.Now().Add(-2 * time.Minute),
 		})
 	}()
@@ -533,7 +533,7 @@ func TestASentMessageDoesNotComeBackFromAWriteStillInFlight(t *testing.T) {
 	t.Parallel()
 
 	due := domain.ScheduledMessage{
-		ID: "due", RoomID: "!a:x", Body: "going out now",
+		ID: "due", RoomID: mx + "!a:x", Body: "going out now",
 		At: time.Now().Add(-time.Minute), Written: time.Now().Add(-2 * time.Minute),
 	}
 	store := &gatedQueue{
@@ -553,7 +553,7 @@ func TestASentMessageDoesNotComeBackFromAWriteStillInFlight(t *testing.T) {
 	addDone := make(chan error, 1)
 	go func() {
 		addDone <- s.Add(domain.ScheduledMessage{
-			ID: "later", RoomID: "!a:x", Body: "not yet",
+			ID: "later", RoomID: mx + "!a:x", Body: "not yet",
 			At: time.Now().Add(time.Hour), Written: time.Now(),
 		})
 	}()
@@ -596,7 +596,7 @@ func TestAFailedSendIsRetriedOnACadence(t *testing.T) {
 	sender.fail = errors.New("homeserver unreachable")
 
 	if err := store.Save([]domain.ScheduledMessage{
-		{ID: "stuck", RoomID: "!a:x", Body: "hello", At: now.Add(-time.Minute), Written: now.Add(-time.Minute)},
+		{ID: "stuck", RoomID: mx + "!a:x", Body: "hello", At: now.Add(-time.Minute), Written: now.Add(-time.Minute)},
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -656,7 +656,7 @@ func TestAHeldMessageDoesNotArmARetry(t *testing.T) {
 	sender.fail = errors.New("unreachable")
 
 	if err := store.Save([]domain.ScheduledMessage{
-		{ID: "stale", RoomID: "!a:x", Body: "yesterday", At: now.Add(-25 * time.Hour), Written: now.Add(-25 * time.Hour)},
+		{ID: "stale", RoomID: mx + "!a:x", Body: "yesterday", At: now.Add(-25 * time.Hour), Written: now.Add(-25 * time.Hour)},
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -690,7 +690,7 @@ func TestAFailingMessageIsReportedOncePerState(t *testing.T) {
 	t.Cleanup(s.Stop)
 
 	if err := store.Save([]domain.ScheduledMessage{
-		{ID: "stuck", RoomID: "!a:x", Body: "hello", At: now.Add(-time.Minute), Written: now.Add(-time.Minute)},
+		{ID: "stuck", RoomID: mx + "!a:x", Body: "hello", At: now.Add(-time.Minute), Written: now.Add(-time.Minute)},
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -782,7 +782,7 @@ func TestStartDoesNotWaitForTheFirstPass(t *testing.T) {
 	now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 	store := schedule.New(filepath.Join(t.TempDir(), "scheduled.toml"))
 	if err := store.Save([]domain.ScheduledMessage{
-		{ID: "due", RoomID: "!a:x", Body: "good morning", At: now.Add(-time.Hour), Written: now.Add(-2 * time.Hour)},
+		{ID: "due", RoomID: mx + "!a:x", Body: "good morning", At: now.Add(-time.Hour), Written: now.Add(-2 * time.Hour)},
 	}); err != nil {
 		t.Fatalf("Save: %v", err)
 	}

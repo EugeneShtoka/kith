@@ -12,7 +12,7 @@ import (
 // it; a different failure starts the count over, and so does a sync that succeeds.
 func TestASyncThatKeepsFailingSaysSo(t *testing.T) {
 	t.Parallel()
-	b := New(nil)
+	b := newBackend(nil)
 	var said []string
 	b.onSyncTrouble = func(detail string) { said = append(said, detail) }
 	f := &failingSyncer{DefaultSyncer: mautrix.NewDefaultSyncer(), b: b}
@@ -57,7 +57,7 @@ func TestUnparseableOwnAccountDataIsAbsent(t *testing.T) {
 			present := func(events ...*event.Event) bool {
 				switch kind {
 				case starredType:
-					_, p := (ids{}).starredFrom(events)
+					_, p := testIDs.starredFrom(events)
 					return p
 				case tagsType:
 					_, p := tagsFrom(events)

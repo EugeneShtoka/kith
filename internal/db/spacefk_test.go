@@ -14,10 +14,10 @@ func TestASpaceCanListAChildTheRoomTableHasNotSeenYet(t *testing.T) {
 	cache, ctx := openTemp(t), context.Background()
 
 	// The spaces refresh lands first: children, no rooms written.
-	err := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{
-		ID:       "!work:x",
+	err := cache.SaveSpaces(ctx, mxRooms, []domain.Space{{
+		ID:       mx + "!work:x",
 		Name:     "Work",
-		Children: []domain.RoomID{"!notyet:x", "!alsonotyet:x"},
+		Children: []domain.RoomID{mx + "!notyet:x", mx + "!alsonotyet:x"},
 	}})
 	if err != nil {
 		t.Fatalf("SaveSpaces with unwritten child rooms = %v; the rail cannot depend on "+
@@ -33,8 +33,8 @@ func TestASpaceCanListAChildTheRoomTableHasNotSeenYet(t *testing.T) {
 	}
 
 	// The following room refresh finds the space membership in place.
-	if err = cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{
-		{ID: "!notyet:x", Name: "One"}, {ID: "!alsonotyet:x", Name: "Two"},
+	if err = cache.SaveRooms(ctx, mxRooms, []domain.Room{
+		{ID: mx + "!notyet:x", Name: "One"}, {ID: mx + "!alsonotyet:x", Name: "Two"},
 	}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
@@ -54,12 +54,12 @@ func TestARoomCanNameAParentTheSpaceTableHasNotSeenYet(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 
-	if err := cache.SaveRoomParent(ctx, "!room:x", "!unknownspace:x"); err != nil {
+	if err := cache.SaveRoomParent(ctx, mx+"!room:x", mx+"!unknownspace:x"); err != nil {
 		t.Fatalf("SaveRoomParent naming an unwritten space = %v; a canonical parent is "+
 			"resolved per room and need not wait for the space list", err)
 	}
-	parent, known, err := cache.RoomParent(ctx, "!room:x")
-	if err != nil || !known || parent != "!unknownspace:x" {
+	parent, known, err := cache.RoomParent(ctx, mx+"!room:x")
+	if err != nil || !known || parent != mx+"!unknownspace:x" {
 		t.Errorf("RoomParent() = %q, %v, %v; want the space it was given", parent, known, err)
 	}
 }

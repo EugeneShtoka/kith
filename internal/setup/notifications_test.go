@@ -39,7 +39,7 @@ func TestRulesLeaveUnsetFieldsAlone(t *testing.T) {
 	rules, err := setup.NotificationRules(config.Notifications{
 		Enabled: true,
 		Rules: []config.Rule{
-			{Name: "Standup", Match: "!standup:x", Sender: "@alice:x", Show: "all"},
+			{Name: "Standup", Match: mx + "!standup:x", Sender: "matrix:@alice:x", Show: "all"},
 			{Match: "Work", Sound: "/s/boss.wav"},
 			{Match: "Night", Show: "none", When: "22:00-08:00", Ring: "none"},
 		},
@@ -52,7 +52,7 @@ func TestRulesLeaveUnsetFieldsAlone(t *testing.T) {
 	}
 
 	first := rules[1]
-	if first.Name != "Standup" || first.Match != "!standup:x" || first.Sender != "@alice:x" {
+	if first.Name != "Standup" || first.Match != mx+"!standup:x" || first.Sender != "matrix:@alice:x" {
 		t.Errorf("rule = %+v, want the name and scope carried through", first)
 	}
 	if first.Show == nil || *first.Show != notify.LevelAll {

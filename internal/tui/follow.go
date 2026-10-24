@@ -87,13 +87,13 @@ func (m Model) placeLabel(place domain.Place) (label, detail string) {
 	switch place.Kind {
 	case domain.PlaceNone:
 	case domain.PlacePerson:
-		return m.mentionedName(place.User, m.openRoom, localpart(place.User)), "person"
+		return m.mentionedName(placeUser(place), m.openRoom, localpart(place.User)), "person"
 	case domain.PlaceRoom, domain.PlaceEvent:
 		kind := "room"
 		if place.Kind == domain.PlaceEvent {
 			kind = "message"
 		}
-		if room, found := m.roomByID(domain.RoomID(place.Room)); found {
+		if room, found := m.placeRoom(place); found {
 			return m.roomName(room), kind
 		}
 		return place.Room, kind + ", not joined"
@@ -106,7 +106,7 @@ func (m Model) goToPlace(place domain.Place) (Model, tea.Cmd) {
 	switch place.Kind {
 	case domain.PlaceNone:
 	case domain.PlacePerson:
-		return m.goToPerson(place.User)
+		return m.goToPerson(placeUser(place))
 	case domain.PlaceRoom:
 		return m.goToPlaceRoom(place, "")
 	case domain.PlaceEvent:
@@ -131,19 +131,38 @@ func (m Model) goToPerson(user string) (Model, tea.Cmd) {
 
 // goToPlaceRoom goes to a room, and to a message inside it when the link named one.
 func (m Model) goToPlaceRoom(place domain.Place, event domain.EventID) (Model, tea.Cmd) {
-	room, found := m.roomByID(domain.RoomID(place.Room))
+	room, found := m.placeRoom(place)
 	if !found {
 		// An alias or an unjoined room: ask before joining.
 		m.confirm = confirmState{action: pendingJoinPlace, address: place.Room, via: place.Via, event: event}
 		return m, nil
 	}
 	if event != "" {
-		m.jump.to, m.jump.why = event, "linked message"
+		// A Matrix link names the event as Matrix writes it; the room says whose view it is.
+		m.jump.to, m.jump.why = domain.TypedEventID(room.ID, string(event)), "linked message"
 	}
 	next, cmd := m.goToRoom(room.ID)
 	next.focus = paneTimeline
 	return next, cmd
 }
+
+// placeRoom is the joined room a place names: by its kith ID, or for a Matrix link by
+// its Matrix room ID, as one of our Matrix accounts sees it. An alias names no cached
+// room.
+func (m Model) placeRoom(place domain.Place) (domain.Room, bool) {
+	if room, found := m.roomByID(domain.RoomID(place.Room)); found {
+		return room, true
+	}
+	for i := range m.rooms.all {
+		if id := string(m.rooms.all[i].ID); domain.IsMatrixRoomID(id) && domain.MatrixNative(id) == place.Room {
+			return m.rooms.all[i], true
+		}
+	}
+	return domain.Room{}, false
+}
+
+// placeUser is the person a place names, in kith's form.
+func placeUser(place domain.Place) string { return domain.TypedUserID(place.User) }
 
 // joinPlace joins the linked room after confirmation. The linked event is not jumped
 // to: history arrives over sync only after the join.

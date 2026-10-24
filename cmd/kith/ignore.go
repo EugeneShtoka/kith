@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -86,7 +85,7 @@ func runIgnoreOrUnignore(args []string, verb string, do func(context.Context, ig
 	if fs.NArg() != 1 {
 		return fmt.Errorf("usage: kith %s <mxid> (e.g. @alice:example.org)", verb)
 	}
-	mxid := strings.TrimSpace(fs.Arg(0))
+	mxid := domain.TypedUserID(fs.Arg(0))
 	if !domain.IsMatrixUserID(mxid) {
 		return fmt.Errorf("%q is not a Matrix user ID (expected @name:homeserver)", mxid)
 	}

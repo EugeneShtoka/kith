@@ -125,7 +125,7 @@ func checkRefusals(t *testing.T, r *rand.Rand) {
 			// Adding sends what is due, the new one with the rest.
 			state[body] = pending
 			pass()
-			msg := domain.ScheduledMessage{RoomID: "!a:x", Body: body, At: now.Add(-time.Second), TxnID: body}
+			msg := domain.ScheduledMessage{RoomID: mx + "!a:x", Body: body, At: now.Add(-time.Second), TxnID: body}
 			msg.ID = body
 			ids[body] = msg.ID
 			if err := s.Add(msg); err != nil {

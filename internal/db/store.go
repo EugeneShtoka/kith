@@ -11,12 +11,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// HoldsRooms reports whether any joined room is cached; an empty cache has lost
-// the history the sync position assumes.
-func (c *Cache) HoldsRooms(ctx context.Context) (bool, error) {
+// HoldsRooms reports whether any of owner's joined rooms is cached; without one the
+// cache has lost the history owner's sync position assumes.
+func (c *Cache) HoldsRooms(ctx context.Context, owner domain.RoomOwner) (bool, error) {
 	var holds bool
 	err := c.db.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM rooms WHERE membership = ?)`, membershipJoin).Scan(&holds)
+		`SELECT EXISTS (SELECT 1 FROM rooms WHERE membership = ? AND substr(id, 1, ?) = ?)`,
+		membershipJoin, len(owner), string(owner)).Scan(&holds)
 	if err != nil {
 		return false, fmt.Errorf("db: holds rooms: %w", err)
 	}

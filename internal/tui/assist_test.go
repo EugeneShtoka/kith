@@ -30,7 +30,7 @@ func completing(t *testing.T, candidates ...domain.WordCandidate) (Model, *compl
 	t.Helper()
 	b := &completeBackend{candidates: candidates}
 	m := update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
@@ -279,7 +279,7 @@ func TestCompletionLookupCarriesItsScope(t *testing.T) {
 	if req.Scope != config.CompleteScopeSpace {
 		t.Errorf("scope = %q, want %q", req.Scope, config.CompleteScopeSpace)
 	}
-	if len(req.RoomIDs) != 1 || req.RoomIDs[0] != "!a:x" {
+	if len(req.RoomIDs) != 1 || req.RoomIDs[0] != mx+"!a:x" {
 		t.Errorf("rooms = %+v, want the open room", req.RoomIDs)
 	}
 	if req.Limit < domain.CompleteChoices {
@@ -341,7 +341,7 @@ func modeling(t *testing.T, result domain.ModelResult) (Model, *modelBackend) {
 	t.Helper()
 	b := &modelBackend{result: result}
 	m := update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
@@ -481,9 +481,9 @@ func TestPhraseGhostComesFromTheRoomsOwnHistory(t *testing.T) {
 	t.Parallel()
 
 	m, _ := completing(t)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@dana:x", Body: "let us go north"},
-		{ID: "$2", RoomID: "!a:x", Sender: "@dana:x", Body: "let us go north"},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "let us go north"},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "let us go north"},
 	}}})
 	m = typeInto(t, m, "let us go ")
 	if got, ok := m.ghost(); !ok || got != "north " {
@@ -496,9 +496,9 @@ func TestPhraseGhostComesFromTheRoomsOwnHistory(t *testing.T) {
 
 	// No clear leader, nothing drawn.
 	split, _ := completing(t)
-	split = update(t, split, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@dana:x", Body: "let us go north"},
-		{ID: "$2", RoomID: "!a:x", Sender: "@dana:x", Body: "let us go south"},
+	split = update(t, split, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "let us go north"},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "let us go south"},
 	}}})
 	split = typeInto(t, split, "let us go ")
 	if got, ok := split.ghost(); ok {
@@ -511,9 +511,9 @@ func TestModelOutranksTheLocalPhrase(t *testing.T) {
 	t.Parallel()
 
 	m, _ := modeling(t, domain.ModelResult{Text: "east", Model: "test-model"})
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@dana:x", Body: "let us go north"},
-		{ID: "$2", RoomID: "!a:x", Sender: "@dana:x", Body: "let us go north"},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "let us go north"},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "let us go north"},
 	}}})
 	m = typeAndAsk(t, m, "let us go ")
 	if got, ok := m.ghost(); !ok || got != "east" {
@@ -522,9 +522,9 @@ func TestModelOutranksTheLocalPhrase(t *testing.T) {
 
 	// Refused: the local index answers instead.
 	refused, _ := modeling(t, domain.ModelResult{Refusal: domain.ModelRefusedRoom})
-	refused = update(t, refused, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@dana:x", Body: "let us go north"},
-		{ID: "$2", RoomID: "!a:x", Sender: "@dana:x", Body: "let us go north"},
+	refused = update(t, refused, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "let us go north"},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "let us go north"},
 	}}})
 	refused = typeAndAsk(t, refused, "let us go ")
 	if got, ok := refused.ghost(); !ok || got != "north " {
@@ -559,7 +559,7 @@ func TestSummaryOpensAReaderAndSendsNothing(t *testing.T) {
 	if b.asked[0].Draft != "" {
 		t.Fatalf("summary carried a draft %q, want none", b.asked[0].Draft)
 	}
-	if b.asked[0].RoomID != "!a:x" {
+	if b.asked[0].RoomID != mx+"!a:x" {
 		t.Fatalf("summary asked about %q, want the open room", b.asked[0].RoomID)
 	}
 }
@@ -648,9 +648,9 @@ func TestSummaryPaintsNamesInTheRoomsColors(t *testing.T) {
 
 	m, _ := modeling(t, domain.ModelResult{})
 	m = sized(t, m)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@bar:x", SenderName: "Sam Cohen", Body: "hello"},
-		{ID: "$2", RoomID: "!a:x", Sender: "@noa:x", SenderName: "Noa Katz", Body: "hi"},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bar:x", SenderName: "Sam Cohen", Body: "hello"},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@noa:x", SenderName: "Noa Katz", Body: "hi"},
 	}}})
 
 	palette := m.roomPalette()
@@ -707,10 +707,10 @@ func TestPaletteSkipsAmbiguousGivenNames(t *testing.T) {
 
 	m, _ := modeling(t, domain.ModelResult{})
 	m = sized(t, m)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@bar1:x", SenderName: "Sam Cohen", Body: "one"},
-		{ID: "$2", RoomID: "!a:x", Sender: "@bar2:x", SenderName: "Sam Levi", Body: "two"},
-		{ID: "$3", RoomID: "!a:x", Sender: "@noa:x", SenderName: "Noa Katz", Body: "three"},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bar1:x", SenderName: "Sam Cohen", Body: "one"},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@bar2:x", SenderName: "Sam Levi", Body: "two"},
+		{ID: mx + "$3", RoomID: mx + "!a:x", Sender: "matrix:@noa:x", SenderName: "Noa Katz", Body: "three"},
 	}}})
 
 	palette := m.roomPalette()
@@ -730,8 +730,8 @@ func TestPaintDoesNotNestStyles(t *testing.T) {
 
 	m, _ := modeling(t, domain.ModelResult{})
 	m = sized(t, m)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@bar:x", SenderName: "Sam Cohen", Body: "hello"},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bar:x", SenderName: "Sam Cohen", Body: "hello"},
 	}}})
 	paint := paintNames(m.roomPalette())
 

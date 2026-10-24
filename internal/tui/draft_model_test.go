@@ -152,7 +152,7 @@ func (w *draftWorld) setTarget(room domain.RoomID, field, value string) {
 	w.targets[room][field] = value
 }
 
-var draftRooms = []domain.RoomID{"!a:x", "!b:x"}
+var draftRooms = []domain.RoomID{mx + "!a:x", mx + "!b:x"}
 
 func newDraftWorld(t *testing.T, seed uint64) *draftWorld {
 	t.Helper()
@@ -363,7 +363,7 @@ func (w *draftWorld) reply() {
 		return
 	}
 	w.serial++
-	target := domain.EventID(fmt.Sprintf("$t%d", w.serial))
+	target := domain.EventID(fmt.Sprintf(mx+"$t%d", w.serial))
 	w.note("reply to %s in %s", target, w.m.openRoom)
 	w.m.compose.replyTo = target
 	w.setTarget(w.m.openRoom, "reply", string(target))
@@ -382,9 +382,9 @@ func (w *draftWorld) edit() {
 	} else {
 		w.note("start an edit")
 		w.m.compose.editSaved = w.m.editorFor(fieldComposer).text
-		w.m.compose.editing = "$mine"
+		w.m.compose.editing = mx + "$mine"
 		w.m = w.m.store(fieldComposer, newEditor("corrected").end())
-		w.setTarget(w.m.openRoom, "edit", "$mine")
+		w.setTarget(w.m.openRoom, "edit", mx+"$mine")
 	}
 	w.update(draftTickMsg{gen: -1})
 }
@@ -418,7 +418,7 @@ func (w *draftWorld) assistantAppends(room domain.RoomID) {
 }
 
 // draftThreads are where a draft can be aimed: the main timeline and two threads.
-var draftThreads = []domain.EventID{"", "$t1", "$t2"}
+var draftThreads = []domain.EventID{"", mx + "$t1", mx + "$t2"}
 
 // moveThread takes the open room's composer and its content to the main timeline or a
 // thread, as opening and closing a thread does.
@@ -563,7 +563,7 @@ func (w *draftWorld) nextRun() {
 	w.quit, w.leaving = false, false
 	w.m, w.cmds, w.msgs = starterNew(w.store, config.Display{}), nil, nil
 	w.enqueue(w.m.loadDraftsCmd())
-	w.update(roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
+	w.update(roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 	w.m = sized(w.t, w.m) // the rooms opened the first one, as at a cold start
 	w.update(draftTickMsg{gen: -1})
 	w.rest()

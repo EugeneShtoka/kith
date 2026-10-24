@@ -60,7 +60,7 @@ func TestClientLogNeverWritesStderr(t *testing.T) {
 			log, closeLog := openLogTo(logging.Destination{
 				Target: tc.target, Identifier: "kith", File: file, Journal: &tc.journal, Level: slog.LevelDebug,
 			})
-			log.Warn("a warning", "room", "!r:x")
+			log.Warn("a warning", "room", mx+"!r:x")
 			slog.Error("through the default") // what a library logging via slog does
 			closeLog()
 		})

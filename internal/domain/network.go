@@ -2,10 +2,12 @@ package domain
 
 import "strings"
 
-// A Matrix ID stays bare ("!room:server", "@user:server", "$event"). Any other
-// network's ID carries a network prefix, which a Matrix ID (starting with a sigil)
-// never has:
+// Every ID carries its network's prefix:
 //
+//	matrix:<account>/<room>     a Matrix room as one account sees it ("!opaque:server");
+//	                            <account> is AccountKey of the account's MXID
+//	matrix:<account>/<event>    an event in it ("$opaque")
+//	matrix:@<user>:<server>     a person (never split: a localpart may hold "/")
 //	whatsapp:<account>/<chat>   a room: one chat as one account sees it
 //	whatsapp:<account>/<msg>    an event in that room
 //	whatsapp:<person>           a person, whichever account sees them
@@ -60,6 +62,12 @@ type native struct {
 
 // natives are the networks kith reaches directly, keyed by their ID prefix.
 var natives = map[string]native{
+	"matrix": {
+		protocol: ProtocolMatrix,
+		// A room ID starts with "!", an event ID with "$".
+		isRoom:    func(id string) bool { return len(id) > 1 && id[0] == '!' },
+		shortName: Localpart,
+	},
 	"whatsapp": {
 		protocol: ProtocolWhatsApp,
 		// Every chat is a JID: "…@g.us", "…@s.whatsapp.net", "…@lid", "…@newsletter".
@@ -135,8 +143,8 @@ var natives = map[string]native{
 	},
 }
 
-// prefixOf is the prefix that marks protocol's IDs, or "" for Matrix (bare) and for a
-// network kith reaches only through a bridge.
+// prefixOf is the prefix that marks protocol's IDs, or "" for a network kith reaches
+// only through a bridge.
 func prefixOf(protocol Protocol) string {
 	for prefix, n := range natives {
 		if n.protocol == protocol {
@@ -148,30 +156,27 @@ func prefixOf(protocol Protocol) string {
 
 // ID is one kith ID taken apart.
 type ID struct {
-	// Network is the network the ID belongs to; Matrix for a bare ID.
+	// Network is the network the ID belongs to; empty when no known prefix says.
 	Network Protocol
-	// Account is the account a room or event is seen through; empty for a person and
-	// for a bare Matrix ID.
+	// Account is the account a room or event is seen through; empty for a person.
 	Account string
 	// Native is the ID as the network itself writes it.
 	Native string
 }
 
-// matrixPrefix marks a Matrix ID in the form every network's IDs take:
-// "matrix:@user:server" for a person, "matrix:<account>/<native>" for a room or event.
-// Until Matrix IDs are written that way, a bare ID is Matrix's too.
+// matrixPrefix marks a Matrix ID.
 const matrixPrefix = "matrix:"
 
-// ParseID takes an ID apart. Anything without a known network prefix is Matrix's, the
-// whole string its native ID.
+// ParseID takes an ID apart. Anything without a known network prefix, a bare Matrix ID
+// included, belongs to no network: the whole string is its native ID.
 func ParseID(s string) ID {
 	if id, ok := parseMatrixID(s); ok {
 		return id
 	}
 	prefix, rest, ok := strings.Cut(s, ":")
 	n, known := natives[prefix]
-	if !ok || !known {
-		return ID{Network: ProtocolMatrix, Native: s}
+	if !ok || !known || n.protocol == ProtocolMatrix {
+		return ID{Native: s}
 	}
 	if account, id, scoped := strings.Cut(rest, accountSep); scoped {
 		return ID{Network: n.protocol, Account: account, Native: id}
@@ -182,23 +187,26 @@ func ParseID(s string) ID {
 // parseMatrixID takes apart a Matrix ID that carries matrixPrefix. A person's native ID
 // starts with "@" and is never split; anything else needs an AccountKey before the
 // separator, so a matrix: URI ("matrix:u/…", "matrix:roomid/…") never reads as an ID.
+// The prefix alone, or with an account and nothing after, is a RoomOwner's.
 func parseMatrixID(s string) (ID, bool) {
 	rest, ok := strings.CutPrefix(s, matrixPrefix)
-	if !ok {
+	switch {
+	case !ok:
 		return ID{}, false
-	}
-	if strings.HasPrefix(rest, "@") {
+	case rest == "":
+		return ID{Network: ProtocolMatrix}, true
+	case strings.HasPrefix(rest, "@"):
 		return ID{Network: ProtocolMatrix, Native: rest}, true
 	}
 	account, native, ok := strings.Cut(rest, accountSep)
-	if !ok || native == "" || !isAccountKey(account) {
+	if !ok || !isAccountKey(account) {
 		return ID{}, false
 	}
 	return ID{Network: ProtocolMatrix, Account: account, Native: native}, true
 }
 
-// MatrixNative is a Matrix ID as Matrix writes it, from kith's form with or without
-// matrixPrefix. Anything else comes back as it is.
+// MatrixNative is a Matrix ID as Matrix writes it. Anything else, a bare MXID included,
+// comes back as it is.
 func MatrixNative(s string) string {
 	if id, ok := parseMatrixID(s); ok {
 		return id.Native
@@ -206,28 +214,57 @@ func MatrixNative(s string) string {
 	return s
 }
 
-// NetworkOf is the network an ID belongs to: Matrix for a bare ID. It does not see
-// through bridges; ProtocolOf does that for a person.
+// TypedUserID is a person's ID as someone typed it: a bare MXID ("@name:server") is the
+// Matrix person; anything else is taken as written.
+func TypedUserID(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "@") && strings.Contains(s, ":") {
+		return NativePerson(ProtocolMatrix, s)
+	}
+	return s
+}
+
+// TypedEventID is an event ID as someone typed it, for a message in room: a bare Matrix
+// event ID ("$opaque") is the one room's account sees; anything else is taken as written.
+func TypedEventID(room RoomID, s string) EventID {
+	s = strings.TrimSpace(s)
+	if id := ParseID(string(room)); id.Network == ProtocolMatrix && len(s) > 1 && s[0] == '$' {
+		return EventID(NativeID(ProtocolMatrix, id.Account, s))
+	}
+	return EventID(s)
+}
+
+// IsMatrixAddress reports whether s is a room as Matrix itself writes it, an ID
+// ("!opaque:server") or an alias ("#name:server"): what a link or a typed join names,
+// before any account has it.
+func IsMatrixAddress(s string) bool {
+	return len(s) > 1 && (s[0] == '!' || s[0] == '#' && strings.Contains(s, ":"))
+}
+
+// NetworkOf is the network an ID belongs to, empty for none. It does not see through
+// bridges; ProtocolOf does that for a person.
 func NetworkOf(id string) Protocol { return ParseID(id).Network }
 
-// IsMatrixUserID reports whether s has the shape of a Matrix user ID, "@name:server".
+// IsMatrixUserID reports whether s has the shape of a Matrix user ID,
+// "matrix:@name:server".
 func IsMatrixUserID(s string) bool {
 	id := ParseID(s)
 	return id.Network == ProtocolMatrix && id.Account == "" &&
 		strings.HasPrefix(id.Native, "@") && strings.Contains(id.Native, ":")
 }
 
-// IsMatrixRoomID reports whether s has the shape of a Matrix room ID: "!opaque:server",
-// or, from room version 12 on, "!opaque" with no server at all.
+// IsMatrixRoomID reports whether s has the shape of a Matrix room ID,
+// "matrix:<account>/!opaque:server", or from room version 12 on with no server at all.
 func IsMatrixRoomID(s string) bool {
 	id := ParseID(s)
-	return id.Network == ProtocolMatrix && len(id.Native) > 1 && id.Native[0] == '!'
+	return id.Network == ProtocolMatrix && id.Account != "" && len(id.Native) > 1 && id.Native[0] == '!'
 }
 
-// IsMatrixEventID reports whether s has the shape of a Matrix event ID, "$opaque".
+// IsMatrixEventID reports whether s has the shape of a Matrix event ID,
+// "matrix:<account>/$opaque".
 func IsMatrixEventID(s string) bool {
 	id := ParseID(s)
-	return id.Network == ProtocolMatrix && len(id.Native) > 1 && id.Native[0] == '$'
+	return id.Network == ProtocolMatrix && id.Account != "" && len(id.Native) > 1 && id.Native[0] == '$'
 }
 
 // IsUserID reports whether s has the shape of a person's ID on any network.
@@ -236,50 +273,41 @@ func IsUserID(s string) bool {
 	if id.Network == ProtocolMatrix {
 		return IsMatrixUserID(s)
 	}
-	return id.Account == "" && id.Native != ""
+	return id.Network != "" && id.Account == "" && id.Native != ""
 }
 
 // IsRoomID reports whether s has the shape of a room ID on any network.
 func IsRoomID(s string) bool {
 	id := ParseID(s)
-	if id.Network == ProtocolMatrix {
-		return IsMatrixRoomID(s)
-	}
-	return id.Account != "" && natives[prefixOf(id.Network)].isRoom(id.Native)
+	return id.Network != "" && id.Account != "" && natives[prefixOf(id.Network)].isRoom(id.Native)
 }
 
 // ShortName is the readable part of a person's ID, for when they have no display name:
 // a Matrix ID's localpart, a WhatsApp phone number. Empty when the ID has none.
 func ShortName(userID string) string {
 	id := ParseID(userID)
-	if id.Network == ProtocolMatrix {
-		return Localpart(userID)
-	}
-	if id.Account != "" {
-		return "" // a room or an event, not a person
+	if id.Network == "" || id.Account != "" {
+		return "" // no network's, or a room or an event, not a person
 	}
 	return natives[prefixOf(id.Network)].shortName(id.Native)
 }
 
-// NativeID is a non-Matrix network's ID for something seen through account: a room or
-// an event. A person's ID names no account (NativePerson).
+// NativeID is a network's ID for something seen through account: a room or an event.
+// A person's ID names no account (NativePerson).
 func NativeID(network Protocol, account, native string) string {
 	return prefixOf(network) + ":" + account + accountSep + native
 }
 
-// NativePerson is a person's ID on a non-Matrix network.
+// NativePerson is a person's ID on a network.
 func NativePerson(network Protocol, native string) string {
 	return prefixOf(network) + ":" + native
 }
 
-// RoomOwner names the rooms one cache writer owns: Matrix's, or one account's. Each
-// writer reconciles only its own rooms, so one network's refresh never sweeps another's.
+// RoomOwner names the rooms one cache writer owns: one account's. Each writer
+// reconciles only its own rooms, so one account's refresh never sweeps another's.
 type RoomOwner string
 
-// MatrixRooms owns every Matrix room (all Matrix room IDs start with "!").
-const MatrixRooms RoomOwner = "!"
-
-// AccountRooms owns the rooms one account sees on a non-Matrix network.
+// AccountRooms owns the rooms one account sees on a network.
 func AccountRooms(network Protocol, account string) RoomOwner {
 	return RoomOwner(prefixOf(network) + ":" + account + accountSep)
 }
@@ -293,8 +321,8 @@ func NetworkRooms(network Protocol) RoomOwner {
 // OwnerOf is the writer a room belongs to.
 func OwnerOf(roomID RoomID) RoomOwner {
 	id := ParseID(string(roomID))
-	if id.Network == ProtocolMatrix {
-		return MatrixRooms
+	if id.Network == "" || id.Account == "" {
+		return ""
 	}
 	return AccountRooms(id.Network, id.Account)
 }

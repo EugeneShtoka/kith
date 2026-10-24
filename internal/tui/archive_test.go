@@ -20,15 +20,15 @@ import (
 func counting(t *testing.T, display config.Display) Model {
 	t.Helper()
 	m := update(t, starterNew(&bulkReader{}, display), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo"},
 	}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
 	}})
 	m = update(t, m, unreadMsg{list: []domain.Unread{
-		{RoomID: "!a:x", Notifications: 0, Highlights: 0, Messages: 3, Mentions: 1, Counted: true},
-		{RoomID: "!b:x", Notifications: 2, Highlights: 0, Messages: 2, Counted: true},
+		{RoomID: mx + "!a:x", Notifications: 0, Highlights: 0, Messages: 3, Mentions: 1, Counted: true},
+		{RoomID: mx + "!b:x", Notifications: 2, Highlights: 0, Messages: 2, Counted: true},
 	}})
 	return sized(t, m.clearStatus())
 }
@@ -47,14 +47,14 @@ func TestBadgeCountsUnreadMessagesNotNotifications(t *testing.T) {
 	t.Parallel()
 
 	m := counting(t, config.Display{})
-	badge, highlight := m.unreadBadge(roomByName(t, m, "!a:x"))
+	badge, highlight := m.unreadBadge(roomByName(t, m, mx+"!a:x"))
 	if badge != "●3" || !highlight {
 		t.Errorf("muted room badge = %q (highlight %v), want ●3 highlighted", badge, highlight)
 	}
 
 	// The notifications meaning is still available.
 	server := counting(t, config.Display{Unread: "notifications"})
-	if badge, _ := server.unreadBadge(roomByName(t, server, "!a:x")); badge != "" {
+	if badge, _ := server.unreadBadge(roomByName(t, server, mx+"!a:x")); badge != "" {
 		t.Errorf("with unread=notifications the muted room badged %q, want nothing", badge)
 	}
 }
@@ -80,8 +80,8 @@ func picking(t *testing.T, m Model, tag string, rooms ...string) Model {
 func TestArchivedRoomKeepsItsRowAndLeavesTheTotals(t *testing.T) {
 	t.Parallel()
 
-	m := picking(t, counting(t, config.Display{}), "Archived", "!a:x")
-	badge, highlight := m.unreadBadge(roomByName(t, m, "!a:x"))
+	m := picking(t, counting(t, config.Display{}), "Archived", mx+"!a:x")
+	badge, highlight := m.unreadBadge(roomByName(t, m, mx+"!a:x"))
 	if badge != "·3" || highlight {
 		t.Errorf("archived room badge = %q (highlight %v), want ·3 unhighlighted", badge, highlight)
 	}
@@ -91,7 +91,7 @@ func TestArchivedRoomKeepsItsRowAndLeavesTheTotals(t *testing.T) {
 	if n, _ := m.groupUnread(work); n != 2 {
 		t.Errorf("Work group total = %d, want 2 — the archived room's three excluded", n)
 	}
-	if rooms := m.unreadIn(m.rail.groups[indexOfGroup(m.rail.groups, unreadGroupKey)]); len(rooms) != 1 || rooms[0] != "!b:x" {
+	if rooms := m.unreadIn(m.rail.groups[indexOfGroup(m.rail.groups, unreadGroupKey)]); len(rooms) != 1 || rooms[0] != mx+"!b:x" {
 		t.Errorf("Unread group = %v, want just the unarchived room", rooms)
 	}
 }
@@ -100,14 +100,14 @@ func TestArchivedRoomKeepsItsRowAndLeavesTheTotals(t *testing.T) {
 // space and their rows show unread.
 func TestMarkingASpaceReadReadsItsArchivedRooms(t *testing.T) {
 	t.Parallel()
-	m := picking(t, counting(t, config.Display{}), "Archived", "!a:x")
+	m := picking(t, counting(t, config.Display{}), "Archived", mx+"!a:x")
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}, Bridge: domain.ProtocolTelegram},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}, Bridge: domain.ProtocolTelegram},
 	}})
-	m.unread["!b:x"] = domain.Unread{RoomID: "!b:x"}
+	m.unread[mx+"!b:x"] = domain.Unread{RoomID: mx + "!b:x"}
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
 	m, _ = m.askMarkGroupRead()
-	if m.confirm.action != pendingMarkGroupRead || !slices.Equal(m.confirm.rooms, []domain.RoomID{"!a:x"}) {
+	if m.confirm.action != pendingMarkGroupRead || !slices.Equal(m.confirm.rooms, []domain.RoomID{mx + "!a:x"}) {
 		t.Errorf("confirm = %+v, status %q; want to mark the archived room read", m.confirm, m.status())
 	}
 }
@@ -119,21 +119,21 @@ func TestTagCommandTogglesAndReportsWhichWay(t *testing.T) {
 	m := counting(t, config.Display{})
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
-	m, _ = m.selectRoom(roomByName(t, m, "!a:x"))
+	m, _ = m.selectRoom(roomByName(t, m, mx+"!a:x"))
 
-	m, _ = m.toggleTag("archived", roomByName(t, m, "!a:x"))
-	if got := m.conf.base.Tags[tagIndex(t, m, "Archived")].Picked; len(got) != 1 || got[0] != "!a:x" {
+	m, _ = m.toggleTag("archived", roomByName(t, m, mx+"!a:x"))
+	if got := m.conf.base.Tags[tagIndex(t, m, "Archived")].Picked; len(got) != 1 || got[0] != mx+"!a:x" {
 		t.Fatalf("after /tag Archived the tag picks %v, want the room's ID", got)
 	}
 	if !strings.Contains(m.status(), "Alpha is in Archived") {
 		t.Errorf("status = %q, want it to say the room went in", m.status())
 	}
 	// Archived is exclusive, so the room left All and the selection moved to its neighbor.
-	if m.openRoom == "!a:x" {
+	if m.openRoom == mx+"!a:x" {
 		t.Fatal("the open room is one the list no longer holds")
 	}
 
-	m, _ = m.toggleTag("Archived", roomByName(t, m, "!a:x"))
+	m, _ = m.toggleTag("Archived", roomByName(t, m, mx+"!a:x"))
 	if got := m.conf.base.Tags[tagIndex(t, m, "Archived")]; len(got.Picked) != 0 || len(got.Excluded) != 0 {
 		t.Errorf("after /tag Archived again the tag is %+v, want it to say nothing about the room", got)
 	}
@@ -141,8 +141,8 @@ func TestTagCommandTogglesAndReportsWhichWay(t *testing.T) {
 		t.Errorf("status = %q, want it to say the room came out", m.status())
 	}
 	// A name no tag has makes the tag, with the room in it.
-	m, _ = m.toggleTag("Later", roomByName(t, m, "!a:x"))
-	if got := m.conf.base.Tags[tagIndex(t, m, "Later")].Picked; len(got) != 1 || got[0] != "!a:x" {
+	m, _ = m.toggleTag("Later", roomByName(t, m, mx+"!a:x"))
+	if got := m.conf.base.Tags[tagIndex(t, m, "Later")].Picked; len(got) != 1 || got[0] != mx+"!a:x" {
 		t.Errorf("after /tag Later the new tag picks %v, want the room's ID", got)
 	}
 	if !strings.Contains(m.status(), "Alpha is in Later") {
@@ -170,12 +170,12 @@ func TestTakingARoomOutOfARuleExcludesOnlyIt(t *testing.T) {
 	cfg.Tags = append(cfg.Tags, config.Tag{Name: "Job", Rule: []string{"space:Work"}})
 	m, _ = m.applyConfig(cfg, "")
 
-	m, _ = m.toggleTag("Job", roomByName(t, m, "!a:x"))
+	m, _ = m.toggleTag("Job", roomByName(t, m, mx+"!a:x"))
 	job := m.conf.base.Tags[tagIndex(t, m, "Job")]
-	if len(job.Rule) != 1 || len(job.Excluded) != 1 || job.Excluded[0] != "!a:x" {
+	if len(job.Rule) != 1 || len(job.Excluded) != 1 || job.Excluded[0] != mx+"!a:x" {
 		t.Errorf("Job = %+v, want its rule kept and Alpha excluded", job)
 	}
-	if got := roomsIn(t, m, "tag:Job"); len(got) != 1 || got[0] != "!b:x" {
+	if got := roomsIn(t, m, "tag:Job"); len(got) != 1 || got[0] != mx+"!b:x" {
 		t.Errorf("Job holds %v, want Bravo alone", got)
 	}
 }
@@ -184,12 +184,12 @@ func TestTakingARoomOutOfARuleExcludesOnlyIt(t *testing.T) {
 func spaced(t *testing.T, display config.Display) Model {
 	t.Helper()
 	m := update(t, starterNew(&bulkReader{}, display), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo"},
 	}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!wa:x", Name: "WhatsApp UK", Children: []domain.RoomID{"!a:x", "!b:x"}},
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
+		{ID: mx + "!wa:x", Name: "WhatsApp UK", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
 	}})
 	return sized(t, m.clearStatus())
 }
@@ -224,20 +224,20 @@ func roomsIn(t *testing.T, m Model, key string) []domain.RoomID {
 func TestArchivedRoomLeavesEverythingButItsOwnSpace(t *testing.T) {
 	t.Parallel()
 
-	m := picking(t, spaced(t, config.Display{}), "Archived", "!a:x")
+	m := picking(t, spaced(t, config.Display{}), "Archived", mx+"!a:x")
 	// The canonical parent: the space the bridge created the portal in.
-	m = update(t, m, parentsMsg{parents: map[domain.RoomID]domain.SpaceID{"!a:x": "!wa:x"}})
+	m = update(t, m, parentsMsg{parents: map[domain.RoomID]domain.SpaceID{mx + "!a:x": mx + "!wa:x"}})
 
-	if got := roomsIn(t, m, "Work"); len(got) != 1 || got[0] != "!b:x" {
+	if got := roomsIn(t, m, "Work"); len(got) != 1 || got[0] != mx+"!b:x" {
 		t.Errorf("Work = %v, want only the unarchived room — it was filed there, not born there", got)
 	}
 	if got := roomsIn(t, m, "WhatsApp UK"); len(got) != 2 {
 		t.Errorf("WhatsApp UK = %v, want both rooms — this is where the archived one lives", got)
 	}
-	if got := roomsIn(t, m, homeGroupKey); len(got) != 1 || got[0] != "!b:x" {
+	if got := roomsIn(t, m, homeGroupKey); len(got) != 1 || got[0] != mx+"!b:x" {
 		t.Errorf("All = %v, want the archived room gone from it too", got)
 	}
-	if got := roomsIn(t, m, archivedGroupKey); len(got) != 1 || got[0] != "!a:x" {
+	if got := roomsIn(t, m, archivedGroupKey); len(got) != 1 || got[0] != mx+"!a:x" {
 		t.Errorf("Archived = %v, want the archived room", got)
 	}
 }
@@ -247,13 +247,13 @@ func TestArchivedRoomLeavesEverythingButItsOwnSpace(t *testing.T) {
 func TestArchivedRoomWithNoKnownParentIsOnlyInTheArchivedGroup(t *testing.T) {
 	t.Parallel()
 
-	m := picking(t, spaced(t, config.Display{}), "Archived", "!a:x")
+	m := picking(t, spaced(t, config.Display{}), "Archived", mx+"!a:x")
 	for _, key := range []string{homeGroupKey, "Work", "WhatsApp UK"} {
-		if got := roomsIn(t, m, key); len(got) != 1 || got[0] != "!b:x" {
+		if got := roomsIn(t, m, key); len(got) != 1 || got[0] != mx+"!b:x" {
 			t.Errorf("%s = %v, want only the unarchived room", key, got)
 		}
 	}
-	if got := roomsIn(t, m, archivedGroupKey); len(got) != 1 || got[0] != "!a:x" {
+	if got := roomsIn(t, m, archivedGroupKey); len(got) != 1 || got[0] != mx+"!a:x" {
 		t.Errorf("Archived = %v, want the archived room", got)
 	}
 }
@@ -266,7 +266,7 @@ func TestArchivedGroupExistsOnlyWhileSomethingIsArchived(t *testing.T) {
 	if hasGroup(quiet.rail.groups, archivedGroupKey) {
 		t.Errorf("rail = %v, want no archived group with nothing archived", groupKeys(quiet.rail.groups))
 	}
-	m, _ := quiet.toggleTag("Archived", roomByName(t, quiet, "!a:x"))
+	m, _ := quiet.toggleTag("Archived", roomByName(t, quiet, mx+"!a:x"))
 	if !hasGroup(m.rail.groups, archivedGroupKey) {
 		t.Errorf("rail = %v, want an archived group after archiving", groupKeys(m.rail.groups))
 	}
@@ -298,12 +298,12 @@ func (p *parentAsker) askedRooms() []domain.RoomID {
 func TestParentsAreResolvedOnlyForArchivedRooms(t *testing.T) {
 	t.Parallel()
 
-	asker := &parentAsker{answer: map[domain.RoomID]domain.SpaceID{"!a:x": "!wa:x"}}
-	m := picking(t, starterNew(asker, config.Display{}), "Archived", "!a:x")
-	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
+	asker := &parentAsker{answer: map[domain.RoomID]domain.SpaceID{mx + "!a:x": mx + "!wa:x"}}
+	m := picking(t, starterNew(asker, config.Display{}), "Archived", mx+"!a:x")
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!wa:x", Name: "WhatsApp UK", Children: []domain.RoomID{"!a:x", "!b:x"}},
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
+		{ID: mx + "!wa:x", Name: "WhatsApp UK", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
 	}})
 	m = sized(t, m)
 
@@ -314,10 +314,10 @@ func TestParentsAreResolvedOnlyForArchivedRooms(t *testing.T) {
 	}
 	m = update(t, m, cmd())
 
-	if got := asker.askedRooms(); len(got) != 1 || got[0] != "!a:x" {
+	if got := asker.askedRooms(); len(got) != 1 || got[0] != mx+"!a:x" {
 		t.Errorf("asked about %v, want only the archived room", got)
 	}
-	if m.parents["!a:x"] != "!wa:x" {
+	if m.parents[mx+"!a:x"] != mx+"!wa:x" {
 		t.Errorf("parents = %v, want the resolved space", m.parents)
 	}
 	if got := roomsIn(t, m, "WhatsApp UK"); len(got) != 2 {
@@ -344,13 +344,13 @@ func TestOnlyOneOfSpacesAndOriginAsksForTheHome(t *testing.T) {
 		{[]string{"origin"}, true},
 		{[]string{"spaces", "origin"}, false},
 	} {
-		asker := &parentAsker{answer: map[domain.RoomID]domain.SpaceID{"!a:x": "!w:x"}}
-		cfg := config.Config{Tags: []config.Tag{{Name: "Out", Picked: []string{"!a:x"}, Exclusive: tc.exclusive}}}
+		asker := &parentAsker{answer: map[domain.RoomID]domain.SpaceID{mx + "!a:x": mx + "!w:x"}}
+		cfg := config.Config{Tags: []config.Tag{{Name: "Out", Picked: []string{mx + "!a:x"}, Exclusive: tc.exclusive}}}
 		m := New(context.Background(), asker, cfg.Display).WithConfigFile("", cfg)
-		m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
+		m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 		m = update(t, m, spacesMsg{spaces: []domain.Space{
-			{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
-			{ID: "!f:x", Name: "Filed", Children: []domain.RoomID{"!a:x"}},
+			{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
+			{ID: mx + "!f:x", Name: "Filed", Children: []domain.RoomID{mx + "!a:x"}},
 		}})
 		cmd := m.resolveParentsCmd()
 		if (cmd != nil) != tc.asks {
@@ -362,10 +362,10 @@ func TestOnlyOneOfSpacesAndOriginAsksForTheHome(t *testing.T) {
 		}
 		m = update(t, m, cmd())
 		origin := !slices.Contains(tc.exclusive, "origin")
-		if got := slices.Contains(roomsIn(t, m, "Work"), "!a:x"); got != origin {
+		if got := slices.Contains(roomsIn(t, m, "Work"), mx+"!a:x"); got != origin {
 			t.Errorf("exclusive %v: its home Work holds it = %t, want %t", tc.exclusive, got, origin)
 		}
-		if got := slices.Contains(roomsIn(t, m, "Filed"), "!a:x"); got == origin {
+		if got := slices.Contains(roomsIn(t, m, "Filed"), mx+"!a:x"); got == origin {
 			t.Errorf("exclusive %v: Filed holds it = %t, want %t", tc.exclusive, got, !origin)
 		}
 	}
@@ -377,14 +377,14 @@ func TestPinnedGroupIsAdditive(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
-	m = picking(t, m, "Pinned", "!a:x")
+	m = picking(t, m, "Pinned", mx+"!a:x")
 
-	if got := roomsIn(t, m, pinnedGroupKey); len(got) != 1 || got[0] != "!a:x" {
+	if got := roomsIn(t, m, pinnedGroupKey); len(got) != 1 || got[0] != mx+"!a:x" {
 		t.Errorf("Pinned = %v, want the pinned room", got)
 	}
-	if got := roomsIn(t, m, "Work"); len(got) != 1 || got[0] != "!a:x" {
+	if got := roomsIn(t, m, "Work"); len(got) != 1 || got[0] != mx+"!a:x" {
 		t.Error("pinning took the room out of its own space; it is a hand-raise, not a move")
 	}
 }
@@ -400,13 +400,13 @@ func TestATagIsNarrowerThanGlobalSilence(t *testing.T) {
 		// Pinned conversations still reach you.
 		{Name: "pinned", Match: "tag:Pinned", Show: &all},
 	}
-	pinned := setup.Place{Room: domain.RoomFacts{ID: "!a:x", Tags: []string{"Pinned"}}}
+	pinned := setup.Place{Room: domain.RoomFacts{ID: mx + "!a:x", Tags: []string{"Pinned"}}}
 	got := notify.Resolve(rules, notify.Scope{Room: pinned}, time.Now())
 	if got.Show != notify.LevelAll {
 		t.Errorf("a pinned room was silenced by a global DND; the rule naming it is narrower")
 	}
 	// An unpinned room stays silent.
-	plain := setup.Place{Room: domain.RoomFacts{ID: "!b:x"}}
+	plain := setup.Place{Room: domain.RoomFacts{ID: mx + "!b:x"}}
 	quiet := notify.Resolve(rules, notify.Scope{Room: plain}, time.Now())
 	if quiet.Show != notify.LevelNone {
 		t.Error("an unpinned room got through the silence too")

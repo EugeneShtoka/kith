@@ -56,7 +56,7 @@ func TestRescanPreviewsThenMovesTheTickedRooms(t *testing.T) {
 			Sample:  domain.Message{RoomID: room, Body: body},
 		}
 	}
-	b := &rescanBackend{found: []domain.MoveCandidate{candidate("!a:x", "go vote"), candidate("!b:x", "vote today")}}
+	b := &rescanBackend{found: []domain.MoveCandidate{candidate(mx+"!a:x", "go vote"), candidate(mx+"!b:x", "vote today")}}
 	m := New(context.Background(), b, config.Display{}).WithConfigFile("", config.Config{})
 
 	m, cmd := m.runCommandLine(":rescan 30d")
@@ -79,7 +79,7 @@ func TestRescanPreviewsThenMovesTheTickedRooms(t *testing.T) {
 	}
 	m = update(t, m, cmd())
 	last := b.calls[len(b.calls)-1]
-	if !last.apply || !slices.Equal(last.rooms, []domain.RoomID{"!b:x"}) || !last.since.Equal(since) {
+	if !last.apply || !slices.Equal(last.rooms, []domain.RoomID{mx + "!b:x"}) || !last.since.Equal(since) {
 		t.Errorf("apply call = %+v, want the still-ticked room since the preview's start", last)
 	}
 	if m.picker.kind != pickerNone {
@@ -126,12 +126,12 @@ func TestRescanListsPeopleBesideRooms(t *testing.T) {
 	t.Parallel()
 	b := &peopleRescanBackend{
 		rescanBackend: rescanBackend{found: []domain.MoveCandidate{{
-			Verdict: domain.TagVerdict{Room: "!a:x", Tag: "Spam", Rule: domain.MoveAlways, Filter: "elections"},
-			Sample:  domain.Message{RoomID: "!a:x", Body: "go vote"},
+			Verdict: domain.TagVerdict{Room: mx + "!a:x", Tag: "Spam", Rule: domain.MoveAlways, Filter: "elections"},
+			Sample:  domain.Message{RoomID: mx + "!a:x", Body: "go vote"},
 		}}},
 		people: []domain.PersonCandidate{{
-			Verdict: domain.PersonVerdict{Person: "@spam:x", Tag: "Spam", Rule: domain.MoveSenderSpread, Filter: "runs"},
-			Sample:  domain.Message{RoomID: "!b:x", Body: "free bitcoin"},
+			Verdict: domain.PersonVerdict{Person: "matrix:@spam:x", Tag: "Spam", Rule: domain.MoveSenderSpread, Filter: "runs"},
+			Sample:  domain.Message{RoomID: mx + "!b:x", Body: "free bitcoin"},
 		}},
 	}
 	m := New(context.Background(), b, config.Display{}).WithConfigFile("", config.Config{})
@@ -144,7 +144,7 @@ func TestRescanListsPeopleBesideRooms(t *testing.T) {
 	m.picker.checked = map[string]bool{markValue(b.people[0].Verdict): true}
 	m, cmd = m.acceptPick()
 	m = update(t, m, cmd())
-	if !slices.Equal(b.marked, []string{"@spam:x"}) {
+	if !slices.Equal(b.marked, []string{"matrix:@spam:x"}) {
 		t.Errorf("marked %v, want the ticked person", b.marked)
 	}
 	for _, call := range b.calls {

@@ -35,7 +35,7 @@ func TestAListingNamesTheNumbersItShows(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A bridge's name for Dana yields to the name saved in Telegram's contacts.
-	if err := cache.SaveMembers(t.Context(), "!dm:x", []domain.Member{{UserID: "@whatsapp_15550100001:x", DisplayName: "Dana Bridged (WA)"}}); err != nil {
+	if err := cache.SaveMembers(t.Context(), "matrix:0123456789abcdef/!dm:x", []domain.Member{{UserID: "matrix:@whatsapp_15550100001:x", DisplayName: "Dana Bridged (WA)"}}); err != nil {
 		t.Fatal(err)
 	}
 	// book is the directory's names for the numbers 15550100001-9.

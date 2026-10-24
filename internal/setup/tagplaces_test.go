@@ -45,7 +45,7 @@ func TestPlacesCarryTagsAndPriority(t *testing.T) {
 	if !slices.Equal(places.Order.Priority, []string{"tag:Family", "space:Work"}) || !slices.Equal(places.Order.Tags, []string{"family"}) {
 		t.Errorf("home order = %+v, want [display] priority and the tags", places.Order)
 	}
-	if facts := places.Facts(domain.Room{ID: "!mom:x", IsDirect: true}, nil); !facts.Names("tag:Family") {
+	if facts := places.Facts(domain.Room{ID: mx + "!mom:x", IsDirect: true}, nil); !facts.Names("tag:Family") {
 		t.Error("a scope's facts do not know the room's tags")
 	}
 }
@@ -58,9 +58,9 @@ func TestTheHomeOrderIsTheSameBuiltInEitherStep(t *testing.T) {
 	cfg.Display.Rail.Order = []string{"tag:Family", "-", "place:Desk", "*"}
 	cfg.Display.Names = []config.DisplayName{{Target: "space:Work", Name: "Desk"}}
 	spaces := []domain.Space{
-		{ID: "!w:x", Name: "Work"},
-		{ID: "!tip:x", Name: "Acme", Original: true},
-		{ID: "!wa:x", Name: "WhatsApp Home", Bridge: domain.ProtocolWhatsApp},
+		{ID: mx + "!w:x", Name: "Work"},
+		{ID: mx + "!tip:x", Name: "Acme", Original: true},
+		{ID: mx + "!wa:x", Name: "WhatsApp Home", Bridge: domain.ProtocolWhatsApp},
 	}
 	tags, _, err := Tags(cfg)
 	if err != nil {

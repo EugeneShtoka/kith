@@ -9,17 +9,17 @@ func TestSenderSlotsRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	c := openTemp(t)
 
-	if got, err := c.SenderSlots(ctx, "!a:x"); err != nil || len(got) != 0 {
+	if got, err := c.SenderSlots(ctx, mx+"!a:x"); err != nil || len(got) != 0 {
 		t.Fatalf("a room nobody colored = %v, %v; want empty", got, err)
 	}
-	if err := c.SaveSenderSlots(ctx, "!a:x", map[string]int{"@bob:x": 0, "@carol:x": 1}); err != nil {
+	if err := c.SaveSenderSlots(ctx, mx+"!a:x", map[string]int{"matrix:@bob:x": 0, "matrix:@carol:x": 1}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := c.SenderSlots(ctx, "!a:x")
+	got, err := c.SenderSlots(ctx, mx+"!a:x")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got["@bob:x"] != 0 || got["@carol:x"] != 1 || len(got) != 2 {
+	if got["matrix:@bob:x"] != 0 || got["matrix:@carol:x"] != 1 || len(got) != 2 {
 		t.Errorf("slots = %v, want bob 0 and carol 1", got)
 	}
 }
@@ -29,22 +29,22 @@ func TestSenderSlotsDoNotMove(t *testing.T) {
 	ctx := context.Background()
 	c := openTemp(t)
 
-	if err := c.SaveSenderSlots(ctx, "!a:x", map[string]int{"@bob:x": 3}); err != nil {
+	if err := c.SaveSenderSlots(ctx, mx+"!a:x", map[string]int{"matrix:@bob:x": 3}); err != nil {
 		t.Fatal(err)
 	}
 	// A second client, having seen fewer people, gives Bob the first color.
-	if err := c.SaveSenderSlots(ctx, "!a:x", map[string]int{"@bob:x": 0, "@dave:x": 1}); err != nil {
+	if err := c.SaveSenderSlots(ctx, mx+"!a:x", map[string]int{"matrix:@bob:x": 0, "matrix:@dave:x": 1}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := c.SenderSlots(ctx, "!a:x")
+	got, err := c.SenderSlots(ctx, mx+"!a:x")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got["@bob:x"] != 3 {
-		t.Errorf("bob moved to slot %d; a hue once given is never taken back", got["@bob:x"])
+	if got["matrix:@bob:x"] != 3 {
+		t.Errorf("bob moved to slot %d; a hue once given is never taken back", got["matrix:@bob:x"])
 	}
-	if got["@dave:x"] != 1 {
-		t.Errorf("dave = %d, want the new slot 1 to be recorded", got["@dave:x"])
+	if got["matrix:@dave:x"] != 1 {
+		t.Errorf("dave = %d, want the new slot 1 to be recorded", got["matrix:@dave:x"])
 	}
 }
 
@@ -53,10 +53,10 @@ func TestSenderSlotsAreScopedToTheRoom(t *testing.T) {
 	ctx := context.Background()
 	c := openTemp(t)
 
-	if err := c.SaveSenderSlots(ctx, "!a:x", map[string]int{"@bob:x": 0}); err != nil {
+	if err := c.SaveSenderSlots(ctx, mx+"!a:x", map[string]int{"matrix:@bob:x": 0}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := c.SenderSlots(ctx, "!b:x")
+	got, err := c.SenderSlots(ctx, mx+"!b:x")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	sealedRoom = domain.RoomID("!sealed:x")
-	openRoom   = domain.RoomID("!open:x")
+	sealedRoom = domain.RoomID(mx + "!sealed:x")
+	openRoom   = domain.RoomID(mx + "!open:x")
 )
 
 // wire records what reached the homeserver: each send's event type and each upload.
@@ -48,7 +48,7 @@ func sealedServer(t *testing.T) (*httptest.Server, *wire) {
 		path := r.URL.Path
 		switch {
 		case strings.Contains(path, "/state/m.room.encryption"):
-			if strings.Contains(path, string(sealedRoom)) {
+			if strings.Contains(path, matrixString(testIDs.nativeRoom(sealedRoom))) {
 				_, _ = rw.Write([]byte(`{"algorithm":"m.megolm.v1.aes-sha2"}`))
 				return
 			}
@@ -98,10 +98,10 @@ func (fakeCrypto) Init(context.Context) error { return nil }
 func withSealedStore(b *InProc) {
 	store := mautrix.NewMemoryStateStore()
 	// The memory store cannot fail.
-	_ = store.SetEncryptionEvent(context.Background(), id.RoomID(sealedRoom),
+	_ = store.SetEncryptionEvent(context.Background(), testIDs.nativeRoom(sealedRoom),
 		&event.EncryptionEventContent{Algorithm: id.AlgorithmMegolmV1})
 	for _, room := range []domain.RoomID{sealedRoom, openRoom} {
-		_ = store.SetPowerLevels(context.Background(), id.RoomID(room), &event.PowerLevelsEventContent{})
+		_ = store.SetPowerLevels(context.Background(), testIDs.nativeRoom(room), &event.PowerLevelsEventContent{})
 	}
 	b.client.StateStore = store
 }
@@ -232,7 +232,7 @@ func TestReactionsAreSealedInEncryptedRooms(t *testing.T) {
 				b.wireCrypto(fakeCrypto{})
 			}
 
-			err := b.SendReaction(context.Background(), c.room, "$target:x", "👍")
+			err := b.SendReaction(context.Background(), c.room, mx+"$target:x", "👍")
 			sent, _ := w.snapshot()
 			if c.refused {
 				if !errors.Is(err, api.ErrNoEncryption) {

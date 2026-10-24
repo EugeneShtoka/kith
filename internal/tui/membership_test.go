@@ -89,8 +89,8 @@ func TestInvitesGetTheirOwnGroup(t *testing.T) {
 	t.Parallel()
 
 	m := withInvites(t, sized(t, withRooms(t, newModel())),
-		invited("!i1:x", "Design Review", "@alice:x"),
-		invited("!i2:x", "Standup", "@bob:x"))
+		invited(mx+"!i1:x", "Design Review", "matrix:@alice:x"),
+		invited(mx+"!i2:x", "Standup", "matrix:@bob:x"))
 
 	if m.rail.groups[0].key != inviteGroupKey {
 		t.Fatalf("groups = %v, want invites first", groupKeys(m.rail.groups))
@@ -131,18 +131,18 @@ func TestInvitesGetTheirOwnGroup(t *testing.T) {
 func TestRefreshAndInvitesDoNotClobberEachOther(t *testing.T) {
 	t.Parallel()
 
-	m := withInvites(t, sized(t, withRooms(t, newModel())), invited("!i1:x", "Invited", "@alice:x"))
+	m := withInvites(t, sized(t, withRooms(t, newModel())), invited(mx+"!i1:x", "Invited", "matrix:@alice:x"))
 	if len(m.rooms.all) != 3 {
 		t.Fatalf("rooms = %d, want 2 joined + 1 invitation", len(m.rooms.all))
 	}
 
 	// A room-list refresh arrives (joined rooms only).
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo", IsDirect: true},
-		{ID: "!c:x", Name: "Charlie"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo", IsDirect: true},
+		{ID: mx + "!c:x", Name: "Charlie"},
 	}})
-	if _, ok := roomByIDIn(m.rooms.all, "!i1:x"); !ok {
+	if _, ok := roomByIDIn(m.rooms.all, mx+"!i1:x"); !ok {
 		t.Error("a room refresh dropped the invitation")
 	}
 	if len(m.rooms.all) != 4 {
@@ -150,11 +150,11 @@ func TestRefreshAndInvitesDoNotClobberEachOther(t *testing.T) {
 	}
 
 	// And a revised invitation set keeps the joined rooms.
-	m = withInvites(t, m, invited("!i2:x", "Another", "@bob:x"))
-	if _, ok := roomByIDIn(m.rooms.all, "!c:x"); !ok {
+	m = withInvites(t, m, invited(mx+"!i2:x", "Another", "matrix:@bob:x"))
+	if _, ok := roomByIDIn(m.rooms.all, mx+"!c:x"); !ok {
 		t.Error("an invitation update dropped a joined room")
 	}
-	if _, ok := roomByIDIn(m.rooms.all, "!i1:x"); ok {
+	if _, ok := roomByIDIn(m.rooms.all, mx+"!i1:x"); ok {
 		t.Error("the answered invitation should be gone — the set is authoritative")
 	}
 }
@@ -165,8 +165,8 @@ func TestAcceptInviteJoins(t *testing.T) {
 
 	b := &membershipBackend{}
 	m := withInvites(t, sized(t, update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})),
-		invited("!i1:x", "Design Review", "@alice:x"))
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})),
+		invited(mx+"!i1:x", "Design Review", "matrix:@alice:x"))
 	m = onInvite(t, m)
 
 	m, cmd := press(t, m, keyText("y"))
@@ -174,7 +174,7 @@ func TestAcceptInviteJoins(t *testing.T) {
 		t.Fatal("accept produced no command")
 	}
 	runCmd(t, cmd)
-	if len(b.joined) != 1 || b.joined[0] != "!i1:x" {
+	if len(b.joined) != 1 || b.joined[0] != mx+"!i1:x" {
 		t.Errorf("JoinRoom calls = %v, want [!i1:x]", b.joined)
 	}
 	if m.confirm.active() {
@@ -188,8 +188,8 @@ func TestRejectInviteConfirmsFirst(t *testing.T) {
 
 	b := &membershipBackend{}
 	base := withInvites(t, sized(t, update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})),
-		invited("!i1:x", "Design Review", "@alice:x"))
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})),
+		invited(mx+"!i1:x", "Design Review", "matrix:@alice:x"))
 
 	// Declining the question does nothing.
 	m := onInvite(t, base)
@@ -219,7 +219,7 @@ func TestRejectInviteConfirmsFirst(t *testing.T) {
 		t.Fatal("answering yes produced no command")
 	}
 	runCmd(t, cmd)
-	if len(b.left) != 1 || b.left[0] != "!i1:x" {
+	if len(b.left) != 1 || b.left[0] != mx+"!i1:x" {
 		t.Errorf("LeaveRoom calls = %v, want [!i1:x]", b.left)
 	}
 }
@@ -230,8 +230,8 @@ func TestLeaveConfirmsAndOnlyAppliesToJoinedRooms(t *testing.T) {
 
 	b := &membershipBackend{}
 	m := withInvites(t, sized(t, update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})),
-		invited("!i1:x", "Invited", "@alice:x"))
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})),
+		invited(mx+"!i1:x", "Invited", "matrix:@alice:x"))
 
 	// On an invitation, leave is inert; reject fits.
 	inv := onInvite(t, m)
@@ -262,7 +262,7 @@ func TestLeaveConfirmsAndOnlyAppliesToJoinedRooms(t *testing.T) {
 		t.Fatal("answering yes produced no command")
 	}
 	runCmd(t, cmd)
-	if len(b.left) != 1 || b.left[0] != "!a:x" {
+	if len(b.left) != 1 || b.left[0] != mx+"!a:x" {
 		t.Errorf("LeaveRoom calls = %v, want [!a:x]", b.left)
 	}
 }
@@ -272,7 +272,7 @@ func TestConfirmCapturesKeys(t *testing.T) {
 	t.Parallel()
 
 	m := onInvite(t, withInvites(t, sized(t, withRooms(t, newModel())),
-		invited("!i1:x", "Invited", "@alice:x")))
+		invited(mx+"!i1:x", "Invited", "matrix:@alice:x")))
 	m, _ = press(t, m, keyText("d"))
 	before := m.rail.cursor
 
@@ -298,7 +298,7 @@ func TestJoinPrompt(t *testing.T) {
 
 	b := &membershipBackend{}
 	m := sized(t, update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}}))
 	m.focus = paneRooms
 
 	m, _ = press(t, m, keyCode('J'))
@@ -345,7 +345,7 @@ func TestSelectingInviteFetchesNothing(t *testing.T) {
 	t.Parallel()
 
 	m := onInvite(t, withInvites(t, sized(t, withRooms(t, newModel())),
-		invited("!i1:x", "Invited", "@alice:x")))
+		invited(mx+"!i1:x", "Invited", "matrix:@alice:x")))
 	if m.timeline.hist.loading {
 		t.Error("selecting an invitation should not start a history fetch")
 	}
@@ -364,9 +364,9 @@ func TestInviteDecisionPane(t *testing.T) {
 	t.Parallel()
 
 	m := onInvite(t, withInvites(t, sized(t, withRooms(t, newModel())),
-		invited("!i1:x", "Design Review", "@alice:x")))
+		invited(mx+"!i1:x", "Design Review", "matrix:@alice:x")))
 	body := stripStyles(m.View().Content)
-	for _, want := range []string{"invited to", "Design Review", "@alice:x", "accept", "reject"} {
+	for _, want := range []string{"invited to", "Design Review", "matrix:@alice:x", "accept", "reject"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the decision pane should mention %q", want)
 		}
@@ -377,9 +377,9 @@ func TestInviteDecisionPane(t *testing.T) {
 func TestLeftDropsRoomImmediately(t *testing.T) {
 	t.Parallel()
 
-	m := withInvites(t, sized(t, withRooms(t, newModel())), invited("!i1:x", "Invited", "@alice:x"))
-	m = update(t, m, leftMsg{roomID: "!i1:x"})
-	if _, ok := roomByIDIn(m.rooms.all, "!i1:x"); ok {
+	m := withInvites(t, sized(t, withRooms(t, newModel())), invited(mx+"!i1:x", "Invited", "matrix:@alice:x"))
+	m = update(t, m, leftMsg{roomID: mx + "!i1:x"})
+	if _, ok := roomByIDIn(m.rooms.all, mx+"!i1:x"); ok {
 		t.Error("the left room should be gone from the list")
 	}
 	for _, g := range m.rail.groups {
@@ -388,8 +388,8 @@ func TestLeftDropsRoomImmediately(t *testing.T) {
 		}
 	}
 
-	m2 := update(t, sized(t, withRooms(t, newModel())), leftMsg{roomID: "!a:x"})
-	if _, ok := roomByIDIn(m2.rooms.joined, "!a:x"); ok {
+	m2 := update(t, sized(t, withRooms(t, newModel())), leftMsg{roomID: mx + "!a:x"})
+	if _, ok := roomByIDIn(m2.rooms.joined, mx+"!a:x"); ok {
 		t.Error("the left joined room should be gone")
 	}
 }
@@ -403,12 +403,12 @@ func TestMembershipFailuresSurface(t *testing.T) {
 	if !strings.Contains(m.status(), "join failed") {
 		t.Errorf("status = %q, want a join failure", m.status())
 	}
-	m = update(t, m, leftMsg{roomID: "!a:x", err: errTest})
+	m = update(t, m, leftMsg{roomID: mx + "!a:x", err: errTest})
 	if !strings.Contains(m.status(), "leave failed") {
 		t.Errorf("status = %q, want a leave failure", m.status())
 	}
 	// A room that failed to leave stays in the list.
-	if _, ok := roomByIDIn(m.rooms.all, "!a:x"); !ok {
+	if _, ok := roomByIDIn(m.rooms.all, mx+"!a:x"); !ok {
 		t.Error("a failed leave should not remove the room")
 	}
 }
@@ -418,9 +418,9 @@ func TestMembershipFailuresSurface(t *testing.T) {
 func TestInvitesGroupPlacement(t *testing.T) {
 	t.Parallel()
 
-	spaces := []domain.Space{{ID: "!w:x", Name: "Work"}}
+	spaces := []domain.Space{{ID: mx + "!w:x", Name: "Work"}}
 	view := starterView(t, unreadView{})
-	rooms := []domain.Room{invited("!i:x", "Invited", "@alice:x")}
+	rooms := []domain.Room{invited(mx+"!i:x", "Invited", "matrix:@alice:x")}
 
 	// Never mentioned: promoted to the front even though applyRailConfig demotes unlisted groups.
 	unaware := railGroups(spaces, config.Rail{
@@ -452,8 +452,8 @@ func TestInvitesGroupPlacement(t *testing.T) {
 func TestNewInvitesCounting(t *testing.T) {
 	t.Parallel()
 
-	a := invited("!1:x", "A", "@x:y")
-	b := invited("!2:x", "B", "@x:y")
+	a := invited(mx+"!1:x", "A", "matrix:@x:y")
+	b := invited(mx+"!2:x", "B", "matrix:@x:y")
 	tests := []struct {
 		name       string
 		prev, next []domain.Room

@@ -92,7 +92,7 @@ func TestTagRuleEntriesFromTheEditor(t *testing.T) {
 	if got := m.conf.base.Tags[m.configTag("Pinned")].Rule; !slices.Equal(got, []string{"space:Work"}) {
 		t.Fatalf("rule = %v, want the added term", got)
 	}
-	if !admitsRoom(m, railRow(t, m, pinnedGroupKey), "!standup:x") {
+	if !admitsRoom(m, railRow(t, m, pinnedGroupKey), mx+"!standup:x") {
 		t.Error("the rule's room is not in the tag's row")
 	}
 	m = pickLabel(t, m, "Add an entry")
@@ -190,9 +190,9 @@ func TestRenamingATagOntoAnotherAsksToCombine(t *testing.T) {
 	t.Parallel()
 	m, _ := editingTag(t, "Pinned")
 	cfg := m.conf.base.Clone()
-	cfg.Tags = append(cfg.Tags, config.Tag{Name: "Saved", Picked: []string{"!s:x"}})
+	cfg.Tags = append(cfg.Tags, config.Tag{Name: "Saved", Picked: []string{mx + "!s:x"}})
 	pinned := m.configTag("Pinned")
-	cfg.Tags[pinned].Picked = []string{"!p:x"}
+	cfg.Tags[pinned].Picked = []string{mx + "!p:x"}
 	m, _ = m.applyConfig(cfg, "")
 	m = m.tagOpen("Pinned")
 
@@ -209,7 +209,7 @@ func TestRenamingATagOntoAnotherAsksToCombine(t *testing.T) {
 	if m.configTag("Pinned") >= 0 {
 		t.Fatalf("tags = %+v, want Pinned folded into Saved", m.conf.base.Tags)
 	}
-	if got := m.conf.base.Tags[m.configTag("Saved")].Picked; !slices.Equal(got, []string{"!s:x", "!p:x"}) {
+	if got := m.conf.base.Tags[m.configTag("Saved")].Picked; !slices.Equal(got, []string{mx + "!s:x", mx + "!p:x"}) {
 		t.Errorf("Saved picks %v, want both tags' rooms", got)
 	}
 }

@@ -27,7 +27,7 @@ func (b *InProc) Rooms(ctx context.Context) ([]domain.Room, error) {
 		return nil, fmt.Errorf("matrix: read cached rooms: %w", err)
 	}
 	// The cache holds every network's rooms; the router adds the others' itself.
-	return slices.DeleteFunc(rooms, func(r domain.Room) bool { return !domain.MatrixRooms.Owns(r.ID) }), nil
+	return slices.DeleteFunc(rooms, func(r domain.Room) bool { return !b.ids.owner().Owns(r.ID) }), nil
 }
 
 // RefreshRooms fetches joined rooms with their names, DM flags and member names,
@@ -71,7 +71,7 @@ func (b *InProc) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
 	})
 	domain.SortRooms(rooms)
 	if b.cache != nil {
-		if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
+		if err := b.cache.SaveRooms(ctx, b.ids.owner(), rooms); err != nil {
 			return nil, fmt.Errorf("matrix: cache rooms: %w", err)
 		}
 		b.warnIf(ctx, b.cache.SetReadOnly(ctx, readOnly), "cache which rooms are read-only")
@@ -236,7 +236,7 @@ func (b *InProc) onMember(ctx context.Context, evt *event.Event) {
 	if !ok {
 		return // unparsed content is not a membership claim worth acting on
 	}
-	roomID, userID := b.ids.room(evt.RoomID), *evt.StateKey
+	roomID, userID := b.ids.room(evt.RoomID), b.ids.userOf(*evt.StateKey)
 	if content.Membership != event.MembershipJoin {
 		b.warnIf(ctx, b.cache.RemoveMember(ctx, roomID, userID), "cache member removal", "room", roomID, "user", userID)
 		b.names.rename(roomID, userID, "")

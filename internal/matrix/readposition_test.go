@@ -176,7 +176,7 @@ func (es *eventServer) times(eventID string) int {
 	return es.asked[eventID]
 }
 
-const readRoom = domain.RoomID("!r:x")
+const readRoom = domain.RoomID(mx + "!r:x")
 
 var readBase = time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
 
@@ -187,8 +187,8 @@ func readAt(minutes int) time.Time { return readBase.Add(time.Duration(minutes) 
 func readBackend(t *testing.T, srv *httptest.Server, extra ...domain.Message) *InProc {
 	t.Helper()
 	msgs := append([]domain.Message{
-		{ID: "$old", RoomID: readRoom, Sender: "@them:x", Body: "old", Timestamp: readAt(0)},
-		{ID: "$new", RoomID: readRoom, Sender: "@them:x", Body: "new", Timestamp: readAt(10)},
+		{ID: mx + "$old", RoomID: readRoom, Sender: "matrix:@them:x", Body: "old", Timestamp: readAt(0)},
+		{ID: mx + "$new", RoomID: readRoom, Sender: "matrix:@them:x", Body: "new", Timestamp: readAt(10)},
 	}, extra...)
 	return backendWith(t, srv, map[domain.RoomID][]domain.Message{readRoom: msgs})
 }
@@ -198,7 +198,7 @@ func readBackend(t *testing.T, srv *httptest.Server, extra ...domain.Message) *I
 func syncWith(ephemeral []*event.Event, accountData ...*event.Event) *mautrix.RespSync {
 	resp := &mautrix.RespSync{}
 	resp.Rooms.Join = map[id.RoomID]*mautrix.SyncJoinedRoom{
-		id.RoomID(readRoom): {
+		testIDs.nativeRoom(readRoom): {
 			Ephemeral:   mautrix.SyncEventsList{Events: ephemeral},
 			AccountData: mautrix.SyncEventsList{Events: accountData},
 		},
@@ -251,7 +251,7 @@ func TestTheNewestReceiptIsTheRoomsPosition(t *testing.T) {
 			t.Parallel()
 			b := readBackend(t, newEventServer(t, nil).Server)
 			b.onSync(context.Background(), syncWith(events), "")
-			wantRead(t, b, "$new")
+			wantRead(t, b, mx+"$new")
 		})
 	}
 }
@@ -263,17 +263,17 @@ func TestAnOlderReceiptDoesNotMoveTheRoomBack(t *testing.T) {
 	b := readBackend(t, newEventServer(t, nil).Server)
 	ctx := context.Background()
 	b.onSync(ctx, syncWith([]*event.Event{receiptEvent(`{"$new":{"m.read":{"@me:x":{"ts":1,"thread_id":"main"}}}}`)}), "")
-	wantRead(t, b, "$new")
+	wantRead(t, b, mx+"$new")
 
 	b.onSync(ctx, syncWith([]*event.Event{receiptEvent(`{"$old":{"m.read":{"@me:x":{"ts":2}}}}`)}), "")
-	wantRead(t, b, "$new")
+	wantRead(t, b, mx+"$new")
 
 	// A restart reads the position back with its time, and still refuses the older one.
-	restarted := New(b.cache)
+	restarted := newBackend(b.cache)
 	restarted.client = b.client
 	restarted.seedUnread(ctx)
 	restarted.onSync(ctx, syncWith([]*event.Event{receiptEvent(`{"$old":{"m.read":{"@me:x":{"ts":3}}}}`)}), "")
-	wantRead(t, restarted, "$new")
+	wantRead(t, restarted, mx+"$new")
 }
 
 // Marking a room unread is its own flag and survives the forward-only position.
@@ -299,14 +299,14 @@ func TestMarkingUnreadStillWorks(t *testing.T) {
 	if !marked() || !cachedMarked() {
 		t.Fatalf("marked = %v (cached %v) after the mark arrived, want true", marked(), cachedMarked())
 	}
-	wantRead(t, b, "$new")
+	wantRead(t, b, mx+"$new")
 
 	// An older receipt beside it changes neither.
 	b.onSync(ctx, syncWith([]*event.Event{receiptEvent(`{"$old":{"m.read":{"@me:x":{"ts":2}}}}`)}), "")
 	if !marked() {
 		t.Error("an older receipt cleared the mark")
 	}
-	wantRead(t, b, "$new")
+	wantRead(t, b, mx+"$new")
 
 	b.onSync(ctx, syncWith(nil, markEvent(false)), "")
 	if marked() || cachedMarked() {
@@ -323,10 +323,10 @@ func TestAHeldReceiptLandsWhenItsEventArrives(t *testing.T) {
 	b.onSync(ctx, syncWith([]*event.Event{receiptEvent(`{"$late":{"m.read":{"@me:x":{"ts":1,"thread_id":"main"}}}}`)}), "")
 	wantRead(t, b, "")
 
-	late := domain.Message{ID: "$late", RoomID: readRoom, Sender: "@them:x", Body: "late", Timestamp: readAt(20)}
+	late := domain.Message{ID: mx + "$late", RoomID: readRoom, Sender: "matrix:@them:x", Body: "late", Timestamp: readAt(20)}
 	b.cacheMessages(ctx, readRoom, []domain.Message{late})
 	b.settleReceipts(ctx, readRoom)
-	wantRead(t, b, "$late")
+	wantRead(t, b, mx+"$late")
 }
 
 // A read event older than the cache is fetched once for its time, so the room is
@@ -341,11 +341,11 @@ func TestAnUncachedReadEventIsFetchedForItsTime(t *testing.T) {
 		{ID: "$new", TS: readAt(10).UnixMilli()},
 	})
 	// A thread reply before the read position: read, once the floor is seeded.
-	reply := domain.Message{ID: "$reply", RoomID: readRoom, Sender: "@them:x", Body: "in a thread",
-		ThreadRoot: "$old", Timestamp: readAt(3)}
+	reply := domain.Message{ID: mx + "$reply", RoomID: readRoom, Sender: "matrix:@them:x", Body: "in a thread",
+		ThreadRoot: mx + "$old", Timestamp: readAt(3)}
 	b := readBackend(t, srv.Server, reply)
 	ctx := context.Background()
-	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: readRoom, Notifications: 7, ReadEvent: "$gone"}, 0); err != nil {
+	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: readRoom, Notifications: 7, ReadEvent: mx + "$gone"}, 0); err != nil {
 		t.Fatalf("SaveUnread: %v", err)
 	}
 
@@ -372,7 +372,7 @@ func TestAnUncachedReadEventIsFetchedForItsTime(t *testing.T) {
 	}
 	// A restart asks again only while the room is unread on an uncached event.
 	restart := func() {
-		again := New(b.cache)
+		again := newBackend(b.cache)
 		again.client = b.client
 		again.seedUnread(ctx)
 		again.fetches.wg.Wait()
@@ -381,7 +381,7 @@ func TestAnUncachedReadEventIsFetchedForItsTime(t *testing.T) {
 	if n := srv.times("$gone"); n != 2 {
 		t.Errorf("$gone fetched %d times after a restart with the room unread, want 2", n)
 	}
-	b.advanceRead(ctx, readRoom, readPos{Event: "$new", TS: readAt(10).UnixMilli()})
+	b.advanceRead(ctx, readRoom, readPos{Event: mx + "$new", TS: readAt(10).UnixMilli()})
 	restart()
 	if n := srv.times("$gone"); n != 2 {
 		t.Errorf("$gone fetched %d times after a restart with the room read, want still 2", n)
@@ -395,7 +395,7 @@ func TestAFailedReadFetchKeepsTheServerCount(t *testing.T) {
 	srv := newEventServer(t, nil)
 	b := readBackend(t, srv.Server)
 	ctx := context.Background()
-	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: readRoom, Notifications: 7, ReadEvent: "$gone"}, 0); err != nil {
+	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: readRoom, Notifications: 7, ReadEvent: mx + "$gone"}, 0); err != nil {
 		t.Fatalf("SaveUnread: %v", err)
 	}
 	b.seedUnread(ctx)
@@ -404,7 +404,7 @@ func TestAFailedReadFetchKeepsTheServerCount(t *testing.T) {
 	if err != nil || len(got) != 1 {
 		t.Fatalf("CachedUnread = %v, %v", got, err)
 	}
-	if got[0].Counted || got[0].Notifications != 7 || got[0].ReadEvent != "$gone" {
+	if got[0].Counted || got[0].Notifications != 7 || got[0].ReadEvent != mx+"$gone" {
 		t.Errorf("unread = %+v, want uncounted with the server's 7 and $gone kept", got[0])
 	}
 	if n := srv.times("$gone"); n != 1 {
@@ -433,7 +433,7 @@ func TestAReceiptStillHeldASyncLaterIsFetched(t *testing.T) {
 
 	b.onSync(ctx, &mautrix.RespSync{}, "")
 	b.fetches.wg.Wait()
-	wantRead(t, b, "$far")
+	wantRead(t, b, mx+"$far")
 	got, err := b.CachedUnread(ctx)
 	if err != nil || len(got) != 1 || !got[0].Counted || got[0].Messages != 0 {
 		t.Errorf("CachedUnread = %+v, %v; want counted with nothing unread", got, err)

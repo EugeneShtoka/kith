@@ -142,6 +142,7 @@ func (m *Adapter) takeAccount(cfg config.Config) {
 		Crypto: cryptoPlace{Path: m.place.CryptoPath, Keys: keys},
 	}
 	m.saved, m.userLog = saved, log
+	m.useAccount(cfg.User)
 	m.UseLogger(log)
 	if saved.AccessToken != "" {
 		m.enterResuming()

@@ -82,7 +82,7 @@ func TestUnlistedRoomIsDrafted(t *testing.T) {
 	if len(f.sent) != 0 {
 		t.Fatalf("a room outside [agent.write] send was posted to: %+v", f.sent)
 	}
-	held := f.drafts["!open:x"]
+	held := f.drafts[mx+"!open:x"]
 	if held.Body != "on my way" {
 		t.Fatalf("draft = %q, want the words", held.Body)
 	}
@@ -149,8 +149,8 @@ func TestCooldownDraftsTheSecondMessage(t *testing.T) {
 		t.Errorf("reason = %q, want it to name the cooldown", reason)
 	}
 	// The words are not lost: they are in the composer.
-	if !strings.Contains(f.drafts["!open:x"].Body, "second") {
-		t.Errorf("draft = %q, want the message the cooldown held back", f.drafts["!open:x"].Body)
+	if !strings.Contains(f.drafts[mx+"!open:x"].Body, "second") {
+		t.Errorf("draft = %q, want the message the cooldown held back", f.drafts[mx+"!open:x"].Body)
 	}
 }
 
@@ -174,13 +174,13 @@ func TestDraftIsAppendedNotOverwritten(t *testing.T) {
 
 	f := twoRooms()
 	f.drafts = map[domain.RoomID]domain.StoredDraft{
-		"!open:x": {RoomID: "!open:x", Body: "half a thought", Caret: 4},
+		mx + "!open:x": {RoomID: mx + "!open:x", Body: "half a thought", Caret: 4},
 	}
 	s := newWriter(t, f, shareAll, nil)
 	out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "the rest of it"})
 
 	want := "half a thought\n\nthe rest of it"
-	if got := f.drafts["!open:x"].Body; got != want {
+	if got := f.drafts[mx+"!open:x"].Body; got != want {
 		t.Fatalf("draft = %q, want %q", got, want)
 	}
 	if reason, _ := out["reason"].(string); !strings.Contains(reason, "appended") {
@@ -204,12 +204,12 @@ func TestLongDashesAreWrittenShort(t *testing.T) {
 		wrote   func(*fake) string
 	}{
 		{"sent", []string{"space:Work"}, false, "", agent.Sent, func(f *fake) string {
-			return strings.TrimPrefix(f.sent[0].Body, "!open:x ") // The fake stamps the room.
+			return strings.TrimPrefix(f.sent[0].Body, mx+"!open:x ") // The fake stamps the room.
 		}},
 		{"queued", []string{"space:Work"}, true, "", agent.Queued, func(f *fake) string { return f.queued[0].Body }},
-		{"drafted", nil, false, "", agent.Drafted, func(f *fake) string { return f.drafts["!open:x"].Body }},
+		{"drafted", nil, false, "", agent.Drafted, func(f *fake) string { return f.drafts[mx+"!open:x"].Body }},
 		{"appended", nil, false, mine, agent.Drafted, func(f *fake) string {
-			return strings.TrimPrefix(f.drafts["!open:x"].Body, mine+"\n\n")
+			return strings.TrimPrefix(f.drafts[mx+"!open:x"].Body, mine+"\n\n")
 		}},
 	}
 	for _, c := range cases {
@@ -221,7 +221,7 @@ func TestLongDashesAreWrittenShort(t *testing.T) {
 				f.sendErr = errNoServer
 			}
 			if c.drafted != "" {
-				f.drafts = map[domain.RoomID]domain.StoredDraft{"!open:x": {RoomID: "!open:x", Body: c.drafted}}
+				f.drafts = map[domain.RoomID]domain.StoredDraft{mx + "!open:x": {RoomID: mx + "!open:x", Body: c.drafted}}
 			}
 			s := newWriter(t, f, shareAll, c.send)
 			out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": text})
@@ -232,8 +232,8 @@ func TestLongDashesAreWrittenShort(t *testing.T) {
 			if got := c.wrote(f); got != want {
 				t.Errorf("wrote %q, want %q", got, want)
 			}
-			if c.drafted != "" && !strings.HasPrefix(f.drafts["!open:x"].Body, mine+"\n\n") {
-				t.Errorf("their draft changed: %q", f.drafts["!open:x"].Body)
+			if c.drafted != "" && !strings.HasPrefix(f.drafts[mx+"!open:x"].Body, mine+"\n\n") {
+				t.Errorf("their draft changed: %q", f.drafts[mx+"!open:x"].Body)
 			}
 			if ledger := entries(t, s); len(ledger) != 1 || ledger[0].Text != want {
 				t.Errorf("ledger = %+v, want what was written", ledger)
@@ -248,7 +248,7 @@ func TestEditInProgressIsRefused(t *testing.T) {
 
 	f := twoRooms()
 	f.drafts = map[domain.RoomID]domain.StoredDraft{
-		"!open:x": {RoomID: "!open:x", Body: "fixing this", Editing: "$1"},
+		mx + "!open:x": {RoomID: mx + "!open:x", Body: "fixing this", Editing: mx + "$1"},
 	}
 	s := newWriter(t, f, shareAll, nil)
 	said := callErr(t, s, "send_message", map[string]any{"room": "Standup", "text": "hello"})
@@ -256,8 +256,8 @@ func TestEditInProgressIsRefused(t *testing.T) {
 	if !strings.Contains(said, "edit") {
 		t.Errorf("refusal = %q, want it to say why", said)
 	}
-	if f.drafts["!open:x"].Body != "fixing this" {
-		t.Errorf("the edit in progress was changed: %q", f.drafts["!open:x"].Body)
+	if f.drafts[mx+"!open:x"].Body != "fixing this" {
+		t.Errorf("the edit in progress was changed: %q", f.drafts[mx+"!open:x"].Body)
 	}
 }
 
@@ -267,7 +267,7 @@ func TestAnEndlessDraftIsRefused(t *testing.T) {
 
 	f := twoRooms()
 	f.drafts = map[domain.RoomID]domain.StoredDraft{
-		"!open:x": {RoomID: "!open:x", Body: strings.Repeat("x", draftCap+1)},
+		mx + "!open:x": {RoomID: mx + "!open:x", Body: strings.Repeat("x", draftCap+1)},
 	}
 	s := newWriter(t, f, shareAll, nil)
 	if said := callErr(t, s, "send_message", map[string]any{"room": "Standup", "text": "more"}); said == "" {
@@ -291,7 +291,7 @@ func TestFailedSendIsQueuedUnderTheSameID(t *testing.T) {
 		t.Fatalf("queued = %+v, want one message carrying its transaction ID", f.queued)
 	}
 	// A queued message counts for the cooldown, so failing cannot bypass it.
-	if _, ever := agent.LastOut(entries(t, s), "!open:x"); !ever {
+	if _, ever := agent.LastOut(entries(t, s), mx+"!open:x"); !ever {
 		t.Error("a queued message was not counted by the cooldown")
 	}
 }
@@ -308,8 +308,8 @@ func TestUnqueueableSendBecomesADraft(t *testing.T) {
 	if out["action"] != agent.Drafted {
 		t.Fatalf("action = %v, want the words kept as a draft", out["action"])
 	}
-	if !strings.Contains(f.drafts["!open:x"].Body, "on my way") {
-		t.Fatalf("draft = %q, want the message", f.drafts["!open:x"].Body)
+	if !strings.Contains(f.drafts[mx+"!open:x"].Body, "on my way") {
+		t.Fatalf("draft = %q, want the message", f.drafts[mx+"!open:x"].Body)
 	}
 }
 
@@ -398,7 +398,7 @@ func TestAWithheldRoomAndAMissingOneAreRefusedAlike(t *testing.T) {
 	if len(ledger) != 2 {
 		t.Fatalf("ledger has %d entries, want one per refused write: %+v", len(ledger), ledger)
 	}
-	if ledger[0].Room != "!secret:x" || ledger[1].Room != "" || ledger[1].Name != "No Such Room" {
+	if ledger[0].Room != mx+"!secret:x" || ledger[1].Room != "" || ledger[1].Name != "No Such Room" {
 		t.Errorf("ledger = %+v, want the withheld room by ID and the missing one by the name asked", ledger)
 	}
 }
@@ -410,17 +410,17 @@ func TestAnAppendKeepsWordsTypedWhileItWasBuilt(t *testing.T) {
 
 	f := twoRooms()
 	f.drafts = map[domain.RoomID]domain.StoredDraft{
-		"!open:x": {RoomID: "!open:x", Body: "hi", Updated: time.UnixMilli(1000)},
+		mx + "!open:x": {RoomID: mx + "!open:x", Body: "hi", Updated: time.UnixMilli(1000)},
 	}
 	f.beforeReplace = func() {
-		f.drafts["!open:x"] = domain.StoredDraft{RoomID: "!open:x", Body: "hi there, quick question", Updated: time.UnixMilli(2000)}
+		f.drafts[mx+"!open:x"] = domain.StoredDraft{RoomID: mx + "!open:x", Body: "hi there, quick question", Updated: time.UnixMilli(2000)}
 	}
 	s := newWriter(t, f, shareAll, []string{"room:Private chat"}) // Standup is not on the send list
 	out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "the report is attached"})
 	if out["action"] != agent.Drafted {
 		t.Fatalf("action = %v, want a draft", out["action"])
 	}
-	if got, want := f.drafts["!open:x"].Body, "hi there, quick question\n\nthe report is attached"; got != want {
+	if got, want := f.drafts[mx+"!open:x"].Body, "hi there, quick question\n\nthe report is attached"; got != want {
 		t.Errorf("draft = %q, want the words typed meanwhile kept, then the append: %q", got, want)
 	}
 }
@@ -436,12 +436,12 @@ func TestADraftThatCouldNotBeWrittenIsInTheLedger(t *testing.T) {
 	}{
 		{"mid-edit", func(f *fake) {
 			f.drafts = map[domain.RoomID]domain.StoredDraft{
-				"!open:x": {RoomID: "!open:x", Body: "fixed", Editing: "$m", EditSaved: "hi"},
+				mx + "!open:x": {RoomID: mx + "!open:x", Body: "fixed", Editing: mx + "$m", EditSaved: "hi"},
 			}
 		}},
 		{"over the cap", func(f *fake) {
 			f.drafts = map[domain.RoomID]domain.StoredDraft{
-				"!open:x": {RoomID: "!open:x", Body: strings.Repeat("x", draftCap+1)},
+				mx + "!open:x": {RoomID: mx + "!open:x", Body: strings.Repeat("x", draftCap+1)},
 			}
 		}},
 		{"always changing", func(f *fake) {
@@ -449,7 +449,7 @@ func TestADraftThatCouldNotBeWrittenIsInTheLedger(t *testing.T) {
 			var typing func()
 			typing = func() {
 				n++
-				f.store(domain.StoredDraft{RoomID: "!open:x", Body: strings.Repeat("y", n), Updated: time.UnixMilli(int64(n))})
+				f.store(domain.StoredDraft{RoomID: mx + "!open:x", Body: strings.Repeat("y", n), Updated: time.UnixMilli(int64(n))})
 				f.beforeReplace = typing
 			}
 			f.beforeReplace = typing
@@ -464,7 +464,7 @@ func TestADraftThatCouldNotBeWrittenIsInTheLedger(t *testing.T) {
 				t.Fatal("the draft was written")
 			}
 			ledger := entries(t, s)
-			if len(ledger) != 1 || ledger[0].Outcome != agent.Refused || ledger[0].Room != "!open:x" || ledger[0].Text != "more" {
+			if len(ledger) != 1 || ledger[0].Outcome != agent.Refused || ledger[0].Room != mx+"!open:x" || ledger[0].Text != "more" {
 				t.Errorf("ledger = %+v, want the one refused attempt, with its words", ledger)
 			}
 		})
@@ -491,14 +491,14 @@ func (r replyLost) ReplaceDraft(ctx context.Context, draft, over domain.StoredDr
 func TestADraftWhoseAnswerIsLostIsWrittenOnce(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()
-	f.store(domain.StoredDraft{RoomID: "!open:x", Body: "hi", Updated: time.UnixMilli(1000)})
+	f.store(domain.StoredDraft{RoomID: mx + "!open:x", Body: "hi", Updated: time.UnixMilli(1000)})
 	s := newWriter(t, f, shareAll, nil)
 	s.backend = replyLost{fake: f, commits: true}
 	out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "on my way"})
 	if out["action"] != agent.Drafted {
 		t.Fatalf("action = %v, want %q", out["action"], agent.Drafted)
 	}
-	if got := f.drafts["!open:x"].Body; got != "hi\n\non my way" {
+	if got := f.drafts[mx+"!open:x"].Body; got != "hi\n\non my way" {
 		t.Fatalf("draft = %q, want the words once", got)
 	}
 }
@@ -518,7 +518,7 @@ func TestADraftThatDidNotLandIsAnError(t *testing.T) {
 func TestTheDraftCapCountsTheAddition(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()
-	f.store(domain.StoredDraft{RoomID: "!open:x", Body: strings.Repeat("x", draftCap-1)})
+	f.store(domain.StoredDraft{RoomID: mx + "!open:x", Body: strings.Repeat("x", draftCap-1)})
 	s := newWriter(t, f, shareAll, nil)
 	if got := callErr(t, s, "send_message", map[string]any{"room": "Standup", "text": "more words"}); !strings.Contains(got, "with this addition") {
 		t.Fatalf("send_message said %q, want the cap refusal", got)
@@ -570,8 +570,8 @@ func TestAFailedSendKeepsTheDaemonErrorOutOfTheReason(t *testing.T) {
 func TestAnExactNameHeldByTwoRoomsIsRefused(t *testing.T) {
 	t.Parallel()
 	f := &fake{rooms: []domain.Room{
-		{ID: "!impostor:x", Name: "Notes", IsDirect: true},
-		{ID: "!notes:x", Name: "Notes"},
+		{ID: mx + "!impostor:x", Name: "Notes", IsDirect: true},
+		{ID: mx + "!notes:x", Name: "Notes"},
 	}}
 	s := newWriter(t, f, domain.ModelScope{Only: []string{"dm", "group"}}, []string{"room:Notes"})
 	s.cooldown = 0

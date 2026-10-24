@@ -30,11 +30,11 @@ func TestTheDirectoryTakesTheMostTrustedNameFromAnyAccount(t *testing.T) {
 	}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SaveMembers(ctx, "!dm:x", []domain.Member{
-		{UserID: "@whatsapp_bg_15550100002:x", DisplayName: "+15550100002 (WA)"},
-		{UserID: "@whatsapp_il_15550100002:x", DisplayName: "Eli Bridged (WA)"},
-		{UserID: "@whatsapp_il_15550100003:x", DisplayName: "Gil (WA)"},
-		{UserID: "@telegram_15550100005:x", DisplayName: "Not a number's name"},
+	if err := c.SaveMembers(ctx, mx+"!dm:x", []domain.Member{
+		{UserID: "matrix:@whatsapp_bg_15550100002:x", DisplayName: "+15550100002 (WA)"},
+		{UserID: "matrix:@whatsapp_il_15550100002:x", DisplayName: "Eli Bridged (WA)"},
+		{UserID: "matrix:@whatsapp_il_15550100003:x", DisplayName: "Gil (WA)"},
+		{UserID: "matrix:@telegram_15550100005:x", DisplayName: "Not a number's name"},
 		{UserID: "matrix:@whatsapp_il_15550100006:x", DisplayName: "Hal (WA)"}, // kith's prefixed form
 	}); err != nil {
 		t.Fatal(err)

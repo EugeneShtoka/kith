@@ -71,12 +71,12 @@ func silencing(t *testing.T) (Model, *fakeNotifications) {
 		WithNotifications(daemon).
 		WithRules([]notify.Rule{{Name: "all rooms", Show: new(notify.LevelAll)}}, true)
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "hi"},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "hi"},
 	}}})
 	m.focus, m.compose.insertMode = paneTimeline, false
 	m = m.clearStatus()
@@ -136,7 +136,7 @@ func TestDNDAsksWhatAndForHowLong(t *testing.T) {
 		t.Fatalf("the daemon holds %+v, want one mute", held)
 	}
 	got := held[0]
-	if got.Match != "!a:x" || got.Sender != "" {
+	if got.Match != mx+"!a:x" || got.Sender != "" {
 		t.Errorf("rule = %+v, want the room that was chosen", got)
 	}
 	if !got.Temp {
@@ -188,8 +188,8 @@ func TestSilenceBadge(t *testing.T) {
 	}
 
 	m.notifications.temps = notify.Temps{}.
-		Add(hidden("!a:x", "", "Alpha")).
-		Add(hidden("", "@alice:x", "Alice"))
+		Add(hidden(mx+"!a:x", "", "Alpha")).
+		Add(hidden("", "matrix:@alice:x", "Alice"))
 	if got := m.silenceBadge(); !strings.Contains(got, "×2") {
 		t.Errorf("badge = %q, want a count rather than a claim of general silence", got)
 	}
@@ -216,9 +216,9 @@ func TestSilenceBadgeNamesTheStandingRule(t *testing.T) {
 
 	// An unnamed rule falls back to the narrowest thing it names.
 	m.notifications.rules = append(m.notifications.rules[:len(m.notifications.rules)-1], notify.Rule{
-		Match: "!a:x", When: &allDay, Show: new(notify.LevelNone),
+		Match: mx + "!a:x", When: &allDay, Show: new(notify.LevelNone),
 	})
-	if matched := m.silenceBadge(); !strings.Contains(matched, "!a:x") {
+	if matched := m.silenceBadge(); !strings.Contains(matched, mx+"!a:x") {
 		t.Errorf("badge = %q, want the unnamed rule identified by what it matches", matched)
 	}
 
@@ -490,7 +490,7 @@ func TestDNDOnASpaceReachesItsRooms(t *testing.T) {
 	if _, ok := domain.ParseEntry(match); !ok {
 		t.Fatalf("the mute's match %q is not a place entry", match)
 	}
-	room, _ := m.roomByID("!a:x")
+	room, _ := m.roomByID(mx + "!a:x")
 	if got := (setup.Place{Room: m.factsFor(room)}).Reach(match); got != notify.ClassOfRooms {
 		t.Errorf("Reach(%q) = %v, want the space to reach a room in it", match, got)
 	}

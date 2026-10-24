@@ -41,7 +41,7 @@ func TestTheAdapterListsOnlyWhatsAppRooms(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	a, cache, _ := offline(t)
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, ownDigits), []domain.Room{{ID: waRoom}}); err != nil {

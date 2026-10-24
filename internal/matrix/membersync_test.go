@@ -49,13 +49,13 @@ func TestOnMemberCachesJoinsAndDropsLeaves(t *testing.T) {
 
 	b.onMember(ctx, memberEvent("!a:x", "@alice:x", "Alice", event.MembershipJoin, event.SourceJoin))
 	b.onMember(ctx, memberEvent("!a:x", "@bob:x", "Bob", event.MembershipJoin, event.SourceJoin))
-	if got := cachedNames(t, b, "!a:x"); len(got) != 2 || got["@alice:x"] != "Alice" {
+	if got := cachedNames(t, b, mx+"!a:x"); len(got) != 2 || got["matrix:@alice:x"] != "Alice" {
 		t.Fatalf("after two joins: %v", got)
 	}
 
 	// A rename arrives as another join and must not duplicate the row.
 	b.onMember(ctx, memberEvent("!a:x", "@bob:x", "Robert", event.MembershipJoin, event.SourceJoin))
-	if got := cachedNames(t, b, "!a:x"); len(got) != 2 || got["@bob:x"] != "Robert" {
+	if got := cachedNames(t, b, mx+"!a:x"); len(got) != 2 || got["matrix:@bob:x"] != "Robert" {
 		t.Fatalf("after a rename: %v", got)
 	}
 
@@ -63,7 +63,7 @@ func TestOnMemberCachesJoinsAndDropsLeaves(t *testing.T) {
 	for _, m := range []event.Membership{event.MembershipLeave, event.MembershipBan} {
 		b.onMember(ctx, memberEvent("!a:x", "@alice:x", "Alice", event.MembershipJoin, event.SourceJoin))
 		b.onMember(ctx, memberEvent("!a:x", "@alice:x", "", m, event.SourceJoin))
-		if _, still := cachedNames(t, b, "!a:x")["@alice:x"]; still {
+		if _, still := cachedNames(t, b, mx+"!a:x")["matrix:@alice:x"]; still {
 			t.Errorf("@alice:x survived %s", m)
 		}
 	}
@@ -79,10 +79,10 @@ func TestOnMemberIgnoresRoomsWeAreNotIn(t *testing.T) {
 	b.onMember(ctx, memberEvent("!invited:x", "@alice:x", "Alice", event.MembershipJoin, event.SourceInvite))
 	b.onMember(ctx, memberEvent("!left:x", "@bob:x", "Bob", event.MembershipJoin, event.SourceLeave))
 
-	if got := cachedNames(t, b, "!invited:x"); len(got) != 0 {
+	if got := cachedNames(t, b, mx+"!invited:x"); len(got) != 0 {
 		t.Errorf("cached membership of an invite-section room: %v", got)
 	}
-	if got := cachedNames(t, b, "!left:x"); len(got) != 0 {
+	if got := cachedNames(t, b, mx+"!left:x"); len(got) != 0 {
 		t.Errorf("cached membership of a leave-section room: %v", got)
 	}
 	rooms, err := b.cache.Rooms(ctx)
@@ -90,7 +90,7 @@ func TestOnMemberIgnoresRoomsWeAreNotIn(t *testing.T) {
 		t.Fatalf("Rooms: %v", err)
 	}
 	for _, r := range rooms {
-		if r.ID == "!invited:x" || r.ID == "!left:x" {
+		if r.ID == mx+"!invited:x" || r.ID == mx+"!left:x" {
 			t.Errorf("a room we are not in was registered: %s", r.ID)
 		}
 	}
@@ -111,7 +111,7 @@ func TestOnMemberIgnoresMalformedEvents(t *testing.T) {
 	unparsed.Content.Parsed = nil
 	b.onMember(ctx, unparsed)
 
-	if got := cachedNames(t, b, "!a:x"); len(got) != 0 {
+	if got := cachedNames(t, b, mx+"!a:x"); len(got) != 0 {
 		t.Errorf("a malformed member event reached the cache: %v", got)
 	}
 }
@@ -120,25 +120,25 @@ func TestOnMemberIgnoresMalformedEvents(t *testing.T) {
 func TestSetMemberNameOnlyTouchesAnAlreadyFetchedRoom(t *testing.T) {
 	t.Parallel()
 
-	b := New(nil)
+	b := newBackend(nil)
 
-	b.names.rename("!cold:x", "@alice:x", "Alice")
-	_, seeded := b.names.get("!cold:x")
+	b.names.rename(mx+"!cold:x", "@alice:x", "Alice")
+	_, seeded := b.names.get(mx + "!cold:x")
 	if seeded {
 		t.Error("a member event seeded the memo for a room that was never fetched")
 	}
 
 	// A room already fetched must stay in step.
-	b.names.putAt("!warm:x", 0, map[string]string{"@alice:x": "Alice", "@bob:x": "Bob"})
+	b.names.putAt(mx+"!warm:x", 0, map[string]string{"matrix:@alice:x": "Alice", "matrix:@bob:x": "Bob"})
 
-	b.names.rename("!warm:x", "@bob:x", "Robert")
-	b.names.rename("!warm:x", "@alice:x", "") // a leave, or a member with no name
+	b.names.rename(mx+"!warm:x", "matrix:@bob:x", "Robert")
+	b.names.rename(mx+"!warm:x", "matrix:@alice:x", "") // a leave, or a member with no name
 
-	names, _ := b.names.get("!warm:x")
-	if names["@bob:x"] != "Robert" {
+	names, _ := b.names.get(mx + "!warm:x")
+	if names["matrix:@bob:x"] != "Robert" {
 		t.Errorf("rename not applied: %v", names)
 	}
-	if _, still := names["@alice:x"]; still {
+	if _, still := names["matrix:@alice:x"]; still {
 		t.Errorf("departed member kept in the memo: %v", names)
 	}
 }
@@ -168,11 +168,11 @@ func TestSyncStateBlockReachesOnMember(t *testing.T) {
 		t.Fatalf("ProcessResponse: %v", err)
 	}
 
-	got := cachedNames(t, b, "!a:x")
-	if got["@alice:x"] != "Alice" {
+	got := cachedNames(t, b, mx+"!a:x")
+	if got["matrix:@alice:x"] != "Alice" {
 		t.Errorf("a join in the state block never reached the cache: %v", got)
 	}
-	if _, gone := got["@bob:x"]; gone {
+	if _, gone := got["matrix:@bob:x"]; gone {
 		t.Errorf("a leave in the state block was cached: %v", got)
 	}
 }
@@ -217,7 +217,7 @@ func TestARewindClearsTheSyncPosition(t *testing.T) {
 func TestResetSyncPositionWithoutAClient(t *testing.T) {
 	t.Parallel()
 
-	b := New(nil)
+	b := newBackend(nil)
 	if err := b.resetSyncPosition(context.Background()); err != nil { // must not panic
 		t.Errorf("reset without a client: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestStartRewindsAnEmptiedCache(t *testing.T) {
 		wantErr   bool
 	}{
 		{"empty cache", nil, false, "", false},
-		{"cache holding a room", []domain.Room{{ID: "!a:x", Name: "Alpha"}}, false, "s12345_678", false},
+		{"cache holding a room", []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}, false, "s12345_678", false},
 		{"empty cache, rewind fails", nil, true, "s12345_678", true},
 	}
 	for _, c := range cases {
@@ -258,7 +258,7 @@ func TestStartRewindsAnEmptiedCache(t *testing.T) {
 			t.Parallel()
 			b := backendWithCache(t, "@me:x")
 			client := b.client
-			b = New(reopenedCache(t, c.rooms)) // a first open counts as a rebuild
+			b = newBackend(reopenedCache(t, c.rooms)) // a first open counts as a rebuild
 			b.client = client
 			store := mautrix.NewMemorySyncStore()
 			if err := store.SaveNextBatch(ctx, "@me:x", "s12345_678"); err != nil {
@@ -289,7 +289,7 @@ func reopenedCache(t *testing.T, rooms []domain.Room) *db.Cache {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err = first.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
+	if err = first.SaveRooms(ctx, testIDs.owner(), rooms); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	if err = first.Close(); err != nil {
@@ -317,7 +317,7 @@ func TestAnEmptiedCacheRewindsEvenAfterRoomsArrive(t *testing.T) {
 		wantToken string
 	}{
 		{"rooms refreshed in before Start", func(t *testing.T, b *InProc) {
-			if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+			if err := b.cache.SaveRooms(ctx, testIDs.owner(), []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); err != nil {
 				t.Fatal(err)
 			}
 		}, ""},
@@ -347,7 +347,7 @@ func TestAnEmptiedCacheRewindsEvenAfterRoomsArrive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			client := backendWithCache(t, "@me:x").client
-			b := New(reopenedCache(t, nil)) // held no room when built
+			b := newBackend(reopenedCache(t, nil)) // held no room when built
 			b.client = client
 			store := mautrix.NewMemorySyncStore()
 			if err := store.SaveNextBatch(ctx, "@me:x", "s12345_678"); err != nil {

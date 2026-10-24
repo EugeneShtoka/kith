@@ -12,7 +12,7 @@ func TestParseSearchLiftsFilters(t *testing.T) {
 	if got.Terms != "invoice paid" {
 		t.Errorf("terms = %q, want the filters lifted out", got.Terms)
 	}
-	if got.Sender != "@dana:example.org" {
+	if got.Sender != "matrix:@dana:example.org" {
 		t.Errorf("sender = %q", got.Sender)
 	}
 	want := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
@@ -26,7 +26,7 @@ func TestParseSearchSenderForms(t *testing.T) {
 	for in, want := range map[string]string{
 		"from:dana":              "dana",
 		"from:@dana":             "dana",
-		"from:@dana:example.org": "@dana:example.org",
+		"from:@dana:example.org": "matrix:@dana:example.org",
 	} {
 		if got := ParseSearch(in, searchNow).Sender; got != want {
 			t.Errorf("%q -> sender %q, want %q", in, got, want)
@@ -40,7 +40,7 @@ func TestParseSearchSenderFieldTerm(t *testing.T) {
 		"from:role:attorney":     {"", "role:attorney"},
 		"from:Company:Meta paid": {"", "Company:Meta"},
 		"from:telegram:42":       {"telegram:42", ""},
-		"from:@dana:example.org": {"@dana:example.org", ""},
+		"from:@dana:example.org": {"matrix:@dana:example.org", ""},
 		"from:role:":             {"role:", ""},
 	} {
 		got := ParseSearch(in, searchNow)

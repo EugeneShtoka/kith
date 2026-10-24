@@ -71,7 +71,7 @@ func TestFailedVerifyControlReleasesTheKeyboard(t *testing.T) {
 
 			m := sized(t, withRooms(t, starterNew(failingVerify{}, config.Display{})))
 			m = update(t, m, verifyMsg{v: domain.Verification{
-				Kind: domain.VerificationRequested, TxnID: "t1", From: "@me:x", Device: "DEV",
+				Kind: domain.VerificationRequested, TxnID: "t1", From: "matrix:@me:x", Device: "DEV",
 			}})
 			if tc.stage == domain.VerificationSAS {
 				m = update(t, m, verifyMsg{v: domain.Verification{
@@ -114,10 +114,10 @@ func TestStartingAVerificationRaisesAWaitingOverlay(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	next, _ := m.handleVerifyStarted(verifyStartedMsg{txnID: "$txn"})
+	next, _ := m.handleVerifyStarted(verifyStartedMsg{txnID: mx + "$txn"})
 	m = next
 
-	if !m.verify.active || !m.verify.ours || m.verify.txnID != "$txn" {
+	if !m.verify.active || !m.verify.ours || m.verify.txnID != mx+"$txn" {
 		t.Fatalf("overlay = %+v, want an outgoing verification on that transaction", m.verify)
 	}
 	view := m.verifyView()
@@ -141,7 +141,7 @@ func TestConfirmDoesNothingOnOurOwnRequest(t *testing.T) {
 	b := &verifyBackend{}
 	m := sized(t, withRooms(t, newModel()))
 	m.backend = b
-	next, _ := m.handleVerifyStarted(verifyStartedMsg{txnID: "$txn"})
+	next, _ := m.handleVerifyStarted(verifyStartedMsg{txnID: mx + "$txn"})
 	m = next
 
 	after, cmd := m.handleVerifyKey(keyOf('y'))
@@ -163,12 +163,12 @@ func TestOurOwnRequestShowsTheEmojiWhenTheyArrive(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	next, _ := m.handleVerifyStarted(verifyStartedMsg{txnID: "$txn"})
+	next, _ := m.handleVerifyStarted(verifyStartedMsg{txnID: mx + "$txn"})
 	m = next
 
 	sas := domain.Verification{
 		Kind:  domain.VerificationSAS,
-		TxnID: "$txn",
+		TxnID: mx + "$txn",
 		Emojis: []domain.SASEmoji{
 			{Glyph: "🐶", Name: "Dog"}, {Glyph: "🌍", Name: "Globe"},
 		},

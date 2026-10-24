@@ -104,12 +104,12 @@ func TestABridgeIsKnownByItsBotOrProtocol(t *testing.T) {
 		bot, protocol string
 		want          Protocol
 	}{
-		{"@whatsappbot_bg:x", "", ProtocolWhatsApp},
-		{"@telegrambot:x", "telegram", ProtocolTelegram},
-		{"@somebot:x", "telegram", ProtocolTelegram},
+		{"matrix:@whatsappbot_bg:x", "", ProtocolWhatsApp},
+		{"matrix:@telegrambot:x", "telegram", ProtocolTelegram},
+		{"matrix:@somebot:x", "telegram", ProtocolTelegram},
 		{"", "slackgo", ProtocolSlack},
 		{"", "gmessages", ProtocolGMessages},
-		{"@alice:x", "", ""},
+		{"matrix:@alice:x", "", ""},
 		{"", "carrier-pigeon", ""},
 	} {
 		if got := BridgedBy(tc.bot, tc.protocol); got != tc.want {
@@ -121,16 +121,16 @@ func TestABridgeIsKnownByItsBotOrProtocol(t *testing.T) {
 // A room's network: its own, else its first bridged space's, else its ID's.
 func TestARoomsOwnNetworkComesFirst(t *testing.T) {
 	t.Parallel()
-	slack := []Space{{ID: "!s:x", Name: "Workspace", Bridge: ProtocolSlack}}
+	slack := []Space{{ID: mx + "!s:x", Name: "Workspace", Bridge: ProtocolSlack}}
 	for _, tc := range []struct {
 		room    Room
 		holders []Space
 		want    Protocol
 	}{
-		{Room{ID: "!r:x", Network: ProtocolTelegram}, slack, ProtocolTelegram},
-		{Room{ID: "!r:x", Network: ProtocolMatrix}, slack, ProtocolMatrix},
-		{Room{ID: "!r:x"}, slack, ProtocolSlack},
-		{Room{ID: "!r:x"}, nil, ProtocolMatrix},
+		{Room{ID: mx + "!r:x", Network: ProtocolTelegram}, slack, ProtocolTelegram},
+		{Room{ID: mx + "!r:x", Network: ProtocolMatrix}, slack, ProtocolMatrix},
+		{Room{ID: mx + "!r:x"}, slack, ProtocolSlack},
+		{Room{ID: mx + "!r:x"}, nil, ProtocolMatrix},
 		{Room{ID: "telegram:1/7"}, nil, ProtocolTelegram},
 	} {
 		if got := (Places{}).Facts(tc.room, tc.holders).Protocol; got != tc.want {

@@ -98,7 +98,7 @@ func wrong(text, word string, suggestions ...string) domain.Misspelling {
 func spellComposing(t *testing.T, b *spellBackend) Model {
 	t.Helper()
 	m := update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next

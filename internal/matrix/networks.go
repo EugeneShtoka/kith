@@ -44,7 +44,7 @@ func (b *InProc) readNetworksIfWanted(ctx context.Context) {
 // readRoomNetworks keeps the network of each joined room not read yet (no bridge
 // state: Matrix). A failure is retried at the next request.
 func (b *InProc) readRoomNetworks(ctx context.Context) {
-	unknown, err := b.cache.RoomsOfUnknownNetwork(ctx, domain.MatrixRooms)
+	unknown, err := b.cache.RoomsOfUnknownNetwork(ctx, b.ids.owner())
 	if err != nil || len(unknown) == 0 {
 		b.warnIf(ctx, err, "list the rooms of unknown network")
 		return
@@ -61,7 +61,7 @@ func (b *InProc) readRoomNetworks(ctx context.Context) {
 		if joined == nil {
 			continue // not in this reading: read again next time
 		}
-		networks[room] = bridgeNetwork(joined.State.Events)
+		networks[room] = b.ids.bridgeNetwork(joined.State.Events)
 	}
 	if err := b.cache.KeepRoomNetworks(ctx, networks); err != nil {
 		b.warnIf(ctx, err, "keep the rooms' networks")
@@ -73,7 +73,7 @@ func (b *InProc) readRoomNetworks(ctx context.Context) {
 }
 
 // bridgeNetwork is the network a room's bridge state names, or Matrix.
-func bridgeNetwork(state []*event.Event) domain.Protocol {
+func (x ids) bridgeNetwork(state []*event.Event) domain.Protocol {
 	for _, evt := range state {
 		if evt == nil || (evt.Type != event.StateBridge && evt.Type != event.StateHalfShotBridge) {
 			continue
@@ -87,7 +87,7 @@ func bridgeNetwork(state []*event.Event) domain.Protocol {
 		if json.Unmarshal(evt.Content.VeryRaw, &info) != nil {
 			continue
 		}
-		if p := domain.BridgedBy(info.Bot, info.Protocol.ID); p != "" {
+		if p := domain.BridgedBy(x.userOf(info.Bot), info.Protocol.ID); p != "" {
 			return p
 		}
 	}

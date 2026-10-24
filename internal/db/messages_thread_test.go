@@ -14,12 +14,12 @@ func TestAThreadRootSurvivesTheCache(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!work:x")
+	const room = domain.RoomID(mx + "!work:x")
 	now := time.Date(2026, 8, 26, 9, 0, 0, 0, time.UTC)
 
 	if err := cache.SaveMessages(ctx, room, []domain.Message{
-		{ID: "$root", RoomID: room, Sender: "@alice:x", Body: "ship it?", Timestamp: now},
-		{ID: "$reply", RoomID: room, Sender: "@bob:x", Body: "yes", Timestamp: now.Add(time.Minute), ThreadRoot: "$root"},
+		{ID: mx + "$root", RoomID: room, Sender: "matrix:@alice:x", Body: "ship it?", Timestamp: now},
+		{ID: mx + "$reply", RoomID: room, Sender: "matrix:@bob:x", Body: "yes", Timestamp: now.Add(time.Minute), ThreadRoot: mx + "$root"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestAThreadRootSurvivesTheCache(t *testing.T) {
 	if rows[0].ThreadRoot != "" {
 		t.Errorf("the root's ThreadRoot = %q, want empty — a root does not point at itself", rows[0].ThreadRoot)
 	}
-	if rows[1].ThreadRoot != "$root" {
+	if rows[1].ThreadRoot != mx+"$root" {
 		t.Errorf("the reply's ThreadRoot = %q, want $root", rows[1].ThreadRoot)
 	}
 }
@@ -42,16 +42,16 @@ func TestEditingAMessageInAThreadKeepsItInTheThread(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!work:x")
+	const room = domain.RoomID(mx + "!work:x")
 	now := time.Date(2026, 8, 26, 9, 0, 0, 0, time.UTC)
 
 	if err := cache.SaveMessages(ctx, room, []domain.Message{
-		{ID: "$reply", RoomID: room, Sender: "@bob:x", Body: "yse", Timestamp: now, ThreadRoot: "$root"},
+		{ID: mx + "$reply", RoomID: room, Sender: "matrix:@bob:x", Body: "yse", Timestamp: now, ThreadRoot: mx + "$root"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := cache.SaveMessages(ctx, room, []domain.Message{
-		{ID: "$reply", RoomID: room, Sender: "@bob:x", Body: "yes", Timestamp: now.Add(time.Minute), RevisionID: "$edit", Edited: true},
+		{ID: mx + "$reply", RoomID: room, Sender: "matrix:@bob:x", Body: "yes", Timestamp: now.Add(time.Minute), RevisionID: mx + "$edit", Edited: true},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestEditingAMessageInAThreadKeepsItInTheThread(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("rows = %+v, want the one edited reply", rows)
 	}
-	if rows[0].ThreadRoot != "$root" {
+	if rows[0].ThreadRoot != mx+"$root" {
 		t.Errorf("ThreadRoot = %q, want $root — the edit must not evict it", rows[0].ThreadRoot)
 	}
 	if rows[0].Body != "yes" {
@@ -73,21 +73,21 @@ func TestALaterSaveTeachesARowItsThread(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!work:x")
+	const room = domain.RoomID(mx + "!work:x")
 	now := time.Date(2026, 8, 26, 9, 0, 0, 0, time.UTC)
 
 	if err := cache.SaveMessages(ctx, room, []domain.Message{
-		{ID: "$reply", RoomID: room, Sender: "@bob:x", Body: "yes", Timestamp: now},
+		{ID: mx + "$reply", RoomID: room, Sender: "matrix:@bob:x", Body: "yes", Timestamp: now},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := cache.SaveMessages(ctx, room, []domain.Message{
-		{ID: "$reply", RoomID: room, Sender: "@bob:x", Body: "yes", Timestamp: now, ThreadRoot: "$root"},
+		{ID: mx + "$reply", RoomID: room, Sender: "matrix:@bob:x", Body: "yes", Timestamp: now, ThreadRoot: mx + "$root"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	if got := messagesIn(t, cache, room)[0].ThreadRoot; got != "$root" {
+	if got := messagesIn(t, cache, room)[0].ThreadRoot; got != mx+"$root" {
 		t.Errorf("ThreadRoot = %q, want $root", got)
 	}
 }
@@ -98,28 +98,28 @@ func TestLatestInThread(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!work:x")
+	const room = domain.RoomID(mx + "!work:x")
 	now := time.Date(2026, 8, 26, 9, 0, 0, 0, time.UTC)
 
 	if err := cache.SaveMessages(ctx, room, []domain.Message{
-		{ID: "$root", RoomID: room, Body: "ship it?", Timestamp: now},
-		{ID: "$r1", RoomID: room, Body: "yes", Timestamp: now.Add(time.Minute), ThreadRoot: "$root"},
-		{ID: "$r2", RoomID: room, Body: "done", Timestamp: now.Add(2 * time.Minute), ThreadRoot: "$root"},
-		{ID: "$elsewhere", RoomID: room, Body: "later", Timestamp: now.Add(3 * time.Minute)},
-		{ID: "$other", RoomID: room, Body: "another thread", Timestamp: now.Add(4 * time.Minute), ThreadRoot: "$root2"},
+		{ID: mx + "$root", RoomID: room, Body: "ship it?", Timestamp: now},
+		{ID: mx + "$r1", RoomID: room, Body: "yes", Timestamp: now.Add(time.Minute), ThreadRoot: mx + "$root"},
+		{ID: mx + "$r2", RoomID: room, Body: "done", Timestamp: now.Add(2 * time.Minute), ThreadRoot: mx + "$root"},
+		{ID: mx + "$elsewhere", RoomID: room, Body: "later", Timestamp: now.Add(3 * time.Minute)},
+		{ID: mx + "$other", RoomID: room, Body: "another thread", Timestamp: now.Add(4 * time.Minute), ThreadRoot: mx + "$root2"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := cache.LatestInThread(ctx, room, "$root")
+	got, err := cache.LatestInThread(ctx, room, mx+"$root")
 	if err != nil {
 		t.Fatalf("LatestInThread: %v", err)
 	}
-	if got != "$r2" {
+	if got != mx+"$r2" {
 		t.Errorf("latest = %q, want $r2 — not the room's newest, and not another thread's", got)
 	}
 	// An unanswered thread has no latest; not an error.
-	empty, err := cache.LatestInThread(ctx, room, "$nothing")
+	empty, err := cache.LatestInThread(ctx, room, mx+"$nothing")
 	if err != nil || empty != "" {
 		t.Errorf("LatestInThread(unanswered) = %q, %v; want empty and no error", empty, err)
 	}

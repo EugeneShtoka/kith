@@ -31,10 +31,10 @@ func listSpec(modal bool) pickerSpec { return pickerSpec{title: "Test", modal: m
 func gridSpec(modal bool) pickerSpec { return pickerSpec{title: "Test", modal: modal, grid: true} }
 
 var pickerPeopleFixture = pickerItems(
-	[2]string{"Alice Cohen", "@alice:x"},
-	[2]string{"Bob Stone", "@bob:x"},
-	[2]string{"Carol Diaz", "@carol:x"},
-	[2]string{"Alistair Bo", "@ali:x"},
+	[2]string{"Alice Cohen", "matrix:@alice:x"},
+	[2]string{"Bob Stone", "matrix:@bob:x"},
+	[2]string{"Carol Diaz", "matrix:@carol:x"},
+	[2]string{"Alistair Bo", "matrix:@ali:x"},
 )
 
 // In navigate mode a letter moves; in filter mode the same letter types.
@@ -112,8 +112,8 @@ func TestPickerFiltering(t *testing.T) {
 	}
 
 	m2 := withPicker(t, listSpec(false), pickerItems(
-		[2]string{"Xavier Ali", "@x:x"},
-		[2]string{"Alice", "@a:x"},
+		[2]string{"Xavier Ali", "matrix:@x:x"},
+		[2]string{"Alice", "matrix:@a:x"},
 	))
 	for _, r := range "ali" {
 		m2, _ = press(t, m2, keyText(string(r)))
@@ -211,11 +211,11 @@ func TestPickerRenderers(t *testing.T) {
 	}
 
 	list := withPicker(t, listSpec(false), []pickerItem{
-		{label: "Alice Cohen", detail: "@alice:x", value: "@alice:x"},
-		{label: "יבגני שטוקה", detail: "@rtl:x", value: "@rtl:x"},
+		{label: "Alice Cohen", detail: "matrix:@alice:x", value: "matrix:@alice:x"},
+		{label: "יבגני שטוקה", detail: "matrix:@rtl:x", value: "matrix:@rtl:x"},
 	})
 	body := stripStyles(strings.Join(list.pickerLines(60, 6), "\n"))
-	for _, want := range []string{"Alice Cohen", "@alice:x"} {
+	for _, want := range []string{"Alice Cohen", "matrix:@alice:x"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the list should show %q, got:\n%s", want, body)
 		}
@@ -231,7 +231,7 @@ func TestPeopleItemsReorderTheNameAndFilterOnTheTyped(t *testing.T) {
 
 	const logical = "יבגני שטוקה"
 	m := newModel()
-	m.timeline.members = []domain.Member{{UserID: "@rtl:x", DisplayName: logical}}
+	m.timeline.members = []domain.Member{{UserID: "matrix:@rtl:x", DisplayName: logical}}
 	items := m.peopleItems()
 	if len(items) != 1 {
 		t.Fatalf("got %d items", len(items))

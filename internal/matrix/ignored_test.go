@@ -15,17 +15,17 @@ import (
 
 func TestIgnoredContentRoundTrip(t *testing.T) {
 	t.Parallel()
-	in := []string{"@bob:x", "@ann:x", "@carl:x"}
-	content := ignoredContentOf(ids{}, in)
-	got := content.users(ids{})
+	in := []string{"matrix:@bob:x", "matrix:@ann:x", "matrix:@carl:x"}
+	content := ignoredContentOf(testIDs, in)
+	got := content.users(testIDs)
 	// users() returns alphabetical order, independent of the input.
-	want := []string{"@ann:x", "@bob:x", "@carl:x"}
+	want := []string{"matrix:@ann:x", "matrix:@bob:x", "matrix:@carl:x"}
 	if !sameStringSet(got, want) {
 		t.Errorf("roundtrip = %v, want %v", got, want)
 	}
 	// Each value is kept as the spec-mandated empty object, not elided.
 	for _, id := range want {
-		if string(content.IgnoredUsers[id]) != "{}" {
+		if string(content.IgnoredUsers[domain.MatrixNative(id)]) != "{}" {
 			t.Errorf("ignored_users[%s] = %q, want {}", id, content.IgnoredUsers[id])
 		}
 	}
@@ -35,13 +35,13 @@ func TestIgnoredFromReadsOnlyItsOwnType(t *testing.T) {
 	t.Parallel()
 	events := []*event.Event{
 		{Type: event.Type{Type: "m.other"}},
-		mkIgnoredEvent(t, []string{"@spam:x"}),
+		mkIgnoredEvent(t, []string{"matrix:@spam:x"}),
 	}
 	content, present := ignoredFrom(events)
 	if !present {
 		t.Fatal("ignoredFrom: want present")
 	}
-	if got := content.users(ids{}); len(got) != 1 || got[0] != "@spam:x" {
+	if got := content.users(testIDs); len(got) != 1 || got[0] != "matrix:@spam:x" {
 		t.Errorf("users = %v, want [@spam:x]", got)
 	}
 	if _, present := ignoredFrom([]*event.Event{{Type: event.Type{Type: "m.other"}}}); present {
@@ -67,27 +67,27 @@ func TestIgnoreUserRoundTrip(t *testing.T) {
 	srv := store.serve(t)
 	defer srv.Close()
 	b := backendWith(t, srv, nil)
-	if err := b.Ignore(ctx, "@spam:x"); err != nil {
+	if err := b.Ignore(ctx, "matrix:@spam:x"); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Ignore(ctx, "@spam2:x"); err != nil {
+	if err := b.Ignore(ctx, "matrix:@spam2:x"); err != nil {
 		t.Fatal(err)
 	}
 	got, err := b.Ignored(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"@spam2:x", "@spam:x"}; !sameStringSet(got, want) {
+	if want := []string{"matrix:@spam2:x", "matrix:@spam:x"}; !sameStringSet(got, want) {
 		t.Errorf("Ignored = %v, want %v (one write per call, both kept)", got, want)
 	}
-	if uerr := b.Unignore(ctx, "@spam:x"); uerr != nil {
+	if uerr := b.Unignore(ctx, "matrix:@spam:x"); uerr != nil {
 		t.Fatal(uerr)
 	}
 	got, err = b.Ignored(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"@spam2:x"}; !sameStringSet(got, want) {
+	if want := []string{"matrix:@spam2:x"}; !sameStringSet(got, want) {
 		t.Errorf("after unignore = %v, want %v", got, want)
 	}
 	// Unignoring someone not in the set is a no-op: no error, no server write.
@@ -100,18 +100,18 @@ func TestIgnoreUserRoundTrip(t *testing.T) {
 	}
 }
 
-// A user named with kith's "matrix:" prefix is the same user as the bare MXID: the
+// A user named by the bare MXID is the same user as kith's matrix:@ form: the
 // homeserver gets Matrix's form, and unignoring by either spelling finds them.
 func TestIgnoreUserByEitherSpelling(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := &fakeAccountData{data: map[string]json.RawMessage{}}
 	b := backendWith(t, store.serve(t), nil)
-	if err := b.Ignore(ctx, "matrix:@spam:x"); err != nil {
+	if err := b.Ignore(ctx, "@spam:x"); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := b.Ignored(ctx); err != nil || !sameStringSet(got, []string{"@spam:x"}) {
-		t.Fatalf("Ignored = %v, %v; want [@spam:x]", got, err)
+	if got, err := b.Ignored(ctx); err != nil || !sameStringSet(got, []string{"matrix:@spam:x"}) {
+		t.Fatalf("Ignored = %v, %v; want [matrix:@spam:x]", got, err)
 	}
 	if err := b.Unignore(ctx, "matrix:@spam:x"); err != nil {
 		t.Fatal(err)
@@ -204,7 +204,7 @@ func (f *fakeAccountData) serve(t *testing.T) *httptest.Server {
 
 func mkIgnoredEvent(t *testing.T, users []string) *event.Event {
 	t.Helper()
-	content := ignoredContentOf(ids{}, users)
+	content := ignoredContentOf(testIDs, users)
 	raw, err := json.Marshal(content)
 	if err != nil {
 		t.Fatal(err)

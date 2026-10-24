@@ -74,7 +74,7 @@ func (f *fakeSession) setPaused(paused bool) {
 
 func voice(id domain.EventID) domain.Message {
 	return domain.Message{
-		ID: id, RoomID: "!a:x", Sender: "@dana:x", Timestamp: at(1),
+		ID: id, RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Timestamp: at(1),
 		Media: &domain.Media{Type: domain.MediaAudio, Name: "note.ogg", Mime: "audio/ogg", Size: 12345},
 	}
 }
@@ -85,12 +85,12 @@ func playing(t *testing.T, disp config.Display) (Model, *fakeSession) {
 
 	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m.focus = paneTimeline
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{voice("$v")}}})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{voice(mx + "$v")}}})
 	session := &fakeSession{st: audio.State{Duration: 34 * time.Second, Position: 5 * time.Second, Speed: 1}}
 	m.player = playerState{
-		event:      "$v",
+		event:      mx + "$v",
 		title:      "note.ogg",
-		place:      m.placeOf(voice("$v")),
+		place:      m.placeOf(voice(mx + "$v")),
 		configured: disp.Media.Audio.PlaySpeed(),
 		speed:      disp.Media.Audio.PlaySpeed(),
 		session:    session,
@@ -103,8 +103,8 @@ func TestPlayNeedsAVoiceNote(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m.focus = paneTimeline
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
-		Messages: []domain.Message{{ID: "$t", RoomID: "!a:x", Sender: "@a:x", Body: "hello", Timestamp: at(1)}},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
+		Messages: []domain.Message{{ID: mx + "$t", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "hello", Timestamp: at(1)}},
 	}})
 	m, _ = press(t, m, keyCode('p'))
 	if m.player.active() {
@@ -248,7 +248,7 @@ func TestAStalePlayerIsClosedRatherThanShown(t *testing.T) {
 	t.Parallel()
 
 	m, session := playing(t, config.Display{})
-	m = update(t, m, audioReadyMsg{event: "$other"})
+	m = update(t, m, audioReadyMsg{event: mx + "$other"})
 	if m.player.session != audioSession(session) {
 		t.Error("a player for another note replaced the loaded one")
 	}
@@ -308,7 +308,7 @@ func TestAudioTitle(t *testing.T) {
 		"Voice message": "voice message",
 		"note.ogg":      "note.ogg",
 	} {
-		msg := voice("$v")
+		msg := voice(mx + "$v")
 		msg.Media.Name = name
 		if got := audioTitle(msg); got != want {
 			t.Errorf("audioTitle(%q) = %q, want %q", name, got, want)
@@ -345,13 +345,13 @@ func TestRememberingASpeedWritesARule(t *testing.T) {
 	m = choose(t, m, "everything in Alpha")
 
 	rules := m.conf.base.Display.Media.Rules
-	if len(rules) != 1 || rules[0].Match != "!a:x" || rules[0].Sender != "" {
+	if len(rules) != 1 || rules[0].Match != mx+"!a:x" || rules[0].Sender != "" {
 		t.Fatalf("rules = %+v, want one naming the room", rules)
 	}
 	if rules[0].Speed == nil || *rules[0].Speed != 1.25 {
 		t.Fatalf("rule speed = %v, want 1.25", rules[0].Speed)
 	}
-	if got := m.mediaPolicy(voice("$v")).Speed; got != 1.25 {
+	if got := m.mediaPolicy(voice(mx + "$v")).Speed; got != 1.25 {
 		t.Errorf("the running client resolves %v, want the rule it just wrote", got)
 	}
 }
@@ -411,15 +411,15 @@ func TestThePlayKeyIsAdvertisedOnlyOnAVoiceNote(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m.focus = paneTimeline
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$t", RoomID: "!a:x", Sender: "@a:x", Body: "hello", Timestamp: at(1)},
-		voice("$v"),
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$t", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "hello", Timestamp: at(1)},
+		voice(mx + "$v"),
 	}}})
-	m.timeline.selected = "$t"
+	m.timeline.selected = mx + "$t"
 	if strings.Contains(m.timelineHints(), "play") {
 		t.Error("the play key is offered on a message with nothing to play")
 	}
-	m.timeline.selected = "$v"
+	m.timeline.selected = mx + "$v"
 	if !strings.Contains(m.timelineHints(), "play") {
 		t.Errorf("the play key is not offered on a voice note: %s", m.timelineHints())
 	}
@@ -476,8 +476,8 @@ func TestAFailedNoteClosesTheBar(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m.player = playerState{event: "$v", title: "note.ogg", loading: true}
-	m = update(t, m, audioReadyMsg{event: "$v", err: errNoAudio})
+	m.player = playerState{event: mx + "$v", title: "note.ogg", loading: true}
+	m = update(t, m, audioReadyMsg{event: mx + "$v", err: errNoAudio})
 	if m.player.active() {
 		t.Error("the bar is still up after a failure")
 	}
@@ -602,7 +602,7 @@ func TestSwappingTheNoteKeepsTheTickAccountedFor(t *testing.T) {
 	if !stopped.player.pulsing {
 		t.Error("stopping the player forgot the tick that was in flight")
 	}
-	failed := update(t, m, audioReadyMsg{event: "$v", err: errNoAudio})
+	failed := update(t, m, audioReadyMsg{event: mx + "$v", err: errNoAudio})
 	if !failed.player.pulsing {
 		t.Error("a player that failed to open forgot the tick that was in flight")
 	}
@@ -735,7 +735,7 @@ func TestAFinishedNoteClosesPerConfig(t *testing.T) {
 				t.Fatalf("close armed = %v, want %v", armed, tc.after != 0)
 			}
 			if armed {
-				if closed := update(t, m, playerCloseMsg{event: "$v"}); closed.player.active() {
+				if closed := update(t, m, playerCloseMsg{event: mx + "$v"}); closed.player.active() {
 					t.Error("the armed close for the note that ended left its bar up")
 				}
 			}
@@ -765,7 +765,7 @@ func TestAStaleCloseIsIgnored(t *testing.T) {
 
 		m, session := playing(t, closeAfter(15))
 		session.finish()
-		next, _ := m.handlePlayerClose(playerCloseMsg{event: "$other"})
+		next, _ := m.handlePlayerClose(playerCloseMsg{event: mx + "$other"})
 		if !next.player.active() {
 			t.Error("a close armed for another note took this one away")
 		}
@@ -775,7 +775,7 @@ func TestAStaleCloseIsIgnored(t *testing.T) {
 		t.Parallel()
 
 		m, _ := playing(t, closeAfter(15)) // still playing, never finished
-		next, _ := m.handlePlayerClose(playerCloseMsg{event: "$v"})
+		next, _ := m.handlePlayerClose(playerCloseMsg{event: mx + "$v"})
 		if !next.player.active() {
 			t.Error("a close took away a note that was playing again")
 		}
@@ -786,7 +786,7 @@ func TestAStaleCloseIsIgnored(t *testing.T) {
 
 		m, session := playing(t, closeAfter(15))
 		session.finish()
-		next, _ := m.handlePlayerClose(playerCloseMsg{event: "$v"})
+		next, _ := m.handlePlayerClose(playerCloseMsg{event: mx + "$v"})
 		if next.player.active() {
 			t.Error("the bar stayed up after its close arrived")
 		}

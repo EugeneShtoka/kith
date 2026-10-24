@@ -34,10 +34,10 @@ func carding(t *testing.T, members []domain.Member) (Model, string) {
 	}
 	m := sized(t, withRooms(t, starterNew(roster{members: members}, config.Display{})))
 	m.prefs.phonebookDir = dir
-	m.selves = []string{"@me:x"}
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@whatsapp_15550100001:x", SenderName: "Dana", Timestamp: time.Unix(1000, 0), Body: "hi"},
-		{ID: "$2", RoomID: "!a:x", Sender: "@eli:x", SenderName: "Eli", Timestamp: time.Unix(1001, 0), Body: "hey"},
+	m.selves = []string{"matrix:@me:x"}
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@whatsapp_15550100001:x", SenderName: "Dana", Timestamp: time.Unix(1000, 0), Body: "hi"},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@eli:x", SenderName: "Eli", Timestamp: time.Unix(1001, 0), Body: "hey"},
 	}}})
 	m.focus = paneTimeline
 	return m, dir
@@ -46,7 +46,7 @@ func carding(t *testing.T, members []domain.Member) (Model, string) {
 // cardOf presses I on the sender's message and delivers the card read.
 func cardOf(t *testing.T, m Model, sender string) Model {
 	t.Helper()
-	m.timeline.selected = domain.EventID(map[string]string{"dana": "$1", "eli": "$2"}[sender])
+	m.timeline.selected = domain.EventID(map[string]string{"dana": mx + "$1", "eli": mx + "$2"}[sender])
 	next, cmd := press(t, m, keyText("I"))
 	return deliver(t, next, cmd)
 }
@@ -124,8 +124,8 @@ func TestACardIsEditedAField(t *testing.T) {
 // (bots aside) it opens theirs; in a larger room it says so.
 func TestACardOpensFromMembersAndRooms(t *testing.T) {
 	t.Parallel()
-	m, _ := carding(t, []domain.Member{{UserID: "@me:x"}, {UserID: "@whatsappbot:x"}, {UserID: "@eli:x", DisplayName: "Eli"}})
-	m.timeline.members = []domain.Member{{UserID: "@eli:x", DisplayName: "Eli"}}
+	m, _ := carding(t, []domain.Member{{UserID: "matrix:@me:x"}, {UserID: "matrix:@whatsappbot:x"}, {UserID: "matrix:@eli:x", DisplayName: "Eli"}})
+	m.timeline.members = []domain.Member{{UserID: "matrix:@eli:x", DisplayName: "Eli"}}
 	m, _ = m.openPeopleForRoom()
 	next, cmd := press(t, m, keyText("I"))
 	if m = deliver(t, next, cmd); m.picker.kind != pickerPerson || !strings.Contains(m.picker.spec.title, "Eli Stone.md") {
@@ -140,7 +140,7 @@ func TestACardOpensFromMembersAndRooms(t *testing.T) {
 		t.Errorf("from a one-person room: picker %v %q", m.picker.kind, m.picker.spec.title)
 	}
 
-	crowd, _ := carding(t, []domain.Member{{UserID: "@me:x"}, {UserID: "@eli:x"}, {UserID: "@whatsapp_15550100001:x"}})
+	crowd, _ := carding(t, []domain.Member{{UserID: "matrix:@me:x"}, {UserID: "matrix:@eli:x"}, {UserID: "matrix:@whatsapp_15550100001:x"}})
 	crowd.focus = paneRooms
 	next, cmd = press(t, crowd, keyText("I"))
 	crowd = deliver(t, next, cmd)
@@ -153,12 +153,12 @@ func TestACardOpensFromMembersAndRooms(t *testing.T) {
 // network's own ID, and every identity ID of theirs.
 func TestAPersonIsKnownByEveryIDOfTheirs(t *testing.T) {
 	t.Parallel()
-	m := starterNew(apitest.Nop{}, config.Display{Identities: []config.Identity{{Alias: "Dana", IDs: []string{"@dana:x", "@telegram_42:x", "slack:T1.U2"}}}})
-	ids := m.personIdentifiers("@dana:x")
+	m := starterNew(apitest.Nop{}, config.Display{Identities: []config.Identity{{Alias: "Dana", IDs: []string{"matrix:@dana:x", "matrix:@telegram_42:x", "slack:T1.U2"}}}})
+	ids := m.personIdentifiers("matrix:@dana:x")
 	if ids["matrix"][0] != "@dana:x" || ids["telegram"][0] != "42" || ids["slack"][0] != "T1.U2" {
 		t.Errorf("identifiers = %v", ids)
 	}
-	if got := m.personIdentifiers("@whatsapp_15550100001:x"); got["phone"][0] != "+15550100001" {
+	if got := m.personIdentifiers("matrix:@whatsapp_15550100001:x"); got["phone"][0] != "+15550100001" {
 		t.Errorf("a WhatsApp puppet's = %v", got)
 	}
 	if got := m.personIdentifiers("telegram:77"); got["telegram"][0] != "77" {

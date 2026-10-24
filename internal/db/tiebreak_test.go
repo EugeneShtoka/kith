@@ -17,14 +17,14 @@ func TestMessagesSharingATimeKeepTheirOrder(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!r:x")
+	const room = domain.RoomID(mx + "!r:x")
 	same := time.UnixMilli(5000)
 	// Saved out of order, so insertion order cannot pass for the right one.
-	ids := []domain.EventID{"$c", "$a", "$e", "$b", "$d"}
+	ids := []domain.EventID{mx + "$c", mx + "$a", mx + "$e", mx + "$b", mx + "$d"}
 	for _, id := range ids {
-		mustSave(t, cache, room, domain.Message{ID: id, Sender: "@a:x", Body: string(id), Timestamp: same})
+		mustSave(t, cache, room, domain.Message{ID: id, Sender: "matrix:@a:x", Body: string(id), Timestamp: same})
 	}
-	mustSave(t, cache, room, domain.Message{ID: "$later", Sender: "@a:x", Body: "later", Timestamp: same.Add(time.Second)})
+	mustSave(t, cache, room, domain.Message{ID: mx + "$later", Sender: "matrix:@a:x", Body: "later", Timestamp: same.Add(time.Second)})
 
 	idsOf := func(msgs []domain.Message) []domain.EventID {
 		out := make([]domain.EventID, len(msgs))
@@ -38,9 +38,9 @@ func TestMessagesSharingATimeKeepTheirOrder(t *testing.T) {
 		before, after int
 		want          []domain.EventID
 	}{
-		{"$c", 1, 1, []domain.EventID{"$b", "$c", "$d"}},
-		{"$e", 2, 1, []domain.EventID{"$c", "$d", "$e", "$later"}},
-		{"$a", 3, 0, []domain.EventID{"$a"}},
+		{mx + "$c", 1, 1, []domain.EventID{mx + "$b", mx + "$c", mx + "$d"}},
+		{mx + "$e", 2, 1, []domain.EventID{mx + "$c", mx + "$d", mx + "$e", mx + "$later"}},
+		{mx + "$a", 3, 0, []domain.EventID{mx + "$a"}},
 	} {
 		got, err := cache.MessagesAround(ctx, room, tc.target, tc.before, tc.after)
 		if err != nil {
@@ -55,7 +55,7 @@ func TestMessagesSharingATimeKeepTheirOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []domain.EventID{"$d", "$e", "$later"}; !slices.Equal(idsOf(page), want) {
+	if want := []domain.EventID{mx + "$d", mx + "$e", mx + "$later"}; !slices.Equal(idsOf(page), want) {
 		t.Errorf("Messages(3) = %v, want %v", idsOf(page), want)
 	}
 }
@@ -70,17 +70,17 @@ func TestNumberedMessagesInOneSecondKeepTheirOrder(t *testing.T) {
 	numbers := []int{7, 8, 9, 10, 11, 98, 99, 100, 101, 998, 999, 1000, 1001, 9999, 10000, 10001}
 	second := time.UnixMilli(1_700_000_000_000)
 	want := make([]domain.Message, 0, len(numbers)+3)
-	root := domain.Message{ID: domain.EventID(room + "/1"), Sender: "@a:x", Body: "root", Timestamp: second.Add(-time.Minute)}
+	root := domain.Message{ID: domain.EventID(room + "/1"), Sender: "matrix:@a:x", Body: "root", Timestamp: second.Add(-time.Minute)}
 	want = append(want, root)
 	for _, n := range numbers {
 		want = append(want, domain.Message{
-			ID: domain.EventID(string(room) + "/" + strconv.Itoa(n)), Sender: "@a:x",
+			ID: domain.EventID(string(room) + "/" + strconv.Itoa(n)), Sender: "matrix:@a:x",
 			Body: "burst " + strconv.Itoa(n), Timestamp: second, ThreadRoot: root.ID,
 		})
 	}
 	// One each side, so the burst sits between other seconds.
-	want = slices.Insert(want, 1, domain.Message{ID: domain.EventID(room + "/5"), Sender: "@a:x", Body: "before", Timestamp: second.Add(-time.Second)})
-	want = append(want, domain.Message{ID: domain.EventID(room + "/3"), Sender: "@a:x", Body: "after", Timestamp: second.Add(time.Second)})
+	want = slices.Insert(want, 1, domain.Message{ID: domain.EventID(room + "/5"), Sender: "matrix:@a:x", Body: "before", Timestamp: second.Add(-time.Second)})
+	want = append(want, domain.Message{ID: domain.EventID(room + "/3"), Sender: "matrix:@a:x", Body: "after", Timestamp: second.Add(time.Second)})
 
 	assertTimelineOrder(t, cache, room, root, want, len(numbers), "burst")
 }
@@ -186,16 +186,16 @@ func TestGivenPlacesOrderMessagesInOneSecond(t *testing.T) {
 		}
 		return domain.EventID(string(room) + "/" + string(b))
 	}
-	root := domain.Message{ID: randomID(), Sender: "@a:x", Body: "root", Timestamp: second.Add(-time.Minute), Seq: 1}
-	want := []domain.Message{root, {ID: randomID(), Sender: "@a:x", Body: "before", Timestamp: second.Add(-time.Second)}}
+	root := domain.Message{ID: randomID(), Sender: "matrix:@a:x", Body: "root", Timestamp: second.Add(-time.Minute), Seq: 1}
+	want := []domain.Message{root, {ID: randomID(), Sender: "matrix:@a:x", Body: "before", Timestamp: second.Add(-time.Second)}}
 	const burst = 12
 	for i := range burst {
 		want = append(want, domain.Message{
-			ID: randomID(), Sender: "@a:x", Body: "burst " + strconv.Itoa(i), Timestamp: second,
+			ID: randomID(), Sender: "matrix:@a:x", Body: "burst " + strconv.Itoa(i), Timestamp: second,
 			ThreadRoot: root.ID, Seq: int64(1000 + i*7),
 		})
 	}
-	want = append(want, domain.Message{ID: randomID(), Sender: "@a:x", Body: "after", Timestamp: second.Add(time.Second)})
+	want = append(want, domain.Message{ID: randomID(), Sender: "matrix:@a:x", Body: "after", Timestamp: second.Add(time.Second)})
 	assertTimelineOrder(t, cache, room, root, want, burst, "burst")
 
 	// Seen again with another place (history after live): it does not move.

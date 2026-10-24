@@ -97,7 +97,7 @@ func TestLiveDaemon(t *testing.T) {
 
 	// Mark-read without side effects: a room the account is not in has no cached event,
 	// so it is skipped and no receipt is sent.
-	result, err := r.MarkRoomsRead(ctx, []domain.RoomID{"!definitely-not-a-room:invalid"}, false)
+	result, err := r.MarkRoomsRead(ctx, []domain.RoomID{mx + "!definitely-not-a-room:invalid"}, false)
 	if err != nil {
 		t.Fatalf("MarkRoomsRead: %v", err)
 	}
@@ -182,7 +182,7 @@ func liveDND(ctx context.Context, t *testing.T, r *daemon.Remote) {
 
 	// A scoped, timed mute.
 	until := time.Now().Add(90 * time.Minute)
-	mutes, err := r.SetDND(ctx, withUntil(named(hideRule("!probe:example.org", ""), "Probe"), until))
+	mutes, err := r.SetDND(ctx, withUntil(named(hideRule(mx+"!probe:example.org", ""), "Probe"), until))
 	if err != nil {
 		t.Fatalf("SetDND: %v", err)
 	}
@@ -204,11 +204,11 @@ func liveDND(ctx context.Context, t *testing.T, r *daemon.Remote) {
 	if err != nil {
 		t.Fatalf("DND: %v", err)
 	}
-	if len(read) != 1 || read[0].Match != "!probe:example.org" {
+	if len(read) != 1 || read[0].Match != mx+"!probe:example.org" {
 		t.Errorf("DND = %+v, want the mute the daemon is holding", read)
 	}
 
-	left, err := r.ClearDND(ctx, "!probe:example.org", "")
+	left, err := r.ClearDND(ctx, mx+"!probe:example.org", "")
 	if err != nil {
 		t.Fatalf("ClearDND: %v", err)
 	}

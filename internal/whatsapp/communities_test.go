@@ -62,7 +62,7 @@ func TestCommunitiesAreCachedPerAccount(t *testing.T) {
 	ctx := context.Background()
 	home, work := Account{Name: "home", Digits: ownDigits}, Account{Name: "work", Digits: "1500000001"}
 	a, cache, _ := offline(t, home, work)
-	if err := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{ID: "!work:x", Name: "Work"}}); err != nil {
+	if err := cache.SaveSpaces(ctx, mxRooms, []domain.Space{{ID: mx + "!work:x", Name: "Work"}}); err != nil {
 		t.Fatal(err)
 	}
 	room := roomID(ownDigits, group("120363012"))

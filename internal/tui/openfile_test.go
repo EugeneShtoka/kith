@@ -15,13 +15,13 @@ func TestTheOpenKeyDispatchesOnWhatIsAttached(t *testing.T) {
 
 	withMedia := func(kind domain.MediaType) Model {
 		m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{})))
-		next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+		next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 		m = next
 		m = m.setMessages([]domain.Message{{
-			ID: "$m", RoomID: "!a:x", Sender: "@her:x", Timestamp: at(1),
+			ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Timestamp: at(1),
 			Media: &domain.Media{Type: kind, Name: "thing", Mime: "application/pdf"},
 		}})
-		m.timeline.selected, m.focus = "$m", paneTimeline
+		m.timeline.selected, m.focus = mx+"$m", paneTimeline
 		return m.clearStatus()
 	}
 
@@ -48,7 +48,7 @@ func TestTheOpenKeyDispatchesOnWhatIsAttached(t *testing.T) {
 	// A message carrying nothing says so rather than opening the room's pictures.
 	bare := withMedia(domain.MediaFile)
 	bare = bare.setMessages([]domain.Message{{
-		ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "just words", Timestamp: at(1),
+		ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "just words", Timestamp: at(1),
 	}})
 	next, _ = bare.viewMedia()
 	said := next

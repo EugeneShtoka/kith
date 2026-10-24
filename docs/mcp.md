@@ -166,7 +166,7 @@ Entries use the same vocabulary as every other room list in the config:
 
 | Entry | Matches |
 | --- | --- |
-| `!abc:example.org` | One room, by ID |
+| `matrix:4f1c9e2a7b3d5c60/!abc:example.org` | One room, by ID |
 | `room:Standup` | One room, by its displayed name (or ID) |
 | `space:Work` | Every room in that space |
 | `tag:Pinned` | Every room that tag holds |
@@ -215,7 +215,7 @@ An `[agent.write]` `rooms` or `send` entry that `[agent.read]` rules out can nev
 `kith-mcp` and `kith` print the warnings on stderr at startup (`kith` before it takes the screen). `kithd` writes them to its log, checked against the rooms already in its cache.
 
 ```text
-kith: warning: agent: [agent.write] send names "!abc:example.org", but 1 of the 1 rooms it matches are outside [agent.read], so an assistant can never write there (for example: Family)
+kith: warning: agent: [agent.write] send names "matrix:4f1c9e2a7b3d5c60/!abc:example.org", but 1 of the 1 rooms it matches are outside [agent.read], so an assistant can never write there (for example: Family)
 ```
 
 **People are scoped too.** `find_people`, and the names `find_rooms_with` resolves, come only from people who have posted in a room the read scope allows. Someone seen only in an excluded room is not found, and is never listed as a candidate for an ambiguous name. Names are scoped the same way: a person is matched and shown under the name they use in the allowed rooms, never under a nickname from an excluded one. Who talks in a room is part of what the room is.

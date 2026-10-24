@@ -144,16 +144,16 @@ func TestTrackedRulesUnionByScope(t *testing.T) {
 		{Words: []string{"invoice"}, Where: domain.PlaceFilter{Include: []string{"space:Work"}}},
 		{Words: []string{"dinner"}, Where: domain.PlaceFilter{Include: []string{"dm"}}},
 	}
-	work := domain.RoomFacts{ID: "!w:x", Name: "Standup", Spaces: []string{"Work"}}
-	if got := domain.TrackedFor(rules, work, "@dana:x").Words; len(got) != 2 {
+	work := domain.RoomFacts{ID: mx + "!w:x", Name: "Standup", Spaces: []string{"Work"}}
+	if got := domain.TrackedFor(rules, work, "matrix:@dana:x").Words; len(got) != 2 {
 		t.Errorf("in Work = %v, want deploy and invoice — a ladder would give one", got)
 	}
-	dm := domain.RoomFacts{ID: "!d:x", Name: "Dana", Direct: true}
-	if got := domain.TrackedFor(rules, dm, "@dana:x").Words; len(got) != 2 {
+	dm := domain.RoomFacts{ID: mx + "!d:x", Name: "Dana", Direct: true}
+	if got := domain.TrackedFor(rules, dm, "matrix:@dana:x").Words; len(got) != 2 {
 		t.Errorf("in a DM = %v, want deploy and dinner", got)
 	}
-	other := domain.RoomFacts{ID: "!o:x", Name: "Noise", Spaces: []string{"Social"}}
-	if got := domain.TrackedFor(rules, other, "@dana:x").Words; len(got) != 1 {
+	other := domain.RoomFacts{ID: mx + "!o:x", Name: "Noise", Spaces: []string{"Social"}}
+	if got := domain.TrackedFor(rules, other, "matrix:@dana:x").Words; len(got) != 1 {
 		t.Errorf("elsewhere = %v, want only the global word", got)
 	}
 }
@@ -164,18 +164,18 @@ func TestTrackedRuleExceptAndFrom(t *testing.T) {
 
 	rules := []domain.TrackedRule{{
 		Words: []string{"deploy"},
-		Where: domain.PlaceFilter{Include: []string{"space:Work"}, Exclude: []string{"!noise:x"}},
-		From:  []string{"@dana:x"},
+		Where: domain.PlaceFilter{Include: []string{"space:Work"}, Exclude: []string{mx + "!noise:x"}},
+		From:  []string{"matrix:@dana:x"},
 	}}
-	inWork := domain.RoomFacts{ID: "!w:x", Spaces: []string{"Work"}}
-	if got := domain.TrackedFor(rules, inWork, "@dana:x").Words; len(got) != 1 {
+	inWork := domain.RoomFacts{ID: mx + "!w:x", Spaces: []string{"Work"}}
+	if got := domain.TrackedFor(rules, inWork, "matrix:@dana:x").Words; len(got) != 1 {
 		t.Errorf("from the named sender = %v, want the word", got)
 	}
-	if got := domain.TrackedFor(rules, inWork, "@bob:x").Words; len(got) != 0 {
+	if got := domain.TrackedFor(rules, inWork, "matrix:@bob:x").Words; len(got) != 0 {
 		t.Errorf("from anybody else = %v, want nothing", got)
 	}
-	excluded := domain.RoomFacts{ID: "!noise:x", Spaces: []string{"Work"}}
-	if got := domain.TrackedFor(rules, excluded, "@dana:x").Words; len(got) != 0 {
+	excluded := domain.RoomFacts{ID: mx + "!noise:x", Spaces: []string{"Work"}}
+	if got := domain.TrackedFor(rules, excluded, "matrix:@dana:x").Words; len(got) != 0 {
 		t.Errorf("in the excluded room = %v, want nothing — exclude is final", got)
 	}
 }
@@ -185,22 +185,22 @@ func TestTrackedNotifiesPerRule(t *testing.T) {
 	t.Parallel()
 
 	yes, no := true, false
-	room := domain.RoomFacts{ID: "!w:x", Spaces: []string{"Work"}}
+	room := domain.RoomFacts{ID: mx + "!w:x", Spaces: []string{"Work"}}
 	loud := []domain.TrackedRule{
 		{Words: []string{"outage"}, Notify: &yes},
 		{Words: []string{"outage"}, Notify: &no},
 	}
 	hits := domain.Tracked{Words: []string{"outage"}}.Find("an outage again")
-	if !domain.TrackedNotifies(loud, hits, false, room, "@dana:x") {
+	if !domain.TrackedNotifies(loud, hits, false, room, "matrix:@dana:x") {
 		t.Error("a rule saying notify=true did not interrupt, though the global default is off")
 	}
 	quiet := []domain.TrackedRule{{Words: []string{"outage"}, Notify: &no}}
-	if domain.TrackedNotifies(quiet, hits, true, room, "@dana:x") {
+	if domain.TrackedNotifies(quiet, hits, true, room, "matrix:@dana:x") {
 		t.Error("a rule saying notify=false interrupted, though it overrides the global default")
 	}
 	// A rule that sets nothing follows the global default.
 	plain := []domain.TrackedRule{{Words: []string{"outage"}}}
-	if !domain.TrackedNotifies(plain, hits, true, room, "@dana:x") {
+	if !domain.TrackedNotifies(plain, hits, true, room, "matrix:@dana:x") {
 		t.Error("a rule with no opinion did not follow the global default")
 	}
 }

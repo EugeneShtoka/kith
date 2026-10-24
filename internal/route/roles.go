@@ -44,16 +44,21 @@ func (r *Router) CachedInvites(ctx context.Context) ([]domain.Room, error) {
 	return gather(r, func(c api.Membership) ([]domain.Room, error) { return c.CachedInvites(ctx) })
 }
 
-// JoinRoom joins a room by ID or alias, on the network its ID names.
+// JoinRoom joins a room by ID or alias, on the network its ID names; a Matrix address
+// (a room ID or alias as Matrix writes it) goes to Matrix.
 func (r *Router) JoinRoom(ctx context.Context, roomIDOrAlias string, via []string) (domain.RoomID, error) {
-	return onRoom(r, domain.RoomID(roomIDOrAlias), "joining", func(c api.Membership) (domain.RoomID, error) {
+	on := domain.RoomID(roomIDOrAlias)
+	if domain.IsMatrixAddress(roomIDOrAlias) {
+		on = domain.RoomID(domain.NetworkRooms(domain.ProtocolMatrix))
+	}
+	return onRoom(r, on, "joining", func(c api.Membership) (domain.RoomID, error) {
 		return c.JoinRoom(ctx, roomIDOrAlias, via)
 	})
 }
 
 // CreateRoom makes a room or space on Matrix, or a chat on the account spec.On names.
 func (r *Router) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error) {
-	if spec.On != "" && spec.On != domain.MatrixRooms {
+	if spec.On != "" && domain.NetworkOf(string(spec.On)) != domain.ProtocolMatrix {
 		return onRoom(r, domain.RoomID(spec.On), "new chats", func(c ChatMaker) (domain.RoomID, error) {
 			return c.CreateRoom(ctx, spec)
 		})

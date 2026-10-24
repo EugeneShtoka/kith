@@ -21,7 +21,7 @@ func at(n int) time.Time {
 // seedRoom registers a room, which every other table references.
 func seedRoom(t *testing.T, b *InProc, roomID domain.RoomID) {
 	t.Helper()
-	if err := b.cache.SaveRooms(context.Background(), domain.MatrixRooms, []domain.Room{
+	if err := b.cache.SaveRooms(context.Background(), testIDs.owner(), []domain.Room{
 		{ID: roomID, Name: "Room"},
 	}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
@@ -34,27 +34,27 @@ func TestMentionCandidatesLeadWithRecentSpeakers(t *testing.T) {
 
 	ctx := context.Background()
 	b := backendWithCache(t, testUser)
-	seedRoom(t, b, "!r:x")
-	if err := b.cache.SaveMembers(ctx, "!r:x", []domain.Member{
-		{UserID: "@alice:x", DisplayName: "Alice"},
-		{UserID: "@zoe:x", DisplayName: "Zoe"},
+	seedRoom(t, b, mx+"!r:x")
+	if err := b.cache.SaveMembers(ctx, mx+"!r:x", []domain.Member{
+		{UserID: "matrix:@alice:x", DisplayName: "Alice"},
+		{UserID: "matrix:@zoe:x", DisplayName: "Zoe"},
 	}); err != nil {
 		t.Fatalf("SaveMembers: %v", err)
 	}
-	if err := b.cache.SaveMessages(ctx, "!r:x", []domain.Message{
-		{ID: "$1", RoomID: "!r:x", Sender: "@zoe:x", Body: "hello", Timestamp: at(9)},
+	if err := b.cache.SaveMessages(ctx, mx+"!r:x", []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!r:x", Sender: "matrix:@zoe:x", Body: "hello", Timestamp: at(9)},
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
 
-	got, err := b.MentionCandidates(ctx, "!r:x", 0)
+	got, err := b.MentionCandidates(ctx, mx+"!r:x", 0)
 	if err != nil {
 		t.Fatalf("MentionCandidates: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %d candidates, want both members", len(got))
 	}
-	if got[0].UserID != "@zoe:x" {
+	if got[0].UserID != "matrix:@zoe:x" {
 		t.Errorf("the list leads with %s, want the most recent speaker", got[0].UserID)
 	}
 }
@@ -65,16 +65,16 @@ func TestCachedUnreadPrefersTheLocalCount(t *testing.T) {
 
 	ctx := context.Background()
 	b := backendWithCache(t, testUser)
-	seedRoom(t, b, "!r:x")
-	if err := b.cache.SaveMessages(ctx, "!r:x", []domain.Message{
-		{ID: "$read", RoomID: "!r:x", Sender: "@alice:x", Body: "seen", Timestamp: at(1)},
-		{ID: "$1", RoomID: "!r:x", Sender: "@alice:x", Body: "one", Timestamp: at(2)},
-		{ID: "$2", RoomID: "!r:x", Sender: "@alice:x", Body: "two", Timestamp: at(3)},
+	seedRoom(t, b, mx+"!r:x")
+	if err := b.cache.SaveMessages(ctx, mx+"!r:x", []domain.Message{
+		{ID: mx + "$read", RoomID: mx + "!r:x", Sender: "matrix:@alice:x", Body: "seen", Timestamp: at(1)},
+		{ID: mx + "$1", RoomID: mx + "!r:x", Sender: "matrix:@alice:x", Body: "one", Timestamp: at(2)},
+		{ID: mx + "$2", RoomID: mx + "!r:x", Sender: "matrix:@alice:x", Body: "two", Timestamp: at(3)},
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
 	if err := b.cache.SaveUnread(ctx, domain.Unread{
-		RoomID: "!r:x", ReadEvent: "$read", Notifications: 99,
+		RoomID: mx + "!r:x", ReadEvent: mx + "$read", Notifications: 99,
 	}, 0); err != nil {
 		t.Fatalf("SaveUnread: %v", err)
 	}
@@ -101,18 +101,18 @@ func TestHidingAPersonRecountsTheirRooms(t *testing.T) {
 
 	ctx := context.Background()
 	b := backendWithCache(t, testUser)
-	seedRoom(t, b, "!r:x")
-	if err := b.cache.SaveMessages(ctx, "!r:x", []domain.Message{
-		{ID: "$read", RoomID: "!r:x", Sender: "@alice:x", Body: "seen", Timestamp: at(1)},
-		{ID: "$1", RoomID: "!r:x", Sender: "@alice:x", Body: "one", Timestamp: at(2)},
-		{ID: "$2", RoomID: "!r:x", Sender: "@spam:x", Body: "buy", Timestamp: at(3)},
+	seedRoom(t, b, mx+"!r:x")
+	if err := b.cache.SaveMessages(ctx, mx+"!r:x", []domain.Message{
+		{ID: mx + "$read", RoomID: mx + "!r:x", Sender: "matrix:@alice:x", Body: "seen", Timestamp: at(1)},
+		{ID: mx + "$1", RoomID: mx + "!r:x", Sender: "matrix:@alice:x", Body: "one", Timestamp: at(2)},
+		{ID: mx + "$2", RoomID: mx + "!r:x", Sender: "matrix:@spam:x", Body: "buy", Timestamp: at(3)},
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
-	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: "!r:x", ReadEvent: "$read"}, 0); err != nil {
+	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!r:x", ReadEvent: mx + "$read"}, 0); err != nil {
 		t.Fatalf("SaveUnread: %v", err)
 	}
-	b.recount(ctx, "!r:x")
+	b.recount(ctx, mx+"!r:x")
 	b.cache.OnHiddenChange(b.RecountUnread)
 	streamed := func() int {
 		t.Helper()
@@ -131,11 +131,11 @@ func TestHidingAPersonRecountsTheirRooms(t *testing.T) {
 	for _, step := range []struct {
 		marked []string
 		want   int
-	}{{[]string{"@spam:x"}, 1}, {nil, 2}} {
+	}{{[]string{"matrix:@spam:x"}, 1}, {nil, 2}} {
 		if err := b.cache.UseHidden(ctx, step.marked, nil, nil); err != nil {
 			t.Fatalf("UseHidden: %v", err)
 		}
-		if got := b.unread.get("!r:x").Messages; got != step.want {
+		if got := b.unread.get(mx + "!r:x").Messages; got != step.want {
 			t.Errorf("marked %v: the book counts %d, want %d", step.marked, got, step.want)
 		}
 		if got := streamed(); got != step.want {
@@ -148,7 +148,7 @@ func TestHidingAPersonRecountsTheirRooms(t *testing.T) {
 func TestCachelessUnreadAnswersNothing(t *testing.T) {
 	t.Parallel()
 
-	if got, err := New(nil).CachedUnread(context.Background()); err != nil || got != nil {
+	if got, err := newBackend(nil).CachedUnread(context.Background()); err != nil || got != nil {
 		t.Errorf("CachedUnread = (%v, %v), want nothing", got, err)
 	}
 }
@@ -159,28 +159,28 @@ func TestAKeptDeletionSurvivesAPageFromTheServer(t *testing.T) {
 
 	ctx := context.Background()
 	b := backendWithCache(t, testUser)
-	seedRoom(t, b, "!r:x")
+	seedRoom(t, b, mx+"!r:x")
 
 	const kept = "what it actually said"
-	if err := b.cache.SaveMessages(ctx, "!r:x", []domain.Message{
-		{ID: "$1", RoomID: "!r:x", Sender: "@her:x", Body: kept, Format: richtext.FromMarkup("<b>" + kept + "</b>"), Timestamp: at(1)},
-		{ID: "$2", RoomID: "!r:x", Sender: "@her:x", Body: "erased", Timestamp: at(2)},
+	if err := b.cache.SaveMessages(ctx, mx+"!r:x", []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!r:x", Sender: "matrix:@her:x", Body: kept, Format: richtext.FromMarkup("<b>" + kept + "</b>"), Timestamp: at(1)},
+		{ID: mx + "$2", RoomID: mx + "!r:x", Sender: "matrix:@her:x", Body: "erased", Timestamp: at(2)},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.cache.MarkRedacted(ctx, "!r:x", "$1", "@her:x", "", time.Time{}, true); err != nil {
+	if err := b.cache.MarkRedacted(ctx, mx+"!r:x", mx+"$1", "@her:x", "", time.Time{}, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.cache.MarkRedacted(ctx, "!r:x", "$2", "@her:x", "", time.Time{}, false); err != nil {
+	if err := b.cache.MarkRedacted(ctx, mx+"!r:x", mx+"$2", "@her:x", "", time.Time{}, false); err != nil {
 		t.Fatal(err)
 	}
 
 	page := []domain.Message{
-		{ID: "$1", RoomID: "!r:x", Sender: "@her:x", Redacted: true},
-		{ID: "$2", RoomID: "!r:x", Sender: "@her:x", Redacted: true},
-		{ID: "$3", RoomID: "!r:x", Sender: "@her:x", Body: "not deleted at all"},
+		{ID: mx + "$1", RoomID: mx + "!r:x", Sender: "matrix:@her:x", Redacted: true},
+		{ID: mx + "$2", RoomID: mx + "!r:x", Sender: "matrix:@her:x", Redacted: true},
+		{ID: mx + "$3", RoomID: mx + "!r:x", Sender: "matrix:@her:x", Body: "not deleted at all"},
 	}
-	b.restoreKept(ctx, "!r:x", page)
+	b.restoreKept(ctx, mx+"!r:x", page)
 
 	if page[0].Body != kept {
 		t.Errorf("kept deletion came back with body %q, want %q", page[0].Body, kept)
@@ -201,19 +201,19 @@ func TestMergingRevisionsUnionsBothSourcesOldestFirst(t *testing.T) {
 	t.Parallel()
 
 	kept := []domain.Revision{
-		{ID: "$m", Body: "the original, which only this cache still has", At: at(10)},
-		{ID: "$e1", Body: "kept copy", At: at(20)},
+		{ID: mx + "$m", Body: "the original, which only this cache still has", At: at(10)},
+		{ID: mx + "$e1", Body: "kept copy", At: at(20)},
 	}
 	fetched := []domain.Revision{
-		{ID: "$e1", Body: "fetched copy of the same edit", At: at(20)},
-		{ID: "$e2", Body: "an edit this cache never saw", At: at(30)},
+		{ID: mx + "$e1", Body: "fetched copy of the same edit", At: at(20)},
+		{ID: mx + "$e2", Body: "an edit this cache never saw", At: at(30)},
 	}
 
 	got := mergeRevisions(kept, fetched)
 	if len(got) != 3 {
 		t.Fatalf("%d versions, want 3: %+v", len(got), got)
 	}
-	for i, want := range []domain.EventID{"$m", "$e1", "$e2"} {
+	for i, want := range []domain.EventID{mx + "$m", mx + "$e1", mx + "$e2"} {
 		if got[i].ID != want {
 			t.Errorf("version %d = %q, want %q — oldest first", i+1, got[i].ID, want)
 		}

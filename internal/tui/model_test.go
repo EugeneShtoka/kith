@@ -30,7 +30,7 @@ func at(sec int) time.Time { return time.Unix(int64(sec), 0) }
 func manyMessages(n int) []domain.Message {
 	msgs := make([]domain.Message, n)
 	for i := range msgs {
-		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf("$%d", i)), RoomID: "!a:x", Timestamp: at(i)}
+		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf(mx+"$%d", i)), RoomID: mx + "!a:x", Timestamp: at(i)}
 	}
 	return msgs
 }
@@ -242,21 +242,21 @@ func keyText(text string) tea.KeyPressMsg {
 
 // msgAt is a message from @a:x in !a:x at second sec.
 func msgAt(id domain.EventID, body string, sec int) domain.Message {
-	return domain.Message{ID: id, RoomID: "!a:x", Sender: "@a:x", Body: body, Timestamp: at(sec)}
+	return domain.Message{ID: id, RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: body, Timestamp: at(sec)}
 }
 
 // loadPage delivers msgs as a live timeline page for !a:x.
 func loadPage(t *testing.T, m Model, msgs []domain.Message) Model {
 	t.Helper()
-	return update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: msgs}})
+	return update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: msgs}})
 }
 
 // withRooms feeds a two-room list (one of them a DM) into the model.
 func withRooms(t *testing.T, m Model) Model {
 	t.Helper()
 	return update(t, m, roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo", IsDirect: true},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo", IsDirect: true},
 	}})
 }
 
@@ -339,17 +339,17 @@ func TestRefreshPreservesRoomSelection(t *testing.T) {
 	m := withRooms(t, newModel()) // Alpha (!a:x), Bravo (!b:x, DM)
 	m.focus = paneRooms
 	m, _ = press(t, m, keyCode(tea.KeyDown)) // select Bravo
-	if room, _ := m.currentRoom(); room.ID != "!b:x" {
+	if room, _ := m.currentRoom(); room.ID != mx+"!b:x" {
 		t.Fatalf("precondition: selected %q, want !b:x", room.ID)
 	}
 
 	// A reordered refresh keeps Bravo selected and does not reload it.
 	m, cmd := asModel(m.Update(roomsMsg{rooms: []domain.Room{
-		{ID: "!c:x", Name: "Charlie"},
-		{ID: "!b:x", Name: "Bravo", IsDirect: true},
-		{ID: "!a:x", Name: "Alpha"},
+		{ID: mx + "!c:x", Name: "Charlie"},
+		{ID: mx + "!b:x", Name: "Bravo", IsDirect: true},
+		{ID: mx + "!a:x", Name: "Alpha"},
 	}}))
-	if room, _ := m.currentRoom(); room.ID != "!b:x" {
+	if room, _ := m.currentRoom(); room.ID != mx+"!b:x" {
 		t.Errorf("after refresh selected %q, want !b:x preserved", room.ID)
 	}
 	// The refresh reads the directory and the phonebook again; it loads nothing of the room.
@@ -370,8 +370,8 @@ func TestRefreshReselectsWhenRoomGone(t *testing.T) {
 	m, _ = press(t, m, keyCode(tea.KeyDown)) // select Bravo (!b:x)
 
 	// Bravo is gone from the refreshed list → re-select the first room.
-	m, cmd := asModel(m.Update(roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
-	if room, _ := m.currentRoom(); room.ID != "!a:x" {
+	m, cmd := asModel(m.Update(roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}}))
+	if room, _ := m.currentRoom(); room.ID != mx+"!a:x" {
 		t.Errorf("selected %q, want !a:x after selection vanished", room.ID)
 	}
 	if cmd == nil {
@@ -394,14 +394,14 @@ func TestSpacesRefreshPreservesGroup(t *testing.T) {
 
 	m := withRooms(t, newModel())
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
 	m.rail.cursor = 3 // select Work (after Home, DMs, Unread)
 
 	// A refresh reorders/extends the spaces; the Work selection follows by label.
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!f:x", Name: "Friends"},
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!f:x", Name: "Friends"},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
 	if m.rail.groups[m.rail.cursor].label != "Work" {
 		t.Errorf("selected group = %q, want Work preserved", m.rail.groups[m.rail.cursor].label)
@@ -416,7 +416,7 @@ func TestSpacesJoinRail(t *testing.T) {
 		t.Fatalf("initial groups = %d, want 3 (Home, DMs, Unread)", len(m.rail.groups))
 	}
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!work:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!work:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
 	if len(m.rail.groups) != 4 {
 		t.Fatalf("groups after spaces = %d, want 4 (Home, DMs, Unread, Work)", len(m.rail.groups))
@@ -445,7 +445,7 @@ func TestSpacesErrorKeepsSyntheticRail(t *testing.T) {
 func TestRailConfig(t *testing.T) {
 	t.Parallel()
 
-	spaces := []domain.Space{{ID: "!w:x", Name: "Work"}, {ID: "!f:x", Name: "Friends"}}
+	spaces := []domain.Space{{ID: mx + "!w:x", Name: "Work"}, {ID: mx + "!f:x", Name: "Friends"}}
 	keys := func(gs []group) []string {
 		out := make([]string, len(gs))
 		for i, g := range gs {
@@ -502,7 +502,7 @@ func TestRailConfig(t *testing.T) {
 func TestRailWildcardPlacesTheUnnamed(t *testing.T) {
 	t.Parallel()
 
-	spaces := []domain.Space{{ID: "!w:x", Name: "Work"}, {ID: "!f:x", Name: "Friends"}}
+	spaces := []domain.Space{{ID: mx + "!w:x", Name: "Work"}, {ID: mx + "!f:x", Name: "Friends"}}
 	keys := func(gs []group) string {
 		out := make([]string, len(gs))
 		for i, g := range gs {
@@ -541,10 +541,10 @@ func TestRailAndRoomsShowMarkerButNoGlyphs(t *testing.T) {
 	t.Parallel()
 
 	m := update(t, newModel(), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo", IsDirect: true},
+		{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo", IsDirect: true},
 	}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
 	m = sized(t, m)
 
@@ -678,8 +678,8 @@ func TestOpeningRoomBeforeInitialLoadDefersBackfill(t *testing.T) {
 	}
 
 	// The initial page arrives with more history — the armed backfill resumes.
-	m, cmd := asModel(m.Update(timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
-		Messages: []domain.Message{{ID: "$1", RoomID: "!a:x", Timestamp: at(1)}},
+	m, cmd := asModel(m.Update(timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
+		Messages: []domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Timestamp: at(1)}},
 		Next:     "tok",
 	}}))
 	if !m.timeline.hist.backfilling || cmd == nil {
@@ -783,7 +783,7 @@ func TestVerificationFlow(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
 
 	// A request raises the overlay.
-	m = update(t, m, verifyMsg{v: domain.Verification{Kind: domain.VerificationRequested, TxnID: "t1", From: "@me:x", Device: "DEV"}})
+	m = update(t, m, verifyMsg{v: domain.Verification{Kind: domain.VerificationRequested, TxnID: "t1", From: "matrix:@me:x", Device: "DEV"}})
 	if !m.verify.active || m.verify.stage != domain.VerificationRequested {
 		t.Fatalf("request should activate the overlay: %+v", m.verify)
 	}
@@ -837,7 +837,7 @@ func TestVerificationRejectCancels(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, verifyMsg{v: domain.Verification{Kind: domain.VerificationRequested, TxnID: "t1", From: "@me:x"}})
+	m = update(t, m, verifyMsg{v: domain.Verification{Kind: domain.VerificationRequested, TxnID: "t1", From: "matrix:@me:x"}})
 	m, cmd := press(t, m, keyText("n"))
 	if m.verify.active || cmd == nil {
 		t.Fatalf("rejecting should dismiss the overlay and issue a cancel: active=%v cmd=%v", m.verify.active, cmd)
@@ -850,7 +850,7 @@ func TestVerificationOverlayCapturesKeys(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
 	m.focus = paneRooms
 	before := m.roomCursor()
-	m = update(t, m, verifyMsg{v: domain.Verification{Kind: domain.VerificationRequested, TxnID: "t1", From: "@me:x"}})
+	m = update(t, m, verifyMsg{v: domain.Verification{Kind: domain.VerificationRequested, TxnID: "t1", From: "matrix:@me:x"}})
 	// A navigation key must not leak to the room list while the overlay is up.
 	m, _ = press(t, m, keyCode(tea.KeyDown))
 	if m.roomCursor() != before {
@@ -862,7 +862,7 @@ func TestVerificationIgnoresOtherTransaction(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, verifyMsg{v: domain.Verification{Kind: domain.VerificationRequested, TxnID: "t1", From: "@me:x"}})
+	m = update(t, m, verifyMsg{v: domain.Verification{Kind: domain.VerificationRequested, TxnID: "t1", From: "matrix:@me:x"}})
 	// A SAS step for a different transaction must not alter the shown flow.
 	m = update(t, m, verifyMsg{v: domain.Verification{Kind: domain.VerificationSAS, TxnID: "other", Emojis: []domain.SASEmoji{{Glyph: "🐱"}}}})
 	if m.verify.stage != domain.VerificationRequested || len(m.verify.emojis) != 0 {
@@ -874,7 +874,7 @@ func TestIncomingMessage(t *testing.T) {
 	t.Parallel()
 
 	m := withRooms(t, newModel()) // current room !a:x
-	m, cmd := asModel(m.Update(incomingMsg{message: domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Body: "hey"}}))
+	m, cmd := asModel(m.Update(incomingMsg{message: domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "hey"}}))
 	if len(m.timeline.messages) != 1 {
 		t.Fatalf("messages = %d, want 1", len(m.timeline.messages))
 	}
@@ -882,12 +882,12 @@ func TestIncomingMessage(t *testing.T) {
 		t.Error("handleIncoming should re-issue the listen command")
 	}
 	// A duplicate event ID is ignored.
-	m = update(t, m, incomingMsg{message: domain.Message{ID: "$1", RoomID: "!a:x", Body: "hey"}})
+	m = update(t, m, incomingMsg{message: domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Body: "hey"}})
 	if len(m.timeline.messages) != 1 {
 		t.Error("duplicate event ID should be de-duplicated")
 	}
 	// A message for another room is ignored.
-	m = update(t, m, incomingMsg{message: domain.Message{ID: "$2", RoomID: "!other:x", Body: "nope"}})
+	m = update(t, m, incomingMsg{message: domain.Message{ID: mx + "$2", RoomID: mx + "!other:x", Body: "nope"}})
 	if len(m.timeline.messages) != 1 {
 		t.Error("message for another room should be ignored")
 	}
@@ -899,12 +899,12 @@ func TestTimelineMergesByTimestamp(t *testing.T) {
 	m := withRooms(t, newModel()) // current room !a:x
 	page := domain.TimelinePage{
 		Messages: []domain.Message{
-			{ID: "$1", RoomID: "!a:x", Body: "first", Timestamp: at(1)},
-			{ID: "$2", RoomID: "!a:x", Body: "second", Timestamp: at(2)},
+			{ID: mx + "$1", RoomID: mx + "!a:x", Body: "first", Timestamp: at(1)},
+			{ID: mx + "$2", RoomID: mx + "!a:x", Body: "second", Timestamp: at(2)},
 		},
 		Next: "tok",
 	}
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: page})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: page})
 	if len(m.timeline.messages) != 2 || m.timeline.messages[0].Body != "first" {
 		t.Fatalf("messages = %+v, want [first second]", m.timeline.messages)
 	}
@@ -913,8 +913,8 @@ func TestTimelineMergesByTimestamp(t *testing.T) {
 	}
 
 	// An older page merges ahead of the rest by timestamp; Next="" marks start.
-	older := domain.TimelinePage{Messages: []domain.Message{{ID: "$0", RoomID: "!a:x", Body: "zeroth", Timestamp: at(0)}}}
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: older})
+	older := domain.TimelinePage{Messages: []domain.Message{{ID: mx + "$0", RoomID: mx + "!a:x", Body: "zeroth", Timestamp: at(0)}}}
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: older})
 	if len(m.timeline.messages) != 3 || m.timeline.messages[0].Body != "zeroth" {
 		t.Fatalf("messages = %+v, want zeroth ordered first", m.timeline.messages)
 	}
@@ -933,8 +933,8 @@ func TestCachedTimelineShownThenReconciled(t *testing.T) {
 	m := withRooms(t, newModel()) // current room !a:x
 
 	// The cache preview shows instantly, but pgup isn't armed (no token yet).
-	m = update(t, m, cachedTimelineMsg{roomID: "!a:x", messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Body: "cached", Timestamp: at(1)},
+	m = update(t, m, cachedTimelineMsg{roomID: mx + "!a:x", messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Body: "cached", Timestamp: at(1)},
 	}})
 	if len(m.timeline.messages) != 1 || m.timeline.messages[0].Body != "cached" {
 		t.Fatalf("messages = %+v, want [cached]", m.timeline.messages)
@@ -945,10 +945,10 @@ func TestCachedTimelineShownThenReconciled(t *testing.T) {
 	}
 
 	// The live page reconciles: dedups the cached event, adds a newer one, arms pgup.
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
 		Messages: []domain.Message{
-			{ID: "$1", RoomID: "!a:x", Body: "cached", Timestamp: at(1)},
-			{ID: "$2", RoomID: "!a:x", Body: "live", Timestamp: at(2)},
+			{ID: mx + "$1", RoomID: mx + "!a:x", Body: "cached", Timestamp: at(1)},
+			{ID: mx + "$2", RoomID: mx + "!a:x", Body: "live", Timestamp: at(2)},
 		},
 		Next: "tok",
 	}})
@@ -981,8 +981,8 @@ func TestBackfillChainsUntilStart(t *testing.T) {
 	m.timeline.hist.backfilling = true
 
 	// A page that still has older history chains another fetch.
-	m, cmd := asModel(m.Update(timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
-		Messages: []domain.Message{{ID: "$1", RoomID: "!a:x", Timestamp: at(1)}},
+	m, cmd := asModel(m.Update(timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
+		Messages: []domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Timestamp: at(1)}},
 		Next:     "tok",
 	}}))
 	if cmd == nil || !m.timeline.hist.backfilling {
@@ -993,8 +993,8 @@ func TestBackfillChainsUntilStart(t *testing.T) {
 	}
 
 	// The final page (no Next token) ends the backfill at the room start.
-	m, _ = asModel(m.Update(timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
-		Messages: []domain.Message{{ID: "$0", RoomID: "!a:x", Timestamp: at(0)}},
+	m, _ = asModel(m.Update(timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
+		Messages: []domain.Message{{ID: mx + "$0", RoomID: mx + "!a:x", Timestamp: at(0)}},
 	}}))
 	if m.timeline.hist.backfilling {
 		t.Error("backfill should stop once the room start is reached")
@@ -1008,12 +1008,12 @@ func TestTimelineForOtherRoomIgnored(t *testing.T) {
 	t.Parallel()
 
 	m := withRooms(t, newModel()) // current room !a:x
-	page := domain.TimelinePage{Messages: []domain.Message{{ID: "$z", RoomID: "!b:x", Body: "elsewhere"}}}
-	m = update(t, m, timelineMsg{roomID: "!b:x", page: page})
+	page := domain.TimelinePage{Messages: []domain.Message{{ID: mx + "$z", RoomID: mx + "!b:x", Body: "elsewhere"}}}
+	m = update(t, m, timelineMsg{roomID: mx + "!b:x", page: page})
 	if len(m.timeline.messages) != 0 {
 		t.Error("a page for a non-current room should be ignored")
 	}
-	m = update(t, m, cachedTimelineMsg{roomID: "!b:x", messages: []domain.Message{{ID: "$y", RoomID: "!b:x"}}})
+	m = update(t, m, cachedTimelineMsg{roomID: mx + "!b:x", messages: []domain.Message{{ID: mx + "$y", RoomID: mx + "!b:x"}}})
 	if len(m.timeline.messages) != 0 {
 		t.Error("a cached preview for a non-current room should be ignored")
 	}
@@ -1023,7 +1023,7 @@ func TestRedactedMessageRendersDeleted(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel())) // current room !a:x, comfortable width
-	m = loadPage(t, m, []domain.Message{{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "secret", Timestamp: at(1), Redacted: true}})
+	m = loadPage(t, m, []domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "secret", Timestamp: at(1), Redacted: true}})
 	rows := strings.Join(m.layoutRows(), "\n")
 	if !strings.Contains(rows, redactedBody) {
 		t.Errorf("redacted message not shown as %q:\n%s", redactedBody, rows)
@@ -1037,9 +1037,9 @@ func TestIncomingRedactionFoldsOntoMessage(t *testing.T) {
 	t.Parallel()
 
 	m := withRooms(t, newModel()) // current room !a:x
-	m = loadPage(t, m, []domain.Message{msgAt("$1", "secret", 1)})
+	m = loadPage(t, m, []domain.Message{msgAt(mx+"$1", "secret", 1)})
 	// A live redaction arrives as a synthetic message (only ID + Redacted).
-	m = update(t, m, incomingMsg{message: domain.Message{ID: "$1", RoomID: "!a:x", Redacted: true}})
+	m = update(t, m, incomingMsg{message: domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Redacted: true}})
 	if len(m.timeline.messages) != 1 {
 		t.Fatalf("redaction added a row instead of folding: %+v", m.timeline.messages)
 	}
@@ -1056,7 +1056,7 @@ func TestEditedMessageRendersMarker(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel())) // current room !a:x, comfortable width
-	m = loadPage(t, m, []domain.Message{{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "new body", Timestamp: at(1), Edited: true}})
+	m = loadPage(t, m, []domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "new body", Timestamp: at(1), Edited: true}})
 	rows := strings.Join(m.layoutRows(), "\n")
 	if !strings.Contains(rows, editedMarker) {
 		t.Errorf("edited message missing %q marker:\n%s", editedMarker, rows)
@@ -1070,9 +1070,9 @@ func TestIncomingEditFoldsOntoMessage(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel())) // current room !a:x
-	m = loadPage(t, m, []domain.Message{msgAt("$1", "old", 1)})
+	m = loadPage(t, m, []domain.Message{msgAt(mx+"$1", "old", 1)})
 	// A live edit arrives carrying the target ID + replacement body + a later ts.
-	m = update(t, m, incomingMsg{message: domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "new", Timestamp: at(9), Edited: true}})
+	m = update(t, m, incomingMsg{message: domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "new", Timestamp: at(9), Edited: true}})
 	if len(m.timeline.messages) != 1 {
 		t.Fatalf("edit added a row instead of folding: %+v", m.timeline.messages)
 	}
@@ -1085,11 +1085,11 @@ func TestReactionsRender(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel())) // current room !a:x
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
-		Messages: []domain.Message{msgAt("$1", "hi", 1)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
+		Messages: []domain.Message{msgAt(mx+"$1", "hi", 1)},
 		Reactions: []domain.Reaction{
-			{ID: "$r1", RoomID: "!a:x", Target: "$1", Sender: "@b:x", Key: "👍"},
-			{ID: "$r2", RoomID: "!a:x", Target: "$1", Sender: "@c:x", Key: "👍"},
+			{ID: mx + "$r1", RoomID: mx + "!a:x", Target: mx + "$1", Sender: "matrix:@b:x", Key: "👍"},
+			{ID: mx + "$r2", RoomID: mx + "!a:x", Target: mx + "$1", Sender: "matrix:@c:x", Key: "👍"},
 		},
 	}})
 	rows := strings.Join(m.layoutRows(), "\n")
@@ -1102,23 +1102,23 @@ func TestReactionUpdateAddsThenRemoves(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel())) // current room !a:x
-	m = loadPage(t, m, []domain.Message{msgAt("$1", "hi", 1)})
+	m = loadPage(t, m, []domain.Message{msgAt(mx+"$1", "hi", 1)})
 
 	// A live reaction add lands under its target.
-	add := domain.ReactionUpdate{Reaction: domain.Reaction{ID: "$r1", RoomID: "!a:x", Target: "$1", Sender: "@b:x", Key: "🎉"}}
+	add := domain.ReactionUpdate{Reaction: domain.Reaction{ID: mx + "$r1", RoomID: mx + "!a:x", Target: mx + "$1", Sender: "matrix:@b:x", Key: "🎉"}}
 	m = update(t, m, reactionUpdateMsg{u: add})
-	if got := domain.AggregateReactions(m.timeline.reactions["$1"], ""); len(got) != 1 || got[0].Count != 1 {
+	if got := domain.AggregateReactions(m.timeline.reactions[mx+"$1"], ""); len(got) != 1 || got[0].Count != 1 {
 		t.Fatalf("after add: %+v, want one 🎉", got)
 	}
 	// The same reaction re-sent is de-duplicated by event ID.
 	m = update(t, m, reactionUpdateMsg{u: add})
-	if got := domain.AggregateReactions(m.timeline.reactions["$1"], ""); got[0].Count != 1 {
+	if got := domain.AggregateReactions(m.timeline.reactions[mx+"$1"], ""); got[0].Count != 1 {
 		t.Errorf("re-send double-counted: %+v", got)
 	}
 	// An un-react removes it.
-	rm := domain.ReactionUpdate{Removed: true, Reaction: domain.Reaction{ID: "$r1", RoomID: "!a:x", Target: "$1"}}
+	rm := domain.ReactionUpdate{Removed: true, Reaction: domain.Reaction{ID: mx + "$r1", RoomID: mx + "!a:x", Target: mx + "$1"}}
 	m = update(t, m, reactionUpdateMsg{u: rm})
-	if got := m.timeline.reactions["$1"]; len(got) != 0 {
+	if got := m.timeline.reactions[mx+"$1"]; len(got) != 0 {
 		t.Errorf("after un-react: %+v, want none", got)
 	}
 }
@@ -1127,9 +1127,9 @@ func TestReactionForOtherRoomIgnored(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel())) // current room !a:x
-	add := domain.ReactionUpdate{Reaction: domain.Reaction{ID: "$r1", RoomID: "!b:x", Target: "$1", Sender: "@b:x", Key: "👍"}}
+	add := domain.ReactionUpdate{Reaction: domain.Reaction{ID: mx + "$r1", RoomID: mx + "!b:x", Target: mx + "$1", Sender: "matrix:@b:x", Key: "👍"}}
 	m = update(t, m, reactionUpdateMsg{u: add})
-	if len(m.timeline.reactions["$1"]) != 0 {
+	if len(m.timeline.reactions[mx+"$1"]) != 0 {
 		t.Error("a reaction for a non-current room should be ignored by the open timeline")
 	}
 }
@@ -1139,32 +1139,32 @@ func TestTimelineMessageSelection(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel())) // current room !a:x
 	m = loadPage(t, m, []domain.Message{
-		msgAt("$1", "one", 1),
-		msgAt("$2", "two", 2),
-		msgAt("$3", "three", 3),
+		msgAt(mx+"$1", "one", 1),
+		msgAt(mx+"$2", "two", 2),
+		msgAt(mx+"$3", "three", 3),
 	})
 	m.focus = paneTimeline // normal (browse) mode by default
 
-	if got := m.selectedID(); got != "$3" {
+	if got := m.selectedID(); got != mx+"$3" {
 		t.Fatalf("default selection = %q, want newest $3", got)
 	}
 	m, _ = press(t, m, keyText("k")) // up = older
 	m, _ = press(t, m, keyText("k"))
-	if got := m.selectedID(); got != "$1" {
+	if got := m.selectedID(); got != mx+"$1" {
 		t.Errorf("after k k = %q, want $1", got)
 	}
 	m, _ = press(t, m, keyText("j")) // down = newer
-	if got := m.selectedID(); got != "$2" {
+	if got := m.selectedID(); got != mx+"$2" {
 		t.Errorf("after j = %q, want $2", got)
 	}
 	m, _ = press(t, m, keyText("G")) // newest
-	if got := m.selectedID(); got != "$3" {
+	if got := m.selectedID(); got != mx+"$3" {
 		t.Errorf("after G = %q, want $3", got)
 	}
 	// "gg" — two presses, the first of which is held while it might still become one.
 	m, _ = press(t, m, keyText("g"))
 	m, _ = press(t, m, keyText("g")) // oldest
-	if got := m.selectedID(); got != "$1" {
+	if got := m.selectedID(); got != mx+"$1" {
 		t.Errorf("after g = %q, want $1", got)
 	}
 }
@@ -1189,8 +1189,8 @@ func TestReactFlowTargetsSelectedMessage(t *testing.T) {
 	rb := &recordingReact{}
 	m := sized(t, withRooms(t, starterNew(rb, config.Display{})))
 	m = loadPage(t, m, []domain.Message{
-		msgAt("$1", "one", 1),
-		msgAt("$2", "two", 2),
+		msgAt(mx+"$1", "one", 1),
+		msgAt(mx+"$2", "two", 2),
 	})
 	m.focus = paneTimeline
 
@@ -1211,7 +1211,7 @@ func TestReactFlowTargetsSelectedMessage(t *testing.T) {
 		t.Fatal("enter with a reaction should return a send command")
 	}
 	runCmd(t, cmd) // execute the backend call
-	if !rb.called || rb.room != "!a:x" || rb.target != "$1" || rb.key != "👍" {
+	if !rb.called || rb.room != mx+"!a:x" || rb.target != mx+"$1" || rb.key != "👍" {
 		t.Errorf("SendReaction(room=%q target=%q key=%q called=%v), want !a:x/$1/👍", rb.room, rb.target, rb.key, rb.called)
 	}
 }
@@ -1223,13 +1223,13 @@ func TestAReactionToTelegramGoesWithoutItsTone(t *testing.T) {
 	for _, tc := range []struct {
 		sender, want string
 	}{
-		{"@telegram_7:x", "👍"},
-		{"@whatsapp_15550100009:x", "👍🏻"},
-		{"@dana:x", "👍🏻"},
+		{"matrix:@telegram_7:x", "👍"},
+		{"matrix:@whatsapp_15550100009:x", "👍🏻"},
+		{"matrix:@dana:x", "👍🏻"},
 	} {
 		rb := &recordingReact{}
 		m := sized(t, withRooms(t, starterNew(rb, config.Display{})))
-		msg := msgAt("$1", "one", 1)
+		msg := msgAt(mx+"$1", "one", 1)
 		msg.Sender = tc.sender
 		m = loadPage(t, m, []domain.Message{msg})
 		m.focus = paneTimeline
@@ -1248,7 +1248,7 @@ func TestReactPaletteAndShortcodes(t *testing.T) {
 	newModelWith := func() (*recordingReact, Model) {
 		rb := &recordingReact{}
 		m := sized(t, withRooms(t, starterNew(rb, config.Display{})))
-		m = loadPage(t, m, []domain.Message{msgAt("$1", "hi", 1)})
+		m = loadPage(t, m, []domain.Message{msgAt(mx+"$1", "hi", 1)})
 		m.focus = paneTimeline
 		return rb, m
 	}
@@ -1264,7 +1264,7 @@ func TestReactPaletteAndShortcodes(t *testing.T) {
 		t.Fatal("palette pick should return a send command")
 	}
 	runCmd(t, cmd)
-	if rb.key != "😂" || rb.target != "$1" {
+	if rb.key != "😂" || rb.target != mx+"$1" {
 		t.Errorf("palette 3 sent key=%q target=%q, want 😂/$1", rb.key, rb.target)
 	}
 
@@ -1288,9 +1288,9 @@ func TestFrequentPaletteApplied(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel())) // current room !a:x, default (room) scope
-	m = loadPage(t, m, []domain.Message{msgAt("$1", "hi", 1)})
+	m = loadPage(t, m, []domain.Message{msgAt(mx+"$1", "hi", 1)})
 	// The palette leads with the most-used, then static defaults fill it.
-	m = update(t, m, emojiScoresMsg{roomID: "!a:x", kind: domain.EmojiReaction,
+	m = update(t, m, emojiScoresMsg{roomID: mx + "!a:x", kind: domain.EmojiReaction,
 		scores: map[string]int{"🔥": 30, "🎉": 20}})
 	if len(m.glyphs.palette) != paletteSize {
 		t.Fatalf("palette size = %d, want %d", len(m.glyphs.palette), paletteSize)
@@ -1321,7 +1321,7 @@ func TestStaticScopeAndCustomStatic(t *testing.T) {
 		t.Errorf("custom static palette = %v, want [✅ 🚀]", m.glyphs.palette)
 	}
 	// Static scope ignores usage everywhere, grid included.
-	scored := update(t, sized(t, withRooms(t, m)), emojiScoresMsg{roomID: "!a:x",
+	scored := update(t, sized(t, withRooms(t, m)), emojiScoresMsg{roomID: mx + "!a:x",
 		kind: domain.EmojiReaction, scores: map[string]int{"🔥": 300}})
 	if got := scored.rankedEmoji(domain.EmojiReaction); got[0] == "🔥" {
 		t.Error("static scope let usage reorder the grid")
@@ -1360,7 +1360,7 @@ func TestReactPromptEscCancels(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = loadPage(t, m, []domain.Message{msgAt("$1", "hi", 1)})
+	m = loadPage(t, m, []domain.Message{msgAt(mx+"$1", "hi", 1)})
 	m.focus = paneTimeline
 	m, _ = press(t, m, keyText("e"))
 	m, _ = press(t, m, keyText("👍"))
@@ -1378,10 +1378,10 @@ func TestReplyPreviewRenders(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = loadPage(t, m, []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "original text", Timestamp: at(1)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "original text", Timestamp: at(1)},
 		// The reply reaches back past the row above, which is when a quote is drawn.
-		{ID: "$1b", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "and another", Timestamp: at(2)},
-		{ID: "$2", RoomID: "!a:x", Sender: "@bob:x", SenderName: "Bob", Body: "the reply", Timestamp: at(3), ReplyTo: "$1"},
+		{ID: mx + "$1b", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "and another", Timestamp: at(2)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob", Body: "the reply", Timestamp: at(3), ReplyTo: mx + "$1"},
 	})
 	rows := strings.Join(m.layoutRows(), "\n")
 	if !strings.Contains(rows, "↪") || !strings.Contains(rows, "original text") {
@@ -1414,14 +1414,14 @@ func TestReplyFlowTargetsSelectedMessage(t *testing.T) {
 	rb := &recordingReply{}
 	m := sized(t, withRooms(t, starterNew(rb, config.Display{})))
 	m = loadPage(t, m, []domain.Message{
-		msgAt("$1", "one", 1),
-		msgAt("$2", "two", 2),
+		msgAt(mx+"$1", "one", 1),
+		msgAt(mx+"$2", "two", 2),
 	})
 	m.focus = paneTimeline
 
 	m, _ = press(t, m, keyText("k")) // select the older message $1
 	m, _ = press(t, m, keyText("r")) // r opens a reply to it
-	if m.compose.replyTo != "$1" || !m.compose.insertMode {
+	if m.compose.replyTo != mx+"$1" || !m.compose.insertMode {
 		t.Fatalf("reply setup: replyTo=%q insertMode=%v, want $1 / true", m.compose.replyTo, m.compose.insertMode)
 	}
 	m, _ = press(t, m, keyText("h"))
@@ -1434,7 +1434,7 @@ func TestReplyFlowTargetsSelectedMessage(t *testing.T) {
 		t.Fatal("sending a reply should return a command")
 	}
 	m = deliver(t, m, cmd)
-	if !rb.called || rb.room != "!a:x" || rb.target != "$1" || rb.body != "hi" {
+	if !rb.called || rb.room != mx+"!a:x" || rb.target != mx+"$1" || rb.body != "hi" {
 		t.Errorf("Send(room=%q replyTo=%q body=%q called=%v), want !a:x/$1/hi", rb.room, rb.target, rb.body, rb.called)
 	}
 }
@@ -1443,7 +1443,7 @@ func TestReplyEscCancels(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = loadPage(t, m, []domain.Message{msgAt("$1", "hi", 1)})
+	m = loadPage(t, m, []domain.Message{msgAt(mx+"$1", "hi", 1)})
 	m.focus = paneTimeline
 	m, _ = press(t, m, keyCode(tea.KeyEnter)) // reply to newest, enters insert
 	m, _ = press(t, m, keyCode(tea.KeyEsc))   // cancel
@@ -1478,23 +1478,23 @@ func TestJumpMatch(t *testing.T) {
 		msgs  []domain.Message
 		steps []step
 	}{
-		{"mentions walk and wrap", []domain.Message{mention("$1", 1), msgAt("$2", "", 2), mention("$3", 3), msgAt("$4", "", 4)}, []step{
-			{"M", "$3", ""}, {"M", "$1", ""}, {"M", "$3", "continuing from the newest"}, {"m", "$1", ""},
+		{"mentions walk and wrap", []domain.Message{mention(mx+"$1", 1), msgAt(mx+"$2", "", 2), mention(mx+"$3", 3), msgAt(mx+"$4", "", 4)}, []step{
+			{"M", mx + "$3", ""}, {"M", mx + "$1", ""}, {"M", mx + "$3", "continuing from the newest"}, {"m", mx + "$1", ""},
 		}},
-		{"next from the newest wraps", []domain.Message{mention("$1", 1), msgAt("$2", "", 2)}, []step{
-			{"m", "$1", "continuing from the oldest"},
+		{"next from the newest wraps", []domain.Message{mention(mx+"$1", 1), msgAt(mx+"$2", "", 2)}, []step{
+			{"m", mx + "$1", "continuing from the oldest"},
 		}},
-		{"no mentions says so", []domain.Message{msgAt("$1", "", 1), msgAt("$2", "", 2)}, []step{
-			{"m", "$2", "no mentions in this room"},
+		{"no mentions says so", []domain.Message{msgAt(mx+"$1", "", 1), msgAt(mx+"$2", "", 2)}, []step{
+			{"m", mx + "$2", "no mentions in this room"},
 		}},
-		{"lone match under the cursor is a wrap", []domain.Message{msgAt("$1", "", 1), mention("$2", 2)}, []step{
-			{"m", "$2", "continuing from"},
+		{"lone match under the cursor is a wrap", []domain.Message{msgAt(mx+"$1", "", 1), mention(mx+"$2", 2)}, []step{
+			{"m", mx + "$2", "continuing from"},
 		}},
-		{"attachments", []domain.Message{attached("$1", 1), msgAt("$2", "", 2), attached("$3", 3), msgAt("$4", "", 4)}, []step{
-			{"F", "$3", ""}, {"F", "$1", ""}, {"f", "$3", ""},
+		{"attachments", []domain.Message{attached(mx+"$1", 1), msgAt(mx+"$2", "", 2), attached(mx+"$3", 3), msgAt(mx+"$4", "", 4)}, []step{
+			{"F", mx + "$3", ""}, {"F", mx + "$1", ""}, {"f", mx + "$3", ""},
 		}},
-		{"no attachments says so", []domain.Message{msgAt("$1", "", 1)}, []step{
-			{"f", "$1", "no attachments in this room"},
+		{"no attachments says so", []domain.Message{msgAt(mx+"$1", "", 1)}, []step{
+			{"f", mx + "$1", "no attachments in this room"},
 		}},
 	} {
 		m := loadPage(t, sized(t, withRooms(t, newModel())), tc.msgs)
@@ -1516,7 +1516,7 @@ func TestMediaChipRenders(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = loadPage(t, m, []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "cat.jpg", Timestamp: at(1),
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "cat.jpg", Timestamp: at(1),
 		Media: &domain.Media{Type: domain.MediaImage, Name: "cat.jpg", Width: 800, Height: 600, Size: 12345},
 	}})
 	rows := strings.Join(m.layoutRows(), "\n")
@@ -1531,7 +1531,7 @@ func TestCaptionedAttachmentDrawsWordsThenChip(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = loadPage(t, m, []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "look at this sunset", Timestamp: at(1),
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "look at this sunset", Timestamp: at(1),
 		Media: &domain.Media{Type: domain.MediaImage, Name: "IMG_1.jpg", Width: 800, Height: 600},
 	}})
 
@@ -1563,7 +1563,7 @@ func TestUncaptionedAttachmentDrawsOneChip(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = loadPage(t, m, []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "cat.jpg", Timestamp: at(1),
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "cat.jpg", Timestamp: at(1),
 		Media: &domain.Media{Type: domain.MediaImage, Name: "cat.jpg", Width: 800, Height: 600},
 	}})
 
@@ -1584,16 +1584,16 @@ func TestInlineModeTriggersLoadAndRenders(t *testing.T) {
 	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{Media: config.Media{Mode: "inline"}})))
 	m.focus = paneTimeline // pictures are only fetched once a room is open
 	m = loadPage(t, m, []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@a:x", Timestamp: at(1),
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Timestamp: at(1),
 		Media: &domain.Media{Type: domain.MediaImage, Name: "cat.jpg", Width: 4, Height: 4},
 	}})
 	// Inline mode marks the image loading after the timeline lands.
-	if !m.pics.imageLoading["$1"] {
+	if !m.pics.imageLoading[mx+"$1"] {
 		t.Fatal("inline mode should start loading the image")
 	}
 	// When the load finishes, its rows render beneath the chip.
-	m = update(t, m, imageLoadedMsg{eventID: "$1", rows: []string{"\x1b[48;2;1;2;3m▄row1", "\x1b[48;2;1;2;3m▄row2"}})
-	if m.pics.imageLoading["$1"] {
+	m = update(t, m, imageLoadedMsg{eventID: mx + "$1", rows: []string{"\x1b[48;2;1;2;3m▄row1", "\x1b[48;2;1;2;3m▄row2"}})
+	if m.pics.imageLoading[mx+"$1"] {
 		t.Error("imageLoading should clear once the load returns")
 	}
 	rows := strings.Join(m.layoutRows(), "\n")
@@ -1608,7 +1608,7 @@ func TestPlaceholderModeDoesNotLoad(t *testing.T) {
 	disp := config.Display{Media: config.Media{Mode: "placeholder"}}
 	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m = loadPage(t, m, []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@a:x", Timestamp: at(1),
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Timestamp: at(1),
 		Media: &domain.Media{Type: domain.MediaImage, Name: "cat.jpg", Width: 4, Height: 4},
 	}})
 	if len(m.pics.imageLoading) != 0 {
@@ -1623,7 +1623,7 @@ func TestDefaultModeShowsAChip(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
 	m.focus = paneTimeline
 	m = loadPage(t, m, []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@a:x", Timestamp: at(1),
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Timestamp: at(1),
 		Media: &domain.Media{Type: domain.MediaImage, Name: "cat.jpg", Width: 4, Height: 4},
 	}})
 	if m.pics.graphics != graphicsNone {
@@ -1641,11 +1641,11 @@ func TestMentionRendersResolvedName(t *testing.T) {
 	t.Parallel()
 
 	// An identity alias: mentions of @alice:x collapse to "Ally".
-	disp := config.Display{Identities: []config.Identity{{Alias: "Ally", IDs: []string{"@alice:x"}}}}
+	disp := config.Display{Identities: []config.Identity{{Alias: "Ally", IDs: []string{"matrix:@alice:x"}}}}
 	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m = loadPage(t, m, []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Body: "hey Alice Smith, hi", Timestamp: at(1),
-		Mentions: []domain.Mention{{UserID: "@alice:x", Name: "Alice Smith"}},
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "hey Alice Smith, hi", Timestamp: at(1),
+		Mentions: []domain.Mention{{UserID: "matrix:@alice:x", Name: "Alice Smith"}},
 	}})
 	rows := strings.Join(m.layoutRows(), "\n")
 	if !strings.Contains(rows, "Ally") {
@@ -1661,11 +1661,11 @@ func TestResolveMentionsColorInRoomVsAccent(t *testing.T) {
 
 	m := newModel() // no identities, no name rules → names pass through unchanged
 	inRoom := lipgloss.Color("#ff0000")
-	colors := map[string]color.Color{"@alice:x": inRoom} // alice has posted → in room
+	colors := map[string]color.Color{"matrix:@alice:x": inRoom} // alice has posted → in room
 	body, spans := m.resolveMentions("hi Alice and Ghost", []domain.Mention{
-		{UserID: "@alice:x", Name: "Alice"},
-		{UserID: "@ghost:x", Name: "Ghost"},
-	}, colors, "!a:x")
+		{UserID: "matrix:@alice:x", Name: "Alice"},
+		{UserID: "matrix:@ghost:x", Name: "Ghost"},
+	}, colors, mx+"!a:x")
 	if body != "hi Alice and Ghost" {
 		t.Errorf("body changed unexpectedly: %q", body)
 	}
@@ -1696,7 +1696,7 @@ func TestErrorsReachTheStatusLine(t *testing.T) {
 		want string
 	}{
 		{"rooms", newModel(), roomsMsg{err: context.Canceled}, "error:"},
-		{"history", withRooms(t, newModel()), timelineMsg{roomID: "!a:x", err: context.Canceled}, "history error:"},
+		{"history", withRooms(t, newModel()), timelineMsg{roomID: mx + "!a:x", err: context.Canceled}, "history error:"},
 		{"send", newModel(), sentMsg{err: context.Canceled}, "send failed:"},
 		{"sync", newModel(), syncEndedMsg{err: context.Canceled}, "sync stopped"},
 	} {
@@ -1780,7 +1780,7 @@ func TestScrollAnchorsOnIncoming(t *testing.T) {
 	m.timeline.scroll = 10
 
 	// A new live message shifts the bottom; the scrolled view stays anchored.
-	m = update(t, m, incomingMsg{message: domain.Message{ID: "$new", RoomID: "!a:x", Timestamp: at(1000)}})
+	m = update(t, m, incomingMsg{message: domain.Message{ID: mx + "$new", RoomID: mx + "!a:x", Timestamp: at(1000)}})
 	if m.timeline.scroll != 11 {
 		t.Errorf("scroll after incoming = %d, want 11 (anchored)", m.timeline.scroll)
 	}
@@ -1791,7 +1791,7 @@ func TestMessageWrapsToWidth(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = m.setMessages([]domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Body: strings.Repeat("word ", 80), Timestamp: at(1)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: strings.Repeat("word ", 80), Timestamp: at(1)},
 	})
 	rows := m.layoutRows()
 
@@ -1829,8 +1829,8 @@ func TestDateDividers(t *testing.T) {
 
 	// Two messages on different days → a divider before each day.
 	m = m.setMessages([]domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Body: "first", Timestamp: day1},
-		{ID: "$2", RoomID: "!a:x", Sender: "@bob:x", Body: "second", Timestamp: day2},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "first", Timestamp: day1},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "second", Timestamp: day2},
 	})
 	if d, total := countDividers(m.layoutRows()); d != 2 || total != 4 {
 		t.Errorf("cross-day: dividers=%d total=%d, want 2 and 4", d, total)
@@ -1838,8 +1838,8 @@ func TestDateDividers(t *testing.T) {
 
 	// Two messages on the same day → a single divider.
 	m = m.setMessages([]domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Body: "first", Timestamp: day1},
-		{ID: "$2", RoomID: "!a:x", Sender: "@bob:x", Body: "second", Timestamp: day1.Add(time.Hour)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "first", Timestamp: day1},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "second", Timestamp: day1.Add(time.Hour)},
 	})
 	if d, total := countDividers(m.layoutRows()); d != 1 || total != 3 {
 		t.Errorf("same-day: dividers=%d total=%d, want 1 and 3", d, total)
@@ -1852,13 +1852,13 @@ func TestNameProcessing(t *testing.T) {
 	// Name rules come from the room's own space: !a:x is in Work, !b:x in none.
 	m := sized(t, withRooms(t, newModel()))
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
 	m.prefs.display = config.Display{
 		MaxNameLength: 8,
 		SpaceRules:    []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
 	}
-	inWork := domain.Message{RoomID: "!a:x", Sender: "@x:x", SenderName: "Rowan Blackwood"}
+	inWork := domain.Message{RoomID: mx + "!a:x", Sender: "matrix:@x:x", SenderName: "Rowan Blackwood"}
 
 	// First-name-only: full display name collapses to its first token.
 	if got := m.processedName(inWork); got != "Rowan" {
@@ -1872,22 +1872,22 @@ func TestNameProcessing(t *testing.T) {
 		t.Errorf("a rule on the rail group %q shortened %q — only the room's space may", railKey, got)
 	}
 	// A room in no space takes no space rule.
-	outside := domain.Message{RoomID: "!b:x", Sender: "@x:x", SenderName: "Rowan Blackwood"}
+	outside := domain.Message{RoomID: mx + "!b:x", Sender: "matrix:@x:x", SenderName: "Rowan Blackwood"}
 	if got := m.processedName(outside); got != "Rowan B…" {
 		t.Errorf("no space = %q, want the uncapped name with only the length cap", got)
 	}
 	// Max length caps the width (ellipsis included).
-	got := m.processedName(domain.Message{RoomID: "!a:x", Sender: "@y:y", SenderName: "Wilhelmina Ashcroft"})
+	got := m.processedName(domain.Message{RoomID: mx + "!a:x", Sender: "matrix:@y:y", SenderName: "Wilhelmina Ashcroft"})
 	if w := ansi.StringWidth(got); w != 8 {
 		t.Errorf("truncated width = %d (%q), want 8", w, got)
 	}
 	// An alias supplies the name and the space rule still shapes it.
-	m.prefs.identities = map[string]resolvedIdentity{"@p:x": {alias: "Dana Levi"}}
-	if got := m.processedName(domain.Message{RoomID: "!a:x", Sender: "@p:x", SenderName: "+1500000"}); got != "Dana" {
+	m.prefs.identities = map[string]resolvedIdentity{"matrix:@p:x": {alias: "Dana Levi"}}
+	if got := m.processedName(domain.Message{RoomID: mx + "!a:x", Sender: "matrix:@p:x", SenderName: "+1500000"}); got != "Dana" {
 		t.Errorf("aliased name = %q, want the space rule applied to it too", got)
 	}
 	// The pill path gives the same answer, since both share it.
-	if got := m.mentionedName("@p:x", "!a:x", "+1500000"); got != "Dana" {
+	if got := m.mentionedName("matrix:@p:x", mx+"!a:x", "+1500000"); got != "Dana" {
 		t.Errorf("aliased mention = %q, want Dana", got)
 	}
 
@@ -1897,7 +1897,7 @@ func TestNameProcessing(t *testing.T) {
 	if got := m.processedName(inWork); got != "Rowan Blackwood" {
 		t.Errorf("no rule = %q, want full name", got)
 	}
-	if got := m.processedName(domain.Message{RoomID: "!a:x", Sender: "@p:x", SenderName: "+1500000"}); got != "Dana Levi" {
+	if got := m.processedName(domain.Message{RoomID: mx + "!a:x", Sender: "matrix:@p:x", SenderName: "+1500000"}); got != "Dana Levi" {
 		t.Errorf("aliased name with no rule = %q, want it whole", got)
 	}
 }
@@ -1905,16 +1905,16 @@ func TestNameProcessing(t *testing.T) {
 func TestRoomName(t *testing.T) {
 	t.Parallel()
 
-	single := domain.Room{ID: "!dm:x", Name: "Rowan Blackwood", Members: []string{"Rowan Blackwood"}}
-	comma := domain.Room{ID: "!c:x", Name: "Rowan Blackwood, Piper Nightingale", Members: []string{"Rowan Blackwood", "Piper Nightingale"}}
-	andJoined := domain.Room{ID: "!a:x", Name: "Piper Nightingale and Quinn Foster", Members: []string{"Piper Nightingale", "Quinn Foster"}}
-	crowd := domain.Room{ID: "!cr:x", Name: "Ada Zephyr, Bo Quill and 3 others", Members: []string{"Ada Zephyr", "Bo Quill"}}
+	single := domain.Room{ID: mx + "!dm:x", Name: "Rowan Blackwood", Members: []string{"Rowan Blackwood"}}
+	comma := domain.Room{ID: mx + "!c:x", Name: "Rowan Blackwood, Piper Nightingale", Members: []string{"Rowan Blackwood", "Piper Nightingale"}}
+	andJoined := domain.Room{ID: mx + "!a:x", Name: "Piper Nightingale and Quinn Foster", Members: []string{"Piper Nightingale", "Quinn Foster"}}
+	crowd := domain.Room{ID: mx + "!cr:x", Name: "Ada Zephyr, Bo Quill and 3 others", Members: []string{"Ada Zephyr", "Bo Quill"}}
 	// A real title whose members are unrelated people — must be left alone.
-	titled := domain.Room{ID: "!t:x", Name: "Beer & Escape", Members: []string{"Rowan Blackwood", "Piper Nightingale"}}
+	titled := domain.Room{ID: mx + "!t:x", Name: "Beer & Escape", Members: []string{"Rowan Blackwood", "Piper Nightingale"}}
 
 	// A configured alias wins verbatim, over the space name rules.
 	m := starterNew(apitest.Nop{}, config.Display{
-		Names:         []config.DisplayName{{Target: "!dm:x", Name: "Mom"}},
+		Names:         []config.DisplayName{{Target: mx + "!dm:x", Name: "Mom"}},
 		SpaceRules:    []config.SpaceRule{{Space: homeGroupKey, FirstNameOnly: true}},
 		MaxNameLength: 8,
 	})
@@ -1930,8 +1930,8 @@ func TestRoomName(t *testing.T) {
 	})
 	m = sized(t, withRooms(t, m))
 	m = update(t, m, spacesMsg{spaces: []domain.Space{{
-		ID: "!w:x", Name: "Work",
-		Children: []domain.RoomID{"!dm:x", "!c:x", "!a:x", "!cr:x", "!t:x"},
+		ID: mx + "!w:x", Name: "Work",
+		Children: []domain.RoomID{mx + "!dm:x", mx + "!c:x", mx + "!a:x", mx + "!cr:x", mx + "!t:x"},
 	}}})
 	for _, tc := range []struct {
 		in   domain.Room
@@ -1956,7 +1956,7 @@ func TestRoomName(t *testing.T) {
 
 	// The length cap does not truncate a multi-person room name.
 	trio := domain.Room{
-		ID:      "!trio:x",
+		ID:      mx + "!trio:x",
 		Name:    "Rowan Blackwood, Piper Nightingale, Quinn Foster",
 		Members: []string{"Rowan Blackwood", "Piper Nightingale", "Quinn Foster"},
 	}
@@ -1966,7 +1966,7 @@ func TestRoomName(t *testing.T) {
 	})
 	m = sized(t, withRooms(t, m))
 	m = update(t, m, spacesMsg{spaces: []domain.Space{{
-		ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!trio:x"},
+		ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!trio:x"},
 	}}})
 	if got := m.roomName(trio); got != "Rowan, Piper, Quinn" {
 		t.Errorf("trio = %q, want full uncapped Rowan, Piper, Quinn", got)
@@ -1983,7 +1983,7 @@ func TestRoomName(t *testing.T) {
 	}
 
 	// RTL names stay logical (isolated) in the model and are reordered where drawn.
-	rtl := domain.Room{ID: "!rtl:x", Name: "אב 12 גד"}
+	rtl := domain.Room{ID: mx + "!rtl:x", Name: "אב 12 גד"}
 	if got := m.roomName(rtl); got != isolate(rtl.Name) {
 		t.Errorf("RTL room name = %q, want the logical name isolated", got)
 	}
@@ -1998,8 +1998,8 @@ func TestNameColumnAligns(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = m.setMessages([]domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@a:x", SenderName: "Al", Body: "AAA", Timestamp: at(1)},
-		{ID: "$2", RoomID: "!a:x", Sender: "@b:x", SenderName: "Bartholomew", Body: "BBB", Timestamp: at(2)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", SenderName: "Al", Body: "AAA", Timestamp: at(1)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@b:x", SenderName: "Bartholomew", Body: "BBB", Timestamp: at(2)},
 	})
 	colA, colB := -1, -1
 	for _, r := range m.layoutRows() {
@@ -2024,7 +2024,7 @@ func TestBlankMessageRowsRemoved(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = m.setMessages([]domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@a:x", SenderName: "Al", Body: "line1\n\n\nline2", Timestamp: at(1)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", SenderName: "Al", Body: "line1\n\n\nline2", Timestamp: at(1)},
 	})
 	for _, r := range m.layoutRows() {
 		if strings.Contains(r, "─") {
@@ -2074,7 +2074,7 @@ func TestSenderColorsDistinct(t *testing.T) {
 
 	m := newModel()
 	m = m.setMessages([]domain.Message{
-		{Sender: "@a:x"}, {Sender: "@b:x"}, {Sender: "@a:x"}, {Sender: "@c:x"},
+		{Sender: "matrix:@a:x"}, {Sender: "matrix:@b:x"}, {Sender: "matrix:@a:x"}, {Sender: "matrix:@c:x"},
 	})
 	colors := m.senderColorMap()
 	if len(colors) != 3 {
@@ -2099,28 +2099,28 @@ func TestIdentityPinsColorAndAlias(t *testing.T) {
 
 	m := newModel()
 	m.prefs.display = config.Display{Identities: []config.Identity{
-		{Alias: "Me", Color: "#66ccff", IDs: []string{"@a:x", "@a2:x"}},
+		{Alias: "Me", Color: "#66ccff", IDs: []string{"matrix:@a:x", "matrix:@a2:x"}},
 	}}
 	m.prefs.identities = buildIdentities(m.prefs.display.Identities)
 
 	// The alias is shown for every merged account, bypassing name rules.
-	if got := m.processedName(domain.Message{Sender: "@a:x", SenderName: "Alpha"}); got != "Me" {
+	if got := m.processedName(domain.Message{Sender: "matrix:@a:x", SenderName: "Alpha"}); got != "Me" {
 		t.Errorf("alias = %q, want Me", got)
 	}
-	if got := m.processedName(domain.Message{Sender: "@a2:x", SenderName: "Alpha Alt"}); got != "Me" {
+	if got := m.processedName(domain.Message{Sender: "matrix:@a2:x", SenderName: "Alpha Alt"}); got != "Me" {
 		t.Errorf("merged alias = %q, want Me", got)
 	}
 
-	m = m.setMessages([]domain.Message{{Sender: "@a:x"}, {Sender: "@a2:x"}, {Sender: "@b:x"}})
+	m = m.setMessages([]domain.Message{{Sender: "matrix:@a:x"}, {Sender: "matrix:@a2:x"}, {Sender: "matrix:@b:x"}})
 	colors := m.senderColorMap()
-	if colorKey(colors["@a:x"]) != colorKey(colors["@a2:x"]) {
+	if colorKey(colors["matrix:@a:x"]) != colorKey(colors["matrix:@a2:x"]) {
 		t.Error("merged accounts should share one color")
 	}
 	pinned, _ := theme.ParseColor("#66ccff")
-	if colorKey(colors["@a:x"]) != colorKey(pinned) {
+	if colorKey(colors["matrix:@a:x"]) != colorKey(pinned) {
 		t.Error("merged identity should use its pinned color")
 	}
-	if colorKey(colors["@b:x"]) == colorKey(pinned) {
+	if colorKey(colors["matrix:@b:x"]) == colorKey(pinned) {
 		t.Error("auto-assigned user should avoid the pinned color")
 	}
 }
@@ -2139,7 +2139,7 @@ func TestRTLMessageRightAligned(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = m.setMessages([]domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@a:x", SenderName: "Al", Body: "שלום עולם", Timestamp: at(1)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", SenderName: "Al", Body: "שלום עולם", Timestamp: at(1)},
 	})
 	width := m.contentWidth()
 	for _, r := range m.layoutRows() {
@@ -2156,10 +2156,10 @@ func TestRTLMessageRightAligned(t *testing.T) {
 func TestSenderLabel(t *testing.T) {
 	t.Parallel()
 
-	if got := senderLabel(domain.Message{Sender: "@alice:x", SenderName: "Alice Smith"}); got != "Alice Smith" {
+	if got := senderLabel(domain.Message{Sender: "matrix:@alice:x", SenderName: "Alice Smith"}); got != "Alice Smith" {
 		t.Errorf("label = %q, want display name", got)
 	}
-	if got := senderLabel(domain.Message{Sender: "@alice:x"}); got != "alice" {
+	if got := senderLabel(domain.Message{Sender: "matrix:@alice:x"}); got != "alice" {
 		t.Errorf("label = %q, want localpart fallback", got)
 	}
 }
@@ -2197,7 +2197,7 @@ func TestUnknownMessageIsNoop(t *testing.T) {
 func TestShortSender(t *testing.T) {
 	t.Parallel()
 
-	cases := map[string]string{"@alice:example.org": "alice", "bob": "bob", "": ""}
+	cases := map[string]string{"matrix:@alice:example.org": "alice", "bob": "bob", "": ""}
 	for in, want := range cases {
 		if got := shortSender(in); got != want {
 			t.Errorf("shortSender(%q) = %q, want %q", in, got, want)
@@ -2210,8 +2210,8 @@ func TestUnreadUpdateBadgesRoom(t *testing.T) {
 
 	// Seed a room list, then stream an unread update for it.
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!a:x", Notifications: 3}})
-	if got := m.unread["!a:x"].Notifications; got != 3 {
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!a:x", Notifications: 3}})
+	if got := m.unread[mx+"!a:x"].Notifications; got != 3 {
 		t.Fatalf("unread notifications = %d, want 3", got)
 	}
 
@@ -2242,17 +2242,17 @@ func TestRailBadgesSumTheGroupsRooms(t *testing.T) {
 	t.Parallel()
 
 	m := update(t, newModel(), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo", IsDirect: true},
-		{ID: "!c:x", Name: "Cyan"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo", IsDirect: true},
+		{ID: mx + "!c:x", Name: "Cyan"},
 	}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
-		{ID: "!q:x", Name: "Quiet", Children: []domain.RoomID{"!c:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
+		{ID: mx + "!q:x", Name: "Quiet", Children: []domain.RoomID{mx + "!c:x"}},
 	}})
 	m = update(t, m, unreadMsg{list: []domain.Unread{
-		{RoomID: "!a:x", Notifications: 3},
-		{RoomID: "!b:x", Notifications: 2},
+		{RoomID: mx + "!a:x", Notifications: 3},
+		{RoomID: mx + "!b:x", Notifications: 2},
 	}})
 	m = sized(t, m)
 
@@ -2286,11 +2286,11 @@ func TestRailBadgesSumTheGroupsRooms(t *testing.T) {
 func TestRailBadgeTintsForAHighlight(t *testing.T) {
 	t.Parallel()
 
-	m := update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+	m := update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
-	m = update(t, m, unreadMsg{list: []domain.Unread{{RoomID: "!a:x", Notifications: 4, Highlights: 1}}})
+	m = update(t, m, unreadMsg{list: []domain.Unread{{RoomID: mx + "!a:x", Notifications: 4, Highlights: 1}}})
 
 	g, ok := findGroup(m.rail.groups, "Work")
 	if !ok {
@@ -2309,11 +2309,11 @@ func TestRailBadgeTintsForAHighlight(t *testing.T) {
 func TestRailBadgeSurvivesALongGroupName(t *testing.T) {
 	t.Parallel()
 
-	m := update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+	m := update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Infrastructure and Platform", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!w:x", Name: "Infrastructure and Platform", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
-	m = update(t, m, unreadMsg{list: []domain.Unread{{RoomID: "!a:x", Notifications: 128}}})
+	m = update(t, m, unreadMsg{list: []domain.Unread{{RoomID: mx + "!a:x", Notifications: 128}}})
 	m = sized(t, m)
 
 	rail := ansi.Strip(m.renderRail(20))
@@ -2339,33 +2339,33 @@ func TestUnreadGroupFilters(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!a:x", Notifications: 1}})
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!b:x", Notifications: 2}})
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!a:x", Notifications: 1}})
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!b:x", Notifications: 2}})
 	m = enterGroup(t, m, unreadGroupKey)
 	if fr := m.filteredRooms(); len(fr) != 2 {
 		t.Fatalf("Unread group = %+v, want both rooms", fr)
 	}
-	if m.openRoom != "!a:x" || m.roomCursor() != 0 {
+	if m.openRoom != mx+"!a:x" || m.roomCursor() != 0 {
 		t.Fatalf("open=%q cursor=%d, want Alpha at 0", m.openRoom, m.roomCursor())
 	}
 
 	// Reading the open room keeps it listed and selected in Unread.
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!a:x", Notifications: 0}})
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!a:x", Notifications: 0}})
 	fr := m.filteredRooms()
-	if len(fr) != 2 || fr[0].ID != "!a:x" {
+	if len(fr) != 2 || fr[0].ID != mx+"!a:x" {
 		t.Fatalf("after reading open room, Unread group = %+v, want Alpha still pinned first", fr)
 	}
-	if r, _ := m.currentRoom(); r.ID != "!a:x" || m.roomCursor() != 0 {
+	if r, _ := m.currentRoom(); r.ID != mx+"!a:x" || m.roomCursor() != 0 {
 		t.Errorf("shown/selected drifted: open=%q cursor=%d, want Alpha at 0", r.ID, m.roomCursor())
 	}
 
 	// Moving off it drops the read room; the highlight follows Bravo.
 	m.focus = paneRooms
 	m, _ = press(t, m, keyCode(tea.KeyDown))
-	if fr := m.filteredRooms(); len(fr) != 1 || fr[0].ID != "!b:x" {
+	if fr := m.filteredRooms(); len(fr) != 1 || fr[0].ID != mx+"!b:x" {
 		t.Fatalf("after moving off read Alpha, Unread group = %+v, want only Bravo", fr)
 	}
-	if r, _ := m.currentRoom(); r.ID != "!b:x" || m.roomCursor() != 0 {
+	if r, _ := m.currentRoom(); r.ID != mx+"!b:x" || m.roomCursor() != 0 {
 		t.Errorf("open=%q cursor=%d, want Bravo at 0", r.ID, m.roomCursor())
 	}
 }
@@ -2388,9 +2388,9 @@ func TestMarkReadDedupes(t *testing.T) {
 
 	rb := &recordingBackend{}
 	m := update(t, starterNew(rb, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
-	m.unread["!a:x"] = domain.Unread{RoomID: "!a:x", Notifications: 3}
-	m = m.setMessages([]domain.Message{{ID: "$e1", RoomID: "!a:x"}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
+	m.unread[mx+"!a:x"] = domain.Unread{RoomID: mx + "!a:x", Notifications: 3}
+	m = m.setMessages([]domain.Message{{ID: mx + "$e1", RoomID: mx + "!a:x"}})
 
 	// First mark sends a receipt for the newest event and records the target.
 	m, cmd := m.markRead()
@@ -2405,11 +2405,11 @@ func TestMarkReadDedupes(t *testing.T) {
 	if !ok {
 		t.Fatal("the receipt's outcome was not routed back")
 	}
-	if rb.reads != 1 || rb.readRoom != "!a:x" || rb.readEvent != "$e1" {
+	if rb.reads != 1 || rb.readRoom != mx+"!a:x" || rb.readEvent != mx+"$e1" {
 		t.Fatalf("MarkRead recorded reads=%d room=%q event=%q, want 1/!a:x/$e1", rb.reads, rb.readRoom, rb.readEvent)
 	}
 	m = update(t, m, sent)
-	if m.receipts.marked != "$e1" {
+	if m.receipts.marked != mx+"$e1" {
 		t.Errorf("receipts.marked = %q, want $e1", m.receipts.marked)
 	}
 
@@ -2419,7 +2419,7 @@ func TestMarkReadDedupes(t *testing.T) {
 	}
 
 	// A newer message re-arms the mark.
-	m = m.setMessages(append(m.timeline.messages, domain.Message{ID: "$e2", RoomID: "!a:x"}))
+	m = m.setMessages(append(m.timeline.messages, domain.Message{ID: mx + "$e2", RoomID: mx + "!a:x"}))
 	if _, cmd := m.markRead(); cmd == nil {
 		t.Error("markRead did not re-send after a newer message arrived")
 	}
@@ -2431,9 +2431,9 @@ func TestReplyQuoteSitsBesideTheSender(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m = loadPage(t, m, []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@dn:x", SenderName: "Dan", Body: "первая строка\nвторая строка", Timestamp: at(1)},
-		{ID: "$1b", RoomID: "!a:x", Sender: "@dn:x", SenderName: "Dan", Body: "and one more", Timestamp: at(2)},
-		{ID: "$2", RoomID: "!a:x", Sender: "@w:x", SenderName: "Wes", Body: "answering", ReplyTo: "$1", Timestamp: at(3)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@dn:x", SenderName: "Dan", Body: "первая строка\nвторая строка", Timestamp: at(1)},
+		{ID: mx + "$1b", RoomID: mx + "!a:x", Sender: "matrix:@dn:x", SenderName: "Dan", Body: "and one more", Timestamp: at(2)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@w:x", SenderName: "Wes", Body: "answering", ReplyTo: mx + "$1", Timestamp: at(3)},
 	})
 
 	rows := m.layoutRows()
@@ -2466,10 +2466,10 @@ func TestReplyQuoteIsReordered(t *testing.T) {
 	const hebrew = "שלום, מה קורה?"
 	m := sized(t, withRooms(t, newModel()))
 	m = loadPage(t, m, []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@n:x", SenderName: "Noa", Body: hebrew, Timestamp: at(1)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@n:x", SenderName: "Noa", Body: hebrew, Timestamp: at(1)},
 		// In between, so the quote is drawn at all: one of the row above is dropped.
-		{ID: "$1b", RoomID: "!a:x", Sender: "@n:x", SenderName: "Noa", Body: "עוד הודעה", Timestamp: at(2)},
-		{ID: "$2", RoomID: "!a:x", Sender: "@w:x", SenderName: "Wes", Body: "ok", ReplyTo: "$1", Timestamp: at(3)},
+		{ID: mx + "$1b", RoomID: mx + "!a:x", Sender: "matrix:@n:x", SenderName: "Noa", Body: "עוד הודעה", Timestamp: at(2)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@w:x", SenderName: "Wes", Body: "ok", ReplyTo: mx + "$1", Timestamp: at(3)},
 	})
 
 	quote := ""
@@ -2537,8 +2537,8 @@ func TestAFailedReceiptIsSaidAndRetried(t *testing.T) {
 
 	rb := &receiptRefuser{refuse: 1}
 	m := update(t, starterNew(rb, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
-	m = m.setMessages([]domain.Message{{ID: "$e1", RoomID: "!a:x"}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
+	m = m.setMessages([]domain.Message{{ID: mx + "$e1", RoomID: mx + "!a:x"}})
 
 	m, cmd := m.markRead()
 	if cmd == nil {
@@ -2549,7 +2549,7 @@ func TestAFailedReceiptIsSaidAndRetried(t *testing.T) {
 		t.Fatalf("outcome = %+v, %v; want the refusal routed back", failed, ok)
 	}
 	m = update(t, m, failed)
-	if m.receipts.marked == "$e1" {
+	if m.receipts.marked == mx+"$e1" {
 		t.Error("a refused receipt was recorded as sent")
 	}
 	if !strings.Contains(m.st.event, "read receipt failed") {
@@ -2563,7 +2563,7 @@ func TestAFailedReceiptIsSaidAndRetried(t *testing.T) {
 	}
 	landed, _ := msgOf[receiptSentMsg](t, cmd)
 	m = update(t, m, landed)
-	if m.receipts.marked != "$e1" || len(rb.reads) != 2 {
+	if m.receipts.marked != mx+"$e1" || len(rb.reads) != 2 {
 		t.Errorf("marked = %q after %d receipts, want $e1 after 2", m.receipts.marked, len(rb.reads))
 	}
 }

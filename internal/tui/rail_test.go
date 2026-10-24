@@ -63,8 +63,8 @@ func TestRailCursorStopsAtTheEnds(t *testing.T) {
 func TestNoDividerUnderTheLastGroup(t *testing.T) {
 	t.Parallel()
 
-	spaces := []domain.Space{{ID: "!w:x", Name: "Work"}}
-	rooms := []domain.Room{{ID: "!a:x", Name: "Alpha"}}
+	spaces := []domain.Space{{ID: mx + "!w:x", Name: "Work"}}
+	rooms := []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}
 	cfg := config.Rail{Order: []string{"*", "-", archivedGroupKey}}
 
 	view := starterView(t, unreadView{counts: map[domain.RoomID]domain.Unread{}})

@@ -18,43 +18,43 @@ func TestTheRowCacheFollowsEveryRowInput(t *testing.T) {
 	}{
 		{
 			name: "a star set arrives",
-			msgs: []domain.Message{{ID: "$one", Body: "first"}, {ID: "$two", Body: "second"}},
+			msgs: []domain.Message{{ID: mx + "$one", Body: "first"}, {ID: mx + "$two", Body: "second"}},
 			change: func(t *testing.T, m Model) Model {
-				m, _ = routed(t, m, starredInMsg{roomID: "!a:x", ids: []domain.EventID{"$one"}})
+				m, _ = routed(t, m, starredInMsg{roomID: mx + "!a:x", ids: []domain.EventID{mx + "$one"}})
 				return m
 			},
 		},
 		{
 			name: "a star is toggled, then the cursor moves on",
-			msgs: []domain.Message{{ID: "$one", Body: "first"}, {ID: "$two", Body: "second"}},
+			msgs: []domain.Message{{ID: mx + "$one", Body: "first"}, {ID: mx + "$two", Body: "second"}},
 			change: func(t *testing.T, m Model) Model {
-				m.timeline.selected = "$one"
+				m.timeline.selected = mx + "$one"
 				m, _ = settled(m).toggleStar()
 				m = settled(m)
-				m.timeline.selected = "$two"
+				m.timeline.selected = mx + "$two"
 				return m
 			},
 		},
 		{
 			name: "a deleted message is revealed, then the cursor moves on",
-			msgs: []domain.Message{{ID: "$one", Body: "secret words", Redacted: true}, {ID: "$two", Body: "second"}},
+			msgs: []domain.Message{{ID: mx + "$one", Body: "secret words", Redacted: true}, {ID: mx + "$two", Body: "second"}},
 			change: func(t *testing.T, m Model) Model {
-				m.timeline.selected = "$one"
+				m.timeline.selected = mx + "$one"
 				m, _ = settled(m).toggleReveal()
-				if !m.timeline.revealed["$one"] {
+				if !m.timeline.revealed[mx+"$one"] {
 					t.Fatal("nothing was revealed; the case proves nothing")
 				}
 				m = settled(m)
-				m.timeline.selected = "$two"
+				m.timeline.selected = mx + "$two"
 				return m
 			},
 		},
 		{
 			name: "a quoted message is fetched",
-			msgs: []domain.Message{{ID: "$one", Body: "test", ReplyTo: "$old"}, {ID: "$two", Body: "later"}},
+			msgs: []domain.Message{{ID: mx + "$one", Body: "test", ReplyTo: mx + "$old"}, {ID: mx + "$two", Body: "later"}},
 			change: func(t *testing.T, m Model) Model {
-				m, _ = routed(t, m, fetchedQuoteMsg{roomID: "!a:x", message: domain.Message{
-					ID: "$old", RoomID: "!a:x", Sender: "@dana:x", SenderName: "Dana", Body: "the message being answered"}})
+				m, _ = routed(t, m, fetchedQuoteMsg{roomID: mx + "!a:x", message: domain.Message{
+					ID: mx + "$old", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", SenderName: "Dana", Body: "the message being answered"}})
 				return m
 			},
 		},
@@ -63,11 +63,11 @@ func TestTheRowCacheFollowsEveryRowInput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for i := range tc.msgs {
-				tc.msgs[i].RoomID, tc.msgs[i].Sender = "!a:x", "@me:x"
+				tc.msgs[i].RoomID, tc.msgs[i].Sender = mx+"!a:x", "matrix:@me:x"
 			}
 			m := quoting(t, &quoteBackend{})
-			m, _ = routed(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: tc.msgs}})
-			m.timeline.selected = "$two"
+			m, _ = routed(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: tc.msgs}})
+			m.timeline.selected = mx + "$two"
 			m = settled(m)
 			_ = m.View() // the first frame fills the cache
 

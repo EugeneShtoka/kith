@@ -5,7 +5,7 @@ import "testing"
 // The narrowest entry wins; a tie between the lists sets nothing.
 func TestTheNarrowestDirectionEntryWins(t *testing.T) {
 	t.Parallel()
-	room := RoomFacts{ID: "!fam:x", Name: "Family", Spaces: []string{"Friends", "Work"}}
+	room := RoomFacts{ID: mx + "!fam:x", Name: "Family", Spaces: []string{"Friends", "Work"}}
 	for _, c := range []struct {
 		name string
 		dirs Directions
@@ -13,10 +13,10 @@ func TestTheNarrowestDirectionEntryWins(t *testing.T) {
 	}{
 		{"nothing set", Directions{}, LayoutUnset},
 		{"its space", Directions{RTL: []string{"space:Friends"}}, LayoutRTL},
-		{"the room over its space", Directions{RTL: []string{"space:Friends"}, LTR: []string{"!fam:x"}}, LayoutLTR},
+		{"the room over its space", Directions{RTL: []string{"space:Friends"}, LTR: []string{mx + "!fam:x"}}, LayoutLTR},
 		{"by its name", Directions{LTR: []string{"space:Friends"}, RTL: []string{"room:Family"}}, LayoutRTL},
 		{"two of its spaces disagree", Directions{RTL: []string{"space:Friends"}, LTR: []string{"space:Work"}}, LayoutUnset},
-		{"another room", Directions{RTL: []string{"!other:x"}}, LayoutUnset},
+		{"another room", Directions{RTL: []string{mx + "!other:x"}}, LayoutUnset},
 	} {
 		if got := c.dirs.Of(room); got != c.want {
 			t.Errorf("%s: Of = %v, want %v", c.name, got, c.want)
@@ -27,15 +27,15 @@ func TestTheNarrowestDirectionEntryWins(t *testing.T) {
 // Setting a room by hand moves its entry between the lists, and back out of both.
 func TestDirectionsWithMovesOneEntry(t *testing.T) {
 	t.Parallel()
-	d := Directions{RTL: []string{"space:Friends"}}.With("!a:x", LayoutRTL)
-	if d.Lists("!a:x") != LayoutRTL || d.Lists("space:Friends") != LayoutRTL {
+	d := Directions{RTL: []string{"space:Friends"}}.With(mx+"!a:x", LayoutRTL)
+	if d.Lists(mx+"!a:x") != LayoutRTL || d.Lists("space:Friends") != LayoutRTL {
 		t.Fatalf("after RTL: %+v", d)
 	}
-	d = d.With("!a:x", LayoutLTR)
-	if d.Lists("!a:x") != LayoutLTR || len(d.RTL) != 1 {
+	d = d.With(mx+"!a:x", LayoutLTR)
+	if d.Lists(mx+"!a:x") != LayoutLTR || len(d.RTL) != 1 {
 		t.Fatalf("after LTR: %+v", d)
 	}
-	if d = d.With("!a:x", LayoutUnset); d.Lists("!a:x") != LayoutUnset || len(d.LTR) != 0 {
+	if d = d.With(mx+"!a:x", LayoutUnset); d.Lists(mx+"!a:x") != LayoutUnset || len(d.LTR) != 0 {
 		t.Fatalf("after unset: %+v", d)
 	}
 }

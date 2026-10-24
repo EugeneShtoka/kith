@@ -18,10 +18,10 @@ func TestAChosenClockRedrawsTheTimeline(t *testing.T) {
 	evening := time.Date(2025, 3, 5, 21, 30, 0, 0, time.Local)
 	m := withRooms(t, newModel())
 	m = update(t, m, tea.WindowSizeMsg{Width: 120, Height: 20})
-	m.openRoom = "!a:x"
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@maya:x", SenderName: "Maya", Body: "dinner?", Timestamp: evening},
-		{ID: "$2", RoomID: "!a:x", Sender: "@maya:x", SenderName: "Maya", Body: "at six", Timestamp: evening.Add(35 * time.Minute)},
+	m.openRoom = mx + "!a:x"
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@maya:x", SenderName: "Maya", Body: "dinner?", Timestamp: evening},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@maya:x", SenderName: "Maya", Body: "at six", Timestamp: evening.Add(35 * time.Minute)},
 	}}})
 	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "21:30") || !strings.Contains(view, "Wed, 05 Mar 2025") {
 		t.Fatalf("the default clock is not drawn:\n%s", view)

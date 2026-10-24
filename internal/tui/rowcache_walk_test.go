@@ -50,17 +50,17 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 		Tracked:    config.Tracked{Rules: []config.TrackedRule{{Words: []string{"word3"}, In: []string{"room:Alpha"}}}},
 	}
 	m := update(t, starterNew(&quoteBackend{}, display),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
-	m, _ = m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	m, _ = m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m.focus = paneTimeline
 	msgs := walkMessages()
-	m, _ = routed(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: msgs}})
+	m, _ = routed(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: msgs}})
 	if m.pics.graphics == graphicsNone {
 		t.Skip("no inline graphics in this environment; pictures are an input the walk needs")
 	}
 	pick := func() domain.EventID { return msgs[rng.IntN(len(msgs))].ID }
-	pictures := []domain.EventID{"$2", "$7"}
+	pictures := []domain.EventID{mx + "$2", mx + "$7"}
 	reaction := 0
 	var live []domain.Reaction // added and not yet removed
 	react := func(r domain.Reaction, removed bool) tea.Msg {
@@ -68,8 +68,8 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 	}
 	fresh := func(target domain.EventID) domain.Reaction {
 		reaction++
-		return domain.Reaction{ID: domain.EventID(fmt.Sprintf("$r%d", reaction)), RoomID: "!a:x",
-			Target: target, Sender: "@dana:x", Key: []string{"👍", "🎉", "❤"}[rng.IntN(3)]}
+		return domain.Reaction{ID: domain.EventID(fmt.Sprintf(mx+"$r%d", reaction)), RoomID: mx + "!a:x",
+			Target: target, Sender: "matrix:@dana:x", Key: []string{"👍", "🎉", "❤"}[rng.IntN(3)]}
 	}
 
 	for range steps {
@@ -86,14 +86,14 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 			log = append(log, fmt.Sprintf("resize %+v", msg))
 		case 3:
 			ids := []domain.EventID{pick(), pick()}
-			msg = starredInMsg{roomID: "!a:x", ids: ids}
+			msg = starredInMsg{roomID: mx + "!a:x", ids: ids}
 			log = append(log, fmt.Sprintf("stars %v", ids))
 		case 4:
 			m.timeline.selected = pick()
 			m, _ = m.toggleStar()
 			log = append(log, fmt.Sprintf("toggle star on %s", m.timeline.selected))
 		case 5:
-			m.timeline.selected = "$4"
+			m.timeline.selected = mx + "$4"
 			m, _ = m.toggleReveal()
 			log = append(log, "toggle reveal on $4")
 		case 6:
@@ -126,13 +126,13 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 		case 13:
 			var spaces []domain.Space
 			if rng.IntN(2) == 0 {
-				spaces = []domain.Space{{ID: "!s:x", Name: "Work", Children: []domain.RoomID{"!a:x"}}}
+				spaces = []domain.Space{{ID: mx + "!s:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}}}
 			}
 			msg = spacesMsg{spaces: spaces}
 			log = append(log, fmt.Sprintf("the room is in %d spaces", len(spaces)))
 		case 14:
 			name := []string{"Alpha", "Beta"}[rng.IntN(2)]
-			msg = roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: name}}}
+			msg = roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: name}}}
 			log = append(log, "the room is named "+name)
 		case 7:
 			id := pictures[rng.IntN(len(pictures))]
@@ -143,8 +143,8 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 			msg = imageLoadedMsg{eventID: id, rows: rows}
 			log = append(log, fmt.Sprintf("picture for %s, %d rows", id, len(rows)))
 		case 8:
-			msg = fetchedQuoteMsg{roomID: "!a:x", message: domain.Message{
-				ID: "$old", RoomID: "!a:x", Sender: "@dana:x", SenderName: "Dana", Body: "the message being answered"}}
+			msg = fetchedQuoteMsg{roomID: mx + "!a:x", message: domain.Message{
+				ID: mx + "$old", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", SenderName: "Dana", Body: "the message being answered"}}
 			log = append(log, "the quoted $old arrives")
 		case 9:
 			m.timeline.selected = pick()
@@ -166,21 +166,21 @@ func walkMessages() []domain.Message {
 	msgs := make([]domain.Message, 0, 12)
 	for i := range 12 {
 		msg := domain.Message{
-			ID: domain.EventID(fmt.Sprintf("$%d", i)), RoomID: "!a:x",
-			Sender: []string{"@me:x", "@dana:x", "@liv:x"}[i%3], Timestamp: day(i/6, 60*i),
+			ID: domain.EventID(fmt.Sprintf(mx+"$%d", i)), RoomID: mx + "!a:x",
+			Sender: []string{"matrix:@me:x", "matrix:@dana:x", "matrix:@liv:x"}[i%3], Timestamp: day(i/6, 60*i),
 			SenderName: []string{"Me Myself", "Dana Scully", "Liv Tyler"}[i%3],
 			Body:       strings.Repeat(fmt.Sprintf("word%d ", i), 1+i%4*6),
 		}
 		switch msg.ID {
-		case "$2", "$7":
+		case mx + "$2", mx + "$7":
 			msg.Body = ""
 			msg.Media = &domain.Media{Type: domain.MediaImage, Name: fmt.Sprintf("pic%d.jpg", i), Width: 4, Height: 4}
-		case "$4":
+		case mx + "$4":
 			msg.Redacted = true
-		case "$5":
-			msg.ReplyTo = "$1"
-		case "$9":
-			msg.ReplyTo = "$old"
+		case mx + "$5":
+			msg.ReplyTo = mx + "$1"
+		case mx + "$9":
+			msg.ReplyTo = mx + "$old"
 		}
 		msgs = append(msgs, msg)
 	}
@@ -192,15 +192,15 @@ func walkMessages() []domain.Message {
 func TestPictureRowsFollowTheFocus(t *testing.T) {
 	t.Parallel()
 	m := update(t, starterNew(&quoteBackend{}, config.Display{Media: config.Media{Mode: "inline"}}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
-	m, _ = m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	m, _ = m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m.focus = paneTimeline
-	m, _ = routed(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: walkMessages()}})
+	m, _ = routed(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: walkMessages()}})
 	if m.pics.graphics == graphicsNone {
 		t.Skip("no inline graphics in this environment")
 	}
-	m, _ = routed(t, m, imageLoadedMsg{eventID: "$2", rows: []string{"PIX-1", "PIX-2"}})
+	m, _ = routed(t, m, imageLoadedMsg{eventID: mx + "$2", rows: []string{"PIX-1", "PIX-2"}})
 	_ = m.View()
 	m.focus = paneRooms
 	m, _ = routed(t, m, settleMsg{}) // asModel's staleRow check fails a stale picture row

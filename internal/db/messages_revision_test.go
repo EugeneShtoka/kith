@@ -13,13 +13,13 @@ func TestSavingAnEditDropsTheRowItWasOnceCachedAs(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!notes:x")
+	const room = domain.RoomID(mx + "!notes:x")
 	sent := time.Date(2026, 8, 20, 12, 54, 0, 0, time.UTC)
 
 	// The original, and the edit stored beside it as a message.
 	if err := cache.SaveMessages(ctx, room, []domain.Message{
-		{ID: "$original", RoomID: room, Sender: "@me:x", Body: "Панамка", Timestamp: sent},
-		{ID: "$theEdit", RoomID: room, Sender: "@me:x", Body: "* Панамка, сыр", Timestamp: sent.Add(10 * time.Minute)},
+		{ID: mx + "$original", RoomID: room, Sender: "matrix:@me:x", Body: "Панамка", Timestamp: sent},
+		{ID: mx + "$theEdit", RoomID: room, Sender: "matrix:@me:x", Body: "* Панамка, сыр", Timestamp: sent.Add(10 * time.Minute)},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -29,8 +29,8 @@ func TestSavingAnEditDropsTheRowItWasOnceCachedAs(t *testing.T) {
 
 	// The edit, folded as a revision.
 	if err := cache.SaveMessages(ctx, room, []domain.Message{{
-		ID: "$original", RoomID: room, Sender: "@me:x", Body: "Панамка, сыр",
-		RevisionID: "$theEdit", Edited: true, Timestamp: sent.Add(10 * time.Minute),
+		ID: mx + "$original", RoomID: room, Sender: "matrix:@me:x", Body: "Панамка, сыр",
+		RevisionID: mx + "$theEdit", Edited: true, Timestamp: sent.Add(10 * time.Minute),
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestSavingAnEditDropsTheRowItWasOnceCachedAs(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("rows = %+v, want the duplicate gone", rows)
 	}
-	if rows[0].ID != "$original" || !rows[0].Edited {
+	if rows[0].ID != mx+"$original" || !rows[0].Edited {
 		t.Errorf("row = %+v, want the edited original", rows[0])
 	}
 	if rows[0].Body != "Панамка, сыр" {
@@ -56,17 +56,17 @@ func TestRevisionCleanupTouchesNothingElse(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!notes:x")
+	const room = domain.RoomID(mx + "!notes:x")
 	now := time.Date(2026, 8, 24, 9, 0, 0, 0, time.UTC)
 
 	if err := cache.SaveMessages(ctx, room, []domain.Message{
-		{ID: "$a", RoomID: room, Sender: "@me:x", Body: "* a genuine markdown bullet", Timestamp: now},
-		{ID: "$b", RoomID: room, Sender: "@me:x", Body: "another", Timestamp: now.Add(time.Minute)},
+		{ID: mx + "$a", RoomID: room, Sender: "matrix:@me:x", Body: "* a genuine markdown bullet", Timestamp: now},
+		{ID: mx + "$b", RoomID: room, Sender: "matrix:@me:x", Body: "another", Timestamp: now.Add(time.Minute)},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := cache.SaveMessages(ctx, room, []domain.Message{
-		{ID: "$b", RoomID: room, Sender: "@me:x", Body: "another, edited", RevisionID: "$b", Edited: true, Timestamp: now.Add(2 * time.Minute)},
+		{ID: mx + "$b", RoomID: room, Sender: "matrix:@me:x", Body: "another, edited", RevisionID: mx + "$b", Edited: true, Timestamp: now.Add(2 * time.Minute)},
 	}); err != nil {
 		t.Fatal(err)
 	}

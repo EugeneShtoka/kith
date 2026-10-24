@@ -12,7 +12,7 @@ import (
 func TestPerRoomWritersRegisterTheRoomFirst(t *testing.T) {
 	t.Parallel()
 
-	const room = domain.RoomID("!never-listed:example.org")
+	const room = domain.RoomID(mx + "!never-listed:example.org")
 	now := time.Now()
 
 	for _, tc := range []struct {
@@ -40,14 +40,14 @@ func TestPerRoomWritersRegisterTheRoomFirst(t *testing.T) {
 		{
 			name: "SetStarred",
 			write: func(ctx context.Context, c *Cache) error {
-				return c.SetStarred(ctx, room, []domain.EventID{"$e"}, now.UnixMilli())
+				return c.SetStarred(ctx, room, []domain.EventID{mx + "$e"}, now.UnixMilli())
 			},
 			check: func(ctx context.Context, t *testing.T, c *Cache) {
 				ids, err := c.Starred(ctx, room)
 				if err != nil {
 					t.Fatalf("Starred: %v", err)
 				}
-				if len(ids) != 1 || ids[0] != "$e" {
+				if len(ids) != 1 || ids[0] != mx+"$e" {
 					t.Errorf("Starred = %v, want the one star just written", ids)
 				}
 			},

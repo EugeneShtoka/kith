@@ -11,7 +11,7 @@ import (
 func TestCodeScopeGovernsTheHintNotTheKey(t *testing.T) {
 	t.Parallel()
 
-	m := yanking(t, msgWith("$1", "Your code is 482910"))
+	m := yanking(t, msgWith(mx+"$1", "Your code is 482910"))
 	m = m.WithConfigFile("", config.Config{Codes: config.Codes{Exclude: []string{"room:Alpha"}}})
 	if m.hasCode() {
 		t.Error("an excluded room should not advertise the code key")
@@ -34,7 +34,7 @@ func TestCodeRulesReachTheModel(t *testing.T) {
 	t.Parallel()
 
 	six := 6
-	m := yanking(t, msgWith("$1", "Your PIN is 4821"))
+	m := yanking(t, msgWith(mx+"$1", "Your PIN is 4821"))
 	m = m.WithConfigFile("", config.Config{Codes: config.Codes{MinLength: six, MaxLength: 8}})
 	if m.hasCode() {
 		t.Error("a four-digit PIN should not qualify under a six-character minimum")
@@ -50,7 +50,7 @@ func TestCodeRulesRejectAnImpossibleShape(t *testing.T) {
 	t.Parallel()
 
 	no := false
-	m := yanking(t, msgWith("$1", "Your code is 482910"))
+	m := yanking(t, msgWith(mx+"$1", "Your code is 482910"))
 	m = m.WithConfigFile("", config.Config{Codes: config.Codes{Letters: &no, Digits: &no}})
 	if !strings.Contains(m.status(), "codes:") {
 		t.Errorf("status = %q, should report the bad section", m.status())

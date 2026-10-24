@@ -51,9 +51,9 @@ func TestADirectMessageMovesWithItsPerson(t *testing.T) {
 			}
 			src := &personBackend{spamBackend: spamWorld()}
 			at := time.Now().Add(-time.Hour)
-			src.timeline[room] = []domain.Message{{ID: "$p1", RoomID: room, Sender: puppet, Body: "hi", Timestamp: at}}
+			src.timeline[room] = []domain.Message{{ID: mx + "$p1", RoomID: room, Sender: puppet, Body: "hi", Timestamp: at}}
 			if c.mine {
-				src.timeline[room] = append(src.timeline[room], domain.Message{ID: "$m1", RoomID: room, Sender: me, Body: "who?", Timestamp: at.Add(time.Minute)})
+				src.timeline[room] = append(src.timeline[room], domain.Message{ID: mx + "$m1", RoomID: room, Sender: me, Body: "who?", Timestamp: at.Add(time.Minute)})
 			}
 			if c.released {
 				src.store(domain.TagVerdict{Room: room, Tag: "spam", Released: true})
@@ -84,7 +84,7 @@ func TestADirectMessageMovesWithItsPerson(t *testing.T) {
 				n.MoveWithHidden(ctx, []domain.RoomID{room})
 			case "message":
 				n.UseHidden(func(context.Context, domain.Message) (bool, error) { return c.held != "" && c.muted, nil })
-				n.Deliver(ctx, domain.Message{ID: "$p2", RoomID: room, Sender: puppet, Body: "hello", Timestamp: time.Now()})
+				n.Deliver(ctx, domain.Message{ID: mx + "$p2", RoomID: room, Sender: puppet, Body: "hello", Timestamp: time.Now()})
 			}
 			got := src.verdicts()
 			moved := len(got) == 1 && got[0].Room == room && got[0].Rule == domain.MoveWithPerson

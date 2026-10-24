@@ -126,7 +126,7 @@ func TestAFailedIndexReconcileIsAnErrorNotARebuild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, werr := cache.ReplaceDraft(ctx, domain.StoredDraft{RoomID: "!a:x", Body: "half a thought", Updated: time.Now()}, domain.StoredDraft{}); werr != nil {
+	if _, werr := cache.ReplaceDraft(ctx, domain.StoredDraft{RoomID: mx + "!a:x", Body: "half a thought", Updated: time.Now()}, domain.StoredDraft{}); werr != nil {
 		t.Fatal(werr)
 	}
 	// An index this binary declares is missing.

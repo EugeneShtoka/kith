@@ -16,7 +16,7 @@ import (
 func TestStopIsIdempotentAndSafeBeforeResume(t *testing.T) {
 	t.Parallel()
 
-	b := New(nil) // never logged in: client is nil by construction
+	b := newBackend(nil) // never logged in: client is nil by construction
 
 	b.Stop()
 	b.Stop()
@@ -27,7 +27,7 @@ func TestStopIsIdempotentAndSafeBeforeResume(t *testing.T) {
 func TestStartSASWithoutAVerificationHelperIsANoOp(t *testing.T) {
 	t.Parallel()
 
-	b := New(nil) // verify is nil: Init either failed or never ran
+	b := newBackend(nil) // verify is nil: Init either failed or never ran
 	b.ver.base = context.Background()
 
 	// A nil dereference on its goroutine would crash the test binary.
@@ -39,7 +39,7 @@ func TestStartSASWithoutAVerificationHelperIsANoOp(t *testing.T) {
 func TestVerificationUnavailableIsNilBeforeSetup(t *testing.T) {
 	t.Parallel()
 
-	if err := New(nil).VerificationUnavailable(); err != nil {
+	if err := newBackend(nil).VerificationUnavailable(); err != nil {
 		t.Errorf("VerificationUnavailable() = %v, want nil before EnableEncryption runs", err)
 	}
 }
@@ -48,7 +48,7 @@ func TestVerificationUnavailableIsNilBeforeSetup(t *testing.T) {
 func TestEnableVerificationWithoutCryptoIsReported(t *testing.T) {
 	t.Parallel()
 
-	b := New(nil)
+	b := newBackend(nil)
 	b.ver.setErr(b.enableVerification(context.Background(), nil))
 
 	if !errors.Is(b.VerificationUnavailable(), api.ErrNoEncryption) {

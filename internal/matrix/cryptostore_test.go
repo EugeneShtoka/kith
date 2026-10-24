@@ -57,13 +57,13 @@ func TestTheCryptoStoreFollowsSync(t *testing.T) {
 	if b.stateStore() == nil {
 		t.Fatal("no state store after OpenCryptoStore")
 	}
-	if encrypted, err := b.stateStore().IsEncrypted(ctx, id.RoomID(sealedRoom)); err != nil || encrypted {
+	if encrypted, err := b.stateStore().IsEncrypted(ctx, testIDs.nativeRoom(sealedRoom)); err != nil || encrypted {
 		t.Fatalf("IsEncrypted before any state = %v, %v; want false", encrypted, err)
 	}
 
 	empty := ""
 	evt := &event.Event{
-		Type: event.StateEncryption, RoomID: id.RoomID(sealedRoom), StateKey: &empty,
+		Type: event.StateEncryption, RoomID: testIDs.nativeRoom(sealedRoom), StateKey: &empty,
 		Content: event.Content{Parsed: &event.EncryptionEventContent{Algorithm: id.AlgorithmMegolmV1}},
 	}
 	b.client.Syncer.(mautrix.DispatchableSyncer).Dispatch(ctx, evt)

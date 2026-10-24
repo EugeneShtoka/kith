@@ -258,7 +258,7 @@ A thread's summary sits at its root in the timeline, which may be far up the scr
 
 ```toml
 [[display.read_rule]]
-sender = "@alice:example.org"
+sender = "matrix:@alice:example.org"
 send   = false        # read her messages without telling her
 ```
 

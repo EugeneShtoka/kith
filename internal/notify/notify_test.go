@@ -31,7 +31,7 @@ func TestRender(t *testing.T) {
 
 	n := notify.Notification{
 		Sender:   "Alice",
-		MXID:     "@whatsapp_44700900123:example.org",
+		SenderID: "matrix:@whatsapp_44700900123:example.org",
 		Room:     "Standup",
 		Body:     "ping",
 		Protocol: "WhatsApp",
@@ -42,7 +42,7 @@ func TestRender(t *testing.T) {
 	tests := map[string]struct{ tpl, want string }{
 		"default title":      {tpl.Title, "Work · Standup · Alice"},
 		"default body":       {tpl.Body, "ping"},
-		"every placeholder":  {"{space}|{sender}|{mxid}|{room}|{body}|{protocol}|{date}|{time}", "Work|Alice|@whatsapp_44700900123:example.org|Standup|ping|WhatsApp|2026-08-21|14:05"},
+		"every placeholder":  {"{space}|{sender}|{sender_id}|{room}|{body}|{protocol}|{date}|{time}", "Work|Alice|matrix:@whatsapp_44700900123:example.org|Standup|ping|WhatsApp|2026-08-21|14:05"},
 		"protocol prefix":    {"[{protocol}] {sender}", "[WhatsApp] Alice"},
 		"empty template":     {"", ""},
 		"no placeholders":    {"new message", "new message"},
