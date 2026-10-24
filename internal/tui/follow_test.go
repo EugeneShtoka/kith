@@ -221,7 +221,7 @@ func TestAHandedOverNonLinkIsReported(t *testing.T) {
 	if got.openRoom == "!b:x" {
 		t.Error("a non-link moved the client")
 	}
-	if !strings.Contains(got.status(), "not a Matrix or Telegram link") {
+	if !strings.Contains(got.status(), "not a Matrix, Telegram or WhatsApp link") {
 		t.Errorf("status = %q, want it to say what was wrong", got.status())
 	}
 }
@@ -577,5 +577,33 @@ func TestAFailingRaiseCommandIsReported(t *testing.T) {
 	}
 	if !strings.Contains(next.status(), "could not raise this window") {
 		t.Errorf("status = %q, want it to say the window was not raised", next.status())
+	}
+}
+
+// A WhatsApp link to a number kith has a chat with opens it without asking WhatsApp;
+// another number is looked up and opened fresh, with the suggested message.
+func TestAHandedOverWhatsAppLinkOpensTheNumbersChat(t *testing.T) {
+	t.Parallel()
+
+	known := domain.Room{ID: "whatsapp:44000000001/15550100009@s.whatsapp.net", Name: "Dana", IsDirect: true}
+	fresh := domain.Room{ID: "whatsapp:44000000001/15550100010@s.whatsapp.net", Name: "+15550100010", IsDirect: true}
+	b := &linkBackend{target: domain.LinkTarget{Room: fresh}}
+	m := sized(t, starterNew(b, config.Display{}))
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, known}})
+
+	next := followed(t, m, "whatsapp://send?phone=15550100009&text=hi")
+	if next.openRoom != known.ID || len(b.resolved) != 0 {
+		t.Errorf("open room = %q, asked %v: want Dana's chat, found in the list", next.openRoom, b.resolved)
+	}
+	if next.compose.input != "hi" {
+		t.Errorf("composer = %q, want the suggested message", next.compose.input)
+	}
+
+	next = followed(t, next, "https://wa.me/15550100010?text=hello")
+	if len(b.resolved) != 1 || next.openRoom != fresh.ID {
+		t.Fatalf("open room = %q, asked %v: want the number looked up and its chat opened", next.openRoom, b.resolved)
+	}
+	if _, ok := next.currentRoom(); !ok || next.compose.input != "hello" {
+		t.Errorf("composer = %q (room held: %v), want a fresh chat holding the suggested message", next.compose.input, ok)
 	}
 }

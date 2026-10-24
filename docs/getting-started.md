@@ -79,7 +79,7 @@ The `.deb`, `.rpm`, `.apk` and Arch packages all install the same files:
 | --- | --- |
 | `/usr/bin/kith`, `kithd`, `kith-mcp` | The binaries. |
 | `/usr/lib/systemd/user/kithd.service`, `kithd@.service` | The systemd user units, with `ExecStart=/usr/bin/kithd`. |
-| `/usr/share/applications/kith.desktop` | The `matrix:` and `tg:` link handler. |
+| `/usr/share/applications/kith.desktop` | The `matrix:`, `tg:` and `whatsapp:` link handler. |
 | `/usr/share/doc/kith/` | README, ARCHITECTURE, these docs and `config.toml.example`, the annotated default config. |
 
 ```sh
@@ -150,7 +150,7 @@ What doesn't work on macOS yet:
 - **Desktop notifications.** They are sent over D-Bus, which macOS doesn't have. Use
   `[notifications] command` to run your own script instead.
 - **The file chooser.** It is the XDG desktop portal. Type the path instead.
-- **The `matrix:` and `tg:` link handler.** It is a `.desktop` file.
+- **The `matrix:`, `tg:` and `whatsapp:` link handler.** It is a `.desktop` file.
 - **Clipboard from the daemon.** Set `[clipboard] command = "pbcopy"`.
 
 The keyring (the macOS Keychain), sync, encryption and everything in the terminal
@@ -210,7 +210,7 @@ file chooser work if a D-Bus session bus with those services is running.
 Every release publishes one `tar.gz` per platform, named
 `kith_<version>_<os>_<arch>.tar.gz`, for Linux, macOS and FreeBSD on amd64 and
 arm64. It contains all three binaries, the two systemd units, the macOS LaunchAgent,
-the `matrix:` / `tg:` desktop entry, `README.md`, `LICENSE` and `ARCHITECTURE.md`.
+the `matrix:` / `tg:` / `whatsapp:` desktop entry, `README.md`, `LICENSE` and `ARCHITECTURE.md`.
 
 ```sh
 tar xzf kith_*_linux_amd64.tar.gz
@@ -245,7 +245,7 @@ Clone the repository and use the Makefile:
 ```sh
 git clone https://github.com/EugeneShtoka/kith.git
 cd kith
-make install     # build, then install binaries, the systemd units and the matrix:/tg: handler
+make install     # build, then install binaries, the systemd units and the matrix:/tg:/whatsapp: handler
 ```
 
 `make install` does four things:
@@ -257,7 +257,7 @@ make install     # build, then install binaries, the systemd units and the matri
    `~/.config/systemd/user/`, with `ExecStart` set to wherever the binary went, and
    runs `systemctl --user daemon-reload`.
 4. Installs `kith.desktop` into `~/.local/share/applications/` and registers it as
-   the `matrix:` and `tg:` link handler with `xdg-mime`.
+   the `matrix:`, `tg:` and `whatsapp:` link handler with `xdg-mime`.
 
 `make install` doesn't start anything. `make deploy` does everything `make install`
 does and then brings the daemon up (see
@@ -491,18 +491,20 @@ uploads new room keys to it as they arrive.
 Device verification, key export and the details are covered in
 [encryption.md](encryption.md).
 
-## Open matrix: and tg: links in kith
+## Open matrix:, tg: and whatsapp: links in kith
 
-`make install` registers kith as the handler for `matrix:` and `tg:` links. When you
+`make install` registers kith as the handler for `matrix:`, `tg:` and `whatsapp:` links. When you
 click one in a browser or another app, the desktop runs:
 
 ```sh
 kith --open 'matrix:r/room:example.org'
 kith --open 'tg://resolve?domain=novosalsa&post=35'
+kith --open 'whatsapp://send?phone=15551234567&text=hello'
 ```
 
-`--open` accepts `matrix:` URIs and `https://matrix.to/#/…` links, and `tg://`
-URIs and `https://t.me/…` links. It doesn't draw anything. It hands the link to the
+`--open` accepts `matrix:` URIs and `https://matrix.to/#/…` links, `tg://` URIs and
+`https://t.me/…` links, and `whatsapp://` URIs with their `wa.me`, `api.whatsapp.com`
+and `chat.whatsapp.com` web forms. It doesn't draw anything. It hands the link to the
 `kith` that is already attached to the daemon, which then goes there. If no client is
 attached, it starts one in a terminal, as a new tab if the terminal supports it. It
 prefers wezterm, kitty, konsole or gnome-terminal (which can open tabs), then foot,
@@ -528,6 +530,15 @@ ID. Otherwise kith asks Telegram, on the first signed-in account by name:
   holds a draft.
 
 A private channel's link (`tg://privatepost`) opens only a channel you are in.
+A WhatsApp link (`whatsapp://send?phone=…`, `wa.me/…`, `api.whatsapp.com/send?phone=…`)
+opens your chat with that number, on the first linked account in the config. With no
+chat yet, it opens a new, empty one, which joins the list once your first message
+starts it. A group invite (`chat.whatsapp.com/…`, `whatsapp://chat?code=…`) asks before
+joining, as a Telegram one does; a suggested `text=` goes into the composer.
+
+Links your browser opens as web pages (`https://t.me/…`, `https://wa.me/…`) reach kith
+only if you paste them into `kith --open`: the desktop sends `https:` to the browser.
+
 If Telegram Desktop is installed, both apps claim `x-scheme-handler/tg`; whichever
 was registered last wins.
 

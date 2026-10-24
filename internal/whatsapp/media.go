@@ -195,7 +195,11 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, name
 		sent.Body = media.Name
 	}
 	if a.cache != nil {
-		a.record(ctx, account, sent, func() {})
+		started := false
+		a.record(ctx, account, sent, func() { started = a.startedChat(ctx, account, client, roomID, chat) })
+		if started && a.onRoomsChanged != nil {
+			a.onRoomsChanged()
+		}
 		a.keepSource(ctx, sent, source)
 		a.keepExpiry(ctx, sent, timerOf(message))
 	}

@@ -15,12 +15,12 @@ import (
 // openTimeout is shorter than readyTimeout: somebody clicked a link and is waiting.
 const openTimeout = 20 * time.Second
 
-// runOpen (`kith --open <uri>`, the desktop's matrix: and tg: handler) delivers a URI
+// runOpen (`kith --open <uri>`, the desktop's matrix:, tg: and whatsapp: handler) delivers a URI
 // to a running client via the daemon, or starts a terminal running one. It never
 // draws.
 func runOpen(configPath, profile, uri string) error {
 	if !openableURI(uri) {
-		return fmt.Errorf("not a Matrix or Telegram link: %s", uri)
+		return fmt.Errorf("not a Matrix, Telegram or WhatsApp link: %s", uri)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -64,13 +64,14 @@ func openInTerminal(ctx context.Context, configured, uri string) error {
 }
 
 // openableURI reports whether uri is a link the running client knows how to follow:
-// a Matrix address (matrix: or matrix.to) or a Telegram tg:// link. The TUI parses it
-// again on the far side; this check keeps a mistyped scheme from racing to a terminal.
+// a Matrix address (matrix: or matrix.to), or another network's chat link (tg:,
+// whatsapp: and their web forms). The TUI parses it again on the far side; this check
+// keeps a mistyped scheme from racing to a terminal.
 func openableURI(uri string) bool {
 	if _, ok := domain.ParsePlace(uri); ok {
 		return true
 	}
-	_, ok := domain.ParseTelegramLink(uri)
+	_, ok := domain.LinkNetwork(uri)
 	return ok
 }
 

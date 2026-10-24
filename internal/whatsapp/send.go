@@ -60,7 +60,7 @@ func (a *Adapter) Send(ctx context.Context, roomID domain.RoomID, draft domain.D
 			UserID: domain.NativePerson(domain.ProtocolWhatsApp, jid.String()), Name: "@" + jid.User,
 		})
 	}
-	a.cacheSent(ctx, account, sent)
+	a.cacheSent(ctx, account, client, chat, sent)
 	a.keepExpiry(ctx, sent, timerOf(message))
 	emit(a, a.messages, sent)
 	return nil
@@ -175,15 +175,39 @@ func (a *Adapter) messageIDFor(client *whatsmeow.Client, txn string) types.Messa
 	return id
 }
 
-// cacheSent caches an own message and counts its mentions for mention ranking.
-func (a *Adapter) cacheSent(ctx context.Context, account Account, sent domain.Message) {
+// cacheSent caches an own message, and the direct chat it started if it was the first,
+// and counts its mentions for mention ranking.
+func (a *Adapter) cacheSent(ctx context.Context, account Account, client *whatsmeow.Client, chat types.JID, sent domain.Message) {
 	if a.cache == nil {
 		return
 	}
-	a.record(ctx, account, sent, func() {})
+	started := false
+	a.record(ctx, account, sent, func() { started = a.startedChat(ctx, account, client, sent.RoomID, chat) })
+	if started && a.onRoomsChanged != nil {
+		a.onRoomsChanged()
+	}
 	for _, m := range sent.Mentions {
 		if err := a.cache.RecordMention(ctx, sent.RoomID, m.UserID, time.Now().UnixMilli()); err != nil {
 			a.log.Warn("record a mention failed", "room", sent.RoomID, "err", err)
 		}
 	}
+}
+
+// startedChat records the direct chat a message of ours started (WhatsApp has none
+// before the first message: one opened from a link), named after the person, and
+// reports whether it was new. Caller holds listing (record's room step).
+func (a *Adapter) startedChat(ctx context.Context, account Account, client *whatsmeow.Client, room domain.RoomID, chat types.JID) bool {
+	if !isDirect(room) {
+		return false
+	}
+	n, err := a.cache.JoinRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, account.Digits), []domain.RoomID{room})
+	if err != nil {
+		a.log.Warn("record a started chat failed", "account", account.Name, "room", room, "err", err)
+		return false
+	}
+	if n == 0 {
+		return false
+	}
+	a.knowDirectChat(ctx, account, client, room, chat, "")
+	return true
 }
