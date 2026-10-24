@@ -1,189 +1,207 @@
-# Design: network adapters (WhatsApp first)
+# Design: network adapters
 
-Status: draft, 2026-10-01. From the whatsmeow spike (branch `spike/whatsmeow`,
-`spike/whatsapp/`, its own module, never merged).
+Status: **built**, as of 2026-10-24. This started as the design for adding WhatsApp
+beside Matrix (2026-10-01); it now describes how every network plugs in, so a new
+adapter is written against it. Per-network user docs: [WhatsApp](../docs/whatsapp.md),
+[Telegram](../docs/telegram.md), [Slack](../docs/slack.md),
+[Signal](../docs/signal.md), [Messenger](../docs/messenger.md),
+[Instagram](../docs/instagram.md), [LinkedIn](../docs/linkedin.md),
+[Google Messages](../docs/google-messages.md).
 
-## What the spike proved
+## Networks and how each is built
 
-| Question | Answer |
+| network | library | in-process? | login |
+| --- | --- | --- | --- |
+| Matrix | mautrix-go (goolm crypto) | yes | password, OAuth/OIDC, SSO |
+| WhatsApp | whatsmeow | yes | pairing code typed on the phone |
+| Telegram | gotd/td | yes | api_id and api_hash, phone, code, 2FA password |
+| Slack | Slack's web API with a browser session | yes | the browser's session token |
+| Messenger | mautrix-meta (`messagix`; E2EE over whatsmeow) | yes | password (Messenger Lite API) |
+| Instagram | mautrix-meta | yes | the browser's cookies |
+| LinkedIn | mautrix-linkedin (`linkedingo`) | yes | the browser's cookies |
+| Google Messages | mautrix-gmessages (`libgm`) | yes | QR pairing with the phone |
+| Signal | mautrix-signal (`signalmeow`, over Rust libsignal) | **no**: the `kith-signal` helper | QR, as a linked device |
+
+**Licence.** kith is AGPL-3.0-or-later (MIT up to v0.1.0). The mautrix network
+packages are AGPL and go.mau.fi/libsignal is GPL-3.0; AGPL-3.0 combines with both
+(§13), so every adapter may run in-process. gotd/td is MIT.
+
+**Why Signal is a helper.** `signalmeow`'s crypto is `libsignalgo`, cgo over Rust
+`libsignal_ffi`, and every other kith binary is `CGO_ENABLED=0`. `cmd/kith-signal` is
+the one binary that links it. kithd starts it, hands it its socket as fd 3 and the
+store key, and keeps it alive with heartbeats (it exits after 10 s without one). It
+serves a small `SignalService` over Connect RPC (`internal/api/signal/v1`); kithd's
+`internal/signal` is an ordinary adapter on top of that, and kithd owns the cache.
+Built only with `-tags signal` (`make build-signal`); without it every call is refused
+with that instruction. Shipped in the Linux release archives and packages.
+
+## IDs say their network and account
+
+`internal/domain/network.go` (its header comment is the full table).
+
+- **Matrix IDs stay bare** (`!room`, `@user:server`, `$event`): no migration for
+  caches, configs and drafts written before other networks existed. Anything without a
+  known prefix is Matrix; a Matrix ID starts with a sigil, a prefixed one never does.
+- **Every other network**: rooms and events are `<network>:<account>/<native>`,
+  people are `<network>:<native>`. A room and a message are per account (a DM with Bob
+  from account A is not the DM from account B; the same group message reaches both
+  accounts with one native ID). A person is global, so identities, colours and
+  `find_people` fold across accounts.
+- **`<account>` is the account's own stable network ID**, never a config label, so
+  cache rows, drafts, stars and place lists survive renaming and re-pairing: phone
+  digits (WhatsApp), team ID (Slack), user ID (Telegram, Messenger, Instagram),
+  profile ID (LinkedIn), ACI (Signal), a hash of the paired phone's ID (Google
+  Messages). The separator is `/`, which never occurs in a native ID.
+- **Events unique only within a chat carry the chat**: `slack:<team>/<chan>/<ts>`,
+  `telegram:<self>/<peer>/<id>`, `messenger|instagram|linkedin|gmessages:<self>/<thread>/<msg>`,
+  `signal:<self>/<chat>/<author>.<millis>`. WhatsApp's message IDs are unique per
+  account: `whatsapp:<self>/<msgid>` (a chat is told apart by the `@` of its JID).
+- **People exceptions**: `slack:<team>.<user>`; `gmessages:+<number>`; WhatsApp has
+  both a phone JID and a LID for one person.
+
+Examples, with fictional numbers:
+
+```
+whatsapp:15550100001/120363000000000000@g.us       a group, seen from that account
+whatsapp:15550100001/15550100002@s.whatsapp.net    that account's DM with a person
+whatsapp:15550100001/3EB0000000000000              a message
+whatsapp:15550100002@s.whatsapp.net                the person
+```
+
+API: `ParseID` → `ID{Network, Account, Native}`, `NetworkOf`, `IsUserID`,
+`IsRoomID`, `IsMatrixUserID`/`IsMatrixRoomID`, `ShortName` (Matrix localpart, a
+`+phone` for WhatsApp), `NativeID`/`NativePerson`, and `RoomOwner` (`OwnerOf`,
+`Owns`): the slice of the cache each writer reconciles. `domain/bridge.go` still
+guesses the network of a *bridged* Matrix room. `[[display.identity]]` lists `ids`
+on any network.
+
+## The seam: a router over capability interfaces
+
+`api.Backend` (`internal/api/backend.go`) is what clients see: 19 roles (Sync, Rooms,
+Spaces, Timeline, Unread, Reactions, Media, Members, Membership, NewChats, Ending,
+Search, Drafts, Threads, Verification, Keys, Assist, Maintenance, Identity). kithd
+(`cmd/kithd/main.go`) serves it as:
+
+- **`route.Router`** (`internal/route`) over one adapter per network. A room call
+  goes to the room's network (`NetworkOf`); a list is gathered across adapters.
+- **`local.Service`** (`internal/local`) for what only needs the cache or an engine:
+  drafts, search, assist, starred, the blocked list, clearing the cache.
+
+An adapter implements the minimal `route.Adapter` (Start, Stop, Messages, Activity,
+Unread, Reactions, Me) and then **only the capabilities its network has**, as small
+interfaces (`internal/route/route.go`). There is no per-network switch: a network
+without a capability answers `api.ErrNotOnNetwork`, and roles only one network can
+fill (verification, key backup, creating a Matrix room) answer `api.ErrNetworkOff`
+when it is not running. `cmd/kithd/capabilities.go` asserts each adapter's set at
+compile time.
+
+| capability | networks |
 | --- | --- |
-| Builds cgo-free with kith's driver | Yes: whatsmeow's `sqlstore.NewWithDB(db, "sqlite3", …)` over modernc `sqlite`; one static binary, 27 MB. Same `go.mau.fi/util` (v0.10.1) as mautrix, no dependency clash |
-| Links without a QR in the terminal | Yes: `PairPhone` gives an 8-character code typed under Linked devices → Link with phone number |
-| Receives live | Yes: messages (text, protocol messages: the sender-key handover before a first group message), receipts, push names |
-| Sends to the right chat | Yes, to the account's own chat by its LID (`…@lid`); see below |
-| Groups, contacts | `GetJoinedGroups`: 19 groups, 1 to 1,024 members, no communities on this account. App-state sync filled 1,065 contacts |
-| History sync | **Not measured yet**: it arrives once, right after pairing (re-pair to record it) |
-| Coexists with the bridge | Yes: a separate linked device beside mautrix-whatsapp's (WhatsApp allows four) |
+| rooms, counts, read state, history, people, encryption flag, spaces listed, sending, deleting, reacting, typing, media both ways | all |
+| signing out (`SignOuter`) | all except Matrix |
+| leaving a chat | WhatsApp, Telegram, Messenger, LinkedIn, Signal |
+| starting a chat | WhatsApp, Slack, Telegram, Signal |
+| polls: reading and voting | WhatsApp, Telegram, Signal (Matrix through its own role) |
+| polls: creating | Matrix |
+| archive mirror | WhatsApp, Telegram |
+| deleting a chat, folders | Telegram |
+| stars kept on the network | Matrix, WhatsApp |
+| threads | Matrix, Slack |
+| block list (`Blocker`) | WhatsApp, Telegram |
+| sessions, resync, spaces edited, membership, verification, key backup, ignore list | Matrix |
 
-Licences (decided 2026-10-01): kith is AGPL-3.0-or-later from PR #14 on (was MIT up
-to v0.1.0). whatsmeow is MPL-2.0 but needs go.mau.fi/libsignal, GPL-3.0, which an MIT
-core could not link; AGPL-3.0 combines with GPL-3.0 (§13 of both) and with the AGPL
-networks (Meta, Google Messages, LinkedIn, Signal's libsignal), so every adapter may run
-in-process. Telegram via gotd/td is MIT.
+kithd wraps each adapter as a `network` (`cmd/kithd/networks.go`): its config, its
+status line, its saved sessions, and the login conversation it leads
+(`api.LoginLeader`). Matrix is always constructed, but needs no account: a config
+without `homeserver` runs only other networks.
 
-## WhatsApp's model, mapped onto kith's
+## Formatting reaches clients as spans
 
-| WhatsApp | JID shape | kith |
-| --- | --- | --- |
-| A person (phone) | `359…@s.whatsapp.net` | a user |
-| A person (LID, the hidden ID WhatsApp is moving to) | `273…@lid` | the same user; the store maps LID ↔ phone (`whatsmeow_lid_map`) |
-| A direct chat | the other person's JID; the account's own is its LID | a DM room |
-| A group | `120363…@g.us` | a group room |
-| A community | a parent group (`IsParent`), sub-groups carry `LinkedParentJID` | a space with child rooms |
-| An announcement group | `IsAnnounce` | a room where only admins write |
-| A channel (newsletter) | `…@newsletter` | a read-mostly room; later |
-| Status (stories) | `status@broadcast` | not shown; later |
-| A message ID | per chat, `3EB0…` | an event ID, unique within its room |
+`domain.Message` carries `Body` and `Format richtext.Formatted` (stored as kith's
+sanitized markup subset); the wire carries text plus spans, never a network's own
+format, and the TUI only draws spans. Each adapter converts its own:
 
-Threads: none in WhatsApp (replies quote). Edits, deletions (`protocol:REVOKE`),
-reactions, receipts and typing all exist and map onto what kith already has.
+- in: Matrix `formatted_body` (sanitized, reply fallback removed); WhatsApp and Slack
+  markers (`*bold*`, `_italic_`, `~strike~`, ```` ``` ````); Telegram entities and
+  Signal ranges as nested spans. Messenger, Instagram, LinkedIn and Google Messages
+  are plain text.
+- out: Markdown typed in the composer is converted per network (Matrix HTML, markers,
+  entities, ranges), from one parser (`internal/markdown`).
 
-## The core change: IDs say their network
+## Several accounts per network
 
-Today a `RoomID`/`EventID`/user ID is a Matrix ID and code relies on its sigils.
-Proposal: **Matrix IDs stay bare; every other network's ID carries a prefix**:
-`whatsapp:120363…@g.us`, `whatsapp:359…@s.whatsapp.net`, event `whatsapp:3EB0…`.
-
-- No migration: the cache's keys, configs (`[[display.identity]] mxids`, place lists,
-  jump targets) and drafts stay valid as they are.
-- Unambiguous: a Matrix ID starts with a sigil (`!`, `@`, `$`, `#`); a prefixed one
-  never does.
-- `domain.NetworkOf(id)` replaces the bridge guess (`domain/bridge.go`) for native
-  adapters; bridged Matrix rooms keep the guess.
-- Identities: `mxids` is renamed `ids` in PR 1 (confirmed 2026-10-01), the user's config migrated in the same step.
-  readable for one release? No: unreleased-compat rule says just rename and migrate the
-  user's config).
-
-Places to change (about 30, listed by `grep` in the session; the main ones):
-
-- `domain/place.go`, `domain/message.go:73`: `matrix:`/`matrix.to` links and sigil
-  parsing; links become per-network (`whatsapp:` has none, `wa.me` is a phone link).
-- `domain/member.go:31`, `domain/assist.go:136`, `tui/deleted.go:75`,
-  `tui/view_message.go:687` (`shortSender`): "localpart of an MXID" becomes
-  `domain.ShortName(userID)` per network (a phone number, a push name).
-- `tui/people.go:56`, `tui/model.go:836`, `domain/jump.go:71`, `kith-mcp/queries.go:424`:
-  "is this an MXID / room ID" checks become `domain.IsUserID` / `IsRoomID`.
-- `domain/roomfacts.go`: the place vocabulary's bare `!room` entry stays Matrix; a
-  prefixed ID is a room too.
-
-## Several accounts per network (decided 2026-10-01: required)
-
-The user wants more than one WhatsApp account in one config. That changes the ID shape
-above: `whatsapp:120363…@g.us` is ambiguous once two accounts are both in that group,
-and the DM with one person is a *different chat* from each account.
-
-What is per-account and what is not:
-
-| Thing | Per account? | Why |
-| --- | --- | --- |
-| A room (group or DM) | **yes** | sending must go out through one account; a DM with Bob from A is not the DM from B |
-| A message / event ID | **yes** | the same group message reaches both accounts with the same WhatsApp ID; `reactions` is keyed by `event_id` alone (schema.go), so it would collide |
-| A person | no | a phone JID / LID is global; Bob is one person whichever account sees him, so identities, colours and `find_people` fold naturally |
-
-ID shape (confirmed 2026-10-01): **`<network>:<account>/<native>`** for rooms and events,
-**`<network>:<native>`** for people.
-
-- `whatsapp:359881234567/120363…@g.us` — a group seen from that account
-- `whatsapp:359881234567/972501234567@s.whatsapp.net` — that account's DM with a person
-- `whatsapp:359881234567/3EB0…` — a message
-- `whatsapp:972501234567@s.whatsapp.net` — the person
-- `<account>` is the account's **own phone number** (digits), not a config label: it
-  is stable across re-pairing and renaming, so cache rows, drafts, starred messages and
-  place lists keep pointing at the right chats. `/` never occurs in a JID (a device
-  JID's `:12` does, hence `/`, not `:`).
-- Matrix stays bare (one Matrix account). A second Matrix account later would take the
-  same shape (`matrix:<mxid>/!room…`); nothing here forecloses it.
-- The same group seen by two accounts shows as two rooms (labelled by account). Folding
-  them into one is a possible later nicety, not a requirement.
-
-Config:
+Every network has the same config shape:
 
 ```toml
 [[whatsapp.account]]
-name  = "bg"            # label in the room list and for `kith login whatsapp bg`
-phone = "+359881234567" # pairing needs it anyway; its digits are <account> in IDs
+name  = "personal"       # label in the room list, and for `kith login whatsapp personal`
+phone = "+15550100001"   # pairing needs it
 ```
 
-- `kith login whatsapp <name>` pairs one account (pairing code). Unknown name → error
-  listing the configured ones; one account configured → name optional.
-- Sessions: **one** whatsmeow store (`$XDG_DATA_HOME/kith/whatsapp.db`); its
-  `sqlstore.Container` already holds many devices (`GetAllDevices`), each keyed by its
-  JID. The daemon starts one `whatsmeow.Client` per configured, paired account.
-- Removing a stanza stops that account's client; its rooms stay in the cache
-  (read-only) until `kith logout whatsapp <name>` unlinks the device and drops them.
+Telegram adds `phone`, Slack `workspace`; the others take only `name`. Matrix is
+still top-level (`homeserver`, `user`), with `[[profile]]` running a second account
+as its own kithd, until [design-matrix-accounts.md](design-matrix-accounts.md) lands.
 
-What else this touches:
+- `kith login [network [account]]` (or `:login` inside kith): the daemon leads the
+  steps. One account configured makes the name optional; an unknown name is an error
+  listing the configured ones; with none, it sets one up and writes it into the
+  config, which the daemon reloads without a restart.
+- Signing out is `L` on the account's space: the network is told (device unlinked,
+  session ended), the stored session is deleted, and the account's rooms go only if
+  asked. The account stays in the config.
+- The same group seen by two accounts is two rooms, labelled by account.
 
-- **"Me" is a set.** Code that asks "is this sender me" compares with one MXID today.
-  It becomes `IsMe(userID)` over every connected account's own IDs (phone JID *and*
-  LID for each WhatsApp account). Mentions, own-message styling, unread, notifications.
-- **The daemon is keyed by the person, not the Matrix account.** `AccountKey(mxid)`
-  names the cache, socket, session, ledger, schedule today. Keep that key (it is the
-  config's Matrix account) so nothing moves; a WhatsApp-only setup keys by the config
-  file instead. Decide in PR 3.
-- **Room list shows the account** for non-Matrix rooms when more than one account of
-  that network is configured (a small `bg`/`il` tag), and kith-mcp's `list_rooms`
-  carries it, so an assistant drafting "to Bob" picks the right account's DM.
-- `[agent.read]`/`[agent.write]` place lists can name a whole account
-  (`whatsapp:359881234567`) as a place, like a space.
+## "Me" is a set
 
-## Formatting reaches the TUI as spans, not Matrix HTML
+Each adapter's `Me()` returns its own IDs: every connected account, and on WhatsApp
+both the phone JID and the LID; on Matrix the account plus any `[[display.identity]]`
+merged with it. The router unions them (`Router.Me`, exposed as `Identity.Selves`).
+Mentions, own-message styling, unread and notifications all ask the set, never one ID.
 
-`domain.Message.HTML` is Matrix's `formatted_body`, parsed in the TUI
-(`tui/view_message.go` → `richtext.Parse`, including `data-mx-spoiler`). Move the parse
-into the adapter: `domain.Message` carries `richtext.Span`s (wire field), each adapter
-converts its own format (Matrix HTML; WhatsApp `*bold*` `_italic_` `~strike~`
-```` ```mono``` ````; Telegram entities, already spans). The TUI draws spans only.
-Sending already converts in the daemon (`matrix/markdown.go`); each adapter gets its own.
+## Storage
 
-## The adapter seam
+The daemon is keyed by a **storage instance**, not an account: `[storage] instance`,
+or a hash of the config file's path (an older install keeps its Matrix-derived key).
+Socket, lock and every file hang off it: `<data>/<kind>-<instance>.db`.
 
-`api.Backend` is 16 roles (`internal/api/backend.go`). Split them:
+| store | what | at rest |
+| --- | --- | --- |
+| `cache-` | the message cache, every network | modernc SQLite |
+| `crypto-` | Matrix Olm/Megolm | modernc SQLite; secrets pickled with a keyring key |
+| `whatsapp-` | whatsmeow devices, every WhatsApp account in one container | **sealeddb** |
+| `messenger-` | Messenger's E2EE devices | **sealeddb** |
+| `signal-` | signalmeow's store (opened by `kith-signal`) | **sealeddb** |
+| `telegram-` | update state, access hashes, backfill progress (nothing secret) | modernc SQLite |
+| keyring only | Slack, LinkedIn, Instagram, Google Messages and Telegram sessions | keyring |
 
-- **Every network**: Sync, Rooms, Timeline, Unread, Reactions, Media, Members, Search,
-  Drafts, Assist, Maintenance.
-- **Matrix only**: Spaces (communities map onto them later), Membership (invites, bans),
-  Threads, Verification, Keys.
+**Why two SQLite drivers.** The WhatsApp, Messenger and Signal stores hold identity
+keys, prekeys and sessions: whoever copies them can impersonate the account and read
+future messages. Those libraries write their own SQL, so the encryption has to sit
+under SQLite, not in front of it. modernc has no encrypting VFS, and SQLCipher needs
+cgo. `internal/sealeddb` is ncruces/go-sqlite3 (SQLite translated to Go from
+WebAssembly) with the Adiantum VFS: every page and the WAL encrypted, the 32-byte key
+only in the OS keyring, still pure Go, and no memory mapped writable and executable
+(kithd's unit sets `MemoryDenyWriteExecute`). It is used only for those key stores;
+the cache stays on modernc.
 
-`internal/matrix.InProc` stays the Matrix adapter. A new `internal/whatsapp` adapter
-implements the shared roles over whatsmeow and writes into the **same cache**
-(`internal/db`), so search, drafts, the assistant, notifications and unread work for it
-unchanged. The daemon routes a call by the ID's network; a room list is the union.
+## Adding a network
 
-Account data kith keeps in Matrix (`org.kith.starred`, `org.kith.spam`) stays local for
-WhatsApp rooms (the cache tables already mirror it).
+1. A spike on a branch, in its own module: log in, receive, send, history.
+2. Its prefix and native ID shapes in `domain/network.go`, with `<account>` the
+   network's own stable ID.
+3. An adapter: `route.Adapter`, then each capability the network has; assertions in
+   `cmd/kithd/capabilities.go`. Its formatting conversion both ways.
+4. Its config section (`[[<network>.account]]`), its login conversation, and its
+   session in the keyring or in a sealeddb store if it holds keys.
+5. A page in `docs/`, saying what works and what does not.
 
-## One daemon, several networks
+## Known risks
 
-A daemon is one account today (socket and cache keyed by MXID). With adapters it is one
-*person*: a Matrix account and a WhatsApp account side by side, one cache, one socket.
-Config grows `[whatsapp]` (enabled, the pairing done by `kith login whatsapp`); the
-session lives in its own store beside the crypto store
-(`$XDG_DATA_HOME/kith/whatsapp-<account>.db`), keys in the keyring like Matrix's.
-
-## Plan (each PR lands working)
-
-1. **IDs say their network and account**: `domain.NetworkOf`, `AccountOf`, `NativeOf`,
-   `ShortName`, `IsUserID`/`IsRoomID`; the ~30 call sites; Matrix behaviour unchanged.
-2. **Spans on the wire**: formatting parsed in the adapter; the TUI draws spans.
-3. **Adapter seam**: the role split; the daemon composes adapters; Matrix the only one.
-4. **WhatsApp adapter, behind `[whatsapp] enabled`**: `kith login whatsapp` (pairing
-   code), live messages, sending, groups and DMs as rooms, names and contacts.
-5. History sync into the cache; media; reactions, edits, deletions, receipts; typing.
-6. Communities as spaces; channels.
-
-## Progress
-
-- PR 1 (branch `ids-say-their-network`): written 2026-10-01, see
-  `notes/recap-2026-10-01.md`. Account-as-a-place entry (`[agent.read]` naming a whole
-  account) deferred to PR 4, where account labels exist.
-
-## Risks and open questions
-
-- WhatsApp's terms forbid unofficial clients; bans are rare but real. Say so in the docs.
-- The phone must come online every ~14 days or linked devices are dropped.
-- LID migration: the same person appears as phone JID and LID; the adapter must fold
-  them (whatsmeow's LID map) or kith shows two people.
-- History sync size and pacing: unmeasured (re-pair and record).
-- The bridge and a native adapter on the same account would show every chat twice: the
-  docs must say to use one or the other per account.
+- WhatsApp's, Meta's and LinkedIn's terms forbid unofficial clients; bans are rare
+  but real. The network pages say so.
+- WhatsApp drops linked devices whose phone has not been online for about 14 days;
+  Google Messages relays everything through the phone, which must stay online and
+  has one web session at a time.
+- Meta changes its private APIs often; its adapter has the most churn.
+- A bridge and a native adapter on the same account show every chat twice: use one
+  or the other per account.

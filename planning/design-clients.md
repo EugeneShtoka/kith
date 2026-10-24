@@ -13,45 +13,114 @@ WhatsApp, Signal, Messenger, Google Messages, it's *a linked-device slot* at the
 network. Any multi-process story has to respect this: two bridges cannot share one
 device identity, so each bridge is its own linked device per network.
 
-## The three-layer architecture
+## Two layers: bridge and clients, with profiles
 
 ```
-Bridge (kithd-bridge, was kithd)
+Bridge (kithd)
   - network sessions, cache, crypto stores
-  - publishes raw event streams, unfiltered
-  - no per-device state, no rules, no DND, no view
-  - config = structural only (accounts, storage, keys, models)
+  - every room; tags, filters, notification rules, profiles (one config)
+  - decides what is worth notifying, and for which profiles
+  - publishes each notification to the push topic of every profile it matches
   - 1..N instances across the user's devices and servers
                 │
                 │  Connect over TLS/mTLS (or unix socket when colocated)
                 │
-Device layer (kith-notify, per device, light)
-  - holds view / filter / DND / notification rules
-  - config = device-local, never sent to the bridge
-  - subscribes to a bridge's event streams
-  - decides locally: show in UI? buzz? which sink?
-  - dispatches to local OS sink (libnotify / native / FCM)
-  - serves the local GUI as its api.Backend
-                │
-                │  unix socket (same shape as today's kith↔kithd)
-                │
-GUI (TUI / Electron / Android)
-  - talks only to local kith-notify, never a bridge directly
-  - pure presentation
+Client (TUI / Electron / Android), one per device
+  - picks a profile; asks the bridge for that profile's rooms and unread
+  - subscribes to that profile's push topic
+  - keeps a partial cache of its profile's rooms for offline reading
+  - applies its own DND by ignoring wakes
 ```
 
-**Motivating property:** device config (filter rules, DND, view, keybindings)
-never leaves the device. The bridge is a dumb pipe for events; the device layer is
-where rules are evaluated. This matters when the bridge is on shared hardware (a
-family homelab, a cloud VPS) and matters structurally even when it isn't, because
-the device layer always does the same thing independent of where the bridge runs
-— colocated on the same box, remote across the network, one bridge or several.
+**The bridge owns all rooms and all rules.** Tags, filters, `[[notification]]`
+rules, spam verdicts and profiles live in one config on the bridge. The bridge
+already holds every message in plaintext and every network's keys, so keeping
+rules off it would protect little. (Superseded 2026-10-24: a per-device notifier
+process, `kith-notify`, holding each device's rules; then a `device.toml` with a
+per-device hidden list. Both made the bridge either blind to what a device wants,
+so push could not filter, or told it per device.)
 
-**Receive-all, filter-locally.** The bridge sends all events to every attached
-device; each device filters by its own rules. Bandwidth cost is trivial at the
-target scale (3–4 devices, normal messaging volume). Battery cost on mobile is
-addressed via FCM wake tokens (bridge pushes a coarse wake signal; device wakes,
-pulls recent events, applies local rules).
+**The bridge knows profiles, not who uses them.** It knows which devices are paired
+(pairing needs that), but not which profile each one uses. A client names its profile on each request for the
+length of a connection; nothing about it is stored. Push goes to topics, and who
+subscribes to a topic is between the device and the push service.
+
+### Profiles
+
+A profile is a named setup a device runs: which rooms and people it shows, its rail,
+its archive rules, and other per-setup settings. Profiles live in the bridge's
+config, beside the shared settings they narrow or override.
+
+```toml
+[[profile]]
+name    = "default"          # always present; a device uses it until it picks another
+
+[[profile]]
+name    = "phone"
+include = ["dm", "tag:Family", "protocol:signal"]
+exclude = ["space:Work"]
+people  = { exclude = ["role:colleagues"] }
+rail    = { order = ["tag:Unread", "tag:Family", "*"] }
+
+[[profile]]
+name    = "work"
+include = ["space:Work", "protocol:slack"]
+```
+
+- **There is always at least one profile.** The starter config writes `default`,
+  which includes every room; the last profile cannot be deleted, and a config
+  without one gets `default`. The first profile is what a device uses until it
+  picks another, and what kithd's own desktop notifications follow.
+- **Rooms**: `include` / `exclude` in the place vocabulary `[[filter]] in` and tag
+  rules already use (`space:`, `tag:`, `place:`, `room:`, `protocol:`, `dm`,
+  `group`, `not …`). Empty `include` is every room.
+- **What the room set decides**: which rooms the rail and room lists show, which
+  count towards unread (badges, the Unread row, the window title, the phone's
+  badge), and which notifications reach the profile's topic. A room outside the
+  profile counts for nothing in it: no exception for mentions or DMs.
+- **People**: a profile may include or exclude people (by ID, identity or role);
+  an excluded person's messages are hidden in that profile as a spam-marked person's
+  are everywhere.
+- **Overrides**: a profile may carry its own rail (order, hidden rows), archive
+  rules, and other settings that describe a setup rather than the rooms. Anything a
+  profile does not set comes from the shared config. Which sections a profile may
+  override is listed, not open-ended (open question 2).
+- **Tags still apply inside a profile.** A tag's `counts_unread = false` or
+  `notifies = false` holds in every profile unless the profile overrides it.
+- **Several devices may share a profile**, and a device can switch profile at any
+  time (a key in the TUI, a menu on the phone); switching re-subscribes its topic.
+- The name is free because the old `[[profile]]` (a second Matrix account run as
+  its own kithd) is removed first: Matrix accounts become `[[matrix.account]]`
+  like every network's ([design-matrix-accounts.md](design-matrix-accounts.md)).
+
+### Push topics
+
+Each profile has a push topic. The bridge evaluates its notification rules once per
+message, then publishes a wake to the topic of **every profile the room is in**. A
+message matching three profiles is three publishes.
+
+- **Topic names are secret**: a random 128-bit ID per profile, generated by the
+  bridge and kept in its config, never the profile's name. FCM's provider sees topic
+  names and subscribers; on ntfy, topics are protected or secret.
+- **The payload is wake-only**: no body, no sender, no room. The device wakes,
+  pulls from the bridge, and renders.
+- **DND is the device's own.** A device in quiet hours ignores a wake, or
+  unsubscribes for the night; the bridge never learns its schedule.
+- **Desktop.** A client that is open is already connected and is told directly.
+  With no client open, something has to subscribe: the Electron app in the tray,
+  or an ntfy desktop client. On the bridge's own machine, kithd's D-Bus sink keeps
+  notifying for the first profile.
+
+### Where messages are kept
+
+**The bridge's cache stays the source.** Notifications with no client open,
+tracked words, content filters that move rooms or mark people, search over all
+history, assist, kith-mcp, scheduled sends and replay after failover all run on
+it. A device-only cache would make each of those wait for a device to be awake,
+and make every device download everything.
+
+**Each device keeps a partial cache**: its profile's rooms and a recent window, for
+offline reading and instant start. Scrollback beyond it comes from the bridge.
 
 ## Topology: one architecture, N:M
 
@@ -91,7 +160,7 @@ Each bridge costs linked-device slots per network. Reality:
 **The Android special case:** on a phone that already hosts the official WA /
 Signal / GM apps as master, kith-on-Android as a *linked* device alongside the
 master app:
-- WA: probably works (different app ID) — needs verifying before Phase 3
+- WA: probably works (different app ID) — needs verifying before Phase 5
 - Signal: same uncertainty as WA
 - GM: no — one Android pairing, taken by the user's official GM
 - Matrix / Telegram / Slack / LinkedIn: clean, independent sessions
@@ -99,37 +168,35 @@ master app:
 Treat an on-device Android bridge as "Matrix/Telegram/Slack/LinkedIn supported,
 WA/Signal pending verification, no GM." If on-phone WA/Signal via a local bridge
 matters to a user, the hybrid shape sidesteps the whole issue by not needing a
-bridge on the phone at all — the phone's device layer just dials a bridge
+bridge on the phone at all — the phone's client just dials a bridge
 elsewhere.
 
-## Config scope: daemon vs device
+## Config scope
 
-Today's single `kith.toml` splits in two:
-
-**Bridge config** (`bridge.toml`, per bridge):
-- `[storage]` paths, instance, keys
-- `[[account]]` credentials per network
-- `[model]`, `[assist]` server-side bits
+**One config on the bridge**, the same on every bridge:
+- `[storage]`, `[[<network>.account]]` per network
+- `[[tag]]`, `[[filter]]`, `[[notification]]` rules, `[spam]`
+- `[[profile]]`, with each profile's push topic
+- `[assist]`, `[agent.*]`, `[codes]`, commands
 - Encryption, keyring service, reconnect behaviour
 
-**Device config** (`device.toml`, per device, never leaves the device):
-- `[display.rail]`, `[display.theme]`
-- `[[place]]`, `[[filter]]` (includes archive-equivalent rules)
-- `[[notification]]`, DND
-- `[keys]`
-- `[[bridge]]` entries: `(endpoint, pinned_pubkey, priority)` the device may dial
-- Default rail selection, open-with behaviour
+**On each device**, settings that are about the device rather than the rooms:
+- which profile it uses
+- the bridges it may dial (`(endpoint, pinned_pubkey, priority)`)
+- its push endpoint and DND
+- for the TUI, what it already keeps local: theme, keys, media display
 
-`ReloadConfig` runs on both files on their respective processes. A migration shim
-reads today's unified file and routes fields on first start; the first write-back
-splits it.
+Bridges with the same accounts need the same config: it travels with pairing a new
+bridge, and edits reach the others through the mesh CRDT (below).
 
 ## What crosses between devices (the mesh CRDT)
 
 Nothing message-level — the networks propagate messages. What crosses is a short
 list of user-metadata that no network holds:
 
-- **Drafts.** Started on phone, finished on laptop. Structured CRDT (text + cursor).
+- **Drafts.** Started on phone, finished on laptop. Last-writer-wins per draft
+  first: at 3–4 devices, one person rarely types into the same draft on two at once.
+  A structured text CRDT only if that turns out to lose text in practice.
 - **Per-room read cursor.** Monotonic max merge: the merged position is
   `max(a.position, b.position)` per room. **Guarantee: a message marked read never
   becomes unread again.** This is not LWW on a scalar — LWW would allow a stale
@@ -137,17 +204,23 @@ list of user-metadata that no network holds:
   alongside the local-first unread state from #207–#210 (which is already shaped
   as "pending at network" vs "accepted"); mesh sync covers the pending window and
   anything the network itself fails to propagate.
+  **Who tells the network:** the device sends the merged position to the bridge it
+  is connected to, and that bridge sends the receipt. A bridge that later receives a
+  receipt for an older position (from another bridge, or the network echoing one)
+  merges by the same max and sends nothing. Two bridges sending the same receipt is
+  harmless; a receipt never moves backwards.
 - **Scheduled-send queue entries** (if we eventually need them to migrate between
   devices; today's decision is no offline writes, so this is marked for later).
 - **Device roster + bridge roster.** Each entry = `(device_id, pinned_pubkey,
   role, endpoint, priority, added_by, added_at)`. Signed by the adding device so
   removal requires authority.
 - **Learned ranking** (emoji, vocab). Not essential; nice-to-have.
-- **Shared starred messages, filter moves** if the user wants them shared (device
-  config stays device-local; a user flag opts into sharing selected categories).
+- **Bridge config edits**, so every bridge runs the same tags, filters and
+  notification rules. LWW per key.
+- **Shared starred messages, filter moves.**
 
-**Device config does not cross.** This is a hard rule — filter rules, DND, view,
-keybindings stay on the device that holds them.
+**Device settings do not cross.** Each device's profile choice, DND and keys stay
+its own.
 
 **Shared phonebook** continues through the existing file mechanism
 ([phonebook](../docs/phonebook.md)), not the CRDT.
@@ -179,11 +252,11 @@ coordination — each bridge is independent, syncing from the networks on its ow
 
 ## Discovery, selection, failover
 
-The device layer holds `[[bridge]]` entries and tries them in priority order on
+The client holds `[[bridge]]` entries and tries them in priority order on
 startup, with failover on disconnect.
 
 **Discovery sources** (in order of simplicity, not necessarily shipped order):
-1. User-added endpoints in `device.toml` (always available)
+1. Endpoints the user adds on the device (always available)
 2. CRDT-propagated bridge roster (an entry added at pairing time)
 3. mDNS on LAN (nice for same-network discovery)
 4. WAN rendezvous (deferred — Tailscale is the lazy answer; a self-hosted
@@ -202,13 +275,26 @@ it adds measurement overhead for no real benefit at 2–4 bridges.
 **Failover.**
 1. Current bridge disconnects, times out, or heartbeat goes stale.
 2. Device dials next bridge in priority order.
-3. On connect, device resubscribes streams with "give me events since cursor X"
-   per stream, per room where applicable.
-4. New bridge replays everything it has newer than X.
+3. On connect, device resubscribes with "give me events since X" per room, where
+   X is the **network's own position** for that room (the last event ID the device
+   holds, with its network timestamp), not a bridge's cache sequence. Each bridge
+   numbers rows in its own cache, so a sequence from bridge A means nothing to
+   bridge B.
+4. New bridge replays everything it has after that event; if it does not hold the
+   event (it joined later, or its cache was rebuilt), it replays from the timestamp
+   and the device dedupes the overlap.
 5. Device dedupes against recently-seen IDs.
 
 **Dedup.** By network-level stable ID (`event_id` on Matrix, `message_id` on WA,
 etc.). Device keeps a bounded set of recently-seen IDs per room.
+
+**Encrypted history after failover.** Each bridge is its own Matrix device, so a
+bridge added later holds no Megolm keys for messages sent before it existed, and
+history it replays shows as undecryptable. Bridges do not coordinate, so this
+rests on the network's own mechanisms: server-side key backup (kith restores
+from it, and fetches a missing session's key on demand) and room-key requests to
+the account's other verified devices. A new bridge is verified and restores the
+backup as part of pairing; until it has, it is not offered for failover.
 
 **Catchup.** Each bridge keeps its own sync position per network (sync_token on
 Matrix, etc.) and its own append-only history in the SQLite cache. When a device
@@ -217,7 +303,14 @@ has. If the device was offline longer than the bridge's bounded window retains,
 the device scrolls back on demand (same path as any client scrollback).
 
 **Edge: sends during a failover gap.** Buffer briefly (3–5 seconds, matches
-typical reconnect) and flush to the new bridge on reconnect. Matches
+typical reconnect) and flush to the new bridge on reconnect. **A buffered send
+must be idempotent across bridges**: if bridge A sent it but its acknowledgement
+was lost, flushing to bridge B would post it twice. Matrix's `txnId` dedupes only
+within one device, and each bridge is a different device, so the network will not
+catch it. The device gives every send its own ID (carried in the event content
+where the network allows, and kept in the device's outbox); before flushing, the
+new bridge checks the room's recent timeline for that ID and drops the send if it
+already went out. Matches
 Signal/WA behaviour on flaky networks and doesn't violate "no offline writes"
 (this is transient, not offline). Rejected (for v1): parallel sends to multiple
 bridges, picking whichever responds first — more complex, better UX for lossy
@@ -226,18 +319,13 @@ networks, not needed day one.
 ## Push notifications
 
 **FCM default, custom endpoint option.** Users can configure a different push
-endpoint (UnifiedPush, ntfy, self-hosted) via the device config. The bridge-side
-`notify` package gains a push sink that posts wake tokens.
-
-**Payload is wake-only.** No message body, no sender ID in the push payload.
-Device wakes, pulls over Connect from the bridge, applies local rules, decides
-what to render. Avoids leaking content to Google/Apple. The bridge-side wake
-decision uses only coarse criteria (per-account enablement, "is this device
-paired to this account at all"); the real decision stays on the device.
+service (UnifiedPush, ntfy, self-hosted) on the device. The bridge's `notify`
+package gains a push sink that publishes wakes to profile topics (see *Push topics*
+above).
 
 **Server-originated push (optional, deferred).** For networks whose servers can
 push without the local bridge being online — Matrix (via a Sygnal-style pusher),
-Telegram (MTProto push), Slack (webhooks) — the device-layer could in principle
+Telegram (MTProto push), Slack (webhooks) — the device could in principle
 receive push directly without any kith bridge intermediary. For WA, Signal, Meta,
 GM this is impossible (linked-device model, no push for third-party clients).
 Deferred: covered by the bridge-side push path for v1 since the bridge is where
@@ -252,13 +340,13 @@ between devices on failure" problem — if you can't reach any bridge, send fail
 with a visible error.
 
 **Android lifecycle.** FCM-registered intent receiver is the only "always alive"
-thing. kith-notify runs as a foreground service only when the app is open or
-briefly when FCM wakes it. The intent receiver is tiny Kotlin; it uses the FCM
-wake token to decide whether to spin up kith-notify or just dismiss.
+thing. The app's connection to the bridge runs as a foreground service only when
+the app is open or briefly when FCM wakes it, long enough to pull what the wake
+was for and post the notification.
 
 ## Related work
 
-Verified 2026-10-24.
+As of 2026-10-24, from each product's public site and documentation.
 
 | | **Pantheon** | **Ferdium** | **Rambox** | **Trillian** | **kith (planned)** |
 |---|---|---|---|---|---|
@@ -285,7 +373,7 @@ Verified 2026-10-24.
 - **Trillian**: closest ancestor conceptually (native multi-protocol with cross-
   device sync via Astra), but doesn't cover modern consumer messengers (WA, Signal,
   Meta aren't XMPP/IRC). Astra is single-central-server only, hosted by them.
-- **Pidgin** (not asked, but worth naming): the pure-local, multi-protocol
+- **Pidgin**: the pure-local, multi-protocol
   ancestor with no sync. kith is "what Pidgin would look like in 2026 with
   maintained bridge libraries, a unified cache, and an actual multi-device plan."
 
@@ -302,7 +390,7 @@ Verified 2026-10-24.
    — if kith ever wants iMessage, it would need a `kith-imessage` helper on a Mac,
    same shape as `kith-signal` (noted for the design-adapters roadmap).
 
-## Decisions (Eugene, 2026-10-24)
+## Decisions (2026-10-24)
 
 1. **One architecture, N:M bridges-to-devices.** User picks how many bridges and
    where via config; central / mesh / hybrid are deployment shapes, not branches
@@ -310,28 +398,31 @@ Verified 2026-10-24.
    the generalized form is strictly simpler and failover only works if there is
    one implementation.
 
-2. **Three-layer split: bridge / device / GUI.** Protocol work (network sessions,
-   cache, crypto) in the bridge; view / filter / DND / notification rules in a
-   per-device daemon; pure presentation in the GUI. The GUI never talks to a
-   bridge directly — only to its local device layer. Rejected: in-kithd notify
-   with per-device config stored on the bridge, because device rules leak intent
-   (muted contacts, after-hours filters) and the bridge may be on shared hardware.
+2. **Two layers: bridge and clients.** The bridge owns every room and every rule,
+   and decides what is worth notifying. Rejected the same day: a per-device
+   notifier process holding the rules (to keep them off a bridge on shared
+   hardware, which holds every message anyway), and a per-device hidden list sent
+   to the bridge.
 
-3. **Receive-all, filter-locally.** Bridge sends every event to every attached
-   device; each device applies its own rules. Bandwidth is trivial at target
-   scale; mobile battery addressed via FCM wake tokens with coarse bridge-side
-   filtering.
+3. **Profiles, not device config.** A profile is a named setup in the bridge's
+   config (rooms, people, rail, archive rules); a device picks one, and there is
+   always at least one. Outside its profile a room shows nothing and counts
+   for nothing, mentions and DMs included. The bridge knows profiles, never which
+   device uses which.
 
 4. **Pairing: trust-on-first-use with pinned keys, roster propagates via CRDT.**
    No CA, no special root device. Rejected: local CA with signed device certs —
    makes one device special with no real gain at mesh size 3–4.
 
-5. **Push: FCM default, custom endpoint option.** Wake-only payload (no body, no
-   sender). Device pulls on wake, applies local rules.
+5. **Push by topic.** One secret topic per profile; the bridge publishes a
+   wake-only payload to every profile a notification matches, and devices subscribe
+   to their profile's topic. FCM by default, any topic-based service (ntfy,
+   UnifiedPush) instead. DND stays on the device.
 
 6. **Mesh CRDT: a tiny Automerge-shape CRDT over Connect streams between paired
    peers.** LWW for scalar flags, monotonic max for cursors, structured CRDT for
-   drafts. Device config does not cross; only user-metadata that no network holds.
+   drafts. Carries user-metadata no network holds and bridge-config edits; device
+   config does not cross between devices.
 
 7. **Per-room read cursor is in the CRDT, merged by monotonic max.** Guarantee: a
    message marked read never becomes unread again. Not LWW on a scalar (which
@@ -345,9 +436,9 @@ Verified 2026-10-24.
    "scheduled queue migrates between devices" problem. Transient failover gaps
    (3–5s) buffer and flush on reconnect; not considered offline.
 
-9. **Config split: bridge.toml (structural) vs device.toml (view/preference).**
-   Migration shim reads today's unified file on first start; first write-back
-   splits it.
+9. **The message cache stays on the bridge.** Devices keep a partial cache of
+   their profile's rooms. Rejected: moving the cache to devices, which would stop
+   everything kithd does with no client open.
 
 10. **Bridge selection is pinned priority with fallback.** Not latency-measured.
     Simpler and sufficient at 2–4 bridges.
@@ -361,51 +452,45 @@ Verified 2026-10-24.
 
 ## Phasing
 
-**Phase 0 — in-process device-layer refactor.** Factor `internal/notify`, the
-view/filter/DND packages, and the per-room read cursor behind a clean interface
-inside kithd. TUI goes through this interface; no new process yet. Makes the
-eventual process split a transport change on an existing seam, not a redesign.
-Benefits the single-bridge shape immediately (clients can cache the metadata
-locally).
+**Phase 0 — profiles, in-process.** After the old `[[profile]]` is gone (Matrix
+accounts done first). `[[profile]]` in the config with a `default`; the TUI picks
+one (`--profile`, and a key); the bridge answers rooms and unread for the profile
+named on the request; kithd's own notifications follow the first profile. Rooms
+and people first, then the overridable sections. Useful at once with one bridge:
+two terminals can already run different profiles.
 
-**Phase 1 — bridge-device process split, single bridge, mesh CRDT skeleton.**
-- Extract `cmd/kith-notify` as a new binary. Device-layer loads `device.toml`,
-  dials the local bridge over unix socket.
-- Bridge sheds notification state and device config; `bridge.toml` is derived
-  from today's `kith.toml` via a one-shot migration.
-- TUI's wire swaps from kithd to kith-notify (same `BackendService`-shaped API).
+**Phase 1 — mesh CRDT skeleton and replay.**
 - Mesh CRDT library in `internal/mesh/crdt` (spike: pick library or roll
-  minimal); carries drafts and read cursors first.
-- Bridge gains cursor-based stream replay (`StreamSince(cursor)`).
+  minimal); carries drafts, read cursors and bridge-config edits first.
+- Bridge gains replay by network position (`StreamSince(room, event)`).
 
 **Phase 2 — remote bridge transport and pairing.**
-- Bridge listens on TCP+TLS alongside unix socket. Same `BridgeService`.
+- Bridge listens on TCP+TLS alongside unix socket. Same `BackendService`.
 - Pairing flow: QR between any two paired entities (device↔bridge, device↔device).
   Reuse `internal/qrtext`; TOFU + pinned keys.
 - Bridge heartbeat RPC (`Heartbeat(network, caught_up_as_of)`).
-- Bridge-side push sink in `notify` posts FCM wake tokens.
+- A push sink in `notify` publishing wakes to profile topics; each profile's topic
+  ID generated and kept in the config.
 
 **Phase 3 — multi-bridge failover.**
-- Device-layer bridge roster, pinned priority, failover on disconnect / stale
+- Client-side bridge roster, pinned priority, failover on disconnect / stale
   heartbeat.
 - Event dedup on device by network-level ID.
 - Send-buffering during failover gaps (3–5s window).
 - CRDT-propagated bridge roster (so pairing on one device propagates endpoints
   to the others).
 
-**Phase 4 — Electron client.** TypeScript Connect client over the device-layer's
-local socket (or over TLS to a remote device-layer if someone wants that split —
-noted as low priority). Platform glue: native notifications, file picker, media
-viewer. This is the calendar-time phase — the seam work is cheap; the UI is a
+**Phase 4 — Electron client.** TypeScript Connect client to a bridge (local
+socket or TLS). Platform glue: native notifications, file picker, media viewer.
+This is the calendar-time phase — the seam work is cheap; the UI is a
 from-scratch rewrite of what `internal/tui` does today.
 
-**Phase 5 — Android client.** Kotlin app. The device-layer runs *inside* the app
-as a short-lived foreground service, woken by FCM. Local SQLite cache for
-offline reads. Dials a remote bridge (user's homelab, VPS, or a laptop bridge in
+**Phase 5 — Android client.** Kotlin app, woken by FCM. Local SQLite cache for
+offline reads. Dials a remote bridge (a home server, a VPS, or a laptop bridge in
 the mesh) over TLS; falls over per Phase 3. No offline writes.
 
 **Phase 6 — on-device bridge for mobile (optional).** gomobile AAR of
-kithd-bridge for Android. Only if "a peer bridge is always reachable" turns out
+kithd for Android. Only if "a peer bridge is always reachable" turns out
 to be too weak an assumption for a user. Battery is the open question; the WA
 master-device constraint from above still applies.
 
@@ -415,13 +500,14 @@ master-device constraint from above still applies.
    What exactly goes in each CRDT variant (scalar LWW, monotonic max, structured),
    how roster entries authorize themselves (signed by adding device?), bounded
    size story, compaction / snapshotting.
-2. **Phase 0 interface sketch.** Concrete Go interface for the device-layer
-   inside kithd — what methods, where it sits in the layer diagram, how `Remote`
-   exposes it to clients.
-3. **Bridge-device wire shape.** Reuse `BackendService` (device-layer is just
-   another subscriber) or introduce a narrower `BridgeService` with only the six
-   streams + sends + reads + lookups the device-layer needs? Narrower is cleaner;
-   reusing is simpler but exposes more surface than the device-layer uses.
+2. **Which sections a profile overrides.** Decided: rooms, people, rail,
+   archive rules. Candidates: notification rules and quiet hours, display
+   (theme, media), keys, assist and `[agent.*]` room lists. List them explicitly
+   and merge the same way for each (a profile's value replaces the shared one,
+   never deep-merges), so what a profile does is readable from its block.
+3. **Unread across profiles.** A device on profile "phone" sees nothing of "work".
+   Should a profile be able to show a single "elsewhere: N" count, or is that
+   exactly the distraction a profile exists to remove? Default: nothing.
 4. **WAN discovery for multi-bridge.** Tailscale is lazy; self-hosted rendezvous
    with hole-punching is ambitious; "paste the current IP" is zero-build v1.
    Product values call.
@@ -430,10 +516,9 @@ master-device constraint from above still applies.
    WA app is master on the same phone? Spike.
 6. **Push payload policy.** Wake-only is the baseline. Any room ID or badge
    count? Any content leaks to Google/Apple. Decide the exact payload.
-7. **Multi-instance on one device.** Today kith-notify would hold one bridge
-   connection. Realistic: work-account + personal-account in one window.
-   Device-layer dialing N bridges and merging is a real feature; decide before
-   Electron UI hardens.
+7. **Multi-instance on one device.** A client holds one bridge connection.
+   Realistic: work-account + personal-account in one window. A client dialing N
+   bridges and merging is a real feature; decide before Electron UI hardens.
 8. **Credentials/keyring on each platform.** Linux keyring today; Electron has
    `keytar` / safeStorage; Android has Keystore. Each needs the equivalent of
    `internal/session`'s pickle-key story. Enumerate.
@@ -450,3 +535,7 @@ master-device constraint from above still applies.
     down before send time, does the message send? Options: migrate via CRDT,
     accept the loss, require the user to re-schedule. Not urgent; mobile has no
     offline writes so this only affects a desktop user with ephemeral bridges.
+12. **Where assistants connect.** kith-mcp runs beside an assistant on one device:
+    it dials a bridge like a client does, and may name a profile (narrowing what the
+    assistant reads, alongside `[agent.read]`). The completion model runs on the
+    bridge or on the device. Decide which.
