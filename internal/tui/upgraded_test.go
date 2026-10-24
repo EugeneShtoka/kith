@@ -14,9 +14,9 @@ import (
 func upgraded(t *testing.T) Model {
 	t.Helper()
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!old:x", Name: "Old", Replacement: "!new:x"},
-		{ID: "!new:x", Name: "New"},
-		{ID: "!plain:x", Name: "Plain"},
+		{ID: mx + "!old:x", Name: "Old", Replacement: mx + "!new:x"},
+		{ID: mx + "!new:x", Name: "New"},
+		{ID: mx + "!plain:x", Name: "Plain"},
 	}})
 	return sized(t, m.clearStatus())
 }
@@ -32,10 +32,10 @@ func TestAReplacedRoomIsMarkedInTheRoomList(t *testing.T) {
 		lines[string(row.room.ID)] = m.roomListLine(row, 40, false, true)
 	}
 
-	if !strings.Contains(lines["!old:x"], replacedMark) {
-		t.Errorf("replaced room row = %q, want the %q mark", lines["!old:x"], replacedMark)
+	if !strings.Contains(lines[mx+"!old:x"], replacedMark) {
+		t.Errorf("replaced room row = %q, want the %q mark", lines[mx+"!old:x"], replacedMark)
 	}
-	for _, id := range []string{"!new:x", "!plain:x"} {
+	for _, id := range []string{mx + "!new:x", mx + "!plain:x"} {
 		if strings.Contains(lines[id], replacedMark) {
 			t.Errorf("%s row = %q, want no replacement mark", id, lines[id])
 		}
@@ -47,15 +47,15 @@ func TestGoingToTheReplacementOpensARoomWeAreAlreadyIn(t *testing.T) {
 	t.Parallel()
 
 	m := upgraded(t)
-	m = m.selectRoomForTest(t, "!old:x")
-	room, _ := m.roomByID("!old:x")
+	m = m.selectRoomForTest(t, mx+"!old:x")
+	room, _ := m.roomByID(mx + "!old:x")
 
 	handled, next, _ := m.composerCommand("/replacement", room)
 	if !handled {
 		t.Fatal("/replacement was not taken as a command")
 	}
 	got := next
-	if got.openRoom != "!new:x" {
+	if got.openRoom != mx+"!new:x" {
 		t.Errorf("open room = %q, want !new:x", got.openRoom)
 	}
 }
@@ -65,12 +65,12 @@ func TestGoingToTheReplacementOfAnOrdinaryRoomSaysThereIsNone(t *testing.T) {
 	t.Parallel()
 
 	m := upgraded(t)
-	m = m.selectRoomForTest(t, "!plain:x")
-	room, _ := m.roomByID("!plain:x")
+	m = m.selectRoomForTest(t, mx+"!plain:x")
+	room, _ := m.roomByID(mx + "!plain:x")
 
 	_, next, _ := m.composerCommand("/replacement", room)
 	got := next
-	if got.openRoom == "!new:x" {
+	if got.openRoom == mx+"!new:x" {
 		t.Fatal("an ordinary room jumped to somebody else's replacement")
 	}
 	if !strings.Contains(got.st.event, "not been replaced") {
@@ -83,7 +83,7 @@ func TestSendingInAReplacedRoomExplainsAndKeepsTheDraft(t *testing.T) {
 	t.Parallel()
 
 	m := upgraded(t)
-	room, ok := m.roomByID("!old:x")
+	room, ok := m.roomByID(mx + "!old:x")
 	if !ok {
 		t.Fatal("!old:x missing from the list")
 	}
@@ -107,7 +107,7 @@ func TestSendingInAnOrdinaryRoomIsUntouched(t *testing.T) {
 	t.Parallel()
 
 	m := upgraded(t)
-	room, ok := m.roomByID("!plain:x")
+	room, ok := m.roomByID(mx + "!plain:x")
 	if !ok {
 		t.Fatal("!plain:x missing from the list")
 	}

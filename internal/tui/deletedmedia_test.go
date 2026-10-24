@@ -26,7 +26,7 @@ func (b *pictureBackend) LoadImage(context.Context, domain.RoomID, domain.EventI
 // picture is a message with a picture attached, deleted or not.
 func picture(id domain.EventID, deleted bool) domain.Message {
 	return domain.Message{
-		ID: id, RoomID: "!a:x", Sender: "@dana:x", Timestamp: at(1), Redacted: deleted, Body: "solve this to stay",
+		ID: id, RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Timestamp: at(1), Redacted: deleted, Body: "solve this to stay",
 		Media: &domain.Media{Type: domain.MediaImage, Name: "captcha.png", Mime: "image/png", Size: 4096},
 	}
 }
@@ -43,8 +43,8 @@ func withPictures(t *testing.T, keep bool) (Model, *media.Cache) {
 	}
 	m = m.WithCache(cache)
 	m.focus = paneTimeline
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{picture("$kept", false), picture("$gone", true)}}})
-	m.timeline.selected = "$gone"
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{picture(mx+"$kept", false), picture(mx+"$gone", true)}}})
+	m.timeline.selected = mx + "$gone"
 	return m, cache
 }
 
@@ -54,22 +54,22 @@ func TestADeletedPictureIsHiddenFromTheTimeline(t *testing.T) {
 	t.Parallel()
 	m, _ := withPictures(t, true)
 	m.pics.graphics = graphicsBlocks
-	m.pics.imageRows = map[domain.EventID][]string{"$gone": {"DRAWN"}, "$kept": {"DRAWN"}}
-	gone := loadedMessage(t, m, "$gone")
+	m.pics.imageRows = map[domain.EventID][]string{mx + "$gone": {"DRAWN"}, mx + "$kept": {"DRAWN"}}
+	gone := loadedMessage(t, m, mx+"$gone")
 	if rows := m.hangingRows(gone, nil, 10, 80); len(rows) != 0 {
 		t.Errorf("a deleted picture hangs %q under its message", rows)
 	}
-	kept := loadedMessage(t, m, "$kept")
+	kept := loadedMessage(t, m, mx+"$kept")
 	if rows := m.hangingRows(kept, nil, 10, 80); len(rows) == 0 {
 		t.Error("the picture still there is not drawn")
 	}
 	m.pics.imageRows = map[domain.EventID][]string{}
 	loaded, _ := m.loadInlineImages()
-	if loaded.pics.imageLoading["$gone"] {
+	if loaded.pics.imageLoading[mx+"$gone"] {
 		t.Error("a deleted picture was fetched to draw")
 	}
 	jobs, _ := m.gallery("")
-	if slices.ContainsFunc(jobs, func(j mediaJob) bool { return j.eventID == "$gone" }) {
+	if slices.ContainsFunc(jobs, func(j mediaJob) bool { return j.eventID == mx+"$gone" }) {
 		t.Error("a deleted picture is in the room's gallery")
 	}
 	for name, act := range map[string]func(Model) Model{
@@ -88,10 +88,10 @@ func TestADeletedPictureIsHiddenFromTheTimeline(t *testing.T) {
 func TestADeletedPictureIsKeptAsideAndOpenedFromItsHistory(t *testing.T) {
 	t.Parallel()
 	m, cache := withPictures(t, true)
-	if !m.pics.aside["$gone"] || m.pics.aside["$kept"] {
+	if !m.pics.aside[mx+"$gone"] || m.pics.aside[mx+"$kept"] {
 		t.Errorf("set aside on loading = %v, want just the deleted message's", m.pics.aside)
 	}
-	if _, err := cache.Write("$gone", "captcha.png", "image/png", []byte("the picture")); err != nil {
+	if _, err := cache.Write(mx+"$gone", "captcha.png", "image/png", []byte("the picture")); err != nil {
 		t.Fatal(err)
 	}
 	m.pics.aside = nil // as before the deletion was seen
@@ -100,28 +100,28 @@ func TestADeletedPictureIsKeptAsideAndOpenedFromItsHistory(t *testing.T) {
 		t.Fatal("the deleted attachment was not set aside")
 	}
 	cmd()
-	if _, ok := cache.Read("$gone", "captcha.png", "image/png"); ok {
+	if _, ok := cache.Read(mx+"$gone", "captcha.png", "image/png"); ok {
 		t.Error("the deleted picture is still with the room's pictures")
 	}
-	if _, ok := cache.ReadAside("$gone", "captcha.png", "image/png"); !ok {
+	if _, ok := cache.ReadAside(mx+"$gone", "captcha.png", "image/png"); !ok {
 		t.Error("the deleted picture was not kept aside")
 	}
 	if _, again := next.setAsideDeleted(); again != nil {
 		t.Error("the same attachment was set aside twice")
 	}
 
-	gone := loadedMessage(t, m, "$gone")
+	gone := loadedMessage(t, m, mx+"$gone")
 	job := m.jobFor(gone)
 	if !job.deleted {
 		t.Fatal("a deleted message's attachment is not marked deleted")
 	}
-	if path := ensureOnDisk(t.Context(), cache, (&pictureBackend{}).LoadImage, job); path != cache.AsidePath("$gone", "captcha.png", "image/png") {
+	if path := ensureOnDisk(t.Context(), cache, (&pictureBackend{}).LoadImage, job); path != cache.AsidePath(mx+"$gone", "captcha.png", "image/png") {
 		t.Errorf("viewing it opens %q, want the kept file", path)
 	}
-	late := picture("$late", true)
+	late := picture(mx+"$late", true)
 	if path := ensureOnDisk(t.Context(), cache, (&pictureBackend{bytes: []byte("fetched")}).LoadImage, m.jobFor(late)); path == "" {
 		t.Error("a deleted picture never cached was not fetched")
-	} else if data, _ := os.ReadFile(path); string(data) != "fetched" || path != cache.AsidePath("$late", "captcha.png", "image/png") {
+	} else if data, _ := os.ReadFile(path); string(data) != "fetched" || path != cache.AsidePath(mx+"$late", "captcha.png", "image/png") {
 		t.Errorf("fetched to %q", path)
 	}
 
@@ -146,24 +146,24 @@ func loadedMessage(t *testing.T, m Model, id domain.EventID) domain.Message {
 func TestADeletedAttachmentIsErasedWhenDeletionsAreNotKept(t *testing.T) {
 	t.Parallel()
 	m, cache := withPictures(t, false)
-	if _, err := cache.Write("$gone", "captcha.png", "image/png", []byte("the picture")); err != nil {
+	if _, err := cache.Write(mx+"$gone", "captcha.png", "image/png", []byte("the picture")); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.PutRender("$gone", 10, 5, []byte("drawn")); err != nil {
+	if err := cache.PutRender(mx+"$gone", 10, 5, []byte("drawn")); err != nil {
 		t.Fatal(err)
 	}
 	m.pics.aside = nil
-	gone := loadedMessage(t, m, "$gone")
+	gone := loadedMessage(t, m, mx+"$gone")
 	gone.Media = nil // the erased message no longer says what it had attached
-	m.timeline.messages[indexOfMessage(m.timeline.messages, "$gone")] = gone
+	m.timeline.messages[indexOfMessage(m.timeline.messages, mx+"$gone")] = gone
 	_, cmd := m.setAsideDeleted()
 	if cmd == nil {
 		t.Fatal("the deleted attachment was not erased")
 	}
 	cmd()
-	_, cached := cache.Read("$gone", "captcha.png", "image/png")
-	_, aside := cache.ReadAside("$gone", "captcha.png", "image/png")
-	_, drawn := cache.Render("$gone", 10, 5)
+	_, cached := cache.Read(mx+"$gone", "captcha.png", "image/png")
+	_, aside := cache.ReadAside(mx+"$gone", "captcha.png", "image/png")
+	_, drawn := cache.Render(mx+"$gone", 10, 5)
 	if cached || aside || drawn {
 		t.Errorf("kept: bytes %v, aside %v, drawing %v; want none", cached, aside, drawn)
 	}

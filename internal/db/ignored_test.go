@@ -23,26 +23,26 @@ func TestSetMatrixIgnoredReplacesTheSet(t *testing.T) {
 	ctx := context.Background()
 	c := freshCache(t)
 
-	if err := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, []string{"@ann:x", "@bob:x"}); err != nil {
+	if err := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, []string{"matrix:@ann:x", "matrix:@bob:x"}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := c.MatrixIgnored(ctx, domain.ProtocolMatrix)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0] != "@ann:x" || got[1] != "@bob:x" {
+	if len(got) != 2 || got[0] != "matrix:@ann:x" || got[1] != "matrix:@bob:x" {
 		t.Errorf("after first write = %v, want [@ann:x @bob:x]", got)
 	}
 
 	// A second write hands the whole set; the row for the dropped MXID goes.
-	if werr := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, []string{"@ann:x", "@carl:x"}); werr != nil {
+	if werr := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, []string{"matrix:@ann:x", "matrix:@carl:x"}); werr != nil {
 		t.Fatal(werr)
 	}
 	got, err = c.MatrixIgnored(ctx, domain.ProtocolMatrix)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0] != "@ann:x" || got[1] != "@carl:x" {
+	if len(got) != 2 || got[0] != "matrix:@ann:x" || got[1] != "matrix:@carl:x" {
 		t.Errorf("after replacement = %v, want [@ann:x @carl:x]", got)
 	}
 
@@ -63,7 +63,7 @@ func TestMatrixIgnoredIsPerNetwork(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	c := freshCache(t)
-	if err := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, []string{"@ann:x"}); err != nil {
+	if err := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, []string{"matrix:@ann:x"}); err != nil {
 		t.Fatal(err)
 	}
 	// Another network reading its own ignored list sees nothing.

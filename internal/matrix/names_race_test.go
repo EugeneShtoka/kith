@@ -36,9 +36,9 @@ func TestAJoinDuringANameFetchIsNotLost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := New(testCache(t))
+	b := newBackend(testCache(t))
 	b.client = client
-	room := domain.RoomID("!r:x")
+	room := domain.RoomID(mx + "!r:x")
 
 	done := make(chan struct{})
 	go func() { b.roomMemberNames(context.Background(), room); close(done) }()
@@ -47,7 +47,7 @@ func TestAJoinDuringANameFetchIsNotLost(t *testing.T) {
 	// The sync goroutine sees Carol join meanwhile.
 	carol := "@carol:x"
 	evt := &event.Event{
-		Type: event.StateMember, RoomID: id.RoomID(room), StateKey: &carol,
+		Type: event.StateMember, RoomID: testIDs.nativeRoom(room), StateKey: &carol,
 		Content: event.Content{Parsed: &event.MemberEventContent{Membership: event.MembershipJoin, Displayname: "Carol"}},
 	}
 	evt.Mautrix.EventSource = event.SourceJoin | event.SourceTimeline

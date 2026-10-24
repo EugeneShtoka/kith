@@ -14,7 +14,7 @@ import (
 // the composer's text at that moment.
 func TestExternalEditWritesTheCurrentDraft(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
-	m.openRoom = "!a:x"
+	m.openRoom = mx + "!a:x"
 	m = m.store(fieldComposer, newEditor("half a sentence"))
 	m.conf.base.Composer = config.Composer{Editor: "true"}
 
@@ -64,7 +64,7 @@ func TestAnUnwritableDraftRunsNoEditor(t *testing.T) {
 // The edited draft replaces the composer as one undo step.
 func TestAnExternalEditCanBeUndone(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
-	m.openRoom = "!a:x"
+	m.openRoom = mx + "!a:x"
 	m = m.store(fieldComposer, newEditor("before"))
 	path := filepath.Join(t.TempDir(), "draft.md")
 	if err := os.WriteFile(path, []byte("after\n"), 0o600); err != nil {
@@ -79,7 +79,7 @@ func TestAnExternalEditCanBeUndone(t *testing.T) {
 
 func TestExternalEditTakesTheDraftBack(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
-	m.openRoom = "!a:x"
+	m.openRoom = mx + "!a:x"
 	m = m.store(fieldComposer, newEditor("before"))
 
 	path := filepath.Join(t.TempDir(), "draft.md")
@@ -130,9 +130,9 @@ func TestExternalEditFailureKeepsTheDraft(t *testing.T) {
 // Finishing an edit sends nothing.
 func TestExternalEditSendsNothing(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
-	m.openRoom = "!a:x"
+	m.openRoom = mx + "!a:x"
 	m = m.setMessages([]domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Body: "hi", Timestamp: at(1)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "hi", Timestamp: at(1)},
 	})
 	before := len(m.timeline.messages)
 

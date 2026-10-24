@@ -42,16 +42,16 @@ func rowHoldsRoom(t *testing.T, m Model, key string, id domain.RoomID) bool {
 // as Spam's exclusive says; nothing else moves with it.
 func TestAFilterMovedRoomGoesWhereItsTagSays(t *testing.T) {
 	t.Parallel()
-	m := moved(t, spamMove("!a:x"))
-	if !rowHoldsRoom(t, m, spamGroupKey, "!a:x") {
+	m := moved(t, spamMove(mx+"!a:x"))
+	if !rowHoldsRoom(t, m, spamGroupKey, mx+"!a:x") {
 		t.Fatal("the Spam row does not hold the room a filter moved there")
 	}
 	for _, key := range []string{homeGroupKey, "Work"} {
-		if rowHoldsRoom(t, m, key, "!a:x") {
+		if rowHoldsRoom(t, m, key, mx+"!a:x") {
 			t.Errorf("%s still lists a room the Spam tag takes from everywhere", key)
 		}
 	}
-	if !rowHoldsRoom(t, m, homeGroupKey, "!ops:x") {
+	if !rowHoldsRoom(t, m, homeGroupKey, mx+"!ops:x") {
 		t.Error("a room no filter moved went missing from All")
 	}
 	if _, ok := findGroup(jumping(t).rail.groups, spamGroupKey); ok {
@@ -63,21 +63,21 @@ func TestAFilterMovedRoomGoesWhereItsTagSays(t *testing.T) {
 // room out of the totals.
 func TestExcludedOutranksAMoveAndAMutedTagStopsCounting(t *testing.T) {
 	t.Parallel()
-	m := moved(t, spamMove("!a:x"), spamMove("!ops:x"))
+	m := moved(t, spamMove(mx+"!a:x"), spamMove(mx+"!ops:x"))
 	cfg := m.conf.base.Clone()
 	for i := range cfg.Tags {
 		if cfg.Tags[i].Name == "Spam" {
-			cfg.Tags[i].Excluded = []string{"!a:x"}
+			cfg.Tags[i].Excluded = []string{mx + "!a:x"}
 		}
 	}
 	m, _ = m.applyConfig(cfg, "")
-	if rowHoldsRoom(t, m, spamGroupKey, "!a:x") || !rowHoldsRoom(t, m, "Work", "!a:x") {
+	if rowHoldsRoom(t, m, spamGroupKey, mx+"!a:x") || !rowHoldsRoom(t, m, "Work", mx+"!a:x") {
 		t.Error("an excluded room was kept in Spam by a filter's move")
 	}
 	m.prefs.unreadLocal = true
-	m.unread["!ops:x"] = domain.Unread{Messages: 2, Counted: true}
-	m.unread["!a:x"] = domain.Unread{Messages: 2, Counted: true}
-	if view := m.unreadView(); view.tallies(domain.Room{ID: "!ops:x"}) || !view.tallies(domain.Room{ID: "!a:x"}) {
+	m.unread[mx+"!ops:x"] = domain.Unread{Messages: 2, Counted: true}
+	m.unread[mx+"!a:x"] = domain.Unread{Messages: 2, Counted: true}
+	if view := m.unreadView(); view.tallies(domain.Room{ID: mx + "!ops:x"}) || !view.tallies(domain.Room{ID: mx + "!a:x"}) {
 		t.Error("counts_unread = false does not decide which room counts")
 	}
 }
@@ -117,23 +117,23 @@ func spamTagOf(t *testing.T, cfg config.Config) config.Tag {
 func TestTheTagKeyFilesInAndOut(t *testing.T) {
 	t.Parallel()
 	backend := &tagMarker{}
-	m := openedFromList(t, jumping(t), "!a:x")
+	m := openedFromList(t, jumping(t), mx+"!a:x")
 	m.backend = backend
 	m.focus, m.compose.insertMode = paneRooms, false
 
 	next, cmd := pressed(t, m, "!")
 	m = deliver(t, next, cmd)
-	if got := spamTagOf(t, m.conf.base); !slices.Contains(got.Picked, "!a:x") {
+	if got := spamTagOf(t, m.conf.base); !slices.Contains(got.Picked, mx+"!a:x") {
 		t.Fatalf("Spam picked = %v, want the room", got.Picked)
 	}
-	if !rowHoldsRoom(t, m, spamGroupKey, "!a:x") {
+	if !rowHoldsRoom(t, m, spamGroupKey, mx+"!a:x") {
 		t.Fatal("the room is not in Spam after the key")
 	}
-	m = openedFromList(t, m, "!a:x")
+	m = openedFromList(t, m, mx+"!a:x")
 	m.focus, m.compose.insertMode = paneRooms, false
 	next, cmd = pressed(t, m, "!")
 	m = deliver(t, next, cmd)
-	if got := spamTagOf(t, m.conf.base); slices.Contains(got.Picked, "!a:x") || slices.Contains(got.Excluded, "!a:x") {
+	if got := spamTagOf(t, m.conf.base); slices.Contains(got.Picked, mx+"!a:x") || slices.Contains(got.Excluded, mx+"!a:x") {
 		t.Errorf("Spam picked %v, excluded %v; want the room in neither", got.Picked, got.Excluded)
 	}
 	if len(backend.written()) != 0 {
@@ -152,21 +152,21 @@ func pressed(t *testing.T, m Model, key string) (Model, tea.Cmd) {
 func TestTakingOutAMovedRoomReleasesItEverywhere(t *testing.T) {
 	t.Parallel()
 	backend := &tagMarker{}
-	m := moved(t, spamMove("!a:x"))
+	m := moved(t, spamMove(mx+"!a:x"))
 	m.backend = backend
-	m = openedFromList(t, m, "!a:x")
+	m = openedFromList(t, m, mx+"!a:x")
 	m.focus, m.compose.insertMode = paneRooms, false
 
 	next, cmd := pressed(t, m, "!")
 	m = deliver(t, next, cmd)
-	if got := spamTagOf(t, m.conf.base); !slices.Contains(got.Excluded, "!a:x") {
+	if got := spamTagOf(t, m.conf.base); !slices.Contains(got.Excluded, mx+"!a:x") {
 		t.Fatalf("Spam excluded = %v, want the room", got.Excluded)
 	}
 	written := backend.written()
-	if len(written) != 1 || written[0].Room != "!a:x" || !written[0].Released || !domain.SameTag(written[0].Tag, "Spam") || written[0].At.IsZero() {
+	if len(written) != 1 || written[0].Room != mx+"!a:x" || !written[0].Released || !domain.SameTag(written[0].Tag, "Spam") || written[0].At.IsZero() {
 		t.Fatalf("written = %+v, want one timed release of !a:x from Spam", written)
 	}
-	if rowHoldsRoom(t, m, spamGroupKey, "!a:x") {
+	if rowHoldsRoom(t, m, spamGroupKey, mx+"!a:x") {
 		t.Error("the room is still in Spam")
 	}
 }
@@ -174,11 +174,11 @@ func TestTakingOutAMovedRoomReleasesItEverywhere(t *testing.T) {
 // A release from another machine takes the room out without a local excluded entry.
 func TestAReleaseFromAnotherMachineTakesTheRoomOut(t *testing.T) {
 	t.Parallel()
-	m := moved(t, spamMove("!a:x"), domain.TagVerdict{Room: "!ops:x", Tag: "spam", Released: true})
-	if !rowHoldsRoom(t, m, spamGroupKey, "!a:x") || rowHoldsRoom(t, m, spamGroupKey, "!ops:x") {
+	m := moved(t, spamMove(mx+"!a:x"), domain.TagVerdict{Room: mx + "!ops:x", Tag: "spam", Released: true})
+	if !rowHoldsRoom(t, m, spamGroupKey, mx+"!a:x") || rowHoldsRoom(t, m, spamGroupKey, mx+"!ops:x") {
 		t.Error("Spam does not follow the moves and the release")
 	}
-	if got := m.moveReasons(domain.Room{ID: "!ops:x"}); len(got) != 0 {
+	if got := m.moveReasons(domain.Room{ID: mx + "!ops:x"}); len(got) != 0 {
 		t.Errorf("why for a released room = %q, want nothing", got)
 	}
 }
@@ -186,7 +186,7 @@ func TestAReleaseFromAnotherMachineTakesTheRoomOut(t *testing.T) {
 // /why names the tag, the filter and the rule, and that the tag does not notify.
 func TestWhyNamesTheMoveAndTheMute(t *testing.T) {
 	t.Parallel()
-	m := openedFromList(t, moved(t, spamMove("!a:x")), "!a:x")
+	m := openedFromList(t, moved(t, spamMove(mx+"!a:x")), mx+"!a:x")
 	lines := strings.Join(m.whyLines(time.Now()), "\n")
 	for _, want := range []string{"in Spam", "crypto", "first message", "does not notify"} {
 		if !strings.Contains(lines, want) {
@@ -205,7 +205,7 @@ func TestTagKeysAreListedAndAMissingTagIsSaid(t *testing.T) {
 	cfg := m.conf.base.Clone()
 	cfg.Keys.Tag = config.TagKeys{{Chord: "!", Tag: "Junk"}}
 	m, _ = m.applyConfig(cfg, "")
-	m = openedFromList(t, m, "!a:x")
+	m = openedFromList(t, m, mx+"!a:x")
 	m.focus, m.compose.insertMode = paneRooms, false
 	m, _ = pressed(t, m, "!")
 	if !strings.Contains(m.status(), "Junk") {
@@ -230,7 +230,7 @@ func (b *tagRetagger) RetagVerdicts(_ context.Context, from, to string) error {
 func TestRenamingOrDeletingATagCarriesItsMoves(t *testing.T) {
 	t.Parallel()
 	backend := &tagRetagger{}
-	m := moved(t, spamMove("!a:x"))
+	m := moved(t, spamMove(mx+"!a:x"))
 	m.backend = backend
 	m.choosing.tag = tagEditing{tag: "Spam"}
 	next, cmd := m.submitTagName("Junk")

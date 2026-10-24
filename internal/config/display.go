@@ -163,7 +163,7 @@ type TrackedRule struct {
 	Words  []string `toml:"words"`
 	In     []string `toml:"in"`     // place vocabulary; empty everywhere
 	Except []string `toml:"except"` // place vocabulary; wins over In
-	From   []string `toml:"from"`   // MXIDs; empty anybody
+	From   []string `toml:"from"`   // people's IDs; empty anybody
 	Notify *bool    `toml:"notify"` // unset follows Tracked.Notify
 }
 
@@ -421,7 +421,7 @@ type RoomsRule struct {
 // ReadRule is one [[display.read_rule]]; unset fields inherit.
 type ReadRule struct {
 	Match  string `toml:"match"`  // a room ID, space:, tag: or place:
-	Sender string `toml:"sender"` // MXID of the message's author
+	Sender string `toml:"sender"` // ID of the message's author
 	Send   *bool  `toml:"send"`
 	Delay  *int   `toml:"delay"` // seconds; -1 never, 0 at once
 }

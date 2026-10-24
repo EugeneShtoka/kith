@@ -34,7 +34,7 @@ func TestFindPeopleCarriesTheCardWhereAllowed(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := twoRooms()
-	f.senders = []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}}
+	f.senders = []domain.Member{{UserID: "matrix:@dana:x", DisplayName: "Dana"}}
 	s := newServer(f, shareAll)
 	s.book = phonebook.New(dir)
 	out := call(t, s, "find_people", map[string]any{"query": "Dana"})
@@ -70,9 +70,9 @@ func TestFindPeopleByCardFields(t *testing.T) {
 		}
 	}
 	f := twoRooms()
-	f.senders = []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}, {UserID: "@eli:x", DisplayName: "Eli"}, {UserID: "@noa:x", DisplayName: "Noa"}, {UserID: "@zed:x", DisplayName: "Zed"}}
+	f.senders = []domain.Member{{UserID: "matrix:@dana:x", DisplayName: "Dana"}, {UserID: "matrix:@eli:x", DisplayName: "Eli"}, {UserID: "matrix:@noa:x", DisplayName: "Noa"}, {UserID: "matrix:@zed:x", DisplayName: "Zed"}}
 	// Zed's card meets role:attorney, but he posted only in the encrypted room, out of scope.
-	f.postedIn = map[string][]domain.RoomID{"@dana:x": {"!open:x"}, "@eli:x": {"!open:x"}, "@noa:x": {"!open:x"}, "@zed:x": {"!secret:x"}}
+	f.postedIn = map[string][]domain.RoomID{"matrix:@dana:x": {mx + "!open:x"}, "matrix:@eli:x": {mx + "!open:x"}, "matrix:@noa:x": {mx + "!open:x"}, "matrix:@zed:x": {mx + "!secret:x"}}
 	s := newServer(f, shareAll)
 	s.book = phonebook.New(dir)
 	found := func(query string) string {
@@ -84,12 +84,12 @@ func TestFindPeopleByCardFields(t *testing.T) {
 		return strings.Join(ids, " ")
 	}
 	for query, want := range map[string]string{
-		"ROLE:attorney":            "@dana:x",
-		"role:a":                   "@dana:x @eli:x",
-		"company:meta role:family": "@dana:x",
-		"eli role:a":               "@eli:x",
-		"matrix:@eli":              "@eli:x",
-		"@dana:x":                  "@dana:x",
+		"ROLE:attorney":            "matrix:@dana:x",
+		"role:a":                   "matrix:@dana:x matrix:@eli:x",
+		"company:meta role:family": "matrix:@dana:x",
+		"eli role:a":               "matrix:@eli:x",
+		"matrix:@eli":              "matrix:@eli:x",
+		"matrix:@dana:x":           "matrix:@dana:x",
 	} {
 		if got := found(query); got != want {
 			t.Errorf("find_people(%q) = %q, want %q", query, got, want)
@@ -110,7 +110,7 @@ func TestFindPeopleByCardFields(t *testing.T) {
 	if people, _ := out["people"].([]any); len(people) != 0 || !strings.Contains(out["note"].(string), "not shared") {
 		t.Errorf("without [agent.read] people: %v", out)
 	}
-	if got := found("Dana"); got != "@dana:x" {
+	if got := found("Dana"); got != "matrix:@dana:x" {
 		t.Errorf("a name without the phonebook: %v", got)
 	}
 }

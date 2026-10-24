@@ -25,12 +25,12 @@ func displayTitle(s string) string { return drawLine(s, lineSpec{sentence: true}
 // namedRoom is a Hebrew-named room with one message from a Hebrew-named person.
 func namedRoom(t *testing.T) Model {
 	t.Helper()
-	m := sized(t, update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: hebRoom}}}))
+	m := sized(t, update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: hebRoom}}}))
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
 		Messages: []domain.Message{{
-			ID: "$1", RoomID: "!a:x", Sender: "@d:x", SenderName: hebPerson,
+			ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@d:x", SenderName: hebPerson,
 			Body: "hi", Timestamp: at(1),
 		}},
 	}})
@@ -96,7 +96,7 @@ func TestRTLNamesInMuteTargets(t *testing.T) {
 		t.Errorf("person target draws as %q", displayTitle(targets[1].what))
 	}
 	// match is what goes into the config: an ID either way.
-	if targets[0].match != "!a:x" {
+	if targets[0].match != mx+"!a:x" {
 		t.Errorf("room target matches on %q, want the room ID", targets[0].match)
 	}
 }
@@ -105,7 +105,7 @@ func TestRTLNamesInMuteTargets(t *testing.T) {
 func TestRTLMentionRowShowsVisualInsertsLogical(t *testing.T) {
 	t.Parallel()
 
-	m, _ := composing(t, domain.Member{UserID: "@d:x", DisplayName: hebPerson})
+	m, _ := composing(t, domain.Member{UserID: "matrix:@d:x", DisplayName: hebPerson})
 	m = typeInto(t, m, "@")
 	row, ok := m.selectedCandidate()
 	if !ok {

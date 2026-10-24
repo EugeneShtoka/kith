@@ -304,7 +304,7 @@ func TestOAuthHappyPathReturnsRefreshToken(t *testing.T) {
 		browserFollow(t, authURL)
 		return nil
 	}
-	sess, err := New(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", keys, show)
+	sess, err := newBackend(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", keys, show)
 	if err != nil {
 		t.Fatalf("LoginOAuth: %v", err)
 	}
@@ -333,7 +333,7 @@ func TestOAuthCSRFStateMismatchIsRefused(t *testing.T) {
 		browserFollow(t, authURL)
 		return nil
 	}
-	_, err := New(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", testKeys(t), show)
+	_, err := newBackend(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", testKeys(t), show)
 	if !errors.Is(err, ErrOAuthStateMismatch) {
 		t.Fatalf("err = %v, want ErrOAuthStateMismatch", err)
 	}
@@ -354,7 +354,7 @@ func TestOAuthCallbackErrorIsReported(t *testing.T) {
 		browserFollow(t, authURL)
 		return nil
 	}
-	_, err := New(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", testKeys(t), show)
+	_, err := newBackend(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", testKeys(t), show)
 	if !errors.Is(err, ErrOAuthRefused) {
 		t.Fatalf("err = %v, want ErrOAuthRefused", err)
 	}
@@ -410,7 +410,7 @@ func TestSSOHappyPathReturnsAccessToken(t *testing.T) {
 		browserFollow(t, authURL)
 		return nil
 	}
-	sess, err := New(nil).LoginSSO(t.Context(), srv.URL, "@eugene:example.org", show)
+	sess, err := newBackend(nil).LoginSSO(t.Context(), srv.URL, "@eugene:example.org", show)
 	if err != nil {
 		t.Fatalf("LoginSSO: %v", err)
 	}
@@ -433,7 +433,7 @@ func TestSSOWithoutLoginTokenIsRefused(t *testing.T) {
 		browserFollow(t, authURL)
 		return nil
 	}
-	if _, err := New(nil).LoginSSO(t.Context(), srv.URL, "@eugene:example.org", show); err == nil {
+	if _, err := newBackend(nil).LoginSSO(t.Context(), srv.URL, "@eugene:example.org", show); err == nil {
 		t.Fatal("LoginSSO with no loginToken returned nil, want an error")
 	}
 }
@@ -457,7 +457,7 @@ func TestResumeRefreshesExpiredAccessToken(t *testing.T) {
 		saved2.AccessToken, saved2.RefreshToken, saved2.AccessTokenExpiresAt = access, refresh, expiry
 		return nil
 	}
-	b := New(nil)
+	b := newBackend(nil)
 	if err := b.Resume(t.Context(), saved, hook); err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
@@ -482,7 +482,7 @@ func TestResumeOnRevokedRefreshIsSessionRejected(t *testing.T) {
 		AccessToken: "access-1", RefreshToken: "refresh-1", OAuthClientID: "client-xyz",
 		AccessTokenExpiresAt: time.Now().Add(-time.Minute),
 	}
-	err := New(nil).Resume(t.Context(), saved, func(context.Context, string, string, time.Time) error { return nil })
+	err := newBackend(nil).Resume(t.Context(), saved, func(context.Context, string, string, time.Time) error { return nil })
 	if !errors.Is(err, api.ErrSessionRejected) {
 		t.Fatalf("Resume on revoked refresh = %v, want ErrSessionRejected", err)
 	}
@@ -500,10 +500,10 @@ func TestOAuthClientIDIsCachedPerHomeserver(t *testing.T) {
 		browserFollow(t, authURL)
 		return nil
 	}
-	if _, err := New(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", keys, show); err != nil {
+	if _, err := newBackend(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", keys, show); err != nil {
 		t.Fatalf("first LoginOAuth: %v", err)
 	}
-	if _, err := New(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", keys, show); err != nil {
+	if _, err := newBackend(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", keys, show); err != nil {
 		t.Fatalf("second LoginOAuth: %v", err)
 	}
 	if got := fake.registerCalls.Load(); got != 1 {
@@ -544,7 +544,7 @@ func TestOAuthRegistrationRefusedFailsCleanly(t *testing.T) {
 
 	keys := testKeys(t)
 	show := func(string, string) error { return nil }
-	_, err := New(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", keys, show)
+	_, err := newBackend(nil).LoginOAuth(t.Context(), srv.URL, "@eugene:example.org", keys, show)
 	if err == nil {
 		t.Fatal("LoginOAuth with registration refused returned nil, want an error")
 	}

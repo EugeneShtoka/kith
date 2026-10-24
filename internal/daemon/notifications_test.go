@@ -18,11 +18,11 @@ import (
 
 // The account the daemon is serving, and the rooms it knows about.
 const (
-	me      = "@me:example.org"
-	alice   = "@alice:example.org"
-	bob     = "@bob:example.org"
-	dmRoom  = "!dm:example.org"
-	chatRm  = "!standup:example.org"
+	me      = "matrix:@me:example.org"
+	alice   = "matrix:@alice:example.org"
+	bob     = "matrix:@bob:example.org"
+	dmRoom  = mx + "!dm:example.org"
+	chatRm  = mx + "!standup:example.org"
 	dmName  = "Alice"
 	chatNam = "Standup"
 	space   = "Work"
@@ -74,7 +74,7 @@ func world() *scopeBackend {
 			{ID: dmRoom, Name: dmName, IsDirect: true},
 			{ID: chatRm, Name: chatNam},
 		},
-		spaces: []domain.Space{{ID: "!work:example.org", Name: space, Children: []domain.RoomID{chatRm}}},
+		spaces: []domain.Space{{ID: mx + "!work:example.org", Name: space, Children: []domain.RoomID{chatRm}}},
 	}
 }
 
@@ -118,7 +118,7 @@ func notifier(t *testing.T, cfg config.Config) (*daemon.Notifications, *recorder
 }
 
 func msg(room domain.RoomID, sender, body string) domain.Message {
-	return domain.Message{ID: "$1", RoomID: room, Sender: sender, Body: body, Timestamp: time.Now()}
+	return domain.Message{ID: mx + "$1", RoomID: room, Sender: sender, Body: body, Timestamp: time.Now()}
 }
 
 func TestLevelsDecideWhatNotifies(t *testing.T) {
@@ -170,8 +170,8 @@ func TestNotificationCarriesResolvedFields(t *testing.T) {
 	if got.Room != chatNam {
 		t.Errorf("Room = %q, want the name the daemon resolved (%q)", got.Room, chatNam)
 	}
-	if got.Sender != "Alice" || got.MXID != alice {
-		t.Errorf("sender = %q/%q, want Alice/%s", got.Sender, got.MXID, alice)
+	if got.Sender != "Alice" || got.SenderID != alice {
+		t.Errorf("sender = %q/%q, want Alice/%s", got.Sender, got.SenderID, alice)
 	}
 	if got.Body != "stand-up in five" {
 		t.Errorf("Body = %q, want the message text", got.Body)
@@ -325,10 +325,10 @@ func TestAnUnknownRoomRebuildsTheIndex(t *testing.T) {
 	before := src.roomReads()
 
 	src.mu.Lock()
-	src.rooms = append(src.rooms, domain.Room{ID: "!new:example.org", Name: "New"})
+	src.rooms = append(src.rooms, domain.Room{ID: mx + "!new:example.org", Name: "New"})
 	src.mu.Unlock()
 
-	got, ok := n.Deliver(context.Background(), msg("!new:example.org", alice, "hi"))
+	got, ok := n.Deliver(context.Background(), msg(mx+"!new:example.org", alice, "hi"))
 	if !ok {
 		t.Fatal("a message in a new room should still notify")
 	}
@@ -391,8 +391,8 @@ func waitFor(t *testing.T, cond func() bool) {
 func TestRevisionsDoNotNotify(t *testing.T) {
 	t.Parallel()
 
-	redaction := domain.Message{ID: "$1", RoomID: chatRm, Redacted: true} // exactly what onRedaction emits
-	edit := domain.Message{ID: "$2", RoomID: chatRm, Sender: alice, Body: "fixed typo", Edited: true}
+	redaction := domain.Message{ID: mx + "$1", RoomID: chatRm, Redacted: true} // exactly what onRedaction emits
+	edit := domain.Message{ID: mx + "$2", RoomID: chatRm, Sender: alice, Body: "fixed typo", Edited: true}
 
 	for name, m := range map[string]domain.Message{"a redaction marker": redaction, "an edit": edit} {
 		t.Run(name, func(t *testing.T) {
@@ -582,7 +582,7 @@ func TestAThreadRuleAsksWhetherWeAreInTheConversation(t *testing.T) {
 		config.Rule{Name: "mine", Match: string(chatRm), Thread: "participating", Show: "all"},
 	)
 	src, rec := world(), &recorder{}
-	src.inThreads = map[domain.EventID]bool{"$mine": true}
+	src.inThreads = map[domain.EventID]bool{mx + "$mine": true}
 	n, err := daemon.NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return rec })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
@@ -596,10 +596,10 @@ func TestAThreadRuleAsksWhetherWeAreInTheConversation(t *testing.T) {
 		m.ThreadRoot = root
 		return m
 	}
-	if _, got := n.Deliver(context.Background(), inThread("$mine")); !got {
+	if _, got := n.Deliver(context.Background(), inThread(mx+"$mine")); !got {
 		t.Error("a thread we have spoken in should notify")
 	}
-	if _, got := n.Deliver(context.Background(), inThread("$theirs")); got {
+	if _, got := n.Deliver(context.Background(), inThread(mx+"$theirs")); got {
 		t.Error("a thread we have not spoken in should be silent")
 	}
 	// The main timeline is matched too: "any" asks nothing about threads.
@@ -721,7 +721,7 @@ func TestAnUnknownRoomIsOnlyAskedAboutOnce(t *testing.T) {
 	n.Deliver(context.Background(), msg(chatRm, alice, "hi"))
 
 	// A room nothing will ever report.
-	const ghost = "!ghost:example.org"
+	const ghost = mx + "!ghost:example.org"
 	before := src.roomReads()
 	n.Deliver(context.Background(), msg(ghost, alice, "first"))
 	first := src.roomReads() - before
@@ -763,12 +763,12 @@ func TestAPlaceholderIsAnnouncedOnceItIsReplaced(t *testing.T) {
 	n, rec, _ := notifier(t, notifsOn("all"))
 	ctx := context.Background()
 	stand := msg(chatRm, alice, "Decrypting message from WhatsApp failed")
-	stand.ID, stand.Placeholder = "$stand", true
+	stand.ID, stand.Placeholder = mx+"$stand", true
 	if _, got := n.Deliver(ctx, stand); got {
 		t.Error("the placeholder was announced")
 	}
 	replaced := msg(chatRm, alice, "look at this")
-	replaced.ID, replaced.Edited, replaced.RevisionID = "$stand", true, "$edit"
+	replaced.ID, replaced.Edited, replaced.RevisionID = mx+"$stand", true, mx+"$edit"
 	replaced.Media = &domain.Media{Type: domain.MediaImage, Name: "image.jpg"}
 	if _, got := n.Deliver(ctx, replaced); !got {
 		t.Error("the message replacing the placeholder was not announced")
@@ -777,7 +777,7 @@ func TestAPlaceholderIsAnnouncedOnceItIsReplaced(t *testing.T) {
 		t.Error("a second edit of it was announced too")
 	}
 	edit := msg(chatRm, alice, "fixed a typo")
-	edit.ID, edit.Edited, edit.RevisionID = "$other", true, "$edit2"
+	edit.ID, edit.Edited, edit.RevisionID = mx+"$other", true, mx+"$edit2"
 	if _, got := n.Deliver(ctx, edit); got {
 		t.Error("an ordinary edit was announced")
 	}
@@ -791,7 +791,7 @@ func TestANotificationNamesANumberFromTheDirectory(t *testing.T) {
 	t.Parallel()
 	n, rec, src := notifier(t, notifsOn("all"))
 	src.mu.Lock()
-	src.rooms = append(src.rooms, domain.Room{ID: "!num:example.org", Name: "+15550100001 (WA)", IsDirect: true})
+	src.rooms = append(src.rooms, domain.Room{ID: mx + "!num:example.org", Name: "+15550100001 (WA)", IsDirect: true})
 	src.mu.Unlock()
 	n.InvalidateScope()
 	n.UseDirectory(func(context.Context) (domain.Directory, error) {
@@ -802,11 +802,11 @@ func TestANotificationNamesANumberFromTheDirectory(t *testing.T) {
 		shown         string
 		sender, title string
 	}{
-		{"!num:example.org", "+1 555 010 0001 (WA)", "Dana", "Dana"},
+		{mx + "!num:example.org", "+1 555 010 0001 (WA)", "Dana", "Dana"},
 		{chatRm, "+15550100002", "Eli", chatNam},
 		{chatRm, "Alice", "Alice", chatNam},
 	} {
-		m := msg(c.room, "@whatsapp_15550100009:example.org", "hi")
+		m := msg(c.room, "matrix:@whatsapp_15550100009:example.org", "hi")
 		m.SenderName = c.shown
 		if _, ok := n.Deliver(context.Background(), m); !ok {
 			t.Fatalf("%q in %s did not notify", c.shown, c.room)
@@ -833,7 +833,7 @@ func TestNotificationsWriteTheChosenClock(t *testing.T) {
 	if err := n.Reload(cfg); err != nil {
 		t.Fatal(err)
 	}
-	m.ID = "$2"
+	m.ID = mx + "$2"
 	n.Deliver(context.Background(), m)
 
 	sent := rec.all()
@@ -874,7 +874,7 @@ func TestNotificationsNamePeopleAsTheTimelineDoes(t *testing.T) {
 	if err := n.Reload(cfg); err != nil {
 		t.Fatal(err)
 	}
-	m.ID = "$2"
+	m.ID = mx + "$2"
 	n.Deliver(context.Background(), m)
 
 	sent := rec.all()

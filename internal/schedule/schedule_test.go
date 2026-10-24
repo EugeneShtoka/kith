@@ -21,7 +21,7 @@ func TestRoundTrip(t *testing.T) {
 	s := tempStore(t)
 	at := time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC)
 	want := []domain.ScheduledMessage{{
-		ID: "a1", RoomID: "!a:x", Body: "morning", ThreadRoot: "$root", Emote: true,
+		ID: "a1", RoomID: mx + "!a:x", Body: "morning", ThreadRoot: mx + "$root", Emote: true,
 		At: at, Written: at.Add(-time.Hour),
 	}}
 	if err := s.Save(want); err != nil {
@@ -36,7 +36,7 @@ func TestRoundTrip(t *testing.T) {
 		t.Fatalf("loaded %d entries, want 1", len(got))
 	}
 	g := got[0]
-	if g.ID != "a1" || g.RoomID != "!a:x" || g.Body != "morning" || g.ThreadRoot != "$root" || !g.Emote {
+	if g.ID != "a1" || g.RoomID != mx+"!a:x" || g.Body != "morning" || g.ThreadRoot != mx+"$root" || !g.Emote {
 		t.Errorf("entry came back as %+v", g)
 	}
 	if !g.At.Equal(at) {
@@ -100,7 +100,7 @@ func TestTheFileIsOwnerOnly(t *testing.T) {
 	s := tempStore(t)
 	at := time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC)
 	for range 2 { // the mode must survive a rewrite
-		if err := s.Save([]domain.ScheduledMessage{{ID: "a", RoomID: "!a:x", Body: "hi", At: at}}); err != nil {
+		if err := s.Save([]domain.ScheduledMessage{{ID: "a", RoomID: mx + "!a:x", Body: "hi", At: at}}); err != nil {
 			t.Fatalf("Save: %v", err)
 		}
 		info, err := os.Stat(s.Path())
@@ -119,7 +119,7 @@ func TestSaveLeavesNoTempFiles(t *testing.T) {
 	s := tempStore(t)
 	at := time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC)
 	for i := range 3 {
-		if err := s.Save([]domain.ScheduledMessage{{ID: string(rune('a' + i)), RoomID: "!a:x", At: at}}); err != nil {
+		if err := s.Save([]domain.ScheduledMessage{{ID: string(rune('a' + i)), RoomID: mx + "!a:x", At: at}}); err != nil {
 			t.Fatalf("Save: %v", err)
 		}
 	}
@@ -158,9 +158,9 @@ func TestReplyAndMentionsSurviveTheFile(t *testing.T) {
 	store := New(path)
 	at := time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC)
 	want := domain.ScheduledMessage{
-		ID: "q1", RoomID: "!a:x", Body: "yes, agreed — thanks Dana",
-		ReplyTo:  "$their-message",
-		Mentions: []domain.Mention{{UserID: "@dana:x", Name: "Dana"}},
+		ID: "q1", RoomID: mx + "!a:x", Body: "yes, agreed — thanks Dana",
+		ReplyTo:  mx + "$their-message",
+		Mentions: []domain.Mention{{UserID: "matrix:@dana:x", Name: "Dana"}},
 		At:       at, Written: at.Add(-time.Hour),
 	}
 	if err := store.Save([]domain.ScheduledMessage{want}); err != nil {
@@ -176,7 +176,7 @@ func TestReplyAndMentionsSurviveTheFile(t *testing.T) {
 	if got[0].ReplyTo != want.ReplyTo {
 		t.Errorf("reply_to = %q, want %q", got[0].ReplyTo, want.ReplyTo)
 	}
-	if len(got[0].Mentions) != 1 || got[0].Mentions[0].UserID != "@dana:x" ||
+	if len(got[0].Mentions) != 1 || got[0].Mentions[0].UserID != "matrix:@dana:x" ||
 		got[0].Mentions[0].Name != "Dana" {
 		t.Errorf("mentions = %+v, want Dana's pill", got[0].Mentions)
 	}
@@ -185,7 +185,7 @@ func TestReplyAndMentionsSurviveTheFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`reply_to = "$their-message"`, "[[message.mention]]", `user_id = "@dana:x"`} {
+	for _, want := range []string{`reply_to = "` + mx + `$their-message"`, "[[message.mention]]", `user_id = "matrix:@dana:x"`} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("the file does not contain %s:\n%s", want, body)
 		}

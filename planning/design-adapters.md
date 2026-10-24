@@ -39,10 +39,13 @@ with that instruction. Shipped in the Linux release archives and packages.
 
 `internal/domain/network.go` (its header comment is the full table).
 
-- **Matrix IDs stay bare** (`!room`, `@user:server`, `$event`): no migration for
-  caches, configs and drafts written before other networks existed. Anything without a
-  known prefix is Matrix; a Matrix ID starts with a sigil, a prefixed one never does.
-- **Every other network**: rooms and events are `<network>:<account>/<native>`,
+- **Matrix** is `matrix:<account>/!room`, `matrix:<account>/$event` and
+  `matrix:@user:server`; `<account>` is a hash of the account's MXID
+  (`domain.AccountKey`), since an MXID may contain `/`, and a person's native ID is
+  never split. Every conversion happens in `internal/matrix/ids.go`, guarded by an AST
+  test. A bare ID belongs to no network: config refuses one, and typed input (an MXID,
+  a link's room) is read as Matrix's by its shape.
+- **Every network**: rooms and events are `<network>:<account>/<native>`,
   people are `<network>:<native>`. A room and a message are per account (a DM with Bob
   from account A is not the DM from account B; the same group message reaches both
   accounts with one native ID). A person is global, so identities, colours and

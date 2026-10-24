@@ -13,9 +13,9 @@ func TestAQuoteOfTheRowAboveIsNotDrawn(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@a:x", SenderName: "Ada", Body: "how did it go", Timestamp: at(1)},
-		{ID: "$2", RoomID: "!a:x", Sender: "@b:x", SenderName: "Bo", Body: "landed it", ReplyTo: "$1", Timestamp: at(2)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", SenderName: "Ada", Body: "how did it go", Timestamp: at(1)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@b:x", SenderName: "Bo", Body: "landed it", ReplyTo: mx + "$1", Timestamp: at(2)},
 	}}})
 
 	rows := strings.Join(m.layoutRows(), "\n")
@@ -27,9 +27,9 @@ func TestAQuoteOfTheRowAboveIsNotDrawn(t *testing.T) {
 	}
 
 	// One message further back, and the quote is drawn again.
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$3", RoomID: "!a:x", Sender: "@a:x", SenderName: "Ada", Body: "anything else", Timestamp: at(3)},
-		{ID: "$4", RoomID: "!a:x", Sender: "@b:x", SenderName: "Bo", Body: "about that", ReplyTo: "$1", Timestamp: at(4)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$3", RoomID: mx + "!a:x", Sender: "matrix:@a:x", SenderName: "Ada", Body: "anything else", Timestamp: at(3)},
+		{ID: mx + "$4", RoomID: mx + "!a:x", Sender: "matrix:@b:x", SenderName: "Bo", Body: "about that", ReplyTo: mx + "$1", Timestamp: at(4)},
 	}}})
 	if rows = strings.Join(m.layoutRows(), "\n"); !strings.Contains(rows, "↪") {
 		t.Errorf("a reply reaching further back should quote:\n%s", rows)

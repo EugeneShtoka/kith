@@ -82,17 +82,17 @@ func TestTrackedListGroupsByWord(t *testing.T) {
 
 	stamp := func(min int) time.Time { return time.Date(2026, 9, 19, 10, min, 0, 0, time.UTC) }
 	hits := []domain.SearchHit{
-		{EventID: "$1", Word: "invoice", Timestamp: stamp(1)},
-		{EventID: "$2", Word: "deploy", Timestamp: stamp(2)},
-		{EventID: "$3", Word: "invoice", Timestamp: stamp(3)},
-		{EventID: "$4", Word: "deploy", Timestamp: stamp(4)},
+		{EventID: mx + "$1", Word: "invoice", Timestamp: stamp(1)},
+		{EventID: mx + "$2", Word: "deploy", Timestamp: stamp(2)},
+		{EventID: mx + "$3", Word: "invoice", Timestamp: stamp(3)},
+		{EventID: mx + "$4", Word: "deploy", Timestamp: stamp(4)},
 	}
 	trackedList{}.order(hits)
 	var got []string
 	for _, h := range hits {
 		got = append(got, h.Word+":"+string(h.EventID))
 	}
-	want := []string{"deploy:$4", "deploy:$2", "invoice:$3", "invoice:$1"}
+	want := []string{"deploy:" + mx + "$4", "deploy:" + mx + "$2", "invoice:" + mx + "$3", "invoice:" + mx + "$1"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("order = %v, want %v", got, want)
 	}

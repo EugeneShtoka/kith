@@ -14,12 +14,12 @@ func TestATagIsAHomeForRules(t *testing.T) {
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
 	cfg.Display.Priority = []string{"tag:Family", "space:Friends"}
 	cfg.Display.SpaceRules = []config.SpaceRule{{Space: "tag:Family", FirstNameOnly: true}}
-	dm := domain.Room{ID: "!a:x", Name: "Michael Livingston", Members: []string{"Michael Livingston"}, IsDirect: true}
-	other := domain.Room{ID: "!o:x", Name: "Other"} // so Family does not hold every room
+	dm := domain.Room{ID: mx + "!a:x", Name: "Michael Livingston", Members: []string{"Michael Livingston"}, IsDirect: true}
+	other := domain.Room{ID: mx + "!o:x", Name: "Other"} // so Family does not hold every room
 	m := update(t, configured(cfg), roomsMsg{rooms: []domain.Room{dm, other}})
-	m = update(t, m, spacesMsg{spaces: []domain.Space{{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{"!a:x"}}}})
+	m = update(t, m, spacesMsg{spaces: []domain.Space{{ID: mx + "!f:x", Name: "Friends", Children: []domain.RoomID{mx + "!a:x"}}}})
 
-	if got := m.homesOf("!a:x"); len(got) != 2 || got[0] != "tag:Family" || got[1] != "Friends" {
+	if got := m.homesOf(mx + "!a:x"); len(got) != 2 || got[0] != "tag:Family" || got[1] != "Friends" {
 		t.Fatalf("homesOf = %v, want the tag first, then the space", got)
 	}
 	if got := m.roomLabel(dm); got != "Michael" {
@@ -27,7 +27,7 @@ func TestATagIsAHomeForRules(t *testing.T) {
 	}
 
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
-	m.openRoom = "!a:x"
+	m.openRoom = mx + "!a:x"
 	found := false
 	for _, target := range m.muteTargets() {
 		if target.match == "tag:Family" && target.kind == "tag" {
@@ -40,7 +40,7 @@ func TestATagIsAHomeForRules(t *testing.T) {
 
 	cfg.Display.Priority = []string{"space:Friends"}
 	m2 := update(t, configured(cfg), roomsMsg{rooms: []domain.Room{dm}})
-	m2 = update(t, m2, spacesMsg{spaces: []domain.Space{{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{"!a:x"}}}})
+	m2 = update(t, m2, spacesMsg{spaces: []domain.Space{{ID: mx + "!f:x", Name: "Friends", Children: []domain.RoomID{mx + "!a:x"}}}})
 	if got := m2.roomLabel(dm); got != "Michael Livingston" {
 		t.Errorf("label with Friends first = %q, want Friends' (no rule)", got)
 	}

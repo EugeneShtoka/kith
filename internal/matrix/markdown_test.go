@@ -31,7 +31,7 @@ func TestMarkdownBecomesHTML(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := (ids{}).renderBody(c.body, nil)
+			got := testIDs.renderBody(c.body, nil)
 			if !strings.Contains(got, c.want) {
 				t.Errorf("rendered %q as\n  %q\nwanting %q in it", c.body, got, c.want)
 			}
@@ -49,7 +49,7 @@ func TestPlainProseSendsNoHTML(t *testing.T) {
 		"3 * 4 = 12",
 		"a_b_c is a name",
 	} {
-		if got := (ids{}).renderBody(body, nil); got != "" {
+		if got := testIDs.renderBody(body, nil); got != "" {
 			t.Errorf("%q produced a formatted body: %q", body, got)
 		}
 	}
@@ -59,7 +59,7 @@ func TestPlainProseSendsNoHTML(t *testing.T) {
 func TestTypedHTMLIsEscapedRatherThanSent(t *testing.T) {
 	t.Parallel()
 
-	got := (ids{}).renderBody("careful: <b>not bold</b> and <script>alert(1)</script>", nil)
+	got := testIDs.renderBody("careful: <b>not bold</b> and <script>alert(1)</script>", nil)
 	if strings.Contains(got, "<b>") || strings.Contains(got, "<script>") {
 		t.Errorf("typed HTML reached the formatted body:\n  %q", got)
 	}
@@ -71,8 +71,8 @@ func TestTypedHTMLIsEscapedRatherThanSent(t *testing.T) {
 func TestAMentionPillsThroughTheRenderer(t *testing.T) {
 	t.Parallel()
 
-	mentions := []domain.Mention{{UserID: "@alice:x", Name: "Alice"}}
-	got := (ids{}).renderBody("**hello** Alice", mentions)
+	mentions := []domain.Mention{{UserID: "matrix:@alice:x", Name: "Alice"}}
+	got := testIDs.renderBody("**hello** Alice", mentions)
 	if want := `<a href="https://matrix.to/#/@alice:x">Alice</a>`; !strings.Contains(got, want) {
 		t.Errorf("no pill in\n  %q\nwanted %q", got, want)
 	}
@@ -85,9 +85,9 @@ func TestAMentionPillsThroughTheRenderer(t *testing.T) {
 func TestPillingKeepsItsOrderAndFiresOnce(t *testing.T) {
 	t.Parallel()
 
-	got := (ids{}).renderBody("Dan and Daniel, then Dan again", []domain.Mention{
-		{UserID: "@dan:x", Name: "Dan"},
-		{UserID: "@daniel:x", Name: "Daniel"},
+	got := testIDs.renderBody("Dan and Daniel, then Dan again", []domain.Mention{
+		{UserID: "matrix:@dan:x", Name: "Dan"},
+		{UserID: "matrix:@daniel:x", Name: "Daniel"},
 	})
 	if !strings.Contains(got, `<a href="https://matrix.to/#/@daniel:x">Daniel</a>`) {
 		t.Errorf("Daniel was eaten by Dan:\n  %q", got)
@@ -104,7 +104,7 @@ func TestPillingKeepsItsOrderAndFiresOnce(t *testing.T) {
 func TestAMentionWithMarkdownInItsNameIsEscaped(t *testing.T) {
 	t.Parallel()
 
-	got := (ids{}).renderBody("hi a_b_c", []domain.Mention{{UserID: "@ab:x", Name: "a_b_c"}})
+	got := testIDs.renderBody("hi a_b_c", []domain.Mention{{UserID: "matrix:@ab:x", Name: "a_b_c"}})
 	if !strings.Contains(got, ">a_b_c</a>") {
 		t.Errorf("the name was rendered as markup:\n  %q", got)
 	}
@@ -115,8 +115,8 @@ func TestPlainSendsTheCharactersAndStillPills(t *testing.T) {
 	t.Parallel()
 
 	draft := domain.Draft{Body: "**not bold** Alice", Plain: true,
-		Mentions: []domain.Mention{{UserID: "@alice:x", Name: "Alice"}}}
-	got := (ids{}).buildMessage(draft, "")
+		Mentions: []domain.Mention{{UserID: "matrix:@alice:x", Name: "Alice"}}}
+	got := testIDs.buildMessage(draft, "")
 	if got.Body != draft.Body {
 		t.Errorf("the plain body is %q, want what was typed", got.Body)
 	}
@@ -131,7 +131,7 @@ func TestPlainSendsTheCharactersAndStillPills(t *testing.T) {
 func TestPlainWithNoMentionsIsAnOrdinaryEvent(t *testing.T) {
 	t.Parallel()
 
-	got := (ids{}).buildMessage(domain.Draft{Body: "**stars**", Plain: true}, "")
+	got := testIDs.buildMessage(domain.Draft{Body: "**stars**", Plain: true}, "")
 	if got.FormattedBody != "" || got.Format != "" {
 		t.Errorf("format=%q formatted_body=%q, want neither", got.Format, got.FormattedBody)
 	}
@@ -142,7 +142,7 @@ func TestTheBodyIsAlwaysWhatWasTyped(t *testing.T) {
 	t.Parallel()
 
 	typed := "**bold** and `code` and a [link](https://example.org)"
-	got := (ids{}).buildMessage(domain.Draft{Body: typed}, "")
+	got := testIDs.buildMessage(domain.Draft{Body: typed}, "")
 	if got.Body != typed {
 		t.Errorf("body = %q, want %q", got.Body, typed)
 	}
@@ -179,7 +179,7 @@ func TestSpoilersAreWrittenButNotOutOfSomebodysCode(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			html := (ids{}).renderBody(tc.body, nil)
+			html := testIDs.renderBody(tc.body, nil)
 			if got := strings.Contains(html, "data-mx-spoiler"); got != tc.spoilers {
 				t.Errorf("spoiler markup = %v, want %v\nhtml: %s", got, tc.spoilers, html)
 			}
@@ -191,8 +191,8 @@ func TestSpoilersAreWrittenButNotOutOfSomebodysCode(t *testing.T) {
 func TestARoomMentionBecomesALink(t *testing.T) {
 	t.Parallel()
 
-	mentions := []domain.Mention{{RoomID: "!war:example.org", Name: "Warroom"}}
-	html := (ids{}).renderBody("see Warroom for that", mentions)
+	mentions := []domain.Mention{{RoomID: mx + "!war:example.org", Name: "Warroom"}}
+	html := testIDs.renderBody("see Warroom for that", mentions)
 	if !strings.Contains(html, `href="https://matrix.to/#/!war:example.org"`) {
 		t.Errorf("markdown render = %q, want a link to the room", html)
 	}
@@ -200,7 +200,7 @@ func TestARoomMentionBecomesALink(t *testing.T) {
 		t.Errorf("markdown render = %q, want the room's name as the link text", html)
 	}
 
-	plain := pillHTML("see Warroom for that", mentions)
+	plain := testIDs.pillHTML("see Warroom for that", mentions)
 	if !strings.Contains(plain, `href="https://matrix.to/#/!war:example.org"`) {
 		t.Errorf("plain render = %q, want the same link", plain)
 	}
@@ -211,10 +211,10 @@ func TestAMessageCanNameAPersonAndARoom(t *testing.T) {
 	t.Parallel()
 
 	mentions := []domain.Mention{
-		{UserID: "@ada:example.org", Name: "Ada"},
-		{RoomID: "!war:example.org", Name: "Warroom"},
+		{UserID: "matrix:@ada:example.org", Name: "Ada"},
+		{RoomID: mx + "!war:example.org", Name: "Warroom"},
 	}
-	html := (ids{}).renderBody("Ada is in Warroom", mentions)
+	html := testIDs.renderBody("Ada is in Warroom", mentions)
 	if !strings.Contains(html, "@ada:example.org") || !strings.Contains(html, "!war:example.org") {
 		t.Errorf("render = %q, want both links", html)
 	}

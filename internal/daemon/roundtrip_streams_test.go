@@ -46,14 +46,14 @@ func TestEveryStreamRoundTrips(t *testing.T) {
 	go func() { _ = r.Start(context.Background()) }()
 	h.waitAttached(1)
 
-	wantUnread := domain.Unread{RoomID: "!a:example.org", Notifications: 4, Highlights: 2, ReadEvent: "$seen:example.org"}
+	wantUnread := domain.Unread{RoomID: mx + "!a:example.org", Notifications: 4, Highlights: 2, ReadEvent: mx + "$seen:example.org"}
 	fake.Unreads <- wantUnread
 	if got := take(t, r.Unread(), "Unread()"); !reflect.DeepEqual(got, wantUnread) {
 		t.Errorf("Unread() = %+v, want %+v", got, wantUnread)
 	}
 
 	wantReact := domain.ReactionUpdate{
-		Reaction: domain.Reaction{ID: "$r:example.org", RoomID: "!a:example.org", Target: "$m:example.org", Sender: "@ada:example.org", Key: "👍"},
+		Reaction: domain.Reaction{ID: mx + "$r:example.org", RoomID: mx + "!a:example.org", Target: mx + "$m:example.org", Sender: "matrix:@ada:example.org", Key: "👍"},
 		Removed:  true,
 	}
 	fake.Reacts <- wantReact
@@ -61,7 +61,7 @@ func TestEveryStreamRoundTrips(t *testing.T) {
 		t.Errorf("Reactions() = %+v, want %+v", got, wantReact)
 	}
 
-	wantInvites := []domain.Room{{ID: "!invite:example.org", Name: "Book club", Membership: domain.MembershipInvite, InvitedBy: "@ada:example.org"}}
+	wantInvites := []domain.Room{{ID: mx + "!invite:example.org", Name: "Book club", Membership: domain.MembershipInvite, InvitedBy: "matrix:@ada:example.org"}}
 	fake.Invs <- wantInvites
 	if got := take(t, r.Invites(), "Invites()"); !reflect.DeepEqual(got, wantInvites) {
 		t.Errorf("Invites() = %+v, want %+v", got, wantInvites)
@@ -70,7 +70,7 @@ func TestEveryStreamRoundTrips(t *testing.T) {
 	wantVerif := domain.Verification{
 		Kind:     domain.VerificationSAS,
 		TxnID:    "txn-1",
-		From:     "@ada:example.org",
+		From:     "matrix:@ada:example.org",
 		Device:   "DEV",
 		Emojis:   []domain.SASEmoji{{Glyph: "🐶", Name: "Dog"}, {Glyph: "🎸", Name: "Guitar"}},
 		Decimals: []int{1234, 5678, 9012},
@@ -124,7 +124,7 @@ func TestTwoClientsBothSeeEveryMessage(t *testing.T) {
 	go func() { _ = second.Start(context.Background()) }()
 	h.waitAttached(2)
 
-	want := domain.Message{ID: "$one:example.org", RoomID: "!a:example.org", Body: "seen by both"}
+	want := domain.Message{ID: mx + "$one:example.org", RoomID: mx + "!a:example.org", Body: "seen by both"}
 	msgs <- want
 
 	if got := take(t, first.Messages(), "first client"); got.ID != want.ID {

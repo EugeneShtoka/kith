@@ -23,11 +23,11 @@ func (b peerBackend) Members(_ context.Context, room domain.RoomID, _ int) ([]do
 func (b peerBackend) Selves(context.Context) ([]string, error) { return b.selves, nil }
 
 const (
-	peerMe     = "@me:x"
-	peerPuppet = "@linkedin_me:x"
-	peerBot    = "@linkedinbot:x"
-	peerDana   = "@linkedin_dana:x"
-	peerEli    = "@linkedin_eli:x"
+	peerMe     = "matrix:@me:x"
+	peerPuppet = "matrix:@linkedin_me:x"
+	peerBot    = "matrix:@linkedinbot:x"
+	peerDana   = "matrix:@linkedin_dana:x"
+	peerEli    = "matrix:@linkedin_eli:x"
 	peerLong   = "Dana Levi ✨Hiring✨"
 )
 
@@ -35,17 +35,17 @@ const (
 // private chat whose own name is not its member's.
 func peerRooms(danaRoomName string) []domain.Room {
 	return []domain.Room{
-		{ID: "!dm:x", Name: danaRoomName},
-		{ID: "!group:x", Name: peerLong},
-		{ID: "!other:x", Name: "Eli's chat"},
+		{ID: mx + "!dm:x", Name: danaRoomName},
+		{ID: mx + "!group:x", Name: peerLong},
+		{ID: mx + "!other:x", Name: "Eli's chat"},
 	}
 }
 
 func peerMembers(danaName string) map[domain.RoomID][]domain.Member {
 	return map[domain.RoomID][]domain.Member{
-		"!dm:x":    {{UserID: peerMe, DisplayName: "Me"}, {UserID: peerPuppet, DisplayName: "Me"}, {UserID: peerBot, DisplayName: "Bridge Bot"}, {UserID: peerDana, DisplayName: danaName}},
-		"!group:x": {{UserID: peerMe}, {UserID: peerDana, DisplayName: peerLong}, {UserID: peerEli, DisplayName: "Eli"}},
-		"!other:x": {{UserID: peerMe}, {UserID: peerBot}, {UserID: peerEli, DisplayName: "Eli"}},
+		mx + "!dm:x":    {{UserID: peerMe, DisplayName: "Me"}, {UserID: peerPuppet, DisplayName: "Me"}, {UserID: peerBot, DisplayName: "Bridge Bot"}, {UserID: peerDana, DisplayName: danaName}},
+		mx + "!group:x": {{UserID: peerMe}, {UserID: peerDana, DisplayName: peerLong}, {UserID: peerEli, DisplayName: "Eli"}},
+		mx + "!other:x": {{UserID: peerMe}, {UserID: peerBot}, {UserID: peerEli, DisplayName: "Eli"}},
 	}
 }
 
@@ -54,9 +54,9 @@ func peerDisplay(names ...config.DisplayName) config.Display {
 }
 
 var allNamed = []config.DisplayName{
-	{Target: "!dm:x", Name: "Dana"},
-	{Target: "!group:x", Name: "Team"},
-	{Target: "!other:x", Name: "Eli L"},
+	{Target: mx + "!dm:x", Name: "Dana"},
+	{Target: mx + "!group:x", Name: "Team"},
+	{Target: mx + "!other:x", Name: "Eli L"},
 }
 
 // peerModel has the room list, the requested members and, when selves is set, who this
@@ -85,15 +85,15 @@ func TestARoomNamedAfterItsPeerNamesThePeer(t *testing.T) {
 	b := peerBackend{members: peerMembers(peerLong), selves: []string{peerMe, peerPuppet}}
 	m := peerModel(t, b, peerDisplay(allNamed...), peerRooms(peerLong), true)
 
-	for _, room := range []domain.RoomID{"!dm:x", "!group:x"} {
+	for _, room := range []domain.RoomID{mx + "!dm:x", mx + "!group:x"} {
 		if got := danaShown(m, room); got != "Dana" {
 			t.Errorf("Dana in %s = %q, want Dana", room, got)
 		}
 	}
-	if got := m.processedName(domain.Message{RoomID: "!other:x", Sender: peerEli, SenderName: "Eli"}); got != "Eli" {
+	if got := m.processedName(domain.Message{RoomID: mx + "!other:x", Sender: peerEli, SenderName: "Eli"}); got != "Eli" {
 		t.Errorf("Eli, in a chat not named after him = %q, want Eli", got)
 	}
-	if got := m.processedName(domain.Message{RoomID: "!dm:x", Sender: peerPuppet, SenderName: "Me"}); got != "Me" {
+	if got := m.processedName(domain.Message{RoomID: mx + "!dm:x", Sender: peerPuppet, SenderName: "Me"}); got != "Me" {
 		t.Errorf("your own puppet = %q, want Me", got)
 	}
 	if got := m.aliasOf(peerDana); got != "Dana" {
@@ -110,11 +110,11 @@ func TestARoomNamedPeerFollowsItsInputs(t *testing.T) {
 	t.Run("selves after members", func(t *testing.T) {
 		t.Parallel()
 		m := peerModel(t, b, peerDisplay(allNamed...), peerRooms(peerLong), false)
-		if got := danaShown(m, "!dm:x"); got != peerLong {
+		if got := danaShown(m, mx+"!dm:x"); got != peerLong {
 			t.Fatalf("before selves, your puppet makes two others: %q, want %q", got, peerLong)
 		}
 		m = update(t, m, selvesMsg{ids: b.selves})
-		if got := danaShown(m, "!dm:x"); got != "Dana" {
+		if got := danaShown(m, mx+"!dm:x"); got != "Dana" {
 			t.Errorf("after selves = %q, want Dana", got)
 		}
 	})
@@ -123,7 +123,7 @@ func TestARoomNamedPeerFollowsItsInputs(t *testing.T) {
 		t.Parallel()
 		m := peerModel(t, b, peerDisplay(allNamed...), peerRooms(peerLong), true)
 		m, _ = m.applyDisplay(peerDisplay(allNamed[1:]...), "")
-		if got := danaShown(m, "!group:x"); got != peerLong {
+		if got := danaShown(m, mx+"!group:x"); got != peerLong {
 			t.Errorf("after the room's name was cleared = %q, want %q", got, peerLong)
 		}
 	})
@@ -142,7 +142,7 @@ func TestARoomNamedPeerFollowsItsInputs(t *testing.T) {
 		if m.keyFor() == before {
 			t.Error("the timeline's derived key did not move with the peer's name")
 		}
-		if got := danaShown(m, "!group:x"); got != "Dana" {
+		if got := danaShown(m, mx+"!group:x"); got != "Dana" {
 			t.Errorf("after naming the room = %q, want Dana", got)
 		}
 	})
@@ -161,7 +161,7 @@ func TestARoomNamedPeerFollowsItsInputs(t *testing.T) {
 		m = update(t, m, read)
 		// An answer for the old names, landing late, is not kept.
 		m = update(t, m, peerMembersMsg{key: peerKey(peerRooms(peerLong)), members: peerMembers(peerLong)})
-		if got := m.processedName(domain.Message{RoomID: "!dm:x", Sender: peerDana, SenderName: "Dana Levi"}); got != "Dana" {
+		if got := m.processedName(domain.Message{RoomID: mx + "!dm:x", Sender: peerDana, SenderName: "Dana Levi"}); got != "Dana" {
 			t.Errorf("after the bridge renamed them = %q, want Dana", got)
 		}
 	})
@@ -171,7 +171,7 @@ func TestARoomNamedPeerFollowsItsInputs(t *testing.T) {
 		display := peerDisplay(allNamed...)
 		display.Identities = []config.Identity{{Alias: "Dana L", IDs: []string{peerDana}}}
 		m := peerModel(t, b, display, peerRooms(peerLong), true)
-		if got := danaShown(m, "!dm:x"); got != "Dana L" {
+		if got := danaShown(m, mx+"!dm:x"); got != "Dana L" {
 			t.Errorf("with an identity = %q, want Dana L", got)
 		}
 	})

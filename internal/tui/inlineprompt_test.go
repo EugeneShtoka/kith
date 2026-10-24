@@ -68,8 +68,8 @@ func TestAPromptOverTheTimelineStaysInTheStatusLine(t *testing.T) {
 // A card's field is asked over the card; esc keeps the card open.
 func TestACardFieldIsAskedOverTheCard(t *testing.T) {
 	t.Parallel()
-	m, _ := carding(t, []domain.Member{{UserID: "@me:x"}, {UserID: "@eli:x", DisplayName: "Eli"}})
-	m.timeline.members = []domain.Member{{UserID: "@eli:x", DisplayName: "Eli"}}
+	m, _ := carding(t, []domain.Member{{UserID: "matrix:@me:x"}, {UserID: "matrix:@eli:x", DisplayName: "Eli"}})
+	m.timeline.members = []domain.Member{{UserID: "matrix:@eli:x", DisplayName: "Eli"}}
 	m, _ = m.openPeopleForRoom()
 	next, cmd := press(t, m, keyText("I"))
 	m = deliver(t, next, cmd)

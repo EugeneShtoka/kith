@@ -14,7 +14,7 @@ import (
 
 // An SMS bridge room in stream order: two SMS, then three bridge state events. The
 // last SMS has a later origin_server_ts (phone clock) than the receipted state event.
-const smsRoom = domain.RoomID("!sms:x")
+const smsRoom = domain.RoomID(mx + "!sms:x")
 
 var smsStream = []srvEvent{
 	{ID: "$modS", TS: 1781004013475},
@@ -28,8 +28,8 @@ var smsStream = []srvEvent{
 func smsBackend(t *testing.T, srv *eventServer, extra ...domain.Message) *InProc {
 	t.Helper()
 	msgs := append([]domain.Message{
-		{ID: "$modS", RoomID: smsRoom, Sender: "@sms:x", Body: "a", Timestamp: time.UnixMilli(1781004013475)},
-		{ID: "$yqjem", RoomID: smsRoom, Sender: "@sms:x", Body: "b", Timestamp: time.UnixMilli(1781004151425)},
+		{ID: mx + "$modS", RoomID: smsRoom, Sender: "matrix:@sms:x", Body: "a", Timestamp: time.UnixMilli(1781004013475)},
+		{ID: mx + "$yqjem", RoomID: smsRoom, Sender: "matrix:@sms:x", Body: "b", Timestamp: time.UnixMilli(1781004151425)},
 	}, extra...)
 	return backendWith(t, srv.Server, map[domain.RoomID][]domain.Message{smsRoom: msgs})
 }
@@ -69,7 +69,7 @@ func TestAReceiptOnABridgeStateEventReadsByStreamOrder(t *testing.T) {
 			srv := newEventServer(t, smsStream)
 			b := smsBackend(t, srv)
 			ctx := context.Background()
-			if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: smsRoom, Notifications: 0, ReadEvent: "$7cBV"}, tt.readTS); err != nil {
+			if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: smsRoom, Notifications: 0, ReadEvent: mx + "$7cBV"}, tt.readTS); err != nil {
 				t.Fatalf("SaveUnread: %v", err)
 			}
 			b.seedUnread(ctx)
@@ -79,7 +79,7 @@ func TestAReceiptOnABridgeStateEventReadsByStreamOrder(t *testing.T) {
 			if !u.Counted || u.Messages != 0 {
 				t.Errorf("unread = %+v, want counted with nothing unread", u)
 			}
-			if u.ReadEvent != "$yqjem" {
+			if u.ReadEvent != mx+"$yqjem" {
 				t.Errorf("read event = %q, want the newest message, $yqjem", u.ReadEvent)
 			}
 			if n := srv.times("$7cBV"); n != 1 {
@@ -97,7 +97,7 @@ func TestASyncedReceiptOnAStateEventReadsByStreamOrder(t *testing.T) {
 	ctx := context.Background()
 	resp := &mautrix.RespSync{}
 	resp.Rooms.Join = map[id.RoomID]*mautrix.SyncJoinedRoom{
-		id.RoomID(smsRoom): {Ephemeral: mautrix.SyncEventsList{Events: []*event.Event{
+		testIDs.nativeRoom(smsRoom): {Ephemeral: mautrix.SyncEventsList{Events: []*event.Event{
 			receiptEvent(`{"$7cBV":{"m.read":{"@me:x":{"ts":1}}}}`),
 		}}},
 	}
@@ -114,17 +114,17 @@ func TestAMessageAfterAStateReceiptStaysUnread(t *testing.T) {
 	t.Parallel()
 
 	stream := append(append([]srvEvent(nil), smsStream...), srvEvent{ID: "$later", TS: 1781004150100})
-	later := domain.Message{ID: "$later", RoomID: smsRoom, Sender: "@sms:x", Body: "c",
+	later := domain.Message{ID: mx + "$later", RoomID: smsRoom, Sender: "matrix:@sms:x", Body: "c",
 		Timestamp: time.UnixMilli(1781004160000)}
 	b := smsBackend(t, newEventServer(t, stream), later)
 	ctx := context.Background()
-	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: smsRoom, ReadEvent: "$7cBV"}, 0); err != nil {
+	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: smsRoom, ReadEvent: mx + "$7cBV"}, 0); err != nil {
 		t.Fatalf("SaveUnread: %v", err)
 	}
 	b.seedUnread(ctx)
 	b.fetches.wg.Wait()
 	u := smsUnread(t, b)
-	if !u.Counted || u.Messages != 1 || u.ReadEvent != "$yqjem" {
+	if !u.Counted || u.Messages != 1 || u.ReadEvent != mx+"$yqjem" {
 		t.Errorf("unread = %+v, want counted, 1 unread, read at $yqjem", u)
 	}
 }
@@ -136,11 +136,11 @@ func TestMarkRoomsReadMovesThePositionWithoutAnEcho(t *testing.T) {
 
 	srv := newReceiptServer(t, nil) // accepts and never echoes
 	b := backendWith(t, srv.Server, map[domain.RoomID][]domain.Message{readRoom: {
-		{ID: "$old", RoomID: readRoom, Sender: "@them:x", Body: "old", Timestamp: readAt(0)},
-		{ID: "$new", RoomID: readRoom, Sender: "@them:x", Body: "new", Timestamp: readAt(10)},
+		{ID: mx + "$old", RoomID: readRoom, Sender: "matrix:@them:x", Body: "old", Timestamp: readAt(0)},
+		{ID: mx + "$new", RoomID: readRoom, Sender: "matrix:@them:x", Body: "new", Timestamp: readAt(10)},
 	}})
 	ctx := context.Background()
-	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: readRoom, ReadEvent: "$old"}, 0); err != nil {
+	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: readRoom, ReadEvent: mx + "$old"}, 0); err != nil {
 		t.Fatalf("SaveUnread: %v", err)
 	}
 	b.seedUnread(ctx)
@@ -154,7 +154,7 @@ func TestMarkRoomsReadMovesThePositionWithoutAnEcho(t *testing.T) {
 	if got := unreadOf(t, b); !got.Counted || got.Messages != 0 {
 		t.Errorf("after: unread = %+v, want nothing unread", got)
 	}
-	wantRead(t, b, "$new")
+	wantRead(t, b, mx+"$new")
 }
 
 // Opening a room (MarkRead) moves the position locally too, forward only.
@@ -163,18 +163,18 @@ func TestMarkReadMovesThePositionForwardOnly(t *testing.T) {
 
 	b := readBackend(t, newReceiptServer(t, nil).Server)
 	ctx := context.Background()
-	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: readRoom, ReadEvent: "$old"}, 0); err != nil {
+	if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: readRoom, ReadEvent: mx + "$old"}, 0); err != nil {
 		t.Fatalf("SaveUnread: %v", err)
 	}
 	b.seedUnread(ctx)
-	if err := b.MarkRead(ctx, readRoom, "$new", false); err != nil {
+	if err := b.MarkRead(ctx, readRoom, mx+"$new", false); err != nil {
 		t.Fatalf("MarkRead: %v", err)
 	}
-	wantRead(t, b, "$new")
+	wantRead(t, b, mx+"$new")
 	if got := unreadOf(t, b); !got.Counted || got.Messages != 0 {
 		t.Errorf("unread = %+v, want nothing unread", got)
 	}
-	if err := b.MarkRead(ctx, readRoom, "$old", false); err != nil {
+	if err := b.MarkRead(ctx, readRoom, mx+"$old", false); err != nil {
 		t.Fatalf("MarkRead: %v", err)
 	}
 	if got := unreadOf(t, b); !got.Counted || got.Messages != 0 {
@@ -199,7 +199,7 @@ func TestMarkingTheBridgeRoomReadReceiptsTheStreamsNewest(t *testing.T) {
 			_, err := b.MarkRoomsRead(context.Background(), []domain.RoomID{smsRoom}, false)
 			return err
 		},
-		"open": func(b *InProc) error { return b.MarkRead(context.Background(), smsRoom, "$yqjem", false) },
+		"open": func(b *InProc) error { return b.MarkRead(context.Background(), smsRoom, mx+"$yqjem", false) },
 	}
 	for name, mark := range marks {
 		t.Run(name, func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestMarkingTheBridgeRoomReadReceiptsTheStreamsNewest(t *testing.T) {
 			srv := newEventServer(t, smsStream, eventServerOpts{noContext: true})
 			b := smsBackend(t, srv)
 			ctx := context.Background()
-			if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: smsRoom, ReadEvent: "$7cBV"}, 1781004150047); err != nil {
+			if err := b.cache.SaveUnread(ctx, domain.Unread{RoomID: smsRoom, ReadEvent: mx + "$7cBV"}, 1781004150047); err != nil {
 				t.Fatalf("SaveUnread: %v", err)
 			}
 			b.seedUnread(ctx)
@@ -239,13 +239,13 @@ func TestMarkReadSkipsAThreadedNewestEvent(t *testing.T) {
 		{ID: "$reply", TS: readAt(11).UnixMilli(), Thread: "$old"},
 	})
 	b := readBackend(t, srv.Server)
-	if err := b.MarkRead(context.Background(), readRoom, "$new", false); err != nil {
+	if err := b.MarkRead(context.Background(), readRoom, mx+"$new", false); err != nil {
 		t.Fatalf("MarkRead: %v", err)
 	}
 	if got := srv.posted(); len(got) != 1 || got[0] != "$new" {
 		t.Errorf("receipts = %v, want one at $new", got)
 	}
-	wantRead(t, b, "$new")
+	wantRead(t, b, mx+"$new")
 }
 
 // unreadOf is readRoom's in-memory unread state.
@@ -274,29 +274,29 @@ func TestStreamPosition(t *testing.T) {
 	}{
 		"a message with one after it": {
 			receipt: msg("$m", 50), after: []*event.Event{msg("$n", 40)},
-			want: readPos{Event: "$m", TS: 50}, wantOK: true,
+			want: readPos{Event: mx + "$m", TS: 50}, wantOK: true,
 		},
 		"a state event between messages": {
 			receipt: state("$s", 10), before: []*event.Event{msg("$b", 90)}, after: []*event.Event{msg("$a", 95)},
-			want: readPos{Event: "$b", TS: 90}, wantOK: true,
+			want: readPos{Event: mx + "$b", TS: 90}, wantOK: true,
 		},
 		"the last event, read through the newest cached": {
 			receipt: state("$s", 10), before: []*event.Event{msg("$b", 20)},
-			newest: readPos{Event: "$c", TS: 30},
-			want:   readPos{Event: "$c", TS: 30}, wantOK: true,
+			newest: readPos{Event: mx + "$c", TS: 30},
+			want:   readPos{Event: mx + "$c", TS: 30}, wantOK: true,
 		},
 		"the last event, later than every message": {
 			receipt: state("$s", 99), before: []*event.Event{msg("$b", 20)},
-			newest: readPos{Event: "$b", TS: 20},
-			want:   readPos{Event: "$b", TS: 99}, wantOK: true,
+			newest: readPos{Event: mx + "$b", TS: 20},
+			want:   readPos{Event: mx + "$b", TS: 99}, wantOK: true,
 		},
 		"before every message": {
 			receipt: state("$s", 70), after: []*event.Event{msg("$a", 60)},
-			want: readPos{Event: "$s", TS: 59}, wantOK: true,
+			want: readPos{Event: mx + "$s", TS: 59}, wantOK: true,
 		},
 		"an empty room": {
 			receipt: state("$s", 70),
-			want:    readPos{Event: "$s", TS: 70}, wantOK: true,
+			want:    readPos{Event: mx + "$s", TS: 70}, wantOK: true,
 		},
 		"a server that ignored the filter": {
 			receipt: state("$s", 70), after: []*event.Event{state("$t", 71)},
@@ -305,9 +305,9 @@ func TestStreamPosition(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := (ids{}).streamPosition(tt.receipt, tt.before, tt.after, tt.newest)
+			got, ok := testIDs.streamPosition(tt.receipt, tt.before, tt.after, tt.newest)
 			if ok != tt.wantOK || got != tt.want {
-				t.Errorf("(ids{}).streamPosition() = %+v, %v; want %+v, %v", got, ok, tt.want, tt.wantOK)
+				t.Errorf("testIDs.streamPosition() = %+v, %v; want %+v, %v", got, ok, tt.want, tt.wantOK)
 			}
 		})
 	}

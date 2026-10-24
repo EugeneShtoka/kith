@@ -14,31 +14,33 @@ func TestProtocolOf(t *testing.T) {
 		want domain.Protocol
 	}{
 		// Shapes observed in this account's own cache.
-		"whatsapp ghost":  {"@whatsapp_447009001234:example.org", domain.ProtocolWhatsApp},
-		"telegram ghost":  {"@telegram_1234567:example.org", domain.ProtocolTelegram},
-		"slack ghost":     {"@slack_t0abc1234-u09wxyz:example.org", domain.ProtocolSlack},
-		"meta ghost":      {"@meta_100001234567890:example.org", domain.ProtocolMessenger},
-		"gmessages ghost": {"@gmessages_2b3c4d:example.org", domain.ProtocolGMessages},
+		"whatsapp ghost":  {"matrix:@whatsapp_447009001234:example.org", domain.ProtocolWhatsApp},
+		"telegram ghost":  {"matrix:@telegram_1234567:example.org", domain.ProtocolTelegram},
+		"slack ghost":     {"matrix:@slack_t0abc1234-u09wxyz:example.org", domain.ProtocolSlack},
+		"meta ghost":      {"matrix:@meta_100001234567890:example.org", domain.ProtocolMessenger},
+		"gmessages ghost": {"matrix:@gmessages_2b3c4d:example.org", domain.ProtocolGMessages},
 		// linkedin's bridge doubles the separator; the token still matches.
-		"linkedin ghost": {"@linkedin__abc123:example.org", domain.ProtocolLinkedIn},
+		"linkedin ghost": {"matrix:@linkedin__abc123:example.org", domain.ProtocolLinkedIn},
 
 		// Bridge bots carry the token with a "bot" suffix and no separator.
-		"slack bot":    {"@slackbot:example.org", domain.ProtocolSlack},
-		"whatsapp bot": {"@whatsappbot:example.org", domain.ProtocolWhatsApp},
+		"slack bot":    {"matrix:@slackbot:example.org", domain.ProtocolSlack},
+		"whatsapp bot": {"matrix:@whatsappbot:example.org", domain.ProtocolWhatsApp},
 		// Some bridges prefix the whole localpart with an underscore.
-		"underscore-prefixed ghost": {"@_discord_11223344:example.org", domain.ProtocolDiscord},
+		"underscore-prefixed ghost": {"matrix:@_discord_11223344:example.org", domain.ProtocolDiscord},
 		// Case is not significant in the bridge token.
-		"mixed case": {"@WhatsApp_44700:example.org", domain.ProtocolWhatsApp},
+		"mixed case": {"matrix:@WhatsApp_44700:example.org", domain.ProtocolWhatsApp},
 
 		// Everything else is a native Matrix user.
-		"native":               {"@someone:example.org", domain.ProtocolMatrix},
-		"native with usebot":   {"@robot:example.org", domain.ProtocolMatrix},
-		"unknown bridge":       {"@zulip_42:example.org", domain.ProtocolMatrix},
-		"underscore localpart": {"@my_name:example.org", domain.ProtocolMatrix},
-		"leading separator":    {"@_private:example.org", domain.ProtocolMatrix},
-		"no server":            {"@whatsapp_44700", domain.ProtocolWhatsApp},
-		"malformed":            {"nonsense", domain.ProtocolMatrix},
-		"empty":                {"", domain.ProtocolMatrix},
+		"native":               {"matrix:@someone:example.org", domain.ProtocolMatrix},
+		"native with usebot":   {"matrix:@robot:example.org", domain.ProtocolMatrix},
+		"unknown bridge":       {"matrix:@zulip_42:example.org", domain.ProtocolMatrix},
+		"underscore localpart": {"matrix:@my_name:example.org", domain.ProtocolMatrix},
+		"leading separator":    {"matrix:@_private:example.org", domain.ProtocolMatrix},
+		"no server":            {"matrix:@whatsapp_44700", domain.ProtocolWhatsApp},
+		// No network's ID, a bare MXID included, is on no network.
+		"malformed": {"nonsense", ""},
+		"bare":      {"@whatsapp_44700:example.org", ""},
+		"empty":     {"", ""},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -87,14 +89,14 @@ func TestRepliesAreThreads(t *testing.T) {
 func TestIsBridgeBot(t *testing.T) {
 	t.Parallel()
 	for mxid, want := range map[string]bool{
-		"@telegrambot:x":      true,
-		"@whatsappbot_il:x":   true,
-		"@LinkedInBot:x":      true,
-		"@telegram_123456:x":  false,
-		"@linkedin_abc:x":     false,
-		"@telegrambotanist:x": false,
-		"@alice:x":            false,
-		"":                    false,
+		"matrix:@telegrambot:x":      true,
+		"matrix:@whatsappbot_il:x":   true,
+		"matrix:@LinkedInBot:x":      true,
+		"matrix:@telegram_123456:x":  false,
+		"matrix:@linkedin_abc:x":     false,
+		"matrix:@telegrambotanist:x": false,
+		"matrix:@alice:x":            false,
+		"":                           false,
 	} {
 		if got := domain.IsBridgeBot(mxid); got != want {
 			t.Errorf("IsBridgeBot(%q) = %v, want %v", mxid, got, want)

@@ -19,11 +19,11 @@ func propsModel(t *testing.T, cfg config.Config) Model {
 	t.Helper()
 	m := configured(cfg)
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo", IsDirect: true}, {ID: "!c:x", Name: "Charlie"},
+		{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo", IsDirect: true}, {ID: mx + "!c:x", Name: "Charlie"},
 	}})
 	return update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!made:x", Name: "Made", Children: []domain.RoomID{"!a:x", "!c:x"}},
-		{ID: "!bridge:x", Name: "Bridge", Children: []domain.RoomID{"!a:x"}, Bridge: domain.ProtocolWhatsApp, Keeper: "@bot:x"},
+		{ID: mx + "!made:x", Name: "Made", Children: []domain.RoomID{mx + "!a:x", mx + "!c:x"}},
+		{ID: mx + "!bridge:x", Name: "Bridge", Children: []domain.RoomID{mx + "!a:x"}, Bridge: domain.ProtocolWhatsApp, Keeper: "matrix:@bot:x"},
 	}})
 }
 
@@ -43,19 +43,19 @@ func TestASilentTagsRoomsCountAsRead(t *testing.T) {
 		{Name: "Unread", Rule: []string{"unread"}},
 		{Name: "All", Rule: []string{"*"}},
 	}})
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!a:x", Messages: 3, Counted: true}})
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!c:x", Messages: 1, Counted: true}})
-	if !rowHolds(t, m, "tag:Quiet", "!a:x") {
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!a:x", Messages: 3, Counted: true}})
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!c:x", Messages: 1, Counted: true}})
+	if !rowHolds(t, m, "tag:Quiet", mx+"!a:x") {
 		t.Error("the silent tag does not hold its unread room")
 	}
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!b:x", Messages: 1, Mentions: 1, Counted: true}})
-	if !rowHolds(t, m, "tag:Pings", "!b:x") {
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!b:x", Messages: 1, Mentions: 1, Counted: true}})
+	if !rowHolds(t, m, "tag:Pings", mx+"!b:x") {
 		t.Error("a silent tag judged by its own state does not hold the mention it silences")
 	}
-	if rowHolds(t, m, "tag:Busy", "!a:x") || rowHolds(t, m, unreadGroupKey, "!a:x") {
+	if rowHolds(t, m, "tag:Busy", mx+"!a:x") || rowHolds(t, m, unreadGroupKey, mx+"!a:x") {
 		t.Error("a silenced room is still unread to another tag or to Unread")
 	}
-	if !rowHolds(t, m, "tag:Busy", "!c:x") {
+	if !rowHolds(t, m, "tag:Busy", mx+"!c:x") {
 		t.Error("an unread room not silenced left Busy")
 	}
 	if n, _ := m.groupUnread(railRow(t, m, homeGroupKey)); n != 1 {
@@ -79,11 +79,11 @@ func TestAnExclusiveTagShowsItsRoomsAlone(t *testing.T) {
 		room domain.RoomID
 		want bool
 	}{
-		{"tag:Fam", "!b:x", true}, {"tag:Fam", "!a:x", true},
-		{"tag:Later", "!a:x", false}, // Fam is first
-		{"tag:Every", "!b:x", false}, {"tag:Every", "!c:x", true},
-		{homeGroupKey, "!b:x", false}, {dmsGroupKey, "!b:x", false}, {homeGroupKey, "!c:x", true},
-		{"Made", "!a:x", true}, {"Bridge", "!a:x", true},
+		{"tag:Fam", mx + "!b:x", true}, {"tag:Fam", mx + "!a:x", true},
+		{"tag:Later", mx + "!a:x", false}, // Fam is first
+		{"tag:Every", mx + "!b:x", false}, {"tag:Every", mx + "!c:x", true},
+		{homeGroupKey, mx + "!b:x", false}, {dmsGroupKey, mx + "!b:x", false}, {homeGroupKey, mx + "!c:x", true},
+		{"Made", mx + "!a:x", true}, {"Bridge", mx + "!a:x", true},
 	} {
 		if got := rowHolds(t, m, tc.key, tc.room); got != tc.want {
 			t.Errorf("%s holds %s = %t, want %t", tc.key, tc.room, got, tc.want)
@@ -106,15 +106,15 @@ func TestExclusiveTakesRoomsFromWhatItLists(t *testing.T) {
 		{[]string{"tags", "spaces", "origin"}, false, false, false},
 	} {
 		m := propsModel(t, config.Config{Tags: []config.Tag{
-			{Name: "Out", Picked: []string{"!a:x"}, Exclusive: tc.exclusive},
+			{Name: "Out", Picked: []string{mx + "!a:x"}, Exclusive: tc.exclusive},
 			{Name: "Every", Rule: []string{"*"}},
 		}})
 		for key, want := range map[string]bool{"Made": tc.made, "Bridge": tc.bridge, "tag:Every": tc.tags, "tag:Out": true} {
-			if got := rowHolds(t, m, key, "!a:x"); got != want {
+			if got := rowHolds(t, m, key, mx+"!a:x"); got != want {
 				t.Errorf("exclusive %v: %s holds it = %t, want %t", tc.exclusive, key, got, want)
 			}
 		}
-		if !rowHolds(t, m, "Made", "!c:x") || !rowHolds(t, m, "tag:Every", "!c:x") {
+		if !rowHolds(t, m, "Made", mx+"!c:x") || !rowHolds(t, m, "tag:Every", mx+"!c:x") {
 			t.Errorf("exclusive %v took a room the tag does not hold", tc.exclusive)
 		}
 	}
@@ -141,11 +141,11 @@ func TestTagRowProperties(t *testing.T) {
 		t.Errorf("row = %q, want its count of 3", row)
 	}
 
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!c:x", Messages: 1, Counted: true}})
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!c:x", Messages: 1, Counted: true}})
 	m.rail.cursor = indexOfGroup(m.rail.groups, "tag:Busy")
-	m.openRoom = "!c:x"
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!c:x"}})
-	if !slices.ContainsFunc(m.filteredRooms(), func(r domain.Room) bool { return r.ID == "!c:x" }) {
+	m.openRoom = mx + "!c:x"
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!c:x"}})
+	if !slices.ContainsFunc(m.filteredRooms(), func(r domain.Room) bool { return r.ID == mx+"!c:x" }) {
 		t.Error("a sticky tag dropped the open room once it was read")
 	}
 
@@ -168,7 +168,7 @@ func TestTagPropertiesOverRandomConfigs(t *testing.T) {
 		var rooms []domain.Room
 		var made, bridge []domain.RoomID
 		for i := range 2 + rng.IntN(6) {
-			id := domain.RoomID(fmt.Sprintf("!r%d:x", i))
+			id := domain.RoomID(fmt.Sprintf(mx+"!r%d:x", i))
 			rooms = append(rooms, domain.Room{ID: id, Name: fmt.Sprintf("R%d", i), IsDirect: rng.IntN(3) == 0})
 			if rng.IntN(2) == 0 {
 				made = append(made, id)
@@ -201,8 +201,8 @@ func TestTagPropertiesOverRandomConfigs(t *testing.T) {
 		tags = append(tags, config.Tag{Name: "Every", Rule: []string{"*"}})
 		m := update(t, configured(config.Config{Tags: tags}), roomsMsg{rooms: rooms})
 		m = update(t, m, spacesMsg{spaces: []domain.Space{
-			{ID: "!made:x", Name: "Made", Children: made},
-			{ID: "!bridge:x", Name: "Bridge", Children: bridge, Bridge: domain.ProtocolWhatsApp, Keeper: "@bot:x"},
+			{ID: mx + "!made:x", Name: "Made", Children: made},
+			{ID: mx + "!bridge:x", Name: "Bridge", Children: bridge, Bridge: domain.ProtocolWhatsApp, Keeper: "matrix:@bot:x"},
 		}})
 		for step := range 6 {
 			room := rooms[rng.IntN(len(rooms))].ID

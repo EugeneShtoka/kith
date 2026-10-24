@@ -22,8 +22,8 @@ func TestInvitesRoundTrip(t *testing.T) {
 	}
 
 	want := []domain.Room{
-		{ID: "!i1:x", Name: "Design Review", InvitedBy: "@alice:x"},
-		{ID: "!i2:x", Name: "Dana", InvitedBy: "@bob:x", IsDirect: true},
+		{ID: mx + "!i1:x", Name: "Design Review", InvitedBy: "matrix:@alice:x"},
+		{ID: mx + "!i2:x", Name: "Dana", InvitedBy: "matrix:@bob:x", IsDirect: true},
 	}
 	if serr := cache.SaveInvites(ctx, want); serr != nil {
 		t.Fatalf("SaveInvites: %v", serr)
@@ -42,10 +42,10 @@ func TestInvitesRoundTrip(t *testing.T) {
 			t.Errorf("%s did not read back as an invitation", r.ID)
 		}
 	}
-	if r := byID["!i1:x"]; r.Name != "Design Review" || r.InvitedBy != "@alice:x" || r.IsDirect {
+	if r := byID[mx+"!i1:x"]; r.Name != "Design Review" || r.InvitedBy != "matrix:@alice:x" || r.IsDirect {
 		t.Errorf("!i1:x = %+v", r)
 	}
-	if r := byID["!i2:x"]; !r.IsDirect || r.InvitedBy != "@bob:x" {
+	if r := byID[mx+"!i2:x"]; !r.IsDirect || r.InvitedBy != "matrix:@bob:x" {
 		t.Errorf("!i2:x = %+v", r)
 	}
 }
@@ -58,18 +58,18 @@ func TestSaveInvitesIsASnapshot(t *testing.T) {
 	cache := openTemp(t)
 
 	if err := cache.SaveInvites(ctx, []domain.Room{
-		{ID: "!i1:x", Name: "One"}, {ID: "!i2:x", Name: "Two"},
+		{ID: mx + "!i1:x", Name: "One"}, {ID: mx + "!i2:x", Name: "Two"},
 	}); err != nil {
 		t.Fatalf("SaveInvites: %v", err)
 	}
-	if err := cache.SaveInvites(ctx, []domain.Room{{ID: "!i2:x", Name: "Two"}}); err != nil {
+	if err := cache.SaveInvites(ctx, []domain.Room{{ID: mx + "!i2:x", Name: "Two"}}); err != nil {
 		t.Fatalf("SaveInvites: %v", err)
 	}
 	got, err := cache.Invites(ctx)
 	if err != nil {
 		t.Fatalf("Invites: %v", err)
 	}
-	if len(got) != 1 || got[0].ID != "!i2:x" {
+	if len(got) != 1 || got[0].ID != mx+"!i2:x" {
 		t.Fatalf("after a shrinking snapshot: %+v, want just !i2:x", got)
 	}
 	if serr := cache.SaveInvites(ctx, nil); serr != nil {
@@ -86,10 +86,10 @@ func TestRoomsAndInvitesAreIndependent(t *testing.T) {
 
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveInvites(ctx, []domain.Room{{ID: "!i1:x", Name: "Invited"}}); err != nil {
+	if err := cache.SaveInvites(ctx, []domain.Room{{ID: mx + "!i1:x", Name: "Invited"}}); err != nil {
 		t.Fatalf("SaveInvites: %v", err)
 	}
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	invites, err := cache.Invites(ctx)

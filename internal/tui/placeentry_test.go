@@ -14,10 +14,10 @@ import (
 // placeSpaces are a space renamed Desk, a Telegram forum, a Slack workspace, and a space
 // named like the DMs tag.
 var placeSpaces = []domain.Space{
-	{ID: "!w:x", Name: "Work"},
-	{ID: "!b:x", Name: "Board", Bridge: domain.ProtocolTelegram, Leaving: domain.LeftWhole},
-	{ID: "!a:x", Name: "Acme", Bridge: domain.ProtocolSlack, Leaving: domain.LeftBySigningOut},
-	{ID: "!d:x", Name: "DMs"},
+	{ID: mx + "!w:x", Name: "Work"},
+	{ID: mx + "!b:x", Name: "Board", Bridge: domain.ProtocolTelegram, Leaving: domain.LeftWhole},
+	{ID: mx + "!a:x", Name: "Acme", Bridge: domain.ProtocolSlack, Leaving: domain.LeftBySigningOut},
+	{ID: mx + "!d:x", Name: "DMs"},
 }
 
 var placeNames = []config.DisplayName{
@@ -78,7 +78,7 @@ func TestRailEntriesNameRowsOnlyByPrefix(t *testing.T) {
 	}
 	// hide_when_empty names rows as order does: every room is elsewhere, so each row it
 	// names is empty.
-	rooms := []domain.Room{{ID: "!r:x", Name: "Elsewhere"}}
+	rooms := []domain.Room{{ID: mx + "!r:x", Name: "Elsewhere"}}
 	for _, c := range []struct {
 		entries []string
 		gone    []string

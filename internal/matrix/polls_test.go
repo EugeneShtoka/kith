@@ -29,11 +29,11 @@ func TestPollStartMessage(t *testing.T) {
 			},
 		}},
 	}
-	msg, ok := (ids{}).pollStartMessage(evt)
+	msg, ok := testIDs.pollStartMessage(evt)
 	if !ok {
 		t.Fatal("pollStartMessage returned ok=false")
 	}
-	if msg.ID != "$poll:x" || msg.RoomID != "!r:x" || msg.Sender != "@ann:x" {
+	if msg.ID != mx+"$poll:x" || msg.RoomID != mx+"!r:x" || msg.Sender != "matrix:@ann:x" {
 		t.Errorf("message identity wrong: %+v", msg)
 	}
 	if msg.Poll == nil {
@@ -67,7 +67,7 @@ func TestPollStartMessageMultiple(t *testing.T) {
 			},
 		}},
 	}
-	msg, ok := (ids{}).pollStartMessage(evt)
+	msg, ok := testIDs.pollStartMessage(evt)
 	if !ok {
 		t.Fatal("ok=false")
 	}
@@ -79,7 +79,7 @@ func TestPollStartMessageMultiple(t *testing.T) {
 func TestPollStartMessageUnparsedIsSkipped(t *testing.T) {
 	t.Parallel()
 	evt := &event.Event{Type: event.EventUnstablePollStart, Content: event.Content{}}
-	if _, ok := (ids{}).pollStartMessage(evt); ok {
+	if _, ok := testIDs.pollStartMessage(evt); ok {
 		t.Error("unparsed poll start was accepted")
 	}
 }
@@ -90,23 +90,23 @@ func TestApplyResponseSingleChoice(t *testing.T) {
 		Options: []domain.PollOption{{ID: "a"}, {ID: "b"}, {ID: "c"}},
 		Ballots: map[string][]string{},
 	}
-	applyResponse(p, "@ann:x", []string{"a"}, 100, isSelfNone)
-	if got := p.Ballots["@ann:x"]; !reflect.DeepEqual(got, []string{"a"}) {
+	applyResponse(p, "matrix:@ann:x", []string{"a"}, 100, isSelfNone)
+	if got := p.Ballots["matrix:@ann:x"]; !reflect.DeepEqual(got, []string{"a"}) {
 		t.Errorf("ann voted a, got %v", got)
 	}
 	// Later vote replaces the earlier one.
-	applyResponse(p, "@ann:x", []string{"b"}, 200, isSelfNone)
-	if got := p.Ballots["@ann:x"]; !reflect.DeepEqual(got, []string{"b"}) {
+	applyResponse(p, "matrix:@ann:x", []string{"b"}, 200, isSelfNone)
+	if got := p.Ballots["matrix:@ann:x"]; !reflect.DeepEqual(got, []string{"b"}) {
 		t.Errorf("ann changed to b, got %v", got)
 	}
 	// Single-choice: a response naming two answers keeps only the first valid one.
-	applyResponse(p, "@bob:x", []string{"c", "a"}, 100, isSelfNone)
-	if got := p.Ballots["@bob:x"]; !reflect.DeepEqual(got, []string{"c"}) {
+	applyResponse(p, "matrix:@bob:x", []string{"c", "a"}, 100, isSelfNone)
+	if got := p.Ballots["matrix:@bob:x"]; !reflect.DeepEqual(got, []string{"c"}) {
 		t.Errorf("single-choice overflow, got %v", got)
 	}
 	// Empty answers retracts.
-	applyResponse(p, "@ann:x", nil, 300, isSelfNone)
-	if _, held := p.Ballots["@ann:x"]; held {
+	applyResponse(p, "matrix:@ann:x", nil, 300, isSelfNone)
+	if _, held := p.Ballots["matrix:@ann:x"]; held {
 		t.Error("empty answers did not retract ann's vote")
 	}
 }
@@ -118,13 +118,13 @@ func TestApplyResponseMultipleChoice(t *testing.T) {
 		Options:  []domain.PollOption{{ID: "a"}, {ID: "b"}, {ID: "c"}},
 		Ballots:  map[string][]string{},
 	}
-	applyResponse(p, "@ann:x", []string{"a", "b"}, 100, isSelfNone)
-	if got := p.Ballots["@ann:x"]; !reflect.DeepEqual(got, []string{"a", "b"}) {
+	applyResponse(p, "matrix:@ann:x", []string{"a", "b"}, 100, isSelfNone)
+	if got := p.Ballots["matrix:@ann:x"]; !reflect.DeepEqual(got, []string{"a", "b"}) {
 		t.Errorf("ann picked two, got %v", got)
 	}
 	// Duplicates and unknowns are ignored.
-	applyResponse(p, "@bob:x", []string{"a", "a", "z", "c"}, 100, isSelfNone)
-	if got := p.Ballots["@bob:x"]; !reflect.DeepEqual(got, []string{"a", "c"}) {
+	applyResponse(p, "matrix:@bob:x", []string{"a", "a", "z", "c"}, 100, isSelfNone)
+	if got := p.Ballots["matrix:@bob:x"]; !reflect.DeepEqual(got, []string{"a", "c"}) {
 		t.Errorf("bob deduped+unknown, got %v", got)
 	}
 }
@@ -135,9 +135,9 @@ func TestApplyResponseRetallies(t *testing.T) {
 		Options: []domain.PollOption{{ID: "a"}, {ID: "b"}},
 		Ballots: map[string][]string{},
 	}
-	applyResponse(p, "@ann:x", []string{"a"}, 100, func(id string) bool { return id == "@ann:x" })
-	applyResponse(p, "@bob:x", []string{"a"}, 100, func(id string) bool { return id == "@ann:x" })
-	applyResponse(p, "@cat:x", []string{"b"}, 100, func(id string) bool { return id == "@ann:x" })
+	applyResponse(p, "matrix:@ann:x", []string{"a"}, 100, func(id string) bool { return id == "matrix:@ann:x" })
+	applyResponse(p, "matrix:@bob:x", []string{"a"}, 100, func(id string) bool { return id == "matrix:@ann:x" })
+	applyResponse(p, "matrix:@cat:x", []string{"b"}, 100, func(id string) bool { return id == "matrix:@ann:x" })
 	if p.Voters != 3 {
 		t.Errorf("Voters = %d, want 3", p.Voters)
 	}
@@ -159,14 +159,14 @@ func TestApplyResponseIgnoresStaleRound(t *testing.T) {
 		Ballots: map[string][]string{},
 		Rounds:  map[string]uint32{},
 	}
-	applyResponse(p, "@ann:x", []string{"b"}, 300, isSelfNone)
+	applyResponse(p, "matrix:@ann:x", []string{"b"}, 300, isSelfNone)
 	// A stale backfill arrives for ann with an older round: the kept b must survive.
-	applyResponse(p, "@ann:x", []string{"a"}, 100, isSelfNone)
-	if got := p.Ballots["@ann:x"]; !reflect.DeepEqual(got, []string{"b"}) {
+	applyResponse(p, "matrix:@ann:x", []string{"a"}, 100, isSelfNone)
+	if got := p.Ballots["matrix:@ann:x"]; !reflect.DeepEqual(got, []string{"b"}) {
 		t.Errorf("stale round should not overwrite; got %v", got)
 	}
-	if p.Rounds["@ann:x"] != 300 {
-		t.Errorf("round regressed to %d", p.Rounds["@ann:x"])
+	if p.Rounds["matrix:@ann:x"] != 300 {
+		t.Errorf("round regressed to %d", p.Rounds["matrix:@ann:x"])
 	}
 }
 
@@ -202,13 +202,13 @@ func TestClonePollIndependent(t *testing.T) {
 		Rounds:  map[string]uint32{"@ann:x": 5},
 	}
 	out := clonePoll(src)
-	out.Ballots["@bob:x"] = []string{"a"}
-	out.Rounds["@bob:x"] = 7
+	out.Ballots["matrix:@bob:x"] = []string{"a"}
+	out.Rounds["matrix:@bob:x"] = 7
 	out.Options[0].Votes = 99
-	if _, held := src.Ballots["@bob:x"]; held {
+	if _, held := src.Ballots["matrix:@bob:x"]; held {
 		t.Error("clone's Ballots write reached the source")
 	}
-	if _, held := src.Rounds["@bob:x"]; held {
+	if _, held := src.Rounds["matrix:@bob:x"]; held {
 		t.Error("clone's Rounds write reached the source")
 	}
 	if src.Options[0].Votes != 1 {
@@ -219,14 +219,14 @@ func TestClonePollIndependent(t *testing.T) {
 func TestApplyEventsLatestWinsAndEndStops(t *testing.T) {
 	t.Parallel()
 	p := &domain.Poll{Options: []domain.PollOption{{ID: "a"}, {ID: "b"}}, Ballots: map[string][]string{}}
-	starter := "@ann:x"
+	starter := "matrix:@ann:x"
 	events := []*event.Event{
 		pollResponseEvent("$r1", "@bob:x", 100, []string{"a"}),
 		pollResponseEvent("$r2", "@bob:x", 300, []string{"b"}),
-		pollEndEvent("$end", starter, 200), // ends at 200: bob's 300 is dropped
+		pollEndEvent("$end", "@ann:x", 200), // ends at 200: bob's 300 is dropped
 	}
-	(ids{}).applyEvents(p, starter, events, isSelfNone)
-	if got := p.Ballots["@bob:x"]; !reflect.DeepEqual(got, []string{"a"}) {
+	testIDs.applyEvents(p, starter, events, isSelfNone)
+	if got := p.Ballots["matrix:@bob:x"]; !reflect.DeepEqual(got, []string{"a"}) {
 		t.Errorf("bob's a (pre-end) should win, got %v", got)
 	}
 	if !p.Closed {
@@ -238,7 +238,7 @@ func TestApplyEventsEndRequiresStarter(t *testing.T) {
 	t.Parallel()
 	p := &domain.Poll{Options: []domain.PollOption{{ID: "a"}}, Ballots: map[string][]string{}}
 	events := []*event.Event{pollEndEvent("$x", "@mallory:x", 100)}
-	(ids{}).applyEvents(p, "@ann:x", events, isSelfNone)
+	testIDs.applyEvents(p, "matrix:@ann:x", events, isSelfNone)
 	if p.Closed {
 		t.Error("a non-starter's end closed the poll")
 	}
@@ -256,13 +256,13 @@ func TestPollValidAnswersPreservesOrder(t *testing.T) {
 func TestPollBackfillClaimDedupes(t *testing.T) {
 	t.Parallel()
 	var b pollBackfill
-	if !b.claim("$a") {
+	if !b.claim(mx + "$a") {
 		t.Error("first claim should succeed")
 	}
-	if b.claim("$a") {
+	if b.claim(mx + "$a") {
 		t.Error("second claim for same id should be refused")
 	}
-	if !b.claim("$b") {
+	if !b.claim(mx + "$b") {
 		t.Error("different id should claim")
 	}
 }
@@ -272,7 +272,7 @@ func TestPollResponseTargetFromParsed(t *testing.T) {
 	evt := &event.Event{Content: event.Content{Parsed: &event.PollResponseEventContent{
 		RelatesTo: event.RelatesTo{Type: event.RelReference, EventID: id.EventID("$start")},
 	}}}
-	if got := (ids{}).pollResponseTarget(evt); got != "$start" {
+	if got := testIDs.pollResponseTarget(evt); got != mx+"$start" {
 		t.Errorf("target = %q, want $start", got)
 	}
 }
@@ -282,7 +282,7 @@ func TestPollResponseTargetFromRaw(t *testing.T) {
 	evt := &event.Event{Content: event.Content{Raw: map[string]any{
 		"m.relates_to": map[string]any{"rel_type": "m.reference", "event_id": "$start"},
 	}}}
-	if got := (ids{}).pollResponseTarget(evt); got != "$start" {
+	if got := testIDs.pollResponseTarget(evt); got != mx+"$start" {
 		t.Errorf("target = %q, want $start", got)
 	}
 }

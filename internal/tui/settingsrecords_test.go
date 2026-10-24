@@ -29,7 +29,7 @@ func TestFirstNamesPerPlace(t *testing.T) {
 	t.Parallel()
 	m, path := laidOut(t, config.Display{})
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}, {ID: "!d:x", Name: "Dana", IsDirect: true},
+		{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}, {ID: mx + "!d:x", Name: "Dana", IsDirect: true},
 	}})
 	for _, key := range []string{"Work", "Friends", "tag:DMs"} {
 		if got := rowFor(t, m.settingsIn(placePage(key), ""), "First names only").detail; got != "off" {
@@ -115,8 +115,8 @@ func TestRecordsAreEditedInSettings(t *testing.T) {
 	m = m.settingsIn(m.choosing.settingGroup, recordPrefix+"display.identity#0.ids")
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = pickLabel(t, m, "Add an entry")
-	m = typeIn(t, m, "@dana:x")
-	if ids := m.conf.base.Display.Identities[0].IDs; !slices.Equal(ids, []string{"@dana:x"}) {
+	m = typeIn(t, m, "matrix:@dana:x")
+	if ids := m.conf.base.Display.Identities[0].IDs; !slices.Equal(ids, []string{"matrix:@dana:x"}) {
 		t.Errorf("ids = %v", ids)
 	}
 

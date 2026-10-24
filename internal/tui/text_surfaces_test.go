@@ -36,13 +36,13 @@ type textSurface struct {
 // named with it and saying it, and a threaded reply.
 func surfaceRoom(t *testing.T, text string) Model {
 	t.Helper()
-	m := sized(t, update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: text, Topic: text}}}))
+	m := sized(t, update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: text, Topic: text}}}))
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
 		Messages: []domain.Message{
-			{ID: "$1", RoomID: "!a:x", Sender: "@d:x", SenderName: text, Body: text, Timestamp: at(1)},
-			{ID: "$2", RoomID: "!a:x", Sender: "@d:x", SenderName: text, Body: "reply", Timestamp: at(2), ThreadRoot: "$1"},
+			{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@d:x", SenderName: text, Body: text, Timestamp: at(1)},
+			{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@d:x", SenderName: text, Body: "reply", Timestamp: at(2), ThreadRoot: mx + "$1"},
 		},
 	}})
 	m.focus, m.compose.insertMode = paneTimeline, false
@@ -81,32 +81,32 @@ func textSurfaces() []textSurface {
 		// A chip is our line with the file name in it ("📎 <name> · 240 KB"): LTR and not
 		// flushed, the name in visual order.
 		{name: "attachment file name", draw: func(t *testing.T, m Model, text string) string {
-			msg := domain.Message{ID: "$f", RoomID: "!a:x", Sender: "@d:x", Timestamp: at(3),
+			msg := domain.Message{ID: mx + "$f", RoomID: mx + "!a:x", Sender: "matrix:@d:x", Timestamp: at(3),
 				Media: &domain.Media{Type: domain.MediaFile, Name: text}}
 			return strings.Join(m.messageRows(msg, messageWidth, m.nameColWidth(), m.senderColorMap(), false, ""), "\n")
 		}},
 		{name: "captioned attachment chip", draw: func(t *testing.T, m Model, text string) string {
-			msg := domain.Message{ID: "$f", RoomID: "!a:x", Sender: "@d:x", Timestamp: at(3), Body: "caption",
+			msg := domain.Message{ID: mx + "$f", RoomID: mx + "!a:x", Sender: "matrix:@d:x", Timestamp: at(3), Body: "caption",
 				Media: &domain.Media{Type: domain.MediaFile, Name: text}}
 			return strings.Join(m.hangingRows(msg, nil, 8, 80), "\n")
 		}},
 		{name: "revealed deleted message", draw: func(t *testing.T, m Model, text string) string {
-			msg := domain.Message{ID: "$r", RoomID: "!a:x", Sender: "@d:x", Timestamp: at(3), Body: text, Redacted: true}
+			msg := domain.Message{ID: mx + "$r", RoomID: mx + "!a:x", Sender: "matrix:@d:x", Timestamp: at(3), Body: text, Redacted: true}
 			m.timeline.revealed = map[domain.EventID]bool{msg.ID: true}
 			return strings.Join(m.messageRows(msg, messageWidth, m.nameColWidth(), m.senderColorMap(), false, ""), "\n")
 		}},
 		{name: "deleted message reason", draw: func(t *testing.T, m Model, text string) string {
-			msg := domain.Message{ID: "$r", RoomID: "!a:x", Sender: "@d:x", Timestamp: at(3),
-				Redacted: true, RedactedBy: "@mod:x", RedactedReason: text}
+			msg := domain.Message{ID: mx + "$r", RoomID: mx + "!a:x", Sender: "matrix:@d:x", Timestamp: at(3),
+				Redacted: true, RedactedBy: "matrix:@mod:x", RedactedReason: text}
 			return strings.Join(m.messageRows(msg, messageWidth, m.nameColWidth(), m.senderColorMap(), false, ""), "\n")
 		}},
 		{name: "reply quote", draw: func(t *testing.T, m Model, text string) string {
-			reply := domain.Message{ID: "$q", RoomID: "!a:x", Sender: "@e:x", ReplyTo: "$1", Timestamp: at(3)}
+			reply := domain.Message{ID: mx + "$q", RoomID: mx + "!a:x", Sender: "matrix:@e:x", ReplyTo: mx + "$1", Timestamp: at(3)}
 			return m.replyPreview(reply, m.derivedFor(), 8, 80, m.senderColorMap())
 		}},
 		{name: "thread summary row", draw: func(t *testing.T, m Model, text string) string {
-			return m.threadRow(domain.Thread{RoomID: "!a:x", Count: 2, RootLoaded: true,
-				LatestSender: "@d:x", LatestSenderName: text, LatestAt: at(2)}, 8, 80)
+			return m.threadRow(domain.Thread{RoomID: mx + "!a:x", Count: 2, RootLoaded: true,
+				LatestSender: "matrix:@d:x", LatestSenderName: text, LatestAt: at(2)}, 8, 80)
 		}},
 		{name: "topic reader", flush: 60, draw: func(t *testing.T, m Model, text string) string {
 			return strings.Join(m.readerLines(m.topicLines(), 60, nil), "\n")
@@ -116,7 +116,7 @@ func textSurfaces() []textSurface {
 		}},
 		{name: "history version", flush: 59, draw: func(t *testing.T, m Model, text string) string {
 			m.history.msg = m.fixtureMessage(t)
-			m.history.revs = []domain.Revision{{ID: "$1", Body: text, At: at(1)}}
+			m.history.revs = []domain.Revision{{ID: mx + "$1", Body: text, At: at(1)}}
 			return strings.Join(m.versionLines(60), "\n")
 		}},
 		{name: "history title", draw: func(t *testing.T, m Model, text string) string {
@@ -125,7 +125,7 @@ func textSurfaces() []textSurface {
 		}},
 		{name: "history deletion line", draw: func(t *testing.T, m Model, text string) string {
 			msg := m.fixtureMessage(t)
-			msg.Redacted, msg.RedactedBy, msg.RedactedReason = true, "@mod:x", text
+			msg.Redacted, msg.RedactedBy, msg.RedactedReason = true, "matrix:@mod:x", text
 			m.history.msg = msg
 			return m.deletionLine()
 		}},
@@ -133,7 +133,7 @@ func textSurfaces() []textSurface {
 			return m.excerptCell(domain.HighlightStart+text+domain.HighlightEnd, 40)
 		}},
 		{name: "search row sender", draw: func(t *testing.T, m Model, text string) string {
-			return m.searchRow(domain.SearchHit{RoomID: "!a:x", SenderName: text, Snippet: "x", Timestamp: at(1)}, false, 80)
+			return m.searchRow(domain.SearchHit{RoomID: mx + "!a:x", SenderName: text, Snippet: "x", Timestamp: at(1)}, false, 80)
 		}},
 		{name: "room list row", draw: func(t *testing.T, m Model, text string) string {
 			return m.listRow(rowLabel{name: m.roomLabel(m.fixtureRoom(t))}, "", false, 40, false, true)
@@ -149,7 +149,7 @@ func textSurfaces() []textSurface {
 			return strings.SplitN(m.renderTimeline(100, 12), "\n", 3)[1]
 		}},
 		{name: "thread breadcrumb", draw: func(t *testing.T, m Model, text string) string {
-			m.thread.root = "$1"
+			m.thread.root = mx + "$1"
 			return m.framePane(threadMark+" "+m.threadTitle(), nil, 100, 4, true)
 		}},
 		{name: "thread picker", draw: func(t *testing.T, m Model, text string) string {
@@ -162,15 +162,15 @@ func textSurfaces() []textSurface {
 		{name: "room thread picker, one room", draw: func(t *testing.T, m Model, text string) string {
 			room := m.fixtureRoom(t)
 			next, _ := m.handleScopeThreads(scopeThreadsMsg{only: room, threads: []scopeThread{{room: room,
-				thread: domain.Thread{Root: "$1", RoomID: room.ID, Count: 1, LatestSender: "@e:x", LatestSenderName: "bob"}}}})
+				thread: domain.Thread{Root: mx + "$1", RoomID: room.ID, Count: 1, LatestSender: "matrix:@e:x", LatestSenderName: "bob"}}}})
 			return strings.Join(next.pickerLines(60, 4), "\n")
 		}},
 		{name: "scoped thread picker, several rooms", draw: func(t *testing.T, m Model, text string) string {
 			room := m.fixtureRoom(t)
-			other := domain.Room{ID: "!b:x", Name: "other"}
-			thread := domain.Thread{Root: "$1", RoomID: room.ID, Count: 1, LatestSender: "@e:x", LatestSenderName: "bob", LatestAt: at(2)}
+			other := domain.Room{ID: mx + "!b:x", Name: "other"}
+			thread := domain.Thread{Root: mx + "$1", RoomID: room.ID, Count: 1, LatestSender: "matrix:@e:x", LatestSenderName: "bob", LatestAt: at(2)}
 			next, _ := m.handleScopeThreads(scopeThreadsMsg{threads: []scopeThread{
-				{room: room, thread: thread}, {room: other, thread: domain.Thread{Root: "$9", RoomID: other.ID, Count: 1}},
+				{room: room, thread: thread}, {room: other, thread: domain.Thread{Root: mx + "$9", RoomID: other.ID, Count: 1}},
 			}})
 			return strings.Join(next.pickerLines(80, 4), "\n")
 		}},
@@ -181,28 +181,28 @@ func textSurfaces() []textSurface {
 		}},
 		// A rule's scope is our sentence around names: a person's alias, a space.
 		{name: "rule list, person", draw: func(t *testing.T, m Model, text string) string {
-			m.prefs.identities = map[string]resolvedIdentity{"@d:x": {alias: text}}
-			m.conf.base.Notifications.Rules = []config.Rule{{Sender: "@d:x"}}
+			m.prefs.identities = map[string]resolvedIdentity{"matrix:@d:x": {alias: text}}
+			m.conf.base.Notifications.Rules = []config.Rule{{Sender: "matrix:@d:x"}}
 			next, _ := m.openRuleList()
 			return strings.Join(next.pickerLines(60, 4), "\n")
 		}},
 		{name: "rule list, space", draw: func(t *testing.T, m Model, text string) string {
-			m.conf.base.Notifications.Rules = []config.Rule{{Sender: "@e:x", Match: "space:" + text}}
+			m.conf.base.Notifications.Rules = []config.Rule{{Sender: "matrix:@e:x", Match: "space:" + text}}
 			next, _ := m.openRuleList()
 			return strings.Join(next.pickerLines(60, 4), "\n")
 		}},
 		{name: "scheduled message picker", draw: func(t *testing.T, m Model, text string) string {
 			now := time.Now()
-			entry := domain.ScheduledMessage{ID: "s", RoomID: "!a:x", Body: text, At: now.Add(time.Hour), Written: now}
+			entry := domain.ScheduledMessage{ID: "s", RoomID: mx + "!a:x", Body: text, At: now.Add(time.Hour), Written: now}
 			return m.labeledRow(cursor(false), m.scheduledRowLabel(entry, now), "", false, 80)
 		}},
 		{name: "people picker", draw: func(t *testing.T, m Model, text string) string {
-			m.timeline.members = []domain.Member{{UserID: "@d:x", DisplayName: text}}
+			m.timeline.members = []domain.Member{{UserID: "matrix:@d:x", DisplayName: text}}
 			m.picker = newPicker(pickerPeople, m.peopleItems())
 			return strings.Join(m.pickerLines(60, 4), "\n")
 		}},
 		{name: "picker filter header", draw: func(t *testing.T, m Model, text string) string {
-			m.timeline.members = []domain.Member{{UserID: "@d:x", DisplayName: text}}
+			m.timeline.members = []domain.Member{{UserID: "matrix:@d:x", DisplayName: text}}
 			m.picker = newPicker(pickerPeople, m.peopleItems())
 			m.picker.filter = text
 			m.picker = m.picker.refilter()
@@ -221,7 +221,7 @@ func textSurfaces() []textSurface {
 			return strings.Join(ruled.pickerLines(60, 6), "\n")
 		}},
 		{name: "mention completion", draw: func(t *testing.T, m Model, text string) string {
-			m.timeline.members = []domain.Member{{UserID: "@d:x", DisplayName: text}}
+			m.timeline.members = []domain.Member{{UserID: "matrix:@d:x", DisplayName: text}}
 			rows := m.mentionCandidates("")
 			if len(rows) == 0 {
 				t.Fatal("no candidate")
@@ -232,7 +232,7 @@ func textSurfaces() []textSurface {
 			return m.say("marked " + m.roomName(m.fixtureRoom(t)) + " read").renderStatus()
 		}},
 		{name: "go to person status", draw: func(t *testing.T, m Model, text string) string {
-			m.prefs.identities = map[string]resolvedIdentity{"@d:x": {alias: text}}
+			m.prefs.identities = map[string]resolvedIdentity{"matrix:@d:x": {alias: text}}
 			next, _ := m.followLink("matrix:u/d:x")
 			return next.renderStatus()
 		}},
@@ -245,7 +245,7 @@ func textSurfaces() []textSurface {
 		{name: "mark space read prompt", draw: func(t *testing.T, m Model, text string) string {
 			m.rail.groups = []group{{key: "s", label: text, admits: func(unreadView, domain.Room) bool { return true }}}
 			m.rail.cursor = 0
-			m.unread["!a:x"] = domain.Unread{RoomID: "!a:x", Messages: 1, Counted: true}
+			m.unread[mx+"!a:x"] = domain.Unread{RoomID: mx + "!a:x", Messages: 1, Counted: true}
 			next, _ := m.askMarkGroupRead()
 			if next.confirm.action != pendingMarkGroupRead {
 				t.Fatal("no confirmation asked")
@@ -257,7 +257,7 @@ func textSurfaces() []textSurface {
 			return next.renderStatus()
 		}},
 		{name: "saving attachment status", draw: func(t *testing.T, m Model, text string) string {
-			msg := domain.Message{ID: "$f", RoomID: "!a:x", Sender: "@d:x", Timestamp: at(3),
+			msg := domain.Message{ID: mx + "$f", RoomID: mx + "!a:x", Sender: "matrix:@d:x", Timestamp: at(3),
 				Media: &domain.Media{Type: domain.MediaFile, Name: text}}
 			m = m.setMessages(append(m.timeline.messages, msg))
 			m.timeline.selected = msg.ID
@@ -275,19 +275,19 @@ func textSurfaces() []textSurface {
 			return m.whyView()
 		}},
 		{name: "typing note", draw: func(t *testing.T, m Model, text string) string {
-			m.live.typists = map[domain.RoomID][]string{"!a:x": {"@d:x"}}
+			m.live.typists = map[domain.RoomID][]string{mx + "!a:x": {"matrix:@d:x"}}
 			return m.composerDivider(80)
 		}},
 		{name: "invitation", draw: func(t *testing.T, m Model, text string) string {
-			m.prefs.identities = map[string]resolvedIdentity{"@d:x": {alias: text}}
-			return strings.Join(m.inviteLines(domain.Room{ID: "!i:x", Name: text, InvitedBy: "@d:x"}, 60, 20), "\n")
+			m.prefs.identities = map[string]resolvedIdentity{"matrix:@d:x": {alias: text}}
+			return strings.Join(m.inviteLines(domain.Room{ID: mx + "!i:x", Name: text, InvitedBy: "matrix:@d:x"}, 60, 20), "\n")
 		}},
 		// The whole frame, last: catches any name that reaches the screen in the default layout.
 		{name: "whole frame", draw: func(t *testing.T, m Model, text string) string {
 			return m.View().Content
 		}},
 		{name: "whole frame, thread open", draw: func(t *testing.T, m Model, text string) string {
-			m.thread.root = "$1"
+			m.thread.root = mx + "$1"
 			return m.View().Content
 		}},
 		{name: "player title", draw: func(t *testing.T, m Model, text string) string {

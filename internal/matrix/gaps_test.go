@@ -221,7 +221,7 @@ func runGapCase(t *testing.T, c gapCase) (*InProc, *gapServer, []domain.Message,
 	for i := c.held - 1; i >= 0; i-- {
 		heldChunk = append(heldChunk, c.event(t, i))
 	}
-	b.cachePage(ctx, gapRoom, heldChunk, "")
+	b.cachePage(ctx, testIDs.roomOf(gapRoom), heldChunk, "")
 
 	var mu sync.Mutex
 	var counted, announced []domain.Message
@@ -304,7 +304,7 @@ func checkGapCase(t *testing.T, c gapCase) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cached, err := b.cache.Messages(ctx, gapRoom, -1)
+	cached, err := b.cache.Messages(ctx, testIDs.roomOf(gapRoom), -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +326,7 @@ func checkGapCase(t *testing.T, c gapCase) {
 		}
 	}
 	for i := range c.held {
-		if seen[domain.EventID(gapEventID(i))] > 0 {
+		if seen[testIDs.eventOf(gapEventID(i))] > 0 {
 			t.Errorf("%v: %s was held before the gap but counted as new", c, gapEventID(i))
 		}
 	}
@@ -389,7 +389,7 @@ func checkGapCase(t *testing.T, c gapCase) {
 	}
 	liveTarget := c.held + (len(c.events)-c.live-c.held)/2
 	if srv.lived {
-		if m, ok := byID[domain.EventID(gapEventID(liveTarget))]; ok && !m.Redacted && c.events[liveTarget].kind == "text" {
+		if m, ok := byID[testIDs.eventOf(gapEventID(liveTarget))]; ok && !m.Redacted && c.events[liveTarget].kind == "text" {
 			t.Errorf("%v: %s deleted live while the gap filled is shown: %q", c, gapEventID(liveTarget), m.Body)
 		}
 	}
@@ -397,7 +397,7 @@ func checkGapCase(t *testing.T, c gapCase) {
 		if c.events[i].kind != "text" || srv.lived && i == liveTarget {
 			continue
 		}
-		m, ok := byID[domain.EventID(gapEventID(i))]
+		m, ok := byID[testIDs.eventOf(gapEventID(i))]
 		if !ok {
 			t.Errorf("%v: %s in the gap was not cached", c, gapEventID(i))
 			continue
@@ -417,7 +417,7 @@ func checkGapCase(t *testing.T, c gapCase) {
 		if srv.lived && target == liveTarget {
 			continue // deleted live
 		}
-		if m, ok := byID[domain.EventID(gapEventID(target))]; ok && m.Body != c.bodyOf(edit) {
+		if m, ok := byID[testIDs.eventOf(gapEventID(target))]; ok && m.Body != c.bodyOf(edit) {
 			t.Errorf("%v: %s shows %q; want its edit inside the gap, %q", c, gapEventID(target), m.Body, c.bodyOf(edit))
 		}
 	}
@@ -427,7 +427,7 @@ func checkGapCase(t *testing.T, c gapCase) {
 		if e.kind != "redact" || c.events[e.target].kind != "text" {
 			continue
 		}
-		if m, ok := byID[domain.EventID(gapEventID(e.target))]; ok && !m.Redacted {
+		if m, ok := byID[testIDs.eventOf(gapEventID(e.target))]; ok && !m.Redacted {
 			t.Errorf("%v: %s deleted inside the gap is still shown: %q", c, gapEventID(e.target), m.Body)
 		}
 	}
@@ -447,18 +447,18 @@ func TestScrollingPastAGapFillsIt(t *testing.T) {
 	for i := c.held - 1; i >= 0; i-- {
 		held = append(held, c.event(t, i))
 	}
-	b.cachePage(ctx, gapRoom, held, "")
-	if added, err := b.cache.AddGap(ctx, gapRoom, "t18", oldestOf([]*event.Event{c.event(t, 18)}), false); err != nil || !added {
+	b.cachePage(ctx, testIDs.roomOf(gapRoom), held, "")
+	if added, err := b.cache.AddGap(ctx, testIDs.roomOf(gapRoom), "t18", oldestOf([]*event.Event{c.event(t, 18)}), false); err != nil || !added {
 		t.Fatalf("AddGap = %v, %v", added, err)
 	}
 
-	if _, err := b.Timeline(ctx, gapRoom, "t20", 5); err != nil {
+	if _, err := b.Timeline(ctx, testIDs.roomOf(gapRoom), "t20", 5); err != nil {
 		t.Fatal(err)
 	}
 	if gaps, _ := b.cache.Gaps(ctx); len(gaps) != 1 {
 		t.Fatalf("a page above the gap dropped it: %+v", gaps)
 	}
-	if _, err := b.Timeline(ctx, gapRoom, "t15", 50); err != nil {
+	if _, err := b.Timeline(ctx, testIDs.roomOf(gapRoom), "t15", 50); err != nil {
 		t.Fatal(err)
 	}
 	if gaps, _ := b.cache.Gaps(ctx); len(gaps) != 0 {

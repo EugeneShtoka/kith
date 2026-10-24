@@ -19,9 +19,9 @@ import (
 func TestPagesOfWhatSomeoneSaidJoinWithoutLossOrRepeat(t *testing.T) {
 	t.Parallel()
 
-	rooms := []domain.RoomID{"!a:x", "!b:x", "!c:x"}
-	them := []string{"@dana:x", "whatsapp:dana"}
-	senders := append(slices.Clone(them), "@ezra:x")
+	rooms := []domain.RoomID{mx + "!a:x", mx + "!b:x", mx + "!c:x"}
+	them := []string{"matrix:@dana:x", "whatsapp:dana"}
+	senders := append(slices.Clone(them), "matrix:@ezra:x")
 	for seed := range uint64(40) {
 		t.Run(fmt.Sprint(seed), func(t *testing.T) {
 			t.Parallel()
@@ -31,7 +31,7 @@ func TestPagesOfWhatSomeoneSaidJoinWithoutLossOrRepeat(t *testing.T) {
 			for i := range 30 + rng.IntN(30) {
 				room := rooms[rng.IntN(len(rooms))]
 				// Few times, seqs and IDs, so ties are the rule: the same ID in two rooms too.
-				id := domain.EventID(fmt.Sprintf("$%s", "xyz"[:1+rng.IntN(3)]+fmt.Sprint(rng.IntN(8))))
+				id := domain.EventID(fmt.Sprintf(mx+"$%s", "xyz"[:1+rng.IntN(3)]+fmt.Sprint(rng.IntN(8))))
 				if slices.ContainsFunc(all, func(m domain.Message) bool { return m.RoomID == room && m.ID == id }) {
 					continue
 				}
@@ -103,10 +103,10 @@ func placesOf(msgs []domain.Message) []string {
 func TestMessageCountsCountWhatIsReadOfEachPerson(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
-	for i, sender := range []string{"@ann:x", "@ann:x", "@whatsapp_15550000001:example.org", "@bob:x"} {
-		mustSave(t, cache, "!a:x", domain.Message{ID: domain.EventID(fmt.Sprint("$", i)), Sender: sender, Body: "hi", Timestamp: time.UnixMilli(int64(i))})
+	for i, sender := range []string{"matrix:@ann:x", "matrix:@ann:x", "matrix:@whatsapp_15550000001:example.org", "matrix:@bob:x"} {
+		mustSave(t, cache, mx+"!a:x", domain.Message{ID: domain.EventID(fmt.Sprint("$", i)), Sender: sender, Body: "hi", Timestamp: time.UnixMilli(int64(i))})
 	}
-	got, err := cache.MessageCounts(ctx, [][]string{{"@ann:x", domain.PhoneID("15550000001")}, {"@bob:x"}, nil})
+	got, err := cache.MessageCounts(ctx, [][]string{{"matrix:@ann:x", domain.PhoneID("15550000001")}, {"matrix:@bob:x"}, nil})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestWhatSomeoneSaidIsReadByEveryIDThatHidesThem(t *testing.T) {
 			groups = [][]string{{pick(hiddenPool), pick(hiddenPool)}}
 		}
 		for i := range 12 {
-			mustSave(t, cache, "!a:x", domain.Message{
+			mustSave(t, cache, mx+"!a:x", domain.Message{
 				ID: domain.EventID(fmt.Sprint("$", i)), Sender: pick(hiddenPool), Body: "hi", Timestamp: time.UnixMilli(int64(i)),
 			})
 		}

@@ -23,7 +23,7 @@ import (
 
 // linkMsg is a message carrying one address.
 func linkMsg(body, html string) domain.Message {
-	return domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@her:x", Body: body, Format: richtext.FromMarkup(html)}
+	return domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: body, Format: richtext.FromMarkup(html)}
 }
 
 // A link to a room you are in is a move, not a question.
@@ -32,11 +32,11 @@ func TestFollowingALinkToAJoinedRoomOpensIt(t *testing.T) {
 
 	m := withRooms(t, sized(t, newModel()))
 	m = m.setMessages([]domain.Message{linkMsg("see https://matrix.to/#/!b:x for details", "")})
-	m.timeline.selected = "$1"
+	m.timeline.selected = mx + "$1"
 
 	next, _ := m.takeContext(actOpenURL)
 	got := next
-	if got.openRoom != "!b:x" {
+	if got.openRoom != mx+"!b:x" {
 		t.Errorf("open room = %q, want !b:x", got.openRoom)
 	}
 	if got.confirm.active() {
@@ -50,14 +50,14 @@ func TestFollowingALinkToAMessageQueuesTheJump(t *testing.T) {
 
 	m := withRooms(t, sized(t, newModel()))
 	m = m.setMessages([]domain.Message{linkMsg("https://matrix.to/#/!b:x/$deep", "")})
-	m.timeline.selected = "$1"
+	m.timeline.selected = mx + "$1"
 
 	next, _ := m.takeContext(actOpenURL)
 	got := next
-	if got.openRoom != "!b:x" {
+	if got.openRoom != mx+"!b:x" {
 		t.Fatalf("open room = %q, want !b:x", got.openRoom)
 	}
-	if got.jump.to != "$deep" {
+	if got.jump.to != mx+"$deep" {
 		t.Errorf("jump.to = %q, want $deep", got.jump.to)
 	}
 }
@@ -69,7 +69,7 @@ func TestFollowingALinkToARoomWeAreNotInAsksFirst(t *testing.T) {
 
 	m := withRooms(t, sized(t, newModel()))
 	m = m.setMessages([]domain.Message{linkMsg("https://matrix.to/#/%23book-club:example.org?via=one.org", "")})
-	m.timeline.selected = "$1"
+	m.timeline.selected = mx + "$1"
 
 	next, _ := m.takeContext(actOpenURL)
 	got := next
@@ -95,7 +95,7 @@ func TestFollowingALinkToAPersonOpensTheSwitcher(t *testing.T) {
 
 	m := withRooms(t, sized(t, newModel()))
 	m = m.setMessages([]domain.Message{linkMsg("matrix:u/alice:example.org said so", "")})
-	m.timeline.selected = "$1"
+	m.timeline.selected = mx + "$1"
 
 	next, _ := m.takeContext(actOpenURL)
 	got := next
@@ -119,7 +119,7 @@ func TestFollowingFindsTheAddressInsideAPill(t *testing.T) {
 		"Alice said so",
 		`<a href="https://matrix.to/#/@alice:example.org">Alice</a> said so`,
 	)})
-	m.timeline.selected = "$1"
+	m.timeline.selected = mx + "$1"
 
 	next, _ := m.takeContext(actOpenURL)
 	got := next
@@ -135,7 +135,7 @@ func TestSeveralPlacesAsksWhich(t *testing.T) {
 	m := withRooms(t, sized(t, newModel()))
 	m = m.setMessages([]domain.Message{linkMsg(
 		"https://matrix.to/#/!b:x and https://matrix.to/#/@alice:example.org", "")})
-	m.timeline.selected = "$1"
+	m.timeline.selected = mx + "$1"
 
 	next, _ := m.takeContext(actOpenURL)
 	got := next
@@ -184,7 +184,7 @@ func TestAHandedOverLinkMovesAndSaysSo(t *testing.T) {
 	next, _ := m.handleFollow(followMsg{uri: "https://matrix.to/#/!b:x"})
 	got := next
 
-	if got.openRoom != "!b:x" {
+	if got.openRoom != mx+"!b:x" {
 		t.Errorf("open room = %q, want !b:x", got.openRoom)
 	}
 	if !strings.Contains(got.status(), "Bravo") {
@@ -200,7 +200,7 @@ func TestAHandedOverNonLinkIsReported(t *testing.T) {
 	next, _ := m.handleFollow(followMsg{uri: "https://example.org/nope"})
 	got := next
 
-	if got.openRoom == "!b:x" {
+	if got.openRoom == mx+"!b:x" {
 		t.Error("a non-link moved the client")
 	}
 	if !strings.Contains(got.status(), "not a Matrix, Telegram, WhatsApp or Signal link") {
@@ -215,7 +215,7 @@ func TestAHandedOverTelegramLinkOpensTheChat(t *testing.T) {
 	m := sized(t, newModel())
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
 		{ID: "telegram:42/-1000000000021", Name: "Novo Salsa", Handle: "novosalsa"},
-		{ID: "!b:x", Name: "Bravo"},
+		{ID: mx + "!b:x", Name: "Bravo"},
 	}})
 
 	next, _ := m.handleFollow(followMsg{uri: "tg://resolve?domain=novosalsa&post=35"})
@@ -345,7 +345,7 @@ func TestALinkToAChatNotJoinedAsksThenJoinsAndEnters(t *testing.T) {
 		t.Fatalf("joined %v (%v), want the link joined", b.joined, ok)
 	}
 	next = update(t, next, joined)
-	next = update(t, next, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, salsa}})
+	next = update(t, next, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, salsa}})
 	if next.openRoom != salsa.ID {
 		t.Errorf("open room = %q, want the joined channel once listed", next.openRoom)
 	}
@@ -363,7 +363,7 @@ func TestFreshChatsHoldOverAnyListingSequence(t *testing.T) {
 		{ID: "telegram:42/10", Name: "Fay", IsDirect: true},
 		{ID: "telegram:42/11", Name: "Gil", IsDirect: true},
 	}
-	base := []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo", IsDirect: true}}
+	base := []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo", IsDirect: true}}
 	for seed := range uint64(60) {
 		rng := rand.New(rand.NewPCG(seed, 0x6c696e6b))
 		b := &linkBackend{}
@@ -462,7 +462,7 @@ func TestAStartupLinkWaitsForTheRoomList(t *testing.T) {
 	}
 
 	m = withRooms(t, m)
-	if m.openRoom != "!b:x" {
+	if m.openRoom != mx+"!b:x" {
 		t.Errorf("open room = %q, want !b:x — the rooms arrived and nothing followed", m.openRoom)
 	}
 	if m.followAt != "" {
@@ -499,7 +499,7 @@ func TestAHandedOverLinkRaisesTheWindow(t *testing.T) {
 	if raised.err != nil {
 		t.Fatalf("raise_command failed: %v", raised.err)
 	}
-	if next.openRoom != "!b:x" {
+	if next.openRoom != mx+"!b:x" {
 		t.Errorf("open room = %q, want !b:x", next.openRoom)
 	}
 	got, err := os.ReadFile(marker)
@@ -518,10 +518,10 @@ func TestAStartupLinkDoesNotRaise(t *testing.T) {
 	command, marker := raiseMarker(t)
 	m := raising(t, command).WithFollow("https://matrix.to/#/!b:x")
 	next, cmd := asModel(m.Update(roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo", IsDirect: true},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo", IsDirect: true},
 	}}))
-	if next.openRoom != "!b:x" {
+	if next.openRoom != mx+"!b:x" {
 		t.Fatalf("open room = %q, want !b:x — the startup link was not followed", next.openRoom)
 	}
 	if _, ok := msgOf[raisedMsg](t, cmd); ok {
@@ -554,7 +554,7 @@ func TestAFailingRaiseCommandIsReported(t *testing.T) {
 		t.Fatalf("raisedMsg = %+v, %v; want the failure", raised, ok)
 	}
 	next = update(t, next, raised)
-	if next.openRoom != "!b:x" {
+	if next.openRoom != mx+"!b:x" {
 		t.Errorf("open room = %q, want !b:x", next.openRoom)
 	}
 	if !strings.Contains(next.status(), "could not raise this window") {
@@ -571,7 +571,7 @@ func TestAHandedOverWhatsAppLinkOpensTheNumbersChat(t *testing.T) {
 	fresh := domain.Room{ID: "whatsapp:44000000001/15550100010@s.whatsapp.net", Name: "+15550100010", IsDirect: true}
 	b := &linkBackend{target: domain.LinkTarget{Room: fresh}}
 	m := sized(t, starterNew(b, config.Display{}))
-	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, known}})
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, known}})
 
 	next := followed(t, m, "whatsapp://send?phone=15550100009&text=hi")
 	if next.openRoom != known.ID || len(b.resolved) != 0 {

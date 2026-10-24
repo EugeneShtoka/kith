@@ -29,15 +29,15 @@ func conversation(n int, threaded bool) []domain.Message {
 	msgs := make([]domain.Message, 0, n+1)
 	start := time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
 	if threaded {
-		msgs = append(msgs, domain.Message{ID: "$root", RoomID: "!a:x", Sender: "@bob:x", Body: "the question", Timestamp: start})
+		msgs = append(msgs, domain.Message{ID: mx + "$root", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "the question", Timestamp: start})
 	}
 	for i := range n {
 		m := domain.Message{
-			ID: domain.EventID(fmt.Sprintf("$m%02d", i)), RoomID: "!a:x", Sender: "@bob:x",
+			ID: domain.EventID(fmt.Sprintf(mx+"$m%02d", i)), RoomID: mx + "!a:x", Sender: "matrix:@bob:x",
 			Body: fmt.Sprintf("message number %d", i), Timestamp: start.Add(time.Duration(i+1) * time.Minute),
 		}
 		if threaded {
-			m.ThreadRoot = "$root"
+			m.ThreadRoot = mx + "$root"
 		}
 		msgs = append(msgs, m)
 	}
@@ -54,7 +54,7 @@ func TestALiveMessageKeepsAScrolledViewStill(t *testing.T) {
 	before := onScreen(m)
 
 	m = update(t, m, incomingMsg{message: domain.Message{
-		ID: "$new", RoomID: "!a:x", Sender: "@bob:x", Body: "just arrived",
+		ID: mx + "$new", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "just arrived",
 		Timestamp: time.Date(2026, 9, 2, 9, 0, 0, 0, time.UTC),
 	}})
 	if after := onScreen(m); !slices.Equal(after, before) {
@@ -75,7 +75,7 @@ func TestOlderRepliesKeepAScrolledThreadStill(t *testing.T) {
 	m = settled(m)
 	before := onScreen(m)
 
-	m = update(t, m, threadPageMsg{roomID: "!a:x", root: "$root", page: domain.TimelinePage{Messages: msgs[1:41], Next: "older"}})
+	m = update(t, m, threadPageMsg{roomID: mx + "!a:x", root: mx + "$root", page: domain.TimelinePage{Messages: msgs[1:41], Next: "older"}})
 	if after := onScreen(m); !slices.Equal(after, before) {
 		t.Errorf("the view jumped when older replies arrived above it:\nbefore %q\nafter  %q", before, after)
 	}

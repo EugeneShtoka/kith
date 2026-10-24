@@ -9,7 +9,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-const me = "@me:x"
+const me = "matrix:@me:x"
 
 // mine is every MXID that is this person.
 var mine = []string{me}
@@ -24,19 +24,19 @@ func TestCountUnreadCountsWhatHasNotBeenRead(t *testing.T) {
 	at := func(n int) time.Time { return base.Add(time.Duration(n) * time.Minute) }
 
 	for _, msg := range []domain.Message{
-		{ID: "$read", Sender: "@alice:x", Body: "before", Timestamp: at(0)},
-		{ID: "$one", Sender: "@alice:x", Body: "after", Timestamp: at(1)},
-		{ID: "$mine", Sender: me, Body: "sent from my phone", Timestamp: at(2)},
-		{ID: "$gone", Sender: "@alice:x", Body: "deleted", Timestamp: at(3), Redacted: true},
-		{ID: "$ping", Sender: "@alice:x", Body: "hey you", Timestamp: at(4), Mentioned: true},
+		{ID: mx + "$read", Sender: "matrix:@alice:x", Body: "before", Timestamp: at(0)},
+		{ID: mx + "$one", Sender: "matrix:@alice:x", Body: "after", Timestamp: at(1)},
+		{ID: mx + "$mine", Sender: me, Body: "sent from my phone", Timestamp: at(2)},
+		{ID: mx + "$gone", Sender: "matrix:@alice:x", Body: "deleted", Timestamp: at(3), Redacted: true},
+		{ID: mx + "$ping", Sender: "matrix:@alice:x", Body: "hey you", Timestamp: at(4), Mentioned: true},
 	} {
-		mustSave(t, cache, "!a:x", msg)
+		mustSave(t, cache, mx+"!a:x", msg)
 	}
-	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: "!a:x", ReadEvent: "$read"}, 0); err != nil {
+	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!a:x", ReadEvent: mx + "$read"}, 0); err != nil {
 		t.Fatalf("SaveUnread() error = %v", err)
 	}
 
-	messages, mentions, counted, err := cache.CountUnread(ctx, mine, "!a:x")
+	messages, mentions, counted, err := cache.CountUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountUnread() error = %v", err)
 	}
@@ -57,18 +57,18 @@ func TestCountUnreadKeepsTheLaterFloor(t *testing.T) {
 	at := func(n int) time.Time { return base.Add(time.Duration(n) * time.Minute) }
 
 	for _, msg := range []domain.Message{
-		{ID: "$mine", Sender: me, Body: "asked something", Timestamp: at(0)},
-		{ID: "$answer", Sender: "@alice:x", Body: "answered it", Timestamp: at(1)},
-		{ID: "$read", Sender: "@alice:x", Body: "and read this far", Timestamp: at(2)},
-		{ID: "$after", Sender: "@alice:x", Body: "after the receipt", Timestamp: at(3)},
+		{ID: mx + "$mine", Sender: me, Body: "asked something", Timestamp: at(0)},
+		{ID: mx + "$answer", Sender: "matrix:@alice:x", Body: "answered it", Timestamp: at(1)},
+		{ID: mx + "$read", Sender: "matrix:@alice:x", Body: "and read this far", Timestamp: at(2)},
+		{ID: mx + "$after", Sender: "matrix:@alice:x", Body: "after the receipt", Timestamp: at(3)},
 	} {
-		mustSave(t, cache, "!a:x", msg)
+		mustSave(t, cache, mx+"!a:x", msg)
 	}
-	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: "!a:x", ReadEvent: "$read"}, 0); err != nil {
+	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!a:x", ReadEvent: mx + "$read"}, 0); err != nil {
 		t.Fatalf("SaveUnread() error = %v", err)
 	}
 
-	messages, _, counted, err := cache.CountUnread(ctx, mine, "!a:x")
+	messages, _, counted, err := cache.CountUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountUnread() error = %v", err)
 	}
@@ -84,11 +84,11 @@ func TestCountUnreadReportsWhenItCannotAnswer(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: "!a:x", Notifications: 12, ReadEvent: "$long-gone"}, 0); err != nil {
+	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!a:x", Notifications: 12, ReadEvent: mx + "$long-gone"}, 0); err != nil {
 		t.Fatalf("SaveUnread() error = %v", err)
 	}
 
-	for _, room := range []domain.RoomID{"!a:x", "!never-heard-of:x"} {
+	for _, room := range []domain.RoomID{mx + "!a:x", mx + "!never-heard-of:x"} {
 		messages, _, counted, err := cache.CountUnread(ctx, mine, room)
 		if err != nil {
 			t.Fatalf("CountUnread(%s) error = %v", room, err)
@@ -106,15 +106,15 @@ func TestAMessageSharingTheReceiptsMillisecondCountsAsRead(t *testing.T) {
 	cache, ctx := openTemp(t), context.Background()
 	same := time.Date(2026, 8, 26, 9, 0, 0, 0, time.UTC)
 
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$aaa", Sender: "@alice:x", Body: "first", Timestamp: same})
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$bbb", Sender: "@alice:x", Body: "second", Timestamp: same})
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$aaa", Sender: "matrix:@alice:x", Body: "first", Timestamp: same})
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$bbb", Sender: "matrix:@alice:x", Body: "second", Timestamp: same})
 
 	// Either way round, including the receipt on the lower ID.
-	for _, read := range []domain.EventID{"$aaa", "$bbb"} {
-		if err := cache.SaveUnread(ctx, domain.Unread{RoomID: "!a:x", ReadEvent: read}, 0); err != nil {
+	for _, read := range []domain.EventID{mx + "$aaa", mx + "$bbb"} {
+		if err := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!a:x", ReadEvent: read}, 0); err != nil {
 			t.Fatalf("SaveUnread() error = %v", err)
 		}
-		messages, _, counted, err := cache.CountUnread(ctx, mine, "!a:x")
+		messages, _, counted, err := cache.CountUnread(ctx, mine, mx+"!a:x")
 		if err != nil {
 			t.Fatalf("CountUnread() error = %v", err)
 		}
@@ -128,8 +128,8 @@ func TestAMessageSharingTheReceiptsMillisecondCountsAsRead(t *testing.T) {
 
 	// A later message is still counted.
 	later := same.Add(time.Millisecond)
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$ccc", Sender: "@alice:x", Body: "after", Timestamp: later})
-	messages, _, _, err := cache.CountUnread(ctx, mine, "!a:x")
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$ccc", Sender: "matrix:@alice:x", Body: "after", Timestamp: later})
+	messages, _, _, err := cache.CountUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountUnread() error = %v", err)
 	}
@@ -145,11 +145,11 @@ func TestCountUnreadAllOmitsRoomsItCannotAnswerFor(t *testing.T) {
 	cache, ctx := openTemp(t), context.Background()
 	base := time.Date(2026, 8, 26, 9, 0, 0, 0, time.UTC)
 
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$read", Sender: "@alice:x", Body: "x", Timestamp: base})
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$new", Sender: "@alice:x", Body: "y", Timestamp: base.Add(time.Minute)})
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$read", Sender: "matrix:@alice:x", Body: "x", Timestamp: base})
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$new", Sender: "matrix:@alice:x", Body: "y", Timestamp: base.Add(time.Minute)})
 	for _, u := range []domain.Unread{
-		{RoomID: "!a:x", ReadEvent: "$read"},
-		{RoomID: "!cold:x", Notifications: 7, ReadEvent: "$unknown"},
+		{RoomID: mx + "!a:x", ReadEvent: mx + "$read"},
+		{RoomID: mx + "!cold:x", Notifications: 7, ReadEvent: mx + "$unknown"},
 	} {
 		if err := cache.SaveUnread(ctx, u, 0); err != nil {
 			t.Fatalf("SaveUnread() error = %v", err)
@@ -163,10 +163,10 @@ func TestCountUnreadAllOmitsRoomsItCannotAnswerFor(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("CountUnreadAll() returned %d rooms, want 1", len(got))
 	}
-	if a := got["!a:x"]; a.Messages != 1 || !a.Counted {
+	if a := got[mx+"!a:x"]; a.Messages != 1 || !a.Counted {
 		t.Errorf("counted room = %+v, want 1 message and Counted", a)
 	}
-	if _, ok := got["!cold:x"]; ok {
+	if _, ok := got[mx+"!cold:x"]; ok {
 		t.Error("a room with an unresolvable read position was reported as counted")
 	}
 }
@@ -176,27 +176,27 @@ func TestSaveUnreadKeepsTheNewerPosition(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: "!a:x", ReadEvent: "$new"}, 200); err != nil {
+	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!a:x", ReadEvent: mx + "$new"}, 200); err != nil {
 		t.Fatalf("SaveUnread() error = %v", err)
 	}
-	older := domain.Unread{RoomID: "!a:x", Notifications: 4, ReadEvent: "$old", Marked: true}
+	older := domain.Unread{RoomID: mx + "!a:x", Notifications: 4, ReadEvent: mx + "$old", Marked: true}
 	if err := cache.SaveUnread(ctx, older, 100); err != nil {
 		t.Fatalf("SaveUnread() error = %v", err)
 	}
 	// An unknown time does not move a known position either.
-	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: "!a:x", Notifications: 4, ReadEvent: "$what", Marked: true}, 0); err != nil {
+	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!a:x", Notifications: 4, ReadEvent: mx + "$what", Marked: true}, 0); err != nil {
 		t.Fatalf("SaveUnread() error = %v", err)
 	}
 	got, err := cache.Unread(ctx)
 	if err != nil || len(got) != 1 {
 		t.Fatalf("Unread() = %v, %v", got, err)
 	}
-	want := domain.Unread{RoomID: "!a:x", Notifications: 4, ReadEvent: "$new", Marked: true}
+	want := domain.Unread{RoomID: mx + "!a:x", Notifications: 4, ReadEvent: mx + "$new", Marked: true}
 	if !reflect.DeepEqual(got[0], want) {
 		t.Errorf("Unread() = %+v, want %+v", got[0], want)
 	}
 	positions, err := cache.ReadPositions(ctx)
-	if err != nil || positions["!a:x"] != 200 {
+	if err != nil || positions[mx+"!a:x"] != 200 {
 		t.Errorf("ReadPositions() = %v, %v; want !a:x at 200", positions, err)
 	}
 }
@@ -207,17 +207,17 @@ func TestCountUnreadUsesTheStoredReadTime(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 	base := time.Date(2026, 8, 26, 9, 0, 0, 0, time.UTC)
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$before", Sender: "@alice:x", Body: "read", Timestamp: base})
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$after", Sender: "@alice:x", Body: "unread", Timestamp: base.Add(2 * time.Minute)})
-	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: "!a:x", ReadEvent: "$uncached"}, base.Add(time.Minute).UnixMilli()); err != nil {
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$before", Sender: "matrix:@alice:x", Body: "read", Timestamp: base})
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$after", Sender: "matrix:@alice:x", Body: "unread", Timestamp: base.Add(2 * time.Minute)})
+	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!a:x", ReadEvent: mx + "$uncached"}, base.Add(time.Minute).UnixMilli()); err != nil {
 		t.Fatalf("SaveUnread() error = %v", err)
 	}
-	messages, _, counted, err := cache.CountUnread(ctx, mine, "!a:x")
+	messages, _, counted, err := cache.CountUnread(ctx, mine, mx+"!a:x")
 	if err != nil || !counted || messages != 1 {
 		t.Errorf("CountUnread() = %d, counted %v, %v; want 1, counted", messages, counted, err)
 	}
 	all, err := cache.CountUnreadAll(ctx, mine)
-	if err != nil || !all["!a:x"].Counted || all["!a:x"].Messages != 1 {
+	if err != nil || !all[mx+"!a:x"].Counted || all[mx+"!a:x"].Messages != 1 {
 		t.Errorf("CountUnreadAll() = %+v, %v; want !a:x counted at 1", all, err)
 	}
 }

@@ -174,12 +174,12 @@ func TestATagsRoomListSwitchesToItsPeople(t *testing.T) {
 	t.Parallel()
 
 	muted := false
-	cfg := config.Config{Tags: []config.Tag{{Name: "Spam", Notifies: &muted, People: []string{"@bob:example.org"}}}}
-	cfg.Display.Identities = []config.Identity{{Alias: "Bob", IDs: []string{"@bob:example.org", "telegram:1001"}}}
+	cfg := config.Config{Tags: []config.Tag{{Name: "Spam", Notifies: &muted, People: []string{"matrix:@bob:example.org"}}}}
+	cfg.Display.Identities = []config.Identity{{Alias: "Bob", IDs: []string{"matrix:@bob:example.org", "telegram:1001"}}}
 	cfg.Keys.Tag = config.TagKeys{{Chord: "!", Tag: "Spam"}}
 	m := sized(t, withRooms(t, New(context.Background(), tagPeopleBackend{}, cfg.Display).WithConfigFile("", cfg)))
 	m = update(t, m, personVerdictsLoadedMsg{verdicts: []domain.PersonVerdict{
-		{Person: "@cat:example.org", Tag: "spam", Rule: domain.MoveAlways, Filter: "crypto", At: at(86400 * 400)},
+		{Person: "matrix:@cat:example.org", Tag: "spam", Rule: domain.MoveAlways, Filter: "crypto", At: at(86400 * 400)},
 	}})
 	key := tagGroupKey("Spam")
 	m.rail.cursor = slices.IndexFunc(m.rail.groups, func(g group) bool { return g.key == key })
@@ -201,7 +201,7 @@ func TestATagsRoomListSwitchesToItsPeople(t *testing.T) {
 		t.Errorf("enter on Bob read no card (status %q)", m.status())
 	}
 	m, cmd = chord(t, m, "g", "I")
-	if !m.said.open || m.said.id != "@bob:example.org" || cmd == nil {
+	if !m.said.open || m.said.id != "matrix:@bob:example.org" || cmd == nil {
 		t.Errorf("gI opened %+v, want what Bob said", m.said)
 	}
 	m.said = saidState{}
@@ -211,7 +211,7 @@ func TestATagsRoomListSwitchesToItsPeople(t *testing.T) {
 	if got := m.conf.base.Tags[0].People; len(got) != 0 {
 		t.Errorf("Spam still lists %v after its key on Bob", got)
 	}
-	if rows := m.shownTagPeople(); len(rows) != 1 || rows[0].id != "@cat:example.org" {
+	if rows := m.shownTagPeople(); len(rows) != 1 || rows[0].id != "matrix:@cat:example.org" {
 		t.Errorf("rows after taking Bob out: %+v", rows)
 	}
 	m, _ = chord(t, m, "g", "p")
@@ -230,10 +230,10 @@ func TestATagsPageListsItsPeople(t *testing.T) {
 	t.Parallel()
 
 	muted := false
-	cfg := config.Config{Tags: []config.Tag{{Name: "Spam", Notifies: &muted, People: []string{"@bob:example.org"}}}}
+	cfg := config.Config{Tags: []config.Tag{{Name: "Spam", Notifies: &muted, People: []string{"matrix:@bob:example.org"}}}}
 	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, cfg.Display).WithConfigFile("", cfg)))
 	m = update(t, m, personVerdictsLoadedMsg{verdicts: []domain.PersonVerdict{
-		{Person: "@cat:example.org", Tag: "spam", Rule: domain.MoveAlways, Filter: "crypto"},
+		{Person: "matrix:@cat:example.org", Tag: "spam", Rule: domain.MoveAlways, Filter: "crypto"},
 	}})
 	rows := m.tagPageRows("Spam", "place:tag:Spam")
 	shown := map[string]string{}

@@ -55,8 +55,8 @@ func readingBackend(t *testing.T, f *fakeReceipts, room domain.RoomID) *InProc {
 	t.Cleanup(srv.Close)
 	cache := testCache(t)
 	if err := cache.SaveMessages(context.Background(), room, []domain.Message{
-		{ID: "$one", RoomID: room, Sender: "@dana:x", Body: "one", Timestamp: time.Unix(10, 0)},
-		{ID: "$two", RoomID: room, Sender: "@dana:x", Body: "two", Timestamp: time.Unix(20, 0)},
+		{ID: mx + "$one", RoomID: room, Sender: "matrix:@dana:x", Body: "one", Timestamp: time.Unix(10, 0)},
+		{ID: mx + "$two", RoomID: room, Sender: "matrix:@dana:x", Body: "two", Timestamp: time.Unix(20, 0)},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func readingBackend(t *testing.T, f *fakeReceipts, room domain.RoomID) *InProc {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := New(cache)
+	b := newBackend(cache)
 	b.client = client
 	return b
 }
@@ -77,11 +77,11 @@ func TestARoomReadInKithStaysReadWhenTheHomeserverRefuses(t *testing.T) {
 	ctx := context.Background()
 	f := &fakeReceipts{}
 	f.refuse.Store(true)
-	room := domain.RoomID("!r:x")
+	room := domain.RoomID(mx + "!r:x")
 	b := readingBackend(t, f, room)
 	b.unread.update(room, func(cur *domain.Unread, _ *int64) bool { cur.RoomID, cur.Marked = room, true; return true })
 
-	if err := b.MarkRead(ctx, room, "$two", false); err != nil {
+	if err := b.MarkRead(ctx, room, mx+"$two", false); err != nil {
 		t.Fatalf("a refused receipt is an error: %v", err)
 	}
 	if u := b.unread.get(room); u.Marked {
@@ -92,7 +92,7 @@ func TestARoomReadInKithStaysReadWhenTheHomeserverRefuses(t *testing.T) {
 		t.Errorf("after reading, the homeserver refusing: %d unread (counted %v, %v)", n, counted, err)
 	}
 	owed := b.reads.owed()
-	if r := owed[room]; r.event != "$two" || !r.mainOnly || !r.unmark {
+	if r := owed[room]; r.event != mx+"$two" || !r.mainOnly || !r.unmark {
 		t.Fatalf("the receipt is not owed: %+v", owed)
 	}
 
@@ -115,7 +115,7 @@ func TestRoomsReadTogetherStayReadAndSaySo(t *testing.T) {
 	ctx := context.Background()
 	f := &fakeReceipts{}
 	f.refuse.Store(true)
-	room := domain.RoomID("!r:x")
+	room := domain.RoomID(mx + "!r:x")
 	b := readingBackend(t, f, room)
 	res, err := b.MarkRoomsRead(ctx, []domain.RoomID{room}, false)
 	if err != nil || res.Failed != 1 || !strings.Contains(res.FirstError, "M_UNKNOWN") {
@@ -124,7 +124,7 @@ func TestRoomsReadTogetherStayReadAndSaySo(t *testing.T) {
 	if n, _, counted, _ := b.cache.CountUnread(ctx, b.me(), room); !counted || n != 0 {
 		t.Errorf("after reading together, the homeserver refusing: %d unread", n)
 	}
-	if r := b.reads.owed()[room]; r.event != "$two" || r.mainOnly {
+	if r := b.reads.owed()[room]; r.event != mx+"$two" || r.mainOnly {
 		t.Errorf("owed %+v, want an unthreaded receipt for $two", r)
 	}
 }
@@ -134,9 +134,9 @@ func TestASyncSendsTheReceiptsOwed(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	f := &fakeReceipts{}
-	room := domain.RoomID("!r:x")
+	room := domain.RoomID(mx + "!r:x")
 	b := readingBackend(t, f, room)
-	b.reads.add(room, owedRead{event: "$two", mainOnly: true})
+	b.reads.add(room, owedRead{event: mx + "$two", mainOnly: true})
 	// While a resend runs, another does not start.
 	b.reads.sending.Store(true)
 	b.sendOwed(ctx)
@@ -159,13 +159,13 @@ func TestASyncSendsTheReceiptsOwed(t *testing.T) {
 func TestOwedReceipts(t *testing.T) {
 	t.Parallel()
 	var o owedReads
-	o.add("!a:x", owedRead{event: "$1", unmark: true})
-	o.add("!a:x", owedRead{event: "$2"})
-	o.settle("!a:x", "$1")
-	if r := o.owed()["!a:x"]; r.event != "$2" || !r.unmark {
+	o.add(mx+"!a:x", owedRead{event: mx + "$1", unmark: true})
+	o.add(mx+"!a:x", owedRead{event: mx + "$2"})
+	o.settle(mx+"!a:x", mx+"$1")
+	if r := o.owed()[mx+"!a:x"]; r.event != mx+"$2" || !r.unmark {
 		t.Errorf("owed %+v, want $2 still clearing the mark", r)
 	}
-	o.settle("!a:x", "$2")
+	o.settle(mx+"!a:x", mx+"$2")
 	if len(o.owed()) != 0 {
 		t.Errorf("after settling: %+v", o.owed())
 	}

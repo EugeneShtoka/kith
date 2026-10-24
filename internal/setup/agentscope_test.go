@@ -22,7 +22,7 @@ func agentWith(readRooms, readExcept, writeRooms, send []string) config.Agent {
 func TestAgentScopesReadLeastPrivilegeWriteSameAsRead(t *testing.T) {
 	t.Parallel()
 
-	room := domain.RoomFacts{ID: "!a:x", Name: "Standup", Spaces: []string{"Work"}}
+	room := domain.RoomFacts{ID: mx + "!a:x", Name: "Standup", Spaces: []string{"Work"}}
 	allowed := func(scope domain.ModelScope) bool {
 		return domain.AllowModel(scope, room, "configured", false).Allowed
 	}
@@ -43,10 +43,10 @@ func TestStaticWarningsStaySilentWhenUndecidable(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]config.Agent{
-		"room ID sent, space read":   agentWith([]string{"space:Work"}, nil, nil, []string{"!dbg:x"}),
+		"room ID sent, space read":   agentWith([]string{"space:Work"}, nil, nil, []string{mx + "!dbg:x"}),
 		"same entry in both":         agentWith([]string{"room:Notes"}, nil, []string{"room:Notes"}, []string{"room:notes"}),
-		"id listed with room: form":  agentWith([]string{"room:!a:x"}, nil, nil, []string{"!a:x"}),
-		"room name, ids read":        agentWith([]string{"!a:x"}, nil, nil, []string{"room:Notes"}),
+		"id listed with room: form":  agentWith([]string{"room:" + mx + "!a:x"}, nil, nil, []string{mx + "!a:x"}),
+		"room name, ids read":        agentWith([]string{mx + "!a:x"}, nil, nil, []string{"room:Notes"}),
 		"dm written, protocol read":  agentWith([]string{"protocol:WhatsApp"}, nil, []string{"dm"}, nil),
 		"nothing written":            agentWith(nil, nil, nil, nil),
 		"space written, other space": agentWith([]string{"space:A"}, nil, []string{"space:B"}, nil),
@@ -70,9 +70,9 @@ func TestStaticWarningsNameDeadEntries(t *testing.T) {
 		agent config.Agent
 		entry string
 	}{
-		{"nothing read", agentWith(nil, nil, nil, []string{"!a:x"}), "[agent.read] rooms is empty"},
+		{"nothing read", agentWith(nil, nil, nil, []string{mx + "!a:x"}), "[agent.read] rooms is empty"},
 		{"excepted from reading", agentWith([]string{"group"}, []string{"room:HR"}, []string{"room:hr"}, nil), `[agent.write] rooms names "room:hr"`},
-		{"an id reading does not list", agentWith([]string{"!a:x", "room:!b:x"}, nil, nil, []string{"!c:x"}), `[agent.write] send names "!c:x"`},
+		{"an id reading does not list", agentWith([]string{mx + "!a:x", "room:" + mx + "!b:x"}, nil, nil, []string{mx + "!c:x"}), `[agent.write] send names "` + mx + `!c:x"`},
 		{"another network", agentWith([]string{"protocol:Slack"}, nil, []string{"protocol:WhatsApp"}, nil), `"protocol:WhatsApp"`},
 		{"dm while only groups are read", agentWith([]string{"group"}, nil, nil, []string{"dm"}), `send names "dm"`},
 	}
@@ -104,12 +104,12 @@ func (p places) RoomEncryption(context.Context, []domain.RoomID) (map[domain.Roo
 func account() places {
 	return places{
 		rooms: []domain.Room{
-			{ID: "!dbg:x", Name: "Notes"},
-			{ID: "!ops:x", Name: "Ops"},
-			{ID: "!home:x", Name: "Family"},
-			{ID: "!dm:x", Name: "Dana", IsDirect: true},
+			{ID: mx + "!dbg:x", Name: "Notes"},
+			{ID: mx + "!ops:x", Name: "Ops"},
+			{ID: mx + "!home:x", Name: "Family"},
+			{ID: mx + "!dm:x", Name: "Dana", IsDirect: true},
 		},
-		spaces: []domain.Space{{ID: "!s:x", Name: "Work", Children: []domain.RoomID{"!dbg:x", "!ops:x"}}},
+		spaces: []domain.Space{{ID: mx + "!s:x", Name: "Work", Children: []domain.RoomID{mx + "!dbg:x", mx + "!ops:x"}}},
 	}
 }
 
@@ -117,7 +117,7 @@ func account() places {
 func TestResolvedWarningsSilentForARoomInAReadSpace(t *testing.T) {
 	t.Parallel()
 
-	agent := agentWith([]string{"space:Work"}, nil, nil, []string{"!dbg:x"})
+	agent := agentWith([]string{"space:Work"}, nil, nil, []string{mx + "!dbg:x"})
 	if got := setup.AgentWarnings(t.Context(), account(), domain.Places{}, agent); len(got) != 0 {
 		t.Fatalf("warned about a readable room: %q", got)
 	}
@@ -127,7 +127,7 @@ func TestResolvedWarningsSilentForARoomInAReadSpace(t *testing.T) {
 func TestResolvedWarningsNameRoomsOutsideReading(t *testing.T) {
 	t.Parallel()
 
-	agent := agentWith([]string{"space:Work"}, nil, []string{"group"}, []string{"!home:x", "!ops:x"})
+	agent := agentWith([]string{"space:Work"}, nil, []string{"group"}, []string{mx + "!home:x", mx + "!ops:x"})
 	got := setup.AgentWarnings(t.Context(), account(), domain.Places{}, agent)
 	if len(got) != 2 {
 		t.Fatalf("warnings = %q, want two: group and !home:x", got)
@@ -135,7 +135,7 @@ func TestResolvedWarningsNameRoomsOutsideReading(t *testing.T) {
 	if !strings.Contains(got[0], `rooms names "group"`) || !strings.Contains(got[0], "1 of the 3") || !strings.Contains(got[0], "Family") {
 		t.Errorf("group warning = %q", got[0])
 	}
-	if !strings.Contains(got[1], `send names "!home:x"`) || !strings.Contains(got[1], "Family") {
+	if !strings.Contains(got[1], `send names "`+mx+`!home:x"`) || !strings.Contains(got[1], "Family") {
 		t.Errorf("send warning = %q", got[1])
 	}
 }
@@ -145,8 +145,8 @@ func TestResolvedWarningsNameEncryptedRooms(t *testing.T) {
 	t.Parallel()
 
 	p := account()
-	p.encrypted = map[domain.RoomID]bool{"!dbg:x": true}
-	got := setup.AgentWarnings(t.Context(), p, domain.Places{}, agentWith([]string{"space:Work"}, nil, nil, []string{"!dbg:x"}))
+	p.encrypted = map[domain.RoomID]bool{mx + "!dbg:x": true}
+	got := setup.AgentWarnings(t.Context(), p, domain.Places{}, agentWith([]string{"space:Work"}, nil, nil, []string{mx + "!dbg:x"}))
 	if len(got) != 1 || !strings.Contains(got[0], "[agent.read] encrypted is false") {
 		t.Fatalf("warnings = %q, want the encryption named", got)
 	}
@@ -156,14 +156,14 @@ func TestResolvedWarningsNameEncryptedRooms(t *testing.T) {
 func TestResolvedWarningsFallBackToStatic(t *testing.T) {
 	t.Parallel()
 
-	agent := agentWith([]string{"!a:x"}, nil, nil, []string{"!gone:x"})
+	agent := agentWith([]string{mx + "!a:x"}, nil, nil, []string{mx + "!gone:x"})
 	for name, src := range map[string]setup.AgentPlaces{
 		"no backend":       nil,
 		"failing backend":  places{err: errors.New("down")},
 		"matches no rooms": account(),
 	} {
 		got := setup.AgentWarnings(t.Context(), src, domain.Places{}, agent)
-		if len(got) != 1 || !strings.Contains(got[0], `"!gone:x"`) {
+		if len(got) != 1 || !strings.Contains(got[0], `"`+mx+`!gone:x"`) {
 			t.Errorf("%s: warnings = %q, want the static one", name, got)
 		}
 	}
@@ -177,7 +177,7 @@ func TestFactsOfANativeRoom(t *testing.T) {
 	if got := (domain.Places{}).Facts(native, nil).Protocol; got != domain.ProtocolWhatsApp {
 		t.Errorf("Facts(native).Protocol = %q", got)
 	}
-	if got := (domain.Places{}).Facts(domain.Room{ID: "!a:x"}, nil).Protocol; got != domain.ProtocolMatrix {
+	if got := (domain.Places{}).Facts(domain.Room{ID: mx + "!a:x"}, nil).Protocol; got != domain.ProtocolMatrix {
 		t.Errorf("Facts(!a:x).Protocol = %q", got)
 	}
 }

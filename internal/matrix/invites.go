@@ -32,7 +32,7 @@ func (b *InProc) Invites() <-chan []domain.Room { return b.out.invites }
 // reason is shown to moderators (empty is fine); via are routing servers.
 func (b *InProc) KnockRoom(ctx context.Context, roomIDOrAlias, reason string, via []string) (domain.RoomID, error) {
 	req := &mautrix.ReqKnockRoom{Via: via, Reason: reason}
-	resp, err := b.client.KnockRoom(ctx, roomIDOrAlias, req)
+	resp, err := b.client.KnockRoom(ctx, matrixString(b.ids.nativeRoom(kithRoom(roomIDOrAlias))), req)
 	if err != nil {
 		return "", fmt.Errorf("matrix: knock %s: %w", roomIDOrAlias, err)
 	}
@@ -46,9 +46,11 @@ func (b *InProc) JoinRoom(ctx context.Context, roomIDOrAlias string, via []strin
 	if len(via) > 0 {
 		req = &mautrix.ReqJoinRoom{Via: via}
 	}
+	// A cached room's kith ID, or an address as Matrix writes it (a room ID, an alias).
+	target := matrixString(b.ids.nativeRoom(kithRoom(roomIDOrAlias)))
 	// Read before joining: the sync that says we joined drops the invite.
-	invite, invited := b.pendingInvite(b.ids.roomOf(roomIDOrAlias))
-	resp, err := b.client.JoinRoom(ctx, roomIDOrAlias, req)
+	invite, invited := b.pendingInvite(b.ids.roomOf(target))
+	resp, err := b.client.JoinRoom(ctx, target, req)
 	if err != nil {
 		return "", fmt.Errorf("matrix: join %s: %w", roomIDOrAlias, err)
 	}
@@ -241,13 +243,14 @@ func (b *InProc) inviteFallbackName(ir *mautrix.SyncInvitedRoom, invitedBy strin
 	if invitedBy == "" {
 		return ""
 	}
+	inviter := matrixString(b.ids.nativeUser(invitedBy))
 	for _, evt := range ir.State.Events {
-		if evt.Type != event.StateMember || evt.GetStateKey() != invitedBy {
+		if evt.Type != event.StateMember || evt.GetStateKey() != inviter {
 			continue
 		}
 		if member, ok := evt.Content.Parsed.(*event.MemberEventContent); ok && member.Displayname != "" {
 			return member.Displayname
 		}
 	}
-	return invitedBy
+	return inviter
 }

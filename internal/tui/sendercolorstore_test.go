@@ -43,14 +43,14 @@ func (s *slotStore) SaveSenderSlots(_ context.Context, roomID domain.RoomID, slo
 func colorSession(t *testing.T, backend *slotStore, msgs []domain.Message) (Model, map[string]color.Color) {
 	t.Helper()
 	m := sized(t, update(t, starterNew(backend, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!z:x", Name: "Zulu"}}}))
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!z:x", Name: "Zulu"}}}))
 
-	next, cmd := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, cmd := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = rested(t, next, cmd)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: msgs}})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: msgs}})
 
 	colors := maps.Clone(m.senderColorMap())
-	next, cmd = m.selectRoom(domain.Room{ID: "!z:x", Name: "Zulu"})
+	next, cmd = m.selectRoom(domain.Room{ID: mx + "!z:x", Name: "Zulu"})
 	m = rested(t, next, cmd)
 	return m, colors
 }
@@ -58,20 +58,20 @@ func colorSession(t *testing.T, backend *slotStore, msgs []domain.Message) (Mode
 func TestSenderColorsSurviveARestart(t *testing.T) {
 	backend := newSlotStore()
 	first := []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@bob:x", SenderName: "Bob"},
-		{ID: "$2", RoomID: "!a:x", Sender: "@zara:x", SenderName: "Zara"},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob"},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@zara:x", SenderName: "Zara"},
 	}
 	_, before := colorSession(t, backend, first)
 	if len(before) != 2 {
 		t.Fatalf("first session saw %d senders, want 2", len(before))
 	}
-	if len(backend.saved["!a:x"]) != 2 {
-		t.Fatalf("leaving the room saved %v, want both senders", backend.saved["!a:x"])
+	if len(backend.saved[mx+"!a:x"]) != 2 {
+		t.Fatalf("leaving the room saved %v, want both senders", backend.saved[mx+"!a:x"])
 	}
 
 	// The second run also loads older history with someone who sorts first.
 	second := append([]domain.Message{
-		{ID: "$0", RoomID: "!a:x", Sender: "@aaron:x", SenderName: "Aaron"},
+		{ID: mx + "$0", RoomID: mx + "!a:x", Sender: "matrix:@aaron:x", SenderName: "Aaron"},
 	}, first...)
 	_, after := colorSession(t, backend, second)
 
@@ -80,11 +80,11 @@ func TestSenderColorsSurviveARestart(t *testing.T) {
 			t.Errorf("%s changed color across the restart: %v → %v", mxid, was, got)
 		}
 	}
-	if _, ok := after["@aaron:x"]; !ok {
+	if _, ok := after["matrix:@aaron:x"]; !ok {
 		t.Error("the newcomer was given no color")
 	}
 	for mxid, c := range before {
-		if sameColor(after["@aaron:x"], c) {
+		if sameColor(after["matrix:@aaron:x"], c) {
 			t.Errorf("the newcomer reused %s's color", mxid)
 		}
 	}
@@ -92,26 +92,26 @@ func TestSenderColorsSurviveARestart(t *testing.T) {
 
 func TestStoredSlotsOverrideALocalGuess(t *testing.T) {
 	backend := newSlotStore()
-	backend.saved["!a:x"] = map[string]int{"@bob:x": 5}
+	backend.saved[mx+"!a:x"] = map[string]int{"matrix:@bob:x": 5}
 
 	m := sized(t, update(t, starterNew(backend, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
-	next, cmd := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}}))
+	next, cmd := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
-		Messages: []domain.Message{{ID: "$1", RoomID: "!a:x", Sender: "@bob:x", SenderName: "Bob"}},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
+		Messages: []domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob"}},
 	}})
 	// The guess: with only Bob loaded he takes slot 0.
 	_ = m.senderColorMap()
-	if got := m.derived.slots["@bob:x"]; got != 0 {
+	if got := m.derived.slots["matrix:@bob:x"]; got != 0 {
 		t.Fatalf("setup: local guess put bob at %d, want 0", got)
 	}
 	m = rested(t, m, cmd)
-	if got := m.derived.slots["@bob:x"]; got != 5 {
+	if got := m.derived.slots["matrix:@bob:x"]; got != 5 {
 		t.Errorf("bob is at slot %d after the stored answer arrived, want 5", got)
 	}
 	// The guess is not written back over the stored value.
-	if _, pending := m.derived.unsaved["@bob:x"]; pending {
+	if _, pending := m.derived.unsaved["matrix:@bob:x"]; pending {
 		t.Error("the local guess is still queued to be written")
 	}
 }
@@ -119,12 +119,12 @@ func TestStoredSlotsOverrideALocalGuess(t *testing.T) {
 func TestLateSlotsForAnotherRoomAreDropped(t *testing.T) {
 	backend := newSlotStore()
 	m := sized(t, update(t, starterNew(backend, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
-	m.openRoom = "!a:x"
-	m.derived.slotsRoom = "!a:x"
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}}))
+	m.openRoom = mx + "!a:x"
+	m.derived.slotsRoom = mx + "!a:x"
 
-	after, _ := m.handleSenderSlots(senderSlotsMsg{roomID: "!other:x", slots: map[string]int{"@ghost:x": 9}})
-	if _, leaked := after.derived.slots["@ghost:x"]; leaked {
+	after, _ := m.handleSenderSlots(senderSlotsMsg{roomID: mx + "!other:x", slots: map[string]int{"matrix:@ghost:x": 9}})
+	if _, leaked := after.derived.slots["matrix:@ghost:x"]; leaked {
 		t.Error("another room's slots were adopted")
 	}
 }

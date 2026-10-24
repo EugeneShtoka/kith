@@ -17,25 +17,25 @@ import (
 func yanking(t *testing.T, bodies ...domain.Message) Model {
 	t.Helper()
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: bodies}})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: bodies}})
 	m.focus, m.compose.insertMode = paneTimeline, false
 	m = m.clearStatus()
 	return m
 }
 
 func msgWith(id, body string) domain.Message {
-	return domain.Message{ID: domain.EventID(id), RoomID: "!a:x", Sender: "@a:x", SenderName: "Alice", Body: body}
+	return domain.Message{ID: domain.EventID(id), RoomID: mx + "!a:x", Sender: "matrix:@a:x", SenderName: "Alice", Body: body}
 }
 
 // A copy is confirmed on the status line: OSC 52 can fail silently.
 func TestCopyTextConfirms(t *testing.T) {
 	t.Parallel()
 
-	m := yanking(t, msgWith("$1", "the quick brown fox"))
+	m := yanking(t, msgWith(mx+"$1", "the quick brown fox"))
 	m, cmd := chord(t, m, "y", "y")
 	if cmd == nil {
 		t.Fatal("y should produce a clipboard command")
@@ -44,7 +44,7 @@ func TestCopyTextConfirms(t *testing.T) {
 		t.Errorf("status = %q, should confirm what was copied", m.status())
 	}
 
-	long := yanking(t, msgWith("$1", "first line\n\nsecond line "+strings.Repeat("x", 200)))
+	long := yanking(t, msgWith(mx+"$1", "first line\n\nsecond line "+strings.Repeat("x", 200)))
 	long, _ = chord(t, long, "y", "y")
 	if strings.Contains(long.status(), "\n") || len([]rune(long.status())) > 80 {
 		t.Errorf("status must be one short line, got %q", long.status())
@@ -54,7 +54,7 @@ func TestCopyTextConfirms(t *testing.T) {
 func TestCopyTextNothingToCopy(t *testing.T) {
 	t.Parallel()
 
-	redacted := yanking(t, domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Redacted: true})
+	redacted := yanking(t, domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Redacted: true})
 	redacted, cmd := chord(t, redacted, "y", "y")
 	if untimed(t, cmd) != nil {
 		t.Error("a deleted message should not be copied")
@@ -63,7 +63,7 @@ func TestCopyTextNothingToCopy(t *testing.T) {
 		t.Errorf("status = %q, should say why", redacted.status())
 	}
 
-	blank := yanking(t, msgWith("$1", "   "))
+	blank := yanking(t, msgWith(mx+"$1", "   "))
 	blank, cmd = chord(t, blank, "y", "y")
 	if untimed(t, cmd) != nil {
 		t.Error("an empty body should not be copied")
@@ -77,7 +77,7 @@ func TestCopyTextNothingToCopy(t *testing.T) {
 func TestCopyLinkOneOrAsk(t *testing.T) {
 	t.Parallel()
 
-	one := yanking(t, msgWith("$1", "see https://example.org/docs for details"))
+	one := yanking(t, msgWith(mx+"$1", "see https://example.org/docs for details"))
 	one, cmd := chord(t, one, "y", "u")
 	if one.picker.active() {
 		t.Error("a single link should be copied directly, without asking")
@@ -86,7 +86,7 @@ func TestCopyLinkOneOrAsk(t *testing.T) {
 		t.Errorf("status = %q", one.status())
 	}
 
-	many := yanking(t, msgWith("$1", "a https://one.org b https://two.org c https://three.org"))
+	many := yanking(t, msgWith(mx+"$1", "a https://one.org b https://two.org c https://three.org"))
 	many, _ = chord(t, many, "y", "u")
 	if many.picker.kind != pickerContext || many.picker.then != actCopyURL {
 		t.Fatalf("three links should open the copy chooser, got %v/%v", many.picker.kind, many.picker.then)
@@ -113,7 +113,7 @@ func TestCopyLinkOneOrAsk(t *testing.T) {
 func TestLinkPickerIntentFollowsTheKey(t *testing.T) {
 	t.Parallel()
 
-	body := msgWith("$1", "a https://one.org b https://two.org")
+	body := msgWith(mx+"$1", "a https://one.org b https://two.org")
 	for _, tc := range []struct {
 		keys   []string
 		then   action
@@ -137,7 +137,7 @@ func TestLinkPickerIntentFollowsTheKey(t *testing.T) {
 		}
 	}
 
-	one, cmd := chord(t, yanking(t, msgWith("$1", "read https://one.org today")), "g", "X")
+	one, cmd := chord(t, yanking(t, msgWith(mx+"$1", "read https://one.org today")), "g", "X")
 	if cmd == nil || !strings.Contains(one.status(), "opening") {
 		t.Errorf("gX on one link: status = %q", one.status())
 	}
@@ -152,7 +152,7 @@ func TestLinkActionsWithNoLink(t *testing.T) {
 		"file:///etc/passwd javascript:alert(1) mxc://s/m myapp://x",
 	} {
 		for _, keys := range [][]string{{"y", "u"}, {"g", "x"}, {"g", "X"}} {
-			m, cmd := chord(t, yanking(t, msgWith("$1", body)), keys...)
+			m, cmd := chord(t, yanking(t, msgWith(mx+"$1", body)), keys...)
 			if untimed(t, cmd) != nil || m.picker.active() {
 				t.Errorf("%q on %q should do nothing", strings.Join(keys, ""), body)
 			}
@@ -167,7 +167,7 @@ func TestLinkActionsWithNoLink(t *testing.T) {
 func TestOpenRefusesNonWebSchemes(t *testing.T) {
 	t.Parallel()
 
-	m := yanking(t, msgWith("$1", "text"))
+	m := yanking(t, msgWith(mx+"$1", "text"))
 	for _, link := range []string{
 		"file:///etc/passwd", "javascript:alert(1)", "data:text/html,<script>",
 		"myapp://run", "", "ftp://x.org",
@@ -193,7 +193,7 @@ func TestOpenRefusesNonWebSchemes(t *testing.T) {
 func TestClipboardFallbackSink(t *testing.T) {
 	t.Parallel()
 
-	m := yanking(t, msgWith("$1", "text to copy"))
+	m := yanking(t, msgWith(mx+"$1", "text to copy"))
 	if _, plain := chord(t, m, "y", "y"); plain == nil {
 		t.Fatal("y should always produce the OSC 52 write")
 	}
@@ -209,7 +209,7 @@ func TestClipboardConfigReachesTheModel(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.Config{Clipboard: config.Clipboard{OpenCommand: "my-browser", Command: "wl-copy"}}
-	m := yanking(t, msgWith("$1", "text")).WithConfigFile("/tmp/x.toml", cfg).keptIn()
+	m := yanking(t, msgWith(mx+"$1", "text")).WithConfigFile("/tmp/x.toml", cfg).keptIn()
 	if m.prefs.external.open != "my-browser" || m.prefs.external.clipboard != "wl-copy" {
 		t.Errorf("external.open = %q, external.clipboard = %q", m.prefs.external.open, m.prefs.external.clipboard)
 	}
@@ -218,7 +218,7 @@ func TestClipboardConfigReachesTheModel(t *testing.T) {
 func TestCopyCode(t *testing.T) {
 	t.Parallel()
 
-	m := yanking(t, msgWith("$1", "Your verification code is 482910"))
+	m := yanking(t, msgWith(mx+"$1", "Your verification code is 482910"))
 	m, cmd := chord(t, m, "y", "c")
 	if cmd == nil {
 		t.Fatal("c should produce a clipboard command")
@@ -235,7 +235,7 @@ func TestCopyCode(t *testing.T) {
 func TestCopyCodeAsksWhenSeveral(t *testing.T) {
 	t.Parallel()
 
-	m := yanking(t, msgWith("$1", "code 482910 for login, pin 7391 for the safe"))
+	m := yanking(t, msgWith(mx+"$1", "code 482910 for login, pin 7391 for the safe"))
 	m, _ = chord(t, m, "y", "c")
 	if m.picker.kind != pickerContext || m.picker.then != actCopyCode {
 		t.Fatalf("two codes should open the code chooser, got %v/%v", m.picker.kind, m.picker.then)
@@ -259,11 +259,11 @@ func TestCopyCodeAsksWhenSeveral(t *testing.T) {
 func TestCodeHintFollowsTheMessage(t *testing.T) {
 	t.Parallel()
 
-	withCode := yanking(t, msgWith("$1", "Your code is 482910"))
+	withCode := yanking(t, msgWith(mx+"$1", "Your code is 482910"))
 	if !strings.Contains(withCode.hints(), "copy code") {
 		t.Errorf("legend = %q, should advertise the code key", withCode.hints())
 	}
-	without := yanking(t, msgWith("$1", "see you at the standup"))
+	without := yanking(t, msgWith(mx+"$1", "see you at the standup"))
 	if strings.Contains(without.hints(), "copy code") {
 		t.Errorf("legend = %q, should not advertise it", without.hints())
 	}
@@ -273,7 +273,7 @@ func TestCodeHintFollowsTheMessage(t *testing.T) {
 func TestYankKeysTypeWhileComposing(t *testing.T) {
 	t.Parallel()
 
-	m := yanking(t, msgWith("$1", "see https://example.org and code 482910"))
+	m := yanking(t, msgWith(mx+"$1", "see https://example.org and code 482910"))
 	m.compose.insertMode = true
 	for _, r := range "yuUc" {
 		m, _ = press(t, m, keyText(string(r)))
@@ -292,7 +292,7 @@ func TestNoCodeStatusNamesWhatItLookedFor(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m.prefs.codes.rules = domain.CodeRules{MinLength: 6, MaxLength: 6, Digits: true, RequireDigit: true}
-	m = m.setMessages([]domain.Message{{ID: "$1", RoomID: "!a:x", Body: "nothing code-shaped here"}})
+	m = m.setMessages([]domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Body: "nothing code-shaped here"}})
 	m.focus, m.compose.insertMode = paneTimeline, false
 
 	next, cmd := chord(t, m, "y", "c")
@@ -310,7 +310,7 @@ func TestNoCodeStatusNamesWhatItLookedFor(t *testing.T) {
 func TestCutTakesTheDraftToTheClipboard(t *testing.T) {
 	t.Parallel()
 
-	m := yanking(t, msgWith("$1", "hello"))
+	m := yanking(t, msgWith(mx+"$1", "hello"))
 	m, _ = press(t, m, keyText("i"))
 	for _, r := range "a whole thought" {
 		m, _ = press(t, m, keyText(string(r)))
@@ -343,7 +343,7 @@ func TestCutTakesTheDraftToTheClipboard(t *testing.T) {
 func TestCutWithNothingToCut(t *testing.T) {
 	t.Parallel()
 
-	m := yanking(t, msgWith("$1", "hello"))
+	m := yanking(t, msgWith(mx+"$1", "hello"))
 	m, _ = press(t, m, keyText("i"))
 	cut, cmd := press(t, m.clearStatus(), tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
 	if untimed(t, cmd) != nil {
@@ -359,7 +359,7 @@ func TestCutWithNothingToCut(t *testing.T) {
 func TestSavingCanCopyThePath(t *testing.T) {
 	t.Parallel()
 
-	m := yanking(t, msgWith("$1", "here it is"))
+	m := yanking(t, msgWith(mx+"$1", "here it is"))
 	off, cmd := m.handleDownloaded(downloadedMsg{path: "/home/eugene/Downloads/plan.pdf"})
 	if cmd != nil {
 		t.Error("the default copied something to the clipboard")
@@ -390,7 +390,7 @@ func TestSavingCanCopyThePath(t *testing.T) {
 func TestLinkKeysFindAFormattedLinkWithoutAScheme(t *testing.T) {
 	t.Parallel()
 
-	msg := msgWith("$1", "please review: github.com/o/r/pull/9")
+	msg := msgWith(mx+"$1", "please review: github.com/o/r/pull/9")
 	msg.Format = richtext.FromMarkup(`please review: <a href="https://github.com/o/r/pull/9">github.com/o/r/pull/9</a>`)
 	m, cmd := chord(t, yanking(t, msg), "y", "u")
 	if cmd == nil || !strings.Contains(m.status(), "https://github.com/o/r/pull/9") {

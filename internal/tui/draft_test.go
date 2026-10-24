@@ -19,17 +19,17 @@ func TestADraftDoesNotFollowYouToAnotherRoom(t *testing.T) {
 	t.Parallel()
 
 	m := jumping(t)
-	m = openedFromList(t, m, "!a:x") // lands in the composer
+	m = openedFromList(t, m, mx+"!a:x") // lands in the composer
 	m = typeInto(t, m, "for Alpha only")
 	if m.compose.input != "for Alpha only" {
 		t.Fatalf("composer holds %q", m.compose.input)
 	}
 
-	moved := openedFromList(t, m, "!ops:x")
+	moved := openedFromList(t, m, mx+"!ops:x")
 	if moved.compose.input != "" {
 		t.Errorf("the draft followed into the next room: %q", moved.compose.input)
 	}
-	back := openedFromList(t, moved, "!a:x")
+	back := openedFromList(t, moved, mx+"!a:x")
 	if back.compose.input != "for Alpha only" {
 		t.Errorf("coming back gave %q, want the draft returned", back.compose.input)
 	}
@@ -43,16 +43,16 @@ func TestADraftCarriesItsReplyAndItsUndo(t *testing.T) {
 	t.Parallel()
 
 	m := jumping(t)
-	m = openedFromList(t, m, "!a:x")
-	m.compose.replyTo = "$somewhere-in-alpha"
+	m = openedFromList(t, m, mx+"!a:x")
+	m.compose.replyTo = mx + "$somewhere-in-alpha"
 	m = typeInto(t, m, "one two")
 
-	moved := openedFromList(t, m, "!ops:x")
+	moved := openedFromList(t, m, mx+"!ops:x")
 	if moved.compose.replyTo != "" {
 		t.Errorf("the reply target followed to another room: %s", moved.compose.replyTo)
 	}
-	back := openedFromList(t, moved, "!a:x")
-	if back.compose.replyTo != "$somewhere-in-alpha" {
+	back := openedFromList(t, moved, mx+"!a:x")
+	if back.compose.replyTo != mx+"$somewhere-in-alpha" {
 		t.Errorf("reply target = %q, want it restored with the draft", back.compose.replyTo)
 	}
 	undone, _ := press(t, back, tea.KeyPressMsg{Code: 'z', Mod: tea.ModCtrl})
@@ -67,12 +67,12 @@ func TestReselectingTheOpenRoomKeepsTheReplyTarget(t *testing.T) {
 	t.Parallel()
 
 	m := jumping(t)
-	m = openedFromList(t, m, "!a:x")
-	m.compose.replyTo = "$somewhere-in-alpha"
+	m = openedFromList(t, m, mx+"!a:x")
+	m.compose.replyTo = mx + "$somewhere-in-alpha"
 	m = typeInto(t, m, "one two")
 
-	again := openedFromList(t, m, "!a:x")
-	if again.compose.replyTo != "$somewhere-in-alpha" {
+	again := openedFromList(t, m, mx+"!a:x")
+	if again.compose.replyTo != mx+"$somewhere-in-alpha" {
 		t.Errorf("reply target = %q after re-selecting the room, want it kept", again.compose.replyTo)
 	}
 	if again.compose.input != "one two" {
@@ -86,14 +86,14 @@ func TestTheRoomListMarksARoomHoldingADraft(t *testing.T) {
 	t.Parallel()
 
 	m := jumping(t)
-	m = openedFromList(t, m, "!a:x")
+	m = openedFromList(t, m, mx+"!a:x")
 	m = typeInto(t, m, "unsent")
-	m = openedFromList(t, m, "!ops:x")
+	m = openedFromList(t, m, mx+"!ops:x")
 
-	if !m.hasDraft("!a:x") {
+	if !m.hasDraft(mx + "!a:x") {
 		t.Fatal("the room holding the draft does not report one")
 	}
-	if m.hasDraft("!dana:x") {
+	if m.hasDraft(mx + "!dana:x") {
 		t.Error("a room with no draft reports one")
 	}
 	view := stripStyles(m.View().Content)
@@ -122,17 +122,17 @@ func TestAnEmptiedDraftIsForgotten(t *testing.T) {
 	t.Parallel()
 
 	m := jumping(t)
-	m = openedFromList(t, m, "!a:x")
+	m = openedFromList(t, m, mx+"!a:x")
 	m = typeInto(t, m, "never mind")
 	for range len("never mind") {
 		next, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 		m = next
 	}
-	m = openedFromList(t, m, "!ops:x")
-	if m.hasDraft("!a:x") {
+	m = openedFromList(t, m, mx+"!ops:x")
+	if m.hasDraft(mx + "!a:x") {
 		t.Error("an emptied composer was stashed as a draft")
 	}
-	if _, held := m.drafts[domain.RoomID("!a:x")]; held {
+	if _, held := m.drafts[domain.RoomID(mx+"!a:x")]; held {
 		t.Error("the room is pinned in the draft map with nothing in it")
 	}
 }
@@ -157,27 +157,27 @@ func TestTheDraftsGroupCollectsRoomsHoldingWords(t *testing.T) {
 		t.Fatal("a Drafts group exists with nothing half-written")
 	}
 
-	m = openedFromList(t, m, "!a:x")
+	m = openedFromList(t, m, mx+"!a:x")
 	m = typeInto(t, m, "unsent words")
-	m = openedFromList(t, m, "!dana:x")
+	m = openedFromList(t, m, mx+"!dana:x")
 
 	g, ok := findGroup(m.rail.groups, draftsGroupKey)
 	if !ok {
 		t.Fatal("no Drafts group after leaving a room with a draft")
 	}
-	if !g.admits(m.unreadView(), domain.Room{ID: "!a:x"}) {
+	if !g.admits(m.unreadView(), domain.Room{ID: mx + "!a:x"}) {
 		t.Error("the Drafts group does not hold the room the draft was written in")
 	}
-	if g.admits(m.unreadView(), domain.Room{ID: "!ops:x"}) {
+	if g.admits(m.unreadView(), domain.Room{ID: mx + "!ops:x"}) {
 		t.Error("the Drafts group holds a room with no draft")
 	}
-	if g.admits(m.unreadView(), domain.Room{ID: "!dana:x"}) {
+	if g.admits(m.unreadView(), domain.Room{ID: mx + "!dana:x"}) {
 		t.Error("the open room is in the Drafts group while you are typing in it")
 	}
 
-	back := openedFromList(t, m, "!a:x")
+	back := openedFromList(t, m, mx+"!a:x")
 	cleared, _ := press(t, back, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
-	cleared = openedFromList(t, cleared, "!ops:x")
+	cleared = openedFromList(t, cleared, mx+"!ops:x")
 	if _, still := findGroup(cleared.rail.groups, draftsGroupKey); still {
 		t.Error("the Drafts group outlived the last draft")
 	}
@@ -187,14 +187,14 @@ func TestTheDraftsGroupCollectsRoomsHoldingWords(t *testing.T) {
 func TestHideWhenEmptyDropsAGroupHoldingNothing(t *testing.T) {
 	t.Parallel()
 
-	rooms := []domain.Room{{ID: "!a:x", Name: "Alpha"}}
+	rooms := []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}
 	view := starterView(t, unreadView{counts: map[domain.RoomID]domain.Unread{}})
 
 	groups := railGroups(nil, config.Rail{HideWhenEmpty: []string{unreadGroupKey}}, nil, view, rooms)
 	if _, ok := findGroup(groups, unreadGroupKey); ok {
 		t.Error("an empty Unread group survived hide_when_empty")
 	}
-	view.counts = map[domain.RoomID]domain.Unread{"!a:x": {Notifications: 2, Messages: 2, Counted: true}}
+	view.counts = map[domain.RoomID]domain.Unread{mx + "!a:x": {Notifications: 2, Messages: 2, Counted: true}}
 	groups = railGroups(nil, config.Rail{HideWhenEmpty: []string{unreadGroupKey}}, nil, view, rooms)
 	if _, ok := findGroup(groups, unreadGroupKey); !ok {
 		t.Error("Unread stayed hidden with something unread in it")
@@ -219,10 +219,10 @@ func TestALongNameLosesLettersRatherThanItsMark(t *testing.T) {
 
 	m := jumping(t)
 	long := "A room with a very long name indeed that will not fit"
-	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: long}, {ID: "!ops:x", Name: "Ops"}}})
-	m = openedFromList(t, m, "!a:x")
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: long}, {ID: mx + "!ops:x", Name: "Ops"}}})
+	m = openedFromList(t, m, mx+"!a:x")
 	m = typeInto(t, m, "held")
-	m = openedFromList(t, m, "!ops:x")
+	m = openedFromList(t, m, mx+"!ops:x")
 
 	view := stripStyles(m.View().Content)
 	row, found := rowContaining(view, "A room with")
@@ -259,7 +259,7 @@ func TestADraftSurvivesWalkingTheRail(t *testing.T) {
 	t.Parallel()
 
 	m := jumping(t) // Work holds Alpha; Infra holds Ops
-	m = openedFromList(t, m, "!a:x")
+	m = openedFromList(t, m, mx+"!a:x")
 	m = typeInto(t, m, "for Alpha")
 
 	m.focus, m.compose.insertMode = paneRail, false
@@ -275,18 +275,18 @@ func TestADraftSurvivesWalkingTheRail(t *testing.T) {
 	if moved.compose.input != "" {
 		t.Errorf("the draft followed the rail into %q: %q", moved.rail.key(), moved.compose.input)
 	}
-	if !moved.hasDraft("!a:x") {
+	if !moved.hasDraft(mx + "!a:x") {
 		t.Fatal("walking the rail threw the draft away")
 	}
 	g, ok := findGroup(moved.rail.groups, draftsGroupKey)
 	if !ok {
 		t.Fatal("no Drafts group after walking away from a room holding a draft")
 	}
-	if !g.admits(m.unreadView(), domain.Room{ID: "!a:x"}) {
+	if !g.admits(m.unreadView(), domain.Room{ID: mx + "!a:x"}) {
 		t.Error("the Drafts group does not hold the room the draft is in")
 	}
 
-	back := openedFromList(t, moved, "!a:x")
+	back := openedFromList(t, moved, mx+"!a:x")
 	if back.compose.input != "for Alpha" {
 		t.Errorf("returning gave %q, want the draft back", back.compose.input)
 	}
@@ -297,7 +297,7 @@ func TestADraftSurvivesTheRoomListEmptying(t *testing.T) {
 	t.Parallel()
 
 	m := jumping(t)
-	m = openedFromList(t, m, "!a:x")
+	m = openedFromList(t, m, mx+"!a:x")
 	m = typeInto(t, m, "kept")
 
 	cleared, _ := m.clearRoom()
@@ -305,7 +305,7 @@ func TestADraftSurvivesTheRoomListEmptying(t *testing.T) {
 	if next.compose.input != "" {
 		t.Errorf("the composer kept %q with no room open", next.compose.input)
 	}
-	if !next.hasDraft("!a:x") {
+	if !next.hasDraft(mx + "!a:x") {
 		t.Error("clearing the room threw the draft away")
 	}
 }
@@ -328,7 +328,7 @@ func drafting(t *testing.T, held ...domain.StoredDraft) (Model, *draftBackend) {
 	t.Helper()
 	b := &draftBackend{load: held}
 	m := update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
@@ -352,7 +352,7 @@ func TestDraftIsWrittenOnAPause(t *testing.T) {
 		t.Fatal("the pause wrote nothing")
 	}
 	_ = cmd()
-	if len(b.stored) != 1 || b.stored[0].Body != "half a thought" || b.stored[0].RoomID != "!a:x" {
+	if len(b.stored) != 1 || b.stored[0].Body != "half a thought" || b.stored[0].RoomID != mx+"!a:x" {
 		t.Fatalf("stored %+v, want the draft under the open room", b.stored)
 	}
 	if b.stored[0].Author != "" {
@@ -366,7 +366,7 @@ func TestLeavingARoomWritesItsDraft(t *testing.T) {
 
 	m, b := drafting(t)
 	m = typeInto(t, m, "for Alpha")
-	next, _ := m.selectRoom(domain.Room{ID: "!b:x", Name: "Bravo"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!b:x", Name: "Bravo"})
 	m = next
 	if m.compose.input != "" {
 		t.Fatalf("composer = %q after the switch, want Bravo's empty one", m.compose.input)
@@ -376,7 +376,7 @@ func TestLeavingARoomWritesItsDraft(t *testing.T) {
 	m = deliver(t, m, arm)
 	var wrote bool
 	for _, stored := range b.stored {
-		if stored.RoomID == "!a:x" && stored.Body == "for Alpha" {
+		if stored.RoomID == mx+"!a:x" && stored.Body == "for Alpha" {
 			wrote = true
 		}
 	}
@@ -390,7 +390,7 @@ func TestAnEmptyRoomSwitchWritesNothing(t *testing.T) {
 	t.Parallel()
 
 	m, b := drafting(t)
-	next, _ := m.selectRoom(domain.Room{ID: "!b:x", Name: "Bravo"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!b:x", Name: "Bravo"})
 	m = next
 	_, cmd := m.armDraftSave()
 	if cmd != nil {
@@ -407,7 +407,7 @@ func TestStoredDraftsComeBackWithTheirProvenance(t *testing.T) {
 
 	written := time.Now().Add(-3 * time.Hour)
 	m, _ := drafting(t, domain.StoredDraft{
-		RoomID: "!a:x", Body: "drafted for you", Author: domain.DraftAgent, Updated: written,
+		RoomID: mx + "!a:x", Body: "drafted for you", Author: domain.DraftAgent, Updated: written,
 	})
 	m = deliver(t, m, m.loadDraftsCmd())
 	if m.compose.input != "drafted for you" {
@@ -422,7 +422,7 @@ func TestStoredDraftsComeBackWithTheirProvenance(t *testing.T) {
 	if note := m.draftNote(); note != "" {
 		t.Fatalf("draftNote() = %q after editing, want nothing", note)
 	}
-	if m.composerDraft().stored("!a:x").Author != "" {
+	if m.composerDraft().stored(mx+"!a:x").Author != "" {
 		t.Error("an edited draft still claimed to be the agent's")
 	}
 }
@@ -431,7 +431,7 @@ func TestStoredDraftsComeBackWithTheirProvenance(t *testing.T) {
 func TestLoadedDraftsDoNotOverwriteLiveTyping(t *testing.T) {
 	t.Parallel()
 
-	m, _ := drafting(t, domain.StoredDraft{RoomID: "!a:x", Body: "from disk"})
+	m, _ := drafting(t, domain.StoredDraft{RoomID: mx + "!a:x", Body: "from disk"})
 	m = typeInto(t, m, "typed first")
 	m = deliver(t, m, m.loadDraftsCmd())
 	if m.compose.input != "typed first" {
@@ -445,9 +445,9 @@ func TestThePollPicksUpADraftWrittenElsewhere(t *testing.T) {
 	t.Parallel()
 
 	m, b := drafting(t)
-	m = openedFromList(t, m, "!b:x")
+	m = openedFromList(t, m, mx+"!b:x")
 	b.load = []domain.StoredDraft{{
-		RoomID: "!a:x", Body: "drafted for you", Author: "claude-code", Updated: time.Now(),
+		RoomID: mx + "!a:x", Body: "drafted for you", Author: "claude-code", Updated: time.Now(),
 	}}
 
 	next, cmd := asModel(m.Update(pollTickMsg{}))
@@ -459,7 +459,7 @@ func TestThePollPicksUpADraftWrittenElsewhere(t *testing.T) {
 		m = update(t, m, msg)
 	}
 
-	if !m.hasDraft("!a:x") {
+	if !m.hasDraft(mx + "!a:x") {
 		t.Fatal("the poll did not pick up a draft written elsewhere")
 	}
 	if indexOfGroup(m.rail.groups, draftsGroupKey) < 0 {
@@ -474,7 +474,7 @@ func TestThePollDoesNotDisturbADraftThisClientHolds(t *testing.T) {
 	m, b := drafting(t)
 	m = typeInto(t, m, "mine, half typed")
 	b.load = []domain.StoredDraft{{
-		RoomID: "!a:x", Body: "mine, half typed\n\nand the assistant's",
+		RoomID: mx + "!a:x", Body: "mine, half typed\n\nand the assistant's",
 		Author: "claude-code", Updated: time.Now(),
 	}}
 
@@ -570,7 +570,7 @@ func TestDraftSaveFailuresAreSaidOnceAndRecoverySaid(t *testing.T) {
 	t.Parallel()
 	m := sized(t, starterNew(draftFailer{}, config.Display{}))
 
-	saved, ok := m.saveDraftCmd("!a:x", draft{input: "half a thought"}.stored("!a:x"))().(draftSavedMsg)
+	saved, ok := m.saveDraftCmd(mx+"!a:x", draft{input: "half a thought"}.stored(mx+"!a:x"))().(draftSavedMsg)
 	if !ok || saved.err == nil {
 		t.Fatalf("saveDraftCmd = %#v, want the failure reported back", saved)
 	}
@@ -595,14 +595,14 @@ func TestAReplyChosenAloneIsSaved(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
 	gen := m.draftSync.gen
-	m.compose.replyTo = "$target"
+	m.compose.replyTo = mx + "$target"
 	m, armed := m.armDraftSave()
 	if armed == nil || m.draftSync.gen == gen {
 		t.Fatal("a reply chosen alone armed no save")
 	}
 	m, save := m.handleDraftTick(draftTickMsg{gen: m.draftSync.gen})
 	_ = settle(t, m, save)
-	if got := store.drafts["!a:x"]; got.ReplyTo != "$target" {
+	if got := store.drafts[mx+"!a:x"]; got.ReplyTo != mx+"$target" {
 		t.Fatalf("stored %+v, want the reply target written", got)
 	}
 }

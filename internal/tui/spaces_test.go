@@ -39,21 +39,21 @@ func filing(t *testing.T) (Model, *filer) {
 	f := &filer{}
 	// Work and Friends ranked first, so the picker opens on them.
 	m := update(t, starterNew(f, config.Display{Priority: []string{"space:Work", "space:Friends"}}), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo"},
 	}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
-		{ID: "!f:x", Name: "Friends"},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
+		{ID: mx + "!f:x", Name: "Friends"},
 		// A bridge's own space, marked by the bridge bot being in it (not by its name).
-		{ID: "!wa:x", Name: "WhatsApp", Keeper: "@whatsappbot_bg:x", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{"!b:x"}},
+		{ID: mx + "!wa:x", Name: "WhatsApp", Keeper: "matrix:@whatsappbot_bg:x", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{mx + "!b:x"}},
 		// An origin space: a room names it as canonical parent.
-		{ID: "!tip:x", Name: "Acme", Original: true, Children: []domain.RoomID{"!b:x"}},
+		{ID: mx + "!tip:x", Name: "Acme", Original: true, Children: []domain.RoomID{mx + "!b:x"}},
 	}})
 	m = sized(t, m.clearStatus())
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
 	return m, f
 }
@@ -69,10 +69,10 @@ func TestSpacePickerTicksTheSpacesHoldingTheRoom(t *testing.T) {
 	if !m.picker.spec.multi {
 		t.Error("filing a room is a set, not a choice")
 	}
-	if !m.picker.ticked("!w:x") {
+	if !m.picker.ticked(mx + "!w:x") {
 		t.Error("Work holds Alpha but its row is not ticked")
 	}
-	if m.picker.ticked("!f:x") {
+	if m.picker.ticked(mx + "!f:x") {
 		t.Error("Friends does not hold Alpha; its row should be clear")
 	}
 	// Navigate mode: space ticks rather than filtering (names contain spaces).
@@ -90,9 +90,9 @@ func TestSpaceTicksAndEnterAppliesTheSet(t *testing.T) {
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeySpace})
 	m, _ = press(t, m, keyText("j"))
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeySpace})
-	if m.picker.ticked("!w:x") || !m.picker.ticked("!f:x") {
+	if m.picker.ticked(mx+"!w:x") || !m.picker.ticked(mx+"!f:x") {
 		t.Fatalf("ticks = work:%v friends:%v, want the opposite of what it opened with",
-			m.picker.ticked("!w:x"), m.picker.ticked("!f:x"))
+			m.picker.ticked(mx+"!w:x"), m.picker.ticked(mx+"!f:x"))
 	}
 
 	next, cmd := m.acceptPick()
@@ -101,10 +101,10 @@ func TestSpaceTicksAndEnterAppliesTheSet(t *testing.T) {
 		t.Error("applying the set should close the picker")
 	}
 	_ = deliver(t, mdl, cmd)
-	if !f.added || f.addedTo != "!f:x" {
+	if !f.added || f.addedTo != mx+"!f:x" {
 		t.Errorf("added to %q, want !f:x", f.addedTo)
 	}
-	if !f.removed || f.removedFrom != "!w:x" {
+	if !f.removed || f.removedFrom != mx+"!w:x" {
 		t.Errorf("removed from %q, want !w:x", f.removedFrom)
 	}
 }
@@ -137,7 +137,7 @@ func TestUntickingEverythingTakesTheRoomOut(t *testing.T) {
 	next, cmd := m.acceptPick()
 	mdl := next
 	_ = deliver(t, mdl, cmd)
-	if !f.removed || f.removedFrom != "!w:x" {
+	if !f.removed || f.removedFrom != mx+"!w:x" {
 		t.Errorf("removed from %q, want !w:x", f.removedFrom)
 	}
 }
@@ -151,13 +151,13 @@ func TestTheSpacePickerRemembersItsRoom(t *testing.T) {
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeySpace}) // tick Friends
 	// Bravo jumps to the top while the picker is open.
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
-		{ID: "!b:x", Name: "Bravo"},
-		{ID: "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo"},
+		{ID: mx + "!a:x", Name: "Alpha"},
 	}})
 	next, cmd := m.acceptPick()
 	mdl := next
 	_ = deliver(t, mdl, cmd)
-	if f.room != "!a:x" {
+	if f.room != mx+"!a:x" {
 		t.Errorf("filed %q, want the room the picker was opened for (!a:x)", f.room)
 	}
 }
@@ -173,7 +173,7 @@ func TestManagedSpacesAreNotOffered(t *testing.T) {
 	}
 	m, _ = press(t, m, keyText("S"))
 	for _, item := range m.picker.all {
-		if item.value == "!wa:x" || item.value == "!tip:x" {
+		if item.value == mx+"!wa:x" || item.value == mx+"!tip:x" {
 			t.Errorf("a managed space was offered for filing: %+v", item)
 		}
 	}
@@ -204,7 +204,7 @@ func TestUnofferedSpacesAreLeftAlone(t *testing.T) {
 
 	m, f := filing(t)
 	// Bravo lives in the bridge's space, which the picker won't show.
-	next, _ := m.selectRoom(domain.Room{ID: "!b:x", Name: "Bravo"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!b:x", Name: "Bravo"})
 	m = next
 	m, _ = press(t, m, keyText("S"))
 	next, cmd := m.acceptPick()
@@ -221,14 +221,14 @@ func TestFilingSpacesNamesTheList(t *testing.T) {
 	t.Parallel()
 
 	m, _ := filing(t)
-	m.prefs.display.FilingSpaces = []string{"space:Friends", "!w:x"}
+	m.prefs.display.FilingSpaces = []string{"space:Friends", mx + "!w:x"}
 	m, _ = press(t, m, keyText("S"))
 
 	var got []string
 	for _, item := range spaceRows(m.picker.all) {
 		got = append(got, item.value)
 	}
-	if len(got) != 2 || got[0] != "!f:x" || got[1] != "!w:x" {
+	if len(got) != 2 || got[0] != mx+"!f:x" || got[1] != mx+"!w:x" {
 		t.Errorf("rows = %v, want Friends then Work — the written order, by name and by ID", got)
 	}
 }
@@ -239,7 +239,7 @@ func TestFilingSpacesOverridesTheJudgment(t *testing.T) {
 	m, _ := filing(t)
 	m.prefs.display.FilingSpaces = []string{"space:WhatsApp"}
 	m, _ = press(t, m, keyText("S"))
-	if rows := spaceRows(m.picker.all); len(rows) != 1 || rows[0].value != "!wa:x" {
+	if rows := spaceRows(m.picker.all); len(rows) != 1 || rows[0].value != mx+"!wa:x" {
 		t.Errorf("rows = %+v, want the named bridge space", rows)
 	}
 }
@@ -250,7 +250,7 @@ func TestFilingSpacesSkipsWhatItCannotFind(t *testing.T) {
 	m, _ := filing(t)
 	m.prefs.display.FilingSpaces = []string{"space:Gone", "space:Work"}
 	m, _ = press(t, m, keyText("S"))
-	if rows := spaceRows(m.picker.all); len(rows) != 1 || rows[0].value != "!w:x" {
+	if rows := spaceRows(m.picker.all); len(rows) != 1 || rows[0].value != mx+"!w:x" {
 		t.Errorf("rows = %+v, want just Work", rows)
 	}
 
@@ -319,7 +319,7 @@ type spaceMaker struct {
 
 func (s *spaceMaker) CreateRoom(_ context.Context, spec domain.NewRoom) (domain.RoomID, error) {
 	s.made = spec
-	return "!svc:x", nil
+	return mx + "!svc:x", nil
 }
 
 func (s *spaceMaker) AddToSpace(ctx context.Context, spaceID domain.SpaceID, roomID domain.RoomID) error {
@@ -334,10 +334,10 @@ func makingSpaces(t *testing.T, addErr error) (Model, *spaceMaker) {
 	t.Helper()
 	s := &spaceMaker{addErr: addErr}
 	m := update(t, starterNew(s, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
+		{ID: mx + "!a:x", Name: "Alpha"},
 		{ID: "whatsapp:1/g@g.us", Name: "Family"},
 	}})
-	m = update(t, m, spacesMsg{spaces: []domain.Space{{ID: "!w:x", Name: "Work"}}})
+	m = update(t, m, spacesMsg{spaces: []domain.Space{{ID: mx + "!w:x", Name: "Work"}}})
 	m = sized(t, m.clearStatus())
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
@@ -349,7 +349,7 @@ func makingSpaces(t *testing.T, addErr error) (Model, *spaceMaker) {
 func TestTheSpacePickerMakesASpaceForAMatrixRoom(t *testing.T) {
 	t.Parallel()
 	m, s := makingSpaces(t, nil)
-	m, _ = m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	m, _ = m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m, _ = press(t, m, keyText("S"))
 	m = pickLabel(t, m, "New space")
 	if !m.prompt.active() || m.prompt.kind != promptNewRoom {
@@ -359,7 +359,7 @@ func TestTheSpacePickerMakesASpaceForAMatrixRoom(t *testing.T) {
 	if !s.made.Space || s.made.Name != "Services" || s.made.Parent != "" {
 		t.Errorf("made %+v, want a space named Services", s.made)
 	}
-	if !s.added || s.addedTo != "!svc:x" || s.room != "!a:x" {
+	if !s.added || s.addedTo != mx+"!svc:x" || s.room != mx+"!a:x" {
 		t.Errorf("filed %v %q into %q, want Alpha into the new space", s.added, s.room, s.addedTo)
 	}
 	if !strings.Contains(m.status(), "Services created") {
@@ -377,7 +377,7 @@ func TestTheSpacePickerMakesASpaceForAMatrixRoom(t *testing.T) {
 func TestANewSpaceThatCannotTakeTheRoomSaysSo(t *testing.T) {
 	t.Parallel()
 	m, _ := makingSpaces(t, errors.New("forbidden"))
-	m, _ = m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	m, _ = m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m, _ = press(t, m, keyText("S"))
 	m = pickLabel(t, m, "New space")
 	m = typeIn(t, m, "Services")

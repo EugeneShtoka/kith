@@ -67,10 +67,10 @@ func TestRecordsAreEditedFieldByField(t *testing.T) {
 	}
 
 	id, _ := cfg.AddRecord("display.identity")
-	if err := cfg.SetRecordList("display.identity", id, "ids", []string{"@a:x", "whatsapp:1"}); err != nil {
+	if err := cfg.SetRecordList("display.identity", id, "ids", []string{"matrix:@a:x", "whatsapp:1"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := cfg.RecordList("display.identity", id, "ids"); !slices.Equal(got, []string{"@a:x", "whatsapp:1"}) {
+	if got := cfg.RecordList("display.identity", id, "ids"); !slices.Equal(got, []string{"matrix:@a:x", "whatsapp:1"}) {
 		t.Errorf("ids = %v", got)
 	}
 	if err := cfg.RemoveRecord("display.read_rule", 0); err != nil {

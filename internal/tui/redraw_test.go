@@ -42,7 +42,7 @@ func TestRoomChangeRepaintsButReselectingDoesNot(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m.openRoom = "!b:x" // somewhere else, so the next selection is a real move
+	m.openRoom = mx + "!b:x" // somewhere else, so the next selection is a real move
 	mdl, cmd := m.selectRoom(m.rooms.all[0])
 	if !hasClear(t, cmd) {
 		t.Error("opening a different room should repaint")

@@ -18,10 +18,10 @@ func filteredCache(t *testing.T) *Cache {
 		room, id, sender, name, body string
 		day                          int
 	}{
-		{"!a:x", "$1", "@dana:x", "Dana", "the invoice is attached", 0},
-		{"!a:x", "$2", "@bob:x", "Bob", "thanks for the invoice", 1},
-		{"!b:x", "$3", "@dana:x", "Dana", "another invoice entirely", 2},
-		{"!c:x", "$4", "@carol:x", "Carol", "invoice from the printer", 2},
+		{mx + "!a:x", mx + "$1", "matrix:@dana:x", "Dana", "the invoice is attached", 0},
+		{mx + "!a:x", mx + "$2", "matrix:@bob:x", "Bob", "thanks for the invoice", 1},
+		{mx + "!b:x", mx + "$3", "matrix:@dana:x", "Dana", "another invoice entirely", 2},
+		{mx + "!c:x", mx + "$4", "matrix:@carol:x", "Carol", "invoice from the printer", 2},
 	}
 	for _, m := range msgs {
 		mustSave(t, cache, domain.RoomID(m.room), domain.Message{
@@ -54,16 +54,16 @@ func TestSearchScopesToARoomSet(t *testing.T) {
 	}
 	space := search(t, cache, domain.SearchRequest{
 		Filter: domain.SearchFilter{Terms: "invoice"},
-		Rooms:  domain.TheseRooms([]domain.RoomID{"!a:x", "!b:x"}),
+		Rooms:  domain.TheseRooms([]domain.RoomID{mx + "!a:x", mx + "!b:x"}),
 	})
 	if len(space) != 3 {
 		t.Errorf("two rooms found %d, want 3", len(space))
 	}
 	one := search(t, cache, domain.SearchRequest{
 		Filter: domain.SearchFilter{Terms: "invoice"},
-		Rooms:  domain.TheseRooms([]domain.RoomID{"!c:x"}),
+		Rooms:  domain.TheseRooms([]domain.RoomID{mx + "!c:x"}),
 	})
-	if len(one) != 1 || one[0].EventID != "$4" {
+	if len(one) != 1 || one[0].EventID != mx+"$4" {
 		t.Errorf("one room = %+v, want just $4", one)
 	}
 }
@@ -71,7 +71,7 @@ func TestSearchScopesToARoomSet(t *testing.T) {
 // A sender filter matches the MXID and the display name.
 func TestSearchFiltersBySender(t *testing.T) {
 	cache := filteredCache(t)
-	for _, who := range []string{"@dana:x", "dana", "Dana"} {
+	for _, who := range []string{"matrix:@dana:x", "dana", "Dana"} {
 		hits := search(t, cache, domain.SearchRequest{
 			Filter: domain.SearchFilter{Terms: "invoice", Sender: who},
 			Rooms:  domain.EveryRoom(),
@@ -96,14 +96,14 @@ func TestSearchFiltersByDateSpan(t *testing.T) {
 		Filter: domain.SearchFilter{Terms: "invoice", Until: day1},
 		Rooms:  domain.EveryRoom(),
 	})
-	if len(until) != 1 || until[0].EventID != "$1" {
+	if len(until) != 1 || until[0].EventID != mx+"$1" {
 		t.Errorf("until day 1 = %+v, want just the first day", until)
 	}
 	span := search(t, cache, domain.SearchRequest{
 		Filter: domain.SearchFilter{Terms: "invoice", Since: day1, Until: day1.AddDate(0, 0, 1)},
 		Rooms:  domain.EveryRoom(),
 	})
-	if len(span) != 1 || span[0].EventID != "$2" {
+	if len(span) != 1 || span[0].EventID != mx+"$2" {
 		t.Errorf("a one-day span = %+v, want just $2", span)
 	}
 }
@@ -112,7 +112,7 @@ func TestSearchFiltersByDateSpan(t *testing.T) {
 // match-all).
 func TestSearchWithNoTermsButFilters(t *testing.T) {
 	cache := filteredCache(t)
-	hits := search(t, cache, domain.SearchRequest{Filter: domain.SearchFilter{Sender: "@dana:x"}, Rooms: domain.EveryRoom()})
+	hits := search(t, cache, domain.SearchRequest{Filter: domain.SearchFilter{Sender: "matrix:@dana:x"}, Rooms: domain.EveryRoom()})
 	if len(hits) != 2 {
 		t.Errorf("sender-only search found %d, want Dana's 2", len(hits))
 	}
@@ -124,16 +124,16 @@ func TestSearchWithNoTermsButFilters(t *testing.T) {
 // A name containing a LIKE wildcard must match itself, not everything.
 func TestSearchSenderWildcardsAreLiteral(t *testing.T) {
 	cache := openTemp(t)
-	mustSave(t, cache, "!a:x", domain.Message{
-		ID: "$1", RoomID: "!a:x", Sender: "@odd:x", SenderName: "100%", Body: "hello",
+	mustSave(t, cache, mx+"!a:x", domain.Message{
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@odd:x", SenderName: "100%", Body: "hello",
 		Timestamp: time.Now(),
 	})
-	mustSave(t, cache, "!a:x", domain.Message{
-		ID: "$2", RoomID: "!a:x", Sender: "@bob:x", SenderName: "Bob", Body: "hello",
+	mustSave(t, cache, mx+"!a:x", domain.Message{
+		ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob", Body: "hello",
 		Timestamp: time.Now(),
 	})
 	hits := search(t, cache, domain.SearchRequest{Filter: domain.SearchFilter{Terms: "hello", Sender: "%"}, Rooms: domain.EveryRoom()})
-	if len(hits) != 1 || hits[0].EventID != "$1" {
+	if len(hits) != 1 || hits[0].EventID != mx+"$1" {
 		t.Errorf("a %% in a name matched %d rows, want only the one called 100%%", len(hits))
 	}
 }
@@ -149,14 +149,14 @@ func TestSearchNarrowsToMessagesWithAFile(t *testing.T) {
 		media    *domain.Media
 		day      int
 	}{
-		{"$1", "just talking", nil, 0},
-		{"$2", "photo.png", &domain.Media{Type: domain.MediaImage, Name: "photo.png", Mime: "image/png"}, 1},
-		{"$3", "talking again", nil, 2},
-		{"$4", "report.pdf", &domain.Media{Type: domain.MediaFile, Name: "report.pdf", Mime: "application/pdf"}, 3},
+		{mx + "$1", "just talking", nil, 0},
+		{mx + "$2", "photo.png", &domain.Media{Type: domain.MediaImage, Name: "photo.png", Mime: "image/png"}, 1},
+		{mx + "$3", "talking again", nil, 2},
+		{mx + "$4", "report.pdf", &domain.Media{Type: domain.MediaFile, Name: "report.pdf", Mime: "application/pdf"}, 3},
 	}
 	for _, m := range msgs {
-		mustSave(t, cache, "!a:x", domain.Message{
-			ID: domain.EventID(m.id), RoomID: "!a:x", Sender: "@dana:x", SenderName: "Dana",
+		mustSave(t, cache, mx+"!a:x", domain.Message{
+			ID: domain.EventID(m.id), RoomID: mx + "!a:x", Sender: "matrix:@dana:x", SenderName: "Dana",
 			Body: m.body, Media: m.media, Timestamp: base.AddDate(0, 0, m.day),
 		})
 	}
@@ -165,7 +165,7 @@ func TestSearchNarrowsToMessagesWithAFile(t *testing.T) {
 	if len(hits) != 2 {
 		t.Fatalf("got %d hits, want the two messages carrying a file", len(hits))
 	}
-	if hits[0].EventID != "$4" || hits[1].EventID != "$2" {
+	if hits[0].EventID != mx+"$4" || hits[1].EventID != mx+"$2" {
 		t.Errorf("hits = %q, %q; want $4 then $2", hits[0].EventID, hits[1].EventID)
 	}
 	if hits[0].FileName != "report.pdf" || hits[1].FileName != "photo.png" {
@@ -198,12 +198,12 @@ func TestSearchCombinesFileClauseWithTerms(t *testing.T) {
 		id, body string
 		media    *domain.Media
 	}{
-		{"$1", "the quarterly report", nil},
-		{"$2", "quarterly numbers", &domain.Media{Type: domain.MediaFile, Name: "q3.xlsx"}},
-		{"$3", "holiday snap", &domain.Media{Type: domain.MediaImage, Name: "beach.jpg"}},
+		{mx + "$1", "the quarterly report", nil},
+		{mx + "$2", "quarterly numbers", &domain.Media{Type: domain.MediaFile, Name: "q3.xlsx"}},
+		{mx + "$3", "holiday snap", &domain.Media{Type: domain.MediaImage, Name: "beach.jpg"}},
 	} {
-		mustSave(t, cache, "!a:x", domain.Message{
-			ID: domain.EventID(m.id), RoomID: "!a:x", Sender: "@dana:x",
+		mustSave(t, cache, mx+"!a:x", domain.Message{
+			ID: domain.EventID(m.id), RoomID: mx + "!a:x", Sender: "matrix:@dana:x",
 			Body: m.body, Media: m.media, Timestamp: now,
 		})
 	}
@@ -212,7 +212,7 @@ func TestSearchCombinesFileClauseWithTerms(t *testing.T) {
 		Filter: domain.SearchFilter{Terms: "quarterly", HasFile: true},
 		Rooms:  domain.EveryRoom(),
 	})
-	if len(hits) != 1 || hits[0].EventID != "$2" {
+	if len(hits) != 1 || hits[0].EventID != mx+"$2" {
 		t.Fatalf("got %d hits (%v), want only the quarterly message that has a file", len(hits), hits)
 	}
 }
@@ -229,7 +229,7 @@ func TestAnEmptyRoomSetReadsNoRoom(t *testing.T) {
 		if people, err := cache.SearchSenders(ctx, set, 0); err != nil || len(people) != 0 {
 			t.Errorf("%s: SearchSenders = %d, %v; want nobody", name, len(people), err)
 		}
-		if rooms, err := cache.RoomsWith(ctx, []string{"@dana:x"}, set, 10); err != nil || len(rooms) != 0 {
+		if rooms, err := cache.RoomsWith(ctx, []string{"matrix:@dana:x"}, set, 10); err != nil || len(rooms) != 0 {
 			t.Errorf("%s: RoomsWith = %d, %v; want none", name, len(rooms), err)
 		}
 	}

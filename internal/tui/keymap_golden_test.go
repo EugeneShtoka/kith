@@ -53,7 +53,7 @@ func TestHelpOverlayIssuesGolden(t *testing.T) {
 	keys.Bindings["rooms.join"] = unbind
 	keys.Bindings["sort.recent"] = "s"
 	keys.Bindings["picker.kick"] = "a"
-	keys.Jump = config.Jumps{{Chord: "g x", Target: "room:!r:x"}, {Chord: "q", Target: "space:Work"}}
+	keys.Jump = config.Jumps{{Chord: "g x", Target: "room:" + mx + "!r:x"}, {Chord: "q", Target: "space:Work"}}
 	m := withHelp(t, sized(t, withRooms(t, newModel())).WithKeys(keys))
 	checkGolden(t, "help_issues.golden", strings.Join(m.helpLines(), "\n")+"\n")
 }

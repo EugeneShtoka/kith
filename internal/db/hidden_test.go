@@ -15,8 +15,8 @@ import (
 // hiddenPool is the senders the generator draws from: Matrix users, a Telegram user,
 // and one WhatsApp number seen natively and as a bridge puppet (invented).
 var hiddenPool = []string{
-	"@ann:example.org", "@bob:example.org", "@cat:example.org", "telegram:1001",
-	"whatsapp:15550000001@s.whatsapp.net", "@whatsapp_15550000001:example.org",
+	"matrix:@ann:example.org", "matrix:@bob:example.org", "matrix:@cat:example.org", "telegram:1001",
+	"whatsapp:15550000001@s.whatsapp.net", "matrix:@whatsapp_15550000001:example.org",
 	hiddenMe,
 }
 
@@ -48,14 +48,14 @@ func genHiddenWorld(rng *rand.Rand) *hiddenWorld {
 		var batch []domain.Message
 		for range 1 + rng.IntN(4) {
 			msg := domain.Message{
-				ID: domain.EventID(fmt.Sprintf("$%d", n)), RoomID: "!a:x", Sender: pick(),
+				ID: domain.EventID(fmt.Sprintf(mx+"$%d", n)), RoomID: mx + "!a:x", Sender: pick(),
 				Body: "hello", Timestamp: start.Add(time.Duration(n) * time.Minute),
 			}
 			if n > 0 && rng.IntN(3) == 0 {
-				msg.ReplyTo = domain.EventID(fmt.Sprintf("$%d", rng.IntN(n)))
+				msg.ReplyTo = domain.EventID(fmt.Sprintf(mx+"$%d", rng.IntN(n)))
 			}
 			if n > 0 && rng.IntN(4) == 0 {
-				msg.ThreadRoot = domain.EventID(fmt.Sprintf("$%d", rng.IntN(n)))
+				msg.ThreadRoot = domain.EventID(fmt.Sprintf(mx+"$%d", rng.IntN(n)))
 			}
 			msg.Mentioned = rng.IntN(3) == 0
 			n++
@@ -64,7 +64,7 @@ func genHiddenWorld(rng *rand.Rand) *hiddenWorld {
 		w.msgs = append(w.msgs, batch...)
 		w.steps = append(w.steps, func(t *testing.T, c *Cache) {
 			t.Helper()
-			if err := c.SaveMessages(ctx, "!a:x", batch); err != nil {
+			if err := c.SaveMessages(ctx, mx+"!a:x", batch); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -138,7 +138,7 @@ func (w *hiddenWorld) visible() func(m *domain.Message) bool {
 var hiddenMuted = []string{"Spam"}
 
 // hiddenMe is the one of hiddenPool that is you.
-const hiddenMe = "@me:example.org"
+const hiddenMe = "matrix:@me:example.org"
 
 // want is every message search may return: none from a hidden sender, none answering one.
 func (w *hiddenWorld) want() []domain.EventID {
@@ -162,7 +162,7 @@ func TestSearchLeavesOutHiddenPeopleInAnyOrder(t *testing.T) {
 		rng := rand.New(rand.NewPCG(seed, 0x68)) // #nosec G404 -- reproducible
 		w := genHiddenWorld(rng)
 		c := openTemp(t)
-		c.UseSelves(func() []string { return []string{"@me:example.org"} })
+		c.UseSelves(func() []string { return []string{"matrix:@me:example.org"} })
 		for _, step := range w.steps {
 			step(t, c)
 		}
@@ -238,14 +238,14 @@ func TestUnreadCountsLeaveOutHiddenPeopleInAnyOrder(t *testing.T) {
 		c.UseSelves(func() []string { return me })
 		// Read up to some message, or to just before the first.
 		readMS := time.Unix(1700000000, 0).Add(time.Duration(rng.IntN(len(w.msgs)+1)-1) * time.Minute).UnixMilli()
-		if err := c.SaveUnread(ctx, domain.Unread{RoomID: "!a:x"}, readMS); err != nil {
+		if err := c.SaveUnread(ctx, domain.Unread{RoomID: mx + "!a:x"}, readMS); err != nil {
 			t.Fatal(err)
 		}
 		for _, step := range w.steps {
 			step(t, c)
 		}
 		wantMsgs, wantMentions, wantThreaded, wantThreadMentions := w.counts(readMS)
-		messages, mentions, counted, err := c.CountUnread(ctx, me, "!a:x")
+		messages, mentions, counted, err := c.CountUnread(ctx, me, mx+"!a:x")
 		if err != nil || !counted {
 			t.Fatalf("seed %d: CountUnread counted %v, %v", seed, counted, err)
 		}
@@ -253,7 +253,7 @@ func TestUnreadCountsLeaveOutHiddenPeopleInAnyOrder(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		threads, err := c.CountThreadUnread(ctx, me, "!a:x")
+		threads, err := c.CountThreadUnread(ctx, me, mx+"!a:x")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -263,8 +263,8 @@ func TestUnreadCountsLeaveOutHiddenPeopleInAnyOrder(t *testing.T) {
 			threadMentions += th.Mentions
 		}
 		where := fmt.Sprintf("seed %d: marked %v groups %v links %v", seed, w.marked, w.groups, w.links)
-		if messages != wantMsgs || mentions != wantMentions || all["!a:x"].Messages != wantMsgs || all["!a:x"].Mentions != wantMentions {
-			t.Fatalf("%s: counted %d (%d mentions), all %+v; want %d (%d)", where, messages, mentions, all["!a:x"], wantMsgs, wantMentions)
+		if messages != wantMsgs || mentions != wantMentions || all[mx+"!a:x"].Messages != wantMsgs || all[mx+"!a:x"].Mentions != wantMentions {
+			t.Fatalf("%s: counted %d (%d mentions), all %+v; want %d (%d)", where, messages, mentions, all[mx+"!a:x"], wantMsgs, wantMentions)
 		}
 		if threaded != wantThreaded || threadMentions != wantThreadMentions {
 			t.Fatalf("%s: threads count %d (%d mentions), want %d (%d)", where, threaded, threadMentions, wantThreaded, wantThreadMentions)
@@ -278,22 +278,22 @@ func TestSendersWrittenDuringARebuildAreClassified(t *testing.T) {
 
 	ctx := context.Background()
 	c := openTemp(t)
-	if err := c.SaveMessages(ctx, "!a:x", []domain.Message{{ID: "$seed", RoomID: "!a:x", Sender: "@ann:example.org", Body: "hello", Timestamp: time.Unix(1700000000, 0)}}); err != nil {
+	if err := c.SaveMessages(ctx, mx+"!a:x", []domain.Message{{ID: mx + "$seed", RoomID: mx + "!a:x", Sender: "matrix:@ann:example.org", Body: "hello", Timestamp: time.Unix(1700000000, 0)}}); err != nil {
 		t.Fatal(err)
 	}
 	var wg sync.WaitGroup
 	for i := range 20 {
 		wg.Go(func() {
-			sender := fmt.Sprintf("@spam%d:example.org", i)
-			msg := domain.Message{ID: domain.EventID(fmt.Sprintf("$%d", i)), RoomID: "!a:x", Sender: sender, Body: "hello", Timestamp: time.Unix(1700000100+int64(i), 0)}
-			if err := c.SaveMessages(ctx, "!a:x", []domain.Message{msg}); err != nil {
+			sender := fmt.Sprintf("matrix:@spam%d:example.org", i)
+			msg := domain.Message{ID: domain.EventID(fmt.Sprintf(mx+"$%d", i)), RoomID: mx + "!a:x", Sender: sender, Body: "hello", Timestamp: time.Unix(1700000100+int64(i), 0)}
+			if err := c.SaveMessages(ctx, mx+"!a:x", []domain.Message{msg}); err != nil {
 				t.Error(err)
 			}
 		})
 	}
 	var marked []string
 	for i := range 20 {
-		marked = append(marked, fmt.Sprintf("@spam%d:example.org", i))
+		marked = append(marked, fmt.Sprintf("matrix:@spam%d:example.org", i))
 	}
 	wg.Go(func() {
 		if err := c.UseHidden(ctx, marked, nil, nil); err != nil {
@@ -315,20 +315,20 @@ func TestSenderCompletionLeavesOutHiddenPeople(t *testing.T) {
 
 	ctx := context.Background()
 	c := openTemp(t)
-	if err := c.SaveMessages(ctx, "!a:x", []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)},
-		{ID: "$2", RoomID: "!a:x", Sender: "@bob:example.org", Body: "buy", Timestamp: time.Unix(1700000060, 0)},
+	if err := c.SaveMessages(ctx, mx+"!a:x", []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@bob:example.org", Body: "buy", Timestamp: time.Unix(1700000060, 0)},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.UseHidden(ctx, []string{"@bob:example.org"}, nil, nil); err != nil {
+	if err := c.UseHidden(ctx, []string{"matrix:@bob:example.org"}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	members, err := c.SearchSenders(ctx, domain.EveryRoom(), 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(members) != 1 || members[0].UserID != "@ann:example.org" {
+	if len(members) != 1 || members[0].UserID != "matrix:@ann:example.org" {
 		t.Errorf("offered %v, want Ann alone", members)
 	}
 }
@@ -344,8 +344,8 @@ func TestAChangeOfWhoIsHiddenNamesTheirRooms(t *testing.T) {
 	for i, m := range []struct {
 		room   domain.RoomID
 		sender string
-	}{{"!a:x", "@spam:example.org"}, {"!b:x", "@ann:example.org"}, {"!c:x", hiddenMe}, {"!d:x", "@bob:example.org"}} {
-		msg := domain.Message{ID: domain.EventID(fmt.Sprintf("$%d", i)), RoomID: m.room, Sender: m.sender, Body: "hello", Timestamp: time.Unix(1700000000+int64(i), 0)}
+	}{{mx + "!a:x", "matrix:@spam:example.org"}, {mx + "!b:x", "matrix:@ann:example.org"}, {mx + "!c:x", hiddenMe}, {mx + "!d:x", "matrix:@bob:example.org"}} {
+		msg := domain.Message{ID: domain.EventID(fmt.Sprintf(mx+"$%d", i)), RoomID: m.room, Sender: m.sender, Body: "hello", Timestamp: time.Unix(1700000000+int64(i), 0)}
 		if err := c.SaveMessages(ctx, m.room, []domain.Message{msg}); err != nil {
 			t.Fatal(err)
 		}
@@ -365,20 +365,20 @@ func TestAChangeOfWhoIsHiddenNamesTheirRooms(t *testing.T) {
 		heard = nil
 	}
 
-	if err := c.UseHidden(ctx, []string{"@spam:example.org"}, nil, nil); err != nil {
+	if err := c.UseHidden(ctx, []string{"matrix:@spam:example.org"}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	expect("marking", "!a:x")
-	if err := c.UseHidden(ctx, []string{"@spam:example.org", hiddenMe}, nil, nil); err != nil {
+	expect("marking", mx+"!a:x")
+	if err := c.UseHidden(ctx, []string{"matrix:@spam:example.org", hiddenMe}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	expect("marking yourself too")
-	if err := c.SetPeople(ctx, "book", nil, []domain.PersonLink{{Source: "book", ID: "@ann:example.org", Other: "@spam:example.org"}}); err != nil {
+	if err := c.SetPeople(ctx, "book", nil, []domain.PersonLink{{Source: "book", ID: "matrix:@ann:example.org", Other: "matrix:@spam:example.org"}}); err != nil {
 		t.Fatal(err)
 	}
-	expect("linking Ann to the marked", "!b:x")
+	expect("linking Ann to the marked", mx+"!b:x")
 	if err := c.UseHidden(ctx, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	expect("letting go", "!a:x", "!b:x")
+	expect("letting go", mx+"!a:x", mx+"!b:x")
 }

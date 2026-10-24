@@ -118,11 +118,11 @@ func personNotifier(t *testing.T, cfg config.Config, src *personBackend) *daemon
 // The generator's people: three Matrix users, and one WhatsApp number seen natively and
 // as a bridge puppet, which the directory links.
 const (
-	puppet = "@whatsapp_15550000001:example.org"
+	puppet = "matrix:@whatsapp_15550000001:example.org"
 	native = "whatsapp:15550000001@s.whatsapp.net"
 )
 
-var personPool = []string{"@s1:example.org", "@s2:example.org", "@s3:example.org", puppet, native, me}
+var personPool = []string{"matrix:@s1:example.org", "matrix:@s2:example.org", "matrix:@s3:example.org", puppet, native, me}
 
 // personOf is who an ID is, for the oracle: the puppet and the number are one.
 func personOf(id string) string {
@@ -132,7 +132,7 @@ func personOf(id string) string {
 	return id
 }
 
-var personRooms = []domain.RoomID{chatRm, "!g1:example.org", "!g2:example.org", "!g3:example.org"}
+var personRooms = []domain.RoomID{chatRm, mx + "!g1:example.org", mx + "!g2:example.org", mx + "!g3:example.org"}
 
 // personCase is one generated run.
 type personCase struct {
@@ -172,12 +172,12 @@ func genPersonCase(rng *rand.Rand, now time.Time) personCase {
 	for i := range rng.IntN(4) {
 		// Some old enough to be outside the window, all counting as said before.
 		age := []time.Duration{time.Hour, 10 * 24 * time.Hour}[rng.IntN(2)]
-		c.old = append(c.old, domain.Message{ID: domain.EventID(fmt.Sprintf("$old%d", i)), RoomID: personRooms[rng.IntN(len(personRooms))],
+		c.old = append(c.old, domain.Message{ID: domain.EventID(fmt.Sprintf(mx+"$old%d", i)), RoomID: personRooms[rng.IntN(len(personRooms))],
 			Sender: pick(), Body: bodies[rng.IntN(len(bodies))], Timestamp: now.Add(-age)})
 	}
 	n := 8 + rng.IntN(8)
 	for i := range n {
-		c.stream = append(c.stream, domain.Message{ID: domain.EventID(fmt.Sprintf("$%d", i)), RoomID: personRooms[rng.IntN(len(personRooms))],
+		c.stream = append(c.stream, domain.Message{ID: domain.EventID(fmt.Sprintf(mx+"$%d", i)), RoomID: personRooms[rng.IntN(len(personRooms))],
 			Sender: pick(), Body: bodies[rng.IntN(len(bodies))], Timestamp: now.Add(-time.Duration(n-i) * time.Second)})
 	}
 	return c
@@ -309,13 +309,13 @@ func TestAFailedReadMarksNobody(t *testing.T) {
 	for _, read := range []string{"first", "window", "wrote", "directory"} {
 		src := &personBackend{spamBackend: spamWorld(), readErr: errors.New("cache closed"), failing: map[string]bool{read: true}}
 		// A release on another person makes the directory needed to tell them apart.
-		src.people = []domain.PersonVerdict{{Person: "@s3:example.org", Tag: "spam", Released: true}}
+		src.people = []domain.PersonVerdict{{Person: "matrix:@s3:example.org", Tag: "spam", Released: true}}
 		n := personNotifier(t, spamConfig(withFilters(first)), src)
 		n.UseLogger(slog.New(slog.DiscardHandler))
 		n.UseDirectory(func(context.Context) (domain.Directory, error) {
 			return domain.Directory{}, src.failed("directory")
 		})
-		m := msg(chatRm, "@s1:example.org", "buy bitcoin now")
+		m := msg(chatRm, "matrix:@s1:example.org", "buy bitcoin now")
 		src.cache(m)
 		if _, notified := n.Deliver(context.Background(), m); !notified {
 			t.Errorf("%s failing: the message was silenced", read)

@@ -22,8 +22,8 @@ import (
 func TestADeletedEditRevertsTheMessage(t *testing.T) {
 	t.Parallel()
 
-	original := domain.Message{ID: "$m", Sender: "@dana:x", Body: "v0", Timestamp: time.UnixMilli(5000)}
-	edit := domain.Message{ID: "$m", Sender: "@dana:x", Body: "v1 secret", RevisionID: "$e1",
+	original := domain.Message{ID: mx + "$m", Sender: "matrix:@dana:x", Body: "v0", Timestamp: time.UnixMilli(5000)}
+	edit := domain.Message{ID: mx + "$m", Sender: "matrix:@dana:x", Body: "v1 secret", RevisionID: mx + "$e1",
 		Edited: true, Timestamp: time.UnixMilli(7000), EditedAt: time.UnixMilli(7000)}
 
 	for _, tc := range []struct {
@@ -59,7 +59,7 @@ func TestADeletedEditRevertsTheMessage(t *testing.T) {
 			if tc.keep {
 				save = b.cache.SaveMessagesWithRevisions
 			}
-			if err := save(ctx, "!r:x", []domain.Message{original, edit}); err != nil {
+			if err := save(ctx, mx+"!r:x", []domain.Message{original, edit}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -70,7 +70,7 @@ func TestADeletedEditRevertsTheMessage(t *testing.T) {
 			var got []string
 			for len(b.out.msgs) > 0 {
 				msg := <-b.out.msgs
-				if msg.ID != "$m" || !msg.Reverted {
+				if msg.ID != mx+"$m" || !msg.Reverted {
 					t.Errorf("sent %+v, want $m marked Reverted", msg)
 				}
 				if strings.Contains(msg.Body, "secret") {
@@ -81,7 +81,7 @@ func TestADeletedEditRevertsTheMessage(t *testing.T) {
 			if strings.Join(got, "|") != strings.Join(tc.want, "|") {
 				t.Errorf("sent bodies %q, want %q", got, tc.want)
 			}
-			cached, _, err := b.cache.MessageByID(ctx, "!r:x", "$m")
+			cached, _, err := b.cache.MessageByID(ctx, mx+"!r:x", mx+"$m")
 			if err != nil || cached.Body != tc.want[len(tc.want)-1] {
 				t.Errorf("cached body %q (%v), want %q", cached.Body, err, tc.want[len(tc.want)-1])
 			}
@@ -148,11 +148,11 @@ func TestDeletedEditFetchesAreBounded(t *testing.T) {
 		id := domain.EventID(fmt.Sprintf("$m%d", i))
 		rev := domain.EventID(fmt.Sprintf("$e%d", i))
 		msgs := []domain.Message{
-			{ID: id, Sender: "@dana:x", Body: "v0", Timestamp: time.UnixMilli(5000)},
-			{ID: id, Sender: "@dana:x", Body: "v1", RevisionID: rev, Edited: true,
+			{ID: id, Sender: "matrix:@dana:x", Body: "v0", Timestamp: time.UnixMilli(5000)},
+			{ID: id, Sender: "matrix:@dana:x", Body: "v1", RevisionID: rev, Edited: true,
 				Timestamp: time.UnixMilli(7000), EditedAt: time.UnixMilli(7000)},
 		}
-		if err := b.cache.SaveMessages(ctx, "!r:x", msgs); err != nil {
+		if err := b.cache.SaveMessages(ctx, mx+"!r:x", msgs); err != nil {
 			t.Fatal(err)
 		}
 	}

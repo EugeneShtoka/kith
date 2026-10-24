@@ -25,13 +25,13 @@ func TestThePhraseIndexMatchesARebuild(t *testing.T) {
 		edit func([]domain.Message) []domain.Message
 	}{
 		{"a message appended", func(msgs []domain.Message) []domain.Message {
-			return append(msgs, domain.Message{ID: "$new", RoomID: last.RoomID, Sender: m.selves[0],
+			return append(msgs, domain.Message{ID: mx + "$new", RoomID: last.RoomID, Sender: m.selves[0],
 				Body: "see you at the usual place", Timestamp: last.Timestamp.Add(time.Minute)})
 		}},
 		{"two more appended", func(msgs []domain.Message) []domain.Message {
 			return append(msgs,
-				domain.Message{ID: "$n2", RoomID: last.RoomID, Sender: benchSenders[1], Body: "at the usual place then", Timestamp: last.Timestamp.Add(2 * time.Minute)},
-				domain.Message{ID: "$n3", RoomID: last.RoomID, Sender: benchSenders[2], Body: "ok", Timestamp: last.Timestamp.Add(3 * time.Minute)})
+				domain.Message{ID: mx + "$n2", RoomID: last.RoomID, Sender: benchSenders[1], Body: "at the usual place then", Timestamp: last.Timestamp.Add(2 * time.Minute)},
+				domain.Message{ID: mx + "$n3", RoomID: last.RoomID, Sender: benchSenders[2], Body: "ok", Timestamp: last.Timestamp.Add(3 * time.Minute)})
 		}},
 		{"an old message edited in place", func(msgs []domain.Message) []domain.Message {
 			msgs[10].Body = "an entirely different sentence now"
@@ -43,7 +43,7 @@ func TestThePhraseIndexMatchesARebuild(t *testing.T) {
 		}},
 		{"the oldest trimmed", func(msgs []domain.Message) []domain.Message { return msgs[5:] }},
 		{"one appended after all that", func(msgs []domain.Message) []domain.Message {
-			return append(msgs, domain.Message{ID: "$n4", RoomID: last.RoomID, Sender: m.selves[0],
+			return append(msgs, domain.Message{ID: mx + "$n4", RoomID: last.RoomID, Sender: m.selves[0],
 				Body: "the usual place it is", Timestamp: last.Timestamp.Add(4 * time.Minute)})
 		}},
 	}
@@ -73,8 +73,8 @@ func TestAnOlderCopyDoesNotGrowTheSharedIndex(t *testing.T) {
 			Sender: from.selves[0], Body: body, Timestamp: last.Timestamp.Add(time.Minute)})
 		return from.setMessages(msgs).armPhrases()
 	}
-	newer := grow(base, "$a", "meet at the usual place")
-	older := grow(base, "$b", "meet at the usual place") // the same words: a double count would show
+	newer := grow(base, mx+"$a", "meet at the usual place")
+	older := grow(base, mx+"$b", "meet at the usual place") // the same words: a double count would show
 	for name, copyOf := range map[string]Model{"the newer copy": newer, "the older copy": older} {
 		if want := domain.PhrasesOf(copyOf.timeline.messages, copyOf.selfIDs()); !reflect.DeepEqual(copyOf.phrases.phrases(), want) {
 			t.Errorf("%s: the index differs from indexing its own timeline", name)

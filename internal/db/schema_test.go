@@ -27,7 +27,7 @@ func TestOpenStampsTheVersionAndReopeningIsANoOp(t *testing.T) {
 	if got := stampedVersion(t, cache); got != schemaVersion+len(migrations) {
 		t.Errorf("user_version = %d, want %d", got, schemaVersion+len(migrations))
 	}
-	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); saveErr != nil {
 		t.Fatalf("SaveRooms() error = %v", saveErr)
 	}
 	if closeErr := cache.Close(); closeErr != nil {
@@ -84,10 +84,10 @@ func TestOpenRebuildsAnOlderCache(t *testing.T) {
 	if tables := tableNames(t, cache); slices.Contains(tables, "thread_reindex") {
 		t.Errorf("thread_reindex survived the rebuild: %v", tables)
 	}
-	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); saveErr != nil {
 		t.Fatalf("SaveRooms() into the rebuilt cache: %v", saveErr)
 	}
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$2", Body: "from the new shape", Timestamp: time.UnixMilli(1)})
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$2", Body: "from the new shape", Timestamp: time.UnixMilli(1)})
 
 	// The old file is kept aside.
 	aside := asideFiles(t, path)
@@ -114,40 +114,40 @@ func TestDeletingARoomCascades(t *testing.T) {
 
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
-	mustSave(t, cache, "!a:x", domain.Message{
-		ID: "$1", Sender: "@bob:x", Body: "hello", Timestamp: time.UnixMilli(1),
+	mustSave(t, cache, mx+"!a:x", domain.Message{
+		ID: mx + "$1", Sender: "matrix:@bob:x", Body: "hello", Timestamp: time.UnixMilli(1),
 		Media: &domain.Media{Type: domain.MediaImage, Name: "cat.png"},
 	})
-	if err := cache.SaveMediaSource(ctx, "$1", "!a:x", "mxc://x/abc", ""); err != nil {
+	if err := cache.SaveMediaSource(ctx, mx+"$1", mx+"!a:x", "mxc://x/abc", ""); err != nil {
 		t.Fatalf("SaveMediaSource() error = %v", err)
 	}
-	if err := cache.SaveMembers(ctx, "!a:x", []domain.Member{{UserID: "@bob:x", DisplayName: "Bob"}}); err != nil {
+	if err := cache.SaveMembers(ctx, mx+"!a:x", []domain.Member{{UserID: "matrix:@bob:x", DisplayName: "Bob"}}); err != nil {
 		t.Fatalf("SaveMembers() error = %v", err)
 	}
-	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: "!a:x", Notifications: 2, ReadEvent: "$1"}, 0); err != nil {
+	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!a:x", Notifications: 2, ReadEvent: mx + "$1"}, 0); err != nil {
 		t.Fatalf("SaveUnread() error = %v", err)
 	}
-	if err := cache.SaveThreadRead(ctx, "!a:x", "$root", "$1", 1); err != nil {
+	if err := cache.SaveThreadRead(ctx, mx+"!a:x", mx+"$root", mx+"$1", 1); err != nil {
 		t.Fatalf("SaveThreadRead() error = %v", err)
 	}
 	if err := cache.SaveReactions(ctx, []domain.Reaction{
-		{ID: "$r", RoomID: "!a:x", Target: "$1", Sender: "@bob:x", Key: "👍"},
+		{ID: mx + "$r", RoomID: mx + "!a:x", Target: mx + "$1", Sender: "matrix:@bob:x", Key: "👍"},
 	}); err != nil {
 		t.Fatalf("SaveReactions() error = %v", err)
 	}
-	if err := cache.RecordMention(ctx, "!a:x", "@bob:x", 1); err != nil {
+	if err := cache.RecordMention(ctx, mx+"!a:x", "matrix:@bob:x", 1); err != nil {
 		t.Fatalf("RecordMention() error = %v", err)
 	}
-	if err := cache.RecordEmoji(ctx, domain.EmojiReaction, "!a:x", "👍", 1); err != nil {
+	if err := cache.RecordEmoji(ctx, domain.EmojiReaction, mx+"!a:x", "👍", 1); err != nil {
 		t.Fatalf("RecordEmoji() error = %v", err)
 	}
-	if err := cache.SaveSenderSlots(ctx, "!a:x", map[string]int{"@bob:x": 3}); err != nil {
+	if err := cache.SaveSenderSlots(ctx, mx+"!a:x", map[string]int{"matrix:@bob:x": 3}); err != nil {
 		t.Fatalf("SaveSenderSlots() error = %v", err)
 	}
-	if err := cache.SaveRoomParent(ctx, "!a:x", "!space:x"); err != nil {
+	if err := cache.SaveRoomParent(ctx, mx+"!a:x", mx+"!space:x"); err != nil {
 		t.Fatalf("SaveRoomParent() error = %v", err)
 	}
 
@@ -160,7 +160,7 @@ func TestDeletingARoomCascades(t *testing.T) {
 			t.Fatalf("%s is empty before the delete, so it proves nothing", table)
 		}
 	}
-	if _, err := cache.db.ExecContext(ctx, "DELETE FROM rooms WHERE id = ?", "!a:x"); err != nil {
+	if _, err := cache.db.ExecContext(ctx, "DELETE FROM rooms WHERE id = ?", mx+"!a:x"); err != nil {
 		t.Fatalf("DELETE FROM rooms: %v", err)
 	}
 	for _, table := range dependents {
@@ -235,19 +235,19 @@ func TestTimestampsRoundTripAsMilliseconds(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 	at := time.Date(2026, 9, 3, 16, 45, 30, 123_000_000, time.UTC)
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$1", Body: "when", Timestamp: at})
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$1", Body: "when", Timestamp: at})
 
-	msgs, err := cache.Messages(ctx, "!a:x", 10)
+	msgs, err := cache.Messages(ctx, mx+"!a:x", 10)
 	if err != nil || len(msgs) != 1 {
 		t.Fatalf("Messages() = %v, %v; want the one message", msgs, err)
 	}
 	if got := msgs[0].Timestamp; !got.Equal(at) {
 		t.Errorf("Timestamp = %v, want %v", got, at)
 	}
-	ts, ok, err := cache.MessageTS(ctx, "!a:x", "$1")
+	ts, ok, err := cache.MessageTS(ctx, mx+"!a:x", mx+"$1")
 	if err != nil || !ok {
 		t.Fatalf("MessageTS() ok=%v err=%v", ok, err)
 	}
@@ -351,12 +351,12 @@ func analyzedCache(t *testing.T) *Cache {
 	ctx := context.Background()
 	cache := openTemp(t)
 	const rooms, perRoom = 40, 60
-	senders := []string{"@me:x", "@dana:x", "@sam:x", "@alex:x", "@noa:x"}
+	senders := []string{"matrix:@me:x", "matrix:@dana:x", "matrix:@sam:x", "matrix:@alex:x", "matrix:@noa:x"}
 	joined := make([]domain.Room, rooms)
 	for r := range joined {
-		joined[r] = domain.Room{ID: domain.RoomID(fmt.Sprintf("!r%d:x", r)), Name: fmt.Sprintf("Room %d", r)}
+		joined[r] = domain.Room{ID: domain.RoomID(fmt.Sprintf(mx+"!r%d:x", r)), Name: fmt.Sprintf("Room %d", r)}
 	}
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, joined); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, joined); err != nil {
 		t.Fatal(err)
 	}
 	for r := range joined {
@@ -364,7 +364,7 @@ func analyzedCache(t *testing.T) *Cache {
 		msgs := make([]domain.Message, perRoom)
 		for i := range msgs {
 			msgs[i] = domain.Message{
-				ID: domain.EventID(fmt.Sprintf("$r%dm%d", r, i)), RoomID: room.ID,
+				ID: domain.EventID(fmt.Sprintf(mx+"$r%dm%d", r, i)), RoomID: room.ID,
 				Sender: senders[(r+i)%len(senders)], Body: fmt.Sprintf("hello there, message %d", i),
 				Timestamp: time.Unix(int64(1_700_000_000+r*perRoom+i), 0), Mentioned: i%17 == 0,
 			}
@@ -396,7 +396,7 @@ func TestTheBadgeSearchAndThreadQueriesUseTheirIndices(t *testing.T) {
 	search := func(rooms int) string {
 		ids := make([]domain.RoomID, rooms)
 		for i := range ids {
-			ids[i] = domain.RoomID(fmt.Sprintf("!r%d:x", i))
+			ids[i] = domain.RoomID(fmt.Sprintf(mx+"!r%d:x", i))
 		}
 		q, _, ok := searchQuery(domain.SearchRequest{Filter: domain.SearchFilter{Terms: "hello"}, Rooms: domain.TheseRooms(ids), Limit: 20}, nil)
 		if !ok {
@@ -405,8 +405,8 @@ func TestTheBadgeSearchAndThreadQueriesUseTheirIndices(t *testing.T) {
 		return q
 	}
 	q := func(query string, _ []any) string { return query }
-	me := []string{"@me:x", "@slack_me:x", "@whatsapp_me:x"} // an account and its bridge puppets
-	hidden := []string{"@spam:x"}
+	me := []string{"matrix:@me:x", "matrix:@slack_me:x", "matrix:@whatsapp_me:x"} // an account and its bridge puppets
+	hidden := []string{"matrix:@spam:x"}
 	const ownFloor = "SEARCH s USING COVERING INDEX messages_by_room_sender (room_id=? AND sender=? AND thread_root=?)"
 	for _, tc := range []struct {
 		name  string
@@ -416,10 +416,10 @@ func TestTheBadgeSearchAndThreadQueriesUseTheirIndices(t *testing.T) {
 		{"every room's badge", q(countUnreadQuery(me, hidden, "")), []string{
 			ownFloor, "SEARCH m USING INDEX messages_in_thread (room_id=? AND thread_root=? AND ts_ms>?)",
 		}},
-		{"one room's badge", q(countUnreadQuery(me, hidden, "!r1:x")), []string{
+		{"one room's badge", q(countUnreadQuery(me, hidden, mx+"!r1:x")), []string{
 			ownFloor, "SEARCH m USING INDEX messages_in_thread (room_id=? AND thread_root=? AND ts_ms>?)",
 		}},
-		{"one room's threads", q(countThreadsQuery(me, hidden, "!r1:x")), []string{
+		{"one room's threads", q(countThreadsQuery(me, hidden, mx+"!r1:x")), []string{
 			"SEARCH m USING INDEX messages_threaded (room_id=?)", ownFloor,
 		}},
 		{"every thread", q(countThreadsQuery(me, hidden, "")), []string{"SCAN m USING INDEX messages_threaded", ownFloor}},

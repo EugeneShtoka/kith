@@ -39,28 +39,28 @@ func (w *warden) UnbanUser(_ context.Context, _ domain.RoomID, userID string) er
 }
 
 func (w *warden) Members(context.Context, domain.RoomID, int) ([]domain.Member, error) {
-	return []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}}, nil
+	return []domain.Member{{UserID: "matrix:@dana:x", DisplayName: "Dana"}}, nil
 }
 
 func (w *warden) MentionCandidates(context.Context, domain.RoomID, int) ([]domain.Member, error) {
-	return []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}}, nil
+	return []domain.Member{{UserID: "matrix:@dana:x", DisplayName: "Dana"}}, nil
 }
 
 func warding(t *testing.T) (Model, *warden) {
 	t.Helper()
 	w := &warden{}
 	m := update(t, starterNew(w, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
+		{ID: mx + "!a:x", Name: "Alpha"},
 	}})
 	m = sized(t, m.clearStatus())
-	m.selves = []string{"@me:x"}
+	m.selves = []string{"matrix:@me:x"}
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
 	// The people list is built from the members the room-open load fetches.
-	m = update(t, m, membersMsg{roomID: "!a:x", members: []domain.Member{
-		{UserID: "@dana:x", DisplayName: "Dana"},
+	m = update(t, m, membersMsg{roomID: mx + "!a:x", members: []domain.Member{
+		{UserID: "matrix:@dana:x", DisplayName: "Dana"},
 	}})
 	return m.clearStatus(), w
 }
@@ -77,10 +77,10 @@ func TestInviteAsksForAnMXIDAndSendsIt(t *testing.T) {
 	if !strings.Contains(m.promptLabel(), "invite") {
 		t.Errorf("prompt label = %q, want it to say invite", m.promptLabel())
 	}
-	next, cmd := m.submitInvite("@dana:x")
+	next, cmd := m.submitInvite("matrix:@dana:x")
 	mdl := next
 	_ = deliver(t, mdl, cmd)
-	if w.invited != "@dana:x" {
+	if w.invited != "matrix:@dana:x" {
 		t.Errorf("invited %q, want @dana:x", w.invited)
 	}
 }
@@ -131,7 +131,7 @@ func TestKickAndBanAskFirst(t *testing.T) {
 		next, cmd := m.resolveConfirm(true)
 		mdl := next
 		_ = deliver(t, mdl, cmd)
-		if tc.got(w) != "@dana:x" {
+		if tc.got(w) != "matrix:@dana:x" {
 			t.Errorf("%s: acted on %q, want @dana:x", tc.key, tc.got(w))
 		}
 	}
@@ -144,7 +144,7 @@ func TestARefusalIsShownAsWritten(t *testing.T) {
 	m, w := warding(t)
 	w.err = errors.New("matrix: not enough power in this room: you need power 50 to ban, and you have 0")
 	m, _ = press(t, m, keyText("i")) // the prompt is what captures the room
-	next, cmd := m.submitInvite("@dana:x")
+	next, cmd := m.submitInvite("matrix:@dana:x")
 	mdl := next
 	mdl = deliver(t, mdl, cmd)
 	if got := mdl.status(); !strings.Contains(got, "power 50") {
@@ -163,7 +163,7 @@ func TestUnbanIsACommand(t *testing.T) {
 		t.Fatal("/unban was not taken as a command")
 	}
 	_ = deliver(t, next, cmd)
-	if w.unbanned != "@dana:x" {
+	if w.unbanned != "matrix:@dana:x" {
 		t.Errorf("unbanned %q, want @dana:x", w.unbanned)
 	}
 

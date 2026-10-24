@@ -47,7 +47,7 @@ func codeAlert(msg domain.Message, room domain.RoomFacts, code domain.Code, outc
 	}
 	return notify.Notification{
 		Sender:   label,
-		MXID:     msg.Sender,
+		SenderID: msg.Sender,
 		Room:     room.Name,
 		Body:     code.Value + " — " + outcome,
 		Protocol: domain.ProtocolOf(msg.Sender).String(),

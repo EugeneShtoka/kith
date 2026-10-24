@@ -14,7 +14,7 @@ import (
 func TestBuildMessagePlain(t *testing.T) {
 	t.Parallel()
 
-	got := (ids{}).buildMessage(domain.Draft{Body: "just text"}, "")
+	got := testIDs.buildMessage(domain.Draft{Body: "just text"}, "")
 	if got.Body != "just text" {
 		t.Errorf("Body = %q", got.Body)
 	}
@@ -33,9 +33,9 @@ func TestBuildMessagePlain(t *testing.T) {
 func TestBuildMessageMention(t *testing.T) {
 	t.Parallel()
 
-	got := (ids{}).buildMessage(domain.Draft{
+	got := testIDs.buildMessage(domain.Draft{
 		Body:     "hi Alice, ready?",
-		Mentions: []domain.Mention{{UserID: "@alice:example.org", Name: "Alice"}},
+		Mentions: []domain.Mention{{UserID: "matrix:@alice:example.org", Name: "Alice"}},
 	}, "")
 	if got.Body != "hi Alice, ready?" {
 		t.Errorf("Body should stay plain for clients that ignore HTML, got %q", got.Body)
@@ -55,10 +55,10 @@ func TestBuildMessageMention(t *testing.T) {
 func TestBuildMessageReplyWithMention(t *testing.T) {
 	t.Parallel()
 
-	got := (ids{}).buildMessage(domain.Draft{
+	got := testIDs.buildMessage(domain.Draft{
 		Body:     "sure Bob",
-		ReplyTo:  "$target:x",
-		Mentions: []domain.Mention{{UserID: "@bob:x", Name: "Bob"}},
+		ReplyTo:  mx + "$target:x",
+		Mentions: []domain.Mention{{UserID: "matrix:@bob:x", Name: "Bob"}},
 	}, "")
 	if got.RelatesTo == nil || got.RelatesTo.GetReplyTo() != "$target:x" {
 		t.Errorf("RelatesTo = %+v, want a reply to $target:x", got.RelatesTo)
@@ -72,10 +72,10 @@ func TestBuildMessageReplyWithMention(t *testing.T) {
 func TestBuildMessageDropsStaleMentions(t *testing.T) {
 	t.Parallel()
 
-	got := (ids{}).buildMessage(domain.Draft{
+	got := testIDs.buildMessage(domain.Draft{
 		Body: "never mind",
 		Mentions: []domain.Mention{
-			{UserID: "@alice:x", Name: "Alice"}, // no longer in the body
+			{UserID: "matrix:@alice:x", Name: "Alice"}, // no longer in the body
 		},
 	}, "")
 	if got.Mentions != nil {
@@ -100,7 +100,7 @@ func TestPillHTMLEscapes(t *testing.T) {
 			name: "markup in the body is escaped",
 			body: "<b>hi</b> Alice & co",
 			mentions: []domain.Mention{
-				{UserID: "@alice:x", Name: "Alice"},
+				{UserID: "matrix:@alice:x", Name: "Alice"},
 			},
 			want: `&lt;b&gt;hi&lt;/b&gt; <a href="https://matrix.to/#/@alice:x">Alice</a> &amp; co`,
 		},
@@ -108,7 +108,7 @@ func TestPillHTMLEscapes(t *testing.T) {
 			name: "markup in a display name is escaped inside the anchor",
 			body: `hi <script>x</script> there`,
 			mentions: []domain.Mention{
-				{UserID: "@evil:x", Name: "<script>x</script>"},
+				{UserID: "matrix:@evil:x", Name: "<script>x</script>"},
 			},
 			want: `hi <a href="https://matrix.to/#/@evil:x">&lt;script&gt;x&lt;/script&gt;</a> there`,
 		},
@@ -124,8 +124,8 @@ func TestPillHTMLEscapes(t *testing.T) {
 			name: "two people both get pills",
 			body: "Alice and Bob",
 			mentions: []domain.Mention{
-				{UserID: "@alice:x", Name: "Alice"},
-				{UserID: "@bob:x", Name: "Bob"},
+				{UserID: "matrix:@alice:x", Name: "Alice"},
+				{UserID: "matrix:@bob:x", Name: "Bob"},
 			},
 			want: `<a href="https://matrix.to/#/@alice:x">Alice</a> and <a href="https://matrix.to/#/@bob:x">Bob</a>`,
 		},
@@ -133,8 +133,8 @@ func TestPillHTMLEscapes(t *testing.T) {
 			name: "a short name does not claim a longer one's text",
 			body: "Dan and Daniel",
 			mentions: []domain.Mention{
-				{UserID: "@dan:x", Name: "Dan"},
-				{UserID: "@daniel:x", Name: "Daniel"},
+				{UserID: "matrix:@dan:x", Name: "Dan"},
+				{UserID: "matrix:@daniel:x", Name: "Daniel"},
 			},
 			want: `<a href="https://matrix.to/#/@dan:x">Dan</a> and <a href="https://matrix.to/#/@daniel:x">Daniel</a>`,
 		},
@@ -142,7 +142,7 @@ func TestPillHTMLEscapes(t *testing.T) {
 			name: "naming someone twice pills the first, leaving the second as text",
 			body: "Alice, Alice!",
 			mentions: []domain.Mention{
-				{UserID: "@alice:x", Name: "Alice"},
+				{UserID: "matrix:@alice:x", Name: "Alice"},
 			},
 			want: `<a href="https://matrix.to/#/@alice:x">Alice</a>, Alice!`,
 		},
@@ -150,7 +150,7 @@ func TestPillHTMLEscapes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := pillHTML(tc.body, tc.mentions)
+			got := testIDs.pillHTML(tc.body, tc.mentions)
 			if got != tc.want {
 				t.Errorf("pillHTML =\n  %q\nwant\n  %q", got, tc.want)
 			}
@@ -166,14 +166,14 @@ func TestPillHTMLEscapes(t *testing.T) {
 func TestPillRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	content := (ids{}).buildMessage(domain.Draft{
+	content := testIDs.buildMessage(domain.Draft{
 		Body: "hi Alice and Bob",
 		Mentions: []domain.Mention{
-			{UserID: "@alice:example.org", Name: "Alice"},
-			{UserID: "@bob:example.org", Name: "Bob"},
+			{UserID: "matrix:@alice:example.org", Name: "Alice"},
+			{UserID: "matrix:@bob:example.org", Name: "Bob"},
 		},
 	}, "")
-	parsed := (ids{}).parseMentions(content.FormattedBody)
+	parsed := testIDs.parseMentions(content.FormattedBody)
 	if len(parsed) != 2 {
 		t.Fatalf("parsed %d mentions from our own HTML, want 2: %+v", len(parsed), parsed)
 	}
@@ -181,7 +181,7 @@ func TestPillRoundTrip(t *testing.T) {
 	for _, mention := range parsed {
 		byID[mention.UserID] = mention.Name
 	}
-	if byID["@alice:example.org"] != "Alice" || byID["@bob:example.org"] != "Bob" {
+	if byID["matrix:@alice:example.org"] != "Alice" || byID["matrix:@bob:example.org"] != "Bob" {
 		t.Errorf("round-tripped mentions = %+v", byID)
 	}
 }
@@ -190,7 +190,7 @@ func TestPillRoundTrip(t *testing.T) {
 func TestBuildMessageInAThread(t *testing.T) {
 	t.Parallel()
 
-	got := (ids{}).buildMessage(domain.Draft{Body: "shipping now", ThreadRoot: "$root:x"}, "$latest:x")
+	got := testIDs.buildMessage(domain.Draft{Body: "shipping now", ThreadRoot: mx + "$root:x"}, mx+"$latest:x")
 
 	if got.RelatesTo == nil || got.RelatesTo.GetThreadParent() != "$root:x" {
 		t.Fatalf("RelatesTo = %+v, want a thread rooted at $root:x", got.RelatesTo)
@@ -211,7 +211,7 @@ func TestBuildMessageInAThread(t *testing.T) {
 func TestBuildMessageReplyInsideAThread(t *testing.T) {
 	t.Parallel()
 
-	got := (ids{}).buildMessage(domain.Draft{Body: "which one?", ThreadRoot: "$root:x", ReplyTo: "$target:x"}, "$latest:x")
+	got := testIDs.buildMessage(domain.Draft{Body: "which one?", ThreadRoot: mx + "$root:x", ReplyTo: mx + "$target:x"}, mx+"$latest:x")
 
 	if got.RelatesTo.GetThreadParent() != "$root:x" {
 		t.Errorf("thread = %q, want $root:x", got.RelatesTo.GetThreadParent())
@@ -231,25 +231,25 @@ func TestRecordingMentionsToleratesAMessageWithNone(t *testing.T) {
 	ctx := context.Background()
 	cache := testCache(t)
 	for _, content := range []event.MessageEventContent{
-		(ids{}).buildMessage(domain.Draft{Body: "no pills here"}, ""),
-		(ids{}).buildMessage(domain.Draft{Body: "answering", ReplyTo: "$target"}, ""),
+		testIDs.buildMessage(domain.Draft{Body: "no pills here"}, ""),
+		testIDs.buildMessage(domain.Draft{Body: "answering", ReplyTo: mx + "$target"}, ""),
 	} {
-		if err := (ids{}).recordMentions(ctx, cache, "!a:x", &content); err != nil {
+		if err := testIDs.recordMentions(ctx, cache, mx+"!a:x", &content); err != nil {
 			t.Fatalf("recordMentions: %v", err)
 		}
 	}
-	if got, err := cache.FrequentMentions(ctx, "!a:x", 5); err != nil || len(got) != 0 {
+	if got, err := cache.FrequentMentions(ctx, mx+"!a:x", 5); err != nil || len(got) != 0 {
 		t.Errorf("mentions = %v (%v) for messages that name nobody", got, err)
 	}
 
-	withPill := (ids{}).buildMessage(domain.Draft{
+	withPill := testIDs.buildMessage(domain.Draft{
 		Body:     "hi Dana",
-		Mentions: []domain.Mention{{UserID: "@dana:x", Name: "Dana"}},
+		Mentions: []domain.Mention{{UserID: "matrix:@dana:x", Name: "Dana"}},
 	}, "")
-	if err := (ids{}).recordMentions(ctx, cache, "!a:x", &withPill); err != nil {
+	if err := testIDs.recordMentions(ctx, cache, mx+"!a:x", &withPill); err != nil {
 		t.Fatalf("recordMentions: %v", err)
 	}
-	if got, err := cache.FrequentMentions(ctx, "!a:x", 5); err != nil || len(got) != 1 || got[0] != "@dana:x" {
+	if got, err := cache.FrequentMentions(ctx, mx+"!a:x", 5); err != nil || len(got) != 1 || got[0] != "matrix:@dana:x" {
 		t.Errorf("mentions = %v (%v), want Dana's one", got, err)
 	}
 }

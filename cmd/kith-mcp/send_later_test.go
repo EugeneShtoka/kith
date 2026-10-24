@@ -15,7 +15,7 @@ func TestALaterSendIsQueuedForItsTime(t *testing.T) {
 	f := twoRooms()
 	s := newWriter(t, f, shareAll, []string{"space:Work"})
 	at := time.Now().Add(2 * time.Hour).Truncate(time.Second)
-	out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "morning — all", "at": at.Format(time.RFC3339), "thread": "$1"})
+	out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "morning — all", "at": at.Format(time.RFC3339), "thread": mx + "$1"})
 	if out["action"] != agent.Scheduled {
 		t.Fatalf("action = %v, want scheduled", out["action"])
 	}
@@ -23,7 +23,7 @@ func TestALaterSendIsQueuedForItsTime(t *testing.T) {
 		t.Fatalf("sent %d, queued %d; want it queued alone", len(f.sent), len(f.queued))
 	}
 	q := f.queued[0]
-	if !q.At.Equal(at) || q.Body != "morning - all" || q.TxnID == "" || q.ThreadRoot != "$1" {
+	if !q.At.Equal(at) || q.Body != "morning - all" || q.TxnID == "" || q.ThreadRoot != mx+"$1" {
 		t.Errorf("queued %+v", q)
 	}
 	if ledger := entries(t, s); len(ledger) != 1 || ledger[0].Outcome != agent.Scheduled {

@@ -18,7 +18,7 @@ type placeSetting struct {
 
 var (
 	homeForms  = []string{"space:Work", "tag:Pinned", "place:Work", "PLACE: work "}
-	roomForms  = []string{"!abc:example.org", "telegram:1/-100"}
+	roomForms  = []string{mx + "!abc:example.org", "telegram:1/-100"}
 	placeForms = append(append([]string{"room:Standup", "protocol:WhatsApp", "dm", "group"}, homeForms...), roomForms...)
 )
 
@@ -32,7 +32,7 @@ func placeSettings() []placeSetting {
 		{"display.rail.hidden", func(c *config.Config, e string) { c.Display.Rail.Hidden = one(e) }, homeForms},
 		{"display.rail.hide_when_empty", func(c *config.Config, e string) { c.Display.Rail.HideWhenEmpty = one(e) }, homeForms},
 		{"display.filing_spaces", func(c *config.Config, e string) { c.Display.FilingSpaces = one(e) },
-			[]string{"space:Work", "place:Work", "!abc:example.org"}},
+			[]string{"space:Work", "place:Work", mx + "!abc:example.org"}},
 		{"display.space_rule[0].space", func(c *config.Config, e string) {
 			c.Display.SpaceRules = []config.SpaceRule{{Space: e, FirstNameOnly: true}}
 		}, homeForms},
@@ -41,7 +41,7 @@ func placeSettings() []placeSetting {
 		}, homeForms},
 		{"display.read_rule[0].match", func(c *config.Config, e string) {
 			c.Display.ReadRules = []config.ReadRule{{Match: e, Send: new(false)}}
-		}, append(append([]string{"$thread:example.org"}, homeForms...), roomForms...)},
+		}, append(append([]string{mx + "$thread:example.org"}, homeForms...), roomForms...)},
 		{"display.threads.rule[0].match", func(c *config.Config, e string) {
 			c.Display.Threads.Rules = []config.ThreadRule{{Match: e, MaxInRoomList: 3}}
 		}, append(cloned(homeForms), roomForms...)},
@@ -50,7 +50,7 @@ func placeSettings() []placeSetting {
 		}, append(cloned(homeForms), roomForms...)},
 		{`keys.jump "g w"`, func(c *config.Config, e string) {
 			c.Keys.Jump = config.Jumps{{Chord: "g w", Target: e}}
-		}, []string{"space:Work", "tag:Pinned", "place:Work", "room:!abc:example.org"}},
+		}, []string{"space:Work", "tag:Pinned", "place:Work", "room:" + mx + "!abc:example.org"}},
 		{"codes.include", func(c *config.Config, e string) { c.Codes.Include = one(e) }, placeForms},
 		{"codes.exclude", func(c *config.Config, e string) { c.Codes.Exclude = one(e) }, placeForms},
 		{"display.direction.rtl", func(c *config.Config, e string) { c.Display.Direction.RTL = one(e) }, placeForms},
@@ -154,7 +154,7 @@ func TestAPlaceSettingRefusesAFormItCannotUse(t *testing.T) {
 		entry string
 	}{
 		{func(c *config.Config) { c.Display.Priority = []string{"room:Standup"} }, "room:Standup"},
-		{func(c *config.Config) { c.Display.Rail.Order = []string{"!abc:example.org"} }, "!abc:example.org"},
+		{func(c *config.Config) { c.Display.Rail.Order = []string{mx + "!abc:example.org"} }, mx + "!abc:example.org"},
 		{func(c *config.Config) { c.Display.Rail.Hidden = []string{"dm"} }, "dm"},
 		{func(c *config.Config) { c.Display.FilingSpaces = []string{"tag:Pinned"} }, "tag:Pinned"},
 		{func(c *config.Config) { c.Display.ReadRules = []config.ReadRule{{Match: "room:Standup"}} }, "room:Standup"},

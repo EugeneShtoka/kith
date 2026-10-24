@@ -15,11 +15,11 @@ func TestMentionsListShowsTheMessages(t *testing.T) {
 	t.Parallel()
 
 	backend := &searchBackend{hits: []domain.SearchHit{
-		hit("!a:x", "$new", "dana", "@you can you look at this", 1),
-		hit("!b:x", "$old", "sam", "thanks @you", 30),
+		hit(mx+"!a:x", mx+"$new", "dana", "@you can you look at this", 1),
+		hit(mx+"!b:x", mx+"$old", "sam", "thanks @you", 30),
 	}}
 	m := update(t, sized(t, starterNew(backend, config.Display{})),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	m = m.clearStatus()
@@ -68,7 +68,7 @@ func TestNoMentionsSaysSoKindly(t *testing.T) {
 	t.Parallel()
 
 	m := update(t, sized(t, starterNew(&searchBackend{}, config.Display{})),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	m, cmd := press(t, m, keyText("@"))
@@ -83,9 +83,9 @@ func TestNoMentionsSaysSoKindly(t *testing.T) {
 func TestMentionsCanBeNarrowed(t *testing.T) {
 	t.Parallel()
 
-	backend := &searchBackend{hits: []domain.SearchHit{hit("!a:x", "$1", "dana", "ping", 1)}}
+	backend := &searchBackend{hits: []domain.SearchHit{hit(mx+"!a:x", mx+"$1", "dana", "ping", 1)}}
 	m := update(t, sized(t, starterNew(backend, config.Display{})),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	m, cmd := press(t, m, keyText("@"))

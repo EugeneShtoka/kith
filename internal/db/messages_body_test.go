@@ -20,27 +20,27 @@ func TestEachMessageBodyReadsEveryBodyOnceAcrossPages(t *testing.T) {
 	const perRoom = 1500 // three rooms: more than two pages, under the per-room cap
 	want := map[string]bool{}
 	for r := range 3 {
-		room := domain.RoomID(fmt.Sprintf("!r%d:x", r))
+		room := domain.RoomID(fmt.Sprintf(mx+"!r%d:x", r))
 		msgs := make([]domain.Message, 0, perRoom+2)
 		for i := range perRoom {
 			body := fmt.Sprintf("r%d m%d", r, i)
 			// This person writes as their Matrix and their WhatsApp account.
-			sender := "@b:x"
+			sender := "matrix:@b:x"
 			switch i % 10 {
 			case 0:
-				sender = "@me:x"
+				sender = "matrix:@me:x"
 			case 5:
 				sender = waMe
 			}
-			want[body] = sender == "@me:x" || sender == waMe
+			want[body] = sender == "matrix:@me:x" || sender == waMe
 			msgs = append(msgs, domain.Message{
-				ID: domain.EventID(fmt.Sprintf("$%d-%d", r, i)), RoomID: room, Sender: sender,
+				ID: domain.EventID(fmt.Sprintf(mx+"$%d-%d", r, i)), RoomID: room, Sender: sender,
 				Body: body, Timestamp: time.UnixMilli(int64(i) * 1000),
 			})
 		}
 		msgs = append(msgs,
-			domain.Message{ID: domain.EventID(fmt.Sprintf("$%d-gone", r)), RoomID: room, Sender: "@b:x", Body: "gone", Redacted: true, Timestamp: time.UnixMilli(1)},
-			domain.Message{ID: domain.EventID(fmt.Sprintf("$%d-empty", r)), RoomID: room, Sender: "@b:x", Timestamp: time.UnixMilli(2)},
+			domain.Message{ID: domain.EventID(fmt.Sprintf(mx+"$%d-gone", r)), RoomID: room, Sender: "matrix:@b:x", Body: "gone", Redacted: true, Timestamp: time.UnixMilli(1)},
+			domain.Message{ID: domain.EventID(fmt.Sprintf(mx+"$%d-empty", r)), RoomID: room, Sender: "matrix:@b:x", Timestamp: time.UnixMilli(2)},
 		)
 		if err := cache.SaveMessages(ctx, room, msgs); err != nil {
 			t.Fatalf("SaveMessages: %v", err)
@@ -48,7 +48,7 @@ func TestEachMessageBodyReadsEveryBodyOnceAcrossPages(t *testing.T) {
 	}
 
 	got := map[string]bool{}
-	err := cache.EachMessageBody(ctx, []string{"@me:x", waMe}, func(body string, mine bool) {
+	err := cache.EachMessageBody(ctx, []string{"matrix:@me:x", waMe}, func(body string, mine bool) {
 		if _, dup := got[body]; dup {
 			t.Errorf("%q arrived twice", body)
 		}

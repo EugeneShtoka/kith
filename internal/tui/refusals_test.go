@@ -39,11 +39,11 @@ func (b *refusingBackend) RecordReactionRefusal(_ context.Context, protocol, emo
 func bridged(t *testing.T, b *refusingBackend) Model {
 	t.Helper()
 	m := update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Chat"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Chat"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(m.filteredRooms()[0])
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@telegram_12345:x", SenderName: "Ada", Body: "hi", Timestamp: at(1)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@telegram_12345:x", SenderName: "Ada", Body: "hi", Timestamp: at(1)},
 	}}})
 	m.focus, m.compose.insertMode = paneTimeline, false
 	return m
@@ -59,8 +59,8 @@ func TestRoomProtocolFromParticipants(t *testing.T) {
 	}
 
 	native := sized(t, withRooms(t, newModel()))
-	native = update(t, native, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@ada:example.org", Timestamp: at(1)},
+	native = update(t, native, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@ada:example.org", Timestamp: at(1)},
 	}}})
 	if got := native.roomProtocol(); got.IsBridged() {
 		t.Errorf("roomProtocol = %q for a native room, want Matrix", got)
@@ -146,11 +146,11 @@ func (b *toneRefusingBackend) SendReaction(_ context.Context, _ domain.RoomID, _
 func bridgedWhatsApp(t *testing.T, b api.Backend) Model {
 	t.Helper()
 	m := update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Chat"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Chat"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(m.filteredRooms()[0])
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@whatsapp_15550100009:x", SenderName: "Ada", Body: "hi", Timestamp: at(1)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@whatsapp_15550100009:x", SenderName: "Ada", Body: "hi", Timestamp: at(1)},
 	}}})
 	m.focus, m.compose.insertMode = paneTimeline, false
 	m.glyphs.skin = light

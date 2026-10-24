@@ -11,13 +11,13 @@ func TestCodeScopeMatchesThreeWays(t *testing.T) {
 	t.Parallel()
 
 	sms := domain.RoomFacts{
-		ID: "!sms:x", Name: "Google Messages",
+		ID: mx + "!sms:x", Name: "Google Messages",
 		Spaces: []string{"Bridges"}, Protocol: domain.ProtocolWhatsApp,
 	}
-	other := domain.RoomFacts{ID: "!work:x", Name: "Standup", Spaces: []string{"Work"}}
+	other := domain.RoomFacts{ID: mx + "!work:x", Name: "Standup", Spaces: []string{"Work"}}
 	// Every way an entry can name the room: ID, `room:` name, space, and network.
 	for _, entry := range []string{
-		"!sms:x", "room:Google Messages", "space:Bridges", "protocol:WhatsApp",
+		mx + "!sms:x", "room:Google Messages", "space:Bridges", "protocol:WhatsApp",
 	} {
 		only := domain.CodeScope{Include: []string{entry}}
 		if !only.Admits(sms) {
@@ -41,7 +41,7 @@ func TestCodeScopeMatchesThreeWays(t *testing.T) {
 func TestCodeScopeEmptyMeansEverywhere(t *testing.T) {
 	t.Parallel()
 
-	if !(domain.CodeScope{}).Admits(domain.RoomFacts{ID: "!a:x", Name: "Anything"}) {
+	if !(domain.CodeScope{}).Admits(domain.RoomFacts{ID: mx + "!a:x", Name: "Anything"}) {
 		t.Error("an unconfigured scope should admit every room")
 	}
 	if !(domain.CodeScope{}).Everywhere() {
@@ -56,11 +56,11 @@ func TestCodeScopeEmptyMeansEverywhere(t *testing.T) {
 func TestCodeScopeExcludeWins(t *testing.T) {
 	t.Parallel()
 
-	scope := domain.CodeScope{Include: []string{"space:Bridges"}, Exclude: []string{"!noisy:x"}}
-	if !scope.Admits(domain.RoomFacts{ID: "!sms:x", Name: "SMS", Spaces: []string{"Bridges"}}) {
+	scope := domain.CodeScope{Include: []string{"space:Bridges"}, Exclude: []string{mx + "!noisy:x"}}
+	if !scope.Admits(domain.RoomFacts{ID: mx + "!sms:x", Name: "SMS", Spaces: []string{"Bridges"}}) {
 		t.Error("an included room should still be admitted")
 	}
-	if scope.Admits(domain.RoomFacts{ID: "!noisy:x", Name: "Noisy", Spaces: []string{"Bridges"}}) {
+	if scope.Admits(domain.RoomFacts{ID: mx + "!noisy:x", Name: "Noisy", Spaces: []string{"Bridges"}}) {
 		t.Error("exclude should beat include for the same room")
 	}
 }

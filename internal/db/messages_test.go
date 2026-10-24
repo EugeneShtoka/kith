@@ -20,24 +20,24 @@ func TestLatestEventsPicksTheNewestPerRoom(t *testing.T) {
 
 	// Saved newest-first, so insertion order would pick the wrong one.
 	for _, msg := range []domain.Message{
-		{ID: "$a-new", Timestamp: base.Add(2 * time.Hour)},
-		{ID: "$a-mid", Timestamp: base.Add(time.Hour)},
-		{ID: "$a-old", Timestamp: base},
+		{ID: mx + "$a-new", Timestamp: base.Add(2 * time.Hour)},
+		{ID: mx + "$a-mid", Timestamp: base.Add(time.Hour)},
+		{ID: mx + "$a-old", Timestamp: base},
 	} {
-		mustSave(t, cache, "!a:x", msg)
+		mustSave(t, cache, mx+"!a:x", msg)
 	}
-	mustSave(t, cache, "!b:x", domain.Message{ID: "$b-only", Timestamp: base})
+	mustSave(t, cache, mx+"!b:x", domain.Message{ID: mx + "$b-only", Timestamp: base})
 
 	// !c:x has nothing cached.
-	got, err := cache.LatestEvents(ctx, []domain.RoomID{"!a:x", "!b:x", "!c:x"})
+	got, err := cache.LatestEvents(ctx, []domain.RoomID{mx + "!a:x", mx + "!b:x", mx + "!c:x"})
 	if err != nil {
 		t.Fatalf("LatestEvents() error = %v", err)
 	}
-	want := map[domain.RoomID]domain.EventID{"!a:x": "$a-new", "!b:x": "$b-only"}
+	want := map[domain.RoomID]domain.EventID{mx + "!a:x": mx + "$a-new", mx + "!b:x": mx + "$b-only"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("LatestEvents() = %v, want %v", got, want)
 	}
-	if _, present := got["!c:x"]; present {
+	if _, present := got[mx+"!c:x"]; present {
 		t.Error("a room with nothing cached must be absent, not empty")
 	}
 
@@ -53,13 +53,13 @@ func TestLatestEventsFollowsNewMessages(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 	base := time.Date(2026, 8, 24, 9, 0, 0, 0, time.UTC)
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$first", Timestamp: base})
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$first", Timestamp: base})
 
-	if got, err := cache.LatestEvents(ctx, []domain.RoomID{"!a:x"}); err != nil || got["!a:x"] != "$first" {
+	if got, err := cache.LatestEvents(ctx, []domain.RoomID{mx + "!a:x"}); err != nil || got[mx+"!a:x"] != mx+"$first" {
 		t.Fatalf("LatestEvents() = %v, %v; want $first", got, err)
 	}
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$later", Timestamp: base.Add(time.Minute)})
-	if got, err := cache.LatestEvents(ctx, []domain.RoomID{"!a:x"}); err != nil || got["!a:x"] != "$later" {
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$later", Timestamp: base.Add(time.Minute)})
+	if got, err := cache.LatestEvents(ctx, []domain.RoomID{mx + "!a:x"}); err != nil || got[mx+"!a:x"] != mx+"$later" {
 		t.Errorf("LatestEvents() = %v, %v; want $later", got, err)
 	}
 }
@@ -73,14 +73,14 @@ func TestLastMessages(t *testing.T) {
 	cache := openTemp(t)
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
 
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@s:x", Body: "one", Timestamp: at(10)},
-		{ID: "$2", RoomID: "!a:x", Sender: "@s:x", Body: "two", Timestamp: at(30)},
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@s:x", Body: "one", Timestamp: at(10)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@s:x", Body: "two", Timestamp: at(30)},
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
-	if err := cache.SaveMessages(ctx, "!b:x", []domain.Message{
-		{ID: "$3", RoomID: "!b:x", Sender: "@s:x", Body: "elsewhere", Timestamp: at(20)},
+	if err := cache.SaveMessages(ctx, mx+"!b:x", []domain.Message{
+		{ID: mx + "$3", RoomID: mx + "!b:x", Sender: "matrix:@s:x", Body: "elsewhere", Timestamp: at(20)},
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
@@ -92,14 +92,14 @@ func TestLastMessages(t *testing.T) {
 	if len(latest) != 2 {
 		t.Fatalf("got %v, want one entry per room with messages", latest)
 	}
-	if !latest["!a:x"].Equal(at(30)) {
-		t.Errorf("!a:x = %v, want its newest message at %v", latest["!a:x"], at(30))
+	if !latest[mx+"!a:x"].Equal(at(30)) {
+		t.Errorf("!a:x = %v, want its newest message at %v", latest[mx+"!a:x"], at(30))
 	}
-	if !latest["!b:x"].Equal(at(20)) {
-		t.Errorf("!b:x = %v, want %v", latest["!b:x"], at(20))
+	if !latest[mx+"!b:x"].Equal(at(20)) {
+		t.Errorf("!b:x = %v, want %v", latest[mx+"!b:x"], at(20))
 	}
 	// A room with nothing cached is absent, not zero.
-	if _, present := latest["!never:x"]; present {
+	if _, present := latest[mx+"!never:x"]; present {
 		t.Error("a room with no cached messages should be absent")
 	}
 }
@@ -111,10 +111,10 @@ func TestSaveMessagesOverwritesBodyOnResave(t *testing.T) {
 	cache, ctx := openTemp(t), context.Background()
 	at := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
 
-	mustSave(t, cache, "!r:x", domain.Message{ID: "$e:x", Body: "the real message", Timestamp: at})
-	mustSave(t, cache, "!r:x", domain.Message{ID: "$e:x", Body: "replaced", Timestamp: at})
+	mustSave(t, cache, mx+"!r:x", domain.Message{ID: mx + "$e:x", Body: "the real message", Timestamp: at})
+	mustSave(t, cache, mx+"!r:x", domain.Message{ID: mx + "$e:x", Body: "replaced", Timestamp: at})
 
-	got, err := cache.Messages(ctx, "!r:x", 10)
+	got, err := cache.Messages(ctx, mx+"!r:x", 10)
 	if err != nil {
 		t.Fatalf("Messages() error = %v", err)
 	}
@@ -127,14 +127,14 @@ func TestSaveMessagesOverwritesBodyOnResave(t *testing.T) {
 	}
 
 	// Only an edited row resists replacement.
-	mustSave(t, cache, "!r:x", domain.Message{ID: "$ed:x", Body: "edited text", Edited: true, Timestamp: at})
-	mustSave(t, cache, "!r:x", domain.Message{ID: "$ed:x", Body: "plain resave", Timestamp: at})
-	got, err = cache.Messages(ctx, "!r:x", 10)
+	mustSave(t, cache, mx+"!r:x", domain.Message{ID: mx + "$ed:x", Body: "edited text", Edited: true, Timestamp: at})
+	mustSave(t, cache, mx+"!r:x", domain.Message{ID: mx + "$ed:x", Body: "plain resave", Timestamp: at})
+	got, err = cache.Messages(ctx, mx+"!r:x", 10)
 	if err != nil {
 		t.Fatalf("Messages() error = %v", err)
 	}
 	for _, m := range got {
-		if m.ID == "$ed:x" && m.Body != "edited text" {
+		if m.ID == mx+"$ed:x" && m.Body != "edited text" {
 			t.Errorf("edited body = %q, want it preserved", m.Body)
 		}
 	}
@@ -145,17 +145,17 @@ func TestNewestTSCoversMessagesAndEdits(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	if ts, err := cache.NewestTS(ctx, "!a:x"); err != nil || ts != 0 {
+	if ts, err := cache.NewestTS(ctx, mx+"!a:x"); err != nil || ts != 0 {
 		t.Fatalf("NewestTS(empty) = %d, %v; want 0", ts, err)
 	}
 	base := time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-		{ID: "$a", Timestamp: base},
-		{ID: "$b", Timestamp: base.Add(time.Minute)},
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{
+		{ID: mx + "$a", Timestamp: base},
+		{ID: mx + "$b", Timestamp: base.Add(time.Minute)},
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
-	if ts, err := cache.NewestTS(ctx, "!a:x"); err != nil || ts != base.Add(time.Minute).UnixMilli() {
+	if ts, err := cache.NewestTS(ctx, mx+"!a:x"); err != nil || ts != base.Add(time.Minute).UnixMilli() {
 		t.Errorf("NewestTS = %d, %v; want $b's", ts, err)
 	}
 }
@@ -198,21 +198,21 @@ func TestMessagesAreFoundByTheirEnding(t *testing.T) {
 func TestAnEditBringsItsPictureOnlyWhereItCounts(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!r:x")
+	const room = domain.RoomID(mx + "!r:x")
 	save := func(m domain.Message) {
 		if err := cache.SaveMessages(ctx, room, []domain.Message{m}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	save(domain.Message{ID: "$stand", RoomID: room, Sender: "@b:x", Body: "Decrypting message from WhatsApp failed", Timestamp: time.UnixMilli(1000), Placeholder: true})
-	newer := domain.Message{ID: "$stand", RoomID: room, Sender: "@b:x", Body: "look", Timestamp: time.UnixMilli(3000),
-		Edited: true, EditedAt: time.UnixMilli(3000), RevisionID: "$e2", Media: &domain.Media{Type: domain.MediaImage, Name: "new.jpg"}}
+	save(domain.Message{ID: mx + "$stand", RoomID: room, Sender: "matrix:@b:x", Body: "Decrypting message from WhatsApp failed", Timestamp: time.UnixMilli(1000), Placeholder: true})
+	newer := domain.Message{ID: mx + "$stand", RoomID: room, Sender: "matrix:@b:x", Body: "look", Timestamp: time.UnixMilli(3000),
+		Edited: true, EditedAt: time.UnixMilli(3000), RevisionID: mx + "$e2", Media: &domain.Media{Type: domain.MediaImage, Name: "new.jpg"}}
 	older := newer
-	older.EditedAt, older.Timestamp, older.RevisionID, older.Body = time.UnixMilli(2000), time.UnixMilli(2000), "$e1", "old"
+	older.EditedAt, older.Timestamp, older.RevisionID, older.Body = time.UnixMilli(2000), time.UnixMilli(2000), mx+"$e1", "old"
 	older.Media = &domain.Media{Type: domain.MediaImage, Name: "old.jpg"}
 	save(newer)
 	save(older)
-	got, ok, err := cache.MessageByID(ctx, room, "$stand")
+	got, ok, err := cache.MessageByID(ctx, room, mx+"$stand")
 	if err != nil || !ok || got.Body != "look" || got.Media == nil || got.Media.Name != "new.jpg" {
 		t.Errorf("the message = (%+v, media %+v, %v)", got, got.Media, err)
 	}

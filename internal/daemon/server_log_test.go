@@ -109,7 +109,7 @@ func TestMarkRoomsReadCarriesTheFirstError(t *testing.T) {
 	t.Parallel()
 	r, _ := serveLogged(t, &refusingBackend{})
 
-	res, err := r.MarkRoomsRead(context.Background(), []domain.RoomID{"!a:x", "!b:x"}, false)
+	res, err := r.MarkRoomsRead(context.Background(), []domain.RoomID{mx + "!a:x", mx + "!b:x"}, false)
 	if err != nil {
 		t.Fatalf("MarkRoomsRead() = %v", err)
 	}

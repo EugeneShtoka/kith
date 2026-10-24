@@ -12,7 +12,7 @@ func TestAllowModelReadsBothLists(t *testing.T) {
 
 	const url = "https://example.invalid/v1/chat/completions"
 	room := RoomFacts{
-		ID: "!work:example.org", Name: "Work · deploys",
+		ID: mx + "!work:example.org", Name: "Work · deploys",
 		Spaces: []string{"Work"}, Protocol: ProtocolSlack,
 	}
 
@@ -27,30 +27,30 @@ func TestAllowModelReadsBothLists(t *testing.T) {
 		// Both lists empty: every room.
 		{"neither list, so every room", ModelScope{}, url, false, ""},
 		// An allow list answers alone.
-		{"on the allow list", ModelScope{Only: []string{"!work:example.org"}}, url, false, ""},
-		{"not on the allow list", ModelScope{Only: []string{"!other:example.org"}}, url, false, ModelRefusedRoom},
+		{"on the allow list", ModelScope{Only: []string{mx + "!work:example.org"}}, url, false, ""},
+		{"not on the allow list", ModelScope{Only: []string{mx + "!other:example.org"}}, url, false, ModelRefusedRoom},
 		// A displayed name needs `room:`; a bare word is refused, so a typo cannot
 		// silently filter.
 		{"named by the name it is shown under", ModelScope{Only: []string{"room:Work · deploys"}}, url, false, ""},
 		{"named in another case, since a config is typed by hand", ModelScope{Only: []string{"room:work · DEPLOYS"}}, url, false, ""},
 		{"a bare name is refused rather than guessed at", ModelScope{Only: []string{"Work · deploys"}}, url, false, ModelRefusedRoom},
 		// A deny list only applies when there is no allow list.
-		{"on the deny list", ModelScope{Except: []string{"!work:example.org"}}, url, false, ModelRefusedRoom},
-		{"another room is denied, this one is not", ModelScope{Except: []string{"!other:example.org"}}, url, false, ""},
+		{"on the deny list", ModelScope{Except: []string{mx + "!work:example.org"}}, url, false, ModelRefusedRoom},
+		{"another room is denied, this one is not", ModelScope{Except: []string{mx + "!other:example.org"}}, url, false, ""},
 		{
 			"an allow list wins over a deny list naming the same room",
-			ModelScope{Only: []string{"!work:example.org"}, Except: []string{"!work:example.org"}},
+			ModelScope{Only: []string{mx + "!work:example.org"}, Except: []string{mx + "!work:example.org"}},
 			url, false, "",
 		},
 		// Blank entries are not a list.
 		{"a list of blanks is no list", ModelScope{Only: []string{"", "  "}}, url, false, ""},
 		// Encryption is decided first, by its own switch.
 		{"encrypted, and encrypted rooms are out", ModelScope{}, url, true, ModelRefusedEncrypted},
-		{"encrypted, allowed by name, still out", ModelScope{Only: []string{"!work:example.org"}}, url, true, ModelRefusedEncrypted},
+		{"encrypted, allowed by name, still out", ModelScope{Only: []string{mx + "!work:example.org"}}, url, true, ModelRefusedEncrypted},
 		{"encrypted, and encrypted rooms are in", ModelScope{Encrypted: true}, url, true, ""},
 		{
 			"encrypted rooms in, but this one is denied",
-			ModelScope{Except: []string{"!work:example.org"}, Encrypted: true},
+			ModelScope{Except: []string{mx + "!work:example.org"}, Encrypted: true},
 			url, true, ModelRefusedRoom,
 		},
 		// Class entries: a space, a network, a kind of room.
@@ -63,7 +63,7 @@ func TestAllowModelReadsBothLists(t *testing.T) {
 		{"it is a group", ModelScope{Only: []string{"group"}}, url, false, ""},
 		{"direct messages kept out", ModelScope{Except: []string{"dm"}}, url, false, ""},
 		// The qualified spelling of a bare entry.
-		{"room: by ID", ModelScope{Only: []string{"room:!work:example.org"}}, url, false, ""},
+		{"room: by ID", ModelScope{Only: []string{"room:" + mx + "!work:example.org"}}, url, false, ""},
 		{"room: by name", ModelScope{Only: []string{"room:Work · deploys"}}, url, false, ""},
 	}
 	for _, tc := range cases {
@@ -85,7 +85,7 @@ func TestAllowModelListedScopeSharesOnlyWhatIsNamed(t *testing.T) {
 	t.Parallel()
 
 	const url = "configured"
-	room := RoomFacts{ID: "!work:example.org", Name: "Standup", Spaces: []string{"Work"}}
+	room := RoomFacts{ID: mx + "!work:example.org", Name: "Standup", Spaces: []string{"Work"}}
 	cases := []struct {
 		name      string
 		scope     ModelScope
@@ -158,12 +158,12 @@ func TestRoomFactsNamesKindsOfRoom(t *testing.T) {
 	t.Parallel()
 
 	dm := RoomFacts{
-		ID: "!dana:example.org", Name: "Dana", Direct: true,
+		ID: mx + "!dana:example.org", Name: "Dana", Direct: true,
 		Spaces: []string{"WhatsApp"}, Protocol: ProtocolWhatsApp,
 	}
 	for _, entry := range []string{
 		"dm", "DM", " dm ", "group ", "space:WhatsApp", "protocol:WhatsApp",
-		"!dana:example.org", "room:Dana", "room:!dana:example.org",
+		mx + "!dana:example.org", "room:Dana", "room:" + mx + "!dana:example.org",
 	} {
 		want := entry != "group "
 		if got := dm.Names(entry); got != want {
@@ -182,7 +182,7 @@ func TestRoomFactsNamesKindsOfRoom(t *testing.T) {
 
 	// The kind comes back too, for ranking rules.
 	for entry, want := range map[string]EntryKind{
-		"!dana:example.org": EntryRoom, "room:Dana": EntryRoom,
+		mx + "!dana:example.org": EntryRoom, "room:Dana": EntryRoom,
 		"space:WhatsApp": EntryClass, "protocol:WhatsApp": EntryClass,
 		"dm": EntryClass, "Dana": EntryInvalid,
 	} {
@@ -191,7 +191,7 @@ func TestRoomFactsNamesKindsOfRoom(t *testing.T) {
 		}
 	}
 	// A room in no space and on no bridge answers the kind entries and nothing else.
-	plain := RoomFacts{ID: "!plain:example.org", Protocol: ProtocolMatrix}
+	plain := RoomFacts{ID: mx + "!plain:example.org", Protocol: ProtocolMatrix}
 	if !plain.Names("group") || plain.Names("dm") || plain.Names("space:Work") {
 		t.Error("a plain room answered the wrong entries")
 	}
@@ -300,10 +300,10 @@ func TestAllowSendNamesRoomsTheSameWayEveryOtherListDoes(t *testing.T) {
 	t.Parallel()
 
 	work := RoomFacts{
-		ID: "!work:example.org", Name: "Standup",
+		ID: mx + "!work:example.org", Name: "Standup",
 		Spaces: []string{"Work"}, Protocol: ProtocolSlack,
 	}
-	dm := RoomFacts{ID: "!dm:example.org", Name: "Dana", Direct: true, Protocol: ProtocolWhatsApp}
+	dm := RoomFacts{ID: mx + "!dm:example.org", Name: "Dana", Direct: true, Protocol: ProtocolWhatsApp}
 
 	cases := []struct {
 		name string
@@ -315,7 +315,7 @@ func TestAllowSendNamesRoomsTheSameWayEveryOtherListDoes(t *testing.T) {
 		{"an empty list posts nowhere", nil, work, false},
 		{"a list of blanks is still empty", []string{"", "  "}, work, false},
 		{"by name", []string{"room:Standup"}, work, true},
-		{"by ID", []string{"!work:example.org"}, work, true},
+		{"by ID", []string{mx + "!work:example.org"}, work, true},
 		{"by space", []string{"space:Work"}, work, true},
 		{"by network", []string{"protocol:WhatsApp"}, dm, true},
 		{"by kind", []string{"dm"}, dm, true},
@@ -341,7 +341,7 @@ func TestNeedsPlaces(t *testing.T) {
 		want  bool
 	}{
 		{ModelScope{}, false},
-		{ModelScope{Only: []string{"dm", "room:Standup", "!a:x"}}, false},
+		{ModelScope{Only: []string{"dm", "room:Standup", mx + "!a:x"}}, false},
 		{ModelScope{Only: []string{" Space:Work"}}, true},
 		{ModelScope{Except: []string{"protocol:whatsapp"}}, true},
 	} {
@@ -355,11 +355,11 @@ func TestNeedsPlaces(t *testing.T) {
 func TestModelContextQuotesEveryAccountAsYou(t *testing.T) {
 	t.Parallel()
 	msgs := []Message{
-		{Sender: "@me:x", Body: "from Matrix"},
+		{Sender: "matrix:@me:x", Body: "from Matrix"},
 		{Sender: "whatsapp:44880000001@s.whatsapp.net", Body: "from WhatsApp"},
-		{Sender: "@dana:x", SenderName: "Dana", Body: "hi"},
+		{Sender: "matrix:@dana:x", SenderName: "Dana", Body: "hi"},
 	}
-	got := ModelContext(msgs, []string{"@me:x", "whatsapp:44880000001@s.whatsapp.net"}, 1000)
+	got := ModelContext(msgs, []string{"matrix:@me:x", "whatsapp:44880000001@s.whatsapp.net"}, 1000)
 	want := []string{"You: from Matrix", "You: from WhatsApp", "Dana: hi"}
 	if !slices.Equal(got, want) {
 		t.Errorf("ModelContext = %q, want %q", got, want)

@@ -37,7 +37,7 @@ func (m Media) Anonymizes() bool { return enabled(m.Anonymize) }
 // MediaRule is one [[display.media.rule]]; unset fields inherit.
 type MediaRule struct {
 	Match     string   `toml:"match"`  // a room ID, space:, tag: or place:
-	Sender    string   `toml:"sender"` // MXID, for per-person settings (speed)
+	Sender    string   `toml:"sender"` // a person's ID, for per-person settings (speed)
 	Auto      *bool    `toml:"auto"`
 	Cache     *bool    `toml:"cache"`
 	Anonymize *bool    `toml:"anonymize"`

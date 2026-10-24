@@ -111,10 +111,10 @@ func TestSearchMessages(t *testing.T) {
 			t.Fatalf("hits = %+v (err %v)", hits, err)
 		}
 		h := hits[0]
-		if h.RoomID != "!a:x" || h.EventID != "$3" {
+		if h.RoomID != mx+"!a:x" || h.EventID != mx+"$3" {
 			t.Errorf("hit points at %s/%s, want !a:x/$3", h.RoomID, h.EventID)
 		}
-		if h.Sender != "@bob:x" || h.SenderName != "Bob" {
+		if h.Sender != "matrix:@bob:x" || h.SenderName != "Bob" {
 			t.Errorf("sender = %q/%q", h.Sender, h.SenderName)
 		}
 		if !strings.Contains(h.Snippet, domain_HighlightStart+"blocked"+domain_HighlightEnd) {
@@ -124,7 +124,7 @@ func TestSearchMessages(t *testing.T) {
 
 	t.Run("narrows to a set of senders, with or without words", func(t *testing.T) {
 		// An empty set is nobody.
-		for senders, want := range map[string]int{"@alice:x @carol:x": 2, "@bob:x": 0, "": 0} {
+		for senders, want := range map[string]int{"matrix:@alice:x matrix:@carol:x": 2, "matrix:@bob:x": 0, "": 0} {
 			filter := domain.ParseSearch("deploy", time.Now())
 			filter.Senders = strings.Fields(senders)
 			hits, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: filter, Rooms: domain.EveryRoom(), Limit: 20})
@@ -132,7 +132,7 @@ func TestSearchMessages(t *testing.T) {
 				t.Errorf("senders %q: %d hits (err %v), want %d", senders, len(hits), err, want)
 			}
 		}
-		hits, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: domain.SearchFilter{Senders: []string{"@dana:x", "@eva:x"}}, Rooms: domain.EveryRoom(), Limit: 20})
+		hits, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: domain.SearchFilter{Senders: []string{"matrix:@dana:x", "matrix:@eva:x"}}, Rooms: domain.EveryRoom(), Limit: 20})
 		if err != nil || len(hits) != 2 {
 			t.Errorf("senders alone: %+v (err %v)", hits, err)
 		}
@@ -143,14 +143,14 @@ func TestSearchMessages(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		scoped, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: domain.ParseSearch("deploy", time.Now()), Rooms: domain.TheseRooms([]domain.RoomID{"!b:x"}), Limit: 20})
+		scoped, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: domain.ParseSearch("deploy", time.Now()), Rooms: domain.TheseRooms([]domain.RoomID{mx + "!b:x"}), Limit: 20})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(all) != 2 || len(scoped) != 1 {
 			t.Fatalf("global %d hits, scoped %d — want 2 and 1", len(all), len(scoped))
 		}
-		if scoped[0].RoomID != "!b:x" {
+		if scoped[0].RoomID != mx+"!b:x" {
 			t.Errorf("scoped hit is in %s", scoped[0].RoomID)
 		}
 	})
@@ -174,7 +174,7 @@ func TestSearchMessages(t *testing.T) {
 
 	t.Run("narrows as you type", func(t *testing.T) {
 		for _, prefix := range []string{"d", "de", "dep", "deplo", "deploy"} {
-			hits, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: domain.ParseSearch(prefix, time.Now()), Rooms: domain.TheseRooms([]domain.RoomID{"!b:x"}), Limit: 20})
+			hits, err := cache.SearchMessages(ctx, domain.SearchRequest{Filter: domain.ParseSearch(prefix, time.Now()), Rooms: domain.TheseRooms([]domain.RoomID{mx + "!b:x"}), Limit: 20})
 			if err != nil {
 				t.Fatalf("%q: %v", prefix, err)
 			}
@@ -258,7 +258,7 @@ func TestSearchIndexFollowsMessageChanges(t *testing.T) {
 
 	save := func(msgs ...domainMessage) {
 		t.Helper()
-		if err := cache.SaveMessages(ctx, "!r:x", msgs); err != nil {
+		if err := cache.SaveMessages(ctx, mx+"!r:x", msgs); err != nil {
 			t.Fatalf("SaveMessages: %v", err)
 		}
 	}
@@ -272,13 +272,13 @@ func TestSearchIndexFollowsMessageChanges(t *testing.T) {
 	}
 
 	// Insert.
-	save(domainMessage{ID: "$1", RoomID: "!r:x", Sender: "@a:x", Body: "original pineapple", Timestamp: at(1)})
+	save(domainMessage{ID: mx + "$1", RoomID: mx + "!r:x", Sender: "matrix:@a:x", Body: "original pineapple", Timestamp: at(1)})
 	if count("pineapple") != 1 {
 		t.Fatal("a new message should be searchable")
 	}
 
 	// Edit: the upsert's ON CONFLICT path fires the UPDATE trigger, not the insert one.
-	save(domainMessage{ID: "$1", RoomID: "!r:x", Sender: "@a:x", Body: "edited mango", Timestamp: at(1), Edited: true})
+	save(domainMessage{ID: mx + "$1", RoomID: mx + "!r:x", Sender: "matrix:@a:x", Body: "edited mango", Timestamp: at(1), Edited: true})
 	if count("pineapple") != 0 {
 		t.Error("the replaced text should no longer be searchable")
 	}
@@ -287,7 +287,7 @@ func TestSearchIndexFollowsMessageChanges(t *testing.T) {
 	}
 
 	// Redaction: the row survives for the placeholder but leaves results.
-	if err := cache.MarkRedacted(ctx, "!r:x", "$1", "", "", time.Time{}, false); err != nil {
+	if err := cache.MarkRedacted(ctx, mx+"!r:x", mx+"$1", "", "", time.Time{}, false); err != nil {
 		t.Fatalf("MarkRedacted: %v", err)
 	}
 	if count("mango") != 0 {
@@ -295,7 +295,7 @@ func TestSearchIndexFollowsMessageChanges(t *testing.T) {
 	}
 
 	// Delete, via Clear.
-	save(domainMessage{ID: "$2", RoomID: "!r:x", Sender: "@a:x", Body: "kumquat", Timestamp: at(2)})
+	save(domainMessage{ID: mx + "$2", RoomID: mx + "!r:x", Sender: "matrix:@a:x", Body: "kumquat", Timestamp: at(2)})
 	if count("kumquat") != 1 {
 		t.Fatal("setup")
 	}
@@ -318,14 +318,14 @@ func TestSearchIndexFollowsTrim(t *testing.T) {
 	msgs := make([]domainMessage, 0, testKeep+5)
 	for i := range testKeep + 5 {
 		msgs = append(msgs, domainMessage{
-			ID:        domainEventID(fmt.Sprintf("$%d", i)),
-			RoomID:    "!r:x",
-			Sender:    "@a:x",
+			ID:        domainEventID(fmt.Sprintf(mx+"$%d", i)),
+			RoomID:    mx + "!r:x",
+			Sender:    "matrix:@a:x",
 			Body:      fmt.Sprintf("message tangerine %d", i),
 			Timestamp: time.UnixMilli(int64(i) * 1000),
 		})
 	}
-	if err := cache.SaveMessages(ctx, "!r:x", msgs); err != nil {
+	if err := cache.SaveMessages(ctx, mx+"!r:x", msgs); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
 	// The five oldest were trimmed.
@@ -337,7 +337,7 @@ func TestSearchIndexFollowsTrim(t *testing.T) {
 		t.Errorf("index holds %d trimmed-table rows, want %d", len(hits), testKeep)
 	}
 	for _, h := range hits {
-		if h.EventID == "$0" || h.EventID == "$4" {
+		if h.EventID == mx+"$0" || h.EventID == mx+"$4" {
 			t.Errorf("%s was trimmed from the table but is still indexed", h.EventID)
 		}
 	}
@@ -349,14 +349,14 @@ func seedSearchable(t *testing.T, cache *Cache) {
 	ctx := context.Background()
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
 	rooms := map[string][]domainMessage{
-		"!a:x": {
-			{ID: "$1", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "the deploy is out", Timestamp: at(10)},
-			{ID: "$3", RoomID: "!a:x", Sender: "@bob:x", SenderName: "Bob", Body: "review blocked on the tests", Timestamp: at(30)},
-			{ID: "$4", RoomID: "!a:x", Sender: "@dana:x", SenderName: "Dana", Body: "תודה רבה", Timestamp: at(40)},
-			{ID: "$5", RoomID: "!a:x", Sender: "@eva:x", SenderName: "Eva", Body: "Grüsse aus Berlin", Timestamp: at(50)},
+		mx + "!a:x": {
+			{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "the deploy is out", Timestamp: at(10)},
+			{ID: mx + "$3", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob", Body: "review blocked on the tests", Timestamp: at(30)},
+			{ID: mx + "$4", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", SenderName: "Dana", Body: "תודה רבה", Timestamp: at(40)},
+			{ID: mx + "$5", RoomID: mx + "!a:x", Sender: "matrix:@eva:x", SenderName: "Eva", Body: "Grüsse aus Berlin", Timestamp: at(50)},
 		},
-		"!b:x": {
-			{ID: "$2", RoomID: "!b:x", Sender: "@carol:x", SenderName: "Carol", Body: "can we deploy tomorrow", Timestamp: at(20)},
+		mx + "!b:x": {
+			{ID: mx + "$2", RoomID: mx + "!b:x", Sender: "matrix:@carol:x", SenderName: "Carol", Body: "can we deploy tomorrow", Timestamp: at(20)},
 		},
 	}
 	for room, msgs := range rooms {

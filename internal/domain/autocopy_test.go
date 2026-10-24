@@ -25,7 +25,7 @@ func capturing() domain.AutoCopy {
 // arrived is a message with a code in it, landing in the SMS-bridge room.
 func arrived(at time.Time) domain.Message {
 	return domain.Message{
-		ID: "$1", RoomID: "!sms:x", Sender: "@bridge:x",
+		ID: mx + "$1", RoomID: mx + "!sms:x", Sender: "matrix:@bridge:x",
 		Body: "Your code is 482910", Timestamp: at,
 	}
 }
@@ -33,7 +33,7 @@ func arrived(at time.Time) domain.Message {
 // here is the room it landed in, in the scoped space.
 func here() domain.Arrival {
 	return domain.Arrival{CaughtUp: true, Room: domain.RoomFacts{
-		ID: "!sms:x", Name: "SMS", Spaces: []string{"Bridges"},
+		ID: mx + "!sms:x", Name: "SMS", Spaces: []string{"Bridges"},
 	}}
 }
 
@@ -65,7 +65,7 @@ func mine() domain.Arrival       { in := here(); in.Mine = true; return in }
 func catchingUp() domain.Arrival { in := here(); in.CaughtUp = false; return in }
 func elsewhere() domain.Arrival {
 	in := here()
-	in.Room = domain.RoomFacts{ID: "!work:x", Name: "Standup", Spaces: []string{"Work"}}
+	in.Room = domain.RoomFacts{ID: mx + "!work:x", Name: "Standup", Spaces: []string{"Work"}}
 	return in
 }
 
@@ -91,7 +91,7 @@ func TestAutoCopyRefusals(t *testing.T) {
 		"excluded even though included": {
 			rules: domain.AutoCopy{
 				Enabled: true,
-				Scope:   domain.CodeScope{Include: []string{"space:Bridges"}, Exclude: []string{"!sms:x"}},
+				Scope:   domain.CodeScope{Include: []string{"space:Bridges"}, Exclude: []string{mx + "!sms:x"}},
 				Rules:   capturing().Rules,
 			},
 			msg: arrived(fresh), in: here(),

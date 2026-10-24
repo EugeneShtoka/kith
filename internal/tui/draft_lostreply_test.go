@@ -44,12 +44,12 @@ func TestALostReplyThenTypingWritesTheWordsOnce(t *testing.T) {
 	m = typeInto(t, m, " there")
 	m, save := tickCmd(t, m)
 	m = settle(t, m, save)
-	if store.body("!a:x") != "hi there" || !m.draftSync.retry["!a:x"] {
-		t.Fatalf("stored %q, retry %v: want the write landed and a retry owed", store.body("!a:x"), m.draftSync.retry)
+	if store.body(mx+"!a:x") != "hi there" || !m.draftSync.retry[mx+"!a:x"] {
+		t.Fatalf("stored %q, retry %v: want the write landed and a retry owed", store.body(mx+"!a:x"), m.draftSync.retry)
 	}
 	m = typeInto(t, m, " more")
 	_ = settle(t, m, m.loadDraftsCmd()) // the poll retries the failed save
-	if got := store.body("!a:x"); got != "hi there more" {
+	if got := store.body(mx + "!a:x"); got != "hi there more" {
 		t.Fatalf("stored %q, want %q", got, "hi there more")
 	}
 }
@@ -61,7 +61,7 @@ func TestALostReplyAfterAFoldKeepsTheAdditionOnce(t *testing.T) {
 	m, store := sharing(t)
 	l := &lostReply{sharedDrafts: store, loseOn: 2}
 	l.before = func() {
-		store.drafts["!a:x"] = domain.StoredDraft{RoomID: "!a:x", Body: "hi\n\na1", Author: "claude-code", Updated: time.UnixMilli(2000)}
+		store.drafts[mx+"!a:x"] = domain.StoredDraft{RoomID: mx + "!a:x", Body: "hi\n\na1", Author: "claude-code", Updated: time.UnixMilli(2000)}
 	}
 	m.backend = l
 	m.compose.caret = caret{owner: fieldComposer, at: len(m.compose.input)}
@@ -69,7 +69,7 @@ func TestALostReplyAfterAFoldKeepsTheAdditionOnce(t *testing.T) {
 	m, save := tickCmd(t, m)
 	m = settle(t, m, save)
 	m = settle(t, m, m.loadDraftsCmd())
-	if got, want := store.body("!a:x"), "hi there\n\na1"; got != want || m.compose.input != want {
+	if got, want := store.body(mx+"!a:x"), "hi there\n\na1"; got != want || m.compose.input != want {
 		t.Fatalf("stored %q, composer %q; want both %q", got, m.compose.input, want)
 	}
 }
@@ -81,7 +81,7 @@ func TestALostReplyAfterAFoldThenTypingKeepsTheAdditionOnce(t *testing.T) {
 	m, store := sharing(t)
 	l := &lostReply{sharedDrafts: store, loseOn: 2}
 	l.before = func() {
-		store.drafts["!a:x"] = domain.StoredDraft{RoomID: "!a:x", Body: "hi\n\na1", Author: "claude-code", Updated: time.UnixMilli(2000)}
+		store.drafts[mx+"!a:x"] = domain.StoredDraft{RoomID: mx + "!a:x", Body: "hi\n\na1", Author: "claude-code", Updated: time.UnixMilli(2000)}
 	}
 	w := &writesSeen{Backend: l}
 	m.backend = w
@@ -91,7 +91,7 @@ func TestALostReplyAfterAFoldThenTypingKeepsTheAdditionOnce(t *testing.T) {
 	m = settle(t, m, save)
 	m = typeInto(t, m, " you")
 	m = settle(t, m, m.loadDraftsCmd())
-	if got, want := store.body("!a:x"), "hi there you\n\na1"; got != want || m.compose.input != want {
+	if got, want := store.body(mx+"!a:x"), "hi there you\n\na1"; got != want || m.compose.input != want {
 		t.Fatalf("stored %q, composer %q; want both %q", got, m.compose.input, want)
 	}
 	for _, body := range w.stored[1:] { // the first is the lost write itself
@@ -139,15 +139,15 @@ func TestDescentOf(t *testing.T) {
 		{"a base it does not hold does not outrank ours", at("w1\n\na6", 9), v("hi", 1),
 			[]ownWrite{{v: v("w1", 5)}}, v("w1", 5)},
 		{"a reply chosen here, landed unheard, then the assistant: ours", domain.StoredDraft{
-			Body: "hi\n\na1", ReplyTo: "$t", Updated: time.UnixMilli(9),
-		}, v("hi", 1), []ownWrite{{v: draftStamp{body: "hi", reply: "$t", ms: 5}}}, draftStamp{body: "hi", reply: "$t", ms: 5}},
+			Body: "hi\n\na1", ReplyTo: mx + "$t", Updated: time.UnixMilli(9),
+		}, v("hi", 1), []ownWrite{{v: draftStamp{body: "hi", reply: mx + "$t", ms: 5}}}, draftStamp{body: "hi", reply: mx + "$t", ms: 5}},
 		{"a word boundary: a10 does not extend a1", at("a10", 9), v("", 0), []ownWrite{{v: v("a1", 5)}}, v("", 0)},
 		{"words alike by chance, the edit state not: not ours", at("a2", 9), v("", 0),
-			[]ownWrite{{v: draftStamp{body: "fixed", saved: "a2", editing: "$e", ms: 5}}}, v("", 0)},
+			[]ownWrite{{v: draftStamp{body: "fixed", saved: "a2", editing: mx + "$e", ms: 5}}}, v("", 0)},
 		{"words alike by chance, the reply target not: not ours", at("hi\n\na1", 9), v("hi", 1),
-			[]ownWrite{{v: draftStamp{body: "hi\n\na1", reply: "$t", ms: 5}}}, v("hi", 1)},
+			[]ownWrite{{v: draftStamp{body: "hi\n\na1", reply: mx + "$t", ms: 5}}}, v("hi", 1)},
 		{"words alike by chance, the thread not: not ours", at("hi\n\na1", 9), v("hi", 1),
-			[]ownWrite{{v: draftStamp{body: "hi\n\na1", thread: "$t", ms: 5}}}, v("hi", 1)},
+			[]ownWrite{{v: draftStamp{body: "hi\n\na1", thread: mx + "$t", ms: 5}}}, v("hi", 1)},
 	}
 	for _, c := range cases {
 		if got, _ := descentOf(c.current, c.base, c.own); got != c.want {
@@ -187,12 +187,12 @@ func TestTheLastWriteReportsWhatItCouldNotSave(t *testing.T) {
 	if lost := m.flushDrafts(context.Background()); len(lost) != 0 {
 		t.Fatalf("lost %v with the daemon answering", lost)
 	}
-	if got := store.body("!a:x"); got != "hi there" {
+	if got := store.body(mx + "!a:x"); got != "hi there" {
 		t.Fatalf("stored %q, want the typing written at exit", got)
 	}
 	m = typeInto(t, m, " again")
 	m.backend = failingDrafts{store}
-	if lost := m.flushDrafts(context.Background()); !slices.Equal(lost, []domain.RoomID{"!a:x"}) {
+	if lost := m.flushDrafts(context.Background()); !slices.Equal(lost, []domain.RoomID{mx + "!a:x"}) {
 		t.Fatalf("lost %v, want the room the daemon did not take", lost)
 	}
 }
@@ -204,14 +204,14 @@ func TestTypingWithoutAPauseIsSavedAllTheSame(t *testing.T) {
 	m, store := sharing(t)
 	m.compose.caret = caret{owner: fieldComposer, at: len(m.compose.input)}
 	m = typeInto(t, m, " a")
-	if got := store.body("!a:x"); got != "hi" {
+	if got := store.body(mx + "!a:x"); got != "hi" {
 		t.Fatalf("stored %q while typing, before the debounce: want it unsaved yet", got)
 	}
 	m.draftSync.since = time.Now().Add(-draftSaveEvery) // typing has gone on this long
 	m.compose.caret = caret{owner: fieldComposer, at: len(m.compose.input)}
 	m, cmd := asModel(m.Update(keyText("b")))
 	_ = settle(t, m, cmd)
-	if got := store.body("!a:x"); got != "hi ab" {
+	if got := store.body(mx + "!a:x"); got != "hi ab" {
 		t.Errorf("stored %q after %v of typing, want it saved without a pause", got, draftSaveEvery)
 	}
 }

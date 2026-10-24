@@ -19,10 +19,10 @@ import (
 // between them.
 func threaded() domain.TimelinePage {
 	return domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$root", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "ship the release notes?", Timestamp: at(1)},
-		{ID: "$r1", RoomID: "!a:x", Sender: "@bob:x", SenderName: "Bob", Body: "on it", Timestamp: at(2), ThreadRoot: "$root"},
-		{ID: "$loose", RoomID: "!a:x", Sender: "@carol:x", SenderName: "Carol", Body: "unrelated", Timestamp: at(3)},
-		{ID: "$r2", RoomID: "!a:x", Sender: "@bob:x", SenderName: "Bob", Body: "done", Timestamp: at(4), ThreadRoot: "$root"},
+		{ID: mx + "$root", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "ship the release notes?", Timestamp: at(1)},
+		{ID: mx + "$r1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob", Body: "on it", Timestamp: at(2), ThreadRoot: mx + "$root"},
+		{ID: mx + "$loose", RoomID: mx + "!a:x", Sender: "matrix:@carol:x", SenderName: "Carol", Body: "unrelated", Timestamp: at(3)},
+		{ID: mx + "$r2", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob", Body: "done", Timestamp: at(4), ThreadRoot: mx + "$root"},
 	}}
 }
 
@@ -30,7 +30,7 @@ func TestAThreadCollapsesToOneSummaryRow(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: threaded()})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: threaded()})
 
 	rows := strings.Join(m.layoutRows(), "\n")
 	if !strings.Contains(rows, "ship the release notes?") || !strings.Contains(rows, "unrelated") {
@@ -50,7 +50,7 @@ func TestTheSummaryRowSitsUnderItsRoot(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: threaded()})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: threaded()})
 
 	rows := m.layoutRows()
 	root, summary := -1, -1
@@ -72,13 +72,13 @@ func TestTheCursorSkipsCollapsedReplies(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: threaded()})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: threaded()})
 
-	if got := m.selectedID(); got != "$loose" {
+	if got := m.selectedID(); got != mx+"$loose" {
 		t.Fatalf("selection = %q, want the newest *drawn* message", got)
 	}
 	next, _ := m.moveSelection(-1)
-	if got := next.selectedID(); got != "$root" {
+	if got := next.selectedID(); got != mx+"$root" {
 		t.Errorf("moving up selected %q, want $root — the replies between are not drawn", got)
 	}
 }
@@ -89,9 +89,9 @@ func TestAnOlderThreadSaysSo(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$a", RoomID: "!a:x", Sender: "@alice:x", Body: "loaded", Timestamp: at(1)},
-		{ID: "$r1", RoomID: "!a:x", Sender: "@bob:x", SenderName: "Bob", Body: "reply", Timestamp: at(2), ThreadRoot: "$gone"},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$a", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", Body: "loaded", Timestamp: at(1)},
+		{ID: mx + "$r1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob", Body: "reply", Timestamp: at(2), ThreadRoot: mx + "$gone"},
 	}}})
 
 	rows := m.layoutRows()
@@ -108,9 +108,9 @@ func TestTheSummaryRowCountsOne(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$root", RoomID: "!a:x", Sender: "@alice:x", Body: "question", Timestamp: at(1)},
-		{ID: "$r1", RoomID: "!a:x", Sender: "@bob:x", SenderName: "Bob", Body: "answer", Timestamp: at(2), ThreadRoot: "$root"},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$root", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", Body: "question", Timestamp: at(1)},
+		{ID: mx + "$r1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob", Body: "answer", Timestamp: at(2), ThreadRoot: mx + "$root"},
 	}}})
 
 	if rows := strings.Join(m.layoutRows(), "\n"); !strings.Contains(rows, "1 reply ") {
@@ -150,13 +150,13 @@ func inThread(t *testing.T, b api.Backend) Model {
 func inRoom(t *testing.T, b api.Backend, page domain.TimelinePage) Model {
 	t.Helper()
 	m := sized(t, update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
+		{ID: mx + "!a:x", Name: "Alpha"},
 	}}))
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: page})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: page})
 	m.focus, m.compose.insertMode = paneTimeline, false
-	m.timeline.selected = "$root"
+	m.timeline.selected = mx + "$root"
 	return m
 }
 
@@ -167,7 +167,7 @@ func TestOpeningAThreadTakesThePaneOver(t *testing.T) {
 	next, _ := m.openThread()
 	m = next
 
-	if m.thread.root != "$root" {
+	if m.thread.root != mx+"$root" {
 		t.Fatalf("open thread = %q, want $root", m.thread.root)
 	}
 	rows := strings.Join(m.layoutRows(), "\n")
@@ -200,7 +200,7 @@ func TestBackClosesTheThreadFirst(t *testing.T) {
 	if m.focus != paneTimeline {
 		t.Error("back out of a thread should stay in the timeline pane")
 	}
-	if m.timeline.selected != "$root" {
+	if m.timeline.selected != mx+"$root" {
 		t.Errorf("selected = %q, want the thread's root", m.timeline.selected)
 	}
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -229,7 +229,7 @@ func TestSendingInAThreadCarriesTheRoot(t *testing.T) {
 	if len(b.sent) != 1 {
 		t.Fatalf("sent %d drafts, want 1", len(b.sent))
 	}
-	if b.sent[0].ThreadRoot != "$root" {
+	if b.sent[0].ThreadRoot != mx+"$root" {
 		t.Errorf("ThreadRoot = %q, want $root — the answer landed in the main timeline", b.sent[0].ThreadRoot)
 	}
 	if b.sent[0].ReplyTo != "" {
@@ -264,7 +264,7 @@ func TestReplyingInsideAThreadKeepsBoth(t *testing.T) {
 	m := inThread(t, b)
 	next, _ := m.openThread()
 	m = next
-	m.timeline.selected = "$r1"
+	m.timeline.selected = mx + "$r1"
 
 	acted, _, handled := m.timelineAction(actReply)
 	if !handled {
@@ -281,7 +281,7 @@ func TestReplyingInsideAThreadKeepsBoth(t *testing.T) {
 	if len(b.sent) != 1 {
 		t.Fatalf("sent %d drafts, want 1", len(b.sent))
 	}
-	if b.sent[0].ThreadRoot != "$root" || b.sent[0].ReplyTo != "$r1" {
+	if b.sent[0].ThreadRoot != mx+"$root" || b.sent[0].ReplyTo != mx+"$r1" {
 		t.Errorf("draft = %+v, want a reply to $r1 inside $root", b.sent[0])
 	}
 }
@@ -293,18 +293,18 @@ func TestStartingAThread(t *testing.T) {
 
 	b := &threadBackend{}
 	m := inThread(t, b)
-	m.timeline.selected = "$loose"
+	m.timeline.selected = mx + "$loose"
 	next, _ := m.startThread()
 	m = next
 
-	if m.thread.root != "$loose" {
+	if m.thread.root != mx+"$loose" {
 		t.Fatalf("thread root = %q, want the selected message", m.thread.root)
 	}
 	if !m.compose.insertMode {
 		t.Error("starting a thread should open the composer")
 	}
 	msgs := m.shownMessages()
-	if len(msgs) != 1 || msgs[0].ID != "$loose" {
+	if len(msgs) != 1 || msgs[0].ID != mx+"$loose" {
 		t.Errorf("thread shows %d messages, want just the root it was started on", len(msgs))
 	}
 }
@@ -314,14 +314,14 @@ func TestStartingAThread(t *testing.T) {
 func TestOpeningAThreadFetchesAMissingRoot(t *testing.T) {
 	t.Parallel()
 
-	b := &threadBackend{fetch: domain.Message{ID: "$gone", RoomID: "!a:x", Sender: "@alice:x", Body: "the original question", Timestamp: at(0)}}
+	b := &threadBackend{fetch: domain.Message{ID: mx + "$gone", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", Body: "the original question", Timestamp: at(0)}}
 	m := inThread(t, b)
 	m = update(t, m, incomingMsg{message: domain.Message{
-		ID: "$r9", RoomID: "!a:x", Sender: "@bob:x", Body: "still going", Timestamp: at(9), ThreadRoot: "$gone",
+		ID: mx + "$r9", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "still going", Timestamp: at(9), ThreadRoot: mx + "$gone",
 	}})
 	// The cursor goes on the message the summary row hangs under, the only way into a
 	// thread whose root was never cached.
-	m.timeline.selected = "$loose"
+	m.timeline.selected = mx + "$loose"
 
 	next, cmd := m.openThread()
 	m = next
@@ -336,7 +336,7 @@ func TestOpeningAThreadFetchesAMissingRoot(t *testing.T) {
 	if m.thread.fetching {
 		t.Error("the fetch should have settled")
 	}
-	if len(b.events) != 1 || b.events[0] != "$gone" {
+	if len(b.events) != 1 || b.events[0] != mx+"$gone" {
 		t.Errorf("fetched %v, want the missing root", b.events)
 	}
 	if rows := strings.Join(m.layoutRows(), "\n"); !strings.Contains(rows, "the original question") {
@@ -349,7 +349,7 @@ func TestOpeningAThreadWhereThereIsNone(t *testing.T) {
 	t.Parallel()
 
 	m := inThread(t, apitest.Nop{})
-	m.timeline.selected = "$loose"
+	m.timeline.selected = mx + "$loose"
 	next, _ := m.openThread()
 	m = next
 
@@ -366,17 +366,17 @@ func TestRevealingAMessageOpensItsThread(t *testing.T) {
 	t.Parallel()
 
 	m := inThread(t, apitest.Nop{})
-	next, _ := m.revealMessage("$r2")
+	next, _ := m.revealMessage(mx + "$r2")
 	m = next
 
-	if m.thread.root != "$root" {
+	if m.thread.root != mx+"$root" {
 		t.Fatalf("open thread = %q, want the hit's thread", m.thread.root)
 	}
-	if m.timeline.selected != "$r2" {
+	if m.timeline.selected != mx+"$r2" {
 		t.Errorf("selected = %q, want the revealed message", m.timeline.selected)
 	}
 	// It is actually on screen, not just selected.
-	if _, spans := m.layoutIndexed(); func() bool { _, ok := spans["$r2"]; return !ok }() {
+	if _, spans := m.layoutIndexed(); func() bool { _, ok := spans[mx+"$r2"]; return !ok }() {
 		t.Error("the revealed message has no rows in the pane")
 	}
 }
@@ -389,13 +389,13 @@ func TestRevealingLeavesAThreadWhenItHasTo(t *testing.T) {
 	opened, _ := m.openThread()
 	m = opened
 
-	next, _ := m.revealMessage("$loose")
+	next, _ := m.revealMessage(mx + "$loose")
 	m = next
 
 	if m.thread.open() {
 		t.Error("revealing a main-timeline message should close the thread")
 	}
-	if m.timeline.selected != "$loose" {
+	if m.timeline.selected != mx+"$loose" {
 		t.Errorf("selected = %q, want $loose", m.timeline.selected)
 	}
 }
@@ -406,15 +406,15 @@ func TestAThreadDropsTheQuoteOfTheRowAbove(t *testing.T) {
 	t.Parallel()
 
 	m := inThread(t, apitest.Nop{})
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
 		// $r3 answers the root, three rows up, not the message before it.
-		{ID: "$r3", RoomID: "!a:x", Sender: "@carol:x", SenderName: "Carol", Body: "back to the top", Timestamp: at(5), ThreadRoot: "$root", ReplyTo: "$root"},
+		{ID: mx + "$r3", RoomID: mx + "!a:x", Sender: "matrix:@carol:x", SenderName: "Carol", Body: "back to the top", Timestamp: at(5), ThreadRoot: mx + "$root", ReplyTo: mx + "$root"},
 	}}})
 	// $r2 chains to $r1, the row directly above it.
 	msgs := m.timeline.messages
 	for i := range msgs {
-		if msgs[i].ID == "$r2" {
-			msgs[i].ReplyTo = "$r1"
+		if msgs[i].ID == mx+"$r2" {
+			msgs[i].ReplyTo = mx + "$r1"
 		}
 	}
 	m = m.setMessages(msgs)
@@ -458,7 +458,7 @@ func TestTheBreadcrumbIsALabelNotAParagraph(t *testing.T) {
 	long := strings.Repeat("a very long opening message ", 10)
 	msgs := m.timeline.messages
 	for i := range msgs {
-		if msgs[i].ID == "$root" {
+		if msgs[i].ID == mx+"$root" {
 			msgs[i].Body = long
 		}
 	}
@@ -503,7 +503,7 @@ func TestReadingARoomDoesNotReadItsThreads(t *testing.T) {
 	if len(b.threads) != 0 {
 		t.Errorf("opening a room sent a thread receipt: %v", b.threads)
 	}
-	if len(b.main) != 1 || b.main[0] != "$loose" {
+	if len(b.main) != 1 || b.main[0] != mx+"$loose" {
 		t.Errorf("main receipts = %v, want the newest message outside a thread", b.main)
 	}
 }
@@ -519,7 +519,7 @@ func TestOpeningAThreadReadsIt(t *testing.T) {
 	m = next
 	deliver(t, m, cmd)
 
-	if len(b.threads) != 1 || b.threads[0] != [2]domain.EventID{"$root", "$r2"} {
+	if len(b.threads) != 1 || b.threads[0] != [2]domain.EventID{mx + "$root", mx + "$r2"} {
 		t.Errorf("thread receipts = %v, want $root read to its newest reply", b.threads)
 	}
 }
@@ -529,10 +529,10 @@ func TestAnUnreadThreadIsBadgedOnItsSummaryRow(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: threaded()})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: threaded()})
 	m = update(t, m, unreadUpdateMsg{u: domain.Unread{
-		RoomID: "!a:x", Counted: true, Messages: 2,
-		Threads: []domain.ThreadUnread{{Root: "$root", Unread: 2}},
+		RoomID: mx + "!a:x", Counted: true, Messages: 2,
+		Threads: []domain.ThreadUnread{{Root: mx + "$root", Unread: 2}},
 	}})
 
 	rows := ansi.Strip(strings.Join(m.layoutRows(), "\n"))
@@ -546,8 +546,8 @@ func TestAReadThreadHasNoBadge(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: threaded()})
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!a:x", Counted: true}})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: threaded()})
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!a:x", Counted: true}})
 
 	rows := ansi.Strip(strings.Join(m.layoutRows(), "\n"))
 	if !strings.Contains(rows, "2 replies") {
@@ -582,7 +582,7 @@ func TestTheTopOfAThreadPagesTheThread(t *testing.T) {
 
 	b := &pagingBackend{page: domain.TimelinePage{
 		Messages: []domain.Message{{
-			ID: "$r0", RoomID: "!a:x", Sender: "@bob:x", Body: "the first answer", Timestamp: at(0), ThreadRoot: "$root",
+			ID: mx + "$r0", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "the first answer", Timestamp: at(0), ThreadRoot: mx + "$root",
 		}},
 		Next: "tok2",
 	}}
@@ -597,7 +597,7 @@ func TestTheTopOfAThreadPagesTheThread(t *testing.T) {
 	if len(b.roomPages) != 0 {
 		t.Errorf("the room was paged from inside a thread: %v", b.roomPages)
 	}
-	if len(b.threadPages) != 1 || b.threadPages[0] != [2]string{"$root", ""} {
+	if len(b.threadPages) != 1 || b.threadPages[0] != [2]string{mx + "$root", ""} {
 		t.Fatalf("thread pages = %v, want one for $root with no token", b.threadPages)
 	}
 	if m.thread.token != "tok2" || m.thread.atStart {
@@ -655,18 +655,18 @@ func TestNamingAThread(t *testing.T) {
 	next, _ = m.submitThreadName("Release notes")
 	m = next
 
-	if got := m.threadName("$root"); got != "Release notes" {
+	if got := m.threadName(mx + "$root"); got != "Release notes" {
 		t.Errorf("threadName = %q, want the name it was given", got)
 	}
 	if got := m.threadTitle(); !strings.Contains(got, "Release notes") {
 		t.Errorf("breadcrumb = %q, want the name", got)
 	}
 	// Clearing it falls back to the snippet, not a blank.
-	next, _ = m.renameThread("$root")
+	next, _ = m.renameThread(mx + "$root")
 	m = next
 	next, _ = m.submitThreadName("  ")
 	m = next
-	if got := m.threadName("$root"); got != "ship the release notes?" {
+	if got := m.threadName(mx + "$root"); got != "ship the release notes?" {
 		t.Errorf("threadName = %q, want the root's snippet back", got)
 	}
 }
@@ -692,7 +692,7 @@ func TestThePickerListsTheRoomsThreads(t *testing.T) {
 		t.Fatalf("picker = %v, want the thread picker", m.picker.kind)
 	}
 	items := m.picker.items
-	if len(items) != 1 || items[0].value != "$root" {
+	if len(items) != 1 || items[0].value != mx+"$root" {
 		t.Fatalf("items = %+v, want the room's one thread", items)
 	}
 	if items[0].label != "ship the release notes?" {
@@ -704,7 +704,7 @@ func TestThePickerListsTheRoomsThreads(t *testing.T) {
 
 	next, _ := m.acceptPick()
 	m = next
-	if m.thread.root != "$root" {
+	if m.thread.root != mx+"$root" {
 		t.Errorf("thread root = %q, want the chosen conversation open", m.thread.root)
 	}
 	if m.picker.active() {
@@ -716,8 +716,8 @@ func TestThePickerSaysWhenThereAreNoThreads(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$one", RoomID: "!a:x", Sender: "@alice:x", Body: "just a message", Timestamp: at(1)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$one", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", Body: "just a message", Timestamp: at(1)},
 	}}})
 	m = listedThreads(t, m)
 
@@ -735,14 +735,14 @@ func TestReplyingToARootAnswersInsideItsThread(t *testing.T) {
 
 	b := &threadBackend{}
 	m := inThread(t, b)
-	m.timeline.selected = "$root"
+	m.timeline.selected = mx + "$root"
 
 	acted, _, handled := m.timelineAction(actReply)
 	if !handled {
 		t.Fatal("reply was not handled")
 	}
 	m = acted
-	if m.thread.root != "$root" {
+	if m.thread.root != mx+"$root" {
 		t.Fatalf("thread.root = %q, want the pane showing the conversation being answered", m.thread.root)
 	}
 	if !m.compose.insertMode {
@@ -758,7 +758,7 @@ func TestReplyingToARootAnswersInsideItsThread(t *testing.T) {
 	if len(b.sent) != 1 {
 		t.Fatalf("sent %d drafts, want 1", len(b.sent))
 	}
-	if b.sent[0].ThreadRoot != "$root" || b.sent[0].ReplyTo != "$root" {
+	if b.sent[0].ThreadRoot != mx+"$root" || b.sent[0].ReplyTo != mx+"$root" {
 		t.Errorf("draft = %+v, want a reply to $root inside $root", b.sent[0])
 	}
 }
@@ -770,7 +770,7 @@ func TestReplyingToAnOrdinaryMessageStaysInTheRoom(t *testing.T) {
 
 	b := &threadBackend{}
 	m := inThread(t, b)
-	m.timeline.selected = "$loose"
+	m.timeline.selected = mx + "$loose"
 
 	acted, _, handled := m.timelineAction(actReply)
 	if !handled {
@@ -790,7 +790,7 @@ func TestReplyingToAnOrdinaryMessageStaysInTheRoom(t *testing.T) {
 	if len(b.sent) != 1 {
 		t.Fatalf("sent %d drafts, want 1", len(b.sent))
 	}
-	if b.sent[0].ThreadRoot != "" || b.sent[0].ReplyTo != "$loose" {
+	if b.sent[0].ThreadRoot != "" || b.sent[0].ReplyTo != mx+"$loose" {
 		t.Errorf("draft = %+v, want a plain reply to $loose", b.sent[0])
 	}
 }
@@ -801,17 +801,17 @@ func TestAPlainReplyIntoAThreadIsDrawnInIt(t *testing.T) {
 
 	page := threaded()
 	page.Messages = append(page.Messages, domain.Message{
-		ID: "$mine", RoomID: "!a:x", Sender: "@me:x", SenderName: "Me",
-		Body: "answering the question", Timestamp: at(5), ReplyTo: "$root",
+		ID: mx + "$mine", RoomID: mx + "!a:x", Sender: "matrix:@me:x", SenderName: "Me",
+		Body: "answering the question", Timestamp: at(5), ReplyTo: mx + "$root",
 	})
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: page})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: page})
 
 	rows := strings.Join(m.layoutRows(), "\n")
 	if strings.Contains(rows, "answering the question") {
 		t.Errorf("the reply was drawn in the main timeline, outside the thread it answers:\n%s", rows)
 	}
-	if got := len(domain.ThreadMessages(m.timeline.messages, "$root")); got != 4 {
+	if got := len(domain.ThreadMessages(m.timeline.messages, mx+"$root")); got != 4 {
 		t.Errorf("thread holds %d messages, want 4 — the root, both replies and the plain one", got)
 	}
 }
@@ -819,8 +819,8 @@ func TestAPlainReplyIntoAThreadIsDrawnInIt(t *testing.T) {
 // bridgedToSlack is a room of Slack bridge ghosts, from which roomProtocol reads the network.
 func bridgedToSlack() domain.TimelinePage {
 	return domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$root", RoomID: "!a:x", Sender: "@slack_t0team-u0alice:x", SenderName: "Alice", Body: "did you fix it?", Timestamp: at(1)},
-		{ID: "$loose", RoomID: "!a:x", Sender: "@slack_t0team-u0carol:x", SenderName: "Carol", Body: "unrelated", Timestamp: at(2)},
+		{ID: mx + "$root", RoomID: mx + "!a:x", Sender: "matrix:@slack_t0team-u0alice:x", SenderName: "Alice", Body: "did you fix it?", Timestamp: at(1)},
+		{ID: mx + "$loose", RoomID: mx + "!a:x", Sender: "matrix:@slack_t0team-u0carol:x", SenderName: "Carol", Body: "unrelated", Timestamp: at(2)},
 	}}
 }
 
@@ -831,14 +831,14 @@ func TestReplyingInASlackRoomStartsTheThreadItWouldBecome(t *testing.T) {
 
 	b := &threadBackend{}
 	m := inRoom(t, b, bridgedToSlack())
-	m.timeline.selected = "$loose"
+	m.timeline.selected = mx + "$loose"
 
 	acted, _, handled := m.timelineAction(actReply)
 	if !handled {
 		t.Fatal("reply was not handled")
 	}
 	m = acted
-	if m.thread.root != "$loose" {
+	if m.thread.root != mx+"$loose" {
 		t.Fatalf("thread.root = %q, want the message being answered", m.thread.root)
 	}
 	m.compose.input = "yes"
@@ -851,7 +851,7 @@ func TestReplyingInASlackRoomStartsTheThreadItWouldBecome(t *testing.T) {
 	if len(b.sent) != 1 {
 		t.Fatalf("sent %d drafts, want 1", len(b.sent))
 	}
-	if b.sent[0].ThreadRoot != "$loose" || b.sent[0].ReplyTo != "$loose" {
+	if b.sent[0].ThreadRoot != mx+"$loose" || b.sent[0].ReplyTo != mx+"$loose" {
 		t.Errorf("draft = %+v, want a reply to $loose inside a thread rooted there", b.sent[0])
 	}
 }
@@ -863,7 +863,7 @@ func TestReplyingOnMatrixStaysAPlainReply(t *testing.T) {
 
 	b := &threadBackend{}
 	m := inThread(t, b)
-	m.timeline.selected = "$loose"
+	m.timeline.selected = mx + "$loose"
 
 	acted, _, _ := m.timelineAction(actReply)
 	m = acted
@@ -879,7 +879,7 @@ func TestAThreadIsNamedFromTheListWhileFiltering(t *testing.T) {
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	m.picker = newPicker(pickerThread, []pickerItem{
-		{label: "a thread", value: "$root", match: "a thread"},
+		{label: "a thread", value: mx + "$root", match: "a thread"},
 	})
 	if m.picker.mode != pickerFilter {
 		t.Fatal("the thread list is not filtering, so this test is not about the thing it says")
@@ -902,7 +902,7 @@ func TestAThreadIsNamedFromTheListWhileFiltering(t *testing.T) {
 	if named.prompt.kind != promptThreadName {
 		t.Errorf("prompt = %v, want the thread-name prompt open", named.prompt.kind)
 	}
-	if named.aimedAt.renamingThread != "$root" {
+	if named.aimedAt.renamingThread != mx+"$root" {
 		t.Errorf("renaming %q, want the thread under the cursor", named.aimedAt.renamingThread)
 	}
 }
@@ -923,13 +923,13 @@ func TestAltRNamesAThreadFromEverywhereItIsVisible(t *testing.T) {
 		t.Parallel()
 		m := base()
 		m.focus = paneTimeline
-		m.thread.root = "$root"
+		m.thread.root = mx + "$root"
 
 		named, _, handled := m.threadAction(actRenameThread)
 		if !handled {
 			t.Fatal("the timeline did not handle the rename chord")
 		}
-		if named.aimedAt.renamingThread != "$root" {
+		if named.aimedAt.renamingThread != mx+"$root" {
 			t.Errorf("renaming %q, want the open thread", named.aimedAt.renamingThread)
 		}
 	})
@@ -986,8 +986,8 @@ func (b *threadListBackend) ListThreads(_ context.Context, roomID domain.RoomID)
 func inRoomList(t *testing.T, b api.Backend) Model {
 	t.Helper()
 	m := sized(t, update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo"},
 	}}))
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
@@ -999,7 +999,7 @@ func TestListingThreadsFromTheRoomListAsksAboutThatRoom(t *testing.T) {
 	t.Parallel()
 
 	b := &threadListBackend{threads: map[domain.RoomID][]domain.Thread{
-		"!a:x": {{Root: "$root", RoomID: "!a:x", Count: 2, LatestAt: at(4), LatestSenderName: "Bob"}},
+		mx + "!a:x": {{Root: mx + "$root", RoomID: mx + "!a:x", Count: 2, LatestAt: at(4), LatestSenderName: "Bob"}},
 	}}
 	m := inRoomList(t, b)
 
@@ -1008,7 +1008,7 @@ func TestListingThreadsFromTheRoomListAsksAboutThatRoom(t *testing.T) {
 	if !ok {
 		t.Fatal("ctrl+t in the room list asked for nothing")
 	}
-	if len(b.asked) != 1 || b.asked[0] != "!a:x" {
+	if len(b.asked) != 1 || b.asked[0] != mx+"!a:x" {
 		t.Fatalf("asked about %v, want only the room under the cursor", b.asked)
 	}
 	m = update(t, m, msg)
@@ -1020,7 +1020,7 @@ func TestListingThreadsFromTheRoomListAsksAboutThatRoom(t *testing.T) {
 	if strings.Contains(row.label, "Alpha") {
 		t.Errorf("label = %q, should not carry the room it is all in", row.label)
 	}
-	if row.room != "!a:x" {
+	if row.room != mx+"!a:x" {
 		t.Errorf("row room = %q, want the room the thread is in", row.room)
 	}
 }
@@ -1050,7 +1050,7 @@ func TestChoosingAThreadFromTheRoomListWaitsForTheHistory(t *testing.T) {
 	t.Parallel()
 
 	b := &threadListBackend{threads: map[domain.RoomID][]domain.Thread{
-		"!a:x": {{Root: "$root", RoomID: "!a:x", Count: 2, LatestAt: at(4), LatestSenderName: "Bob"}},
+		mx + "!a:x": {{Root: mx + "$root", RoomID: mx + "!a:x", Count: 2, LatestAt: at(4), LatestSenderName: "Bob"}},
 	}}
 	m := inRoomList(t, b)
 	_, cmd := press(t, m, tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
@@ -1061,12 +1061,12 @@ func TestChoosingAThreadFromTheRoomListWaitsForTheHistory(t *testing.T) {
 	if m.thread.open() {
 		t.Fatal("the thread cannot be open before its replies are loaded")
 	}
-	if m.rows.opening != "$root" {
+	if m.rows.opening != mx+"$root" {
 		t.Fatalf("pending thread = %q, want the chosen root", m.rows.opening)
 	}
 
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: threaded()})
-	if m.thread.root != "$root" {
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: threaded()})
+	if m.thread.root != mx+"$root" {
 		t.Errorf("thread root = %q, want the history to have taken the request", m.thread.root)
 	}
 	if m.rows.opening != "" {
@@ -1081,8 +1081,8 @@ func TestChoosingAThreadInAnotherRoomOpensThatRoom(t *testing.T) {
 
 	m := inRoomList(t, apitest.Nop{})
 	m = update(t, m, scopeThreadsMsg{threads: []scopeThread{
-		{room: domain.Room{ID: "!b:x", Name: "Bravo"}, thread: domain.Thread{Root: "$elsewhere", RoomID: "!b:x", Count: 2, LatestAt: at(4)}},
-		{room: domain.Room{ID: "!a:x", Name: "Alpha"}, thread: domain.Thread{Root: "$root", RoomID: "!a:x", Count: 2, LatestAt: at(2)}},
+		{room: domain.Room{ID: mx + "!b:x", Name: "Bravo"}, thread: domain.Thread{Root: mx + "$elsewhere", RoomID: mx + "!b:x", Count: 2, LatestAt: at(4)}},
+		{room: domain.Room{ID: mx + "!a:x", Name: "Alpha"}, thread: domain.Thread{Root: mx + "$root", RoomID: mx + "!a:x", Count: 2, LatestAt: at(2)}},
 	}})
 	if m.picker.kind != pickerThread {
 		t.Fatalf("picker kind = %v, want the thread list", m.picker.kind)
@@ -1092,10 +1092,10 @@ func TestChoosingAThreadInAnotherRoomOpensThatRoom(t *testing.T) {
 	}
 
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.openRoom != "!b:x" {
+	if m.openRoom != mx+"!b:x" {
 		t.Fatalf("open room = %q, want the thread's own room", m.openRoom)
 	}
-	if m.rows.opening != "$elsewhere" {
+	if m.rows.opening != mx+"$elsewhere" {
 		t.Errorf("pending thread = %q, want it held until the room's history lands", m.rows.opening)
 	}
 }
@@ -1104,15 +1104,15 @@ func TestChoosingAThreadInAnotherRoomOpensThatRoom(t *testing.T) {
 func TestTheThreadListShortensNamesByTheSpaceRule(t *testing.T) {
 	t.Parallel()
 
-	m := sized(t, update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
+	m := sized(t, update(t, newModel(), roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}}))
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
 	m.prefs.display.SpaceRules = []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}}
 	next, _ := m.selectRoom(m.filteredRooms()[0])
-	m = update(t, next, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$root", RoomID: "!a:x", Sender: "@noa:x", SenderName: "Noa Katz", Body: "ship it?", Timestamp: at(1)},
-		{ID: "$r1", RoomID: "!a:x", Sender: "@noa:x", SenderName: "Noa Katz", Body: "on it", Timestamp: at(2), ThreadRoot: "$root"},
+	m = update(t, next, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$root", RoomID: mx + "!a:x", Sender: "matrix:@noa:x", SenderName: "Noa Katz", Body: "ship it?", Timestamp: at(1)},
+		{ID: mx + "$r1", RoomID: mx + "!a:x", Sender: "matrix:@noa:x", SenderName: "Noa Katz", Body: "on it", Timestamp: at(2), ThreadRoot: mx + "$root"},
 	}}})
 
 	items := listedThreads(t, m).picker.items
@@ -1127,7 +1127,7 @@ func TestTheThreadListShortensNamesByTheSpaceRule(t *testing.T) {
 	}
 	// So does the timeline's summary row for the same thread.
 	if row := m.threadRow(domain.Thread{
-		RoomID: "!a:x", Root: "$root", Count: 1, LatestSender: "@noa:x", LatestSenderName: "Noa Katz",
+		RoomID: mx + "!a:x", Root: mx + "$root", Count: 1, LatestSender: "matrix:@noa:x", LatestSenderName: "Noa Katz",
 	}, 12, 60); strings.Contains(row, "Katz") {
 		t.Errorf("thread summary row = %q, want the first-name rule applied", row)
 	}
@@ -1137,15 +1137,15 @@ func TestTheThreadListShortensNamesByTheSpaceRule(t *testing.T) {
 // does, by title.
 func TestATopicOlderThanTheTimelineIsNamedByItsTitle(t *testing.T) {
 	t.Parallel()
-	b := &threadListBackend{threads: map[domain.RoomID][]domain.Thread{"!a:x": {
-		{RoomID: "!a:x", Root: "$topic", Title: "Flea market", Count: 40, LatestAt: at(9)},
+	b := &threadListBackend{threads: map[domain.RoomID][]domain.Thread{mx + "!a:x": {
+		{RoomID: mx + "!a:x", Root: mx + "$topic", Title: "Flea market", Count: 40, LatestAt: at(9)},
 	}}}
 	m := listedThreads(t, inThread(t, b))
-	i := slices.IndexFunc(m.picker.items, func(p pickerItem) bool { return p.value == "$topic" })
+	i := slices.IndexFunc(m.picker.items, func(p pickerItem) bool { return p.value == mx+"$topic" })
 	if i < 0 || m.picker.items[i].label != isolate("Flea market") {
 		t.Fatalf("items = %+v, want the topic named by its title", m.picker.items)
 	}
-	if !slices.ContainsFunc(m.picker.items, func(p pickerItem) bool { return p.value == "$root" }) {
+	if !slices.ContainsFunc(m.picker.items, func(p pickerItem) bool { return p.value == mx+"$root" }) {
 		t.Error("the thread the timeline holds was left out")
 	}
 }

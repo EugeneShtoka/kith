@@ -20,7 +20,7 @@ import (
 const (
 	benchRooms   = 400
 	benchPerRoom = 500
-	benchMe      = "@me:example.org"
+	benchMe      = "matrix:@me:example.org"
 )
 
 // benchWords is a vocabulary: common English words first (the Zipf head), then
@@ -52,16 +52,16 @@ func seedBench(b *testing.B) (*Cache, []domain.RoomID) {
 	words := benchWords()
 	rng := rand.New(rand.NewPCG(7, 11))
 	zipf := rand.NewZipf(rng, 1.1, 1, uint64(len(words)-1))
-	senders := []string{benchMe, "@dana:example.org", "@sam:example.org", "@alex:example.org", "@noa:example.org"}
+	senders := []string{benchMe, "matrix:@dana:example.org", "matrix:@sam:example.org", "matrix:@alex:example.org", "matrix:@noa:example.org"}
 	start := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
 	rooms := make([]domain.RoomID, benchRooms)
 	joined := make([]domain.Room, benchRooms)
 	for r := range rooms {
-		rooms[r] = domain.RoomID(fmt.Sprintf("!room%03d:example.org", r))
+		rooms[r] = domain.RoomID(fmt.Sprintf(mx+"!room%03d:example.org", r))
 		joined[r] = domain.Room{ID: rooms[r], Name: fmt.Sprintf("Room %d", r)}
 	}
 	// All at once: SaveRooms sweeps any room it omits.
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, joined); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, joined); err != nil {
 		b.Fatal(err)
 	}
 	for r := range rooms {
@@ -74,7 +74,7 @@ func seedBench(b *testing.B) (*Cache, []domain.RoomID) {
 				body[w] = words[zipf.Uint64()]
 			}
 			msgs[i] = domain.Message{
-				ID:        domain.EventID(fmt.Sprintf("$r%dm%d", r, i)),
+				ID:        domain.EventID(fmt.Sprintf(mx+"$r%dm%d", r, i)),
 				RoomID:    rooms[r],
 				Sender:    senders[(r+i)%len(senders)],
 				Body:      strings.Join(body, " "),
@@ -83,7 +83,7 @@ func seedBench(b *testing.B) (*Cache, []domain.RoomID) {
 			}
 			if i%4 == 0 {
 				reactions = append(reactions, domain.Reaction{
-					ID: domain.EventID(fmt.Sprintf("$r%dx%d", r, i)), RoomID: rooms[r], Target: msgs[i].ID,
+					ID: domain.EventID(fmt.Sprintf(mx+"$r%dx%d", r, i)), RoomID: rooms[r], Target: msgs[i].ID,
 					Sender: senders[(r+i+1)%len(senders)], Key: []string{"👍", "🎉", "❤️", "😂"}[i%4],
 				})
 			}
@@ -148,7 +148,7 @@ func BenchmarkQueries(b *testing.B) {
 	run("LastMessages", func() error { _, err := cache.LastMessages(ctx); return err })
 	run("SaveMessages/one", func() error {
 		return cache.SaveMessages(ctx, room, []domain.Message{{
-			ID: domain.EventID(fmt.Sprintf("$live%d", time.Now().UnixNano())), RoomID: room, Sender: "@dana:example.org",
+			ID: domain.EventID(fmt.Sprintf(mx+"$live%d", time.Now().UnixNano())), RoomID: room, Sender: "matrix:@dana:example.org",
 			Body: "the planning review is ready", Timestamp: time.Now(),
 		}})
 	})

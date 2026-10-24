@@ -71,7 +71,7 @@ func TestModelTaskRefusesWhatWasNotOptedIn(t *testing.T) {
 		{
 			"a room nobody named",
 			ModelSettings{
-				Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{"!elsewhere:x"}, Encrypted: true},
+				Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{mx + "!elsewhere:x"}, Encrypted: true},
 				Tasks: modelTasks(), PerMinute: 10,
 			},
 			domain.ModelRefusedRoom,
@@ -97,7 +97,7 @@ func TestModelTaskRefusesWhatWasNotOptedIn(t *testing.T) {
 			b := New(nil, nil)
 			b.UseModel(tc.settings)
 			got, err := b.ModelTask(ctx, domain.ModelRequest{
-				Task: domain.ModelRewrite, RoomID: "!a:x", Draft: "the quick brown ",
+				Task: domain.ModelRewrite, RoomID: mx + "!a:x", Draft: "the quick brown ",
 			})
 			if err != nil {
 				t.Fatalf("ModelTask() error = %v", err)
@@ -125,12 +125,12 @@ func TestModelTaskAsksWhenOptedIn(t *testing.T) {
 	b := New(nil, nil)
 	b.UseModel(ModelSettings{
 		Endpoint: endpoint, Model: "test-model",
-		Scope: domain.ModelScope{Only: []string{"!a:x"}, Encrypted: true},
+		Scope: domain.ModelScope{Only: []string{mx + "!a:x"}, Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 10, Budget: 500, Timeout: 2 * time.Second,
 	})
 
 	got, err := b.ModelTask(ctx, domain.ModelRequest{
-		Task: domain.ModelRewrite, RoomID: "!a:x", Draft: "the quick brown ",
+		Task: domain.ModelRewrite, RoomID: mx + "!a:x", Draft: "the quick brown ",
 	})
 	if err != nil {
 		t.Fatalf("ModelTask() error = %v", err)
@@ -166,12 +166,12 @@ func TestModelTaskCapIsARollingMinute(t *testing.T) {
 
 	b := New(nil, nil)
 	b.UseModel(ModelSettings{
-		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{"!a:x"}, Encrypted: true},
+		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{mx + "!a:x"}, Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 2,
 	})
 	ask := func() domain.ModelResult {
 		got, err := b.ModelTask(ctx, domain.ModelRequest{
-			Task: domain.ModelRewrite, RoomID: "!a:x", Draft: "one two three ",
+			Task: domain.ModelRewrite, RoomID: mx + "!a:x", Draft: "one two three ",
 		})
 		if err != nil {
 			t.Fatalf("ModelTask() error = %v", err)
@@ -213,12 +213,12 @@ func TestModelTaskDryRunSendsNothing(t *testing.T) {
 
 	b := New(nil, nil)
 	b.UseModel(ModelSettings{
-		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{"!a:x"}, Encrypted: true},
+		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{mx + "!a:x"}, Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 10,
 	})
 
 	got, err := b.ModelTask(ctx, domain.ModelRequest{
-		Task: domain.ModelRewrite, RoomID: "!a:x", Draft: "the quick brown ", DryRun: true,
+		Task: domain.ModelRewrite, RoomID: mx + "!a:x", Draft: "the quick brown ", DryRun: true,
 	})
 	if err != nil {
 		t.Fatalf("ModelTask() error = %v", err)
@@ -233,7 +233,7 @@ func TestModelTaskDryRunSendsNothing(t *testing.T) {
 	}
 	// A dry run is allowed with nothing typed; a real ask is not.
 	empty, err := b.ModelTask(ctx, domain.ModelRequest{
-		Task: domain.ModelRewrite, RoomID: "!a:x", DryRun: true,
+		Task: domain.ModelRewrite, RoomID: mx + "!a:x", DryRun: true,
 	})
 	if err != nil {
 		t.Fatalf("ModelTask(empty draft) error = %v", err)
@@ -241,7 +241,7 @@ func TestModelTaskDryRunSendsNothing(t *testing.T) {
 	if !empty.Asked() {
 		t.Fatalf("a dry run with no draft was refused: %q", empty.Refusal)
 	}
-	real, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelRewrite, RoomID: "!a:x"})
+	real, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelRewrite, RoomID: mx + "!a:x"})
 	if err != nil {
 		t.Fatalf("ModelTask(real, empty) error = %v", err)
 	}
@@ -272,29 +272,29 @@ func TestModelTaskQuotesOnlyThisRoom(t *testing.T) {
 	endpoint, sent := fakeEndpoint(t, "ok")
 
 	cache := testCache(t)
-	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!here:x", Name: "Here"}, {ID: "!other:x", Name: "Other"}}); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!here:x", Name: "Here"}, {ID: mx + "!other:x", Name: "Other"}}); saveErr != nil {
 		t.Fatalf("SaveRooms: %v", saveErr)
 	}
 	save := func(room domain.RoomID, body string) {
 		t.Helper()
 		if saveErr := cache.SaveMessages(ctx, room, []domain.Message{{
-			ID: domain.EventID(string(room) + "$1"), RoomID: room, Sender: "@dana:x",
+			ID: domain.EventID(string(room) + mx + "$1"), RoomID: room, Sender: "matrix:@dana:x",
 			SenderName: "Dana", Body: body, Timestamp: time.Unix(1_700_000_000, 0),
 		}}); saveErr != nil {
 			t.Fatalf("SaveMessages: %v", saveErr)
 		}
 	}
-	save("!here:x", "quoting-this-is-fine")
-	save("!other:x", "must-never-be-quoted")
+	save(mx+"!here:x", "quoting-this-is-fine")
+	save(mx+"!other:x", "must-never-be-quoted")
 
 	b := New(cache, nil)
 	b.UseModel(ModelSettings{
-		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{"!here:x"}, Encrypted: true},
+		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{mx + "!here:x"}, Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 10, Budget: 500,
 	})
 
 	if _, askErr := b.ModelTask(ctx, domain.ModelRequest{
-		Task: domain.ModelRewrite, RoomID: "!here:x", Draft: "one two three ",
+		Task: domain.ModelRewrite, RoomID: mx + "!here:x", Draft: "one two three ",
 	}); askErr != nil {
 		t.Fatalf("ModelTask() error = %v", askErr)
 	}
@@ -315,7 +315,7 @@ func TestModelTaskQuotesOnlyThisRoom(t *testing.T) {
 		Tasks: modelTasks(), PerMinute: 10, Budget: 500,
 	})
 	got, err := b.ModelTask(ctx, domain.ModelRequest{
-		Task: domain.ModelRewrite, RoomID: "!here:x", Draft: "one two three ",
+		Task: domain.ModelRewrite, RoomID: mx + "!here:x", Draft: "one two three ",
 	})
 	if err != nil {
 		t.Fatalf("ModelTask(by name) error = %v", err)
@@ -332,18 +332,18 @@ func TestSummaryFallsBackWhenYouAreUpToDate(t *testing.T) {
 	endpoint, sent := fakeEndpoint(t, "• the deploy is done")
 
 	cache := testCache(t)
-	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!here:x", Name: "Here"}}); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!here:x", Name: "Here"}}); saveErr != nil {
 		t.Fatalf("SaveRooms: %v", saveErr)
 	}
 	var msgs []domain.Message
 	for i := range 9 {
 		msgs = append(msgs, domain.Message{
-			ID: domain.EventID(fmt.Sprintf("$%d", i)), RoomID: "!here:x", Sender: "@dana:x",
+			ID: domain.EventID(fmt.Sprintf(mx+"$%d", i)), RoomID: mx + "!here:x", Sender: "matrix:@dana:x",
 			SenderName: "Dana", Body: fmt.Sprintf("message %d", i),
 			Timestamp: time.Unix(int64(1_700_000_000+i*60), 0),
 		})
 	}
-	if saveErr := cache.SaveMessages(ctx, "!here:x", msgs); saveErr != nil {
+	if saveErr := cache.SaveMessages(ctx, mx+"!here:x", msgs); saveErr != nil {
 		t.Fatalf("SaveMessages: %v", saveErr)
 	}
 
@@ -355,14 +355,14 @@ func TestSummaryFallsBackWhenYouAreUpToDate(t *testing.T) {
 	})
 	summarize := func() domain.ModelResult {
 		t.Helper()
-		got, askErr := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelSummary, RoomID: "!here:x"})
+		got, askErr := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelSummary, RoomID: mx + "!here:x"})
 		if askErr != nil {
 			t.Fatalf("ModelTask: %v", askErr)
 		}
 		return got
 	}
 
-	if saveErr := cache.SaveUnread(ctx, domain.Unread{RoomID: "!here:x", ReadEvent: "$8"}, 0); saveErr != nil {
+	if saveErr := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!here:x", ReadEvent: mx + "$8"}, 0); saveErr != nil {
 		t.Fatalf("SaveUnread: %v", saveErr)
 	}
 	got := summarize()
@@ -376,7 +376,7 @@ func TestSummaryFallsBackWhenYouAreUpToDate(t *testing.T) {
 		t.Error("the fallback sent no conversation at all")
 	}
 
-	if saveErr := cache.SaveUnread(ctx, domain.Unread{RoomID: "!here:x", ReadEvent: "$1"}, 0); saveErr != nil {
+	if saveErr := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!here:x", ReadEvent: mx + "$1"}, 0); saveErr != nil {
 		t.Fatalf("SaveUnread: %v", saveErr)
 	}
 	got = summarize()
@@ -389,11 +389,11 @@ func TestSummaryFallsBackWhenYouAreUpToDate(t *testing.T) {
 	}
 
 	// A room with nothing cached is refused without a request.
-	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!empty:x", Name: "Empty"}}); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!empty:x", Name: "Empty"}}); saveErr != nil {
 		t.Fatalf("SaveRooms: %v", saveErr)
 	}
 	before := len(*sent)
-	empty, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelSummary, RoomID: "!empty:x"})
+	empty, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelSummary, RoomID: mx + "!empty:x"})
 	if err != nil {
 		t.Fatalf("ModelTask(empty room): %v", err)
 	}
@@ -413,32 +413,32 @@ func TestSummaryAndTodoLeaveOutHiddenPeople(t *testing.T) {
 	endpoint, sent := fakeEndpoint(t, "• fine")
 
 	cache := testCache(t)
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!here:x", Name: "Here"}, {ID: "!ads:x", Name: "Ads"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!here:x", Name: "Here"}, {ID: mx + "!ads:x", Name: "Ads"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	at := func(i int) time.Time { return time.Unix(int64(1_700_000_000+i*60), 0) }
 	here := []domain.Message{
-		{ID: "$0", Sender: "@dana:x", Body: "first"},
-		{ID: "$1", Sender: "@spam:x", Body: "buy coins"},
-		{ID: "$2", Sender: "@dana:x", Body: "second"},
-		{ID: "$3", Sender: "@bob:x", Body: "how much", ReplyTo: "$1"},
-		{ID: "$4", Sender: "@dana:x", Body: "third"},
-		{ID: "$5", Sender: "@dana:x", Body: "fourth"},
-		{ID: "$6", Sender: "@dana:x", Body: "fifth"},
+		{ID: mx + "$0", Sender: "matrix:@dana:x", Body: "first"},
+		{ID: mx + "$1", Sender: "matrix:@spam:x", Body: "buy coins"},
+		{ID: mx + "$2", Sender: "matrix:@dana:x", Body: "second"},
+		{ID: mx + "$3", Sender: "matrix:@bob:x", Body: "how much", ReplyTo: mx + "$1"},
+		{ID: mx + "$4", Sender: "matrix:@dana:x", Body: "third"},
+		{ID: mx + "$5", Sender: "matrix:@dana:x", Body: "fourth"},
+		{ID: mx + "$6", Sender: "matrix:@dana:x", Body: "fifth"},
 	}
 	for i := range here {
-		here[i].RoomID, here[i].Timestamp = "!here:x", at(i)
+		here[i].RoomID, here[i].Timestamp = mx+"!here:x", at(i)
 	}
-	ads := []domain.Message{{ID: "$a", RoomID: "!ads:x", Sender: "@spam:x", Body: "cheap watches", Timestamp: at(0)}}
-	for room, msgs := range map[domain.RoomID][]domain.Message{"!here:x": here, "!ads:x": ads} {
+	ads := []domain.Message{{ID: mx + "$a", RoomID: mx + "!ads:x", Sender: "matrix:@spam:x", Body: "cheap watches", Timestamp: at(0)}}
+	for room, msgs := range map[domain.RoomID][]domain.Message{mx + "!here:x": here, mx + "!ads:x": ads} {
 		if err := cache.SaveMessages(ctx, room, msgs); err != nil {
 			t.Fatalf("SaveMessages: %v", err)
 		}
 	}
-	if err := cache.UseHidden(ctx, []string{"@spam:x"}, nil, nil); err != nil {
+	if err := cache.UseHidden(ctx, []string{"matrix:@spam:x"}, nil, nil); err != nil {
 		t.Fatalf("UseHidden: %v", err)
 	}
-	for _, u := range []domain.Unread{{RoomID: "!here:x", ReadEvent: "$1"}, {RoomID: "!ads:x", Notifications: 1}} {
+	for _, u := range []domain.Unread{{RoomID: mx + "!here:x", ReadEvent: mx + "$1"}, {RoomID: mx + "!ads:x", Notifications: 1}} {
 		if err := cache.SaveUnread(ctx, u, 0); err != nil {
 			t.Fatalf("SaveUnread: %v", err)
 		}
@@ -450,7 +450,7 @@ func TestSummaryAndTodoLeaveOutHiddenPeople(t *testing.T) {
 		Tasks: modelTasks(), PerMinute: 10, Budget: 500,
 		Budgets: map[string]int{domain.ModelSummary: 4000, domain.ModelTodo: 4000}, TodoRooms: 5,
 	})
-	got, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelSummary, RoomID: "!here:x"})
+	got, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelSummary, RoomID: mx + "!here:x"})
 	if err != nil {
 		t.Fatalf("ModelTask(summary): %v", err)
 	}
@@ -464,7 +464,7 @@ func TestSummaryAndTodoLeaveOutHiddenPeople(t *testing.T) {
 	if !strings.Contains(body, "first") {
 		t.Error("the summary lost what came before")
 	}
-	got, err = b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelSummary, RoomID: "!here:x", Span: domain.SummarySpan{Count: 5, Said: "5"}})
+	got, err = b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelSummary, RoomID: mx + "!here:x", Span: domain.SummarySpan{Count: 5, Said: "5"}})
 	if err != nil {
 		t.Fatalf("ModelTask(summary 5): %v", err)
 	}
@@ -472,7 +472,7 @@ func TestSummaryAndTodoLeaveOutHiddenPeople(t *testing.T) {
 		t.Errorf("the last 5 = %q, want the 5 shown ones:\n%s", got.Note, body)
 	}
 
-	if saveErr := cache.SaveUnread(ctx, domain.Unread{RoomID: "!here:x", ReadEvent: "$6"}, 0); saveErr != nil {
+	if saveErr := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!here:x", ReadEvent: mx + "$6"}, 0); saveErr != nil {
 		t.Fatalf("SaveUnread: %v", saveErr)
 	}
 	before := len(*sent)
@@ -509,11 +509,11 @@ func TestTodoReadsUnreadRoomsWithinTheScope(t *testing.T) {
 
 	cache := testCache(t)
 	rooms := []domain.Room{
-		{ID: "!busy:x", Name: "Busy"},
-		{ID: "!quiet:x", Name: "Quiet"},
-		{ID: "!banned:x", Name: "Banned"},
+		{ID: mx + "!busy:x", Name: "Busy"},
+		{ID: mx + "!quiet:x", Name: "Quiet"},
+		{ID: mx + "!banned:x", Name: "Banned"},
 	}
-	if saveErr := cache.SaveRooms(ctx, domain.MatrixRooms, rooms); saveErr != nil {
+	if saveErr := cache.SaveRooms(ctx, mxRooms, rooms); saveErr != nil {
 		t.Fatalf("SaveRooms: %v", saveErr)
 	}
 	say := func(room domain.RoomID, bodies ...string) {
@@ -522,7 +522,7 @@ func TestTodoReadsUnreadRoomsWithinTheScope(t *testing.T) {
 		for i, body := range bodies {
 			msgs = append(msgs, domain.Message{
 				ID: domain.EventID(string(room) + string(rune('a'+i))), RoomID: room,
-				Sender: "@dana:x", SenderName: "Dana", Body: body,
+				Sender: "matrix:@dana:x", SenderName: "Dana", Body: body,
 				Timestamp: time.Unix(int64(1_700_000_000+i*60), 0),
 			})
 		}
@@ -530,14 +530,14 @@ func TestTodoReadsUnreadRoomsWithinTheScope(t *testing.T) {
 			t.Fatalf("SaveMessages: %v", saveErr)
 		}
 	}
-	say("!busy:x", "did you send the figures", "still waiting on those")
-	say("!quiet:x", "nothing to do here")
-	say("!banned:x", "this must never be quoted")
+	say(mx+"!busy:x", "did you send the figures", "still waiting on those")
+	say(mx+"!quiet:x", "nothing to do here")
+	say(mx+"!banned:x", "this must never be quoted")
 	// Notifications, not Messages: SaveUnread does not store the derived count.
 	for _, u := range []domain.Unread{
-		{RoomID: "!busy:x", Notifications: 2},
-		{RoomID: "!banned:x", Notifications: 1},
-		{RoomID: "!quiet:x", ReadEvent: "!quiet:xa"},
+		{RoomID: mx + "!busy:x", Notifications: 2},
+		{RoomID: mx + "!banned:x", Notifications: 1},
+		{RoomID: mx + "!quiet:x", ReadEvent: mx + "!quiet:xa"},
 	} {
 		if saveErr := cache.SaveUnread(ctx, u, 0); saveErr != nil {
 			t.Fatalf("SaveUnread: %v", saveErr)
@@ -617,7 +617,7 @@ func TestModelTaskWithNoCacheRefusesAScopeThatNamesPlaces(t *testing.T) {
 	} {
 		b := New(nil, nil)
 		b.UseModel(ModelSettings{Endpoint: endpoint, Scope: scope, Tasks: modelTasks(), PerMinute: 10})
-		if _, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelRewrite, RoomID: "!a:x", Draft: "x"}); !errors.Is(err, errNoPlaces) {
+		if _, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelRewrite, RoomID: mx + "!a:x", Draft: "x"}); !errors.Is(err, errNoPlaces) {
 			t.Fatalf("scope %+v with no cache: error = %v, want errNoPlaces", scope, err)
 		}
 	}
@@ -629,7 +629,7 @@ func TestModelTaskWithNoCacheRefusesAScopeThatNamesPlaces(t *testing.T) {
 		Endpoint: endpoint, Scope: domain.ModelScope{Only: []string{"group"}, Encrypted: true},
 		Tasks: modelTasks(), PerMinute: 10, Budget: 500, Timeout: 2 * time.Second,
 	})
-	if got, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelRewrite, RoomID: "!a:x", Draft: "x"}); err != nil || !got.Asked() {
+	if got, err := b.ModelTask(ctx, domain.ModelRequest{Task: domain.ModelRewrite, RoomID: mx + "!a:x", Draft: "x"}); err != nil || !got.Asked() {
 		t.Fatalf("a rooms-only scope with no cache = %+v, %v, want it asked", got, err)
 	}
 }
@@ -639,7 +639,7 @@ func TestTheModelScopeKnowsYourNamesAndPins(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := testCache(t)
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!r:x", Name: "Standup"}, {ID: "!o:x", Name: "Other"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!r:x", Name: "Standup"}, {ID: mx + "!o:x", Name: "Other"}}); err != nil {
 		t.Fatal(err)
 	}
 	s := New(cache, nil)
@@ -647,12 +647,12 @@ func TestTheModelScopeKnowsYourNamesAndPins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.UsePlaces(domain.Places{Names: map[domain.RoomID]string{"!r:x": "Daily"}, Tags: tags})
+	s.UsePlaces(domain.Places{Names: map[domain.RoomID]string{mx + "!r:x": "Daily"}, Tags: tags})
 	for _, c := range []struct {
 		only string
 		room domain.RoomID
 		want bool
-	}{{"room:Daily", "!r:x", true}, {"room:Standup", "!r:x", false}, {"tag:Pinned", "!r:x", true}, {"tag:Pinned", "!o:x", false}} {
+	}{{"room:Daily", mx + "!r:x", true}, {"room:Standup", mx + "!r:x", false}, {"tag:Pinned", mx + "!r:x", true}, {"tag:Pinned", mx + "!o:x", false}} {
 		settings := ModelSettings{Endpoint: "http://model", Scope: domain.ModelScope{Only: []string{c.only}, Encrypted: true}}
 		permit, err := s.permitModel(ctx, c.room, settings)
 		if err != nil || permit.Allowed != c.want {

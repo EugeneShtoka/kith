@@ -13,29 +13,29 @@ import (
 func TestLongIDListsStillAnswer(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!r:x")
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: room, Name: "R"}}); err != nil {
+	const room = domain.RoomID(mx + "!r:x")
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: room, Name: "R"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.SaveMembers(ctx, room, []domain.Member{{UserID: "@d:x", DisplayName: "Dana"}}); err != nil {
+	if err := cache.SaveMembers(ctx, room, []domain.Member{{UserID: "matrix:@d:x", DisplayName: "Dana"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.SaveMessages(ctx, room, []domain.Message{{ID: "$m", Sender: "@d:x", Body: "hello there"}}); err != nil {
+	if err := cache.SaveMessages(ctx, room, []domain.Message{{ID: mx + "$m", Sender: "matrix:@d:x", Body: "hello there"}}); err != nil {
 		t.Fatal(err)
 	}
 	const n = 40000
 	rooms := make([]domain.RoomID, 0, n+1)
 	events := make([]domain.EventID, 0, n+1)
 	for i := range n {
-		rooms = append(rooms, domain.RoomID(fmt.Sprintf("!%d:x", i)))
-		events = append(events, domain.EventID(fmt.Sprintf("$%d", i)))
+		rooms = append(rooms, domain.RoomID(fmt.Sprintf(mx+"!%d:x", i)))
+		events = append(events, domain.EventID(fmt.Sprintf(mx+"$%d", i)))
 	}
 	rooms = append(rooms, room)
-	events = append(events, "$m")
+	events = append(events, mx+"$m")
 
 	for name, ask := range map[string]func() (int, error){
 		"RoomsWith": func() (int, error) {
-			got, err := cache.RoomsWith(ctx, []string{"@d:x"}, domain.TheseRooms(rooms), 10)
+			got, err := cache.RoomsWith(ctx, []string{"matrix:@d:x"}, domain.TheseRooms(rooms), 10)
 			return len(got), err
 		},
 		"SearchMessages": func() (int, error) {
@@ -54,14 +54,14 @@ func TestLongIDListsStillAnswer(t *testing.T) {
 			if err := cache.SetStarred(ctx, room, events, 1); err != nil {
 				return 0, err
 			}
-			ok, err := cache.IsStarred(ctx, room, "$m")
+			ok, err := cache.IsStarred(ctx, room, mx+"$m")
 			if ok {
 				return 1, err
 			}
 			return 0, err
 		},
 		"EmojiScores": func() (int, error) {
-			_, err := cache.EmojiScores(ctx, domain.EmojiReaction, room, rooms, []string{"@me:x"}, "")
+			_, err := cache.EmojiScores(ctx, domain.EmojiReaction, room, rooms, []string{"matrix:@me:x"}, "")
 			return 1, err
 		},
 	} {
@@ -75,14 +75,14 @@ func TestLongIDListsStillAnswer(t *testing.T) {
 func TestAVeryLongRoomSnapshotStillSweeps(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!gone:x", Name: "Gone"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!gone:x", Name: "Gone"}}); err != nil {
 		t.Fatal(err)
 	}
 	rooms := make([]domain.Room, 33_000)
 	for i := range rooms {
-		rooms[i] = domain.Room{ID: domain.RoomID(fmt.Sprintf("!r%d:x", i)), Name: "R"}
+		rooms[i] = domain.Room{ID: domain.RoomID(fmt.Sprintf(mx+"!r%d:x", i)), Name: "R"}
 	}
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, rooms); err != nil {
 		t.Fatalf("SaveRooms(33,000) = %v", err)
 	}
 	got, err := cache.Rooms(ctx)

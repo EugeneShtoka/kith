@@ -32,8 +32,8 @@ func TestTypingShowsOnTheComposerDivider(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m.openRoom = "!a:x"
-	m = update(t, m, activityMsg{a: domain.Activity{RoomID: "!a:x", Typing: []string{"@alice:x"}}})
+	m.openRoom = mx + "!a:x"
+	m = update(t, m, activityMsg{a: domain.Activity{RoomID: mx + "!a:x", Typing: []string{"matrix:@alice:x"}}})
 
 	if got := m.typingNote(); !strings.Contains(got, "is typing") || !strings.Contains(got, "alice") {
 		t.Errorf("typingNote = %q, want it to name alice", got)
@@ -43,7 +43,7 @@ func TestTypingShowsOnTheComposerDivider(t *testing.T) {
 	}
 
 	// m.typing is the whole set, so an empty one means everybody stopped.
-	m = update(t, m, activityMsg{a: domain.Activity{RoomID: "!a:x"}})
+	m = update(t, m, activityMsg{a: domain.Activity{RoomID: mx + "!a:x"}})
 	if got := m.typingNote(); got != "" {
 		t.Errorf("typingNote = %q after everyone stopped, want empty", got)
 	}
@@ -53,12 +53,12 @@ func TestTypingNamesTwoThenCounts(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m.openRoom = "!a:x"
-	m = update(t, m, activityMsg{a: domain.Activity{RoomID: "!a:x", Typing: []string{"@alice:x", "@bob:x"}}})
+	m.openRoom = mx + "!a:x"
+	m = update(t, m, activityMsg{a: domain.Activity{RoomID: mx + "!a:x", Typing: []string{"matrix:@alice:x", "matrix:@bob:x"}}})
 	if got := m.typingNote(); !strings.Contains(got, "alice") || !strings.Contains(got, "bob") {
 		t.Errorf("typingNote = %q, want both names", got)
 	}
-	m = update(t, m, activityMsg{a: domain.Activity{RoomID: "!a:x", Typing: []string{"@a:x", "@b:x", "@c:x"}}})
+	m = update(t, m, activityMsg{a: domain.Activity{RoomID: mx + "!a:x", Typing: []string{"matrix:@a:x", "matrix:@b:x", "matrix:@c:x"}}})
 	if got := m.typingNote(); got != "3 people are typing" {
 		t.Errorf("typingNote = %q, want a count", got)
 	}
@@ -69,14 +69,14 @@ func TestTypingNoticeIsSentOnceWhileTyping(t *testing.T) {
 
 	tp := &typer{}
 	m := sized(t, withRooms(t, starterNew(tp, config.Display{})))
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
 	m.focus = paneTimeline
 	m.compose.insertMode = true
 
 	m, cmd := press(t, m, keyText("h"))
 	m = deliver(t, m, cmd)
-	if tp.calls != 1 || tp.room != "!a:x" || !tp.typing {
+	if tp.calls != 1 || tp.room != mx+"!a:x" || !tp.typing {
 		t.Fatalf("first keystroke: calls=%d room=%q typing=%v, want 1 !a:x true", tp.calls, tp.room, tp.typing)
 	}
 	m, cmd = press(t, m, keyText("i"))
@@ -99,7 +99,7 @@ func TestDeletingTheDraftStopsTheNotice(t *testing.T) {
 
 	tp := &typer{}
 	m := sized(t, withRooms(t, starterNew(tp, config.Display{})))
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
 	m.focus = paneTimeline
 	m.compose.insertMode = true
@@ -122,15 +122,15 @@ func TestTypingSettingsAreTwoSwitches(t *testing.T) {
 
 	off := false
 	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{Typing: &off})))
-	m.openRoom = "!a:x"
-	m = update(t, m, activityMsg{a: domain.Activity{RoomID: "!a:x", Typing: []string{"@alice:x"}}})
+	m.openRoom = mx + "!a:x"
+	m = update(t, m, activityMsg{a: domain.Activity{RoomID: mx + "!a:x", Typing: []string{"matrix:@alice:x"}}})
 	if got := m.typingNote(); got != "" {
 		t.Errorf("typingNote = %q with typing display off, want nothing", got)
 	}
 
 	tp := &typer{}
 	quiet := sized(t, withRooms(t, starterNew(tp, config.Display{SendTyping: &off})))
-	next, _ := quiet.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := quiet.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	quiet = next
 	quiet.focus = paneTimeline
 	quiet.compose.insertMode = true
@@ -150,11 +150,11 @@ func TestEditsAndCommandOutputStopTheNotice(t *testing.T) {
 		send func(Model) (Model, tea.Cmd)
 	}{
 		{"edit", func(m Model) (Model, tea.Cmd) {
-			m.compose.editing = "$mine:x"
-			return m.submitEdit(domain.Room{ID: "!a:x"}, "fixed")
+			m.compose.editing = mx + "$mine:x"
+			return m.submitEdit(domain.Room{ID: mx + "!a:x"}, "fixed")
 		}},
 		{"command output", func(m Model) (Model, tea.Cmd) {
-			return m.sendCommandOutput(commandRanMsg{room: "!a:x", body: "Zoom meeting started"})
+			return m.sendCommandOutput(commandRanMsg{room: mx + "!a:x", body: "Zoom meeting started"})
 		}},
 	}
 	for _, c := range cases {
@@ -162,7 +162,7 @@ func TestEditsAndCommandOutputStopTheNotice(t *testing.T) {
 			t.Parallel()
 			tp := &typer{}
 			m := sized(t, withRooms(t, starterNew(tp, config.Display{})))
-			next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+			next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 			m = next
 			m.focus, m.compose.insertMode = paneTimeline, true
 			m, cmd := press(t, m, keyText("h"))

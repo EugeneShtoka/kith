@@ -10,14 +10,14 @@ import (
 // A room's facts: local name, spaces in your order, first bridge, and matching tags.
 func TestARoomsFactsAreReadOneWay(t *testing.T) {
 	t.Parallel()
-	room := domain.Room{ID: "!r:x", Name: "Standup", IsDirect: false}
+	room := domain.Room{ID: mx + "!r:x", Name: "Standup", IsDirect: false}
 	holders := []domain.Space{
-		{ID: "!w:x", Name: "Work"},
-		{ID: "!wa:x", Name: "WhatsApp", Bridge: domain.ProtocolWhatsApp},
-		{ID: "!tg:x", Name: "Telegram", Bridge: domain.ProtocolTelegram},
+		{ID: mx + "!w:x", Name: "Work"},
+		{ID: mx + "!wa:x", Name: "WhatsApp", Bridge: domain.ProtocolWhatsApp},
+		{ID: mx + "!tg:x", Name: "Telegram", Bridge: domain.ProtocolTelegram},
 	}
 	places := domain.Places{
-		Names: map[domain.RoomID]string{"!r:x": "Daily"},
+		Names: map[domain.RoomID]string{mx + "!r:x": "Daily"},
 		Order: domain.HomeOrder{Priority: []string{"space:Telegram"}},
 		Tags:  tagSet(t, domain.Tag{Name: "Pinned", Picked: []string{"room:Daily"}}),
 	}
@@ -35,8 +35,8 @@ func TestARoomsFactsAreReadOneWay(t *testing.T) {
 		t.Errorf("Tags = %v: a tag picking the room by your name for it did not hold it", got.Tags)
 	}
 
-	plain := domain.Places{}.Facts(domain.Room{ID: "!anon:x"}, nil)
-	if plain.Name != "!anon:x" || plain.Protocol != domain.ProtocolMatrix || plain.Tags != nil || plain.Spaces != nil {
+	plain := domain.Places{}.Facts(domain.Room{ID: mx + "!anon:x"}, nil)
+	if plain.Name != mx+"!anon:x" || plain.Protocol != domain.ProtocolMatrix || plain.Tags != nil || plain.Spaces != nil {
 		t.Errorf("an unnamed room in no space = %+v", plain)
 	}
 	native := domain.Places{}.Facts(domain.Room{ID: "whatsapp:44/1203@g.us", Name: "Choir"}, nil)
@@ -53,12 +53,12 @@ func TestARoomsFactsAreReadOneWay(t *testing.T) {
 func TestHoldersAreTheSpacesHoldingTheRoom(t *testing.T) {
 	t.Parallel()
 	spaces := []domain.Space{
-		{ID: "!a:x", Children: []domain.RoomID{"!r:x"}},
-		{ID: "!b:x", Children: []domain.RoomID{"!other:x"}},
-		{ID: "!c:x", Children: []domain.RoomID{"!other:x", "!r:x"}},
+		{ID: mx + "!a:x", Children: []domain.RoomID{mx + "!r:x"}},
+		{ID: mx + "!b:x", Children: []domain.RoomID{mx + "!other:x"}},
+		{ID: mx + "!c:x", Children: []domain.RoomID{mx + "!other:x", mx + "!r:x"}},
 	}
-	got := domain.HoldersOf("!r:x", spaces)
-	if len(got) != 2 || got[0].ID != "!a:x" || got[1].ID != "!c:x" {
+	got := domain.HoldersOf(mx+"!r:x", spaces)
+	if len(got) != 2 || got[0].ID != mx+"!a:x" || got[1].ID != mx+"!c:x" {
 		t.Errorf("HoldersOf = %+v", got)
 	}
 }

@@ -38,9 +38,9 @@ func TestANameTargetHasToSayWhatItNames(t *testing.T) {
 	t.Parallel()
 
 	for _, target := range []string{
-		"!abc:example.org", config.NameTargetRoom + "Standup",
+		mx + "!abc:example.org", config.NameTargetRoom + "Standup",
 		config.NameTargetSpace + "Work",
-		config.NameTargetThread + "$evt",
+		config.NameTargetThread + mx + "$evt",
 	} {
 		if err := NameTargets(config.Display{
 			Names: []config.DisplayName{{Target: target, Name: "x"}},

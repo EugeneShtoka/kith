@@ -34,7 +34,7 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 		var rooms []domain.Room
 		var made []domain.RoomID
 		for i := range 2 + rng.IntN(5) {
-			id := domain.RoomID(fmt.Sprintf("!r%d:x", i))
+			id := domain.RoomID(fmt.Sprintf(mx+"!r%d:x", i))
 			archived := false
 			if rng.IntN(2) == 0 { // a Telegram chat, maybe in its archive
 				id, archived = domain.RoomID(fmt.Sprintf("telegram:42/-%d", i+1)), rng.IntN(2) == 0
@@ -76,7 +76,7 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 		follow := rng.IntN(2) == 0
 		cfg.Telegram.Archive = config.NetworkArchive{Follow: &follow, Mirror: rng.IntN(2) == 0, Tag: tags[rng.IntN(len(tags))].Name}
 		m := update(t, configured(cfg), roomsMsg{rooms: rooms})
-		m = update(t, m, spacesMsg{spaces: []domain.Space{{ID: "!made:x", Name: "Made", Children: made}}})
+		m = update(t, m, spacesMsg{spaces: []domain.Space{{ID: mx + "!made:x", Name: "Made", Children: made}}})
 		for _, r := range rooms {
 			if rng.IntN(2) == 0 {
 				m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: r.ID, Messages: 1, Counted: true}})
@@ -141,7 +141,7 @@ func TestTheFilingPickerMakesANewTagWithTheRoomInIt(t *testing.T) {
 		m := counting(t, config.Display{})
 		m.focus = paneRooms
 		m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
-		m, _ = m.selectRoom(roomByName(t, m, "!a:x"))
+		m, _ = m.selectRoom(roomByName(t, m, mx+"!a:x"))
 		m, _ = m.openSpacePicker()
 		last := len(m.picker.items) - 1
 		if last < 0 || m.picker.items[last].value != tagNew {
@@ -159,7 +159,7 @@ func TestTheFilingPickerMakesANewTagWithTheRoomInIt(t *testing.T) {
 	tags := len(m.conf.base.Tags)
 	m.prompt.input = "Later"
 	m, _ = m.submitPrompt()
-	if got := m.conf.base.Tags[tagIndex(t, m, "Later")].Picked; len(got) != 1 || got[0] != "!a:x" {
+	if got := m.conf.base.Tags[tagIndex(t, m, "Later")].Picked; len(got) != 1 || got[0] != mx+"!a:x" {
 		t.Errorf("the new tag picks %v, want the room's ID", got)
 	}
 	if len(m.conf.base.Tags) != tags+1 {
@@ -211,7 +211,7 @@ func TestTheFilingPickerLeavesOutTagsTheirRuleFills(t *testing.T) {
 		{Name: "Work", Rule: []string{"space:Work"}},
 		{Name: "Close", Rule: []string{"dm", "tag:Pinned"}},
 	}}
-	m := update(t, configured(cfg), roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "A"}}})
+	m := update(t, configured(cfg), roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "A"}}})
 	m.focus = paneRooms
 	m, _ = m.openSpacePicker()
 	var offered []string

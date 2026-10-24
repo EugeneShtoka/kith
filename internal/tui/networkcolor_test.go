@@ -60,8 +60,8 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 	rooms := []domain.Room{
 		{ID: "whatsapp:1/g@g.us", Name: "Family"},
 		{ID: "telegram:1/-11", Name: "Book club"},
-		{ID: "!bridged:x", Name: "Bridged"},
-		{ID: "!plain:x", Name: "Plain"},
+		{ID: mx + "!bridged:x", Name: "Bridged"},
+		{ID: mx + "!plain:x", Name: "Plain"},
 	}
 	display := config.Display{
 		SpaceRules: []config.SpaceRule{{Space: "space:Mixed", NetworkColors: new(true)}, {Space: "space:Only WhatsApp", NetworkColors: new(false)}},
@@ -70,10 +70,10 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 	}
 	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: rooms})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!mixed:x", Name: "Mixed", Children: []domain.RoomID{"whatsapp:1/g@g.us", "telegram:1/-11", "!bridged:x", "!plain:x"}},
-		{ID: "!quiet:x", Name: "Quiet", Children: []domain.RoomID{"whatsapp:1/g@g.us", "telegram:1/-11"}},
-		{ID: "!onlywa:x", Name: "Only WhatsApp", Children: []domain.RoomID{"whatsapp:1/g@g.us"}},
-		{ID: "!slack:x", Name: "Workspace", Bridge: domain.ProtocolSlack, Children: []domain.RoomID{"!bridged:x"}},
+		{ID: mx + "!mixed:x", Name: "Mixed", Children: []domain.RoomID{"whatsapp:1/g@g.us", "telegram:1/-11", mx + "!bridged:x", mx + "!plain:x"}},
+		{ID: mx + "!quiet:x", Name: "Quiet", Children: []domain.RoomID{"whatsapp:1/g@g.us", "telegram:1/-11"}},
+		{ID: mx + "!onlywa:x", Name: "Only WhatsApp", Children: []domain.RoomID{"whatsapp:1/g@g.us"}},
+		{ID: mx + "!slack:x", Name: "Workspace", Bridge: domain.ProtocolSlack, Children: []domain.RoomID{mx + "!bridged:x"}},
 	}}))
 	color := func(name string) string {
 		c, _ := theme.ParseColor(name)
@@ -177,7 +177,7 @@ func TestAThreadRowTakesItsRoomsColor(t *testing.T) {
 	orange := sgrOf(t, m.roomNameColor(room))
 	rows := []roomRow{
 		{room: room},
-		{room: room, thread: domain.ThreadUnread{Root: "$root", Unread: 1}},
+		{room: room, thread: domain.ThreadUnread{Root: mx + "$root", Unread: 1}},
 		{room: room, more: 3},
 	}
 	for _, r := range rows {
@@ -211,7 +211,7 @@ func TestTheRailKeepsItsColorsWhenTheConfigIsApplied(t *testing.T) {
 	display := config.Display{Rail: config.Rail{NetworkColors: true}}
 	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: []domain.Room{{ID: "whatsapp:1/g@g.us", Name: "Family"}}})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!onlywa:x", Name: "Only WhatsApp", Children: []domain.RoomID{"whatsapp:1/g@g.us"}},
+		{ID: mx + "!onlywa:x", Name: "Only WhatsApp", Children: []domain.RoomID{"whatsapp:1/g@g.us"}},
 	}}))
 	network := func(m Model) domain.Protocol {
 		return m.rail.groups[indexOfGroup(m.rail.groups, "Only WhatsApp")].network
@@ -243,7 +243,7 @@ func TestANetworksOwnSpaceTakesItsColor(t *testing.T) {
 		{ID: "gmessages:b/account", Name: "SMS mixed", Bridge: domain.ProtocolGMessages, Original: true,
 			Children: []domain.RoomID{"whatsapp:1/g@g.us"}},
 		{ID: "linkedin:c/account", Name: "LinkedIn", Bridge: domain.ProtocolLinkedIn, Original: true},
-		{ID: "!mine:x", Name: "Mine", Bridge: domain.ProtocolMatrix},
+		{ID: mx + "!mine:x", Name: "Mine", Bridge: domain.ProtocolMatrix},
 	}}))
 	networks := map[string]domain.Protocol{}
 	for _, g := range m.rail.groups {

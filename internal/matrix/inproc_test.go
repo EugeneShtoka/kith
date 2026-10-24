@@ -39,7 +39,7 @@ func TestToDomainMessage(t *testing.T) {
 					Body:    "hello",
 				}},
 			},
-			want:   domain.Message{ID: "$evt:x", RoomID: "!r:x", Sender: "@bob:x", Body: "hello", Timestamp: time.UnixMilli(1700000000000)},
+			want:   domain.Message{ID: mx + "$evt:x", RoomID: mx + "!r:x", Sender: "matrix:@bob:x", Body: "hello", Timestamp: time.UnixMilli(1700000000000)},
 			wantOK: true,
 		},
 		"empty content is skipped": {
@@ -64,7 +64,7 @@ func TestToDomainMessage(t *testing.T) {
 					NewContent: &event.MessageEventContent{MsgType: event.MsgText, Body: "new text"},
 				}},
 			},
-			want:   domain.Message{ID: "$orig:x", RoomID: "!r:x", Sender: "@bob:x", Body: "new text", RevisionID: "$edit:x", Timestamp: time.UnixMilli(1700000009000), EditedAt: time.UnixMilli(1700000009000), Edited: true},
+			want:   domain.Message{ID: mx + "$orig:x", RoomID: mx + "!r:x", Sender: "matrix:@bob:x", Body: "new text", RevisionID: mx + "$edit:x", Timestamp: time.UnixMilli(1700000009000), EditedAt: time.UnixMilli(1700000009000), Edited: true},
 			wantOK: true,
 		},
 		"edit without new_content strips the fallback star": {
@@ -80,7 +80,7 @@ func TestToDomainMessage(t *testing.T) {
 					RelatesTo: &event.RelatesTo{Type: event.RelReplace, EventID: id.EventID("$orig:x")},
 				}},
 			},
-			want:   domain.Message{ID: "$orig:x", RoomID: "!r:x", Sender: "@bob:x", Body: "fallback text", RevisionID: "$edit2:x", Timestamp: time.UnixMilli(1700000009000), EditedAt: time.UnixMilli(1700000009000), Edited: true},
+			want:   domain.Message{ID: mx + "$orig:x", RoomID: mx + "!r:x", Sender: "matrix:@bob:x", Body: "fallback text", RevisionID: mx + "$edit2:x", Timestamp: time.UnixMilli(1700000009000), EditedAt: time.UnixMilli(1700000009000), Edited: true},
 			wantOK: true,
 		},
 		"reply keeps the target and strips the quoted fallback": {
@@ -96,7 +96,7 @@ func TestToDomainMessage(t *testing.T) {
 					RelatesTo: &event.RelatesTo{InReplyTo: &event.InReplyTo{EventID: id.EventID("$orig:x")}},
 				}},
 			},
-			want:   domain.Message{ID: "$reply:x", RoomID: "!r:x", Sender: "@bob:x", Body: "my reply", Timestamp: time.UnixMilli(1700000000000), ReplyTo: "$orig:x"},
+			want:   domain.Message{ID: mx + "$reply:x", RoomID: mx + "!r:x", Sender: "matrix:@bob:x", Body: "my reply", Timestamp: time.UnixMilli(1700000000000), ReplyTo: mx + "$orig:x"},
 			wantOK: true,
 		},
 		"thread reply keeps its root and drops the falling-back reply": {
@@ -117,7 +117,7 @@ func TestToDomainMessage(t *testing.T) {
 					},
 				}},
 			},
-			want:   domain.Message{ID: "$reply:x", RoomID: "!r:x", Sender: "@bob:x", Body: "in the thread", Timestamp: time.UnixMilli(1700000000000), ThreadRoot: "$root:x"},
+			want:   domain.Message{ID: mx + "$reply:x", RoomID: mx + "!r:x", Sender: "matrix:@bob:x", Body: "in the thread", Timestamp: time.UnixMilli(1700000000000), ThreadRoot: mx + "$root:x"},
 			wantOK: true,
 		},
 		"a real reply inside a thread keeps both pointers": {
@@ -137,7 +137,7 @@ func TestToDomainMessage(t *testing.T) {
 					},
 				}},
 			},
-			want:   domain.Message{ID: "$reply2:x", RoomID: "!r:x", Sender: "@bob:x", Body: "answering you", Timestamp: time.UnixMilli(1700000000000), ReplyTo: "$target:x", ThreadRoot: "$root:x"},
+			want:   domain.Message{ID: mx + "$reply2:x", RoomID: mx + "!r:x", Sender: "matrix:@bob:x", Body: "answering you", Timestamp: time.UnixMilli(1700000000000), ReplyTo: mx + "$target:x", ThreadRoot: mx + "$root:x"},
 			wantOK: true,
 		},
 		"empty body is skipped": {
@@ -161,7 +161,7 @@ func TestToDomainMessage(t *testing.T) {
 				Content:   event.Content{Parsed: &event.MessageEventContent{}},
 				Unsigned:  event.Unsigned{RedactedBecause: &event.Event{}},
 			},
-			want:   domain.Message{ID: "$evt:x", RoomID: "!r:x", Sender: "@bob:x", Timestamp: time.UnixMilli(1700000000000), Redacted: true},
+			want:   domain.Message{ID: mx + "$evt:x", RoomID: mx + "!r:x", Sender: "matrix:@bob:x", Timestamp: time.UnixMilli(1700000000000), Redacted: true},
 			wantOK: true,
 		},
 	}
@@ -169,7 +169,7 @@ func TestToDomainMessage(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := (ids{}).toDomainMessage(tc.evt)
+			got, ok := testIDs.toDomainMessage(tc.evt)
 			if ok != tc.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
 			}
@@ -186,14 +186,14 @@ func TestRedactionTarget(t *testing.T) {
 	// Room v11 carries the target event in the redaction's content.
 	v11 := &event.Event{Type: event.EventRedaction, Content: event.Content{
 		Parsed: &event.RedactionEventContent{Redacts: id.EventID("$target:x")}}}
-	if got := (ids{}).redactionTarget(v11); got != "$target:x" {
+	if got := testIDs.redactionTarget(v11); got != mx+"$target:x" {
 		t.Errorf("v11 target = %q, want $target:x", got)
 	}
 
 	// Older rooms carry it as the top-level redacts field (content empty).
 	legacy := &event.Event{Type: event.EventRedaction, Redacts: id.EventID("$old:x"),
 		Content: event.Content{Parsed: &event.RedactionEventContent{}}}
-	if got := (ids{}).redactionTarget(legacy); got != "$old:x" {
+	if got := testIDs.redactionTarget(legacy); got != mx+"$old:x" {
 		t.Errorf("legacy target = %q, want $old:x", got)
 	}
 }
@@ -210,11 +210,11 @@ func TestToReaction(t *testing.T) {
 			RelatesTo: event.RelatesTo{Type: event.RelAnnotation, EventID: id.EventID("$m:x"), Key: "👍"},
 		}},
 	}
-	got, ok := (ids{}).toReaction(good)
+	got, ok := testIDs.toReaction(good)
 	if !ok {
 		t.Fatal("valid reaction not parsed")
 	}
-	want := domain.Reaction{ID: "$r:x", RoomID: "!r:x", Target: "$m:x", Sender: "@a:x", Key: "👍"}
+	want := domain.Reaction{ID: mx + "$r:x", RoomID: mx + "!r:x", Target: mx + "$m:x", Sender: "matrix:@a:x", Key: "👍"}
 	if got != want {
 		t.Errorf("toReaction = %+v, want %+v", got, want)
 	}
@@ -226,7 +226,7 @@ func TestToReaction(t *testing.T) {
 			RelatesTo: event.RelatesTo{Type: event.RelAnnotation, EventID: id.EventID("$m:x")},
 		}},
 	}
-	if _, ok := (ids{}).toReaction(noKey); ok {
+	if _, ok := testIDs.toReaction(noKey); ok {
 		t.Error("reaction without a key should be ignored")
 	}
 }
@@ -246,7 +246,7 @@ func TestToDomainMessageMedia(t *testing.T) {
 			Info:    &event.FileInfo{MimeType: "image/jpeg", Width: 800, Height: 600, Size: 12345},
 		}},
 	}
-	got, ok := (ids{}).toDomainMessage(img)
+	got, ok := testIDs.toDomainMessage(img)
 	if !ok || got.Media == nil {
 		t.Fatalf("image not recognized as media: ok=%v media=%v", ok, got.Media)
 	}
@@ -261,7 +261,7 @@ func TestToDomainMessageMedia(t *testing.T) {
 		Type: event.EventMessage, Timestamp: 1700000000000,
 		Content: event.Content{Parsed: &event.MessageEventContent{MsgType: event.MsgImage, Body: ""}},
 	}
-	if _, kept := (ids{}).toDomainMessage(noName); !kept {
+	if _, kept := testIDs.toDomainMessage(noName); !kept {
 		t.Error("an image with no filename should not be dropped")
 	}
 
@@ -276,7 +276,7 @@ func TestToDomainMessageMedia(t *testing.T) {
 			Info:     &event.FileInfo{MimeType: "image/jpeg"},
 		}},
 	}
-	got, ok = (ids{}).toDomainMessage(captioned)
+	got, ok = testIDs.toDomainMessage(captioned)
 	if !ok || got.Media == nil {
 		t.Fatalf("captioned image not recognized as media: ok=%v media=%v", ok, got.Media)
 	}
@@ -295,7 +295,7 @@ func TestToDomainMessageMedia(t *testing.T) {
 			MsgType: event.MsgFile, FileName: "invoice-2026.pdf",
 		}},
 	}
-	got, ok = (ids{}).toDomainMessage(bodyless)
+	got, ok = testIDs.toDomainMessage(bodyless)
 	if !ok || got.Media == nil {
 		t.Fatalf("bodyless attachment dropped: ok=%v media=%v", ok, got.Media)
 	}
@@ -326,18 +326,18 @@ func TestParseMentions(t *testing.T) {
 
 	fb := `hey <a href="https://matrix.to/#/@alice:x">Alice</a> and ` +
 		`<a href="https://matrix.to/#/@bob:server.org">@Bob</a>!`
-	got := (ids{}).parseMentions(fb)
+	got := testIDs.parseMentions(fb)
 	if len(got) != 2 {
 		t.Fatalf("mentions = %+v, want 2", got)
 	}
-	if got[0].UserID != "@alice:x" || got[0].Name != "Alice" {
+	if got[0].UserID != "matrix:@alice:x" || got[0].Name != "Alice" {
 		t.Errorf("mention 0 = %+v, want @alice:x/Alice", got[0])
 	}
 	// A leading @ in the pill text is stripped so it matches the plain body.
-	if got[1].UserID != "@bob:server.org" || got[1].Name != "Bob" {
+	if got[1].UserID != "matrix:@bob:server.org" || got[1].Name != "Bob" {
 		t.Errorf("mention 1 = %+v, want @bob:server.org/Bob", got[1])
 	}
-	if (ids{}).parseMentions("") != nil || (ids{}).parseMentions("plain, no pills") != nil {
+	if testIDs.parseMentions("") != nil || testIDs.parseMentions("plain, no pills") != nil {
 		t.Error("no pills should yield nil")
 	}
 }
@@ -436,7 +436,7 @@ func TestMentionsMe(t *testing.T) {
 			t.Parallel()
 			content := tc.content
 			evt := &event.Event{Content: event.Content{Parsed: &content}}
-			if got := (ids{}).mentionsMe(evt, me); got != tc.want {
+			if got := testIDs.mentionsMe(evt, me); got != tc.want {
 				t.Errorf("mentionsMe = %v, want %v", got, tc.want)
 			}
 		})
@@ -445,7 +445,7 @@ func TestMentionsMe(t *testing.T) {
 	viaMentions := &event.Event{Content: event.Content{Parsed: &event.MessageEventContent{
 		MsgType: event.MsgText, Body: "hey", Mentions: &event.Mentions{UserIDs: []id.UserID{me}},
 	}}}
-	if (ids{}).mentionsMe(viaMentions, "") {
+	if testIDs.mentionsMe(viaMentions, "") {
 		t.Error("with no logged-in user there is no mention")
 	}
 }
@@ -481,10 +481,10 @@ func TestTimelineParsesRawMessages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	b := New(nil) // no cache, no crypto: plaintext scrollback path
+	b := newBackend(nil) // no cache, no crypto: plaintext scrollback path
 	b.client = client
 
-	page, err := b.Timeline(context.Background(), domain.RoomID("!r:x"), "", 50)
+	page, err := b.Timeline(context.Background(), domain.RoomID(mx+"!r:x"), "", 50)
 	if err != nil {
 		t.Fatalf("Timeline: %v", err)
 	}
@@ -493,9 +493,9 @@ func TestTimelineParsesRawMessages(t *testing.T) {
 	}
 	got := page.Messages[0]
 	want := domain.Message{
-		ID:         "$evt:x",
-		RoomID:     "!r:x",
-		Sender:     "@bob:x",
+		ID:         mx + "$evt:x",
+		RoomID:     mx + "!r:x",
+		Sender:     "matrix:@bob:x",
 		SenderName: "Bob",
 		Body:       "hello from history",
 		Timestamp:  time.UnixMilli(1700000000000),
@@ -579,17 +579,17 @@ func TestReadReceipts(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := (ids{}).readReceipts(tc.events, id.UserID("@me:x"))
+			got := testIDs.readReceipts(tc.events, id.UserID("@me:x"))
 			var room, threads []string
 			for _, c := range got.Room {
-				label := string(c.Event)
+				label := matrixString(testIDs.nativeEvent(c.Event)) // the fixtures' native IDs
 				if c.Unthreaded {
 					label += " unthreaded"
 				}
 				room = append(room, label)
 			}
 			for _, r := range got.Threads {
-				threads = append(threads, string(r.Root)+" → "+string(r.Event))
+				threads = append(threads, matrixString(testIDs.nativeEvent(r.Root))+" → "+matrixString(testIDs.nativeEvent(r.Event)))
 			}
 			sort.Strings(room)
 			sort.Strings(threads)
@@ -611,9 +611,9 @@ func TestMergeUnread(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	b := New(nil)
+	b := newBackend(nil)
 	b.client = client
-	const room = domain.RoomID("!r:x")
+	const room = domain.RoomID(mx + "!r:x")
 
 	counts := func(n, h int) *mautrix.SyncJoinedRoom {
 		return &mautrix.SyncJoinedRoom{UnreadNotifications: &mautrix.UnreadNotificationCounts{NotificationCount: n, HighlightCount: h}}
@@ -640,35 +640,35 @@ func TestMergeUnread(t *testing.T) {
 		},
 		{
 			name: "receipt only preserves counts", jr: receipt(`{"$e1:x":{"m.read":{"@me:x":{"ts":1}}}}`), wantChanged: true,
-			want: domain.Unread{RoomID: room, Notifications: 5, Highlights: 2, ReadEvent: "$e1:x"},
+			want: domain.Unread{RoomID: room, Notifications: 5, Highlights: 2, ReadEvent: mx + "$e1:x"},
 		},
 		{
 			name: "identical resend is no change", jr: counts(5, 2), wantChanged: false,
-			want: domain.Unread{RoomID: room, Notifications: 5, Highlights: 2, ReadEvent: "$e1:x"},
+			want: domain.Unread{RoomID: room, Notifications: 5, Highlights: 2, ReadEvent: mx + "$e1:x"},
 		},
 		{
 			name: "counts drop to zero on read", jr: counts(0, 0), wantChanged: true,
-			want: domain.Unread{RoomID: room, Notifications: 0, Highlights: 0, ReadEvent: "$e1:x"},
+			want: domain.Unread{RoomID: room, Notifications: 0, Highlights: 0, ReadEvent: mx + "$e1:x"},
 		},
 		{
 			name: "empty delta is no change", jr: &mautrix.SyncJoinedRoom{}, wantChanged: false,
-			want: domain.Unread{RoomID: room, Notifications: 0, Highlights: 0, ReadEvent: "$e1:x"},
+			want: domain.Unread{RoomID: room, Notifications: 0, Highlights: 0, ReadEvent: mx + "$e1:x"},
 		},
 		{
 			name: "a mark set elsewhere arrives", jr: mark(`{"unread":true}`), wantChanged: true,
-			want: domain.Unread{RoomID: room, ReadEvent: "$e1:x", Marked: true},
+			want: domain.Unread{RoomID: room, ReadEvent: mx + "$e1:x", Marked: true},
 		},
 		{
 			name: "a sync that says nothing leaves the mark", jr: counts(1, 0), wantChanged: true,
-			want: domain.Unread{RoomID: room, Notifications: 1, ReadEvent: "$e1:x", Marked: true},
+			want: domain.Unread{RoomID: room, Notifications: 1, ReadEvent: mx + "$e1:x", Marked: true},
 		},
 		{
 			name: "the mark is cleared explicitly", jr: mark(`{"unread":false}`), wantChanged: true,
-			want: domain.Unread{RoomID: room, Notifications: 1, ReadEvent: "$e1:x", Marked: false},
+			want: domain.Unread{RoomID: room, Notifications: 1, ReadEvent: mx + "$e1:x", Marked: false},
 		},
 	}
 	for _, s := range steps {
-		read, _ := b.applyReceipts(context.Background(), room, (ids{}).readReceipts(s.jr.Ephemeral.Events, client.UserID))
+		read, _ := b.applyReceipts(context.Background(), room, testIDs.readReceipts(s.jr.Ephemeral.Events, client.UserID))
 		var marked *bool
 		if flag, present := markedUnread(s.jr.AccountData.Events); present {
 			marked = &flag
@@ -733,7 +733,7 @@ func TestResumeSeparatesUnreachableFromRejected(t *testing.T) {
 	session := func(homeserver string) domain.Session {
 		return domain.Session{
 			Homeserver:  homeserver,
-			UserID:      "@eugene:example.org",
+			UserID:      "matrix:@eugene:example.org",
 			DeviceID:    "DEV1",
 			AccessToken: "token",
 		}
@@ -747,7 +747,7 @@ func TestResumeSeparatesUnreachableFromRejected(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		err := New(nil).Resume(t.Context(), session(srv.URL), nil)
+		err := newBackend(nil).Resume(t.Context(), session(srv.URL), nil)
 		if !errors.Is(err, api.ErrSessionRejected) {
 			t.Fatalf("err = %v, want ErrSessionRejected", err)
 		}
@@ -762,7 +762,7 @@ func TestResumeSeparatesUnreachableFromRejected(t *testing.T) {
 		addr := srv.URL
 		srv.Close()
 
-		err := New(nil).Resume(t.Context(), session(addr), nil)
+		err := newBackend(nil).Resume(t.Context(), session(addr), nil)
 		if !errors.Is(err, api.ErrUnreachable) {
 			t.Fatalf("err = %v, want ErrUnreachable", err)
 		}
@@ -778,7 +778,7 @@ func TestResumeSeparatesUnreachableFromRejected(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		err := New(nil).Resume(t.Context(), session(srv.URL), nil)
+		err := newBackend(nil).Resume(t.Context(), session(srv.URL), nil)
 		if !errors.Is(err, api.ErrUnreachable) {
 			t.Fatalf("err = %v, want ErrUnreachable — a 502 is the gateway, not the token", err)
 		}
@@ -791,9 +791,9 @@ func TestReachableClassifiesLikeResume(t *testing.T) {
 
 	resumed := func(t *testing.T, url string) *InProc {
 		t.Helper()
-		b := New(nil)
+		b := newBackend(nil)
 		_ = b.Resume(t.Context(), domain.Session{
-			Homeserver: url, UserID: "@eugene:example.org", DeviceID: "DEV1", AccessToken: "token",
+			Homeserver: url, UserID: "matrix:@eugene:example.org", DeviceID: "DEV1", AccessToken: "token",
 		}, nil)
 		return b
 	}
@@ -833,9 +833,9 @@ func TestReachableClassifiesLikeResume(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		b := New(nil)
+		b := newBackend(nil)
 		_ = b.Resume(t.Context(), domain.Session{
-			Homeserver: srv.URL, UserID: "@eugene:example.org", DeviceID: "DEV1", AccessToken: "token",
+			Homeserver: srv.URL, UserID: "matrix:@eugene:example.org", DeviceID: "DEV1", AccessToken: "token",
 		}, nil)
 		if err := b.Reachable(t.Context()); !errors.Is(err, api.ErrUnreachable) && !errors.Is(err, api.ErrSessionRejected) {
 			t.Errorf("Reachable = %v, want a classified error", err)
@@ -858,14 +858,14 @@ func TestAnEditCarriesItsNewFormatting(t *testing.T) {
 			}},
 		}
 	}
-	formatted, ok := (ids{}).toDomainMessage(edit(&event.MessageEventContent{
+	formatted, ok := testIDs.toDomainMessage(edit(&event.MessageEventContent{
 		MsgType: event.MsgText, Body: "new", Format: event.FormatHTML,
 		FormattedBody: `<b>new</b><script>alert(1)</script>`,
 	}))
-	if !ok || formatted.ID != "$orig:x" || formatted.Body != "new" || formatted.Format.Markup() != "<b>new</b>" {
+	if !ok || formatted.ID != mx+"$orig:x" || formatted.Body != "new" || formatted.Format.Markup() != "<b>new</b>" {
 		t.Fatalf("formatted edit = %+v, want the new sanitized HTML on $orig:x", formatted)
 	}
-	plain, ok := (ids{}).toDomainMessage(edit(&event.MessageEventContent{MsgType: event.MsgText, Body: "new"}))
+	plain, ok := testIDs.toDomainMessage(edit(&event.MessageEventContent{MsgType: event.MsgText, Body: "new"}))
 	if !ok || plain.Format.Markup() != "" {
 		t.Fatalf("plain edit = %+v, want no HTML", plain)
 	}

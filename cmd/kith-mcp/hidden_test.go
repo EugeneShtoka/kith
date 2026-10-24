@@ -13,14 +13,14 @@ import (
 // hiddenRoom has a hidden person (by a linked ID), a reply to them, and two others.
 func hiddenRoom() *fake {
 	f := twoRooms()
-	f.dir = domain.NewDirectory(nil, []domain.PersonLink{{Source: "book", ID: "@spam:x", Other: "telegram:9"}})
-	f.messages["!open:x"] = []domain.Message{
-		{ID: "$1", Sender: "@dana:x", Body: "morning", Timestamp: time.Unix(1_700_000_000, 0)},
-		{ID: "$2", Sender: "@spam:x", Body: "buy", Timestamp: time.Unix(1_700_000_060, 0)},
-		{ID: "$3", Sender: "@dana:x", Body: "no", ReplyTo: "$2", Timestamp: time.Unix(1_700_000_120, 0)},
-		{ID: "$4", Sender: "@me:x", Body: "ok", Timestamp: time.Unix(1_700_000_180, 0)},
+	f.dir = domain.NewDirectory(nil, []domain.PersonLink{{Source: "book", ID: "matrix:@spam:x", Other: "telegram:9"}})
+	f.messages[mx+"!open:x"] = []domain.Message{
+		{ID: mx + "$1", Sender: "matrix:@dana:x", Body: "morning", Timestamp: time.Unix(1_700_000_000, 0)},
+		{ID: mx + "$2", Sender: "matrix:@spam:x", Body: "buy", Timestamp: time.Unix(1_700_000_060, 0)},
+		{ID: mx + "$3", Sender: "matrix:@dana:x", Body: "no", ReplyTo: mx + "$2", Timestamp: time.Unix(1_700_000_120, 0)},
+		{ID: mx + "$4", Sender: "matrix:@me:x", Body: "ok", Timestamp: time.Unix(1_700_000_180, 0)},
 	}
-	f.around = f.messages["!open:x"]
+	f.around = f.messages[mx+"!open:x"]
 	return f
 }
 
@@ -47,11 +47,11 @@ func TestTheAssistantDoesNotReadHiddenPeople(t *testing.T) {
 	t.Parallel()
 
 	s := hiddenServer(hiddenRoom())
-	want := []string{"$1", "$4"}
+	want := []string{mx + "$1", mx + "$4"}
 	if got := ids(t, call(t, s, "read_room", map[string]any{"room": "Standup"})); !slices.Equal(got, want) {
 		t.Errorf("read_room gave %v, want %v", got, want)
 	}
-	if got := ids(t, call(t, s, "read_around", map[string]any{"room": "Standup", "event": "$1"})); !slices.Equal(got, want) {
+	if got := ids(t, call(t, s, "read_around", map[string]any{"room": "Standup", "event": mx + "$1"})); !slices.Equal(got, want) {
 		t.Errorf("read_around gave %v, want %v", got, want)
 	}
 }
@@ -80,12 +80,12 @@ func TestAPersonMarkedByAFilterIsNotRead(t *testing.T) {
 	f := hiddenRoom()
 	f.people = []domain.PersonVerdict{
 		{Person: "telegram:9", Tag: "spam", Rule: domain.MoveAlways},
-		{Person: "@dana:x", Tag: "work", Rule: domain.MoveAlways},
-		{Person: "@me:x", Tag: "spam", Released: true},
+		{Person: "matrix:@dana:x", Tag: "work", Rule: domain.MoveAlways},
+		{Person: "matrix:@me:x", Tag: "spam", Released: true},
 	}
 	s := newServer(f, shareAllEncrypted)
 	s.muted = []string{"Spam"}
-	if got, want := ids(t, call(t, s, "read_room", map[string]any{"room": "Standup"})), []string{"$1", "$4"}; !slices.Equal(got, want) {
+	if got, want := ids(t, call(t, s, "read_room", map[string]any{"room": "Standup"})), []string{mx + "$1", mx + "$4"}; !slices.Equal(got, want) {
 		t.Errorf("read_room gave %v, want %v", got, want)
 	}
 }

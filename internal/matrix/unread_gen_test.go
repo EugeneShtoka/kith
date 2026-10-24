@@ -14,11 +14,11 @@ func TestAStaleCountIsNotWrittenOverAMovedReadPosition(t *testing.T) {
 	srv := newEventServer(t, nil)
 	b := readBackend(t, srv.Server)
 	ctx := context.Background()
-	b.advanceRead(ctx, readRoom, readPos{Event: "$old", TS: readAt(0).UnixMilli()})
+	b.advanceRead(ctx, readRoom, readPos{Event: mx + "$old", TS: readAt(0).UnixMilli()})
 
 	gen := b.unread.generation(readRoom)
 	stale := b.countLocal(ctx, domain.Unread{RoomID: readRoom}) // counted at $old
-	b.advanceRead(ctx, readRoom, readPos{Event: "$new", TS: readAt(10).UnixMilli()})
+	b.advanceRead(ctx, readRoom, readPos{Event: mx + "$new", TS: readAt(10).UnixMilli()})
 	if current := b.storeCount(readRoom, gen, stale, false); current {
 		t.Fatal("a count of the older read position was written over the newer one")
 	}

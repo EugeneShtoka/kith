@@ -35,7 +35,7 @@ func TestAListingIsCachedAsTheWorkspace(t *testing.T) {
 	a, cache := cached(t, work, club)
 	var heard atomic.Int32
 	a.OnRoomsChanged(func() { heard.Add(1) })
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!m:x", Name: "Matrix room"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!m:x", Name: "Matrix room"}}); err != nil {
 		t.Fatal(err)
 	}
 	conversations := func(ids ...string) []slackgo.Channel {
@@ -87,7 +87,7 @@ func TestAListingIsCachedAsTheWorkspace(t *testing.T) {
 	if home, _ := a.CanonicalParent(ctx, "slack:T2/C1"); home != "slack:T2/T2" {
 		t.Errorf("CanonicalParent = %q, want the workspace", home)
 	}
-	if home, _ := a.CanonicalParent(ctx, "!m:x"); home != "" {
+	if home, _ := a.CanonicalParent(ctx, mx+"!m:x"); home != "" {
 		t.Errorf("a Matrix room's home here = %q", home)
 	}
 	if got, err := a.RefreshRooms(ctx); err != nil || len(got) != 0 {

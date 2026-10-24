@@ -17,7 +17,7 @@ func TestMembersRoundTrip(t *testing.T) {
 	cache := openTemp(t)
 
 	// A cold cache has no members, which is not an error.
-	got, err := cache.Members(ctx, "!a:x", 0)
+	got, err := cache.Members(ctx, mx+"!a:x", 0)
 	if err != nil {
 		t.Fatalf("Members on a cold cache: %v", err)
 	}
@@ -26,14 +26,14 @@ func TestMembersRoundTrip(t *testing.T) {
 	}
 
 	want := []domain.Member{
-		{UserID: "@alice:x", DisplayName: "Alice"},
-		{UserID: "@bob:x", DisplayName: "Bob"},
-		{UserID: "@nameless:x"},
+		{UserID: "matrix:@alice:x", DisplayName: "Alice"},
+		{UserID: "matrix:@bob:x", DisplayName: "Bob"},
+		{UserID: "matrix:@nameless:x"},
 	}
-	if serr := cache.SaveMembers(ctx, "!a:x", want); serr != nil {
+	if serr := cache.SaveMembers(ctx, mx+"!a:x", want); serr != nil {
 		t.Fatalf("SaveMembers: %v", serr)
 	}
-	got, err = cache.Members(ctx, "!a:x", 0)
+	got, err = cache.Members(ctx, mx+"!a:x", 0)
 	if err != nil {
 		t.Fatalf("Members: %v", err)
 	}
@@ -44,11 +44,11 @@ func TestMembersRoundTrip(t *testing.T) {
 	for _, member := range got {
 		byID[member.UserID] = member
 	}
-	if byID["@alice:x"].DisplayName != "Alice" {
-		t.Errorf("alice = %+v", byID["@alice:x"])
+	if byID["matrix:@alice:x"].DisplayName != "Alice" {
+		t.Errorf("alice = %+v", byID["matrix:@alice:x"])
 	}
-	if byID["@nameless:x"].DisplayName != "" {
-		t.Errorf("a member with no display name should read back blank, got %+v", byID["@nameless:x"])
+	if byID["matrix:@nameless:x"].DisplayName != "" {
+		t.Errorf("a member with no display name should read back blank, got %+v", byID["matrix:@nameless:x"])
 	}
 }
 
@@ -59,35 +59,35 @@ func TestSaveMembersIsAPerRoomSnapshot(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	if err := cache.SaveMembers(ctx, "!a:x", []domain.Member{
-		{UserID: "@alice:x", DisplayName: "Alice"},
-		{UserID: "@leaver:x", DisplayName: "Leaver"},
+	if err := cache.SaveMembers(ctx, mx+"!a:x", []domain.Member{
+		{UserID: "matrix:@alice:x", DisplayName: "Alice"},
+		{UserID: "matrix:@leaver:x", DisplayName: "Leaver"},
 	}); err != nil {
 		t.Fatalf("SaveMembers: %v", err)
 	}
-	if err := cache.SaveMembers(ctx, "!b:x", []domain.Member{
-		{UserID: "@bob:x", DisplayName: "Bob"},
+	if err := cache.SaveMembers(ctx, mx+"!b:x", []domain.Member{
+		{UserID: "matrix:@bob:x", DisplayName: "Bob"},
 	}); err != nil {
 		t.Fatalf("SaveMembers: %v", err)
 	}
 
-	if err := cache.SaveMembers(ctx, "!a:x", []domain.Member{
-		{UserID: "@alice:x", DisplayName: "Alice"},
+	if err := cache.SaveMembers(ctx, mx+"!a:x", []domain.Member{
+		{UserID: "matrix:@alice:x", DisplayName: "Alice"},
 	}); err != nil {
 		t.Fatalf("SaveMembers: %v", err)
 	}
-	roomA, err := cache.Members(ctx, "!a:x", 0)
+	roomA, err := cache.Members(ctx, mx+"!a:x", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(roomA) != 1 || roomA[0].UserID != "@alice:x" {
+	if len(roomA) != 1 || roomA[0].UserID != "matrix:@alice:x" {
 		t.Errorf("room A = %+v, want just alice", roomA)
 	}
-	roomB, err := cache.Members(ctx, "!b:x", 0)
+	roomB, err := cache.Members(ctx, mx+"!b:x", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(roomB) != 1 || roomB[0].UserID != "@bob:x" {
+	if len(roomB) != 1 || roomB[0].UserID != "matrix:@bob:x" {
 		t.Errorf("room B = %+v, want just bob — a snapshot of one room must not touch another", roomB)
 	}
 }
@@ -102,14 +102,14 @@ func TestMembersLimit(t *testing.T) {
 	members := make([]domain.Member, 0, 500)
 	for i := range 500 {
 		members = append(members, domain.Member{
-			UserID:      fmt.Sprintf("@u%03d:x", i),
+			UserID:      fmt.Sprintf("matrix:@u%03d:x", i),
 			DisplayName: fmt.Sprintf("Person %03d", i),
 		})
 	}
-	if err := cache.SaveMembers(ctx, "!big:x", members); err != nil {
+	if err := cache.SaveMembers(ctx, mx+"!big:x", members); err != nil {
 		t.Fatalf("SaveMembers: %v", err)
 	}
-	limited, err := cache.Members(ctx, "!big:x", 10)
+	limited, err := cache.Members(ctx, mx+"!big:x", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestMembersLimit(t *testing.T) {
 	if limited[0].DisplayName != "Person 000" {
 		t.Errorf("first = %q, want the alphabetically first", limited[0].DisplayName)
 	}
-	all, err := cache.Members(ctx, "!big:x", 0)
+	all, err := cache.Members(ctx, mx+"!big:x", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,39 +145,39 @@ func TestFrequentMentions(t *testing.T) {
 			}
 		}
 	}
-	record("!a:x", "@rare:x", 1, at(10))
-	record("!a:x", "@often:x", 5, at(20))
-	record("!b:x", "@elsewhere:x", 50, at(30))
+	record(mx+"!a:x", "matrix:@rare:x", 1, at(10))
+	record(mx+"!a:x", "matrix:@often:x", 5, at(20))
+	record(mx+"!b:x", "matrix:@elsewhere:x", 50, at(30))
 
 	// The room's history leads; the global ranking adds whoever is not placed yet.
-	got, err := cache.FrequentMentions(ctx, "!a:x", 10)
+	got, err := cache.FrequentMentions(ctx, mx+"!a:x", 10)
 	if err != nil {
 		t.Fatalf("FrequentMentions: %v", err)
 	}
-	if len(got) < 3 || got[0] != "@often:x" || got[1] != "@rare:x" {
+	if len(got) < 3 || got[0] != "matrix:@often:x" || got[1] != "matrix:@rare:x" {
 		t.Fatalf("room-scoped ranking = %v, want often, rare, then the rest", got)
 	}
-	if got[2] != "@elsewhere:x" {
+	if got[2] != "matrix:@elsewhere:x" {
 		t.Errorf("the global rung should follow, got %v", got)
 	}
 
 	// An unknown room falls back to the global ranking.
-	cold, err := cache.FrequentMentions(ctx, "!new:x", 10)
+	cold, err := cache.FrequentMentions(ctx, mx+"!new:x", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cold) == 0 || cold[0] != "@elsewhere:x" {
+	if len(cold) == 0 || cold[0] != "matrix:@elsewhere:x" {
 		t.Errorf("cold-room ranking = %v, want the global favorite first", cold)
 	}
 
 	// Recency breaks a tie on count.
-	record("!c:x", "@older:x", 3, at(10))
-	record("!c:x", "@newer:x", 3, at(99))
-	tie, err := cache.FrequentMentions(ctx, "!c:x", 2)
+	record(mx+"!c:x", "matrix:@older:x", 3, at(10))
+	record(mx+"!c:x", "matrix:@newer:x", 3, at(99))
+	tie, err := cache.FrequentMentions(ctx, mx+"!c:x", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tie) < 2 || tie[0] != "@newer:x" {
+	if len(tie) < 2 || tie[0] != "matrix:@newer:x" {
 		t.Errorf("tie broken as %v, want the more recent first", tie)
 	}
 }
@@ -190,20 +190,20 @@ func TestRecentSpeakers(t *testing.T) {
 	cache := openTemp(t)
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
 
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@old:x", Body: "first", Timestamp: at(10)},
-		{ID: "$2", RoomID: "!a:x", Sender: "@recent:x", Body: "second", Timestamp: at(30)},
-		{ID: "$3", RoomID: "!a:x", Sender: "@old:x", Body: "third", Timestamp: at(20)},
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@old:x", Body: "first", Timestamp: at(10)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@recent:x", Body: "second", Timestamp: at(30)},
+		{ID: mx + "$3", RoomID: mx + "!a:x", Sender: "matrix:@old:x", Body: "third", Timestamp: at(20)},
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
 	// Saved separately: SaveMessages files messages under the room it is given.
-	if err := cache.SaveMessages(ctx, "!other:x", []domain.Message{
-		{ID: "$4", RoomID: "!other:x", Sender: "@elsewhere:x", Body: "other room", Timestamp: at(99)},
+	if err := cache.SaveMessages(ctx, mx+"!other:x", []domain.Message{
+		{ID: mx + "$4", RoomID: mx + "!other:x", Sender: "matrix:@elsewhere:x", Body: "other room", Timestamp: at(99)},
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
-	got, err := cache.RecentSpeakers(ctx, "!a:x", 10)
+	got, err := cache.RecentSpeakers(ctx, mx+"!a:x", 10)
 	if err != nil {
 		t.Fatalf("RecentSpeakers: %v", err)
 	}
@@ -211,11 +211,11 @@ func TestRecentSpeakers(t *testing.T) {
 		t.Fatalf("got %v, want two distinct speakers", got)
 	}
 	// Ranked by each speaker's most recent message, not by message order.
-	if got[0] != "@recent:x" || got[1] != "@old:x" {
+	if got[0] != "matrix:@recent:x" || got[1] != "matrix:@old:x" {
 		t.Errorf("speakers = %v, want recent then old", got)
 	}
 	for _, sender := range got {
-		if sender == "@elsewhere:x" {
+		if sender == "matrix:@elsewhere:x" {
 			t.Error("another room's speaker leaked in")
 		}
 	}
@@ -229,39 +229,39 @@ func TestSearchSenders(t *testing.T) {
 	cache := openTemp(t)
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
 
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@quiet:x", Body: "one", Timestamp: at(90)},
-		{ID: "$2", RoomID: "!a:x", Sender: "@loud:x", Body: "two", Timestamp: at(10)},
-		{ID: "$3", RoomID: "!a:x", Sender: "@loud:x", Body: "three", Timestamp: at(20)},
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@quiet:x", Body: "one", Timestamp: at(90)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@loud:x", Body: "two", Timestamp: at(10)},
+		{ID: mx + "$3", RoomID: mx + "!a:x", Sender: "matrix:@loud:x", Body: "three", Timestamp: at(20)},
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
-	if err := cache.SaveMessages(ctx, "!b:x", []domain.Message{
-		{ID: "$4", RoomID: "!b:x", Sender: "@elsewhere:x", Body: "another room", Timestamp: at(99)},
+	if err := cache.SaveMessages(ctx, mx+"!b:x", []domain.Message{
+		{ID: mx + "$4", RoomID: mx + "!b:x", Sender: "matrix:@elsewhere:x", Body: "another room", Timestamp: at(99)},
 	}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
 	// A name comes from the membership, when there is one.
-	if err := cache.SaveMembers(ctx, "!a:x", []domain.Member{
-		{UserID: "@loud:x", DisplayName: "Loud Larry"},
-		{UserID: "@quiet:x"},
+	if err := cache.SaveMembers(ctx, mx+"!a:x", []domain.Member{
+		{UserID: "matrix:@loud:x", DisplayName: "Loud Larry"},
+		{UserID: "matrix:@quiet:x"},
 	}); err != nil {
 		t.Fatalf("SaveMembers: %v", err)
 	}
 
 	// One room: whoever said most first.
-	got, err := cache.SearchSenders(ctx, domain.TheseRooms([]domain.RoomID{"!a:x"}), 0)
+	got, err := cache.SearchSenders(ctx, domain.TheseRooms([]domain.RoomID{mx + "!a:x"}), 0)
 	if err != nil {
 		t.Fatalf("SearchSenders: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %+v, want the two people who posted in !a:x", got)
 	}
-	if got[0].UserID != "@loud:x" || got[0].DisplayName != "Loud Larry" {
+	if got[0].UserID != "matrix:@loud:x" || got[0].DisplayName != "Loud Larry" {
 		t.Errorf("first = %+v, want the most prolific sender, named", got[0])
 	}
 	// Without a named membership the sender is offered under the MXID, not dropped.
-	if got[1].UserID != "@quiet:x" || got[1].DisplayName != "" {
+	if got[1].UserID != "matrix:@quiet:x" || got[1].DisplayName != "" {
 		t.Errorf("second = %+v, want @quiet:x with no name", got[1])
 	}
 
@@ -279,7 +279,7 @@ func TestSearchSenders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchSenders(limit): %v", err)
 	}
-	if len(top) != 1 || top[0].UserID != "@loud:x" {
+	if len(top) != 1 || top[0].UserID != "matrix:@loud:x" {
 		t.Errorf("limit 1 returned %+v, want only the most prolific", top)
 	}
 }
@@ -291,31 +291,31 @@ func TestSaveMemberUpsertsWithoutClearingTheRoom(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	if err := cache.SaveMembers(ctx, "!a:x", []domain.Member{
-		{UserID: "@alice:x", DisplayName: "Alice"},
-		{UserID: "@bob:x", DisplayName: "Bob"},
+	if err := cache.SaveMembers(ctx, mx+"!a:x", []domain.Member{
+		{UserID: "matrix:@alice:x", DisplayName: "Alice"},
+		{UserID: "matrix:@bob:x", DisplayName: "Bob"},
 	}); err != nil {
 		t.Fatalf("SaveMembers: %v", err)
 	}
 
 	// A newcomer is added; the others are untouched.
-	if err := cache.SaveMember(ctx, "!a:x", domain.Member{UserID: "@carol:x", DisplayName: "Carol"}); err != nil {
+	if err := cache.SaveMember(ctx, mx+"!a:x", domain.Member{UserID: "matrix:@carol:x", DisplayName: "Carol"}); err != nil {
 		t.Fatalf("SaveMember: %v", err)
 	}
-	if got := memberNames(t, cache, "!a:x"); len(got) != 3 || got["@alice:x"] != "Alice" || got["@carol:x"] != "Carol" {
+	if got := memberNames(t, cache, mx+"!a:x"); len(got) != 3 || got["matrix:@alice:x"] != "Alice" || got["matrix:@carol:x"] != "Carol" {
 		t.Fatalf("after a join: %v", got)
 	}
 
 	// A rename overwrites the row rather than adding one or failing on the key.
-	if err := cache.SaveMember(ctx, "!a:x", domain.Member{UserID: "@bob:x", DisplayName: "Robert"}); err != nil {
+	if err := cache.SaveMember(ctx, mx+"!a:x", domain.Member{UserID: "matrix:@bob:x", DisplayName: "Robert"}); err != nil {
 		t.Fatalf("SaveMember rename: %v", err)
 	}
-	got := memberNames(t, cache, "!a:x")
+	got := memberNames(t, cache, mx+"!a:x")
 	if len(got) != 3 {
 		t.Fatalf("rename changed the roster size: %v", got)
 	}
-	if got["@bob:x"] != "Robert" {
-		t.Errorf("display_name = %q after rename, want %q", got["@bob:x"], "Robert")
+	if got["matrix:@bob:x"] != "Robert" {
+		t.Errorf("display_name = %q after rename, want %q", got["matrix:@bob:x"], "Robert")
 	}
 }
 
@@ -326,28 +326,28 @@ func TestRemoveMemberDropsOnlyThatPerson(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	if err := cache.SaveMembers(ctx, "!a:x", []domain.Member{
-		{UserID: "@alice:x", DisplayName: "Alice"},
-		{UserID: "@bob:x", DisplayName: "Bob"},
+	if err := cache.SaveMembers(ctx, mx+"!a:x", []domain.Member{
+		{UserID: "matrix:@alice:x", DisplayName: "Alice"},
+		{UserID: "matrix:@bob:x", DisplayName: "Bob"},
 	}); err != nil {
 		t.Fatalf("SaveMembers: %v", err)
 	}
-	if err := cache.RemoveMember(ctx, "!a:x", "@alice:x"); err != nil {
+	if err := cache.RemoveMember(ctx, mx+"!a:x", "matrix:@alice:x"); err != nil {
 		t.Fatalf("RemoveMember: %v", err)
 	}
-	got := memberNames(t, cache, "!a:x")
-	if _, still := got["@alice:x"]; still {
+	got := memberNames(t, cache, mx+"!a:x")
+	if _, still := got["matrix:@alice:x"]; still {
 		t.Error("@alice:x survived the leave")
 	}
-	if got["@bob:x"] != "Bob" {
+	if got["matrix:@bob:x"] != "Bob" {
 		t.Errorf("@bob:x was collateral: %v", got)
 	}
 
 	// A leave for someone never seen joining (cold start) is a no-op, not an error.
-	if err := cache.RemoveMember(ctx, "!a:x", "@ghost:x"); err != nil {
+	if err := cache.RemoveMember(ctx, mx+"!a:x", "matrix:@ghost:x"); err != nil {
 		t.Errorf("RemoveMember on an unknown member: %v", err)
 	}
-	if err := cache.RemoveMember(ctx, "!never:x", "@ghost:x"); err != nil {
+	if err := cache.RemoveMember(ctx, mx+"!never:x", "matrix:@ghost:x"); err != nil {
 		t.Errorf("RemoveMember on an unknown room: %v", err)
 	}
 }
@@ -371,14 +371,14 @@ func memberNames(t *testing.T, cache *Cache, roomID domain.RoomID) map[string]st
 func TestRoomsWithCountsEachPersonOnce(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!r:x")
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: room, Name: "R"}}); err != nil {
+	const room = domain.RoomID(mx + "!r:x")
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: room, Name: "R"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.SaveMembers(ctx, room, []domain.Member{{UserID: "@d:x", DisplayName: "Dana"}}); err != nil {
+	if err := cache.SaveMembers(ctx, room, []domain.Member{{UserID: "matrix:@d:x", DisplayName: "Dana"}}); err != nil {
 		t.Fatal(err)
 	}
-	for _, ids := range [][]string{{"@d:x"}, {"@d:x", "@d:x"}, {"@d:x", " @d:x "}} {
+	for _, ids := range [][]string{{"matrix:@d:x"}, {"matrix:@d:x", "matrix:@d:x"}, {"matrix:@d:x", " matrix:@d:x "}} {
 		got, err := cache.RoomsWith(ctx, ids, domain.EveryRoom(), 10)
 		if err != nil || len(got) != 1 {
 			t.Errorf("RoomsWith(%q) = %d rooms, %v; want the one room", ids, len(got), err)
@@ -390,16 +390,16 @@ func TestRoomsWithCountsEachPersonOnce(t *testing.T) {
 func TestRoomsWithOrdersTiesByRoom(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
-	rooms := []domain.Room{{ID: "!c:x", Name: "C"}, {ID: "!a:x", Name: "A"}, {ID: "!b:x", Name: "B"}}
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
+	rooms := []domain.Room{{ID: mx + "!c:x", Name: "C"}, {ID: mx + "!a:x", Name: "A"}, {ID: mx + "!b:x", Name: "B"}}
+	if err := cache.SaveRooms(ctx, mxRooms, rooms); err != nil {
 		t.Fatal(err)
 	}
 	for _, r := range rooms {
-		if err := cache.SaveMembers(ctx, r.ID, []domain.Member{{UserID: "@d:x"}}); err != nil {
+		if err := cache.SaveMembers(ctx, r.ID, []domain.Member{{UserID: "matrix:@d:x"}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, err := cache.RoomsWith(ctx, []string{"@d:x"}, domain.EveryRoom(), 10)
+	got, err := cache.RoomsWith(ctx, []string{"matrix:@d:x"}, domain.EveryRoom(), 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +407,7 @@ func TestRoomsWithOrdersTiesByRoom(t *testing.T) {
 	for i := range got {
 		ids[i] = got[i].ID
 	}
-	if want := []domain.RoomID{"!a:x", "!b:x", "!c:x"}; !slices.Equal(ids, want) {
+	if want := []domain.RoomID{mx + "!a:x", mx + "!b:x", mx + "!c:x"}; !slices.Equal(ids, want) {
 		t.Errorf("rooms with no activity came back %v, want by room ID %v", ids, want)
 	}
 }

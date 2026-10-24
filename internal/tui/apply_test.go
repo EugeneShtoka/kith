@@ -12,8 +12,8 @@ func TestNewDerivesWhatApplyConfigDerives(t *testing.T) {
 
 	display := config.Display{
 		Names: []config.DisplayName{
-			{Target: "!a:x", Name: "the one room"},
-			{Target: config.NameTargetThread + "$t:x", Name: "the thread"},
+			{Target: mx + "!a:x", Name: "the one room"},
+			{Target: config.NameTargetThread + mx + "$t:x", Name: "the thread"},
 		},
 		Media: config.Media{Audio: config.Audio{Speed: 1.5}},
 	}
@@ -26,7 +26,7 @@ func TestNewDerivesWhatApplyConfigDerives(t *testing.T) {
 	applied, _ := changed.applyConfig(config.Config{Display: display}, "ok")
 	after := applied
 
-	if got, want := fresh.prefs.roomAliases, after.prefs.roomAliases; len(got) != len(want) || got["!a:x"] != want["!a:x"] {
+	if got, want := fresh.prefs.roomAliases, after.prefs.roomAliases; len(got) != len(want) || got[mx+"!a:x"] != want[mx+"!a:x"] {
 		t.Errorf("roomAliases: New()=%v applyConfig=%v", got, want)
 	}
 	if got, want := fresh.prefs.threadAliases, after.prefs.threadAliases; len(got) != len(want) {

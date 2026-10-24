@@ -32,7 +32,7 @@ func scrolling(t *testing.T, backend *countingBackend) Model {
 	rooms := make([]domain.Room, 12)
 	for i := range rooms {
 		rooms[i] = domain.Room{
-			ID:   domain.RoomID("!room" + string(rune('a'+i)) + ":x"),
+			ID:   domain.RoomID(mx + "!room" + string(rune('a'+i)) + ":x"),
 			Name: "Room " + string(rune('A'+i)),
 		}
 	}

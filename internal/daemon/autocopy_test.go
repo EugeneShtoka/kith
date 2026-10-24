@@ -54,7 +54,7 @@ func noCopy(t *testing.T, clip, why string) {
 	}
 }
 
-const smsRoom = "!sms:example.org"
+const smsRoom = mx + "!sms:example.org"
 
 func codeWorld() *scopeBackend {
 	return &scopeBackend{rooms: []domain.Room{
@@ -64,7 +64,7 @@ func codeWorld() *scopeBackend {
 }
 
 func codeMsg(room domain.RoomID, body string) domain.Message {
-	return domain.Message{ID: "$1", RoomID: room, Sender: "@bridge:example.org", Body: body, Timestamp: time.Now()}
+	return domain.Message{ID: mx + "$1", RoomID: room, Sender: "matrix:@bridge:example.org", Body: body, Timestamp: time.Now()}
 }
 
 // clipboardHolds reads back what the sink was given, waiting for the command to finish.

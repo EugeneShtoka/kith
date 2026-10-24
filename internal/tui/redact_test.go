@@ -29,14 +29,14 @@ func (b *redactBackend) Redact(_ context.Context, room domain.RoomID, event doma
 func deleting(t *testing.T, backend *redactBackend) Model {
 	t.Helper()
 	m := update(t, starterNew(backend, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
+		{ID: mx + "!a:x", Name: "Alpha"},
 	}})
 	m = sized(t, m)
-	m.selves = []string{"@me:x"}
+	m.selves = []string{"matrix:@me:x"}
 	m, _ = m.selectRoom(m.filteredRooms()[0])
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$theirs", RoomID: "!a:x", Sender: "@dana:x", Body: "hers", Timestamp: at(1)},
-		{ID: "$mine", RoomID: "!a:x", Sender: "@me:x", Body: "the wrong room", Timestamp: at(2)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$theirs", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "hers", Timestamp: at(1)},
+		{ID: mx + "$mine", RoomID: mx + "!a:x", Sender: "matrix:@me:x", Body: "the wrong room", Timestamp: at(2)},
 	}}})
 	m.focus, m.compose.insertMode = paneTimeline, false
 	return m.clearStatus()
@@ -58,11 +58,11 @@ func TestRedactingYourOwnMessage(t *testing.T) {
 	}
 
 	m, cmd := press(t, m, keyText("y"))
-	if idx := indexIn(m.timeline.messages, "$mine"); idx < 0 || !m.timeline.messages[idx].Redacted {
+	if idx := indexIn(m.timeline.messages, mx+"$mine"); idx < 0 || !m.timeline.messages[idx].Redacted {
 		t.Errorf("the row was not folded: %+v", m.timeline.messages)
 	}
 	deliver(t, m, cmd)
-	if backend.dead != "$mine" || backend.room != "!a:x" {
+	if backend.dead != mx+"$mine" || backend.room != mx+"!a:x" {
 		t.Errorf("asked to delete %q in %q, want $mine in !a:x", backend.dead, backend.room)
 	}
 }
@@ -72,8 +72,8 @@ func TestRedactingSomebodyElsesAsksDifferently(t *testing.T) {
 	t.Parallel()
 
 	m := deleting(t, &redactBackend{})
-	m.timeline.selected = "$theirs"
-	if m.selectedID() != "$theirs" {
+	m.timeline.selected = mx + "$theirs"
+	if m.selectedID() != mx+"$theirs" {
 		t.Fatalf("the cursor is on %q, want somebody else's message", m.selectedID())
 	}
 	m, _ = press(t, m, keyText("x"))
@@ -94,7 +94,7 @@ func TestDecliningLeavesTheMessage(t *testing.T) {
 	if backend.dead != "" {
 		t.Errorf("deleted %q after being told no", backend.dead)
 	}
-	if idx := indexIn(m.timeline.messages, "$mine"); idx >= 0 && m.timeline.messages[idx].Redacted {
+	if idx := indexIn(m.timeline.messages, mx+"$mine"); idx >= 0 && m.timeline.messages[idx].Redacted {
 		t.Error("the row was folded anyway")
 	}
 }
@@ -118,8 +118,8 @@ func TestRedactingADeletedMessageSaysSo(t *testing.T) {
 	t.Parallel()
 
 	m := deleting(t, &redactBackend{})
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$mine", RoomID: "!a:x", Redacted: true},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$mine", RoomID: mx + "!a:x", Redacted: true},
 	}}})
 	m, _ = press(t, m, keyText("x"))
 
@@ -136,12 +136,12 @@ func editing(t *testing.T, body string) (Model, *sendingBackend) {
 	t.Helper()
 	backend := &sendingBackend{}
 	m := update(t, starterNew(backend, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
-	m.selves = []string{"@me:x"}
+	m.selves = []string{"matrix:@me:x"}
 	m, _ = m.selectRoom(m.filteredRooms()[0])
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$mine", RoomID: "!a:x", Sender: "@me:x", Body: body, Timestamp: at(1)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$mine", RoomID: mx + "!a:x", Sender: "matrix:@me:x", Body: body, Timestamp: at(1)},
 	}}})
 	m.focus, m.compose.insertMode = paneTimeline, false
 	return m, backend
@@ -167,7 +167,7 @@ func TestEditingYourOwnMessage(t *testing.T) {
 
 	m = m.store(fieldComposer, newEditor("the whole thought").end())
 	m, cmd := press(t, m, sendKey())
-	idx := indexIn(m.timeline.messages, "$mine")
+	idx := indexIn(m.timeline.messages, mx+"$mine")
 	if idx < 0 || m.timeline.messages[idx].Body != "the whole thought" || !m.timeline.messages[idx].Edited {
 		t.Errorf("the row was not folded: %+v", m.timeline.messages)
 	}
@@ -176,7 +176,7 @@ func TestEditingYourOwnMessage(t *testing.T) {
 	if len(backend.sent) != 1 {
 		t.Fatalf("sent %+v, want one revision", backend.sent)
 	}
-	if backend.sent[0].Edits != "$mine" || backend.sent[0].Body != "the whole thought" {
+	if backend.sent[0].Edits != mx+"$mine" || backend.sent[0].Body != "the whole thought" {
 		t.Errorf("sent %+v, want a replacement of $mine", backend.sent[0])
 	}
 	if m.compose.isEditing() {
@@ -190,7 +190,7 @@ func TestCancellingAnEditRestoresTheDraft(t *testing.T) {
 
 	m := deleting(t, &redactBackend{})
 	m = m.store(fieldComposer, newEditor("a different thought").end())
-	m.timeline.selected = "$mine"
+	m.timeline.selected = mx + "$mine"
 	m, _ = press(t, m, keyText("E"))
 	if !m.compose.isEditing() {
 		t.Fatal("E did not start an edit")
@@ -209,7 +209,7 @@ func TestEditingSomebodyElsesIsRefused(t *testing.T) {
 	t.Parallel()
 
 	m := deleting(t, &redactBackend{})
-	m.timeline.selected = "$theirs"
+	m.timeline.selected = mx + "$theirs"
 	m, _ = press(t, m, keyText("E"))
 
 	if m.compose.isEditing() {

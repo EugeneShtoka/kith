@@ -72,7 +72,7 @@ func TestToDomainMessageKeepsASticker(t *testing.T) {
 	})
 	sticker.Type = event.EventSticker
 
-	got, ok := (ids{}).toDomainMessage(sticker)
+	got, ok := testIDs.toDomainMessage(sticker)
 	if !ok {
 		t.Fatal("a sticker was dropped — it renders as no row at all")
 	}
@@ -93,7 +93,7 @@ func TestToDomainMessageKeepsASticker(t *testing.T) {
 		URL: "mxc://x/sticker2",
 	})
 	wordless.Type = event.EventSticker
-	if _, ok := (ids{}).toDomainMessage(wordless); !ok {
+	if _, ok := testIDs.toDomainMessage(wordless); !ok {
 		t.Error("a sticker with no alt text was dropped")
 	}
 }
@@ -130,23 +130,23 @@ func TestTypingIn(t *testing.T) {
 		}
 	}
 
-	if _, present := (ids{}).typingIn(nil, self); present {
+	if _, present := testIDs.typingIn(nil, self); present {
 		t.Error("no events reported as 'nobody is typing'; the indicator would flicker off")
 	}
 	other := &event.Event{Type: event.EphemeralEventReceipt}
-	if _, present := (ids{}).typingIn([]*event.Event{other, nil}, self); present {
+	if _, present := testIDs.typingIn([]*event.Event{other, nil}, self); present {
 		t.Error("a batch with no m.typing was read as one")
 	}
 
-	users, present := (ids{}).typingIn([]*event.Event{typing("@alice:x", "@me:x")}, self)
+	users, present := testIDs.typingIn([]*event.Event{typing("@alice:x", "@me:x")}, self)
 	if !present {
 		t.Fatal("an m.typing event was not seen")
 	}
-	if len(users) != 1 || users[0] != "@alice:x" {
+	if len(users) != 1 || users[0] != "matrix:@alice:x" {
 		t.Errorf("typing = %v, want just Alice — we are not news to ourselves", users)
 	}
 
-	users, present = (ids{}).typingIn([]*event.Event{typing("@alice:x"), typing()}, self)
+	users, present = testIDs.typingIn([]*event.Event{typing("@alice:x"), typing()}, self)
 	if !present || len(users) != 0 {
 		t.Errorf("typing = %v (present=%v), want the later empty set to win", users, present)
 	}
@@ -157,8 +157,8 @@ func TestWithThreadsAddsTheirShare(t *testing.T) {
 	t.Parallel()
 
 	got := domain.Unread{Messages: 2, Mentions: 1}.WithThreads([]domain.ThreadUnread{
-		{Root: "$a", Unread: 3, Mentions: 1},
-		{Root: "$b", Unread: 1},
+		{Root: mx + "$a", Unread: 3, Mentions: 1},
+		{Root: mx + "$b", Unread: 1},
 	})
 	if got.Messages != 6 {
 		t.Errorf("messages = %d, want 2 + 3 + 1", got.Messages)
@@ -184,19 +184,19 @@ func TestWithThreadsOfNone(t *testing.T) {
 func TestSameThreadUnread(t *testing.T) {
 	t.Parallel()
 
-	base := []domain.ThreadUnread{{Root: "$a", Unread: 2, Mentions: 1}, {Root: "$b", Unread: 1}}
+	base := []domain.ThreadUnread{{Root: mx + "$a", Unread: 2, Mentions: 1}, {Root: mx + "$b", Unread: 1}}
 	for _, tc := range []struct {
 		name string
 		with []domain.ThreadUnread
 		want bool
 	}{
-		{"identical", []domain.ThreadUnread{{Root: "$a", Unread: 2, Mentions: 1}, {Root: "$b", Unread: 1}}, true},
+		{"identical", []domain.ThreadUnread{{Root: mx + "$a", Unread: 2, Mentions: 1}, {Root: mx + "$b", Unread: 1}}, true},
 		{"both empty", nil, false},
 		{"one fewer", base[:1], false},
-		{"a different count", []domain.ThreadUnread{{Root: "$a", Unread: 3, Mentions: 1}, {Root: "$b", Unread: 1}}, false},
-		{"a different mention count", []domain.ThreadUnread{{Root: "$a", Unread: 2}, {Root: "$b", Unread: 1}}, false},
-		{"a different thread", []domain.ThreadUnread{{Root: "$c", Unread: 2, Mentions: 1}, {Root: "$b", Unread: 1}}, false},
-		{"reordered", []domain.ThreadUnread{{Root: "$b", Unread: 1}, {Root: "$a", Unread: 2, Mentions: 1}}, false},
+		{"a different count", []domain.ThreadUnread{{Root: mx + "$a", Unread: 3, Mentions: 1}, {Root: mx + "$b", Unread: 1}}, false},
+		{"a different mention count", []domain.ThreadUnread{{Root: mx + "$a", Unread: 2}, {Root: mx + "$b", Unread: 1}}, false},
+		{"a different thread", []domain.ThreadUnread{{Root: mx + "$c", Unread: 2, Mentions: 1}, {Root: mx + "$b", Unread: 1}}, false},
+		{"reordered", []domain.ThreadUnread{{Root: mx + "$b", Unread: 1}, {Root: mx + "$a", Unread: 2, Mentions: 1}}, false},
 	} {
 		if got := sameThreadUnread(base, tc.with); got != tc.want {
 			t.Errorf("%s: sameThreadUnread = %v, want %v", tc.name, got, tc.want)
@@ -216,7 +216,7 @@ func TestAnEditReplacingAPlaceholderBringsItsPicture(t *testing.T) {
 		Type:    event.EventMessage,
 		Content: event.Content{Parsed: &event.MessageEventContent{MsgType: event.MsgNotice, Body: "Decrypting message from WhatsApp failed"}, Raw: map[string]any{"fi.mau.whatsapp.undecryptable": true}},
 	}
-	if msg, ok := (ids{}).toDomainMessage(notice); !ok || !msg.Placeholder {
+	if msg, ok := testIDs.toDomainMessage(notice); !ok || !msg.Placeholder {
 		t.Errorf("the placeholder = (%+v, %v), want it marked", msg, ok)
 	}
 	for name, caption := range map[string]string{"captioned": "look at this", "bare": ""} {
@@ -228,8 +228,8 @@ func TestAnEditReplacingAPlaceholderBringsItsPicture(t *testing.T) {
 				Info: &event.FileInfo{MimeType: "image/jpeg", Width: 1008, Height: 216, Size: 17431},
 			},
 		})
-		msg, ok := (ids{}).toDomainMessage(edit)
-		if !ok || msg.ID != "$stand" || !msg.Edited || msg.Body != caption || !msg.Media.IsImage() || msg.Media.Name != "image.jpg" {
+		msg, ok := testIDs.toDomainMessage(edit)
+		if !ok || msg.ID != mx+"$stand" || !msg.Edited || msg.Body != caption || !msg.Media.IsImage() || msg.Media.Name != "image.jpg" {
 			t.Errorf("%s: the replacing edit = (%+v, %v)", name, msg, ok)
 		}
 		if mxc, _ := mediaSource(edit.Content.AsMessage().NewContent); mxc != "mxc://x/pic" {
