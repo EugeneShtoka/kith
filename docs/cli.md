@@ -117,7 +117,7 @@ for the model endpoint, and [mcp.md](mcp.md) for the assistant ledger.
 
 | Flag | Meaning |
 | --- | --- |
-| `--open uri` | Hand a `matrix:` or `https://matrix.to/#/…` link to the `kith` already attached to the daemon, and exit. If no client is attached, it starts one in a terminal (see `terminal` in the config). This is what the desktop's `matrix:` handler runs. Anything that isn't a Matrix link is refused. |
+| `--open uri` | Hand a `matrix:` / `https://matrix.to/#/…` or `tg:` / `https://t.me/…` link to the `kith` already attached to the daemon, and exit. If no client is attached, it starts one in a terminal (see `terminal` in the config). This is what the desktop's `matrix:` and `tg:` handlers run. A `tg://` link resolves to a Telegram chat the account is already in (by its `@username`, or by the channel ID in `tg://privatepost`); anything else is refused. |
 | `--force` | Take over from an `kith` already open on this account. The daemon serves one window at a time: without `--force` a second one is refused, and says where the first one runs (its process, terminal and start time). With it, the first window saves its drafts and closes, printing `opened in another window`. One that does not answer within a few seconds loses the seat anyway: its later draft writes are refused, and it closes when it next hears from the daemon. |
 | `--follow uri` | Start the client and go to this link once it has loaded. `--open` uses it when it has to open a terminal. You rarely need it yourself. |
 
@@ -263,9 +263,9 @@ targets (`test`, `lint`, `check`, …) are covered in
 | Target | What it does |
 | --- | --- |
 | `make build` | Build `./kith`, `./kithd` and `./kith-mcp` in the repository root. |
-| `make install` | Build, then install the binaries to `$(BINDIR)`, both systemd user units (`kithd.service` and the per-profile `kithd@.service`) to `~/.config/systemd/user/`, and the `matrix:` handler to `~/.local/share/applications/`. It starts nothing. |
+| `make install` | Build, then install the binaries to `$(BINDIR)`, both systemd user units (`kithd.service` and the per-profile `kithd@.service`) to `~/.config/systemd/user/`, and the `matrix:` / `tg:` handler to `~/.local/share/applications/`. It starts nothing. |
 | `make deploy` | `install`, then import the desktop environment variables, enable and restart the daemon's unit, and wait for its socket. With `PROFILE=<name>`, the unit is `kithd@<name>.service`. |
-| `make undeploy` | Stop and disable `kithd.service` and every `kithd@<profile>` instance, remove both units and every `kithd-<instance>.service` kith wrote for a config of its own, the `kith`, `kithd` and `kith-mcp` binaries, the desktop entry, and the `matrix:` handler association if it still names kith. Config, cache, crypto store and keyring are left alone. `PROFILE` is ignored: every profile's daemon goes. |
+| `make undeploy` | Stop and disable `kithd.service` and every `kithd@<profile>` instance, remove both units and every `kithd-<instance>.service` kith wrote for a config of its own, the `kith`, `kithd` and `kith-mcp` binaries, the desktop entry, and the `matrix:` / `tg:` handler associations if they still name kith. Config, cache, crypto store and keyring are left alone. `PROFILE` is ignored: every profile's daemon goes. |
 | `make daemon-status` | `systemctl --user status` for the unit `PROFILE` selects. |
 | `make daemon-logs` | Print that unit's last 100 journal lines. |
 | `make daemon-restart` | Restart that unit, for example after an upgrade. |

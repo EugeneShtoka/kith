@@ -169,6 +169,7 @@ func (l *listing) room(self int64, e dialog) (domain.Room, *domain.Member, bool)
 		}
 		l.hashes.users[p.UserID] = p.AccessHash
 		room.ID, room.Name, room.IsDirect = roomID(self, p.UserID), personName(u), true
+		room.Handle = userHandle(u)
 		return room, &domain.Member{UserID: personID(p.UserID), DisplayName: room.Name}, true
 	case *tg.InputPeerChat:
 		c, ok := e.entities.Chat(p.ChatID)
@@ -184,9 +185,49 @@ func (l *listing) room(self int64, e dialog) (domain.Room, *domain.Member, bool)
 		}
 		l.hashes.channels[p.ChannelID] = p.AccessHash
 		room.ID, room.Name, room.Forum = roomID(self, -(channelMark+p.ChannelID)), c.Title, c.Forum
+		room.Handle = channelHandle(c)
 		return room, nil, true
 	}
 	return room, nil, false
+}
+
+// userHandle is a user's active @username (lowercase, no "@"), or "" if private. A
+// user may have several (Fragment-bought ones under Usernames); the primary one wins,
+// else the first still active.
+func userHandle(u *tg.User) string {
+	if h := strings.ToLower(u.Username); h != "" {
+		return h
+	}
+	for _, name := range u.Usernames {
+		if name.Active && name.Username != "" {
+			return strings.ToLower(name.Username)
+		}
+	}
+	return ""
+}
+
+// channelHandle is a channel or supergroup's active @username (lowercase, no "@"), or
+// "" if private.
+func channelHandle(c *tg.Channel) string {
+	if h := strings.ToLower(c.Username); h != "" {
+		return h
+	}
+	for _, name := range c.Usernames {
+		if name.Active && name.Username != "" {
+			return strings.ToLower(name.Username)
+		}
+	}
+	return ""
+}
+
+// handlesOf is one listing's rooms by ID, with their @usernames; an empty handle for
+// a chat that lost one, so SetHandles drops its row.
+func handlesOf(rooms []domain.Room) map[domain.RoomID]string {
+	out := make(map[domain.RoomID]string, len(rooms))
+	for i := range rooms {
+		out[rooms[i].ID] = rooms[i].Handle
+	}
+	return out
 }
 
 // personName is a user's display name, falling back to phone then ID.
@@ -411,6 +452,9 @@ func (a *Adapter) save(ctx context.Context, self int64, l listing, fetched time.
 	}
 	if err := a.cache.SetForums(ctx, l.forums); err != nil {
 		return fmt.Errorf("telegram: cache which chats are forums: %w", err)
+	}
+	if err := a.cache.SetHandles(ctx, handlesOf(l.rooms)); err != nil {
+		return fmt.Errorf("telegram: cache the chats' @usernames: %w", err)
 	}
 	if err := a.cache.SetPeople(ctx, "telegram:"+strconv.FormatInt(self, 10), l.people, l.links); err != nil {
 		return fmt.Errorf("telegram: cache who people are: %w", err)

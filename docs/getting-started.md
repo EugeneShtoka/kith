@@ -79,7 +79,7 @@ The `.deb`, `.rpm`, `.apk` and Arch packages all install the same files:
 | --- | --- |
 | `/usr/bin/kith`, `kithd`, `kith-mcp` | The binaries. |
 | `/usr/lib/systemd/user/kithd.service`, `kithd@.service` | The systemd user units, with `ExecStart=/usr/bin/kithd`. |
-| `/usr/share/applications/kith.desktop` | The `matrix:` link handler. |
+| `/usr/share/applications/kith.desktop` | The `matrix:` and `tg:` link handler. |
 | `/usr/share/doc/kith/` | README, ARCHITECTURE, these docs and `config.toml.example`, the annotated default config. |
 
 ```sh
@@ -150,7 +150,7 @@ What doesn't work on macOS yet:
 - **Desktop notifications.** They are sent over D-Bus, which macOS doesn't have. Use
   `[notifications] command` to run your own script instead.
 - **The file chooser.** It is the XDG desktop portal. Type the path instead.
-- **The `matrix:` link handler.** It is a `.desktop` file.
+- **The `matrix:` and `tg:` link handler.** It is a `.desktop` file.
 - **Clipboard from the daemon.** Set `[clipboard] command = "pbcopy"`.
 
 The keyring (the macOS Keychain), sync, encryption and everything in the terminal
@@ -210,7 +210,7 @@ file chooser work if a D-Bus session bus with those services is running.
 Every release publishes one `tar.gz` per platform, named
 `kith_<version>_<os>_<arch>.tar.gz`, for Linux, macOS and FreeBSD on amd64 and
 arm64. It contains all three binaries, the two systemd units, the macOS LaunchAgent,
-the `matrix:` desktop entry, `README.md`, `LICENSE` and `ARCHITECTURE.md`.
+the `matrix:` / `tg:` desktop entry, `README.md`, `LICENSE` and `ARCHITECTURE.md`.
 
 ```sh
 tar xzf kith_*_linux_amd64.tar.gz
@@ -245,7 +245,7 @@ Clone the repository and use the Makefile:
 ```sh
 git clone https://github.com/EugeneShtoka/kith.git
 cd kith
-make install     # build, then install binaries, the systemd units and the matrix: handler
+make install     # build, then install binaries, the systemd units and the matrix:/tg: handler
 ```
 
 `make install` does four things:
@@ -257,7 +257,7 @@ make install     # build, then install binaries, the systemd units and the matri
    `~/.config/systemd/user/`, with `ExecStart` set to wherever the binary went, and
    runs `systemctl --user daemon-reload`.
 4. Installs `kith.desktop` into `~/.local/share/applications/` and registers it as
-   the `matrix:` link handler with `xdg-mime`.
+   the `matrix:` and `tg:` link handler with `xdg-mime`.
 
 `make install` doesn't start anything. `make deploy` does everything `make install`
 does and then brings the daemon up (see
@@ -491,33 +491,40 @@ uploads new room keys to it as they arrive.
 Device verification, key export and the details are covered in
 [encryption.md](encryption.md).
 
-## Open matrix: links in kith
+## Open matrix: and tg: links in kith
 
-`make install` registers kith as the handler for `matrix:` links. When you click
-one in a browser or another app, the desktop runs:
+`make install` registers kith as the handler for `matrix:` and `tg:` links. When you
+click one in a browser or another app, the desktop runs:
 
 ```sh
 kith --open 'matrix:r/room:example.org'
+kith --open 'tg://resolve?domain=novosalsa&post=35'
 ```
 
-`--open` accepts `matrix:` URIs and `https://matrix.to/#/…` links. It doesn't draw
-anything. It hands the link to the `kith` that is already attached to the daemon,
-which then goes there. If no client is attached, it starts one in a terminal, as a new
-tab if the terminal supports it. It prefers wezterm, kitty, konsole or gnome-terminal
-(which can open tabs), then foot, alacritty, ghostty and xterm. To choose one yourself,
-set `terminal` at the top of the config, either to one of those names or to any
-command that accepts `-e`:
+`--open` accepts `matrix:` URIs and `https://matrix.to/#/…` links, and `tg://`
+URIs and `https://t.me/…` links. It doesn't draw anything. It hands the link to the
+`kith` that is already attached to the daemon, which then goes there. If no client is
+attached, it starts one in a terminal, as a new tab if the terminal supports it. It
+prefers wezterm, kitty, konsole or gnome-terminal (which can open tabs), then foot,
+alacritty, ghostty and xterm. To choose one yourself, set `terminal` at the top of
+the config, either to one of those names or to any command that accepts `-e`:
 
 ```toml
 terminal = "kitty"
 ```
+
+A `tg://` link opens a Telegram chat the signed-in account already sees: `tg://resolve`
+is looked up by `@username`, `tg://privatepost` by the channel ID. A link that names a
+chat kith isn't in says so instead of trying to join; join flows are a separate feature.
+If Telegram Desktop is installed, both apps claim `x-scheme-handler/tg`; whichever
+was registered last wins.
 
 Release archives don't include the desktop entry. To register the handler by hand,
 copy `packaging/desktop/kith.desktop` from the repository, then run:
 
 ```sh
 install -Dm644 kith.desktop ~/.local/share/applications/kith.desktop
-xdg-mime default kith.desktop x-scheme-handler/matrix
+xdg-mime default kith.desktop x-scheme-handler/matrix x-scheme-handler/tg
 ```
 
 If `kith` isn't on the desktop session's `PATH`, change the entry's `Exec=` line to
@@ -628,8 +635,9 @@ make undeploy
 - removes `kithd.service` and `kithd@.service` from `~/.config/systemd/user/`;
 - deletes `kith`, `kithd` and `kith-mcp` from `BINDIR`;
 - deletes `~/.local/share/applications/kith.desktop` and removes the
-  `x-scheme-handler/matrix` association from `mimeapps.list`, but only where it
-  names `kith.desktop`. A handler you picked since is left alone.
+  `x-scheme-handler/matrix` and `x-scheme-handler/tg` associations from
+  `mimeapps.list`, but only where they still name `kith.desktop`. A handler you
+  picked since is left alone.
 
 With a package manager, remove the package instead (`apt remove kith`,
 `pacman -R kith-bin`, `brew uninstall --cask kith`, …), after

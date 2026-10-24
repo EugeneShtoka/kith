@@ -174,6 +174,14 @@ CREATE TABLE room_read_only (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
+-- The public @username that names a room on its network (Telegram public chats and
+-- channels), lowercase and without "@". Its own table, written only by that network
+-- (SetHandles) and read by link resolution (tg:// and the like).
+CREATE TABLE room_handles (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	handle  TEXT NOT NULL
+) STRICT, WITHOUT ROWID;
+
 -- A chat's disappearing-messages timer, a row only while it has one: what kith sends
 -- there must carry it (SetTimers).
 CREATE TABLE room_timers (
@@ -633,6 +641,12 @@ DROP TABLE phone_names;`,
 	network TEXT NOT NULL,
 	user_id TEXT NOT NULL,
 	PRIMARY KEY (network, user_id)
+) STRICT, WITHOUT ROWID;`,
+	// v25: the public @username that names a room on its network, for tg:// link
+	// resolution and the like.
+	`CREATE TABLE IF NOT EXISTS room_handles (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	handle  TEXT NOT NULL
 ) STRICT, WITHOUT ROWID;`,
 }
 

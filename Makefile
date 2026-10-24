@@ -382,8 +382,8 @@ ifneq ($(UNAME_S),Darwin)
 	@sed 's|^Exec=.*|Exec=$(BINDIR)/kith --open %u|' packaging/desktop/$(DESKTOP) > "$(APPDIR)/$(DESKTOP)"
 	@chmod 0644 "$(APPDIR)/$(DESKTOP)"
 	@command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$(APPDIR)" || true
-	@command -v xdg-mime >/dev/null 2>&1 && xdg-mime default "$(DESKTOP)" x-scheme-handler/matrix || true
-	@echo "==> handler  -> $(APPDIR)/$(DESKTOP)  (matrix: links open in kith)"
+	@command -v xdg-mime >/dev/null 2>&1 && xdg-mime default "$(DESKTOP)" x-scheme-handler/matrix x-scheme-handler/tg || true
+	@echo "==> handler  -> $(APPDIR)/$(DESKTOP)  (matrix: and tg: links open in kith)"
 endif
 
 # install + (re)start the daemon and wait for its socket.
@@ -457,7 +457,7 @@ deploy: install
 endif
 
 # Stop/disable every kithd unit (all profiles) and remove what `install` wrote.
-# The matrix: association is removed only where it still names kith.desktop.
+# The matrix: and tg: associations are removed only where they still name kith.desktop.
 # Config, cache, crypto store and keyring session are kept.
 undeploy:
 	@set -eu; \
@@ -502,9 +502,11 @@ undeploy:
 	  echo "==> removed $(APPDIR)/$(DESKTOP)"; \
 	  for list in "$${XDG_CONFIG_HOME:-$$HOME/.config}/mimeapps.list" "$(APPDIR)/mimeapps.list"; do \
 	    [ -f "$$list" ] || continue; \
-	    grep -Eq '^x-scheme-handler/matrix=(.*;)?kith\.desktop(;|$$)' "$$list" || continue; \
-	    sed -i -e '/^x-scheme-handler\/matrix=/{s/\([=;]\)kith\.desktop\(;\|$$\)/\1/;/^x-scheme-handler\/matrix=;*$$/d;}' "$$list"; \
-	    echo "==> removed the matrix: handler association from $$list"; \
+	    for scheme in matrix tg; do \
+	      grep -Eq "^x-scheme-handler/$$scheme=(.*;)?kith\.desktop(;|$$)" "$$list" || continue; \
+	      sed -i -e "/^x-scheme-handler\/$$scheme=/{s/\([=;]\)kith\.desktop\(;\|$$\)/\1/;/^x-scheme-handler\/$$scheme=;*$$/d;}" "$$list"; \
+	      echo "==> removed the $$scheme: handler association from $$list"; \
+	    done; \
 	  done; \
 	fi; \
 	echo "    config, cache, crypto store and the keyring session were left in place"

@@ -212,8 +212,63 @@ func TestAHandedOverNonLinkIsReported(t *testing.T) {
 	if got.openRoom == "!b:x" {
 		t.Error("a non-link moved the client")
 	}
-	if !strings.Contains(got.status(), "not a Matrix link") {
+	if !strings.Contains(got.status(), "not a Matrix or Telegram link") {
 		t.Errorf("status = %q, want it to say what was wrong", got.status())
+	}
+}
+
+// A tg:// link to a chat the Telegram account sees is a move to that chat.
+func TestAHandedOverTelegramLinkOpensTheChat(t *testing.T) {
+	t.Parallel()
+
+	m := sized(t, newModel())
+	m = update(t, m, roomsMsg{rooms: []domain.Room{
+		{ID: "telegram:42/-1000000000021", Name: "Novo Salsa", Handle: "novosalsa"},
+		{ID: "!b:x", Name: "Bravo"},
+	}})
+
+	next, _ := m.handleFollow(followMsg{uri: "tg://resolve?domain=novosalsa&post=35"})
+	if next.openRoom != "telegram:42/-1000000000021" {
+		t.Errorf("open room = %q, want the chat matching @novosalsa", next.openRoom)
+	}
+	if next.jump.to != "telegram:42/-1000000000021/35" {
+		t.Errorf("jump.to = %q, want the post as a kith event ID", next.jump.to)
+	}
+	if !strings.Contains(next.status(), "Novo Salsa") {
+		t.Errorf("status = %q, want it to name the chat", next.status())
+	}
+}
+
+// A tg:// link whose @username matches no joined chat says so instead of guessing.
+func TestAHandedOverTelegramLinkToAnUnknownChatIsReported(t *testing.T) {
+	t.Parallel()
+
+	m := withRooms(t, sized(t, newModel()))
+	next, _ := m.handleFollow(followMsg{uri: "tg://resolve?domain=novosalsa"})
+	if next.openRoom == "telegram:42/-1000000000021" {
+		t.Error("an unknown Telegram @username moved the client")
+	}
+	if !strings.Contains(next.status(), "no Telegram chat") {
+		t.Errorf("status = %q, want it to say the chat was not found", next.status())
+	}
+}
+
+// A tg://privatepost resolves by the channel's -100<id> native, so a shared private
+// channel link opens its kith room.
+func TestAHandedOverTelegramPrivateLinkOpensTheChannel(t *testing.T) {
+	t.Parallel()
+
+	m := sized(t, newModel())
+	m = update(t, m, roomsMsg{rooms: []domain.Room{
+		{ID: "telegram:42/-1000000000021", Name: "Private channel"},
+	}})
+
+	next, _ := m.handleFollow(followMsg{uri: "tg://privatepost?channel=21&post=78"})
+	if next.openRoom != "telegram:42/-1000000000021" {
+		t.Errorf("open room = %q, want the private channel's room", next.openRoom)
+	}
+	if next.jump.to != "telegram:42/-1000000000021/78" {
+		t.Errorf("jump.to = %q, want the post", next.jump.to)
 	}
 }
 

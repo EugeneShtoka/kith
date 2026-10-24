@@ -53,6 +53,10 @@ type Room struct {
 	// ReadOnly marks a room this account may read but not post in (an announcements
 	// room, a bridge's status room): the composer says so instead of taking a message.
 	ReadOnly bool
+	// Handle is the public @username that names this room on its network, where the
+	// network has one (Telegram public chats, channels). Lowercase, without "@". Empty
+	// for a private chat.
+	Handle string
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted instead.
