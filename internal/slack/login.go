@@ -134,3 +134,15 @@ func sessionHelp(workspace string) session {
 	h.cookie = "Application (Storage in Firefox) → Cookies → https://app.slack.com — the value of the cookie named d"
 	return h
 }
+
+// Accounts is each connected workspace, by the team ID its rooms are under.
+func (a *Adapter) Accounts() []domain.Account {
+	var out []domain.Account
+	for _, w := range a.connected() {
+		out = append(out, domain.Account{
+			Network: domain.ProtocolSlack, On: domain.AccountRooms(domain.ProtocolSlack, w.creds.Team), Name: w.account.Name,
+		})
+	}
+	slices.SortFunc(out, func(x, y domain.Account) int { return strings.Compare(x.Name, y.Name) })
+	return out
+}

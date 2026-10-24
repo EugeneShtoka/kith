@@ -46,10 +46,11 @@ func (Nop) Ignored(context.Context) ([]string, error)                           
 func (Nop) AddToSpace(_ context.Context, _ domain.SpaceID, _ domain.RoomID) error  { return nil }
 func (Nop) CreateRoom(context.Context, domain.NewRoom) (domain.RoomID, error)      { return "", nil }
 func (Nop) ChatOffers(context.Context) ([]domain.ChatOffer, error)                 { return nil, nil }
-func (Nop) ResolveLink(context.Context, string) (domain.LinkTarget, error) {
+func (Nop) Accounts(context.Context) ([]domain.Account, error)                     { return nil, nil }
+func (Nop) ResolveLink(context.Context, string, domain.RoomOwner) (domain.LinkTarget, error) {
 	return domain.LinkTarget{}, nil
 }
-func (Nop) JoinLink(context.Context, string) (domain.RoomID, error)                    { return "", nil }
+func (Nop) JoinLink(context.Context, string, domain.RoomOwner) (domain.RoomID, error)  { return "", nil }
 func (Nop) InviteUser(context.Context, domain.RoomID, string) error                    { return nil }
 func (Nop) KickUser(context.Context, domain.RoomID, string, string) error              { return nil }
 func (Nop) BanUser(context.Context, domain.RoomID, string, string) error               { return nil }

@@ -96,14 +96,23 @@ func (m Model) goToPerson(user string) (Model, tea.Cmd) {
 	return next, cmd
 }
 
-// goToPlaceRoom goes to a room, and to a message inside it when the link named one.
+// goToPlaceRoom goes to a room, and to a message inside it when the link named one:
+// as the account already in it sees it, picked when several are (pickAccount).
 func (m Model) goToPlaceRoom(place domain.Place, event domain.EventID) (Model, tea.Cmd) {
-	room, found := m.placeRoom(place)
-	if !found {
+	rooms := m.placeRooms(place)
+	if len(rooms) == 0 {
 		// An alias or an unjoined room: ask before joining.
 		m.confirm = confirmState{action: pendingJoinPlace, address: place.Room, via: place.Via, event: event}
 		return m, nil
 	}
+	if len(rooms) == 1 {
+		return m.openPlaceRoom(rooms[0], event)
+	}
+	return m.pickAccount(accountThen{kind: thenOpenPlace, network: domain.ProtocolMatrix, rooms: rooms, event: event})
+}
+
+// openPlaceRoom goes to room, and to event in it when there is one.
+func (m Model) openPlaceRoom(room domain.Room, event domain.EventID) (Model, tea.Cmd) {
 	if event != "" {
 		// A Matrix link names the event as Matrix writes it; the room says whose view it is.
 		m.jump.to, m.jump.why = domain.TypedEventID(room.ID, string(event)), "linked message"
@@ -113,29 +122,38 @@ func (m Model) goToPlaceRoom(place domain.Place, event domain.EventID) (Model, t
 	return next, cmd
 }
 
-// placeRoom is the joined room a place names: by its kith ID, or for a Matrix link by
-// its Matrix room ID, as one of our Matrix accounts sees it. An alias names no cached
-// room.
+// placeRoom is the first joined room a place names (placeRooms).
 func (m Model) placeRoom(place domain.Place) (domain.Room, bool) {
-	if room, found := m.roomByID(domain.RoomID(place.Room)); found {
-		return room, true
-	}
-	for i := range m.rooms.all {
-		if id := string(m.rooms.all[i].ID); domain.IsMatrixRoomID(id) && domain.MatrixNative(id) == place.Room {
-			return m.rooms.all[i], true
-		}
+	if rooms := m.placeRooms(place); len(rooms) > 0 {
+		return rooms[0], true
 	}
 	return domain.Room{}, false
+}
+
+// placeRooms is the joined room a place names: by its kith ID, or for a Matrix link by
+// its Matrix room ID, as each of our Matrix accounts in it sees it. An alias names no
+// cached room.
+func (m Model) placeRooms(place domain.Place) []domain.Room {
+	if room, found := m.roomByID(domain.RoomID(place.Room)); found {
+		return []domain.Room{room}
+	}
+	var out []domain.Room
+	for i := range m.rooms.all {
+		if id := string(m.rooms.all[i].ID); domain.IsMatrixRoomID(id) && domain.MatrixNative(id) == place.Room {
+			out = append(out, m.rooms.all[i])
+		}
+	}
+	return out
 }
 
 // placeUser is the person a place names, in kith's form.
 func placeUser(place domain.Place) string { return domain.TypedUserID(place.User) }
 
-// joinPlace joins the linked room after confirmation. The linked event is not jumped
-// to: history arrives over sync only after the join.
+// joinPlace joins the linked room after confirmation, on the account picked
+// (pickAccount). The linked event is not jumped to: history arrives over sync only
+// after the join.
 func (m Model) joinPlace(pending confirmState) (Model, tea.Cmd) {
-	m = m.say("joining " + pending.address + "…")
-	return m, m.joinRoomCmd(pending.address, pending.via...)
+	return m.pickAccount(accountThen{kind: thenJoin, network: domain.ProtocolMatrix, address: pending.address, via: pending.via})
 }
 
 // WithFollow gives the model a link to follow as soon as it knows where it is.
@@ -181,21 +199,22 @@ func (m Model) followLink(uri string) (Model, tea.Cmd) {
 // followTelegramLink goes to the cached Telegram chat whose @username (or private
 // channel ID) matches link, else to the one Telegram finds (handleLinkResolved).
 func (m Model) followTelegramLink(link domain.TelegramLink, uri string) (Model, tea.Cmd) {
-	room, found := m.rooms.telegramLink(link)
-	if !found {
-		return m.doing("looking up " + uri + "…"), m.resolveLinkCmd(uri, link.Post, link.Text)
-	}
-	return m.openLinked(room, link.Post, link.Text)
+	return m.followLinkTo(domain.ProtocolTelegram, m.rooms.telegramLink(link), uri, link.Post, link.Text)
 }
 
 // followWhatsAppLink goes to the cached WhatsApp chat with link's number, else to the
 // one WhatsApp finds (handleLinkResolved).
 func (m Model) followWhatsAppLink(link domain.WhatsAppLink, uri string) (Model, tea.Cmd) {
-	room, found := m.rooms.whatsAppLink(link)
-	if !found {
-		return m.doing("looking up " + uri + "…"), m.resolveLinkCmd(uri, 0, link.Text)
+	return m.followLinkTo(domain.ProtocolWhatsApp, m.rooms.whatsAppLink(link), uri, 0, link.Text)
+}
+
+// followLinkTo opens the chat a link names as the account picked among those in it
+// (rooms), else looks it up on the account picked among network's (pickAccount).
+func (m Model) followLinkTo(network domain.Protocol, rooms []domain.Room, uri string, post int, text string) (Model, tea.Cmd) {
+	if len(rooms) == 0 {
+		return m.pickAccount(accountThen{kind: thenResolve, network: network, uri: uri, post: post, text: text})
 	}
-	return m.openLinked(room, 0, link.Text)
+	return m.pickAccount(accountThen{kind: thenOpenLinked, network: network, rooms: rooms, post: post, text: text})
 }
 
 // openLinked opens a chat a link named, at the post it named, with the message it
@@ -221,22 +240,23 @@ func (m Model) suggested(text string) Model {
 	return m.trackComposerDraft()
 }
 
-// linkResolvedMsg is the chat a link names, as its network found it; post and text are
-// the link's own.
+// linkResolvedMsg is the chat a link names, as its network found it on the account on;
+// post and text are the link's own.
 type linkResolvedMsg struct {
 	uri    string
+	on     domain.RoomOwner
 	post   int
 	text   string
 	target domain.LinkTarget
 	err    error
 }
 
-// resolveLinkCmd asks the link's network for the chat it names.
-func (m Model) resolveLinkCmd(uri string, post int, text string) tea.Cmd {
+// resolveLinkCmd asks the account on for the chat a link names.
+func (m Model) resolveLinkCmd(uri string, on domain.RoomOwner, post int, text string) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
-		target, err := backend.ResolveLink(ctx, uri)
-		return linkResolvedMsg{uri: uri, post: post, text: text, target: target, err: err}
+		target, err := backend.ResolveLink(ctx, uri, on)
+		return linkResolvedMsg{uri: uri, on: on, post: post, text: text, target: target, err: err}
 	}
 }
 
@@ -249,7 +269,7 @@ func (m Model) handleLinkResolved(msg linkResolvedMsg) (Model, tea.Cmd) {
 	case msg.err != nil:
 		return m.sayErr("no chat found for "+msg.uri, msg.err), nil
 	case t.Join:
-		m.confirm = confirmState{action: pendingJoinLink, address: msg.uri, room: t.Room, body: t.About}
+		m.confirm = confirmState{action: pendingJoinLink, address: msg.uri, on: msg.on, room: t.Room, body: t.About}
 		return m.clearStatus(), nil
 	case t.Room.ID == "":
 		return m.say("no chat found for " + msg.uri), nil
@@ -279,9 +299,9 @@ func (m Model) joinLink(pending confirmState) (Model, tea.Cmd) {
 		name = pending.address
 	}
 	m = m.doing("joining " + isolate(name) + "…")
-	ctx, backend, uri := m.ctx, m.backend, pending.address
+	ctx, backend, uri, on := m.ctx, m.backend, pending.address, pending.on
 	return m, func() tea.Msg {
-		roomID, err := backend.JoinLink(ctx, uri)
+		roomID, err := backend.JoinLink(ctx, uri, on)
 		return joinedMsg{roomID: roomID, err: err, enter: true}
 	}
 }
@@ -324,10 +344,16 @@ type roomsChangedMsg struct{}
 // followMsg is a link the desktop handed to this client.
 type followMsg struct{ uri string }
 
-// handleLinking is news of a link: one handed over, or the chat its network found.
+// handleLinking is news of a link: one handed over, the chat its network found, or the
+// accounts one is picked among (accountpick.go).
 func (m Model) handleLinking(msg tea.Msg) (Model, tea.Cmd) {
-	if resolved, ok := msg.(linkResolvedMsg); ok {
-		return m.handleLinkResolved(resolved)
+	switch msg := msg.(type) {
+	case linkResolvedMsg:
+		return m.handleLinkResolved(msg)
+	case accountsPickedMsg:
+		return m.handleAccountsPicked(msg)
+	case accountListMsg:
+		return m.handleAccountList(msg)
 	}
 	handed, _ := msg.(followMsg)
 	return m.handleFollow(handed)

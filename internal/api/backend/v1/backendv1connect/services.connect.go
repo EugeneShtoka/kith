@@ -218,6 +218,8 @@ const (
 	// BackendServiceChatOffersProcedure is the fully-qualified name of the BackendService's ChatOffers
 	// RPC.
 	BackendServiceChatOffersProcedure = "/backend.v1.BackendService/ChatOffers"
+	// BackendServiceAccountsProcedure is the fully-qualified name of the BackendService's Accounts RPC.
+	BackendServiceAccountsProcedure = "/backend.v1.BackendService/Accounts"
 	// BackendServiceResolveLinkProcedure is the fully-qualified name of the BackendService's
 	// ResolveLink RPC.
 	BackendServiceResolveLinkProcedure = "/backend.v1.BackendService/ResolveLink"
@@ -568,6 +570,9 @@ type BackendServiceClient interface {
 	// ChatOffers is every kind of chat each connected account of a network other than
 	// Matrix can make.
 	ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error)
+	// Accounts is every connected account of every network, for a client to pick the
+	// one a call naming none goes to (domain.PickAccount).
+	Accounts(context.Context, *connect.Request[v1.AccountsRequest]) (*connect.Response[v1.AccountsResponse], error)
 	// ResolveLink looks up the chat a link names on a network other than Matrix (a
 	// Telegram @username, phone number or invite) when no listed room matches.
 	ResolveLink(context.Context, *connect.Request[v1.ResolveLinkRequest]) (*connect.Response[v1.ResolveLinkResponse], error)
@@ -1145,6 +1150,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("ChatOffers")),
 			connect.WithClientOptions(opts...),
 		),
+		accounts: connect.NewClient[v1.AccountsRequest, v1.AccountsResponse](
+			httpClient,
+			baseURL+BackendServiceAccountsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Accounts")),
+			connect.WithClientOptions(opts...),
+		),
 		resolveLink: connect.NewClient[v1.ResolveLinkRequest, v1.ResolveLinkResponse](
 			httpClient,
 			baseURL+BackendServiceResolveLinkProcedure,
@@ -1595,6 +1606,7 @@ type backendServiceClient struct {
 	signOut               *connect.Client[v1.SignOutRequest, v1.SignOutResponse]
 	createRoom            *connect.Client[v1.CreateRoomRequest, v1.CreateRoomResponse]
 	chatOffers            *connect.Client[v1.ChatOffersRequest, v1.ChatOffersResponse]
+	accounts              *connect.Client[v1.AccountsRequest, v1.AccountsResponse]
 	resolveLink           *connect.Client[v1.ResolveLinkRequest, v1.ResolveLinkResponse]
 	joinLink              *connect.Client[v1.JoinLinkRequest, v1.JoinLinkResponse]
 	inviteUser            *connect.Client[v1.InviteUserRequest, v1.InviteUserResponse]
@@ -1993,6 +2005,11 @@ func (c *backendServiceClient) CreateRoom(ctx context.Context, req *connect.Requ
 // ChatOffers calls backend.v1.BackendService.ChatOffers.
 func (c *backendServiceClient) ChatOffers(ctx context.Context, req *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error) {
 	return c.chatOffers.CallUnary(ctx, req)
+}
+
+// Accounts calls backend.v1.BackendService.Accounts.
+func (c *backendServiceClient) Accounts(ctx context.Context, req *connect.Request[v1.AccountsRequest]) (*connect.Response[v1.AccountsResponse], error) {
+	return c.accounts.CallUnary(ctx, req)
 }
 
 // ResolveLink calls backend.v1.BackendService.ResolveLink.
@@ -2482,6 +2499,9 @@ type BackendServiceHandler interface {
 	// ChatOffers is every kind of chat each connected account of a network other than
 	// Matrix can make.
 	ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error)
+	// Accounts is every connected account of every network, for a client to pick the
+	// one a call naming none goes to (domain.PickAccount).
+	Accounts(context.Context, *connect.Request[v1.AccountsRequest]) (*connect.Response[v1.AccountsResponse], error)
 	// ResolveLink looks up the chat a link names on a network other than Matrix (a
 	// Telegram @username, phone number or invite) when no listed room matches.
 	ResolveLink(context.Context, *connect.Request[v1.ResolveLinkRequest]) (*connect.Response[v1.ResolveLinkResponse], error)
@@ -3055,6 +3075,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("ChatOffers")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceAccountsHandler := connect.NewUnaryHandler(
+		BackendServiceAccountsProcedure,
+		svc.Accounts,
+		connect.WithSchema(backendServiceMethods.ByName("Accounts")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceResolveLinkHandler := connect.NewUnaryHandler(
 		BackendServiceResolveLinkProcedure,
 		svc.ResolveLink,
@@ -3569,6 +3595,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceCreateRoomHandler.ServeHTTP(w, r)
 		case BackendServiceChatOffersProcedure:
 			backendServiceChatOffersHandler.ServeHTTP(w, r)
+		case BackendServiceAccountsProcedure:
+			backendServiceAccountsHandler.ServeHTTP(w, r)
 		case BackendServiceResolveLinkProcedure:
 			backendServiceResolveLinkHandler.ServeHTTP(w, r)
 		case BackendServiceJoinLinkProcedure:
@@ -3970,6 +3998,10 @@ func (UnimplementedBackendServiceHandler) CreateRoom(context.Context, *connect.R
 
 func (UnimplementedBackendServiceHandler) ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ChatOffers is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Accounts(context.Context, *connect.Request[v1.AccountsRequest]) (*connect.Response[v1.AccountsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Accounts is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) ResolveLink(context.Context, *connect.Request[v1.ResolveLinkRequest]) (*connect.Response[v1.ResolveLinkResponse], error) {

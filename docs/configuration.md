@@ -68,6 +68,26 @@ in the file is shared. See
 [getting-started.md](getting-started.md#multiple-accounts) for logins and systemd
 units per profile.
 
+### Several accounts on a network
+
+When a network has several accounts, opening a link (`tg:`, `t.me`, `wa.me`,
+`matrix.to`, `matrix:`), joining a room by its address and looking a chat up use one
+of them, picked in this order:
+
+1. **An account already in that chat.** If several are, the network's default, when it
+   is one of them; otherwise kith asks which of them.
+2. **The network's only account.**
+3. **The network's default**, named in its section:
+
+   ```toml
+   [telegram]
+   default = "work"   # the name of one of its [[telegram.account]]s
+   ```
+
+4. **Otherwise kith asks which.**
+
+A `default` that names no account of the network is refused at startup.
+
 ### Validation
 
 A value kith can't use, such as a misspelled theme preset, a malformed color or an
