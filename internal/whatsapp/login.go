@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // linkSteps tells the user where to enter a pairing code on the phone.
@@ -41,4 +42,15 @@ func (a *Adapter) Login(ctx context.Context, account string, talk api.LoginTalk)
 		return api.LoginEnd{}, err
 	}
 	return api.LoginEnd{Done: "linked WhatsApp " + account + " as " + linked + " — its chats arrive over the next minutes"}, nil
+}
+
+// Accounts is each connected account, by the digits its rooms are under.
+func (a *Adapter) Accounts() []domain.Account {
+	var out []domain.Account
+	for _, c := range a.connected() {
+		out = append(out, domain.Account{
+			Network: domain.ProtocolWhatsApp, On: domain.AccountRooms(domain.ProtocolWhatsApp, c.account.Digits), Name: c.account.Name,
+		})
+	}
+	return out
 }

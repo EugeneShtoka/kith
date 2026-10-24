@@ -42,6 +42,23 @@ func ProtoToChatOffer(pb *v1.ChatOffer) domain.ChatOffer {
 	}
 }
 
+// AccountsToProto converts the accounts calls pick from.
+func AccountsToProto(accounts []domain.Account) []*v1.Account {
+	return mapSlice(accounts, func(a domain.Account) *v1.Account {
+		return &v1.Account{Network: string(a.Network), On: string(a.On), Name: a.Name, Default: a.Default}
+	})
+}
+
+// ProtoToAccounts converts accounts back.
+func ProtoToAccounts(pbs []*v1.Account) []domain.Account {
+	return mapSlice(pbs, func(pb *v1.Account) domain.Account {
+		return domain.Account{
+			Network: domain.Protocol(pb.GetNetwork()), On: domain.RoomOwner(pb.GetOn()),
+			Name: pb.GetName(), Default: pb.GetDefault(),
+		}
+	})
+}
+
 // LinkTargetToProto converts the chat a link names.
 func LinkTargetToProto(t domain.LinkTarget) *v1.ResolveLinkResponse {
 	return &v1.ResolveLinkResponse{Room: RoomToProto(t.Room), Join: t.Join, About: t.About}

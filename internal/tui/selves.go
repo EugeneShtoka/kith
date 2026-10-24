@@ -74,5 +74,5 @@ func (m Model) selvesAfterRooms(rooms []domain.Room) (Model, tea.Cmd) {
 	if first || !fresh {
 		return m, nil
 	}
-	return m, m.loadSelvesCmd()
+	return m, tea.Batch(m.loadSelvesCmd(), m.loadAccountsCmd())
 }

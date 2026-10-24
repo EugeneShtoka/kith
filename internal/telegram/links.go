@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
+	"strconv"
 
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
@@ -19,24 +18,25 @@ import (
 // Telegram makes the dialog with the first message, so the chat is opened before it
 // exists. A group or channel the account is not in is joined only when asked.
 
-// linkConn is the account links are looked up on: the first connected, by name, so
-// the answer does not change between calls.
-func (a *Adapter) linkConn() (conn, error) {
-	conns := a.connected()
-	if len(conns) == 0 {
-		return conn{}, fmt.Errorf("telegram: no account to look a link up on: %w", api.ErrNetworkOff)
+// linkConn is the connected account on names, which the caller picked
+// (domain.PickAccount).
+func (a *Adapter) linkConn(on domain.RoomOwner) (conn, error) {
+	for _, c := range a.connected() {
+		if domain.AccountRooms(domain.ProtocolTelegram, strconv.FormatInt(c.user, 10)) == on {
+			return c, nil
+		}
 	}
-	return slices.MinFunc(conns, func(x, y conn) int { return strings.Compare(x.account.Name, y.account.Name) }), nil
+	return conn{}, fmt.Errorf("telegram: %s is no connected account: %w", on, api.ErrNetworkOff)
 }
 
 // ResolveLink looks up the chat a Telegram link names: a person to write to, or a
 // group or channel, joined or to be joined.
-func (a *Adapter) ResolveLink(ctx context.Context, uri string) (domain.LinkTarget, error) {
+func (a *Adapter) ResolveLink(ctx context.Context, uri string, on domain.RoomOwner) (domain.LinkTarget, error) {
 	link, ok := domain.ParseTelegramLink(uri)
 	if !ok {
 		return domain.LinkTarget{}, fmt.Errorf("telegram: not a Telegram link: %s", uri)
 	}
-	c, err := a.linkConn()
+	c, err := a.linkConn(on)
 	if err != nil {
 		return domain.LinkTarget{}, err
 	}
@@ -61,12 +61,12 @@ func (a *Adapter) ResolveLink(ctx context.Context, uri string) (domain.LinkTarge
 
 // JoinLink joins the group or channel a Telegram link names (by @username or invite),
 // and returns its room.
-func (a *Adapter) JoinLink(ctx context.Context, uri string) (domain.RoomID, error) {
+func (a *Adapter) JoinLink(ctx context.Context, uri string, on domain.RoomOwner) (domain.RoomID, error) {
 	link, ok := domain.ParseTelegramLink(uri)
 	if !ok {
 		return "", fmt.Errorf("telegram: not a Telegram link: %s", uri)
 	}
-	c, err := a.linkConn()
+	c, err := a.linkConn(on)
 	if err != nil {
 		return "", err
 	}

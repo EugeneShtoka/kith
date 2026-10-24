@@ -4,6 +4,8 @@ package config
 // account.
 type Slack struct {
 	Accounts []SlackAccount `toml:"account"`
+	// Default names the account a call naming none goes to when several could.
+	Default string `toml:"default"`
 }
 
 // SlackAccount is one [[slack.account]], named for `kith login slack <name>`. Workspace

@@ -718,12 +718,32 @@ message ChatOffer {
 
 message ChatOffersRequest {}
 
+// One connected account of a network, as a call that names an account takes it
+// (domain.Account).
+message Account {
+  string network = 1;
+  // Its rooms' owner, as domain.AccountRooms writes it: what a call names it by.
+  string on = 2;
+  // What the config calls it (Matrix: the MXID).
+  string name = 3;
+  // Whether it is its network's [<network>] default.
+  bool default = 4;
+}
+
+message AccountsRequest {}
+
+message AccountsResponse {
+  repeated Account accounts = 1;
+}
+
 message ChatOffersResponse {
   repeated ChatOffer offers = 1;
 }
 
 message ResolveLinkRequest {
   string uri = 1;
+  // The account to look it up on, as domain.AccountRooms writes it.
+  string on = 2;
 }
 
 // ResolveLinkResponse is the chat a link names (domain.LinkTarget).
@@ -739,6 +759,8 @@ message ResolveLinkResponse {
 
 message JoinLinkRequest {
   string uri = 1;
+  // The account to join on, as domain.AccountRooms writes it.
+  string on = 2;
 }
 
 message JoinLinkResponse {
@@ -1744,6 +1766,9 @@ service BackendService {
   // ChatOffers is every kind of chat each connected account of a network other than
   // Matrix can make.
   rpc ChatOffers(ChatOffersRequest) returns (ChatOffersResponse);
+  // Accounts is every connected account of every network, for a client to pick the
+  // one a call naming none goes to (domain.PickAccount).
+  rpc Accounts(AccountsRequest) returns (AccountsResponse);
   // ResolveLink looks up the chat a link names on a network other than Matrix (a
   // Telegram @username, phone number or invite) when no listed room matches.
   rpc ResolveLink(ResolveLinkRequest) returns (ResolveLinkResponse);

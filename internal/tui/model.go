@@ -583,6 +583,10 @@ type Model struct {
 	// roomAccounts is each network account the room list has had rooms from (see
 	// selvesAfterRooms); nil before the first list.
 	roomAccounts []string
+	// accounts is every connected account as the daemon last said; pickingAccount is
+	// the call waiting on the account picker (accountpick.go).
+	accounts       []domain.Account
+	pickingAccount accountThen
 	// notifications is the notification rules, delivery switch and do-not-disturb state. See dnd.go.
 	notifications notifyState
 
@@ -941,6 +945,7 @@ func (m Model) Init() tea.Cmd {
 		m.listenAttachedCmd(),
 		m.lastMessagesCmd(),
 		m.loadSelvesCmd(),
+		m.loadAccountsCmd(),
 		m.checkCommandSecretsCmd(),
 	)
 }
@@ -1361,7 +1366,7 @@ func (m Model) handleContentMsg(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleFetchedQuote(msg)
 	case fetchedEventMsg:
 		return m.handleFetchedEvent(msg)
-	case followMsg, linkResolvedMsg:
+	case followMsg, linkResolvedMsg, accountsPickedMsg, accountListMsg:
 		return m.handleLinking(msg)
 	case roomsChangedMsg:
 		return m, tea.Batch(m.loadRoomsCmd(), m.listenRoomsCmd())

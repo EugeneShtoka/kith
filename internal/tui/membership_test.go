@@ -300,6 +300,7 @@ func TestJoinPrompt(t *testing.T) {
 	m := sized(t, update(t, starterNew(b, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}}))
 	m.focus = paneRooms
+	m.accounts = []domain.Account{{Network: domain.ProtocolMatrix, On: domain.RoomOwner(mx)}}
 
 	m, _ = press(t, m, keyCode('J'))
 	if m.prompt.kind != promptJoin {
@@ -321,8 +322,8 @@ func TestJoinPrompt(t *testing.T) {
 		t.Fatal("submitting produced no command")
 	}
 	runCmd(t, cmd)
-	if len(b.joined) != 1 || b.joined[0] != "#jkl:" {
-		t.Errorf("JoinRoom calls = %v, want [#jkl:]", b.joined)
+	if len(b.joined) != 1 || b.joined[0] != mx+"#jkl:" {
+		t.Errorf("JoinRoom calls = %v, want [#jkl:] on the one Matrix account", b.joined)
 	}
 	if m2.prompt.active() {
 		t.Error("submitting should close the prompt")

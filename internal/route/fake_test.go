@@ -472,3 +472,9 @@ func (b bare) Activity() <-chan domain.Activity        { return b.f.activity }
 func (b bare) Unread() <-chan domain.Unread            { return b.f.unread }
 func (b bare) Reactions() <-chan domain.ReactionUpdate { return b.f.reactions }
 func (b bare) Me() []string                            { return b.f.me }
+
+// Accounts is the fake's one account.
+func (f *fake) Accounts() []domain.Account {
+	network, _ := domain.ProtocolNamed(f.name)
+	return []domain.Account{{Network: network, On: domain.AccountRooms(network, f.name+"-1"), Name: f.account}}
+}

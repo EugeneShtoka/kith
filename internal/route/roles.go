@@ -70,29 +70,38 @@ func (r *Router) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.Ro
 	return c.CreateRoom(ctx, spec)
 }
 
+// Accounts is every connected account of every network that lists its accounts.
+func (r *Router) Accounts(ctx context.Context) ([]domain.Account, error) {
+	return gather(r, func(c AccountLister) ([]domain.Account, error) { return c.Accounts(), nil })
+}
+
 // ChatOffers is every kind of chat each connected account of every network can make.
 func (r *Router) ChatOffers(ctx context.Context) ([]domain.ChatOffer, error) {
 	return gather(r, func(c ChatMaker) ([]domain.ChatOffer, error) { return c.ChatOffers(ctx) })
 }
 
-// ResolveLink looks up the chat a link names, on the network the link is for.
-func (r *Router) ResolveLink(ctx context.Context, uri string) (domain.LinkTarget, error) {
-	return onLink(r, uri, func(c LinkFollower) (domain.LinkTarget, error) { return c.ResolveLink(ctx, uri) })
+// ResolveLink looks up the chat a link names, on the account on names.
+func (r *Router) ResolveLink(ctx context.Context, uri string, on domain.RoomOwner) (domain.LinkTarget, error) {
+	return onLink(r, uri, on, func(c LinkFollower) (domain.LinkTarget, error) { return c.ResolveLink(ctx, uri, on) })
 }
 
-// JoinLink joins the chat a link names, on the network the link is for.
-func (r *Router) JoinLink(ctx context.Context, uri string) (domain.RoomID, error) {
-	return onLink(r, uri, func(c LinkFollower) (domain.RoomID, error) { return c.JoinLink(ctx, uri) })
+// JoinLink joins the chat a link names, on the account on names.
+func (r *Router) JoinLink(ctx context.Context, uri string, on domain.RoomOwner) (domain.RoomID, error) {
+	return onLink(r, uri, on, func(c LinkFollower) (domain.RoomID, error) { return c.JoinLink(ctx, uri, on) })
 }
 
-// onLink runs call on the network uri is a link for.
-func onLink[T any](r *Router, uri string, call func(LinkFollower) (T, error)) (T, error) {
+// onLink runs call on the account on names, which must be on the network uri is a
+// link for.
+func onLink[T any](r *Router, uri string, on domain.RoomOwner, call func(LinkFollower) (T, error)) (T, error) {
+	var zero T
 	network, ok := domain.LinkNetwork(uri)
 	if !ok {
-		var zero T
 		return zero, fmt.Errorf("%w: no network's link: %s", api.ErrNotOnNetwork, uri)
 	}
-	return onRoom(r, domain.RoomID(domain.NetworkRooms(network)), "following links", call)
+	if got := domain.NetworkOf(string(on)); got != network {
+		return zero, fmt.Errorf("%w: a %s link on %q", api.ErrNotOnNetwork, network, on)
+	}
+	return onRoom(r, domain.RoomID(on), "following links", call)
 }
 
 // InviteUser invites someone into a room.

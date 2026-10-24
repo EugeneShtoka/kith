@@ -58,6 +58,7 @@ func Validate(cfg config.Config) error {
 		archivesCheck(cfg),
 		keepCheck(cfg),
 		BridgeContacts(cfg.BridgeContacts),
+		DefaultAccounts(cfg),
 	} {
 		if err != nil {
 			return err

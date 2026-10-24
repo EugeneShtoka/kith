@@ -4,7 +4,9 @@ package config
 // an account.
 type Telegram struct {
 	Accounts []TelegramAccount `toml:"account"`
-	Archive  NetworkArchive    `toml:"archive"`
+	// Default names the account a call naming none goes to when several could.
+	Default string         `toml:"default"`
+	Archive NetworkArchive `toml:"archive"`
 }
 
 // TelegramAccount is one [[telegram.account]], named for `kith login telegram <name>`.
