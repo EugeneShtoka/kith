@@ -504,6 +504,16 @@ func (s *server) ChatOffers(ctx context.Context, _ *req[v1.ChatOffersRequest]) (
 	return reply(&v1.ChatOffersResponse{Offers: pc.ChatOffersToProto(offers)}, err)
 }
 
+func (s *server) ResolveLink(ctx context.Context, r *req[v1.ResolveLinkRequest]) (*resp[v1.ResolveLinkResponse], error) {
+	target, err := s.Backend.ResolveLink(ctx, r.Msg.GetUri())
+	return reply(pc.LinkTargetToProto(target), err)
+}
+
+func (s *server) JoinLink(ctx context.Context, r *req[v1.JoinLinkRequest]) (*resp[v1.JoinLinkResponse], error) {
+	id, err := s.Backend.JoinLink(ctx, r.Msg.GetUri())
+	return reply(&v1.JoinLinkResponse{RoomId: string(id)}, err)
+}
+
 func (s *server) LoginNetworks(ctx context.Context, _ *req[v1.LoginNetworksRequest]) (*resp[v1.LoginNetworksResponse], error) {
 	networks, err := s.Logins.LoginNetworks(ctx)
 	return reply(&v1.LoginNetworksResponse{Networks: loginNetworksToProto(networks)}, err)

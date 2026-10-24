@@ -77,10 +77,12 @@ type invitesMsg struct {
 
 type inviteUpdateMsg struct{ invites []domain.Room }
 
-// joinedMsg and leftMsg report the outcome of a membership change.
+// joinedMsg and leftMsg report the outcome of a membership change; enter opens the joined
+// room once a refresh lists it.
 type joinedMsg struct {
 	roomID domain.RoomID
 	err    error
+	enter  bool
 }
 
 type leftMsg struct {

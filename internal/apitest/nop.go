@@ -30,22 +30,26 @@ func (Nop) MarkRead(context.Context, domain.RoomID, domain.EventID, bool) error 
 func (Nop) MarkRoomsRead(_ context.Context, roomIDs []domain.RoomID, _ bool) (domain.ReadResult, error) {
 	return domain.ReadResult{Skipped: len(roomIDs)}, nil
 }
-func (Nop) SendTyping(context.Context, domain.RoomID, bool, time.Duration) error       { return nil }
-func (Nop) MarkRoomUnread(context.Context, domain.RoomID, bool) error                  { return nil }
-func (Nop) SetRoomArchived(context.Context, domain.RoomID, bool) error                 { return nil }
-func (Nop) StarMessage(context.Context, domain.RoomID, domain.EventID, bool) error     { return nil }
-func (Nop) StarredIn(context.Context, domain.RoomID) ([]domain.EventID, error)         { return nil, nil }
-func (Nop) TagVerdicts(context.Context) ([]domain.TagVerdict, error)                   { return nil, nil }
-func (Nop) MarkTag(context.Context, domain.TagVerdict) error                           { return nil }
-func (Nop) RetagVerdicts(context.Context, string, string) error                        { return nil }
-func (Nop) PersonVerdicts(context.Context) ([]domain.PersonVerdict, error)             { return nil, nil }
-func (Nop) MarkPerson(context.Context, domain.PersonVerdict) error                     { return nil }
-func (Nop) Ignore(context.Context, string) error                                       { return nil }
-func (Nop) Unignore(context.Context, string) error                                     { return nil }
-func (Nop) Ignored(context.Context) ([]string, error)                                  { return nil, nil }
-func (Nop) AddToSpace(_ context.Context, _ domain.SpaceID, _ domain.RoomID) error      { return nil }
-func (Nop) CreateRoom(context.Context, domain.NewRoom) (domain.RoomID, error)          { return "", nil }
-func (Nop) ChatOffers(context.Context) ([]domain.ChatOffer, error)                     { return nil, nil }
+func (Nop) SendTyping(context.Context, domain.RoomID, bool, time.Duration) error   { return nil }
+func (Nop) MarkRoomUnread(context.Context, domain.RoomID, bool) error              { return nil }
+func (Nop) SetRoomArchived(context.Context, domain.RoomID, bool) error             { return nil }
+func (Nop) StarMessage(context.Context, domain.RoomID, domain.EventID, bool) error { return nil }
+func (Nop) StarredIn(context.Context, domain.RoomID) ([]domain.EventID, error)     { return nil, nil }
+func (Nop) TagVerdicts(context.Context) ([]domain.TagVerdict, error)               { return nil, nil }
+func (Nop) MarkTag(context.Context, domain.TagVerdict) error                       { return nil }
+func (Nop) RetagVerdicts(context.Context, string, string) error                    { return nil }
+func (Nop) PersonVerdicts(context.Context) ([]domain.PersonVerdict, error)         { return nil, nil }
+func (Nop) MarkPerson(context.Context, domain.PersonVerdict) error                 { return nil }
+func (Nop) Ignore(context.Context, string) error                                   { return nil }
+func (Nop) Unignore(context.Context, string) error                                 { return nil }
+func (Nop) Ignored(context.Context) ([]string, error)                              { return nil, nil }
+func (Nop) AddToSpace(_ context.Context, _ domain.SpaceID, _ domain.RoomID) error  { return nil }
+func (Nop) CreateRoom(context.Context, domain.NewRoom) (domain.RoomID, error)      { return "", nil }
+func (Nop) ChatOffers(context.Context) ([]domain.ChatOffer, error)                 { return nil, nil }
+func (Nop) ResolveLink(context.Context, string) (domain.LinkTarget, error) {
+	return domain.LinkTarget{}, nil
+}
+func (Nop) JoinLink(context.Context, string) (domain.RoomID, error)                    { return "", nil }
 func (Nop) InviteUser(context.Context, domain.RoomID, string) error                    { return nil }
 func (Nop) KickUser(context.Context, domain.RoomID, string, string) error              { return nil }
 func (Nop) BanUser(context.Context, domain.RoomID, string, string) error               { return nil }

@@ -218,6 +218,11 @@ const (
 	// BackendServiceChatOffersProcedure is the fully-qualified name of the BackendService's ChatOffers
 	// RPC.
 	BackendServiceChatOffersProcedure = "/backend.v1.BackendService/ChatOffers"
+	// BackendServiceResolveLinkProcedure is the fully-qualified name of the BackendService's
+	// ResolveLink RPC.
+	BackendServiceResolveLinkProcedure = "/backend.v1.BackendService/ResolveLink"
+	// BackendServiceJoinLinkProcedure is the fully-qualified name of the BackendService's JoinLink RPC.
+	BackendServiceJoinLinkProcedure = "/backend.v1.BackendService/JoinLink"
 	// BackendServiceInviteUserProcedure is the fully-qualified name of the BackendService's InviteUser
 	// RPC.
 	BackendServiceInviteUserProcedure = "/backend.v1.BackendService/InviteUser"
@@ -563,6 +568,11 @@ type BackendServiceClient interface {
 	// ChatOffers is every kind of chat each connected account of a network other than
 	// Matrix can make.
 	ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error)
+	// ResolveLink looks up the chat a link names on a network other than Matrix (a
+	// Telegram @username, phone number or invite) when no listed room matches.
+	ResolveLink(context.Context, *connect.Request[v1.ResolveLinkRequest]) (*connect.Response[v1.ResolveLinkResponse], error)
+	// JoinLink joins the group or channel a link names.
+	JoinLink(context.Context, *connect.Request[v1.JoinLinkRequest]) (*connect.Response[v1.JoinLinkResponse], error)
 	InviteUser(context.Context, *connect.Request[v1.InviteUserRequest]) (*connect.Response[v1.InviteUserResponse], error)
 	KickUser(context.Context, *connect.Request[v1.KickUserRequest]) (*connect.Response[v1.KickUserResponse], error)
 	BanUser(context.Context, *connect.Request[v1.BanUserRequest]) (*connect.Response[v1.BanUserResponse], error)
@@ -1135,6 +1145,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("ChatOffers")),
 			connect.WithClientOptions(opts...),
 		),
+		resolveLink: connect.NewClient[v1.ResolveLinkRequest, v1.ResolveLinkResponse](
+			httpClient,
+			baseURL+BackendServiceResolveLinkProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("ResolveLink")),
+			connect.WithClientOptions(opts...),
+		),
+		joinLink: connect.NewClient[v1.JoinLinkRequest, v1.JoinLinkResponse](
+			httpClient,
+			baseURL+BackendServiceJoinLinkProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("JoinLink")),
+			connect.WithClientOptions(opts...),
+		),
 		inviteUser: connect.NewClient[v1.InviteUserRequest, v1.InviteUserResponse](
 			httpClient,
 			baseURL+BackendServiceInviteUserProcedure,
@@ -1573,6 +1595,8 @@ type backendServiceClient struct {
 	signOut               *connect.Client[v1.SignOutRequest, v1.SignOutResponse]
 	createRoom            *connect.Client[v1.CreateRoomRequest, v1.CreateRoomResponse]
 	chatOffers            *connect.Client[v1.ChatOffersRequest, v1.ChatOffersResponse]
+	resolveLink           *connect.Client[v1.ResolveLinkRequest, v1.ResolveLinkResponse]
+	joinLink              *connect.Client[v1.JoinLinkRequest, v1.JoinLinkResponse]
 	inviteUser            *connect.Client[v1.InviteUserRequest, v1.InviteUserResponse]
 	kickUser              *connect.Client[v1.KickUserRequest, v1.KickUserResponse]
 	banUser               *connect.Client[v1.BanUserRequest, v1.BanUserResponse]
@@ -1969,6 +1993,16 @@ func (c *backendServiceClient) CreateRoom(ctx context.Context, req *connect.Requ
 // ChatOffers calls backend.v1.BackendService.ChatOffers.
 func (c *backendServiceClient) ChatOffers(ctx context.Context, req *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error) {
 	return c.chatOffers.CallUnary(ctx, req)
+}
+
+// ResolveLink calls backend.v1.BackendService.ResolveLink.
+func (c *backendServiceClient) ResolveLink(ctx context.Context, req *connect.Request[v1.ResolveLinkRequest]) (*connect.Response[v1.ResolveLinkResponse], error) {
+	return c.resolveLink.CallUnary(ctx, req)
+}
+
+// JoinLink calls backend.v1.BackendService.JoinLink.
+func (c *backendServiceClient) JoinLink(ctx context.Context, req *connect.Request[v1.JoinLinkRequest]) (*connect.Response[v1.JoinLinkResponse], error) {
+	return c.joinLink.CallUnary(ctx, req)
 }
 
 // InviteUser calls backend.v1.BackendService.InviteUser.
@@ -2448,6 +2482,11 @@ type BackendServiceHandler interface {
 	// ChatOffers is every kind of chat each connected account of a network other than
 	// Matrix can make.
 	ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error)
+	// ResolveLink looks up the chat a link names on a network other than Matrix (a
+	// Telegram @username, phone number or invite) when no listed room matches.
+	ResolveLink(context.Context, *connect.Request[v1.ResolveLinkRequest]) (*connect.Response[v1.ResolveLinkResponse], error)
+	// JoinLink joins the group or channel a link names.
+	JoinLink(context.Context, *connect.Request[v1.JoinLinkRequest]) (*connect.Response[v1.JoinLinkResponse], error)
 	InviteUser(context.Context, *connect.Request[v1.InviteUserRequest]) (*connect.Response[v1.InviteUserResponse], error)
 	KickUser(context.Context, *connect.Request[v1.KickUserRequest]) (*connect.Response[v1.KickUserResponse], error)
 	BanUser(context.Context, *connect.Request[v1.BanUserRequest]) (*connect.Response[v1.BanUserResponse], error)
@@ -3016,6 +3055,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("ChatOffers")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceResolveLinkHandler := connect.NewUnaryHandler(
+		BackendServiceResolveLinkProcedure,
+		svc.ResolveLink,
+		connect.WithSchema(backendServiceMethods.ByName("ResolveLink")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceJoinLinkHandler := connect.NewUnaryHandler(
+		BackendServiceJoinLinkProcedure,
+		svc.JoinLink,
+		connect.WithSchema(backendServiceMethods.ByName("JoinLink")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceInviteUserHandler := connect.NewUnaryHandler(
 		BackendServiceInviteUserProcedure,
 		svc.InviteUser,
@@ -3518,6 +3569,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceCreateRoomHandler.ServeHTTP(w, r)
 		case BackendServiceChatOffersProcedure:
 			backendServiceChatOffersHandler.ServeHTTP(w, r)
+		case BackendServiceResolveLinkProcedure:
+			backendServiceResolveLinkHandler.ServeHTTP(w, r)
+		case BackendServiceJoinLinkProcedure:
+			backendServiceJoinLinkHandler.ServeHTTP(w, r)
 		case BackendServiceInviteUserProcedure:
 			backendServiceInviteUserHandler.ServeHTTP(w, r)
 		case BackendServiceKickUserProcedure:
@@ -3915,6 +3970,14 @@ func (UnimplementedBackendServiceHandler) CreateRoom(context.Context, *connect.R
 
 func (UnimplementedBackendServiceHandler) ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ChatOffers is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) ResolveLink(context.Context, *connect.Request[v1.ResolveLinkRequest]) (*connect.Response[v1.ResolveLinkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ResolveLink is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) JoinLink(context.Context, *connect.Request[v1.JoinLinkRequest]) (*connect.Response[v1.JoinLinkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.JoinLink is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) InviteUser(context.Context, *connect.Request[v1.InviteUserRequest]) (*connect.Response[v1.InviteUserResponse], error) {

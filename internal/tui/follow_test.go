@@ -1,12 +1,18 @@
 package tui
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/richtext"
@@ -242,17 +248,200 @@ func TestAHandedOverTelegramLinkOpensTheChat(t *testing.T) {
 	}
 }
 
-// A tg:// link whose @username matches no joined chat says so instead of guessing.
+// A tg:// link whose @username matches no chat, cached or on Telegram, says so instead
+// of guessing.
 func TestAHandedOverTelegramLinkToAnUnknownChatIsReported(t *testing.T) {
 	t.Parallel()
 
-	m := withRooms(t, sized(t, newModel()))
-	next, _ := m.handleFollow(followMsg{uri: "tg://resolve?domain=novosalsa"})
-	if next.openRoom == "telegram:42/-1000000000021" {
-		t.Error("an unknown Telegram @username moved the client")
+	for name, b := range map[string]*linkBackend{
+		"Telegram finds nothing": {},
+		"the lookup fails":       {err: errors.New("USERNAME_NOT_OCCUPIED")},
+	} {
+		m := withRooms(t, sized(t, starterNew(b, config.Display{})))
+		next := followed(t, m, "tg://resolve?domain=novosalsa")
+		if next.openRoom != m.openRoom {
+			t.Errorf("%s: an unknown Telegram @username moved the client to %q", name, next.openRoom)
+		}
+		if !strings.Contains(next.status(), "no chat found") {
+			t.Errorf("%s: status = %q, want it to say the chat was not found", name, next.status())
+		}
 	}
-	if !strings.Contains(next.status(), "no Telegram chat") {
-		t.Errorf("status = %q, want it to say the chat was not found", next.status())
+}
+
+// linkBackend answers link lookups with target (or err), and joins to joinTo.
+type linkBackend struct {
+	apitest.Nop
+	target   domain.LinkTarget
+	err      error
+	joinTo   domain.RoomID
+	resolved []string
+	joined   []string
+}
+
+func (b *linkBackend) ResolveLink(_ context.Context, uri string) (domain.LinkTarget, error) {
+	b.resolved = append(b.resolved, uri)
+	return b.target, b.err
+}
+
+func (b *linkBackend) JoinLink(_ context.Context, uri string) (domain.RoomID, error) {
+	b.joined = append(b.joined, uri)
+	return b.joinTo, nil
+}
+
+// followed hands uri over and delivers the lookup it starts, if it starts one.
+func followed(t *testing.T, m Model, uri string) Model {
+	t.Helper()
+	next, cmd := m.handleFollow(followMsg{uri: uri})
+	if resolved, ok := drainFor[linkResolvedMsg](cmd); ok {
+		next = update(t, next, resolved)
+	}
+	return next
+}
+
+// ezraChat is the private chat a link to somebody new opens.
+var ezraChat = domain.Room{ID: "telegram:42/9", Name: "Ezra", IsDirect: true, Handle: "ezra"}
+
+// A link to somebody kith has no chat with opens a fresh chat to write in, with the
+// message the link suggests in the composer.
+func TestAHandedOverLinkToSomebodyNewOpensAFreshChat(t *testing.T) {
+	t.Parallel()
+
+	b := &linkBackend{target: domain.LinkTarget{Room: ezraChat}}
+	m := withRooms(t, sized(t, starterNew(b, config.Display{})))
+	next := followed(t, m, "tg://resolve?domain=ezra&text=hello%20Ezra")
+
+	if len(b.resolved) != 1 {
+		t.Fatalf("asked the network %v, want the link once", b.resolved)
+	}
+	if next.openRoom != ezraChat.ID {
+		t.Errorf("open room = %q, want the fresh chat with Ezra", next.openRoom)
+	}
+	if room, ok := next.currentRoom(); !ok || room.Name != "Ezra" {
+		t.Errorf("current room = (%+v, %v), want Ezra's chat to be one the composer sends to", room, ok)
+	}
+	if next.compose.input != "hello Ezra" {
+		t.Errorf("composer = %q, want the suggested message", next.compose.input)
+	}
+	if !strings.Contains(next.status(), "Ezra") {
+		t.Errorf("status = %q, want it to name the chat", next.status())
+	}
+}
+
+// A suggested message never replaces a draft already in the composer.
+func TestASuggestedMessageKeepsTheDraft(t *testing.T) {
+	t.Parallel()
+
+	m := sized(t, newModel())
+	m = update(t, m, roomsMsg{rooms: []domain.Room{ezraChat}})
+	m, _ = m.goToRoom(ezraChat.ID)
+	m.compose.input = "my own words"
+	next := followed(t, m, "https://t.me/ezra?text=hello")
+	if next.compose.input != "my own words" {
+		t.Errorf("composer = %q, want the draft kept", next.compose.input)
+	}
+}
+
+// A group or channel the account is not in is asked about, then joined, then opened
+// once the room list holds it.
+func TestALinkToAChatNotJoinedAsksThenJoinsAndEnters(t *testing.T) {
+	t.Parallel()
+
+	salsa := domain.Room{ID: "telegram:42/-1000000000021", Name: "Novo Salsa"}
+	b := &linkBackend{target: domain.LinkTarget{Room: salsa, Join: true, About: "channel, 1204 members"}, joinTo: salsa.ID}
+	m := withRooms(t, sized(t, starterNew(b, config.Display{})))
+	next := followed(t, m, "https://t.me/novosalsa")
+
+	if !next.confirm.active() || next.openRoom == salsa.ID {
+		t.Fatalf("confirm %+v, open %q: want a question and no move", next.confirm, next.openRoom)
+	}
+	if prompt := next.confirmPrompt(); !strings.Contains(prompt, "Novo Salsa") || !strings.Contains(prompt, "1204 members") {
+		t.Errorf("prompt = %q, want the chat's name and what it is", prompt)
+	}
+	next, cmd := next.resolveConfirm(true)
+	joined, ok := drainFor[joinedMsg](cmd)
+	if !ok || len(b.joined) != 1 || b.joined[0] != "https://t.me/novosalsa" {
+		t.Fatalf("joined %v (%v), want the link joined", b.joined, ok)
+	}
+	next = update(t, next, joined)
+	next = update(t, next, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, salsa}})
+	if next.openRoom != salsa.ID {
+		t.Errorf("open room = %q, want the joined channel once listed", next.openRoom)
+	}
+}
+
+// Fresh chats meet the room list in any order: a chat a link opened stays open while
+// unlisted, gives way to the listing's copy once listed, and goes once left unlisted;
+// a listed room is never lost and no room is held twice. The walk generates links to
+// three new people, listings holding any of them, and moves elsewhere.
+func TestFreshChatsHoldOverAnyListingSequence(t *testing.T) {
+	t.Parallel()
+
+	people := []domain.Room{
+		{ID: "telegram:42/9", Name: "Ezra", IsDirect: true},
+		{ID: "telegram:42/10", Name: "Fay", IsDirect: true},
+		{ID: "telegram:42/11", Name: "Gil", IsDirect: true},
+	}
+	base := []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo", IsDirect: true}}
+	for seed := range uint64(60) {
+		rng := rand.New(rand.NewPCG(seed, 0x6c696e6b))
+		b := &linkBackend{}
+		m := sized(t, starterNew(b, config.Display{}))
+		m = update(t, m, roomsMsg{rooms: base})
+		listed := map[domain.RoomID]bool{}
+		var log []string
+		for step := range 30 {
+			switch rng.IntN(3) {
+			case 0: // a link to one of them
+				p := people[rng.IntN(len(people))]
+				b.target = domain.LinkTarget{Room: p}
+				m = followed(t, m, fmt.Sprintf("tg://resolve?phone=1555%s", p.ID[len("telegram:42/"):]))
+				log = append(log, "link "+p.Name)
+				if m.openRoom != p.ID {
+					t.Fatalf("seed %d step %d: open %q after a link to %s\n  %s", seed, step, m.openRoom, p.Name, strings.Join(log, "\n  "))
+				}
+			case 1: // a listing holding some of them, named as the network names them
+				rooms := slices.Clone(base)
+				// A chat open as a fresh one (not in the last listing) stays open; a listed
+				// one the network drops is gone, as a chat deleted elsewhere is.
+				open, freshOpen := m.openRoom, m.openRoom != "" && !listed[m.openRoom] && !slices.ContainsFunc(base, func(r domain.Room) bool { return r.ID == m.openRoom })
+				listed = map[domain.RoomID]bool{}
+				for _, p := range people {
+					if rng.IntN(2) == 0 {
+						p.Name += " (listed)"
+						rooms = append(rooms, p)
+						listed[p.ID] = true
+					}
+				}
+				m = update(t, m, roomsMsg{rooms: rooms})
+				log = append(log, fmt.Sprintf("listing %v", listed))
+				if freshOpen && m.openRoom != open {
+					t.Fatalf("seed %d step %d: a listing moved the open room from %q to %q\n  %s", seed, step, open, m.openRoom, strings.Join(log, "\n  "))
+				}
+				for _, p := range people {
+					room, held := m.rooms.byID(p.ID)
+					switch {
+					case listed[p.ID] && (!held || room.Name != p.Name+" (listed)"):
+						t.Fatalf("seed %d step %d: listed %s held as (%+v, %v), want the listing's copy\n  %s", seed, step, p.Name, room, held, strings.Join(log, "\n  "))
+					case !listed[p.ID] && held && m.openRoom != p.ID:
+						t.Fatalf("seed %d step %d: %s, left and unlisted, is still held\n  %s", seed, step, p.Name, strings.Join(log, "\n  "))
+					}
+				}
+			case 2: // a move to a listed room
+				to := base[rng.IntN(len(base))].ID
+				m, _ = m.goToRoom(to)
+				log = append(log, "go to "+string(to))
+			}
+			seen := map[domain.RoomID]bool{}
+			for _, r := range m.rooms.all {
+				if seen[r.ID] {
+					t.Fatalf("seed %d step %d: %s held twice\n  %s", seed, step, r.ID, strings.Join(log, "\n  "))
+				}
+				seen[r.ID] = true
+			}
+			if _, ok := m.currentRoom(); m.openRoom != "" && !ok {
+				t.Fatalf("seed %d step %d: the open room %q is not held\n  %s", seed, step, m.openRoom, strings.Join(log, "\n  "))
+			}
+		}
 	}
 }
 

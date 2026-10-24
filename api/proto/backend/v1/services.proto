@@ -722,6 +722,29 @@ message ChatOffersResponse {
   repeated ChatOffer offers = 1;
 }
 
+message ResolveLinkRequest {
+  string uri = 1;
+}
+
+// ResolveLinkResponse is the chat a link names (domain.LinkTarget).
+message ResolveLinkResponse {
+  // The chat on the account that looked it up; no ID for an invite whose chat the
+  // network names only once joined.
+  Room room = 1;
+  // The account is not in the chat: following asks, then joins (JoinLink).
+  bool join = 2;
+  // What joining joins, for the question.
+  string about = 3;
+}
+
+message JoinLinkRequest {
+  string uri = 1;
+}
+
+message JoinLinkResponse {
+  string room_id = 1;
+}
+
 message CreateRoomResponse {
   string room_id = 1;
   // warning is non-empty when the room exists but something after it did not — filing
@@ -1721,6 +1744,11 @@ service BackendService {
   // ChatOffers is every kind of chat each connected account of a network other than
   // Matrix can make.
   rpc ChatOffers(ChatOffersRequest) returns (ChatOffersResponse);
+  // ResolveLink looks up the chat a link names on a network other than Matrix (a
+  // Telegram @username, phone number or invite) when no listed room matches.
+  rpc ResolveLink(ResolveLinkRequest) returns (ResolveLinkResponse);
+  // JoinLink joins the group or channel a link names.
+  rpc JoinLink(JoinLinkRequest) returns (JoinLinkResponse);
   rpc InviteUser(InviteUserRequest) returns (InviteUserResponse);
   rpc KickUser(KickUserRequest) returns (KickUserResponse);
   rpc BanUser(BanUserRequest) returns (BanUserResponse);

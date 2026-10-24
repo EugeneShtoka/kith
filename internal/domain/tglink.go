@@ -7,8 +7,8 @@ import (
 )
 
 // Telegram addresses (tg: URIs, with t.me's web form kept for completeness) parsed into
-// chats a Telegram adapter can look up: a public chat by its @username, or a private
-// channel by its ID.
+// chats a Telegram adapter can look up: a public chat or person by @username, a person
+// by phone number, a chat by its invite, or a private channel by its ID.
 
 // TelegramLinkKind is what a Telegram address names.
 type TelegramLinkKind int
@@ -22,6 +22,10 @@ const (
 	// TelegramLinkPrivateChannel names a private channel by its ID (as the Bot API's
 	// -100<id>, before marking).
 	TelegramLinkPrivateChannel
+	// TelegramLinkPhone names a person by phone number.
+	TelegramLinkPhone
+	// TelegramLinkInvite names a group or channel by its invite hash.
+	TelegramLinkInvite
 )
 
 // TelegramLink is one Telegram address: what it names, and the message in it if the
@@ -32,15 +36,21 @@ type TelegramLink struct {
 	Username string
 	// Channel is the raw channel ID (without the -100 mark), for a private channel.
 	Channel int64
+	// Phone is the number's digits, without "+", for a person by phone.
+	Phone string
+	// Invite is the invite hash, for a chat joined by invitation.
+	Invite string
 	// Post is the message ID in the chat, 0 when the link named only the chat.
 	Post int
+	// Text is a message the link suggests writing (its "text" parameter), "" for none.
+	Text string
 }
 
 // ParseTelegramLink reads one URI as a Telegram address, and reports whether it is one.
-// It accepts the two tg: forms the Telegram apps write — tg://resolve?domain=X[&post=N]
-// and tg://privatepost?channel=X&post=N — and their https://t.me equivalents. Join
-// links (tg://join, t.me/+<invite>) are rejected: joining a channel kith is not in is
-// a feature of its own, not a link follow.
+// It accepts the tg: forms the Telegram apps write — tg://resolve?domain=X[&post=N],
+// tg://resolve?phone=N, tg://join?invite=H and tg://privatepost?channel=X&post=N — and
+// their https://t.me equivalents (t.me/X[/N], t.me/+N, t.me/+H or t.me/joinchat/H,
+// t.me/c/X/N). A "text" parameter is kept as the message the link suggests.
 func ParseTelegramLink(uri string) (TelegramLink, bool) {
 	uri = strings.TrimSpace(uri)
 	if uri == "" {
@@ -70,12 +80,24 @@ func parseTGScheme(rest string) (TelegramLink, bool) {
 	}
 	switch strings.ToLower(head) {
 	case "resolve":
+		if phone := values.Get("phone"); values.Get("domain") == "" && phone != "" {
+			if !isPhoneDigits(phone) {
+				return TelegramLink{}, false
+			}
+			return TelegramLink{Kind: TelegramLinkPhone, Phone: phone, Text: values.Get("text")}, true
+		}
 		name := strings.TrimPrefix(values.Get("domain"), "@")
 		if !isTelegramUsername(name) {
 			return TelegramLink{}, false
 		}
 		return TelegramLink{Kind: TelegramLinkUsername,
-			Username: strings.ToLower(name), Post: postOf(values)}, true
+			Username: strings.ToLower(name), Post: postOf(values), Text: values.Get("text")}, true
+	case "join":
+		invite := values.Get("invite")
+		if !isInviteHash(invite) {
+			return TelegramLink{}, false
+		}
+		return TelegramLink{Kind: TelegramLinkInvite, Invite: invite}, true
 	case "privatepost":
 		channel, ok := parsePositiveInt64(values.Get("channel"))
 		if !ok {
@@ -88,19 +110,40 @@ func parseTGScheme(rest string) (TelegramLink, bool) {
 }
 
 // parseTMe reads what follows "t.me/": "<name>[/<post>]", "c/<channel>/<post>", "s/<name>"
-// (name's web preview). Everything else — joinchat, +invite, addstickers, proxy — is
-// not a chat kith can jump to.
+// (name's web preview), "+<phone>", "+<invite>" or "joinchat/<invite>". Everything else —
+// addstickers, proxy, settings pages — is not a chat kith can jump to.
 func parseTMe(rest string) (TelegramLink, bool) {
-	rest, _, _ = strings.Cut(rest, "?")
 	rest, _, _ = strings.Cut(rest, "#")
+	rest, query, _ := strings.Cut(rest, "?")
+	values, err := url.ParseQuery(query)
+	if err != nil {
+		values = url.Values{} // the text is a suggestion; a bad query loses only it
+	}
 	rest = strings.TrimPrefix(rest, "s/") // s/<name> is the sharable preview, same chat
 	first, tail, hasTail := strings.Cut(rest, "/")
-	first, err := url.PathUnescape(first)
+	first, err = url.PathUnescape(first)
 	if err != nil {
 		return TelegramLink{}, false
 	}
 	if strings.EqualFold(first, "c") {
 		return parsePrivateTMe(tail)
+	}
+	// t.me/+<digits> is a phone number, as the Telegram apps read it; any other
+	// +<hash> is an invite.
+	if plus, ok := strings.CutPrefix(first, "+"); ok && !hasTail {
+		if isPhoneDigits(plus) {
+			return TelegramLink{Kind: TelegramLinkPhone, Phone: plus, Text: values.Get("text")}, true
+		}
+		if isInviteHash(plus) {
+			return TelegramLink{Kind: TelegramLinkInvite, Invite: plus}, true
+		}
+		return TelegramLink{}, false
+	}
+	if strings.EqualFold(first, "joinchat") {
+		if !isInviteHash(tail) {
+			return TelegramLink{}, false
+		}
+		return TelegramLink{Kind: TelegramLinkInvite, Invite: tail}, true
 	}
 	first = strings.TrimPrefix(first, "@")
 	if reservedTMePath[strings.ToLower(first)] || !isTelegramUsername(first) {
@@ -115,13 +158,13 @@ func parseTMe(rest string) (TelegramLink, bool) {
 		post = p
 	}
 	return TelegramLink{Kind: TelegramLinkUsername,
-		Username: strings.ToLower(first), Post: post}, true
+		Username: strings.ToLower(first), Post: post, Text: values.Get("text")}, true
 }
 
-// reservedTMePath are t.me first-segments that are not public chats: invite flows and
+// reservedTMePath are t.me first-segments that are not public chats: sticker sets and
 // settings pages the Telegram apps serve themselves.
 var reservedTMePath = map[string]bool{
-	"joinchat": true, "addstickers": true, "addemoji": true,
+	"addstickers": true, "addemoji": true,
 	"proxy": true, "socks": true, "login": true, "setlanguage": true,
 	"share": true, "iv": true, "bg": true, "contact": true,
 }
@@ -197,6 +240,36 @@ func isTelegramUsername(s string) bool {
 			if i == 0 {
 				return false
 			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// isPhoneDigits is a phone number as Telegram links write it: digits only, no "+", at
+// most E.164's 15.
+func isPhoneDigits(s string) bool {
+	if s == "" || len(s) > 15 {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// isInviteHash is an invite hash's character set (URL-safe base64), so a stray "/" or
+// "?" is caught.
+func isInviteHash(s string) bool {
+	if s == "" || len(s) > 64 {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
 		default:
 			return false
 		}

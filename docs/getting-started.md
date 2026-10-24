@@ -513,9 +513,21 @@ the config, either to one of those names or to any command that accepts `-e`:
 terminal = "kitty"
 ```
 
-A `tg://` link opens a Telegram chat the signed-in account already sees: `tg://resolve`
-is looked up by `@username`, `tg://privatepost` by the channel ID. A link that names a
-chat kith isn't in says so instead of trying to join; join flows are a separate feature.
+A `tg://` link opens the Telegram chat it names. One the signed-in account already
+sees is found at once: `tg://resolve` by `@username`, `tg://privatepost` by the channel
+ID. Otherwise kith asks Telegram, on the first signed-in account by name:
+
+- **Somebody you have no chat with** (`tg://resolve?domain=name`, or by number
+  `tg://resolve?phone=15551234567` and `t.me/+15551234567`) opens a new, empty chat with
+  them. Telegram makes the chat with your first message; if you leave without writing,
+  it goes from the list again.
+- **A group or channel you are not in** (by `@username`, or an invite: `tg://join?invite=…`,
+  `t.me/+…`, `t.me/joinchat/…`) asks before joining, saying what it is, then opens it. An
+  invite whose admins approve who joins sends the request instead.
+- **A suggested message** (`?text=…`) goes into the composer, unsent, unless it already
+  holds a draft.
+
+A private channel's link (`tg://privatepost`) opens only a channel you are in.
 If Telegram Desktop is installed, both apps claim `x-scheme-handler/tg`; whichever
 was registered last wins.
 

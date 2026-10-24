@@ -41,3 +41,16 @@ func ProtoToChatOffer(pb *v1.ChatOffer) domain.ChatOffer {
 		MinMembers: int(pb.GetMinMembers()),
 	}
 }
+
+// LinkTargetToProto converts the chat a link names.
+func LinkTargetToProto(t domain.LinkTarget) *v1.ResolveLinkResponse {
+	return &v1.ResolveLinkResponse{Room: RoomToProto(t.Room), Join: t.Join, About: t.About}
+}
+
+// ProtoToLinkTarget converts it back.
+func ProtoToLinkTarget(pb *v1.ResolveLinkResponse) domain.LinkTarget {
+	if pb == nil {
+		return domain.LinkTarget{}
+	}
+	return domain.LinkTarget{Room: ProtoToRoom(pb.GetRoom()), Join: pb.GetJoin(), About: pb.GetAbout()}
+}

@@ -70,6 +70,26 @@ func (r *Router) ChatOffers(ctx context.Context) ([]domain.ChatOffer, error) {
 	return gather(r, func(c ChatMaker) ([]domain.ChatOffer, error) { return c.ChatOffers(ctx) })
 }
 
+// ResolveLink looks up the chat a link names, on the network the link is for.
+func (r *Router) ResolveLink(ctx context.Context, uri string) (domain.LinkTarget, error) {
+	return onLink(r, uri, func(c LinkFollower) (domain.LinkTarget, error) { return c.ResolveLink(ctx, uri) })
+}
+
+// JoinLink joins the chat a link names, on the network the link is for.
+func (r *Router) JoinLink(ctx context.Context, uri string) (domain.RoomID, error) {
+	return onLink(r, uri, func(c LinkFollower) (domain.RoomID, error) { return c.JoinLink(ctx, uri) })
+}
+
+// onLink runs call on the network uri is a link for.
+func onLink[T any](r *Router, uri string, call func(LinkFollower) (T, error)) (T, error) {
+	network, ok := domain.LinkNetwork(uri)
+	if !ok {
+		var zero T
+		return zero, fmt.Errorf("%w: no network's link: %s", api.ErrNotOnNetwork, uri)
+	}
+	return onRoom(r, domain.RoomID(domain.NetworkRooms(network)), "following links", call)
+}
+
 // InviteUser invites someone into a room.
 func (r *Router) InviteUser(ctx context.Context, roomID domain.RoomID, userID string) error {
 	return doOnRoom(r, roomID, "invites", func(c api.Membership) error { return c.InviteUser(ctx, roomID, userID) })

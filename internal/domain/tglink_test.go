@@ -67,6 +67,34 @@ func TestParseTelegramLinkReadsBothSpellings(t *testing.T) {
 			uri:  "https://t.me/novosalsa/35?single",
 			want: domain.TelegramLink{Kind: domain.TelegramLinkUsername, Username: "novosalsa", Post: 35},
 		},
+		"tg://resolve, a username and a suggested message": {
+			uri:  "tg://resolve?domain=novosalsa&text=hi%20there",
+			want: domain.TelegramLink{Kind: domain.TelegramLinkUsername, Username: "novosalsa", Text: "hi there"},
+		},
+		"https://t.me, a username and a suggested message": {
+			uri:  "https://t.me/novosalsa?text=hi+there",
+			want: domain.TelegramLink{Kind: domain.TelegramLinkUsername, Username: "novosalsa", Text: "hi there"},
+		},
+		"tg://resolve, a phone number": {
+			uri:  "tg://resolve?phone=15551234567&text=hello",
+			want: domain.TelegramLink{Kind: domain.TelegramLinkPhone, Phone: "15551234567", Text: "hello"},
+		},
+		"https://t.me, a phone number": {
+			uri:  "https://t.me/+15551234567",
+			want: domain.TelegramLink{Kind: domain.TelegramLinkPhone, Phone: "15551234567"},
+		},
+		"tg://join, an invite": {
+			uri:  "tg://join?invite=AbC-d_9xYz",
+			want: domain.TelegramLink{Kind: domain.TelegramLinkInvite, Invite: "AbC-d_9xYz"},
+		},
+		"https://t.me, a +invite": {
+			uri:  "https://t.me/+AbC-d_9xYz",
+			want: domain.TelegramLink{Kind: domain.TelegramLinkInvite, Invite: "AbC-d_9xYz"},
+		},
+		"https://t.me, a joinchat invite": {
+			uri:  "https://t.me/joinchat/AbC-d_9xYz",
+			want: domain.TelegramLink{Kind: domain.TelegramLinkInvite, Invite: "AbC-d_9xYz"},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -92,10 +120,13 @@ func TestParseTelegramLinkRefusesWhatIsNotOne(t *testing.T) {
 		"https://example.org/",
 		"https://matrix.to/#/!abc:example.org",
 		"matrix:r/kith:example.org",
-		// Joining a channel kith is not in is a feature of its own.
-		"tg://join?invite=abc",
-		"https://t.me/+abcdef",
-		"https://t.me/joinchat/abcdef",
+		"tg://join?invite=",                   // no hash
+		"tg://join?invite=a/b",                // not an invite hash
+		"https://t.me/+",                      // neither a number nor a hash
+		"https://t.me/+abc/1",                 // an invite names no post
+		"https://t.me/joinchat/",              // no hash
+		"tg://resolve?phone=+1555",            // the number is digits only
+		"tg://resolve?phone=1234567890123456", // longer than E.164
 		"tg://addstickers?set=pepe",
 		"tg://resolve?domain=",         // no name
 		"tg://resolve?domain=1name",    // starts with a digit

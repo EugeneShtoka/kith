@@ -26,6 +26,7 @@ type Backend interface {
 	Members
 	Membership
 	NewChats
+	Links
 	Ending
 	Search
 	Drafts
@@ -260,6 +261,17 @@ type NewChats interface {
 	// ChatOffers is every kind of chat each connected account can make, as its
 	// network describes it.
 	ChatOffers(ctx context.Context) ([]domain.ChatOffer, error)
+}
+
+// Links finds the chats links name on networks other than Matrix, when no listed room
+// matches.
+type Links interface {
+	// ResolveLink looks up the chat uri names (a Telegram @username, phone number or
+	// invite) on the first connected account of its network: one to open, or one to
+	// join first.
+	ResolveLink(ctx context.Context, uri string) (domain.LinkTarget, error)
+	// JoinLink joins the group or channel uri names, one ResolveLink said to join.
+	JoinLink(ctx context.Context, uri string) (domain.RoomID, error)
 }
 
 // Ending removes chats and accounts that cannot simply be left (Membership.LeaveRoom).

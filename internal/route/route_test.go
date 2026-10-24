@@ -863,3 +863,47 @@ func TestANewChatGoesToItsAccountsNetwork(t *testing.T) {
 		t.Errorf("ChatOffers = (%+v, %v), want Telegram's forum alone", offers, err)
 	}
 }
+
+// linkFollower is a network that follows its links, recording what it was asked.
+type linkFollower struct {
+	*fake
+	resolved, joined []string
+}
+
+func (l *linkFollower) ResolveLink(_ context.Context, uri string) (domain.LinkTarget, error) {
+	l.resolved = append(l.resolved, uri)
+	return domain.LinkTarget{Room: domain.Room{ID: "telegram:42/7", IsDirect: true}}, nil
+}
+
+func (l *linkFollower) JoinLink(_ context.Context, uri string) (domain.RoomID, error) {
+	l.joined = append(l.joined, uri)
+	return "telegram:42/-1009", nil
+}
+
+// A link goes to the network it is a link for; a link no network reads, or one for a
+// network that does not follow links, is refused.
+func TestALinkGoesToItsNetwork(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	m, tg := newFakeMatrix(), &linkFollower{fake: newFake("telegram")}
+	r := routed(m, map[domain.Protocol]Adapter{domain.ProtocolTelegram: tg})
+	if target, err := r.ResolveLink(ctx, "tg://resolve?domain=novosalsa"); err != nil || target.Room.ID != "telegram:42/7" {
+		t.Errorf("ResolveLink = (%+v, %v), want Telegram's answer", target, err)
+	}
+	if id, err := r.JoinLink(ctx, "https://t.me/+AbCdEf"); err != nil || id != "telegram:42/-1009" {
+		t.Errorf("JoinLink = (%q, %v), want Telegram's chat", id, err)
+	}
+	if len(tg.resolved) != 1 || len(tg.joined) != 1 {
+		t.Errorf("Telegram was asked to resolve %v and join %v, want one each", tg.resolved, tg.joined)
+	}
+	if _, err := r.ResolveLink(ctx, "https://example.org/x"); !errors.Is(err, api.ErrNotOnNetwork) {
+		t.Errorf("a link for no network = %v, want not on a network", err)
+	}
+	bareTG := routed(m, map[domain.Protocol]Adapter{domain.ProtocolTelegram: bare{newFake("telegram")}})
+	if _, err := bareTG.ResolveLink(ctx, "tg://resolve?domain=novosalsa"); !errors.Is(err, api.ErrNotOnNetwork) {
+		t.Errorf("a network that follows no links = %v, want not on that network", err)
+	}
+	if got := m.calls(); len(got) != 0 {
+		t.Errorf("Matrix heard of a Telegram link: %v", got)
+	}
+}
