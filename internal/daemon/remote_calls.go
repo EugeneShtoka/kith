@@ -362,9 +362,9 @@ func (r *Remote) FetchEventSource(ctx context.Context, roomID domain.RoomID, eve
 }
 
 // PublicRooms fetches one page of the Matrix public rooms directory.
-func (r *Remote) PublicRooms(ctx context.Context, server, since string) (domain.PublicRoomsPage, error) {
+func (r *Remote) PublicRooms(ctx context.Context, on domain.RoomOwner, server, since string) (domain.PublicRoomsPage, error) {
 	resp, err := call(ctx, "list public rooms", r.c.PublicRooms,
-		&v1.PublicRoomsRequest{Server: server, Since: since})
+		&v1.PublicRoomsRequest{Server: server, Since: since, On: string(on)})
 	return domain.PublicRoomsPage{
 		Rooms:         pc.ProtoToPublicRooms(resp.GetRooms()),
 		NextSince:     resp.GetNextSince(),
@@ -661,8 +661,8 @@ func (r *Remote) LoadImage(ctx context.Context, roomID domain.RoomID, eventID do
 
 // ── Verification ──
 
-func (r *Remote) StartVerification(ctx context.Context) (string, error) {
-	resp, err := call(ctx, "start verification", r.c.StartVerification, &v1.StartVerificationRequest{})
+func (r *Remote) StartVerification(ctx context.Context, on domain.RoomOwner) (string, error) {
+	resp, err := call(ctx, "start verification", r.c.StartVerification, &v1.StartVerificationRequest{On: string(on)})
 	return resp.GetTxnId(), err
 }
 
@@ -736,23 +736,23 @@ func (r *Remote) ClearCache(ctx context.Context) error {
 
 // RestoreKeyBackup sends the secret in the request body over the 0600 socket, never
 // on argv.
-func (r *Remote) RestoreKeyBackup(ctx context.Context, secret string) (int, error) {
-	resp, err := call(ctx, "restore keys", r.c.RestoreKeyBackup, &v1.RestoreKeyBackupRequest{Secret: secret})
+func (r *Remote) RestoreKeyBackup(ctx context.Context, on domain.RoomOwner, secret string) (int, error) {
+	resp, err := call(ctx, "restore keys", r.c.RestoreKeyBackup, &v1.RestoreKeyBackupRequest{Secret: secret, On: string(on)})
 	return int(resp.GetKeys()), err
 }
 
-func (r *Remote) ExportRoomKeys(ctx context.Context, passphrase string) ([]byte, error) {
-	resp, err := call(ctx, "export room keys", r.c.ExportRoomKeys, &v1.ExportRoomKeysRequest{Passphrase: passphrase})
+func (r *Remote) ExportRoomKeys(ctx context.Context, on domain.RoomOwner, passphrase string) ([]byte, error) {
+	resp, err := call(ctx, "export room keys", r.c.ExportRoomKeys, &v1.ExportRoomKeysRequest{Passphrase: passphrase, On: string(on)})
 	return resp.GetData(), err
 }
 
-func (r *Remote) ImportRoomKeys(ctx context.Context, passphrase string, data []byte) (int, int, error) {
-	resp, err := call(ctx, "import room keys", r.c.ImportRoomKeys, &v1.ImportRoomKeysRequest{Passphrase: passphrase, Data: data})
+func (r *Remote) ImportRoomKeys(ctx context.Context, on domain.RoomOwner, passphrase string, data []byte) (int, int, error) {
+	resp, err := call(ctx, "import room keys", r.c.ImportRoomKeys, &v1.ImportRoomKeysRequest{Passphrase: passphrase, Data: data, On: string(on)})
 	return int(resp.GetImported()), int(resp.GetTotal()), err
 }
 
-func (r *Remote) BootstrapKeyBackup(ctx context.Context, password string) (domain.KeyBackup, error) {
-	resp, err := call(ctx, "bootstrap key backup", r.c.BootstrapKeyBackup, &v1.BootstrapKeyBackupRequest{Password: password})
+func (r *Remote) BootstrapKeyBackup(ctx context.Context, on domain.RoomOwner, password string) (domain.KeyBackup, error) {
+	resp, err := call(ctx, "bootstrap key backup", r.c.BootstrapKeyBackup, &v1.BootstrapKeyBackupRequest{Password: password, On: string(on)})
 	return pc.ProtoToKeyBackup(resp), err
 }
 

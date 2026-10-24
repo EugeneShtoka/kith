@@ -171,6 +171,14 @@ func (b *InProc) useAccount(user string) {
 	}
 }
 
+// mine refuses a call for an account other than this backend's.
+func (b *InProc) mine(on domain.RoomOwner) error {
+	if on != b.ids.owner() {
+		return fmt.Errorf("matrix: %s is not this account: %w", on, api.ErrNotOnNetwork)
+	}
+	return nil
+}
+
 // cacheOwesRewind reports whether a freshly opened cache (rebuilt, or holding none of
 // owner's rooms) needs a full initial sync. Decided before anything writes owner's
 // rooms; an error counts as empty, since a needless rewind costs one sync and a missed

@@ -42,6 +42,7 @@ var (
 		route.SpaceEditor
 		route.Threads
 		api.Membership
+		route.ChatMaker
 		api.Verification
 		api.Keys
 	} = (*matrix.Adapter)(nil)

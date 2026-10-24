@@ -17,10 +17,10 @@ func TestKeyFileOperationsRefuseWithoutEncryption(t *testing.T) {
 
 	b, ctx := newBackend(nil), context.Background()
 
-	if _, err := b.ExportRoomKeys(ctx, "hunter2"); !errors.Is(err, api.ErrNoEncryption) {
+	if _, err := b.ExportRoomKeys(ctx, testIDs.owner(), "hunter2"); !errors.Is(err, api.ErrNoEncryption) {
 		t.Errorf("ExportRoomKeys error = %v, want ErrNoEncryption", err)
 	}
-	if _, _, err := b.ImportRoomKeys(ctx, "hunter2", []byte("anything")); !errors.Is(err, api.ErrNoEncryption) {
+	if _, _, err := b.ImportRoomKeys(ctx, testIDs.owner(), "hunter2", []byte("anything")); !errors.Is(err, api.ErrNoEncryption) {
 		t.Errorf("ImportRoomKeys error = %v, want ErrNoEncryption", err)
 	}
 }

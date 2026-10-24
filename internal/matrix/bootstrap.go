@@ -24,7 +24,10 @@ import (
 
 // BootstrapKeyBackup creates cross-signing keys, secret storage with a fresh recovery
 // key, a backup version and a first upload. password is for user-interactive auth.
-func (b *InProc) BootstrapKeyBackup(ctx context.Context, password string) (domain.KeyBackup, error) {
+func (b *InProc) BootstrapKeyBackup(ctx context.Context, on domain.RoomOwner, password string) (domain.KeyBackup, error) {
+	if err := b.mine(on); err != nil {
+		return domain.KeyBackup{}, err
+	}
 	helper := b.cryptoHelper()
 	if helper == nil {
 		return domain.KeyBackup{}, api.ErrNoEncryption

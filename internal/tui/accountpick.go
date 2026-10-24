@@ -21,6 +21,15 @@ const (
 	thenResolve
 	// thenJoin joins a Matrix room by an address as Matrix writes it.
 	thenJoin
+	// thenCreate makes spec on the picked account, a DM with name.
+	thenCreate
+	// thenVerify asks the picked account's other devices to verify this one.
+	thenVerify
+	// thenDiscover opens the public room directory the picked account sees.
+	thenDiscover
+	// thenKnock knocks on a Matrix room by an address as Matrix writes it, text the
+	// reason.
+	thenKnock
 )
 
 // accountThen is a call that names no account, waiting for one (domain.PickAccount):
@@ -39,6 +48,9 @@ type accountThen struct {
 	uri     string
 	address string
 	via     []string
+	// spec and name are a room to make and what to call it meanwhile (thenCreate).
+	spec domain.NewRoom
+	name string
 }
 
 // accountListMsg is every connected account, for the cache (loadAccountsCmd).
@@ -161,6 +173,15 @@ func (m Model) withAccount(then accountThen, account domain.Account) (Model, tea
 	case thenJoin:
 		m = m.say("joining " + then.address + "…")
 		return m, m.joinRoomCmd(string(account.On)+then.address, then.via...)
+	case thenCreate:
+		then.spec.On = account.On
+		return m.doing("starting a conversation with " + isolate(then.name) + "…"), m.createRoomAsCmd(then.spec, then.name, true)
+	case thenVerify:
+		return m, m.startVerifyCmd(account.On)
+	case thenDiscover:
+		return m, m.publicRoomsCmd(account.On, "")
+	case thenKnock:
+		return m, m.knockCmd(account.On, then.address, then.text)
 	}
 	return m, nil
 }

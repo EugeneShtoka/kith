@@ -567,8 +567,7 @@ type BackendServiceClient interface {
 	SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error)
 	// Deciding who else is in a room.
 	CreateRoom(context.Context, *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error)
-	// ChatOffers is every kind of chat each connected account of a network other than
-	// Matrix can make.
+	// ChatOffers is every kind of chat, room or space each connected account can make.
 	ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error)
 	// Accounts is every connected account of every network, for a client to pick the
 	// one a call naming none goes to (domain.PickAccount).
@@ -2496,8 +2495,7 @@ type BackendServiceHandler interface {
 	SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error)
 	// Deciding who else is in a room.
 	CreateRoom(context.Context, *connect.Request[v1.CreateRoomRequest]) (*connect.Response[v1.CreateRoomResponse], error)
-	// ChatOffers is every kind of chat each connected account of a network other than
-	// Matrix can make.
+	// ChatOffers is every kind of chat, room or space each connected account can make.
 	ChatOffers(context.Context, *connect.Request[v1.ChatOffersRequest]) (*connect.Response[v1.ChatOffersResponse], error)
 	// Accounts is every connected account of every network, for a client to pick the
 	// one a call naming none goes to (domain.PickAccount).

@@ -70,9 +70,10 @@ units per profile.
 
 ### Several accounts on a network
 
-When a network has several accounts, opening a link (`tg:`, `t.me`, `wa.me`,
-`matrix.to`, `matrix:`), joining a room by its address and looking a chat up use one
-of them, picked in this order:
+When a network has several accounts, a call that names none uses one of them:
+opening a link (`tg:`, `t.me`, `wa.me`, `matrix.to`, `matrix:`), joining or knocking
+on a room by its address, starting a direct message, `:verify`, `/discover` and the
+key jobs (`--restore-keys` and the rest). It is picked in this order:
 
 1. **An account already in that chat.** If several are, the network's default, when it
    is one of them; otherwise kith asks which of them.
@@ -84,7 +85,8 @@ of them, picked in this order:
    default = "work"   # the name of one of its [[telegram.account]]s
    ```
 
-4. **Otherwise kith asks which.**
+4. **Otherwise kith asks which.** The key jobs, run with no one to ask, refuse and
+   name the accounts instead.
 
 A `default` that names no account of the network is refused at startup.
 
