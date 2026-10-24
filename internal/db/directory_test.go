@@ -35,6 +35,7 @@ func TestTheDirectoryTakesTheMostTrustedNameFromAnyAccount(t *testing.T) {
 		{UserID: "@whatsapp_il_15550100002:x", DisplayName: "Eli Bridged (WA)"},
 		{UserID: "@whatsapp_il_15550100003:x", DisplayName: "Gil (WA)"},
 		{UserID: "@telegram_15550100005:x", DisplayName: "Not a number's name"},
+		{UserID: "matrix:@whatsapp_il_15550100006:x", DisplayName: "Hal (WA)"}, // kith's prefixed form
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -48,6 +49,7 @@ func TestTheDirectoryTakesTheMostTrustedNameFromAnyAccount(t *testing.T) {
 		"15550100003": "Gil",         // a saved "name" that is the number is passed over
 		"15550100004": "Fay",
 		"15550100005": "", // a puppet of a network with no numbers in its IDs
+		"15550100006": "Hal",
 	} {
 		if got, _ := dir.Named("+" + number); got != want {
 			t.Errorf("+%s is named %q, want %q", number, got, want)

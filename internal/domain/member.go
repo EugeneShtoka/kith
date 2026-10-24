@@ -23,9 +23,9 @@ func (m Member) Name() string {
 	return m.UserID
 }
 
-// Localpart returns "alice" for "@alice:example.org".
+// Localpart returns "alice" for "@alice:example.org" (or "matrix:@alice:example.org").
 func Localpart(mxid string) string {
-	local := strings.TrimPrefix(mxid, "@")
+	local := strings.TrimPrefix(MatrixNative(mxid), "@")
 	if colon := strings.IndexByte(local, ':'); colon >= 0 {
 		local = local[:colon]
 	}

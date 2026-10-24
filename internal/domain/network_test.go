@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -191,5 +192,78 @@ func TestEachWriterOwnsOnlyItsRooms(t *testing.T) {
 	}
 	if domain.RoomOwner("").Owns("!abc:example.org") {
 		t.Error("the zero owner owns a room")
+	}
+}
+
+// A Matrix ID reads the same with kith's "matrix:" prefix as bare, so the switch to
+// prefixed Matrix IDs changes no answer about them.
+func TestMatrixIDsReadTheSameWithTheirPrefix(t *testing.T) {
+	t.Parallel()
+
+	account := domain.AccountKey("@me:example.org")
+	people := []string{"@dana:example.org", "@whatsapp_15550100001:example.org", "@telegram_1234567:example.org",
+		"@whatsappbot:example.org", "@slack_t0abc1234-u09wxyz:example.org"}
+	scoped := []string{"!abc:example.org", "!31hneApxJ_1o-63DmFrpeqnkFfWppnzWso1JvH3ogLM", "$ev:example.org",
+		"$c29tZS9iYXNlNjQ+ZXZlbnQ"}
+	type answers struct {
+		id                         domain.ID
+		user, room, event, anyUser bool
+		anyRoom, bot               bool
+		short, local, phone, uri   string
+		network                    domain.Protocol
+		cards                      string
+		entry                      domain.EntryKind
+		entryOK                    bool
+	}
+	read := func(s string) answers {
+		mention := domain.Mention{UserID: s}
+		if !domain.IsMatrixUserID(s) {
+			mention = domain.Mention{RoomID: s}
+		}
+		id := domain.ParseID(s)
+		id.Account = "" // the bare form has none
+		entry, entryOK := domain.ParseEntry(s)
+		return answers{
+			entry: entry, entryOK: entryOK,
+			id: id, user: domain.IsMatrixUserID(s), room: domain.IsMatrixRoomID(s), event: domain.IsMatrixEventID(s),
+			anyUser: domain.IsUserID(s), anyRoom: domain.IsRoomID(s), bot: domain.IsBridgeBot(s),
+			short: domain.ShortName(s), local: domain.Localpart(s), phone: domain.PhoneOf(s), uri: mention.URI(),
+			network: domain.ProtocolOf(s), cards: fmt.Sprint(domain.CardIdentifiers([]string{s})),
+		}
+	}
+	check := func(bare, prefixed string) {
+		t.Helper()
+		if got := domain.MatrixNative(prefixed); got != bare {
+			t.Errorf("MatrixNative(%q) = %q, want %q", prefixed, got, bare)
+		}
+		if got, want := read(prefixed), read(bare); got != want {
+			t.Errorf("%q reads as %+v, bare %q as %+v", prefixed, got, bare, want)
+		}
+	}
+	for _, bare := range people {
+		check(bare, "matrix:"+bare)
+	}
+	for _, bare := range scoped {
+		check(bare, "matrix:"+account+"/"+bare)
+		if got := domain.ParseID("matrix:" + account + "/" + bare).Account; got != account {
+			t.Errorf("account of %q = %q, want %q", bare, got, account)
+		}
+	}
+}
+
+// A matrix: URI is an address, not an ID: it never reads as one, whatever follows the
+// scheme.
+func TestMatrixURIsAreNotIDs(t *testing.T) {
+	t.Parallel()
+
+	for _, uri := range []string{"matrix:u/dana:example.org", "matrix:roomid/abc:example.org",
+		"matrix:r/room:example.org", "matrix:roomid/abc:example.org/e/ev", "matrix:0123456789abcde/!abc:x",
+		"matrix:0123456789ABCDEF/!abc:x"} {
+		if got := domain.MatrixNative(uri); got != uri {
+			t.Errorf("MatrixNative(%q) = %q, want it unchanged", uri, got)
+		}
+		if domain.IsMatrixUserID(uri) || domain.IsMatrixRoomID(uri) || domain.IsMatrixEventID(uri) {
+			t.Errorf("%q reads as a Matrix ID", uri)
+		}
 	}
 }

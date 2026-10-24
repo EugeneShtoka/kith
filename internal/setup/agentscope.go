@@ -142,7 +142,7 @@ const (
 func entryKind(entry string) string {
 	lower := strings.ToLower(strings.TrimSpace(entry))
 	switch {
-	case strings.HasPrefix(strings.TrimPrefix(lower, "room:"), "!"):
+	case domain.IsMatrixRoomID(strings.TrimPrefix(lower, "room:")):
 		return kindID
 	case strings.HasPrefix(lower, "protocol:"):
 		return kindProtocol

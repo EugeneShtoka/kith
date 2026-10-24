@@ -71,14 +71,16 @@ func ignoredFrom(events []*event.Event) (content ignoredContent, present bool) {
 // then the mirror. The whole set is read first (another device may have moved
 // since the last sync), so a concurrent write never shrinks the list silently.
 func (b *InProc) Ignore(ctx context.Context, mxid string) error {
-	return b.updateIgnored(ctx, func(set map[string]bool) { set[mxid] = true })
+	user := b.ids.user(b.ids.nativeUser(mxid)) // the set's own form, however mxid was written
+	return b.updateIgnored(ctx, func(set map[string]bool) { set[user] = true })
 }
 
 // Unignore is Ignore's inverse: drops mxid from the set, writes it back,
 // mirrors. A user who was not ignored is a no-op (no write), so repeated calls
 // are cheap.
 func (b *InProc) Unignore(ctx context.Context, mxid string) error {
-	return b.updateIgnored(ctx, func(set map[string]bool) { delete(set, mxid) })
+	user := b.ids.user(b.ids.nativeUser(mxid))
+	return b.updateIgnored(ctx, func(set map[string]bool) { delete(set, user) })
 }
 
 // Ignored is the MXIDs this account ignores, as the homeserver has them.

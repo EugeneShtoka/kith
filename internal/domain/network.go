@@ -151,15 +151,23 @@ type ID struct {
 	// Network is the network the ID belongs to; Matrix for a bare ID.
 	Network Protocol
 	// Account is the account a room or event is seen through; empty for a person and
-	// for every Matrix ID.
+	// for a bare Matrix ID.
 	Account string
 	// Native is the ID as the network itself writes it.
 	Native string
 }
 
+// matrixPrefix marks a Matrix ID in the form every network's IDs take:
+// "matrix:@user:server" for a person, "matrix:<account>/<native>" for a room or event.
+// Until Matrix IDs are written that way, a bare ID is Matrix's too.
+const matrixPrefix = "matrix:"
+
 // ParseID takes an ID apart. Anything without a known network prefix is Matrix's, the
 // whole string its native ID.
 func ParseID(s string) ID {
+	if id, ok := parseMatrixID(s); ok {
+		return id
+	}
 	prefix, rest, ok := strings.Cut(s, ":")
 	n, known := natives[prefix]
 	if !ok || !known {
@@ -171,19 +179,55 @@ func ParseID(s string) ID {
 	return ID{Network: n.protocol, Native: rest}
 }
 
+// parseMatrixID takes apart a Matrix ID that carries matrixPrefix. A person's native ID
+// starts with "@" and is never split; anything else needs an AccountKey before the
+// separator, so a matrix: URI ("matrix:u/…", "matrix:roomid/…") never reads as an ID.
+func parseMatrixID(s string) (ID, bool) {
+	rest, ok := strings.CutPrefix(s, matrixPrefix)
+	if !ok {
+		return ID{}, false
+	}
+	if strings.HasPrefix(rest, "@") {
+		return ID{Network: ProtocolMatrix, Native: rest}, true
+	}
+	account, native, ok := strings.Cut(rest, accountSep)
+	if !ok || native == "" || !isAccountKey(account) {
+		return ID{}, false
+	}
+	return ID{Network: ProtocolMatrix, Account: account, Native: native}, true
+}
+
+// MatrixNative is a Matrix ID as Matrix writes it, from kith's form with or without
+// matrixPrefix. Anything else comes back as it is.
+func MatrixNative(s string) string {
+	if id, ok := parseMatrixID(s); ok {
+		return id.Native
+	}
+	return s
+}
+
 // NetworkOf is the network an ID belongs to: Matrix for a bare ID. It does not see
 // through bridges; ProtocolOf does that for a person.
 func NetworkOf(id string) Protocol { return ParseID(id).Network }
 
 // IsMatrixUserID reports whether s has the shape of a Matrix user ID, "@name:server".
 func IsMatrixUserID(s string) bool {
-	return strings.HasPrefix(s, "@") && strings.Contains(s, ":")
+	id := ParseID(s)
+	return id.Network == ProtocolMatrix && id.Account == "" &&
+		strings.HasPrefix(id.Native, "@") && strings.Contains(id.Native, ":")
 }
 
 // IsMatrixRoomID reports whether s has the shape of a Matrix room ID: "!opaque:server",
 // or, from room version 12 on, "!opaque" with no server at all.
 func IsMatrixRoomID(s string) bool {
-	return len(s) > 1 && s[0] == '!'
+	id := ParseID(s)
+	return id.Network == ProtocolMatrix && len(id.Native) > 1 && id.Native[0] == '!'
+}
+
+// IsMatrixEventID reports whether s has the shape of a Matrix event ID, "$opaque".
+func IsMatrixEventID(s string) bool {
+	id := ParseID(s)
+	return id.Network == ProtocolMatrix && len(id.Native) > 1 && id.Native[0] == '$'
 }
 
 // IsUserID reports whether s has the shape of a person's ID on any network.

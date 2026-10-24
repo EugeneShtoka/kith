@@ -84,6 +84,7 @@ func (b *InProc) MarkPerson(ctx context.Context, verdict domain.PersonVerdict) e
 	if verdict.At.IsZero() {
 		verdict.At = time.Now()
 	}
+	verdict.Person = b.ids.user(b.ids.nativeUser(verdict.Person)) // the set's own form
 	set, err := b.serverPeople(ctx)
 	if err != nil {
 		return err
