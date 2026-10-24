@@ -30,7 +30,7 @@ func CardIdentifiers(ids []string) map[string][]string {
 			add(strings.ToLower(prefixOf(id.Network)), id.Native)
 		case !IsMatrixUserID(x):
 		case ProtocolOf(x) == ProtocolMatrix:
-			add("matrix", x)
+			add("matrix", MatrixNative(x))
 		default:
 			if user, ok := telegramPuppet(x); ok {
 				add("telegram", user)
@@ -42,8 +42,7 @@ func CardIdentifiers(ids []string) map[string][]string {
 
 // telegramPuppet is the Telegram user a bridge's puppet (@telegram_123:server) is.
 func telegramPuppet(mxid string) (string, bool) {
-	local, _, _ := strings.Cut(strings.TrimPrefix(mxid, "@"), ":")
-	user, ok := strings.CutPrefix(local, "telegram_")
+	user, ok := strings.CutPrefix(Localpart(mxid), "telegram_")
 	if !ok || user == "" || strings.Trim(user, "0123456789") != "" {
 		return "", false
 	}

@@ -92,9 +92,6 @@ const (
 	entryProtocol = "protocol:"
 	entryDirect   = "dm"
 	entryGroup    = "group"
-	// roomSigil marks a Matrix room ID, a complete entry on its own (as is any
-	// network's room ID, IsRoomID).
-	roomSigil = "!"
 )
 
 // EntryKind is how broadly one entry reaches: one room is narrower than a set.
@@ -120,7 +117,7 @@ func ParseEntry(entry string) (EntryKind, bool) {
 		hasPrefixFold(entry, entrySpace), hasPrefixFold(entry, entryProtocol), hasPrefixFold(entry, termTag),
 		hasPrefixFold(entry, entryPlace):
 		return EntryClass, true
-	case hasPrefixFold(entry, entryRoom), strings.HasPrefix(entry, roomSigil), IsRoomID(entry):
+	case hasPrefixFold(entry, entryRoom), IsRoomID(entry):
 		return EntryRoom, true
 	default:
 		return EntryInvalid, false

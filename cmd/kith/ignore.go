@@ -9,6 +9,8 @@ import (
 	"os/signal"
 	"strings"
 	"time"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // ignoreTimeout bounds a single server round-trip (read-change-write of
@@ -85,7 +87,7 @@ func runIgnoreOrUnignore(args []string, verb string, do func(context.Context, ig
 		return fmt.Errorf("usage: kith %s <mxid> (e.g. @alice:example.org)", verb)
 	}
 	mxid := strings.TrimSpace(fs.Arg(0))
-	if !strings.HasPrefix(mxid, "@") || !strings.Contains(mxid, ":") {
+	if !domain.IsMatrixUserID(mxid) {
 		return fmt.Errorf("%q is not a Matrix user ID (expected @name:homeserver)", mxid)
 	}
 	ctx, cancel := reachIgnoreCtx()

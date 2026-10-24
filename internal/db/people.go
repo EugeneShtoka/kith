@@ -95,7 +95,7 @@ func (c *Cache) Directory(ctx context.Context) (domain.Directory, error) {
 	}
 	puppets, err := collect(ctx, c.db, "bridged names",
 		`SELECT DISTINCT user_id, display_name FROM room_members
-		  WHERE display_name <> '' AND (user_id LIKE '@whatsapp%' OR user_id LIKE 'whatsapp:%')`,
+		  WHERE display_name <> '' AND (user_id LIKE '@whatsapp%' OR user_id LIKE 'matrix:@whatsapp%' OR user_id LIKE 'whatsapp:%')`,
 		func(rows *sql.Rows) (domain.Member, error) {
 			var m domain.Member
 			scanErr := rows.Scan(&m.UserID, &m.DisplayName)

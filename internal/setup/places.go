@@ -96,7 +96,7 @@ func isHomeEntry(entry string) bool { _, _, ok := domain.ParseHomeEntry(entry); 
 // isIDEntry reports a room or event ID: complete on its own.
 func isIDEntry(entry string) bool {
 	entry = strings.TrimSpace(entry)
-	return strings.HasPrefix(entry, "!") || strings.HasPrefix(entry, "$") || domain.IsRoomID(entry)
+	return domain.IsRoomID(entry) || domain.IsMatrixEventID(entry)
 }
 
 // railLists are the lists of rail rows: priority, the rail's own, filing_spaces.

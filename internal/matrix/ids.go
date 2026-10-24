@@ -11,7 +11,8 @@ import (
 // package goes through it, so what a kith Matrix ID looks like is decided here alone
 // (ids_contract_test.go holds the typed crossings to that; an ID read out of a raw
 // string, such as a pill or an account-data key, is routed here by hand). The two forms
-// are the same for now. An empty ID stays empty both ways: it means "none".
+// are the same for now, and kith's is read with or without its "matrix:" prefix. An
+// empty ID stays empty both ways: it means "none".
 type ids struct{}
 
 // room is a Matrix room ID in kith's form.
@@ -21,7 +22,7 @@ func (ids) room(r id.RoomID) domain.RoomID { return domain.RoomID(r) }
 func (x ids) roomOf(native string) domain.RoomID { return x.room(id.RoomID(native)) }
 
 // nativeRoom is a kith room ID in Matrix's form.
-func (ids) nativeRoom(r domain.RoomID) id.RoomID { return id.RoomID(r) }
+func (ids) nativeRoom(r domain.RoomID) id.RoomID { return id.RoomID(domain.MatrixNative(string(r))) }
 
 // event is a Matrix event ID in kith's form.
 func (ids) event(e id.EventID) domain.EventID { return domain.EventID(e) }
@@ -33,10 +34,12 @@ func (x ids) eventOf(native string) domain.EventID { return x.event(id.EventID(n
 func (ids) space(r id.RoomID) domain.SpaceID { return domain.SpaceID(r) }
 
 // nativeSpace is a kith space ID in Matrix's form.
-func (ids) nativeSpace(s domain.SpaceID) id.RoomID { return id.RoomID(s) }
+func (ids) nativeSpace(s domain.SpaceID) id.RoomID { return id.RoomID(domain.MatrixNative(string(s))) }
 
 // nativeEvent is a kith event ID in Matrix's form.
-func (ids) nativeEvent(e domain.EventID) id.EventID { return id.EventID(e) }
+func (ids) nativeEvent(e domain.EventID) id.EventID {
+	return id.EventID(domain.MatrixNative(string(e)))
+}
 
 // user is a Matrix user ID in kith's form.
 func (ids) user(u id.UserID) string { return string(u) }
@@ -45,7 +48,7 @@ func (ids) user(u id.UserID) string { return string(u) }
 func (x ids) userOf(native string) string { return x.user(id.UserID(native)) }
 
 // nativeUser is a kith user ID in Matrix's form.
-func (ids) nativeUser(u string) id.UserID { return id.UserID(u) }
+func (ids) nativeUser(u string) id.UserID { return id.UserID(domain.MatrixNative(u)) }
 
 // configuredUser is the account's own MXID as the config or a login names it: Matrix's
 // form already, never kith's.

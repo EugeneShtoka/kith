@@ -82,7 +82,7 @@ func (m Mention) Target() string {
 
 // URI is the mention's `matrix:` URI, or "".
 func (m Mention) URI() string {
-	switch target := m.Target(); {
+	switch target := MatrixNative(m.Target()); {
 	case strings.HasPrefix(target, "@"):
 		return "matrix:u/" + target[1:]
 	case strings.HasPrefix(target, "!"):

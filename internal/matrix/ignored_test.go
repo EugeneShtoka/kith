@@ -100,6 +100,27 @@ func TestIgnoreUserRoundTrip(t *testing.T) {
 	}
 }
 
+// A user named with kith's "matrix:" prefix is the same user as the bare MXID: the
+// homeserver gets Matrix's form, and unignoring by either spelling finds them.
+func TestIgnoreUserByEitherSpelling(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := &fakeAccountData{data: map[string]json.RawMessage{}}
+	b := backendWith(t, store.serve(t), nil)
+	if err := b.Ignore(ctx, "matrix:@spam:x"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := b.Ignored(ctx); err != nil || !sameStringSet(got, []string{"@spam:x"}) {
+		t.Fatalf("Ignored = %v, %v; want [@spam:x]", got, err)
+	}
+	if err := b.Unignore(ctx, "matrix:@spam:x"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := b.Ignored(ctx); err != nil || len(got) != 0 {
+		t.Errorf("after unignore = %v, %v; want empty", got, err)
+	}
+}
+
 // A server refusal on write surfaces up as an error, not a silent success; the
 // mirror is left alone (the server copy is the record, so a failed write must
 // not leave a lie in the cache).

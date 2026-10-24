@@ -93,11 +93,7 @@ func ProtocolOf(mxid string) Protocol {
 	if p := NetworkOf(mxid); p != ProtocolMatrix {
 		return p
 	}
-	local := strings.TrimPrefix(mxid, "@")
-	if colon := strings.IndexByte(local, ':'); colon >= 0 {
-		local = local[:colon]
-	}
-	local = strings.ToLower(strings.TrimPrefix(local, "_"))
+	local := strings.ToLower(strings.TrimPrefix(Localpart(mxid), "_"))
 
 	// A ghost user: the token is everything before the first separator.
 	if sep := strings.IndexByte(local, '_'); sep > 0 {
@@ -114,11 +110,7 @@ func ProtocolOf(mxid string) Protocol {
 // IsBridgeBot reports whether mxid is a bridge's own bot (@telegrambot), not a person
 // the bridge puts in rooms.
 func IsBridgeBot(mxid string) bool {
-	local := strings.TrimPrefix(mxid, "@")
-	if colon := strings.IndexByte(local, ':'); colon >= 0 {
-		local = local[:colon]
-	}
-	_, ok := botProtocol(strings.ToLower(local))
+	_, ok := botProtocol(strings.ToLower(Localpart(mxid)))
 	return ok
 }
 
