@@ -43,6 +43,9 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"ChatOffer", domain.ChatOffer{}, func(v any) any {
 			return protoconv.ProtoToChatOffer(protoconv.ChatOfferToProto(v.(domain.ChatOffer)))
 		}},
+		{"LinkTarget", domain.LinkTarget{}, func(v any) any {
+			return protoconv.ProtoToLinkTarget(protoconv.LinkTargetToProto(v.(domain.LinkTarget)))
+		}},
 		{"Reaction", domain.Reaction{}, func(v any) any {
 			return protoconv.ProtoToReaction(protoconv.ReactionToProto(v.(domain.Reaction)))
 		}},

@@ -141,7 +141,7 @@ func (m Model) followPendingLink() (Model, tea.Cmd, bool) {
 
 // followLink goes where uri points and says so after the move, since opening a room
 // sets its own status and the last writer wins. Matrix is tried first; a tg:// link
-// looks up a chat by its stored @username.
+// looks up a chat by its stored @username, else asks Telegram.
 func (m Model) followLink(uri string) (Model, tea.Cmd) {
 	if place, ok := domain.ParsePlace(uri); ok {
 		label, _ := m.placeLabel(place)
@@ -154,22 +154,102 @@ func (m Model) followLink(uri string) (Model, tea.Cmd) {
 	return m.say("not a Matrix or Telegram link: " + uri), nil
 }
 
-// followTelegramLink resolves link against the cached Telegram chats and goes to the
-// one whose @username (or private channel ID) matches. An unknown chat says what was
-// unknown instead of making anything.
+// followTelegramLink goes to the cached Telegram chat whose @username (or private
+// channel ID) matches link, else to the one Telegram finds (handleLinkResolved).
 func (m Model) followTelegramLink(link domain.TelegramLink, uri string) (Model, tea.Cmd) {
 	room, found := m.rooms.telegramLink(link)
 	if !found {
-		return m.say("no Telegram chat found for " + uri), nil
+		return m.doing("looking up " + uri + "…"), m.resolveLinkCmd(uri, link.Post, link.Text)
 	}
+	return m.openLinked(room, link.Post, link.Text)
+}
+
+// openLinked opens a chat a link named, at the post it named, with the message it
+// suggests in the composer.
+func (m Model) openLinked(room domain.Room, post int, text string) (Model, tea.Cmd) {
 	label := m.roomName(room)
 	place := domain.Place{Kind: domain.PlaceRoom, Room: string(room.ID)}
-	if link.Post > 0 {
+	if post > 0 {
 		place.Kind = domain.PlaceEvent
-		place.Event = domain.EventID(string(room.ID) + "/" + strconv.Itoa(link.Post))
+		place.Event = domain.EventID(string(room.ID) + "/" + strconv.Itoa(post))
 	}
 	next, cmd := m.goToPlace(place)
-	return next.say("followed a link to " + isolate(label)), cmd
+	return next.suggested(text).say("followed a link to " + isolate(label)), cmd
+}
+
+// suggested puts a link's suggested message in the composer, only when it holds no
+// draft of its own: the link offers words, it does not take the user's.
+func (m Model) suggested(text string) Model {
+	if text == "" || m.compose.input != "" || m.compose.isEditing() {
+		return m
+	}
+	m = m.store(fieldComposer, newEditor(text).end())
+	return m.trackComposerDraft()
+}
+
+// linkResolvedMsg is the chat a link names, as its network found it; post and text are
+// the link's own.
+type linkResolvedMsg struct {
+	uri    string
+	post   int
+	text   string
+	target domain.LinkTarget
+	err    error
+}
+
+// resolveLinkCmd asks the link's network for the chat it names.
+func (m Model) resolveLinkCmd(uri string, post int, text string) tea.Cmd {
+	ctx, backend := m.ctx, m.backend
+	return func() tea.Msg {
+		target, err := backend.ResolveLink(ctx, uri)
+		return linkResolvedMsg{uri: uri, post: post, text: text, target: target, err: err}
+	}
+}
+
+// handleLinkResolved opens the chat a network found for a link: one to join is asked
+// about first; one no listing holds yet (somebody to write to for the first time) is
+// opened as a fresh chat, made by its first message.
+func (m Model) handleLinkResolved(msg linkResolvedMsg) (Model, tea.Cmd) {
+	t := msg.target
+	switch {
+	case msg.err != nil:
+		return m.sayErr("no chat found for "+msg.uri, msg.err), nil
+	case t.Join:
+		m.confirm = confirmState{action: pendingJoinLink, address: msg.uri, room: t.Room, body: t.About}
+		return m.clearStatus(), nil
+	case t.Room.ID == "":
+		return m.say("no chat found for " + msg.uri), nil
+	}
+	m.rooms = m.rooms.withFresh(t.Room)
+	m = m.refreshPlaces().rebuiltRail()
+	room, _ := m.rooms.byID(t.Room.ID)
+	return m.openLinked(room, msg.post, msg.text)
+}
+
+// joinLinkPrompt is the question before joining the chat a link names.
+func joinLinkPrompt(pending confirmState) string {
+	name := pending.room.Name
+	if name == "" {
+		name = pending.address
+	}
+	if pending.body != "" {
+		return "join " + isolate(name) + " (" + pending.body + ")? you are not in it"
+	}
+	return "join " + isolate(name) + "? you are not in it"
+}
+
+// joinLink joins the chat a link names after confirmation, and opens it once listed.
+func (m Model) joinLink(pending confirmState) (Model, tea.Cmd) {
+	name := pending.room.Name
+	if name == "" {
+		name = pending.address
+	}
+	m = m.doing("joining " + isolate(name) + "…")
+	ctx, backend, uri := m.ctx, m.backend, pending.address
+	return m, func() tea.Msg {
+		roomID, err := backend.JoinLink(ctx, uri)
+		return joinedMsg{roomID: roomID, err: err, enter: true}
+	}
 }
 
 // followSource is a backend that hands over links clicked elsewhere on the desktop
@@ -209,6 +289,15 @@ type roomsChangedMsg struct{}
 
 // followMsg is a link the desktop handed to this client.
 type followMsg struct{ uri string }
+
+// handleLinking is news of a link: one handed over, or the chat its network found.
+func (m Model) handleLinking(msg tea.Msg) (Model, tea.Cmd) {
+	if resolved, ok := msg.(linkResolvedMsg); ok {
+		return m.handleLinkResolved(resolved)
+	}
+	handed, _ := msg.(followMsg)
+	return m.handleFollow(handed)
+}
 
 // handleFollow goes where a handed-over link points, brings this window forward
 // ([clipboard] raise_command), and re-arms the listener. A startup link does not

@@ -1361,8 +1361,8 @@ func (m Model) handleContentMsg(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleFetchedQuote(msg)
 	case fetchedEventMsg:
 		return m.handleFetchedEvent(msg)
-	case followMsg:
-		return m.handleFollow(msg)
+	case followMsg, linkResolvedMsg:
+		return m.handleLinking(msg)
 	case roomsChangedMsg:
 		return m, tea.Batch(m.loadRoomsCmd(), m.listenRoomsCmd())
 	case historyMsg:
@@ -2732,7 +2732,8 @@ func (m Model) handleRooms(msg roomsMsg) (Model, tea.Cmd) {
 	}
 	// The cursor before the change, so a removed room hands selection to a neighbor.
 	was := m.roomCursor()
-	m.rooms = m.rooms.withJoined(msg.rooms)
+	// A chat a link opened stays while open; once listed, the listing's copy replaces it.
+	m.rooms = m.rooms.withJoined(msg.rooms).keepingFresh(m.openRoom)
 	// The rail follows the rooms: a forum's row, a tag hidden while it holds none.
 	m = m.refreshPlaces().rebuiltRail()
 	// Archived rooms need their parent space; asked only for archived rooms.

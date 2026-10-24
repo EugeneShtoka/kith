@@ -270,6 +270,21 @@ func (r *Remote) ChatOffers(ctx context.Context) ([]domain.ChatOffer, error) {
 	return pc.ProtoToChatOffers(resp.GetOffers()), nil
 }
 
+// ResolveLink asks the daemon which chat a link names.
+func (r *Remote) ResolveLink(ctx context.Context, uri string) (domain.LinkTarget, error) {
+	resp, err := call(ctx, "look up a link", r.c.ResolveLink, &v1.ResolveLinkRequest{Uri: uri})
+	if err != nil {
+		return domain.LinkTarget{}, err
+	}
+	return pc.ProtoToLinkTarget(resp), nil
+}
+
+// JoinLink asks the daemon to join the chat a link names.
+func (r *Remote) JoinLink(ctx context.Context, uri string) (domain.RoomID, error) {
+	resp, err := call(ctx, "join by a link", r.c.JoinLink, &v1.JoinLinkRequest{Uri: uri})
+	return domain.RoomID(resp.GetRoomId()), err
+}
+
 // CreateRoom keeps the in-process contract: a partial failure returns the new room's
 // ID with an error.
 func (r *Remote) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error) {

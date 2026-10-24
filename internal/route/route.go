@@ -141,6 +141,12 @@ type (
 		CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.RoomID, error)
 		ChatOffers(ctx context.Context) ([]domain.ChatOffer, error)
 	}
+	// LinkFollower looks up the chats its network's links name (domain.LinkNetwork),
+	// and joins them.
+	LinkFollower interface {
+		ResolveLink(ctx context.Context, uri string) (domain.LinkTarget, error)
+		JoinLink(ctx context.Context, uri string) (domain.RoomID, error)
+	}
 	// PollReader names who chose what in a message's poll.
 	PollReader interface {
 		PollVoters(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.PollVoters, error)

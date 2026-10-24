@@ -23,6 +23,9 @@ const (
 	pendingBan
 	// pendingJoinPlace: a room a followed link named that this account is not in.
 	pendingJoinPlace
+	// pendingJoinLink: another network's group or channel a followed link named (address),
+	// with its name (room) and what it is (body).
+	pendingJoinLink
 	// pendingDeleteTag: a [[tag]], by name (group).
 	pendingDeleteTag
 	// pendingLeaveSpace: a space (group) left by leaving its one room (room), with its rooms.
@@ -217,6 +220,8 @@ func (m Model) confirmPrompt() string {
 		return "ban " + m.confirm.personName + "? they cannot come back until unbanned"
 	case pendingJoinPlace:
 		return "join " + m.confirm.address + "? you are not in that room"
+	case pendingJoinLink:
+		return joinLinkPrompt(m.confirm)
 	case pendingDeleteTag:
 		return "delete the tag " + isolate(m.confirm.group) + "? its rooms stay where else they are"
 	case pendingCombineTags:
@@ -271,6 +276,8 @@ func (m Model) carryOut(pending confirmState) (Model, tea.Cmd) {
 		return m.removeMember(pending)
 	case pendingJoinPlace:
 		return m.joinPlace(pending)
+	case pendingJoinLink:
+		return m.joinLink(pending)
 	case pendingDeleteTag:
 		return m.deleteTag(pending.group)
 	case pendingCombineTags:
@@ -320,6 +327,9 @@ func (m Model) handleJoined(msg joinedMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 	m = m.say("joined")
+	if msg.enter && msg.roomID != "" {
+		m.entering = msg.roomID
+	}
 	return m, tea.Batch(m.refreshRoomsCmd(), m.refreshSpacesCmd())
 }
 
