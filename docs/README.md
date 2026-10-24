@@ -61,5 +61,5 @@ kith --print-config
 | [Database](database.md) | The SQLite cache, its schema, and how to change it safely |
 | [Contributing](../CONTRIBUTING.md) | Setup, the `make check` gates, conventions, pull requests |
 | [Packaging](packaging.md) | Cutting a release, what each package contains, the secrets and repositories each publisher needs, testing packages locally |
-| [Roadmap](roadmap.md) | What is planned and not built yet |
+| [Roadmap](../planning/roadmap.md) | What is planned and not built yet |
 | [Security](../SECURITY.md) | Reporting vulnerabilities, and what is in scope |

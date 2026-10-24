@@ -178,7 +178,7 @@ Full walkthrough, per platform, with profiles and encryption setup:
 | **Networks** | [WhatsApp](docs/whatsapp.md) · [Telegram](docs/telegram.md) · [Slack](docs/slack.md) · [Matrix encryption](docs/encryption.md) |
 | **Features** | [Notifications](docs/notifications.md) · [Filters](docs/filters.md) · [Composer](docs/composer.md) · [Assist (LLM)](docs/assist.md) · [Commands](docs/commands.md) · [MCP server](docs/mcp.md) · [Encryption](docs/encryption.md) |
 | **Reference** | [Configuration](docs/configuration.md) · [Command line](docs/cli.md) · [Troubleshooting](docs/troubleshooting.md) |
-| **Project** | [Architecture](ARCHITECTURE.md) · [Database](docs/database.md) · [Roadmap](docs/roadmap.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) |
+| **Project** | [Architecture](ARCHITECTURE.md) · [Database](docs/database.md) · [Roadmap](planning/roadmap.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) |
 
 The complete, annotated configuration reference is built in:
 `kith --print-config`.

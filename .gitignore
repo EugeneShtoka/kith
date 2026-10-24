@@ -19,8 +19,10 @@ coverage.html
 /coverage/
 
 # Internal working notes (plans, recaps, audits, handoffs) — local only.
-# Public documentation lives in docs/ and is committed.
+# Public documentation lives in docs/, tracked roadmap and promoted design docs
+# in planning/; .docs/ is a local-only scratch folder.
 /notes/
+/.docs/
 PLAN.md
 /docs/recap-*.md
 /docs/handoff-*.md
