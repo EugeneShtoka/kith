@@ -138,8 +138,9 @@ name  = "personal"       # label in the room list, and for `kith login whatsapp 
 phone = "+15550100001"   # pairing needs it
 ```
 
-Telegram adds `phone`, Slack `workspace`; the others take only `name`. Matrix stays
-top-level (`homeserver`, `user`), with `[[profile]]` for a second one.
+Telegram adds `phone`, Slack `workspace`; the others take only `name`. Matrix is
+still top-level (`homeserver`, `user`), with `[[profile]]` running a second account
+as its own kithd, until [design-matrix-accounts.md](design-matrix-accounts.md) lands.
 
 - `kith login [network [account]]` (or `:login` inside kith): the daemon leads the
   steps. One account configured makes the name optional; an unknown name is an error
