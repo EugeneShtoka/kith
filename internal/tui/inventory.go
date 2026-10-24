@@ -140,6 +140,22 @@ func (inv inventory) telegramLink(link domain.TelegramLink) (domain.Room, bool) 
 	return domain.Room{}, false
 }
 
+// whatsAppLink is the WhatsApp chat with a link's number, on any account: its room's
+// native ID is the number's phone JID (whatsapp/rooms.go). An invite names no listed
+// chat.
+func (inv inventory) whatsAppLink(link domain.WhatsAppLink) (domain.Room, bool) {
+	if link.Kind != domain.WhatsAppLinkPhone {
+		return domain.Room{}, false
+	}
+	for i := range inv.all {
+		parsed := domain.ParseID(string(inv.all[i].ID))
+		if parsed.Network == domain.ProtocolWhatsApp && parsed.Native == link.Phone+"@s.whatsapp.net" {
+			return inv.all[i], true
+		}
+	}
+	return domain.Room{}, false
+}
+
 // telegramPrivateMark is a private channel's native ID without the leading minus (the
 // Bot API's "-100<id>" without the sign), matching how Telegram chats are stored
 // (telegram/rooms.go: channelMark).

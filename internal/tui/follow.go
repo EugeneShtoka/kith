@@ -141,7 +141,8 @@ func (m Model) followPendingLink() (Model, tea.Cmd, bool) {
 
 // followLink goes where uri points and says so after the move, since opening a room
 // sets its own status and the last writer wins. Matrix is tried first; a tg:// link
-// looks up a chat by its stored @username, else asks Telegram.
+// looks up a chat by its stored @username, a WhatsApp link by its number, else the
+// network is asked.
 func (m Model) followLink(uri string) (Model, tea.Cmd) {
 	if place, ok := domain.ParsePlace(uri); ok {
 		label, _ := m.placeLabel(place)
@@ -151,7 +152,10 @@ func (m Model) followLink(uri string) (Model, tea.Cmd) {
 	if link, ok := domain.ParseTelegramLink(uri); ok {
 		return m.followTelegramLink(link, uri)
 	}
-	return m.say("not a Matrix or Telegram link: " + uri), nil
+	if link, ok := domain.ParseWhatsAppLink(uri); ok {
+		return m.followWhatsAppLink(link, uri)
+	}
+	return m.say("not a Matrix, Telegram or WhatsApp link: " + uri), nil
 }
 
 // followTelegramLink goes to the cached Telegram chat whose @username (or private
@@ -162,6 +166,16 @@ func (m Model) followTelegramLink(link domain.TelegramLink, uri string) (Model, 
 		return m.doing("looking up " + uri + "…"), m.resolveLinkCmd(uri, link.Post, link.Text)
 	}
 	return m.openLinked(room, link.Post, link.Text)
+}
+
+// followWhatsAppLink goes to the cached WhatsApp chat with link's number, else to the
+// one WhatsApp finds (handleLinkResolved).
+func (m Model) followWhatsAppLink(link domain.WhatsAppLink, uri string) (Model, tea.Cmd) {
+	room, found := m.rooms.whatsAppLink(link)
+	if !found {
+		return m.doing("looking up " + uri + "…"), m.resolveLinkCmd(uri, 0, link.Text)
+	}
+	return m.openLinked(room, 0, link.Text)
 }
 
 // openLinked opens a chat a link named, at the post it named, with the message it

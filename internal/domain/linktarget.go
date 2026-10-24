@@ -1,6 +1,6 @@
 package domain
 
-// A link to a chat kith has not listed (a Telegram @username or phone number, an
+// A link to a chat kith has not listed (a Telegram @username, a phone number, an
 // invite) is looked up on its network: the chat to open, or to join first.
 
 // LinkTarget is the chat a link names, as its network found it.
@@ -15,10 +15,14 @@ type LinkTarget struct {
 }
 
 // LinkNetwork is the network a chat link is for, among those whose chats the daemon
-// looks up (Matrix rooms the client joins itself): Telegram's tg: and t.me links.
+// looks up (Matrix rooms the client joins itself): Telegram's tg: and t.me links, and
+// WhatsApp's whatsapp:, wa.me and chat.whatsapp.com links.
 func LinkNetwork(uri string) (Protocol, bool) {
 	if _, ok := ParseTelegramLink(uri); ok {
 		return ProtocolTelegram, true
+	}
+	if _, ok := ParseWhatsAppLink(uri); ok {
+		return ProtocolWhatsApp, true
 	}
 	return "", false
 }
