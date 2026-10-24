@@ -129,7 +129,9 @@ splits it.
 Nothing message-level — the networks propagate messages. What crosses is a short
 list of user-metadata that no network holds:
 
-- **Drafts.** Started on phone, finished on laptop. Structured CRDT (text + cursor).
+- **Drafts.** Started on phone, finished on laptop. Last-writer-wins per draft
+  first: at 3–4 devices, one person rarely types into the same draft on two at once.
+  A structured text CRDT only if that turns out to lose text in practice.
 - **Per-room read cursor.** Monotonic max merge: the merged position is
   `max(a.position, b.position)` per room. **Guarantee: a message marked read never
   becomes unread again.** This is not LWW on a scalar — LWW would allow a stale
@@ -137,6 +139,11 @@ list of user-metadata that no network holds:
   alongside the local-first unread state from #207–#210 (which is already shaped
   as "pending at network" vs "accepted"); mesh sync covers the pending window and
   anything the network itself fails to propagate.
+  **Who tells the network:** the device sends the merged position to the bridge it
+  is connected to, and that bridge sends the receipt. A bridge that later receives a
+  receipt for an older position (from another bridge, or the network echoing one)
+  merges by the same max and sends nothing. Two bridges sending the same receipt is
+  harmless; a receipt never moves backwards.
 - **Scheduled-send queue entries** (if we eventually need them to migrate between
   devices; today's decision is no offline writes, so this is marked for later).
 - **Device roster + bridge roster.** Each entry = `(device_id, pinned_pubkey,
@@ -202,13 +209,26 @@ it adds measurement overhead for no real benefit at 2–4 bridges.
 **Failover.**
 1. Current bridge disconnects, times out, or heartbeat goes stale.
 2. Device dials next bridge in priority order.
-3. On connect, device resubscribes streams with "give me events since cursor X"
-   per stream, per room where applicable.
-4. New bridge replays everything it has newer than X.
+3. On connect, device resubscribes with "give me events since X" per room, where
+   X is the **network's own position** for that room (the last event ID the device
+   holds, with its network timestamp), not a bridge's cache sequence. Each bridge
+   numbers rows in its own cache, so a sequence from bridge A means nothing to
+   bridge B.
+4. New bridge replays everything it has after that event; if it does not hold the
+   event (it joined later, or its cache was rebuilt), it replays from the timestamp
+   and the device dedupes the overlap.
 5. Device dedupes against recently-seen IDs.
 
 **Dedup.** By network-level stable ID (`event_id` on Matrix, `message_id` on WA,
 etc.). Device keeps a bounded set of recently-seen IDs per room.
+
+**Encrypted history after failover.** Each bridge is its own Matrix device, so a
+bridge added later holds no Megolm keys for messages sent before it existed, and
+history it replays shows as undecryptable. Bridges do not coordinate, so this
+rests on the network's own mechanisms: server-side key backup (kith restores
+from it, and fetches a missing session's key on demand) and room-key requests to
+the account's other verified devices. A new bridge is verified and restores the
+backup as part of pairing; until it has, it is not offered for failover.
 
 **Catchup.** Each bridge keeps its own sync position per network (sync_token on
 Matrix, etc.) and its own append-only history in the SQLite cache. When a device
@@ -217,7 +237,14 @@ has. If the device was offline longer than the bridge's bounded window retains,
 the device scrolls back on demand (same path as any client scrollback).
 
 **Edge: sends during a failover gap.** Buffer briefly (3–5 seconds, matches
-typical reconnect) and flush to the new bridge on reconnect. Matches
+typical reconnect) and flush to the new bridge on reconnect. **A buffered send
+must be idempotent across bridges**: if bridge A sent it but its acknowledgement
+was lost, flushing to bridge B would post it twice. Matrix's `txnId` dedupes only
+within one device, and each bridge is a different device, so the network will not
+catch it. The device gives every send its own ID (carried in the event content
+where the network allows, and kept in the device's outbox); before flushing, the
+new bridge checks the room's recent timeline for that ID and drops the send if it
+already went out. Matches
 Signal/WA behaviour on flaky networks and doesn't violate "no offline writes"
 (this is transient, not offline). Rejected (for v1): parallel sends to multiple
 bridges, picking whichever responds first — more complex, better UX for lossy
@@ -258,7 +285,7 @@ wake token to decide whether to spin up kith-notify or just dismiss.
 
 ## Related work
 
-Verified 2026-10-24.
+As of 2026-10-24, from each product's public site and documentation.
 
 | | **Pantheon** | **Ferdium** | **Rambox** | **Trillian** | **kith (planned)** |
 |---|---|---|---|---|---|
@@ -285,7 +312,7 @@ Verified 2026-10-24.
 - **Trillian**: closest ancestor conceptually (native multi-protocol with cross-
   device sync via Astra), but doesn't cover modern consumer messengers (WA, Signal,
   Meta aren't XMPP/IRC). Astra is single-central-server only, hosted by them.
-- **Pidgin** (not asked, but worth naming): the pure-local, multi-protocol
+- **Pidgin**: the pure-local, multi-protocol
   ancestor with no sync. kith is "what Pidgin would look like in 2026 with
   maintained bridge libraries, a unified cache, and an actual multi-device plan."
 
@@ -302,7 +329,7 @@ Verified 2026-10-24.
    — if kith ever wants iMessage, it would need a `kith-imessage` helper on a Mac,
    same shape as `kith-signal` (noted for the design-adapters roadmap).
 
-## Decisions (Eugene, 2026-10-24)
+## Decisions (2026-10-24)
 
 1. **One architecture, N:M bridges-to-devices.** User picks how many bridges and
    where via config; central / mesh / hybrid are deployment shapes, not branches
@@ -429,7 +456,11 @@ master-device constraint from above still applies.
    Phase 5. Can kith-on-Android register as a WA linked device while the official
    WA app is master on the same phone? Spike.
 6. **Push payload policy.** Wake-only is the baseline. Any room ID or badge
-   count? Any content leaks to Google/Apple. Decide the exact payload.
+   count? Any content leaks to Google/Apple. Decide the exact payload. Related:
+   with only coarse bridge-side criteria, every message wakes the phone, muted and
+   spam rooms included, which costs battery and FCM quota. Either the bridge
+   learns enough of the device's rules to skip those (an opaque muted-room set),
+   or the cost is accepted.
 7. **Multi-instance on one device.** Today kith-notify would hold one bridge
    connection. Realistic: work-account + personal-account in one window.
    Device-layer dialing N bridges and merging is a real feature; decide before
@@ -450,3 +481,8 @@ master-device constraint from above still applies.
     down before send time, does the message send? Options: migrate via CRDT,
     accept the loss, require the user to re-schedule. Not urgent; mobile has no
     offline writes so this only affects a desktop user with ephemeral bridges.
+12. **State that is neither bridge nor device config.** Tags and their spam
+    verdicts (people marks are already synced as Matrix account data,
+    `org.kith.people`), kith-mcp's `[agent.read]`/`[agent.write]` places (an
+    assistant talks to which process?), and assist (the model runs where?). Each
+    needs a home: device config, bridge config, or the mesh CRDT.
