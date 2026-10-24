@@ -10,7 +10,6 @@ import (
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -27,18 +26,18 @@ const pollMaxAnswers = 1000
 // pollStartMessage builds the message carrying a poll from an m.poll.start event, with
 // an empty Poll ready for responses to apply. ok is false for a start whose content did
 // not parse.
-func pollStartMessage(evt *event.Event) (domain.Message, bool) {
+func (x ids) pollStartMessage(evt *event.Event) (domain.Message, bool) {
 	content, ok := evt.Content.Parsed.(*event.PollStartEventContent)
 	if !ok || content == nil {
 		return domain.Message{}, false
 	}
 	return domain.Message{
-		ID:        domain.EventID(evt.ID),
-		RoomID:    domain.RoomID(evt.RoomID),
-		Sender:    string(evt.Sender),
+		ID:        x.event(evt.ID),
+		RoomID:    x.room(evt.RoomID),
+		Sender:    x.user(evt.Sender),
 		Body:      "📊 " + content.PollStart.Question.GetText(),
 		Timestamp: time.UnixMilli(evt.Timestamp),
-		Poll:      pollFromStart(string(evt.ID), content.PollStart),
+		Poll:      pollFromStart(string(x.event(evt.ID)), content.PollStart),
 	}, true
 }
 
@@ -134,16 +133,16 @@ func pollRound(tsMS int64) uint32 {
 }
 
 // pollResponseTarget is the start a response or end names; "" when it names nothing.
-func pollResponseTarget(evt *event.Event) domain.EventID {
-	rel, ok := relatesTo(evt)
+func (x ids) pollResponseTarget(evt *event.Event) domain.EventID {
+	rel, ok := x.relatesTo(evt)
 	if !ok || rel == nil {
 		return ""
 	}
-	return domain.EventID(rel.EventID)
+	return x.event(rel.EventID)
 }
 
 // relatesTo reads an event's m.relates_to, whatever its content type.
-func relatesTo(evt *event.Event) (*event.RelatesTo, bool) {
+func (x ids) relatesTo(evt *event.Event) (*event.RelatesTo, bool) {
 	switch c := evt.Content.Parsed.(type) {
 	case *event.PollResponseEventContent:
 		return &c.RelatesTo, true
@@ -162,7 +161,7 @@ func relatesTo(evt *event.Event) (*event.RelatesTo, bool) {
 	}
 	eid, _ := raw["event_id"].(string)
 	t, _ := raw["rel_type"].(string)
-	return &event.RelatesTo{Type: event.RelationType(t), EventID: id.EventID(eid)}, eid != ""
+	return &event.RelatesTo{Type: event.RelationType(t), EventID: x.nativeEvent(x.eventOf(eid))}, eid != ""
 }
 
 // pollResponseAnswers is the answer IDs a response names, or nil if parsing failed or
@@ -203,11 +202,11 @@ func (b *pollBackfill) claim(startID domain.EventID) bool {
 
 // onPollStart caches a live m.poll.start, emits its message, and backfills responses.
 func (b *InProc) onPollStart(ctx context.Context, evt *event.Event) {
-	msg, ok := pollStartMessage(evt)
+	msg, ok := b.ids.pollStartMessage(evt)
 	if !ok {
 		return
 	}
-	msg.Mentioned = mentionsMe(evt, b.client.UserID)
+	msg.Mentioned = b.ids.mentionsMe(evt, b.client.UserID)
 	msg.SenderName = b.senderName(ctx, msg.RoomID, msg.Sender)
 	if b.cache != nil {
 		b.cacheMessages(ctx, msg.RoomID, []domain.Message{msg})
@@ -225,37 +224,37 @@ func (b *InProc) onPollStart(ctx context.Context, evt *event.Event) {
 // An unknown start is dropped: it will be caught when the start is scrolled into and
 // its /relations fetched.
 func (b *InProc) onPollResponse(ctx context.Context, evt *event.Event) {
-	target := pollResponseTarget(evt)
+	target := b.ids.pollResponseTarget(evt)
 	if target == "" || b.cache == nil {
 		return
 	}
 	b.pollBackfill.writes.Lock()
 	defer b.pollBackfill.writes.Unlock()
-	msg, ok, err := b.cache.MessageByID(ctx, domain.RoomID(evt.RoomID), target)
+	msg, ok, err := b.cache.MessageByID(ctx, b.ids.room(evt.RoomID), target)
 	b.warnIf(ctx, err, "read a poll for a response", "room", evt.RoomID, "event", target)
 	if !ok || msg.Poll == nil || msg.Poll.Closed {
 		return
 	}
 	poll := clonePoll(msg.Poll)
-	applyResponse(&poll, string(evt.Sender), pollResponseAnswers(evt), pollRound(evt.Timestamp), b.isSelf)
+	applyResponse(&poll, b.ids.user(evt.Sender), pollResponseAnswers(evt), pollRound(evt.Timestamp), b.isSelf)
 	b.warnIf(ctx, b.cache.SetPoll(ctx, msg.RoomID, msg.ID, poll), "cache a poll response", "room", msg.RoomID, "event", msg.ID)
 	b.changed(msg.RoomID)
 }
 
 // onPollEnd closes a cached poll when its start's sender sends the end.
 func (b *InProc) onPollEnd(ctx context.Context, evt *event.Event) {
-	target := pollResponseTarget(evt)
+	target := b.ids.pollResponseTarget(evt)
 	if target == "" || b.cache == nil {
 		return
 	}
 	b.pollBackfill.writes.Lock()
 	defer b.pollBackfill.writes.Unlock()
-	msg, ok, err := b.cache.MessageByID(ctx, domain.RoomID(evt.RoomID), target)
+	msg, ok, err := b.cache.MessageByID(ctx, b.ids.room(evt.RoomID), target)
 	b.warnIf(ctx, err, "read a poll for an end", "room", evt.RoomID, "event", target)
 	if !ok || msg.Poll == nil || msg.Poll.Closed {
 		return
 	}
-	if string(evt.Sender) != msg.Sender {
+	if b.ids.user(evt.Sender) != msg.Sender {
 		return // only the start's sender ends it
 	}
 	poll := clonePoll(msg.Poll)
@@ -329,7 +328,7 @@ func (b *InProc) backfillPollRelations(ctx context.Context, roomID domain.RoomID
 		return nil
 	}
 	poll := clonePoll(msg.Poll)
-	applyEvents(&poll, msg.Sender, events, b.isSelf)
+	b.ids.applyEvents(&poll, msg.Sender, events, b.isSelf)
 	if err := b.cache.SetPoll(ctx, roomID, startID, poll); err != nil {
 		return fmt.Errorf("cache poll backfill: %w", err)
 	}
@@ -340,7 +339,7 @@ func (b *InProc) backfillPollRelations(ctx context.Context, roomID domain.RoomID
 // fetchPollRelations reads every m.reference child of start, oldest first, parsing each
 // as it comes.
 func (b *InProc) fetchPollRelations(ctx context.Context, roomID domain.RoomID, startID domain.EventID) ([]*event.Event, error) {
-	resp, err := b.client.GetRelations(ctx, id.RoomID(roomID), id.EventID(startID), &mautrix.ReqGetRelations{
+	resp, err := b.client.GetRelations(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(startID), &mautrix.ReqGetRelations{
 		RelationType: event.RelReference,
 		Dir:          mautrix.DirectionForward,
 		Limit:        pollMaxAnswers,
@@ -349,7 +348,7 @@ func (b *InProc) fetchPollRelations(ctx context.Context, roomID domain.RoomID, s
 		return nil, fmt.Errorf("get relations: %w", err)
 	}
 	for _, evt := range resp.Chunk {
-		evt.RoomID = id.RoomID(roomID)
+		evt.RoomID = b.ids.nativeRoom(roomID)
 		parse(evt)
 	}
 	return resp.Chunk, nil
@@ -357,7 +356,7 @@ func (b *InProc) fetchPollRelations(ctx context.Context, roomID domain.RoomID, s
 
 // applyEvents applies a chronological list of poll responses and ends to the poll.
 // starter is the start's sender (only they close the poll). Later events win on ties.
-func applyEvents(p *domain.Poll, starter string, events []*event.Event, selves func(string) bool) {
+func (x ids) applyEvents(p *domain.Poll, starter string, events []*event.Event, selves func(string) bool) {
 	type stamped struct {
 		at      int64
 		seq     int
@@ -372,7 +371,7 @@ func applyEvents(p *domain.Poll, starter string, events []*event.Event, selves f
 		case event.EventUnstablePollResponse:
 			kept = append(kept, stamped{at: evt.Timestamp, seq: i, evt: evt, isResp: true, answers: pollResponseAnswers(evt)})
 		case event.EventUnstablePollEnd:
-			if string(evt.Sender) != starter {
+			if x.user(evt.Sender) != starter {
 				continue
 			}
 			kept = append(kept, stamped{at: evt.Timestamp, seq: i, evt: evt, isEnd: true})
@@ -398,7 +397,7 @@ func applyEvents(p *domain.Poll, starter string, events []*event.Event, selves f
 			continue // after the end is dropped (MSC3381)
 		}
 		if k.isResp {
-			applyResponse(p, string(k.evt.Sender), k.answers, pollRound(k.at), selves)
+			applyResponse(p, x.user(k.evt.Sender), k.answers, pollRound(k.at), selves)
 		}
 	}
 	if closedAt >= 0 {
@@ -414,11 +413,11 @@ func (b *InProc) isSelf(mxid string) bool { return slices.Contains(b.me(), mxid)
 // list). The response is encrypted when the room is.
 func (b *InProc) VotePoll(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, options []string) error {
 	content := &event.PollResponseEventContent{
-		RelatesTo: event.RelatesTo{Type: event.RelReference, EventID: id.EventID(eventID)},
+		RelatesTo: event.RelatesTo{Type: event.RelReference, EventID: b.ids.nativeEvent(eventID)},
 		Response:  event.PollResponse{Answers: slices.Clone(options)},
 	}
 	if err := b.sealed(ctx, roomID, func() error {
-		_, err := b.client.SendMessageEvent(ctx, id.RoomID(roomID), event.EventUnstablePollResponse, content)
+		_, err := b.client.SendMessageEvent(ctx, b.ids.nativeRoom(roomID), event.EventUnstablePollResponse, content)
 		return err //nolint:wrapcheck // wrapped once below
 	}); err != nil {
 		return fmt.Errorf("matrix: vote in %s: %w", roomID, refusal(err))
@@ -456,12 +455,12 @@ func (b *InProc) CreatePoll(ctx context.Context, roomID domain.RoomID, question 
 	var resp *mautrix.RespSendEvent
 	if err := b.sealed(ctx, roomID, func() error {
 		var err error
-		resp, err = b.client.SendMessageEvent(ctx, id.RoomID(roomID), event.EventUnstablePollStart, content)
+		resp, err = b.client.SendMessageEvent(ctx, b.ids.nativeRoom(roomID), event.EventUnstablePollStart, content)
 		return err //nolint:wrapcheck // wrapped once below
 	}); err != nil {
 		return "", fmt.Errorf("matrix: create poll in %s: %w", roomID, refusal(err))
 	}
-	return domain.EventID(resp.EventID), nil
+	return b.ids.event(resp.EventID), nil
 }
 
 // PollVoters names who chose what in a poll by walking its /relations. Matrix polls
@@ -478,7 +477,7 @@ func (b *InProc) PollVoters(ctx context.Context, roomID domain.RoomID, eventID d
 	if err != nil {
 		return domain.PollVoters{}, fmt.Errorf("matrix: read who voted in %s: %w", eventID, err)
 	}
-	tally := tallyVotes(msg.Sender, msg.Poll, events)
+	tally := b.ids.tallyVotes(msg.Sender, msg.Poll, events)
 	out := domain.PollVoters{Voters: make([]domain.PollVoter, 0, len(tally.order))}
 	for _, voter := range tally.order {
 		out.Voters = append(out.Voters, domain.PollVoter{
@@ -500,7 +499,7 @@ func (b *InProc) pollStart(ctx context.Context, roomID domain.RoomID, eventID do
 			return domain.Message{}, false, fmt.Errorf("matrix: read cached poll %s: %w", eventID, err)
 		}
 	}
-	evt, err := b.client.GetEvent(ctx, id.RoomID(roomID), id.EventID(eventID))
+	evt, err := b.client.GetEvent(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID))
 	if err != nil {
 		return domain.Message{}, false, fmt.Errorf("matrix: fetch poll %s: %w", eventID, err)
 	}
@@ -508,7 +507,7 @@ func (b *InProc) pollStart(ctx context.Context, roomID domain.RoomID, eventID do
 	if evt.Type != event.EventUnstablePollStart {
 		return domain.Message{}, false, nil
 	}
-	msg, ok := pollStartMessage(evt)
+	msg, ok := b.ids.pollStartMessage(evt)
 	if !ok {
 		return domain.Message{}, false, nil
 	}
@@ -523,7 +522,7 @@ type voteTally struct {
 
 // tallyVotes applies the chronological responses+ends to a fresh copy of start's poll,
 // and returns who chose what, in first-seen voter order.
-func tallyVotes(starter string, start *domain.Poll, events []*event.Event) voteTally {
+func (x ids) tallyVotes(starter string, start *domain.Poll, events []*event.Event) voteTally {
 	poll := clonePoll(start)
 	poll.Ballots = map[string][]string{}
 	poll.Rounds = map[string]uint32{}
@@ -552,12 +551,12 @@ func tallyVotes(starter string, start *domain.Poll, events []*event.Event) voteT
 		return a.seq - b.seq
 	})
 	for _, o := range ordered {
-		s := string(o.evt.Sender)
+		s := x.user(o.evt.Sender)
 		if !seen[s] {
 			seen[s] = true
 			order = append(order, s)
 		}
 	}
-	applyEvents(&poll, starter, events, func(string) bool { return false })
+	x.applyEvents(&poll, starter, events, func(string) bool { return false })
 	return voteTally{answers: poll.Ballots, order: order}
 }

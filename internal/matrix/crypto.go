@@ -11,7 +11,6 @@ import (
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 	"maunium.net/go/mautrix/sqlstatestore"
 
 	_ "modernc.org/sqlite" // pure-Go "sqlite" driver for the crypto store
@@ -124,7 +123,7 @@ func (b *InProc) encryptedWithoutCrypto(ctx context.Context, roomID domain.RoomI
 		return b.roomEncrypted(ctx, roomID)
 	}
 	var content event.EncryptionEventContent
-	err := b.client.StateEvent(ctx, id.RoomID(roomID), event.StateEncryption, "", &content)
+	err := b.client.StateEvent(ctx, b.ids.nativeRoom(roomID), event.StateEncryption, "", &content)
 	if errors.Is(err, mautrix.MNotFound) {
 		return false
 	}

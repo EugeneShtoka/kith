@@ -53,7 +53,7 @@ func TestAPowerLevelChangeRefreshesTheRooms(t *testing.T) {
 	resp := &mautrix.RespSync{}
 	resp.Rooms.Join = map[id.RoomID]*mautrix.SyncJoinedRoom{"!news:x": {}}
 	resp.Rooms.Join["!news:x"].Timeline.Events = []*event.Event{{Type: event.StatePowerLevels, StateKey: &key}}
-	if !roomsChanged(resp, "@me:x") {
+	if !(ids{}).roomsChanged(resp, "@me:x") {
 		t.Error("a power-level change did not refresh the rooms")
 	}
 }

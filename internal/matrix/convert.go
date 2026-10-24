@@ -46,7 +46,7 @@ func mediaSource(content *event.MessageEventContent) (mxc, fileJSON string) {
 
 // toReaction extracts an m.reaction (annotation) event into a domain.Reaction.
 // ok is false for a non-annotation relation or a missing target/key.
-func toReaction(evt *event.Event) (domain.Reaction, bool) {
+func (x ids) toReaction(evt *event.Event) (domain.Reaction, bool) {
 	rc := evt.Content.AsReaction()
 	if rc == nil {
 		return domain.Reaction{}, false
@@ -57,10 +57,10 @@ func toReaction(evt *event.Event) (domain.Reaction, bool) {
 		return domain.Reaction{}, false
 	}
 	return domain.Reaction{
-		ID:     domain.EventID(evt.ID),
-		RoomID: domain.RoomID(evt.RoomID),
-		Target: domain.EventID(target),
-		Sender: string(evt.Sender),
+		ID:     x.event(evt.ID),
+		RoomID: x.room(evt.RoomID),
+		Target: x.event(target),
+		Sender: x.user(evt.Sender),
 		Key:    key,
 	}, true
 }
@@ -101,7 +101,7 @@ func buildMedia(evtType event.Type, content *event.MessageEventContent) *domain.
 
 // toDomainMessage translates a message event into a domain.Message. ok is false
 // for anything without renderable content (AsMessage never returns nil).
-func toDomainMessage(evt *event.Event) (domain.Message, bool) {
+func (x ids) toDomainMessage(evt *event.Event) (domain.Message, bool) {
 	content := evt.Content.AsMessage()
 	// An edit (m.replace) folds onto its target, carrying the replacement body.
 	if target := content.RelatesTo.GetReplaceID(); target != "" {
@@ -117,13 +117,13 @@ func toDomainMessage(evt *event.Event) (domain.Message, bool) {
 		}
 		return domain.Message{
 			Media:  media,
-			ID:     domain.EventID(target),
-			RoomID: domain.RoomID(evt.RoomID),
-			Sender: string(evt.Sender),
+			ID:     x.event(target),
+			RoomID: x.room(evt.RoomID),
+			Sender: x.user(evt.Sender),
 			Body:   body,
 			// The replacement's own formatting; without it the edit reads as plain.
 			Format:     editFormatting(content),
-			RevisionID: domain.EventID(evt.ID),
+			RevisionID: x.event(evt.ID),
 			Timestamp:  time.UnixMilli(evt.Timestamp),
 			EditedAt:   time.UnixMilli(evt.Timestamp),
 			Edited:     true,
@@ -135,12 +135,12 @@ func toDomainMessage(evt *event.Event) (domain.Message, bool) {
 		// A redacted event from /messages: keep it as a "(deleted)" row.
 		if because := evt.Unsigned.RedactedBecause; because != nil {
 			return domain.Message{
-				ID:             domain.EventID(evt.ID),
-				RoomID:         domain.RoomID(evt.RoomID),
-				Sender:         string(evt.Sender),
+				ID:             x.event(evt.ID),
+				RoomID:         x.room(evt.RoomID),
+				Sender:         x.user(evt.Sender),
 				Timestamp:      time.UnixMilli(evt.Timestamp),
 				Redacted:       true,
-				RedactedBy:     string(because.Sender),
+				RedactedBy:     x.user(because.Sender),
 				RedactedReason: redactionReason(because),
 				RedactedAt:     eventTime(because.Timestamp),
 			}, true
@@ -157,15 +157,15 @@ func toDomainMessage(evt *event.Event) (domain.Message, bool) {
 		body = event.TrimReplyFallbackText(body)
 	}
 	return domain.Message{
-		ID:         domain.EventID(evt.ID),
-		RoomID:     domain.RoomID(evt.RoomID),
-		Sender:     string(evt.Sender),
+		ID:         x.event(evt.ID),
+		RoomID:     x.room(evt.RoomID),
+		Sender:     x.user(evt.Sender),
 		Body:       body,
 		Timestamp:  time.UnixMilli(evt.Timestamp),
-		ReplyTo:    domain.EventID(replyTo),
-		ThreadRoot: domain.EventID(threadRoot),
+		ReplyTo:    x.event(replyTo),
+		ThreadRoot: x.event(threadRoot),
 		Media:      media,
-		Mentions:   parseMentions(content.FormattedBody),
+		Mentions:   x.parseMentions(content.FormattedBody),
 		Format:     formatting(content),
 		// m.notice stays text; an emote is an action, not speech.
 		Emote:       content.MsgType == event.MsgEmote,
@@ -213,7 +213,7 @@ func formatting(content *event.MessageEventContent) richtext.Formatted {
 var pillRe = regexp.MustCompile(`<a href="[^"]*matrix\.to/#/(@[^"?/]+:[^"?/]+)"[^>]*>([^<]+)</a>`)
 
 // parseMentions extracts pill mentions (MXID and display text) from formatted HTML.
-func parseMentions(formattedBody string) []domain.Mention {
+func (x ids) parseMentions(formattedBody string) []domain.Mention {
 	if formattedBody == "" {
 		return nil
 	}
@@ -227,13 +227,13 @@ func parseMentions(formattedBody string) []domain.Mention {
 		if name == "" {
 			continue
 		}
-		out = append(out, domain.Mention{UserID: m[1], Name: name})
+		out = append(out, domain.Mention{UserID: x.userOf(m[1]), Name: name})
 	}
 	return out
 }
 
 // mentionsMe reports whether evt mentions me, via m.mentions or a pill.
-func mentionsMe(evt *event.Event, me id.UserID) bool {
+func (x ids) mentionsMe(evt *event.Event, me id.UserID) bool {
 	if me == "" {
 		return false
 	}
@@ -249,7 +249,7 @@ func mentionsMe(evt *event.Event, me id.UserID) bool {
 	// Otherwise a pill to me outside the reply fallback counts.
 	body := replyFallback.ReplaceAllString(content.FormattedBody, "")
 	for _, pill := range pillRe.FindAllStringSubmatch(body, -1) {
-		if pill[1] == string(me) {
+		if x.userOf(pill[1]) == x.user(me) {
 			return true
 		}
 	}
@@ -261,9 +261,9 @@ var replyFallback = regexp.MustCompile(`(?is)<mx-reply>.*?</mx-reply>`)
 
 // redactionTarget returns the event a redaction removes: content.redacts in room v11,
 // the top-level redacts field before.
-func redactionTarget(evt *event.Event) domain.EventID {
+func (x ids) redactionTarget(evt *event.Event) domain.EventID {
 	if r := evt.Content.AsRedaction(); r != nil && r.Redacts != "" {
-		return domain.EventID(r.Redacts)
+		return x.event(r.Redacts)
 	}
-	return domain.EventID(evt.Redacts)
+	return x.event(evt.Redacts)
 }

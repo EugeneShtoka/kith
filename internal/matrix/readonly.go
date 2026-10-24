@@ -22,10 +22,10 @@ func (b *InProc) readOnlyRooms(ctx context.Context, rooms []id.RoomID) map[domai
 		levels, err := store.GetPowerLevels(ctx, roomID)
 		if err != nil || levels == nil {
 			b.debugIf(ctx, err, "read power levels", "room", roomID)
-			out[domain.RoomID(roomID)] = false
+			out[b.ids.room(roomID)] = false
 			continue
 		}
-		out[domain.RoomID(roomID)] = readOnly(levels, b.client.UserID)
+		out[b.ids.room(roomID)] = readOnly(levels, b.client.UserID)
 	}
 	return out
 }

@@ -7,7 +7,6 @@ import (
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -75,10 +74,10 @@ func (b *InProc) sendRead(ctx context.Context, roomID domain.RoomID, fallback do
 		opts.ThreadID = string(event.ReadReceiptThreadMain)
 	}
 	send := func(eventID domain.EventID) error {
-		return b.client.SendReceipt(ctx, id.RoomID(roomID), id.EventID(eventID), receiptType(private), opts)
+		return b.client.SendReceipt(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID), receiptType(private), opts)
 	}
 	if newest, ok := b.streamNewest(ctx, roomID); ok && (!mainOnly || !inThread(newest)) {
-		target := domain.EventID(newest.ID)
+		target := b.ids.event(newest.ID)
 		err := send(target)
 		if err == nil {
 			return target, newest.Timestamp, nil
@@ -95,7 +94,7 @@ func (b *InProc) sendRead(ctx context.Context, roomID domain.RoomID, fallback do
 
 // streamNewest is the room's newest event of any type in server stream order.
 func (b *InProc) streamNewest(ctx context.Context, roomID domain.RoomID) (*event.Event, bool) {
-	resp, err := b.client.Messages(ctx, id.RoomID(roomID), "", "", mautrix.DirectionBackward, nil, 1)
+	resp, err := b.client.Messages(ctx, b.ids.nativeRoom(roomID), "", "", mautrix.DirectionBackward, nil, 1)
 	if err != nil || resp == nil || len(resp.Chunk) == 0 || resp.Chunk[0] == nil || resp.Chunk[0].ID == "" {
 		return nil, false
 	}

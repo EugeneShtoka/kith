@@ -78,6 +78,7 @@ func (b *InProc) enableVerification(ctx context.Context, helper *cryptohelper.Cr
 	}
 	verifyCtx, cancel := context.WithCancel(ctx)
 	cb := verifyCallbacks{
+		ids: b.ids,
 		out: b.ver.events,
 		// The helper calls these holding its lock: re-entry and slow I/O go to a goroutine.
 		startSAS: b.startSAS,
@@ -227,6 +228,7 @@ func (b *InProc) withVerifier(op string, fn func(*verificationhelper.Verificatio
 // verifyCallbacks adapts mautrix verification callbacks into domain events. It must
 // never call back into the helper synchronously.
 type verifyCallbacks struct {
+	ids      ids
 	out      chan<- domain.Verification
 	startSAS func(txnID id.VerificationTransactionID)
 	onDone   func(txnID id.VerificationTransactionID)
@@ -236,7 +238,7 @@ func (c verifyCallbacks) VerificationRequested(ctx context.Context, txnID id.Ver
 	c.emit(ctx, domain.Verification{
 		Kind:   domain.VerificationRequested,
 		TxnID:  string(txnID),
-		From:   string(from),
+		From:   c.ids.user(from),
 		Device: string(fromDevice),
 	})
 }

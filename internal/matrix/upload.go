@@ -15,7 +15,6 @@ import (
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	_ "image/gif"  // registered for DecodeConfig: dimensions come from the header
 	_ "image/jpeg" // …
@@ -67,7 +66,7 @@ func (b *InProc) SendFile(ctx context.Context, roomID domain.RoomID, path, name,
 		if err := b.upload(ctx, roomID, file, info.Size(), &content); err != nil {
 			return err
 		}
-		if _, err := b.client.SendMessageEvent(ctx, id.RoomID(roomID), event.EventMessage, &content); err != nil {
+		if _, err := b.client.SendMessageEvent(ctx, b.ids.nativeRoom(roomID), event.EventMessage, &content); err != nil {
 			return fmt.Errorf("matrix: send %s: %w", name, err)
 		}
 		return nil
@@ -125,7 +124,7 @@ func (b *InProc) roomEncrypted(ctx context.Context, roomID domain.RoomID) bool {
 	if store == nil {
 		return true
 	}
-	encrypted, err := store.IsEncrypted(ctx, id.RoomID(roomID))
+	encrypted, err := store.IsEncrypted(ctx, b.ids.nativeRoom(roomID))
 	if err != nil {
 		b.warnIf(ctx, err, "read room encryption state; treating it as encrypted", "room", roomID)
 		return true
@@ -133,7 +132,7 @@ func (b *InProc) roomEncrypted(ctx context.Context, roomID domain.RoomID) bool {
 	if encrypted {
 		return true
 	}
-	levels, err := store.GetPowerLevels(ctx, id.RoomID(roomID))
+	levels, err := store.GetPowerLevels(ctx, b.ids.nativeRoom(roomID))
 	if err != nil || levels == nil {
 		b.warnIf(ctx, err, "read room power levels; treating the room as encrypted", "room", roomID)
 		return true // its state is not known yet

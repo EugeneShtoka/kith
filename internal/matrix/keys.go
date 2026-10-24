@@ -164,7 +164,7 @@ func (b *InProc) redecrypt(ctx context.Context, mach *crypto.OlmMachine, evt *ev
 	if b.stopping.Load() {
 		return
 	}
-	roomID := domain.RoomID(evt.RoomID)
+	roomID := b.ids.room(evt.RoomID)
 	msg, undecrypted, ok := b.fetchedMessage(ctx, roomID, decrypted)
 	if !ok || undecrypted {
 		return

@@ -26,7 +26,7 @@ func (b *InProc) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.Ro
 		Name:       spec.Name,
 		Preset:     "private_chat",
 		Visibility: "private",
-		Invite:     userIDs(spec.Invite),
+		Invite:     b.ids.userIDs(spec.Invite),
 	}
 	if spec.Public {
 		req.Preset, req.Visibility = "public_chat", "public"
@@ -52,7 +52,7 @@ func (b *InProc) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.Ro
 	if err != nil {
 		return "", fmt.Errorf("matrix: create %s: %w", spec.Name, err)
 	}
-	roomID := domain.RoomID(resp.RoomID)
+	roomID := b.ids.room(resp.RoomID)
 	if spec.Direct && len(spec.Invite) > 0 {
 		// is_direct is only a hint to the invitee; our own m.direct is what marks it
 		// a DM for our clients (see directPeers).
@@ -69,11 +69,11 @@ func (b *InProc) CreateRoom(ctx context.Context, spec domain.NewRoom) (domain.Ro
 }
 
 // userIDs converts invitee MXIDs, dropping empties.
-func userIDs(users []string) []id.UserID {
+func (x ids) userIDs(users []string) []id.UserID {
 	out := make([]id.UserID, 0, len(users))
 	for _, user := range users {
 		if user != "" {
-			out = append(out, id.UserID(user))
+			out = append(out, x.nativeUser(user))
 		}
 	}
 	return out
@@ -87,11 +87,11 @@ func (b *InProc) recordDirect(ctx context.Context, peer string, roomID domain.Ro
 	if err := b.client.GetAccountData(ctx, "m.direct", &direct); err != nil && !errors.Is(err, mautrix.MNotFound) {
 		return fmt.Errorf("read m.direct: %w", err)
 	}
-	user := id.UserID(peer)
-	if slices.Contains(direct[user], id.RoomID(roomID)) {
+	user := b.ids.nativeUser(peer)
+	if slices.Contains(direct[user], b.ids.nativeRoom(roomID)) {
 		return nil
 	}
-	direct[user] = append(direct[user], id.RoomID(roomID))
+	direct[user] = append(direct[user], b.ids.nativeRoom(roomID))
 	if err := b.client.SetAccountData(ctx, "m.direct", direct); err != nil {
 		return fmt.Errorf("write m.direct: %w", err)
 	}

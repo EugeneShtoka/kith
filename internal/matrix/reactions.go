@@ -11,11 +11,11 @@ import (
 // noteRefusedReaction learns what a bridged network refuses: our reaction redacted by
 // a bridge. Own un-reacts and native-room moderators do not count.
 func (b *InProc) noteRefusedReaction(ctx context.Context, r domain.Reaction, redaction *event.Event) {
-	me := string(b.client.UserID)
-	if r.Sender != me || string(redaction.Sender) == me {
+	me := b.ids.user(b.client.UserID)
+	if r.Sender != me || b.ids.user(redaction.Sender) == me {
 		return
 	}
-	protocol := domain.ProtocolOf(string(redaction.Sender))
+	protocol := domain.ProtocolOf(b.ids.user(redaction.Sender))
 	if !protocol.IsBridged() {
 		return
 	}
@@ -24,7 +24,7 @@ func (b *InProc) noteRefusedReaction(ctx context.Context, r domain.Reaction, red
 
 // onReaction caches a live m.reaction and streams the add.
 func (b *InProc) onReaction(ctx context.Context, evt *event.Event) {
-	r, ok := toReaction(evt)
+	r, ok := b.ids.toReaction(evt)
 	if !ok {
 		return
 	}

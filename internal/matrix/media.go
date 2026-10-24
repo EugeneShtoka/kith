@@ -16,13 +16,13 @@ func (b *InProc) saveMediaSource(ctx context.Context, roomID domain.RoomID, evt 
 		return
 	}
 	content := evt.Content.AsMessage()
-	target := domain.EventID(evt.ID)
+	target := b.ids.event(evt.ID)
 	if replaced := content.RelatesTo.GetReplaceID(); replaced != "" {
 		if content.NewContent == nil {
 			return
 		}
 		// An edit's attachment is keyed to the replaced message, which the timeline shows.
-		content, target = content.NewContent, domain.EventID(replaced)
+		content, target = content.NewContent, b.ids.event(replaced)
 	}
 	mxc, fileJSON := mediaSource(content)
 	if mxc == "" {

@@ -6,7 +6,6 @@ import (
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -19,7 +18,7 @@ import (
 // it. Unreadable power levels are not a refusal.
 func (b *InProc) canAct(ctx context.Context, roomID domain.RoomID, target string, need func(*event.PowerLevelsEventContent) int, verb string) error {
 	var levels event.PowerLevelsEventContent
-	if err := b.client.StateEvent(ctx, id.RoomID(roomID), event.StatePowerLevels, "", &levels); err != nil {
+	if err := b.client.StateEvent(ctx, b.ids.nativeRoom(roomID), event.StatePowerLevels, "", &levels); err != nil {
 		return nil //nolint:nilerr // a failed read is not a refusal; see above
 	}
 	mine := levels.GetUserLevel(b.client.UserID)
@@ -28,7 +27,7 @@ func (b *InProc) canAct(ctx context.Context, roomID domain.RoomID, target string
 			api.ErrNoPower, required, verb, mine)
 	}
 	if target != "" {
-		if theirs := levels.GetUserLevel(id.UserID(target)); theirs >= mine {
+		if theirs := levels.GetUserLevel(b.ids.nativeUser(target)); theirs >= mine {
 			return fmt.Errorf("%w: %s has power %d in this room and you have %d — you cannot %s an equal",
 				api.ErrNoPower, target, theirs, mine, verb)
 		}
@@ -41,7 +40,7 @@ func (b *InProc) InviteUser(ctx context.Context, roomID domain.RoomID, userID st
 	if err := b.canAct(ctx, roomID, "", (*event.PowerLevelsEventContent).Invite, "invite"); err != nil {
 		return err
 	}
-	if _, err := b.client.InviteUser(ctx, id.RoomID(roomID), &mautrix.ReqInviteUser{UserID: id.UserID(userID)}); err != nil {
+	if _, err := b.client.InviteUser(ctx, b.ids.nativeRoom(roomID), &mautrix.ReqInviteUser{UserID: b.ids.nativeUser(userID)}); err != nil {
 		return fmt.Errorf("matrix: invite %s: %w", userID, err)
 	}
 	return nil
@@ -52,7 +51,7 @@ func (b *InProc) KickUser(ctx context.Context, roomID domain.RoomID, userID, rea
 	if err := b.canAct(ctx, roomID, userID, (*event.PowerLevelsEventContent).Kick, "remove someone"); err != nil {
 		return err
 	}
-	if _, err := b.client.KickUser(ctx, id.RoomID(roomID), &mautrix.ReqKickUser{UserID: id.UserID(userID), Reason: reason}); err != nil {
+	if _, err := b.client.KickUser(ctx, b.ids.nativeRoom(roomID), &mautrix.ReqKickUser{UserID: b.ids.nativeUser(userID), Reason: reason}); err != nil {
 		return fmt.Errorf("matrix: remove %s: %w", userID, err)
 	}
 	return nil
@@ -63,7 +62,7 @@ func (b *InProc) BanUser(ctx context.Context, roomID domain.RoomID, userID, reas
 	if err := b.canAct(ctx, roomID, userID, (*event.PowerLevelsEventContent).Ban, "ban someone"); err != nil {
 		return err
 	}
-	if _, err := b.client.BanUser(ctx, id.RoomID(roomID), &mautrix.ReqBanUser{UserID: id.UserID(userID), Reason: reason}); err != nil {
+	if _, err := b.client.BanUser(ctx, b.ids.nativeRoom(roomID), &mautrix.ReqBanUser{UserID: b.ids.nativeUser(userID), Reason: reason}); err != nil {
 		return fmt.Errorf("matrix: ban %s: %w", userID, err)
 	}
 	return nil
@@ -75,7 +74,7 @@ func (b *InProc) UnbanUser(ctx context.Context, roomID domain.RoomID, userID str
 	if err := b.canAct(ctx, roomID, "", (*event.PowerLevelsEventContent).Ban, "unban someone"); err != nil {
 		return err
 	}
-	if _, err := b.client.UnbanUser(ctx, id.RoomID(roomID), &mautrix.ReqUnbanUser{UserID: id.UserID(userID)}); err != nil {
+	if _, err := b.client.UnbanUser(ctx, b.ids.nativeRoom(roomID), &mautrix.ReqUnbanUser{UserID: b.ids.nativeUser(userID)}); err != nil {
 		return fmt.Errorf("matrix: unban %s: %w", userID, err)
 	}
 	return nil
@@ -87,7 +86,7 @@ func (b *InProc) Redact(ctx context.Context, roomID domain.RoomID, eventID domai
 	if err := b.canRedact(ctx, roomID, eventID); err != nil {
 		return err
 	}
-	if _, err := b.client.RedactEvent(ctx, id.RoomID(roomID), id.EventID(eventID),
+	if _, err := b.client.RedactEvent(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID),
 		mautrix.ReqRedact{Reason: reason}); err != nil {
 		return fmt.Errorf("matrix: redact %s: %w", eventID, err)
 	}
@@ -101,7 +100,7 @@ func (b *InProc) redactEdits(ctx context.Context, roomID domain.RoomID, eventID 
 	if b.keepDeleted.Load() {
 		return nil
 	}
-	resp, err := b.client.GetRelations(ctx, id.RoomID(roomID), id.EventID(eventID), &mautrix.ReqGetRelations{
+	resp, err := b.client.GetRelations(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID), &mautrix.ReqGetRelations{
 		RelationType: event.RelReplace,
 		Dir:          mautrix.DirectionBackward,
 	})
@@ -132,7 +131,7 @@ func (b *InProc) redactEdits(ctx context.Context, roomID domain.RoomID, eventID 
 // treated as somebody else's.
 func (b *InProc) canRedact(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) error {
 	if b.cache != nil {
-		if sender, err := b.cache.SenderOf(ctx, roomID, eventID); err == nil && sender == string(b.client.UserID) {
+		if sender, err := b.cache.SenderOf(ctx, roomID, eventID); err == nil && sender == b.ids.user(b.client.UserID) {
 			return nil
 		}
 	}

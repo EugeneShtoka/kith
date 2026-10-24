@@ -178,8 +178,8 @@ func inviteSync(rooms ...string) *mautrix.RespSync {
 	return resp
 }
 
-// ids lists the room IDs of a published set, in order.
-func ids(rooms []domain.Room) []string {
+// roomIDsOf lists the room IDs of a published set, in order.
+func roomIDsOf(rooms []domain.Room) []string {
 	out := make([]string, 0, len(rooms))
 	for i := range rooms {
 		out = append(out, string(rooms[i].ID))
@@ -193,10 +193,10 @@ func TestFoldInvitesKeepsWhatASyncDoesNotMention(t *testing.T) {
 
 	b := backend("@me:x")
 	if got, changed := b.foldInvites(inviteSync("!a:x"), false); !changed || len(got) != 1 {
-		t.Fatalf("the first invitation should publish one room, got %v (changed=%t)", ids(got), changed)
+		t.Fatalf("the first invitation should publish one room, got %v (changed=%t)", roomIDsOf(got), changed)
 	}
 	if got, changed := b.foldInvites(&mautrix.RespSync{}, false); changed {
-		t.Errorf("a batch that said nothing about the invitation republished %v", ids(got))
+		t.Errorf("a batch that said nothing about the invitation republished %v", roomIDsOf(got))
 	}
 	if len(b.invites.rooms) != 1 {
 		t.Errorf("the invitation was dropped by a batch that did not mention it: %v", b.invites.rooms)
@@ -206,7 +206,7 @@ func TestFoldInvitesKeepsWhatASyncDoesNotMention(t *testing.T) {
 		t.Fatal("a new invitation is a change")
 	}
 	if len(got) != 2 {
-		t.Errorf("published %v, want both invitations", ids(got))
+		t.Errorf("published %v, want both invitations", roomIDsOf(got))
 	}
 }
 
@@ -239,7 +239,7 @@ func TestFoldInvitesDropsAnsweredRooms(t *testing.T) {
 				t.Fatal("an answered invitation is a change")
 			}
 			if len(got) != 1 || got[0].ID != "!b:x" {
-				t.Errorf("published %v, want only the unanswered invitation", ids(got))
+				t.Errorf("published %v, want only the unanswered invitation", roomIDsOf(got))
 			}
 		})
 	}
@@ -258,7 +258,7 @@ func TestFoldInvitesReplacesTheSetOnAnInitialSync(t *testing.T) {
 		t.Fatal("an invitation gone from a census is a change")
 	}
 	if len(got) != 1 || got[0].ID != "!b:x" {
-		t.Errorf("published %v, want only what the census listed", ids(got))
+		t.Errorf("published %v, want only what the census listed", roomIDsOf(got))
 	}
 	if _, changed := b.foldInvites(inviteSync("!b:x"), true); changed {
 		t.Error("the same census republished")

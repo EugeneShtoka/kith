@@ -305,9 +305,9 @@ func TestStreamPosition(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := streamPosition(tt.receipt, tt.before, tt.after, tt.newest)
+			got, ok := (ids{}).streamPosition(tt.receipt, tt.before, tt.after, tt.newest)
 			if ok != tt.wantOK || got != tt.want {
-				t.Errorf("streamPosition() = %+v, %v; want %+v, %v", got, ok, tt.want, tt.wantOK)
+				t.Errorf("(ids{}).streamPosition() = %+v, %v; want %+v, %v", got, ok, tt.want, tt.wantOK)
 			}
 		})
 	}

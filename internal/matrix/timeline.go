@@ -12,7 +12,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 )
 
 // undecryptableBody stands in for an encrypted event with no megolm session, so
@@ -35,7 +34,7 @@ func (b *InProc) cacheMessages(ctx context.Context, roomID domain.RoomID, msgs [
 // of a room's history, Next continues into its predecessor (see chainNext).
 func (b *InProc) Timeline(ctx context.Context, roomID domain.RoomID, from string, limit int) (domain.TimelinePage, error) {
 	roomID, from, depth := chainStep(roomID, from)
-	resp, err := b.client.Messages(ctx, id.RoomID(roomID), from, "", mautrix.DirectionBackward, nil, limit)
+	resp, err := b.client.Messages(ctx, b.ids.nativeRoom(roomID), from, "", mautrix.DirectionBackward, nil, limit)
 	if err != nil {
 		if depth > 0 {
 			// An unreadable predecessor is the end of history, not an error.
@@ -95,7 +94,7 @@ func chainStep(roomID domain.RoomID, from string) (domain.RoomID, string, int) {
 	if err != nil || room == "" {
 		return roomID, "", 0
 	}
-	return domain.RoomID(room), "", depth
+	return kithRoom(room), "", depth
 }
 
 // pageFrom turns one backward chunk (newest-first) into an oldest-first page,
@@ -117,7 +116,7 @@ func (b *InProc) cachePage(ctx context.Context, roomID domain.RoomID, chunk []*e
 	for _, c := range slices.Backward(chunk) {
 		evt := b.hydrate(ctx, roomID, c)
 		if evt.Type == event.EventReaction {
-			if r, ok := toReaction(evt); ok {
+			if r, ok := b.ids.toReaction(evt); ok {
 				r.RoomID = roomID
 				reactions = append(reactions, r)
 			}
@@ -156,7 +155,7 @@ func (b *InProc) cachePage(ctx context.Context, roomID domain.RoomID, chunk []*e
 // hydrate readies a server-fetched event: /messages and friends omit room_id and
 // deliver content unparsed, and both decryption and conversion need them.
 func (b *InProc) hydrate(ctx context.Context, roomID domain.RoomID, evt *event.Event) *event.Event {
-	evt.RoomID = id.RoomID(roomID)
+	evt.RoomID = b.ids.nativeRoom(roomID)
 	parse(evt)
 	return b.decryptEvent(ctx, evt)
 }
@@ -165,17 +164,17 @@ func (b *InProc) hydrate(ctx context.Context, roomID domain.RoomID, evt *event.E
 // (undecrypted: do not cache it). ok is false for non-message events.
 func (b *InProc) fetchedMessage(ctx context.Context, roomID domain.RoomID, evt *event.Event) (msg domain.Message, undecrypted, ok bool) {
 	if evt.Type == event.EventUnstablePollStart {
-		msg, ok = pollStartMessage(evt)
+		msg, ok = b.ids.pollStartMessage(evt)
 	} else {
-		msg, ok = toDomainMessage(evt)
+		msg, ok = b.ids.toDomainMessage(evt)
 	}
 	if !ok {
 		if evt.Type != event.EventEncrypted {
 			return domain.Message{}, false, false
 		}
 		msg = domain.Message{
-			ID:          domain.EventID(evt.ID),
-			Sender:      string(evt.Sender),
+			ID:          b.ids.event(evt.ID),
+			Sender:      b.ids.user(evt.Sender),
 			Body:        undecryptableBody,
 			Timestamp:   time.UnixMilli(evt.Timestamp),
 			Undecrypted: true,
@@ -185,7 +184,7 @@ func (b *InProc) fetchedMessage(ctx context.Context, roomID domain.RoomID, evt *
 		b.wantKey(evt)
 	}
 	msg.RoomID = roomID
-	msg.Mentioned = mentionsMe(evt, b.client.UserID)
+	msg.Mentioned = b.ids.mentionsMe(evt, b.client.UserID)
 	msg.SenderName = b.senderName(ctx, roomID, msg.Sender)
 	return msg, undecrypted, true
 }
@@ -235,15 +234,15 @@ func (b *InProc) fetchRevisions(
 ) ([]domain.Revision, domain.Deletion) {
 	out := make([]domain.Revision, 0, 4)
 	var deletion domain.Deletion
-	if original, err := b.client.GetEvent(ctx, id.RoomID(roomID), id.EventID(eventID)); err == nil {
-		original.RoomID = id.RoomID(roomID)
+	if original, err := b.client.GetEvent(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID)); err == nil {
+		original.RoomID = b.ids.nativeRoom(roomID)
 		parse(original)
 		// unsigned.redacted_because is the only source for when it was deleted.
 		if because := original.Unsigned.RedactedBecause; because != nil {
 			parse(because)
 			deletion = domain.Deletion{
 				At:     eventTime(because.Timestamp),
-				By:     string(because.Sender),
+				By:     b.ids.user(because.Sender),
 				Reason: redactionReason(because),
 			}
 		}
@@ -257,7 +256,7 @@ func (b *InProc) fetchRevisions(
 			})
 		}
 	}
-	resp, err := b.client.GetRelations(ctx, id.RoomID(roomID), id.EventID(eventID), &mautrix.ReqGetRelations{
+	resp, err := b.client.GetRelations(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID), &mautrix.ReqGetRelations{
 		RelationType: event.RelReplace,
 		Dir:          mautrix.DirectionForward,
 	})
@@ -273,7 +272,7 @@ func (b *InProc) fetchRevisions(
 			continue // a redacted edit: it happened, and what it said is gone
 		}
 		out = append(out, domain.Revision{
-			ID:     domain.EventID(evt.ID),
+			ID:     b.ids.event(evt.ID),
 			Body:   body,
 			Format: formatting(content),
 			At:     time.UnixMilli(evt.Timestamp),
@@ -307,7 +306,7 @@ func mergeRevisions(kept, fetched []domain.Revision) []domain.Revision {
 // FetchEvent fetches one event from the homeserver (e.g. a thread root older than the
 // cached window) and caches it, best-effort.
 func (b *InProc) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, error) {
-	evt, err := b.client.GetEvent(ctx, id.RoomID(roomID), id.EventID(eventID))
+	evt, err := b.client.GetEvent(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID))
 	if err != nil {
 		return domain.Message{}, fmt.Errorf("matrix: fetch event %s: %w", eventID, err)
 	}

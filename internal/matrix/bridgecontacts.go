@@ -167,7 +167,7 @@ func (b *InProc) provisioning(ctx context.Context, base, path string, query url.
 	if query == nil {
 		query = url.Values{}
 	}
-	query.Set("user_id", b.client.UserID.String())
+	query.Set("user_id", matrixString(b.client.UserID))
 	_, err := b.client.MakeFullRequest(ctx, mautrix.FullRequest{
 		Method: http.MethodGet, URL: base + path + "?" + query.Encode(), ResponseJSON: out, MaxAttempts: 1,
 	})

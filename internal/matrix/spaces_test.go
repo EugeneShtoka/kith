@@ -72,7 +72,7 @@ func TestSpaceOwnership(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if got := spaceOwner(tc.creator, tc.children); got != tc.want {
+			if got := (ids{}).spaceOwner(tc.creator, tc.children); got != tc.want {
 				t.Errorf("owner = %q, want %q", got, tc.want)
 			}
 		})

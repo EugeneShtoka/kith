@@ -36,7 +36,7 @@ func (b *InProc) KnockRoom(ctx context.Context, roomIDOrAlias, reason string, vi
 	if err != nil {
 		return "", fmt.Errorf("matrix: knock %s: %w", roomIDOrAlias, err)
 	}
-	return domain.RoomID(resp.RoomID), nil
+	return b.ids.room(resp.RoomID), nil
 }
 
 // JoinRoom joins a room by ID or alias (also how an invitation is accepted). via are
@@ -47,12 +47,12 @@ func (b *InProc) JoinRoom(ctx context.Context, roomIDOrAlias string, via []strin
 		req = &mautrix.ReqJoinRoom{Via: via}
 	}
 	// Read before joining: the sync that says we joined drops the invite.
-	invite, invited := b.pendingInvite(domain.RoomID(roomIDOrAlias))
+	invite, invited := b.pendingInvite(b.ids.roomOf(roomIDOrAlias))
 	resp, err := b.client.JoinRoom(ctx, roomIDOrAlias, req)
 	if err != nil {
 		return "", fmt.Errorf("matrix: join %s: %w", roomIDOrAlias, err)
 	}
-	roomID := domain.RoomID(resp.RoomID)
+	roomID := b.ids.room(resp.RoomID)
 	if invited && invite.IsDirect && invite.InvitedBy != "" {
 		// is_direct is only the inviter's hint; our own m.direct is what marks the room
 		// a DM, here and in our other clients (Element records it the same way).
@@ -74,7 +74,7 @@ func (b *InProc) pendingInvite(roomID domain.RoomID) (domain.Room, bool) {
 // LeaveRoom leaves a room (also rejects an invitation). The room leaves the cache at
 // once: a room list read before the sync says so would bring it back.
 func (b *InProc) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
-	if _, err := b.client.LeaveRoom(ctx, id.RoomID(roomID)); err != nil {
+	if _, err := b.client.LeaveRoom(ctx, b.ids.nativeRoom(roomID)); err != nil {
 		return fmt.Errorf("matrix: leave %s: %w", roomID, err)
 	}
 	b.left.mark(roomID, time.Now())
@@ -160,17 +160,17 @@ func (b *InProc) foldInvites(resp *mautrix.RespSync, census bool) ([]domain.Room
 	if !census {
 		maps.Copy(next, b.invites.rooms)
 		for roomID := range resp.Rooms.Join {
-			delete(next, domain.RoomID(roomID))
+			delete(next, b.ids.room(roomID))
 		}
 		for roomID := range resp.Rooms.Leave {
-			delete(next, domain.RoomID(roomID))
+			delete(next, b.ids.room(roomID))
 		}
 	}
 	for roomID, ir := range resp.Rooms.Invite {
 		if ir == nil {
 			continue
 		}
-		next[domain.RoomID(roomID)] = b.toInvite(roomID, ir)
+		next[b.ids.room(roomID)] = b.toInvite(roomID, ir)
 	}
 
 	changed := len(next) != len(b.invites.rooms)
@@ -194,7 +194,7 @@ func (b *InProc) foldInvites(resp *mautrix.RespSync, census bool) ([]domain.Room
 
 // toInvite builds a Room from an invite's stripped state (name, alias, DM flag, inviter).
 func (b *InProc) toInvite(roomID id.RoomID, ir *mautrix.SyncInvitedRoom) domain.Room {
-	room := domain.Room{ID: domain.RoomID(roomID), Membership: domain.MembershipInvite}
+	room := domain.Room{ID: b.ids.room(roomID), Membership: domain.MembershipInvite}
 	me := b.client.UserID
 	for _, evt := range ir.State.Events {
 		// Stripped state has its class unset; ParseRaw refuses already-parsed content.
@@ -221,8 +221,8 @@ func (b *InProc) toInvite(roomID id.RoomID, ir *mautrix.SyncInvitedRoom) domain.
 				continue
 			}
 			// Our own member event: sender is the inviter, is_direct marks a DM.
-			if evt.GetStateKey() == me.String() && member.Membership == event.MembershipInvite {
-				room.InvitedBy = evt.Sender.String()
+			if evt.GetStateKey() == matrixString(me) && member.Membership == event.MembershipInvite {
+				room.InvitedBy = b.ids.user(evt.Sender)
 				room.IsDirect = member.IsDirect
 			} else if member.Displayname != "" {
 				room.Members = append(room.Members, member.Displayname)

@@ -23,7 +23,7 @@ var roomStateTypes = map[event.Type]bool{
 }
 
 // roomsChanged reports whether a sync changes the room list, names or spaces.
-func roomsChanged(resp *mautrix.RespSync, me id.UserID) bool {
+func (x ids) roomsChanged(resp *mautrix.RespSync, me id.UserID) bool {
 	if resp == nil {
 		return false
 	}
@@ -38,7 +38,7 @@ func roomsChanged(resp *mautrix.RespSync, me id.UserID) bool {
 		if jr == nil {
 			continue
 		}
-		if stateChanged(jr.State.Events, me) || stateChanged(jr.Timeline.Events, me) {
+		if x.stateChanged(jr.State.Events, me) || x.stateChanged(jr.Timeline.Events, me) {
 			return true
 		}
 	}
@@ -46,7 +46,7 @@ func roomsChanged(resp *mautrix.RespSync, me id.UserID) bool {
 }
 
 // stateChanged reports whether events rename, re-parent, or change our membership.
-func stateChanged(events []*event.Event, me id.UserID) bool {
+func (x ids) stateChanged(events []*event.Event, me id.UserID) bool {
 	for _, evt := range events {
 		if evt == nil || evt.StateKey == nil {
 			continue // not a state event
@@ -54,7 +54,7 @@ func stateChanged(events []*event.Event, me id.UserID) bool {
 		if roomStateTypes[evt.Type] {
 			return true
 		}
-		if evt.Type == event.StateMember && *evt.StateKey == string(me) {
+		if evt.Type == event.StateMember && *evt.StateKey == x.user(me) {
 			return true
 		}
 	}

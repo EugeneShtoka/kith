@@ -14,7 +14,7 @@ import (
 func TestBuildMessagePlain(t *testing.T) {
 	t.Parallel()
 
-	got := buildMessage(domain.Draft{Body: "just text"}, "")
+	got := (ids{}).buildMessage(domain.Draft{Body: "just text"}, "")
 	if got.Body != "just text" {
 		t.Errorf("Body = %q", got.Body)
 	}
@@ -33,7 +33,7 @@ func TestBuildMessagePlain(t *testing.T) {
 func TestBuildMessageMention(t *testing.T) {
 	t.Parallel()
 
-	got := buildMessage(domain.Draft{
+	got := (ids{}).buildMessage(domain.Draft{
 		Body:     "hi Alice, ready?",
 		Mentions: []domain.Mention{{UserID: "@alice:example.org", Name: "Alice"}},
 	}, "")
@@ -55,7 +55,7 @@ func TestBuildMessageMention(t *testing.T) {
 func TestBuildMessageReplyWithMention(t *testing.T) {
 	t.Parallel()
 
-	got := buildMessage(domain.Draft{
+	got := (ids{}).buildMessage(domain.Draft{
 		Body:     "sure Bob",
 		ReplyTo:  "$target:x",
 		Mentions: []domain.Mention{{UserID: "@bob:x", Name: "Bob"}},
@@ -72,7 +72,7 @@ func TestBuildMessageReplyWithMention(t *testing.T) {
 func TestBuildMessageDropsStaleMentions(t *testing.T) {
 	t.Parallel()
 
-	got := buildMessage(domain.Draft{
+	got := (ids{}).buildMessage(domain.Draft{
 		Body: "never mind",
 		Mentions: []domain.Mention{
 			{UserID: "@alice:x", Name: "Alice"}, // no longer in the body
@@ -166,14 +166,14 @@ func TestPillHTMLEscapes(t *testing.T) {
 func TestPillRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	content := buildMessage(domain.Draft{
+	content := (ids{}).buildMessage(domain.Draft{
 		Body: "hi Alice and Bob",
 		Mentions: []domain.Mention{
 			{UserID: "@alice:example.org", Name: "Alice"},
 			{UserID: "@bob:example.org", Name: "Bob"},
 		},
 	}, "")
-	parsed := parseMentions(content.FormattedBody)
+	parsed := (ids{}).parseMentions(content.FormattedBody)
 	if len(parsed) != 2 {
 		t.Fatalf("parsed %d mentions from our own HTML, want 2: %+v", len(parsed), parsed)
 	}
@@ -190,7 +190,7 @@ func TestPillRoundTrip(t *testing.T) {
 func TestBuildMessageInAThread(t *testing.T) {
 	t.Parallel()
 
-	got := buildMessage(domain.Draft{Body: "shipping now", ThreadRoot: "$root:x"}, "$latest:x")
+	got := (ids{}).buildMessage(domain.Draft{Body: "shipping now", ThreadRoot: "$root:x"}, "$latest:x")
 
 	if got.RelatesTo == nil || got.RelatesTo.GetThreadParent() != "$root:x" {
 		t.Fatalf("RelatesTo = %+v, want a thread rooted at $root:x", got.RelatesTo)
@@ -211,7 +211,7 @@ func TestBuildMessageInAThread(t *testing.T) {
 func TestBuildMessageReplyInsideAThread(t *testing.T) {
 	t.Parallel()
 
-	got := buildMessage(domain.Draft{Body: "which one?", ThreadRoot: "$root:x", ReplyTo: "$target:x"}, "$latest:x")
+	got := (ids{}).buildMessage(domain.Draft{Body: "which one?", ThreadRoot: "$root:x", ReplyTo: "$target:x"}, "$latest:x")
 
 	if got.RelatesTo.GetThreadParent() != "$root:x" {
 		t.Errorf("thread = %q, want $root:x", got.RelatesTo.GetThreadParent())
@@ -231,10 +231,10 @@ func TestRecordingMentionsToleratesAMessageWithNone(t *testing.T) {
 	ctx := context.Background()
 	cache := testCache(t)
 	for _, content := range []event.MessageEventContent{
-		buildMessage(domain.Draft{Body: "no pills here"}, ""),
-		buildMessage(domain.Draft{Body: "answering", ReplyTo: "$target"}, ""),
+		(ids{}).buildMessage(domain.Draft{Body: "no pills here"}, ""),
+		(ids{}).buildMessage(domain.Draft{Body: "answering", ReplyTo: "$target"}, ""),
 	} {
-		if err := recordMentions(ctx, cache, "!a:x", &content); err != nil {
+		if err := (ids{}).recordMentions(ctx, cache, "!a:x", &content); err != nil {
 			t.Fatalf("recordMentions: %v", err)
 		}
 	}
@@ -242,11 +242,11 @@ func TestRecordingMentionsToleratesAMessageWithNone(t *testing.T) {
 		t.Errorf("mentions = %v (%v) for messages that name nobody", got, err)
 	}
 
-	withPill := buildMessage(domain.Draft{
+	withPill := (ids{}).buildMessage(domain.Draft{
 		Body:     "hi Dana",
 		Mentions: []domain.Mention{{UserID: "@dana:x", Name: "Dana"}},
 	}, "")
-	if err := recordMentions(ctx, cache, "!a:x", &withPill); err != nil {
+	if err := (ids{}).recordMentions(ctx, cache, "!a:x", &withPill); err != nil {
 		t.Fatalf("recordMentions: %v", err)
 	}
 	if got, err := cache.FrequentMentions(ctx, "!a:x", 5); err != nil || len(got) != 1 || got[0] != "@dana:x" {

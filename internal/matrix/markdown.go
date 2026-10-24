@@ -7,7 +7,6 @@ import (
 
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/format"
-	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/markdown"
@@ -18,8 +17,8 @@ import (
 
 // renderBody renders a typed body to HTML, "" when plain. Mentions become Markdown
 // links before rendering; substituting into HTML could rewrite inside href attributes.
-func renderBody(body string, mentions []domain.Mention) string {
-	content := format.RenderMarkdownCustom(withMentionLinks(body, mentions), markdown.Renderer)
+func (x ids) renderBody(body string, mentions []domain.Mention) string {
+	content := format.RenderMarkdownCustom(x.withMentionLinks(body, mentions), markdown.Renderer)
 	if content.Format != event.FormatHTML {
 		// Plain text: mautrix round-trips its HTML to decide this.
 		return ""
@@ -29,14 +28,14 @@ func renderBody(body string, mentions []domain.Mention) string {
 
 // withMentionLinks rewrites each mention's first occurrence in body as a Markdown
 // link to that person. Same rules as pillHTML (first occurrence, longest name first).
-func withMentionLinks(body string, mentions []domain.Mention) string {
+func (x ids) withMentionLinks(body string, mentions []domain.Mention) string {
 	if len(mentions) == 0 {
 		return body
 	}
 	// Segments alternate untouched text and links already written.
 	segments := []string{body}
 	for _, mention := range longestFirst(mentions) {
-		segments = splitOnceLink(segments, mention)
+		segments = x.splitOnceLink(segments, mention)
 	}
 	return strings.Join(segments, "")
 }
@@ -52,7 +51,7 @@ func longestFirst(mentions []domain.Mention) []domain.Mention {
 }
 
 // splitOnceLink links the first occurrence of mention's name outside existing links.
-func splitOnceLink(segments []string, mention domain.Mention) []string {
+func (x ids) splitOnceLink(segments []string, mention domain.Mention) []string {
 	for i, segment := range segments {
 		if isMentionLink(segment) {
 			continue
@@ -62,10 +61,10 @@ func splitOnceLink(segments []string, mention domain.Mention) []string {
 			continue
 		}
 		// MarkdownMentionWithName escapes its own text; don't escape twice.
-		link := format.MarkdownMentionWithName(mention.Name, id.UserID(mention.UserID))
+		link := format.MarkdownMentionWithName(mention.Name, x.nativeUser(mention.UserID))
 		if mention.RoomID != "" {
 			// A room link: mautrix's helper is typed to users.
-			link = roomMentionLink(mention.Name, mention.RoomID)
+			link = roomMentionLink(mention.Name, matrixString(x.nativeRoom(kithRoom(mention.RoomID))))
 		}
 		out := make([]string, 0, len(segments)+2)
 		out = append(out, segments[:i]...)

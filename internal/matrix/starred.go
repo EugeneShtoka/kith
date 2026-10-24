@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -23,7 +22,7 @@ type starredContent struct {
 
 // starredFrom reports one room's stars from a sync, and whether they were present
 // (absence is no change, not "no stars").
-func starredFrom(events []*event.Event) (ids []domain.EventID, present bool) {
+func (x ids) starredFrom(events []*event.Event) (starred []domain.EventID, present bool) {
 	for _, evt := range events {
 		if evt == nil || evt.Type.Type != starredType {
 			continue
@@ -34,15 +33,15 @@ func starredFrom(events []*event.Event) (ids []domain.EventID, present bool) {
 		if err := json.Unmarshal(evt.Content.VeryRaw, &content); err != nil {
 			continue
 		}
-		ids = make([]domain.EventID, 0, len(content.Events))
+		starred = make([]domain.EventID, 0, len(content.Events))
 		for _, raw := range content.Events {
 			if raw != "" {
-				ids = append(ids, domain.EventID(raw))
+				starred = append(starred, x.eventOf(raw))
 			}
 		}
 		present = true
 	}
-	return ids, present
+	return starred, present
 }
 
 // StarMessage adds or removes one message's star, writing back the whole set read from
@@ -62,31 +61,31 @@ func (b *InProc) StarMessage(ctx context.Context, roomID domain.RoomID, eventID 
 			found = true
 			continue
 		}
-		next = append(next, string(id))
+		next = append(next, matrixString(b.ids.nativeEvent(id)))
 	}
 	if on {
 		if found {
 			return nil // already starred
 		}
-		next = append(next, string(eventID))
+		next = append(next, matrixString(b.ids.nativeEvent(eventID)))
 	} else if !found {
 		return nil // already unstarred
 	}
 	content := starredContent{Events: next}
-	if err := b.client.SetRoomAccountData(ctx, id.RoomID(roomID), starredType, &content); err != nil {
+	if err := b.client.SetRoomAccountData(ctx, b.ids.nativeRoom(roomID), starredType, &content); err != nil {
 		return fmt.Errorf("matrix: write stars for %s: %w", roomID, err)
 	}
 	// Mirror now so the mark appears at once; the sync echo corrects it.
-	if err := b.cache.SetStarred(ctx, roomID, toEventIDs(next), time.Now().UnixMilli()); err != nil {
+	if err := b.cache.SetStarred(ctx, roomID, b.ids.toEventIDs(next), time.Now().UnixMilli()); err != nil {
 		return fmt.Errorf("matrix: mirror stars for %s: %w", roomID, err)
 	}
 	return nil
 }
 
-func toEventIDs(raw []string) []domain.EventID {
+func (x ids) toEventIDs(raw []string) []domain.EventID {
 	out := make([]domain.EventID, 0, len(raw))
 	for _, s := range raw {
-		out = append(out, domain.EventID(s))
+		out = append(out, x.eventOf(s))
 	}
 	return out
 }

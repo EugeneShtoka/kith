@@ -26,11 +26,11 @@ type peopleContent struct {
 }
 
 // verdicts is the content as the domain reads it.
-func (c peopleContent) verdicts() []domain.PersonVerdict {
+func (c peopleContent) verdicts(x ids) []domain.PersonVerdict {
 	var out []domain.PersonVerdict
 	for person, tags := range c.Verdicts {
 		for tag, e := range tags {
-			v := domain.PersonVerdict{Person: person, Tag: tag, At: time.UnixMilli(e.At), Released: e.Released}
+			v := domain.PersonVerdict{Person: x.userOf(person), Tag: tag, At: time.UnixMilli(e.At), Released: e.Released}
 			if !e.Released {
 				v.Rule, v.Filter = domain.MoveRule(e.Rule), e.Filter
 			}
@@ -41,17 +41,18 @@ func (c peopleContent) verdicts() []domain.PersonVerdict {
 }
 
 // peopleContentOf is a verdict set as account data carries it.
-func peopleContentOf(set []domain.PersonVerdict) peopleContent {
+func peopleContentOf(x ids, set []domain.PersonVerdict) peopleContent {
 	out := peopleContent{Verdicts: map[string]map[string]tagEntry{}}
 	for _, v := range set {
 		e := tagEntry{At: v.At.UnixMilli(), Released: v.Released}
 		if !v.Released {
 			e.Rule, e.Filter = int(v.Rule), v.Filter
 		}
-		if out.Verdicts[v.Person] == nil {
-			out.Verdicts[v.Person] = map[string]tagEntry{}
+		person := matrixString(x.nativeUser(v.Person))
+		if out.Verdicts[person] == nil {
+			out.Verdicts[person] = map[string]tagEntry{}
 		}
-		out.Verdicts[v.Person][strings.ToLower(strings.TrimSpace(v.Tag))] = e
+		out.Verdicts[person][strings.ToLower(strings.TrimSpace(v.Tag))] = e
 	}
 	return out
 }
@@ -118,17 +119,17 @@ func (b *InProc) serverPeople(ctx context.Context) ([]domain.PersonVerdict, erro
 	case err != nil:
 		return nil, fmt.Errorf("matrix: read the person verdicts: %w", err)
 	}
-	return current.verdicts(), nil
+	return current.verdicts(b.ids), nil
 }
 
 // writePeople stores the whole set on the homeserver, then the mirror.
 func (b *InProc) writePeople(ctx context.Context, set []domain.PersonVerdict) error {
-	content := peopleContentOf(set)
+	content := peopleContentOf(b.ids, set)
 	if err := b.client.SetAccountData(ctx, peopleType, &content); err != nil {
 		return fmt.Errorf("matrix: record the person verdicts: %w", err)
 	}
 	return toCache(b, "mirror the person verdicts", func(c *db.Cache) error {
-		return c.SetPersonVerdicts(ctx, domain.ProtocolMatrix, content.verdicts())
+		return c.SetPersonVerdicts(ctx, domain.ProtocolMatrix, content.verdicts(b.ids))
 	})
 }
 
