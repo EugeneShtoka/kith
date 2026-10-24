@@ -122,7 +122,7 @@ func TestACountStepsThatManySelectableRows(t *testing.T) {
 func TestACountPastTheEndClampsRatherThanRefusing(t *testing.T) {
 	t.Parallel()
 
-	rooms := []domain.Room{{ID: "!a", Name: "A"}, {ID: "!b", Name: "B"}, {ID: "!c", Name: "C"}}
+	rooms := []domain.Room{{ID: mx + "!a", Name: "A"}, {ID: mx + "!b", Name: "B"}, {ID: mx + "!c", Name: "C"}}
 	m := sized(t, update(t, newModel(), roomsMsg{rooms: rooms}))
 	m.focus = paneRooms
 
@@ -213,7 +213,7 @@ func TestACountWithTheEndKeyGoesToThatRow(t *testing.T) {
 
 	rooms := make([]domain.Room, 0, 8)
 	for i := range 8 {
-		rooms = append(rooms, domain.Room{ID: domain.RoomID("!" + string(rune('a'+i))), Name: string(rune('A' + i))})
+		rooms = append(rooms, domain.Room{ID: domain.RoomID(mx + "!" + string(rune('a'+i))), Name: string(rune('A' + i))})
 	}
 	m := sized(t, update(t, newModel(), roomsMsg{rooms: rooms}))
 	m.focus = paneRooms
@@ -239,7 +239,7 @@ func TestACountWithTheEndKeyGoesToThatRow(t *testing.T) {
 func TestGotoRowPastTheEndClamps(t *testing.T) {
 	t.Parallel()
 
-	rooms := []domain.Room{{ID: "!a", Name: "A"}, {ID: "!b", Name: "B"}}
+	rooms := []domain.Room{{ID: mx + "!a", Name: "A"}, {ID: mx + "!b", Name: "B"}}
 	m := sized(t, update(t, newModel(), roomsMsg{rooms: rooms}))
 	m.focus = paneRooms
 

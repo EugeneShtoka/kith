@@ -16,7 +16,7 @@ import (
 
 func clip(id domain.EventID) domain.Message {
 	return domain.Message{
-		ID: id, RoomID: "!a:x", Sender: "@dana:x", Timestamp: at(1),
+		ID: id, RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Timestamp: at(1),
 		Media: &domain.Media{Type: domain.MediaVideo, Name: "holiday.mp4", Mime: "video/mp4", Size: 999},
 	}
 }
@@ -33,8 +33,8 @@ func watching(t *testing.T, player string) Model {
 		t.Fatalf("media cache: %v", err)
 	}
 	m = m.WithCache(cache)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{clip("$v")}}})
-	m.timeline.selected = "$v"
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{clip(mx + "$v")}}})
+	m.timeline.selected = mx + "$v"
 	return m
 }
 

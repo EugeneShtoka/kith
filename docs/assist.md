@@ -117,7 +117,7 @@ Entries can name a single room or a whole kind of room:
 
 | Entry | Matches |
 | --- | --- |
-| `!abc:example.org` | One room, by ID |
+| `matrix:4f1c9e2a7b3d5c60/!abc:example.org` | One room, by ID |
 | `room:Standup` | One room, by its name in the rail (or its ID) |
 | `space:Work` | Every room in that space |
 | `tag:Pinned` | Every room that tag holds |

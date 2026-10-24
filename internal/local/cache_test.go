@@ -12,7 +12,7 @@ import (
 // seedRoom registers a room, which every other table references.
 func seedRoom(t *testing.T, cache *db.Cache, roomID domain.RoomID) {
 	t.Helper()
-	if err := cache.SaveRooms(context.Background(), domain.MatrixRooms, []domain.Room{{ID: roomID, Name: "Room"}}); err != nil {
+	if err := cache.SaveRooms(context.Background(), mxRooms, []domain.Room{{ID: roomID, Name: "Room"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 }
@@ -21,19 +21,19 @@ func TestRecordEmojiFeedsTheRanking(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	b := backendWithCache(t, "@me:example.org")
-	seedRoom(t, b.cache, "!r:x")
+	b := backendWithCache(t, "matrix:@me:example.org")
+	seedRoom(t, b.cache, mx+"!r:x")
 
 	for range 3 {
-		if err := b.RecordEmoji(ctx, domain.EmojiComposed, "!r:x", "🎉"); err != nil {
+		if err := b.RecordEmoji(ctx, domain.EmojiComposed, mx+"!r:x", "🎉"); err != nil {
 			t.Fatalf("RecordEmoji: %v", err)
 		}
 	}
-	if err := b.RecordEmoji(ctx, domain.EmojiComposed, "!r:x", "👍"); err != nil {
+	if err := b.RecordEmoji(ctx, domain.EmojiComposed, mx+"!r:x", "👍"); err != nil {
 		t.Fatalf("RecordEmoji: %v", err)
 	}
 
-	got, err := b.EmojiScores(ctx, domain.EmojiComposed, "!r:x", nil, "room")
+	got, err := b.EmojiScores(ctx, domain.EmojiComposed, mx+"!r:x", nil, "room")
 	if err != nil {
 		t.Fatalf("EmojiScores: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestRecordEmojiFeedsTheRanking(t *testing.T) {
 		t.Errorf("scores = %v, want the most-used ranked highest", got)
 	}
 	// Composed and reaction emoji are ranked separately.
-	other, err := b.EmojiScores(ctx, domain.EmojiReaction, "!r:x", nil, "room")
+	other, err := b.EmojiScores(ctx, domain.EmojiReaction, mx+"!r:x", nil, "room")
 	if err != nil {
 		t.Fatalf("EmojiScores(reaction): %v", err)
 	}
@@ -57,25 +57,25 @@ func TestCachelessReadsAnswerNothing(t *testing.T) {
 	ctx := context.Background()
 	b := New(nil, nil)
 
-	if got, err := b.CachedTimeline(ctx, "!r:x"); err != nil || got != nil {
+	if got, err := b.CachedTimeline(ctx, mx+"!r:x"); err != nil || got != nil {
 		t.Errorf("CachedTimeline = (%v, %v), want nothing", got, err)
 	}
-	if got, err := b.CachedReactions(ctx, "!r:x"); err != nil || got != nil {
+	if got, err := b.CachedReactions(ctx, mx+"!r:x"); err != nil || got != nil {
 		t.Errorf("CachedReactions = (%v, %v), want nothing", got, err)
 	}
-	if got, err := b.SenderSlots(ctx, "!r:x"); err != nil || got != nil {
+	if got, err := b.SenderSlots(ctx, mx+"!r:x"); err != nil || got != nil {
 		t.Errorf("SenderSlots = (%v, %v), want nothing", got, err)
 	}
-	if err := b.SaveSenderSlots(ctx, "!r:x", map[string]int{"@a:x": 1}); err != nil {
+	if err := b.SaveSenderSlots(ctx, mx+"!r:x", map[string]int{"matrix:@a:x": 1}); err != nil {
 		t.Errorf("SaveSenderSlots with no cache: %v", err)
 	}
 	if got, err := b.SearchSenders(ctx, domain.EveryRoom(), 10); err != nil || got != nil {
 		t.Errorf("SearchSenders = (%v, %v), want nothing", got, err)
 	}
-	if got, err := b.EmojiScores(ctx, domain.EmojiReaction, "!r:x", nil, "room"); err != nil || got != nil {
+	if got, err := b.EmojiScores(ctx, domain.EmojiReaction, mx+"!r:x", nil, "room"); err != nil || got != nil {
 		t.Errorf("EmojiScores = (%v, %v), want nothing", got, err)
 	}
-	if err := b.RecordEmoji(ctx, domain.EmojiReaction, "!r:x", "👍"); err != nil {
+	if err := b.RecordEmoji(ctx, domain.EmojiReaction, mx+"!r:x", "👍"); err != nil {
 		t.Errorf("RecordEmoji with no cache: %v", err)
 	}
 }
@@ -83,7 +83,7 @@ func TestCachelessReadsAnswerNothing(t *testing.T) {
 func TestRecordReactionRefusalFromTheClient(t *testing.T) {
 	t.Parallel()
 
-	b := backendWithCache(t, "@eugene:example.org")
+	b := backendWithCache(t, "matrix:@eugene:example.org")
 	ctx := context.Background()
 	if err := b.RecordReactionRefusal(ctx, "RCS", "🤯"); err != nil {
 		t.Fatal(err)
@@ -102,9 +102,9 @@ func TestClearCacheEmptiesItAndRewinds(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	net := &fakeNetwork{me: []string{"@me:x"}}
+	net := &fakeNetwork{me: []string{"matrix:@me:x"}}
 	s := New(testCache(t), net)
-	seedRoom(t, s.cache, "!r:x")
+	seedRoom(t, s.cache, mx+"!r:x")
 	if err := s.ClearCache(ctx); err != nil {
 		t.Fatalf("ClearCache: %v", err)
 	}

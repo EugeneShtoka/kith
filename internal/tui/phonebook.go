@@ -139,7 +139,7 @@ func (m Model) choosePersonRow(value string) (Model, tea.Cmd) {
 	}
 	if value == personIgnore || value == personUnignore {
 		p := m.aimedAt.person
-		mxids := p.card.IDs["matrix"]
+		mxids := cardMatrixPeople(p.card)
 		if len(mxids) == 0 {
 			return m.say("this person has no Matrix ID"), nil
 		}

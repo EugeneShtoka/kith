@@ -38,10 +38,10 @@ func withPoll(t *testing.T, b *voteBackend, p domain.Poll) Model {
 	t.Helper()
 	m := sized(t, withRooms(t, starterNew(b, config.Display{})))
 	m.focus = paneTimeline
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$poll", RoomID: "!a:x", Sender: "@dana:x", Timestamp: at(1), Body: p.Summary(), Poll: &p},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$poll", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Timestamp: at(1), Body: p.Summary(), Poll: &p},
 	}}})
-	m.timeline.selected = "$poll"
+	m.timeline.selected = mx + "$poll"
 	return m
 }
 
@@ -133,13 +133,13 @@ func TestThePollPickerNamesWhoChoseEachAnswer(t *testing.T) {
 	p := hikePoll()
 	p.Options = append(p.Options, domain.PollOption{ID: "mon", Text: "Monday"})
 	b := &voteBackend{voters: domain.PollVoters{Voters: []domain.PollVoter{
-		{ID: "@me:x", Options: []string{"sat"}},
-		{ID: "@eli:x", Options: []string{"sat", "sun"}},
-		{ID: "@zoe:x", Name: "Zoe Stranger", Options: []string{"sun"}},
+		{ID: "matrix:@me:x", Options: []string{"sat"}},
+		{ID: "matrix:@eli:x", Options: []string{"sat", "sun"}},
+		{ID: "matrix:@zoe:x", Name: "Zoe Stranger", Options: []string{"sun"}},
 	}}}
 	p.Options[1].Votes = 2
 	m := withPoll(t, b, p)
-	m.selves = []string{"@me:x"}
+	m.selves = []string{"matrix:@me:x"}
 	msg, _ := m.selectedMessage()
 	if body, _ := m.plainBody(msg, nil); strings.Count(body, "\n") != len(p.Options) {
 		t.Errorf("the timeline names voters:\n%s", body)
@@ -177,12 +177,12 @@ func TestThePollPickerSaysWhyNoOneIsNamed(t *testing.T) {
 		}
 	}
 
-	b := &voteBackend{voters: domain.PollVoters{Voters: []domain.PollVoter{{ID: "@eli:x", Options: []string{"sat"}}}}}
+	b := &voteBackend{voters: domain.PollVoters{Voters: []domain.PollVoter{{ID: "matrix:@eli:x", Options: []string{"sat"}}}}}
 	m := withPoll(t, b, hikePoll())
 	m, cmd := m.openVote()
 	read, _ := msgOf[pollVotersMsg](t, cmd)
 	stale := read
-	stale.event = "$other"
+	stale.event = mx + "$other"
 	if m = update(t, m, stale); m.voters.read {
 		t.Error("an answer for another poll was kept")
 	}

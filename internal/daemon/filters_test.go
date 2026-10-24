@@ -72,7 +72,7 @@ func (s *spamBackend) said(room domain.RoomID, bodies ...string) *spamBackend {
 	defer s.mu.Unlock()
 	for i, body := range bodies {
 		s.timeline[room] = append(s.timeline[room], domain.Message{
-			ID:        domain.EventID("$old" + string(rune('a'+i))),
+			ID:        domain.EventID(mx + "$old" + string(rune('a'+i))),
 			RoomID:    room,
 			Sender:    alice,
 			Body:      body,
@@ -171,7 +171,7 @@ func TestADirectMessageYouHaveAnsweredIsAConversation(t *testing.T) {
 
 	src := spamWorld().said(dmRoom, "hello")
 	src.timeline[dmRoom] = append(src.timeline[dmRoom], domain.Message{
-		ID: "$mine", RoomID: dmRoom, Sender: me, Body: "morning", Timestamp: time.Now(),
+		ID: mx + "$mine", RoomID: dmRoom, Sender: me, Body: "morning", Timestamp: time.Now(),
 	})
 	n, _ := spamNotifier(t, spamConfig(), src)
 
@@ -252,15 +252,15 @@ func TestAnAlwaysFilterMovesOnlyWhereItWatches(t *testing.T) {
 	t.Parallel()
 
 	src := spamWorld().said(chatRm, "morning", "standup at ten")
-	src.rooms = append(src.rooms, domain.Room{ID: "!other:example.org", Name: "Other"})
-	src.said("!other:example.org", "morning", "lunch?")
+	src.rooms = append(src.rooms, domain.Room{ID: mx + "!other:example.org", Name: "Other"})
+	src.said(mx+"!other:example.org", "morning", "lunch?")
 	cfg := spamConfig(withFilters(
 		config.Filter{Name: "elections", Tag: "Spam", Words: []string{"vote"}, In: []string{"place:Office"}, Moves: []string{"always"}},
 	))
 	cfg.Display.Names = []config.DisplayName{{Target: "space:" + space, Name: "Office"}}
 	n, _ := spamNotifier(t, cfg, src)
 
-	if _, notified := n.Deliver(context.Background(), msg("!other:example.org", alice, "vote for us")); !notified {
+	if _, notified := n.Deliver(context.Background(), msg(mx+"!other:example.org", alice, "vote for us")); !notified {
 		t.Error("a filter caught a message outside the places it watches")
 	}
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "vote for us")); notified {
@@ -453,7 +453,7 @@ func (s *spamBackend) put(room domain.RoomID, sender, body string, age time.Dura
 	defer s.mu.Unlock()
 	n := len(s.timeline[room])
 	s.timeline[room] = append(s.timeline[room], domain.Message{
-		ID: domain.EventID(fmt.Sprintf("$%s%d", room, n)), RoomID: room, Sender: sender, Body: body,
+		ID: domain.EventID(fmt.Sprintf(mx+"$%s%d", room, n)), RoomID: room, Sender: sender, Body: body,
 		Timestamp: time.Now().Add(-age),
 	})
 }
@@ -464,11 +464,11 @@ func (s *spamBackend) put(room domain.RoomID, sender, body string, age time.Dura
 func TestARescanJudgesCachedHistory(t *testing.T) {
 	t.Parallel()
 	const (
-		dmWritten = "!dm2:example.org"
-		group     = "!group:example.org"
-		exempt    = "!exempt:example.org"
-		released  = "!released:example.org"
-		mineOnly  = "!mine:example.org"
+		dmWritten = mx + "!dm2:example.org"
+		group     = mx + "!group:example.org"
+		exempt    = mx + "!exempt:example.org"
+		released  = mx + "!released:example.org"
+		mineOnly  = mx + "!mine:example.org"
 		day       = 24 * time.Hour
 	)
 	src := spamWorld()
@@ -596,7 +596,7 @@ func TestFiltersHoldUnderConcurrentUse(t *testing.T) {
 	src := spamWorld()
 	var rooms []domain.RoomID
 	for i := range 8 {
-		id := domain.RoomID(fmt.Sprintf("!r%d:example.org", i))
+		id := domain.RoomID(fmt.Sprintf(mx+"!r%d:example.org", i))
 		src.rooms = append(src.rooms, domain.Room{ID: id, Name: fmt.Sprintf("R%d", i)})
 		rooms = append(rooms, id)
 	}
@@ -639,14 +639,14 @@ func TestAHiddenPersonNeitherNotifiesNorMovesTheRoom(t *testing.T) {
 		if failing {
 			return true, errors.New("cache closed")
 		}
-		return m.Sender == alice || m.ReplyTo == "$from-alice", nil
+		return m.Sender == alice || m.ReplyTo == mx+"$from-alice", nil
 	})
 
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "double your bitcoin")); notified {
 		t.Error("a hidden person notified")
 	}
-	reply := msg(chatRm, "@bob:example.org", "double your bitcoin")
-	reply.ReplyTo = "$from-alice"
+	reply := msg(chatRm, "matrix:@bob:example.org", "double your bitcoin")
+	reply.ReplyTo = mx + "$from-alice"
 	if _, notified := n.Deliver(context.Background(), reply); notified {
 		t.Error("a reply to a hidden person notified")
 	}
@@ -654,7 +654,7 @@ func TestAHiddenPersonNeitherNotifiesNorMovesTheRoom(t *testing.T) {
 		t.Fatalf("recorded %+v, want nothing: hidden people do not move rooms", src.verdicts())
 	}
 	failing = true
-	if _, notified := n.Deliver(context.Background(), msg(chatRm, "@bob:example.org", "morning")); !notified {
+	if _, notified := n.Deliver(context.Background(), msg(chatRm, "matrix:@bob:example.org", "morning")); !notified {
 		t.Error("a failed lookup silenced a message")
 	}
 }

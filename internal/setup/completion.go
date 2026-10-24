@@ -118,6 +118,8 @@ func NameTargets(cfg config.Display) error {
 		switch {
 		case target == "":
 			return fmt.Errorf("display.name: an entry names %q with no target", entry.Name)
+		case domain.BareMatrixID(target):
+			return fmt.Errorf("setup: %w", domain.BareMatrixError("display.name", target))
 		case domain.IsRoomID(target):
 		case strings.HasPrefix(target, config.NameTargetRoom),
 			strings.HasPrefix(target, config.NameTargetSpace),
@@ -125,7 +127,7 @@ func NameTargets(cfg config.Display) error {
 		default:
 			return fmt.Errorf(
 				"display.name: %q is not a thing that can be named — write room:, space: or "+
-					"thread: in front of it, or give a room's !id (a tag is named in its [[tag]])",
+					"thread: in front of it, or give a room's ID (a tag is named in its [[tag]])",
 				target)
 		}
 	}

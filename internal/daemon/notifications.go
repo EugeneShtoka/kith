@@ -642,7 +642,7 @@ func (n *Notifications) decide(ctx context.Context, msg domain.Message, scope no
 	})
 	return notify.Notification{
 		Sender:   name(msg.Sender, n.memberName(ctx, msg.RoomID, msg.Sender), msg.SenderName),
-		MXID:     msg.Sender,
+		SenderID: msg.Sender,
 		Room:     room,
 		Space:    space,
 		Body:     truncateRunes(body, notifyBodyRunes),

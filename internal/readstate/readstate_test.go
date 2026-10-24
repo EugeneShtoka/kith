@@ -102,7 +102,7 @@ func TestTimeOfNeverTurnsAFailureIntoTheFallback(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	sent, now := time.Unix(1_700_000_000, 0), time.Unix(1_800_000_000, 0)
-	c := cache{msgs: map[domain.EventID]domain.Message{"$a": {Timestamp: sent}, "$untimed": {}}}
+	c := cache{msgs: map[domain.EventID]domain.Message{mx + "$a": {Timestamp: sent}, mx + "$untimed": {}}}
 	for _, tc := range []struct {
 		name  string
 		c     cache
@@ -110,13 +110,13 @@ func TestTimeOfNeverTurnsAFailureIntoTheFallback(t *testing.T) {
 		want  time.Time
 		err   bool
 	}{
-		{"cached", c, "$a", sent, false},
-		{"not cached", c, "$b", now, false},
-		{"cached with no time", c, "$untimed", now, false},
+		{"cached", c, mx + "$a", sent, false},
+		{"not cached", c, mx + "$b", now, false},
+		{"cached with no time", c, mx + "$untimed", now, false},
 		{"no event", c, "", now, false},
-		{"the lookup fails", cache{fail: errors.New("SQLITE_BUSY")}, "$a", time.Time{}, true},
+		{"the lookup fails", cache{fail: errors.New("SQLITE_BUSY")}, mx + "$a", time.Time{}, true},
 	} {
-		got, err := TimeOf(ctx, tc.c, "!r", tc.event, now)
+		got, err := TimeOf(ctx, tc.c, mx+"!r", tc.event, now)
 		if (err != nil) != tc.err || !got.Equal(tc.want) {
 			t.Errorf("%s: (%v, %v), want %v (error %v)", tc.name, got, err, tc.want, tc.err)
 		}
@@ -128,19 +128,19 @@ func TestTimeOfNeverTurnsAFailureIntoTheFallback(t *testing.T) {
 func TestMarkRoomsReadCountsWhatWasRead(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	c := cache{latest: map[domain.RoomID]domain.EventID{"!a": "$1", "!b": "$2", "!c": "$3"}}
+	c := cache{latest: map[domain.RoomID]domain.EventID{mx + "!a": mx + "$1", mx + "!b": mx + "$2", mx + "!c": mx + "$3"}}
 	var read []domain.RoomID
-	res, err := MarkRoomsRead(ctx, c, []domain.RoomID{"!a", "!b", "!c", "!empty"}, func(room domain.RoomID, event domain.EventID) error {
-		if room != "!a" {
+	res, err := MarkRoomsRead(ctx, c, []domain.RoomID{mx + "!a", mx + "!b", mx + "!c", mx + "!empty"}, func(room domain.RoomID, event domain.EventID) error {
+		if room != mx+"!a" {
 			return fmt.Errorf("could not keep %s", room)
 		}
 		read = append(read, room)
 		return nil
 	})
-	if err != nil || res.Marked != 1 || res.Failed != 2 || res.Skipped != 1 || res.FirstError != "could not keep !b" || len(read) != 1 {
+	if err != nil || res.Marked != 1 || res.Failed != 2 || res.Skipped != 1 || res.FirstError != "could not keep "+mx+"!b" || len(read) != 1 {
 		t.Errorf("result %+v (%v), read %v", res, err, read)
 	}
-	if _, err := MarkRoomsRead(ctx, cache{fail: errors.New("gone")}, []domain.RoomID{"!a"}, func(domain.RoomID, domain.EventID) error {
+	if _, err := MarkRoomsRead(ctx, cache{fail: errors.New("gone")}, []domain.RoomID{mx + "!a"}, func(domain.RoomID, domain.EventID) error {
 		t.Error("read a room whose newest message is not known")
 		return nil
 	}); err == nil {

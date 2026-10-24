@@ -48,7 +48,7 @@ func TestWriteOutsideTheWriteScopeIsRefused(t *testing.T) {
 				t.Errorf("refusal = %q, want it to name [agent.write]", said)
 			}
 			ledger := entries(t, s)
-			if len(ledger) != 1 || ledger[0].Outcome != agent.Refused || ledger[0].Room != "!open:x" ||
+			if len(ledger) != 1 || ledger[0].Outcome != agent.Refused || ledger[0].Room != mx+"!open:x" ||
 				!strings.Contains(ledger[0].Reason, "[agent.write]") || ledger[0].Text != "hello" {
 				t.Fatalf("ledger = %+v, want one refused entry naming the room, the rule and the words", ledger)
 			}
@@ -110,7 +110,7 @@ func TestEmptyWriteScopeIsTheReadScope(t *testing.T) {
 	f := twoRooms()
 	s := writerWith(t, f, domain.ModelScope{Only: []string{"space:Work"}}, domain.ModelScope{}, nil)
 	out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "hello"})
-	if out["action"] != agent.Drafted || f.drafts["!open:x"].Body != "hello" {
+	if out["action"] != agent.Drafted || f.drafts[mx+"!open:x"].Body != "hello" {
 		t.Fatalf("action = %v drafts = %+v, want a draft in the readable room", out["action"], f.drafts)
 	}
 }
@@ -182,7 +182,7 @@ func TestNothingSharedIsSaidByEveryTool(t *testing.T) {
 	questions := map[string]map[string]any{
 		"read_room":       {"room": "Standup"},
 		"search_messages": {"query": "morning"},
-		"read_around":     {"room": "!open:x", "event": "$1"},
+		"read_around":     {"room": mx + "!open:x", "event": mx + "$1"},
 		"unread_summary":  nil,
 		"find_people":     {"query": "Dana"},
 		"find_rooms_with": {"people": []string{"Dana"}},

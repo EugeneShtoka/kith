@@ -15,13 +15,13 @@ func editingWith(t *testing.T, mine domain.Message, members ...domain.Member) (M
 	t.Helper()
 	backend := &sendingBackend{}
 	m := update(t, starterNew(backend, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
-	m.selves = []string{"@me:x"}
+	m.selves = []string{"matrix:@me:x"}
 	m, _ = m.selectRoom(m.filteredRooms()[0])
-	mine.ID, mine.RoomID, mine.Sender, mine.Timestamp = "$mine", "!a:x", "@me:x", at(1)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{mine}}})
-	m = update(t, m, membersMsg{roomID: "!a:x", members: members})
+	mine.ID, mine.RoomID, mine.Sender, mine.Timestamp = mx+"$mine", mx+"!a:x", "matrix:@me:x", at(1)
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{mine}}})
+	m = update(t, m, membersMsg{roomID: mx + "!a:x", members: members})
 	m.focus, m.compose.insertMode = paneTimeline, false
 	return m, backend
 }
@@ -31,7 +31,7 @@ func sentEdit(t *testing.T, m Model, backend *sendingBackend) domain.Draft {
 	t.Helper()
 	m, cmd := press(t, m, sendKey())
 	deliver(t, m, cmd)
-	if len(backend.sent) != 1 || backend.sent[0].Edits != "$mine" {
+	if len(backend.sent) != 1 || backend.sent[0].Edits != mx+"$mine" {
 		t.Fatalf("sent %+v, want one revision of $mine", backend.sent)
 	}
 	return backend.sent[0]
@@ -43,13 +43,13 @@ func TestAnEditKeepsTheMessagesMentions(t *testing.T) {
 
 	m, backend := editingWith(t, domain.Message{
 		Body:     "Dana Levi can you look",
-		Mentions: []domain.Mention{{UserID: "@dana:x", Name: "Dana Levi"}},
+		Mentions: []domain.Mention{{UserID: "matrix:@dana:x", Name: "Dana Levi"}},
 	})
 	m, _ = press(t, m, keyText("E"))
 	m = typeInto(t, m, " today")
 
 	draft := sentEdit(t, m, backend)
-	if live := draft.LiveMentions(); len(live) != 1 || live[0].UserID != "@dana:x" {
+	if live := draft.LiveMentions(); len(live) != 1 || live[0].UserID != "matrix:@dana:x" {
 		t.Errorf("mentions = %+v, want dana's pill carried into the revision", live)
 	}
 }
@@ -67,7 +67,7 @@ func TestAMentionCompletedInAnEditIsSent(t *testing.T) {
 	if draft.Body != "can you look Dana Levi" {
 		t.Errorf("Body = %q", draft.Body)
 	}
-	if live := draft.LiveMentions(); len(live) != 1 || live[0].UserID != "@dana:x" {
+	if live := draft.LiveMentions(); len(live) != 1 || live[0].UserID != "matrix:@dana:x" {
 		t.Errorf("mentions = %+v, want the completed name as a mention", live)
 	}
 }
@@ -78,7 +78,7 @@ func TestMentioningYouDoesNotRecolorTheSender(t *testing.T) {
 
 	m, _ := editingWith(t, domain.Message{Body: "x"})
 	sagi := color.RGBA{R: 0xd0, G: 0xa0, B: 0x60, A: 0xff}
-	plain := domain.Message{Sender: "@sagi:x", SenderName: "Sagi", Body: "hi", Timestamp: at(2)}
+	plain := domain.Message{Sender: "matrix:@sagi:x", SenderName: "Sagi", Body: "hi", Timestamp: at(2)}
 	naming := plain
 	naming.Mentioned = true
 	for _, selected := range []bool{false, true} {

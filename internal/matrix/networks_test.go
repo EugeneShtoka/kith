@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"maunium.net/go/mautrix/event"
+
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -47,10 +49,10 @@ func TestTheRoomsNetworksAreReadOnce(t *testing.T) {
 	b := backendWith(t, srv, nil)
 	stale := 0
 	b.onRoomsStale = func() { stale++ }
-	if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!wa:x"}, {ID: "!slack:x"}, {ID: "!plain:x"}, {ID: "!older:x"}, {ID: "!known:x"}, {ID: "!missing:x"}}); err != nil {
+	if err := b.cache.SaveRooms(ctx, testIDs.owner(), []domain.Room{{ID: mx + "!wa:x"}, {ID: mx + "!slack:x"}, {ID: mx + "!plain:x"}, {ID: mx + "!older:x"}, {ID: mx + "!known:x"}, {ID: mx + "!missing:x"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.cache.KeepRoomNetworks(ctx, map[domain.RoomID]domain.Protocol{"!known:x": domain.ProtocolSignal}); err != nil {
+	if err := b.cache.KeepRoomNetworks(ctx, map[domain.RoomID]domain.Protocol{mx + "!known:x": domain.ProtocolSignal}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -70,9 +72,9 @@ func TestTheRoomsNetworksAreReadOnce(t *testing.T) {
 		got[r.ID] = r.Network
 	}
 	want := map[domain.RoomID]domain.Protocol{
-		"!wa:x": domain.ProtocolWhatsApp, "!slack:x": domain.ProtocolSlack, "!plain:x": domain.ProtocolMatrix,
-		"!older:x": domain.ProtocolTelegram,
-		"!known:x": domain.ProtocolSignal, "!missing:x": "",
+		mx + "!wa:x": domain.ProtocolWhatsApp, mx + "!slack:x": domain.ProtocolSlack, mx + "!plain:x": domain.ProtocolMatrix,
+		mx + "!older:x": domain.ProtocolTelegram,
+		mx + "!known:x": domain.ProtocolSignal, mx + "!missing:x": "",
 	}
 	for room, w := range want {
 		if got[room] != w {
@@ -85,7 +87,7 @@ func TestTheRoomsNetworksAreReadOnce(t *testing.T) {
 
 	// Only !missing:x is unread now, and the reading still does not carry it.
 	before := syncs.Load()
-	if err := b.cache.KeepRoomNetworks(ctx, map[domain.RoomID]domain.Protocol{"!missing:x": domain.ProtocolMatrix}); err != nil {
+	if err := b.cache.KeepRoomNetworks(ctx, map[domain.RoomID]domain.Protocol{mx + "!missing:x": domain.ProtocolMatrix}); err != nil {
 		t.Fatal(err)
 	}
 	b.readRoomNetworks(ctx)
@@ -138,5 +140,21 @@ func TestAReadingIsAskedForAndRunsAlone(t *testing.T) {
 	}
 	if len(rooms) != 1 || rooms[0].Network != domain.ProtocolMatrix {
 		t.Errorf("the refresh after the reading answered %+v, want !a:x on Matrix", rooms)
+	}
+}
+
+// A bridge is known by its bot when its state names no protocol kith knows.
+func TestABridgeIsKnownByItsBot(t *testing.T) {
+	t.Parallel()
+	state := func(content string) []*event.Event {
+		evt := &event.Event{Type: event.StateBridge}
+		evt.Content.VeryRaw = []byte(content)
+		return []*event.Event{evt}
+	}
+	if got := testIDs.bridgeNetwork(state(`{"bridgebot":"@whatsappbot:x","protocol":{"id":"unheard-of"}}`)); got != domain.ProtocolWhatsApp {
+		t.Errorf("network by the bot = %q, want WhatsApp", got)
+	}
+	if got := testIDs.bridgeNetwork(state(`{"bridgebot":"@someone:x","protocol":{"id":"unheard-of"}}`)); got != domain.ProtocolMatrix {
+		t.Errorf("network of no known bridge = %q, want Matrix", got)
 	}
 }

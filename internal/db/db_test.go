@@ -41,10 +41,10 @@ func TestRoomsRoundTrip(t *testing.T) {
 	}
 
 	rooms := []domain.Room{
-		{ID: "!b:x", Name: "Bravo", Members: []string{"Bianca Reyes", "Cyrus Vale"}},
-		{ID: "!a:x", Name: "Alpha", IsDirect: true},
+		{ID: mx + "!b:x", Name: "Bravo", Members: []string{"Bianca Reyes", "Cyrus Vale"}},
+		{ID: mx + "!a:x", Name: "Alpha", IsDirect: true},
 	}
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, rooms); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
 
@@ -64,7 +64,7 @@ func TestRoomsRoundTrip(t *testing.T) {
 	}
 
 	// SaveRooms replaces, not appends.
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!c:x", Name: "Charlie"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!c:x", Name: "Charlie"}}); err != nil {
 		t.Fatalf("second SaveRooms() error = %v", err)
 	}
 	got, _ = cache.Rooms(ctx)
@@ -79,10 +79,10 @@ func TestSpacesRoundTrip(t *testing.T) {
 	cache := openTemp(t)
 
 	spaces := []domain.Space{
-		{ID: "!work:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
-		{ID: "!fun:x", Name: "Friends"},
+		{ID: mx + "!work:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
+		{ID: mx + "!fun:x", Name: "Friends"},
 	}
-	if err := cache.SaveSpaces(ctx, domain.MatrixRooms, spaces); err != nil {
+	if err := cache.SaveSpaces(ctx, mxRooms, spaces); err != nil {
 		t.Fatalf("SaveSpaces() error = %v", err)
 	}
 
@@ -100,7 +100,7 @@ func TestSpacesRoundTrip(t *testing.T) {
 			work = s
 		}
 	}
-	if len(work.Children) != 2 || work.Children[0] != "!a:x" || work.Children[1] != "!b:x" {
+	if len(work.Children) != 2 || work.Children[0] != mx+"!a:x" || work.Children[1] != mx+"!b:x" {
 		t.Fatalf("Work children = %v, want [!a:x !b:x]", work.Children)
 	}
 }
@@ -114,7 +114,7 @@ func TestReopenPreservesDataAndSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Open() error = %v", err)
 	}
-	if serr := first.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); serr != nil {
+	if serr := first.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); serr != nil {
 		t.Fatalf("SaveRooms() error = %v", serr)
 	}
 	if cerr := first.Close(); cerr != nil {
@@ -139,14 +139,14 @@ func TestMessagesRoundTrip(t *testing.T) {
 	cache := openTemp(t)
 
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-		{ID: "$2", RoomID: "!a:x", Sender: "@b:x", Body: "second", Timestamp: at(2)},
-		{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "first", Timestamp: at(1)},
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@b:x", Body: "second", Timestamp: at(2)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "first", Timestamp: at(1)},
 	}); err != nil {
 		t.Fatalf("SaveMessages() error = %v", err)
 	}
 
-	got, err := cache.Messages(ctx, "!a:x", 10)
+	got, err := cache.Messages(ctx, mx+"!a:x", 10)
 	if err != nil {
 		t.Fatalf("Messages() error = %v", err)
 	}
@@ -158,16 +158,16 @@ func TestMessagesRoundTrip(t *testing.T) {
 	}
 
 	// A later upsert accumulates and updates in place, scoped to the room.
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-		{ID: "$3", RoomID: "!a:x", Body: "third", Timestamp: at(3)},
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{
+		{ID: mx + "$3", RoomID: mx + "!a:x", Body: "third", Timestamp: at(3)},
 	}); err != nil {
 		t.Fatalf("second SaveMessages() error = %v", err)
 	}
-	got, _ = cache.Messages(ctx, "!a:x", 10)
+	got, _ = cache.Messages(ctx, mx+"!a:x", 10)
 	if len(got) != 3 || got[2].Body != "third" {
 		t.Fatalf("after append Messages() = %+v, want 3 with third last", got)
 	}
-	if other, _ := cache.Messages(ctx, "!other:x", 10); len(other) != 0 {
+	if other, _ := cache.Messages(ctx, mx+"!other:x", 10); len(other) != 0 {
 		t.Errorf("messages leaked across rooms: %+v", other)
 	}
 }
@@ -178,38 +178,38 @@ func TestMarkRedacted(t *testing.T) {
 	cache := openTemp(t)
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
 
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "secret", Timestamp: at(1)},
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "secret", Timestamp: at(1)},
 	}); err != nil {
 		t.Fatalf("SaveMessages() error = %v", err)
 	}
-	if err := cache.MarkRedacted(ctx, "!a:x", "$1", "@mod:x", "spam", time.Time{}, false); err != nil {
+	if err := cache.MarkRedacted(ctx, mx+"!a:x", mx+"$1", "matrix:@mod:x", "spam", time.Time{}, false); err != nil {
 		t.Fatalf("MarkRedacted() error = %v", err)
 	}
 
-	got, _ := cache.Messages(ctx, "!a:x", 10)
+	got, _ := cache.Messages(ctx, mx+"!a:x", 10)
 	// The row survives for the placeholder but the words do not:
 	// [display.deleted] keep is off here.
 	if len(got) != 1 || !got[0].Redacted {
 		t.Fatalf("message not marked redacted: %+v", got)
 	}
-	if got[0].Sender != "@a:x" || !got[0].Timestamp.Equal(at(1)) {
+	if got[0].Sender != "matrix:@a:x" || !got[0].Timestamp.Equal(at(1)) {
 		t.Errorf("MarkRedacted clobbered other columns: %+v", got[0])
 	}
 	if got[0].Body != "" {
 		t.Errorf("the deleted words are still on disk: %q", got[0].Body)
 	}
-	if got[0].RedactedBy != "@mod:x" || got[0].RedactedReason != "spam" {
+	if got[0].RedactedBy != "matrix:@mod:x" || got[0].RedactedReason != "spam" {
 		t.Errorf("who deleted it and why was not recorded: %+v", got[0])
 	}
 
 	// A later re-save must not clear the redaction.
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "secret", Timestamp: at(1)},
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "secret", Timestamp: at(1)},
 	}); err != nil {
 		t.Fatalf("re-SaveMessages() error = %v", err)
 	}
-	if got, _ = cache.Messages(ctx, "!a:x", 10); !got[0].Redacted {
+	if got, _ = cache.Messages(ctx, mx+"!a:x", 10); !got[0].Redacted {
 		t.Error("re-save cleared the redaction flag; max() should preserve it")
 	}
 }
@@ -221,30 +221,30 @@ func TestEditsPersist(t *testing.T) {
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
 
 	orig := func(room domain.RoomID, id domain.EventID) domain.Message {
-		return domain.Message{ID: id, RoomID: room, Sender: "@a:x", Body: "old", Timestamp: at(5)}
+		return domain.Message{ID: id, RoomID: room, Sender: "matrix:@a:x", Body: "old", Timestamp: at(5)}
 	}
 	edit := func(room domain.RoomID, id domain.EventID) domain.Message {
-		return domain.Message{ID: id, RoomID: room, Sender: "@a:x", Body: "new", Timestamp: at(9), Edited: true}
+		return domain.Message{ID: id, RoomID: room, Sender: "matrix:@a:x", Body: "new", Timestamp: at(9), Edited: true}
 	}
 
 	// Original then edit: replacement body, edited flag, and the original's
 	// timestamp, so the row keeps its position.
-	mustSave(t, cache, "!a:x", orig("!a:x", "$1"))
-	mustSave(t, cache, "!a:x", edit("!a:x", "$1"))
-	got, _ := cache.Messages(ctx, "!a:x", 10)
+	mustSave(t, cache, mx+"!a:x", orig(mx+"!a:x", mx+"$1"))
+	mustSave(t, cache, mx+"!a:x", edit(mx+"!a:x", mx+"$1"))
+	got, _ := cache.Messages(ctx, mx+"!a:x", 10)
 	if len(got) != 1 || got[0].Body != "new" || !got[0].Edited || !got[0].Timestamp.Equal(at(5)) {
 		t.Fatalf("edit not applied in place: %+v", got)
 	}
 	// A later re-save of the original must not revert the edit.
-	mustSave(t, cache, "!a:x", orig("!a:x", "$1"))
-	if got, _ = cache.Messages(ctx, "!a:x", 10); got[0].Body != "new" || !got[0].Edited {
+	mustSave(t, cache, mx+"!a:x", orig(mx+"!a:x", mx+"$1"))
+	if got, _ = cache.Messages(ctx, mx+"!a:x", 10); got[0].Body != "new" || !got[0].Edited {
 		t.Errorf("re-save reverted the edit: %+v", got[0])
 	}
 
 	// Edit cached before the original gives the same result.
-	mustSave(t, cache, "!b:x", edit("!b:x", "$2"))
-	mustSave(t, cache, "!b:x", orig("!b:x", "$2"))
-	if got, _ = cache.Messages(ctx, "!b:x", 10); got[0].Body != "new" || !got[0].Edited || !got[0].Timestamp.Equal(at(5)) {
+	mustSave(t, cache, mx+"!b:x", edit(mx+"!b:x", mx+"$2"))
+	mustSave(t, cache, mx+"!b:x", orig(mx+"!b:x", mx+"$2"))
+	if got, _ = cache.Messages(ctx, mx+"!b:x", 10); got[0].Body != "new" || !got[0].Edited || !got[0].Timestamp.Equal(at(5)) {
 		t.Errorf("reverse-order edit wrong: %+v", got[0])
 	}
 }
@@ -253,13 +253,13 @@ func TestEditsPersist(t *testing.T) {
 func TestStickyFieldsSurviveABareResave(t *testing.T) {
 	t.Parallel()
 	at := time.UnixMilli(2000)
-	bare := domain.Message{ID: "$2", RoomID: "!a:x", Sender: "@b:x", Body: "re", Timestamp: at}
+	bare := domain.Message{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@b:x", Body: "re", Timestamp: at}
 	for _, tc := range []struct {
 		name string
 		set  func(*domain.Message)
 		has  func(domain.Message) bool
 	}{
-		{"reply_to", func(m *domain.Message) { m.ReplyTo = "$1" }, func(m domain.Message) bool { return m.ReplyTo == "$1" }},
+		{"reply_to", func(m *domain.Message) { m.ReplyTo = mx + "$1" }, func(m domain.Message) bool { return m.ReplyTo == mx+"$1" }},
 		{"mentioned", func(m *domain.Message) { m.Mentioned = true }, func(m domain.Message) bool { return m.Mentioned }},
 		{"emote", func(m *domain.Message) { m.Emote = true }, func(m domain.Message) bool { return m.Emote }},
 	} {
@@ -268,13 +268,13 @@ func TestStickyFieldsSurviveABareResave(t *testing.T) {
 			cache := openTemp(t)
 			full := bare
 			tc.set(&full)
-			mustSave(t, cache, "!a:x", full)
-			got, _ := cache.Messages(context.Background(), "!a:x", 10)
+			mustSave(t, cache, mx+"!a:x", full)
+			got, _ := cache.Messages(context.Background(), mx+"!a:x", 10)
 			if len(got) != 1 || !tc.has(got[0]) {
 				t.Fatalf("not persisted: %+v", got)
 			}
-			mustSave(t, cache, "!a:x", bare)
-			if got, _ = cache.Messages(context.Background(), "!a:x", 10); !tc.has(got[0]) {
+			mustSave(t, cache, mx+"!a:x", bare)
+			if got, _ = cache.Messages(context.Background(), mx+"!a:x", 10); !tc.has(got[0]) {
 				t.Errorf("bare re-save cleared it: %+v", got[0])
 			}
 		})
@@ -287,11 +287,11 @@ func TestMediaPersists(t *testing.T) {
 	cache := openTemp(t)
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
 
-	mustSave(t, cache, "!a:x", domain.Message{
-		ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "cat.jpg", Timestamp: at(1),
+	mustSave(t, cache, mx+"!a:x", domain.Message{
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "cat.jpg", Timestamp: at(1),
 		Media: &domain.Media{Type: domain.MediaImage, Name: "cat.jpg", Mime: "image/jpeg", Width: 800, Height: 600, Size: 123},
 	})
-	got, _ := cache.Messages(ctx, "!a:x", 10)
+	got, _ := cache.Messages(ctx, mx+"!a:x", 10)
 	if len(got) != 1 || got[0].Media == nil {
 		t.Fatalf("media metadata not persisted: %+v", got)
 	}
@@ -300,8 +300,8 @@ func TestMediaPersists(t *testing.T) {
 	}
 
 	// A non-media message round-trips with a nil Media.
-	mustSave(t, cache, "!a:x", domain.Message{ID: "$2", RoomID: "!a:x", Sender: "@a:x", Body: "hi", Timestamp: at(2)})
-	if got, _ = cache.Messages(ctx, "!a:x", 10); got[1].Media != nil {
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "hi", Timestamp: at(2)})
+	if got, _ = cache.Messages(ctx, mx+"!a:x", 10); got[1].Media != nil {
 		t.Errorf("non-media message got a Media: %+v", got[1].Media)
 	}
 }
@@ -319,9 +319,9 @@ func TestEmojiScopesAreStrictNotWeighted(t *testing.T) {
 			}
 		}
 	}
-	const here = domain.RoomID("!a:x")
-	sibling := domain.RoomID("!b:x") // same space
-	far := domain.RoomID("!c:x")     // no relation
+	const here = domain.RoomID(mx + "!a:x")
+	sibling := domain.RoomID(mx + "!b:x") // same space
+	far := domain.RoomID(mx + "!c:x")     // no relation
 	space := []domain.RoomID{here, sibling}
 
 	rec(here, "🔥", 1, 10)     // once, but right here
@@ -384,17 +384,17 @@ func TestMediaSourceRoundTrip(t *testing.T) {
 
 	// The source hangs off the cached message and cascades with it, so the message
 	// is saved first.
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{{ID: "$1", Body: "look"}}); err != nil {
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{{ID: mx + "$1", Body: "look"}}); err != nil {
 		t.Fatalf("SaveMessages() error = %v", err)
 	}
 
-	if err := cache.SaveMediaSource(ctx, "$1", "!a:x", "mxc://x/abc", `{"key":"v"}`); err != nil {
+	if err := cache.SaveMediaSource(ctx, mx+"$1", mx+"!a:x", "mxc://x/abc", `{"key":"v"}`); err != nil {
 		t.Fatalf("SaveMediaSource() error = %v", err)
 	}
-	mxc, fileJSON, ok, err := cache.MediaSource(ctx, "!a:x", "$1")
+	mxc, fileJSON, ok, err := cache.MediaSource(ctx, mx+"!a:x", mx+"$1")
 	if err != nil || !ok {
 		t.Fatalf("MediaSource() ok=%v err=%v", ok, err)
 	}
@@ -403,22 +403,22 @@ func TestMediaSourceRoundTrip(t *testing.T) {
 	}
 
 	// Upsert replaces; unknown event is a clean not-found.
-	if err := cache.SaveMediaSource(ctx, "$1", "!a:x", "mxc://x/def", ""); err != nil {
+	if err := cache.SaveMediaSource(ctx, mx+"$1", mx+"!a:x", "mxc://x/def", ""); err != nil {
 		t.Fatalf("re-SaveMediaSource() error = %v", err)
 	}
-	if mxc, _, _, _ := cache.MediaSource(ctx, "!a:x", "$1"); mxc != "mxc://x/def" {
+	if mxc, _, _, _ := cache.MediaSource(ctx, mx+"!a:x", mx+"$1"); mxc != "mxc://x/def" {
 		t.Errorf("upsert did not replace mxc: %q", mxc)
 	}
-	if _, _, ok, _ := cache.MediaSource(ctx, "!a:x", "$none"); ok {
+	if _, _, ok, _ := cache.MediaSource(ctx, mx+"!a:x", mx+"$none"); ok {
 		t.Error("unknown event should report not-found")
 	}
 
 	// A message the cache does not hold has nothing to attach a source to: no error,
 	// nothing kept.
-	if err := cache.SaveMediaSource(ctx, "$trimmed", "!a:x", "", `{"key":"w"}`); err != nil {
+	if err := cache.SaveMediaSource(ctx, mx+"$trimmed", mx+"!a:x", "", `{"key":"w"}`); err != nil {
 		t.Errorf("SaveMediaSource for an uncached message = %v, want nothing done", err)
 	}
-	if _, _, ok, _ := cache.MediaSource(ctx, "!a:x", "$trimmed"); ok {
+	if _, _, ok, _ := cache.MediaSource(ctx, mx+"!a:x", mx+"$trimmed"); ok {
 		t.Error("a source was kept for a message the cache does not hold")
 	}
 }
@@ -429,14 +429,14 @@ func TestReactionsRoundTrip(t *testing.T) {
 	cache := openTemp(t)
 
 	if err := cache.SaveReactions(ctx, []domain.Reaction{
-		{ID: "$r1", RoomID: "!a:x", Target: "$m", Sender: "@a:x", Key: "👍"},
-		{ID: "$r2", RoomID: "!a:x", Target: "$m", Sender: "@b:x", Key: "❤️"},
-		{ID: "$r3", RoomID: "!b:x", Target: "$n", Sender: "@a:x", Key: "🎉"},
+		{ID: mx + "$r1", RoomID: mx + "!a:x", Target: mx + "$m", Sender: "matrix:@a:x", Key: "👍"},
+		{ID: mx + "$r2", RoomID: mx + "!a:x", Target: mx + "$m", Sender: "matrix:@b:x", Key: "❤️"},
+		{ID: mx + "$r3", RoomID: mx + "!b:x", Target: mx + "$n", Sender: "matrix:@a:x", Key: "🎉"},
 	}); err != nil {
 		t.Fatalf("SaveReactions() error = %v", err)
 	}
 
-	got, err := cache.Reactions(ctx, "!a:x")
+	got, err := cache.Reactions(ctx, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("Reactions() error = %v", err)
 	}
@@ -445,19 +445,19 @@ func TestReactionsRoundTrip(t *testing.T) {
 	}
 
 	// DeleteReaction returns the removed row and the reaction disappears.
-	del, ok, err := cache.DeleteReaction(ctx, "$r1")
+	del, ok, err := cache.DeleteReaction(ctx, mx+"$r1")
 	if err != nil || !ok {
 		t.Fatalf("DeleteReaction($r1) ok=%v err=%v", ok, err)
 	}
-	if del.Target != "$m" || del.RoomID != "!a:x" || del.Key != "👍" {
+	if del.Target != mx+"$m" || del.RoomID != mx+"!a:x" || del.Key != "👍" {
 		t.Errorf("deleted row = %+v, want target $m room !a:x key 👍", del)
 	}
-	if got, _ = cache.Reactions(ctx, "!a:x"); len(got) != 1 || got[0].ID != "$r2" {
+	if got, _ = cache.Reactions(ctx, mx+"!a:x"); len(got) != 1 || got[0].ID != mx+"$r2" {
 		t.Errorf("after delete = %+v, want only $r2", got)
 	}
 
 	// An unknown id is not-found: that tells a message redaction from an un-react.
-	if _, ok, _ := cache.DeleteReaction(ctx, "$nope"); ok {
+	if _, ok, _ := cache.DeleteReaction(ctx, mx+"$nope"); ok {
 		t.Error("DeleteReaction reported ok for an unknown id")
 	}
 }
@@ -472,21 +472,21 @@ func TestMessagesTrimToLimit(t *testing.T) {
 	msgs := make([]domain.Message, testKeep+20)
 	for i := range msgs {
 		msgs[i] = domain.Message{
-			ID:        domain.EventID(fmt.Sprintf("$%04d", i)),
-			RoomID:    "!a:x",
+			ID:        domain.EventID(fmt.Sprintf(mx+"$%04d", i)),
+			RoomID:    mx + "!a:x",
 			Body:      "m",
 			Timestamp: time.UnixMilli(int64(i) * 1000),
 		}
 	}
-	if err := cache.SaveMessages(ctx, "!a:x", msgs); err != nil {
+	if err := cache.SaveMessages(ctx, mx+"!a:x", msgs); err != nil {
 		t.Fatalf("SaveMessages() error = %v", err)
 	}
-	got, _ := cache.Messages(ctx, "!a:x", testKeep+100)
+	got, _ := cache.Messages(ctx, mx+"!a:x", testKeep+100)
 	if len(got) != testKeep {
 		t.Fatalf("cached count = %d, want trimmed to %d", len(got), testKeep)
 	}
 	// The oldest kept message is the 20th.
-	if got[0].ID != domain.EventID(fmt.Sprintf("$%04d", 20)) {
+	if got[0].ID != domain.EventID(fmt.Sprintf(mx+"$%04d", 20)) {
 		t.Errorf("oldest kept = %q, want the 20th message", got[0].ID)
 	}
 }
@@ -496,25 +496,25 @@ func TestClearEmptiesEverything(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms() error = %v", err)
 	}
-	if err := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{ID: "!s:x", Name: "Work", Children: []domain.RoomID{"!a:x"}}}); err != nil {
+	if err := cache.SaveSpaces(ctx, mxRooms, []domain.Space{{ID: mx + "!s:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}}}); err != nil {
 		t.Fatalf("SaveSpaces() error = %v", err)
 	}
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{{ID: "$1", RoomID: "!a:x", Body: "hi"}}); err != nil {
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Body: "hi"}}); err != nil {
 		t.Fatalf("SaveMessages() error = %v", err)
 	}
-	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: "!a:x", Notifications: 3}, 0); err != nil {
+	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!a:x", Notifications: 3}, 0); err != nil {
 		t.Fatalf("SaveUnread() error = %v", err)
 	}
-	if err := cache.SaveMembers(ctx, "!a:x", []domain.Member{{UserID: "@a:x", DisplayName: "A"}}); err != nil {
+	if err := cache.SaveMembers(ctx, mx+"!a:x", []domain.Member{{UserID: "matrix:@a:x", DisplayName: "A"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.RecordMention(ctx, "!a:x", "@a:x", 1); err != nil {
+	if err := cache.RecordMention(ctx, mx+"!a:x", "matrix:@a:x", 1); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.SaveInvites(ctx, []domain.Room{{ID: "!i1:x", Name: "One"}}); err != nil {
+	if err := cache.SaveInvites(ctx, []domain.Room{{ID: mx + "!i1:x", Name: "One"}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -528,16 +528,16 @@ func TestClearEmptiesEverything(t *testing.T) {
 	if spaces, _ := cache.Spaces(ctx); len(spaces) != 0 {
 		t.Errorf("spaces after clear = %d, want 0", len(spaces))
 	}
-	if msgs, _ := cache.Messages(ctx, "!a:x", 10); len(msgs) != 0 {
+	if msgs, _ := cache.Messages(ctx, mx+"!a:x", 10); len(msgs) != 0 {
 		t.Errorf("messages after clear = %d, want 0", len(msgs))
 	}
 	if unread, _ := cache.Unread(ctx); len(unread) != 0 {
 		t.Errorf("unread after clear = %d, want 0", len(unread))
 	}
-	if members, _ := cache.Members(ctx, "!a:x", 0); len(members) != 0 {
+	if members, _ := cache.Members(ctx, mx+"!a:x", 0); len(members) != 0 {
 		t.Errorf("members after clear = %d, want 0", len(members))
 	}
-	if mentions, _ := cache.FrequentMentions(ctx, "!a:x", 10); len(mentions) != 0 {
+	if mentions, _ := cache.FrequentMentions(ctx, mx+"!a:x", 10); len(mentions) != 0 {
 		t.Errorf("mention records after clear = %d, want 0", len(mentions))
 	}
 	if invites, _ := cache.Invites(ctx); len(invites) != 0 {
@@ -555,7 +555,7 @@ func TestUnreadRoundTrip(t *testing.T) {
 		t.Fatalf("cold Unread() = %v, %v; want empty", got, err)
 	}
 
-	want := domain.Unread{RoomID: "!a:x", Notifications: 5, Highlights: 2, ReadEvent: "$e1"}
+	want := domain.Unread{RoomID: mx + "!a:x", Notifications: 5, Highlights: 2, ReadEvent: mx + "$e1"}
 	if err := cache.SaveUnread(ctx, want, 0); err != nil {
 		t.Fatalf("SaveUnread() error = %v", err)
 	}
@@ -568,7 +568,7 @@ func TestUnreadRoundTrip(t *testing.T) {
 	}
 
 	// A second save for the same room upserts.
-	next := domain.Unread{RoomID: "!a:x", Notifications: 0, Highlights: 0, ReadEvent: "$e2"}
+	next := domain.Unread{RoomID: mx + "!a:x", Notifications: 0, Highlights: 0, ReadEvent: mx + "$e2"}
 	if err := cache.SaveUnread(ctx, next, 0); err != nil {
 		t.Fatalf("second SaveUnread() error = %v", err)
 	}
@@ -585,23 +585,23 @@ func TestRedactionKeepsTheWordsOnlyWhenAsked(t *testing.T) {
 	for _, keep := range []bool{false, true} {
 		ctx := t.Context()
 		cache := openTemp(t)
-		if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-			{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "secret", Format: richtext.FromMarkup("<strong>secret</strong>"),
+		if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{
+			{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "secret", Format: richtext.FromMarkup("<strong>secret</strong>"),
 				Timestamp: time.Unix(1, 0)},
 		}); err != nil {
 			t.Fatalf("SaveMessages: %v", err)
 		}
-		if err := cache.MarkRedacted(ctx, "!a:x", "$1", "@a:x", "", time.Time{}, keep); err != nil {
+		if err := cache.MarkRedacted(ctx, mx+"!a:x", mx+"$1", "matrix:@a:x", "", time.Time{}, keep); err != nil {
 			t.Fatalf("MarkRedacted: %v", err)
 		}
 		// A page already in flight arriving afterwards must not restore the stripped words.
-		if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{
-			{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "secret", Format: richtext.FromMarkup("<strong>secret</strong>"),
+		if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{
+			{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "secret", Format: richtext.FromMarkup("<strong>secret</strong>"),
 				Timestamp: time.Unix(1, 0)},
 		}); err != nil {
 			t.Fatalf("re-save: %v", err)
 		}
-		got, err := cache.Messages(ctx, "!a:x", 10)
+		got, err := cache.Messages(ctx, mx+"!a:x", 10)
 		if err != nil || len(got) != 1 {
 			t.Fatalf("Messages = %v, %v", got, err)
 		}
@@ -623,19 +623,19 @@ func TestRevisionsKeepEveryVersionInOrder(t *testing.T) {
 	cache := openTemp(t)
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
 
-	original := domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "seven", Timestamp: at(1)}
-	firstEdit := domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "seven thirty",
-		Format: richtext.FromMarkup("seven <b>thirty</b>"), RevisionID: "$e1", Timestamp: at(2)}
-	secondEdit := domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "seven thirty, usual place",
-		RevisionID: "$e2", Timestamp: at(3)}
+	original := domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "seven", Timestamp: at(1)}
+	firstEdit := domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "seven thirty",
+		Format: richtext.FromMarkup("seven <b>thirty</b>"), RevisionID: mx + "$e1", Timestamp: at(2)}
+	secondEdit := domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "seven thirty, usual place",
+		RevisionID: mx + "$e2", Timestamp: at(3)}
 
 	for _, m := range []domain.Message{original, firstEdit, secondEdit} {
-		if err := cache.SaveMessagesWithRevisions(ctx, "!a:x", []domain.Message{m}); err != nil {
+		if err := cache.SaveMessagesWithRevisions(ctx, mx+"!a:x", []domain.Message{m}); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	got, err := cache.Revisions(ctx, "!a:x", "$m")
+	got, err := cache.Revisions(ctx, mx+"!a:x", mx+"$m")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -650,17 +650,17 @@ func TestRevisionsKeepEveryVersionInOrder(t *testing.T) {
 	}
 	// The first version is keyed by the message's ID, the rest by their edit's ID,
 	// so a re-delivered edit is one row.
-	if got[0].ID != "$m" || got[1].ID != "$e1" || got[2].ID != "$e2" {
+	if got[0].ID != mx+"$m" || got[1].ID != mx+"$e1" || got[2].ID != mx+"$e2" {
 		t.Errorf("ids = %q, %q, %q", got[0].ID, got[1].ID, got[2].ID)
 	}
 	if got[1].Format.Markup() == "" {
 		t.Error("a version's formatting was not kept with its words")
 	}
 	// A repeated edit (re-page, resync) is one version.
-	if err := cache.SaveMessagesWithRevisions(ctx, "!a:x", []domain.Message{firstEdit, firstEdit}); err != nil {
+	if err := cache.SaveMessagesWithRevisions(ctx, mx+"!a:x", []domain.Message{firstEdit, firstEdit}); err != nil {
 		t.Fatal(err)
 	}
-	if again, _ := cache.Revisions(ctx, "!a:x", "$m"); len(again) != 3 {
+	if again, _ := cache.Revisions(ctx, mx+"!a:x", mx+"$m"); len(again) != 3 {
 		t.Errorf("%d versions after re-saving one, want 3", len(again))
 	}
 }
@@ -672,26 +672,26 @@ func TestErasingADeletionTakesItsVersions(t *testing.T) {
 	cache := openTemp(t)
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
 
-	msg := domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "first", Timestamp: at(1)}
-	if err := cache.SaveMessagesWithRevisions(ctx, "!a:x", []domain.Message{msg}); err != nil {
+	msg := domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "first", Timestamp: at(1)}
+	if err := cache.SaveMessagesWithRevisions(ctx, mx+"!a:x", []domain.Message{msg}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.MarkRedacted(ctx, "!a:x", "$m", "@her:x", "", time.Time{}, false); err != nil {
+	if err := cache.MarkRedacted(ctx, mx+"!a:x", mx+"$m", "matrix:@her:x", "", time.Time{}, false); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := cache.Revisions(ctx, "!a:x", "$m"); len(got) != 0 {
+	if got, _ := cache.Revisions(ctx, mx+"!a:x", mx+"$m"); len(got) != 0 {
 		t.Errorf("%d versions survived an erase: %+v", len(got), got)
 	}
 
 	// With keeping on, deletion leaves the versions.
-	kept := domain.Message{ID: "$k", RoomID: "!a:x", Sender: "@her:x", Body: "held", Timestamp: at(2)}
-	if err := cache.SaveMessagesWithRevisions(ctx, "!a:x", []domain.Message{kept}); err != nil {
+	kept := domain.Message{ID: mx + "$k", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "held", Timestamp: at(2)}
+	if err := cache.SaveMessagesWithRevisions(ctx, mx+"!a:x", []domain.Message{kept}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.MarkRedacted(ctx, "!a:x", "$k", "@her:x", "", time.Time{}, true); err != nil {
+	if err := cache.MarkRedacted(ctx, mx+"!a:x", mx+"$k", "matrix:@her:x", "", time.Time{}, true); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := cache.Revisions(ctx, "!a:x", "$k"); len(got) != 1 {
+	if got, _ := cache.Revisions(ctx, mx+"!a:x", mx+"$k"); len(got) != 1 {
 		t.Errorf("%d versions after a kept deletion, want 1", len(got))
 	}
 }
@@ -705,36 +705,36 @@ func TestTrimTakesOthersReactionsToTrimmedMessages(t *testing.T) {
 	cache := openTemp(t)
 	cache.UseKeep(func(domain.RoomID) int { return testKeep })
 	native := domain.NativePerson(domain.ProtocolWhatsApp, "447700900001@s.whatsapp.net")
-	cache.UseSelves(func() []string { return []string{"", "@me:x", "@whatsapp_447700900001:x", native} })
+	cache.UseSelves(func() []string { return []string{"", "matrix:@me:x", "matrix:@whatsapp_447700900001:x", native} })
 
 	// At the cap nothing is trimmed until one more arrives.
 	msgs := make([]domain.Message, testKeep)
 	for i := range msgs {
-		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf("$%04d", i)), RoomID: "!a:x", Body: "m",
+		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf(mx+"$%04d", i)), RoomID: mx + "!a:x", Body: "m",
 			Timestamp: time.UnixMilli(int64(i) * 1000)}
 	}
 	oldest, newest := msgs[0].ID, msgs[len(msgs)-1].ID
-	if err := cache.SaveMessages(ctx, "!a:x", msgs); err != nil {
+	if err := cache.SaveMessages(ctx, mx+"!a:x", msgs); err != nil {
 		t.Fatal(err)
 	}
 	reactions := []domain.Reaction{
-		{ID: "$theirs-old", RoomID: "!a:x", Target: oldest, Sender: "@bob:x", Key: "👍"},
-		{ID: "$mine-old", RoomID: "!a:x", Target: oldest, Sender: "@me:x", Key: "🎉"},
-		{ID: "$bridged-old", RoomID: "!a:x", Target: oldest, Sender: "@whatsapp_447700900001:x", Key: "🎉"},
-		{ID: "$native-old", RoomID: "!a:x", Target: oldest, Sender: native, Key: "🎉"},
-		{ID: "$theirs-new", RoomID: "!a:x", Target: newest, Sender: "@bob:x", Key: "👍"},
-		{ID: "$theirs-uncached", RoomID: "!a:x", Target: "$never-seen", Sender: "@bob:x", Key: "👍"},
+		{ID: mx + "$theirs-old", RoomID: mx + "!a:x", Target: oldest, Sender: "matrix:@bob:x", Key: "👍"},
+		{ID: mx + "$mine-old", RoomID: mx + "!a:x", Target: oldest, Sender: "matrix:@me:x", Key: "🎉"},
+		{ID: mx + "$bridged-old", RoomID: mx + "!a:x", Target: oldest, Sender: "matrix:@whatsapp_447700900001:x", Key: "🎉"},
+		{ID: mx + "$native-old", RoomID: mx + "!a:x", Target: oldest, Sender: native, Key: "🎉"},
+		{ID: mx + "$theirs-new", RoomID: mx + "!a:x", Target: newest, Sender: "matrix:@bob:x", Key: "👍"},
+		{ID: mx + "$theirs-uncached", RoomID: mx + "!a:x", Target: mx + "$never-seen", Sender: "matrix:@bob:x", Key: "👍"},
 	}
 	if err := cache.SaveReactions(ctx, reactions); err != nil {
 		t.Fatal(err)
 	}
 	// One more pushes the oldest out.
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{{ID: "$next", RoomID: "!a:x", Body: "m",
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{{ID: mx + "$next", RoomID: mx + "!a:x", Body: "m",
 		Timestamp: time.UnixMilli(int64(len(msgs)) * 1000)}}); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := cache.Reactions(ctx, "!a:x")
+	got, err := cache.Reactions(ctx, mx+"!a:x")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -743,8 +743,8 @@ func TestTrimTakesOthersReactionsToTrimmedMessages(t *testing.T) {
 		kept[r.ID] = true
 	}
 	for id, want := range map[domain.EventID]bool{
-		"$theirs-old": false, "$mine-old": true, "$bridged-old": true, "$native-old": true,
-		"$theirs-new": true, "$theirs-uncached": true,
+		mx + "$theirs-old": false, mx + "$mine-old": true, mx + "$bridged-old": true, mx + "$native-old": true,
+		mx + "$theirs-new": true, mx + "$theirs-uncached": true,
 	} {
 		if kept[id] != want {
 			t.Errorf("%s kept = %v, want %v", id, kept[id], want)
@@ -761,21 +761,21 @@ func TestTrimWithoutSelvesKeepsEveryReaction(t *testing.T) {
 	cache.UseSelves(func() []string { return []string{""} })
 	msgs := make([]domain.Message, testKeep+1)
 	for i := range msgs {
-		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf("$%04d", i)), RoomID: "!a:x", Body: "m",
+		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf(mx+"$%04d", i)), RoomID: mx + "!a:x", Body: "m",
 			Timestamp: time.UnixMilli(int64(i) * 1000)}
 	}
-	if err := cache.SaveMessages(ctx, "!a:x", msgs[:testKeep]); err != nil {
+	if err := cache.SaveMessages(ctx, mx+"!a:x", msgs[:testKeep]); err != nil {
 		t.Fatal(err)
 	}
 	if err := cache.SaveReactions(ctx, []domain.Reaction{
-		{ID: "$r", RoomID: "!a:x", Target: msgs[0].ID, Sender: "@me:x", Key: "🎉"},
+		{ID: mx + "$r", RoomID: mx + "!a:x", Target: msgs[0].ID, Sender: "matrix:@me:x", Key: "🎉"},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.SaveMessages(ctx, "!a:x", msgs[testKeep:]); err != nil {
+	if err := cache.SaveMessages(ctx, mx+"!a:x", msgs[testKeep:]); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := cache.Reactions(ctx, "!a:x"); err != nil || len(got) != 1 {
+	if got, err := cache.Reactions(ctx, mx+"!a:x"); err != nil || len(got) != 1 {
 		t.Errorf("reactions = (%v, %v), want the one kept", got, err)
 	}
 }
@@ -787,7 +787,7 @@ func TestAFailedLookupIsNotNotCached(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	if _, err := cache.MessagesAround(canceled, "!a:x", "$m", 2, 2); err == nil {
+	if _, err := cache.MessagesAround(canceled, mx+"!a:x", mx+"$m", 2, 2); err == nil {
 		t.Error("MessagesAround on a canceled context reported the message as not cached")
 	}
 }
@@ -799,9 +799,9 @@ func TestEditsCarryTheirFormatting(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 	at := func(sec int) time.Time { return time.UnixMilli(int64(sec) * 1000) }
-	orig := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "old", Format: richtext.FromMarkup("<b>old</b>"), Timestamp: at(5)}
-	formatted := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "new", Format: richtext.FromMarkup("<i>new</i>"), Timestamp: at(9), Edited: true}
-	plain := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "plain now", Timestamp: at(12), Edited: true}
+	orig := domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "old", Format: richtext.FromMarkup("<b>old</b>"), Timestamp: at(5)}
+	formatted := domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "new", Format: richtext.FromMarkup("<i>new</i>"), Timestamp: at(9), Edited: true}
+	plain := domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "plain now", Timestamp: at(12), Edited: true}
 
 	steps := []struct {
 		name string
@@ -816,8 +816,8 @@ func TestEditsCarryTheirFormatting(t *testing.T) {
 		{"the original once more", orig, "plain now", ""},
 	}
 	for _, s := range steps {
-		mustSave(t, cache, "!a:x", s.save)
-		got, err := cache.Messages(ctx, "!a:x", 10)
+		mustSave(t, cache, mx+"!a:x", s.save)
+		got, err := cache.Messages(ctx, mx+"!a:x", 10)
 		if err != nil || len(got) != 1 {
 			t.Fatalf("after %s: %+v, %v", s.name, got, err)
 		}
@@ -833,22 +833,22 @@ func TestFormattingWithoutMarkupIsRefused(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	cache := openTemp(t)
-	stored := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "hi",
+	stored := domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "hi",
 		Format: richtext.FromMarkup("<b>hi</b>"), Timestamp: time.Unix(1, 0)}
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{stored}); err != nil {
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{stored}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
 	drawn := stored
 	drawn.Format = richtext.Drawn(stored.Format.Text(), stored.Format.Spans())
-	if err := cache.SaveMessages(ctx, "!a:x", []domain.Message{drawn}); !errors.Is(err, errDrawnOnly) {
+	if err := cache.SaveMessages(ctx, mx+"!a:x", []domain.Message{drawn}); !errors.Is(err, errDrawnOnly) {
 		t.Errorf("SaveMessages(drawn only) = %v, want errDrawnOnly", err)
 	}
-	if err := cache.SaveRevisionsFor(ctx, "!a:x", "$1", []domain.Revision{
-		{ID: "$e1", Body: "hi", Format: drawn.Format, At: time.Unix(2, 0)},
+	if err := cache.SaveRevisionsFor(ctx, mx+"!a:x", mx+"$1", []domain.Revision{
+		{ID: mx + "$e1", Body: "hi", Format: drawn.Format, At: time.Unix(2, 0)},
 	}); !errors.Is(err, errDrawnOnly) {
 		t.Errorf("SaveRevisionsFor(drawn only) = %v, want errDrawnOnly", err)
 	}
-	got, _, err := cache.Message(ctx, "!a:x", "$1")
+	got, _, err := cache.Message(ctx, mx+"!a:x", mx+"$1")
 	if err != nil || got.Format.Markup() != "<b>hi</b>" {
 		t.Errorf("after the refusals the stored formatting is %q, %v", got.Format.Markup(), err)
 	}
@@ -879,19 +879,19 @@ func TestEachRoomKeepsWhatItsCapSays(t *testing.T) {
 		}
 		return len(got)
 	}
-	save("!all:x", 2500)
-	if n := count("!all:x"); n != 2500 {
+	save(mx+"!all:x", 2500)
+	if n := count(mx + "!all:x"); n != 2500 {
 		t.Errorf("with no cap, kept %d of 2500", n)
 	}
 	cache.UseKeep(func(room domain.RoomID) int {
-		if room == "!small:x" {
+		if room == mx+"!small:x" {
 			return 10
 		}
 		return -1
 	})
-	save("!small:x", 30)
-	save("!all:x", 1)
-	if small, all := count("!small:x"), count("!all:x"); small != 10 || all != 2500 {
+	save(mx+"!small:x", 30)
+	save(mx+"!all:x", 1)
+	if small, all := count(mx+"!small:x"), count(mx+"!all:x"); small != 10 || all != 2500 {
 		t.Errorf("kept %d in the capped room (want 10) and %d in the other (want 2500)", small, all)
 	}
 }
@@ -901,20 +901,20 @@ func TestForgettingASpace(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{
-		{ID: "!work:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
-		{ID: "!fun:x", Name: "Friends", Children: []domain.RoomID{"!a:x"}},
+	if err := cache.SaveSpaces(ctx, mxRooms, []domain.Space{
+		{ID: mx + "!work:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
+		{ID: mx + "!fun:x", Name: "Friends", Children: []domain.RoomID{mx + "!a:x"}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.ForgetRooms(ctx, []domain.RoomID{"!work:x"}); err != nil {
+	if err := cache.ForgetRooms(ctx, []domain.RoomID{mx + "!work:x"}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := cache.Spaces(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].ID != "!fun:x" || len(got[0].Children) != 1 {
+	if len(got) != 1 || got[0].ID != mx+"!fun:x" || len(got[0].Children) != 1 {
 		t.Errorf("Spaces after forgetting Work = %+v, want Friends alone with its room", got)
 	}
 }

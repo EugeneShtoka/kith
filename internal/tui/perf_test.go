@@ -32,8 +32,8 @@ type settleMsg struct{}
 // Benchmarks for the unbounded lists (timeline, room list) at cache-sized inputs.
 // Run: go test ./internal/tui -run xxx -bench 'Layout|RoomRows|Scroll' -benchmem
 var benchSenders = []string{
-	"@alice:example.org", "@bob:example.org", "@carol:example.org",
-	"@dave:example.org", "@erin:example.org",
+	"matrix:@alice:example.org", "matrix:@bob:example.org", "matrix:@carol:example.org",
+	"matrix:@dave:example.org", "matrix:@erin:example.org",
 }
 
 // benchBodies vary in length and include RTL and emoji, which go through reorder().
@@ -53,8 +53,8 @@ func benchMessages(n int) []domain.Message {
 	start := time.Date(2026, 8, 1, 9, 0, 0, 0, time.UTC)
 	for i := range msgs {
 		msgs[i] = domain.Message{
-			ID:        domain.EventID(fmt.Sprintf("$ev%d", i)),
-			RoomID:    "!bench:example.org",
+			ID:        domain.EventID(fmt.Sprintf(mx+"$ev%d", i)),
+			RoomID:    mx + "!bench:example.org",
 			Sender:    benchSenders[i%len(benchSenders)],
 			Body:      benchBodies[i%len(benchBodies)],
 			Timestamp: start.Add(time.Duration(i) * 7 * time.Minute),
@@ -75,9 +75,9 @@ func benchMessages(n int) []domain.Message {
 func benchTimelineModel(n int) Model {
 	m := newModel()
 	m.width, m.height, m.ready = 200, 50, true
-	m.selves = []string{"@alice:example.org"}
-	m.openRoom = "!bench:example.org"
-	m.rooms = m.rooms.withJoined([]domain.Room{{ID: "!bench:example.org", Name: "Bench"}})
+	m.selves = []string{"matrix:@alice:example.org"}
+	m.openRoom = mx + "!bench:example.org"
+	m.rooms = m.rooms.withJoined([]domain.Room{{ID: mx + "!bench:example.org", Name: "Bench"}})
 	m = m.setMessages(benchMessages(n))
 	m.focus = paneTimeline
 	return m
@@ -88,7 +88,7 @@ func benchRooms(n int) []domain.Room {
 	rooms := make([]domain.Room, n)
 	for i := range rooms {
 		rooms[i] = domain.Room{
-			ID:   domain.RoomID(fmt.Sprintf("!room%d:example.org", i)),
+			ID:   domain.RoomID(fmt.Sprintf(mx+"!room%d:example.org", i)),
 			Name: fmt.Sprintf("Project %d — planning and follow-up", i),
 		}
 	}
@@ -200,7 +200,7 @@ func benchRealisticRoomList() Model {
 	unread := make([]domain.Unread, 0, len(rooms)/3+1)
 	archived := make([]string, 0, 17)
 	for i := range rooms {
-		id := domain.RoomID(fmt.Sprintf("!room%03d:example.org", i))
+		id := domain.RoomID(fmt.Sprintf(mx+"!room%03d:example.org", i))
 		rooms[i] = domain.Room{
 			ID: id, Name: fmt.Sprintf("Room %03d with a fairly long name", i),
 			Members: []string{"Dana Levi", "Sam Cohen", "Alex Toms"},
@@ -218,7 +218,7 @@ func benchRealisticRoomList() Model {
 	spaces := make([]domain.Space, 11)
 	for i := range spaces {
 		spaces[i] = domain.Space{
-			ID:   domain.SpaceID(fmt.Sprintf("!space%d:example.org", i)),
+			ID:   domain.SpaceID(fmt.Sprintf(mx+"!space%d:example.org", i)),
 			Name: fmt.Sprintf("Space %d", i),
 			// Every space holds a slice of the rooms, so spacesOf has real work.
 			Children: children[i*30 : min((i+1)*30, len(children))],
@@ -300,7 +300,7 @@ func BenchmarkMessageArrival(b *testing.B) {
 			m := settled(benchTimelineModel(n))
 			last := m.timeline.messages[len(m.timeline.messages)-1]
 			msg := incomingMsg{message: domain.Message{
-				ID: "$live", RoomID: last.RoomID, Sender: benchSenders[1],
+				ID: mx + "$live", RoomID: last.RoomID, Sender: benchSenders[1],
 				Body: benchBodies[2], Timestamp: last.Timestamp.Add(time.Minute),
 			}}
 			b.ReportAllocs()
@@ -322,7 +322,7 @@ func BenchmarkScrolledMessageArrival(b *testing.B) {
 			m = settled(m)
 			last := m.timeline.messages[len(m.timeline.messages)-1]
 			msg := incomingMsg{message: domain.Message{
-				ID: "$live", RoomID: last.RoomID, Sender: benchSenders[1],
+				ID: mx + "$live", RoomID: last.RoomID, Sender: benchSenders[1],
 				Body: benchBodies[2], Timestamp: last.Timestamp.Add(time.Minute),
 			}}
 			b.ReportAllocs()

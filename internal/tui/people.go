@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strings"
-
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -46,7 +44,7 @@ func (m Model) submitMember(input string, act memberAction, doing string) (Model
 // checked because "@dana" otherwise gets an opaque homeserver error.
 func (m Model) memberTarget(input string) (domain.RoomID, string, bool) {
 	room := m.aimedAt.member
-	mxid := strings.TrimSpace(input)
+	mxid := domain.TypedUserID(input)
 	if room == "" || !domain.IsMatrixUserID(mxid) {
 		return "", "", false
 	}

@@ -46,7 +46,7 @@ func TestTagRowsHoldWhatTheirRulesSay(t *testing.T) {
 	t.Parallel()
 	m := taggedModel(t, config.Config{Tags: []config.Tag{
 		{Name: "Family", Rule: []string{"dm"}},
-		{Name: "Picked", Picked: []string{"!a:x"}},
+		{Name: "Picked", Picked: []string{mx + "!a:x"}},
 		{Name: "Busy", Rule: []string{"unread"}},
 		{Name: "Secret", Rule: []string{"*"}, Hidden: true},
 		{Name: "NotBravo", Rule: []string{"*"}, Excluded: []string{"room:Bravo"}},
@@ -56,20 +56,20 @@ func TestTagRowsHoldWhatTheirRulesSay(t *testing.T) {
 		t.Errorf("a hidden tag has a rail row: %v", keys)
 	}
 	family, picked, busy, notBravo := railRow(t, m, "tag:Family"), railRow(t, m, "tag:Picked"), railRow(t, m, "tag:Busy"), railRow(t, m, "tag:NotBravo")
-	if !admitsRoom(m, family, "!b:x") || admitsRoom(m, family, "!a:x") {
+	if !admitsRoom(m, family, mx+"!b:x") || admitsRoom(m, family, mx+"!a:x") {
 		t.Error("Family does not hold the DM alone")
 	}
-	if !admitsRoom(m, picked, "!a:x") || admitsRoom(m, picked, "!b:x") {
+	if !admitsRoom(m, picked, mx+"!a:x") || admitsRoom(m, picked, mx+"!b:x") {
 		t.Error("Picked does not hold the picked room alone")
 	}
-	if !admitsRoom(m, notBravo, "!a:x") || admitsRoom(m, notBravo, "!b:x") {
+	if !admitsRoom(m, notBravo, mx+"!a:x") || admitsRoom(m, notBravo, mx+"!b:x") {
 		t.Error("an excluded room is still held")
 	}
-	if admitsRoom(m, busy, "!a:x") {
+	if admitsRoom(m, busy, mx+"!a:x") {
 		t.Fatal("Busy holds a read room")
 	}
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!a:x", Messages: 2, Counted: true}})
-	if !admitsRoom(m, busy, "!a:x") {
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!a:x", Messages: 2, Counted: true}})
+	if !admitsRoom(m, busy, mx+"!a:x") {
 		t.Error("Busy does not follow a room becoming unread")
 	}
 	if g := railRow(t, m, "tag:Family"); g.label != "Family" {

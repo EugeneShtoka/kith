@@ -13,7 +13,7 @@ import (
 func switcher(t *testing.T) Model {
 	t.Helper()
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!work:x", Name: "Work"},
+		{ID: mx + "!work:x", Name: "Work"},
 	}})
 	return sized(t, m.clearStatus())
 }
@@ -23,15 +23,15 @@ func TestAPersonYouHaveNoRoomWithSortsLastAndSaysWhatItWillDo(t *testing.T) {
 	t.Parallel()
 
 	m := switcher(t)
-	m.dmCandidates = []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}}
+	m.dmCandidates = []domain.Member{{UserID: "matrix:@dana:x", DisplayName: "Dana"}}
 	items := m.jumpItems()
 
 	person, room := -1, -1
 	for i, item := range items {
 		switch item.value {
-		case "dm:@dana:x":
+		case "dm:matrix:@dana:x":
 			person = i
-		case "room:!work:x":
+		case "room:" + mx + "!work:x":
 			room = i
 		}
 	}
@@ -45,7 +45,7 @@ func TestAPersonYouHaveNoRoomWithSortsLastAndSaysWhatItWillDo(t *testing.T) {
 		t.Errorf("detail = %q, want it to say the row creates something", items[person].detail)
 	}
 	// The MXID matches too: you may not know a stranger's display name.
-	if !strings.Contains(items[person].match, "@dana:x") {
+	if !strings.Contains(items[person].match, "matrix:@dana:x") {
 		t.Errorf("match text = %q, want the MXID in it", items[person].match)
 	}
 }
@@ -61,13 +61,13 @@ func TestCandidatesArrivingKeepWhatWasTyped(t *testing.T) {
 	m.picker = m.picker.refilter()
 
 	next, _ = m.handleDirectCandidates(directCandidatesMsg{
-		people: []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}},
+		people: []domain.Member{{UserID: "matrix:@dana:x", DisplayName: "Dana"}},
 	})
 	got := next
 	if got.picker.filter != "dan" {
 		t.Errorf("filter = %q, want it kept", got.picker.filter)
 	}
-	if len(got.picker.items) != 1 || got.picker.items[0].value != "dm:@dana:x" {
+	if len(got.picker.items) != 1 || got.picker.items[0].value != "dm:matrix:@dana:x" {
 		t.Errorf("visible rows = %+v, want the new person matching what was typed", got.picker.items)
 	}
 }
@@ -90,9 +90,9 @@ func TestStartingADMCreatesAnEncryptedUnnamedRoomForOnePerson(t *testing.T) {
 
 	spy := &createSpy{}
 	m := sized(t, update(t, starterNew(spy, config.Display{}), roomsMsg{}))
-	m.dmCandidates = []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}}
+	m.dmCandidates = []domain.Member{{UserID: "matrix:@dana:x", DisplayName: "Dana"}}
 
-	next, cmd := m.acceptJump("dm:@dana:x")
+	next, cmd := m.acceptJump("dm:matrix:@dana:x")
 	got := next
 	if cmd == nil {
 		t.Fatal("choosing a person issued no command")
@@ -109,7 +109,7 @@ func TestStartingADMCreatesAnEncryptedUnnamedRoomForOnePerson(t *testing.T) {
 	if spec.Name != "" {
 		t.Errorf("name = %q, want none — an m.room.name would override the person's name for both of them", spec.Name)
 	}
-	if len(spec.Invite) != 1 || spec.Invite[0] != "@dana:x" {
+	if len(spec.Invite) != 1 || spec.Invite[0] != "matrix:@dana:x" {
 		t.Errorf("invite = %v, want [@dana:x]", spec.Invite)
 	}
 	// The status line uses the person's name; the spec has none.
@@ -122,26 +122,26 @@ func TestTheNewDMOpensOnceTheRefreshListsIt(t *testing.T) {
 	t.Parallel()
 
 	m := switcher(t)
-	next, _ := m.handleRoomCreated(roomCreatedMsg{roomID: "!dm:x", name: "Dana", enter: true})
+	next, _ := m.handleRoomCreated(roomCreatedMsg{roomID: mx + "!dm:x", name: "Dana", enter: true})
 	m = next
-	if m.entering != "!dm:x" {
+	if m.entering != mx+"!dm:x" {
 		t.Fatalf("entering = %q, want the new room held until it is listed", m.entering)
 	}
 
 	// A refresh without it leaves the request standing.
-	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!work:x", Name: "Work"}}})
-	if m.entering != "!dm:x" {
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!work:x", Name: "Work"}}})
+	if m.entering != mx+"!dm:x" {
 		t.Error("the request was cleared against a list that could not have held the room")
 	}
-	if m.openRoom == "!dm:x" {
+	if m.openRoom == mx+"!dm:x" {
 		t.Fatal("opened a room the list does not have")
 	}
 
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
-		{ID: "!work:x", Name: "Work"},
-		{ID: "!dm:x", Name: "Dana", IsDirect: true},
+		{ID: mx + "!work:x", Name: "Work"},
+		{ID: mx + "!dm:x", Name: "Dana", IsDirect: true},
 	}})
-	if m.openRoom != "!dm:x" {
+	if m.openRoom != mx+"!dm:x" {
 		t.Errorf("open room = %q, want the DM that was just made", m.openRoom)
 	}
 	if m.entering != "" {
@@ -157,5 +157,5 @@ type createSpy struct {
 
 func (s *createSpy) CreateRoom(_ context.Context, spec domain.NewRoom) (domain.RoomID, error) {
 	s.spec = spec
-	return "!dm:x", nil
+	return mx + "!dm:x", nil
 }

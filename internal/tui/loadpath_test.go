@@ -50,9 +50,9 @@ func TestTheWholeLoadPathDrawsAPicture(t *testing.T) {
 			m := sized(t, withRooms(t, starterNew(photoBackend{}, disp).WithCache(cache)))
 			m.focus = paneTimeline
 
-			mdl, cmd := asModel(m.Update(timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
+			mdl, cmd := asModel(m.Update(timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
 				Messages: []domain.Message{{
-					ID: "$1", RoomID: "!a:x", Sender: "@a:x", Timestamp: at(1),
+					ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Timestamp: at(1),
 					Media: &domain.Media{
 						Type: domain.MediaImage, Name: "p.jpg", Mime: "image/jpeg",
 						Width: 320, Height: 240,
@@ -81,7 +81,7 @@ func TestTheWholeLoadPathDrawsAPicture(t *testing.T) {
 				t.Error("the drawing is not in the rendered frame")
 			}
 			// The second render is a cache hit, drawn the same.
-			again, hit := cache.Render("$1", next.imageTargetWidth(), next.imageMaxHeight())
+			again, hit := cache.Render(mx+"$1", next.imageTargetWidth(), next.imageMaxHeight())
 			if !hit {
 				t.Fatal("the drawing was not kept, so opening the room again would redo it")
 			}

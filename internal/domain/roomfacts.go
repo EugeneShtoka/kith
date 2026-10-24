@@ -117,11 +117,31 @@ func ParseEntry(entry string) (EntryKind, bool) {
 		hasPrefixFold(entry, entrySpace), hasPrefixFold(entry, entryProtocol), hasPrefixFold(entry, termTag),
 		hasPrefixFold(entry, entryPlace):
 		return EntryClass, true
-	case hasPrefixFold(entry, entryRoom), IsRoomID(entry):
+	case hasPrefixFold(entry, entryRoom) && !BareMatrixID(entry), IsRoomID(entry):
 		return EntryRoom, true
 	default:
 		return EntryInvalid, false
 	}
+}
+
+// BareMatrixID reports a Matrix ID written as Matrix itself writes it, alone or after
+// room: or thread:. kith writes one with its network, and a room or event with the
+// account that sees it.
+func BareMatrixID(entry string) bool {
+	entry = strings.TrimSpace(entry)
+	for _, prefix := range []string{entryRoom, "thread:"} {
+		if hasPrefixFold(entry, prefix) {
+			entry = strings.TrimSpace(entry[len(prefix):])
+		}
+	}
+	return IsMatrixAddress(entry) || (len(entry) > 1 && entry[0] == '$') || TypedUserID(entry) != entry
+}
+
+// BareMatrixError is the refusal of a config entry that is a BareMatrixID.
+func BareMatrixError(what, entry string) error {
+	return fmt.Errorf("%s: %q is a Matrix ID as Matrix writes it: kith writes a room as "+
+		"matrix:<account>/!…, an event as matrix:<account>/$… and a person as matrix:@…, as kith shows them",
+		what, entry)
 }
 
 // SpaceEntry spells a space as a list entry: `space:<name>`.
@@ -155,6 +175,9 @@ func ValidateEntries(what string, entries []string) error {
 // NeedsPrefix is the error for an entry with no prefix it may carry: which prefixes it
 // may, and what else ("" for nothing) it may be instead.
 func NeedsPrefix(what, entry, prefixes, words string) error {
+	if BareMatrixID(entry) {
+		return BareMatrixError(what, entry)
+	}
 	if words == "" {
 		return fmt.Errorf("%s: %q needs a prefix: %s", what, entry, prefixes)
 	}

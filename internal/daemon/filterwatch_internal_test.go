@@ -44,26 +44,26 @@ func TestTheMoveMemoIsReReadFromTheCache(t *testing.T) {
 	t.Parallel()
 
 	store := &filterStoreStub{}
-	store.set(domain.TagVerdict{Room: "!a:x", Tag: "spam", Rule: domain.MoveFirstMessage, Filter: "crypto"})
+	store.set(domain.TagVerdict{Room: mx + "!a:x", Tag: "spam", Rule: domain.MoveFirstMessage, Filter: "crypto"})
 	clock := time.Date(2026, 9, 25, 9, 0, 0, 0, time.UTC)
 	w := newFilterWatch(store)
 	w.now = func() time.Time { return clock }
 	w.reload(domain.Filters{{Name: "any", Tag: "Spam", Words: domain.Tracked{Words: []string{"morning"}}}}, domain.TagSet{}, nil)
 
 	ctx := context.Background()
-	message := domain.Message{ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Body: "morning"}
-	w.watch(ctx, message, domain.RoomFacts{ID: "!a:x"})
-	if got := w.caught("!a:x"); len(got) != 1 || got[0] != "spam" {
+	message := domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "morning"}
+	w.watch(ctx, message, domain.RoomFacts{ID: mx + "!a:x"})
+	if got := w.caught(mx + "!a:x"); len(got) != 1 || got[0] != "spam" {
 		t.Fatalf("caught = %v, want the stored move", got)
 	}
-	store.set(domain.TagVerdict{Room: "!a:x", Tag: "Spam", Released: true})
-	w.watch(ctx, message, domain.RoomFacts{ID: "!a:x"})
-	if len(w.caught("!a:x")) != 1 {
+	store.set(domain.TagVerdict{Room: mx + "!a:x", Tag: "Spam", Released: true})
+	w.watch(ctx, message, domain.RoomFacts{ID: mx + "!a:x"})
+	if len(w.caught(mx+"!a:x")) != 1 {
 		t.Fatal("the memo was re-read on every message; it is meant to be a map lookup")
 	}
 	clock = clock.Add(filterReseed + time.Second)
-	w.watch(ctx, message, domain.RoomFacts{ID: "!a:x"})
-	if got := w.caught("!a:x"); len(got) != 0 {
+	w.watch(ctx, message, domain.RoomFacts{ID: mx + "!a:x"})
+	if got := w.caught(mx + "!a:x"); len(got) != 0 {
 		t.Errorf("caught = %v after the memo went stale, want the release here too", got)
 	}
 }
@@ -88,14 +88,14 @@ func TestFilterStoreFailuresAreLogged(t *testing.T) {
 	w.log = slog.New(slog.NewTextHandler(&out, nil))
 
 	w.seed(context.Background())
-	if !w.record(context.Background(), domain.TagVerdict{Room: "!r:x", Tag: "Spam", Rule: domain.MoveFirstMessage}) {
+	if !w.record(context.Background(), domain.TagVerdict{Room: mx + "!r:x", Tag: "Spam", Rule: domain.MoveFirstMessage}) {
 		t.Error("a move whose write failed must still hold for this process")
 	}
-	if got := w.caught("!r:x"); len(got) != 1 || got[0] != "spam" {
+	if got := w.caught(mx + "!r:x"); len(got) != 1 || got[0] != "spam" {
 		t.Errorf("caught = %v, want the unwritten move", got)
 	}
 	got := out.String()
-	for _, want := range []string{"reread the moves failed", "record the move failed", "room=!r:x", "database is locked", "level=WARN"} {
+	for _, want := range []string{"reread the moves failed", "record the move failed", "room=" + mx + "!r:x", "database is locked", "level=WARN"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("log lacks %q:\n%s", want, got)
 		}

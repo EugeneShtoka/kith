@@ -18,9 +18,9 @@ func TestSenderMessagesSpanRooms(t *testing.T) {
 	c := openTemp(t)
 	at := func(i int) time.Time { return time.Unix(1_700_000_000+int64(i)*60, 0) }
 	for room, msgs := range map[domain.RoomID][]domain.Message{
-		"!a:x": {{ID: "$a1", Sender: "@spam:x", Body: "one", Timestamp: at(1)}, {ID: "$a2", Sender: "@ann:x", Body: "hi", Timestamp: at(2)}},
-		"!b:x": {{ID: "$b1", Sender: "@spam:x", Body: "two", Timestamp: at(3)}, {ID: "$b2", Sender: "@spam:x", Body: "gone", Timestamp: at(4)}},
-		"!c:x": {{ID: "$c1", Sender: "@spam:x", Body: "three", Timestamp: at(5)}},
+		mx + "!a:x": {{ID: mx + "$a1", Sender: "matrix:@spam:x", Body: "one", Timestamp: at(1)}, {ID: mx + "$a2", Sender: "matrix:@ann:x", Body: "hi", Timestamp: at(2)}},
+		mx + "!b:x": {{ID: mx + "$b1", Sender: "matrix:@spam:x", Body: "two", Timestamp: at(3)}, {ID: mx + "$b2", Sender: "matrix:@spam:x", Body: "gone", Timestamp: at(4)}},
+		mx + "!c:x": {{ID: mx + "$c1", Sender: "matrix:@spam:x", Body: "three", Timestamp: at(5)}},
 	} {
 		for i := range msgs {
 			msgs[i].RoomID = room
@@ -29,31 +29,31 @@ func TestSenderMessagesSpanRooms(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := c.MarkRedacted(ctx, "!b:x", "$b2", "@spam:x", "", at(6), false); err != nil {
+	if err := c.MarkRedacted(ctx, mx+"!b:x", mx+"$b2", "matrix:@spam:x", "", at(6), false); err != nil {
 		t.Fatal(err)
 	}
 	ids := func(since time.Time, limit int) []domain.EventID {
 		t.Helper()
-		got, err := c.SenderMessages(ctx, "@spam:x", since, limit)
+		got, err := c.SenderMessages(ctx, "matrix:@spam:x", since, limit)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var out []domain.EventID
 		for _, m := range got {
-			if m.RoomID == "" || m.Sender != "@spam:x" {
+			if m.RoomID == "" || m.Sender != "matrix:@spam:x" {
 				t.Errorf("message %+v lacks its room or sender", m)
 			}
 			out = append(out, m.ID)
 		}
 		return out
 	}
-	if got := ids(time.Time{}, 10); !slices.Equal(got, []domain.EventID{"$a1", "$b1", "$c1"}) {
+	if got := ids(time.Time{}, 10); !slices.Equal(got, []domain.EventID{mx + "$a1", mx + "$b1", mx + "$c1"}) {
 		t.Errorf("everything: %v", got)
 	}
-	if got := ids(at(3), 10); !slices.Equal(got, []domain.EventID{"$b1", "$c1"}) {
+	if got := ids(at(3), 10); !slices.Equal(got, []domain.EventID{mx + "$b1", mx + "$c1"}) {
 		t.Errorf("since the third minute: %v", got)
 	}
-	if got := ids(time.Time{}, 2); !slices.Equal(got, []domain.EventID{"$a1", "$b1"}) {
+	if got := ids(time.Time{}, 2); !slices.Equal(got, []domain.EventID{mx + "$a1", mx + "$b1"}) {
 		t.Errorf("the first two: %v", got)
 	}
 }
@@ -65,21 +65,21 @@ func TestWrittenToIsDMsYouAnsweredAndReplies(t *testing.T) {
 
 	ctx := context.Background()
 	c := openTemp(t)
-	if err := c.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{
-		{ID: "!dm:x", IsDirect: true}, {ID: "!quiet:x", IsDirect: true}, {ID: "!group:x"},
+	if err := c.SaveRooms(ctx, mxRooms, []domain.Room{
+		{ID: mx + "!dm:x", IsDirect: true}, {ID: mx + "!quiet:x", IsDirect: true}, {ID: mx + "!group:x"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	at := func(i int) time.Time { return time.Unix(1_700_000_000+int64(i)*60, 0) }
-	me := []string{"@me:x", "@whatsapp_me:x"}
+	me := []string{"matrix:@me:x", "matrix:@whatsapp_me:x"}
 	for room, msgs := range map[domain.RoomID][]domain.Message{
-		"!dm:x":    {{ID: "$d1", Sender: "@ann:x", Body: "hi", Timestamp: at(1)}, {ID: "$d2", Sender: "@whatsapp_me:x", Body: "hey", Timestamp: at(2)}},
-		"!quiet:x": {{ID: "$q1", Sender: "@spam:x", Body: "buy", Timestamp: at(1)}},
-		"!group:x": {
-			{ID: "$g1", Sender: "@bob:x", Body: "news", Timestamp: at(1)},
-			{ID: "$g2", Sender: "@cat:x", Body: "lunch?", Timestamp: at(2)},
-			{ID: "$g3", Sender: "@me:x", Body: "yes", ReplyTo: "$g2", Timestamp: at(3)},
-			{ID: "$g4", Sender: "@me:x", Body: "me too", ReplyTo: "$g3", Timestamp: at(4)},
+		mx + "!dm:x":    {{ID: mx + "$d1", Sender: "matrix:@ann:x", Body: "hi", Timestamp: at(1)}, {ID: mx + "$d2", Sender: "matrix:@whatsapp_me:x", Body: "hey", Timestamp: at(2)}},
+		mx + "!quiet:x": {{ID: mx + "$q1", Sender: "matrix:@spam:x", Body: "buy", Timestamp: at(1)}},
+		mx + "!group:x": {
+			{ID: mx + "$g1", Sender: "matrix:@bob:x", Body: "news", Timestamp: at(1)},
+			{ID: mx + "$g2", Sender: "matrix:@cat:x", Body: "lunch?", Timestamp: at(2)},
+			{ID: mx + "$g3", Sender: "matrix:@me:x", Body: "yes", ReplyTo: mx + "$g2", Timestamp: at(3)},
+			{ID: mx + "$g4", Sender: "matrix:@me:x", Body: "me too", ReplyTo: mx + "$g3", Timestamp: at(4)},
 		},
 	} {
 		for i := range msgs {
@@ -94,7 +94,7 @@ func TestWrittenToIsDMsYouAnsweredAndReplies(t *testing.T) {
 		t.Fatal(err)
 	}
 	slices.Sort(got)
-	if want := []string{"@ann:x", "@cat:x"}; !slices.Equal(got, want) {
+	if want := []string{"matrix:@ann:x", "matrix:@cat:x"}; !slices.Equal(got, want) {
 		t.Errorf("written to %v, want %v", got, want)
 	}
 }

@@ -33,7 +33,7 @@ func TestAWindowSteppingAsideSavesItsDraftFirst(t *testing.T) {
 			}
 		}
 	}
-	if got := store.body("!a:x"); got != "hi unsaved" {
+	if got := store.body(mx + "!a:x"); got != "hi unsaved" {
 		t.Errorf("stored %q, want the unsaved words saved before quitting", got)
 	}
 	if !quit {
@@ -60,10 +60,10 @@ func TestASaveRefusedForTheSeatStepsAside(t *testing.T) {
 	if !m.link.seatLost {
 		t.Error("a window whose saves the seat refuses does not step aside")
 	}
-	if n := len(m.draftSync.unsure["!a:x"]); n != 0 {
+	if n := len(m.draftSync.unsure[mx+"!a:x"]); n != 0 {
 		t.Errorf("%d refused write(s) kept as maybe-written", n)
 	}
-	if m.draftSync.retry["!a:x"] {
+	if m.draftSync.retry[mx+"!a:x"] {
 		t.Error("a refused write is to be retried")
 	}
 }

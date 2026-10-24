@@ -33,7 +33,7 @@ func TestStateExpectingNothingIsReady(t *testing.T) {
 func TestStateReadinessFollowsTheExpectedAccounts(t *testing.T) {
 	t.Parallel()
 	accounts := []NetworkStatus{
-		{Network: "matrix", Account: "@me:x"},
+		{Network: "matrix", Account: "matrix:@me:x"},
 		{Network: "whatsapp", Account: "home"},
 		{Network: "whatsapp", Account: "work"},
 	}
@@ -116,7 +116,7 @@ func TestStatusCarriesTheNetworks(t *testing.T) {
 	t.Parallel()
 	state := NewState()
 	online := time.Unix(1_700_000_000, 0)
-	state.Report(NetworkStatus{Network: "matrix", Account: "@me:x", Phase: PhaseLoggedOut, Detail: "run `kith login`"}, online)
+	state.Report(NetworkStatus{Network: "matrix", Account: "matrix:@me:x", Phase: PhaseLoggedOut, Detail: "run `kith login`"}, online)
 	state.Report(NetworkStatus{Network: "whatsapp", Account: "home", Phase: PhaseOnline}, online)
 	resp, err := (&server{Daemon: &Daemon{State: state}}).Status(context.Background(), connect.NewRequest(&v1.StatusRequest{}))
 	if err != nil {
@@ -126,7 +126,7 @@ func TestStatusCarriesTheNetworks(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("networks = %v, want two rows", rows)
 	}
-	if r := rows[0]; r.GetNetwork() != "matrix" || r.GetAccount() != "@me:x" ||
+	if r := rows[0]; r.GetNetwork() != "matrix" || r.GetAccount() != "matrix:@me:x" ||
 		r.GetPhase() != v1.NetworkPhase_NETWORK_PHASE_LOGGED_OUT || r.GetDetail() == "" || r.GetOnlineAt() != nil {
 		t.Errorf("matrix row = %v", r)
 	}

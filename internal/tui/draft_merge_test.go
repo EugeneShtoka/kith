@@ -67,10 +67,10 @@ func (s *sharedDrafts) body(room domain.RoomID) string {
 func sharing(t *testing.T) (Model, *sharedDrafts) {
 	t.Helper()
 	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{
-		"!a:x": {RoomID: "!a:x", Body: "hi", Updated: time.UnixMilli(1000)},
+		mx + "!a:x": {RoomID: mx + "!a:x", Body: "hi", Updated: time.UnixMilli(1000)},
 	}}
 	m := update(t, starterNew(store, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
@@ -96,7 +96,7 @@ func TestAnIdleDraftTakesTheAssistantsAddition(t *testing.T) {
 	t.Run("open", func(t *testing.T) {
 		t.Parallel()
 		m, store := sharing(t)
-		store.assistantWrites("!a:x", "hi\n\nthe report is attached", time.UnixMilli(2000))
+		store.assistantWrites(mx+"!a:x", "hi\n\nthe report is attached", time.UnixMilli(2000))
 		m = polled(t, m)
 		if m.compose.input != "hi\n\nthe report is attached" {
 			t.Errorf("composer = %q, want the assistant's addition taken", m.compose.input)
@@ -105,10 +105,10 @@ func TestAnIdleDraftTakesTheAssistantsAddition(t *testing.T) {
 	t.Run("stashed", func(t *testing.T) {
 		t.Parallel()
 		m, store := sharing(t)
-		m = openedFromList(t, m, "!b:x")
-		store.assistantWrites("!a:x", "hi\n\nthe report is attached", time.UnixMilli(2000))
+		m = openedFromList(t, m, mx+"!b:x")
+		store.assistantWrites(mx+"!a:x", "hi\n\nthe report is attached", time.UnixMilli(2000))
 		m = polled(t, m)
-		if got := m.drafts["!a:x"].input; got != "hi\n\nthe report is attached" {
+		if got := m.drafts[mx+"!a:x"].input; got != "hi\n\nthe report is attached" {
 			t.Errorf("stashed draft = %q, want the assistant's addition taken", got)
 		}
 	})
@@ -122,7 +122,7 @@ func TestTypingAndAnAdditionThatCrossKeepBoth(t *testing.T) {
 	m, store := sharing(t)
 	m.compose.caret = caret{owner: fieldComposer, at: len(m.compose.input)}
 	m = typeInto(t, m, " there")
-	store.assistantWrites("!a:x", "hi\n\nthe report is attached", time.UnixMilli(2000))
+	store.assistantWrites(mx+"!a:x", "hi\n\nthe report is attached", time.UnixMilli(2000))
 	m = polled(t, m)
 	if m.compose.input != "hi there" {
 		t.Fatalf("composer = %q, want the typing left alone by the poll", m.compose.input)
@@ -131,7 +131,7 @@ func TestTypingAndAnAdditionThatCrossKeepBoth(t *testing.T) {
 	next, cmd := asModel(m.Update(draftTickMsg{gen: m.draftSync.gen}))
 	m = deliver(t, next, cmd)
 	const want = "hi there\n\nthe report is attached"
-	if got := store.body("!a:x"); got != want {
+	if got := store.body(mx + "!a:x"); got != want {
 		t.Errorf("stored = %q, want the typing and then the addition: %q", got, want)
 	}
 	if m.compose.input != want {
@@ -140,7 +140,7 @@ func TestTypingAndAnAdditionThatCrossKeepBoth(t *testing.T) {
 	// The next pause writes nothing that would undo either.
 	next, cmd = asModel(m.Update(draftTickMsg{gen: m.draftSync.gen}))
 	_ = deliver(t, next, cmd)
-	if got := store.body("!a:x"); got != want {
+	if got := store.body(mx + "!a:x"); got != want {
 		t.Errorf("after another pause, stored = %q, want %q", got, want)
 	}
 }
@@ -151,11 +151,11 @@ func TestAnAdditionOutlivesTheDraftItWasAddedTo(t *testing.T) {
 	t.Parallel()
 
 	m, store := sharing(t)
-	store.assistantWrites("!a:x", "hi\n\none more thing", time.UnixMilli(2000))
+	store.assistantWrites(mx+"!a:x", "hi\n\none more thing", time.UnixMilli(2000))
 	m.compose.input = "" // sent
 	m, cmd := m.armDraftSave()
 	m = deliver(t, m, cmd)
-	if got := store.body("!a:x"); got != "one more thing" {
+	if got := store.body(mx + "!a:x"); got != "one more thing" {
 		t.Errorf("stored = %q, want the assistant's words kept", got)
 	}
 	if m.compose.input != "one more thing" {
@@ -211,7 +211,7 @@ func TestASendCrossingItsOwnSaveStaysSent(t *testing.T) {
 					m = settle(t, m, next)
 				}
 			}
-			if got := store.body("!a:x"); got != "" || m.compose.input != "" {
+			if got := store.body(mx + "!a:x"); got != "" || m.compose.input != "" {
 				t.Errorf("after the send: stored %q, composer %q; want both empty", got, m.compose.input)
 			}
 		})
@@ -234,7 +234,7 @@ func TestOverlappingOwnSavesDoNotDoubleTheText(t *testing.T) {
 			m = settle(t, m, next)
 		}
 	}
-	if got := store.body("!a:x"); got != "hi there you" || m.compose.input != "hi there you" {
+	if got := store.body(mx + "!a:x"); got != "hi there you" || m.compose.input != "hi there you" {
 		t.Errorf("stored %q, composer %q; want %q in both", got, m.compose.input, "hi there you")
 	}
 }
@@ -248,8 +248,8 @@ func TestAPollOlderThanASaveIsNotTaken(t *testing.T) {
 	m = typeInto(t, m, " there")
 	m, save := tickCmd(t, m)
 	m = settle(t, m, save)
-	if store.body("!a:x") != "hi there" {
-		t.Fatalf("stored %q, want the save through", store.body("!a:x"))
+	if store.body(mx+"!a:x") != "hi there" {
+		t.Fatalf("stored %q, want the save through", store.body(mx+"!a:x"))
 	}
 	m = update(t, m, stale)
 	if m.compose.input != "hi there" {
@@ -263,14 +263,14 @@ func TestADraftDeletedElsewhereStaysDeleted(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
 	store.mu.Lock()
-	delete(store.drafts, "!a:x")
+	delete(store.drafts, mx+"!a:x")
 	store.mu.Unlock()
 	m = polled(t, m)
 	if m.compose.input != "" {
 		t.Errorf("composer %q after the poll, want the deletion taken", m.compose.input)
 	}
-	m = leaveFor(t, m, "!b:x")
-	if got := store.body("!a:x"); got != "" {
+	m = leaveFor(t, m, mx+"!b:x")
+	if got := store.body(mx + "!a:x"); got != "" {
 		t.Errorf("stored %q: a draft deleted elsewhere came back by switching rooms", got)
 	}
 }
@@ -283,11 +283,11 @@ func TestTypingOverADraftDeletedElsewhereKeepsItAll(t *testing.T) {
 	m.compose.caret = caret{owner: fieldComposer, at: len(m.compose.input)}
 	m = typeInto(t, m, " there")
 	store.mu.Lock()
-	delete(store.drafts, "!a:x")
+	delete(store.drafts, mx+"!a:x")
 	store.mu.Unlock()
 	m, save := tickCmd(t, m)
 	m = settle(t, m, save)
-	if got := store.body("!a:x"); got != "hi there" || m.compose.input != "hi there" {
+	if got := store.body(mx + "!a:x"); got != "hi there" || m.compose.input != "hi there" {
 		t.Errorf("stored %q, composer %q; want all of it: %q", got, m.compose.input, "hi there")
 	}
 }
@@ -297,9 +297,9 @@ func TestTypingOverADraftDeletedElsewhereKeepsItAll(t *testing.T) {
 func TestAnAdditionCrossingAnEditSurvivesItsCancel(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
-	store.assistantWrites("!a:x", "hi\n\nthe report is attached", time.UnixMilli(2000))
+	store.assistantWrites(mx+"!a:x", "hi\n\nthe report is attached", time.UnixMilli(2000))
 	m.compose.editSaved = m.editorFor(fieldComposer).text
-	m.compose.editing = "$mine"
+	m.compose.editing = mx + "$mine"
 	m = m.store(fieldComposer, newEditor("old words").end())
 	m, _ = m.armDraftSave() // arms the debounce, which fires next
 	m, save := tickCmd(t, m)
@@ -312,7 +312,7 @@ func TestAnAdditionCrossingAnEditSurvivesItsCancel(t *testing.T) {
 	m, save = tickCmd(t, m)
 	m = settle(t, m, save)
 	const want = "hi\n\nthe report is attached"
-	if got := store.body("!a:x"); got != want || m.compose.input != want {
+	if got := store.body(mx + "!a:x"); got != want || m.compose.input != want {
 		t.Errorf("after cancel: stored %q, composer %q; want %q", got, m.compose.input, want)
 	}
 }
@@ -323,16 +323,16 @@ func TestADraftStartedOnBothSidesKeepsBothWhole(t *testing.T) {
 	t.Parallel()
 	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{}}
 	m := update(t, starterNew(store, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(m.filteredRooms()[0])
 	m = deliver(t, m, m.loadDraftsCmd())
 	m.focus, m.compose.insertMode = paneTimeline, true
 	m = typeInto(t, m, "Hi")
-	store.assistantWrites("!a:x", "Hi Bob, the report is attached", time.UnixMilli(3000))
+	store.assistantWrites(mx+"!a:x", "Hi Bob, the report is attached", time.UnixMilli(3000))
 	m, save := tickCmd(t, m)
 	_ = settle(t, m, save)
-	if got := store.body("!a:x"); got != "Hi\n\nHi Bob, the report is attached" {
+	if got := store.body(mx + "!a:x"); got != "Hi\n\nHi Bob, the report is attached" {
 		t.Errorf("stored %q, want both texts whole", got)
 	}
 }
@@ -341,16 +341,16 @@ func TestADraftStartedOnBothSidesKeepsBothWhole(t *testing.T) {
 func TestVisitingADraftKeepsWhoWroteIt(t *testing.T) {
 	t.Parallel()
 	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{
-		"!a:x": {RoomID: "!a:x", Body: "from claude", Author: "claude-code", Updated: time.UnixMilli(1000)},
+		mx + "!a:x": {RoomID: mx + "!a:x", Body: "from claude", Author: "claude-code", Updated: time.UnixMilli(1000)},
 	}}
 	m := update(t, starterNew(store, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(m.filteredRooms()[0])
 	m = deliver(t, m, m.loadDraftsCmd())
-	_ = leaveFor(t, m, "!b:x")
+	_ = leaveFor(t, m, mx+"!b:x")
 	store.mu.Lock()
-	got := store.drafts["!a:x"]
+	got := store.drafts[mx+"!a:x"]
 	store.mu.Unlock()
 	if got.Author != "claude-code" || !got.Updated.Equal(time.UnixMilli(1000)) {
 		t.Errorf("stored after a visit: author %q at %v; want it untouched", got.Author, got.Updated)
@@ -369,7 +369,7 @@ func TestQuitWritesTheTypingFirst(t *testing.T) {
 	if w.exits == 0 {
 		t.Error("quit never came")
 	}
-	if got, want := w.stored("!a:x").Body, "hi w1"; got != want {
+	if got, want := w.stored(mx+"!a:x").Body, "hi w1"; got != want {
 		t.Errorf("stored after quit %q, want the typing kept: %q", got, want)
 	}
 }

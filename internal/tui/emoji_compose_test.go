@@ -59,7 +59,7 @@ func composingEmoji(t *testing.T, frequent ...string) (Model, *emojiBackend) {
 	t.Helper()
 	b := &emojiBackend{frequent: frequent}
 	m := update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
@@ -373,8 +373,8 @@ func TestEmojiBrowserFromMessageCursorReacts(t *testing.T) {
 	t.Parallel()
 
 	m, b := composingEmoji(t, "🚀")
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "hi", Timestamp: at(1)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "hi", Timestamp: at(1)},
 	}}})
 	m.compose.insertMode = false
 
@@ -387,7 +387,7 @@ func TestEmojiBrowserFromMessageCursorReacts(t *testing.T) {
 		t.Fatal("accepting should send the reaction")
 	}
 	m = deliver(t, m, cmd)
-	if b.reactTarget != "$1" || b.reactKey == "" {
+	if b.reactTarget != mx+"$1" || b.reactKey == "" {
 		t.Errorf("reacted key=%q target=%q, want something on $1", b.reactKey, b.reactTarget)
 	}
 	if m.compose.input != "" || m.compose.insertMode {
@@ -429,26 +429,26 @@ func TestComposeAndReactionRankingsAreSeparate(t *testing.T) {
 
 	b := &emojiBackend{frequent: []string{"🚀"}}
 	m := update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, cmd := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	if cmd == nil {
 		t.Fatal("opening a room should load both rankings")
 	}
-	m = update(t, m, emojiScoresMsg{roomID: "!a:x", kind: domain.EmojiComposed, scores: map[string]int{"🚀": 40}})
-	m = update(t, m, emojiScoresMsg{roomID: "!a:x", kind: domain.EmojiReaction, scores: map[string]int{"🎯": 40}})
+	m = update(t, m, emojiScoresMsg{roomID: mx + "!a:x", kind: domain.EmojiComposed, scores: map[string]int{"🚀": 40}})
+	m = update(t, m, emojiScoresMsg{roomID: mx + "!a:x", kind: domain.EmojiReaction, scores: map[string]int{"🎯": 40}})
 	if got := m.rankedEmoji(domain.EmojiComposed); got[0] != "🚀" {
 		t.Errorf("composed ranking starts %q, want 🚀", got[0])
 	}
 	if got := m.rankedEmoji(domain.EmojiReaction); got[0] != "🎯" {
 		t.Errorf("reaction ranking starts %q, want 🎯", got[0])
 	}
-	m = update(t, m, emojiScoresMsg{roomID: "!other:x", kind: domain.EmojiComposed, scores: map[string]int{"🐛": 99}})
+	m = update(t, m, emojiScoresMsg{roomID: mx + "!other:x", kind: domain.EmojiComposed, scores: map[string]int{"🐛": 99}})
 	if got := m.rankedEmoji(domain.EmojiComposed); got[0] != "🚀" {
 		t.Errorf("another room's ranking leaked in: starts %q", got[0])
 	}
-	if len(m.glyphs.orders["!other:x"].composed) == 0 {
+	if len(m.glyphs.orders[mx+"!other:x"].composed) == 0 {
 		t.Error("the other room's ranking should have been kept for when it is opened")
 	}
 }
@@ -457,13 +457,13 @@ func TestComposeAndReactionRankingsAreSeparate(t *testing.T) {
 func TestBothCompletionSourcesInOneMessage(t *testing.T) {
 	t.Parallel()
 
-	b := &memberBackend{members: []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}}}
+	b := &memberBackend{members: []domain.Member{{UserID: "matrix:@dana:x", DisplayName: "Dana"}}}
 	m := update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
-	m = update(t, m, membersMsg{roomID: "!a:x", members: b.members})
+	m = update(t, m, membersMsg{roomID: mx + "!a:x", members: b.members})
 	m.focus, m.compose.insertMode = paneTimeline, true
 
 	m = typeAll(t, m, "@dan")
@@ -475,7 +475,7 @@ func TestBothCompletionSourcesInOneMessage(t *testing.T) {
 	if m.compose.input != "Dana 🎉" {
 		t.Errorf("input = %q, want both sources to have worked", m.compose.input)
 	}
-	if len(m.compose.drafted) != 1 || m.compose.drafted[0].UserID != "@dana:x" {
+	if len(m.compose.drafted) != 1 || m.compose.drafted[0].UserID != "matrix:@dana:x" {
 		t.Errorf("the mention should survive an emoji completion, got %+v", m.compose.drafted)
 	}
 }
@@ -484,8 +484,8 @@ func TestBothCompletionSourcesInOneMessage(t *testing.T) {
 func reacting(t *testing.T, frequent ...string) (Model, *emojiBackend) {
 	t.Helper()
 	m, b := composingEmoji(t, frequent...)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@a:x", SenderName: "Alice", Body: "hello"},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", SenderName: "Alice", Body: "hello"},
 	}}})
 	m.compose.insertMode = false
 	m, _ = press(t, m, keyText("e"))

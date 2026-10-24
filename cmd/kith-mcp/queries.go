@@ -206,6 +206,8 @@ func roomNamed(rooms []domain.Room, want string) (domain.Room, error) {
 		switch {
 		case string(rooms[i].ID) == want:
 			return rooms[i], nil
+		case domain.IsMatrixAddress(want) && domain.IsMatrixRoomID(string(rooms[i].ID)) && domain.MatrixNative(string(rooms[i].ID)) == want:
+			exact = append(exact, rooms[i]) // the room as each of our Matrix accounts sees it
 		case strings.EqualFold(rooms[i].DisplayName(), want):
 			exact = append(exact, rooms[i])
 		case strings.Contains(strings.ToLower(rooms[i].DisplayName()), strings.ToLower(want)):
@@ -376,6 +378,7 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 func peopleQuery(text string) phonebook.Query {
 	var q phonebook.Query
 	for word := range strings.FieldsSeq(text) {
+		word = domain.TypedUserID(word)
 		if term, ok := phonebook.ParseTerm(word); ok && !domain.IsUserID(word) {
 			q.Terms = append(q.Terms, term)
 			continue
@@ -477,7 +480,7 @@ func (s *server) resolvePeople(ctx context.Context, inScope []domain.RoomID, nam
 	}
 	out := make([]string, 0, len(names))
 	for _, name := range names {
-		name = strings.TrimSpace(name)
+		name = domain.TypedUserID(name)
 		if domain.IsUserID(name) {
 			out = append(out, name)
 			continue
@@ -537,7 +540,7 @@ func (s *server) readRoom(ctx context.Context, raw json.RawMessage) (any, error)
 	limit := limitOr(in.Limit, 40, 200)
 	var out []messageView
 	for i := range msgs {
-		if in.Sender != "" && msgs[i].Sender != in.Sender {
+		if in.Sender != "" && msgs[i].Sender != domain.TypedUserID(in.Sender) {
 			continue
 		}
 		// A thread is its root and its replies.
@@ -659,7 +662,7 @@ func (s *server) readAround(ctx context.Context, raw json.RawMessage) (any, erro
 		return nil, err
 	}
 	before, after := limitOr(in.Before, 5, 50), limitOr(in.After, 10, 50)
-	msgs, err := s.backend.MessagesAround(ctx, room.ID, domain.EventID(in.Event), before, after)
+	msgs, err := s.backend.MessagesAround(ctx, room.ID, domain.TypedEventID(room.ID, in.Event), before, after)
 	if err != nil {
 		return nil, fmt.Errorf("reading around the message: %w", err)
 	}

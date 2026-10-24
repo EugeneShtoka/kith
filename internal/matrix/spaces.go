@@ -34,7 +34,7 @@ func (b *InProc) matrixSpaces(ctx context.Context) ([]domain.Space, error) {
 	if err != nil {
 		return nil, err //nolint:wrapcheck // each caller says what it was reading for
 	}
-	return slices.DeleteFunc(spaces, func(sp domain.Space) bool { return !domain.MatrixRooms.Owns(domain.RoomID(sp.ID)) }), nil
+	return slices.DeleteFunc(spaces, func(sp domain.Space) bool { return !b.ids.owner().Owns(domain.RoomID(sp.ID)) }), nil
 }
 
 // RefreshSpaces fetches, caches and returns the joined spaces with their direct
@@ -146,7 +146,7 @@ func (b *InProc) listJoined(ctx context.Context) (joinedSplit, error) {
 	}
 	domain.SortSpaces(spaces)
 	if b.cache != nil {
-		if err := b.cache.SaveSpaces(ctx, domain.MatrixRooms, spaces); err != nil {
+		if err := b.cache.SaveSpaces(ctx, b.ids.owner(), spaces); err != nil {
 			return joinedSplit{}, fmt.Errorf("matrix: cache spaces: %w", err)
 		}
 		// Original derives from canonical parents: computed on read, not stored.
@@ -302,7 +302,7 @@ func (b *InProc) spaceChildren(ctx context.Context, spaceID id.RoomID, joined, s
 	}
 	space.Leaving = leavingOf(state)
 	space.Bridge = b.ids.spaceOwner(creator, children)
-	space.Keeper = spaceKeeper(state[event.StateMember], b.ids.user(b.client.UserID), wide)
+	space.Keeper = b.ids.spaceKeeper(state[event.StateMember], b.ids.user(b.client.UserID), wide)
 	// Sorted: children arrive in map order and downstream compares lists.
 	slices.Sort(space.Children)
 	return space, true
@@ -373,16 +373,17 @@ func (x ids) spaceOwner(creator string, children []*event.Event) domain.Protocol
 
 // spaceKeeper returns a joined member other than self who also reaches widely across
 // your rooms (see domain.Space.Keeper); "" when none.
-func spaceKeeper(members map[string]*event.Event, self string, wide map[string]bool) string {
+func (x ids) spaceKeeper(members map[string]*event.Event, self string, wide map[string]bool) string {
 	for stateKey, evt := range members {
-		if stateKey == self || evt == nil {
+		user := x.userOf(stateKey)
+		if user == self || evt == nil {
 			continue
 		}
 		if evt.Content.AsMember().Membership != event.MembershipJoin {
 			continue
 		}
-		if wide[stateKey] {
-			return stateKey
+		if wide[user] {
+			return user
 		}
 	}
 	return ""

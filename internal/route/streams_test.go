@@ -35,9 +35,9 @@ func TestTheMergedStreamCarriesEveryNetwork(t *testing.T) {
 	if r.Messages() != merged {
 		t.Fatal("each call built another merged stream")
 	}
-	m.messages <- domain.Message{ID: "$m1"}
+	m.messages <- domain.Message{ID: mx + "$m1"}
 	wa.messages <- domain.Message{ID: "wa1"}
-	m.messages <- domain.Message{ID: "$m2"}
+	m.messages <- domain.Message{ID: mx + "$m2"}
 	close(m.messages)
 
 	seen := map[domain.EventID]bool{}

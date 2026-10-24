@@ -74,24 +74,24 @@ func (b cardRooms) SearchMessages(_ context.Context, req domain.SearchRequest) (
 }
 
 var (
-	danaDM   = domain.Room{ID: "!d:x", Name: "Dana Levi", IsDirect: true, Members: []string{"Dana Levi"}}
-	eliRoom  = domain.Room{ID: "!e:x", Name: "Eli", Members: []string{"Eli", "WhatsApp bridge bot"}}
-	crowd    = domain.Room{ID: "!g:x", Name: "Crowd", Members: []string{"Dana Levi", "Eli"}}
-	me       = domain.Member{UserID: "@me:x", DisplayName: "Me"}
-	dana     = domain.Member{UserID: "@dana:x", DisplayName: "Dana Levi"}
-	eli      = domain.Member{UserID: "@eli:x", DisplayName: "Eli"}
+	danaDM   = domain.Room{ID: mx + "!d:x", Name: "Dana Levi", IsDirect: true, Members: []string{"Dana Levi"}}
+	eliRoom  = domain.Room{ID: mx + "!e:x", Name: "Eli", Members: []string{"Eli", "WhatsApp bridge bot"}}
+	crowd    = domain.Room{ID: mx + "!g:x", Name: "Crowd", Members: []string{"Dana Levi", "Eli"}}
+	me       = domain.Member{UserID: "matrix:@me:x", DisplayName: "Me"}
+	dana     = domain.Member{UserID: "matrix:@dana:x", DisplayName: "Dana Levi"}
+	eli      = domain.Member{UserID: "matrix:@eli:x", DisplayName: "Eli"}
 	cardBack = func() cardRooms {
 		return cardRooms{
 			members: map[domain.RoomID][]domain.Member{
 				danaDM.ID:  {me, dana},
-				eliRoom.ID: {me, {UserID: "@whatsappbot:x"}, eli},
+				eliRoom.ID: {me, {UserID: "matrix:@whatsappbot:x"}, eli},
 				crowd.ID:   {me, dana, eli},
 			},
 			with: map[string][]domain.Room{
-				"@dana:x": {crowd, danaDM},
-				"@eli:x":  {crowd, eliRoom},
+				"matrix:@dana:x": {crowd, danaDM},
+				"matrix:@eli:x":  {crowd, eliRoom},
 			},
-			senders: []domain.Member{dana, eli, {UserID: "@whatsapp_15550100009:x", DisplayName: "Noa"}},
+			senders: []domain.Member{dana, eli, {UserID: "matrix:@whatsapp_15550100009:x", DisplayName: "Noa"}},
 			asked:   &searches{},
 		}
 	}
@@ -106,12 +106,12 @@ func carded(t *testing.T, back cardRooms, rules ...config.SpaceRule) (Model, str
 	base.Phonebook.Dir = dir
 	base.Keys.FillDefaults()
 	m := New(t.Context(), back, base.Display).WithConfigFile("", base)
-	m.selves = []string{"@me:x"}
+	m.selves = []string{"matrix:@me:x"}
 	next, cmd := asModel(m.Update(roomsMsg{rooms: []domain.Room{danaDM, eliRoom, crowd}}))
 	m = deliver(t, next, cmd)
 	next, cmd = asModel(m.Update(spacesMsg{spaces: []domain.Space{
-		{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{danaDM.ID, eliRoom.ID, crowd.ID}},
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{crowd.ID, eliRoom.ID}},
+		{ID: mx + "!f:x", Name: "Friends", Children: []domain.RoomID{danaDM.ID, eliRoom.ID, crowd.ID}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{crowd.ID, eliRoom.ID}},
 	}}))
 	m = sized(t, deliver(t, next, cmd))
 	// The rail's rows are known now; a refresh reads the members show_field needs.
@@ -130,7 +130,7 @@ func rowText(m Model, room domain.Room) string {
 func TestTheSwitcherFindsPeopleByCardFields(t *testing.T) {
 	t.Parallel()
 	m, _ := carded(t, cardBack())
-	m = update(t, m, directCandidatesMsg{people: []domain.Member{{UserID: "@zed:x", DisplayName: "Zed"}}})
+	m = update(t, m, directCandidatesMsg{people: []domain.Member{{UserID: "matrix:@zed:x", DisplayName: "Zed"}}})
 	cards := func(m Model, filter string) []string {
 		m, _ = m.openJump()
 		m = typeInto(t, m, filter)
@@ -227,7 +227,7 @@ func TestFromAFieldSearchesThePeopleOnTheCards(t *testing.T) {
 		t.Fatalf("searched %d times", len(reqs))
 	}
 	got := slices.Sorted(slices.Values(reqs[0].Filter.Senders))
-	if strings.Join(got, " ") != "@dana:x @whatsapp_15550100009:x @zed:x" || reqs[0].Filter.Terms != "deploy" {
+	if strings.Join(got, " ") != "matrix:@dana:x matrix:@whatsapp_15550100009:x matrix:@zed:x" || reqs[0].Filter.Terms != "deploy" {
 		t.Errorf("searched %q from %v", reqs[0].Filter.Terms, got)
 	}
 
@@ -325,7 +325,7 @@ func TestTheCardsAreReadAgainAfterAWrite(t *testing.T) {
 	t.Parallel()
 	m, _ := carded(t, cardBack(), config.SpaceRule{Space: "space:Friends", ShowField: "company"})
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Friends")
-	next, cmd := m.openPerson("@dana:x", "Dana")
+	next, cmd := m.openPerson("matrix:@dana:x", "Dana")
 	m = deliver(t, next, cmd)
 	m = pickLabel(t, m, "company")
 	m.prompt.input = ""

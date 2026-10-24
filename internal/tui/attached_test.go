@@ -82,7 +82,7 @@ func attachableWith(t *testing.T, backend *countingBackend) Model {
 	close(settled)
 	backend.Attach = settled
 	m := update(t, sized(t, starterNew(backend, config.Display{})),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
-	m.openRoom = "!a:x"
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
+	m.openRoom = mx + "!a:x"
 	return m.clearStatus()
 }

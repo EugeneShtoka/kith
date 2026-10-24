@@ -44,14 +44,14 @@ func TestExportWritesTheRoomToAFile(t *testing.T) {
 	around := 0
 	var all []domain.Message
 	for i, body := range []string{"one", "two", "three", "four", "five"} {
-		all = append(all, domain.Message{ID: domain.EventID("$" + body), RoomID: "!a:x", Sender: "@maya:x", SenderName: "Maya", Body: body, Timestamp: at(60 * (i + 1))})
+		all = append(all, domain.Message{ID: domain.EventID(mx + "$" + body), RoomID: mx + "!a:x", Sender: "matrix:@maya:x", SenderName: "Maya", Body: body, Timestamp: at(60 * (i + 1))})
 	}
-	all[4].ThreadRoot = "$four"
+	all[4].ThreadRoot = mx + "$four"
 	b := cachedRoomBackend{all: all, newest: 2, around: &around}
 	m := New(context.Background(), b, config.Display{})
 	m.conf.base.Storage.ExportDir = dir
 	m = withRooms(t, m)
-	room, _ := m.roomByID("!a:x")
+	room, _ := m.roomByID(mx + "!a:x")
 
 	run := func(m Model, arg string) (string, Model) {
 		t.Helper()
@@ -82,7 +82,7 @@ func TestExportWritesTheRoomToAFile(t *testing.T) {
 		t.Errorf("the last 2 (read back %d times):\n%s", around, last)
 	}
 
-	m.thread.root = "$four"
+	m.thread.root = mx + "$four"
 	thread, _ := run(m, "")
 	if strings.Contains(thread, "three") || !strings.Contains(thread, "five") {
 		t.Errorf("the thread's export holds more than the thread:\n%s", thread)
@@ -100,11 +100,11 @@ func TestExportGoesWhereItIsSent(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	around := 0
-	all := []domain.Message{{ID: "$1", RoomID: "!a:x", Sender: "@maya:x", SenderName: "Maya", Body: "hello", Timestamp: at(60)}}
+	all := []domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@maya:x", SenderName: "Maya", Body: "hello", Timestamp: at(60)}}
 	m := New(context.Background(), cachedRoomBackend{all: all, newest: 1, around: &around}, config.Display{})
 	m.conf.base.Storage.ExportDir = filepath.Join(home, "default")
 	m = withRooms(t, m)
-	room, _ := m.roomByID("!a:x")
+	room, _ := m.roomByID(mx + "!a:x")
 	export := func(arg string) string {
 		t.Helper()
 		_, cmd := m.openExport(room, arg)

@@ -46,10 +46,10 @@ func genSpaceCase(r *rand.Rand) spaceCase {
 	if r.IntN(3) == 0 {
 		bridge = domain.ProtocolWhatsApp
 	}
-	c.target = domain.Space{ID: "!target:x", Name: "Target", Bridge: bridge,
+	c.target = domain.Space{ID: mx + "!target:x", Name: "Target", Bridge: bridge,
 		Leaving: []domain.SpaceLeaving{domain.LeftAlone, domain.LeftAlone, domain.LeftAlone, domain.LeftWithRooms, domain.LeftWhole, domain.NotLeft}[r.IntN(6)]}
 	for i := range 1 + r.IntN(6) {
-		id := domain.RoomID(fmt.Sprintf("!r%d:x", i))
+		id := domain.RoomID(fmt.Sprintf(mx+"!r%d:x", i))
 		c.rooms = append(c.rooms, domain.Room{ID: id, Name: fmt.Sprintf("Room %d", i)})
 		c.target.Children = append(c.target.Children, id)
 		if r.IntN(4) == 0 {
@@ -60,7 +60,7 @@ func genSpaceCase(r *rand.Rand) spaceCase {
 		c.fail[domain.RoomID(c.target.ID)] = true
 	}
 	for i := range r.IntN(3) {
-		other := domain.Space{ID: domain.SpaceID(fmt.Sprintf("!other%d:x", i)), Name: fmt.Sprintf("Other %d", i),
+		other := domain.Space{ID: domain.SpaceID(fmt.Sprintf(mx+"!other%d:x", i)), Name: fmt.Sprintf("Other %d", i),
 			Bridge: domain.ProtocolMatrix, Leaving: []domain.SpaceLeaving{domain.LeftAlone, domain.NotLeft, domain.LeftWithRooms, domain.LeftByRoom, domain.LeftWhole}[r.IntN(5)]}
 		for _, id := range c.target.Children {
 			if r.IntN(2) == 0 {
@@ -167,7 +167,7 @@ func TestLeavingASpaceFromTheRail(t *testing.T) {
 					}
 					continue
 				}
-				if m.confirm.action != pendingLeaveSharedRoom || !strings.Contains(m.confirmPrompt(), "Room "+strings.TrimPrefix(strings.Split(string(id), ":")[0], "!r")) {
+				if m.confirm.action != pendingLeaveSharedRoom || !strings.Contains(m.confirmPrompt(), "Room "+strings.Split(strings.TrimPrefix(string(id), mx+"!r"), ":")[0]) {
 					t.Fatalf("case %d: asked %v %q, want about %s", i, m.confirm.action, m.confirmPrompt(), id)
 				}
 				for _, o := range c.others {

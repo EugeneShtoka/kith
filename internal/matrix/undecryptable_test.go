@@ -38,7 +38,7 @@ func backendOn(t *testing.T, srv *httptest.Server) *InProc {
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	b := New(cache)
+	b := newBackend(cache)
 	b.client = client
 	return b
 }
@@ -68,7 +68,7 @@ func TestTimelineDoesNotCacheTheUndecryptablePlaceholder(t *testing.T) {
 	b := backendOn(t, messagesServer(t, encryptedEventJSON))
 	ctx := context.Background()
 
-	page, err := b.Timeline(ctx, domain.RoomID("!r:x"), "", 50)
+	page, err := b.Timeline(ctx, domain.RoomID(mx+"!r:x"), "", 50)
 	if err != nil {
 		t.Fatalf("Timeline: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestTimelineDoesNotCacheTheUndecryptablePlaceholder(t *testing.T) {
 		t.Errorf("body = %q, want the placeholder %q", got, undecryptableBody)
 	}
 
-	cached, err := b.cache.Messages(ctx, domain.RoomID("!r:x"), 50)
+	cached, err := b.cache.Messages(ctx, domain.RoomID(mx+"!r:x"), 50)
 	if err != nil {
 		t.Fatalf("cache.Messages: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestTimelineCachesReadableMessagesBesideAPlaceholder(t *testing.T) {
 	b := backendOn(t, messagesServer(t, encryptedEventJSON+","+plainEventJSON))
 	ctx := context.Background()
 
-	page, err := b.Timeline(ctx, domain.RoomID("!r:x"), "", 50)
+	page, err := b.Timeline(ctx, domain.RoomID(mx+"!r:x"), "", 50)
 	if err != nil {
 		t.Fatalf("Timeline: %v", err)
 	}
@@ -103,14 +103,14 @@ func TestTimelineCachesReadableMessagesBesideAPlaceholder(t *testing.T) {
 		t.Fatalf("got %d messages, want 2 (both are shown): %+v", len(page.Messages), page.Messages)
 	}
 
-	cached, err := b.cache.Messages(ctx, domain.RoomID("!r:x"), 50)
+	cached, err := b.cache.Messages(ctx, domain.RoomID(mx+"!r:x"), 50)
 	if err != nil {
 		t.Fatalf("cache.Messages: %v", err)
 	}
 	if len(cached) != 1 {
 		t.Fatalf("cached %d messages, want just the readable one: %+v", len(cached), cached)
 	}
-	if got := cached[0].ID; got != domain.EventID("$plain:x") {
+	if got := cached[0].ID; got != domain.EventID(mx+"$plain:x") {
 		t.Errorf("cached event = %q, want $plain:x", got)
 	}
 }
@@ -135,7 +135,7 @@ func TestFetchEventDoesNotCacheTheUndecryptablePlaceholder(t *testing.T) {
 	b := backendOn(t, srv)
 	ctx := context.Background()
 
-	msg, err := b.FetchEvent(ctx, domain.RoomID("!r:x"), domain.EventID("$enc:x"))
+	msg, err := b.FetchEvent(ctx, domain.RoomID(mx+"!r:x"), domain.EventID(mx+"$enc:x"))
 	if err != nil {
 		t.Fatalf("FetchEvent: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestFetchEventDoesNotCacheTheUndecryptablePlaceholder(t *testing.T) {
 		t.Errorf("body = %q, want the placeholder %q", msg.Body, undecryptableBody)
 	}
 
-	cached, err := b.cache.Messages(ctx, domain.RoomID("!r:x"), 50)
+	cached, err := b.cache.Messages(ctx, domain.RoomID(mx+"!r:x"), 50)
 	if err != nil {
 		t.Fatalf("cache.Messages: %v", err)
 	}

@@ -37,9 +37,9 @@ func TestRebaseOntoEveryWayTheStoreMoved(t *testing.T) {
 	t.Parallel()
 	body := func(b string) domain.StoredDraft { return domain.StoredDraft{Body: b} }
 	editing := func(correction, saved string) domain.StoredDraft {
-		return domain.StoredDraft{Body: correction, Editing: "$e", EditSaved: saved}
+		return domain.StoredDraft{Body: correction, Editing: mx + "$e", EditSaved: saved}
 	}
-	stamp := func(d domain.StoredDraft) draftStamp { d.RoomID = "!a:x"; return stampOf(d) }
+	stamp := func(d domain.StoredDraft) draftStamp { d.RoomID = mx + "!a:x"; return stampOf(d) }
 	for _, c := range []struct {
 		name          string
 		writing       domain.StoredDraft

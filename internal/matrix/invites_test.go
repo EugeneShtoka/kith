@@ -47,7 +47,7 @@ func invitedRoom(events ...strippedEvent) *mautrix.SyncInvitedRoom {
 
 // backend returns an InProc whose client only knows who we are.
 func backend(me string) *InProc {
-	b := New(nil)
+	b := newBackend(nil)
 	b.client = &mautrix.Client{UserID: id.UserID(me)}
 	return b
 }
@@ -67,13 +67,13 @@ func TestToInvite(t *testing.T) {
 		if got.Name != "Design Review" {
 			t.Errorf("Name = %q, want Design Review", got.Name)
 		}
-		if got.InvitedBy != "@alice:x" {
+		if got.InvitedBy != "matrix:@alice:x" {
 			t.Errorf("InvitedBy = %q, want @alice:x", got.InvitedBy)
 		}
 		if !got.IsInvite() {
 			t.Error("the room should be marked as an invitation")
 		}
-		if got.ID != "!r:x" {
+		if got.ID != mx+"!r:x" {
 			t.Errorf("ID = %q", got.ID)
 		}
 	})
@@ -148,7 +148,7 @@ func TestToInvite(t *testing.T) {
 			stripped(event.StateRoomName, "", "@alice:x", map[string]any{"name": []int{1, 2}}), // wrong type
 			stripped(event.StateMember, me, "@alice:x", map[string]any{"membership": "invite"}),
 		))
-		if got.InvitedBy != "@alice:x" {
+		if got.InvitedBy != "matrix:@alice:x" {
 			t.Errorf("InvitedBy = %q — a bad event should not stop the good ones", got.InvitedBy)
 		}
 	})
@@ -157,7 +157,7 @@ func TestToInvite(t *testing.T) {
 		t.Parallel()
 		b := backend(me)
 		got := b.toInvite("!bare:x", invitedRoom())
-		if !got.IsInvite() || got.ID != "!bare:x" {
+		if !got.IsInvite() || got.ID != mx+"!bare:x" {
 			t.Errorf("got %+v, want a bare invitation for !bare:x", got)
 		}
 		if got.DisplayName() == "" {
@@ -238,7 +238,7 @@ func TestFoldInvitesDropsAnsweredRooms(t *testing.T) {
 			if !changed {
 				t.Fatal("an answered invitation is a change")
 			}
-			if len(got) != 1 || got[0].ID != "!b:x" {
+			if len(got) != 1 || got[0].ID != mx+"!b:x" {
 				t.Errorf("published %v, want only the unanswered invitation", roomIDsOf(got))
 			}
 		})
@@ -257,7 +257,7 @@ func TestFoldInvitesReplacesTheSetOnAnInitialSync(t *testing.T) {
 	if !changed {
 		t.Fatal("an invitation gone from a census is a change")
 	}
-	if len(got) != 1 || got[0].ID != "!b:x" {
+	if len(got) != 1 || got[0].ID != mx+"!b:x" {
 		t.Errorf("published %v, want only what the census listed", roomIDsOf(got))
 	}
 	if _, changed := b.foldInvites(inviteSync("!b:x"), true); changed {
@@ -294,7 +294,7 @@ func TestSyncInvitesPublishesOnlyOnChange(t *testing.T) {
 	b.syncInvites(t.Context(), resp, "s1")
 	select {
 	case got := <-b.out.invites:
-		if len(got) != 1 || got[0].Name != "Room" || got[0].InvitedBy != "@alice:x" {
+		if len(got) != 1 || got[0].Name != "Room" || got[0].InvitedBy != "matrix:@alice:x" {
 			t.Errorf("published %+v", got)
 		}
 	default:

@@ -20,10 +20,10 @@ func TestModelLayerRefusesWhatCannotWork(t *testing.T) {
 		{"nothing configured is the default", config.Assist{}, ""},
 		{"a working section", config.Assist{
 			Endpoint: "http://localhost:11434/v1/chat/completions",
-			Rooms:    []string{"!a:x"}, Encrypted: true, Timeout: "4s",
+			Rooms:    []string{mx + "!a:x"}, Encrypted: true, Timeout: "4s",
 		}, ""},
 		{"a deny list on its own", config.Assist{
-			Endpoint: "https://example.invalid/v1", Except: []string{"!a:x"},
+			Endpoint: "https://example.invalid/v1", Except: []string{mx + "!a:x"},
 		}, ""},
 		// Otherwise every ask fails with an error that reads as a bug.
 		{"an endpoint that is not a URL", config.Assist{Endpoint: "api.groq.com/v1/chat"}, "not an http(s) URL"},
@@ -36,7 +36,7 @@ func TestModelLayerRefusesWhatCannotWork(t *testing.T) {
 		// The allow list answers alone, so the exception would do nothing.
 		{"a room named in both lists", config.Assist{
 			Endpoint: "https://example.invalid/v1",
-			Rooms:    []string{" !a:x "}, Except: []string{"!A:X"},
+			Rooms:    []string{" " + mx + "!a:x "}, Except: []string{mx + "!A:X"},
 		}, "the allow list answers alone"},
 	}
 	for _, tc := range cases {

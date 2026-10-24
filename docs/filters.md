@@ -116,7 +116,7 @@ words = ["*bitcoin*", "*binance*", "invest*"]
 [[filter]]
 name  = "that number"
 tag   = "Spam"
-from  = "@whatsapp_15550100:example.org"   # everything this sender writes
+from  = "matrix:@whatsapp_15550100:example.org"   # everything this sender writes
 
 [[filter]]
 name  = "elections"

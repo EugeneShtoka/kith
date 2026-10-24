@@ -161,7 +161,7 @@ func TestOneOrderForEveryWayIn(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, emojiScoresMsg{roomID: "!a:x", kind: domain.EmojiReaction,
+	m = update(t, m, emojiScoresMsg{roomID: mx + "!a:x", kind: domain.EmojiReaction,
 		scores: map[string]int{"🔥": 30, "🎉": 20}})
 
 	grid := m.rankedEmoji(domain.EmojiReaction)
@@ -182,12 +182,12 @@ func TestComposingBorrowsTheReactionHistory(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, emojiScoresMsg{roomID: "!a:x", kind: domain.EmojiReaction,
+	m = update(t, m, emojiScoresMsg{roomID: mx + "!a:x", kind: domain.EmojiReaction,
 		scores: map[string]int{"🔥": 30}})
 	if got := m.rankedEmoji(domain.EmojiComposed); got[0] != "🔥" {
 		t.Errorf("composed order leads with %q, want the reaction history to break the tie", got[0])
 	}
-	m = update(t, m, emojiScoresMsg{roomID: "!a:x", kind: domain.EmojiComposed,
+	m = update(t, m, emojiScoresMsg{roomID: mx + "!a:x", kind: domain.EmojiComposed,
 		scores: map[string]int{"🎉": 1}})
 	if got := m.rankedEmoji(domain.EmojiComposed); got[0] != "🎉" {
 		t.Errorf("composed order leads with %q, want the composed history first", got[0])
@@ -202,7 +202,7 @@ func TestNonEmojiUsageNeverReachesThePalette(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, emojiScoresMsg{roomID: "!a:x", kind: domain.EmojiReaction,
+	m = update(t, m, emojiScoresMsg{roomID: mx + "!a:x", kind: domain.EmojiReaction,
 		scores: map[string]int{":dance:": 500, "lol": 400, "🔥": 30}})
 	for _, slot := range m.glyphs.palette {
 		if slot == ":dance:" || slot == "lol" {
@@ -226,27 +226,27 @@ func TestSpaceRungIsTheRoomsPrioritySpace(t *testing.T) {
 		Priority: []string{"space:Friends"},
 	})
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!work:x", Name: "A work room"},
-		{ID: "!mate:x", Name: "A friend"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!work:x", Name: "A work room"},
+		{ID: mx + "!mate:x", Name: "A friend"},
 	}})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!c:x", Name: "Colleagues", Children: []domain.RoomID{"!a:x", "!work:x"}},
-		{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{"!a:x", "!mate:x"}},
+		{ID: mx + "!c:x", Name: "Colleagues", Children: []domain.RoomID{mx + "!a:x", mx + "!work:x"}},
+		{ID: mx + "!f:x", Name: "Friends", Children: []domain.RoomID{mx + "!a:x", mx + "!mate:x"}},
 	}}))
 
-	got := m.spaceRoomsFor("!a:x")
-	if len(got) != 2 || !slices.Contains(got, "!mate:x") {
-		t.Errorf("space rung = %v, want the Friends space (%v)", got, []string{"!a:x", "!mate:x"})
+	got := m.spaceRoomsFor(mx + "!a:x")
+	if len(got) != 2 || !slices.Contains(got, mx+"!mate:x") {
+		t.Errorf("space rung = %v, want the Friends space (%v)", got, []string{mx + "!a:x", mx + "!mate:x"})
 	}
-	if slices.Contains(got, "!work:x") {
+	if slices.Contains(got, mx+"!work:x") {
 		t.Error("the space rung took the alphabetically first space, not the configured one")
 	}
 	m.rail.cursor = len(m.rail.groups) - 1
-	if again := m.spaceRoomsFor("!a:x"); !slices.Equal(again, got) {
+	if again := m.spaceRoomsFor(mx + "!a:x"); !slices.Equal(again, got) {
 		t.Errorf("the rung moved with the rail cursor: %v then %v", got, again)
 	}
-	if orphan := m.spaceRoomsFor("!nowhere:x"); len(orphan) != 0 {
+	if orphan := m.spaceRoomsFor(mx + "!nowhere:x"); len(orphan) != 0 {
 		t.Errorf("a room in no space got %v", orphan)
 	}
 }

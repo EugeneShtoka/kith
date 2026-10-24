@@ -18,13 +18,13 @@ import (
 func jumping(t *testing.T) Model {
 	t.Helper()
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!dana:x", Name: "Dana Levi", IsDirect: true},
-		{ID: "!ops:x", Name: "Ops"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!dana:x", Name: "Dana Levi", IsDirect: true},
+		{ID: mx + "!ops:x", Name: "Ops"},
 	}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
-		{ID: "!i:x", Name: "Infra", Children: []domain.RoomID{"!ops:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
+		{ID: mx + "!i:x", Name: "Infra", Children: []domain.RoomID{mx + "!ops:x"}},
 	}})
 	return sized(t, m.clearStatus())
 }
@@ -91,18 +91,18 @@ func TestJumpMovesTheRailToHoldTheRoom(t *testing.T) {
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
 	next, _ := press(t, m, jumpKey())
 	next = typeFilter(t, next, "ops")
-	if got := pickedValue(t, next); got != "room:!ops:x" {
+	if got := pickedValue(t, next); got != "room:"+mx+"!ops:x" {
 		t.Fatalf("filter landed on %q, want the Ops room", got)
 	}
 	after, _ := press(t, next, tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if after.openRoom != "!ops:x" {
+	if after.openRoom != mx+"!ops:x" {
 		t.Errorf("open room = %q, want !ops:x", after.openRoom)
 	}
 	if got := after.rail.groups[after.rail.cursor].key; got != "Infra" {
 		t.Errorf("rail is on %q, want the space that holds the room", got)
 	}
-	if idx := indexOfRoom(after.filteredRooms(), "!ops:x"); idx < 0 {
+	if idx := indexOfRoom(after.filteredRooms(), mx+"!ops:x"); idx < 0 {
 		t.Error("the room list does not contain the room that was opened")
 	}
 	if after.focus != paneTimeline {
@@ -123,7 +123,7 @@ func TestJumpStaysInTheGroupThatAlreadyHolds(t *testing.T) {
 	next = typeFilter(t, next, "dana")
 	after, _ := press(t, next, tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if after.openRoom != "!dana:x" {
+	if after.openRoom != mx+"!dana:x" {
 		t.Fatalf("open room = %q, want the DM", after.openRoom)
 	}
 	if got := after.rail.groups[after.rail.cursor].key; got != dmsGroupKey {
@@ -145,7 +145,7 @@ func TestJumpToASpace(t *testing.T) {
 	if got := after.rail.groups[after.rail.cursor].key; got != "Infra" {
 		t.Errorf("rail is on %q, want Infra", got)
 	}
-	if after.openRoom != "!ops:x" {
+	if after.openRoom != mx+"!ops:x" {
 		t.Errorf("open room = %q, want the space's first room", after.openRoom)
 	}
 	if after.focus != paneRooms {
@@ -158,11 +158,11 @@ func TestJumpPutsUnreadRoomsFirst(t *testing.T) {
 	t.Parallel()
 
 	m := update(t, jumping(t), unreadMsg{list: []domain.Unread{
-		{RoomID: "!ops:x", Notifications: 2, Messages: 2, Counted: true},
+		{RoomID: mx + "!ops:x", Notifications: 2, Messages: 2, Counted: true},
 	}})
 	m, _ = press(t, m, jumpKey())
 	first := m.picker.all[0]
-	if first.value != "room:!ops:x" {
+	if first.value != "room:"+mx+"!ops:x" {
 		t.Errorf("first row = %q, want the unread room", first.value)
 	}
 	if !strings.Contains(first.detail, "unread") {
@@ -206,7 +206,7 @@ func TestJumpToAVanishedRoomSaysSo(t *testing.T) {
 	t.Parallel()
 
 	m, _ := press(t, jumping(t), jumpKey())
-	after, _ := m.goToRoom("!nosuch:x")
+	after, _ := m.goToRoom(mx + "!nosuch:x")
 	if after.picker.active() {
 		t.Error("the switcher stayed open")
 	}
@@ -221,8 +221,8 @@ func jumpBound(t *testing.T) Model {
 	keys := config.DefaultKeys()
 	keys.Jump = config.Jumps{
 		{Chord: "g w", Target: "space:Work"},
-		{Chord: "g d", Target: "room:!dana:x"},
-		{Chord: "g o", Target: "room:!ops:x"},
+		{Chord: "g d", Target: "room:" + mx + "!dana:x"},
+		{Chord: "g o", Target: "room:" + mx + "!ops:x"},
 	}
 	return jumping(t).WithKeys(keys)
 }
@@ -238,7 +238,7 @@ func TestJumpChordGoesToItsPlace(t *testing.T) {
 		t.Fatal("the first step of a jump sequence did not wait for the second")
 	}
 	after, _ := press(t, m, keyText("d"))
-	if after.openRoom != "!dana:x" {
+	if after.openRoom != mx+"!dana:x" {
 		t.Errorf("open room = %q, want the DM the chord names", after.openRoom)
 	}
 
@@ -257,13 +257,13 @@ func TestChordNamesARoomByIDNotByName(t *testing.T) {
 
 	keys := config.DefaultKeys()
 	keys.Jump = config.Jumps{
-		{Chord: "g d", Target: "room:!slack-dana:x"},
+		{Chord: "g d", Target: "room:" + mx + "!slack-dana:x"},
 	}
 	m := namesakes(t).WithKeys(keys)
 	m.focus = paneRooms
 	m, _ = press(t, m, keyText("g"))
 	after, _ := press(t, m, keyText("d"))
-	if after.openRoom != "!slack-dana:x" {
+	if after.openRoom != mx+"!slack-dana:x" {
 		t.Errorf("open room = %q, want the room the binding names", after.openRoom)
 	}
 }
@@ -312,7 +312,7 @@ func TestJumpChordsDoNotFireWhileTyping(t *testing.T) {
 	if got := m.editorFor(fieldComposer).text; got != "gw" {
 		t.Errorf("composer = %q, want both letters typed", got)
 	}
-	if m.openRoom != "!a:x" {
+	if m.openRoom != mx+"!a:x" {
 		t.Errorf("typing gw moved to %q", m.openRoom)
 	}
 }
@@ -375,7 +375,7 @@ func TestHelpShowsJumpBindings(t *testing.T) {
 	// And it says when one leads nowhere.
 	keys := config.DefaultKeys()
 	keys.Jump = config.Jumps{
-		{Chord: "g z", Target: "room:!gone:x"},
+		{Chord: "g z", Target: "room:" + mx + "!gone:x"},
 	}
 	gone := strings.Join(jumping(t).WithKeys(keys).helpLines(), "\n")
 	if !strings.Contains(gone, "nothing here matches") {
@@ -387,9 +387,9 @@ func TestHelpShowsJumpBindings(t *testing.T) {
 func namesakes(t *testing.T) Model {
 	t.Helper()
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!wa-dana:x", Name: "Dana Levi", IsDirect: true},
-		{ID: "!dana:x", Name: "Dana Levi", IsDirect: true},
-		{ID: "!slack-dana:x", Name: "Dana Levi", IsDirect: true},
+		{ID: mx + "!wa-dana:x", Name: "Dana Levi", IsDirect: true},
+		{ID: mx + "!dana:x", Name: "Dana Levi", IsDirect: true},
+		{ID: mx + "!slack-dana:x", Name: "Dana Levi", IsDirect: true},
 	}})
 	return sized(t, m.clearStatus())
 }
@@ -441,13 +441,13 @@ func TestBindPromptPrefillsTheExistingSequence(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.Config{Keys: config.DefaultKeys()}
-	cfg.Keys.Jump = config.Jumps{{Chord: "g d", Target: "room:!dana:x"}}
+	cfg.Keys.Jump = config.Jumps{{Chord: "g d", Target: "room:" + mx + "!dana:x"}}
 	m := namesakes(t).WithKeys(cfg.Keys).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), cfg).keptIn()
 	m.focus = paneRooms
-	next, _ := m.selectRoom(roomByName(t, m, "!dana:x"))
+	next, _ := m.selectRoom(roomByName(t, m, mx+"!dana:x"))
 	m = next
 
-	_, m, _ = m.composerCommand("/shortcut", roomByName(t, m, "!dana:x"))
+	_, m, _ = m.composerCommand("/shortcut", roomByName(t, m, mx+"!dana:x"))
 	// Spelled as the help overlay spells it ("gd", not "g d"); either spelling is accepted back.
 	if got := m.editorFor(fieldPrompt).text; got != "gd" {
 		t.Errorf("prompt = %q, want the sequence already bound to that room", got)
@@ -477,7 +477,7 @@ func TestBindRefusesACollidingSequence(t *testing.T) {
 	} {
 		t.Run(tc.typed, func(t *testing.T) {
 			m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), config.Config{}).keptIn()
-			_, after, _ := m.composerCommand("/shortcut "+tc.typed, roomByName(t, m, "!a:x"))
+			_, after, _ := m.composerCommand("/shortcut "+tc.typed, roomByName(t, m, mx+"!a:x"))
 
 			if len(after.keys.jumps) != 0 {
 				t.Errorf("bound %+v anyway", after.keys.jumps)
@@ -505,12 +505,12 @@ func TestBackAndForwardFollowJumps(t *testing.T) {
 	m := jumping(t)
 	m = jumped(t, m, "Alpha")
 	m = jumped(t, m, "Ops")
-	if m.openRoom != "!ops:x" {
+	if m.openRoom != mx+"!ops:x" {
 		t.Fatalf("open room = %s, want !ops:x", m.openRoom)
 	}
 
 	back, _ := press(t, m, tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
-	if back.openRoom != "!a:x" {
+	if back.openRoom != mx+"!a:x" {
 		t.Fatalf("ctrl+o opened %s, want the room jumped from (!a:x)", back.openRoom)
 	}
 	// The rail moved to a group holding it, or highlight and timeline would disagree.
@@ -525,12 +525,12 @@ func TestBackAndForwardFollowJumps(t *testing.T) {
 		{Code: 'o', Mod: tea.ModAlt},
 	} {
 		fwd, _ := press(t, back, forward)
-		if fwd.openRoom != "!ops:x" {
+		if fwd.openRoom != mx+"!ops:x" {
 			t.Fatalf("%s opened %s, want !ops:x", forward.String(), fwd.openRoom)
 		}
 		// And back again: the round trip must not consume the entry.
 		again, _ := press(t, fwd, tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
-		if again.openRoom != "!a:x" {
+		if again.openRoom != mx+"!a:x" {
 			t.Errorf("ctrl+o after %s opened %s, want !a:x", forward.String(), again.openRoom)
 		}
 	}
@@ -571,11 +571,11 @@ func TestBackSkipsARoomThatIsGone(t *testing.T) {
 	m = jumped(t, m, "Ops")
 	// Alpha and Dana are both behind us; Dana leaves the list.
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!ops:x", Name: "Ops"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!ops:x", Name: "Ops"},
 	}})
 	back, _ := press(t, m, tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
-	if back.openRoom != "!a:x" {
+	if back.openRoom != mx+"!a:x" {
 		t.Errorf("ctrl+o opened %s, want !a:x — the gone room should have been stepped over", back.openRoom)
 	}
 }
@@ -598,16 +598,16 @@ func TestBackWalksRoomsOpenedFromTheList(t *testing.T) {
 	t.Parallel()
 
 	m := jumping(t)
-	m = openedFromList(t, m, "!a:x")
-	m = openedFromList(t, m, "!dana:x")
-	m = openedFromList(t, m, "!ops:x")
+	m = openedFromList(t, m, mx+"!a:x")
+	m = openedFromList(t, m, mx+"!dana:x")
+	m = openedFromList(t, m, mx+"!ops:x")
 
 	back, _ := press(t, m, tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
-	if back.openRoom != "!dana:x" {
+	if back.openRoom != mx+"!dana:x" {
 		t.Fatalf("first ctrl+o opened %s, want !dana:x", back.openRoom)
 	}
 	again, _ := press(t, back, tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
-	if again.openRoom != "!a:x" {
+	if again.openRoom != mx+"!a:x" {
 		t.Fatalf("second ctrl+o opened %s, want !a:x", again.openRoom)
 	}
 	// The first room opened is the end: nothing before it.
@@ -617,7 +617,7 @@ func TestBackWalksRoomsOpenedFromTheList(t *testing.T) {
 	}
 	// Forward retraces the same steps.
 	fwd, _ := press(t, again, tea.KeyPressMsg{Code: 'i', Mod: tea.ModCtrl})
-	if fwd.openRoom != "!dana:x" {
+	if fwd.openRoom != mx+"!dana:x" {
 		t.Errorf("ctrl+i opened %s, want !dana:x", fwd.openRoom)
 	}
 }
@@ -654,7 +654,7 @@ func TestShortcutCyclesBetweenTheRoomAndTheRailsSpace(t *testing.T) {
 	t.Parallel()
 
 	m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), config.Config{}).keptIn()
-	next, _ := m.selectRoom(roomByName(t, m, "!a:x"))
+	next, _ := m.selectRoom(roomByName(t, m, mx+"!a:x"))
 	m = next
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Infra")
 	m.focus = paneTimeline // the room has the focus
@@ -685,7 +685,7 @@ func TestShortcutCyclesBetweenTheRoomAndTheRailsSpace(t *testing.T) {
 
 	// Typed whole, it binds the first place at once; tab round comes back to the room.
 	bound, _ := m.runCommandLine("shortcut g a")
-	if target, ok := bound.keys.jumpFor("g a"); !ok || target.Kind != domain.JumpRoom || target.Name != "!a:x" {
+	if target, ok := bound.keys.jumpFor("g a"); !ok || target.Kind != domain.JumpRoom || target.Name != mx+"!a:x" {
 		t.Errorf(":shortcut g a bound %+v (%v), want the open room", target, ok)
 	}
 	round, _ := press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
@@ -701,7 +701,7 @@ func TestShortcutStartsOnWhatHasTheFocus(t *testing.T) {
 	t.Parallel()
 
 	m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), config.Config{}).keptIn()
-	next, _ := m.selectRoom(roomByName(t, m, "!a:x"))
+	next, _ := m.selectRoom(roomByName(t, m, mx+"!a:x"))
 	m = next
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Infra")
 	status := func(m Model) string { return stripStyles(m.renderStatus()) }

@@ -49,18 +49,18 @@ func TestABridgesTagComesOffAName(t *testing.T) {
 func TestAPersonsNumberIsReadFromTheirID(t *testing.T) {
 	t.Parallel()
 	for id, want := range map[string]string{
-		"whatsapp:15550100123@s.whatsapp.net":     "15550100123",
-		"whatsapp:15550100123@lid":                "",
-		"whatsapp:120363000000000000@g.us":        "",
-		"whatsapp:111/15550100123@s.whatsapp.net": "", // a room, not a person
-		"@whatsapp_15550100123:example.org":       "15550100123",
-		"@whatsapp_il_15550100123:example.org":    "15550100123",
-		"@whatsapp_lid-abc:example.org":           "",
-		"@whatsappbot:example.org":                "",
-		"@telegram_123456789:example.org":         "",
-		"@gmessages_2.610:example.org":            "",
-		"@dana:example.org":                       "",
-		"telegram:123456789":                      "",
+		"whatsapp:15550100123@s.whatsapp.net":         "15550100123",
+		"whatsapp:15550100123@lid":                    "",
+		"whatsapp:120363000000000000@g.us":            "",
+		"whatsapp:111/15550100123@s.whatsapp.net":     "", // a room, not a person
+		"matrix:@whatsapp_15550100123:example.org":    "15550100123",
+		"matrix:@whatsapp_il_15550100123:example.org": "15550100123",
+		"matrix:@whatsapp_lid-abc:example.org":        "",
+		"matrix:@whatsappbot:example.org":             "",
+		"matrix:@telegram_123456789:example.org":      "",
+		"matrix:@gmessages_2.610:example.org":         "",
+		"matrix:@dana:example.org":                    "",
+		"telegram:123456789":                          "",
 	} {
 		if got := PhoneOf(id); got != want {
 			t.Errorf("PhoneOf(%q) = %q, want %q", id, got, want)

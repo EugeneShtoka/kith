@@ -8,7 +8,7 @@ type JumpKind int
 const (
 	// JumpNone is a target that could not be read.
 	JumpNone JumpKind = iota
-	// JumpRoom is a room, named by its ID: "!abc:example.org".
+	// JumpRoom is a room, named by its ID: "matrix:<account>/!abc:example.org".
 	JumpRoom
 	// JumpHome is a rail row, named by a home entry: space:, tag: or place:<name>.
 	JumpHome

@@ -12,15 +12,15 @@ func TestChordWaitsThenActs(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Timestamp: at(1)},
-		{ID: "$2", RoomID: "!a:x", Timestamp: at(2)},
-		{ID: "$3", RoomID: "!a:x", Timestamp: at(3)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Timestamp: at(1)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Timestamp: at(2)},
+		{ID: mx + "$3", RoomID: mx + "!a:x", Timestamp: at(3)},
 	}}})
 	m.focus, m.compose.insertMode = paneTimeline, false
 
 	m, _ = press(t, m, keyText("g"))
-	if got := m.selectedID(); got != "$3" {
+	if got := m.selectedID(); got != mx+"$3" {
 		t.Errorf("selected = %q, want the newest still — half a chord acts on nothing", got)
 	}
 	if !strings.Contains(m.chordPending(), "g") {
@@ -28,7 +28,7 @@ func TestChordWaitsThenActs(t *testing.T) {
 	}
 
 	m, _ = press(t, m, keyText("g"))
-	if got := m.selectedID(); got != "$1" {
+	if got := m.selectedID(); got != mx+"$1" {
 		t.Errorf("selected = %q, want the oldest after gg", got)
 	}
 	if m.chordPending() != "" {

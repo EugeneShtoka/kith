@@ -22,7 +22,7 @@ type Notifications struct {
 type Rule struct {
 	Name   string `toml:"name"`
 	Match  string `toml:"match"`  // one place-vocabulary entry (setup.PlaceEntries); empty is account-wide
-	Sender string `toml:"sender"` // MXID
+	Sender string `toml:"sender"` // a person's ID
 	Sound  string `toml:"sound"`
 	Show   string `toml:"show"` // none, mention, dm or all
 	Ring   string `toml:"ring"` // as Show; unset follows it

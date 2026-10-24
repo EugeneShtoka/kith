@@ -43,7 +43,7 @@ func (b *searchBackend) SearchMessages(_ context.Context, req domain.SearchReque
 
 func hit(room domain.RoomID, event domain.EventID, name, snippet string, agoHours int) domain.SearchHit {
 	return domain.SearchHit{
-		RoomID: room, EventID: event, Sender: "@" + name + ":x", SenderName: name,
+		RoomID: room, EventID: event, Sender: "matrix:@" + name + ":x", SenderName: name,
 		Timestamp: time.Now().Add(-time.Duration(agoHours) * time.Hour),
 		Snippet:   snippet,
 	}
@@ -54,8 +54,8 @@ func searching(t *testing.T, global bool, hits ...domain.SearchHit) (Model, *sea
 	t.Helper()
 	b := &searchBackend{hits: hits}
 	m := update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo", IsDirect: true},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo", IsDirect: true},
 	}})
 	m = sized(t, m)
 	// Open a room so a room-scoped search has something to scope to.
@@ -102,7 +102,7 @@ func TestSearchOpensScopedToTheOpenRoom(t *testing.T) {
 		t.Error("search should focus the pane its results appear in")
 	}
 	m = typeQuery(t, m, "deploy")
-	if len(b.rooms) == 0 || b.rooms[len(b.rooms)-1] != "!a:x" {
+	if len(b.rooms) == 0 || b.rooms[len(b.rooms)-1] != mx+"!a:x" {
 		t.Errorf("searched rooms = %v, want the open room", b.rooms)
 	}
 }
@@ -210,7 +210,7 @@ func TestSearchTitleNamesTheScope(t *testing.T) {
 func TestSearchRunsAsYouType(t *testing.T) {
 	t.Parallel()
 
-	m, b := searching(t, false, hit("!a:x", "$1", "Alice", "the deploy", 1))
+	m, b := searching(t, false, hit(mx+"!a:x", mx+"$1", "Alice", "the deploy", 1))
 	m = typeQuery(t, m, "dep")
 
 	if got := strings.Join(b.queries, ","); got != "d,de,dep" {
@@ -241,7 +241,7 @@ func TestStaleSearchResultsAreDropped(t *testing.T) {
 	m, _ := searching(t, false)
 	m = typeQuery(t, m, "deploy")
 
-	fresh := []domain.SearchHit{hit("!a:x", "$1", "Alice", "current", 1)}
+	fresh := []domain.SearchHit{hit(mx+"!a:x", mx+"$1", "Alice", "current", 1)}
 	m = update(t, m, searchResultsMsg{query: "deploy", scope: searchInRoom, hits: fresh})
 	if len(m.search.hits) != 1 {
 		t.Fatalf("hits = %d, want the current results", len(m.search.hits))
@@ -249,10 +249,10 @@ func TestStaleSearchResultsAreDropped(t *testing.T) {
 
 	// A late result for "dep", a query typed past.
 	stale := []domain.SearchHit{
-		hit("!a:x", "$9", "Bob", "stale", 2), hit("!a:x", "$8", "Bob", "stale", 3),
+		hit(mx+"!a:x", mx+"$9", "Bob", "stale", 2), hit(mx+"!a:x", mx+"$8", "Bob", "stale", 3),
 	}
 	m = update(t, m, searchResultsMsg{query: "dep", scope: searchInRoom, hits: stale})
-	if len(m.search.hits) != 1 || m.search.hits[0].EventID != "$1" {
+	if len(m.search.hits) != 1 || m.search.hits[0].EventID != mx+"$1" {
 		t.Errorf("stale results overwrote current ones: %+v", m.search.hits)
 	}
 	// So is one for a different scope.
@@ -266,9 +266,9 @@ func TestSearchResultsAreWalkable(t *testing.T) {
 	t.Parallel()
 
 	m, _ := searching(t, true,
-		hit("!a:x", "$1", "Alice", "one", 1),
-		hit("!b:x", "$2", "Bob", "two", 2),
-		hit("!a:x", "$3", "Dana", "three", 3))
+		hit(mx+"!a:x", mx+"$1", "Alice", "one", 1),
+		hit(mx+"!b:x", mx+"$2", "Bob", "two", 2),
+		hit(mx+"!a:x", mx+"$3", "Dana", "three", 3))
 	m = typeQuery(t, m, "x")
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
@@ -308,7 +308,7 @@ func TestSearchCloses(t *testing.T) {
 	t.Parallel()
 
 	// From the prompt.
-	m, _ := searching(t, false, hit("!a:x", "$1", "Alice", "one", 1))
+	m, _ := searching(t, false, hit(mx+"!a:x", mx+"$1", "Alice", "one", 1))
 	m = typeQuery(t, m, "x")
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.search.active || m.prompt.active() {
@@ -316,7 +316,7 @@ func TestSearchCloses(t *testing.T) {
 	}
 
 	// From the results.
-	m, _ = searching(t, false, hit("!a:x", "$1", "Alice", "one", 1))
+	m, _ = searching(t, false, hit(mx+"!a:x", mx+"$1", "Alice", "one", 1))
 	m = typeQuery(t, m, "x")
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -328,7 +328,7 @@ func TestSearchCloses(t *testing.T) {
 func TestJumpToResultSelectsTheMessage(t *testing.T) {
 	t.Parallel()
 
-	m, _ := searching(t, true, hit("!b:x", "$target", "Bob", "found it", 5))
+	m, _ := searching(t, true, hit(mx+"!b:x", mx+"$target", "Bob", "found it", 5))
 	m = typeQuery(t, m, "found")
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter}) // commit
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter}) // jump
@@ -336,22 +336,22 @@ func TestJumpToResultSelectsTheMessage(t *testing.T) {
 	if m.search.active {
 		t.Error("jumping should dismiss the results")
 	}
-	if m.openRoom != "!b:x" {
+	if m.openRoom != mx+"!b:x" {
 		t.Errorf("open room = %q, want the hit's room", m.openRoom)
 	}
-	if m.jump.to != "$target" {
+	if m.jump.to != mx+"$target" {
 		t.Errorf("jump.to = %q, want the hit's event", m.jump.to)
 	}
-	if m.timeline.selected == "$target" {
+	if m.timeline.selected == mx+"$target" {
 		t.Error("the message cannot be selected before the timeline holds it")
 	}
 
-	m = update(t, m, cachedTimelineMsg{roomID: "!b:x", messages: []domain.Message{
-		{ID: "$older", RoomID: "!b:x", Sender: "@bob:x", Body: "before", Timestamp: time.Now().Add(-6 * time.Hour)},
-		{ID: "$target", RoomID: "!b:x", Sender: "@bob:x", Body: "found it", Timestamp: time.Now().Add(-5 * time.Hour)},
-		{ID: "$newer", RoomID: "!b:x", Sender: "@bob:x", Body: "after", Timestamp: time.Now().Add(-4 * time.Hour)},
+	m = update(t, m, cachedTimelineMsg{roomID: mx + "!b:x", messages: []domain.Message{
+		{ID: mx + "$older", RoomID: mx + "!b:x", Sender: "matrix:@bob:x", Body: "before", Timestamp: time.Now().Add(-6 * time.Hour)},
+		{ID: mx + "$target", RoomID: mx + "!b:x", Sender: "matrix:@bob:x", Body: "found it", Timestamp: time.Now().Add(-5 * time.Hour)},
+		{ID: mx + "$newer", RoomID: mx + "!b:x", Sender: "matrix:@bob:x", Body: "after", Timestamp: time.Now().Add(-4 * time.Hour)},
 	}})
-	if m.timeline.selected != "$target" {
+	if m.timeline.selected != mx+"$target" {
 		t.Errorf("selected = %q, want the jump target", m.timeline.selected)
 	}
 	if m.jump.to != "" {
@@ -365,21 +365,21 @@ func TestJumpToResultSelectsTheMessage(t *testing.T) {
 func TestJumpToUncachedMessageIsReported(t *testing.T) {
 	t.Parallel()
 
-	m, _ := searching(t, true, hit("!b:x", "$gone", "Bob", "was here", 5))
+	m, _ := searching(t, true, hit(mx+"!b:x", mx+"$gone", "Bob", "was here", 5))
 	m = typeQuery(t, m, "was")
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// The cached page arrives without it; the jump stays pending…
-	m = update(t, m, cachedTimelineMsg{roomID: "!b:x", messages: []domain.Message{
-		{ID: "$other", RoomID: "!b:x", Sender: "@bob:x", Body: "something else"},
+	m = update(t, m, cachedTimelineMsg{roomID: mx + "!b:x", messages: []domain.Message{
+		{ID: mx + "$other", RoomID: mx + "!b:x", Sender: "matrix:@bob:x", Body: "something else"},
 	}})
-	if m.jump.to != "$gone" {
+	if m.jump.to != mx+"$gone" {
 		t.Error("the jump should still be pending while history is arriving")
 	}
 	// …until the live page settles it.
-	m = update(t, m, timelineMsg{roomID: "!b:x", page: domain.TimelinePage{
-		Messages: []domain.Message{{ID: "$other", RoomID: "!b:x", Sender: "@bob:x", Body: "something else"}},
+	m = update(t, m, timelineMsg{roomID: mx + "!b:x", page: domain.TimelinePage{
+		Messages: []domain.Message{{ID: mx + "$other", RoomID: mx + "!b:x", Sender: "matrix:@bob:x", Body: "something else"}},
 	}})
 	if m.jump.to != "" {
 		t.Error("an unresolvable jump should be abandoned once history has settled")
@@ -392,7 +392,7 @@ func TestJumpToUncachedMessageIsReported(t *testing.T) {
 func TestJumpToLeftRoom(t *testing.T) {
 	t.Parallel()
 
-	m, _ := searching(t, true, hit("!gone:x", "$1", "Bob", "x", 1))
+	m, _ := searching(t, true, hit(mx+"!gone:x", mx+"$1", "Bob", "x", 1))
 	m = typeQuery(t, m, "x")
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -412,11 +412,11 @@ func TestSearchSummary(t *testing.T) {
 	if got := m.searchSummary(); !strings.Contains(got, "no matches in this room") {
 		t.Errorf("no-match summary = %q", got)
 	}
-	m.search.hits = []domain.SearchHit{hit("!a:x", "$1", "A", "s", 1)}
+	m.search.hits = []domain.SearchHit{hit(mx+"!a:x", mx+"$1", "A", "s", 1)}
 	if got := m.searchSummary(); !strings.Contains(got, "1 match") {
 		t.Errorf("one-match summary = %q", got)
 	}
-	m.search.hits = append(m.search.hits, hit("!a:x", "$2", "B", "s", 2))
+	m.search.hits = append(m.search.hits, hit(mx+"!a:x", mx+"$2", "B", "s", 2))
 	if got := m.searchSummary(); !strings.Contains(got, "2 matches") {
 		t.Errorf("two-match summary = %q", got)
 	}
@@ -442,8 +442,8 @@ func TestSearchPaneContents(t *testing.T) {
 
 	H, E := domain.HighlightStart, domain.HighlightEnd
 	m, _ := searching(t, true,
-		hit("!a:x", "$1", "Alice", "the "+H+"deploy"+E+" went out", 1),
-		hit("!b:x", "$2", "Bob", H+"deploy"+E+" blocked", 2))
+		hit(mx+"!a:x", mx+"$1", "Alice", "the "+H+"deploy"+E+" went out", 1),
+		hit(mx+"!b:x", mx+"$2", "Bob", H+"deploy"+E+" blocked", 2))
 	m = typeQuery(t, m, "deploy")
 	body := stripStyles(m.View().Content)
 
@@ -456,7 +456,7 @@ func TestSearchPaneContents(t *testing.T) {
 		t.Error("highlight markers leaked into the rendered output")
 	}
 
-	m2, _ := searching(t, false, hit("!a:x", "$1", "Alice", "x", 1))
+	m2, _ := searching(t, false, hit(mx+"!a:x", mx+"$1", "Alice", "x", 1))
 	m2 = typeQuery(t, m2, "x")
 	if strings.Contains(stripStyles(m2.View().Content), "[Alpha]") {
 		t.Error("a room-scoped search should not repeat the room on every row")
@@ -466,7 +466,7 @@ func TestSearchPaneContents(t *testing.T) {
 func TestSearchExcerptIsOneLine(t *testing.T) {
 	t.Parallel()
 
-	m, _ := searching(t, false, hit("!a:x", "$1", "Alice", "first line\n\nsecond line", 1))
+	m, _ := searching(t, false, hit(mx+"!a:x", mx+"$1", "Alice", "first line\n\nsecond line", 1))
 	m = typeQuery(t, m, "line")
 	rows := 0
 	for line := range strings.SplitSeq(stripStyles(m.View().Content), "\n") {
@@ -498,7 +498,7 @@ func TestSearchErrorSurfaces(t *testing.T) {
 
 	b := &searchBackend{err: errTest}
 	m := sized(t, update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}}))
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	m, _ = press(t, m, tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})

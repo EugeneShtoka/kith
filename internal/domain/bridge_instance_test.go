@@ -11,19 +11,19 @@ func TestInstanceSuffixedBridgeBots(t *testing.T) {
 	t.Parallel()
 
 	bridged := map[string]domain.Protocol{
-		"@whatsappbot_bg:example.org":       domain.ProtocolWhatsApp,
-		"@whatsappbot_il:example.org":       domain.ProtocolWhatsApp,
-		"@whatsapp_bg_44770123:example.org": domain.ProtocolWhatsApp,
-		"@whatsapp_work_150123:example.org": domain.ProtocolWhatsApp,
-		"@linkedinbot:example.org":          domain.ProtocolLinkedIn,
-		"@slackbot:example.org":             domain.ProtocolSlack,
-		"@telegrambot:example.org":          domain.ProtocolTelegram,
-		"@gmessagesbot:example.org":         domain.ProtocolGMessages,
-		"@metabot:example.org":              domain.ProtocolMessenger,
-		"@signalbot:example.org":            domain.ProtocolSignal,
+		"matrix:@whatsappbot_bg:example.org":       domain.ProtocolWhatsApp,
+		"matrix:@whatsappbot_il:example.org":       domain.ProtocolWhatsApp,
+		"matrix:@whatsapp_bg_44770123:example.org": domain.ProtocolWhatsApp,
+		"matrix:@whatsapp_work_150123:example.org": domain.ProtocolWhatsApp,
+		"matrix:@linkedinbot:example.org":          domain.ProtocolLinkedIn,
+		"matrix:@slackbot:example.org":             domain.ProtocolSlack,
+		"matrix:@telegrambot:example.org":          domain.ProtocolTelegram,
+		"matrix:@gmessagesbot:example.org":         domain.ProtocolGMessages,
+		"matrix:@metabot:example.org":              domain.ProtocolMessenger,
+		"matrix:@signalbot:example.org":            domain.ProtocolSignal,
 		// A dash or a dot separates an instance just as well as an underscore.
-		"@slackbot-work:example.org": domain.ProtocolSlack,
-		"@metabot.two:example.org":   domain.ProtocolMessenger,
+		"matrix:@slackbot-work:example.org": domain.ProtocolSlack,
+		"matrix:@metabot.two:example.org":   domain.ProtocolMessenger,
 	}
 	for mxid, want := range bridged {
 		if got := domain.ProtocolOf(mxid); got != want {
@@ -33,10 +33,10 @@ func TestInstanceSuffixedBridgeBots(t *testing.T) {
 
 	// A suffix must start with a separator, or it would match any name with the prefix.
 	for _, mxid := range []string{
-		"@whatsappbotanist:example.org",
-		"@robot:example.org",
-		"@eugene:example.org",
-		"@slackbotany:example.org",
+		"matrix:@whatsappbotanist:example.org",
+		"matrix:@robot:example.org",
+		"matrix:@eugene:example.org",
+		"matrix:@slackbotany:example.org",
 	} {
 		if got := domain.ProtocolOf(mxid); got != domain.ProtocolMatrix {
 			t.Errorf("ProtocolOf(%q) = %q, want a person", mxid, got)

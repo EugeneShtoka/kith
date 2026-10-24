@@ -33,14 +33,14 @@ func TestANumberIsNamedFromTheDirectory(t *testing.T) {
 	t.Parallel()
 	b := bookBackend{dir: numbersNamed(map[string]string{"15550100001": "Dana", "15550100002": "Eli", "15550100003": "Fay"})}
 	display := config.Display{
-		Names:      []config.DisplayName{{Target: "!e:x", Name: "Eli (mine)"}},
-		Identities: []config.Identity{{Alias: "Fay (mine)", IDs: []string{"@whatsapp_15550100003:x"}}},
+		Names:      []config.DisplayName{{Target: mx + "!e:x", Name: "Eli (mine)"}},
+		Identities: []config.Identity{{Alias: "Fay (mine)", IDs: []string{"matrix:@whatsapp_15550100003:x"}}},
 	}
 	m := New(context.Background(), b, display)
 	m, cmd := asModel(m.Update(roomsMsg{rooms: []domain.Room{
-		{ID: "!d:x", Name: "+15550100001 (WA)", IsDirect: true},
-		{ID: "!e:x", Name: "+15550100002", IsDirect: true},
-		{ID: "!g:x", Name: "Dana +15550100001"},
+		{ID: mx + "!d:x", Name: "+15550100001 (WA)", IsDirect: true},
+		{ID: mx + "!e:x", Name: "+15550100002", IsDirect: true},
+		{ID: mx + "!g:x", Name: "Dana +15550100001"},
 	}}))
 	read, ok := msgOf[directoryMsg](t, cmd)
 	if !ok {
@@ -48,22 +48,22 @@ func TestANumberIsNamedFromTheDirectory(t *testing.T) {
 	}
 	m = update(t, m, read)
 
-	for id, want := range map[domain.RoomID]string{"!d:x": "Dana", "!e:x": "Eli (mine)", "!g:x": "Dana +15550100001"} {
+	for id, want := range map[domain.RoomID]string{mx + "!d:x": "Dana", mx + "!e:x": "Eli (mine)", mx + "!g:x": "Dana +15550100001"} {
 		room, _ := m.roomByID(id)
 		if got := m.roomLabel(room); got != want {
 			t.Errorf("room %s = %q, want %q", id, got, want)
 		}
 	}
 	for _, c := range []struct{ sender, shown, want string }{
-		{"@whatsapp_il_15550100001:x", "+1 555 010 0001 (WA)", "Dana"},
-		{"@whatsapp_15550100003:x", "+15550100003 (WA)", "Fay (mine)"},
-		{"@whatsapp_15550100001:x", "Dana's old name", "Dana's old name"},
+		{"matrix:@whatsapp_il_15550100001:x", "+1 555 010 0001 (WA)", "Dana"},
+		{"matrix:@whatsapp_15550100003:x", "+15550100003 (WA)", "Fay (mine)"},
+		{"matrix:@whatsapp_15550100001:x", "Dana's old name", "Dana's old name"},
 	} {
-		if got := m.processedName(domain.Message{RoomID: "!d:x", Sender: c.sender, SenderName: c.shown}); got != c.want {
+		if got := m.processedName(domain.Message{RoomID: mx + "!d:x", Sender: c.sender, SenderName: c.shown}); got != c.want {
 			t.Errorf("sender %s shown %q = %q, want %q", c.sender, c.shown, got, c.want)
 		}
 	}
-	if _, name := m.personOf(domain.Member{UserID: "@whatsapp_15550100001:x", DisplayName: "+15550100001"}); name != "Dana" {
+	if _, name := m.personOf(domain.Member{UserID: "matrix:@whatsapp_15550100001:x", DisplayName: "+15550100001"}); name != "Dana" {
 		t.Errorf("member = %q, want Dana", name)
 	}
 }

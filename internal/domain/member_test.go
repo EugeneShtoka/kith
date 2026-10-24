@@ -13,8 +13,8 @@ func TestMemberName(t *testing.T) {
 		member domain.Member
 		want   string
 	}{
-		"display name wins":    {domain.Member{UserID: "@alice:x", DisplayName: "Alice"}, "Alice"},
-		"falls back to local":  {domain.Member{UserID: "@alice:example.org"}, "alice"},
+		"display name wins":    {domain.Member{UserID: "matrix:@alice:x", DisplayName: "Alice"}, "Alice"},
+		"falls back to local":  {domain.Member{UserID: "matrix:@alice:example.org"}, "alice"},
 		"bare id has no local": {domain.Member{UserID: "nonsense"}, "nonsense"},
 		"empty":                {domain.Member{}, ""},
 	}
@@ -29,12 +29,12 @@ func TestLocalpart(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]string{
-		"@alice:example.org": "alice",
-		"alice:example.org":  "alice",
-		"@whatsapp_4470:x":   "whatsapp_4470",
-		"@no-server":         "no-server",
-		"":                   "",
-		"@:server":           "",
+		"matrix:@alice:example.org": "alice",
+		"alice:example.org":         "alice",
+		"matrix:@whatsapp_4470:x":   "whatsapp_4470",
+		"@no-server":                "no-server",
+		"":                          "",
+		"@:server":                  "",
 	}
 	for in, want := range tests {
 		if got := domain.Localpart(in); got != want {
@@ -47,10 +47,10 @@ func TestLocalpart(t *testing.T) {
 func TestMemberMatches(t *testing.T) {
 	t.Parallel()
 
-	michael := domain.Member{UserID: "@mike:x", DisplayName: "Michael Livingston"}
-	bridged := domain.Member{UserID: "@whatsapp_4470:x", DisplayName: "Dana Levi"}
-	dotted := domain.Member{UserID: "@d:x", DisplayName: "michael.livingston"}
-	parens := domain.Member{UserID: "@p:x", DisplayName: "Dana Levi (WA)"}
+	michael := domain.Member{UserID: "matrix:@mike:x", DisplayName: "Michael Livingston"}
+	bridged := domain.Member{UserID: "matrix:@whatsapp_4470:x", DisplayName: "Dana Levi"}
+	dotted := domain.Member{UserID: "matrix:@d:x", DisplayName: "michael.livingston"}
+	parens := domain.Member{UserID: "matrix:@p:x", DisplayName: "Dana Levi (WA)"}
 
 	tests := []struct {
 		name   string
@@ -89,11 +89,11 @@ func TestSortMembers(t *testing.T) {
 	t.Parallel()
 
 	members := []domain.Member{
-		{UserID: "@c:x", DisplayName: "carol"},
-		{UserID: "@b2:x", DisplayName: "Bob"},
-		{UserID: "@a:x", DisplayName: "Alice"},
-		{UserID: "@b1:x", DisplayName: "Bob"},
-		{UserID: "@z:x"}, // no display name: sorts by localpart
+		{UserID: "matrix:@c:x", DisplayName: "carol"},
+		{UserID: "matrix:@b2:x", DisplayName: "Bob"},
+		{UserID: "matrix:@a:x", DisplayName: "Alice"},
+		{UserID: "matrix:@b1:x", DisplayName: "Bob"},
+		{UserID: "matrix:@z:x"}, // no display name: sorts by localpart
 	}
 	domain.SortMembers(members)
 	got := make([]string, len(members))
@@ -101,7 +101,7 @@ func TestSortMembers(t *testing.T) {
 		got[i] = member.UserID
 	}
 	// Case-insensitive by name, MXID breaking ties so two Bobs keep a fixed order.
-	want := []string{"@a:x", "@b1:x", "@b2:x", "@c:x", "@z:x"}
+	want := []string{"matrix:@a:x", "matrix:@b1:x", "matrix:@b2:x", "matrix:@c:x", "matrix:@z:x"}
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("sorted = %v, want %v", got, want)
@@ -113,8 +113,8 @@ func TestSortMembers(t *testing.T) {
 func TestDraftLiveMentions(t *testing.T) {
 	t.Parallel()
 
-	alice := domain.Mention{UserID: "@alice:x", Name: "Alice"}
-	bob := domain.Mention{UserID: "@bob:x", Name: "Bob"}
+	alice := domain.Mention{UserID: "matrix:@alice:x", Name: "Alice"}
+	bob := domain.Mention{UserID: "matrix:@bob:x", Name: "Bob"}
 
 	tests := []struct {
 		name  string
@@ -124,7 +124,7 @@ func TestDraftLiveMentions(t *testing.T) {
 		{
 			name:  "still named",
 			draft: domain.Draft{Body: "hi Alice", Mentions: []domain.Mention{alice}},
-			want:  []string{"@alice:x"},
+			want:  []string{"matrix:@alice:x"},
 		},
 		{
 			name:  "typed over",
@@ -134,12 +134,12 @@ func TestDraftLiveMentions(t *testing.T) {
 		{
 			name:  "one of two deleted",
 			draft: domain.Draft{Body: "hi Bob", Mentions: []domain.Mention{alice, bob}},
-			want:  []string{"@bob:x"},
+			want:  []string{"matrix:@bob:x"},
 		},
 		{
 			name:  "named twice, notified once",
 			draft: domain.Draft{Body: "Alice, Alice!", Mentions: []domain.Mention{alice, alice}},
-			want:  []string{"@alice:x"},
+			want:  []string{"matrix:@alice:x"},
 		},
 		{
 			name:  "no mentions at all",
@@ -148,7 +148,7 @@ func TestDraftLiveMentions(t *testing.T) {
 		},
 		{
 			name:  "a blank mention is not a mention",
-			draft: domain.Draft{Body: "hi", Mentions: []domain.Mention{{UserID: "@x:y"}, {Name: "n"}}},
+			draft: domain.Draft{Body: "hi", Mentions: []domain.Mention{{UserID: "matrix:@x:y"}, {Name: "n"}}},
 			want:  nil,
 		},
 	}

@@ -37,7 +37,7 @@ func failing(t *testing.T) (Model, *queueStub) {
 	t.Helper()
 	queue := &queueStub{}
 	m := jumping(t).WithSchedules(queue)
-	return openedFromList(t, m, "!a:x"), queue
+	return openedFromList(t, m, mx+"!a:x"), queue
 }
 
 func TestAFailedSendIsQueued(t *testing.T) {
@@ -46,11 +46,11 @@ func TestAFailedSendIsQueued(t *testing.T) {
 	m, queue := failing(t)
 	m, cmd := routed(t, m, sentMsg{
 		err:    errors.New("dial tcp: connection refused"),
-		roomID: "!a:x",
+		roomID: mx + "!a:x",
 		draft: domain.Draft{
 			Body:     "the words that must not be lost",
-			ReplyTo:  "$their-message",
-			Mentions: []domain.Mention{{UserID: "@dana:x", Name: "Dana"}},
+			ReplyTo:  mx + "$their-message",
+			Mentions: []domain.Mention{{UserID: "matrix:@dana:x", Name: "Dana"}},
 		},
 	})
 	m = settle(t, m, cmd)
@@ -59,14 +59,14 @@ func TestAFailedSendIsQueued(t *testing.T) {
 		t.Fatalf("the queue holds %d entries, want the failed send", len(queue.added))
 	}
 	held := queue.added[0]
-	if held.Body != "the words that must not be lost" || held.RoomID != "!a:x" {
+	if held.Body != "the words that must not be lost" || held.RoomID != mx+"!a:x" {
 		t.Errorf("queued %+v, want the message that failed", held)
 	}
 	// Queued as composed: a dropped reply target or pill would change the message.
-	if held.ReplyTo != "$their-message" {
+	if held.ReplyTo != mx+"$their-message" {
 		t.Errorf("queued reply target = %q, want it kept", held.ReplyTo)
 	}
-	if len(held.Mentions) != 1 || held.Mentions[0].UserID != "@dana:x" {
+	if len(held.Mentions) != 1 || held.Mentions[0].UserID != "matrix:@dana:x" {
 		t.Errorf("queued mentions = %+v, want Dana's pill kept", held.Mentions)
 	}
 	// Due now: the scheduler sends it at the next pass, and it counts as unsent, not scheduled.
@@ -86,15 +86,15 @@ func TestAnUnqueueableSendGoesBackToTheDraft(t *testing.T) {
 	queue.fail = errors.New("daemon is not listening")
 	m, cmd := routed(t, m, sentMsg{
 		err:    errors.New("connection refused"),
-		roomID: "!a:x",
-		draft:  domain.Draft{Body: "keep me", ReplyTo: "$theirs"},
+		roomID: mx + "!a:x",
+		draft:  domain.Draft{Body: "keep me", ReplyTo: mx + "$theirs"},
 	})
 	m = settle(t, m, cmd)
 
 	if m.compose.input != "keep me" {
 		t.Errorf("composer holds %q, want the words back", m.compose.input)
 	}
-	if m.compose.replyTo != "$theirs" {
+	if m.compose.replyTo != mx+"$theirs" {
 		t.Errorf("reply target = %q, want it back with the words", m.compose.replyTo)
 	}
 	if !strings.Contains(m.status(), "draft") {
@@ -108,10 +108,10 @@ func TestAnUnqueueableSendReachesTheRightRoom(t *testing.T) {
 
 	m, queue := failing(t)
 	queue.fail = errors.New("no daemon")
-	m = openedFromList(t, m, "!ops:x") // moved on before the failure lands
+	m = openedFromList(t, m, mx+"!ops:x") // moved on before the failure lands
 	m, cmd := routed(t, m, sentMsg{
 		err:    errors.New("connection refused"),
-		roomID: "!a:x",
+		roomID: mx + "!a:x",
 		draft:  domain.Draft{Body: "for Alpha"},
 	})
 	m = settle(t, m, cmd)
@@ -119,13 +119,13 @@ func TestAnUnqueueableSendReachesTheRightRoom(t *testing.T) {
 	if m.compose.input != "" {
 		t.Errorf("the open room's composer holds %q, want it untouched", m.compose.input)
 	}
-	if !m.hasDraft("!a:x") {
+	if !m.hasDraft(mx + "!a:x") {
 		t.Fatal("the words did not reach the room they were written for")
 	}
 	if _, ok := findGroup(m.rail.groups, draftsGroupKey); !ok {
 		t.Error("the Drafts group does not show the room now holding words")
 	}
-	back := openedFromList(t, m, "!a:x")
+	back := openedFromList(t, m, mx+"!a:x")
 	if back.compose.input != "for Alpha" {
 		t.Errorf("Alpha's draft = %q, want the unsent words", back.compose.input)
 	}
@@ -140,7 +140,7 @@ func TestAnUnqueueableSendKeepsWhatWasTypedSince(t *testing.T) {
 	m = typeInto(t, m, "typed while it was failing")
 	m, cmd := routed(t, m, sentMsg{
 		err:    errors.New("connection refused"),
-		roomID: "!a:x",
+		roomID: mx + "!a:x",
 		draft:  domain.Draft{Body: "the earlier message"},
 	})
 	m = settle(t, m, cmd)
@@ -162,8 +162,8 @@ func TestAFailedEditIsNotQueued(t *testing.T) {
 	m, queue := failing(t)
 	m, cmd := routed(t, m, sentMsg{
 		err:    errors.New("connection refused"),
-		roomID: "!a:x",
-		draft:  domain.Draft{Body: "corrected", Edits: "$original"},
+		roomID: mx + "!a:x",
+		draft:  domain.Draft{Body: "corrected", Edits: mx + "$original"},
 	})
 	m = settle(t, m, cmd)
 
@@ -191,7 +191,7 @@ func TestAQueuedRetryKeepsTheTransactionID(t *testing.T) {
 	m, queue := failing(t)
 	m, cmd := routed(t, m, sentMsg{
 		err:    errors.New("connection reset by peer"),
-		roomID: "!a:x",
+		roomID: mx + "!a:x",
 		draft:  domain.Draft{Body: "sent, maybe", TxnID: "kith-abc123"},
 	})
 	settle(t, m, cmd)

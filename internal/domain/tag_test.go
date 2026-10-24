@@ -21,9 +21,9 @@ func mustTags(t *testing.T, tags ...Tag) TagSet {
 }
 
 var (
-	momDM   = RoomFacts{ID: "!mom:x", Name: "Mom", Direct: true, Protocol: ProtocolMatrix}
+	momDM   = RoomFacts{ID: mx + "!mom:x", Name: "Mom", Direct: true, Protocol: ProtocolMatrix}
 	workGrp = RoomFacts{ID: "whatsapp:44/1@g.us", Name: "Standup", Spaces: []string{"Work"}, Protocol: ProtocolWhatsApp}
-	botsGrp = RoomFacts{ID: "!bots:x", Name: "Bots", Spaces: []string{"Work"}, Protocol: ProtocolMatrix}
+	botsGrp = RoomFacts{ID: mx + "!bots:x", Name: "Bots", Spaces: []string{"Work"}, Protocol: ProtocolMatrix}
 )
 
 // Some positive term and no `not` term must match (only `not` terms: no positive
@@ -31,15 +31,15 @@ var (
 func TestATagHoldsWhatItsRuleSays(t *testing.T) {
 	t.Parallel()
 	set := mustTags(t,
-		Tag{Name: "Family", Rule: []string{"dm", "room:Standup"}, Excluded: []string{"!mom:x"}},
-		Tag{Name: "Work", Rule: []string{"space:Work", "not room:Bots"}, Picked: []string{"!bots:x"}},
+		Tag{Name: "Family", Rule: []string{"dm", "room:Standup"}, Excluded: []string{mx + "!mom:x"}},
+		Tag{Name: "Work", Rule: []string{"space:Work", "not room:Bots"}, Picked: []string{mx + "!bots:x"}},
 		Tag{Name: "Everything", Rule: []string{"*"}},
 		Tag{Name: "NotDMs", Rule: []string{"not dm"}},
 		Tag{Name: "Pins"},
 		Tag{Name: "Busy", Rule: []string{"unread", "mention", "not tag:Spam"}},
-		Tag{Name: "Spam", Excluded: []string{"!mom:x"}},
+		Tag{Name: "Spam", Excluded: []string{mx + "!mom:x"}},
 		Tag{Name: "WhatsApp", Rule: []string{"protocol:WhatsApp"}},
-		Tag{Name: "Both", Picked: []string{"room:Bots"}, Excluded: []string{"!bots:x"}},
+		Tag{Name: "Both", Picked: []string{"room:Bots"}, Excluded: []string{mx + "!bots:x"}},
 	)
 	for _, tc := range []struct {
 		tag   string
@@ -84,7 +84,7 @@ func caught(facts RoomFacts, tags ...string) RoomFacts {
 func TestARuleCanNameTags(t *testing.T) {
 	t.Parallel()
 	set := mustTags(t,
-		Tag{Name: "Archived", Picked: []string{"!bots:x"}},
+		Tag{Name: "Archived", Picked: []string{mx + "!bots:x"}},
 		Tag{Name: "Inbox", Rule: []string{"*", "not tag:Archived"}},
 		Tag{Name: "WorkInbox", Rule: []string{"tag:Inbox", "not dm"}},
 	)
@@ -250,14 +250,14 @@ func modelTags(tags []Tag) func(int, RoomFacts) bool {
 // a dropped shared entry leaves the other room's ID.
 func TestFiledWritesOnlyWhatTheChoiceNeeds(t *testing.T) {
 	t.Parallel()
-	twin := RoomFacts{ID: "!twin:x", Name: "Standup"}
+	twin := RoomFacts{ID: mx + "!twin:x", Name: "Standup"}
 	set := mustTags(t,
 		Tag{Name: "Work", Rule: []string{"space:Work"}, Excluded: []string{"room:Standup"}},
-		Tag{Name: "Pins", Picked: []string{"!mom:x"}},
+		Tag{Name: "Pins", Picked: []string{mx + "!mom:x"}},
 	)
 	others := []RoomFacts{momDM, workGrp, botsGrp, twin}
 	picked, excluded := set.Filed(0, workGrp, RoomState{}, true, others)
-	if len(picked) != 0 || !slices.Equal(excluded, []string{"!twin:x"}) {
+	if len(picked) != 0 || !slices.Equal(excluded, []string{mx + "!twin:x"}) {
 		t.Errorf("into Work = %v / %v, want nothing picked (the rule holds it) and the twin still excluded", picked, excluded)
 	}
 	picked, excluded = set.Filed(1, momDM, RoomState{}, false, others)
@@ -265,7 +265,7 @@ func TestFiledWritesOnlyWhatTheChoiceNeeds(t *testing.T) {
 		t.Errorf("out of Pins = %v / %v, want both empty (the rule never held it)", picked, excluded)
 	}
 	picked, excluded = set.Filed(0, botsGrp, RoomState{}, false, others)
-	if !slices.Equal(excluded, []string{"room:Standup", "!bots:x"}) || len(picked) != 0 {
+	if !slices.Equal(excluded, []string{"room:Standup", mx + "!bots:x"}) || len(picked) != 0 {
 		t.Errorf("out of Work = %v / %v, want Bots excluded by ID", picked, excluded)
 	}
 }
@@ -320,10 +320,10 @@ func TestARoomKeepsWhatItsNarrowestRuleSays(t *testing.T) {
 	}{
 		{nil, -1},
 		{[]KeepRule{{"tag:Archived", 500}}, 500},
-		{[]KeepRule{{"tag:Archived", 500}, {"space:Family", 50}}, 50},         // equals: the later
-		{[]KeepRule{{"room:Dana", 10}, {"tag:Archived", 500}}, 10},            // one room over a set
-		{[]KeepRule{{"telegram:42/7", -1}, {"protocol:telegram", 100}}, -1},   // by ID, keeping all
-		{[]KeepRule{{"tag:Work", 5}, {"space:Work", 5}, {"!other:x", 5}}, -1}, // none name it
+		{[]KeepRule{{"tag:Archived", 500}, {"space:Family", 50}}, 50},              // equals: the later
+		{[]KeepRule{{"room:Dana", 10}, {"tag:Archived", 500}}, 10},                 // one room over a set
+		{[]KeepRule{{"telegram:42/7", -1}, {"protocol:telegram", 100}}, -1},        // by ID, keeping all
+		{[]KeepRule{{"tag:Work", 5}, {"space:Work", 5}, {mx + "!other:x", 5}}, -1}, // none name it
 	} {
 		if got := MessagesKept(-1, c.rules, room); got != c.want {
 			t.Errorf("rules %v: keeps %d, want %d", c.rules, got, c.want)

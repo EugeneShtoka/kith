@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	danaMatrix   = "@dana:example.org"
+	danaMatrix   = "matrix:@dana:example.org"
 	danaWhatsApp = "whatsapp:15550100001@s.whatsapp.net"
 )
 
@@ -74,12 +74,12 @@ func (b *saidBackend) last() domain.SaidRequest {
 func danaSays(n int) []domain.Message {
 	out := make([]domain.Message, n)
 	for i := range out {
-		sender, room := danaMatrix, domain.RoomID("!a:x")
+		sender, room := danaMatrix, domain.RoomID(mx+"!a:x")
 		if i%2 == 1 {
-			sender, room = danaWhatsApp, "!b:x"
+			sender, room = danaWhatsApp, mx+"!b:x"
 		}
 		out[i] = domain.Message{
-			ID: domain.EventID(fmt.Sprintf("$d%03d", i)), RoomID: room, Sender: sender,
+			ID: domain.EventID(fmt.Sprintf(mx+"$d%03d", i)), RoomID: room, Sender: sender,
 			Body: fmt.Sprintf("said %d", i), Timestamp: at(100 + i),
 		}
 	}
@@ -92,12 +92,12 @@ func saidModel(t *testing.T, b *saidBackend, cfg config.Config) Model {
 	cfg.Display.Identities = append(cfg.Display.Identities, config.Identity{Alias: "Dana", IDs: []string{danaMatrix, danaWhatsApp}})
 	m := New(context.Background(), b, cfg.Display).WithConfigFile("", cfg)
 	m = sized(t, withRooms(t, m))
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next.setMessages([]domain.Message{
-		{ID: "$x", RoomID: "!a:x", Sender: "@ezra:example.org", Body: "hi", Timestamp: at(1)},
-		{ID: "$y", RoomID: "!a:x", Sender: danaMatrix, Body: "hello", Timestamp: at(2)},
+		{ID: mx + "$x", RoomID: mx + "!a:x", Sender: "matrix:@ezra:example.org", Body: "hi", Timestamp: at(1)},
+		{ID: mx + "$y", RoomID: mx + "!a:x", Sender: danaMatrix, Body: "hello", Timestamp: at(2)},
 	})
-	m.timeline.selected = "$y"
+	m.timeline.selected = mx + "$y"
 	m.focus = paneTimeline
 	return m
 }
@@ -127,7 +127,7 @@ func TestEverythingSomeoneSaidOpensOnTheSender(t *testing.T) {
 	if strings.Index(pane, "said 3") < strings.Index(pane, "said 0") {
 		t.Errorf("the newest is not at the bottom:\n%s", pane)
 	}
-	if got, ok := m.said.selected(); !ok || got.ID != "$d003" {
+	if got, ok := m.said.selected(); !ok || got.ID != mx+"$d003" {
 		t.Errorf("cursor on %v, want the newest", got.ID)
 	}
 	m, _ = press(t, m, keyText("esc"))
@@ -187,7 +187,7 @@ func TestEverythingSomeoneSaidNarrowsToARoomAndANetwork(t *testing.T) {
 	// The newest is her WhatsApp account's, in Bravo.
 	m, cmd = press(t, m, keyCode(tea.KeyTab))
 	m = deliver(t, m, cmd)
-	if req := b.last(); req.Rooms.All || !slices.Equal(req.Rooms.IDs, []domain.RoomID{"!b:x"}) {
+	if req := b.last(); req.Rooms.All || !slices.Equal(req.Rooms.IDs, []domain.RoomID{mx + "!b:x"}) {
 		t.Fatalf("first narrowing asked %+v, want Bravo only", req.Rooms)
 	}
 	if !strings.Contains(m.saidTitle(), "in Bravo") {
@@ -220,7 +220,7 @@ func TestEverythingSomeoneSaidGoesToAMessage(t *testing.T) {
 	m = deliver(t, m, cmd)
 	m, _ = press(t, m, keyText("k")) // $d001, in Bravo
 	m, _ = press(t, m, keyCode(tea.KeyEnter))
-	if m.said.open || m.openRoom != "!b:x" || m.jump.to != "$d001" {
+	if m.said.open || m.openRoom != mx+"!b:x" || m.jump.to != mx+"$d001" {
 		t.Errorf("open=%v room=%s jump=%s, want Bravo with the message armed", m.said.open, m.openRoom, m.jump.to)
 	}
 }
@@ -247,7 +247,7 @@ func TestFromCompletesAPersonAndOpensWhatTheySaid(t *testing.T) {
 	t.Parallel()
 
 	b := &saidBackend{msgs: danaSays(2), people: []domain.Member{
-		{UserID: "@ezra:example.org", DisplayName: "Ezra"}, {UserID: danaWhatsApp, DisplayName: "Dana Levi"},
+		{UserID: "matrix:@ezra:example.org", DisplayName: "Ezra"}, {UserID: danaWhatsApp, DisplayName: "Dana Levi"},
 	}}
 	m := saidModel(t, b, config.Config{})
 	m, _ = press(t, m, keyText(":"))
@@ -281,7 +281,7 @@ func TestACardOpensEverythingItsPersonSaid(t *testing.T) {
 	m, _ := carding(t, nil)
 	m = cardOf(t, m, "eli")
 	m = pickLabel(t, m, "Everything they said")
-	if !m.said.open || m.said.id != "@eli:x" || m.picker.active() {
+	if !m.said.open || m.said.id != "matrix:@eli:x" || m.picker.active() {
 		t.Errorf("said=%v on %q, picker up=%v; want what Eli said, the card closed", m.said.open, m.said.id, m.picker.active())
 	}
 }

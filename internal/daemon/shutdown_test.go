@@ -64,7 +64,7 @@ func TestShutdownFreesAStreamWhoseClientStoppedReading(t *testing.T) {
 	// in a write only closing the connection ends.
 	big := strings.Repeat("x", 64<<10)
 	for range 300 { // about 19 MiB
-		backend.Msgs <- domain.Message{ID: "$m", RoomID: "!a:x", Body: big}
+		backend.Msgs <- domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Body: big}
 		time.Sleep(time.Millisecond)
 	}
 

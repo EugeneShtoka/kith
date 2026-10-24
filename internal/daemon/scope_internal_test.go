@@ -41,22 +41,22 @@ func (g *gatedRooms) ThreadParticipant(context.Context, domain.RoomID, domain.Ev
 func TestInvalidateOvertakesARebuildAlreadyReading(t *testing.T) {
 	t.Parallel()
 
-	src := &gatedRooms{rooms: []domain.Room{{ID: "!a:x", Name: "Old name"}}}
+	src := &gatedRooms{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Old name"}}}
 	x := newScopeIndex(src, nil, domain.HomeOrder{})
 	hold, read := make(chan struct{}), make(chan struct{})
 	src.hold, src.read = hold, read
 
 	done := make(chan struct{})
-	go func() { defer close(done); x.lookup(context.Background(), "!a:x") }()
+	go func() { defer close(done); x.lookup(context.Background(), mx+"!a:x") }()
 	<-read
 	src.mu.Lock()
-	src.rooms = []domain.Room{{ID: "!a:x", Name: "New name"}}
+	src.rooms = []domain.Room{{ID: mx + "!a:x", Name: "New name"}}
 	src.mu.Unlock()
 	x.Invalidate()
 	close(hold)
 	<-done
 
-	facts, ok := x.lookup(context.Background(), "!a:x")
+	facts, ok := x.lookup(context.Background(), mx+"!a:x")
 	if !ok || facts.Name != "New name" {
 		t.Errorf("lookup = %+v, %v; want the name read after the invalidation", facts, ok)
 	}
@@ -68,11 +68,11 @@ func TestANativeRoomIsOnItsOwnNetwork(t *testing.T) {
 
 	listed := domain.RoomID("whatsapp:44000000001/120363000000000001@g.us")
 	unlisted := domain.RoomID("whatsapp:44000000001/1500000002@s.whatsapp.net")
-	x := newScopeIndex(&gatedRooms{rooms: []domain.Room{{ID: listed, Name: "Choir"}, {ID: "!a:x"}}}, nil, domain.HomeOrder{})
+	x := newScopeIndex(&gatedRooms{rooms: []domain.Room{{ID: listed, Name: "Choir"}, {ID: mx + "!a:x"}}}, nil, domain.HomeOrder{})
 	for _, c := range []struct {
 		room domain.RoomID
 		want domain.Protocol
-	}{{listed, domain.ProtocolWhatsApp}, {unlisted, domain.ProtocolWhatsApp}, {"!a:x", domain.ProtocolMatrix}} {
+	}{{listed, domain.ProtocolWhatsApp}, {unlisted, domain.ProtocolWhatsApp}, {mx + "!a:x", domain.ProtocolMatrix}} {
 		if got := x.Facts(context.Background(), c.room).Protocol; got != c.want {
 			t.Errorf("Facts(%s).Protocol = %q, want %q", c.room, got, c.want)
 		}
@@ -91,17 +91,17 @@ func (s *spaced) Spaces(context.Context) ([]domain.Space, error) { return s.spac
 // order, the first bridge holding it, and its tags.
 func TestTheNotifierReadsRoomsAsEveryScopeDoes(t *testing.T) {
 	t.Parallel()
-	src := &spaced{gatedRooms: gatedRooms{rooms: []domain.Room{{ID: "!r:x", Name: "Standup"}}}, spaces: []domain.Space{
-		{ID: "!wa:x", Name: "WhatsApp", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{"!r:x"}},
-		{ID: "!tg:x", Name: "Telegram", Bridge: domain.ProtocolTelegram, Children: []domain.RoomID{"!r:x"}},
+	src := &spaced{gatedRooms: gatedRooms{rooms: []domain.Room{{ID: mx + "!r:x", Name: "Standup"}}}, spaces: []domain.Space{
+		{ID: mx + "!wa:x", Name: "WhatsApp", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{mx + "!r:x"}},
+		{ID: mx + "!tg:x", Name: "Telegram", Bridge: domain.ProtocolTelegram, Children: []domain.RoomID{mx + "!r:x"}},
 	}}
-	x := newScopeIndex(src, []config.DisplayName{{Target: "!r:x", Name: "Daily"}}, domain.HomeOrder{Priority: []string{"space:Telegram"}, Labels: map[string]string{"telegram": "TG"}})
+	x := newScopeIndex(src, []config.DisplayName{{Target: mx + "!r:x", Name: "Daily"}}, domain.HomeOrder{Priority: []string{"space:Telegram"}, Labels: map[string]string{"telegram": "TG"}})
 	tags, _, err := domain.NewTagSet([]domain.Tag{{Name: "Pinned", Picked: []string{"room:Daily"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	x.SetTags(tags)
-	got := x.Facts(context.Background(), "!r:x")
+	got := x.Facts(context.Background(), mx+"!r:x")
 	if got.Name != "Daily" || got.Protocol != domain.ProtocolWhatsApp || !slices.Equal(got.Tags, []string{"Pinned"}) ||
 		len(got.Spaces) != 2 || got.Spaces[0] != "Telegram" {
 		t.Errorf("facts = %+v, want Daily, WhatsApp (the first bridge), tag Pinned, Telegram first", got)
@@ -117,15 +117,15 @@ func TestTheNotifierReadsRoomsAsEveryScopeDoes(t *testing.T) {
 func TestTheNotifierKnowsTags(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	src := &spaced{gatedRooms: gatedRooms{rooms: []domain.Room{{ID: "!mom:x", Name: "Mom", IsDirect: true}}},
-		spaces: []domain.Space{{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!mom:x"}}}}
+	src := &spaced{gatedRooms: gatedRooms{rooms: []domain.Room{{ID: mx + "!mom:x", Name: "Mom", IsDirect: true}}},
+		spaces: []domain.Space{{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!mom:x"}}}}
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
 	cfg.Display.Priority = []string{"tag:Family", "space:Work"}
 	n, err := NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
-	facts := n.scope.Facts(ctx, "!mom:x")
+	facts := n.scope.Facts(ctx, mx+"!mom:x")
 	if !facts.Names("tag:Family") {
 		t.Fatalf("facts = %+v, want the room's tag known", facts)
 	}
@@ -136,7 +136,7 @@ func TestTheNotifierKnowsTags(t *testing.T) {
 	if err := n.Reload(cfg); err != nil {
 		t.Fatal(err)
 	}
-	if got := domain.HomeLabel(n.scope.FirstHome(n.scope.Facts(ctx, "!mom:x"))); got != "Work" {
+	if got := domain.HomeLabel(n.scope.FirstHome(n.scope.Facts(ctx, mx+"!mom:x"))); got != "Work" {
 		t.Errorf("{space} after a reload ranking Work first = %q", got)
 	}
 }

@@ -151,6 +151,21 @@ type TagSet struct {
 	cyclic map[[2]string]bool
 }
 
+// pickedRooms refuses a picked or excluded entry that names no one room.
+func pickedRooms(t *Tag) error {
+	for what, entries := range map[string][]string{"picked": t.Picked, "excluded": t.Excluded} {
+		for _, entry := range entries {
+			if BareMatrixID(entry) {
+				return BareMatrixError(fmt.Sprintf("tag %q: %s", t.Name, what), entry)
+			}
+			if kind, ok := ParseEntry(entry); !ok || kind != EntryRoom {
+				return fmt.Errorf("tag %q: %s: %q is not a room — write its ID or room:<name>", t.Name, what, entry)
+			}
+		}
+	}
+	return nil
+}
+
 // NewTagSet parses tags. An invalid tag is an error; a reference cycle is a warning,
 // and the references inside it match nothing.
 func NewTagSet(tags []Tag) (TagSet, []string, error) {
@@ -181,12 +196,8 @@ func NewTagSet(tags []Tag) (TagSet, []string, error) {
 				c.positive = append(c.positive, parsed)
 			}
 		}
-		for what, entries := range map[string][]string{"picked": t.Picked, "excluded": t.Excluded} {
-			for _, entry := range entries {
-				if kind, ok := ParseEntry(entry); !ok || kind != EntryRoom {
-					return TagSet{}, nil, fmt.Errorf("tag %q: %s: %q is not a room — write its ID or room:<name>", t.Name, what, entry)
-				}
-			}
+		if err := pickedRooms(t); err != nil {
+			return TagSet{}, nil, err
 		}
 		c.picked, c.excluded = t.Picked, t.Excluded
 		set.byName[strings.ToLower(strings.TrimSpace(t.Name))] = i

@@ -18,14 +18,14 @@ import (
 func withFiles() *fake {
 	f := twoRooms()
 	at := time.Unix(1_700_000_100, 0)
-	f.messages["!open:x"] = append(f.messages["!open:x"],
-		domain.Message{ID: "$pic", Sender: "@dana:x", Body: "cat.png", Timestamp: at, Media: &domain.Media{Type: domain.MediaImage, Name: "cat.png", Mime: "image/png", Size: 4}},
-		domain.Message{ID: "$doc", Sender: "@dana:x", Body: "plan.pdf", Timestamp: at, Media: &domain.Media{Type: domain.MediaFile, Name: "../plan.pdf", Mime: "application/pdf"}},
-		domain.Message{ID: "$heic", Sender: "@dana:x", Body: "x.heic", Timestamp: at, Media: &domain.Media{Type: domain.MediaImage, Name: "x.heic", Mime: "image/heic"}},
-		domain.Message{ID: "$gone", Sender: "@dana:x", Redacted: true, Timestamp: at, Media: &domain.Media{Type: domain.MediaFile, Name: "old.txt"}},
+	f.messages[mx+"!open:x"] = append(f.messages[mx+"!open:x"],
+		domain.Message{ID: mx + "$pic", Sender: "matrix:@dana:x", Body: "cat.png", Timestamp: at, Media: &domain.Media{Type: domain.MediaImage, Name: "cat.png", Mime: "image/png", Size: 4}},
+		domain.Message{ID: mx + "$doc", Sender: "matrix:@dana:x", Body: "plan.pdf", Timestamp: at, Media: &domain.Media{Type: domain.MediaFile, Name: "../plan.pdf", Mime: "application/pdf"}},
+		domain.Message{ID: mx + "$heic", Sender: "matrix:@dana:x", Body: "x.heic", Timestamp: at, Media: &domain.Media{Type: domain.MediaImage, Name: "x.heic", Mime: "image/heic"}},
+		domain.Message{ID: mx + "$gone", Sender: "matrix:@dana:x", Redacted: true, Timestamp: at, Media: &domain.Media{Type: domain.MediaFile, Name: "old.txt"}},
 	)
-	f.messages["!secret:x"] = []domain.Message{{ID: "$private", Sender: "@dana:x", Timestamp: at, Media: &domain.Media{Type: domain.MediaImage, Mime: "image/png"}}}
-	f.files = map[domain.EventID][]byte{"$pic": []byte("PNG!"), "$doc": []byte("%PDF-1.7"), "$heic": []byte("heic"), "$private": []byte("PNG!")}
+	f.messages[mx+"!secret:x"] = []domain.Message{{ID: mx + "$private", Sender: "matrix:@dana:x", Timestamp: at, Media: &domain.Media{Type: domain.MediaImage, Mime: "image/png"}}}
+	f.files = map[domain.EventID][]byte{mx + "$pic": []byte("PNG!"), mx + "$doc": []byte("%PDF-1.7"), mx + "$heic": []byte("heic"), mx + "$private": []byte("PNG!")}
 	return f
 }
 
@@ -49,14 +49,14 @@ func TestAnAttachmentIsHandedOver(t *testing.T) {
 		t.Errorf("a deleted message still names its file: %s", encoded)
 	}
 
-	pic := raw(t, s, "get_attachment", map[string]any{"room": "Standup", "event": "$pic"})
+	pic := raw(t, s, "get_attachment", map[string]any{"room": "Standup", "event": mx + "$pic"})
 	blocks, _ := pic["content"].([]any)
 	img, _ := blocks[0].(map[string]any)
 	if img["type"] != "image" || img["mimeType"] != "image/png" || img["data"] != base64.StdEncoding.EncodeToString([]byte("PNG!")) {
 		t.Errorf("the picture came back as %+v", img)
 	}
 
-	for event, want := range map[string]string{"$doc": "%PDF-1.7", "$heic": "heic"} {
+	for event, want := range map[string]string{mx + "$doc": "%PDF-1.7", mx + "$heic": "heic"} {
 		got := call(t, s, "get_attachment", map[string]any{"room": "Standup", "event": event})
 		path, _ := got["path"].(string)
 		data, err := os.ReadFile(path)
@@ -65,10 +65,10 @@ func TestAnAttachmentIsHandedOver(t *testing.T) {
 		}
 	}
 
-	if msg := callErr(t, s, "get_attachment", map[string]any{"room": "Standup", "event": "$gone"}); !strings.Contains(msg, "no file") {
+	if msg := callErr(t, s, "get_attachment", map[string]any{"room": "Standup", "event": mx + "$gone"}); !strings.Contains(msg, "no file") {
 		t.Errorf("a deleted file: %q", msg)
 	}
-	if msg := callErr(t, s, "get_attachment", map[string]any{"room": "Standup", "event": "$1"}); !strings.Contains(msg, "no file") {
+	if msg := callErr(t, s, "get_attachment", map[string]any{"room": "Standup", "event": mx + "$1"}); !strings.Contains(msg, "no file") {
 		t.Errorf("a message with no file: %q", msg)
 	}
 }
@@ -80,16 +80,16 @@ func TestAnAttachmentKeepsToTheScope(t *testing.T) {
 	f := withFiles()
 	s := newServer(f, domain.ModelScope{Only: []string{"space:Work"}})
 	s.files = t.TempDir()
-	callErr(t, s, "get_attachment", map[string]any{"room": "!secret:x", "event": "$private"})
-	if slices.Contains(f.loaded, "$private") {
+	callErr(t, s, "get_attachment", map[string]any{"room": mx + "!secret:x", "event": mx + "$private"})
+	if slices.Contains(f.loaded, mx+"$private") {
 		t.Error("a file from a room outside the scope was fetched")
 	}
 
-	f.messages["!open:x"][2].Media.Size = attachmentMost + 1
-	if msg := callErr(t, s, "get_attachment", map[string]any{"room": "Standup", "event": "$pic"}); !strings.Contains(msg, "MB") {
+	f.messages[mx+"!open:x"][2].Media.Size = attachmentMost + 1
+	if msg := callErr(t, s, "get_attachment", map[string]any{"room": "Standup", "event": mx + "$pic"}); !strings.Contains(msg, "MB") {
 		t.Errorf("an oversized file: %q", msg)
 	}
-	if slices.Contains(f.loaded, "$pic") {
+	if slices.Contains(f.loaded, mx+"$pic") {
 		t.Error("an oversized file was fetched")
 	}
 }

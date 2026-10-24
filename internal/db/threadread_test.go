@@ -16,18 +16,18 @@ func threadRoom(t *testing.T, cache *Cache) func(int) time.Time {
 	base := time.Date(2026, 8, 28, 9, 0, 0, 0, time.UTC)
 	at := func(n int) time.Time { return base.Add(time.Duration(n) * time.Minute) }
 	msgs := []domain.Message{
-		{ID: "$read", Sender: "@alice:x", Body: "before", Timestamp: at(0)},
-		{ID: "$root", Sender: "@alice:x", Body: "a question", Timestamp: at(1)},
-		{ID: "$main", Sender: "@alice:x", Body: "in the room", Timestamp: at(2)},
-		{ID: "$a1", Sender: "@bob:x", Body: "an answer", Timestamp: at(3), ThreadRoot: "$root"},
-		{ID: "$a2", Sender: "@bob:x", Body: "hey you", Timestamp: at(4), ThreadRoot: "$root", Mentioned: true},
-		{ID: "$mine", Sender: me, Body: "and one from me", Timestamp: at(5), ThreadRoot: "$root"},
-		{ID: "$b1", Sender: "@bob:x", Body: "elsewhere", Timestamp: at(6), ThreadRoot: "$other"},
+		{ID: mx + "$read", Sender: "matrix:@alice:x", Body: "before", Timestamp: at(0)},
+		{ID: mx + "$root", Sender: "matrix:@alice:x", Body: "a question", Timestamp: at(1)},
+		{ID: mx + "$main", Sender: "matrix:@alice:x", Body: "in the room", Timestamp: at(2)},
+		{ID: mx + "$a1", Sender: "matrix:@bob:x", Body: "an answer", Timestamp: at(3), ThreadRoot: mx + "$root"},
+		{ID: mx + "$a2", Sender: "matrix:@bob:x", Body: "hey you", Timestamp: at(4), ThreadRoot: mx + "$root", Mentioned: true},
+		{ID: mx + "$mine", Sender: me, Body: "and one from me", Timestamp: at(5), ThreadRoot: mx + "$root"},
+		{ID: mx + "$b1", Sender: "matrix:@bob:x", Body: "elsewhere", Timestamp: at(6), ThreadRoot: mx + "$other"},
 	}
 	for i := range msgs {
-		mustSave(t, cache, "!a:x", msgs[i])
+		mustSave(t, cache, mx+"!a:x", msgs[i])
 	}
-	if err := cache.SaveUnread(context.Background(), domain.Unread{RoomID: "!a:x", ReadEvent: "$read"}, 0); err != nil {
+	if err := cache.SaveUnread(context.Background(), domain.Unread{RoomID: mx + "!a:x", ReadEvent: mx + "$read"}, 0); err != nil {
 		t.Fatalf("SaveUnread() error = %v", err)
 	}
 	return at
@@ -41,11 +41,11 @@ func TestCountingSplitsTheRoomFromItsThreads(t *testing.T) {
 	cache, ctx := openTemp(t), context.Background()
 	at := threadRoom(t, cache)
 	// The floor sits where the room was read, as migration seeds it.
-	if err := cache.SeedThreadFloor(ctx, "!a:x", "$read", at(0).UnixMilli()); err != nil {
+	if err := cache.SeedThreadFloor(ctx, mx+"!a:x", mx+"$read", at(0).UnixMilli()); err != nil {
 		t.Fatalf("SeedThreadFloor() error = %v", err)
 	}
 
-	messages, mentions, counted, err := cache.CountUnread(ctx, mine, "!a:x")
+	messages, mentions, counted, err := cache.CountUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountUnread() error = %v", err)
 	}
@@ -54,7 +54,7 @@ func TestCountingSplitsTheRoomFromItsThreads(t *testing.T) {
 		t.Errorf("room count = %d/%d (counted %v), want 2/0 counted", messages, mentions, counted)
 	}
 
-	threads, err := cache.CountThreadUnread(ctx, mine, "!a:x")
+	threads, err := cache.CountThreadUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountThreadUnread() error = %v", err)
 	}
@@ -62,11 +62,11 @@ func TestCountingSplitsTheRoomFromItsThreads(t *testing.T) {
 	if len(threads) != 1 {
 		t.Fatalf("threads = %+v, want only $other — a reply in $root floors it", threads)
 	}
-	if threads[0].Root != "$other" || threads[0].Unread != 1 {
+	if threads[0].Root != mx+"$other" || threads[0].Unread != 1 {
 		t.Errorf("thread = %+v, want $other with 1 unread", threads[0])
 	}
 	// The receipt a "mark this read" would send points at the newest unread reply.
-	if threads[0].Latest != "$b1" {
+	if threads[0].Latest != mx+"$b1" {
 		t.Errorf("latest unread in $other = %q, want $b1", threads[0].Latest)
 	}
 }
@@ -78,15 +78,15 @@ func TestYourReplyFloorsOnlyItsOwnThreadAndOnlyUpToItself(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 	at := threadRoom(t, cache)
-	if err := cache.SeedThreadFloor(ctx, "!a:x", "$read", at(0).UnixMilli()); err != nil {
+	if err := cache.SeedThreadFloor(ctx, mx+"!a:x", mx+"$read", at(0).UnixMilli()); err != nil {
 		t.Fatalf("SeedThreadFloor() error = %v", err)
 	}
 	// An answer after our reply, in the same thread.
-	mustSave(t, cache, "!a:x", domain.Message{
-		ID: "$a3", Sender: "@bob:x", Body: "one more", Timestamp: at(7), ThreadRoot: "$root",
+	mustSave(t, cache, mx+"!a:x", domain.Message{
+		ID: mx + "$a3", Sender: "matrix:@bob:x", Body: "one more", Timestamp: at(7), ThreadRoot: mx + "$root",
 	})
 
-	threads, err := cache.CountThreadUnread(ctx, mine, "!a:x")
+	threads, err := cache.CountThreadUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountThreadUnread() error = %v", err)
 	}
@@ -95,15 +95,15 @@ func TestYourReplyFloorsOnlyItsOwnThreadAndOnlyUpToItself(t *testing.T) {
 	}
 	var root domain.ThreadUnread
 	for i := range threads {
-		if threads[i].Root == "$root" {
+		if threads[i].Root == mx+"$root" {
 			root = threads[i]
 		}
 	}
-	if root.Unread != 1 || root.Latest != "$a3" {
+	if root.Unread != 1 || root.Latest != mx+"$a3" {
 		t.Errorf("$root = %+v, want exactly the reply that came after ours", root)
 	}
 	// The main timeline is unchanged: a thread reply says nothing about the room.
-	messages, _, counted, err := cache.CountUnread(ctx, mine, "!a:x")
+	messages, _, counted, err := cache.CountUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountUnread() error = %v", err)
 	}
@@ -118,22 +118,22 @@ func TestAThreadReceiptClearsOnlyItsThread(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 	at := threadRoom(t, cache)
-	if err := cache.SeedThreadFloor(ctx, "!a:x", "$read", at(0).UnixMilli()); err != nil {
+	if err := cache.SeedThreadFloor(ctx, mx+"!a:x", mx+"$read", at(0).UnixMilli()); err != nil {
 		t.Fatalf("SeedThreadFloor() error = %v", err)
 	}
-	if err := cache.SaveThreadRead(ctx, "!a:x", "$root", "$a2", at(4).UnixMilli()); err != nil {
+	if err := cache.SaveThreadRead(ctx, mx+"!a:x", mx+"$root", mx+"$a2", at(4).UnixMilli()); err != nil {
 		t.Fatalf("SaveThreadRead() error = %v", err)
 	}
 
-	threads, err := cache.CountThreadUnread(ctx, mine, "!a:x")
+	threads, err := cache.CountThreadUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountThreadUnread() error = %v", err)
 	}
 	// $root is read to $a2, and the only thing after it there is our own reply.
-	if len(threads) != 1 || threads[0].Root != "$other" {
+	if len(threads) != 1 || threads[0].Root != mx+"$other" {
 		t.Fatalf("threads = %+v, want only $other", threads)
 	}
-	messages, _, _, err := cache.CountUnread(ctx, mine, "!a:x")
+	messages, _, _, err := cache.CountUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountUnread() error = %v", err)
 	}
@@ -148,15 +148,15 @@ func TestAnUnthreadedReceiptAdvancesEveryThread(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 	at := threadRoom(t, cache)
-	if err := cache.SeedThreadFloor(ctx, "!a:x", "$read", at(0).UnixMilli()); err != nil {
+	if err := cache.SeedThreadFloor(ctx, mx+"!a:x", mx+"$read", at(0).UnixMilli()); err != nil {
 		t.Fatalf("SeedThreadFloor() error = %v", err)
 	}
 	// The floor row has an empty root; an unthreaded receipt writes it.
-	if err := cache.SaveThreadRead(ctx, "!a:x", "", "$b1", at(6).UnixMilli()); err != nil {
+	if err := cache.SaveThreadRead(ctx, mx+"!a:x", "", mx+"$b1", at(6).UnixMilli()); err != nil {
 		t.Fatalf("SaveThreadRead() error = %v", err)
 	}
 
-	threads, err := cache.CountThreadUnread(ctx, mine, "!a:x")
+	threads, err := cache.CountThreadUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountThreadUnread() error = %v", err)
 	}
@@ -171,19 +171,19 @@ func TestAReadPositionOnlyMovesForward(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 	at := threadRoom(t, cache)
-	if err := cache.SaveThreadRead(ctx, "!a:x", "$root", "$a2", at(4).UnixMilli()); err != nil {
+	if err := cache.SaveThreadRead(ctx, mx+"!a:x", mx+"$root", mx+"$a2", at(4).UnixMilli()); err != nil {
 		t.Fatalf("SaveThreadRead() error = %v", err)
 	}
-	if err := cache.SaveThreadRead(ctx, "!a:x", "$root", "$a1", at(3).UnixMilli()); err != nil {
+	if err := cache.SaveThreadRead(ctx, mx+"!a:x", mx+"$root", mx+"$a1", at(3).UnixMilli()); err != nil {
 		t.Fatalf("second SaveThreadRead() error = %v", err)
 	}
 
-	threads, err := cache.CountThreadUnread(ctx, mine, "!a:x")
+	threads, err := cache.CountThreadUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountThreadUnread() error = %v", err)
 	}
 	for _, th := range threads {
-		if th.Root == "$root" {
+		if th.Root == mx+"$root" {
 			t.Errorf("$root is unread again after an older receipt: %+v", th)
 		}
 	}
@@ -196,19 +196,19 @@ func TestTheFloorIsSeededOnceAndNotAgain(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 	at := threadRoom(t, cache)
-	if err := cache.SeedThreadFloor(ctx, "!a:x", "$read", at(0).UnixMilli()); err != nil {
+	if err := cache.SeedThreadFloor(ctx, mx+"!a:x", mx+"$read", at(0).UnixMilli()); err != nil {
 		t.Fatalf("SeedThreadFloor() error = %v", err)
 	}
-	if err := cache.SeedThreadFloor(ctx, "!a:x", "$b1", at(6).UnixMilli()); err != nil {
+	if err := cache.SeedThreadFloor(ctx, mx+"!a:x", mx+"$b1", at(6).UnixMilli()); err != nil {
 		t.Fatalf("second SeedThreadFloor() error = %v", err)
 	}
 
-	threads, err := cache.CountThreadUnread(ctx, mine, "!a:x")
+	threads, err := cache.CountThreadUnread(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountThreadUnread() error = %v", err)
 	}
 	// Only $other: the reseed did not move the floor, and our reply quiets $root.
-	if len(threads) != 1 || threads[0].Root != "$other" {
+	if len(threads) != 1 || threads[0].Root != mx+"$other" {
 		t.Errorf("threads = %+v, want $other still unread", threads)
 	}
 }
@@ -220,11 +220,11 @@ func TestListingARoomsThreads(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 	at := threadRoom(t, cache)
-	if err := cache.SeedThreadFloor(ctx, "!a:x", "$read", at(0).UnixMilli()); err != nil {
+	if err := cache.SeedThreadFloor(ctx, mx+"!a:x", mx+"$read", at(0).UnixMilli()); err != nil {
 		t.Fatalf("SeedThreadFloor() error = %v", err)
 	}
 
-	threads, err := cache.Threads(ctx, mine, "!a:x")
+	threads, err := cache.Threads(ctx, mine, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("Threads() error = %v", err)
 	}
@@ -232,11 +232,11 @@ func TestListingARoomsThreads(t *testing.T) {
 		t.Fatalf("threads = %+v, want two", threads)
 	}
 	// Newest activity first: $other's only reply is after $root's last.
-	if threads[0].Root != "$other" || threads[0].Count != 1 || threads[0].Latest != "$b1" {
+	if threads[0].Root != mx+"$other" || threads[0].Count != 1 || threads[0].Latest != mx+"$b1" {
 		t.Errorf("first thread = %+v, want $other with one reply", threads[0])
 	}
 	// Three replies, none unread: the third is ours, which reads what came before.
-	if threads[1].Root != "$root" || threads[1].Count != 3 || threads[1].Unread != 0 {
+	if threads[1].Root != mx+"$root" || threads[1].Count != 3 || threads[1].Unread != 0 {
 		t.Errorf("second thread = %+v, want $root with 3 replies and none unread", threads[1])
 	}
 	if threads[1].LatestSender != me {
@@ -249,11 +249,11 @@ func TestListingARoomsThreads(t *testing.T) {
 func TestThreadsWithEqualActivityAreListedByRoot(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!r:x")
+	const room = domain.RoomID(mx + "!r:x")
 	at := time.UnixMilli(5000)
 	var msgs []domain.Message
-	for _, root := range []domain.EventID{"$c", "$a", "$b"} {
-		msgs = append(msgs, domain.Message{ID: root + "-reply", Sender: "@d:x", Body: "re", ThreadRoot: root, Timestamp: at})
+	for _, root := range []domain.EventID{mx + "$c", mx + "$a", mx + "$b"} {
+		msgs = append(msgs, domain.Message{ID: root + "-reply", Sender: "matrix:@d:x", Body: "re", ThreadRoot: root, Timestamp: at})
 	}
 	if err := cache.SaveMessages(ctx, room, msgs); err != nil {
 		t.Fatal(err)
@@ -266,7 +266,7 @@ func TestThreadsWithEqualActivityAreListedByRoot(t *testing.T) {
 	for _, th := range threads {
 		roots = append(roots, th.Root)
 	}
-	if want := []domain.EventID{"$a", "$b", "$c"}; !slices.Equal(roots, want) {
+	if want := []domain.EventID{mx + "$a", mx + "$b", mx + "$c"}; !slices.Equal(roots, want) {
 		t.Errorf("threads came back %v, want %v", roots, want)
 	}
 	unread, err := cache.CountThreadUnread(ctx, mine, room)
@@ -277,7 +277,7 @@ func TestThreadsWithEqualActivityAreListedByRoot(t *testing.T) {
 	for _, u := range unread {
 		roots = append(roots, u.Root)
 	}
-	if want := []domain.EventID{"$a", "$b", "$c"}; !slices.Equal(roots, want) {
+	if want := []domain.EventID{mx + "$a", mx + "$b", mx + "$c"}; !slices.Equal(roots, want) {
 		t.Errorf("unread threads came back %v, want %v", roots, want)
 	}
 }
@@ -287,24 +287,24 @@ func TestThreadsWithEqualActivityAreListedByRoot(t *testing.T) {
 func TestAMessageFromYourBridgedAccountIsYourOwn(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
-	const puppet = "@slack_me:x"
+	const puppet = "matrix:@slack_me:x"
 	base := time.Date(2026, 9, 28, 9, 0, 0, 0, time.UTC)
 	at := func(n int) time.Time { return base.Add(time.Duration(n) * time.Minute) }
 	for _, msg := range []domain.Message{
-		{ID: "$read", Sender: "@alice:x", Body: "before", Timestamp: at(0)},
-		{ID: "$root", Sender: "@alice:x", Body: "a question", Timestamp: at(1)},
-		{ID: "$a1", Sender: "@bob:x", Body: "an answer", Timestamp: at(2), ThreadRoot: "$root"},
-		{ID: "$a2", Sender: "@bob:x", Body: "another", Timestamp: at(3), ThreadRoot: "$root"},
-		{ID: "$slack", Sender: puppet, Body: "mine, through Slack", Timestamp: at(4), ThreadRoot: "$root"},
-		{ID: "$a3", Sender: "@bob:x", Body: "after mine", Timestamp: at(5), ThreadRoot: "$root"},
-		{ID: "$main", Sender: puppet, Body: "mine in the room", Timestamp: at(6)},
+		{ID: mx + "$read", Sender: "matrix:@alice:x", Body: "before", Timestamp: at(0)},
+		{ID: mx + "$root", Sender: "matrix:@alice:x", Body: "a question", Timestamp: at(1)},
+		{ID: mx + "$a1", Sender: "matrix:@bob:x", Body: "an answer", Timestamp: at(2), ThreadRoot: mx + "$root"},
+		{ID: mx + "$a2", Sender: "matrix:@bob:x", Body: "another", Timestamp: at(3), ThreadRoot: mx + "$root"},
+		{ID: mx + "$slack", Sender: puppet, Body: "mine, through Slack", Timestamp: at(4), ThreadRoot: mx + "$root"},
+		{ID: mx + "$a3", Sender: "matrix:@bob:x", Body: "after mine", Timestamp: at(5), ThreadRoot: mx + "$root"},
+		{ID: mx + "$main", Sender: puppet, Body: "mine in the room", Timestamp: at(6)},
 	} {
-		mustSave(t, cache, "!a:x", msg)
+		mustSave(t, cache, mx+"!a:x", msg)
 	}
-	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: "!a:x", ReadEvent: "$read"}, 0); err != nil {
+	if err := cache.SaveUnread(ctx, domain.Unread{RoomID: mx + "!a:x", ReadEvent: mx + "$read"}, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.SeedThreadFloor(ctx, "!a:x", "$read", at(0).UnixMilli()); err != nil {
+	if err := cache.SeedThreadFloor(ctx, mx+"!a:x", mx+"$read", at(0).UnixMilli()); err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range []struct {
@@ -315,11 +315,11 @@ func TestAMessageFromYourBridgedAccountIsYourOwn(t *testing.T) {
 		{"the account alone", mine, 2, 4},
 		{"the account and its puppet", []string{me, puppet}, 0, 1},
 	} {
-		messages, _, _, err := cache.CountUnread(ctx, c.me, "!a:x")
+		messages, _, _, err := cache.CountUnread(ctx, c.me, mx+"!a:x")
 		if err != nil {
 			t.Fatal(err)
 		}
-		threads, err := cache.CountThreadUnread(ctx, c.me, "!a:x")
+		threads, err := cache.CountThreadUnread(ctx, c.me, mx+"!a:x")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -331,7 +331,7 @@ func TestAMessageFromYourBridgedAccountIsYourOwn(t *testing.T) {
 			t.Errorf("%s: room %d, threads %d; want %d, %d", c.name, messages, n, c.room, c.threads)
 		}
 	}
-	if spoke, err := cache.SpokeInThread(ctx, "!a:x", "$root", []string{me, puppet}); err != nil || !spoke {
+	if spoke, err := cache.SpokeInThread(ctx, mx+"!a:x", mx+"$root", []string{me, puppet}); err != nil || !spoke {
 		t.Errorf("SpokeInThread = %v, %v; want true for a reply from the puppet", spoke, err)
 	}
 }
@@ -341,15 +341,15 @@ func TestAThreadNamesYouWhileAMentionStands(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
 	threadRoom(t, cache)
-	for root, want := range map[domain.EventID]bool{"$root": true, "$other": false} {
-		if named, err := cache.NamedInThread(ctx, "!a:x", root); err != nil || named != want {
+	for root, want := range map[domain.EventID]bool{mx + "$root": true, mx + "$other": false} {
+		if named, err := cache.NamedInThread(ctx, mx+"!a:x", root); err != nil || named != want {
 			t.Errorf("NamedInThread(%s) = %v, %v; want %v", root, named, err, want)
 		}
 	}
-	if err := cache.MarkRedacted(ctx, "!a:x", "$a2", "@bob:x", "", time.Now(), false); err != nil {
+	if err := cache.MarkRedacted(ctx, mx+"!a:x", mx+"$a2", "matrix:@bob:x", "", time.Now(), false); err != nil {
 		t.Fatal(err)
 	}
-	if named, err := cache.NamedInThread(ctx, "!a:x", "$root"); err != nil || named {
+	if named, err := cache.NamedInThread(ctx, mx+"!a:x", mx+"$root"); err != nil || named {
 		t.Errorf("NamedInThread after the mention was deleted = %v, %v; want false", named, err)
 	}
 }

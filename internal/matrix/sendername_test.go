@@ -34,17 +34,17 @@ func TestASenderOutsideTheRoomIsNamedElsewhere(t *testing.T) {
 	b := backendWith(t, srv, nil)
 	ctx := context.Background()
 
-	if err := b.cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!other:x"}}); err != nil {
+	if err := b.cache.SaveRooms(ctx, testIDs.owner(), []domain.Room{{ID: mx + "!other:x"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.cache.SaveMembers(ctx, "!other:x", []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}}); err != nil {
+	if err := b.cache.SaveMembers(ctx, mx+"!other:x", []domain.Member{{UserID: "matrix:@dana:x", DisplayName: "Dana"}}); err != nil {
 		t.Fatal(err)
 	}
-	if got := b.senderName(ctx, "!dm:x", "@dana:x"); got != "Dana" || profileAsks.Load() != 0 {
+	if got := b.senderName(ctx, mx+"!dm:x", "matrix:@dana:x"); got != "Dana" || profileAsks.Load() != 0 {
 		t.Errorf("a sender cached elsewhere: %q after %d profile asks, want Dana and none", got, profileAsks.Load())
 	}
 	for range 3 {
-		if got := b.senderName(ctx, "!dm:x", "@slackbot:x"); got != "Slackbot" {
+		if got := b.senderName(ctx, mx+"!dm:x", "matrix:@slackbot:x"); got != "Slackbot" {
 			t.Fatalf("a sender known nowhere = %q, want the profile's name", got)
 		}
 	}

@@ -126,7 +126,7 @@ func (f *fake) PersonVerdicts(context.Context) ([]domain.PersonVerdict, error) {
 
 func (f *fake) Selves(context.Context) ([]string, error) {
 	if f.selves == nil {
-		return []string{"@me:x"}, nil
+		return []string{"matrix:@me:x"}, nil
 	}
 	return f.selves, nil
 }
@@ -237,18 +237,18 @@ func (f *fake) RoomEncryption(_ context.Context, rooms []domain.RoomID) (map[dom
 func twoRooms() *fake {
 	return &fake{
 		rooms: []domain.Room{
-			{ID: "!open:x", Name: "Standup"},
-			{ID: "!secret:x", Name: "Private chat", IsDirect: true},
+			{ID: mx + "!open:x", Name: "Standup"},
+			{ID: mx + "!secret:x", Name: "Private chat", IsDirect: true},
 		},
-		spaces: []domain.Space{{ID: "!s:x", Name: "Work", Children: []domain.RoomID{"!open:x"}}},
-		unread: []domain.Unread{{RoomID: "!open:x", Messages: 3}},
+		spaces: []domain.Space{{ID: mx + "!s:x", Name: "Work", Children: []domain.RoomID{mx + "!open:x"}}},
+		unread: []domain.Unread{{RoomID: mx + "!open:x", Messages: 3}},
 		messages: map[domain.RoomID][]domain.Message{
-			"!open:x": {
-				{ID: "$1", Sender: "@dana:x", SenderName: "Dana", Body: "morning", Timestamp: time.Unix(1_700_000_000, 0)},
-				{ID: "$2", Sender: "@me:x", SenderName: "Me", Body: "morning all", Timestamp: time.Unix(1_700_000_060, 0)},
+			mx + "!open:x": {
+				{ID: mx + "$1", Sender: "matrix:@dana:x", SenderName: "Dana", Body: "morning", Timestamp: time.Unix(1_700_000_000, 0)},
+				{ID: mx + "$2", Sender: "matrix:@me:x", SenderName: "Me", Body: "morning all", Timestamp: time.Unix(1_700_000_060, 0)},
 			},
 		},
-		encrypted: map[domain.RoomID]bool{"!secret:x": true},
+		encrypted: map[domain.RoomID]bool{mx + "!secret:x": true},
 	}
 }
 
@@ -404,7 +404,7 @@ func TestReadingAnExcludedRoomLooksLikeNoRoom(t *testing.T) {
 		t.Fatalf("hidden and missing rooms answer differently:\n %q\n %q", hidden, missing)
 	}
 	// A fragment of a hidden room's name is not listed as a candidate.
-	if got := callErr(t, s, "read_room", map[string]any{"room": "!secret"}); strings.Contains(got, "Private chat") {
+	if got := callErr(t, s, "read_room", map[string]any{"room": mx + "!secret"}); strings.Contains(got, "Private chat") {
 		t.Fatalf("refusal = %q, want no hidden room named", got)
 	}
 }
@@ -415,9 +415,9 @@ func TestTheOutOfScopeCountDoesNotAnswerQueries(t *testing.T) {
 	t.Parallel()
 
 	f := twoRooms()
-	f.hits = []domain.SearchHit{{RoomID: "!secret:x", EventID: "$s", Timestamp: time.Unix(1_700_000_000, 0), Snippet: "the secret"}}
-	f.with = []domain.Room{{ID: "!secret:x", Name: "Private chat", IsDirect: true}}
-	f.unread = append(f.unread, domain.Unread{RoomID: "!secret:x", Messages: 9})
+	f.hits = []domain.SearchHit{{RoomID: mx + "!secret:x", EventID: mx + "$s", Timestamp: time.Unix(1_700_000_000, 0), Snippet: "the secret"}}
+	f.with = []domain.Room{{ID: mx + "!secret:x", Name: "Private chat", IsDirect: true}}
+	f.unread = append(f.unread, domain.Unread{RoomID: mx + "!secret:x", Messages: 9})
 	s := newServer(f, shareAll)
 
 	probes := []struct {
@@ -428,7 +428,7 @@ func TestTheOutOfScopeCountDoesNotAnswerQueries(t *testing.T) {
 		{"list_rooms", map[string]any{"query": "zzz"}},
 		{"search_messages", map[string]any{"query": "secret"}},
 		{"search_messages", map[string]any{"query": "zzz"}},
-		{"find_rooms_with", map[string]any{"people": []string{"@me:x"}}},
+		{"find_rooms_with", map[string]any{"people": []string{"matrix:@me:x"}}},
 		{"unread_summary", nil},
 	}
 	for _, p := range probes {
@@ -454,7 +454,7 @@ func TestTheOutOfScopeCountDoesNotAnswerQueries(t *testing.T) {
 	}
 	for _, rooms := range append(f.searchAsked, f.withRooms...) {
 		for _, id := range rooms {
-			if id == "!secret:x" {
+			if id == mx+"!secret:x" {
 				t.Fatalf("a query reached the hidden room: %v", rooms)
 			}
 		}
@@ -465,13 +465,13 @@ func TestRoomNamedResolvesOrAsks(t *testing.T) {
 	t.Parallel()
 
 	f := twoRooms()
-	f.rooms = append(f.rooms, domain.Room{ID: "!standup2:x", Name: "Standup (archive)"})
+	f.rooms = append(f.rooms, domain.Room{ID: mx + "!standup2:x", Name: "Standup (archive)"})
 	s := newServer(f, shareAllEncrypted)
 
 	// An exact name wins over a substring.
 	out := call(t, s, "read_room", map[string]any{"room": "Standup"})
 	room, _ := out["room"].(map[string]any)
-	if room["id"] != "!open:x" {
+	if room["id"] != mx+"!open:x" {
 		t.Fatalf("read_room(Standup) = %v, want the exactly-named room", room)
 	}
 	// An ambiguous fragment lists candidates rather than picking one.
@@ -502,7 +502,7 @@ func TestReadRoomMarksYourOwnMessages(t *testing.T) {
 		t.Error("the account's own message was not marked — 'how do I write' depends on it")
 	}
 	// A sender filter shows how someone writes in one call.
-	only := call(t, s, "read_room", map[string]any{"room": "Standup", "sender": "@me:x"})
+	only := call(t, s, "read_room", map[string]any{"room": "Standup", "sender": "matrix:@me:x"})
 	if msgs, _ := only["messages"].([]any); len(msgs) != 1 {
 		t.Fatalf("filtered read returned %d messages, want 1", len(msgs))
 	}
@@ -513,7 +513,7 @@ func TestReadRoomMarksTheDaemonsSelvesMine(t *testing.T) {
 	t.Parallel()
 
 	f := twoRooms()
-	f.selves = []string{"@dana:x"}
+	f.selves = []string{"matrix:@dana:x"}
 	s := newServer(f, shareAllEncrypted)
 	out := call(t, s, "read_room", map[string]any{"room": "Standup"})
 	msgs, _ := out["messages"].([]any)
@@ -536,24 +536,24 @@ func TestFindRoomsWithResolvesNamesAndRefusesAmbiguity(t *testing.T) {
 
 	f := twoRooms()
 	f.senders = []domain.Member{
-		{UserID: "@noa:x", DisplayName: "Noa"},
-		{UserID: "@evgeny:x", DisplayName: "Evgeny"},
-		{UserID: "@evgeny2:x", DisplayName: "Evgeny B"},
+		{UserID: "matrix:@noa:x", DisplayName: "Noa"},
+		{UserID: "matrix:@evgeny:x", DisplayName: "Evgeny"},
+		{UserID: "matrix:@evgeny2:x", DisplayName: "Evgeny B"},
 	}
-	f.with = []domain.Room{{ID: "!open:x", Name: "Standup"}}
+	f.with = []domain.Room{{ID: mx + "!open:x", Name: "Standup"}}
 	s := newServer(f, shareAllEncrypted)
 
 	out := call(t, s, "find_rooms_with", map[string]any{"people": []string{"Noa", "Evgeny"}})
 	// An exact display name beats a longer one containing it.
-	if strings.Join(f.withAsked, ",") != "@noa:x,@evgeny:x" {
+	if strings.Join(f.withAsked, ",") != "matrix:@noa:x,matrix:@evgeny:x" {
 		t.Fatalf("resolved %v, want the two Matrix IDs", f.withAsked)
 	}
 	if rooms, _ := out["rooms"].([]any); len(rooms) != 1 {
 		t.Fatalf("find_rooms_with = %v, want one room", out["rooms"])
 	}
 	// A Matrix ID is unambiguous and passed through.
-	call(t, s, "find_rooms_with", map[string]any{"people": []string{"@someone:x"}})
-	if len(f.withAsked) != 1 || f.withAsked[0] != "@someone:x" {
+	call(t, s, "find_rooms_with", map[string]any{"people": []string{"matrix:@someone:x"}})
+	if len(f.withAsked) != 1 || f.withAsked[0] != "matrix:@someone:x" {
 		t.Fatalf("resolved %v, want the ID untouched", f.withAsked)
 	}
 	// A fragment matching two people asks rather than guessing.
@@ -570,9 +570,9 @@ func TestSearchHidesWhatTheScopeHides(t *testing.T) {
 
 	f := twoRooms()
 	f.hits = []domain.SearchHit{
-		{RoomID: "!open:x", EventID: "$1", Sender: "@dana:x", Timestamp: time.Unix(1_700_000_000, 0),
+		{RoomID: mx + "!open:x", EventID: mx + "$1", Sender: "matrix:@dana:x", Timestamp: time.Unix(1_700_000_000, 0),
 			Snippet: "the " + domain.HighlightStart + "match" + domain.HighlightEnd + " ordering"},
-		{RoomID: "!secret:x", EventID: "$2", Sender: "@dana:x", Timestamp: time.Unix(1_700_000_000, 0), Snippet: "secret"},
+		{RoomID: mx + "!secret:x", EventID: mx + "$2", Sender: "matrix:@dana:x", Timestamp: time.Unix(1_700_000_000, 0), Snippet: "secret"},
 	}
 	// Encrypted rooms are out, so the second hit must not appear.
 	out := call(t, newServer(f, shareAll), "search_messages", map[string]any{"query": "match ordering"})
@@ -600,15 +600,15 @@ func TestReadAroundNeedsTheMessageToExist(t *testing.T) {
 	f := twoRooms()
 	s := newServer(f, shareAllEncrypted)
 	if got := callErr(t, s, "read_around",
-		map[string]any{"room": "Standup", "event": "$gone"}); !strings.Contains(got, "cached history") {
+		map[string]any{"room": "Standup", "event": mx + "$gone"}); !strings.Contains(got, "cached history") {
 		t.Fatalf("refusal = %q, want it to say the message is not cached", got)
 	}
 
 	f.around = []domain.Message{
-		{ID: "$1", Sender: "@dana:x", Body: "before", Timestamp: time.Unix(1_700_000_000, 0)},
-		{ID: "$2", Sender: "@dana:x", Body: "the ask", Timestamp: time.Unix(1_700_000_060, 0)},
+		{ID: mx + "$1", Sender: "matrix:@dana:x", Body: "before", Timestamp: time.Unix(1_700_000_000, 0)},
+		{ID: mx + "$2", Sender: "matrix:@dana:x", Body: "the ask", Timestamp: time.Unix(1_700_000_060, 0)},
 	}
-	out := call(t, s, "read_around", map[string]any{"room": "Standup", "event": "$2"})
+	out := call(t, s, "read_around", map[string]any{"room": "Standup", "event": mx + "$2"})
 	if msgs, _ := out["messages"].([]any); len(msgs) != 2 {
 		t.Fatalf("read_around = %v, want the conversation", out["messages"])
 	}
@@ -638,22 +638,22 @@ func TestFindPeopleOnlyNamesPeopleFromRoomsInScope(t *testing.T) {
 
 	f := twoRooms()
 	f.senders = []domain.Member{
-		{UserID: "@dana:x", DisplayName: "Dana"},
-		{UserID: "@shira:x", DisplayName: "Shira"},
-		{UserID: "@dan:x", DisplayName: "Dan"},
+		{UserID: "matrix:@dana:x", DisplayName: "Dana"},
+		{UserID: "matrix:@shira:x", DisplayName: "Shira"},
+		{UserID: "matrix:@dan:x", DisplayName: "Dan"},
 	}
 	// Shira and Dan posted only in the excluded encrypted DM.
 	f.postedIn = map[string][]domain.RoomID{
-		"@dana:x":  {"!open:x"},
-		"@shira:x": {"!secret:x"},
-		"@dan:x":   {"!secret:x"},
+		"matrix:@dana:x":  {mx + "!open:x"},
+		"matrix:@shira:x": {mx + "!secret:x"},
+		"matrix:@dan:x":   {mx + "!secret:x"},
 	}
 	s := newServer(f, shareAll)
 
 	if got := callErr(t, s, "find_people", map[string]any{"query": "Shira"}); !strings.Contains(got, "nobody called") {
 		t.Fatalf("find_people(Shira) = %q, want nobody — she has posted only in an excluded room", got)
 	}
-	if got := callErr(t, s, "find_people", map[string]any{"query": "@shira:x"}); !strings.Contains(got, "nobody called") {
+	if got := callErr(t, s, "find_people", map[string]any{"query": "matrix:@shira:x"}); !strings.Contains(got, "nobody called") {
 		t.Fatalf("find_people(@shira:x) = %q, want nobody", got)
 	}
 	out := call(t, s, "find_people", map[string]any{"query": "dan"})
@@ -661,12 +661,12 @@ func TestFindPeopleOnlyNamesPeopleFromRoomsInScope(t *testing.T) {
 	if len(people) != 1 {
 		t.Fatalf("find_people(dan) = %v, want only Dana", people)
 	}
-	if first, _ := people[0].(map[string]any); first["user_id"] != "@dana:x" {
+	if first, _ := people[0].(map[string]any); first["user_id"] != "matrix:@dana:x" {
 		t.Fatalf("find_people(dan) = %v, want Dana", people)
 	}
 	// The scope reaches the query, not a filter on a truncated ranking.
 	for _, asked := range f.sendersAsked {
-		if len(asked) != 1 || asked[0] != "!open:x" {
+		if len(asked) != 1 || asked[0] != mx+"!open:x" {
 			t.Fatalf("SearchSenders was asked about %v, want only the room in scope", asked)
 		}
 	}
@@ -675,7 +675,7 @@ func TestFindPeopleOnlyNamesPeopleFromRoomsInScope(t *testing.T) {
 	if got := callErr(t, s, "find_rooms_with", map[string]any{"people": []string{"Shira"}}); !strings.Contains(got, "nobody called") {
 		t.Fatalf("find_rooms_with(Shira) = %q, want nobody", got)
 	}
-	if got := callErr(t, s, "find_rooms_with", map[string]any{"people": []string{"Da"}}); strings.Contains(got, "@dan:x") {
+	if got := callErr(t, s, "find_rooms_with", map[string]any{"people": []string{"Da"}}); strings.Contains(got, "matrix:@dan:x") {
 		t.Fatalf("find_rooms_with(Da) = %q, named somebody from an excluded room", got)
 	}
 }
@@ -685,7 +685,7 @@ func TestFindPeopleWithNothingInScopeFindsNobody(t *testing.T) {
 	t.Parallel()
 
 	f := twoRooms()
-	f.senders = []domain.Member{{UserID: "@dana:x", DisplayName: "Dana"}}
+	f.senders = []domain.Member{{UserID: "matrix:@dana:x", DisplayName: "Dana"}}
 	s := newServer(f, domain.ModelScope{Only: []string{"room:Nowhere"}})
 
 	if got := callErr(t, s, "find_people", map[string]any{"query": "Dana"}); !strings.Contains(got, "nobody called") {
@@ -703,17 +703,17 @@ func TestFindRoomsWithLimitCountsOnlyRoomsInScope(t *testing.T) {
 	f := twoRooms()
 	// The excluded room is most recently active, so first in the ranking.
 	f.with = []domain.Room{
-		{ID: "!secret:x", Name: "Private chat", IsDirect: true},
-		{ID: "!open:x", Name: "Standup"},
+		{ID: mx + "!secret:x", Name: "Private chat", IsDirect: true},
+		{ID: mx + "!open:x", Name: "Standup"},
 	}
 	s := newServer(f, shareAll)
 
-	out := call(t, s, "find_rooms_with", map[string]any{"people": []string{"@dana:x"}, "limit": 1})
+	out := call(t, s, "find_rooms_with", map[string]any{"people": []string{"matrix:@dana:x"}, "limit": 1})
 	rooms, _ := out["rooms"].([]any)
 	if len(rooms) != 1 {
 		t.Fatalf("find_rooms_with(limit 1) = %v, want the one room in scope", out["rooms"])
 	}
-	if first, _ := rooms[0].(map[string]any); first["id"] != "!open:x" {
+	if first, _ := rooms[0].(map[string]any); first["id"] != mx+"!open:x" {
 		t.Fatalf("find_rooms_with = %v, want Standup", rooms)
 	}
 	if outside, _ := out[outsideScopeKey].(float64); outside != 1 {
@@ -756,9 +756,9 @@ func TestSearchLimitCountsOnlyInScopeRooms(t *testing.T) {
 	f := twoRooms()
 	at := time.Unix(1_700_000_000, 0)
 	for i := range 5 {
-		f.hits = append(f.hits, domain.SearchHit{RoomID: "!secret:x", EventID: domain.EventID(fmt.Sprintf("$s%d", i)), Timestamp: at})
+		f.hits = append(f.hits, domain.SearchHit{RoomID: mx + "!secret:x", EventID: domain.EventID(fmt.Sprintf(mx+"$s%d", i)), Timestamp: at})
 	}
-	f.hits = append(f.hits, domain.SearchHit{RoomID: "!open:x", EventID: "$open", Timestamp: at})
+	f.hits = append(f.hits, domain.SearchHit{RoomID: mx + "!open:x", EventID: mx + "$open", Timestamp: at})
 
 	out := call(t, newServer(f, shareAll), "search_messages", map[string]any{"query": "plan", "limit": 2})
 	hits, _ := out["hits"].([]any)
@@ -780,7 +780,7 @@ func TestSearchWithNothingSharedSearchesNothing(t *testing.T) {
 	t.Parallel()
 
 	f := twoRooms()
-	f.hits = []domain.SearchHit{{RoomID: "!secret:x", EventID: "$s", Timestamp: time.Unix(1_700_000_000, 0)}}
+	f.hits = []domain.SearchHit{{RoomID: mx + "!secret:x", EventID: mx + "$s", Timestamp: time.Unix(1_700_000_000, 0)}}
 	out := call(t, newServer(f, domain.ModelScope{Only: []string{"space:Nowhere"}}), "search_messages", map[string]any{"query": "plan"})
 	if hits, _ := out["hits"].([]any); len(hits) != 0 {
 		t.Errorf("hits = %v, want none", hits)
@@ -798,7 +798,7 @@ func TestAListingAsksTheDaemonOnce(t *testing.T) {
 
 	f := twoRooms()
 	for i := range 20 {
-		f.rooms = append(f.rooms, domain.Room{ID: domain.RoomID(fmt.Sprintf("!r%d:x", i)), Name: fmt.Sprintf("Room %d", i)})
+		f.rooms = append(f.rooms, domain.Room{ID: domain.RoomID(fmt.Sprintf(mx+"!r%d:x", i)), Name: fmt.Sprintf("Room %d", i)})
 	}
 	s := newServer(f, shareAll)
 	call(t, s, "list_rooms", nil)
@@ -812,7 +812,7 @@ func TestAListingAsksTheDaemonOnce(t *testing.T) {
 	if f.spacesCalls != 2 || f.encryptionCalls != 2 {
 		t.Fatalf("after a second call: spaces %d, encryption %d, want 2 and 2", f.spacesCalls, f.encryptionCalls)
 	}
-	if last := f.encryptionAsked[len(f.encryptionAsked)-1]; slices.Contains(last, "!secret:x") {
+	if last := f.encryptionAsked[len(f.encryptionAsked)-1]; slices.Contains(last, mx+"!secret:x") {
 		t.Errorf("asked again about a room already known encrypted: %v", last)
 	}
 }
@@ -824,11 +824,11 @@ func TestARoomThatTurnsOnEncryptionLeavesTheScope(t *testing.T) {
 
 	f := twoRooms()
 	s := newServer(f, shareAll)
-	if got := call(t, s, "list_rooms", nil); !listsRoom(got, "!open:x") {
+	if got := call(t, s, "list_rooms", nil); !listsRoom(got, mx+"!open:x") {
 		t.Fatalf("the plain room is not listed at first: %v", got)
 	}
-	f.encrypted["!open:x"] = true
-	if got := call(t, s, "list_rooms", nil); listsRoom(got, "!open:x") {
+	f.encrypted[mx+"!open:x"] = true
+	if got := call(t, s, "list_rooms", nil); listsRoom(got, mx+"!open:x") {
 		t.Errorf("a room that turned encryption on is still listed: %v", got)
 	}
 }
@@ -850,12 +850,12 @@ func TestAnAssistantReadsPeopleByTheirWholeNames(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()
 	f.dir = domain.NewDirectory([]domain.PersonName{{Source: "phone", ID: domain.PhoneID("15550100001"), Name: "Dana Levi"}}, nil)
-	f.messages["!open:x"] = []domain.Message{{
-		ID: "$m", Sender: "@dana:x", SenderName: "Dana", Body: "@100000000000005 can you look?", Timestamp: time.Unix(1_700_000_000, 0),
+	f.messages[mx+"!open:x"] = []domain.Message{{
+		ID: mx + "$m", Sender: "matrix:@dana:x", SenderName: "Dana", Body: "@100000000000005 can you look?", Timestamp: time.Unix(1_700_000_000, 0),
 		Mentions: []domain.Mention{{UserID: "whatsapp:15550100001@s.whatsapp.net", Name: "@100000000000005"}},
 	}}
 	s := newServer(f, shareAll)
-	s.aliases = map[string]string{"@dana:x": "Dana Cohen"}
+	s.aliases = map[string]string{"matrix:@dana:x": "Dana Cohen"}
 
 	out := call(t, s, "read_room", map[string]any{"room": "Standup"})
 	msgs, _ := out["messages"].([]any)
@@ -875,15 +875,15 @@ func TestTheUnreadSummaryUsesCountedMentions(t *testing.T) {
 
 	f := twoRooms()
 	f.unread = []domain.Unread{
-		{RoomID: "!open:x", Counted: true, Messages: 0, Mentions: 0, Highlights: 2}, // both mentions were hidden people's
-		{RoomID: "!secret:x", Highlights: 1},
+		{RoomID: mx + "!open:x", Counted: true, Messages: 0, Mentions: 0, Highlights: 2}, // both mentions were hidden people's
+		{RoomID: mx + "!secret:x", Highlights: 1},
 	}
 	out := call(t, newServer(f, shareAllEncrypted), "unread_summary", nil)
 	waiting, _ := out["waiting"].([]any)
 	if len(waiting) != 1 {
 		t.Fatalf("waiting = %v, want only the server-counted room", waiting)
 	}
-	if room, _ := waiting[0].(map[string]any); room["room"] != "!secret:x" || room["mentions"] != float64(1) {
+	if room, _ := waiting[0].(map[string]any); room["room"] != mx+"!secret:x" || room["mentions"] != float64(1) {
 		t.Errorf("waiting = %v, want !secret:x with its server's one mention", room)
 	}
 }

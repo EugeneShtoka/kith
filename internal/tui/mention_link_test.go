@@ -19,7 +19,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 	t.Parallel()
 
 	const pillHref = "matrix:u/dana:x"
-	dana := []domain.Mention{{UserID: "@dana:x", Name: "Dana"}}
+	dana := []domain.Mention{{UserID: "matrix:@dana:x", Name: "Dana"}}
 	for _, tc := range []struct {
 		name string
 		disp config.Display
@@ -57,7 +57,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 		},
 		{
 			name: "formatted pill rewritten to an alias",
-			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", IDs: []string{"@dana:x"}}}},
+			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", IDs: []string{"matrix:@dana:x"}}}},
 			msg: domain.Message{
 				Body: "ask Dana about it", Mentions: dana,
 				Format: richtext.FromMarkup(`ask <a href="https://matrix.to/#/@dana:x">Dana</a> about it`),
@@ -66,7 +66,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 		},
 		{
 			name: "formatted RTL pill rewritten to an alias",
-			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", IDs: []string{"@dana:x"}}}},
+			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", IDs: []string{"matrix:@dana:x"}}}},
 			msg: domain.Message{
 				Body: "שאל את Dana על זה", Mentions: dana,
 				Format: richtext.FromMarkup(`שאל את <a href="https://matrix.to/#/@dana:x">Dana</a> על זה`),
@@ -79,7 +79,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 
 			m := sized(t, withRooms(t, starterNew(apitest.Nop{}, tc.disp)))
 			msg := tc.msg
-			msg.ID, msg.RoomID, msg.Sender, msg.Timestamp = "$1", "!a:x", "@bob:x", at(1)
+			msg.ID, msg.RoomID, msg.Sender, msg.Timestamp = mx+"$1", mx+"!a:x", "matrix:@bob:x", at(1)
 			m = loadPage(t, m, []domain.Message{msg})
 			rows := strings.Join(m.layoutRows(), "\n")
 			if !strings.Contains(rows, ansi.SetHyperlink(tc.want)) {
@@ -91,7 +91,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 	// Off means no link escapes at all.
 	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{Hyperlinks: new(false)})))
 	m = loadPage(t, m, []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Timestamp: at(1),
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Timestamp: at(1),
 		Body: "שאל את Dana על זה", Mentions: dana,
 	}})
 	if rows := strings.Join(m.layoutRows(), "\n"); strings.Contains(rows, "\x1b]8;") {

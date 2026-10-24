@@ -76,14 +76,14 @@ func serving(t *testing.T, h *listingServer, cache *db.Cache) *InProc {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := New(cache)
+	b := newBackend(cache)
 	b.client = client
 	return b
 }
 
 func onlyChat(t *testing.T, what string, rooms []domain.Room) {
 	t.Helper()
-	if len(rooms) != 1 || rooms[0].ID != "!chat:x" {
+	if len(rooms) != 1 || rooms[0].ID != mx+"!chat:x" {
 		t.Errorf("%s = %+v, want the chat alone", what, rooms)
 	}
 }
@@ -135,7 +135,7 @@ func TestRoomsAndSpacesShareOneListing(t *testing.T) {
 		t.Errorf("/joined_rooms asked %d times, want once", h.joined)
 	}
 	onlyChat(t, "rooms", rooms)
-	if len(spaces) != 1 || spaces[0].ID != "!work:x" {
+	if len(spaces) != 1 || spaces[0].ID != mx+"!work:x" {
 		t.Errorf("spaces = %+v, want Work", spaces)
 	}
 }
@@ -166,7 +166,7 @@ func TestAFailedListingKeepsTheRooms(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := testCache(t)
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!chat:x", Name: "Chat"}}); err != nil {
+	if err := cache.SaveRooms(ctx, testIDs.owner(), []domain.Room{{ID: mx + "!chat:x", Name: "Chat"}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := serving(t, &listingServer{fail: true}, cache).RefreshRooms(ctx); err == nil {

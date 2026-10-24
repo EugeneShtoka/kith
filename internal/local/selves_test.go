@@ -16,7 +16,7 @@ const waMe = "whatsapp:44880000001@s.whatsapp.net"
 func TestEmojiScoresCountEveryAccountsReactions(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	for name, me := range map[string][]string{"WhatsApp alone": {waMe}, "Matrix and WhatsApp": {"@me:x", waMe}} {
+	for name, me := range map[string][]string{"WhatsApp alone": {waMe}, "Matrix and WhatsApp": {"matrix:@me:x", waMe}} {
 		s := backendAs(t, me...)
 		room := domain.RoomID("whatsapp:44880000001/1203@g.us")
 		if err := s.cache.SaveReactions(ctx, []domain.Reaction{
@@ -52,7 +52,7 @@ func TestAccountNameFromAnyAccount(t *testing.T) {
 		t.Errorf("accountNames = %q, want the name and its first word", got)
 	}
 
-	both := backendAs(t, "@ada:x", waMe)
+	both := backendAs(t, "matrix:@ada:x", waMe)
 	if got := both.accountName(ctx); got != "ada" {
 		t.Errorf("Matrix and WhatsApp, no names = %q, want the Matrix localpart", got)
 	}
@@ -72,9 +72,9 @@ func TestAccountNameFromAnyAccount(t *testing.T) {
 func TestCompletionWeighsEveryAccountsWordsAsOwn(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	s := backendAs(t, "@me:x", waMe)
+	s := backendAs(t, "matrix:@me:x", waMe)
 	far := domain.RoomID("whatsapp:44880000001/1203@g.us")
-	if err := s.cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x"}}); err != nil {
+	if err := s.cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x"}}); err != nil {
 		t.Fatal(err)
 	}
 	at := time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
@@ -87,7 +87,7 @@ func TestCompletionWeighsEveryAccountsWordsAsOwn(t *testing.T) {
 	}
 	rank := func() []string {
 		got, err := s.CompleteWord(ctx, domain.CompleteRequest{
-			Prefix: "zz", RoomIDs: []domain.RoomID{"!a:x"}, Scope: "room", Sources: []string{sourceHistory}, Limit: 5,
+			Prefix: "zz", RoomIDs: []domain.RoomID{mx + "!a:x"}, Scope: "room", Sources: []string{sourceHistory}, Limit: 5,
 		})
 		if err != nil {
 			t.Fatal(err)

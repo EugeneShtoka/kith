@@ -29,18 +29,18 @@ const ownWhatsApp = "whatsapp:44880000001@s.whatsapp.net"
 func TestIsMeIsEveryAccount(t *testing.T) {
 	t.Parallel()
 	m := newModel()
-	m, _ = m.handleSelves(selvesMsg{ids: []string{"@me:x", ownWhatsApp}})
-	for _, id := range []string{"@me:x", ownWhatsApp} {
+	m, _ = m.handleSelves(selvesMsg{ids: []string{"matrix:@me:x", ownWhatsApp}})
+	for _, id := range []string{"matrix:@me:x", ownWhatsApp} {
 		if !m.isMe(id) || !m.fromMe(id) {
 			t.Errorf("isMe(%q) = false", id)
 		}
 	}
-	for _, id := range []string{"", "@dana:x", "whatsapp:44880000002@s.whatsapp.net"} {
+	for _, id := range []string{"", "matrix:@dana:x", "whatsapp:44880000002@s.whatsapp.net"} {
 		if m.isMe(id) {
 			t.Errorf("isMe(%q) = true", id)
 		}
 	}
-	if got := m.selfIDs(); !slices.Equal(got, []string{"@me:x", ownWhatsApp}) {
+	if got := m.selfIDs(); !slices.Equal(got, []string{"matrix:@me:x", ownWhatsApp}) {
 		t.Errorf("selfIDs = %v, want the Matrix account first, once", got)
 	}
 
@@ -68,7 +68,7 @@ func TestSelvesAreAskedWhenAnAccountAppears(t *testing.T) {
 	t.Parallel()
 	asks := 0
 	m := starterNew(selvesBackend{Nop: apitest.Nop{}, ids: []string{ownWhatsApp}, asks: &asks}, config.Display{})
-	matrixRooms := []domain.Room{{ID: "!a:x"}, {ID: "!b:x"}}
+	matrixRooms := []domain.Room{{ID: mx + "!a:x"}, {ID: mx + "!b:x"}}
 	withWhatsApp := append(slices.Clone(matrixRooms), domain.Room{ID: "whatsapp:44880000001/1203@g.us"})
 
 	steps := []struct {
@@ -141,9 +141,9 @@ func TestNoRoomAsksNothing(t *testing.T) {
 func TestSelfInIsYouOnTheRoomsNetwork(t *testing.T) {
 	t.Parallel()
 	m := newModel()
-	m.selves = []string{"", "@me:x", "@whatsapp_44880000001:x", ownWhatsApp, "whatsapp:44880000002@s.whatsapp.net"}
+	m.selves = []string{"", "matrix:@me:x", "matrix:@whatsapp_44880000001:x", ownWhatsApp, "whatsapp:44880000002@s.whatsapp.net"}
 	for room, want := range map[domain.RoomID]string{
-		"!a:x": "@me:x",
+		mx + "!a:x": "matrix:@me:x",
 		domain.RoomID(domain.NativeID(domain.ProtocolWhatsApp, "44880000002", "120363000000000001@g.us")): ownWhatsApp,
 		domain.RoomID(domain.NativeID(domain.ProtocolTelegram, "1000001", "-1000002")):                    "",
 	} {
@@ -160,13 +160,13 @@ func TestAnIdentityWithAnyOfYourIDsIsYou(t *testing.T) {
 	m := newModel()
 	m.selves = []string{ownWhatsApp}
 	m.prefs.identities = buildIdentities([]config.Identity{
-		{Alias: "me", IDs: []string{ownWhatsApp, "@whatsapp_44880000001:x"}},
-		{Alias: "dana", IDs: []string{"@dana:x", "whatsapp:44880000009@s.whatsapp.net"}},
+		{Alias: "me", IDs: []string{ownWhatsApp, "matrix:@whatsapp_44880000001:x"}},
+		{Alias: "dana", IDs: []string{"matrix:@dana:x", "whatsapp:44880000009@s.whatsapp.net"}},
 	})
-	if !m.fromMe("@whatsapp_44880000001:x") {
+	if !m.fromMe("matrix:@whatsapp_44880000001:x") {
 		t.Error("your bridged puppet, grouped with your WhatsApp number, is not you")
 	}
-	if m.fromMe("whatsapp:44880000009@s.whatsapp.net") || m.fromMe("@dana:x") {
+	if m.fromMe("whatsapp:44880000009@s.whatsapp.net") || m.fromMe("matrix:@dana:x") {
 		t.Error("someone else's identity is you")
 	}
 }

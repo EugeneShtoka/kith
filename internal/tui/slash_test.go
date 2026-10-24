@@ -38,8 +38,8 @@ func TestEmoteRendersWithItsMarker(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@dana:x", SenderName: "Dana", Body: "waves", Timestamp: at(1), Emote: true},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", SenderName: "Dana", Body: "waves", Timestamp: at(1), Emote: true},
 	}}})
 	frame := stripStyles(m.View().Content)
 	if !strings.Contains(frame, "* waves") {

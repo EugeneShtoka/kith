@@ -13,10 +13,10 @@ import (
 func completingSearch(t *testing.T) Model {
 	t.Helper()
 	m, _ := searching(t, false)
-	m = update(t, m, membersMsg{roomID: "!a:x", members: []domain.Member{
-		{UserID: "@dana:x", DisplayName: "Dana"},
-		{UserID: "@dan:x", DisplayName: "Dan Other"},
-		{UserID: "@bob:x", DisplayName: "Bob"},
+	m = update(t, m, membersMsg{roomID: mx + "!a:x", members: []domain.Member{
+		{UserID: "matrix:@dana:x", DisplayName: "Dana"},
+		{UserID: "matrix:@dan:x", DisplayName: "Dan Other"},
+		{UserID: "matrix:@bob:x", DisplayName: "Bob"},
 	}})
 	return m
 }
@@ -61,7 +61,7 @@ func TestAcceptingFromInsertsTheMXID(t *testing.T) {
 	next, _ := m.acceptCompletion()
 	m = next
 
-	if got := m.editorFor(fieldPrompt).text; got != "invoice from:@dana:x" {
+	if got := m.editorFor(fieldPrompt).text; got != "invoice from:matrix:@dana:x" {
 		t.Errorf("prompt = %q, want the filter kept and the MXID after it", got)
 	}
 	if m.completion.active {
@@ -166,7 +166,7 @@ func TestFromPopupIsVisibleOverTheResults(t *testing.T) {
 func TestFromOffersTheScopesSendersNotJustTheRoom(t *testing.T) {
 	m := completingSearch(t)
 	m = update(t, m, searchSendersMsg{scope: m.search.scope, senders: []domain.Member{
-		{UserID: "@elsewhere:x", DisplayName: "Elsa Elsewhere"},
+		{UserID: "matrix:@elsewhere:x", DisplayName: "Elsa Elsewhere"},
 	}})
 
 	// Posted in the scope but not a member of this room.
@@ -174,7 +174,7 @@ func TestFromOffersTheScopesSendersNotJustTheRoom(t *testing.T) {
 	if !offered.completion.active {
 		t.Fatal("a sender from the wider scope was not offered")
 	}
-	if got := offered.completion.candidates[0].text; got != "@elsewhere:x" {
+	if got := offered.completion.candidates[0].text; got != "matrix:@elsewhere:x" {
 		t.Errorf("first candidate = %q, want the scope's sender", got)
 	}
 
@@ -183,7 +183,7 @@ func TestFromOffersTheScopesSendersNotJustTheRoom(t *testing.T) {
 	if !local.completion.active {
 		t.Fatal("the open room's members stopped being offered")
 	}
-	if got := local.completion.candidates[0].text; got != "@bob:x" {
+	if got := local.completion.candidates[0].text; got != "matrix:@bob:x" {
 		t.Errorf("first candidate = %q, want the room's member", got)
 	}
 }
@@ -192,7 +192,7 @@ func TestStaleSendersAreDropped(t *testing.T) {
 	m := completingSearch(t)
 	stale := m.search.scope.next()
 	m = update(t, m, searchSendersMsg{scope: stale, senders: []domain.Member{
-		{UserID: "@elsewhere:x", DisplayName: "Elsa Elsewhere"},
+		{UserID: "matrix:@elsewhere:x", DisplayName: "Elsa Elsewhere"},
 	}})
 	if len(m.search.people) != 0 {
 		t.Errorf("kept %+v for a scope that is no longer current", m.search.people)

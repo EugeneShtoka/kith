@@ -49,11 +49,11 @@ func composingWith(t *testing.T, display config.Display, members ...domain.Membe
 	t.Helper()
 	b := &memberBackend{members: members}
 	m := update(t, starterNew(b, display),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
-	m = update(t, m, membersMsg{roomID: "!a:x", members: members})
+	m = update(t, m, membersMsg{roomID: mx + "!a:x", members: members})
 	m.focus = paneTimeline
 	m.compose.insertMode = true
 	m = m.clearStatus()
@@ -70,10 +70,10 @@ func typeInto(t *testing.T, m Model, text string) Model {
 }
 
 var people = []domain.Member{
-	{UserID: "@mike:x", DisplayName: "Michael Livingston"},
-	{UserID: "@liv:x", DisplayName: "Liv Andersen"},
-	{UserID: "@dana:x", DisplayName: "Dana Levi"},
-	{UserID: "@wa:x", DisplayName: "Olivia Stone"},
+	{UserID: "matrix:@mike:x", DisplayName: "Michael Livingston"},
+	{UserID: "matrix:@liv:x", DisplayName: "Liv Andersen"},
+	{UserID: "matrix:@dana:x", DisplayName: "Dana Levi"},
+	{UserID: "matrix:@wa:x", DisplayName: "Olivia Stone"},
 }
 
 // `@` after a space opens the popup listing the room.
@@ -208,7 +208,7 @@ func TestMentionAcceptInsertsAndRecords(t *testing.T) {
 	if m.completion.active {
 		t.Error("accepting should close the popup")
 	}
-	if len(m.compose.drafted) != 1 || m.compose.drafted[0].UserID != "@mike:x" || m.compose.drafted[0].Name != "Michael Livingston" {
+	if len(m.compose.drafted) != 1 || m.compose.drafted[0].UserID != "matrix:@mike:x" || m.compose.drafted[0].Name != "Michael Livingston" {
 		t.Errorf("drafted = %+v, want the selected person recorded", m.compose.drafted)
 	}
 }
@@ -319,7 +319,7 @@ func TestSendCarriesMention(t *testing.T) {
 		t.Errorf("Body = %q", draft.Body)
 	}
 	live := draft.LiveMentions()
-	if len(live) != 1 || live[0].UserID != "@dana:x" {
+	if len(live) != 1 || live[0].UserID != "matrix:@dana:x" {
 		t.Errorf("mentions = %+v, want dana", live)
 	}
 	// The composer's mention list is cleared for the next message.
@@ -360,13 +360,13 @@ func TestMentionPopupIsIdentityMergeAware(t *testing.T) {
 
 	display := config.Display{Identities: []config.Identity{{
 		Alias: "Dana",
-		IDs:   []string{"@dana:x", "@whatsapp_dana:x", "@telegram_dana:x"},
+		IDs:   []string{"matrix:@dana:x", "matrix:@whatsapp_dana:x", "matrix:@telegram_dana:x"},
 	}}}
 	m, _ := composingWith(t, display,
-		domain.Member{UserID: "@dana:x", DisplayName: "Dana Levi"},
-		domain.Member{UserID: "@whatsapp_dana:x", DisplayName: "Dana L (WA)"},
-		domain.Member{UserID: "@telegram_dana:x", DisplayName: "dana_tg"},
-		domain.Member{UserID: "@other:x", DisplayName: "Danielle"},
+		domain.Member{UserID: "matrix:@dana:x", DisplayName: "Dana Levi"},
+		domain.Member{UserID: "matrix:@whatsapp_dana:x", DisplayName: "Dana L (WA)"},
+		domain.Member{UserID: "matrix:@telegram_dana:x", DisplayName: "dana_tg"},
+		domain.Member{UserID: "matrix:@other:x", DisplayName: "Danielle"},
 	)
 	m = typeInto(t, m, "@dan")
 
@@ -388,7 +388,7 @@ func TestMentionPopupIsIdentityMergeAware(t *testing.T) {
 	if m.compose.drafted[0].Name != "Dana" {
 		t.Errorf("inserted name = %q, want the alias", m.compose.drafted[0].Name)
 	}
-	inRoom := map[string]bool{"@dana:x": true, "@whatsapp_dana:x": true, "@telegram_dana:x": true}
+	inRoom := map[string]bool{"matrix:@dana:x": true, "matrix:@whatsapp_dana:x": true, "matrix:@telegram_dana:x": true}
 	if !inRoom[m.compose.drafted[0].UserID] {
 		t.Errorf("notified %q, which is not one of this room's accounts for that person", m.compose.drafted[0].UserID)
 	}
@@ -399,9 +399,9 @@ func TestMentionPopupRowDetails(t *testing.T) {
 	t.Parallel()
 
 	m, _ := composing(t,
-		domain.Member{UserID: "@a1:x", DisplayName: "Alex Kim"},
-		domain.Member{UserID: "@a2:x", DisplayName: "Alex Kim"},
-		domain.Member{UserID: "@whatsapp_99:x", DisplayName: "Bridged Bob"},
+		domain.Member{UserID: "matrix:@a1:x", DisplayName: "Alex Kim"},
+		domain.Member{UserID: "matrix:@a2:x", DisplayName: "Alex Kim"},
+		domain.Member{UserID: "matrix:@whatsapp_99:x", DisplayName: "Bridged Bob"},
 	)
 	m = typeInto(t, m, "@")
 
@@ -409,11 +409,11 @@ func TestMentionPopupRowDetails(t *testing.T) {
 	for _, c := range m.completion.candidates {
 		details[c.userID] = c.detail
 	}
-	if details["@a1:x"] != "@a1:x" || details["@a2:x"] != "@a2:x" {
+	if details["matrix:@a1:x"] != "matrix:@a1:x" || details["matrix:@a2:x"] != "matrix:@a2:x" {
 		t.Errorf("duplicate names should carry their MXIDs, got %v", details)
 	}
-	if details["@whatsapp_99:x"] != "WhatsApp" {
-		t.Errorf("a bridged account should name its network, got %q", details["@whatsapp_99:x"])
+	if details["matrix:@whatsapp_99:x"] != "WhatsApp" {
+		t.Errorf("a bridged account should name its network, got %q", details["matrix:@whatsapp_99:x"])
 	}
 }
 
@@ -460,7 +460,7 @@ func TestMembersLoadOnRoomOpen(t *testing.T) {
 
 	b := &memberBackend{members: people}
 	m := update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, cmd := m.selectRoom(m.filteredRooms()[0])
 	m = next
@@ -470,12 +470,12 @@ func TestMembersLoadOnRoomOpen(t *testing.T) {
 	if m.timeline.members != nil {
 		t.Error("members should start empty and arrive by message")
 	}
-	m = update(t, m, membersMsg{roomID: "!a:x", members: people})
+	m = update(t, m, membersMsg{roomID: mx + "!a:x", members: people})
 	if len(m.timeline.members) != len(people) {
 		t.Errorf("members = %d, want the ranked list", len(m.timeline.members))
 	}
 	// A result for a room already left behind is dropped.
-	m = update(t, m, membersMsg{roomID: "!elsewhere:x", members: nil})
+	m = update(t, m, membersMsg{roomID: mx + "!elsewhere:x", members: nil})
 	if len(m.timeline.members) != len(people) {
 		t.Error("another room's members should not replace the open room's")
 	}

@@ -47,29 +47,29 @@ const (
 func scopeRooms() *fake {
 	return &fake{
 		rooms: []domain.Room{
-			{ID: "!work:x", Name: "Standup"},
-			{ID: "!wa:x", Name: "Family"},
-			{ID: "!loose:x", Name: "Loose"},
-			{ID: "!dm:x", Name: "Dana", IsDirect: true},
-			{ID: "!enc:x", Name: "Vault"},
+			{ID: mx + "!work:x", Name: "Standup"},
+			{ID: mx + "!wa:x", Name: "Family"},
+			{ID: mx + "!loose:x", Name: "Loose"},
+			{ID: mx + "!dm:x", Name: "Dana", IsDirect: true},
+			{ID: mx + "!enc:x", Name: "Vault"},
 			{ID: nativeGroup, Name: "Choir"},
 			{ID: nativeDM, Name: "Noa", IsDirect: true},
-			{ID: "!both:x", Name: "Relay"}, // held by two bridges
-			{ID: "!anon:x"},                // no name of its own
+			{ID: mx + "!both:x", Name: "Relay"}, // held by two bridges
+			{ID: mx + "!anon:x"},                // no name of its own
 		},
 		spaces: []domain.Space{
-			{ID: "!s1:x", Name: "Work", Children: []domain.RoomID{"!work:x", "!enc:x"}},
-			{ID: "!s2:x", Name: "WhatsApp", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{"!wa:x", "!dm:x", "!both:x"}},
-			{ID: "!s3:x", Name: "Telegram", Bridge: domain.ProtocolTelegram, Children: []domain.RoomID{"!both:x"}},
+			{ID: mx + "!s1:x", Name: "Work", Children: []domain.RoomID{mx + "!work:x", mx + "!enc:x"}},
+			{ID: mx + "!s2:x", Name: "WhatsApp", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{mx + "!wa:x", mx + "!dm:x", mx + "!both:x"}},
+			{ID: mx + "!s3:x", Name: "Telegram", Bridge: domain.ProtocolTelegram, Children: []domain.RoomID{mx + "!both:x"}},
 		},
-		encrypted: map[domain.RoomID]bool{"!enc:x": true},
+		encrypted: map[domain.RoomID]bool{mx + "!enc:x": true},
 	}
 }
 
 // scopePlaces gives a room your own name, names an unnamed room, shows the WhatsApp
 // space as Chats, and adds tags: one picking by your name, one sharing a space's name.
 var scopePlaces = domain.Places{
-	Names: map[domain.RoomID]string{"!loose:x": "Lounge", "!anon:x": "Quiet"},
+	Names: map[domain.RoomID]string{mx + "!loose:x": "Lounge", mx + "!anon:x": "Quiet"},
 	Order: domain.HomeOrder{Priority: []string{"space:Telegram", "space:WhatsApp"}, Labels: map[string]string{"whatsapp": "Chats"}},
 	Tags:  pinnedTag(),
 }
@@ -78,9 +78,9 @@ var scopePlaces = domain.Places{
 // a room outside the space of that name.
 func pinnedTag() domain.TagSet {
 	tags, _, err := domain.NewTagSet([]domain.Tag{{
-		Name: "Pinned", Rule: []string{"space:Telegram"}, Picked: []string{"room:Lounge", "!work:x"},
+		Name: "Pinned", Rule: []string{"space:Telegram"}, Picked: []string{"room:Lounge", mx + "!work:x"},
 	}, {
-		Name: "Work", Picked: []string{"!dm:x"},
+		Name: "Work", Picked: []string{mx + "!dm:x"},
 	}})
 	if err != nil {
 		panic(err)
@@ -91,14 +91,22 @@ func pinnedTag() domain.TagSet {
 // scopeEntries is every entry kind, each naming at least one fixture room.
 var scopeEntries = []string{
 	"space:Work", "space:WhatsApp", "space:Telegram", "protocol:matrix", "protocol:whatsapp",
-	"protocol:telegram", "room:Standup", "room:Lounge", "room:Quiet", "!wa:x", "dm", "group",
+	"protocol:telegram", "room:Standup", "room:Lounge", "room:Quiet", mx + "!wa:x", "dm", "group",
 	"tag:Pinned", string(nativeGroup), "tag:Work",
 	"place:Work", "place:chats", "place:Pinned", "place:TELEGRAM", "place:WhatsApp",
 }
 
+// strayEntries name no fixture room, though each looks close to one: what the switch to
+// matrix:<account>/ IDs could leave in a config (a bare ID, room: with one, another
+// account's view of a room, a person). Each must admit nothing.
+var strayEntries = []string{
+	"!work:x", "room:!work:x", "matrix:fedcba9876543210/!work:x", "room:matrix:fedcba9876543210/!work:x",
+	"matrix:@dana:x",
+}
+
 func someEntries(rng *rand.Rand) []string {
 	var out []string
-	for _, e := range scopeEntries {
+	for _, e := range append(slices.Clone(scopeEntries), strayEntries...) {
 		if rng.IntN(3) == 0 {
 			out = append(out, e)
 		}
@@ -141,6 +149,29 @@ func TestAFailedLookupNeverWidensTheScope(t *testing.T) {
 		for _, except := range append([]string{""}, scopeEntries...) {
 			scope := domain.ModelScope{Only: nonBlank(only), Except: nonBlank(except), Encrypted: true}
 			neverWidens(t, fmt.Sprintf("rooms %q, except %q", only, except), scope, scope, nonBlank(only))
+		}
+	}
+}
+
+// A stray entry admits no room; room: with a kith ID admits exactly that room.
+func TestAStrayEntryAdmitsNothing(t *testing.T) {
+	t.Parallel()
+	f := scopeRooms()
+	for _, entry := range append(slices.Clone(strayEntries), "room:"+mx+"!work:x") {
+		s := writerWith(t, f, domain.ModelScope{Only: []string{entry}, Encrypted: true}, domain.ModelScope{}, nil)
+		s.places = scopePlaces
+		var read []string
+		for i := range f.rooms {
+			if s.allowed(withCallMemo(context.Background()), f.rooms[i]) == nil {
+				read = append(read, f.rooms[i].Name)
+			}
+		}
+		want := []string(nil)
+		if strings.HasPrefix(entry, "room:"+mx) {
+			want = []string{"Standup"}
+		}
+		if !slices.Equal(read, want) {
+			t.Errorf("rooms = [%s] reads %v, want %v", entry, read, want)
 		}
 	}
 }
@@ -203,9 +234,9 @@ func TestNamesAndPinsAdmitWhatTheyName(t *testing.T) {
 		room  domain.RoomID
 		want  bool
 	}{
-		{"room:Lounge", "!loose:x", true}, {"room:Loose", "!loose:x", false},
-		{"room:Quiet", "!anon:x", true}, {"tag:Pinned", "!loose:x", true}, {"tag:Pinned", "!work:x", true},
-		{"tag:Pinned", "!wa:x", false}, {"protocol:whatsapp", "!both:x", true}, {"protocol:telegram", "!both:x", false},
+		{"room:Lounge", mx + "!loose:x", true}, {"room:Loose", mx + "!loose:x", false},
+		{"room:Quiet", mx + "!anon:x", true}, {"tag:Pinned", mx + "!loose:x", true}, {"tag:Pinned", mx + "!work:x", true},
+		{"tag:Pinned", mx + "!wa:x", false}, {"protocol:whatsapp", mx + "!both:x", true}, {"protocol:telegram", mx + "!both:x", false},
 	} {
 		s := newServer(f, domain.ModelScope{Only: []string{c.entry}})
 		s.places = scopePlaces
@@ -245,11 +276,11 @@ func TestAPlaceEntryAdmitsExactlyTheRoomsOfItsRows(t *testing.T) {
 		entry string
 		want  []domain.RoomID
 	}{
-		{"place:Work", []domain.RoomID{"!work:x", "!dm:x", "!enc:x"}},       // the space and the tag
-		{"place:chats", []domain.RoomID{"!wa:x", "!dm:x", "!both:x"}},       // WhatsApp, renamed
-		{"place:WhatsApp", []domain.RoomID{"!wa:x", "!dm:x", "!both:x"}},    // by its name too
-		{"place:TELEGRAM", []domain.RoomID{"!both:x"}},                      // a bridge's space
-		{"place:Pinned", []domain.RoomID{"!work:x", "!loose:x", "!both:x"}}, // a tag
+		{"place:Work", []domain.RoomID{mx + "!work:x", mx + "!dm:x", mx + "!enc:x"}},       // the space and the tag
+		{"place:chats", []domain.RoomID{mx + "!wa:x", mx + "!dm:x", mx + "!both:x"}},       // WhatsApp, renamed
+		{"place:WhatsApp", []domain.RoomID{mx + "!wa:x", mx + "!dm:x", mx + "!both:x"}},    // by its name too
+		{"place:TELEGRAM", []domain.RoomID{mx + "!both:x"}},                                // a bridge's space
+		{"place:Pinned", []domain.RoomID{mx + "!work:x", mx + "!loose:x", mx + "!both:x"}}, // a tag
 		{"place:Lounge", nil}, // a room's name is no row
 		{"space:Chats", nil},  // space: reads the name
 		{"Work", nil},         // a bare name names nothing
@@ -274,7 +305,7 @@ func TestARoomInNoSpaceIsAPlainMatrixRoom(t *testing.T) {
 	t.Parallel()
 	f := scopeRooms()
 	s := newServer(f, domain.ModelScope{Only: []string{"protocol:matrix"}, Except: []string{"space:Work"}})
-	loose := f.rooms[slices.IndexFunc(f.rooms, func(r domain.Room) bool { return r.ID == "!loose:x" })]
+	loose := f.rooms[slices.IndexFunc(f.rooms, func(r domain.Room) bool { return r.ID == mx+"!loose:x" })]
 	if err := s.allowed(withCallMemo(context.Background()), loose); err != nil {
 		t.Fatalf("a room in no space was refused: %v", err)
 	}
@@ -310,8 +341,8 @@ func TestEveryToolSaysWhenTheSpacesAreUnknown(t *testing.T) {
 		{"read_room", map[string]any{"room": "Loose"}},
 		{"search_messages", map[string]any{"query": "morning"}},
 		{"find_people", map[string]any{"query": "dana"}},
-		{"find_rooms_with", map[string]any{"people": []string{"@dana:x"}}},
-		{"read_around", map[string]any{"room": "Loose", "event": "$1"}},
+		{"find_rooms_with", map[string]any{"people": []string{"matrix:@dana:x"}}},
+		{"read_around", map[string]any{"room": "Loose", "event": mx + "$1"}},
 		{"unread_summary", map[string]any{}},
 		{"send_message", map[string]any{"room": "Loose", "text": "hi"}},
 	} {
@@ -332,7 +363,7 @@ func TestAScopeNamingNoPlaceIgnoresTheSpaces(t *testing.T) {
 	s := newServer(scopeRooms(), domain.ModelScope{Only: []string{"group"}})
 	s.backend = failing{fake: scopeRooms(), spaces: true}
 	out := call(t, s, "list_rooms", map[string]any{})
-	if !listsRoom(out, "!loose:x") {
+	if !listsRoom(out, mx+"!loose:x") {
 		t.Fatalf("list_rooms = %v, want the group rooms", out["rooms"])
 	}
 }
@@ -342,7 +373,7 @@ func TestAScopeNamingNoPlaceIgnoresTheSpaces(t *testing.T) {
 func TestAPinNamingASpaceIsNotGuessed(t *testing.T) {
 	t.Parallel()
 	f := scopeRooms()
-	both := f.rooms[slices.IndexFunc(f.rooms, func(r domain.Room) bool { return r.ID == "!both:x" })]
+	both := f.rooms[slices.IndexFunc(f.rooms, func(r domain.Room) bool { return r.ID == mx+"!both:x" })]
 	s := newServer(f, domain.ModelScope{Only: []string{"room:Relay"}, Except: []string{"tag:Pinned"}})
 	s.backend = failing{spaces: true, fake: scopeRooms()}
 	s.places = scopePlaces // Pinned takes space:Telegram, which holds !both:x

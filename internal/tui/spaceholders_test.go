@@ -16,18 +16,18 @@ func TestSpaceHoldersMatchAScan(t *testing.T) {
 	r := rand.New(rand.NewPCG(1, 2))
 	rooms := make([]domain.RoomID, 60)
 	for i := range rooms {
-		rooms[i] = domain.RoomID(fmt.Sprintf("!r%d:x", i))
+		rooms[i] = domain.RoomID(fmt.Sprintf(mx+"!r%d:x", i))
 	}
 	spaces := make([]domain.Space, 12)
 	for i := range spaces {
-		spaces[i] = domain.Space{ID: domain.SpaceID(fmt.Sprintf("!s%d:x", i)), Name: fmt.Sprintf("Space %d", i%9)}
+		spaces[i] = domain.Space{ID: domain.SpaceID(fmt.Sprintf(mx+"!s%d:x", i)), Name: fmt.Sprintf("Space %d", i%9)}
 		for range r.IntN(20) {
 			spaces[i].Children = append(spaces[i].Children, rooms[r.IntN(len(rooms))])
 		}
 	}
 	indexed := inventory{}.withSpaces(spaces)
 
-	for _, id := range append(rooms, "!nowhere:x") {
+	for _, id := range append(rooms, mx+"!nowhere:x") {
 		var want []string
 		for i := range spaces {
 			if slices.Contains(spaces[i].Children, id) {

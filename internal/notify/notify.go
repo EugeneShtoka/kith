@@ -21,8 +21,8 @@ import (
 type Notification struct {
 	// Sender is the sender's display name (their MXID when unresolved).
 	Sender string
-	// MXID is the sender's Matrix ID.
-	MXID string
+	// SenderID is the sender's ID on their network.
+	SenderID string
 	// Room is the room's display label.
 	Room string
 	// Body is the message text.
@@ -66,9 +66,9 @@ func (n Notification) isoSent() (date, clock string) {
 }
 
 // placeholderRe matches a template field. Unknown names are kept as literal text.
-var placeholderRe = regexp.MustCompile(`\{[a-z]+\}`)
+var placeholderRe = regexp.MustCompile(`\{[a-z_]+\}`)
 
-// Render expands the placeholders in tpl — {space} {sender} {mxid} {room} {body}
+// Render expands the placeholders in tpl — {space} {sender} {sender_id} {room} {body}
 // {protocol} {date} {time} — against n.
 func (n Notification) Render(tpl string) string {
 	date, clock := n.isoSent()
@@ -79,14 +79,14 @@ func (n Notification) Render(tpl string) string {
 		clock = n.Time
 	}
 	fields := map[string]string{
-		"{space}":    n.Space,
-		"{sender}":   n.Sender,
-		"{mxid}":     n.MXID,
-		"{room}":     n.Room,
-		"{body}":     n.Body,
-		"{protocol}": n.Protocol,
-		"{date}":     date,
-		"{time}":     clock,
+		"{space}":     n.Space,
+		"{sender}":    n.Sender,
+		"{sender_id}": n.SenderID,
+		"{room}":      n.Room,
+		"{body}":      n.Body,
+		"{protocol}":  n.Protocol,
+		"{date}":      date,
+		"{time}":      clock,
 	}
 
 	type piece struct {
@@ -328,7 +328,7 @@ func (c commandSink) Notify(n Notification) {
 		"KITH_TITLE="+n.Render(c.tpl.Title),
 		"KITH_BODY="+n.Render(c.tpl.Body),
 		"KITH_SENDER="+n.Sender,
-		"KITH_MXID="+n.MXID,
+		"KITH_SENDER_ID="+n.SenderID,
 		"KITH_ROOM="+n.Room,
 		"KITH_SPACE="+n.Space,
 		"KITH_MESSAGE="+n.Body,

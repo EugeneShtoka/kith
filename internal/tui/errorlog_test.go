@@ -29,7 +29,7 @@ func TestMarkReadRefusalShowsAndLogsTheReason(t *testing.T) {
 	b.result = domain.ReadResult{Failed: 1, FirstError: reason}
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, "home")
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m, cmd := press(t, next, keyText("m"))
 	if cmd == nil {
 		t.Fatal("m sent no command")
@@ -82,11 +82,11 @@ func TestSayErrShowsAndLogs(t *testing.T) {
 
 	log, buf := bufferLog()
 	m := newModel().WithLogger(log)
-	m = m.sayErr("could not delete it", errors.New("M_FORBIDDEN"), "room", "!r:x")
+	m = m.sayErr("could not delete it", errors.New("M_FORBIDDEN"), "room", mx+"!r:x")
 	if m.status() != "could not delete it: M_FORBIDDEN" {
 		t.Errorf("status = %q", m.status())
 	}
-	for _, want := range []string{"level=WARN", `msg="could not delete it"`, "err=M_FORBIDDEN", "room=!r:x"} {
+	for _, want := range []string{"level=WARN", `msg="could not delete it"`, "err=M_FORBIDDEN", "room=" + mx + "!r:x"} {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("log %q lacks %q", buf.String(), want)
 		}

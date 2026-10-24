@@ -36,8 +36,8 @@ func TestClientReattachesWhenTheDaemonRestarts(t *testing.T) {
 	t.Cleanup(client.Stop)
 
 	first.waitAttached(t, 1)
-	feed <- domain.Message{ID: "$before", RoomID: "!r:x", Body: "before the restart"}
-	if got := nextMessage(t, client.Messages()); got.ID != "$before" {
+	feed <- domain.Message{ID: mx + "$before", RoomID: mx + "!r:x", Body: "before the restart"}
+	if got := nextMessage(t, client.Messages()); got.ID != mx+"$before" {
 		t.Fatalf("first message = %+v, want $before", got)
 	}
 
@@ -57,8 +57,8 @@ func TestClientReattachesWhenTheDaemonRestarts(t *testing.T) {
 	second.waitAttached(t, 1)
 
 	// A message sent after the restart arrives on the channel the UI held all along.
-	feed <- domain.Message{ID: "$after", RoomID: "!r:x", Body: "after the restart"}
-	if got := nextMessage(t, client.Messages()); got.ID != "$after" {
+	feed <- domain.Message{ID: mx + "$after", RoomID: mx + "!r:x", Body: "after the restart"}
+	if got := nextMessage(t, client.Messages()); got.ID != mx+"$after" {
 		t.Fatalf("message after the restart = %+v, want $after", got)
 	}
 
@@ -213,8 +213,8 @@ func TestAFirstAttachThatRacesARestartStillReattaches(t *testing.T) {
 	}
 
 	// The UI's original channel still delivers.
-	feed <- domain.Message{ID: "$after", RoomID: "!r:x", Body: "after the race"}
-	if got := nextMessage(t, client.Messages()); got.ID != "$after" {
+	feed <- domain.Message{ID: mx + "$after", RoomID: mx + "!r:x", Body: "after the race"}
+	if got := nextMessage(t, client.Messages()); got.ID != mx+"$after" {
 		t.Fatalf("message after the race = %+v, want $after", got)
 	}
 }
@@ -317,8 +317,8 @@ func TestAClientAttachedOnceOutlastsACrashAndASlowRestart(t *testing.T) {
 	go func() { ended <- client.Start(context.Background()) }()
 	t.Cleanup(client.Stop)
 	first.waitAttached(t, 1)
-	feed <- domain.Message{ID: "$before", RoomID: "!r:x", Body: "before the crash"}
-	if got := nextMessage(t, client.Messages()); got.ID != "$before" {
+	feed <- domain.Message{ID: mx + "$before", RoomID: mx + "!r:x", Body: "before the crash"}
+	if got := nextMessage(t, client.Messages()); got.ID != mx+"$before" {
 		t.Fatalf("first message = %+v, want $before", got)
 	}
 
@@ -334,8 +334,8 @@ func TestAClientAttachedOnceOutlastsACrashAndASlowRestart(t *testing.T) {
 
 	second := runDaemon(t, path, backend)
 	second.waitAttached(t, 1)
-	feed <- domain.Message{ID: "$after", RoomID: "!r:x", Body: "after the restart"}
-	if got := nextMessage(t, client.Messages()); got.ID != "$after" {
+	feed <- domain.Message{ID: mx + "$after", RoomID: mx + "!r:x", Body: "after the restart"}
+	if got := nextMessage(t, client.Messages()); got.ID != mx+"$after" {
 		t.Fatalf("message after the restart = %+v, want $after", got)
 	}
 }

@@ -88,7 +88,7 @@ func TestForceTakesTheSeatOnceTheOtherWindowHasClosed(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 	}
 	// It saves its drafts, then closes.
-	if saved, err := first.ReplaceDraft(t.Context(), domain.StoredDraft{RoomID: "!a:x", Body: "last words"}, domain.StoredDraft{}); !saved || err != nil {
+	if saved, err := first.ReplaceDraft(t.Context(), domain.StoredDraft{RoomID: mx + "!a:x", Body: "last words"}, domain.StoredDraft{}); !saved || err != nil {
 		t.Fatalf("the first window's last save = %v, %v", saved, err)
 	}
 	first.Stop()
@@ -135,10 +135,10 @@ func TestAWindowThatDoesNotAnswerLosesTheSeat(t *testing.T) {
 	if waited := time.Since(began); waited < 2*time.Second || waited > 5*time.Second {
 		t.Errorf("the seat was given over after %v, want the few seconds a window has to answer", waited)
 	}
-	if _, err := hung.ReplaceDraft(t.Context(), domain.StoredDraft{RoomID: "!a:x", Body: "late"}, domain.StoredDraft{}); !errors.Is(err, api.ErrSeatTaken) {
+	if _, err := hung.ReplaceDraft(t.Context(), domain.StoredDraft{RoomID: mx + "!a:x", Body: "late"}, domain.StoredDraft{}); !errors.Is(err, api.ErrSeatTaken) {
 		t.Errorf("the old window's write = %v, want ErrSeatTaken", err)
 	}
-	if saved, err := h.client().ReplaceDraft(t.Context(), domain.StoredDraft{RoomID: "!a:x", Body: "added"}, domain.StoredDraft{}); !saved || err != nil {
+	if saved, err := h.client().ReplaceDraft(t.Context(), domain.StoredDraft{RoomID: mx + "!a:x", Body: "added"}, domain.StoredDraft{}); !saved || err != nil {
 		t.Errorf("an appender's write = %v, %v; want it taken", saved, err)
 	}
 }
@@ -164,7 +164,7 @@ func TestEveryWindowReplacedIsToldItLostTheSeat(t *testing.T) {
 		if got.err != nil {
 			t.Fatalf("--force: %v", got.err)
 		}
-		_, err := got.r.ReplaceDraft(t.Context(), domain.StoredDraft{RoomID: "!a:x", Body: "x"}, domain.StoredDraft{})
+		_, err := got.r.ReplaceDraft(t.Context(), domain.StoredDraft{RoomID: mx + "!a:x", Body: "x"}, domain.StoredDraft{})
 		if !errors.Is(err, api.ErrSeatTaken) {
 			continue // the one sitting now
 		}
@@ -192,7 +192,7 @@ func TestASignalKeepsTheSeatUntilStop(t *testing.T) {
 	if _, err := window(t, h, false, 202); !errors.Is(err, api.ErrSeatTaken) {
 		t.Fatalf("a second window after the signal = %v, want it refused while the first still writes", err)
 	}
-	if _, err := a.ReplaceDraft(context.Background(), domain.StoredDraft{RoomID: "!a:x", Body: "last words"}, domain.StoredDraft{}); err != nil {
+	if _, err := a.ReplaceDraft(context.Background(), domain.StoredDraft{RoomID: mx + "!a:x", Body: "last words"}, domain.StoredDraft{}); err != nil {
 		t.Fatalf("the closing window's last write = %v", err)
 	}
 	a.Stop()

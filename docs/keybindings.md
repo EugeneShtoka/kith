@@ -364,7 +364,7 @@ The same key may mean different things in different scopes — `a` names a group
 
 Two kinds of binding carry a payload instead of naming an action.
 
-- **`[[keys.jump]]`** binds a sequence to a place: `target = "room:!abcdef:example.org"`, or a rail row: `space:Work` (a space), `tag:Unread` (a tag) or `place:Work` (the first row shown as Work). You rarely write these by hand: run `:shortcut` and type a sequence — it binds what you are on (the rail's space or tag from the rail, else the room, recorded by its ID), and `tab` switches between the two. `?` lists every jump resolved to the name of the place it leads to. See [Usage](usage.md#jumping-around).
+- **`[[keys.jump]]`** binds a sequence to a place: `target = "room:matrix:4f1c9e2a7b3d5c60/!abcdef:example.org"`, or a rail row: `space:Work` (a space), `tag:Unread` (a tag) or `place:Work` (the first row shown as Work). You rarely write these by hand: run `:shortcut` and type a sequence — it binds what you are on (the rail's space or tag from the rail, else the room, recorded by its ID), and `tab` switches between the two. `?` lists every jump resolved to the name of the place it leads to. See [Usage](usage.md#jumping-around).
 - **`keys` on a `[[command]]`** runs one of your own commands. See [Commands](commands.md).
 
 Both are resolved only where keys are commands (never while typing), and both are **refused** when they collide with a built-in binding — already bound, the start of a longer binding, or blocked by a shorter one. To give a built-in key to a jump or a script, unbind the action with `"-"` first. A chord bound twice in `[[keys.jump]]` is refused at startup.

@@ -29,9 +29,9 @@ func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 		t.Fatalf("seed config: %v", err)
 	}
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!standup:x", Name: "Standup"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!standup:x", Name: "Standup"}}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!standup:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!standup:x"}},
 	}})
 	m = sized(t, m).WithConfigFile(path, base).keptIn()
 	// Install the rules as startup does, so the status line describes the real ones.
@@ -40,10 +40,10 @@ func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 		t.Fatalf("rules: %v", err)
 	}
 	m = m.WithRules(rules, true)
-	next, _ := m.selectRoom(domain.Room{ID: "!standup:x", Name: "Standup"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!standup:x", Name: "Standup"})
 	m = next
-	m = update(t, m, timelineMsg{roomID: "!standup:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!standup:x", Sender: "@alice:x", SenderName: "Alice", Body: "standup in 5"},
+	m = update(t, m, timelineMsg{roomID: mx + "!standup:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "standup in 5"},
 	}}})
 	m.focus, m.compose.insertMode = paneTimeline, false
 	m = m.clearStatus()
@@ -126,7 +126,7 @@ func TestRuleScopesFromMessage(t *testing.T) {
 	if strings.Join(labels, "|") != strings.Join(want, "|") {
 		t.Errorf("scopes = %v, want %v", labels, want)
 	}
-	if m.picker.items[0].detail != "@alice:x in !standup:x" {
+	if m.picker.items[0].detail != "matrix:@alice:x in "+mx+"!standup:x" {
 		t.Errorf("detail = %q, should show the rule's own terms", m.picker.items[0].detail)
 	}
 }
@@ -197,11 +197,11 @@ func TestRuleAuthoringChangesTheDecision(t *testing.T) {
 		m = pickLabel(t, m, "anywhere")   // scope: Alice, anywhere
 		m = pickLabel(t, m, "everything") // preset: notify for everything
 
-		fromAlice := domain.Message{ID: "$2", RoomID: "!standup:x", Sender: "@alice:x", SenderName: "A", Body: "hi"}
+		fromAlice := domain.Message{ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", SenderName: "A", Body: "hi"}
 		if !notifies(t, m, fromAlice) {
 			t.Error("Alice should get through the quiet hours")
 		}
-		fromBob := domain.Message{ID: "$3", RoomID: "!standup:x", Sender: "@bob:x", SenderName: "B", Body: "hi"}
+		fromBob := domain.Message{ID: mx + "$3", RoomID: mx + "!standup:x", Sender: "matrix:@bob:x", SenderName: "B", Body: "hi"}
 		if notifies(t, m, fromBob) {
 			t.Error("Bob should not")
 		}
@@ -213,7 +213,7 @@ func TestRuleAuthoringChangesTheDecision(t *testing.T) {
 		if len(reloaded.Notifications.Rules) != 2 {
 			t.Fatalf("rules = %+v, want the quiet rule plus the one written", reloaded.Notifications.Rules)
 		}
-		if rule := lastRule(t, reloaded.Notifications.Rules); rule.Sender != "@alice:x" || rule.Show != "all" {
+		if rule := lastRule(t, reloaded.Notifications.Rules); rule.Sender != "matrix:@alice:x" || rule.Show != "all" {
 			t.Errorf("rule = %+v, want show = all for Alice", rule)
 		}
 	})
@@ -226,7 +226,7 @@ func TestRuleAuthoringChangesTheDecision(t *testing.T) {
 		m = pickLabel(t, m, "Standup")
 		m = pickLabel(t, m, "Mute")
 
-		msg := domain.Message{ID: "$2", RoomID: "!standup:x", Sender: "@alice:x", SenderName: "A", Body: "hi"}
+		msg := domain.Message{ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", SenderName: "A", Body: "hi"}
 		if notifies(t, m, msg) {
 			t.Error("a muted room should not notify")
 		}
@@ -246,11 +246,11 @@ func TestRuleAuthoringChangesTheDecision(t *testing.T) {
 		m = pickLabel(t, m, "Alice in Standup")
 		m = pickLabel(t, m, "everything")
 
-		fromAlice := domain.Message{ID: "$2", RoomID: "!standup:x", Sender: "@alice:x", SenderName: "A", Body: "hi"}
+		fromAlice := domain.Message{ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", SenderName: "A", Body: "hi"}
 		if !notifies(t, m, fromAlice) {
 			t.Error("Alice should notify despite the room being muted")
 		}
-		fromBob := domain.Message{ID: "$3", RoomID: "!standup:x", Sender: "@bob:x", SenderName: "B", Body: "hi"}
+		fromBob := domain.Message{ID: mx + "$3", RoomID: mx + "!standup:x", Sender: "matrix:@bob:x", SenderName: "B", Body: "hi"}
 		if notifies(t, m, fromBob) {
 			t.Error("everyone else should stay muted")
 		}
@@ -282,7 +282,7 @@ func TestRulePresetsMarkWhatIsSet(t *testing.T) {
 	t.Parallel()
 
 	m, _ := ruling(t, config.Notifications{Rules: []config.Rule{
-		{Match: "!standup:x", Sender: "@alice:x", Show: "none", Ring: "none"},
+		{Match: mx + "!standup:x", Sender: "matrix:@alice:x", Show: "none", Ring: "none"},
 	}})
 	m, _ = press(t, m, keyText("b"))
 	m = pickLabel(t, m, "Alice in Standup")
@@ -322,7 +322,7 @@ func TestRemoveRule(t *testing.T) {
 	t.Parallel()
 
 	m, path := ruling(t, notifyAll(
-		config.Rule{Match: "!standup:x", Show: "none"},
+		config.Rule{Match: mx + "!standup:x", Show: "none"},
 		config.Rule{Match: "space:Work", Show: "all"},
 	))
 	m.focus = paneRooms
@@ -336,7 +336,7 @@ func TestRemoveRule(t *testing.T) {
 	if lastRule(t, m.conf.base.Notifications.Rules).Match != "space:Work" {
 		t.Errorf("the wrong rule was removed: %+v", m.conf.base.Notifications.Rules)
 	}
-	msg := domain.Message{ID: "$2", RoomID: "!standup:x", Sender: "@alice:x", SenderName: "A", Body: "hi"}
+	msg := domain.Message{ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", SenderName: "A", Body: "hi"}
 	if !notifies(t, m, msg) {
 		t.Error("with the mute removed the room should notify again")
 	}
@@ -372,7 +372,7 @@ func TestRuleSoundPreset(t *testing.T) {
 		t.Fatalf("rules = %+v", rules)
 	}
 	got, _ := resolveFor(t, m, domain.Message{
-		ID: "$2", RoomID: "!standup:x", Sender: "@alice:x", SenderName: "A", Body: "hi",
+		ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", SenderName: "A", Body: "hi",
 	})
 	if got.Sound != "/s/boss.wav" {
 		t.Errorf("resolved sound = %q", got.Sound)
@@ -435,7 +435,7 @@ func TestRuleAppliesWithoutRestart(t *testing.T) {
 	t.Parallel()
 
 	m, _ := ruling(t, notifyAll())
-	msg := domain.Message{ID: "$2", RoomID: "!standup:x", Sender: "@alice:x", SenderName: "A", Body: "hi"}
+	msg := domain.Message{ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", SenderName: "A", Body: "hi"}
 	if !notifies(t, m, msg) {
 		t.Fatal("nothing is muted to start with")
 	}
@@ -453,16 +453,16 @@ func TestHomesOfSpaces(t *testing.T) {
 
 	m, _ := ruling(t, config.Notifications{})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!standup:x"}},
-		{ID: "!e:x", Name: "Everything", Children: []domain.RoomID{"!standup:x", "!other:x"}},
-		{ID: "!f:x", Name: "Friends", Children: []domain.RoomID{"!other:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!standup:x"}},
+		{ID: mx + "!e:x", Name: "Everything", Children: []domain.RoomID{mx + "!standup:x", mx + "!other:x"}},
+		{ID: mx + "!f:x", Name: "Friends", Children: []domain.RoomID{mx + "!other:x"}},
 	}})
-	got := m.placeHomes("!standup:x")
+	got := m.placeHomes(mx + "!standup:x")
 	slices.Sort(got) // which comes first is the home order's business (domain.HomeOrder)
 	if strings.Join(got, ",") != "Everything,Work" {
 		t.Errorf("homesOf = %v, want both spaces containing it", got)
 	}
-	if len(m.placeHomes("!nowhere:x")) != 0 {
+	if len(m.placeHomes(mx+"!nowhere:x")) != 0 {
 		t.Error("a room in no space should have none")
 	}
 }
@@ -482,10 +482,10 @@ func TestRuleListReadsRulesBack(t *testing.T) {
 	t.Parallel()
 
 	m, _ := ruling(t, config.Notifications{Enabled: true, Rules: []config.Rule{
-		{Match: "!standup:x", Show: "none"},
-		{Match: "space:Work", Sender: "@alice:x", Ring: "all", Sound: "/s/boss.wav"},
-		{Sender: "@bob:x", Show: "mention"},
-		{Match: "!gone:x", Show: "none"}, // a room we have left
+		{Match: mx + "!standup:x", Show: "none"},
+		{Match: "space:Work", Sender: "matrix:@alice:x", Ring: "all", Sound: "/s/boss.wav"},
+		{Sender: "matrix:@bob:x", Show: "mention"},
+		{Match: mx + "!gone:x", Show: "none"}, // a room we have left
 	}})
 
 	next, _ := m.openRuleList()
@@ -497,13 +497,13 @@ func TestRuleListReadsRulesBack(t *testing.T) {
 		t.Fatalf("%d rows, want one per rule", len(m.picker.all))
 	}
 
-	for _, want := range []string{"Standup", "@alice:x in Work", "@bob:x, anywhere"} {
+	for _, want := range []string{"Standup", "matrix:@alice:x in Work", "matrix:@bob:x, anywhere"} {
 		if !hasLabel(m.picker.all, want) {
 			t.Errorf("the list should name %q: %+v", want, m.picker.all)
 		}
 	}
 	// A rule for a room that is gone still shows, so it stays removable.
-	if !hasLabel(m.picker.all, "!gone:x") {
+	if !hasLabel(m.picker.all, mx+"!gone:x") {
 		t.Errorf("a rule for a departed room should still be listed: %+v", m.picker.all)
 	}
 	if got := m.picker.all[0].detail; got != "show = none" {
@@ -519,7 +519,7 @@ func TestRuleListReadsRulesBack(t *testing.T) {
 func TestRuleListOpensARuleForEditing(t *testing.T) {
 	t.Parallel()
 
-	m, _ := ruling(t, notifyAll(config.Rule{Match: "!standup:x", Show: "none"}))
+	m, _ := ruling(t, notifyAll(config.Rule{Match: mx + "!standup:x", Show: "none"}))
 	next, _ := m.openRuleList()
 	m = next
 	m = pickLabel(t, m, "Standup")
@@ -530,7 +530,7 @@ func TestRuleListOpensARuleForEditing(t *testing.T) {
 	if !hasLabel(m.picker.all, "Remove the rule") {
 		t.Error("an existing rule should offer removal")
 	}
-	msg := domain.Message{ID: "$2", RoomID: "!standup:x", Sender: "@alice:x", SenderName: "A", Body: "hi"}
+	msg := domain.Message{ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", SenderName: "A", Body: "hi"}
 	m = pickLabel(t, m, "Remove")
 	if notifies(t, m, msg) != true {
 		t.Error("removing the mute should let the room notify again")
@@ -598,11 +598,11 @@ func TestSpaceRulesAreWrittenAsPlaceEntries(t *testing.T) {
 			if err := setup.PlaceEntries(reloaded); err != nil {
 				t.Errorf("the next startup would refuse the config: %v", err)
 			}
-			room, _ := m.roomByID("!standup:x")
+			room, _ := m.roomByID(mx + "!standup:x")
 			if got := (setup.Place{Room: m.factsFor(room)}).Reach(match); got != notify.ClassOfRooms {
 				t.Errorf("Reach(%q) = %v, want the space to reach a room in it", match, got)
 			}
-			msg := domain.Message{ID: "$2", RoomID: "!standup:x", Sender: "@alice:x", SenderName: "A", Body: "hi"}
+			msg := domain.Message{ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", SenderName: "A", Body: "hi"}
 			if notifies(t, m, msg) {
 				t.Error("a muted space should not notify for a room in it")
 			}

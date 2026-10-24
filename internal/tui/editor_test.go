@@ -612,7 +612,7 @@ func TestMultiLineSend(t *testing.T) {
 
 	b := &recordingReply{}
 	m := update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
@@ -776,9 +776,9 @@ func TestRTLNamesAreReorderedWhereDrawn(t *testing.T) {
 	}
 
 	m, _ := composing(t)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
 		Messages: []domain.Message{
-			{ID: "$1", RoomID: "!a:x", Sender: "@d:x", SenderName: logical, Body: "hi", Timestamp: at(1)},
+			{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@d:x", SenderName: logical, Body: "hi", Timestamp: at(1)},
 		},
 	}})
 	frame := stripStyles(m.View().Content)
@@ -916,7 +916,7 @@ func TestUndoHistoryIsBounded(t *testing.T) {
 func TestUndoSurvivesBetweenKeystrokes(t *testing.T) {
 	t.Parallel()
 
-	m := yanking(t, msgWith("$1", "hello"))
+	m := yanking(t, msgWith(mx+"$1", "hello"))
 	m, _ = press(t, m, keyText("i"))
 	for _, r := range "one two" {
 		next, _ := press(t, m, keyText(string(r)))
