@@ -20,6 +20,7 @@ import (
 var (
 	_ interface {
 		route.Adapter
+		route.AccountLister
 		route.Session
 		route.Resync
 		route.RoomLister
@@ -47,6 +48,7 @@ var (
 
 	_ interface {
 		route.Adapter
+		route.AccountLister
 		route.RoomLister
 		route.Recounter
 		route.Homes
@@ -69,10 +71,12 @@ var (
 		route.Leaver
 		route.SignOuter
 		configChecker
+		route.LinkFollower
 	} = (*whatsapp.Adapter)(nil)
 
 	_ interface {
 		route.Adapter
+		route.AccountLister
 		route.RoomLister
 		route.Recounter
 		route.Homes
@@ -95,6 +99,7 @@ var (
 
 	_ interface {
 		route.Adapter
+		route.AccountLister
 		route.RoomLister
 		route.Recounter
 		route.Homes
@@ -120,12 +125,14 @@ var (
 		configChecker
 		roomsRewriter
 		cacheWriter
+		route.LinkFollower
 	} = (*telegram.Adapter)(nil)
 
 	// Messenger: threads, people, messages, history, reading, sending, editing and
 	// unsending text, reactions, typing, leaving, and attachments both ways.
 	_ interface {
 		route.Adapter
+		route.AccountLister
 		route.Media
 		route.Uploader
 		route.Sender
@@ -151,6 +158,7 @@ var (
 	// reactions, typing, history and attachments.
 	_ interface {
 		route.Adapter
+		route.AccountLister
 		route.RoomLister
 		route.Recounter
 		route.Homes
@@ -176,6 +184,7 @@ var (
 	// (sending and history paging come next).
 	_ interface {
 		route.Adapter
+		route.AccountLister
 		route.RoomLister
 		route.Recounter
 		route.Homes
@@ -195,6 +204,7 @@ var (
 	// deletions and the chat's timer, typing, attachments both ways, groups left, and
 	// polls read and voted in, and groups made.
 	_ interface {
+		route.AccountLister
 		route.ChatMaker
 		route.SignOuter
 		route.Leaver
@@ -218,12 +228,14 @@ var (
 		configChecker
 		roomsRewriter
 		cacheWriter
+		route.LinkFollower
 	} = (*signal.Adapter)(nil)
 
 	// Instagram: signed in by cookies, the inbox and messages received, text sent,
 	// replied, edited, reacted, unsent, typed and read, and attachments both ways.
 	_ interface {
 		network
+		route.AccountLister
 		route.Media
 		route.Uploader
 		route.RoomLister

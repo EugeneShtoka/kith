@@ -92,6 +92,7 @@ func init() {
 		pickerCommandTemplate: {choose: byValue(Model.chooseCommandTemplate), back: func(m Model) Model { return m.settingsIn(commandsTable, commandsTable+"#template") }},
 		pickerIgnored:         {choose: func(m Model, _ pickerItem) (Model, tea.Cmd) { return m.closePicker(), nil }, remove: Model.removeIgnoredRow},
 		pickerPublicRooms:     {choose: Model.chooseJoinPublicRoom},
+		pickerChooseAccount:   {choose: byValue(Model.chooseAccount)},
 		pickerLoginNetwork:    {choose: account},
 		pickerLoginAccount:    {choose: account},
 		pickerImportAccount:   {choose: account},

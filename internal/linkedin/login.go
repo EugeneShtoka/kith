@@ -160,3 +160,15 @@ func (a *Adapter) setUp(ctx context.Context, talk api.LoginTalk) (string, error)
 	talk.Named(name)
 	return name, nil
 }
+
+// Accounts is each signed-in account, by the profile its rooms are under.
+func (a *Adapter) Accounts() []domain.Account {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	out := make([]domain.Account, 0, len(a.conns))
+	for _, c := range a.conns {
+		out = append(out, domain.Account{Network: domain.ProtocolLinkedIn, On: owner(c.profile), Name: c.account.Name})
+	}
+	slices.SortFunc(out, func(x, y domain.Account) int { return strings.Compare(x.Name, y.Name) })
+	return out
+}

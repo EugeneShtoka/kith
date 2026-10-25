@@ -251,6 +251,8 @@ type served struct {
 	// cache is the cache every network writes; it learns how much of each room to keep
 	// once the notifications' place index exists (newWorkers).
 	cache *db.Cache
+	// defaults is each network's default account, for Accounts.
+	defaults *accountDefaults
 }
 
 var _ api.Backend = served{}
@@ -280,9 +282,11 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 			w.OnCached(service.MessageCached, service.RoomChanged)
 		}
 	}
+	defaults := &accountDefaults{}
+	defaults.use(cfg)
 	return served{
 		Router: router, Service: service, matrix: mx, networks: networks, stores: stores,
-		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), cache: cache,
+		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), cache: cache, defaults: defaults,
 	}
 }
 
@@ -539,6 +543,7 @@ func reloader(
 		cutoff.Store(int64(reloaded.Schedule.Cutoff()))
 		backend.UseCompletionModel(modelsetup.CompletionModel(reloaded.Complete.Model, backend.dataDir))
 		backend.UsePlaces(setup.PlacesOf(reloaded))
+		backend.defaults.use(reloaded)
 		for _, n := range backend.networks {
 			n.UseConfig(ctx, reloaded)
 		}

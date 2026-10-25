@@ -111,10 +111,10 @@ func (inv inventory) byID(id domain.RoomID) (domain.Room, bool) {
 }
 
 // telegramLink is the joined or invited Telegram chat a tg:// link names, by its
-// stored @username, or by its channel ID for a private channel. Several accounts may
-// see the same chat; the first is picked, since the chat the user wants to open is
-// the same.
-func (inv inventory) telegramLink(link domain.TelegramLink) (domain.Room, bool) {
+// stored @username, or by its channel ID for a private channel: as each account in it
+// sees it.
+func (inv inventory) telegramLink(link domain.TelegramLink) []domain.Room {
+	var out []domain.Room
 	for i := range inv.all {
 		r := &inv.all[i]
 		if domain.NetworkOf(string(r.ID)) != domain.ProtocolTelegram {
@@ -123,37 +123,35 @@ func (inv inventory) telegramLink(link domain.TelegramLink) (domain.Room, bool) 
 		switch link.Kind {
 		case domain.TelegramLinkUsername:
 			if r.Handle == link.Username {
-				return *r, true
+				out = append(out, *r)
 			}
 		case domain.TelegramLinkPrivateChannel:
-			if link.Channel == 0 {
-				return domain.Room{}, false
-			}
 			parsed := domain.ParseID(string(r.ID))
-			if parsed.Native == "-"+telegramPrivateMark(link.Channel) {
-				return *r, true
+			if link.Channel != 0 && parsed.Native == "-"+telegramPrivateMark(link.Channel) {
+				out = append(out, *r)
 			}
 		case domain.TelegramLinkPhone, domain.TelegramLinkInvite, domain.TelegramLinkNone:
 			// A number or an invite names no listed chat: Telegram is asked.
 		}
 	}
-	return domain.Room{}, false
+	return out
 }
 
-// whatsAppLink is the WhatsApp chat with a link's number, on any account: its room's
-// native ID is the number's phone JID (whatsapp/rooms.go). An invite names no listed
-// chat.
-func (inv inventory) whatsAppLink(link domain.WhatsAppLink) (domain.Room, bool) {
+// whatsAppLink is the WhatsApp chat with a link's number, as each account in it sees
+// it: its room's native ID is the number's phone JID (whatsapp/rooms.go). An invite
+// names no listed chat.
+func (inv inventory) whatsAppLink(link domain.WhatsAppLink) []domain.Room {
 	if link.Kind != domain.WhatsAppLinkPhone {
-		return domain.Room{}, false
+		return nil
 	}
+	var out []domain.Room
 	for i := range inv.all {
 		parsed := domain.ParseID(string(inv.all[i].ID))
 		if parsed.Network == domain.ProtocolWhatsApp && parsed.Native == link.Phone+"@s.whatsapp.net" {
-			return inv.all[i], true
+			out = append(out, inv.all[i])
 		}
 	}
-	return domain.Room{}, false
+	return out
 }
 
 // telegramPrivateMark is a private channel's native ID without the leading minus (the

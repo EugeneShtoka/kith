@@ -49,7 +49,9 @@ makes it re-read the config first.
 
 Add one `[[whatsapp.account]]` per number and link each by name. Each account's
 chats, communities and channels are its own: a group two of your numbers are both
-in shows as two rooms, one per account.
+in shows as two rooms, one per account. A link to a chat opens as the account already in it;
+otherwise `[whatsapp] default` names the account, or kith asks (see
+[configuration.md](configuration.md#several-accounts-on-a-network)).
 
 ### WhatsApp without Matrix
 

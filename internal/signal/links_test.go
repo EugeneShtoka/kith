@@ -32,15 +32,15 @@ func TestASignalLinkIsTheChatWithWhoeverItNames(t *testing.T) {
 		{"sgnl://signal.me/#p/+15550100009", domain.Room{ID: direct(ofer), Name: "+15550100009"}},
 		{usernameLink, domain.Room{ID: direct(ofer), Name: "ofer.42"}}, // a username names better than a number
 	} {
-		target, err := r.a.ResolveLink(ctx, c.link)
+		target, err := r.a.ResolveLink(ctx, c.link, domain.AccountRooms(domain.ProtocolSignal, me))
 		if err != nil || target.Join || target.Room.ID != c.want.ID || target.Room.Name != c.want.Name || !target.Room.IsDirect {
 			t.Errorf("%s: (%+v, %v), want the direct chat %s named %q", c.link, target, err, c.want.ID, c.want.Name)
 		}
 	}
-	if _, err := r.a.ResolveLink(ctx, "https://signal.me/#p/+15550100077"); err == nil {
+	if _, err := r.a.ResolveLink(ctx, "https://signal.me/#p/+15550100077", domain.AccountRooms(domain.ProtocolSignal, me)); err == nil {
 		t.Error("a number nobody has was a chat")
 	}
-	if _, err := r.a.ResolveLink(ctx, "https://t.me/novosalsa"); err == nil {
+	if _, err := r.a.ResolveLink(ctx, "https://t.me/novosalsa", domain.AccountRooms(domain.ProtocolSignal, me)); err == nil {
 		t.Error("a Telegram link was looked up on Signal")
 	}
 
@@ -90,30 +90,30 @@ func TestASignalInviteIsTheGroupToJoin(t *testing.T) {
 		{"approval", domain.LinkTarget{Room: domain.Room{ID: group(joinedGroup), Name: "Quiet room"}, Join: true, About: "group, 3 members; an admin approves who joins"}},
 		{"mine", domain.LinkTarget{Room: domain.Room{ID: group(madeGroup), Name: "Hikers"}}},
 	} {
-		got, err := r.a.ResolveLink(ctx, invite(c.invite))
+		got, err := r.a.ResolveLink(ctx, invite(c.invite), domain.AccountRooms(domain.ProtocolSignal, me))
 		if err != nil || got.Join != c.want.Join || got.About != c.want.About || got.Room.ID != c.want.Room.ID ||
 			got.Room.Name != c.want.Room.Name || got.Room.IsDirect {
 			t.Errorf("%s: (%+v, %v), want %+v", c.invite, got, err, c.want)
 		}
 	}
-	if _, err := r.a.ResolveLink(ctx, invite("asked")); err == nil || !strings.Contains(err.Error(), "asked to join") {
+	if _, err := r.a.ResolveLink(ctx, invite("asked"), domain.AccountRooms(domain.ProtocolSignal, me)); err == nil || !strings.Contains(err.Error(), "asked to join") {
 		t.Errorf("a group asked to join already: %v, want it said", err)
 	}
-	if _, err := r.a.ResolveLink(ctx, invite("reset")); err == nil {
+	if _, err := r.a.ResolveLink(ctx, invite("reset"), domain.AccountRooms(domain.ProtocolSignal, me)); err == nil {
 		t.Error("a reset link was a group")
 	}
 
-	room, err := r.a.JoinLink(ctx, invite("open"))
+	room, err := r.a.JoinLink(ctx, invite("open"), domain.AccountRooms(domain.ProtocolSignal, me))
 	if err != nil || room != group(joinedGroup) {
 		t.Errorf("joining Book club: (%s, %v), want %s", room, err, group(joinedGroup))
 	}
 	if got, ok := r.room(room); !ok || got.Name != "Book club" || got.IsDirect {
 		t.Errorf("after joining, the room is %+v, %v; want Book club kept at once", got, ok)
 	}
-	if _, err := r.a.JoinLink(ctx, invite("approval")); err == nil || !strings.Contains(err.Error(), "asked to join") {
+	if _, err := r.a.JoinLink(ctx, invite("approval"), domain.AccountRooms(domain.ProtocolSignal, me)); err == nil || !strings.Contains(err.Error(), "asked to join") {
 		t.Errorf("joining where an admin approves: %v, want it said that it only asked", err)
 	}
-	if _, err := r.a.JoinLink(ctx, "https://signal.me/#p/+15550100009"); err == nil {
+	if _, err := r.a.JoinLink(ctx, "https://signal.me/#p/+15550100009", domain.AccountRooms(domain.ProtocolSignal, me)); err == nil {
 		t.Error("a link to a person was joined")
 	}
 
@@ -133,10 +133,13 @@ func TestASignalInviteIsTheGroupToJoin(t *testing.T) {
 	}
 }
 
-// With no account connected, nothing is looked up.
+// With no account connected, or on an account not linked here, nothing is looked up.
 func TestASignalLinkNeedsAConnectedAccount(t *testing.T) {
 	r := newRig(t, "ok", "", "")
-	if _, err := r.a.ResolveLink(context.Background(), "https://signal.me/#p/+15550100009"); err == nil {
+	if _, err := r.a.ResolveLink(context.Background(), "https://signal.me/#p/+15550100009", domain.AccountRooms(domain.ProtocolSignal, me)); err == nil {
 		t.Error("a link was looked up with no account connected")
+	}
+	if _, err := r.a.ResolveLink(context.Background(), "https://signal.me/#p/+15550100009", domain.AccountRooms(domain.ProtocolSignal, "another")); err == nil {
+		t.Error("a link was looked up on an account not linked here")
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -157,6 +158,7 @@ func TestConfirmingAJoinJoinsWhatTheLinkNamed(t *testing.T) {
 
 	b := &membershipBackend{}
 	m := withRooms(t, sized(t, starterNew(b, config.Display{})))
+	m.accounts = []domain.Account{{Network: domain.ProtocolMatrix, On: domain.RoomOwner(mx)}}
 	m.confirm = confirmState{action: pendingJoinPlace, address: "#book-club:example.org", via: []string{"one.org"}}
 
 	next, cmd := m.resolveConfirm(true)
@@ -168,8 +170,8 @@ func TestConfirmingAJoinJoinsWhatTheLinkNamed(t *testing.T) {
 		t.Fatal("confirming produced no join")
 	}
 	cmd() // the command is what calls the backend
-	if len(b.joined) != 1 || b.joined[0] != "#book-club:example.org" {
-		t.Fatalf("joined %+v, want [#book-club:example.org]", b.joined)
+	if len(b.joined) != 1 || b.joined[0] != mx+"#book-club:example.org" {
+		t.Fatalf("joined %+v, want [#book-club:example.org] on the one Matrix account", b.joined)
 	}
 	if len(b.joinedVia) != 1 || b.joinedVia[0] != "one.org" {
 		t.Errorf("joined via %+v, want [one.org]", b.joinedVia)
@@ -250,34 +252,96 @@ func TestAHandedOverTelegramLinkToAnUnknownChatIsReported(t *testing.T) {
 	}
 }
 
-// linkBackend answers link lookups with target (or err), and joins to joinTo.
+// linkBackend answers link lookups with target (or err), and joins to joinTo; it has
+// accounts (one Telegram and one WhatsApp account when nil).
 type linkBackend struct {
 	apitest.Nop
 	target   domain.LinkTarget
 	err      error
 	joinTo   domain.RoomID
+	accounts []domain.Account
 	resolved []string
 	joined   []string
+	// on is the account each lookup and join was asked on.
+	on []domain.RoomOwner
 }
 
-func (b *linkBackend) ResolveLink(_ context.Context, uri string) (domain.LinkTarget, error) {
+// linkAccounts are a test backend's accounts by default.
+var linkAccounts = []domain.Account{
+	{Network: domain.ProtocolTelegram, On: domain.AccountRooms(domain.ProtocolTelegram, "42"), Name: "tg"},
+	{Network: domain.ProtocolWhatsApp, On: domain.AccountRooms(domain.ProtocolWhatsApp, "15550100001"), Name: "wa"},
+	{Network: domain.ProtocolSignal, On: domain.AccountRooms(domain.ProtocolSignal, "11111111-1111-4111-8111-111111111111"), Name: "sig"},
+}
+
+func (b *linkBackend) Accounts(context.Context) ([]domain.Account, error) {
+	if b.accounts == nil {
+		return linkAccounts, nil
+	}
+	return b.accounts, nil
+}
+
+func (b *linkBackend) ResolveLink(_ context.Context, uri string, on domain.RoomOwner) (domain.LinkTarget, error) {
 	b.resolved = append(b.resolved, uri)
+	b.on = append(b.on, on)
 	return b.target, b.err
 }
 
-func (b *linkBackend) JoinLink(_ context.Context, uri string) (domain.RoomID, error) {
+func (b *linkBackend) JoinLink(_ context.Context, uri string, on domain.RoomOwner) (domain.RoomID, error) {
 	b.joined = append(b.joined, uri)
+	b.on = append(b.on, on)
 	return b.joinTo, nil
 }
 
-// followed hands uri over and delivers the lookup it starts, if it starts one.
+// followed hands uri over and delivers what it waits on in turn: the accounts it picks
+// among, then the lookup it starts.
 func followed(t *testing.T, m Model, uri string) Model {
 	t.Helper()
 	next, cmd := m.handleFollow(followMsg{uri: uri})
-	if resolved, ok := drainFor[linkResolvedMsg](cmd); ok {
-		next = update(t, next, resolved)
+	return linkSteps(t, next, cmd)
+}
+
+// linkSteps runs cmd and delivers the account list or link lookup it yields, and what
+// that yields, until neither comes.
+func linkSteps(t *testing.T, m Model, cmd tea.Cmd) Model {
+	t.Helper()
+	for range 4 {
+		var picked *accountsPickedMsg
+		var resolved *linkResolvedMsg
+		for _, msg := range ranMsgs(cmd) {
+			switch msg := msg.(type) {
+			case accountsPickedMsg:
+				picked = &msg
+			case linkResolvedMsg:
+				resolved = &msg
+			}
+		}
+		switch {
+		case picked != nil:
+			m, cmd = m.handleAccountsPicked(*picked)
+		case resolved != nil:
+			return update(t, m, *resolved)
+		default:
+			return m
+		}
 	}
-	return next
+	return m
+}
+
+// ranMsgs runs cmd and every command a batch holds, and returns what they yield.
+func ranMsgs(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		return []tea.Msg{msg}
+	}
+	var out []tea.Msg
+	for _, c := range batch {
+		out = append(out, ranMsgs(c)...)
+	}
+	return out
 }
 
 // ezraChat is the private chat a link to somebody new opens.
@@ -657,10 +721,10 @@ func TestAHandedOverSignalLinkOpensWhatSignalFound(t *testing.T) {
 	known := domain.Room{ID: "signal:11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222", Name: "Dana", IsDirect: true}
 	b := &linkBackend{target: domain.LinkTarget{Room: known}}
 	m := sized(t, starterNew(b, config.Display{}))
-	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, known}})
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, known}})
 
 	next := followed(t, m, "sgnl://signal.me/#p/+15550100002")
-	if len(b.resolved) != 1 || next.openRoom != known.ID {
+	if len(b.resolved) != 1 || next.openRoom != known.ID || b.on[0] != linkAccounts[2].On {
 		t.Errorf("open room = %q, asked %v: want the number looked up and Dana's chat opened", next.openRoom, b.resolved)
 	}
 

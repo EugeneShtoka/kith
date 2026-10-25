@@ -261,6 +261,15 @@ func (r *Remote) LeaveRoom(ctx context.Context, roomID domain.RoomID) error {
 	return err
 }
 
+// Accounts asks the daemon for every connected account, the defaults marked.
+func (r *Remote) Accounts(ctx context.Context) ([]domain.Account, error) {
+	resp, err := call(ctx, "list the accounts", r.c.Accounts, &v1.AccountsRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return pc.ProtoToAccounts(resp.GetAccounts()), nil
+}
+
 // ChatOffers asks the daemon what chats each account can make.
 func (r *Remote) ChatOffers(ctx context.Context) ([]domain.ChatOffer, error) {
 	resp, err := call(ctx, "list the chats accounts can make", r.c.ChatOffers, &v1.ChatOffersRequest{})
@@ -271,8 +280,8 @@ func (r *Remote) ChatOffers(ctx context.Context) ([]domain.ChatOffer, error) {
 }
 
 // ResolveLink asks the daemon which chat a link names.
-func (r *Remote) ResolveLink(ctx context.Context, uri string) (domain.LinkTarget, error) {
-	resp, err := call(ctx, "look up a link", r.c.ResolveLink, &v1.ResolveLinkRequest{Uri: uri})
+func (r *Remote) ResolveLink(ctx context.Context, uri string, on domain.RoomOwner) (domain.LinkTarget, error) {
+	resp, err := call(ctx, "look up a link", r.c.ResolveLink, &v1.ResolveLinkRequest{Uri: uri, On: string(on)})
 	if err != nil {
 		return domain.LinkTarget{}, err
 	}
@@ -280,8 +289,8 @@ func (r *Remote) ResolveLink(ctx context.Context, uri string) (domain.LinkTarget
 }
 
 // JoinLink asks the daemon to join the chat a link names.
-func (r *Remote) JoinLink(ctx context.Context, uri string) (domain.RoomID, error) {
-	resp, err := call(ctx, "join by a link", r.c.JoinLink, &v1.JoinLinkRequest{Uri: uri})
+func (r *Remote) JoinLink(ctx context.Context, uri string, on domain.RoomOwner) (domain.RoomID, error) {
+	resp, err := call(ctx, "join by a link", r.c.JoinLink, &v1.JoinLinkRequest{Uri: uri, On: string(on)})
 	return domain.RoomID(resp.GetRoomId()), err
 }
 

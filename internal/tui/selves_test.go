@@ -86,8 +86,8 @@ func TestSelvesAreAskedWhenAnAccountAppears(t *testing.T) {
 		if (cmd != nil) != step.asks {
 			t.Fatalf("step %d: asks = %t, want %t", i, cmd != nil, step.asks)
 		}
-		if cmd != nil {
-			m, _ = m.handleSelves(cmd().(selvesMsg))
+		if selves, ok := drainFor[selvesMsg](cmd); ok {
+			m, _ = m.handleSelves(selves)
 		}
 	}
 	if asks != 1 || !m.isMe(ownWhatsApp) {
