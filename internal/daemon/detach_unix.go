@@ -19,7 +19,7 @@ func detach(daemonArgs []string) error {
 		return fmt.Errorf("daemon: cannot detach %s without setsid: %w", daemonBinary, err)
 	}
 	args := append([]string{path}, daemonArgs...)
-	cmd := exec.CommandContext(context.Background(), "setsid", args...) // #nosec G204 -- path is LookPath("kithd") and the profile is a config-file name, no shell involved
+	cmd := exec.CommandContext(context.Background(), "setsid", args...) // #nosec G204 -- path is LookPath("kithd") and the arguments kith's own flags, no shell involved
 	// Nothing inherited: the daemon must not write over a running TUI. It logs to the
 	// journal or its --log-file.
 	cmd.Stdout, cmd.Stderr = nil, nil

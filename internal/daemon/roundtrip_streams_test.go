@@ -163,7 +163,7 @@ func TestAConfigChangeReachesEveryWindow(t *testing.T) {
 	if err := os.WriteFile(path, []byte("allow_token_file = true\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	h := serve(t, &fakeBackend{Nop: apitest.Nop{}}, func(d *daemon.Daemon) { d.Config = daemon.NewConfigFile(path, "") })
+	h := serve(t, &fakeBackend{Nop: apitest.Nop{}}, func(d *daemon.Daemon) { d.Config = daemon.NewConfigFile(path) })
 	saving, watching := h.client(), h.client()
 	go func() { _ = watching.Start(context.Background()) }()
 	h.waitAttached(1)

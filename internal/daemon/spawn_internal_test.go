@@ -132,18 +132,6 @@ func waitFor(t *testing.T, cond func() bool, what string) {
 	t.Fatalf("timed out waiting for %s", what)
 }
 
-// A profile picks a templated instance, so one unit file serves every account.
-func TestUnitForProfile(t *testing.T) {
-	t.Parallel()
-
-	if got := unitFor(""); got != defaultUnit {
-		t.Errorf("unitFor(\"\") = %q, want the plain unit %q", got, defaultUnit)
-	}
-	if got := unitFor("work"); got != "kithd@work.service" {
-		t.Errorf("unitFor(\"work\") = %q", got)
-	}
-}
-
 // A daemon holding the socket open but never answering does not hang the client.
 func TestStatusProbeIsBoundedAgainstASilentDaemon(t *testing.T) {
 	t.Parallel()

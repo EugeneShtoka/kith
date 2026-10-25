@@ -40,7 +40,6 @@ const agentScopeTimeout = 3 * time.Second
 func main() {
 	showVersion := flag.Bool("version", false, "print version information and exit")
 	configPath := flag.String("config", "", "path to config file (default: XDG config dir)")
-	profile := flag.String("profile", "", "which [[profile]] account to serve (default: the first one)")
 	logLevel := flag.String("log-level", "", "how much to log ("+logging.Levels+"); overrides $"+logging.EnvLevel+" and `[log] level`")
 	verbose := flag.Bool("v", false, "log at debug level (same as --log-level debug)")
 	logTarget := flag.String("log-target", "", "where to log when not a systemd unit ("+logging.Targets+"); overrides $"+logging.EnvTarget+" and `[log] target`. A unit always logs to its stderr, which is the journal")
@@ -60,12 +59,12 @@ func main() {
 		level.Set(parsed)
 	}
 	// Read first: `[log] target` says where even its own failure is logged.
-	cfg, path, err := loadConfig(*configPath, *profile)
+	cfg, path, err := loadConfig(*configPath)
 	log, closeLog := newLogger(daemonLog{
 		flagTarget:    *logTarget,
 		configured:    cfg.Log.Target,
 		file:          *logFile,
-		identifier:    logging.Identifier("kithd", *profile),
+		identifier:    "kithd",
 		level:         level,
 		underJournald: logging.UnderJournald(),
 		journal:       logging.SystemJournal,
@@ -73,10 +72,10 @@ func main() {
 	slog.SetDefault(log)
 	var storage domain.Storage
 	if err == nil {
-		storage, err = setup.StorageFor(cfg, path, *profile)
+		storage, err = setup.StorageFor(cfg, path)
 	}
 	if err == nil {
-		err = run(log, level, *logLevel, cfg, configFile{path: path, profile: *profile}, storage)
+		err = run(log, level, *logLevel, cfg, configFile{path: path}, storage)
 	}
 	if err != nil {
 		log.Error("kithd stopped", "err", err)
@@ -90,7 +89,7 @@ func main() {
 type daemonLog struct {
 	flagTarget, configured string // --log-target and `[log] target`
 	file                   string // --log-file
-	identifier             string // SYSLOG_IDENTIFIER: kithd or kithd-<profile>
+	identifier             string // SYSLOG_IDENTIFIER: kithd
 	level                  slog.Leveler
 	underJournald          bool // stderr is the journal (a systemd unit)
 	journal                logging.Journal
@@ -509,7 +508,7 @@ func serve(
 		Log:           log,
 		Reload:        reload,
 		CheckConfig:   backend.checkConfig,
-		Config:        daemon.NewConfigFile(file.path, file.profile),
+		Config:        daemon.NewConfigFile(file.path),
 	})
 	// Cancel (not backend.Stop) and join: a sync still decrypting needs the store, and
 	// when Serve failed the parent ctx is still live.
@@ -664,25 +663,20 @@ func expected(ctx context.Context, log *slog.Logger, backend served) []daemon.Ne
 	return out
 }
 
-// configFile is the config kithd serves: its path, and the [[profile]] it runs as.
-type configFile struct{ path, profile string }
+// configFile is the config kithd serves: its path.
+type configFile struct{ path string }
 
-// read re-reads the file with its profile selected, so a reload sees the account a
-// start does.
+// read re-reads the file, so a reload sees what a start does.
 func (f configFile) read() (config.Config, error) {
 	cfg, err := config.Load(f.path)
 	if err != nil {
 		return config.Config{}, fmt.Errorf("load config: %w", err)
 	}
-	cfg, err = cfg.Profile(f.profile)
-	if err != nil {
-		return config.Config{}, fmt.Errorf("select profile: %w", err)
-	}
 	return cfg, nil
 }
 
 // loadConfig reads and validates the config to serve, returning its path for reloads.
-func loadConfig(configPath, profile string) (config.Config, string, error) {
+func loadConfig(configPath string) (config.Config, string, error) {
 	path := configPath
 	if path == "" {
 		resolved, err := config.Path()
@@ -694,10 +688,6 @@ func loadConfig(configPath, profile string) (config.Config, string, error) {
 	cfg, err := config.Load(path)
 	if err != nil {
 		return config.Config{}, "", fmt.Errorf("load config: %w", err)
-	}
-	cfg, err = cfg.Profile(profile)
-	if err != nil {
-		return config.Config{}, "", fmt.Errorf("select profile: %w", err)
 	}
 	if err := setup.Validate(cfg); err != nil {
 		return config.Config{}, "", err

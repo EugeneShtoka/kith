@@ -19,7 +19,6 @@ import (
 func runExport(args []string) error {
 	fs := flag.NewFlagSet("export", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
-	profile := fs.String("profile", "", "which [[profile]] account to run as (default: the first one)")
 	since := fs.String("since", "", "only messages from `when` on: 2h, 7d, yesterday, 2026-09-18")
 	last := fs.Int("last", 0, "only each room's last `n` messages")
 	fs.Usage = func() {
@@ -38,7 +37,7 @@ func runExport(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	at, err := reachForLogin(ctx, *configPath, *profile)
+	at, err := reachForLogin(ctx, *configPath)
 	if err != nil || at.backend == nil {
 		return err
 	}

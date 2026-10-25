@@ -60,7 +60,6 @@ func main() {
 
 	showVersion := flag.Bool("version", false, "print version information and exit")
 	configPath := flag.String("config", "", "path to config file (default: XDG config dir)")
-	profile := flag.String("profile", "", "which [[profile]] account to run as (default: the first one)")
 	clearCache := flag.Bool("clear-cache", false, "ask the daemon to empty the local cache and re-fetch from the server")
 	restoreKeys := flag.Bool("restore-keys", false, "restore room keys from the server backup (prompts for the recovery key/passphrase) before starting")
 	bootstrapKeys := flag.Bool("bootstrap-keys", false, "set this account up for room-key backup (prompts for the account password), print the recovery key and exit")
@@ -87,19 +86,19 @@ func main() {
 	case *printConfig:
 		fmt.Print(config.Annotated())
 	case *addDict != "":
-		exitOn(addDictionary(sharedStorage(*configPath, *profile).DataDir, *addDict))
+		exitOn(addDictionary(sharedStorage(*configPath).DataDir, *addDict))
 	case *addFreq != "":
-		exitOn(addFrequencies(sharedStorage(*configPath, *profile).DataDir, *addFreq))
+		exitOn(addFrequencies(sharedStorage(*configPath).DataDir, *addFreq))
 	case *addModelTag != "":
-		exitOn(addModel(sharedStorage(*configPath, *profile).DataDir, *addModelTag))
+		exitOn(addModel(sharedStorage(*configPath).DataDir, *addModelTag))
 	case *setModelKeyRef != "":
-		exitOn(setModelKey(sharedStorage(*configPath, *profile).KeyringService, *setModelKeyRef))
+		exitOn(setModelKey(sharedStorage(*configPath).KeyringService, *setModelKeyRef))
 	case *agentLog:
-		exitOn(showAgentLog(*configPath, *profile))
+		exitOn(showAgentLog(*configPath))
 	case *open != "":
-		exitOn(runOpen(*configPath, *profile, *open))
+		exitOn(runOpen(*configPath, *open))
 	default:
-		exitOn(run(*configPath, *profile, startup{
+		exitOn(run(*configPath, startup{
 			follow:        *follow,
 			force:         *force,
 			logLevel:      *logLevel,
@@ -140,23 +139,23 @@ type attached struct {
 // attach loads the config and attaches to (or starts) the daemon whatever is logged in;
 // logged-out networks show in the daemon's status. backend is nil when a first-run
 // default config was just written.
-func attach(ctx context.Context, configPath, profile string, timeout time.Duration) (attached, error) {
-	path, cfg, ready, err := loadConfig(configPath, profile)
+func attach(ctx context.Context, configPath string, timeout time.Duration) (attached, error) {
+	path, cfg, ready, err := loadConfig(configPath)
 	if err != nil || !ready {
 		return attached{cfg: cfg}, err
 	}
-	storage, err := storageFor(cfg, path, profile)
+	storage, err := storageFor(cfg, path)
 	if err != nil {
 		return attached{cfg: cfg}, err
 	}
-	return reach(ctx, path, cfg, storage, profile, timeout)
+	return reach(ctx, path, cfg, storage, timeout)
 }
 
 // storageFor is where the config keeps its files, recording its instance in the config
 // when it names none. An unwritable (system-managed) config is left alone; its instance
 // derives from its path.
-func storageFor(cfg config.Config, path, profile string) (domain.Storage, error) {
-	storage, err := setup.StorageFor(cfg, path, profile)
+func storageFor(cfg config.Config, path string) (domain.Storage, error) {
+	storage, err := setup.StorageFor(cfg, path)
 	if err != nil {
 		return domain.Storage{}, err
 	}
@@ -180,10 +179,10 @@ func loggedOutNotice(rows []daemon.NetworkStatus) string {
 
 // reach attaches to (or starts) the daemon for a loaded config, logged in or not, as
 // the login commands need.
-func reach(ctx context.Context, path string, cfg config.Config, storage domain.Storage, profile string, timeout time.Duration) (attached, error) {
+func reach(ctx context.Context, path string, cfg config.Config, storage domain.Storage, timeout time.Duration) (attached, error) {
 	// The packaged units serve only the default config in the default directories; any
 	// other gets its own unit.
-	launch := daemon.Launch{ConfigPath: path, Profile: profile, OwnConfig: !isDefaultConfig(path) || !inDefaultDirs(storage)}
+	launch := daemon.Launch{ConfigPath: path, OwnConfig: !isDefaultConfig(path) || !inDefaultDirs(storage)}
 	backend, note, err := daemon.Ensure(ctx, storage, launch, timeout)
 	if err != nil {
 		return attached{cfg: cfg}, fmt.Errorf("attach to kithd: %w", err)
@@ -196,16 +195,16 @@ func reach(ctx context.Context, path string, cfg config.Config, storage domain.S
 
 // reachForLogin loads the config and reaches its daemon; backend is nil when a
 // first-run default config was just written.
-func reachForLogin(ctx context.Context, configPath, profile string) (attached, error) {
-	path, cfg, ready, err := loadConfig(configPath, profile)
+func reachForLogin(ctx context.Context, configPath string) (attached, error) {
+	path, cfg, ready, err := loadConfig(configPath)
 	if err != nil || !ready {
 		return attached{cfg: cfg}, err
 	}
-	storage, err := storageFor(cfg, path, profile)
+	storage, err := storageFor(cfg, path)
 	if err != nil {
 		return attached{cfg: cfg}, err
 	}
-	return reach(ctx, path, cfg, storage, profile, readyTimeout)
+	return reach(ctx, path, cfg, storage, readyTimeout)
 }
 
 // isDefaultConfig reports whether path is kith's default config, the one the systemd
@@ -230,16 +229,14 @@ func inDefaultDirs(storage domain.Storage) bool {
 
 // sharedStorage is where the config's shared files go (dictionaries, models, API keys),
 // read without writing anything; the defaults without a config.
-func sharedStorage(configPath, profile string) domain.Storage {
+func sharedStorage(configPath string) domain.Storage {
 	cfg := config.Config{}
 	path := configPath
 	if path == "" {
 		path, _ = config.Path()
 	}
 	if loaded, err := config.Load(path); err == nil {
-		if chosen, perr := loaded.Profile(profile); perr == nil {
-			cfg = chosen
-		}
+		cfg = loaded
 	}
 	storage, err := setup.StorageDirs(cfg)
 	if err != nil {
@@ -304,13 +301,13 @@ func matrixAccount(ctx context.Context, backend api.Accounts) (domain.Account, e
 	return domain.Account{}, fmt.Errorf("several Matrix accounts are logged in (%s) and none is the default", strings.Join(names, ", "))
 }
 
-func run(configPath, profile string, jobs startup) error {
+func run(configPath string, jobs startup) error {
 	// SIGTERM and SIGHUP (terminal closing) act like an interrupt, so drafts are written on
 	// the way out and a playing voice note stops.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer stop()
 
-	at, err := attach(ctx, configPath, profile, readyTimeout)
+	at, err := attach(ctx, configPath, readyTimeout)
 	if err != nil || at.backend == nil {
 		return err
 	}
@@ -337,7 +334,7 @@ func run(configPath, profile string, jobs startup) error {
 	if done, kerr := runKeyJobs(ctx, backend, cfg.Matrix, jobs); done || kerr != nil {
 		return kerr
 	}
-	log, closeLog, err := openLog(jobs, cfg.Log, profile, at.storage)
+	log, closeLog, err := openLog(jobs, cfg.Log, at.storage)
 	if err != nil {
 		return err
 	}
@@ -380,10 +377,10 @@ func whereAmI() domain.SeatHolder {
 	return where
 }
 
-// openLog opens the client's log, the journal (SYSLOG_IDENTIFIER kith or
-// kith-<profile>) or $XDG_STATE_HOME/kith/kith.log (1 MB, one old copy), per `[log]
+// openLog opens the client's log, the journal (SYSLOG_IDENTIFIER kith) or
+// $XDG_STATE_HOME/kith/kith.log (1 MB, one old copy), per `[log]
 // target`. It becomes slog's default so no library writes to stderr over the TUI.
-func openLog(jobs startup, configured config.Log, profile string, storage domain.Storage) (*slog.Logger, func(), error) {
+func openLog(jobs startup, configured config.Log, storage domain.Storage) (*slog.Logger, func(), error) {
 	level, err := logging.Resolve(jobs.logLevel, configured.Level)
 	if err != nil {
 		return nil, nil, fmt.Errorf("log level: %w", err)
@@ -394,7 +391,7 @@ func openLog(jobs startup, configured config.Log, profile string, storage domain
 	}
 	log, closeLog := openLogTo(logging.Destination{
 		Target:     target,
-		Identifier: logging.Identifier("kith", profile),
+		Identifier: "kith",
 		File:       filepath.Join(storage.StateDir, logging.FileName),
 		Level:      level,
 	})
@@ -419,9 +416,9 @@ func openLogTo(d logging.Destination) (*slog.Logger, func()) {
 	}
 }
 
-// loadConfig resolves, loads, selects the profile and validates the config. On first
+// loadConfig resolves, loads and validates the config. On first
 // run it writes a documented default and returns ready=false.
-func loadConfig(configPath, profile string) (path string, cfg config.Config, ready bool, err error) {
+func loadConfig(configPath string) (path string, cfg config.Config, ready bool, err error) {
 	path = configPath
 	if path == "" {
 		if path, err = config.Path(); err != nil {
@@ -439,10 +436,6 @@ func loadConfig(configPath, profile string) (path string, cfg config.Config, rea
 	}
 	if warning := config.ModeWarning(path); warning != "" {
 		fmt.Fprintln(os.Stderr, "kith:", warning)
-	}
-	cfg, err = cfg.Profile(profile)
-	if err != nil {
-		return "", config.Config{}, false, fmt.Errorf("select profile: %w", err)
 	}
 	if err := setup.Validate(cfg); err != nil {
 		return "", config.Config{}, false, fmt.Errorf("load config: %w", err)

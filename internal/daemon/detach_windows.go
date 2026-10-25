@@ -29,7 +29,7 @@ func detach(daemonArgs []string) error {
 	}
 	args := daemonArgs
 	start := func(flags uint32) error {
-		cmd := exec.CommandContext(context.Background(), path, args...) // #nosec G204 -- path is kithd.exe beside us or on PATH; the profile is a config-file name
+		cmd := exec.CommandContext(context.Background(), path, args...) // #nosec G204 -- path is kithd.exe beside us or on PATH; the arguments are kith's own flags
 		cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: flags, HideWindow: true}
 		// Not the client's console: the daemon logs to its --log-file.
 		cmd.Stdout, cmd.Stderr = nil, nil

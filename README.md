@@ -167,7 +167,7 @@ and keeps only the access token, in the OS keyring.
 If no daemon is running, `kith` starts one itself and tells you. Press `?` inside
 the client for every keybinding, and `,` for settings.
 
-Full walkthrough, per platform, with profiles and encryption setup:
+Full walkthrough, per platform, with several accounts and encryption setup:
 [Getting started](docs/getting-started.md).
 
 ## Documentation

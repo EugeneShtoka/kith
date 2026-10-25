@@ -12,14 +12,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
-// configAt is a config file holding text, served as profile.
-func configAt(t *testing.T, text, profile string) *ConfigFile {
+// configAt is a config file holding text.
+func configAt(t *testing.T, text string) *ConfigFile {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	return NewConfigFile(path, profile)
+	return NewConfigFile(path)
 }
 
 // A change on the current revision is written and applied; one on a changed file is
@@ -27,7 +27,7 @@ func configAt(t *testing.T, text, profile string) *ConfigFile {
 func TestTheConfigIsWrittenOnlyOnTheRevisionItWasMadeOn(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	f := configAt(t, "allow_token_file = true\n", "")
+	f := configAt(t, "allow_token_file = true\n")
 	read, err := f.Read()
 	if err != nil {
 		t.Fatal(err)
@@ -63,31 +63,11 @@ func TestTheConfigIsWrittenOnlyOnTheRevisionItWasMadeOn(t *testing.T) {
 	}
 }
 
-// An account kept in [[profile]] blocks stays there; writing it as a
-// [[matrix.account]] too would not load.
-func TestAWriteKeepsTheAccountInItsProfile(t *testing.T) {
-	t.Parallel()
-	f := configAt(t, "[[profile]]\nname = \"home\"\nhomeserver = \"https://x\"\nuser = \"@me:x\"\n", "home")
-	read, err := f.Read()
-	if err != nil || len(read.Config.Matrix.Accounts) != 1 || read.Config.Matrix.Accounts[0].User != "@me:x" {
-		t.Fatalf("read = (%+v, %v)", read.Config.Matrix, err)
-	}
-	changed := read.Config.Clone()
-	changed.Notifications.Enabled = false
-	if _, werr := f.Write(context.Background(), read.Revision, changed, nil, nil); werr != nil {
-		t.Fatal(werr)
-	}
-	onDisk, err := config.Load(f.path)
-	if err != nil || len(onDisk.Matrix.Accounts) != 0 || len(onDisk.Profiles) != 1 {
-		t.Errorf("on disk: accounts %+v, %d profiles, %v", onDisk.Matrix.Accounts, len(onDisk.Profiles), err)
-	}
-}
-
 // Of writers racing on one revision exactly one is written, the rest refused.
 func TestWritersOnOneRevisionAreWrittenOnce(t *testing.T) {
 	t.Parallel()
 	for round := range 20 {
-		f := configAt(t, "allow_token_file = true\n", "")
+		f := configAt(t, "allow_token_file = true\n")
 		read, _ := f.Read()
 		var mu sync.Mutex
 		var won []int
@@ -116,7 +96,7 @@ func TestWritersOnOneRevisionAreWrittenOnce(t *testing.T) {
 // An unwritable config is the daemon's own failure and changes nothing.
 func TestAConfigThatCannotBeWrittenSaysSo(t *testing.T) {
 	t.Parallel()
-	f := configAt(t, "allow_token_file = true\n", "")
+	f := configAt(t, "allow_token_file = true\n")
 	read, _ := f.Read()
 	dir := filepath.Dir(f.path)
 	if err := os.Chmod(dir, 0o500); err != nil {

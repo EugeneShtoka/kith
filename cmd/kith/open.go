@@ -18,7 +18,7 @@ const openTimeout = 20 * time.Second
 // runOpen (`kith --open <uri>`, the desktop's matrix:, tg:, whatsapp: and sgnl: handler) delivers a URI
 // to a running client via the daemon, or starts a terminal running one. It never
 // draws.
-func runOpen(configPath, profile, uri string) error {
+func runOpen(configPath, uri string) error {
 	if !openableURI(uri) {
 		return fmt.Errorf("not a Matrix, Telegram, WhatsApp or Signal link: %s", uri)
 	}
@@ -26,7 +26,7 @@ func runOpen(configPath, profile, uri string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	at, err := attach(ctx, configPath, profile, openTimeout)
+	at, err := attach(ctx, configPath, openTimeout)
 	if err != nil || at.backend == nil {
 		return err
 	}

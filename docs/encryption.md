@@ -17,15 +17,15 @@ For the same reason, the client has **no in-process fallback**. If no daemon is 
 | What | Where | Protection |
 | --- | --- | --- |
 | Crypto store (Olm account, Megolm sessions, device lists, cross-signing state) | `$XDG_DATA_HOME/kith/crypto-<instance>-<account>.db`, one per Matrix account | Encrypted at rest with the pickle key |
-| Pickle key (32 random bytes) | OS keyring, service `kith`, account `<your MXID>\|pickle` | Keyring only, never written to disk |
-| Access token and device ID | OS keyring, service `kith`, account `<your MXID>` | Keyring. A `0600` file only if you opt in with `allow_token_file = true` |
+| Pickle key (32 random bytes) | OS keyring, service `kith`, account `<instance>\|matrix\|<account>\|pickle` | Keyring only, never written to disk |
+| Access token and device ID | OS keyring, service `kith`, account `<instance>\|matrix\|<account>` | Keyring. A `0600` file only if you opt in with `allow_token_file = true` |
 | WhatsApp's and Messenger's key stores (each linked device's identity keys, prekeys, sessions, sender keys) | `$XDG_DATA_HOME/kith/whatsapp-<hash>.db`, `messenger-<hash>.db` | Encrypted at rest, every page and the write-ahead log, with the store's key |
 | Each store's key (32 random bytes) | OS keyring, service `kith`, account `<hash>\|whatsapp-store`, `<hash>\|messenger-store` | Keyring only, never written to disk |
 | Message cache (decrypted text, full-text index) | `$XDG_DATA_HOME/kith/cache-<hash>.db` | **Plaintext SQLite**, protected by file permissions |
 | Downloaded attachments and rendered previews | `$XDG_CACHE_HOME/kith/` | File permissions |
 | Socket and lock | `$XDG_RUNTIME_DIR/kith/<hash>.sock`, `.lock` | Socket `0600`, directory `0700` |
 
-`<hash>` is derived from your MXID, so your user ID does not appear in directory listings, and each account in a multi-profile setup gets its own files.
+`<account>` is derived from the account's MXID, so your user ID does not appear in directory listings, and each account gets its own files.
 
 **The pickle key requires an OS secret store**: a Secret Service provider such as GNOME Keyring on Linux, or Keychain on macOS. If no keyring can be read, the daemon logs `encryption disabled` (with the reason) and keeps running for unencrypted rooms only. It will not generate a key it would have to store in plaintext. On a headless machine, run a Secret Service provider before starting the daemon.
 

@@ -37,7 +37,6 @@ func Attach(ctx context.Context, socket string, timeout time.Duration) (*Remote,
 // --config.
 type Launch struct {
 	ConfigPath string
-	Profile    string
 	OwnConfig  bool
 }
 
@@ -96,8 +95,8 @@ func systemdStart(ctx context.Context, storage domain.Storage, launch Launch) (u
 			return ownUnitName(storage), err
 		}
 	}
-	// #nosec G204 -- unit is unitFor(profile) or ownUnitName(instance), each
-	// restricted to [A-Za-z0-9._-]; no shell, no separators.
+	// #nosec G204 -- unit is defaultUnit or ownUnitName(instance), restricted to
+	// [A-Za-z0-9._-]; no shell, no separators.
 	if out, err := exec.CommandContext(ctx, "systemctl", "--user", "start", unit).CombinedOutput(); err != nil {
 		return unit, fmt.Errorf("%w (%s)", err, trimOutput(out))
 	}
@@ -108,34 +107,19 @@ func systemdStart(ctx context.Context, storage domain.Storage, launch Launch) (u
 const LogFlag = "--log-file"
 
 // DaemonLogPath is where a daemon started without systemd logs when there is no
-// journal (or `[log] target` is "file"): kithd.log, or kithd-<profile>.log, in the
-// state directory.
-func DaemonLogPath(storage domain.Storage, profile string) string {
-	if profile != "" {
-		return storage.LogPath("kithd-" + profile)
-	}
+// journal (or `[log] target` is "file"): kithd.log in the state directory.
+func DaemonLogPath(storage domain.Storage) string {
 	return storage.LogPath("kithd")
 }
 
 // detachArgs is the detached daemon's argv after the binary: logging to
 // DaemonLogPath, never the client's terminal, and naming a non-default config.
 func detachArgs(storage domain.Storage, launch Launch) []string {
-	args := []string{LogFlag, DaemonLogPath(storage, launch.Profile)}
+	args := []string{LogFlag, DaemonLogPath(storage)}
 	if launch.OwnConfig && launch.ConfigPath != "" {
 		args = append(args, "--config", launch.ConfigPath)
 	}
-	if launch.Profile != "" {
-		args = append(args, "--profile", launch.Profile)
-	}
 	return args
-}
-
-// unitFor is the systemd unit serving a profile: kithd@<profile>, or the plain unit.
-func unitFor(profile string) string {
-	if profile == "" {
-		return defaultUnit
-	}
-	return "kithd@" + profile + ".service"
 }
 
 // statusProbe asks the daemon whether it is ready, bounded: Remote has no client

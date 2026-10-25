@@ -59,29 +59,6 @@ Top-level keys:
 | `allow_token_file` | `false` | Store the access token in a 0600 file under `~/.local/state/kith/` (one per account) when no OS keyring exists. Use it only on a headless machine. |
 | `terminal` | `""` (detect) | What `kith --open` starts when a `matrix:`, `tg:` or `whatsapp:` link arrives and no client is running. See [getting-started.md](getting-started.md#open-matrix-tg-whatsapp-and-signal-links-in-kith). |
 
-### Profiles
-
-To run an account in a daemon of its own, name it in a `[[profile]]` block instead of
-a `[[matrix.account]]`. Setting both is refused.
-
-```toml
-[[profile]]
-name       = "personal"
-homeserver = "https://matrix.example.org"
-user       = "@alice:example.org"
-
-[[profile]]
-name       = "work"
-homeserver = "https://matrix.work.example"
-user       = "@alice:work.example"
-```
-
-Select a profile with `--profile <name>`. The match is case-insensitive, and the
-first profile is the default. A profile holds only the account; every other section
-in the file is shared. See
-[getting-started.md](getting-started.md#multiple-accounts) for logins and systemd
-units per profile.
-
 ### Several accounts on a network
 
 When a network has several accounts, a call that names none uses one of them:
@@ -193,7 +170,8 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 
 | Section | Purpose | More |
 | --- | --- | --- |
-| *(top level)* | The account (`homeserver`, `user`) or `[[profile]]` blocks, `allow_token_file`, `terminal`. | [getting-started.md](getting-started.md) |
+| *(top level)* | `allow_token_file`, `terminal`, `bridge_contacts`. | [getting-started.md](getting-started.md) |
+| `[matrix]` | The Matrix accounts (`[[matrix.account]]`) and which is the default. | [Matrix accounts](#matrix-accounts) |
 | `[display]` | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, how times and dates are written (`time_format`, `long_date_format`, `short_date_format`), and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
 | `[display.theme]` | The color palette: a preset plus per-role overrides. | [Themes](#themes) |
 | `[display.theme.networks]` | The color each network's rooms are named in, where the room lists or the rail ask for it. | [usage.md](usage.md) |

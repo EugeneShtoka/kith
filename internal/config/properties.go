@@ -45,7 +45,7 @@ type Property struct {
 }
 
 // notProperties are the top-level tables that hold no properties.
-var notProperties = []string{"keys", "storage", "profile"}
+var notProperties = []string{"keys", "storage"}
 
 // Properties is every property, in the order the config declares them.
 func Properties() []Property {

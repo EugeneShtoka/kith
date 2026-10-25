@@ -22,21 +22,21 @@ type unwritable struct{ err error }
 func (u unwritable) Error() string { return "daemon: write the config: " + u.err.Error() }
 func (u unwritable) Unwrap() error { return u.err }
 
-// ConfigFile is the config file the daemon serves and the [[profile]] it runs as.
+// ConfigFile is the config file the daemon serves.
 type ConfigFile struct {
-	path, profile string
+	path string
 	// mu serializes writes, each read-check-write-apply as one.
 	mu sync.Mutex
 }
 
-func NewConfigFile(path, profile string) *ConfigFile {
-	return &ConfigFile{path: path, profile: profile}
+func NewConfigFile(path string) *ConfigFile {
+	return &ConfigFile{path: path}
 }
 
 // Path is the config file the daemon reads and writes.
 func (f *ConfigFile) Path() string { return f.path }
 
-// Read is the served configuration (profile applied) and the file's revision.
+// Read is the served configuration and the file's revision.
 func (f *ConfigFile) Read() (config.Snapshot, error) {
 	data, err := os.ReadFile(f.path)
 	if err != nil {
@@ -46,16 +46,11 @@ func (f *ConfigFile) Read() (config.Snapshot, error) {
 	if err != nil {
 		return config.Snapshot{}, err //nolint:wrapcheck // config's errors say what is wrong
 	}
-	served, err := cfg.Profile(f.profile)
-	if err != nil {
-		return config.Snapshot{}, err //nolint:wrapcheck // as above
-	}
-	return config.Snapshot{Config: served, Revision: config.Revision(data)}, nil
+	return config.Snapshot{Config: cfg, Revision: config.Revision(data)}, nil
 }
 
 // Write makes cfg the config file if the file is still at base and check passes, then
-// applies it, returning what was written. cfg has its profile applied; the account
-// stays in [[profile]] blocks where the file keeps it there.
+// applies it, returning what was written.
 func (f *ConfigFile) Write(ctx context.Context, base string, cfg config.Config, check CheckConfig, apply Reload) (config.Snapshot, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -67,17 +62,8 @@ func (f *ConfigFile) Write(ctx context.Context, base string, cfg config.Config, 
 		return config.Snapshot{}, api.ErrConfigMoved
 	}
 	written := cfg.Clone()
-	if data != nil {
-		if onDisk, derr := config.Decode(string(data)); derr == nil && len(onDisk.Profiles) > 0 {
-			written.Matrix.Accounts = onDisk.Matrix.Accounts // the account stays per profile
-		}
-	}
-	served, err := written.Profile(f.profile)
-	if err != nil {
-		return config.Snapshot{}, err //nolint:wrapcheck // config's errors say what is wrong
-	}
 	if check != nil {
-		if err := check(ctx, served); err != nil {
+		if err := check(ctx, written); err != nil {
 			return config.Snapshot{}, err
 		}
 	}

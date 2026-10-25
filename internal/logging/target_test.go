@@ -47,16 +47,6 @@ func TestResolveTargetPrecedence(t *testing.T) {
 	}
 }
 
-func TestIdentifier(t *testing.T) {
-	t.Parallel()
-	if got := Identifier("kithd", ""); got != "kithd" {
-		t.Errorf("no profile = %q", got)
-	}
-	if got := Identifier("kithd", "work"); got != "kithd-work" {
-		t.Errorf("profile = %q", got)
-	}
-}
-
 func TestOpenAutoPicksJournal(t *testing.T) {
 	t.Parallel()
 	f := &fakeJournal{}

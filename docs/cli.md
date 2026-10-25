@@ -12,7 +12,7 @@ the binaries and exits.
 
 ```text
 kith [flags]
-kith login [--config path] [--profile name] [network [account]]
+kith login [--config path] [network [account]]
 ```
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
@@ -73,11 +73,10 @@ the bridge's to do.
 | Flag | Meaning |
 | --- | --- |
 | `--config path` | Config file to read. Default: `$XDG_CONFIG_HOME/kith/config.toml`. If it doesn't exist, an annotated default is written there and kith exits. |
-| `--profile name` | Which `[[profile]]` account to run as. The default is the first one. It also chooses which daemon to attach to or start (`kithd@<name>.service`). |
 | `--version` | Print the version, commit and build date, then exit. |
 | `--print-config` | Print the fully documented default configuration, then exit. It needs no config or session. |
 | `--log-level level` | How much to log: `debug`, `info`, `warn` or `error`. Overrides `KITH_LOG_LEVEL` and `[log] level`. See [troubleshooting.md](troubleshooting.md#logs). |
-| `--log-target target` | Where to log: `journal` (tagged `kith`, or `kith-<profile>`), `file` (`$XDG_STATE_HOME/kith/kith.log`), or `auto`, the journal when there is one. Overrides `KITH_LOG_TARGET` and `[log] target`. Never the terminal. See [troubleshooting.md](troubleshooting.md#where-the-log-goes). |
+| `--log-target target` | Where to log: `journal` (tagged `kith`), `file` (`$XDG_STATE_HOME/kith/kith.log`), or `auto`, the journal when there is one. Overrides `KITH_LOG_TARGET` and `[log] target`. Never the terminal. See [troubleshooting.md](troubleshooting.md#where-the-log-goes). |
 
 ### Maintenance flags
 
@@ -131,7 +130,7 @@ for the model endpoint, and [mcp.md](mcp.md) for the assistant ledger.
 | `2` | A flag kith doesn't know, or a flag missing its value. |
 
 When the daemon isn't running, `kith` starts it with
-`systemctl --user start kithd.service` (or `kithd@<profile>.service`). For a config
+`systemctl --user start kithd.service`. For a config
 other than the default one, it first writes that config's own unit,
 `~/.config/systemd/user/kithd-<instance>.service`: `kithd --config path`, under the
 same sandbox as `kithd.service`, allowed to write only the directories its
@@ -144,7 +143,7 @@ backslash or `$`, or under `/tmp`, which the sandbox hides), kith falls back to
 ## kithd
 
 ```text
-kithd [--config path] [--profile name] [--log-level level] [-v] [--log-target target] [--log-file path] [--version]
+kithd [--config path] [--log-level level] [-v] [--log-target target] [--log-file path] [--version]
 ```
 
 The daemon. It runs in the foreground and logs to stderr, which the journal captures
@@ -156,10 +155,9 @@ through the daemon and starts it without a restart.
 | Flag | Meaning |
 | --- | --- |
 | `--config path` | Config file to read. The daemon re-reads this same path when a client asks it to reload. A config other than the default one gets its own daemon: its files are wherever its `[storage]` says, named by its instance, and kith starts that daemon through a systemd unit it writes for that config (`kithd-<instance>.service`, see above). |
-| `--profile name` | Which `[[profile]]` account to serve. The default is the first one. |
 | `--log-level level` | How much to log: `debug`, `info`, `warn` or `error`. Overrides `KITH_LOG_LEVEL` and `[log] level`. |
 | `-v` | Short for `--log-level debug`. |
-| `--log-target target` | Where to log when not a systemd unit: `journal` (tagged `kithd`, or `kithd-<profile>`), `file` (the `--log-file`), or `auto`, the journal when there is one and the `--log-file` otherwise. Overrides `KITH_LOG_TARGET` and `[log] target`. A unit always logs to its stderr, which is the journal. |
+| `--log-target target` | Where to log when not a systemd unit: `journal` (tagged `kithd`), `file` (the `--log-file`), or `auto`, the journal when there is one and the `--log-file` otherwise. Overrides `KITH_LOG_TARGET` and `[log] target`. A unit always logs to its stderr, which is the journal. |
 | `--log-file path` | Log to this file (capped at 1 MB, one old copy kept) instead of stderr when there is no journal, or always with `--log-target file`. `kith` passes it when it starts the daemon itself, so the daemon never writes over the interface. |
 | `--version` | Print version information and exit. |
 
@@ -196,7 +194,7 @@ Behavior worth knowing:
 ## kith-mcp
 
 ```text
-kith-mcp [--config path] [--profile name] [--log-level level] [--version]
+kith-mcp [--config path] [--log-level level] [--version]
 ```
 
 An MCP server over stdio: newline-delimited JSON-RPC on stdin and stdout, with logs on
@@ -207,7 +205,6 @@ doesn't start one itself, so keep `kithd` running.
 | Flag | Meaning |
 | --- | --- |
 | `--config path` | Config file to read. `[agent.read]` and `[agent.write]` decide what may be read and written. |
-| `--profile name` | Which `[[profile]]` account to serve. The default is the first one. |
 | `--log-level level` | How much to log to stderr: `debug`, `info`, `warn` or `error`. Overrides `KITH_LOG_LEVEL` and `[log] level`. |
 | `--version` | Print version information and exit. |
 
@@ -265,10 +262,10 @@ targets (`test`, `lint`, `check`, …) are covered in
 | Target | What it does |
 | --- | --- |
 | `make build` | Build `./kith`, `./kithd` and `./kith-mcp` in the repository root. |
-| `make install` | Build, then install the binaries to `$(BINDIR)`, both systemd user units (`kithd.service` and the per-profile `kithd@.service`) to `~/.config/systemd/user/`, and the `matrix:` / `tg:` / `whatsapp:` handler to `~/.local/share/applications/`. It starts nothing. |
-| `make deploy` | `install`, then import the desktop environment variables, enable and restart the daemon's unit, and wait for its socket. With `PROFILE=<name>`, the unit is `kithd@<name>.service`. |
-| `make undeploy` | Stop and disable `kithd.service` and every `kithd@<profile>` instance, remove both units and every `kithd-<instance>.service` kith wrote for a config of its own, the `kith`, `kithd` and `kith-mcp` binaries, the desktop entry, and the `matrix:` / `tg:` / `whatsapp:` handler associations if they still name kith. Config, cache, crypto store and keyring are left alone. `PROFILE` is ignored: every profile's daemon goes. |
-| `make daemon-status` | `systemctl --user status` for the unit `PROFILE` selects. |
+| `make install` | Build, then install the binaries to `$(BINDIR)`, the systemd user unit (`kithd.service`) to `~/.config/systemd/user/`, and the `matrix:` / `tg:` / `whatsapp:` handler to `~/.local/share/applications/`. It starts nothing. |
+| `make deploy` | `install`, then import the desktop environment variables, enable and restart the daemon's unit, and wait for its socket. |
+| `make undeploy` | Stop and disable `kithd.service`, remove it and every `kithd-<instance>.service` kith wrote for a config of its own, the `kith`, `kithd` and `kith-mcp` binaries, the desktop entry, and the `matrix:` / `tg:` / `whatsapp:` handler associations if they still name kith. Config, cache, crypto store and keyring are left alone. |
+| `make daemon-status` | `systemctl --user status` for `kithd.service`. |
 | `make daemon-logs` | Print that unit's last 100 journal lines. |
 | `make daemon-restart` | Restart that unit, for example after an upgrade. |
 | `make daemon-stop` | Stop that unit. |
@@ -281,23 +278,19 @@ targets (`test`, `lint`, `check`, …) are covered in
 | `BINDIR` | `$(PREFIX)/bin` | Where the binaries go. The units' `ExecStart` and the desktop entry's `Exec` are rewritten to match. `sudo` is used only if this directory isn't writable. |
 | `UNITDIR` | `~/.config/systemd/user` | Where the units go. |
 | `APPDIR` | `~/.local/share/applications` | Where the desktop entry goes. |
-| `PROFILE` | empty | Which daemon `deploy` and the daemon-* targets act on: empty is `kithd.service`, a name is `kithd@<name>.service`. Letters, digits, `.`, `-` and `_` only, like a profile name. |
 | `LAUNCHAGENTDIR` | `~/Library/LaunchAgents` | macOS only: where `deploy` writes the LaunchAgent. |
 
-For example, a system-wide copy of the binaries, and a second account's daemon:
+For example, a system-wide copy of the binaries:
 
 ```sh
 make deploy PREFIX=/usr/local
-make deploy PROFILE=work
 ```
 
-A profile's socket is named after a hash of its Matrix ID, which the Makefile can't
+The daemon's socket is named after the config's instance, which the Makefile can't
 read from the config. So `deploy` waits for whichever socket appears after the
 restart, which is the new daemon's.
 
 Without `systemctl`, `install` and `deploy` skip the systemd steps and print what to
 do instead. On macOS, `deploy` renders `packaging/macos/io.github.eugeneshtoka.kithd.plist`
-into `LAUNCHAGENTDIR` (as `io.github.eugeneshtoka.kithd.<name>` with `PROFILE=`),
-loads it with `launchctl bootstrap`, and logs to `~/Library/Logs/kithd.log`
-(`kithd.<name>.log` with `PROFILE=`).
-`undeploy` unloads and removes every such agent. The daemon-* targets are systemd-only.
+into `LAUNCHAGENTDIR`, loads it with `launchctl bootstrap`, and logs to
+`~/Library/Logs/kithd.log`. `undeploy` unloads and removes it. The daemon-* targets are systemd-only.

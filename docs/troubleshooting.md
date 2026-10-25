@@ -13,10 +13,9 @@ tokens, passwords or keys; anything shaped like one is replaced with `[REDACTED]
 | Program | Where its log goes |
 | --- | --- |
 | `kithd` under systemd | The journal, through its stderr: `journalctl --user -u kithd -f`, or `make daemon-logs` for the last 100 lines. Under journald the lines carry no timestamp of their own, because the journal adds one. |
-| `kithd` for a profile | `journalctl --user -u kithd@work -f` |
 | `kithd` in the foreground | The terminal you started it in (stderr), unless `--log-target journal` |
-| `kithd` started by `kith` without systemd | The journal, tagged `kithd` (`kithd-<profile>` for a profile). Without one: `$XDG_STATE_HOME/kith/kithd.log` (`kithd-<profile>.log`), so it never draws over the interface |
-| `kith` | The journal, tagged `kith` (`kith-<profile>` for a profile). Without one: `$XDG_STATE_HOME/kith/kith.log` (usually `~/.local/state/kith/kith.log`). The interface owns the terminal, so failures show briefly in the status line, with their reason, and stay in the log. |
+| `kithd` started by `kith` without systemd | The journal, tagged `kithd`. Without one: `$XDG_STATE_HOME/kith/kithd.log`, so it never draws over the interface |
+| `kith` | The journal, tagged `kith`. Without one: `$XDG_STATE_HOME/kith/kith.log` (usually `~/.local/state/kith/kith.log`). The interface owns the terminal, so failures show briefly in the status line, with their reason, and stay in the log. |
 | `kith-mcp` | Its stderr (stdout carries the protocol). Your MCP client decides where that ends up. |
 
 Follow the client and the daemon together:
@@ -26,8 +25,7 @@ journalctl --user -t kith -t kithd -f
 ```
 
 `-t` matches the tag, which is how `kith` and a daemon it started log; add
-`-u kithd` (or `-u kithd@work`) to include the systemd unit, and `-t kith-work
--t kithd-work` for a profile. In the journal, each attribute of a line is a field
+`-u kithd` to include the systemd unit. In the journal, each attribute of a line is a field
 of its own, upper-cased: `room=` is `ROOM=`, `op=` is `OP=`, `err=` is `ERR=`, and a
 group's attributes are joined with `_`. Filter on them:
 
@@ -88,10 +86,9 @@ config.
 
 ## Startup
 
-### "Matrix @alice:example.org is logged out: no saved session; run `kith login`"
+### "Matrix personal is logged out: no saved session; :login matrix personal in kith, or run `kith login matrix personal`"
 
-The keyring holds no session for this account, so run `kith login` (with
-`--profile <name>` if you use profiles). kith opens meanwhile with whatever else is
+The keyring holds no session for this account, so log it in. kith opens meanwhile with whatever else is
 logged in, the daemon keeps running with Matrix logged out, and Matrix starts as soon
 as the login is done.
 
@@ -165,10 +162,6 @@ pkill -x kithd          # stop it; it shuts down cleanly on SIGTERM
 systemctl --user restart kithd
 ```
 
-With profiles, enable either `kithd.service` or `kithd@<first-profile>` for the
-first account, not both. They serve the same account, and one of them always loses
-the lock.
-
 ### Socket errors: permission denied or connection refused
 
 The daemon listens on `$XDG_RUNTIME_DIR/kith/<hash>.sock`, with mode 0600 in a
@@ -200,11 +193,8 @@ a bad value stops them with a message that names the key. Common ones:
 
 | Message | Fix |
 | --- | --- |
-| `config: no network to use` | Fill in `homeserver` and `user` at the top of the file (or define `[[profile]]` blocks) for Matrix, or add an account for another network (`:login` inside kith), or both. |
-| `config: Matrix needs both homeserver and user` | Only one of the two is set. Set both, or empty both to use only WhatsApp. |
-| `config: the account is set both at the top level and in [[profile]] blocks` | Keep the account in one place. |
-| `config: no profile called "x" (have personal, work)` | Check the `--profile` spelling. |
-| `config: profile name "…" may only contain letters, digits, dot, dash and underscore` | Rename the profile. The name becomes a systemd instance name. |
+| `config: matrix.account[0] (personal): user "…" is no Matrix ID` | Write the Matrix ID whole, as `@you:matrix.org`. |
+| `config: matrix.account[0] (personal): homeserver "…" is no URL` | Write the server's address, as `https://matrix.org`. |
 | `config: …: unknown keys: notifications.on, …` | The key is misspelled, in the wrong section, or no longer exists. `kith --print-config` shows every valid key. |
 
 Keys kith doesn't know are refused at startup, naming each one. See

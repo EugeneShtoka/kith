@@ -66,16 +66,16 @@ func TestOwnUnitMatchesThePackagedSandbox(t *testing.T) {
 	}
 }
 
-// The unit starts kithd with its config and profile, may write exactly the config's
+// The unit starts kithd with its config, may write exactly the config's
 // directories, and creates each before the sandbox is built.
 func TestOwnUnitServesItsConfig(t *testing.T) {
 	t.Parallel()
 	storage := ownStorage()
-	unit, err := ownUnit(storage, "/opt/kith/kithd", Launch{ConfigPath: "/home/u/sb/config.toml", Profile: "work", OwnConfig: true})
+	unit, err := ownUnit(storage, "/opt/kith/kithd", Launch{ConfigPath: "/home/u/sb/config.toml", OwnConfig: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := values(unit, "ExecStart"), []string{"/opt/kith/kithd", "--config", "/home/u/sb/config.toml", "--profile", "work"}; !slices.Equal(got, want) {
+	if got, want := values(unit, "ExecStart"), []string{"/opt/kith/kithd", "--config", "/home/u/sb/config.toml"}; !slices.Equal(got, want) {
 		t.Errorf("ExecStart = %q, want %q", got, want)
 	}
 	dirs := []string{storage.DataDir, storage.StateDir, storage.CacheDir, storage.RuntimeDir, "/home/u/sb"}
@@ -87,14 +87,6 @@ func TestOwnUnitServesItsConfig(t *testing.T) {
 	}
 	if strings.Contains(unit, "%h") || strings.Contains(unit, "%t") {
 		t.Errorf("own unit names a default directory:\n%s", unit)
-	}
-
-	plain, err := ownUnit(storage, "/opt/kith/kithd", Launch{ConfigPath: "/c.toml", OwnConfig: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := values(plain, "ExecStart"); slices.Contains(got, "--profile") {
-		t.Errorf("ExecStart without a profile = %q, want no --profile", got)
 	}
 }
 
@@ -129,9 +121,7 @@ func TestLaunchUnitName(t *testing.T) {
 		want   string
 	}{
 		{Launch{}, "kithd.service"},
-		{Launch{Profile: "work"}, "kithd@work.service"},
 		{Launch{ConfigPath: "/c.toml", OwnConfig: true}, "kithd-sandbox-work.service"},
-		{Launch{ConfigPath: "/c.toml", Profile: "work", OwnConfig: true}, "kithd-sandbox-work.service"},
 	} {
 		if got := tc.launch.unitName(storage); got != tc.want {
 			t.Errorf("%+v.unitName() = %q, want %q", tc.launch, got, tc.want)

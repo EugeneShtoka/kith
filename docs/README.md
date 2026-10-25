@@ -13,7 +13,7 @@ New here? Start with [Getting started](getting-started.md), then take the
 
 | Page | What it covers |
 | --- | --- |
-| [Getting started](getting-started.md) | Requirements, installing, first login, running the daemon, profiles, where files live |
+| [Getting started](getting-started.md) | Requirements, installing, first login, running the daemon, several accounts, where files live |
 | [Using the client](usage.md) | The three panes, the rail and room list, the timeline, messages, threads, media, people and rooms |
 | [Keybindings](keybindings.md) | Every default key by mode, and how to rebind them |
 | [Search](search.md) | Offline full-text search, scopes and filters, the mentions, files, starred and tracked lists |

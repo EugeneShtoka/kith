@@ -39,7 +39,7 @@ Every Linux package, the AUR packages and the Nix package install the same set:
 | Installed path | Source in the repository |
 | --- | --- |
 | `/usr/bin/kith`, `kithd`, `kith-mcp` | the three `cmd/` binaries, built with `-tags=goolm` and `CGO_ENABLED=0` |
-| `/usr/lib/systemd/user/kithd.service`, `kithd@.service` | `packaging/systemd/`, rendered by `scripts/render-units.sh` with `ExecStart=/usr/bin/kithd` |
+| `/usr/lib/systemd/user/kithd.service` | `packaging/systemd/`, rendered by `scripts/render-units.sh` with `ExecStart=/usr/bin/kithd` |
 | `/usr/share/applications/kith.desktop` | `packaging/desktop/kith.desktop` |
 | `/usr/share/doc/kith/` | `README.md`, `ARCHITECTURE.md`, `docs/*.md`, and `config.toml.example` from `kith --print-config` |
 | `/usr/share/licenses/kith/LICENSE` (`/usr/share/doc/kith/copyright` in the `.deb`) | `LICENSE` |
@@ -97,9 +97,9 @@ The obvious systemd-native alternatives don't cover it:
   user managers put `StateDirectory=` under `~/.config`. The paths would then depend
   on the systemd version.
 
-`scripts/unit-parity-check.sh` (`make unit-check`) fails if a `ReadWritePaths=` entry
+`scripts/unit-check.sh` (`make unit-check`) fails if a `ReadWritePaths=` entry
 outside `%t` is missing from the `mkdir` line, so a new directory can't reintroduce
-the problem. It still checks that the plain and templated units agree. The Nix
+the problem. The Nix
 package rewrites the bare `mkdir` to a store path, because NixOS has no `/usr/bin`.
 
 ## One-time setup per publisher
@@ -284,7 +284,7 @@ complaint should be that `/usr/bin/kithd` doesn't exist.
 The Makefile's install paths can all be pointed into a scratch directory too:
 
 ```sh
-make -n deploy PROFILE=work                        # print, don't run
+make -n deploy                                     # print, don't run
 make install PREFIX=/tmp/mx UNITDIR=/tmp/mx/units APPDIR=/tmp/mx/apps
 ```
 

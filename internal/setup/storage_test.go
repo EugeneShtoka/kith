@@ -52,7 +52,7 @@ func unchanged(t *testing.T, path string, before []byte) {
 func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
 	root, path := home(t, "[[matrix.account]]\nname = \"ada\"\nhomeserver = \"h\"\nuser = \"@ada:x\"\n")
 	before, _ := os.ReadFile(path)
-	first, err := setup.StorageFor(load(t, path), path, "")
+	first, err := setup.StorageFor(load(t, path), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
 	if first.Instance == domain.AccountKey("@ada:x") {
 		t.Error("a new install took its name from the Matrix account")
 	}
-	second, err := setup.StorageFor(load(t, path), path, "")
+	second, err := setup.StorageFor(load(t, path), path)
 	if err != nil || second.Instance != first.Instance {
 		t.Errorf("the next read = (%+v, %v), want the same instance (%s)", second, err, first.Instance)
 	}
@@ -74,7 +74,7 @@ func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
 	if err := os.Symlink(path, link); err != nil {
 		t.Fatal(err)
 	}
-	if via, err := setup.StorageFor(load(t, link), link, ""); err != nil || via.Instance != first.Instance {
+	if via, err := setup.StorageFor(load(t, link), link); err != nil || via.Instance != first.Instance {
 		t.Errorf("through a symlink = (%q, %v), want %q", via.Instance, err, first.Instance)
 	}
 
@@ -83,7 +83,7 @@ func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
 	if err := os.WriteFile(other, before, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if theirs, err := setup.StorageFor(load(t, other), other, ""); err != nil || theirs.Instance == first.Instance {
+	if theirs, err := setup.StorageFor(load(t, other), other); err != nil || theirs.Instance == first.Instance {
 		t.Errorf("another config file = (%q, %v), want an instance of its own", theirs.Instance, err)
 	}
 
@@ -98,7 +98,7 @@ func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
 	if err := os.Rename(path, moved); err != nil {
 		t.Fatal(err)
 	}
-	if after, err := setup.StorageFor(load(t, moved), moved, ""); err != nil || after.Instance != first.Instance {
+	if after, err := setup.StorageFor(load(t, moved), moved); err != nil || after.Instance != first.Instance {
 		t.Errorf("after moving the recorded config = (%q, %v), want %q", after.Instance, err, first.Instance)
 	}
 }
@@ -116,7 +116,7 @@ func TestAnInstallFromBeforeKeepsItsFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	before, _ := os.ReadFile(path)
-	storage, err := setup.StorageFor(load(t, path), path, "")
+	storage, err := setup.StorageFor(load(t, path), path)
 	if err != nil || storage.Instance != legacy || storage.CachePath() != filepath.Join(dir, "cache-"+legacy+".db") {
 		t.Fatalf("storage = (%+v, %v), want the existing files", storage, err)
 	}
@@ -136,7 +136,7 @@ func TestAReadOnlyConfigIsServed(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(root, 0o700) })
-	storage, err := setup.StorageFor(load(t, path), path, "")
+	storage, err := setup.StorageFor(load(t, path), path)
 	if err != nil || storage.Instance == "" {
 		t.Errorf("StorageFor on a read-only config = (%+v, %v), want an instance", storage, err)
 	}
@@ -150,7 +150,7 @@ func TestAReadOnlyConfigIsServed(t *testing.T) {
 func TestConfiguredDirectoriesAndSharing(t *testing.T) {
 	root, path := home(t, "[storage]\ninstance = \"test\"\ndata_dir = \""+"/srv/kith"+"\"\nstate_dir = \"~/kith-state\"\nkeyring_service = \"kith-test\"\n"+
 		"[[matrix.account]]\nname = \"ada\"\nhomeserver = \"h\"\nuser = \"@ada:x\"\n")
-	storage, err := setup.StorageFor(load(t, path), path, "")
+	storage, err := setup.StorageFor(load(t, path), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,35 +167,8 @@ func TestConfiguredDirectoriesAndSharing(t *testing.T) {
 	if _, err := setup.StorageDirs(config.Config{Storage: config.Storage{DataDir: "relative/dir"}}); err == nil {
 		t.Error("a relative data_dir was accepted")
 	}
-	if _, err := setup.StorageFor(config.Config{Storage: config.Storage{Instance: "../escape"}}, "", ""); err == nil {
+	if _, err := setup.StorageFor(config.Config{Storage: config.Storage{Instance: "../escape"}}, ""); err == nil {
 		t.Error("an instance that walks out of its directory was accepted")
-	}
-}
-
-// A profile has its own instance, the same for the first whether named or not; legacy
-// files are kept.
-func TestProfilesHaveTheirOwnInstance(t *testing.T) {
-	root, path := home(t, "[storage]\ninstance = \"base\"\n[[profile]]\nname = \"work\"\nuser = \"@w:x\"\nhomeserver = \"h\"\n[[profile]]\nname = \"home\"\nuser = \"@h:x\"\nhomeserver = \"h\"\n")
-	of := func(profile string) string {
-		cfg, err := load(t, path).Profile(profile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		s, err := setup.StorageFor(cfg, path, profile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return s.Instance
-	}
-	if unnamed, named := of(""), of("work"); unnamed != "base-work" || named != unnamed {
-		t.Errorf("first profile = %q unnamed, %q named; want base-work both ways", unnamed, named)
-	}
-	legacy := domain.AccountKey("@h:x")
-	dir := filepath.Join(root, "data_home", "kith")
-	_ = os.MkdirAll(dir, 0o700)
-	_ = os.WriteFile(filepath.Join(dir, "crypto-"+legacy+".db"), nil, 0o600)
-	if got := of("home"); got != legacy {
-		t.Errorf("a profile with files from before = %q, want %q", got, legacy)
 	}
 }
 

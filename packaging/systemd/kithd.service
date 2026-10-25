@@ -38,7 +38,7 @@ ProtectHome=read-only
 ReadWritePaths=%h/.local/share/kith %h/.local/state/kith %h/.cache/kith %t/kith %E/kith
 
 RuntimeDirectory=kith
-# Shared by every profile's unit: removing it on stop would pull other daemons' sockets.
+# Shared with every other config's daemon: removing it on stop would pull their sockets.
 RuntimeDirectoryPreserve=yes
 ProtectKernelTunables=true
 ProtectKernelModules=true

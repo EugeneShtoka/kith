@@ -13,7 +13,7 @@ Set it up as your own user, not root:
   kith login               # store the session in the keyring (Secret Service)
   systemctl --user daemon-reload
   systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
-  systemctl --user enable --now kithd          # or kithd@<profile> per profile
+  systemctl --user enable --now kithd
 
 Upgrading? Restart the running daemon so it runs the new binary:
 

@@ -9,16 +9,13 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/config"
-	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/notify"
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/zalando/go-keyring"
 )
@@ -340,30 +337,6 @@ func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 		if err := reloader(configFile{path: path}, relevel, nil, backend, nil)(ctx); err == nil {
 			t.Errorf("%s: the re-read took a config its network refuses", n.Network())
 		}
-	}
-}
-
-// A re-read takes the running profile's Matrix account, not another's and not none.
-func TestAReReadTakesTheProfilesMatrixAccount(t *testing.T) {
-	t.Parallel()
-	backend := servedFor(t, config.Config{}, domain.Session{})
-	path := filepath.Join(t.TempDir(), "config.toml")
-	cfg := config.Config{AllowTokenFile: true, Profiles: []config.Profile{
-		{Name: "home", Homeserver: "https://home.invalid", User: "@me:home.invalid"},
-		{Name: "work", Homeserver: "https://work.invalid", User: "@me:work.invalid"},
-	}}
-	if err := config.Save(path, cfg); err != nil {
-		t.Fatal(err)
-	}
-	notifications, err := daemon.NewNotifications(config.Config{}, backend, func(config.Notifications) notify.Notifier { return notify.Nop{} })
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := reloader(configFile{path: path, profile: "work"}, func(string) {}, &atomic.Int64{}, backend, notifications)(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	if got := backend.matrix.LoginNetwork().Accounts; len(got) != 1 || got[0].Detail != "@me:work.invalid" {
-		t.Errorf("Matrix accounts after the re-read = %v, want the work profile's", got)
 	}
 }
 

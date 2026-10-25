@@ -48,16 +48,16 @@ func moveAccount(user string) func(ids, []byte) ([]byte, int, error) {
 	}
 }
 
-// migrateStores renames the account's crypto store and session file to the names
-// that carry its key; one already moved or never made is skipped.
-func migrateStores(storage domain.Storage, user string, dry bool) (int, error) {
+// moveStores renames the account's crypto store and session file in from to the
+// names that carry its key in to; one already moved or never made is skipped.
+func moveStores(from, to domain.Storage, user string, dry bool) (int, error) {
 	key := domain.AccountKey(user)
 	moved := 0
 	for _, f := range []struct{ from, to string }{
-		{storage.CryptoPath(), storage.MatrixCryptoPath(key)},
-		{storage.CryptoPath() + "-wal", storage.MatrixCryptoPath(key) + "-wal"},
-		{storage.CryptoPath() + "-shm", storage.MatrixCryptoPath(key) + "-shm"},
-		{storage.SessionFile(), storage.MatrixSessionFile(key)},
+		{from.CryptoPath(), to.MatrixCryptoPath(key)},
+		{from.CryptoPath() + "-wal", to.MatrixCryptoPath(key) + "-wal"},
+		{from.CryptoPath() + "-shm", to.MatrixCryptoPath(key) + "-shm"},
+		{from.SessionFile(), to.MatrixSessionFile(key)},
 	} {
 		if _, err := os.Stat(f.from); errors.Is(err, fs.ErrNotExist) {
 			continue
@@ -77,25 +77,26 @@ func migrateStores(storage domain.Storage, user string, dry bool) (int, error) {
 	return moved, nil
 }
 
-// migrateKeyring copies the account's session and encryption key to the keyring
-// entries that carry its key. The old entries stay, for the user to delete once the
-// account runs; an entry already there is never overwritten.
-func migrateKeyring(storage domain.Storage, user string, dry bool) (int, error) {
-	from := storage.Instance
-	if storage.Instance == domain.AccountKey(user) {
+// copyKeys copies the account's session and encryption key in from's keyring entries
+// to the ones that carry its key in to. The old entries stay, for the user to delete
+// once the account runs; an entry already there is never overwritten.
+func copyKeys(fromStorage, toStorage domain.Storage, user string, dry bool) (int, error) {
+	from := fromStorage.Instance
+	if fromStorage.Instance == domain.AccountKey(user) {
 		from = user // an instance from before instances kept them under the MXID
 	}
-	to := storage.Instance + "|matrix|" + domain.AccountKey(user)
+	to := toStorage.Instance + "|matrix|" + domain.AccountKey(user)
+	service := fromStorage.KeyringService
 	copied := 0
 	for _, suffix := range []string{"", "|pickle"} {
-		value, err := keyring.Get(storage.KeyringService, from+suffix)
+		value, err := keyring.Get(service, from+suffix)
 		if errors.Is(err, keyring.ErrNotFound) {
 			continue
 		}
 		if err != nil {
 			return copied, fmt.Errorf("read %s%s: %w", from, suffix, err)
 		}
-		if _, err := keyring.Get(storage.KeyringService, to+suffix); err == nil {
+		if _, err := keyring.Get(service, to+suffix); err == nil {
 			return copied, fmt.Errorf("%s%s exists already in the keyring: delete it first", to, suffix)
 		}
 		fmt.Printf("copy keyring %s%s -> %s%s\n", from, suffix, to, suffix)
@@ -103,7 +104,7 @@ func migrateKeyring(storage domain.Storage, user string, dry bool) (int, error) 
 		if dry {
 			continue
 		}
-		if err := keyring.Set(storage.KeyringService, to+suffix, value); err != nil {
+		if err := keyring.Set(service, to+suffix, value); err != nil {
 			return copied, fmt.Errorf("write %s%s: %w", to, suffix, err)
 		}
 	}

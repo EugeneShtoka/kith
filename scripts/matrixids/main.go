@@ -11,7 +11,9 @@
 // For several Matrix accounts (step 5) the config's top-level homeserver and user
 // become a [[matrix.account]], and with -instance the account's crypto store and
 // session file are renamed and its keyring entries copied to the names that carry its
-// key. Delete this program once every install has run it.
+// key. With -profiles, an install that ran each [[profile]] as its own daemon becomes
+// one daemon running every profile's account (profiles.go). Delete this program once
+// every install has run it.
 package main
 
 import (
@@ -35,59 +37,103 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
+// options are the command line's.
+type options struct {
+	user, cache, config, schedule, ledger string
+	instance, dataDir, stateDir, service  string
+	profiles, dry                         bool
+}
+
 func main() {
-	user := flag.String("user", "", "the Matrix account's MXID, as the config's user names it (required)")
-	cache := flag.String("cache", "", "the cache database")
-	config := flag.String("config", "", "the config file")
-	schedule := flag.String("schedule", "", "the schedule queue")
-	ledger := flag.String("ledger", "", "the assistant ledger")
-	instance := flag.String("instance", "", "the [storage] instance whose Matrix files and keyring entries move")
-	dataDir := flag.String("data-dir", "", "the instance's data directory, holding crypto-<instance>.db (with -instance)")
-	stateDir := flag.String("state-dir", "", "the instance's state directory, holding session-<instance>.toml (with -instance)")
-	service := flag.String("keyring-service", "kith", "the [storage] keyring service (with -instance)")
-	dry := flag.Bool("dry-run", false, "report what would change and write nothing")
+	var o options
+	flag.StringVar(&o.user, "user", "", "the Matrix account's MXID, as the config's user names it (required but with -profiles)")
+	flag.StringVar(&o.cache, "cache", "", "the cache database")
+	flag.StringVar(&o.config, "config", "", "the config file")
+	flag.StringVar(&o.schedule, "schedule", "", "the schedule queue")
+	flag.StringVar(&o.ledger, "ledger", "", "the assistant ledger")
+	flag.StringVar(&o.instance, "instance", "", "the [storage] instance whose Matrix files and keyring entries move "+
+		"(with -profiles: the base instance, when the config names none)")
+	flag.StringVar(&o.dataDir, "data-dir", "", "the data directory, holding crypto-<instance>.db (with -instance or -profiles)")
+	flag.StringVar(&o.stateDir, "state-dir", "", "the state directory, holding session-<instance>.toml (with -instance or -profiles)")
+	flag.StringVar(&o.service, "keyring-service", "kith", "the [storage] keyring service (with -instance or -profiles)")
+	flag.BoolVar(&o.profiles, "profiles", false, "each [[profile]] of -config becomes a [[matrix.account]] of one daemon, "+
+		"its cache, schedule and ledger merged into the first's (with -data-dir and -state-dir)")
+	flag.BoolVar(&o.dry, "dry-run", false, "report what would change and write nothing")
 	flag.Parse()
-	if !strings.HasPrefix(*user, "@") || !strings.Contains(*user, ":") {
-		fmt.Fprintln(os.Stderr, "matrixids: -user must be the account's MXID, @name:server")
-		os.Exit(2)
+	var err error
+	if o.profiles {
+		err = runProfiles(o)
+	} else {
+		err = runAccount(o)
 	}
-	if *instance != "" && (*dataDir == "" || *stateDir == "") {
-		fmt.Fprintln(os.Stderr, "matrixids: -instance needs -data-dir and -state-dir")
-		os.Exit(2)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "matrixids:", err)
+		os.Exit(1)
 	}
-	x := ids{account: domain.AccountKey(*user)}
+}
+
+// errUsage is a command line that names too little.
+var errUsage = errors.New("usage")
+
+// runAccount migrates the one account an install ran before profiles or several
+// accounts: its IDs, and with -instance its files and keyring entries.
+func runAccount(o options) error {
+	if !strings.HasPrefix(o.user, "@") || !strings.Contains(o.user, ":") {
+		return fmt.Errorf("%w: -user must be the account's MXID, @name:server", errUsage)
+	}
+	if o.instance != "" && (o.dataDir == "" || o.stateDir == "") {
+		return fmt.Errorf("%w: -instance needs -data-dir and -state-dir", errUsage)
+	}
+	x := ids{account: domain.AccountKey(o.user)}
 	var errs []error
-	if *instance != "" {
-		storage := domain.Storage{Instance: *instance, DataDir: *dataDir, StateDir: *stateDir, KeyringService: *service}
+	if o.instance != "" {
+		storage := domain.Storage{Instance: o.instance, DataDir: o.dataDir, StateDir: o.stateDir, KeyringService: o.service}
 		errs = append(errs,
-			report("files of", *instance)(migrateStores(storage, *user, *dry)),
-			report("keyring entries of", *instance)(migrateKeyring(storage, *user, *dry)))
+			report("files of", o.instance)(moveStores(storage, storage, o.user, o.dry)),
+			report("keyring entries of", o.instance)(copyKeys(storage, storage, o.user, o.dry)))
 	}
-	if *cache != "" {
-		errs = append(errs, report("cache", *cache)(migrateCache(context.Background(), *cache, x, *dry)))
+	if o.cache != "" {
+		errs = append(errs, report("cache", o.cache)(migrateCache(context.Background(), o.cache, x, o.dry)))
 	}
 	for _, f := range []struct {
 		what, path string
 		rewrite    func(ids, []byte) ([]byte, int, error)
 	}{
-		{"config", *config, func(x ids, in []byte) ([]byte, int, error) {
-			out, n, err := rewriteTOML(x, in)
-			if err != nil {
-				return nil, 0, err
-			}
-			out, moved, err := moveAccount(*user)(x, out)
-			return out, n + moved, err
-		}},
-		{"schedule", *schedule, rewriteTOML},
-		{"ledger", *ledger, rewriteLedger},
+		{"config", o.config, then(rewriteTOML, moveAccount(o.user))},
+		{"schedule", o.schedule, rewriteTOML},
+		{"ledger", o.ledger, rewriteLedger},
 	} {
 		if f.path != "" {
-			errs = append(errs, report(f.what, f.path)(migrateFile(f.path, x, f.rewrite, *dry)))
+			errs = append(errs, report(f.what, f.path)(migrateFile(f.path, x, f.rewrite, o.dry)))
 		}
 	}
-	if err := errors.Join(errs...); err != nil {
-		fmt.Fprintln(os.Stderr, "matrixids:", err)
-		os.Exit(1)
+	return errors.Join(errs...)
+}
+
+// runProfiles is the profile step, then the config's rewrite: its IDs read as the
+// first profile's account's, as kithd.service served that one.
+func runProfiles(o options) error {
+	if o.config == "" || o.dataDir == "" || o.stateDir == "" {
+		return fmt.Errorf("%w: -profiles needs -config, -data-dir and -state-dir", errUsage)
+	}
+	dirs := domain.Storage{DataDir: o.dataDir, StateDir: o.stateDir, KeyringService: o.service}
+	profiles, kept, err := migrateProfiles(context.Background(), o.config, o.instance, dirs, o.dry)
+	if err != nil || len(profiles) == 0 {
+		return err
+	}
+	x := ids{account: domain.AccountKey(profiles[0].User)}
+	return report("config", o.config)(migrateFile(o.config, x, then(rewriteTOML, profilesToAccounts(profiles, kept)), o.dry))
+}
+
+// then is first's rewrite followed by next's, their counts added.
+func then(first, next func(ids, []byte) ([]byte, int, error)) func(ids, []byte) ([]byte, int, error) {
+	return func(x ids, in []byte) ([]byte, int, error) {
+		out, n, err := first(x, in)
+		if err != nil {
+			return nil, 0, err
+		}
+		out, m, err := next(x, out)
+		return out, n + m, err
 	}
 }
 

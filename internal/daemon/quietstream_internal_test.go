@@ -41,7 +41,7 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 		Backend: b, Streams: streams, State: NewState(), Notifications: notifications,
 		Reload:      func(context.Context) error { return nil },
 		CheckConfig: func(context.Context, config.Config) error { return nil },
-		Config:      NewConfigFile(filepath.Join(t.TempDir(), "config.toml"), ""),
+		Config:      NewConfigFile(filepath.Join(t.TempDir(), "config.toml")),
 		Scheduler:   NewScheduler(schedule.New(filepath.Join(t.TempDir(), "scheduled.toml")), b, func() time.Duration { return time.Hour }, nil),
 		Logins:      NewLogins(ctx, func() []api.LoginLeader { return nil }),
 		Log:         logging.Discard(),

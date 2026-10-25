@@ -21,13 +21,13 @@ func ownUnitName(storage domain.Storage) string {
 	return "kithd-" + storage.Instance + ".service"
 }
 
-// unitName is the unit serving launch: kithd.service or kithd@<profile>.service for
-// the default config, the generated one otherwise.
+// unitName is the unit serving launch: kithd.service for the default config, the
+// generated one otherwise.
 func (l Launch) unitName(storage domain.Storage) string {
 	if l.OwnConfig {
 		return ownUnitName(storage)
 	}
-	return unitFor(l.Profile)
+	return defaultUnit
 }
 
 // errUnsafeUnitPath is a path that cannot be written into a unit as one word.
@@ -57,7 +57,7 @@ func underTmp(p string) bool {
 	return false
 }
 
-// ownUnit is the unit for a non-default config: kithd with that config and profile,
+// ownUnit is the unit for a non-default config: kithd with that config,
 // writing only its directories, under the same sandbox as
 // packaging/systemd/kithd.service (a test keeps them equal).
 func ownUnit(storage domain.Storage, kithd string, launch Launch) (string, error) {
@@ -74,9 +74,6 @@ func ownUnit(storage domain.Storage, kithd string, launch Launch) (string, error
 		words[name] = w
 	}
 	start := words["kithd"] + " --config " + words["config"]
-	if launch.Profile != "" {
-		start += " --profile " + launch.Profile
-	}
 	// kithd writes the config file atomically, beside itself.
 	configDir, err := unitPath(filepath.Dir(launch.ConfigPath))
 	if err != nil {

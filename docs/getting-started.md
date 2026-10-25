@@ -78,7 +78,7 @@ The `.deb`, `.rpm`, `.apk` and Arch packages all install the same files:
 | Path | What |
 | --- | --- |
 | `/usr/bin/kith`, `kithd`, `kith-mcp` | The binaries. |
-| `/usr/lib/systemd/user/kithd.service`, `kithd@.service` | The systemd user units, with `ExecStart=/usr/bin/kithd`. |
+| `/usr/lib/systemd/user/kithd.service` | The systemd user unit, with `ExecStart=/usr/bin/kithd`. |
 | `/usr/share/applications/kith.desktop` | The `matrix:`, `tg:`, `whatsapp:` and `sgnl:` link handler. |
 | `/usr/share/doc/kith/` | README, ARCHITECTURE, these docs and `config.toml.example`, the annotated default config. |
 
@@ -177,7 +177,6 @@ programs.kith.daemon.enable = true;      # optional
 # home-manager (one user). Starts kithd in your session; launchd on macOS.
 imports = [ inputs.kith.homeManagerModules.default ];
 programs.kith.enable = true;
-programs.kith.profiles = [ "work" ];     # optional: kithd@work instead of kithd
 ```
 
 With home-manager on Linux, run `systemctl --user daemon-reload` after the first
@@ -253,8 +252,7 @@ make install     # build, then install binaries, the systemd units and the matri
 1. Builds `kith`, `kithd` and `kith-mcp`.
 2. Copies them to `~/.local/bin` (override this with `PREFIX=` or `BINDIR=`; it uses
    `sudo` only if the target directory isn't writable).
-3. Installs `kithd.service` and the per-profile `kithd@.service` into
-   `~/.config/systemd/user/`, with `ExecStart` set to wherever the binary went, and
+3. Installs `kithd.service` into `~/.config/systemd/user/`, with `ExecStart` set to wherever the binary went, and
    runs `systemctl --user daemon-reload`.
 4. Installs `kith.desktop` into `~/.local/share/applications/` and registers it as
    the `matrix:`, `tg:`, `whatsapp:` and `sgnl:` link handler with `xdg-mime`.
@@ -366,7 +364,6 @@ queue keep working. Let systemd own it.
 
 ```sh
 make deploy                 # kithd.service
-make deploy PROFILE=work    # kithd@work.service, for a [[profile]] account
 ```
 
 `make deploy` runs `make install`, then does the setup the unit can't do for itself:
@@ -377,9 +374,6 @@ make deploy PROFILE=work    # kithd@work.service, for a [[profile]] account
 - Enables the unit and restarts it, so a new binary actually takes over.
 - Waits up to a minute for the daemon's socket to appear, then tells you whether the
   daemon came up.
-
-With `PROFILE=<name>` it does the same for `kithd@<name>.service`. The daemon-*
-targets take `PROFILE=` too, for example `make daemon-logs PROFILE=work`.
 
 ### By hand
 
@@ -428,8 +422,7 @@ systemd give up on the daemon.
 ### Without systemd
 
 On macOS, use the LaunchAgent: `make deploy` installs and loads it, and
-[Homebrew users load it by hand](#macos-homebrew). With `PROFILE=<name>`, `make deploy`
-installs `io.github.eugeneshtoka.kithd.<name>`, which runs `kithd --profile <name>`.
+[Homebrew users load it by hand](#macos-homebrew).
 
 On any other system without a systemd user instance, you have two choices. Run
 `kithd` yourself, for example in a spare terminal or from your session's autostart.
@@ -571,53 +564,9 @@ One daemon runs every `[[matrix.account]]` in the file, as it does every network
 accounts: `kith login matrix <name>` logs each in, and each is a space in the rail.
 See [configuration.md](configuration.md#matrix-accounts).
 
-To run an account in a daemon of its own instead, name it in a `[[profile]]` block:
-
-```toml
-[[profile]]
-name       = "personal"
-homeserver = "https://matrix.example.org"
-user       = "@alice:example.org"
-
-[[profile]]
-name       = "work"
-homeserver = "https://matrix.work.example"
-user       = "@alice:work.example"
-```
-
-Keep the account in one place only. A file with both `[[matrix.account]]` and
-profiles is refused. Profile names may contain letters, digits, `.`, `-` and `_`.
-
-A profile carries **only the account**. Keybindings, display settings and
-notification rules are shared by all profiles. Everything stateful is kept per
-account, keyed by a hash of the Matrix ID: the keyring entry, the cache, the crypto
-store, the daemon, its socket and its lock. Two accounts can't interfere with each
-other.
-
-```sh
-kith login --profile work
-systemctl --user enable --now kithd@work
-kith --profile work
-```
-
-Or, from a clone, `make deploy PROFILE=work` does the enable, restart and wait in
-one step.
-
-Without `--profile`, every command uses the first profile in the file. The templated
-unit, `kithd@.service`, is installed by `make install` and by every Linux package.
-From a release archive, install it once yourself:
-
-```sh
-install -Dm644 packaging/systemd/kithd@.service ~/.config/systemd/user/kithd@.service
-systemctl --user daemon-reload
-```
-
-`kithd@<name>.service` runs `kithd --profile <name>`, and `kith --profile <name>`
-starts that unit when its daemon isn't running. The plain `kithd.service` serves the
-first profile. Enable either it or `kithd@<first-name>` for that account, not both.
-The second one would find the lock taken and exit.
-
-There is no combined view across accounts. Each `kith` shows one account.
+Keybindings, display settings and notification rules are shared by every account;
+each account's session, device and crypto store are its own, keyed by a hash of its
+Matrix ID.
 
 ## Where files live
 
@@ -668,9 +617,8 @@ make undeploy
 
 `make undeploy` reverses `make install` and `make deploy`. It:
 
-- stops and disables `kithd.service` and every `kithd@<profile>` instance, running
-  or only enabled;
-- removes `kithd.service` and `kithd@.service` from `~/.config/systemd/user/`;
+- stops and disables `kithd.service`, running or only enabled;
+- removes `kithd.service` from `~/.config/systemd/user/`;
 - deletes `kith`, `kithd` and `kith-mcp` from `BINDIR`;
 - deletes `~/.local/share/applications/kith.desktop` and removes the
   `x-scheme-handler/matrix` and `x-scheme-handler/tg` associations from
@@ -679,7 +627,7 @@ make undeploy
 
 With a package manager, remove the package instead (`apt remove kith`,
 `pacman -R kith-bin`, `brew uninstall --cask kith`, …), after
-`systemctl --user disable --now kithd` (and any `kithd@<profile>`): the package
+`systemctl --user disable --now kithd`: the package
 can't reach your user session to do it for you. On macOS, `make undeploy` also
 unloads and removes the LaunchAgents.
 

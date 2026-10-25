@@ -40,7 +40,6 @@ func runUnignore(args []string) error {
 func runIgnored(args []string) error {
 	fs := flag.NewFlagSet("ignored", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
-	profile := fs.String("profile", "", "which [[profile]] the daemon runs as (default: the first one)")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parse ignored flags: %w", err)
 	}
@@ -49,7 +48,7 @@ func runIgnored(args []string) error {
 	}
 	ctx, cancel := reachIgnoreCtx()
 	defer cancel()
-	at, err := reachForLogin(ctx, *configPath, *profile)
+	at, err := reachForLogin(ctx, *configPath)
 	if err != nil || at.backend == nil {
 		return err
 	}
@@ -78,7 +77,6 @@ type ignoreBackend interface {
 func runIgnoreOrUnignore(args []string, verb string, do func(context.Context, ignoreBackend, string) error) error {
 	fs := flag.NewFlagSet(verb, flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
-	profile := fs.String("profile", "", "which [[profile]] the daemon runs as (default: the first one)")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parse %s flags: %w", verb, err)
 	}
@@ -91,7 +89,7 @@ func runIgnoreOrUnignore(args []string, verb string, do func(context.Context, ig
 	}
 	ctx, cancel := reachIgnoreCtx()
 	defer cancel()
-	at, err := reachForLogin(ctx, *configPath, *profile)
+	at, err := reachForLogin(ctx, *configPath)
 	if err != nil || at.backend == nil {
 		return err
 	}
