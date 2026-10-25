@@ -52,6 +52,8 @@ type Notifications struct {
 	temps      notify.Temps
 	autocopy   domain.AutoCopy
 	clip       clipboard
+	// profile is the first [[profile]]: a room outside it never notifies.
+	profile domain.Profile
 	// tracked is the word list as rules; trackedNotify the global switch a rule's
 	// `notify` may override.
 	tracked       []domain.TrackedRule
@@ -279,6 +281,10 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
+	profiles, err := setup.Profiles(cfg)
+	if err != nil {
+		return err
+	}
 	notifier := n.sinks(cfg.Notifications)
 
 	n.scope.SetAliases(cfg.Display.Names)
@@ -287,6 +293,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.rules, n.notifier, n.limit, n.clock = rules, notifier, limit, clock
+	n.profile = profiles[0]
 	display := cfg.Display
 	n.aliases = setup.Aliases(display.Identities)
 	n.firstNames = func(home string) bool { return setup.FirstNamesIn(display, home) }
@@ -499,8 +506,9 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	if n.filters != nil && !mine && n.filters.watch(ctx, msg, n.scope.Facts(ctx, msg.RoomID)) && n.hidden(ctx, msg) {
 		return notify.Notification{}, false
 	}
-	// A room a tag with notifies = false holds never notifies. Asked after code capture.
-	if n.scope.Mutes(n.scope.Facts(ctx, msg.RoomID)) {
+	// A room a tag with notifies = false holds never notifies, nor one outside the first
+	// profile. Asked after code capture, and after the filters moved the room.
+	if facts := n.scope.Facts(ctx, msg.RoomID); n.scope.Mutes(facts) || !n.inProfile(facts) {
 		return notify.Notification{}, false
 	}
 	scope, _ := n.scope.Scope(ctx, msg.RoomID, msg.Sender, msg.ThreadRoot)
@@ -516,6 +524,13 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	}
 	n.notify(alert)
 	return alert, true
+}
+
+// inProfile reports whether the first profile holds the room.
+func (n *Notifications) inProfile(facts domain.RoomFacts) bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.profile.Rooms.Admits(facts)
 }
 
 // placeholderSpan is how long a bridge placeholder waits for its replacing edit.

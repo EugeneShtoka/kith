@@ -41,6 +41,7 @@ var propertyGroups = append([]propertyGroup{
 	{"display.filing_spaces", "rooms", "display."},
 	{"display.threads.", "rooms", "display."},
 	{"display.direction.", "rooms", "display."},
+	{"profile", "rooms", ""},
 	{"display.open_in_insert_mode", "composer", "display."},
 	{"display.max_name_length", "names", "display."},
 	{"display.room_name_rules", "names", "display."},

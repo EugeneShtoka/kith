@@ -43,6 +43,7 @@ var recordTableLabels = withNetworkTables(map[string]string{
 	"display.rooms.rule":   "Room list order per group",
 	"display.threads.rule": "Threads per place",
 	"display.media.rule":   "Media per place",
+	"profile":              "Profiles",
 	"filter":               "Filters",
 	"command":              "Commands",
 	"keys.jump":            "Jump shortcuts",
