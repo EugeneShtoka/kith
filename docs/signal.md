@@ -65,8 +65,9 @@ joins them to the same person on your other networks (see
   account and finds the program beside kithd or on your `PATH`. The Linux release
   archives and the `.deb`, `.rpm`, Arch package and `kith-bin` include it, for amd64
   and arm64; it needs glibc 2.35 or newer (Debian 12, Ubuntu 22.04, Fedora 36 and
-  later). Alpine's package, macOS, FreeBSD, the `kith` and `kith-git` AUR packages
-  and Nix leave it out: there, [build it yourself](#building-kith-signal).
+  later). The Nix package includes it on Linux, linked against nixpkgs' libsignal.
+  Alpine's package, macOS, FreeBSD and the `kith` and `kith-git` AUR packages leave
+  it out: there, [build it yourself](#building-kith-signal).
 - **Signal unlinks a device it has not seen for a while** (30 days, at the time of
   writing). Link again then.
 - **Signal does not support third-party apps.** kith uses the same library as the

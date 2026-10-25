@@ -5,12 +5,14 @@
   stdenv,
   buildGoModule,
   coreutils,
+  libsignal-ffi,
+  zlib,
   src,
   version,
   rev ? "unknown",
 }:
 
-buildGoModule {
+buildGoModule (finalAttrs: {
   pname = "kith";
   inherit version src;
 
@@ -40,6 +42,24 @@ buildGoModule {
   # writable home and a session bus, which the build sandbox does not have.
   doCheck = false;
 
+  # kith-signal, the Signal helper, links libsignal through cgo. nixpkgs' libsignal-ffi
+  # must be the version go.mod's mautrix-signal wraps (scripts/build-libsignal.sh reads
+  # it from pkg/libsignalgo/signalversion), so a mautrix-signal bump waits for nixpkgs.
+  passthru.signal = buildGoModule {
+    pname = "kith-signal";
+    inherit (finalAttrs) version src vendorHash ldflags;
+    subPackages = [ "cmd/kith-signal" ];
+    tags = [
+      "goolm"
+      "signal"
+    ];
+    buildInputs = [
+      libsignal-ffi
+      zlib
+    ];
+    doCheck = false;
+  };
+
   postInstall =
     lib.optionalString stdenv.hostPlatform.isLinux ''
       # The same ExecStart= rewrite as `make install` and the distribution packages,
@@ -48,6 +68,8 @@ buildGoModule {
       bash scripts/render-units.sh "$out/bin" "$out/share/systemd/user"
       substituteInPlace "$out/share/systemd/user/kithd.service" "$out/share/systemd/user/kithd@.service" \
         --replace-fail "ExecStartPre=+mkdir " "ExecStartPre=+${coreutils}/bin/mkdir "
+      # Beside kithd, where kithd looks for it first.
+      install -Dm755 ${finalAttrs.passthru.signal}/bin/kith-signal -t "$out/bin"
       install -Dm644 packaging/desktop/kith.desktop "$out/share/applications/kith.desktop"
       substituteInPlace "$out/share/applications/kith.desktop" \
         --replace-fail "Exec=kith " "Exec=$out/bin/kith "
@@ -63,4 +85,4 @@ buildGoModule {
     mainProgram = "kith";
     platforms = lib.platforms.linux ++ lib.platforms.darwin;
   };
-}
+})

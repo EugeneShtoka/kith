@@ -55,7 +55,7 @@ kithd. It goes in:
 | --- | --- |
 | the `linux_{amd64,arm64}` archives, so `kith-bin` too | darwin and FreeBSD archives, Homebrew: no build there yet, and it has never run on either |
 | `.deb`, `.rpm`, `.pkg.tar.zst` as `/usr/bin/kith-signal` | `.apk`: Alpine has musl, the helper is linked against glibc |
-| | `kith` (AUR, from source), `kith-git`, Nix: building libsignal needs Rust, cmake, clang and protoc and fetches its own sources |
+| Nix on Linux, as `$out/bin/kith-signal`, linked against nixpkgs' `libsignal-ffi` | `kith` (AUR, from source), `kith-git`: building libsignal needs Rust, cmake, clang and protoc and fetches its own sources |
 
 The release still runs the helper's tests, so a broken Signal build blocks a release.
 Users without a package build it with `make build-signal` (see [Signal](signal.md)).
@@ -187,6 +187,11 @@ either goes stale:
   `make nix-check` builds the flake when nix is installed and is skipped otherwise.
 - **`flake.lock`** pins nixpkgs, so users get the Go and toolchain the flake was
   tested with. Refresh it with `nix flake update`, and let the job build it.
+
+`kith-signal` links nixpkgs' `libsignal-ffi`, which has to be the libsignal version
+go.mod's mautrix-signal wraps (`pkg/libsignalgo/signalversion`). nixpkgs packages
+mautrix-signal against the same library, so it moves with each mautrix-signal
+release; bump mautrix-signal in go.mod once nixpkgs has, and refresh `flake.lock`.
 
 The nixpkgs Go must be at least the `go` line of `go.mod` (1.26.3). Nix builds with
 `GOTOOLCHAIN=local`, so an older Go fails with a clear message rather than
