@@ -45,6 +45,8 @@ type Remote struct {
 	seated   atomic.Bool
 	lost     chan struct{}
 	loseOnce sync.Once
+	// profile is the [[profile]] named on every request; "" is the first.
+	profile atomic.Pointer[string]
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -65,8 +67,7 @@ func NewRemote(path string) *Remote {
 }
 
 func newRemote(hc *http.Client) *Remote {
-	return &Remote{
-		c:             backendv1connect.NewBackendServiceClient(hc, socketBaseURL),
+	r := &Remote{
 		msgs:          newStream[domain.Message](),
 		unread:        newStream[domain.Unread](),
 		reactions:     newStream[domain.ReactionUpdate](),
@@ -80,6 +81,19 @@ func newRemote(hc *http.Client) *Remote {
 		client:        rand.Text(),
 		lost:          make(chan struct{}),
 	}
+	r.c = backendv1connect.NewBackendServiceClient(hc, socketBaseURL,
+		connect.WithInterceptors(profileName{name: r.profileName}))
+	return r
+}
+
+// UseProfile names the [[profile]] every request from now on runs in; "" is the first.
+func (r *Remote) UseProfile(name string) { r.profile.Store(&name) }
+
+func (r *Remote) profileName() string {
+	if p := r.profile.Load(); p != nil {
+		return *p
+	}
+	return ""
 }
 
 // stream is one daemon→UI channel, closed exactly once; listeners treat closed as

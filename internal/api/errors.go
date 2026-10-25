@@ -50,6 +50,8 @@ var (
 	// ErrRefused: the network refused a message for good (no access, too large, the room
 	// gone): sending it again cannot help, so a queued one fails at once.
 	ErrRefused = errors.New("the network refused this message")
+	// ErrUnknownProfile: the config has no [[profile]] of the name a client gave.
+	ErrUnknownProfile = errors.New("daemon: no such profile")
 	// ErrConfigMoved: a config change was based on a revision no longer on disk;
 	// re-read and retry.
 	ErrConfigMoved = errors.New("daemon: the configuration changed meanwhile; read it again")

@@ -52,12 +52,12 @@ func eventID(id string) domain.EventID { return domain.EventID(id) }
 
 func (s *server) Rooms(ctx context.Context, _ *req[v1.RoomsRequest]) (*resp[v1.RoomsResponse], error) {
 	rooms, err := s.Backend.Rooms(ctx)
-	return reply(&v1.RoomsResponse{Rooms: pc.RoomsToProto(rooms)}, err)
+	return reply(&v1.RoomsResponse{Rooms: pc.RoomsToProto(s.profileRooms(ctx, rooms))}, err)
 }
 
 func (s *server) RefreshRooms(ctx context.Context, _ *req[v1.RefreshRoomsRequest]) (*resp[v1.RefreshRoomsResponse], error) {
 	rooms, err := s.Backend.RefreshRooms(ctx)
-	return reply(&v1.RefreshRoomsResponse{Rooms: pc.RoomsToProto(rooms)}, err)
+	return reply(&v1.RefreshRoomsResponse{Rooms: pc.RoomsToProto(s.profileRooms(ctx, rooms))}, err)
 }
 
 func (s *server) CanonicalParent(ctx context.Context, r *req[v1.CanonicalParentRequest]) (*resp[v1.CanonicalParentResponse], error) {
@@ -67,9 +67,12 @@ func (s *server) CanonicalParent(ctx context.Context, r *req[v1.CanonicalParentR
 
 func (s *server) LastMessages(ctx context.Context, _ *req[v1.LastMessagesRequest]) (*resp[v1.LastMessagesResponse], error) {
 	latest, err := s.Backend.LastMessages(ctx)
+	holds := s.profileHolds(ctx)
 	at := make(map[string]int64, len(latest))
 	for id, when := range latest {
-		at[string(id)] = when.UnixMilli()
+		if holds == nil || holds(id) {
+			at[string(id)] = when.UnixMilli()
+		}
 	}
 	return reply(&v1.LastMessagesResponse{At: at}, err)
 }
@@ -98,6 +101,7 @@ func (s *server) StarredIn(ctx context.Context, r *req[v1.StarredInRequest]) (*r
 
 func (s *server) TagVerdicts(ctx context.Context, _ *req[v1.TagVerdictsRequest]) (*resp[v1.TagVerdictsResponse], error) {
 	verdicts, err := s.Backend.TagVerdicts(ctx)
+	verdicts = profileKeeps(s.profileHolds(ctx), verdicts, func(v domain.TagVerdict) domain.RoomID { return v.Room })
 	return reply(&v1.TagVerdictsResponse{Verdicts: pc.VerdictsToProto(verdicts)}, err)
 }
 
@@ -155,12 +159,12 @@ func (s *server) MarkRoomsRead(ctx context.Context, r *req[v1.MarkRoomsReadReque
 
 func (s *server) Spaces(ctx context.Context, _ *req[v1.SpacesRequest]) (*resp[v1.SpacesResponse], error) {
 	spaces, err := s.Backend.Spaces(ctx)
-	return reply(&v1.SpacesResponse{Spaces: pc.SpacesToProto(spaces)}, err)
+	return reply(&v1.SpacesResponse{Spaces: pc.SpacesToProto(s.profileSpaces(ctx, spaces))}, err)
 }
 
 func (s *server) RefreshSpaces(ctx context.Context, _ *req[v1.RefreshSpacesRequest]) (*resp[v1.RefreshSpacesResponse], error) {
 	spaces, err := s.Backend.RefreshSpaces(ctx)
-	return reply(&v1.RefreshSpacesResponse{Spaces: pc.SpacesToProto(spaces)}, err)
+	return reply(&v1.RefreshSpacesResponse{Spaces: pc.SpacesToProto(s.profileSpaces(ctx, spaces))}, err)
 }
 
 func (s *server) AddToSpace(ctx context.Context, r *req[v1.AddToSpaceRequest]) (*resp[v1.AddToSpaceResponse], error) {
@@ -235,11 +239,15 @@ func (s *server) SendFile(ctx context.Context, r *req[v1.SendFileRequest]) (*res
 
 func (s *server) CachedUnread(ctx context.Context, _ *req[v1.CachedUnreadRequest]) (*resp[v1.CachedUnreadResponse], error) {
 	unread, err := s.Backend.CachedUnread(ctx)
+	unread = profileKeeps(s.profileHolds(ctx), unread, func(u domain.Unread) domain.RoomID { return u.RoomID })
 	return reply(&v1.CachedUnreadResponse{Unread: pc.UnreadsToProto(unread)}, err)
 }
 
 func (s *server) UnreadStream(ctx context.Context, _ *req[v1.UnreadStreamRequest], st *connect.ServerStream[v1.UnreadStreamResponse]) error {
 	return serveStream(ctx, s.Streams.unread, st, func(u domain.Unread) *v1.UnreadStreamResponse {
+		if holds := s.profileHolds(ctx); holds != nil && !holds(u.RoomID) {
+			return nil
+		}
 		return &v1.UnreadStreamResponse{Unread: pc.UnreadToProto(u)}
 	})
 }
@@ -347,7 +355,11 @@ func (s *server) MentionCandidates(ctx context.Context, r *req[v1.MentionCandida
 }
 
 func (s *server) SearchSenders(ctx context.Context, r *req[v1.SearchSendersRequest]) (*resp[v1.SearchSendersResponse], error) {
-	senders, err := s.Backend.SearchSenders(ctx, pc.ProtoToRoomSet(r.Msg.GetRoomIds(), r.Msg.GetAllRooms()), int(r.Msg.GetLimit()))
+	rooms, err := s.profileSet(ctx, pc.ProtoToRoomSet(r.Msg.GetRoomIds(), r.Msg.GetAllRooms()))
+	if err != nil {
+		return nil, rpcErr(err)
+	}
+	senders, err := s.Backend.SearchSenders(ctx, rooms, int(r.Msg.GetLimit()))
 	return reply(&v1.SearchSendersResponse{Members: pc.MembersToProto(senders)}, err)
 }
 
@@ -370,14 +382,14 @@ func (s *server) SaveSenderSlots(ctx context.Context, r *req[v1.SaveSenderSlotsR
 
 func (s *server) CachedInvites(ctx context.Context, _ *req[v1.CachedInvitesRequest]) (*resp[v1.CachedInvitesResponse], error) {
 	invites, err := s.Backend.CachedInvites(ctx)
-	return reply(&v1.CachedInvitesResponse{Invites: pc.RoomsToProto(invites)}, err)
+	return reply(&v1.CachedInvitesResponse{Invites: pc.RoomsToProto(s.profileRooms(ctx, invites))}, err)
 }
 
 // Invites sends every frame, empty included: an empty set means the last
 // invitation was answered.
 func (s *server) Invites(ctx context.Context, _ *req[v1.InvitesRequest], st *connect.ServerStream[v1.InvitesResponse]) error {
 	return serveStream(ctx, s.Streams.invites, st, func(rooms []domain.Room) *v1.InvitesResponse {
-		return &v1.InvitesResponse{Invites: pc.RoomsToProto(rooms)}
+		return &v1.InvitesResponse{Invites: pc.RoomsToProto(s.profileRooms(ctx, rooms))}
 	})
 }
 
@@ -474,7 +486,13 @@ func (s *server) CreateRoom(ctx context.Context, r *req[v1.CreateRoomRequest]) (
 // ── Search ──
 
 func (s *server) SearchMessages(ctx context.Context, r *req[v1.SearchMessagesRequest]) (*resp[v1.SearchMessagesResponse], error) {
-	hits, err := s.Backend.SearchMessages(ctx, pc.ProtoToSearchRequest(r.Msg))
+	search := pc.ProtoToSearchRequest(r.Msg)
+	rooms, err := s.profileSet(ctx, search.Rooms)
+	if err != nil {
+		return nil, rpcErr(err)
+	}
+	search.Rooms = rooms
+	hits, err := s.Backend.SearchMessages(ctx, search)
 	return reply(&v1.SearchMessagesResponse{Hits: pc.SearchHitsToProto(hits)}, err)
 }
 
@@ -580,11 +598,16 @@ func sendFrame[T any](st *connect.ServerStream[T], frame *T) error {
 
 func (s *server) Drafts(ctx context.Context, _ *req[v1.DraftsRequest]) (*resp[v1.DraftsResponse], error) {
 	drafts, err := s.Backend.Drafts(ctx)
+	drafts = profileKeeps(s.profileHolds(ctx), drafts, func(d domain.StoredDraft) domain.RoomID { return d.RoomID })
 	return reply(&v1.DraftsResponse{Drafts: pc.StoredDraftsToProto(drafts)}, err)
 }
 
 func (s *server) RoomsWith(ctx context.Context, r *req[v1.RoomsWithRequest]) (*resp[v1.RoomsWithResponse], error) {
-	rooms, err := s.Backend.RoomsWith(ctx, r.Msg.GetUserIds(), pc.ProtoToRoomSet(r.Msg.GetRoomIds(), r.Msg.GetAllRooms()), int(r.Msg.GetLimit()))
+	in, err := s.profileSet(ctx, pc.ProtoToRoomSet(r.Msg.GetRoomIds(), r.Msg.GetAllRooms()))
+	if err != nil {
+		return nil, rpcErr(err)
+	}
+	rooms, err := s.Backend.RoomsWith(ctx, r.Msg.GetUserIds(), in, int(r.Msg.GetLimit()))
 	return reply(&v1.RoomsWithResponse{Rooms: pc.RoomsToProto(rooms)}, err)
 }
 
@@ -595,7 +618,13 @@ func (s *server) MessagesAround(ctx context.Context, r *req[v1.MessagesAroundReq
 }
 
 func (s *server) MessagesFrom(ctx context.Context, r *req[v1.MessagesFromRequest]) (*resp[v1.MessagesFromResponse], error) {
-	msgs, err := s.Backend.MessagesFrom(ctx, pc.ProtoToSaidRequest(r.Msg))
+	said := pc.ProtoToSaidRequest(r.Msg)
+	rooms, err := s.profileSet(ctx, said.Rooms)
+	if err != nil {
+		return nil, rpcErr(err)
+	}
+	said.Rooms = rooms
+	msgs, err := s.Backend.MessagesFrom(ctx, said)
 	return reply(&v1.MessagesFromResponse{Messages: pc.MessagesToProto(msgs)}, err)
 }
 
@@ -940,8 +969,9 @@ func (s *server) Schedule(_ context.Context, r *req[v1.ScheduleRequest]) (*resp[
 	return reply(&v1.ScheduleResponse{Id: msg.ID}, s.Scheduler.Add(msg))
 }
 
-func (s *server) ScheduledMessages(_ context.Context, _ *req[v1.ScheduledMessagesRequest]) (*resp[v1.ScheduledMessagesResponse], error) {
-	return connect.NewResponse(&v1.ScheduledMessagesResponse{Messages: pc.ScheduledToProto(s.Scheduler.List())}), nil
+func (s *server) ScheduledMessages(ctx context.Context, _ *req[v1.ScheduledMessagesRequest]) (*resp[v1.ScheduledMessagesResponse], error) {
+	queued := profileKeeps(s.profileHolds(ctx), s.Scheduler.List(), func(m domain.ScheduledMessage) domain.RoomID { return m.RoomID })
+	return connect.NewResponse(&v1.ScheduledMessagesResponse{Messages: pc.ScheduledToProto(queued)}), nil
 }
 
 func (s *server) CancelScheduled(_ context.Context, r *req[v1.CancelScheduledRequest]) (*resp[v1.CancelScheduledResponse], error) {

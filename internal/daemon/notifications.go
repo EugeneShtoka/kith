@@ -52,8 +52,8 @@ type Notifications struct {
 	temps      notify.Temps
 	autocopy   domain.AutoCopy
 	clip       clipboard
-	// profile is the first [[profile]]: a room outside it never notifies.
-	profile domain.Profile
+	// profiles are the [[profile]]s; a room outside the first never notifies.
+	profiles []domain.Profile
 	// tracked is the word list as rules; trackedNotify the global switch a rule's
 	// `notify` may override.
 	tracked       []domain.TrackedRule
@@ -293,7 +293,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.rules, n.notifier, n.limit, n.clock = rules, notifier, limit, clock
-	n.profile = profiles[0]
+	n.profiles = profiles
 	display := cfg.Display
 	n.aliases = setup.Aliases(display.Identities)
 	n.firstNames = func(home string) bool { return setup.FirstNamesIn(display, home) }
@@ -530,7 +530,7 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 func (n *Notifications) inProfile(facts domain.RoomFacts) bool {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return n.profile.Rooms.Admits(facts)
+	return n.profiles[0].Rooms.Admits(facts)
 }
 
 // placeholderSpan is how long a bridge placeholder waits for its replacing edit.

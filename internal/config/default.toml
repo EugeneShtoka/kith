@@ -418,9 +418,11 @@ hidden = []
 # ([display.theme.networks]).
 network_colors = false
 
-# Profiles: named setups, each with its own rooms. kithd's desktop notifications
-# follow the first: a room outside it never notifies. With no [[profile]] there is
-# one, "default", holding every room.
+# Profiles: named setups, each with its own rooms. `kith --profile <name>` runs in
+# one: its room list, unread, invitations, drafts and search hold only those rooms
+# (a room named directly, by a link or a jump, still opens); without it, kith runs in
+# the first. kithd's desktop notifications follow the first: a room outside it never
+# notifies. With no [[profile]] there is one, "default", holding every room.
 #
 #   include = [...]   its rooms, as places (space:, tag:, place:, room:, protocol:,
 #                     a room ID, dm, group); empty is every room

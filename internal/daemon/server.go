@@ -81,7 +81,7 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 	defer cancelHandlers()
 	mux := http.NewServeMux()
 	mux.Handle(backendv1connect.NewBackendServiceHandler(&server{Daemon: d, lifetime: ctx, seat: &seat{}},
-		connect.WithInterceptors(failureLog{log: d.Log})))
+		connect.WithInterceptors(failureLog{log: d.Log}, profileGate{profiles: d.Notifications})))
 	// Every handler is counted so none runs after Serve returns and the caller closes
 	// the stores, and none starts once Serve is ending.
 	var inflight handlerGate
@@ -259,7 +259,8 @@ func reply[T any](msg *T, err error) (*connect.Response[T], error) {
 }
 
 // serveStream forwards one hub to one server stream until the client leaves or the
-// hub closes, always releasing the subscription.
+// hub closes, always releasing the subscription. A value frame makes nil is not this
+// client's, and is skipped.
 func serveStream[T, R any](ctx context.Context, h *hub[T], stream *connect.ServerStream[R], frame func(T) *R) error {
 	id, ch := h.subscribe()
 	defer h.release(id)
@@ -276,7 +277,11 @@ func serveStream[T, R any](ctx context.Context, h *hub[T], stream *connect.Serve
 			if !ok {
 				return nil
 			}
-			if err := stream.Send(frame(v)); err != nil {
+			out := frame(v)
+			if out == nil {
+				continue // not for this client
+			}
+			if err := stream.Send(out); err != nil {
 				return rpcErr(fmt.Errorf("send stream frame: %w", err))
 			}
 		}
