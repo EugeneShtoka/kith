@@ -78,9 +78,9 @@ include = ["space:Work", "protocol:slack"]
   count towards unread (badges, the Unread row, the window title, the phone's
   badge), and which notifications reach the profile's topic. A room outside the
   profile counts for nothing in it: no exception for mentions or DMs.
-- **People**: a profile may include or exclude people (by ID, identity or role);
-  an excluded person's messages are hidden in that profile as a spam-marked person's
-  are everywhere.
+- **People**: a profile may exclude people (by ID, or by a phonebook card field such
+  as `role:colleagues`); an excluded person's messages are hidden in that profile as a
+  spam-marked person's are everywhere.
 - **Overrides**: a profile may carry its own rail (order, hidden rows), archive
   rules, and other settings that describe a setup rather than the rooms. Anything a
   profile does not set comes from the shared config. Which sections a profile may
@@ -452,11 +452,12 @@ As of 2026-10-24, from each product's public site and documentation.
 
 ## Phasing
 
-**Phase 0 — profiles, in-process.** After the old `[[profile]]` is gone (Matrix
-accounts done first). `[[profile]]` in the config with a `default`; the TUI picks
-one (`--profile`, and a key); the bridge answers rooms and unread for the profile
-named on the request; kithd's own notifications follow the first profile. Rooms
-and people first, then the overridable sections. Useful at once with one bridge:
+**Phase 0 — profiles, in-process.** Planned in
+[design-profiles.md](design-profiles.md). `[[profile]]` in the config with a
+`default`; the TUI picks one (`--profile`, and a key); the bridge answers rooms and
+unread for the profile named on the request; kithd's own notifications follow the
+first profile; one window per profile, and a clicked link goes to the right one.
+Rooms first, then people, then archive and rail. Useful at once with one bridge:
 two terminals can already run different profiles.
 
 **Phase 1 — mesh CRDT skeleton and replay.**
