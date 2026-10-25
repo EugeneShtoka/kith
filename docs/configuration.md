@@ -81,6 +81,26 @@ key jobs (`--restore-keys` and the rest). It is picked in this order:
 
 A `default` that names no account of the network is refused at startup.
 
+### Profiles
+
+A profile is a named setup with its own rooms. kithd's desktop notifications follow
+the first one: a room outside it never notifies, whatever the
+[rules](notifications.md#rules) say. A config with no `[[profile]]` has one,
+`default`, holding every room.
+
+```toml
+[[profile]]
+name    = "work"
+include = ["space:Work", "protocol:slack"]
+exclude = ["tag:Archived"]
+```
+
+`include` and `exclude` take places, as the other room lists do
+([below](#sections)); an empty `include` is every room, and `exclude` wins. A tag
+whose rule reads a room's state (`unread`, `mention`, `draft`, `invite`, itself or
+through a tag it names) is refused there: a room would enter and leave the profile
+as it is read. Names are unique, in any case.
+
 ### Validation
 
 A value kith can't use, such as a misspelled theme preset, a malformed color or an
@@ -189,6 +209,7 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | `[notifications]` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
 | `[clipboard]` | The copy command, link opener, window focusing, unattended code copy, copying saved-file paths. | [usage.md](usage.md) |
 | `[codes]` | Where verification codes are looked for and what one looks like. | [notifications.md](notifications.md) |
+| `[[profile]]` | Named setups, each with its own rooms; kithd's desktop notifications follow the first. | [Profiles](#profiles) |
 | `[[filter]]` | Words, a sender or a language that move rooms into a tag (the starter's Spam, or any other). | [filters.md](filters.md) |
 | `[composer]` | External editor (`alt+e`), temp-file suffix, Markdown on send. | [composer.md](composer.md) |
 | `[spell]` | Spell-checking engine, dictionaries, rare-word detection, check before sending. | [composer.md](composer.md) |
@@ -220,7 +241,7 @@ tag and a room can share one.
 
 **The place vocabulary** is used by `[[notifications.rule]] match`,
 `[[display.tracked.rule]] in` / `except`, `[display.direction]`, `[[storage.rule]]
-match`, a tag's `rule`, and the room lists `[codes] include` / `exclude`, `[spam]
+match`, a tag's `rule`, and the room lists `[[profile]] include` / `exclude`, `[codes] include` / `exclude`, `[spam]
 rooms` / `except`, `[assist] rooms` / `except` and `[agent.read]` / `[agent.write]`.
 An entry is a room ID, any of the prefixes above, `dm` or `group` (a tag is judged on
 the room alone: its state words match nothing as a place). An empty list means every

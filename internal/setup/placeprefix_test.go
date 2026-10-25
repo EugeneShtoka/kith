@@ -80,6 +80,12 @@ func placeSettings() []placeSetting {
 		{"storage.rule[0].match", func(c *config.Config, e string) {
 			c.Storage.Rules = []config.StorageRule{{Match: e, Messages: new(10)}}
 		}, placeForms},
+		{`profile "p": include`, func(c *config.Config, e string) {
+			c.Profiles = []config.Profile{{Name: "p", Include: one(e)}}
+		}, placeForms},
+		{`profile "p": exclude`, func(c *config.Config, e string) {
+			c.Profiles = []config.Profile{{Name: "p", Exclude: one(e)}}
+		}, placeForms},
 		{`tag "Busy": rule`, func(c *config.Config, e string) {
 			c.Tags = append(c.Tags, config.Tag{Name: "Busy", Rule: []string{e}})
 		}, append([]string{"unread", "not dm", "*"}, placeForms...)},

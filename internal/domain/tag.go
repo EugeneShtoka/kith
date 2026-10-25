@@ -493,3 +493,27 @@ func (s TagSet) Mutes(names []string) bool {
 		return ok && s.tags[i].tag.Mute
 	})
 }
+
+// ReadsState reports whether the named tag's rule reads a room's state (unread,
+// mention, draft, invite), itself or through a tag it names; a reference inside a
+// cycle matches nothing, so reads nothing.
+func (s TagSet) ReadsState(name string) bool {
+	i, ok := s.Index(name)
+	return ok && s.readsState(i, map[int]bool{})
+}
+
+func (s TagSet) readsState(i int, seen map[int]bool) bool {
+	if seen[i] {
+		return false
+	}
+	seen[i] = true
+	for _, t := range slices.Concat(s.tags[i].positive, s.tags[i].negated) {
+		if t.state != nil {
+			return true
+		}
+		if j, ok := s.byName[t.tag]; ok && !s.cyclic[[2]string{s.key(i), t.tag}] && s.readsState(j, seen) {
+			return true
+		}
+	}
+	return false
+}

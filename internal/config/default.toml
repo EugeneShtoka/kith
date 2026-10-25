@@ -418,6 +418,24 @@ hidden = []
 # ([display.theme.networks]).
 network_colors = false
 
+# Profiles: named setups, each with its own rooms. kithd's desktop notifications
+# follow the first: a room outside it never notifies. With no [[profile]] there is
+# one, "default", holding every room.
+#
+#   include = [...]   its rooms, as places (space:, tag:, place:, room:, protocol:,
+#                     a room ID, dm, group); empty is every room
+#   exclude = [...]   rooms it leaves out, though include names them
+#
+# A tag whose rule reads a room's state (unread, mention, draft, invite) cannot name
+# a profile's rooms: a room would enter and leave the profile as it is read.
+#
+#   [[profile]]
+#   name    = "work"
+#   include = ["space:Work", "protocol:slack"]
+#   exclude = ["tag:Archived"]
+[[profile]]
+name = "default"
+
 # Deleted messages, set separately for yours (every account in your identity) and
 # everybody else's:
 #

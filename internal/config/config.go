@@ -53,6 +53,7 @@ type Config struct {
 	Instagram      Instagram     `toml:"instagram"`
 	Storage        Storage       `toml:"storage"`
 	Tags           []Tag         `toml:"tag"`
+	Profiles       []Profile     `toml:"profile"`
 	Filters        []Filter      `toml:"filter"`
 	UserCommands   []Command     `toml:"command"`
 }
