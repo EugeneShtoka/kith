@@ -1,6 +1,6 @@
 # Design: several Matrix accounts in one kithd
 
-Status: planned, 2026-10-24. Comes before profiles ([design-clients.md](design-clients.md)),
+Status: done, 2026-10-25 (#328, #329, #331, #335, #337, #338). Comes before profiles ([design-clients.md](design-clients.md)),
 which reuse the name `[[profile]]` once the old one is gone.
 
 ## Goal
