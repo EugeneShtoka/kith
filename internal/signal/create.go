@@ -86,8 +86,8 @@ func invitee(person string) (aci, number string) {
 	return "", ""
 }
 
-// keepGroupMade keeps the room of a group the account just made: Signal tells its
-// members, not the device that made it.
+// keepGroupMade keeps the room of a group the account just made or joined: Signal tells
+// its members, not the device that made the change.
 func (a *Adapter) keepGroupMade(ctx context.Context, self string, g *signalv1.Group) (domain.RoomID, error) {
 	b, err := a.bookOf(ctx, self)
 	if err != nil {

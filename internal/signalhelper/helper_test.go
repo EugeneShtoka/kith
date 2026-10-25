@@ -73,6 +73,14 @@ func (f *fakeNetwork) FindPerson(context.Context, *signalv1.FindPersonRequest) (
 	return &signalv1.FindPersonResponse{}, nil
 }
 
+func (f *fakeNetwork) GroupByInvite(context.Context, *signalv1.GroupByInviteRequest) (*signalv1.GroupByInviteResponse, error) {
+	return &signalv1.GroupByInviteResponse{}, nil
+}
+
+func (f *fakeNetwork) JoinGroup(context.Context, *signalv1.JoinGroupRequest) (*signalv1.JoinGroupResponse, error) {
+	return &signalv1.JoinGroupResponse{}, nil
+}
+
 func (f *fakeNetwork) Upload(_ context.Context, req *signalv1.UploadRequest) (*signalv1.Attachment, error) {
 	return &signalv1.Attachment{FileName: req.GetFileName(), Pointer: []byte("kept")}, nil
 }

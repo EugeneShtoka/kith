@@ -65,6 +65,11 @@ const (
 	// SignalServiceFindPersonProcedure is the fully-qualified name of the SignalService's FindPerson
 	// RPC.
 	SignalServiceFindPersonProcedure = "/signal.v1.SignalService/FindPerson"
+	// SignalServiceGroupByInviteProcedure is the fully-qualified name of the SignalService's
+	// GroupByInvite RPC.
+	SignalServiceGroupByInviteProcedure = "/signal.v1.SignalService/GroupByInvite"
+	// SignalServiceJoinGroupProcedure is the fully-qualified name of the SignalService's JoinGroup RPC.
+	SignalServiceJoinGroupProcedure = "/signal.v1.SignalService/JoinGroup"
 )
 
 // SignalServiceClient is a client for the signal.v1.SignalService service.
@@ -108,6 +113,12 @@ type SignalServiceClient interface {
 	// FindPerson asks Signal for the account behind a phone number or a username link,
 	// from a connected account.
 	FindPerson(context.Context, *connect.Request[v1.FindPersonRequest]) (*connect.Response[v1.FindPersonResponse], error)
+	// GroupByInvite asks Signal what group a signal.group invite link is to, from a
+	// connected account, without joining it.
+	GroupByInvite(context.Context, *connect.Request[v1.GroupByInviteRequest]) (*connect.Response[v1.GroupByInviteResponse], error)
+	// JoinGroup joins a connected account to the group an invite link is to, or asks its
+	// admins to let it in when they approve who joins; its members are told of a join.
+	JoinGroup(context.Context, *connect.Request[v1.JoinGroupRequest]) (*connect.Response[v1.JoinGroupResponse], error)
 }
 
 // NewSignalServiceClient constructs a client for the signal.v1.SignalService service. By default,
@@ -211,26 +222,40 @@ func NewSignalServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(signalServiceMethods.ByName("FindPerson")),
 			connect.WithClientOptions(opts...),
 		),
+		groupByInvite: connect.NewClient[v1.GroupByInviteRequest, v1.GroupByInviteResponse](
+			httpClient,
+			baseURL+SignalServiceGroupByInviteProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("GroupByInvite")),
+			connect.WithClientOptions(opts...),
+		),
+		joinGroup: connect.NewClient[v1.JoinGroupRequest, v1.JoinGroupResponse](
+			httpClient,
+			baseURL+SignalServiceJoinGroupProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("JoinGroup")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // signalServiceClient implements SignalServiceClient.
 type signalServiceClient struct {
-	heartbeat   *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
-	start       *connect.Client[v1.StartRequest, v1.StartResponse]
-	link        *connect.Client[v1.LinkRequest, v1.LinkResponse]
-	connect     *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
-	events      *connect.Client[v1.EventsRequest, v1.EventsResponse]
-	ack         *connect.Client[v1.AckRequest, v1.AckResponse]
-	send        *connect.Client[v1.SendRequest, v1.SendResponse]
-	typing      *connect.Client[v1.TypingRequest, v1.TypingResponse]
-	markRead    *connect.Client[v1.MarkReadRequest, v1.MarkReadResponse]
-	download    *connect.Client[v1.DownloadRequest, v1.DownloadResponse]
-	upload      *connect.Client[v1.UploadRequest, v1.UploadResponse]
-	unlink      *connect.Client[v1.UnlinkRequest, v1.UnlinkResponse]
-	leave       *connect.Client[v1.LeaveRequest, v1.LeaveResponse]
-	createGroup *connect.Client[v1.CreateGroupRequest, v1.CreateGroupResponse]
-	findPerson  *connect.Client[v1.FindPersonRequest, v1.FindPersonResponse]
+	heartbeat     *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
+	start         *connect.Client[v1.StartRequest, v1.StartResponse]
+	link          *connect.Client[v1.LinkRequest, v1.LinkResponse]
+	connect       *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
+	events        *connect.Client[v1.EventsRequest, v1.EventsResponse]
+	ack           *connect.Client[v1.AckRequest, v1.AckResponse]
+	send          *connect.Client[v1.SendRequest, v1.SendResponse]
+	typing        *connect.Client[v1.TypingRequest, v1.TypingResponse]
+	markRead      *connect.Client[v1.MarkReadRequest, v1.MarkReadResponse]
+	download      *connect.Client[v1.DownloadRequest, v1.DownloadResponse]
+	upload        *connect.Client[v1.UploadRequest, v1.UploadResponse]
+	unlink        *connect.Client[v1.UnlinkRequest, v1.UnlinkResponse]
+	leave         *connect.Client[v1.LeaveRequest, v1.LeaveResponse]
+	createGroup   *connect.Client[v1.CreateGroupRequest, v1.CreateGroupResponse]
+	findPerson    *connect.Client[v1.FindPersonRequest, v1.FindPersonResponse]
+	groupByInvite *connect.Client[v1.GroupByInviteRequest, v1.GroupByInviteResponse]
+	joinGroup     *connect.Client[v1.JoinGroupRequest, v1.JoinGroupResponse]
 }
 
 // Heartbeat calls signal.v1.SignalService.Heartbeat.
@@ -308,6 +333,16 @@ func (c *signalServiceClient) FindPerson(ctx context.Context, req *connect.Reque
 	return c.findPerson.CallUnary(ctx, req)
 }
 
+// GroupByInvite calls signal.v1.SignalService.GroupByInvite.
+func (c *signalServiceClient) GroupByInvite(ctx context.Context, req *connect.Request[v1.GroupByInviteRequest]) (*connect.Response[v1.GroupByInviteResponse], error) {
+	return c.groupByInvite.CallUnary(ctx, req)
+}
+
+// JoinGroup calls signal.v1.SignalService.JoinGroup.
+func (c *signalServiceClient) JoinGroup(ctx context.Context, req *connect.Request[v1.JoinGroupRequest]) (*connect.Response[v1.JoinGroupResponse], error) {
+	return c.joinGroup.CallUnary(ctx, req)
+}
+
 // SignalServiceHandler is an implementation of the signal.v1.SignalService service.
 type SignalServiceHandler interface {
 	// Heartbeat is kithd's keep-alive: the helper exits when they stop.
@@ -349,6 +384,12 @@ type SignalServiceHandler interface {
 	// FindPerson asks Signal for the account behind a phone number or a username link,
 	// from a connected account.
 	FindPerson(context.Context, *connect.Request[v1.FindPersonRequest]) (*connect.Response[v1.FindPersonResponse], error)
+	// GroupByInvite asks Signal what group a signal.group invite link is to, from a
+	// connected account, without joining it.
+	GroupByInvite(context.Context, *connect.Request[v1.GroupByInviteRequest]) (*connect.Response[v1.GroupByInviteResponse], error)
+	// JoinGroup joins a connected account to the group an invite link is to, or asks its
+	// admins to let it in when they approve who joins; its members are told of a join.
+	JoinGroup(context.Context, *connect.Request[v1.JoinGroupRequest]) (*connect.Response[v1.JoinGroupResponse], error)
 }
 
 // NewSignalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -448,6 +489,18 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(signalServiceMethods.ByName("FindPerson")),
 		connect.WithHandlerOptions(opts...),
 	)
+	signalServiceGroupByInviteHandler := connect.NewUnaryHandler(
+		SignalServiceGroupByInviteProcedure,
+		svc.GroupByInvite,
+		connect.WithSchema(signalServiceMethods.ByName("GroupByInvite")),
+		connect.WithHandlerOptions(opts...),
+	)
+	signalServiceJoinGroupHandler := connect.NewUnaryHandler(
+		SignalServiceJoinGroupProcedure,
+		svc.JoinGroup,
+		connect.WithSchema(signalServiceMethods.ByName("JoinGroup")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/signal.v1.SignalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SignalServiceHeartbeatProcedure:
@@ -480,6 +533,10 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 			signalServiceCreateGroupHandler.ServeHTTP(w, r)
 		case SignalServiceFindPersonProcedure:
 			signalServiceFindPersonHandler.ServeHTTP(w, r)
+		case SignalServiceGroupByInviteProcedure:
+			signalServiceGroupByInviteHandler.ServeHTTP(w, r)
+		case SignalServiceJoinGroupProcedure:
+			signalServiceJoinGroupHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -547,4 +604,12 @@ func (UnimplementedSignalServiceHandler) CreateGroup(context.Context, *connect.R
 
 func (UnimplementedSignalServiceHandler) FindPerson(context.Context, *connect.Request[v1.FindPersonRequest]) (*connect.Response[v1.FindPersonResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.FindPerson is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) GroupByInvite(context.Context, *connect.Request[v1.GroupByInviteRequest]) (*connect.Response[v1.GroupByInviteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.GroupByInvite is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) JoinGroup(context.Context, *connect.Request[v1.JoinGroupRequest]) (*connect.Response[v1.JoinGroupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.JoinGroup is not implemented"))
 }
