@@ -173,8 +173,8 @@ func TestAFilterMarksASenderThroughTheDaemon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.notifications.Synced(time.Now())
-	w.notifications.Synced(time.Now())
+	w.notifications.Synced(mxAccount, time.Now())
+	w.notifications.Synced(mxAccount, time.Now())
 	const room, spammer = "whatsapp:15550000001/120363@g.us", "whatsapp:15550000003@s.whatsapp.net"
 	msg := domain.Message{ID: "whatsapp:15550000001/A1", RoomID: room, Sender: spammer, Body: "buy bitcoin now", Timestamp: time.Now()}
 	if serr := backend.cache.SaveMessages(ctx, room, []domain.Message{msg}); serr != nil {
@@ -426,8 +426,8 @@ func TestAFilterMovesAnSMSRoomThroughTheDaemon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.notifications.Synced(time.Now())
-	w.notifications.Synced(time.Now())
+	w.notifications.Synced(mxAccount, time.Now())
+	w.notifications.Synced(mxAccount, time.Now())
 	const room domain.RoomID = "gmessages:1/7"
 	msg := domain.Message{ID: "gmessages:1/70", RoomID: room, Sender: "gmessages:+15550000003", Body: "vote in the elections", Timestamp: time.Now()}
 	if serr := backend.cache.SaveMessages(ctx, room, []domain.Message{msg}); serr != nil {

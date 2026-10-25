@@ -64,16 +64,18 @@ CREATE TABLE tag_verdicts (
 ) STRICT, WITHOUT ROWID;
 
 -- Per person ID and tag, the tags a filter put someone into and the ones a person
--- took them out of; Matrix IDs mirror org.kith.people account data, the rest are kept
--- here alone. tag is lower-cased.
+-- took them out of. A Matrix ID's rows mirror the org.kith.people account data of the
+-- account in account (its rooms' owner, "matrix:<key>/"), each account's replaced
+-- whole; the rest are kept here alone, with no account. tag is lower-cased.
 CREATE TABLE person_verdicts (
+	account  TEXT    NOT NULL DEFAULT '',
 	person   TEXT    NOT NULL,
 	tag      TEXT    NOT NULL,
 	rule     INTEGER NOT NULL DEFAULT 0,
 	filter   TEXT    NOT NULL DEFAULT '',
 	at_ms    INTEGER NOT NULL DEFAULT 0,
 	released INTEGER NOT NULL DEFAULT 0,
-	PRIMARY KEY (person, tag)
+	PRIMARY KEY (account, person, tag)
 ) STRICT, WITHOUT ROWID;
 
 CREATE TABLE spaces (
@@ -116,13 +118,13 @@ CREATE TABLE room_parents (
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX room_parents_by_space ON room_parents(space_id) WHERE space_id <> '';
 
--- Local mirror of a network's "ignore this person" list: Matrix's m.ignored_user_list
--- for now. network is the protocol (as domain.Protocol.String()); user_id is a MXID
--- for Matrix. Rebuild-friendly: the server copy is the record.
+-- Local mirror of each Matrix account's m.ignored_user_list: account is its rooms'
+-- owner ("matrix:<key>/"), user_id a person's ID. Rebuild-friendly: the server copy is
+-- the record.
 CREATE TABLE ignored_users (
-	network TEXT NOT NULL,
+	account TEXT NOT NULL,
 	user_id TEXT NOT NULL,
-	PRIMARY KEY (network, user_id)
+	PRIMARY KEY (account, user_id)
 ) STRICT, WITHOUT ROWID;
 
 -- Local mirror of a network's server-side block list (WhatsApp's blocklist, Telegram's
@@ -648,6 +650,44 @@ DROP TABLE phone_names;`,
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
 	handle  TEXT NOT NULL
 ) STRICT, WITHOUT ROWID;`,
+	// v26: Matrix mirrors are per account. Until now one Matrix account wrote them: its
+	// rooms' owner is read off the rooms (none cached, and its mirrored rows go, as the
+	// server holds them). Only columns both shapes have are read, so this is a no-op on
+	// baseSchema.
+	`CREATE TEMP TABLE matrix_owner AS
+	SELECT substr(id, 1, instr(id, '/')) AS owner FROM rooms WHERE id LIKE 'matrix:%/%' ORDER BY id LIMIT 1;
+CREATE TEMP TABLE old_ignored AS SELECT user_id FROM ignored_users;
+DROP TABLE ignored_users;
+CREATE TABLE ignored_users (
+	account TEXT NOT NULL,
+	user_id TEXT NOT NULL,
+	PRIMARY KEY (account, user_id)
+) STRICT, WITHOUT ROWID;
+INSERT INTO ignored_users(account, user_id) SELECT owner, user_id FROM old_ignored, matrix_owner;
+CREATE TEMP TABLE old_person_verdicts AS SELECT person, tag, rule, filter, at_ms, released FROM person_verdicts;
+DROP TABLE person_verdicts;
+CREATE TABLE person_verdicts (
+	account  TEXT    NOT NULL DEFAULT '',
+	person   TEXT    NOT NULL,
+	tag      TEXT    NOT NULL,
+	rule     INTEGER NOT NULL DEFAULT 0,
+	filter   TEXT    NOT NULL DEFAULT '',
+	at_ms    INTEGER NOT NULL DEFAULT 0,
+	released INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (account, person, tag)
+) STRICT, WITHOUT ROWID;
+INSERT INTO person_verdicts(account, person, tag, rule, filter, at_ms, released)
+	SELECT '', person, tag, rule, filter, at_ms, released FROM old_person_verdicts WHERE person NOT LIKE 'matrix:%'
+	UNION ALL SELECT owner, person, tag, rule, filter, at_ms, released FROM old_person_verdicts, matrix_owner WHERE person LIKE 'matrix:%';
+UPDATE person_names SET source = 'bridge:' || (SELECT owner FROM matrix_owner) || substr(source, 8)
+	WHERE source LIKE 'bridge:%' AND source NOT LIKE 'bridge:matrix:%' AND EXISTS (SELECT 1 FROM matrix_owner);
+UPDATE person_links SET source = 'bridge:' || (SELECT owner FROM matrix_owner) || substr(source, 8)
+	WHERE source LIKE 'bridge:%' AND source NOT LIKE 'bridge:matrix:%' AND EXISTS (SELECT 1 FROM matrix_owner);
+DELETE FROM person_names WHERE source LIKE 'bridge:%' AND source NOT LIKE 'bridge:matrix:%';
+DELETE FROM person_links WHERE source LIKE 'bridge:%' AND source NOT LIKE 'bridge:matrix:%';
+DROP TABLE old_ignored;
+DROP TABLE old_person_verdicts;
+DROP TABLE matrix_owner;`,
 }
 
 // ensureIndexes makes the file's indexes exactly baseSchema's (create missing,

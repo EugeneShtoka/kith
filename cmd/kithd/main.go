@@ -326,10 +326,10 @@ func (s served) Unignore(ctx context.Context, mxid string) error {
 
 // Ignored reads the mirror rather than the homeserver: the sync keeps it in
 // step and a client should not wait on an account-data GET to list what it
-// already has. A fresh install (empty cache) answers empty, as it would from
-// the server.
+// already has. It is every account's list as one, as ignoring applies to all. A
+// fresh install (empty cache) answers empty, as it would from the server.
 func (s served) Ignored(ctx context.Context) ([]string, error) {
-	ids, err := s.cache.MatrixIgnored(ctx, domain.ProtocolMatrix)
+	ids, err := s.cache.MatrixIgnored(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("served: %w", err)
 	}
@@ -624,8 +624,8 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		}
 	}
 	m := backend.matrix
-	backups := daemon.NewKeyBackup(m, func(level slog.Level, line string) {
-		log.Log(context.Background(), level, "key backup: "+line, "op", "key backup")
+	backups := daemon.NewKeyBackup(m, func(level slog.Level, account, line string) {
+		log.Log(context.Background(), level, "key backup: "+line, "op", "key backup", "account", account)
 	})
 	// Logged in after the startup refresh: refresh again with Matrix, and back up what the
 	// startup sweep missed.
@@ -635,9 +635,9 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	})
 	// A sync means the account is online as of the sync's time, and is the catch-up
 	// notifications wait for.
-	m.OnSynced(func(t time.Time) {
+	m.OnSynced(func(on domain.RoomOwner, t time.Time) {
 		state.Report(daemon.StatusOf(m.Online()), t)
-		notifications.Synced(t)
+		notifications.Synced(on, t)
 	})
 	return &workers{
 		notifications: notifications,

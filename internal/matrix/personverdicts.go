@@ -130,7 +130,7 @@ func (b *InProc) writePeople(ctx context.Context, set []domain.PersonVerdict) er
 		return fmt.Errorf("matrix: record the person verdicts: %w", err)
 	}
 	return toCache(b, "mirror the person verdicts", func(c *db.Cache) error {
-		return c.SetPersonVerdicts(ctx, domain.ProtocolMatrix, content.verdicts(b.ids))
+		return c.SetPersonVerdicts(ctx, b.ids.owner(), content.verdicts(b.ids))
 	})
 }
 
@@ -140,5 +140,5 @@ func (b *InProc) mirrorPeople(ctx context.Context, set []domain.PersonVerdict) {
 	if b.cache == nil {
 		return
 	}
-	b.warnIf(ctx, b.cache.SetPersonVerdicts(ctx, domain.ProtocolMatrix, set), "mirror person verdicts")
+	b.warnIf(ctx, b.cache.SetPersonVerdicts(ctx, b.ids.owner(), set), "mirror person verdicts")
 }

@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -25,8 +24,9 @@ type Notifications struct {
 	scope *scopeIndex
 	sinks Sinks
 
-	// syncs counts sync responses processed; see caughtUp.
-	syncs atomic.Int64
+	// syncs counts each account's sync responses processed; see caughtUp.
+	syncsMu sync.Mutex
+	syncs   map[domain.RoomOwner]int
 
 	// limiter has its own lock and outlives any one config.
 	limiter notify.Limiter
@@ -421,13 +421,35 @@ func (n *Notifications) DND() notify.Temps {
 	return n.temps
 }
 
-// Synced records a sync response arriving. mautrix runs it before that response's
-// events, so messages handled while the count is one are the catch-up batch.
-func (n *Notifications) Synced(time.Time) { n.syncs.Add(1) }
+// Synced records a sync response of account on arriving. mautrix runs it before that
+// response's events, so messages handled while on's count is one are its catch-up
+// batch.
+func (n *Notifications) Synced(on domain.RoomOwner, _ time.Time) {
+	n.syncsMu.Lock()
+	defer n.syncsMu.Unlock()
+	if n.syncs == nil {
+		n.syncs = map[domain.RoomOwner]int{}
+	}
+	n.syncs[on]++
+}
 
-// caughtUp reports whether the daemon is past its catch-up batch; nothing is
-// announced retroactively.
-func (n *Notifications) caughtUp() bool { return n.syncs.Load() > 1 }
+// caughtUp reports whether room's account is past its catch-up batch; nothing is
+// announced retroactively. Each account that reports syncs has its own: one caught up
+// never lets another's batch through. An account that reports none is past it once any
+// account is.
+func (n *Notifications) caughtUp(room domain.RoomID) bool {
+	n.syncsMu.Lock()
+	defer n.syncsMu.Unlock()
+	if count, reports := n.syncs[domain.OwnerOf(room)]; reports {
+		return count > 1
+	}
+	for _, count := range n.syncs {
+		if count > 1 {
+			return true
+		}
+	}
+	return false
+}
 
 // InvalidateScope drops the room/space index, e.g. after a refresh has landed.
 // The push_archive reconciler re-runs since the room set or tag membership may
@@ -609,7 +631,7 @@ func (n *Notifications) decide(ctx context.Context, msg domain.Message, scope no
 	if msg.IsUpdate() {
 		return notify.Notification{}, false
 	}
-	if !n.caughtUp() {
+	if !n.caughtUp(msg.RoomID) {
 		return notify.Notification{}, false
 	}
 	n.mu.Lock()

@@ -24,7 +24,8 @@ import (
 // bridgeContactsEvery is how often the bridges' contact lists are read again.
 const bridgeContactsEvery = 6 * time.Hour
 
-// bridgeSourcePrefix begins a bridge login's source in the phone book.
+// bridgeSourcePrefix begins a bridge login's source in the phone book, before the
+// account that read it (bridgeSources).
 const bridgeSourcePrefix = "bridge:"
 
 // bridgeContacts is the provisioning URLs to read, and a signal that they changed.
@@ -65,8 +66,12 @@ func (m *Adapter) followBridgeContacts(ctx context.Context) {
 	}
 }
 
+// bridgeSources begins the sources of the bridge logins this account reads: each
+// account's logins are its own, kept and dropped apart from another's.
+func (b *InProc) bridgeSources() string { return bridgeSourcePrefix + string(b.ids.owner()) }
+
 // readBridgeContacts reads every bridge's lists and drops what unconfigured bridges
-// gave; a room list refresh carries the phone book to the clients.
+// gave this account; a room list refresh carries the phone book to the clients.
 func (b *InProc) readBridgeContacts(ctx context.Context, bases []string) {
 	if b.cache == nil {
 		return
@@ -78,7 +83,7 @@ func (b *InProc) readBridgeContacts(ctx context.Context, bases []string) {
 		if err != nil {
 			b.warnIf(ctx, err, "read a bridge's contacts", "bridge", base)
 			// A bridge that could not be read keeps what it gave last.
-			had, herr := b.cache.PeopleSources(ctx, bridgeSourcePrefix+base+"#")
+			had, herr := b.cache.PeopleSources(ctx, b.bridgeSources()+base+"#")
 			b.warnIf(ctx, herr, "read which logins a bridge named numbers for", "bridge", base)
 			kept = append(kept, had...)
 			continue
@@ -86,7 +91,7 @@ func (b *InProc) readBridgeContacts(ctx context.Context, bases []string) {
 		kept = append(kept, sources...)
 		read = true
 	}
-	if err := b.cache.ForgetPeople(ctx, bridgeSourcePrefix, kept); err != nil {
+	if err := b.cache.ForgetPeople(ctx, b.bridgeSources(), kept); err != nil {
 		b.warnIf(ctx, err, "forget the contacts of bridges no longer read")
 	}
 	if read && b.onRoomsStale != nil {
@@ -127,7 +132,7 @@ func (b *InProc) readBridge(ctx context.Context, base string) ([]string, error) 
 	}
 	var written []string
 	for _, login := range who.Logins {
-		source := bridgeSourcePrefix + base + "#" + login.ID
+		source := b.bridgeSources() + base + "#" + login.ID
 		// A login not connected, or whose list cannot be read, keeps what it gave last.
 		written = append(written, source)
 		if login.State.StateEvent != "CONNECTED" {

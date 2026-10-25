@@ -4,8 +4,6 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
-
-	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 func freshCache(t *testing.T) *Cache {
@@ -23,10 +21,10 @@ func TestSetMatrixIgnoredReplacesTheSet(t *testing.T) {
 	ctx := context.Background()
 	c := freshCache(t)
 
-	if err := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, []string{"matrix:@ann:x", "matrix:@bob:x"}); err != nil {
+	if err := c.SetMatrixIgnored(ctx, mxRooms, []string{"matrix:@ann:x", "matrix:@bob:x"}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := c.MatrixIgnored(ctx, domain.ProtocolMatrix)
+	got, err := c.MatrixIgnored(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,10 +33,10 @@ func TestSetMatrixIgnoredReplacesTheSet(t *testing.T) {
 	}
 
 	// A second write hands the whole set; the row for the dropped MXID goes.
-	if werr := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, []string{"matrix:@ann:x", "matrix:@carl:x"}); werr != nil {
+	if werr := c.SetMatrixIgnored(ctx, mxRooms, []string{"matrix:@ann:x", "matrix:@carl:x"}); werr != nil {
 		t.Fatal(werr)
 	}
-	got, err = c.MatrixIgnored(ctx, domain.ProtocolMatrix)
+	got, err = c.MatrixIgnored(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,31 +45,14 @@ func TestSetMatrixIgnoredReplacesTheSet(t *testing.T) {
 	}
 
 	// An empty set clears the mirror.
-	if werr := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, nil); werr != nil {
+	if werr := c.SetMatrixIgnored(ctx, mxRooms, nil); werr != nil {
 		t.Fatal(werr)
 	}
-	got, err = c.MatrixIgnored(ctx, domain.ProtocolMatrix)
+	got, err = c.MatrixIgnored(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 0 {
 		t.Errorf("after clear = %v, want empty", got)
-	}
-}
-
-func TestMatrixIgnoredIsPerNetwork(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	c := freshCache(t)
-	if err := c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, []string{"matrix:@ann:x"}); err != nil {
-		t.Fatal(err)
-	}
-	// Another network reading its own ignored list sees nothing.
-	got, err := c.MatrixIgnored(ctx, domain.ProtocolTelegram)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 0 {
-		t.Errorf("Telegram ignored = %v, want empty — Matrix's set must not leak", got)
 	}
 }

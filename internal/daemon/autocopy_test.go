@@ -34,7 +34,7 @@ func autoCopyNotifier(t *testing.T, autoCopy bool, syncs int) (*daemon.Notificat
 	}
 	n.UseSelves(func() []string { return []string{me} })
 	for range syncs {
-		n.Synced(time.Now())
+		n.Synced(mx, time.Now())
 	}
 	return n, rec, clip
 }

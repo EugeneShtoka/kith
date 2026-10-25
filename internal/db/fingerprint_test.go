@@ -39,6 +39,7 @@ var migrationFingerprints = []struct {
 	{23, "ignored_users: Matrix MXIDs this account ignores (m.ignored_user_list mirror)", "39ce6833da72"},
 	{24, "network_blocks: a network's server-side block list mirror", "00720526d8e2"},
 	{25, "room_handles: the public @username that names a room on its network", "f109681ba3bf"},
+	{26, "ignored_users, person_verdicts: Matrix mirrors per account; bridge sources too", "3285083d3603"},
 }
 
 func fingerprint(stmt string) string {

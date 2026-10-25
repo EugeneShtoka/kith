@@ -94,8 +94,8 @@ func serve(t *testing.T, b api.Backend, with ...func(*daemon.Daemon)) *harness {
 		t.Fatalf("NewNotifications: %v", err)
 	}
 	notifications.UseSelves(func() []string { return []string{me} })
-	notifications.Synced(time.Now()) // past the catch-up batch, so a message notifies
-	notifications.Synced(time.Now())
+	notifications.Synced(mx, time.Now()) // past the catch-up batch, so a message notifies
+	notifications.Synced(mx, time.Now())
 	reload := &reloadStub{}
 	pumped := make(chan struct{})
 	go func() { defer close(pumped); streams.Run(ctx, b) }()

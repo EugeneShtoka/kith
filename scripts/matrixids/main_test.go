@@ -23,7 +23,7 @@ const testAccount = "0123456789abcdef"
 var freeText = map[string][]string{
 	"drafts":            {"body", "edit_saved", "author"},
 	"emoji_usage":       {"kind", "emoji"},
-	"ignored_users":     {"network"},
+	"ignored_users":     {"account"},
 	"message_html":      {"html"},
 	"message_media":     {"kind", "name", "mime", "mxc", "file_json"},
 	"message_mentions":  {"name"},
@@ -34,7 +34,7 @@ var freeText = map[string][]string{
 	"network_blocks":    {"network"},
 	"person_links":      {"source"},
 	"person_names":      {"source", "name"},
-	"person_verdicts":   {"tag", "filter"},
+	"person_verdicts":   {"account", "tag", "filter"},
 	"quoted_messages":   {"body"},
 	"reaction_refusals": {"protocol", "emoji"},
 	"reactions":         {"emoji"},

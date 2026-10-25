@@ -36,23 +36,25 @@ func TestMarksMadeTogetherKeepEachOther(t *testing.T) {
 	}
 }
 
-// A network's set replaces its own people's verdicts only, as Matrix's account data
-// mirror does; the rest are another network's only copy.
-func TestANetworksSetReplacesOnlyItsPeople(t *testing.T) {
+// An account's set replaces its own verdicts only, as Matrix's account data mirror
+// does: another account's are its own mirror, and another network's people's are kept
+// here alone.
+func TestAnAccountsSetReplacesOnlyItsOwn(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	c := openTemp(t)
 	at := time.Unix(1_700_000_000, 0)
-	for _, v := range []domain.PersonVerdict{
-		{Person: "matrix:@ann:example.org", Tag: "Spam", Rule: domain.MoveAlways, At: at},
-		{Person: "telegram:1001", Tag: "Spam", Rule: domain.MoveAlways, At: at},
-	} {
-		if err := c.MarkPerson(ctx, v); err != nil {
-			t.Fatal(err)
-		}
+	if err := c.MarkPerson(ctx, domain.PersonVerdict{Person: "telegram:1001", Tag: "Spam", Rule: domain.MoveAlways, At: at}); err != nil {
+		t.Fatal(err)
 	}
-	if err := c.SetPersonVerdicts(ctx, domain.ProtocolMatrix, []domain.PersonVerdict{
+	work := domain.AccountRooms(domain.ProtocolMatrix, "fedcba9876543210")
+	if err := c.SetPersonVerdicts(ctx, work, []domain.PersonVerdict{
+		{Person: "matrix:@ann:example.org", Tag: "Spam", Rule: domain.MoveAlways, At: at},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetPersonVerdicts(ctx, mxRooms, []domain.PersonVerdict{
 		{Person: "matrix:@bob:example.org", Tag: "Spam", Released: true, At: at},
 		{Person: "telegram:2002", Tag: "Spam", Rule: domain.MoveAlways, At: at}, // not Matrix's to set
 	}); err != nil {
@@ -67,7 +69,7 @@ func TestANetworksSetReplacesOnlyItsPeople(t *testing.T) {
 		people = append(people, v.Person)
 	}
 	slices.Sort(people)
-	if want := []string{"matrix:@bob:example.org", "telegram:1001"}; !slices.Equal(people, want) {
+	if want := []string{"matrix:@ann:example.org", "matrix:@bob:example.org", "telegram:1001"}; !slices.Equal(people, want) {
 		t.Errorf("after Matrix's set: %v, want %v", people, want)
 	}
 	if rerr := c.RetagPersonVerdicts(ctx, domain.ProtocolTelegram, "Spam", "Junk"); rerr != nil {
@@ -78,7 +80,7 @@ func TestANetworksSetReplacesOnlyItsPeople(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range got {
-		if want := map[string]string{"telegram:1001": "junk", "matrix:@bob:example.org": "spam"}[v.Person]; v.Tag != want {
+		if want := map[string]string{"telegram:1001": "junk", "matrix:@ann:example.org": "spam", "matrix:@bob:example.org": "spam"}[v.Person]; v.Tag != want {
 			t.Errorf("after Telegram's retag %s is in %s, want %s", v.Person, v.Tag, want)
 		}
 	}

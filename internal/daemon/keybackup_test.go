@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // backupCounter answers as the test chooses and counts calls.
@@ -20,7 +21,11 @@ type backupCounter struct {
 	err      error
 }
 
-func (c *backupCounter) BackupRoomKeys(context.Context) (int, error) {
+func (c *backupCounter) Accounts() []domain.Account {
+	return []domain.Account{{Network: domain.ProtocolMatrix, On: domain.RoomOwner(mx), Name: "@me:x"}}
+}
+
+func (c *backupCounter) BackupRoomKeys(context.Context, domain.RoomOwner) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.passes++
@@ -45,10 +50,10 @@ type recorder struct {
 	lines []string
 }
 
-func (r *recorder) log(_ slog.Level, line string) {
+func (r *recorder) log(_ slog.Level, account, line string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.lines = append(r.lines, line)
+	r.lines = append(r.lines, account+": "+line)
 }
 
 func (r *recorder) all() []string {
@@ -62,7 +67,7 @@ func TestKeyBackupSweepsAtStartupAndOnTheTimer(t *testing.T) {
 	t.Parallel()
 
 	backend := &backupCounter{}
-	k := NewKeyBackup(backend, func(slog.Level, string) {})
+	k := NewKeyBackup(backend, func(slog.Level, string, string) {})
 	k.every = time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -174,7 +179,7 @@ func TestKeyBackupReportsAFailure(t *testing.T) {
 func TestKeyBackupSweepsSoonWhenAsked(t *testing.T) {
 	t.Parallel()
 	c := &backupCounter{}
-	k := NewKeyBackup(c, func(slog.Level, string) {})
+	k := NewKeyBackup(c, func(slog.Level, string, string) {})
 	k.every = time.Hour
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -196,5 +201,48 @@ func TestKeyBackupSweepsSoonWhenAsked(t *testing.T) {
 	}
 	if got := c.count(); got < 2 {
 		t.Errorf("passes = %d, want a sweep soon after asking", got)
+	}
+}
+
+// accountsBackend has two accounts, each answering as the test says.
+type accountsBackend struct {
+	answers map[domain.RoomOwner]error
+}
+
+func (b accountsBackend) Accounts() []domain.Account {
+	return []domain.Account{
+		{Network: domain.ProtocolMatrix, On: domain.RoomOwner(mx), Name: "@me:x"},
+		{Network: domain.ProtocolMatrix, On: domain.AccountRooms(domain.ProtocolMatrix, "fedcba9876543210"), Name: "@me:work.x"},
+	}
+}
+
+func (b accountsBackend) BackupRoomKeys(_ context.Context, on domain.RoomOwner) (int, error) {
+	if err := b.answers[on]; err != nil {
+		return 0, err
+	}
+	return 2, nil
+}
+
+// Every account is swept each pass, one failing holding up none, and each one's
+// standing condition is said once, naming it.
+func TestKeyBackupSweepsEachAccount(t *testing.T) {
+	t.Parallel()
+	lines := &recorder{}
+	k := NewKeyBackup(accountsBackend{answers: map[domain.RoomOwner]error{mx: api.ErrNoKeyBackup}}, lines.log)
+	for range 2 {
+		k.pass(t.Context())
+	}
+	got := lines.all()
+	var home, work int
+	for _, line := range got {
+		switch {
+		case strings.HasPrefix(line, "@me:x: ") && strings.Contains(line, "no key backup"):
+			home++
+		case strings.HasPrefix(line, "@me:work.x: backed up 2"):
+			work++
+		}
+	}
+	if home != 1 || work != 2 || len(got) != 3 {
+		t.Errorf("lines = %q, want @me:x's missing backup once and @me:work.x's upload each pass", got)
 	}
 }

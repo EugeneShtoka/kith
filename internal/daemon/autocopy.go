@@ -19,7 +19,7 @@ func (n *Notifications) captureCode(ctx context.Context, msg domain.Message, min
 	}
 	facts := n.scope.Facts(ctx, msg.RoomID)
 	code, ok := rules.Decide(msg, domain.Arrival{
-		CaughtUp: n.caughtUp(),
+		CaughtUp: n.caughtUp(msg.RoomID),
 		Mine:     mine,
 		Room:     facts,
 	})

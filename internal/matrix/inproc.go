@@ -42,8 +42,9 @@ type InProc struct {
 	ignoredMu sync.Mutex
 	// logger receives what the backend cannot return (see UseLogger); nil is silent.
 	logger *slog.Logger
-	// onSynced, when set, is called with each sync response's arrival time. Set before Start.
-	onSynced func(time.Time)
+	// onSynced, when set, is called with the account and each sync response's arrival
+	// time. Set before Start.
+	onSynced func(domain.RoomOwner, time.Time)
 	// onRoomsStale, when set, is called when a sync changes the room list, a room
 	// name or the space hierarchy. Set before Start.
 	onRoomsStale func()
@@ -468,7 +469,7 @@ func newestVersionBut(revs []domain.Revision, deleted domain.EventID) (domain.Re
 // marked-unread, stars, tag verdicts and typing.
 func (b *InProc) onSync(ctx context.Context, resp *mautrix.RespSync, since string) bool {
 	if b.onSynced != nil {
-		b.onSynced(time.Now())
+		b.onSynced(b.ids.owner(), time.Now())
 	}
 	b.syncs.Add(1)
 	// Before the token moves on: the gap is kept even if kithd stops right after.
@@ -572,9 +573,10 @@ func (b *InProc) resetSyncPosition(ctx context.Context) error {
 	return nil
 }
 
-// OnSynced registers a callback with each sync response's arrival time. Call before
-// Start; it runs on the sync goroutine and must not block.
-func (b *InProc) OnSynced(fn func(time.Time)) { b.onSynced = fn }
+// OnSynced registers a callback with the account (its rooms' owner) and each sync
+// response's arrival time. Call before Start; it runs on the sync goroutine and must
+// not block.
+func (b *InProc) OnSynced(fn func(domain.RoomOwner, time.Time)) { b.onSynced = fn }
 
 // OnRoomsStale registers a callback for syncs that change rooms, names, spaces or
 // m.direct. Call before Start; it runs on the sync goroutine and must not block.

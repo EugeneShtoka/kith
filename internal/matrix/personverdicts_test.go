@@ -88,7 +88,7 @@ func TestPersonAccountDataInASyncIsMirrored(t *testing.T) {
 	ctx := context.Background()
 	srv := newAccountDataServer(t)
 	b := backendWith(t, srv.Server, nil)
-	if err := b.cache.SetPersonVerdicts(ctx, domain.ProtocolMatrix, []domain.PersonVerdict{
+	if err := b.cache.SetPersonVerdicts(ctx, b.ids.owner(), []domain.PersonVerdict{
 		{Person: "matrix:@ann:x", Tag: "spam", Rule: domain.MoveAlways, At: time.Now()},
 	}); err != nil {
 		t.Fatal(err)
