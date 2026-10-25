@@ -191,7 +191,7 @@ func (m Model) followLink(uri string) (Model, tea.Cmd) {
 		return m.followWhatsAppLink(link, uri)
 	}
 	if _, ok := domain.ParseSignalLink(uri); ok {
-		return m.doing("looking up " + uri + "…"), m.resolveLinkCmd(uri, 0, "")
+		return m.pickAccount(accountThen{kind: thenResolve, network: domain.ProtocolSignal, uri: uri})
 	}
 	return m.say("not a Matrix, Telegram, WhatsApp or Signal link: " + uri), nil
 }

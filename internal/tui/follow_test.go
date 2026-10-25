@@ -270,6 +270,7 @@ type linkBackend struct {
 var linkAccounts = []domain.Account{
 	{Network: domain.ProtocolTelegram, On: domain.AccountRooms(domain.ProtocolTelegram, "42"), Name: "tg"},
 	{Network: domain.ProtocolWhatsApp, On: domain.AccountRooms(domain.ProtocolWhatsApp, "15550100001"), Name: "wa"},
+	{Network: domain.ProtocolSignal, On: domain.AccountRooms(domain.ProtocolSignal, "11111111-1111-4111-8111-111111111111"), Name: "sig"},
 }
 
 func (b *linkBackend) Accounts(context.Context) ([]domain.Account, error) {
@@ -720,10 +721,10 @@ func TestAHandedOverSignalLinkOpensWhatSignalFound(t *testing.T) {
 	known := domain.Room{ID: "signal:11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222", Name: "Dana", IsDirect: true}
 	b := &linkBackend{target: domain.LinkTarget{Room: known}}
 	m := sized(t, starterNew(b, config.Display{}))
-	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, known}})
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, known}})
 
 	next := followed(t, m, "sgnl://signal.me/#p/+15550100002")
-	if len(b.resolved) != 1 || next.openRoom != known.ID {
+	if len(b.resolved) != 1 || next.openRoom != known.ID || b.on[0] != linkAccounts[2].On {
 		t.Errorf("open room = %q, asked %v: want the number looked up and Dana's chat opened", next.openRoom, b.resolved)
 	}
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"connectrpc.com/connect"
 
@@ -24,25 +23,24 @@ var errNobodyThere = errors.New("signal: nobody on Signal has that number or lin
 // errJoinRequested: the group's admins approve who joins, and the account asked to.
 var errJoinRequested = errors.New("signal: asked to join; an admin of the group has to approve it")
 
-// linkAccount is the account links are looked up on: the first connected, by name,
-// so the answer does not change between calls.
-func (a *Adapter) linkAccount() (string, *helper, error) {
-	linked := a.linkedAccounts()
-	names := make([]string, 0, len(linked))
-	for name := range linked {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	for _, name := range names {
-		if h, err := a.sender(linked[name]); err == nil {
-			return linked[name], h, nil
+// linkAccount is account on, which a link is looked up or joined on, connected.
+func (a *Adapter) linkAccount(on domain.RoomOwner) (string, *helper, error) {
+	for _, aci := range a.linkedAccounts() {
+		if owner(aci) != on {
+			continue
 		}
+		h, err := a.sender(aci)
+		if err != nil {
+			return "", nil, fmt.Errorf("signal: %s is not connected: %w", on, api.ErrNetworkOff)
+		}
+		return aci, h, nil
 	}
-	return "", nil, fmt.Errorf("signal: no account to look a link up on: %w", api.ErrNetworkOff)
+	return "", nil, fmt.Errorf("signal: %s is no linked account here: %w", on, api.ErrNotOnNetwork)
 }
 
-// ResolveLink looks up the person a Signal link names: the chat to write in.
-func (a *Adapter) ResolveLink(ctx context.Context, uri string) (domain.LinkTarget, error) {
+// ResolveLink looks up, on account on, the person a Signal link names (the chat to
+// write in), or the group its invite is to.
+func (a *Adapter) ResolveLink(ctx context.Context, uri string, on domain.RoomOwner) (domain.LinkTarget, error) {
 	link, ok := domain.ParseSignalLink(uri)
 	if !ok {
 		return domain.LinkTarget{}, fmt.Errorf("signal: not a Signal link: %s", uri)
@@ -54,11 +52,11 @@ func (a *Adapter) ResolveLink(ctx context.Context, uri string) (domain.LinkTarge
 	case domain.SignalLinkUsername:
 		req.By = &signalv1.FindPersonRequest_UsernameLink{UsernameLink: link.Username}
 	case domain.SignalLinkGroup:
-		return a.inviteTarget(ctx, link.Invite)
+		return a.inviteTarget(ctx, on, link.Invite)
 	case domain.SignalLinkNone:
 		return domain.LinkTarget{}, fmt.Errorf("signal: not a Signal link: %s", uri)
 	}
-	self, h, err := a.linkAccount()
+	self, h, err := a.linkAccount(on)
 	if err != nil {
 		return domain.LinkTarget{}, err
 	}
@@ -103,9 +101,9 @@ func (a *Adapter) personTarget(ctx context.Context, self, aci, digits, username 
 	}}, nil
 }
 
-// inviteTarget is the group an invite link is to: one the account is in, or one to join.
-func (a *Adapter) inviteTarget(ctx context.Context, invite []byte) (domain.LinkTarget, error) {
-	self, h, err := a.linkAccount()
+// inviteTarget is the group an invite link is to: one account on is in, or one to join.
+func (a *Adapter) inviteTarget(ctx context.Context, on domain.RoomOwner, invite []byte) (domain.LinkTarget, error) {
+	self, h, err := a.linkAccount(on)
 	if err != nil {
 		return domain.LinkTarget{}, err
 	}
@@ -143,13 +141,14 @@ func (a *Adapter) inviteTarget(ctx context.Context, invite []byte) (domain.LinkT
 	return domain.LinkTarget{Room: room, Join: true, About: about}, nil
 }
 
-// JoinLink joins the group a Signal invite link names, and returns its room.
-func (a *Adapter) JoinLink(ctx context.Context, uri string) (domain.RoomID, error) {
+// JoinLink joins, as account on, the group a Signal invite link names, and returns its
+// room.
+func (a *Adapter) JoinLink(ctx context.Context, uri string, on domain.RoomOwner) (domain.RoomID, error) {
 	link, ok := domain.ParseSignalLink(uri)
 	if !ok || link.Kind != domain.SignalLinkGroup {
 		return "", fmt.Errorf("signal: not a group invite: %s", uri)
 	}
-	self, h, err := a.linkAccount()
+	self, h, err := a.linkAccount(on)
 	if err != nil {
 		return "", err
 	}

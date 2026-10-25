@@ -71,6 +71,7 @@ var (
 		route.Leaver
 		route.SignOuter
 		configChecker
+		route.LinkFollower
 	} = (*whatsapp.Adapter)(nil)
 
 	_ interface {
@@ -124,6 +125,7 @@ var (
 		configChecker
 		roomsRewriter
 		cacheWriter
+		route.LinkFollower
 	} = (*telegram.Adapter)(nil)
 
 	// Messenger: threads, people, messages, history, reading, sending, editing and
@@ -226,6 +228,7 @@ var (
 		configChecker
 		roomsRewriter
 		cacheWriter
+		route.LinkFollower
 	} = (*signal.Adapter)(nil)
 
 	// Instagram: signed in by cookies, the inbox and messages received, text sent,
