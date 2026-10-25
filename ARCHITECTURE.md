@@ -240,6 +240,13 @@ an old client cannot talk to a new daemon.
 The socket is `0600` and there is no token on the wire: the file permissions are
 the whole authorization story.
 
+A client names the `[[profile]]` it runs in with a `Kith-Profile` header on every
+request (none is the first; an unknown one is refused). The daemon narrows every call
+about many rooms (lists, counts, search, the unread and invite streams) to the
+profile's rooms, and answers any room a call names. Which calls narrow is one table in
+`internal/daemon/profiles.go`; a call missing from it is refused, so a new call cannot
+reach a client undecided. Nothing about the client is kept beyond its request.
+
 ## The `api.Backend` interface
 
 The `Backend` interface earns its place three times over: it keeps the mautrix-go

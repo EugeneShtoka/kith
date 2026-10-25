@@ -117,6 +117,9 @@ The answer includes a `reason` whenever the result was not a plain send. The ass
 
 ## Scope: where the assistant may read and write
 
+kith-mcp runs in the first [profile](configuration.md#profiles): a room outside it is
+not listed or searched, whatever the scope below allows.
+
 ```toml
 [agent.read]
 rooms     = []      # what it may read; EMPTY SHARES NOTHING

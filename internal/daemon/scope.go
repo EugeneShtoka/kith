@@ -142,6 +142,19 @@ func (x *scopeIndex) Facts(ctx context.Context, roomID domain.RoomID) domain.Roo
 	return x.factsFrom(roomID, facts)
 }
 
+// FactsOf is Facts for a room in hand: one the index has not placed yet (an invitation,
+// a room newer than the last rebuild) is judged by what it says itself.
+func (x *scopeIndex) FactsOf(ctx context.Context, room domain.Room) domain.RoomFacts {
+	facts, ok := x.lookup(ctx, room.ID)
+	if !ok {
+		x.mu.Lock()
+		aliases := x.aliases
+		x.mu.Unlock()
+		facts = domain.Places{Names: aliases}.Facts(room, nil)
+	}
+	return x.factsFrom(room.ID, facts)
+}
+
 // Known is the room as indexed now, with current tags, never rebuilding; an unknown
 // room is its ID and network alone.
 func (x *scopeIndex) Known(roomID domain.RoomID) domain.RoomFacts {

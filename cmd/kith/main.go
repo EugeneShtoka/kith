@@ -76,6 +76,7 @@ func main() {
 		flag.String("log-target", "", "where to log ("+logging.Targets+"): the journal, $XDG_STATE_HOME/kith/"+logging.FileName+", or the journal when there is one; overrides $"+logging.EnvTarget+" and `[log] target`")
 	follow, force := flag.String("follow", "", "start the client and go to this matrix `uri` once it knows where it is. Used by --open when it has to start a terminal"),
 		flag.Bool("force", false, "take over from an kith already open on this account: it saves its drafts and closes")
+	profile := flag.String("profile", "", "run in this `[[profile]]`: its rooms, unread and search (default: the config's first)")
 	flag.Parse()
 
 	// Local one-shot operations run before anything needs a session: a machine with no
@@ -101,6 +102,7 @@ func main() {
 		exitOn(run(*configPath, startup{
 			follow:        *follow,
 			force:         *force,
+			profile:       *profile,
 			logLevel:      *logLevel,
 			logTarget:     *logTarget,
 			clearCache:    *clearCache,
@@ -116,6 +118,7 @@ func main() {
 type startup struct {
 	follow        string // a matrix URI to open first
 	force         bool   // take the seat from the window that has it
+	profile       string // the [[profile]] to run in; empty is the first
 	logLevel      string // --log-level; empty defers to $KITH_LOG_LEVEL and the config
 	logTarget     string // --log-target; empty defers to $KITH_LOG_TARGET and the config
 	clearCache    bool
@@ -316,14 +319,8 @@ func run(configPath string, jobs startup) error {
 	if at.note != "" {
 		fmt.Fprintln(os.Stderr, "kith:", at.note)
 	}
-	warnAboutAgentScope(ctx, backend, cfg)
-	// One window per daemon (api.Seat), taken first; runs ending in a printout need none.
-	if !jobs.bootstrapKeys && jobs.exportKeys == "" {
-		if serr := backend.TakeSeat(ctx, jobs.force, whereAmI()); errors.Is(serr, api.ErrSeatTaken) {
-			return fmt.Errorf("%w; close it, or run kith --force to take over", serr)
-		} else if serr != nil {
-			return fmt.Errorf("take the seat: %w", serr)
-		}
+	if serr := sitDown(ctx, backend, cfg, jobs); serr != nil {
+		return serr
 	}
 
 	if jobs.clearCache {
@@ -364,6 +361,45 @@ func run(configPath string, jobs startup) error {
 		return fmt.Errorf("run tui: %w", err)
 	}
 	return nil
+}
+
+// sitDown names the profile this window runs in and takes the seat, warning first
+// about the assistant's scope.
+func sitDown(ctx context.Context, backend *daemon.Remote, cfg config.Config, jobs startup) error {
+	if err := useProfile(backend, cfg, jobs.profile); err != nil {
+		return err
+	}
+	warnAboutAgentScope(ctx, backend, cfg)
+	// One window per daemon (api.Seat), taken first; runs ending in a printout need none.
+	if !jobs.bootstrapKeys && jobs.exportKeys == "" {
+		if serr := backend.TakeSeat(ctx, jobs.force, whereAmI()); errors.Is(serr, api.ErrSeatTaken) {
+			return fmt.Errorf("%w; close it, or run kith --force to take over", serr)
+		} else if serr != nil {
+			return fmt.Errorf("take the seat: %w", serr)
+		}
+	}
+	return nil
+}
+
+// useProfile names the profile every request runs in, refusing one the config lacks
+// before the daemon would.
+func useProfile(backend *daemon.Remote, cfg config.Config, name string) error {
+	if name == "" {
+		return nil
+	}
+	profiles, err := setup.Profiles(cfg)
+	if err != nil {
+		return err
+	}
+	names := make([]string, len(profiles))
+	for i, p := range profiles {
+		if strings.EqualFold(p.Name, strings.TrimSpace(name)) {
+			backend.UseProfile(p.Name)
+			return nil
+		}
+		names[i] = p.Name
+	}
+	return fmt.Errorf("--profile %q: the config has %s", name, strings.Join(names, ", "))
 }
 
 // whereAmI describes this window for one refused the seat: process, terminal (via /proc
