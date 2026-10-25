@@ -79,11 +79,11 @@ func (a *account) lookUp(ctx context.Context, numbers []string) (found []uuid.UU
 	if err != nil {
 		return nil, nil, fmt.Errorf("signal: look the numbers up: %w", err)
 	}
-	for i, e164 := range e164s {
-		if entry, ok := res[e164]; ok && entry.ACI != uuid.Nil {
+	for i, number := range numbers {
+		if entry, ok := res[e164s[i]]; ok && entry.ACI != uuid.Nil {
 			found = append(found, entry.ACI)
 		} else {
-			unknown = append(unknown, numbers[i])
+			unknown = append(unknown, number)
 		}
 	}
 	return found, unknown, nil
