@@ -139,12 +139,12 @@ func (m Model) startDirect(user string) (Model, tea.Cmd) {
 			break
 		}
 	}
-	return m.doing("starting a conversation with " + isolate(name) + "…"), m.createRoomAsCmd(domain.NewRoom{
+	return m.pickAccount(accountThen{kind: thenCreate, network: domain.NetworkOf(user), name: name, spec: domain.NewRoom{
 		// No m.room.name: it would override every client's member-derived DM label.
 		Encrypted: true,
 		Direct:    true,
 		Invite:    []string{user},
-	}, name, true)
+	}})
 }
 
 // acceptJump goes where a row says: "kind:id", split once (IDs contain colons).

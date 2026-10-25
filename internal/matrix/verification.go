@@ -176,7 +176,10 @@ func (b *InProc) verifyContext() context.Context {
 
 // StartVerification asks this account's other devices to verify this one and
 // returns the transaction ID; VerificationReady then drives SAS.
-func (b *InProc) StartVerification(ctx context.Context) (string, error) {
+func (b *InProc) StartVerification(ctx context.Context, on domain.RoomOwner) (string, error) {
+	if err := b.mine(on); err != nil {
+		return "", err
+	}
 	vh := b.verifier()
 	if vh == nil {
 		return "", api.ErrNoEncryption

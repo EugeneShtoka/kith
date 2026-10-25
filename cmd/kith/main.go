@@ -251,23 +251,51 @@ func sharedStorage(configPath, profile string) domain.Storage {
 // ends. Bootstrap and export end it: the TUI would scroll away a once-printed recovery
 // key, and an export needs nothing more.
 func runKeyJobs(ctx context.Context, backend *daemon.Remote, user string, jobs startup) (bool, error) {
+	if !jobs.bootstrapKeys && !jobs.restoreKeys && jobs.exportKeys == "" && jobs.importKeys == "" {
+		return false, nil
+	}
+	on, err := matrixAccount(ctx, backend)
+	if err != nil {
+		return true, err
+	}
 	if jobs.bootstrapKeys {
-		return true, bootstrapKeyBackup(ctx, backend, user)
+		return true, bootstrapKeyBackup(ctx, backend, on, user)
 	}
 	if jobs.restoreKeys {
-		if err := restoreKeyBackup(ctx, backend, user); err != nil {
+		if err := restoreKeyBackup(ctx, backend, on, user); err != nil {
 			return true, err
 		}
 	}
 	if jobs.exportKeys != "" {
-		return true, exportRoomKeys(ctx, backend, user, jobs.exportKeys)
+		return true, exportRoomKeys(ctx, backend, on, user, jobs.exportKeys)
 	}
 	if jobs.importKeys != "" {
-		if err := importRoomKeys(ctx, backend, jobs.importKeys); err != nil {
+		if err := importRoomKeys(ctx, backend, on, jobs.importKeys); err != nil {
 			return true, err
 		}
 	}
 	return false, nil
+}
+
+// matrixAccount is the Matrix account the key jobs act on, by the rule calls naming no
+// account follow (domain.PickAccount); where it would ask, the jobs refuse instead.
+func matrixAccount(ctx context.Context, backend api.Accounts) (domain.RoomOwner, error) {
+	accounts, err := backend.Accounts(ctx)
+	if err != nil {
+		return "", fmt.Errorf("list the accounts: %w", err)
+	}
+	picked, ask := domain.PickAccount(accounts, domain.ProtocolMatrix, nil)
+	switch {
+	case picked.On != "":
+		return picked.On, nil
+	case len(ask) == 0:
+		return "", errors.New("no Matrix account is logged in")
+	}
+	names := make([]string, 0, len(ask))
+	for _, a := range ask {
+		names = append(names, a.Name)
+	}
+	return "", fmt.Errorf("several Matrix accounts are logged in (%s) and none is the default", strings.Join(names, ", "))
 }
 
 func run(configPath, profile string, jobs startup) error {
@@ -419,12 +447,12 @@ func loadConfig(configPath, profile string) (path string, cfg config.Config, rea
 // restoreKeyBackup imports the server-side room-key backup. The secret is read here
 // (only a terminal can) and crosses the 0600 socket to the daemon, which owns the
 // crypto store.
-func restoreKeyBackup(ctx context.Context, backend api.Keys, user string) error {
+func restoreKeyBackup(ctx context.Context, backend api.Keys, on domain.RoomOwner, user string) error {
 	secret, err := readSecret(fmt.Sprintf("Recovery key or passphrase for %s", user))
 	if err != nil {
 		return err
 	}
-	count, err := backend.RestoreKeyBackup(ctx, secret)
+	count, err := backend.RestoreKeyBackup(ctx, on, secret)
 	switch {
 	case errors.Is(err, api.ErrNoEncryption):
 		return errors.New("encryption is not enabled for this device, so there is nowhere to import keys to")
@@ -442,7 +470,7 @@ func restoreKeyBackup(ctx context.Context, backend api.Keys, user string) error 
 // bootstrapKeyBackup sets up room-key backup and prints the recovery key. It refuses
 // when setup exists: a second run would mint a new cross-signing identity and orphan
 // the first recovery key.
-func bootstrapKeyBackup(ctx context.Context, backend api.Keys, user string) error {
+func bootstrapKeyBackup(ctx context.Context, backend api.Keys, on domain.RoomOwner, user string) error {
 	fmt.Fprintln(os.Stderr,
 		"kith: this sets this account's encryption up for the first time: cross-signing,\n"+
 			"secret storage and a room-key backup, with a recovery key printed once at the end.\n"+
@@ -451,7 +479,7 @@ func bootstrapKeyBackup(ctx context.Context, backend api.Keys, user string) erro
 	if err != nil {
 		return err
 	}
-	made, err := backend.BootstrapKeyBackup(ctx, password)
+	made, err := backend.BootstrapKeyBackup(ctx, on, password)
 	switch {
 	case errors.Is(err, api.ErrNoEncryption):
 		return errors.New("encryption is not enabled for this device, so there is nothing to set up")
@@ -511,12 +539,12 @@ func readSecretOrEmpty(prompt string) (string, error) {
 
 // exportRoomKeys writes this device's room keys, passphrase-encrypted, to path. The
 // daemon produces the ciphertext; this process writes it (the daemon cannot).
-func exportRoomKeys(ctx context.Context, backend api.Keys, user, path string) error {
+func exportRoomKeys(ctx context.Context, backend api.Keys, on domain.RoomOwner, user, path string) error {
 	passphrase, err := readNewSecret(fmt.Sprintf("Passphrase to encrypt %s's room keys", user))
 	if err != nil {
 		return err
 	}
-	data, err := backend.ExportRoomKeys(ctx, passphrase)
+	data, err := backend.ExportRoomKeys(ctx, on, passphrase)
 	switch {
 	case errors.Is(err, api.ErrNoEncryption):
 		return errors.New("encryption is not enabled for this device, so it holds no room keys")
@@ -542,7 +570,7 @@ func exportRoomKeys(ctx context.Context, backend api.Keys, user, path string) er
 }
 
 // importRoomKeys adds the sessions in a Matrix key export to this device's store.
-func importRoomKeys(ctx context.Context, backend api.Keys, path string) error {
+func importRoomKeys(ctx context.Context, backend api.Keys, on domain.RoomOwner, path string) error {
 	data, err := os.ReadFile(path) // #nosec G304 -- the path is one this user typed at their own shell
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
@@ -551,7 +579,7 @@ func importRoomKeys(ctx context.Context, backend api.Keys, path string) error {
 	if err != nil {
 		return err
 	}
-	imported, total, err := backend.ImportRoomKeys(ctx, passphrase, data)
+	imported, total, err := backend.ImportRoomKeys(ctx, on, passphrase, data)
 	switch {
 	case errors.Is(err, api.ErrNoEncryption):
 		return errors.New("encryption is not enabled for this device, so there is nowhere to import keys to")

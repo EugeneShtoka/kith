@@ -632,7 +632,7 @@ func TestWithoutMatrixNothingReachesIt(t *testing.T) {
 		}
 		actions := map[string]error{}
 		_, actions["JoinRoom"] = r.JoinRoom(ctx, "#a:x", nil)
-		_, actions["CreateRoom"] = r.CreateRoom(ctx, domain.NewRoom{})
+		_, actions["CreateRoom"] = r.CreateRoom(ctx, domain.NewRoom{On: domain.RoomOwner(mx)})
 		actions["AddToSpace"] = r.AddToSpace(ctx, mx+"!s:x", matrixRoomID)
 		actions["RemoveFromSpace"] = r.RemoveFromSpace(ctx, mx+"!s:x", matrixRoomID)
 		actions["InviteUser"] = r.InviteUser(ctx, matrixRoomID, "matrix:@u:x")
@@ -643,14 +643,14 @@ func TestWithoutMatrixNothingReachesIt(t *testing.T) {
 		_, actions["ListThreads"] = r.ListThreads(ctx, matrixRoomID)
 		_, actions["ThreadPage"] = r.ThreadPage(ctx, matrixRoomID, mx+"$r", "", 10)
 		actions["MarkThreadRead"] = r.MarkThreadRead(ctx, matrixRoomID, mx+"$r", mx+"$e", false)
-		_, actions["StartVerification"] = r.StartVerification(ctx)
+		_, actions["StartVerification"] = r.StartVerification(ctx, domain.RoomOwner(mx))
 		actions["AcceptVerification"] = r.AcceptVerification(ctx, "t")
 		actions["ConfirmSAS"] = r.ConfirmSAS(ctx, "t")
 		actions["CancelVerification"] = r.CancelVerification(ctx, "t")
-		_, actions["RestoreKeyBackup"] = r.RestoreKeyBackup(ctx, "s")
-		_, actions["ExportRoomKeys"] = r.ExportRoomKeys(ctx, "p")
-		_, _, actions["ImportRoomKeys"] = r.ImportRoomKeys(ctx, "p", nil)
-		_, actions["BootstrapKeyBackup"] = r.BootstrapKeyBackup(ctx, "p")
+		_, actions["RestoreKeyBackup"] = r.RestoreKeyBackup(ctx, domain.RoomOwner(mx), "s")
+		_, actions["ExportRoomKeys"] = r.ExportRoomKeys(ctx, domain.RoomOwner(mx), "p")
+		_, _, actions["ImportRoomKeys"] = r.ImportRoomKeys(ctx, domain.RoomOwner(mx), "p", nil)
+		_, actions["BootstrapKeyBackup"] = r.BootstrapKeyBackup(ctx, domain.RoomOwner(mx), "p")
 		for call, err := range actions {
 			if !errors.Is(err, api.ErrNetworkOff) {
 				t.Errorf("%s: %s = %v, want ErrNetworkOff", name, call, err)
@@ -684,7 +684,7 @@ func TestMatrixLoggingInIsServedAtOnce(t *testing.T) {
 			t.Errorf("%s on a Matrix room after login = %v", call, err)
 		}
 	}
-	if _, err := r.StartVerification(ctx); err != nil {
+	if _, err := r.StartVerification(ctx, domain.RoomOwner(mx)); err != nil {
 		t.Errorf("StartVerification after login = %v", err)
 	}
 	if rooms, err := r.Rooms(ctx); err != nil || len(rooms) != 2 {
@@ -839,7 +839,7 @@ func (c *chatMaker) ChatOffers(context.Context) ([]domain.ChatOffer, error) {
 }
 
 // A chat for an account goes to that account's network; a network that makes none
-// refuses; no account named means Matrix.
+// refuses; one naming no account is refused, never sent to some network.
 func TestANewChatGoesToItsAccountsNetwork(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -856,8 +856,11 @@ func TestANewChatGoesToItsAccountsNetwork(t *testing.T) {
 	if _, err := r.CreateRoom(ctx, spec); !errors.Is(err, api.ErrNotOnNetwork) {
 		t.Errorf("CreateRoom on a network that makes none = %v, want not on that network", err)
 	}
-	if _, err := r.CreateRoom(ctx, domain.NewRoom{Name: "Plain"}); err != nil || !slices.Contains(m.calls(), "CreateRoom") {
-		t.Errorf("a room with no account = %v, Matrix calls %v", err, m.calls())
+	if _, err := r.CreateRoom(ctx, domain.NewRoom{Name: "Plain"}); !errors.Is(err, api.ErrNotOnNetwork) || slices.Contains(m.calls(), "CreateRoom") {
+		t.Errorf("a room with no account = %v, Matrix calls %v; want it refused", err, m.calls())
+	}
+	if _, err := r.CreateRoom(ctx, domain.NewRoom{Name: "Plain", On: domain.RoomOwner(mx)}); err != nil || !slices.Contains(m.calls(), "CreateRoom") {
+		t.Errorf("a room on the Matrix account = %v, Matrix calls %v", err, m.calls())
 	}
 	// What chats can be made is asked of the networks that make them, and only them.
 	if offers, err := r.ChatOffers(ctx); err != nil || len(offers) != 1 || offers[0].Kind != domain.ChatForum {

@@ -317,6 +317,8 @@ message PublicRoom {
 message PublicRoomsRequest {
   string server = 1;
   string since = 2;
+  // The Matrix account it is for, as domain.AccountRooms writes it.
+  string on = 3;
 }
 
 message PublicRoomsResponse {
@@ -701,6 +703,10 @@ enum ChatKind {
   CHAT_KIND_CHANNEL = 3;
   CHAT_KIND_PRIVATE_CHANNEL = 4;
   CHAT_KIND_COMMUNITY = 5;
+  CHAT_KIND_ROOM = 6;
+  CHAT_KIND_ROOM_UNENCRYPTED = 7;
+  CHAT_KIND_ROOM_PUBLIC = 8;
+  CHAT_KIND_SPACE = 9;
 }
 
 // One kind of chat an account can make, as its network describes it (domain.ChatOffer).
@@ -1164,7 +1170,10 @@ message VerificationsResponse {
   Verification verification = 1;
 }
 
-message StartVerificationRequest {}
+message StartVerificationRequest {
+  // The Matrix account it is for, as domain.AccountRooms writes it.
+  string on = 1;
+}
 
 message StartVerificationResponse {
   // The transaction the exchange will run under, so the client can tell its own request
@@ -1255,11 +1264,15 @@ message ClearCacheResponse {}
 message RestoreKeyBackupRequest {
   // secret is the account's recovery key or passphrase, typed by a human.
   string secret = 1;
+  // The Matrix account it is for, as domain.AccountRooms writes it.
+  string on = 2;
 }
 
 // Room keys as a file, for an account with no server-side backup to restore from.
 message ExportRoomKeysRequest {
   string passphrase = 1;
+  // The Matrix account it is for, as domain.AccountRooms writes it.
+  string on = 2;
 }
 
 message ExportRoomKeysResponse {
@@ -1269,6 +1282,8 @@ message ExportRoomKeysResponse {
 message ImportRoomKeysRequest {
   string passphrase = 1;
   bytes data = 2;
+  // The Matrix account it is for, as domain.AccountRooms writes it.
+  string on = 3;
 }
 
 message ImportRoomKeysResponse {
@@ -1284,6 +1299,8 @@ message RestoreKeyBackupResponse {
 // Setting an account up for key backup when it has none.
 message BootstrapKeyBackupRequest {
   string password = 1;
+  // The Matrix account it is for, as domain.AccountRooms writes it.
+  string on = 2;
 }
 
 message BootstrapKeyBackupResponse {
@@ -1763,8 +1780,7 @@ service BackendService {
   rpc SignOut(SignOutRequest) returns (SignOutResponse);
   // Deciding who else is in a room.
   rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
-  // ChatOffers is every kind of chat each connected account of a network other than
-  // Matrix can make.
+  // ChatOffers is every kind of chat, room or space each connected account can make.
   rpc ChatOffers(ChatOffersRequest) returns (ChatOffersResponse);
   // Accounts is every connected account of every network, for a client to pick the
   // one a call naming none goes to (domain.PickAccount).

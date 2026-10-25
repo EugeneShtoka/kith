@@ -954,12 +954,12 @@ func (m Model) listenVerifyCmd() tea.Cmd {
 // without it the overlay would wait forever.
 type verifyFailedMsg struct{ err error }
 
-// startVerifyCmd asks this account's other devices to verify this session; the
+// startVerifyCmd asks the other devices of the account on to verify this session; the
 // returned transaction ID addresses every later step.
-func (m Model) startVerifyCmd() tea.Cmd {
+func (m Model) startVerifyCmd(on domain.RoomOwner) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
-		txnID, err := backend.StartVerification(ctx)
+		txnID, err := backend.StartVerification(ctx, on)
 		if err != nil {
 			return verifyStartedMsg{err: err}
 		}

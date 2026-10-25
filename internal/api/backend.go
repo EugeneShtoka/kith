@@ -121,7 +121,7 @@ type Rooms interface {
 	// PublicRooms lists one page of the Matrix public rooms directory. Matrix only.
 	// server is the homeserver to search (empty: this account's); since carries over
 	// the cursor from a previous page's NextSince to fetch the next.
-	PublicRooms(ctx context.Context, server, since string) (domain.PublicRoomsPage, error)
+	PublicRooms(ctx context.Context, on domain.RoomOwner, server, since string) (domain.PublicRoomsPage, error)
 	// KnockRoom asks to join a knock-only Matrix room; a moderator decides. The
 	// room becomes an ordinary joined one only once the moderator accepts. reason
 	// is shown to the moderators.
@@ -257,7 +257,7 @@ type Membership interface {
 	LeaveRoom(ctx context.Context, roomID domain.RoomID) error
 }
 
-// NewChats is what chats each account of a network other than Matrix can make.
+// NewChats is what chats each account can make.
 type NewChats interface {
 	// ChatOffers is every kind of chat each connected account can make, as its
 	// network describes it.
@@ -352,7 +352,7 @@ type Verification interface {
 	Verifications() <-chan domain.Verification
 	// StartVerification asks this account's other devices to verify this one and
 	// returns the transaction ID.
-	StartVerification(ctx context.Context) (string, error)
+	StartVerification(ctx context.Context, on domain.RoomOwner) (string, error)
 	AcceptVerification(ctx context.Context, txnID string) error
 	ConfirmSAS(ctx context.Context, txnID string) error
 	CancelVerification(ctx context.Context, txnID string) error
@@ -362,19 +362,19 @@ type Verification interface {
 type Keys interface {
 	// RestoreKeyBackup unlocks secret storage and imports every backed-up room key.
 	// Returns ErrNoEncryption, ErrNoKeyBackup or ErrBadRecoveryKey.
-	RestoreKeyBackup(ctx context.Context, secret string) (int, error)
+	RestoreKeyBackup(ctx context.Context, on domain.RoomOwner, secret string) (int, error)
 	// ExportRoomKeys returns an encrypted Matrix key-export file. Bytes, not a
 	// path: the daemon cannot write where the user wants it. Returns
 	// ErrNoEncryption or ErrNoRoomKeys.
-	ExportRoomKeys(ctx context.Context, passphrase string) ([]byte, error)
+	ExportRoomKeys(ctx context.Context, on domain.RoomOwner, passphrase string) ([]byte, error)
 	// ImportRoomKeys imports a key export, returning new and total sessions.
 	// Returns ErrNoEncryption or ErrBadKeyFile.
-	ImportRoomKeys(ctx context.Context, passphrase string, data []byte) (imported, total int, err error)
+	ImportRoomKeys(ctx context.Context, on domain.RoomOwner, passphrase string, data []byte) (imported, total int, err error)
 	// BootstrapKeyBackup creates cross-signing keys, secret storage, a backup
 	// version and a first upload. password is the account password (UIA). Returns
 	// ErrKeyBackupExists, ErrNoEncryption or ErrBadPassword. The recovery key
 	// returned is the only copy.
-	BootstrapKeyBackup(ctx context.Context, password string) (domain.KeyBackup, error)
+	BootstrapKeyBackup(ctx context.Context, on domain.RoomOwner, password string) (domain.KeyBackup, error)
 }
 
 // Assist is word completion, spelling and the language models, with the

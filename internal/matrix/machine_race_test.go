@@ -64,7 +64,7 @@ func TestTheCryptoMachineIsPublishedSafely(t *testing.T) {
 func TestTheMachineAnswersBeforeItExists(t *testing.T) {
 	t.Parallel()
 
-	b := &InProc{}
+	b := &InProc{ids: testIDs}
 	if got := b.cryptoHelper(); got != nil {
 		t.Errorf("cryptoHelper() = %v on a backend with no encryption, want nil", got)
 	}
@@ -74,7 +74,7 @@ func TestTheMachineAnswersBeforeItExists(t *testing.T) {
 	if got := b.verifyContext(); got == nil {
 		t.Error("verifyContext() = nil, want a usable context")
 	}
-	if _, err := b.StartVerification(context.Background()); !errors.Is(err, api.ErrNoEncryption) {
+	if _, err := b.StartVerification(context.Background(), testIDs.owner()); !errors.Is(err, api.ErrNoEncryption) {
 		t.Errorf("StartVerification() error = %v, want %v", err, api.ErrNoEncryption)
 	}
 }

@@ -27,14 +27,14 @@ func runKnock(m Model, arg string, _ domain.Room) (Model, tea.Cmd) {
 		return m.say("knock on which room? give its ID or alias"), nil
 	}
 	m.compose.input, m.compose.drafted = "", nil
-	return m, m.knockCmd(target, reason)
+	return m.pickAccount(accountThen{kind: thenKnock, network: domain.ProtocolMatrix, address: target, text: reason})
 }
 
-// knockCmd asks the daemon to knock, off the event loop.
-func (m Model) knockCmd(target, reason string) tea.Cmd {
+// knockCmd asks the daemon to knock on target as the account on, off the event loop.
+func (m Model) knockCmd(on domain.RoomOwner, target, reason string) tea.Cmd {
 	backend, ctx := m.backend, m.ctx
 	return func() tea.Msg {
-		roomID, err := backend.KnockRoom(ctx, target, reason, nil)
+		roomID, err := backend.KnockRoom(ctx, string(on)+target, reason, nil)
 		return knockedMsg{roomID: roomID, target: target, err: err}
 	}
 }
