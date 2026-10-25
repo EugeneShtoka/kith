@@ -29,16 +29,30 @@ kith --print-config > ~/.config/kith/config.toml
 The file holds **no secrets**. Your password is never stored, and the access token
 lives in the OS keyring, so you can keep the file in a dotfiles repository.
 
-### The account
+### Matrix accounts
 
-Two keys at the top level identify the account:
+Each `[[matrix.account]]` is one account; one daemon runs any number of them:
 
 ```toml
+[[matrix.account]]
+name       = "personal"                       # what `kith login matrix <name>` takes
 homeserver = "https://matrix.example.org"   # the client-server API URL
 user       = "@alice:example.org"           # your full Matrix ID
+
+[[matrix.account]]
+name       = "work"
+homeserver = "https://matrix.work.example"
+user       = "@alice:work.example"
+
+[matrix]
+default = "personal"   # which one a call naming none uses, when several could
 ```
 
-Other top-level keys:
+Each account has its own session, device and crypto store, and is a space in the rail
+holding its rooms (leaving that space signs the account out). A room two accounts are
+in shows as two rooms, one per account.
+
+Top-level keys:
 
 | Key | Default | Purpose |
 | --- | --- | --- |
@@ -47,8 +61,8 @@ Other top-level keys:
 
 ### Profiles
 
-For more than one account, name each one in a `[[profile]]` block instead of setting
-`homeserver`/`user` at the top level. Setting both is refused.
+To run an account in a daemon of its own, name it in a `[[profile]]` block instead of
+a `[[matrix.account]]`. Setting both is refused.
 
 ```toml
 [[profile]]

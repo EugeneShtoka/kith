@@ -56,8 +56,6 @@ var propertyGroups = append([]propertyGroup{
 	{"clipboard.", "codes", ""},
 	{"filter", "filters", ""},
 	{"agent.", "agent", "agent."},
-	{"homeserver", "networks", ""},
-	{"user", "networks", ""},
 	{"allow_token_file", "networks", ""},
 	{"bridge_contacts", "networks", ""},
 	{"commands.", "advanced", ""},

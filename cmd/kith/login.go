@@ -34,7 +34,7 @@ func runLogin(args []string) error {
 	if fs.NArg() > 2 {
 		return errors.New("usage: kith login [network [account]]")
 	}
-	path, cfg, ready, err := loadConfig(*configPath, *profile)
+	path, _, ready, err := loadConfig(*configPath, *profile)
 	if err != nil || !ready {
 		return err
 	}
@@ -62,9 +62,6 @@ func runLogin(args []string) error {
 	account, err := loginAccount(ctx, at.backend, network, fs.Arg(1))
 	if err != nil {
 		return err
-	}
-	if network == "matrix" && account == "" && cfg.HasMatrix() {
-		account = cfg.User
 	}
 	l := cliLogin{backend: at.backend, in: bufio.NewReader(os.Stdin), path: path}
 	return l.run(ctx, network, account)

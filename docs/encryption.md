@@ -16,7 +16,7 @@ For the same reason, the client has **no in-process fallback**. If no daemon is 
 
 | What | Where | Protection |
 | --- | --- | --- |
-| Crypto store (Olm account, Megolm sessions, device lists, cross-signing state) | `$XDG_DATA_HOME/kith/crypto-<hash>.db` | Encrypted at rest with the pickle key |
+| Crypto store (Olm account, Megolm sessions, device lists, cross-signing state) | `$XDG_DATA_HOME/kith/crypto-<instance>-<account>.db`, one per Matrix account | Encrypted at rest with the pickle key |
 | Pickle key (32 random bytes) | OS keyring, service `kith`, account `<your MXID>\|pickle` | Keyring only, never written to disk |
 | Access token and device ID | OS keyring, service `kith`, account `<your MXID>` | Keyring. A `0600` file only if you opt in with `allow_token_file = true` |
 | WhatsApp's and Messenger's key stores (each linked device's identity keys, prekeys, sessions, sender keys) | `$XDG_DATA_HOME/kith/whatsapp-<hash>.db`, `messenger-<hash>.db` | Encrypted at rest, every page and the write-ahead log, with the store's key |

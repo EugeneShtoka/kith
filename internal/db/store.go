@@ -305,7 +305,7 @@ func (c *Cache) SaveRooms(ctx context.Context, owner domain.RoomOwner, rooms []d
 		if err := upsertRooms(ctx, tx, rooms, membershipJoin); err != nil {
 			return err
 		}
-		return sweepOwnedRooms(ctx, tx, owner, rooms)
+		return sweepOwnedRooms(ctx, tx, owner, membershipJoin, rooms)
 	})
 }
 
@@ -345,9 +345,9 @@ func (c *Cache) JoinRooms(ctx context.Context, owner domain.RoomOwner, ids []dom
 	return joined, err
 }
 
-// sweepOwnedRooms deletes owner's joined rooms missing from the snapshot. An owner
-// is an ID prefix ("!" for Matrix, "whatsapp:<account>/" for an account).
-func sweepOwnedRooms(ctx context.Context, tx *sql.Tx, owner domain.RoomOwner, rooms []domain.Room) error {
+// sweepOwnedRooms deletes owner's rooms of membership missing from the snapshot. An
+// owner is an ID prefix ("whatsapp:<account>/" for an account).
+func sweepOwnedRooms(ctx context.Context, tx *sql.Tx, owner domain.RoomOwner, membership string, rooms []domain.Room) error {
 	if len(rooms) == 0 {
 		return nil
 	}
@@ -355,7 +355,7 @@ func sweepOwnedRooms(ctx context.Context, tx *sql.Tx, owner domain.RoomOwner, ro
 	for i := range rooms {
 		ids[i] = rooms[i].ID
 	}
-	in, args := inIDs([]any{membershipJoin, len(owner), string(owner)}, ids)
+	in, args := inIDs([]any{membership, len(owner), string(owner)}, ids)
 	// #nosec G202 -- inIDs emits only placeholders or a bound json_each.
 	query := "DELETE FROM rooms WHERE membership = ? AND substr(id, 1, ?) = ? AND id NOT" + in
 	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
@@ -419,24 +419,6 @@ func upsertTopics(ctx context.Context, tx *sql.Tx, rooms []domain.Room) error {
 		if _, err := stmt.ExecContext(ctx, args...); err != nil {
 			return fmt.Errorf("db: write topic for %s: %w", room.ID, err)
 		}
-	}
-	return nil
-}
-
-// sweepRooms deletes the rooms of one membership the snapshot no longer carries.
-func sweepRooms(ctx context.Context, tx *sql.Tx, rooms []domain.Room, membership string) error {
-	if len(rooms) == 0 {
-		return nil
-	}
-	ids := make([]domain.RoomID, len(rooms))
-	for i := range rooms {
-		ids[i] = rooms[i].ID
-	}
-	in, args := inIDs([]any{membership}, ids)
-	// #nosec G202 -- inIDs emits only placeholders or a bound json_each.
-	query := "DELETE FROM rooms WHERE membership = ? AND id NOT" + in
-	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("db: sweep %s rooms: %w", membership, err)
 	}
 	return nil
 }

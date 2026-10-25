@@ -46,7 +46,8 @@ for again.
   on a loopback redirect; password reads your password on the terminal with echo
   off. kith keeps the session in the system keyring (OAuth sessions also keep a
   refresh token, used automatically before the access token expires); never the
-  password. Every login is a new Matrix device: log in once per machine. When
+  password. With no account named, it sets a new `[[matrix.account]]` up first. Every
+  login is a new Matrix device: log in once per machine. When
   kithd already runs Matrix on another session, the new one is used from its next
   start.
 
@@ -172,9 +173,10 @@ Behavior worth knowing:
   `cannot reach the homeserver; serving cached history and connecting when it is back`,
   and retries with a backoff capped at 30 seconds.
 - **No Matrix account doesn't stop it.** The daemon runs Matrix with none until one is
-  set up (`:login matrix`, or `homeserver` and `user` written into the config and
-  `kith login`), and starts it then. Another account written over a running one waits
-  for a restart: Matrix's encryption store belongs to one account.
+  set up (`:login matrix`, or a `[[matrix.account]]` written into the config and
+  `kith login matrix <name>`), and starts it then. Each account has its own encryption
+  store, so one added, removed or moved to another homeserver by a config change starts
+  or stops without a restart, the others running on.
 - **Neither does a rejected session.** An invalid or revoked token leaves Matrix logged
   out, with the reason in the daemon's status and log, and the daemon waits for
   `kith login`. (A token rejected later, after the homeserver was first unreachable,

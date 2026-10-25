@@ -33,6 +33,12 @@ func (x ids) scoped(native string) string {
 // owner is the account's rooms in the cache.
 func (x ids) owner() domain.RoomOwner { return domain.AccountRooms(domain.ProtocolMatrix, x.account) }
 
+// accountSpace is the account's own space in the rail: its key within its rooms' prefix.
+func (x ids) accountSpace() domain.SpaceID { return domain.SpaceID(string(x.owner()) + x.account) }
+
+// ownerOf is the account a kith ID or address is under ("" for none).
+func ownerOf(id string) domain.RoomOwner { return domain.OwnerOf(domain.RoomID(id)) }
+
 // room is a Matrix room ID in kith's form.
 func (x ids) room(r id.RoomID) domain.RoomID { return domain.RoomID(x.scoped(string(r))) }
 

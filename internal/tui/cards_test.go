@@ -102,7 +102,7 @@ var (
 func carded(t *testing.T, back cardRooms, rules ...config.SpaceRule) (Model, string) {
 	t.Helper()
 	dir := writeCards(t, folderCards)
-	base := config.Config{Homeserver: "https://x", User: "@me:x", Display: config.Display{SpaceRules: rules}}
+	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Display: config.Display{SpaceRules: rules}}
 	base.Phonebook.Dir = dir
 	base.Keys.FillDefaults()
 	m := New(t.Context(), back, base.Display).WithConfigFile("", base)

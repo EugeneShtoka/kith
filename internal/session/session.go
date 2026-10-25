@@ -34,15 +34,11 @@ type Store struct {
 	File    string
 }
 
-// StoreFor is the instance's store. An instance named after its Matrix account keys by
-// the account itself; any other keys by instance, so a second instance never takes over
-// the first one's Matrix device.
-func StoreFor(storage domain.Storage, user string) Store {
-	account := storage.Instance
-	if user != "" && storage.Instance == domain.AccountKey(user) {
-		account = user
-	}
-	return Store{Service: storage.KeyringService, Account: account, File: storage.SessionFile()}
+// MatrixStore is where the instance keeps the session and encryption key of the Matrix
+// account whose key (domain.AccountKey) is key: each account its own, so two accounts
+// or two instances never share a device.
+func MatrixStore(storage domain.Storage, key string) Store {
+	return Store{Service: storage.KeyringService, Account: storage.Instance + "|matrix|" + key, File: storage.MatrixSessionFile(key)}
 }
 
 // ErrNoSecretStore means no OS secret store and no file fallback; a warning, not fatal.
@@ -89,6 +85,20 @@ func Load(st Store, allowFile bool) (domain.Session, bool, error) {
 		return readFile(st.File)
 	}
 	return domain.Session{}, false, nil
+}
+
+// Forget removes the saved session from the OS secret store and the file fallback.
+// The encryption key stays. With allowFile, an unreachable secret store is no failure:
+// Save falls back to the file only when it cannot reach the store.
+func Forget(st Store, allowFile bool) error {
+	if err := removeFile(st.File); err != nil {
+		return err
+	}
+	err := keyring.Delete(st.Service, st.Account)
+	if err == nil || errors.Is(err, keyring.ErrNotFound) || errors.Is(err, keyring.ErrUnsupportedPlatform) || allowFile {
+		return nil
+	}
+	return fmt.Errorf("session: forget the session: %w", err)
 }
 
 // ErrCorruptPickleKey is a keyring entry that is not a pickle key. It is never

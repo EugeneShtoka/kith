@@ -9,30 +9,30 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A second instance of the same Matrix account never reads the first one's session
-// or encryption key.
-func TestANewInstanceNeverTakesAnothersSession(t *testing.T) {
+// Each Matrix account of each instance has its own session and encryption key: a
+// second instance, or a second account, never reads the first one's.
+func TestEachAccountOfEachInstanceKeepsItsOwnSession(t *testing.T) {
 	keyring.MockInit()
-	const user = "@ada:x"
-	legacy := StoreFor(domain.Storage{Instance: domain.AccountKey(user), KeyringService: "kith", StateDir: t.TempDir()}, user)
-	if legacy.Account != user || legacy.Service != "kith" {
-		t.Fatalf("an install from before = %+v, want its old entry (kith, %s)", legacy, user)
-	}
-	if err := Save(legacy, domain.Session{UserID: user, AccessToken: "real"}, false); err != nil {
+	real := MatrixStore(domain.Storage{Instance: "main", KeyringService: "kith", StateDir: t.TempDir()}, domain.AccountKey("@ada:x"))
+	if err := Save(real, domain.Session{UserID: "@ada:x", AccessToken: "real"}, false); err != nil {
 		t.Fatal(err)
 	}
-	realKey, err := LoadOrCreatePickleKey(legacy)
+	realKey, err := LoadOrCreatePickleKey(real)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sandbox := StoreFor(domain.Storage{Instance: "test", KeyringService: "kith", StateDir: t.TempDir()}, user)
-	if _, found, err := Load(sandbox, false); err != nil || found {
-		t.Errorf("a new instance found a session (%v, %v): it would share the real device", found, err)
+	for name, other := range map[string]Store{
+		"another instance": MatrixStore(domain.Storage{Instance: "test", KeyringService: "kith", StateDir: t.TempDir()}, domain.AccountKey("@ada:x")),
+		"another account":  MatrixStore(domain.Storage{Instance: "main", KeyringService: "kith", StateDir: t.TempDir()}, domain.AccountKey("@bob:x")),
+	} {
+		if _, found, err := Load(other, false); err != nil || found {
+			t.Errorf("%s found a session (%v, %v): it would share the real device", name, found, err)
+		}
+		if key, err := LoadOrCreatePickleKey(other); err != nil || bytes.Equal(key, realKey) {
+			t.Errorf("%s got the real encryption key (%v)", name, err)
+		}
 	}
-	if key, err := LoadOrCreatePickleKey(sandbox); err != nil || bytes.Equal(key, realKey) {
-		t.Errorf("a new instance got the real encryption key (%v)", err)
-	}
-	if got, _, _ := Load(legacy, false); got.AccessToken != "real" {
+	if got, _, _ := Load(real, false); got.AccessToken != "real" {
 		t.Errorf("the real session became %+v", got)
 	}
 }

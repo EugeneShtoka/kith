@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
-	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/session"
 )
 
 // SavedSession reads the session saved by `kith login`: zero when there is none.
-func SavedSession(cfg config.Config, keys session.Store) (domain.Session, error) {
-	saved, found, err := session.Load(keys, cfg.AllowTokenFile)
+// allowFile is [allow_token_file].
+func SavedSession(keys session.Store, allowFile bool) (domain.Session, error) {
+	saved, found, err := session.Load(keys, allowFile)
 	if err != nil {
 		return domain.Session{}, fmt.Errorf("load session: %w", err)
 	}

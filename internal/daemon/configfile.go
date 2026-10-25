@@ -69,7 +69,7 @@ func (f *ConfigFile) Write(ctx context.Context, base string, cfg config.Config, 
 	written := cfg.Clone()
 	if data != nil {
 		if onDisk, derr := config.Decode(string(data)); derr == nil && len(onDisk.Profiles) > 0 {
-			written.Homeserver, written.User = onDisk.Homeserver, onDisk.User // the account stays per profile
+			written.Matrix.Accounts = onDisk.Matrix.Accounts // the account stays per profile
 		}
 	}
 	served, err := written.Profile(f.profile)

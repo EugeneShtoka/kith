@@ -11,7 +11,7 @@ import (
 func loadText(t *testing.T, body string) (Config, error) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	full := "homeserver = \"https://x\"\nuser = \"@a:x\"\n" + body
+	full := body + "\n[[matrix.account]]\nname = \"me\"\nhomeserver = \"https://x\"\nuser = \"@a:x\"\n"
 	if err := os.WriteFile(path, []byte(full), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}

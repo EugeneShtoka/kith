@@ -17,7 +17,7 @@ func TestARoomsNetworkIsKeptOnce(t *testing.T) {
 	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x"}, {ID: mx + "!b:x"}, {ID: mx + "!c:x"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.SaveInvites(ctx, []domain.Room{{ID: mx + "!i:x", Membership: domain.MembershipInvite}}); err != nil {
+	if err := cache.SaveInvites(ctx, mxRooms, []domain.Room{{ID: mx + "!i:x", Membership: domain.MembershipInvite}}); err != nil {
 		t.Fatal(err)
 	}
 	unknown := func() []domain.RoomID {

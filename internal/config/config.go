@@ -28,9 +28,7 @@ var profileName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // Config is kith's user configuration, one field per top-level key or table.
 type Config struct {
-	Homeserver     string `toml:"homeserver"`
-	User           string `toml:"user"`
-	AllowTokenFile bool   `toml:"allow_token_file"`
+	AllowTokenFile bool `toml:"allow_token_file"`
 	// BridgeContacts is each bridge's provisioning API base URL whose contact lists
 	// name people a network shows only by number (domain.Directory).
 	BridgeContacts []string      `toml:"bridge_contacts"`
@@ -49,6 +47,7 @@ type Config struct {
 	Schedule       Schedule      `toml:"schedule"`
 	Phonebook      Phonebook     `toml:"phonebook"`
 	Log            Log           `toml:"log"`
+	Matrix         Matrix        `toml:"matrix"`
 	WhatsApp       WhatsApp      `toml:"whatsapp"`
 	Slack          Slack         `toml:"slack"`
 	Telegram       Telegram      `toml:"telegram"`
@@ -189,11 +188,8 @@ func decode(source, text string) (Config, error) {
 	return cfg, nil
 }
 
-// HasMatrix reports whether the (profile-resolved) config names a Matrix account.
-func (c Config) HasMatrix() bool { return c.Homeserver != "" && c.User != "" }
-
-// RequireAccount refuses partly named accounts: a [[profile]] missing name, homeserver
-// or user, or a homeserver without a user (or the reverse). No account at all is valid.
+// RequireAccount refuses a [[profile]] missing its name, homeserver or user. No account
+// at all is valid; [[matrix.account]] records are the Matrix adapter's to check.
 func (c Config) RequireAccount() error {
 	// Profiles supply the account; Profile picks one and refuses a duplicate top-level one.
 	if len(c.Profiles) > 0 {
@@ -209,10 +205,6 @@ func (c Config) RequireAccount() error {
 				return fmt.Errorf("config: profile %q needs a homeserver and a user", p.Name)
 			}
 		}
-		return nil
-	}
-	if (c.Homeserver == "") != (c.User == "") {
-		return errors.New("config: Matrix needs both homeserver and user (or neither, to use only [whatsapp] or [slack])")
 	}
 	return nil
 }
@@ -226,8 +218,8 @@ func (c Config) Profile(name string) (Config, error) {
 		}
 		return c, nil
 	}
-	if c.User != "" || c.Homeserver != "" {
-		return Config{}, errors.New("config: the account is set both at the top level and in [[profile]] blocks — keep it in one place")
+	if len(c.Matrix.Accounts) > 0 {
+		return Config{}, errors.New("config: Matrix accounts are set both in [[matrix.account]] and in [[profile]] blocks — keep them in one place")
 	}
 	chosen := c.Profiles[0]
 	if name != "" {
@@ -242,7 +234,7 @@ func (c Config) Profile(name string) (Config, error) {
 			return Config{}, fmt.Errorf("config: no profile called %q (have %s)", name, strings.Join(c.ProfileNames(), ", "))
 		}
 	}
-	c.Homeserver, c.User = chosen.Homeserver, chosen.User
+	c.Matrix.Accounts = []MatrixAccount{{Name: chosen.Name, Homeserver: chosen.Homeserver, User: chosen.User}}
 	return c, nil
 }
 

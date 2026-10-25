@@ -16,10 +16,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// CachedInvites returns the cached pending invitations.
+// CachedInvites returns this account's cached pending invitations.
 func (b *InProc) CachedInvites(ctx context.Context) ([]domain.Room, error) {
 	return fromCache(b, "read cached invites", func(c *db.Cache) ([]domain.Room, error) {
-		return c.Invites(ctx)
+		invites, err := c.Invites(ctx)
+		return b.ownRooms(invites), err
 	})
 }
 
@@ -147,7 +148,7 @@ func (b *InProc) syncInvites(ctx context.Context, resp *mautrix.RespSync, since 
 		return
 	}
 	if b.cache != nil {
-		b.warnIf(ctx, b.cache.SaveInvites(ctx, invites), "cache invites")
+		b.warnIf(ctx, b.cache.SaveInvites(ctx, b.ids.owner(), invites), "cache invites")
 	}
 	emit(&b.out, b.out.invites, invites)
 }

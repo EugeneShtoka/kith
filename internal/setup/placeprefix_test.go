@@ -91,7 +91,7 @@ func cloned(s []string) []string { return append([]string(nil), s...) }
 // valid is a config every setting's entries are checked against: the tag the entries
 // name exists.
 func valid() config.Config {
-	return config.Config{Homeserver: "https://x", User: "@me:x", Tags: []config.Tag{{Name: "Pinned"}}}
+	return config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Tags: []config.Tag{{Name: "Pinned"}}}
 }
 
 // Every setting naming a place refuses a bare name at load, saying which setting, which
@@ -172,9 +172,7 @@ func TestAPlaceSettingRefusesAFormItCannotUse(t *testing.T) {
 // What kith writes into a fresh config passes its own check: the starter.
 func TestTheStarterNamesPlacesWithPrefixes(t *testing.T) {
 	t.Parallel()
-	cfg, err := config.Decode(strings.NewReplacer(
-		`homeserver = ""`, `homeserver = "https://x"`, `user       = ""`, `user       = "@me:x"`,
-	).Replace(config.Annotated()))
+	cfg, err := config.Decode(config.Annotated())
 	if err != nil {
 		t.Fatal(err)
 	}

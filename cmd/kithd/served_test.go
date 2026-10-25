@@ -43,7 +43,8 @@ func servedFor(t *testing.T, cfg config.Config, saved domain.Session) served {
 	dir := t.TempDir()
 	storage := domain.Storage{Instance: "test", DataDir: dir, StateDir: dir, CacheDir: dir, RuntimeDir: dir, KeyringService: "kith-test"}
 	if saved.AccessToken != "" {
-		if err := session.Save(session.StoreFor(storage, cfg.User), saved, true); err != nil {
+		key := domain.AccountKey(cfg.Matrix.Accounts[0].User)
+		if err := session.Save(session.MatrixStore(storage, key), saved, true); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -257,7 +258,7 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 // saved session.
 func TestMatrixIsWaitedForOnlyWithASavedSession(t *testing.T) {
 	t.Parallel()
-	cfg := config.Config{Homeserver: "https://matrix.invalid", User: "@me:x", AllowTokenFile: true}
+	cfg := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://matrix.invalid", User: "@me:x"}}}, AllowTokenFile: true}
 	ctx := context.Background()
 
 	none := servedFor(t, cfg, domain.Session{})
@@ -268,9 +269,10 @@ func TestMatrixIsWaitedForOnlyWithASavedSession(t *testing.T) {
 		t.Errorf("expected = %v without a saved session, want nothing", got)
 	}
 
-	saved := servedFor(t, cfg, domain.Session{Homeserver: cfg.Homeserver, UserID: cfg.User, DeviceID: "D", AccessToken: "t"})
+	acc := cfg.Matrix.Accounts[0]
+	saved := servedFor(t, cfg, domain.Session{Homeserver: acc.Homeserver, UserID: acc.User, DeviceID: "D", AccessToken: "t"})
 	got := expected(ctx, slog.New(slog.DiscardHandler), saved)
-	if len(got) != 1 || got[0].Network != string(domain.ProtocolMatrix) || got[0].Account != "@me:x" {
+	if len(got) != 1 || got[0].Network != string(domain.ProtocolMatrix) || got[0].Account != "me" {
 		t.Errorf("expected = %v with a saved session, want the Matrix account", got)
 	}
 }
@@ -360,7 +362,7 @@ func TestAReReadTakesTheProfilesMatrixAccount(t *testing.T) {
 	if err := reloader(configFile{path: path, profile: "work"}, func(string) {}, &atomic.Int64{}, backend, notifications)(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if got := backend.matrix.LoginNetwork().Accounts; len(got) != 1 || got[0].Name != "@me:work.invalid" {
+	if got := backend.matrix.LoginNetwork().Accounts; len(got) != 1 || got[0].Detail != "@me:work.invalid" {
 		t.Errorf("Matrix accounts after the re-read = %v, want the work profile's", got)
 	}
 }

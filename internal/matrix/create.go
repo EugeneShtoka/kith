@@ -111,21 +111,21 @@ func (b *InProc) recordDirect(ctx context.Context, peer string, roomID domain.Ro
 	return nil
 }
 
-// ChatOffers is the account's rooms and space, safe default first; encryption can only
-// be chosen at creation, so it is a kind of its own.
+// ChatOffers is each logged-in account's rooms and space, safe default first;
+// encryption can only be chosen at creation, so it is a kind of its own.
 func (m *Adapter) ChatOffers(context.Context) ([]domain.ChatOffer, error) {
-	acc := m.accountNow()
-	if acc.User == "" {
-		return nil, nil
+	var out []domain.ChatOffer
+	for _, r := range m.live() {
+		on, name := r.ids.owner(), r.account().Name
+		out = append(out,
+			domain.ChatOffer{On: on, Account: name, Kind: domain.ChatRoom, Label: "Private room", Detail: "encrypted, invitation only"},
+			domain.ChatOffer{
+				On: on, Account: name, Kind: domain.ChatRoomUnencrypted, Label: "Private room, unencrypted",
+				Detail: "invitation only — for bridges and bots that cannot read encrypted rooms",
+			},
+			domain.ChatOffer{On: on, Account: name, Kind: domain.ChatRoomPublic, Label: "Public room", Detail: "anyone who finds it can join; not encrypted"},
+			domain.ChatOffer{On: on, Account: name, Kind: domain.ChatSpace, Label: "Space", Detail: "a container for rooms, not a conversation"},
+		)
 	}
-	on := m.ids.owner()
-	return []domain.ChatOffer{
-		{On: on, Account: acc.User, Kind: domain.ChatRoom, Label: "Private room", Detail: "encrypted, invitation only"},
-		{
-			On: on, Account: acc.User, Kind: domain.ChatRoomUnencrypted, Label: "Private room, unencrypted",
-			Detail: "invitation only — for bridges and bots that cannot read encrypted rooms",
-		},
-		{On: on, Account: acc.User, Kind: domain.ChatRoomPublic, Label: "Public room", Detail: "anyone who finds it can join; not encrypted"},
-		{On: on, Account: acc.User, Kind: domain.ChatSpace, Label: "Space", Detail: "a container for rooms, not a conversation"},
-	}, nil
+	return out, nil
 }

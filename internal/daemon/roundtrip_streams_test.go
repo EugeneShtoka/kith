@@ -160,7 +160,7 @@ func TestRoomsChangedReachesTheClient(t *testing.T) {
 func TestAConfigChangeReachesEveryWindow(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte("homeserver = \"https://x\"\nuser = \"@me:x\"\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("allow_token_file = true\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	h := serve(t, &fakeBackend{Nop: apitest.Nop{}}, func(d *daemon.Daemon) { d.Config = daemon.NewConfigFile(path, "") })

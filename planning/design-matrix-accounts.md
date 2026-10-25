@@ -134,7 +134,9 @@ Each PR lands working.
    accounts' room, space, ignore, verdict and people writes and expiry, and asserts
    neither erases the other; plus: B's catch-up batch never notifies after A has
    caught up. Each addition fails on today's code first.
-5. **feat!: several Matrix accounts; `[[profile]]` removed.** `[[matrix.account]]`
+5. **feat!: several Matrix accounts; `[[profile]]` removed.** Two PRs, each landing
+   working: (a) several Matrix accounts, a `[[profile]]` supplying its one account until
+   (b) removes it with its machinery and the migration program's profile step. `[[matrix.account]]`
    and `kith login matrix <name>`; the adapter routes by account, merges streams,
    and adds or removes accounts on reload; per-account crypto store and keyring
    entries; account spaces in the rail and sign-out. Removed with `[[profile]]`:

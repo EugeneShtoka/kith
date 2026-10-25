@@ -62,9 +62,6 @@ func TestLoadKeys(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "config.toml")
 	body := `
-homeserver = "https://example.org"
-user = "@me:example.org"
-
 [keys]
 quit = "Q,ctrl+q"
 
@@ -98,7 +95,7 @@ func TestLoadWithoutKeysSection(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "config.toml")
-	body := "homeserver = \"https://example.org\"\nuser = \"@me:example.org\"\n"
+	body := "allow_token_file = true\n"
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}

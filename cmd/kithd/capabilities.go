@@ -45,6 +45,7 @@ var (
 		route.ChatMaker
 		api.Verification
 		api.Keys
+		route.SignOuter
 	} = (*matrix.Adapter)(nil)
 
 	_ interface {

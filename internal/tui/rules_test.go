@@ -23,7 +23,7 @@ import (
 func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	base := config.Config{Homeserver: "https://x", User: "@me:x", Notifications: notifs, Tags: starter(t).Tags}
+	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Notifications: notifs, Tags: starter(t).Tags}
 	base.Keys.FillDefaults()
 	if err := config.Save(path, base); err != nil {
 		t.Fatalf("seed config: %v", err)

@@ -50,7 +50,7 @@ func unchanged(t *testing.T, path string, before []byte) {
 // Unconfigured: XDG directories and an instance derived from the config path without
 // writing it, stable across reads; once recorded it survives a move.
 func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
-	root, path := home(t, "homeserver = \"h\"\nuser = \"@ada:x\"\n")
+	root, path := home(t, "[[matrix.account]]\nname = \"ada\"\nhomeserver = \"h\"\nuser = \"@ada:x\"\n")
 	before, _ := os.ReadFile(path)
 	first, err := setup.StorageFor(load(t, path), path, "")
 	if err != nil {
@@ -106,7 +106,7 @@ func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
 // A pre-instance install keeps its legacy instance name, found without writing the
 // config.
 func TestAnInstallFromBeforeKeepsItsFiles(t *testing.T) {
-	root, path := home(t, "homeserver = \"h\"\nuser = \"@ada:x\"\n")
+	root, path := home(t, "[[matrix.account]]\nname = \"ada\"\nhomeserver = \"h\"\nuser = \"@ada:x\"\n")
 	legacy := domain.AccountKey("@ada:x")
 	dir := filepath.Join(root, "data_home", "kith")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -131,7 +131,7 @@ func TestAnInstallFromBeforeKeepsItsFiles(t *testing.T) {
 
 // A read-only config still resolves storage.
 func TestAReadOnlyConfigIsServed(t *testing.T) {
-	root, path := home(t, "homeserver = \"h\"\nuser = \"@ada:x\"\n")
+	root, path := home(t, "[[matrix.account]]\nname = \"ada\"\nhomeserver = \"h\"\nuser = \"@ada:x\"\n")
 	if err := os.Chmod(root, 0o500); err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,8 @@ func TestAReadOnlyConfigIsServed(t *testing.T) {
 // Configured directories are used ("~" expanded), relative ones refused, and two
 // configs sharing them get distinct files.
 func TestConfiguredDirectoriesAndSharing(t *testing.T) {
-	root, path := home(t, "homeserver = \"h\"\nuser = \"@ada:x\"\n[storage]\ninstance = \"test\"\ndata_dir = \""+"/srv/kith"+"\"\nstate_dir = \"~/kith-state\"\nkeyring_service = \"kith-test\"\n")
+	root, path := home(t, "[storage]\ninstance = \"test\"\ndata_dir = \""+"/srv/kith"+"\"\nstate_dir = \"~/kith-state\"\nkeyring_service = \"kith-test\"\n"+
+		"[[matrix.account]]\nname = \"ada\"\nhomeserver = \"h\"\nuser = \"@ada:x\"\n")
 	storage, err := setup.StorageFor(load(t, path), path, "")
 	if err != nil {
 		t.Fatal(err)

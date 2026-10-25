@@ -20,7 +20,7 @@ What is **not** in it, and why:
 | data | where it lives | why not here |
 | --- | --- | --- |
 | access token | OS keyring (`internal/session`), or an opt-in `0600` file | a credential, not a copy |
-| E2EE crypto store and the sync position | its own SQLite file, `crypto-<hash>.db`, owned by mautrix-go | mautrix owns that schema; losing it loses the device's keys |
+| E2EE crypto store and the sync position | its own SQLite file per Matrix account, `crypto-<instance>-<account>.db`, owned by mautrix-go | mautrix owns that schema; losing it loses the device's keys |
 | configuration | `config.toml` | written by you, not fetched |
 | scheduled messages | `scheduled-<hash>.toml` in the XDG state dir (`internal/schedule`) | an unsent message has no copy anywhere, so it cannot live under "rebuild on doubt" |
 | the assistant ledger | `agent-sends-<hash>.jsonl` in the XDG state dir (`internal/agent`) | a record of what was sent on your behalf exists nowhere else |
