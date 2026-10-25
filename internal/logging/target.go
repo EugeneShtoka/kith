@@ -47,14 +47,6 @@ func ResolveTarget(flag, configured string) (Target, error) {
 	return TargetAuto, nil
 }
 
-// Identifier is a program's SYSLOG_IDENTIFIER: the program, or program-profile.
-func Identifier(program, profile string) string {
-	if profile == "" {
-		return program
-	}
-	return program + "-" + profile
-}
-
 // Destination says where Open should send a log.
 type Destination struct {
 	Target Target

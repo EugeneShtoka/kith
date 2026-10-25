@@ -42,7 +42,7 @@ func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
 		d.CheckConfig = func(context.Context, config.Config) error { return nil }
 	}
 	if d.Config == nil {
-		d.Config = daemon.NewConfigFile(filepath.Join(dir, "config.toml"), "")
+		d.Config = daemon.NewConfigFile(filepath.Join(dir, "config.toml"))
 	}
 	if d.Scheduler == nil {
 		d.Scheduler = daemon.NewScheduler(schedule.New(filepath.Join(dir, "scheduled.toml")), d.Backend,

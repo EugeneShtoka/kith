@@ -3,7 +3,6 @@
 #
 #   programs.kith.enable = true;
 #   programs.kith.daemon.enable = true;        # kithd for every user session
-#   programs.kith.profiles = [ "work" ];       # ...or kithd@<name> instead
 #
 # The daemon is off by default on purpose: a user unit enabled system-wide starts in
 # *every* user's session, and a user who has never run `kith login` gets a daemon
@@ -27,7 +26,7 @@ let
 in
 {
   options.programs.kith = {
-    enable = lib.mkEnableOption "kith, a terminal chat client, and its systemd user units";
+    enable = lib.mkEnableOption "kith, a terminal chat client, and its systemd user unit";
     package = lib.mkOption {
       type = lib.types.package;
       default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
@@ -35,22 +34,11 @@ in
       description = "The kith package to install.";
     };
     daemon.enable = lib.mkEnableOption "the kithd user daemon in every user session";
-    profiles = lib.mkOption {
-      type = lib.types.listOf (lib.types.strMatching "[A-Za-z0-9._-]+");
-      default = [ ];
-      example = [ "work" ];
-      description = "Start kithd@<name> for each profile instead of the plain kithd.";
-    };
   };
 
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [ cfg.package ];
     systemd.packages = [ cfg.package ];
-    systemd.user.services = lib.mkIf cfg.daemon.enable (
-      if cfg.profiles == [ ] then
-        { kithd = dropin; }
-      else
-        lib.listToAttrs (map (p: lib.nameValuePair "kithd@${p}" dropin) cfg.profiles)
-    );
+    systemd.user.services = lib.mkIf cfg.daemon.enable { kithd = dropin; };
   };
 }

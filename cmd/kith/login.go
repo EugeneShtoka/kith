@@ -27,14 +27,13 @@ const loginTimeout = 15 * time.Minute
 func runLogin(args []string) error {
 	fs := flag.NewFlagSet("login", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
-	profile := fs.String("profile", "", "which [[profile]] the daemon runs as (default: the first one)")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parse login flags: %w", err)
 	}
 	if fs.NArg() > 2 {
 		return errors.New("usage: kith login [network [account]]")
 	}
-	path, _, ready, err := loadConfig(*configPath, *profile)
+	path, _, ready, err := loadConfig(*configPath)
 	if err != nil || !ready {
 		return err
 	}
@@ -47,7 +46,7 @@ func runLogin(args []string) error {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, loginTimeout)
 	defer cancel()
-	at, err := reachForLogin(ctx, *configPath, *profile)
+	at, err := reachForLogin(ctx, *configPath)
 	if err != nil || at.backend == nil {
 		return err
 	}

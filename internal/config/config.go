@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -21,10 +20,6 @@ import (
 //
 //go:embed default.toml
 var defaultConfigTOML string
-
-// profileName is the characters a systemd instance name and a shell argument both take
-// unquoted.
-var profileName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // Config is kith's user configuration, one field per top-level key or table.
 type Config struct {
@@ -57,7 +52,6 @@ type Config struct {
 	Signal         Signal        `toml:"signal"`
 	Instagram      Instagram     `toml:"instagram"`
 	Storage        Storage       `toml:"storage"`
-	Profiles       []Profile     `toml:"profile"`
 	Tags           []Tag         `toml:"tag"`
 	Filters        []Filter      `toml:"filter"`
 	UserCommands   []Command     `toml:"command"`
@@ -70,13 +64,6 @@ type Config struct {
 type Log struct {
 	Level  string `toml:"level"`
 	Target string `toml:"target"`
-}
-
-// Profile is one [[profile]]: an account this config can run as.
-type Profile struct {
-	Name       string `toml:"name"` // what --profile takes
-	Homeserver string `toml:"homeserver"`
-	User       string `toml:"user"`
 }
 
 // enabled reads a tri-state boolean: unset means on.
@@ -182,67 +169,5 @@ func decode(source, text string) (Config, error) {
 	case len(cfg.Display.Rail.Order) == 0:
 		cfg.Display.Rail.Order = nil
 	}
-	if err := cfg.RequireAccount(); err != nil {
-		return Config{}, err
-	}
 	return cfg, nil
-}
-
-// RequireAccount refuses a [[profile]] missing its name, homeserver or user. No account
-// at all is valid; [[matrix.account]] records are the Matrix adapter's to check.
-func (c Config) RequireAccount() error {
-	// Profiles supply the account; Profile picks one and refuses a duplicate top-level one.
-	if len(c.Profiles) > 0 {
-		for _, p := range c.Profiles {
-			if p.Name == "" {
-				return errors.New("config: every [[profile]] needs a name")
-			}
-			// The name becomes a systemd instance name (kithd@work) and an argv element.
-			if !profileName.MatchString(p.Name) {
-				return fmt.Errorf("config: profile name %q may only contain letters, digits, dot, dash and underscore", p.Name)
-			}
-			if p.Homeserver == "" || p.User == "" {
-				return fmt.Errorf("config: profile %q needs a homeserver and a user", p.Name)
-			}
-		}
-	}
-	return nil
-}
-
-// Profile resolves which account to run as.
-func (c Config) Profile(name string) (Config, error) {
-	name = strings.TrimSpace(name)
-	if len(c.Profiles) == 0 {
-		if name != "" {
-			return Config{}, fmt.Errorf("config: no profiles are configured, so there is no %q — add a [[profile]] block or drop --profile", name)
-		}
-		return c, nil
-	}
-	if len(c.Matrix.Accounts) > 0 {
-		return Config{}, errors.New("config: Matrix accounts are set both in [[matrix.account]] and in [[profile]] blocks — keep them in one place")
-	}
-	chosen := c.Profiles[0]
-	if name != "" {
-		found := false
-		for _, p := range c.Profiles {
-			if strings.EqualFold(p.Name, name) {
-				chosen, found = p, true
-				break
-			}
-		}
-		if !found {
-			return Config{}, fmt.Errorf("config: no profile called %q (have %s)", name, strings.Join(c.ProfileNames(), ", "))
-		}
-	}
-	c.Matrix.Accounts = []MatrixAccount{{Name: chosen.Name, Homeserver: chosen.Homeserver, User: chosen.User}}
-	return c, nil
-}
-
-// ProfileNames lists the profiles in file order; the first is the default.
-func (c Config) ProfileNames() []string {
-	names := make([]string, 0, len(c.Profiles))
-	for _, p := range c.Profiles {
-		names = append(names, p.Name)
-	}
-	return names
 }

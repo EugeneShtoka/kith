@@ -26,7 +26,6 @@ type groupings interface {
 func runImport(args []string) error {
 	fs := flag.NewFlagSet("import", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
-	profile := fs.String("profile", "", "which [[profile]] account to run as (default: the first one)")
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "usage: kith import <network> [account] — copy an account's folders (Telegram's) into tags, once")
 	}
@@ -37,7 +36,7 @@ func runImport(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	at, err := reachForLogin(ctx, *configPath, *profile)
+	at, err := reachForLogin(ctx, *configPath)
 	if err != nil || at.backend == nil {
 		return err
 	}

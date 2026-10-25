@@ -101,7 +101,7 @@ model    = "llama-3.1-8b-instant"
 key_ref  = "groq"             # the keyring entry's name, not the key itself
 ```
 
-Running `--set-model-key` again with an empty answer removes the key. The key belongs to you, not to a Matrix account, so every profile on the machine shares it. With `key_ref` empty, requests go out with no `Authorization` header, which is what a local server expects.
+Running `--set-model-key` again with an empty answer removes the key. The key belongs to you, not to a Matrix account, so every config on the machine shares it. With `key_ref` empty, requests go out with no `Authorization` header, which is what a local server expects.
 
 ### Which rooms the model may see
 

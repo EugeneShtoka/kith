@@ -10,32 +10,6 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-func TestRequireAccount(t *testing.T) {
-	t.Parallel()
-
-	for name, tc := range map[string]struct {
-		cfg     Config
-		wantErr bool
-	}{
-		"complete":              {Config{Matrix: Matrix{Accounts: []MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@a:x"}}}}, false},
-		"empty":                 {Config{}, false},
-		"whatsapp only":         {Config{WhatsApp: WhatsApp{Accounts: []WhatsAppAccount{{Name: "a", Phone: "+1"}}}}, false},
-		"whatsapp and matrix":   {Config{Matrix: Matrix{Accounts: []MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@a:x"}}}, WhatsApp: WhatsApp{Accounts: []WhatsAppAccount{{Name: "a", Phone: "+1"}}}}, false},
-		"profile":               {Config{Profiles: []Profile{{Name: "work", Homeserver: "https://x", User: "@me:x"}}}, false},
-		"profile no name":       {Config{Profiles: []Profile{{Homeserver: "https://x", User: "@me:x"}}}, true},
-		"profile no user":       {Config{Profiles: []Profile{{Name: "work", Homeserver: "https://x"}}}, true},
-		"profile no homeserver": {Config{Profiles: []Profile{{Name: "work", User: "@me:x"}}}, true},
-		"profile bad name":      {Config{Profiles: []Profile{{Name: "a/b", Homeserver: "https://x", User: "@me:x"}}}, true},
-	} {
-		if err := tc.cfg.RequireAccount(); (err != nil) != tc.wantErr {
-			t.Errorf("%s: RequireAccount() = %v, wantErr %v", name, err, tc.wantErr)
-		}
-	}
-	if err := (Config{}).RequireAccount(); err != nil {
-		t.Errorf("a config with no account = %v, want it whole: :login sets one up", err)
-	}
-}
-
 func TestLoad(t *testing.T) {
 	t.Parallel()
 
@@ -150,41 +124,6 @@ func TestNotificationTemplates(t *testing.T) {
 		if got := tc.n.BodyTemplate(); got != tc.body {
 			t.Errorf("BodyTemplate(%q) = %q, want %q", tc.n.Body, got, tc.body)
 		}
-	}
-}
-
-func TestProfileResolution(t *testing.T) {
-	t.Parallel()
-
-	withProfiles := Config{Profiles: []Profile{
-		{Name: "personal", Homeserver: "https://home.example", User: "@me:home.example"},
-		{Name: "work", Homeserver: "https://work.example", User: "@me:work.example"},
-	}}
-
-	if got, err := withProfiles.Profile(""); err != nil || got.Matrix.Accounts[0].User != "@me:home.example" {
-		t.Errorf("default = %+v, %v; want the first profile", got.Matrix, err)
-	}
-	if got, err := withProfiles.Profile("WORK"); err != nil || got.Matrix.Accounts[0].Homeserver != "https://work.example" {
-		t.Errorf("work = %+v, %v", got.Matrix, err)
-	}
-	_, err := withProfiles.Profile("office")
-	if err == nil || !strings.Contains(err.Error(), "personal") || !strings.Contains(err.Error(), "work") {
-		t.Errorf("unknown profile: %v, want a refusal naming the profiles", err)
-	}
-
-	// --profile against a single-account config must not hand over the only account.
-	single := Config{Matrix: Matrix{Accounts: []MatrixAccount{{Name: "me", Homeserver: "https://home.example", User: "@me:home.example"}}}}
-	if _, err := single.Profile("work"); err == nil {
-		t.Error("--profile against a config with no profiles should be refused")
-	}
-	if got, err := single.Profile(""); err != nil || got.Matrix.Accounts[0].User != "@me:home.example" {
-		t.Errorf("single-account config = %+v, %v", got.Matrix, err)
-	}
-
-	both := withProfiles
-	both.Matrix = single.Matrix
-	if _, err := both.Profile(""); err == nil {
-		t.Error("an account set both at the top level and in profiles should be refused")
 	}
 }
 

@@ -42,7 +42,6 @@ import (
 func main() {
 	showVersion := flag.Bool("version", false, "print version information and exit")
 	configPath := flag.String("config", "", "path to config file (default: XDG config dir)")
-	profile := flag.String("profile", "", "which [[profile]] account to serve (default: the first one)")
 	logLevel := flag.String("log-level", "", "how much to log to stderr ("+logging.Levels+"); overrides $"+logging.EnvLevel+" and `[log] level`")
 	flag.Parse()
 
@@ -57,14 +56,14 @@ func main() {
 	}
 	log := logging.New(os.Stderr, logging.Options{Level: level, NoTime: logging.UnderJournald()})
 	slog.SetDefault(log)
-	if err := run(log, level, *logLevel, *configPath, *profile); err != nil {
+	if err := run(log, level, *logLevel, *configPath); err != nil {
 		log.Error("kith-mcp stopped", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath, profile string) error {
-	cfg, storage, err := loadAccount(log, configPath, profile)
+func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string) error {
+	cfg, storage, err := loadAccount(log, configPath)
 	if err != nil {
 		return err
 	}
@@ -132,8 +131,8 @@ func warnAboutScope(log *slog.Logger, places setup.AgentPlaces, cfg config.Confi
 // scopeCheckTimeout bounds the startup warning's three cache reads.
 const scopeCheckTimeout = 5 * time.Second
 
-// loadAccount loads and validates the config for the selected profile.
-func loadAccount(log *slog.Logger, configPath, profile string) (config.Config, domain.Storage, error) {
+// loadAccount loads and validates the config.
+func loadAccount(log *slog.Logger, configPath string) (config.Config, domain.Storage, error) {
 	path := configPath
 	if path == "" {
 		resolved, err := config.Path()
@@ -149,14 +148,10 @@ func loadAccount(log *slog.Logger, configPath, profile string) (config.Config, d
 	if warning := config.ModeWarning(path); warning != "" {
 		log.Warn(warning)
 	}
-	cfg, err = cfg.Profile(profile)
-	if err != nil {
-		return config.Config{}, domain.Storage{}, fmt.Errorf("choosing the profile: %w", err)
-	}
 	if err = setup.Validate(cfg); err != nil {
 		return config.Config{}, domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
 	}
-	storage, err := setup.StorageFor(cfg, path, profile)
+	storage, err := setup.StorageFor(cfg, path)
 	if err != nil {
 		return config.Config{}, domain.Storage{}, err
 	}

@@ -22,10 +22,10 @@ const defaultKeyring = "kith"
 // validInstance is what an instance may be: it is part of file names.
 var validInstance = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
-// StorageFor is where the config at configPath keeps its files for profile (cfg is
-// that profile's). It never writes the config (the daemon has it read-only), so an
-// unnamed instance is derived identically in every program; RememberInstance saves it.
-func StorageFor(cfg config.Config, configPath, profile string) (domain.Storage, error) {
+// StorageFor is where the config at configPath keeps its files. It never writes the
+// config (the daemon has it read-only), so an unnamed instance is derived identically
+// in every program; RememberInstance saves it.
+func StorageFor(cfg config.Config, configPath string) (domain.Storage, error) {
 	storage, err := StorageDirs(cfg)
 	if err != nil {
 		return domain.Storage{}, err
@@ -35,15 +35,6 @@ func StorageFor(cfg config.Config, configPath, profile string) (domain.Storage, 
 		return domain.Storage{}, err
 	}
 	storage.Instance = base
-	if name := chosenProfile(cfg, profile); name != "" {
-		storage.Instance = base + "-" + name
-		// A profile kept its files under its own account's name before instances.
-		for _, acc := range cfg.Matrix.Accounts {
-			if legacy := domain.AccountKey(acc.User); hasFiles(storage, legacy) {
-				storage.Instance = legacy
-			}
-		}
-	}
 	return storage, nil
 }
 
@@ -71,15 +62,6 @@ func StorageDirs(cfg config.Config) (domain.Storage, error) {
 		storage.KeyringService = defaultKeyring
 	}
 	return storage, nil
-}
-
-// chosenProfile is the named profile, else the first one (as Config.Profile picks),
-// so naming the default or not yields one instance.
-func chosenProfile(cfg config.Config, profile string) string {
-	if profile = strings.TrimSpace(profile); profile != "" || len(cfg.Profiles) == 0 {
-		return profile
-	}
-	return cfg.Profiles[0].Name
 }
 
 // RememberInstance writes the derived instance into a config that names none, so
@@ -111,11 +93,9 @@ func baseInstance(cfg config.Config, configPath string, storage domain.Storage) 
 		}
 		return id, nil
 	}
-	if len(cfg.Profiles) == 0 {
-		for _, acc := range cfg.Matrix.Accounts {
-			if legacy := domain.AccountKey(acc.User); hasFiles(storage, legacy) {
-				return legacy, nil
-			}
+	for _, acc := range cfg.Matrix.Accounts {
+		if legacy := domain.AccountKey(acc.User); hasFiles(storage, legacy) {
+			return legacy, nil
 		}
 	}
 	return pathInstance(configPath), nil

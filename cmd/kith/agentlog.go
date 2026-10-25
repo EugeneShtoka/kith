@@ -14,12 +14,12 @@ import (
 
 // showAgentLog prints the account's kith-mcp write ledger, oldest first. It needs no
 // daemon: it must work when something has gone wrong.
-func showAgentLog(configPath, profile string) error {
-	path, cfg, ready, err := loadConfig(configPath, profile)
+func showAgentLog(configPath string) error {
+	path, cfg, ready, err := loadConfig(configPath)
 	if err != nil || !ready {
 		return err
 	}
-	storage, err := storageFor(cfg, path, profile)
+	storage, err := storageFor(cfg, path)
 	if err != nil {
 		return err
 	}

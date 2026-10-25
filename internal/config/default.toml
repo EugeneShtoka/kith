@@ -10,22 +10,6 @@
 #
 # Unknown keys are refused at startup.
 
-# Several daemons: name an account per profile instead of in [[matrix.account]] and
-# pick one with `kith --profile work` (default: the first). A profile carries only its
-# Matrix account; everything else in this file is shared. Each profile has its own
-# login, daemon, cache and crypto store. Setting accounts both here and in
-# [[matrix.account]] is refused.
-#
-#   [[profile]]
-#   name       = "personal"
-#   homeserver = "https://matrix.example.org"
-#   user       = "@you:example.org"
-#
-#   [[profile]]
-#   name       = "work"
-#   homeserver = "https://matrix.work.example"
-#   user       = "@you:work.example"
-
 # On a headless box with no OS keyring, persist the access token to a 0600 file
 # instead of refusing to store it.
 # allow_token_file = true
@@ -1084,8 +1068,8 @@ temperature = 0.0
 reasoning_effort = "low"
 stop = []
 
-# What an AI assistant attached to this account (`kith-mcp`, stdio; `--profile` picks
-# the account) may read and write. Entries take the place vocabulary.
+# What an AI assistant attached to kith (`kith-mcp`, stdio) may read and write. Entries
+# take the place vocabulary.
 #
 # [agent.read] — nothing is shared until listed: empty `rooms` means none.
 #

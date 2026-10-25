@@ -70,17 +70,17 @@ func TestTheAccountsFilesAndKeysMoveWhereKithdLooks(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if n, err := migrateStores(storage, user, true); err != nil || n != 3 {
+		if n, err := moveStores(storage, storage, user, true); err != nil || n != 3 {
 			t.Fatalf("%s: a dry run = (%d, %v), want three files reported", instance, n, err)
 		}
 		if _, err := os.Stat(storage.MatrixCryptoPath(key)); err == nil {
 			t.Fatalf("%s: a dry run moved a file", instance)
 		}
-		if n, err := migrateStores(storage, user, false); err != nil || n != 3 {
-			t.Fatalf("%s: migrateStores = (%d, %v)", instance, n, err)
+		if n, err := moveStores(storage, storage, user, false); err != nil || n != 3 {
+			t.Fatalf("%s: moveStores = (%d, %v)", instance, n, err)
 		}
-		if n, err := migrateKeyring(storage, user, false); err != nil || n != 2 {
-			t.Fatalf("%s: migrateKeyring = (%d, %v)", instance, n, err)
+		if n, err := copyKeys(storage, storage, user, false); err != nil || n != 2 {
+			t.Fatalf("%s: copyKeys = (%d, %v)", instance, n, err)
 		}
 		for _, f := range []string{storage.MatrixCryptoPath(key), storage.MatrixCryptoPath(key) + "-wal", storage.MatrixSessionFile(key)} {
 			if _, err := os.Stat(f); err != nil {
@@ -97,7 +97,7 @@ func TestTheAccountsFilesAndKeysMoveWhereKithdLooks(t *testing.T) {
 		if _, err := keyring.Get("kith", old); err != nil {
 			t.Errorf("%s: the old entry went: %v", instance, err)
 		}
-		if _, err := migrateKeyring(storage, user, false); err == nil {
+		if _, err := copyKeys(storage, storage, user, false); err == nil {
 			t.Errorf("%s: a second run overwrote the copied entries", instance)
 		}
 	}

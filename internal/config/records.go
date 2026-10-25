@@ -10,8 +10,8 @@ import (
 )
 
 // A record table is a [[block]] list ([[display.read_rule]]) the settings screen edits
-// one record at a time, fields set like properties. Tags, notification rules and
-// profiles are edited elsewhere.
+// one record at a time, fields set like properties. Tags and notification rules are
+// edited elsewhere.
 
 // RecordTable is one table with its default.toml doc and fields (Path is the field
 // name, Doc its comment in default.toml's example).
@@ -22,7 +22,7 @@ type RecordTable struct {
 }
 
 // ownEditors are the record tables edited elsewhere.
-var ownEditors = []string{"tag", "notifications.rule", "profile"}
+var ownEditors = []string{"tag", "notifications.rule"}
 
 // RecordTables is every record table, in the order the config declares them.
 func RecordTables() []RecordTable {

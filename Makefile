@@ -279,7 +279,7 @@ arch-quick:
 
 # The plain and templated units must configure the same sandbox.
 unit-check:
-	bash scripts/unit-parity-check.sh
+	bash scripts/unit-check.sh
 
 # Enable the tracked pre-commit/pre-push secret-scan hooks for this clone.
 hooks:
@@ -336,31 +336,17 @@ PREFIX  ?= $(HOME)/.local
 BINDIR  ?= $(PREFIX)/bin
 UNITDIR ?= $(HOME)/.config/systemd/user
 UNIT    := kithd.service
-TEMPLATE_UNIT := kithd@.service
 APPDIR  ?= $(HOME)/.local/share/applications
 DESKTOP := kith.desktop
-
-# PROFILE=<name> targets kithd@<name>.service (same charset as config.go).
-PROFILE ?=
-ifneq ($(PROFILE),)
-ifneq ($(shell printf '%s' '$(PROFILE)' | grep -Ex '[A-Za-z0-9._-]+'),$(PROFILE))
-$(error PROFILE=$(PROFILE) may only contain letters, digits, dot, dash and underscore)
-endif
-DEPLOY_UNIT := kithd@$(PROFILE).service
-PROFILE_FLAG := --profile $(PROFILE)
-else
-DEPLOY_UNIT := $(UNIT)
-PROFILE_FLAG :=
-endif
 
 # systemd where available, launchd on macOS, otherwise binaries only.
 UNAME_S := $(shell uname -s)
 HAVE_SYSTEMCTL := $(shell command -v systemctl >/dev/null 2>&1 && echo yes)
 LAUNCHAGENTDIR ?= $(HOME)/Library/LaunchAgents
 PLIST_SRC   := packaging/macos/io.github.eugeneshtoka.kithd.plist
-PLIST_LABEL := io.github.eugeneshtoka.kithd$(if $(PROFILE),.$(PROFILE))
+PLIST_LABEL := io.github.eugeneshtoka.kithd
 PLIST       := $(LAUNCHAGENTDIR)/$(PLIST_LABEL).plist
-PLIST_LOG   := kithd$(if $(PROFILE),.$(PROFILE)).log
+PLIST_LOG   := kithd.log
 
 install: build
 	@set -eu; \
@@ -371,7 +357,7 @@ install: build
 ifeq ($(HAVE_SYSTEMCTL),yes)
 	@bash scripts/render-units.sh "$(BINDIR)" "$(UNITDIR)"
 	@systemctl --user daemon-reload
-	@echo "==> units    -> $(UNITDIR)/$(UNIT), $(UNITDIR)/$(TEMPLATE_UNIT)  (ExecStart=$(BINDIR)/kithd)"
+	@echo "==> unit     -> $(UNITDIR)/$(UNIT)  (ExecStart=$(BINDIR)/kithd)"
 else ifeq ($(UNAME_S),Darwin)
 	@echo "==> no systemd on macOS — \`make deploy\` installs a LaunchAgent instead"
 else
@@ -389,7 +375,7 @@ endif
 # install + (re)start the daemon and wait for its socket.
 #  - import only *set* session vars: importing an unset one clears it in the manager.
 #  - restart, not start, so the new binary runs.
-#  - the socket name hashes the MXID, so wait for any socket newer than a marker.
+#  - the socket is named by the config's instance, so wait for any socket newer than a marker.
 #    Not the Signal helper's (signal-*.sock), which kithd also makes there: it says
 #    nothing of whether clients can connect.
 #    `activating` (auto-restart) is not failure: don't send users to re-login,
@@ -404,42 +390,41 @@ deploy: install
 	sockdir="$$rt/kith"; \
 	marker=$$(mktemp "$${TMPDIR:-/tmp}/kith-deploy.XXXXXX"); \
 	trap 'rm -f "$$marker"' EXIT; \
-	systemctl --user enable "$(DEPLOY_UNIT)" >/dev/null; \
-	systemctl --user restart "$(DEPLOY_UNIT)"; \
+	systemctl --user enable "$(UNIT)" >/dev/null; \
+	systemctl --user restart "$(UNIT)"; \
 	sock=""; \
 	i=0; while [ $$i -lt 240 ]; do \
 	  sock=$$(find "$$sockdir" -maxdepth 1 -type s -newer "$$marker" ! -name 'signal-*' 2>/dev/null | head -n 1); \
 	  [ -n "$$sock" ] && break; \
-	  case "$$(systemctl --user is-active "$(DEPLOY_UNIT)" 2>/dev/null)" in \
+	  case "$$(systemctl --user is-active "$(UNIT)" 2>/dev/null)" in \
 	    failed|inactive) break ;; \
 	  esac; \
 	  sleep 0.25; i=$$((i+1)); \
 	done; \
-	restarts=$$(systemctl --user show "$(DEPLOY_UNIT)" -p NRestarts --value 2>/dev/null || echo 0); \
-	if systemctl --user is-active --quiet "$(DEPLOY_UNIT)" && [ -n "$$sock" ]; then \
-	  echo "==> $(DEPLOY_UNIT) is up; socket $$sock"; \
-	  echo "    run the client: $(BINDIR)/kith $(PROFILE_FLAG)"; \
+	restarts=$$(systemctl --user show "$(UNIT)" -p NRestarts --value 2>/dev/null || echo 0); \
+	if systemctl --user is-active --quiet "$(UNIT)" && [ -n "$$sock" ]; then \
+	  echo "==> $(UNIT) is up; socket $$sock"; \
+	  echo "    run the client: $(BINDIR)/kith"; \
 	elif [ "$${restarts:-0}" -gt 0 ]; then \
-	  echo "!!  $(DEPLOY_UNIT) is still coming up — $$restarts restart(s) so far. Last 20 lines:"; \
-	  systemctl --user --no-pager --lines=20 status "$(DEPLOY_UNIT)" || true; \
+	  echo "!!  $(UNIT) is still coming up — $$restarts restart(s) so far. Last 20 lines:"; \
+	  systemctl --user --no-pager --lines=20 status "$(UNIT)" || true; \
 	  echo "    The unit retries every 5s and never gives up, so this may right itself."; \
-	  echo "    Watch it with:  journalctl --user -u $(DEPLOY_UNIT) -f"; \
+	  echo "    Watch it with:  journalctl --user -u $(UNIT) -f"; \
 	  exit 1; \
 	else \
-	  echo "!!  $(DEPLOY_UNIT) did not come up. Last 20 lines:"; \
-	  systemctl --user --no-pager --lines=20 status "$(DEPLOY_UNIT)" || true; \
+	  echo "!!  $(UNIT) did not come up. Last 20 lines:"; \
+	  systemctl --user --no-pager --lines=20 status "$(UNIT)" || true; \
 	  echo "    A daemon cannot log in — if it says there is no saved session, run:"; \
-	  echo "      $(BINDIR)/kith login $(PROFILE_FLAG)"; \
+	  echo "      $(BINDIR)/kith login"; \
 	  exit 1; \
 	fi
 else ifeq ($(UNAME_S),Darwin)
-# macOS: render the plist (label/args/log per PROFILE) and bootout+bootstrap.
+# macOS: render the plist and bootout+bootstrap.
 deploy: install
 	@set -eu; \
 	install -d "$(LAUNCHAGENTDIR)" "$(HOME)/Library/Logs"; \
 	sed -e 's|<string>io.github.eugeneshtoka.kithd</string>|<string>$(PLIST_LABEL)</string>|' \
 	    -e 's|PATH="|PATH="$(BINDIR):|' \
-	    -e 's|exec kithd |exec kithd $(PROFILE_FLAG) |' \
 	    -e 's|kithd.log|$(PLIST_LOG)|' \
 	    "$(PLIST_SRC)" > "$(PLIST)"; \
 	chmod 0644 "$(PLIST)"; \
@@ -448,29 +433,22 @@ deploy: install
 	launchctl bootstrap "gui/$$uid" "$(PLIST)"; \
 	echo "==> LaunchAgent -> $(PLIST)"; \
 	echo "    log: ~/Library/Logs/$(PLIST_LOG)"; \
-	echo "    run the client: $(BINDIR)/kith $(PROFILE_FLAG)"; \
-	echo "    no saved session yet? $(BINDIR)/kith login $(PROFILE_FLAG)"
+	echo "    run the client: $(BINDIR)/kith"; \
+	echo "    no saved session yet? $(BINDIR)/kith login"
 else
 deploy: install
 	@echo "!!  no systemd and not macOS: nothing to enable. The binaries are in $(BINDIR);"
-	@echo "    run the daemon under your own supervisor, e.g.  $(BINDIR)/kithd $(PROFILE_FLAG)"
+	@echo "    run the daemon under your own supervisor, e.g.  $(BINDIR)/kithd"
 endif
 
-# Stop/disable every kithd unit (all profiles) and remove what `install` wrote.
+# Stop/disable kithd and remove what `install` wrote.
 # The matrix: and tg: associations are removed only where they still name kith.desktop.
 # Config, cache, crypto store and keyring session are kept.
 undeploy:
 	@set -eu; \
 	if [ "$(HAVE_SYSTEMCTL)" = yes ]; then \
-	  instances=$$( { systemctl --user list-units --all --plain --no-legend 'kithd@*.service' 2>/dev/null | awk '{print $$1}'; \
-	    for f in "$(UNITDIR)"/*.wants/kithd@?*.service; do \
-	      if [ -L "$$f" ] || [ -e "$$f" ]; then basename "$$f"; fi; \
-	    done; } | sort -u ); \
-	  for u in "$(UNIT)" $$instances; do \
-	    systemctl --user disable --now "$$u" 2>/dev/null || true; \
-	    case "$$u" in "$(UNIT)") ;; *) echo "==> stopped and disabled $$u" ;; esac; \
-	  done; \
-	  rm -f "$(UNITDIR)/$(UNIT)" "$(UNITDIR)/$(TEMPLATE_UNIT)"; \
+	  systemctl --user disable --now "$(UNIT)" 2>/dev/null || true; \
+	  rm -f "$(UNITDIR)/$(UNIT)"; \
 	  for f in "$(UNITDIR)"/kithd-?*.service; do \
 	    head -n1 "$$f" 2>/dev/null | grep -q '^# Written by kith for its config' || continue; \
 	    u=$$(basename "$$f"); \
@@ -479,7 +457,7 @@ undeploy:
 	    echo "==> stopped and removed $$u, which kith wrote for its own config"; \
 	  done; \
 	  systemctl --user daemon-reload; \
-	  echo "==> removed $(UNITDIR)/$(UNIT), $(UNITDIR)/$(TEMPLATE_UNIT)"; \
+	  echo "==> removed $(UNITDIR)/$(UNIT)"; \
 	fi; \
 	if [ "$(UNAME_S)" = Darwin ]; then \
 	  uid=$$(id -u); \
@@ -512,15 +490,14 @@ undeploy:
 	echo "    config, cache, crypto store and the keyring session were left in place"
 
 # ── Deployed-daemon operations ───────────────────────────────────────────────
-# These honour PROFILE.
 daemon-status:
-	@systemctl --user --no-pager status "$(DEPLOY_UNIT)" || true
+	@systemctl --user --no-pager status "$(UNIT)" || true
 
 daemon-logs:
-	@journalctl --user -u "$(DEPLOY_UNIT)" -n 100 --no-pager
+	@journalctl --user -u "$(UNIT)" -n 100 --no-pager
 
 daemon-restart:
-	systemctl --user restart "$(DEPLOY_UNIT)"
+	systemctl --user restart "$(UNIT)"
 
 daemon-stop:
-	systemctl --user stop "$(DEPLOY_UNIT)"
+	systemctl --user stop "$(UNIT)"

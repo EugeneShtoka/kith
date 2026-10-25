@@ -2,9 +2,8 @@
 # session. Import it from the flake: inputs.kith.homeManagerModules.default
 #
 #   programs.kith.enable = true;
-#   programs.kith.profiles = [ "work" ];   # optional: kithd@<name> instead
 #
-# Linux: links the packaged units into ~/.config/systemd/user and enables them the
+# Linux: links the packaged unit into ~/.config/systemd/user and enables it the
 # way `systemctl --user enable` would (a symlink in default.target.wants). Run
 # `systemctl --user daemon-reload` after the first switch, then `kith login`.
 # macOS: a launchd agent, the counterpart of packaging/macos/.
@@ -20,17 +19,9 @@ let
   pkg = cfg.package;
   units = "${pkg}/share/systemd/user";
   inherit (pkgs.stdenv.hostPlatform) isLinux isDarwin;
-  wants =
-    if cfg.profiles == [ ] then
-      { "systemd/user/default.target.wants/kithd.service".source = "${units}/kithd.service"; }
-    else
-      lib.listToAttrs (
-        map (
-          p: lib.nameValuePair "systemd/user/default.target.wants/kithd@${p}.service" {
-            source = "${units}/kithd@.service";
-          }
-        ) cfg.profiles
-      );
+  wants = {
+    "systemd/user/default.target.wants/kithd.service".source = "${units}/kithd.service";
+  };
 in
 {
   options.programs.kith = {
@@ -46,12 +37,6 @@ in
       default = true;
       description = "Start kithd in this user's session (systemd on Linux, launchd on macOS).";
     };
-    profiles = lib.mkOption {
-      type = lib.types.listOf (lib.types.strMatching "[A-Za-z0-9._-]+");
-      default = [ ];
-      example = [ "work" ];
-      description = "Start kithd@<name> for each profile instead of the plain kithd (Linux).";
-    };
   };
 
   config = lib.mkIf cfg.enable (
@@ -60,7 +45,6 @@ in
       (lib.mkIf isLinux {
         xdg.configFile = {
           "systemd/user/kithd.service".source = "${units}/kithd.service";
-          "systemd/user/kithd@.service".source = "${units}/kithd@.service";
         }
         // lib.optionalAttrs cfg.daemon.enable wants;
       })

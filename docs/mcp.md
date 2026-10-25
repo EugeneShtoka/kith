@@ -13,16 +13,15 @@ Nothing starts until an assistant launches the binary. The session lasts as long
 ## Before you start
 
 - `kith-mcp` is built and installed alongside the other two binaries (`make build`, `make install`).
-- **The daemon must be running** for the account you want to serve. Start it with the systemd user unit, or open `kith` once, which starts it for you. kith-mcp does not start the daemon itself.
+- **The daemon must be running.** Start it with the systemd user unit, or open `kith` once, which starts it for you. kith-mcp does not start the daemon itself.
 - Write the `[agent.read]` and `[agent.write]` tables of your config first (see [Scope](#scope-where-the-assistant-may-read-and-write)). **By default nothing is shared**: with `[agent.read] rooms` empty, the assistant can read no room and write nowhere. Every tool says so, naming `[agent.read] rooms`.
 
 ```text
-kith-mcp [--profile NAME] [--config PATH] [--version]
+kith-mcp [--config PATH] [--version]
 ```
 
 | Flag | Meaning |
 | --- | --- |
-| `--profile` | Which `[[profile]]` account to serve (default: the first) |
 | `--config` | The config file (default: the XDG config directory) |
 | `--version` | Print version information and exit |
 
@@ -36,7 +35,6 @@ Use the absolute path to the binary. An assistant started from a desktop session
 
 ```sh
 claude mcp add mx -- ~/.local/bin/kith-mcp
-claude mcp add kith-work -- ~/.local/bin/kith-mcp --profile work   # a second account
 ```
 
 ### Claude Desktop
@@ -47,8 +45,7 @@ Add the server to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "mx": {
-      "command": "/home/alice/.local/bin/kith-mcp",
-      "args": ["--profile", "work"]
+      "command": "/home/alice/.local/bin/kith-mcp"
     }
   }
 }
@@ -262,11 +259,10 @@ If the homeserver refuses a send, the message goes into the daemon's retry queue
 
 ## The audit trail: `kith --agent-log`
 
-Every write is recorded: sent, queued or drafted, with the room, the assistant's name, the text, and the reason for anything other than a plain send. So is every **refused** write, a `send_message` call for a room outside `[agent.read]` or `[agent.write]`, with the rule that refused it. A refusal never counts toward the cooldown. The ledger is a JSON Lines file per account, at `$XDG_STATE_HOME/kith/agent-sends-<account>.jsonl` (under `~/.local/state` by default).
+Every write is recorded: sent, queued or drafted, with the room, the assistant's name, the text, and the reason for anything other than a plain send. So is every **refused** write, a `send_message` call for a room outside `[agent.read]` or `[agent.write]`, with the rule that refused it. A refusal never counts toward the cooldown. The ledger is a JSON Lines file per config, at `$XDG_STATE_HOME/kith/agent-sends-<instance>.jsonl` (under `~/.local/state` by default).
 
 ```sh
 kith --agent-log
-kith --agent-log --profile work
 ```
 
 ```text
@@ -288,4 +284,4 @@ The log is printed oldest first, one entry per line, so `grep` and `tail` work o
 - [Writing messages](composer.md): drafts and the Drafts group
 - [Assist](assist.md): kith's own language-model features and their `[assist]` scope
 - [Encryption](encryption.md): why the daemon can hand over decrypted history
-- [Configuration](configuration.md): profiles and where the config lives
+- [Configuration](configuration.md): accounts and where the config lives

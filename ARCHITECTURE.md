@@ -437,14 +437,14 @@ composer**, with focus moving between panes.
 ## One instance per daemon (multi-tenancy)
 
 One daemon serves every account its config has, on every network: several WhatsApp
-numbers, Telegram accounts and Slack workspaces, and a Matrix account, share its one
-cache, so search, mentions and the room list span all of them. What is kept apart is
-the **instance**: two configs (a test one beside your own, say), or two `[[profile]]`
-blocks, are **two daemons that share nothing**. Every per-instance file is named by the
-instance ID, `[storage] instance`, which kith chooses on first run and writes into the
-config (a profile's is the base ID plus its name; an install from before instances
-kept its files under `domain.AccountKey`, the first 8 bytes of `sha256(MXID)`
-hex-encoded, and goes on using that). There is no instance column anywhere:
+numbers, Telegram accounts, Slack workspaces and Matrix accounts share its one cache,
+so search, mentions and the room list span all of them. What is kept apart is the
+**instance**: two configs (a test one beside your own, say) are **two daemons that
+share nothing**. Every per-instance file is named by the instance ID,
+`[storage] instance`, which kith chooses on first run and writes into the config (an
+install from before instances kept its files under `domain.AccountKey`, the first 8
+bytes of `sha256(MXID)` hex-encoded, and goes on using that). There is no instance
+column anywhere:
 
 | resource | path (default directories) | derived in |
 | --- | --- | --- |
@@ -459,10 +459,9 @@ hex-encoded, and goes on using that). There is no instance column anywhere:
 | exclusive lock | `$XDG_RUNTIME_DIR/kith/<instance>.lock` | `domain.Storage` |
 | scheduled messages | `$XDG_STATE_HOME/kith/scheduled-<instance>.toml` | `domain.Storage` |
 | assistant ledger | `$XDG_STATE_HOME/kith/agent-sends-<instance>.jsonl` | `domain.Storage` |
-| Matrix access token, pickle key | OS keyring, service `keyring_service`, account = the instance | `session` |
+| Matrix access token, pickle key, per account | OS keyring, service `keyring_service`, `<instance>\|matrix\|<account>` | `session` |
 | WhatsApp's, Messenger's and Signal's store keys | OS keyring, service `keyring_service`, `<instance>\|whatsapp-store`, `\|messenger-store`, `\|signal-store` | `session` |
 | Telegram, Messenger, LinkedIn and Google Messages sessions, Slack token and cookie | OS keyring, under each account | their adapters |
-| service | `kithd@<profile>.service` → `--profile <profile>` | `packaging/systemd` |
 | **notifications, DND** | the daemon's own state | per daemon |
 | **search, mentions, unread, threads, colours, emoji ranking** | that cache | per cache |
 
@@ -480,9 +479,7 @@ Two consequences, both deliberate:
   a fan-out `Backend` dialing N sockets and merging: a real feature, not a
   configuration.
 - **Silence is per instance.** Do-not-disturb writes a temporary rule in the daemon
-  you are attached to, so it quiets that instance and not the other. The rules
-  *file* is shared (a profile carries only the account); the runtime state of having
-  been silenced is not.
+  you are attached to, so it quiets that instance and not the other.
 
 ## Config layer (`internal/config`)
 
@@ -495,9 +492,6 @@ looks exactly like a working one. The user-facing reference is
 [docs/configuration.md](docs/configuration.md); `kith --print-config` prints the
 annotated default file.
 
-- **Profiles.** `[[profile]]` blocks name accounts, and `--profile work` picks one.
-  A profile carries *only* the account; keys, display and rules are shared. Nothing
-  else needed changing, because every store was already keyed by user ID.
 - **Theme.** `[display.theme]` picks one of four palettes (`cobalt2`, `gruvbox`,
   `nord`, and `terminal`, which uses the ANSI colours so the client wears the
   terminal's own scheme) and overrides any of nine roles. Nine colours with nine

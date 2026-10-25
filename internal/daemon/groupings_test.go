@@ -37,7 +37,7 @@ func TestAFolderIsPreviewedAndCopiedIntoTheConfig(t *testing.T) {
 		{ID: "telegram:42/7", Name: "Dana"}, {ID: "telegram:42/8", Name: "Sam"}, {ID: "telegram:42/9", Name: "Old"},
 		{ID: "whatsapp:44/1@s.whatsapp.net", Name: "Mom"},
 	}}}
-	h := serve(t, backend, func(d *daemon.Daemon) { d.Config = daemon.NewConfigFile(path, "") })
+	h := serve(t, backend, func(d *daemon.Daemon) { d.Config = daemon.NewConfigFile(path) })
 	r := h.client()
 	ctx := t.Context()
 	diffs, err := r.PreviewGroupings(ctx, "telegram", "personal")

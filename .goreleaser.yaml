@@ -99,12 +99,9 @@ archives:
       - README.md
       - LICENSE
       - ARCHITECTURE.md
-      # The autostart units belong with the binaries: the daemon is meant to be
-      # already running before any client starts. Both of them — README.md tells
-      # multi-profile users to enable kithd@<profile>, and that file was not in
-      # the archive, so following the README from a release could not work.
+      # The autostart unit belongs with the binaries: the daemon is meant to be
+      # already running before any client starts.
       - packaging/systemd/kithd.service
-      - packaging/systemd/kithd@.service
       # The matrix: link handler, and macOS's counterpart of the unit. The Homebrew
       # cask points its caveats at the plist inside the staged archive, and the
       # kith-bin AUR package installs the desktop entry from here.
@@ -167,9 +164,6 @@ nfpms:
     contents:
       - src: build/packaging/systemd/kithd.service
         dst: /usr/lib/systemd/user/kithd.service
-        file_info: { mode: 0644 }
-      - src: build/packaging/systemd/kithd@.service
-        dst: /usr/lib/systemd/user/kithd@.service
         file_info: { mode: 0644 }
       - src: packaging/desktop/kith.desktop
         dst: /usr/share/applications/kith.desktop
@@ -305,7 +299,7 @@ aurs:
     # The archive's units say %h/.local/bin; the same rewrite as scripts/render-units.sh.
     package: |-
       install -Dm755 kith kithd kith-mcp kith-signal -t "${pkgdir}/usr/bin/"
-      for unit in kithd.service kithd@.service; do
+      for unit in kithd.service; do
         sed 's|^ExecStart=[^ ]*/kithd|ExecStart=/usr/bin/kithd|' "packaging/systemd/${unit}" > "${unit}"
         install -Dm644 "${unit}" "${pkgdir}/usr/lib/systemd/user/${unit}"
       done
@@ -497,23 +491,23 @@ release:
     | Nix | `nix profile install github:EugeneShtoka/kith` |
     | FreeBSD, or anything else | the `.tar.gz` for your platform; put the binaries on `PATH` |
 
-    The Linux packages install the systemd *user* units but enable nothing — a
+    The Linux packages install the systemd *user* unit but enable nothing — a
     package cannot start a service in your session. As your own user:
 
     ```sh
     kith login
     systemctl --user daemon-reload
     systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
-    systemctl --user enable --now kithd    # or kithd@<profile>
+    systemctl --user enable --now kithd
     ```
 
-    From a tarball, install the binaries and the units yourself (the units' sandbox
+    From a tarball, install the binaries and the unit yourself (the unit's sandbox
     creates its own directories):
 
     ```sh
     tar xzf kith_*_linux_amd64.tar.gz
     install -Dm755 kith kithd kith-mcp -t ~/.local/bin/
-    install -Dm644 packaging/systemd/kithd.service packaging/systemd/kithd@.service -t ~/.config/systemd/user/
+    install -Dm644 packaging/systemd/kithd.service -t ~/.config/systemd/user/
     ```
 
     On macOS the daemon runs as a LaunchAgent (`packaging/macos/`, see the cask's

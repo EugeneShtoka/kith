@@ -66,7 +66,7 @@ buildGoModule (finalAttrs: {
       # pointed at the store. The unsandboxed ExecStartPre= names mkdir by bare name,
       # which a regular distribution resolves in /usr/bin; NixOS has no /usr/bin.
       bash scripts/render-units.sh "$out/bin" "$out/share/systemd/user"
-      substituteInPlace "$out/share/systemd/user/kithd.service" "$out/share/systemd/user/kithd@.service" \
+      substituteInPlace "$out/share/systemd/user/kithd.service" \
         --replace-fail "ExecStartPre=+mkdir " "ExecStartPre=+${coreutils}/bin/mkdir "
       # Beside kithd, where kithd looks for it first.
       install -Dm755 ${finalAttrs.passthru.signal}/bin/kith-signal -t "$out/bin"

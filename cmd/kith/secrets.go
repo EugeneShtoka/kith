@@ -4,7 +4,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/session"
 )
 
-// commandSecrets keeps user commands' secrets in the OS keyring, under this profile's
+// commandSecrets keeps user commands' secrets in the OS keyring, under the config's
 // keyring service (tui.Secrets).
 type commandSecrets struct{ service string }
 

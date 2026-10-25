@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# render-units.sh — write the systemd user units with ExecStart= pointing at BINDIR.
+# render-units.sh — write the systemd user unit with ExecStart= pointing at BINDIR.
 # The single place this rewrite lives (Makefile, GoReleaser, PKGBUILD, flake).
 #
 # Usage: bash scripts/render-units.sh BINDIR OUTDIR
@@ -18,7 +18,7 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 src="$here/packaging/systemd"
 
 mkdir -p "$outdir"
-for unit in kithd.service kithd@.service; do
+for unit in kithd.service; do
 	sed "s|^ExecStart=[^ ]*/kithd|ExecStart=$bindir/kithd|" "$src/$unit" >"$outdir/$unit.tmp"
 	if ! grep -q "^ExecStart=$bindir/kithd\( \|$\)" "$outdir/$unit.tmp"; then
 		rm -f "$outdir/$unit.tmp"

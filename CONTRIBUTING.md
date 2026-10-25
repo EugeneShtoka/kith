@@ -141,7 +141,7 @@ calls a tool directly instead of through its target. In order:
 | `vuln` | `govulncheck ./...`, and `npm audit` of markdownlint's lock (`scripts/npm-audit.sh`: an advisory with no fixed release can be allowed in `tools/markdownlint/audit-allow.json`, with a reason and an expiry date) |
 | `secrets` | gitleaks over the committed history **and** the working tree |
 | `pin-check` | every GitHub Actions `uses:` is pinned to a commit SHA |
-| `unit-check` | the plain and templated systemd units configure the same sandbox |
+| `unit-check` | the systemd unit creates every directory its sandbox lets it write |
 | `arch-check` | every package under `internal/` and `cmd/`, at any depth, is named by a depguard rule; `scripts/deps-check.sh`: the TUI, the wire and `kith-mcp` link no daemon-side package at any depth; `go tool deadcode` and `scripts/testonly.go`: no function exists only for tests (neither sees a field or var that does, which review must) |
 | `ci-parity` | CI runs exactly these targets (`scripts/ci-parity-check.sh`) |
 | `script-check` | the tests of those gate scripts (`scripts/test/tools-test.sh`): a tampered or missing tool download, and each way CI and `check` can drift |
@@ -321,9 +321,8 @@ and Homebrew updates. Contributors don't need to bump versions. What each publis
 needs, and how to test the packages locally, is in
 [docs/packaging.md](docs/packaging.md).
 
-If you change `packaging/systemd/`, keep both units in step: `make unit-check` fails
-when they disagree, or when a `ReadWritePaths=` directory is missing from the
-`ExecStartPre=+mkdir` line that creates it.
+If you change `packaging/systemd/`, `make unit-check` fails when a `ReadWritePaths=`
+directory is missing from the `ExecStartPre=+mkdir` line that creates it.
 
 ## Security
 
