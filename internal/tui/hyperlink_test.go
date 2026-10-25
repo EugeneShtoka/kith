@@ -125,8 +125,8 @@ func TestTheSendersColorOutlivesALink(t *testing.T) {
 		"https://x.com/a/status/1\nהחבר היה הראשון לדחות",
 		"look at https://x.com/a/status/1",
 	} {
-		msg := domain.Message{ID: "$m", Sender: "@evyatar:x", Body: body}
-		rows := m.messageRows(msg, 80, 12, map[string]color.Color{"@evyatar:x": yellow}, false, "")
+		msg := domain.Message{ID: mx + "$m", Sender: "matrix:@evyatar:x", Body: body}
+		rows := m.messageRows(msg, 80, 12, map[string]color.Color{"matrix:@evyatar:x": yellow}, false, "")
 		for _, row := range rows {
 			// The link itself is in the link color; what is beside it is the sender's.
 			words := strings.TrimSpace(strings.ReplaceAll(stripStyles(row), "https://x.com/a/status/1", ""))

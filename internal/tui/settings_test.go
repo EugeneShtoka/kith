@@ -107,7 +107,7 @@ func TestSettingChoiceChangesTheDecision(t *testing.T) {
 	t.Parallel()
 
 	m, path := opened(t, config.Notifications{Enabled: true})
-	chat := domain.Message{ID: "$2", RoomID: "!standup:x", Sender: "@bob:x", SenderName: "B", Body: "morning"}
+	chat := domain.Message{ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@bob:x", SenderName: "B", Body: "morning"}
 	if notifies(t, m, chat) {
 		t.Fatal("mention-only should not notify for ordinary chat")
 	}

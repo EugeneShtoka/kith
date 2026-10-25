@@ -18,18 +18,18 @@ func TestEmitDuringCloseStreamsDoesNotPanic(t *testing.T) {
 
 	// Repeated: the interleaving is what is tested.
 	for range 200 {
-		b := New(nil)
+		b := newBackend(nil)
 
 		var wg sync.WaitGroup
 		start := make(chan struct{})
 		for range 8 {
 			wg.Go(func() {
 				<-start
-				emit(&b.out, b.out.msgs, domain.Message{ID: "$e:x"})
-				emit(&b.out, b.out.unread, domain.Unread{RoomID: "!r:x"})
-				emit(&b.out, b.out.reactions, domain.ReactionUpdate{Reaction: domain.Reaction{RoomID: "!r:x"}})
-				emit(&b.out, b.out.activity, domain.Activity{RoomID: "!r:x"})
-				emit(&b.out, b.out.invites, []domain.Room{{ID: "!r:x"}})
+				emit(&b.out, b.out.msgs, domain.Message{ID: mx + "$e:x"})
+				emit(&b.out, b.out.unread, domain.Unread{RoomID: mx + "!r:x"})
+				emit(&b.out, b.out.reactions, domain.ReactionUpdate{Reaction: domain.Reaction{RoomID: mx + "!r:x"}})
+				emit(&b.out, b.out.activity, domain.Activity{RoomID: mx + "!r:x"})
+				emit(&b.out, b.out.invites, []domain.Room{{ID: mx + "!r:x"}})
 			})
 		}
 		wg.Go(func() {
@@ -45,7 +45,7 @@ func TestEmitDuringCloseStreamsDoesNotPanic(t *testing.T) {
 func TestCloseStreamsIsIdempotent(t *testing.T) {
 	t.Parallel()
 
-	b := New(nil)
+	b := newBackend(nil)
 	b.out.close()
 	b.out.close()
 
@@ -65,7 +65,7 @@ func TestRecountAfterCloseStreamsDoesNotPanic(t *testing.T) {
 	ctx := context.Background()
 	cache := testCache(t)
 
-	b := New(cache)
+	b := newBackend(cache)
 	client, err := mautrix.NewClient("https://example.org", id.UserID("@me:x"), "token")
 	if err != nil {
 		t.Fatalf("new client: %v", err)
@@ -73,8 +73,8 @@ func TestRecountAfterCloseStreamsDoesNotPanic(t *testing.T) {
 	b.client = client
 
 	// recount only sends on a change, so seed a non-zero last-known state.
-	b.unread.seed([]domain.Unread{{RoomID: "!r:x", Messages: 5}}, nil)
+	b.unread.seed([]domain.Unread{{RoomID: mx + "!r:x", Messages: 5}}, nil)
 
 	b.out.close()
-	b.recount(ctx, "!r:x") // the RPC handler's path, after shutdown
+	b.recount(ctx, mx+"!r:x") // the RPC handler's path, after shutdown
 }

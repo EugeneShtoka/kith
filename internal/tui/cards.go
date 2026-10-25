@@ -289,10 +289,20 @@ func (m Model) knownPeople() []string {
 	return out
 }
 
+// cardMatrixPeople is the Matrix people a card names, in kith's form: the card file
+// keeps their MXIDs as Matrix writes them.
+func cardMatrixPeople(card phonebook.Card) []string {
+	out := make([]string, 0, len(card.IDs["matrix"]))
+	for _, mxid := range card.IDs["matrix"] {
+		out = append(out, domain.NativePerson(domain.ProtocolMatrix, mxid))
+	}
+	return out
+}
+
 // cardPeople is every known ID, not yours, whose person is the person on card.
 func (m Model) cardPeople(card phonebook.Card) []string {
 	var out []string
-	for _, id := range append(m.knownPeople(), card.IDs["matrix"]...) {
+	for _, id := range append(m.knownPeople(), cardMatrixPeople(card)...) {
 		if m.isMe(id) || slices.Contains(out, id) {
 			continue
 		}
@@ -316,7 +326,7 @@ func (m Model) fieldSenders(term string) ([]string, string) {
 	for _, card := range m.cards.index.Cards() {
 		if card.Matches(q) {
 			met[card.Path] = true
-			ids = append(ids, card.IDs["matrix"]...)
+			ids = append(ids, cardMatrixPeople(card)...)
 		}
 	}
 	if len(met) == 0 {

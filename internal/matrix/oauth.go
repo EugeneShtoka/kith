@@ -238,7 +238,7 @@ func (b *InProc) LoginOAuth(
 	client.DeviceID = who.DeviceID
 	b.client = client
 	return domain.Session{
-		Homeserver: homeserver, UserID: b.ids.user(who.UserID), DeviceID: string(who.DeviceID),
+		Homeserver: homeserver, UserID: matrixString(who.UserID), DeviceID: string(who.DeviceID),
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: tokens.RefreshToken, OAuthClientID: clientID,
 		AccessTokenExpiresAt: tokenStart.Add(tokens.ExpiresIn.Duration),
@@ -345,7 +345,7 @@ func (b *InProc) LoginSSO(
 	}
 	b.client = client
 	return domain.Session{
-		Homeserver: homeserver, UserID: b.ids.user(resp.UserID), DeviceID: string(resp.DeviceID),
+		Homeserver: homeserver, UserID: matrixString(resp.UserID), DeviceID: string(resp.DeviceID),
 		AccessToken: resp.AccessToken,
 	}, nil
 }

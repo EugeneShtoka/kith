@@ -102,25 +102,25 @@ func TestMovesAndReleasesAreWrittenPerTag(t *testing.T) {
 	srv := newAccountDataServer(t)
 	b := backendWith(t, srv.Server, nil)
 
-	moved := domain.TagVerdict{Room: "!a:x", Tag: "Spam", Rule: domain.MoveFirstMessage, Filter: "crypto", At: time.Now()}
+	moved := domain.TagVerdict{Room: mx + "!a:x", Tag: "Spam", Rule: domain.MoveFirstMessage, Filter: "crypto", At: time.Now()}
 	if err := b.MarkTag(ctx, moved); err != nil {
 		t.Fatalf("MarkTag(move) error = %v", err)
 	}
-	if err := b.MarkTag(ctx, domain.TagVerdict{Room: "!a:x", Tag: "Leads", Rule: domain.MoveAlways, Filter: "quotes"}); err != nil {
+	if err := b.MarkTag(ctx, domain.TagVerdict{Room: mx + "!a:x", Tag: "Leads", Rule: domain.MoveAlways, Filter: "quotes"}); err != nil {
 		t.Fatalf("MarkTag(second tag) error = %v", err)
 	}
 	if got := srv.content(t, "!a:x").Verdicts; got["spam"].Rule != int(domain.MoveFirstMessage) || got["leads"].Filter != "quotes" {
 		t.Fatalf("account data = %+v, want both tags' moves", got)
 	}
 
-	if err := b.MarkTag(ctx, domain.TagVerdict{Room: "!a:x", Tag: "SPAM", Released: true}); err != nil {
+	if err := b.MarkTag(ctx, domain.TagVerdict{Room: mx + "!a:x", Tag: "SPAM", Released: true}); err != nil {
 		t.Fatalf("MarkTag(release) error = %v", err)
 	}
 	got := srv.content(t, "!a:x").Verdicts
 	if !got["spam"].Released || got["spam"].Rule != 0 || got["spam"].At == 0 || got["leads"].Rule != int(domain.MoveAlways) {
 		t.Errorf("account data = %+v, want Spam released with a time and Leads kept", got)
 	}
-	mirrored, err := b.cache.RoomVerdicts(ctx, "!a:x")
+	mirrored, err := b.cache.RoomVerdicts(ctx, mx+"!a:x")
 	if err != nil || len(mirrored) != 2 {
 		t.Fatalf("mirror = %+v, %v; want both", mirrored, err)
 	}
@@ -143,7 +143,7 @@ func TestAMoveCannotOverwriteARelease(t *testing.T) {
 	srv.stored["!a:x"] = `{"verdicts":{"spam":{"released":true,"at_ms":1700000000000}}}`
 	b := backendWith(t, srv.Server, nil)
 
-	err := b.MarkTag(ctx, domain.TagVerdict{Room: "!a:x", Tag: "Spam", Rule: domain.MoveDirect, Filter: "crypto"})
+	err := b.MarkTag(ctx, domain.TagVerdict{Room: mx + "!a:x", Tag: "Spam", Rule: domain.MoveDirect, Filter: "crypto"})
 	if !errors.Is(err, domain.ErrReleased) {
 		t.Fatalf("MarkTag(move over a release) error = %v, want ErrReleased", err)
 	}
@@ -170,8 +170,8 @@ func TestTagAccountDataParsesAndMirrors(t *testing.T) {
 	if !present || len(content.Verdicts) != 2 {
 		t.Fatalf("tagsFrom = %+v, %v; want both entries", content, present)
 	}
-	b.mirrorVerdicts(ctx, "!a:x", content.verdicts("!a:x"))
-	got, err := b.cache.RoomVerdicts(ctx, "!a:x")
+	b.mirrorVerdicts(ctx, mx+"!a:x", content.verdicts(mx+"!a:x"))
+	got, err := b.cache.RoomVerdicts(ctx, mx+"!a:x")
 	if err != nil {
 		t.Fatal(err)
 	}

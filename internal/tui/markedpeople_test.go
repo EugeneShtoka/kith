@@ -17,14 +17,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-const markedMe = "@me:example.org"
+const markedMe = "matrix:@me:example.org"
 
 // markedPool is the senders the generator draws from: Matrix users, two WhatsApp
 // numbers each seen natively and as a bridge puppet, and you.
 var markedPool = []string{
-	"@ann:example.org", "@bob:example.org", "@cat:example.org", "telegram:1001",
-	"whatsapp:15550000001@s.whatsapp.net", "@whatsapp_15550000001:example.org",
-	"whatsapp:15550000002@s.whatsapp.net", "@whatsapp_15550000002:example.org",
+	"matrix:@ann:example.org", "matrix:@bob:example.org", "matrix:@cat:example.org", "telegram:1001",
+	"whatsapp:15550000001@s.whatsapp.net", "matrix:@whatsapp_15550000001:example.org",
+	"whatsapp:15550000002@s.whatsapp.net", "matrix:@whatsapp_15550000002:example.org",
 	markedMe,
 }
 
@@ -103,14 +103,14 @@ func genMarkedCase(rng *rand.Rand) markedCase {
 	start := time.Unix(1700000000, 0)
 	for i := range 4 + rng.IntN(8) {
 		msg := domain.Message{
-			ID: domain.EventID(fmt.Sprintf("$%d", i)), RoomID: "!a:x", Sender: pick(),
+			ID: domain.EventID(fmt.Sprintf(mx+"$%d", i)), RoomID: mx + "!a:x", Sender: pick(),
 			Body: "hello", Timestamp: start.Add(time.Duration(i) * time.Minute),
 		}
 		switch r := rng.IntN(4); {
 		case r == 0 && i > 0:
-			msg.ReplyTo = domain.EventID(fmt.Sprintf("$%d", rng.IntN(i)))
+			msg.ReplyTo = domain.EventID(fmt.Sprintf(mx+"$%d", rng.IntN(i)))
 		case r == 1:
-			msg.ReplyTo = "$unloaded"
+			msg.ReplyTo = mx + "$unloaded"
 		}
 		c.msgs = append(c.msgs, msg)
 	}
@@ -280,43 +280,43 @@ func TestATagKeyFilesTheSenderAndTakesThemOut(t *testing.T) {
 
 	off := false
 	c := markedCase{
-		identities: []config.Identity{{Alias: "Bob", IDs: []string{"@bob:example.org", "telegram:1001"}}},
+		identities: []config.Identity{{Alias: "Bob", IDs: []string{"matrix:@bob:example.org", "telegram:1001"}}},
 		tags: []config.Tag{
-			{Name: "Loud", People: []string{"@cat:example.org"}},
+			{Name: "Loud", People: []string{"matrix:@cat:example.org"}},
 			{Name: "Spam", Notifies: &off, People: []string{"telegram:1001"}},
 		},
 		msgs: []domain.Message{
-			{ID: "$0", RoomID: "!a:x", Sender: "@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)},
-			{ID: "$1", RoomID: "!a:x", Sender: "@cat:example.org", Body: "buy", Timestamp: time.Unix(1700000060, 0)},
-			{ID: "$2", RoomID: "!a:x", Sender: "@ann:example.org", Body: "no", ReplyTo: "$1", Timestamp: time.Unix(1700000120, 0)},
-			{ID: "$3", RoomID: "!a:x", Sender: "@ann:example.org", Body: "ok", Timestamp: time.Unix(1700000180, 0)},
-			{ID: "$4", RoomID: "!a:x", Sender: "@bob:example.org", Body: "spam", Timestamp: time.Unix(1700000240, 0)},
+			{ID: mx + "$0", RoomID: mx + "!a:x", Sender: "matrix:@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)},
+			{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@cat:example.org", Body: "buy", Timestamp: time.Unix(1700000060, 0)},
+			{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@ann:example.org", Body: "no", ReplyTo: mx + "$1", Timestamp: time.Unix(1700000120, 0)},
+			{ID: mx + "$3", RoomID: mx + "!a:x", Sender: "matrix:@ann:example.org", Body: "ok", Timestamp: time.Unix(1700000180, 0)},
+			{ID: mx + "$4", RoomID: mx + "!a:x", Sender: "matrix:@bob:example.org", Body: "spam", Timestamp: time.Unix(1700000240, 0)},
 		},
 	}
 	m := markedModel(t, c)
-	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{"$0", "$1", "$2", "$3"}) {
+	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{mx + "$0", mx + "$1", mx + "$2", mx + "$3"}) {
 		t.Fatalf("drew %v, want Bob hidden by his Telegram ID", got)
 	}
-	m.timeline.selected = "$1"
+	m.timeline.selected = mx + "$1"
 	m, _ = m.toggleSenderIn("spam")
-	if got := m.conf.base.Tags[1].People; !slices.Equal(got, []string{"telegram:1001", "@cat:example.org"}) {
+	if got := m.conf.base.Tags[1].People; !slices.Equal(got, []string{"telegram:1001", "matrix:@cat:example.org"}) {
 		t.Fatalf("Spam holds %v, want the sender added", got)
 	}
-	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{"$0", "$3"}) {
+	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{mx + "$0", mx + "$3"}) {
 		t.Fatalf("drew %v, want the sender and the reply to them hidden", got)
 	}
-	if m.timeline.selected != "$3" {
+	if m.timeline.selected != mx+"$3" {
 		t.Errorf("cursor on %q, want the next message still drawn", m.timeline.selected)
 	}
 
 	// Bob is in Spam as his Telegram ID; the key on his Matrix message takes him out.
 	m, _ = m.toggleMarkedShown()
-	m.timeline.selected = "$4"
+	m.timeline.selected = mx + "$4"
 	m, _ = m.toggleSenderIn("Spam")
-	if got := m.conf.base.Tags[1].People; !slices.Equal(got, []string{"@cat:example.org"}) {
+	if got := m.conf.base.Tags[1].People; !slices.Equal(got, []string{"matrix:@cat:example.org"}) {
 		t.Errorf("Spam holds %v after Bob was taken out", got)
 	}
-	if got := m.conf.base.Tags[0].People; !slices.Equal(got, []string{"@cat:example.org"}) {
+	if got := m.conf.base.Tags[0].People; !slices.Equal(got, []string{"matrix:@cat:example.org"}) {
 		t.Errorf("another tag's people changed: %v", got)
 	}
 }
@@ -343,29 +343,29 @@ func TestATagKeyReleasesAFiltersMark(t *testing.T) {
 
 	off := false
 	c := markedCase{
-		identities: []config.Identity{{Alias: "Bob", IDs: []string{"@bob:example.org", "telegram:1001"}}},
+		identities: []config.Identity{{Alias: "Bob", IDs: []string{"matrix:@bob:example.org", "telegram:1001"}}},
 		tags:       []config.Tag{{Name: "Spam", Notifies: &off}, {Name: "Work"}},
 		verdicts: []domain.PersonVerdict{
 			{Person: "telegram:1001", Tag: "spam", Rule: domain.MoveAlways, Filter: "crypto"},
-			{Person: "@bob:example.org", Tag: "spam", Rule: domain.MoveAlways, Filter: "links"},
-			{Person: "@bob:example.org", Tag: "work", Rule: domain.MoveAlways, Filter: "quotes"},
+			{Person: "matrix:@bob:example.org", Tag: "spam", Rule: domain.MoveAlways, Filter: "links"},
+			{Person: "matrix:@bob:example.org", Tag: "work", Rule: domain.MoveAlways, Filter: "quotes"},
 		},
 		msgs: []domain.Message{
-			{ID: "$0", RoomID: "!a:x", Sender: "@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)},
-			{ID: "$1", RoomID: "!a:x", Sender: "@bob:example.org", Body: "buy", Timestamp: time.Unix(1700000060, 0)},
+			{ID: mx + "$0", RoomID: mx + "!a:x", Sender: "matrix:@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)},
+			{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:example.org", Body: "buy", Timestamp: time.Unix(1700000060, 0)},
 		},
 	}
 	m := markedModel(t, c)
 	backend := &personMarker{}
 	m.backend = backend
-	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{"$0"}) {
+	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{mx + "$0"}) {
 		t.Fatalf("drew %v, want Bob hidden by a filter's mark", got)
 	}
 	m, _ = m.toggleMarkedShown()
-	m.timeline.selected = "$1"
+	m.timeline.selected = mx + "$1"
 	m, cmd := m.toggleSenderIn("Spam")
 	m, _ = m.toggleMarkedShown()
-	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{"$0", "$1"}) {
+	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{mx + "$0", mx + "$1"}) {
 		t.Errorf("drew %v, want Bob back at once", got)
 	}
 	if got := m.conf.base.Tags[0].People; len(got) != 0 {
@@ -379,7 +379,7 @@ func TestATagKeyReleasesAFiltersMark(t *testing.T) {
 		}
 		released[v.Person] = true
 	}
-	if !released["telegram:1001"] || !released["@bob:example.org"] || len(backend.released) != 2 {
+	if !released["telegram:1001"] || !released["matrix:@bob:example.org"] || len(backend.released) != 2 {
 		t.Errorf("released %v, want both of Bob's Spam marks", backend.released)
 	}
 }
@@ -389,24 +389,24 @@ func TestATagKeyRefusesYouAndHidesOnlyWhenMuted(t *testing.T) {
 	t.Parallel()
 
 	msgs := []domain.Message{
-		{ID: "$0", RoomID: "!a:x", Sender: markedMe, Body: "mine", Timestamp: time.Unix(1700000000, 0)},
-		{ID: "$1", RoomID: "!a:x", Sender: "@ann:example.org", Body: "hers", Timestamp: time.Unix(1700000060, 0)},
+		{ID: mx + "$0", RoomID: mx + "!a:x", Sender: markedMe, Body: "mine", Timestamp: time.Unix(1700000000, 0)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@ann:example.org", Body: "hers", Timestamp: time.Unix(1700000060, 0)},
 	}
 	off := false
 	m := markedModel(t, markedCase{tags: []config.Tag{{Name: "Spam", Notifies: &off}}, msgs: msgs})
-	m.timeline.selected = "$0"
+	m.timeline.selected = mx + "$0"
 	m, _ = m.toggleSenderIn("Spam")
 	if got := m.conf.base.Tags[0].People; len(got) != 0 {
 		t.Errorf("filed yourself: %v", got)
 	}
 
 	m = markedModel(t, markedCase{tags: []config.Tag{{Name: "Work"}}, msgs: msgs})
-	m.timeline.selected = "$1"
+	m.timeline.selected = mx + "$1"
 	m, _ = m.toggleSenderIn("Work")
-	if got := m.conf.base.Tags[0].People; !slices.Equal(got, []string{"@ann:example.org"}) {
+	if got := m.conf.base.Tags[0].People; !slices.Equal(got, []string{"matrix:@ann:example.org"}) {
 		t.Errorf("Work holds %v", got)
 	}
-	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{"$0", "$1"}) {
+	if got := shownIDs(m); !slices.Equal(got, []domain.EventID{mx + "$0", mx + "$1"}) {
 		t.Errorf("a tag that notifies hid %v", got)
 	}
 }
@@ -418,14 +418,14 @@ func TestTheTagKeyActsOnWhatThePaneShows(t *testing.T) {
 	off := false
 	c := markedCase{
 		tags: []config.Tag{{Name: "Spam", Notifies: &off}},
-		msgs: []domain.Message{{ID: "$0", RoomID: "!a:x", Sender: "@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)}},
+		msgs: []domain.Message{{ID: mx + "$0", RoomID: mx + "!a:x", Sender: "matrix:@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)}},
 	}
 	c.keys = config.TagKeys{{Chord: "!", Tag: "Spam"}}
 	m := markedModel(t, c)
 	m.focus = paneTimeline
-	m.timeline.selected = "$0"
+	m.timeline.selected = mx + "$0"
 	m = update(t, m, tea.KeyPressMsg{Code: '!', Text: "!"})
-	if got := m.conf.base.Tags[0]; !slices.Equal(got.People, []string{"@ann:example.org"}) || len(got.Picked) != 0 {
+	if got := m.conf.base.Tags[0]; !slices.Equal(got.People, []string{"matrix:@ann:example.org"}) || len(got.Picked) != 0 {
 		t.Fatalf("! in the timeline filed people %v, rooms %v", got.People, got.Picked)
 	}
 	m = update(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"})
@@ -447,14 +447,14 @@ func TestWhyNamesWhatHidAPerson(t *testing.T) {
 
 	off := false
 	c := markedCase{
-		identities: []config.Identity{{Alias: "Bob", IDs: []string{"@bob:example.org", "telegram:1001"}}},
-		tags:       []config.Tag{{Name: "Spam", Notifies: &off, People: []string{"@cat:example.org"}}},
+		identities: []config.Identity{{Alias: "Bob", IDs: []string{"matrix:@bob:example.org", "telegram:1001"}}},
+		tags:       []config.Tag{{Name: "Spam", Notifies: &off, People: []string{"matrix:@cat:example.org"}}},
 		verdicts:   []domain.PersonVerdict{{Person: "telegram:1001", Tag: "spam", Rule: domain.MoveSenderSpread, Filter: "runs"}},
 		msgs: []domain.Message{
-			{ID: "$0", RoomID: "!a:x", Sender: "@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)},
-			{ID: "$1", RoomID: "!a:x", Sender: "@bob:example.org", Body: "buy", Timestamp: time.Unix(1700000060, 0)},
-			{ID: "$2", RoomID: "!a:x", Sender: "@ann:example.org", Body: "no", ReplyTo: "$1", Timestamp: time.Unix(1700000120, 0)},
-			{ID: "$3", RoomID: "!a:x", Sender: "@cat:example.org", Body: "sale", Timestamp: time.Unix(1700000180, 0)},
+			{ID: mx + "$0", RoomID: mx + "!a:x", Sender: "matrix:@ann:example.org", Body: "hi", Timestamp: time.Unix(1700000000, 0)},
+			{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:example.org", Body: "buy", Timestamp: time.Unix(1700000060, 0)},
+			{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@ann:example.org", Body: "no", ReplyTo: mx + "$1", Timestamp: time.Unix(1700000120, 0)},
+			{ID: mx + "$3", RoomID: mx + "!a:x", Sender: "matrix:@cat:example.org", Body: "sale", Timestamp: time.Unix(1700000180, 0)},
 		},
 		shownHere: true,
 	}
@@ -464,16 +464,16 @@ func TestWhyNamesWhatHidAPerson(t *testing.T) {
 		m.timeline.selected = id
 		return strings.Join(m.whyLines(time.Now()), "\n")
 	}
-	if got := why("$1"); !strings.Contains(got, "is from") || !strings.Contains(got, "same caught message in several rooms (runs)") {
+	if got := why(mx + "$1"); !strings.Contains(got, "is from") || !strings.Contains(got, "same caught message in several rooms (runs)") {
 		t.Errorf("why on Bob's message:\n%s", got)
 	}
-	if got := why("$2"); !strings.Contains(got, "answers") || !strings.Contains(got, "(runs)") {
+	if got := why(mx + "$2"); !strings.Contains(got, "answers") || !strings.Contains(got, "(runs)") {
 		t.Errorf("why on the reply to Bob:\n%s", got)
 	}
-	if got := why("$3"); !strings.Contains(got, "you put them there") {
+	if got := why(mx + "$3"); !strings.Contains(got, "you put them there") {
 		t.Errorf("why on Cat's message:\n%s", got)
 	}
-	if got := why("$0"); strings.Contains(got, "hidden in every room") {
+	if got := why(mx + "$0"); strings.Contains(got, "hidden in every room") {
 		t.Errorf("why on Ann's message names a hiding:\n%s", got)
 	}
 	if got := why(""); strings.Contains(got, "hidden in every room") {

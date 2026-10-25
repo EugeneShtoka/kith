@@ -52,8 +52,8 @@ func TestMarkRoomsReadFailureCarriesTheReasonAndLogsIt(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	cache := testCache(t)
-	if err := cache.SaveMessages(context.Background(), "!dnd:x",
-		[]domain.Message{{ID: "$last", Timestamp: time.Unix(10, 0)}}); err != nil {
+	if err := cache.SaveMessages(context.Background(), mx+"!dnd:x",
+		[]domain.Message{{ID: mx + "$last", Timestamp: time.Unix(10, 0)}}); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
 	client, err := mautrix.NewClient(srv.URL, id.UserID("@me:x"), token)
@@ -61,12 +61,12 @@ func TestMarkRoomsReadFailureCarriesTheReasonAndLogsIt(t *testing.T) {
 		t.Fatalf("new client: %v", err)
 	}
 	buf := newSyncBuffer()
-	b := New(cache)
+	b := newBackend(cache)
 	b.UseLogger(logging.New(buf, logging.Options{Level: slog.LevelDebug}))
 	b.client = client
 	b.attachLogger(client)
 
-	got, err := b.MarkRoomsRead(context.Background(), []domain.RoomID{"!dnd:x"}, false)
+	got, err := b.MarkRoomsRead(context.Background(), []domain.RoomID{mx + "!dnd:x"}, false)
 	if err != nil {
 		t.Fatalf("MarkRoomsRead() error = %v", err)
 	}
@@ -77,7 +77,7 @@ func TestMarkRoomsReadFailureCarriesTheReasonAndLogsIt(t *testing.T) {
 		t.Errorf("FirstError = %q, want the homeserver's M_BAD_JSON", got.FirstError)
 	}
 	out := buf.String()
-	for _, want := range []string{"level=WARN", `msg="mark room read failed"`, "room=!dnd:x", "event=$last", "M_BAD_JSON"} {
+	for _, want := range []string{"level=WARN", `msg="mark room read failed"`, "room=" + mx + "!dnd:x", "event=" + mx + "$last", "M_BAD_JSON"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("log lacks %q:\n%s", want, out)
 		}
@@ -90,7 +90,7 @@ func TestMarkRoomsReadFailureCarriesTheReasonAndLogsIt(t *testing.T) {
 // Without a logger the backend is silent, and attachLogger leaves mautrix's Nop.
 func TestLoggerDefaultsAreSilent(t *testing.T) {
 	t.Parallel()
-	b := New(nil)
+	b := newBackend(nil)
 	b.warnIf(context.Background(), context.Canceled, "nothing")
 	b.UseLogger(nil)
 	if b.logger != nil {
@@ -105,7 +105,7 @@ func TestFailingSyncerLogsOutagesWithoutFlooding(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	b := New(nil)
+	b := newBackend(nil)
 	b.UseLogger(logging.New(&buf, logging.Options{Level: slog.LevelInfo}))
 	f := &failingSyncer{DefaultSyncer: mautrix.NewDefaultSyncer(), b: b}
 	for range 5 {

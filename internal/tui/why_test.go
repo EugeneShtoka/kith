@@ -21,7 +21,7 @@ func TestWhyExplainsTheChain(t *testing.T) {
 		{Name: "everything", Show: new(notify.LevelMention)},
 		{Name: "Quiet hours", When: &night, Show: new(notify.LevelNone)},
 		{Name: "Work", Match: "space:Work", Show: new(notify.LevelAll)},
-		{Name: "Alice", Sender: "@alice:x", Show: new(notify.LevelAll)},
+		{Name: "Alice", Sender: "matrix:@alice:x", Show: new(notify.LevelAll)},
 	}
 
 	raw := m.whyLines(time.Date(2026, 8, 23, 23, 30, 0, 0, time.Local))
@@ -55,7 +55,7 @@ func TestWhyExplainsAMute(t *testing.T) {
 
 	m, _ := silencing(t)
 	m.notifications.rules = []notify.Rule{{Name: "everything", Show: new(notify.LevelAll)}}
-	m.notifications.temps = notify.Temps{}.Add(until(hidden("!a:x", "", "Alpha"), time.Now().Add(90*time.Minute)))
+	m.notifications.temps = notify.Temps{}.Add(until(hidden(mx+"!a:x", "", "Alpha"), time.Now().Add(90*time.Minute)))
 
 	lines := strings.Join(m.whyLines(time.Now()), "\n")
 	if !strings.Contains(lines, "muted") || !strings.Contains(lines, "1h") {

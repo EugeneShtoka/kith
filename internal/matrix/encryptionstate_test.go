@@ -26,14 +26,14 @@ func TestARoomWhoseStateIsUnknownReadsAsEncrypted(t *testing.T) {
 		t.Fatal(err)
 	}
 	client.StateStore = store
-	b := New(nil)
+	b := newBackend(nil)
 	b.client = client
 
-	got, err := b.RoomEncryption(ctx, []domain.RoomID{"!plain:x", "!sealed:x", "!unseen:x"})
+	got, err := b.RoomEncryption(ctx, []domain.RoomID{mx + "!plain:x", mx + "!sealed:x", mx + "!unseen:x"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[domain.RoomID]bool{"!plain:x": false, "!sealed:x": true, "!unseen:x": true}
+	want := map[domain.RoomID]bool{mx + "!plain:x": false, mx + "!sealed:x": true, mx + "!unseen:x": true}
 	for room, encrypted := range want {
 		if got[room] != encrypted {
 			t.Errorf("%s: encrypted = %v, want %v", room, got[room], encrypted)

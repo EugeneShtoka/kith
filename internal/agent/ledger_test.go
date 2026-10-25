@@ -42,7 +42,7 @@ func TestAppendedEntriesComeBackInOrder(t *testing.T) {
 
 	l := ledger(t)
 	for _, outcome := range []string{agent.Sent, agent.Drafted, agent.Queued} {
-		if err := l.Append(agent.Entry{Room: "!a:x", Outcome: outcome, Text: outcome}); err != nil {
+		if err := l.Append(agent.Entry{Room: mx + "!a:x", Outcome: outcome, Text: outcome}); err != nil {
 			t.Fatalf("append: %v", err)
 		}
 	}
@@ -65,20 +65,20 @@ func TestLastOutIgnoresDraftsAndRefusals(t *testing.T) {
 
 	now := time.Now()
 	entries := []agent.Entry{
-		{Room: "!a:x", Outcome: agent.Sent, At: now.Add(-time.Hour)},
-		{Room: "!a:x", Outcome: agent.Drafted, At: now},
-		{Room: "!a:x", Outcome: agent.Refused, At: now},
-		{Room: "!b:x", Outcome: agent.Queued, At: now},
+		{Room: mx + "!a:x", Outcome: agent.Sent, At: now.Add(-time.Hour)},
+		{Room: mx + "!a:x", Outcome: agent.Drafted, At: now},
+		{Room: mx + "!a:x", Outcome: agent.Refused, At: now},
+		{Room: mx + "!b:x", Outcome: agent.Queued, At: now},
 	}
-	last, ever := agent.LastOut(entries, "!a:x")
+	last, ever := agent.LastOut(entries, mx+"!a:x")
 	if !ever || !last.Equal(now.Add(-time.Hour)) {
 		t.Errorf("last out of !a:x = %v (%v), want the send an hour ago", last, ever)
 	}
 	// A queued message counts as sent.
-	if _, ever := agent.LastOut(entries, "!b:x"); !ever {
+	if _, ever := agent.LastOut(entries, mx+"!b:x"); !ever {
 		t.Error("a queued message did not count")
 	}
-	if _, ever := agent.LastOut(entries, "!c:x"); ever {
+	if _, ever := agent.LastOut(entries, mx+"!c:x"); ever {
 		t.Error("a room nothing was written to reported a send")
 	}
 }
@@ -87,7 +87,7 @@ func TestTextIsCapped(t *testing.T) {
 	t.Parallel()
 
 	l := ledger(t)
-	if err := l.Append(agent.Entry{Room: "!a:x", Outcome: agent.Sent, Text: strings.Repeat("ה", 2000)}); err != nil {
+	if err := l.Append(agent.Entry{Room: mx + "!a:x", Outcome: agent.Sent, Text: strings.Repeat("ה", 2000)}); err != nil {
 		t.Fatalf("append: %v", err)
 	}
 	entries, _ := l.Entries()
@@ -100,7 +100,7 @@ func TestABadLineIsSkippedNotFatal(t *testing.T) {
 	t.Parallel()
 
 	l, path := ledgerAt(t)
-	if err := l.Append(agent.Entry{Room: "!a:x", Outcome: agent.Sent, Text: "one"}); err != nil {
+	if err := l.Append(agent.Entry{Room: mx + "!a:x", Outcome: agent.Sent, Text: "one"}); err != nil {
 		t.Fatalf("append: %v", err)
 	}
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
@@ -111,7 +111,7 @@ func TestABadLineIsSkippedNotFatal(t *testing.T) {
 		t.Fatalf("write: %v", werr)
 	}
 	_ = file.Close()
-	if aerr := l.Append(agent.Entry{Room: "!a:x", Outcome: agent.Sent, Text: "two"}); aerr != nil {
+	if aerr := l.Append(agent.Entry{Room: mx + "!a:x", Outcome: agent.Sent, Text: "two"}); aerr != nil {
 		t.Fatalf("append: %v", aerr)
 	}
 	entries, err := l.Entries()
@@ -149,7 +149,7 @@ func TestALongNameDoesNotBreakTheLedger(t *testing.T) {
 	t.Parallel()
 	l := ledger(t)
 	long := strings.Repeat("n", 1<<17)
-	if err := l.Append(agent.Entry{Room: "!a:x", Name: long, Author: long, Reason: long, Outcome: agent.Sent, Text: "hi"}); err != nil {
+	if err := l.Append(agent.Entry{Room: mx + "!a:x", Name: long, Author: long, Reason: long, Outcome: agent.Sent, Text: "hi"}); err != nil {
 		t.Fatalf("append: %v", err)
 	}
 	entries, err := l.Entries()

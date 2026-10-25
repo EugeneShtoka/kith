@@ -15,7 +15,7 @@ import (
 func TestKeyFileOperationsRefuseWithoutEncryption(t *testing.T) {
 	t.Parallel()
 
-	b, ctx := New(nil), context.Background()
+	b, ctx := newBackend(nil), context.Background()
 
 	if _, err := b.ExportRoomKeys(ctx, "hunter2"); !errors.Is(err, api.ErrNoEncryption) {
 		t.Errorf("ExportRoomKeys error = %v, want ErrNoEncryption", err)

@@ -108,8 +108,8 @@ func TestAnAccountNamesTheNumbersItKnows(t *testing.T) {
 	}
 	// A bridge also names Alex: an address book name would outrank it, a push name does not.
 	if err := cache.SaveMembers(ctx, "!dm:x", []domain.Member{
-		{UserID: "@whatsapp_447700900222:x", DisplayName: "Alex Bridged (WA)"},
-		{UserID: "@whatsapp_447700900111:x", DisplayName: "Dana Bridged (WA)"},
+		{UserID: "matrix:@whatsapp_447700900222:x", DisplayName: "Alex Bridged (WA)"},
+		{UserID: "matrix:@whatsapp_447700900111:x", DisplayName: "Dana Bridged (WA)"},
 	}); err != nil {
 		t.Fatal(err)
 	}

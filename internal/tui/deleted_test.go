@@ -15,16 +15,16 @@ func deletedRoom(t *testing.T, deleted config.Deleted) Model {
 	t.Helper()
 	m := sized(t, newModel())
 	m.prefs.display.Deleted = deleted
-	m.selves = []string{"@me:x"}
-	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+	m.selves = []string{"matrix:@me:x"}
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	minute := func(i int) time.Time { return time.Unix(1700000000+int64(i)*60, 0) }
 	return m.setMessages([]domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@me:x", Body: "mine, still here", Timestamp: minute(1)},
-		{ID: "$2", RoomID: "!a:x", Sender: "@me:x", Redacted: true, Timestamp: minute(2)},
-		{ID: "$3", RoomID: "!a:x", Sender: "@her:x", Body: "hers, still here", Timestamp: minute(3)},
-		{ID: "$4", RoomID: "!a:x", Sender: "@her:x", Redacted: true, Timestamp: minute(4)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@me:x", Body: "mine, still here", Timestamp: minute(1)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@me:x", Redacted: true, Timestamp: minute(2)},
+		{ID: mx + "$3", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "hers, still here", Timestamp: minute(3)},
+		{ID: mx + "$4", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Redacted: true, Timestamp: minute(4)},
 	})
 }
 
@@ -47,13 +47,13 @@ func TestDeletionsAreHiddenSeparately(t *testing.T) {
 		cfg  config.Deleted
 		want []domain.EventID
 	}{
-		{"both shown, the default", config.Deleted{}, []domain.EventID{"$1", "$2", "$3", "$4"}},
+		{"both shown, the default", config.Deleted{}, []domain.EventID{mx + "$1", mx + "$2", mx + "$3", mx + "$4"}},
 		{"mine hidden", config.Deleted{Mine: config.DeletedHide},
-			[]domain.EventID{"$1", "$3", "$4"}},
+			[]domain.EventID{mx + "$1", mx + "$3", mx + "$4"}},
 		{"theirs hidden", config.Deleted{Others: config.DeletedHide},
-			[]domain.EventID{"$1", "$2", "$3"}},
+			[]domain.EventID{mx + "$1", mx + "$2", mx + "$3"}},
 		{"both hidden", config.Deleted{Mine: config.DeletedHide, Others: config.DeletedHide},
-			[]domain.EventID{"$1", "$3"}},
+			[]domain.EventID{mx + "$1", mx + "$3"}},
 	}
 	for _, c := range tests {
 		t.Run(c.name, func(t *testing.T) {
@@ -73,16 +73,16 @@ func TestAMessageFromYourOtherAccountCountsAsYours(t *testing.T) {
 
 	m := deletedRoom(t, config.Deleted{Mine: config.DeletedHide})
 	m.prefs.identities = map[string]resolvedIdentity{
-		"@me:x":       {alias: "Eugene"},
-		"@phone:x":    {alias: "Eugene"},
-		"@stranger:x": {alias: "Somebody"},
+		"matrix:@me:x":       {alias: "Eugene"},
+		"matrix:@phone:x":    {alias: "Eugene"},
+		"matrix:@stranger:x": {alias: "Somebody"},
 	}
 	m = m.setMessages([]domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@phone:x", Redacted: true, Timestamp: time.Unix(1700000060, 0)},
-		{ID: "$2", RoomID: "!a:x", Sender: "@stranger:x", Redacted: true, Timestamp: time.Unix(1700000120, 0)},
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@phone:x", Redacted: true, Timestamp: time.Unix(1700000060, 0)},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@stranger:x", Redacted: true, Timestamp: time.Unix(1700000120, 0)},
 	})
 	got := shownIDs(m)
-	if len(got) != 1 || got[0] != "$2" {
+	if len(got) != 1 || got[0] != mx+"$2" {
 		t.Errorf("drew %v, want only the stranger's deletion — the bridged one is yours", got)
 	}
 }
@@ -99,27 +99,27 @@ func TestTheDeletedPlaceholderNamesWhoAndWhy(t *testing.T) {
 	}{
 		{
 			name: "taken back by its own sender",
-			msg:  domain.Message{Sender: "@her:x", Redacted: true, RedactedBy: "@her:x"},
+			msg:  domain.Message{Sender: "matrix:@her:x", Redacted: true, RedactedBy: "matrix:@her:x"},
 			want: "(deleted)",
 		},
 		{
 			name: "remover unknown",
-			msg:  domain.Message{Sender: "@her:x", Redacted: true},
+			msg:  domain.Message{Sender: "matrix:@her:x", Redacted: true},
 			want: "(deleted)",
 		},
 		{
 			name: "removed by somebody else",
-			msg:  domain.Message{Sender: "@her:x", Redacted: true, RedactedBy: "@mod:x"},
+			msg:  domain.Message{Sender: "matrix:@her:x", Redacted: true, RedactedBy: "matrix:@mod:x"},
 			want: "(deleted by mod)",
 		},
 		{
 			name: "removed with a reason",
-			msg:  domain.Message{Sender: "@her:x", Redacted: true, RedactedBy: "@mod:x", RedactedReason: "spam"},
+			msg:  domain.Message{Sender: "matrix:@her:x", Redacted: true, RedactedBy: "matrix:@mod:x", RedactedReason: "spam"},
 			want: "(deleted by mod — spam)",
 		},
 		{
 			name: "a reason that is several lines is one line here",
-			msg:  domain.Message{Sender: "@her:x", Redacted: true, RedactedBy: "@mod:x", RedactedReason: "spam\nand worse"},
+			msg:  domain.Message{Sender: "matrix:@her:x", Redacted: true, RedactedBy: "matrix:@mod:x", RedactedReason: "spam\nand worse"},
 			want: "(deleted by mod — spam and worse)",
 		},
 	}

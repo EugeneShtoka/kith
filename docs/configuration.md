@@ -196,7 +196,11 @@ Settings that name a place say which kind with a prefix:
   rail shows. Where several rows share the name it means all of them;
 - `room:<name>`: a room by the name kith shows for it; `protocol:<network>` a network.
 
-A room ID (`!abc:example.org`, or a network's own) needs no prefix. A bare name is
+A room ID needs no prefix. Every ID names its network, and a room the account that
+sees it: `matrix:4f1c9e2a7b3d5c60/!abc:example.org` is a Matrix room as one of your Matrix accounts
+sees it (`<account>` is a short hash of that account's MXID), `whatsapp:…` a WhatsApp
+chat. Copy IDs as kith shows them; Matrix's own bare form (`!abc:example.org`,
+`@dana:example.org`) is refused at startup with the form to use. A bare name is
 refused at startup, naming the setting and the prefixes it takes, because a space, a
 tag and a room can share one.
 
@@ -292,7 +296,7 @@ when = "22:00-08:00"
 show = "none"
 
 [[notifications.rule]]
-match = "!oncall:example.org"  # narrower than quiet hours, so it gets through
+match = "matrix:4f1c9e2a7b3d5c60/!oncall:example.org"  # narrower than quiet hours, so it gets through
 show  = "all"
 ```
 
@@ -324,14 +328,14 @@ group, as well as where they already live:
 [[tag]]
 name            = "Archived"
 rule            = ["space:Bots"]
-picked          = ["!announcements:example.org"]
+picked          = ["matrix:4f1c9e2a7b3d5c60/!announcements:example.org"]
 counts_unread   = false
 exclusive       = ["tags", "spaces"]
 hide_when_empty = true
 
 [[tag]]
 name            = "Pinned"
-picked          = ["!standup:example.org"]
+picked          = ["matrix:4f1c9e2a7b3d5c60/!standup:example.org"]
 hide_when_empty = true
 ```
 

@@ -89,11 +89,11 @@ func newScopeWorld(rng *rand.Rand) scopeWorld {
 
 // facts is the world's own answer for a room: what the cache should say.
 func (w scopeWorld) facts(room string) domain.RoomFacts {
-	f := domain.RoomFacts{ID: room, Name: w.names[room], Direct: w.direct[room], Protocol: domain.ProtocolMatrix}
+	f := domain.RoomFacts{ID: string(testIDs.roomOf(room)), Name: w.names[room], Direct: w.direct[room], Protocol: domain.ProtocolMatrix}
 	for _, space := range w.spaces {
 		if slices.Contains(w.kids[space], room) {
 			f.Spaces = append(f.Spaces, w.sname[space])
-			if p := domain.ProtocolOf(w.bridge[space]); p.IsBridged() {
+			if p := domain.ProtocolOf(testIDs.userOf(w.bridge[space])); p.IsBridged() {
 				f.Protocol = p
 			}
 		}
@@ -106,7 +106,7 @@ func (w scopeWorld) facts(room string) domain.RoomFacts {
 func (w scopeWorld) entries() []string {
 	out := []string{"dm", "group", "protocol:telegram", "protocol:matrix"}
 	for _, room := range w.rooms {
-		out = append(out, room, "room:"+w.names[room])
+		out = append(out, string(testIDs.roomOf(room)), "room:"+w.names[room])
 	}
 	for _, space := range w.spaces {
 		out = append(out, "space:"+w.sname[space])
@@ -229,7 +229,7 @@ func playScopeSeed(t *testing.T, seed uint64) string {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	b := New(testCache(t))
+	b := newBackend(testCache(t))
 	b.client = client
 
 	refresh := func() string {
@@ -243,7 +243,7 @@ func playScopeSeed(t *testing.T, seed uint64) string {
 	}
 	exact := func(when string) string {
 		for _, room := range world.rooms {
-			got, err := cachedFacts(ctx, b, domain.RoomID(room))
+			got, err := cachedFacts(ctx, b, testIDs.roomOf(room))
 			if err != nil {
 				return fmt.Sprintf("%s: facts of %s: %v", when, room, err)
 			}
@@ -285,7 +285,7 @@ func playScopeSeed(t *testing.T, seed uint64) string {
 			Listed: rng.IntN(2) == 0, Encrypted: true,
 		}
 		for _, room := range world.rooms {
-			got, err := cachedFacts(ctx, b, domain.RoomID(room))
+			got, err := cachedFacts(ctx, b, testIDs.roomOf(room))
 			if err != nil {
 				continue // refused is narrowest
 			}

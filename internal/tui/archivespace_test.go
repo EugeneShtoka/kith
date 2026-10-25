@@ -14,17 +14,17 @@ import (
 func portalRooms(t *testing.T) Model {
 	t.Helper()
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!chat:x", Name: "Someone"},
-		{ID: "!other:x", Name: "Someone Else"},
+		{ID: mx + "!chat:x", Name: "Someone"},
+		{ID: mx + "!other:x", Name: "Someone Else"},
 	}})
 	return sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
 		{
-			ID: "!wa:x", Name: "WhatsApp BG", Bridge: domain.ProtocolWhatsApp,
-			Children: []domain.RoomID{"!chat:x", "!other:x"},
+			ID: mx + "!wa:x", Name: "WhatsApp BG", Bridge: domain.ProtocolWhatsApp,
+			Children: []domain.RoomID{mx + "!chat:x", mx + "!other:x"},
 		},
 		{
-			ID: "!work:x", Name: "Work", Bridge: domain.ProtocolMatrix,
-			Children: []domain.RoomID{"!chat:x"},
+			ID: mx + "!work:x", Name: "Work", Bridge: domain.ProtocolMatrix,
+			Children: []domain.RoomID{mx + "!chat:x"},
 		},
 	}}).clearStatus())
 }
@@ -49,20 +49,20 @@ func TestArchivingKeepsARoomInItsBridgeSpaceAndOnlyItsBridgeSpace(t *testing.T) 
 	t.Parallel()
 
 	m := portalRooms(t)
-	m, _ = m.toggleTag("Archived", roomByName(t, m, "!chat:x"))
+	m, _ = m.toggleTag("Archived", roomByName(t, m, mx+"!chat:x"))
 
-	if !inGroup(t, m, "WhatsApp BG", "!chat:x") {
+	if !inGroup(t, m, "WhatsApp BG", mx+"!chat:x") {
 		t.Error("an archived portal left its bridge's space — the only space it ever lived in")
 	}
 	// The user's own space stops showing it.
-	if inGroup(t, m, "Work", "!chat:x") {
+	if inGroup(t, m, "Work", mx+"!chat:x") {
 		t.Error("an archived room is still in a space it was filed into by hand")
 	}
 	// All excludes it too.
-	if inGroup(t, m, homeGroupKey, "!chat:x") {
+	if inGroup(t, m, homeGroupKey, mx+"!chat:x") {
 		t.Error("an archived room is still in All")
 	}
-	if !inGroup(t, m, homeGroupKey, "!other:x") {
+	if !inGroup(t, m, homeGroupKey, mx+"!other:x") {
 		t.Error("archiving one room removed another from All")
 	}
 }
@@ -75,11 +75,11 @@ func TestArchivingTheOpenRoomMovesTheCursorToItsNeighbor(t *testing.T) {
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 
 	// Alpha is first, Bravo second.
-	next, _ := m.selectRoom(roomByName(t, m, "!a:x"))
+	next, _ := m.selectRoom(roomByName(t, m, mx+"!a:x"))
 	m = next
-	m, _ = m.toggleTag("Archived", roomByName(t, m, "!a:x"))
+	m, _ = m.toggleTag("Archived", roomByName(t, m, mx+"!a:x"))
 
-	if m.openRoom != "!b:x" {
+	if m.openRoom != mx+"!b:x" {
 		t.Errorf("open room = %q, want !b:x — the room after the one that left", m.openRoom)
 	}
 	// The status message survives the move.
@@ -96,11 +96,11 @@ func TestArchivingTheLastRoomMovesTheCursorBackwards(t *testing.T) {
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
 
-	next, _ := m.selectRoom(roomByName(t, m, "!b:x"))
+	next, _ := m.selectRoom(roomByName(t, m, mx+"!b:x"))
 	m = next
-	m, _ = m.toggleTag("Archived", roomByName(t, m, "!b:x"))
+	m, _ = m.toggleTag("Archived", roomByName(t, m, mx+"!b:x"))
 
-	if m.openRoom != "!a:x" {
+	if m.openRoom != mx+"!a:x" {
 		t.Errorf("open room = %q, want !a:x — there is no next room, so the previous one", m.openRoom)
 	}
 }
@@ -112,7 +112,7 @@ func TestAnUnrelatedSettingsChangeLeavesTheCursorAlone(t *testing.T) {
 	m := counting(t, config.Display{})
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
-	next, _ := m.selectRoom(roomByName(t, m, "!b:x"))
+	next, _ := m.selectRoom(roomByName(t, m, mx+"!b:x"))
 	m = next
 
 	display := m.prefs.display
@@ -120,7 +120,7 @@ func TestAnUnrelatedSettingsChangeLeavesTheCursorAlone(t *testing.T) {
 	next, _ = m.applyDisplay(display, "renamed")
 	m = next
 
-	if m.openRoom != "!b:x" {
+	if m.openRoom != mx+"!b:x" {
 		t.Errorf("open room = %q, want !b:x — nothing left the list", m.openRoom)
 	}
 }
@@ -133,18 +133,18 @@ func TestRemovingARoomFromASpaceMovesTheCursorToItsNeighbor(t *testing.T) {
 	m := portalRooms(t)
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, "WhatsApp BG")
-	next, _ := m.selectRoom(roomByName(t, m, "!chat:x"))
+	next, _ := m.selectRoom(roomByName(t, m, mx+"!chat:x"))
 	m = next
 
 	// The space no longer lists it, as after `S` and a refresh.
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{
-			ID: "!wa:x", Name: "WhatsApp BG", Bridge: domain.ProtocolWhatsApp,
-			Children: []domain.RoomID{"!other:x"},
+			ID: mx + "!wa:x", Name: "WhatsApp BG", Bridge: domain.ProtocolWhatsApp,
+			Children: []domain.RoomID{mx + "!other:x"},
 		},
 	}})
 
-	if m.openRoom != "!other:x" {
+	if m.openRoom != mx+"!other:x" {
 		t.Errorf("open room = %q, want !other:x — the room the removed one left behind", m.openRoom)
 	}
 }
@@ -156,12 +156,12 @@ func TestARoomLeavingAltogetherAlsoHandsOverToItsNeighbor(t *testing.T) {
 	m := counting(t, config.Display{})
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
-	next, _ := m.selectRoom(roomByName(t, m, "!b:x"))
+	next, _ := m.selectRoom(roomByName(t, m, mx+"!b:x"))
 	m = next
 
-	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 
-	if m.openRoom != "!a:x" {
+	if m.openRoom != mx+"!a:x" {
 		t.Errorf("open room = %q, want !a:x", m.openRoom)
 	}
 }
@@ -172,10 +172,10 @@ func TestAColdStartStillLandsOnTheFirstRoom(t *testing.T) {
 
 	m := sized(t, starterNew(apitest.Nop{}, config.Display{}))
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"},
+		{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"},
 	}})
 
-	if m.openRoom != "!a:x" {
+	if m.openRoom != mx+"!a:x" {
 		t.Errorf("open room = %q, want !a:x on a cold start", m.openRoom)
 	}
 }

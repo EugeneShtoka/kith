@@ -15,17 +15,17 @@ func TestChainLinksSurviveBeingWrittenInEitherOrder(t *testing.T) {
 		name  string
 		first domain.RoomID // the successor whose predecessor is learned first
 	}{
-		{"newest first", "!c:x"},
-		{"oldest first", "!b:x"},
+		{"newest first", mx + "!c:x"},
+		{"oldest first", mx + "!b:x"},
 	} {
 		t.Run(order.name, func(t *testing.T) {
 			t.Parallel()
 			cache, ctx := openTemp(t), context.Background()
 
-			links := map[domain.RoomID]domain.RoomID{"!b:x": "!a:x", "!c:x": "!b:x"}
-			order2 := []domain.RoomID{"!c:x", "!b:x"}
-			if order.first == "!b:x" {
-				order2 = []domain.RoomID{"!b:x", "!c:x"}
+			links := map[domain.RoomID]domain.RoomID{mx + "!b:x": mx + "!a:x", mx + "!c:x": mx + "!b:x"}
+			order2 := []domain.RoomID{mx + "!c:x", mx + "!b:x"}
+			if order.first == mx+"!b:x" {
+				order2 = []domain.RoomID{mx + "!b:x", mx + "!c:x"}
 			}
 			for _, successor := range order2 {
 				predecessor := links[successor]
@@ -38,22 +38,22 @@ func TestChainLinksSurviveBeingWrittenInEitherOrder(t *testing.T) {
 			}
 
 			// B is both successor and predecessor, so its row is written twice.
-			up, known, err := cache.RoomUpgrade(ctx, "!b:x")
+			up, known, err := cache.RoomUpgrade(ctx, mx+"!b:x")
 			if err != nil || !known {
 				t.Fatalf("RoomUpgrade(!b:x) = known %v, err %v; want known", known, err)
 			}
-			if up.Predecessor != "!a:x" {
+			if up.Predecessor != mx+"!a:x" {
 				t.Errorf("!b:x predecessor = %q, want !a:x — the second write blanked the first", up.Predecessor)
 			}
-			if up.Replacement != "!c:x" {
+			if up.Replacement != mx+"!c:x" {
 				t.Errorf("!b:x replacement = %q, want !c:x", up.Replacement)
 			}
 
-			chain, err := cache.RoomChain(ctx, "!c:x")
+			chain, err := cache.RoomChain(ctx, mx+"!c:x")
 			if err != nil {
 				t.Fatalf("RoomChain() error = %v", err)
 			}
-			want := []domain.RoomID{"!c:x", "!b:x", "!a:x"}
+			want := []domain.RoomID{mx + "!c:x", mx + "!b:x", mx + "!a:x"}
 			if !sameRooms(chain, want) {
 				t.Errorf("RoomChain(!c:x) = %v, want %v", chain, want)
 			}
@@ -67,14 +67,14 @@ func TestARoomInNoChainIsItsOwnWholeChain(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 
-	if _, known, err := cache.RoomUpgrade(ctx, "!plain:x"); err != nil || known {
+	if _, known, err := cache.RoomUpgrade(ctx, mx+"!plain:x"); err != nil || known {
 		t.Fatalf("unlinked room = known %v, err %v; want unknown", known, err)
 	}
-	chain, err := cache.RoomChain(ctx, "!plain:x")
+	chain, err := cache.RoomChain(ctx, mx+"!plain:x")
 	if err != nil {
 		t.Fatalf("RoomChain() error = %v", err)
 	}
-	if !sameRooms(chain, []domain.RoomID{"!plain:x"}) {
+	if !sameRooms(chain, []domain.RoomID{mx + "!plain:x"}) {
 		t.Errorf("RoomChain(unlinked) = %v, want just itself", chain)
 	}
 }
@@ -86,18 +86,18 @@ func TestACycleInTheCacheDoesNotSpin(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 
-	if err := cache.SaveRoomUpgrade(ctx, "!a:x", RoomUpgrade{Predecessor: "!b:x"}); err != nil {
+	if err := cache.SaveRoomUpgrade(ctx, mx+"!a:x", RoomUpgrade{Predecessor: mx + "!b:x"}); err != nil {
 		t.Fatalf("SaveRoomUpgrade() error = %v", err)
 	}
-	if err := cache.SaveRoomUpgrade(ctx, "!b:x", RoomUpgrade{Predecessor: "!a:x"}); err != nil {
+	if err := cache.SaveRoomUpgrade(ctx, mx+"!b:x", RoomUpgrade{Predecessor: mx + "!a:x"}); err != nil {
 		t.Fatalf("SaveRoomUpgrade() error = %v", err)
 	}
 
-	chain, err := cache.RoomChain(ctx, "!a:x")
+	chain, err := cache.RoomChain(ctx, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("RoomChain() error = %v", err)
 	}
-	if !sameRooms(chain, []domain.RoomID{"!a:x", "!b:x"}) {
+	if !sameRooms(chain, []domain.RoomID{mx + "!a:x", mx + "!b:x"}) {
 		t.Errorf("RoomChain(cycle) = %v, want each room once", chain)
 	}
 }
@@ -108,15 +108,15 @@ func TestExpandingAScopeKeepsEachRoomOnce(t *testing.T) {
 
 	cache, ctx := openTemp(t), context.Background()
 
-	if err := cache.SaveRoomUpgrade(ctx, "!new:x", RoomUpgrade{Predecessor: "!old:x"}); err != nil {
+	if err := cache.SaveRoomUpgrade(ctx, mx+"!new:x", RoomUpgrade{Predecessor: mx + "!old:x"}); err != nil {
 		t.Fatalf("SaveRoomUpgrade() error = %v", err)
 	}
 
-	got, err := cache.RoomChains(ctx, []domain.RoomID{"!new:x", "!old:x", "!other:x"})
+	got, err := cache.RoomChains(ctx, []domain.RoomID{mx + "!new:x", mx + "!old:x", mx + "!other:x"})
 	if err != nil {
 		t.Fatalf("RoomChains() error = %v", err)
 	}
-	if !sameRooms(got, []domain.RoomID{"!new:x", "!old:x", "!other:x"}) {
+	if !sameRooms(got, []domain.RoomID{mx + "!new:x", mx + "!old:x", mx + "!other:x"}) {
 		t.Errorf("RoomChains() = %v, want each room once in caller order", got)
 	}
 

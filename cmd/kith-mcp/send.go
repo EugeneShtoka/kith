@@ -169,12 +169,13 @@ func (s *server) aimIn(ctx context.Context, room domain.Room, thread, replyTo st
 
 // messageIn is the cached message with this event ID in room.
 func (s *server) messageIn(ctx context.Context, room domain.Room, event string) (domain.Message, error) {
-	msgs, err := s.backend.MessagesAround(ctx, room.ID, domain.EventID(event), 0, 0)
+	eventID := domain.TypedEventID(room.ID, event)
+	msgs, err := s.backend.MessagesAround(ctx, room.ID, eventID, 0, 0)
 	if err != nil {
 		return domain.Message{}, fmt.Errorf("reading the message: %w", err)
 	}
 	for i := range msgs {
-		if msgs[i].ID == domain.EventID(event) {
+		if msgs[i].ID == eventID {
 			return msgs[i], nil
 		}
 	}

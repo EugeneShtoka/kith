@@ -69,7 +69,7 @@ func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 			if stale {
 				t.Errorf("from_before survived opening a database stamped %d", version)
 			}
-			if serr := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "A"}}); serr != nil {
+			if serr := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "A"}}); serr != nil {
 				t.Errorf("SaveRooms() after opening a %d: %v", version, serr)
 			}
 		})
@@ -229,7 +229,7 @@ func TestOpenMigratesTheBaseForwardWithoutRebuilding(t *testing.T) {
 			t.Fatalf("Open() error = %v", err)
 		}
 		defer func() { _ = cache.Close() }()
-		if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!keep:x", Name: "Keep"}}); err != nil {
+		if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!keep:x", Name: "Keep"}}); err != nil {
 			t.Fatalf("SaveRooms() error = %v", err)
 		}
 		if got, verr := userVersion(ctx, cache.db); verr != nil || got != schemaVersion {
@@ -255,7 +255,7 @@ func TestOpenMigratesTheBaseForwardWithoutRebuilding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Rooms() error = %v", err)
 	}
-	if len(rooms) != 1 || rooms[0].ID != "!keep:x" {
+	if len(rooms) != 1 || rooms[0].ID != mx+"!keep:x" {
 		t.Errorf("rooms = %+v, want the seeded !keep:x — the upgrade wiped the cache", rooms)
 	}
 }
@@ -485,7 +485,7 @@ func TestTheUpgradeChainSurvivesReopen(t *testing.T) {
 			t.Fatalf("Open() error = %v", err)
 		}
 		defer func() { _ = cache.Close() }()
-		if err := cache.SaveRoomUpgrade(ctx, "!new:x", RoomUpgrade{Predecessor: "!old:x"}); err != nil {
+		if err := cache.SaveRoomUpgrade(ctx, mx+"!new:x", RoomUpgrade{Predecessor: mx + "!old:x"}); err != nil {
 			t.Fatalf("SaveRoomUpgrade() error = %v", err)
 		}
 	}()
@@ -496,11 +496,11 @@ func TestTheUpgradeChainSurvivesReopen(t *testing.T) {
 	}
 	defer func() { _ = cache.Close() }()
 
-	chain, err := cache.RoomChain(ctx, "!new:x")
+	chain, err := cache.RoomChain(ctx, mx+"!new:x")
 	if err != nil {
 		t.Fatalf("RoomChain() error = %v", err)
 	}
-	if len(chain) != 2 || chain[1] != "!old:x" {
+	if len(chain) != 2 || chain[1] != mx+"!old:x" {
 		t.Errorf("chain after reopen = %v, want [!new:x !old:x]", chain)
 	}
 
@@ -510,7 +510,7 @@ func TestTheUpgradeChainSurvivesReopen(t *testing.T) {
 		t.Fatalf("Rooms() error = %v", err)
 	}
 	for _, room := range rooms {
-		if room.ID == "!old:x" && room.Replacement != "!new:x" {
+		if room.ID == mx+"!old:x" && room.Replacement != mx+"!new:x" {
 			t.Errorf("!old:x Replacement = %q, want !new:x", room.Replacement)
 		}
 	}

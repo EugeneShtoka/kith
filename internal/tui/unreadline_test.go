@@ -12,7 +12,7 @@ import (
 func unreadRoom(t *testing.T) Model {
 	t.Helper()
 	m := dayRoom(t)
-	m.timeline.opened.unreadFrom = "$d1m2" // the last message of day 1
+	m.timeline.opened.unreadFrom = mx + "$d1m2" // the last message of day 1
 	return m
 }
 
@@ -23,7 +23,7 @@ func TestUnreadLineMarksTheFirstUnreadMessage(t *testing.T) {
 	_, w := m.walkFor()
 	for i := range w.msgs {
 		_, rule := m.cachedRows(w, i)
-		want := w.msgs[i].ID == "$d2m0"
+		want := w.msgs[i].ID == mx+"$d2m0"
 		if rule.unread != want {
 			t.Errorf("message %s: unread rule = %v, want %v", w.msgs[i].ID, rule.unread, want)
 		}
@@ -36,7 +36,7 @@ func TestUnreadLineReplacesTheDateDivider(t *testing.T) {
 
 	m := unreadRoom(t)
 	_, w := m.walkFor()
-	i := messageRow(t, w, "$d2m0")
+	i := messageRow(t, w, mx+"$d2m0")
 	_, rule := m.cachedRows(w, i)
 	if !rule.date || !rule.unread {
 		t.Fatalf("setup: rule = %+v, want both a date divider and the unread line", rule)
@@ -74,7 +74,7 @@ func TestUnreadLineCanBeTurnedOff(t *testing.T) {
 	off := false
 	m.prefs.display.UnreadLine = &off
 	_, w := m.walkFor()
-	i := messageRow(t, w, "$d2m0")
+	i := messageRow(t, w, mx+"$d2m0")
 	_, rule := m.cachedRows(w, i)
 	if rule.unread {
 		t.Error("the unread line is drawn with the setting off")

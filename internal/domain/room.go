@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// RoomID identifies a Matrix room (e.g. "!abc:example.org").
+// RoomID identifies a room as one account sees it (e.g. "matrix:<account>/!abc:example.org").
 type RoomID string
 
 // Membership is our own relationship to a room.
@@ -30,7 +30,7 @@ type Room struct {
 	// Members holds participant display names (excluding us, up to a small cap).
 	Members    []string
 	Membership Membership
-	InvitedBy  string // MXID of the inviter, for an invite
+	InvitedBy  string // ID of the inviter, for an invite
 	// Replacement is the m.room.tombstone replacement_room, if upgraded.
 	Replacement RoomID
 	// Archived is set by the network's own archive (Telegram's Archived folder,

@@ -79,7 +79,7 @@ func backendWith(t *testing.T, srv *httptest.Server, msgs map[domain.RoomID][]do
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	b := New(cache)
+	b := newBackend(cache)
 	b.client = client
 	return b
 }
@@ -92,17 +92,17 @@ func TestMarkRoomsReadReceiptsTheNewestCachedEvent(t *testing.T) {
 	base := time.Date(2026, 8, 24, 9, 0, 0, 0, time.UTC)
 	srv := newReceiptServer(t, map[string]bool{"!refused:x": true})
 	b := backendWith(t, srv.Server, map[domain.RoomID][]domain.Message{
-		"!a:x": {
-			{ID: "$a-old", Timestamp: base},
-			{ID: "$a-new", Timestamp: base.Add(time.Hour)},
+		mx + "!a:x": {
+			{ID: mx + "$a-old", Timestamp: base},
+			{ID: mx + "$a-new", Timestamp: base.Add(time.Hour)},
 		},
-		"!b:x":       {{ID: "$b", Timestamp: base}},
-		"!refused:x": {{ID: "$r", Timestamp: base}},
+		mx + "!b:x":       {{ID: mx + "$b", Timestamp: base}},
+		mx + "!refused:x": {{ID: mx + "$r", Timestamp: base}},
 	})
 
 	// !cold:x has nothing cached; the others are deliberately out of order.
 	got, err := b.MarkRoomsRead(context.Background(),
-		[]domain.RoomID{"!a:x", "!cold:x", "!refused:x", "!b:x"}, false)
+		[]domain.RoomID{mx + "!a:x", mx + "!cold:x", mx + "!refused:x", mx + "!b:x"}, false)
 	if err != nil {
 		t.Fatalf("MarkRoomsRead() error = %v", err)
 	}
@@ -127,12 +127,12 @@ func TestMarkRoomsReadStopsWhenCanceled(t *testing.T) {
 
 	srv := newReceiptServer(t, nil)
 	b := backendWith(t, srv.Server, map[domain.RoomID][]domain.Message{
-		"!a:x": {{ID: "$a", Timestamp: time.Unix(1, 0)}},
+		mx + "!a:x": {{ID: mx + "$a", Timestamp: time.Unix(1, 0)}},
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	if _, err := b.MarkRoomsRead(ctx, []domain.RoomID{"!a:x"}, false); err == nil {
+	if _, err := b.MarkRoomsRead(ctx, []domain.RoomID{mx + "!a:x"}, false); err == nil {
 		t.Error("MarkRoomsRead() on a canceled context: error = nil, want the cancellation")
 	}
 	if n := len(srv.receipts()); n != 0 {
@@ -144,7 +144,7 @@ func TestMarkRoomsReadStopsWhenCanceled(t *testing.T) {
 func TestMarkRoomsReadWithoutACacheFails(t *testing.T) {
 	t.Parallel()
 
-	if _, err := New(nil).MarkRoomsRead(context.Background(), []domain.RoomID{"!a:x"}, false); err == nil {
+	if _, err := newBackend(nil).MarkRoomsRead(context.Background(), []domain.RoomID{mx + "!a:x"}, false); err == nil {
 		t.Error("MarkRoomsRead() with no cache: error = nil, want a failure")
 	}
 }
@@ -156,15 +156,15 @@ func TestMarkRoomsReadClearsThreadsLocally(t *testing.T) {
 	base := time.Date(2026, 9, 6, 9, 0, 0, 0, time.UTC)
 	srv := newReceiptServer(t, nil)
 	b := backendWith(t, srv.Server, map[domain.RoomID][]domain.Message{
-		"!a:x": {
-			{ID: "$root", Sender: "@them:x", Timestamp: base},
-			{ID: "$reply", Sender: "@them:x", ThreadRoot: "$root", Timestamp: base.Add(time.Minute)},
-			{ID: "$newest", Sender: "@them:x", Timestamp: base.Add(2 * time.Minute)},
+		mx + "!a:x": {
+			{ID: mx + "$root", Sender: "matrix:@them:x", Timestamp: base},
+			{ID: mx + "$reply", Sender: "matrix:@them:x", ThreadRoot: mx + "$root", Timestamp: base.Add(time.Minute)},
+			{ID: mx + "$newest", Sender: "matrix:@them:x", Timestamp: base.Add(2 * time.Minute)},
 		},
 	})
 	ctx := context.Background()
 
-	before, err := b.cache.CountThreadUnread(ctx, []string{"@me:x"}, "!a:x")
+	before, err := b.cache.CountThreadUnread(ctx, []string{"@me:x"}, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountThreadUnread: %v", err)
 	}
@@ -172,11 +172,11 @@ func TestMarkRoomsReadClearsThreadsLocally(t *testing.T) {
 		t.Fatalf("expected one unread thread to start with, got %d", len(before))
 	}
 
-	if _, markErr := b.MarkRoomsRead(ctx, []domain.RoomID{"!a:x"}, false); markErr != nil {
+	if _, markErr := b.MarkRoomsRead(ctx, []domain.RoomID{mx + "!a:x"}, false); markErr != nil {
 		t.Fatalf("MarkRoomsRead: %v", markErr)
 	}
 
-	after, err := b.cache.CountThreadUnread(ctx, []string{"@me:x"}, "!a:x")
+	after, err := b.cache.CountThreadUnread(ctx, []string{"@me:x"}, mx+"!a:x")
 	if err != nil {
 		t.Fatalf("CountThreadUnread after: %v", err)
 	}

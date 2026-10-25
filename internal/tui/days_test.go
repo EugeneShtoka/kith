@@ -14,16 +14,16 @@ import (
 func dayRoom(t *testing.T) Model {
 	t.Helper()
 	m := sized(t, withRooms(t, newModel()))
-	m.openRoom = "!a:x"
+	m.openRoom = mx + "!a:x"
 	m.focus, m.compose.insertMode = paneTimeline, false
 	base := time.Date(2026, 8, 24, 9, 0, 0, 0, time.UTC)
 	var msgs []domain.Message
 	for day := range 4 {
 		for n := range 3 {
 			msgs = append(msgs, domain.Message{
-				ID:         domain.EventID("$d" + string(rune('0'+day)) + "m" + string(rune('0'+n))),
-				RoomID:     "!a:x",
-				Sender:     "@bob:x",
+				ID:         domain.EventID(mx + "$d" + string(rune('0'+day)) + "m" + string(rune('0'+n))),
+				RoomID:     mx + "!a:x",
+				Sender:     "matrix:@bob:x",
 				SenderName: "Bob",
 				Body:       "day " + string(rune('0'+day)) + " message " + string(rune('0'+n)),
 				Timestamp:  base.AddDate(0, 0, day).Add(time.Duration(n) * time.Hour),
@@ -45,19 +45,19 @@ func pressKey(t *testing.T, m Model, k string) Model {
 // Back goes to the start of the current day first, then to the day before.
 func TestPrevDayStopsAtTheStartOfTheDayFirst(t *testing.T) {
 	m := dayRoom(t)
-	if want := "$d3m2"; string(m.timeline.selected) != want {
+	if want := mx + "$d3m2"; string(m.timeline.selected) != want {
 		t.Fatalf("setup: selected %s, want %s", m.timeline.selected, want)
 	}
 	m = pressKey(t, m, "[")
-	if want := "$d3m0"; string(m.timeline.selected) != want {
+	if want := mx + "$d3m0"; string(m.timeline.selected) != want {
 		t.Fatalf("first [ selected %s, want the start of day 3 (%s)", m.timeline.selected, want)
 	}
 	m = pressKey(t, m, "[")
-	if want := "$d2m0"; string(m.timeline.selected) != want {
+	if want := mx + "$d2m0"; string(m.timeline.selected) != want {
 		t.Fatalf("second [ selected %s, want the start of day 2 (%s)", m.timeline.selected, want)
 	}
 	m = pressKey(t, m, "[")
-	if want := "$d1m0"; string(m.timeline.selected) != want {
+	if want := mx + "$d1m0"; string(m.timeline.selected) != want {
 		t.Fatalf("third [ selected %s, want the start of day 1 (%s)", m.timeline.selected, want)
 	}
 }
@@ -65,13 +65,13 @@ func TestPrevDayStopsAtTheStartOfTheDayFirst(t *testing.T) {
 // Forward goes straight to the next day's first message.
 func TestNextDayGoesToTheNextDaysFirstMessage(t *testing.T) {
 	m := dayRoom(t)
-	m.timeline.selected = "$d0m1" // mid-day 0
+	m.timeline.selected = mx + "$d0m1" // mid-day 0
 	m = pressKey(t, m, "]")
-	if want := "$d1m0"; string(m.timeline.selected) != want {
+	if want := mx + "$d1m0"; string(m.timeline.selected) != want {
 		t.Errorf("] selected %s, want %s", m.timeline.selected, want)
 	}
 	m = pressKey(t, m, "]")
-	if want := "$d2m0"; string(m.timeline.selected) != want {
+	if want := mx + "$d2m0"; string(m.timeline.selected) != want {
 		t.Errorf("second ] selected %s, want %s", m.timeline.selected, want)
 	}
 }
@@ -94,12 +94,12 @@ func TestDayJumpShowsTheDateSeparator(t *testing.T) {
 // The ends say so.
 func TestDayJumpAtTheEnds(t *testing.T) {
 	m := dayRoom(t)
-	m.timeline.selected = "$d0m0" // the oldest message of the oldest day
+	m.timeline.selected = mx + "$d0m0" // the oldest message of the oldest day
 	m = pressKey(t, m, "[")
 	if !strings.Contains(m.status(), "no earlier day") {
 		t.Errorf("status after [ at the oldest day = %q", m.status())
 	}
-	m.timeline.selected = "$d3m2"
+	m.timeline.selected = mx + "$d3m2"
 	m = pressKey(t, m, "]")
 	if !strings.Contains(m.status(), "last day") {
 		t.Errorf("status after ] at the newest day = %q", m.status())
@@ -109,17 +109,17 @@ func TestDayJumpAtTheEnds(t *testing.T) {
 // The title shows the selected message's day for when no separator is on screen.
 func TestStickyDayInTheTitle(t *testing.T) {
 	m := dayRoom(t)
-	m.timeline.selected = "$d1m2"
+	m.timeline.selected = mx + "$d1m2"
 	m = m.scrollToSelection()
 	if got := m.stickyDay(); got == "" {
 		t.Fatal("no day in the title")
 	} else if !strings.Contains(got, "Aug") {
 		t.Errorf("title day = %q, want the selected message's date", got)
 	}
-	m.timeline.selected = "$d3m0"
+	m.timeline.selected = mx + "$d3m0"
 	m = m.scrollToSelection()
 	day3 := m.stickyDay()
-	m.timeline.selected = "$d0m0"
+	m.timeline.selected = mx + "$d0m0"
 	m = m.scrollToSelection()
 	if day0 := m.stickyDay(); day0 == day3 {
 		t.Errorf("the title showed %q for both day 0 and day 3", day0)
@@ -134,7 +134,7 @@ func TestStickyDayInTheTitle(t *testing.T) {
 func TestStickyDayFollowsTheViewWhileTyping(t *testing.T) {
 	m := dayRoom(t)
 	m.height = 12
-	m.timeline.selected = "$d3m2" // newest
+	m.timeline.selected = mx + "$d3m2" // newest
 	m.compose.insertMode = true
 	m.timeline.scroll = 0
 	atBottom := m.stickyDay()

@@ -57,7 +57,7 @@ func TestFilterDefaults(t *testing.T) {
 	t.Parallel()
 	filters, err := setup.Filters(spamTagged(
 		config.Filter{Name: "crypto", Tag: "spam", Words: []string{" *bitcoin* ", ""}},
-		config.Filter{Name: "that number", Tag: "Spam", From: "@spam:x", Window: "48h", Ratio: 0.3, Floor: 2},
+		config.Filter{Name: "that number", Tag: "Spam", From: "matrix:@spam:x", Window: "48h", Ratio: 0.3, Floor: 2},
 	))
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +75,7 @@ func TestFilterDefaults(t *testing.T) {
 	if number.Ratio != 0.3 || number.Floor != 2 || number.Window != 48*time.Hour {
 		t.Errorf("set numbers = %v/%d/%v, want them kept", number.Ratio, number.Floor, number.Window)
 	}
-	if len(filters.Catching("hello", "@spam:x", domain.RoomFacts{})) != 1 {
+	if len(filters.Catching("hello", "matrix:@spam:x", domain.RoomFacts{})) != 1 {
 		t.Error("a sender-only filter caught nothing from that sender")
 	}
 }
@@ -134,7 +134,7 @@ func TestALanguageAloneIsAFilter(t *testing.T) {
 	if !slices.Contains(f.Lang, "ja") || !slices.Equal(f.NotLang, []string{"en"}) || !slices.Equal(f.Scripts, []string{"Han", "Kana"}) {
 		t.Errorf("filter = lang %v, not_lang %v, scripts %v", f.Lang, f.NotLang, f.Scripts)
 	}
-	if !f.Catches("你好", "@x:y", domain.RoomFacts{ID: "!r:x"}) {
+	if !f.Catches("你好", "matrix:@x:y", domain.RoomFacts{ID: mx + "!r:x"}) {
 		t.Error("the filter does not catch Chinese")
 	}
 }

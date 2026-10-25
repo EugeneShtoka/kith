@@ -21,20 +21,20 @@ import (
 
 // placeRooms are one room of each kind the entries tell apart.
 var placeRooms = []domain.Room{
-	{ID: "!s:x", Name: "Standup", Network: domain.ProtocolSlack},
-	{ID: "!w:x", Name: "Dana", Network: domain.ProtocolWhatsApp, IsDirect: true},
-	{ID: "!m:x", Name: "Hall"},
+	{ID: mx + "!s:x", Name: "Standup", Network: domain.ProtocolSlack},
+	{ID: mx + "!w:x", Name: "Dana", Network: domain.ProtocolWhatsApp, IsDirect: true},
+	{ID: mx + "!m:x", Name: "Hall"},
 }
 
 // placeOracle is, per entry, the rooms it names.
 var placeOracle = map[string][]domain.RoomID{
-	"protocol:slack":    {"!s:x"},
-	"PROTOCOL:Slack":    {"!s:x"},
-	"protocol:whatsapp": {"!w:x"},
-	"dm":                {"!w:x"},
-	"group":             {"!s:x", "!m:x"},
-	"room:Hall":         {"!m:x"},
-	"!m:x":              {"!m:x"},
+	"protocol:slack":    {mx + "!s:x"},
+	"PROTOCOL:Slack":    {mx + "!s:x"},
+	"protocol:whatsapp": {mx + "!w:x"},
+	"dm":                {mx + "!w:x"},
+	"group":             {mx + "!s:x", mx + "!m:x"},
+	"room:Hall":         {mx + "!m:x"},
+	mx + "!m:x":         {mx + "!m:x"},
 }
 
 type placedCommand struct {

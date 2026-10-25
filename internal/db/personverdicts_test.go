@@ -45,7 +45,7 @@ func TestANetworksSetReplacesOnlyItsPeople(t *testing.T) {
 	c := openTemp(t)
 	at := time.Unix(1_700_000_000, 0)
 	for _, v := range []domain.PersonVerdict{
-		{Person: "@ann:example.org", Tag: "Spam", Rule: domain.MoveAlways, At: at},
+		{Person: "matrix:@ann:example.org", Tag: "Spam", Rule: domain.MoveAlways, At: at},
 		{Person: "telegram:1001", Tag: "Spam", Rule: domain.MoveAlways, At: at},
 	} {
 		if err := c.MarkPerson(ctx, v); err != nil {
@@ -53,7 +53,7 @@ func TestANetworksSetReplacesOnlyItsPeople(t *testing.T) {
 		}
 	}
 	if err := c.SetPersonVerdicts(ctx, domain.ProtocolMatrix, []domain.PersonVerdict{
-		{Person: "@bob:example.org", Tag: "Spam", Released: true, At: at},
+		{Person: "matrix:@bob:example.org", Tag: "Spam", Released: true, At: at},
 		{Person: "telegram:2002", Tag: "Spam", Rule: domain.MoveAlways, At: at}, // not Matrix's to set
 	}); err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestANetworksSetReplacesOnlyItsPeople(t *testing.T) {
 		people = append(people, v.Person)
 	}
 	slices.Sort(people)
-	if want := []string{"@bob:example.org", "telegram:1001"}; !slices.Equal(people, want) {
+	if want := []string{"matrix:@bob:example.org", "telegram:1001"}; !slices.Equal(people, want) {
 		t.Errorf("after Matrix's set: %v, want %v", people, want)
 	}
 	if rerr := c.RetagPersonVerdicts(ctx, domain.ProtocolTelegram, "Spam", "Junk"); rerr != nil {
@@ -78,7 +78,7 @@ func TestANetworksSetReplacesOnlyItsPeople(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range got {
-		if want := map[string]string{"telegram:1001": "junk", "@bob:example.org": "spam"}[v.Person]; v.Tag != want {
+		if want := map[string]string{"telegram:1001": "junk", "matrix:@bob:example.org": "spam"}[v.Person]; v.Tag != want {
 			t.Errorf("after Telegram's retag %s is in %s, want %s", v.Person, v.Tag, want)
 		}
 	}

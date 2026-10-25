@@ -21,23 +21,23 @@ func ordering(t *testing.T, rooms config.Rooms) Model {
 	display := config.Display{Rooms: rooms}
 	t.Helper()
 	m := update(t, starterNew(apitest.Nop{}, display), roomsMsg{rooms: []domain.Room{
-		{ID: "!alpha:x", Name: "Alpha"},
-		{ID: "!bravo:x", Name: "Bravo"},
-		{ID: "!charlie:x", Name: "Charlie"},
-		{ID: "!delta:x", Name: "Delta"},
+		{ID: mx + "!alpha:x", Name: "Alpha"},
+		{ID: mx + "!bravo:x", Name: "Bravo"},
+		{ID: mx + "!charlie:x", Name: "Charlie"},
+		{ID: mx + "!delta:x", Name: "Delta"},
 	}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{{
-		ID: "!w:x", Name: "Work",
-		Children: []domain.RoomID{"!alpha:x", "!bravo:x", "!charlie:x", "!delta:x"},
+		ID: mx + "!w:x", Name: "Work",
+		Children: []domain.RoomID{mx + "!alpha:x", mx + "!bravo:x", mx + "!charlie:x", mx + "!delta:x"},
 	}}})
 	m = update(t, m, unreadMsg{list: []domain.Unread{
-		{RoomID: "!charlie:x", Messages: 2, Counted: true},
+		{RoomID: mx + "!charlie:x", Messages: 2, Counted: true},
 	}})
 	spoke := func(min int) time.Time { return time.Date(2026, 9, 2, 10, min, 0, 0, time.UTC) }
 	m = update(t, m, lastMessagesMsg{at: map[domain.RoomID]time.Time{
-		"!alpha:x":   spoke(1),
-		"!charlie:x": spoke(2),
-		"!bravo:x":   spoke(3),
+		mx + "!alpha:x":   spoke(1),
+		mx + "!charlie:x": spoke(2),
+		mx + "!bravo:x":   spoke(3),
 	}})
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
 	return sized(t, m.clearStatus())
@@ -79,8 +79,8 @@ func TestRoomOrders(t *testing.T) {
 			name: "mentions before unread", sort: []string{"mentions", "unread", "recent", "name"},
 			setup: func(m Model) Model {
 				return update(t, m, unreadMsg{list: []domain.Unread{
-					{RoomID: "!charlie:x", Messages: 2, Counted: true},
-					{RoomID: "!bravo:x", Messages: 1, Mentions: 1, Counted: true},
+					{RoomID: mx + "!charlie:x", Messages: 2, Counted: true},
+					{RoomID: mx + "!bravo:x", Messages: 1, Mentions: 1, Counted: true},
 				}})
 			},
 			want: []string{"Bravo", "Charlie", "Alpha", "Delta"},
@@ -88,7 +88,7 @@ func TestRoomOrders(t *testing.T) {
 		{
 			name: "drafts", sort: []string{"drafts", "name"},
 			setup: func(m Model) Model {
-				m.drafts = map[domain.RoomID]draft{"!delta:x": {input: "half a thought"}}
+				m.drafts = map[domain.RoomID]draft{mx + "!delta:x": {input: "half a thought"}}
 				return m
 			},
 			want: []string{"Delta", "Alpha", "Bravo", "Charlie"},
@@ -98,7 +98,7 @@ func TestRoomOrders(t *testing.T) {
 			setup: func(m Model) Model {
 				same := time.Date(2026, 9, 2, 10, 5, 0, 0, time.UTC)
 				return update(t, m, lastMessagesMsg{at: map[domain.RoomID]time.Time{
-					"!bravo:x": same, "!alpha:x": same, "!charlie:x": same, "!delta:x": same,
+					mx + "!bravo:x": same, mx + "!alpha:x": same, mx + "!charlie:x": same, mx + "!delta:x": same,
 				}})
 			},
 			want: []string{"Alpha", "Bravo", "Charlie", "Delta"},
@@ -147,11 +147,11 @@ func TestOpenRoomKeepsItsBandWhileRead(t *testing.T) {
 	t.Parallel()
 
 	m := ordering(t, config.Rooms{})
-	m, _ = m.selectRoom(roomByName(t, m, "!charlie:x"))
-	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: "!charlie:x", Counted: true}})
+	m, _ = m.selectRoom(roomByName(t, m, mx+"!charlie:x"))
+	m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: mx + "!charlie:x", Counted: true}})
 	sameOrder(t, listed(m), "Charlie", "Bravo", "Alpha", "Delta")
 
-	m, _ = m.selectRoom(roomByName(t, m, "!alpha:x"))
+	m, _ = m.selectRoom(roomByName(t, m, mx+"!alpha:x"))
 	sameOrder(t, listed(m), "Bravo", "Charlie", "Alpha", "Delta")
 }
 
@@ -160,7 +160,7 @@ func TestOpeningAReadRoomDoesNotPromoteIt(t *testing.T) {
 	t.Parallel()
 
 	m := ordering(t, config.Rooms{})
-	m, _ = m.selectRoom(roomByName(t, m, "!alpha:x"))
+	m, _ = m.selectRoom(roomByName(t, m, mx+"!alpha:x"))
 	sameOrder(t, listed(m), "Charlie", "Bravo", "Alpha", "Delta")
 }
 
@@ -172,7 +172,7 @@ func TestIncomingMessageReordersTheList(t *testing.T) {
 	sameOrder(t, listed(m), "Bravo", "Charlie", "Alpha", "Delta")
 
 	m = update(t, m, incomingMsg{message: domain.Message{
-		ID: "$new", RoomID: "!delta:x", Sender: "@someone:x", Body: "hello",
+		ID: mx + "$new", RoomID: mx + "!delta:x", Sender: "matrix:@someone:x", Body: "hello",
 		Timestamp: time.Date(2026, 9, 2, 11, 0, 0, 0, time.UTC),
 	}})
 	sameOrder(t, listed(m), "Delta", "Bravo", "Charlie", "Alpha")
@@ -184,7 +184,7 @@ func TestAnEditDoesNotMoveARoom(t *testing.T) {
 
 	m := ordering(t, config.Rooms{Sort: []string{"recent", "name"}})
 	m = update(t, m, incomingMsg{message: domain.Message{
-		ID: "$old", RoomID: "!alpha:x", Sender: "@someone:x", Body: "fixed",
+		ID: mx + "$old", RoomID: mx + "!alpha:x", Sender: "matrix:@someone:x", Body: "fixed",
 		Edited: true, Timestamp: time.Date(2026, 9, 2, 10, 1, 0, 0, time.UTC),
 	}})
 	sameOrder(t, listed(m), "Bravo", "Charlie", "Alpha", "Delta")

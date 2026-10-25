@@ -12,8 +12,8 @@ import (
 func TestAReadOnlyRoomIsKeptBesideItsRoom(t *testing.T) {
 	t.Parallel()
 	c, ctx := openTemp(t), context.Background()
-	rooms := []domain.Room{{ID: "!news:x", Name: "News"}, {ID: "!chat:x", Name: "Chat"}}
-	if err := c.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
+	rooms := []domain.Room{{ID: mx + "!news:x", Name: "News"}, {ID: mx + "!chat:x", Name: "Chat"}}
+	if err := c.SaveRooms(ctx, mxRooms, rooms); err != nil {
 		t.Fatal(err)
 	}
 	readOnly := func() map[domain.RoomID]bool {
@@ -27,19 +27,19 @@ func TestAReadOnlyRoomIsKeptBesideItsRoom(t *testing.T) {
 		}
 		return out
 	}
-	if err := c.SetReadOnly(ctx, map[domain.RoomID]bool{"!news:x": true, "!chat:x": false}); err != nil {
+	if err := c.SetReadOnly(ctx, map[domain.RoomID]bool{mx + "!news:x": true, mx + "!chat:x": false}); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
+	if err := c.SaveRooms(ctx, mxRooms, rooms); err != nil {
 		t.Fatal(err)
 	}
-	if got := readOnly(); !got["!news:x"] || got["!chat:x"] {
+	if got := readOnly(); !got[mx+"!news:x"] || got[mx+"!chat:x"] {
 		t.Errorf("after marking and a rewrite: %v", got)
 	}
-	if err := c.SetReadOnly(ctx, map[domain.RoomID]bool{"!news:x": false}); err != nil {
+	if err := c.SetReadOnly(ctx, map[domain.RoomID]bool{mx + "!news:x": false}); err != nil {
 		t.Fatal(err)
 	}
-	if got := readOnly(); got["!news:x"] {
+	if got := readOnly(); got[mx+"!news:x"] {
 		t.Errorf("cleared, still read-only: %v", got)
 	}
 }

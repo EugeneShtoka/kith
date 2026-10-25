@@ -64,20 +64,20 @@ func TestALeftRoomStaysLeft(t *testing.T) {
 		refreshed <- rooms
 	}()
 	<-asked
-	if err := b.LeaveRoom(ctx, "!a:x"); err != nil {
+	if err := b.LeaveRoom(ctx, mx+"!a:x"); err != nil {
 		t.Fatal(err)
 	}
-	if got := cached(); slices.Contains(got, "!a:x") || stale == 0 {
+	if got := cached(); slices.Contains(got, mx+"!a:x") || stale == 0 {
 		t.Errorf("right after the leave the cache lists %v (rooms refreshed %d times)", got, stale)
 	}
 	close(release)
 	rooms := <-refreshed
 	for i := range rooms {
-		if rooms[i].ID == "!a:x" {
+		if rooms[i].ID == mx+"!a:x" {
 			t.Error("a refresh asked for before the leave brought the room back")
 		}
 	}
-	if got := cached(); slices.Contains(got, "!a:x") || !slices.Contains(got, "!b:x") {
+	if got := cached(); slices.Contains(got, mx+"!a:x") || !slices.Contains(got, mx+"!b:x") {
 		t.Errorf("after the refresh the cache lists %v, want !b:x and not !a:x", got)
 	}
 }
@@ -111,9 +111,9 @@ func TestALeftSpaceStaysLeft(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	b := backendWith(t, srv, nil)
-	if err := b.cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{
-		{ID: "!s:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
-		{ID: "!t:x", Name: "Fun", Children: []domain.RoomID{"!a:x"}},
+	if err := b.cache.SaveSpaces(ctx, testIDs.owner(), []domain.Space{
+		{ID: mx + "!s:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
+		{ID: mx + "!t:x", Name: "Fun", Children: []domain.RoomID{mx + "!a:x"}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -134,17 +134,17 @@ func TestALeftSpaceStaysLeft(t *testing.T) {
 		refreshed <- spaces
 	}()
 	<-asked
-	if err := b.LeaveRoom(ctx, "!s:x"); err != nil {
+	if err := b.LeaveRoom(ctx, mx+"!s:x"); err != nil {
 		t.Fatal(err)
 	}
-	if cached, _ := b.Spaces(ctx); slices.Contains(ids(cached), "!s:x") {
+	if cached, _ := b.Spaces(ctx); slices.Contains(ids(cached), mx+"!s:x") {
 		t.Errorf("right after the leave the cache lists %v", ids(cached))
 	}
 	close(release)
-	if got := ids(<-refreshed); slices.Contains(got, "!s:x") || !slices.Contains(got, "!t:x") {
+	if got := ids(<-refreshed); slices.Contains(got, mx+"!s:x") || !slices.Contains(got, mx+"!t:x") {
 		t.Errorf("a refresh asked for before the leave gave %v, want !t:x and not !s:x", got)
 	}
-	if cached, _ := b.Spaces(ctx); slices.Contains(ids(cached), "!s:x") {
+	if cached, _ := b.Spaces(ctx); slices.Contains(ids(cached), mx+"!s:x") {
 		t.Errorf("after the refresh the cache lists %v", ids(cached))
 	}
 }
@@ -195,17 +195,17 @@ func TestHowAMatrixSpaceIsLeftComesFromItsState(t *testing.T) {
 	t.Cleanup(srv.Close)
 	b := backendWith(t, srv, nil)
 	// What the cache knew of the two it cannot read now.
-	if err := b.cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{
-		{ID: "!unread:x", Name: "Kept", Leaving: domain.LeftAlone},
-		{ID: "!unreadA:x", Name: "Kept account"},
+	if err := b.cache.SaveSpaces(ctx, testIDs.owner(), []domain.Space{
+		{ID: mx + "!unread:x", Name: "Kept", Leaving: domain.LeftAlone},
+		{ID: mx + "!unreadA:x", Name: "Kept account"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	want := map[domain.SpaceID]domain.SpaceLeaving{
-		"!account:x": domain.NotLeft, "!older:x": domain.NotLeft, "!forum:x": domain.LeftWhole,
-		"!commun:x": domain.LeftAlone, "!lookalike:x": domain.LeftAlone,
-		"!mine:x": domain.LeftAlone, "!garbled:x": domain.LeftAlone,
-		"!unread:x": domain.LeftAlone, "!unreadA:x": domain.NotLeft,
+		mx + "!account:x": domain.NotLeft, mx + "!older:x": domain.NotLeft, mx + "!forum:x": domain.LeftWhole,
+		mx + "!commun:x": domain.LeftAlone, mx + "!lookalike:x": domain.LeftAlone,
+		mx + "!mine:x": domain.LeftAlone, mx + "!garbled:x": domain.LeftAlone,
+		mx + "!unread:x": domain.LeftAlone, mx + "!unreadA:x": domain.NotLeft,
 	}
 	check := func(how string, spaces []domain.Space) {
 		t.Helper()

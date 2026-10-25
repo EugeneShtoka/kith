@@ -35,16 +35,16 @@ func reading(t *testing.T) (Model, *bulkReader) {
 	t.Helper()
 	b := &bulkReader{result: domain.ReadResult{Marked: 1}}
 	m := update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo"},
-		{ID: "!c:x", Name: "Cyan"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo"},
+		{ID: mx + "!c:x", Name: "Cyan"},
 	}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x", "!b:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
 	}})
 	m = update(t, m, unreadMsg{list: []domain.Unread{
-		{RoomID: "!a:x", Notifications: 3},
-		{RoomID: "!c:x", Notifications: 1},
+		{RoomID: mx + "!a:x", Notifications: 3},
+		{RoomID: mx + "!c:x", Notifications: 1},
 	}})
 	m = m.clearStatus()
 	return sized(t, m), b
@@ -57,7 +57,7 @@ func TestMarkRoomReadFromTheRoomList(t *testing.T) {
 	m, b := reading(t)
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
 
 	m, cmd := press(t, m, keyText("m"))
@@ -71,7 +71,7 @@ func TestMarkRoomReadFromTheRoomList(t *testing.T) {
 	if !ok {
 		t.Fatal("the command produced no markedReadMsg")
 	}
-	if want := []domain.RoomID{"!a:x"}; !reflect.DeepEqual(b.asked, want) {
+	if want := []domain.RoomID{mx + "!a:x"}; !reflect.DeepEqual(b.asked, want) {
 		t.Errorf("backend asked for %v, want %v", b.asked, want)
 	}
 	m = update(t, m, msg)
@@ -86,11 +86,11 @@ func TestMarkRoomReadIsInertOnAnInvitation(t *testing.T) {
 
 	m, b := reading(t)
 	m = update(t, m, inviteUpdateMsg{invites: []domain.Room{
-		{ID: "!inv:x", Name: "Offer", Membership: domain.MembershipInvite, InvitedBy: "@ada:x"},
+		{ID: mx + "!inv:x", Name: "Offer", Membership: domain.MembershipInvite, InvitedBy: "matrix:@ada:x"},
 	}})
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, inviteGroupKey)
-	next, _ := m.selectRoom(domain.Room{ID: "!inv:x", Name: "Offer", Membership: domain.MembershipInvite})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!inv:x", Name: "Offer", Membership: domain.MembershipInvite})
 	m = next
 
 	if _, cmd := press(t, m, keyText("m")); cmd != nil {
@@ -121,7 +121,7 @@ func TestMarkGroupReadAsksThenMarksOnlyTheUnread(t *testing.T) {
 		t.Errorf("question = %q, want the count and the group", prompt)
 	}
 	// Bravo is in Work but read; Cyan is unread but not in Work.
-	if want := []domain.RoomID{"!a:x"}; !reflect.DeepEqual(m.confirm.rooms, want) {
+	if want := []domain.RoomID{mx + "!a:x"}; !reflect.DeepEqual(m.confirm.rooms, want) {
 		t.Errorf("captured rooms = %v, want %v", m.confirm.rooms, want)
 	}
 
@@ -133,7 +133,7 @@ func TestMarkGroupReadAsksThenMarksOnlyTheUnread(t *testing.T) {
 		t.Fatal("yes sent no command")
 	}
 	runCmd(t, cmd)
-	if want := []domain.RoomID{"!a:x"}; !reflect.DeepEqual(b.asked, want) {
+	if want := []domain.RoomID{mx + "!a:x"}; !reflect.DeepEqual(b.asked, want) {
 		t.Errorf("backend asked for %v, want %v", b.asked, want)
 	}
 }
@@ -189,7 +189,7 @@ func TestMarkGroupReadOverTheUnreadGroup(t *testing.T) {
 	m.rail.cursor = indexOfGroup(m.rail.groups, unreadGroupKey)
 
 	m, _ = press(t, m, keyText("m"))
-	want := []domain.RoomID{"!a:x", "!c:x"}
+	want := []domain.RoomID{mx + "!a:x", mx + "!c:x"}
 	if !reflect.DeepEqual(m.confirm.rooms, want) {
 		t.Errorf("captured rooms = %v, want every unread room %v", m.confirm.rooms, want)
 	}
@@ -246,12 +246,12 @@ func TestMarkReadDoesNotClearBadgesLocally(t *testing.T) {
 	b.result = domain.ReadResult{Failed: 1}
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, homeGroupKey)
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
 
 	m, cmd := press(t, m, keyText("m"))
 	m = update(t, m, cmd())
-	if !m.unread["!a:x"].HasUnread(true) {
+	if !m.unread[mx+"!a:x"].HasUnread(true) {
 		t.Error("the badge was cleared locally, without the homeserver agreeing")
 	}
 }
@@ -276,10 +276,10 @@ func marking(t *testing.T) (Model, *marker) {
 	t.Helper()
 	mk := &marker{}
 	m := update(t, starterNew(mk, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo"},
 	}})
-	m = update(t, m, unreadMsg{list: []domain.Unread{{RoomID: "!b:x", Marked: true}}})
+	m = update(t, m, unreadMsg{list: []domain.Unread{{RoomID: mx + "!b:x", Marked: true}}})
 	m = m.clearStatus()
 	m = sized(t, m)
 	m.focus = paneRooms
@@ -292,7 +292,7 @@ func TestMarkRoomUnreadFlagsTheRoom(t *testing.T) {
 	t.Parallel()
 
 	m, mk := marking(t)
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
 
 	m, cmd := press(t, m, keyText("M"))
@@ -303,7 +303,7 @@ func TestMarkRoomUnreadFlagsTheRoom(t *testing.T) {
 	if !ok {
 		t.Fatalf("command returned %T, want markedUnreadMsg", cmd())
 	}
-	if mk.calls != 1 || mk.room != "!a:x" || !mk.unread {
+	if mk.calls != 1 || mk.room != mx+"!a:x" || !mk.unread {
 		t.Errorf("backend asked calls=%d room=%q unread=%v, want 1 !a:x true", mk.calls, mk.room, mk.unread)
 	}
 	m = update(t, m, msg)
@@ -317,7 +317,7 @@ func TestMarkRoomUnreadTogglesOff(t *testing.T) {
 	t.Parallel()
 
 	m, mk := marking(t)
-	next, _ := m.selectRoom(domain.Room{ID: "!b:x", Name: "Bravo"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!b:x", Name: "Bravo"})
 	m = next
 
 	m, cmd := press(t, m, keyText("M"))
@@ -339,14 +339,14 @@ func TestAMarkedRoomBadgesWithoutANumber(t *testing.T) {
 	t.Parallel()
 
 	m, _ := marking(t)
-	badge, highlight := m.unreadBadge(domain.Room{ID: "!b:x", Name: "Bravo"})
+	badge, highlight := m.unreadBadge(domain.Room{ID: mx + "!b:x", Name: "Bravo"})
 	if badge != "●" || highlight {
 		t.Errorf("marked badge = %q (highlight %v), want a bare dot", badge, highlight)
 	}
-	if plain, _ := m.unreadBadge(domain.Room{ID: "!a:x", Name: "Alpha"}); plain != "" {
+	if plain, _ := m.unreadBadge(domain.Room{ID: mx + "!a:x", Name: "Alpha"}); plain != "" {
 		t.Errorf("an unmarked, read room badged %q", plain)
 	}
-	if !m.unreadView().tallies(domain.Room{ID: "!b:x", Name: "Bravo"}) {
+	if !m.unreadView().tallies(domain.Room{ID: mx + "!b:x", Name: "Bravo"}) {
 		t.Error("a marked room should count as unread")
 	}
 }
@@ -356,8 +356,8 @@ func TestAMarkNeverReplacesARealCount(t *testing.T) {
 	t.Parallel()
 
 	m, _ := marking(t)
-	m = update(t, m, unreadMsg{list: []domain.Unread{{RoomID: "!b:x", Notifications: 4, Marked: true}}})
-	if badge, _ := m.unreadBadge(domain.Room{ID: "!b:x", Name: "Bravo"}); badge != "●4" {
+	m = update(t, m, unreadMsg{list: []domain.Unread{{RoomID: mx + "!b:x", Notifications: 4, Marked: true}}})
+	if badge, _ := m.unreadBadge(domain.Room{ID: mx + "!b:x", Name: "Bravo"}); badge != "●4" {
 		t.Errorf("badge = %q, want the real count", badge)
 	}
 }

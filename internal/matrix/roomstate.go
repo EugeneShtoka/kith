@@ -54,7 +54,7 @@ func (x ids) stateChanged(events []*event.Event, me id.UserID) bool {
 		if roomStateTypes[evt.Type] {
 			return true
 		}
-		if evt.Type == event.StateMember && *evt.StateKey == x.user(me) {
+		if evt.Type == event.StateMember && *evt.StateKey == matrixString(me) {
 			return true
 		}
 	}

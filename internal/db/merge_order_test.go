@@ -24,18 +24,18 @@ type historyStep struct {
 }
 
 var (
-	stepOrig = historyStep{name: "o", msg: domain.Message{ID: "$m", Sender: "@a:x", Body: "v0",
+	stepOrig = historyStep{name: "o", msg: domain.Message{ID: mx + "$m", Sender: "matrix:@a:x", Body: "v0",
 		Format: richtext.FromMarkup("<b>v0</b>"), Timestamp: time.UnixMilli(5000)}}
-	stepEdit1 = historyStep{name: "e1", msg: domain.Message{ID: "$m", Sender: "@a:x", Body: "v1",
-		Format: richtext.FromMarkup("<b>v1</b>"), RevisionID: "$e1", Timestamp: time.UnixMilli(7000),
+	stepEdit1 = historyStep{name: "e1", msg: domain.Message{ID: mx + "$m", Sender: "matrix:@a:x", Body: "v1",
+		Format: richtext.FromMarkup("<b>v1</b>"), RevisionID: mx + "$e1", Timestamp: time.UnixMilli(7000),
 		EditedAt: time.UnixMilli(7000), Edited: true}}
-	stepEdit2 = historyStep{name: "e2", msg: domain.Message{ID: "$m", Sender: "@a:x", Body: "v2",
-		Format: richtext.FromMarkup("<b>v2</b>"), RevisionID: "$e2", Timestamp: time.UnixMilli(9000),
+	stepEdit2 = historyStep{name: "e2", msg: domain.Message{ID: mx + "$m", Sender: "matrix:@a:x", Body: "v2",
+		Format: richtext.FromMarkup("<b>v2</b>"), RevisionID: mx + "$e2", Timestamp: time.UnixMilli(9000),
 		EditedAt: time.UnixMilli(9000), Edited: true}}
 	stepRedact = historyStep{name: "R", redact: true}
 	// Redactions of the edit events themselves.
-	stepRedactE1 = historyStep{name: "R1", redactRev: "$e1"}
-	stepRedactE2 = historyStep{name: "R2", redactRev: "$e2"}
+	stepRedactE1 = historyStep{name: "R1", redactRev: mx + "$e1"}
+	stepRedactE2 = historyStep{name: "R2", redactRev: mx + "$e2"}
 )
 
 func stepOrders(steps []historyStep) [][]historyStep {
@@ -57,7 +57,7 @@ func stepOrders(steps []historyStep) [][]historyStep {
 // replay saves one order under [display.deleted] keep. After a redaction the server
 // serves the original stripped (edits stay), so a later original arrives redacted.
 func replay(ctx context.Context, cache *Cache, order []historyStep, keep bool) error {
-	const room = domain.RoomID("!r:x")
+	const room = domain.RoomID(mx + "!r:x")
 	save := cache.SaveMessages
 	if keep {
 		save = cache.SaveMessagesWithRevisions
@@ -67,17 +67,17 @@ func replay(ctx context.Context, cache *Cache, order []historyStep, keep bool) e
 		step := &order[i]
 		switch {
 		case step.redactRev != "":
-			if err := cache.MarkRedacted(ctx, room, step.redactRev, "@a:x", "", time.Time{}, keep); err != nil {
+			if err := cache.MarkRedacted(ctx, room, step.redactRev, "matrix:@a:x", "", time.Time{}, keep); err != nil {
 				return err
 			}
 		case step.redact:
 			redacted = true
-			if err := cache.MarkRedacted(ctx, room, "$m", "@mod:x", "", time.Time{}, keep); err != nil {
+			if err := cache.MarkRedacted(ctx, room, mx+"$m", "matrix:@mod:x", "", time.Time{}, keep); err != nil {
 				return err
 			}
 		case redacted && step.msg.RevisionID == "":
 			stripped := domain.Message{ID: step.msg.ID, Sender: step.msg.Sender,
-				Timestamp: step.msg.Timestamp, Redacted: true, RedactedBy: "@mod:x"}
+				Timestamp: step.msg.Timestamp, Redacted: true, RedactedBy: "matrix:@mod:x"}
 			if err := save(ctx, room, []domain.Message{stripped}); err != nil {
 				return err
 			}
@@ -146,7 +146,7 @@ func TestSavedHistoryIsOrderIndependent(t *testing.T) {
 				if !m.Redacted || m.Body != "" || m.Format.Markup() != "" {
 					return fmt.Errorf("want redacted with no words, got redacted=%v body=%q html=%q", m.Redacted, m.Body, m.Format.Markup())
 				}
-				if m.RedactedBy != "@mod:x" {
+				if m.RedactedBy != "matrix:@mod:x" {
 					return fmt.Errorf("RedactedBy = %q, want who deleted it", m.RedactedBy)
 				}
 				return nil
@@ -180,11 +180,11 @@ func TestSavedHistoryIsOrderIndependent(t *testing.T) {
 				if err := replay(ctx, cache, order, tc.keep); err != nil {
 					t.Fatalf("[%s] replay: %v", label, err)
 				}
-				msgs, err := cache.Messages(ctx, "!r:x", 10)
+				msgs, err := cache.Messages(ctx, mx+"!r:x", 10)
 				if err != nil || len(msgs) != 1 {
 					t.Fatalf("[%s] Messages() = %d rows, err %v; want 1", label, len(msgs), err)
 				}
-				revs, err := cache.Revisions(ctx, "!r:x", "$m")
+				revs, err := cache.Revisions(ctx, mx+"!r:x", mx+"$m")
 				if err != nil {
 					t.Fatalf("[%s] Revisions(): %v", label, err)
 				}
@@ -205,17 +205,17 @@ func TestTrimDropsTombstonesItNoLongerNeeds(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!r:x")
-	if err := cache.MarkRedacted(ctx, room, "$old", "@mod:x", "", time.UnixMilli(1000), false); err != nil {
+	const room = domain.RoomID(mx + "!r:x")
+	if err := cache.MarkRedacted(ctx, room, mx+"$old", "matrix:@mod:x", "", time.UnixMilli(1000), false); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.MarkRedacted(ctx, room, "$new", "@mod:x", "", time.UnixMilli(1e12), false); err != nil {
+	if err := cache.MarkRedacted(ctx, room, mx+"$new", "matrix:@mod:x", "", time.UnixMilli(1e12), false); err != nil {
 		t.Fatal(err)
 	}
 	cache.UseKeep(func(domain.RoomID) int { return testKeep })
 	msgs := make([]domain.Message, testKeep+1)
 	for i := range msgs {
-		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf("$%d", i)), Sender: "@a:x",
+		msgs[i] = domain.Message{ID: domain.EventID(fmt.Sprintf(mx+"$%d", i)), Sender: "matrix:@a:x",
 			Body: "x", Timestamp: time.UnixMilli(int64(10_000 + i))}
 	}
 	if err := cache.SaveMessages(ctx, room, msgs); err != nil {
@@ -237,7 +237,7 @@ func TestTrimDropsTombstonesItNoLongerNeeds(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(left, ",") != "$new" {
+	if strings.Join(left, ",") != mx+"$new" {
 		t.Errorf("tombstones left = %v, want only the one newer than the cutoff", left)
 	}
 }
@@ -330,11 +330,11 @@ func resolvedAlike(cache *Cache, order []historyStep, loadedAfter int) error {
 			live.Reverted = true
 		case step.redact:
 			redacted = true
-			live = domain.Message{ID: "$m", Redacted: true, RedactedBy: "@mod:x"}
+			live = domain.Message{ID: mx + "$m", Redacted: true, RedactedBy: "matrix:@mod:x"}
 		case redacted && live.RevisionID == "":
-			live = domain.Message{ID: "$m", Sender: live.Sender, Timestamp: live.Timestamp, Redacted: true, RedactedBy: "@mod:x"}
+			live = domain.Message{ID: mx + "$m", Sender: live.Sender, Timestamp: live.Timestamp, Redacted: true, RedactedBy: "matrix:@mod:x"}
 		}
-		live.RoomID = "!r:x"
+		live.RoomID = mx + "!r:x"
 		client = domain.MergeMessages(client, []domain.Message{live})
 	}
 	cached, err := overTheWire(ctx, cache)
@@ -364,7 +364,7 @@ func drawn(f richtext.Formatted) string { return fmt.Sprintf("%q %+v", f.Text(),
 
 // overTheWire reads the room from the cache through the socket's wire types.
 func overTheWire(ctx context.Context, cache *Cache) ([]domain.Message, error) {
-	msgs, err := cache.Messages(ctx, "!r:x", 10)
+	msgs, err := cache.Messages(ctx, mx+"!r:x", 10)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +394,7 @@ func TestADeletedEditIsNeverShownAgain(t *testing.T) {
 					if err := replay(ctx, cache, order, keep); err != nil {
 						t.Fatalf("[%s] replay: %v", stepNames(order), err)
 					}
-					msgs, err := cache.Messages(ctx, "!r:x", 10)
+					msgs, err := cache.Messages(ctx, mx+"!r:x", 10)
 					if err != nil || len(msgs) != 1 {
 						t.Fatalf("[%s] Messages() = %d rows, %v; want 1", stepNames(order), len(msgs), err)
 					}

@@ -155,9 +155,9 @@ func TestRoomsRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	want := []domain.Room{
-		{ID: "!general:example.org", Name: "General", Members: []string{"Ada", "Grace"}},
-		{ID: "!dm:example.org", Name: "Ada", IsDirect: true, Members: []string{"Ada"}},
-		{ID: "!invited:example.org", Name: "Book club", Membership: domain.MembershipInvite, InvitedBy: "@ada:example.org"},
+		{ID: mx + "!general:example.org", Name: "General", Members: []string{"Ada", "Grace"}},
+		{ID: mx + "!dm:example.org", Name: "Ada", IsDirect: true, Members: []string{"Ada"}},
+		{ID: mx + "!invited:example.org", Name: "Book club", Membership: domain.MembershipInvite, InvitedBy: "matrix:@ada:example.org"},
 	}
 	r, _ := attach(t, &fakeBackend{rooms: want})
 
@@ -210,11 +210,11 @@ func TestMessagesStreamRoundTrip(t *testing.T) {
 	h.waitAttached(1)
 
 	want := domain.Message{
-		ID: "$one:example.org", RoomID: "!general:example.org",
-		Sender: "@ada:example.org", SenderName: "Ada", Body: "hello",
+		ID: mx + "$one:example.org", RoomID: mx + "!general:example.org",
+		Sender: "matrix:@ada:example.org", SenderName: "Ada", Body: "hello",
 		Timestamp: time.UnixMilli(time.Now().UnixMilli()),
 		Mentioned: true,
-		Mentions:  []domain.Mention{{UserID: "@grace:example.org", Name: "Grace"}},
+		Mentions:  []domain.Mention{{UserID: "matrix:@grace:example.org", Name: "Grace"}},
 	}
 	msgs <- want
 

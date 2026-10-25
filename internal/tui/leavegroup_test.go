@@ -84,16 +84,16 @@ func TestAForumsRoomIsNotLeftAlone(t *testing.T) {
 	t.Parallel()
 	var left []domain.RoomID
 	m := update(t, New(context.Background(), leaver{left: &left}, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!topic:x", Name: "Trips"}, {ID: "telegram:1/-100", Name: "General", Forum: true},
-		{ID: "telegram:1/-100~7", Name: "Recipes"}, {ID: "!plain:x", Name: "Lounge"},
+		{ID: mx + "!topic:x", Name: "Trips"}, {ID: "telegram:1/-100", Name: "General", Forum: true},
+		{ID: "telegram:1/-100~7", Name: "Recipes"}, {ID: mx + "!plain:x", Name: "Lounge"},
 	}})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!forum:x", Name: "Hikers", Bridge: domain.ProtocolTelegram, Leaving: domain.LeftWhole, Children: []domain.RoomID{"!topic:x"}},
+		{ID: mx + "!forum:x", Name: "Hikers", Bridge: domain.ProtocolTelegram, Leaving: domain.LeftWhole, Children: []domain.RoomID{mx + "!topic:x"}},
 		{ID: "telegram:1/forum100", Name: "Baking", Bridge: domain.ProtocolTelegram, Leaving: domain.LeftByRoom,
 			LeaveBy: "telegram:1/-100", Children: []domain.RoomID{"telegram:1/-100", "telegram:1/-100~7"}},
-		{ID: "!mine:x", Name: "Mine", Bridge: domain.ProtocolMatrix, Leaving: domain.LeftAlone, Children: []domain.RoomID{"!plain:x", "!topic:x"}},
+		{ID: mx + "!mine:x", Name: "Mine", Bridge: domain.ProtocolMatrix, Leaving: domain.LeftAlone, Children: []domain.RoomID{mx + "!plain:x", mx + "!topic:x"}},
 	}}))
-	for room, forum := range map[domain.RoomID]string{"!topic:x": "Hikers", "telegram:1/-100": "Baking", "telegram:1/-100~7": "Baking", "!plain:x": ""} {
+	for room, forum := range map[domain.RoomID]string{mx + "!topic:x": "Hikers", "telegram:1/-100": "Baking", "telegram:1/-100~7": "Baking", mx + "!plain:x": ""} {
 		r, _ := m.roomByID(room)
 		got, _ := m.selectRoom(r)
 		got.focus = paneRooms

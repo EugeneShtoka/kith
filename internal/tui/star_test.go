@@ -46,10 +46,10 @@ func TestStarSetIgnoredForAnotherRoom(t *testing.T) {
 
 	m := dayRoom(t)
 	got, _ := m.handleStarredIn(starredInMsg{
-		roomID: "!elsewhere:x",
-		ids:    []domain.EventID{"$d0m0"},
+		roomID: mx + "!elsewhere:x",
+		ids:    []domain.EventID{mx + "$d0m0"},
 	})
-	if got.isStarred("$d0m0") {
+	if got.isStarred(mx + "$d0m0") {
 		t.Error("another room's stars were adopted into this one")
 	}
 }

@@ -189,10 +189,10 @@ func TestTonedEmojiInTextMeasureAsDrawn(t *testing.T) {
 func TestTheTimelineDrawsNoTonedEmojiAColumnShort(t *testing.T) {
 	t.Parallel()
 	m, _ := attaching(t)
-	m = update(t, m, cachedTimelineMsg{roomID: "!a:x", messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@ann:x", Body: "count me in! ☝\U0001F3FC"},
-		{ID: "$2", RoomID: "!a:x", Sender: "@cy:x", Body: "in between, so the reply quotes"},
-		{ID: "$3", RoomID: "!a:x", Sender: "@bo:x", Body: "same ✌\U0001F3FF", ReplyTo: "$1"},
+	m = update(t, m, cachedTimelineMsg{roomID: mx + "!a:x", messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@ann:x", Body: "count me in! ☝\U0001F3FC"},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@cy:x", Body: "in between, so the reply quotes"},
+		{ID: mx + "$3", RoomID: mx + "!a:x", Sender: "matrix:@bo:x", Body: "same ✌\U0001F3FF", ReplyTo: mx + "$1"},
 	}})
 	view := m.View().Content
 	if !strings.Contains(view, "count me in") {

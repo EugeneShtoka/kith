@@ -111,17 +111,17 @@ func (x ids) messageHTML(draft domain.Draft, mentions []domain.Mention) string {
 		if len(mentions) == 0 {
 			return ""
 		}
-		return pillHTML(draft.Body, mentions)
+		return x.pillHTML(draft.Body, mentions)
 	}
 	return x.renderBody(draft.Body, mentions)
 }
 
 // pillHTML escapes body and wraps the first occurrence of each mention's name in a
 // matrix.to anchor.
-func pillHTML(body string, mentions []domain.Mention) string {
+func (x ids) pillHTML(body string, mentions []domain.Mention) string {
 	segments := []string{body}
 	for _, mention := range longestFirst(mentions) {
-		segments = splitOnce(segments, mention)
+		segments = x.splitOnce(segments, mention)
 	}
 	var out strings.Builder
 	for _, segment := range segments {
@@ -136,7 +136,7 @@ func pillHTML(body string, mentions []domain.Mention) string {
 
 // splitOnce replaces the first literal occurrence of mention.Name across segments
 // with an anchor segment, leaving already-rendered segments alone.
-func splitOnce(segments []string, mention domain.Mention) []string {
+func (x ids) splitOnce(segments []string, mention domain.Mention) []string {
 	for i, segment := range segments {
 		if strings.HasPrefix(segment, "<a href=") {
 			continue
@@ -146,7 +146,7 @@ func splitOnce(segments []string, mention domain.Mention) []string {
 			continue
 		}
 		anchor := fmt.Sprintf(`<a href="https://matrix.to/#/%s">%s</a>`,
-			html.EscapeString(mention.Target()), html.EscapeString(mention.Name))
+			html.EscapeString(x.mentionTarget(mention)), html.EscapeString(mention.Name))
 		out := make([]string, 0, len(segments)+2)
 		out = append(out, segments[:i]...)
 		out = append(out, before, anchor, after)
@@ -154,6 +154,14 @@ func splitOnce(segments []string, mention domain.Mention) []string {
 		return out
 	}
 	return segments
+}
+
+// mentionTarget is the room or person a mention names, in Matrix's form.
+func (x ids) mentionTarget(mention domain.Mention) string {
+	if mention.RoomID != "" {
+		return matrixString(x.nativeRoom(kithRoom(mention.RoomID)))
+	}
+	return matrixString(x.nativeUser(mention.UserID))
 }
 
 // SendReaction posts an m.reaction annotating target in roomID with key, encrypted

@@ -12,15 +12,15 @@ func TestDraftsRoundTrip(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 
 	written := time.Unix(1_700_000_000, 0)
 	draft := domain.StoredDraft{
-		RoomID: "!a:x", Body: "half a thought about Dana Levi", Caret: 7,
-		Mentions: []domain.Mention{{UserID: "@dana:x", Name: "Dana Levi"}},
-		ReplyTo:  "$m:x", Author: domain.DraftAgent, Updated: written,
+		RoomID: mx + "!a:x", Body: "half a thought about Dana Levi", Caret: 7,
+		Mentions: []domain.Mention{{UserID: "matrix:@dana:x", Name: "Dana Levi"}},
+		ReplyTo:  mx + "$m:x", Author: domain.DraftAgent, Updated: written,
 	}
 	if err := putDraft(ctx, cache, draft); err != nil {
 		t.Fatalf("SaveDraft: %v", err)
@@ -33,10 +33,10 @@ func TestDraftsRoundTrip(t *testing.T) {
 		t.Fatalf("Drafts() = %+v, want one", got)
 	}
 	// Mentions survive: a lost pill notifies nobody and looks like one that works.
-	if len(got[0].Mentions) != 1 || got[0].Mentions[0].UserID != "@dana:x" {
+	if len(got[0].Mentions) != 1 || got[0].Mentions[0].UserID != "matrix:@dana:x" {
 		t.Errorf("mentions = %+v, want Dana's", got[0].Mentions)
 	}
-	if got[0].Body != draft.Body || got[0].Caret != 7 || got[0].ReplyTo != "$m:x" {
+	if got[0].Body != draft.Body || got[0].Caret != 7 || got[0].ReplyTo != mx+"$m:x" {
 		t.Errorf("Drafts() = %+v, want what was stored", got[0])
 	}
 	// So does the provenance.
@@ -58,7 +58,7 @@ func TestDraftsRoundTrip(t *testing.T) {
 	}
 
 	// An empty draft is a delete.
-	if err := putDraft(ctx, cache, domain.StoredDraft{RoomID: "!a:x"}); err != nil {
+	if err := putDraft(ctx, cache, domain.StoredDraft{RoomID: mx + "!a:x"}); err != nil {
 		t.Fatalf("putDraft(empty): %v", err)
 	}
 	if got, _ := cache.Drafts(ctx); len(got) != 0 {
@@ -71,13 +71,13 @@ func TestDraftsGoWithTheirRoom(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
-	if err := putDraft(ctx, cache, domain.StoredDraft{RoomID: "!a:x", Body: "words"}); err != nil {
+	if err := putDraft(ctx, cache, domain.StoredDraft{RoomID: mx + "!a:x", Body: "words"}); err != nil {
 		t.Fatalf("SaveDraft: %v", err)
 	}
-	if _, err := cache.db.ExecContext(ctx, `DELETE FROM rooms WHERE id = '!a:x'`); err != nil {
+	if _, err := cache.db.ExecContext(ctx, `DELETE FROM rooms WHERE id = 'matrix:0123456789abcdef/!a:x'`); err != nil {
 		t.Fatalf("delete room: %v", err)
 	}
 	if got, _ := cache.Drafts(ctx); len(got) != 0 {
@@ -90,8 +90,8 @@ func TestRoomsWithNarrowsAsPeopleAreAdded(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	rooms := []domain.Room{{ID: "!both:x", Name: "Both"}, {ID: "!one:x", Name: "One"}, {ID: "!none:x", Name: "None"}}
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, rooms); err != nil {
+	rooms := []domain.Room{{ID: mx + "!both:x", Name: "Both"}, {ID: mx + "!one:x", Name: "One"}, {ID: mx + "!none:x", Name: "None"}}
+	if err := cache.SaveRooms(ctx, mxRooms, rooms); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	member := func(room domain.RoomID, ids ...string) {
@@ -104,11 +104,11 @@ func TestRoomsWithNarrowsAsPeopleAreAdded(t *testing.T) {
 			t.Fatalf("SaveMembers: %v", err)
 		}
 	}
-	member("!both:x", "@noa:x", "@evgeny:x", "@dana:x")
-	member("!one:x", "@noa:x", "@dana:x")
-	member("!none:x", "@dana:x")
+	member(mx+"!both:x", "matrix:@noa:x", "matrix:@evgeny:x", "matrix:@dana:x")
+	member(mx+"!one:x", "matrix:@noa:x", "matrix:@dana:x")
+	member(mx+"!none:x", "matrix:@dana:x")
 
-	got, err := cache.RoomsWith(ctx, []string{"@noa:x"}, domain.EveryRoom(), 10)
+	got, err := cache.RoomsWith(ctx, []string{"matrix:@noa:x"}, domain.EveryRoom(), 10)
 	if err != nil {
 		t.Fatalf("RoomsWith: %v", err)
 	}
@@ -116,11 +116,11 @@ func TestRoomsWithNarrowsAsPeopleAreAdded(t *testing.T) {
 		t.Fatalf("RoomsWith(noa) = %+v, want both rooms they are in", got)
 	}
 	// A second name can only narrow it.
-	got, err = cache.RoomsWith(ctx, []string{"@noa:x", "@evgeny:x"}, domain.EveryRoom(), 10)
+	got, err = cache.RoomsWith(ctx, []string{"matrix:@noa:x", "matrix:@evgeny:x"}, domain.EveryRoom(), 10)
 	if err != nil {
 		t.Fatalf("RoomsWith: %v", err)
 	}
-	if len(got) != 1 || got[0].ID != "!both:x" {
+	if len(got) != 1 || got[0].ID != mx+"!both:x" {
 		t.Fatalf("RoomsWith(noa, evgeny) = %+v, want only the room with both", got)
 	}
 	// Nobody is not everybody.
@@ -128,11 +128,11 @@ func TestRoomsWithNarrowsAsPeopleAreAdded(t *testing.T) {
 		t.Fatalf("RoomsWith(blank) = %+v, want nothing", blank)
 	}
 	// A room set restricts the candidates before the limit.
-	got, err = cache.RoomsWith(ctx, []string{"@noa:x"}, domain.TheseRooms([]domain.RoomID{"!one:x", "!none:x"}), 1)
+	got, err = cache.RoomsWith(ctx, []string{"matrix:@noa:x"}, domain.TheseRooms([]domain.RoomID{mx + "!one:x", mx + "!none:x"}), 1)
 	if err != nil {
 		t.Fatalf("RoomsWith(scoped): %v", err)
 	}
-	if len(got) != 1 || got[0].ID != "!one:x" {
+	if len(got) != 1 || got[0].ID != mx+"!one:x" {
 		t.Fatalf("RoomsWith(noa, within one/none) = %+v, want only !one:x", got)
 	}
 }
@@ -141,21 +141,21 @@ func TestMessagesAroundGivesAHitItsConversation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x", Name: "Alpha"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); err != nil {
 		t.Fatalf("SaveRooms: %v", err)
 	}
 	var msgs []domain.Message
 	for i := range 9 {
 		msgs = append(msgs, domain.Message{
-			ID: domain.EventID("$" + string(rune('a'+i))), RoomID: "!a:x", Sender: "@dana:x",
+			ID: domain.EventID(mx + "$" + string(rune('a'+i))), RoomID: mx + "!a:x", Sender: "matrix:@dana:x",
 			Body: string(rune('a' + i)), Timestamp: time.Unix(int64(1_700_000_000+i*60), 0),
 		})
 	}
-	if err := cache.SaveMessages(ctx, "!a:x", msgs); err != nil {
+	if err := cache.SaveMessages(ctx, mx+"!a:x", msgs); err != nil {
 		t.Fatalf("SaveMessages: %v", err)
 	}
 
-	got, err := cache.MessagesAround(ctx, "!a:x", "$e", 2, 2)
+	got, err := cache.MessagesAround(ctx, mx+"!a:x", mx+"$e", 2, 2)
 	if err != nil {
 		t.Fatalf("MessagesAround: %v", err)
 	}
@@ -170,11 +170,11 @@ func TestMessagesAroundGivesAHitItsConversation(t *testing.T) {
 		}
 	}
 	// At the edges it gives what there is.
-	if got, _ := cache.MessagesAround(ctx, "!a:x", "$a", 5, 1); len(got) != 2 {
+	if got, _ := cache.MessagesAround(ctx, mx+"!a:x", mx+"$a", 5, 1); len(got) != 2 {
 		t.Errorf("MessagesAround(first) = %v, want the message and its one neighbor", bodies(got))
 	}
 	// An uncached hit has no context, not an error.
-	if got, _ := cache.MessagesAround(ctx, "!a:x", "$missing", 2, 2); len(got) != 0 {
+	if got, _ := cache.MessagesAround(ctx, mx+"!a:x", mx+"$missing", 2, 2); len(got) != 0 {
 		t.Errorf("MessagesAround(missing) = %v, want nothing", bodies(got))
 	}
 }
@@ -192,7 +192,7 @@ func TestReplaceDraftWritesOnlyOverWhatWasRead(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	const room = domain.RoomID("!r:x")
+	const room = domain.RoomID(mx + "!r:x")
 	first := domain.StoredDraft{RoomID: room, Body: "hi", Updated: time.UnixMilli(1000)}
 
 	if saved, err := cache.ReplaceDraft(ctx, first, domain.StoredDraft{}); err != nil || !saved {
@@ -242,8 +242,8 @@ func TestReplaceDraftRefusesAWriteOverADeletedDraft(t *testing.T) {
 	t.Parallel()
 
 	for _, read := range []domain.StoredDraft{
-		{RoomID: "!r:x", ReplyTo: "$q", Updated: time.UnixMilli(5000)},
-		{RoomID: "!r:x", Body: "hi", Updated: time.UnixMilli(5000)},
+		{RoomID: mx + "!r:x", ReplyTo: mx + "$q", Updated: time.UnixMilli(5000)},
+		{RoomID: mx + "!r:x", Body: "hi", Updated: time.UnixMilli(5000)},
 	} {
 		cache, ctx := openTemp(t), context.Background()
 		if saved, err := cache.ReplaceDraft(ctx, read, domain.StoredDraft{}); err != nil || !saved {
@@ -254,7 +254,7 @@ func TestReplaceDraftRefusesAWriteOverADeletedDraft(t *testing.T) {
 			t.Fatalf("Drafts() = %+v, %v", drafts, err)
 		}
 		was := drafts[0]
-		if saved, err := cache.ReplaceDraft(ctx, domain.StoredDraft{RoomID: "!r:x"}, was); err != nil || !saved {
+		if saved, err := cache.ReplaceDraft(ctx, domain.StoredDraft{RoomID: mx + "!r:x"}, was); err != nil || !saved {
 			t.Fatalf("clearing = %v, %v; want saved", saved, err)
 		}
 		stale := was
@@ -273,12 +273,12 @@ func TestReplaceDraftRefusesAWriteOverADeletedDraft(t *testing.T) {
 func TestReplaceDraftTellsVersionsApartByTheirComposition(t *testing.T) {
 	t.Parallel()
 	at := time.UnixMilli(5000)
-	read := domain.StoredDraft{RoomID: "!r:x", Body: "fixed", Editing: "$e", EditSaved: "hi", Updated: at}
+	read := domain.StoredDraft{RoomID: mx + "!r:x", Body: "fixed", Editing: mx + "$e", EditSaved: "hi", Updated: at}
 	for name, change := range map[string]func(*domain.StoredDraft){
 		"the draft the edit returns to": func(d *domain.StoredDraft) { d.EditSaved = "hi\n\np5" },
-		"the reply target":              func(d *domain.StoredDraft) { d.ReplyTo = "$q" },
-		"the edit target":               func(d *domain.StoredDraft) { d.Editing = "$other" },
-		"the thread":                    func(d *domain.StoredDraft) { d.ThreadRoot = "$t" },
+		"the reply target":              func(d *domain.StoredDraft) { d.ReplyTo = mx + "$q" },
+		"the edit target":               func(d *domain.StoredDraft) { d.Editing = mx + "$other" },
+		"the thread":                    func(d *domain.StoredDraft) { d.ThreadRoot = mx + "$t" },
 	} {
 		cache, ctx := openTemp(t), context.Background()
 		stored := read
@@ -286,7 +286,7 @@ func TestReplaceDraftTellsVersionsApartByTheirComposition(t *testing.T) {
 		if saved, err := cache.ReplaceDraft(ctx, stored, domain.StoredDraft{}); err != nil || !saved {
 			t.Fatalf("%s: storing = %v, %v", name, saved, err)
 		}
-		mine := domain.StoredDraft{RoomID: "!r:x", Body: "hi", Updated: time.UnixMilli(6000)}
+		mine := domain.StoredDraft{RoomID: mx + "!r:x", Body: "hi", Updated: time.UnixMilli(6000)}
 		if saved, err := cache.ReplaceDraft(ctx, mine, read); err != nil || saved {
 			t.Errorf("%s differs: a write over the version this writer read = %v, %v; want refused", name, saved, err)
 		}
@@ -297,25 +297,25 @@ func TestReplaceDraftTellsVersionsApartByTheirComposition(t *testing.T) {
 func TestADraftKeepsItsThread(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
-	inThread := domain.StoredDraft{RoomID: "!r:x", Body: "on it", ThreadRoot: "$root", Updated: time.UnixMilli(5000)}
+	inThread := domain.StoredDraft{RoomID: mx + "!r:x", Body: "on it", ThreadRoot: mx + "$root", Updated: time.UnixMilli(5000)}
 	if saved, err := cache.ReplaceDraft(ctx, inThread, domain.StoredDraft{}); err != nil || !saved {
 		t.Fatalf("storing = %v, %v", saved, err)
 	}
-	if got := onlyDraft(t, cache); got.ThreadRoot != "$root" {
+	if got := onlyDraft(t, cache); got.ThreadRoot != mx+"$root" {
 		t.Fatalf("read back thread %q, want $root", got.ThreadRoot)
 	}
-	moved := domain.StoredDraft{RoomID: "!r:x", Body: "on it, in the room", Updated: time.UnixMilli(6000)}
+	moved := domain.StoredDraft{RoomID: mx + "!r:x", Body: "on it, in the room", Updated: time.UnixMilli(6000)}
 	if saved, err := cache.ReplaceDraft(ctx, moved, inThread); err != nil || !saved {
 		t.Fatalf("moving to the main timeline = %v, %v", saved, err)
 	}
 	if got := onlyDraft(t, cache); got.ThreadRoot != "" {
 		t.Errorf("read back thread %q after the move, want none", got.ThreadRoot)
 	}
-	again := domain.StoredDraft{RoomID: "!r:x", Body: "back", ThreadRoot: "$root", Updated: time.UnixMilli(7000)}
+	again := domain.StoredDraft{RoomID: mx + "!r:x", Body: "back", ThreadRoot: mx + "$root", Updated: time.UnixMilli(7000)}
 	if saved, err := cache.ReplaceDraft(ctx, again, moved); err != nil || !saved {
 		t.Fatal(saved, err)
 	}
-	if saved, err := cache.ReplaceDraft(ctx, domain.StoredDraft{RoomID: "!r:x"}, again); err != nil || !saved {
+	if saved, err := cache.ReplaceDraft(ctx, domain.StoredDraft{RoomID: mx + "!r:x"}, again); err != nil || !saved {
 		t.Fatalf("clearing = %v, %v", saved, err)
 	}
 	var left int

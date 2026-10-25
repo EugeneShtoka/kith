@@ -18,18 +18,18 @@ type placeRoom struct {
 var (
 	placeLabels = map[string]string{"Work": "Desk", "Board": "Work", "Acme": "acme corp"}
 	placeRooms  = []placeRoom{
-		{id: "!w:x", spaces: []string{"Work"}},
-		{id: "!t:x", tags: []string{"Work"}},
-		{id: "!b:x", spaces: []string{"Board"}},
-		{id: "!a:x", spaces: []string{"Acme"}},
-		{id: "!f:x", spaces: []string{"Friends"}, tags: []string{"Pinned"}},
-		{id: "!n:x"},
+		{id: mx + "!w:x", spaces: []string{"Work"}},
+		{id: mx + "!t:x", tags: []string{"Work"}},
+		{id: mx + "!b:x", spaces: []string{"Board"}},
+		{id: mx + "!a:x", spaces: []string{"Acme"}},
+		{id: mx + "!f:x", spaces: []string{"Friends"}, tags: []string{"Pinned"}},
+		{id: mx + "!n:x"},
 	}
 	placeSpaces = []domain.Space{
-		{ID: "!sw:x", Name: "Work", Children: []domain.RoomID{"!w:x"}},
-		{ID: "!sb:x", Name: "Board", Bridge: domain.ProtocolTelegram, Leaving: domain.LeftWhole, Children: []domain.RoomID{"!b:x"}},
-		{ID: "!sa:x", Name: "Acme", Bridge: domain.ProtocolSlack, Leaving: domain.LeftBySigningOut, Children: []domain.RoomID{"!a:x"}},
-		{ID: "!sf:x", Name: "Friends", Children: []domain.RoomID{"!f:x"}},
+		{ID: mx + "!sw:x", Name: "Work", Children: []domain.RoomID{mx + "!w:x"}},
+		{ID: mx + "!sb:x", Name: "Board", Bridge: domain.ProtocolTelegram, Leaving: domain.LeftWhole, Children: []domain.RoomID{mx + "!b:x"}},
+		{ID: mx + "!sa:x", Name: "Acme", Bridge: domain.ProtocolSlack, Leaving: domain.LeftBySigningOut, Children: []domain.RoomID{mx + "!a:x"}},
+		{ID: mx + "!sf:x", Name: "Friends", Children: []domain.RoomID{mx + "!f:x"}},
 	}
 )
 
@@ -68,16 +68,16 @@ func TestAPlaceEntryNamesEveryRowShownSo(t *testing.T) {
 		entry string
 		want  []domain.RoomID
 	}{
-		{"place:Work", []domain.RoomID{"!w:x", "!t:x", "!b:x"}}, // the space, the tag, the forum shown as Work
-		{"place:WORK", []domain.RoomID{"!w:x", "!t:x", "!b:x"}},
-		{"place:desk", []domain.RoomID{"!w:x"}},  // Work's rename
-		{"place:Board", []domain.RoomID{"!b:x"}}, // the forum's own name
-		{"place:Acme Corp", []domain.RoomID{"!a:x"}},
-		{"place:pinned", []domain.RoomID{"!f:x"}},
+		{"place:Work", []domain.RoomID{mx + "!w:x", mx + "!t:x", mx + "!b:x"}}, // the space, the tag, the forum shown as Work
+		{"place:WORK", []domain.RoomID{mx + "!w:x", mx + "!t:x", mx + "!b:x"}},
+		{"place:desk", []domain.RoomID{mx + "!w:x"}},  // Work's rename
+		{"place:Board", []domain.RoomID{mx + "!b:x"}}, // the forum's own name
+		{"place:Acme Corp", []domain.RoomID{mx + "!a:x"}},
+		{"place:pinned", []domain.RoomID{mx + "!f:x"}},
 		{"place:Nobody", nil},
-		{"space:Work", []domain.RoomID{"!w:x"}},
+		{"space:Work", []domain.RoomID{mx + "!w:x"}},
 		{"space:Desk", nil}, // space: reads the name, not the label
-		{"tag:Work", []domain.RoomID{"!t:x"}},
+		{"tag:Work", []domain.RoomID{mx + "!t:x"}},
 		{"Work", nil},
 	} {
 		var got []domain.RoomID
@@ -133,7 +133,7 @@ func TestATagRuleReadsPlaceThroughTheSet(t *testing.T) {
 	t.Parallel()
 	set, warnings, err := domain.NewTagSet([]domain.Tag{
 		{Name: "Busy", Rule: []string{"place:Desk", "place:Friends"}},
-		{Name: "Friends", Picked: []string{"!t:x"}},
+		{Name: "Friends", Picked: []string{mx + "!t:x"}},
 		{Name: "Loop", Rule: []string{"place:loop", "dm"}},
 	})
 	if err != nil {
@@ -144,7 +144,7 @@ func TestATagRuleReadsPlaceThroughTheSet(t *testing.T) {
 	}
 	places := domain.Places{Order: domain.NewHomeOrder(nil, nil, set, placeSpaces, placeLabels), Tags: set}
 	in := func(id domain.RoomID, tag string) bool {
-		f := places.Facts(domain.Room{ID: id, IsDirect: id == "!n:x"}, domain.HoldersOf(id, placeSpaces))
+		f := places.Facts(domain.Room{ID: id, IsDirect: id == mx+"!n:x"}, domain.HoldersOf(id, placeSpaces))
 		return slices.Contains(f.Tags, tag)
 	}
 	for _, c := range []struct {
@@ -152,12 +152,12 @@ func TestATagRuleReadsPlaceThroughTheSet(t *testing.T) {
 		tag  string
 		want bool
 	}{
-		{"!w:x", "Busy", true},  // in the space shown as Desk
-		{"!f:x", "Busy", true},  // in the space Friends
-		{"!t:x", "Busy", true},  // in the tag Friends
-		{"!a:x", "Busy", false}, // in neither
-		{"!n:x", "Loop", true},  // dm; its own name matches nothing
-		{"!w:x", "Loop", false},
+		{mx + "!w:x", "Busy", true},  // in the space shown as Desk
+		{mx + "!f:x", "Busy", true},  // in the space Friends
+		{mx + "!t:x", "Busy", true},  // in the tag Friends
+		{mx + "!a:x", "Busy", false}, // in neither
+		{mx + "!n:x", "Loop", true},  // dm; its own name matches nothing
+		{mx + "!w:x", "Loop", false},
 	} {
 		if got := in(c.room, c.tag); got != c.want {
 			t.Errorf("%s in %s = %t, want %t", c.room, c.tag, got, c.want)
@@ -172,8 +172,8 @@ func TestATagRuleReadsPlaceThroughTheSet(t *testing.T) {
 // bare name names nothing.
 func TestARuleNamesTheFirstHomeByPrefix(t *testing.T) {
 	t.Parallel()
-	space := domain.Scope{RoomID: "!r:x", Space: "Work", SpaceLabel: "Desk"}
-	tag := domain.Scope{RoomID: "!r:x", Space: "tag:Work"}
+	space := domain.Scope{RoomID: mx + "!r:x", Space: "Work", SpaceLabel: "Desk"}
+	tag := domain.Scope{RoomID: mx + "!r:x", Space: "tag:Work"}
 	for _, c := range []struct {
 		place string
 		scope domain.Scope
@@ -187,8 +187,8 @@ func TestARuleNamesTheFirstHomeByPrefix(t *testing.T) {
 		{"tag:Work", tag, domain.RankSpace},
 		{"place:work", tag, domain.RankSpace},
 		{"space:Work", tag, domain.NoMatch},
-		{"tag:Work", domain.Scope{RoomID: "!r:x"}, domain.NoMatch},
-		{"!r:x", space, domain.RankRoom},
+		{"tag:Work", domain.Scope{RoomID: mx + "!r:x"}, domain.NoMatch},
+		{mx + "!r:x", space, domain.RankRoom},
 	} {
 		if got := (domain.Match{Place: c.place}).Rank(c.scope); got != c.want {
 			t.Errorf("%s in %+v ranks %v, want %v", c.place, c.scope, got, c.want)

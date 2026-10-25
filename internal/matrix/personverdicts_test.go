@@ -34,9 +34,9 @@ func TestPersonMarksAreWrittenToTheAccount(t *testing.T) {
 	srv := newAccountDataServer(t)
 	b := backendWith(t, srv.Server, nil)
 	for _, v := range []domain.PersonVerdict{
-		{Person: "@ann:x", Tag: "Spam", Rule: domain.MoveAlways, Filter: "crypto", At: time.Now()},
-		{Person: "@bob:x", Tag: "Spam", Rule: domain.MoveAlways, Filter: "crypto"},
-		{Person: "@bob:x", Tag: "SPAM", Released: true},
+		{Person: "matrix:@ann:x", Tag: "Spam", Rule: domain.MoveAlways, Filter: "crypto", At: time.Now()},
+		{Person: "matrix:@bob:x", Tag: "Spam", Rule: domain.MoveAlways, Filter: "crypto"},
+		{Person: "matrix:@bob:x", Tag: "SPAM", Released: true},
 	} {
 		if err := b.MarkPerson(ctx, v); err != nil {
 			t.Fatalf("MarkPerson(%+v) = %v", v, err)
@@ -68,7 +68,7 @@ func TestAMarkCannotOverwriteAReleaseElsewhere(t *testing.T) {
 	srv.stored[peopleType] = `{"verdicts":{"@ann:x":{"spam":{"released":true,"at_ms":1700000000000}}}}`
 	b := backendWith(t, srv.Server, nil)
 
-	err := b.MarkPerson(ctx, domain.PersonVerdict{Person: "@ann:x", Tag: "Spam", Rule: domain.MoveAlways, Filter: "crypto"})
+	err := b.MarkPerson(ctx, domain.PersonVerdict{Person: "matrix:@ann:x", Tag: "Spam", Rule: domain.MoveAlways, Filter: "crypto"})
 	if !errors.Is(err, domain.ErrPersonReleased) {
 		t.Fatalf("MarkPerson(over a release) = %v, want ErrPersonReleased", err)
 	}
@@ -89,7 +89,7 @@ func TestPersonAccountDataInASyncIsMirrored(t *testing.T) {
 	srv := newAccountDataServer(t)
 	b := backendWith(t, srv.Server, nil)
 	if err := b.cache.SetPersonVerdicts(ctx, domain.ProtocolMatrix, []domain.PersonVerdict{
-		{Person: "@ann:x", Tag: "spam", Rule: domain.MoveAlways, At: time.Now()},
+		{Person: "matrix:@ann:x", Tag: "spam", Rule: domain.MoveAlways, At: time.Now()},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestPersonAccountDataInASyncIsMirrored(t *testing.T) {
 	for _, v := range got {
 		byPerson[v.Person] = v
 	}
-	if !byPerson["@ann:x"].Released || !byPerson["@bob:x"].In() || byPerson["@bob:x"].Filter != "crypto" {
+	if !byPerson["matrix:@ann:x"].Released || !byPerson["matrix:@bob:x"].In() || byPerson["matrix:@bob:x"].Filter != "crypto" {
 		t.Errorf("mirror after the sync = %+v, want Ann released and Bob marked", got)
 	}
 	if _, present := peopleFrom([]*event.Event{{Type: event.Type{Type: "m.other"}}}); present {

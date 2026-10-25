@@ -14,13 +14,13 @@ import (
 func archiving(t *testing.T, display config.Display) Model {
 	t.Helper()
 	m := update(t, starterNew(&bulkReader{}, display), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Bravo"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Bravo"},
 	}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!wa:x", Name: "WhatsApp UK", Keeper: "@whatsappbot:x", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{"!a:x", "!b:x"}},
+		{ID: mx + "!wa:x", Name: "WhatsApp UK", Keeper: "matrix:@whatsappbot:x", Bridge: domain.ProtocolWhatsApp, Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
 	}})
-	m = picking(t, sized(t, m.clearStatus()), "Archived", "!a:x")
+	m = picking(t, sized(t, m.clearStatus()), "Archived", mx+"!a:x")
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, "WhatsApp UK")
 	return m
@@ -39,15 +39,15 @@ func archivedListed(m Model) []domain.RoomID {
 // always shows them.
 func TestArchivedRoomsAreShownAsConfigured(t *testing.T) {
 	t.Parallel()
-	if got := archivedListed(archiving(t, config.Display{})); !slices.Equal(got, []domain.RoomID{"!a:x", "!b:x"}) {
+	if got := archivedListed(archiving(t, config.Display{})); !slices.Equal(got, []domain.RoomID{mx + "!a:x", mx + "!b:x"}) {
 		t.Errorf("by default the bridge's space lists %v, want the archived room too", got)
 	}
 	hidden := archiving(t, config.Display{ShowArchived: new(false)})
-	if got := archivedListed(hidden); !slices.Equal(got, []domain.RoomID{"!b:x"}) {
+	if got := archivedListed(hidden); !slices.Equal(got, []domain.RoomID{mx + "!b:x"}) {
 		t.Errorf("with show_archived off: %v, want Bravo alone", got)
 	}
 	hidden.rail.cursor = indexOfGroup(hidden.rail.groups, "tag:Archived")
-	if got := archivedListed(hidden); !slices.Equal(got, []domain.RoomID{"!a:x"}) {
+	if got := archivedListed(hidden); !slices.Equal(got, []domain.RoomID{mx + "!a:x"}) {
 		t.Errorf("the archive's own list with show_archived off: %v, want Alpha", got)
 	}
 	ruled := archiving(t, config.Display{ShowArchived: new(false), SpaceRules: []config.SpaceRule{{Space: "space:WhatsApp UK", ShowArchived: new(true)}}})
@@ -62,7 +62,7 @@ func TestTheArchivedKeyFlipsThePlaceInView(t *testing.T) {
 	t.Parallel()
 	m := archiving(t, config.Display{})
 	m, _ = press(t, m, keyText("A"))
-	if got := archivedListed(m); !slices.Equal(got, []domain.RoomID{"!b:x"}) || !strings.Contains(m.status(), "hidden") {
+	if got := archivedListed(m); !slices.Equal(got, []domain.RoomID{mx + "!b:x"}) || !strings.Contains(m.status(), "hidden") {
 		t.Errorf("after A: %v, said %q; want the archived room hidden", got, m.status())
 	}
 	m.rail.cursor = indexOfGroup(m.rail.groups, "tag:Archived")

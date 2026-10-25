@@ -159,7 +159,7 @@ func (w *keyWorld) wait(ctx context.Context, events ...*event.Event) {
 
 func (w *keyWorld) cached(eventID string) (domain.Message, bool) {
 	w.t.Helper()
-	m, ok, err := w.b.cache.Message(context.Background(), domain.RoomID(keyRoom), domain.EventID(eventID))
+	m, ok, err := w.b.cache.Message(context.Background(), testIDs.room(keyRoom), testIDs.eventOf(eventID))
 	if err != nil {
 		w.t.Fatal(err)
 	}
@@ -257,8 +257,8 @@ func TestAKeyAlreadyHeldIsNotAskedForAgain(t *testing.T) {
 // The decrypted copy replaces its stand-in in a timeline; a deleted one stays deleted.
 func TestADecryptedMessageReplacesItsStandIn(t *testing.T) {
 	t.Parallel()
-	standIn := domain.Message{ID: "$a", RoomID: "!r", Body: undecryptableBody, Undecrypted: true, Timestamp: time.Unix(10, 0)}
-	real := domain.Message{ID: "$a", RoomID: "!r", Body: "hello", Timestamp: time.Unix(10, 0)}
+	standIn := domain.Message{ID: mx + "$a", RoomID: mx + "!r", Body: undecryptableBody, Undecrypted: true, Timestamp: time.Unix(10, 0)}
+	real := domain.Message{ID: mx + "$a", RoomID: mx + "!r", Body: "hello", Timestamp: time.Unix(10, 0)}
 	got := domain.MergeMessages([]domain.Message{standIn}, []domain.Message{real})
 	if len(got) != 1 || got[0].Body != "hello" || got[0].Undecrypted {
 		t.Errorf("merged = %+v; want the decrypted message", got)

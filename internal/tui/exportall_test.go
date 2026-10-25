@@ -31,20 +31,20 @@ func (b roomsBackend) CachedTimeline(_ context.Context, room domain.RoomID) ([]d
 func TestEveryRoomIsExportedToItsOwnFile(t *testing.T) {
 	t.Parallel()
 	msg := func(room domain.RoomID, id, body string, minute int) domain.Message {
-		return domain.Message{ID: domain.EventID(id), RoomID: room, Sender: "@maya:x", SenderName: "maya", Body: body, Timestamp: at(60 * minute)}
+		return domain.Message{ID: domain.EventID(id), RoomID: room, Sender: "matrix:@maya:x", SenderName: "maya", Body: body, Timestamp: at(60 * minute)}
 	}
 	b := roomsBackend{
-		rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}, {ID: "!c:x", Name: "Bravo"}, {ID: "!d:x", Name: "Quiet"}},
+		rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}, {ID: mx + "!c:x", Name: "Bravo"}, {ID: mx + "!d:x", Name: "Quiet"}},
 		msgs: map[domain.RoomID][]domain.Message{
-			"!a:x": {msg("!a:x", "$a1", "old news", 1), msg("!a:x", "$a2", "fresh news", 3)},
-			"!b:x": {msg("!b:x", "$b1", "first bravo", 2)},
-			"!c:x": {msg("!c:x", "$c1", "second bravo", 2)},
+			mx + "!a:x": {msg(mx+"!a:x", mx+"$a1", "old news", 1), msg(mx+"!a:x", mx+"$a2", "fresh news", 3)},
+			mx + "!b:x": {msg(mx+"!b:x", mx+"$b1", "first bravo", 2)},
+			mx + "!c:x": {msg(mx+"!c:x", mx+"$c1", "second bravo", 2)},
 		},
 	}
 	cfg := config.Config{Display: config.Display{
 		TimeFormat: "12h",
-		Names:      []config.DisplayName{{Target: "!a:x", Name: "Team"}},
-		Identities: []config.Identity{{Alias: "Maya K", IDs: []string{"@maya:x"}}},
+		Names:      []config.DisplayName{{Target: mx + "!a:x", Name: "Team"}},
+		Identities: []config.Identity{{Alias: "Maya K", IDs: []string{"matrix:@maya:x"}}},
 	}}
 	files := func(t *testing.T, span domain.SummarySpan) map[string]string {
 		t.Helper()

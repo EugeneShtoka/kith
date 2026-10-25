@@ -90,7 +90,7 @@ func TestUserCommandGetsTheRoomInItsEnvironment(t *testing.T) {
 	m, cmd := press(t, m, sendKey())
 	m = deliver(t, m, cmd)
 
-	if got := m.editorFor(fieldComposer).text; got != "!a:x in Alpha" {
+	if got := m.editorFor(fieldComposer).text; got != mx+"!a:x in Alpha" {
 		t.Errorf("composer = %q, want the room it ran in", got)
 	}
 }
@@ -388,11 +388,11 @@ func TestSentOutputGoesToTheRoomItWasTypedIn(t *testing.T) {
 	m, cmd := press(t, m, sendKey())
 
 	// Moved to the other room while the script was running.
-	next, _ := m.selectRoom(domain.Room{ID: "!b:x", Name: "Bravo"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!b:x", Name: "Bravo"})
 	moved := next
 	deliverTwice(t, moved, cmd)
 
-	if backend.roomID != "!a:x" {
+	if backend.roomID != mx+"!a:x" {
 		t.Errorf("sent to %q, want the room the command was typed in", backend.roomID)
 	}
 }

@@ -42,7 +42,7 @@ func TestXRemovesARecordAndAsksForATag(t *testing.T) {
 	t.Parallel()
 	m, _ := opened(t, config.Notifications{})
 	cfg := m.conf.base.Clone()
-	cfg.Display.Identities = []config.Identity{{Alias: "Dana", IDs: []string{"@dana:x"}}, {Alias: "Eli", IDs: []string{"@eli:x"}}}
+	cfg.Display.Identities = []config.Identity{{Alias: "Dana", IDs: []string{"matrix:@dana:x"}}, {Alias: "Eli", IDs: []string{"matrix:@eli:x"}}}
 	m, _ = m.applyConfig(cfg, "")
 	m = m.settingsIn(recordPrefix+"display.identity", recordPrefix+"display.identity#0")
 	m = pressX(t, m)
@@ -65,11 +65,11 @@ func TestXUnticksAPlaceInTheFilingPicker(t *testing.T) {
 	t.Parallel()
 	m, f := filing(t)
 	m, _ = press(t, m, keyText("S"))
-	if !m.picker.ticked("!w:x") {
+	if !m.picker.ticked(mx + "!w:x") {
 		t.Fatal("Work does not hold Alpha to begin with")
 	}
 	m = pressX(t, m)
-	if m.picker.ticked("!w:x") {
+	if m.picker.ticked(mx + "!w:x") {
 		t.Error("x left Work ticked")
 	}
 	m.picker.cursor = len(m.picker.items) - 1 // New tag
@@ -79,7 +79,7 @@ func TestXUnticksAPlaceInTheFilingPicker(t *testing.T) {
 	}
 	next, cmd := m.acceptPick()
 	_ = deliver(t, next, cmd)
-	if !f.removed || f.removedFrom != "!w:x" {
+	if !f.removed || f.removedFrom != mx+"!w:x" {
 		t.Errorf("removed from %q, want Work", f.removedFrom)
 	}
 }

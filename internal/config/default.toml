@@ -102,7 +102,7 @@ show_archived = true
 # spaces, minus those a bridge keeps and those a room calls its origin. Naming spaces
 # (space:<name>, place:<name> or a space's ID) makes this the whole list, in order.
 #
-#   filing_spaces = ["space:Work", "place:Friends", "!w1kIQdLjYDUj7wgUis:example.org"]
+#   filing_spaces = ["space:Work", "place:Friends", "matrix:4f1c9e2a7b3d5c60/!w1kIQdLjYDUj7wgUis:example.org"]
 filing_spaces = []
 
 # The wheel scrolls the pane under the pointer; clicks do nothing. While on, the
@@ -184,23 +184,25 @@ row_numbers = false
 # [[display.identity]]
 # alias = "Eugene"
 # color = "#8ff586"
-# ids = ["@eugene:example.org", "@whatsapp_1234:example.org"]
+# ids = ["matrix:@eugene:example.org", "matrix:@whatsapp_1234:example.org"]
 
 # Names you gave things: a room, a space, a rail row, a thread (`a` on it in the app).
 # `target` is one of:
 #
-#   !abcdef:example.org   a room, by ID
+#   matrix:4f1c9e2a7b3d5c60/!abcdef:example.org   a room, by ID
 #   room:Team Standup     a room, by the name this client shows for it
 #   space:Work            a space (and its rail row); a tag is named in its [[tag]]
-#   thread:$abcdef:…      a thread, by its root event (default label: a snippet of it)
+#   thread:matrix:4f1c9e2a7b3d5c60/$abcdef     a thread, by its root event (default label: a snippet of it)
 #
-# A bare word that is not a room ID is refused at startup.
+# A bare word that is not a room ID is refused at startup. A Matrix ID says which of
+# your accounts sees it: matrix:<account>/!room, matrix:<account>/$event, and a person
+# matrix:@user:server. Copy them as kith shows them; a bare !room or @user is refused.
 # [[display.name]]
-# target = "!abcdef:example.org"
+# target = "matrix:4f1c9e2a7b3d5c60/!abcdef:example.org"
 # name = "Team Standup"
 #
 # [[display.name]]
-# target = "thread:$abcdef:example.org"
+# target = "thread:matrix:4f1c9e2a7b3d5c60/$abcdef"
 # name = "Release notes"
 
 # Read receipts and when a room counts as read.
@@ -226,7 +228,7 @@ read_delay    = -1
 # delay = 30
 #
 # [[display.read_rule]]
-# sender = "@dana:example.org"
+# sender = "matrix:@dana:example.org"
 # send   = false        # read her messages without telling her
 
 # How much of the emoji set to offer:
@@ -298,7 +300,7 @@ notify = false
 #   words  = ["deploy", "rollback"]
 #   in     = ["space:Work"]          # where it counts; absent = everywhere
 #   except = ["room:Noise"]          # never here; wins over `in`
-#   from   = ["@dana:example.org"]   # only these senders; absent = anybody
+#   from   = ["matrix:@dana:example.org"]   # only these senders; absent = anybody
 #   notify = true                    # overrides the switch above for these words
 #
 # `in`/`except` take the place vocabulary (see [display]).
@@ -345,7 +347,7 @@ notify = false
 #   [[tag]]
 #   name     = "Family"
 #   rule     = ["dm", "space:Family", "not room:Bank"]
-#   picked   = ["!abc:example.org"]
+#   picked   = ["matrix:4f1c9e2a7b3d5c60/!abc:example.org"]
 #   excluded = []
 #   hidden   = false
 #
@@ -509,7 +511,7 @@ max_height = 16
 # dir   = "~/work/attachments"
 #
 # [[display.media.rule]]
-# match    = "!standup:server"
+# match    = "matrix:4f1c9e2a7b3d5c60/!standup:server"
 # template = "{date}-{name}{ext}"
 #
 # [[display.media.rule]]
@@ -517,7 +519,7 @@ max_height = 16
 # anonymize = false
 #
 # [[display.media.rule]]
-# sender = "@dana:example.org"
+# sender = "matrix:@dana:example.org"
 # speed  = 2.0
 
 # Voice notes. `p` opens a player bar: space plays/pauses, [ ] skip by `skip`
@@ -579,7 +581,7 @@ max_in_room_list = 5
 # Per place (room ID, space:, tag: or place:; narrowest wins, later wins among equals):
 #
 # [[display.threads.rule]]
-# match            = "!busy:example.org"
+# match            = "matrix:4f1c9e2a7b3d5c60/!busy:example.org"
 # max_in_room_list = 12
 
 # Which rooms read right to left. Such a room's timeline is mirrored: the text sits
@@ -592,7 +594,7 @@ max_in_room_list = 5
 # right, back to this section's say.
 [display.direction]
 auto = false
-# rtl  = ["space:Friends", "!family:example.org"]
+# rtl  = ["space:Friends", "matrix:4f1c9e2a7b3d5c60/!family:example.org"]
 # ltr  = ["room:Work chat"]
 
 # Desktop notifications. This section is the switch and the delivery; what notifies is
@@ -601,14 +603,14 @@ auto = false
 # `desktop` posts a freedesktop (D-Bus) notification. `command` runs once per
 # notification with the fields in its environment, never interpolated, so a message
 # cannot inject shell code: $KITH_TITLE and $KITH_BODY (rendered), plus $KITH_SENDER,
-# $KITH_MXID, $KITH_ROOM, $KITH_SPACE, $KITH_MESSAGE, $KITH_PROTOCOL, $KITH_DATE and $KITH_TIME (ISO always, for scripts).
+# $KITH_SENDER_ID, $KITH_ROOM, $KITH_SPACE, $KITH_MESSAGE, $KITH_PROTOCOL, $KITH_DATE and $KITH_TIME (ISO always, for scripts).
 #
 # `title` and `body` are templates over:
 #
 #   {space}     the room's space (the first, for several); empty for none, and an
 #               empty field drops one neighboring separator
 #   {sender}    the sender's name (their MXID until it resolves)
-#   {mxid}      the sender's Matrix ID
+#   {sender_id} the sender's ID on their network
 #   {room}      the room's displayed name
 #   {body}      the message text
 #   {protocol}  the sender's network (WhatsApp, Telegram, …; "Matrix" for native)
@@ -691,13 +693,13 @@ sound_command = ""
 # show = "all"
 #
 # [[notifications.rule]]
-# match = "!standup:server"      # mute a room…
+# match = "matrix:4f1c9e2a7b3d5c60/!standup:server"      # mute a room…
 # show = "none"
 #
 # [[notifications.rule]]
 # name = "the boss"              # …except one person in it, who also gets through
-# match = "!standup:server"      # quiet hours and do-not-disturb
-# sender = "@alice:server"
+# match = "matrix:4f1c9e2a7b3d5c60/!standup:server"      # quiet hours and do-not-disturb
+# sender = "matrix:@alice:server"
 # show = "all"
 # sound = "/home/you/sounds/boss.wav"
 #
@@ -706,7 +708,7 @@ sound_command = ""
 # ring = "none"
 #
 # [[notifications.rule]]
-# match = "!busy:server"         # only the threads you joined
+# match = "matrix:4f1c9e2a7b3d5c60/!busy:server"         # only the threads you joined
 # thread = "participating"
 # show = "all"
 
@@ -752,7 +754,7 @@ copy_downloads = false
 #
 # include/exclude take the place vocabulary:
 #
-#   !abc:server          that room, by ID
+#   matrix:4f1c9e2a7b3d5c60/!abc:server   that room, by ID
 #   room:Standup         whatever is shown under that name
 #   space:Bridges        every room in that space
 #   protocol:WhatsApp    every room on that network
@@ -832,7 +834,7 @@ require_digit = true
 # [[filter]]
 # name  = "that number"
 # tag   = "Spam"
-# from  = "@spammer:example.org"
+# from  = "matrix:@spammer:example.org"
 #
 # [[filter]]
 # name  = "elections"
@@ -1445,7 +1447,7 @@ jump_forward = "ctrl+i,alt+o"  # forward again
 # between the open room and the rail's space), or /shortcut for the room written in.
 # Targets:
 #
-#   room:<!id:server>  a room, by ID (names are ambiguous across bridges)
+#   room:<room ID>     a room, by ID (names are ambiguous across bridges)
 #   space:<name>       a space's rail row
 #   tag:<name>         a tag's rail row
 #   place:<name>       the first rail row shown as <name>
@@ -1459,7 +1461,7 @@ jump_forward = "ctrl+i,alt+o"  # forward again
 #
 #   [[keys.jump]]
 #   chord  = "g d"
-#   target = "room:!dana:example.org"
+#   target = "room:matrix:4f1c9e2a7b3d5c60/!dana:example.org"
 #
 # Key sequences bound to tags: the room under the cursor (or the open one) goes into
 # the tag, or out of it; in the timeline, the selected message's sender does (a muted

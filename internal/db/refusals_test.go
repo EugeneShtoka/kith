@@ -69,17 +69,17 @@ func TestEmojiScoresWeighByDistance(t *testing.T) {
 	t.Parallel()
 
 	cache, ctx := openTemp(t), context.Background()
-	const me = "@me:x"
-	const here = domain.RoomID("!here:x")
-	sibling := domain.RoomID("!sibling:x")
-	far := domain.RoomID("!far:x")
+	const me = "matrix:@me:x"
+	const here = domain.RoomID(mx + "!here:x")
+	sibling := domain.RoomID(mx + "!sibling:x")
+	far := domain.RoomID(mx + "!far:x")
 
 	reacted := []domain.Reaction{
-		{ID: "$r1", RoomID: here, Target: "$m1", Sender: me, Key: "🎯"},
-		{ID: "$r2", RoomID: sibling, Target: "$m2", Sender: me, Key: "🧭"},
-		{ID: "$r3", RoomID: far, Target: "$m3", Sender: me, Key: "🛰️"},
+		{ID: mx + "$r1", RoomID: here, Target: mx + "$m1", Sender: me, Key: "🎯"},
+		{ID: mx + "$r2", RoomID: sibling, Target: mx + "$m2", Sender: me, Key: "🧭"},
+		{ID: mx + "$r3", RoomID: far, Target: mx + "$m3", Sender: me, Key: "🛰️"},
 		// Somebody else's reaction does not count.
-		{ID: "$r4", RoomID: here, Target: "$m1", Sender: "@them:x", Key: "🐘"},
+		{ID: mx + "$r4", RoomID: here, Target: mx + "$m1", Sender: "matrix:@them:x", Key: "🐘"},
 	}
 	if err := cache.SaveReactions(ctx, reacted); err != nil {
 		t.Fatal(err)
@@ -119,8 +119,8 @@ func TestEmojiScoresWeighByDistance(t *testing.T) {
 	more := make([]domain.Reaction, 0, 4)
 	for i := range 4 {
 		more = append(more, domain.Reaction{
-			ID: domain.EventID("$c" + string(rune('a'+i))), RoomID: here,
-			Target: domain.EventID("$m" + string(rune('a'+i))), Sender: me, Key: "🧭",
+			ID: domain.EventID(mx + "$c" + string(rune('a'+i))), RoomID: here,
+			Target: domain.EventID(mx + "$m" + string(rune('a'+i))), Sender: me, Key: "🧭",
 		})
 	}
 	if saveMore := cache.SaveReactions(ctx, more); saveMore != nil {

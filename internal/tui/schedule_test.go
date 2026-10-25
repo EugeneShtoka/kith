@@ -10,7 +10,7 @@ import (
 
 func scheduledFixture() domain.ScheduledMessage {
 	return domain.ScheduledMessage{
-		ID: "s1", RoomID: "!a:x", Body: "later",
+		ID: "s1", RoomID: mx + "!a:x", Body: "later",
 		At: time.Now().Add(time.Hour), Written: time.Now(),
 	}
 }
@@ -116,14 +116,14 @@ func TestScheduledScopedToOneRoom(t *testing.T) {
 
 	m := sized(t, newModel())
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
-		{ID: "!b:x", Name: "Beta"},
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!b:x", Name: "Beta"},
 	}})
 	now := time.Now()
 	queue := []domain.ScheduledMessage{
-		{ID: "s1", RoomID: "!a:x", Body: "here", At: now.Add(time.Hour), Written: now},
-		{ID: "s2", RoomID: "!b:x", Body: "elsewhere", At: now.Add(2 * time.Hour), Written: now},
-		{ID: "s3", RoomID: "!a:x", Body: "here too", At: now.Add(3 * time.Hour), Written: now},
+		{ID: "s1", RoomID: mx + "!a:x", Body: "here", At: now.Add(time.Hour), Written: now},
+		{ID: "s2", RoomID: mx + "!b:x", Body: "elsewhere", At: now.Add(2 * time.Hour), Written: now},
+		{ID: "s3", RoomID: mx + "!a:x", Body: "here too", At: now.Add(3 * time.Hour), Written: now},
 	}
 
 	all := update(t, m, scheduledMsg{queue: queue})
@@ -135,7 +135,7 @@ func TestScheduledScopedToOneRoom(t *testing.T) {
 	}
 
 	// One room: only its two rows, without the room name.
-	scoped := update(t, m, scheduledMsg{queue: queue, onlyRoom: "!a:x"})
+	scoped := update(t, m, scheduledMsg{queue: queue, onlyRoom: mx + "!a:x"})
 	if got := len(scoped.picker.items); got != 2 {
 		t.Fatalf("/scheduled listed %d rows, want the 2 in this room", got)
 	}
@@ -153,11 +153,11 @@ func TestScheduledInThisRoomWhenEmpty(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, newModel())
-	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	now := time.Now()
-	other := []domain.ScheduledMessage{{ID: "s1", RoomID: "!b:x", Body: "elsewhere", At: now.Add(time.Hour), Written: now}}
+	other := []domain.ScheduledMessage{{ID: "s1", RoomID: mx + "!b:x", Body: "elsewhere", At: now.Add(time.Hour), Written: now}}
 
-	scoped := update(t, m.clearStatus(), scheduledMsg{queue: other, onlyRoom: "!a:x"})
+	scoped := update(t, m.clearStatus(), scheduledMsg{queue: other, onlyRoom: mx + "!a:x"})
 	if !strings.Contains(scoped.status(), "nothing scheduled in this room") {
 		t.Errorf("status = %q, want it scoped to the room", scoped.status())
 	}

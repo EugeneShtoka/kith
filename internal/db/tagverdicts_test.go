@@ -14,22 +14,22 @@ func TestTagVerdictsMirrorTheRoomsWholeSet(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveRooms(ctx, domain.MatrixRooms, []domain.Room{{ID: "!a:x"}, {ID: "!b:x"}}); err != nil {
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x"}, {ID: mx + "!b:x"}}); err != nil {
 		t.Fatal(err)
 	}
 	at := time.Now().Truncate(time.Millisecond)
-	if err := cache.SetRoomVerdicts(ctx, "!b:x", []domain.TagVerdict{{Room: "!b:x", Tag: "Spam", Rule: domain.MoveAlways, At: at}}); err != nil {
+	if err := cache.SetRoomVerdicts(ctx, mx+"!b:x", []domain.TagVerdict{{Room: mx + "!b:x", Tag: "Spam", Rule: domain.MoveAlways, At: at}}); err != nil {
 		t.Fatal(err)
 	}
 	set := []domain.TagVerdict{
-		{Room: "!a:x", Tag: "Spam", Rule: domain.MoveFirstMessage, Filter: "crypto", At: at},
-		{Room: "!a:x", Tag: "Archive", Released: true, Rule: domain.MoveAlways, Filter: "kept?", At: at},
-		{Room: "!a:x", Tag: "Nothing", At: at}, // neither in nor released: not stored
+		{Room: mx + "!a:x", Tag: "Spam", Rule: domain.MoveFirstMessage, Filter: "crypto", At: at},
+		{Room: mx + "!a:x", Tag: "Archive", Released: true, Rule: domain.MoveAlways, Filter: "kept?", At: at},
+		{Room: mx + "!a:x", Tag: "Nothing", At: at}, // neither in nor released: not stored
 	}
-	if err := cache.SetRoomVerdicts(ctx, "!a:x", set); err != nil {
+	if err := cache.SetRoomVerdicts(ctx, mx+"!a:x", set); err != nil {
 		t.Fatal(err)
 	}
-	got, err := cache.RoomVerdicts(ctx, "!a:x")
+	got, err := cache.RoomVerdicts(ctx, mx+"!a:x")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,19 +38,19 @@ func TestTagVerdictsMirrorTheRoomsWholeSet(t *testing.T) {
 		t.Fatalf("RoomVerdicts = %+v, want the release and the verdict, keyed lower-case", got)
 	}
 
-	if err := cache.SetRoomVerdicts(ctx, "!a:x", []domain.TagVerdict{{Room: "!a:x", Tag: "SPAM", Rule: domain.MoveMostly, At: at}}); err != nil {
+	if err := cache.SetRoomVerdicts(ctx, mx+"!a:x", []domain.TagVerdict{{Room: mx + "!a:x", Tag: "SPAM", Rule: domain.MoveMostly, At: at}}); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ = cache.RoomVerdicts(ctx, "!a:x"); len(got) != 1 || got[0].Rule != domain.MoveMostly {
+	if got, _ = cache.RoomVerdicts(ctx, mx+"!a:x"); len(got) != 1 || got[0].Rule != domain.MoveMostly {
 		t.Fatalf("after replacing: %+v, want the one verdict", got)
 	}
 	if all, _ := cache.TagVerdicts(ctx); len(all) != 2 {
 		t.Errorf("TagVerdicts = %+v, want both rooms'", all)
 	}
-	if err := cache.SetRoomVerdicts(ctx, "!a:x", nil); err != nil {
+	if err := cache.SetRoomVerdicts(ctx, mx+"!a:x", nil); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ = cache.RoomVerdicts(ctx, "!a:x"); len(got) != 0 {
+	if got, _ = cache.RoomVerdicts(ctx, mx+"!a:x"); len(got) != 0 {
 		t.Errorf("after clearing: %+v", got)
 	}
 }
@@ -61,12 +61,12 @@ func TestARetagLeavesTheExceptedNetworks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
-	for _, room := range []domain.RoomID{"!a:x", "telegram:1/2", "gmessages:1/3"} {
+	for _, room := range []domain.RoomID{mx + "!a:x", "telegram:1/2", "gmessages:1/3"} {
 		if err := cache.MarkTag(ctx, domain.TagVerdict{Room: room, Tag: "Spam", Rule: domain.MoveAlways}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, person := range []string{"@ann:x", "telegram:9", "gmessages:+15550000003"} {
+	for _, person := range []string{"matrix:@ann:x", "telegram:9", "gmessages:+15550000003"} {
 		if err := cache.MarkPerson(ctx, domain.PersonVerdict{Person: person, Tag: "Spam", Rule: domain.MoveAlways}); err != nil {
 			t.Fatal(err)
 		}

@@ -21,7 +21,7 @@ func backendWithCache(t *testing.T, me id.UserID) *InProc {
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	b := New(cache)
+	b := newBackend(cache)
 	b.client = client
 	return b
 }
@@ -49,7 +49,7 @@ func TestRefusalLearnedOnlyFromABridgeTakingOursAway(t *testing.T) {
 			t.Parallel()
 			b := backendWithCache(t, me)
 			b.noteRefusedReaction(ctx,
-				domain.Reaction{RoomID: "!a:x", Sender: tc.reactionSender, Key: "🫶"},
+				domain.Reaction{RoomID: mx + "!a:x", Sender: testIDs.userOf(tc.reactionSender), Key: "🫶"},
 				&event.Event{Sender: id.UserID(tc.redactedBy)})
 
 			refusals, err := b.cache.ReactionRefusals(ctx)

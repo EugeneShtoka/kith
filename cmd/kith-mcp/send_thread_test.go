@@ -14,13 +14,13 @@ import (
 func threaded() *fake {
 	f := twoRooms()
 	f.messages = map[domain.RoomID][]domain.Message{
-		"!open:x": {
-			{ID: "$root", RoomID: "!open:x", Sender: "@dana:x", Body: "who takes the deploy?"},
-			{ID: "$main", RoomID: "!open:x", Sender: "@sam:x", Body: "lunch at one"},
-			{ID: "$r1", RoomID: "!open:x", Sender: "@sam:x", Body: "not me", ThreadRoot: "$root"},
-			{ID: "$r2", RoomID: "!open:x", Sender: "@dana:x", Body: "anyone?", ThreadRoot: "$root", ReplyTo: "$r1"},
+		mx + "!open:x": {
+			{ID: mx + "$root", RoomID: mx + "!open:x", Sender: "matrix:@dana:x", Body: "who takes the deploy?"},
+			{ID: mx + "$main", RoomID: mx + "!open:x", Sender: "matrix:@sam:x", Body: "lunch at one"},
+			{ID: mx + "$r1", RoomID: mx + "!open:x", Sender: "matrix:@sam:x", Body: "not me", ThreadRoot: mx + "$root"},
+			{ID: mx + "$r2", RoomID: mx + "!open:x", Sender: "matrix:@dana:x", Body: "anyone?", ThreadRoot: mx + "$root", ReplyTo: mx + "$r1"},
 		},
-		"!secret:x": {{ID: "$elsewhere", RoomID: "!secret:x", Sender: "@dana:x", Body: "private"}},
+		mx + "!secret:x": {{ID: mx + "$elsewhere", RoomID: mx + "!secret:x", Sender: "matrix:@dana:x", Body: "private"}},
 	}
 	return f
 }
@@ -35,12 +35,12 @@ func TestAMessageGoesWhereItIsAimed(t *testing.T) {
 		thread, replyTo domain.EventID
 	}{
 		{"the main timeline", map[string]any{}, "", ""},
-		{"a thread by its root", map[string]any{"thread": "$root"}, "$root", ""},
-		{"a thread by one of its replies", map[string]any{"thread": "$r2"}, "$root", ""},
-		{"a reply to a message in a thread", map[string]any{"reply_to": "$r1"}, "$root", "$r1"},
-		{"a reply in the main timeline", map[string]any{"reply_to": "$main"}, "", "$main"},
-		{"the root answered in its thread", map[string]any{"thread": "$root", "reply_to": "$root"}, "$root", "$root"},
-		{"a reply and its own thread", map[string]any{"thread": "$root", "reply_to": "$r2"}, "$root", "$r2"},
+		{"a thread by its root", map[string]any{"thread": mx + "$root"}, mx + "$root", ""},
+		{"a thread by one of its replies", map[string]any{"thread": mx + "$r2"}, mx + "$root", ""},
+		{"a reply to a message in a thread", map[string]any{"reply_to": mx + "$r1"}, mx + "$root", mx + "$r1"},
+		{"a reply in the main timeline", map[string]any{"reply_to": mx + "$main"}, "", mx + "$main"},
+		{"the root answered in its thread", map[string]any{"thread": mx + "$root", "reply_to": mx + "$root"}, mx + "$root", mx + "$root"},
+		{"a reply and its own thread", map[string]any{"thread": mx + "$root", "reply_to": mx + "$r2"}, mx + "$root", mx + "$r2"},
 	} {
 		f := threaded()
 		s := newWriter(t, f, shareAll, []string{"space:Work"})
@@ -63,10 +63,10 @@ func TestATargetMustBeAMessageOfThatRoom(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"another room's message", map[string]any{"reply_to": "$elsewhere"}, "not a message in this room"},
-		{"another room's thread", map[string]any{"thread": "$elsewhere"}, "not a message in this room"},
-		{"no such event", map[string]any{"thread": "$nothing"}, "not a message in this room"},
-		{"a reply outside the thread named", map[string]any{"thread": "$root", "reply_to": "$main"}, "not in that thread"},
+		{"another room's message", map[string]any{"reply_to": mx + "$elsewhere"}, "not a message in this room"},
+		{"another room's thread", map[string]any{"thread": mx + "$elsewhere"}, "not a message in this room"},
+		{"no such event", map[string]any{"thread": mx + "$nothing"}, "not a message in this room"},
+		{"a reply outside the thread named", map[string]any{"thread": mx + "$root", "reply_to": mx + "$main"}, "not in that thread"},
 	} {
 		f := threaded()
 		s := newWriter(t, f, shareAllEncrypted, []string{"space:Work"})
@@ -87,9 +87,9 @@ func TestAThreadReplyIsDraftedIntoItsThread(t *testing.T) {
 		args            map[string]any
 		thread, replyTo domain.EventID
 	}{
-		{map[string]any{"thread": "$r1"}, "$root", ""},
-		{map[string]any{"reply_to": "$r2"}, "$root", "$r2"},
-		{map[string]any{"reply_to": "$main"}, "", "$main"},
+		{map[string]any{"thread": mx + "$r1"}, mx + "$root", ""},
+		{map[string]any{"reply_to": mx + "$r2"}, mx + "$root", mx + "$r2"},
+		{map[string]any{"reply_to": mx + "$main"}, "", mx + "$main"},
 	} {
 		f := threaded()
 		s := newWriter(t, f, shareAll, nil) // no send list: every room is drafted
@@ -97,7 +97,7 @@ func TestAThreadReplyIsDraftedIntoItsThread(t *testing.T) {
 		if out := call(t, s, "send_message", c.args); out["action"] != agent.Drafted {
 			t.Fatalf("%v: action = %v, want drafted", c.args, out["action"])
 		}
-		held := f.drafts["!open:x"]
+		held := f.drafts[mx+"!open:x"]
 		if held.Body != "I will" || held.ThreadRoot != c.thread || held.ReplyTo != c.replyTo {
 			t.Errorf("%v: draft %+v, want it aimed at thread %q reply %q", c.args, held, c.thread, c.replyTo)
 		}
@@ -117,14 +117,14 @@ func TestADraftAimedElsewhereIsNotAddedTo(t *testing.T) {
 		args map[string]any
 		ok   bool
 	}{
-		{"a thread draft, the main timeline", domain.StoredDraft{Body: "mine", ThreadRoot: "$root"}, map[string]any{}, false},
-		{"a main draft, a thread", domain.StoredDraft{Body: "mine"}, map[string]any{"thread": "$root"}, false},
-		{"a reply draft, another reply", domain.StoredDraft{Body: "mine", ReplyTo: "$main"}, map[string]any{"reply_to": "$root"}, false},
-		{"a thread draft, the same thread", domain.StoredDraft{Body: "mine", ThreadRoot: "$root"}, map[string]any{"thread": "$r2"}, true},
-		{"a reply draft, no reply of its own", domain.StoredDraft{Body: "mine", ReplyTo: "$main"}, map[string]any{}, true},
+		{"a thread draft, the main timeline", domain.StoredDraft{Body: "mine", ThreadRoot: mx + "$root"}, map[string]any{}, false},
+		{"a main draft, a thread", domain.StoredDraft{Body: "mine"}, map[string]any{"thread": mx + "$root"}, false},
+		{"a reply draft, another reply", domain.StoredDraft{Body: "mine", ReplyTo: mx + "$main"}, map[string]any{"reply_to": mx + "$root"}, false},
+		{"a thread draft, the same thread", domain.StoredDraft{Body: "mine", ThreadRoot: mx + "$root"}, map[string]any{"thread": mx + "$r2"}, true},
+		{"a reply draft, no reply of its own", domain.StoredDraft{Body: "mine", ReplyTo: mx + "$main"}, map[string]any{}, true},
 	} {
 		f := threaded()
-		c.held.RoomID = "!open:x"
+		c.held.RoomID = mx + "!open:x"
 		f.store(c.held)
 		s := newWriter(t, f, shareAll, nil)
 		c.args["room"], c.args["text"] = "Standup", "I will"
@@ -132,7 +132,7 @@ func TestADraftAimedElsewhereIsNotAddedTo(t *testing.T) {
 			if got := callErr(t, s, "send_message", c.args); !strings.Contains(got, "aimed elsewhere") {
 				t.Errorf("%s: %q, want the aim refusal", c.name, got)
 			}
-			if held := f.drafts["!open:x"]; held.Body != "mine" || held.ThreadRoot != c.held.ThreadRoot || held.ReplyTo != c.held.ReplyTo {
+			if held := f.drafts[mx+"!open:x"]; held.Body != "mine" || held.ThreadRoot != c.held.ThreadRoot || held.ReplyTo != c.held.ReplyTo {
 				t.Errorf("%s: the draft changed to %+v", c.name, held)
 			}
 			if ledger := entries(t, s); len(ledger) != 1 || ledger[0].Outcome != agent.Refused {
@@ -141,7 +141,7 @@ func TestADraftAimedElsewhereIsNotAddedTo(t *testing.T) {
 			continue
 		}
 		call(t, s, "send_message", c.args)
-		if held := f.drafts["!open:x"]; held.Body != "mine\n\nI will" || held.ThreadRoot != c.held.ThreadRoot || held.ReplyTo != c.held.ReplyTo {
+		if held := f.drafts[mx+"!open:x"]; held.Body != "mine\n\nI will" || held.ThreadRoot != c.held.ThreadRoot || held.ReplyTo != c.held.ReplyTo {
 			t.Errorf("%s: draft %+v, want the words appended and the aim kept", c.name, held)
 		}
 	}
@@ -154,20 +154,20 @@ func TestAQueuedThreadReplyKeepsItsThread(t *testing.T) {
 	f := threaded()
 	f.sendErr = errors.New("homeserver down")
 	s := newWriter(t, f, shareAll, []string{"space:Work"})
-	if out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "I will", "reply_to": "$r1"}); out["action"] != agent.Queued {
+	if out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "I will", "reply_to": mx + "$r1"}); out["action"] != agent.Queued {
 		t.Fatalf("action = %v, want queued", out["action"])
 	}
-	if len(f.queued) != 1 || f.queued[0].ThreadRoot != "$root" || f.queued[0].ReplyTo != "$r1" {
+	if len(f.queued) != 1 || f.queued[0].ThreadRoot != mx+"$root" || f.queued[0].ReplyTo != mx+"$r1" {
 		t.Errorf("queued %+v, want it aimed at $r1 in $root", f.queued)
 	}
 
 	f = threaded()
 	f.sendErr, f.queueErr = errors.New("homeserver down"), errors.New("queue full")
 	s = newWriter(t, f, shareAll, []string{"space:Work"})
-	if out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "I will", "thread": "$root"}); out["action"] != agent.Drafted {
+	if out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "I will", "thread": mx + "$root"}); out["action"] != agent.Drafted {
 		t.Fatalf("action = %v, want drafted", out["action"])
 	}
-	if held := f.drafts["!open:x"]; held.ThreadRoot != "$root" {
+	if held := f.drafts[mx+"!open:x"]; held.ThreadRoot != mx+"$root" {
 		t.Errorf("draft %+v, want it in the thread", held)
 	}
 }
@@ -182,21 +182,21 @@ func TestReadRoomShowsAndReadsThreads(t *testing.T) {
 		t.Fatalf("read %d messages, want 4", len(msgs))
 	}
 	r2 := msgs[3].(map[string]any)
-	if r2["thread"] != "$root" || r2["reply_to"] != "$r1" {
+	if r2["thread"] != mx+"$root" || r2["reply_to"] != mx+"$r1" {
 		t.Errorf("a reply in a thread reads as %v, want its thread and what it answers", r2)
 	}
-	for _, via := range []string{"$root", "$r1"} {
+	for _, via := range []string{mx + "$root", mx + "$r1"} {
 		one := call(t, s, "read_room", map[string]any{"room": "Standup", "thread": via})
 		got, _ := one["messages"].([]any)
 		var ids []string
 		for _, m := range got {
 			ids = append(ids, m.(map[string]any)["event_id"].(string))
 		}
-		if strings.Join(ids, ",") != "$root,$r1,$r2" {
+		if strings.Join(ids, ",") != mx+"$root,"+mx+"$r1,"+mx+"$r2" {
 			t.Errorf("thread via %s = %v, want the root and its replies", via, ids)
 		}
 	}
-	if got := callErr(t, s, "read_room", map[string]any{"room": "Standup", "thread": "$elsewhere"}); !strings.Contains(got, "not a message in this room") {
+	if got := callErr(t, s, "read_room", map[string]any{"room": "Standup", "thread": mx + "$elsewhere"}); !strings.Contains(got, "not a message in this room") {
 		t.Errorf("another room's thread: %q", got)
 	}
 }

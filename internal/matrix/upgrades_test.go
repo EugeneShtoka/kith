@@ -40,11 +40,11 @@ func TestScrollbackWalksOffTheTopIntoTheRoomThisOneReplaced(t *testing.T) {
 	defer srv.Close()
 
 	b, ctx := backendOn(t, srv), context.Background()
-	if err := b.cache.SaveRoomUpgrade(ctx, "!new:x", db.RoomUpgrade{Predecessor: "!old:x"}); err != nil {
+	if err := b.cache.SaveRoomUpgrade(ctx, mx+"!new:x", db.RoomUpgrade{Predecessor: mx + "!old:x"}); err != nil {
 		t.Fatalf("SaveRoomUpgrade: %v", err)
 	}
 
-	page, err := b.Timeline(ctx, "!new:x", "", 50)
+	page, err := b.Timeline(ctx, mx+"!new:x", "", 50)
 	if err != nil {
 		t.Fatalf("Timeline: %v", err)
 	}
@@ -53,14 +53,14 @@ func TestScrollbackWalksOffTheTopIntoTheRoomThisOneReplaced(t *testing.T) {
 	}
 
 	// The old room's messages stay keyed to the room that holds them.
-	page, err = b.Timeline(ctx, "!new:x", page.Next, 50)
+	page, err = b.Timeline(ctx, mx+"!new:x", page.Next, 50)
 	if err != nil {
 		t.Fatalf("Timeline(continued): %v", err)
 	}
 	if len(page.Messages) != 1 || page.Messages[0].Body != "said before the upgrade" {
 		t.Fatalf("continued page = %+v; want the pre-upgrade message", page.Messages)
 	}
-	if got := page.Messages[0].RoomID; got != "!old:x" {
+	if got := page.Messages[0].RoomID; got != mx+"!old:x" {
 		t.Errorf("pre-upgrade message RoomID = %q, want !old:x — rewriting it would lose its redactions", got)
 	}
 	if len(asked) != 2 || asked[0] != "!new:x" || asked[1] != "!old:x" {
@@ -77,7 +77,7 @@ func TestARoomThatWasNeverUpgradedStillEnds(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	page, err := backendOn(t, srv).Timeline(context.Background(), "!plain:x", "", 50)
+	page, err := backendOn(t, srv).Timeline(context.Background(), mx+"!plain:x", "", 50)
 	if err != nil {
 		t.Fatalf("Timeline: %v", err)
 	}
@@ -96,11 +96,11 @@ func TestAPredecessorWeCannotReadEndsTheHistoryQuietly(t *testing.T) {
 	defer srv.Close()
 
 	b, ctx := backendOn(t, srv), context.Background()
-	if err := b.cache.SaveRoomUpgrade(ctx, "!new:x", db.RoomUpgrade{Predecessor: "!gone:x"}); err != nil {
+	if err := b.cache.SaveRoomUpgrade(ctx, mx+"!new:x", db.RoomUpgrade{Predecessor: mx + "!gone:x"}); err != nil {
 		t.Fatalf("SaveRoomUpgrade: %v", err)
 	}
 
-	page, err := b.Timeline(ctx, "!new:x", chainPrefix+"1:!gone:x", 50)
+	page, err := b.Timeline(ctx, mx+"!new:x", chainPrefix+"1:!gone:x", 50)
 	if err != nil {
 		t.Fatalf("Timeline into an unreadable predecessor = %v; want the walk to end quietly", err)
 	}
@@ -109,7 +109,7 @@ func TestAPredecessorWeCannotReadEndsTheHistoryQuietly(t *testing.T) {
 	}
 
 	// The same failure at depth zero is a real error.
-	if _, err := b.Timeline(ctx, "!new:x", "", 50); err == nil {
+	if _, err := b.Timeline(ctx, mx+"!new:x", "", 50); err == nil {
 		t.Error("a forbidden fetch of the requested room returned no error")
 	}
 }
@@ -119,14 +119,14 @@ func TestAChainThatLoopsStopsWalking(t *testing.T) {
 	t.Parallel()
 
 	b, ctx := backendWithCache(t, "@me:x"), context.Background()
-	if err := b.cache.SaveRoomUpgrade(ctx, "!a:x", db.RoomUpgrade{Predecessor: "!b:x"}); err != nil {
+	if err := b.cache.SaveRoomUpgrade(ctx, mx+"!a:x", db.RoomUpgrade{Predecessor: mx + "!b:x"}); err != nil {
 		t.Fatalf("SaveRoomUpgrade: %v", err)
 	}
 
-	if next := b.chainNext(ctx, "!a:x", 0); next == "" {
+	if next := b.chainNext(ctx, mx+"!a:x", 0); next == "" {
 		t.Fatal("a real predecessor produced no continuation token")
 	}
-	if next := b.chainNext(ctx, "!a:x", chainWalkLimit); next != "" {
+	if next := b.chainNext(ctx, mx+"!a:x", chainWalkLimit); next != "" {
 		t.Errorf("at the walk limit the token was %q, want empty", next)
 	}
 }
@@ -142,16 +142,16 @@ func TestOnlyOurOwnContinuationTokenRedirectsAFetch(t *testing.T) {
 		wantFrom  string
 		wantDepth int
 	}{
-		{"a server token is left alone", "t42-1_0_0", "!here:x", "t42-1_0_0", 0},
-		{"no token is the first page", "", "!here:x", "", 0},
-		{"ours redirects to the predecessor", chainPrefix + "3:!old:x", "!old:x", "", 3},
-		{"a truncated one does not", chainPrefix + "3", "!here:x", "", 0},
-		{"a non-numeric depth does not", chainPrefix + "x:!old:x", "!here:x", "", 0},
-		{"an empty room does not", chainPrefix + "1:", "!here:x", "", 0},
+		{"a server token is left alone", "t42-1_0_0", mx + "!here:x", "t42-1_0_0", 0},
+		{"no token is the first page", "", mx + "!here:x", "", 0},
+		{"ours redirects to the predecessor", chainPrefix + "3:" + mx + "!old:x", mx + "!old:x", "", 3},
+		{"a truncated one does not", chainPrefix + "3", mx + "!here:x", "", 0},
+		{"a non-numeric depth does not", chainPrefix + "x:!old:x", mx + "!here:x", "", 0},
+		{"an empty room does not", chainPrefix + "1:", mx + "!here:x", "", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			room, from, depth := chainStep("!here:x", tc.from)
+			room, from, depth := chainStep(mx+"!here:x", tc.from)
 			if room != tc.wantRoom || from != tc.wantFrom || depth != tc.wantDepth {
 				t.Errorf("chainStep(%q) = %q, %q, %d; want %q, %q, %d",
 					tc.from, room, from, depth, tc.wantRoom, tc.wantFrom, tc.wantDepth)

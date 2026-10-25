@@ -223,7 +223,7 @@ func TestALoginWhileRunningIsKeptForTheNextStart(t *testing.T) {
 	if err != nil || second.Started {
 		t.Fatalf("second passwordLogin = (%+v, %v), want saved, not started", second, err)
 	}
-	if got := m.Account(); got != "@me:x" {
+	if got := m.Account(); got != "matrix:@me:x" {
 		t.Errorf("Account = %q after a second login, want the running one's", got)
 	}
 	if stored, _, _ := session.Load(keys, true); stored.DeviceID != second.DeviceID {

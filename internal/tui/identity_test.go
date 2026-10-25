@@ -16,9 +16,9 @@ import (
 
 // aliasPeople are the room's members, including two accounts of one person, one bridged.
 var aliasPeople = []domain.Member{
-	{UserID: "@whatsapp_4470:x", DisplayName: "Dana Levi (WA)"},
-	{UserID: "@dana:x", DisplayName: "Dana Levi"},
-	{UserID: "@bob:x", DisplayName: "Bob Stone"},
+	{UserID: "matrix:@whatsapp_4470:x", DisplayName: "Dana Levi (WA)"},
+	{UserID: "matrix:@dana:x", DisplayName: "Dana Levi"},
+	{UserID: "matrix:@bob:x", DisplayName: "Bob Stone"},
 }
 
 // aliasing returns a model with a config file, a room, its members and one message, plus the
@@ -32,13 +32,13 @@ func aliasing(t *testing.T, display config.Display) (Model, string) {
 		t.Fatalf("seed config: %v", err)
 	}
 	m := update(t, starterNew(apitest.Nop{}, display),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m).WithConfigFile(path, base).keptIn()
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
-	m = update(t, m, membersMsg{roomID: "!a:x", members: aliasPeople})
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@whatsapp_4470:x", SenderName: "Dana Levi (WA)", Body: "hello"},
+	m = update(t, m, membersMsg{roomID: mx + "!a:x", members: aliasPeople})
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@whatsapp_4470:x", SenderName: "Dana Levi (WA)", Body: "hello"},
 	}}})
 	m = m.clearStatus()
 	return m, path
@@ -73,7 +73,7 @@ func TestAliasFlowFromPeoplePicker(t *testing.T) {
 	}
 	// The picker shows the MXID detail.
 	body := stripStyles(strings.Join(m.pickerLines(80, 8), "\n"))
-	if !strings.Contains(body, "@whatsapp_4470:x") {
+	if !strings.Contains(body, "matrix:@whatsapp_4470:x") {
 		t.Errorf("the people picker must show MXIDs — that is what it is for:\n%s", body)
 	}
 
@@ -81,7 +81,7 @@ func TestAliasFlowFromPeoplePicker(t *testing.T) {
 	if m.picker.kind != pickerIdentity {
 		t.Fatalf("a should open the identity picker, got kind %v", m.picker.kind)
 	}
-	if m.choosing.identity.mxid != "@whatsapp_4470:x" {
+	if m.choosing.identity.mxid != "matrix:@whatsapp_4470:x" {
 		t.Errorf("pending mxid = %q, want the selected person", m.choosing.identity.mxid)
 	}
 
@@ -107,10 +107,10 @@ func TestAliasFlowFromPeoplePicker(t *testing.T) {
 		t.Fatalf("identities = %+v, want one", m.prefs.display.Identities)
 	}
 	got := m.prefs.display.Identities[0]
-	if got.Alias != "Dana" || got.Color != "#8ff586" || len(got.IDs) != 1 || got.IDs[0] != "@whatsapp_4470:x" {
+	if got.Alias != "Dana" || got.Color != "#8ff586" || len(got.IDs) != 1 || got.IDs[0] != "matrix:@whatsapp_4470:x" {
 		t.Errorf("identity = %+v", got)
 	}
-	if ident, ok := m.prefs.identities["@whatsapp_4470:x"]; !ok || ident.alias != "Dana" || !ident.pinned {
+	if ident, ok := m.prefs.identities["matrix:@whatsapp_4470:x"]; !ok || ident.alias != "Dana" || !ident.pinned {
 		t.Errorf("the model's identity map was not rebuilt: %+v", ident)
 	}
 	if !strings.Contains(m.status(), "Dana") {
@@ -140,7 +140,7 @@ func TestAliasFlowFromMessage(t *testing.T) {
 	if m.picker.kind != pickerIdentity {
 		t.Fatalf("a on a message should open the identity picker, got %v", m.picker.kind)
 	}
-	if m.choosing.identity.mxid != "@whatsapp_4470:x" {
+	if m.choosing.identity.mxid != "matrix:@whatsapp_4470:x" {
 		t.Errorf("pending = %+v, want the message's sender", m.choosing.identity)
 	}
 	if m.choosing.identity.name == "" {
@@ -153,14 +153,14 @@ func TestAliasAddsToExistingIdentity(t *testing.T) {
 	t.Parallel()
 
 	m, path := aliasing(t, config.Display{Identities: []config.Identity{
-		{Alias: "Dana", Color: "#8ff586", IDs: []string{"@dana:x"}},
-		{Alias: "Someone else", IDs: []string{"@whatsapp_4470:x", "@keepme:x"}},
+		{Alias: "Dana", Color: "#8ff586", IDs: []string{"matrix:@dana:x"}},
+		{Alias: "Someone else", IDs: []string{"matrix:@whatsapp_4470:x", "matrix:@keepme:x"}},
 	}})
 	m.focus = paneRooms
 
 	m, _ = press(t, m, keyText("p"))
 	m, _ = press(t, m, keyText("a")) // the bridged Dana, first in the list
-	if m.choosing.identity.mxid != "@whatsapp_4470:x" {
+	if m.choosing.identity.mxid != "matrix:@whatsapp_4470:x" {
 		t.Fatalf("pending = %+v", m.choosing.identity)
 	}
 	// Existing identities are offered, and the one already holding this MXID says so.
@@ -191,11 +191,11 @@ func TestAliasAddsToExistingIdentity(t *testing.T) {
 	// Moved, not copied: the old identity no longer claims them.
 	other := byAlias["Someone else"]
 	for _, mxid := range other.IDs {
-		if mxid == "@whatsapp_4470:x" {
+		if mxid == "matrix:@whatsapp_4470:x" {
 			t.Error("the account is still in its old identity — belonging to two people at once")
 		}
 	}
-	if len(other.IDs) != 1 || other.IDs[0] != "@keepme:x" {
+	if len(other.IDs) != 1 || other.IDs[0] != "matrix:@keepme:x" {
 		t.Errorf("the old identity's other accounts should be untouched, got %+v", other)
 	}
 	if _, err := config.Load(path); err != nil {
@@ -208,8 +208,8 @@ func TestAliasDropsEmptiedIdentity(t *testing.T) {
 	t.Parallel()
 
 	m, _ := aliasing(t, config.Display{Identities: []config.Identity{
-		{Alias: "Only", IDs: []string{"@whatsapp_4470:x"}},
-		{Alias: "Target", IDs: []string{"@dana:x"}},
+		{Alias: "Only", IDs: []string{"matrix:@whatsapp_4470:x"}},
+		{Alias: "Target", IDs: []string{"matrix:@dana:x"}},
 	}})
 	m.focus = paneRooms
 	m, _ = press(t, m, keyText("p"))
@@ -328,7 +328,7 @@ func TestPeoplePickerIsModal(t *testing.T) {
 	}
 	m.picker.filter = "whatsapp"
 	m.picker = m.picker.refilter()
-	if len(m.picker.items) != 1 || m.picker.items[0].value != "@whatsapp_4470:x" {
+	if len(m.picker.items) != 1 || m.picker.items[0].value != "matrix:@whatsapp_4470:x" {
 		t.Errorf("filtering by MXID gave %+v", m.picker.items)
 	}
 }
@@ -338,11 +338,11 @@ func TestAliasWithoutConfigPath(t *testing.T) {
 	t.Parallel()
 
 	m := update(t, starterNew(apitest.Nop{}, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m) // no WithConfigFile
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
-	m = update(t, m, membersMsg{roomID: "!a:x", members: aliasPeople})
+	m = update(t, m, membersMsg{roomID: mx + "!a:x", members: aliasPeople})
 	m.focus = paneRooms
 
 	m, _ = press(t, m, keyText("p"))

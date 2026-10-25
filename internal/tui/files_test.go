@@ -21,7 +21,7 @@ func browsingFiles(t *testing.T, hits ...domain.SearchHit) (Model, *searchBacken
 	t.Helper()
 	backend := &searchBackend{hits: hits}
 	m := update(t, sized(t, starterNew(backend, config.Display{})),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}, {ID: "!b:x", Name: "Bravo"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	// In the room, so "this room" is the default scope (from the rail it is a space).
@@ -34,8 +34,8 @@ func TestFilesKeyOpensTheListOnThisRoom(t *testing.T) {
 	t.Parallel()
 
 	m, backend := browsingFiles(t,
-		fileHit("!a:x", "$2", "dana", "report.pdf", "report.pdf", 1),
-		fileHit("!a:x", "$1", "sam", "photo.png", "photo.png", 30),
+		fileHit(mx+"!a:x", mx+"$2", "dana", "report.pdf", "report.pdf", 1),
+		fileHit(mx+"!a:x", mx+"$1", "sam", "photo.png", "photo.png", 30),
 	)
 	m, cmd := chord(t, m, "g", "f")
 	m = deliver(t, m, cmd)
@@ -60,7 +60,7 @@ func TestFilesKeyOpensTheListOnThisRoom(t *testing.T) {
 		t.Error("the file list is not the mentions list")
 	}
 	// It starts on the open room, not everywhere (unlike the mentions list).
-	if req.Rooms.All || len(req.Rooms.IDs) != 1 || req.Rooms.IDs[0] != "!a:x" {
+	if req.Rooms.All || len(req.Rooms.IDs) != 1 || req.Rooms.IDs[0] != mx+"!a:x" {
 		t.Errorf("rooms = %+v, want just the open room", req.Rooms)
 	}
 }
@@ -70,7 +70,7 @@ func TestFilesKeyOpensTheListOnThisRoom(t *testing.T) {
 func TestFilesCommandFollowsThePane(t *testing.T) {
 	t.Parallel()
 
-	m, backend := browsingFiles(t, fileHit("!b:x", "$1", "sam", "deck.pdf", "deck.pdf", 2))
+	m, backend := browsingFiles(t, fileHit(mx+"!b:x", mx+"$1", "sam", "deck.pdf", "deck.pdf", 2))
 	m.focus = paneRail
 	mdl, cmd := m.runCommandLine(":files")
 	m = mdl
@@ -91,7 +91,7 @@ func TestFilesCommandFollowsThePane(t *testing.T) {
 func TestFilesCommandFromTheTimelineIsTheRoom(t *testing.T) {
 	t.Parallel()
 
-	m, backend := browsingFiles(t, fileHit("!a:x", "$1", "sam", "deck.pdf", "deck.pdf", 2))
+	m, backend := browsingFiles(t, fileHit(mx+"!a:x", mx+"$1", "sam", "deck.pdf", "deck.pdf", 2))
 	m.focus = paneTimeline
 	mdl, cmd := m.runCommandLine(":files")
 	m = mdl
@@ -101,7 +101,7 @@ func TestFilesCommandFromTheTimelineIsTheRoom(t *testing.T) {
 		t.Fatal("no search was issued")
 	}
 	rooms := backend.requests[len(backend.requests)-1].Rooms
-	if rooms.All || len(rooms.IDs) != 1 || rooms.IDs[0] != "!a:x" {
+	if rooms.All || len(rooms.IDs) != 1 || rooms.IDs[0] != mx+"!a:x" {
 		t.Errorf("rooms = %+v, want just the open room", rooms)
 	}
 }
@@ -117,7 +117,7 @@ func TestFilesSummarySpeaksOfFiles(t *testing.T) {
 		t.Errorf("summary = %q, want it to say there are none", got)
 	}
 
-	m2, _ := browsingFiles(t, fileHit("!a:x", "$1", "dana", "a.pdf", "a.pdf", 1))
+	m2, _ := browsingFiles(t, fileHit(mx+"!a:x", mx+"$1", "dana", "a.pdf", "a.pdf", 1))
 	m2, cmd2 := chord(t, m2, "g", "f")
 	m2 = deliver(t, m2, cmd2)
 	if got := m2.searchSummary(); !strings.Contains(got, "1 file") {
@@ -133,8 +133,8 @@ func TestFileRowLeadsWithTheFileName(t *testing.T) {
 	t.Parallel()
 
 	m, _ := browsingFiles(t,
-		fileHit("!a:x", "$2", "dana", "budget.xlsx", "here is the budget", 1),
-		fileHit("!a:x", "$1", "sam", "photo.png", "photo.png", 2),
+		fileHit(mx+"!a:x", mx+"$2", "dana", "budget.xlsx", "here is the budget", 1),
+		fileHit(mx+"!a:x", mx+"$1", "sam", "photo.png", "photo.png", 2),
 	)
 	m, cmd := chord(t, m, "g", "f")
 	m = deliver(t, m, cmd)
@@ -158,7 +158,7 @@ func TestFileRowReordersAnRTLCaptionBesideAnASCIIName(t *testing.T) {
 	t.Parallel()
 
 	const hebrew = "שלום עולם"
-	m, _ := browsingFiles(t, fileHit("!a:x", "$1", "dana", "image.jpg", hebrew, 1))
+	m, _ := browsingFiles(t, fileHit(mx+"!a:x", mx+"$1", "dana", "image.jpg", hebrew, 1))
 	m, cmd := chord(t, m, "g", "f")
 	m = deliver(t, m, cmd)
 
@@ -184,7 +184,7 @@ func TestSearchRowReordersTheSenderName(t *testing.T) {
 	t.Parallel()
 
 	const sender = "מני רגול"
-	m, _ := browsingFiles(t, fileHit("!a:x", "$1", sender, "image.jpg", "image.jpg", 1))
+	m, _ := browsingFiles(t, fileHit(mx+"!a:x", mx+"$1", sender, "image.jpg", "image.jpg", 1))
 	m, cmd := chord(t, m, "g", "f")
 	m = deliver(t, m, cmd)
 
@@ -208,10 +208,10 @@ func TestSearchRowCapsTheRoomLabelBeforeReordering(t *testing.T) {
 
 	const room = "חדר ארוך מאוד עם שם שלא נגמר"
 	backend := &searchBackend{hits: []domain.SearchHit{
-		fileHit("!a:x", "$1", "dana", "image.jpg", "image.jpg", 1),
+		fileHit(mx+"!a:x", mx+"$1", "dana", "image.jpg", "image.jpg", 1),
 	}}
 	m := update(t, sized(t, starterNew(backend, config.Display{})),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: room}, {ID: "!b:x", Name: "Bravo"}}})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: room}, {ID: mx + "!b:x", Name: "Bravo"}}})
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	m.focus = paneTimeline

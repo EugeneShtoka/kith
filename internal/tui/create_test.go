@@ -36,12 +36,12 @@ func (b *builder) CreateRoom(_ context.Context, spec domain.NewRoom) (domain.Roo
 
 func building(t *testing.T) (Model, *builder) {
 	t.Helper()
-	b := &builder{id: "!new:x"}
+	b := &builder{id: mx + "!new:x"}
 	m := update(t, starterNew(b, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!a:x", Name: "Alpha"},
+		{ID: mx + "!a:x", Name: "Alpha"},
 	}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
 	m = sized(t, m.clearStatus())
 	m.focus = paneRooms
@@ -109,7 +109,7 @@ func TestANewRoomLandsInTheSelectedSpace(t *testing.T) {
 	next, cmd := m.submitNewRoom("Standup")
 	mdl := next
 	_ = deliver(t, mdl, cmd)
-	if b.spec.Parent != "!w:x" {
+	if b.spec.Parent != mx+"!w:x" {
 		t.Errorf("parent = %q, want the selected space !w:x", b.spec.Parent)
 	}
 

@@ -60,7 +60,7 @@ reported in ` + "`?`" + ` and falls back to its default.`,
 between the open room and the rail's space), or /shortcut for the room written in.
 Targets:
 
-  room:<!id:server>  a room, by ID (names are ambiguous across bridges)
+  room:<room ID>     a room, by ID (names are ambiguous across bridges)
   space:<name>       a space's rail row
   tag:<name>         a tag's rail row
   place:<name>       the first rail row shown as <name>
@@ -74,7 +74,7 @@ Targets:
 
   [[keys.jump]]
   chord  = "g d"
-  target = "room:!dana:example.org"
+  target = "room:matrix:4f1c9e2a7b3d5c60/!dana:example.org"
 
 Key sequences bound to tags: the room under the cursor (or the open one) goes into
 the tag, or out of it; in the timeline, the selected message's sender does (a muted

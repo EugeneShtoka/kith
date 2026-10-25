@@ -23,7 +23,7 @@ func TestSetDNDRoundTrip(t *testing.T) {
 	client, h := attach(t, &fakeBackend{Nop: nopWithChannels()})
 	until := time.Now().Add(2 * time.Hour).Truncate(time.Second)
 
-	rule := hideRule("!standup:x", "")
+	rule := hideRule(mx+"!standup:x", "")
 	rule.Name, rule.Until = "Standup", until
 	got, err := client.SetDND(context.Background(), rule)
 	if err != nil {
@@ -33,7 +33,7 @@ func TestSetDNDRoundTrip(t *testing.T) {
 		t.Fatalf("mutes = %+v, want one", got)
 	}
 	mute := got[0]
-	if mute.Match != "!standup:x" || mute.Sender != "" || mute.Name != "Standup" {
+	if mute.Match != mx+"!standup:x" || mute.Sender != "" || mute.Name != "Standup" {
 		t.Errorf("rule = %+v, want the room it named", mute)
 	}
 	if mute.Show == nil || *mute.Show != notify.LevelNone {
@@ -51,12 +51,12 @@ func TestSetDNDRoundTrip(t *testing.T) {
 	}
 	// The daemon acts on it, not merely stores it.
 	if _, ok := h.notifications.Deliver(context.Background(), domain.Message{
-		ID: "$1", RoomID: "!standup:x", Sender: "@alice:x", Body: "hi",
+		ID: mx + "$1", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", Body: "hi",
 	}); ok {
 		t.Error("a muted room should not notify, even at level all")
 	}
 	if _, ok := h.notifications.Deliver(context.Background(), domain.Message{
-		ID: "$2", RoomID: "!other:x", Sender: "@alice:x", Body: "hi",
+		ID: mx + "$2", RoomID: mx + "!other:x", Sender: "matrix:@alice:x", Body: "hi",
 	}); !ok {
 		t.Error("a room the mute did not name should still notify")
 	}
@@ -91,10 +91,10 @@ func TestDNDReadsAndClears(t *testing.T) {
 
 	client, _ := attach(t, &fakeBackend{Nop: nopWithChannels()})
 	ctx := context.Background()
-	if _, err := client.SetDND(ctx, named(hideRule("!a:x", ""), "A")); err != nil {
+	if _, err := client.SetDND(ctx, named(hideRule(mx+"!a:x", ""), "A")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.SetDND(ctx, named(hideRule("", "@bob:x"), "Bob")); err != nil {
+	if _, err := client.SetDND(ctx, named(hideRule("", "matrix:@bob:x"), "Bob")); err != nil {
 		t.Fatal(err)
 	}
 	got, err := client.DND(ctx)
@@ -105,11 +105,11 @@ func TestDNDReadsAndClears(t *testing.T) {
 		t.Fatalf("mutes = %+v, want both", got)
 	}
 
-	left, err := client.ClearDND(ctx, "!a:x", "")
+	left, err := client.ClearDND(ctx, mx+"!a:x", "")
 	if err != nil {
 		t.Fatalf("ClearDND: %v", err)
 	}
-	if len(left) != 1 || left[0].Sender != "@bob:x" {
+	if len(left) != 1 || left[0].Sender != "matrix:@bob:x" {
 		t.Errorf("mutes = %+v, want only the person left", left)
 	}
 
@@ -129,7 +129,7 @@ func TestSetDNDRefusesBadRules(t *testing.T) {
 
 	client, _ := attach(t, &fakeBackend{Nop: nopWithChannels()})
 	for name, rule := range map[string]notify.Rule{
-		"unnamed scope": {Match: "!a:x", Temp: true},
+		"unnamed scope": {Match: mx + "!a:x", Temp: true},
 		"past deadline": withUntil(hideRule("", ""), time.Now().Add(-time.Minute)),
 	} {
 		if _, err := client.SetDND(context.Background(), rule); err == nil {
@@ -199,11 +199,11 @@ func TestRescanPeopleRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	src := &personBackend{spamBackend: spamWorld()}
-	src.rooms = append(src.rooms, domain.Room{ID: "!g1:example.org", Name: "G1"})
+	src.rooms = append(src.rooms, domain.Room{ID: mx + "!g1:example.org", Name: "G1"})
 	// One run within the hour, another two days ago: only the first is in the preview.
-	for i, room := range []domain.RoomID{chatRm, "!g1:example.org"} {
-		for who, age := range map[string]time.Duration{"@s1:example.org": time.Minute, "@s2:example.org": 48 * time.Hour} {
-			m := domain.Message{ID: domain.EventID(fmt.Sprintf("$run%d%s", i, who)), RoomID: room, Sender: who,
+	for i, room := range []domain.RoomID{chatRm, mx + "!g1:example.org"} {
+		for who, age := range map[string]time.Duration{"matrix:@s1:example.org": time.Minute, "matrix:@s2:example.org": 48 * time.Hour} {
+			m := domain.Message{ID: domain.EventID(fmt.Sprintf(mx+"$run%d%s", i, who)), RoomID: room, Sender: who,
 				Body: "free bitcoin", Timestamp: time.Now().Add(-age - time.Duration(i)*time.Second)}
 			src.cache(m)
 			src.timeline[room] = append(src.timeline[room], m)
@@ -220,17 +220,17 @@ func TestRescanPeopleRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RescanPeople: %v", err)
 	}
-	if len(found) != 1 || found[0].Verdict.Person != "@s1:example.org" || found[0].Verdict.Rule != domain.MoveSenderSpread ||
+	if len(found) != 1 || found[0].Verdict.Person != "matrix:@s1:example.org" || found[0].Verdict.Rule != domain.MoveSenderSpread ||
 		found[0].Verdict.Filter != "runs" || found[0].Sample.Body != "free bitcoin" {
 		t.Fatalf("candidates = %+v, want the sender by their run", found)
 	}
-	if marked, err := client.RescanPeople(ctx, time.Time{}, true, []string{"@s3:example.org"}); err != nil || len(marked) != 0 {
+	if marked, err := client.RescanPeople(ctx, time.Time{}, true, []string{"matrix:@s3:example.org"}); err != nil || len(marked) != 0 {
 		t.Fatalf("apply to someone else = %+v (%v), want nobody marked", marked, err)
 	}
-	if marked, err := client.RescanPeople(ctx, time.Time{}, true, []string{"@s1:example.org"}); err != nil || len(marked) != 1 {
+	if marked, err := client.RescanPeople(ctx, time.Time{}, true, []string{"matrix:@s1:example.org"}); err != nil || len(marked) != 1 {
 		t.Fatalf("apply = %+v (%v), want the sender marked", marked, err)
 	}
-	if got := src.marked(); !slices.Equal(got, []string{"@s1:example.org"}) {
+	if got := src.marked(); !slices.Equal(got, []string{"matrix:@s1:example.org"}) {
 		t.Errorf("marked %v, want the sender", got)
 	}
 }

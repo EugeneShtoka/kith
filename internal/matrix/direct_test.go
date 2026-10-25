@@ -52,7 +52,7 @@ func TestCreatingADirectMessageRecordsItInAccountData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRoom: %v", err)
 	}
-	if roomID != "!made:x" {
+	if roomID != mx+"!made:x" {
 		t.Fatalf("room ID = %q, want !made:x", roomID)
 	}
 
@@ -153,7 +153,7 @@ func TestAFailedReadOfDirectChatsDoesNotOverwriteThem(t *testing.T) {
 		Direct: true, Invite: []string{"@dana:x"},
 	})
 	// The room exists; the caller gets its ID and an error.
-	if roomID != "!made:x" {
+	if roomID != mx+"!made:x" {
 		t.Errorf("room ID = %q, want the room that was made", roomID)
 	}
 	if err == nil {
@@ -181,12 +181,12 @@ func TestDirectCandidatesLeaveOutTheDMsYouAlreadyHave(t *testing.T) {
 	defer srv.Close()
 
 	b, ctx := backendOn(t, srv), context.Background()
-	seedRoom(t, b, "!r:x")
+	seedRoom(t, b, mx+"!r:x")
 	for _, who := range []struct{ id, name string }{
-		{"@dana:x", "Dana"}, {"@sam:x", "Sam"}, {"@me:x", "Me"},
+		{"matrix:@dana:x", "Dana"}, {"matrix:@sam:x", "Sam"}, {"matrix:@me:x", "Me"},
 	} {
-		if err := b.cache.SaveMessages(ctx, "!r:x", []domain.Message{{
-			ID: domain.EventID("$" + who.id), RoomID: "!r:x",
+		if err := b.cache.SaveMessages(ctx, mx+"!r:x", []domain.Message{{
+			ID: domain.EventID(mx + "$" + who.id), RoomID: mx + "!r:x",
 			Sender: who.id, SenderName: who.name, Body: "hi", Timestamp: at(1),
 		}}); err != nil {
 			t.Fatalf("SaveMessages: %v", err)
@@ -201,7 +201,7 @@ func TestDirectCandidatesLeaveOutTheDMsYouAlreadyHave(t *testing.T) {
 	for _, person := range people {
 		got = append(got, person.UserID)
 	}
-	if len(got) != 1 || got[0] != "@sam:x" {
+	if len(got) != 1 || got[0] != "matrix:@sam:x" {
 		t.Errorf("candidates = %v, want only @sam:x — Dana has a DM and @me:x is us", got)
 	}
 }
@@ -216,10 +216,10 @@ func TestAcceptingADirectInviteRecordsItAsADirectMessage(t *testing.T) {
 		join   string
 		want   bool
 	}{
-		"a DM invite":         {invite: domain.Room{ID: "!dm:x", IsDirect: true, InvitedBy: "@dana:x"}, join: "!dm:x", want: true},
-		"a group invite":      {invite: domain.Room{ID: "!group:x", InvitedBy: "@dana:x"}, join: "!group:x"},
-		"a room not invited":  {invite: domain.Room{ID: "!dm:x", IsDirect: true, InvitedBy: "@dana:x"}, join: "#lobby:x"},
-		"a DM with no sender": {invite: domain.Room{ID: "!dm:x", IsDirect: true}, join: "!dm:x"},
+		"a DM invite":         {invite: domain.Room{ID: mx + "!dm:x", IsDirect: true, InvitedBy: "matrix:@dana:x"}, join: "!dm:x", want: true},
+		"a group invite":      {invite: domain.Room{ID: mx + "!group:x", InvitedBy: "matrix:@dana:x"}, join: "!group:x"},
+		"a room not invited":  {invite: domain.Room{ID: mx + "!dm:x", IsDirect: true, InvitedBy: "matrix:@dana:x"}, join: "#lobby:x"},
+		"a DM with no sender": {invite: domain.Room{ID: mx + "!dm:x", IsDirect: true}, join: "!dm:x"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -234,7 +234,7 @@ func TestAcceptingADirectInviteRecordsItAsADirectMessage(t *testing.T) {
 				defer mu.Unlock()
 				switch {
 				case strings.Contains(r.URL.Path, "/join/"):
-					_, _ = w.Write([]byte(`{"room_id":"` + string(tc.invite.ID) + `"}`))
+					_, _ = w.Write([]byte(`{"room_id":"` + matrixString(testIDs.nativeRoom(tc.invite.ID)) + `"}`))
 				case strings.Contains(r.URL.Path, "/account_data/m.direct"):
 					if r.Method == http.MethodPut {
 						_ = json.Unmarshal(body, &written)

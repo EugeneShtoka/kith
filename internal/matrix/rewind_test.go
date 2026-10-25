@@ -117,7 +117,7 @@ func TestARewindBeforeSyncIsImmediate(t *testing.T) {
 func TestTheRewindingResponseStillReachesTheListeners(t *testing.T) {
 	t.Parallel()
 
-	b := New(nil)
+	b := newBackend(nil)
 	syncer := &failingSyncer{DefaultSyncer: mautrix.NewDefaultSyncer(), b: b}
 	var changed []id.UserID
 	syncer.OnSync(func(_ context.Context, res *mautrix.RespSync, _ string) bool {

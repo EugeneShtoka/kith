@@ -16,15 +16,15 @@ func starterRail(t *testing.T) Model {
 	cfg := m.conf.base.Clone()
 	for i := range cfg.Tags {
 		if cfg.Tags[i].Name == "Archived" {
-			cfg.Tags[i].Picked = []string{"!old:x"}
+			cfg.Tags[i].Picked = []string{mx + "!old:x"}
 		}
 	}
 	m = m.WithConfigFile("", cfg)
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
-		{ID: "!r:x", Name: "Room"}, {ID: "!old:x", Name: "Old"},
-		{ID: "!i:x", Name: "Invited", Membership: domain.MembershipInvite},
+		{ID: mx + "!r:x", Name: "Room"}, {ID: mx + "!old:x", Name: "Old"},
+		{ID: mx + "!i:x", Name: "Invited", Membership: domain.MembershipInvite},
 	}})
-	return update(t, m, spacesMsg{spaces: []domain.Space{{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!r:x"}}}})
+	return update(t, m, spacesMsg{spaces: []domain.Space{{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!r:x"}}}})
 }
 
 // Every rail key is one of: a space (its name), a tag (tag:<name>), or the fallback row; all
@@ -77,7 +77,7 @@ func TestTheFallbackRowRefusesPlaceRules(t *testing.T) {
 	if keys := groupKeys(m.rail.groups); len(keys) != 1 || keys[0] != fallbackGroupKey {
 		t.Fatalf("rail = %v, want the fallback row alone", keys)
 	}
-	if !admitsRoom(m, m.rail.groups[0], "!a:x") || !admitsRoom(m, m.rail.groups[0], "!b:x") {
+	if !admitsRoom(m, m.rail.groups[0], mx+"!a:x") || !admitsRoom(m, m.rail.groups[0], mx+"!b:x") {
 		t.Error("the fallback row does not hold every room")
 	}
 	m.rail.cursor = 0

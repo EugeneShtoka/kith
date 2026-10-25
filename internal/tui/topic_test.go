@@ -13,12 +13,12 @@ func topicRoom(t *testing.T, topic string) Model {
 	m := sized(t, withRooms(t, newModel()))
 	joined := append([]domain.Room(nil), m.rooms.joined...)
 	for i := range joined {
-		if joined[i].ID == "!a:x" {
+		if joined[i].ID == mx+"!a:x" {
 			joined[i].Topic = topic
 		}
 	}
 	m.rooms = m.rooms.withJoined(joined)
-	m.openRoom = "!a:x"
+	m.openRoom = mx + "!a:x"
 	m.focus, m.compose.insertMode = paneTimeline, false
 	return m
 }
@@ -55,7 +55,7 @@ func TestTopicAbsentWhereItWouldMislead(t *testing.T) {
 		t.Errorf("suffix = %q for a room with no topic", got)
 	}
 	m := topicRoom(t, "standups 10:00")
-	m.thread.root = domain.EventID("$t1")
+	m.thread.root = domain.EventID(mx + "$t1")
 	if got := m.topicSuffix("Alpha", 100); got != "" {
 		t.Errorf("suffix = %q inside a thread, want the thread's own subject to stand", got)
 	}

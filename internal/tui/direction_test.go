@@ -24,8 +24,8 @@ func directed(t *testing.T, dir config.Direction, msgs []domain.Message) Model {
 func said(bodies ...string) []domain.Message {
 	msgs := make([]domain.Message, len(bodies))
 	for i, body := range bodies {
-		msgs[i] = domain.Message{ID: domain.EventID("$" + string(rune('a'+i))), RoomID: "!a:x",
-			Sender: "@dana:x", Body: body, Timestamp: at(1000 + 60*i)}
+		msgs[i] = domain.Message{ID: domain.EventID(mx + "$" + string(rune('a'+i))), RoomID: mx + "!a:x",
+			Sender: "matrix:@dana:x", Body: body, Timestamp: at(1000 + 60*i)}
 	}
 	return msgs
 }
@@ -43,7 +43,7 @@ func rowsOf(m Model, msgs []domain.Message, i int) []string {
 func TestARightToLeftRoomIsMirrored(t *testing.T) {
 	t.Parallel()
 	msgs := append(slices.Clone(hebrew), said("", "", "", "", "a word in English")[4])
-	m := directed(t, config.Direction{RTL: []string{"!a:x"}}, msgs)
+	m := directed(t, config.Direction{RTL: []string{mx + "!a:x"}}, msgs)
 	if !m.mirrored() {
 		t.Fatal("a room set rtl is not mirrored")
 	}
@@ -79,9 +79,9 @@ func TestAMirroredRoomMirrorsWhatHangsOnAMessage(t *testing.T) {
 	// The reply answers a message not directly above it, so it shows its quote.
 	msgs := said("שלום לכולם", "בוקר טוב", "מה נשמע")
 	msgs[2].Edited, msgs[2].ReplyTo = true, msgs[0].ID
-	m := directed(t, config.Direction{RTL: []string{"!a:x"}}, msgs)
+	m := directed(t, config.Direction{RTL: []string{mx + "!a:x"}}, msgs)
 	m.timeline.reactions = map[domain.EventID][]domain.Reaction{
-		msgs[2].ID: {{ID: "$r1", Target: msgs[2].ID, Sender: "@sam:x", Key: "👍"}},
+		msgs[2].ID: {{ID: mx + "$r1", Target: msgs[2].ID, Sender: "matrix:@sam:x", Key: "👍"}},
 	}
 
 	w := m.walkOver(m.derivedFor())
@@ -120,7 +120,7 @@ func TestTheAutoGuessHoldsForTheOpening(t *testing.T) {
 	}
 	english := append(slices.Clone(hebrew), said("one", "two", "three", "four", "five", "six", "seven")...)
 	for i := range english {
-		english[i].ID = domain.EventID("$e" + string(rune('a'+i)))
+		english[i].ID = domain.EventID(mx + "$e" + string(rune('a'+i)))
 	}
 	if m = loadPage(t, m, english); !m.mirrored() {
 		t.Error("auto: the room flipped while it was open")
@@ -129,7 +129,7 @@ func TestTheAutoGuessHoldsForTheOpening(t *testing.T) {
 	if off := directed(t, config.Direction{}, hebrew); off.mirrored() {
 		t.Error("auto off: a Hebrew room is mirrored")
 	}
-	if hand := directed(t, config.Direction{Auto: true, LTR: []string{"!a:x"}}, hebrew); hand.mirrored() {
+	if hand := directed(t, config.Direction{Auto: true, LTR: []string{mx + "!a:x"}}, hebrew); hand.mirrored() {
 		t.Error("a room set ltr by hand is mirrored by the guess")
 	}
 	if none := directed(t, config.Direction{Auto: true}, said("👍")); none.mirrored() || none.timeline.layout.settled {
@@ -157,7 +157,7 @@ func TestCyclingTheDirectionRedrawsTheTimeline(t *testing.T) {
 		m, _ = m.cycleDirection()
 		m = m.primeTimeline()
 		d := m.prefs.display.Direction
-		if slices.Contains(d.RTL, "!a:x") != want.rtl || slices.Contains(d.LTR, "!a:x") != want.ltr {
+		if slices.Contains(d.RTL, mx+"!a:x") != want.rtl || slices.Contains(d.LTR, mx+"!a:x") != want.ltr {
 			t.Fatalf("after a cycle: rtl %v ltr %v, want %v %v", d.RTL, d.LTR, want.rtl, want.ltr)
 		}
 		if m.mirrored() != want.mirrored {
@@ -196,8 +196,8 @@ func TestAMarkNeverPushesARowPastItsColumn(t *testing.T) {
 		dir    config.Direction
 		letter string
 	}{
-		{"mirrored, Hebrew", config.Direction{RTL: []string{"!a:x"}}, "ש"},
-		{"mirrored, English", config.Direction{RTL: []string{"!a:x"}}, "w"},
+		{"mirrored, Hebrew", config.Direction{RTL: []string{mx + "!a:x"}}, "ש"},
+		{"mirrored, English", config.Direction{RTL: []string{mx + "!a:x"}}, "w"},
 		{"left to right, English", config.Direction{}, "w"},
 		{"left to right, Hebrew", config.Direction{}, "ש"},
 	} {
@@ -236,7 +236,7 @@ func TestAPlaceholderFollowsTheRoom(t *testing.T) {
 	msgs[0].Redacted = true
 	msgs[1].Media = &domain.Media{Type: domain.MediaFile, Name: "report.pdf"}
 	msgs[2].Media = &domain.Media{Type: domain.MediaImage, Name: "cat.jpg"}
-	m := directed(t, config.Direction{RTL: []string{"!a:x"}}, msgs)
+	m := directed(t, config.Direction{RTL: []string{mx + "!a:x"}}, msgs)
 	// A lone link or lone emoji take the room's direction; words beside a link do not.
 	// A bridge's header alone is not the sender's words; words after it are.
 	for i, against := range []bool{true, true, false, true, true, false, true, true, false} {

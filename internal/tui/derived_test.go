@@ -11,11 +11,11 @@ func TestViewAssignsNoColors(t *testing.T) {
 	t.Parallel()
 
 	m, _ := attaching(t)
-	next, _ := asModel(m.Update(cachedTimelineMsg{roomID: "!a:x", messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@ann:x", Body: "one"},
-		{ID: "$2", RoomID: "!a:x", Sender: "@bo:x", Body: "two"},
-		{ID: "$3", RoomID: "!a:x", Sender: "@cy:x", Body: "three"},
-		{ID: "$4", RoomID: "!a:x", Sender: "@di:x", Body: "four"},
+	next, _ := asModel(m.Update(cachedTimelineMsg{roomID: mx + "!a:x", messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@ann:x", Body: "one"},
+		{ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@bo:x", Body: "two"},
+		{ID: mx + "$3", RoomID: mx + "!a:x", Sender: "matrix:@cy:x", Body: "three"},
+		{ID: mx + "$4", RoomID: mx + "!a:x", Sender: "matrix:@di:x", Body: "four"},
 	}}))
 	m = next
 	if m.derived == nil {

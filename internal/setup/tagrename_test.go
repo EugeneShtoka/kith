@@ -19,9 +19,9 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 	refs := []string{"tag:T0", "TAG:t0", "not tag:T0", "not  Tag:T0 "}
 	decoys := []string{"tag:T0x", "room:tag:T0", "place:T0", "tag:T1", "space:T0"}
 	rooms := []domain.RoomFacts{
-		{ID: "!a:x", Name: "tag:T0", Spaces: []string{"T0"}},
-		{ID: "!b:x", Name: "Bravo", Direct: true},
-		{ID: "!c:x", Name: "T0", Spaces: []string{"Work"}},
+		{ID: mx + "!a:x", Name: "tag:T0", Spaces: []string{"T0"}},
+		{ID: mx + "!b:x", Name: "Bravo", Direct: true},
+		{ID: mx + "!c:x", Name: "T0", Spaces: []string{"Work"}},
 	}
 	for seed := range uint64(300) {
 		rng := rand.New(rand.NewPCG(seed, 31)) // #nosec G404 -- reproducible
@@ -30,9 +30,9 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 		positive := func() string { return refs[rng.IntN(2)] } // a place, not a `not` term
 		cfg := config.Config{Homeserver: "https://x", User: "@me:x"}
 		cfg.Tags = []config.Tag{
-			{Name: "T0", Rule: []string{"dm", "room:tag:T0"}, Picked: []string{"!c:x"}},
+			{Name: "T0", Rule: []string{"dm", "room:tag:T0"}, Picked: []string{mx + "!c:x"}},
 			{Name: "T1", Rule: []string{ref(), "space:Work"}},
-			{Name: "T2", Rule: []string{"*", ref()}, Excluded: []string{"!b:x"}},
+			{Name: "T2", Rule: []string{"*", ref()}, Excluded: []string{mx + "!b:x"}},
 		}
 		cfg.Notifications.Rules = []config.Rule{{Match: positive()}, {Match: "space:T0"}}
 		cfg.Codes.Include = []string{positive(), decoy()}
@@ -173,7 +173,7 @@ func TestCombiningTagsHoldsExactlyWhatEitherHeld(t *testing.T) {
 		var rooms []domain.RoomFacts
 		state := map[string]domain.RoomState{}
 		for i := range 2 + rng.IntN(5) {
-			r := domain.RoomFacts{ID: fmt.Sprintf("!r%d:x", i), Name: names[rng.IntN(len(names))], Direct: rng.IntN(2) == 0}
+			r := domain.RoomFacts{ID: fmt.Sprintf(mx+"!r%d:x", i), Name: names[rng.IntN(len(names))], Direct: rng.IntN(2) == 0}
 			if rng.IntN(2) == 0 {
 				r.Spaces = []string{"Work"}
 			}
@@ -235,13 +235,13 @@ func TestCombinedTagsKeepTheirRules(t *testing.T) {
 	var cfg config.Config
 	cfg.Tags = []config.Tag{
 		{Name: "Friends", Rule: []string{"space:Work", "tag:Mates"}, Exclusive: []string{"tags"}},
-		{Name: "Mates", Rule: []string{"dm"}, Picked: []string{"!x:y"}},
+		{Name: "Mates", Rule: []string{"dm"}, Picked: []string{mx + "!x:y"}},
 		{Name: "Quiet", Rule: []string{"tag:Mates"}},
 	}
 	cfg.Display.Rail.Order = []string{"tag:Mates", "tag:Friends"}
 	cfg.Telegram.Archive.Tag = "Mates"
 	got := CombineTags(cfg, "mates", "Friends", nil, func(string, domain.RoomFacts) bool { return false })
-	if len(got.Tags) != 2 || !slices.Equal(got.Tags[0].Rule, []string{"space:Work", "dm"}) || !slices.Equal(got.Tags[0].Picked, []string{"!x:y"}) || !got.Tags[0].ExclusiveFrom("tags") {
+	if len(got.Tags) != 2 || !slices.Equal(got.Tags[0].Rule, []string{"space:Work", "dm"}) || !slices.Equal(got.Tags[0].Picked, []string{mx + "!x:y"}) || !got.Tags[0].ExclusiveFrom("tags") {
 		t.Errorf("combined = %+v", got.Tags)
 	}
 	if !slices.Equal(got.Tags[1].Rule, []string{"tag:Friends"}) || !slices.Equal(got.Display.Rail.Order, []string{"tag:Friends"}) || got.Telegram.Archive.Tag != "Friends" {
@@ -256,11 +256,11 @@ func TestCombinedTagsKeepTheirPeople(t *testing.T) {
 	for name, rule := range map[string][]string{"joined rules": {"dm"}, "picked by ID": {"not dm"}} {
 		var cfg config.Config
 		cfg.Tags = []config.Tag{
-			{Name: "Spam", Rule: rule, People: []string{"@a:x", "@b:x"}},
-			{Name: "Junk", People: []string{"@b:x", "telegram:1"}},
+			{Name: "Spam", Rule: rule, People: []string{"matrix:@a:x", "matrix:@b:x"}},
+			{Name: "Junk", People: []string{"matrix:@b:x", "telegram:1"}},
 		}
 		got := CombineTags(cfg, "Junk", "Spam", nil, func(string, domain.RoomFacts) bool { return false })
-		if len(got.Tags) != 1 || !slices.Equal(got.Tags[0].People, []string{"@a:x", "@b:x", "telegram:1"}) {
+		if len(got.Tags) != 1 || !slices.Equal(got.Tags[0].People, []string{"matrix:@a:x", "matrix:@b:x", "telegram:1"}) {
 			t.Errorf("%s: combined = %+v", name, got.Tags)
 		}
 	}

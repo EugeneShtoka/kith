@@ -17,7 +17,7 @@ func TestARoomCanRefuseToFetchPicturesUnasked(t *testing.T) {
 
 	disp := config.Display{Media: config.Media{
 		Mode:  "inline",
-		Rules: []config.MediaRule{{Match: "!a:x", Auto: new(false)}},
+		Rules: []config.MediaRule{{Match: mx + "!a:x", Auto: new(false)}},
 	}}
 	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m.focus = paneTimeline
@@ -38,7 +38,7 @@ func TestMediaRulesResolveNarrowestFirst(t *testing.T) {
 
 	rules := []domain.MediaRule{
 		{Match: "space:Work", Auto: new(false), Cache: new(false)},
-		{Match: "!room:x", Auto: new(true)},
+		{Match: mx + "!room:x", Auto: new(true)},
 	}
 	for _, tt := range []struct {
 		name        string
@@ -47,17 +47,17 @@ func TestMediaRulesResolveNarrowestFirst(t *testing.T) {
 	}{
 		{
 			name:  "the room's own rule wins, and inherits what it does not mention",
-			place: domain.DownloadPlace{RoomID: "!room:x", Space: "Work"},
+			place: domain.DownloadPlace{RoomID: mx + "!room:x", Space: "Work"},
 			auto:  true, cache: true,
 		},
 		{
 			name:  "a room with no rule of its own follows its space",
-			place: domain.DownloadPlace{RoomID: "!other:x", Space: "Work"},
+			place: domain.DownloadPlace{RoomID: mx + "!other:x", Space: "Work"},
 			auto:  false, cache: false,
 		},
 		{
 			name:  "a room in no named space follows the settings above",
-			place: domain.DownloadPlace{RoomID: "!loose:x", Space: "Social"},
+			place: domain.DownloadPlace{RoomID: mx + "!loose:x", Space: "Social"},
 			auto:  true, cache: true,
 		},
 	} {
@@ -78,28 +78,28 @@ func TestViewingListsThePictureUnderTheCursorFirst(t *testing.T) {
 	t.Parallel()
 
 	m := inlineModel(t)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
 		Messages: []domain.Message{
-			img("$1", 1), img("$2", 2),
-			{ID: "$3", RoomID: "!a:x", Sender: "@a:x", Timestamp: at(3), Body: "just words"},
-			img("$4", 4),
+			img(mx+"$1", 1), img(mx+"$2", 2),
+			{ID: mx + "$3", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Timestamp: at(3), Body: "just words"},
+			img(mx+"$4", 4),
 		},
 	}})
 
 	// The gallery is the room's pictures in send order, both directions from the opened one.
-	jobs, start := m.gallery("$4")
-	if got := ids(jobs); strings.Join(got, ",") != "$1,$2,$4" {
+	jobs, start := m.gallery(mx + "$4")
+	if got := ids(jobs); strings.Join(got, ",") != mx+"$1,"+mx+"$2,"+mx+"$4" {
 		t.Errorf("the gallery listed %v, want the pictures in the order they were sent", got)
 	}
 	if start != 2 {
 		t.Errorf("start = %d, want the gallery to open on $4", start)
 	}
 	// From the middle, later pictures are reachable forward.
-	if _, at := m.gallery("$2"); at != 1 {
+	if _, at := m.gallery(mx + "$2"); at != 1 {
 		t.Errorf("start = %d, want the gallery to open on $2", at)
 	}
 	// A message with no picture opens the newest.
-	if _, at := m.gallery("$3"); at != 2 {
+	if _, at := m.gallery(mx + "$3"); at != 2 {
 		t.Errorf("start = %d from a text message, want the newest picture", at)
 	}
 	// A room with no pictures at all has nothing to view.
@@ -115,7 +115,7 @@ func TestViewingCarriesTheRoomsCachingRule(t *testing.T) {
 
 	disp := config.Display{Media: config.Media{
 		Mode:  "inline",
-		Rules: []config.MediaRule{{Match: "!a:x", Cache: new(false)}},
+		Rules: []config.MediaRule{{Match: mx + "!a:x", Cache: new(false)}},
 	}}
 	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
 	m.focus = paneTimeline
@@ -131,7 +131,7 @@ func TestViewingCarriesTheRoomsCachingRule(t *testing.T) {
 
 func img(id domain.EventID, minute int) domain.Message {
 	return domain.Message{
-		ID: id, RoomID: "!a:x", Sender: "@a:x", Timestamp: at(minute),
+		ID: id, RoomID: mx + "!a:x", Sender: "matrix:@a:x", Timestamp: at(minute),
 		Media: &domain.Media{Type: domain.MediaImage, Name: string(id) + ".jpg", Mime: "image/jpeg", Width: 40, Height: 40},
 	}
 }
@@ -221,13 +221,13 @@ func TestViewingFromTheRoomListStartsAtTheNewest(t *testing.T) {
 	t.Parallel()
 
 	m := inlineModel(t)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
-		Messages: []domain.Message{img("$1", 1), img("$2", 2), img("$3", 3)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
+		Messages: []domain.Message{img(mx+"$1", 1), img(mx+"$2", 2), img(mx+"$3", 3)},
 	}})
 	m.focus = paneRooms
-	m.timeline.selected = "$1" // a stale cursor from whenever the room was last read
+	m.timeline.selected = mx + "$1" // a stale cursor from whenever the room was last read
 	jobs, start := m.gallery("")
-	if got := ids(jobs); strings.Join(got, ",") != "$1,$2,$3" {
+	if got := ids(jobs); strings.Join(got, ",") != mx+"$1,"+mx+"$2,"+mx+"$3" {
 		t.Errorf("viewing from the room list listed %v, want the room's pictures in order", got)
 	}
 	if start != 2 {

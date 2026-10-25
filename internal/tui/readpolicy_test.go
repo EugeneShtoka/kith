@@ -33,12 +33,12 @@ func (s *receiptSpy) MarkRoomsRead(_ context.Context, ids []domain.RoomID, priva
 func readingRoom(t *testing.T, spy *receiptSpy, display config.Display) Model {
 	t.Helper()
 	m := sized(t, update(t, starterNew(spy, display),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}}))
 	m.conf.base.Display = display
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@bob:x", Body: "hello", Timestamp: at(1)},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "hello", Timestamp: at(1)},
 	}}})
 	m.focus = paneTimeline
 	return m
@@ -50,7 +50,7 @@ func TestReadOnEnteringByDefault(t *testing.T) {
 	m := readingRoom(t, spy, config.Display{})
 	m, cmd := m.markRead()
 	deliver(t, m, cmd)
-	if len(spy.reads) != 1 || spy.reads[0] != "$1" {
+	if len(spy.reads) != 1 || spy.reads[0] != mx+"$1" {
 		t.Errorf("receipts = %v, want one for the newest message", spy.reads)
 	}
 	if spy.private[0] {
@@ -65,7 +65,7 @@ func TestReadOnFocusImmediately(t *testing.T) {
 	m := readingRoom(t, spy, config.Display{ReadDelay: &zero})
 	m, cmd := m.armFocusRead()
 	deliver(t, m, cmd)
-	if len(spy.reads) != 1 || spy.reads[0] != "$1" {
+	if len(spy.reads) != 1 || spy.reads[0] != mx+"$1" {
 		t.Errorf("receipts = %v, want the selected room read at once", spy.reads)
 	}
 }
@@ -84,10 +84,10 @@ func TestReadOnFocusAfterTheDelay(t *testing.T) {
 		t.Fatalf("selecting the room sent %v; it should be waiting", spy.reads)
 	}
 
-	next, fired := m.handleReadTimer(readTimerMsg{roomID: "!a:x", armed: m.receipts.armed})
+	next, fired := m.handleReadTimer(readTimerMsg{roomID: mx + "!a:x", armed: m.receipts.armed})
 	after := next
 	deliver(t, after, fired)
-	if len(spy.reads) != 1 || spy.reads[0] != "$1" {
+	if len(spy.reads) != 1 || spy.reads[0] != mx+"$1" {
 		t.Errorf("after the delay, receipts = %v, want one", spy.reads)
 	}
 }
@@ -100,9 +100,9 @@ func TestStaleReadTimerIsIgnored(t *testing.T) {
 	m, _ = m.armFocusRead()
 
 	for _, stale := range []readTimerMsg{
-		{roomID: "!a:x", armed: m.receipts.armed - 1},
-		{roomID: "!other:x", armed: m.receipts.armed},
-		{roomID: "!a:x", armed: m.receipts.armed, thread: "$t"},
+		{roomID: mx + "!a:x", armed: m.receipts.armed - 1},
+		{roomID: mx + "!other:x", armed: m.receipts.armed},
+		{roomID: mx + "!a:x", armed: m.receipts.armed, thread: mx + "$t"},
 	} {
 		next, cmd := m.handleReadTimer(stale)
 		after := next
@@ -152,7 +152,7 @@ func TestReceiptRuleOverridesTheGlobal(t *testing.T) {
 	spy := &receiptSpy{}
 	off := false
 	m := readingRoom(t, spy, config.Display{
-		ReadRules: []config.ReadRule{{Match: "!a:x", Send: &off}},
+		ReadRules: []config.ReadRule{{Match: mx + "!a:x", Send: &off}},
 	})
 	m, cmd := m.markRead()
 	deliver(t, m, cmd)
@@ -166,23 +166,23 @@ func TestBulkMarkReadSplitsByPolicy(t *testing.T) {
 	spy := &receiptSpy{}
 	off := false
 	m := sized(t, update(t, starterNew(spy, config.Display{
-		ReadRules: []config.ReadRule{{Match: "!quiet:x", Send: &off}},
+		ReadRules: []config.ReadRule{{Match: mx + "!quiet:x", Send: &off}},
 	}), roomsMsg{rooms: []domain.Room{
-		{ID: "!loud:x", Name: "Loud"}, {ID: "!quiet:x", Name: "Quiet"},
+		{ID: mx + "!loud:x", Name: "Loud"}, {ID: mx + "!quiet:x", Name: "Quiet"},
 	}}))
-	m.receipts.policy = readSettingsFrom(config.Display{ReadRules: []config.ReadRule{{Match: "!quiet:x", Send: &off}}})
+	m.receipts.policy = readSettingsFrom(config.Display{ReadRules: []config.ReadRule{{Match: mx + "!quiet:x", Send: &off}}})
 
-	cmd := m.markRoomsReadCmd([]domain.RoomID{"!loud:x", "!quiet:x"}, "both")
+	cmd := m.markRoomsReadCmd([]domain.RoomID{mx + "!loud:x", mx + "!quiet:x"}, "both")
 	msg, _ := cmd().(markedReadMsg)
 
 	if len(spy.bulk) != 2 {
 		t.Fatalf("made %d requests, want one announced and one quiet", len(spy.bulk))
 	}
 	announced, quiet := spy.bulk[0], spy.bulk[1]
-	if len(announced) != 1 || announced[0] != "!loud:x" || spy.bulkPvt[0] {
+	if len(announced) != 1 || announced[0] != mx+"!loud:x" || spy.bulkPvt[0] {
 		t.Errorf("announced batch = %v (private %v), want just !loud:x", announced, spy.bulkPvt[0])
 	}
-	if len(quiet) != 1 || quiet[0] != "!quiet:x" || !spy.bulkPvt[1] {
+	if len(quiet) != 1 || quiet[0] != mx+"!quiet:x" || !spy.bulkPvt[1] {
 		t.Errorf("quiet batch = %v (private %v), want just !quiet:x", quiet, spy.bulkPvt[1])
 	}
 	if msg.rooms != 2 || msg.result.Marked != 2 {

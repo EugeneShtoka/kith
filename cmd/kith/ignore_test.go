@@ -22,7 +22,7 @@ func TestIgnoreUserValidation(t *testing.T) {
 		{[]string{"notanmxid"}, "not a Matrix user ID"},
 		{[]string{"@noserver"}, "not a Matrix user ID"},
 		{[]string{"missing-at:server"}, "not a Matrix user ID"},
-		{[]string{"@a:b", "extra"}, "usage"},
+		{[]string{"matrix:@a:b", "extra"}, "usage"},
 	} {
 		err := runIgnoreOrUnignore(c.args, "ignore", func(ctx context.Context, b ignoreBackend, mxid string) error {
 			return do(ctx, backend, mxid)

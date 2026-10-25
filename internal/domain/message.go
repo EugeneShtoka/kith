@@ -17,7 +17,7 @@ type EventID string
 type Message struct {
 	ID         EventID
 	RoomID     RoomID
-	Sender     string // the sender's Matrix ID (@user:server)
+	Sender     string // the sender's ID (matrix:@user:server)
 	SenderName string // the sender's room display name, if resolved; may be empty
 	// Body is the resolved plain text: an edit's replacement, empty when redacted.
 	Body string
@@ -72,7 +72,7 @@ type Mention struct {
 	Known string
 }
 
-// Target is the mention's MXID or room ID.
+// Target is the mention's person or room ID.
 func (m Mention) Target() string {
 	if m.RoomID != "" {
 		return m.RoomID

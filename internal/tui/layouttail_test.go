@@ -95,7 +95,7 @@ func TestLayoutWindowMatchesFullSlice(t *testing.T) {
 	}
 	anchored := benchTimelineModel(200)
 	msgs := slices.Clone(anchored.timeline.messages)
-	msgs[0].ThreadRoot = domain.EventID("$gone") // the oldest: nothing loaded above it to hang from
+	msgs[0].ThreadRoot = domain.EventID(mx + "$gone") // the oldest: nothing loaded above it to hang from
 	anchored = anchored.setMessages(msgs)
 	if _, w := anchored.walkFor(); len(anchored.topAnchorRows(w)) == 0 {
 		t.Fatal("setup: the thread whose root is not loaded draws no row above the top")

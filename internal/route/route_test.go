@@ -16,7 +16,7 @@ import (
 
 // Two networks' rooms, as their IDs name them.
 const (
-	matrixRoomID   domain.RoomID = "!a:x"
+	matrixRoomID   domain.RoomID = mx + "!a:x"
 	whatsappRoomID domain.RoomID = "whatsapp:44881234567/120363@g.us"
 )
 
@@ -30,20 +30,20 @@ func twoNetworks(t *testing.T) (*Router, *fakeMatrix, *fake) {
 // perRoomCalls makes every per-room call through the router.
 func perRoomCalls(ctx context.Context, r *Router, room domain.RoomID) map[string]error {
 	calls := map[string]error{}
-	calls["MarkRead"] = r.MarkRead(ctx, room, "$e", false)
+	calls["MarkRead"] = r.MarkRead(ctx, room, mx+"$e", false)
 	calls["MarkRoomUnread"] = r.MarkRoomUnread(ctx, room, true)
-	calls["StarMessage"] = r.StarMessage(ctx, room, "$e", true)
+	calls["StarMessage"] = r.StarMessage(ctx, room, mx+"$e", true)
 	calls["MarkTag"] = r.MarkTag(ctx, domain.TagVerdict{Room: room, Tag: "Spam"})
 	_, calls["CanonicalParent"] = r.CanonicalParent(ctx, room)
-	_, _, calls["MessageHistory"] = r.MessageHistory(ctx, room, "$e")
+	_, _, calls["MessageHistory"] = r.MessageHistory(ctx, room, mx+"$e")
 	_, calls["Timeline"] = r.Timeline(ctx, room, "", 10)
-	_, calls["FetchEvent"] = r.FetchEvent(ctx, room, "$e")
-	calls["Redact"] = r.Redact(ctx, room, "$e", "")
+	_, calls["FetchEvent"] = r.FetchEvent(ctx, room, mx+"$e")
+	calls["Redact"] = r.Redact(ctx, room, mx+"$e", "")
 	calls["Send"] = r.Send(ctx, room, domain.Draft{Body: "hi"})
 	calls["SendTyping"] = r.SendTyping(ctx, room, true, time.Second)
 	calls["SendFile"] = r.SendFile(ctx, room, "/f", "f", "")
-	calls["SendReaction"] = r.SendReaction(ctx, room, "$e", "👍")
-	_, calls["LoadImage"] = r.LoadImage(ctx, room, "$e")
+	calls["SendReaction"] = r.SendReaction(ctx, room, mx+"$e", "👍")
+	_, calls["LoadImage"] = r.LoadImage(ctx, room, mx+"$e")
 	_, calls["Members"] = r.Members(ctx, room, 0)
 	_, calls["RefreshMembers"] = r.RefreshMembers(ctx, room)
 	_, calls["MentionCandidates"] = r.MentionCandidates(ctx, room, 0)
@@ -105,16 +105,16 @@ func TestMatrixOnlyCallsStayOnMatrix(t *testing.T) {
 	ctx := context.Background()
 	calls := func(r *Router, room domain.RoomID) map[string]error {
 		out := map[string]error{}
-		out["AddToSpace"] = r.AddToSpace(ctx, "!s:x", room)
-		out["RemoveFromSpace"] = r.RemoveFromSpace(ctx, "!s:x", room)
-		out["InviteUser"] = r.InviteUser(ctx, room, "@u:x")
-		out["KickUser"] = r.KickUser(ctx, room, "@u:x", "")
-		out["BanUser"] = r.BanUser(ctx, room, "@u:x", "")
-		out["UnbanUser"] = r.UnbanUser(ctx, room, "@u:x")
+		out["AddToSpace"] = r.AddToSpace(ctx, mx+"!s:x", room)
+		out["RemoveFromSpace"] = r.RemoveFromSpace(ctx, mx+"!s:x", room)
+		out["InviteUser"] = r.InviteUser(ctx, room, "matrix:@u:x")
+		out["KickUser"] = r.KickUser(ctx, room, "matrix:@u:x", "")
+		out["BanUser"] = r.BanUser(ctx, room, "matrix:@u:x", "")
+		out["UnbanUser"] = r.UnbanUser(ctx, room, "matrix:@u:x")
 		out["LeaveRoom"] = r.LeaveRoom(ctx, room)
 		_, out["ListThreads"] = r.ListThreads(ctx, room)
-		_, out["ThreadPage"] = r.ThreadPage(ctx, room, "$r", "", 10)
-		out["MarkThreadRead"] = r.MarkThreadRead(ctx, room, "$r", "$e", false)
+		_, out["ThreadPage"] = r.ThreadPage(ctx, room, mx+"$r", "", 10)
+		out["MarkThreadRead"] = r.MarkThreadRead(ctx, room, mx+"$r", mx+"$e", false)
 		return out
 	}
 
@@ -124,7 +124,7 @@ func TestMatrixOnlyCallsStayOnMatrix(t *testing.T) {
 			t.Errorf("%s on a WhatsApp room = %v, want ErrNotOnNetwork", name, err)
 		}
 	}
-	if r.ThreadParticipant(ctx, whatsappRoomID, "$r") {
+	if r.ThreadParticipant(ctx, whatsappRoomID, mx+"$r") {
 		t.Error("ThreadParticipant is true for a network without threads")
 	}
 	if got := m.calls(); len(got) != 0 {
@@ -140,7 +140,7 @@ func TestMatrixOnlyCallsStayOnMatrix(t *testing.T) {
 			t.Errorf("%s on a Matrix room: %v", name, err)
 		}
 	}
-	if !r.ThreadParticipant(ctx, matrixRoomID, "$r") {
+	if !r.ThreadParticipant(ctx, matrixRoomID, mx+"$r") {
 		t.Error("ThreadParticipant on a Matrix room did not reach Matrix")
 	}
 	if got := m.calls(); len(got) != len(mine)+1 {
@@ -193,9 +193,9 @@ func TestOneNetworkIsPassedThrough(t *testing.T) {
 func TestMeIsEveryNetworksSelf(t *testing.T) {
 	t.Parallel()
 	r, m, wa := twoNetworks(t)
-	m.me = []string{"@me:x", "@whatsapp_me:x"}
-	wa.me = []string{"whatsapp:44881234567@s.whatsapp.net", "@me:x"}
-	if got := r.Me(); !slices.Equal(got, []string{"@me:x", "@whatsapp_me:x", "whatsapp:44881234567@s.whatsapp.net"}) {
+	m.me = []string{"matrix:@me:x", "matrix:@whatsapp_me:x"}
+	wa.me = []string{"whatsapp:44881234567@s.whatsapp.net", "matrix:@me:x"}
+	if got := r.Me(); !slices.Equal(got, []string{"matrix:@me:x", "matrix:@whatsapp_me:x", "whatsapp:44881234567@s.whatsapp.net"}) {
 		t.Errorf("Me = %v", got)
 	}
 }
@@ -407,12 +407,12 @@ func TestAPersonMarkReachesTheirNetwork(t *testing.T) {
 	ctx := context.Background()
 	const whatsappPerson = "whatsapp:15550000001@s.whatsapp.net"
 	r, m, wa := twoNetworks(t)
-	for _, person := range []string{"@ann:x", whatsappPerson} {
+	for _, person := range []string{"matrix:@ann:x", whatsappPerson} {
 		if err := r.MarkPerson(ctx, domain.PersonVerdict{Person: person, Tag: "Spam", Released: true}); err != nil {
 			t.Errorf("MarkPerson(%s) = %v", person, err)
 		}
 	}
-	if got := m.seen(); !slices.Equal(got, []domain.RoomID{"@ann:x"}) {
+	if got := m.seen(); !slices.Equal(got, []domain.RoomID{"matrix:@ann:x"}) {
 		t.Errorf("Matrix was asked about %v, want its own person", got)
 	}
 	if got := wa.seen(); !slices.Equal(got, []domain.RoomID{whatsappPerson}) {
@@ -436,14 +436,14 @@ func TestMovesGoToTheNetworkOrTheStore(t *testing.T) {
 	for _, err := range []error{
 		r.MarkTag(ctx, domain.TagVerdict{Room: matrixRoomID, Tag: "Spam"}),
 		r.MarkTag(ctx, domain.TagVerdict{Room: telegramRoom, Tag: "Spam"}),
-		r.MarkPerson(ctx, domain.PersonVerdict{Person: "@ann:x", Tag: "Spam"}),
+		r.MarkPerson(ctx, domain.PersonVerdict{Person: "matrix:@ann:x", Tag: "Spam"}),
 		r.MarkPerson(ctx, domain.PersonVerdict{Person: "telegram:7", Tag: "Spam"}),
 	} {
 		if err != nil {
 			t.Errorf("mark = %v", err)
 		}
 	}
-	if got := m.seen(); !slices.Equal(got, []domain.RoomID{matrixRoomID, "@ann:x"}) {
+	if got := m.seen(); !slices.Equal(got, []domain.RoomID{matrixRoomID, "matrix:@ann:x"}) {
 		t.Errorf("Matrix kept %v, want its own room and person", got)
 	}
 	if !slices.Equal(store.kept, []string{string(telegramRoom), "telegram:7"}) {
@@ -632,16 +632,16 @@ func TestWithoutMatrixNothingReachesIt(t *testing.T) {
 		actions := map[string]error{}
 		_, actions["JoinRoom"] = r.JoinRoom(ctx, "#a:x", nil)
 		_, actions["CreateRoom"] = r.CreateRoom(ctx, domain.NewRoom{})
-		actions["AddToSpace"] = r.AddToSpace(ctx, "!s:x", matrixRoomID)
-		actions["RemoveFromSpace"] = r.RemoveFromSpace(ctx, "!s:x", matrixRoomID)
-		actions["InviteUser"] = r.InviteUser(ctx, matrixRoomID, "@u:x")
-		actions["KickUser"] = r.KickUser(ctx, matrixRoomID, "@u:x", "")
-		actions["BanUser"] = r.BanUser(ctx, matrixRoomID, "@u:x", "")
-		actions["UnbanUser"] = r.UnbanUser(ctx, matrixRoomID, "@u:x")
+		actions["AddToSpace"] = r.AddToSpace(ctx, mx+"!s:x", matrixRoomID)
+		actions["RemoveFromSpace"] = r.RemoveFromSpace(ctx, mx+"!s:x", matrixRoomID)
+		actions["InviteUser"] = r.InviteUser(ctx, matrixRoomID, "matrix:@u:x")
+		actions["KickUser"] = r.KickUser(ctx, matrixRoomID, "matrix:@u:x", "")
+		actions["BanUser"] = r.BanUser(ctx, matrixRoomID, "matrix:@u:x", "")
+		actions["UnbanUser"] = r.UnbanUser(ctx, matrixRoomID, "matrix:@u:x")
 		actions["LeaveRoom"] = r.LeaveRoom(ctx, matrixRoomID)
 		_, actions["ListThreads"] = r.ListThreads(ctx, matrixRoomID)
-		_, actions["ThreadPage"] = r.ThreadPage(ctx, matrixRoomID, "$r", "", 10)
-		actions["MarkThreadRead"] = r.MarkThreadRead(ctx, matrixRoomID, "$r", "$e", false)
+		_, actions["ThreadPage"] = r.ThreadPage(ctx, matrixRoomID, mx+"$r", "", 10)
+		actions["MarkThreadRead"] = r.MarkThreadRead(ctx, matrixRoomID, mx+"$r", mx+"$e", false)
 		_, actions["StartVerification"] = r.StartVerification(ctx)
 		actions["AcceptVerification"] = r.AcceptVerification(ctx, "t")
 		actions["ConfirmSAS"] = r.ConfirmSAS(ctx, "t")
@@ -655,11 +655,11 @@ func TestWithoutMatrixNothingReachesIt(t *testing.T) {
 				t.Errorf("%s: %s = %v, want ErrNetworkOff", name, call, err)
 			}
 		}
-		if r.ThreadParticipant(ctx, matrixRoomID, "$r") {
+		if r.ThreadParticipant(ctx, matrixRoomID, mx+"$r") {
 			t.Errorf("%s: ThreadParticipant is true without Matrix", name)
 		}
 
-		if got := r.Me(); slices.Contains(got, "@matrix:x") {
+		if got := r.Me(); slices.Contains(got, "matrix:@matrix:x") {
 			t.Errorf("%s: Me = %v, names the logged-out Matrix account", name, got)
 		}
 		if m != nil {
@@ -714,7 +714,7 @@ func TestSpacesAreEveryNetworks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	m, wa := newFakeMatrix(), spacedFake{newFake("whatsapp")}
-	m.spaces = []domain.Space{{ID: "!work:x", Name: "Work"}}
+	m.spaces = []domain.Space{{ID: mx + "!work:x", Name: "Work"}}
 	community := domain.SpaceID("whatsapp:44881234567/120363@g.us")
 	wa.spaces = []domain.Space{{ID: community, Name: "Building", Bridge: domain.ProtocolWhatsApp}}
 	r := routed(m, map[domain.Protocol]Adapter{domain.ProtocolWhatsApp: wa})
@@ -905,5 +905,23 @@ func TestALinkGoesToItsNetwork(t *testing.T) {
 	}
 	if got := m.calls(); len(got) != 0 {
 		t.Errorf("Matrix heard of a Telegram link: %v", got)
+	}
+}
+
+// A room as Matrix writes it, an alias or a bare room ID from a link or a typed join,
+// goes to Matrix: it names no account yet.
+func TestAMatrixAddressJoinsOnMatrix(t *testing.T) {
+	t.Parallel()
+	for _, address := range []string{"#lobby:x", "!lobby:x"} {
+		r, m, wa := twoNetworks(t)
+		if _, err := r.JoinRoom(context.Background(), address, nil); err != nil {
+			t.Fatalf("JoinRoom(%s) = %v", address, err)
+		}
+		m.mu.Lock()
+		joined := slices.Contains(m.matrixCalls, "JoinRoom")
+		m.mu.Unlock()
+		if !joined || len(wa.seen()) != 0 {
+			t.Errorf("JoinRoom(%s) reached Matrix %t, WhatsApp %v", address, joined, wa.seen())
+		}
 	}
 }

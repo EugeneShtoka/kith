@@ -437,8 +437,8 @@ func openTimeline(t *testing.T, m Model) Model {
 // withMessage lands one message in the open room so selection-based actions can run.
 func withMessage(t *testing.T, m Model) Model {
 	t.Helper()
-	return update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{
-		Messages: []domain.Message{{ID: "$1", RoomID: "!a:x", Sender: "@a:x", Body: "hi"}},
+	return update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
+		Messages: []domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "hi"}},
 	}})
 }
 

@@ -23,12 +23,12 @@ func TestReplyRowsFitThePane(t *testing.T) {
 	for termWidth := 100; termWidth <= 260; termWidth++ {
 		m := withRooms(t, newModel())
 		m = update(t, m, tea.WindowSizeMsg{Width: termWidth, Height: 30})
-		m.openRoom = "!a:x"
-		m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-			{ID: "$1", RoomID: "!a:x", Sender: "@maya:x", SenderName: "Maya Rosen", Body: quoted, Timestamp: at(1)},
+		m.openRoom = mx + "!a:x"
+		m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+			{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@maya:x", SenderName: "Maya Rosen", Body: quoted, Timestamp: at(1)},
 			{
-				ID: "$2", RoomID: "!a:x", Sender: "@maya:x", SenderName: "Maya Rosen",
-				Body: hebrewEmoji, ReplyTo: "$1", Timestamp: at(2),
+				ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@maya:x", SenderName: "Maya Rosen",
+				Body: hebrewEmoji, ReplyTo: mx + "$1", Timestamp: at(2),
 			},
 		}}})
 

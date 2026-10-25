@@ -55,7 +55,7 @@ func attaching(t *testing.T) (Model, *sendingBackend) {
 	t.Helper()
 	backend := &sendingBackend{}
 	m := sized(t, withRooms(t, starterNew(backend, config.Display{})))
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
 	m.focus, m.compose.insertMode = paneTimeline, false
 	m = m.clearStatus()
@@ -93,7 +93,7 @@ func TestAttachSendsAnAbsolutePath(t *testing.T) {
 	if backend.caption != "here you go" {
 		t.Errorf("caption = %q, want the text after the pipe", backend.caption)
 	}
-	if backend.roomID != "!a:x" {
+	if backend.roomID != mx+"!a:x" {
 		t.Errorf("room = %q, want the open one", backend.roomID)
 	}
 	if !strings.Contains(m.status(), "invoice.pdf") {
@@ -128,7 +128,7 @@ func TestAttachSendsUnderANeutralName(t *testing.T) {
 
 	m, backend = attaching(t)
 	off := false
-	m = m.applyMedia(config.Media{Rules: []config.MediaRule{{Match: "!a:x", Anonymize: &off}}})
+	m = m.applyMedia(config.Media{Rules: []config.MediaRule{{Match: mx + "!a:x", Anonymize: &off}}})
 	send(m)
 	if backend.name != "IMG_2041 Haifa.JPG" {
 		t.Errorf("with anonymizing off for the room: sent as %q, want its own name", backend.name)
@@ -186,7 +186,7 @@ func TestAttachSendsAPhotoWithoutWhereItWasTaken(t *testing.T) {
 
 	m, backend = attaching(t)
 	off := false
-	m = m.applyMedia(config.Media{Rules: []config.MediaRule{{Match: "!a:x", Anonymize: &off}}})
+	m = m.applyMedia(config.Media{Rules: []config.MediaRule{{Match: mx + "!a:x", Anonymize: &off}}})
 	sendFile(m, file)
 	if backend.path != file || !strings.Contains(string(backend.bytes), where) {
 		t.Errorf("with anonymizing off: sent %s, want the photo as it is", backend.path)
@@ -250,8 +250,8 @@ func TestDownloadSavesTheSelectedAttachment(t *testing.T) {
 	backend.media = []byte("PNG-ish bytes")
 	dir := t.TempDir()
 	m.prefs.display.Media.DownloadDir = dir
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "photo.png",
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "photo.png",
 		Media: &domain.Media{Type: domain.MediaImage, Name: "photo.png", Mime: "image/png"},
 	}}}})
 
@@ -314,8 +314,8 @@ func TestDownloadWithoutAnAttachment(t *testing.T) {
 	t.Parallel()
 
 	m, _ := attaching(t)
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
-		{ID: "$1", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "just text"},
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "just text"},
 	}}})
 	m, _ = press(t, m, keyText("s"))
 	if !strings.Contains(m.status(), "no attachment") {
@@ -461,10 +461,10 @@ func TestDownloadFollowsTheTemplate(t *testing.T) {
 	m.prefs.display.Media.DownloadDir = root
 	m.prefs.display.Media.DownloadTemplate = "{room}/{person}/{name}{ext}"
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: "!w:x", Name: "Work", Children: []domain.RoomID{"!a:x"}},
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "photo.png",
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "photo.png",
 		Media: &domain.Media{Type: domain.MediaImage, Name: "photo.png", Mime: "image/png"},
 	}}}})
 
@@ -485,9 +485,9 @@ func TestDownloadRuleOverridesTheDirectory(t *testing.T) {
 	backend.media = []byte("bytes")
 	root, elsewhere := t.TempDir(), t.TempDir()
 	m.prefs.display.Media.DownloadDir = root
-	m.prefs.display.Media.Rules = []config.MediaRule{{Match: "!a:x", Dir: elsewhere}}
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "doc.pdf",
+	m.prefs.display.Media.Rules = []config.MediaRule{{Match: mx + "!a:x", Dir: elsewhere}}
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "doc.pdf",
 		Media: &domain.Media{Type: domain.MediaFile, Name: "doc.pdf", Mime: "application/pdf"},
 	}}}})
 
@@ -507,13 +507,13 @@ func TestSaveAsRemembersWhatIsBeingSaved(t *testing.T) {
 	backend.media = []byte("bytes")
 	root := t.TempDir()
 	m.prefs.display.Media.DownloadDir = root
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "bill.pdf",
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "bill.pdf",
 		Media: &domain.Media{Type: domain.MediaFile, Name: "bill.pdf", Mime: "application/pdf"},
 	}}}})
 
 	m, _ = press(t, m, keyText("S"))
-	if m.pendingSave.msg.ID != "$1" || m.pendingSave.target.Name != "bill.pdf" {
+	if m.pendingSave.msg.ID != mx+"$1" || m.pendingSave.target.Name != "bill.pdf" {
 		t.Fatalf("S left %+v pending, want the attachment under the cursor", m.pendingSave.target)
 	}
 
@@ -539,8 +539,8 @@ func TestSaveAsCanceled(t *testing.T) {
 
 	m, _ := attaching(t)
 	m.prefs.display.Media.DownloadDir = t.TempDir()
-	m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
-		ID: "$1", RoomID: "!a:x", Sender: "@alice:x", SenderName: "Alice", Body: "bill.pdf",
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
+		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "bill.pdf",
 		Media: &domain.Media{Type: domain.MediaFile, Name: "bill.pdf", Mime: "application/pdf"},
 	}}}})
 	m, _ = press(t, m, keyText("S"))

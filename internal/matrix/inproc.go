@@ -159,23 +159,30 @@ func New(cache *db.Cache) *InProc {
 	b.out.open()
 	b.invites.rooms = make(map[domain.RoomID]domain.Room)
 	b.ver.events = make(chan domain.Verification, verificationBuffer)
-	if cacheOwesRewind(cache) {
-		b.rewind.owe()
-	}
 	return b
 }
 
-// cacheOwesRewind reports whether a freshly opened cache (rebuilt or roomless) needs a
-// full initial sync. Decided before anything writes rooms; an error counts as empty,
-// since a needless rewind costs one sync and a missed one loses history.
-func cacheOwesRewind(cache *db.Cache) bool {
+// useAccount names the account whose IDs this backend speaks, user its MXID. Call once,
+// before anything reads or writes its rooms.
+func (b *InProc) useAccount(user string) {
+	b.ids = accountIDs(user)
+	if cacheOwesRewind(b.cache, b.ids.owner()) {
+		b.rewind.owe()
+	}
+}
+
+// cacheOwesRewind reports whether a freshly opened cache (rebuilt, or holding none of
+// owner's rooms) needs a full initial sync. Decided before anything writes owner's
+// rooms; an error counts as empty, since a needless rewind costs one sync and a missed
+// one loses history.
+func cacheOwesRewind(cache *db.Cache, owner domain.RoomOwner) bool {
 	if cache == nil {
 		return false
 	}
 	if cache.Rebuilt() {
 		return true
 	}
-	holds, err := cache.HoldsRooms(context.Background())
+	holds, err := cache.HoldsRooms(context.Background(), owner)
 	return err != nil || !holds
 }
 

@@ -100,7 +100,7 @@ func (m Model) submitFilterFrom(input string) (Model, tea.Cmd) {
 	if from == "" && len(m.choosing.filter.Words) == 0 {
 		return m.filterPage().openPrompt(promptFilterFrom).say("a filter needs words or a sender — with neither it would catch everything"), nil
 	}
-	m.choosing.filter.From = from
+	m.choosing.filter.From = domain.TypedUserID(from)
 	return m.openFilterPlaces(), nil
 }
 

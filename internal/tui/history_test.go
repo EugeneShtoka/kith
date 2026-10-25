@@ -34,8 +34,8 @@ func (b *historyBackend) MessageHistory(
 func browsing(t *testing.T, b *historyBackend, msg domain.Message) Model {
 	t.Helper()
 	m := sized(t, update(t, starterNew(b, config.Display{}),
-		roomsMsg{rooms: []domain.Room{{ID: "!a:x", Name: "Alpha"}}}))
-	next, _ := m.selectRoom(domain.Room{ID: "!a:x", Name: "Alpha"})
+		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}}))
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
 	m = m.setMessages([]domain.Message{msg})
 	m.timeline.selected = msg.ID
@@ -45,8 +45,8 @@ func browsing(t *testing.T, b *historyBackend, msg domain.Message) Model {
 
 func editedThenDeleted() domain.Message {
 	return domain.Message{
-		ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "", Timestamp: at(1),
-		Edited: true, Redacted: true, RedactedBy: "@moderator:x", RedactedReason: "off topic",
+		ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "", Timestamp: at(1),
+		Edited: true, Redacted: true, RedactedBy: "matrix:@moderator:x", RedactedReason: "off topic",
 	}
 }
 
@@ -55,9 +55,9 @@ func TestTheHistoryShowsEveryVersionAndTheDeletion(t *testing.T) {
 	t.Parallel()
 
 	b := &historyBackend{revs: []domain.Revision{
-		{ID: "$m", Body: "seven", At: at(10)},
-		{ID: "$e1", Body: "seven thirty", At: at(20)},
-		{ID: "$e2", Body: "seven thirty, usual place", At: at(30)},
+		{ID: mx + "$m", Body: "seven", At: at(10)},
+		{ID: mx + "$e1", Body: "seven thirty", At: at(20)},
+		{ID: mx + "$e2", Body: "seven thirty, usual place", At: at(30)},
 	}}
 	m := browsing(t, b, editedThenDeleted())
 
@@ -70,7 +70,7 @@ func TestTheHistoryShowsEveryVersionAndTheDeletion(t *testing.T) {
 	}
 	m = deliver(t, m, cmd)
 
-	if b.asked != "$m" {
+	if b.asked != mx+"$m" {
 		t.Errorf("asked about %q, want $m", b.asked)
 	}
 	pane := strings.Join(m.historyLines(70, 40), "\n")
@@ -95,8 +95,8 @@ func TestTheHistoryShowsEveryVersionAndTheDeletion(t *testing.T) {
 func TestTheHistoryTakesTheTimelinePane(t *testing.T) {
 	t.Parallel()
 
-	b := &historyBackend{revs: []domain.Revision{{ID: "$m", Body: "only version", At: at(10)}}}
-	m := browsing(t, b, domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "only version", Timestamp: at(1)})
+	b := &historyBackend{revs: []domain.Revision{{ID: mx + "$m", Body: "only version", At: at(10)}}}
+	m := browsing(t, b, domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "only version", Timestamp: at(1)})
 	m, cmd := press(t, m, keyText("H"))
 	m = deliver(t, m, cmd)
 
@@ -114,7 +114,7 @@ func TestTheHistoryTakesTheTimelinePane(t *testing.T) {
 func TestTheHistorySaysWhyItIsEmpty(t *testing.T) {
 	t.Parallel()
 
-	plain := domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "once", Timestamp: at(1)}
+	plain := domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "once", Timestamp: at(1)}
 	m := browsing(t, &historyBackend{}, plain)
 	m, cmd := press(t, m, keyText("H"))
 	m = deliver(t, m, cmd)
@@ -136,12 +136,12 @@ func TestTheHistorySaysWhyItIsEmpty(t *testing.T) {
 func TestALateAnswerForAnotherMessageIsIgnored(t *testing.T) {
 	t.Parallel()
 
-	b := &historyBackend{revs: []domain.Revision{{ID: "$m", Body: "mine", At: at(10)}}}
-	m := browsing(t, b, domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "mine", Timestamp: at(1)})
+	b := &historyBackend{revs: []domain.Revision{{ID: mx + "$m", Body: "mine", At: at(10)}}}
+	m := browsing(t, b, domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "mine", Timestamp: at(1)})
 	m, cmd := press(t, m, keyText("H"))
 	m = deliver(t, m, cmd)
 
-	next, _ := m.handleHistory(historyMsg{eventID: "$somethingelse", revisions: []domain.Revision{{ID: "$x", Body: "not this"}}})
+	next, _ := m.handleHistory(historyMsg{eventID: mx + "$somethingelse", revisions: []domain.Revision{{ID: mx + "$x", Body: "not this"}}})
 	got := next
 	if pane := strings.Join(got.historyLines(70, 10), "\n"); strings.Contains(pane, "not this") {
 		t.Errorf("a stale answer replaced the open history:\n%s", pane)
@@ -154,10 +154,10 @@ func TestTheHistoryKeysDoNotReachTheTimeline(t *testing.T) {
 
 	revs := make([]domain.Revision, 0, 12)
 	for i := range 12 {
-		revs = append(revs, domain.Revision{ID: domain.EventID("$e" + string(rune('a'+i))), Body: "version", At: at(i + 1)})
+		revs = append(revs, domain.Revision{ID: domain.EventID(mx + "$e" + string(rune('a'+i))), Body: "version", At: at(i + 1)})
 	}
 	b := &historyBackend{revs: revs}
-	m := browsing(t, b, domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: "v", Timestamp: at(1), Edited: true})
+	m := browsing(t, b, domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: "v", Timestamp: at(1), Edited: true})
 	m, cmd := press(t, m, keyText("H"))
 	m = deliver(t, m, cmd)
 
@@ -198,8 +198,8 @@ func TestTheDeletionSaysWhen(t *testing.T) {
 
 	deleted := at(400)
 	b := &historyBackend{
-		revs:     []domain.Revision{{ID: "$m", Body: "seven", At: at(10)}},
-		deletion: domain.Deletion{At: deleted, By: "@moderator:x", Reason: "off topic"},
+		revs:     []domain.Revision{{ID: mx + "$m", Body: "seven", At: at(10)}},
+		deletion: domain.Deletion{At: deleted, By: "matrix:@moderator:x", Reason: "off topic"},
 	}
 	m := browsing(t, b, editedThenDeleted())
 	m, cmd := press(t, m, keyText("H"))
@@ -258,7 +258,7 @@ func TestTheHistoryHonorsReboundKeys(t *testing.T) {
 	m := newModel()
 	m.keys = newKeymap(keys)
 	m.height = 40
-	m.history = historyState{open: true, msg: domain.Message{ID: "$1", RoomID: "!a:x"}}
+	m.history = historyState{open: true, msg: domain.Message{ID: mx + "$1", RoomID: mx + "!a:x"}}
 
 	scrolled, _ := m.handleHistoryKey(key('n'))
 	if scrolled.history.scroll != 1 {
@@ -290,12 +290,12 @@ func TestTheHistoryDrawsRightToLeftTextAsTheTimelineDoes(t *testing.T) {
 		author = "דנה לוי"
 	)
 	msg := domain.Message{
-		ID: "$m", RoomID: "!a:x", Sender: "@her:x", SenderName: author, Body: second, Timestamp: at(1),
+		ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", SenderName: author, Body: second, Timestamp: at(1),
 		Edited: true,
 	}
 	b := &historyBackend{revs: []domain.Revision{
-		{ID: "$m", Body: first, At: at(10)},
-		{ID: "$e1", Body: second, At: at(20)},
+		{ID: mx + "$m", Body: first, At: at(10)},
+		{ID: mx + "$e1", Body: second, At: at(20)},
 	}}
 	m := browsing(t, b, msg)
 
@@ -331,7 +331,7 @@ func TestTheHistoryDrawsRightToLeftTextAsTheTimelineDoes(t *testing.T) {
 
 	// The deletion reason, drawn after the versions, reads the same way.
 	gone := msg
-	gone.Redacted, gone.RedactedBy, gone.RedactedReason = true, "@moderator:x", reason
+	gone.Redacted, gone.RedactedBy, gone.RedactedReason = true, "matrix:@moderator:x", reason
 	m2 := browsing(t, &historyBackend{revs: b.revs}, gone)
 	m2, cmd2 := press(t, m2, keyText("H"))
 	m2 = deliver(t, m2, cmd2)
@@ -346,8 +346,8 @@ func TestALongRightToLeftVersionWrapsInReadingOrder(t *testing.T) {
 	t.Parallel()
 
 	body := strings.Repeat("שלום עולם מה נשמע היום ", 6)
-	msg := domain.Message{ID: "$m", RoomID: "!a:x", Sender: "@her:x", Body: body, Timestamp: at(1), Edited: true}
-	m := browsing(t, &historyBackend{revs: []domain.Revision{{ID: "$m", Body: body, At: at(10)}}}, msg)
+	msg := domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@her:x", Body: body, Timestamp: at(1), Edited: true}
+	m := browsing(t, &historyBackend{revs: []domain.Revision{{ID: mx + "$m", Body: body, At: at(10)}}}, msg)
 	m, cmd := press(t, m, keyText("H"))
 	m = deliver(t, m, cmd)
 

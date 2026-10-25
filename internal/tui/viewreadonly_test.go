@@ -31,11 +31,11 @@ func TestViewLeavesTheSharedCacheAlone(t *testing.T) {
 		{"deep in the room", tea.KeyPressMsg{Code: tea.KeyPgUp}},
 		{"back to the newest", keyText("G")},
 		{"a live message", incomingMsg{message: domain.Message{
-			ID: "$live", RoomID: last.RoomID, Sender: benchSenders[2],
+			ID: mx + "$live", RoomID: last.RoomID, Sender: benchSenders[2],
 			Body: "just arrived", Timestamp: last.Timestamp.Add(time.Minute),
 		}}},
 		{"a reaction", reactionUpdateMsg{u: domain.ReactionUpdate{Reaction: domain.Reaction{
-			ID: "$r1", RoomID: last.RoomID, Target: target, Sender: benchSenders[3], Key: "👍",
+			ID: mx + "$r1", RoomID: last.RoomID, Target: target, Sender: benchSenders[3], Key: "👍",
 		}}}},
 		{"insert mode", keyText("i")},
 		{"typing", keyText("x")},
@@ -91,7 +91,7 @@ func TestAHeightChangeOnScreenIsDrawnRightAway(t *testing.T) {
 			break
 		}
 		next, _ = asModel(m.Update(reactionUpdateMsg{u: domain.ReactionUpdate{Reaction: domain.Reaction{
-			ID: domain.EventID(fmt.Sprintf("$r%d", n)), RoomID: target.RoomID,
+			ID: domain.EventID(fmt.Sprintf(mx+"$r%d", n)), RoomID: target.RoomID,
 			Target: target.ID, Sender: benchSenders[3], Key: "👍",
 		}}}))
 		m = next
@@ -130,7 +130,7 @@ func TestAHeightChangeBelowTheWindowKeepsTheViewStill(t *testing.T) {
 	below := m.derived.shown[lowest+1:]
 	for n, target := range below {
 		next, _ := asModel(m.Update(reactionUpdateMsg{u: domain.ReactionUpdate{Reaction: domain.Reaction{
-			ID: domain.EventID(fmt.Sprintf("$below%d", n)), RoomID: target.RoomID,
+			ID: domain.EventID(fmt.Sprintf(mx+"$below%d", n)), RoomID: target.RoomID,
 			Target: target.ID, Sender: benchSenders[3], Key: "👍",
 		}}}))
 		m = next
@@ -158,7 +158,7 @@ func TestViewOfAnOlderCopyLeavesTheSharedCacheAlone(t *testing.T) {
 	want := stripStyles(older.View().Content)
 	last := older.timeline.messages[len(older.timeline.messages)-1]
 	newer, _ := asModel(older.Update(incomingMsg{message: domain.Message{
-		ID: "$live", RoomID: last.RoomID, Sender: benchSenders[2],
+		ID: mx + "$live", RoomID: last.RoomID, Sender: benchSenders[2],
 		Body: "just arrived", Timestamp: last.Timestamp.Add(time.Minute),
 	}}))
 	before := fmt.Sprintf("%#v", *newer.derived)

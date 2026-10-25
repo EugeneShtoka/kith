@@ -12,9 +12,9 @@ import (
 func roomsForCompletion(t *testing.T) Model {
 	t.Helper()
 	rooms := []domain.Room{
-		{ID: "!war:example.org", Name: "Warroom"},
-		{ID: "!wardrobe:example.org", Name: "Wardrobe"},
-		{ID: "!quiet:example.org", Name: "Reading"},
+		{ID: mx + "!war:example.org", Name: "Warroom"},
+		{ID: mx + "!wardrobe:example.org", Name: "Wardrobe"},
+		{ID: mx + "!quiet:example.org", Name: "Reading"},
 	}
 	return sized(t, update(t, newModel(), roomsMsg{rooms: rooms}))
 }
@@ -30,7 +30,7 @@ func TestHashOffersRoomsRankedByMatch(t *testing.T) {
 	if got[0].text != "Warroom" && got[0].text != "Wardrobe" {
 		t.Errorf("first row = %q, want a room whose name starts with the query", got[0].text)
 	}
-	if !strings.HasPrefix(got[0].detail, "!") {
+	if !strings.HasPrefix(got[0].detail, mx) {
 		t.Errorf("row detail = %q, want the room id", got[0].detail)
 	}
 	if got[0].roomID == "" {
@@ -80,15 +80,15 @@ func TestAcceptingARoomRecordsItAsAMention(t *testing.T) {
 func TestARoomMentionNotifiesNobody(t *testing.T) {
 	t.Parallel()
 
-	person := domain.Mention{UserID: "@alice:example.org", Name: "Alice"}
-	room := domain.Mention{RoomID: "!war:example.org", Name: "Warroom"}
+	person := domain.Mention{UserID: "matrix:@alice:example.org", Name: "Alice"}
+	room := domain.Mention{RoomID: mx + "!war:example.org", Name: "Warroom"}
 	if !person.Notifies() {
 		t.Error("a person's mention does not notify")
 	}
 	if room.Notifies() {
 		t.Error("a room's mention notifies, which would ping everybody in it")
 	}
-	if room.Target() != "!war:example.org" || person.Target() != "@alice:example.org" {
+	if room.Target() != mx+"!war:example.org" || person.Target() != "matrix:@alice:example.org" {
 		t.Errorf("targets = %q and %q", room.Target(), person.Target())
 	}
 }

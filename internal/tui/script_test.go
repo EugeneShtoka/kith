@@ -30,7 +30,7 @@ func withContext(t *testing.T, name, body string, script config.Command, msgs ..
 	cfg := config.Config{Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: []config.Command{script}}
 	m = m.WithConfigFile(filepath.Join(home, "config.toml"), cfg).keptIn()
 	if len(msgs) > 0 {
-		m = update(t, m, timelineMsg{roomID: "!a:x", page: domain.TimelinePage{Messages: msgs}})
+		m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: msgs}})
 	}
 	m, _ = press(t, m, keyText("i"))
 	return m
@@ -48,7 +48,7 @@ func TestAScriptGetsTheHistoryItAskedFor(t *testing.T) {
 
 	m := withContext(t, "sum", "#!/bin/sh\ncat\n",
 		config.Command{Needs: []string{"history:2"}},
-		msgWith("$1", "first"), msgWith("$2", "second"), msgWith("$3", "third"))
+		msgWith(mx+"$1", "first"), msgWith(mx+"$2", "second"), msgWith(mx+"$3", "third"))
 
 	m = runTyped(t, m, "/sum")
 
@@ -63,7 +63,7 @@ func TestAScriptGetsTheHistoryItAskedFor(t *testing.T) {
 	if got.History[0].Body != "second" || got.History[1].Body != "third" {
 		t.Errorf("history = %q, %q; want second then third", got.History[0].Body, got.History[1].Body)
 	}
-	if got.History[0].Sender != "@a:x" || got.History[0].SenderName != "Alice" {
+	if got.History[0].Sender != "matrix:@a:x" || got.History[0].SenderName != "Alice" {
 		t.Errorf("who said it did not travel: %+v", got.History[0])
 	}
 }
@@ -72,7 +72,7 @@ func TestAScriptGetsTheHistoryItAskedFor(t *testing.T) {
 func TestAScriptGetsNothingItDidNotAskFor(t *testing.T) {
 	t.Parallel()
 
-	m := withContext(t, "bare", "#!/bin/sh\ncat\n", config.Command{}, msgWith("$1", "a https://one.org here"))
+	m := withContext(t, "bare", "#!/bin/sh\ncat\n", config.Command{}, msgWith(mx+"$1", "a https://one.org here"))
 
 	m = runTyped(t, m, "/bare")
 
@@ -87,7 +87,7 @@ func TestTheConversationNeverReachesTheArgv(t *testing.T) {
 
 	m := withContext(t, "argv", "#!/bin/sh\necho \"argc=$# argv=$*\"\n",
 		config.Command{Needs: []string{"history:3", "message"}},
-		msgWith("$1", "something secret"), msgWith("$2", "and more of it"))
+		msgWith(mx+"$1", "something secret"), msgWith(mx+"$2", "and more of it"))
 
 	m = runTyped(t, m, "/argv typed")
 
@@ -105,7 +105,7 @@ func TestAScriptAsksWhichLinkBeforeItRuns(t *testing.T) {
 
 	m := withContext(t, "save", "#!/bin/sh\necho \"got $KITH_URL\"\n",
 		config.Command{Needs: []string{"url"}},
-		msgWith("$1", "read https://one.org and https://two.org"))
+		msgWith(mx+"$1", "read https://one.org and https://two.org"))
 
 	m = typeInto(t, m, "/save")
 	m, cmd := press(t, m, sendKey())
@@ -139,7 +139,7 @@ func TestASingleLinkIsNotAQuestion(t *testing.T) {
 
 	m := withContext(t, "save", "#!/bin/sh\necho \"got $KITH_URL\"\n",
 		config.Command{Needs: []string{"url"}},
-		msgWith("$1", "read https://one.org today"))
+		msgWith(mx+"$1", "read https://one.org today"))
 
 	m = runTyped(t, m, "/save")
 
@@ -156,7 +156,7 @@ func TestAScriptThatNeedsALinkAndFindsNoneSaysSo(t *testing.T) {
 
 	m := withContext(t, "save", "#!/bin/sh\necho ran\n",
 		config.Command{Needs: []string{"url"}},
-		msgWith("$1", "no links in here at all"))
+		msgWith(mx+"$1", "no links in here at all"))
 
 	m = typeInto(t, m, "/save")
 	m, cmd := press(t, m, sendKey())
@@ -212,7 +212,7 @@ func TestAScriptRunsFromItsKey(t *testing.T) {
 
 	m := withContext(t, "sum", "#!/bin/sh\ncat\n",
 		config.Command{Needs: []string{"history:1"}, Keys: "alt+t"},
-		msgWith("$1", "only this one"))
+		msgWith(mx+"$1", "only this one"))
 	// Script keys never fire while typing.
 	m.focus, m.compose.insertMode = paneTimeline, false
 
@@ -230,7 +230,7 @@ func TestAKeyBoundScriptStillAsks(t *testing.T) {
 	m := withContext(t, "save", "#!/bin/sh\necho \"got $KITH_URL\"\n",
 		// Not alt+s: that is spell.open_insert, and shadowing a built-in is refused.
 		config.Command{Needs: []string{"url"}, Keys: "alt+g"},
-		msgWith("$1", "https://one.org and https://two.org"))
+		msgWith(mx+"$1", "https://one.org and https://two.org"))
 	m.focus, m.compose.insertMode = paneTimeline, false
 
 	m, _ = press(t, m, tea.KeyPressMsg{Code: 'g', Mod: tea.ModAlt})
@@ -349,7 +349,7 @@ func TestTheFocusKeyCanBeReplacedByAScript(t *testing.T) {
 	script := config.Command{Name: "go", Needs: []string{"url"}, Output: "none", Keys: "gX"}
 
 	m := withContext(t, "go", "#!/bin/sh\necho \"would open $KITH_URL\" >&2\n", script,
-		msgWith("$1", "read https://one.org today"))
+		msgWith(mx+"$1", "read https://one.org today"))
 	m.keys = keymapFor(config.Config{
 		Keys:         keys,
 		UserCommands: []config.Command{script},
@@ -384,7 +384,7 @@ func TestTheReplacementStillAsksWhichLink(t *testing.T) {
 	script := config.Command{Name: "go", Needs: []string{"url"}, Output: "none", Keys: "gX"}
 
 	m := withContext(t, "go", "#!/bin/sh\nexit 0\n", script,
-		msgWith("$1", "https://one.org and https://two.org"))
+		msgWith(mx+"$1", "https://one.org and https://two.org"))
 	m.keys = keymapFor(config.Config{
 		Keys:         keys,
 		UserCommands: []config.Command{script},

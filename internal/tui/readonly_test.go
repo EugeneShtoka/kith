@@ -15,9 +15,9 @@ func readOnlyRoom(t *testing.T) (Model, *sendingBackend) {
 	t.Helper()
 	backend := &sendingBackend{}
 	m := sized(t, update(t, starterNew(backend, config.Display{}), roomsMsg{rooms: []domain.Room{
-		{ID: "!news:x", Name: "News", ReadOnly: true},
+		{ID: mx + "!news:x", Name: "News", ReadOnly: true},
 	}}))
-	next, _ := m.selectRoom(domain.Room{ID: "!news:x", Name: "News", ReadOnly: true})
+	next, _ := m.selectRoom(domain.Room{ID: mx + "!news:x", Name: "News", ReadOnly: true})
 	m = next
 	m.focus, m.compose.insertMode = paneTimeline, false
 	return m.clearStatus(), backend

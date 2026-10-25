@@ -36,35 +36,35 @@ func TestSpaceOwnership(t *testing.T) {
 		want     domain.Protocol
 	}{
 		"a bridge made it": {
-			creator: "@whatsappbot:x",
+			creator: "matrix:@whatsappbot:x",
 			want:    domain.ProtocolWhatsApp,
 		},
 		"you made it and a bridge fills it": {
-			creator:  "@me:x",
+			creator:  "matrix:@me:x",
 			children: []*event.Event{child("@whatsappbot:x", "!1:x"), child("@whatsapp_44:x", "!2:x")},
 			want:     domain.ProtocolWhatsApp,
 		},
 		"you made it and you fill it": {
-			creator:  "@me:x",
+			creator:  "matrix:@me:x",
 			children: []*event.Event{child("@me:x", "!1:x"), child("@me:x", "!2:x")},
 			want:     domain.ProtocolMatrix,
 		},
 		"one room of your own hands the space back to you": {
-			creator:  "@me:x",
+			creator:  "matrix:@me:x",
 			children: []*event.Event{child("@whatsappbot:x", "!1:x"), child("@me:x", "!2:x")},
 			want:     domain.ProtocolMatrix,
 		},
 		"two bridges filling one space is nobody's": {
-			creator:  "@me:x",
+			creator:  "matrix:@me:x",
 			children: []*event.Event{child("@whatsappbot:x", "!1:x"), child("@slackbot:x", "!2:x")},
 			want:     domain.ProtocolMatrix,
 		},
 		"an empty space is yours": {
-			creator: "@me:x",
+			creator: "matrix:@me:x",
 			want:    domain.ProtocolMatrix,
 		},
 		"rooms taken out say nothing about who curates it": {
-			creator:  "@me:x",
+			creator:  "matrix:@me:x",
 			children: []*event.Event{removed("@whatsappbot:x", "!1:x")},
 			want:     domain.ProtocolMatrix,
 		},
@@ -72,7 +72,7 @@ func TestSpaceOwnership(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if got := (ids{}).spaceOwner(tc.creator, tc.children); got != tc.want {
+			if got := testIDs.spaceOwner(tc.creator, tc.children); got != tc.want {
 				t.Errorf("owner = %q, want %q", got, tc.want)
 			}
 		})
@@ -83,7 +83,7 @@ func TestSpaceOwnership(t *testing.T) {
 func TestSpaceKeeper(t *testing.T) {
 	t.Parallel()
 
-	const me = "@eugene:x"
+	const me = "matrix:@eugene:x"
 	member := func(who string, m event.Membership) (string, *event.Event) {
 		return who, &event.Event{Content: event.Content{Parsed: &event.MemberEventContent{Membership: m}}}
 	}
@@ -97,33 +97,33 @@ func TestSpaceKeeper(t *testing.T) {
 		return out
 	}
 	// Whoever is inside five or more of your rooms.
-	wide := map[string]bool{"@whatsappbot_bg:x": true, "@somebot:x": true}
+	wide := map[string]bool{"matrix:@whatsappbot_bg:x": true, "matrix:@somebot:x": true}
 
 	k1, e1 := member("@whatsappbot_bg:x", event.MembershipJoin)
-	k2, e2 := member(me, event.MembershipJoin)
-	if got := spaceKeeper(members(k1, e1, k2, e2), me, wide); got != "@whatsappbot_bg:x" {
+	k2, e2 := member("@eugene:x", event.MembershipJoin)
+	if got := testIDs.spaceKeeper(members(k1, e1, k2, e2), me, wide); got != "matrix:@whatsappbot_bg:x" {
 		t.Errorf("a bridge in the space: keeper = %q", got)
 	}
 
 	// A space only you are in is yours.
-	if got := spaceKeeper(members(k2, e2), me, wide); got != "" {
+	if got := testIDs.spaceKeeper(members(k2, e2), me, wide); got != "" {
 		t.Errorf("a space of your own: keeper = %q, want none", got)
 	}
 
 	// A person you share it with is not a keeper: their reach is the rooms you share.
 	k3, e3 := member("@lior:x", event.MembershipJoin)
-	if got := spaceKeeper(members(k2, e2, k3, e3), me, wide); got != "" {
+	if got := testIDs.spaceKeeper(members(k2, e2, k3, e3), me, wide); got != "" {
 		t.Errorf("a person in the space: keeper = %q, want none", got)
 	}
 
 	// An invitation nobody answered says nothing about who keeps the space.
 	k4, e4 := member("@somebot:x", event.MembershipInvite)
-	if got := spaceKeeper(members(k2, e2, k4, e4), me, wide); got != "" {
+	if got := testIDs.spaceKeeper(members(k2, e2, k4, e4), me, wide); got != "" {
 		t.Errorf("an unanswered invite: keeper = %q, want none", got)
 	}
 
 	// You never keep your own space.
-	if got := spaceKeeper(members(k2, e2), me, map[string]bool{me: true}); got != "" {
+	if got := testIDs.spaceKeeper(members(k2, e2), me, map[string]bool{me: true}); got != "" {
 		t.Errorf("you: keeper = %q, want none", got)
 	}
 }
@@ -150,7 +150,7 @@ func TestRefreshRoomsDropsCachedSpaces(t *testing.T) {
 
 	ctx := context.Background()
 	cache := testCache(t)
-	if saveErr := cache.SaveSpaces(ctx, domain.MatrixRooms, []domain.Space{{ID: "!work:x", Name: "Work"}}); saveErr != nil {
+	if saveErr := cache.SaveSpaces(ctx, testIDs.owner(), []domain.Space{{ID: mx + "!work:x", Name: "Work"}}); saveErr != nil {
 		t.Fatalf("SaveSpaces: %v", saveErr)
 	}
 
@@ -158,21 +158,21 @@ func TestRefreshRoomsDropsCachedSpaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	b := New(cache)
+	b := newBackend(cache)
 	b.client = client
 
 	rooms, err := b.RefreshRooms(ctx)
 	if err != nil {
 		t.Fatalf("RefreshRooms: %v", err)
 	}
-	if len(rooms) != 1 || rooms[0].ID != "!chat:x" {
+	if len(rooms) != 1 || rooms[0].ID != mx+"!chat:x" {
 		t.Fatalf("RefreshRooms() = %+v, want only the chat", rooms)
 	}
 	cached, err := cache.Rooms(ctx)
 	if err != nil {
 		t.Fatalf("Rooms: %v", err)
 	}
-	if len(cached) != 1 || cached[0].ID != "!chat:x" {
+	if len(cached) != 1 || cached[0].ID != mx+"!chat:x" {
 		t.Errorf("cached rooms = %+v, want only the chat", cached)
 	}
 }
