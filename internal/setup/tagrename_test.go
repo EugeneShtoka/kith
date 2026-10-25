@@ -28,7 +28,7 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 		ref := func() string { return refs[rng.IntN(len(refs))] }
 		decoy := func() string { return decoys[rng.IntN(len(decoys))] }
 		positive := func() string { return refs[rng.IntN(2)] } // a place, not a `not` term
-		cfg := config.Config{Homeserver: "https://x", User: "@me:x"}
+		cfg := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}}
 		cfg.Tags = []config.Tag{
 			{Name: "T0", Rule: []string{"dm", "room:tag:T0"}, Picked: []string{mx + "!c:x"}},
 			{Name: "T1", Rule: []string{ref(), "space:Work"}},
@@ -96,7 +96,7 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 // then reported.
 func TestDeletingATag(t *testing.T) {
 	t.Parallel()
-	cfg := config.Config{Homeserver: "https://x", User: "@me:x", Tags: []config.Tag{{Name: "Old"}, {Name: "Keep"}}}
+	cfg := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Tags: []config.Tag{{Name: "Old"}, {Name: "Keep"}}}
 	cfg.Display.Rail.Order = []string{"tag:Old", "space:Work", "tag:Keep"}
 	cfg.Display.Rail.Hidden = []string{"TAG:old"}
 	cfg.Display.Priority = []string{"tag:old", "space:Old", "place:Old"}

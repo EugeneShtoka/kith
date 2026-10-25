@@ -17,13 +17,10 @@ func TestRequireAccount(t *testing.T) {
 		cfg     Config
 		wantErr bool
 	}{
-		"complete":              {Config{Homeserver: "https://x", User: "@a:x"}, false},
-		"missing homeserver":    {Config{User: "@a:x"}, true},
-		"missing user":          {Config{Homeserver: "https://x"}, true},
+		"complete":              {Config{Matrix: Matrix{Accounts: []MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@a:x"}}}}, false},
 		"empty":                 {Config{}, false},
 		"whatsapp only":         {Config{WhatsApp: WhatsApp{Accounts: []WhatsAppAccount{{Name: "a", Phone: "+1"}}}}, false},
-		"whatsapp and matrix":   {Config{Homeserver: "https://x", User: "@a:x", WhatsApp: WhatsApp{Accounts: []WhatsAppAccount{{Name: "a", Phone: "+1"}}}}, false},
-		"whatsapp, half matrix": {Config{User: "@a:x", WhatsApp: WhatsApp{Accounts: []WhatsAppAccount{{Name: "a", Phone: "+1"}}}}, true},
+		"whatsapp and matrix":   {Config{Matrix: Matrix{Accounts: []MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@a:x"}}}, WhatsApp: WhatsApp{Accounts: []WhatsAppAccount{{Name: "a", Phone: "+1"}}}}, false},
 		"profile":               {Config{Profiles: []Profile{{Name: "work", Homeserver: "https://x", User: "@me:x"}}}, false},
 		"profile no name":       {Config{Profiles: []Profile{{Homeserver: "https://x", User: "@me:x"}}}, true},
 		"profile no user":       {Config{Profiles: []Profile{{Name: "work", Homeserver: "https://x"}}}, true},
@@ -69,7 +66,7 @@ title = "{protocol} · {sender}"
 		t.Fatalf("Load: %v", err)
 	}
 	d := cfg.Display
-	if cfg.Homeserver != "https://x" || !cfg.AllowTokenFile || d.MaxNameLength != 12 || d.ApplyRoomNameRules() {
+	if cfg.Matrix.Accounts[0].Homeserver != "https://x" || !cfg.AllowTokenFile || d.MaxNameLength != 12 || d.ApplyRoomNameRules() {
 		t.Errorf("top level / display = %+v", cfg)
 	}
 	if len(d.SpaceRules) != 1 || d.SpaceRules[0].Space != "Friends" || !d.SpaceRules[0].FirstNameOnly {
@@ -164,11 +161,11 @@ func TestProfileResolution(t *testing.T) {
 		{Name: "work", Homeserver: "https://work.example", User: "@me:work.example"},
 	}}
 
-	if got, err := withProfiles.Profile(""); err != nil || got.User != "@me:home.example" {
-		t.Errorf("default = %q, %v; want the first profile", got.User, err)
+	if got, err := withProfiles.Profile(""); err != nil || got.Matrix.Accounts[0].User != "@me:home.example" {
+		t.Errorf("default = %+v, %v; want the first profile", got.Matrix, err)
 	}
-	if got, err := withProfiles.Profile("WORK"); err != nil || got.Homeserver != "https://work.example" {
-		t.Errorf("work = %q, %v", got.Homeserver, err)
+	if got, err := withProfiles.Profile("WORK"); err != nil || got.Matrix.Accounts[0].Homeserver != "https://work.example" {
+		t.Errorf("work = %+v, %v", got.Matrix, err)
 	}
 	_, err := withProfiles.Profile("office")
 	if err == nil || !strings.Contains(err.Error(), "personal") || !strings.Contains(err.Error(), "work") {
@@ -176,16 +173,16 @@ func TestProfileResolution(t *testing.T) {
 	}
 
 	// --profile against a single-account config must not hand over the only account.
-	single := Config{Homeserver: "https://home.example", User: "@me:home.example"}
+	single := Config{Matrix: Matrix{Accounts: []MatrixAccount{{Name: "me", Homeserver: "https://home.example", User: "@me:home.example"}}}}
 	if _, err := single.Profile("work"); err == nil {
 		t.Error("--profile against a config with no profiles should be refused")
 	}
-	if got, err := single.Profile(""); err != nil || got.User != "@me:home.example" {
-		t.Errorf("single-account config = %q, %v", got.User, err)
+	if got, err := single.Profile(""); err != nil || got.Matrix.Accounts[0].User != "@me:home.example" {
+		t.Errorf("single-account config = %+v, %v", got.Matrix, err)
 	}
 
 	both := withProfiles
-	both.User, both.Homeserver = "@me:home.example", "https://home.example"
+	both.Matrix = single.Matrix
 	if _, err := both.Profile(""); err == nil {
 		t.Error("an account set both at the top level and in profiles should be refused")
 	}

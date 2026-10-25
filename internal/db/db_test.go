@@ -514,7 +514,7 @@ func TestClearEmptiesEverything(t *testing.T) {
 	if err := cache.RecordMention(ctx, mx+"!a:x", "matrix:@a:x", 1); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.SaveInvites(ctx, []domain.Room{{ID: mx + "!i1:x", Name: "One"}}); err != nil {
+	if err := cache.SaveInvites(ctx, mxRooms, []domain.Room{{ID: mx + "!i1:x", Name: "One"}}); err != nil {
 		t.Fatal(err)
 	}
 

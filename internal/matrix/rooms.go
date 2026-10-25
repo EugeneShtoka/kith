@@ -26,8 +26,13 @@ func (b *InProc) Rooms(ctx context.Context) ([]domain.Room, error) {
 	if err != nil {
 		return nil, fmt.Errorf("matrix: read cached rooms: %w", err)
 	}
-	// The cache holds every network's rooms; the router adds the others' itself.
-	return slices.DeleteFunc(rooms, func(r domain.Room) bool { return !b.ids.owner().Owns(r.ID) }), nil
+	return b.ownRooms(rooms), nil
+}
+
+// ownRooms is rooms less any other account's: the cache holds every network's and
+// account's rooms, and the router and adapter add the others' themselves.
+func (b *InProc) ownRooms(rooms []domain.Room) []domain.Room {
+	return slices.DeleteFunc(rooms, func(r domain.Room) bool { return !b.ids.owner().Owns(r.ID) })
 }
 
 // RefreshRooms fetches joined rooms with their names, DM flags and member names,

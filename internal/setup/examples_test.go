@@ -43,7 +43,7 @@ func TestTheNotificationRuleExamplesPassStartup(t *testing.T) {
 	dir := t.TempDir()
 	for i, block := range blocks {
 		path := filepath.Join(dir, "config-"+string(rune('a'+i))+".toml")
-		body := "homeserver = \"https://example.org\"\nuser = \"@me:example.org\"\n\n" + block + "\n"
+		body := block + "\n"
 		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}

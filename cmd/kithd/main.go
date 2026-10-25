@@ -636,7 +636,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	// A sync means the account is online as of the sync's time, and is the catch-up
 	// notifications wait for.
 	m.OnSynced(func(on domain.RoomOwner, t time.Time) {
-		state.Report(daemon.StatusOf(m.Online()), t)
+		state.Report(daemon.StatusOf(m.Online(on)), t)
 		notifications.Synced(on, t)
 	})
 	return &workers{

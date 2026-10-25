@@ -30,7 +30,7 @@ func (*foldered) Groupings(_ context.Context, network domain.Protocol, account s
 func TestAFolderIsPreviewedAndCopiedIntoTheConfig(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte("homeserver = \"https://x\"\nuser = \"@me:x\"\n\n[[tag]]\nname = \"Friends\"\npicked = [\"whatsapp:44/1@s.whatsapp.net\", \"telegram:42/9\"]\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("[[tag]]\nname = \"Friends\"\npicked = [\"whatsapp:44/1@s.whatsapp.net\", \"telegram:42/9\"]\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	backend := &foldered{fakeBackend{Nop: apitest.Nop{}, rooms: []domain.Room{

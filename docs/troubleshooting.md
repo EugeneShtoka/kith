@@ -243,7 +243,7 @@ This asks the running daemon to empty the cache and rewind to a full initial syn
 then opens the client. The encryption store isn't touched, so no keys are lost. A
 large account can take a while to refill.
 
-Don't delete `crypto-<hash>.db`. It isn't a cache: it holds this device's identity and
+Don't delete a `crypto-<instance>-<account>.db`. It isn't a cache: it holds this device's identity and
 room keys.
 
 ### Old caches with a `.pre-schema-` suffix
@@ -347,7 +347,7 @@ store, never in a file by default.
   followed by the reason.
 
 On a headless machine with no keyring, `allow_token_file = true` stores the token in
-`~/.local/state/kith/session-<hash>.toml` (mode 0600), one file per account. A
+`~/.local/state/kith/session-<instance>-<account>.toml` (mode 0600), one file per account. A
 `session.toml` from an older version still loads for the account it belongs to and is
 renamed to the new name. End-to-end encryption still needs a
 keyring, so without one the daemon runs with encryption disabled.

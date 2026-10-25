@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -250,13 +251,18 @@ func sharedStorage(configPath, profile string) domain.Storage {
 // runKeyJobs runs the key flags before the interface opens, reporting whether the run
 // ends. Bootstrap and export end it: the TUI would scroll away a once-printed recovery
 // key, and an export needs nothing more.
-func runKeyJobs(ctx context.Context, backend *daemon.Remote, user string, jobs startup) (bool, error) {
+func runKeyJobs(ctx context.Context, backend *daemon.Remote, matrix config.Matrix, jobs startup) (bool, error) {
 	if !jobs.bootstrapKeys && !jobs.restoreKeys && jobs.exportKeys == "" && jobs.importKeys == "" {
 		return false, nil
 	}
-	on, err := matrixAccount(ctx, backend)
+	acc, err := matrixAccount(ctx, backend)
 	if err != nil {
 		return true, err
+	}
+	// Prompts name the account by its Matrix ID, as the homeserver knows it.
+	on, user := acc.On, acc.Name
+	if i := slices.IndexFunc(matrix.Accounts, func(a config.MatrixAccount) bool { return a.Name == acc.Name }); i >= 0 {
+		user = matrix.Accounts[i].User
 	}
 	if jobs.bootstrapKeys {
 		return true, bootstrapKeyBackup(ctx, backend, on, user)
@@ -279,23 +285,23 @@ func runKeyJobs(ctx context.Context, backend *daemon.Remote, user string, jobs s
 
 // matrixAccount is the Matrix account the key jobs act on, by the rule calls naming no
 // account follow (domain.PickAccount); where it would ask, the jobs refuse instead.
-func matrixAccount(ctx context.Context, backend api.Accounts) (domain.RoomOwner, error) {
+func matrixAccount(ctx context.Context, backend api.Accounts) (domain.Account, error) {
 	accounts, err := backend.Accounts(ctx)
 	if err != nil {
-		return "", fmt.Errorf("list the accounts: %w", err)
+		return domain.Account{}, fmt.Errorf("list the accounts: %w", err)
 	}
 	picked, ask := domain.PickAccount(accounts, domain.ProtocolMatrix, nil)
 	switch {
 	case picked.On != "":
-		return picked.On, nil
+		return picked, nil
 	case len(ask) == 0:
-		return "", errors.New("no Matrix account is logged in")
+		return domain.Account{}, errors.New("no Matrix account is logged in")
 	}
 	names := make([]string, 0, len(ask))
 	for _, a := range ask {
 		names = append(names, a.Name)
 	}
-	return "", fmt.Errorf("several Matrix accounts are logged in (%s) and none is the default", strings.Join(names, ", "))
+	return domain.Account{}, fmt.Errorf("several Matrix accounts are logged in (%s) and none is the default", strings.Join(names, ", "))
 }
 
 func run(configPath, profile string, jobs startup) error {
@@ -328,7 +334,7 @@ func run(configPath, profile string, jobs startup) error {
 			return fmt.Errorf("clear cache: %w", cerr)
 		}
 	}
-	if done, kerr := runKeyJobs(ctx, backend, cfg.User, jobs); done || kerr != nil {
+	if done, kerr := runKeyJobs(ctx, backend, cfg.Matrix, jobs); done || kerr != nil {
 		return kerr
 	}
 	log, closeLog, err := openLog(jobs, cfg.Log, profile, at.storage)

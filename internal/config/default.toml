@@ -1,5 +1,5 @@
 # kith configuration, with every option documented at its default. No account is
-# needed here: `:login` inside kith sets one up — Matrix (homeserver and user below),
+# needed here: `:login` inside kith sets one up — Matrix ([[matrix.account]] below),
 # WhatsApp, Slack or Telegram — and writes it in. The file holds no secrets: the password
 # is prompted for on first login and the access token lives in the OS keyring.
 #
@@ -10,15 +10,11 @@
 #
 # Unknown keys are refused at startup.
 
-# Your homeserver's base URL and full Matrix ID. Leave both empty to use only the
-# other networks (below).
-homeserver = ""
-user       = ""
-
-# Several accounts: name them here instead of above and pick one with
-# `kith --profile work` (default: the first). A profile carries only the account;
-# everything else in this file is shared. Each profile has its own login, daemon, cache
-# and crypto store. Setting the account both here and above is refused.
+# Several daemons: name an account per profile instead of in [[matrix.account]] and
+# pick one with `kith --profile work` (default: the first). A profile carries only its
+# Matrix account; everything else in this file is shared. Each profile has its own
+# login, daemon, cache and crypto store. Setting accounts both here and in
+# [[matrix.account]] is refused.
 #
 #   [[profile]]
 #   name       = "personal"
@@ -1152,6 +1148,24 @@ dir = ""
 [log]
 level = "info"
 target = "auto"
+
+# Matrix: each [[matrix.account]] is one account on its homeserver. `name` is what
+# `kith login matrix <name>` takes, `homeserver` the server's base URL and `user` the
+# full Matrix ID. Several accounts run at once, each with its own session, device and
+# crypto store; a room two of them are in shows as two rooms, one per account. Logging
+# in asks the homeserver how: in the browser (OAuth or single sign-on) or with the
+# password; kith keeps the session in the system keyring, never the password.
+#
+#   [[matrix.account]]
+#   name       = "personal"
+#   homeserver = "https://matrix.example.org"
+#   user       = "@you:example.org"
+
+[matrix]
+# With several accounts, the name of the one that opening a link, joining a room or
+# starting a chat uses without asking (one already in that room comes first).
+# Empty: kith asks which.
+default = ""
 
 # WhatsApp, linked directly: kith becomes one of the phone's linked devices, with no
 # Matrix bridge in between. It runs when it has an account; `:login whatsapp` inside

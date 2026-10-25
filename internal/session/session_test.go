@@ -25,11 +25,11 @@ func withTempState(t *testing.T) string {
 	return storeOf(sample().UserID).File
 }
 
-// storeOf is the store of an instance named after user's account.
+// storeOf is the store of user's Matrix account in a test instance.
 func storeOf(user string) Store {
-	return StoreFor(domain.Storage{
-		Instance: domain.AccountKey(user), StateDir: filepath.Join(xdg.StateHome, "kith"), KeyringService: legacyService,
-	}, user)
+	return MatrixStore(domain.Storage{
+		Instance: "test", StateDir: filepath.Join(xdg.StateHome, "kith"), KeyringService: legacyService,
+	}, domain.AccountKey(user))
 }
 
 func sample() domain.Session {
@@ -306,7 +306,7 @@ func TestKeyringSaveRemovesOnlyItsOwnFile(t *testing.T) {
 // A corrupt pickle key is never replaced: only it opens the existing crypto store.
 func TestACorruptPickleKeyIsKeptAndReported(t *testing.T) {
 	keyring.MockInit()
-	const acct = "@alice:example.org|pickle"
+	acct := storeOf("@alice:example.org").Account + "|pickle"
 	for _, corrupt := range []string{"not base64!", "c2hvcnQ="} { // garbage, and too short
 		if err := keyring.Set(legacyService, acct, corrupt); err != nil {
 			t.Fatal(err)

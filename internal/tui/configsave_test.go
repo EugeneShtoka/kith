@@ -13,7 +13,7 @@ func TestAnOlderConfigSaveNeverLandsLast(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "config.toml")
-	base := config.Config{Homeserver: "https://x", User: "@me:x"}
+	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}}
 	m := starterNew(apitest.Nop{}, config.Display{}).WithConfigFile(path, base).keptIn()
 
 	older, newer := base, base

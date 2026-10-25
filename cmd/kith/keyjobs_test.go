@@ -22,12 +22,12 @@ func TestTheKeyJobsTakeThePickedMatrixAccount(t *testing.T) {
 	work := domain.Account{Network: domain.ProtocolMatrix, On: domain.AccountRooms(domain.ProtocolMatrix, "fedcba9876543210"), Name: "@me:work.x"}
 	tg := domain.Account{Network: domain.ProtocolTelegram, On: domain.AccountRooms(domain.ProtocolTelegram, "42"), Name: "tg"}
 
-	if on, err := matrixAccount(ctx, accountsOf{tg, me}); err != nil || on != me.On {
-		t.Errorf("one Matrix account = (%q, %v), want it", on, err)
+	if got, err := matrixAccount(ctx, accountsOf{tg, me}); err != nil || got.On != me.On {
+		t.Errorf("one Matrix account = (%+v, %v), want it", got, err)
 	}
 	work.Default = true
-	if on, err := matrixAccount(ctx, accountsOf{me, work}); err != nil || on != work.On {
-		t.Errorf("two with a default = (%q, %v), want the default", on, err)
+	if got, err := matrixAccount(ctx, accountsOf{me, work}); err != nil || got.On != work.On {
+		t.Errorf("two with a default = (%+v, %v), want the default", got, err)
 	}
 	work.Default = false
 	if _, err := matrixAccount(ctx, accountsOf{me, work}); err == nil || !strings.Contains(err.Error(), "@me:work.x") {

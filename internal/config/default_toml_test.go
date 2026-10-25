@@ -1,10 +1,8 @@
 package config
 
 import (
-	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 )
@@ -17,19 +15,6 @@ func TestShippedDefaultTOMLMatchesDefaults(t *testing.T) {
 	if _, err := WriteDefaultIfMissing(path); err != nil {
 		t.Fatalf("WriteDefaultIfMissing: %v", err)
 	}
-	body, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-	// The shipped file leaves the two required fields blank for the user to fill.
-	filled := strings.NewReplacer(
-		`homeserver = ""`, `homeserver = "https://example.org"`,
-		`user       = ""`, `user       = "@me:example.org"`,
-	).Replace(string(body))
-	if werr := os.WriteFile(path, []byte(filled), 0o600); werr != nil {
-		t.Fatalf("write: %v", werr)
-	}
-
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("the shipped default config does not load: %v", err)

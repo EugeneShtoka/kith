@@ -449,7 +449,7 @@ hex-encoded, and goes on using that). There is no instance column anywhere:
 | resource | path (default directories) | derived in |
 | --- | --- | --- |
 | message cache, every network | `$XDG_DATA_HOME/kith/cache-<instance>.db` | `domain.Storage` |
-| Matrix crypto store | `$XDG_DATA_HOME/kith/crypto-<instance>.db` | `domain.Storage` |
+| Matrix crypto store, one per account (`<account>`: a hash of its Matrix ID) | `$XDG_DATA_HOME/kith/crypto-<instance>-<account>.db` | `domain.Storage` |
 | WhatsApp devices and Signal sessions (encrypted at rest) | `$XDG_DATA_HOME/kith/whatsapp-<instance>.db` | `domain.Storage` |
 | Messenger's encrypted chats' devices (encrypted at rest) | `$XDG_DATA_HOME/kith/messenger-<instance>.db` | `domain.Storage` |
 | Signal's linked devices (encrypted at rest), opened by `kith-signal` | `$XDG_DATA_HOME/kith/signal-<instance>.db` | `domain.Storage` |

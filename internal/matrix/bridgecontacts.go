@@ -36,32 +36,32 @@ type bridgeContacts struct {
 }
 
 // useBridgeContacts takes the configured bridges, asking for a read when they changed.
-func (m *Adapter) useBridgeContacts(bases []string) {
-	m.contacts.mu.Lock()
-	defer m.contacts.mu.Unlock()
-	if slices.Equal(m.contacts.bases, bases) {
+func (r *runner) useBridgeContacts(bases []string) {
+	r.contacts.mu.Lock()
+	defer r.contacts.mu.Unlock()
+	if slices.Equal(r.contacts.bases, bases) {
 		return
 	}
-	m.contacts.bases = slices.Clone(bases)
+	r.contacts.bases = slices.Clone(bases)
 	select {
-	case m.contacts.changed <- struct{}{}:
+	case r.contacts.changed <- struct{}{}:
 	default: // a read is already due
 	}
 }
 
 // followBridgeContacts reads the bridges' contact lists now, every bridgeContactsEvery
 // and on each change of the setting, until ctx ends. It blocks.
-func (m *Adapter) followBridgeContacts(ctx context.Context) {
+func (r *runner) followBridgeContacts(ctx context.Context) {
 	for {
-		m.contacts.mu.Lock()
-		bases := slices.Clone(m.contacts.bases)
-		m.contacts.mu.Unlock()
-		m.readBridgeContacts(ctx, bases)
+		r.contacts.mu.Lock()
+		bases := slices.Clone(r.contacts.bases)
+		r.contacts.mu.Unlock()
+		r.readBridgeContacts(ctx, bases)
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(bridgeContactsEvery):
-		case <-m.contacts.changed:
+		case <-r.contacts.changed:
 		}
 	}
 }

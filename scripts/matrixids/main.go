@@ -7,7 +7,11 @@
 // Run it with kithd and kith stopped, first with -dry-run. It rewrites the cache in
 // place (keeping offline history and drafts), the config, the schedule queue and the
 // assistant ledger; each file it changes is copied to <file>.pre-matrixids first.
-// Delete this program once every install has run it.
+//
+// For several Matrix accounts (step 5) the config's top-level homeserver and user
+// become a [[matrix.account]], and with -instance the account's crypto store and
+// session file are renamed and its keyring entries copied to the names that carry its
+// key. Delete this program once every install has run it.
 package main
 
 import (
@@ -37,14 +41,28 @@ func main() {
 	config := flag.String("config", "", "the config file")
 	schedule := flag.String("schedule", "", "the schedule queue")
 	ledger := flag.String("ledger", "", "the assistant ledger")
+	instance := flag.String("instance", "", "the [storage] instance whose Matrix files and keyring entries move")
+	dataDir := flag.String("data-dir", "", "the instance's data directory, holding crypto-<instance>.db (with -instance)")
+	stateDir := flag.String("state-dir", "", "the instance's state directory, holding session-<instance>.toml (with -instance)")
+	service := flag.String("keyring-service", "kith", "the [storage] keyring service (with -instance)")
 	dry := flag.Bool("dry-run", false, "report what would change and write nothing")
 	flag.Parse()
 	if !strings.HasPrefix(*user, "@") || !strings.Contains(*user, ":") {
 		fmt.Fprintln(os.Stderr, "matrixids: -user must be the account's MXID, @name:server")
 		os.Exit(2)
 	}
+	if *instance != "" && (*dataDir == "" || *stateDir == "") {
+		fmt.Fprintln(os.Stderr, "matrixids: -instance needs -data-dir and -state-dir")
+		os.Exit(2)
+	}
 	x := ids{account: domain.AccountKey(*user)}
 	var errs []error
+	if *instance != "" {
+		storage := domain.Storage{Instance: *instance, DataDir: *dataDir, StateDir: *stateDir, KeyringService: *service}
+		errs = append(errs,
+			report("files of", *instance)(migrateStores(storage, *user, *dry)),
+			report("keyring entries of", *instance)(migrateKeyring(storage, *user, *dry)))
+	}
 	if *cache != "" {
 		errs = append(errs, report("cache", *cache)(migrateCache(context.Background(), *cache, x, *dry)))
 	}
@@ -52,7 +70,14 @@ func main() {
 		what, path string
 		rewrite    func(ids, []byte) ([]byte, int, error)
 	}{
-		{"config", *config, rewriteTOML},
+		{"config", *config, func(x ids, in []byte) ([]byte, int, error) {
+			out, n, err := rewriteTOML(x, in)
+			if err != nil {
+				return nil, 0, err
+			}
+			out, moved, err := moveAccount(*user)(x, out)
+			return out, n + moved, err
+		}},
 		{"schedule", *schedule, rewriteTOML},
 		{"ledger", *ledger, rewriteLedger},
 	} {

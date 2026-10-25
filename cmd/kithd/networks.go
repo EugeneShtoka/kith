@@ -97,8 +97,8 @@ func openNetworks(
 	ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage,
 ) (networks []network, mx *matrix.Adapter, stores []store) {
 	mx = matrix.NewAdapter(cache, log, matrix.Place{
-		CryptoPath: storage.CryptoPath(),
-		Keys:       func(user string) session.Store { return session.StoreFor(storage, user) },
+		CryptoPath: storage.MatrixCryptoPath,
+		Keys:       func(key string) session.Store { return session.MatrixStore(storage, key) },
 	})
 	networks = append(networks, mx)
 	if key, err := session.LoadOrCreateStoreKey(storage.KeyringService, storage.Instance, "whatsapp"); err != nil {

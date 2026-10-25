@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 
@@ -42,11 +41,7 @@ var starterOnce = sync.OnceValues(func() (config.Config, error) {
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 	path := filepath.Join(dir, "config.toml")
-	filled := strings.NewReplacer(
-		`homeserver = ""`, `homeserver = "https://example.org"`,
-		`user       = ""`, `user       = "@me:example.org"`,
-	).Replace(config.Annotated())
-	if err := os.WriteFile(path, []byte(filled), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(config.Annotated()), 0o600); err != nil {
 		return config.Config{}, err
 	}
 	return config.Load(path)

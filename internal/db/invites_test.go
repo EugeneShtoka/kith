@@ -25,7 +25,7 @@ func TestInvitesRoundTrip(t *testing.T) {
 		{ID: mx + "!i1:x", Name: "Design Review", InvitedBy: "matrix:@alice:x"},
 		{ID: mx + "!i2:x", Name: "Dana", InvitedBy: "matrix:@bob:x", IsDirect: true},
 	}
-	if serr := cache.SaveInvites(ctx, want); serr != nil {
+	if serr := cache.SaveInvites(ctx, mxRooms, want); serr != nil {
 		t.Fatalf("SaveInvites: %v", serr)
 	}
 	got, err = cache.Invites(ctx)
@@ -57,12 +57,12 @@ func TestSaveInvitesIsASnapshot(t *testing.T) {
 	ctx := context.Background()
 	cache := openTemp(t)
 
-	if err := cache.SaveInvites(ctx, []domain.Room{
+	if err := cache.SaveInvites(ctx, mxRooms, []domain.Room{
 		{ID: mx + "!i1:x", Name: "One"}, {ID: mx + "!i2:x", Name: "Two"},
 	}); err != nil {
 		t.Fatalf("SaveInvites: %v", err)
 	}
-	if err := cache.SaveInvites(ctx, []domain.Room{{ID: mx + "!i2:x", Name: "Two"}}); err != nil {
+	if err := cache.SaveInvites(ctx, mxRooms, []domain.Room{{ID: mx + "!i2:x", Name: "Two"}}); err != nil {
 		t.Fatalf("SaveInvites: %v", err)
 	}
 	got, err := cache.Invites(ctx)
@@ -72,7 +72,7 @@ func TestSaveInvitesIsASnapshot(t *testing.T) {
 	if len(got) != 1 || got[0].ID != mx+"!i2:x" {
 		t.Fatalf("after a shrinking snapshot: %+v, want just !i2:x", got)
 	}
-	if serr := cache.SaveInvites(ctx, nil); serr != nil {
+	if serr := cache.SaveInvites(ctx, mxRooms, nil); serr != nil {
 		t.Fatalf("SaveInvites(nil): %v", serr)
 	}
 	if got, err = cache.Invites(ctx); err != nil || len(got) != 0 {
@@ -86,7 +86,7 @@ func TestRoomsAndInvitesAreIndependent(t *testing.T) {
 
 	ctx := context.Background()
 	cache := openTemp(t)
-	if err := cache.SaveInvites(ctx, []domain.Room{{ID: mx + "!i1:x", Name: "Invited"}}); err != nil {
+	if err := cache.SaveInvites(ctx, mxRooms, []domain.Room{{ID: mx + "!i1:x", Name: "Invited"}}); err != nil {
 		t.Fatalf("SaveInvites: %v", err)
 	}
 	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); err != nil {

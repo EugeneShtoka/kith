@@ -27,7 +27,7 @@ func configAt(t *testing.T, text, profile string) *ConfigFile {
 func TestTheConfigIsWrittenOnlyOnTheRevisionItWasMadeOn(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	f := configAt(t, "homeserver = \"https://x\"\nuser = \"@me:x\"\n", "")
+	f := configAt(t, "allow_token_file = true\n", "")
 	read, err := f.Read()
 	if err != nil {
 		t.Fatal(err)
@@ -63,14 +63,14 @@ func TestTheConfigIsWrittenOnlyOnTheRevisionItWasMadeOn(t *testing.T) {
 	}
 }
 
-// An account kept in [[profile]] blocks stays there; moving it to the top level
-// would not load.
+// An account kept in [[profile]] blocks stays there; writing it as a
+// [[matrix.account]] too would not load.
 func TestAWriteKeepsTheAccountInItsProfile(t *testing.T) {
 	t.Parallel()
 	f := configAt(t, "[[profile]]\nname = \"home\"\nhomeserver = \"https://x\"\nuser = \"@me:x\"\n", "home")
 	read, err := f.Read()
-	if err != nil || read.Config.User != "@me:x" {
-		t.Fatalf("read = (%+v, %v)", read.Config.User, err)
+	if err != nil || len(read.Config.Matrix.Accounts) != 1 || read.Config.Matrix.Accounts[0].User != "@me:x" {
+		t.Fatalf("read = (%+v, %v)", read.Config.Matrix, err)
 	}
 	changed := read.Config.Clone()
 	changed.Notifications.Enabled = false
@@ -78,8 +78,8 @@ func TestAWriteKeepsTheAccountInItsProfile(t *testing.T) {
 		t.Fatal(werr)
 	}
 	onDisk, err := config.Load(f.path)
-	if err != nil || onDisk.User != "" || len(onDisk.Profiles) != 1 {
-		t.Errorf("on disk: user %q, %d profiles, %v", onDisk.User, len(onDisk.Profiles), err)
+	if err != nil || len(onDisk.Matrix.Accounts) != 0 || len(onDisk.Profiles) != 1 {
+		t.Errorf("on disk: accounts %+v, %d profiles, %v", onDisk.Matrix.Accounts, len(onDisk.Profiles), err)
 	}
 }
 
@@ -87,7 +87,7 @@ func TestAWriteKeepsTheAccountInItsProfile(t *testing.T) {
 func TestWritersOnOneRevisionAreWrittenOnce(t *testing.T) {
 	t.Parallel()
 	for round := range 20 {
-		f := configAt(t, "homeserver = \"https://x\"\nuser = \"@me:x\"\n", "")
+		f := configAt(t, "allow_token_file = true\n", "")
 		read, _ := f.Read()
 		var mu sync.Mutex
 		var won []int
@@ -116,7 +116,7 @@ func TestWritersOnOneRevisionAreWrittenOnce(t *testing.T) {
 // An unwritable config is the daemon's own failure and changes nothing.
 func TestAConfigThatCannotBeWrittenSaysSo(t *testing.T) {
 	t.Parallel()
-	f := configAt(t, "homeserver = \"https://x\"\nuser = \"@me:x\"\n", "")
+	f := configAt(t, "allow_token_file = true\n", "")
 	read, _ := f.Read()
 	dir := filepath.Dir(f.path)
 	if err := os.Chmod(dir, 0o500); err != nil {

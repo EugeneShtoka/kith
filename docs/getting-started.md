@@ -296,10 +296,12 @@ Telegram —
 asking for what each needs and explaining where to find it. The rest of this section
 is the same done by hand.
 
-Open the file and fill in the two fields at the top for Matrix (to use kith only for
-WhatsApp, leave them empty and enable `[whatsapp]` instead):
+Open the file and add a Matrix account (to use kith only for WhatsApp, leave it out
+and enable `[whatsapp]` instead):
 
 ```toml
+[[matrix.account]]
+name       = "personal"
 homeserver = "https://matrix.example.org"
 user       = "@alice:example.org"
 ```
@@ -565,8 +567,11 @@ the binary's absolute path.
 
 ## Multiple accounts
 
-To use more than one account, replace the top-level `homeserver` and `user` with
-named `[[profile]]` blocks:
+One daemon runs every `[[matrix.account]]` in the file, as it does every network's
+accounts: `kith login matrix <name>` logs each in, and each is a space in the rail.
+See [configuration.md](configuration.md#matrix-accounts).
+
+To run an account in a daemon of its own instead, name it in a `[[profile]]` block:
 
 ```toml
 [[profile]]
@@ -580,7 +585,7 @@ homeserver = "https://matrix.work.example"
 user       = "@alice:work.example"
 ```
 
-Keep the account in one place only. A file with both a top-level account and
+Keep the account in one place only. A file with both `[[matrix.account]]` and
 profiles is refused. Profile names may contain letters, digits, `.`, `-` and `_`.
 
 A profile carries **only the account**. Keybindings, display settings and
@@ -625,12 +630,12 @@ don't reveal who is logged in.
 | Config | `~/.config/kith/config.toml` | Holds no secrets. The first settings-screen save leaves `config.toml.bak` beside it. |
 | Your commands | `~/.config/kith/commands/` | Default `[commands] dir`. See [commands.md](commands.md). |
 | Message cache | `~/.local/share/kith/cache-<hash>.db` | SQLite. A copy of what the homeserver has, so it is safe to rebuild. See [database.md](database.md). |
-| Crypto store | `~/.local/share/kith/crypto-<hash>.db` | Olm/Megolm keys and the sync position. **Not** a cache: don't delete it. |
+| Crypto store | `~/.local/share/kith/crypto-<hash>-<account>.db`, one per Matrix account (`<account>`: a hash of its Matrix ID) | Olm/Megolm keys and the sync position. **Not** a cache: don't delete it. |
 | Old caches | `~/.local/share/kith/cache-<hash>.db.pre-schema-<date>-<time>` | Kept when a schema change rebuilt the cache; the two newest are kept, older ones are deleted at the next rebuild. Delete them when you no longer need them. |
 | Dictionaries, word lists, models | `~/.local/share/kith/hunspell/`, `~/.local/share/kith/models/`, … | Written by `--add-dictionary`, `--add-frequencies` and `--add-model`. |
 | Scheduled messages | `~/.local/state/kith/scheduled-<hash>.toml` | The send-later queue. |
 | Assistant ledger | `~/.local/state/kith/agent-sends-<hash>.jsonl` | What `kith-mcp` wrote on your behalf. Read it with `kith --agent-log`. |
-| Token file (opt-in only) | `~/.local/state/kith/session-<hash>.toml` | Only with `allow_token_file = true`. Mode 0600, one per account. An older single `session.toml` is still read for the account it belongs to and renamed on first use. |
+| Token file (opt-in only) | `~/.local/state/kith/session-<hash>-<account>.toml` | Only with `allow_token_file = true`. Mode 0600, one per account. An older single `session.toml` is still read for the account it belongs to and renamed on first use. |
 | Media cache | `~/.cache/kith/media/` | Attachments and their rendered previews, capped at 1 GiB by default (`[display.media] cache_dir`, `cache_max_mb`). |
 | Socket and lock | `$XDG_RUNTIME_DIR/kith/<hash>.sock` and `<hash>.lock` | Usually under `/run/user/<uid>/`. The socket is mode 0600 in a 0700 directory. |
 

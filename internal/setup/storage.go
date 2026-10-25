@@ -38,8 +38,10 @@ func StorageFor(cfg config.Config, configPath, profile string) (domain.Storage, 
 	if name := chosenProfile(cfg, profile); name != "" {
 		storage.Instance = base + "-" + name
 		// A profile kept its files under its own account's name before instances.
-		if legacy := domain.AccountKey(cfg.User); cfg.User != "" && hasFiles(storage, legacy) {
-			storage.Instance = legacy
+		for _, acc := range cfg.Matrix.Accounts {
+			if legacy := domain.AccountKey(acc.User); hasFiles(storage, legacy) {
+				storage.Instance = legacy
+			}
 		}
 	}
 	return storage, nil
@@ -109,9 +111,11 @@ func baseInstance(cfg config.Config, configPath string, storage domain.Storage) 
 		}
 		return id, nil
 	}
-	if len(cfg.Profiles) == 0 && cfg.User != "" {
-		if legacy := domain.AccountKey(cfg.User); hasFiles(storage, legacy) {
-			return legacy, nil
+	if len(cfg.Profiles) == 0 {
+		for _, acc := range cfg.Matrix.Accounts {
+			if legacy := domain.AccountKey(acc.User); hasFiles(storage, legacy) {
+				return legacy, nil
+			}
 		}
 	}
 	return pathInstance(configPath), nil

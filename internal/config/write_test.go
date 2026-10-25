@@ -27,7 +27,7 @@ func saved(t *testing.T, cfg Config) (string, string) {
 
 // minimal is a config with only the required fields set.
 func minimal() Config {
-	cfg := Config{Homeserver: "https://example.org", User: "@me:example.org"}
+	cfg := Config{Matrix: Matrix{Accounts: []MatrixAccount{{Name: "me", Homeserver: "https://example.org", User: "@me:example.org"}}}}
 	cfg.Keys.FillDefaults()
 	return cfg
 }
@@ -63,7 +63,7 @@ func TestSaveOmitsDefaults(t *testing.T) {
 		}
 	}
 	// The required fields are always written.
-	for _, present := range []string{"homeserver =", "user ="} {
+	for _, present := range []string{"[[matrix.account]]", "homeserver =", "user ="} {
 		if !strings.Contains(body, present) {
 			t.Errorf("%q must be written", present)
 		}
@@ -190,7 +190,7 @@ func TestSaveBacksUpOnce(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
-	original := "# my careful comments\nhomeserver = \"https://example.org\"\nuser = \"@me:example.org\"\n"
+	original := "# my careful comments\n[[matrix.account]]\nname = \"me\"\nhomeserver = \"https://example.org\"\nuser = \"@me:example.org\"\n"
 	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -411,7 +411,7 @@ func TestFloatSettingsSurviveASaveAndReload(t *testing.T) {
 func TestALongArrayIsWrittenOnePerLine(t *testing.T) {
 	t.Parallel()
 
-	cfg := Config{Homeserver: "https://example.org", User: "@me:example.org"}
+	cfg := Config{Matrix: Matrix{Accounts: []MatrixAccount{{Name: "me", Homeserver: "https://example.org", User: "@me:example.org"}}}}
 	cfg.Keys.FillDefaults()
 	short := cfg
 	short.Complete.Sources = []string{"history", "frequency"}
@@ -469,7 +469,7 @@ func TestRoomNamesTakesEveryRoomID(t *testing.T) {
 func TestAConfigWithoutTagsHasTheStartersAndDeletingThemSticks(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte("homeserver = \"https://x\"\nuser = \"@me:x\"\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("allow_token_file = true\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(path)
