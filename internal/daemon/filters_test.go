@@ -117,8 +117,8 @@ func spamNotifier(t *testing.T, cfg config.Config, src *spamBackend) (*daemon.No
 		t.Fatalf("NewNotifications: %v", err)
 	}
 	n.UseSelves(func() []string { return []string{me} })
-	n.Synced(time.Now())
-	n.Synced(time.Now())
+	n.Synced(mx, time.Now())
+	n.Synced(mx, time.Now())
 	return n, rec
 }
 

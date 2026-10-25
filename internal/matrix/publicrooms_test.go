@@ -22,6 +22,7 @@ func TestACallForAnotherAccountIsRefused(t *testing.T) {
 		"RestoreKeyBackup":  func() error { _, err := b.RestoreKeyBackup(ctx, other, "s"); return err },
 		"ExportRoomKeys":    func() error { _, err := b.ExportRoomKeys(ctx, other, "p"); return err },
 		"ImportRoomKeys":    func() error { _, _, err := b.ImportRoomKeys(ctx, other, "p", nil); return err },
+		"BackupRoomKeys":    func() error { _, err := b.BackupRoomKeys(ctx, other); return err },
 		"BootstrapKeyBackup": func() error {
 			_, err := b.BootstrapKeyBackup(ctx, other, "p")
 			return err

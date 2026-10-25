@@ -318,9 +318,9 @@ func (m *Adapter) run(ctx context.Context, prepare func(context.Context) error) 
 }
 
 // BackupRoomKeys has nothing to back up before a session (daemon.KeyBackup).
-func (m *Adapter) BackupRoomKeys(ctx context.Context) (int, error) {
+func (m *Adapter) BackupRoomKeys(ctx context.Context, on domain.RoomOwner) (int, error) {
 	if !m.LoggedIn() {
 		return 0, nil
 	}
-	return m.InProc.BackupRoomKeys(ctx)
+	return m.InProc.BackupRoomKeys(ctx, on)
 }

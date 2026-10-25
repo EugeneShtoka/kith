@@ -16,24 +16,26 @@ type writer struct {
 	pool  []domain.RoomID
 }
 
-// writers are Matrix and two WhatsApp accounts with alike digits, so an ID prefix off
-// by one character would reach another's rooms.
+// writers are two Matrix accounts in the same rooms, and two WhatsApp accounts with
+// alike digits, so an ID prefix off by one character would reach another's rooms.
 func writers(sizes ...int) []writer {
 	matrix := writer{owner: mxRooms}
+	work := writer{owner: domain.AccountRooms(domain.ProtocolMatrix, "fedcba9876543210")}
 	a := writer{owner: domain.AccountRooms(domain.ProtocolWhatsApp, "44")}
 	b := writer{owner: domain.AccountRooms(domain.ProtocolWhatsApp, "440")}
 	for i := range sizes[0] {
-		id := fmt.Sprintf(mx+"!r%d:x", i)
+		native := fmt.Sprintf("!r%d:x", i)
 		if i%3 == 0 {
-			id = fmt.Sprintf(mx+"!v12opaque%d", i) // room v12: no server
+			native = fmt.Sprintf("!v12opaque%d", i) // room v12: no server
 		}
-		matrix.pool = append(matrix.pool, domain.RoomID(id))
+		matrix.pool = append(matrix.pool, domain.RoomID(string(matrix.owner)+native))
+		work.pool = append(work.pool, domain.RoomID(string(work.owner)+native))
 	}
 	for i := range sizes[1] {
 		a.pool = append(a.pool, domain.RoomID(fmt.Sprintf("whatsapp:44/1203%d@g.us", i)))
 		b.pool = append(b.pool, domain.RoomID(fmt.Sprintf("whatsapp:440/1203%d@g.us", i)))
 	}
-	return []writer{matrix, a, b}
+	return []writer{matrix, work, a, b}
 }
 
 // Under any interleaving of room refreshes, a room is cached exactly when its writer's

@@ -104,7 +104,7 @@ holds data but appears in neither list until the next refresh promotes it.
 | `drafts` | the unsent message per room, including reply/edit state, mentions, the caret, and who wrote it (you, or an assistant) |
 | `starred` | mirror of the `org.kith.starred` account data |
 | `tag_verdicts` | mirror of the `org.kith.tags` account data: per room and tag, the rule and filter that moved it, or a release |
-| `person_verdicts` | per person ID and tag, the rule and filter that put them there, or a release; Matrix IDs mirror the `org.kith.people` account data |
+| `person_verdicts` | per person ID and tag, the rule and filter that put them there, or a release; Matrix IDs mirror each account's `org.kith.people` account data, under that account |
 
 ### Rankings and bookkeeping
 
@@ -210,8 +210,13 @@ holds a mirror:
 - `tag_verdicts` mirrors `org.kith.tags`: per tag, which filter moved a room there and
   by which rule, or a release, which keeps it out of that tag whatever the filters say.
 - `person_verdicts` mirrors `org.kith.people` (account data of the account, not of a
-  room) for Matrix IDs: which filter put a person in a tag, or a release. A person on
-  another network has no homeserver to keep it, so their rows are the only copy.
+  room) for Matrix IDs: which filter put a person in a tag, or a release. Each Matrix
+  account's rows carry it (`account`, its rooms' `matrix:<key>/`) and are replaced
+  only by its own account data; a person's verdict applies on every account, so where
+  several hold one for the same tag, the newest is read. A person on another network
+  has no homeserver to keep it, so their rows are the only copy, with no account.
+  `ignored_users` mirrors each account's `m.ignored_user_list` the same way, read as one
+  list.
 
 The homeserver has the record; the table exists because search and the room list
 have to join against something, offline. That split is what makes a rebuild
@@ -337,8 +342,14 @@ Since then:
   (Telegram public chats and channels), lowercase and without the `@`; written by that
   network when it lists rooms, so `tg://` link resolution survives a restart without
   waiting for the next refresh.
+- v26 (`ignored_users`, `person_verdicts`): Matrix mirrors are per account. Both tables
+  gain `account` (the account's rooms' owner, `matrix:<key>/`) in their key, so one
+  account's account data never replaces another's; rows kept here alone have none.
+  Until then one Matrix account wrote them, so its owner is read off the cached rooms
+  (with none cached, its mirrored rows go: the homeserver holds them). Bridge contact
+  sources gain the account the same way (`bridge:matrix:<key>/<url>#<login>`).
 
-so a current cache is at version 25.
+so a current cache is at version 26.
 
 ### Indexes need no migration
 

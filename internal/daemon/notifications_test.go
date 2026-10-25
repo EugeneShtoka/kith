@@ -3,6 +3,7 @@ package daemon_test
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"strings"
 	"sync"
@@ -112,8 +113,8 @@ func notifier(t *testing.T, cfg config.Config) (*daemon.Notifications, *recorder
 	}
 	n.UseSelves(func() []string { return []string{me} })
 	// Two sync responses put the daemon past its catch-up batch.
-	n.Synced(time.Now())
-	n.Synced(time.Now())
+	n.Synced(mx, time.Now())
+	n.Synced(mx, time.Now())
 	return n, rec, src
 }
 
@@ -461,17 +462,68 @@ func TestCatchUpDoesNotNotify(t *testing.T) {
 	}
 
 	// The catch-up batch arrives between the first and second responses.
-	n.Synced(time.Now())
+	n.Synced(mx, time.Now())
 	if _, ok := n.Deliver(context.Background(), msg(chatRm, alice, "also overnight")); ok {
 		t.Error("the catch-up batch is history; history does not interrupt you")
 	}
 
-	n.Synced(time.Now())
+	n.Synced(mx, time.Now())
 	if _, ok := n.Deliver(context.Background(), msg(chatRm, alice, "just now")); !ok {
 		t.Error("once caught up, a message that arrives should notify at once")
 	}
 	if got := rec.all(); len(got) != 1 || got[0].Body != "just now" {
 		t.Errorf("notifications = %+v, want only the live one", got)
+	}
+}
+
+// Under any interleaving of two Matrix accounts' syncs and messages, a message
+// notifies only once its own account is past its catch-up batch: one account caught
+// up never lets another's batch through. A network that reports no syncs (WhatsApp
+// here) waits for any account.
+func TestEachAccountHasItsOwnCatchUp(t *testing.T) {
+	t.Parallel()
+	work := domain.AccountRooms(domain.ProtocolMatrix, "fedcba9876543210")
+	rooms := []domain.Room{
+		{ID: chatRm, Name: chatNam},
+		{ID: domain.RoomID(string(work) + "!standup:example.org"), Name: "Standup at work"},
+		{ID: "whatsapp:15550000001/120363@g.us", Name: "Choir"},
+	}
+	accounts := []domain.RoomOwner{domain.RoomOwner(mx), work}
+	for seed := range uint64(40) {
+		rng := rand.New(rand.NewPCG(seed, 5))
+		rec := &recorder{}
+		n, err := daemon.NewNotifications(notifsOn("all"), &scopeBackend{rooms: rooms},
+			func(config.Notifications) notify.Notifier { return rec })
+		if err != nil {
+			t.Fatal(err)
+		}
+		n.UseSelves(func() []string { return []string{me} })
+		syncs := map[domain.RoomOwner]int{}
+		var trail []string
+		for step := range 16 {
+			if rng.IntN(3) == 0 {
+				on := accounts[rng.IntN(len(accounts))]
+				n.Synced(on, time.Now())
+				syncs[on]++
+				trail = append(trail, "sync "+string(on))
+				continue
+			}
+			room := rooms[rng.IntN(len(rooms))].ID
+			want := false
+			if count, reports := syncs[domain.OwnerOf(room)]; reports {
+				want = count > 1
+			} else {
+				for _, count := range syncs {
+					want = want || count > 1
+				}
+			}
+			trail = append(trail, "message in "+string(room))
+			m := msg(room, alice, fmt.Sprint("message ", step))
+			m.ID = domain.EventID(fmt.Sprint(m.ID, step))
+			if _, got := n.Deliver(context.Background(), m); got != want {
+				t.Fatalf("seed %d: notified = %t, want %t after:\n  %s", seed, got, want, strings.Join(trail, "\n  "))
+			}
+		}
 	}
 }
 
@@ -588,8 +640,8 @@ func TestAThreadRuleAsksWhetherWeAreInTheConversation(t *testing.T) {
 		t.Fatalf("NewNotifications: %v", err)
 	}
 	n.UseSelves(func() []string { return []string{me} })
-	n.Synced(time.Now())
-	n.Synced(time.Now())
+	n.Synced(mx, time.Now())
+	n.Synced(mx, time.Now())
 
 	inThread := func(root domain.EventID) domain.Message {
 		m := msg(chatRm, alice, "hi")

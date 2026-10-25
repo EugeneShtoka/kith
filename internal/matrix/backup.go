@@ -14,6 +14,7 @@ import (
 	"maunium.net/go/mautrix/id"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // Room key upload to the server-side backup (mautrix v0.30 never uploads). Sessions
@@ -28,9 +29,12 @@ const (
 	backupPass = 1000
 )
 
-// BackupRoomKeys uploads every room key not yet in the backup and returns how many.
-// ErrNoEncryption / ErrNoKeyBackup mean nothing to do.
-func (b *InProc) BackupRoomKeys(ctx context.Context) (int, error) {
+// BackupRoomKeys uploads every room key of account on not yet in its backup and returns
+// how many. ErrNoEncryption / ErrNoKeyBackup mean nothing to do.
+func (b *InProc) BackupRoomKeys(ctx context.Context, on domain.RoomOwner) (int, error) {
+	if err := b.mine(on); err != nil {
+		return 0, err
+	}
 	helper := b.cryptoHelper()
 	if helper == nil {
 		return 0, api.ErrNoEncryption

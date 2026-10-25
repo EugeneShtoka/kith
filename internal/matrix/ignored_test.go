@@ -142,7 +142,7 @@ func TestIgnoreUserPropagatesServerErrors(t *testing.T) {
 		t.Fatal("Ignore succeeded despite a 403 from the server")
 	}
 	// The cache must have no row for a write that failed.
-	got, cerr := b.cache.MatrixIgnored(ctx, domain.ProtocolMatrix)
+	got, cerr := b.cache.MatrixIgnored(ctx)
 	if cerr != nil {
 		t.Fatal(cerr)
 	}

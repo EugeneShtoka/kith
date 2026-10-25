@@ -110,8 +110,8 @@ func personNotifier(t *testing.T, cfg config.Config, src *personBackend) *daemon
 		t.Fatalf("NewNotifications: %v", err)
 	}
 	n.UseSelves(func() []string { return []string{me} })
-	n.Synced(time.Now())
-	n.Synced(time.Now())
+	n.Synced(mx, time.Now())
+	n.Synced(mx, time.Now())
 	return n
 }
 

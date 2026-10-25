@@ -12,7 +12,6 @@ import (
 	"maunium.net/go/mautrix/event"
 
 	"github.com/EugeneShtoka/kith/internal/db"
-	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // ignoredType is the Matrix account data type for ignored users: the account's,
@@ -135,7 +134,7 @@ func (b *InProc) writeIgnored(ctx context.Context, users []string) error {
 		return fmt.Errorf("matrix: record the ignored list: %w", err)
 	}
 	return toCache(b, "mirror the ignored list", func(c *db.Cache) error {
-		return c.SetMatrixIgnored(ctx, domain.ProtocolMatrix, users)
+		return c.SetMatrixIgnored(ctx, b.ids.owner(), users)
 	})
 }
 
@@ -145,7 +144,7 @@ func (b *InProc) mirrorIgnored(ctx context.Context, ids []string) {
 	if b.cache == nil {
 		return
 	}
-	b.warnIf(ctx, b.cache.SetMatrixIgnored(ctx, domain.ProtocolMatrix, ids), "mirror the ignored list")
+	b.warnIf(ctx, b.cache.SetMatrixIgnored(ctx, b.ids.owner(), ids), "mirror the ignored list")
 }
 
 // sameStringSet reports whether two sorted lists hold the same entries.
