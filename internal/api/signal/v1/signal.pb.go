@@ -3792,6 +3792,256 @@ func (*MarkReadResponse) Descriptor() ([]byte, []int) {
 	return file_signal_v1_signal_proto_rawDescGZIP(), []int{52}
 }
 
+type GroupByInviteRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The connected account's ACI.
+	Account string `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	// The link's invite: a GroupInviteLink message.
+	Invite        []byte `protobuf:"bytes,2,opt,name=invite,proto3" json:"invite,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GroupByInviteRequest) Reset() {
+	*x = GroupByInviteRequest{}
+	mi := &file_signal_v1_signal_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GroupByInviteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GroupByInviteRequest) ProtoMessage() {}
+
+func (x *GroupByInviteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GroupByInviteRequest.ProtoReflect.Descriptor instead.
+func (*GroupByInviteRequest) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *GroupByInviteRequest) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
+func (x *GroupByInviteRequest) GetInvite() []byte {
+	if x != nil {
+		return x.Invite
+	}
+	return nil
+}
+
+type GroupByInviteResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The group's ID, as Group has it.
+	Id      string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title   string `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Members uint32 `protobuf:"varint,3,opt,name=members,proto3" json:"members,omitempty"`
+	// The account is in the group already.
+	Member bool `protobuf:"varint,4,opt,name=member,proto3" json:"member,omitempty"`
+	// The group's admins approve who joins by the link.
+	Approval bool `protobuf:"varint,5,opt,name=approval,proto3" json:"approval,omitempty"`
+	// The account asked to join, and the admins have yet to answer.
+	Requested     bool `protobuf:"varint,6,opt,name=requested,proto3" json:"requested,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GroupByInviteResponse) Reset() {
+	*x = GroupByInviteResponse{}
+	mi := &file_signal_v1_signal_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GroupByInviteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GroupByInviteResponse) ProtoMessage() {}
+
+func (x *GroupByInviteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GroupByInviteResponse.ProtoReflect.Descriptor instead.
+func (*GroupByInviteResponse) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *GroupByInviteResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *GroupByInviteResponse) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *GroupByInviteResponse) GetMembers() uint32 {
+	if x != nil {
+		return x.Members
+	}
+	return 0
+}
+
+func (x *GroupByInviteResponse) GetMember() bool {
+	if x != nil {
+		return x.Member
+	}
+	return false
+}
+
+func (x *GroupByInviteResponse) GetApproval() bool {
+	if x != nil {
+		return x.Approval
+	}
+	return false
+}
+
+func (x *GroupByInviteResponse) GetRequested() bool {
+	if x != nil {
+		return x.Requested
+	}
+	return false
+}
+
+type JoinGroupRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The connected account's ACI.
+	Account string `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	// The link's invite: a GroupInviteLink message.
+	Invite        []byte `protobuf:"bytes,2,opt,name=invite,proto3" json:"invite,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinGroupRequest) Reset() {
+	*x = JoinGroupRequest{}
+	mi := &file_signal_v1_signal_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinGroupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinGroupRequest) ProtoMessage() {}
+
+func (x *JoinGroupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JoinGroupRequest.ProtoReflect.Descriptor instead.
+func (*JoinGroupRequest) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *JoinGroupRequest) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
+func (x *JoinGroupRequest) GetInvite() []byte {
+	if x != nil {
+		return x.Invite
+	}
+	return nil
+}
+
+type JoinGroupResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The group joined (or the account was in already); unset when it only asked.
+	Group *Group `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
+	// The account asked to join, and the group's admins have yet to let it in.
+	Requested     bool `protobuf:"varint,2,opt,name=requested,proto3" json:"requested,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinGroupResponse) Reset() {
+	*x = JoinGroupResponse{}
+	mi := &file_signal_v1_signal_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinGroupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinGroupResponse) ProtoMessage() {}
+
+func (x *JoinGroupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JoinGroupResponse.ProtoReflect.Descriptor instead.
+func (*JoinGroupResponse) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *JoinGroupResponse) GetGroup() *Group {
+	if x != nil {
+		return x.Group
+	}
+	return nil
+}
+
+func (x *JoinGroupResponse) GetRequested() bool {
+	if x != nil {
+		return x.Requested
+	}
+	return false
+}
+
 var File_signal_v1_signal_proto protoreflect.FileDescriptor
 
 const file_signal_v1_signal_proto_rawDesc = "" +
@@ -4062,7 +4312,23 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x122\n" +
 	"\bmessages\x18\x02 \x03(\v2\x16.signal.v1.ReadMessageR\bmessages\x12\x1a\n" +
 	"\breceipts\x18\x03 \x01(\bR\breceipts\"\x12\n" +
-	"\x10MarkReadResponse2\xdc\a\n" +
+	"\x10MarkReadResponse\"H\n" +
+	"\x14GroupByInviteRequest\x12\x18\n" +
+	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x16\n" +
+	"\x06invite\x18\x02 \x01(\fR\x06invite\"\xa9\x01\n" +
+	"\x15GroupByInviteResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
+	"\amembers\x18\x03 \x01(\rR\amembers\x12\x16\n" +
+	"\x06member\x18\x04 \x01(\bR\x06member\x12\x1a\n" +
+	"\bapproval\x18\x05 \x01(\bR\bapproval\x12\x1c\n" +
+	"\trequested\x18\x06 \x01(\bR\trequested\"D\n" +
+	"\x10JoinGroupRequest\x12\x18\n" +
+	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x16\n" +
+	"\x06invite\x18\x02 \x01(\fR\x06invite\"Y\n" +
+	"\x11JoinGroupResponse\x12&\n" +
+	"\x05group\x18\x01 \x01(\v2\x10.signal.v1.GroupR\x05group\x12\x1c\n" +
+	"\trequested\x18\x02 \x01(\bR\trequested2\xf8\b\n" +
 	"\rSignalService\x12F\n" +
 	"\tHeartbeat\x12\x1b.signal.v1.HeartbeatRequest\x1a\x1c.signal.v1.HeartbeatResponse\x12:\n" +
 	"\x05Start\x12\x17.signal.v1.StartRequest\x1a\x18.signal.v1.StartResponse\x129\n" +
@@ -4079,7 +4345,9 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\x05Leave\x12\x17.signal.v1.LeaveRequest\x1a\x18.signal.v1.LeaveResponse\x12L\n" +
 	"\vCreateGroup\x12\x1d.signal.v1.CreateGroupRequest\x1a\x1e.signal.v1.CreateGroupResponse\x12I\n" +
 	"\n" +
-	"FindPerson\x12\x1c.signal.v1.FindPersonRequest\x1a\x1d.signal.v1.FindPersonResponseB>Z<github.com/EugeneShtoka/kith/internal/api/signal/v1;signalv1b\x06proto3"
+	"FindPerson\x12\x1c.signal.v1.FindPersonRequest\x1a\x1d.signal.v1.FindPersonResponse\x12R\n" +
+	"\rGroupByInvite\x12\x1f.signal.v1.GroupByInviteRequest\x1a .signal.v1.GroupByInviteResponse\x12F\n" +
+	"\tJoinGroup\x12\x1b.signal.v1.JoinGroupRequest\x1a\x1c.signal.v1.JoinGroupResponseB>Z<github.com/EugeneShtoka/kith/internal/api/signal/v1;signalv1b\x06proto3"
 
 var (
 	file_signal_v1_signal_proto_rawDescOnce sync.Once
@@ -4094,64 +4362,68 @@ func file_signal_v1_signal_proto_rawDescGZIP() []byte {
 }
 
 var file_signal_v1_signal_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_signal_v1_signal_proto_msgTypes = make([]protoimpl.MessageInfo, 53)
+var file_signal_v1_signal_proto_msgTypes = make([]protoimpl.MessageInfo, 57)
 var file_signal_v1_signal_proto_goTypes = []any{
-	(Receipt_Kind)(0),           // 0: signal.v1.Receipt.Kind
-	(Style_Kind)(0),             // 1: signal.v1.Style.Kind
-	(Connection_State)(0),       // 2: signal.v1.Connection.State
-	(*HeartbeatRequest)(nil),    // 3: signal.v1.HeartbeatRequest
-	(*HeartbeatResponse)(nil),   // 4: signal.v1.HeartbeatResponse
-	(*StartRequest)(nil),        // 5: signal.v1.StartRequest
-	(*StartResponse)(nil),       // 6: signal.v1.StartResponse
-	(*Device)(nil),              // 7: signal.v1.Device
-	(*LinkRequest)(nil),         // 8: signal.v1.LinkRequest
-	(*LinkResponse)(nil),        // 9: signal.v1.LinkResponse
-	(*ConnectRequest)(nil),      // 10: signal.v1.ConnectRequest
-	(*ConnectResponse)(nil),     // 11: signal.v1.ConnectResponse
-	(*EventsRequest)(nil),       // 12: signal.v1.EventsRequest
-	(*EventsResponse)(nil),      // 13: signal.v1.EventsResponse
-	(*History)(nil),             // 14: signal.v1.History
-	(*Timer)(nil),               // 15: signal.v1.Timer
-	(*Edit)(nil),                // 16: signal.v1.Edit
-	(*Delete)(nil),              // 17: signal.v1.Delete
-	(*Reaction)(nil),            // 18: signal.v1.Reaction
-	(*Receipt)(nil),             // 19: signal.v1.Receipt
-	(*Typing)(nil),              // 20: signal.v1.Typing
-	(*Read)(nil),                // 21: signal.v1.Read
-	(*ReadMessage)(nil),         // 22: signal.v1.ReadMessage
-	(*Message)(nil),             // 23: signal.v1.Message
-	(*Poll)(nil),                // 24: signal.v1.Poll
-	(*Ballot)(nil),              // 25: signal.v1.Ballot
-	(*Vote)(nil),                // 26: signal.v1.Vote
-	(*PollEnd)(nil),             // 27: signal.v1.PollEnd
-	(*Quote)(nil),               // 28: signal.v1.Quote
-	(*Style)(nil),               // 29: signal.v1.Style
-	(*Mention)(nil),             // 30: signal.v1.Mention
-	(*Attachment)(nil),          // 31: signal.v1.Attachment
-	(*Connection)(nil),          // 32: signal.v1.Connection
-	(*Contacts)(nil),            // 33: signal.v1.Contacts
-	(*Contact)(nil),             // 34: signal.v1.Contact
-	(*Group)(nil),               // 35: signal.v1.Group
-	(*AckRequest)(nil),          // 36: signal.v1.AckRequest
-	(*AckResponse)(nil),         // 37: signal.v1.AckResponse
-	(*SendRequest)(nil),         // 38: signal.v1.SendRequest
-	(*DownloadRequest)(nil),     // 39: signal.v1.DownloadRequest
-	(*DownloadResponse)(nil),    // 40: signal.v1.DownloadResponse
-	(*UploadRequest)(nil),       // 41: signal.v1.UploadRequest
-	(*UnlinkRequest)(nil),       // 42: signal.v1.UnlinkRequest
-	(*UnlinkResponse)(nil),      // 43: signal.v1.UnlinkResponse
-	(*LeaveRequest)(nil),        // 44: signal.v1.LeaveRequest
-	(*LeaveResponse)(nil),       // 45: signal.v1.LeaveResponse
-	(*CreateGroupRequest)(nil),  // 46: signal.v1.CreateGroupRequest
-	(*CreateGroupResponse)(nil), // 47: signal.v1.CreateGroupResponse
-	(*FindPersonRequest)(nil),   // 48: signal.v1.FindPersonRequest
-	(*FindPersonResponse)(nil),  // 49: signal.v1.FindPersonResponse
-	(*UploadResponse)(nil),      // 50: signal.v1.UploadResponse
-	(*SendResponse)(nil),        // 51: signal.v1.SendResponse
-	(*TypingRequest)(nil),       // 52: signal.v1.TypingRequest
-	(*TypingResponse)(nil),      // 53: signal.v1.TypingResponse
-	(*MarkReadRequest)(nil),     // 54: signal.v1.MarkReadRequest
-	(*MarkReadResponse)(nil),    // 55: signal.v1.MarkReadResponse
+	(Receipt_Kind)(0),             // 0: signal.v1.Receipt.Kind
+	(Style_Kind)(0),               // 1: signal.v1.Style.Kind
+	(Connection_State)(0),         // 2: signal.v1.Connection.State
+	(*HeartbeatRequest)(nil),      // 3: signal.v1.HeartbeatRequest
+	(*HeartbeatResponse)(nil),     // 4: signal.v1.HeartbeatResponse
+	(*StartRequest)(nil),          // 5: signal.v1.StartRequest
+	(*StartResponse)(nil),         // 6: signal.v1.StartResponse
+	(*Device)(nil),                // 7: signal.v1.Device
+	(*LinkRequest)(nil),           // 8: signal.v1.LinkRequest
+	(*LinkResponse)(nil),          // 9: signal.v1.LinkResponse
+	(*ConnectRequest)(nil),        // 10: signal.v1.ConnectRequest
+	(*ConnectResponse)(nil),       // 11: signal.v1.ConnectResponse
+	(*EventsRequest)(nil),         // 12: signal.v1.EventsRequest
+	(*EventsResponse)(nil),        // 13: signal.v1.EventsResponse
+	(*History)(nil),               // 14: signal.v1.History
+	(*Timer)(nil),                 // 15: signal.v1.Timer
+	(*Edit)(nil),                  // 16: signal.v1.Edit
+	(*Delete)(nil),                // 17: signal.v1.Delete
+	(*Reaction)(nil),              // 18: signal.v1.Reaction
+	(*Receipt)(nil),               // 19: signal.v1.Receipt
+	(*Typing)(nil),                // 20: signal.v1.Typing
+	(*Read)(nil),                  // 21: signal.v1.Read
+	(*ReadMessage)(nil),           // 22: signal.v1.ReadMessage
+	(*Message)(nil),               // 23: signal.v1.Message
+	(*Poll)(nil),                  // 24: signal.v1.Poll
+	(*Ballot)(nil),                // 25: signal.v1.Ballot
+	(*Vote)(nil),                  // 26: signal.v1.Vote
+	(*PollEnd)(nil),               // 27: signal.v1.PollEnd
+	(*Quote)(nil),                 // 28: signal.v1.Quote
+	(*Style)(nil),                 // 29: signal.v1.Style
+	(*Mention)(nil),               // 30: signal.v1.Mention
+	(*Attachment)(nil),            // 31: signal.v1.Attachment
+	(*Connection)(nil),            // 32: signal.v1.Connection
+	(*Contacts)(nil),              // 33: signal.v1.Contacts
+	(*Contact)(nil),               // 34: signal.v1.Contact
+	(*Group)(nil),                 // 35: signal.v1.Group
+	(*AckRequest)(nil),            // 36: signal.v1.AckRequest
+	(*AckResponse)(nil),           // 37: signal.v1.AckResponse
+	(*SendRequest)(nil),           // 38: signal.v1.SendRequest
+	(*DownloadRequest)(nil),       // 39: signal.v1.DownloadRequest
+	(*DownloadResponse)(nil),      // 40: signal.v1.DownloadResponse
+	(*UploadRequest)(nil),         // 41: signal.v1.UploadRequest
+	(*UnlinkRequest)(nil),         // 42: signal.v1.UnlinkRequest
+	(*UnlinkResponse)(nil),        // 43: signal.v1.UnlinkResponse
+	(*LeaveRequest)(nil),          // 44: signal.v1.LeaveRequest
+	(*LeaveResponse)(nil),         // 45: signal.v1.LeaveResponse
+	(*CreateGroupRequest)(nil),    // 46: signal.v1.CreateGroupRequest
+	(*CreateGroupResponse)(nil),   // 47: signal.v1.CreateGroupResponse
+	(*FindPersonRequest)(nil),     // 48: signal.v1.FindPersonRequest
+	(*FindPersonResponse)(nil),    // 49: signal.v1.FindPersonResponse
+	(*UploadResponse)(nil),        // 50: signal.v1.UploadResponse
+	(*SendResponse)(nil),          // 51: signal.v1.SendResponse
+	(*TypingRequest)(nil),         // 52: signal.v1.TypingRequest
+	(*TypingResponse)(nil),        // 53: signal.v1.TypingResponse
+	(*MarkReadRequest)(nil),       // 54: signal.v1.MarkReadRequest
+	(*MarkReadResponse)(nil),      // 55: signal.v1.MarkReadResponse
+	(*GroupByInviteRequest)(nil),  // 56: signal.v1.GroupByInviteRequest
+	(*GroupByInviteResponse)(nil), // 57: signal.v1.GroupByInviteResponse
+	(*JoinGroupRequest)(nil),      // 58: signal.v1.JoinGroupRequest
+	(*JoinGroupResponse)(nil),     // 59: signal.v1.JoinGroupResponse
 }
 var file_signal_v1_signal_proto_depIdxs = []int32{
 	7,  // 0: signal.v1.StartResponse.devices:type_name -> signal.v1.Device
@@ -4194,41 +4466,46 @@ var file_signal_v1_signal_proto_depIdxs = []int32{
 	35, // 37: signal.v1.CreateGroupResponse.group:type_name -> signal.v1.Group
 	31, // 38: signal.v1.UploadResponse.attachment:type_name -> signal.v1.Attachment
 	22, // 39: signal.v1.MarkReadRequest.messages:type_name -> signal.v1.ReadMessage
-	3,  // 40: signal.v1.SignalService.Heartbeat:input_type -> signal.v1.HeartbeatRequest
-	5,  // 41: signal.v1.SignalService.Start:input_type -> signal.v1.StartRequest
-	8,  // 42: signal.v1.SignalService.Link:input_type -> signal.v1.LinkRequest
-	10, // 43: signal.v1.SignalService.Connect:input_type -> signal.v1.ConnectRequest
-	12, // 44: signal.v1.SignalService.Events:input_type -> signal.v1.EventsRequest
-	36, // 45: signal.v1.SignalService.Ack:input_type -> signal.v1.AckRequest
-	38, // 46: signal.v1.SignalService.Send:input_type -> signal.v1.SendRequest
-	52, // 47: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
-	54, // 48: signal.v1.SignalService.MarkRead:input_type -> signal.v1.MarkReadRequest
-	39, // 49: signal.v1.SignalService.Download:input_type -> signal.v1.DownloadRequest
-	41, // 50: signal.v1.SignalService.Upload:input_type -> signal.v1.UploadRequest
-	42, // 51: signal.v1.SignalService.Unlink:input_type -> signal.v1.UnlinkRequest
-	44, // 52: signal.v1.SignalService.Leave:input_type -> signal.v1.LeaveRequest
-	46, // 53: signal.v1.SignalService.CreateGroup:input_type -> signal.v1.CreateGroupRequest
-	48, // 54: signal.v1.SignalService.FindPerson:input_type -> signal.v1.FindPersonRequest
-	4,  // 55: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
-	6,  // 56: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
-	9,  // 57: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
-	11, // 58: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
-	13, // 59: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
-	37, // 60: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
-	51, // 61: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
-	53, // 62: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
-	55, // 63: signal.v1.SignalService.MarkRead:output_type -> signal.v1.MarkReadResponse
-	40, // 64: signal.v1.SignalService.Download:output_type -> signal.v1.DownloadResponse
-	50, // 65: signal.v1.SignalService.Upload:output_type -> signal.v1.UploadResponse
-	43, // 66: signal.v1.SignalService.Unlink:output_type -> signal.v1.UnlinkResponse
-	45, // 67: signal.v1.SignalService.Leave:output_type -> signal.v1.LeaveResponse
-	47, // 68: signal.v1.SignalService.CreateGroup:output_type -> signal.v1.CreateGroupResponse
-	49, // 69: signal.v1.SignalService.FindPerson:output_type -> signal.v1.FindPersonResponse
-	55, // [55:70] is the sub-list for method output_type
-	40, // [40:55] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	35, // 40: signal.v1.JoinGroupResponse.group:type_name -> signal.v1.Group
+	3,  // 41: signal.v1.SignalService.Heartbeat:input_type -> signal.v1.HeartbeatRequest
+	5,  // 42: signal.v1.SignalService.Start:input_type -> signal.v1.StartRequest
+	8,  // 43: signal.v1.SignalService.Link:input_type -> signal.v1.LinkRequest
+	10, // 44: signal.v1.SignalService.Connect:input_type -> signal.v1.ConnectRequest
+	12, // 45: signal.v1.SignalService.Events:input_type -> signal.v1.EventsRequest
+	36, // 46: signal.v1.SignalService.Ack:input_type -> signal.v1.AckRequest
+	38, // 47: signal.v1.SignalService.Send:input_type -> signal.v1.SendRequest
+	52, // 48: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
+	54, // 49: signal.v1.SignalService.MarkRead:input_type -> signal.v1.MarkReadRequest
+	39, // 50: signal.v1.SignalService.Download:input_type -> signal.v1.DownloadRequest
+	41, // 51: signal.v1.SignalService.Upload:input_type -> signal.v1.UploadRequest
+	42, // 52: signal.v1.SignalService.Unlink:input_type -> signal.v1.UnlinkRequest
+	44, // 53: signal.v1.SignalService.Leave:input_type -> signal.v1.LeaveRequest
+	46, // 54: signal.v1.SignalService.CreateGroup:input_type -> signal.v1.CreateGroupRequest
+	48, // 55: signal.v1.SignalService.FindPerson:input_type -> signal.v1.FindPersonRequest
+	56, // 56: signal.v1.SignalService.GroupByInvite:input_type -> signal.v1.GroupByInviteRequest
+	58, // 57: signal.v1.SignalService.JoinGroup:input_type -> signal.v1.JoinGroupRequest
+	4,  // 58: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
+	6,  // 59: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
+	9,  // 60: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
+	11, // 61: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
+	13, // 62: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
+	37, // 63: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
+	51, // 64: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
+	53, // 65: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
+	55, // 66: signal.v1.SignalService.MarkRead:output_type -> signal.v1.MarkReadResponse
+	40, // 67: signal.v1.SignalService.Download:output_type -> signal.v1.DownloadResponse
+	50, // 68: signal.v1.SignalService.Upload:output_type -> signal.v1.UploadResponse
+	43, // 69: signal.v1.SignalService.Unlink:output_type -> signal.v1.UnlinkResponse
+	45, // 70: signal.v1.SignalService.Leave:output_type -> signal.v1.LeaveResponse
+	47, // 71: signal.v1.SignalService.CreateGroup:output_type -> signal.v1.CreateGroupResponse
+	49, // 72: signal.v1.SignalService.FindPerson:output_type -> signal.v1.FindPersonResponse
+	57, // 73: signal.v1.SignalService.GroupByInvite:output_type -> signal.v1.GroupByInviteResponse
+	59, // 74: signal.v1.SignalService.JoinGroup:output_type -> signal.v1.JoinGroupResponse
+	58, // [58:75] is the sub-list for method output_type
+	41, // [41:58] is the sub-list for method input_type
+	41, // [41:41] is the sub-list for extension type_name
+	41, // [41:41] is the sub-list for extension extendee
+	0,  // [0:41] is the sub-list for field type_name
 }
 
 func init() { file_signal_v1_signal_proto_init() }
@@ -4266,7 +4543,7 @@ func file_signal_v1_signal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signal_v1_signal_proto_rawDesc), len(file_signal_v1_signal_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   53,
+			NumMessages:   57,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

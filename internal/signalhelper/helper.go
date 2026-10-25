@@ -55,6 +55,10 @@ type Network interface {
 	CreateGroup(ctx context.Context, req *signalv1.CreateGroupRequest) (*signalv1.CreateGroupResponse, error)
 	// FindPerson asks Signal for the account behind a number or a username link.
 	FindPerson(ctx context.Context, req *signalv1.FindPersonRequest) (*signalv1.FindPersonResponse, error)
+	// GroupByInvite asks Signal what group an invite link is to.
+	GroupByInvite(ctx context.Context, req *signalv1.GroupByInviteRequest) (*signalv1.GroupByInviteResponse, error)
+	// JoinGroup joins the group an invite link is to, or asks its admins to.
+	JoinGroup(ctx context.Context, req *signalv1.JoinGroupRequest) (*signalv1.JoinGroupResponse, error)
 }
 
 // ErrGone is an attachment Signal no longer keeps (its CDN drops them after a while).
@@ -257,6 +261,22 @@ func (s *service) CreateGroup(ctx context.Context, req *connect.Request[signalv1
 
 func (s *service) FindPerson(ctx context.Context, req *connect.Request[signalv1.FindPersonRequest]) (*connect.Response[signalv1.FindPersonResponse], error) {
 	res, err := s.network.FindPerson(ctx, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(res), nil
+}
+
+func (s *service) GroupByInvite(ctx context.Context, req *connect.Request[signalv1.GroupByInviteRequest]) (*connect.Response[signalv1.GroupByInviteResponse], error) {
+	res, err := s.network.GroupByInvite(ctx, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(res), nil
+}
+
+func (s *service) JoinGroup(ctx context.Context, req *connect.Request[signalv1.JoinGroupRequest]) (*connect.Response[signalv1.JoinGroupResponse], error) {
+	res, err := s.network.JoinGroup(ctx, req.Msg)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, err)
 	}

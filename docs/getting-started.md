@@ -542,7 +542,9 @@ A Signal link to a person, by number (`signal.me/#p/+15551234567`) or by the use
 link Signal's apps share (`signal.me/#eu/…`), opens your chat with them, on the first
 connected account by name: a new, empty one if there is none, which joins the list once
 your first message starts it. Signal finds nobody by a number whose owner has turned off
-being found by it. Group invite links (`signal.group/#…`) are not followed yet.
+being found by it. A group invite (`signal.group/#…`) asks before joining, saying the
+group's size, then opens it; where an admin approves who joins, it sends the request
+instead.
 
 Links your browser opens as web pages (`https://t.me/…`, `https://wa.me/…`) reach kith
 only if you paste them into `kith --open`: the desktop sends `https:` to the browser.

@@ -169,8 +169,44 @@ func (f *fakeNetwork) FindPerson(_ context.Context, req *signalv1.FindPersonRequ
 	return &signalv1.FindPersonResponse{}, nil
 }
 
-// madeGroup is the ID of each group the fake makes (std base64, as Signal's).
-const madeGroup = "bWFkZSBncm91cA=="
+// GroupByInvite records req and answers by the invite: "open" is Book club, anyone
+// with the link joins; "approval" is Quiet room, whose admins approve who joins;
+// "asked" is a group the account asked to join; "mine" is Hikers, the account's
+// already; anything else is a link reset.
+func (f *fakeNetwork) GroupByInvite(_ context.Context, req *signalv1.GroupByInviteRequest) (*signalv1.GroupByInviteResponse, error) {
+	record(req)
+	switch string(req.GetInvite()) {
+	case "open":
+		return &signalv1.GroupByInviteResponse{Id: joinedGroup, Title: "Book club", Members: 12}, nil
+	case "approval":
+		return &signalv1.GroupByInviteResponse{Id: joinedGroup, Title: "Quiet room", Members: 3, Approval: true}, nil
+	case "asked":
+		return &signalv1.GroupByInviteResponse{Id: joinedGroup, Title: "Quiet room", Members: 3, Approval: true, Requested: true}, nil
+	case "mine":
+		return &signalv1.GroupByInviteResponse{Id: madeGroup, Title: "Hikers", Members: 2, Member: true}, nil
+	}
+	return nil, errors.New("fake: the invite link was reset or turned off")
+}
+
+// JoinGroup records req and joins "open" (Book club, with ofer in it) and asks to
+// join "approval"; anything else is a link reset.
+func (f *fakeNetwork) JoinGroup(_ context.Context, req *signalv1.JoinGroupRequest) (*signalv1.JoinGroupResponse, error) {
+	record(req)
+	switch string(req.GetInvite()) {
+	case "open":
+		return &signalv1.JoinGroupResponse{Group: &signalv1.Group{Id: joinedGroup, Title: "Book club", Members: []string{req.GetAccount(), ofer}}}, nil
+	case "approval":
+		return &signalv1.JoinGroupResponse{Requested: true}, nil
+	}
+	return nil, errors.New("fake: the invite link was reset or turned off")
+}
+
+// madeGroup is the ID of each group the fake makes (std base64, as Signal's), and
+// joinedGroup of each it joins by invite.
+const (
+	madeGroup   = "bWFkZSBncm91cA=="
+	joinedGroup = "am9pbmVkIGdyb3Vw"
+)
 
 // Leave records which group was left.
 func (f *fakeNetwork) Leave(_ context.Context, aci, group string) error {

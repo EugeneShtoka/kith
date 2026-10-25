@@ -47,6 +47,12 @@ service SignalService {
   // FindPerson asks Signal for the account behind a phone number or a username link,
   // from a connected account.
   rpc FindPerson(FindPersonRequest) returns (FindPersonResponse);
+  // GroupByInvite asks Signal what group a signal.group invite link is to, from a
+  // connected account, without joining it.
+  rpc GroupByInvite(GroupByInviteRequest) returns (GroupByInviteResponse);
+  // JoinGroup joins a connected account to the group an invite link is to, or asks its
+  // admins to let it in when they approve who joins; its members are told of a join.
+  rpc JoinGroup(JoinGroupRequest) returns (JoinGroupResponse);
 }
 
 message HeartbeatRequest {}
@@ -506,3 +512,37 @@ message MarkReadRequest {
 }
 
 message MarkReadResponse {}
+
+message GroupByInviteRequest {
+  // The connected account's ACI.
+  string account = 1;
+  // The link's invite: a GroupInviteLink message.
+  bytes invite = 2;
+}
+
+message GroupByInviteResponse {
+  // The group's ID, as Group has it.
+  string id = 1;
+  string title = 2;
+  uint32 members = 3;
+  // The account is in the group already.
+  bool member = 4;
+  // The group's admins approve who joins by the link.
+  bool approval = 5;
+  // The account asked to join, and the admins have yet to answer.
+  bool requested = 6;
+}
+
+message JoinGroupRequest {
+  // The connected account's ACI.
+  string account = 1;
+  // The link's invite: a GroupInviteLink message.
+  bytes invite = 2;
+}
+
+message JoinGroupResponse {
+  // The group joined (or the account was in already); unset when it only asked.
+  Group group = 1;
+  // The account asked to join, and the group's admins have yet to let it in.
+  bool requested = 2;
+}
