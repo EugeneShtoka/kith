@@ -34,12 +34,15 @@ type Vacuumed struct {
 
 // Vacuum rewrites the cache without its free pages when they are worth it (see
 // vacuumShare), and reports what it found when they are not. tempDir is where SQLite
-// writes its temporary files, whose disk needs room for the rewrite too. The rewrite
+// writes its temporary files, whose disk needs room for the rewrite too unless the
+// cache keeps them in memory (temp_store). The rewrite
 // holds the cache's one connection, so every other read and write waits for it rather
 // than failing; ctx ending interrupts it, leaving the file as it was.
 func (c *Cache) Vacuum(ctx context.Context, tempDir string) (Vacuumed, error) {
-	var pageSize, pages, free int64
-	for pragma, v := range map[string]*int64{"page_size": &pageSize, "page_count": &pages, "freelist_count": &free} {
+	var pageSize, pages, free, tempStore int64
+	for pragma, v := range map[string]*int64{
+		"page_size": &pageSize, "page_count": &pages, "freelist_count": &free, "temp_store": &tempStore,
+	} {
 		if err := c.db.QueryRowContext(ctx, "PRAGMA "+pragma).Scan(v); err != nil {
 			return Vacuumed{}, fmt.Errorf("db: read %s: %w", pragma, err)
 		}
@@ -47,6 +50,9 @@ func (c *Cache) Vacuum(ctx context.Context, tempDir string) (Vacuumed, error) {
 	found := Vacuumed{Before: pages * pageSize, Free: free * pageSize}
 	if !worthVacuum(pageSize, pages, free) {
 		return found, nil
+	}
+	if tempStore == tempStoreMemory {
+		tempDir = ""
 	}
 	if err := roomToVacuum(filepath.Dir(c.path), tempDir, (pages-free)*pageSize); err != nil {
 		return found, err
@@ -101,27 +107,34 @@ type disk struct {
 	free uint64
 }
 
+// tempStoreMemory is PRAGMA temp_store's answer for temporary files kept in memory.
+const tempStoreMemory = 2
+
 // roomToVacuum reports, as ErrVacuumPutOff, a rewrite of size bytes the disks cannot
-// hold: SQLite builds it as a temporary file in its temporary directory, then writes
-// it into the write-ahead log beside the cache; one disk holding both needs room for
-// both. Each disk keeps a tenth of what it takes spare.
+// hold: SQLite builds it as a temporary file in tempDir ("" when it keeps it in
+// memory), then writes it into the write-ahead log beside the cache; one disk holding
+// both needs room for both. Each disk keeps a tenth of what it takes spare.
 func roomToVacuum(cacheDir, tempDir string, size int64) error {
 	cacheDisk, err := diskOf(cacheDir)
 	if err != nil {
 		return fmt.Errorf("db: free space beside the cache: %w", err)
 	}
-	tempDisk, err := diskOf(tempDir)
-	if err != nil {
-		return fmt.Errorf("db: free space for SQLite's temporary files: %w", err)
+	disks := []disk{cacheDisk}
+	if tempDir != "" {
+		tempDisk, err := diskOf(tempDir)
+		if err != nil {
+			return fmt.Errorf("db: free space for SQLite's temporary files: %w", err)
+		}
+		disks = append(disks, tempDisk)
 	}
-	return fits(uint64(max(size, 0)), cacheDisk, tempDisk)
+	return fits(uint64(max(size, 0)), disks...)
 }
 
-// fits is roomToVacuum's decision over the two disks.
-func fits(size uint64, cacheDisk, tempDisk disk) error {
+// fits is roomToVacuum's decision over the disks the rewrite is written to.
+func fits(size uint64, disks ...disk) error {
 	need := map[string]uint64{}
 	free := map[string]uint64{}
-	for _, d := range []disk{cacheDisk, tempDisk} {
+	for _, d := range disks {
 		need[d.id] += size + size/10
 		free[d.id] = d.free
 	}

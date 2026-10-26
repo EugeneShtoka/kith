@@ -117,8 +117,27 @@ func TestFitsCountsADiskHoldingBothTwice(t *testing.T) {
 			t.Errorf("%s: %v is not a put-off", tc.name, err)
 		}
 	}
+	if err := fits(size, disk{"a", 111 << 20}); err != nil {
+		t.Errorf("temporary files in memory, the cache's disk with room: %v", err)
+	}
 	if err := roomToVacuum(t.TempDir(), t.TempDir(), 1<<20); err != nil {
 		t.Errorf("a MiB on this machine's disks: %v", err)
+	}
+}
+
+// A cache that keeps temporary files in memory needs no room for them on disk: a
+// temporary directory that is not there does not hold its vacuum back.
+func TestVacuumInMemoryNeedsNoTemporaryDirectory(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := openTemp(t)
+	if _, err := c.db.ExecContext(ctx, "PRAGMA temp_store=MEMORY"); err != nil {
+		t.Fatal(err)
+	}
+	pad(t, c, "gone", 40, true)
+	v, err := c.Vacuum(ctx, filepath.Join(t.TempDir(), "not there"))
+	if err != nil || !v.Ran {
+		t.Errorf("Vacuum = %+v, %v", v, err)
 	}
 }
 
