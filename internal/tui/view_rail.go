@@ -32,6 +32,9 @@ func (m Model) renderRail(h int) string {
 func (m Model) railRow(g group, selected, active bool, inner int) string {
 	badge, highlight := m.groupBadge(g)
 	label := rowLabel{name: g.label}
+	if _, down := m.accountDown(g); down {
+		label.lead = downMark
+	}
 	if m.prefs.display.Rail.NetworkColors {
 		label.color = m.networkColor(g.network)
 	}

@@ -84,6 +84,16 @@ KITH_LOG_LEVEL=debug kithd
 The daemon picks up a changed `[log] level` when a client asks it to reload its
 config.
 
+## An account stopped
+
+An account that had a session and stops (its network refuses the session, the phone
+unlinks kith, or it fails at start) raises one desktop notification, in every profile, naming the
+account and why. While it stays down, its account row in the rail is marked ⚠, and
+with the cursor on that row the status line says why, usually with the
+`kith login <network> <account>` that brings it back. A network still retrying keeps
+quiet: only an account that has stopped is told. An account you never logged in is
+not "stopped".
+
 ## Startup
 
 ### "Matrix personal is logged out: no saved session; :login matrix personal in kith, or run `kith login matrix personal`"

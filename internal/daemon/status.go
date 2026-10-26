@@ -66,14 +66,18 @@ func (s *State) Expect(accounts ...NetworkStatus) {
 	}
 }
 
-// Report records an account's phase at t. Going online counts as a sync; any phase
-// but connecting settles what Expect waits for.
-func (s *State) Report(n NetworkStatus, t time.Time) {
+// Report records an account's phase at t and returns the phase it had: connecting for
+// an account Expect named and nothing reported yet, zero for one never seen. Going
+// online counts as a sync; any phase but connecting settles what Expect waits for.
+func (s *State) Report(n NetworkStatus, t time.Time) (was Phase) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	i := slices.IndexFunc(s.networks, func(have NetworkStatus) bool { return have.key() == n.key() })
-	if i >= 0 {
-		n.At = s.networks[i].At
+	switch {
+	case i >= 0:
+		n.At, was = s.networks[i].At, s.networks[i].Phase
+	case s.expected[n.key()]:
+		was = PhaseConnecting
 	}
 	if n.Phase == PhaseOnline {
 		n.At = t
@@ -87,6 +91,7 @@ func (s *State) Report(n NetworkStatus, t time.Time) {
 	} else {
 		s.networks = append(s.networks, n)
 	}
+	return was
 }
 
 // Networks is every reported account, in first-reported order.

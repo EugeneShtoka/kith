@@ -69,6 +69,12 @@ type LoginAccount struct {
 	Name, Detail string
 }
 
+// AccountStates reports each network account the daemon serves, logged in or not,
+// with its phase and why it is down, so a client can show which have stopped.
+type AccountStates interface {
+	AccountStates(ctx context.Context) ([]domain.AccountStatus, error)
+}
+
 // Logins logs network accounts in. Only the daemon logs in, since it keeps the
 // sessions; `:login` and `kith login` ask it.
 type Logins interface {

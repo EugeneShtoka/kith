@@ -279,7 +279,7 @@ func (m Model) handleDND(msg dndMsg) (Model, tea.Cmd) {
 // handlePollTick re-reads state changed elsewhere (drafts, filter moves, mutes) and always
 // reschedules, even with no notification backend attached yet.
 func (m Model) handlePollTick() (Model, tea.Cmd) {
-	cmds := []tea.Cmd{m.pollTickCmd(), m.loadDraftsCmd(), m.loadVerdictsCmd()}
+	cmds := []tea.Cmd{m.pollTickCmd(), m.loadDraftsCmd(), m.loadVerdictsCmd(), m.loadAccountStatesCmd()}
 	if m.notifications.attached() {
 		cmds = append(cmds, m.readDNDCmd())
 	}
