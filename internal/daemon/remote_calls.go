@@ -712,6 +712,19 @@ func (r *Remote) Networks(ctx context.Context) ([]NetworkStatus, error) {
 	return rows, nil
 }
 
+// AccountStates is Networks as the networks report them (api.AccountStates).
+func (r *Remote) AccountStates(ctx context.Context) ([]domain.AccountStatus, error) {
+	rows, err := r.Networks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.AccountStatus, 0, len(rows))
+	for _, n := range rows {
+		out = append(out, domain.AccountStatus{Network: domain.Protocol(n.Network), Account: n.Account, Phase: n.Phase, Detail: n.Detail})
+	}
+	return out, nil
+}
+
 // Selves is every ID that is this person (api.Identity).
 func (r *Remote) Selves(ctx context.Context) ([]string, error) {
 	resp, err := call(ctx, "who am I", r.c.Selves, &v1.SelvesRequest{})

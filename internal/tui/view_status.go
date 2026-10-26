@@ -47,6 +47,9 @@ func (m Model) renderStatus() string {
 		if pos := m.timelinePosition(); pos != "" {
 			left = pos
 		}
+		if why := m.railAccountWhy(); why != "" {
+			left = why
+		}
 	}
 	if left == "" {
 		left = "ready"

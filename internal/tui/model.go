@@ -65,6 +65,8 @@ type group struct {
 	// home is the network whose own space this is (an account's, a bridge's), "" for a space
 	// you made and for a tag.
 	home domain.Protocol
+	// owner is the account an account's space is, by its rooms' owner; "" for any other row.
+	owner domain.RoomOwner
 }
 
 // railGroups builds the rail (a row per tag, then a group per space) and applies the rail
@@ -92,10 +94,15 @@ func railGroups(
 		if s.Bridge != "" && s.Bridge != domain.ProtocolMatrix {
 			home = s.Bridge
 		}
+		var owner domain.RoomOwner
+		if s.Leaving == domain.LeftBySigningOut {
+			owner = domain.OwnerOf(domain.RoomID(spaceID))
+		}
 		groups = append(groups, group{
 			key:   name,
 			label: name,
 			home:  home,
+			owner: owner,
 			admits: func(v unreadView, r domain.Room) bool {
 				// An invitation is not in any space until dealt with.
 				if !children[r.ID] || r.IsInvite() {
@@ -587,6 +594,8 @@ type Model struct {
 	// the call waiting on the account picker (accountpick.go).
 	accounts       []domain.Account
 	pickingAccount accountThen
+	// downAccounts is which accounts have stopped, for the rail (accountsdown.go).
+	downAccounts accountsDown
 	// notifications is the notification rules, delivery switch and do-not-disturb state. See dnd.go.
 	notifications notifyState
 
@@ -944,7 +953,7 @@ func (m Model) Init() tea.Cmd {
 		m.listenReactionsCmd(), m.listenInvitesCmd(), m.listenActivityCmd(),
 		m.listenFollowCmd(), m.listenSeatCmd(), m.listenRoomsCmd(), m.listenConfigCmd(),
 		m.loadDraftsCmd(),
-		m.loadVerdictsCmd(),
+		m.loadVerdictsCmd(), m.loadAccountStatesCmd(),
 		m.readDNDCmd(), m.pollTickCmd(), m.refusalsCmd(),
 		m.listenAttachedCmd(),
 		m.lastMessagesCmd(),
@@ -1239,6 +1248,8 @@ func (m Model) handleHousekeepingMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleEmojiScores(msg))
 	case pollTickMsg:
 		return answered(m.handlePollTick())
+	case accountStatesMsg:
+		return answered(m.handleAccountStates(msg))
 	case playerTickMsg:
 		// Forces the repaint that moves the playback bar.
 		return answered(m.handlePlayerTick())
