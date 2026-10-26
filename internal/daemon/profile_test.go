@@ -8,10 +8,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// kithd's own notifications follow the first profile: a room outside it never
-// notifies, whatever the rules say, and one kithd cannot place yet is judged by what
-// it knows (its ID and network).
-func TestOnlyTheFirstProfileNotifies(t *testing.T) {
+// kithd's own sinks show the first profile: a room outside it never pops up there,
+// whatever the rules say (it is still published to the profiles holding it), and one
+// kithd cannot place yet is judged by what it knows (its ID and network).
+func TestKithdShowsTheFirstProfile(t *testing.T) {
 	t.Parallel()
 
 	stranger := domain.RoomID(mx + "!new:example.org") // in no list kithd has read
@@ -46,14 +46,16 @@ func TestOnlyTheFirstProfileNotifies(t *testing.T) {
 			cfg := notifsOn("all")
 			cfg.Tags = []config.Tag{{Name: "Family", Rule: []string{"dm"}}}
 			cfg.Profiles = tc.profiles
-			n, _, _ := notifier(t, cfg)
+			n, rec, _ := notifier(t, cfg)
 			for _, room := range []domain.RoomID{dmRoom, chatRm, stranger} {
 				want := false
 				for _, in := range tc.in {
 					want = want || in == room
 				}
-				if _, got := n.Deliver(context.Background(), msg(room, alice, "hi")); got != want {
-					t.Errorf("%s notified = %v, want %v", room, got, want)
+				before := len(rec.all())
+				n.Deliver(context.Background(), msg(room, alice, "hi"))
+				if got := len(rec.all()) > before; got != want {
+					t.Errorf("%s shown = %v, want %v", room, got, want)
 				}
 			}
 		})

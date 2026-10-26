@@ -1,4 +1,4 @@
-.PHONY: build build-tui build-daemon build-mcp run run-daemon install deploy undeploy \
+.PHONY: build build-tui build-daemon build-mcp build-notify run run-daemon install deploy undeploy \
 	daemon-status daemon-logs daemon-restart daemon-stop \
 	test lint fmt fmt-check fix vuln secrets pin-check unit-check arch-check mod-check release-check \
 	proto-check docs-check nix-check hooks check coverage coverage-check tools pins-outdated \
@@ -57,7 +57,7 @@ cross:
 	done
 
 # The client needs the daemon (no in-process fallback), so build both by default.
-build: build-tui build-daemon build-mcp
+build: build-tui build-daemon build-mcp build-notify
 
 build-tui:
 	$(GOBUILD) -o kith ./cmd/kith/
@@ -72,6 +72,9 @@ build-daemon:
 
 build-mcp:
 	$(GOBUILD) -o kith-mcp ./cmd/kith-mcp/
+
+build-notify:
+	$(GOBUILD) -o kith-notify ./cmd/kith-notify/
 
 # ── Signal helper ────────────────────────────────────────────────────────────
 # kith-signal is the one binary built with cgo: it links libsignal_ffi (Rust), at the

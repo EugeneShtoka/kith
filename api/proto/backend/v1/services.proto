@@ -1174,6 +1174,40 @@ message FollowStreamResponse {
   string uri = 1;
 }
 
+// ── Notifications ──
+
+message NotificationStreamRequest {}
+
+// Notification is one desktop notification kithd decided on, ready to show.
+message Notification {
+  // The same on every profile's stream it is published to, and never reused: a
+  // listener on several shows it once.
+  string id = 1;
+  // The sender's display name, and their ID on their network.
+  string sender = 2;
+  string sender_id = 3;
+  // The room's display label, and its space.
+  string room = 4;
+  string space = 5;
+  string body = 6;
+  // The sender's network, as kith names it ("WhatsApp", "Matrix").
+  string protocol = 7;
+  // When it was sent (ms since the epoch; 0 for none), and that time in the user's
+  // [display] date and time formats.
+  int64 sent_ms = 8;
+  string date = 9;
+  string time = 10;
+  // The sound file to play, and whether to play none.
+  string sound = 11;
+  bool silent = 12;
+  // A key (the room) whose earlier popup this one replaces; "" for none.
+  string replaces = 13;
+}
+
+message NotificationStreamResponse {
+  Notification notification = 1;
+}
+
 // ── Verification ──
 
 message VerificationsRequest {}
@@ -1865,6 +1899,10 @@ service BackendService {
   // RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
   // renamed, archived on another device), so the client reads its room list again.
   rpc RoomsChanged(RoomsChangedRequest) returns (stream RoomsChangedResponse);
+  // NotificationStream streams the notifications published to the request's profile:
+  // kithd publishes each to every profile holding its room, so a listener on several
+  // profiles gets one on each and shows it once, by its ID.
+  rpc NotificationStream(NotificationStreamRequest) returns (stream NotificationStreamResponse);
   // Verification
   // Verifications streams verification steps (request, SAS, done, canceled).
   rpc Verifications(VerificationsRequest) returns (stream VerificationsResponse);
