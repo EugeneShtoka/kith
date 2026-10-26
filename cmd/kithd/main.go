@@ -577,17 +577,8 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	// to the room's network. A network without an archive (Slack, LinkedIn, Matrix)
 	// refuses with ErrNotOnNetwork — the reconciler keeps silent on that error.
 	notifications.UseArchiver(backend.SetRoomArchived)
-	// Before any network writes: retention follows [storage] by room place, and reloads.
 	if backend.cache != nil {
-		notifications.UseMemberNames(backend.cache.RoomMemberName)
-		notifications.UseHidden(backend.cache.Hides)
-		// After the first list: nothing is counted yet. Later changes recount the rooms
-		// the newly hidden or shown wrote in, and move their direct messages.
-		backend.cache.OnHiddenChange(func(ctx context.Context, rooms []domain.RoomID) {
-			backend.RecountUnread(ctx, rooms)
-			notifications.MoveWithHidden(ctx, rooms)
-		})
-		backend.cache.UseKeep(notifications.MessagesKept)
+		useCache(backend, notifications)
 	}
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)
 	refresher.UseLogger(log)
@@ -637,6 +628,22 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		streams:       streams,
 		backups:       backups,
 	}, nil
+}
+
+// useCache wires notifications and the cache together, before any network writes:
+// retention follows [storage] by room place, and reloads; what is cached unannounced
+// is judged by the filters too.
+func useCache(backend served, notifications *daemon.Notifications) {
+	notifications.UseMemberNames(backend.cache.RoomMemberName)
+	notifications.UseHidden(backend.cache.Hides)
+	// After the first list: nothing is counted yet. Later changes recount the rooms
+	// the newly hidden or shown wrote in, and move their direct messages.
+	backend.cache.OnHiddenChange(func(ctx context.Context, rooms []domain.RoomID) {
+		backend.RecountUnread(ctx, rooms)
+		notifications.MoveWithHidden(ctx, rooms)
+	})
+	backend.cache.UseKeep(notifications.MessagesKept)
+	backend.cache.OnArrived(notifications.Arrived)
 }
 
 // expected is every account the daemon starts with a session, for State.Expect. A
