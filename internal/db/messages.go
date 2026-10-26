@@ -265,27 +265,73 @@ func forgetEdit(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventID d
 	return nil
 }
 
-// revisionsOf is the version each message carries; redactions and empty messages carry none.
-func revisionsOf(msgs []domain.Message) []revisionRow {
-	rows := make([]revisionRow, 0, len(msgs))
-	for i := range msgs {
-		m := msgs[i]
-		if m.Redacted || (m.Body == "" && m.Format.IsZero()) {
-			continue
-		}
-		revision := m.RevisionID
-		if revision == "" {
-			revision = m.ID
-		}
-		rows = append(rows, revisionRow{
-			event: m.ID,
-			rev:   domain.Revision{ID: revision, Body: m.Body, Format: m.Format, At: m.Timestamp},
-		})
+// versionOf is the version a message carries; a redaction or an empty message carries none.
+func versionOf(m *domain.Message) (revisionRow, bool) {
+	if m.Redacted || (m.Body == "" && m.Format.IsZero()) {
+		return revisionRow{}, false
 	}
-	return rows
+	revision := m.RevisionID
+	if revision == "" {
+		revision = m.ID
+	}
+	return revisionRow{
+		event: m.ID,
+		rev:   domain.Revision{ID: revision, Body: m.Body, Format: m.Format, At: m.Timestamp},
+	}, true
 }
 
-// SaveRevisionsFor records versions fetched for one message (the backfill path).
+// keepShownVersion, before m is saved under keep, keeps the version the cached row shows
+// when m brings another, so the message holds both: m names another version, or is
+// marked edited (LinkedIn and Slack's history name no edit). Which version an edited
+// row shows is known only while its edit is recorded (a deletion forgets it).
+func keepShownVersion(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.Message) error {
+	row, ok := versionOf(m)
+	if !ok {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO message_revisions(room_id, event_id, revision_id, body, html, ts_ms)
+		SELECT ?1, ?2, shown, body, html, ts FROM (
+			SELECT m.body, coalesce(h.html, '') AS html,
+			       CASE WHEN m.edited = 0 THEN m.event_id ELSE e.revision_id END AS shown,
+			       CASE WHEN m.edited = 0 THEN m.ts_ms ELSE e.ts_ms END AS ts
+			  FROM messages m
+			  LEFT JOIN message_edit e ON e.room_id = m.room_id AND e.event_id = m.event_id
+			  LEFT JOIN message_html h ON h.room_id = m.room_id AND h.event_id = m.event_id
+			 WHERE m.room_id = ?1 AND m.event_id = ?2 AND (m.body <> '' OR h.html IS NOT NULL))
+		 WHERE shown IS NOT NULL AND shown <> '' AND (shown <> ?3 OR ?4)
+		   AND NOT EXISTS (SELECT 1 FROM message_tombstone t WHERE t.room_id = ?1 AND t.event_id = shown)
+		ON CONFLICT(room_id, event_id, revision_id) DO NOTHING`,
+		string(roomID), string(m.ID), string(row.rev.ID), m.Edited); err != nil {
+		return fmt.Errorf("db: keep the version %s shows: %w", m.ID, err)
+	}
+	return nil
+}
+
+// keepVersion, after m is saved under keep, keeps its version once the message has two:
+// m is an edit (Slack's history marks one edited without naming the edit), or another
+// version is kept already.
+func keepVersion(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.Message) error {
+	row, ok := versionOf(m)
+	if !ok {
+		return nil
+	}
+	if row.rev.ID == m.ID && !m.Edited {
+		var other bool
+		if err := tx.QueryRowContext(ctx,
+			"SELECT EXISTS(SELECT 1 FROM message_revisions WHERE room_id = ? AND event_id = ? AND revision_id <> ?)",
+			string(roomID), string(m.ID), string(row.rev.ID)).Scan(&other); err != nil {
+			return fmt.Errorf("db: read the versions of %s: %w", m.ID, err)
+		}
+		if !other {
+			return nil // its only version is the row itself
+		}
+	}
+	return writeRevisions(ctx, tx, roomID, []revisionRow{row})
+}
+
+// SaveRevisionsFor records versions fetched for one message (the backfill path); the
+// original alone of a message never edited is the row itself, not a version.
 func (c *Cache) SaveRevisionsFor(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, revs []domain.Revision) error {
 	rows := make([]revisionRow, 0, len(revs))
 	for _, rev := range revs {
@@ -294,7 +340,24 @@ func (c *Cache) SaveRevisionsFor(ctx context.Context, roomID domain.RoomID, even
 		}
 		rows = append(rows, revisionRow{event: eventID, rev: rev})
 	}
-	return c.insertRevisions(ctx, roomID, rows)
+	if len(rows) == 0 {
+		return nil
+	}
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		if len(rows) == 1 && rows[0].rev.ID == eventID {
+			var versions bool
+			if err := tx.QueryRowContext(ctx, `
+				SELECT EXISTS(SELECT 1 FROM messages WHERE room_id = ?1 AND event_id = ?2 AND edited = 1)
+				    OR EXISTS(SELECT 1 FROM message_revisions WHERE room_id = ?1 AND event_id = ?2 AND revision_id <> ?2)`,
+				string(roomID), string(eventID)).Scan(&versions); err != nil {
+				return fmt.Errorf("db: read the versions of %s: %w", eventID, err)
+			}
+			if !versions {
+				return nil
+			}
+		}
+		return writeRevisions(ctx, tx, roomID, rows)
+	})
 }
 
 type revisionRow struct {
@@ -302,16 +365,8 @@ type revisionRow struct {
 	rev   domain.Revision
 }
 
-// insertRevisions writes rows in one transaction, ignoring existing ones.
-func (c *Cache) insertRevisions(ctx context.Context, roomID domain.RoomID, rows []revisionRow) error {
-	if len(rows) == 0 {
-		return nil
-	}
-	return c.inTx(ctx, func(tx *sql.Tx) error { return writeRevisions(ctx, tx, roomID, rows) })
-}
-
-// writeRevisions is insertRevisions inside tx. Redacted or uncached messages gain no
-// versions, and a deleted edit is not one.
+// writeRevisions writes rows inside tx, ignoring existing ones. Redacted or uncached
+// messages gain no versions, and a deleted edit is not one.
 func writeRevisions(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, rows []revisionRow) error {
 	if len(rows) == 0 {
 		return nil
@@ -340,21 +395,31 @@ func writeRevisions(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, rows 
 	return nil
 }
 
-// Revisions returns every kept version of one message, oldest first.
+// Revisions returns every kept version of one message, oldest first. A message never
+// edited keeps no rows: its one version is the message itself.
 func (c *Cache) Revisions(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]domain.Revision, error) {
-	return collect(ctx, c.db, "revisions",
+	scan := func(rows *sql.Rows) (domain.Revision, error) {
+		var rev domain.Revision
+		var id, body, html string
+		var ts int64
+		if err := rows.Scan(&id, &body, &html, &ts); err != nil {
+			return domain.Revision{}, err
+		}
+		rev.ID, rev.Body, rev.Format, rev.At = domain.EventID(id), body, richtext.FromMarkup(html), time.UnixMilli(ts)
+		return rev, nil
+	}
+	revs, err := collect(ctx, c.db, "revisions",
 		`SELECT revision_id, body, html, ts_ms FROM message_revisions
 		  WHERE room_id = ? AND event_id = ? ORDER BY ts_ms ASC, revision_id ASC`,
-		func(rows *sql.Rows) (domain.Revision, error) {
-			var rev domain.Revision
-			var id, body, html string
-			var ts int64
-			if err := rows.Scan(&id, &body, &html, &ts); err != nil {
-				return domain.Revision{}, err
-			}
-			rev.ID, rev.Body, rev.Format, rev.At = domain.EventID(id), body, richtext.FromMarkup(html), time.UnixMilli(ts)
-			return rev, nil
-		}, string(roomID), string(eventID))
+		scan, string(roomID), string(eventID))
+	if err != nil || len(revs) > 0 {
+		return revs, err
+	}
+	return collect(ctx, c.db, "the one version",
+		`SELECT m.event_id, m.body, coalesce(h.html, ''), m.ts_ms FROM messages m
+		   LEFT JOIN message_html h ON h.room_id = m.room_id AND h.event_id = m.event_id
+		  WHERE m.room_id = ? AND m.event_id = ? AND m.edited = 0 AND (m.body <> '' OR h.html IS NOT NULL)`,
+		scan, string(roomID), string(eventID))
 }
 
 // SaveMessages upserts messages (skipping ones without an event ID) and trims the room
@@ -370,10 +435,6 @@ func (c *Cache) SaveMessagesWithRevisions(ctx context.Context, roomID domain.Roo
 }
 
 func (c *Cache) saveMessages(ctx context.Context, roomID domain.RoomID, msgs []domain.Message, keep bool) error {
-	var revisions []revisionRow
-	if keep {
-		revisions = revisionsOf(msgs)
-	}
 	mine := c.mine() // outside the tx: networks answer under their own locks
 	limit := c.MessagesKept(roomID)
 	c.noteSenders(msgs)
@@ -421,9 +482,6 @@ func (c *Cache) saveMessages(ctx context.Context, roomID domain.RoomID, msgs []d
 			}
 		}
 		if err := dropSuperseded(ctx, tx, roomID, msgs); err != nil {
-			return err
-		}
-		if err := writeRevisions(ctx, tx, roomID, revisions); err != nil {
 			return err
 		}
 		var kerr error
@@ -488,6 +546,11 @@ func saveMessage(ctx context.Context, tx *sql.Tx, stmt *sql.Stmt, roomID domain.
 			return err
 		}
 	}
+	if keep {
+		if err := keepShownVersion(ctx, tx, roomID, m); err != nil {
+			return err
+		}
+	}
 	apply, err := editApplies(ctx, tx, roomID, m)
 	if err != nil {
 		return err
@@ -501,7 +564,10 @@ func saveMessage(ctx context.Context, tx *sql.Tx, stmt *sql.Stmt, roomID domain.
 	if err != nil || buried {
 		return err // deleted before it arrived: nothing kept
 	}
-	return saveExtras(ctx, tx, roomID, m, apply, keep)
+	if err := saveExtras(ctx, tx, roomID, m, apply, keep); err != nil || !keep {
+		return err
+	}
+	return keepVersion(ctx, tx, roomID, m)
 }
 
 // trim keeps a room's newest limit messages by timestamp cutoff (negative keeps all);

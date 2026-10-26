@@ -348,8 +348,14 @@ Since then:
   Until then one Matrix account wrote them, so its owner is read off the cached rooms
   (with none cached, its mirrored rows go: the homeserver holds them). Bridge contact
   sources gain the account the same way (`bridge:matrix:<key>/<url>#<login>`).
+- v27 (`message_revisions`): a message keeps version rows only once it has more than
+  one; a message never edited is its own one version. Until then `[display.deleted]
+  keep` wrote a copy of every message as its first version, so this deletes each
+  message's lone row when it reads exactly as the message does (same words, same
+  formatting, not edited). The space goes to SQLite's free list and is reused by later
+  writes; the file does not shrink unless it is vacuumed.
 
-so a current cache is at version 26.
+so a current cache is at version 27.
 
 ### Indexes need no migration
 

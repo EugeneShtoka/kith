@@ -352,7 +352,8 @@ CREATE TABLE message_tombstone (
 ) STRICT, WITHOUT ROWID;
 
 -- Every version of a message, keyed by the event that carried it. Filled only while
--- [display.deleted] keep is on.
+-- [display.deleted] keep is on, and only for a message with more than one: a message
+-- never edited is its own one version.
 CREATE TABLE message_revisions (
 	room_id     TEXT    NOT NULL,
 	event_id    TEXT    NOT NULL,
@@ -688,6 +689,18 @@ DELETE FROM person_links WHERE source LIKE 'bridge:%' AND source NOT LIKE 'bridg
 DROP TABLE old_ignored;
 DROP TABLE old_person_verdicts;
 DROP TABLE matrix_owner;`,
+	// v27: a message never edited keeps no version rows; the copy each one kept of
+	// itself goes. Only rows reading exactly as the message does, so nothing is lost.
+	`DELETE FROM message_revisions
+ WHERE revision_id = event_id
+   AND NOT EXISTS (SELECT 1 FROM message_revisions o
+                    WHERE o.room_id = message_revisions.room_id AND o.event_id = message_revisions.event_id
+                      AND o.revision_id <> message_revisions.revision_id)
+   AND EXISTS (SELECT 1 FROM messages m
+                 LEFT JOIN message_html h ON h.room_id = m.room_id AND h.event_id = m.event_id
+                WHERE m.room_id = message_revisions.room_id AND m.event_id = message_revisions.event_id
+                  AND m.edited = 0 AND m.body = message_revisions.body
+                  AND coalesce(h.html, '') = message_revisions.html);`,
 }
 
 // ensureIndexes makes the file's indexes exactly baseSchema's (create missing,
