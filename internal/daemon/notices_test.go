@@ -130,3 +130,17 @@ func TestASlowListenerMissesNothingOfABurst(t *testing.T) {
 		}
 	}
 }
+
+// A stream that never reaches kithd is not reported as open, so a listener keeps
+// backing off while kithd is down.
+func TestAStreamToNoKithdNeverOpens(t *testing.T) {
+	r := daemon.NewRemote(t.TempDir() + "/kithd.sock")
+	opened := false
+	err := r.Notifications(context.Background(), func() { opened = true }, func(daemon.Notice) {})
+	if err == nil {
+		t.Error("no kithd: Notifications returned nil")
+	}
+	if opened {
+		t.Error("no kithd: the stream was reported open")
+	}
+}
