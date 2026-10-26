@@ -482,10 +482,7 @@ func serve(
 	// Before Serve answers: a client polling Status must not see a daemon waiting for
 	// nothing yet.
 	w.state.Expect(expected(ctx, log, backend)...)
-	wg.Go(func() { w.streams.Run(ctx, backend) })
-	wg.Go(func() { w.notifications.Run(ctx, w.streams) })
-	wg.Go(func() { w.refresher.Run(ctx) })
-	wg.Go(func() { w.backups.Run(ctx) })
+	w.run(ctx, &wg, log, backend)
 	wg.Go(func() {
 		syncErr = connectAndSync(ctx, backend.Router)
 		if syncErr != nil {
@@ -571,6 +568,15 @@ type workers struct {
 	state         *daemon.State
 	streams       *daemon.Streams
 	backups       *daemon.KeyBackup
+}
+
+// run starts the workers on wg; each runs until ctx ends.
+func (w *workers) run(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, backend served) {
+	wg.Go(func() { w.streams.Run(ctx, backend) })
+	wg.Go(func() { w.notifications.Run(ctx, w.streams) })
+	wg.Go(func() { w.refresher.Run(ctx) })
+	wg.Go(func() { w.backups.Run(ctx) })
+	wg.Go(func() { vacuumCache(ctx, log, backend.cache) })
 }
 
 // newWorkers builds the workers and registers their backend callbacks; serve starts them.
