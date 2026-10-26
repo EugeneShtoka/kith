@@ -246,7 +246,8 @@ func TestProfilesAreTheConfigs(t *testing.T) {
 }
 
 // run finds kithd's socket and the profiles in the config: a profile the config lacks
-// stops it, naming those it has; with ones it has, it listens to each until stopped.
+// stops it, naming those it has; with ones it has, it listens to each until stopped,
+// and a second for the same config leaves at once.
 func TestRunListensForTheConfigsProfiles(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -277,6 +278,15 @@ func TestRunListensForTheConfigsProfiles(t *testing.T) {
 		done <- run(ctx, slog.New(slog.NewTextHandler(logs, nil)), &slog.LevelVar{}, "", path, []string{"first", "third"})
 	}()
 	waitFor(t, func() bool { return logs.count("listening for notifications") == 2 }, "both profiles to be listened to")
+
+	// kith starts one every time it starts: a second for the same config leaves at once.
+	second := &logBuffer{}
+	if err := run(t.Context(), slog.New(slog.NewTextHandler(second, nil)), &slog.LevelVar{}, "", path, nil); err != nil {
+		t.Errorf("a second run = %v, want it to leave quietly", err)
+	}
+	if second.count("listening") != 0 || second.count("another kith-notify") != 1 {
+		t.Errorf("a second run logged %q, want it to say another one shows them", second.buf.String())
+	}
 	cancel()
 	if err := <-done; err != nil {
 		t.Errorf("run stopped with %v, want nil", err)
