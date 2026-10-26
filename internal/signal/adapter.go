@@ -127,6 +127,7 @@ type Adapter struct {
 
 // New is the adapter for accounts, writing into cache, whose key store is at
 // paths.Store under key, which secrets maps to their Signal accounts. log may be nil.
+// Without a key the helper is not run: the adapter serves the cache alone.
 func New(cache *db.Cache, secrets Secrets, key []byte, paths Paths, accounts []Account, log *slog.Logger) *Adapter {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)

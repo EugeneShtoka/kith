@@ -29,6 +29,10 @@ var errNotOnWhatsApp = api.ErrNotOnNetwork
 // errNetworkOff is an account that is not linked or not connected.
 var errNetworkOff = api.ErrNetworkOff
 
+// errStoreOff is a store that would not open: no account can connect or link, but
+// the cached chats are still served.
+var errStoreOff = fmt.Errorf("%w: WhatsApp's store would not open (kithd's log says why)", errNetworkOff)
+
 // Account is one configured WhatsApp account.
 type Account struct {
 	// Name is what `kith login whatsapp <name>` takes.
@@ -101,7 +105,8 @@ type Adapter struct {
 	reactions chan domain.ReactionUpdate
 }
 
-// New is the adapter for accounts over store, writing into cache. log may be nil.
+// New is the adapter for accounts over store, writing into cache. log may be nil. A
+// nil store is one that would not open: the adapter serves the cache alone.
 func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *Adapter {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
@@ -151,8 +156,12 @@ func (a *Adapter) link(account Account, phase domain.AccountPhase, detail string
 	}
 }
 
-// SavedSessions returns the names of configured accounts with a linked device.
+// SavedSessions returns the names of configured accounts with a linked device; none
+// without a store.
 func (a *Adapter) SavedSessions(ctx context.Context) ([]string, error) {
+	if a.store == nil {
+		return nil, nil
+	}
 	var linked []string
 	for _, account := range a.accountsNow() {
 		device, err := a.store.device(ctx, account.Digits)
@@ -204,8 +213,13 @@ func (a *Adapter) Start(ctx context.Context) error {
 	return ctx.Err() //nolint:wrapcheck // our own shutdown, as the Matrix adapter's
 }
 
-// connectLinked connects a linked account, or reports how to link it.
+// connectLinked connects a linked account, or reports how to link it, or that it
+// cannot connect without a store.
 func (a *Adapter) connectLinked(ctx context.Context, account Account) error {
+	if a.store == nil {
+		a.link(account, domain.AccountFailed, errStoreOff.Error())
+		return nil
+	}
 	device, err := a.store.device(ctx, account.Digits)
 	if err != nil {
 		return err

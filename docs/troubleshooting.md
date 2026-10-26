@@ -320,10 +320,12 @@ once the keyring works.
 `device verification unavailable: …` is a separate, milder warning. Encryption works,
 but interactive device verification doesn't.
 
-### "WhatsApp is off: its store's key cannot be had from the keyring"
+### "WhatsApp cannot connect: its store's key cannot be had from the keyring"
 
-WhatsApp's store (and Messenger's, logged as "Messenger's encrypted chats are off") is
-encrypted with a key kept only in the keyring, so without the keyring it stays closed.
+WhatsApp's store (and Messenger's, logged as "Messenger's encrypted chats are off", and
+Signal's, as "Signal cannot connect") is encrypted with a key kept only in the keyring,
+so without the keyring it stays closed. The cached chats stay listed and readable; the
+account shows as failed and nothing new arrives or can be sent.
 See [Keyring unavailable](#keyring-unavailable), then restart the daemon. If the log
 says the key in the keyring is corrupt, or `the key does not open this store`, restore
 the entry if you can; otherwise delete the entry (`<instance>|whatsapp-store` or

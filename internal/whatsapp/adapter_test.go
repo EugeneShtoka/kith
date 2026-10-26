@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"go.mau.fi/whatsmeow/proto/waAdv"
@@ -120,6 +121,47 @@ func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 		t.Errorf("a second pairing at once = %v, want errPairing", err)
 	}
 	a.endPairing(a.accounts[0])
+}
+
+// A store that would not open leaves every account failed, saying so, and nothing to
+// wait for or link; the adapter runs until stopped and its cached chats stay listed.
+func TestWithoutAStoreTheCacheIsStillServed(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	_, cache, _ := offline(t)
+	a := New(cache, nil, []Account{{Name: "home", Digits: ownDigits}}, nil)
+	statuses := make(chan domain.AccountStatus, 1)
+	a.OnStatus(func(s domain.AccountStatus) { statuses <- s })
+	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, ownDigits), []domain.Room{{ID: waRoom}}); err != nil {
+		t.Fatal(err)
+	}
+
+	run, stop := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() { done <- a.Start(run) }()
+	if s := <-statuses; s.Account != "home" || s.Phase != domain.AccountFailed || !strings.Contains(s.Detail, "store") {
+		t.Errorf("status = %+v, want home failed for its store", s)
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("Start returned %v before it was stopped", err)
+	default:
+	}
+	if rooms, err := a.Rooms(ctx); err != nil || len(rooms) != 1 || rooms[0].ID != waRoom {
+		t.Errorf("Rooms = (%v, %v), want the cached room", rooms, err)
+	}
+	if saved, err := a.SavedSessions(ctx); err != nil || len(saved) != 0 {
+		t.Errorf("SavedSessions = (%v, %v), want none to wait for", saved, err)
+	}
+	for _, account := range []string{"home", ""} { // a configured account, and a new one
+		if _, err := a.Login(ctx, account, nil); !errors.Is(err, errStoreOff) {
+			t.Errorf("Login(%q) = %v, want errStoreOff", account, err)
+		}
+	}
+	stop()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Errorf("Start = %v once stopped, want context.Canceled", err)
+	}
 }
 
 // Stop closes every stream, so the router's merge and the daemon's pumps finish.

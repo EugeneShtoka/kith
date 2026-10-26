@@ -90,9 +90,10 @@ type store struct {
 }
 
 // openNetworks builds every network kithd links over one cache and this instance's
-// keyring; stores are the networks' own, for Close. A WhatsApp session store that will
-// not open leaves WhatsApp out (logged) instead of taking the daemon down; without
-// Telegram's store, update positions are kept in memory.
+// keyring; stores are the networks' own, for Close. A WhatsApp or Signal store that will
+// not open, or whose key the keyring will not give, leaves that network unable to
+// connect (logged) but still serving its cached chats, instead of taking the daemon
+// down; without Telegram's store, update positions are kept in memory.
 func openNetworks(
 	ctx context.Context, cache *db.Cache, log *slog.Logger, cfg config.Config, storage domain.Storage,
 ) (networks []network, mx *matrix.Adapter, stores []store) {
@@ -101,14 +102,15 @@ func openNetworks(
 		Keys:       func(key string) session.Store { return session.MatrixStore(storage, key) },
 	})
 	networks = append(networks, mx)
+	var wa *whatsapp.Store
 	if key, err := session.LoadOrCreateStoreKey(storage.KeyringService, storage.Instance, "whatsapp"); err != nil {
-		log.Error("WhatsApp is off: its store's key cannot be had from the keyring", "err", err)
-	} else if wa, err := whatsapp.OpenStore(ctx, storage.WhatsAppPath(), key, whatsapp.NewStoreLogger(log)); err != nil {
-		log.Error("WhatsApp is off: its store will not open", "path", storage.WhatsAppPath(), "err", err)
+		log.Error("WhatsApp cannot connect: its store's key cannot be had from the keyring", "err", err)
+	} else if wa, err = whatsapp.OpenStore(ctx, storage.WhatsAppPath(), key, whatsapp.NewStoreLogger(log)); err != nil {
+		log.Error("WhatsApp cannot connect: its store will not open", "path", storage.WhatsAppPath(), "err", err)
 	} else {
 		stores = append(stores, store{name: "WhatsApp", Closer: wa})
-		networks = append(networks, whatsapp.New(cache, wa, nil, log))
 	}
+	networks = append(networks, whatsapp.New(cache, wa, nil, log))
 	secrets := keyringSecrets{service: storage.KeyringService, scope: storage.Instance}
 	tg, err := telegram.OpenStore(ctx, storage.TelegramPath())
 	if err != nil {
@@ -128,12 +130,12 @@ func openNetworks(
 		meta.New(cache, secrets, msgr, nil, log), linkedin.New(cache, secrets, nil, log),
 		gmessages.New(cache, secrets, nil, log), instagram.New(cache, secrets, nil, log))
 	// kith-signal opens Signal's store itself; kithd holds its key and hands it over.
-	if key, err := session.LoadOrCreateStoreKey(storage.KeyringService, storage.Instance, "signal"); err != nil {
-		log.Error("Signal is off: its store's key cannot be had from the keyring", "err", err)
-	} else {
-		paths := signal.Paths{Store: storage.SignalPath(), Socket: storage.SignalSocketPath()}
-		networks = append(networks, signal.New(cache, secrets, key, paths, nil, log))
+	key, err := session.LoadOrCreateStoreKey(storage.KeyringService, storage.Instance, "signal")
+	if err != nil {
+		log.Error("Signal cannot connect: its store's key cannot be had from the keyring", "err", err)
 	}
+	paths := signal.Paths{Store: storage.SignalPath(), Socket: storage.SignalSocketPath()}
+	networks = append(networks, signal.New(cache, secrets, key, paths, nil, log))
 	for _, n := range networks {
 		n.UseConfig(ctx, cfg)
 	}

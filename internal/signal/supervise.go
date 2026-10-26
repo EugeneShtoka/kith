@@ -76,6 +76,9 @@ func (h *helper) remove(aci string) {
 	delete(h.states, aci)
 }
 
+// noStoreKey is why the helper is not run without the store's key.
+const noStoreKey = "the store's key could not be had from the keyring (kithd's log says why)"
+
 // supervisor runs kith-signal until stopped, starting it again whenever it ends.
 type supervisor struct {
 	stop context.CancelFunc
@@ -117,6 +120,11 @@ func (a *Adapter) stopSupervising() {
 // supervise runs the helper again and again until ctx ends.
 func (a *Adapter) supervise(ctx context.Context, s *supervisor) {
 	defer close(s.done)
+	if len(a.key) == 0 {
+		// The helper cannot open the store without it; the cached chats are still served.
+		a.goneDown(noStoreKey, true)
+		return
+	}
 	ln, err := listen(ctx, a.paths.Socket)
 	if err != nil {
 		a.log.Error("Signal is off: kith-signal's socket will not open", "path", a.paths.Socket, "err", err)
