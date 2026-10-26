@@ -3,6 +3,7 @@
 /kithd
 /*.exe
 /kith-mcp
+/kith-notify
 /kith-signal
 /emoji-probe
 dist/

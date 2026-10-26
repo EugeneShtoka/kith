@@ -769,6 +769,24 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/phonebook"
             - "github.com/EugeneShtoka/kith/internal/setup"
 
+        # Shows kithd's notifications on this machine; talks only to the daemon. Its tests
+        # serve a daemon of their own.
+        notify-main-wiring:
+          files:
+            - "**/cmd/kith-notify/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/apitest"
+            - "github.com/EugeneShtoka/kith/internal/buildinfo"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/daemon"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/notify"
+            - "github.com/EugeneShtoka/kith/internal/schedule"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+
         # The Signal helper's main: the helper and, built with the signal tag, Signal.
         signal-main-wiring:
           files:

@@ -183,15 +183,16 @@ Each PR lands working.
    while a link waits, a seat lost mid-hand-off, every exit route, drafts in a room
    both profiles show.
 5. **feat: kithd publishes notifications per profile; `kith-notify` shows them.**
-   The topic stream (subscribe by profile names; one notification ID across topics;
-   codes to copy ride on it), the `kith-notify` binary, its systemd unit, launchd
-   plist and Nix module, `kith` installing it. kithd's own sink stays meanwhile, so
-   nothing goes quiet. **Failure review** (concurrent, merges topics): a message in
+   The topic stream (a profile's, named as every request names it; one notification
+   ID across topics) and the `kith-notify` binary. Nothing starts it yet: kithd's own
+   sink stays meanwhile, and both running would show each popup twice. **Failure review** (concurrent, merges topics): a message in
    two subscribed profiles, a profile removed by a reload while subscribed, kithd
    restarting mid-stream, a folded "n new messages" replacing an earlier popup, a
    slow agent.
 6. **feat!: kithd shows nothing itself.** Its in-process sinks and clipboard copy
-   go; the agent does both. Breaking: without `kith-notify` running nothing pops up.
+   go; the agent does both (codes ride on the stream). Its systemd unit, launchd plist
+   and Nix module, the release packages, `kith` installing and starting it, and the
+   docs. Breaking: without `kith-notify` running nothing pops up.
 7. **feat: people in a profile.** `people.exclude` with IDs and card fields; kithd
    reads the phonebook folder (a depguard rule for it) and follows its changes; a
    hidden set per profile, applied where the shared one is (search, counts, threads,

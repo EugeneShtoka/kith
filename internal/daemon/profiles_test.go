@@ -392,13 +392,14 @@ func profileServer(t *testing.T, w *profileWorld) (*harness, *daemon.Notificatio
 }
 
 // What kithd answers a client running a profile holds only the profile's rooms, and
-// every one of them, on every call that narrows and both streams that do; spaces are
+// every one of them, on every call that narrows and the streams that do; spaces are
 // kept while they reach one of its rooms. Worlds, profiles and the reload between them
 // are generated; the streams stay open across reloads, so each sees its profile change.
 func TestAProfileSeesOnlyItsRooms(t *testing.T) {
 	t.Parallel()
 	for _, call := range daemon.NarrowingCalls() {
-		if _, ok := narrowingProbes[call]; !ok && call != "UnreadStream" && call != "Invites" && call != "Spaces" && call != "RefreshSpaces" {
+		if _, ok := narrowingProbes[call]; !ok && call != "UnreadStream" && call != "Invites" && call != "Spaces" && call != "RefreshSpaces" &&
+			call != "NotificationStream" {
 			t.Errorf("%s narrows to a profile, but nothing here checks it", call)
 		}
 	}
@@ -413,12 +414,14 @@ func TestAProfileSeesOnlyItsRooms(t *testing.T) {
 	go func() { _ = client.Start(ctx) }()
 	defer client.Stop()
 	h.waitAttached(1)
+	notes := listen(t, client)
 
 	for seed := range uint64(60) {
 		rng := rand.New(rand.NewPCG(seed, 7))
 		g := generate(rng)
 		w.set(g.rooms, g.spaces, g.invites)
-		cfg := config.Config{Tags: g.tags, Profiles: []config.Profile{{Name: "first", Include: []string{"*"}}, g.profile}}
+		cfg := notifsOn("all")
+		cfg.Tags, cfg.Profiles = g.tags, []config.Profile{{Name: "first", Include: []string{"*"}}, g.profile}
 		if err := n.Reload(cfg); err != nil {
 			t.Fatalf("seed %d: reload %+v: %v", seed, g.profile, err)
 		}
@@ -444,6 +447,52 @@ func TestAProfileSeesOnlyItsRooms(t *testing.T) {
 		checkSpaces(t, what, client, g)
 		checkUnreadStream(t, what, client, w, g, want)
 		checkInviteStream(t, what, client, w, g)
+		checkNotificationStream(t, what, n, notes, g, want)
+	}
+}
+
+// listen subscribes client to its profile's notifications, once the daemon has.
+func listen(t *testing.T, client *daemon.Remote) <-chan daemon.Notice {
+	t.Helper()
+	notes, opened := make(chan daemon.Notice, 64), make(chan struct{})
+	go func() {
+		_ = client.Notifications(t.Context(), func() { close(opened) }, func(v daemon.Notice) { notes <- v })
+	}()
+	select {
+	case <-opened:
+	case <-time.After(settle):
+		t.Fatal("the notification stream never opened")
+	}
+	return notes
+}
+
+// checkNotificationStream has every room notify and reads which reach the profile's
+// stream; each message's body is its room.
+func checkNotificationStream(t *testing.T, what string, n *daemon.Notifications, notes <-chan daemon.Notice, g generated, want []domain.RoomID) {
+	t.Helper()
+	for _, id := range idsOf(g.rooms) {
+		n.Synced(domain.OwnerOf(id), time.Now())
+		n.Synced(domain.OwnerOf(id), time.Now()) // past the catch-up batch
+		n.Deliver(t.Context(), msg(id, alice, string(id)))
+	}
+	var got []domain.RoomID
+	quiet := time.After(settle)
+	for len(got) < len(want) {
+		select {
+		case v := <-notes:
+			got = append(got, domain.RoomID(v.Alert.Body))
+		case <-quiet:
+			t.Fatalf("%s: the notification stream gave %v, want %v", what, got, want)
+		}
+	}
+	select {
+	case v := <-notes:
+		got = append(got, domain.RoomID(v.Alert.Body))
+	case <-time.After(30 * time.Millisecond):
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Errorf("%s: the notification stream gave %v, want %v", what, got, want)
 	}
 }
 

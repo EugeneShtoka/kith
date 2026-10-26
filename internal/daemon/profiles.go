@@ -39,6 +39,7 @@ var reaches = map[string]profileReach{
 	"LastMessages": narrows, "TagVerdicts": narrows, "CachedUnread": narrows, "UnreadStream": narrows,
 	"CachedInvites": narrows, "Invites": narrows, "SearchMessages": narrows, "SearchSenders": narrows,
 	"RoomsWith": narrows, "MessagesFrom": narrows, "Drafts": narrows, "ScheduledMessages": narrows,
+	"NotificationStream": narrows,
 
 	// One room, named by the caller.
 	"Present": passes, "MarkRead": passes, "MarkRoomsRead": passes, "MarkRoomUnread": passes, "SetRoomArchived": passes,

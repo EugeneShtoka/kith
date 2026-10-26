@@ -293,6 +293,9 @@ const (
 	// BackendServiceRoomsChangedProcedure is the fully-qualified name of the BackendService's
 	// RoomsChanged RPC.
 	BackendServiceRoomsChangedProcedure = "/backend.v1.BackendService/RoomsChanged"
+	// BackendServiceNotificationStreamProcedure is the fully-qualified name of the BackendService's
+	// NotificationStream RPC.
+	BackendServiceNotificationStreamProcedure = "/backend.v1.BackendService/NotificationStream"
 	// BackendServiceVerificationsProcedure is the fully-qualified name of the BackendService's
 	// Verifications RPC.
 	BackendServiceVerificationsProcedure = "/backend.v1.BackendService/Verifications"
@@ -642,6 +645,10 @@ type BackendServiceClient interface {
 	// RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
 	// renamed, archived on another device), so the client reads its room list again.
 	RoomsChanged(context.Context, *connect.Request[v1.RoomsChangedRequest]) (*connect.ServerStreamForClient[v1.RoomsChangedResponse], error)
+	// NotificationStream streams the notifications published to the request's profile:
+	// kithd publishes each to every profile holding its room, so a listener on several
+	// profiles gets one on each and shows it once, by its ID.
+	NotificationStream(context.Context, *connect.Request[v1.NotificationStreamRequest]) (*connect.ServerStreamForClient[v1.NotificationStreamResponse], error)
 	// Verification
 	// Verifications streams verification steps (request, SAS, done, canceled).
 	Verifications(context.Context, *connect.Request[v1.VerificationsRequest]) (*connect.ServerStreamForClient[v1.VerificationsResponse], error)
@@ -1324,6 +1331,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("RoomsChanged")),
 			connect.WithClientOptions(opts...),
 		),
+		notificationStream: connect.NewClient[v1.NotificationStreamRequest, v1.NotificationStreamResponse](
+			httpClient,
+			baseURL+BackendServiceNotificationStreamProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("NotificationStream")),
+			connect.WithClientOptions(opts...),
+		),
 		verifications: connect.NewClient[v1.VerificationsRequest, v1.VerificationsResponse](
 			httpClient,
 			baseURL+BackendServiceVerificationsProcedure,
@@ -1646,6 +1659,7 @@ type backendServiceClient struct {
 	follow                *connect.Client[v1.FollowRequest, v1.FollowResponse]
 	followStream          *connect.Client[v1.FollowStreamRequest, v1.FollowStreamResponse]
 	roomsChanged          *connect.Client[v1.RoomsChangedRequest, v1.RoomsChangedResponse]
+	notificationStream    *connect.Client[v1.NotificationStreamRequest, v1.NotificationStreamResponse]
 	verifications         *connect.Client[v1.VerificationsRequest, v1.VerificationsResponse]
 	startVerification     *connect.Client[v1.StartVerificationRequest, v1.StartVerificationResponse]
 	acceptVerification    *connect.Client[v1.AcceptVerificationRequest, v1.AcceptVerificationResponse]
@@ -2160,6 +2174,11 @@ func (c *backendServiceClient) RoomsChanged(ctx context.Context, req *connect.Re
 	return c.roomsChanged.CallServerStream(ctx, req)
 }
 
+// NotificationStream calls backend.v1.BackendService.NotificationStream.
+func (c *backendServiceClient) NotificationStream(ctx context.Context, req *connect.Request[v1.NotificationStreamRequest]) (*connect.ServerStreamForClient[v1.NotificationStreamResponse], error) {
+	return c.notificationStream.CallServerStream(ctx, req)
+}
+
 // Verifications calls backend.v1.BackendService.Verifications.
 func (c *backendServiceClient) Verifications(ctx context.Context, req *connect.Request[v1.VerificationsRequest]) (*connect.ServerStreamForClient[v1.VerificationsResponse], error) {
 	return c.verifications.CallServerStream(ctx, req)
@@ -2587,6 +2606,10 @@ type BackendServiceHandler interface {
 	// RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
 	// renamed, archived on another device), so the client reads its room list again.
 	RoomsChanged(context.Context, *connect.Request[v1.RoomsChangedRequest], *connect.ServerStream[v1.RoomsChangedResponse]) error
+	// NotificationStream streams the notifications published to the request's profile:
+	// kithd publishes each to every profile holding its room, so a listener on several
+	// profiles gets one on each and shows it once, by its ID.
+	NotificationStream(context.Context, *connect.Request[v1.NotificationStreamRequest], *connect.ServerStream[v1.NotificationStreamResponse]) error
 	// Verification
 	// Verifications streams verification steps (request, SAS, done, canceled).
 	Verifications(context.Context, *connect.Request[v1.VerificationsRequest], *connect.ServerStream[v1.VerificationsResponse]) error
@@ -3265,6 +3288,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("RoomsChanged")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceNotificationStreamHandler := connect.NewServerStreamHandler(
+		BackendServiceNotificationStreamProcedure,
+		svc.NotificationStream,
+		connect.WithSchema(backendServiceMethods.ByName("NotificationStream")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceVerificationsHandler := connect.NewServerStreamHandler(
 		BackendServiceVerificationsProcedure,
 		svc.Verifications,
@@ -3679,6 +3708,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceFollowStreamHandler.ServeHTTP(w, r)
 		case BackendServiceRoomsChangedProcedure:
 			backendServiceRoomsChangedHandler.ServeHTTP(w, r)
+		case BackendServiceNotificationStreamProcedure:
+			backendServiceNotificationStreamHandler.ServeHTTP(w, r)
 		case BackendServiceVerificationsProcedure:
 			backendServiceVerificationsHandler.ServeHTTP(w, r)
 		case BackendServiceStartVerificationProcedure:
@@ -4140,6 +4171,10 @@ func (UnimplementedBackendServiceHandler) FollowStream(context.Context, *connect
 
 func (UnimplementedBackendServiceHandler) RoomsChanged(context.Context, *connect.Request[v1.RoomsChangedRequest], *connect.ServerStream[v1.RoomsChangedResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RoomsChanged is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) NotificationStream(context.Context, *connect.Request[v1.NotificationStreamRequest], *connect.ServerStream[v1.NotificationStreamResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.NotificationStream is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Verifications(context.Context, *connect.Request[v1.VerificationsRequest], *connect.ServerStream[v1.VerificationsResponse]) error {
