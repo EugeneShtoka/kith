@@ -27,9 +27,13 @@ var skinTones = map[string]string{
 const presentation = "️"
 
 // reactionKey is the emoji a reaction name stands for, toned; ":name:" when unknown.
+// Slack's own names come first: kith's may name another emoji ("umbrella").
 func reactionKey(name string) string {
 	base, tone, _ := strings.Cut(name, "::")
-	e, ok := emoji.ByName(base)
+	e, ok := emoji.SlackNames[base]
+	if !ok {
+		e, ok = emoji.ByName(base)
+	}
 	if !ok {
 		return ":" + name + ":"
 	}
@@ -39,45 +43,20 @@ func reactionKey(name string) string {
 	return e
 }
 
-// namesByEmoji maps each curated emoji to its shortest name (Slack's own where they
-// differ: "+1" before "thumbsup"), then Unicode's names for the rest.
-var namesByEmoji = func() map[string]string {
-	out := map[string]string{}
-	for _, set := range []map[string]string{emoji.Curated, emoji.Standard} {
-		names := make([]string, 0, len(set))
-		for name := range set {
-			names = append(names, name)
-		}
-		slices.SortFunc(names, func(a, b string) int {
-			if len(a) != len(b) {
-				return len(a) - len(b)
-			}
-			return strings.Compare(a, b)
-		})
-		for _, name := range names {
-			e := strings.TrimSuffix(set[name], presentation)
-			if _, taken := out[e]; !taken {
-				out[e] = name
-			}
-		}
-	}
-	return out
-}()
-
 // reactionName is the Slack name for a key: ":name:" as written, a toned emoji as
-// name::skin-tone-n; false when unknown.
+// name::skin-tone-n; false when Slack has no name for it.
 func reactionName(key string) (string, bool) {
 	if len(key) > 2 && strings.HasPrefix(key, ":") && strings.HasSuffix(key, ":") {
 		return key[1 : len(key)-1], true
 	}
 	for tone, mod := range skinTones {
 		if base, toned := strings.CutSuffix(key, mod); toned {
-			if name, ok := namesByEmoji[strings.TrimSuffix(base, presentation)]; ok {
+			if name, ok := emoji.SlackName[strings.TrimSuffix(base, presentation)]; ok {
 				return name + "::" + tone, true
 			}
 		}
 	}
-	name, ok := namesByEmoji[strings.TrimSuffix(key, presentation)]
+	name, ok := emoji.SlackName[strings.TrimSuffix(key, presentation)]
 	return name, ok
 }
 
