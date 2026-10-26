@@ -49,6 +49,16 @@ var commands = []command{
 		run:     Model.openTracked,
 	},
 	{
+		name: "profile", arg: "[name]", argOptional: true, keyScope: scopeCommand, keyAct: actProfile,
+		summary: "switch this window to another profile — its rooms, unread and search",
+		run: func(m Model, arg string) (Model, tea.Cmd) {
+			if strings.TrimSpace(arg) == "" {
+				return m.openProfiles()
+			}
+			return m.switchProfile(arg)
+		},
+	},
+	{
 		name:    "caught",
 		summary: "what the filters catch — the preview, before you trust them",
 		run:     noArg(Model.openCaught),

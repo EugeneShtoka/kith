@@ -14,16 +14,16 @@ func TestProfileFlagNamesAProfileTheConfigHas(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Profiles: []config.Profile{{Name: "work"}, {Name: "phone"}}}
 	backend := daemon.NewRemote("/nonexistent")
-	for _, name := range []string{"", "work", " Phone "} {
-		if err := useProfile(backend, cfg, name); err != nil {
-			t.Errorf("--profile %q: %v", name, err)
+	for _, c := range []struct{ name, want string }{{"", ""}, {"work", "work"}, {" Phone ", "phone"}} {
+		if got, err := useProfile(backend, cfg, c.name); err != nil || got != c.want {
+			t.Errorf("--profile %q = %q, %v; want %q", c.name, got, err, c.want)
 		}
 	}
-	err := useProfile(backend, cfg, "home")
+	_, err := useProfile(backend, cfg, "home")
 	if err == nil || !strings.Contains(err.Error(), `"home"`) || !strings.Contains(err.Error(), "work, phone") {
 		t.Errorf("--profile home = %v, want it refused naming work, phone", err)
 	}
-	if err := useProfile(backend, config.Config{}, "default"); err != nil {
+	if _, err := useProfile(backend, config.Config{}, "default"); err != nil {
 		t.Errorf("--profile default with no [[profile]]: %v", err)
 	}
 }

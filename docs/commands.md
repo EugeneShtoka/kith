@@ -68,6 +68,7 @@ Press `:` from anywhere except the composer.
 | `:dnd` | Silence notifications, for a while or for one place | `ctrl+n` |
 | `:verify` | Ask your other sessions to verify this one | |
 | `:settings` | The settings screen | `,` |
+| `:profile [name]` | Switch this window to another [profile](configuration.md#profiles): its rooms, unread and search; with no name, a list to pick from | `gP` |
 | `:help` | Every key and what it does | `?` |
 
 Where the table says the pane decides, the starting scope follows where you pressed `:`. From the rail it is everywhere, from the room list it is that group, and from the timeline it is this room. `tab` widens or narrows the scope in the results. An unknown command name is reported together with the full list.

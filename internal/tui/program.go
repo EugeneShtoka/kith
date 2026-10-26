@@ -35,6 +35,10 @@ type RunOptions struct {
 	RestartDaemon func(ctx context.Context) error
 	// Secrets is the keyring commands' secrets are kept in; nil when there is none.
 	Secrets Secrets
+	// Profiles switches the [[profile]] the window runs in, starting in Profile ("" the
+	// first); nil cannot switch.
+	Profiles Profiles
+	Profile  string
 }
 
 // Run starts the Bubble Tea program bound to ctx and blocks until it exits.
@@ -58,7 +62,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 		WithConfigFile(opts.ConfigPath, cfg).
 		WithCache(cache).
 		WithRestart(opts.RestartDaemon).
-		WithSecrets(opts.Secrets)
+		WithSecrets(opts.Secrets).
+		WithProfiles(opts.Profiles, opts.Profile)
 	if cacheErr != nil {
 		model = model.sayErr("no media cache", cacheErr)
 	}

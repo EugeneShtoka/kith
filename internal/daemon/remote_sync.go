@@ -67,11 +67,16 @@ func (r *Remote) hold(ctx context.Context) error {
 			everAttached = true
 		}
 		attemptCtx, endAttempt := context.WithCancel(ctx)
+		current := r.begin(endAttempt)
 		began := time.Now()
-		err := r.attach(attemptCtx, endAttempt)
+		err := r.attach(attemptCtx, endAttempt, current.ready)
 		endAttempt()
+		close(current.ended)
 		if r.finished(ctx) {
 			return nil
+		}
+		if r.switched(current) {
+			continue // a profile switch, not a loss: open the streams in the new one
 		}
 		// A first subscribe can fail because the daemon is restarting, so it is retried
 		// unless nothing answers at all.
@@ -104,6 +109,106 @@ func (r *Remote) hold(ctx context.Context) error {
 			return nil
 		}
 		r.say(true)
+	}
+}
+
+// streamAttempt is one attachment of the streams, every one opened in profile: end
+// ends it, ready closes once the daemon has subscribed every stream, ended once it has
+// ended.
+type streamAttempt struct {
+	profile      string
+	end          context.CancelFunc
+	ready, ended chan struct{}
+}
+
+// streamOpenedKey carries the call a stream makes once the daemon has subscribed it.
+type streamOpenedKey struct{}
+
+// begin records a new attachment in the profile named now, and tells whoever waits for
+// the next one. A stream opens in the profile named when it opens; one renamed since
+// begin is ended by the switch that renamed it, since its attachment is labeled with
+// another profile.
+func (r *Remote) begin(end context.CancelFunc) streamAttempt {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.attempt = streamAttempt{profile: r.profileName(), end: end, ready: make(chan struct{}), ended: make(chan struct{})}
+	if r.begun != nil {
+		close(r.begun)
+	}
+	r.begun = make(chan struct{})
+	return r.attempt
+}
+
+// switched reports whether attempt ended for a profile switch, or opened in a profile
+// no longer named: either way the daemon is there, and the next opens at once.
+func (r *Remote) switched(attempt streamAttempt) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.switchedOff == attempt.ended || attempt.profile != r.profileName()
+}
+
+// SwitchProfile runs every request from now on in the named [[profile]] and
+// re-subscribes every stream in it. It returns once streams opened in another profile
+// have ended, what the narrowed ones (unread, invitations) still held is dropped, and
+// the daemon has subscribed every stream in the new one, so a read the caller makes
+// afterwards misses nothing; or once the streams stop for good. Before Start it only
+// names the profile.
+func (r *Remote) SwitchProfile(name string) {
+	// Named under the lock begin takes, so an attachment is either ended here or opens
+	// in the new profile.
+	r.mu.Lock()
+	r.UseProfile(name)
+	current := r.attempt
+	r.mu.Unlock()
+	if current.end == nil {
+		return
+	}
+	if current.profile != name {
+		r.mu.Lock()
+		r.switchedOff = current.ended
+		r.mu.Unlock()
+		current.end()
+		<-current.ended
+		drain(r.unread.ch)
+		drain(r.invites.ch)
+	}
+	// Waits for an attachment in the profile named now: a later switch overtaking this
+	// one is what it waits for too.
+	for {
+		r.mu.Lock()
+		now, begun, named := r.attempt, r.begun, r.profileName()
+		r.mu.Unlock()
+		if now.profile == named {
+			select {
+			case <-now.ready:
+				select {
+				case <-now.ended: // ready once, gone since: wait for the next
+				default:
+					return
+				}
+			case <-now.ended: // before it was ready: wait for the next
+			}
+		}
+		select {
+		case <-begun:
+		case <-r.over:
+			return
+		}
+	}
+}
+
+// drain drops what a channel holds, without waiting for more; a closed one (Stop) holds
+// nothing.
+func drain[T any](ch chan T) {
+	for {
+		select {
+		case _, open := <-ch:
+			if !open {
+				return
+			}
+		default:
+			return
+		}
 	}
 }
 
@@ -164,7 +269,7 @@ func (r *Remote) configPump(ctx context.Context) error {
 
 // attach runs one pump per stream until all end. The first to end detaches the rest:
 // they share one connection. Channels are not closed here.
-func (r *Remote) attach(ctx context.Context, detach context.CancelFunc) error {
+func (r *Remote) attach(ctx context.Context, detach context.CancelFunc, ready chan struct{}) error {
 	pumps := []func(context.Context) error{
 		func(ctx context.Context) error {
 			return pumpStream(ctx, "messages", r.msgs, r.c.Messages, &v1.MessagesRequest{},
@@ -216,12 +321,22 @@ func (r *Remote) attach(ctx context.Context, detach context.CancelFunc) error {
 		},
 	}
 	pumps = append(pumps, r.configPump)
+	return runPumps(ctx, pumps, detach, ready)
+}
+
+// runPumps runs every pump until all end, the first to end detaching the rest; ready
+// closes once the daemon has subscribed each pump's stream, or the pump has ended.
+func runPumps(ctx context.Context, pumps []func(context.Context) error, detach context.CancelFunc, ready chan struct{}) error {
 	errs := make([]error, len(pumps))
-	var wg sync.WaitGroup
+	var wg, opening sync.WaitGroup
+	opening.Add(len(pumps))
+	go func() { opening.Wait(); close(ready) }()
 	for i, pump := range pumps {
+		opened := sync.OnceFunc(opening.Done)
 		wg.Go(func() {
 			defer detach()
-			errs[i] = pump(ctx)
+			defer opened()
+			errs[i] = pump(context.WithValue(ctx, streamOpenedKey{}, opened))
 		})
 	}
 	wg.Wait()
@@ -246,6 +361,10 @@ func pumpStream[Req, F, T any](
 		return callErr("subscribe to "+name, err)
 	}
 	defer func() { _ = s.Close() }() // the stream's own error (below) is the report
+	if opened, ok := ctx.Value(streamOpenedKey{}).(func()); ok {
+		s.ResponseHeader() // the daemon answers once it has subscribed the stream
+		opened()
+	}
 
 	for s.Receive() {
 		v, ok := convert(s.Msg())
@@ -333,6 +452,7 @@ func (r *Remote) arm(cancel context.CancelFunc) armState {
 // closeStreams ends every daemon→UI channel: a listener parked on one nothing will
 // close leaks forever.
 func (r *Remote) closeStreams() {
+	r.overOnce.Do(func() { close(r.over) })
 	r.msgs.done()
 	r.unread.done()
 	r.reactions.done()

@@ -626,6 +626,8 @@ type Model struct {
 	script pendingScript
 	// conf is the config file this session edits. See configState.
 	conf configState
+	// profiles is the [[profile]] this window runs in. See profileState.
+	profiles profileState
 	// prefs is what the config says, resolved when it is applied. See prefsState.
 	prefs prefsState
 	// offers is the one-time download offers. See oneTimeOffers.
@@ -1239,6 +1241,8 @@ func (m Model) handleHousekeepingMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case playerCloseMsg:
 		// One-shot at the end of a note.
 		return answered(m.handlePlayerClose(msg))
+	case profileSwitchedMsg:
+		return answered(m.handleProfileSwitched(msg))
 	default:
 		return m, nil, false
 	}
@@ -1607,6 +1611,8 @@ func (m Model) commandAction(act action) (Model, tea.Cmd, bool) {
 		return m, nil, true
 	case actSettings:
 		return answered(m.openSettings())
+	case actProfile:
+		return answered(m.openProfiles())
 	case actCommand:
 		return answered(m.openCommandLine())
 	case actSearchRoom:
