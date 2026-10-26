@@ -120,6 +120,7 @@ const (
 	actHistory
 	actNotifyRule
 	actSettings
+	actProfile
 	actCommand
 	// actRedraw clears and redraws the screen, removing cells left by a terminal that laid text
 	// out differently than measured.
@@ -346,6 +347,7 @@ var keyActions = []keyAction{
 	{scopeCommand, actHelp, "help"},
 	{scopeCommand, actQuit, "quit"},
 	{scopeCommand, actSettings, "settings"},
+	{scopeCommand, actProfile, "profile"},
 	{scopeCommand, actCommand, "command"},
 	{scopeCommand, actSearchRoom, "search.room"},
 	{scopeCommand, actSearchAll, "search.all"},

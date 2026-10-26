@@ -35,6 +35,7 @@ Client-wide keys. The ones marked *anywhere* work while you are typing too, so t
 | `paste` | `ctrl+v` | Paste the terminal's clipboard, for terminals that pass the key through (most paste on their own) | anywhere, typing included |
 | `quit` | `q` | Quit | not while typing |
 | `settings` | `,` (written `comma`) | Settings screen, each row showing its current value | not while typing |
+| `profile` | `gP` | Switch to another [profile](configuration.md#profiles); with one, says so | not while typing |
 | `command` | `:` | Command line — client-wide commands (`/` commands act on the open room) | not while typing |
 
 ### `[keys.rail]`

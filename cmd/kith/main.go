@@ -319,7 +319,8 @@ func run(configPath string, jobs startup) error {
 	if at.note != "" {
 		fmt.Fprintln(os.Stderr, "kith:", at.note)
 	}
-	if serr := sitDown(ctx, backend, cfg, jobs); serr != nil {
+	profile, serr := sitDown(ctx, backend, cfg, jobs)
+	if serr != nil {
 		return serr
 	}
 
@@ -352,7 +353,8 @@ func run(configPath string, jobs startup) error {
 		RestartDaemon: func(ctx context.Context) error {
 			return daemon.Restart(ctx, at.storage, at.launch, readyTimeout)
 		},
-		Secrets: commandSecrets{service: at.storage.KeyringService},
+		Secrets:  commandSecrets{service: at.storage.KeyringService},
+		Profiles: backend, Profile: profile,
 	}); errors.Is(err, tui.ErrOpenedElsewhere) {
 		log.Info("kith closed: opened in another window")
 		fmt.Fprintln(os.Stderr, "kith: opened in another window")
@@ -363,43 +365,44 @@ func run(configPath string, jobs startup) error {
 	return nil
 }
 
-// sitDown names the profile this window runs in and takes the seat, warning first
-// about the assistant's scope.
-func sitDown(ctx context.Context, backend *daemon.Remote, cfg config.Config, jobs startup) error {
-	if err := useProfile(backend, cfg, jobs.profile); err != nil {
-		return err
+// sitDown names the profile this window runs in ("" the first) and takes the seat,
+// warning first about the assistant's scope.
+func sitDown(ctx context.Context, backend *daemon.Remote, cfg config.Config, jobs startup) (string, error) {
+	profile, err := useProfile(backend, cfg, jobs.profile)
+	if err != nil {
+		return "", err
 	}
 	warnAboutAgentScope(ctx, backend, cfg)
 	// One window per daemon (api.Seat), taken first; runs ending in a printout need none.
 	if !jobs.bootstrapKeys && jobs.exportKeys == "" {
 		if serr := backend.TakeSeat(ctx, jobs.force, whereAmI()); errors.Is(serr, api.ErrSeatTaken) {
-			return fmt.Errorf("%w; close it, or run kith --force to take over", serr)
+			return "", fmt.Errorf("%w; close it, or run kith --force to take over", serr)
 		} else if serr != nil {
-			return fmt.Errorf("take the seat: %w", serr)
+			return "", fmt.Errorf("take the seat: %w", serr)
 		}
 	}
-	return nil
+	return profile, nil
 }
 
-// useProfile names the profile every request runs in, refusing one the config lacks
-// before the daemon would.
-func useProfile(backend *daemon.Remote, cfg config.Config, name string) error {
+// useProfile names the profile every request runs in, as the config spells it ("" the
+// first), refusing one the config lacks before the daemon would.
+func useProfile(backend *daemon.Remote, cfg config.Config, name string) (string, error) {
 	if name == "" {
-		return nil
+		return "", nil
 	}
 	profiles, err := setup.Profiles(cfg)
 	if err != nil {
-		return err
+		return "", err
 	}
 	names := make([]string, len(profiles))
 	for i, p := range profiles {
 		if strings.EqualFold(p.Name, strings.TrimSpace(name)) {
 			backend.UseProfile(p.Name)
-			return nil
+			return p.Name, nil
 		}
 		names[i] = p.Name
 	}
-	return fmt.Errorf("--profile %q: the config has %s", name, strings.Join(names, ", "))
+	return "", fmt.Errorf("--profile %q: the config has %s", name, strings.Join(names, ", "))
 }
 
 // whereAmI describes this window for one refused the seat: process, terminal (via /proc

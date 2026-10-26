@@ -51,15 +51,10 @@ func init() {
 		pickerPerson:     {choose: byValue(Model.choosePersonRow), remove: Model.removePersonField},
 		pickerPersonKeys: {choose: byValue(Model.choosePersonKey)},
 		pickerReaction:   {choose: byValue(Model.reactWithPicked)},
-		pickerVote: {choose: func(m Model, item pickerItem) (Model, tea.Cmd) {
-			if item.value == voteTakeBack {
-				return m.castVote(nil)
-			}
-			return m.castVote([]string{item.value})
-		}},
-		pickerVoteMulti: {apply: Model.castVote},
-		pickerEmoji:     {choose: byValue(Model.insertPickedEmoji)},
-		pickerPeople:    {choose: func(m Model, _ pickerItem) (Model, tea.Cmd) { return m.aliasSelectedPerson() }},
+		pickerVote:       {choose: chooseVote},
+		pickerVoteMulti:  {apply: Model.castVote},
+		pickerEmoji:      {choose: byValue(Model.insertPickedEmoji)},
+		pickerPeople:     {choose: func(m Model, _ pickerItem) (Model, tea.Cmd) { return m.aliasSelectedPerson() }},
 		pickerContext: {choose: func(m Model, item pickerItem) (Model, tea.Cmd) {
 			return m.acceptContext(m.picker.then, item.value)
 		}},
@@ -93,6 +88,7 @@ func init() {
 		pickerIgnored:         {choose: func(m Model, _ pickerItem) (Model, tea.Cmd) { return m.closePicker(), nil }, remove: Model.removeIgnoredRow},
 		pickerPublicRooms:     {choose: Model.chooseJoinPublicRoom},
 		pickerChooseAccount:   {choose: byValue(Model.chooseAccount)},
+		pickerProfile:         {choose: byValue(Model.switchProfile)},
 		pickerLoginNetwork:    {choose: account},
 		pickerLoginAccount:    {choose: account},
 		pickerImportAccount:   {choose: account},
@@ -105,6 +101,14 @@ func init() {
 		pickerCompletionModel: {apply: Model.acceptModelOffer},
 		pickerRescan:          {apply: Model.applyRescan},
 	}
+}
+
+// chooseVote casts the answer chosen, or takes the vote back.
+func chooseVote(m Model, item pickerItem) (Model, tea.Cmd) {
+	if item.value == voteTakeBack {
+		return m.castVote(nil)
+	}
+	return m.castVote([]string{item.value})
 }
 
 // chooseScheduled retries a refused or failing message now, and cancels any other

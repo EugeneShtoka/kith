@@ -584,3 +584,102 @@ func TestAProfileTakenAwayHoldsNothing(t *testing.T) {
 		t.Errorf("Rooms in a profile taken away = %v, want ErrUnknownProfile", err)
 	}
 }
+
+// Switching profiles, alone or two at once, with unread arriving meanwhile: once the
+// switches return, the streams run in the profile a call names, and nothing the old
+// profile streamed comes after. A switch racing Stop returns; one before Start only
+// names the profile.
+func TestSwitchingProfilesMovesEveryStream(t *testing.T) {
+	t.Parallel()
+	w := &profileWorld{Nop: nopWithChannels()}
+	h, n := profileServer(t, w)
+	dm, group, tg := domain.RoomID(mx+"!a:x"), domain.RoomID(mx+"!b:x"), domain.RoomID("telegram:1/-1003")
+	w.set([]domain.Room{{ID: dm, IsDirect: true}, {ID: group}, {ID: tg}}, nil, nil)
+	profiles := []string{"all", "direct", "groups", "telegram"}
+	if err := n.Reload(config.Config{Profiles: []config.Profile{
+		{Name: "all"}, {Name: "direct", Include: []string{"dm"}},
+		{Name: "groups", Include: []string{"group"}, Exclude: []string{"protocol:telegram"}},
+		{Name: "telegram", Include: []string{"protocol:telegram"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	client := h.client()
+	client.SwitchProfile("direct") // before Start: names it only
+	ctx := t.Context()
+	go func() { _ = client.Start(ctx) }()
+	defer client.Stop()
+	h.waitAttached(1)
+
+	rng := rand.New(rand.NewPCG(3, 9))
+	for round := range 60 {
+		// Unread the old profile's streams have handed over, waiting when the switch comes.
+		before, err := client.Rooms(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range idsOf(w.held()) {
+			w.Unreads <- domain.Unread{RoomID: id, Messages: 1}
+		}
+		for deadline := time.Now().Add(settle); len(client.Unread()) < len(before) && time.Now().Before(deadline); {
+			time.Sleep(time.Millisecond)
+		}
+		var wg sync.WaitGroup
+		for range 1 + rng.IntN(3) { // one switch, or several racing, back and forth
+			to := profiles[rng.IntN(len(profiles))]
+			wg.Go(func() { client.SwitchProfile(to) })
+		}
+		if rng.IntN(2) == 0 { // unread in flight while the streams move
+			w.Unreads <- domain.Unread{RoomID: idsOf(w.held())[rng.IntN(3)], Messages: 1}
+		}
+		wg.Wait()
+		checkStreamsIn(t, fmt.Sprintf("round %d", round), client, w)
+	}
+
+	stopping := h.client()
+	go func() { _ = stopping.Start(ctx) }()
+	h.waitAttached(2)
+	done := make(chan struct{})
+	go func() { defer close(done); stopping.SwitchProfile("telegram") }()
+	stopping.Stop()
+	select {
+	case <-done:
+	case <-time.After(settle):
+		t.Fatal("a switch racing Stop never returned")
+	}
+}
+
+// checkStreamsIn pushes one unread state per room the moment a switch returns, and
+// checks the stream gives each room the client's profile holds and none other. A value
+// still in flight from before may repeat one of them.
+func checkStreamsIn(t *testing.T, what string, client *daemon.Remote, w *profileWorld) {
+	t.Helper()
+	for _, id := range idsOf(w.held()) {
+		w.Unreads <- domain.Unread{RoomID: id, Messages: 1}
+	}
+	rooms, err := client.Rooms(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := roomsOf(rooms, roomOf)
+	seen := map[domain.RoomID]bool{}
+	quiet := time.After(settle)
+	for len(seen) < len(want) {
+		select {
+		case u := <-client.Unread():
+			seen[u.RoomID] = true
+		case <-quiet:
+			t.Fatalf("%s: the unread stream gave %v, want %v", what, slices.Sorted(maps.Keys(seen)), want)
+		}
+	}
+	for done := false; !done; {
+		select {
+		case u := <-client.Unread():
+			seen[u.RoomID] = true
+		case <-time.After(30 * time.Millisecond):
+			done = true
+		}
+	}
+	if got := slices.Sorted(maps.Keys(seen)); !slices.Equal(got, want) {
+		t.Errorf("%s: the unread stream gave %v, want %v", what, got, want)
+	}
+}

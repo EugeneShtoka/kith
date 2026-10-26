@@ -421,7 +421,7 @@ network_colors = false
 # Profiles: named setups, each with its own rooms. `kith --profile <name>` runs in
 # one: its room list, unread, invitations, drafts and search hold only those rooms
 # (a room named directly, by a link or a jump, still opens); without it, kith runs in
-# the first. kithd's desktop notifications follow the first: a room outside it never
+# the first. gP or :profile switches a window to another. kithd's desktop notifications follow the first: a room outside it never
 # notifies. With no [[profile]] there is one, "default", holding every room.
 #
 #   include = [...]   its rooms, as places (space:, tag:, place:, room:, protocol:,
@@ -1496,6 +1496,8 @@ interrupt    = "-"             # quit, from anywhere — typing, a prompt, a pic
 paste        = "ctrl+v"        # paste the terminal's clipboard, from anywhere
 help         = "?"             # this help
 settings     = "comma"         # settings, showing what each is set to
+# With more than one [[profile]]; :profile <name> goes straight to one.
+profile      = "gP"            # switch to another profile
 command      = ":"             # command line — global commands, as / is for this room
 focus_next   = "tab"           # next pane
 focus_prev   = "shift+tab"     # previous pane

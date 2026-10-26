@@ -87,7 +87,8 @@ A profile is a named setup with its own rooms. `kith --profile <name>` runs in o
 the room list, the spaces, unread counts, invitations, drafts, scheduled messages and
 search hold only its rooms, and a space holding none of them is left out. A room you
 name directly (a link, a jump) still opens. Without `--profile`, kith runs in the
-first. kithd's desktop notifications follow the first too: a room outside it never
+first. `gP` or `:profile <name>` switches the window to another; the status line names
+the profile once there is more than one. kithd's desktop notifications follow the first too: a room outside it never
 notifies, whatever the [rules](notifications.md#rules) say. A config with no
 `[[profile]]` has one, `default`, holding every room.
 

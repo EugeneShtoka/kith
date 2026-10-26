@@ -47,6 +47,9 @@ type Remote struct {
 	loseOnce sync.Once
 	// profile is the [[profile]] named on every request; "" is the first.
 	profile atomic.Pointer[string]
+	// over closes once, when the streams stop for good.
+	over     chan struct{}
+	overOnce sync.Once
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -54,6 +57,11 @@ type Remote struct {
 	leaveSeat context.CancelFunc
 	started   bool
 	stopped   bool
+	// attempt is the streams' current attachment, opened in one profile; begun closes
+	// when the next begins. switchedOff is the last one a profile switch ended.
+	attempt     streamAttempt
+	begun       chan struct{}
+	switchedOff chan struct{}
 }
 
 var (
@@ -80,6 +88,7 @@ func newRemote(hc *http.Client) *Remote {
 		attached:      newStream[bool](),
 		client:        rand.Text(),
 		lost:          make(chan struct{}),
+		over:          make(chan struct{}),
 	}
 	r.c = backendv1connect.NewBackendServiceClient(hc, socketBaseURL,
 		connect.WithInterceptors(profileName{name: r.profileName}))

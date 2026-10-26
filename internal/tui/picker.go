@@ -96,6 +96,7 @@ const (
 	pickerIgnored         // the MXIDs this account ignores on Matrix; see ignored.go
 	pickerPublicRooms     // Matrix public rooms directory; see publicrooms.go
 	pickerChooseAccount   // which account a call naming none goes to; see accountpick.go
+	pickerProfile         // the profiles to switch to; see profiles.go
 )
 
 // pickerSpec is a kind's fixed properties, copied into the picker when it opens.
@@ -156,6 +157,7 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerIgnored:         {title: "Ignored on Matrix", modal: true},
 	pickerPublicRooms:     {title: "Matrix public rooms — enter joins", modal: true},
 	pickerChooseAccount:   {}, // titled with the network
+	pickerProfile:         {title: "Switch to which profile?"},
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the filter text

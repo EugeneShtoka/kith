@@ -55,6 +55,7 @@ func (m Model) renderStatus() string {
 	if badge == "" {
 		badge = m.silenceBadge()
 	}
+	badge = m.profileBadge() + badge
 	room := m.width - ansi.StringWidth(badge)
 	// Drawn apart from the legend so an RTL name can't pull in its leading digits.
 	drawn := drawLine(left, lineSpec{width: room, sentence: true})
