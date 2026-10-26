@@ -31,7 +31,7 @@ func (n *Notifications) Publications() (take func() []Published, release func())
 		for {
 			select {
 			case v := <-ch:
-				out = append(out, Published{Notice: Notice{ID: v.id, Alert: v.alert}, Topics: v.topics})
+				out = append(out, Published{Notice: Notice{ID: v.id, Alert: v.alert, Code: v.code}, Topics: v.topics})
 			default:
 				return out
 			}

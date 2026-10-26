@@ -7,12 +7,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// captureCode copies a verification code out of msg when the [autocopy] rules say
-// to. Off by default: a self-rewriting clipboard is remotely triggerable. Ignores
-// do-not-disturb and always announces the copy: a silent clipboard change is worse.
+// captureCode publishes a verification code out of msg, for kith-notify to copy, when
+// the [autocopy] rules say to. Off by default: a self-rewriting clipboard is remotely
+// triggerable. Ignores do-not-disturb, and the copy is always announced: a silent
+// clipboard change is worse.
 func (n *Notifications) captureCode(ctx context.Context, msg domain.Message, mine bool) {
 	n.mu.Lock()
-	rules, clip := n.autocopy, n.clip
+	rules := n.autocopy
 	n.mu.Unlock()
 	if !rules.Enabled || msg.IsUpdate() {
 		return
@@ -26,22 +27,12 @@ func (n *Notifications) captureCode(ctx context.Context, msg domain.Message, min
 	if !ok {
 		return
 	}
-	topics := n.topics(facts)
-	if err := clip.copy(ctx, code.Value); err != nil {
-		// With no clipboard, the notification carrying the code is the delivery. The log
-		// names the room, never the code.
-		if n.log != nil {
-			n.log.Log(ctx, levelFor(ctx), "auto-copy: copy to the clipboard failed", "room", msg.RoomID, "err", err)
-		}
-		n.notify(codeAlert(msg, facts, code, "could not copy it: "+err.Error()), topics)
-		return
-	}
-	n.notify(codeAlert(msg, facts, code, "copied to the clipboard"), topics)
+	n.notify(codeAlert(msg, facts, code), code.Value, n.topics(facts))
 }
 
 // codeAlert announces a captured code, with the code in the body so the user can check
-// the clipboard or copy it when the copy failed.
-func codeAlert(msg domain.Message, room domain.RoomFacts, code domain.Code, outcome string) notify.Notification {
+// the clipboard or copy it when the copy failed; kith-notify adds which.
+func codeAlert(msg domain.Message, room domain.RoomFacts, code domain.Code) notify.Notification {
 	label := "code"
 	if code.Label != "" {
 		label = code.Label
@@ -50,7 +41,7 @@ func codeAlert(msg domain.Message, room domain.RoomFacts, code domain.Code, outc
 		Sender:   label,
 		SenderID: msg.Sender,
 		Room:     room.Name,
-		Body:     code.Value + " — " + outcome,
+		Body:     code.Value,
 		Protocol: domain.ProtocolOf(msg.Sender).String(),
 		Sent:     msg.Timestamp,
 	}

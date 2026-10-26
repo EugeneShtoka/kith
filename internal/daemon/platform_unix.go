@@ -3,27 +3,10 @@
 package daemon
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"syscall"
 )
-
-// shellCommand runs a user-configured command line through the platform shell.
-func shellCommand(ctx context.Context, command string) *exec.Cmd {
-	return exec.CommandContext(ctx, "sh", "-c", command) // #nosec G204 -- command is user config; the payload goes on stdin, never interpolated
-}
-
-// graphicalSession reports why there is no clipboard to write to, or nil.
-func graphicalSession() error {
-	if os.Getenv("WAYLAND_DISPLAY") == "" && os.Getenv("DISPLAY") == "" {
-		return errors.New("no graphical session in the daemon's environment " +
-			"(try `systemctl --user import-environment WAYLAND_DISPLAY`)")
-	}
-	return nil
-}
 
 // socketMode is owner-only: file permissions are the socket's whole authorization.
 const socketMode = 0o600

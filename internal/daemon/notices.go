@@ -13,10 +13,11 @@ import (
 )
 
 // Notice is one notification kithd published, under an ID shared by every profile it
-// was published to.
+// was published to. Code is a verification code it announces, to copy.
 type Notice struct {
 	ID    string
 	Alert notify.Notification
+	Code  string
 }
 
 // NotificationStream streams the notifications published to the request's profile. The
@@ -41,7 +42,7 @@ func noticeToProto(v notice) *v1.Notification {
 	return &v1.Notification{
 		Id: v.id, Sender: a.Sender, SenderId: a.SenderID, Room: a.Room, Space: a.Space,
 		Body: a.Body, Protocol: a.Protocol, SentMs: sent, Date: a.Date, Time: a.Time,
-		Sound: a.Sound, Silent: a.Silent, Replaces: a.Replaces,
+		Sound: a.Sound, Silent: a.Silent, Replaces: a.Replaces, Code: v.code,
 	}
 }
 
@@ -54,7 +55,7 @@ func protoToNotice(p *v1.Notification) Notice {
 		Sender: p.GetSender(), SenderID: p.GetSenderId(), Room: p.GetRoom(), Space: p.GetSpace(),
 		Body: p.GetBody(), Protocol: p.GetProtocol(), Sent: sent, Date: p.GetDate(), Time: p.GetTime(),
 		Sound: p.GetSound(), Silent: p.GetSilent(), Replaces: p.GetReplaces(),
-	}}
+	}, Code: p.GetCode()}
 }
 
 // Notifications listens to the notifications published to this client's profile

@@ -11065,7 +11065,10 @@ type Notification struct {
 	Sound  string `protobuf:"bytes,11,opt,name=sound,proto3" json:"sound,omitempty"`
 	Silent bool   `protobuf:"varint,12,opt,name=silent,proto3" json:"silent,omitempty"`
 	// A key (the room) whose earlier popup this one replaces; "" for none.
-	Replaces      string `protobuf:"bytes,13,opt,name=replaces,proto3" json:"replaces,omitempty"`
+	Replaces string `protobuf:"bytes,13,opt,name=replaces,proto3" json:"replaces,omitempty"`
+	// A verification code to copy to the clipboard ([codes]), set on the notification
+	// announcing it; the listener copies it and says in the body whether it could.
+	Code          string `protobuf:"bytes,14,opt,name=code,proto3" json:"code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11187,6 +11190,13 @@ func (x *Notification) GetSilent() bool {
 func (x *Notification) GetReplaces() string {
 	if x != nil {
 		return x.Replaces
+	}
+	return ""
+}
+
+func (x *Notification) GetCode() string {
+	if x != nil {
+		return x.Code
 	}
 	return ""
 }
@@ -15650,7 +15660,7 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x0fPresentResponse\"(\n" +
 	"\x14FollowStreamResponse\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\"\x1b\n" +
-	"\x19NotificationStreamRequest\"\xb8\x02\n" +
+	"\x19NotificationStreamRequest\"\xcc\x02\n" +
 	"\fNotification\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06sender\x18\x02 \x01(\tR\x06sender\x12\x1b\n" +
@@ -15665,7 +15675,8 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	" \x01(\tR\x04time\x12\x14\n" +
 	"\x05sound\x18\v \x01(\tR\x05sound\x12\x16\n" +
 	"\x06silent\x18\f \x01(\bR\x06silent\x12\x1a\n" +
-	"\breplaces\x18\r \x01(\tR\breplaces\"Z\n" +
+	"\breplaces\x18\r \x01(\tR\breplaces\x12\x12\n" +
+	"\x04code\x18\x0e \x01(\tR\x04code\"Z\n" +
 	"\x1aNotificationStreamResponse\x12<\n" +
 	"\fnotification\x18\x01 \x01(\v2\x18.backend.v1.NotificationR\fnotification\"\x16\n" +
 	"\x14VerificationsRequest\"U\n" +

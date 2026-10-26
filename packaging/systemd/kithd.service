@@ -25,7 +25,7 @@ ExecStartPre=+mkdir -p %h/.local/share/kith %h/.local/state/kith %h/.cache/kith 
 Restart=on-failure
 RestartSec=5s
 
-# D-Bus for the keyring, display for wl-copy/xclip auto-copy. Import with:
+# D-Bus for the keyring. Import with:
 #   systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
 PassEnvironment=WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
 

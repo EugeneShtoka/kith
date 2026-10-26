@@ -570,9 +570,6 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	if err != nil {
 		return nil, fmt.Errorf("notifications: %w", err)
 	}
-	if uerr := setup.AutoCopyUnavailable(cfg); uerr != nil {
-		log.Warn("auto-copy is on but cannot run", "err", uerr)
-	}
 	notifications.UseLogger(log)
 	notifications.UseSelves(backend.Me)
 	notifications.UseDirectory(backend.Directory)

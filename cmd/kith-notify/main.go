@@ -116,7 +116,10 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 	sinks := setup.NotifierSinks(func(sink string, err error) {
 		log.Warn("notification delivery failed", "sink", sink, "err", err)
 	})
-	a := newAgent(log, func() *daemon.Remote { return daemon.NewRemote(socket) }, sinks, cfg.Notifications)
+	if uerr := setup.AutoCopyUnavailable(cfg); uerr != nil {
+		log.Warn("auto-copy is on but cannot run", "err", uerr)
+	}
+	a := newAgent(log, func() *daemon.Remote { return daemon.NewRemote(socket) }, sinks, cfg)
 	a.run(ctx, names)
 	return nil
 }
@@ -193,14 +196,19 @@ type agent struct {
 	// seen are the notifications shown lately, by ID: one in several profiles arrives
 	// on each of their streams.
 	seen recent
-	// notifier shows with kithd's [notifications] settings as of revision.
+	// notifier shows, and clip copies codes, with kithd's [notifications] and
+	// [clipboard] settings as of revision.
 	notifier notify.Notifier
+	clip     notify.Clipboard
 	revision string
 }
 
-// newAgent shows with sinks built from notifs until kithd's own config is read.
-func newAgent(log *slog.Logger, kithd func() *daemon.Remote, sinks func(config.Notifications) notify.Notifier, notifs config.Notifications) *agent {
-	return &agent{log: log, kithd: kithd, sinks: sinks, notifier: sinks(notifs), seen: newRecent(recentIDs)}
+// newAgent shows and copies with cfg's settings until kithd's own config is read.
+func newAgent(log *slog.Logger, kithd func() *daemon.Remote, sinks func(config.Notifications) notify.Notifier, cfg config.Config) *agent {
+	return &agent{
+		log: log, kithd: kithd, sinks: sinks, seen: newRecent(recentIDs),
+		notifier: sinks(cfg.Notifications), clip: notify.Clipboard{Command: cfg.Clipboard.Command},
+	}
 }
 
 // run listens to every profile until ctx ends.
@@ -236,7 +244,8 @@ func (a *agent) listen(ctx context.Context, settings *daemon.Remote, profile str
 	}
 }
 
-// show shows v unless it was shown already, with kithd's settings as they are now.
+// show shows v unless it was shown already, with kithd's settings as they are now,
+// first copying the code it announces, if any, and saying whether it could.
 func (a *agent) show(ctx context.Context, settings *daemon.Remote, v daemon.Notice) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -251,6 +260,16 @@ func (a *agent) show(ctx context.Context, settings *daemon.Remote, v daemon.Noti
 		a.log.Warn("reading kithd's config; showing with the settings read last", "err", err)
 	case snap.Revision != a.revision:
 		a.notifier, a.revision = a.sinks(snap.Config.Notifications), snap.Revision
+		a.clip = notify.Clipboard{Command: snap.Config.Clipboard.Command}
+	}
+	if v.Code != "" {
+		v.Alert.Body = v.Code + " — copied to the clipboard"
+		if err := a.clip.Copy(ctx, v.Code); err != nil {
+			// The notification carrying the code is then the delivery. The log names the
+			// room, never the code.
+			a.log.Warn("auto-copy: copy to the clipboard failed", "room", v.Alert.Room, "err", err)
+			v.Alert.Body = v.Code + " — could not copy it: " + err.Error()
+		}
 	}
 	a.notifier.Notify(v.Alert)
 }

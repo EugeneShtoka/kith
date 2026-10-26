@@ -329,11 +329,11 @@ Rules add together rather than overriding each other. A tracked word does not br
 
 ## Verification codes to the clipboard
 
-`kithd` can put a one-time code into your clipboard as it arrives, with no terminal open. This is **off by default** and deliberately hard to turn on by accident, because anyone who can message you can trigger it.
+kith can put a one-time code into your clipboard as it arrives, with no terminal open: `kithd` finds it, and `kith-notify` copies it on the machine it shows notifications on, once however many of its profiles carry it. This is **off by default** and deliberately hard to turn on by accident, because anyone who can message you can trigger it.
 
 ```toml
 [clipboard]
-command   = "wl-copy"          # required: a daemon has no terminal to copy through
+command   = "wl-copy"          # required: kith-notify has no terminal to copy through
 auto_copy = true
 
 [codes]
@@ -351,9 +351,9 @@ require_digit = true
 
 The guards:
 
-- **Scoped.** `[codes] include` must name at least one place. With an empty list (which means everywhere), the daemon warns once at startup and copies nothing.
+- **Scoped.** `[codes] include` must name at least one place. With an empty list (which means everywhere), `kith-notify` warns once at startup and nothing is copied. A code is also published only to the [profiles](configuration.md#profiles) holding its room, so only a `kith-notify` listening to one of them copies it.
 - **Live only.** A code received during catch-up after a restart is never copied, because an expired code pasted over your clipboard costs you something and gains nothing.
-- **Needs a graphical session.** The daemon checks for `WAYLAND_DISPLAY` or `DISPLAY` before copying. Without one, it publishes the code in a notification instead. A systemd user unit does not inherit these variables. Run `systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS` or start the unit with your graphical session.
+- **Needs a graphical session.** `kith-notify` checks for `WAYLAND_DISPLAY` or `DISPLAY` before copying. Without one, it shows the code in the notification instead. A systemd user unit does not inherit these variables. Run `systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS` or start the unit with your graphical session.
 - **Ignores do-not-disturb.** Copying does not interrupt you. It is also not blocked by a tag that does not notify ([Spam](filters.md)).
 - **Announced.** Each copy raises a notification with the code and what happened to it, as long as notifications are enabled.
 - Copied codes end up in your clipboard manager's history like anything else.

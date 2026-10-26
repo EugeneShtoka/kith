@@ -51,7 +51,6 @@ type Notifications struct {
 	roomRules  bool
 	temps      notify.Temps
 	autocopy   domain.AutoCopy
-	clip       clipboard
 	// profiles are the [[profile]]s: each notification is published to every one
 	// holding its room.
 	profiles []domain.Profile
@@ -86,6 +85,7 @@ type notice struct {
 	id     string
 	topics []string
 	alert  notify.Notification
+	code   string // a verification code to copy, announced by alert
 }
 
 // UseArchiver gives the push_archive reconciler the function it calls to apply
@@ -312,7 +312,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.firstNames = func(home string) bool { return setup.FirstNamesIn(display, home) }
 	n.roomRules = cfg.Display.ApplyRoomNameRules()
 	n.keep, n.keepRules = keep, keepRules
-	n.autocopy, n.clip = autocopy, clipboard{command: cfg.Clipboard.Command}
+	n.autocopy = autocopy
 	n.tracked, n.trackedNotify = setup.TrackedRules(cfg.Display.Tracked), cfg.Display.Tracked.Notify
 	return nil
 }
@@ -537,7 +537,7 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	if !ok {
 		return notify.Notification{}, false
 	}
-	n.notify(alert, topics)
+	n.notify(alert, "", topics)
 	return alert, true
 }
 
@@ -650,8 +650,9 @@ func newMessages(held int) string {
 	return fmt.Sprintf("%d new messages", held)
 }
 
-// notify publishes an alert to topics, under an ID of its own.
-func (n *Notifications) notify(alert notify.Notification, topics []string) {
+// notify publishes an alert to topics, under an ID of its own, with a code to copy
+// ("" none).
+func (n *Notifications) notify(alert notify.Notification, code string, topics []string) {
 	if len(topics) == 0 {
 		return
 	}
@@ -661,7 +662,7 @@ func (n *Notifications) notify(alert notify.Notification, topics []string) {
 	if !alert.Sent.IsZero() {
 		alert.Date, alert.Time = clock.ShortDate(alert.Sent), clock.Time(alert.Sent)
 	}
-	n.notices.broadcast(notice{id: fmt.Sprintf("%s-%d", n.boot, n.count.Add(1)), topics: topics, alert: alert})
+	n.notices.broadcast(notice{id: fmt.Sprintf("%s-%d", n.boot, n.count.Add(1)), topics: topics, alert: alert, code: code})
 }
 
 // decide is Deliver's trigger, with scope and clock as arguments.

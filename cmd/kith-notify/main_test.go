@@ -145,7 +145,7 @@ func listening(t *testing.T, socket string, rec *shown, profiles ...string) *log
 		return rec
 	}
 	a := newAgent(slog.New(slog.NewTextHandler(logs, nil)), func() *daemon.Remote { return daemon.NewRemote(socket) },
-		sinks, config.Notifications{Enabled: true})
+		sinks, config.Config{Notifications: config.Notifications{Enabled: true}})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); a.run(ctx, profiles) }()
@@ -290,5 +290,44 @@ func TestRunListensForTheConfigsProfiles(t *testing.T) {
 	cancel()
 	if err := <-done; err != nil {
 		t.Errorf("run stopped with %v, want nil", err)
+	}
+}
+
+// codesFrom is threeProfiles finding codes in every room, copied by appending to clip;
+// no message notifies, which a code ignores.
+func codesFrom(clip string) config.Config {
+	cfg := threeProfiles()
+	cfg.Notifications.Rules = []config.Rule{{Show: "none"}}
+	cfg.Clipboard = config.Clipboard{Command: "cat >> " + clip, AutoCopy: true}
+	cfg.Codes.Include = []string{string(firstOnly), string(both), string(thirdOnly)}
+	return cfg
+}
+
+// A code kithd found is copied where it is shown, once, however many profiles listened
+// to carry it, and the popup says it was copied. Without a graphical session it is not
+// copied, and the popup carries the code and why.
+func TestTheAgentCopiesACodeOnce(t *testing.T) {
+	clip := filepath.Join(t.TempDir(), "clipboard")
+	t.Setenv("WAYLAND_DISPLAY", "wayland-test")
+	socket := socketPath(t)
+	k := serve(t, socket, codesFrom(clip))
+	rec := &shown{}
+	listening(t, socket, rec, "second", "third")
+
+	k.says(both, "Your code is 482910")
+	settled(t, rec, []string{"482910 — copied to the clipboard"})
+	if got, err := os.ReadFile(clip); err != nil || string(got) != "482910" {
+		t.Errorf("clipboard = %q, %v; want the code, once", got, err)
+	}
+
+	t.Setenv("WAYLAND_DISPLAY", "")
+	t.Setenv("DISPLAY", "")
+	k.says(thirdOnly, "Your code is 777123")
+	waitFor(t, func() bool { return len(rec.all()) == 2 }, "the second code's popup")
+	if got := rec.all()[1]; !strings.HasPrefix(got, "777123 — could not copy it: no graphical session") {
+		t.Errorf("popup %q, want the code and why it was not copied", got)
+	}
+	if got, _ := os.ReadFile(clip); string(got) != "482910" {
+		t.Errorf("clipboard = %q after a copy that could not run", got)
 	}
 }
