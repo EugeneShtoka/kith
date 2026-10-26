@@ -40,6 +40,7 @@ var migrationFingerprints = []struct {
 	{24, "network_blocks: a network's server-side block list mirror", "00720526d8e2"},
 	{25, "room_handles: the public @username that names a room on its network", "f109681ba3bf"},
 	{26, "ignored_users, person_verdicts: Matrix mirrors per account; bridge sources too", "3285083d3603"},
+	{27, "message_revisions: a message never edited keeps no copy of itself", "a89d92f86c40"},
 }
 
 func fingerprint(stmt string) string {
