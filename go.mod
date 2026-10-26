@@ -16,6 +16,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.10
 	charm.land/lipgloss/v2 v2.0.6
 	connectrpc.com/connect v1.21.1
+	filippo.io/age v1.3.2
 	github.com/BurntSushi/toml v1.6.0
 	github.com/adrg/xdg v0.5.3
 	github.com/charmbracelet/x/ansi v0.11.9
@@ -47,6 +48,7 @@ require (
 )
 
 require (
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/andybalholm/brotli v1.2.4 // indirect
 	github.com/apache/thrift v0.24.0 // indirect
 	github.com/beeper/poly1305 v0.0.0-20250815183548-d4eede7bbf3c // indirect

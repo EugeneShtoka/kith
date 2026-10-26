@@ -40,6 +40,8 @@ var subcommands = map[string]func([]string) error{
 	"login":    runLogin,
 	"import":   runImport,
 	"export":   runExport,
+	"backup":   runBackup,
+	"restore":  runRestore,
 	"ignore":   runIgnore,
 	"unignore": runUnignore,
 	"ignored":  runIgnored,

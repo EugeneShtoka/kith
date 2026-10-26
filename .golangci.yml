@@ -476,6 +476,22 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/schedule"
             - "github.com/adrg/xdg"
 
+        # Backup and restore: the cache through db's own copy and checks, the config
+        # and its storage, and the daemon's lock. kithd runs it; no client links it.
+        backup-is-daemon-side:
+          files:
+            - "**/internal/backup/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "filippo.io/age"
+            - "github.com/EugeneShtoka/kith/internal/buildinfo"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/daemon"
+            - "github.com/EugeneShtoka/kith/internal/db"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+
         # The daemon's model layer from the config: the only place outside matrix that
         # sees the model clients, so clients that need setup do not link them.
         modelsetup-is-daemon-side:
@@ -728,6 +744,7 @@ linters:
           allow:
             - "$gostd"
             - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/backup"
             - "github.com/EugeneShtoka/kith/internal/buildinfo"
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/daemon"
@@ -750,6 +767,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/telegram"
             - "github.com/EugeneShtoka/kith/internal/whatsapp"
             - "github.com/adrg/xdg"
+            - "golang.org/x/term"
           deny:
             - pkg: "github.com/EugeneShtoka/kith/internal/signalhelper"
               desc: "kithd never links libsignal: kith-signal does, in a process of its own"

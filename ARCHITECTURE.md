@@ -68,7 +68,8 @@ means *received and cached* rather than *announced*.
 ## Layered design
 
 ```text
-cmd/kithd         → the daemon: lock → session → stores → sync loop + socket
+cmd/kithd         → the daemon: lock → session → stores → sync loop + socket;
+        │              also `backup` and `restore`, which `kith backup|restore` run
 cmd/kith          → the client: config.Load → attach to the daemon → Bubble Tea;
         │              also `login`, key import/export, dictionary and model installs
 cmd/kith-mcp          → the MCP server (stdio): a third client of the daemon's socket
@@ -112,6 +113,8 @@ internal/domain     → pure chat types + logic, shared by every network (no SDK
         │              no I/O, no Bubble Tea)
 internal/notify     → the notification decision (pure) + its delivery sinks
 internal/schedule   → the durable queue behind messages written now, sent later
+internal/backup     → one passphrase-encrypted file of the cache, config and local
+        │              records (no sessions), and putting it back under the daemon's lock
 internal/session    → the Matrix access token and pickle key, in the OS keyring
 internal/emoji      → emoji by name: the curated set and every Unicode name, generated
 internal/agent      → the append-only ledger of what an assistant sent through kith-mcp

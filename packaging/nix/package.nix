@@ -19,7 +19,7 @@ buildGoModule (finalAttrs: {
   # The NAR hash of `go mod vendor` for go.mod/go.sum. It changes whenever they do:
   # after a dependency bump, build once, and nix prints the right value as `got:`.
   # See docs/packaging.md, "Nix".
-  vendorHash = "sha256-TcRg22e8xYwI+cZglZ5jMfLrVZaW56bjDw7HxfibzGg=";
+  vendorHash = "sha256-s9mvOhQ3ORUzGvjaU47sSGnDNHMceIY+f7Q+0o94lDY=";
 
   subPackages = [
     "cmd/kith"

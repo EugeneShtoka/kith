@@ -241,6 +241,44 @@ running). Each room with cached messages gets its own file, written the same way
 folder you name, `kith export --since 2026-01-01 ~/Backups/chats`, or into a folder
 for the day under `[storage] export_dir`.
 
+#### Backing up and moving to a new machine
+
+An export is for reading. To keep your history, or to take it to another machine,
+make a backup:
+
+```sh
+kith backup                      # a dated file in [storage] export_dir
+kith backup ~/Backups/kith.tar.age
+```
+
+It asks for a passphrase twice and writes one encrypted file:
+the cache (every cached message, reaction, draft and read position), your config and
+the commands beside it, and what an assistant sent for you and the send-later queue.
+kithd may keep running; the cache is copied as it stands. A backup is an
+[age](https://age-encryption.org) file around a tar, so `age -d` and `tar` open it
+without kith.
+
+What it leaves out:
+
+- **Network sessions and their keys.** After a restore, log in to each account
+  again; kith lists them.
+- **What refills itself:** downloaded models and dictionaries, and the picture cache.
+- **A commands folder that is a link** (one home-manager made, say), or one
+  `[commands] dir` puts elsewhere: whatever made it keeps it. The backup says so.
+
+To restore, stop kithd (`systemctl --user stop kithd`), then:
+
+```sh
+kith restore ~/Backups/kith.tar.age
+```
+
+It puts the config back, then the cache and records where that config keeps them on
+this machine. If a config or cache is already there it refuses; `--replace` sets what
+was there aside as `<name>.before-restore-<time>` instead, so nothing is deleted.
+Nothing is changed until the whole backup is read and checked, so a wrong
+passphrase, a damaged file or a full disk leave everything as it was. A backup made by
+a newer kith is refused: update kith first.
+
 ## Threads in the room list
 
 A thread's summary sits at its root in the timeline, which may be far up the scrollback. So threads with unread replies are also listed as rows beneath their room. `enter` on one opens the thread, `m` marks that thread read without opening it, and `alt+r` names it. `[display.threads] in_room_list` chooses `unread` (default), `all` or `never`, and `max_in_room_list` caps the rows (default 5).
