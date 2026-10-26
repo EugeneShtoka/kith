@@ -49,7 +49,9 @@ type incomingMsg struct{ message domain.Message }
 type timelineMsg struct {
 	roomID domain.RoomID
 	page   domain.TimelinePage
-	err    error
+	// fromCache says the page was read from the cache (cachedOlderCmd), not the network.
+	fromCache bool
+	err       error
 }
 
 // cachedTimelineMsg carries a room's cached messages for instant display on entry.
@@ -241,6 +243,22 @@ func (m Model) loadTimelineCmd(roomID domain.RoomID, from string) tea.Cmd {
 	return func() tea.Msg {
 		page, err := backend.Timeline(ctx, roomID, from, timelinePageSize)
 		return timelineMsg{roomID: roomID, page: page, err: err}
+	}
+}
+
+// cachedOlderCmd reads the cached page before oldest, or the room's newest cached
+// messages when nothing is loaded yet.
+func (m Model) cachedOlderCmd(roomID domain.RoomID, oldest domain.EventID) tea.Cmd {
+	ctx, backend := m.ctx, m.backend
+	return func() tea.Msg {
+		var msgs []domain.Message
+		var err error
+		if oldest == "" {
+			msgs, err = backend.CachedTimeline(ctx, roomID)
+		} else {
+			msgs, err = backend.MessagesAround(ctx, roomID, oldest, cachedPageSize, 0)
+		}
+		return timelineMsg{roomID: roomID, page: domain.TimelinePage{Messages: msgs}, fromCache: true, err: err}
 	}
 }
 

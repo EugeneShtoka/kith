@@ -912,14 +912,19 @@ func TestTimelineMergesByTimestamp(t *testing.T) {
 		t.Error("want atStart=false, histReady=true after a page with a Next token")
 	}
 
-	// An older page merges ahead of the rest by timestamp; Next="" marks start.
+	// An older page merges ahead of the rest by timestamp; Next="" hands over to the
+	// cache, whose page that adds nothing marks start.
 	older := domain.TimelinePage{Messages: []domain.Message{{ID: mx + "$0", RoomID: mx + "!a:x", Body: "zeroth", Timestamp: at(0)}}}
 	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: older})
 	if len(m.timeline.messages) != 3 || m.timeline.messages[0].Body != "zeroth" {
 		t.Fatalf("messages = %+v, want zeroth ordered first", m.timeline.messages)
 	}
+	if m.timeline.hist.atStart {
+		t.Error("atStart before the cache was asked for older messages")
+	}
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", fromCache: true})
 	if !m.timeline.hist.atStart {
-		t.Error("atStart should be true once Next is empty")
+		t.Error("atStart should be true once the cache has nothing older")
 	}
 	m.focus = paneTimeline
 	if _, cmd := press(t, m, keyCode(tea.KeyPgUp)); cmd != nil {
@@ -992,10 +997,16 @@ func TestBackfillChainsUntilStart(t *testing.T) {
 		t.Errorf("status = %q, want backfill progress", m.status())
 	}
 
-	// The final page (no Next token) ends the backfill at the room start.
-	m, _ = asModel(m.Update(timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
+	// The network's final page (no Next token) goes on to the cache.
+	m, cmd = asModel(m.Update(timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
 		Messages: []domain.Message{{ID: mx + "$0", RoomID: mx + "!a:x", Timestamp: at(0)}},
 	}}))
+	if cmd == nil || !m.timeline.hist.backfilling {
+		t.Fatalf("backfill should read the cache after the network's last page: cmd=%v backfilling=%v", cmd, m.timeline.hist.backfilling)
+	}
+
+	// A cache page with nothing older ends the backfill at the room start.
+	m, _ = asModel(m.Update(timelineMsg{roomID: mx + "!a:x", fromCache: true}))
 	if m.timeline.hist.backfilling {
 		t.Error("backfill should stop once the room start is reached")
 	}
