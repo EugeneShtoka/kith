@@ -67,8 +67,11 @@ func (r *Remote) Notifications(ctx context.Context, opened func(), show func(Not
 		return callErr("subscribe to notifications", err)
 	}
 	defer func() { _ = st.Close() }()
-	st.ResponseHeader() // the daemon answers once it has subscribed the stream
-	opened()
+	// The daemon answers once it has subscribed the stream; a call that never reached
+	// it (kithd down) has no headers and is not open.
+	if st.ResponseHeader().Get("Content-Type") != "" {
+		opened()
+	}
 	for st.Receive() {
 		if n := st.Msg().GetNotification(); n != nil {
 			show(protoToNotice(n))
