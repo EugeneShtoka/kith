@@ -1,0 +1,36 @@
+# kith's desktop notifications, as a systemd *user* unit: shows what kithd publishes
+# to the first profile. kith starts it when it starts; enable it to have notifications
+# from login.
+#
+# Install:
+#   install -Dm644 packaging/systemd/kith-notify.service ~/.config/systemd/user/kith-notify.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now kith-notify
+#
+# Other profiles: `systemctl --user edit kith-notify` and repeat the command below
+# with them:
+#   [Service]
+#   ExecStart=
+#   ExecStart=<the ExecStart= below> --profile work --profile home
+
+[Unit]
+Description=kith desktop notifications
+Documentation=https://github.com/EugeneShtoka/kith
+After=graphical-session.target
+Wants=graphical-session.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/kith-notify
+# A second one for the same config exits 0 (lock held), which must not be retried.
+Restart=on-failure
+RestartSec=5s
+# D-Bus for the desktop popup, the display for a notification command that needs one.
+# Import with:
+#   systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
+PassEnvironment=WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

@@ -1,9 +1,10 @@
 # Architecture
 
 > **Status (2026-10-08):** this describes the architecture as built, not a target.
-> Three binaries exist and run: `kithd` holds every network's sessions, the SQLite
+> Four binaries exist and run: `kithd` holds every network's sessions, the SQLite
 > cache, the crypto stores and the sync loops; `kith` renders and sends over a unix socket;
-> `kith-mcp` is a Model Context Protocol server over the same socket. Every package in
+> `kith-mcp` is a Model Context Protocol server over the same socket, and `kith-notify`
+> shows the daemon's notifications on the desktop it runs on. Every package in
 > the layer diagram below is present.
 >
 > Where this file and the code could drift, the `depguard` rules in `.golangci.yml`
@@ -71,6 +72,7 @@ cmd/kithd         → the daemon: lock → session → stores → sync loop + so
 cmd/kith          → the client: config.Load → attach to the daemon → Bubble Tea;
         │              also `login`, key import/export, dictionary and model installs
 cmd/kith-mcp          → the MCP server (stdio): a third client of the daemon's socket
+cmd/kith-notify       → shows the notifications the daemon publishes to its profiles
         │
 internal/tui        → presentation (Bubble Tea models, overlays, pickers)
         │              talks to the world through the api.Backend interface
@@ -298,7 +300,8 @@ Two conventions run through the interface:
   Go channel the served backend hands out, so nothing above `api.Backend` can tell
   the two apart. The daemon reads each of the served backend's channels exactly once and **fans out**
   to every subscriber, because a channel receive removes the value and there is more
-  than one consumer: each attached client, and the daemon's own notifier. `Remote`
+  than one consumer: each attached client, and the daemon's own notifier, which
+  publishes each notification to its profiles' streams for `kith-notify`. `Remote`
   also carries the surfaces that are *not* part of `api.Backend`, because there is no
   in-process implementation for them: `Status`, the do-not-disturb controls,
   `ReloadConfig`, the schedule queue and `Follow`. The TUI declares the narrow

@@ -183,14 +183,19 @@ func installOwnUnit(ctx context.Context, storage domain.Storage, launch Launch) 
 		return "", err
 	}
 	name := ownUnitName(storage)
+	return name, installUnit(ctx, name, content)
+}
+
+// installUnit writes a user unit and has systemd reload it when changed.
+func installUnit(ctx context.Context, name, content string) error {
 	changed, err := writeUnit(filepath.Join(xdg.ConfigHome, "systemd", "user"), name, content)
 	if err != nil {
-		return "", err
+		return err
 	}
 	if changed {
 		if out, rerr := exec.CommandContext(ctx, "systemctl", "--user", "daemon-reload").CombinedOutput(); rerr != nil {
-			return "", fmt.Errorf("daemon: systemctl --user daemon-reload: %w (%s)", rerr, trimOutput(out))
+			return fmt.Errorf("daemon: systemctl --user daemon-reload: %w (%s)", rerr, trimOutput(out))
 		}
 	}
-	return name, nil
+	return nil
 }

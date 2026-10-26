@@ -73,7 +73,7 @@ func spawn(ctx context.Context, storage domain.Storage, launch Launch) error {
 	defer cancel()
 
 	if _, err := exec.LookPath("systemctl"); err != nil {
-		return detach(detachArgs(storage, launch))
+		return detach(daemonBinary, detachArgs(storage, launch))
 	}
 	unit, err := systemdStart(startCtx, storage, launch)
 	if err == nil {
@@ -81,7 +81,7 @@ func spawn(ctx context.Context, storage domain.Storage, launch Launch) error {
 	}
 	// The unit may be missing or systemd may have no user session: fall back, keeping
 	// systemd's reason.
-	if derr := detach(detachArgs(storage, launch)); derr != nil {
+	if derr := detach(daemonBinary, detachArgs(storage, launch)); derr != nil {
 		return fmt.Errorf("daemon: start %s: %w; and %w", unit, err, derr)
 	}
 	return nil

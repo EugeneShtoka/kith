@@ -11,7 +11,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
-	"github.com/EugeneShtoka/kith/internal/notify"
 	"github.com/EugeneShtoka/kith/internal/schedule"
 )
 
@@ -33,7 +32,7 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 	b := &apitest.Nop{}
 	streams := NewStreams()
 	go streams.Run(ctx, b)
-	notifications, err := NewNotifications(config.Config{Profiles: everyRoom}, nopScope{b}, func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	notifications, err := NewNotifications(config.Config{Profiles: everyRoom}, nopScope{b})
 	if err != nil {
 		t.Fatal(err)
 	}

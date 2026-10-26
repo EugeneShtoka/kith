@@ -94,8 +94,11 @@ Each profile has a window of its own: two terminals can run `work` and `home` si
 side, and a second window in a profile already open is refused, as is switching into
 one. A link clicked on the desktop (`kith --open`) goes to one window: the one with
 the link's chat open, else the one used last whose profile holds it, else the one used
-last. kithd's desktop notifications follow the first too: a room outside it never
-notifies, whatever the [rules](notifications.md#rules) say.
+last. A profile is also a notification topic: kithd publishes each notification to
+every profile holding its room, and `kith-notify` shows the profiles it listens to (the
+first, unless told others; see
+[notifications.md](notifications.md#where-popups-appear-kith-notify)). A room no
+profile holds never notifies, whatever the [rules](notifications.md#rules) say.
 
 A config has at least one profile; the starter writes `default`, holding every room:
 
@@ -225,7 +228,7 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | `[notifications]` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
 | `[clipboard]` | The copy command, link opener, window focusing, unattended code copy, copying saved-file paths. | [usage.md](usage.md) |
 | `[codes]` | Where verification codes are looked for and what one looks like. | [notifications.md](notifications.md) |
-| `[[profile]]` | Named setups, each with its own rooms; kithd's desktop notifications follow the first. | [Profiles](#profiles) |
+| `[[profile]]` | Named setups, each with its own rooms and notification topic. | [Profiles](#profiles) |
 | `[[filter]]` | Words, a sender or a language that move rooms into a tag (the starter's Spam, or any other). | [filters.md](filters.md) |
 | `[composer]` | External editor (`alt+e`), temp-file suffix, Markdown on send. | [composer.md](composer.md) |
 | `[spell]` | Spell-checking engine, dictionaries, rare-word detection, check before sending. | [composer.md](composer.md) |

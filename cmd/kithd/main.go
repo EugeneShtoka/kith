@@ -566,12 +566,7 @@ type workers struct {
 
 // newWorkers builds the workers and registers their backend callbacks; serve starts them.
 func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, error) {
-	// Delivery has no caller to tell: each failed sink is logged here, never with the
-	// message.
-	sinks := setup.NotifierSinks(func(sink string, err error) {
-		log.Warn("notification delivery failed", "sink", sink, "err", err)
-	})
-	notifications, err := daemon.NewNotifications(cfg, backend, sinks)
+	notifications, err := daemon.NewNotifications(cfg, backend)
 	if err != nil {
 		return nil, fmt.Errorf("notifications: %w", err)
 	}

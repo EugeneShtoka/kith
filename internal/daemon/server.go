@@ -262,7 +262,13 @@ func reply[T any](msg *T, err error) (*connect.Response[T], error) {
 // hub closes, always releasing the subscription. A value frame makes nil is not this
 // client's, and is skipped.
 func serveStream[T, R any](ctx context.Context, h *hub[T], stream *connect.ServerStream[R], frame func(T) *R) error {
-	id, ch := h.subscribe()
+	return serveStreamWith(ctx, h, subBuffer, stream, frame)
+}
+
+// serveStreamWith is serveStream queueing up to buffer values for a client that is
+// slow to read.
+func serveStreamWith[T, R any](ctx context.Context, h *hub[T], buffer int, stream *connect.ServerStream[R], frame func(T) *R) error {
+	id, ch := h.subscribeWith(buffer)
 	defer h.release(id)
 	// Send headers now: the client bounds its wait for them (answerTimeout), and a stream
 	// can be silent for hours.

@@ -70,7 +70,7 @@ func TestDetachedDaemonOutlivesItsCaller(t *testing.T) {
 	}
 
 	dir, marker := fakeDaemon(t)
-	if err := detach(nil); err != nil {
+	if err := detach(daemonBinary, nil); err != nil {
 		t.Fatalf("detach() = %v", err)
 	}
 	t.Cleanup(func() { kill(t, dir) })

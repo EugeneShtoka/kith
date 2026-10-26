@@ -2,42 +2,48 @@ package daemon_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// kithd's own sinks show the first profile: a room outside it never pops up there,
-// whatever the rules say (it is still published to the profiles holding it), and one
-// kithd cannot place yet is judged by what it knows (its ID and network).
-func TestKithdShowsTheFirstProfile(t *testing.T) {
+// A notification is published to every profile holding its room, by the profile's
+// name in lower case, and to none when no profile holds it, whatever the rules say. A
+// room kithd cannot place yet is judged by what it knows (its ID and network).
+func TestANotificationGoesToTheProfilesHoldingItsRoom(t *testing.T) {
 	t.Parallel()
 
 	stranger := domain.RoomID(mx + "!new:example.org") // in no list kithd has read
 	tests := map[string]struct {
 		profiles []config.Profile
-		// in are the rooms that notify, of dmRoom, chatRm and stranger.
-		in []domain.RoomID
+		// to is each room's topics, of dmRoom, chatRm and stranger; a room left out has
+		// none.
+		to map[domain.RoomID]string
 	}{
 		"* is every room": {
-			[]config.Profile{{Name: "all", Include: []string{"*"}}}, []domain.RoomID{dmRoom, chatRm, stranger},
+			[]config.Profile{{Name: "All", Include: []string{"*"}}},
+			map[domain.RoomID]string{dmRoom: "all", chatRm: "all", stranger: "all"},
 		},
-		"a kind of room": {[]config.Profile{{Name: "p", Include: []string{"dm"}}}, []domain.RoomID{dmRoom}},
-		"a space":        {[]config.Profile{{Name: "p", Include: []string{spaceEntry}}}, []domain.RoomID{chatRm}},
-		"a room by name": {[]config.Profile{{Name: "p", Include: []string{chatNamEntry}}}, []domain.RoomID{chatRm}},
-		"a room by ID":   {[]config.Profile{{Name: "p", Include: []string{string(stranger)}}}, []domain.RoomID{stranger}},
+		"a kind of room": {[]config.Profile{{Name: "p", Include: []string{"dm"}}}, map[domain.RoomID]string{dmRoom: "p"}},
+		"a space":        {[]config.Profile{{Name: "p", Include: []string{spaceEntry}}}, map[domain.RoomID]string{chatRm: "p"}},
+		"a room by name": {[]config.Profile{{Name: "p", Include: []string{chatNamEntry}}}, map[domain.RoomID]string{chatRm: "p"}},
+		"a room by ID":   {[]config.Profile{{Name: "p", Include: []string{string(stranger)}}}, map[domain.RoomID]string{stranger: "p"}},
 		"a network":      {[]config.Profile{{Name: "p", Include: []string{"protocol:whatsapp"}}}, nil},
-		"a tag":          {[]config.Profile{{Name: "p", Include: []string{"tag:Family"}}}, []domain.RoomID{dmRoom}},
-		"a tag's row":    {[]config.Profile{{Name: "p", Include: []string{"place:Family"}}}, []domain.RoomID{dmRoom}},
+		"a tag":          {[]config.Profile{{Name: "p", Include: []string{"tag:Family"}}}, map[domain.RoomID]string{dmRoom: "p"}},
+		"a tag's row":    {[]config.Profile{{Name: "p", Include: []string{"place:Family"}}}, map[domain.RoomID]string{dmRoom: "p"}},
 		"exclude wins": {
 			[]config.Profile{{Name: "p", Include: []string{"protocol:matrix"}, Exclude: []string{spaceEntry}}},
-			[]domain.RoomID{dmRoom, stranger},
+			map[domain.RoomID]string{dmRoom: "p", stranger: "p"},
 		},
-		"all but one kind": {[]config.Profile{{Name: "p", Include: []string{"*"}, Exclude: []string{"dm"}}}, []domain.RoomID{chatRm, stranger}},
-		"only the first counts": {
-			[]config.Profile{{Name: "p", Include: []string{"dm"}}, {Name: "q", Include: []string{spaceEntry}}},
-			[]domain.RoomID{dmRoom},
+		"all but one kind": {
+			[]config.Profile{{Name: "p", Include: []string{"*"}, Exclude: []string{"dm"}}},
+			map[domain.RoomID]string{chatRm: "p", stranger: "p"},
+		},
+		"each profile holding it": {
+			[]config.Profile{{Name: "p", Include: []string{"dm"}}, {Name: "Q", Include: []string{spaceEntry, "dm"}}},
+			map[domain.RoomID]string{dmRoom: "p,q", chatRm: "q"},
 		},
 	}
 	for name, tc := range tests {
@@ -48,14 +54,14 @@ func TestKithdShowsTheFirstProfile(t *testing.T) {
 			cfg.Profiles = tc.profiles
 			n, rec, _ := notifier(t, cfg)
 			for _, room := range []domain.RoomID{dmRoom, chatRm, stranger} {
-				want := false
-				for _, in := range tc.in {
-					want = want || in == room
-				}
-				before := len(rec.all())
+				before := len(rec.published())
 				n.Deliver(context.Background(), msg(room, alice, "hi"))
-				if got := len(rec.all()) > before; got != want {
-					t.Errorf("%s shown = %v, want %v", room, got, want)
+				got := ""
+				if after := rec.published(); len(after) > before {
+					got = strings.Join(after[before].Topics, ",")
+				}
+				if got != tc.to[room] {
+					t.Errorf("%s published to %q, want %q", room, got, tc.to[room])
 				}
 			}
 		})

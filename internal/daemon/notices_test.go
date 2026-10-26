@@ -2,21 +2,20 @@ package daemon_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
 // noticeServer serves a notifier over cfg, past the catch-up batch, which a test
 // reloads and delivers to.
 func noticeServer(t *testing.T, cfg config.Config) (*harness, *daemon.Notifications) {
 	t.Helper()
-	n, err := daemon.NewNotifications(cfg, scopeOnly{nopWithChannels()},
-		func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	n, err := daemon.NewNotifications(cfg, scopeOnly{nopWithChannels()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,5 +101,32 @@ func TestANotificationArrivesAsKithdMadeIt(t *testing.T) {
 	}
 	if first.ID == "" || first.ID == burst.ID {
 		t.Errorf("IDs %q and %q, want two of their own", first.ID, burst.ID)
+	}
+}
+
+// A listener stalled through a burst (a slow desktop, a post-suspend catch-up) still
+// gets every notification of it once it reads again.
+func TestASlowListenerMissesNothingOfABurst(t *testing.T) {
+	t.Parallel()
+	h, n := noticeServer(t, asStarted(notifsOn("all")))
+	notes, opened, stalled := make(chan daemon.Notice, 1024), make(chan struct{}), make(chan struct{})
+	go func() {
+		_ = h.client().Notifications(t.Context(), func() { close(opened) }, func(v daemon.Notice) {
+			<-stalled
+			notes <- v
+		})
+	}()
+	<-opened
+	const burst = 300
+	for i := range burst {
+		n.Deliver(t.Context(), msg(domain.RoomID(fmt.Sprintf("%s!r%d:x", mx, i)), alice, "hi"))
+	}
+	close(stalled)
+	for got := range burst {
+		select {
+		case <-notes:
+		case <-time.After(settle):
+			t.Fatalf("got %d of a burst of %d", got, burst)
+		}
 	}
 }

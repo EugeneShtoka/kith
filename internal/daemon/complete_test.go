@@ -11,7 +11,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/logging"
-	"github.com/EugeneShtoka/kith/internal/notify"
 	"github.com/EugeneShtoka/kith/internal/schedule"
 )
 
@@ -28,8 +27,7 @@ func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
 		d.State = daemon.NewState()
 	}
 	if d.Notifications == nil {
-		n, err := daemon.NewNotifications(asStarted(config.Config{}), scopeOnly{d.Backend},
-			func(config.Notifications) notify.Notifier { return notify.Nop{} })
+		n, err := daemon.NewNotifications(asStarted(config.Config{}), scopeOnly{d.Backend})
 		if err != nil {
 			t.Fatalf("NewNotifications: %v", err)
 		}

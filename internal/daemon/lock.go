@@ -70,3 +70,25 @@ func (l *Lock) Release() error {
 	}
 	return nil
 }
+
+// AcquireNotifier takes the instance's kith-notify lock, so however often kith starts
+// it, one shows each notification. held is false, with no error, when another holds it;
+// release gives it up.
+func AcquireNotifier(storage domain.Storage) (release func() error, held bool, err error) {
+	socket, err := SocketPath(storage)
+	if err != nil {
+		return nil, false, err
+	}
+	if mkerr := makeSocketDir(filepath.Dir(socket)); mkerr != nil {
+		return nil, false, mkerr
+	}
+	path := storage.NotifierLockPath()
+	fl := flock.New(path)
+	if held, err = fl.TryLock(); err != nil {
+		return nil, false, fmt.Errorf("daemon: lock %s: %w", path, err)
+	}
+	if !held {
+		return nil, false, nil
+	}
+	return fl.Unlock, true, nil
+}

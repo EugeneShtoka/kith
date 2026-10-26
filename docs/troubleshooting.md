@@ -354,17 +354,22 @@ Work through these in order:
 3. **Is do-not-disturb on?** `ctrl+n` hides notifications and `alt+n` mutes their
    sound. Either key turns do-not-disturb off again. Restarting the daemon also clears
    it.
-4. **Can the daemon reach the desktop?** Desktop popups go over D-Bus to
-   `org.freedesktop.Notifications`, and a failed delivery is dropped silently. Check
+4. **Is `kith-notify` running, and listening to the room's profile?** kithd only
+   decides; `kith-notify` shows. `systemctl --user status kith-notify` (or
+   `pgrep -a kith-notify`) says whether it runs and with which `--profile`s. A room
+   only a profile it doesn't listen to holds is never shown. Its log says when it
+   cannot reach kithd: `journalctl --user -u kith-notify`.
+5. **Can `kith-notify` reach the desktop?** Desktop popups go over D-Bus to
+   `org.freedesktop.Notifications`, and a failed delivery is only logged. Check
    that the unit has the bus address (`systemctl --user show-environment`), and that
-   `notify-send test` works from a terminal. Import the variable and restart the unit
-   if it's missing.
-5. **Is it the catch-up batch?** Messages that arrived while the daemon was down are
+   `notify-send test` works from a terminal. Import the variable and restart
+   `kith-notify` if it's missing.
+6. **Is it the catch-up batch?** Messages that arrived while the daemon was down are
    cached as history but not announced. Only messages the daemon receives live
    notify, or that it fetches into a Matrix room after losing its connection while
    running (those older than ten minutes as one count per room). Your own messages
    never notify.
-6. **Is the room rate-limited?** With `max_per_room` set, a busy room turns its
+7. **Is the room rate-limited?** With `max_per_room` set, a busy room turns its
    notifications into one summary popup per `rate_window`.
 
 Without a freedesktop notification daemon (macOS, for example), set

@@ -38,8 +38,8 @@ Every Linux package, the AUR packages and the Nix package install the same set:
 
 | Installed path | Source in the repository |
 | --- | --- |
-| `/usr/bin/kith`, `kithd`, `kith-mcp` | the three `cmd/` binaries, built with `-tags=goolm` and `CGO_ENABLED=0` |
-| `/usr/lib/systemd/user/kithd.service` | `packaging/systemd/`, rendered by `scripts/render-units.sh` with `ExecStart=/usr/bin/kithd` |
+| `/usr/bin/kith`, `kithd`, `kith-mcp`, `kith-notify` | the four `cmd/` binaries, built with `-tags=goolm` and `CGO_ENABLED=0` |
+| `/usr/lib/systemd/user/kithd.service`, `kith-notify.service` | `packaging/systemd/`, rendered by `scripts/render-units.sh` with `ExecStart=/usr/bin/…` |
 | `/usr/share/applications/kith.desktop` | `packaging/desktop/kith.desktop` |
 | `/usr/share/doc/kith/` | `README.md`, `ARCHITECTURE.md`, `docs/*.md`, and `config.toml.example` from `kith --print-config` |
 | `/usr/share/licenses/kith/LICENSE` (`/usr/share/doc/kith/copyright` in the `.deb`) | `LICENSE` |

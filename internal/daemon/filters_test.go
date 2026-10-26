@@ -12,7 +12,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
 // spamBackend is world() plus room history, stored moves and a verdict store.
@@ -111,11 +110,11 @@ func spamTag(change func(*config.Tag)) func(*config.Config) {
 // spamNotifier is the daemon's notifier over a spam-capable backend.
 func spamNotifier(t *testing.T, cfg config.Config, src *spamBackend) (*daemon.Notifications, *recorder) {
 	t.Helper()
-	rec := &recorder{}
-	n, err := daemon.NewNotifications(asStarted(cfg), src, func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(asStarted(cfg), src)
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
+	rec := record(t, n)
 	n.UseSelves(func() []string { return []string{me} })
 	n.Synced(mx, time.Now())
 	n.Synced(mx, time.Now())

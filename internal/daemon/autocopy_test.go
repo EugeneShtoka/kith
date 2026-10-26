@@ -8,10 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
 // autoCopyNotifier copies codes from the SMS bridge room to a file standing in for
@@ -27,11 +25,11 @@ func autoCopyNotifier(t *testing.T, autoCopy bool, syncs int) (*daemon.Notificat
 	cfg.Clipboard.AutoCopy = autoCopy
 	cfg.Codes.Include = []string{smsRoom}
 
-	rec := &recorder{}
-	n, err := daemon.NewNotifications(asStarted(cfg), codeWorld(), func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(asStarted(cfg), codeWorld())
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
+	rec := record(t, n)
 	n.UseSelves(func() []string { return []string{me} })
 	for range syncs {
 		n.Synced(mx, time.Now())

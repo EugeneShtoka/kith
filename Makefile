@@ -339,6 +339,7 @@ PREFIX  ?= $(HOME)/.local
 BINDIR  ?= $(PREFIX)/bin
 UNITDIR ?= $(HOME)/.config/systemd/user
 UNIT    := kithd.service
+NOTIFY_UNIT := kith-notify.service
 APPDIR  ?= $(HOME)/.local/share/applications
 DESKTOP := kith.desktop
 
@@ -350,21 +351,24 @@ PLIST_SRC   := packaging/macos/io.github.eugeneshtoka.kithd.plist
 PLIST_LABEL := io.github.eugeneshtoka.kithd
 PLIST       := $(LAUNCHAGENTDIR)/$(PLIST_LABEL).plist
 PLIST_LOG   := kithd.log
+NOTIFY_PLIST_SRC   := packaging/macos/io.github.eugeneshtoka.kith-notify.plist
+NOTIFY_PLIST_LABEL := io.github.eugeneshtoka.kith-notify
+NOTIFY_PLIST       := $(LAUNCHAGENTDIR)/$(NOTIFY_PLIST_LABEL).plist
 
 install: build
 	@set -eu; \
 	if { [ -d "$(BINDIR)" ] && [ -w "$(BINDIR)" ]; } || mkdir -p "$(BINDIR)" 2>/dev/null; then SUDO=""; \
 	else SUDO="sudo"; echo "==> $(BINDIR) is not writable — installing the binaries with sudo"; sudo mkdir -p "$(BINDIR)"; fi; \
-	for b in kith kithd kith-mcp; do $$SUDO install -m755 "$$b" "$(BINDIR)/$$b"; done; \
-	echo "==> binaries -> $(BINDIR)/kith, $(BINDIR)/kithd, $(BINDIR)/kith-mcp"
+	for b in kith kithd kith-mcp kith-notify; do $$SUDO install -m755 "$$b" "$(BINDIR)/$$b"; done; \
+	echo "==> binaries -> $(BINDIR)/kith, $(BINDIR)/kithd, $(BINDIR)/kith-mcp, $(BINDIR)/kith-notify"
 ifeq ($(HAVE_SYSTEMCTL),yes)
 	@bash scripts/render-units.sh "$(BINDIR)" "$(UNITDIR)"
 	@systemctl --user daemon-reload
-	@echo "==> unit     -> $(UNITDIR)/$(UNIT)  (ExecStart=$(BINDIR)/kithd)"
+	@echo "==> units    -> $(UNITDIR)/$(UNIT), $(UNITDIR)/$(NOTIFY_UNIT)  (ExecStart=$(BINDIR)/…)"
 else ifeq ($(UNAME_S),Darwin)
 	@echo "==> no systemd on macOS — \`make deploy\` installs a LaunchAgent instead"
 else
-	@echo "==> no systemctl — systemd units skipped; start the daemon yourself: $(BINDIR)/kithd"
+	@echo "==> no systemctl — systemd units skipped; start the daemon yourself: $(BINDIR)/kithd (kith starts kith-notify)"
 endif
 ifneq ($(UNAME_S),Darwin)
 	@install -d "$(APPDIR)"
@@ -393,8 +397,9 @@ deploy: install
 	sockdir="$$rt/kith"; \
 	marker=$$(mktemp "$${TMPDIR:-/tmp}/kith-deploy.XXXXXX"); \
 	trap 'rm -f "$$marker"' EXIT; \
-	systemctl --user enable "$(UNIT)" >/dev/null; \
+	systemctl --user enable "$(UNIT)" "$(NOTIFY_UNIT)" >/dev/null; \
 	systemctl --user restart "$(UNIT)"; \
+	systemctl --user restart "$(NOTIFY_UNIT)" || echo "!!  $(NOTIFY_UNIT) did not start: no desktop notifications. See: journalctl --user -u $(NOTIFY_UNIT)"; \
 	sock=""; \
 	i=0; while [ $$i -lt 240 ]; do \
 	  sock=$$(find "$$sockdir" -maxdepth 1 -type s -newer "$$marker" ! -name 'signal-*' 2>/dev/null | head -n 1); \
@@ -430,11 +435,14 @@ deploy: install
 	    -e 's|PATH="|PATH="$(BINDIR):|' \
 	    -e 's|kithd.log|$(PLIST_LOG)|' \
 	    "$(PLIST_SRC)" > "$(PLIST)"; \
-	chmod 0644 "$(PLIST)"; \
+	sed -e 's|PATH="|PATH="$(BINDIR):|' "$(NOTIFY_PLIST_SRC)" > "$(NOTIFY_PLIST)"; \
+	chmod 0644 "$(PLIST)" "$(NOTIFY_PLIST)"; \
 	uid=$$(id -u); \
 	launchctl bootout "gui/$$uid/$(PLIST_LABEL)" 2>/dev/null || true; \
 	launchctl bootstrap "gui/$$uid" "$(PLIST)"; \
-	echo "==> LaunchAgent -> $(PLIST)"; \
+	launchctl bootout "gui/$$uid/$(NOTIFY_PLIST_LABEL)" 2>/dev/null || true; \
+	launchctl bootstrap "gui/$$uid" "$(NOTIFY_PLIST)"; \
+	echo "==> LaunchAgents -> $(PLIST), $(NOTIFY_PLIST)"; \
 	echo "    log: ~/Library/Logs/$(PLIST_LOG)"; \
 	echo "    run the client: $(BINDIR)/kith"; \
 	echo "    no saved session yet? $(BINDIR)/kith login"
@@ -444,15 +452,15 @@ deploy: install
 	@echo "    run the daemon under your own supervisor, e.g.  $(BINDIR)/kithd"
 endif
 
-# Stop/disable kithd and remove what `install` wrote.
+# Stop/disable kithd and kith-notify and remove what `install` wrote.
 # The matrix: and tg: associations are removed only where they still name kith.desktop.
 # Config, cache, crypto store and keyring session are kept.
 undeploy:
 	@set -eu; \
 	if [ "$(HAVE_SYSTEMCTL)" = yes ]; then \
-	  systemctl --user disable --now "$(UNIT)" 2>/dev/null || true; \
-	  rm -f "$(UNITDIR)/$(UNIT)"; \
-	  for f in "$(UNITDIR)"/kithd-?*.service; do \
+	  systemctl --user disable --now "$(UNIT)" "$(NOTIFY_UNIT)" 2>/dev/null || true; \
+	  rm -f "$(UNITDIR)/$(UNIT)" "$(UNITDIR)/$(NOTIFY_UNIT)"; \
+	  for f in "$(UNITDIR)"/kithd-?*.service "$(UNITDIR)"/kith-notify-?*.service; do \
 	    head -n1 "$$f" 2>/dev/null | grep -q '^# Written by kith for its config' || continue; \
 	    u=$$(basename "$$f"); \
 	    systemctl --user disable --now "$$u" 2>/dev/null || true; \
@@ -460,11 +468,11 @@ undeploy:
 	    echo "==> stopped and removed $$u, which kith wrote for its own config"; \
 	  done; \
 	  systemctl --user daemon-reload; \
-	  echo "==> removed $(UNITDIR)/$(UNIT)"; \
+	  echo "==> removed $(UNITDIR)/$(UNIT), $(UNITDIR)/$(NOTIFY_UNIT)"; \
 	fi; \
 	if [ "$(UNAME_S)" = Darwin ]; then \
 	  uid=$$(id -u); \
-	  for p in "$(LAUNCHAGENTDIR)"/io.github.eugeneshtoka.kithd*.plist; do \
+	  for p in "$(LAUNCHAGENTDIR)"/io.github.eugeneshtoka.kithd*.plist "$(LAUNCHAGENTDIR)"/io.github.eugeneshtoka.kith-notify*.plist; do \
 	    [ -e "$$p" ] || continue; \
 	    label=$$(basename "$$p" .plist); \
 	    launchctl bootout "gui/$$uid/$$label" 2>/dev/null || true; \
@@ -472,10 +480,10 @@ undeploy:
 	    echo "==> removed LaunchAgent $$label"; \
 	  done; \
 	fi; \
-	if [ -e "$(BINDIR)/kith" ] || [ -e "$(BINDIR)/kithd" ] || [ -e "$(BINDIR)/kith-mcp" ]; then \
+	if [ -e "$(BINDIR)/kith" ] || [ -e "$(BINDIR)/kithd" ] || [ -e "$(BINDIR)/kith-mcp" ] || [ -e "$(BINDIR)/kith-notify" ]; then \
 	  if [ -w "$(BINDIR)" ]; then SUDO=""; else SUDO="sudo"; fi; \
-	  $$SUDO rm -f "$(BINDIR)/kith" "$(BINDIR)/kithd" "$(BINDIR)/kith-mcp"; \
-	  echo "==> removed $(BINDIR)/kith, $(BINDIR)/kithd, $(BINDIR)/kith-mcp"; \
+	  $$SUDO rm -f "$(BINDIR)/kith" "$(BINDIR)/kithd" "$(BINDIR)/kith-mcp" "$(BINDIR)/kith-notify"; \
+	  echo "==> removed $(BINDIR)/kith, $(BINDIR)/kithd, $(BINDIR)/kith-mcp, $(BINDIR)/kith-notify"; \
 	fi; \
 	if [ "$(UNAME_S)" != Darwin ]; then \
 	  rm -f "$(APPDIR)/$(DESKTOP)"; \

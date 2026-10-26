@@ -26,19 +26,17 @@ func (n *Notifications) captureCode(ctx context.Context, msg domain.Message, min
 	if !ok {
 		return
 	}
-	// kithd's own sinks show a code whatever the profiles; it is published to those
-	// holding the room.
-	topics, _ := n.topics(facts)
+	topics := n.topics(facts)
 	if err := clip.copy(ctx, code.Value); err != nil {
 		// With no clipboard, the notification carrying the code is the delivery. The log
 		// names the room, never the code.
 		if n.log != nil {
 			n.log.Log(ctx, levelFor(ctx), "auto-copy: copy to the clipboard failed", "room", msg.RoomID, "err", err)
 		}
-		n.notify(codeAlert(msg, facts, code, "could not copy it: "+err.Error()), topics, true)
+		n.notify(codeAlert(msg, facts, code, "could not copy it: "+err.Error()), topics)
 		return
 	}
-	n.notify(codeAlert(msg, facts, code, "copied to the clipboard"), topics, true)
+	n.notify(codeAlert(msg, facts, code, "copied to the clipboard"), topics)
 }
 
 // codeAlert announces a captured code, with the code in the body so the user can check

@@ -85,6 +85,12 @@ func (s Storage) SocketPath() string { return filepath.Join(s.RuntimeDir, s.Inst
 // LockPath is the daemon's single-instance lock, beside its socket.
 func (s Storage) LockPath() string { return filepath.Join(s.RuntimeDir, s.Instance+".lock") }
 
+// NotifierLockPath is kith-notify's single-instance lock: one shows the instance's
+// notifications on this machine.
+func (s Storage) NotifierLockPath() string {
+	return filepath.Join(s.RuntimeDir, s.Instance+"-notify.lock")
+}
+
 // LogPath is where a program of this instance logs when it logs to a file.
 func (s Storage) LogPath(program string) string { return filepath.Join(s.StateDir, program+".log") }
 

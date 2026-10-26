@@ -17,7 +17,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
 // profileWorld is generated rooms, spaces and invitations. Every narrowing call answers
@@ -382,8 +381,7 @@ func askedRooms(w *profileWorld, call string) []domain.RoomID {
 // profileServer serves w with a notifier over cfg, which a test reloads.
 func profileServer(t *testing.T, w *profileWorld) (*harness, *daemon.Notifications) {
 	t.Helper()
-	n, err := daemon.NewNotifications(asStarted(config.Config{}), scopeOnly{w},
-		func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	n, err := daemon.NewNotifications(asStarted(config.Config{}), scopeOnly{w})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -740,8 +738,7 @@ func checkStreamsIn(t *testing.T, what string, client *daemon.Remote, w *profile
 // profiledServe serves b with these profiles.
 func profiledServe(t *testing.T, b api.Backend, profiles ...config.Profile) *harness {
 	t.Helper()
-	n, err := daemon.NewNotifications(config.Config{Profiles: profiles}, scopeOnly{b},
-		func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	n, err := daemon.NewNotifications(config.Config{Profiles: profiles}, scopeOnly{b})
 	if err != nil {
 		t.Fatal(err)
 	}

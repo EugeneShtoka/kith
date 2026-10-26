@@ -61,7 +61,7 @@ func serve(t *testing.T, socket string, cfg config.Config) kithd {
 		t.Fatal(err)
 	}
 	backend := world{}
-	n, err := daemon.NewNotifications(cfg, backend, func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	n, err := daemon.NewNotifications(cfg, backend)
 	if err != nil {
 		t.Fatal(err)
 	}

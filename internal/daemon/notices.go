@@ -21,9 +21,10 @@ type Notice struct {
 
 // NotificationStream streams the notifications published to the request's profile. The
 // profile is read per notification, so a reload that renames or removes it reaches an
-// open stream.
+// open stream. It queues as much as the notifier itself does: a desktop slow to show
+// a burst must not lose any of it.
 func (s *server) NotificationStream(ctx context.Context, _ *req[v1.NotificationStreamRequest], st *connect.ServerStream[v1.NotificationStreamResponse]) error {
-	return serveStream(ctx, s.Notifications.notices, st, func(v notice) *v1.NotificationStreamResponse {
+	return serveStreamWith(ctx, s.Notifications.notices, notifierBuffer, st, func(v notice) *v1.NotificationStreamResponse {
 		if !slices.Contains(v.topics, seatKey(s.requestProfile(ctx))) {
 			return nil
 		}

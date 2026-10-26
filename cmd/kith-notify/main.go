@@ -33,7 +33,8 @@ func main() { os.Exit(start()) }
 func start() int {
 	showVersion := flag.Bool("version", false, "print version information and exit")
 	configPath := flag.String("config", "", "path to config file (default: XDG config dir)")
-	logLevel := flag.String("log-level", "", "how much to log to stderr ("+logging.Levels+"); overrides $"+logging.EnvLevel+" and `[log] level`")
+	logLevel := flag.String("log-level", "", "how much to log ("+logging.Levels+"); overrides $"+logging.EnvLevel+" and `[log] level`")
+	logFile := flag.String(strings.TrimPrefix(daemon.LogFlag, "--"), "", "log to the journal, or to this `file` when there is none, instead of stderr; what kith passes when it starts kith-notify without systemd")
 	var profiles []string
 	flag.Func("profile", "a profile whose notifications to show; repeat for several (default: the first)", func(name string) error {
 		profiles = append(profiles, name)
@@ -49,7 +50,8 @@ func start() int {
 	if parsed, err := logging.Resolve(*logLevel, ""); err == nil {
 		level.Set(parsed)
 	}
-	log := logging.New(os.Stderr, logging.Options{Level: level, NoTime: logging.UnderJournald()})
+	log, closeLog := newLogger(*logFile, level)
+	defer closeLog()
 	slog.SetDefault(log)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -58,6 +60,25 @@ func start() int {
 		return 1
 	}
 	return 0
+}
+
+// newLogger logs to stderr, which a systemd unit's journal captures; started by kith
+// (--log-file), to the journal if any, else that file.
+func newLogger(file string, level slog.Leveler) (*slog.Logger, func()) {
+	stderr := logging.New(os.Stderr, logging.Options{Level: level, NoTime: logging.UnderJournald()})
+	if file == "" || logging.UnderJournald() {
+		return stderr, func() {}
+	}
+	sink, err := logging.Open(logging.Destination{Target: logging.TargetAuto, Identifier: "kith-notify", File: file, Level: level})
+	if err != nil {
+		stderr.Warn("cannot open the log; logging to stderr", "path", file, "err", err)
+		return stderr, func() {}
+	}
+	return sink.Logger, func() {
+		if cerr := sink.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "kith-notify: close log file:", cerr)
+		}
+	}
 }
 
 func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string, profiles []string) error {
@@ -78,6 +99,19 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 	if err != nil {
 		return fmt.Errorf("finding the daemon's socket: %w", err)
 	}
+	release, held, err := daemon.AcquireNotifier(storage)
+	if err != nil {
+		return fmt.Errorf("the single-instance lock: %w", err)
+	}
+	if !held {
+		log.Info("another kith-notify already shows this config's notifications here")
+		return nil
+	}
+	defer func() {
+		if rerr := release(); rerr != nil {
+			log.Warn("releasing the single-instance lock", "err", rerr)
+		}
+	}()
 	// Delivery has no caller to tell: each failed sink is logged, never with the message.
 	sinks := setup.NotifierSinks(func(sink string, err error) {
 		log.Warn("notification delivery failed", "sink", sink, "err", err)
