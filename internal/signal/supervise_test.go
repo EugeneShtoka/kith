@@ -338,6 +338,7 @@ type rig struct {
 	cache     *db.Cache
 	cachePath string
 	secrets   *memSecrets
+	key       []byte // the store's, as kithd hands it over
 	cancel    context.CancelFunc
 	done      chan error
 
@@ -378,7 +379,7 @@ func newRigPrepared(t *testing.T, mode, devices, linkedTo string, events []*sign
 	}
 	r := &rig{
 		t: t, bin: bin, starts: filepath.Join(dir, "starts"), acks: filepath.Join(dir, "acks"), sent: filepath.Join(dir, "sent"),
-		events: filepath.Join(dir, "events"), secrets: &memSecrets{m: map[string]string{}},
+		events: filepath.Join(dir, "events"), secrets: &memSecrets{m: map[string]string{}}, key: make([]byte, 32),
 	}
 	r.install(self)
 	var lines []string
@@ -413,7 +414,7 @@ func newRigPrepared(t *testing.T, mode, devices, linkedTo string, events []*sign
 		r.secrets.m["signal|phone"] = linkedTo
 	}
 	paths := signal.Paths{Store: filepath.Join(dir, "signal.db"), Socket: filepath.Join(dir, "s.sock")}
-	r.a = signal.New(r.cache, r.secrets, make([]byte, 32), paths, nil, nil)
+	r.a = signal.New(r.cache, r.secrets, r.key, paths, nil, nil)
 	r.a.OnStatus(func(s domain.AccountStatus) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
@@ -611,6 +612,26 @@ func TestTheHelperStartsOnlyWhenInstalled(t *testing.T) {
 	r.steady(3 * time.Second)
 	r.install(self)
 	r.until(10*time.Second, "a start once installed", r.started(2))
+}
+
+// Without the store's key (the keyring would not give it) the helper is never started:
+// the account fails, saying why, and its cached chats stay listed.
+func TestWithoutTheStoreKeyTheCacheIsStillServed(t *testing.T) {
+	room := domain.RoomID(domain.NativeID(domain.ProtocolSignal, "aci-1", "aci-2"))
+	r := newRigPrepared(t, "ok", "aci-1", "aci-1", nil, func(r *rig) {
+		r.key = nil
+		if err := r.cache.SaveRooms(context.Background(), domain.AccountRooms(domain.ProtocolSignal, "aci-1"), []domain.Room{{ID: room}}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	r.until(5*time.Second, "failed for its key", r.phase(domain.AccountFailed, "keyring"))
+	r.steady(2 * time.Second)
+	if n := len(r.pids()); n != 0 {
+		t.Errorf("%d helpers started without a key", n)
+	}
+	if rooms, err := r.a.Rooms(context.Background()); err != nil || len(rooms) != 1 || rooms[0].ID != room {
+		t.Errorf("Rooms = (%v, %v), want the cached room", rooms, err)
+	}
 }
 
 // With no account left, or kithd stopping, the helper is killed and not started again.

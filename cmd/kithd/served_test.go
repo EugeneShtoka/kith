@@ -35,10 +35,20 @@ var keyringTurn sync.Mutex
 
 func servedFor(t *testing.T, cfg config.Config, saved domain.Session) served {
 	t.Helper()
+	return servedWith(t, cfg, saved, nil)
+}
+
+// servedWith is servedFor that runs prepare on the instance's storage (nothing opened
+// yet) first.
+func servedWith(t *testing.T, cfg config.Config, saved domain.Session, prepare func(domain.Storage)) served {
+	t.Helper()
 	keyringTurn.Lock()
 	defer keyringTurn.Unlock()
 	dir := t.TempDir()
 	storage := domain.Storage{Instance: "test", DataDir: dir, StateDir: dir, CacheDir: dir, RuntimeDir: dir, KeyringService: "kith-test"}
+	if prepare != nil {
+		prepare(storage)
+	}
 	if saved.AccessToken != "" {
 		key := domain.AccountKey(cfg.Matrix.Accounts[0].User)
 		if err := session.Save(session.MatrixStore(storage, key), saved, true); err != nil {
@@ -250,6 +260,110 @@ func TestEveryNetworkIsBuiltWithoutAnAccount(t *testing.T) {
 	}
 	if got := expected(context.Background(), slog.New(slog.DiscardHandler), backend); len(got) != 0 {
 		t.Errorf("expected = %v with no account, want nothing to wait for", got)
+	}
+}
+
+// Whatever keeps networks from connecting at start (the keyring refusing every key, a
+// network's store that will not open), every network is still built and the cache
+// answers as it does when nothing is wrong: each network's cached chats stay listed and
+// readable. Not parallel: the keyring fault is the whole process's.
+func TestNetworksThatCannotConnectStillServeTheCache(t *testing.T) {
+	block := func(path func(domain.Storage) string) func(domain.Storage) {
+		return func(s domain.Storage) {
+			// A directory where the store's file should be: it cannot open.
+			if err := os.MkdirAll(path(s), 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	stores := map[string]func(domain.Storage) string{
+		"WhatsApp": domain.Storage.WhatsAppPath, "Messenger": domain.Storage.MessengerPath, "Telegram": domain.Storage.TelegramPath,
+	}
+	faults := map[string]struct {
+		keyring error
+		prepare func(domain.Storage)
+	}{
+		"the keyring refuses every key": {keyring: errors.New("the keyring is locked")},
+		"every store will not open": {prepare: func(s domain.Storage) {
+			for _, path := range stores {
+				block(path)(s)
+			}
+		}},
+	}
+	for name, path := range stores {
+		faults[name+"'s store will not open"] = struct {
+			keyring error
+			prepare func(domain.Storage)
+		}{prepare: block(path)}
+	}
+
+	ctx := context.Background()
+	acct := domain.AccountKey("@me:example.org") // shaped as every network's account part may be
+	// An account on each network with a store kithd opens or keys, so its sessions are read.
+	cfg := config.Config{
+		WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+44 7700 900001"}}},
+		Signal:   config.Signal{Accounts: []config.SignalAccount{{Name: "phone"}}},
+	}
+	// serve builds the daemon, gives each network a cached chat with a message, and says
+	// which networks it built and which chats it lists.
+	serve := func(t *testing.T, prepare func(domain.Storage)) (networks []domain.Protocol, listed []domain.RoomID, backend served) {
+		t.Helper()
+		backend = servedWith(t, cfg, domain.Session{}, prepare)
+		for _, n := range backend.networks {
+			networks = append(networks, n.Network())
+			owner := domain.AccountRooms(n.Network(), acct)
+			room := domain.RoomID(domain.NativeID(n.Network(), acct, "!chat:x"))
+			if err := backend.cache.SaveRooms(ctx, owner, []domain.Room{{ID: room, Name: "chat"}}); err != nil {
+				t.Fatal(err)
+			}
+			msg := domain.Message{ID: domain.EventID(domain.NativeID(n.Network(), acct, "$1")), RoomID: room, Body: "kept", Timestamp: time.Unix(1, 0)}
+			if err := backend.cache.SaveMessages(ctx, room, []domain.Message{msg}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		rooms, err := backend.Rooms(ctx)
+		if err != nil {
+			t.Fatalf("Rooms = %v", err)
+		}
+		for _, r := range rooms {
+			listed = append(listed, r.ID)
+		}
+		slices.Sort(listed)
+		if _, err := backend.CachedUnread(ctx); err != nil {
+			t.Errorf("CachedUnread = %v", err)
+		}
+		if got := expected(ctx, slog.New(slog.DiscardHandler), backend); len(got) != 0 {
+			t.Errorf("expected = %v with nothing linked, want nothing to wait for", got)
+		}
+		return networks, listed, backend
+	}
+
+	wantNetworks, wantListed, _ := serve(t, nil)
+	for _, network := range []domain.Protocol{domain.ProtocolWhatsApp, domain.ProtocolSignal} {
+		if !slices.Contains(wantListed, domain.RoomID(domain.NativeID(network, acct, "!chat:x"))) {
+			t.Fatalf("with nothing wrong, %s's cached chat is not listed: %v", network, wantListed)
+		}
+	}
+	for name, fault := range faults {
+		t.Run(name, func(t *testing.T) {
+			if fault.keyring != nil {
+				keyring.MockInitWithError(fault.keyring)
+				t.Cleanup(keyring.MockInit)
+			}
+			networks, listed, backend := serve(t, fault.prepare)
+			if !slices.Equal(networks, wantNetworks) {
+				t.Errorf("networks = %v, want %v", networks, wantNetworks)
+			}
+			if !slices.Equal(listed, wantListed) {
+				t.Errorf("listed = %v, want %v", listed, wantListed)
+			}
+			for _, room := range listed {
+				msgs, err := backend.CachedTimeline(ctx, room)
+				if err != nil || len(msgs) != 1 || msgs[0].Body != "kept" {
+					t.Errorf("CachedTimeline(%s) = (%v, %v), want the cached message", room, msgs, err)
+				}
+			}
+		})
 	}
 }
 

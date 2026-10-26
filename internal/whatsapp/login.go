@@ -21,8 +21,11 @@ func (a *Adapter) LoginNetwork() api.LoginNetwork {
 }
 
 // Login links account as a device (setting up a new one when ""), showing the
-// pairing code until the phone accepts it.
+// pairing code until the phone accepts it. Without a store nothing can be linked.
 func (a *Adapter) Login(ctx context.Context, account string, talk api.LoginTalk) (api.LoginEnd, error) {
+	if a.store == nil {
+		return api.LoginEnd{}, errStoreOff
+	}
 	if account == "" {
 		name, err := api.NumberedAccount(ctx, talk, "whatsapp.account", "wa", a.LoginNetwork().Accounts,
 			"The WhatsApp account's phone number, with its country code: +44 7700 900123.\n\n"+
