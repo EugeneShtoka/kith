@@ -1,24 +1,23 @@
 package daemon_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
 // accountNotifier is the daemon's notifier with a recorder for its popups.
 func accountNotifier(t *testing.T) (*daemon.Notifications, *recorder) {
 	t.Helper()
-	rec := &recorder{}
-	n, err := daemon.NewNotifications(asStarted(notifsOn("all")), world(), func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(asStarted(notifsOn("all")), world())
 	if err != nil {
 		t.Fatal(err)
 	}
-	return n, rec
+	return n, record(t, n)
 }
 
 // Of every change from one phase (or none) to another, exactly an account with a
@@ -79,5 +78,26 @@ func TestAnAccountFallingIsToldOncePerFall(t *testing.T) {
 		if got := len(rec.all()); got != step.popups {
 			t.Fatalf("step %d (%s %s %v): %d popups, want %d", i, step.network, step.account, step.phase, got, step.popups)
 		}
+	}
+}
+
+// An account holds no room a profile could hold or leave out, so its fall is told in
+// every profile, even one holding none of its network's rooms.
+func TestAnAccountFallingIsToldInEveryProfile(t *testing.T) {
+	t.Parallel()
+	cfg := notifsOn("all")
+	cfg.Profiles = []config.Profile{
+		{Name: "Home", Include: []string{"*"}},
+		{Name: "Work", Include: []string{"protocol:slack"}},
+	}
+	n, err := daemon.NewNotifications(cfg, world())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := record(t, n)
+	n.AccountChanged(domain.AccountStatus{Network: domain.ProtocolGMessages, Account: "SMS", Phase: domain.AccountFailed}, domain.AccountOnline)
+	sent := rec.published()
+	if len(sent) != 1 || !slices.Equal(sent[0].Topics, []string{"home", "work"}) {
+		t.Fatalf("published %+v, want one notice to home and work", sent)
 	}
 }

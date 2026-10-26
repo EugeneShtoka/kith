@@ -87,7 +87,7 @@ config.
 ## An account stopped
 
 An account that had a session and stops (its network refuses the session, the phone
-unlinks kith, or it fails at start) raises one desktop notification naming the
+unlinks kith, or it fails at start) raises one desktop notification, in every profile, naming the
 account and why. While it stays down, its account row in the rail is marked ⚠, and
 with the cursor on that row the status line says why, usually with the
 `kith login <network> <account>` that brings it back. A network still retrying keeps

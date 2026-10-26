@@ -11,7 +11,8 @@ import (
 // pairing's cookies, a phone unlinking kith or a session failing at start all leave
 // the rooms as they were. So an account that had a session (connecting or online)
 // going logged out or failed raises one popup with why, once per fall: retries stay
-// connecting and say nothing, and an account never logged in is not down.
+// connecting and say nothing, and an account never logged in is not down. An account
+// is no room a profile holds, so its popup goes to every profile.
 
 // AccountChanged is s reported by its network after was (State.Report).
 func (n *Notifications) AccountChanged(s domain.AccountStatus, was domain.AccountPhase) {
@@ -32,5 +33,16 @@ func (n *Notifications) AccountChanged(s domain.AccountStatus, was domain.Accoun
 		Protocol: s.Network.String(),
 		Sent:     time.Now(),
 		Replaces: "account:" + name,
-	})
+	}, "", n.everyTopic())
+}
+
+// everyTopic is the seat keys of every profile, in config order.
+func (n *Notifications) everyTopic() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	topics := make([]string, len(n.profiles))
+	for i, p := range n.profiles {
+		topics[i] = seatKey(p.Name)
+	}
+	return topics
 }
