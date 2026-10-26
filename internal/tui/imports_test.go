@@ -44,7 +44,7 @@ func (b *importing) ApplyGroupings(_ context.Context, _, _ string, choices map[s
 func TestFoldersAreCopiedAsChosenPerTag(t *testing.T) {
 	t.Parallel()
 	backend := &importing{}
-	m := starterNew(backend, config.Display{}).WithConfigFile("", config.Config{})
+	m := starterNew(backend, config.Display{}).WithConfigFile("", asStarted(config.Config{}))
 	m, cmd := m.openImport("")
 	m = settle(t, m, cmd) // the one account: straight to its folders
 	if m.picker.kind != pickerImportFolders {

@@ -72,7 +72,7 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 			}
 			tags = append(tags, tag)
 		}
-		cfg := config.Config{Tags: tags}
+		cfg := config.Config{Tags: tags, Profiles: []config.Profile{{Name: "default", Include: []string{"*"}}}}
 		follow := rng.IntN(2) == 0
 		cfg.Telegram.Archive = config.NetworkArchive{Follow: &follow, Mirror: rng.IntN(2) == 0, Tag: tags[rng.IntN(len(tags))].Name}
 		m := update(t, configured(cfg), roomsMsg{rooms: rooms})

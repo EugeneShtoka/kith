@@ -96,7 +96,8 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 // then reported.
 func TestDeletingATag(t *testing.T) {
 	t.Parallel()
-	cfg := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Tags: []config.Tag{{Name: "Old"}, {Name: "Keep"}}}
+	cfg := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Tags: []config.Tag{{Name: "Old"}, {Name: "Keep"}},
+		Profiles: []config.Profile{{Name: "default", Include: []string{"*"}}}}
 	cfg.Display.Rail.Order = []string{"tag:Old", "space:Work", "tag:Keep"}
 	cfg.Display.Rail.Hidden = []string{"TAG:old"}
 	cfg.Display.Priority = []string{"tag:old", "space:Old", "place:Old"}

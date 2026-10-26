@@ -398,7 +398,7 @@ func namesakes(t *testing.T) Model {
 func TestNamesakesAreToldApartByID(t *testing.T) {
 	t.Parallel()
 
-	m := namesakes(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), config.Config{}).keptIn()
+	m := namesakes(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), asStarted(config.Config{})).keptIn()
 	m.focus = paneRooms
 	rooms := m.filteredRooms()
 	if len(rooms) != 3 {
@@ -442,7 +442,7 @@ func TestBindPromptPrefillsTheExistingSequence(t *testing.T) {
 
 	cfg := config.Config{Keys: config.DefaultKeys()}
 	cfg.Keys.Jump = config.Jumps{{Chord: "g d", Target: "room:" + mx + "!dana:x"}}
-	m := namesakes(t).WithKeys(cfg.Keys).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), cfg).keptIn()
+	m := namesakes(t).WithKeys(cfg.Keys).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), asStarted(cfg)).keptIn()
 	m.focus = paneRooms
 	next, _ := m.selectRoom(roomByName(t, m, mx+"!dana:x"))
 	m = next
@@ -476,7 +476,7 @@ func TestBindRefusesACollidingSequence(t *testing.T) {
 		{"q x", "on its own"},      // q quits before x arrives
 	} {
 		t.Run(tc.typed, func(t *testing.T) {
-			m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), config.Config{}).keptIn()
+			m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), asStarted(config.Config{})).keptIn()
 			_, after, _ := m.composerCommand("/shortcut "+tc.typed, roomByName(t, m, mx+"!a:x"))
 
 			if len(after.keys.jumps) != 0 {
@@ -653,7 +653,7 @@ func TestOverlaysAreNotPlaces(t *testing.T) {
 func TestShortcutCyclesBetweenTheRoomAndTheRailsSpace(t *testing.T) {
 	t.Parallel()
 
-	m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), config.Config{}).keptIn()
+	m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), asStarted(config.Config{})).keptIn()
 	next, _ := m.selectRoom(roomByName(t, m, mx+"!a:x"))
 	m = next
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Infra")
@@ -700,7 +700,7 @@ func TestShortcutCyclesBetweenTheRoomAndTheRailsSpace(t *testing.T) {
 func TestShortcutStartsOnWhatHasTheFocus(t *testing.T) {
 	t.Parallel()
 
-	m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), config.Config{}).keptIn()
+	m := jumping(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), asStarted(config.Config{})).keptIn()
 	next, _ := m.selectRoom(roomByName(t, m, mx+"!a:x"))
 	m = next
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Infra")

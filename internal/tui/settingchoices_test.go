@@ -10,7 +10,7 @@ func TestEverySettingChoiceIsAcceptedByTheApp(t *testing.T) {
 	t.Parallel()
 
 	base := func() config.Config {
-		cfg := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://example.org", User: "@me:example.org"}}}}
+		cfg := config.Config{Profiles: starter(t).Profiles, Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://example.org", User: "@me:example.org"}}}}
 		cfg.Keys.FillDefaults()
 		return cfg
 	}

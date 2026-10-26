@@ -105,7 +105,7 @@ func (p *personBackend) marked() []string {
 // personNotifier is the daemon's notifier over a person-capable backend.
 func personNotifier(t *testing.T, cfg config.Config, src *personBackend) *daemon.Notifications {
 	t.Helper()
-	n, err := daemon.NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return &recorder{} })
+	n, err := daemon.NewNotifications(asStarted(cfg), src, func(config.Notifications) notify.Notifier { return &recorder{} })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}

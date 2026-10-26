@@ -63,7 +63,7 @@ var allNamed = []config.DisplayName{
 // person is.
 func peerModel(t *testing.T, b peerBackend, display config.Display, rooms []domain.Room, selves bool) Model {
 	t.Helper()
-	m := New(context.Background(), b, display)
+	m := New(context.Background(), b, display).WithConfigFile("", asStarted(config.Config{Display: display}))
 	m, cmd := asModel(m.Update(roomsMsg{rooms: rooms}))
 	if read, ok := msgOf[peerMembersMsg](t, cmd); ok {
 		m = update(t, m, read)

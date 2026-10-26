@@ -422,10 +422,10 @@ network_colors = false
 # one: its room list, unread, invitations, drafts and search hold only those rooms
 # (a room named directly, by a link or a jump, still opens); without it, kith runs in
 # the first. gP or :profile switches a window to another. kithd's desktop notifications follow the first: a room outside it never
-# notifies. With no [[profile]] there is one, "default", holding every room.
+# notifies. A config has at least one.
 #
 #   include = [...]   its rooms, as places (space:, tag:, place:, room:, protocol:,
-#                     a room ID, dm, group); empty is every room
+#                     a room ID, dm, group), or "*" for every room
 #   exclude = [...]   rooms it leaves out, though include names them
 #
 # A tag whose rule reads a room's state (unread, mention, draft, invite) cannot name
@@ -436,7 +436,8 @@ network_colors = false
 #   include = ["space:Work", "protocol:slack"]
 #   exclude = ["tag:Archived"]
 [[profile]]
-name = "default"
+name    = "default"
+include = ["*"]
 
 # Deleted messages, set separately for yours (every account in your identity) and
 # everybody else's:

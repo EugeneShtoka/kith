@@ -79,7 +79,7 @@ func secretModel(t *testing.T, blocks []config.Command, scripts map[string]strin
 		m = m.WithSecrets(keyring)
 	}
 	m = m.WithConfigFile(filepath.Join(home, "config.toml"),
-		config.Config{Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: blocks}).keptIn()
+		config.Config{Profiles: starter(t).Profiles, Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: blocks}).keptIn()
 	return m, dir
 }
 

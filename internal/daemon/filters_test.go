@@ -112,7 +112,7 @@ func spamTag(change func(*config.Tag)) func(*config.Config) {
 func spamNotifier(t *testing.T, cfg config.Config, src *spamBackend) (*daemon.Notifications, *recorder) {
 	t.Helper()
 	rec := &recorder{}
-	n, err := daemon.NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(asStarted(cfg), src, func(config.Notifications) notify.Notifier { return rec })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
@@ -414,7 +414,7 @@ func TestAReleaseReachesARunningDaemon(t *testing.T) {
 		t.Fatal("a caught room notified")
 	}
 	src.store(domain.TagVerdict{Room: chatRm, Tag: "Spam", Released: true})
-	if err := n.Reload(cfg); err != nil {
+	if err := n.Reload(asStarted(cfg)); err != nil {
 		t.Fatalf("Reload: %v", err)
 	}
 	if _, notified := n.Deliver(context.Background(), msg(chatRm, alice, "double your bitcoin")); !notified {
@@ -555,7 +555,7 @@ func TestAFilterMovesIntoAnyTagAndRulesSeeIt(t *testing.T) {
 	}
 
 	cfg.Notifications.Rules = append(cfg.Notifications.Rules, config.Rule{Match: "tag:Leads", Show: "none"})
-	if err := n.Reload(cfg); err != nil {
+	if err := n.Reload(asStarted(cfg)); err != nil {
 		t.Fatal(err)
 	}
 	if _, notified := n.Deliver(ctx, msg(chatRm, alice, "anything")); notified {
@@ -612,7 +612,7 @@ func TestFiltersHoldUnderConcurrentUse(t *testing.T) {
 		})
 	}
 	wg.Go(func() { _, _ = n.RescanFilters(ctx, time.Time{}, true, nil) })
-	wg.Go(func() { _ = n.Reload(cfg) })
+	wg.Go(func() { _ = n.Reload(asStarted(cfg)) })
 	wg.Wait()
 
 	moved := map[domain.RoomID]int{}

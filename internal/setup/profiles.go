@@ -2,19 +2,20 @@ package setup
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Profiles is the [[profile]]s in config order, or the one default profile (every
-// room) when none is written. A name is unique in any case; entries are places, and a
-// tag whose rule reads a room's state is refused: a profile names rooms, so a room
-// must not enter and leave it as it is read.
+// Profiles is the [[profile]]s in config order; a config has at least one, and each
+// names its rooms ("*" is every room). A name is unique in any case; entries are
+// places, and a tag whose rule reads a room's state is refused: a profile names rooms,
+// so a room must not enter and leave it as it is read.
 func Profiles(cfg config.Config) ([]domain.Profile, error) {
 	if len(cfg.Profiles) == 0 {
-		return []domain.Profile{{Name: domain.DefaultProfile}}, nil
+		return nil, fmt.Errorf("setup: the config has no [[profile]]; kith runs in one (include = [%q] holds every room)", everyRoom)
 	}
 	tags, _, err := Tags(cfg)
 	if err != nil {
@@ -31,7 +32,14 @@ func Profiles(cfg config.Config) ([]domain.Profile, error) {
 			return nil, fmt.Errorf("setup: profile %q is defined twice", name)
 		}
 		seen[strings.ToLower(name)] = true
-		for what, entries := range map[string][]string{"include": p.Include, "exclude": p.Exclude} {
+		include := slices.DeleteFunc(slices.Clone(p.Include), func(entry string) bool { return strings.TrimSpace(entry) == everyRoom })
+		if len(p.Include) == 0 {
+			return nil, fmt.Errorf("setup: profile %q: include is empty; name its rooms (%q is every room)", name, everyRoom)
+		}
+		if len(include) < len(p.Include) {
+			include = nil // every room, whatever else it names
+		}
+		for what, entries := range map[string][]string{"include": include, "exclude": p.Exclude} {
 			what = fmt.Sprintf("profile %q: %s", name, what)
 			if err := domain.ValidateEntries(what, entries); err != nil {
 				return nil, fmt.Errorf("setup: %w", err)
@@ -43,10 +51,13 @@ func Profiles(cfg config.Config) ([]domain.Profile, error) {
 				return nil, err
 			}
 		}
-		out = append(out, domain.Profile{Name: name, Rooms: domain.PlaceFilter{Include: p.Include, Exclude: p.Exclude}})
+		out = append(out, domain.Profile{Name: name, Rooms: domain.PlaceFilter{Include: include, Exclude: p.Exclude}})
 	}
 	return out, nil
 }
+
+// everyRoom is the include entry holding every room, as in a tag's rule.
+const everyRoom = "*"
 
 // stateFree refuses a tag: or place: entry naming a tag that reads a room's state.
 func stateFree(tags domain.TagSet, what string, entries []string) error {

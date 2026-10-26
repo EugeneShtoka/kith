@@ -186,7 +186,11 @@ func generate(rng *rand.Rand) generated {
 		}
 		return out
 	}
-	g.profile = config.Profile{Name: "p", Include: pick(), Exclude: pick()}
+	include := pick()
+	if len(include) == 0 || rng.IntN(4) == 0 {
+		include = append(include, "*")
+	}
+	g.profile = config.Profile{Name: "p", Include: include, Exclude: pick()}
 	g.in, g.spacesIn = map[domain.RoomID]bool{}, map[domain.RoomID]bool{}
 	for i := range g.rooms {
 		g.in[g.rooms[i].ID] = g.holds(&g.rooms[i], true)
@@ -195,7 +199,7 @@ func generate(rng *rand.Rand) generated {
 		g.in[g.invites[i].ID] = g.holds(&g.invites[i], false)
 	}
 	// A profile holding every room narrows nothing: an empty space stays, as without one.
-	every := len(g.profile.Include) == 0 && len(g.profile.Exclude) == 0
+	every := slices.Contains(g.profile.Include, "*") && len(g.profile.Exclude) == 0
 	for _, s := range g.spaces {
 		g.spacesIn[domain.RoomID(s.ID)] = every || g.reaches(domain.RoomID(s.ID), map[domain.RoomID]bool{})
 	}
@@ -245,7 +249,7 @@ func (g generated) holds(room *domain.Room, placed bool) bool {
 	if slices.ContainsFunc(g.profile.Exclude, names) {
 		return false
 	}
-	return len(g.profile.Include) == 0 || slices.ContainsFunc(g.profile.Include, names)
+	return slices.Contains(g.profile.Include, "*") || slices.ContainsFunc(g.profile.Include, names)
 }
 
 // reaches is whether a held room can be reached from a space through its children.
@@ -378,7 +382,7 @@ func askedRooms(w *profileWorld, call string) []domain.RoomID {
 // profileServer serves w with a notifier over cfg, which a test reloads.
 func profileServer(t *testing.T, w *profileWorld) (*harness, *daemon.Notifications) {
 	t.Helper()
-	n, err := daemon.NewNotifications(config.Config{}, scopeOnly{w},
+	n, err := daemon.NewNotifications(asStarted(config.Config{}), scopeOnly{w},
 		func(config.Notifications) notify.Notifier { return notify.Nop{} })
 	if err != nil {
 		t.Fatal(err)
@@ -401,7 +405,7 @@ func TestAProfileSeesOnlyItsRooms(t *testing.T) {
 	w := &profileWorld{Nop: nopWithChannels()}
 	h, n := profileServer(t, w)
 	ctx := t.Context()
-	if err := n.Reload(config.Config{Profiles: []config.Profile{{Name: "first"}, {Name: "p"}}}); err != nil {
+	if err := n.Reload(config.Config{Profiles: []config.Profile{{Name: "first", Include: []string{"*"}}, {Name: "p", Include: []string{"*"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	client := h.client()
@@ -414,7 +418,7 @@ func TestAProfileSeesOnlyItsRooms(t *testing.T) {
 		rng := rand.New(rand.NewPCG(seed, 7))
 		g := generate(rng)
 		w.set(g.rooms, g.spaces, g.invites)
-		cfg := config.Config{Tags: g.tags, Profiles: []config.Profile{{Name: "first"}, g.profile}}
+		cfg := config.Config{Tags: g.tags, Profiles: []config.Profile{{Name: "first", Include: []string{"*"}}, g.profile}}
 		if err := n.Reload(cfg); err != nil {
 			t.Fatalf("seed %d: reload %+v: %v", seed, g.profile, err)
 		}
@@ -558,7 +562,7 @@ func TestAProfileTakenAwayHoldsNothing(t *testing.T) {
 	h, n := profileServer(t, w)
 	room := domain.RoomID(mx + "!a:x")
 	w.set([]domain.Room{{ID: room}}, nil, nil)
-	if err := n.Reload(config.Config{Profiles: []config.Profile{{Name: "all"}, {Name: "gone"}}}); err != nil {
+	if err := n.Reload(config.Config{Profiles: []config.Profile{{Name: "all", Include: []string{"*"}}, {Name: "gone", Include: []string{"*"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	client := h.client()
@@ -571,7 +575,7 @@ func TestAProfileTakenAwayHoldsNothing(t *testing.T) {
 		t.Fatalf("Unread() = %+v before the reload", got)
 	}
 
-	if err := n.Reload(config.Config{Profiles: []config.Profile{{Name: "all"}}}); err != nil {
+	if err := n.Reload(config.Config{Profiles: []config.Profile{{Name: "all", Include: []string{"*"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	w.Unreads <- domain.Unread{RoomID: room, Messages: 2}
@@ -597,7 +601,7 @@ func TestSwitchingProfilesMovesEveryStream(t *testing.T) {
 	w.set([]domain.Room{{ID: dm, IsDirect: true}, {ID: group}, {ID: tg}}, nil, nil)
 	profiles := []string{"all", "direct", "groups", "telegram"}
 	if err := n.Reload(config.Config{Profiles: []config.Profile{
-		{Name: "all"}, {Name: "direct", Include: []string{"dm"}},
+		{Name: "all", Include: []string{"*"}}, {Name: "direct", Include: []string{"dm"}},
 		{Name: "groups", Include: []string{"group"}, Exclude: []string{"protocol:telegram"}},
 		{Name: "telegram", Include: []string{"protocol:telegram"}},
 	}}); err != nil {
@@ -710,7 +714,7 @@ func windowIn(t *testing.T, h *harness, profile string, pid int) (*daemon.Remote
 // refused and told where the first is; one in another profile sits beside it.
 func TestEachProfileHasItsOwnWindow(t *testing.T) {
 	t.Parallel()
-	h := profiledServe(t, &draftStore{}, config.Profile{Name: "work"}, config.Profile{Name: "home"})
+	h := profiledServe(t, &draftStore{}, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}})
 	if _, err := windowIn(t, h, "work", 101); err != nil {
 		t.Fatalf("work's window: %v", err)
 	}
@@ -729,7 +733,7 @@ func TestEachProfileHasItsOwnWindow(t *testing.T) {
 func TestASwitchMovesTheSeatOrIsRefused(t *testing.T) {
 	t.Parallel()
 	drafts := &draftStore{}
-	h := profiledServe(t, drafts, config.Profile{Name: "work"}, config.Profile{Name: "home"}, config.Profile{Name: "spare"})
+	h := profiledServe(t, drafts, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}}, config.Profile{Name: "spare", Include: []string{"*"}})
 	a, err := windowIn(t, h, "work", 101)
 	if err != nil {
 		t.Fatal(err)

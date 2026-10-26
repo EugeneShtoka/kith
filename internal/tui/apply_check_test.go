@@ -30,7 +30,7 @@ func checkedModel(t *testing.T, d *checkingDaemon) Model {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return New(context.Background(), d, cfg.Display).WithConfigFile("", cfg.Clone())
+	return New(context.Background(), d, cfg.Display).WithConfigFile("", asStarted(cfg.Clone()))
 }
 
 // withAccount is m's config with one more WhatsApp account.

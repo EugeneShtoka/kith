@@ -345,8 +345,8 @@ func TestOnlyOneOfSpacesAndOriginAsksForTheHome(t *testing.T) {
 		{[]string{"spaces", "origin"}, false},
 	} {
 		asker := &parentAsker{answer: map[domain.RoomID]domain.SpaceID{mx + "!a:x": mx + "!w:x"}}
-		cfg := config.Config{Tags: []config.Tag{{Name: "Out", Picked: []string{mx + "!a:x"}, Exclusive: tc.exclusive}}}
-		m := New(context.Background(), asker, cfg.Display).WithConfigFile("", cfg)
+		cfg := config.Config{Profiles: starter(t).Profiles, Tags: []config.Tag{{Name: "Out", Picked: []string{mx + "!a:x"}, Exclusive: tc.exclusive}}}
+		m := New(context.Background(), asker, cfg.Display).WithConfigFile("", asStarted(cfg))
 		m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 		m = update(t, m, spacesMsg{spaces: []domain.Space{
 			{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},

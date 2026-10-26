@@ -26,14 +26,14 @@ var aliasPeople = []domain.Member{
 func aliasing(t *testing.T, display config.Display) (Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Display: display, Tags: starter(t).Tags}
+	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Display: display, Tags: starter(t).Tags, Profiles: starter(t).Profiles}
 	base.Keys.FillDefaults()
 	if err := config.Save(path, base); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
 	m := update(t, starterNew(apitest.Nop{}, display),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
-	m = sized(t, m).WithConfigFile(path, base).keptIn()
+	m = sized(t, m).WithConfigFile(path, asStarted(base)).keptIn()
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	m = update(t, m, membersMsg{roomID: mx + "!a:x", members: aliasPeople})

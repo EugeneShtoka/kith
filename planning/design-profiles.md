@@ -22,7 +22,8 @@ a clicked link.
 
 ```toml
 [[profile]]
-name = "default"            # the starter writes it; includes every room
+name    = "default"         # the starter writes it
+include = ["*"]             # every room
 
 [[profile]]
 name    = "phone"
@@ -37,13 +38,12 @@ name    = "work"
 include = ["space:Work", "protocol:slack"]
 ```
 
-- **There is always a profile.** A config with no `[[profile]]` has an implicit
-  `default` that includes every room, so nothing changes until one is written. The
-  first profile is what a client runs when it names none, and what kithd's own
+- **There is always a profile, written down.** A config with no `[[profile]]` is
+  refused; the starter writes `default` with `include = ["*"]`. The first profile is what a client runs when it names none, and what kithd's own
   desktop notifications follow. Names are unique and not empty.
 - **Rooms**: `include` / `exclude` take the place vocabulary (`space:`, `tag:`,
-  `place:`, `room:`, `protocol:`, room IDs, `dm`, `group`). Empty `include` is every
-  room; `exclude` wins. A `tag:` whose rule reads a room's state (`unread`,
+  `place:`, `room:`, `protocol:`, room IDs, `dm`, `group`), and `"*"` in `include`
+  is every room, as in a tag's rule. An empty `include` is refused; `exclude` wins. A `tag:` whose rule reads a room's state (`unread`,
   `mention`, `draft`, `invite`, directly or through another tag) is refused at
   startup: a profile names rooms, not their state, and a room must not enter and leave
   a profile as it is read.

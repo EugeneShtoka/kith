@@ -538,7 +538,7 @@ func TestAStartupLinkWaitsForTheRoomList(t *testing.T) {
 func raising(t *testing.T, command string) Model {
 	t.Helper()
 	cfg := config.Config{Clipboard: config.Clipboard{RaiseCommand: command}}
-	return sized(t, newModel().WithConfigFile("", cfg))
+	return sized(t, newModel().WithConfigFile("", asStarted(cfg)))
 }
 
 // raiseMarker is a raise command that writes its parent's PID to a file, and that file.

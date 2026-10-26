@@ -33,7 +33,7 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 	b := &apitest.Nop{}
 	streams := NewStreams()
 	go streams.Run(ctx, b)
-	notifications, err := NewNotifications(config.Config{}, nopScope{b}, func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	notifications, err := NewNotifications(config.Config{Profiles: everyRoom}, nopScope{b}, func(config.Notifications) notify.Notifier { return notify.Nop{} })
 	if err != nil {
 		t.Fatal(err)
 	}

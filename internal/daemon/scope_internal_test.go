@@ -119,7 +119,7 @@ func TestTheNotifierKnowsTags(t *testing.T) {
 	ctx := context.Background()
 	src := &spaced{gatedRooms: gatedRooms{rooms: []domain.Room{{ID: mx + "!mom:x", Name: "Mom", IsDirect: true}}},
 		spaces: []domain.Space{{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!mom:x"}}}}
-	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
+	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}, Profiles: everyRoom}
 	cfg.Display.Priority = []string{"tag:Family", "space:Work"}
 	n, err := NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return nil })
 	if err != nil {
@@ -175,7 +175,8 @@ func TestTheCacheKeepsWhatTheRoomsPlaceSays(t *testing.T) {
 	t.Parallel()
 	small, all := 50, -1
 	cfg := config.Config{
-		Tags: []config.Tag{{Name: "Archived", Picked: []string{"room:Dana"}}}, // by name: the index knows it
+		Profiles: everyRoom,
+		Tags:     []config.Tag{{Name: "Archived", Picked: []string{"room:Dana"}}}, // by name: the index knows it
 		Storage: config.Storage{MessagesPerRoom: &all, Rules: []config.StorageRule{
 			{Match: "tag:Archived", Messages: &small},
 		}},
@@ -193,3 +194,6 @@ func TestTheCacheKeepsWhatTheRoomsPlaceSays(t *testing.T) {
 		t.Errorf("keeps %d in the archived room (want 50) and %d in the other (want -1)", got, other)
 	}
 }
+
+// everyRoom is the profile the starter config writes.
+var everyRoom = []config.Profile{{Name: "default", Include: []string{"*"}}}

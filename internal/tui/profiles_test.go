@@ -80,7 +80,7 @@ func TestAWindowSwitchesProfile(t *testing.T) {
 	b := &profiledBackend{in: "", rooms: map[string][]domain.Room{
 		"": {{ID: work, Name: "Standup"}}, "home": {{ID: home, Name: "Family"}},
 	}}
-	m := inProfiles(t, b, config.Profile{Name: "work"}, config.Profile{Name: "home"})
+	m := inProfiles(t, b, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}})
 	if got := m.renderStatus(); !strings.Contains(got, " work ") {
 		t.Errorf("status = %q, want the profile named", got)
 	}
@@ -107,7 +107,7 @@ func TestAWindowSwitchesProfile(t *testing.T) {
 func TestTheProfileCommand(t *testing.T) {
 	t.Parallel()
 	b := &profiledBackend{rooms: map[string][]domain.Room{}}
-	m := inProfiles(t, b, config.Profile{Name: "work"}, config.Profile{Name: "home"})
+	m := inProfiles(t, b, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}})
 	for line, want := range map[string]string{
 		"profile WORK": "already in work",
 		"profile gym":  "no profile gym — the config has work, home",
@@ -126,7 +126,7 @@ func TestTheProfileCommand(t *testing.T) {
 		t.Errorf(":profile Home switched to %v, want home", b.switches)
 	}
 
-	one := inProfiles(t, &profiledBackend{rooms: map[string][]domain.Room{}})
+	one := inProfiles(t, &profiledBackend{rooms: map[string][]domain.Room{}}, starter(t).Profiles...)
 	if got := one.renderStatus(); strings.Contains(got, "default") {
 		t.Errorf("with one profile the status names it: %q", got)
 	}
@@ -141,7 +141,7 @@ func TestTheProfileCommand(t *testing.T) {
 func TestASwitchRefusedLeavesTheWindowWhereItWas(t *testing.T) {
 	t.Parallel()
 	b := &profiledBackend{rooms: map[string][]domain.Room{}, taken: []string{"home"}}
-	m := inProfiles(t, b, config.Profile{Name: "work"}, config.Profile{Name: "home"})
+	m := inProfiles(t, b, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}})
 	m, cmd := m.switchProfile("home")
 	m = settle(t, m, cmd)
 	if got := m.renderStatus(); !strings.Contains(got, "cannot switch to home") || !strings.Contains(got, " work ") {
@@ -157,7 +157,7 @@ func TestASwitchRefusedLeavesTheWindowWhereItWas(t *testing.T) {
 func TestAWindowSaysWhatItIsDoing(t *testing.T) {
 	t.Parallel()
 	b := &profiledBackend{rooms: map[string][]domain.Room{"": {{ID: mx + "!a:x", Name: "Alpha"}}}}
-	m := inProfiles(t, b, config.Profile{Name: "work"}).WithPresence(b)
+	m := inProfiles(t, b, config.Profile{Name: "work", Include: []string{"*"}}).WithPresence(b)
 	key := keyText("j")
 	tell := func(m Model, msg tea.Msg) Model {
 		next, cmd := m.armPresence(msg)

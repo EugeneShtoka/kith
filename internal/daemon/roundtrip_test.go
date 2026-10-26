@@ -88,7 +88,7 @@ func serve(t *testing.T, b api.Backend, with ...func(*daemon.Daemon)) *harness {
 	ctx, cancel := context.WithCancel(context.Background())
 	streams := daemon.NewStreams()
 	state := daemon.NewState()
-	notifications, err := daemon.NewNotifications(notifsOn("all"), scopeOnly{b},
+	notifications, err := daemon.NewNotifications(asStarted(notifsOn("all")), scopeOnly{b},
 		func(config.Notifications) notify.Notifier { return notify.Nop{} })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)

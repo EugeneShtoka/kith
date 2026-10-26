@@ -25,7 +25,7 @@ func scripted(t *testing.T, name, body string) (Model, string) {
 
 	m, _ := attaching(t)
 	cfg := config.Config{Commands: config.Commands{Dir: dir, Timeout: 5}}
-	m = m.WithConfigFile(filepath.Join(home, "config.toml"), cfg).keptIn()
+	m = m.WithConfigFile(filepath.Join(home, "config.toml"), asStarted(cfg)).keptIn()
 	m, _ = press(t, m, keyText("i"))
 	return m, dir
 }
