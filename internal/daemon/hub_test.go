@@ -32,8 +32,8 @@ func TestHubFansOutToEverySubscriber(t *testing.T) {
 	t.Parallel()
 
 	h := newHub[int]()
-	_, first := h.subscribe()
-	_, second := h.subscribe()
+	_, first := h.subscribeWith(subBuffer)
+	_, second := h.subscribeWith(subBuffer)
 
 	h.broadcast(7)
 
@@ -50,8 +50,8 @@ func TestHubDropsOnlyForTheFullSubscriber(t *testing.T) {
 	t.Parallel()
 
 	h := newHub[int]()
-	_, stalled := h.subscribe()
-	_, draining := h.subscribe()
+	_, stalled := h.subscribeWith(subBuffer)
+	_, draining := h.subscribeWith(subBuffer)
 
 	// Interleaved, not concurrent: one read per broadcast proves the draining subscriber
 	// missed nothing without depending on goroutine timing.
@@ -74,7 +74,7 @@ func TestHubReleaseClosesAndForgets(t *testing.T) {
 	t.Parallel()
 
 	h := newHub[int]()
-	id, ch := h.subscribe()
+	id, ch := h.subscribeWith(subBuffer)
 	h.release(id)
 	h.release(id) // idempotent: a handler may unwind more than once
 
@@ -92,7 +92,7 @@ func TestHubPumpEndsSubscribersWhenSourceCloses(t *testing.T) {
 
 	src := make(chan int, 1)
 	h := newHub[int]()
-	_, ch := h.subscribe()
+	_, ch := h.subscribeWith(subBuffer)
 
 	done := make(chan struct{})
 	go func() { defer close(done); h.pump(context.Background(), src) }()
@@ -117,7 +117,7 @@ func TestHubPumpEndsOnContextCancel(t *testing.T) {
 	t.Parallel()
 
 	h := newHub[int]()
-	_, ch := h.subscribe()
+	_, ch := h.subscribeWith(subBuffer)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	done := make(chan struct{})
@@ -141,7 +141,7 @@ func TestHubSubscribeAfterEnd(t *testing.T) {
 	h := newHub[int]()
 	h.end()
 
-	_, ch := h.subscribe()
+	_, ch := h.subscribeWith(subBuffer)
 	if _, ok := <-ch; ok {
 		t.Error("channel open when subscribing after the source ended, want closed")
 	}

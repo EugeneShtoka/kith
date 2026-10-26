@@ -26,9 +26,8 @@ func newHub[T any]() *hub[T] {
 	return &hub[T]{subs: make(map[uint64]chan T)}
 }
 
-// subscribe attaches a subscriber, returning its id (for release) and its channel.
-func (h *hub[T]) subscribe() (uint64, <-chan T) { return h.subscribeWith(subBuffer) }
-
+// subscribeWith attaches a subscriber queueing up to buffer values, returning its id
+// (for release) and its channel.
 func (h *hub[T]) subscribeWith(buffer int) (uint64, <-chan T) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
