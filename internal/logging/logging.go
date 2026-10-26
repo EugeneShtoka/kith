@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/coreos/go-systemd/v22/journal"
+
+	"github.com/EugeneShtoka/kith/internal/human"
 )
 
 // EnvLevel is the environment variable that overrides the config's level.
@@ -124,8 +126,8 @@ func isSecretKey(key string) bool {
 	return secretKeys[strings.ReplaceAll(strings.ToLower(key), "-", "_")]
 }
 
-// scrubAttr scrubs a value of any kind, rendering errors and Stringers first; a
-// secretKeys value is redacted whole.
+// scrubAttr scrubs a value of any kind, rendering errors, Stringers and durations
+// first; a secretKeys value is redacted whole.
 func scrubAttr(a slog.Attr) slog.Attr {
 	v := a.Value.Resolve()
 	if v.Kind() != slog.KindGroup && isSecretKey(a.Key) {
@@ -152,7 +154,10 @@ func scrubAttr(a slog.Attr) slog.Attr {
 			scrubbed = append(scrubbed, scrubAttr(inner))
 		}
 		return slog.Group(a.Key, scrubbed...)
-	case slog.KindBool, slog.KindDuration, slog.KindFloat64, slog.KindInt64,
+	case slog.KindDuration:
+		// "in=1m", not Go's "in=1m0s": the same form as every other duration a person reads.
+		return slog.String(a.Key, human.Duration(v.Duration()))
+	case slog.KindBool, slog.KindFloat64, slog.KindInt64,
 		slog.KindTime, slog.KindUint64, slog.KindLogValuer:
 		return slog.Attr{Key: a.Key, Value: v}
 	}

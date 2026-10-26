@@ -137,7 +137,9 @@ internal/focus      → the other direction: raising the browser once a link has
         │              to it, a per-desktop ladder because there is no portable way
 internal/logging    → the one log format (slog text, levels, secret scrubbing, the
         │              rotating log file, a journald slog.Handler over go-systemd's
-        │              journal client, auto/journal/file target); no internal imports
+        │              journal client, auto/journal/file target); imports only human
+internal/human      → values formatted for people: a duration as "1m 30s", not "1m0s";
+        │              stdlib only, so logging and every layer may use it
 internal/themespec  → the theme as data: presets and overrides as color strings,
         │              validated; what every binary's config check needs
 internal/theme      → the theme as styles: themespec's colors as lipgloss styles,

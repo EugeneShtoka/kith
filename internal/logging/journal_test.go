@@ -116,13 +116,13 @@ func TestJournalHandlerFields(t *testing.T) {
 	t.Parallel()
 	f, log := newJournalLogger(slog.LevelDebug)
 	log.Warn("mark room read failed", "room", "!abc:example.org", "op", "mark room read",
-		"err", errors.New("M_FORBIDDEN\nsecond line"), "count", 3, "took", 1500*time.Millisecond,
+		"err", errors.New("M_FORBIDDEN\nsecond line"), "count", 3, "took", 1500*time.Millisecond, "wait", 90*time.Second,
 		"message", "an attribute, not the MESSAGE")
 	got := f.last(t)
 	want := map[string]string{
 		"MESSAGE": "mark room read failed", "PRIORITY": "4", "SYSLOG_IDENTIFIER": "kith-test",
 		"ROOM": "!abc:example.org", "OP": "mark room read", "ERR": "M_FORBIDDEN\nsecond line",
-		"COUNT": "3", "TOOK": "1.5s", "ATTR_MESSAGE": "an attribute, not the MESSAGE",
+		"COUNT": "3", "TOOK": "1.5s", "WAIT": "1m 30s", "ATTR_MESSAGE": "an attribute, not the MESSAGE",
 	}
 	for k, v := range want {
 		if got[k] != v {

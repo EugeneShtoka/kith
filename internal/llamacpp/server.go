@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/EugeneShtoka/kith/internal/human"
 )
 
 // server is a spawned llama-server. Stopping signals its whole process group (a job
@@ -130,7 +132,7 @@ func (s *server) wait(ctx context.Context, limit time.Duration) error {
 				s.cmd.Path, s.cmd.ProcessState)
 		case <-ctx.Done():
 			return fmt.Errorf("llamacpp: %s did not become ready within %s: %w",
-				s.cmd.Path, limit, ctx.Err())
+				s.cmd.Path, human.Duration(limit), ctx.Err())
 		case <-ticker.C:
 		}
 	}

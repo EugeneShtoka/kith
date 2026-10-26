@@ -15,6 +15,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/human"
 )
 
 // Logging in signs in as the Messenger Lite app: messagix leads the steps (email or
@@ -164,8 +165,8 @@ func (a *Adapter) finishLogin(ctx context.Context, account string, login *messag
 			return api.LoginEnd{}, errors.New("meta: " + over)
 		}
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
-			return api.LoginEnd{}, fmt.Errorf("meta: Meta accepted the sign-in but did not send the messages page within %v; "+
-				"log in again", pageTimeout)
+			return api.LoginEnd{}, fmt.Errorf("meta: Meta accepted the sign-in but did not send the messages page within %s; "+
+				"log in again", human.Duration(pageTimeout))
 		}
 		return api.LoginEnd{}, fmt.Errorf("meta: load the messages page: %w", err)
 	}
