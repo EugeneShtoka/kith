@@ -248,6 +248,8 @@ const (
 	BackendServiceDraftsProcedure = "/backend.v1.BackendService/Drafts"
 	// BackendServiceSeatProcedure is the fully-qualified name of the BackendService's Seat RPC.
 	BackendServiceSeatProcedure = "/backend.v1.BackendService/Seat"
+	// BackendServicePresentProcedure is the fully-qualified name of the BackendService's Present RPC.
+	BackendServicePresentProcedure = "/backend.v1.BackendService/Present"
 	// BackendServiceLoginNetworksProcedure is the fully-qualified name of the BackendService's
 	// LoginNetworks RPC.
 	BackendServiceLoginNetworksProcedure = "/backend.v1.BackendService/LoginNetworks"
@@ -591,10 +593,14 @@ type BackendServiceClient interface {
 	// writer read, so neither writer (TUI, kith-mcp) drops the other's words.
 	ReplaceDraft(context.Context, *connect.Request[v1.ReplaceDraftRequest]) (*connect.Response[v1.ReplaceDraftResponse], error)
 	Drafts(context.Context, *connect.Request[v1.DraftsRequest]) (*connect.Response[v1.DraftsResponse], error)
-	// Seat is the one window the daemon serves (kith-mcp and one-shot commands take
-	// none). Opening the stream asks for it; keeping it open keeps it, and a window
-	// that closes or dies frees it. See SeatRequest.force and SeatResponse.
+	// Seat is the one window the daemon serves in a [[profile]], the one the request
+	// names (kith-mcp and one-shot commands take none). Opening the stream asks for it;
+	// keeping it open keeps it, and a window that closes or dies frees it. See
+	// SeatRequest.force and SeatResponse.
 	Seat(context.Context, *connect.Request[v1.SeatRequest]) (*connect.ServerStreamForClient[v1.SeatResponse], error)
+	// Present says what a window is doing: the room it has open, and that it was used
+	// just now. Follow hands a link to a window by it.
+	Present(context.Context, *connect.Request[v1.PresentRequest]) (*connect.Response[v1.PresentResponse], error)
 	// LoginNetworks is every network the daemon can log in to, with its accounts.
 	LoginNetworks(context.Context, *connect.Request[v1.LoginNetworksRequest]) (*connect.Response[v1.LoginNetworksResponse], error)
 	// BeginLogin starts logging an account in (none: setting a new one up), ending any
@@ -627,10 +633,11 @@ type BackendServiceClient interface {
 	Messages(context.Context, *connect.Request[v1.MessagesRequest]) (*connect.ServerStreamForClient[v1.MessagesResponse], error)
 	// Activity streams typing and other people's read receipts.
 	ActivityStream(context.Context, *connect.Request[v1.ActivityStreamRequest]) (*connect.ServerStreamForClient[v1.ActivityStreamResponse], error)
-	// Follow hands a matrix URI to whichever client is attached — the desktop clicked a
-	// link, and the running TUI is what can go there.
+	// Follow hands a link to one attached window — the desktop clicked a link, and a
+	// running TUI is what can go there: the one with the link's room open, else the one
+	// used last whose profile holds it, else the one used last.
 	Follow(context.Context, *connect.Request[v1.FollowRequest]) (*connect.Response[v1.FollowResponse], error)
-	// FollowStream is the receiving end, held open by the TUI.
+	// FollowStream is the receiving end, held open by each TUI window.
 	FollowStream(context.Context, *connect.Request[v1.FollowStreamRequest]) (*connect.ServerStreamForClient[v1.FollowStreamResponse], error)
 	// RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
 	// renamed, archived on another device), so the client reads its room list again.
@@ -1221,6 +1228,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("Seat")),
 			connect.WithClientOptions(opts...),
 		),
+		present: connect.NewClient[v1.PresentRequest, v1.PresentResponse](
+			httpClient,
+			baseURL+BackendServicePresentProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Present")),
+			connect.WithClientOptions(opts...),
+		),
 		loginNetworks: connect.NewClient[v1.LoginNetworksRequest, v1.LoginNetworksResponse](
 			httpClient,
 			baseURL+BackendServiceLoginNetworksProcedure,
@@ -1617,6 +1630,7 @@ type backendServiceClient struct {
 	replaceDraft          *connect.Client[v1.ReplaceDraftRequest, v1.ReplaceDraftResponse]
 	drafts                *connect.Client[v1.DraftsRequest, v1.DraftsResponse]
 	seat                  *connect.Client[v1.SeatRequest, v1.SeatResponse]
+	present               *connect.Client[v1.PresentRequest, v1.PresentResponse]
 	loginNetworks         *connect.Client[v1.LoginNetworksRequest, v1.LoginNetworksResponse]
 	beginLogin            *connect.Client[v1.BeginLoginRequest, v1.BeginLoginResponse]
 	answerLogin           *connect.Client[v1.AnswerLoginRequest, v1.AnswerLoginResponse]
@@ -2064,6 +2078,11 @@ func (c *backendServiceClient) Drafts(ctx context.Context, req *connect.Request[
 // Seat calls backend.v1.BackendService.Seat.
 func (c *backendServiceClient) Seat(ctx context.Context, req *connect.Request[v1.SeatRequest]) (*connect.ServerStreamForClient[v1.SeatResponse], error) {
 	return c.seat.CallServerStream(ctx, req)
+}
+
+// Present calls backend.v1.BackendService.Present.
+func (c *backendServiceClient) Present(ctx context.Context, req *connect.Request[v1.PresentRequest]) (*connect.Response[v1.PresentResponse], error) {
+	return c.present.CallUnary(ctx, req)
 }
 
 // LoginNetworks calls backend.v1.BackendService.LoginNetworks.
@@ -2519,10 +2538,14 @@ type BackendServiceHandler interface {
 	// writer read, so neither writer (TUI, kith-mcp) drops the other's words.
 	ReplaceDraft(context.Context, *connect.Request[v1.ReplaceDraftRequest]) (*connect.Response[v1.ReplaceDraftResponse], error)
 	Drafts(context.Context, *connect.Request[v1.DraftsRequest]) (*connect.Response[v1.DraftsResponse], error)
-	// Seat is the one window the daemon serves (kith-mcp and one-shot commands take
-	// none). Opening the stream asks for it; keeping it open keeps it, and a window
-	// that closes or dies frees it. See SeatRequest.force and SeatResponse.
+	// Seat is the one window the daemon serves in a [[profile]], the one the request
+	// names (kith-mcp and one-shot commands take none). Opening the stream asks for it;
+	// keeping it open keeps it, and a window that closes or dies frees it. See
+	// SeatRequest.force and SeatResponse.
 	Seat(context.Context, *connect.Request[v1.SeatRequest], *connect.ServerStream[v1.SeatResponse]) error
+	// Present says what a window is doing: the room it has open, and that it was used
+	// just now. Follow hands a link to a window by it.
+	Present(context.Context, *connect.Request[v1.PresentRequest]) (*connect.Response[v1.PresentResponse], error)
 	// LoginNetworks is every network the daemon can log in to, with its accounts.
 	LoginNetworks(context.Context, *connect.Request[v1.LoginNetworksRequest]) (*connect.Response[v1.LoginNetworksResponse], error)
 	// BeginLogin starts logging an account in (none: setting a new one up), ending any
@@ -2555,10 +2578,11 @@ type BackendServiceHandler interface {
 	Messages(context.Context, *connect.Request[v1.MessagesRequest], *connect.ServerStream[v1.MessagesResponse]) error
 	// Activity streams typing and other people's read receipts.
 	ActivityStream(context.Context, *connect.Request[v1.ActivityStreamRequest], *connect.ServerStream[v1.ActivityStreamResponse]) error
-	// Follow hands a matrix URI to whichever client is attached — the desktop clicked a
-	// link, and the running TUI is what can go there.
+	// Follow hands a link to one attached window — the desktop clicked a link, and a
+	// running TUI is what can go there: the one with the link's room open, else the one
+	// used last whose profile holds it, else the one used last.
 	Follow(context.Context, *connect.Request[v1.FollowRequest]) (*connect.Response[v1.FollowResponse], error)
-	// FollowStream is the receiving end, held open by the TUI.
+	// FollowStream is the receiving end, held open by each TUI window.
 	FollowStream(context.Context, *connect.Request[v1.FollowStreamRequest], *connect.ServerStream[v1.FollowStreamResponse]) error
 	// RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
 	// renamed, archived on another device), so the client reads its room list again.
@@ -3145,6 +3169,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("Seat")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServicePresentHandler := connect.NewUnaryHandler(
+		BackendServicePresentProcedure,
+		svc.Present,
+		connect.WithSchema(backendServiceMethods.ByName("Present")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceLoginNetworksHandler := connect.NewUnaryHandler(
 		BackendServiceLoginNetworksProcedure,
 		svc.LoginNetworks,
@@ -3617,6 +3647,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceDraftsHandler.ServeHTTP(w, r)
 		case BackendServiceSeatProcedure:
 			backendServiceSeatHandler.ServeHTTP(w, r)
+		case BackendServicePresentProcedure:
+			backendServicePresentHandler.ServeHTTP(w, r)
 		case BackendServiceLoginNetworksProcedure:
 			backendServiceLoginNetworksHandler.ServeHTTP(w, r)
 		case BackendServiceBeginLoginProcedure:
@@ -4044,6 +4076,10 @@ func (UnimplementedBackendServiceHandler) Drafts(context.Context, *connect.Reque
 
 func (UnimplementedBackendServiceHandler) Seat(context.Context, *connect.Request[v1.SeatRequest], *connect.ServerStream[v1.SeatResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Seat is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Present(context.Context, *connect.Request[v1.PresentRequest]) (*connect.Response[v1.PresentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Present is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) LoginNetworks(context.Context, *connect.Request[v1.LoginNetworksRequest]) (*connect.Response[v1.LoginNetworksResponse], error) {

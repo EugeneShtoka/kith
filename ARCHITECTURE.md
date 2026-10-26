@@ -55,7 +55,9 @@ enforced by an exclusive `flock` taken before any store is opened.
 The daemon holds **no per-client state**, which is what makes attach and detach
 trivial and a crashed TUI harmless. Do-not-disturb looks like an exception and is
 not: the daemon holds one set of temporary rules for the *account*, not one per
-connection.
+connection. What it knows of a window (the profile whose seat it holds, the room it
+last said it has open, when it was last used, which picks the window a clicked link
+goes to) lives only while that window's streams are open.
 
 It also holds **no memory of what it missed**. A message notifies if it arrives
 while the daemon is running. The catch-up batch after a restart is history, and

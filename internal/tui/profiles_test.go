@@ -2,11 +2,15 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -20,13 +24,28 @@ type profiledBackend struct {
 	mu       sync.Mutex
 	in       string
 	switches []string
+	// taken are the profiles another window runs in.
+	taken []string
+	// told is every room Present was told, in order.
+	told []domain.RoomID
 }
 
-func (b *profiledBackend) SwitchProfile(name string) {
+func (b *profiledBackend) SwitchProfile(name string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if slices.Contains(b.taken, name) {
+		return fmt.Errorf("%w: pid 7", api.ErrSeatTaken)
+	}
 	b.in = name
 	b.switches = append(b.switches, name)
+	return nil
+}
+
+func (b *profiledBackend) Present(_ context.Context, open domain.RoomID) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.told = append(b.told, open)
+	return nil
 }
 
 func (b *profiledBackend) Rooms(context.Context) ([]domain.Room, error) {
@@ -114,5 +133,49 @@ func TestTheProfileCommand(t *testing.T) {
 	next, _ = one.runCommandLine("profile")
 	if next.picker.active() || !strings.Contains(next.renderStatus(), "one profile, default") {
 		t.Errorf("with one profile :profile = %q, picker %v", next.renderStatus(), next.picker.kind)
+	}
+}
+
+// A switch into a profile another window runs in is refused, says so, and leaves the
+// window where it was.
+func TestASwitchRefusedLeavesTheWindowWhereItWas(t *testing.T) {
+	t.Parallel()
+	b := &profiledBackend{rooms: map[string][]domain.Room{}, taken: []string{"home"}}
+	m := inProfiles(t, b, config.Profile{Name: "work"}, config.Profile{Name: "home"})
+	m, cmd := m.switchProfile("home")
+	m = settle(t, m, cmd)
+	if got := m.renderStatus(); !strings.Contains(got, "cannot switch to home") || !strings.Contains(got, " work ") {
+		t.Errorf("status = %q, want the refusal, and work still named", got)
+	}
+	if m.currentProfile() != "work" {
+		t.Errorf("current = %q, want work", m.currentProfile())
+	}
+}
+
+// The window tells the daemon it is in use: at once on opening a room, and on a key
+// no more often than presenceEvery.
+func TestAWindowSaysWhatItIsDoing(t *testing.T) {
+	t.Parallel()
+	b := &profiledBackend{rooms: map[string][]domain.Room{"": {{ID: mx + "!a:x", Name: "Alpha"}}}}
+	m := inProfiles(t, b, config.Profile{Name: "work"}).WithPresence(b)
+	key := keyText("j")
+	tell := func(m Model, msg tea.Msg) Model {
+		next, cmd := m.armPresence(msg)
+		if cmd != nil {
+			cmd()
+		}
+		return next
+	}
+	m.openRoom = ""
+	m = tell(m, key) // a key, never told before
+	m.openRoom = mx + "!a:x"
+	m = tell(m, roomsMsg{}) // a room opened: at once, key or not
+	m = tell(m, key)        // within presenceEvery: nothing
+	m.presence.at = m.presence.at.Add(-presenceEvery)
+	m = tell(m, roomsMsg{}) // no key: nothing
+	tell(m, key)            // a key after presenceEvery
+	want := []domain.RoomID{"", mx + "!a:x", mx + "!a:x"}
+	if !slices.Equal(b.told, want) {
+		t.Errorf("told %v, want %v", b.told, want)
 	}
 }

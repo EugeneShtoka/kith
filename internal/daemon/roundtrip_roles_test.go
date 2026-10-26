@@ -690,14 +690,11 @@ func TestFollowReachesAnAttachedClientAndSaysSo(t *testing.T) {
 	started := make(chan error, 1)
 	go func() { started <- r.Start(context.Background()) }()
 	h.waitAttached(1)
-	waitFor(t, func() bool { return h.streams.FollowSubscribers() > 0 })
-	delivered, err = r.Follow(ctx, "matrix:roomid/abc:example.org")
-	if err != nil {
-		t.Fatalf("Follow() error = %v", err)
-	}
-	if !delivered {
-		t.Fatal("Follow found nobody attached")
-	}
+	// Once its link stream is open, a link is delivered.
+	waitFor(t, func() bool {
+		delivered, err = r.Follow(ctx, "matrix:roomid/abc:example.org")
+		return err == nil && delivered
+	})
 	select {
 	case got := <-r.Follows():
 		if got != "matrix:roomid/abc:example.org" {

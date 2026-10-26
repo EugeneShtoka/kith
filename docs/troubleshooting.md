@@ -184,7 +184,7 @@ who runs the daemon can connect. Check:
 
 ### "kith is open in another window: pid 4312 on /dev/pts/3 (laptop), since 10:41"
 
-The daemon serves one window at a time, and another one has it. Go to that window (the pid and terminal say where), or run `kith --force` to take over: the other window saves its drafts and closes. A window that crashed or was closed never blocks you: the daemon frees its seat the moment it goes.
+The daemon serves one window per [profile](configuration.md#profiles), and another one runs in yours (`kith --profile <name>` runs in another). Go to that window (the pid and terminal say where), or run `kith --force` to take over: the other window saves its drafts and closes. A window that crashed or was closed never blocks you: the daemon frees its seat the moment it goes.
 
 ### Configuration errors
 

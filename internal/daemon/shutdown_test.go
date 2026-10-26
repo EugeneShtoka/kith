@@ -238,3 +238,59 @@ func TestAFailedListenerEndsLifetimeHandlers(t *testing.T) {
 		t.Fatal("Serve did not return")
 	}
 }
+
+// A client holding only its link stream open does not hold shutdown: the stream ends
+// with the daemon (its request's context is the daemon's), not after the timeout that
+// cuts a client which stopped reading.
+func TestShutdownIsPromptWithALinkStreamOpen(t *testing.T) {
+	t.Parallel()
+	dir, err := os.MkdirTemp("", "mx") //nolint:usetesting // a unix socket path is limited to about 100 bytes; t.TempDir is longer
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "unix", filepath.Join(dir, "s"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	backend := &fakeBackend{Nop: nopWithChannels()}
+	streams := daemon.NewStreams()
+	pumped := make(chan struct{})
+	go func() { defer close(pumped); streams.Run(ctx, backend) }()
+	served := make(chan error, 1)
+	go func() {
+		served <- daemon.Serve(ctx, ln, complete(t, &daemon.Daemon{Backend: backend, Streams: streams, State: daemon.NewState()}))
+	}()
+
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", filepath.Join(dir, "s"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	if _, err := fmt.Fprint(conn, "POST /backend.v1.BackendService/FollowStream HTTP/1.1\r\n"+
+		"Host: mx\r\nContent-Type: application/connect+proto\r\nConnect-Protocol-Version: 1\r\n"+
+		"Content-Length: 5\r\n\r\n\x00\x00\x00\x00\x00"); err != nil {
+		t.Fatal(err)
+	}
+	// The handler sends its headers once the stream is open.
+	if _, err := conn.Read(make([]byte, 1)); err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Now()
+	cancel()
+	select {
+	case err := <-served:
+		if err != nil {
+			t.Fatalf("Serve() = %v", err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("Serve did not return")
+	}
+	if took := time.Since(start); took > 2*time.Second {
+		t.Errorf("shutdown took %s with a link stream open, want it prompt", took)
+	}
+	<-pumped
+}

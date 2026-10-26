@@ -626,8 +626,10 @@ type Model struct {
 	script pendingScript
 	// conf is the config file this session edits. See configState.
 	conf configState
-	// profiles is the [[profile]] this window runs in. See profileState.
+	// profiles is the [[profile]] this window runs in, presence what it last told the
+	// daemon it is doing. See profileState and presenceState.
 	profiles profileState
+	presence presenceState
 	// prefs is what the config says, resolved when it is applied. See prefsState.
 	prefs prefsState
 	// offers is the one-time download offers. See oneTimeOffers.
@@ -973,6 +975,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, c = next.loadQuotes()
 	cmds = append(cmds, c)
 	next, c = next.setAsideDeleted()
+	cmds = append(cmds, c)
+	next, c = next.armPresence(msg)
 	cmds = append(cmds, c)
 	if next.pics.graphics != graphicsNone {
 		next, c = next.loadInlineImages()

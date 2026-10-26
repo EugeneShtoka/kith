@@ -18,13 +18,11 @@ type Streams struct {
 	verifications *hub[domain.Verification]
 	// activity (typing, receipts) has no paired cache read.
 	activity *hub[domain.Activity]
-	// follows carries `kith --open` URIs to attached TUIs. It has no backend channel (an
-	// RPC feeds it), so Run does not pump it and Attached does not count it.
-	follows *hub[string]
-	// rooms tells clients a network rewrote its rooms so they reread the list. Fed by
-	// RoomsChanged, like follows.
+	// rooms tells clients a network rewrote its rooms so they reread the list. It has no
+	// backend channel (RoomsChanged feeds it), so Run does not pump it and Attached does
+	// not count it.
 	rooms *hub[struct{}]
-	// configs carries the configuration after each change (Configured), like follows.
+	// configs carries the configuration after each change (Configured), like rooms.
 	configs *hub[config.Snapshot]
 }
 
@@ -37,7 +35,6 @@ func NewStreams() *Streams {
 		invites:       newHub[[]domain.Room](),
 		verifications: newHub[domain.Verification](),
 		activity:      newHub[domain.Activity](),
-		follows:       newHub[string](),
 		rooms:         newHub[struct{}](),
 		configs:       newHub[config.Snapshot](),
 	}
@@ -54,8 +51,7 @@ func (s *Streams) Run(ctx context.Context, b api.Backend) {
 	wg.Go(func() { s.verifications.pump(ctx, b.Verifications()) })
 	wg.Go(func() { s.activity.pump(ctx, b.Activity()) })
 	wg.Wait()
-	s.follows.end() // no backend channel ends these
-	s.rooms.end()
+	s.rooms.end() // no backend channel ends these
 	s.configs.end()
 }
 
@@ -90,12 +86,3 @@ func (s *Streams) Configured(snap config.Snapshot) { s.configs.broadcast(snap) }
 
 // RoomsChanged tells every attached client that a network rewrote its rooms.
 func (s *Streams) RoomsChanged() { s.rooms.broadcast(struct{}{}) }
-
-// Follow hands a URI to every attached client and reports whether there was one.
-func (s *Streams) Follow(uri string) bool {
-	if s.follows.subscribers() == 0 {
-		return false
-	}
-	s.follows.broadcast(uri)
-	return true
-}
