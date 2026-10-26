@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -241,5 +242,43 @@ func TestProfilesAreTheConfigs(t *testing.T) {
 	}
 	if _, err := profileNames(cfg, []string{"home"}); err == nil || !strings.Contains(err.Error(), "First, Second, Third") {
 		t.Errorf("--profile home = %v, want it refused naming First, Second, Third", err)
+	}
+}
+
+// run finds kithd's socket and the profiles in the config: a profile the config lacks
+// stops it, naming those it has; with ones it has, it listens to each until stopped.
+func TestRunListensForTheConfigsProfiles(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	cfg := threeProfiles()
+	cfg.Matrix = config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}
+	cfg.Storage = config.Storage{
+		Instance: "t", DataDir: filepath.Join(dir, "data"), StateDir: filepath.Join(dir, "state"),
+		CacheDir: filepath.Join(dir, "cache"), RuntimeDir: filepath.Join(dir, "run"),
+	}
+	path := filepath.Join(dir, "config.toml")
+	if err := config.Save(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	quiet := slog.New(slog.DiscardHandler)
+	err := run(t.Context(), quiet, &slog.LevelVar{}, "", path, []string{"home"})
+	if err == nil || !strings.Contains(err.Error(), "First, Second, Third") {
+		t.Fatalf("run --profile home = %v, want it refused naming First, Second, Third", err)
+	}
+
+	if err := os.MkdirAll(cfg.Storage.RuntimeDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	serve(t, filepath.Join(cfg.Storage.RuntimeDir, "t.sock"), cfg)
+	logs := &logBuffer{}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- run(ctx, slog.New(slog.NewTextHandler(logs, nil)), &slog.LevelVar{}, "", path, []string{"first", "third"})
+	}()
+	waitFor(t, func() bool { return logs.count("listening for notifications") == 2 }, "both profiles to be listened to")
+	cancel()
+	if err := <-done; err != nil {
+		t.Errorf("run stopped with %v, want nil", err)
 	}
 }
