@@ -10,6 +10,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // An unlisted (left) channel loses its pts and room, and later messages make no room;
@@ -54,7 +55,7 @@ func TestAChannelLeftIsNoLongerFollowed(t *testing.T) {
 
 func cachedAdapterWithStore(t *testing.T, st *Store) (*Adapter, *db.Cache) {
 	t.Helper()
-	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
+	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}

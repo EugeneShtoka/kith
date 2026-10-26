@@ -47,7 +47,7 @@ func TestAnUpgradedCacheMatchesAFreshOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "upgraded.db")
-	old, err := sql.Open("sqlite", dsn(path))
+	old, err := openRaw(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestAnUpgradedCacheMatchesAFreshOne(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	upgraded, err := Open(ctx, path)
+	upgraded, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("open the v1 cache: %v", err)
 	}

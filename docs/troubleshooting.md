@@ -257,7 +257,9 @@ cache-<hash>.db.pre-schema-20260901-101500
 ```
 
 They're kept because they may contain history the homeserver can no longer serve (for
-example, from a bridge that has purged its backfill). Nothing reads them, and nothing
+example, from a bridge that has purged its backfill). They're encrypted with the
+cache's key, as the cache is (a copy from before that is encrypted at the next start).
+Nothing reads them, and nothing
 deletes them automatically, so remove them once you're sure you don't need them. If
 the copy couldn't be made, the daemon logs
 `the previous cache could not be kept` and starts with an empty cache
@@ -272,6 +274,26 @@ The daemon couldn't open its cache file (for example, a permissions problem or a
 disk), and it does not run without one: every network writes into it and every client
 reads from it. Fix the cause shown in the message. Under systemd the daemon retries
 every few seconds by itself; otherwise start it again.
+
+### "the cache is locked: unlock the keyring"
+
+The cache is encrypted with a key kept only in the keyring
+([encryption.md](encryption.md#where-the-keys-live)), so while the keyring is locked
+(a boot with nothing to ask for its password, say) **no history shows, from any
+network**. kith says `kithd did not become ready …: the cache is locked: unlock the
+keyring`. The daemon is not stuck: it waits, tries again every few seconds (up to every
+30), and once the keyring answers opens the cache and then every network, WhatsApp's,
+Signal's and Messenger's stores included. Unlock the keyring
+(see [Keyring unavailable](#keyring-unavailable)); no restart is needed.
+
+### "the keyring's key does not open the cache"
+
+The keyring gives a key, but not the one the cache was encrypted with: the entry
+(`<instance>|cache-store`) was replaced or deleted and made again. The daemon waits as
+for a locked keyring and never replaces the cache. Put the old entry back if you can,
+and it opens by itself. Otherwise move `cache-<instance>.db` aside (or restore a
+backup); the daemon then starts an empty cache and fills it from what the networks
+still hold.
 
 ## Encryption
 

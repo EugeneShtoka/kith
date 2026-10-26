@@ -39,10 +39,14 @@ with this table as its mirror (see [Account-data mirrors](#account-data-mirrors)
   `db.DefaultPath`.
 - Only the daemon opens it. The TUI and `kith-mcp` reach it through the daemon's
   socket; depguard keeps `internal/db` out of both.
-- Driver: the pure-Go `modernc.org/sqlite`, so the build stays `CGO_ENABLED=0`.
-- Connection settings live in the **DSN** (`dsn` in `db.go`), not in `Exec` calls
-  after `sql.Open`: `journal_mode(WAL)`, `busy_timeout(5000)`, `foreign_keys(1)`,
-  `synchronous(NORMAL)` and `_txlock=immediate`. `NORMAL` under WAL can lose only the
+- Driver: `internal/sealeddb`, ncruces' SQLite translated to pure Go with the Adiantum
+  VFS, so the build stays `CGO_ENABLED=0` and every page, the log too, is encrypted
+  under the cache's key from the keyring. FTS5 is registered on every connection
+  (`setup` in `db.go`). Every file of the cache, the copies a backup and a rebuild make
+  included, is opened through `connect` in `backup.go`.
+- Connection settings live in the **DSN** (`setup` in `db.go`, over `sealeddb`'s), not
+  in `Exec` calls after opening: `busy_timeout(5000)`, `foreign_keys(1)`,
+  `journal_mode(WAL)`, `synchronous(NORMAL)` and `_txlock=immediate`. `NORMAL` under WAL can lose only the
   last commits before a power loss, which a cache fetches again, and saves an fsync per
   sync batch. `foreign_keys` and `busy_timeout` are per connection, and the
   pool may open a new connection at any time; the driver applies DSN pragmas to every

@@ -26,15 +26,17 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
 
-	_ "modernc.org/sqlite"
-
 	"github.com/EugeneShtoka/kith/internal/agent"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
+	"github.com/EugeneShtoka/kith/internal/session"
+	"github.com/ncruces/go-sqlite3/ext/fts5"
 )
 
 // options are the command line's.
@@ -93,7 +95,11 @@ func runAccount(o options) error {
 			report("keyring entries of", o.instance)(copyKeys(storage, storage, o.user, o.dry)))
 	}
 	if o.cache != "" {
-		errs = append(errs, report("cache", o.cache)(migrateCache(context.Background(), o.cache, x, o.dry)))
+		key, err := cacheKey(o.service, o.cache)
+		if err != nil {
+			return err
+		}
+		errs = append(errs, report("cache", o.cache)(migrateCache(context.Background(), o.cache, key, x, o.dry)))
 	}
 	for _, f := range []struct {
 		what, path string
@@ -307,20 +313,35 @@ func (x ids) poll(raw string) (string, bool, error) {
 	return string(out), true, nil
 }
 
-// migrateCache rewrites every ID column of the cache at path in one transaction, with
-// foreign keys checked after.
-func migrateCache(ctx context.Context, path string, x ids, dry bool) (int, error) {
+// cacheSetup is how kithd opens its cache: the full-text index needs FTS5.
+var cacheSetup = sealeddb.Setup{Init: fts5.Register}
+
+// cacheKey is the key the cache at path (cache-<instance>.db) is encrypted under, in
+// service's keyring, where kithd keeps it.
+func cacheKey(service, path string) ([]byte, error) {
+	instance := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(path), "cache-"), ".db")
+	key, err := session.LoadOrCreateStoreKey(service, instance, "cache")
+	if err != nil {
+		return nil, fmt.Errorf("the cache's key: %w", err)
+	}
+	return key, nil
+}
+
+// migrateCache rewrites every ID column of the cache at path, encrypted under key, in
+// one transaction, with foreign keys checked after. A cache still plain is encrypted
+// first, as kithd would on its next start, even on a dry run.
+func migrateCache(ctx context.Context, path string, key []byte, x ids, dry bool) (int, error) {
 	if _, err := os.Stat(path); err != nil {
 		return 0, fmt.Errorf("find the cache: %w", err)
 	}
-	db, err := sql.Open("sqlite", path)
+	db, err := sealeddb.OpenMigratingWith(ctx, path, key, cacheSetup)
 	if err != nil {
 		return 0, fmt.Errorf("open the cache: %w", err)
 	}
 	defer func() { _ = db.Close() }()
 	if !dry {
-		// A consistent copy, write-ahead log included.
-		if _, cerr := db.ExecContext(ctx, "VACUUM INTO ?", path+".pre-matrixids"); cerr != nil {
+		// A consistent copy, write-ahead log included, encrypted as the cache is.
+		if _, cerr := db.ExecContext(ctx, "VACUUM INTO ?", sealeddb.Target(path+".pre-matrixids", key)); cerr != nil {
 			return 0, fmt.Errorf("keep a copy: %w", cerr)
 		}
 	}

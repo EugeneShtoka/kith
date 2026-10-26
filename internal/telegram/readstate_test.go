@@ -2,13 +2,14 @@ package telegram
 
 import (
 	"context"
-	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
+	"github.com/ncruces/go-sqlite3/ext/fts5"
 )
 
 // A read that cannot be kept here reads nothing and owes nothing: a
@@ -18,12 +19,12 @@ func TestAReadThatCannotBeKeptReadsNothing(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
-	cache, err := db.Open(ctx, path)
+	cache, err := db.Open(ctx, path, make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cache.Close() })
-	raw, err := sql.Open("sqlite", "file:"+path)
+	raw, err := sealeddb.OpenWith(ctx, path, make([]byte, sealeddb.KeyLen), sealeddb.Setup{Init: fts5.Register})
 	if err != nil {
 		t.Fatal(err)
 	}

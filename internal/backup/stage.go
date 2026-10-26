@@ -3,6 +3,7 @@ package backup
 import (
 	"archive/tar"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,10 +64,11 @@ func (r *restore) read(ctx context.Context, f io.Reader, pass string) error {
 		return damaged(err)
 	}
 	tr := tar.NewReader(plain)
-	listed, err := readManifest(tr)
+	listed, key, err := readManifest(tr)
 	if err != nil {
 		return err
 	}
+	r.backupKey = key
 	r.small, r.smallMode = map[string][]byte{}, map[string]fs.FileMode{}
 	var seen []string
 	for {
@@ -107,23 +109,31 @@ func (r *restore) read(ctx context.Context, f io.Reader, pass string) error {
 	return nil
 }
 
-// readManifest reads the first entry, the list of every file after it.
-func readManifest(tr *tar.Reader) ([]string, error) {
+// readManifest reads the first entry: the list of every file after it, and the key
+// the cache in the backup is encrypted under (nil for a plain one, formatPlain).
+func readManifest(tr *tar.Reader) ([]string, []byte, error) {
 	hdr, err := tr.Next()
 	if err != nil {
-		return nil, damaged(err)
+		return nil, nil, damaged(err)
 	}
 	if hdr.Name != manifestName {
-		return nil, damaged(fmt.Errorf("it starts with %q", hdr.Name))
+		return nil, nil, damaged(fmt.Errorf("it starts with %q", hdr.Name))
 	}
 	var m manifest
 	if err := json.NewDecoder(io.LimitReader(tr, smallLimit)).Decode(&m); err != nil {
-		return nil, damaged(err)
+		return nil, nil, damaged(err)
 	}
-	if m.Format != format {
-		return nil, fmt.Errorf("restore: the backup's layout is %d; this kith reads %d (it was made by %s)", m.Format, format, m.Kith)
+	switch m.Format {
+	case formatPlain:
+		return m.Files, nil, nil
+	case format:
+		key, err := hex.DecodeString(m.CacheKey)
+		if err != nil || len(key) != db.KeyLen {
+			return nil, nil, damaged(errors.New("its cache's key is not a key"))
+		}
+		return m.Files, key, nil
 	}
-	return m.Files, nil
+	return nil, nil, fmt.Errorf("restore: the backup's layout is %d; this kith reads %d and %d (it was made by %s)", m.Format, formatPlain, format, m.Kith)
 }
 
 // checkEntry refuses an entry this kith never writes, one seen before, or one after
@@ -171,7 +181,12 @@ func (r *restore) stageCache(ctx context.Context, tr io.Reader) error {
 	if mkErr := os.MkdirAll(storage.DataDir, 0o700); mkErr != nil {
 		return fmt.Errorf("restore: %w", mkErr)
 	}
-	plain, err := r.stageStream(ctx, storage.DataDir, ".restore-cache-*.db", archiveReader{tr})
+	key, err := r.cacheKey(storage)
+	if err != nil {
+		return fmt.Errorf("restore: the cache's key on this machine: %w", err)
+	}
+	r.key = key
+	copied, err := r.stageStream(ctx, storage.DataDir, ".restore-cache-*.db", archiveReader{tr})
 	if err != nil {
 		return err
 	}
@@ -179,10 +194,10 @@ func (r *restore) stageCache(ctx context.Context, tr io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if adoptErr := db.Adopt(ctx, plain, adopted); adoptErr != nil {
+	if adoptErr := db.Adopt(ctx, copied, r.backupKey, adopted, key); adoptErr != nil {
 		return fmt.Errorf("restore: the backup's cache: %w", adoptErr)
 	}
-	_ = os.Remove(plain)
+	_ = os.Remove(copied)
 	r.cache = adopted
 	return nil
 }
@@ -334,7 +349,7 @@ func (r *restore) stageCommands(ctx context.Context, dest string) ([]move, error
 func (r *restore) placeCache(ctx context.Context, stamp string) error {
 	dest := r.storage.CachePath()
 	if _, err := os.Stat(dest); err == nil {
-		if serr := db.Settle(context.WithoutCancel(ctx), dest); serr != nil {
+		if serr := db.Settle(context.WithoutCancel(ctx), dest, r.key); serr != nil {
 			r.done.Left = append(r.done.Left, "the old cache could not be checkpointed ("+serr.Error()+"); its log was set aside with it")
 		}
 		aside := dest + asideInfix + stamp

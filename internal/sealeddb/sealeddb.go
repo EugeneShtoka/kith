@@ -1,14 +1,13 @@
-// Package sealeddb opens SQLite databases encrypted at rest, for the network stores
-// whose contents act as the account: device identity keys, prekeys, sessions and
-// sender keys. Every page is encrypted, the write-ahead log too, with a 32-byte key
-// kept only in the OS keyring (session.LoadOrCreateStoreKey), so whatever a library
-// writes into its store is covered without the library knowing.
+// Package sealeddb opens SQLite databases encrypted at rest: the network stores, whose
+// contents act as the account (device identity keys, prekeys, sessions and sender
+// keys), and the message cache. Every page is encrypted, the write-ahead log too, with
+// a 32-byte key kept only in the OS keyring (session.LoadOrCreateStoreKey), so
+// whatever a library writes into its store is covered without the library knowing.
 //
 // It is SQLite translated to Go from WebAssembly (ncruces/go-sqlite3, under wasm2go)
 // with the Adiantum VFS: pure Go, so every binary still builds without cgo, and no
 // runtime maps memory writable and executable — kithd's systemd unit forbids that
-// (MemoryDenyWriteExecute). It sits beside the cache's own SQLite driver (modernc),
-// which it does not replace.
+// (MemoryDenyWriteExecute).
 package sealeddb
 
 import (
@@ -22,7 +21,9 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/ncruces/go-sqlite3"
 	"github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/vfs/adiantum"
@@ -47,13 +48,42 @@ var (
 // Dialect is what whatsmeow and its dbutil call these databases.
 const Dialect = "sqlite3"
 
+// Setup is what a database's connections need beyond the defaults (dsn): more pragmas,
+// a transaction mode ("immediate"), Init, run on each new connection, to register an
+// extension its schema uses, and ReadOnly, to only read a database another process
+// may be writing. The zero Setup is the network stores'.
+type Setup struct {
+	Pragmas  []string
+	TxLock   string
+	Init     func(*sqlite3.Conn) error
+	ReadOnly bool
+}
+
+// open opens name with s's Init on each connection.
+func (s Setup) open(name string) (*sql.DB, error) {
+	var init []func(*sqlite3.Conn) error
+	if s.Init != nil {
+		init = append(init, s.Init)
+	}
+	db, err := driver.Open(name, init...)
+	if err != nil {
+		return nil, fmt.Errorf("sealeddb: %w", err)
+	}
+	return db, nil
+}
+
 // Open opens (creating) the encrypted database at path with key, and checks the key
 // opens it: a wrong key is ErrWrongKey, at once rather than at the first query.
 func Open(ctx context.Context, path string, key []byte) (*sql.DB, error) {
+	return OpenWith(ctx, path, key, Setup{})
+}
+
+// OpenWith is Open with s's connection setup.
+func OpenWith(ctx context.Context, path string, key []byte, s Setup) (*sql.DB, error) {
 	if len(key) != KeyLen {
 		return nil, errKeyLen
 	}
-	db, err := driver.Open(dsn(path, key))
+	db, err := s.open(s.dsn(path, key))
 	if err != nil {
 		return nil, fmt.Errorf("sealeddb: open %s: %w", path, err)
 	}
@@ -71,14 +101,32 @@ func Open(ctx context.Context, path string, key []byte) (*sql.DB, error) {
 // dsn is the data source name of the encrypted database at path with key: the
 // Adiantum VFS, temporary files kept in memory (so they are never written in the
 // clear or under a throwaway key), foreign keys on, the write-ahead log, and a busy
-// timeout, as the plain stores had.
-func dsn(path string, key []byte) string {
-	return (&url.URL{Scheme: "file", Opaque: path, RawQuery: url.Values{
+// timeout, as the plain stores had; then s's pragmas and transaction mode. The timeout
+// comes first, so a second opener switching a new store to the log waits rather than
+// failing. Read-only, it keeps the timeout and the temporary files in memory, and
+// changes nothing else.
+func (s Setup) dsn(path string, key []byte) string {
+	q := url.Values{
 		"vfs":     {"adiantum"},
 		"hexkey":  {hex.EncodeToString(key)},
-		"_pragma": {"foreign_keys(1)", "journal_mode(WAL)", "busy_timeout(5000)", "temp_store(memory)"},
-	}.Encode()}).String()
+		"_pragma": append([]string{"busy_timeout(5000)", "foreign_keys(1)", "journal_mode(WAL)", "temp_store(memory)"}, s.Pragmas...),
+	}
+	if s.ReadOnly {
+		q["_pragma"] = []string{"busy_timeout(5000)", "temp_store(memory)"}
+		q.Set("mode", "ro")
+	}
+	if s.TxLock != "" {
+		q.Set("_txlock", s.TxLock)
+	}
+	return (&url.URL{Scheme: "file", Opaque: escaped(path), RawQuery: q.Encode()}).String()
 }
+
+// escaped is path for a URI, so a space or "?" in it is not read as the query.
+func escaped(path string) string { return (&url.URL{Path: path}).EscapedPath() }
+
+// Target is what `VACUUM INTO ?` takes to write an encrypted copy of a database to
+// path under key; a bare path would write the copy in the clear.
+func Target(path string, key []byte) string { return Setup{}.dsn(path, key) }
 
 // plainHeader starts every plain SQLite database; an encrypted one starts with noise.
 const plainHeader = "SQLite format 3\x00"
@@ -95,23 +143,75 @@ const (
 // the plain store deleted. An interrupted migration is taken up again at the next
 // open; the plain store is never lost, and a copy not yet checked is never taken.
 func OpenMigrating(ctx context.Context, path string, key []byte) (*sql.DB, error) {
-	if len(key) != KeyLen {
-		return nil, errKeyLen
-	}
-	if err := resume(path); err != nil {
+	return OpenMigratingWith(ctx, path, key, Setup{})
+}
+
+// OpenMigratingWith is OpenMigrating with s's connection setup.
+func OpenMigratingWith(ctx context.Context, path string, key []byte, s Setup) (*sql.DB, error) {
+	if err := Seal(ctx, path, key, s); err != nil {
 		return nil, err
+	}
+	return OpenWith(ctx, path, key, s)
+}
+
+// Seal is OpenMigratingWith without the open: a plain database at path is encrypted in
+// its place, an interrupted migration taken up, and anything else left as it is.
+// Openers racing on one plain database take turns (migrating), so none drops the copy
+// another is writing or renames over another.
+func Seal(ctx context.Context, path string, key []byte, s Setup) error {
+	if len(key) != KeyLen {
+		return errKeyLen
+	}
+	if done, err := migrated(path); err != nil || done {
+		return err
+	}
+	unlock, lockErr := migrating(ctx, path)
+	if lockErr != nil {
+		return lockErr
+	}
+	defer unlock()
+	if err := resume(path); err != nil {
+		return err
 	}
 	plain, err := isPlain(path)
-	if err != nil {
-		return nil, err
+	if err != nil || !plain {
+		return err
 	}
-	if plain {
-		if err := migrate(ctx, path, key); err != nil {
-			return nil, err
+	return s.migrate(ctx, path, key)
+}
+
+// migrated reports whether path needs no migration: not plain, and nothing an
+// interrupted one left beside it.
+func migrated(path string) (bool, error) {
+	for _, left := range []string{path + plainSuffix, path + sealingSuffix} {
+		if _, err := os.Lstat(left); err == nil {
+			return false, nil
 		}
 	}
-	return Open(ctx, path, key)
+	plain, err := isPlain(path)
+	return !plain, err
 }
+
+// lockSuffix names the lock a migration of path holds, beside it.
+const lockSuffix = ".sealing-lock"
+
+// migrating waits for and takes the lock on migrating path, returning what gives it up
+// and deletes it. The lock is deleted only once the migration is done, so an opener
+// still waiting on the deleted one finds path encrypted when it gets it, and a later
+// one never needs a lock.
+func migrating(ctx context.Context, path string) (unlock func(), err error) {
+	lock := flock.New(path + lockSuffix)
+	if _, err := lock.TryLockContext(ctx, lockRetry); err != nil {
+		return nil, fmt.Errorf("sealeddb: wait for another migration of %s: %w", path, err)
+	}
+	return func() {
+		_ = os.Remove(path + lockSuffix)
+		_ = lock.Unlock()
+	}, nil
+}
+
+// lockRetry is how often a migration waiting on another tries the lock.
+const lockRetry = 50 * time.Millisecond
 
 // resume settles what an interrupted migration left: a plain store set aside while
 // its copy took its name is put back when the copy never did, and deleted when it did;
@@ -150,9 +250,9 @@ func isPlain(path string) (bool, error) {
 
 // migrate copies the plain store at path into an encrypted one, checks the copy, and
 // puts it in the plain store's place.
-func migrate(ctx context.Context, path string, key []byte) error {
+func (s Setup) migrate(ctx context.Context, path string, key []byte) error {
 	sealing := path + sealingSuffix
-	if err := copySealed(ctx, path, sealing, key); err != nil {
+	if err := s.copySealed(ctx, path, sealing, key); err != nil {
 		_ = removeAll(sealing)
 		return err
 	}
@@ -176,24 +276,30 @@ func migrate(ctx context.Context, path string, key []byte) error {
 
 // copySealed writes an encrypted copy of the plain store at path to sealing and checks
 // every table came across whole.
-func copySealed(ctx context.Context, path, sealing string, key []byte) error {
-	plain, err := driver.Open((&url.URL{Scheme: "file", Opaque: path}).String())
+func (s Setup) copySealed(ctx context.Context, path, sealing string, key []byte) error {
+	plain, err := s.open((&url.URL{Scheme: "file", Opaque: escaped(path), RawQuery: "_pragma=busy_timeout(5000)"}).String())
 	if err != nil {
 		return fmt.Errorf("sealeddb: open the plain store: %w", err)
 	}
 	defer func() { _ = plain.Close() }()
-	// What the write-ahead log holds goes into the database first, so the copy has it.
-	if _, err = plain.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+	// What the write-ahead log holds goes into the database first, so the copy has it
+	// and the log can go: not when another reader kept part of it out (busy), or the
+	// plain store set aside would lack those commits.
+	var busy, logged, moved int
+	if err = plain.QueryRowContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)").Scan(&busy, &logged, &moved); err != nil {
 		return fmt.Errorf("sealeddb: settle the plain store: %w", err)
 	}
-	if _, err = plain.ExecContext(ctx, "VACUUM INTO ?", dsn(sealing, key)); err != nil {
+	if busy != 0 {
+		return errors.New("sealeddb: settle the plain store: another process has it open")
+	}
+	if _, err = plain.ExecContext(ctx, "VACUUM INTO ?", Target(sealing, key)); err != nil {
 		return fmt.Errorf("sealeddb: copy the plain store: %w", err)
 	}
 	want, err := rowCounts(ctx, plain)
 	if err != nil {
 		return err
 	}
-	sealed, err := Open(ctx, sealing, key)
+	sealed, err := OpenWith(ctx, sealing, key, s)
 	if err != nil {
 		return err
 	}

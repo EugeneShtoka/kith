@@ -12,6 +12,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
+	"github.com/ncruces/go-sqlite3/driver"
 )
 
 // The database is a cache: every row is a copy of something the homeserver has.
@@ -859,7 +862,7 @@ var currentSchema = newSchemaPlan(migrations)
 // prepare brings the database to plan's schema: current (by number and shape) only
 // reconciles indexes, base..current migrates, anything else is copied aside and
 // rebuilt. A rebuild is reported so the caller can reset the sync position.
-func prepare(ctx context.Context, sqlDB *sql.DB, path string, plan schemaPlan) (prepared, error) {
+func prepare(ctx context.Context, sqlDB *sql.DB, path string, key []byte, plan schemaPlan) (prepared, error) {
 	version, err := userVersion(ctx, sqlDB)
 	if err != nil {
 		return prepared{}, err
@@ -881,7 +884,7 @@ func prepare(ctx context.Context, sqlDB *sql.DB, path string, plan schemaPlan) (
 	}
 	var out prepared
 	if version < schemaVersion || version > current {
-		asideErr, fatal := rebuild(ctx, sqlDB, path)
+		asideErr, fatal := rebuild(ctx, sqlDB, path, key)
 		if fatal != nil {
 			return prepared{}, fatal
 		}
@@ -909,7 +912,7 @@ type columnShape struct {
 // memory from the statements a rebuild runs.
 func expectedShape(migrations []string) (map[string]map[string]columnShape, error) {
 	ctx := context.Background()
-	mem, err := sql.Open("sqlite", ":memory:")
+	mem, err := driver.Open(":memory:", setup.Init)
 	if err != nil {
 		return nil, fmt.Errorf("db: open the reference schema: %w", err)
 	}
@@ -996,16 +999,17 @@ type prepared struct {
 	asideErr error
 }
 
-// rebuild copies the old cache aside (history a re-sync may not reproduce), then
-// creates the base schema. A failed copy is reported via asideErr, not fatal.
-func rebuild(ctx context.Context, sqlDB *sql.DB, path string) (asideErr, fatal error) {
+// rebuild copies the old cache aside (history a re-sync may not reproduce), sealed
+// under key as the cache is, then creates the base schema. A failed copy is reported
+// via asideErr, not fatal.
+func rebuild(ctx context.Context, sqlDB *sql.DB, path string, key []byte) (asideErr, fatal error) {
 	tables, err := tablesIn(ctx, sqlDB)
 	if err != nil {
 		return nil, err
 	}
 	// An empty file (first run) has nothing worth setting aside.
 	if path != "" && len(tables) > 0 {
-		asideErr = copyAside(ctx, sqlDB, path)
+		asideErr = copyAside(ctx, sqlDB, path, key)
 	}
 	if dropErr := dropAll(ctx, sqlDB, tables); dropErr != nil {
 		return asideErr, dropErr
@@ -1073,19 +1077,20 @@ func tablesIn(ctx context.Context, sqlDB *sql.DB) ([]string, error) {
 
 // copyAside keeps the old cache beside the new one via VACUUM INTO, which is
 // WAL-aware (a plain file copy misses the -wal) and refuses an existing file.
-func copyAside(ctx context.Context, sqlDB *sql.DB, path string) error {
-	aside := fmt.Sprintf("%s%s%s", path, asideInfix, time.Now().Format("20060102-150405"))
-	if _, err := sqlDB.ExecContext(ctx, "VACUUM INTO ?", aside); err != nil {
+func copyAside(ctx context.Context, sqlDB *sql.DB, path string, key []byte) error {
+	aside := fmt.Sprintf("%s%s%s", path, asideInfix, time.Now().Format(asideStamp))
+	if _, err := sqlDB.ExecContext(ctx, "VACUUM INTO ?", sealeddb.Target(aside, key)); err != nil {
 		return fmt.Errorf("db: copy aside to %s: %w", aside, err)
 	}
 	pruneAside(path, keptAside)
 	return nil
 }
 
-// asideInfix marks a copy set aside by a rebuild; keptAside is how many are kept
-// (each is a whole cache).
+// asideInfix marks a copy set aside by a rebuild, asideStamp when; keptAside is how
+// many are kept (each is a whole cache).
 const (
 	asideInfix = ".pre-schema-"
+	asideStamp = "20060102-150405"
 	keptAside  = 2
 )
 
@@ -1107,6 +1112,25 @@ func pruneAside(path string, keep int) {
 	for _, name := range copies[:max(len(copies)-keep, 0)] {
 		_ = os.Remove(filepath.Join(dir, name))
 	}
+}
+
+// sealAside encrypts the copies a rebuild set aside while the cache was plain, so no
+// history stays beside the cache in the clear. Best effort, as setting them aside was.
+func sealAside(ctx context.Context, path string, key []byte) error {
+	dir, base := filepath.Split(path)
+	entries, _ := os.ReadDir(filepath.Clean(dir)) // no folder yet: nothing set aside
+	var errs []error
+	for _, e := range entries {
+		name := e.Name()
+		stamp, isCopy := strings.CutPrefix(name, base+asideInfix)
+		if _, perr := time.Parse(asideStamp, stamp); e.IsDir() || !isCopy || perr != nil {
+			continue // not a copy, or a file beside one (-wal, .sealing)
+		}
+		if serr := sealeddb.Seal(ctx, filepath.Join(dir, name), key, setup); serr != nil {
+			errs = append(errs, fmt.Errorf("db: encrypt %s: %w", name, serr))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // userVersion reads the stamped schema version; an untouched file reads 0.

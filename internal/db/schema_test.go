@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,7 +19,7 @@ func TestOpenStampsTheVersionAndReopeningIsANoOp(t *testing.T) {
 
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
-	cache, err := Open(ctx, path)
+	cache, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -34,7 +33,7 @@ func TestOpenStampsTheVersionAndReopeningIsANoOp(t *testing.T) {
 		t.Fatalf("Close() error = %v", closeErr)
 	}
 
-	again, err := Open(ctx, path)
+	again, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("reopen error = %v", err)
 	}
@@ -56,7 +55,7 @@ func TestOpenRebuildsAnOlderCache(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cache.db")
 
 	// A pre-base shape: a `ts` column, no STRICT, no foreign keys, an unknown table.
-	old, err := sql.Open("sqlite", path)
+	old, err := openRaw(path)
 	if err != nil {
 		t.Fatalf("open old: %v", err)
 	}
@@ -71,7 +70,7 @@ func TestOpenRebuildsAnOlderCache(t *testing.T) {
 		t.Fatalf("close old: %v", closeErr)
 	}
 
-	cache, err := Open(ctx, path)
+	cache, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -94,7 +93,7 @@ func TestOpenRebuildsAnOlderCache(t *testing.T) {
 	if len(aside) != 1 {
 		t.Fatalf("set-aside copies = %v, want exactly one", aside)
 	}
-	kept, err := sql.Open("sqlite", filepath.Join(filepath.Dir(path), aside[0]))
+	kept, err := openRaw(filepath.Join(filepath.Dir(path), aside[0]))
 	if err != nil {
 		t.Fatalf("open the copy: %v", err)
 	}

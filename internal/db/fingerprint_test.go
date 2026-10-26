@@ -80,7 +80,7 @@ func TestABaseIndexComesBackOnOpen(t *testing.T) {
 
 	const victim = "reactions_by_sender"
 
-	first, err := Open(ctx, path)
+	first, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -102,7 +102,7 @@ func TestABaseIndexComesBackOnOpen(t *testing.T) {
 		t.Fatalf("Close() error = %v", closeErr)
 	}
 
-	second, err := Open(ctx, path)
+	second, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("reopen error = %v", err)
 	}

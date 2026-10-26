@@ -15,6 +15,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // The profile step (step 5): an install that ran each [[profile]] as a daemon of its
@@ -129,7 +130,11 @@ func migrateProfiles(ctx context.Context, configPath, base string, dirs domain.S
 		// Its IDs first, unless done already; then today's schema, under which each
 		// cache's mirrors are its one account's.
 		if _, serr := os.Stat(from.CachePath() + ".pre-matrixids"); errors.Is(serr, fs.ErrNotExist) {
-			errs = append(errs, report("cache", from.CachePath())(migrateCache(ctx, from.CachePath(), x, dry)))
+			key, kerr := cacheKey(from.KeyringService, from.CachePath())
+			if kerr != nil {
+				return nil, "", kerr
+			}
+			errs = append(errs, report("cache", from.CachePath())(migrateCache(ctx, from.CachePath(), key, x, dry)))
 		}
 		for _, f := range []struct{ what, path string }{{"schedule", from.SchedulePath()}, {"ledger", from.LedgerPath()}} {
 			rewrite := rewriteTOML
@@ -144,7 +149,7 @@ func migrateProfiles(ctx context.Context, configPath, base string, dirs domain.S
 		if i == 0 || dry {
 			continue
 		}
-		errs = append(errs, report("merged rows of", p.Name)(mergeCache(ctx, kept.CachePath(), from.CachePath(), domain.AccountRooms(domain.ProtocolMatrix, x.account))))
+		errs = append(errs, report("merged rows of", p.Name)(mergeCache(ctx, dirs.KeyringService, kept.CachePath(), from.CachePath(), domain.AccountRooms(domain.ProtocolMatrix, x.account))))
 		for _, f := range [][2]string{{from.SchedulePath(), kept.SchedulePath()}, {from.LedgerPath(), kept.LedgerPath()}} {
 			errs = append(errs, report("appended", f[1])(appendFile(f[0], f[1])))
 		}
@@ -165,25 +170,42 @@ func profileUnits(profiles []profile) []string {
 	return units
 }
 
-// mergeCache copies one Matrix account's rows of the cache at src into the cache at
-// dst, both first brought to today's schema; another network's rows in src (its own
-// daemon's copy of an account dst has) are left. dst is copied aside first.
-func mergeCache(ctx context.Context, dst, src string, owner domain.RoomOwner) (int, error) {
-	for _, path := range []string{dst, src} {
-		c, err := db.Open(ctx, path)
+// todaysSchema brings the caches at paths to today's schema, as kithd opens them, and
+// returns each one's key from service's keyring.
+func todaysSchema(ctx context.Context, service string, paths ...string) (map[string][]byte, error) {
+	keys := map[string][]byte{}
+	for _, path := range paths {
+		key, err := cacheKey(service, path)
 		if err != nil {
-			return 0, fmt.Errorf("bring %s to today's schema: %w", path, err)
+			return nil, err
+		}
+		keys[path] = key
+		c, err := db.Open(ctx, path, key)
+		if err != nil {
+			return nil, fmt.Errorf("bring %s to today's schema: %w", path, err)
 		}
 		if err := c.Close(); err != nil {
-			return 0, fmt.Errorf("close %s: %w", path, err)
+			return nil, fmt.Errorf("close %s: %w", path, err)
 		}
 	}
-	conn, err := sql.Open("sqlite", dst)
+	return keys, nil
+}
+
+// mergeCache copies one Matrix account's rows of the cache at src into the cache at
+// dst, both first brought to today's schema; another network's rows in src (its own
+// daemon's copy of an account dst has) are left. dst is copied aside first. Each is
+// encrypted under its own instance's key in service's keyring.
+func mergeCache(ctx context.Context, service, dst, src string, owner domain.RoomOwner) (int, error) {
+	keys, err := todaysSchema(ctx, service, dst, src)
+	if err != nil {
+		return 0, err
+	}
+	conn, err := sealeddb.OpenWith(ctx, dst, keys[dst], cacheSetup)
 	if err != nil {
 		return 0, fmt.Errorf("open %s: %w", dst, err)
 	}
 	defer func() { _ = conn.Close() }()
-	if _, cerr := conn.ExecContext(ctx, "VACUUM INTO ?", dst+".pre-merge"); cerr != nil {
+	if _, cerr := conn.ExecContext(ctx, "VACUUM INTO ?", sealeddb.Target(dst+".pre-merge", keys[dst])); cerr != nil {
 		return 0, fmt.Errorf("keep a copy: %w", cerr)
 	}
 	one, err := conn.Conn(ctx)
@@ -191,10 +213,12 @@ func mergeCache(ctx context.Context, dst, src string, owner domain.RoomOwner) (i
 		return 0, fmt.Errorf("open %s: %w", dst, err)
 	}
 	defer func() { _ = one.Close() }()
-	for _, stmt := range []string{"PRAGMA foreign_keys = OFF", "ATTACH DATABASE '" + strings.ReplaceAll(src, "'", "''") + "' AS src"} {
-		if _, xerr := one.ExecContext(ctx, stmt); xerr != nil {
-			return 0, fmt.Errorf("%s: %w", stmt, xerr)
-		}
+	if _, xerr := one.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); xerr != nil {
+		return 0, fmt.Errorf("turn foreign keys off: %w", xerr)
+	}
+	// Bound, not spliced: the name carries src's key.
+	if _, xerr := one.ExecContext(ctx, "ATTACH DATABASE ? AS src", sealeddb.Target(src, keys[src])); xerr != nil {
+		return 0, fmt.Errorf("attach %s: %w", src, xerr)
 	}
 	tx, err := one.BeginTx(ctx, nil)
 	if err != nil {

@@ -24,6 +24,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 	"github.com/EugeneShtoka/kith/internal/session"
 )
 
@@ -174,7 +175,7 @@ func testAdapter(t *testing.T, hs *homeserver, saved domain.Session) (*Adapter, 
 func freshAdapter(t *testing.T) (*Adapter, *phases, string) {
 	t.Helper()
 	dir := t.TempDir()
-	cache, err := db.Open(context.Background(), filepath.Join(dir, "cache.db"))
+	cache, err := db.Open(context.Background(), filepath.Join(dir, "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}

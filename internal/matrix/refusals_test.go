@@ -11,6 +11,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // backendWithCache is an InProc on a fresh cache, with a client that knows who we are.
@@ -69,7 +70,7 @@ func TestRefusalLearnedOnlyFromABridgeTakingOursAway(t *testing.T) {
 // testCache is a fresh cache, closed when the test ends.
 func testCache(t *testing.T) *db.Cache {
 	t.Helper()
-	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
+	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}

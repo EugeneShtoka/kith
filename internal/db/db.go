@@ -1,18 +1,19 @@
-// Package db is kith's local SQLite client cache (pure-Go modernc.org/sqlite),
-// returning domain types. mautrix-go owns the separate crypto/state stores.
+// Package db is kith's local SQLite client cache, encrypted at rest (sealeddb, under a
+// key from the OS keyring), returning domain types. mautrix-go owns the separate
+// crypto/state stores.
 package db
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"time"
 
-	_ "modernc.org/sqlite" // registers the pure-Go "sqlite" driver
-
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
+	"github.com/ncruces/go-sqlite3/ext/fts5"
 )
 
 // Cache is a handle to the on-disk client cache.
@@ -87,35 +88,37 @@ func (c *Cache) AsideFailed() error { return c.asideErr }
 // crypto store and must then be reset, or the discarded history never returns.
 func (c *Cache) Rebuilt() bool { return c.rebuilt }
 
-// dsn is the cache's connection string. Pragmas go here because they are per
-// connection; _txlock=immediate avoids SQLITE_BUSY_SNAPSHOT against a second opener.
-func dsn(path string) string {
-	q := url.Values{}
-	q.Add("_pragma", "journal_mode(WAL)")
-	q.Add("_pragma", "busy_timeout(5000)")
-	q.Add("_pragma", "foreign_keys(1)")
-	// NORMAL may lose the last commits on power loss, which a cache refetches; FULL
-	// would fsync every sync batch.
-	q.Add("_pragma", "synchronous(NORMAL)")
-	q.Set("_txlock", "immediate")
-	// Escaped so a space or "?" in the path is not read as query.
-	u := url.URL{Scheme: "file", Opaque: (&url.URL{Path: path}).EscapedPath(), RawQuery: q.Encode()}
-	return u.String()
-}
+// setup is the cache's connections over sealeddb's (the write-ahead log, a busy
+// timeout, foreign keys): synchronous NORMAL, which may lose the last commits on power
+// loss, which a cache refetches, where FULL would fsync every sync batch; immediate
+// transactions, against SQLITE_BUSY_SNAPSHOT with a second opener; and the full-text
+// index's FTS5 on every connection.
+var setup = sealeddb.Setup{Pragmas: []string{"synchronous(NORMAL)"}, TxLock: "immediate", Init: fts5.Register}
 
-// Open opens (creating if needed) the cache at path and brings its schema up to
-// date. One connection serializes access.
-func Open(ctx context.Context, path string) (*Cache, error) {
-	return open(ctx, path, currentSchema)
+// ErrWrongKey is a cache key will not open: never answered by a new cache, which would
+// throw away history only this cache holds.
+var ErrWrongKey = sealeddb.ErrWrongKey
+
+// KeyLen is a cache key's length in bytes.
+const KeyLen = sealeddb.KeyLen
+
+// Open opens (creating if needed) the cache at path, encrypted under key, and brings
+// its schema up to date; a plain cache from before is encrypted first, once. One
+// connection serializes access.
+func Open(ctx context.Context, path string, key []byte) (*Cache, error) {
+	return open(ctx, path, key, currentSchema)
 }
 
 // open is Open with the schema to bring the cache to.
-func open(ctx context.Context, path string, plan schemaPlan) (*Cache, error) {
-	sqlDB, err := connect(path, false)
+func open(ctx context.Context, path string, key []byte, plan schemaPlan) (*Cache, error) {
+	if err := sealeddb.Seal(ctx, path, key, setup); err != nil {
+		return nil, fmt.Errorf("db: encrypt %s: %w", path, err)
+	}
+	sqlDB, err := connect(ctx, path, key, false)
 	if err != nil {
 		return nil, err
 	}
-	state, perr := prepare(ctx, sqlDB, path, plan)
+	state, perr := prepare(ctx, sqlDB, path, key, plan)
 	if perr != nil {
 		_ = sqlDB.Close()
 		return nil, perr
@@ -124,11 +127,11 @@ func open(ctx context.Context, path string, plan schemaPlan) (*Cache, error) {
 		// The connection read the frozen counts when it opened and keeps them after
 		// their rows go: start one that never saw them.
 		_ = sqlDB.Close()
-		if sqlDB, err = connect(path, false); err != nil {
+		if sqlDB, err = connect(ctx, path, key, false); err != nil {
 			return nil, err
 		}
 	}
-	return &Cache{db: sqlDB, rebuilt: state.rebuilt, asideErr: state.asideErr}, nil
+	return &Cache{db: sqlDB, rebuilt: state.rebuilt, asideErr: errors.Join(state.asideErr, sealAside(ctx, path, key))}, nil
 }
 
 // Close runs PRAGMA optimize and closes the handle.

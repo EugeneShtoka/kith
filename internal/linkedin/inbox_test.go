@@ -2,7 +2,6 @@ package linkedin
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -18,6 +17,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
+	"github.com/ncruces/go-sqlite3/ext/fts5"
 )
 
 // Invented profiles and threads; thread IDs look like LinkedIn's and may hold a slash.
@@ -285,7 +286,7 @@ func cachedAdapter(t *testing.T) (*Adapter, *conn, *db.Cache, *[]domain.Message)
 // cachedAdapterAt is cachedAdapter over the cache file at path.
 func cachedAdapterAt(t *testing.T, path string) (*Adapter, *conn, *db.Cache, *[]domain.Message) {
 	t.Helper()
-	cache, err := db.Open(context.Background(), path)
+	cache, err := db.Open(context.Background(), path, make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -658,7 +659,7 @@ func TestAFailedReadReadsNothingAndALateAnswerSettlesOnlyItsOwn(t *testing.T) {
 		r := rand.New(rand.NewPCG(seed, 7))
 		path := filepath.Join(t.TempDir(), "cache.db")
 		a, c, cache, _ := cachedAdapterAt(t, path)
-		raw, err := sql.Open("sqlite", "file:"+path)
+		raw, err := sealeddb.OpenWith(ctx, path, make([]byte, sealeddb.KeyLen), sealeddb.Setup{Init: fts5.Register})
 		if err != nil {
 			t.Fatal(err)
 		}

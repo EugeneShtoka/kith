@@ -55,7 +55,7 @@ func childOnAFullDisk() bool {
 	var err error
 	switch lines[1] {
 	case "restore":
-		_, err = backup.Restore(context.Background(), lines[2], lines[3], true, func() (string, error) { return passphrase, nil })
+		_, err = backup.Restore(context.Background(), lines[2], lines[3], true, func() (string, error) { return passphrase, nil }, keyOf)
 	case "backup":
 		cfg, lerr := config.Load(lines[2])
 		storage, serr := setup.StorageFor(cfg, lines[2])
@@ -63,7 +63,7 @@ func childOnAFullDisk() bool {
 			println("config:", lerr, serr)
 			os.Exit(2)
 		}
-		_, err = backup.Create(context.Background(), backup.Source{ConfigPath: lines[2], Config: cfg, Storage: storage}, lines[3], passphrase)
+		_, err = backup.Create(context.Background(), backup.Source{ConfigPath: lines[2], Config: cfg, Storage: storage, CacheKey: keyAt(storage.DataDir)}, lines[3], passphrase)
 	}
 	if err == nil {
 		println("the", lines[1], "succeeded")
@@ -99,7 +99,8 @@ func TestABackupOnAFullDiskLeavesNoFile(t *testing.T) {
 	m := newMachine(t)
 	m.as(t).fill(t, "kept", 3000)
 	probe := filepath.Join(t.TempDir(), "probe.db")
-	if err := db.Snapshot(context.Background(), m.storage(t).CachePath(), probe); err != nil {
+	key := keyAt(m.storage(t).DataDir)
+	if err := db.Snapshot(context.Background(), m.storage(t).CachePath(), key, probe, key); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Stat(probe)
