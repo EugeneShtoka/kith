@@ -32,6 +32,11 @@ type filterWatch struct {
 	// a conversation from a broadcast.
 	mine func(sender string) bool
 
+	// marking writes one move at a time: a room's moves are read, changed and written
+	// back as one set, so two writers at once (Deliver and the judging of what arrived)
+	// would each undo the other's.
+	marking sync.Mutex
+
 	mu      sync.Mutex
 	filters domain.Filters
 	tags    domain.TagSet
@@ -225,7 +230,9 @@ func window(msgs []domain.Message, f domain.Filter, room domain.RoomFacts, now t
 // record writes the move to account data and memory, reporting whether it is in force
 // (not if the room was released from that tag elsewhere).
 func (w *filterWatch) record(ctx context.Context, verdict domain.TagVerdict) bool {
+	w.marking.Lock()
 	err := w.store.MarkTag(ctx, verdict)
+	w.marking.Unlock()
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	key := tagKey(verdict.Tag)

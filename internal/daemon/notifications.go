@@ -29,6 +29,12 @@ type Notifications struct {
 	syncsMu sync.Mutex
 	syncs   map[domain.RoomOwner]int
 
+	// arrivals are the rooms that gained messages, each with the oldest, waiting for
+	// the filters; arrivalsWake tells RunArrivals (arrivals.go).
+	arrivalsMu   sync.Mutex
+	arrivals     map[domain.RoomID]time.Time
+	arrivalsWake chan struct{}
+
 	// limiter has its own lock and outlives any one config.
 	limiter notify.Limiter
 
@@ -248,9 +254,10 @@ func (n *Notifications) tracksAWordIn(msg domain.Message, room domain.RoomFacts)
 // It shows nothing itself: kith-notify shows what it publishes (NotificationStream).
 func NewNotifications(cfg config.Config, src scopeSource) (*Notifications, error) {
 	n := &Notifications{
-		scope:   newScopeIndex(src, cfg.Display.Names, homeOrderOf(cfg)),
-		notices: newHub[notice](),
-		boot:    rand.Text(),
+		scope:        newScopeIndex(src, cfg.Display.Names, homeOrderOf(cfg)),
+		notices:      newHub[notice](),
+		boot:         rand.Text(),
+		arrivalsWake: make(chan struct{}, 1),
 	}
 	// A source with nowhere to keep moves leaves the filters off.
 	if store, ok := src.(filterStore); ok {
@@ -728,8 +735,13 @@ func truncateRunes(s string, n int) string {
 }
 
 // Run delivers a notification for every message on the fan-out until ctx ends or the
-// stream closes. It blocks.
+// stream closes, judging what arrived unannounced meanwhile (RunArrivals). It blocks.
 func (n *Notifications) Run(ctx context.Context, s *Streams) {
+	ctx, cancel := context.WithCancel(ctx)
+	var arrivals sync.WaitGroup
+	arrivals.Go(func() { n.RunArrivals(ctx) })
+	defer arrivals.Wait()
+	defer cancel()
 	id, msgs := s.SubscribeMessages()
 	defer s.ReleaseMessages(id)
 	for {

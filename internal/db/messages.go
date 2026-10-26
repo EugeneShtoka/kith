@@ -377,9 +377,14 @@ func (c *Cache) saveMessages(ctx context.Context, roomID domain.RoomID, msgs []d
 	mine := c.mine() // outside the tx: networks answer under their own locks
 	limit := c.MessagesKept(roomID)
 	c.noteSenders(msgs)
-	return c.inTx(ctx, func(tx *sql.Tx) error {
+	var since time.Time // the oldest message not cached before; zero when none
+	err := c.inTx(ctx, func(tx *sql.Tx) error {
 		if err := registerRoom(ctx, tx, roomID); err != nil {
 			return err
+		}
+		fresh, uerr := uncached(ctx, tx, roomID, msgs)
+		if uerr != nil {
+			return uerr
 		}
 		// Order-independent upsert: flags only go 0→1, ts keeps the earliest, a redacted
 		// body is never rewritten. A redacted copy empties the body unless keep (?13); an
@@ -421,8 +426,57 @@ func (c *Cache) saveMessages(ctx context.Context, roomID domain.RoomID, msgs []d
 		if err := writeRevisions(ctx, tx, roomID, revisions); err != nil {
 			return err
 		}
+		var kerr error
+		if since, kerr = oldestKept(ctx, tx, roomID, fresh); kerr != nil {
+			return kerr
+		}
 		return c.trim(ctx, tx, roomID, mine, limit)
 	})
+	if err == nil && !since.IsZero() && c.arrived != nil {
+		c.arrived(roomID, since)
+	}
+	return err
+}
+
+// uncached is the IDs of msgs roomID has not cached yet, updates (edits and
+// deletions) left out.
+func uncached(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, msgs []domain.Message) ([]string, error) {
+	var out []string
+	for i := range msgs {
+		m := &msgs[i]
+		if m.ID == "" || m.IsUpdate() || slices.Contains(out, string(m.ID)) {
+			continue
+		}
+		var cached bool
+		if err := tx.QueryRowContext(ctx,
+			`SELECT EXISTS(SELECT 1 FROM messages WHERE room_id = ? AND event_id = ?)`,
+			string(roomID), string(m.ID)).Scan(&cached); err != nil {
+			return nil, fmt.Errorf("db: is %s cached: %w", m.ID, err)
+		}
+		if !cached {
+			out = append(out, string(m.ID))
+		}
+	}
+	return out, nil
+}
+
+// oldestKept is the time the oldest of ids is cached at (a batch's copies of one
+// message keep the earliest), zero when none of them is (each deleted before it came).
+func oldestKept(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, ids []string) (time.Time, error) {
+	if len(ids) == 0 {
+		return time.Time{}, nil
+	}
+	in, args := inIDs([]any{string(roomID)}, ids)
+	var oldest sql.NullInt64
+	// #nosec G202 -- inIDs emits only placeholders or a bound json_each.
+	if err := tx.QueryRowContext(ctx,
+		`SELECT min(ts_ms) FROM messages WHERE room_id = ? AND event_id`+in, args...).Scan(&oldest); err != nil {
+		return time.Time{}, fmt.Errorf("db: oldest new message: %w", err)
+	}
+	if !oldest.Valid {
+		return time.Time{}, nil
+	}
+	return time.UnixMilli(oldest.Int64), nil
 }
 
 // saveMessage upserts one message, then its side rows or, if its redaction came first,

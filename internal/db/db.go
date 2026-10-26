@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"time"
 
 	_ "modernc.org/sqlite" // registers the pure-Go "sqlite" driver
 
@@ -27,7 +28,14 @@ type Cache struct {
 	keep func(domain.RoomID) int
 	// hidden is who the muted tags hide (see UseHidden).
 	hidden hiddenState
+	// arrived hears each room that gained messages (see OnArrived); nil is silent.
+	arrived func(domain.RoomID, time.Time)
 }
+
+// OnArrived has fn called after each write that cached messages a room did not have,
+// live or backfilled, with the time of the oldest of them. It runs on the writer's
+// goroutine, after the commit, so it must return at once. Call before use.
+func (c *Cache) OnArrived(fn func(room domain.RoomID, since time.Time)) { c.arrived = fn }
 
 // UseKeep sets how many newest messages each room keeps (negative: all). It is
 // called before each write's transaction, so it must not write to the cache. Call

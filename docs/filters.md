@@ -276,6 +276,10 @@ not listed.
 ### Rescanning what is already cached
 
 Filters run as messages arrive, so a filter you add today does not look at yesterday.
+Messages a network brings in later are judged as they reach the cache, like a rescan
+of just those (the rules below): what a sync catches up after an outage or a lapsed
+login, a page of scrollback, a rebuilt cache.
+
 `:rescan` judges the messages already in the local cache, as if each had just arrived,
 and lists the moves it would make, with the tag, the filter and the message:
 
