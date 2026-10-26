@@ -190,6 +190,10 @@ func reach(ctx context.Context, path string, cfg config.Config, storage domain.S
 	if err != nil {
 		return attached{cfg: cfg}, fmt.Errorf("attach to kithd: %w", err)
 	}
+	// kith-notify shows kithd's notifications here; one already running keeps them.
+	if nerr := daemon.StartNotifier(ctx, storage, launch); nerr != nil {
+		note = strings.TrimSpace(note + "\nDesktop notifications are off: kith-notify did not start: " + nerr.Error())
+	}
 	if cfg.Display.Media.CacheDir == "" {
 		cfg.Display.Media.CacheDir = storage.MediaDir() // [storage] cache_dir
 	}

@@ -20,16 +20,16 @@ const (
 	createBreakawayFromJob = 0x01000000
 )
 
-// detach starts kithd.exe with no console in its own process group, the Windows
-// `setsid kithd`. context.Background() as in detach_unix.go.
-func detach(daemonArgs []string) error {
-	path, err := daemonPath()
+// detach starts binary.exe (kithd, kith-notify) with no console in its own process
+// group, the Windows `setsid kithd`. context.Background() as in detach_unix.go.
+func detach(binary string, binaryArgs []string) error {
+	path, err := binaryPath(binary)
 	if err != nil {
 		return err
 	}
-	args := daemonArgs
+	args := binaryArgs
 	start := func(flags uint32) error {
-		cmd := exec.CommandContext(context.Background(), path, args...) // #nosec G204 -- path is kithd.exe beside us or on PATH; the arguments are kith's own flags
+		cmd := exec.CommandContext(context.Background(), path, args...) // #nosec G204 -- path is kithd.exe or kith-notify.exe beside us or on PATH; the arguments are kith's own flags
 		cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: flags, HideWindow: true}
 		// Not the client's console: the daemon logs to its --log-file.
 		cmd.Stdout, cmd.Stderr = nil, nil
@@ -54,18 +54,18 @@ func detach(daemonArgs []string) error {
 	return nil
 }
 
-// daemonPath finds kithd.exe beside this executable (an unzipped release is often not
+// binaryPath finds binary.exe beside this executable (an unzipped release is often not
 // on PATH), then on PATH.
-func daemonPath() (string, error) {
+func binaryPath(binary string) (string, error) {
 	if self, err := os.Executable(); err == nil {
-		sibling := filepath.Join(filepath.Dir(self), daemonBinary+".exe")
+		sibling := filepath.Join(filepath.Dir(self), binary+".exe")
 		if info, statErr := os.Stat(sibling); statErr == nil && !info.IsDir() {
 			return sibling, nil
 		}
 	}
-	path, err := exec.LookPath(daemonBinary)
+	path, err := exec.LookPath(binary)
 	if err != nil {
-		return "", fmt.Errorf("daemon: %s.exe is neither beside kith.exe nor on PATH: %w", daemonBinary, err)
+		return "", fmt.Errorf("daemon: %s.exe is neither beside kith.exe nor on PATH: %w", binary, err)
 	}
 	return path, nil
 }

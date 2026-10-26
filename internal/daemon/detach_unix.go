@@ -8,25 +8,26 @@ import (
 	"os/exec"
 )
 
-// detach starts kithd under setsid so it survives this process and its terminal.
-// context.Background() on purpose: CommandContext would kill the daemon with the client.
-func detach(daemonArgs []string) error {
-	path, err := exec.LookPath(daemonBinary)
+// detach starts binary (kithd, kith-notify) under setsid so it survives this process
+// and its terminal. context.Background() on purpose: CommandContext would kill it with
+// the client.
+func detach(binary string, binaryArgs []string) error {
+	path, err := exec.LookPath(binary)
 	if err != nil {
-		return fmt.Errorf("daemon: %s is not on PATH: %w", daemonBinary, err)
+		return fmt.Errorf("daemon: %s is not on PATH: %w", binary, err)
 	}
 	if _, err := exec.LookPath("setsid"); err != nil {
-		return fmt.Errorf("daemon: cannot detach %s without setsid: %w", daemonBinary, err)
+		return fmt.Errorf("daemon: cannot detach %s without setsid: %w", binary, err)
 	}
-	args := append([]string{path}, daemonArgs...)
-	cmd := exec.CommandContext(context.Background(), "setsid", args...) // #nosec G204 -- path is LookPath("kithd") and the arguments kith's own flags, no shell involved
-	// Nothing inherited: the daemon must not write over a running TUI. It logs to the
-	// journal or its --log-file.
+	args := append([]string{path}, binaryArgs...)
+	cmd := exec.CommandContext(context.Background(), "setsid", args...) // #nosec G204 -- path is LookPath of kithd or kith-notify and the arguments kith's own flags, no shell involved
+	// Nothing inherited: it must not write over a running TUI. It logs to the journal
+	// or its --log-file.
 	cmd.Stdout, cmd.Stderr = nil, nil
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("daemon: start %s: %w", daemonBinary, err)
+		return fmt.Errorf("daemon: start %s: %w", binary, err)
 	}
-	// Reap setsid, which exits once the daemon runs; daemon failures are in its log.
+	// Reap setsid, which exits once the process runs; its failures are in its log.
 	go func() { _ = cmd.Wait() }()
 	return nil
 }

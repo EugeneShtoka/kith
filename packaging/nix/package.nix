@@ -25,6 +25,7 @@ buildGoModule (finalAttrs: {
     "cmd/kith"
     "cmd/kithd"
     "cmd/kith-mcp"
+    "cmd/kith-notify"
   ];
 
   # goolm selects mautrix's pure-Go E2EE; without it the build needs libolm and cgo.
@@ -76,6 +77,7 @@ buildGoModule (finalAttrs: {
     ''
     + lib.optionalString stdenv.hostPlatform.isDarwin ''
       install -Dm644 packaging/macos/io.github.eugeneshtoka.kithd.plist -t "$out/share/kith/"
+      install -Dm644 packaging/macos/io.github.eugeneshtoka.kith-notify.plist -t "$out/share/kith/"
     '';
 
   meta = {

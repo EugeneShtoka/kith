@@ -61,7 +61,7 @@ func serve(t *testing.T, socket string, cfg config.Config) kithd {
 		t.Fatal(err)
 	}
 	backend := world{}
-	n, err := daemon.NewNotifications(cfg, backend, func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	n, err := daemon.NewNotifications(cfg, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func listening(t *testing.T, socket string, rec *shown, profiles ...string) *log
 		return rec
 	}
 	a := newAgent(slog.New(slog.NewTextHandler(logs, nil)), func() *daemon.Remote { return daemon.NewRemote(socket) },
-		sinks, config.Notifications{Enabled: true})
+		sinks, config.Config{Notifications: config.Notifications{Enabled: true}})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); a.run(ctx, profiles) }()
@@ -246,7 +246,8 @@ func TestProfilesAreTheConfigs(t *testing.T) {
 }
 
 // run finds kithd's socket and the profiles in the config: a profile the config lacks
-// stops it, naming those it has; with ones it has, it listens to each until stopped.
+// stops it, naming those it has; with ones it has, it listens to each until stopped,
+// and a second for the same config leaves at once.
 func TestRunListensForTheConfigsProfiles(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -277,8 +278,56 @@ func TestRunListensForTheConfigsProfiles(t *testing.T) {
 		done <- run(ctx, slog.New(slog.NewTextHandler(logs, nil)), &slog.LevelVar{}, "", path, []string{"first", "third"})
 	}()
 	waitFor(t, func() bool { return logs.count("listening for notifications") == 2 }, "both profiles to be listened to")
+
+	// kith starts one every time it starts: a second for the same config leaves at once.
+	second := &logBuffer{}
+	if err := run(t.Context(), slog.New(slog.NewTextHandler(second, nil)), &slog.LevelVar{}, "", path, nil); err != nil {
+		t.Errorf("a second run = %v, want it to leave quietly", err)
+	}
+	if second.count("listening") != 0 || second.count("another kith-notify") != 1 {
+		t.Errorf("a second run logged %q, want it to say another one shows them", second.buf.String())
+	}
 	cancel()
 	if err := <-done; err != nil {
 		t.Errorf("run stopped with %v, want nil", err)
+	}
+}
+
+// codesFrom is threeProfiles finding codes in every room, copied by appending to clip;
+// no message notifies, which a code ignores.
+func codesFrom(clip string) config.Config {
+	cfg := threeProfiles()
+	cfg.Notifications.Rules = []config.Rule{{Show: "none"}}
+	cfg.Clipboard = config.Clipboard{Command: "cat >> " + clip, AutoCopy: true}
+	cfg.Codes.Include = []string{string(firstOnly), string(both), string(thirdOnly)}
+	return cfg
+}
+
+// A code kithd found is copied where it is shown, once, however many profiles listened
+// to carry it, and the popup says it was copied. Without a graphical session it is not
+// copied, and the popup carries the code and why.
+func TestTheAgentCopiesACodeOnce(t *testing.T) {
+	clip := filepath.Join(t.TempDir(), "clipboard")
+	t.Setenv("WAYLAND_DISPLAY", "wayland-test")
+	socket := socketPath(t)
+	k := serve(t, socket, codesFrom(clip))
+	rec := &shown{}
+	listening(t, socket, rec, "second", "third")
+
+	k.says(both, "Your code is 482910")
+	settled(t, rec, []string{"482910 — copied to the clipboard"})
+	if got, err := os.ReadFile(clip); err != nil || string(got) != "482910" {
+		t.Errorf("clipboard = %q, %v; want the code, once", got, err)
+	}
+
+	t.Setenv("WAYLAND_DISPLAY", "")
+	t.Setenv("DISPLAY", "")
+	k.says(thirdOnly, "Your code is 777123")
+	waitFor(t, func() bool { return len(rec.all()) == 2 }, "the second code's popup")
+	if got := rec.all()[1]; !strings.HasPrefix(got, "777123 — could not copy it: no graphical session") {
+		t.Errorf("popup %q, want the code and why it was not copied", got)
+	}
+	if got, _ := os.ReadFile(clip); string(got) != "482910" {
+		t.Errorf("clipboard = %q after a copy that could not run", got)
 	}
 }

@@ -11,22 +11,6 @@ import (
 	"time"
 )
 
-// The line reaches cmd.exe as written, inner quotes intact, with stdin as payload.
-func TestShellCommandRunsTheLineAsWritten(t *testing.T) {
-	t.Parallel()
-
-	cmd := shellCommand(t.Context(), `echo "two words" & more`)
-	cmd.Stdin = strings.NewReader("from stdin\r\n")
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	got := string(out)
-	if !strings.Contains(got, `"two words"`) || !strings.Contains(got, "from stdin") {
-		t.Errorf("output = %q, want the quoted echo and the stdin payload", got)
-	}
-}
-
 // TestMain lets the test binary stand in for kithd.exe: with the marker variable set,
 // it records its pid there and stays alive.
 func TestMain(m *testing.M) {
@@ -56,7 +40,7 @@ func TestDetachStartsTheDaemon(t *testing.T) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("KITH_FAKE_DAEMON_MARKER", marker)
 
-	if err := detach(""); err != nil {
+	if err := detach(daemonBinary, nil); err != nil {
 		t.Fatalf("detach() = %v", err)
 	}
 	waitFor(t, func() bool { return exists(marker) }, "the fake daemon to start")

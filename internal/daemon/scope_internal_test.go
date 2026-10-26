@@ -8,7 +8,6 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
 // gatedRooms serves a swappable room list and can hold a read mid-flight.
@@ -121,7 +120,7 @@ func TestTheNotifierKnowsTags(t *testing.T) {
 		spaces: []domain.Space{{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!mom:x"}}}}
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}, Profiles: everyRoom}
 	cfg.Display.Priority = []string{"tag:Family", "space:Work"}
-	n, err := NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return nil })
+	n, err := NewNotifications(cfg, src)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +181,7 @@ func TestTheCacheKeepsWhatTheRoomsPlaceSays(t *testing.T) {
 		}},
 	}
 	src := &gatedRooms{rooms: []domain.Room{{ID: "telegram:42/7", Name: "Dana"}, {ID: "telegram:42/8", Name: "Sam"}}}
-	n, err := NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	n, err := NewNotifications(cfg, src)
 	if err != nil {
 		t.Fatal(err)
 	}

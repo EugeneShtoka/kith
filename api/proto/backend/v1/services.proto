@@ -1202,6 +1202,9 @@ message Notification {
   bool silent = 12;
   // A key (the room) whose earlier popup this one replaces; "" for none.
   string replaces = 13;
+  // A verification code to copy to the clipboard ([codes]), set on the notification
+  // announcing it; the listener copies it and says in the body whether it could.
+  string code = 14;
 }
 
 message NotificationStreamResponse {

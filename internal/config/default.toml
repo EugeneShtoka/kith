@@ -421,8 +421,10 @@ network_colors = false
 # Profiles: named setups, each with its own rooms. `kith --profile <name>` runs in
 # one: its room list, unread, invitations, drafts and search hold only those rooms
 # (a room named directly, by a link or a jump, still opens); without it, kith runs in
-# the first. gP or :profile switches a window to another. kithd's desktop notifications follow the first: a room outside it never
-# notifies. A config has at least one.
+# the first. gP or :profile switches a window to another. A profile is also a
+# notification topic: kith-notify shows the ones it listens to (the first, unless
+# given --profile), and a room no profile holds never notifies. A config has at
+# least one.
 #
 #   include = [...]   its rooms, as places (space:, tag:, place:, room:, protocol:,
 #                     a room ID, dm, group), or "*" for every room

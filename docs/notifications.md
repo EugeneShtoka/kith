@@ -1,8 +1,20 @@
 # Notifications
 
-`kithd`, the daemon, decides and delivers notifications. It sees every message whether or not a terminal is attached, so a popup arrives with no `kith` open. The TUI only edits the rules and shows you why something was or was not delivered.
+`kithd`, the daemon, decides what notifies. It sees every message whether or not a terminal is attached, so a popup arrives with no `kith` open. `kith-notify` shows the popups, on the machine it runs on. The TUI only edits the rules and shows you why something was or was not delivered.
 
 Everything here is configured in `config.toml` (see [configuration](configuration.md)). Most of it can also be changed from inside the app, which writes the file for you and asks the daemon to reload it. A change takes effect on the next message, with no restart.
+
+## Where popups appear: kith-notify
+
+kithd publishes each notification to every [profile](configuration.md#profiles) holding its room. `kith-notify` listens to profiles and shows what arrives: a message in two of the profiles it listens to pops up once. It holds no rules of its own: it reads `[notifications]` (the sinks, templates, sounds) from kithd's config as it changes, and `enabled = false` there stops it showing anything.
+
+`kith` starts it when it starts, as it does kithd: through its systemd user unit when there is one, else detached. Only one runs for a config on a machine, however often it is started. To have popups from login, before you open `kith`, enable its unit:
+
+```sh
+systemctl --user enable --now kith-notify
+```
+
+It listens to the first profile. To listen to others, give each with `--profile` (see [cli.md](cli.md#kith-notify)); for the unit, `systemctl --user edit kith-notify` and repeat its `ExecStart=` with them.
 
 ## Turning notifications on
 
@@ -292,7 +304,7 @@ The first sync after the daemon starts is catch-up: everything that arrived whil
 
 On Matrix, a busy room's first sync after a while away carries only its newest few messages; kith fetches the rest in the background, back to the last message it had. What that brings after a restart is catch-up and does not notify either. When the daemon was running and only lost its connection, what it brings is judged as it arrives, except that messages more than ten minutes old fold into one silent popup per room ("3 messages from earlier"). Either way they are counted as unread.
 
-Your own messages, edits and redactions never notify. Rooms a tag with `notifies = false` holds (the starter's [Spam](filters.md)) never notify, whatever the rules say. Nor does a room outside the first [`[[profile]]`](configuration.md#profiles). Nor does a [hidden person](filters.md#hiding-a-person), or a direct reply to one.
+Your own messages, edits and redactions never notify. Rooms a tag with `notifies = false` holds (the starter's [Spam](filters.md)) never notify, whatever the rules say. Nor does a room no [`[[profile]]`](configuration.md#profiles) holds; one only a profile nothing listens to is published but never shown. Nor does a [hidden person](filters.md#hiding-a-person), or a direct reply to one.
 
 `kith` starts a daemon if none is running, and anything that arrived before that was never notified. Run the daemon as a systemd user service so this does not happen (see [getting started](getting-started.md)).
 
@@ -317,11 +329,11 @@ Rules add together rather than overriding each other. A tracked word does not br
 
 ## Verification codes to the clipboard
 
-`kithd` can put a one-time code into your clipboard as it arrives, with no terminal open. This is **off by default** and deliberately hard to turn on by accident, because anyone who can message you can trigger it.
+kith can put a one-time code into your clipboard as it arrives, with no terminal open: `kithd` finds it, and `kith-notify` copies it on the machine it shows notifications on, once however many of its profiles carry it. This is **off by default** and deliberately hard to turn on by accident, because anyone who can message you can trigger it.
 
 ```toml
 [clipboard]
-command   = "wl-copy"          # required: a daemon has no terminal to copy through
+command   = "wl-copy"          # required: kith-notify has no terminal to copy through
 auto_copy = true
 
 [codes]
@@ -339,9 +351,9 @@ require_digit = true
 
 The guards:
 
-- **Scoped.** `[codes] include` must name at least one place. With an empty list (which means everywhere), the daemon warns once at startup and copies nothing.
+- **Scoped.** `[codes] include` must name at least one place. With an empty list (which means everywhere), `kith-notify` warns once at startup and nothing is copied. A code is also published only to the [profiles](configuration.md#profiles) holding its room, so only a `kith-notify` listening to one of them copies it.
 - **Live only.** A code received during catch-up after a restart is never copied, because an expired code pasted over your clipboard costs you something and gains nothing.
-- **Needs a graphical session.** The daemon checks for `WAYLAND_DISPLAY` or `DISPLAY` before copying. Without one, it sends the code in a notification instead. A systemd user unit does not inherit these variables. Run `systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS` or start the unit with your graphical session.
+- **Needs a graphical session.** `kith-notify` checks for `WAYLAND_DISPLAY` or `DISPLAY` before copying. Without one, it shows the code in the notification instead. A systemd user unit does not inherit these variables. Run `systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS` or start the unit with your graphical session.
 - **Ignores do-not-disturb.** Copying does not interrupt you. It is also not blocked by a tag that does not notify ([Spam](filters.md)).
 - **Announced.** Each copy raises a notification with the code and what happened to it, as long as notifications are enabled.
 - Copied codes end up in your clipboard manager's history like anything else.

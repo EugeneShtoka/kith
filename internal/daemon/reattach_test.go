@@ -18,7 +18,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
 // The client reattaches by itself, and the UI's channel never closes.
@@ -97,8 +96,7 @@ func runDaemon(t *testing.T, path string, b api.Backend) *daemonRun {
 	ctx, cancel := context.WithCancel(context.Background())
 	streams := daemon.NewStreams()
 	notifications, err := daemon.NewNotifications(asStarted(
-		config.Config{Notifications: config.Notifications{Enabled: false}}), scopeOnly{b},
-		func(config.Notifications) notify.Notifier { return notify.Nop{} })
+		config.Config{Notifications: config.Notifications{Enabled: false}}), scopeOnly{b})
 	if err != nil {
 		cancel()
 		t.Fatalf("NewNotifications: %v", err)

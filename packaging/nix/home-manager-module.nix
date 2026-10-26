@@ -1,9 +1,10 @@
-# home-manager module: kith for one user, with its daemon started in that user's
-# session. Import it from the flake: inputs.kith.homeManagerModules.default
+# home-manager module: kith for one user, with its daemon and kith-notify (its desktop
+# notifications) started in that user's session. Import it from the flake:
+# inputs.kith.homeManagerModules.default
 #
 #   programs.kith.enable = true;
 #
-# Linux: links the packaged unit into ~/.config/systemd/user and enables it the
+# Linux: links the packaged units into ~/.config/systemd/user and enables them the
 # way `systemctl --user enable` would (a symlink in default.target.wants). Run
 # `systemctl --user daemon-reload` after the first switch, then `kith login`.
 # macOS: a launchd agent, the counterpart of packaging/macos/.
@@ -21,6 +22,7 @@ let
   inherit (pkgs.stdenv.hostPlatform) isLinux isDarwin;
   wants = {
     "systemd/user/default.target.wants/kithd.service".source = "${units}/kithd.service";
+    "systemd/user/default.target.wants/kith-notify.service".source = "${units}/kith-notify.service";
   };
 in
 {
@@ -35,7 +37,7 @@ in
     daemon.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Start kithd in this user's session (systemd on Linux, launchd on macOS).";
+      description = "Start kithd and kith-notify in this user's session (systemd on Linux, launchd on macOS).";
     };
   };
 
@@ -45,6 +47,7 @@ in
       (lib.mkIf isLinux {
         xdg.configFile = {
           "systemd/user/kithd.service".source = "${units}/kithd.service";
+          "systemd/user/kith-notify.service".source = "${units}/kith-notify.service";
         }
         // lib.optionalAttrs cfg.daemon.enable wants;
       })
@@ -58,6 +61,16 @@ in
             ThrottleInterval = 5;
             Umask = 63; # 0077
             StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/kithd.log";
+          };
+        };
+        launchd.agents.kith-notify = {
+          enable = true;
+          config = {
+            ProgramArguments = [ "${pkg}/bin/kith-notify" ];
+            RunAtLoad = true;
+            KeepAlive.SuccessfulExit = false;
+            ThrottleInterval = 5;
+            StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/kith-notify.log";
           };
         };
       })

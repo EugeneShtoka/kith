@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  kith's desktop notifications as a launchd LaunchAgent (macOS counterpart of
+  kith-notify.service): shows what kithd publishes to the first profile. For others,
+  name each after kith-notify below with the profile flag (see kith-notify -h).
+
+  Install:
+    mkdir -p ~/Library/LaunchAgents ~/Library/Logs
+    cp io.github.eugeneshtoka.kith-notify.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.eugeneshtoka.kith-notify.plist
+
+  Remove:
+    launchctl bootout gui/$(id -u)/io.github.eugeneshtoka.kith-notify
+    rm ~/Library/LaunchAgents/io.github.eugeneshtoka.kith-notify.plist
+
+  Runs via /bin/sh so $HOME and PATH (Homebrew or ~/.local/bin) expand.
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>io.github.eugeneshtoka.kith-notify</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/sh</string>
+		<string>-c</string>
+		<string>PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; exec kith-notify 2&gt;&gt;"$HOME/Library/Logs/kith-notify.log"</string>
+	</array>
+
+	<key>RunAtLoad</key>
+	<true/>
+
+	<!-- Exit 0 means another instance holds the lock: do not restart. -->
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>ThrottleInterval</key>
+	<integer>5</integer>
+</dict>
+</plist>

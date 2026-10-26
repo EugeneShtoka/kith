@@ -67,14 +67,14 @@ build() {
 	date=$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y-%m-%dT%H:%M:%SZ)
 	local ldflags="-X $pkg.Version=$pkgver -X $pkg.Commit=$(git rev-parse --short HEAD) -X $pkg.Date=$date"
 	local cmd
-	for cmd in kith kithd kith-mcp; do
+	for cmd in kith kithd kith-mcp kith-notify; do
 		go build -ldflags "$ldflags" -o "build/$cmd" "./cmd/$cmd"
 	done
 }
 
 package() {
 	cd "$_pkgname"
-	install -Dm755 build/kith build/kithd build/kith-mcp -t "$pkgdir/usr/bin/"
+	install -Dm755 build/kith build/kithd build/kith-mcp build/kith-notify -t "$pkgdir/usr/bin/"
 	# The same ExecStart= rewrite the Makefile and the release packages use.
 	bash scripts/render-units.sh /usr/bin "$pkgdir/usr/lib/systemd/user"
 	install -Dm644 packaging/desktop/kith.desktop -t "$pkgdir/usr/share/applications/"

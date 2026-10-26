@@ -155,3 +155,27 @@ func TestWriteUnit(t *testing.T) {
 		t.Errorf("unit dir holds %d entries, want only the unit (no temporary left)", len(entries))
 	}
 }
+
+// kith-notify's own unit is the packaged one but for its command and description, and
+// runs kith-notify with its config.
+func TestOwnNotifierUnitMatchesThePackagedOne(t *testing.T) {
+	t.Parallel()
+	packaged, err := os.ReadFile("../../packaging/systemd/kith-notify.service")
+	if err != nil {
+		t.Fatal(err)
+	}
+	own, err := ownNotifierUnit("/opt/kith/kith-notify", "/home/u/sb/config.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	differ := []string{"Description", "ExecStart"}
+	if got, want := directives(own, differ...), directives(string(packaged), differ...); !slices.Equal(got, want) {
+		t.Errorf("own unit's directives differ from kith-notify.service's:\n got %q\nwant %q", got, want)
+	}
+	if got, want := values(own, "ExecStart"), []string{"/opt/kith/kith-notify", "--config", "/home/u/sb/config.toml"}; !slices.Equal(got, want) {
+		t.Errorf("ExecStart = %q, want %q", got, want)
+	}
+	if _, err := ownNotifierUnit("/opt/kith/kith-notify", "/tmp/config.toml"); err == nil {
+		t.Error("a config under /tmp was written into the unit")
+	}
+}

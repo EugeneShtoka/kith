@@ -33,7 +33,8 @@ func main() { os.Exit(start()) }
 func start() int {
 	showVersion := flag.Bool("version", false, "print version information and exit")
 	configPath := flag.String("config", "", "path to config file (default: XDG config dir)")
-	logLevel := flag.String("log-level", "", "how much to log to stderr ("+logging.Levels+"); overrides $"+logging.EnvLevel+" and `[log] level`")
+	logLevel := flag.String("log-level", "", "how much to log ("+logging.Levels+"); overrides $"+logging.EnvLevel+" and `[log] level`")
+	logFile := flag.String(strings.TrimPrefix(daemon.LogFlag, "--"), "", "log to the journal, or to this `file` when there is none, instead of stderr; what kith passes when it starts kith-notify without systemd")
 	var profiles []string
 	flag.Func("profile", "a profile whose notifications to show; repeat for several (default: the first)", func(name string) error {
 		profiles = append(profiles, name)
@@ -49,7 +50,8 @@ func start() int {
 	if parsed, err := logging.Resolve(*logLevel, ""); err == nil {
 		level.Set(parsed)
 	}
-	log := logging.New(os.Stderr, logging.Options{Level: level, NoTime: logging.UnderJournald()})
+	log, closeLog := newLogger(*logFile, level)
+	defer closeLog()
 	slog.SetDefault(log)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -58,6 +60,25 @@ func start() int {
 		return 1
 	}
 	return 0
+}
+
+// newLogger logs to stderr, which a systemd unit's journal captures; started by kith
+// (--log-file), to the journal if any, else that file.
+func newLogger(file string, level slog.Leveler) (*slog.Logger, func()) {
+	stderr := logging.New(os.Stderr, logging.Options{Level: level, NoTime: logging.UnderJournald()})
+	if file == "" || logging.UnderJournald() {
+		return stderr, func() {}
+	}
+	sink, err := logging.Open(logging.Destination{Target: logging.TargetAuto, Identifier: "kith-notify", File: file, Level: level})
+	if err != nil {
+		stderr.Warn("cannot open the log; logging to stderr", "path", file, "err", err)
+		return stderr, func() {}
+	}
+	return sink.Logger, func() {
+		if cerr := sink.Close(); cerr != nil {
+			fmt.Fprintln(os.Stderr, "kith-notify: close log file:", cerr)
+		}
+	}
 }
 
 func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string, profiles []string) error {
@@ -78,11 +99,27 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 	if err != nil {
 		return fmt.Errorf("finding the daemon's socket: %w", err)
 	}
+	release, held, err := daemon.AcquireNotifier(storage)
+	if err != nil {
+		return fmt.Errorf("the single-instance lock: %w", err)
+	}
+	if !held {
+		log.Info("another kith-notify already shows this config's notifications here")
+		return nil
+	}
+	defer func() {
+		if rerr := release(); rerr != nil {
+			log.Warn("releasing the single-instance lock", "err", rerr)
+		}
+	}()
 	// Delivery has no caller to tell: each failed sink is logged, never with the message.
 	sinks := setup.NotifierSinks(func(sink string, err error) {
 		log.Warn("notification delivery failed", "sink", sink, "err", err)
 	})
-	a := newAgent(log, func() *daemon.Remote { return daemon.NewRemote(socket) }, sinks, cfg.Notifications)
+	if uerr := setup.AutoCopyUnavailable(cfg); uerr != nil {
+		log.Warn("auto-copy is on but cannot run", "err", uerr)
+	}
+	a := newAgent(log, func() *daemon.Remote { return daemon.NewRemote(socket) }, sinks, cfg)
 	a.run(ctx, names)
 	return nil
 }
@@ -159,14 +196,19 @@ type agent struct {
 	// seen are the notifications shown lately, by ID: one in several profiles arrives
 	// on each of their streams.
 	seen recent
-	// notifier shows with kithd's [notifications] settings as of revision.
+	// notifier shows, and clip copies codes, with kithd's [notifications] and
+	// [clipboard] settings as of revision.
 	notifier notify.Notifier
+	clip     notify.Clipboard
 	revision string
 }
 
-// newAgent shows with sinks built from notifs until kithd's own config is read.
-func newAgent(log *slog.Logger, kithd func() *daemon.Remote, sinks func(config.Notifications) notify.Notifier, notifs config.Notifications) *agent {
-	return &agent{log: log, kithd: kithd, sinks: sinks, notifier: sinks(notifs), seen: newRecent(recentIDs)}
+// newAgent shows and copies with cfg's settings until kithd's own config is read.
+func newAgent(log *slog.Logger, kithd func() *daemon.Remote, sinks func(config.Notifications) notify.Notifier, cfg config.Config) *agent {
+	return &agent{
+		log: log, kithd: kithd, sinks: sinks, seen: newRecent(recentIDs),
+		notifier: sinks(cfg.Notifications), clip: notify.Clipboard{Command: cfg.Clipboard.Command},
+	}
 }
 
 // run listens to every profile until ctx ends.
@@ -202,7 +244,8 @@ func (a *agent) listen(ctx context.Context, settings *daemon.Remote, profile str
 	}
 }
 
-// show shows v unless it was shown already, with kithd's settings as they are now.
+// show shows v unless it was shown already, with kithd's settings as they are now,
+// first copying the code it announces, if any, and saying whether it could.
 func (a *agent) show(ctx context.Context, settings *daemon.Remote, v daemon.Notice) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -217,6 +260,16 @@ func (a *agent) show(ctx context.Context, settings *daemon.Remote, v daemon.Noti
 		a.log.Warn("reading kithd's config; showing with the settings read last", "err", err)
 	case snap.Revision != a.revision:
 		a.notifier, a.revision = a.sinks(snap.Config.Notifications), snap.Revision
+		a.clip = notify.Clipboard{Command: snap.Config.Clipboard.Command}
+	}
+	if v.Code != "" {
+		v.Alert.Body = v.Code + " — copied to the clipboard"
+		if err := a.clip.Copy(ctx, v.Code); err != nil {
+			// The notification carrying the code is then the delivery. The log names the
+			// room, never the code.
+			a.log.Warn("auto-copy: copy to the clipboard failed", "room", v.Alert.Room, "err", err)
+			v.Alert.Body = v.Code + " — could not copy it: " + err.Error()
+		}
 	}
 	a.notifier.Notify(v.Alert)
 }

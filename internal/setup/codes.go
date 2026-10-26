@@ -56,7 +56,7 @@ func AutoCopyUnavailable(cfg config.Config) error {
 	}
 	if cfg.Clipboard.Command == "" {
 		return errors.New(
-			"no `[clipboard] command` is set, and a daemon has no terminal to copy through — " +
+			"no `[clipboard] command` is set, and kith-notify has no terminal to copy through — " +
 				"set one (wl-copy, pbcopy, xclip -selection clipboard)")
 	}
 	if len(cfg.Codes.Include) == 0 {

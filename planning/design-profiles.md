@@ -1,6 +1,7 @@
 # Design: profiles (Phase 0 of design-clients.md)
 
-Status: in progress. Planned 2026-10-25; steps 1–4 done (#340–#344). Phase 0 of [design-clients.md](design-clients.md), in
+Status: in progress. Planned 2026-10-25; steps 1–6 done (#340–#344, #346 and the
+PR after it). Phase 0 of [design-clients.md](design-clients.md), in
 today's kithd with one bridge; the name `[[profile]]` is free since
 [design-matrix-accounts.md](design-matrix-accounts.md).
 

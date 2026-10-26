@@ -23,3 +23,6 @@ func shellCommand(ctx context.Context, template string) *exec.Cmd {
 	}
 	return cmd
 }
+
+// graphicalSession is nil: a Windows session always has its desktop's clipboard.
+func graphicalSession() error { return nil }

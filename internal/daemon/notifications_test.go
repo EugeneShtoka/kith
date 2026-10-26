@@ -79,22 +79,37 @@ func world() *scopeBackend {
 	}
 }
 
-// recorder is a notify.Notifier that keeps what it was handed.
+// recorder keeps what a notifier published, read as it is asked.
 type recorder struct {
 	mu   sync.Mutex
-	sent []notify.Notification
+	take func() []daemon.Published
+	sent []daemon.Published
 }
 
-func (r *recorder) Notify(n notify.Notification) {
+// record subscribes a recorder to what n publishes, for the test's length.
+func record(t *testing.T, n *daemon.Notifications) *recorder {
+	t.Helper()
+	take, release := n.Publications()
+	t.Cleanup(release)
+	return &recorder{take: take}
+}
+
+// published is everything published so far, with its topics.
+func (r *recorder) published() []daemon.Published {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.sent = append(r.sent, n)
+	r.sent = append(r.sent, r.take()...)
+	return append([]daemon.Published(nil), r.sent...)
 }
 
+// all is the notifications published so far.
 func (r *recorder) all() []notify.Notification {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]notify.Notification(nil), r.sent...)
+	published := r.published()
+	out := make([]notify.Notification, len(published))
+	for i := range published {
+		out[i] = published[i].Alert
+	}
+	return out
 }
 
 // notifsOn notifies at level with the sinks disabled; tests deliver to a recorder.
@@ -106,11 +121,12 @@ func notifsOn(level string) config.Config {
 func notifier(t *testing.T, cfg config.Config) (*daemon.Notifications, *recorder, *scopeBackend) {
 	t.Helper()
 
-	src, rec := world(), &recorder{}
-	n, err := daemon.NewNotifications(asStarted(cfg), src, func(config.Notifications) notify.Notifier { return rec })
+	src := world()
+	n, err := daemon.NewNotifications(asStarted(cfg), src)
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
+	rec := record(t, n)
 	n.UseSelves(func() []string { return []string{me} })
 	// Two sync responses put the daemon past its catch-up batch.
 	n.Synced(mx, time.Now())
@@ -297,7 +313,7 @@ func TestNewNotificationsRefusesABadConfig(t *testing.T) {
 		"show":        notifsOn("everything"),
 		"rate_window": badWindow,
 	} {
-		_, err := daemon.NewNotifications(asStarted(cfg), world(), func(config.Notifications) notify.Notifier { return notify.Nop{} })
+		_, err := daemon.NewNotifications(asStarted(cfg), world())
 		if err == nil || !strings.Contains(err.Error(), key) {
 			t.Errorf("NewNotifications() = %v, want a refusal naming %s", err, key)
 		}
@@ -448,12 +464,12 @@ func TestMediaNotificationSaysWhatItIs(t *testing.T) {
 func TestCatchUpDoesNotNotify(t *testing.T) {
 	t.Parallel()
 
-	src, rec := world(), &recorder{}
-	n, err := daemon.NewNotifications(asStarted(notifsOn("all")), src,
-		func(config.Notifications) notify.Notifier { return rec })
+	src := world()
+	n, err := daemon.NewNotifications(asStarted(notifsOn("all")), src)
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
+	rec := record(t, n)
 	n.UseSelves(func() []string { return []string{me} })
 
 	// Before any sync.
@@ -491,9 +507,7 @@ func TestEachAccountHasItsOwnCatchUp(t *testing.T) {
 	accounts := []domain.RoomOwner{domain.RoomOwner(mx), work}
 	for seed := range uint64(40) {
 		rng := rand.New(rand.NewPCG(seed, 5))
-		rec := &recorder{}
-		n, err := daemon.NewNotifications(asStarted(notifsOn("all")), &scopeBackend{rooms: rooms},
-			func(config.Notifications) notify.Notifier { return rec })
+		n, err := daemon.NewNotifications(asStarted(notifsOn("all")), &scopeBackend{rooms: rooms})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -633,9 +647,9 @@ func TestAThreadRuleAsksWhetherWeAreInTheConversation(t *testing.T) {
 		config.Rule{Name: "no threads", Match: string(chatRm), Thread: "any", Show: "none"},
 		config.Rule{Name: "mine", Match: string(chatRm), Thread: "participating", Show: "all"},
 	)
-	src, rec := world(), &recorder{}
+	src := world()
 	src.inThreads = map[domain.EventID]bool{mx + "$mine": true}
-	n, err := daemon.NewNotifications(asStarted(cfg), src, func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(asStarted(cfg), src)
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
@@ -900,7 +914,7 @@ func TestNotificationsWriteTheChosenClock(t *testing.T) {
 
 	bad := notifsOn("all")
 	bad.Display.LongDateFormat = "YYY"
-	if _, err := daemon.NewNotifications(asStarted(bad), world(), func(config.Notifications) notify.Notifier { return notify.Nop{} }); err == nil ||
+	if _, err := daemon.NewNotifications(asStarted(bad), world()); err == nil ||
 		!strings.Contains(err.Error(), "long_date_format") {
 		t.Errorf("NewNotifications() = %v, want a refusal naming long_date_format", err)
 	}

@@ -24,7 +24,6 @@ type Notifications struct {
 	// hides reports whether a message is from a hidden person or answers one; nil hides none.
 	hides func(ctx context.Context, msg domain.Message) (bool, error)
 	scope *scopeIndex
-	sinks Sinks
 
 	// syncs counts each account's sync responses processed; see caughtUp.
 	syncsMu sync.Mutex
@@ -44,7 +43,6 @@ type Notifications struct {
 	keepRules []domain.KeepRule
 	limit     notify.Limit
 	rules     []notify.Rule
-	notifier  notify.Notifier
 	clock     domain.Clock // how a notification writes its {date} and {time}
 	// aliases are the person's names for people, firstNames whether a home shows first
 	// names only, roomRules whether a direct chat's label is shaped too.
@@ -53,9 +51,8 @@ type Notifications struct {
 	roomRules  bool
 	temps      notify.Temps
 	autocopy   domain.AutoCopy
-	clip       clipboard
 	// profiles are the [[profile]]s: each notification is published to every one
-	// holding its room, and kithd's own sinks show the first's.
+	// holding its room.
 	profiles []domain.Profile
 	// tracked is the word list as rules; trackedNotify the global switch a rule's
 	// `notify` may override.
@@ -88,6 +85,7 @@ type notice struct {
 	id     string
 	topics []string
 	alert  notify.Notification
+	code   string // a verification code to copy, announced by alert
 }
 
 // UseArchiver gives the push_archive reconciler the function it calls to apply
@@ -246,14 +244,11 @@ func (n *Notifications) tracksAWordIn(msg domain.Message, room domain.RoomFacts)
 	return domain.TrackedNotifies(rules, words.Find(msg.Body), fallback, room, msg.Sender)
 }
 
-// Sinks builds the delivery sinks for a configuration; Reload rebuilds them.
-type Sinks func(config.Notifications) notify.Notifier
-
 // NewNotifications builds the notifier from cfg, refusing a config that will not parse.
-func NewNotifications(cfg config.Config, src scopeSource, sinks Sinks) (*Notifications, error) {
+// It shows nothing itself: kith-notify shows what it publishes (NotificationStream).
+func NewNotifications(cfg config.Config, src scopeSource) (*Notifications, error) {
 	n := &Notifications{
 		scope:   newScopeIndex(src, cfg.Display.Names, homeOrderOf(cfg)),
-		sinks:   sinks,
 		notices: newHub[notice](),
 		boot:    rand.Text(),
 	}
@@ -304,21 +299,20 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	notifier := n.sinks(cfg.Notifications)
 
 	n.scope.SetAliases(cfg.Display.Names)
 	n.scope.SetHomeOrder(homeOrderOf(cfg))
 	n.applyTagsAndArchives(cfg, filters)
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.rules, n.notifier, n.limit, n.clock = rules, notifier, limit, clock
+	n.rules, n.limit, n.clock = rules, limit, clock
 	n.profiles = profiles
 	display := cfg.Display
 	n.aliases = setup.Aliases(display.Identities)
 	n.firstNames = func(home string) bool { return setup.FirstNamesIn(display, home) }
 	n.roomRules = cfg.Display.ApplyRoomNameRules()
 	n.keep, n.keepRules = keep, keepRules
-	n.autocopy, n.clip = autocopy, clipboard{command: cfg.Clipboard.Command}
+	n.autocopy = autocopy
 	n.tracked, n.trackedNotify = setup.TrackedRules(cfg.Display.Tracked), cfg.Display.Tracked.Notify
 	return nil
 }
@@ -528,7 +522,7 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	// A room a tag with notifies = false holds never notifies, nor one in no profile.
 	// Asked after code capture, and after the filters moved the room.
 	facts := n.scope.Facts(ctx, msg.RoomID)
-	topics, first := n.topics(facts)
+	topics := n.topics(facts)
 	if n.scope.Mutes(facts) || len(topics) == 0 {
 		return notify.Notification{}, false
 	}
@@ -543,22 +537,21 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	if !ok {
 		return notify.Notification{}, false
 	}
-	n.notify(alert, topics, first)
+	n.notify(alert, "", topics)
 	return alert, true
 }
 
-// topics are the seat keys of the profiles holding the room, in config order; first
-// whether the first profile, the one kithd's own sinks show, is among them.
-func (n *Notifications) topics(facts domain.RoomFacts) (topics []string, first bool) {
+// topics are the seat keys of the profiles holding the room, in config order.
+func (n *Notifications) topics(facts domain.RoomFacts) []string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	for i, p := range n.profiles {
+	var topics []string
+	for _, p := range n.profiles {
 		if p.Rooms.Admits(facts) {
 			topics = append(topics, seatKey(p.Name))
-			first = first || i == 0
 		}
 	}
-	return topics, first
+	return topics
 }
 
 // placeholderSpan is how long a bridge placeholder waits for its replacing edit.
@@ -657,21 +650,19 @@ func newMessages(held int) string {
 	return fmt.Sprintf("%d new messages", held)
 }
 
-// notify publishes an alert to topics, and hands it to the currently configured sinks
-// when own.
-func (n *Notifications) notify(alert notify.Notification, topics []string, own bool) {
+// notify publishes an alert to topics, under an ID of its own, with a code to copy
+// ("" none).
+func (n *Notifications) notify(alert notify.Notification, code string, topics []string) {
+	if len(topics) == 0 {
+		return
+	}
 	n.mu.Lock()
-	notifier, clock := n.notifier, n.clock
+	clock := n.clock
 	n.mu.Unlock()
 	if !alert.Sent.IsZero() {
 		alert.Date, alert.Time = clock.ShortDate(alert.Sent), clock.Time(alert.Sent)
 	}
-	if len(topics) > 0 {
-		n.notices.broadcast(notice{id: fmt.Sprintf("%s-%d", n.boot, n.count.Add(1)), topics: topics, alert: alert})
-	}
-	if own {
-		notifier.Notify(alert)
-	}
+	n.notices.broadcast(notice{id: fmt.Sprintf("%s-%d", n.boot, n.count.Add(1)), topics: topics, alert: alert, code: code})
 }
 
 // decide is Deliver's trigger, with scope and clock as arguments.

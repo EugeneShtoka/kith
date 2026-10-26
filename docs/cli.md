@@ -1,6 +1,6 @@
 # Command-line reference
 
-This page lists every flag and subcommand of `kith`, `kithd` and `kith-mcp`, the
+This page lists every flag and subcommand of `kith`, `kithd`, `kith-notify` and `kith-mcp`, the
 environment variables they read, and the Makefile targets you use to install and run
 them.
 
@@ -192,6 +192,28 @@ Behavior worth knowing:
 | `0` | Clean shutdown, or another daemon already holds the lock. |
 | `1` | A fatal error: no config, an invalid config (one naming no network at all), no network that could be set up, a cache or a socket that can't be opened. |
 
+## kith-notify
+
+```text
+kith-notify [--profile name]... [--config path] [--log-level level] [--log-file file] [--version]
+```
+
+Shows kithd's desktop notifications on this machine
+([notifications.md](notifications.md#where-popups-appear-kith-notify)). It listens to
+the profiles it is given, the first without one, and shows each notification once
+however many of them carry it. `kith` starts it; its systemd user unit
+`kith-notify.service` starts it at login. Only one runs per config: a second exits at
+once. It waits for kithd when kithd is not running, and listens again when kithd
+restarts.
+
+| Flag | Meaning |
+| --- | --- |
+| `--profile name` | A profile whose notifications to show, in any case; repeat it for several. One the config lacks stops it, naming those it has. |
+| `--config path` | Config file to read: where kithd's socket is, and the profiles. |
+| `--log-level level` | How much to log: `debug`, `info`, `warn` or `error`. Overrides `KITH_LOG_LEVEL` and `[log] level`. |
+| `--log-file file` | Log to the journal, or to this file when there is none, instead of stderr. `kith` passes it when it starts kith-notify without systemd. |
+| `--version` | Print version information and exit. |
+
 ## kith-mcp
 
 ```text
@@ -262,10 +284,10 @@ targets (`test`, `lint`, `check`, …) are covered in
 
 | Target | What it does |
 | --- | --- |
-| `make build` | Build `./kith`, `./kithd` and `./kith-mcp` in the repository root. |
-| `make install` | Build, then install the binaries to `$(BINDIR)`, the systemd user unit (`kithd.service`) to `~/.config/systemd/user/`, and the `matrix:` / `tg:` / `whatsapp:` handler to `~/.local/share/applications/`. It starts nothing. |
-| `make deploy` | `install`, then import the desktop environment variables, enable and restart the daemon's unit, and wait for its socket. |
-| `make undeploy` | Stop and disable `kithd.service`, remove it and every `kithd-<instance>.service` kith wrote for a config of its own, the `kith`, `kithd` and `kith-mcp` binaries, the desktop entry, and the `matrix:` / `tg:` / `whatsapp:` handler associations if they still name kith. Config, cache, crypto store and keyring are left alone. |
+| `make build` | Build `./kith`, `./kithd`, `./kith-mcp` and `./kith-notify` in the repository root. |
+| `make install` | Build, then install the binaries to `$(BINDIR)`, the systemd user units (`kithd.service`, `kith-notify.service`) to `~/.config/systemd/user/`, and the `matrix:` / `tg:` / `whatsapp:` handler to `~/.local/share/applications/`. It starts nothing. |
+| `make deploy` | `install`, then import the desktop environment variables, enable and restart both units, and wait for the daemon's socket. |
+| `make undeploy` | Stop and disable `kithd.service` and `kith-notify.service`, remove them and every `kithd-<instance>.service` and `kith-notify-<instance>.service` kith wrote for a config of its own, the `kith`, `kithd`, `kith-mcp` and `kith-notify` binaries, the desktop entry, and the `matrix:` / `tg:` / `whatsapp:` handler associations if they still name kith. Config, cache, crypto store and keyring are left alone. |
 | `make daemon-status` | `systemctl --user status` for `kithd.service`. |
 | `make daemon-logs` | Print that unit's last 100 journal lines. |
 | `make daemon-restart` | Restart that unit, for example after an upgrade. |

@@ -15,7 +15,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
 // personBackend is spamWorld() plus what the sender moves read and write: every cached
@@ -105,7 +104,7 @@ func (p *personBackend) marked() []string {
 // personNotifier is the daemon's notifier over a person-capable backend.
 func personNotifier(t *testing.T, cfg config.Config, src *personBackend) *daemon.Notifications {
 	t.Helper()
-	n, err := daemon.NewNotifications(asStarted(cfg), src, func(config.Notifications) notify.Notifier { return &recorder{} })
+	n, err := daemon.NewNotifications(asStarted(cfg), src)
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}

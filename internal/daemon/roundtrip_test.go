@@ -12,10 +12,8 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/apitest"
-	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
 // settle bounds every wait in these tests.
@@ -88,8 +86,7 @@ func serve(t *testing.T, b api.Backend, with ...func(*daemon.Daemon)) *harness {
 	ctx, cancel := context.WithCancel(context.Background())
 	streams := daemon.NewStreams()
 	state := daemon.NewState()
-	notifications, err := daemon.NewNotifications(asStarted(notifsOn("all")), scopeOnly{b},
-		func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	notifications, err := daemon.NewNotifications(asStarted(notifsOn("all")), scopeOnly{b})
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}

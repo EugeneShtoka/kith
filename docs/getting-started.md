@@ -77,8 +77,8 @@ The `.deb`, `.rpm`, `.apk` and Arch packages all install the same files:
 
 | Path | What |
 | --- | --- |
-| `/usr/bin/kith`, `kithd`, `kith-mcp` | The binaries. |
-| `/usr/lib/systemd/user/kithd.service` | The systemd user unit, with `ExecStart=/usr/bin/kithd`. |
+| `/usr/bin/kith`, `kithd`, `kith-mcp`, `kith-notify` | The binaries. |
+| `/usr/lib/systemd/user/kithd.service`, `kith-notify.service` | The systemd user units, with `ExecStart=/usr/bin/…`. |
 | `/usr/share/applications/kith.desktop` | The `matrix:`, `tg:`, `whatsapp:` and `sgnl:` link handler. |
 | `/usr/share/doc/kith/` | README, ARCHITECTURE, these docs and `config.toml.example`, the annotated default config. |
 
@@ -101,11 +101,11 @@ package prints the next steps; they are [First login](#first-login), then:
 ```sh
 systemctl --user daemon-reload
 systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
-systemctl --user enable --now kithd
+systemctl --user enable --now kithd kith-notify
 ```
 
-After an upgrade, restart the daemon so the new binary takes over:
-`systemctl --user restart kithd`.
+After an upgrade, restart both so the new binaries take over:
+`systemctl --user restart kithd kith-notify`.
 
 ### Arch Linux (AUR)
 
@@ -249,10 +249,10 @@ make install     # build, then install binaries, the systemd units and the matri
 
 `make install` does four things:
 
-1. Builds `kith`, `kithd` and `kith-mcp`.
+1. Builds `kith`, `kithd`, `kith-mcp` and `kith-notify`.
 2. Copies them to `~/.local/bin` (override this with `PREFIX=` or `BINDIR=`; it uses
    `sudo` only if the target directory isn't writable).
-3. Installs `kithd.service` into `~/.config/systemd/user/`, with `ExecStart` set to wherever the binary went, and
+3. Installs `kithd.service` and `kith-notify.service` into `~/.config/systemd/user/`, with `ExecStart` set to wherever the binaries went, and
    runs `systemctl --user daemon-reload`.
 4. Installs `kith.desktop` into `~/.local/share/applications/` and registers it as
    the `matrix:`, `tg:`, `whatsapp:` and `sgnl:` link handler with `xdg-mime`.
@@ -363,15 +363,15 @@ queue keep working. Let systemd own it.
 ### With the Makefile
 
 ```sh
-make deploy                 # kithd.service
+make deploy                 # kithd.service, kith-notify.service
 ```
 
 `make deploy` runs `make install`, then does the setup the unit can't do for itself:
 
 - Imports `WAYLAND_DISPLAY`, `DISPLAY` and `DBUS_SESSION_BUS_ADDRESS` into the systemd
-  user manager, if they are set. The daemon needs them for notifications and
-  clipboard access.
-- Enables the unit and restarts it, so a new binary actually takes over.
+  user manager, if they are set. `kith-notify` needs them for popups, the daemon for
+  the keyring and clipboard access.
+- Enables both units and restarts them, so a new binary actually takes over.
 - Waits up to a minute for the daemon's socket to appear, then tells you whether the
   daemon came up.
 
@@ -380,13 +380,13 @@ make deploy                 # kithd.service
 This is the path to use with a release archive:
 
 ```sh
-install -Dm644 packaging/systemd/kithd.service ~/.config/systemd/user/kithd.service
+install -Dm644 packaging/systemd/kithd.service packaging/systemd/kith-notify.service -t ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
-systemctl --user enable --now kithd
+systemctl --user enable --now kithd kith-notify
 ```
 
-With a Linux package the unit is already installed; start at `daemon-reload`.
+With a Linux package the units are already installed; start at `daemon-reload`.
 
 The unit mounts your home directory read-only and allows writes only to kith's own
 directories (`~/.local/share/kith`, `~/.local/state/kith`, `~/.cache/kith`).
@@ -617,9 +617,9 @@ make undeploy
 
 `make undeploy` reverses `make install` and `make deploy`. It:
 
-- stops and disables `kithd.service`, running or only enabled;
-- removes `kithd.service` from `~/.config/systemd/user/`;
-- deletes `kith`, `kithd` and `kith-mcp` from `BINDIR`;
+- stops and disables `kithd.service` and `kith-notify.service`, running or only enabled;
+- removes them from `~/.config/systemd/user/`;
+- deletes `kith`, `kithd`, `kith-mcp` and `kith-notify` from `BINDIR`;
 - deletes `~/.local/share/applications/kith.desktop` and removes the
   `x-scheme-handler/matrix` and `x-scheme-handler/tg` associations from
   `mimeapps.list`, but only where they still name `kith.desktop`. A handler you
@@ -627,7 +627,7 @@ make undeploy
 
 With a package manager, remove the package instead (`apt remove kith`,
 `pacman -R kith-bin`, `brew uninstall --cask kith`, …), after
-`systemctl --user disable --now kithd`: the package
+`systemctl --user disable --now kithd kith-notify`: the package
 can't reach your user session to do it for you. On macOS, `make undeploy` also
 unloads and removes the LaunchAgents.
 

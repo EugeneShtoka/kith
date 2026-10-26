@@ -2,56 +2,50 @@ package daemon_test
 
 import (
 	"context"
-	"os"
-	"path/filepath"
-	"strings"
+	"slices"
 	"testing"
 	"time"
 
-	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// autoCopyNotifier copies codes from the SMS bridge room to a file standing in for
-// the clipboard, after syncs sync responses.
-func autoCopyNotifier(t *testing.T, autoCopy bool, syncs int) (*daemon.Notifications, *recorder, string) {
+// autoCopyNotifier finds codes in the SMS bridge room, after syncs sync responses.
+func autoCopyNotifier(t *testing.T, autoCopy bool, syncs int) (*daemon.Notifications, *recorder) {
 	t.Helper()
-
-	// The daemon only copies inside a graphical session.
-	t.Setenv("WAYLAND_DISPLAY", "wayland-test")
-	clip := filepath.Join(t.TempDir(), "clipboard")
 	cfg := notifsOn("all")
-	cfg.Clipboard.Command = "cat > " + clip
+	cfg.Clipboard.Command = "wl-copy"
 	cfg.Clipboard.AutoCopy = autoCopy
 	cfg.Codes.Include = []string{smsRoom}
 
-	rec := &recorder{}
-	n, err := daemon.NewNotifications(asStarted(cfg), codeWorld(), func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(asStarted(cfg), codeWorld())
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
+	rec := record(t, n)
 	n.UseSelves(func() []string { return []string{me} })
 	for range syncs {
 		n.Synced(mx, time.Now())
 	}
-	return n, rec, clip
+	return n, rec
 }
 
 // capturingDaemon is autoCopyNotifier past the catch-up batch.
-func capturingDaemon(t *testing.T) (*daemon.Notifications, *recorder, string) {
+func capturingDaemon(t *testing.T) (*daemon.Notifications, *recorder) {
 	t.Helper()
 	return autoCopyNotifier(t, true, 2)
 }
 
-// noCopy asserts, after giving the sink time to run, that nothing reached the clipboard.
-func noCopy(t *testing.T, clip, why string) {
-	t.Helper()
-	time.Sleep(50 * time.Millisecond)
-	if _, err := os.Stat(clip); err == nil {
-		t.Error(why)
+// codes are the codes published to copy.
+func codes(rec *recorder) []string {
+	var out []string
+	published := rec.published()
+	for i := range published {
+		if published[i].Code != "" {
+			out = append(out, published[i].Code)
+		}
 	}
+	return out
 }
 
 const smsRoom = mx + "!sms:example.org"
@@ -67,94 +61,67 @@ func codeMsg(room domain.RoomID, body string) domain.Message {
 	return domain.Message{ID: mx + "$1", RoomID: room, Sender: "matrix:@bridge:example.org", Body: body, Timestamp: time.Now()}
 }
 
-// clipboardHolds reads back what the sink was given, waiting for the command to finish.
-func clipboardHolds(t *testing.T, path string) string {
-	t.Helper()
-	var got []byte
-	waitFor(t, func() bool {
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return false
-		}
-		got = b
-		return true
-	})
-	return string(got)
-}
-
-// A code arriving with nothing attached lands in the clipboard.
-func TestAutoCopyWritesTheClipboard(t *testing.T) {
-	n, rec, clip := capturingDaemon(t)
+// A code arriving with nothing attached is published to copy, announced by the code
+// alone: kith-notify says what came of copying it.
+func TestAutoCopyPublishesTheCode(t *testing.T) {
+	t.Parallel()
+	n, rec := capturingDaemon(t)
 
 	n.Deliver(context.Background(), codeMsg(smsRoom, "Your code is 482910"))
 
-	if got := clipboardHolds(t, clip); got != "482910" {
-		t.Errorf("clipboard = %q, want the code alone", got)
-	}
-	// The copy is announced, or the user discovers it by pasting the wrong thing.
-	var said bool
-	for _, alert := range rec.all() {
-		if strings.Contains(alert.Body, "482910") && strings.Contains(alert.Body, "copied") {
-			said = true
+	var announced bool
+	published := rec.published()
+	for i := range published {
+		if p := &published[i]; p.Code == "482910" {
+			announced = p.Alert.Body == "482910" && p.Alert.Room == "SMS" && slices.Equal(p.Topics, []string{"default"})
 		}
 	}
-	if !said {
-		t.Errorf("notifications = %+v, want one saying the code was copied", rec.all())
+	if !announced {
+		t.Errorf("published %+v, want the code to copy, announced by itself in the room, to the profile holding it", rec.published())
 	}
 }
 
 // An unnamed room is not copied from, however code-shaped the message.
 func TestAutoCopyStaysWhereItWasTold(t *testing.T) {
-	n, _, clip := capturingDaemon(t)
-
+	t.Parallel()
+	n, rec := capturingDaemon(t)
 	n.Deliver(context.Background(), codeMsg(chatRm, "the build failed with code 482910"))
-
-	noCopy(t, clip, "a room outside the include list should not have reached the clipboard")
+	if got := codes(rec); len(got) != 0 {
+		t.Errorf("codes %v from a room outside the include list", got)
+	}
 }
 
 // Nothing is copied before catch-up: a week-old code must not overwrite the clipboard.
 func TestAutoCopyWaitsUntilCaughtUp(t *testing.T) {
-	n, _, clip := autoCopyNotifier(t, true, 1) // the catch-up response only
+	t.Parallel()
+	n, rec := autoCopyNotifier(t, true, 1) // the catch-up response only
 	n.Deliver(context.Background(), codeMsg(smsRoom, "Your code is 482910"))
-	noCopy(t, clip, "the catch-up batch should not reach the clipboard")
-}
-
-// A copy that cannot run delivers the code in the notification instead.
-func TestAutoCopyReportsWhenItCannotCopy(t *testing.T) {
-	n, rec, _ := capturingDaemon(t)
-	t.Setenv("WAYLAND_DISPLAY", "")
-	t.Setenv("DISPLAY", "")
-
-	n.Deliver(context.Background(), codeMsg(smsRoom, "Your code is 482910"))
-
-	var told bool
-	for _, alert := range rec.all() {
-		if strings.Contains(alert.Body, "482910") && strings.Contains(alert.Body, "could not copy") {
-			told = true
-		}
-	}
-	if !told {
-		t.Errorf("notifications = %+v, want the code delivered with the reason it was not copied", rec.all())
+	if got := codes(rec); len(got) != 0 {
+		t.Errorf("codes %v from the catch-up batch", got)
 	}
 }
 
 // Auto-copy ignores do-not-disturb: copying interrupts nobody.
 func TestAutoCopyIgnoresDND(t *testing.T) {
-	n, _, clip := capturingDaemon(t)
+	t.Parallel()
+	n, rec := capturingDaemon(t)
 	n.SetDND(hideRule("", ""))
 
 	msg := codeMsg(smsRoom, "Your code is 482910")
 	if _, notified := n.Deliver(context.Background(), msg); notified {
 		t.Error("do-not-disturb should still hold the ordinary notification back")
 	}
-	if got := clipboardHolds(t, clip); got != "482910" {
-		t.Errorf("clipboard = %q, want the code copied anyway", got)
+	if got := codes(rec); !slices.Equal(got, []string{"482910"}) {
+		t.Errorf("codes = %v, want the code published anyway", got)
 	}
 }
 
 // With auto-copy off (the default) nothing is copied, even from an included room.
 func TestAutoCopyOffCopiesNothing(t *testing.T) {
-	n, _, clip := autoCopyNotifier(t, false, 2)
+	t.Parallel()
+	n, rec := autoCopyNotifier(t, false, 2)
 	n.Deliver(context.Background(), codeMsg(smsRoom, "Your code is 482910"))
-	noCopy(t, clip, "nothing should be copied with the switch off")
+	if got := codes(rec); len(got) != 0 {
+		t.Errorf("codes %v with the switch off", got)
+	}
 }
