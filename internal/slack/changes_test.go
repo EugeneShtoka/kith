@@ -11,6 +11,7 @@ import (
 	slackgo "github.com/slack-go/slack"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/emoji"
 )
 
 // Reaction names and emoji keys map both ways, tones included; a custom emoji keeps its
@@ -24,9 +25,28 @@ func TestReactionNamesAndKeys(t *testing.T) {
 			t.Errorf("reactionKey(%q) = %q, want %q", name, got, key)
 		}
 	}
-	for key, want := range map[string]string{"👍": "+1", "👍\U0001F3FC": "+1::skin-tone-3", ":partyparrot:": "partyparrot", "❤️": "heart"} {
+	for key, want := range map[string]string{
+		"👍": "+1", "👍\U0001F3FC": "+1::skin-tone-3", ":partyparrot:": "partyparrot", "❤️": "heart",
+		"✅": "white_check_mark", "😀": "grinning", "☑️": "ballot_box_with_check", "☑": "ballot_box_with_check",
+		"🙌\U0001F3FF": "raised_hands::skin-tone-6",
+	} {
 		if got, ok := reactionName(key); !ok || got != want {
 			t.Errorf("reactionName(%q) = %q, %v; want %q", key, got, ok, want)
+		}
+	}
+}
+
+// Every emoji Slack has a name for is sent by that name and reads back as itself.
+func TestReactionNamesAreSlacks(t *testing.T) {
+	t.Parallel()
+	for name, e := range emoji.SlackNames {
+		got, ok := reactionName(e)
+		if !ok || emoji.SlackNames[got] != e {
+			t.Errorf("reactionName(%q) = %q, %v; want a Slack name of it (%q)", e, got, ok, name)
+			continue
+		}
+		if back := reactionKey(got); back != e {
+			t.Errorf("reactionKey(%q) = %q, want %q", got, back, e)
 		}
 	}
 }
