@@ -3268,6 +3268,11 @@ func (m Model) handleTimeline(msg timelineMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 	m.timeline.hist.loading = false
+	// A network that is off or not connected has no page to give: older messages come
+	// from the cache, as after its last page.
+	if !msg.fromCache && errors.Is(msg.err, api.ErrNetworkOff) {
+		msg.page, msg.err = domain.TimelinePage{}, nil
+	}
 	if msg.err != nil {
 		m = m.sayErr("history error", msg.err)
 		return m, nil
