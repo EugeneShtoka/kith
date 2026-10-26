@@ -703,6 +703,21 @@ DROP TABLE matrix_owner;`,
                   AND coalesce(h.html, '') = message_revisions.html);`,
 }
 
+// forgetFrozenStats drops the row counts ANALYZE kept for tables without an index
+// (sqlite_stat1 rows with no idx), reporting whether there were any. PRAGMA optimize
+// never refreshes those, so the count taken when the cache was new stands for good:
+// the search index's data table, counted at 2 rows, was scanned whole on every segment
+// merge, ~6 ms per message saved. With no count the planner seeks by rowid. Best
+// effort, like Close's optimize: only plans depend on it.
+func forgetFrozenStats(ctx context.Context, sqlDB *sql.DB) bool {
+	res, err := sqlDB.ExecContext(ctx, "DELETE FROM sqlite_stat1 WHERE idx IS NULL")
+	if err != nil {
+		return false // never analyzed: no sqlite_stat1
+	}
+	n, err := res.RowsAffected()
+	return err == nil && n > 0
+}
+
 // ensureIndexes makes the file's indexes exactly baseSchema's (create missing,
 // rebuild changed, drop undeclared), so index changes need no migration. Every
 // explicit index is declared in baseSchema.

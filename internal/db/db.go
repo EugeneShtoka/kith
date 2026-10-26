@@ -120,6 +120,14 @@ func open(ctx context.Context, path string, plan schemaPlan) (*Cache, error) {
 		_ = sqlDB.Close()
 		return nil, perr
 	}
+	if forgetFrozenStats(ctx, sqlDB) {
+		// The connection read the frozen counts when it opened and keeps them after
+		// their rows go: start one that never saw them.
+		_ = sqlDB.Close()
+		if sqlDB, err = connect(path, false); err != nil {
+			return nil, err
+		}
+	}
 	return &Cache{db: sqlDB, rebuilt: state.rebuilt, asideErr: state.asideErr}, nil
 }
 
