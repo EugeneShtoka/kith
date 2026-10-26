@@ -68,7 +68,7 @@ func TestLeavingFromTheRail(t *testing.T) {
 		t.Errorf("L on an account's space: confirm %v, status %q", got.confirm.action, got.status())
 	}
 
-	m, _ = m.applyConfig(config.Config{Tags: []config.Tag{{Name: "Friends", Rule: []string{"dm"}}}}, "")
+	m, _ = m.applyConfig(asStarted(config.Config{Tags: []config.Tag{{Name: "Friends", Rule: []string{"dm"}}}}), "")
 	m.rail.cursor = indexOfGroup(m.rail.groups, tagGroupKey("Friends"))
 	if m.rail.cursor < 0 {
 		t.Fatal("the tag is not on the rail")

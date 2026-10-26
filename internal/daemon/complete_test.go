@@ -28,7 +28,7 @@ func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
 		d.State = daemon.NewState()
 	}
 	if d.Notifications == nil {
-		n, err := daemon.NewNotifications(config.Config{}, scopeOnly{d.Backend},
+		n, err := daemon.NewNotifications(asStarted(config.Config{}), scopeOnly{d.Backend},
 			func(config.Notifications) notify.Notifier { return notify.Nop{} })
 		if err != nil {
 			t.Fatalf("NewNotifications: %v", err)

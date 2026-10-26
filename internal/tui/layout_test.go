@@ -16,18 +16,18 @@ import (
 func laidOut(t *testing.T, display config.Display) (Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Display: display, Tags: starter(t).Tags}
+	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Display: display, Tags: starter(t).Tags, Profiles: starter(t).Profiles}
 	base.Keys.FillDefaults()
 	if err := config.Save(path, base); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
-	m := update(t, New(t.Context(), apitest.Nop{}, display).WithConfigFile("", base),
+	m := update(t, New(t.Context(), apitest.Nop{}, display).WithConfigFile("", asStarted(base)),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 		{ID: mx + "!f:x", Name: "Friends", Children: []domain.RoomID{mx + "!b:x"}},
 	}})
-	m = sized(t, m).WithConfigFile(path, base).keptIn()
+	m = sized(t, m).WithConfigFile(path, asStarted(base)).keptIn()
 	m = m.clearStatus()
 	return m, path
 }

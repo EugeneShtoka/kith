@@ -84,7 +84,7 @@ func placeSettings() []placeSetting {
 			c.Profiles = []config.Profile{{Name: "p", Include: one(e)}}
 		}, placeForms},
 		{`profile "p": exclude`, func(c *config.Config, e string) {
-			c.Profiles = []config.Profile{{Name: "p", Exclude: one(e)}}
+			c.Profiles = []config.Profile{{Name: "p", Include: []string{"*"}, Exclude: one(e)}}
 		}, placeForms},
 		{`tag "Busy": rule`, func(c *config.Config, e string) {
 			c.Tags = append(c.Tags, config.Tag{Name: "Busy", Rule: []string{e}})
@@ -97,7 +97,8 @@ func cloned(s []string) []string { return append([]string(nil), s...) }
 // valid is a config every setting's entries are checked against: the tag the entries
 // name exists.
 func valid() config.Config {
-	return config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Tags: []config.Tag{{Name: "Pinned"}}}
+	return config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Tags: []config.Tag{{Name: "Pinned"}},
+		Profiles: []config.Profile{{Name: "default", Include: []string{"*"}}}}
 }
 
 // Every setting naming a place refuses a bare name at load, saying which setting, which

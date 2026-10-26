@@ -58,7 +58,7 @@ func starterNew(backend api.Backend, display config.Display) Model {
 		display.Rail.Order = cfg.Display.Rail.Order
 	}
 	cfg.Display = display
-	return New(context.Background(), backend, display).WithConfigFile("", cfg)
+	return New(context.Background(), backend, display).WithConfigFile("", asStarted(cfg))
 }
 
 // starterView is view with the starter config's tags.
@@ -82,4 +82,16 @@ func threeTags(t testing.TB) unreadView {
 		t.Fatal(err)
 	}
 	return unreadView{tags: tags}
+}
+
+// asStarted is cfg with the starter config's profile, unless cfg writes its own.
+func asStarted(cfg config.Config) config.Config {
+	started, err := starterOnce()
+	if err != nil {
+		panic(err)
+	}
+	if len(cfg.Profiles) == 0 {
+		cfg.Profiles = started.Profiles
+	}
+	return cfg
 }

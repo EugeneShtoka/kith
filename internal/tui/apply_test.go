@@ -23,7 +23,7 @@ func TestNewDerivesWhatApplyConfigDerives(t *testing.T) {
 
 	// The same display, arriving as a settings change instead of at startup.
 	changed, _ := attaching(t)
-	applied, _ := changed.applyConfig(config.Config{Display: display}, "ok")
+	applied, _ := changed.applyConfig(config.Config{Profiles: starter(t).Profiles, Display: display}, "ok")
 	after := applied
 
 	if got, want := fresh.prefs.roomAliases, after.prefs.roomAliases; len(got) != len(want) || got[mx+"!a:x"] != want[mx+"!a:x"] {

@@ -20,9 +20,8 @@ func TestOnlyTheFirstProfileNotifies(t *testing.T) {
 		// in are the rooms that notify, of dmRoom, chatRm and stranger.
 		in []domain.RoomID
 	}{
-		"no profile is every room": {nil, []domain.RoomID{dmRoom, chatRm, stranger}},
-		"an empty include is every room": {
-			[]config.Profile{{Name: "all"}}, []domain.RoomID{dmRoom, chatRm, stranger},
+		"* is every room": {
+			[]config.Profile{{Name: "all", Include: []string{"*"}}}, []domain.RoomID{dmRoom, chatRm, stranger},
 		},
 		"a kind of room": {[]config.Profile{{Name: "p", Include: []string{"dm"}}}, []domain.RoomID{dmRoom}},
 		"a space":        {[]config.Profile{{Name: "p", Include: []string{spaceEntry}}}, []domain.RoomID{chatRm}},
@@ -35,7 +34,7 @@ func TestOnlyTheFirstProfileNotifies(t *testing.T) {
 			[]config.Profile{{Name: "p", Include: []string{"protocol:matrix"}, Exclude: []string{spaceEntry}}},
 			[]domain.RoomID{dmRoom, stranger},
 		},
-		"exclude alone": {[]config.Profile{{Name: "p", Exclude: []string{"dm"}}}, []domain.RoomID{chatRm, stranger}},
+		"all but one kind": {[]config.Profile{{Name: "p", Include: []string{"*"}, Exclude: []string{"dm"}}}, []domain.RoomID{chatRm, stranger}},
 		"only the first counts": {
 			[]config.Profile{{Name: "p", Include: []string{"dm"}}, {Name: "q", Include: []string{spaceEntry}}},
 			[]domain.RoomID{dmRoom},
@@ -73,7 +72,7 @@ func TestAReloadedProfileNotifiesAtOnce(t *testing.T) {
 		t.Fatal("a room outside the profile notified")
 	}
 	cfg.Profiles = nil
-	if err := n.Reload(cfg); err != nil {
+	if err := n.Reload(asStarted(cfg)); err != nil {
 		t.Fatal(err)
 	}
 	if _, notified := n.Deliver(ctx, msg(chatRm, alice, "hi")); !notified {

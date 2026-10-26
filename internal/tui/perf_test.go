@@ -235,7 +235,7 @@ func benchRealisticRoomList() Model {
 			cfg.Tags[i].Picked = archived
 		}
 	}
-	m = m.WithConfigFile("", cfg)
+	m = m.WithConfigFile("", asStarted(cfg))
 	m.width, m.height, m.ready = 200, 50, true
 	m.focus = paneRooms
 	m.rooms = m.rooms.withJoined(rooms)

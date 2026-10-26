@@ -19,7 +19,7 @@ func starterRail(t *testing.T) Model {
 			cfg.Tags[i].Picked = []string{mx + "!old:x"}
 		}
 	}
-	m = m.WithConfigFile("", cfg)
+	m = m.WithConfigFile("", asStarted(cfg))
 	m = update(t, m, roomsMsg{rooms: []domain.Room{
 		{ID: mx + "!r:x", Name: "Room"}, {ID: mx + "!old:x", Name: "Old"},
 		{ID: mx + "!i:x", Name: "Invited", Membership: domain.MembershipInvite},

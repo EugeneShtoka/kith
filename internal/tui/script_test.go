@@ -28,7 +28,7 @@ func withContext(t *testing.T, name, body string, script config.Command, msgs ..
 	m, _ := attaching(t)
 	script.Name = name
 	cfg := config.Config{Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: []config.Command{script}}
-	m = m.WithConfigFile(filepath.Join(home, "config.toml"), cfg).keptIn()
+	m = m.WithConfigFile(filepath.Join(home, "config.toml"), asStarted(cfg)).keptIn()
 	if len(msgs) > 0 {
 		m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: msgs}})
 	}

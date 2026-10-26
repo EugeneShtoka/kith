@@ -23,7 +23,7 @@ import (
 func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Notifications: notifs, Tags: starter(t).Tags}
+	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Notifications: notifs, Tags: starter(t).Tags, Profiles: starter(t).Profiles}
 	base.Keys.FillDefaults()
 	if err := config.Save(path, base); err != nil {
 		t.Fatalf("seed config: %v", err)
@@ -33,7 +33,7 @@ func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!standup:x"}},
 	}})
-	m = sized(t, m).WithConfigFile(path, base).keptIn()
+	m = sized(t, m).WithConfigFile(path, asStarted(base)).keptIn()
 	// Install the rules as startup does, so the status line describes the real ones.
 	rules, err := setup.NotificationRules(notifs)
 	if err != nil {

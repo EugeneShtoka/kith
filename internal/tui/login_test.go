@@ -97,7 +97,7 @@ func loggingIn(t *testing.T, d *loginDaemon, change func(*config.Config)) Model 
 	if change != nil {
 		change(&cfg)
 	}
-	m := New(context.Background(), d, cfg.Display).WithConfigFile("", cfg).WithRestart(d.restart)
+	m := New(context.Background(), d, cfg.Display).WithConfigFile("", asStarted(cfg)).WithRestart(d.restart)
 	return update(t, m, tea.WindowSizeMsg{Width: 160, Height: 40})
 }
 

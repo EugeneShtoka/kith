@@ -131,7 +131,7 @@ func TestNoChangeLandsOverOneItWasNotMadeOn(t *testing.T) {
 func TestAConfigChangedElsewhereIsRunHere(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}}
+	base := asStarted(config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}})
 	if err := config.Save(path, base); err != nil {
 		t.Fatal(err)
 	}

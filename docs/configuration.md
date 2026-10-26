@@ -95,10 +95,15 @@ side, and a second window in a profile already open is refused, as is switching 
 one. A link clicked on the desktop (`kith --open`) goes to one window: the one with
 the link's chat open, else the one used last whose profile holds it, else the one used
 last. kithd's desktop notifications follow the first too: a room outside it never
-notifies, whatever the [rules](notifications.md#rules) say. A config with no
-`[[profile]]` has one, `default`, holding every room.
+notifies, whatever the [rules](notifications.md#rules) say.
+
+A config has at least one profile; the starter writes `default`, holding every room:
 
 ```toml
+[[profile]]
+name    = "default"
+include = ["*"]
+
 [[profile]]
 name    = "work"
 include = ["space:Work", "protocol:slack"]
@@ -106,7 +111,8 @@ exclude = ["tag:Archived"]
 ```
 
 `include` and `exclude` take places, as the other room lists do
-([below](#sections)); an empty `include` is every room, and `exclude` wins. A tag
+([below](#sections)), and `"*"` in `include` is every room; `include` names at
+least one, and `exclude` wins. A tag
 whose rule reads a room's state (`unread`, `mention`, `draft`, `invite`, itself or
 through a tag it names) is refused there: a room would enter and leave the profile
 as it is read. Names are unique, in any case.

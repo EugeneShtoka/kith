@@ -62,7 +62,7 @@ func servedFor(t *testing.T, cfg config.Config, saved domain.Session) served {
 // wait for.
 func TestADaemonWithoutMatrixServes(t *testing.T) {
 	t.Parallel()
-	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+44 7700 900001"}}}}
+	cfg := config.Config{Profiles: everyRoom, WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+44 7700 900001"}}}}
 	backend := servedFor(t, cfg, domain.Session{})
 	if n := backend.matrix.LoginNetwork(); len(n.Accounts) != 0 || backend.matrix.LoggedIn() {
 		t.Errorf("Matrix without an account in the config = %+v, logged in %v; want no account", n, backend.matrix.LoggedIn())
@@ -84,7 +84,7 @@ func TestADaemonWithoutMatrixServes(t *testing.T) {
 func TestAReloadThatHidesSomeoneRecountsTheirRooms(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}}}
+	cfg := config.Config{Profiles: everyRoom, WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}}}
 	backend := servedFor(t, cfg, domain.Session{})
 	const room domain.RoomID = "whatsapp:15550000001/120363@g.us"
 	start := time.Unix(1_700_000_000, 0)
@@ -124,6 +124,7 @@ func TestAMarkThroughTheDaemonHidesThePerson(t *testing.T) {
 	ctx := context.Background()
 	muted := false
 	cfg := config.Config{
+		Profiles: everyRoom,
 		WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}},
 		Tags:     []config.Tag{{Name: "Spam", Notifies: &muted}},
 	}
@@ -159,6 +160,7 @@ func TestAFilterMarksASenderThroughTheDaemon(t *testing.T) {
 	ctx := context.Background()
 	muted := false
 	cfg := config.Config{
+		Profiles: everyRoom,
 		WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}},
 		Tags:     []config.Tag{{Name: "Spam", Notifies: &muted}},
 		Filters:  []config.Filter{{Name: "crypto", Tag: "Spam", Words: []string{"*bitcoin*"}, Moves: []string{config.FilterMoveSenderFirst}}},
@@ -193,7 +195,7 @@ func TestAFilterMarksASenderThroughTheDaemon(t *testing.T) {
 func TestHidingSomeoneMovesTheirDirectMessage(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	cfg := config.Config{WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}}}
+	cfg := config.Config{Profiles: everyRoom, WhatsApp: config.WhatsApp{Accounts: []config.WhatsAppAccount{{Name: "home", Phone: "+1 555 000 0001"}}}}
 	backend := servedFor(t, cfg, domain.Session{})
 	w, werr := newWorkers(slog.New(slog.DiscardHandler), cfg, backend)
 	if werr != nil {
@@ -316,11 +318,11 @@ func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 	t.Parallel()
 	backend := servedFor(t, config.Config{}, domain.Session{})
 	ctx := context.Background()
-	if err := backend.checkConfig(ctx, config.Config{}); err != nil {
+	if err := backend.checkConfig(ctx, config.Config{Profiles: everyRoom}); err != nil {
 		t.Fatalf("an empty config: %v", err)
 	}
 	for _, n := range (config.Config{}).Networks() {
-		var cfg config.Config
+		cfg := config.Config{Profiles: everyRoom}
 		if err := cfg.Write(n.Table(), map[string]string{"name": ""}); err != nil {
 			t.Fatal(err)
 		}
@@ -392,6 +394,7 @@ func TestAFilterMovesAnSMSRoomThroughTheDaemon(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cfg := config.Config{
+		Profiles:  everyRoom,
 		GMessages: config.GMessages{Accounts: []config.GMessagesAccount{{Name: "SMS"}}},
 		Tags:      []config.Tag{{Name: "Spam"}},
 		Filters:   []config.Filter{{Name: "politics", Tag: "Spam", Words: []string{"*election*"}, Moves: []string{config.FilterMoveAlways}}},
@@ -414,3 +417,6 @@ func TestAFilterMovesAnSMSRoomThroughTheDaemon(t *testing.T) {
 		t.Errorf("kept moves = %+v (%v), want the SMS room's", moves, err)
 	}
 }
+
+// everyRoom is the profile the starter config writes.
+var everyRoom = []config.Profile{{Name: "default", Include: []string{"*"}}}

@@ -90,7 +90,7 @@ func danaSays(n int) []domain.Message {
 func saidModel(t *testing.T, b *saidBackend, cfg config.Config) Model {
 	t.Helper()
 	cfg.Display.Identities = append(cfg.Display.Identities, config.Identity{Alias: "Dana", IDs: []string{danaMatrix, danaWhatsApp}})
-	m := New(context.Background(), b, cfg.Display).WithConfigFile("", cfg)
+	m := New(context.Background(), b, cfg.Display).WithConfigFile("", asStarted(cfg))
 	m = sized(t, withRooms(t, m))
 	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next.setMessages([]domain.Message{
@@ -231,7 +231,7 @@ func TestEverythingAHiddenPersonSaidIsShownMarked(t *testing.T) {
 
 	off := false
 	b := &saidBackend{msgs: danaSays(2)}
-	m := saidModel(t, b, config.Config{Tags: []config.Tag{{Name: "Spam", Notifies: &off, People: []string{danaWhatsApp}}}})
+	m := saidModel(t, b, config.Config{Profiles: starter(t).Profiles, Tags: []config.Tag{{Name: "Spam", Notifies: &off, People: []string{danaWhatsApp}}}})
 	m, cmd := m.openSaid(danaMatrix, "Dana")
 	m = deliver(t, m, cmd)
 	if len(m.said.msgs) != 2 {

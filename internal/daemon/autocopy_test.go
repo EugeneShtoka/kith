@@ -28,7 +28,7 @@ func autoCopyNotifier(t *testing.T, autoCopy bool, syncs int) (*daemon.Notificat
 	cfg.Codes.Include = []string{smsRoom}
 
 	rec := &recorder{}
-	n, err := daemon.NewNotifications(cfg, codeWorld(), func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(asStarted(cfg), codeWorld(), func(config.Notifications) notify.Notifier { return rec })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}

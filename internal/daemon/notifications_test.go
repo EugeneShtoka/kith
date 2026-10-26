@@ -107,7 +107,7 @@ func notifier(t *testing.T, cfg config.Config) (*daemon.Notifications, *recorder
 	t.Helper()
 
 	src, rec := world(), &recorder{}
-	n, err := daemon.NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(asStarted(cfg), src, func(config.Notifications) notify.Notifier { return rec })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
@@ -271,13 +271,13 @@ func TestReloadReplacesThePolicy(t *testing.T) {
 	if _, ok := n.Deliver(context.Background(), msg(chatRm, alice, "hi")); ok {
 		t.Fatal("level none should notify about nothing")
 	}
-	if err := n.Reload(notifsOn("all")); err != nil {
+	if err := n.Reload(asStarted(notifsOn("all"))); err != nil {
 		t.Fatalf("Reload: %v", err)
 	}
 	if _, ok := n.Deliver(context.Background(), msg(chatRm, alice, "hi")); !ok {
 		t.Error("the reloaded policy should be the one that decides")
 	}
-	err := n.Reload(notifsOn("mentions")) // not a level: the spelling is "mention"
+	err := n.Reload(asStarted(notifsOn("mentions"))) // not a level: the spelling is "mention"
 	if err == nil || !strings.Contains(err.Error(), "show") {
 		t.Fatalf("Reload(bad) = %v, want a refusal naming the key", err)
 	}
@@ -297,7 +297,7 @@ func TestNewNotificationsRefusesABadConfig(t *testing.T) {
 		"show":        notifsOn("everything"),
 		"rate_window": badWindow,
 	} {
-		_, err := daemon.NewNotifications(cfg, world(), func(config.Notifications) notify.Notifier { return notify.Nop{} })
+		_, err := daemon.NewNotifications(asStarted(cfg), world(), func(config.Notifications) notify.Notifier { return notify.Nop{} })
 		if err == nil || !strings.Contains(err.Error(), key) {
 			t.Errorf("NewNotifications() = %v, want a refusal naming %s", err, key)
 		}
@@ -449,7 +449,7 @@ func TestCatchUpDoesNotNotify(t *testing.T) {
 	t.Parallel()
 
 	src, rec := world(), &recorder{}
-	n, err := daemon.NewNotifications(notifsOn("all"), src,
+	n, err := daemon.NewNotifications(asStarted(notifsOn("all")), src,
 		func(config.Notifications) notify.Notifier { return rec })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
@@ -492,7 +492,7 @@ func TestEachAccountHasItsOwnCatchUp(t *testing.T) {
 	for seed := range uint64(40) {
 		rng := rand.New(rand.NewPCG(seed, 5))
 		rec := &recorder{}
-		n, err := daemon.NewNotifications(notifsOn("all"), &scopeBackend{rooms: rooms},
+		n, err := daemon.NewNotifications(asStarted(notifsOn("all")), &scopeBackend{rooms: rooms},
 			func(config.Notifications) notify.Notifier { return rec })
 		if err != nil {
 			t.Fatal(err)
@@ -635,7 +635,7 @@ func TestAThreadRuleAsksWhetherWeAreInTheConversation(t *testing.T) {
 	)
 	src, rec := world(), &recorder{}
 	src.inThreads = map[domain.EventID]bool{mx + "$mine": true}
-	n, err := daemon.NewNotifications(cfg, src, func(config.Notifications) notify.Notifier { return rec })
+	n, err := daemon.NewNotifications(asStarted(cfg), src, func(config.Notifications) notify.Notifier { return rec })
 	if err != nil {
 		t.Fatalf("NewNotifications: %v", err)
 	}
@@ -882,7 +882,7 @@ func TestNotificationsWriteTheChosenClock(t *testing.T) {
 	n.Deliver(context.Background(), m)
 
 	cfg.Display.TimeFormat, cfg.Display.ShortDateFormat = "24h", "MM/DD/YY"
-	if err := n.Reload(cfg); err != nil {
+	if err := n.Reload(asStarted(cfg)); err != nil {
 		t.Fatal(err)
 	}
 	m.ID = mx + "$2"
@@ -900,7 +900,7 @@ func TestNotificationsWriteTheChosenClock(t *testing.T) {
 
 	bad := notifsOn("all")
 	bad.Display.LongDateFormat = "YYY"
-	if _, err := daemon.NewNotifications(bad, world(), func(config.Notifications) notify.Notifier { return notify.Nop{} }); err == nil ||
+	if _, err := daemon.NewNotifications(asStarted(bad), world(), func(config.Notifications) notify.Notifier { return notify.Nop{} }); err == nil ||
 		!strings.Contains(err.Error(), "long_date_format") {
 		t.Errorf("NewNotifications() = %v, want a refusal naming long_date_format", err)
 	}
@@ -923,7 +923,7 @@ func TestNotificationsNamePeopleAsTheTimelineDoes(t *testing.T) {
 	n.Deliver(context.Background(), m)
 
 	cfg.Display.SpaceRules = []config.SpaceRule{{Space: "space:" + space, FirstNameOnly: true}}
-	if err := n.Reload(cfg); err != nil {
+	if err := n.Reload(asStarted(cfg)); err != nil {
 		t.Fatal(err)
 	}
 	m.ID = mx + "$2"
@@ -960,4 +960,13 @@ func TestANotificationNamesPeopleAsTheRoomNamesThemNow(t *testing.T) {
 	if len(sent) != 1 || sent[0].Sender != "Alice Renamed" || sent[0].Body != "@Bo New, standup moved" {
 		t.Fatalf("sent %+v, want Alice Renamed saying \"@Bo New, standup moved\"", sent)
 	}
+}
+
+// asStarted is cfg with the profile the starter config writes, every room, unless cfg
+// writes its own.
+func asStarted(cfg config.Config) config.Config {
+	if len(cfg.Profiles) == 0 {
+		cfg.Profiles = []config.Profile{{Name: "default", Include: []string{"*"}}}
+	}
+	return cfg
 }
