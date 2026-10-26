@@ -53,8 +53,10 @@ type Remote struct {
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
-	// leaveSeat ends the seat stream; Stop calls it.
+	// leaveSeat ends the seat stream; Stop calls it. where is this window's whereabouts,
+	// asked for again when a switch moves the seat.
 	leaveSeat context.CancelFunc
+	where     domain.SeatHolder
 	started   bool
 	stopped   bool
 	// attempt is the streams' current attachment, opened in one profile; begun closes

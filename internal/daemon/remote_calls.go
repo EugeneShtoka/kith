@@ -898,3 +898,10 @@ func (r *Remote) Follow(ctx context.Context, uri string) (bool, error) {
 	resp, err := call(ctx, "follow", r.c.Follow, &v1.FollowRequest{Uri: uri})
 	return resp.GetDelivered(), err
 }
+
+// Present tells the daemon the room this window has open ("" none) and that it was
+// used just now, which Follow picks a window by.
+func (r *Remote) Present(ctx context.Context, open domain.RoomID) error {
+	_, err := call(ctx, "present", r.c.Present, &v1.PresentRequest{Client: r.client, OpenRoomId: string(open)})
+	return err
+}

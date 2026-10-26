@@ -28,7 +28,8 @@ type server struct {
 	// lifetime is the daemon's context, for committed work that must outlive the
 	// request; nil falls back to the request's.
 	lifetime context.Context //nolint:containedctx // the process's lifetime, deliberately held
-	seat     *seat
+	// seats are the windows: who sits in each profile, and who listens for links.
+	seats *seats
 }
 
 var _ backendv1connect.BackendServiceHandler = (*server)(nil)
@@ -510,7 +511,7 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 	draft := pc.ProtoToStoredDraft(r.Msg.GetDraft())
 	var saved bool
 	var wrote error
-	err := s.seat.write(r.Msg.GetClient(), func() error {
+	err := s.seats.write(s.requestProfile(ctx), r.Msg.GetClient(), func() error {
 		saved, wrote = s.Backend.ReplaceDraft(ctx, draft, pc.ProtoToStoredDraft(r.Msg.GetOver()))
 		return nil
 	})
@@ -556,19 +557,19 @@ func (s *server) CancelLogin(ctx context.Context, r *req[v1.CancelLoginRequest])
 	return reply(&v1.CancelLoginResponse{}, s.Logins.CancelLogin(ctx, r.Msg.GetLogin()))
 }
 
-// Seat gives the caller the seat while the stream is open, or says who has it.
+// Seat gives the caller the seat of the profile it runs in while the stream is open,
+// or says who has it.
 func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.ServerStream[v1.SeatResponse]) error {
-	sat, err := s.seat.take(ctx, r.Msg.GetClient(), r.Msg.GetForce(), pc.ProtoToSeatHolder(r.Msg.GetWhere()))
+	profile := s.requestProfile(ctx)
+	sat, err := s.seats.take(ctx, profile, r.Msg.GetClient(), r.Msg.GetForce(), pc.ProtoToSeatHolder(r.Msg.GetWhere()))
 	if errors.Is(err, api.ErrSeatTaken) {
-		s.seat.mu.Lock()
-		other := s.seat.where
-		s.seat.mu.Unlock()
+		other := s.seats.holderOf(profile)
 		return sendFrame(st, &v1.SeatResponse{Event: &v1.SeatResponse_Taken{Taken: pc.SeatHolderToProto(other)}})
 	}
 	if err != nil {
 		return rpcErr(err)
 	}
-	defer s.seat.leave(sat)
+	defer s.seats.leave(sat)
 	if err := sendFrame(st, &v1.SeatResponse{Event: &v1.SeatResponse_Granted{Granted: true}}); err != nil {
 		return err
 	}
@@ -663,27 +664,58 @@ func (s *server) Messages(ctx context.Context, _ *req[v1.MessagesRequest], st *c
 	})
 }
 
-// Follow hands a link to the seated window, now if it listens, else when its link
-// stream opens. Delivered is false only with no window; `kith --open` then starts one.
-func (s *server) Follow(_ context.Context, r *req[v1.FollowRequest]) (*resp[v1.FollowResponse], error) {
+// Follow hands a link to one window (seats.follow), now if it listens, else when its
+// link stream opens. The link's chat is looked for among the cached rooms; one not
+// found (an alias, an invite) goes to the window used last. Delivered is false only
+// with no window; `kith --open` then starts one.
+func (s *server) Follow(ctx context.Context, r *req[v1.FollowRequest]) (*resp[v1.FollowResponse], error) {
 	uri := r.Msg.GetUri()
-	delivered := s.Streams.Follow(uri) || s.seat.keepLink(uri)
-	return connect.NewResponse(&v1.FollowResponse{Delivered: delivered}), nil
+	rooms, err := s.Backend.Rooms(ctx)
+	if err != nil {
+		s.Log.Warn("follow a link: read the rooms failed; it goes to the window used last", "err", err)
+	}
+	found := domain.LinkedRooms(uri, rooms)
+	linked := make([]domain.RoomID, len(found))
+	for i := range found {
+		linked[i] = found[i].ID
+	}
+	holds := func(profile string, room domain.RoomID) bool {
+		p, err := s.Notifications.Profile(profile)
+		return err == nil && p.Rooms.Admits(s.Notifications.scope.Facts(ctx, room))
+	}
+	return connect.NewResponse(&v1.FollowResponse{Delivered: s.seats.follow(uri, linked, holds)}), nil
+}
+
+// Present records the room a window has open and that it was used now.
+func (s *server) Present(_ context.Context, r *req[v1.PresentRequest]) (*resp[v1.PresentResponse], error) {
+	s.seats.present(r.Msg.GetClient(), roomID(r.Msg.GetOpenRoomId()), time.Now())
+	return connect.NewResponse(&v1.PresentResponse{}), nil
 }
 
 func (s *server) RoomsChanged(ctx context.Context, _ *req[v1.RoomsChangedRequest], st *connect.ServerStream[v1.RoomsChangedResponse]) error {
 	return serveStream(ctx, s.Streams.rooms, st, func(struct{}) *v1.RoomsChangedResponse { return &v1.RoomsChangedResponse{} })
 }
 
-func (s *server) FollowStream(ctx context.Context, _ *req[v1.FollowStreamRequest], st *connect.ServerStream[v1.FollowStreamResponse]) error {
-	if uri := s.seat.takeLink(); uri != "" {
-		if err := sendFrame(st, &v1.FollowStreamResponse{Uri: uri}); err != nil {
-			return err
+// FollowStream hands this window the links Follow picks it for.
+func (s *server) FollowStream(ctx context.Context, r *req[v1.FollowStreamRequest], st *connect.ServerStream[v1.FollowStreamResponse]) error {
+	wake, take, release := s.seats.listen(r.Msg.GetClient(), s.requestProfile(ctx))
+	defer release()
+	// Headers now, as serveStream sends them: the client bounds its wait for them.
+	if err := st.Send(nil); err != nil {
+		return rpcErr(fmt.Errorf("open stream: %w", err))
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-wake:
+			if uri := take(); uri != "" {
+				if err := sendFrame(st, &v1.FollowStreamResponse{Uri: uri}); err != nil {
+					return err
+				}
+			}
 		}
 	}
-	return serveStream(ctx, s.Streams.follows, st, func(uri string) *v1.FollowStreamResponse {
-		return &v1.FollowStreamResponse{Uri: uri}
-	})
 }
 
 func (s *server) ActivityStream(ctx context.Context, _ *req[v1.ActivityStreamRequest], st *connect.ServerStream[v1.ActivityStreamResponse]) error {

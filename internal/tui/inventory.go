@@ -2,7 +2,6 @@ package tui
 
 import (
 	"slices"
-	"strconv"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -110,55 +109,16 @@ func (inv inventory) byID(id domain.RoomID) (domain.Room, bool) {
 	return domain.Room{}, false
 }
 
-// telegramLink is the joined or invited Telegram chat a tg:// link names, by its
-// stored @username, or by its channel ID for a private channel: as each account in it
-// sees it.
+// telegramLink is the joined or invited Telegram chat a tg:// link names, as each
+// account in it sees it (domain.TelegramLinkRooms).
 func (inv inventory) telegramLink(link domain.TelegramLink) []domain.Room {
-	var out []domain.Room
-	for i := range inv.all {
-		r := &inv.all[i]
-		if domain.NetworkOf(string(r.ID)) != domain.ProtocolTelegram {
-			continue
-		}
-		switch link.Kind {
-		case domain.TelegramLinkUsername:
-			if r.Handle == link.Username {
-				out = append(out, *r)
-			}
-		case domain.TelegramLinkPrivateChannel:
-			parsed := domain.ParseID(string(r.ID))
-			if link.Channel != 0 && parsed.Native == "-"+telegramPrivateMark(link.Channel) {
-				out = append(out, *r)
-			}
-		case domain.TelegramLinkPhone, domain.TelegramLinkInvite, domain.TelegramLinkNone:
-			// A number or an invite names no listed chat: Telegram is asked.
-		}
-	}
-	return out
+	return domain.TelegramLinkRooms(link, inv.all)
 }
 
 // whatsAppLink is the WhatsApp chat with a link's number, as each account in it sees
-// it: its room's native ID is the number's phone JID (whatsapp/rooms.go). An invite
-// names no listed chat.
+// it (domain.WhatsAppLinkRooms).
 func (inv inventory) whatsAppLink(link domain.WhatsAppLink) []domain.Room {
-	if link.Kind != domain.WhatsAppLinkPhone {
-		return nil
-	}
-	var out []domain.Room
-	for i := range inv.all {
-		parsed := domain.ParseID(string(inv.all[i].ID))
-		if parsed.Network == domain.ProtocolWhatsApp && parsed.Native == link.Phone+"@s.whatsapp.net" {
-			out = append(out, inv.all[i])
-		}
-	}
-	return out
-}
-
-// telegramPrivateMark is a private channel's native ID without the leading minus (the
-// Bot API's "-100<id>" without the sign), matching how Telegram chats are stored
-// (telegram/rooms.go: channelMark).
-func telegramPrivateMark(channel int64) string {
-	return strconv.FormatInt(1_000_000_000_000+channel, 10)
+	return domain.WhatsAppLinkRooms(link, inv.all)
 }
 
 // removeRoom returns rooms without id; the three-index slice keeps append off the caller's

@@ -137,13 +137,7 @@ func (m Model) placeRooms(place domain.Place) []domain.Room {
 	if room, found := m.roomByID(domain.RoomID(place.Room)); found {
 		return []domain.Room{room}
 	}
-	var out []domain.Room
-	for i := range m.rooms.all {
-		if id := string(m.rooms.all[i].ID); domain.IsMatrixRoomID(id) && domain.MatrixNative(id) == place.Room {
-			out = append(out, m.rooms.all[i])
-		}
-	}
-	return out
+	return domain.MatrixPlaceRooms(place, m.rooms.all)
 }
 
 // placeUser is the person a place names, in kith's form.

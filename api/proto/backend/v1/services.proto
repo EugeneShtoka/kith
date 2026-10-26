@@ -1143,7 +1143,7 @@ message ActivityStreamResponse {
 }
 
 message FollowRequest {
-  string uri = 1; // a matrix: or matrix.to URI
+  string uri = 1; // a matrix:, matrix.to, Telegram, WhatsApp or Signal link
 }
 
 message FollowResponse {
@@ -1156,7 +1156,19 @@ message RoomsChangedRequest {}
 // RoomsChangedResponse says a network rewrote its rooms; the client reads them again.
 message RoomsChangedResponse {}
 
-message FollowStreamRequest {}
+message FollowStreamRequest {
+  // The window listening, as SeatRequest names it.
+  string client = 1;
+}
+
+message PresentRequest {
+  // The window, as SeatRequest names it.
+  string client = 1;
+  // The room it has open; "" when none is.
+  string open_room_id = 2;
+}
+
+message PresentResponse {}
 
 message FollowStreamResponse {
   string uri = 1;
@@ -1804,10 +1816,14 @@ service BackendService {
   // writer read, so neither writer (TUI, kith-mcp) drops the other's words.
   rpc ReplaceDraft(ReplaceDraftRequest) returns (ReplaceDraftResponse);
   rpc Drafts(DraftsRequest) returns (DraftsResponse);
-  // Seat is the one window the daemon serves (kith-mcp and one-shot commands take
-  // none). Opening the stream asks for it; keeping it open keeps it, and a window
-  // that closes or dies frees it. See SeatRequest.force and SeatResponse.
+  // Seat is the one window the daemon serves in a [[profile]], the one the request
+  // names (kith-mcp and one-shot commands take none). Opening the stream asks for it;
+  // keeping it open keeps it, and a window that closes or dies frees it. See
+  // SeatRequest.force and SeatResponse.
   rpc Seat(SeatRequest) returns (stream SeatResponse);
+  // Present says what a window is doing: the room it has open, and that it was used
+  // just now. Follow hands a link to a window by it.
+  rpc Present(PresentRequest) returns (PresentResponse);
   // LoginNetworks is every network the daemon can log in to, with its accounts.
   rpc LoginNetworks(LoginNetworksRequest) returns (LoginNetworksResponse);
   // BeginLogin starts logging an account in (none: setting a new one up), ending any
@@ -1840,10 +1856,11 @@ service BackendService {
   rpc Messages(MessagesRequest) returns (stream MessagesResponse);
   // Activity streams typing and other people's read receipts.
   rpc ActivityStream(ActivityStreamRequest) returns (stream ActivityStreamResponse);
-  // Follow hands a matrix URI to whichever client is attached — the desktop clicked a
-  // link, and the running TUI is what can go there.
+  // Follow hands a link to one attached window — the desktop clicked a link, and a
+  // running TUI is what can go there: the one with the link's room open, else the one
+  // used last whose profile holds it, else the one used last.
   rpc Follow(FollowRequest) returns (FollowResponse);
-  // FollowStream is the receiving end, held open by the TUI.
+  // FollowStream is the receiving end, held open by each TUI window.
   rpc FollowStream(FollowStreamRequest) returns (stream FollowStreamResponse);
   // RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
   // renamed, archived on another device), so the client reads its room list again.

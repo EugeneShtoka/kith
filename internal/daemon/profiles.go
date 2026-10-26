@@ -41,7 +41,7 @@ var reaches = map[string]profileReach{
 	"RoomsWith": narrows, "MessagesFrom": narrows, "Drafts": narrows, "ScheduledMessages": narrows,
 
 	// One room, named by the caller.
-	"MarkRead": passes, "MarkRoomsRead": passes, "MarkRoomUnread": passes, "SetRoomArchived": passes,
+	"Present": passes, "MarkRead": passes, "MarkRoomsRead": passes, "MarkRoomUnread": passes, "SetRoomArchived": passes,
 	"StarMessage": passes, "StarredIn": passes, "CanonicalParent": passes, "MarkTag": passes,
 	"AddToSpace": passes, "RemoveFromSpace": passes, "CachedTimeline": passes, "Timeline": passes,
 	"MessageHistory": passes, "FetchEvent": passes, "FetchEventSource": passes, "Send": passes,
@@ -133,7 +133,11 @@ func (p profileName) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 func (p profileName) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
 	return func(ctx context.Context, spec connect.Spec) connect.StreamingClientConn {
 		conn := next(ctx, spec)
-		if name := p.name(); name != "" {
+		name, asked := ctx.Value(seatProfileKey{}).(string)
+		if !asked {
+			name = p.name()
+		}
+		if name != "" {
 			conn.RequestHeader().Set(profileHeader, name)
 		}
 		return conn
@@ -158,6 +162,17 @@ func (n *Notifications) Profile(name string) (domain.Profile, error) {
 		}
 	}
 	return domain.Profile{}, fmt.Errorf("%w: %q", api.ErrUnknownProfile, name)
+}
+
+// requestProfile is the name of the [[profile]] the request runs in, as the config
+// spells it; profileGate admitted it.
+func (s *server) requestProfile(ctx context.Context) string {
+	name, _ := ctx.Value(profileKey{}).(string)
+	p, err := s.Notifications.Profile(name)
+	if err != nil {
+		return name // a reload took it away since: its own seat, which nothing else names
+	}
+	return p.Name
 }
 
 // within is the request's profile as a room test, read now (a stream asks per value, so

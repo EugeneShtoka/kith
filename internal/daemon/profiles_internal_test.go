@@ -41,7 +41,7 @@ func TestASwitchWaitsPastAnAttachmentAlreadyGone(t *testing.T) {
 		r.attempt = streamAttempt{profile: "work", end: func() {}, ready: closed(), ended: closed()}
 		r.begun = make(chan struct{})
 		returned := make(chan struct{})
-		go func() { defer close(returned); r.SwitchProfile("work") }()
+		go func() { defer close(returned); _ = r.SwitchProfile("work") }()
 		select {
 		case <-returned:
 			t.Fatal("the switch returned on an attachment already gone")

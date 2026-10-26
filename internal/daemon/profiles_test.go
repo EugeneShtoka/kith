@@ -604,7 +604,7 @@ func TestSwitchingProfilesMovesEveryStream(t *testing.T) {
 		t.Fatal(err)
 	}
 	client := h.client()
-	client.SwitchProfile("direct") // before Start: names it only
+	_ = client.SwitchProfile("direct") // before Start: names it only
 	ctx := t.Context()
 	go func() { _ = client.Start(ctx) }()
 	defer client.Stop()
@@ -626,7 +626,7 @@ func TestSwitchingProfilesMovesEveryStream(t *testing.T) {
 		var wg sync.WaitGroup
 		for range 1 + rng.IntN(3) { // one switch, or several racing, back and forth
 			to := profiles[rng.IntN(len(profiles))]
-			wg.Go(func() { client.SwitchProfile(to) })
+			wg.Go(func() { _ = client.SwitchProfile(to) })
 		}
 		if rng.IntN(2) == 0 { // unread in flight while the streams move
 			w.Unreads <- domain.Unread{RoomID: idsOf(w.held())[rng.IntN(3)], Messages: 1}
@@ -639,7 +639,7 @@ func TestSwitchingProfilesMovesEveryStream(t *testing.T) {
 	go func() { _ = stopping.Start(ctx) }()
 	h.waitAttached(2)
 	done := make(chan struct{})
-	go func() { defer close(done); stopping.SwitchProfile("telegram") }()
+	go func() { defer close(done); _ = stopping.SwitchProfile("telegram") }()
 	stopping.Stop()
 	select {
 	case <-done:
@@ -682,4 +682,128 @@ func checkStreamsIn(t *testing.T, what string, client *daemon.Remote, w *profile
 	if got := slices.Sorted(maps.Keys(seen)); !slices.Equal(got, want) {
 		t.Errorf("%s: the unread stream gave %v, want %v", what, got, want)
 	}
+}
+
+// profiledServe serves b with these profiles.
+func profiledServe(t *testing.T, b api.Backend, profiles ...config.Profile) *harness {
+	t.Helper()
+	n, err := daemon.NewNotifications(config.Config{Profiles: profiles}, scopeOnly{b},
+		func(config.Notifications) notify.Notifier { return notify.Nop{} })
+	if err != nil {
+		t.Fatal(err)
+	}
+	return serve(t, b, func(d *daemon.Daemon) { d.Notifications = n })
+}
+
+// windowIn is a window of h running in profile that asked for its seat.
+func windowIn(t *testing.T, h *harness, profile string, pid int) (*daemon.Remote, error) {
+	t.Helper()
+	r := h.client()
+	r.UseProfile(profile)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { r.Stop(); cancel() })
+	err := r.TakeSeat(ctx, false, domain.SeatHolder{PID: pid, TTY: "/dev/pts/7"})
+	return r, err
+}
+
+// Each profile has a window of its own: a second in the same profile, in any case, is
+// refused and told where the first is; one in another profile sits beside it.
+func TestEachProfileHasItsOwnWindow(t *testing.T) {
+	t.Parallel()
+	h := profiledServe(t, &draftStore{}, config.Profile{Name: "work"}, config.Profile{Name: "home"})
+	if _, err := windowIn(t, h, "work", 101); err != nil {
+		t.Fatalf("work's window: %v", err)
+	}
+	if _, err := windowIn(t, h, "home", 202); err != nil {
+		t.Errorf("home's window beside work's: %v", err)
+	}
+	_, err := windowIn(t, h, "WORK", 303)
+	if !errors.Is(err, api.ErrSeatTaken) || !strings.Contains(err.Error(), "pid 101") {
+		t.Errorf("a second window in work = %v, want refused naming pid 101", err)
+	}
+}
+
+// A window switching to a profile another window runs in is refused and stays where it
+// was; to a free one, it takes that seat and leaves its old one free. Its draft writes
+// count in the profile it runs in.
+func TestASwitchMovesTheSeatOrIsRefused(t *testing.T) {
+	t.Parallel()
+	drafts := &draftStore{}
+	h := profiledServe(t, drafts, config.Profile{Name: "work"}, config.Profile{Name: "home"}, config.Profile{Name: "spare"})
+	a, err := windowIn(t, h, "work", 101)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := windowIn(t, h, "home", 202); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SwitchProfile("home"); !errors.Is(err, api.ErrSeatTaken) {
+		t.Fatalf("switching into home's window = %v, want ErrSeatTaken", err)
+	}
+	if _, err := windowIn(t, h, "work", 303); !errors.Is(err, api.ErrSeatTaken) {
+		t.Errorf("after the refused switch, work = %v; want it still a's", err)
+	}
+	if err := a.SwitchProfile("spare"); err != nil {
+		t.Fatalf("switching to spare: %v", err)
+	}
+	waitFor(t, func() bool { _, err := windowIn(t, h, "work", 303); return err == nil })
+	if _, err := windowIn(t, h, "spare", 404); !errors.Is(err, api.ErrSeatTaken) {
+		t.Errorf("a second window in spare = %v, want refused: a runs there", err)
+	}
+	draft := domain.StoredDraft{RoomID: mx + "!a:x", Body: "half"}
+	if saved, err := a.ReplaceDraft(t.Context(), draft, domain.StoredDraft{}); err != nil || !saved {
+		t.Errorf("a's draft in spare = %v, %v; want saved", saved, err)
+	}
+}
+
+// Follow resolves the link among the cached rooms and hands it by the rule: a window
+// with the room open beats one whose profile holds it, which beats the one used last; a
+// link to nothing cached goes to the one used last.
+func TestFollowHandsALinkToTheWindowPlacedForIt(t *testing.T) {
+	t.Parallel()
+	dm, group := domain.RoomID(mx+"!dm:x"), domain.RoomID(mx+"!group:x")
+	w := &profileWorld{Nop: nopWithChannels()}
+	w.set([]domain.Room{{ID: dm, IsDirect: true}, {ID: group}}, nil, nil)
+	h := profiledServe(t, w, config.Profile{Name: "direct", Include: []string{"dm"}}, config.Profile{Name: "groups", Include: []string{"group"}})
+	ctx := t.Context()
+	open := func(profile string) *daemon.Remote {
+		r := h.client()
+		r.UseProfile(profile)
+		go func() { _ = r.Start(ctx) }()
+		t.Cleanup(r.Stop)
+		return r
+	}
+	direct, groups := open("direct"), open("groups")
+	h.waitAttached(2)
+	// A switch to the profile it runs in returns once every stream is subscribed.
+	for profile, r := range map[string]*daemon.Remote{"direct": direct, "groups": groups} {
+		if err := r.SwitchProfile(profile); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := groups.Present(ctx, ""); err != nil { // groups was used last
+		t.Fatal(err)
+	}
+	follow := func(uri string, want *daemon.Remote) {
+		t.Helper()
+		waitFor(t, func() bool { delivered, err := groups.Follow(ctx, uri); return err == nil && delivered })
+		for _, r := range []*daemon.Remote{direct, groups} {
+			select {
+			case got := <-r.Follows():
+				if r != want {
+					t.Errorf("%s reached the wrong window", got)
+				}
+			case <-time.After(100 * time.Millisecond):
+				if r == want {
+					t.Errorf("%s never reached its window", uri)
+				}
+			}
+		}
+	}
+	follow("matrix:roomid/dm:x", direct)               // its profile holds it
+	follow("matrix:r/somewhere:x", groups)             // nothing cached: used last
+	if err := direct.Present(ctx, group); err != nil { // direct has group open, and is used last
+		t.Fatal(err)
+	}
+	follow("matrix:roomid/group:x", direct) // open beats the profile
 }

@@ -88,7 +88,13 @@ the room list, the spaces, unread counts, invitations, drafts, scheduled message
 search hold only its rooms, and a space holding none of them is left out. A room you
 name directly (a link, a jump) still opens. Without `--profile`, kith runs in the
 first. `gP` or `:profile <name>` switches the window to another; the status line names
-the profile once there is more than one. kithd's desktop notifications follow the first too: a room outside it never
+the profile once there is more than one.
+
+Each profile has a window of its own: two terminals can run `work` and `home` side by
+side, and a second window in a profile already open is refused, as is switching into
+one. A link clicked on the desktop (`kith --open`) goes to one window: the one with
+the link's chat open, else the one used last whose profile holds it, else the one used
+last. kithd's desktop notifications follow the first too: a room outside it never
 notifies, whatever the [rules](notifications.md#rules) say. A config with no
 `[[profile]]` has one, `default`, holding every room.
 

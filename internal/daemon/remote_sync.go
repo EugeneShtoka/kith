@@ -148,12 +148,29 @@ func (r *Remote) switched(attempt streamAttempt) bool {
 }
 
 // SwitchProfile runs every request from now on in the named [[profile]] and
-// re-subscribes every stream in it. It returns once streams opened in another profile
-// have ended, what the narrowed ones (unread, invitations) still held is dropped, and
-// the daemon has subscribed every stream in the new one, so a read the caller makes
+// re-subscribes every stream in it. A seated window first takes the new profile's seat,
+// and is refused (ErrSeatTaken, nothing changed) when another window sits there; it
+// leaves the old one last. It returns once streams opened in another profile have
+// ended, what the narrowed ones (unread, invitations) still held is dropped, and the
+// daemon has subscribed every stream in the new one, so a read the caller makes
 // afterwards misses nothing; or once the streams stop for good. Before Start it only
 // names the profile.
-func (r *Remote) SwitchProfile(name string) {
+func (r *Remote) SwitchProfile(name string) error {
+	r.mu.Lock()
+	leaveOld, where := r.leaveSeat, r.where
+	r.mu.Unlock()
+	if leaveOld != nil && r.seated.Load() {
+		leaveNew, err := r.takeSeatIn(context.Background(), name, false, where)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			r.mu.Lock()
+			r.leaveSeat = leaveNew
+			r.mu.Unlock()
+			leaveOld()
+		}()
+	}
 	// Named under the lock begin takes, so an attachment is either ended here or opens
 	// in the new profile.
 	r.mu.Lock()
@@ -161,7 +178,7 @@ func (r *Remote) SwitchProfile(name string) {
 	current := r.attempt
 	r.mu.Unlock()
 	if current.end == nil {
-		return
+		return nil
 	}
 	if current.profile != name {
 		r.mu.Lock()
@@ -184,7 +201,7 @@ func (r *Remote) SwitchProfile(name string) {
 				select {
 				case <-now.ended: // ready once, gone since: wait for the next
 				default:
-					return
+					return nil
 				}
 			case <-now.ended: // before it was ready: wait for the next
 			}
@@ -192,7 +209,7 @@ func (r *Remote) SwitchProfile(name string) {
 		select {
 		case <-begun:
 		case <-r.over:
-			return
+			return nil
 		}
 	}
 }
@@ -314,7 +331,7 @@ func (r *Remote) attach(ctx context.Context, detach context.CancelFunc, ready ch
 				func(*v1.RoomsChangedResponse) (struct{}, bool) { return struct{}{}, true })
 		},
 		func(ctx context.Context) error {
-			return pumpStream(ctx, "follows", r.follows, r.c.FollowStream, &v1.FollowStreamRequest{},
+			return pumpStream(ctx, "follows", r.follows, r.c.FollowStream, &v1.FollowStreamRequest{Client: r.client},
 				func(f *v1.FollowStreamResponse) (string, bool) {
 					return f.GetUri(), f.GetUri() != ""
 				})

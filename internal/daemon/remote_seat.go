@@ -18,9 +18,13 @@ import (
 // the daemon grants or refuses it (ErrSeatTaken naming the holder). After a daemon
 // restart the seat is asked for again without force, and lost if taken meanwhile.
 func (r *Remote) TakeSeat(ctx context.Context, force bool, where domain.SeatHolder) error {
-	// Held until Stop, after the window saved its drafts; ctx ends earlier on a signal,
-	// before the last write (tui.Run).
-	held, leave := context.WithCancel(context.WithoutCancel(ctx))
+	r.mu.Lock()
+	r.where = where
+	r.mu.Unlock()
+	leave, err := r.takeSeatIn(ctx, "", force, where)
+	if err != nil {
+		return err
+	}
 	r.mu.Lock()
 	r.leaveSeat = leave
 	stopped := r.stopped
@@ -28,16 +32,34 @@ func (r *Remote) TakeSeat(ctx context.Context, force bool, where domain.SeatHold
 	if stopped {
 		leave()
 	}
+	return nil
+}
+
+// seatProfileKey names the profile a seat is asked for in, over the one every other
+// call names: a switch takes the new profile's seat before it moves.
+type seatProfileKey struct{}
+
+// takeSeatIn asks for the seat in profile ("" the one named now) and keeps it until
+// leave, answering once the daemon grants or refuses it. Held until Stop, after the
+// window saved its drafts; ctx ends earlier on a signal, before the last write
+// (tui.Run).
+func (r *Remote) takeSeatIn(ctx context.Context, profile string, force bool, where domain.SeatHolder) (leave context.CancelFunc, err error) {
+	held, leave := context.WithCancel(context.WithoutCancel(ctx))
+	if profile != "" {
+		held = context.WithValue(held, seatProfileKey{}, profile)
+	}
 	answered := make(chan error, 1)
 	go r.keepSeat(held, force, where, answered)
 	select {
 	case err := <-answered:
-		return err
+		if err != nil {
+			leave()
+			return nil, err
+		}
+		return leave, nil
 	case <-ctx.Done():
 		leave()
-		return callErr("take the seat", ctx.Err())
-	case <-held.Done():
-		return callErr("take the seat", held.Err())
+		return nil, callErr("take the seat", ctx.Err())
 	}
 }
 
