@@ -67,10 +67,9 @@ name    = "work"
 include = ["space:Work", "protocol:slack"]
 ```
 
-- **There is always at least one profile.** The starter config writes `default`,
-  which includes every room; the last profile cannot be deleted, and a config
-  without one gets `default`. The first profile is what a device uses until it
-  picks another, and what kithd's own desktop notifications follow.
+- **There is always at least one profile, written down.** The starter config writes
+  `default` with `include = ["*"]` (every room); a config without one is refused. The
+  first profile is what a device uses until it picks another.
 - **Rooms**: `include` / `exclude` in the place vocabulary `[[filter]] in` and tag
   rules already use (`space:`, `tag:`, `place:`, `room:`, `protocol:`, `dm`,
   `group`, `not …`). Empty `include` is every room.
@@ -106,10 +105,15 @@ message matching three profiles is three publishes.
   pulls from the bridge, and renders.
 - **DND is the device's own.** A device in quiet hours ignores a wake, or
   unsubscribes for the night; the bridge never learns its schedule.
-- **Desktop.** A client that is open is already connected and is told directly.
-  With no client open, something has to subscribe: the Electron app in the tray,
-  or an ntfy desktop client. On the bridge's own machine, kithd's D-Bus sink keeps
-  notifying for the first profile.
+- **Desktop: `kith-notify`.** A small agent on each desktop (decided 2026-10-26)
+  subscribes to a list of profile topics over the bridge's own connection (the unix
+  socket, or TLS from Phase 2) and shows what arrives with the device's sink (D-Bus,
+  the command hook). It holds no rules: the bridge decided. Over that connection a
+  topic carries the whole notification, not a wake. A message in two subscribed
+  profiles arrives twice, once per topic, and the agent shows it once, by the
+  notification's ID. It also copies a code to the device's clipboard. The bridge
+  shows nothing itself and does not need D-Bus; on its own machine the same agent
+  runs over the socket. The bridge never learns which device subscribes to what.
 
 ### Where messages are kept
 
@@ -402,7 +406,9 @@ As of 2026-10-24, from each product's public site and documentation.
    and decides what is worth notifying. Rejected the same day: a per-device
    notifier process holding the rules (to keep them off a bridge on shared
    hardware, which holds every message anyway), and a per-device hidden list sent
-   to the bridge.
+   to the bridge. Decided 2026-10-26: the *showing* moves to a per-device agent,
+   `kith-notify`, which subscribes to profile topics and holds no rules, so a device
+   without a bridge is notified too.
 
 3. **Profiles, not device config.** A profile is a named setup in the bridge's
    config (rooms, people, rail, archive rules); a device picks one, and there is
@@ -455,9 +461,10 @@ As of 2026-10-24, from each product's public site and documentation.
 **Phase 0 — profiles, in-process.** Planned in
 [design-profiles.md](design-profiles.md). `[[profile]]` in the config with a
 `default`; the TUI picks one (`--profile`, and a key); the bridge answers rooms and
-unread for the profile named on the request; kithd's own notifications follow the
-first profile; one window per profile, and a clicked link goes to the right one.
-Rooms first, then people, then archive and rail. Useful at once with one bridge:
+unread for the profile named on the request; one window per profile, and a clicked
+link goes to the right one; kithd publishes each notification to its profiles'
+topics and `kith-notify` shows the topics it subscribes to. Rooms first, then
+notifications, then people, then archive and rail. Useful at once with one bridge:
 two terminals can already run different profiles.
 
 **Phase 1 — mesh CRDT skeleton and replay.**

@@ -1,6 +1,6 @@
 # Design: profiles (Phase 0 of design-clients.md)
 
-Status: planned, 2026-10-25. Phase 0 of [design-clients.md](design-clients.md), in
+Status: in progress. Planned 2026-10-25; steps 1–4 done (#340–#344). Phase 0 of [design-clients.md](design-clients.md), in
 today's kithd with one bridge; the name `[[profile]]` is free since
 [design-matrix-accounts.md](design-matrix-accounts.md).
 
@@ -39,8 +39,8 @@ include = ["space:Work", "protocol:slack"]
 ```
 
 - **There is always a profile, written down.** A config with no `[[profile]]` is
-  refused; the starter writes `default` with `include = ["*"]`. The first profile is what a client runs when it names none, and what kithd's own
-  desktop notifications follow. Names are unique and not empty.
+  refused; the starter writes `default` with `include = ["*"]`. The first profile is
+  what a client runs when it names none. Names are unique and not empty.
 - **Rooms**: `include` / `exclude` take the place vocabulary (`space:`, `tag:`,
   `place:`, `room:`, `protocol:`, room IDs, `dm`, `group`), and `"*"` in `include`
   is every room, as in a tag's rule. An empty `include` is refused; `exclude` wins. A `tag:` whose rule reads a room's state (`unread`,
@@ -133,12 +133,36 @@ link whose room is not known yet (an alias not resolved) goes by rule 3.
 - The rail, badges and Unread row narrow on their own: what they are built from
   already has.
 
+## Notifications: a topic per profile
+
+Decided 2026-10-26. kithd decides once per message whether it notifies: rules,
+filters, mutes, do-not-disturb, the rate limit and folding late ones. It then
+publishes the notification, under one ID, to the topic of every profile holding the
+room. It knows profiles, not who listens: no device, window or "open profile" is
+tracked.
+
+`kith-notify` shows them. It runs on each desktop as a user service (`kith` installs
+and starts it as it does kithd), subscribes to the topics it names
+(`--profile work --profile home`; the first profile without one), and shows each
+notification once by its ID: a message in two profiles arrives on both topics. It
+shows with the sinks kithd uses today (D-Bus, the command hook), reads the
+`[notifications]` and `[clipboard]` settings from kithd's config as the TUI reads
+its own, copies a code to its machine's clipboard, and reconnects when kithd
+restarts. kithd stops showing anything and no longer needs D-Bus.
+
+- Over the socket (and TLS in Phase 2) a topic carries the whole notification; a
+  push topic (Phase 2, for Android) carries a wake only.
+- Do-not-disturb stays in kithd for now, since the TUI toggles it there; the device's
+  own do-not-disturb (design-clients.md) comes later.
+- Not the `kith-notify` rejected on 2026-10-24, which held each device's rules; this
+  one holds none.
+
 ## Plan
 
-Each PR lands working, with no change while the config has no `[[profile]]`.
+Each PR lands working.
 
 1. **feat: `[[profile]]` in the config; kithd's notifications follow the first
-   profile.** Config, validation, the implicit `default`, the starter config, docs.
+   profile** (until step 5). Config, validation, the implicit `default`, the starter config, docs.
    `domain` gains the profile's room test over `RoomFacts`. kithd's notifications skip
    rooms outside the first profile. **Failure review** (enforces scope): a room whose
    spaces are not known yet, a tag that names a missing tag, a state word reached
@@ -158,14 +182,24 @@ Each PR lands working, with no change while the config has no `[[profile]]`.
    review** (concurrent): two windows switching profile at once, a window taking over
    while a link waits, a seat lost mid-hand-off, every exit route, drafts in a room
    both profiles show.
-5. **feat: people in a profile.** `people.exclude` with IDs and card fields; kithd
+5. **feat: kithd publishes notifications per profile; `kith-notify` shows them.**
+   The topic stream (subscribe by profile names; one notification ID across topics;
+   codes to copy ride on it), the `kith-notify` binary, its systemd unit, launchd
+   plist and Nix module, `kith` installing it. kithd's own sink stays meanwhile, so
+   nothing goes quiet. **Failure review** (concurrent, merges topics): a message in
+   two subscribed profiles, a profile removed by a reload while subscribed, kithd
+   restarting mid-stream, a folded "n new messages" replacing an earlier popup, a
+   slow agent.
+6. **feat!: kithd shows nothing itself.** Its in-process sinks and clipboard copy
+   go; the agent does both. Breaking: without `kith-notify` running nothing pops up.
+7. **feat: people in a profile.** `people.exclude` with IDs and card fields; kithd
    reads the phonebook folder (a depguard rule for it) and follows its changes; a
    hidden set per profile, applied where the shared one is (search, counts, threads,
    members, notifications, model context) and in the TUI's timeline. **Failure
    review** (enforces scope, caches counts): a card edited or removed, an identity
    linking a hidden ID to a shown one, you in an excluded card, a field value that is
    only part of a word, counts after the phonebook changes.
-6. **feat: archive and rail per profile.** `archive.rooms`, `archive.push` with the
+8. **feat: archive and rail per profile.** `archive.rooms`, `archive.push` with the
    union across profiles, `rail`. **Failure review** (caches tags, merges writers):
    the TUI's tag memo across a profile switch; two pushing profiles and `follow` in
    every order; hand filing while a push runs.
