@@ -38,6 +38,15 @@ import (
 const agentScopeTimeout = 3 * time.Second
 
 func main() {
+	if len(os.Args) > 1 {
+		if run, ok := subcommands[os.Args[1]]; ok {
+			if err := run(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "kith:", err)
+				os.Exit(1)
+			}
+			return
+		}
+	}
 	showVersion := flag.Bool("version", false, "print version information and exit")
 	configPath := flag.String("config", "", "path to config file (default: XDG config dir)")
 	logLevel := flag.String("log-level", "", "how much to log ("+logging.Levels+"); overrides $"+logging.EnvLevel+" and `[log] level`")
