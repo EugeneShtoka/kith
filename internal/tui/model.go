@@ -32,7 +32,12 @@ import (
 // timelinePageSize is how many events one scrollback fetch requests.
 const timelinePageSize = 50
 
-// maxTimelineMessages caps a full-history backfill of one room.
+// cachedPageSize is how many messages one read further back into the cache returns.
+const cachedPageSize = 2000
+
+// maxTimelineMessages caps how far a full-history backfill of one room asks the network,
+// a page of timelinePageSize per request. Pages read from the cache are local, so a
+// backfill reads the cache to its start.
 const maxTimelineMessages = 20000
 
 // pane identifies which of the three panes currently has focus.
@@ -381,6 +386,10 @@ type roomScrollback struct {
 	ready bool
 	// backfilling is set while a full-history pull walks older pages to the room start.
 	backfilling bool
+	// cached says the network has no older page, so older pages are read from the cache
+	// below the oldest loaded message: it may hold more than the network serves (a
+	// cache-only network serves none).
+	cached bool
 }
 
 // overlayTarget is what an open overlay aims at, captured by ID on open: the room list
@@ -2743,7 +2752,20 @@ func (m Model) loadOlder() (Model, tea.Cmd) {
 	}
 	m.timeline.hist.loading = true
 	m = m.doing("loading older…")
-	return m, m.loadTimelineCmd(room.ID, m.timeline.hist.token)
+	return m, m.olderPageCmd(room.ID)
+}
+
+// olderPageCmd asks for the page before what is loaded: the network's while it has one,
+// then the cache's.
+func (m Model) olderPageCmd(roomID domain.RoomID) tea.Cmd {
+	if !m.timeline.hist.cached {
+		return m.loadTimelineCmd(roomID, m.timeline.hist.token)
+	}
+	var oldest domain.EventID
+	if len(m.timeline.messages) > 0 {
+		oldest = m.timeline.messages[0].ID
+	}
+	return m.cachedOlderCmd(roomID, oldest)
 }
 
 // handleRooms applies a room list from cache or refresh, keeping the open room if it still
@@ -3250,16 +3272,25 @@ func (m Model) handleTimeline(msg timelineMsg) (Model, tea.Cmd) {
 		m = m.sayErr("history error", msg.err)
 		return m, nil
 	}
+	loaded := len(m.timeline.messages)
 	m = m.setMessages(domain.MergeMessages(m.timeline.messages, msg.page.Messages))
 	m = m.withReactions(msg.page.Reactions...)
-	m.timeline.hist.token = msg.page.Next
-	m.timeline.hist.atStart = msg.page.Next == ""
 	m.timeline.hist.ready = true
-	// During a backfill, keep pulling older pages until the start or the cap.
-	if m.timeline.hist.backfilling && !m.timeline.hist.atStart && len(m.timeline.messages) < maxTimelineMessages {
+	// The network's last page hands over to the cache; a cache page that adds nothing is
+	// the room's start.
+	if msg.fromCache {
+		m.timeline.hist.atStart = len(m.timeline.messages) == loaded
+	} else {
+		m.timeline.hist.token = msg.page.Next
+		m.timeline.hist.cached = m.timeline.hist.cached || msg.page.Next == ""
+	}
+	// During a backfill, keep pulling older pages until the start, asking the network
+	// only up to the cap.
+	if m.timeline.hist.backfilling && !m.timeline.hist.atStart &&
+		(m.timeline.hist.cached || len(m.timeline.messages) < maxTimelineMessages) {
 		m.timeline.hist.loading = true
 		m = m.doing(fmt.Sprintf("loading full history… %d messages", len(m.timeline.messages)))
-		return m, m.loadTimelineCmd(room.ID, m.timeline.hist.token)
+		return m, m.olderPageCmd(room.ID)
 	}
 	m.timeline.hist.backfilling = false
 	m = m.doing(historyStatus(len(m.timeline.messages), m.timeline.hist.atStart))

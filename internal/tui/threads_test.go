@@ -1065,7 +1065,9 @@ func TestChoosingAThreadFromTheRoomListWaitsForTheHistory(t *testing.T) {
 		t.Fatalf("pending thread = %q, want the chosen root", m.rows.opening)
 	}
 
-	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: threaded()})
+	// The backfill reads the cache past the network's last page before it settles.
+	m, cmd = asModel(m.Update(timelineMsg{roomID: mx + "!a:x", page: threaded()}))
+	m = deliver(t, m, cmd)
 	if m.thread.root != mx+"$root" {
 		t.Errorf("thread root = %q, want the history to have taken the request", m.thread.root)
 	}

@@ -164,7 +164,9 @@ func TestOpeningAThreadRowOpensTheThread(t *testing.T) {
 	if m.rows.opening != mx+"$root" {
 		t.Fatalf("openingThread = %q, want the row's thread held until the history lands", m.rows.opening)
 	}
-	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: threaded()})
+	// The backfill reads the cache past the network's last page before it settles.
+	m, cmd := asModel(m.Update(timelineMsg{roomID: mx + "!a:x", page: threaded()}))
+	m = deliver(t, m, cmd)
 	if m.thread.root != mx+"$root" {
 		t.Errorf("thread root = %q, want the row's thread once the history landed", m.thread.root)
 	}
