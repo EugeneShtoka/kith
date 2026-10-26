@@ -279,6 +279,7 @@ arch-quick:
 	bash scripts/depguard-coverage-check.sh
 	bash scripts/deps-check.sh
 	go run scripts/testonly.go
+	go run scripts/durationcheck.go
 
 # The plain and templated units must configure the same sandbox.
 unit-check:
