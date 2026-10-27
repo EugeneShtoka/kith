@@ -137,7 +137,10 @@ A tag can also change how its rooms behave elsewhere (each off unless set):
 **Copying folders.** `:import` copies an account's folders (Telegram's) into tags,
 once: the folder list shows each one with what it would do — a new tag, or how an
 existing tag would change among that account's chats — and you choose per tag before
-**Copy**. Setting an account up offers the same.
+**Copy**. Setting an account up offers the same. From the shell, `kith import telegram
+[account]` does it too, asking per folder: whether to make a new tag, and for a tag
+that differs, whether to take the app's chats, merge them in, or keep kith's (the
+default).
 
 **Editing tags in the app.** Settings (`,`) → **Places** lists your spaces and tags and
 makes a new tag; `e` on a rail row opens that place's page. A tag's page shows its
@@ -234,8 +237,8 @@ Each day has a heading; each message its time and sender (named as you know them
 full), the message it replies to, its words with their formatting, its attachment
 and its reactions; a thread's replies sit under the message that began it.
 
-To export every room at once, run `kith export` from the shell (kithd must be
-running). Each room with cached messages gets its own file, written the same way.
+To export every room at once, run `kith export` from the shell (it starts kithd if
+need be). Each room with cached messages gets its own file, written the same way.
 `--since` keeps messages from a time on (`7d`, `yesterday`, `2026-09-18`), and
 `--last` keeps each room's last N messages; you can give both. The files go into the
 folder you name, `kith export --since 2026-01-01 ~/Backups/chats`, or into a folder
@@ -243,8 +246,10 @@ for the day under `[storage] export_dir`.
 
 #### Backing up and moving to a new machine
 
-An export is for reading. To keep your history, or to take it to another machine,
-make a backup:
+An export is for reading and sharing: plain Markdown any editor opens, which kith
+cannot load back. To keep your history, or to take it to another machine, make a
+backup: one encrypted file that `kith restore` loads back. (`kith import` is neither:
+it copies Telegram folders into tags, see [Tags](#tags).)
 
 ```sh
 kith backup                      # a dated file in [storage] export_dir
@@ -280,6 +285,28 @@ open it without kith. The cache inside is encrypted as the cache on disk is, und
 made for that backup and kept in its `kith-backup.json`, so not even making the backup
 writes your history in the clear; a restore writes it under the new machine's own key.
 
+**Right after your first backup:**
+
+1. Put the `AGE-SECRET-KEY-1…` line in a password manager, or write it down, somewhere
+   other than this machine. A copy kept only on this disk is lost with the disk, and
+   with it every backup.
+2. Note the public key each backup ends with (`encrypted to your backup key age1…`). A
+   key saved to a file names its public half on its `# public key:` line, so you can
+   tell later which key a backup needs.
+
+**If you lose the key**, no backup made to it can be opened again, by kith, by `age`,
+or by anyone; there is no way back. kith also goes on using it: while
+`backup-<instance>.pub` is in `[storage] data_dir`, every backup, yours and kithd's
+daily ones, is encrypted to the lost key and is as unreadable. To start again with a
+new key, delete that file; the next `kith backup`, in a terminal, makes a new key and
+shows it once. Then make a backup at once, since the old ones stay closed.
+
+**Two different keys.** The backup key above is yours: you keep it, and a restore
+needs it. The **cache key** is another one, made by kithd and kept in the OS keyring
+(`<instance>|cache-store`, see [Encryption](encryption.md)). It encrypts the cache on
+this disk only, you never see or type it, and a restore does not need it: a new
+machine makes its own, and the restore writes the cache under that.
+
 **Daily backups.** Once the key exists, kithd makes a backup every day into
 `[storage] export_dir/backups/` and keeps the last seven; older ones are deleted, and
 only files it named itself (`kith-daily-<date>-<time>.tar.age`) are ever counted or
@@ -313,6 +340,22 @@ Pictures are added to the picture cache, which keeps any it has. Nothing is chan
 until the whole backup is read and checked, so a wrong key, a damaged file or a full
 disk leave everything as it was. A backup made by a newer kith is refused: update kith
 first.
+
+**Moving to a new machine:**
+
+1. On the old machine, make a fresh backup (`kith backup`), or take the newest daily
+   one from `[storage] export_dir/backups/`.
+2. Copy that file to the new machine, and have your backup key at hand.
+3. Install kith there ([Getting started](getting-started.md)), but restore before you
+   run `kith`: its first run writes a fresh config, which a restore then refuses to
+   replace without `--replace`. If your install started kithd already, stop it
+   (`systemctl --user stop kithd`).
+4. `kith restore <file>`, and paste the key when asked, or give it with
+   `--key-file`.
+5. Start `kith`, and log in to each account again with the `kith login` lines the
+   restore printed: a backup holds no sessions, so every network sees a new device.
+   Your history is there from the start; what arrived while you moved comes in as each
+   account logs in, as far as that network keeps it.
 
 ## Threads in the room list
 
