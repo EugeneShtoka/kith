@@ -28,18 +28,19 @@ var subcommands = map[string]func([]string) error{
 	"restore": runRestore,
 }
 
-// runBackup is `kith backup [--config path] [--no-media] [file]`: the cache, the config,
-// the local records and the pictures, in one file encrypted to the backup key, which
-// the first backup makes and shows. kithd may keep running.
+// runBackup is `kith backup [--config path] [--no-media] [--new-key] [file]`: the cache,
+// the config, the local records and the pictures, in one file encrypted to the backup
+// key, which the first backup (or --new-key) makes and shows. kithd may keep running.
 func runBackup(args []string) error {
 	fs := flag.NewFlagSet("backup", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
 	noMedia := fs.Bool("no-media", false, "leave the picture cache out")
+	renew := fs.Bool("new-key", false, "make a new backup key (when the one you have is lost), show it once, and back up to it")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: kith backup [--config path] [--no-media] [file] — your history, config, local records\n"+
-			"and pictures in one file encrypted to your backup key (default: a dated one in [storage]\n"+
-			"export_dir). The first backup makes the key and shows it once. Network sessions are not in\n"+
-			"it: after a restore, log in again.")
+		fmt.Fprintln(os.Stderr, "usage: kith backup [--config path] [--no-media] [--new-key] [file] — your history, config,\n"+
+			"local records and pictures in one file encrypted to your backup key (default: a dated one\n"+
+			"in [storage] export_dir). The first backup makes the key and shows it once; --new-key\n"+
+			"replaces a lost one. Network sessions are not in it: after a restore, log in again.")
 		fs.PrintDefaults()
 	}
 	_ = fs.Parse(args) // ExitOnError
@@ -59,7 +60,7 @@ func runBackup(args []string) error {
 	if out == "" {
 		out = filepath.Join(storage.ExportDir, "kith-backup-"+time.Now().Format("2006-01-02-1504")+".tar.age")
 	}
-	to, err := backupKey(storage)
+	to, err := backupKey(storage, *renew)
 	if err != nil {
 		return err
 	}
@@ -104,23 +105,48 @@ func printMade(made backup.Made, noMedia bool, to *backup.PublicKey) {
 		"itself: downloaded models and dictionaries.")
 }
 
-// backupKey is storage's backup key; when there is none yet, it makes one, shows its
-// private half and waits until it is kept before keeping the public half (a key whose
-// private half nobody saw would lock backups no one can open).
-func backupKey(storage domain.Storage) (*backup.PublicKey, error) {
+// errKeyKept is a --new-key the user did not confirm: the backup key stays as it was.
+var errKeyKept = errors.New("kept the backup key you have; nothing changed and nothing was backed up")
+
+// backupKey is storage's backup key. When there is none yet, or renew asks for a new
+// one, it makes one, shows its private half and waits until it is kept before keeping
+// the public half (a key whose private half nobody saw would lock backups no one can
+// open).
+func backupKey(storage domain.Storage, renew bool) (*backup.PublicKey, error) {
 	to, err := backup.LoadKey(storage)
-	if !errors.Is(err, backup.ErrNoKey) {
+	had := !errors.Is(err, backup.ErrNoKey)
+	if had && !renew {
 		return to, err //nolint:wrapcheck // backup words it
 	}
 	if !term.IsTerminal(int(os.Stdin.Fd())) { // #nosec G115 -- a file descriptor fits an int
+		if renew {
+			return nil, errors.New("`kith backup --new-key` shows the new key once: run it in a terminal")
+		}
 		return nil, errors.New("no backup key yet: run `kith backup` in a terminal once; it makes the key and shows it to you")
+	}
+	return makeKey(storage, had, bufio.NewReader(os.Stdin))
+}
+
+// makeKey makes storage's backup key from what the user answers on in. Replacing one
+// (had) is confirmed first; the new public half replaces the old only once the private
+// half is kept, so an interrupted run leaves the old key in place.
+func makeKey(storage domain.Storage, had bool, in *bufio.Reader) (*backup.PublicKey, error) {
+	if had {
+		fmt.Fprint(os.Stderr, replaceKeyText(storage))
+		line, err := in.ReadString('\n')
+		if err != nil {
+			return nil, fmt.Errorf("read the answer: %w", err)
+		}
+		if answer := strings.ToLower(strings.TrimSpace(line)); answer != "y" && answer != "yes" {
+			return nil, errKeyKept
+		}
 	}
 	id, err := backup.NewKey()
 	if err != nil {
 		return nil, err //nolint:wrapcheck // backup words it
 	}
 	fmt.Fprint(os.Stderr, newKeyText(id))
-	if err := keepKeyFile(id, bufio.NewReader(os.Stdin)); err != nil {
+	if err := keepKeyFile(id, in); err != nil {
 		return nil, err
 	}
 	if err := backup.SaveKey(storage, id.Recipient()); err != nil {
@@ -129,13 +155,24 @@ func backupKey(storage domain.Storage) (*backup.PublicKey, error) {
 	return id.Recipient(), nil
 }
 
+// replaceKeyText warns what a new backup key leaves behind, and asks.
+func replaceKeyText(storage domain.Storage) string {
+	return "This replaces your backup key. Backups made so far stay encrypted to the old key: only\n" +
+		"the old key opens them, and kith cannot re-encrypt them. kithd's daily backups switch to\n" +
+		"the new key from the next one; the older ones in " + storage.BackupsDir() + "\n" +
+		"still need the old key.\n" +
+		"Make a new backup key? [y/N]: "
+}
+
 // newKeyText shows a new backup key's private half, the one time it is shown.
 func newKeyText(id *backup.Key) string {
 	return "This is your backup key. It is the only way to open your kith backups, here or on a new\n" +
 		"machine, and kith keeps no copy of it. Keep it somewhere other than this machine: a\n" +
 		"password manager, or written down.\n\n" +
 		"    " + id.String() + "\n\n" +
-		"Every backup from now on, by hand or kithd's daily one, is encrypted to it.\n"
+		"Every backup from now on, by hand or kithd's daily one, is encrypted to it. If it is\n" +
+		"ever lost, `kith backup --new-key` makes a new one; backups made before then still\n" +
+		"need this one.\n"
 }
 
 // keepKeyFile offers to save the key to a file, until one is saved or the user says it

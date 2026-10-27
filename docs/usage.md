@@ -273,7 +273,9 @@ password manager, or written down.
 
     AGE-SECRET-KEY-1…
 
-Every backup from now on, by hand or kithd's daily one, is encrypted to it.
+Every backup from now on, by hand or kithd's daily one, is encrypted to it. If it is
+ever lost, `kith backup --new-key` makes a new one; backups made before then still
+need this one.
 Save it to a file too? Type a path, or press Enter once you have kept it:
 ```
 
@@ -297,9 +299,14 @@ writes your history in the clear; a restore writes it under the new machine's ow
 **If you lose the key**, no backup made to it can be opened again, by kith, by `age`,
 or by anyone; there is no way back. kith also goes on using it: while
 `backup-<instance>.pub` is in `[storage] data_dir`, every backup, yours and kithd's
-daily ones, is encrypted to the lost key and is as unreadable. To start again with a
-new key, delete that file; the next `kith backup`, in a terminal, makes a new key and
-shows it once. Then make a backup at once, since the old ones stay closed.
+daily ones, is encrypted to the lost key and is as unreadable. To start again, run
+`kith backup --new-key` in a terminal. It warns that backups made so far stay
+encrypted to the old key, which kith cannot change, and asks before going on; then it
+makes a new key, shows it once as the first backup did, and backs up to it. The old
+key stays in place until you have kept the new one, so a run you stop changes nothing.
+kithd's daily backups switch to the new key from the next one. The last seven are kept
+whatever key each is under, so for a while the folder holds both: the older ones open
+only with the old key.
 
 **Two different keys.** The backup key above is yours: you keep it, and a restore
 needs it. The **cache key** is another one, made by kithd and kept in the OS keyring
