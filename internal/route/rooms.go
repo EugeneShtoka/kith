@@ -235,10 +235,10 @@ func (r *Router) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	return r.allSpaces(func(s SpaceLister) ([]domain.Space, error) { return s.RefreshSpaces(ctx) })
 }
 
-// allSpaces reads every live network with spaces; one failure fails the read, as in
-// gather.
+// allSpaces reads every network with spaces, logged in or not (cached); one failure
+// fails the read, as in gather.
 func (r *Router) allSpaces(read func(SpaceLister) ([]domain.Space, error)) ([]domain.Space, error) {
-	out, err := gather(r, read)
+	out, err := cached(r, read)
 	if err != nil {
 		return nil, err
 	}

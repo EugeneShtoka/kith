@@ -100,7 +100,8 @@ not "stopped".
 
 The keyring holds no session for this account, so log it in. kith opens meanwhile with whatever else is
 logged in, the daemon keeps running with Matrix logged out, and Matrix starts as soon
-as the login is done.
+as the login is done. Until then the account's cached rooms stay listed and readable,
+with their unread counts; nothing new arrives in them and nothing can be sent.
 
 ### "the OS secret store could not be read (is the keyring unlocked?)"
 
@@ -119,7 +120,8 @@ again.** Doing so would replace a working session with a new device. Instead:
 
 The homeserver rejected the stored token. Usually the device was signed out from
 another client, or the token was revoked. Run `kith login` again; the daemon, which
-kept running with Matrix logged out, starts on the new session. The new device
+kept running with Matrix logged out (its cached rooms still listed and readable),
+starts on the new session. The new device
 needs its room keys; see [Undecryptable messages](#undecryptable-messages).
 
 ### The daemon cannot start, so kith does not run

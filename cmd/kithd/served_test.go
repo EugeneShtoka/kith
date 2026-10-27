@@ -89,6 +89,44 @@ func TestADaemonWithoutMatrixServes(t *testing.T) {
 	}
 }
 
+// A Matrix account the config names lists its cached rooms while it has no session,
+// through the daemon's router as through the adapter, and nothing live reaches them;
+// a Matrix account the config does not name (one parked) shows none of its old rooms.
+func TestALoggedOutMatrixAccountKeepsItsCachedRoomsListed(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const user = "@me:example.org"
+	room := domain.RoomID(domain.NativeID(domain.ProtocolMatrix, domain.AccountKey(user), "!chat:example.org"))
+	for name, accounts := range map[string][]config.MatrixAccount{
+		"named, no session":  {{Name: "home", Homeserver: "https://matrix.example.org", User: user}},
+		"not named (parked)": nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			backend := servedFor(t, config.Config{Profiles: everyRoom, Matrix: config.Matrix{Accounts: accounts}}, domain.Session{})
+			owner := domain.AccountRooms(domain.ProtocolMatrix, domain.AccountKey(user))
+			if err := backend.cache.SaveRooms(ctx, owner, []domain.Room{{ID: room, Name: "chat"}}); err != nil {
+				t.Fatal(err)
+			}
+			if err := backend.cache.SaveUnread(ctx, domain.Unread{RoomID: room, Notifications: 1}, 0); err != nil {
+				t.Fatal(err)
+			}
+			named := len(accounts) > 0
+			rooms, err := backend.Rooms(ctx)
+			if err != nil || slices.ContainsFunc(rooms, func(r domain.Room) bool { return r.ID == room }) != named {
+				t.Errorf("Rooms = (%v, %v); the cached Matrix room listed: want %v", rooms, err, named)
+			}
+			unread, err := backend.CachedUnread(ctx)
+			if err != nil || slices.ContainsFunc(unread, func(u domain.Unread) bool { return u.RoomID == room }) != named {
+				t.Errorf("CachedUnread = (%v, %v); the cached Matrix room counted: want %v", unread, err, named)
+			}
+			if _, err := backend.Timeline(ctx, room, "", 10); !errors.Is(err, api.ErrNetworkOff) && !errors.Is(err, api.ErrNotOnNetwork) {
+				t.Errorf("Timeline = %v, want it refused: nothing live reaches an account without a session", err)
+			}
+		})
+	}
+}
+
 // A reload that hides someone recounts the rooms they wrote in, through the network
 // that owns each room, onto the daemon's unread stream.
 func TestAReloadThatHidesSomeoneRecountsTheirRooms(t *testing.T) {
