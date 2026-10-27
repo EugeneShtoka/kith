@@ -253,20 +253,6 @@ func trackedRanges(words domain.Tracked, text string) []trackedRange {
 	return out
 }
 
-// linksMentions reports whether any pill would draw an OSC 8 link, which only the
-// offset-mapped path can emit.
-func (r richStyle) linksMentions() bool {
-	if !r.hyperlinks {
-		return false
-	}
-	for i := range r.mentions {
-		if r.mentions[i].href != "" {
-			return true
-		}
-	}
-	return false
-}
-
 // window narrows the style to one wrapped line, rebased.
 func (r richStyle) window(spans []richtext.Span, from, to int) richStyle {
 	r.spans = shiftSpans(spans, from, to)

@@ -216,9 +216,10 @@ func (m Model) messageRows(msg domain.Message, width, nameW int, colors map[stri
 			return m.styleSegment(msg, vis, mentions, c, dir)
 		},
 	}
-	// The offset-mapped path draws formatting, tracked words and pill links (the painted
-	// path cannot express a hyperlink).
-	if len(marks) > 0 || len(style.tracked) > 0 || style.linksMentions() {
+	// The offset-mapped path draws formatting, tracked words and mentions: the painted path
+	// cannot express a hyperlink, skips mentions on right-to-left lines and misses a name
+	// split across rows.
+	if len(marks) > 0 || len(style.tracked) > 0 || len(style.mentions) > 0 {
 		spec.marks = func(from, to int) markFunc { return style.window(marks, from, to).at }
 	}
 	// One base direction per message keeps wrapped mixed-direction lines stable.
