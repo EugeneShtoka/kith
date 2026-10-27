@@ -142,7 +142,7 @@ calls a tool directly instead of through its target. In order:
 | `secrets` | gitleaks over the committed history **and** the working tree |
 | `pin-check` | every GitHub Actions `uses:` is pinned to a commit SHA |
 | `unit-check` | the systemd unit creates every directory its sandbox lets it write |
-| `arch-check` | every package under `internal/` and `cmd/`, at any depth, is named by a depguard rule; `scripts/deps-check.sh`: the TUI, the wire and `kith-mcp` link no daemon-side package at any depth; `go tool deadcode` and `scripts/testonly.go`: no function exists only for tests (neither sees a field or var that does, which review must) |
+| `arch-check` | every package under `internal/` and `cmd/`, at any depth, is named by a depguard rule; `scripts/deps-check.sh`: the TUI, the wire and `kith-mcp` link no daemon-side package at any depth; `go tool deadcode` and `scripts/testonly.go`: no function exists only for tests (neither sees a field or var that does, which review must); `scripts/durationcheck.go`: no `time.Duration` reaches `fmt` or `log` unformatted (`human.Duration`) |
 | `ci-parity` | CI runs exactly these targets (`scripts/ci-parity-check.sh`) |
 | `script-check` | the tests of those gate scripts (`scripts/test/tools-test.sh`): a tampered or missing tool download, and each way CI and `check` can drift |
 | `release-check` | `goreleaser check` over `.goreleaser.yaml` |

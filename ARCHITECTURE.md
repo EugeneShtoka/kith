@@ -140,7 +140,9 @@ internal/focus      → the other direction: raising the browser once a link has
         │              to it, a per-desktop ladder because there is no portable way
 internal/logging    → the one log format (slog text, levels, secret scrubbing, the
         │              rotating log file, a journald slog.Handler over go-systemd's
-        │              journal client, auto/journal/file target); no internal imports
+        │              journal client, auto/journal/file target); imports only human
+internal/human      → values formatted for people: a duration as "1m 30s", not "1m0s";
+        │              stdlib only, so logging and every layer may use it
 internal/themespec  → the theme as data: presets and overrides as color strings,
         │              validated; what every binary's config check needs
 internal/theme      → the theme as styles: themespec's colors as lipgloss styles,
@@ -159,6 +161,7 @@ violates them fails lint rather than review. `make arch-check` adds more gates:
 - every package under `internal/` and `cmd/` must be named by at least one rule, because depguard says nothing at all about a package no rule mentions;
 - the clients' transitive imports are checked (below);
 - no code exists only for tests. `go tool deadcode` fails on a function no binary can reach, and `scripts/testonly.go` fails on an exported function or method that only tests name (deadcode keeps those alive once their type reaches an interface or reflection). A helper only tests need goes in a `_test.go` file of its package (`export_test.go`).
+- no duration is printed as Go writes it. `scripts/durationcheck.go` fails on a `time.Duration` handed to `fmt` or `log` as it is ("1m0s"); wrap it in `human.Duration` ("1m"). Log attributes need nothing: `internal/logging` formats every duration value itself.
 
 - **`domain` is pure.** It imports the standard library, `richtext` and a grapheme
   segmenter, and nothing else (an allow list). It is the shared vocabulary; everything

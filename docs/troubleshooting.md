@@ -131,7 +131,7 @@ says which step failed:
 
 | Message | Meaning and fix |
 | --- | --- |
-| `attach to kithd: daemon: kithd did not become ready in 1m0s: …` | The daemon started but never completed its first sync. The text after the colon is the daemon's own last error. Check the log. |
+| `attach to kithd: daemon: kithd did not become ready in 1m: …` | The daemon started but never completed its first sync. The text after the colon is the daemon's own last error. Check the log. |
 | `daemon: kithd is not on PATH` | `kith` fell back to starting the daemon itself and couldn't find it. Install `kithd` next to `kith`, or install the systemd unit. |
 | `daemon: cannot detach kithd without setsid` | There's no systemd and no `setsid` (macOS or FreeBSD, for example). Start `kithd` yourself before running `kith`; on macOS, load the LaunchAgent (`make deploy`, or see [getting-started.md](getting-started.md#macos-homebrew)). |
 | `daemon: start kithd.service: …; and …` | `systemctl --user start` failed, and so did the fallback. Both reasons are printed. |

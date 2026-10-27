@@ -126,6 +126,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/notify"
             - "github.com/EugeneShtoka/kith/internal/setup"
+            - "github.com/EugeneShtoka/kith/internal/human"
             - "connectrpc.com/connect"
             - "github.com/adrg/xdg"
             - "github.com/fsnotify/fsnotify"
@@ -239,6 +240,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/markdown"
             - "github.com/EugeneShtoka/kith/internal/richtext"
             - "github.com/EugeneShtoka/kith/internal/telegram"
+            - "github.com/EugeneShtoka/kith/internal/human"
             - "github.com/gotd/log"
             - "github.com/gotd/td"
             - "modernc.org/sqlite"
@@ -279,6 +281,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/readstate"
             - "github.com/EugeneShtoka/kith/internal/sealeddb"
             - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/human"
             - "github.com/EugeneShtoka/kith/internal/meta"
             - "github.com/rs/zerolog"
             - "go.mau.fi/mautrix-meta/pkg/messagix"
@@ -605,6 +608,7 @@ linters:
           allow:
             - "$gostd"
             - "github.com/EugeneShtoka/kith/internal/llamacpp"
+            - "github.com/EugeneShtoka/kith/internal/human"
 
         agent-is-a-leaf:
           files:
@@ -626,6 +630,15 @@ linters:
             - "github.com/coreos/go-systemd/v22/journal"
             - "github.com/rs/zerolog"
             - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/human"
+
+        # Values formatted for people (a duration as "1m 30s"): stdlib only, so every
+        # layer, logging included, may use it.
+        human-is-a-leaf:
+          files:
+            - "**/internal/human/**"
+          allow:
+            - "$gostd"
 
         # Emoji by name, shared by the client and the Slack adapter: data alone.
         emoji-is-a-leaf:
@@ -683,6 +696,7 @@ linters:
           allow:
             - "$gostd"
             - "github.com/EugeneShtoka/kith/internal/spell"
+            - "github.com/EugeneShtoka/kith/internal/human"
 
         launch-is-a-leaf:
           files:
@@ -787,6 +801,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/human"
             - "github.com/EugeneShtoka/kith/internal/phonebook"
             - "github.com/EugeneShtoka/kith/internal/setup"
 
@@ -846,6 +861,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/filedialog"
             - "github.com/EugeneShtoka/kith/internal/focus"
             - "github.com/EugeneShtoka/kith/internal/logging"
+            - "github.com/EugeneShtoka/kith/internal/human"
             - "github.com/EugeneShtoka/kith/internal/media"
             - "github.com/EugeneShtoka/kith/internal/notify"
             - "github.com/EugeneShtoka/kith/internal/phonebook"

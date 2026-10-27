@@ -11,6 +11,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/human"
 )
 
 // defaultUnit is the packaged systemd user unit serving the default config.
@@ -164,9 +165,9 @@ func waitReady(ctx context.Context, r *Remote, timeout time.Duration) error {
 		}
 		if time.Now().After(deadline) {
 			if lastErr != "" {
-				return fmt.Errorf("daemon: %s did not become ready in %s: %s", daemonBinary, timeout, lastErr)
+				return fmt.Errorf("daemon: %s did not become ready in %s: %s", daemonBinary, human.Duration(timeout), lastErr)
 			}
-			return fmt.Errorf("daemon: %s did not become ready in %s", daemonBinary, timeout)
+			return fmt.Errorf("daemon: %s did not become ready in %s", daemonBinary, human.Duration(timeout))
 		}
 		select {
 		case <-ctx.Done():
@@ -284,7 +285,7 @@ func waitListening(ctx context.Context, r *Remote, timeout time.Duration) error 
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("daemon: kithd did not answer within %s of restarting: %w", timeout, err)
+			return fmt.Errorf("daemon: kithd did not answer within %s of restarting: %w", human.Duration(timeout), err)
 		}
 		select {
 		case <-ctx.Done():
