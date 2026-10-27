@@ -54,7 +54,13 @@ func TestLiveThreadNames(t *testing.T) {
 	if werr := os.WriteFile(copied, data, 0o600); werr != nil {
 		t.Fatalf("copy the cache: %v", werr)
 	}
-	cache, err := db.Open(ctx, copied)
+	// Sealed under its instance's key (cache-<instance>.db) in the default keyring.
+	instance := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(path), "cache-"), ".db")
+	cacheKey, err := session.LoadOrCreateStoreKey("kith", instance, "cache")
+	if err != nil {
+		t.Fatalf("the cache's key: %v", err)
+	}
+	cache, err := db.Open(ctx, copied, cacheKey)
 	if err != nil {
 		t.Fatalf("open the copy: %v", err)
 	}

@@ -31,14 +31,14 @@ func (m *Adapter) accountSpace(id domain.SpaceID) (*runner, bool) {
 	return nil, false
 }
 
-// withAccountSpaces is spaces and a space per logged-in account with cached rooms,
+// withAccountSpaces is spaces and a space per account with cached rooms, logged in or not,
 // holding all of them. Derived on read, so a new room appears in it at once.
 func (m *Adapter) withAccountSpaces(ctx context.Context, spaces []domain.Space) ([]domain.Space, error) {
 	rooms, err := m.Rooms(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for _, r := range m.live() {
+	for _, r := range m.runnersNow() {
 		var children []domain.RoomID
 		for i := range rooms {
 			if r.ids.owner().Owns(rooms[i].ID) {

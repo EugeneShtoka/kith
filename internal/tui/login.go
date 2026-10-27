@@ -15,6 +15,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/EugeneShtoka/kith/internal/api"
+	"github.com/EugeneShtoka/kith/internal/human"
 	"github.com/EugeneShtoka/kith/internal/qrtext"
 )
 
@@ -261,7 +262,7 @@ func loginWork(
 }
 
 // errSignInTimedOut is a sign-in that waited loginTimeout, most of it for an answer.
-var errSignInTimedOut = fmt.Errorf("it waited %v and gave up; start it again", loginTimeout)
+var errSignInTimedOut = fmt.Errorf("it waited %s and gave up; start it again", human.Duration(loginTimeout))
 
 // sayTimedOut tells the model the sign-in ran out of time, reporting whether it did. The
 // deadline is ctx's own, so ctx cannot carry the news: it goes into the events' buffer,

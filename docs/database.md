@@ -39,10 +39,14 @@ with this table as its mirror (see [Account-data mirrors](#account-data-mirrors)
   `db.DefaultPath`.
 - Only the daemon opens it. The TUI and `kith-mcp` reach it through the daemon's
   socket; depguard keeps `internal/db` out of both.
-- Driver: the pure-Go `modernc.org/sqlite`, so the build stays `CGO_ENABLED=0`.
-- Connection settings live in the **DSN** (`dsn` in `db.go`), not in `Exec` calls
-  after `sql.Open`: `journal_mode(WAL)`, `busy_timeout(5000)`, `foreign_keys(1)`,
-  `synchronous(NORMAL)` and `_txlock=immediate`. `NORMAL` under WAL can lose only the
+- Driver: `internal/sealeddb`, ncruces' SQLite translated to pure Go with the Adiantum
+  VFS, so the build stays `CGO_ENABLED=0` and every page, the log too, is encrypted
+  under the cache's key from the keyring. FTS5 is registered on every connection
+  (`setup` in `db.go`). Every file of the cache, the copies a backup and a rebuild make
+  included, is opened through `connect` in `backup.go`.
+- Connection settings live in the **DSN** (`setup` in `db.go`, over `sealeddb`'s), not
+  in `Exec` calls after opening: `busy_timeout(5000)`, `foreign_keys(1)`,
+  `journal_mode(WAL)`, `synchronous(NORMAL)` and `_txlock=immediate`. `NORMAL` under WAL can lose only the
   last commits before a power loss, which a cache fetches again, and saves an fsync per
   sync batch. `foreign_keys` and `busy_timeout` are per connection, and the
   pool may open a new connection at any time; the driver applies DSN pragmas to every
@@ -57,12 +61,16 @@ with this table as its mirror (see [Account-data mirrors](#account-data-mirrors)
   start and then daily (`vacuumCache` in `cmd/kithd`), and `Cache.Vacuum` rewrites the
   file with `VACUUM` once free pages are a fifth of it and at least 32 MiB. It puts the
   rewrite off (and tries again in an hour) when the disks lack room for it, which is
-  its size plus a tenth in SQLite's temporary directory (unless `temp_store` keeps
-  temporary files in memory) and again beside the cache for the write-ahead log, or
+  its size plus a tenth in SQLite's temporary directory (`$SQLITE_TMPDIR`, else Go's
+  temporary directory) and again beside the cache for the write-ahead log, or
   when another process holds an older read of the cache (a
-  backup copying it). The rewrite holds the one connection, so reads and writes wait for
+  backup copying it). The rewrite's copy goes to that directory as a file, encrypted
+  under a key of its own, for the one vacuum (`temp_store=FILE`): in memory, where the
+  cache keeps its other temporary files, it would not fit in the at most 256 MiB SQLite
+  may use. The rewrite holds the one connection, so reads and writes wait for
   it; it takes seconds for a few hundred MiB. A rewrite cut short leaves the file as it
-  was.
+  was. A vacuum that panics is logged and put off a day; it never takes the daemon
+  down.
 - Opening is non-fatal for the daemon: if the cache cannot be opened it runs
   without one, losing only the instant startup.
 

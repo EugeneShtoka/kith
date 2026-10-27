@@ -14,6 +14,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // The account, two people and a group, invented: FBIDs, IG user IDs, chat IDs.
@@ -52,7 +53,7 @@ type rig struct {
 
 func newRig(t *testing.T) *rig {
 	t.Helper()
-	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
+	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}

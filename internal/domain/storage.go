@@ -79,6 +79,17 @@ func (s Storage) SchedulePath() string {
 	return filepath.Join(s.StateDir, "scheduled-"+s.Instance+".toml")
 }
 
+// BackupKeyPath is the public key backups are encrypted to. It is not secret: it can
+// only lock a backup, and the private key that opens one is the user's, never kept
+// here. It sits beside the cache, which a restore recreates, rather than with the
+// config, which a home-manager setup may own.
+func (s Storage) BackupKeyPath() string {
+	return filepath.Join(s.DataDir, "backup-"+s.Instance+".pub")
+}
+
+// BackupsDir is where kithd keeps its daily backups.
+func (s Storage) BackupsDir() string { return filepath.Join(s.ExportDir, "backups") }
+
 // SocketPath is the daemon's socket.
 func (s Storage) SocketPath() string { return filepath.Join(s.RuntimeDir, s.Instance+".sock") }
 

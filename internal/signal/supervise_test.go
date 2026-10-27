@@ -24,6 +24,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 	"github.com/EugeneShtoka/kith/internal/signal"
 	"github.com/EugeneShtoka/kith/internal/signalhelper"
 )
@@ -396,7 +397,7 @@ func newRigPrepared(t *testing.T, mode, devices, linkedTo string, events []*sign
 	t.Setenv(fakeEvents, r.events)
 	t.Setenv(fakeAcks, r.acks)
 	t.Setenv(fakeSent, r.sent)
-	cache, err := db.Open(context.Background(), filepath.Join(dir, "cache.db"))
+	cache, err := db.Open(context.Background(), filepath.Join(dir, "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}

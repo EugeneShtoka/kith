@@ -66,7 +66,7 @@ func Save(st Store, s domain.Session, allowFile bool) error {
 
 // Load returns the saved session; found=false with nil error means a first run.
 func Load(st Store, allowFile bool) (domain.Session, bool, error) {
-	blob, err := keyring.Get(st.Service, st.Account)
+	blob, err := get(st.Service, st.Account)
 	switch {
 	case err == nil:
 		return decode([]byte(blob))
@@ -127,8 +127,11 @@ func LoadOrCreateStoreKey(service, instance, name string) ([]byte, error) {
 // loadOrCreateKey returns the 32-byte key in the keyring entry (service, acct), making
 // and keeping one when there is none. One that is not a key is corrupt, reported with
 // advice and never replaced; no keyring is ErrNoSecretStore, never a key kept elsewhere.
+// A key is made only when the keyring answered that there is none: one that did not
+// answer is ErrKeyringNotAnswering. A key made but not yet kept is not used; if the
+// keyring keeps it later, the next call reads it.
 func loadOrCreateKey(service, acct string, corrupt error, advice string) ([]byte, error) {
-	switch existing, err := keyring.Get(service, acct); {
+	switch existing, err := get(service, acct); {
 	case err == nil:
 		key, derr := base64.StdEncoding.DecodeString(existing)
 		if derr == nil && len(key) == pickleKeyLen {
@@ -136,6 +139,8 @@ func loadOrCreateKey(service, acct string, corrupt error, advice string) ([]byte
 		}
 		return nil, fmt.Errorf("%w (service %q, account %q): %s", corrupt, service, acct, advice)
 	case errors.Is(err, keyring.ErrNotFound):
+	case errors.Is(err, ErrKeyringNotAnswering):
+		return nil, err
 	default:
 		return nil, ErrNoSecretStore
 	}
@@ -143,10 +148,28 @@ func loadOrCreateKey(service, acct string, corrupt error, advice string) ([]byte
 	if _, err := rand.Read(key); err != nil {
 		return nil, fmt.Errorf("session: generate a key: %w", err)
 	}
-	if err := keyring.Set(service, acct, base64.StdEncoding.EncodeToString(key)); err != nil {
+	encoded := base64.StdEncoding.EncodeToString(key)
+	// A write still waiting from an earlier call is joined, and its key is the one kept.
+	kept, err := bounded("set\x00"+service+"\x00"+acct, keyringWait, func() (string, error) {
+		return encoded, keyring.Set(service, acct, encoded)
+	})
+	switch {
+	case errors.Is(err, ErrKeyringNotAnswering):
+		return nil, err
+	case err != nil:
 		return nil, ErrNoSecretStore
 	}
+	if key, err = base64.StdEncoding.DecodeString(kept); err != nil {
+		return nil, fmt.Errorf("session: the key just kept: %w", err)
+	}
 	return key, nil
+}
+
+// get reads a keyring entry, waiting at most keyringWait (bounded).
+func get(service, acct string) (string, error) {
+	return bounded("get\x00"+service+"\x00"+acct, keyringWait, func() (string, error) {
+		return keyring.Get(service, acct)
+	})
 }
 
 // Secret reads a named secret (e.g. an API key) under service, falling back to the
@@ -157,11 +180,13 @@ func Secret(service, ref string) (string, error) {
 		return "", nil
 	}
 	for _, svc := range []string{service, legacyService} {
-		value, err := keyring.Get(svc, secretAccount(ref))
+		value, err := get(svc, secretAccount(ref))
 		switch {
 		case err == nil:
 			return value, nil
 		case errors.Is(err, keyring.ErrNotFound):
+		case errors.Is(err, ErrKeyringNotAnswering):
+			return "", err
 		default:
 			return "", ErrNoSecretStore
 		}

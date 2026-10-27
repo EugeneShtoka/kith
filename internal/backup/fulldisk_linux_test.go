@@ -6,11 +6,13 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
 	"testing"
 
+	"filippo.io/age"
 	"github.com/EugeneShtoka/kith/internal/backup"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
@@ -18,7 +20,8 @@ import (
 )
 
 // fullDiskEnv carries what a child runs where no file may grow past a limit: the
-// limit, the operation, then its paths, one per line.
+// limit, the operation, its paths, then the backup key (the child's testKey is its
+// own), one per line.
 const fullDiskEnv = "KITH_TEST_FULL_DISK"
 
 // onAFullDisk runs this test again in a child whose files cannot grow past limit
@@ -27,7 +30,8 @@ const fullDiskEnv = "KITH_TEST_FULL_DISK"
 func onAFullDisk(t *testing.T, limit int64, op string, paths ...string) string {
 	t.Helper()
 	cmd := exec.CommandContext(context.Background(), os.Args[0], "-test.run=^"+t.Name()+"$") // #nosec G204 -- this test binary
-	cmd.Env = append(os.Environ(), fullDiskEnv+"="+strings.Join(append([]string{strconv.FormatInt(limit, 10), op}, paths...), "\n"))
+	lines := append(append([]string{strconv.FormatInt(limit, 10), op}, paths...), testKey.String())
+	cmd.Env = append(os.Environ(), fullDiskEnv+"="+strings.Join(lines, "\n"))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("the %s on a full disk: %v\n%s", op, err, out)
@@ -47,6 +51,11 @@ func childOnAFullDisk() bool {
 	}
 	lines := strings.Split(args, "\n")
 	limit, _ := strconv.ParseUint(lines[0], 10, 64)
+	key, kerr := age.ParseX25519Identity(lines[len(lines)-1])
+	if kerr != nil {
+		println("key:", kerr.Error())
+		os.Exit(2)
+	}
 	signal.Ignore(syscall.SIGXFSZ)
 	if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &syscall.Rlimit{Cur: limit, Max: limit}); err != nil {
 		println("setrlimit:", err.Error())
@@ -55,7 +64,7 @@ func childOnAFullDisk() bool {
 	var err error
 	switch lines[1] {
 	case "restore":
-		_, err = backup.Restore(context.Background(), lines[2], lines[3], true, func() (string, error) { return passphrase, nil })
+		_, err = backup.Restore(context.Background(), lines[2], lines[3], true, func() (*age.X25519Identity, error) { return key, nil }, keyOf)
 	case "backup":
 		cfg, lerr := config.Load(lines[2])
 		storage, serr := setup.StorageFor(cfg, lines[2])
@@ -63,7 +72,17 @@ func childOnAFullDisk() bool {
 			println("config:", lerr, serr)
 			os.Exit(2)
 		}
-		_, err = backup.Create(context.Background(), backup.Source{ConfigPath: lines[2], Config: cfg, Storage: storage}, lines[3], passphrase)
+		_, err = backup.Create(context.Background(), backup.Source{ConfigPath: lines[2], Config: cfg, Storage: storage, CacheKey: keyAt(storage.DataDir)}, lines[3], key.Recipient())
+	}
+	if lines[1] == "daily" {
+		cfg, lerr := config.Load(lines[2])
+		storage, serr := setup.StorageFor(cfg, lines[2])
+		if lerr != nil || serr != nil {
+			println("config:", lerr, serr)
+			os.Exit(2)
+		}
+		src := backup.Source{ConfigPath: lines[2], Config: cfg, Storage: storage, CacheKey: keyAt(storage.DataDir), MediaDir: setup.MediaDir(cfg, storage)}
+		_, err = backup.MakeDaily(context.Background(), src, key.Recipient(), lines[3], day(30))
 	}
 	if err == nil {
 		println("the", lines[1], "succeeded")
@@ -99,7 +118,8 @@ func TestABackupOnAFullDiskLeavesNoFile(t *testing.T) {
 	m := newMachine(t)
 	m.as(t).fill(t, "kept", 3000)
 	probe := filepath.Join(t.TempDir(), "probe.db")
-	if err := db.Snapshot(context.Background(), m.storage(t).CachePath(), probe); err != nil {
+	key := keyAt(m.storage(t).DataDir)
+	if err := db.Snapshot(context.Background(), m.storage(t).CachePath(), key, probe, key); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Stat(probe)
@@ -113,4 +133,33 @@ func TestABackupOnAFullDiskLeavesNoFile(t *testing.T) {
 		t.Fatalf("a backup that ran out of disk left %v", left)
 	}
 	unchanged(t, m.home, before)
+}
+
+// A disk that fills while today's daily backup is written leaves the ones before it
+// as they were (more than Keep, so a rotation would have something to delete), and no
+// partial behind.
+func TestADailyBackupOnAFullDiskDeletesNothing(t *testing.T) {
+	if childOnAFullDisk() {
+		return
+	}
+	m := newMachine(t)
+	m.as(t).fill(t, "kept", 3000)
+	dir := t.TempDir()
+	for n := 1; n <= backup.Keep+2; n++ {
+		stand(t, dir, day(n))
+	}
+	before := names(t, dir)
+	probe := filepath.Join(t.TempDir(), "probe.db")
+	key := keyAt(m.storage(t).DataDir)
+	if err := db.Snapshot(context.Background(), m.storage(t).CachePath(), key, probe, key); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	onAFullDisk(t, info.Size()+1024, "daily", m.configPath, dir)
+	if after := names(t, dir); !slices.Equal(after, before) {
+		t.Fatalf("the backups folder holds %v; want it as it was, %v", after, before)
+	}
 }

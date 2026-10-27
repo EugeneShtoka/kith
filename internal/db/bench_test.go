@@ -42,7 +42,7 @@ func benchWords() []string {
 func seedBench(b *testing.B) (*Cache, []domain.RoomID) {
 	b.Helper()
 	ctx := context.Background()
-	cache, err := Open(ctx, filepath.Join(b.TempDir(), "bench.db"))
+	cache, err := Open(ctx, filepath.Join(b.TempDir(), "bench.db"), testKey)
 	if err != nil {
 		b.Fatal(err)
 	}

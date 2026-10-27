@@ -249,35 +249,70 @@ make a backup:
 ```sh
 kith backup                      # a dated file in [storage] export_dir
 kith backup ~/Backups/kith.tar.age
+kith backup --no-media           # without the pictures
 ```
 
-It asks for a passphrase twice and writes one encrypted file:
-the cache (every cached message, reaction, draft and read position), your config and
-the commands beside it, and what an assistant sent for you and the send-later queue.
-kithd may keep running; the cache is copied as it stands. A backup is an
-[age](https://age-encryption.org) file around a tar, so `age -d` and `tar` open it
-without kith.
+It writes one encrypted file: the cache (every cached message, reaction, draft and read
+position), your config and the commands beside it, what an assistant sent for you and
+the send-later queue, and the picture cache, since WhatsApp and Signal pictures cannot
+be fetched again once their servers drop them. `--no-media` leaves the pictures out.
+kithd may keep running; the cache is copied as it stands.
 
-What it leaves out:
+**Your backup key.** Every backup, by hand or kithd's daily one, is encrypted to one
+key. The first `kith backup` makes it and shows its private half once:
+
+```text
+This is your backup key. It is the only way to open your kith backups, here or on a new
+machine, and kith keeps no copy of it. Keep it somewhere other than this machine: a
+password manager, or written down.
+
+    AGE-SECRET-KEY-1…
+
+Every backup from now on, by hand or kithd's daily one, is encrypted to it.
+Save it to a file too? Type a path, or press Enter once you have kept it:
+```
+
+Keep it. The machine holds only the public half (`backup-<instance>.pub` in
+`[storage] data_dir`), which can lock a backup but never open one, so nothing on the
+machine can read your backups, and without the private key nobody can. A backup is an
+[age](https://age-encryption.org) file around a tar, so `age -d -i key.txt` and `tar`
+open it without kith. The cache inside is encrypted as the cache on disk is, under a key
+made for that backup and kept in its `kith-backup.json`, so not even making the backup
+writes your history in the clear; a restore writes it under the new machine's own key.
+
+**Daily backups.** Once the key exists, kithd makes a backup every day into
+`[storage] export_dir/backups/` and keeps the last seven; older ones are deleted, and
+only files it named itself (`kith-daily-<date>-<time>.tar.age`) are ever counted or
+deleted. A day the machine was off is skipped. Until the first `kith backup` they are
+off, and kith says so: kithd never makes a key itself, since nobody would see its
+private half. A daily backup that fails, or is put off for want of disk space, is said
+in a notification. The `backups` folder is on the same disk as the cache; to keep a
+copy elsewhere, sync or copy that folder.
+
+What a backup leaves out:
 
 - **Network sessions and their keys.** After a restore, log in to each account
   again; kith lists them.
-- **What refills itself:** downloaded models and dictionaries, and the picture cache.
+- **What refills itself:** downloaded models and dictionaries, and the pictures'
+  scaled renders.
 - **A commands folder that is a link** (one home-manager made, say), or one
   `[commands] dir` puts elsewhere: whatever made it keeps it. The backup says so.
 
 To restore, stop kithd (`systemctl --user stop kithd`), then:
 
 ```sh
-kith restore ~/Backups/kith.tar.age
+kith restore ~/Backups/kith.tar.age                       # asks for the backup key
+kith restore --key-file ~/kith-key.txt ~/Backups/kith.tar.age
 ```
 
-It puts the config back, then the cache and records where that config keeps them on
-this machine. If a config or cache is already there it refuses; `--replace` sets what
-was there aside as `<name>.before-restore-<time>` instead, so nothing is deleted.
-Nothing is changed until the whole backup is read and checked, so a wrong
-passphrase, a damaged file or a full disk leave everything as it was. A backup made by
-a newer kith is refused: update kith first.
+It puts the config back, then the cache, records and pictures where that config keeps
+them on this machine, and the backup key's public half, so this machine's backups go on
+to the same key. If a config or cache is already there it refuses; `--replace` sets
+what was there aside as `<name>.before-restore-<time>` instead, so nothing is deleted.
+Pictures are added to the picture cache, which keeps any it has. Nothing is changed
+until the whole backup is read and checked, so a wrong key, a damaged file or a full
+disk leave everything as it was. A backup made by a newer kith is refused: update kith
+first.
 
 ## Threads in the room list
 

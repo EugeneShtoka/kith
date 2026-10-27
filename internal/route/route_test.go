@@ -229,21 +229,25 @@ func TestForgetMeAsksTheNetworksAgain(t *testing.T) {
 	}
 }
 
-// A network logging in or out changes Me at once, kept or not: the router sees it
-// without a status reaching ForgetMe.
+// A logged-out network is still you (its cached messages are yours), and one logging in
+// or out has Me asked again at once, kept or not: the router sees it without a status
+// reaching ForgetMe.
 func TestMeFollowsANetworkLoggingInAndOut(t *testing.T) {
 	t.Parallel()
 	r, m, _ := withoutMatrix(t)["logged out, WhatsApp"]()
-	if got := r.Me(); slices.Contains(got, m.account) {
-		t.Fatalf("Me = %v while Matrix is logged out", got)
-	}
-	m.loggedOut.Store(false)
 	if got := r.Me(); !slices.Contains(got, m.account) {
-		t.Errorf("Me after Matrix logged in = %v, want its account", got)
+		t.Fatalf("Me = %v while Matrix is logged out, want its account", got)
 	}
+	const puppet = "@whatsapp_44881234567:x" // learned once the session syncs
+	m.setMe(m.account, puppet)
+	m.loggedOut.Store(false)
+	if got := r.Me(); !slices.Contains(got, puppet) {
+		t.Errorf("Me after Matrix logged in = %v, want what it learned", got)
+	}
+	m.setMe(m.account)
 	m.loggedOut.Store(true)
-	if got := r.Me(); slices.Contains(got, m.account) {
-		t.Errorf("Me after Matrix logged out = %v, still names it", got)
+	if got := r.Me(); slices.Contains(got, puppet) || !slices.Contains(got, m.account) {
+		t.Errorf("Me after Matrix logged out = %v, want its account alone", got)
 	}
 }
 
@@ -561,9 +565,9 @@ func withoutMatrix(t *testing.T) map[string]func() (*Router, *fakeMatrix, *fake)
 			if configured {
 				m = newFakeMatrix()
 				m.loggedOut.Store(true)
-				// Anything reaching it fails loudly.
-				m.fail = errFake
+				// Its cache answers lists; anything else reaching it is seen (seen, calls).
 				m.rooms = []domain.Room{{ID: matrixRoomID}}
+				m.spaces = []domain.Space{{ID: mx + "!kept:x", Name: "Kept"}}
 				matrix = m
 			}
 			others := map[domain.Protocol]Adapter{}
@@ -584,9 +588,10 @@ func withoutMatrix(t *testing.T) map[string]func() (*Router, *fakeMatrix, *fake)
 	}
 }
 
-// Without a usable Matrix nothing reaches it: its rooms and actions are refused as
-// off, lists are the others' alone, and nobody is anyone on it.
-func TestWithoutMatrixNothingReachesIt(t *testing.T) {
+// Without a usable Matrix nothing live reaches it: its rooms' calls and actions are
+// refused as off. A logged-out Matrix still lists what its cache holds (rooms, unread,
+// spaces) and is still you; an unconfigured one has nothing to list.
+func TestWithoutMatrixNothingLiveReachesIt(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	for name, build := range withoutMatrix(t) {
@@ -604,15 +609,18 @@ func TestWithoutMatrixNothingReachesIt(t *testing.T) {
 			}
 		}
 
+		kept := m != nil // a logged-out Matrix's cache is listed; an unconfigured one has none
 		rooms, err := r.Rooms(ctx)
-		if err != nil || slices.ContainsFunc(rooms, func(room domain.Room) bool { return room.ID == matrixRoomID }) {
-			t.Errorf("%s: Rooms = (%v, %v), want WhatsApp's alone", name, rooms, err)
+		if err != nil || slices.ContainsFunc(rooms, func(room domain.Room) bool { return room.ID == matrixRoomID }) != kept {
+			t.Errorf("%s: Rooms = (%v, %v), want Matrix's cached room listed: %v", name, rooms, err, kept)
 		}
-		if _, err := r.RefreshRooms(ctx); err != nil {
-			t.Errorf("%s: RefreshRooms = %v", name, err)
+		refreshed, err := r.RefreshRooms(ctx)
+		if err != nil || slices.ContainsFunc(refreshed, func(room domain.Room) bool { return room.ID == matrixRoomID }) != kept {
+			t.Errorf("%s: RefreshRooms = (%v, %v), want Matrix's cached room listed: %v", name, refreshed, err, kept)
 		}
-		if _, err := r.CachedUnread(ctx); err != nil {
-			t.Errorf("%s: CachedUnread = %v", name, err)
+		unread, err := r.CachedUnread(ctx)
+		if err != nil || slices.ContainsFunc(unread, func(u domain.Unread) bool { return u.RoomID == matrixRoomID }) != kept {
+			t.Errorf("%s: CachedUnread = (%v, %v), want Matrix's cached room counted: %v", name, unread, err, kept)
 		}
 		if _, err := r.DirectCandidates(ctx, 3); err != nil {
 			t.Errorf("%s: DirectCandidates = %v", name, err)
@@ -625,10 +633,15 @@ func TestWithoutMatrixNothingReachesIt(t *testing.T) {
 		}
 
 		spaces, serr := r.Spaces(ctx)
-		refreshed, rerr := r.RefreshSpaces(ctx)
+		refreshedSpaces, rerr := r.RefreshSpaces(ctx)
 		invites, ierr := r.CachedInvites(ctx)
-		if serr != nil || rerr != nil || ierr != nil || len(spaces)+len(refreshed)+len(invites) != 0 {
-			t.Errorf("%s: Matrix's lists = (%v %v %v), (%v %v %v); want empty, no error", name, spaces, refreshed, invites, serr, rerr, ierr)
+		want := 0
+		if kept {
+			want = 1
+		}
+		if serr != nil || rerr != nil || ierr != nil || len(spaces) != want || len(refreshedSpaces) != want || len(invites) != 0 {
+			t.Errorf("%s: Matrix's lists = (%v %v %v), (%v %v %v); want its cached space %d times each, no invites",
+				name, spaces, refreshedSpaces, invites, serr, rerr, ierr, want)
 		}
 		actions := map[string]error{}
 		_, actions["JoinRoom"] = r.JoinRoom(ctx, "#a:x", nil)
@@ -660,12 +673,13 @@ func TestWithoutMatrixNothingReachesIt(t *testing.T) {
 			t.Errorf("%s: ThreadParticipant is true without Matrix", name)
 		}
 
-		if got := r.Me(); slices.Contains(got, "matrix:@matrix:x") {
-			t.Errorf("%s: Me = %v, names the logged-out Matrix account", name, got)
+		if got := r.Me(); kept != slices.Contains(got, "@matrix:x") {
+			t.Errorf("%s: Me = %v, want the logged-out Matrix account in it: %v", name, got, kept)
 		}
 		if m != nil {
-			if seen, calls := m.seen(), m.calls(); len(seen)+len(calls) != 0 {
-				t.Errorf("%s: Matrix was reached: rooms %v, calls %v", name, seen, calls)
+			calls := slices.DeleteFunc(m.calls(), func(c string) bool { return c == "Spaces" || c == "RefreshSpaces" })
+			if seen := m.seen(); len(seen)+len(calls) != 0 {
+				t.Errorf("%s: Matrix was reached beyond its cached lists: rooms %v, calls %v", name, seen, calls)
 			}
 		}
 		r.Stop()
@@ -745,8 +759,8 @@ func TestSpacesAreEveryNetworks(t *testing.T) {
 	}
 
 	m.loggedOut.Store(true)
-	if got, err := r.Spaces(ctx); err != nil || len(got) != 1 || got[0].ID != community {
-		t.Errorf("Spaces with Matrix logged out = (%v, %v), want WhatsApp's alone", got, err)
+	if got, err := r.Spaces(ctx); err != nil || len(got) != 2 {
+		t.Errorf("Spaces with Matrix logged out = (%v, %v), want both networks': Matrix's are kept", got, err)
 	}
 }
 

@@ -100,7 +100,8 @@ not "stopped".
 
 The keyring holds no session for this account, so log it in. kith opens meanwhile with whatever else is
 logged in, the daemon keeps running with Matrix logged out, and Matrix starts as soon
-as the login is done.
+as the login is done. Until then the account's cached rooms stay listed and readable,
+with their unread counts; nothing new arrives in them and nothing can be sent.
 
 ### "the OS secret store could not be read (is the keyring unlocked?)"
 
@@ -119,7 +120,8 @@ again.** Doing so would replace a working session with a new device. Instead:
 
 The homeserver rejected the stored token. Usually the device was signed out from
 another client, or the token was revoked. Run `kith login` again; the daemon, which
-kept running with Matrix logged out, starts on the new session. The new device
+kept running with Matrix logged out (its cached rooms still listed and readable),
+starts on the new session. The new device
 needs its room keys; see [Undecryptable messages](#undecryptable-messages).
 
 ### The daemon cannot start, so kith does not run
@@ -129,7 +131,7 @@ says which step failed:
 
 | Message | Meaning and fix |
 | --- | --- |
-| `attach to kithd: daemon: kithd did not become ready in 1m0s: …` | The daemon started but never completed its first sync. The text after the colon is the daemon's own last error. Check the log. |
+| `attach to kithd: daemon: kithd did not become ready in 1m: …` | The daemon started but never completed its first sync. The text after the colon is the daemon's own last error. Check the log. |
 | `daemon: kithd is not on PATH` | `kith` fell back to starting the daemon itself and couldn't find it. Install `kithd` next to `kith`, or install the systemd unit. |
 | `daemon: cannot detach kithd without setsid` | There's no systemd and no `setsid` (macOS or FreeBSD, for example). Start `kithd` yourself before running `kith`; on macOS, load the LaunchAgent (`make deploy`, or see [getting-started.md](getting-started.md#macos-homebrew)). |
 | `daemon: start kithd.service: …; and …` | `systemctl --user start` failed, and so did the fallback. Both reasons are printed. |
@@ -257,7 +259,9 @@ cache-<hash>.db.pre-schema-20260901-101500
 ```
 
 They're kept because they may contain history the homeserver can no longer serve (for
-example, from a bridge that has purged its backfill). Nothing reads them, and nothing
+example, from a bridge that has purged its backfill). They're encrypted with the
+cache's key, as the cache is (a copy from before that is encrypted at the next start).
+Nothing reads them, and nothing
 deletes them automatically, so remove them once you're sure you don't need them. If
 the copy couldn't be made, the daemon logs
 `the previous cache could not be kept` and starts with an empty cache
@@ -272,6 +276,61 @@ The daemon couldn't open its cache file (for example, a permissions problem or a
 disk), and it does not run without one: every network writes into it and every client
 reads from it. Fix the cause shown in the message. Under systemd the daemon retries
 every few seconds by itself; otherwise start it again.
+
+### "the cache is locked: unlock the keyring"
+
+The cache is encrypted with a key kept only in the keyring
+([encryption.md](encryption.md#where-the-keys-live)), so while the keyring is locked
+(a boot with nothing to ask for its password, say) **no history shows, from any
+network**. Every client says so at once: `kith` prints `kithd is waiting: the cache is
+locked: unlock the keyring` and opens by itself once the daemon can start (Ctrl-C
+quits); one-shot commands such as `kith export` stop with that line instead of waiting;
+`kith-notify` shows it once as a desktop notification; and the assistant's tools answer
+with it. The daemon is not stuck: it waits, tries again every few seconds (up to every
+30), and once the keyring answers opens the cache and then every network, WhatsApp's,
+Signal's and Messenger's stores included. Unlock the keyring
+(see [Keyring unavailable](#keyring-unavailable)); no restart is needed.
+
+`the cache is locked: the keyring is not answering; unlock it` is the same wait for a
+keyring that takes no calls at all: a Secret Service D-Bus is still trying to start,
+or one waiting on a password prompt nothing shows. Each try waits 5 seconds for it.
+
+On the first start of a kith that encrypts the cache, the journal says
+`encrypting the cache, one time` with its size, then `the cache is encrypted` with how
+long it took: about 15 seconds for 500 MB, during which kith waits for the daemon.
+
+### "the keyring's key does not open the cache"
+
+The keyring gives a key, but not the one the cache was encrypted with: the entry
+(`<instance>|cache-store`) was replaced or deleted and made again. The daemon waits as
+for a locked keyring and never replaces the cache. Put the old entry back if you can,
+and it opens by itself. Otherwise move `cache-<instance>.db` aside (or restore a
+backup); the daemon then starts an empty cache and fills it from what the networks
+still hold.
+
+### "Backups are off until you run `kith backup` once"
+
+kithd's daily backups are encrypted to your backup key, and there is none yet: the
+first `kith backup`, run in a terminal, makes it and shows you its private half. kithd
+never makes one itself, since nobody would see that half and the backups could never be
+opened. Run `kith backup` once; the daily ones start within the hour.
+
+### "The daily backup failed: …" or "is put off: …"
+
+kithd tried today's backup into `[storage] export_dir/backups/` and could not. *Put
+off* is a disk without room for it (about the cache's size free beside the cache, and
+the cache's and pictures' size in the backups folder); it tries again every hour. A
+failure says why: often the keyring is locked (`unlock the keyring`), or the export
+folder is one kithd may not write. Under the systemd unit kithd writes only its own
+folders, so an `export_dir` outside `~/.local/share/kith` needs a `ReadWritePaths=`
+for it in a drop-in. Each is said once, and again only after a backup has worked.
+
+### "the key does not open this backup"
+
+`kith restore` was given a key the backup was not made to: a key from another machine,
+or one made again after the first was lost. Each backup opens only with the key that
+was current when it was made. A text that is not a key at all (it should start
+`AGE-SECRET-KEY-1`) is refused the same way. Nothing was changed.
 
 ## Encryption
 

@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -18,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/buildinfo"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
@@ -201,6 +203,9 @@ type agent struct {
 	notifier notify.Notifier
 	clip     notify.Clipboard
 	revision string
+	// toldWaiting is set once kithd's waiting (api.ErrDaemonWaiting) has been shown, so
+	// every profile's retries add nothing; a stream opening clears it.
+	toldWaiting bool
 }
 
 // newAgent shows and copies with cfg's settings until kithd's own config is read.
@@ -229,10 +234,14 @@ func (a *agent) listen(ctx context.Context, settings *daemon.Remote, profile str
 	for {
 		err := r.Notifications(ctx, func() {
 			wait = retryFirst
+			a.started()
 			a.log.Info("listening for notifications", "profile", profile)
 		}, func(v daemon.Notice) { a.show(ctx, settings, v) })
 		if ctx.Err() != nil {
 			return
+		}
+		if errors.Is(err, api.ErrDaemonWaiting) {
+			a.waiting(err)
 		}
 		a.log.Warn("notifications from kithd stopped; listening again", "profile", profile, "in", wait, "err", err)
 		select {
@@ -242,6 +251,32 @@ func (a *agent) listen(ctx context.Context, settings *daemon.Remote, profile str
 		}
 		wait = min(2*wait, retryMost)
 	}
+}
+
+// waiting shows, once until kithd starts, that it cannot start yet and why: nothing
+// else would say so while it serves no notifications.
+func (a *agent) waiting(err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.toldWaiting {
+		return
+	}
+	a.toldWaiting = true
+	why := err.Error()
+	if _, after, ok := strings.Cut(why, api.ErrDaemonWaiting.Error()+": "); ok {
+		why = after
+	}
+	a.notifier.Notify(notify.Notification{
+		Sender: "kith", Room: "kith", Body: "kithd is waiting: " + why,
+		Sent: time.Now(), Replaces: "kithd:waiting",
+	})
+}
+
+// started notes that kithd serves again, so a later wait is shown once more.
+func (a *agent) started() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.toldWaiting = false
 }
 
 // show shows v unless it was shown already, with kithd's settings as they are now,

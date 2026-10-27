@@ -25,7 +25,7 @@ func TestOpenRebuildsAChangedIndexAndDropsAnUndeclaredOne(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
-	cache, err := Open(ctx, path)
+	cache, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestOpenRebuildsAChangedIndexAndDropsAnUndeclaredOne(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cache, err = Open(ctx, path)
+	cache, err = Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatal(err)
 	}

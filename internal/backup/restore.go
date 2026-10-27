@@ -22,8 +22,8 @@ var ErrDaemonRunning = errors.New("kithd is running on this config; stop it firs
 // not asked to set them aside.
 var ErrWouldReplace = errors.New("files are already there")
 
-// ErrWrongPassphrase is a backup the passphrase does not open.
-var ErrWrongPassphrase = errors.New("the passphrase does not open this backup")
+// ErrWrongKey is a backup the key given does not open, or a key that is not one.
+var ErrWrongKey = errors.New("the key does not open this backup")
 
 // ErrDamaged is a backup that is cut short, altered, or not a kith backup.
 var ErrDamaged = errors.New("the backup is damaged or not a kith backup")
@@ -41,21 +41,31 @@ type Login struct {
 
 // Restored is a restore done: where each file went, what was there before and where
 // it was set aside, what was not restored and why, and the accounts to log in to.
+// Pictures counts the pictures put back in the picture cache; PicturesThere those it
+// held already, which stay as they were.
 type Restored struct {
-	Files  []string
-	Aside  []string
-	Left   []string
-	Logins []Login
+	Files          []string
+	Aside          []string
+	Left           []string
+	Logins         []Login
+	Pictures       int
+	PicturesThere  int
+	PicturesFolder string
 }
 
 // Restore puts the backup at archive back for the config at configPath: the config
-// itself, then the cache and records where that config keeps them on this machine.
-// Files already there are refused unless replace, which sets them aside under a
-// ".before-restore-<time>" name. passphrase is asked once the refusals that need no
-// backup are past. Until everything is read and checked nothing in place is touched,
-// so a wrong passphrase, a damaged backup or a full disk leaves it as it was.
-func Restore(ctx context.Context, archive, configPath string, replace bool, passphrase func() (string, error)) (Restored, error) {
-	r := restore{configPath: configPath, replace: replace}
+// itself, then the cache, records and pictures where that config keeps them on this
+// machine, and the backup key's public half, so this machine's backups go on to the
+// same key. Files already there are refused unless replace, which sets them aside
+// under a ".before-restore-<time>" name; pictures are added to the picture cache,
+// which keeps those it holds. key, the private backup key, is asked once the refusals
+// that need no backup are past. Until everything is read and checked nothing in place
+// is touched, so a wrong key, a damaged backup or a full disk leaves it as it was.
+// cacheKey is the key the restored storage's cache is encrypted under on this machine.
+func Restore(ctx context.Context, archive, configPath string, replace bool, key func() (*Key, error),
+	cacheKey func(domain.Storage) ([]byte, error),
+) (Restored, error) {
+	r := restore{configPath: configPath, replace: replace, cacheKey: cacheKey}
 	defer r.cleanup()
 	if err := r.lockExisting(); err != nil {
 		return Restored{}, err
@@ -65,11 +75,12 @@ func Restore(ctx context.Context, archive, configPath string, replace bool, pass
 		return Restored{}, fmt.Errorf("restore: %w", err)
 	}
 	defer func() { _ = f.Close() }()
-	pass, err := passphrase()
+	id, err := key()
 	if err != nil {
 		return Restored{}, err
 	}
-	if err := r.read(ctx, f, pass); err != nil {
+	r.id = id
+	if err := r.read(ctx, f); err != nil {
 		return Restored{}, err
 	}
 	return r.swap(ctx)
@@ -80,6 +91,13 @@ func Restore(ctx context.Context, archive, configPath string, replace bool, pass
 type restore struct {
 	configPath string
 	replace    bool
+	// cacheKey finds this machine's key for a storage's cache; key is the one found
+	// for the restored storage, and backupKey the one the backup's cache is under (nil:
+	// a plain cache).
+	cacheKey       func(domain.Storage) ([]byte, error)
+	key, backupKey []byte
+	// id is the backup key the backup opened with.
+	id *Key
 
 	locks    []*daemon.Lock
 	lockedAt []string // each held lock's path
@@ -91,7 +109,11 @@ type restore struct {
 	smallMode map[string]fs.FileMode
 	order     []string
 	cache     string // the adopted cache, ready to move into place
-	staged    []string
+	// media is the picture cache's folder; pictures, the folder the backup's are staged
+	// in beside it, and pictureNames their names there.
+	media, pictures string
+	pictureNames    []string
+	staged          []string
 
 	done Restored
 }

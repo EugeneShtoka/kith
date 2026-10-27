@@ -24,7 +24,7 @@ import (
 func offline(t *testing.T, accounts ...Account) (*Adapter, *db.Cache, *Store) {
 	t.Helper()
 	ctx := context.Background()
-	cache, err := db.Open(ctx, filepath.Join(t.TempDir(), "cache.db"))
+	cache, err := db.Open(ctx, filepath.Join(t.TempDir(), "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}

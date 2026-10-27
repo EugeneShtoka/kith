@@ -41,6 +41,7 @@ func TestEverySentinelInTheContractCrossesTheWire(t *testing.T) {
 		"ErrConfigMoved":      api.ErrConfigMoved,
 		"ErrRefused":          api.ErrRefused,
 		"ErrUnknownProfile":   api.ErrUnknownProfile,
+		"ErrDaemonWaiting":    api.ErrDaemonWaiting,
 	}
 
 	for _, name := range declared {

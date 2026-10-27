@@ -171,9 +171,9 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 		return derr
 	}
 
-	cache, err := openCache(ctx, log, storage.CachePath())
-	if err != nil {
-		return err
+	cache, err := openCache(ctx, log, lock, storage)
+	if err != nil || cache == nil {
+		return err // nil: stopped while waiting for the cache
 	}
 	backend := newServed(ctx, cache, log, cfg, storage)
 	// Registered before configure, so what it starts is stopped on every return.
@@ -250,8 +250,10 @@ type served struct {
 	*route.Router
 	*local.Service
 	matrix *matrix.Adapter
-	// dataDir and schedulePath are this instance's ([storage]).
+	// dataDir and schedulePath are this instance's ([storage]); storage is all of it,
+	// for the daily backup.
 	dataDir, schedulePath string
+	storage               domain.Storage
 	// networks is every network built, Matrix among them when there.
 	networks []network
 	// stores are the networks' own stores, closed with the backend.
@@ -294,7 +296,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	defaults.use(cfg)
 	return served{
 		Router: router, Service: service, matrix: mx, networks: networks, stores: stores,
-		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), cache: cache, defaults: defaults,
+		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), storage: storage, cache: cache, defaults: defaults,
 	}
 }
 
@@ -482,7 +484,7 @@ func serve(
 	// Before Serve answers: a client polling Status must not see a daemon waiting for
 	// nothing yet.
 	w.state.Expect(expected(ctx, log, backend)...)
-	w.run(ctx, &wg, log, backend)
+	w.run(ctx, &wg, log, backend, file)
 	wg.Go(func() {
 		syncErr = connectAndSync(ctx, backend.Router)
 		if syncErr != nil {
@@ -568,15 +570,20 @@ type workers struct {
 	state         *daemon.State
 	streams       *daemon.Streams
 	backups       *daemon.KeyBackup
+	// maintenance is held by the cache's vacuum and the daily backup, so they never
+	// run at once: the vacuum would put itself off while the backup reads the cache.
+	maintenance sync.Mutex
 }
 
 // run starts the workers on wg; each runs until ctx ends.
-func (w *workers) run(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, backend served) {
+func (w *workers) run(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, backend served, file configFile) {
 	wg.Go(func() { w.streams.Run(ctx, backend) })
 	wg.Go(func() { w.notifications.Run(ctx, w.streams) })
 	wg.Go(func() { w.refresher.Run(ctx) })
 	wg.Go(func() { w.backups.Run(ctx) })
-	wg.Go(func() { vacuumCache(ctx, log, backend.cache) })
+	wg.Go(func() { vacuumCache(ctx, log, backend.cache, &w.maintenance) })
+	daily := dailyBackups{log: log, file: file, storage: backend.storage, say: w.notifications.BackupsSay, maintenance: &w.maintenance}
+	wg.Go(func() { daily.run(ctx) })
 }
 
 // newWorkers builds the workers and registers their backend callbacks; serve starts them.
@@ -720,19 +727,141 @@ func makeStorageDirs(storage domain.Storage) error {
 	return nil
 }
 
-// openCache opens the instance's cache. There is no daemon without it: every network
-// writes into it and every client reads from it.
-func openCache(ctx context.Context, log *slog.Logger, path string) (*db.Cache, error) {
-	cache, err := db.Open(ctx, path)
-	if err != nil {
-		// A unit retries every few seconds, so fixing the cause is enough.
-		return nil, fmt.Errorf("open the cache %s (free disk space or fix its permissions): %w", path, err)
+// openCache opens the instance's cache, encrypted under its key in the keyring. There
+// is no daemon without it: every network writes into it and every client reads from
+// it. While the keyring is locked (a boot with no prompter) or its key does not open
+// the cache, kithd waits (waitForCache) rather than exit or start an empty cache. A
+// nil cache with no error is a daemon stopped while it waited.
+func openCache(ctx context.Context, log *slog.Logger, lock *daemon.Lock, storage domain.Storage) (*db.Cache, error) {
+	cache, err := tryCache(ctx, log, storage)
+	if locked := (*cacheLocked)(nil); errors.As(err, &locked) {
+		cache, err = waitForCache(ctx, log, lock, storage, locked)
+	}
+	if err != nil || cache == nil {
+		return nil, err
 	}
 	cache.UseLogger(log)
 	if asideErr := cache.AsideFailed(); asideErr != nil {
 		log.Warn("the previous cache could not be kept", "err", asideErr)
 	}
 	return cache, nil
+}
+
+// cacheLocked is a cache the keyring does not let kithd open yet; why says what to do.
+type cacheLocked struct {
+	why string
+	err error
+}
+
+func (e *cacheLocked) Error() string { return e.why + " (" + e.err.Error() + ")" }
+func (e *cacheLocked) Unwrap() error { return e.err }
+
+// cacheKey is the key storage's cache is encrypted under, in its keyring, made on
+// first use.
+func cacheKey(storage domain.Storage) ([]byte, error) {
+	key, err := session.LoadOrCreateStoreKey(storage.KeyringService, storage.Instance, "cache")
+	if err != nil {
+		return nil, fmt.Errorf("the cache's key: %w", err)
+	}
+	return key, nil
+}
+
+// tryCache opens the cache under its key in the keyring. A keyring that cannot be
+// read, or a key that does not open the cache, is cacheLocked. A cache from before
+// caches were encrypted is encrypted first, once, which is said: it takes a while.
+func tryCache(ctx context.Context, log *slog.Logger, storage domain.Storage) (*db.Cache, error) {
+	key, err := cacheKey(storage)
+	switch {
+	case errors.Is(err, session.ErrKeyringNotAnswering):
+		return nil, &cacheLocked{why: "the cache is locked: the keyring is not answering; unlock it", err: err}
+	case err != nil:
+		return nil, &cacheLocked{why: "the cache is locked: unlock the keyring", err: err}
+	}
+	path := storage.CachePath()
+	plain, _ := db.Plain(path) // a file that cannot be read fails in Open, saying why
+	start := time.Now()
+	if plain {
+		log.Info("encrypting the cache, one time", "path", path, "size", fileSize(path))
+	}
+	cache, err := db.Open(ctx, path, key)
+	if plain && err == nil {
+		log.Info("the cache is encrypted", "took", time.Since(start).Round(100*time.Millisecond), "size", fileSize(path))
+	}
+	switch {
+	case errors.Is(err, db.ErrWrongKey):
+		return nil, &cacheLocked{
+			why: "the keyring's key does not open the cache: restore the cache's key in the keyring, or move " +
+				storage.CachePath() + " aside to start an empty one",
+			err: err,
+		}
+	case err != nil:
+		// A unit retries every few seconds, so fixing the cause is enough.
+		return nil, fmt.Errorf("open the cache %s (free disk space or fix its permissions): %w", storage.CachePath(), err)
+	}
+	return cache, nil
+}
+
+// fileSize is the size of the database at path with its log, in MB, for the log.
+func fileSize(path string) string {
+	var n int64
+	for _, f := range []string{path, path + "-wal"} {
+		if info, err := os.Stat(f); err == nil {
+			n += info.Size()
+		}
+	}
+	return fmt.Sprintf("%.0f MB", float64(n)/1e6)
+}
+
+// How long kithd waits between tries at a cache it cannot open yet: cacheRetry at
+// first, growing to cacheRetryMax.
+const (
+	cacheRetry    = 2 * time.Second
+	cacheRetryMax = 30 * time.Second
+)
+
+// waitForCache tries the cache until it opens, answering on the socket meanwhile as a
+// daemon not ready, saying why (daemon.ServeWaiting), so unlocking the keyring is all
+// it takes. Nothing else starts until it opens. Stopped while waiting, it returns nil.
+func waitForCache(ctx context.Context, log *slog.Logger, lock *daemon.Lock, storage domain.Storage, locked *cacheLocked) (*db.Cache, error) {
+	ln, err := lock.Listen(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("open socket: %w", err)
+	}
+	var why atomic.Pointer[string]
+	say := func(l *cacheLocked) {
+		s := l.Error()
+		why.Store(&s)
+	}
+	say(locked)
+	waitCtx, stopWaiting := context.WithCancel(ctx)
+	served := make(chan error, 1)
+	go func() { served <- daemon.ServeWaiting(waitCtx, ln, func() string { return *why.Load() }) }()
+	defer func() {
+		stopWaiting()
+		if serr := <-served; serr != nil {
+			log.Warn("answering while waiting for the cache stopped", "err", serr)
+		}
+	}()
+	log.Error("waiting for the cache", "err", locked)
+	for delay := cacheRetry; ; delay = min(2*delay, cacheRetryMax) {
+		select {
+		case <-ctx.Done():
+			return nil, nil
+		case <-time.After(delay):
+		}
+		cache, err := tryCache(ctx, log, storage)
+		var still *cacheLocked
+		if !errors.As(err, &still) {
+			if err == nil {
+				log.Info("the cache is open")
+			}
+			return cache, err
+		}
+		if still.Error() != *why.Load() {
+			log.Error("waiting for the cache", "err", still)
+		}
+		say(still)
+	}
 }
 
 // startScheduler starts the send-later queue before Serve, so overdue messages go out

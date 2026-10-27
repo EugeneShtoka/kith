@@ -12,12 +12,13 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // cached is an adapter over a fresh cache, never connected.
 func cached(t *testing.T, accounts ...Account) (*Adapter, *db.Cache) {
 	t.Helper()
-	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
+	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}

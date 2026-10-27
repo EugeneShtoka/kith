@@ -190,7 +190,7 @@ func reach(ctx context.Context, path string, cfg config.Config, storage domain.S
 	launch := daemon.Launch{ConfigPath: path, OwnConfig: !isDefaultConfig(path) || !inDefaultDirs(storage)}
 	backend, note, err := daemon.Ensure(ctx, storage, launch, timeout)
 	if err != nil {
-		return attached{cfg: cfg}, fmt.Errorf("attach to kithd: %w", err)
+		return attached{cfg: cfg, storage: storage}, fmt.Errorf("attach to kithd: %w", err)
 	}
 	// kith-notify shows kithd's notifications here; one already running keeps them.
 	if nerr := daemon.StartNotifier(ctx, storage, launch); nerr != nil {
@@ -316,7 +316,7 @@ func run(configPath string, jobs startup) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer stop()
 
-	at, err := attach(ctx, configPath, readyTimeout)
+	at, err := attachOrWait(ctx, configPath)
 	if err != nil || at.backend == nil {
 		return err
 	}

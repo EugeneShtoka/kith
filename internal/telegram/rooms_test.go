@@ -18,6 +18,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // Each dialog kind maps to a room by marked peer ID; self is Saved Messages; a DM's
@@ -154,7 +155,7 @@ func (f *fakeTelegram) dialogsOf(chats func() []*tg.Chat, delay func() time.Dura
 
 func cachedAdapter(t *testing.T, secrets *memSecrets) (*Adapter, *db.Cache) {
 	t.Helper()
-	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
+	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,6 +3,7 @@ package backup
 import (
 	"archive/tar"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +22,11 @@ import (
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
+
+// keyName is the backup key's public half among the files a restore puts in place. No
+// backup holds it as a file (checkEntry refuses it): it is the key the backup opened
+// with.
+const keyName = "backup.pub"
 
 // damaged is ErrDamaged with why.
 func damaged(why error) error { return fmt.Errorf("restore: %w: %w", ErrDamaged, why) }
@@ -47,26 +53,23 @@ type badArchive struct{ err error }
 func (b badArchive) Error() string { return b.err.Error() }
 func (b badArchive) Unwrap() error { return b.err }
 
-// read decrypts the backup and stages every file: the small ones in memory, the cache
-// adopted beside where it goes. It reads to the very end, so a cut or altered backup
-// fails here, before anything in place is touched.
-func (r *restore) read(ctx context.Context, f io.Reader, pass string) error {
-	identity, err := age.NewScryptIdentity(pass)
-	if err != nil {
-		return fmt.Errorf("restore: %w", err)
-	}
-	plain, err := age.Decrypt(f, identity)
+// read decrypts the backup and stages every file: the small ones in memory, the
+// pictures and the cache beside where they go (the cache adopted). It reads to the
+// very end, so a cut or altered backup fails here, before anything in place is touched.
+func (r *restore) read(ctx context.Context, f io.Reader) error {
+	plain, err := age.Decrypt(f, r.id)
 	if err != nil {
 		if _, ok := errors.AsType[*age.NoIdentityMatchError](err); ok {
-			return fmt.Errorf("restore: %w", ErrWrongPassphrase)
+			return fmt.Errorf("restore: %w", ErrWrongKey)
 		}
 		return damaged(err)
 	}
 	tr := tar.NewReader(plain)
-	listed, err := readManifest(tr)
+	listed, key, err := readManifest(tr)
 	if err != nil {
 		return err
 	}
+	r.backupKey = key
 	r.small, r.smallMode = map[string][]byte{}, map[string]fs.FileMode{}
 	var seen []string
 	for {
@@ -81,21 +84,9 @@ func (r *restore) read(ctx context.Context, f io.Reader, pass string) error {
 			return bad
 		}
 		seen = append(seen, hdr.Name)
-		if hdr.Name == cacheName {
-			if stageErr := r.stageCache(ctx, tr); stageErr != nil {
-				return stageErr
-			}
-			continue
+		if stageErr := r.stage(ctx, hdr, tr); stageErr != nil {
+			return stageErr
 		}
-		body, err := io.ReadAll(io.LimitReader(tr, smallLimit+1))
-		if err != nil {
-			return damaged(err)
-		}
-		if len(body) > smallLimit {
-			return damaged(fmt.Errorf("%s is larger than any kith writes", hdr.Name))
-		}
-		r.small[hdr.Name], r.smallMode[hdr.Name] = body, fs.FileMode(hdr.Mode&0o777) // #nosec G115 -- permission bits only
-		r.order = append(r.order, hdr.Name)
 	}
 	// age checks the last chunk only once it is read: a backup cut at its end is found here.
 	if _, err := io.Copy(io.Discard, plain); err != nil {
@@ -107,23 +98,49 @@ func (r *restore) read(ctx context.Context, f io.Reader, pass string) error {
 	return nil
 }
 
-// readManifest reads the first entry, the list of every file after it.
-func readManifest(tr *tar.Reader) ([]string, error) {
+// stage stages one entry: a picture or the cache beside where it goes, a small file in
+// memory.
+func (r *restore) stage(ctx context.Context, hdr *tar.Header, tr io.Reader) error {
+	if name, ok := strings.CutPrefix(hdr.Name, mediaPrefix); ok {
+		return r.stagePicture(ctx, name, hdr, tr)
+	}
+	if hdr.Name == cacheName {
+		return r.stageCache(ctx, tr)
+	}
+	body, err := io.ReadAll(io.LimitReader(tr, smallLimit+1))
+	if err != nil {
+		return damaged(err)
+	}
+	if len(body) > smallLimit {
+		return damaged(fmt.Errorf("%s is larger than any kith writes", hdr.Name))
+	}
+	r.small[hdr.Name], r.smallMode[hdr.Name] = body, fs.FileMode(hdr.Mode&0o777) // #nosec G115 -- permission bits only
+	r.order = append(r.order, hdr.Name)
+	return nil
+}
+
+// readManifest reads the first entry: the list of every file after it, and the key
+// the cache in the backup is encrypted under.
+func readManifest(tr *tar.Reader) ([]string, []byte, error) {
 	hdr, err := tr.Next()
 	if err != nil {
-		return nil, damaged(err)
+		return nil, nil, damaged(err)
 	}
 	if hdr.Name != manifestName {
-		return nil, damaged(fmt.Errorf("it starts with %q", hdr.Name))
+		return nil, nil, damaged(fmt.Errorf("it starts with %q", hdr.Name))
 	}
 	var m manifest
-	if err := json.NewDecoder(io.LimitReader(tr, smallLimit)).Decode(&m); err != nil {
-		return nil, damaged(err)
+	if decErr := json.NewDecoder(io.LimitReader(tr, smallLimit)).Decode(&m); decErr != nil {
+		return nil, nil, damaged(decErr)
 	}
 	if m.Format != format {
-		return nil, fmt.Errorf("restore: the backup's layout is %d; this kith reads %d (it was made by %s)", m.Format, format, m.Kith)
+		return nil, nil, fmt.Errorf("restore: the backup's layout is %d; this kith reads %d (it was made by %s)", m.Format, format, m.Kith)
 	}
-	return m.Files, nil
+	key, err := hex.DecodeString(m.CacheKey)
+	if err != nil || len(key) != db.KeyLen {
+		return nil, nil, damaged(errors.New("its cache's key is not a key"))
+	}
+	return m.Files, key, nil
 }
 
 // checkEntry refuses an entry this kith never writes, one seen before, or one after
@@ -131,11 +148,13 @@ func readManifest(tr *tar.Reader) ([]string, error) {
 func checkEntry(hdr *tar.Header, seen []string, afterCache bool) error {
 	name := hdr.Name
 	command, isCommand := strings.CutPrefix(name, commandsDir)
-	isCommand = isCommand && command != "" && path.Base(command) == command && command != "." && command != ".."
+	isCommand = isCommand && plainName(command)
+	picture, isPicture := strings.CutPrefix(name, mediaPrefix)
+	isPicture = isPicture && plainName(picture) && !strings.HasPrefix(picture, ".")
 	switch {
 	case hdr.Typeflag != tar.TypeReg:
 		return damaged(fmt.Errorf("%q is not a file", name))
-	case !isCommand && !slices.Contains([]string{configName, ledgerName, scheduleName, cacheName}, name):
+	case !isCommand && !isPicture && !slices.Contains([]string{configName, ledgerName, scheduleName, cacheName}, name):
 		return damaged(fmt.Errorf("it holds %q, which kith never writes", name))
 	case slices.Contains(seen, name):
 		return damaged(fmt.Errorf("it holds %q twice", name))
@@ -145,13 +164,21 @@ func checkEntry(hdr *tar.Header, seen []string, afterCache bool) error {
 	return nil
 }
 
-// stageCache reads the backup's config to learn where the cache goes on this machine,
-// refuses if kithd runs there or files are there (unless replacing), then writes the
-// cache beside its place and adopts it.
-func (r *restore) stageCache(ctx context.Context, tr io.Reader) error {
+// plainName is a file name with no folder in it.
+func plainName(name string) bool {
+	return name != "" && path.Base(name) == name && name != "." && name != ".."
+}
+
+// prepare reads the backup's config, once, to learn where files go on this machine,
+// and refuses if kithd runs there or files are there (unless replacing). Pictures and
+// the cache follow the config, so the first of them prepares.
+func (r *restore) prepare() error {
+	if r.storage.DataDir != "" {
+		return nil
+	}
 	text, ok := r.small[configName]
 	if !ok {
-		return damaged(errors.New("the cache comes before the config"))
+		return damaged(errors.New("the pictures or the cache come before the config"))
 	}
 	cfg, err := config.Decode(string(text))
 	if err != nil {
@@ -161,17 +188,62 @@ func (r *restore) stageCache(ctx context.Context, tr io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("restore: the backup's config: %w", err)
 	}
-	r.cfg, r.storage = cfg, storage
+	r.cfg, r.storage, r.media = cfg, storage, setup.MediaDir(cfg, storage)
 	if lockErr := r.lock(storage); lockErr != nil {
 		return lockErr
 	}
-	if refused := r.refuseExisting(); refused != nil {
-		return refused
+	return r.refuseExisting()
+}
+
+// stagePicture writes one picture into a folder beside the picture cache, keeping its
+// time, which the cache trims by.
+func (r *restore) stagePicture(ctx context.Context, name string, hdr *tar.Header, tr io.Reader) error {
+	if err := r.prepare(); err != nil {
+		return err
 	}
+	if r.pictures == "" {
+		if err := os.MkdirAll(r.media, 0o700); err != nil {
+			return fmt.Errorf("restore: %w", err)
+		}
+		dir, err := os.MkdirTemp(filepath.Dir(r.media), ".restore-pictures-*")
+		if err != nil {
+			return fmt.Errorf("restore: %w", err)
+		}
+		r.staged = append(r.staged, dir)
+		r.pictures = dir
+	}
+	staged, err := r.stageStream(ctx, r.pictures, ".picture-*", archiveReader{tr})
+	if err != nil {
+		return err
+	}
+	dest := filepath.Join(r.pictures, name)
+	if err := os.Rename(staged, dest); err != nil {
+		return fmt.Errorf("restore: %w", err)
+	}
+	if err := os.Chmod(dest, fs.FileMode(hdr.Mode&0o600)); err != nil { // #nosec G115 -- permission bits only
+		return fmt.Errorf("restore: %w", err)
+	}
+	_ = os.Chtimes(dest, hdr.ModTime, hdr.ModTime)
+	r.pictureNames = append(r.pictureNames, name)
+	return nil
+}
+
+// stageCache writes the cache beside its place on this machine and adopts it under
+// this machine's key.
+func (r *restore) stageCache(ctx context.Context, tr io.Reader) error {
+	if err := r.prepare(); err != nil {
+		return err
+	}
+	storage := r.storage
 	if mkErr := os.MkdirAll(storage.DataDir, 0o700); mkErr != nil {
 		return fmt.Errorf("restore: %w", mkErr)
 	}
-	plain, err := r.stageStream(ctx, storage.DataDir, ".restore-cache-*.db", archiveReader{tr})
+	key, err := r.cacheKey(storage)
+	if err != nil {
+		return fmt.Errorf("restore: the cache's key on this machine: %w", err)
+	}
+	r.key = key
+	copied, err := r.stageStream(ctx, storage.DataDir, ".restore-cache-*.db", archiveReader{tr})
 	if err != nil {
 		return err
 	}
@@ -179,10 +251,10 @@ func (r *restore) stageCache(ctx context.Context, tr io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if adoptErr := db.Adopt(ctx, plain, adopted); adoptErr != nil {
+	if adoptErr := db.Adopt(ctx, copied, r.backupKey, adopted, key); adoptErr != nil {
 		return fmt.Errorf("restore: the backup's cache: %w", adoptErr)
 	}
-	_ = os.Remove(plain)
+	_ = os.Remove(copied)
 	r.cache = adopted
 	return nil
 }
@@ -195,7 +267,7 @@ func (r *restore) refuseExisting() error {
 	}
 	cache := r.storage.CachePath()
 	var there []string
-	for _, p := range []string{cache, cache + "-wal", cache + "-shm", r.storage.LedgerPath(), r.storage.SchedulePath()} {
+	for _, p := range []string{cache, cache + "-wal", cache + "-shm", r.storage.LedgerPath(), r.storage.SchedulePath(), r.storage.BackupKeyPath()} {
 		if _, err := os.Lstat(p); err == nil {
 			there = append(there, p)
 		}
@@ -262,17 +334,47 @@ func (r *restore) swap(ctx context.Context) (Restored, error) {
 			return r.done, err
 		}
 	}
+	r.placePictures()
 	r.done.Logins = logins(r.cfg)
 	return r.done, nil
+}
+
+// placePictures adds the staged pictures to the picture cache. A picture is named by
+// the message it came with, so one already there is the same picture and stays.
+func (r *restore) placePictures() {
+	if r.pictures == "" {
+		return
+	}
+	r.done.PicturesFolder = r.media
+	var failed []string
+	for _, name := range r.pictureNames {
+		dest := filepath.Join(r.media, name)
+		if _, err := os.Lstat(dest); err == nil {
+			r.done.PicturesThere++
+			continue
+		}
+		if err := os.Rename(filepath.Join(r.pictures, name), dest); err != nil {
+			failed = append(failed, err.Error())
+			continue
+		}
+		r.done.Pictures++
+	}
+	if len(failed) > 0 {
+		r.done.Left = append(r.done.Left, fmt.Sprintf("pictures: %d not put back (%s)", len(failed), failed[0]))
+	}
 }
 
 // stageSmall writes the config, the records and the commands beside where each goes.
 func (r *restore) stageSmall(ctx context.Context) ([]move, error) {
 	var moves []move
+	// The backup key's public half goes with it, so this machine's backups go on to the
+	// key that opened this one.
+	r.small[keyName] = []byte(r.id.Recipient().String() + "\n")
 	for _, s := range []struct{ name, dest string }{
 		{configName, r.configPath},
 		{ledgerName, r.storage.LedgerPath()},
 		{scheduleName, r.storage.SchedulePath()},
+		{keyName, r.storage.BackupKeyPath()},
 	} {
 		body, ok := r.small[s.name]
 		if !ok {
@@ -334,7 +436,7 @@ func (r *restore) stageCommands(ctx context.Context, dest string) ([]move, error
 func (r *restore) placeCache(ctx context.Context, stamp string) error {
 	dest := r.storage.CachePath()
 	if _, err := os.Stat(dest); err == nil {
-		if serr := db.Settle(context.WithoutCancel(ctx), dest); serr != nil {
+		if serr := db.Settle(context.WithoutCancel(ctx), dest, r.key); serr != nil {
 			r.done.Left = append(r.done.Left, "the old cache could not be checkpointed ("+serr.Error()+"); its log was set aside with it")
 		}
 		aside := dest + asideInfix + stamp

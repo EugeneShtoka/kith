@@ -14,8 +14,10 @@ import (
 
 // How each call reaches its account: one naming a room, space, event or address goes to
 // the account its ID is under; one naming an account (on) to that one; a list is
-// served by every logged-in account; and a person-level change (ignore, a mark) is
-// made on every logged-in account, as it applies to all of them.
+// served by every logged-in account, and one the cache answers (rooms, unread, spaces)
+// by every configured account, a logged-out one from its cache (kept); and a
+// person-level change (ignore, a mark) is made on every logged-in account, as it
+// applies to all of them.
 
 // runnerOn is account on's runner, refusing an account not configured or logged out.
 func (m *Adapter) runnerOn(on domain.RoomOwner) (*runner, error) {
@@ -29,6 +31,11 @@ func (m *Adapter) runnerOn(on domain.RoomOwner) (*runner, error) {
 		return r, nil
 	}
 	return nil, fmt.Errorf("matrix: %s is no Matrix account here: %w", on, api.ErrNotOnNetwork)
+}
+
+// configured reports whether on is a configured account's, logged in or not.
+func (m *Adapter) configured(on domain.RoomOwner) bool {
+	return on != "" && slices.ContainsFunc(m.runnersNow(), func(r *runner) bool { return r.ids.owner() == on })
 }
 
 // runnerOf is the runner of the account id is under: a room, space or event, or an
@@ -87,28 +94,55 @@ func gather[T any](m *Adapter, list func(*runner) ([]T, error)) ([]T, error) {
 	return out, nil
 }
 
-// Rooms is every account's cached rooms.
-func (m *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
-	return gather(m, func(r *runner) ([]domain.Room, error) { return r.Rooms(ctx) })
+// kept is every configured account's list as the cache holds it, in config order: a
+// logged-in account answers with live, any other with cache, read from the cache
+// alone (it has no session to ask).
+func kept[T any](m *Adapter, live, cache func(*runner) ([]T, error)) ([]T, error) {
+	var out []T
+	for _, r := range m.runnersNow() {
+		read := live
+		if !r.loggedIn.Load() {
+			read = cache
+		}
+		got, err := read(r)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, got...)
+	}
+	return out, nil
 }
 
-// RefreshRooms lists every account's rooms anew.
+// Rooms is every account's cached rooms, a logged-out one's too.
+func (m *Adapter) Rooms(ctx context.Context) ([]domain.Room, error) {
+	rooms := func(r *runner) ([]domain.Room, error) { return r.Rooms(ctx) }
+	return kept(m, rooms, rooms)
+}
+
+// RefreshRooms lists every logged-in account's rooms anew; a logged-out one's are the
+// cached ones.
 func (m *Adapter) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
-	return gather(m, func(r *runner) ([]domain.Room, error) { return r.RefreshRooms(ctx) })
+	return kept(m,
+		func(r *runner) ([]domain.Room, error) { return r.RefreshRooms(ctx) },
+		func(r *runner) ([]domain.Room, error) { return r.Rooms(ctx) })
 }
 
 // Spaces is every account's cached spaces, and a space per account holding its rooms.
 func (m *Adapter) Spaces(ctx context.Context) ([]domain.Space, error) {
-	spaces, err := gather(m, func(r *runner) ([]domain.Space, error) { return r.Spaces(ctx) })
+	cachedSpaces := func(r *runner) ([]domain.Space, error) { return r.Spaces(ctx) }
+	spaces, err := kept(m, cachedSpaces, cachedSpaces)
 	if err != nil {
 		return nil, err
 	}
 	return m.withAccountSpaces(ctx, spaces)
 }
 
-// RefreshSpaces lists every account's spaces anew, and the account spaces.
+// RefreshSpaces lists every logged-in account's spaces anew, a logged-out one's from
+// the cache, and the account spaces.
 func (m *Adapter) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
-	spaces, err := gather(m, func(r *runner) ([]domain.Space, error) { return r.RefreshSpaces(ctx) })
+	spaces, err := kept(m,
+		func(r *runner) ([]domain.Space, error) { return r.RefreshSpaces(ctx) },
+		func(r *runner) ([]domain.Space, error) { return r.Spaces(ctx) })
 	if err != nil {
 		return nil, err
 	}
@@ -122,9 +156,10 @@ func (m *Adapter) CachedInvites(ctx context.Context) ([]domain.Room, error) {
 	return invites, err
 }
 
-// CachedUnread is every account's cached unread state.
+// CachedUnread is every account's cached unread state, a logged-out one's too.
 func (m *Adapter) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
-	return gather(m, func(r *runner) ([]domain.Unread, error) { return r.CachedUnread(ctx) })
+	unread := func(r *runner) ([]domain.Unread, error) { return r.CachedUnread(ctx) }
+	return kept(m, unread, unread)
 }
 
 // DirectCandidates ranks people to start a DM with: those no account has one with yet.
@@ -149,10 +184,11 @@ func (m *Adapter) DirectCandidates(ctx context.Context, limit int) ([]domain.Mem
 	return out, nil
 }
 
-// Me is every account's IDs that are this person.
+// Me is every account's IDs that are this person, a logged-out one's too: its cached
+// messages are still yours.
 func (m *Adapter) Me() []string {
 	var me []string
-	for _, r := range m.live() {
+	for _, r := range m.runnersNow() {
 		for _, id := range r.Me() {
 			if !slices.Contains(me, id) {
 				me = append(me, id)
@@ -206,13 +242,18 @@ func (m *Adapter) RecountUnread(ctx context.Context, rooms []domain.RoomID) {
 	}
 }
 
-// RoomEncryption reports which rooms are encrypted, each asked of its account.
+// RoomEncryption reports which rooms are encrypted, each asked of its account. A room
+// of an account that is logged out reports as encrypted, as unknown is (the router
+// does the same for a network that is off); one of no account here is refused.
 func (m *Adapter) RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error) {
 	by, rest := m.byAccount(roomIDs)
-	if len(rest) > 0 {
-		return nil, fmt.Errorf("matrix: %s names no logged-in account: %w", rest[0], api.ErrNotOnNetwork)
-	}
 	out := map[domain.RoomID]bool{}
+	for _, room := range rest {
+		if !m.configured(ownerOf(string(room))) {
+			return nil, fmt.Errorf("matrix: %s names no Matrix account here: %w", room, api.ErrNotOnNetwork)
+		}
+		out[room] = true
+	}
 	for r, mine := range by {
 		got, err := r.RoomEncryption(ctx, mine)
 		if err != nil {

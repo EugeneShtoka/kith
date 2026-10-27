@@ -16,6 +16,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/zalando/go-keyring"
 )
@@ -55,7 +56,7 @@ func servedWith(t *testing.T, cfg config.Config, saved domain.Session, prepare f
 			t.Fatal(err)
 		}
 	}
-	cache, err := db.Open(context.Background(), storage.CachePath())
+	cache, err := db.Open(context.Background(), storage.CachePath(), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,6 +87,44 @@ func TestADaemonWithoutMatrixServes(t *testing.T) {
 	}
 	if got := expected(ctx, slog.New(slog.DiscardHandler), backend); len(got) != 0 {
 		t.Errorf("expected = %v with nothing linked, want nothing to wait for", got)
+	}
+}
+
+// A Matrix account the config names lists its cached rooms while it has no session,
+// through the daemon's router as through the adapter, and nothing live reaches them;
+// a Matrix account the config does not name (one parked) shows none of its old rooms.
+func TestALoggedOutMatrixAccountKeepsItsCachedRoomsListed(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const user = "@me:example.org"
+	room := domain.RoomID(domain.NativeID(domain.ProtocolMatrix, domain.AccountKey(user), "!chat:example.org"))
+	for name, accounts := range map[string][]config.MatrixAccount{
+		"named, no session":  {{Name: "home", Homeserver: "https://matrix.example.org", User: user}},
+		"not named (parked)": nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			backend := servedFor(t, config.Config{Profiles: everyRoom, Matrix: config.Matrix{Accounts: accounts}}, domain.Session{})
+			owner := domain.AccountRooms(domain.ProtocolMatrix, domain.AccountKey(user))
+			if err := backend.cache.SaveRooms(ctx, owner, []domain.Room{{ID: room, Name: "chat"}}); err != nil {
+				t.Fatal(err)
+			}
+			if err := backend.cache.SaveUnread(ctx, domain.Unread{RoomID: room, Notifications: 1}, 0); err != nil {
+				t.Fatal(err)
+			}
+			named := len(accounts) > 0
+			rooms, err := backend.Rooms(ctx)
+			if err != nil || slices.ContainsFunc(rooms, func(r domain.Room) bool { return r.ID == room }) != named {
+				t.Errorf("Rooms = (%v, %v); the cached Matrix room listed: want %v", rooms, err, named)
+			}
+			unread, err := backend.CachedUnread(ctx)
+			if err != nil || slices.ContainsFunc(unread, func(u domain.Unread) bool { return u.RoomID == room }) != named {
+				t.Errorf("CachedUnread = (%v, %v); the cached Matrix room counted: want %v", unread, err, named)
+			}
+			if _, err := backend.Timeline(ctx, room, "", 10); !errors.Is(err, api.ErrNetworkOff) && !errors.Is(err, api.ErrNotOnNetwork) {
+				t.Errorf("Timeline = %v, want it refused: nothing live reaches an account without a session", err)
+			}
+		})
 	}
 }
 
@@ -406,7 +445,7 @@ func TestStorageDirsAreMade(t *testing.T) {
 			t.Errorf("%s: %v, %v; want a 0700 directory", dir, info, err)
 		}
 	}
-	if _, err := db.Open(context.Background(), storage.CachePath()); err != nil {
+	if _, err := db.Open(context.Background(), storage.CachePath(), make([]byte, sealeddb.KeyLen)); err != nil {
 		t.Errorf("the cache does not open in a made directory: %v", err)
 	}
 }
@@ -415,12 +454,15 @@ func TestStorageDirsAreMade(t *testing.T) {
 func TestACacheThatWillNotOpenIsAnError(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	storage := domain.Storage{Instance: "test", DataDir: dir, StateDir: dir, CacheDir: dir, RuntimeDir: dir, KeyringService: "kith-test"}
 	// A directory where the file should be: SQLite cannot open it.
-	path := filepath.Join(dir, "cache.db")
+	path := storage.CachePath()
 	if err := os.Mkdir(path, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	cache, err := openCache(context.Background(), slog.New(slog.DiscardHandler), path)
+	keyringTurn.Lock()
+	cache, err := openCache(context.Background(), slog.New(slog.DiscardHandler), nil, storage)
+	keyringTurn.Unlock()
 	if err == nil || cache != nil || !strings.Contains(err.Error(), path) {
 		t.Errorf("openCache(a directory) = (%v, %v), want an error naming it", cache, err)
 	}

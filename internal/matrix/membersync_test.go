@@ -12,6 +12,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // memberEvent builds a parsed m.room.member as the syncer delivers it.
@@ -285,7 +286,7 @@ func reopenedCache(t *testing.T, rooms []domain.Room) *db.Cache {
 	t.Helper()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
-	first, err := db.Open(ctx, path)
+	first, err := db.Open(ctx, path, make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
@@ -295,7 +296,7 @@ func reopenedCache(t *testing.T, rooms []domain.Room) *db.Cache {
 	if err = first.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	again, err := db.Open(ctx, path)
+	again, err := db.Open(ctx, path, make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatalf("db.Open again: %v", err)
 	}
