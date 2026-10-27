@@ -46,8 +46,9 @@ Not ordered; taken when a reason appears.
   backgrounded terminal tab shows something is waiting.
 - **Per-message delivery status** from bridges that report one (sent to the remote
   network, failed there), shown on the message as kith's own send status is.
-- **Following bridge-network links**: `wa.me` and other networks' links go to the
-  bridged chat, the way `matrix:` / `matrix.to` and `tg:` / `t.me` links already do.
+- **Following the other networks' links**: Messenger (`m.me`), Instagram (`ig.me`,
+  `instagram.com/direct`), Slack message links and LinkedIn messaging links go to the
+  chat in kith, the way Matrix, Telegram, WhatsApp and Signal links already do.
 - **Server-side search** for history that was never cached locally (Matrix's
   `/search`, and the networks that have one), merged into the same results pane as a
   separate, slower tier.
