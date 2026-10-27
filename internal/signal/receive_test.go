@@ -2,7 +2,6 @@ package signal_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"os"
 	"slices"
@@ -13,7 +12,9 @@ import (
 	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 	"github.com/EugeneShtoka/kith/internal/signal"
+	"github.com/ncruces/go-sqlite3/ext/fts5"
 )
 
 // The account's and two people's ACIs, invented.
@@ -47,7 +48,7 @@ func inGroup(ev *signalv1.EventsResponse) *signalv1.EventsResponse {
 // waiting for the adapter's own writes as the cache does.
 func (r *rig) sql(stmt string) {
 	r.t.Helper()
-	raw, err := sql.Open("sqlite", "file:"+r.cachePath+"?_pragma=busy_timeout(10000)")
+	raw, err := sealeddb.OpenWith(context.Background(), r.cachePath, make([]byte, sealeddb.KeyLen), sealeddb.Setup{Pragmas: []string{"busy_timeout(10000)"}, Init: fts5.Register})
 	if err != nil {
 		r.t.Fatal(err)
 	}

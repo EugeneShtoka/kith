@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/EugeneShtoka/kith/internal/human"
 )
 
 // The engine runs as one long-lived child. A dead engine must never take the composer
@@ -110,7 +112,7 @@ func (c *Checker) readBanner(ctx context.Context) error {
 		c.reading = nil
 		return err
 	case <-wait.Done():
-		return fmt.Errorf("none within %s: %w", bannerTimeout, wait.Err())
+		return fmt.Errorf("none within %s: %w", human.Duration(bannerTimeout), wait.Err())
 	}
 }
 

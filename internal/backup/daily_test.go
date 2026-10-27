@@ -1,0 +1,271 @@
+package backup_test
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/EugeneShtoka/kith/internal/backup"
+	"github.com/EugeneShtoka/kith/internal/config"
+)
+
+// day is noon local time, n days after a fixed date.
+func day(n int) time.Time {
+	return time.Date(2026, 10, 1, 12, 0, 0, 0, time.Local).AddDate(0, 0, n)
+}
+
+// daily runs MakeDaily for m at now into dir.
+func (m machine) daily(t *testing.T, ctx context.Context, dir string, now time.Time) (backup.Daily, error) {
+	t.Helper()
+	cfg, err := config.Load(m.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return backup.MakeDaily(ctx, m.source(t, cfg), testKey.Recipient(), dir, now)
+}
+
+// names is the file names in dir, sorted.
+func names(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, e := range entries {
+		out = append(out, e.Name())
+	}
+	return out
+}
+
+// dailyName is the name MakeDaily gives a backup made at at.
+func dailyName(at time.Time) string {
+	return "kith-daily-" + at.Format("2006-01-02-150405") + ".tar.age"
+}
+
+// stand is a file under a daily backup's name that starts as a whole one does, standing
+// in for a backup made earlier.
+func stand(t *testing.T, dir string, at time.Time) string {
+	t.Helper()
+	p := filepath.Join(dir, dailyName(at))
+	write(t, p, "age-encryption.org/v1\n-> X25519 stand-in\n"+strings.Repeat("x", 64), 0o600)
+	return p
+}
+
+// One backup a day: a second run that day makes none, the next day's does, and only
+// the last Keep stay, whatever day the run before was.
+func TestADailyBackupIsMadeOnceADayAndTheLastSevenKept(t *testing.T) {
+	m := newMachine(t)
+	m.as(t).fill(t, "kept", 20)
+	dir := t.TempDir()
+	first, err := m.daily(t, context.Background(), dir, day(0))
+	if err != nil || !first.Ran {
+		t.Fatalf("MakeDaily(day 0) = %+v, %v; want a backup made", first, err)
+	}
+	again, err := m.daily(t, context.Background(), dir, day(0).Add(5*time.Hour))
+	if err != nil || again.Ran {
+		t.Fatalf("MakeDaily(day 0, later) = %+v, %v; want none made: there is one from today", again, err)
+	}
+	// Days skipped (a machine asleep) and kept going past Keep.
+	for _, n := range []int{1, 2, 5, 6, 7, 9, 10, 11} {
+		got, err := m.daily(t, context.Background(), dir, day(n))
+		if err != nil || !got.Ran {
+			t.Fatalf("MakeDaily(day %d) = %+v, %v; want one made", n, got, err)
+		}
+	}
+	var want []string
+	for _, n := range []int{5, 6, 7, 9, 10, 11} {
+		want = append(want, dailyName(day(n)))
+	}
+	want = append([]string{dailyName(day(2))}, want...)
+	if got := names(t, dir); !slices.Equal(got, want) {
+		t.Fatalf("the backups kept are %v; want the last %d: %v", got, backup.Keep, want)
+	}
+}
+
+// A clock set back makes today's backup though later-named ones are there, and that
+// backup, the newest made, is never the one rotation deletes.
+func TestABackupMadeAfterTheClockWentBackIsKept(t *testing.T) {
+	m := newMachine(t)
+	m.as(t).fill(t, "kept", 5)
+	dir := t.TempDir()
+	for n := 20; n < 20+backup.Keep; n++ {
+		stand(t, dir, day(n))
+	}
+	got, err := m.daily(t, context.Background(), dir, day(3))
+	if err != nil || !got.Ran {
+		t.Fatalf("MakeDaily(earlier day) = %+v, %v; want one made", got, err)
+	}
+	if _, err := os.Stat(got.Made.Path); err != nil {
+		t.Fatalf("the backup just made is gone: %v (deleted %v)", err, got.Deleted)
+	}
+	if len(got.Deleted) != 0 {
+		t.Errorf("deleted %v; want none: the later ones are the last %d by name, the new one is never deleted", got.Deleted, backup.Keep)
+	}
+}
+
+// Only whole daily backups count: one that is not (damaged, or a partial a stopped
+// kithd left under the final name) neither stands for today's nor counts towards the
+// seven, and is not deleted; a stale partial is cleared, a fresh one (being written) and
+// a file the user put there are left alone.
+func TestOnlyWholeDailyBackupsCountAndNothingElseIsDeleted(t *testing.T) {
+	m := newMachine(t)
+	m.as(t).fill(t, "kept", 5)
+	dir := t.TempDir()
+	var whole []string
+	for n := 1; n < backup.Keep; n++ { // six whole ones
+		whole = append(whole, stand(t, dir, day(n)))
+	}
+	broken := filepath.Join(dir, dailyName(day(10).Add(-2*time.Hour)))
+	write(t, broken, "not an age file", 0o600) // today's, but not whole
+	cut := filepath.Join(dir, dailyName(day(0)))
+	write(t, cut, "age-encr", 0o600)
+	mine := filepath.Join(dir, "my-own-backup.tar.age")
+	write(t, mine, "mine", 0o600)
+	stale := filepath.Join(dir, "."+dailyName(day(8))+".partial-123")
+	write(t, stale, "half", 0o600)
+	if err := os.Chtimes(stale, time.Now().Add(-48*time.Hour), time.Now().Add(-48*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	fresh := filepath.Join(dir, "."+dailyName(day(10))+".partial-456")
+	write(t, fresh, "being written", 0o600)
+
+	got, err := m.daily(t, context.Background(), dir, day(10))
+	if err != nil || !got.Ran {
+		t.Fatalf("MakeDaily() = %+v, %v; want one made: today's file is not whole", got, err)
+	}
+	if len(got.Deleted) != 0 {
+		t.Errorf("deleted %v; want none: six whole ones and today's are seven", got.Deleted)
+	}
+	if !slices.Contains(got.Ignored, broken) || !slices.Contains(got.Ignored, cut) {
+		t.Errorf("Ignored = %v; want the two that are not whole", got.Ignored)
+	}
+	for _, p := range append(whole, broken, cut, mine, fresh, got.Made.Path) {
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("%s is gone: %v", filepath.Base(p), err)
+		}
+	}
+	if _, err := os.Stat(stale); err == nil {
+		t.Error("a partial a stopped kithd left two days ago is still there")
+	}
+}
+
+// A daily backup interrupted (kithd stopping) leaves no file and deletes none: rotation
+// only follows a backup made. More than Keep are there (as a clock set back leaves), so
+// a rotation would have something to delete.
+func TestAnInterruptedDailyBackupDeletesNothing(t *testing.T) {
+	m := newMachine(t)
+	m.as(t).fill(t, "kept", 300)
+	dir := t.TempDir()
+	for n := 1; n <= backup.Keep+2; n++ {
+		stand(t, dir, day(n))
+	}
+	before := names(t, dir)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	got, err := m.daily(t, ctx, dir, day(20))
+	if !errors.Is(err, context.Canceled) || got.Ran {
+		t.Fatalf("MakeDaily(canceled) = %+v, %v; want context.Canceled", got, err)
+	}
+	if after := names(t, dir); !slices.Equal(after, before) {
+		t.Fatalf("the folder holds %v; want it as it was, %v", after, before)
+	}
+}
+
+// A backup made without its pictures restores without them, leaving the picture cache
+// as it was.
+func TestABackupWithoutPicturesRestoresWithout(t *testing.T) {
+	old := newMachine(t)
+	old.as(t).fill(t, "kept", 5)
+	cfg, err := config.Load(old.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := old.source(t, cfg)
+	src.MediaDir = ""
+	out := filepath.Join(t.TempDir(), "b.tar.age")
+	if _, cerr := backup.Create(context.Background(), src, out, testKey.Recipient()); cerr != nil {
+		t.Fatal(cerr)
+	}
+	fresh := newMachine(t).as(t)
+	asked := 0
+	got, err := backup.Restore(context.Background(), out, fresh.configPath, false, answer(testKey, &asked), keyOf)
+	if err != nil {
+		t.Fatalf("Restore() error = %v", err)
+	}
+	if got.Pictures != 0 {
+		t.Errorf("Restore() put back %d pictures; the backup held none", got.Pictures)
+	}
+	if _, err := os.Stat(fresh.storage(t).MediaDir()); err == nil {
+		t.Error("a picture cache was made with nothing to put in it")
+	}
+}
+
+// Pictures restored into a picture cache that has some already add to it: one there
+// already (named by its message, so the same picture) stays as it is.
+func TestRestoredPicturesAddToThePictureCache(t *testing.T) {
+	old := newMachine(t)
+	old.as(t).fill(t, "kept", 5)
+	archive := old.backUp(t)
+	there := newMachine(t).as(t)
+	there.fill(t, "local", 5)
+	media := there.storage(t).MediaDir()
+	if err := os.Remove(filepath.Join(media, "b2.jpg")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(media, "c3.gif"), "only here", 0o600)
+	asked := 0
+	got, err := backup.Restore(context.Background(), archive, there.configPath, true, answer(testKey, &asked), keyOf)
+	if err != nil {
+		t.Fatalf("Restore() error = %v", err)
+	}
+	for name, want := range map[string]string{"a1.png": "local picture a", "b2.jpg": "kept picture b", "c3.gif": "only here"} {
+		body, err := os.ReadFile(filepath.Join(media, name)) // #nosec G304 -- the test's own file
+		if err != nil || string(body) != want {
+			t.Errorf("%s = %q, %v; want %q", name, body, err, want)
+		}
+	}
+	if got.Pictures != 1 || got.PicturesThere != 1 {
+		t.Errorf("Restore() = %d put back, %d there; want 1 and 1", got.Pictures, got.PicturesThere)
+	}
+}
+
+// A backup key is read as the user saved it, alone or in the file kith offered to
+// write; anything else is not one.
+func TestABackupKeyIsReadAsSaved(t *testing.T) {
+	t.Parallel()
+	saved := "# kith backup key, made 2026-10-27\n# public key: " + testKey.Recipient().String() + "\n" + testKey.String() + "\n"
+	for _, text := range []string{testKey.String(), "  " + testKey.String() + "\n", saved} {
+		id, err := backup.ParseKey(text)
+		if err != nil || id.String() != testKey.String() {
+			t.Errorf("ParseKey(%q) = %v; want the key", text, err)
+		}
+	}
+	for _, text := range []string{"", "# only a comment\n", "AGE-SECRET-KEY-1NOTAKEY", testKey.Recipient().String()} {
+		if _, err := backup.ParseKey(text); !errors.Is(err, backup.ErrWrongKey) {
+			t.Errorf("ParseKey(%q) = %v; want ErrWrongKey", text, err)
+		}
+	}
+}
+
+// No key on the machine is ErrNoKey; a key kept reads back the same.
+func TestTheBackupKeyKeptReadsBack(t *testing.T) {
+	m := newMachine(t)
+	m.as(t).fill(t, "kept", 1)
+	s := m.storage(t)
+	if _, err := backup.LoadKey(s); !errors.Is(err, backup.ErrNoKey) {
+		t.Fatalf("LoadKey() with none = %v; want ErrNoKey", err)
+	}
+	if err := backup.SaveKey(s, testKey.Recipient()); err != nil {
+		t.Fatal(err)
+	}
+	to, err := backup.LoadKey(s)
+	if err != nil || to.String() != testKey.Recipient().String() {
+		t.Fatalf("LoadKey() = %v, %v; want the key kept", to, err)
+	}
+}

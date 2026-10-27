@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -18,7 +17,7 @@ func v25Cache(t *testing.T, matrixRooms bool) string {
 	t.Helper()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "old.db")
-	c, err := Open(ctx, path)
+	c, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +38,7 @@ func v25Cache(t *testing.T, matrixRooms bool) string {
 	if cerr := c.Close(); cerr != nil {
 		t.Fatal(cerr)
 	}
-	raw, err := sql.Open("sqlite", path)
+	raw, err := openRaw(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +79,7 @@ func TestAnUpgradedCachesMatrixMirrorsAreTheirAccounts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	for _, matrixRooms := range []bool{true, false} {
-		c, err := Open(ctx, v25Cache(t, matrixRooms))
+		c, err := Open(ctx, v25Cache(t, matrixRooms), testKey)
 		if err != nil {
 			t.Fatal(err)
 		}

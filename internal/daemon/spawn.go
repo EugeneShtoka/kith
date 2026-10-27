@@ -8,7 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EugeneShtoka/kith/internal/api"
+	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/human"
 )
 
 // defaultUnit is the packaged systemd user unit serving the default config.
@@ -50,7 +53,7 @@ func Ensure(ctx context.Context, storage domain.Storage, launch Launch, timeout 
 
 	// Listening but not ready means someone else started it: wait without claiming to
 	// have started it.
-	if _, _, serr := statusProbe(ctx, NewRemote(socket)); serr == nil {
+	if _, serr := statusProbe(ctx, NewRemote(socket)); serr == nil {
 		attached, aerr := Attach(ctx, socket, timeout)
 		return attached, "", aerr
 	}
@@ -122,41 +125,99 @@ func detachArgs(storage domain.Storage, launch Launch) []string {
 	return args
 }
 
-// statusProbe asks the daemon whether it is ready, bounded: Remote has no client
-// timeout (streams stay open), so a wedged daemon would hang the caller.
-func statusProbe(ctx context.Context, r *Remote) (ready bool, lastErr string, err error) {
-	probe, cancel := context.WithTimeout(ctx, reattachProbeTimeout)
-	defer cancel()
-	ready, _, lastErr, err = r.Status(probe)
-	return ready, lastErr, err
+// readiness is what one Status probe learned: ready, the sync loop's last failure, and
+// what a daemon that cannot start waits for.
+type readiness struct {
+	ready            bool
+	lastErr, waiting string
 }
 
-// waitReady polls Status until the daemon is ready, ctx ends, or timeout expires.
+// statusProbe asks the daemon whether it is ready, bounded: Remote has no client
+// timeout (streams stay open), so a wedged daemon would hang the caller.
+func statusProbe(ctx context.Context, r *Remote) (readiness, error) {
+	probe, cancel := context.WithTimeout(ctx, reattachProbeTimeout)
+	defer cancel()
+	resp, err := call(probe, "status", r.c.Status, &v1.StatusRequest{})
+	if err != nil {
+		return readiness{}, err
+	}
+	return readiness{ready: resp.GetReady(), lastErr: resp.GetLastError(), waiting: resp.GetWaiting()}, nil
+}
+
+// waitReady polls Status until the daemon is ready, ctx ends, or timeout expires. A
+// daemon waiting for someone to act (api.ErrDaemonWaiting) ends it at once, saying why.
 func waitReady(ctx context.Context, r *Remote, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr string
 	for {
-		ready, daemonErr, err := statusProbe(ctx, r)
+		st, err := statusProbe(ctx, r)
 		switch {
-		case err == nil && ready:
+		case err == nil && st.ready:
 			return nil
-		case err == nil && daemonErr != "":
+		case err == nil && st.waiting != "":
+			return fmt.Errorf("%w: %s", api.ErrDaemonWaiting, st.waiting)
+		case err == nil && st.lastErr != "":
 			// A transient sync failure may resolve.
-			lastErr = daemonErr
+			lastErr = st.lastErr
 		}
 		if ctx.Err() != nil {
 			return fmt.Errorf("daemon: waiting for %s: %w", daemonBinary, ctx.Err())
 		}
 		if time.Now().After(deadline) {
 			if lastErr != "" {
-				return fmt.Errorf("daemon: %s did not become ready in %s: %s", daemonBinary, timeout, lastErr)
+				return fmt.Errorf("daemon: %s did not become ready in %s: %s", daemonBinary, human.Duration(timeout), lastErr)
 			}
-			return fmt.Errorf("daemon: %s did not become ready in %s", daemonBinary, timeout)
+			return fmt.Errorf("daemon: %s did not become ready in %s", daemonBinary, human.Duration(timeout))
 		}
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("daemon: waiting for %s: %w", daemonBinary, ctx.Err())
 		case <-time.After(readyPoll):
+		}
+	}
+}
+
+// waitingPoll is how often a client sitting out a waiting daemon asks again.
+const waitingPoll = time.Second
+
+// startGap bounds how long a daemon that stopped waiting may not answer: between its
+// waiting socket and its real one it opens the cache and starts the networks.
+const startGap = 30 * time.Second
+
+// WaitOut waits while the instance's daemon waits for someone to act
+// (api.ErrDaemonWaiting), telling say each reason it gives, and returns once it no
+// longer does: started, or gone for longer than a start takes. Only ctx ends it early,
+// with ctx's error.
+func WaitOut(ctx context.Context, storage domain.Storage, say func(why string)) error {
+	socket, err := SocketPath(storage)
+	if err != nil {
+		return err
+	}
+	r := NewRemote(socket)
+	said := ""
+	var silent time.Time // since when the daemon has not answered
+	for {
+		st, err := statusProbe(ctx, r)
+		switch {
+		case ctx.Err() != nil:
+			return fmt.Errorf("daemon: waiting out %s: %w", daemonBinary, ctx.Err())
+		case err == nil && st.waiting == "":
+			return nil
+		case err == nil:
+			silent = time.Time{}
+			if st.waiting != said {
+				said = st.waiting
+				say(said)
+			}
+		case silent.IsZero():
+			silent = time.Now()
+		case time.Since(silent) > startGap:
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("daemon: waiting out %s: %w", daemonBinary, ctx.Err())
+		case <-time.After(waitingPoll):
 		}
 	}
 }
@@ -219,12 +280,12 @@ func Restart(ctx context.Context, storage domain.Storage, launch Launch, timeout
 func waitListening(ctx context.Context, r *Remote, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
-		_, _, err := statusProbe(ctx, r)
+		_, err := statusProbe(ctx, r)
 		if err == nil {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("daemon: kithd did not answer within %s of restarting: %w", timeout, err)
+			return fmt.Errorf("daemon: kithd did not answer within %s of restarting: %w", human.Duration(timeout), err)
 		}
 		select {
 		case <-ctx.Done():

@@ -271,7 +271,7 @@ kith --agent-log
 ```text
 2026-09-24T10:02:11+03:00  sent     Notes  [claude-code 2.1.0]  Remember to renew the domain
 2026-09-24T10:02:40+03:00  drafted  Notes  [claude-code 2.1.0]  And the certificate
-  ↳ a message went to this room 29s ago and [agent.write] cooldown is 1m0s, so this one waits in the composer
+  ↳ a message went to this room 29s ago and [agent.write] cooldown is 1m, so this one waits in the composer
 2026-09-24T10:03:05+03:00  refused  Board  [claude-code 2.1.0]  Summary of today
   ↳ this room is outside what [agent.write] allows: its rooms/except lists do not admit it
 

@@ -17,6 +17,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
+	"github.com/EugeneShtoka/kith/internal/human"
 )
 
 const (
@@ -129,7 +130,7 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 		_ = srv.Close() // ignored: Shutdown already closed the listener, and conns close regardless
 		inflight.shut()
 		if !drained(&inflight, timeout) {
-			return fmt.Errorf("daemon: shutdown: still running %s after closing every connection: %w", timeout, ErrHandlersRunning)
+			return fmt.Errorf("daemon: shutdown: still running %s after closing every connection: %w", human.Duration(timeout), ErrHandlersRunning)
 		}
 		d.Log.Warn("shutdown closed connections a client had stopped reading", "timeout", timeout)
 		return nil

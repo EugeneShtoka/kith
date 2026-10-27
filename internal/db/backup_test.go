@@ -18,7 +18,7 @@ const backupRoom = domain.RoomID("!backup:example.org")
 // fillCache saves n messages to the cache at path, left open as a running daemon's is.
 func fillCache(t *testing.T, path string, n int) *Cache {
 	t.Helper()
-	cache, err := Open(context.Background(), path)
+	cache, err := Open(context.Background(), path, testKey)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -40,7 +40,7 @@ func fillCache(t *testing.T, path string, n int) *Cache {
 // bodies, failing if opening it rebuilt it.
 func bodiesIn(t *testing.T, path string) []string {
 	t.Helper()
-	cache, err := Open(context.Background(), path)
+	cache, err := Open(context.Background(), path, testKey)
 	if err != nil {
 		t.Fatalf("Open(%s) error = %v", path, err)
 	}
@@ -67,7 +67,7 @@ func TestSnapshotCopiesEveryCommitWhileTheCacheIsOpen(t *testing.T) {
 	src := filepath.Join(dir, "cache.db")
 	fillCache(t, src, 300)
 	dst := filepath.Join(dir, "copy.db")
-	if err := Snapshot(context.Background(), src, dst); err != nil {
+	if err := Snapshot(context.Background(), src, testKey, dst, testKey); err != nil {
 		t.Fatalf("Snapshot() error = %v", err)
 	}
 	if got := bodiesIn(t, dst); len(got) != 300 || got[0] != "message 0" || got[299] != "message 299" {
@@ -87,7 +87,7 @@ func TestAdoptTakesACacheThisKithOpens(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir()
 			src := filepath.Join(dir, "plain.db")
-			old, err := open(context.Background(), src, plan)
+			old, err := open(context.Background(), src, testKey, plan)
 			if err != nil {
 				t.Fatalf("open() error = %v", err)
 			}
@@ -100,7 +100,7 @@ func TestAdoptTakesACacheThisKithOpens(t *testing.T) {
 				t.Fatalf("Close() error = %v", err)
 			}
 			dst := filepath.Join(dir, "cache.db")
-			if err := Adopt(context.Background(), src, dst); err != nil {
+			if err := Adopt(context.Background(), src, testKey, dst, testKey); err != nil {
 				t.Fatalf("Adopt() error = %v", err)
 			}
 			if got := bodiesIn(t, dst); len(got) != 1 || got[0] != "kept" {
@@ -117,7 +117,7 @@ func TestAdoptRefusesEveryFileTheDaemonWouldRebuildOrFailOn(t *testing.T) {
 	exec := func(stmt string) func(t *testing.T, path string) {
 		return func(t *testing.T, path string) {
 			t.Helper()
-			sqlDB, err := connect(path, false)
+			sqlDB, err := connect(context.Background(), path, testKey, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -165,12 +165,12 @@ func TestAdoptRefusesEveryFileTheDaemonWouldRebuildOrFailOn(t *testing.T) {
 			live := filepath.Join(dir, "live.db")
 			fillCache(t, live, 200)
 			src := filepath.Join(dir, "plain.db")
-			if err := Snapshot(context.Background(), live, src); err != nil {
+			if err := Snapshot(context.Background(), live, testKey, src, testKey); err != nil {
 				t.Fatalf("Snapshot() error = %v", err)
 			}
 			tc.damage(t, src)
 			dst := filepath.Join(dir, "cache.db")
-			err := Adopt(context.Background(), src, dst)
+			err := Adopt(context.Background(), src, testKey, dst, testKey)
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("Adopt() error = %v; want %v", err, tc.want)
 			}
@@ -205,7 +205,7 @@ func TestSettleFoldsTheLogIntoTheFile(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := Settle(context.Background(), crashed); err != nil {
+	if err := Settle(context.Background(), crashed, testKey); err != nil {
 		t.Fatalf("Settle() error = %v", err)
 	}
 	moved := filepath.Join(t.TempDir(), "moved.db")

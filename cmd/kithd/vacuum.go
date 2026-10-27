@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/db"
@@ -18,9 +20,31 @@ const (
 	vacuumRetry = time.Hour
 )
 
-// vacuumCache runs the cache's vacuums until ctx ends, which interrupts one running.
-// It blocks.
-func vacuumCache(ctx context.Context, log *slog.Logger, cache *db.Cache) {
+// errVacuumPanicked is a vacuum that panicked (SQLite out of its memory, say).
+var errVacuumPanicked = errors.New("the vacuum panicked")
+
+// vacuumOnce is one vacuum of cache, a panic in it turned into errVacuumPanicked: a
+// failing vacuum is put off, never takes the daemon down, and so never crash-loops it
+// every start.
+func vacuumOnce(ctx context.Context, cache *db.Cache) (v db.Vacuumed, err error) {
+	func() {
+		defer func() {
+			if p := recover(); p != nil {
+				err = fmt.Errorf("%w: %v", errVacuumPanicked, p)
+			}
+		}()
+		v, err = cache.Vacuum(ctx, sqliteTempDir())
+	}()
+	if err != nil {
+		// As db words it: the loop logs a put-off reason as its message.
+		return v, fmt.Errorf("%w", err)
+	}
+	return v, nil
+}
+
+// vacuumCache runs the cache's vacuums until ctx ends, which interrupts one running,
+// each holding maintenance. It blocks.
+func vacuumCache(ctx context.Context, log *slog.Logger, cache *db.Cache, maintenance *sync.Mutex) {
 	if cache == nil {
 		return
 	}
@@ -34,10 +58,14 @@ func vacuumCache(ctx context.Context, log *slog.Logger, cache *db.Cache) {
 		case <-time.After(wait):
 		}
 		wait = vacuumEvery
-		v, err := cache.Vacuum(ctx, sqliteTempDir())
+		maintenance.Lock()
+		v, err := vacuumOnce(ctx, cache)
+		maintenance.Unlock()
 		switch {
 		case ctx.Err() != nil:
 			return
+		case errors.Is(err, errVacuumPanicked):
+			log.Error("cache vacuum failed; put off a day", "op", "cache vacuum", "err", err)
 		case errors.Is(err, db.ErrVacuumPutOff):
 			if err.Error() != putOff {
 				putOff = err.Error()

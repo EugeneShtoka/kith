@@ -51,7 +51,7 @@ func TestOpenForgetsFrozenRowCounts(t *testing.T) {
 			t.Parallel()
 			path := filepath.Join(t.TempDir(), "cache.db")
 			if tc.before != nil {
-				first, err := Open(ctx, path)
+				first, err := Open(ctx, path, testKey)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -62,15 +62,15 @@ func TestOpenForgetsFrozenRowCounts(t *testing.T) {
 			}
 			if tc.restored {
 				snapshot, restored := filepath.Join(t.TempDir(), "backup.db"), filepath.Join(t.TempDir(), "cache.db")
-				if err := Snapshot(ctx, path, snapshot); err != nil {
+				if err := Snapshot(ctx, path, testKey, snapshot, testKey); err != nil {
 					t.Fatal(err)
 				}
-				if err := Adopt(ctx, snapshot, restored); err != nil {
+				if err := Adopt(ctx, snapshot, testKey, restored, testKey); err != nil {
 					t.Fatal(err)
 				}
 				path = restored
 			}
-			cache, err := Open(ctx, path)
+			cache, err := Open(ctx, path, testKey)
 			if err != nil {
 				t.Fatal(err)
 			}

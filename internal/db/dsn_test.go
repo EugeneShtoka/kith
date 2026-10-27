@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -66,7 +65,7 @@ func TestOpenHandlesAwkwardPaths(t *testing.T) {
 				t.Fatalf("mkdir: %v", err)
 			}
 			path := filepath.Join(dir, "cache.db")
-			cache, err := Open(context.Background(), path)
+			cache, err := Open(context.Background(), path, testKey)
 			if err != nil {
 				t.Fatalf("Open(%q) error = %v", path, err)
 			}
@@ -78,9 +77,6 @@ func TestOpenHandlesAwkwardPaths(t *testing.T) {
 			}
 			if fk != "1" {
 				t.Errorf("foreign_keys = %s, want 1", fk)
-			}
-			if !strings.Contains(dsn(path), "foreign_keys") {
-				t.Errorf("dsn(%q) lost its pragmas: %s", path, dsn(path))
 			}
 		})
 	}

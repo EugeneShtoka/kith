@@ -16,6 +16,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/zalando/go-keyring"
 )
@@ -55,7 +56,7 @@ func servedWith(t *testing.T, cfg config.Config, saved domain.Session, prepare f
 			t.Fatal(err)
 		}
 	}
-	cache, err := db.Open(context.Background(), storage.CachePath())
+	cache, err := db.Open(context.Background(), storage.CachePath(), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -444,7 +445,7 @@ func TestStorageDirsAreMade(t *testing.T) {
 			t.Errorf("%s: %v, %v; want a 0700 directory", dir, info, err)
 		}
 	}
-	if _, err := db.Open(context.Background(), storage.CachePath()); err != nil {
+	if _, err := db.Open(context.Background(), storage.CachePath(), make([]byte, sealeddb.KeyLen)); err != nil {
 		t.Errorf("the cache does not open in a made directory: %v", err)
 	}
 }
@@ -453,12 +454,15 @@ func TestStorageDirsAreMade(t *testing.T) {
 func TestACacheThatWillNotOpenIsAnError(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	storage := domain.Storage{Instance: "test", DataDir: dir, StateDir: dir, CacheDir: dir, RuntimeDir: dir, KeyringService: "kith-test"}
 	// A directory where the file should be: SQLite cannot open it.
-	path := filepath.Join(dir, "cache.db")
+	path := storage.CachePath()
 	if err := os.Mkdir(path, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	cache, err := openCache(context.Background(), slog.New(slog.DiscardHandler), path)
+	keyringTurn.Lock()
+	cache, err := openCache(context.Background(), slog.New(slog.DiscardHandler), nil, storage)
+	keyringTurn.Unlock()
 	if err == nil || cache != nil || !strings.Contains(err.Error(), path) {
 		t.Errorf("openCache(a directory) = (%v, %v), want an error naming it", cache, err)
 	}

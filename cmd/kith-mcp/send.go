@@ -11,6 +11,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/agent"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/human"
 )
 
 // draftCap stops a never-sending loop from growing a draft forever.
@@ -212,7 +213,7 @@ func (s *server) howToWrite(ctx context.Context, room domain.Room) (writeChoice,
 	if rest := time.Since(last); ever && rest < s.cooldown {
 		return writeChoice{reason: fmt.Sprintf(
 			"a message went to this room %s ago and [agent.write] cooldown is %s, so this one waits in the composer",
-			round(rest), s.cooldown)}, nil
+			human.Duration(round(rest)), human.Duration(s.cooldown))}, nil
 	}
 	return writeChoice{send: true}, nil
 }

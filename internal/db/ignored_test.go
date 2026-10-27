@@ -8,7 +8,7 @@ import (
 
 func freshCache(t *testing.T) *Cache {
 	t.Helper()
-	c, err := Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
+	c, err := Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"), testKey)
 	if err != nil {
 		t.Fatal(err)
 	}

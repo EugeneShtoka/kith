@@ -12,6 +12,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 const (
@@ -200,7 +201,7 @@ func TestMessagesShowWhatTheyCarry(t *testing.T) {
 // and announced ones collected.
 func cachedAdapter(t *testing.T) (*Adapter, *conn, *db.Cache, *[]domain.Message) {
 	t.Helper()
-	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
+	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}

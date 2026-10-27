@@ -18,6 +18,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/human"
 )
 
 // Login is an api.LoginTalk: number, code, then the 2FA password if set. It runs on
@@ -304,7 +305,7 @@ func describeSendCode(err error) error {
 		return fmt.Errorf("telegram: Telegram refuses the app's api_id and api_hash: %w", err)
 	}
 	if wait, ok := tgerr.AsFloodWait(err); ok {
-		return fmt.Errorf("telegram: Telegram asks to wait %s before another code: %w", wait.Round(time.Second), err)
+		return fmt.Errorf("telegram: Telegram asks to wait %s before another code: %w", human.Duration(wait.Round(time.Second)), err)
 	}
 	return fmt.Errorf("telegram: have the code sent: %w", err)
 }

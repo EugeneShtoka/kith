@@ -68,8 +68,8 @@ func (r *Remote) Notifications(ctx context.Context, opened func(), show func(Not
 	}
 	defer func() { _ = st.Close() }()
 	// The daemon answers once it has subscribed the stream; a call that never reached
-	// it (kithd down) has no headers and is not open.
-	if st.ResponseHeader().Get("Content-Type") != "" {
+	// it (kithd down) has no headers and is not open, nor is one a waiting daemon refused.
+	if h := st.ResponseHeader(); h.Get("Content-Type") != "" && h.Get(sentinelHeader) == "" {
 		opened()
 	}
 	for st.Receive() {

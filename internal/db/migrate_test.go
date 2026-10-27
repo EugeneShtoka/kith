@@ -37,7 +37,7 @@ func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "cache.db")
 
 			// A foreign table makes the rebuild observable.
-			seed, openErr := sql.Open("sqlite", dsn(path))
+			seed, openErr := openRaw(path)
 			if openErr != nil {
 				t.Fatalf("open seed: %v", openErr)
 			}
@@ -51,7 +51,7 @@ func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 				t.Fatalf("close seed: %v", closeErr)
 			}
 
-			cache, err := Open(ctx, path)
+			cache, err := Open(ctx, path, testKey)
 			if err != nil {
 				t.Fatalf("Open() on a database stamped %d: %v", version, err)
 			}
@@ -85,7 +85,7 @@ func TestApplyMigrationIsAtomic(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
 
-	_, err := open(ctx, path, failing)
+	_, err := open(ctx, path, testKey, failing)
 	if err == nil {
 		t.Fatal("Open() accepted a database whose migration could not be applied")
 	}
@@ -94,7 +94,7 @@ func TestApplyMigrationIsAtomic(t *testing.T) {
 	}
 
 	// Reopen the same file with no migrations, to inspect it.
-	cache, err := open(ctx, path, newSchemaPlan(nil))
+	cache, err := open(ctx, path, testKey, newSchemaPlan(nil))
 	if err != nil {
 		t.Fatalf("reopen error = %v", err)
 	}
@@ -127,7 +127,7 @@ func TestMigrationsApplyOnceAndStampTheirVersion(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
 
-	cache, err := open(ctx, path, plan)
+	cache, err := open(ctx, path, testKey, plan)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -153,7 +153,7 @@ func TestMigrationsApplyOnceAndStampTheirVersion(t *testing.T) {
 	}
 
 	// CREATE TABLE without IF NOT EXISTS would fail if re-run.
-	again, err := open(ctx, path, plan)
+	again, err := open(ctx, path, testKey, plan)
 	if err != nil {
 		t.Fatalf("reopen re-ran the migrations: %v", err)
 	}
@@ -224,7 +224,7 @@ func TestOpenMigratesTheBaseForwardWithoutRebuilding(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cache.db")
 
 	func() {
-		cache, err := open(ctx, path, newSchemaPlan(nil))
+		cache, err := open(ctx, path, testKey, newSchemaPlan(nil))
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -237,7 +237,7 @@ func TestOpenMigratesTheBaseForwardWithoutRebuilding(t *testing.T) {
 		}
 	}()
 
-	cache, err := open(ctx, path, newSchemaPlan([]string{`CREATE TABLE added_later(x INTEGER NOT NULL) STRICT;`}))
+	cache, err := open(ctx, path, testKey, newSchemaPlan([]string{`CREATE TABLE added_later(x INTEGER NOT NULL) STRICT;`}))
 	if err != nil {
 		t.Fatalf("reopen error = %v", err)
 	}
@@ -267,7 +267,7 @@ func TestOpenReportsWhetherItRebuilt(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
 
-	cache, err := Open(ctx, path)
+	cache, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("Open on a fresh path: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestOpenReportsWhetherItRebuilt(t *testing.T) {
 	}
 
 	// A false rebuild would rewind the sync position on every start.
-	cache, err = Open(ctx, path)
+	cache, err = Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
@@ -292,7 +292,7 @@ func TestOpenReportsWhetherItRebuilt(t *testing.T) {
 
 	for _, version := range []int{schemaVersion - 1, schemaVersion + len(migrations) + 9} {
 		stamp(t, path, version)
-		cache, err = Open(ctx, path)
+		cache, err = Open(ctx, path, testKey)
 		if err != nil {
 			t.Fatalf("Open at version %d: %v", version, err)
 		}
@@ -308,7 +308,7 @@ func TestOpenReportsWhetherItRebuilt(t *testing.T) {
 // stamp forces a cache's user_version.
 func stamp(t *testing.T, path string, version int) {
 	t.Helper()
-	raw, err := sql.Open("sqlite", dsn(path))
+	raw, err := openRaw(path)
 	if err != nil {
 		t.Fatalf("open to stamp: %v", err)
 	}
@@ -326,7 +326,7 @@ func TestTheCacheSetAsideKeepsRowsLivingInTheWAL(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
 
-	old, err := sql.Open("sqlite", dsn(path))
+	old, err := openRaw(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +346,7 @@ func TestTheCacheSetAsideKeepsRowsLivingInTheWAL(t *testing.T) {
 	// Deliberately NOT closed before the rebuild.
 	t.Cleanup(func() { _ = old.Close() })
 
-	cache, err := Open(ctx, path)
+	cache, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("Open() = %v", err)
 	}
@@ -366,7 +366,7 @@ func TestTheCacheSetAsideKeepsRowsLivingInTheWAL(t *testing.T) {
 		t.Fatalf("expected exactly one cache set aside, got %v", asides)
 	}
 
-	kept, err := sql.Open("sqlite", dsn(asides[0]))
+	kept, err := openRaw(asides[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +387,7 @@ func TestRebuildDropsAnFTSTableBeforeItsShadows(t *testing.T) {
 
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
-	sqlDB, err := sql.Open("sqlite", dsn(path))
+	sqlDB, err := openRaw(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -450,7 +450,7 @@ func TestMigratedTablesAreSpelledLikeTheBase(t *testing.T) {
 				// A cache that predates the migration: the base with the table removed.
 				path := filepath.Join(t.TempDir(), "old.db")
 				func() {
-					cache, err := open(ctx, path, newSchemaPlan(nil))
+					cache, err := open(ctx, path, testKey, newSchemaPlan(nil))
 					if err != nil {
 						t.Fatalf("Open() error = %v", err)
 					}
@@ -460,7 +460,7 @@ func TestMigratedTablesAreSpelledLikeTheBase(t *testing.T) {
 					}
 				}()
 
-				migrated, err := Open(ctx, path)
+				migrated, err := Open(ctx, path, testKey)
 				if err != nil {
 					t.Fatalf("reopen error = %v", err)
 				}
@@ -480,7 +480,7 @@ func TestTheUpgradeChainSurvivesReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cache.db")
 
 	func() {
-		cache, err := Open(ctx, path)
+		cache, err := Open(ctx, path, testKey)
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -490,7 +490,7 @@ func TestTheUpgradeChainSurvivesReopen(t *testing.T) {
 		}
 	}()
 
-	cache, err := Open(ctx, path)
+	cache, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("reopen error = %v", err)
 	}

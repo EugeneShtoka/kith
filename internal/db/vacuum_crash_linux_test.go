@@ -42,7 +42,7 @@ func vacuumChild() bool {
 		}
 	}
 	ctx := context.Background()
-	c, err := Open(ctx, path)
+	c, err := Open(ctx, path, testKey)
 	if err != nil {
 		println("open:", err.Error())
 		os.Exit(2)
@@ -76,7 +76,7 @@ func TestAVacuumCutShortLeavesTheCacheWhole(t *testing.T) {
 	const room = domain.RoomID(mx + "!room:example.org")
 	const kept = 60
 	fixture := filepath.Join(t.TempDir(), "cache.db")
-	c, err := Open(context.Background(), fixture)
+	c, err := Open(context.Background(), fixture, testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestAVacuumCutShortLeavesTheCacheWhole(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			after, err := Open(ctx, path)
+			after, err := Open(ctx, path, testKey)
 			if err != nil {
 				t.Fatal(err)
 			}

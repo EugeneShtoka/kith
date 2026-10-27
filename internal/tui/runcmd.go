@@ -17,6 +17,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/human"
 )
 
 // User commands: `/zoom` runs `<config dir>/commands/zoom` and its stdout lands in the
@@ -158,7 +159,7 @@ func (m Model) userCommandCmd(name, path, arg string, room domain.Room) tea.Cmd 
 		msg := commandRanMsg{name: name, room: room.ID, out: out}
 		switch {
 		case ctx.Err() != nil:
-			msg.why = fmt.Sprintf("gave up after %s", timeout)
+			msg.why = fmt.Sprintf("gave up after %s", human.Duration(timeout))
 		case runErr != nil:
 			msg.why = commandFailure(runErr, readCapture(stderr))
 		}

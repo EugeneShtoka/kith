@@ -8,6 +8,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // Hiding a person recounts the rooms they wrote in, and streams the new count.
@@ -15,7 +16,7 @@ func TestHidingAPersonRecountsTheirRooms(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	cache, err := db.Open(ctx, filepath.Join(t.TempDir(), "cache.db"))
+	cache, err := db.Open(ctx, filepath.Join(t.TempDir(), "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}
