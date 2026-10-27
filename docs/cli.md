@@ -13,6 +13,8 @@ the binaries and exits.
 ```text
 kith [flags]
 kith login [--config path] [network [account]]
+kith backup [--config path] [--no-media] [file]
+kith restore [--config path] [--replace] [--key-file path] file
 ```
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
@@ -67,6 +69,48 @@ them, readable), then whether to sign out. The account stays in the config, so l
 in signs it back in. It needs the account connected: the network is told through the
 session. A bridge's own space for an account is not signed out from kith; that is
 the bridge's to do.
+
+### kith backup
+
+```sh
+kith backup [--config path] [--no-media] [file]
+```
+
+Writes your history, config, local records and pictures into one file encrypted to your
+backup key: `file`, or a dated one in `[storage] export_dir`. kithd may keep running.
+The first backup makes the key and prints its private half once (`AGE-SECRET-KEY-1…`),
+then offers to save it to a file; it is the only way to restore. Each backup lists what
+went in, with sizes, and what it leaves out (network sessions, and what refills
+itself). Once the key exists, kithd also makes one a day into `export_dir/backups/` and
+keeps the last seven. See [usage.md](usage.md#backing-up-and-moving-to-a-new-machine).
+
+| Flag | Meaning |
+| --- | --- |
+| `--config path` | Config file whose history to back up. |
+| `--no-media` | Leave the picture cache out. WhatsApp and Signal pictures cannot be fetched again once their servers drop them, so they are in by default. |
+
+### kith restore
+
+```sh
+kith restore [--config path] [--replace] [--key-file path] file
+```
+
+Puts a `kith backup` back: the config, then the cache, records and pictures where that
+config keeps them on this machine, and the backup key's public half, so this machine's
+backups go on to the same key. It asks for the backup key without echo. Stop kithd
+first; it refuses while kithd runs on that config. It ends by listing a `kith login`
+line for each account, since a backup holds no sessions. Nothing is changed until the
+whole backup is read and checked.
+
+| Flag | Meaning |
+| --- | --- |
+| `--config path` | Where the restored config goes, and so which instance's files it restores. |
+| `--replace` | Set aside the config, cache and records already there (renamed `<name>.before-restore-<time>`) instead of refusing. Nothing is deleted. |
+| `--key-file path` | Read the backup key from this file instead of asking for it. |
+
+Both are run by kithd, which owns the cache: `kith` runs the `kithd` installed beside
+it, or else the first on `PATH`, and only when it is the same build; another one is
+refused, naming both versions. A kithd that fails is always reported.
 
 ### General flags
 
@@ -145,7 +189,11 @@ backslash or `$`, or under `/tmp`, which the sandbox hides), kith falls back to
 
 ```text
 kithd [--config path] [--log-level level] [-v] [--log-target target] [--log-file path] [--version]
+kithd backup|restore …
 ```
+
+`kithd backup` and `kithd restore` are what [`kith backup`](#kith-backup) and
+[`kith restore`](#kith-restore) run, with the same arguments, in the terminal.
 
 The daemon. It runs in the foreground and logs to stderr, which the journal captures
 under systemd. Started by `kith` without systemd, it logs to the journal itself,
