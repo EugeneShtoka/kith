@@ -7,6 +7,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/phonebook"
 )
 
 // Profiles is the [[profile]]s in config order; a config has at least one, and each
@@ -51,7 +52,61 @@ func Profiles(cfg config.Config) ([]domain.Profile, error) {
 				return nil, err
 			}
 		}
-		out = append(out, domain.Profile{Name: name, Rooms: domain.PlaceFilter{Include: include, Exclude: p.Exclude}})
+		people, err := profilePeople(name, p.People.Exclude)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, domain.Profile{
+			Name: name, Rooms: domain.PlaceFilter{Include: include, Exclude: p.Exclude}, People: people,
+		})
+	}
+	return out, nil
+}
+
+// ProfileExcluded is whom filter hides over cards: its IDs, and whoever's card (found
+// by any ID the person goes by) holds one of its field terms word for word
+// (phonebook.Card.Holds). kithd, the TUI and kith-mcp read a profile's people alike.
+func ProfileExcluded(filter domain.PeopleFilter, cards phonebook.Index) domain.ExcludedPeople {
+	out := domain.ExcludedPeople{IDs: filter.IDs}
+	var terms []phonebook.Term
+	for _, field := range filter.Fields {
+		if term, ok := phonebook.ParseTerm(field); ok {
+			terms = append(terms, term)
+		}
+	}
+	if len(terms) == 0 {
+		return out
+	}
+	out.Card = func(ids []string) bool {
+		card, ok := cards.Find(phonebook.Identifiers(domain.CardIdentifiers(ids)))
+		return ok && slices.ContainsFunc(terms, card.Holds)
+	}
+	return out
+}
+
+// profilePeople reads a profile's people.exclude: an entry whose key is a network's
+// prefix (or a bare Matrix ID) is a person ID, never a card field; anything else must be
+// a phonebook field term, key:value.
+func profilePeople(profile string, entries []string) (domain.PeopleFilter, error) {
+	var out domain.PeopleFilter
+	for _, entry := range entries {
+		typed := domain.TypedUserID(entry)
+		key, _, _ := strings.Cut(typed, ":")
+		switch {
+		case strings.TrimSpace(entry) == "":
+			return domain.PeopleFilter{}, fmt.Errorf("setup: profile %q: people.exclude has an empty entry", profile)
+		case domain.IsNetworkPrefix(key):
+			if !domain.IsUserID(typed) {
+				return domain.PeopleFilter{}, fmt.Errorf("setup: profile %q: people.exclude: %q is not a person's ID", profile, entry)
+			}
+			out.IDs = append(out.IDs, typed)
+		default:
+			if _, ok := phonebook.ParseTerm(strings.TrimSpace(entry)); !ok {
+				return domain.PeopleFilter{}, fmt.Errorf("setup: profile %q: people.exclude: %q is neither a person's ID "+
+					"(whatsapp:+15550100) nor a phonebook field (role:colleagues)", profile, entry)
+			}
+			out.Fields = append(out.Fields, strings.TrimSpace(entry))
+		}
 	}
 	return out, nil
 }

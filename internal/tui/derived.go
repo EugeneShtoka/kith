@@ -50,6 +50,10 @@ type derivedKey struct {
 	markedShown bool
 	// people is the person verdicts' revision: one in a muted tag hides them.
 	people uint64
+	// profile is the window's profile and cards the phonebook read's sequence: the
+	// profile's people.exclude hides whom its IDs and the cards name.
+	profile string
+	cards   uint64
 }
 
 // fnvOffset and fnvPrime are FNV-1a; each string is followed by a separator so
@@ -123,6 +127,8 @@ func (m Model) keyFor() derivedKey {
 		tags:        m.rail.tagsRev,
 		markedShown: m.markedShownHere(),
 		people:      m.rail.peopleRev,
+		profile:     m.profiles.current,
+		cards:       m.cards.read,
 	}
 	if room, ok := m.roomByID(m.openRoom); ok {
 		k.place = placeFingerprint(m.factsFor(room))

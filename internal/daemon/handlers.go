@@ -240,7 +240,11 @@ func (s *server) SendFile(ctx context.Context, r *req[v1.SendFileRequest]) (*res
 
 func (s *server) CachedUnread(ctx context.Context, _ *req[v1.CachedUnreadRequest]) (*resp[v1.CachedUnreadResponse], error) {
 	unread, err := s.Backend.CachedUnread(ctx)
+	if err != nil {
+		return nil, rpcErr(err)
+	}
 	unread = profileKeeps(s.profileHolds(ctx), unread, func(u domain.Unread) domain.RoomID { return u.RoomID })
+	unread, err = s.profileUnread(ctx, unread)
 	return reply(&v1.CachedUnreadResponse{Unread: pc.UnreadsToProto(unread)}, err)
 }
 
@@ -249,8 +253,35 @@ func (s *server) UnreadStream(ctx context.Context, _ *req[v1.UnreadStreamRequest
 		if holds := s.profileHolds(ctx); holds != nil && !holds(u.RoomID) {
 			return nil
 		}
-		return &v1.UnreadStreamResponse{Unread: pc.UnreadToProto(u)}
+		counted, err := s.profileUnread(ctx, []domain.Unread{u})
+		if err != nil {
+			// The room's count as everyone's hidden people leave it: off by the people
+			// only this profile hides until the next count, never a message of theirs.
+			s.Log.Warn("count a room's unread for the profile", "room", u.RoomID, "err", err)
+			counted = []domain.Unread{u}
+		}
+		return &v1.UnreadStreamResponse{Unread: pc.UnreadToProto(counted[0])}
 	})
+}
+
+// profileCounter is a backend that counts unread as a profile does: less what the
+// people only it hides wrote (local.Service).
+type profileCounter interface {
+	ProfileUnread(ctx context.Context, unread []domain.Unread) ([]domain.Unread, error)
+}
+
+// profileUnread is unread as the request's profile counts it; a backend that cannot
+// count so leaves it as it is.
+func (s *server) profileUnread(ctx context.Context, unread []domain.Unread) ([]domain.Unread, error) {
+	c, ok := s.Backend.(profileCounter)
+	if !ok {
+		return unread, nil
+	}
+	counted, err := c.ProfileUnread(ctx, unread)
+	if err != nil {
+		return nil, fmt.Errorf("count unread for the profile: %w", err)
+	}
+	return counted, nil
 }
 
 // ── Thread ──

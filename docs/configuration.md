@@ -120,6 +120,37 @@ whose rule reads a room's state (`unread`, `mention`, `draft`, `invite`, itself 
 through a tag it names) is refused there: a room would enter and leave the profile
 as it is read. Names are unique, in any case.
 
+#### People in a profile
+
+A profile can also hide people. Their messages, and the direct replies to them, leave
+that profile's timeline, search, unread counts, thread counts and notifications, and
+the assistant's summaries, as a [hidden person](filters.md#hiding-a-person)'s are everywhere. The
+other profiles still show them.
+
+```toml
+[[profile]]
+name    = "home"
+include = ["*"]
+people  = { exclude = ["role:colleagues", "whatsapp:+15550100", "@boss:example.org"] }
+```
+
+- **A person ID** (`whatsapp:+15550100`, `telegram:42`, `@boss:example.org`): any
+  entry whose key is a network's prefix is an ID, as `[[tag]] people` takes them,
+  never a card field. Every account kith links to that person is hidden with it.
+- **A phonebook field**, `key:value` ([phonebook.md](phonebook.md)): everyone whose
+  card holds the value under that key. The value is matched word for word, in any
+  case: `role:colleagues` matches a role of `Colleagues` or `former colleagues`, not
+  `colleaguesship`. An identifier key matches the identifier itself, so
+  `phone:+15550100` hides that number, written any way. kithd reads the phonebook
+  folder while a profile names a field, and again whenever a card in it changes.
+- **Never you.** A card that names one of your accounts hides nobody, even when its
+  fields match.
+
+An entry that is neither an ID nor `key:value` is refused at startup. Unlike a muted
+tag, a profile moves no room: a direct message with someone it hides stays where it
+is, empty in that profile. `/why` on a hidden message says which profile hides its
+sender, and `z h` (`/hidden`) shows them in the open room until you leave it.
+
 ### Validation
 
 A value kith can't use, such as a misspelled theme preset, a malformed color or an

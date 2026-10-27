@@ -3,12 +3,14 @@ package tui
 import (
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
 // A person put in a muted tag (notifies = false, as Spam) by a tag key in the timeline
@@ -22,6 +24,25 @@ import (
 func (m Model) markedPeople() domain.MarkedPeople {
 	marked := slices.Concat(m.rail.tags.MutedPeople(), domain.HiddenByVerdict(m.rail.people, m.rail.tags.MutedTags()))
 	return domain.NewMarkedPeople(marked, m.identityIDs(), m.linkedIDs())
+}
+
+// profileHidden is whom this window's profile hides beyond the muted tags: its
+// people.exclude, IDs and phonebook fields over the cards read, as kithd reads them
+// (setup.ProfileExcluded). Never you.
+func (m Model) profileHidden() domain.HiddenPeople {
+	profiles, _ := setup.Profiles(m.conf.base)
+	at := slices.IndexFunc(profiles, func(p domain.Profile) bool { return strings.EqualFold(p.Name, m.currentProfile()) })
+	if at < 0 || profiles[at].People.Empty() {
+		return domain.HiddenPeople{}
+	}
+	groups := map[string][]string{}
+	for id, ident := range m.prefs.identities {
+		if ident.key != "" {
+			groups[ident.key] = append(groups[ident.key], id)
+		}
+	}
+	excluded := setup.ProfileExcluded(profiles[at].People, m.cards.index)
+	return domain.NewExcludedPeople(excluded, slices.Collect(maps.Values(groups)), m.dir.dir, m.selfIDs())
 }
 
 // linkedIDs answers which identifiers are directly the same person as one: the
@@ -66,15 +87,15 @@ func (m Model) withMarkedPeopleHidden(msgs []domain.Message) []domain.Message {
 	if m.markedShownHere() {
 		return msgs
 	}
-	marked := m.markedPeople()
-	if marked.Empty() {
+	marked, here := m.markedPeople(), m.profileHidden()
+	if marked.Empty() && here.Empty() {
 		return msgs
 	}
 	known := map[string]bool{}
 	isMarked := func(sender string) bool {
 		hidden, ok := known[sender]
 		if !ok {
-			hidden = marked.Has(sender) && !m.fromMe(sender)
+			hidden = (marked.Has(sender) || here.Has(sender)) && !m.fromMe(sender)
 			known[sender] = hidden
 		}
 		return hidden
@@ -212,13 +233,27 @@ func (m Model) hiddenReasons() []string {
 	if len(why) == 0 {
 		return nil
 	}
-	head := "this message " + lead + " " + m.personName(who) + ", hidden in every room:"
+	where := ", hidden in every room:"
+	if len(m.tagReasons(who)) == 0 {
+		where = ", hidden in this profile:"
+	}
+	head := "this message " + lead + " " + m.personName(who) + where
 	return append([]string{head}, why...)
 }
 
 // personReasons are the muted tags holding sender, by any of their IDs, each with what
-// put them there.
+// put them there, and the window's profile when it excludes them.
 func (m Model) personReasons(sender string) []string {
+	out := m.tagReasons(sender)
+	if m.profileHidden().Has(sender) && !m.fromMe(sender) {
+		out = append(out, "excluded by the "+isolate(m.currentProfile())+" profile's people.exclude")
+	}
+	return out
+}
+
+// tagReasons are the muted tags holding sender, by any of their IDs, each with what put
+// them there.
+func (m Model) tagReasons(sender string) []string {
 	known, same := m.identityIDs(), m.linkedIDs()
 	isThem := func(id string) bool { return domain.NewMarkedPeople([]string{id}, known, same).Has(sender) }
 	var out []string

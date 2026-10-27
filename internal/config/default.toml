@@ -437,6 +437,15 @@ network_colors = false
 #   name    = "work"
 #   include = ["space:Work", "protocol:slack"]
 #   exclude = ["tag:Archived"]
+#
+# A profile can hide people too, as a muted tag's people are hidden everywhere: their
+# messages and the direct replies to them leave its timeline, search, counts and
+# notifications. people.exclude takes person IDs (as [[tag]] people does) and
+# phonebook card fields, key:value, matched word for word ("role:colleagues" hides
+# everyone whose card's role holds the word colleagues). Never you.
+#
+#   [profile.people]
+#   exclude = ["role:colleagues", "whatsapp:+15550100"]
 [[profile]]
 name    = "default"
 include = ["*"]

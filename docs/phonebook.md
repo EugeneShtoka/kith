@@ -87,6 +87,9 @@ matched as a piece, so `role:attorney` is enough for "family attorney".
 - In a search, `from:role:attorney` finds messages from everyone whose card meets the
   term, by every ID kith knows them by. A term no card meets searches nothing and says
   so. An ID after `from:` (`@dana:example.org`, `telegram:42`) is still an ID.
+- A profile's `people.exclude` hides everyone whose card meets a term, there only
+  ([configuration.md](configuration.md#people-in-a-profile)). There the value is
+  matched word for word, not as a piece: `role:coll` hides nobody.
 
 ### A field beside names
 

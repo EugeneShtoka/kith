@@ -195,7 +195,7 @@ func (c *Cache) topSenders(ctx context.Context, rooms domain.RoomSet, limit int)
 		// #nosec G202 -- inIDs emits only placeholders; every room ID is bound.
 		query += " AND room_id" + in
 	}
-	if hidden := c.hiddenSenders(); len(hidden) > 0 {
+	if hidden := c.hiddenSenders(ctx); len(hidden) > 0 {
 		var in string
 		in, args = inIDs(args, hidden)
 		// #nosec G202 -- inIDs emits only placeholders; every sender is bound.

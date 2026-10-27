@@ -27,7 +27,7 @@ func (n *Notifications) captureCode(ctx context.Context, msg domain.Message, min
 	if !ok {
 		return
 	}
-	n.notify(codeAlert(msg, facts, code), code.Value, n.topics(facts))
+	n.notify(codeAlert(msg, facts, code), code.Value, n.topics(ctx, facts, msg))
 }
 
 // codeAlert announces a captured code, with the code in the body so the user can check

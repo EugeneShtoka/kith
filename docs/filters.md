@@ -62,6 +62,9 @@ link learned after you marked them. A person in a tag that notifies is listed bu
 hidden. Your own messages are never hidden. Nothing is deleted: take the mark off
 and everything comes back.
 
+To hide someone in one profile only, name them in the profile's `people.exclude`
+([configuration.md](configuration.md#people-in-a-profile)).
+
 A direct message with someone a muted tag holds moves into that tag, as the
 [`direct` move](#the-moves) would move it: only a DM you never wrote in, never one you
 took out of the tag or its `excluded` names. It moves when they are marked, and when

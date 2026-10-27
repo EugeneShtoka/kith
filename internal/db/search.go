@@ -156,7 +156,7 @@ const snippetTokens = 12
 
 // SearchMessages finds cached non-redacted messages matching req, newest first.
 func (c *Cache) SearchMessages(ctx context.Context, req domain.SearchRequest) ([]domain.SearchHit, error) {
-	query, args, ok := searchQuery(req, c.hiddenSenders())
+	query, args, ok := searchQuery(req, c.hiddenSenders(ctx))
 	if !ok {
 		return nil, nil
 	}

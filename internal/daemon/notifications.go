@@ -529,7 +529,7 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	// A room a tag with notifies = false holds never notifies, nor one in no profile.
 	// Asked after code capture, and after the filters moved the room.
 	facts := n.scope.Facts(ctx, msg.RoomID)
-	topics := n.topics(facts)
+	topics := n.topics(ctx, facts, msg)
 	if n.scope.Mutes(facts) || len(topics) == 0 {
 		return notify.Notification{}, false
 	}
@@ -548,13 +548,20 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	return alert, true
 }
 
-// topics are the seat keys of the profiles holding the room, in config order.
-func (n *Notifications) topics(facts domain.RoomFacts) []string {
+// topics are the seat keys of the profiles holding the room, in config order, less those
+// hiding msg: its sender, or whom it answers, is among the people the profile excludes.
+func (n *Notifications) topics(ctx context.Context, facts domain.RoomFacts, msg domain.Message) []string {
 	n.mu.Lock()
-	defer n.mu.Unlock()
-	var topics []string
+	var holding []domain.Profile
 	for _, p := range n.profiles {
 		if p.Rooms.Admits(facts) {
+			holding = append(holding, p)
+		}
+	}
+	n.mu.Unlock()
+	var topics []string
+	for _, p := range holding {
+		if p.People.Empty() || n.isMine(msg.Sender) || !n.hidden(domain.WithProfile(ctx, p.Name), msg) {
 			topics = append(topics, seatKey(p.Name))
 		}
 	}
