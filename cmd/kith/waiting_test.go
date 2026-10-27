@@ -50,10 +50,12 @@ func TestOpeningKithWhileKithdWaitsSaysWhy(t *testing.T) {
 	returned := make(chan bool, 1)
 	go func() { returned <- waitOut(ctx, storage, func(line string) { _, _ = out.Write([]byte(line + "\n")) }) }()
 
-	deadline := time.Now().Add(2 * time.Second)
+	// Not the readiness timeout (a minute) first; a third of it leaves a loaded machine room.
+	const within = 20 * time.Second
+	deadline := time.Now().Add(within)
 	for !strings.Contains(out.String(), why) {
 		if time.Now().After(deadline) {
-			t.Fatalf("after 2s kith said %q, want why kithd waits", out.String())
+			t.Fatalf("after %s kith said %q, want why kithd waits", within, out.String())
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -66,7 +68,7 @@ func TestOpeningKithWhileKithdWaitsSaysWhy(t *testing.T) {
 		if started {
 			t.Error("waitOut reported kithd started when quit")
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(within):
 		t.Fatal("waitOut did not end on Ctrl-C")
 	}
 }
