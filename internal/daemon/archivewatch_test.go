@@ -115,7 +115,8 @@ func (w pushWorld) config() config.Config {
 // spaceOf is the space a test room is in: R for R@g.us.
 func spaceOf(id domain.RoomID) string {
 	native := string(id)[strings.LastIndex(string(id), "/")+1:]
-	return native[:strings.Index(native, "@")]
+	space, _, _ := strings.Cut(native, "@")
+	return space
 }
 
 // reload hands the watcher the world's tags and profiles, as Reload does.

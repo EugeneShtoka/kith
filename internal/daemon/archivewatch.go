@@ -341,5 +341,5 @@ func warnRefused(log *slog.Logger, what string, room domain.RoomID, tag string, 
 // archiveMatches reports whether the room is already archived on the network,
 // and the archive the network uses is the tag that pushes.
 func archiveMatches(f domain.RoomFacts, tagKey string) bool {
-	return f.ArchivedIn != "" && tagKey == strings.ToLower(f.ArchivedIn)
+	return f.ArchivedIn != "" && strings.EqualFold(tagKey, f.ArchivedIn)
 }

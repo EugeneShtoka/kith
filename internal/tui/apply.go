@@ -255,12 +255,24 @@ func derive(cfg config.Config, profile string) (derivations, error) {
 	if err != nil {
 		return derivations{}, fmt.Errorf("display.theme: %w", err)
 	}
-	view := setup.ProfileConfig(cfg, profile)
+	out, err := placesIn(setup.ProfileConfig(cfg, profile))
+	if err != nil {
+		return derivations{}, err
+	}
+	out.palette, out.rules, out.unreadLocal = palette, rules, source != config.UnreadNotifications
+	out.tone, out.clock, out.media, out.detail = tone, clock, media, detail
+	out.emoji, out.codeRules, out.codeScope = newEmojiSet(tier, cfg.Display.Emoji.Extra), codeRules, codeScope
+	return out, nil
+}
+
+// placesIn is the tags, archives and rail of a profile's view of the config
+// (setup.ProfileConfig).
+func placesIn(view config.Config) (derivations, error) {
 	tags, tagWarnings, err := setup.Tags(view)
 	if err != nil {
 		return derivations{}, err
 	}
-	archives, err := setup.Archives(view, tags) // validated above: never fails here
+	archives, err := setup.Archives(view, tags) // validated by derive: never fails here
 	return derivations{
 		tags:        tags,
 		tagWarnings: tagWarnings,
@@ -268,16 +280,6 @@ func derive(cfg config.Config, profile string) (derivations, error) {
 		mirrored:    setup.Mirrored(view, tags),
 		archiveTags: setup.ArchiveTags(view, tags),
 		rail:        view.Display.Rail,
-		palette:     palette,
-		rules:       rules,
-		unreadLocal: source != config.UnreadNotifications,
-		tone:        tone,
-		clock:       clock,
-		media:       media,
-		detail:      detail,
-		emoji:       newEmojiSet(tier, cfg.Display.Emoji.Extra),
-		codeRules:   codeRules,
-		codeScope:   codeScope,
 	}, err
 }
 
