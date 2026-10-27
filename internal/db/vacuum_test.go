@@ -10,8 +10,47 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ncruces/go-sqlite3"
+
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
+
+// A cache whose live data is larger than SQLite may use is vacuumed all the same:
+// SQLite runs translated, in a memory it may not grow past (256 MiB a connection, a
+// test sets less), and the rewrite's copy does not go into it. The rows kept are kept.
+func TestVacuumOfACacheLargerThanSQLitesMemory(t *testing.T) {
+	t.Parallel()
+	const ceiling = 32 << 20
+	ctx := sqlite3.WithMaxMemory(context.Background(), ceiling)
+	path := filepath.Join(t.TempDir(), "cache.db")
+	c, err := Open(ctx, path, testKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.Close() }()
+	pad(t, c, "kept", 48, false)
+	pad(t, c, "gone", 48, true)
+	before := fileSize(t, path)
+
+	v, err := c.Vacuum(ctx, t.TempDir())
+	if err != nil {
+		t.Fatalf("Vacuum() error = %v", err)
+	}
+	if !v.Ran || fileSize(t, path) > before-(40<<20) {
+		t.Errorf("Vacuum = %+v, file %d → %d; want it shrunk by the 48 MiB freed", v, before, fileSize(t, path))
+	}
+	var kept int
+	if err := c.db.QueryRowContext(ctx, "SELECT count(*) FROM kept").Scan(&kept); err != nil || kept != 48*256 {
+		t.Errorf("%d rows kept (%v); want %d", kept, err, 48*256)
+	}
+	var check string
+	if err := c.db.QueryRowContext(ctx, "PRAGMA integrity_check").Scan(&check); err != nil || check != "ok" {
+		t.Errorf("integrity_check = %q, %v", check, err)
+	}
+	if left := plainFilesIn(t, filepath.Dir(path)); len(left) > 0 {
+		t.Errorf("in the clear: %v", left)
+	}
+}
 
 // pad gives the cache mb MiB of rows in a table of the test's own; with free it
 // deletes them again, so their pages are free pages.
@@ -125,19 +164,24 @@ func TestFitsCountsADiskHoldingBothTwice(t *testing.T) {
 	}
 }
 
-// A cache that keeps temporary files in memory needs no room for them on disk: a
-// temporary directory that is not there does not hold its vacuum back.
-func TestVacuumInMemoryNeedsNoTemporaryDirectory(t *testing.T) {
+// The rewrite's copy goes to SQLite's temporary directory, though the cache keeps its
+// other temporary files in memory: one whose room cannot be told holds the vacuum
+// back, and the cache keeps its temporary files in memory still.
+func TestVacuumNeedsRoomInTheTemporaryDirectory(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	c := openTemp(t)
-	if _, err := c.db.ExecContext(ctx, "PRAGMA temp_store=MEMORY"); err != nil {
-		t.Fatal(err)
-	}
 	pad(t, c, "gone", 40, true)
 	v, err := c.Vacuum(ctx, filepath.Join(t.TempDir(), "not there"))
-	if err != nil || !v.Ran {
-		t.Errorf("Vacuum = %+v, %v", v, err)
+	if err == nil || v.Ran {
+		t.Errorf("Vacuum with no temporary directory = %+v, %v; want it not run", v, err)
+	}
+	if v, err = c.Vacuum(ctx, t.TempDir()); err != nil || !v.Ran {
+		t.Fatalf("Vacuum = %+v, %v", v, err)
+	}
+	var store int
+	if err := c.db.QueryRowContext(ctx, "PRAGMA temp_store").Scan(&store); err != nil || store != 2 {
+		t.Errorf("temp_store after a vacuum = %d (%v); want 2, in memory", store, err)
 	}
 }
 
