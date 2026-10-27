@@ -18,7 +18,9 @@ import (
 
 // Cache is a handle to the on-disk client cache.
 type Cache struct {
-	db       *sql.DB
+	db *sql.DB
+	// path is the cache's file, which Vacuum measures and needs room beside.
+	path     string
 	rebuilt  bool
 	asideErr error
 	// log hears rows the cache had to read around (see UseLogger); nil is silent.
@@ -141,7 +143,7 @@ func open(ctx context.Context, path string, key []byte, plan schemaPlan) (*Cache
 			return nil, err
 		}
 	}
-	return &Cache{db: sqlDB, rebuilt: state.rebuilt, asideErr: errors.Join(state.asideErr, sealAside(ctx, path, key))}, nil
+	return &Cache{db: sqlDB, path: path, rebuilt: state.rebuilt, asideErr: errors.Join(state.asideErr, sealAside(ctx, path, key))}, nil
 }
 
 // Close runs PRAGMA optimize and closes the handle.

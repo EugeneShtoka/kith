@@ -56,6 +56,17 @@ with this table as its mirror (see [Account-data mirrors](#account-data-mirrors)
   queries, so it never holds the connection while it works.
 - `Close` runs `PRAGMA optimize` so the planner's statistics keep up with a growing
   cache.
+- Rows that leave (a trim, a migration dropping copies) free their pages, which later
+  rows reuse; the file never shrinks by itself. The daemon checks ten minutes after
+  start and then daily (`vacuumCache` in `cmd/kithd`), and `Cache.Vacuum` rewrites the
+  file with `VACUUM` once free pages are a fifth of it and at least 32 MiB. It puts the
+  rewrite off (and tries again in an hour) when the disks lack room for it, which is
+  its size plus a tenth in SQLite's temporary directory (unless `temp_store` keeps
+  temporary files in memory) and again beside the cache for the write-ahead log, or
+  when another process holds an older read of the cache (a
+  backup copying it). The rewrite holds the one connection, so reads and writes wait for
+  it; it takes seconds for a few hundred MiB. A rewrite cut short leaves the file as it
+  was.
 - Opening is non-fatal for the daemon: if the cache cannot be opened it runs
   without one, losing only the instant startup.
 
@@ -357,7 +368,7 @@ Since then:
   keep` wrote a copy of every message as its first version, so this deletes each
   message's lone row when it reads exactly as the message does (same words, same
   formatting, not edited). The space goes to SQLite's free list and is reused by later
-  writes; the file does not shrink unless it is vacuumed.
+  writes; the daemon's vacuum (see [The file](#the-file)) gives it back.
 
 so a current cache is at version 27.
 
