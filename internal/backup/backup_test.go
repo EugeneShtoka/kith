@@ -28,10 +28,17 @@ import (
 	"github.com/ncruces/go-sqlite3/ext/fts5"
 )
 
-const (
-	passphrase = "correct horse battery staple"
-	room       = domain.RoomID("whatsapp:359000000000/111@s.whatsapp.net")
-)
+const room = domain.RoomID("whatsapp:359000000000/111@s.whatsapp.net")
+
+// testKey is the user's backup key in these tests, made at run time (a key written in
+// the source would be a leaked one to a secret scanner).
+var testKey = func() *age.X25519Identity {
+	id, err := age.GenerateX25519Identity()
+	if err != nil {
+		panic(err)
+	}
+	return id
+}()
 
 // configText keeps every directory under ~, so the same config lands under each
 // machine's own home; the instance is left to be derived from where the config is.
@@ -100,7 +107,8 @@ func write(t *testing.T, path, body string, mode fs.FileMode) {
 }
 
 // fill gives m a config, n cached messages saying word, an assistant ledger, a
-// send-later queue and a command. The cache is left open, as a running daemon's is.
+// send-later queue, a command and two pictures. The cache is left open, as a running
+// daemon's is.
 func (m machine) fill(t *testing.T, word string, n int) {
 	t.Helper()
 	write(t, m.configPath, configText, 0o600)
@@ -108,6 +116,9 @@ func (m machine) fill(t *testing.T, word string, n int) {
 	write(t, s.LedgerPath(), `{"sent":"`+word+`"}`+"\n", 0o600)
 	write(t, s.SchedulePath(), "# "+word+"\n", 0o600)
 	write(t, filepath.Join(filepath.Dir(m.configPath), "commands", "zoom"), "#!/bin/sh\necho "+word+"\n", 0o755)
+	write(t, filepath.Join(s.MediaDir(), "a1.png"), word+" picture a", 0o600)
+	write(t, filepath.Join(s.MediaDir(), "b2.jpg"), word+" picture b", 0o600)
+	write(t, filepath.Join(s.MediaDir(), "renders", "a1-80x24"), "a render", 0o600)
 	if err := os.MkdirAll(s.DataDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -160,21 +171,28 @@ func (m machine) backUp(t *testing.T) string {
 		t.Fatal(err)
 	}
 	out := filepath.Join(t.TempDir(), "kith-backup.tar.age")
-	made, err := backup.Create(context.Background(), backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: m.storage(t), CacheKey: keyAt(m.storage(t).DataDir)}, out, passphrase)
+	made, err := backup.Create(context.Background(), m.source(t, cfg), out, testKey.Recipient())
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if made.Path != out || len(made.Entries) != 5 {
-		t.Fatalf("Create() = %+v; want five files at %s", made, out)
+	if made.Path != out || len(made.Entries) != 6 {
+		t.Fatalf("Create() = %+v; want five files and the pictures at %s", made, out)
 	}
 	return out
 }
 
-// answer is a passphrase prompt that answers pass and counts how often it was asked.
-func answer(pass string, asked *int) func() (string, error) {
-	return func() (string, error) {
+// source is a backup of m with its pictures.
+func (m machine) source(t *testing.T, cfg config.Config) backup.Source {
+	t.Helper()
+	s := m.storage(t)
+	return backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: s, CacheKey: keyAt(s.DataDir), MediaDir: setup.MediaDir(cfg, s)}
+}
+
+// answer is a key prompt that answers id and counts how often it was asked.
+func answer(id *age.X25519Identity, asked *int) func() (*age.X25519Identity, error) {
+	return func() (*age.X25519Identity, error) {
 		*asked++
-		return pass, nil
+		return id, nil
 	}
 }
 
@@ -241,7 +259,7 @@ func TestARestoreOnANewMachineHoldsWhatTheBackupTook(t *testing.T) {
 
 	fresh := newMachine(t).as(t)
 	asked := 0
-	got, err := backup.Restore(context.Background(), archive, fresh.configPath, false, answer(passphrase, &asked), keyOf)
+	got, err := backup.Restore(context.Background(), archive, fresh.configPath, false, answer(testKey, &asked), keyOf)
 	if err != nil {
 		t.Fatalf("Restore() error = %v", err)
 	}
@@ -254,9 +272,12 @@ func TestARestoreOnANewMachineHoldsWhatTheBackupTook(t *testing.T) {
 		t.Fatalf("the restored cache holds %d messages; want the 500 backed up", len(b))
 	}
 	for path, want := range map[string]string{
-		fresh.configPath: configText,
-		s.LedgerPath():   `{"sent":"kept"}` + "\n",
-		s.SchedulePath(): "# kept\n",
+		fresh.configPath:                      configText,
+		s.LedgerPath():                        `{"sent":"kept"}` + "\n",
+		s.SchedulePath():                      "# kept\n",
+		filepath.Join(s.MediaDir(), "a1.png"): "kept picture a",
+		filepath.Join(s.MediaDir(), "b2.jpg"): "kept picture b",
+		s.BackupKeyPath():                     testKey.Recipient().String() + "\n",
 		filepath.Join(filepath.Dir(fresh.configPath), "commands", "zoom"): "#!/bin/sh\necho kept\n",
 	} {
 		body, err := os.ReadFile(path) // #nosec G304 -- the test's own file
@@ -267,8 +288,14 @@ func TestARestoreOnANewMachineHoldsWhatTheBackupTook(t *testing.T) {
 	if info, err := os.Stat(filepath.Join(filepath.Dir(fresh.configPath), "commands", "zoom")); err != nil || info.Mode().Perm() != 0o755 {
 		t.Errorf("the command's mode = %v, %v; want it executable as it was", info.Mode(), err)
 	}
-	if asked != 1 || len(got.Aside) != 0 || len(got.Left) != 0 {
-		t.Errorf("Restore() = %+v, asked %d times; want nothing set aside or left, asked once", got, asked)
+	if _, err := os.Stat(filepath.Join(s.MediaDir(), "renders")); err == nil {
+		t.Error("a render was restored; renders are made again")
+	}
+	if asked != 1 || len(got.Aside) != 0 || len(got.Left) != 0 || got.Pictures != 2 {
+		t.Errorf("Restore() = %+v, asked %d times; want two pictures, nothing set aside or left, asked once", got, asked)
+	}
+	if to, err := backup.LoadKey(s); err != nil || to.String() != testKey.Recipient().String() {
+		t.Errorf("LoadKey() after the restore = %v, %v; want the key the backup opened with, so backups go on to it", to, err)
 	}
 	if want := []backup.Login{{Network: "whatsapp", Account: "bg"}}; !slices.Equal(got.Logins, want) {
 		t.Errorf("Logins = %v; want %v", got.Logins, want)
@@ -277,7 +304,7 @@ func TestARestoreOnANewMachineHoldsWhatTheBackupTook(t *testing.T) {
 
 // With --replace, what was there is set aside whole (the cache with every commit,
 // the config as it was), and the backup takes its place. Without it, nothing changes
-// and the passphrase is not even asked when the config alone tells.
+// and the key is not even asked for when the config alone tells.
 func TestRestoreSetsAsideOnlyWhenAskedTo(t *testing.T) {
 	old := newMachine(t)
 	old.as(t).fill(t, "kept", 50)
@@ -289,14 +316,14 @@ func TestRestoreSetsAsideOnlyWhenAskedTo(t *testing.T) {
 	before := fingerprint(t, there.home)
 
 	asked := 0
-	_, err := backup.Restore(context.Background(), backupPath, there.configPath, false, answer(passphrase, &asked), keyOf)
+	_, err := backup.Restore(context.Background(), backupPath, there.configPath, false, answer(testKey, &asked), keyOf)
 	if !errors.Is(err, backup.ErrWouldReplace) || asked != 0 {
 		t.Fatalf("Restore() over a config = %v, asked %d; want ErrWouldReplace before asking", err, asked)
 	}
 	unchanged(t, there.home, before)
 
 	s := there.storage(t)
-	got, err := backup.Restore(context.Background(), backupPath, there.configPath, true, answer(passphrase, &asked), keyOf)
+	got, err := backup.Restore(context.Background(), backupPath, there.configPath, true, answer(testKey, &asked), keyOf)
 	if err != nil {
 		t.Fatalf("Restore(--replace) error = %v", err)
 	}
@@ -338,7 +365,7 @@ func TestRestoreRefusesFilesTheBackupsConfigNames(t *testing.T) {
 	}
 	before := fingerprint(t, there.home)
 	asked := 0
-	_, err := backup.Restore(context.Background(), archive, there.configPath, false, answer(passphrase, &asked), keyOf)
+	_, err := backup.Restore(context.Background(), archive, there.configPath, false, answer(testKey, &asked), keyOf)
 	if !errors.Is(err, backup.ErrWouldReplace) {
 		t.Fatalf("Restore() = %v; want ErrWouldReplace", err)
 	}
@@ -368,19 +395,19 @@ func TestRestoreRefusesWhileKithdRuns(t *testing.T) {
 			}
 			before := fingerprint(t, there.home)
 			asked := 0
-			_, err = backup.Restore(context.Background(), archive, there.configPath, true, answer(passphrase, &asked), keyOf)
+			_, err = backup.Restore(context.Background(), archive, there.configPath, true, answer(testKey, &asked), keyOf)
 			if !errors.Is(err, backup.ErrDaemonRunning) {
 				t.Fatalf("Restore() = %v; want ErrDaemonRunning", err)
 			}
 			if keepConfig && asked != 0 {
-				t.Errorf("asked for the passphrase %d times before refusing; want none", asked)
+				t.Errorf("asked for the key %d times before refusing; want none", asked)
 			}
 			unchanged(t, there.home, before)
 		})
 	}
 }
 
-// A backup that is cut, altered, opened with the wrong passphrase, carries a cache
+// A backup that is cut, altered, opened with the wrong key, carries a cache
 // this kith would rebuild, or is interrupted fails, and the files there (a config and
 // a cache being replaced) stay exactly as they were, with nothing left behind.
 func TestAFailedRestoreLeavesEverythingAsItWas(t *testing.T) {
@@ -394,29 +421,35 @@ func TestAFailedRestoreLeavesEverythingAsItWas(t *testing.T) {
 	newer := newerCacheBackup(t)
 	missing := withoutEntry(t, body, "state/agent-sends.jsonl")
 
+	other, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// want is the errors a fault may be reported as: an altered header no longer
-	// matches the passphrase, so age may call damage a wrong passphrase.
+	// matches the key, so age may call damage a wrong key.
 	type fault struct {
 		name    string
 		archive []byte
-		pass    string
+		key     *age.X25519Identity
 		cancel  bool
 		want    []error
 	}
-	damagedOrWrong := []error{backup.ErrDamaged, backup.ErrWrongPassphrase}
+	damagedOrWrong := []error{backup.ErrDamaged, backup.ErrWrongKey}
 	faults := []fault{
-		{name: "wrong passphrase", archive: body, pass: "wrong", want: []error{backup.ErrWrongPassphrase}},
-		{name: "cache from a newer kith", archive: newer, pass: passphrase, want: []error{db.ErrNewerCache}},
-		{name: "interrupted", archive: body, pass: passphrase, cancel: true, want: []error{context.Canceled}},
-		{name: "a listed file missing", archive: missing, pass: passphrase, want: []error{backup.ErrDamaged}},
+		{name: "wrong key", archive: body, key: other, want: []error{backup.ErrWrongKey}},
+		{name: "cache from a newer kith", archive: newer, key: testKey, want: []error{db.ErrNewerCache}},
+		{name: "interrupted", archive: body, key: testKey, cancel: true, want: []error{context.Canceled}},
+		{name: "a listed file missing", archive: missing, key: testKey, want: []error{backup.ErrDamaged}},
+		{name: "a listed picture missing", archive: withoutEntry(t, body, "media/b2.jpg"), key: testKey, want: []error{backup.ErrDamaged}},
 	}
 	for _, at := range []int{20, 200, len(body) / 3, len(body) / 2, len(body) - 300, len(body) - 1} {
-		faults = append(faults, fault{name: fmt.Sprintf("cut at %d", at), archive: body[:at], pass: passphrase, want: damagedOrWrong})
+		faults = append(faults, fault{name: fmt.Sprintf("cut at %d", at), archive: body[:at], key: testKey, want: damagedOrWrong})
 	}
 	for _, at := range []int{60, 250, len(body) / 2, len(body) - 20, len(body) - 1} {
 		flipped := slices.Clone(body)
 		flipped[at] ^= 0x40
-		faults = append(faults, fault{name: fmt.Sprintf("byte %d altered", at), archive: flipped, pass: passphrase, want: damagedOrWrong})
+		faults = append(faults, fault{name: fmt.Sprintf("byte %d altered", at), archive: flipped, key: testKey, want: damagedOrWrong})
 	}
 	for _, f := range faults {
 		t.Run(f.name, func(t *testing.T) {
@@ -427,11 +460,11 @@ func TestAFailedRestoreLeavesEverythingAsItWas(t *testing.T) {
 			write(t, path, string(f.archive), 0o600)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			_, err := backup.Restore(ctx, path, there.configPath, true, func() (string, error) {
+			_, err := backup.Restore(ctx, path, there.configPath, true, func() (*age.X25519Identity, error) {
 				if f.cancel {
 					cancel()
 				}
-				return f.pass, nil
+				return f.key, nil
 			}, keyOf)
 			if !slices.ContainsFunc(f.want, func(want error) bool { return errors.Is(err, want) }) {
 				t.Fatalf("Restore() = %v; want one of %v", err, f.want)
@@ -466,20 +499,12 @@ func newerCacheBackup(t *testing.T) []byte {
 // and authentic, but not holding what its list says.
 func withoutEntry(t *testing.T, archive []byte, drop string) []byte {
 	t.Helper()
-	identity, err := age.NewScryptIdentity(passphrase)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plain, err := age.Decrypt(bytes.NewReader(archive), identity)
-	if err != nil {
-		t.Fatal(err)
-	}
-	recipient, err := age.NewScryptRecipient(passphrase)
+	plain, err := age.Decrypt(bytes.NewReader(archive), testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	sealed, err := age.Encrypt(&out, recipient)
+	sealed, err := age.Encrypt(&out, testKey.Recipient())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -520,14 +545,14 @@ func TestAFailedBackupLeavesNoFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	src := backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: m.storage(t), CacheKey: keyAt(m.storage(t).DataDir)}
+	src := m.source(t, cfg)
 	before := fingerprint(t, m.home)
 	outDir := t.TempDir()
 	out := filepath.Join(outDir, "kith-backup.tar.age")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := backup.Create(ctx, src, out, passphrase); !errors.Is(err, context.Canceled) {
+	if _, err := backup.Create(ctx, src, out, testKey.Recipient()); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Create(canceled) = %v; want context.Canceled", err)
 	}
 	if left, _ := os.ReadDir(outDir); len(left) != 0 {
@@ -536,7 +561,7 @@ func TestAFailedBackupLeavesNoFile(t *testing.T) {
 	unchanged(t, m.home, before)
 
 	write(t, out, "mine", 0o600)
-	if _, err := backup.Create(context.Background(), src, out, passphrase); err == nil {
+	if _, err := backup.Create(context.Background(), src, out, testKey.Recipient()); err == nil {
 		t.Fatal("Create() over an existing file succeeded")
 	}
 	if body, _ := os.ReadFile(out); string(body) != "mine" { // #nosec G304 -- the test's own file
@@ -561,7 +586,7 @@ func TestABackupLeavesLinkedCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	made, err := backup.Create(context.Background(), backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: m.storage(t), CacheKey: keyAt(m.storage(t).DataDir)},
-		filepath.Join(t.TempDir(), "b.tar.age"), passphrase)
+		filepath.Join(t.TempDir(), "b.tar.age"), testKey.Recipient())
 	if err != nil {
 		t.Fatal(err)
 	}

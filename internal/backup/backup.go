@@ -1,14 +1,15 @@
-// Package backup writes kith's history to one passphrase-encrypted file and puts it
-// back, on this machine or a new one. A backup holds the cache, the config and its
-// commands, and the local records nothing re-fetches (what an assistant sent, the
-// send-later queue). It never holds a network session or a keyring key: a restored
-// machine logs in afresh.
+// Package backup writes kith's history to one encrypted file and puts it back, on this
+// machine or a new one. A backup holds the cache, the config and its commands, the
+// local records nothing re-fetches (what an assistant sent, the send-later queue) and
+// the picture cache (WhatsApp and Signal pictures cannot be fetched again). It never
+// holds a network session or a keyring key: a restored machine logs in afresh.
 //
-// The file is an age file (scrypt passphrase) around a tar, so `age -d` and `tar`
-// read it without kith. The cache in it is a SQLite copy encrypted as the cache is
-// (internal/sealeddb), under a key made for this backup alone and kept in its manifest, so the
-// history is never written to disk in the clear, not even while the backup is made;
-// a restore writes it under the restored machine's own key.
+// The file is an age file around a tar, encrypted to the user's backup key (key.go),
+// so `age -d -i key` and `tar` read it without kith. The cache in it is a SQLite copy
+// encrypted as the cache is (internal/sealeddb), under a key made for this backup
+// alone and kept in its manifest, so the history is never written to disk in the
+// clear, not even while the backup is made; a restore writes it under the restored
+// machine's own key.
 package backup
 
 import (
@@ -24,6 +25,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"filippo.io/age"
@@ -43,40 +45,47 @@ const (
 	commandsDir  = "config/commands/"
 	ledgerName   = "state/agent-sends.jsonl"
 	scheduleName = "state/scheduled.toml"
+	mediaPrefix  = "media/"
 	cacheName    = "cache.db"
 )
 
-// format is the layout this kith writes: 2, the cache encrypted under the manifest's
-// CacheKey. It also reads formatPlain, whose cache is a plain copy.
-const (
-	format      = 2
-	formatPlain = 1
-)
+// snapshotPattern names the cache's copy a backup makes beside the cache while it
+// runs.
+const snapshotPattern = ".backup-cache-*.db"
+
+// format is the layout this kith writes and reads: encrypted to a backup key, the
+// cache in it encrypted under the manifest's CacheKey.
+const format = 3
 
 // manifest is a backup's first entry: its layout, when and by what it was made, every
-// file after it, so a restore can tell a whole backup from a cut one, and the key (hex)
-// the cache in it is encrypted under.
+// file after it, so a restore can tell a whole backup from a cut one, the key (hex)
+// the cache in it is encrypted under, and the public backup key it was made to.
 type manifest struct {
-	Format   int       `json:"format"`
-	Created  time.Time `json:"created"`
-	Kith     string    `json:"kith"`
-	Files    []string  `json:"files"`
-	CacheKey string    `json:"cache_key,omitempty"`
+	Format    int       `json:"format"`
+	Created   time.Time `json:"created"`
+	Kith      string    `json:"kith"`
+	Files     []string  `json:"files"`
+	CacheKey  string    `json:"cache_key"`
+	Recipient string    `json:"recipient"`
 }
 
 // Source is what a backup is made of: the config file at ConfigPath, its contents,
-// the storage it names, and the key the cache there is encrypted under.
+// the storage it names, the key the cache there is encrypted under, and the picture
+// cache, left out when MediaDir is empty.
 type Source struct {
 	ConfigPath string
 	Config     config.Config
 	Storage    domain.Storage
 	CacheKey   []byte
+	MediaDir   string
 }
 
-// Entry is one file in a backup, and its size.
+// Entry is one file in a backup, and its size; the pictures are one Entry of Count
+// files.
 type Entry struct {
-	Name string
-	Size int64
+	Name  string
+	Size  int64
+	Count int
 }
 
 // Made is a backup written: where, what went in, and what was left out and why.
@@ -91,12 +100,12 @@ type file struct {
 	name, path string
 }
 
-// Create writes a backup of src to out, a file that must not exist, encrypted with
-// passphrase. The cache is copied as it stands, so the daemon may keep running. A
+// Create writes a backup of src to out, a file that must not exist, encrypted to the
+// backup key to. The cache is copied as it stands, so the daemon may keep running. A
 // failed or interrupted backup leaves no file at out.
-func Create(ctx context.Context, src Source, out, passphrase string) (Made, error) {
-	if passphrase == "" {
-		return Made{}, errors.New("backup: an empty passphrase")
+func Create(ctx context.Context, src Source, out string, to *PublicKey) (Made, error) {
+	if to == nil {
+		return Made{}, ErrNoKey
 	}
 	if _, err := os.Lstat(out); err == nil {
 		return Made{}, fmt.Errorf("backup: %s exists; name another file", out)
@@ -105,6 +114,11 @@ func Create(ctx context.Context, src Source, out, passphrase string) (Made, erro
 	if err != nil {
 		return Made{}, err
 	}
+	media, err := mediaFiles(src.MediaDir)
+	if err != nil {
+		return Made{}, err
+	}
+	files = append(files, media...)
 	key := make([]byte, db.KeyLen)
 	if _, randErr := rand.Read(key); randErr != nil {
 		return Made{}, fmt.Errorf("backup: %w", randErr)
@@ -119,7 +133,7 @@ func Create(ctx context.Context, src Source, out, passphrase string) (Made, erro
 	if mkErr := os.MkdirAll(filepath.Dir(out), 0o700); mkErr != nil {
 		return Made{}, fmt.Errorf("backup: %w", mkErr)
 	}
-	entries, err := writeArchive(ctx, out, passphrase, files, key)
+	entries, err := writeArchive(ctx, out, to, files, key)
 	if err != nil {
 		return Made{}, err
 	}
@@ -188,10 +202,32 @@ func commandFiles(src Source) (files []file, left string, err error) {
 	return files, "", nil
 }
 
+// mediaFiles is the picture cache's originals in dir: its top level, where the
+// attachments are. Renders and pictures waiting to be sent below it are made again.
+func mediaFiles(dir string) ([]file, error) {
+	if dir == "" {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("backup: the pictures: %w", err)
+	}
+	var files []file
+	for _, e := range entries {
+		if e.Type().IsRegular() && !strings.HasPrefix(e.Name(), ".") {
+			files = append(files, file{name: mediaPrefix + e.Name(), path: filepath.Join(dir, e.Name())})
+		}
+	}
+	return files, nil
+}
+
 // snapshotCache copies the cache (under cacheKey) beside it, the same disk and as
 // private, encrypted under key, returning the copy's path.
 func snapshotCache(ctx context.Context, storage domain.Storage, cacheKey, key []byte) (string, error) {
-	tmp, err := os.CreateTemp(storage.DataDir, ".backup-cache-*.db")
+	tmp, err := os.CreateTemp(storage.DataDir, snapshotPattern)
 	if err != nil {
 		return "", fmt.Errorf("backup: %w", err)
 	}
@@ -210,7 +246,7 @@ func snapshotCache(ctx context.Context, storage domain.Storage, cacheKey, key []
 // writeArchive writes files to out through a partial file renamed into place once
 // whole, so an interrupted backup never leaves a file that looks complete. cacheKey is
 // what the cache among them is encrypted under.
-func writeArchive(ctx context.Context, out, passphrase string, files []file, cacheKey []byte) ([]Entry, error) {
+func writeArchive(ctx context.Context, out string, to *PublicKey, files []file, cacheKey []byte) ([]Entry, error) {
 	partial, err := os.CreateTemp(filepath.Dir(out), "."+filepath.Base(out)+".partial-*")
 	if err != nil {
 		return nil, fmt.Errorf("backup: %w", err)
@@ -222,16 +258,12 @@ func writeArchive(ctx context.Context, out, passphrase string, files []file, cac
 			_ = os.Remove(partial.Name())
 		}
 	}()
-	recipient, err := age.NewScryptRecipient(passphrase)
-	if err != nil {
-		return nil, fmt.Errorf("backup: %w", err)
-	}
-	sealed, err := age.Encrypt(partial, recipient)
+	sealed, err := age.Encrypt(partial, to)
 	if err != nil {
 		return nil, fmt.Errorf("backup: %w", err)
 	}
 	tw := tar.NewWriter(sealed)
-	entries, err := writeEntries(ctx, tw, files, cacheKey)
+	entries, err := writeEntries(ctx, tw, files, cacheKey, to)
 	if err != nil {
 		return nil, err
 	}
@@ -247,9 +279,13 @@ func writeArchive(ctx context.Context, out, passphrase string, files []file, cac
 	return entries, nil
 }
 
-// writeEntries writes the manifest, then each file.
-func writeEntries(ctx context.Context, tw *tar.Writer, files []file, cacheKey []byte) ([]Entry, error) {
-	m := manifest{Format: format, Created: time.Now().UTC(), Kith: buildinfo.String("kith"), CacheKey: hex.EncodeToString(cacheKey)}
+// writeEntries writes the manifest, then each file. The pictures are reported as one
+// entry, however many there are.
+func writeEntries(ctx context.Context, tw *tar.Writer, files []file, cacheKey []byte, to *PublicKey) ([]Entry, error) {
+	m := manifest{
+		Format: format, Created: time.Now().UTC(), Kith: buildinfo.String("kith"),
+		CacheKey: hex.EncodeToString(cacheKey), Recipient: to.String(),
+	}
 	for _, f := range files {
 		m.Files = append(m.Files, f.name)
 	}
@@ -257,21 +293,30 @@ func writeEntries(ctx context.Context, tw *tar.Writer, files []file, cacheKey []
 	if err != nil {
 		return nil, fmt.Errorf("backup: %w", err)
 	}
-	if err := writeEntry(ctx, tw, manifestName, 0o600, int64(len(body)), bytes.NewReader(body)); err != nil {
+	if err := writeEntry(ctx, tw, manifestName, 0o600, time.Now(), int64(len(body)), bytes.NewReader(body)); err != nil {
 		return nil, err
 	}
 	entries := make([]Entry, 0, len(files))
+	var pictures Entry
 	for _, f := range files {
 		size, err := copyFile(ctx, tw, f)
 		if err != nil {
 			return nil, err
+		}
+		if strings.HasPrefix(f.name, mediaPrefix) {
+			pictures.Name, pictures.Size, pictures.Count = mediaPrefix, pictures.Size+size, pictures.Count+1
+			continue
+		}
+		if f.name == cacheName && pictures.Count > 0 {
+			entries = append(entries, pictures)
 		}
 		entries = append(entries, Entry{Name: f.name, Size: size})
 	}
 	return entries, nil
 }
 
-// copyFile writes one file into the archive, keeping its permission bits.
+// copyFile writes one file into the archive, keeping its permission bits and its time
+// (which the picture cache trims by).
 func copyFile(ctx context.Context, tw *tar.Writer, f file) (int64, error) {
 	in, err := os.Open(f.path) // #nosec G304 -- a file of this config's own storage
 	if err != nil {
@@ -282,12 +327,12 @@ func copyFile(ctx context.Context, tw *tar.Writer, f file) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("backup: %w", err)
 	}
-	return info.Size(), writeEntry(ctx, tw, f.name, int64(info.Mode().Perm()), info.Size(), in)
+	return info.Size(), writeEntry(ctx, tw, f.name, int64(info.Mode().Perm()), info.ModTime(), info.Size(), in)
 }
 
 // writeEntry writes one tar entry of size bytes from r.
-func writeEntry(ctx context.Context, tw *tar.Writer, name string, mode, size int64, r io.Reader) error {
-	hdr := &tar.Header{Typeflag: tar.TypeReg, Name: name, Mode: mode, Size: size, ModTime: time.Now()}
+func writeEntry(ctx context.Context, tw *tar.Writer, name string, mode int64, at time.Time, size int64, r io.Reader) error {
+	hdr := &tar.Header{Typeflag: tar.TypeReg, Name: name, Mode: mode, Size: size, ModTime: at}
 	if err := tw.WriteHeader(hdr); err != nil {
 		return fmt.Errorf("backup: %s: %w", name, err)
 	}

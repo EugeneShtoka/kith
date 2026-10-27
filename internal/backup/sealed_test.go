@@ -23,11 +23,7 @@ import (
 // entries is every file in the backup archive, by name, with the manifest decoded.
 func entries(t *testing.T, archive []byte) (map[string][]byte, map[string]any) {
 	t.Helper()
-	identity, err := age.NewScryptIdentity(passphrase)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plain, err := age.Decrypt(bytes.NewReader(archive), identity)
+	plain, err := age.Decrypt(bytes.NewReader(archive), testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +105,7 @@ func TestABackupsCacheIsNeverInTheClear(t *testing.T) {
 
 	there := newMachine(t).as(t)
 	there.fill(t, "local", 10)
-	if _, err := backup.Restore(context.Background(), archivePath, there.configPath, true, func() (string, error) { return passphrase, nil }, keyOf); err != nil {
+	if _, err := backup.Restore(context.Background(), archivePath, there.configPath, true, func() (*age.X25519Identity, error) { return testKey, nil }, keyOf); err != nil {
 		t.Fatalf("Restore() error = %v", err)
 	}
 	s := there.storage(t)
@@ -122,93 +118,4 @@ func TestABackupsCacheIsNeverInTheClear(t *testing.T) {
 	if left := clearIn(t, there.home); len(left) > 0 {
 		t.Errorf("the restore left history in the clear: %v", left)
 	}
-}
-
-// A backup made before caches were encrypted (layout 1: the cache in the clear, no
-// key) still restores, and is written encrypted under the machine's key.
-func TestABackupFromBeforeEncryptionRestoresEncrypted(t *testing.T) {
-	old := newMachine(t)
-	old.as(t).fill(t, "kept", 25)
-	archivePath := old.backUp(t)
-	archive, err := os.ReadFile(archivePath) // #nosec G304 -- the test's own file
-	if err != nil {
-		t.Fatal(err)
-	}
-	files, manifest := entries(t, archive)
-	key, err := hex.DecodeString(manifest["cache_key"].(string))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// The cache as a layout-1 backup held it: a plain copy.
-	dir := t.TempDir()
-	sealed, plain := filepath.Join(dir, "sealed.db"), filepath.Join(dir, "plain.db")
-	if err = os.WriteFile(sealed, files["cache.db"], 0o600); err != nil {
-		t.Fatal(err)
-	}
-	sqlDB, err := sealeddb.OpenWith(context.Background(), sealed, key, sealeddb.Setup{ReadOnly: true, Init: fts5.Register})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = sqlDB.ExecContext(context.Background(), "VACUUM INTO ?", "file:"+plain+"?vfs=os"); err != nil {
-		t.Fatal(err)
-	}
-	_ = sqlDB.Close()
-	if files["cache.db"], err = os.ReadFile(plain); err != nil { // #nosec G304 -- the test's own file
-		t.Fatal(err)
-	}
-	delete(manifest, "cache_key")
-	manifest["format"] = 1
-	if files["kith-backup.json"], err = json.Marshal(manifest); err != nil {
-		t.Fatal(err)
-	}
-	older := filepath.Join(t.TempDir(), "older.tar.age")
-	write(t, older, string(archiveOf(t, files, manifest)), 0o600)
-
-	fresh := newMachine(t).as(t)
-	if _, err := backup.Restore(context.Background(), older, fresh.configPath, false, func() (string, error) { return passphrase, nil }, keyOf); err != nil {
-		t.Fatalf("Restore(layout 1) error = %v", err)
-	}
-	s := fresh.storage(t)
-	if b := bodies(t, s.CachePath()); len(b) != 25 {
-		t.Fatalf("the restored cache holds %d messages; want the 25", len(b))
-	}
-	if left := clearIn(t, fresh.home); len(left) > 0 {
-		t.Errorf("the restore left history in the clear: %v", left)
-	}
-}
-
-// archiveOf is a backup holding files, in the manifest's order, under passphrase.
-func archiveOf(t *testing.T, files map[string][]byte, manifest map[string]any) []byte {
-	t.Helper()
-	recipient, err := age.NewScryptRecipient(passphrase)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var out bytes.Buffer
-	sealed, err := age.Encrypt(&out, recipient)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tw := tar.NewWriter(sealed)
-	names := []string{"kith-backup.json"}
-	for _, n := range manifest["files"].([]any) {
-		names = append(names, n.(string))
-	}
-	for _, name := range names {
-		body := files[name]
-		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o600, Size: int64(len(body)), Typeflag: tar.TypeReg}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tw.Write(body); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := tw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := sealed.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return out.Bytes()
 }
