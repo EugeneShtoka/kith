@@ -143,18 +143,14 @@ const (
 // the plain store deleted. An interrupted migration is taken up again at the next
 // open; the plain store is never lost, and a copy not yet checked is never taken.
 func OpenMigrating(ctx context.Context, path string, key []byte) (*sql.DB, error) {
-	return OpenMigratingWith(ctx, path, key, Setup{})
-}
-
-// OpenMigratingWith is OpenMigrating with s's connection setup.
-func OpenMigratingWith(ctx context.Context, path string, key []byte, s Setup) (*sql.DB, error) {
-	if err := Seal(ctx, path, key, s); err != nil {
+	if err := Seal(ctx, path, key, Setup{}); err != nil {
 		return nil, err
 	}
-	return OpenWith(ctx, path, key, s)
+	return Open(ctx, path, key)
 }
 
-// Seal is OpenMigratingWith without the open: a plain database at path is encrypted in
+// Seal is OpenMigrating without the open, with s's connection setup: a plain database
+// at path is encrypted in
 // its place, an interrupted migration taken up, and anything else left as it is.
 // Openers racing on one plain database take turns (migrating), so none drops the copy
 // another is writing or renames over another.

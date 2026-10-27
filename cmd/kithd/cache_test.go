@@ -9,6 +9,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -56,6 +57,44 @@ func keepKey(t *testing.T, storage domain.Storage, key []byte) {
 	}
 }
 
+// hold is kithd's log, holding the goroutine that opens the cache at its first
+// "waiting for the cache" (logged after it read the keyring) until release. go-keyring's
+// in-memory keyring is not safe to change while another goroutine reads it, so the
+// test changes it only while that goroutine is held there.
+type hold struct {
+	once           sync.Once
+	reached, freed chan struct{}
+}
+
+func newHold() *hold { return &hold{reached: make(chan struct{}), freed: make(chan struct{})} }
+
+func (h *hold) Enabled(context.Context, slog.Level) bool { return true }
+func (h *hold) WithAttrs([]slog.Attr) slog.Handler       { return h }
+func (h *hold) WithGroup(string) slog.Handler            { return h }
+
+func (h *hold) Handle(_ context.Context, r slog.Record) error {
+	if r.Message == "waiting for the cache" {
+		h.once.Do(func() {
+			close(h.reached)
+			<-h.freed
+		})
+	}
+	return nil
+}
+
+// waited fails the test unless kithd came to wait for the cache.
+func (h *hold) waited(t *testing.T) {
+	t.Helper()
+	select {
+	case <-h.reached:
+	case <-time.After(10 * time.Second):
+		t.Fatal("kithd did not wait for the cache")
+	}
+}
+
+// release lets kithd go on waiting, now with the keyring as the test left it.
+func (h *hold) release() { close(h.freed) }
+
 // waitingSays waits for the daemon at storage to answer as not ready, saying want.
 func waitingSays(t *testing.T, storage domain.Storage, want string) {
 	t.Helper()
@@ -94,14 +133,17 @@ func TestALockedKeyringIsWaitedForAndThenEverythingOpens(t *testing.T) {
 		err   error
 	}
 	done := make(chan opened, 1)
+	held := newHold()
 	go func() {
-		c, err := openCache(ctx, slog.New(slog.DiscardHandler), lock, storage)
+		c, err := openCache(ctx, slog.New(held), lock, storage)
 		done <- opened{c, err}
 	}()
+	held.waited(t)
 	waitingSays(t, storage, "unlock the keyring")
 
 	keyring.MockInit()
 	keepKey(t, storage, key)
+	held.release()
 	got := <-done
 	if got.err != nil || got.cache == nil {
 		t.Fatalf("openCache() after the keyring opened = %v, %v", got.cache, got.err)
@@ -144,19 +186,22 @@ func TestAReplacedKeyIsWaitedOutNotAnsweredWithANewCache(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	done := make(chan *db.Cache, 1)
+	held := newHold()
 	go func() {
-		c, err := openCache(ctx, slog.New(slog.DiscardHandler), lock, storage)
+		c, err := openCache(ctx, slog.New(held), lock, storage)
 		if err != nil {
 			t.Errorf("openCache() error = %v", err)
 		}
 		done <- c
 	}()
+	held.waited(t)
 	waitingSays(t, storage, "does not open the cache")
 	if after, _ := os.ReadFile(storage.CachePath()); !bytes.Equal(after, before) {
 		t.Error("the cache changed while its key was wrong")
 	}
 
 	keepKey(t, storage, key)
+	held.release()
 	cache := <-done
 	if cache == nil {
 		t.Fatal("no cache after the key came back")

@@ -334,7 +334,10 @@ func migrateCache(ctx context.Context, path string, key []byte, x ids, dry bool)
 	if _, err := os.Stat(path); err != nil {
 		return 0, fmt.Errorf("find the cache: %w", err)
 	}
-	db, err := sealeddb.OpenMigratingWith(ctx, path, key, cacheSetup)
+	if err := sealeddb.Seal(ctx, path, key, cacheSetup); err != nil {
+		return 0, fmt.Errorf("encrypt the cache: %w", err)
+	}
+	db, err := sealeddb.OpenWith(ctx, path, key, cacheSetup)
 	if err != nil {
 		return 0, fmt.Errorf("open the cache: %w", err)
 	}
