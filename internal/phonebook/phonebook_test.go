@@ -215,3 +215,59 @@ func TestAnIndexFindsCardsAsTheFolderDoes(t *testing.T) {
 		}
 	}
 }
+
+// A rule that hides people reads a term word for word: a value only part of a word in
+// the card meets nothing, a phrase meets the same words, case aside, a word in any
+// script counts as one, and an identifier key meets the identifier itself however it
+// is written. Search's piece-wise matching (Matches) is left as it was.
+func TestATermHoldsWordForWord(t *testing.T) {
+	t.Parallel()
+	b := book(t, map[string]string{
+		"Dana Levi.md": dana,
+		"Eli Stone.md": "---\nRole: Family Attorney\ncompany: [Acme, Meta-Platforms]\nmatrix: [\"@eli:x\"]\n---\n",
+		"Noa.md":       "---\nrole: architect, former colleagues\nteam: [צוות אדום]\n---\n",
+	})
+	cards, err := b.Cards()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for term, want := range map[string]string{
+		"role:attorney":          "Eli Stone",
+		"ROLE:ATTORNEY":          "Eli Stone",
+		"role:family attorney":   "Eli Stone",
+		"role:attorn":            "",
+		"role:a":                 "",
+		"role:colleagues":        "Noa",
+		"role:colleague":         "",
+		"company:meta":           "Eli Stone",
+		"company:platforms":      "Eli Stone",
+		"company:meta-platforms": "Eli Stone",
+		"team:אדום":              "Noa",
+		"team:אדו":               "",
+		"phone:+972541234567":    "Dana Levi",
+		"phone:972 54 123 4567":  "Dana Levi",
+		"phone:123-4567":         "",
+		"email:dana@example.com": "Dana Levi",
+		"email:dana":             "",
+		"matrix:@eli:x":          "Eli Stone",
+		"matrix:@eli":            "",
+		"nickname:x":             "",
+	} {
+		t.Run(term, func(t *testing.T) {
+			t.Parallel()
+			parsed, ok := ParseTerm(term)
+			if !ok {
+				t.Fatalf("%q is no term", term)
+			}
+			var got []string
+			for _, c := range cards {
+				if c.Holds(parsed) {
+					got = append(got, c.Name)
+				}
+			}
+			if strings.Join(got, ",") != want {
+				t.Errorf("%q held for %v, want %q", term, got, want)
+			}
+		})
+	}
+}

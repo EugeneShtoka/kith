@@ -10,6 +10,14 @@ type Profile struct {
 	Archive ProfileArchive `toml:"archive"`
 	// Rail replaces [display.rail] in this profile, whole, once it sets anything.
 	Rail Rail `toml:"rail"`
+	// People is whom this profile hides on top of everyone's hidden people.
+	People ProfilePeople `toml:"people"`
+}
+
+// ProfilePeople is a profile's people: Exclude takes person IDs and phonebook card
+// field terms (key:value), whose people the profile hides.
+type ProfilePeople struct {
+	Exclude []string `toml:"exclude"`
 }
 
 // ProfileArchive is a profile's archive = { rooms, push }: what each archive tag

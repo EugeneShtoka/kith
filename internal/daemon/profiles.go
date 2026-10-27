@@ -88,10 +88,12 @@ func (g profileGate) admit(ctx context.Context, procedure string, header string)
 		return ctx, connect.NewError(connect.CodeUnimplemented,
 			fmt.Errorf("daemon: %s is not classified for profiles", path.Base(procedure)))
 	}
-	if _, err := g.profiles.Profile(header); err != nil {
+	p, err := g.profiles.Profile(header)
+	if err != nil {
 		return ctx, rpcErr(err)
 	}
-	return context.WithValue(ctx, profileKey{}, header), nil
+	// The cache reads whom the profile hides by its name as the config spells it.
+	return domain.WithProfile(context.WithValue(ctx, profileKey{}, header), p.Name), nil
 }
 
 func (g profileGate) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {

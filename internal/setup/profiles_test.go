@@ -1,6 +1,7 @@
 package setup_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -87,5 +88,33 @@ func TestAProfileIsRefusedWhatItCannotMean(t *testing.T) {
 				t.Errorf("Validate = %v, want a refusal holding %q", err, tc.refusal)
 			}
 		})
+	}
+}
+
+// people.exclude splits into person IDs (any entry whose key is a network's prefix,
+// and a bare Matrix ID) and phonebook field terms; anything else is refused, as is an
+// entry with a network's prefix that names no person.
+func TestAProfilesPeopleAreIDsOrFields(t *testing.T) {
+	t.Parallel()
+	cfg := valid()
+	cfg.Profiles = []config.Profile{{Name: "home", Include: []string{"*"}, People: config.ProfilePeople{Exclude: []string{
+		"role:colleagues", "whatsapp:+15550100", " @boss:example.org ", "telegram:42", "phone:+15550100", "company:Acme Corp",
+	}}}}
+	got, err := setup.Profiles(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	people := got[0].People
+	if want := []string{"whatsapp:+15550100", "matrix:@boss:example.org", "telegram:42"}; !slices.Equal(people.IDs, want) {
+		t.Errorf("IDs = %v, want %v", people.IDs, want)
+	}
+	if want := []string{"role:colleagues", "phone:+15550100", "company:Acme Corp"}; !slices.Equal(people.Fields, want) {
+		t.Errorf("Fields = %v, want %v", people.Fields, want)
+	}
+	for _, entry := range []string{"colleagues", "", " ", "role:", ":colleagues", "matrix:not-a-user"} {
+		cfg.Profiles[0].People.Exclude = []string{entry}
+		if _, err := setup.Profiles(cfg); err == nil || !strings.Contains(err.Error(), `profile "home": people.exclude`) {
+			t.Errorf("people.exclude %q: %v, want it refused", entry, err)
+		}
 	}
 }

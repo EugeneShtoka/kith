@@ -739,22 +739,24 @@ func (s *server) unreadSummary(ctx context.Context, raw json.RawMessage) (any, e
 	return map[string]any{"waiting": out, outsideScopeKey: len(outOfScope)}, nil
 }
 
-// visible drops the messages of people a muted tag hides, and direct replies to them
-// among msgs. Without the directory it refuses rather than show them.
+// visible drops the messages of people a muted tag hides, or the first profile's
+// people.exclude, and direct replies to them among msgs. Without the directory it
+// refuses rather than show them.
 func (s *server) visible(msgs []domain.Message) ([]domain.Message, error) {
 	if s.hiddenErr != nil {
 		return nil, fmt.Errorf("cannot tell whom the muted tags hide: %w", s.hiddenErr)
 	}
-	if s.hidden.Empty() {
+	if s.hidden.Empty() && s.excluded.Empty() {
 		return msgs, nil
 	}
+	hides := func(sender string) bool { return s.hidden.Has(sender) || s.excluded.Has(sender) }
 	senders := make(map[domain.EventID]string, len(msgs))
 	for i := range msgs {
 		senders[msgs[i].ID] = msgs[i].Sender
 	}
 	out := make([]domain.Message, 0, len(msgs))
 	for i := range msgs {
-		if s.hidden.Has(msgs[i].Sender) || (msgs[i].ReplyTo != "" && s.hidden.Has(senders[msgs[i].ReplyTo])) {
+		if hides(msgs[i].Sender) || (msgs[i].ReplyTo != "" && hides(senders[msgs[i].ReplyTo])) {
 			continue
 		}
 		out = append(out, msgs[i])

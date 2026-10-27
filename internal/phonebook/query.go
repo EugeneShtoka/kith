@@ -1,6 +1,11 @@
 package phonebook
 
-import "strings"
+import (
+	"slices"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
 
 // Query is search terms over cards. A field term is key:value: the key is matched against
 // a card's keys in any case (identifier keys count too), the value as part of any of the
@@ -64,6 +69,47 @@ func (c Card) Matches(q Query) bool {
 	}
 	return true
 }
+
+// Holds reports whether the card meets t word for word, as a rule that hides people
+// reads a term: the value is found in one of the key's values with no letter or digit
+// joined to it on either side, in any case. "role:attorney" holds for "Family Attorney"
+// and not for "attorneys"; "role:family attorney" holds for the first. An identifier key
+// (phone, email, matrix, ...) holds the identifier itself, compared as Find compares it:
+// a phone by its digits.
+func (c Card) Holds(t Term) bool {
+	key := strings.ToLower(t.Key)
+	if slices.Contains(IdentifierKeys, key) {
+		want := identifier(key, t.Value)
+		return want != "" && slices.ContainsFunc(c.Field(key), func(v string) bool { return identifier(key, v) == want })
+	}
+	return slices.ContainsFunc(c.Field(key), func(v string) bool { return holdsWords(v, t.Value) })
+}
+
+// holdsWords reports whether value holds words in any case, with no letter or digit
+// joined to it on either side.
+func holdsWords(value, words string) bool {
+	value, words = strings.ToLower(value), strings.ToLower(strings.TrimSpace(words))
+	if words == "" {
+		return false
+	}
+	for from := 0; ; {
+		at := strings.Index(value[from:], words)
+		if at < 0 {
+			return false
+		}
+		start, end := from+at, from+at+len(words)
+		before, _ := utf8.DecodeLastRuneInString(value[:start])
+		after, _ := utf8.DecodeRuneInString(value[end:])
+		if (start == 0 || !inWord(before)) && (end == len(value) || !inWord(after)) {
+			return true
+		}
+		_, size := utf8.DecodeRuneInString(value[start:])
+		from = start + size
+	}
+}
+
+// inWord reports whether r joins a word: a letter or a digit.
+func inWord(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
 
 // containsFold reports whether any value holds part in any case.
 func containsFold(values []string, part string) bool {

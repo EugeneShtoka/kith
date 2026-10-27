@@ -244,6 +244,55 @@ func (p MarkedPeople) IDs() []string {
 type HiddenPeople struct {
 	marked MarkedPeople
 	me     map[string]bool
+	// card, when set, also hides whoever it reports a card for, asked with every ID
+	// linked to them (linked); see NewExcludedPeople.
+	card   func(ids []string) bool
+	linked func(id string) []string
+}
+
+// ExcludedPeople is whom one profile hides: the people IDs name, and the people whose
+// phonebook card Card meets, asked with every ID the person goes by.
+type ExcludedPeople struct {
+	IDs  []string
+	Card func(ids []string) bool
+}
+
+// Empty reports whether nobody is excluded.
+func (e ExcludedPeople) Empty() bool { return len(e.IDs) == 0 && e.Card == nil }
+
+// NewExcludedPeople is HiddenPeople over a profile's exclusions: the people its IDs
+// name, linked as NewHiddenPeople links, and anyone the directory or an identity group
+// links to an ID whose card ex.Card meets. You are never among them.
+func NewExcludedPeople(ex ExcludedPeople, groups [][]string, dir Directory, selves []string) HiddenPeople {
+	h := NewHiddenPeople(ex.IDs, groups, dir, selves)
+	if ex.Card == nil {
+		return h
+	}
+	byID := map[string][]string{}
+	for _, group := range groups {
+		for _, id := range group {
+			byID[id] = slices.Concat(byID[id], group)
+		}
+	}
+	h.card = ex.Card
+	// Every ID reached through the directory and the identity groups, both followed
+	// until nothing new turns up: a group can join two of the directory's people.
+	h.linked = func(id string) []string {
+		seen := map[string]bool{id: true}
+		out, next := []string{id}, []string{id}
+		for len(next) > 0 {
+			at := next[0]
+			next = next[1:]
+			for _, other := range slices.Concat(dir.Identifiers(at), byID[at]) {
+				if other != "" && !seen[other] {
+					seen[other] = true
+					out, next = append(out, other), append(next, other)
+				}
+			}
+		}
+		return out
+	}
+	return h
 }
 
 // NewHiddenPeople is the people marked names, linked by dir and groups; selves are you.
@@ -271,9 +320,23 @@ func NewHiddenPeople(marked []string, groups [][]string, dir Directory, selves [
 }
 
 // Empty reports whether nobody is hidden.
-func (h HiddenPeople) Empty() bool { return h.marked.Empty() }
+func (h HiddenPeople) Empty() bool { return h.marked.Empty() && h.card == nil }
 
 // Has reports whether sender is hidden.
 func (h HiddenPeople) Has(sender string) bool {
-	return !h.me[sender] && h.marked.Has(sender)
+	if h.me[sender] {
+		return false
+	}
+	if h.marked.Has(sender) {
+		return true
+	}
+	if h.card == nil || strings.TrimSpace(sender) == "" {
+		return false
+	}
+	ids := h.linked(sender)
+	// Never you, however your card is filed: an ID linked to one of yours is you.
+	if slices.ContainsFunc(ids, func(id string) bool { return h.me[id] }) {
+		return false
+	}
+	return h.card(ids)
 }

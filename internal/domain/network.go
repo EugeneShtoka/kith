@@ -167,6 +167,13 @@ type ID struct {
 // matrixPrefix marks a Matrix ID.
 const matrixPrefix = "matrix:"
 
+// IsNetworkPrefix reports whether key is a network's ID prefix ("whatsapp", "matrix"):
+// "key:…" names something on that network, never anything else.
+func IsNetworkPrefix(key string) bool {
+	_, ok := natives[key]
+	return ok
+}
+
 // ParseID takes an ID apart. Anything without a known network prefix, a bare Matrix ID
 // included, belongs to no network: the whole string is its native ID.
 func ParseID(s string) ID {

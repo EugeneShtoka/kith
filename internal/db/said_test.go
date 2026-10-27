@@ -149,7 +149,7 @@ func TestWhatSomeoneSaidIsReadByEveryIDThatHidesThem(t *testing.T) {
 		if err := cache.UseHidden(ctx, []string{target}, nil, groups); err != nil {
 			t.Fatal(err)
 		}
-		want := cache.hiddenSenders()
+		want := cache.hiddenSenders(ctx)
 		slices.Sort(want)
 
 		// The IDs as the client works them out: the directory and the identity group.

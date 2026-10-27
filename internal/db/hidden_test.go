@@ -301,7 +301,7 @@ func TestSendersWrittenDuringARebuildAreClassified(t *testing.T) {
 		}
 	})
 	wg.Wait()
-	hidden := c.hiddenSenders()
+	hidden := c.hiddenSenders(ctx)
 	slices.Sort(hidden)
 	slices.Sort(marked)
 	if !slices.Equal(hidden, marked) {
