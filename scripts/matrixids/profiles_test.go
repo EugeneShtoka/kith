@@ -60,7 +60,11 @@ user = "@me:w.example"
 		storage.Instance = "base-" + p.name
 		owner := ownerOf(p.key)
 		room := domain.RoomID(string(owner) + "!club:x")
-		c, err := db.Open(ctx, storage.CachePath())
+		key, err := cacheKey("kith", storage.CachePath())
+		if err != nil {
+			t.Fatal(err)
+		}
+		c, err := db.Open(ctx, storage.CachePath(), key)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -117,7 +121,11 @@ user = "@me:w.example"
 		}
 	}
 
-	c, err := db.Open(ctx, kept.CachePath())
+	key, err := cacheKey("kith", kept.CachePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := db.Open(ctx, kept.CachePath(), key)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -53,9 +53,12 @@ type Restored struct {
 // Files already there are refused unless replace, which sets them aside under a
 // ".before-restore-<time>" name. passphrase is asked once the refusals that need no
 // backup are past. Until everything is read and checked nothing in place is touched,
-// so a wrong passphrase, a damaged backup or a full disk leaves it as it was.
-func Restore(ctx context.Context, archive, configPath string, replace bool, passphrase func() (string, error)) (Restored, error) {
-	r := restore{configPath: configPath, replace: replace}
+// so a wrong passphrase, a damaged backup or a full disk leaves it as it was. cacheKey
+// is the key the restored storage's cache is encrypted under on this machine.
+func Restore(ctx context.Context, archive, configPath string, replace bool, passphrase func() (string, error),
+	cacheKey func(domain.Storage) ([]byte, error),
+) (Restored, error) {
+	r := restore{configPath: configPath, replace: replace, cacheKey: cacheKey}
 	defer r.cleanup()
 	if err := r.lockExisting(); err != nil {
 		return Restored{}, err
@@ -80,6 +83,11 @@ func Restore(ctx context.Context, archive, configPath string, replace bool, pass
 type restore struct {
 	configPath string
 	replace    bool
+	// cacheKey finds this machine's key for a storage's cache; key is the one found
+	// for the restored storage, and backupKey the one the backup's cache is under (nil:
+	// a plain cache).
+	cacheKey       func(domain.Storage) ([]byte, error)
+	key, backupKey []byte
 
 	locks    []*daemon.Lock
 	lockedAt []string // each held lock's path

@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"path/filepath"
 	"testing"
 
@@ -73,14 +72,14 @@ func TestACacheFromBeforeTheDirectoryKeepsItsNames(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "old.db")
-	c, err := Open(ctx, path)
+	c, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cerr := c.Close(); cerr != nil {
 		t.Fatal(cerr)
 	}
-	raw, err := sql.Open("sqlite", path)
+	raw, err := openRaw(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +103,7 @@ func TestACacheFromBeforeTheDirectoryKeepsItsNames(t *testing.T) {
 		t.Fatal(rerr)
 	}
 
-	c, err = Open(ctx, path)
+	c, err = Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatal(err)
 	}

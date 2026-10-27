@@ -215,7 +215,7 @@ func TestAnUpgradedCacheDropsTheCopiesOfUneditedMessages(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	path, before := v26KeptCache(t)
-	upgraded, err := Open(ctx, path)
+	upgraded, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func v26KeptCache(t *testing.T) (path string, before map[string]string) {
 	ctx := context.Background()
 	const room = domain.RoomID(mx + "!r:x")
 	path = filepath.Join(t.TempDir(), "cache.db")
-	cache, err := Open(ctx, path)
+	cache, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatal(err)
 	}

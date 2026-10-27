@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,7 +27,7 @@ func withoutTable(t *testing.T, schema, start, end string) string {
 func seedCache(t *testing.T, schema string, version int) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "cache.db")
-	raw, err := sql.Open("sqlite", path)
+	raw, err := openRaw(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +52,7 @@ func TestACacheOfTheCurrentNumberButAnotherShapeIsRebuilt(t *testing.T) {
 	preFold = withoutTable(t, preFold, "CREATE INDEX message_edit_by_revision", ";")
 	preFold = withoutTable(t, preFold, "CREATE TABLE message_tombstone (", ") STRICT, WITHOUT ROWID;")
 	path := seedCache(t, preFold, schemaVersion+len(migrations))
-	c, err := Open(context.Background(), path)
+	c, err := Open(context.Background(), path, testKey)
 	if err != nil {
 		t.Fatalf("Open = %v, want the cache rebuilt", err)
 	}
@@ -81,7 +80,7 @@ func TestAMissingTableWithoutAnIndexIsRebuilt(t *testing.T) {
 	if strings.Contains(schema, "message_tombstone") {
 		t.Fatal("message_tombstone is named elsewhere in the schema: pick another table")
 	}
-	c, err := Open(context.Background(), seedCache(t, schema, schemaVersion+len(migrations)))
+	c, err := Open(context.Background(), seedCache(t, schema, schemaVersion+len(migrations)), testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +104,7 @@ func TestTheShapeCheckIgnoresColumnOrderAndText(t *testing.T) {
 		";\nALTER TABLE room_unread ADD COLUMN read_ts_ms INTEGER NOT NULL DEFAULT 0;"
 	for name, schema := range map[string]string{"swapped": swapped, "altered": altered} {
 		path := seedCache(t, schema, schemaVersion+len(migrations))
-		c, err := Open(context.Background(), path)
+		c, err := Open(context.Background(), path, testKey)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
@@ -122,7 +121,7 @@ func TestAFailedIndexReconcileIsAnErrorNotARebuild(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
-	cache, err := Open(ctx, path)
+	cache, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +134,7 @@ func TestAFailedIndexReconcileIsAnErrorNotARebuild(t *testing.T) {
 	}
 	_ = cache.Close()
 
-	other, err := sql.Open("sqlite", dsn(path))
+	other, err := openRaw(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +149,7 @@ func TestAFailedIndexReconcileIsAnErrorNotARebuild(t *testing.T) {
 	}
 	go func() { time.Sleep(5500 * time.Millisecond); _ = tx.Commit() }() // past busy_timeout
 
-	again, err := Open(ctx, path)
+	again, err := Open(ctx, path, testKey)
 	if err == nil {
 		defer func() { _ = again.Close() }()
 		if again.Rebuilt() {
@@ -160,7 +159,7 @@ func TestAFailedIndexReconcileIsAnErrorNotARebuild(t *testing.T) {
 	// Either way, the drafts survive once the lock is gone.
 	time.Sleep(6 * time.Second)
 	if again == nil {
-		if again, err = Open(ctx, path); err != nil {
+		if again, err = Open(ctx, path, testKey); err != nil {
 			t.Fatalf("Open after the lock was released: %v", err)
 		}
 		defer func() { _ = again.Close() }()
@@ -182,7 +181,7 @@ func TestACacheMissingAnFTSTriggerIsRebuilt(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			path := filepath.Join(t.TempDir(), "cache.db")
-			cache, err := Open(ctx, path)
+			cache, err := Open(ctx, path, testKey)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -190,7 +189,7 @@ func TestACacheMissingAnFTSTriggerIsRebuilt(t *testing.T) {
 				t.Fatal(cerr)
 			}
 			_ = cache.Close()
-			again, err := Open(ctx, path)
+			again, err := Open(ctx, path, testKey)
 			if err != nil {
 				t.Fatal(err)
 			}

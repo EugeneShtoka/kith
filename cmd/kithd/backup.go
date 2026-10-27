@@ -61,7 +61,11 @@ func runBackup(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	fmt.Fprintln(os.Stderr, "writing", out)
-	made, err := backup.Create(ctx, backup.Source{ConfigPath: path, Config: cfg, Storage: storage}, out, pass)
+	key, err := cacheKey(storage)
+	if err != nil {
+		return fmt.Errorf("the cache's key (unlock the keyring): %w", err)
+	}
+	made, err := backup.Create(ctx, backup.Source{ConfigPath: path, Config: cfg, Storage: storage, CacheKey: key}, out, pass)
 	if err != nil {
 		return fmt.Errorf("%s: %w", out, err)
 	}
@@ -106,7 +110,7 @@ func runRestore(args []string) error {
 	defer stop()
 	got, err := backup.Restore(ctx, fs.Arg(0), path, *replace, func() (string, error) {
 		return readPassphrase("Passphrase of the backup")
-	})
+	}, cacheKey)
 	if errors.Is(err, backup.ErrDaemonRunning) {
 		return fmt.Errorf("%w\n(systemctl --user stop kithd.service, or kithd-<instance>.service for a config of its own; or quit the kithd you started)", err)
 	}

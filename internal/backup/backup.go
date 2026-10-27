@@ -5,13 +5,18 @@
 // machine logs in afresh.
 //
 // The file is an age file (scrypt passphrase) around a tar, so `age -d` and `tar`
-// read it without kith. The cache in it is a plain SQLite copy.
+// read it without kith. The cache in it is a SQLite copy encrypted as the cache is
+// (internal/sealeddb), under a key made for this backup alone and kept in its manifest, so the
+// history is never written to disk in the clear, not even while the backup is made;
+// a restore writes it under the restored machine's own key.
 package backup
 
 import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,24 +46,31 @@ const (
 	cacheName    = "cache.db"
 )
 
-// format is the layout this kith writes and reads.
-const format = 1
+// format is the layout this kith writes: 2, the cache encrypted under the manifest's
+// CacheKey. It also reads formatPlain, whose cache is a plain copy.
+const (
+	format      = 2
+	formatPlain = 1
+)
 
-// manifest is a backup's first entry: its layout, when and by what it was made, and
-// every file after it, so a restore can tell a whole backup from a cut one.
+// manifest is a backup's first entry: its layout, when and by what it was made, every
+// file after it, so a restore can tell a whole backup from a cut one, and the key (hex)
+// the cache in it is encrypted under.
 type manifest struct {
-	Format  int       `json:"format"`
-	Created time.Time `json:"created"`
-	Kith    string    `json:"kith"`
-	Files   []string  `json:"files"`
+	Format   int       `json:"format"`
+	Created  time.Time `json:"created"`
+	Kith     string    `json:"kith"`
+	Files    []string  `json:"files"`
+	CacheKey string    `json:"cache_key,omitempty"`
 }
 
 // Source is what a backup is made of: the config file at ConfigPath, its contents,
-// and the storage it names.
+// the storage it names, and the key the cache there is encrypted under.
 type Source struct {
 	ConfigPath string
 	Config     config.Config
 	Storage    domain.Storage
+	CacheKey   []byte
 }
 
 // Entry is one file in a backup, and its size.
@@ -93,7 +105,11 @@ func Create(ctx context.Context, src Source, out, passphrase string) (Made, erro
 	if err != nil {
 		return Made{}, err
 	}
-	snapshot, err := snapshotCache(ctx, src.Storage)
+	key := make([]byte, db.KeyLen)
+	if _, randErr := rand.Read(key); randErr != nil {
+		return Made{}, fmt.Errorf("backup: %w", randErr)
+	}
+	snapshot, err := snapshotCache(ctx, src.Storage, src.CacheKey, key)
 	if err != nil {
 		return Made{}, err
 	}
@@ -103,7 +119,7 @@ func Create(ctx context.Context, src Source, out, passphrase string) (Made, erro
 	if mkErr := os.MkdirAll(filepath.Dir(out), 0o700); mkErr != nil {
 		return Made{}, fmt.Errorf("backup: %w", mkErr)
 	}
-	entries, err := writeArchive(ctx, out, passphrase, files)
+	entries, err := writeArchive(ctx, out, passphrase, files, key)
 	if err != nil {
 		return Made{}, err
 	}
@@ -172,9 +188,9 @@ func commandFiles(src Source) (files []file, left string, err error) {
 	return files, "", nil
 }
 
-// snapshotCache copies the cache beside it (the same disk, and as private), returning
-// the copy's path.
-func snapshotCache(ctx context.Context, storage domain.Storage) (string, error) {
+// snapshotCache copies the cache (under cacheKey) beside it, the same disk and as
+// private, encrypted under key, returning the copy's path.
+func snapshotCache(ctx context.Context, storage domain.Storage, cacheKey, key []byte) (string, error) {
 	tmp, err := os.CreateTemp(storage.DataDir, ".backup-cache-*.db")
 	if err != nil {
 		return "", fmt.Errorf("backup: %w", err)
@@ -184,7 +200,7 @@ func snapshotCache(ctx context.Context, storage domain.Storage) (string, error) 
 		_ = os.Remove(path)
 		return "", fmt.Errorf("backup: %w", err)
 	}
-	if err := db.Snapshot(ctx, storage.CachePath(), path); err != nil {
+	if err := db.Snapshot(ctx, storage.CachePath(), cacheKey, path, key); err != nil {
 		_ = os.Remove(path)
 		return "", fmt.Errorf("backup: copy the cache: %w", err)
 	}
@@ -192,8 +208,9 @@ func snapshotCache(ctx context.Context, storage domain.Storage) (string, error) 
 }
 
 // writeArchive writes files to out through a partial file renamed into place once
-// whole, so an interrupted backup never leaves a file that looks complete.
-func writeArchive(ctx context.Context, out, passphrase string, files []file) ([]Entry, error) {
+// whole, so an interrupted backup never leaves a file that looks complete. cacheKey is
+// what the cache among them is encrypted under.
+func writeArchive(ctx context.Context, out, passphrase string, files []file, cacheKey []byte) ([]Entry, error) {
 	partial, err := os.CreateTemp(filepath.Dir(out), "."+filepath.Base(out)+".partial-*")
 	if err != nil {
 		return nil, fmt.Errorf("backup: %w", err)
@@ -214,7 +231,7 @@ func writeArchive(ctx context.Context, out, passphrase string, files []file) ([]
 		return nil, fmt.Errorf("backup: %w", err)
 	}
 	tw := tar.NewWriter(sealed)
-	entries, err := writeEntries(ctx, tw, files)
+	entries, err := writeEntries(ctx, tw, files, cacheKey)
 	if err != nil {
 		return nil, err
 	}
@@ -231,8 +248,8 @@ func writeArchive(ctx context.Context, out, passphrase string, files []file) ([]
 }
 
 // writeEntries writes the manifest, then each file.
-func writeEntries(ctx context.Context, tw *tar.Writer, files []file) ([]Entry, error) {
-	m := manifest{Format: format, Created: time.Now().UTC(), Kith: buildinfo.String("kith")}
+func writeEntries(ctx context.Context, tw *tar.Writer, files []file, cacheKey []byte) ([]Entry, error) {
+	m := manifest{Format: format, Created: time.Now().UTC(), Kith: buildinfo.String("kith"), CacheKey: hex.EncodeToString(cacheKey)}
 	for _, f := range files {
 		m.Files = append(m.Files, f.name)
 	}

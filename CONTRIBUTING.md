@@ -66,8 +66,8 @@ It is applied in four places, and they must agree:
 Every binary but one is built with `CGO_ENABLED=0`: `make build`, `make install`, `make run`,
 CI's build and cross-compile jobs, and each release build. That matters beyond libolm.
 With cgo on, mautrix's `cryptohelper` links `mattn/go-sqlite3` (a C SQLite, through
-`go.mau.fi/util/dbutil/litestream`), although only the pure-Go `modernc.org/sqlite`
-driver is ever opened. Tests are the exception: `-race` needs cgo, so `make test` and
+`go.mau.fi/util/dbutil/litestream`), although only the pure-Go drivers
+(`modernc.org/sqlite`, and ncruces' through `internal/sealeddb`) are ever opened. Tests are the exception: `-race` needs cgo, so `make test` and
 CI's test step build with it.
 
 The one cgo binary is `kith-signal`, the Signal helper: Signal's crypto is libsignal, a

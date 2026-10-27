@@ -18,6 +18,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // dana is a person the fake's messages come from.
@@ -84,7 +85,7 @@ func (u *updatesOf) push(t *testing.T, s *tgtest.Server, m *tg.Message, pts int)
 func loggedInWithStore(t *testing.T, f *fakeTelegram, st *Store) (*Adapter, *db.Cache) {
 	t.Helper()
 	f.dialogsOf(func() []*tg.Chat { return nil }, nil)
-	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
+	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +220,7 @@ func TestThePositionNeverPassesAnUncachedMessage(t *testing.T) {
 
 	// arrived holds the account when it cannot cache.
 	st := openStore(t)
-	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
+	cache, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}

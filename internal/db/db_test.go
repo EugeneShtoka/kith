@@ -1,7 +1,9 @@
 package db
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -11,11 +13,21 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/richtext"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
+
+// testKey is the key the tests' caches are sealed under.
+var testKey = bytes.Repeat([]byte{7}, sealeddb.KeyLen)
+
+// openRaw opens the cache file at path as plain SQL, under testKey with the cache's
+// own connection setup, to seed or inspect it around Open.
+func openRaw(path string) (*sql.DB, error) {
+	return sealeddb.OpenWith(context.Background(), path, testKey, setup)
+}
 
 func openTemp(t *testing.T) *Cache {
 	t.Helper()
-	cache, err := Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"))
+	cache, err := Open(context.Background(), filepath.Join(t.TempDir(), "cache.db"), testKey)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -110,7 +122,7 @@ func TestReopenPreservesDataAndSchema(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
 
-	first, err := Open(ctx, path)
+	first, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("first Open() error = %v", err)
 	}
@@ -122,7 +134,7 @@ func TestReopenPreservesDataAndSchema(t *testing.T) {
 	}
 
 	// Reopening re-runs migrate (a no-op); the data survives.
-	second, err := Open(ctx, path)
+	second, err := Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatalf("reopen Open() error = %v", err)
 	}

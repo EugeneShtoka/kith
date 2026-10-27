@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -24,7 +23,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 	"github.com/EugeneShtoka/kith/internal/setup"
+	"github.com/ncruces/go-sqlite3/ext/fts5"
 )
 
 const (
@@ -43,6 +44,16 @@ runtime_dir = "~/run"
 [[whatsapp.account]]
 name = "bg"
 `
+
+// keyAt is the cache key of the machine whose data dir is dir: each machine's its own,
+// as each keyring holds its own.
+func keyAt(dir string) []byte {
+	sum := sha256.Sum256([]byte("the cache key at " + dir))
+	return sum[:]
+}
+
+// keyOf is keyAt as Restore asks for it.
+func keyOf(s domain.Storage) ([]byte, error) { return keyAt(s.DataDir), nil }
 
 // machine is one home: a config at configPath and the storage it names there.
 type machine struct {
@@ -100,7 +111,7 @@ func (m machine) fill(t *testing.T, word string, n int) {
 	if err := os.MkdirAll(s.DataDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	cache, err := db.Open(context.Background(), s.CachePath())
+	cache, err := db.Open(context.Background(), s.CachePath(), keyAt(s.DataDir))
 	if err != nil {
 		t.Fatalf("db.Open() error = %v", err)
 	}
@@ -121,7 +132,7 @@ func (m machine) fill(t *testing.T, word string, n int) {
 // test if that rebuilt the cache.
 func bodies(t *testing.T, path string) []string {
 	t.Helper()
-	cache, err := db.Open(context.Background(), path)
+	cache, err := db.Open(context.Background(), path, keyAt(filepath.Dir(path)))
 	if err != nil {
 		t.Fatalf("db.Open(%s) error = %v", path, err)
 	}
@@ -149,7 +160,7 @@ func (m machine) backUp(t *testing.T) string {
 		t.Fatal(err)
 	}
 	out := filepath.Join(t.TempDir(), "kith-backup.tar.age")
-	made, err := backup.Create(context.Background(), backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: m.storage(t)}, out, passphrase)
+	made, err := backup.Create(context.Background(), backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: m.storage(t), CacheKey: keyAt(m.storage(t).DataDir)}, out, passphrase)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -230,7 +241,7 @@ func TestARestoreOnANewMachineHoldsWhatTheBackupTook(t *testing.T) {
 
 	fresh := newMachine(t).as(t)
 	asked := 0
-	got, err := backup.Restore(context.Background(), archive, fresh.configPath, false, answer(passphrase, &asked))
+	got, err := backup.Restore(context.Background(), archive, fresh.configPath, false, answer(passphrase, &asked), keyOf)
 	if err != nil {
 		t.Fatalf("Restore() error = %v", err)
 	}
@@ -278,14 +289,14 @@ func TestRestoreSetsAsideOnlyWhenAskedTo(t *testing.T) {
 	before := fingerprint(t, there.home)
 
 	asked := 0
-	_, err := backup.Restore(context.Background(), backupPath, there.configPath, false, answer(passphrase, &asked))
+	_, err := backup.Restore(context.Background(), backupPath, there.configPath, false, answer(passphrase, &asked), keyOf)
 	if !errors.Is(err, backup.ErrWouldReplace) || asked != 0 {
 		t.Fatalf("Restore() over a config = %v, asked %d; want ErrWouldReplace before asking", err, asked)
 	}
 	unchanged(t, there.home, before)
 
 	s := there.storage(t)
-	got, err := backup.Restore(context.Background(), backupPath, there.configPath, true, answer(passphrase, &asked))
+	got, err := backup.Restore(context.Background(), backupPath, there.configPath, true, answer(passphrase, &asked), keyOf)
 	if err != nil {
 		t.Fatalf("Restore(--replace) error = %v", err)
 	}
@@ -327,7 +338,7 @@ func TestRestoreRefusesFilesTheBackupsConfigNames(t *testing.T) {
 	}
 	before := fingerprint(t, there.home)
 	asked := 0
-	_, err := backup.Restore(context.Background(), archive, there.configPath, false, answer(passphrase, &asked))
+	_, err := backup.Restore(context.Background(), archive, there.configPath, false, answer(passphrase, &asked), keyOf)
 	if !errors.Is(err, backup.ErrWouldReplace) {
 		t.Fatalf("Restore() = %v; want ErrWouldReplace", err)
 	}
@@ -357,7 +368,7 @@ func TestRestoreRefusesWhileKithdRuns(t *testing.T) {
 			}
 			before := fingerprint(t, there.home)
 			asked := 0
-			_, err = backup.Restore(context.Background(), archive, there.configPath, true, answer(passphrase, &asked))
+			_, err = backup.Restore(context.Background(), archive, there.configPath, true, answer(passphrase, &asked), keyOf)
 			if !errors.Is(err, backup.ErrDaemonRunning) {
 				t.Fatalf("Restore() = %v; want ErrDaemonRunning", err)
 			}
@@ -421,7 +432,7 @@ func TestAFailedRestoreLeavesEverythingAsItWas(t *testing.T) {
 					cancel()
 				}
 				return f.pass, nil
-			})
+			}, keyOf)
 			if !slices.ContainsFunc(f.want, func(want error) bool { return errors.Is(err, want) }) {
 				t.Fatalf("Restore() = %v; want one of %v", err, f.want)
 			}
@@ -436,7 +447,7 @@ func newerCacheBackup(t *testing.T) []byte {
 	m := newMachine(t)
 	m.as(t).fill(t, "future", 5)
 	s := m.storage(t)
-	sqlDB, err := sql.Open("sqlite", s.CachePath())
+	sqlDB, err := sealeddb.OpenWith(context.Background(), s.CachePath(), keyAt(s.DataDir), sealeddb.Setup{Init: fts5.Register})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -509,7 +520,7 @@ func TestAFailedBackupLeavesNoFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	src := backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: m.storage(t)}
+	src := backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: m.storage(t), CacheKey: keyAt(m.storage(t).DataDir)}
 	before := fingerprint(t, m.home)
 	outDir := t.TempDir()
 	out := filepath.Join(outDir, "kith-backup.tar.age")
@@ -549,7 +560,7 @@ func TestABackupLeavesLinkedCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	made, err := backup.Create(context.Background(), backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: m.storage(t)},
+	made, err := backup.Create(context.Background(), backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: m.storage(t), CacheKey: keyAt(m.storage(t).DataDir)},
 		filepath.Join(t.TempDir(), "b.tar.age"), passphrase)
 	if err != nil {
 		t.Fatal(err)

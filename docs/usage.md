@@ -256,7 +256,10 @@ the cache (every cached message, reaction, draft and read position), your config
 the commands beside it, and what an assistant sent for you and the send-later queue.
 kithd may keep running; the cache is copied as it stands. A backup is an
 [age](https://age-encryption.org) file around a tar, so `age -d` and `tar` open it
-without kith.
+without kith. The cache inside is encrypted as the cache on disk is, under a key made
+for that backup and kept in its `kith-backup.json`, so not even making the backup writes
+your history in the clear; a restore writes it under the new machine's own key. A backup
+from before caches were encrypted still restores.
 
 What it leaves out:
 

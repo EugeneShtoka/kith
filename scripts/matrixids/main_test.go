@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -13,10 +14,14 @@ import (
 	"github.com/EugeneShtoka/kith/internal/agent"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // testAccount is an invented account part, AccountKey's shape.
 const testAccount = "0123456789abcdef"
+
+// testKey is the key the tests' caches are encrypted under.
+var testKey = bytes.Repeat([]byte{7}, sealeddb.KeyLen)
 
 // freeText is every text column of the cache that holds no ID: the migration must
 // leave it alone. With idColumns, jsonColumns and tokenColumns it covers the schema.
@@ -66,14 +71,14 @@ func contains(m map[string][]string, table, column string) bool {
 func TestTheCacheMigrationRewritesEveryIDColumnAndNoText(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
-	cache, err := db.Open(ctx, path)
+	cache, err := db.Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err = cache.Close(); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := sql.Open("sqlite", path)
+	raw, err := sealeddb.OpenWith(ctx, path, testKey, cacheSetup)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +117,7 @@ func TestTheCacheMigrationRewritesEveryIDColumnAndNoText(t *testing.T) {
 	}
 	_ = conn.Close()
 
-	if _, err := migrateCache(ctx, path, ids{account: testAccount}, false); err != nil {
+	if _, err := migrateCache(ctx, path, testKey, ids{account: testAccount}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -164,17 +169,17 @@ func TestTheCacheMigrationRewritesEveryIDColumnAndNoText(t *testing.T) {
 func TestADryRunWritesNothing(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "cache.db")
-	cache, err := db.Open(ctx, path)
+	cache, err := db.Open(ctx, path, testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = cache.Close()
-	raw, _ := sql.Open("sqlite", path)
+	raw, _ := sealeddb.OpenWith(ctx, path, testKey, cacheSetup)
 	defer func() { _ = raw.Close() }()
 	if _, err := raw.ExecContext(ctx, "INSERT INTO rooms (id, name) VALUES ('!a:x', 'A')"); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := migrateCache(ctx, path, ids{account: testAccount}, true); err != nil || n != 1 {
+	if n, err := migrateCache(ctx, path, testKey, ids{account: testAccount}, true); err != nil || n != 1 {
 		t.Fatalf("dry run = %d, %v; want one value counted", n, err)
 	}
 	var id string
