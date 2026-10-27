@@ -108,17 +108,21 @@ func TestADailyBackupWaitsForTheVacuum(t *testing.T) {
 	}
 }
 
-// A failure is said; a disk without room is put off, not called a failure.
+// Every trouble is told: a disk without room as a warning (put off), anything else as
+// an error; a run with nothing wrong tells nothing.
 func TestADailyBackupsTroubleIsSaid(t *testing.T) {
 	t.Parallel()
 	d := dailyBackups{log: slog.New(slog.DiscardHandler)}
-	for err, want := range map[error]string{
-		errors.New("the keyring is not answering"): "The daily backup failed: the keyring is not answering",
-		errors.Join(db.ErrNoRoom, errors.New("x")): "The daily backup is put off: not enough free disk space\nx",
-		errDailyPanicked: "The daily backup failed: the daily backup panicked",
+	for err, want := range map[error]slog.Level{
+		errors.New("the keyring is not answering"): slog.LevelError,
+		errors.Join(db.ErrNoRoom, errors.New("x")): slog.LevelWarn,
+		errDailyPanicked: slog.LevelError,
 	} {
-		if got, _ := d.outcome(backup.Daily{}, err); got != want {
-			t.Errorf("outcome(%v) = %q; want %q", err, got, want)
+		if tell, level := d.outcome(backup.Daily{}, err); tell == "" || level != want {
+			t.Errorf("outcome(%v) = %q at %v; want it told at %v", err, tell, level, want)
 		}
+	}
+	if tell, _ := d.outcome(backup.Daily{}, nil); tell != "" {
+		t.Errorf("outcome(nothing wrong) = %q; want nothing told", tell)
 	}
 }

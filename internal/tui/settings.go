@@ -454,6 +454,41 @@ var curatedSettings = []setting{
 		},
 		set: func(c *config.Config, v string) error { c.Display.Reactions.Scope = v; return nil },
 	},
+	{
+		key: "backup.every", group: "advanced", label: "Backup · schedule",
+		show:   showBackupSchedule,
+		kind:   settingText,
+		edit:   func(c config.Config) string { return orDefault(c.Backup.Cron, c.Backup.Every) },
+		set:    setBackupSchedule,
+		covers: []string{"backup.cron"},
+		help:   "an interval (6h, 7d) or a cron expression (0 3 * * *) — empty for every 24h",
+	},
+}
+
+// showBackupSchedule is [backup]'s schedule in words: its cron expression or interval.
+func showBackupSchedule(c config.Config) string {
+	switch {
+	case strings.TrimSpace(c.Backup.Cron) != "":
+		return "cron " + c.Backup.Cron
+	case strings.TrimSpace(c.Backup.Every) != "":
+		return "every " + c.Backup.Every
+	}
+	return "every 24h (default)"
+}
+
+// setBackupSchedule writes a typed schedule to [backup] cron when it reads as a cron
+// expression (five fields, a descriptor like @daily, or a CRON_TZ= prefix), else to
+// every, clearing the other so only one is set; empty clears both (the default).
+// setup.Backups checks what was written.
+func setBackupSchedule(c *config.Config, v string) error {
+	v = strings.TrimSpace(v)
+	c.Backup.Every, c.Backup.Cron = "", ""
+	if len(strings.Fields(v)) == 5 || strings.HasPrefix(v, "@") || strings.HasPrefix(v, "CRON_TZ=") {
+		c.Backup.Cron = v
+	} else {
+		c.Backup.Every = v
+	}
+	return nil
 }
 
 // timeStyleChoices is every time style, each with how 14:30 looks in it.

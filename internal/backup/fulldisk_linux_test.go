@@ -82,7 +82,7 @@ func childOnAFullDisk() bool {
 			os.Exit(2)
 		}
 		src := backup.Source{ConfigPath: lines[2], Config: cfg, Storage: storage, CacheKey: keyAt(storage.DataDir), MediaDir: setup.MediaDir(cfg, storage)}
-		_, err = backup.MakeDaily(context.Background(), src, key.Recipient(), lines[3], day(30))
+		_, err = backup.MakeDaily(context.Background(), src, key.Recipient(), lines[3], defaultSchedule, day(30))
 	}
 	if err == nil {
 		println("the", lines[1], "succeeded")
@@ -145,7 +145,7 @@ func TestADailyBackupOnAFullDiskDeletesNothing(t *testing.T) {
 	m := newMachine(t)
 	m.as(t).fill(t, "kept", 3000)
 	dir := t.TempDir()
-	for n := 1; n <= backup.Keep+2; n++ {
+	for n := 1; n <= defaultKeep+2; n++ {
 		stand(t, dir, day(n))
 	}
 	before := names(t, dir)

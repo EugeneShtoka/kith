@@ -263,8 +263,9 @@ the send-later queue, and the picture cache, since WhatsApp and Signal pictures 
 be fetched again once their servers drop them. `--no-media` leaves the pictures out.
 kithd may keep running; the cache is copied as it stands.
 
-**Your backup key.** Every backup, by hand or kithd's daily one, is encrypted to one
-key. The first `kith backup` makes it and shows its private half once:
+**Your backup key.** Every backup, by hand or kithd's scheduled one, is encrypted to
+one key. The first `kith backup` makes it and shows its private half once (or choose
+your own, below):
 
 ```text
 This is your backup key. It is the only way to open your kith backups, here or on a new
@@ -273,7 +274,7 @@ password manager, or written down.
 
     AGE-SECRET-KEY-1…
 
-Every backup from now on, by hand or kithd's daily one, is encrypted to it. If it is
+Every backup from now on, by hand or kithd's scheduled one, is encrypted to it. If it is
 ever lost, `kith backup --new-key` makes a new one; backups made before then still
 need this one.
 Save it to a file too? Type a path, or press Enter once you have kept it:
@@ -296,17 +297,27 @@ writes your history in the clear; a restore writes it under the new machine's ow
    key saved to a file names its public half on its `# public key:` line, so you can
    tell later which key a backup needs.
 
+**Choosing the key yourself.** `[backup] key` in the config names the public key
+(`age1…`) every backup is encrypted to, and then kith makes none and asks nothing.
+Make a pair with `age-keygen`, keep its private line (`AGE-SECRET-KEY-1…`) as above,
+and put only the public line in the config; `age-keygen -y key.txt` prints a private
+key's public half, and the key kith made is in `backup-<instance>.pub`. A private key
+pasted there is refused at startup, without being shown. Changing it switches the next
+backups to the new key, as `--new-key` does; older ones still need the key they were
+made to.
+
 **If you lose the key**, no backup made to it can be opened again, by kith, by `age`,
 or by anyone; there is no way back. kith also goes on using it: while
 `backup-<instance>.pub` is in `[storage] data_dir`, every backup, yours and kithd's
-daily ones, is encrypted to the lost key and is as unreadable. To start again, run
+scheduled ones, is encrypted to the lost key and is as unreadable. To start again, run
 `kith backup --new-key` in a terminal. It warns that backups made so far stay
 encrypted to the old key, which kith cannot change, and asks before going on; then it
 makes a new key, shows it once as the first backup did, and backs up to it. The old
 key stays in place until you have kept the new one, so a run you stop changes nothing.
-kithd's daily backups switch to the new key from the next one. The last seven are kept
-whatever key each is under, so for a while the folder holds both: the older ones open
-only with the old key.
+kithd's scheduled backups switch to the new key from the next one. The last `keep` are
+kept whatever key each is under, so for a while the folder holds both: the older ones
+open only with the old key. When `[backup] key` names the key, `--new-key` refuses:
+put a new public key there instead.
 
 **Two different keys.** The backup key above is yours: you keep it, and a restore
 needs it. The **cache key** is another one, made by kithd and kept in the OS keyring
@@ -314,14 +325,32 @@ needs it. The **cache key** is another one, made by kithd and kept in the OS key
 this disk only, you never see or type it, and a restore does not need it: a new
 machine makes its own, and the restore writes the cache under that.
 
-**Daily backups.** Once the key exists, kithd makes a backup every day into
-`[storage] export_dir/backups/` and keeps the last seven; older ones are deleted, and
-only files it named itself (`kith-daily-<date>-<time>.tar.age`) are ever counted or
-deleted. A day the machine was off is skipped. Until the first `kith backup` they are
+**Scheduled backups.** Once there is a key, kithd backs up on its own, as `[backup]`
+says (shown with its defaults):
+
+```toml
+[backup]
+enabled = true   # scheduled backups on or off; `kith backup` works either way
+key     = ""     # an age public key (age1…); empty is the one the first `kith backup` made
+dir     = ""     # where they go; empty is [storage] export_dir/backups
+every   = "24h"  # how long after one the next is: a duration (6h, 90m) or days (7d)
+cron    = ""     # or set times instead, as a cron expression: "0 3 * * *" is 03:00 daily
+keep    = 7      # how many to keep; at least 1
+```
+
+Set `every` or `cron`, not both (both is refused); in Settings, *Backup · schedule*
+takes either and keeps only the one you typed. A backup is made once `every` has passed
+since the newest one, or at the cron expression's next time after it, in local time; a
+time the machine was off is skipped, not made up (one backup, not one per time
+missed). The oldest beyond `keep` are deleted, never the newest,
+and only files kithd named itself (`kith-daily-<date>-<time>.tar.age`) are ever
+counted or deleted, never yours. A change applies at kithd's next look, within the
+hour, with no restart; a `dir` outside kith's own folders needs a restart under the
+systemd unit (see [troubleshooting](troubleshooting.md)). Until there is a key they are
 off, and kith says so: kithd never makes a key itself, since nobody would see its
-private half. A daily backup that fails, or is put off for want of disk space, is said
-in a notification. The `backups` folder is on the same disk as the cache; to keep a
-copy elsewhere, sync or copy that folder.
+private half. A scheduled backup that fails, or is put off for want of disk space, is
+said in a notification. The default folder is on the same disk as the cache: point
+`dir` at another disk, or sync or copy the folder elsewhere.
 
 What a backup leaves out:
 
@@ -350,8 +379,9 @@ first.
 
 **Moving to a new machine:**
 
-1. On the old machine, make a fresh backup (`kith backup`), or take the newest daily
-   one from `[storage] export_dir/backups/`.
+1. On the old machine, make a fresh backup (`kith backup`), or take the newest
+   scheduled one from the backups folder (`[backup] dir`, by default
+   `[storage] export_dir/backups/`).
 2. Copy that file to the new machine, and have your backup key at hand.
 3. Install kith there ([Getting started](getting-started.md)), but restore before you
    run `kith`: its first run writes a fresh config, which a restore then refuses to

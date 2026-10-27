@@ -58,6 +58,7 @@ func Validate(cfg config.Config) error {
 		errOf(Profiles(cfg)),
 		archivesCheck(cfg),
 		keepCheck(cfg),
+		Backups(cfg.Backup),
 		BridgeContacts(cfg.BridgeContacts),
 		DefaultAccounts(cfg),
 	} {

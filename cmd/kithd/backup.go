@@ -60,7 +60,7 @@ func runBackup(args []string) error {
 	if out == "" {
 		out = filepath.Join(storage.ExportDir, "kith-backup-"+time.Now().Format("2006-01-02-1504")+".tar.age")
 	}
-	to, err := backupKey(storage, *renew)
+	to, err := backupKey(cfg, storage, *renew)
 	if err != nil {
 		return err
 	}
@@ -108,12 +108,24 @@ func printMade(made backup.Made, noMedia bool, to *backup.PublicKey) {
 // errKeyKept is a --new-key the user did not confirm: the backup key stays as it was.
 var errKeyKept = errors.New("kept the backup key you have; nothing changed and nothing was backed up")
 
-// backupKey is storage's backup key. When there is none yet, or renew asks for a new
-// one, it makes one, shows its private half and waits until it is kept before keeping
-// the public half (a key whose private half nobody saw would lock backups no one can
-// open).
-func backupKey(storage domain.Storage, renew bool) (*backup.PublicKey, error) {
-	to, err := backup.LoadKey(storage)
+// errKeyFromConfig is a --new-key while [backup] key names the key: kith makes no key
+// over one the user chose.
+var errKeyFromConfig = errors.New("`--new-key` makes nothing: your backup key is [backup] key in the config. " +
+	"To change it, put another public key (age1…) there; `age-keygen` makes a pair, " +
+	"`age-keygen -y` prints a private key's public half")
+
+// backupKey is the backup key for cfg at storage: [backup] key when set, never made or
+// replaced here. Otherwise, when there is none yet, or renew asks for a new one, it
+// makes one, shows its private half and waits until it is kept before keeping the
+// public half (a key whose private half nobody saw would lock backups no one can open).
+func backupKey(cfg config.Config, storage domain.Storage, renew bool) (*backup.PublicKey, error) {
+	to, fromConfig, err := backup.KeyFor(cfg, storage)
+	if fromConfig {
+		if renew {
+			return nil, errKeyFromConfig
+		}
+		return to, err //nolint:wrapcheck // backup words it
+	}
 	had := !errors.Is(err, backup.ErrNoKey)
 	if had && !renew {
 		return to, err //nolint:wrapcheck // backup words it
@@ -158,7 +170,7 @@ func makeKey(storage domain.Storage, had bool, in *bufio.Reader) (*backup.Public
 // replaceKeyText warns what a new backup key leaves behind, and asks.
 func replaceKeyText(storage domain.Storage) string {
 	return "This replaces your backup key. Backups made so far stay encrypted to the old key: only\n" +
-		"the old key opens them, and kith cannot re-encrypt them. kithd's daily backups switch to\n" +
+		"the old key opens them, and kith cannot re-encrypt them. kithd's scheduled backups switch to\n" +
 		"the new key from the next one; the older ones in " + storage.BackupsDir() + "\n" +
 		"still need the old key.\n" +
 		"Make a new backup key? [y/N]: "
@@ -170,7 +182,7 @@ func newKeyText(id *backup.Key) string {
 		"machine, and kith keeps no copy of it. Keep it somewhere other than this machine: a\n" +
 		"password manager, or written down.\n\n" +
 		"    " + id.String() + "\n\n" +
-		"Every backup from now on, by hand or kithd's daily one, is encrypted to it. If it is\n" +
+		"Every backup from now on, by hand or kithd's scheduled one, is encrypted to it. If it is\n" +
 		"ever lost, `kith backup --new-key` makes a new one; backups made before then still\n" +
 		"need this one.\n"
 }

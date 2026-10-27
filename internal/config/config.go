@@ -52,6 +52,7 @@ type Config struct {
 	Signal         Signal        `toml:"signal"`
 	Instagram      Instagram     `toml:"instagram"`
 	Storage        Storage       `toml:"storage"`
+	Backup         Backup        `toml:"backup"`
 	Tags           []Tag         `toml:"tag"`
 	Profiles       []Profile     `toml:"profile"`
 	Filters        []Filter      `toml:"filter"`
