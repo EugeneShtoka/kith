@@ -12,11 +12,14 @@ the binaries and exits.
 
 ```text
 kith [flags]
-kith login [--config path] [network [account]]
-kith backup [--config path] [--no-media] [file]
+kith login [--config path] [--code] [network [account]]
+kith backup [--config path] [--no-media] [--new-key] [file]
 kith restore [--config path] [--replace] [--key-file path] file
 kith export [--config path] [--since when] [--last n] [folder]
 kith import [--config path] network [account]
+kith ignore [--config path] mxid
+kith unignore [--config path] mxid
+kith ignored [--config path]
 ```
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
@@ -36,7 +39,8 @@ password, a session, an api_hash) is read without echo, and a wrong answer is as
 for again.
 
 - WhatsApp draws a QR code for the phone to scan, under Settings → Linked devices →
-  Link a device, drawing each new one over the last as they expire. With `--code` it
+  Link a device, drawing each new one over the last as they expire. The QR code needs
+  a terminal of at least 57 columns and 31 rows; in a smaller one, use `--code`. With `--code` it
   shows a code to type on the phone instead, under Link a device → "Link with phone
   number instead", and waits (up to fifteen minutes) for the phone to accept it. See
   [WhatsApp](whatsapp.md).
@@ -79,7 +83,7 @@ the bridge's to do.
 ### kith backup
 
 ```sh
-kith backup [--config path] [--no-media] [file]
+kith backup [--config path] [--no-media] [--new-key] [file]
 ```
 
 Writes your history, config, local records and pictures into one file encrypted to your
@@ -94,6 +98,7 @@ keeps the last seven. See [usage.md](usage.md#backing-up-and-moving-to-a-new-mac
 | --- | --- |
 | `--config path` | Config file whose history to back up. |
 | `--no-media` | Leave the picture cache out. WhatsApp and Signal pictures cannot be fetched again once their servers drop them, so they are in by default. |
+| `--new-key` | Replace a lost backup key: after a warning and a yes, make a new key, print it once as the first backup does, then back up to it. Backups made before stay encrypted to the old key and open only with it; kith cannot re-encrypt them. kithd's daily backups use the new key from the next one. Run it in a terminal; the old key stays until the new one is kept. |
 
 ### kith restore
 
@@ -155,6 +160,22 @@ new tag, and for a tag that differs, whether to take the app's chats, merge them
 keep kith's (the default). `account` can be left out when the network has one. A
 network without folders says so. It has nothing to do with backups: to bring history
 back, use [`kith restore`](#kith-restore).
+
+### kith ignore, unignore, ignored
+
+```sh
+kith ignore [--config path] mxid
+kith unignore [--config path] mxid
+kith ignored [--config path]
+```
+
+`kith ignore @alice:example.org` adds a Matrix user to the account's ignored list
+(`m.ignored_user_list`): the homeserver stops sending that user's events, on every
+device of the account. `kith unignore` takes them off it; one who was not ignored
+changes nothing. `kith ignored` prints the ignored users, one per line, alphabetically.
+Each takes a Matrix user ID only (`@name:homeserver`) and starts kithd if it isn't
+running. Ignoring reaches only Matrix, and leaves no history for a filter to judge: to
+sort a sender's messages away instead, use a tag such as Spam ([filters.md](filters.md)).
 
 ### General flags
 
