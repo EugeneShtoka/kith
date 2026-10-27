@@ -9,7 +9,17 @@ phone number are named by their contact name and known by the number. A message'
 first picture, video, voice message or file shows as an attachment (loaded from
 Google's servers when shown); any further one, and an MMS the phone has not downloaded
 yet, shows as a short label (`[photo]`, `[MMS not downloaded yet]`). You can send
-text, replies and files, and react; older history comes next.
+text, replies and files, and react.
+
+Older messages, from before kith was paired too, come from the phone as you scroll
+back, and each conversation's history is read back in the background after kith
+connects: the conversation last spoken in first, to its beginning or as many messages
+as `[storage] messages_per_room` keeps, so search and the assistant see more than was
+opened. The phone answers every request, so the reading back goes one page at a time
+with a pause between, never holding up new messages or what you send, and waits while
+the phone is not answering or Messages for web is open in another browser or a bridge
+(it goes on once kith's session is the active one again). A conversation read back to
+its beginning is not asked for again.
 
 A conversation you read in kith stays read: kith keeps the read position itself,
 before telling the phone, and keeps telling it until it hears. Conversations the phone

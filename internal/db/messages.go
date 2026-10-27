@@ -24,6 +24,27 @@ func (c *Cache) Messages(ctx context.Context, roomID domain.RoomID, limit int) (
 	return msgs, nil
 }
 
+// OldestMessage returns a room's oldest cached message, read as Messages reads each;
+// false when it has none.
+func (c *Cache) OldestMessage(ctx context.Context, roomID domain.RoomID) (domain.Message, bool, error) {
+	msgs, err := collect(ctx, c.db, "the oldest message",
+		messageSelect+` WHERE m.room_id = ? ORDER BY m.ts_ms ASC, `+seqOf+` ASC, length(m.event_id) ASC, m.event_id ASC LIMIT 1`,
+		scanMessage(roomID), string(roomID))
+	if err != nil || len(msgs) == 0 {
+		return domain.Message{}, false, err
+	}
+	return msgs[0], true, nil
+}
+
+// CountMessages is how many messages a room has cached.
+func (c *Cache) CountMessages(ctx context.Context, roomID domain.RoomID) (int, error) {
+	var n int
+	if err := c.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM messages WHERE room_id = ?`, string(roomID)).Scan(&n); err != nil {
+		return 0, fmt.Errorf("db: count the messages of %s: %w", roomID, err)
+	}
+	return n, nil
+}
+
 // MessageByID returns one cached message, read as Messages reads each.
 func (c *Cache) MessageByID(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, bool, error) {
 	msgs, err := collect(ctx, c.db, "message",

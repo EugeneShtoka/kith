@@ -373,8 +373,12 @@ Since then:
   message's lone row when it reads exactly as the message does (same words, same
   formatting, not edited). The space goes to SQLite's free list and is reused by later
   writes; the daemon's vacuum (see [The file](#the-file)) gives it back.
+- v28 (`room_history_start`): the rooms whose history the cache holds back to their
+  first message, a row only for one; written by Google Messages when paging back from
+  the phone finds nothing older, so its backfill does not ask the phone again for every
+  conversation after a restart.
 
-so a current cache is at version 27.
+so a current cache is at version 28.
 
 ### Indexes need no migration
 

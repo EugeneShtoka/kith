@@ -29,7 +29,7 @@ func TestOpenRebuildsAnyUnrecognizedVersion(t *testing.T) {
 	t.Parallel()
 
 	current := schemaVersion + len(migrations)
-	for _, version := range []int{0, current + 1, 27, 9999} {
+	for _, version := range []int{0, current + 1, 37, 9999} {
 		t.Run(fmt.Sprintf("stamped %d", version), func(t *testing.T) {
 			t.Parallel()
 

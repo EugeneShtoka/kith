@@ -41,6 +41,7 @@ var migrationFingerprints = []struct {
 	{25, "room_handles: the public @username that names a room on its network", "f109681ba3bf"},
 	{26, "ignored_users, person_verdicts: Matrix mirrors per account; bridge sources too", "3285083d3603"},
 	{27, "message_revisions: a message never edited keeps no copy of itself", "a89d92f86c40"},
+	{28, "room_history_start: rooms cached back to their first message", "08b5ba002df3"},
 }
 
 func fingerprint(stmt string) string {
