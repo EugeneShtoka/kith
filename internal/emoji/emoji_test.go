@@ -1,6 +1,7 @@
 package emoji
 
 import (
+	"strings"
 	"testing"
 	"unicode/utf8"
 )
@@ -32,6 +33,30 @@ func TestCuratedNamesAreEmoji(t *testing.T) {
 		}
 		if r, _ := utf8.DecodeRuneInString(e); r < 0x80 {
 			t.Errorf("%q → %q is not an emoji", name, e)
+		}
+	}
+}
+
+// Slack's table and Unicode's are of one emoji version: Slack names every emoji kith
+// offers, and names no single-glyph emoji kith leaves out (one past the version cap).
+func TestSlackNamesTheSameEmoji(t *testing.T) {
+	t.Parallel()
+	const presentation = "️" // SlackName's keys go without it
+	offered := map[string]bool{}
+	for _, set := range []map[string]string{Standard, Curated} {
+		for _, e := range set {
+			offered[strings.TrimSuffix(e, presentation)] = true
+		}
+	}
+	for name, e := range Standard {
+		if _, ok := SlackName[strings.TrimSuffix(e, presentation)]; !ok {
+			t.Errorf("Slack has no name for %s (%s)", e, name)
+		}
+	}
+	for name, e := range SlackNames {
+		e = strings.TrimSuffix(e, presentation)
+		if utf8.RuneCountInString(e) == 1 && !offered[e] {
+			t.Errorf("Slack's %s (%s) is not an emoji kith offers", e, name)
 		}
 	}
 }

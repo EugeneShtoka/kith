@@ -51,6 +51,21 @@ func TestReactionNamesAreSlacks(t *testing.T) {
 	}
 }
 
+// Every emoji kith offers is sent by its Slack name and reads back as itself.
+func TestEveryOfferedEmojiReactsOnSlack(t *testing.T) {
+	t.Parallel()
+	for name, e := range emoji.Standard {
+		got, ok := reactionName(e)
+		if !ok {
+			t.Errorf("%s (%s) has no Slack name", e, name)
+			continue
+		}
+		if back := reactionKey(got); back != e {
+			t.Errorf("%s (%s) is sent as %q, which reads back as %q", e, name, got, back)
+		}
+	}
+}
+
 // liveWorkspace is a workspace whose people are known, so nothing asks Slack.
 func liveWorkspace(t *testing.T, a *Adapter) *workspace {
 	t.Helper()
