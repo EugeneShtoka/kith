@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -35,6 +36,8 @@ type railState struct {
 	spanning      map[string]bool
 	// homes is the order a room's homes are chosen in, derived with roomFacts (domain.HomeOrder).
 	homes domain.HomeOrder
+	// cfg is the rail drawn: the profile's own, or [display.rail] (derive).
+	cfg config.Rail
 	// tagsRev counts tag applications, for tagMemo's key; tagMemo is shared by Model copies (see
 	// tagged.go).
 	tagsRev uint64

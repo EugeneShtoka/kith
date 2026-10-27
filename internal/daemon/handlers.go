@@ -681,7 +681,7 @@ func (s *server) Follow(ctx context.Context, r *req[v1.FollowRequest]) (*resp[v1
 	}
 	holds := func(profile string, room domain.RoomID) bool {
 		p, err := s.Notifications.Profile(profile)
-		return err == nil && p.Rooms.Admits(s.Notifications.scope.Facts(ctx, room))
+		return err == nil && p.Holds(s.Notifications.scope.Facts(ctx, room))
 	}
 	return connect.NewResponse(&v1.FollowResponse{Delivered: s.seats.follow(uri, linked, holds)}), nil
 }

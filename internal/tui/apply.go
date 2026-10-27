@@ -24,7 +24,7 @@ import (
 // and is dropped if another change was applied meanwhile, which it would undo.
 func (m Model) applyConfig(cfg config.Config, done string) (Model, tea.Cmd) {
 	// Rules are derived only to validate them; the daemon resolves them itself.
-	derived, err := derive(cfg)
+	derived, err := derive(cfg, m.profiles.current)
 	if err != nil {
 		m = m.sayErr("could not apply", err)
 		return m, nil
@@ -139,7 +139,7 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 // adoptConfig runs a config changed elsewhere (another window, a hand edit, the
 // daemon) without saving it back. note goes on the status line.
 func (m Model) adoptConfig(cfg config.Config, note string) (Model, tea.Cmd) {
-	derived, err := derive(cfg)
+	derived, err := derive(cfg, m.profiles.current)
 	if err != nil {
 		return m.sayErr("the configuration changed elsewhere, and this window cannot run it", err), nil
 	}
@@ -160,6 +160,7 @@ func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.rail.tags = derived.tags
 	m.rail.archives, m.rail.mirrored = derived.archives, derived.mirrored
 	m.rail.archiveTags = derived.archiveTags
+	m.rail.cfg = derived.rail
 	m.rail.tagsRev++
 	if m.rail.tagMemo == nil {
 		m.rail.tagMemo = &tagMemo{}
@@ -206,10 +207,13 @@ type derivations struct {
 	mirrored map[domain.Protocol]string
 	// archiveTags is every tag an archive is (setup.ArchiveTags).
 	archiveTags []string
+	// rail is the rail the profile draws: its own, or [display.rail].
+	rail config.Rail
 }
 
-// derive resolves a config into what the model reads, or returns the first error.
-func derive(cfg config.Config) (derivations, error) {
+// derive resolves a config into what the model reads in a profile ("" the first), or
+// returns the first error. The tags and the rail are the profile's.
+func derive(cfg config.Config, profile string) (derivations, error) {
 	// A config the app applies must load, or the daemon and the next start refuse it.
 	if err := setup.Validate(cfg); err != nil {
 		return derivations{}, err
@@ -251,17 +255,19 @@ func derive(cfg config.Config) (derivations, error) {
 	if err != nil {
 		return derivations{}, fmt.Errorf("display.theme: %w", err)
 	}
-	tags, tagWarnings, err := setup.Tags(cfg)
+	view := setup.ProfileConfig(cfg, profile)
+	tags, tagWarnings, err := setup.Tags(view)
 	if err != nil {
 		return derivations{}, err
 	}
-	archives, err := setup.Archives(cfg, tags) // validated above: never fails here
+	archives, err := setup.Archives(view, tags) // validated above: never fails here
 	return derivations{
 		tags:        tags,
 		tagWarnings: tagWarnings,
 		archives:    archives,
-		mirrored:    setup.Mirrored(cfg, tags),
-		archiveTags: setup.ArchiveTags(cfg, tags),
+		mirrored:    setup.Mirrored(view, tags),
+		archiveTags: setup.ArchiveTags(view, tags),
+		rail:        view.Display.Rail,
 		palette:     palette,
 		rules:       rules,
 		unreadLocal: source != config.UnreadNotifications,

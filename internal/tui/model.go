@@ -158,8 +158,8 @@ func (m Model) rebuiltRail() Model {
 // railFromState builds the rail's groups from rooms, spaces and settings, each with its one
 // network when the rail colors by it. Every rebuild goes through it so none drops the colors.
 func (m Model) railFromState() []group {
-	groups := railGroups(m.rooms.spaces, m.prefs.display.Rail, m.prefs.display.Names, m.unreadView(), m.rooms.all)
-	if m.prefs.display.Rail.NetworkColors {
+	groups := railGroups(m.rooms.spaces, m.rail.cfg, m.prefs.display.Names, m.unreadView(), m.rooms.all)
+	if m.rail.cfg.NetworkColors {
 		groups = m.withNetworks(groups)
 	}
 	return groups
@@ -794,7 +794,7 @@ func New(ctx context.Context, backend api.Backend, display config.Display) Model
 		receipts: receiptState{policy: readSettingsFrom(display)},
 		parents:  parents,
 		// Tags arrive with the config (WithConfigFile): until then, the fallback row.
-		rail: railState{groups: []group{fallbackGroup()}, tagMemo: &tagMemo{}},
+		rail: railState{groups: []group{fallbackGroup()}, cfg: display.Rail, tagMemo: &tagMemo{}},
 		st:   statusState{standing: "loading rooms…"},
 	}
 	m = m.applyNaming(display)
@@ -2982,10 +2982,10 @@ func (m Model) WithConfigFile(path string, cfg config.Config) Model {
 		}
 	}
 	// main validates first; an error here means a config built in code, so fall back to defaults whole.
-	derived, err := derive(cfg)
+	derived, err := derive(cfg, m.profiles.current)
 	if err != nil {
 		m = m.sayErr("config", err)
-		derived, _ = derive(config.Config{})
+		derived, _ = derive(config.Config{}, "")
 	}
 	next := m.applyIntegrations(cfg, derived)
 	// Command bindings live in [[command]], not [keys], so bind them onto the existing keymap.

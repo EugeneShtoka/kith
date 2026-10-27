@@ -27,7 +27,7 @@ func TestEverySettingChoiceIsAcceptedByTheApp(t *testing.T) {
 				continue
 			}
 			checked++
-			if _, err := derive(cfg); err != nil {
+			if _, err := derive(cfg, ""); err != nil {
 				t.Errorf("%s offers %q, and applying it fails:\n  %v",
 					setting.key, choice.value, err)
 			}

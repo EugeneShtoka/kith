@@ -185,10 +185,10 @@ func (n *Notifications) within(ctx context.Context) func(domain.RoomFacts) bool 
 	switch {
 	case err != nil:
 		return func(domain.RoomFacts) bool { return false }
-	case len(p.Rooms.Include) == 0 && len(p.Rooms.Exclude) == 0:
+	case p.Everyone():
 		return nil
 	}
-	return p.Rooms.Admits
+	return p.Holds
 }
 
 // profileRooms keeps the rooms the request's profile holds.

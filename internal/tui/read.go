@@ -114,7 +114,7 @@ func (m Model) refreshPlaces() Model { return m.refreshFacts() }
 
 // refreshFacts recomputes every room's facts, as a new map (see refreshArchived).
 func (m Model) refreshFacts() Model {
-	m.rail.homes = domain.NewHomeOrder(m.prefs.display.Priority, m.prefs.display.Rail.Order, m.rail.tags, m.rooms.spaces, m.prefs.display.SpaceLabels())
+	m.rail.homes = domain.NewHomeOrder(m.prefs.display.Priority, m.rail.cfg.Order, m.rail.tags, m.rooms.spaces, m.prefs.display.SpaceLabels())
 	facts := make(map[domain.RoomID]domain.RoomFacts, len(m.rooms.all))
 	held := map[string]int{}
 	for i := range m.rooms.all {

@@ -42,8 +42,8 @@ func RenameTag(cfg config.Config, from, to string) config.Config {
 	return out
 }
 
-// DeleteTag removes tag name, its entries in the rail's lists and [display] priority,
-// and the filters and keys moving rooms into it.
+// DeleteTag removes tag name, its entries in the rails' lists (each profile's too)
+// and [display] priority, and the filters and keys moving rooms into it.
 func DeleteTag(cfg config.Config, name string) config.Config {
 	out := cfg.Clone()
 	out.Tags = slices.DeleteFunc(out.Tags, func(t config.Tag) bool { return sameTag(t.Name, name) })
@@ -54,6 +54,12 @@ func DeleteTag(cfg config.Config, name string) config.Config {
 	out.Display.Rail.Order = slices.DeleteFunc(out.Display.Rail.Order, names)
 	out.Display.Rail.Hidden = slices.DeleteFunc(out.Display.Rail.Hidden, names)
 	out.Display.Rail.HideWhenEmpty = slices.DeleteFunc(out.Display.Rail.HideWhenEmpty, names)
+	for i := range out.Profiles {
+		rail := &out.Profiles[i].Rail
+		rail.Order = slices.DeleteFunc(rail.Order, names)
+		rail.Hidden = slices.DeleteFunc(rail.Hidden, names)
+		rail.HideWhenEmpty = slices.DeleteFunc(rail.HideWhenEmpty, names)
+	}
 	out.Display.Priority = slices.DeleteFunc(out.Display.Priority, names)
 	out.Filters = slices.DeleteFunc(out.Filters, func(f config.Filter) bool { return sameTag(f.Tag, name) })
 	out.Keys.Tag = slices.DeleteFunc(out.Keys.Tag, func(k config.TagKey) bool { return sameTag(k.Tag, name) })

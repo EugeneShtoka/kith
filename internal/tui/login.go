@@ -429,7 +429,7 @@ func (m Model) writeLoginRecord(rec api.LoginRecord) (Model, tea.Cmd, func() err
 	}
 	// Not held to kithd's check (applyConfig): the record is the network's own, and kithd judges
 	// it again on re-read.
-	derived, err := derive(cfg)
+	derived, err := derive(cfg, m.profiles.current)
 	if err != nil {
 		return m.sayErr("could not apply", err), nil, func() error {
 			return errors.New("the config refused the new account (the status line says why)")
