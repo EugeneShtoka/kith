@@ -9,14 +9,16 @@ import (
 
 	"connectrpc.com/connect"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
 )
 
 // ServeWaiting answers on ln while the daemon cannot serve yet (its cache will not
-// open): Status as not ready, with why() as the error a client shows, and every other
-// call refused as unavailable for the same reason. It returns once ctx ends, having
-// closed ln.
+// open): Status as not ready and waiting, saying why(), and every other call refused as
+// unavailable for the same reason, tagged api.ErrDaemonWaiting, so a client says so at
+// once instead of waiting for a readiness that needs someone to act. It returns once
+// ctx ends, having closed ln.
 func ServeWaiting(ctx context.Context, ln net.Listener, why func() string) error {
 	mux := http.NewServeMux()
 	mux.Handle(backendv1connect.NewBackendServiceHandler(waiting{why: why}, connect.WithInterceptors(waitingGate{why: why})))
@@ -44,7 +46,8 @@ type waiting struct {
 }
 
 func (w waiting) Status(context.Context, *connect.Request[v1.StatusRequest]) (*connect.Response[v1.StatusResponse], error) {
-	return connect.NewResponse(&v1.StatusResponse{LastError: w.why()}), nil
+	why := w.why()
+	return connect.NewResponse(&v1.StatusResponse{LastError: why, Waiting: why}), nil
 }
 
 // waitingGate refuses every call but Status as unavailable, saying why.
@@ -54,7 +57,9 @@ func (g waitingGate) refused(procedure string) error {
 	if procedure == backendv1connect.BackendServiceStatusProcedure {
 		return nil
 	}
-	return connect.NewError(connect.CodeUnavailable, errors.New(g.why()))
+	cerr := connect.NewError(connect.CodeUnavailable, fmt.Errorf("%w: %s", api.ErrDaemonWaiting, g.why()))
+	cerr.Meta().Set(sentinelHeader, "daemon-waiting")
+	return cerr
 }
 
 func (g waitingGate) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
@@ -74,6 +79,9 @@ func (g waitingGate) WrapStreamingClient(next connect.StreamingClientFunc) conne
 func (g waitingGate) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
 	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
 		if err := g.refused(conn.Spec().Procedure); err != nil {
+			// In the headers too: they arrive before the error, and a client takes a
+			// stream with headers for one the daemon opened.
+			conn.ResponseHeader().Set(sentinelHeader, "daemon-waiting")
 			return err
 		}
 		return next(ctx, conn)

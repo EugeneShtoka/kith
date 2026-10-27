@@ -55,4 +55,8 @@ var (
 	// ErrConfigMoved: a config change was based on a revision no longer on disk;
 	// re-read and retry.
 	ErrConfigMoved = errors.New("daemon: the configuration changed meanwhile; read it again")
+	// ErrDaemonWaiting: kithd cannot start yet (its cache will not open) and answers
+	// only Status meanwhile; the message says what it waits for. Waiting does not pass
+	// it: someone has to act, such as unlocking the keyring.
+	ErrDaemonWaiting = errors.New("kithd is waiting")
 )

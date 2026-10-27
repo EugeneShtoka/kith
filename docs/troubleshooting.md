@@ -282,8 +282,11 @@ every few seconds by itself; otherwise start it again.
 The cache is encrypted with a key kept only in the keyring
 ([encryption.md](encryption.md#where-the-keys-live)), so while the keyring is locked
 (a boot with nothing to ask for its password, say) **no history shows, from any
-network**. kith says `kithd did not become ready …: the cache is locked: unlock the
-keyring`. The daemon is not stuck: it waits, tries again every few seconds (up to every
+network**. Every client says so at once: `kith` prints `kithd is waiting: the cache is
+locked: unlock the keyring` and opens by itself once the daemon can start (Ctrl-C
+quits); one-shot commands such as `kith export` stop with that line instead of waiting;
+`kith-notify` shows it once as a desktop notification; and the assistant's tools answer
+with it. The daemon is not stuck: it waits, tries again every few seconds (up to every
 30), and once the keyring answers opens the cache and then every network, WhatsApp's,
 Signal's and Messenger's stores included. Unlock the keyring
 (see [Keyring unavailable](#keyring-unavailable)); no restart is needed.
