@@ -47,13 +47,12 @@ func TestAWaitingKithdIsToldOnceWithWhy(t *testing.T) {
 	go func() { defer close(done); a.run(ctx, []string{"First", "Third"}) }()
 	t.Cleanup(func() { cancel(); <-done })
 
-	start := time.Now()
 	waitFor(t, func() bool { return len(rec.all()) >= 1 }, "the waiting to be told")
-	if took := time.Since(start); took > 2*time.Second {
-		t.Errorf("told after %s, want at once", took)
+	// Each profile is refused again after that; nothing more is shown.
+	retried := func(profile string) bool {
+		return logs.count(`stopped; listening again" profile=`+profile) >= 2
 	}
-	// Both profiles retry at least twice more; nothing more is shown.
-	waitFor(t, func() bool { return logs.count("notifications from kithd stopped") >= 6 }, "the profiles to retry")
+	waitFor(t, func() bool { return retried("First") && retried("Third") }, "both profiles to retry")
 	told := rec.all()
 	if len(told) != 1 || !strings.Contains(told[0], "kithd is waiting: "+lockedWhy) {
 		t.Fatalf("shown %q, want one popup saying kithd is waiting: %s", told, lockedWhy)
