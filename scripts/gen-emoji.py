@@ -17,11 +17,13 @@ import unicodedata
 import urllib.request
 from pathlib import Path
 
-SOURCE = "https://unicode.org/Public/emoji/latest/emoji-test.txt"
+# Both sources are pinned to one emoji version, so `make emoji` writes the same tables
+# until a new one is taken on purpose: Unicode's "latest" moves (and renames), and
+# Slack's names are iamcal/emoji-data's release of that version.
+EMOJI_VERSION = "16.0"
+SOURCE = f"https://unicode.org/Public/emoji/{EMOJI_VERSION}/emoji-test.txt"
 OUT = Path(__file__).resolve().parent.parent / "internal" / "emoji" / "generated.go"
-# Slack's emoji names are iamcal/emoji-data's; pinned to the release matching
-# MAX_EMOJI_VERSION, so a new one is taken on purpose.
-SLACK_SOURCE = "https://cdn.jsdelivr.net/npm/emoji-datasource@15.1.2/emoji.json"
+SLACK_SOURCE = f"https://cdn.jsdelivr.net/npm/emoji-datasource@{EMOJI_VERSION}.0/emoji.json"
 SLACK_OUT = OUT.with_name("slack.go")
 
 TONES = range(0x1F3FB, 0x1F400)
@@ -31,6 +33,8 @@ KEYCAP = 0x20E3
 
 # Newer emoji draw as 1-column tofu on lagging fonts, breaking layout. To raise it:
 # bump, `make emoji`, then `go run ./cmd/emoji-probe -set complete` on your font.
+# It caps both tables. Above 15.1 uniseg must also know the version: v0.4.7 measures
+# Unicode 16.0's single emoji (🪉 🫟 🫩) one column wide, where terminals draw two.
 MAX_EMOJI_VERSION = 15.1
 
 
@@ -159,7 +163,7 @@ def parse_slack(text: str) -> tuple[list[tuple[str, str]], list[tuple[str, str]]
     written: dict[str, str] = {}
     for entry in sorted(json.loads(text), key=lambda e: e["sort_order"]):
         codepoints = [int(c, 16) for c in entry["unified"].split("-")]
-        if classify(codepoints) == "skip":
+        if classify(codepoints) == "skip" or not within_version(entry["added_in"]):
             continue
         glyph = "".join(chr(cp) for cp in codepoints)
         for name in entry["short_names"]:
@@ -201,16 +205,26 @@ var SlackNames = map[string]string{{""",
 def read(src: str) -> str:
     if not src.startswith("http"):
         return Path(src).read_text(encoding="utf-8")
-    return urllib.request.urlopen(src, timeout=30).read().decode("utf-8")  # noqa: S310
+    try:
+        return urllib.request.urlopen(src, timeout=30).read().decode("utf-8")  # noqa: S310
+    except OSError as err:  # HTTPError (a 404 for a version not published) is one
+        raise SystemExit(f"gen-emoji: cannot read {src}: {err}") from err
 
 
 def main() -> int:
     src = sys.argv[1] if len(sys.argv) > 1 else SOURCE
     slack_src = sys.argv[2] if len(sys.argv) > 2 else SLACK_SOURCE
-    standard, sequence = parse(read(src))
+    # Both are read and checked before either table is written, so a failed fetch
+    # leaves the committed pair as it was rather than one new and one old.
+    text, slack_text = read(src), read(slack_src)
+    if f"# Version: {EMOJI_VERSION}\n" not in text:
+        raise SystemExit(f"gen-emoji: {src} is not emoji version {EMOJI_VERSION}")
+    standard, sequence = parse(text)
+    names, written = parse_slack(slack_text)
+    if not standard or not names:
+        raise SystemExit(f"gen-emoji: no emoji read from {src if not standard else slack_src}")
     OUT.write_text(render(standard, sequence), encoding="utf-8")
     print(f"{OUT.name}: {len(standard)} standard, {len(sequence)} sequence emoji")
-    names, written = parse_slack(read(slack_src))
     SLACK_OUT.write_text(render_slack(names, written), encoding="utf-8")
     print(f"{SLACK_OUT.name}: {len(names)} Slack names for {len(written)} emoji")
     return 0
