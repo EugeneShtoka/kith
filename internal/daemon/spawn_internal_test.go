@@ -161,7 +161,7 @@ func TestStatusProbeIsBoundedAgainstASilentDaemon(t *testing.T) {
 	}()
 
 	start := time.Now()
-	_, _, perr := statusProbe(context.Background(), NewRemote(socket))
+	_, perr := statusProbe(context.Background(), NewRemote(socket))
 	elapsed := time.Since(start)
 
 	if perr == nil {

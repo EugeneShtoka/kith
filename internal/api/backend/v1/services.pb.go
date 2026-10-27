@@ -11702,7 +11702,11 @@ type StatusResponse struct {
 	// last_error is the sync loop's last failure, empty when there has been none.
 	LastError string `protobuf:"bytes,3,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
 	// networks is each network account the daemon serves, logged in or not.
-	Networks      []*NetworkStatus `protobuf:"bytes,4,rep,name=networks,proto3" json:"networks,omitempty"`
+	Networks []*NetworkStatus `protobuf:"bytes,4,rep,name=networks,proto3" json:"networks,omitempty"`
+	// waiting is why the daemon cannot start yet and what it waits for ("the cache is
+	// locked: unlock the keyring"); while it is set, Status is the only call answered.
+	// Unlike last_error, it does not pass by waiting: someone has to act.
+	Waiting       string `protobuf:"bytes,5,opt,name=waiting,proto3" json:"waiting,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11763,6 +11767,13 @@ func (x *StatusResponse) GetNetworks() []*NetworkStatus {
 		return x.Networks
 	}
 	return nil
+}
+
+func (x *StatusResponse) GetWaiting() string {
+	if x != nil {
+		return x.Waiting
+	}
+	return ""
 }
 
 // NetworkStatus is one network account as the daemon sees it.
@@ -15695,13 +15706,14 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x19CancelVerificationRequest\x12\x15\n" +
 	"\x06txn_id\x18\x01 \x01(\tR\x05txnId\"\x1c\n" +
 	"\x1aCancelVerificationResponse\"\x0f\n" +
-	"\rStatusRequest\"\xb5\x01\n" +
+	"\rStatusRequest\"\xcf\x01\n" +
 	"\x0eStatusResponse\x12\x14\n" +
 	"\x05ready\x18\x01 \x01(\bR\x05ready\x127\n" +
 	"\tsynced_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bsyncedAt\x12\x1d\n" +
 	"\n" +
 	"last_error\x18\x03 \x01(\tR\tlastError\x125\n" +
-	"\bnetworks\x18\x04 \x03(\v2\x19.backend.v1.NetworkStatusR\bnetworks\"\xc4\x01\n" +
+	"\bnetworks\x18\x04 \x03(\v2\x19.backend.v1.NetworkStatusR\bnetworks\x12\x18\n" +
+	"\awaiting\x18\x05 \x01(\tR\awaiting\"\xc4\x01\n" +
 	"\rNetworkStatus\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x18\n" +
 	"\aaccount\x18\x02 \x01(\tR\aaccount\x12.\n" +

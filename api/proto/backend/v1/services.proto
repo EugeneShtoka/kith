@@ -1262,6 +1262,10 @@ message StatusResponse {
   string last_error = 3;
   // networks is each network account the daemon serves, logged in or not.
   repeated NetworkStatus networks = 4;
+  // waiting is why the daemon cannot start yet and what it waits for ("the cache is
+  // locked: unlock the keyring"); while it is set, Status is the only call answered.
+  // Unlike last_error, it does not pass by waiting: someone has to act.
+  string waiting = 5;
 }
 
 // NetworkPhase is where one network account is.
