@@ -54,7 +54,7 @@ func (a *Adapter) updateBlock(ctx context.Context, userID string, action events.
 	if err != nil {
 		return err
 	}
-	if _, err := client.UpdateBlocklist(ctx, jid, action); err != nil {
+	if _, err := client.UpdateBlocklist(ctx, jid, action, ""); err != nil {
 		return fmt.Errorf("whatsapp: %s %s: %w", action, userID, err)
 	}
 	a.RefreshBlocklist(ctx)
@@ -72,7 +72,7 @@ func (a *Adapter) RefreshBlocklist(ctx context.Context) {
 	clients := a.connectedClients()
 	all := map[string]bool{}
 	for digits, client := range clients {
-		list, err := client.GetBlocklist(ctx)
+		list, err := client.GetBlocklist(ctx, "") // no dhash: always the whole list
 		if err != nil {
 			a.log.Warn("read blocklist failed", "account", digits, "err", err)
 			continue
@@ -80,7 +80,7 @@ func (a *Adapter) RefreshBlocklist(ctx context.Context) {
 		if list == nil {
 			continue
 		}
-		for _, jid := range list.JIDs {
+		for _, jid := range list.LIDs() {
 			all[domain.NativePerson(domain.ProtocolWhatsApp, jid.ToNonAD().String())] = true
 		}
 	}
