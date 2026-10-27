@@ -308,6 +308,30 @@ and it opens by itself. Otherwise move `cache-<instance>.db` aside (or restore a
 backup); the daemon then starts an empty cache and fills it from what the networks
 still hold.
 
+### "Backups are off until you run `kith backup` once"
+
+kithd's daily backups are encrypted to your backup key, and there is none yet: the
+first `kith backup`, run in a terminal, makes it and shows you its private half. kithd
+never makes one itself, since nobody would see that half and the backups could never be
+opened. Run `kith backup` once; the daily ones start within the hour.
+
+### "The daily backup failed: …" or "is put off: …"
+
+kithd tried today's backup into `[storage] export_dir/backups/` and could not. *Put
+off* is a disk without room for it (about the cache's size free beside the cache, and
+the cache's and pictures' size in the backups folder); it tries again every hour. A
+failure says why: often the keyring is locked (`unlock the keyring`), or the export
+folder is one kithd may not write. Under the systemd unit kithd writes only its own
+folders, so an `export_dir` outside `~/.local/share/kith` needs a `ReadWritePaths=`
+for it in a drop-in. Each is said once, and again only after a backup has worked.
+
+### "the key does not open this backup"
+
+`kith restore` was given a key the backup was not made to: a key from another machine,
+or one made again after the first was lost. Each backup opens only with the key that
+was current when it was made. A text that is not a key at all (it should start
+`AGE-SECRET-KEY-1`) is refused the same way. Nothing was changed.
+
 ## Encryption
 
 ### Undecryptable messages

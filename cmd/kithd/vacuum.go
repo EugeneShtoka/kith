@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/db"
@@ -41,9 +42,9 @@ func vacuumOnce(ctx context.Context, cache *db.Cache) (v db.Vacuumed, err error)
 	return v, nil
 }
 
-// vacuumCache runs the cache's vacuums until ctx ends, which interrupts one running.
-// It blocks.
-func vacuumCache(ctx context.Context, log *slog.Logger, cache *db.Cache) {
+// vacuumCache runs the cache's vacuums until ctx ends, which interrupts one running,
+// each holding maintenance. It blocks.
+func vacuumCache(ctx context.Context, log *slog.Logger, cache *db.Cache, maintenance *sync.Mutex) {
 	if cache == nil {
 		return
 	}
@@ -57,7 +58,9 @@ func vacuumCache(ctx context.Context, log *slog.Logger, cache *db.Cache) {
 		case <-time.After(wait):
 		}
 		wait = vacuumEvery
+		maintenance.Lock()
 		v, err := vacuumOnce(ctx, cache)
+		maintenance.Unlock()
 		switch {
 		case ctx.Err() != nil:
 			return

@@ -250,8 +250,10 @@ type served struct {
 	*route.Router
 	*local.Service
 	matrix *matrix.Adapter
-	// dataDir and schedulePath are this instance's ([storage]).
+	// dataDir and schedulePath are this instance's ([storage]); storage is all of it,
+	// for the daily backup.
 	dataDir, schedulePath string
+	storage               domain.Storage
 	// networks is every network built, Matrix among them when there.
 	networks []network
 	// stores are the networks' own stores, closed with the backend.
@@ -294,7 +296,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	defaults.use(cfg)
 	return served{
 		Router: router, Service: service, matrix: mx, networks: networks, stores: stores,
-		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), cache: cache, defaults: defaults,
+		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), storage: storage, cache: cache, defaults: defaults,
 	}
 }
 
@@ -482,7 +484,7 @@ func serve(
 	// Before Serve answers: a client polling Status must not see a daemon waiting for
 	// nothing yet.
 	w.state.Expect(expected(ctx, log, backend)...)
-	w.run(ctx, &wg, log, backend)
+	w.run(ctx, &wg, log, backend, file)
 	wg.Go(func() {
 		syncErr = connectAndSync(ctx, backend.Router)
 		if syncErr != nil {
@@ -568,15 +570,20 @@ type workers struct {
 	state         *daemon.State
 	streams       *daemon.Streams
 	backups       *daemon.KeyBackup
+	// maintenance is held by the cache's vacuum and the daily backup, so they never
+	// run at once: the vacuum would put itself off while the backup reads the cache.
+	maintenance sync.Mutex
 }
 
 // run starts the workers on wg; each runs until ctx ends.
-func (w *workers) run(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, backend served) {
+func (w *workers) run(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, backend served, file configFile) {
 	wg.Go(func() { w.streams.Run(ctx, backend) })
 	wg.Go(func() { w.notifications.Run(ctx, w.streams) })
 	wg.Go(func() { w.refresher.Run(ctx) })
 	wg.Go(func() { w.backups.Run(ctx) })
-	wg.Go(func() { vacuumCache(ctx, log, backend.cache) })
+	wg.Go(func() { vacuumCache(ctx, log, backend.cache, &w.maintenance) })
+	daily := dailyBackups{log: log, file: file, storage: backend.storage, say: w.notifications.BackupsSay, maintenance: &w.maintenance}
+	wg.Go(func() { daily.run(ctx) })
 }
 
 // newWorkers builds the workers and registers their backend callbacks; serve starts them.
