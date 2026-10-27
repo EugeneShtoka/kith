@@ -83,7 +83,7 @@ func (m Model) openImport(string) (Model, tea.Cmd) {
 // handleAccounts is news of an account: a sign-in's, or an :import's.
 func (m Model) handleAccounts(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg.(type) {
-	case loginMsg, loginNetworksMsg:
+	case loginMsg, loginNetworksMsg, insteadFailedMsg:
 		return m.handleLogin(msg)
 	}
 	return m.handleImport(msg)

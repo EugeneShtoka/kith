@@ -29,6 +29,7 @@ type loginDaemon struct {
 	begun    []string // "network account"
 	answers  []map[string]string
 	canceled int
+	insteads int
 	restarts int
 	reloads  int
 }
@@ -69,6 +70,13 @@ func (d *loginDaemon) CancelLogin(context.Context, string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.canceled++
+	return nil
+}
+
+func (d *loginDaemon) InsteadLogin(context.Context, string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.insteads++
 	return nil
 }
 
@@ -353,6 +361,66 @@ func TestARefusedAnswerIsAskedAgainInPlace(t *testing.T) {
 	ask("", "code")
 	if pane := strings.Join(m.loginLines(120, 40), "\n"); strings.Contains(pane, "OSID") || strings.Contains(pane, "signing in") || strings.Count(pane, row) != 1 {
 		t.Errorf("after the next step: %q, want the accepted answer once and no old note", pane)
+	}
+}
+
+// A QR code offering another way says which key takes it; that key takes it once, and
+// a code offering nothing else ignores it.
+func TestEnterTakesTheOtherWayAQRCodeOffers(t *testing.T) {
+	t.Parallel()
+	m := loggingIn(t, &loginDaemon{networks: []api.LoginNetwork{fakeNetwork}}, nil)
+	m.login = loginState{stage: loginWorking, network: fakeNetwork}
+	took := 0
+	const offer = "link with a code typed on the phone instead"
+	m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{
+		qr: "2@code", note: "scan it", instead: offer, takeInstead: func() error { took++; return nil },
+	}, ok: true})
+	if pane := strings.Join(m.loginLines(160, 60), "\n"); !strings.Contains(pane, m.keys.keyHint(scopePrompt, actSubmit)+": "+offer) {
+		t.Fatalf("the pane = %q, want the key that takes %q", pane, offer)
+	}
+	m, cmd := asModel(m.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	if cmd == nil {
+		t.Fatal("enter took nothing")
+	}
+	_ = cmd()
+	if took != 1 || strings.Contains(strings.Join(m.loginLines(160, 60), "\n"), offer) {
+		t.Errorf("took %d times; the offer still shows after it was taken", took)
+	}
+	if _, cmd = asModel(m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})); cmd != nil {
+		_ = cmd()
+	}
+	if took != 1 {
+		t.Errorf("a second enter took it again (%d)", took)
+	}
+
+	m, _ = m.handleLoginMsg(loginMsg{event: loginEvent{qr: "sgnl://link"}, ok: true})
+	if _, cmd = asModel(m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})); cmd != nil || strings.Contains(strings.Join(m.loginLines(160, 60), "\n"), ": "+offer) {
+		t.Error("a QR code offering nothing else took enter, or still offers")
+	}
+}
+
+// The sign-in hands a QR step's other way to the model as a call taking it on that
+// login, and nothing for a QR step with no other way.
+func TestAQRStepsOtherWayReachesTheDaemon(t *testing.T) {
+	t.Parallel()
+	d := &loginDaemon{steps: []api.LoginStep{{Done: "linked"}, {Done: "linked"}}}
+	events := make(chan loginEvent, 4)
+	r := &loginRun{logins: d, network: "fake", events: events}
+	if _, _, err := r.answer(t.Context(), api.LoginStep{Login: "L1", QR: "2@code", Instead: "the code"}); err != nil {
+		t.Fatal(err)
+	}
+	e := <-events
+	if e.instead != "the code" || e.takeInstead == nil {
+		t.Fatalf("event %+v, want the other way and how to take it", e)
+	}
+	if err := e.takeInstead(); err != nil || d.insteads != 1 {
+		t.Errorf("taking it = %v, the daemon heard %d", err, d.insteads)
+	}
+	if _, _, err := r.answer(t.Context(), api.LoginStep{Login: "L1", QR: "sgnl://link"}); err != nil {
+		t.Fatal(err)
+	}
+	if e := <-events; e.takeInstead != nil {
+		t.Error("a QR step with no other way can be taken another way")
 	}
 }
 

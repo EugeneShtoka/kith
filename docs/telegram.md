@@ -53,9 +53,13 @@ kith.
 The quickest way is inside kith: `:login telegram` asks for the number, a name
 (suggested from the number's country) and the app to log in through, writes the
 account into the config, restarts the daemon if it ran no Telegram account yet, and
-has Telegram send a code. It then asks for the code, and for the account's two-step
-verification password when it has one; a wrong one is asked for again. An account set
-up already is offered to log in again.
+shows a QR code. On a phone where the account is logged in: Telegram → Settings →
+Devices → **Link Desktop Device**, and scan it. The code changes about every thirty
+seconds and is drawn again in place. Enter switches to a code Telegram sends to the
+number instead, which kith then asks for. Either way, the account's two-step
+verification password comes next when it has one; a wrong one is asked for again. A
+QR code scanned by another Telegram account is refused, and that new session ended.
+An account set up already is offered to log in again.
 
 Telegram runs when the config has an account; there is no switch to turn on. By hand:
 
@@ -65,7 +69,8 @@ name  = "personal"          # what `kith login telegram` takes
 phone = "+44 7700 900000"   # international; "+" and spaces are fine
 ```
 
-then `kith login telegram personal` (see the [command-line reference](cli.md)).
+then `kith login telegram personal`, or `kith login --code telegram personal` to have
+Telegram send a code instead of scanning (see the [command-line reference](cli.md)).
 
 ## The app's ID and hash
 

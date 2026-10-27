@@ -59,7 +59,7 @@ func (a *Adapter) Login(ctx context.Context, account string, talk api.LoginTalk)
 	for linked == nil && stream.Receive() {
 		switch step := stream.Msg().GetStep().(type) {
 		case *signalv1.LinkResponse_Url:
-			if err := talk.ShowQR(ctx, step.Url, scanNote+step.Url); err != nil {
+			if err := talk.ShowQR(ctx, step.Url, scanNote+step.Url, ""); err != nil {
 				return api.LoginEnd{}, err
 			}
 		case *signalv1.LinkResponse_Linked:

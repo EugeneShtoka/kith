@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waHistorySync"
@@ -260,7 +261,7 @@ func TestAccountsChangeWithoutARestart(t *testing.T) {
 	if got := a.accountsNow(); len(got) != 1 || got[0] != work {
 		t.Errorf("accounts = %v", got)
 	}
-	if _, err := a.pair(ctx, "home", func(string) error { return nil }); !errors.Is(err, errNoAccount) {
+	if _, err := a.pair(ctx, "home", func(<-chan whatsmeow.QRChannelItem, *whatsmeow.Client, Account) error { return nil }); !errors.Is(err, errNoAccount) {
 		t.Errorf("pairing a removed account = %v", err)
 	}
 }

@@ -1037,6 +1037,9 @@ message LoginStep {
   string done = 8;
   // Data to draw as a QR code until the next step, for a phone to scan.
   string qr = 9;
+  // With qr: another way to log in, said as the choice to offer ("link with a code
+  // typed on the phone instead"). InsteadLogin takes it.
+  string instead = 10;
 }
 
 message LoginAccount {
@@ -1083,6 +1086,12 @@ message CancelLoginRequest {
 }
 
 message CancelLoginResponse {}
+
+message InsteadLoginRequest {
+  string login = 1;
+}
+
+message InsteadLoginResponse {}
 
 message DraftsResponse {
   repeated StoredDraft drafts = 1;
@@ -1872,6 +1881,10 @@ service BackendService {
   rpc AnswerLogin(AnswerLoginRequest) returns (AnswerLoginResponse);
   // CancelLogin ends a login.
   rpc CancelLogin(CancelLoginRequest) returns (CancelLoginResponse);
+  // InsteadLogin takes the other way the login's QR step offers (its instead). It
+  // does not wait: the AnswerLogin waiting on the QR step returns where that way
+  // leads.
+  rpc InsteadLogin(InsteadLoginRequest) returns (InsteadLoginResponse);
   // RoomsWith finds the rooms a set of people are **all** in, most recently active
   // first.
   rpc RoomsWith(RoomsWithRequest) returns (RoomsWithResponse);

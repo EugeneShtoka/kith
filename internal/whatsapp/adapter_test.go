@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waAdv"
 	"go.mau.fi/whatsmeow/types"
 
@@ -95,7 +96,10 @@ func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	a, _, store := offline(t, Account{Name: "home", Digits: ownDigits})
-	never := func(string) error { t.Error("a code was asked for"); return nil }
+	never := func(<-chan whatsmeow.QRChannelItem, *whatsmeow.Client, Account) error {
+		t.Error("the phone was asked to link")
+		return nil
+	}
 
 	if _, err := a.pair(ctx, "work", never); !errors.Is(err, errNoAccount) {
 		t.Errorf("an unknown account = %v, want errNoAccount", err)
