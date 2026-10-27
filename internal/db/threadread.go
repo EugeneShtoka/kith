@@ -84,7 +84,7 @@ func countThreadsQuery(me, hidden []string, room domain.RoomID) (string, []any) 
 
 // CountThreadUnread is one room's threads with anything unread.
 func (c *Cache) CountThreadUnread(ctx context.Context, me []string, roomID domain.RoomID) ([]domain.ThreadUnread, error) {
-	query, args := countThreadsQuery(me, c.hiddenSenders(), roomID)
+	query, args := countThreadsQuery(me, c.hiddenSenders(ctx), roomID)
 	rows, err := c.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("db: count unread threads in %s: %w", roomID, err)
@@ -98,7 +98,7 @@ func (c *Cache) CountThreadUnread(ctx context.Context, me []string, roomID domai
 
 // CountThreadUnreadAll is CountThreadUnread for every room; absent rooms have none.
 func (c *Cache) CountThreadUnreadAll(ctx context.Context, me []string) (map[domain.RoomID][]domain.ThreadUnread, error) {
-	query, args := countThreadsQuery(me, c.hiddenSenders(), "")
+	query, args := countThreadsQuery(me, c.hiddenSenders(ctx), "")
 	rows, err := c.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("db: count unread threads: %w", err)

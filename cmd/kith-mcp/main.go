@@ -84,10 +84,17 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string) e
 	if err != nil {
 		return err
 	}
+	profiles, err := setup.Profiles(cfg)
+	if err != nil {
+		return err
+	}
 	server := &server{
-		marked:   marked,
-		muted:    muted,
-		groups:   groups,
+		marked: marked,
+		muted:  muted,
+		groups: groups,
+		// kith-mcp names no profile, so it runs in the first, as kithd answers it.
+		excludes: profiles[0].People,
+		cardsDir: setup.PhonebookDir(cfg),
 		places:   setup.PlacesOf(cfg),
 		backend:  daemon.NewRemote(socket),
 		scope:    setup.AgentReadScope(cfg.Agent),
@@ -214,6 +221,13 @@ type server struct {
 	groups    [][]string
 	hidden    domain.HiddenPeople
 	hiddenErr error
+	// excludes is the first profile's people.exclude, and excluded them over the
+	// directory and the cards in cardsDir, asked per call: whom kith-mcp hides on top.
+	// The cards are read to hide people only; their fields reach the assistant through
+	// book alone.
+	excludes domain.PeopleFilter
+	excluded domain.HiddenPeople
+	cardsDir string
 	// send is `[agent.write] send`: rooms posted to rather than drafted into.
 	send []string
 	// cooldown is how long a room rests after a message goes out to it.

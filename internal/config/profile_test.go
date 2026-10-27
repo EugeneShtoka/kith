@@ -7,9 +7,9 @@ import (
 	"testing"
 )
 
-// A profile's archive and rail survive a save, push = false included (unset would
-// hand the profile back the tag's own push), and the inline form a person writes reads
-// the same as the tables kith writes.
+// A profile's archive, rail and people survive a save, push = false included (unset
+// would hand the profile back the tag's own push), and the inline form a person writes
+// reads the same as the tables kith writes.
 func TestAProfilesArchiveAndRailSurviveASave(t *testing.T) {
 	t.Parallel()
 	inline, err := Decode(`
@@ -22,6 +22,7 @@ name    = "phone"
 include = ["dm"]
 archive = { rooms = ["not tag:Family", "protocol:signal"], push = false }
 rail    = { order = ["tag:Unread", "*"], hidden = ["tag:Spam"] }
+people  = { exclude = ["role:colleagues", "whatsapp:+15550100"] }
 `)
 	if err != nil {
 		t.Fatal(err)
@@ -31,6 +32,7 @@ rail    = { order = ["tag:Unread", "*"], hidden = ["tag:Spam"] }
 		Name: "phone", Include: []string{"dm"},
 		Archive: ProfileArchive{Rooms: []string{"not tag:Family", "protocol:signal"}, Push: new(false)},
 		Rail:    Rail{Order: []string{"tag:Unread", "*"}, Hidden: []string{"tag:Spam"}},
+		People:  ProfilePeople{Exclude: []string{"role:colleagues", "whatsapp:+15550100"}},
 	}
 	if !reflect.DeepEqual(phone, want) {
 		t.Fatalf("decoded %+v, want %+v", phone, want)
@@ -44,8 +46,8 @@ rail    = { order = ["tag:Unread", "*"], hidden = ["tag:Spam"] }
 	}
 }
 
-// Settings edits a profile's archive and rail as fields of its record, by a dotted
-// name; no other record has such fields.
+// Settings edits a profile's archive, rail and people as fields of its record, by a
+// dotted name; no other record has such fields.
 func TestSettingsEditAProfilesArchiveAndRail(t *testing.T) {
 	t.Parallel()
 	var fields []string
@@ -59,6 +61,7 @@ func TestSettingsEditAProfilesArchiveAndRail(t *testing.T) {
 	want := []string{
 		"profile: archive.rooms", "profile: archive.push", "profile: rail.order",
 		"profile: rail.hidden", "profile: rail.hide_when_empty", "profile: rail.network_colors",
+		"profile: people.exclude",
 	}
 	if !slices.Equal(fields, want) {
 		t.Errorf("dotted record fields = %v, want %v", fields, want)
@@ -84,5 +87,12 @@ func TestSettingsEditAProfilesArchiveAndRail(t *testing.T) {
 	}
 	if got := cfg.RecordList("profile", 1, "rail.order"); !slices.Equal(got, []string{"tag:Unread", "*"}) {
 		t.Errorf("rail.order reads %v", got)
+	}
+	if err := cfg.SetRecordList("profile", 1, "people.exclude", []string{"role:colleagues"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.RecordList("profile", 1, "people.exclude"); !slices.Equal(got, []string{"role:colleagues"}) ||
+		!slices.Equal(cfg.Profiles[1].People.Exclude, []string{"role:colleagues"}) {
+		t.Errorf("people.exclude reads %v, profile %+v", got, cfg.Profiles[1].People)
 	}
 }

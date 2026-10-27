@@ -263,6 +263,8 @@ type served struct {
 	cache *db.Cache
 	// defaults is each network's default account, for Accounts.
 	defaults *accountDefaults
+	// people keeps whom each profile hides, from the config and the phonebook.
+	people *daemon.ProfilePeople
 }
 
 var _ api.Backend = served{}
@@ -285,6 +287,12 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 			log.Warn("find the hidden people's messages", "err", err)
 		}
 	}
+	people := daemon.NewProfilePeople(cache.UseProfileHidden, log)
+	if profiles, err := setup.Profiles(cfg); err == nil {
+		if err := people.Use(ctx, profiles, setup.PhonebookDir(cfg)); err != nil {
+			log.Warn("find the people each profile hides", "err", err)
+		}
+	}
 	service := local.New(cache, router)
 	service.UseLogger(log)
 	for _, n := range networks {
@@ -297,10 +305,11 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	return served{
 		Router: router, Service: service, matrix: mx, networks: networks, stores: stores,
 		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), storage: storage, cache: cache, defaults: defaults,
+		people: people,
 	}
 }
 
-// useHidden tells the cache who cfg's muted tags hide.
+// useHidden tells the cache who cfg's muted tags hide, and whom each profile hides.
 func (s served) useHidden(ctx context.Context, cfg config.Config) error {
 	if s.cache == nil {
 		return nil
@@ -309,8 +318,18 @@ func (s served) useHidden(ctx context.Context, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	if err := s.cache.UseHidden(ctx, marked, muted, groups); err != nil {
+	if err = s.cache.UseHidden(ctx, marked, muted, groups); err != nil {
 		return fmt.Errorf("find the hidden people's messages: %w", err)
+	}
+	if s.people == nil {
+		return nil
+	}
+	profiles, err := setup.Profiles(cfg)
+	if err != nil {
+		return fmt.Errorf("read the profiles: %w", err)
+	}
+	if err := s.people.Use(ctx, profiles, setup.PhonebookDir(cfg)); err != nil {
+		return fmt.Errorf("find the people each profile hides: %w", err)
 	}
 	return nil
 }
@@ -664,6 +683,9 @@ func useCache(backend served, notifications *daemon.Notifications) {
 		backend.RecountUnread(ctx, rooms)
 		notifications.MoveWithHidden(ctx, rooms)
 	})
+	// A profile's own hiding changes only its counts: the rooms are counted again and
+	// each profile's stream takes its people out (ProfileUnread). Nothing is moved.
+	backend.cache.OnProfileHiddenChange(backend.RecountUnread)
 	backend.cache.UseKeep(notifications.MessagesKept)
 	backend.cache.OnArrived(notifications.Arrived)
 }

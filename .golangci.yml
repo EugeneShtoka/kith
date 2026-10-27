@@ -125,6 +125,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/notify"
+            # The profiles' people.exclude reads the phonebook's cards (ProfilePeople).
+            - "github.com/EugeneShtoka/kith/internal/phonebook"
             - "github.com/EugeneShtoka/kith/internal/setup"
             - "github.com/EugeneShtoka/kith/internal/human"
             - "connectrpc.com/connect"
@@ -676,6 +678,9 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/llamacpp/models"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/notify"
+            # A profile's people.exclude names phonebook fields in the phonebook's own
+            # term syntax; the phonebook is a leaf (files and YAML).
+            - "github.com/EugeneShtoka/kith/internal/phonebook"
             - "github.com/EugeneShtoka/kith/internal/setup"
             # The theme as data only: every binary links setup, and only the TUI draws.
             - "github.com/EugeneShtoka/kith/internal/themespec"
