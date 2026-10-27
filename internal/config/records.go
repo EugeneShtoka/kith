@@ -33,14 +33,7 @@ func RecordTables() []RecordTable {
 			if t.Doc == "" {
 				t.Doc = paragraphAround("[[" + path + "]]")
 			}
-			for f := range elem.Fields() {
-				name := tomlName(f)
-				kind, ok := kindOf(f.Type)
-				if name == "" || !ok {
-					continue
-				}
-				t.Fields = append(t.Fields, Property{Path: name, Kind: kind, Doc: docs[path+"."+name].text})
-			}
+			t.Fields = recordProperties(elem, "", path, docs)
 			tables = append(tables, t)
 		})
 	})
@@ -51,6 +44,26 @@ var (
 	tablesOnce sync.Once
 	tables     []RecordTable
 )
+
+// recordProperties is a record's settings, those of a table inside it (a profile's
+// archive and rail) named by a dotted path from the record.
+func recordProperties(elem reflect.Type, prefix, path string, docs map[string]doc) []Property {
+	var out []Property
+	for f := range elem.Fields() {
+		name := tomlName(f)
+		if name == "" {
+			continue
+		}
+		if f.Type.Kind() == reflect.Struct {
+			out = append(out, recordProperties(f.Type, prefix+name+".", path, docs)...)
+			continue
+		}
+		if kind, ok := kindOf(f.Type); ok {
+			out = append(out, Property{Path: prefix + name, Kind: kind, Doc: docs[path+"."+prefix+name].text})
+		}
+	}
+	return out
+}
 
 // paragraphAround is the default.toml comment paragraph containing needle; "" if none.
 func paragraphAround(needle string) string {
@@ -113,13 +126,28 @@ func recordField(c reflect.Value, path string, i int, name string) (reflect.Valu
 	if i < 0 || i >= t.Len() {
 		return reflect.Value{}, fmt.Errorf("config: %s has no record %d", path, i+1)
 	}
-	rec := t.Index(i)
-	for f := range rec.Type().Fields() {
+	v := t.Index(i)
+	for part := range strings.SplitSeq(name, ".") { // a table inside the record by its path
+		next, ok := fieldNamed(v, part)
+		if !ok {
+			return reflect.Value{}, fmt.Errorf("config: %s has no field %q", path, name)
+		}
+		v = next
+	}
+	return v, nil
+}
+
+// fieldNamed is the field of struct v whose TOML key is name.
+func fieldNamed(v reflect.Value, name string) (reflect.Value, bool) {
+	if v.Kind() != reflect.Struct {
+		return reflect.Value{}, false
+	}
+	for f := range v.Type().Fields() {
 		if tomlName(f) == name {
-			return rec.FieldByIndex(f.Index), nil
+			return v.FieldByIndex(f.Index), true
 		}
 	}
-	return reflect.Value{}, fmt.Errorf("config: %s has no field %q", path, name)
+	return reflect.Value{}, false
 }
 
 // Records is how many records the table at path holds.
