@@ -102,6 +102,16 @@ var ErrWrongKey = sealeddb.ErrWrongKey
 // KeyLen is a cache key's length in bytes.
 const KeyLen = sealeddb.KeyLen
 
+// Plain reports whether the cache at path was written before caches were encrypted,
+// so Open encrypts it first, once.
+func Plain(path string) (bool, error) {
+	plain, err := sealeddb.IsPlain(path)
+	if err != nil {
+		return false, fmt.Errorf("db: %w", err)
+	}
+	return plain, nil
+}
+
 // Open opens (creating if needed) the cache at path, encrypted under key, and brings
 // its schema up to date; a plain cache from before is encrypted first, once. One
 // connection serializes access.

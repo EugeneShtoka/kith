@@ -148,6 +148,8 @@ func readBack(t *testing.T, path string, k []byte) {
 
 // A plain store is turned into an encrypted one, whole, the rows its log held too; a
 // fresh store is encrypted from the start; and the migrated store refuses another key.
+// Every file of either, the log and shared memory too, is the owner's alone, whatever
+// the umask.
 func TestAPlainStoreIsEncryptedOnce(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -158,6 +160,10 @@ func TestAPlainStoreIsEncryptedOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err = db.ExecContext(ctx, "CREATE TABLE written_after (v)"); err != nil {
+		t.Fatal(err)
+	}
+	ownerOnly(t, path)
 	_ = db.Close()
 	readBack(t, path, key(1))
 	if _, err = sealeddb.OpenMigrating(ctx, path, key(2)); !errors.Is(err, sealeddb.ErrWrongKey) {
@@ -171,9 +177,28 @@ func TestAPlainStoreIsEncryptedOnce(t *testing.T) {
 	if _, err := db.ExecContext(ctx, "CREATE TABLE t (v)"); err != nil {
 		t.Fatal(err)
 	}
+	ownerOnly(t, fresh)
 	_ = db.Close()
 	if raw, _ := os.ReadFile(fresh); bytes.HasPrefix(raw, []byte("SQLite format 3")) {
 		t.Error("a fresh store was made in the clear")
+	}
+}
+
+// ownerOnly checks the store at path, its log and its shared memory, those there, are
+// the owner's alone.
+func ownerOnly(t *testing.T, path string) {
+	t.Helper()
+	for _, f := range []string{path, path + "-wal", path + "-shm"} {
+		info, err := os.Stat(f)
+		if errors.Is(err, os.ErrNotExist) && f != path {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Errorf("%s is %v; want 0600, the owner's alone", filepath.Base(f), perm)
+		}
 	}
 }
 

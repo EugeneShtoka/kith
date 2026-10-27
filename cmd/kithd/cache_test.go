@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ncruces/go-sqlite3/driver"
 	"github.com/zalando/go-keyring"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -47,6 +48,39 @@ func lockedInstance(t *testing.T) (domain.Storage, *daemon.Lock, []byte) {
 	}
 	t.Cleanup(func() { _ = lock.Release() })
 	return storage, lock, key
+}
+
+// A cache from before caches were encrypted is encrypted at the first start, which is
+// said before (with its size) and after (with how long it took), so a slow first start
+// reads as what it is; later starts say nothing of it.
+func TestEncryptingAPlainCacheIsSaid(t *testing.T) {
+	keyringTurn.Lock()
+	defer keyringTurn.Unlock()
+	defer keyring.MockInit()
+	keyring.MockInit()
+	dir := t.TempDir()
+	storage := domain.Storage{Instance: "test", DataDir: dir, StateDir: dir, CacheDir: dir, RuntimeDir: dir, KeyringService: "kith-test"}
+	plain, err := driver.Open("file:" + storage.CachePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = plain.ExecContext(context.Background(), "CREATE TABLE written_before (v)"); err != nil {
+		t.Fatal(err)
+	}
+	_ = plain.Close()
+	for _, first := range []bool{true, false} {
+		var logged bytes.Buffer
+		cache, err := openCache(context.Background(), slog.New(slog.NewTextHandler(&logged, nil)), nil, storage)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = cache.Close()
+		for _, line := range []string{"encrypting the cache, one time", "the cache is encrypted"} {
+			if said := strings.Contains(logged.String(), line); said != first {
+				t.Errorf("first start %t: %q said %t; log:\n%s", first, line, said, logged.String())
+			}
+		}
+	}
 }
 
 // keepKey puts key in the in-memory keyring where kithd reads the cache's.

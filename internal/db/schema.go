@@ -1079,6 +1079,9 @@ func tablesIn(ctx context.Context, sqlDB *sql.DB) ([]string, error) {
 // WAL-aware (a plain file copy misses the -wal) and refuses an existing file.
 func copyAside(ctx context.Context, sqlDB *sql.DB, path string, key []byte) error {
 	aside := fmt.Sprintf("%s%s%s", path, asideInfix, time.Now().Format(asideStamp))
+	if err := sealeddb.Private(aside); err != nil {
+		return fmt.Errorf("db: copy aside: %w", err)
+	}
 	if _, err := sqlDB.ExecContext(ctx, "VACUUM INTO ?", sealeddb.Target(aside, key)); err != nil {
 		return fmt.Errorf("db: copy aside to %s: %w", aside, err)
 	}

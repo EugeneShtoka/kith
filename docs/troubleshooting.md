@@ -286,6 +286,14 @@ keyring`. The daemon is not stuck: it waits, tries again every few seconds (up t
 Signal's and Messenger's stores included. Unlock the keyring
 (see [Keyring unavailable](#keyring-unavailable)); no restart is needed.
 
+`the cache is locked: the keyring is not answering; unlock it` is the same wait for a
+keyring that takes no calls at all: a Secret Service D-Bus is still trying to start,
+or one waiting on a password prompt nothing shows. Each try waits 5 seconds for it.
+
+On the first start of a kith that encrypts the cache, the journal says
+`encrypting the cache, one time` with its size, then `the cache is encrypted` with how
+long it took: about 15 seconds for 500 MB, during which kith waits for the daemon.
+
 ### "the keyring's key does not open the cache"
 
 The keyring gives a key, but not the one the cache was encrypted with: the entry

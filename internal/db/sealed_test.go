@@ -151,6 +151,7 @@ func sealedHolds(t *testing.T, path string, n int) {
 	if err != nil || len(hits) != n {
 		t.Errorf("searching the encrypted cache found %d (%v); want %d", len(hits), err, n)
 	}
+	ownersOnly(t, filepath.Dir(path))
 	if err := cache.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -313,6 +314,25 @@ func TestARebuildSetsTheOldCacheAsideEncrypted(t *testing.T) {
 	}
 	if left := plainFilesIn(t, dir); len(left) > 0 {
 		t.Errorf("the rebuild set the old cache aside in the clear: %v", left)
+	}
+	ownersOnly(t, dir)
+}
+
+// ownersOnly checks every file in dir is the owner's alone, whatever the umask.
+func ownersOnly(t *testing.T, dir string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil || e.IsDir() {
+			continue
+		}
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Errorf("%s is %v; want 0600, the owner's alone", e.Name(), perm)
+		}
 	}
 }
 

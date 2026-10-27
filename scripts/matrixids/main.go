@@ -327,6 +327,18 @@ func cacheKey(service, path string) ([]byte, error) {
 	return key, nil
 }
 
+// keepCopy writes a consistent copy of the open cache, write-ahead log included, to
+// path, encrypted as the cache is and the owner's alone.
+func keepCopy(ctx context.Context, db *sql.DB, path string, key []byte) error {
+	if err := sealeddb.Private(path); err != nil {
+		return fmt.Errorf("keep a copy: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "VACUUM INTO ?", sealeddb.Target(path, key)); err != nil {
+		return fmt.Errorf("keep a copy: %w", err)
+	}
+	return nil
+}
+
 // migrateCache rewrites every ID column of the cache at path, encrypted under key, in
 // one transaction, with foreign keys checked after. A cache still plain is encrypted
 // first, as kithd would on its next start, even on a dry run.
@@ -343,9 +355,8 @@ func migrateCache(ctx context.Context, path string, key []byte, x ids, dry bool)
 	}
 	defer func() { _ = db.Close() }()
 	if !dry {
-		// A consistent copy, write-ahead log included, encrypted as the cache is.
-		if _, cerr := db.ExecContext(ctx, "VACUUM INTO ?", sealeddb.Target(path+".pre-matrixids", key)); cerr != nil {
-			return 0, fmt.Errorf("keep a copy: %w", cerr)
+		if cerr := keepCopy(ctx, db, path+".pre-matrixids", key); cerr != nil {
+			return 0, cerr
 		}
 	}
 	conn, err := db.Conn(ctx)

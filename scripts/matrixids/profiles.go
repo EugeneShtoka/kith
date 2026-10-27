@@ -205,8 +205,8 @@ func mergeCache(ctx context.Context, service, dst, src string, owner domain.Room
 		return 0, fmt.Errorf("open %s: %w", dst, err)
 	}
 	defer func() { _ = conn.Close() }()
-	if _, cerr := conn.ExecContext(ctx, "VACUUM INTO ?", sealeddb.Target(dst+".pre-merge", keys[dst])); cerr != nil {
-		return 0, fmt.Errorf("keep a copy: %w", cerr)
+	if cerr := keepCopy(ctx, conn, dst+".pre-merge", keys[dst]); cerr != nil {
+		return 0, cerr
 	}
 	one, err := conn.Conn(ctx)
 	if err != nil {
