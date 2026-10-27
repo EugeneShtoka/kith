@@ -31,6 +31,10 @@ func placeSettings() []placeSetting {
 			append([]string{"*", "-", "---"}, homeForms...)},
 		{"display.rail.hidden", func(c *config.Config, e string) { c.Display.Rail.Hidden = one(e) }, homeForms},
 		{"display.rail.hide_when_empty", func(c *config.Config, e string) { c.Display.Rail.HideWhenEmpty = one(e) }, homeForms},
+		{`profile "default": rail.order`, func(c *config.Config, e string) { c.Profiles[0].Rail.Order = one(e) },
+			append([]string{"*", "-", "---"}, homeForms...)},
+		{`profile "default": rail.hidden`, func(c *config.Config, e string) { c.Profiles[0].Rail.Hidden = one(e) }, homeForms},
+		{`profile "default": rail.hide_when_empty`, func(c *config.Config, e string) { c.Profiles[0].Rail.HideWhenEmpty = one(e) }, homeForms},
 		{"display.filing_spaces", func(c *config.Config, e string) { c.Display.FilingSpaces = one(e) },
 			[]string{"space:Work", "place:Work", mx + "!abc:example.org"}},
 		{"display.space_rule[0].space", func(c *config.Config, e string) {

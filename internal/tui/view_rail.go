@@ -35,7 +35,7 @@ func (m Model) railRow(g group, selected, active bool, inner int) string {
 	if _, down := m.accountDown(g); down {
 		label.lead = downMark
 	}
-	if m.prefs.display.Rail.NetworkColors {
+	if m.rail.cfg.NetworkColors {
 		label.color = m.networkColor(g.network)
 	}
 	if g.countInLabel {

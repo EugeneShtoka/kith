@@ -53,7 +53,21 @@ type profileSwitchedMsg struct {
 // WithProfiles sets the switcher and the profile this window starts in ("" the first).
 func (m Model) WithProfiles(p Profiles, current string) Model {
 	m.profiles = profileState{switcher: p, current: current}
-	return m
+	if current == "" || len(m.conf.base.Profiles) == 0 {
+		return m // the first profile's, as the config was applied; or no config yet
+	}
+	return m.runProfile()
+}
+
+// runProfile derives the tags and the rail for the profile this window runs in: a
+// profile's archive and rail can differ from another's. The new tags revision drops
+// the tag memo.
+func (m Model) runProfile() Model {
+	derived, err := derive(m.conf.base, m.profiles.current)
+	if err != nil {
+		return m.sayErr("profile "+m.currentProfile(), err)
+	}
+	return m.applyIntegrations(m.conf.base, derived).refreshPlaces().rebuiltRail()
 }
 
 // WithPresence sets where this window tells what it is doing; nil tells nothing.
@@ -145,7 +159,7 @@ func (m Model) handleProfileSwitched(msg profileSwitchedMsg) (Model, tea.Cmd) {
 		return m.doing("").sayErr("cannot switch to "+msg.name, msg.err), nil
 	}
 	m.profiles.current = msg.name
-	m = m.doing("").say("profile " + msg.name)
+	m = m.runProfile().doing("").say("profile " + msg.name)
 	return m, tea.Batch(m.loadRoomsCmd(), m.loadSpacesCmd(), m.loadUnreadCmd(),
 		m.loadInvitesCmd(), m.lastMessagesCmd())
 }

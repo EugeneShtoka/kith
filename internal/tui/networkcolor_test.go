@@ -123,7 +123,7 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 		t.Errorf("Only WhatsApp's rail row is not teal: %q", row)
 	}
 	off := m
-	off.prefs.display.Rail.NetworkColors = false
+	off.rail.cfg.NetworkColors = false
 	if row := off.railRow(only, false, false, 20); strings.Contains(row, "38;2;29;233;182") {
 		t.Errorf("with the rail not asking, Only WhatsApp's row is green: %q", row)
 	}
