@@ -11,6 +11,7 @@ type Storage struct {
 	CacheDir       string // media
 	RuntimeDir     string // socket and lock
 	ExportDir      string // where /export writes, when given no folder
+	Backups        string // where kithd's scheduled backups go; empty is <ExportDir>/backups
 	KeyringService string
 }
 
@@ -87,8 +88,13 @@ func (s Storage) BackupKeyPath() string {
 	return filepath.Join(s.DataDir, "backup-"+s.Instance+".pub")
 }
 
-// BackupsDir is where kithd keeps its daily backups.
-func (s Storage) BackupsDir() string { return filepath.Join(s.ExportDir, "backups") }
+// BackupsDir is where kithd keeps its scheduled backups.
+func (s Storage) BackupsDir() string {
+	if s.Backups != "" {
+		return s.Backups
+	}
+	return filepath.Join(s.ExportDir, "backups")
+}
 
 // SocketPath is the daemon's socket.
 func (s Storage) SocketPath() string { return filepath.Join(s.RuntimeDir, s.Instance+".sock") }

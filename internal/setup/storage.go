@@ -58,9 +58,24 @@ func StorageDirs(cfg config.Config) (domain.Storage, error) {
 			return domain.Storage{}, fmt.Errorf("storage.%s %q: give a full path (or one starting with ~/)", key, dir)
 		}
 	}
+	storage, err := WithBackups(storage, cfg)
+	if err != nil {
+		return domain.Storage{}, err
+	}
 	if storage.KeyringService == "" {
 		storage.KeyringService = defaultKeyring
 	}
+	return storage, nil
+}
+
+// WithBackups is storage with its scheduled backups' folder as cfg's [backup] dir says,
+// the rest as it was: kithd reads [backup] again on every scheduled run, while its
+// other folders stay those it started with.
+func WithBackups(storage domain.Storage, cfg config.Config) (domain.Storage, error) {
+	if err := backupDir(cfg.Backup.Dir); err != nil {
+		return domain.Storage{}, err
+	}
+	storage.Backups = dirOr(cfg.Backup.Dir, "")
 	return storage, nil
 }
 

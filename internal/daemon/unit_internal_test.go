@@ -90,6 +90,39 @@ func TestOwnUnitServesItsConfig(t *testing.T) {
 	}
 }
 
+// Scheduled backups outside the config's folders ([backup] dir, or an export_dir of
+// its own) may be written and are made before the sandbox is built; inside them they
+// add nothing.
+func TestOwnUnitWritesTheBackupsFolder(t *testing.T) {
+	t.Parallel()
+	base := []string{"/home/u/sb/data", "/home/u/sb/state", "/home/u/sb/cache", "/run/user/1000/sb", "/home/u/sb"}
+	for backups, want := range map[string][]string{
+		"/mnt/nas/kith":             append(slices.Clone(base), "/mnt/nas/kith"),
+		"/home/u/sb/data/backups":   base,
+		"/home/u/sb/datastore/kith": append(slices.Clone(base), "/home/u/sb/datastore/kith"),
+		"":                          base, // no export_dir here: <export_dir>/backups is no path
+	} {
+		storage := ownStorage()
+		storage.Backups = backups
+		unit, err := ownUnit(storage, "/usr/bin/kithd", Launch{ConfigPath: "/home/u/sb/config.toml", OwnConfig: true})
+		if err != nil {
+			t.Fatalf("ownUnit(backups %q): %v", backups, err)
+		}
+		if got := values(unit, "ReadWritePaths"); !slices.Equal(got, want) {
+			t.Errorf("backups %q: ReadWritePaths = %q, want %q", backups, got, want)
+		}
+		if got := values(unit, "ExecStartPre"); !slices.Equal(got, append([]string{"+mkdir", "-p"}, want...)) {
+			t.Errorf("backups %q: ExecStartPre = %q, want it to make %q", backups, got, want)
+		}
+	}
+	storage := ownStorage()
+	storage.ExportDir = "/srv/exports"
+	unit, err := ownUnit(storage, "/usr/bin/kithd", Launch{ConfigPath: "/home/u/sb/config.toml", OwnConfig: true})
+	if err != nil || !slices.Contains(values(unit, "ReadWritePaths"), "/srv/exports/backups") {
+		t.Errorf("an export_dir of its own: %v, ReadWritePaths %q; want /srv/exports/backups in it", err, values(unit, "ReadWritePaths"))
+	}
+}
+
 // A path some directive would split, unescape or expand, or PrivateTmp= would hide, is
 // refused; "%" is doubled.
 func TestUnitPath(t *testing.T) {

@@ -672,6 +672,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/audio"
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            # Durations in its messages, as the user reads them.
+            - "github.com/EugeneShtoka/kith/internal/human"
             # The catalog only: validating a model name must not link the server.
             - "github.com/EugeneShtoka/kith/internal/llamacpp/models"
             - "github.com/EugeneShtoka/kith/internal/logging"
@@ -681,6 +683,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/themespec"
             # Storage's defaults are the XDG directories.
             - "github.com/adrg/xdg"
+            # Only to check [backup] key is an age public key, wherever the config is read.
+            - "filippo.io/age"
 
         notify-is-pure:
           files:

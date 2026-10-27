@@ -13,41 +13,48 @@ import (
 	"github.com/EugeneShtoka/kith/internal/db"
 )
 
-// kithd makes one backup a day into Storage.BackupsDir and keeps the last Keep. A day
-// is the local calendar day: a backup from today means none is due, whatever the clock
-// did since, so a clock set back or forward makes at most one more, and a day the
-// machine slept through is simply skipped. Only files named as daily backups are
-// counted or deleted, so a backup the user put there stays.
+// kithd makes a backup every Schedule.Every into Storage.BackupsDir and keeps the last
+// Schedule.Keep. One is due once Every has passed since the newest made at or before
+// now, so a clock set forward or a machine that slept makes one backup, not one per
+// interval missed, and a clock set back past every backup there makes one more. Only
+// files named as scheduled backups are counted or deleted, so a backup the user put
+// there stays. (They keep the name "daily" from when the schedule was fixed.)
 
-// Keep is how many daily backups kithd keeps.
-const Keep = 7
+// Schedule is how often kithd backs up and how many backups it keeps: [backup] every
+// and keep.
+type Schedule struct {
+	Every time.Duration
+	Keep  int
+}
 
-// A daily backup's name is dailyPrefix, the time it was made (dailyStamp), dailySuffix.
+// A scheduled backup's name is dailyPrefix, the time it was made (dailyStamp),
+// dailySuffix.
 const (
 	dailyPrefix = "kith-daily-"
 	dailyStamp  = "2006-01-02-150405"
 	dailySuffix = ".tar.age"
 )
 
-// stalePartial is how old a partial daily backup must be before it is taken for one a
-// stopped kithd left: one being written is never that old.
+// stalePartial is how old a partial scheduled backup must be before it is taken for
+// one a stopped kithd left: one being written is never that old.
 const stalePartial = 24 * time.Hour
 
-// Daily is what one daily run did: whether a backup was due and made, the backups
-// deleted to keep Keep, and the daily-named files it did not count because they are
-// not whole age files.
+// Daily is what one scheduled run did: whether a backup was due and made, the backups
+// deleted to keep Schedule.Keep, the scheduled-named files it did not count because
+// they are not whole age files, and when the next backup is due.
 type Daily struct {
 	Ran     bool
 	Made    Made
 	Deleted []string
 	Ignored []string
+	Next    time.Time
 }
 
-// MakeDaily makes today's backup of src in dir, encrypted to to, unless dir holds one
-// from today already (by now's local date), then deletes the oldest daily backups
-// beyond Keep. Only whole backups count, and the one just made is never deleted. A
-// disk without room for it is db.ErrNoRoom, and nothing is written or deleted.
-func MakeDaily(ctx context.Context, src Source, to *PublicKey, dir string, now time.Time) (Daily, error) {
+// MakeDaily makes a backup of src in dir, encrypted to to, when one is due by sched at
+// now, then deletes the oldest scheduled backups beyond sched.Keep, whether or not one
+// was made. Only whole backups count, and the newest is never deleted. A disk without
+// room for it is db.ErrNoRoom, and nothing is written or deleted.
+func MakeDaily(ctx context.Context, src Source, to *PublicKey, dir string, sched Schedule, now time.Time) (Daily, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return Daily{}, fmt.Errorf("backup: %w", err)
 	}
@@ -57,7 +64,9 @@ func MakeDaily(ctx context.Context, src Source, to *PublicKey, dir string, now t
 		return Daily{}, err
 	}
 	done := Daily{Ignored: ignored}
-	if slices.ContainsFunc(good, func(b daily) bool { return sameDay(b.at, now) }) {
+	if last, ok := lastBy(good, now); ok && now.Sub(last) < sched.Every {
+		done.Next = last.Add(sched.Every)
+		done.Deleted = rotate(good, "", sched.Keep)
 		return done, nil
 	}
 	if roomErr := roomForDaily(src, dir); roomErr != nil {
@@ -68,10 +77,22 @@ func MakeDaily(ctx context.Context, src Source, to *PublicKey, dir string, now t
 	if err != nil {
 		return done, err
 	}
-	done.Ran, done.Made = true, made
+	done.Ran, done.Made, done.Next = true, made, now.Add(sched.Every)
 	good = append(good, daily{path: out, at: now})
-	done.Deleted = rotate(good, out)
+	done.Deleted = rotate(good, out, sched.Keep)
 	return done, nil
+}
+
+// lastBy is when the newest of good made at or before now was made; false when none
+// was (none at all, or a clock set back past them all).
+func lastBy(good []daily, now time.Time) (time.Time, bool) {
+	var last time.Time
+	for _, b := range good {
+		if !b.at.After(now) && b.at.After(last) {
+			last = b.at
+		}
+	}
+	return last, !last.IsZero()
 }
 
 // daily is a whole daily backup and when its name says it was made.
@@ -125,13 +146,13 @@ func whole(path string) bool {
 	return err == nil && strings.HasPrefix(stanza, "-> X25519 ")
 }
 
-// rotate deletes the oldest of good (sorted by name, with made among them) beyond
-// Keep, never made, returning what it deleted.
-func rotate(good []daily, made string) []string {
+// rotate deletes the oldest of good (sorted by name, with made among them when one was)
+// beyond keep, never made and never the newest by name, returning what it deleted.
+func rotate(good []daily, made string, keep int) []string {
 	slices.SortFunc(good, func(a, b daily) int { return strings.Compare(a.path, b.path) })
 	var deleted []string
 	for i, b := range good {
-		if len(good)-i <= Keep || b.path == made {
+		if len(good)-i <= max(keep, 1) || b.path == made {
 			continue
 		}
 		if err := os.Remove(b.path); err == nil {
@@ -152,13 +173,6 @@ func removeStalePartials(dir, dataDir string) {
 			_ = os.Remove(p)
 		}
 	}
-}
-
-// sameDay reports whether a and b fall on one local calendar day.
-func sameDay(a, b time.Time) bool {
-	ay, am, ad := a.Local().Date()
-	by, bm, bd := b.Local().Date()
-	return ay == by && am == bm && ad == bd
 }
 
 // roomForDaily refuses, as db.ErrNoRoom, a backup the disks cannot hold: the cache's

@@ -113,9 +113,9 @@ func TestADailyBackupsTroubleIsSaid(t *testing.T) {
 	t.Parallel()
 	d := dailyBackups{log: slog.New(slog.DiscardHandler)}
 	for err, want := range map[error]string{
-		errors.New("the keyring is not answering"): "The daily backup failed: the keyring is not answering",
-		errors.Join(db.ErrNoRoom, errors.New("x")): "The daily backup is put off: not enough free disk space\nx",
-		errDailyPanicked: "The daily backup failed: the daily backup panicked",
+		errors.New("the keyring is not answering"): "The scheduled backup failed: the keyring is not answering",
+		errors.Join(db.ErrNoRoom, errors.New("x")): "The scheduled backup is put off: not enough free disk space\nx",
+		errDailyPanicked: "The scheduled backup failed: the daily backup panicked",
 	} {
 		if got, _ := d.outcome(backup.Daily{}, err); got != want {
 			t.Errorf("outcome(%v) = %q; want %q", err, got, want)

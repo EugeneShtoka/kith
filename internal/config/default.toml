@@ -1434,6 +1434,28 @@ messages_per_room = -1
 # match    = "protocol:telegram"
 # messages = 5000
 
+# kithd's scheduled backups: the cache, this config, your local records and the
+# pictures, in one file encrypted to your backup key. `kith backup` makes one by hand
+# whatever this says.
+[backup]
+# Scheduled backups on or off.
+enabled = true
+# The age public key (age1…) every backup is encrypted to, by hand or scheduled. Empty
+# uses the key your first `kith backup` made and showed you. Put only the public key
+# here, never the private one (AGE-SECRET-KEY-1…): `age-keygen -y` prints a private
+# key's public half, and the key kith made is in <data_dir>/backup-<instance>.pub.
+# Changing it switches the next backups; older ones still need the key they were made to.
+key = ""
+# Where scheduled backups go. Empty is <export_dir>/backups. Under the systemd unit
+# kithd writes only kith's own folders: see docs/troubleshooting.md for another one.
+dir = ""
+# How long after one scheduled backup the next is made: a duration (6h, 90m) or days
+# (7d). At least 1h. A time the machine was off is skipped, not made up.
+every = "24h"
+# How many scheduled backups to keep; older ones are deleted. At least 1. Backups you
+# made by hand or put in the folder yourself are never counted or deleted.
+keep = 7
+
 # Your own commands: `/zoom` runs the executable `zoom` in `dir`, and its stdout lands
 # in the composer for you to send or not. A non-zero exit, timeout or empty output
 # leaves the composer untouched and says why. Built-ins of the same name win.

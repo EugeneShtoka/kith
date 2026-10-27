@@ -311,22 +311,40 @@ the networks still hold.
 
 ### "Backups are off until you run `kith backup` once"
 
-kithd's daily backups are encrypted to your backup key, and there is none yet: the
+kithd's scheduled backups are encrypted to your backup key, and there is none yet: the
 first `kith backup`, run in a terminal, makes it and shows you its private half. kithd
 never makes one itself, since nobody would see that half and the backups could never be
-opened. Run `kith backup` once; the daily ones start within the hour. Keep the key it
-shows somewhere other than this machine: without it no backup opens
-([your backup key](usage.md#backing-up-and-moving-to-a-new-machine)).
+opened. Run `kith backup` once, or name a public key you made in `[backup] key`; the
+scheduled ones start within the hour. Keep the private key somewhere other than this
+machine: without it no backup opens
+([your backup key](usage.md#backing-up-and-moving-to-a-new-machine)). To have no
+scheduled backups and no message, set `[backup] enabled = false`.
 
-### "The daily backup failed: …" or "is put off: …"
+### "The scheduled backup failed: …" or "is put off: …"
 
-kithd tried today's backup into `[storage] export_dir/backups/` and could not. *Put
-off* is a disk without room for it (about the cache's size free beside the cache, and
-the cache's and pictures' size in the backups folder); it tries again every hour. A
-failure says why: often the keyring is locked (`unlock the keyring`), or the export
-folder is one kithd may not write. Under the systemd unit kithd writes only its own
-folders, so an `export_dir` outside `~/.local/share/kith` needs a `ReadWritePaths=`
-for it in a drop-in. Each is said once, and again only after a backup has worked.
+kithd tried a scheduled backup into the backups folder (`[backup] dir`, by default
+`[storage] export_dir/backups/`) and could not. *Put off* is a disk without room for it
+(about the cache's size free beside the cache, and the cache's and pictures' size in
+the backups folder); it tries again every hour. A failure says why: often the keyring
+is locked (`unlock the keyring`), or the folder is one kithd may not write (`kithd may
+not write there`). Under the systemd unit kithd writes only its own folders:
+
+- With a config of its own (or `[storage]` folders of its own), kith writes kithd's
+  unit itself and includes the backups folder, but only when it starts kithd: after
+  changing `dir`, restart it (`systemctl --user restart kithd-<instance>`).
+- Under the packaged `kithd.service` (the default config, including the Nix modules),
+  a folder outside `~/.local/share/kith` needs a drop-in, then a restart:
+
+  ```sh
+  systemctl --user edit kithd   # add, under [Service]:
+  # ReadWritePaths=-/path/to/backups
+  # ExecStartPre=+mkdir -p /path/to/backups
+  systemctl --user restart kithd
+  ```
+
+A `[backup] key` holding a private key (`AGE-SECRET-KEY-1…`) is refused, and said
+without the key: put only its public half there (`age-keygen -y key.txt`). Each message
+is said once, and again only after a backup has worked.
 
 ### "the key does not open this backup"
 

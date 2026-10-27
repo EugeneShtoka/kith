@@ -79,9 +79,32 @@ func ownUnit(storage domain.Storage, kithd string, launch Launch) (string, error
 	if err != nil {
 		return "", err
 	}
-	dirs := strings.Join([]string{words["data"], words["state"], words["cache"], words["runtime"], configDir}, " ")
+	writable := []string{words["data"], words["state"], words["cache"], words["runtime"], configDir}
+	// Scheduled backups go to [backup] dir (else <export_dir>/backups), which may lie
+	// outside the folders above.
+	backups := storage.BackupsDir()
+	if filepath.IsAbs(backups) && !under(backups, storage.DataDir, storage.StateDir, storage.CacheDir, storage.RuntimeDir) {
+		w, err := unitPath(backups)
+		if err != nil {
+			return "", err
+		}
+		writable = append(writable, w)
+	}
+	dirs := strings.Join(writable, " ")
 
 	return fmt.Sprintf(ownUnitTemplate, words["config"], start, dirs, dirs), nil
+}
+
+// under reports whether p is one of dirs or inside one.
+func under(p string, dirs ...string) bool {
+	p = filepath.Clean(p)
+	for _, d := range dirs {
+		d = filepath.Clean(d)
+		if p == d || strings.HasPrefix(p, d+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // ownUnitTemplate is packaging/systemd/kithd.service with the config's ExecStart and

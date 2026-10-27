@@ -17,6 +17,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/EugeneShtoka/kith/internal/backup"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
@@ -124,7 +125,7 @@ func TestNewKeyWithoutATerminalRefuses(t *testing.T) {
 	}
 	storage := withOldKey(t)
 	before := keyFileOf(t, storage)
-	_, err := backupKey(storage, true)
+	_, err := backupKey(config.Config{}, storage, true)
 	if err == nil || !strings.Contains(err.Error(), "in a terminal") {
 		t.Errorf("backupKey(new key, no terminal) = %v; want a refusal naming the terminal", err)
 	}

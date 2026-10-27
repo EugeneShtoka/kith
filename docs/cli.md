@@ -91,14 +91,16 @@ backup key: `file`, or a dated one in `[storage] export_dir`. kithd may keep run
 The first backup makes the key and prints its private half once (`AGE-SECRET-KEY-1…`),
 then offers to save it to a file; it is the only way to restore. Each backup lists what
 went in, with sizes, and what it leaves out (network sessions, and what refills
-itself). Once the key exists, kithd also makes one a day into `export_dir/backups/` and
-keeps the last seven. See [usage.md](usage.md#backing-up-and-moving-to-a-new-machine).
+itself). When `[backup] key` names the key, that one is used and none is made. Once
+there is a key, kithd also backs up on its own, as `[backup]` says (by default every
+24h into `export_dir/backups/`, keeping seven). See
+[usage.md](usage.md#backing-up-and-moving-to-a-new-machine).
 
 | Flag | Meaning |
 | --- | --- |
 | `--config path` | Config file whose history to back up. |
 | `--no-media` | Leave the picture cache out. WhatsApp and Signal pictures cannot be fetched again once their servers drop them, so they are in by default. |
-| `--new-key` | Replace a lost backup key: after a warning and a yes, make a new key, print it once as the first backup does, then back up to it. Backups made before stay encrypted to the old key and open only with it; kith cannot re-encrypt them. kithd's daily backups use the new key from the next one. Run it in a terminal; the old key stays until the new one is kept. |
+| `--new-key` | Replace a lost backup key: after a warning and a yes, make a new key, print it once as the first backup does, then back up to it. Backups made before stay encrypted to the old key and open only with it; kith cannot re-encrypt them. kithd's scheduled backups use the new key from the next one. Run it in a terminal; the old key stays until the new one is kept. Refused while `[backup] key` names the key: change it there. |
 
 ### kith restore
 
