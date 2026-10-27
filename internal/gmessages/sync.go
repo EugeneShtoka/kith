@@ -136,7 +136,8 @@ func (a *Adapter) takeMessagesAt(ctx context.Context, c *conn, msgs []*gmproto.M
 }
 
 // sync lists c's inbox and fetches the newest messages of conversations newer than the
-// cache. One runs at a time; one asked for while another runs is not needed.
+// cache, then starts reading the conversations back (history.go). One runs at a time;
+// one asked for while another runs is not needed.
 func (a *Adapter) sync(ctx context.Context, c *conn) {
 	if !c.syncing.TryLock() {
 		return
@@ -148,6 +149,7 @@ func (a *Adapter) sync(ctx context.Context, c *conn) {
 	if client == nil || c.closed() {
 		return
 	}
+	defer func(ctx context.Context) { go a.backfill(ctx, c) }(ctx)
 	ctx, cancel := context.WithTimeout(ctx, syncSpan)
 	defer cancel()
 	var cursor *gmproto.Cursor

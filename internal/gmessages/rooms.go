@@ -166,21 +166,6 @@ func (a *Adapter) RoomEncryption(_ context.Context, rooms []domain.RoomID) (map[
 	return out, nil
 }
 
-// Timeline is a page of the cache: older messages are not fetched from the phone yet.
-func (a *Adapter) Timeline(ctx context.Context, room domain.RoomID, from string, limit int) (domain.TimelinePage, error) {
-	if a.cache == nil || from != "" {
-		return domain.TimelinePage{}, nil
-	}
-	if limit <= 0 {
-		limit = 50
-	}
-	msgs, err := a.cache.Messages(ctx, room, limit)
-	if err != nil {
-		return domain.TimelinePage{}, fmt.Errorf("gmessages: read %s: %w", room, err)
-	}
-	return domain.TimelinePage{Messages: msgs}, nil
-}
-
 // errNotCached is a message the cache does not hold, which cannot be asked for yet.
 var errNotCached = errors.New("gmessages: that message is not in the cache")
 

@@ -159,6 +159,13 @@ CREATE TABLE room_sms (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
+-- Rooms whose history the cache holds back to its first message: the network had
+-- nothing older (Google Messages, paging back from the phone). Its own table, written
+-- only by that network (SetHistoryStart), as room_sms is.
+CREATE TABLE room_history_start (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
 -- Stretches of a room's history a sync skipped (a Matrix timeline cut short after
 -- kith was away), from the newest message held below (boundary, since_ms) to the oldest
 -- fetched above (until_ms); token is where paging back resumes. A row until filled.
@@ -704,6 +711,10 @@ DROP TABLE matrix_owner;`,
                 WHERE m.room_id = message_revisions.room_id AND m.event_id = message_revisions.event_id
                   AND m.edited = 0 AND m.body = message_revisions.body
                   AND coalesce(h.html, '') = message_revisions.html);`,
+	// v28: rooms whose history is cached back to its first message.
+	`CREATE TABLE IF NOT EXISTS room_history_start (
+	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;`,
 }
 
 // forgetFrozenStats drops the row counts ANALYZE kept for tables without an index
