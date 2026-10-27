@@ -333,7 +333,7 @@ says (shown with its defaults):
 enabled = true   # scheduled backups on or off; `kith backup` works either way
 key     = ""     # an age public key (age1…); empty is the one the first `kith backup` made
 dir     = ""     # where they go; empty is [storage] export_dir/backups
-every   = "24h"  # a duration (6h, 90m) or days (7d); at least 1h
+every   = "24h"  # a duration (6h, 90m) or days (7d)
 keep    = 7      # how many to keep; at least 1
 ```
 

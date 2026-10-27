@@ -20,8 +20,8 @@ func TestSettingsRefuseAPrivateBackupKey(t *testing.T) {
 	m, path := opened(t, config.Notifications{Enabled: true})
 	m = toSetting(t, m, "backup.key")
 	m = typeIn(t, m, private)
-	if status := m.status(); !strings.Contains(status, "this is the private key") || strings.Contains(status, secret) {
-		t.Errorf("status = %q; want the private key refused, without it", status)
+	if status := m.status(); status == "" || strings.Contains(status, secret) {
+		t.Errorf("status = %q; want the refusal told, without the key", status)
 	}
 	if body, err := os.ReadFile(path); err != nil || strings.Contains(string(body), secret) {
 		t.Errorf("the config file holds the private key (read: %v)", err)

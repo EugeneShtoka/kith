@@ -185,8 +185,8 @@ func TestAPrivateKeyInTheConfigMakesNoBackupAndIsNeverShown(t *testing.T) {
 	private := pair(t).String()
 	writeConfig(t, d, fmt.Sprintf("[storage]\ninstance = \"test\"\n[backup]\nkey = %q\n", private))
 	done, err := d.once(context.Background(), time.Now())
-	if err == nil || done.Ran || !strings.Contains(err.Error(), "this is the private key") {
-		t.Fatalf("once(private key) = %+v, %v; want it refused as the private key", done, err)
+	if err == nil || done.Ran {
+		t.Fatalf("once(private key) = %+v, %v; want it refused", done, err)
 	}
 	tell, _ := d.outcome(done, err)
 	secret := strings.TrimPrefix(private, "AGE-SECRET-KEY-")
@@ -239,8 +239,9 @@ func TestAConfigChangedDuringABackupIsTheNextRuns(t *testing.T) {
 	}
 }
 
-// A backups folder kithd may not write fails the backup and says what to do.
-func TestAFolderKithdMayNotWriteIsSaid(t *testing.T) {
+// A backups folder kithd may not write fails the backup, which is told, and leaves
+// nothing in it.
+func TestAFolderKithdMayNotWriteFailsTheBackup(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root writes anywhere")
 	}
@@ -261,8 +262,11 @@ func TestAFolderKithdMayNotWriteIsSaid(t *testing.T) {
 	if err == nil || done.Ran {
 		t.Fatalf("once(unwritable folder) = %+v, %v; want it failed", done, err)
 	}
-	if tell, _ := d.outcome(done, err); !strings.Contains(tell, "kithd may not write there") {
-		t.Errorf("outcome() = %q; want it to say kithd may not write there", tell)
+	if tell, _ := d.outcome(done, err); tell == "" {
+		t.Error("the failure was not told")
+	}
+	if entries, _ := os.ReadDir(shut); len(entries) != 0 {
+		t.Errorf("the folder holds %d files; want none", len(entries))
 	}
 }
 

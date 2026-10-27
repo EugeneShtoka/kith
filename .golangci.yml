@@ -672,8 +672,6 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/audio"
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/domain"
-            # Durations in its messages, as the user reads them.
-            - "github.com/EugeneShtoka/kith/internal/human"
             # The catalog only: validating a model name must not link the server.
             - "github.com/EugeneShtoka/kith/internal/llamacpp/models"
             - "github.com/EugeneShtoka/kith/internal/logging"

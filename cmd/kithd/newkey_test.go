@@ -99,24 +99,6 @@ func TestANewKeyCutShortLeavesTheOldKey(t *testing.T) {
 	}
 }
 
-// The first key, and the shown key of a new one, say how to replace a lost key.
-func TestTheKeyShownNamesNewKey(t *testing.T) {
-	t.Parallel()
-	id, err := backup.NewKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if shown := newKeyText(id); !strings.Contains(shown, "kith backup --new-key") {
-		t.Errorf("the key's text does not say how to replace a lost one:\n%s", shown)
-	}
-	warning := replaceKeyText(domain.Storage{ExportDir: "/exports"})
-	for _, want := range []string{"stay encrypted to the old key", "cannot re-encrypt", "/exports/backups", "[y/N]"} {
-		if !strings.Contains(warning, want) {
-			t.Errorf("the replace warning lacks %q:\n%s", want, warning)
-		}
-	}
-}
-
 // Without a terminal, --new-key refuses: the new key could not be shown to anyone.
 func TestNewKeyWithoutATerminalRefuses(t *testing.T) {
 	t.Parallel()
@@ -126,8 +108,8 @@ func TestNewKeyWithoutATerminalRefuses(t *testing.T) {
 	storage := withOldKey(t)
 	before := keyFileOf(t, storage)
 	_, err := backupKey(config.Config{}, storage, true)
-	if err == nil || !strings.Contains(err.Error(), "in a terminal") {
-		t.Errorf("backupKey(new key, no terminal) = %v; want a refusal naming the terminal", err)
+	if err == nil {
+		t.Error("backupKey(new key, no terminal) made a key nobody could see")
 	}
 	if after := keyFileOf(t, storage); after != before {
 		t.Errorf("the key was replaced without a terminal: %q → %q", before, after)

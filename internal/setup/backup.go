@@ -9,7 +9,6 @@ import (
 	"filippo.io/age"
 
 	"github.com/EugeneShtoka/kith/internal/config"
-	"github.com/EugeneShtoka/kith/internal/human"
 )
 
 // errPrivateBackupKey is [backup] key holding the private key. Its words never include
@@ -18,9 +17,9 @@ import (
 var errPrivateBackupKey = errors.New("backup.key: this is the private key; put only the public key " +
 	"(age1…) here and keep the private key off this machine (`age-keygen -y` prints its public half)")
 
-// Backups checks [backup]: a public key (never the private one), an interval of at
-// least config.MinBackupEvery, at least one backup kept, and a folder kithd can be
-// given (a full path, and not under /tmp, which kithd's sandbox replaces).
+// Backups checks [backup]: a public key (never the private one), a readable interval,
+// at least one backup kept, and a folder kithd can be given (a full path, and not under
+// /tmp, which kithd's sandbox replaces).
 func Backups(b config.Backup) error {
 	if key := strings.TrimSpace(b.Key); key != "" {
 		if strings.Contains(strings.ToUpper(key), "AGE-SECRET-KEY-") {
@@ -31,12 +30,8 @@ func Backups(b config.Backup) error {
 		}
 	}
 	if strings.TrimSpace(b.Every) != "" {
-		every, err := config.ParseEvery(b.Every)
-		if err != nil {
+		if _, err := config.ParseEvery(b.Every); err != nil {
 			return fmt.Errorf("backup.every %q: write a duration like 6h or 90m, or days like 7d", b.Every)
-		}
-		if every < config.MinBackupEvery {
-			return fmt.Errorf("backup.every %q: at least %s (each backup copies the whole cache)", b.Every, human.Duration(config.MinBackupEvery))
 		}
 	}
 	if b.KeepOrDefault() < 1 {

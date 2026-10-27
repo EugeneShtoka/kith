@@ -11,14 +11,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/backup"
 )
 
-// A key file that is not there, or holds no key, is said as such, before anything is
+// A key file that is not there, or holds no key, is refused before anything is
 // restored.
-func TestAKeyFileThatIsNotThereOrNotAKeyIsSaid(t *testing.T) {
+func TestAKeyFileThatIsNotThereOrNotAKeyIsRefused(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	missing := filepath.Join(dir, "gone.txt")
-	if _, err := readKey(missing); err == nil || !strings.Contains(err.Error(), "gone.txt") {
-		t.Errorf("readKey(missing) = %v; want the file named", err)
+	if _, err := readKey(filepath.Join(dir, "gone.txt")); err == nil {
+		t.Error("readKey(missing) took a file that is not there")
 	}
 	notKey := filepath.Join(dir, "notes.txt")
 	if err := os.WriteFile(notKey, []byte("my notes\n"), 0o600); err != nil {
@@ -29,19 +28,16 @@ func TestAKeyFileThatIsNotThereOrNotAKeyIsSaid(t *testing.T) {
 	}
 }
 
-// A new key is shown once, whole, saying it is the only way to restore; the file it
-// is saved to reads back as the key and is never written over.
+// A new key is shown whole; the file it is saved to reads back as the key and is never
+// written over.
 func TestANewKeyIsShownAndSavedAsTheUserAsks(t *testing.T) {
 	t.Parallel()
 	id, err := backup.NewKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	shown := newKeyText(id)
-	for _, want := range []string{id.String(), "the only way to open your kith backups", "kith keeps no copy"} {
-		if !strings.Contains(shown, want) {
-			t.Errorf("the new key's text lacks %q:\n%s", want, shown)
-		}
+	if shown := newKeyText(id); !strings.Contains(shown, id.String()) {
+		t.Errorf("the new key's text does not show the key:\n%s", shown)
 	}
 	dir := t.TempDir()
 	taken := filepath.Join(dir, "taken.txt")

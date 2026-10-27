@@ -19,11 +19,9 @@ type Backup struct {
 	Keep    *int   `toml:"keep"`
 }
 
-// The scheduled backups' defaults, and the shortest interval allowed: each one copies
-// the whole cache.
+// The scheduled backups' defaults.
 const (
 	DefaultBackupEvery = 24 * time.Hour
-	MinBackupEvery     = time.Hour
 	DefaultBackupKeep  = 7
 )
 

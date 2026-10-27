@@ -1450,7 +1450,8 @@ key = ""
 # kithd writes only kith's own folders: see docs/troubleshooting.md for another one.
 dir = ""
 # How long after one scheduled backup the next is made: a duration (6h, 90m) or days
-# (7d). At least 1h. A time the machine was off is skipped, not made up.
+# (7d). Each one copies the whole cache. A time the machine was off is skipped, not
+# made up.
 every = "24h"
 # How many scheduled backups to keep; older ones are deleted. At least 1. Backups you
 # made by hand or put in the folder yourself are never counted or deleted.

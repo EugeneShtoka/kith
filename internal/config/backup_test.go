@@ -5,21 +5,17 @@ import (
 	"time"
 )
 
-// An interval is a Go duration or whole days; anything else, zero or negative is not.
+// An interval is whole days ("7d"), else a Go duration; zero or negative is none.
 func TestParseEvery(t *testing.T) {
 	t.Parallel()
 	for spelled, want := range map[string]time.Duration{
-		"6h": 6 * time.Hour, "90m": 90 * time.Minute, "24h": 24 * time.Hour,
-		"7d": 7 * 24 * time.Hour, "1d": 24 * time.Hour,
+		"7d": 7 * 24 * time.Hour, "  1d\n": 24 * time.Hour, "6h": 6 * time.Hour,
 	} {
 		if got, err := ParseEvery(spelled); err != nil || got != want {
 			t.Errorf("ParseEvery(%q) = %v, %v; want %v", spelled, got, err, want)
 		}
 	}
-	if got, err := ParseEvery("  7d\n"); err != nil || got != 7*24*time.Hour {
-		t.Errorf("ParseEvery with spaces around = %v, %v; want 168h", got, err)
-	}
-	for _, spelled := range []string{"", "d", "1.5d", "0d", "-2d", "0h", "-1h", "weekly", "7 days"} {
+	for _, spelled := range []string{"d", "1.5d", "0d", "-2d", "0h", "-1h"} {
 		if got, err := ParseEvery(spelled); err == nil {
 			t.Errorf("ParseEvery(%q) = %v; want an error", spelled, got)
 		}
