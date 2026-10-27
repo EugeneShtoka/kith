@@ -219,6 +219,7 @@ var idColumns = map[string][]string{
 	"room_forums":         {"room_id"},
 	"room_gaps":           {"room_id", "boundary"},
 	"room_handles":        {"room_id"},
+	"room_history_start":  {"room_id"},
 	"room_members":        {"room_id", "user_id"},
 	"room_networks":       {"room_id"},
 	"room_parents":        {"room_id", "space_id"},

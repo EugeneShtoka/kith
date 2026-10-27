@@ -113,6 +113,29 @@ func (c *Cache) SetSMS(ctx context.Context, rooms map[domain.RoomID]bool) error 
 	return c.setRoomFlags(ctx, rooms, "room_sms", "sms")
 }
 
+// SetHistoryStart keeps which rooms' history the cache holds back to its first message.
+func (c *Cache) SetHistoryStart(ctx context.Context, rooms map[domain.RoomID]bool) error {
+	return c.setRoomFlags(ctx, rooms, "room_history_start", "history-start")
+}
+
+// HistoryStarts is the rooms whose history the cache holds back to its first message.
+func (c *Cache) HistoryStarts(ctx context.Context) (map[domain.RoomID]bool, error) {
+	rooms, err := collect(ctx, c.db, "history starts", `SELECT room_id FROM room_history_start`,
+		func(rows *sql.Rows) (domain.RoomID, error) {
+			var id string
+			err := rows.Scan(&id)
+			return domain.RoomID(id), err
+		})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[domain.RoomID]bool, len(rooms))
+	for _, id := range rooms {
+		out[id] = true
+	}
+	return out, nil
+}
+
 // SetReadOnly keeps which rooms this account may read but not post in.
 func (c *Cache) SetReadOnly(ctx context.Context, rooms map[domain.RoomID]bool) error {
 	return c.setRoomFlags(ctx, rooms, "room_read_only", "read-only")

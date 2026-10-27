@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -79,8 +80,11 @@ type conn struct {
 	// reacted is when each message's reactions last changed as kith knows it (a live
 	// update, or a reaction sent): a listing asked for before then is older.
 	reacted map[domain.EventID]time.Time
-	// syncing is held by the sync running, if any.
-	syncing sync.Mutex
+	// syncing is held by the sync running, if any; backfilling by the backfill.
+	syncing, backfilling sync.Mutex
+	// inactive: another browser or a bridge took the Messages for web session; silent:
+	// the phone stopped answering. Either holds the backfill back.
+	inactive, silent atomic.Bool
 }
 
 func (a *Adapter) newConn(account Account, s *Session, at *int) *conn {
@@ -191,6 +195,8 @@ func (a *Adapter) connect(ctx context.Context, c *conn, client *libgm.Client) {
 		c.mu.Lock()
 		c.client = client
 		c.mu.Unlock()
+		c.inactive.Store(false)
+		c.silent.Store(false)
 		// The session is saved from libgm's events (a refreshed token), on the goroutine
 		// that changes it, never from here.
 		a.session(c.account, Connected, "")
@@ -288,9 +294,14 @@ func (a *Adapter) react(ctx context.Context, c *conn, client *libgm.Client, evt 
 	case *events.ListenTemporaryError:
 		a.log.Debug("the long poll failed; libgm retries", "account", c.account.Name, "err", e.Error)
 		a.session(c.account, Connecting, reconnecting)
-	case *events.ListenRecovered, *events.PhoneRespondingAgain:
+	case *events.ListenRecovered:
 		a.session(c.account, Connected, "")
+	case *events.PhoneRespondingAgain:
+		c.silent.Store(false)
+		a.session(c.account, Connected, "")
+		go a.backfill(ctx, c)
 	case *events.PhoneNotResponding:
+		c.silent.Store(true)
 		a.session(c.account, Connected, phoneSilent)
 	case *events.ListenFatalError:
 		gaveUp(e.Error)
@@ -319,11 +330,13 @@ func (a *Adapter) react(ctx context.Context, c *conn, client *libgm.Client, evt 
 func (a *Adapter) alert(ctx context.Context, c *conn, client *libgm.Client, kind gmproto.AlertType) {
 	switch kind {
 	case gmproto.AlertType_BROWSER_ACTIVE:
+		c.inactive.Store(false)
 		a.session(c.account, Connected, "")
 		a.keep(c)
 		go a.sync(ctx, c) // active again: what came meanwhile is on the phone
 	case gmproto.AlertType_BROWSER_INACTIVE:
 		// Another browser or a bridge took the session: taking it back would fight it.
+		c.inactive.Store(true)
 		a.session(c.account, Connecting, fmt.Sprintf(otherBrowser, c.account.Name))
 	case gmproto.AlertType_BROWSER_INACTIVE_FROM_TIMEOUT, gmproto.AlertType_BROWSER_INACTIVE_FROM_INACTIVITY:
 		go a.takeOver(ctx, c, client) // gone idle, not taken: make kith's active again

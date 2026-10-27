@@ -12,15 +12,15 @@ import (
 // and its terminal. context.Background() on purpose: CommandContext would kill it with
 // the client.
 func detach(binary string, binaryArgs []string) error {
-	path, err := exec.LookPath(binary)
+	path, err := Binary(binary)
 	if err != nil {
-		return fmt.Errorf("daemon: %s is not on PATH: %w", binary, err)
+		return err
 	}
 	if _, err := exec.LookPath("setsid"); err != nil {
 		return fmt.Errorf("daemon: cannot detach %s without setsid: %w", binary, err)
 	}
 	args := append([]string{path}, binaryArgs...)
-	cmd := exec.CommandContext(context.Background(), "setsid", args...) // #nosec G204 -- path is LookPath of kithd or kith-notify and the arguments kith's own flags, no shell involved
+	cmd := exec.CommandContext(context.Background(), "setsid", args...) // #nosec G204 -- path is Binary's kithd or kith-notify and the arguments kith's own flags, no shell involved
 	// Nothing inherited: it must not write over a running TUI. It logs to the journal
 	// or its --log-file.
 	cmd.Stdout, cmd.Stderr = nil, nil
