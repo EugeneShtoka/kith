@@ -145,7 +145,7 @@ type qrLeader struct{}
 func (qrLeader) LoginNetwork() api.LoginNetwork { return api.LoginNetwork{Network: "qr", Label: "QR"} }
 
 func (qrLeader) Login(ctx context.Context, _ string, talk api.LoginTalk) (api.LoginEnd, error) {
-	if err := talk.ShowQR(ctx, "https://example.org/pair#abc", "scan it with the phone"); err != nil {
+	if err := talk.ShowQR(ctx, "https://example.org/pair#abc", "scan it with the phone", ""); err != nil {
 		return api.LoginEnd{}, err
 	}
 	return api.LoginEnd{Done: "paired"}, nil
@@ -163,5 +163,67 @@ func TestAQRCodeCrossesTheSocket(t *testing.T) {
 	step, err = remote.AnswerLogin(t.Context(), step.Login, nil)
 	if err != nil || step.Done != "paired" {
 		t.Fatalf("after the scan = (%+v, %v)", step, err)
+	}
+}
+
+// insteadLeader shows a QR code until the client takes the other way, then a code.
+type insteadLeader struct{}
+
+func (insteadLeader) LoginNetwork() api.LoginNetwork {
+	return api.LoginNetwork{Network: "scan", Label: "Scan"}
+}
+
+func (insteadLeader) Login(ctx context.Context, _ string, talk api.LoginTalk) (api.LoginEnd, error) {
+	if err := talk.ShowQR(ctx, "qr-1", "scan it", "type a code instead"); err != nil {
+		return api.LoginEnd{}, err
+	}
+	select {
+	case <-talk.Instead():
+	case <-ctx.Done():
+		return api.LoginEnd{}, ctx.Err()
+	}
+	if err := talk.Show(ctx, "ABCD", "type it on the phone"); err != nil {
+		return api.LoginEnd{}, err
+	}
+	return api.LoginEnd{Done: "linked by code"}, nil
+}
+
+// Taking a QR step's other way crosses the socket without waiting: the AnswerLogin
+// waiting on the QR step returns where it leads. A step offering nothing else, or a
+// login that never was, refuses it.
+func TestTheOtherWayIsTakenWhileTheQRStepWaits(t *testing.T) {
+	t.Parallel()
+	remote := serveLogins(t, insteadLeader{}, qrLeader{})
+	step, err := remote.BeginLogin(t.Context(), "scan", "phone")
+	if err != nil || step.QR != "qr-1" || step.Instead != "type a code instead" {
+		t.Fatalf("first step = (%+v, %v), want the QR code and its other way", step, err)
+	}
+	waiting := make(chan api.LoginStep, 1)
+	go func() {
+		next, answerErr := remote.AnswerLogin(t.Context(), step.Login, nil)
+		if answerErr != nil {
+			t.Error(answerErr)
+		}
+		waiting <- next
+	}()
+	if err = remote.InsteadLogin(t.Context(), step.Login); err != nil {
+		t.Fatalf("taking the other way = %v", err)
+	}
+	if next := <-waiting; next.Code != "ABCD" || next.QR != "" {
+		t.Fatalf("the waiting answer = %+v, want the code the other way shows", next)
+	}
+	if remote.InsteadLogin(t.Context(), step.Login) == nil {
+		t.Error("a code step took another way")
+	}
+
+	plain, err := remote.BeginLogin(t.Context(), "qr", "phone")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if remote.InsteadLogin(t.Context(), plain.Login) == nil {
+		t.Error("a QR step offering nothing else took another way")
+	}
+	if remote.InsteadLogin(t.Context(), "no-such-login") == nil {
+		t.Error("a login that never was took another way")
 	}
 }

@@ -1,45 +1,30 @@
 package main
 
 import (
-	"io"
-	"os"
 	"strings"
 	"testing"
 )
 
-// stdout is what fn prints.
-func stdout(t *testing.T, fn func()) string {
-	t.Helper()
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
+// A QR code is drawn light on dark, each of its lines colored on its own, between blank
+// lines; data no code can hold says why instead.
+func TestAQRCodeIsDrawnLightOnDark(t *testing.T) {
+	t.Parallel()
+	block := qrBlock("https://example.org/pair#abc")
+	if len(block) < 12 || block[0].text != "" || block[len(block)-1].text != "" {
+		t.Fatalf("drew %d lines, want the code between blank lines", len(block))
 	}
-	was := os.Stdout
-	os.Stdout = w
-	fn()
-	os.Stdout = was
-	_ = w.Close()
-	out, err := io.ReadAll(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(out)
-}
-
-// A QR code prints light on dark, each line colored on its own; data no code can hold
-// prints why instead.
-func TestPrintQR(t *testing.T) { //nolint:paralleltest // swaps os.Stdout
-	out := stdout(t, func() { printQR("https://example.org/pair#abc") })
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if len(lines) < 10 || !strings.Contains(out, "█") {
-		t.Fatalf("printed %q", out)
-	}
-	for _, line := range lines {
-		if !strings.Contains(line, "\x1b[97;40m") || !strings.HasSuffix(line, "\x1b[0m") {
-			t.Fatalf("a line not drawn light on dark: %q", line)
+	for _, line := range block[1 : len(block)-1] {
+		if !strings.Contains(line.text, "█") && !strings.Contains(line.text, "▀") && !strings.Contains(line.text, "▄") {
+			continue
+		}
+		if !strings.Contains(line.text, "\x1b[97;40m") || !strings.HasSuffix(line.text, "\x1b[0m") {
+			t.Fatalf("a line not drawn light on dark: %q", line.text)
+		}
+		if want := len([]rune(strings.TrimSuffix(strings.TrimPrefix(line.text, "    \x1b[97;40m"), "\x1b[0m"))) + 4; line.shown != want {
+			t.Errorf("a line shows %d columns, counted %d", want, line.shown)
 		}
 	}
-	if out := stdout(t, func() { printQR(strings.Repeat("x", 5000)) }); !strings.Contains(out, "could not be drawn") {
-		t.Errorf("too much data printed %q", out)
+	if block := qrBlock(strings.Repeat("x", 5000)); len(block) != 3 || !strings.Contains(block[1].text, "could not be drawn") {
+		t.Errorf("too much data drew %+v", block)
 	}
 }

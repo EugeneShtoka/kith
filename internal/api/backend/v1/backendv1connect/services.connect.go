@@ -262,6 +262,9 @@ const (
 	// BackendServiceCancelLoginProcedure is the fully-qualified name of the BackendService's
 	// CancelLogin RPC.
 	BackendServiceCancelLoginProcedure = "/backend.v1.BackendService/CancelLogin"
+	// BackendServiceInsteadLoginProcedure is the fully-qualified name of the BackendService's
+	// InsteadLogin RPC.
+	BackendServiceInsteadLoginProcedure = "/backend.v1.BackendService/InsteadLogin"
 	// BackendServiceRoomsWithProcedure is the fully-qualified name of the BackendService's RoomsWith
 	// RPC.
 	BackendServiceRoomsWithProcedure = "/backend.v1.BackendService/RoomsWith"
@@ -615,6 +618,10 @@ type BackendServiceClient interface {
 	AnswerLogin(context.Context, *connect.Request[v1.AnswerLoginRequest]) (*connect.Response[v1.AnswerLoginResponse], error)
 	// CancelLogin ends a login.
 	CancelLogin(context.Context, *connect.Request[v1.CancelLoginRequest]) (*connect.Response[v1.CancelLoginResponse], error)
+	// InsteadLogin takes the other way the login's QR step offers (its instead). It
+	// does not wait: the AnswerLogin waiting on the QR step returns where that way
+	// leads.
+	InsteadLogin(context.Context, *connect.Request[v1.InsteadLoginRequest]) (*connect.Response[v1.InsteadLoginResponse], error)
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -1265,6 +1272,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("CancelLogin")),
 			connect.WithClientOptions(opts...),
 		),
+		insteadLogin: connect.NewClient[v1.InsteadLoginRequest, v1.InsteadLoginResponse](
+			httpClient,
+			baseURL+BackendServiceInsteadLoginProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("InsteadLogin")),
+			connect.WithClientOptions(opts...),
+		),
 		roomsWith: connect.NewClient[v1.RoomsWithRequest, v1.RoomsWithResponse](
 			httpClient,
 			baseURL+BackendServiceRoomsWithProcedure,
@@ -1648,6 +1661,7 @@ type backendServiceClient struct {
 	beginLogin            *connect.Client[v1.BeginLoginRequest, v1.BeginLoginResponse]
 	answerLogin           *connect.Client[v1.AnswerLoginRequest, v1.AnswerLoginResponse]
 	cancelLogin           *connect.Client[v1.CancelLoginRequest, v1.CancelLoginResponse]
+	insteadLogin          *connect.Client[v1.InsteadLoginRequest, v1.InsteadLoginResponse]
 	roomsWith             *connect.Client[v1.RoomsWithRequest, v1.RoomsWithResponse]
 	roomEncryption        *connect.Client[v1.RoomEncryptionRequest, v1.RoomEncryptionResponse]
 	messagesAround        *connect.Client[v1.MessagesAroundRequest, v1.MessagesAroundResponse]
@@ -2119,6 +2133,11 @@ func (c *backendServiceClient) CancelLogin(ctx context.Context, req *connect.Req
 	return c.cancelLogin.CallUnary(ctx, req)
 }
 
+// InsteadLogin calls backend.v1.BackendService.InsteadLogin.
+func (c *backendServiceClient) InsteadLogin(ctx context.Context, req *connect.Request[v1.InsteadLoginRequest]) (*connect.Response[v1.InsteadLoginResponse], error) {
+	return c.insteadLogin.CallUnary(ctx, req)
+}
+
 // RoomsWith calls backend.v1.BackendService.RoomsWith.
 func (c *backendServiceClient) RoomsWith(ctx context.Context, req *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error) {
 	return c.roomsWith.CallUnary(ctx, req)
@@ -2576,6 +2595,10 @@ type BackendServiceHandler interface {
 	AnswerLogin(context.Context, *connect.Request[v1.AnswerLoginRequest]) (*connect.Response[v1.AnswerLoginResponse], error)
 	// CancelLogin ends a login.
 	CancelLogin(context.Context, *connect.Request[v1.CancelLoginRequest]) (*connect.Response[v1.CancelLoginResponse], error)
+	// InsteadLogin takes the other way the login's QR step offers (its instead). It
+	// does not wait: the AnswerLogin waiting on the QR step returns where that way
+	// leads.
+	InsteadLogin(context.Context, *connect.Request[v1.InsteadLoginRequest]) (*connect.Response[v1.InsteadLoginResponse], error)
 	// RoomsWith finds the rooms a set of people are **all** in, most recently active
 	// first.
 	RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error)
@@ -3222,6 +3245,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("CancelLogin")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceInsteadLoginHandler := connect.NewUnaryHandler(
+		BackendServiceInsteadLoginProcedure,
+		svc.InsteadLogin,
+		connect.WithSchema(backendServiceMethods.ByName("InsteadLogin")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceRoomsWithHandler := connect.NewUnaryHandler(
 		BackendServiceRoomsWithProcedure,
 		svc.RoomsWith,
@@ -3686,6 +3715,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceAnswerLoginHandler.ServeHTTP(w, r)
 		case BackendServiceCancelLoginProcedure:
 			backendServiceCancelLoginHandler.ServeHTTP(w, r)
+		case BackendServiceInsteadLoginProcedure:
+			backendServiceInsteadLoginHandler.ServeHTTP(w, r)
 		case BackendServiceRoomsWithProcedure:
 			backendServiceRoomsWithHandler.ServeHTTP(w, r)
 		case BackendServiceRoomEncryptionProcedure:
@@ -4127,6 +4158,10 @@ func (UnimplementedBackendServiceHandler) AnswerLogin(context.Context, *connect.
 
 func (UnimplementedBackendServiceHandler) CancelLogin(context.Context, *connect.Request[v1.CancelLoginRequest]) (*connect.Response[v1.CancelLoginResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.CancelLogin is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) InsteadLogin(context.Context, *connect.Request[v1.InsteadLoginRequest]) (*connect.Response[v1.InsteadLoginResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.InsteadLogin is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) RoomsWith(context.Context, *connect.Request[v1.RoomsWithRequest]) (*connect.Response[v1.RoomsWithResponse], error) {

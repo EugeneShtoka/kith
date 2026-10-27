@@ -1069,7 +1069,7 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleCreating(msg))
 	case configCheckedMsg, configSavedMsg, configNewsMsg:
 		return answered(m.handleConfigNews(msg))
-	case loginMsg, loginNetworksMsg, importNetworksMsg, importPreviewMsg, importedMsg:
+	case loginMsg, loginNetworksMsg, insteadFailedMsg, importNetworksMsg, importPreviewMsg, importedMsg:
 		return answered(m.handleAccounts(msg))
 	case dndMsg:
 		return answered(m.handleDND(msg))
@@ -1538,7 +1538,8 @@ func (m Model) handleCapturedKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		return answered(m.handleConfirmKey(key))
 	case m.prompt.active():
 		return answered(m.handlePromptKey(key))
-	// While the daemon signs in, the pane is the sign-in's; the cancel key cancels it.
+	// While the daemon signs in, the pane is the sign-in's; the cancel key cancels it, and
+	// submit takes the other way a QR code offers.
 	case m.login.stage == loginWorking:
 		return answered(m.handleLoginKey(key))
 	}

@@ -2,14 +2,27 @@ package whatsapp
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"go.mau.fi/whatsmeow"
 )
 
 // linkSteps tells the user where to enter a pairing code on the phone.
 const linkSteps = "On the phone: WhatsApp → Settings → Linked devices → Link a device → " +
 	"“Link with phone number instead”, and type the code."
+
+// insteadOfQR is the other way a QR step offers: a code typed on the phone.
+const insteadOfQR = "link with a code typed on the phone instead"
+
+// scanSteps tells the user where to scan a QR code from, and for how long it holds.
+func scanSteps(holds time.Duration) string {
+	return fmt.Sprintf("On the phone: WhatsApp → Settings → Linked devices → Link a device, and scan this code. "+
+		"It changes in %d seconds.", int(holds.Round(time.Second).Seconds()))
+}
 
 // LoginNetwork describes WhatsApp for login, with its accounts and numbers.
 func (a *Adapter) LoginNetwork() api.LoginNetwork {
@@ -20,8 +33,9 @@ func (a *Adapter) LoginNetwork() api.LoginNetwork {
 	return n
 }
 
-// Login links account as a device (setting up a new one when ""), showing the
-// pairing code until the phone accepts it. Without a store nothing can be linked.
+// Login links account as a device (setting up a new one when ""): the phone scans a
+// QR code, or, when the person takes the other way, accepts a code typed on it.
+// Without a store nothing can be linked.
 func (a *Adapter) Login(ctx context.Context, account string, talk api.LoginTalk) (api.LoginEnd, error) {
 	if a.store == nil {
 		return api.LoginEnd{}, errStoreOff
@@ -40,7 +54,16 @@ func (a *Adapter) Login(ctx context.Context, account string, talk api.LoginTalk)
 		}
 		account = name
 	}
-	linked, err := a.pair(ctx, account, func(code string) error { return talk.Show(ctx, code, linkSteps) })
+	linked, err := a.pair(ctx, account, func(qr <-chan whatsmeow.QRChannelItem, _ *whatsmeow.Client, _ Account) error {
+		return showQRs(ctx, qr, talk)
+	})
+	if errors.Is(err, errInstead) {
+		// A pairing of its own: the first one's QR codes would run out, and whatsmeow
+		// disconnects then, while the code is still being typed.
+		linked, err = a.pair(ctx, account, func(qr <-chan whatsmeow.QRChannelItem, client *whatsmeow.Client, acc Account) error {
+			return askForCode(ctx, client, qr, acc.Digits, func(code string) error { return talk.Show(ctx, code, linkSteps) })
+		})
+	}
 	if err != nil {
 		return api.LoginEnd{}, err
 	}

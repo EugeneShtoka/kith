@@ -13,6 +13,7 @@ import (
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
+	"github.com/gotd/td/telegram/auth/qrlogin"
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
 
@@ -21,8 +22,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/human"
 )
 
-// Login is an api.LoginTalk: number, code, then the 2FA password if set. It runs on
-// its own connection, whose session becomes the account's.
+// Login is an api.LoginTalk: a QR code scanned (or the number's code), then the 2FA
+// password if set. It runs on its own connection, whose session becomes the account's.
 
 // ErrNoAccount is a login for a name no [[telegram.account]] has.
 var ErrNoAccount = errors.New("telegram: no such [[telegram.account]]")
@@ -36,6 +37,10 @@ var (
 	errPasswordNeeded = errors.New("telegram: this account has a two-step verification password; give it too")
 	// errBadCode is a wrong code; the person may retry.
 	errBadCode = errors.New("telegram: that is not the code Telegram sent")
+	// errInstead: the person took the code Telegram sends over the QR code.
+	errInstead = errors.New("telegram: logging in with a code instead")
+	// errOtherAccount: the QR code was scanned with another account's phone.
+	errOtherAccount = errors.New("telegram: the QR code was scanned with another Telegram account")
 )
 
 // login is a login in progress: its generation (Adapter.signIns) and cancel.
@@ -135,64 +140,152 @@ func isHash(s string) bool {
 	return len(s) == 32 && strings.Trim(strings.ToLower(s), "0123456789abcdef") == ""
 }
 
-// login runs one login, canceling any earlier one of account; once signed in it
-// stores the credentials and connects.
+// login runs one login, canceling any earlier one of account: a QR code the phone
+// scans, or, when the person takes the other way, a code Telegram sends; then the 2FA
+// password if set. Once signed in as the account's number it stores the credentials
+// and connects.
 func (a *Adapter) login(ctx context.Context, account Account, app App, talk api.LoginTalk, dial dialer) (api.LoginEnd, error) {
 	ctx, gen := a.beginLogin(ctx, account)
 	defer a.endLogin(account.Name, gen)
 	storage := newLoginSession()
-	client := dial(app, storage, nil)
+	updates := tg.NewUpdateDispatcher()
+	scanned := qrlogin.OnLoginToken(updates)
+	client := dial(app, storage, updates)
 	var end api.LoginEnd
 	err := client.Run(ctx, func(ctx context.Context) error {
-		phone := "+" + account.Digits
-		code, err := client.Auth().SendCode(ctx, phone, auth.SendCodeOptions{})
+		user, err := scanIn(ctx, client, scanned, talk)
+		if errors.Is(err, errInstead) {
+			user, err = a.codeIn(ctx, client, "+"+account.Digits, talk)
+		}
+		if errors.Is(err, errPasswordNeeded) {
+			user, err = a.passwordIn(ctx, client, talk)
+		}
 		if err != nil {
-			return describeSendCode(err)
+			return err
 		}
-		sent, ok := code.(*tg.AuthSentCode)
-		if !ok {
-			return errors.New("telegram: logged in without a code, which kith does not ask for")
+		if domain.PhoneDigits(user.Phone) != account.Digits {
+			// Scanned from another account's phone: end that session, keep nothing.
+			_, _ = client.API().AuthLogOut(ctx)
+			return fmt.Errorf("%w: it is +%s, not %s's +%s", errOtherAccount, user.Phone, account.Name, account.Digits)
 		}
-		note, codeTaken := "Telegram sent a code to "+codeVia(sent.Type), false
-		for {
-			field := api.LoginField{Key: "code", Label: "code", Help: "The code Telegram sent. It reaches the Telegram " +
-				"app where the account is logged in, as a message from Telegram, or comes by SMS. Never give it to anyone."}
-			if codeTaken {
-				field = api.LoginField{Key: "password", Label: "password", Secret: true, Help: "The account's two-step " +
-					"verification password (Telegram → Settings → Privacy and Security). It is checked by Telegram " +
-					"and not kept."}
-			}
-			got, err := talk.Ask(ctx, note, field)
-			if err != nil {
-				return err
-			}
-			user, err := a.signIn(ctx, client, phone, sent.PhoneCodeHash, got["code"], got["password"], &codeTaken)
-			switch {
-			case errors.Is(err, errBadCode):
-				note = "that is not the code Telegram sent; try again"
-			case errors.Is(err, errNeedCode):
-				note = "the code Telegram sent is needed"
-			case errors.Is(err, errPasswordNeeded):
-				note = "the account has two-step verification"
-			case errors.Is(err, api.ErrBadPassword):
-				note = "that is not the password; try again"
-			case err != nil:
-				return err
-			default:
-				creds := Credentials{App: app, User: user.ID}
-				if creds.Session, err = storage.saved(ctx); err != nil {
-					return err
-				}
-				if err := a.keepLogin(account, gen, creds); err != nil {
-					return err
-				}
-				a.connectAs(account, creds, gen, dial)
-				end.Done = "logged in to Telegram as " + userName(user) + " — its chats arrive over the next minutes"
-				return nil
-			}
+		creds := Credentials{App: app, User: user.ID}
+		if creds.Session, err = storage.saved(ctx); err != nil {
+			return err
 		}
+		if err := a.keepLogin(account, gen, creds); err != nil {
+			return err
+		}
+		a.connectAs(account, creds, gen, dial)
+		end.Done = "logged in to Telegram as " + userName(user) + " — its chats arrive over the next minutes"
+		return nil
 	})
-	return end, err //nolint:wrapcheck // its own words, or the login's end
+	if err == nil && end.Done == "" {
+		// gotd's Run ends quietly when ctx does, whatever the login had reached.
+		err = fmt.Errorf("telegram: the login ended before signing in: %w", context.Cause(ctx))
+	}
+	return end, err
+}
+
+// insteadOfQR is the other way a QR step offers: a code Telegram sends.
+const insteadOfQR = "log in with a code Telegram sends instead"
+
+// scanSteps tells the user where to scan a QR code from, and for how long it holds.
+func scanSteps(holds time.Duration) string {
+	return fmt.Sprintf("On the phone: Telegram → Settings → Devices → Link Desktop Device, and scan this code. "+
+		"It changes in %d seconds.", max(int(holds.Round(time.Second).Seconds()), 1))
+}
+
+// scanIn logs in by a QR code a phone logged in to the account scans, a new one each
+// time the last expires. It returns errInstead once the person takes the code Telegram
+// sends instead, and errPasswordNeeded when the account has 2FA on.
+func scanIn(ctx context.Context, client *telegram.Client, scanned qrlogin.LoggedIn, talk api.LoginTalk) (*tg.User, error) {
+	scan, stop := context.WithCancel(ctx)
+	defer stop()
+	took := make(chan struct{})
+	go func() {
+		select {
+		case <-talk.Instead():
+			close(took)
+			stop()
+		case <-scan.Done():
+		}
+	}()
+	in, err := client.QR().Auth(scan, scanned, func(ctx context.Context, token qrlogin.Token) error {
+		return talk.ShowQR(ctx, token.URL(), scanSteps(time.Until(token.Expires())), insteadOfQR)
+	})
+	switch {
+	case err == nil:
+		return signedInAs(in)
+	case tgerr.Is(err, "SESSION_PASSWORD_NEEDED"):
+		return nil, errPasswordNeeded
+	}
+	select {
+	case <-took:
+		return nil, errInstead
+	default:
+	}
+	return nil, fmt.Errorf("telegram: log in by QR code: %w", err)
+}
+
+// codeIn logs in by a code Telegram sends to phone, asked again while wrong. It
+// returns errPasswordNeeded when the account has 2FA on.
+func (a *Adapter) codeIn(ctx context.Context, client *telegram.Client, phone string, talk api.LoginTalk) (*tg.User, error) {
+	code, err := client.Auth().SendCode(ctx, phone, auth.SendCodeOptions{})
+	if err != nil {
+		return nil, describeSendCode(err)
+	}
+	sent, ok := code.(*tg.AuthSentCode)
+	if !ok {
+		return nil, errors.New("telegram: logged in without a code, which kith does not ask for")
+	}
+	note := "Telegram sent a code to " + codeVia(sent.Type)
+	for {
+		got, err := talk.Ask(ctx, note, api.LoginField{Key: "code", Label: "code", Help: "The code Telegram sent. It reaches the Telegram " +
+			"app where the account is logged in, as a message from Telegram, or comes by SMS. Never give it to anyone."})
+		if err != nil {
+			return nil, err
+		}
+		codeTaken := false
+		user, err := a.signIn(ctx, client, phone, sent.PhoneCodeHash, got["code"], "", &codeTaken)
+		switch {
+		case codeTaken:
+			return nil, errPasswordNeeded
+		case errors.Is(err, errBadCode):
+			note = "that is not the code Telegram sent; try again"
+		case errors.Is(err, errNeedCode):
+			note = "the code Telegram sent is needed"
+		case err != nil:
+			return nil, err
+		default:
+			return user, nil
+		}
+	}
+}
+
+// passwordIn finishes a login of an account with 2FA on, asking for its password
+// again while wrong.
+func (a *Adapter) passwordIn(ctx context.Context, client *telegram.Client, talk api.LoginTalk) (*tg.User, error) {
+	note := "the account has two-step verification"
+	for {
+		got, err := talk.Ask(ctx, note, api.LoginField{Key: "password", Label: "password", Secret: true, Help: "The account's two-step " +
+			"verification password (Telegram → Settings → Privacy and Security). It is checked by Telegram " +
+			"and not kept."})
+		if err != nil {
+			return nil, err
+		}
+		codeTaken := true
+		user, err := a.signIn(ctx, client, "", "", "", got["password"], &codeTaken)
+		switch {
+		case errors.Is(err, errPasswordNeeded):
+			note = "the account has two-step verification"
+		case errors.Is(err, api.ErrBadPassword):
+			note = "that is not the password; try again"
+		case err != nil:
+			return nil, err
+		default:
+			return user, nil
+		}
+	}
 }
 
 // beginLogin starts a new login generation, canceling any in progress.

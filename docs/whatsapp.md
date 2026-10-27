@@ -18,7 +18,8 @@ Matrix rooms in the same client, or on their own: Matrix is optional.
 
 The quickest way is inside kith: `:login whatsapp` asks for the number and a name
 (suggested from the number's country), writes the account into the config, and
-shows the pairing code to type on the phone. An account set up already is offered to link again.
+shows a QR code for the phone to scan; enter switches to a code typed on the phone
+instead. An account set up already is offered to link again.
 
 By hand, in the config:
 
@@ -36,11 +37,24 @@ Then link:
 kith login whatsapp personal
 ```
 
-kith starts the daemon if it is not running and prints an eight-character code. On
-the phone: WhatsApp → Settings → Linked devices → Link a device → **Link with phone
-number instead**, and type the code. The command says when the phone accepted.
-Groups and channels appear at once; history arrives over the next minutes. With one
-account, the name can be left out.
+kith starts the daemon if it is not running and draws a QR code. On the phone:
+WhatsApp → Settings → Linked devices → Link a device, and scan it. The code changes
+after a minute, then every twenty seconds, and is drawn again in place; after six,
+log in again for new ones. The command says when the phone accepted. Groups and
+channels appear at once; history arrives over the next minutes. With one account,
+the name can be left out.
+
+The code needs a terminal of at least 57 columns and 31 rows. In a smaller one, or
+when the phone cannot scan, link with a code typed on the phone instead:
+
+```sh
+kith login --code whatsapp personal
+```
+
+It prints an eight-character code. On the phone: WhatsApp → Settings → Linked
+devices → Link a device → **Link with phone number instead**, and type the code.
+Inside kith, enter on the QR code does the same. A QR code scanned or a code typed
+on another number's phone is refused, and that device unlinked again.
 
 Accounts can be added, removed and linked while the daemon runs: `kith login whatsapp`
 makes it re-read the config first.

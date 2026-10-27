@@ -8,7 +8,7 @@ import (
 // A login's steps and networks on the wire.
 
 func loginStepToProto(s api.LoginStep) *v1.LoginStep {
-	out := &v1.LoginStep{Login: s.Login, Account: s.Account, Note: s.Note, Code: s.Code, Qr: s.QR, Restart: s.Restart, Done: s.Done}
+	out := &v1.LoginStep{Login: s.Login, Account: s.Account, Note: s.Note, Code: s.Code, Qr: s.QR, Instead: s.Instead, Restart: s.Restart, Done: s.Done}
 	for _, f := range s.Ask {
 		out.Ask = append(out.Ask, &v1.LoginField{Key: f.Key, Label: f.Label, Help: f.Help, Value: f.Value, Secret: f.Secret, Optional: f.Optional})
 	}
@@ -21,7 +21,7 @@ func loginStepToProto(s api.LoginStep) *v1.LoginStep {
 func loginStepFromProto(s *v1.LoginStep) api.LoginStep {
 	out := api.LoginStep{
 		Login: s.GetLogin(), Account: s.GetAccount(), Note: s.GetNote(), Code: s.GetCode(), QR: s.GetQr(),
-		Restart: s.GetRestart(), Done: s.GetDone(),
+		Instead: s.GetInstead(), Restart: s.GetRestart(), Done: s.GetDone(),
 	}
 	for _, f := range s.GetAsk() {
 		out.Ask = append(out.Ask, api.LoginField{

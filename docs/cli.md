@@ -26,7 +26,7 @@ not logged in is named on the status line, with the command that logs it in.
 ### kith login
 
 ```sh
-kith login [network [account]]
+kith login [--code] [network [account]]
 ```
 
 Logs an account in through the daemon, starting it if need be: `matrix` (the default),
@@ -35,15 +35,19 @@ draws what it asks, with what each answer is and where to find it; a secret (a
 password, a session, an api_hash) is read without echo, and a wrong answer is asked
 for again.
 
-- WhatsApp shows a code to type on the phone, under Settings → Linked devices → Link
-  a device → "Link with phone number instead", and waits (up to fifteen minutes) for
-  the phone to accept it. See [WhatsApp](whatsapp.md).
+- WhatsApp draws a QR code for the phone to scan, under Settings → Linked devices →
+  Link a device, drawing each new one over the last as they expire. With `--code` it
+  shows a code to type on the phone instead, under Link a device → "Link with phone
+  number instead", and waits (up to fifteen minutes) for the phone to accept it. See
+  [WhatsApp](whatsapp.md).
 - Slack asks for the session a browser signed in to the workspace holds: its token
   (a line to paste into the browser console prints it) and its `d` cookie. See
   [Slack](slack.md).
 - Telegram asks for the app to log in through (your own api_id and api_hash, or none
-  for kith's own when the build carries one), then the code Telegram sends, then the
-  two-step verification password when the account has one. See [Telegram](telegram.md).
+  for kith's own when the build carries one), then draws a QR code for a phone logged
+  in to the account to scan (Settings → Devices → Link Desktop Device); with `--code`,
+  it asks for the code Telegram sends instead. Then the two-step verification password
+  when the account has one. See [Telegram](telegram.md).
 - Matrix picks the sign-in path the homeserver advertises: OAuth 2.0 / OIDC
   (Matrix Authentication Service), SSO (`m.login.sso`), or password, in that
   order. OAuth and SSO open a URL for you to sign in to in a browser and come back

@@ -54,8 +54,12 @@ type loginState struct {
 	// code is a code to type elsewhere, qr data to show as a QR code for a phone to scan;
 	// note what the network said last.
 	code, qr, note string
-	cancel         context.CancelFunc
-	events         <-chan loginEvent
+	// instead is the other way the QR code on screen offers, and takeInstead takes it
+	// (nil once taken, or when none is offered).
+	instead     string
+	takeInstead func() error
+	cancel      context.CancelFunc
+	events      <-chan loginEvent
 	// answer takes the step's answers while the sign-in waits for them.
 	answer chan<- map[string]string
 }
@@ -86,6 +90,9 @@ type loginEvent struct {
 	qr      string
 	note    string
 	account string
+	// instead is another way a QR code offers; takeInstead takes it.
+	instead     string
+	takeInstead func() error
 	// final ends the sign-in: done says what it did, or err why it failed.
 	final bool
 	done  string
@@ -98,6 +105,9 @@ type loginMsg struct {
 }
 
 func wrapLogin(e loginEvent) tea.Msg { return loginMsg{event: e, ok: true} }
+
+// insteadFailedMsg is a QR code's other way that could not be taken.
+type insteadFailedMsg struct{ err error }
 
 // loginNetworksMsg is the daemon's networks for :login's picker; pick is the one named on the
 // command line, if any.
@@ -130,6 +140,9 @@ func (m Model) openLogin(arg string) (Model, tea.Cmd) {
 func (m Model) handleLogin(msg tea.Msg) (Model, tea.Cmd) {
 	if networks, ok := msg.(loginNetworksMsg); ok {
 		return m.handleLoginNetworks(networks)
+	}
+	if failed, ok := msg.(insteadFailedMsg); ok {
+		return m.sayErr("could not sign in another way", failed.err), nil
 	}
 	news, _ := msg.(loginMsg)
 	return m.handleLoginMsg(news)
@@ -320,7 +333,12 @@ func (r *loginRun) answer(ctx context.Context, step api.LoginStep) (api.LoginSte
 		r.send(ctx, loginEvent{final: true, done: step.Done})
 		return step, true, nil
 	case step.Code != "" || step.QR != "":
-		r.send(ctx, loginEvent{code: step.Code, qr: step.QR, note: step.Note, account: r.account})
+		e := loginEvent{code: step.Code, qr: step.QR, note: step.Note, account: r.account, instead: step.Instead}
+		if step.QR != "" && step.Instead != "" {
+			login := step.Login
+			e.takeInstead = func() error { return r.logins.InsteadLogin(ctx, login) }
+		}
+		r.send(ctx, e)
 		next, err := r.logins.AnswerLogin(ctx, r.login, nil)
 		return next, false, err //nolint:wrapcheck // the daemon's own words
 	case step.Configure != nil:
@@ -402,7 +420,7 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 		return m, tea.Batch(applied, next)
 	case e.ask != nil:
 		m.login.stage, m.login.fields, m.login.at, m.login.values, m.login.answer = loginAsking, e.ask, 0, map[string]string{}, e.answer
-		m.login.code, m.login.qr = "", ""
+		m.login.code, m.login.qr, m.login.instead, m.login.takeInstead = "", "", "", nil
 		// A field asked again was refused: its earlier answer goes, and why it was
 		// refused shows with the field (no note: nothing to say, and none kept).
 		m.login.note = e.note
@@ -415,7 +433,7 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 		}
 		return m, next
 	case e.code != "" || e.qr != "":
-		m.login.code, m.login.qr = e.code, e.qr
+		m.login.code, m.login.qr, m.login.instead, m.login.takeInstead = e.code, e.qr, e.instead, e.takeInstead
 	}
 	return m, next
 }
@@ -496,11 +514,24 @@ func (m Model) cancelLogin() Model {
 	return m.say("sign-in canceled")
 }
 
-// handleLoginKey handles a key while the daemon signs in: cancel cancels, the rest wait (as with
-// verification).
+// handleLoginKey handles a key while the daemon signs in: cancel cancels, submit takes the
+// other way a QR code offers, the rest wait (as with verification).
 func (m Model) handleLoginKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
-	if m.keys.lookup(key.String(), scopePrompt) == actCancel {
+	switch m.keys.lookup(key.String(), scopePrompt) {
+	case actCancel:
 		return m.cancelLogin(), nil
+	case actSubmit:
+		take := m.login.takeInstead
+		if take == nil {
+			return m, nil
+		}
+		m.login.takeInstead, m.login.note = nil, "taking the other way…"
+		return m, func() tea.Msg {
+			if err := take(); err != nil {
+				return insteadFailedMsg{err: err}
+			}
+			return nil
+		}
 	}
 	return m, nil
 }
@@ -550,11 +581,15 @@ func (m Model) loginLines(width, rows int) []string {
 			lines = append(lines, "    "+m.theme.TitleActive.Render(m.login.code), "")
 		}
 		block(m.login.note)
+		hints := m.keys.keyHint(scopePrompt, actCancel) + " cancels"
 		if m.login.qr != "" {
 			lines = append(lines, "")
 			lines = append(lines, qrLines(m.login.qr, width, rows-len(lines)-2)...)
+			if m.login.takeInstead != nil {
+				hints = m.keys.keyHint(scopePrompt, actSubmit) + ": " + m.login.instead + " · " + hints
+			}
 		}
-		lines = append(lines, "", m.theme.Muted.Render(m.keys.keyHint(scopePrompt, actCancel)+" cancels"))
+		lines = append(lines, "", m.theme.Muted.Render(hints))
 	}
 	if len(lines) > rows {
 		lines = lines[:rows]

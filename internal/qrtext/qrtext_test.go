@@ -10,6 +10,32 @@ import (
 	"github.com/EugeneShtoka/kith/internal/qrtext"
 )
 
+// A Telegram login's code (a tg://login URL, its token generously long) fits an 80×24
+// terminal; a WhatsApp pairing's (four base64 parts, ~225 characters) fits 80 columns
+// and needs 31 rows with its blank lines, which docs/whatsapp.md says.
+func TestPhoneLoginCodesFitATerminal(t *testing.T) {
+	t.Parallel()
+	telegram := "tg://login?token=" + strings.Repeat("A", 88) // 64 bytes, base64url
+	whatsapp := "2@" + strings.Repeat("A", 88) + "," + strings.Repeat("A", 44) + "," +
+		strings.Repeat("A", 44) + "," + strings.Repeat("A", 44)
+	for _, tc := range []struct {
+		name       string
+		data       string
+		cols, rows int
+	}{
+		{"telegram", telegram, 80, 24 - 2},
+		{"whatsapp", whatsapp, 80, 31 - 2},
+	} {
+		lines, err := qrtext.Lines(tc.data)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if w := utf8.RuneCountInString(lines[0]); w > tc.cols || len(lines) > tc.rows {
+			t.Errorf("%s: %d columns × %d lines, want within %d × %d", tc.name, w, len(lines), tc.cols, tc.rows)
+		}
+	}
+}
+
 // Each character is two modules, the top one its upper half: the lines read back as
 // the code itself, inside a light margin.
 func TestLinesAreTheCode(t *testing.T) {

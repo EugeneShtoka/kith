@@ -47,6 +47,9 @@ type LoginStep struct {
 	// QR is data to draw as a QR code until the next step, for a phone to scan (Note
 	// says where); AnswerLogin with no values waits for the scan.
 	QR string
+	// Instead, with QR, is another way to log in, said as the choice to offer ("link
+	// with a code typed on the phone instead"); InsteadLogin takes it.
+	Instead string
 	// Configure is an account to write into the config; after the daemon re-reads
 	// it, AnswerLogin with no values continues.
 	Configure *LoginRecord
@@ -88,6 +91,9 @@ type Logins interface {
 	AnswerLogin(ctx context.Context, login string, values map[string]string) (LoginStep, error)
 	// CancelLogin ends a login.
 	CancelLogin(ctx context.Context, login string) error
+	// InsteadLogin takes the other way the login's QR step offers. It does not wait:
+	// the AnswerLogin waiting on that step returns where the other way leads.
+	InsteadLogin(ctx context.Context, login string) error
 }
 
 // LoginTalk is a login's side of the conversation, as the network leads it.
@@ -99,8 +105,11 @@ type LoginTalk interface {
 	// not wait.
 	Show(ctx context.Context, code, note string) error
 	// ShowQR draws data as a QR code until the next step; note says what scans it. It
-	// does not wait.
-	ShowQR(ctx context.Context, data, note string) error
+	// does not wait. instead, when not "", offers another way to log in, said as the
+	// choice; Instead is closed once the client takes it.
+	ShowQR(ctx context.Context, data, note, instead string) error
+	// Instead is closed once the client takes the other way a QR step offered.
+	Instead() <-chan struct{}
 	// Configure has the client write a new account into the config and waits until
 	// the daemon re-reads it.
 	Configure(ctx context.Context, record LoginRecord) error

@@ -26,6 +26,11 @@ type Talk struct {
 	// written and code shown.
 	OnConfigure func(api.LoginRecord) error
 	OnShow      func(code string)
+	// Offered is what each QR step offered instead, when it offered something.
+	Offered []string
+	// Took is what Instead returns: closing it takes the other way a QR step offered,
+	// as InsteadLogin does. Nil never takes it.
+	Took chan struct{}
 }
 
 // ErrNoAnswer means the login asked more than the test supplied.
@@ -70,8 +75,22 @@ func (t *Talk) Show(_ context.Context, code, _ string) error {
 	return nil
 }
 
-// ShowQR records the data among the codes shown.
-func (t *Talk) ShowQR(ctx context.Context, data, note string) error { return t.Show(ctx, data, note) }
+// ShowQR records the data among the codes shown, and what it offers instead.
+func (t *Talk) ShowQR(ctx context.Context, data, note, instead string) error {
+	t.mu.Lock()
+	if instead != "" {
+		t.Offered = append(t.Offered, instead)
+	}
+	t.mu.Unlock()
+	return t.Show(ctx, data, note)
+}
+
+// Instead is Took.
+func (t *Talk) Instead() <-chan struct{} {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.Took
+}
 
 // Configure records the record and runs OnConfigure.
 func (t *Talk) Configure(_ context.Context, record api.LoginRecord) error {
