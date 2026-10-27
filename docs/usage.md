@@ -333,12 +333,16 @@ says (shown with its defaults):
 enabled = true   # scheduled backups on or off; `kith backup` works either way
 key     = ""     # an age public key (age1…); empty is the one the first `kith backup` made
 dir     = ""     # where they go; empty is [storage] export_dir/backups
-every   = "24h"  # a duration (6h, 90m) or days (7d)
+every   = "24h"  # how long after one the next is: a duration (6h, 90m) or days (7d)
+cron    = ""     # or set times instead, as a cron expression: "0 3 * * *" is 03:00 daily
 keep    = 7      # how many to keep; at least 1
 ```
 
-A backup is made once `every` has passed since the newest one; a time the machine was
-off is skipped, not made up. The oldest beyond `keep` are deleted, never the newest,
+Set `every` or `cron`, not both (both is refused); in Settings, *Backup · schedule*
+takes either and keeps only the one you typed. A backup is made once `every` has passed
+since the newest one, or at the cron expression's next time after it, in local time; a
+time the machine was off is skipped, not made up (one backup, not one per time
+missed). The oldest beyond `keep` are deleted, never the newest,
 and only files kithd named itself (`kith-daily-<date>-<time>.tar.age`) are ever
 counted or deleted, never yours. A change applies at kithd's next look, within the
 hour, with no restart; a `dir` outside kith's own folders needs a restart under the

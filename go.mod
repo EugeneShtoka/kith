@@ -27,6 +27,7 @@ require (
 	github.com/gotd/td v0.162.0
 	github.com/ncruces/go-sqlite3 v0.35.6
 	github.com/rivo/uniseg v0.4.7
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.35.1
 	github.com/yuin/goldmark v1.8.6
 	github.com/zalando/go-keyring v0.2.8

@@ -22,22 +22,21 @@ func TestParseEvery(t *testing.T) {
 	}
 }
 
-// An unset [backup] is on, every 24h, keeping 7; set values are read as written.
+// An unset [backup] is on, keeping 7; set values are read as written.
 func TestBackupDefaults(t *testing.T) {
 	t.Parallel()
 	var unset Backup
-	if !unset.On() || unset.EveryOrDefault() != DefaultBackupEvery || unset.KeepOrDefault() != DefaultBackupKeep {
-		t.Errorf("unset [backup]: on %v, every %v, keep %d; want on, %v, %d",
-			unset.On(), unset.EveryOrDefault(), unset.KeepOrDefault(), DefaultBackupEvery, DefaultBackupKeep)
+	if !unset.On() || unset.KeepOrDefault() != DefaultBackupKeep {
+		t.Errorf("unset [backup]: on %v, keep %d; want on, %d", unset.On(), unset.KeepOrDefault(), DefaultBackupKeep)
 	}
 	off, three := false, 3
-	set := Backup{Enabled: &off, Every: "7d", Keep: &three}
-	if set.On() || set.EveryOrDefault() != 7*24*time.Hour || set.KeepOrDefault() != 3 {
-		t.Errorf("set [backup]: on %v, every %v, keep %d; want off, 168h, 3", set.On(), set.EveryOrDefault(), set.KeepOrDefault())
+	set := Backup{Enabled: &off, Keep: &three}
+	if set.On() || set.KeepOrDefault() != 3 {
+		t.Errorf("set [backup]: on %v, keep %d; want off, 3", set.On(), set.KeepOrDefault())
 	}
 }
 
-// The starter config's [backup] decodes to the defaults.
+// The starter config's [backup] decodes to the defaults: on, every 24h, no cron.
 func TestTheStarterBackupIsTheDefaults(t *testing.T) {
 	t.Parallel()
 	cfg, err := Decode(Annotated())
@@ -45,7 +44,8 @@ func TestTheStarterBackupIsTheDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := cfg.Backup
-	if !b.On() || b.Key != "" || b.Dir != "" || b.EveryOrDefault() != DefaultBackupEvery || b.KeepOrDefault() != DefaultBackupKeep {
+	every, err := ParseEvery(b.Every)
+	if !b.On() || b.Key != "" || b.Dir != "" || b.Cron != "" || err != nil || every != DefaultBackupEvery || b.KeepOrDefault() != DefaultBackupKeep {
 		t.Errorf("the starter [backup] = %+v; want the defaults", b)
 	}
 }

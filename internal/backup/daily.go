@@ -13,18 +13,18 @@ import (
 	"github.com/EugeneShtoka/kith/internal/db"
 )
 
-// kithd makes a backup every Schedule.Every into Storage.BackupsDir and keeps the last
-// Schedule.Keep. One is due once Every has passed since the newest made at or before
-// now, so a clock set forward or a machine that slept makes one backup, not one per
-// interval missed, and a clock set back past every backup there makes one more. Only
-// files named as scheduled backups are counted or deleted, so a backup the user put
-// there stays. (They keep the name "daily" from when the schedule was fixed.)
+// kithd makes scheduled backups into Storage.BackupsDir and keeps the last
+// Schedule.Keep. One is due once Schedule.Next of the newest made at or before now has
+// come, so a clock set forward or a machine that slept makes one backup, not one per
+// time missed, and a clock set back past every backup there makes one more. Only files
+// named as scheduled backups are counted or deleted, so a backup the user put there
+// stays. (They keep the name "daily" from when the schedule was fixed.)
 
-// Schedule is how often kithd backs up and how many backups it keeps: [backup] every
-// and keep.
+// Schedule is when kithd backs up and how many backups it keeps: Next is when the
+// backup after one made at last is due ([backup] every or cron), Keep [backup] keep.
 type Schedule struct {
-	Every time.Duration
-	Keep  int
+	Next func(last time.Time) time.Time
+	Keep int
 }
 
 // A scheduled backup's name is dailyPrefix, the time it was made (dailyStamp),
@@ -64,8 +64,8 @@ func MakeDaily(ctx context.Context, src Source, to *PublicKey, dir string, sched
 		return Daily{}, err
 	}
 	done := Daily{Ignored: ignored}
-	if last, ok := lastBy(good, now); ok && now.Sub(last) < sched.Every {
-		done.Next = last.Add(sched.Every)
+	if last, ok := lastBy(good, now); ok && now.Before(sched.Next(last)) {
+		done.Next = sched.Next(last)
 		done.Deleted = rotate(good, "", sched.Keep)
 		return done, nil
 	}
@@ -77,7 +77,7 @@ func MakeDaily(ctx context.Context, src Source, to *PublicKey, dir string, sched
 	if err != nil {
 		return done, err
 	}
-	done.Ran, done.Made, done.Next = true, made, now.Add(sched.Every)
+	done.Ran, done.Made, done.Next = true, made, sched.Next(now)
 	good = append(good, daily{path: out, at: now})
 	done.Deleted = rotate(good, out, sched.Keep)
 	return done, nil

@@ -688,6 +688,8 @@ linters:
             - "github.com/adrg/xdg"
             # Only to check [backup] key is an age public key, wherever the config is read.
             - "filippo.io/age"
+            # [backup] cron: its parser, so every reader of the config checks it alike.
+            - "github.com/robfig/cron/v3"
 
         notify-is-pure:
           files:

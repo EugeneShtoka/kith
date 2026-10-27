@@ -17,9 +17,9 @@ import (
 var errPrivateBackupKey = errors.New("backup.key: this is the private key; put only the public key " +
 	"(age1…) here and keep the private key off this machine (`age-keygen -y` prints its public half)")
 
-// Backups checks [backup]: a public key (never the private one), a readable interval,
-// at least one backup kept, and a folder kithd can be given (a full path, and not under
-// /tmp, which kithd's sandbox replaces).
+// Backups checks [backup]: a public key (never the private one), a readable interval
+// or cron expression (not both), at least one backup kept, and a folder kithd can be
+// given (a full path, and not under /tmp, which kithd's sandbox replaces).
 func Backups(b config.Backup) error {
 	if key := strings.TrimSpace(b.Key); key != "" {
 		if strings.Contains(strings.ToUpper(key), "AGE-SECRET-KEY-") {
@@ -29,10 +29,8 @@ func Backups(b config.Backup) error {
 			return errors.New("backup.key: not an age public key (it starts age1…)")
 		}
 	}
-	if strings.TrimSpace(b.Every) != "" {
-		if _, err := config.ParseEvery(b.Every); err != nil {
-			return fmt.Errorf("backup.every %q: write a duration like 6h or 90m, or days like 7d", b.Every)
-		}
+	if _, err := BackupNext(b); err != nil {
+		return err
 	}
 	if b.KeepOrDefault() < 1 {
 		return fmt.Errorf("backup.keep %d: keep at least 1", b.KeepOrDefault())

@@ -10,12 +10,14 @@ import (
 
 // Backup is [backup]: kithd's scheduled backups. Enabled nil is on. Key is an age
 // public key (age1…); empty is the one the first `kith backup` kept. Dir empty is
-// <export_dir>/backups. Every is a duration ("6h", "7d"); empty is 24h. Keep nil is 7.
+// <export_dir>/backups. Every is a duration ("6h", "7d") and Cron a five-field cron
+// expression ("0 3 * * *"), one or the other; neither is every 24h. Keep nil is 7.
 type Backup struct {
 	Enabled *bool  `toml:"enabled"`
 	Key     string `toml:"key"`
 	Dir     string `toml:"dir"`
 	Every   string `toml:"every"`
+	Cron    string `toml:"cron"`
 	Keep    *int   `toml:"keep"`
 }
 
@@ -34,19 +36,6 @@ func (b Backup) KeepOrDefault() int {
 		return DefaultBackupKeep
 	}
 	return *b.Keep
-}
-
-// EveryOrDefault is how long after one scheduled backup the next is due; an unset or
-// unreadable value is the default (setup refuses an unreadable one at startup).
-func (b Backup) EveryOrDefault() time.Duration {
-	if strings.TrimSpace(b.Every) == "" {
-		return DefaultBackupEvery
-	}
-	every, err := ParseEvery(b.Every)
-	if err != nil {
-		return DefaultBackupEvery
-	}
-	return every
 }
 
 // errNotADuration is an interval that is neither a duration nor a number of days.

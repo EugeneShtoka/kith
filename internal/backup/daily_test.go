@@ -12,6 +12,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/backup"
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
 // day is noon local time, n days after a fixed date.
@@ -23,7 +24,12 @@ func day(n int) time.Time {
 // defaultSchedule the schedule an unset [backup] is.
 const defaultKeep = config.DefaultBackupKeep
 
-var defaultSchedule = backup.Schedule{Every: config.DefaultBackupEvery, Keep: defaultKeep}
+// after is a schedule's Next for a fixed interval, as [backup] every makes one.
+func after(d time.Duration) func(time.Time) time.Time {
+	return func(last time.Time) time.Time { return last.Add(d) }
+}
+
+var defaultSchedule = backup.Schedule{Next: after(config.DefaultBackupEvery), Keep: defaultKeep}
 
 // daily runs MakeDaily for m at now into dir, on the default schedule.
 func (m machine) daily(t *testing.T, ctx context.Context, dir string, now time.Time) (backup.Daily, error) {
@@ -107,7 +113,7 @@ func TestABackupIsDueEveryInterval(t *testing.T) {
 	m := newMachine(t)
 	m.as(t).fill(t, "kept", 5)
 	dir := t.TempDir()
-	sched := backup.Schedule{Every: 6 * time.Hour, Keep: defaultKeep}
+	sched := backup.Schedule{Next: after(6 * time.Hour), Keep: defaultKeep}
 	t0 := day(0)
 	first, err := m.scheduled(t, context.Background(), dir, sched, t0)
 	if err != nil || !first.Ran || !first.Next.Equal(t0.Add(6*time.Hour)) {
@@ -122,7 +128,7 @@ func TestABackupIsDueEveryInterval(t *testing.T) {
 		t.Fatalf("a run at 6h = %+v, %v; want one made", due, err)
 	}
 	// Three days off, then every made shorter: one backup, and none right after it.
-	sched.Every = time.Hour
+	sched.Next = after(time.Hour)
 	back := t0.Add(78 * time.Hour)
 	if got, err := m.scheduled(t, context.Background(), dir, sched, back); err != nil || !got.Ran {
 		t.Fatalf("the run after three days = %+v, %v; want one made", got, err)
@@ -132,6 +138,34 @@ func TestABackupIsDueEveryInterval(t *testing.T) {
 	}
 	if n := len(names(t, dir)); n != 3 {
 		t.Errorf("%d backups in the folder; want 3", n)
+	}
+}
+
+// By a cron schedule, slots the machine was off for are not made up: one backup when it
+// is back, none again until the next slot after it.
+func TestACronScheduleSkipsTheSlotsMissed(t *testing.T) {
+	m := newMachine(t)
+	m.as(t).fill(t, "kept", 5)
+	dir := t.TempDir()
+	next, nerr := setup.BackupNext(config.Backup{Cron: "0 3 * * *"})
+	if nerr != nil {
+		t.Fatal(nerr)
+	}
+	sched := backup.Schedule{Next: next, Keep: defaultKeep}
+	at3 := func(n int) time.Time { return time.Date(2026, 10, 1+n, 3, 0, 0, 0, time.Local) }
+	if got, err := m.scheduled(t, context.Background(), dir, sched, at3(0)); err != nil || !got.Ran {
+		t.Fatalf("the run at day 0's slot = %+v, %v; want one made", got, err)
+	}
+	back := at3(3).Add(7 * time.Hour) // off through three slots
+	got, err := m.scheduled(t, context.Background(), dir, sched, back)
+	if err != nil || !got.Ran || !got.Next.Equal(at3(4)) {
+		t.Fatalf("the run when back = %+v, %v; want one made, the next at day 4's slot", got, err)
+	}
+	if got, err := m.scheduled(t, context.Background(), dir, sched, back.Add(time.Hour)); err != nil || got.Ran {
+		t.Fatalf("a run an hour later = %+v, %v; want none: the missed slots are not made up", got, err)
+	}
+	if n := len(names(t, dir)); n != 2 {
+		t.Errorf("%d backups in the folder; want 2", n)
 	}
 }
 
@@ -150,7 +184,7 @@ func TestKeepLoweredDeletesOnlyTheOldestWholeOnes(t *testing.T) {
 	mine := filepath.Join(dir, "kith-backup-by-hand.tar.age")
 	write(t, mine, "mine", 0o600)
 
-	got, err := m.scheduled(t, context.Background(), dir, backup.Schedule{Every: 24 * time.Hour, Keep: 2}, day(defaultKeep).Add(time.Hour))
+	got, err := m.scheduled(t, context.Background(), dir, backup.Schedule{Next: after(24 * time.Hour), Keep: 2}, day(defaultKeep).Add(time.Hour))
 	if err != nil || got.Ran {
 		t.Fatalf("MakeDaily(keep 2, none due) = %+v, %v; want none made", got, err)
 	}
@@ -177,7 +211,7 @@ func TestAFailedBackupDeletesNothingWhateverKeepSays(t *testing.T) {
 	before := names(t, dir)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	got, err := m.scheduled(t, ctx, dir, backup.Schedule{Every: time.Hour, Keep: 1}, day(20))
+	got, err := m.scheduled(t, ctx, dir, backup.Schedule{Next: after(time.Hour), Keep: 1}, day(20))
 	if !errors.Is(err, context.Canceled) || got.Ran || len(got.Deleted) != 0 {
 		t.Fatalf("MakeDaily(canceled, keep 1) = %+v, %v; want context.Canceled and nothing deleted", got, err)
 	}

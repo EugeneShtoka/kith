@@ -30,3 +30,27 @@ func TestSettingsRefuseAPrivateBackupKey(t *testing.T) {
 		t.Errorf("the key row shows %q", detail)
 	}
 }
+
+// The schedule row writes a five-field cron expression to [backup] cron and anything
+// else to every, clearing the other, so only one is ever set; empty clears both.
+func TestTheBackupScheduleRowSetsEveryOrCron(t *testing.T) {
+	t.Parallel()
+	for typed, want := range map[string]config.Backup{
+		"0 3 * * *":                      {Cron: "0 3 * * *"},
+		" 6h ":                           {Every: "6h"},
+		"7d":                             {Every: "7d"},
+		"":                               {},
+		"30 2 * * 1 ":                    {Cron: "30 2 * * 1"},
+		"@daily":                         {Cron: "@daily"},
+		"CRON_TZ=Europe/Sofia 0 3 * * *": {Cron: "CRON_TZ=Europe/Sofia 0 3 * * *"},
+	} {
+		c := config.Config{Backup: config.Backup{Every: "12h", Cron: "0 1 * * *"}}
+		if err := setBackupSchedule(&c, typed); err != nil {
+			t.Fatalf("setBackupSchedule(%q) = %v", typed, err)
+		}
+		if c.Backup.Every != want.Every || c.Backup.Cron != want.Cron {
+			t.Errorf("setBackupSchedule(%q): every %q, cron %q; want every %q, cron %q",
+				typed, c.Backup.Every, c.Backup.Cron, want.Every, want.Cron)
+		}
+	}
+}

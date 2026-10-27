@@ -140,6 +140,10 @@ func (d dailyBackups) once(ctx context.Context, now time.Time) (done backup.Dail
 			err = fmt.Errorf("%w: %v", errDailyPanicked, p)
 		}
 	}()
-	sched := backup.Schedule{Every: cfg.Backup.EveryOrDefault(), Keep: cfg.Backup.KeepOrDefault()}
+	next, err := setup.BackupNext(cfg.Backup) // checked above
+	if err != nil {
+		return backup.Daily{}, err
+	}
+	sched := backup.Schedule{Next: next, Keep: cfg.Backup.KeepOrDefault()}
 	return backup.MakeDaily(ctx, src, to, storage.BackupsDir(), sched, now) //nolint:wrapcheck // backup words it
 }

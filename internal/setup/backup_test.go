@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"filippo.io/age"
 
@@ -61,6 +62,33 @@ func TestTheBackupScheduleAndFolderAreChecked(t *testing.T) {
 		{Every: "0d"}, {Keep: &zero},
 		{Dir: "backups"}, {Dir: "/tmp/kith"}, {Dir: "/var/tmp"}, {Dir: "/tmp/../tmp/x"},
 	} {
+		if err := setup.Backups(refused); err == nil {
+			t.Errorf("Backups(%+v) was taken; want it refused", refused)
+		}
+	}
+}
+
+// The next backup is due by cron when cron is set, after every when that is, and 24h
+// after with neither; both at once is refused, whichever it is.
+func TestTheNextBackupFollowsEveryOrCron(t *testing.T) {
+	t.Parallel()
+	last := time.Date(2026, 10, 27, 15, 40, 0, 0, time.Local)
+	for b, want := range map[*config.Backup]time.Time{
+		{}:                              last.Add(24 * time.Hour),
+		{Every: "6h"}:                   last.Add(6 * time.Hour),
+		{Cron: "0 3 * * *"}:             time.Date(2026, 10, 28, 3, 0, 0, 0, time.Local),
+		{Every: " ", Cron: "0 3 * * *"}: time.Date(2026, 10, 28, 3, 0, 0, 0, time.Local),
+	} {
+		next, err := setup.BackupNext(*b)
+		if err != nil {
+			t.Errorf("BackupNext(%+v) = %v", *b, err)
+			continue
+		}
+		if got := next(last); !got.Equal(want) {
+			t.Errorf("BackupNext(%+v) after %v = %v; want %v", *b, last, got, want)
+		}
+	}
+	for _, refused := range []config.Backup{{Every: "6h", Cron: "0 3 * * *"}, {Cron: "at three"}} {
 		if err := setup.Backups(refused); err == nil {
 			t.Errorf("Backups(%+v) was taken; want it refused", refused)
 		}
