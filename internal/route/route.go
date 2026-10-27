@@ -27,14 +27,16 @@ type Adapter interface {
 	Activity() <-chan domain.Activity
 	Unread() <-chan domain.Unread
 	Reactions() <-chan domain.ReactionUpdate
-	// Me is every ID on the network that is this person (none before a session).
+	// Me is every ID on the network that is this person; a network may know none
+	// before a session.
 	Me() []string
 }
 
 // The capabilities an adapter may have.
 type (
 	// Session is a network that exists before it is usable: until LoggedIn turns true
-	// (once, before anything reaches it), the router treats it as off.
+	// (once, before anything reaches it), the router treats it as off, except for the
+	// lists its cache answers (cached), which it serves logged in or not.
 	Session interface{ LoggedIn() bool }
 	// Resync refills an emptied cache from the start.
 	Resync interface {
@@ -327,8 +329,26 @@ func having[C any](r *Router) []C {
 // gather concatenates every live answer of the networks with C, in order. One failure
 // fails the read: a partial list would read as complete.
 func gather[C, T any](r *Router, read func(C) ([]T, error)) ([]T, error) {
+	return join(having[C](r), read)
+}
+
+// cached is gather for a list the cache answers (rooms, unread, spaces): every network
+// with C is asked, logged in or not, so what was kept stays listed while a session is
+// gone; one that is logged out answers from its cache alone.
+func cached[C, T any](r *Router, read func(C) ([]T, error)) ([]T, error) {
+	var all []C
+	for _, a := range r.all {
+		if c, ok := a.(C); ok {
+			all = append(all, c)
+		}
+	}
+	return join(all, read)
+}
+
+// join concatenates read's answers from each of cs, in order; one failure fails it.
+func join[C, T any](cs []C, read func(C) ([]T, error)) ([]T, error) {
 	var out []T
-	for _, c := range having[C](r) {
+	for _, c := range cs {
 		got, err := read(c)
 		if err != nil {
 			return nil, err
@@ -394,8 +414,9 @@ func (r *Router) Stop() {
 // fills), so it is short; asking the networks can be dear (Signal reads the keyring).
 const meFresh = 5 * time.Second
 
-// Me is every ID on every network that is this person. It is built again when the
-// logged-in networks change, after ForgetMe, or once meFresh has passed.
+// Me is every ID on every network that is this person, a logged-out one's too: its
+// cached messages are still yours. It is built again when the logged-in networks
+// change, after ForgetMe, or once meFresh has passed.
 func (r *Router) Me() []string {
 	live := r.live()
 	r.meMu.Lock()
@@ -408,7 +429,7 @@ func (r *Router) Me() []string {
 	r.meMu.Unlock()
 
 	var me []string
-	for _, a := range live {
+	for _, a := range r.all {
 		for _, id := range a.Me() {
 			if !slices.Contains(me, id) {
 				me = append(me, id)
@@ -445,19 +466,19 @@ func (r *Router) RewindSync(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// Rooms is every network's cached rooms.
+// Rooms is every network's cached rooms, a logged-out one's too.
 func (r *Router) Rooms(ctx context.Context) ([]domain.Room, error) {
-	return gather(r, func(c RoomLister) ([]domain.Room, error) { return c.Rooms(ctx) })
+	return cached(r, func(c RoomLister) ([]domain.Room, error) { return c.Rooms(ctx) })
 }
 
-// RefreshRooms refreshes every network's rooms.
+// RefreshRooms refreshes every network's rooms; a logged-out one answers from its cache.
 func (r *Router) RefreshRooms(ctx context.Context) ([]domain.Room, error) {
-	return gather(r, func(c RoomLister) ([]domain.Room, error) { return c.RefreshRooms(ctx) })
+	return cached(r, func(c RoomLister) ([]domain.Room, error) { return c.RefreshRooms(ctx) })
 }
 
-// CachedUnread is every network's unread state.
+// CachedUnread is every network's unread state, a logged-out one's too.
 func (r *Router) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
-	return gather(r, func(c RoomLister) ([]domain.Unread, error) { return c.CachedUnread(ctx) })
+	return cached(r, func(c RoomLister) ([]domain.Unread, error) { return c.CachedUnread(ctx) })
 }
 
 // RecountUnread has each room's network count its unread again; rooms of a network

@@ -30,8 +30,13 @@ func (b *InProc) UseIdentities(ctx context.Context, identities [][]string) {
 }
 
 // me is every MXID that is this person: the account, and the MXIDs of its identity.
+// Before a session the account is the configured one: a logged-out account's cached
+// messages are still yours.
 func (b *InProc) me() []string {
 	account := b.accountID()
+	if account == "" {
+		account = b.ids.user(b.user)
+	}
 	me := []string{account}
 	b.selves.mu.Lock()
 	defer b.selves.mu.Unlock()

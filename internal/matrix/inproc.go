@@ -36,6 +36,8 @@ type InProc struct {
 	cache  *db.Cache
 	// ids converts every ID crossing between Matrix's form and kith's (ids.go).
 	ids ids
+	// user is the account's MXID as configured (useAccount): who it is before a session.
+	user id.UserID
 	// tagsMu serializes read-change-write of tag account data (tagverdicts.go).
 	tagsMu sync.Mutex
 	// ignoredMu serializes read-change-write of m.ignored_user_list (ignored.go).
@@ -166,7 +168,7 @@ func New(cache *db.Cache) *InProc {
 // useAccount names the account whose IDs this backend speaks, user its MXID. Call once,
 // before anything reads or writes its rooms.
 func (b *InProc) useAccount(user string) {
-	b.ids = accountIDs(user)
+	b.ids, b.user = accountIDs(user), configuredUser(user)
 	if cacheOwesRewind(b.cache, b.ids.owner()) {
 		b.rewind.owe()
 	}
