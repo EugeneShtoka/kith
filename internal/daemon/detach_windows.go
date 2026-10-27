@@ -6,9 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 )
 
@@ -23,7 +21,7 @@ const (
 // detach starts binary.exe (kithd, kith-notify) with no console in its own process
 // group, the Windows `setsid kithd`. context.Background() as in detach_unix.go.
 func detach(binary string, binaryArgs []string) error {
-	path, err := binaryPath(binary)
+	path, err := Binary(binary)
 	if err != nil {
 		return err
 	}
@@ -52,22 +50,6 @@ func detach(binary string, binaryArgs []string) error {
 		return fmt.Errorf("daemon: %w", err)
 	}
 	return nil
-}
-
-// binaryPath finds binary.exe beside this executable (an unzipped release is often not
-// on PATH), then on PATH.
-func binaryPath(binary string) (string, error) {
-	if self, err := os.Executable(); err == nil {
-		sibling := filepath.Join(filepath.Dir(self), binary+".exe")
-		if info, statErr := os.Stat(sibling); statErr == nil && !info.IsDir() {
-			return sibling, nil
-		}
-	}
-	path, err := exec.LookPath(binary)
-	if err != nil {
-		return "", fmt.Errorf("daemon: %s.exe is neither beside kith.exe nor on PATH: %w", binary, err)
-	}
-	return path, nil
 }
 
 func autostartHint(string) string {
