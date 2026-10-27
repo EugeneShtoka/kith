@@ -242,20 +242,14 @@ func readLine(in *bufio.Reader, prompt string) (string, error) {
 	return strings.TrimSpace(line), nil
 }
 
-// printQR prints data as a QR code, light on dark whatever the terminal's colors.
-func printQR(data string) {
-	for _, line := range qrBlock(data) {
-		fmt.Println(line.text)
-	}
-}
-
 // shownLine is a line to print and how many columns of it show.
 type shownLine struct {
 	text  string
 	shown int
 }
 
-// qrBlock is data as a QR code between blank lines, indented, light on dark.
+// qrBlock is data as a QR code between blank lines, indented, light on dark whatever
+// the terminal's colors.
 func qrBlock(data string) []shownLine {
 	lines, err := qrtext.Lines(data)
 	if err != nil {
