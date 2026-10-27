@@ -304,16 +304,19 @@ long it took: about 15 seconds for 500 MB, during which kith waits for the daemo
 The keyring gives a key, but not the one the cache was encrypted with: the entry
 (`<instance>|cache-store`) was replaced or deleted and made again. The daemon waits as
 for a locked keyring and never replaces the cache. Put the old entry back if you can,
-and it opens by itself. Otherwise move `cache-<instance>.db` aside (or restore a
-backup); the daemon then starts an empty cache and fills it from what the networks
-still hold.
+and it opens by itself. Otherwise move `cache-<instance>.db` aside (or
+[restore a backup](usage.md#backing-up-and-moving-to-a-new-machine), which needs your
+backup key, not this one); the daemon then starts an empty cache and fills it from what
+the networks still hold.
 
 ### "Backups are off until you run `kith backup` once"
 
 kithd's daily backups are encrypted to your backup key, and there is none yet: the
 first `kith backup`, run in a terminal, makes it and shows you its private half. kithd
 never makes one itself, since nobody would see that half and the backups could never be
-opened. Run `kith backup` once; the daily ones start within the hour.
+opened. Run `kith backup` once; the daily ones start within the hour. Keep the key it
+shows somewhere other than this machine: without it no backup opens
+([your backup key](usage.md#backing-up-and-moving-to-a-new-machine)).
 
 ### "The daily backup failed: …" or "is put off: …"
 
@@ -330,7 +333,9 @@ for it in a drop-in. Each is said once, and again only after a backup has worked
 `kith restore` was given a key the backup was not made to: a key from another machine,
 or one made again after the first was lost. Each backup opens only with the key that
 was current when it was made. A text that is not a key at all (it should start
-`AGE-SECRET-KEY-1`) is refused the same way. Nothing was changed.
+`AGE-SECRET-KEY-1`) is refused the same way. Nothing was changed. The backup key is not
+the keyring's cache key; a restore needs only the backup key. If it is lost, see
+[if you lose the key](usage.md#backing-up-and-moving-to-a-new-machine).
 
 ## Encryption
 
