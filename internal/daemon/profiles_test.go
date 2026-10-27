@@ -601,6 +601,40 @@ func TestAProfileIsTheFirstOrOneTheConfigHas(t *testing.T) {
 	}
 }
 
+// A profile leaving out its archive leaves out what it archives: phone archives Signal,
+// so it lists Slack only; one on the shared archive (which holds neither) lists both.
+func TestAProfileLeavesOutItsOwnArchive(t *testing.T) {
+	t.Parallel()
+	w := &profileWorld{Nop: nopWithChannels()}
+	h, n := profileServer(t, w)
+	signal, slack := domain.RoomID(mx+"!s:x"), domain.RoomID(mx+"!k:x")
+	w.set([]domain.Room{{ID: signal, Network: domain.ProtocolSignal}, {ID: slack, Network: domain.ProtocolSlack}}, nil, nil)
+	cfg := config.Config{
+		Tags: []config.Tag{{Name: "Archived", Rule: []string{"space:Nowhere"}}},
+		Profiles: []config.Profile{
+			{Name: "shared", Include: []string{"*"}, Exclude: []string{"tag:Archived"}},
+			{
+				Name: "phone", Include: []string{"*"}, Exclude: []string{"tag:Archived"},
+				Archive: config.ProfileArchive{Rooms: []string{"protocol:signal"}},
+			},
+		},
+	}
+	if err := n.Reload(cfg); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string][]domain.RoomID{"shared": {slack, signal}, "phone": {slack}} {
+		client := h.client()
+		client.UseProfile(name)
+		rooms, err := client.Rooms(t.Context())
+		got := roomsOf(rooms, roomOf)
+		slices.Sort(got)
+		slices.Sort(want)
+		if err != nil || !slices.Equal(got, want) {
+			t.Errorf("profile %q: Rooms = %v, %v; want %v", name, got, err, want)
+		}
+	}
+}
+
 // A profile a reload takes away holds nothing for a stream already open in it, and its
 // next call is refused: never the first profile instead.
 func TestAProfileTakenAwayHoldsNothing(t *testing.T) {

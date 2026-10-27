@@ -19,7 +19,8 @@ var _ interface {
 
 // A reload that gives a profile people.exclude, naming a phonebook field a card meets,
 // recounts the rooms the person wrote in, and the profile counts them without the
-// person, while the first profile still counts them.
+// person, while the first profile still counts them; the profile's own archive (step 8)
+// changes none of it for a room it keeps.
 func TestAReloadThatExcludesSomeoneFromAProfileCountsThemOut(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -46,9 +47,15 @@ func TestAReloadThatExcludesSomeoneFromAProfileCountsThemOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	stream := backend.Unread()
+	// Home has an archive of its own too (its DMs), which leaves this group in it.
+	cfg.Tags = []config.Tag{{Name: "Archived"}}
 	cfg.Profiles = []config.Profile{
 		{Name: "first", Include: []string{"*"}},
-		{Name: "home", Include: []string{"*"}, People: config.ProfilePeople{Exclude: []string{"role:colleagues"}}},
+		{
+			Name: "home", Include: []string{"*"}, Exclude: []string{"tag:Archived"},
+			Archive: config.ProfileArchive{Rooms: []string{"dm"}},
+			People:  config.ProfilePeople{Exclude: []string{"role:colleagues"}},
+		},
 	}
 	if err := backend.useHidden(ctx, cfg); err != nil {
 		t.Fatal(err)

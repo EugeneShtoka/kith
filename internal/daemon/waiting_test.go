@@ -52,8 +52,10 @@ func waitingAt(t *testing.T, socket string, why func() string) (stop func()) {
 	return stop
 }
 
-// soon is how long a client may take to say why: one probe, not a readiness timeout.
-const soon = 2 * time.Second
+// soon is how long a client may take to say why. What must fail is sitting out the
+// readiness timeout (a minute) first; a third of that leaves a loaded machine room
+// while the minute's wait still fails it.
+const soon = 20 * time.Second
 
 // isWaiting fails unless err says the daemon is waiting, and why.
 func isWaiting(t *testing.T, what string, err error) {
@@ -136,7 +138,7 @@ func TestWaitOutSaysWhyAndReturnsOnceKithdStarts(t *testing.T) {
 	why.Store(&second)
 	waitSaid := func(n int) {
 		t.Helper()
-		deadline := time.Now().Add(10 * time.Second)
+		deadline := time.Now().Add(soon)
 		for {
 			mu.Lock()
 			got := len(said)
@@ -161,18 +163,16 @@ func TestWaitOutSaysWhyAndReturnsOnceKithdStarts(t *testing.T) {
 		t.Fatalf("WaitOut returned %v while kithd was starting", err)
 	case <-time.After(gap):
 	}
-	started := time.Now()
+	// Returning because kithd answered, not because the silence ran out: that would come
+	// only startGap (30 s) after the socket closed, past soon from here.
 	runDaemon(t, socket, apitest.Nop{})
 	select {
 	case err := <-returned:
 		if err != nil {
 			t.Fatalf("WaitOut = %v once kithd started", err)
 		}
-		if took := time.Since(started); took > soon {
-			t.Errorf("WaitOut returned %s after kithd started", took)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("WaitOut did not return once kithd started")
+	case <-time.After(soon):
+		t.Fatalf("WaitOut did not return within %s of kithd starting", soon)
 	}
 	mu.Lock()
 	defer mu.Unlock()

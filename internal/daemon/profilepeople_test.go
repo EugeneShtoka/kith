@@ -34,6 +34,81 @@ func (w *peopleWorld) ProfileUnread(ctx context.Context, unread []domain.Unread)
 	return out, nil
 }
 
+// A profile with an archive of its own and people of its own: a room its archive takes
+// out of it is neither counted nor notified there, whoever writes; a room it keeps is
+// counted without its people, and their messages skip only its topic. The profiles'
+// two filters meet without either moving the other.
+func TestAProfilesArchiveAndPeopleCompose(t *testing.T) {
+	t.Parallel()
+	w := &peopleWorld{profileWorld: &profileWorld{Nop: nopWithChannels()}}
+	h := serve(t, w)
+	dm, group := domain.RoomID(mx+"!dm:x"), domain.RoomID(mx+"!group:x")
+	w.set([]domain.Room{{ID: dm, IsDirect: true}, {ID: group}}, nil, nil)
+	cfg := notifsOn("all")
+	cfg.Tags = []config.Tag{{Name: "Archived"}}
+	cfg.Profiles = []config.Profile{
+		{Name: "first", Include: []string{"*"}},
+		{
+			Name: "Home", Include: []string{"*"}, Exclude: []string{"tag:Archived"},
+			Archive: config.ProfileArchive{Rooms: []string{"dm"}},
+			People:  config.ProfilePeople{Exclude: []string{alice}},
+		},
+	}
+	if err := h.notifications.Reload(cfg); err != nil {
+		t.Fatal(err)
+	}
+	h.notifications.InvalidateScope()
+	h.notifications.UseHidden(func(ctx context.Context, m domain.Message) (bool, error) {
+		return domain.ProfileIn(ctx) == "Home" && m.Sender == alice, nil
+	})
+	ctx := t.Context()
+	home, first := h.client(), h.client()
+	home.UseProfile("Home")
+	for _, c := range []interface{ Start(context.Context) error }{home, first} {
+		go func() { _ = c.Start(ctx) }()
+	}
+	defer home.Stop()
+	defer first.Stop()
+	h.waitAttached(2)
+	homeNotes, firstNotes := listen(t, home), listen(t, first)
+
+	for _, m := range []domain.Message{msg(dm, bob, "dm:bob"), msg(group, alice, "group:alice"), msg(group, bob, "group:bob")} {
+		h.notifications.Deliver(ctx, m)
+	}
+	var gotHome, gotFirst []string
+	quiet := time.After(settle)
+	for len(gotFirst) < 3 || len(gotHome) < 1 {
+		select {
+		case v := <-homeNotes:
+			gotHome = append(gotHome, v.Alert.Body)
+		case v := <-firstNotes:
+			gotFirst = append(gotFirst, v.Alert.Body)
+		case <-quiet:
+			t.Fatalf("notifications: Home %v, first %v", gotHome, gotFirst)
+		}
+	}
+	select {
+	case v := <-homeNotes:
+		gotHome = append(gotHome, v.Alert.Body)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if !slices.Equal(gotHome, []string{"group:bob"}) || len(gotFirst) != 3 {
+		t.Errorf("notifications: Home %v, want Bob's in the group alone; first %v, want all three", gotHome, gotFirst)
+	}
+
+	unread, err := home.CachedUnread(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := roomsOf(unread, func(u domain.Unread) domain.RoomID { return u.RoomID }); !slices.Equal(got, []domain.RoomID{group}) {
+		t.Errorf("Home's unread holds %v, want the group alone: its archive takes the DM", got)
+	}
+	everyone, err := first.CachedUnread(ctx)
+	if err != nil || len(everyone) != 2 {
+		t.Errorf("first's unread = %v, %v; want both rooms", everyone, err)
+	}
+}
+
 // A profile that excludes a person gets none of their notifications, while the other
 // profiles holding the room do; its unread counts come counted in it, on a call and on
 // the stream, under its name as the config spells it, however the client wrote it.

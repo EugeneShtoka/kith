@@ -66,7 +66,7 @@ var reaches = map[string]profileReach{
 	"RecordEmoji": passes, "EmojiScores": passes, "DirectCandidates": passes, "PublicRooms": passes,
 	"BlockPerson": passes, "UnblockPerson": passes, "BlockedPeople": passes, "SignOut": passes,
 	"ChatOffers": passes, "Accounts": passes, "Seat": passes, "LoginNetworks": passes,
-	"BeginLogin": passes, "AnswerLogin": passes, "CancelLogin": passes, "MessageCounts": passes,
+	"BeginLogin": passes, "AnswerLogin": passes, "CancelLogin": passes, "InsteadLogin": passes, "MessageCounts": passes,
 	"FollowStream": passes, "RoomsChanged": passes, "Verifications": passes, "StartVerification": passes,
 	"AcceptVerification": passes, "ConfirmSAS": passes, "CancelVerification": passes, "Status": passes,
 	"Selves": passes, "Directory": passes, "ClearCache": passes, "RestoreKeyBackup": passes,
@@ -187,10 +187,10 @@ func (n *Notifications) within(ctx context.Context) func(domain.RoomFacts) bool 
 	switch {
 	case err != nil:
 		return func(domain.RoomFacts) bool { return false }
-	case len(p.Rooms.Include) == 0 && len(p.Rooms.Exclude) == 0:
+	case p.Everyone():
 		return nil
 	}
-	return p.Rooms.Admits
+	return p.Holds
 }
 
 // profileRooms keeps the rooms the request's profile holds.

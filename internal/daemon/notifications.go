@@ -309,7 +309,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 
 	n.scope.SetAliases(cfg.Display.Names)
 	n.scope.SetHomeOrder(homeOrderOf(cfg))
-	n.applyTagsAndArchives(cfg, filters)
+	n.applyTagsAndArchives(cfg, filters, profiles)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.rules, n.limit, n.clock = rules, limit, clock
@@ -325,8 +325,9 @@ func (n *Notifications) Reload(cfg config.Config) error {
 }
 
 // applyTagsAndArchives pushes the config's tags into the scope and runs them
-// through the filters, archive mapping and push_archive reconciler.
-func (n *Notifications) applyTagsAndArchives(cfg config.Config, filters domain.Filters) {
+// through the filters, archive mapping and push_archive reconciler, which pushes for
+// each profile with the tags as it has them.
+func (n *Notifications) applyTagsAndArchives(cfg config.Config, filters domain.Filters, profiles []domain.Profile) {
 	// Already validated by Reload.
 	tags, _, _ := setup.Tags(cfg)
 	n.scope.SetTags(tags)
@@ -337,42 +338,31 @@ func (n *Notifications) applyTagsAndArchives(cfg config.Config, filters domain.F
 	}
 	archives, _ := setup.Archives(cfg, tags)
 	n.scope.SetArchives(archives)
-	n.applyArchiveWatcher(tags)
+	n.applyArchiveWatcher(tags, profiles)
 }
 
 // applyArchiveWatcher updates the push_archive reconciler with the new tags and
-// re-runs it. A tag that just became push_archive catches up to the network; a
-// tag that stopped pushing leaves its rooms where they are.
-func (n *Notifications) applyArchiveWatcher(tags domain.TagSet) {
+// profiles and re-runs it. A tag or profile that just started pushing catches up to
+// the network; one that stopped leaves its rooms where they are.
+func (n *Notifications) applyArchiveWatcher(tags domain.TagSet, profiles []domain.Profile) {
 	if n.archive == nil {
 		return
 	}
-	n.archive.setPushing(tags)
+	n.archive.setPushing(tags, profiles)
 	n.archive.setLog(n.log)
 	n.pushArchiveReconcile()
 }
 
-// pushArchiveReconcile runs the push_archive diff against the current scope. The
-// scope read may fail (e.g. the cache went away mid-reload); in that case the
-// reconcile is skipped and the next one picks it up. Called from Reload and
-// from InvalidateScope's hub, so the reconciler reacts to filter catches, picked
-// list changes, and new rooms alike.
+// pushArchiveReconcile runs the push_archive diff against the current scope, in the
+// background and never two at once (archiveWatch.kick). A scope read that fails (the
+// cache went away mid-reload) skips it, and the next one picks it up. Called from
+// Reload and from InvalidateScope's hub, so the reconciler reacts to filter catches,
+// picked list changes, and new rooms alike.
 func (n *Notifications) pushArchiveReconcile() {
 	if n.archive == nil || n.archiver == nil {
 		return
 	}
-	// Separate goroutine: a reconcile can block on an adapter's SetArchived
-	// network call, and Reload must not wait for that.
-	go func() {
-		facts, err := n.scope.All(context.Background())
-		if err != nil {
-			if n.log != nil {
-				n.log.Warn("push_archive: skipping reconcile; scope read failed", "err", err)
-			}
-			return
-		}
-		n.archive.reconcile(context.Background(), facts, n.archiver)
-	}()
+	n.archive.kick(n.scope.All, n.archiver)
 }
 
 // RescanFilters judges cached messages since since, as if they arrived now, and returns
@@ -554,7 +544,7 @@ func (n *Notifications) topics(ctx context.Context, facts domain.RoomFacts, msg 
 	n.mu.Lock()
 	var holding []domain.Profile
 	for _, p := range n.profiles {
-		if p.Rooms.Admits(facts) {
+		if p.Holds(facts) {
 			holding = append(holding, p)
 		}
 	}

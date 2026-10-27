@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"math/big"
 	"slices"
@@ -27,6 +28,7 @@ import (
 
 // fakeTelegram is a login served by gotd's in-process MTProto server: one account
 // (code "12345"), 2FA when password is set; the first rejectPasswords checks fail.
+// QR tokens last tokenLife; scan has a phone accept the last one as a user.
 type fakeTelegram struct {
 	cluster *cluster.Cluster
 	user    *tg.User
@@ -36,13 +38,20 @@ type fakeTelegram struct {
 	rejectPasswords int
 	sentCodes       int
 	revoked         bool
+	tokenLife       time.Duration
+	tokens          int
+	scanner         *tg.User
+	qr              *tgtest.Server
+	qrSession       tgtest.Session
+	loggedOut       int
 }
 
 func newFakeTelegram(t *testing.T) *fakeTelegram {
 	t.Helper()
 	f := &fakeTelegram{
-		cluster: cluster.NewCluster(cluster.Options{Protocol: transport.Intermediate}),
-		user:    &tg.User{ID: 42, AccessHash: 1, FirstName: "Dana", LastName: "Lee", Self: true},
+		cluster:   cluster.NewCluster(cluster.Options{Protocol: transport.Intermediate}),
+		user:      &tg.User{ID: 42, AccessHash: 1, FirstName: "Dana", LastName: "Lee", Phone: home.Digits, Self: true},
+		tokenLife: 30 * time.Second,
 	}
 	d := f.cluster.Dispatch(2, "dc2")
 	answer := func(id uint32, decode bin.Decoder, reply func() (bin.Encoder, *tgerr.Error)) {
@@ -90,6 +99,34 @@ func newFakeTelegram(t *testing.T) *fakeTelegram {
 		}
 		return &tg.AuthAuthorization{User: f.user}, nil
 	})
+	// A QR token until a phone scans one; then the scanner's sign-in (or 2FA's turn).
+	var export tg.AuthExportLoginTokenRequest
+	d.HandleFunc(tg.AuthExportLoginTokenRequestTypeID, func(s *tgtest.Server, req *tgtest.Request) error {
+		if err := export.Decode(req.Buf); err != nil {
+			return err
+		}
+		f.mu.Lock()
+		f.qr, f.qrSession = s, req.Session
+		f.tokens++
+		n, life, scanner, password := f.tokens, f.tokenLife, f.scanner, f.password
+		f.mu.Unlock()
+		switch {
+		case scanner == nil:
+			return sendResult(s, req, &tg.AuthLoginToken{
+				Token: []byte(fmt.Sprintf("token-%d", n)), Expires: int(time.Now().Add(life).Unix()),
+			})
+		case password:
+			return s.SendErr(req, tgerr.New(401, "SESSION_PASSWORD_NEEDED"))
+		}
+		return sendResult(s, req, &tg.AuthLoginTokenSuccess{Authorization: &tg.AuthAuthorization{User: scanner}})
+	})
+	var logOut tg.AuthLogOutRequest
+	answer(tg.AuthLogOutRequestTypeID, &logOut, func() (bin.Encoder, *tgerr.Error) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.loggedOut++
+		return &tg.AuthLoggedOut{}, nil
+	})
 	// Every connection asks for updates state; nothing has happened yet.
 	var state tg.UpdatesGetStateRequest
 	answer(tg.UpdatesGetStateRequestTypeID, &state, func() (bin.Encoder, *tgerr.Error) {
@@ -126,6 +163,19 @@ func (f *fakeTelegram) dial(app App, storage session.Storage, handler telegram.U
 		PublicKeys: f.cluster.Keys(), Resolver: f.cluster.Resolver(), DCList: f.cluster.List(),
 		SessionStorage: storage, UpdateHandler: handler,
 	})
+}
+
+// scan has a phone logged in as user accept the QR token last exported, and Telegram
+// tell the client so, as it does.
+func (f *fakeTelegram) scan(t *testing.T, user *tg.User) {
+	t.Helper()
+	f.mu.Lock()
+	f.scanner = user
+	s, k := f.qr, f.qrSession
+	f.mu.Unlock()
+	if err := s.SendUpdates(t.Context(), k, &tg.UpdateLoginToken{}); err != nil {
+		t.Errorf("tell the client of the scan: %v", err)
+	}
 }
 
 func (f *fakeTelegram) set(change func(*fakeTelegram)) {
@@ -171,11 +221,24 @@ func srpParameters() *tg.AccountPassword {
 
 var testApp = App{ID: 1, Hash: "0123456789abcdef0123456789abcdef"}
 
-// logIn runs home's login over the fake, answering from answers.
+// byCode answers a login from answers the code way: it takes the code Telegram sends
+// at the first QR code.
+func byCode(answers map[string][]string) *apitest.Talk {
+	took := make(chan struct{})
+	var once sync.Once
+	return &apitest.Talk{Answers: answers, Took: took, OnShow: func(string) { once.Do(func() { close(took) }) }}
+}
+
+// logIn runs home's login over the fake the code way, answering from answers.
 func logIn(t *testing.T, f *fakeTelegram, secrets *memSecrets, answers map[string][]string) (*Adapter, *sessions, *apitest.Talk, api.LoginEnd, error) {
 	t.Helper()
+	return logInWith(t, f, secrets, byCode(answers))
+}
+
+// logInWith runs home's login over the fake through talk.
+func logInWith(t *testing.T, f *fakeTelegram, secrets *memSecrets, talk *apitest.Talk) (*Adapter, *sessions, *apitest.Talk, api.LoginEnd, error) {
+	t.Helper()
 	a, heard := started(t, secrets, home)
-	talk := &apitest.Talk{Answers: answers}
 	end, err := a.login(t.Context(), home, testApp, talk, f.dial)
 	return a, heard, talk, end, err
 }

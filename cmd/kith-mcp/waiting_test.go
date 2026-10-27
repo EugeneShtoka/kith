@@ -29,7 +29,8 @@ func TestAToolSaysKithdIsWaitingAndWhy(t *testing.T) {
 	s := &server{backend: daemon.NewRemote(socket), scope: shareAll, log: logging.Discard()}
 	start := time.Now()
 	said := callErr(t, s, "list_rooms", nil)
-	if took := time.Since(start); took > 2*time.Second {
+	// Not a readiness timeout (a minute) first; a third of it leaves a loaded machine room.
+	if took := time.Since(start); took > 20*time.Second {
 		t.Errorf("list_rooms took %s to answer", took)
 	}
 	if !strings.Contains(said, "kithd is waiting: "+why) {

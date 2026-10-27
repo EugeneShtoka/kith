@@ -207,7 +207,7 @@ func TestBadOrderIsRefused(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := derive(config.Config{Display: config.Display{Rooms: tc.rooms}}); err == nil {
+			if _, err := derive(config.Config{Display: config.Display{Rooms: tc.rooms}}, ""); err == nil {
 				t.Error("a misspelled order was accepted")
 			}
 		})

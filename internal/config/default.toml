@@ -313,8 +313,9 @@ notify = false
 #   count_in_label  = true  the row says how many rooms it holds
 #   push_archive    = true  mirror the tag's membership into each room's network
 #                           archive — a room joining the tag calls SetArchived on
-#                           its network, leaving unarchives. Per-device: `true` on
-#                           a laptop with `false` on a homelab keeps the homelab's
+#                           its network, leaving unarchives what kith archived (a
+#                           chat you archived on the phone stays). Per-device: `true`
+#                           on a laptop with `false` on a homelab keeps the homelab's
 #                           narrower view local.
 #   people = [...]          senders put in it by hand, one ID each. A muted tag's
 #                           (notifies = false) are hidden in every room: their
@@ -437,6 +438,36 @@ network_colors = false
 #   name    = "work"
 #   include = ["space:Work", "protocol:slack"]
 #   exclude = ["tag:Archived"]
+#
+# A profile can have an archive and a rail of its own; what it leaves unset is the
+# shared one.
+#
+#   archive.rooms   the rooms archived in this profile, written as a tag's rule
+#                   (`not` entries too): it replaces the archive tag's rule here (the
+#                   tag [whatsapp.archive] and [telegram.archive] name, Archived by
+#                   default). Empty keeps the tag's rule. Filing a room by hand (S,
+#                   /tag Archived) still files it in every profile, and a chat
+#                   archived on its network ([<network>.archive] follow) is archived
+#                   in every profile.
+#   archive.push    archives this profile's archived rooms on their network, as the
+#                   tag's push_archive does; unset keeps the tag's. Profiles that push
+#                   add up: a chat stays archived on its network while any pushing
+#                   profile archives it, and a profile pushes only rooms it holds.
+#                   Letting go unarchives only what kith archived. A profile that stops
+#                   pushing, or is removed, leaves the network as it is.
+#   rail            replaces [display.rail] in this profile, whole, once it sets
+#                   anything: order, hidden, hide_when_empty, network_colors.
+#
+#   [[profile]]
+#   name    = "phone"
+#   include = ["dm", "tag:Family", "protocol:signal"]
+#   [profile.archive]
+#   rooms = ["not tag:Family"]
+#   push  = false
+#   [profile.rail]
+#   order = ["tag:Unread", "tag:Family", "*"]
+#
+# (archive = { rooms = [...], push = false } on the [[profile]] says the same.)
 #
 # A profile can hide people too, as a muted tag's people are hidden everywhere: their
 # messages and the direct replies to them leave its timeline, search, counts and

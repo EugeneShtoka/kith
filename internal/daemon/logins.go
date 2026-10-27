@@ -23,6 +23,8 @@ var (
 	errNoSuchLogin = errors.New("daemon: that login has ended; begin it again")
 	// errNoSuchNetwork answers a login of a network the daemon cannot log in to.
 	errNoSuchNetwork = fmt.Errorf("%w: no network here is called that", api.ErrNetworkOff)
+	// errNoInstead answers InsteadLogin when the login's step offers no other way.
+	errNoInstead = errors.New("daemon: this step of the login offers no other way")
 )
 
 // Logins runs logins as conversations (api.Logins): each network leads its own
@@ -73,8 +75,15 @@ type conversation struct {
 	turn     sync.Mutex
 	awaiting bool
 
+	// instead is closed when the client takes the other way a QR step offered
+	// (InsteadLogin), which it may do while an AnswerLogin holds turn.
+	instead     chan struct{}
+	insteadOnce sync.Once
+
 	mu      sync.Mutex
 	account string
+	// offered says the client's current step is a QR step offering another way.
+	offered bool
 }
 
 // said is a step, or how the login failed.
@@ -115,7 +124,7 @@ func (l *Logins) BeginLogin(ctx context.Context, network, account string) (api.L
 	run, cancel := context.WithTimeout(l.run, loginTimeout)
 	c := &conversation{
 		id: id, network: network, account: account, cancel: cancel, ended: run.Done(),
-		steps: make(chan said), answers: make(chan map[string]string),
+		steps: make(chan said), answers: make(chan map[string]string), instead: make(chan struct{}),
 	}
 	l.mu.Lock()
 	if account != "" {
@@ -199,6 +208,26 @@ func (l *Logins) CancelLogin(_ context.Context, id string) error {
 	return nil
 }
 
+// InsteadLogin takes the other way the login's QR step offers. It takes no turn: the
+// client's AnswerLogin is waiting on the QR step, and returns where the other way
+// leads.
+func (l *Logins) InsteadLogin(_ context.Context, id string) error {
+	l.mu.Lock()
+	c := l.byID[id]
+	l.mu.Unlock()
+	if c == nil {
+		return errNoSuchLogin
+	}
+	c.mu.Lock()
+	offered := c.offered
+	c.mu.Unlock()
+	if !offered {
+		return errNoInstead
+	}
+	c.insteadOnce.Do(func() { close(c.instead) })
+	return nil
+}
+
 func (c *conversation) next(ctx context.Context) (api.LoginStep, error) {
 	c.turn.Lock()
 	defer c.turn.Unlock()
@@ -214,6 +243,9 @@ func (c *conversation) nextLocked(ctx context.Context) (api.LoginStep, error) {
 		}
 		s.step.Login, s.step.Account = c.id, c.accountNow()
 		c.awaiting = s.step.Ask != nil || s.step.Configure != nil
+		c.mu.Lock()
+		c.offered = s.step.QR != "" && s.step.Instead != ""
+		c.mu.Unlock()
 		return s.step, nil
 	case <-c.ended:
 		return api.LoginStep{}, errNoSuchLogin
@@ -293,12 +325,14 @@ func (t talk) Show(ctx context.Context, code, note string) error {
 	return nil
 }
 
-func (t talk) ShowQR(ctx context.Context, data, note string) error {
-	if !t.c.say(ctx, said{step: api.LoginStep{Note: note, QR: data}}) {
+func (t talk) ShowQR(ctx context.Context, data, note, instead string) error {
+	if !t.c.say(ctx, said{step: api.LoginStep{Note: note, QR: data, Instead: instead}}) {
 		return ctx.Err() //nolint:wrapcheck // the login's own end
 	}
 	return nil
 }
+
+func (t talk) Instead() <-chan struct{} { return t.c.instead }
 
 func (t talk) Configure(ctx context.Context, record api.LoginRecord) error {
 	if !t.c.say(ctx, said{step: api.LoginStep{Configure: &record}}) {

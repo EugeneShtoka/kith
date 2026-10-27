@@ -1,9 +1,9 @@
 # Design: profiles (Phase 0 of design-clients.md)
 
-Status: in progress. Planned 2026-10-25; steps 1–7 done (#340–#344, #346, #348, and
-step 7's `people.exclude`). Phase 0 of [design-clients.md](design-clients.md), in
-today's kithd with one bridge; the name `[[profile]]` is free since
-[design-matrix-accounts.md](design-matrix-accounts.md).
+Status: done. Planned 2026-10-25; all eight steps landed (#340–#344, #346, #348, #373
+for step 8's archive and rail, #374 for step 7's people). Phase 0 of
+[design-clients.md](design-clients.md), in today's kithd with one bridge; the name
+`[[profile]]` is free since [design-matrix-accounts.md](design-matrix-accounts.md).
 
 ## Goal
 
@@ -76,7 +76,11 @@ meaning:
 - `push`: a profile's archived rooms are pushed to the network. Pushing profiles
   combine as a union: a chat is archived on the network while any pushing profile
   archives it, and unarchived only when none does, so two profiles never undo each
-  other.
+  other. A profile pushes only rooms it holds. Holding is judged by kith's own
+  reasons (rule, hand filing, filters): with `follow` on, the network reporting a
+  chat archived echoes kith's own push and would otherwise keep it archived for good.
+  Letting go unarchives only what kith archived, so a chat archived on the phone stays
+  archived. A profile that stops pushing, or is removed, leaves the network as it is.
 
 So a profile's own archive is private to it only for networks it neither pushes nor
 mirrors to, or whose archive is not followed. With sync on, it is the account's

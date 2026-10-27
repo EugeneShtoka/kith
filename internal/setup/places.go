@@ -81,14 +81,7 @@ type placeList struct {
 // homeEntries refuses an entry naming rail rows without a prefix: a bare name could be
 // a space, a tag or a row's label.
 func homeEntries(cfg config.Config) error {
-	for _, l := range slices.Concat(railLists(cfg.Display), ruleLists(cfg)) {
-		for _, entry := range l.entries {
-			if !l.ok(entry) {
-				return fmt.Errorf("setup: %w", domain.NeedsPrefix(l.what, entry, l.prefixes, l.words))
-			}
-		}
-	}
-	return nil
+	return checkLists(slices.Concat(railLists(cfg.Display), ruleLists(cfg)))
 }
 
 func isHomeEntry(entry string) bool { _, _, ok := domain.ParseHomeEntry(entry); return ok }
@@ -101,19 +94,38 @@ func isIDEntry(entry string) bool {
 
 // railLists are the lists of rail rows: priority, the rail's own, filing_spaces.
 func railLists(d config.Display) []placeList {
+	return slices.Concat(
+		[]placeList{{"display.priority", homePrefixes, "", d.Priority, isHomeEntry}},
+		railRows("display.rail", d.Rail),
+		[]placeList{{"display.filing_spaces", filingPrefix, filingWords, d.FilingSpaces, func(e string) bool {
+			_, isTag := domain.TagOf(e)
+			return isIDEntry(e) || (isHomeEntry(e) && !isTag)
+		}}},
+	)
+}
+
+// railRows are a rail's own lists, named under what ([display.rail], or a profile's).
+func railRows(what string, r config.Rail) []placeList {
 	return []placeList{
-		{"display.priority", homePrefixes, "", d.Priority, isHomeEntry},
-		{"display.rail.order", homePrefixes, railWords, d.Rail.Order, func(e string) bool {
+		{what + ".order", homePrefixes, railWords, r.Order, func(e string) bool {
 			e = strings.TrimSpace(e)
 			return isHomeEntry(e) || e == "*" || (e != "" && strings.Trim(e, railSeparator) == "")
 		}},
-		{"display.rail.hidden", homePrefixes, "", d.Rail.Hidden, isHomeEntry},
-		{"display.rail.hide_when_empty", homePrefixes, "", d.Rail.HideWhenEmpty, isHomeEntry},
-		{"display.filing_spaces", filingPrefix, filingWords, d.FilingSpaces, func(e string) bool {
-			_, isTag := domain.TagOf(e)
-			return isIDEntry(e) || (isHomeEntry(e) && !isTag)
-		}},
+		{what + ".hidden", homePrefixes, "", r.Hidden, isHomeEntry},
+		{what + ".hide_when_empty", homePrefixes, "", r.HideWhenEmpty, isHomeEntry},
 	}
+}
+
+// checkLists refuses an entry a list does not take.
+func checkLists(lists []placeList) error {
+	for _, l := range lists {
+		for _, entry := range l.entries {
+			if !l.ok(entry) {
+				return fmt.Errorf("setup: %w", domain.NeedsPrefix(l.what, entry, l.prefixes, l.words))
+			}
+		}
+	}
+	return nil
 }
 
 // ruleLists are the one-entry settings of rules and jumps. An empty match is a

@@ -588,6 +588,10 @@ func (s *server) CancelLogin(ctx context.Context, r *req[v1.CancelLoginRequest])
 	return reply(&v1.CancelLoginResponse{}, s.Logins.CancelLogin(ctx, r.Msg.GetLogin()))
 }
 
+func (s *server) InsteadLogin(ctx context.Context, r *req[v1.InsteadLoginRequest]) (*resp[v1.InsteadLoginResponse], error) {
+	return reply(&v1.InsteadLoginResponse{}, s.Logins.InsteadLogin(ctx, r.Msg.GetLogin()))
+}
+
 // Seat gives the caller the seat of the profile it runs in while the stream is open,
 // or says who has it.
 func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.ServerStream[v1.SeatResponse]) error {
@@ -712,7 +716,7 @@ func (s *server) Follow(ctx context.Context, r *req[v1.FollowRequest]) (*resp[v1
 	}
 	holds := func(profile string, room domain.RoomID) bool {
 		p, err := s.Notifications.Profile(profile)
-		return err == nil && p.Rooms.Admits(s.Notifications.scope.Facts(ctx, room))
+		return err == nil && p.Holds(s.Notifications.scope.Facts(ctx, room))
 	}
 	return connect.NewResponse(&v1.FollowResponse{Delivered: s.seats.follow(uri, linked, holds)}), nil
 }

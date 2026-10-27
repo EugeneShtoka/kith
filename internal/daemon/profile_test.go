@@ -45,12 +45,19 @@ func TestANotificationGoesToTheProfilesHoldingItsRoom(t *testing.T) {
 			[]config.Profile{{Name: "p", Include: []string{"dm"}}, {Name: "Q", Include: []string{spaceEntry, "dm"}}},
 			map[domain.RoomID]string{dmRoom: "p,q", chatRm: "q"},
 		},
+		"its own archive left out": { // p archives direct messages; the shared archive holds none
+			[]config.Profile{
+				{Name: "p", Include: []string{"*"}, Exclude: []string{"tag:Archived"}, Archive: config.ProfileArchive{Rooms: []string{"dm"}}},
+				{Name: "Q", Include: []string{"*"}, Exclude: []string{"tag:Archived"}},
+			},
+			map[domain.RoomID]string{dmRoom: "q", chatRm: "p,q", stranger: "p,q"},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			cfg := notifsOn("all")
-			cfg.Tags = []config.Tag{{Name: "Family", Rule: []string{"dm"}}}
+			cfg.Tags = []config.Tag{{Name: "Family", Rule: []string{"dm"}}, {Name: "Archived", Rule: []string{"space:Nowhere"}}}
 			cfg.Profiles = tc.profiles
 			n, rec, _ := notifier(t, cfg)
 			for _, room := range []domain.RoomID{dmRoom, chatRm, stranger} {

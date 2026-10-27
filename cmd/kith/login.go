@@ -11,10 +11,12 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/qrtext"
+	"golang.org/x/term"
 )
 
 // loginTimeout bounds a login: a code to arrive and be typed, a phone to accept one.
@@ -27,11 +29,13 @@ const loginTimeout = 15 * time.Minute
 func runLogin(args []string) error {
 	fs := flag.NewFlagSet("login", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
+	byCode := fs.Bool("code", false, "log in with a code instead of scanning a QR code, where a network offers both "+
+		"(WhatsApp: a code typed on the phone; Telegram: a code Telegram sends)")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parse login flags: %w", err)
 	}
 	if fs.NArg() > 2 {
-		return errors.New("usage: kith login [network [account]]")
+		return errors.New("usage: kith login [--code] [network [account]]")
 	}
 	path, _, ready, err := loadConfig(*configPath)
 	if err != nil || !ready {
@@ -62,7 +66,7 @@ func runLogin(args []string) error {
 	if err != nil {
 		return err
 	}
-	l := cliLogin{backend: at.backend, in: bufio.NewReader(os.Stdin), path: path}
+	l := &cliLogin{backend: at.backend, in: bufio.NewReader(os.Stdin), out: os.Stdout, path: path, byCode: *byCode}
 	return l.run(ctx, network, account)
 }
 
@@ -107,12 +111,25 @@ type cliLogin struct {
 		UpdateConfig(ctx context.Context, base string, cfg config.Config) (string, error)
 	}
 	in   *bufio.Reader
+	out  *os.File
 	path string
+	// byCode takes the code a QR step offers instead (--code).
+	byCode bool
+	// drawn is how many terminal rows the QR code on screen takes, to draw the next
+	// over it; 0 when none is on screen.
+	drawn int
 }
 
-func (l cliLogin) run(ctx context.Context, network, account string) error {
+func (l *cliLogin) run(ctx context.Context, network, account string) error {
 	step, err := l.backend.BeginLogin(ctx, network, account)
 	for err == nil {
+		if step.QR != "" {
+			if err = l.qrStep(ctx, step, network); err == nil {
+				step, err = l.backend.AnswerLogin(ctx, step.Login, nil)
+			}
+			continue
+		}
+		l.drawn = 0
 		if step.Note != "" {
 			fmt.Println(step.Note)
 		}
@@ -130,12 +147,8 @@ func (l cliLogin) run(ctx context.Context, network, account string) error {
 				return askImport(ctx, g, l.in, network, step.Account, true) // offered, once
 			}
 			return nil
-		case step.Code != "" || step.QR != "":
-			if step.QR != "" {
-				printQR(step.QR)
-			} else {
-				fmt.Printf("\n    %s\n\n", step.Code)
-			}
+		case step.Code != "":
+			fmt.Printf("\n    %s\n\n", step.Code)
 			step, err = l.backend.AnswerLogin(ctx, step.Login, nil)
 		case step.Configure != nil:
 			if err = l.write(ctx, *step.Configure); err == nil {
@@ -151,9 +164,20 @@ func (l cliLogin) run(ctx context.Context, network, account string) error {
 	return fmt.Errorf("kith login %s: %w", network, err)
 }
 
+// qrStep draws a QR step, or with --code takes the other way it offers.
+func (l *cliLogin) qrStep(ctx context.Context, step api.LoginStep, network string) error {
+	if step.Instead == "" || !l.byCode {
+		return l.drawQR(step, network)
+	}
+	if err := l.backend.InsteadLogin(ctx, step.Login); err != nil {
+		return fmt.Errorf("%s: %w", step.Instead, err)
+	}
+	return nil
+}
+
 // ask reads each field after its help: secrets without echo; an empty answer keeps a
 // suggestion.
-func (l cliLogin) ask(fields []api.LoginField) (map[string]string, error) {
+func (l *cliLogin) ask(fields []api.LoginField) (map[string]string, error) {
 	values := make(map[string]string, len(fields))
 	for _, f := range fields {
 		if f.Help != "" {
@@ -186,7 +210,7 @@ const configTries = 3
 
 // write has the daemon put a new account into the config; a file changed meanwhile is
 // re-read and the account put into that.
-func (l cliLogin) write(ctx context.Context, rec api.LoginRecord) error {
+func (l *cliLogin) write(ctx context.Context, rec api.LoginRecord) error {
 	for try := 1; ; try++ {
 		snap, err := l.backend.GetConfig(ctx)
 		if err != nil {
@@ -218,16 +242,55 @@ func readLine(in *bufio.Reader, prompt string) (string, error) {
 	return strings.TrimSpace(line), nil
 }
 
-// printQR prints data as a QR code, light on dark whatever the terminal's colors.
-func printQR(data string) {
+// shownLine is a line to print and how many columns of it show.
+type shownLine struct {
+	text  string
+	shown int
+}
+
+// qrBlock is data as a QR code between blank lines, indented, light on dark whatever
+// the terminal's colors.
+func qrBlock(data string) []shownLine {
 	lines, err := qrtext.Lines(data)
 	if err != nil {
-		fmt.Printf("\n    the QR code could not be drawn: %v\n\n", err)
-		return
+		text := "    the QR code could not be drawn: " + err.Error()
+		return []shownLine{{}, {text, utf8.RuneCountInString(text)}, {}}
 	}
-	fmt.Println()
+	out := []shownLine{{}}
 	for _, line := range lines {
-		fmt.Printf("    \x1b[97;40m%s\x1b[0m\n", line)
+		out = append(out, shownLine{"    \x1b[97;40m" + line + "\x1b[0m", 4 + utf8.RuneCountInString(line)})
 	}
-	fmt.Println()
+	return append(out, shownLine{})
+}
+
+// drawQR draws a QR step: its note, the code, and how to take the other way it
+// offers. On a terminal, a code that replaces the last (they expire) is drawn over it.
+func (l *cliLogin) drawQR(step api.LoginStep, network string) error {
+	block := qrBlock(step.QR)
+	if step.Note != "" {
+		block = append([]shownLine{{step.Note, utf8.RuneCountInString(step.Note)}}, block...)
+	}
+	if step.Instead != "" {
+		hint := fmt.Sprintf("Can't scan it? `kith login --code %s %s` will %s.", network, step.Account, step.Instead)
+		block = append(block, shownLine{hint, utf8.RuneCountInString(hint)})
+	}
+	fd := int(l.out.Fd())
+	cols, _, err := term.GetSize(fd)
+	onTerminal := term.IsTerminal(fd) && err == nil && cols > 0
+	var b strings.Builder
+	if onTerminal && l.drawn > 0 {
+		fmt.Fprintf(&b, "\x1b[%dF\x1b[J", l.drawn) // back to where the last began; clear below
+	}
+	l.drawn = 0
+	for _, line := range block {
+		b.WriteString(line.text + "\n")
+		l.drawn += max(1, (line.shown+cols-1)/max(cols, 1)) // rows, wrapped
+	}
+	if !onTerminal {
+		l.drawn = 0 // not drawn over: each follows the last
+	}
+	if _, err := l.out.WriteString(b.String()); err != nil {
+		return fmt.Errorf("draw the QR code: %w", err)
+	}
+	return nil
 }

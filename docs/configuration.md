@@ -120,6 +120,39 @@ whose rule reads a room's state (`unread`, `mention`, `draft`, `invite`, itself 
 through a tag it names) is refused there: a room would enter and leave the profile
 as it is read. Names are unique, in any case.
 
+#### A profile's own archive and rail
+
+A profile can archive its own rooms and lay out its own rail; whatever it leaves unset
+is the shared one:
+
+```toml
+[[profile]]
+name    = "phone"
+include = ["dm", "tag:Family", "protocol:signal"]
+exclude = ["tag:Archived"]
+archive = { rooms = ["not tag:Family"], push = false }
+rail    = { order = ["tag:Unread", "tag:Family", "*"] }
+```
+
+- `archive.rooms` is the archive tag's rule in this profile (the tag
+  `[whatsapp.archive]` and `[telegram.archive]` name, Archived by default), written
+  as any tag's rule, `not` entries included. An empty list keeps the tag's own rule.
+  `exclude = ["tag:Archived"]` then leaves out what this profile archives.
+- Filing a room by hand (`S`, `/tag Archived`) still files it in every profile, and a
+  chat archived on its network (`[<network>.archive] follow`) is archived in every
+  profile: the network has one archive per account, shared by every device.
+- `archive.push` archives this profile's archived rooms on their network, as a tag's
+  `push_archive` does; unset keeps the tag's. Profiles that push add up: a chat stays
+  archived on its network while any pushing profile archives it, so two profiles never
+  undo each other, and a profile pushes only the rooms it holds. Letting go of a room
+  unarchives it only where kith archived it: a chat you archived on your phone stays
+  archived. A profile that stops pushing, or is removed, leaves the network as it is.
+- `rail` replaces `[display.rail]` in this profile, whole, once it sets anything
+  (`order`, `hidden`, `hide_when_empty`, `network_colors`).
+
+kith saves these as `[profile.archive]` and `[profile.rail]` tables under the
+`[[profile]]`; both forms read the same.
+
 #### People in a profile
 
 A profile can also hide people. Their messages, and the direct replies to them, leave
@@ -147,8 +180,8 @@ people  = { exclude = ["role:colleagues", "whatsapp:+15550100", "@boss:example.o
   fields match.
 
 An entry that is neither an ID nor `key:value` is refused at startup. Unlike a muted
-tag, a profile moves no room: a direct message with someone it hides stays where it
-is, empty in that profile. `/why` on a hidden message says which profile hides its
+tag, a profile moves no room: a direct message with someone it hides stays where its
+tags and the profile's own archive put it, empty in that profile. `/why` on a hidden message says which profile hides its
 sender, and `z h` (`/hidden`) shows them in the open room until you leave it.
 
 ### Validation
@@ -259,7 +292,7 @@ Each top-level section, and what it's for. The linked page covers the feature, a
 | `[notifications]` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
 | `[clipboard]` | The copy command, link opener, window focusing, unattended code copy, copying saved-file paths. | [usage.md](usage.md) |
 | `[codes]` | Where verification codes are looked for and what one looks like. | [notifications.md](notifications.md) |
-| `[[profile]]` | Named setups, each with its own rooms and notification topic. | [Profiles](#profiles) |
+| `[[profile]]` | Named setups, each with its own rooms, archive, rail and notification topic. | [Profiles](#profiles) |
 | `[[filter]]` | Words, a sender or a language that move rooms into a tag (the starter's Spam, or any other). | [filters.md](filters.md) |
 | `[composer]` | External editor (`alt+e`), temp-file suffix, Markdown on send. | [composer.md](composer.md) |
 | `[spell]` | Spell-checking engine, dictionaries, rare-word detection, check before sending. | [composer.md](composer.md) |

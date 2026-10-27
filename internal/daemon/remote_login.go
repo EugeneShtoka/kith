@@ -44,3 +44,9 @@ func (r *Remote) CancelLogin(ctx context.Context, login string) error {
 	_, err := call(ctx, "cancel a login", r.c.CancelLogin, &v1.CancelLoginRequest{Login: login})
 	return err
 }
+
+// InsteadLogin takes the other way a login's QR step offers.
+func (r *Remote) InsteadLogin(ctx context.Context, login string) error {
+	_, err := call(ctx, "log in the other way", r.c.InsteadLogin, &v1.InsteadLoginRequest{Login: login})
+	return err
+}

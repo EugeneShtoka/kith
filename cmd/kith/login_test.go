@@ -22,7 +22,8 @@ func (networks) BeginLogin(context.Context, string, string) (api.LoginStep, erro
 func (networks) AnswerLogin(context.Context, string, map[string]string) (api.LoginStep, error) {
 	return api.LoginStep{}, nil
 }
-func (networks) CancelLogin(context.Context, string) error { return nil }
+func (networks) CancelLogin(context.Context, string) error  { return nil }
+func (networks) InsteadLogin(context.Context, string) error { return nil }
 
 // `kith login <network> [account]` picks the named account, the only one, or a new one
 // when none; two unnamed, or an unknown name, are refused.

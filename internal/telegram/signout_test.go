@@ -13,7 +13,6 @@ import (
 	"github.com/gotd/td/tgtest"
 
 	"github.com/EugeneShtoka/kith/internal/api"
-	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -40,7 +39,7 @@ func TestSigningOutEndsTheSessionForGood(t *testing.T) {
 		done := make(chan error, 1)
 		go func() { done <- a.Start(ctx) }()
 		t.Cleanup(func() { cancel(); <-done; a.Stop() })
-		if _, err := a.login(ctx, home, testApp, &apitest.Talk{Answers: map[string][]string{"code": {"12345"}}}, f.dial); err != nil {
+		if _, err := a.login(ctx, home, testApp, byCode(map[string][]string{"code": {"12345"}}), f.dial); err != nil {
 			t.Fatal(err)
 		}
 		connected(t, heard, "home")
