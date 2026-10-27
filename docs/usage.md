@@ -237,8 +237,8 @@ Each day has a heading; each message its time and sender (named as you know them
 full), the message it replies to, its words with their formatting, its attachment
 and its reactions; a thread's replies sit under the message that began it.
 
-To export every room at once, run `kith export` from the shell (kithd must be
-running). Each room with cached messages gets its own file, written the same way.
+To export every room at once, run `kith export` from the shell (it starts kithd if
+need be). Each room with cached messages gets its own file, written the same way.
 `--since` keeps messages from a time on (`7d`, `yesterday`, `2026-09-18`), and
 `--last` keeps each room's last N messages; you can give both. The files go into the
 folder you name, `kith export --since 2026-01-01 ~/Backups/chats`, or into a folder

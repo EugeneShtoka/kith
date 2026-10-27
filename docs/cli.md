@@ -15,6 +15,8 @@ kith [flags]
 kith login [--config path] [network [account]]
 kith backup [--config path] [--no-media] [file]
 kith restore [--config path] [--replace] [--key-file path] file
+kith export [--config path] [--since when] [--last n] [folder]
+kith import [--config path] network [account]
 ```
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
@@ -111,6 +113,44 @@ whole backup is read and checked.
 Both are run by kithd, which owns the cache: `kith` runs the `kithd` installed beside
 it, or else the first on `PATH`, and only when it is the same build; another one is
 refused, naming both versions. A kithd that fails is always reported.
+
+Keep the backup key off the machine, in a password manager or written down: without it
+no backup opens, and kith keeps no copy. It is not the keyring's cache key, which a
+restore never needs. See [usage.md](usage.md#backing-up-and-moving-to-a-new-machine)
+for what to do after the first backup, what losing the key means, and moving to a new
+machine.
+
+### kith export
+
+```sh
+kith export [--config path] [--since when] [--last n] [folder]
+```
+
+Writes every room the cache holds to its own Markdown file, as `/export` writes one
+room: each day a heading, each message its time, sender, reply, words, attachment and
+reactions. The files go into `folder`, or into a folder for the day under
+`[storage] export_dir`. It prints each file with its message count, then the total. It
+starts kithd if it isn't running. An export is for reading and sharing; kith cannot load it back. To
+keep history you can restore, use [`kith backup`](#kith-backup).
+
+| Flag | Meaning |
+| --- | --- |
+| `--config path` | Config file whose rooms to export. |
+| `--since when` | Only messages from then on: `2h`, `7d`, `yesterday`, `2026-09-18`. |
+| `--last n` | Only each room's last `n` messages. With `--since`, both apply. |
+
+### kith import
+
+```sh
+kith import [--config path] network [account]
+```
+
+Copies an account's folders (Telegram's) into tags, once, as `:import` does in kith. It
+lists each folder with what the copy would do, then asks per folder: whether to make a
+new tag, and for a tag that differs, whether to take the app's chats, merge them in, or
+keep kith's (the default). `account` can be left out when the network has one. A
+network without folders says so. It has nothing to do with backups: to bring history
+back, use [`kith restore`](#kith-restore).
 
 ### General flags
 
