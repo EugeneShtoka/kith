@@ -131,10 +131,10 @@ func (l *Ledger) Entries() ([]Entry, error) {
 // (a torn write or hand edit); one bad line must not hide the rest.
 func (l *Ledger) Read() (entries []Entry, skipped int, err error) {
 	file, err := os.Open(l.path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, 0, nil
-	}
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, 0, nil
+		}
 		return nil, 0, fmt.Errorf("agent: read ledger %s: %w", l.path, err)
 	}
 	defer func() { _ = file.Close() }()

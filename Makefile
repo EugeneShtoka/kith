@@ -17,7 +17,7 @@ export GOFLAGS := -tags=goolm -ldflags=-X=github.com/ncruces/go-sqlite3/driver.d
 #    PATH, which may be newer. GOTOOLCHAIN=local opts out, for offline work.
 #  - No user `go env` file: CI has none, and one can carry GOEXPERIMENT or GOFLAGS
 #    that change the build.
-#  - golangci-lint, govulncheck and the protoc plugins: the go.mod `tool` directive.
+#  - golangci-lint, gohawk, govulncheck and the protoc plugins: the go.mod `tool` directive.
 #  - goreleaser, gitleaks, buf and markdownlint-cli2: tools/versions.env and
 #    tools/markdownlint's lock, installed into .tools by scripts/ensure-tools.sh,
 #    which CI runs too.
@@ -29,6 +29,7 @@ export PATH := $(CURDIR)/.tools/bin:$(PATH)
 ENSURE   := bash scripts/ensure-tools.sh
 GOLANGCI := go tool golangci-lint
 GOVULN   := go tool govulncheck
+GOHAWK   := go tool gohawk
 
 # CHECK_STRICT=1 (the pre-push hook) fails a gate that would otherwise be skipped
 # here, which is only the history secret scan outside the project's own repository.
@@ -151,9 +152,12 @@ test-quick:
 	$(TEST_ENV) go test ./...
 
 # --allow-serial-runners: a second concurrent run waits for the first instead of
-# failing with "parallel golangci-lint is running".
+# failing with "parallel golangci-lint is running". gohawk's core analyzers add what
+# golangci-lint has no check for: goroutines not joined, contradictory lock order, a
+# lock or resource kept on some return path, goroutines in a loop sharing a local.
 lint:
 	$(GOLANGCI) run --allow-serial-runners ./...
+	$(GOHAWK) ./...
 
 fmt:
 	$(GOLANGCI) fmt ./...

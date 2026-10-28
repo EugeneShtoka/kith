@@ -25,7 +25,7 @@ installs them the same way:
 
 | tool | pinned by | installed |
 | --- | --- | --- |
-| golangci-lint, govulncheck, the protoc plugins | the `tool` directive in `go.mod` | run through `go tool` |
+| golangci-lint, gohawk, govulncheck, the protoc plugins | the `tool` directive in `go.mod` | run through `go tool` |
 | goreleaser, gitleaks, buf | `tools/versions.env` (version and SHA-256 per platform) | `scripts/ensure-tools.sh`, into `.tools/` (gitignored), by the gate that needs it |
 | markdownlint-cli2 | `tools/markdownlint/package-lock.json` | `npm ci` into `.tools/` |
 
@@ -136,7 +136,7 @@ calls a tool directly instead of through its target. In order:
 | `test` | `go test -race -count=1 -coverprofile=… ./...`; the profile goes to `$TMPDIR/kith-cover-<pid>.out`, or `COVERPROFILE=path`. CI splits it over parallel jobs with `TEST_GROUP=db`, `tui`, `adapters` and `rest` (the two slowest packages on their own, then matrix, telegram, slack and whatsapp) |
 | `coverage-gate` | the floors in `scripts/coverage-gate.sh` over `test`'s profile, or CI's groups' profiles merged (`COVERPROFILES`). `make coverage-check` runs `test` then this |
 | `cross` | every package builds for linux, darwin, freebsd and windows on amd64 and arm64 (`CROSS_TARGETS`) |
-| `lint` | `golangci-lint run`, including the depguard layer rules |
+| `lint` | `golangci-lint run`, including the depguard layer rules; then gohawk's core analyzers (goroutine and lock ownership, resources released on every path), which `_test.go` files are outside of |
 | `fmt-check` | `golangci-lint fmt --diff` (gofmt + goimports), non-mutating |
 | `vuln` | `govulncheck ./...`, and `npm audit` of markdownlint's lock (`scripts/npm-audit.sh`: an advisory with no fixed release can be allowed in `tools/markdownlint/audit-allow.json`, with a reason and an expiry date) |
 | `secrets` | gitleaks over the committed history **and** the working tree |
