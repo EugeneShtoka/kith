@@ -357,7 +357,10 @@ desktop.
 When the daemon restarts, every stream dies with it. `Remote` holds the attachment
 (backoff plus a socket probe), `Backend.Attached` reports the loss so the TUI can
 show it, and on reattach the TUI re-reads what it missed from the caches the daemon
-kept warm.
+kept warm. Messages are not re-read: `Remote` keeps the last change it delivered and
+the message stream resumes after it; when it cannot (the cache was rebuilt or
+cleared, or too much changed), it says so, and `Remote` passes that on as
+`ChangeMessages` for the TUI to read the open room again.
 
 ### Encryption
 

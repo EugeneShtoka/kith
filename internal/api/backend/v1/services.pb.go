@@ -10704,7 +10704,7 @@ func (x *MessagesRequest) GetSinceChange() int64 {
 
 type MessagesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Absent when read_again.
+	// Absent on the first frame, which says where the stream starts, and when read_again.
 	Message *Message `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	// The numbering this change is in, and its number.
 	Epoch  string `protobuf:"bytes,2,opt,name=epoch,proto3" json:"epoch,omitempty"`

@@ -44,10 +44,10 @@ func (s *server) Messages(ctx context.Context, r *req[v1.MessagesRequest], st *c
 	if err := st.Send(nil); err != nil {
 		return rpcErr(fmt.Errorf("open stream: %w", err))
 	}
-	if readAgain {
-		if err := send(st, &v1.MessagesResponse{Epoch: epoch, Change: at, ReadAgain: true}); err != nil {
-			return err
-		}
+	// The first frame says where the stream starts, so a client holds a number to
+	// resume from even before a message comes.
+	if err := send(st, &v1.MessagesResponse{Epoch: epoch, Change: at, ReadAgain: readAgain}); err != nil {
+		return err
 	}
 	for {
 		bell, ended := s.Streams.tail.next()

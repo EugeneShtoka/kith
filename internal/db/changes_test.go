@@ -373,3 +373,72 @@ func TestAReaderToldOfEachChangeEndsWithWhatTheCacheHolds(t *testing.T) {
 		t.Fatalf("the reader holds\n  %v\nthe cache\n  %v", seen, held)
 	}
 }
+
+// A deleted message keeps when it was deleted, whichever way the deletion came: a
+// deletion of a cached message, one that came before the message (a tombstone), or a
+// deleted copy. The first time heard stays; an unknown one is not kept.
+func TestADeletedMessageKeepsWhenItWasDeleted(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	room := changeRooms[0]
+	sent, deleted, later := time.UnixMilli(1000), time.UnixMilli(5000), time.UnixMilli(9000)
+	copyOf := func(id domain.EventID) domain.Message {
+		return domain.Message{ID: id, RoomID: room, Sender: "matrix:@a:x", Body: "hi", Timestamp: sent}
+	}
+	for name, deleteIt := range map[string]func(*Cache, domain.EventID) error{
+		"deleted when cached": func(c *Cache, id domain.EventID) error {
+			if err := c.SaveMessages(ctx, room, []domain.Message{copyOf(id)}); err != nil {
+				return err
+			}
+			return c.MarkRedacted(ctx, room, id, "", "", deleted, false)
+		},
+		"deleted before it came": func(c *Cache, id domain.EventID) error {
+			if err := c.MarkRedacted(ctx, room, id, "", "", deleted, false); err != nil {
+				return err
+			}
+			return c.SaveMessages(ctx, room, []domain.Message{copyOf(id)})
+		},
+		"a deleted copy": func(c *Cache, id domain.EventID) error {
+			m := copyOf(id)
+			m.Body, m.Redacted, m.RedactedAt = "", true, deleted
+			return c.SaveMessages(ctx, room, []domain.Message{m})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cache := openTemp(t)
+			id := changeEvents[0]
+			if err := deleteIt(cache, id); err != nil {
+				t.Fatal(err)
+			}
+			// Heard again later, and with no time: the first stays.
+			if err := cache.MarkRedacted(ctx, room, id, "", "", later, false); err != nil {
+				t.Fatal(err)
+			}
+			if err := cache.MarkRedacted(ctx, room, id, "", "", time.Time{}, false); err != nil {
+				t.Fatal(err)
+			}
+			got, ok, err := cache.MessageByID(ctx, room, id)
+			if err != nil || !ok || !got.Redacted || !got.RedactedAt.Equal(deleted) {
+				t.Fatalf("read back %+v (%v, %v), want deleted at %v", got, ok, err, deleted)
+			}
+		})
+	}
+	cache := openTemp(t)
+	if err := cache.SaveMessages(ctx, room, []domain.Message{copyOf(changeEvents[1])}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.MarkRedacted(ctx, room, changeEvents[1], "", "", time.Time{}, false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, _ := cache.MessageByID(ctx, room, changeEvents[1]); !got.RedactedAt.IsZero() {
+		t.Fatalf("an unknown time read back as %v", got.RedactedAt)
+	}
+	// Unknown is not a first time: the time heard after it is kept.
+	if err := cache.MarkRedacted(ctx, room, changeEvents[1], "", "", deleted, false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, _ := cache.MessageByID(ctx, room, changeEvents[1]); !got.RedactedAt.Equal(deleted) {
+		t.Fatalf("read back deleted at %v after an unknown time, want %v", got.RedactedAt, deleted)
+	}
+}

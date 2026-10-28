@@ -39,8 +39,8 @@ func TestLosingTheDaemonIsOnScreen(t *testing.T) {
 	}
 }
 
-// Coming back re-reads the open room.
-func TestComingBackReReadsTheOpenRoom(t *testing.T) {
+// Coming back asks for no timeline: the message stream replays the gap.
+func TestComingBackLeavesTheGapToTheStream(t *testing.T) {
 	t.Parallel()
 
 	backend := &countingBackend{}
@@ -49,8 +49,24 @@ func TestComingBackReReadsTheOpenRoom(t *testing.T) {
 
 	_, cmd := m.Update(attachedMsg{attached: true})
 	deliver(t, m, cmd)
+	if got := backend.timelines.Load(); got != 0 {
+		t.Errorf("reattaching asked for %d timelines, want none: the stream resumes", got)
+	}
+}
+
+// A message stream that could not resume has the open room read again, so the gap
+// does not stay on screen.
+func TestAStreamThatCannotResumeReReadsTheOpenRoom(t *testing.T) {
+	t.Parallel()
+
+	backend := &countingBackend{}
+	m := attachableWith(t, backend)
+	backend.timelines.Store(0)
+
+	_, cmd := m.Update(changedMsg{change: domain.ChangeMessages})
+	deliver(t, m, cmd)
 	if got := backend.timelines.Load(); got == 0 {
-		t.Error("reattaching asked for no timeline, so the gap stays on screen")
+		t.Error("a stream that could not resume asked for no timeline, so the gap stays on screen")
 	}
 }
 

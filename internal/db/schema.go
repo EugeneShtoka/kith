@@ -400,6 +400,7 @@ END;
 ` + messageChanges + `
 CREATE INDEX message_changes_in_order ON message_changes(change);
 INSERT INTO change_counter(epoch, last) VALUES (lower(hex(randomblob(16))), 0);
+` + messageRedactionTimes + `
 
 -- Persisted drafts, including ones an agent wrote while the client was closed.
 CREATE TABLE drafts (
@@ -721,7 +722,34 @@ DROP TABLE matrix_owner;`,
 	messageChanges + `
 INSERT INTO change_counter(epoch, last) SELECT lower(hex(randomblob(16))), 0
  WHERE NOT EXISTS (SELECT 1 FROM change_counter);`,
+	// v30: when a cached message was deleted.
+	messageRedactionTimes,
 }
+
+// messageRedactionTimes is when each deleted message was deleted, the first time heard
+// (domain.Message.RedactedAt): only messages deleted since it was kept have a row. Its
+// triggers count a time as a change to the message (messageChanges). The base and v30
+// share it.
+const messageRedactionTimes = `
+CREATE TABLE IF NOT EXISTS message_redaction_at (
+	room_id  TEXT    NOT NULL,
+	event_id TEXT    NOT NULL,
+	ts_ms    INTEGER NOT NULL,
+	PRIMARY KEY (room_id, event_id),
+	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
+CREATE TRIGGER IF NOT EXISTS message_redaction_at_changed_insert AFTER INSERT ON message_redaction_at BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_redaction_at_changed_update AFTER UPDATE ON message_redaction_at
+	WHEN old.ts_ms IS NOT new.ts_ms BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_redaction_at_changed_delete AFTER DELETE ON message_redaction_at BEGIN
+	INSERT INTO message_touched VALUES (old.room_id, old.event_id);
+END;
+`
 
 // messageChanges numbers every change to what the cache returns for a message, in the
 // order they are written, for the message stream to resume from.

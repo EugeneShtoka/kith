@@ -85,6 +85,9 @@ func (c *Cache) MarkRedacted(
 				return err
 			}
 		}
+		if err := recordRedactionTime(ctx, tx, roomID, eventID, at); err != nil {
+			return err
+		}
 		if by == "" && reason == "" {
 			return nil
 		}
@@ -125,9 +128,10 @@ func isBuried(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, event domai
 // content forgotten (nothing was cached to keep), redaction recorded, tombstone spent.
 func applyTombstone(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventID domain.EventID) (applied bool, err error) {
 	var by, reason string
+	var atMS int64
 	found, err := optional(tx.QueryRowContext(ctx,
-		"SELECT by, reason FROM message_tombstone WHERE room_id = ? AND event_id = ?",
-		string(roomID), string(eventID)).Scan(&by, &reason))
+		"SELECT by, reason, ts_ms FROM message_tombstone WHERE room_id = ? AND event_id = ?",
+		string(roomID), string(eventID)).Scan(&by, &reason, &atMS))
 	if err != nil {
 		return false, fmt.Errorf("db: read tombstone of %s: %w", eventID, err)
 	}
@@ -145,6 +149,11 @@ func applyTombstone(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, event
 	if err := recordRedaction(ctx, tx, roomID, eventID, by, reason); err != nil {
 		return false, err
 	}
+	if atMS > 0 {
+		if err := recordRedactionTime(ctx, tx, roomID, eventID, time.UnixMilli(atMS)); err != nil {
+			return false, err
+		}
+	}
 	if _, err := tx.ExecContext(ctx, "DELETE FROM message_tombstone WHERE room_id = ? AND event_id = ?",
 		string(roomID), string(eventID)); err != nil {
 		return false, fmt.Errorf("db: spend tombstone of %s: %w", eventID, err)
@@ -161,6 +170,22 @@ func recordRedaction(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, even
 		ON CONFLICT(room_id, event_id) DO UPDATE SET by=excluded.by, reason=excluded.reason`,
 		string(roomID), string(eventID), by, reason, string(roomID), string(eventID)); err != nil {
 		return fmt.Errorf("db: record redaction %s: %w", eventID, err)
+	}
+	return nil
+}
+
+// recordRedactionTime keeps when a cached message was deleted; the first time heard
+// stays, and an unknown one (zero) is not kept.
+func recordRedactionTime(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, eventID domain.EventID, at time.Time) error {
+	if at.IsZero() {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO message_redaction_at(room_id, event_id, ts_ms)
+		SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM messages WHERE room_id = ?1 AND event_id = ?2)
+		ON CONFLICT(room_id, event_id) DO NOTHING`,
+		string(roomID), string(eventID), at.UnixMilli()); err != nil {
+		return fmt.Errorf("db: record when %s was deleted: %w", eventID, err)
 	}
 	return nil
 }
@@ -854,12 +879,13 @@ func (c *Cache) Message(ctx context.Context, roomID domain.RoomID, eventID domai
 // messageSelect is every message read: the row plus its optional side tables.
 const messageSelect = `SELECT m.event_id, m.sender, ` + senderNow + `, m.body, m.ts_ms, m.redacted, m.edited,
 	        m.reply_to, m.mentioned, m.thread_root, m.emote,
-	        d.kind, d.name, d.mime, d.width, d.height, d.size, h.html, r.by, r.reason, e.ts_ms, e.revision_id,
+	        d.kind, d.name, d.mime, d.width, d.height, d.size, h.html, r.by, r.reason, ra.ts_ms, e.ts_ms, e.revision_id,
 	        p.poll, COALESCE(o.seq, 0), ` + mentionsNow + `
 	   FROM messages m
 	   LEFT JOIN message_media d ON d.room_id = m.room_id AND d.event_id = m.event_id
 	   LEFT JOIN message_html  h ON h.room_id = m.room_id AND h.event_id = m.event_id
 	   LEFT JOIN message_redaction r ON r.room_id = m.room_id AND r.event_id = m.event_id
+	   LEFT JOIN message_redaction_at ra ON ra.room_id = m.room_id AND ra.event_id = m.event_id
 	   LEFT JOIN message_edit e ON e.room_id = m.room_id AND e.event_id = m.event_id
 	   LEFT JOIN message_polls p ON p.room_id = m.room_id AND p.event_id = m.event_id
 	   LEFT JOIN message_order o ON o.room_id = m.room_id AND o.event_id = m.event_id`
@@ -874,7 +900,7 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 			kind, name, mime                                       sql.NullString
 			width, height, mediaSize                               sql.NullInt64
 			formatted, redactedBy, redactReason                    sql.NullString
-			editedMS                                               sql.NullInt64
+			redactedMS, editedMS                                   sql.NullInt64
 			revision, poll                                         sql.NullString
 			seq                                                    int64
 			mentions                                               string
@@ -882,7 +908,7 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 		if err := rows.Scan(&eventID, &sender, &senderName, &body, &tsMS, &redacted, &edited,
 			&replyTo, &mentioned, &threadRoot, &emote,
 			&kind, &name, &mime, &width, &height, &mediaSize, &formatted,
-			&redactedBy, &redactReason, &editedMS, &revision, &poll, &seq, &mentions); err != nil {
+			&redactedBy, &redactReason, &redactedMS, &editedMS, &revision, &poll, &seq, &mentions); err != nil {
 			return domain.Message{}, err
 		}
 		msg := domain.Message{
@@ -903,9 +929,7 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 			Seq: seq,
 		}
 		msg.Mentions = scanMentions(mentions)
-		if editedMS.Valid {
-			msg.EditedAt = time.UnixMilli(editedMS.Int64)
-		}
+		msg.RedactedAt, msg.EditedAt = millis(redactedMS), millis(editedMS)
 		// So the client breaks an edit tie as the cache did.
 		msg.RevisionID = domain.EventID(revision.String)
 		if kind.Valid && kind.String != "" {
@@ -926,6 +950,14 @@ func scanMessage(roomID domain.RoomID) func(*sql.Rows) (domain.Message, error) {
 		}
 		return msg, nil
 	}
+}
+
+// millis is an optional time column: zero when NULL.
+func millis(ms sql.NullInt64) time.Time {
+	if !ms.Valid {
+		return time.Time{}
+	}
+	return time.UnixMilli(ms.Int64)
 }
 
 // MessagesAround returns a message with before/after neighbors, oldest first; nil when

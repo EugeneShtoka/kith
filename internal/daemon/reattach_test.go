@@ -86,7 +86,7 @@ type daemonRun struct {
 }
 
 // runDaemon serves b on path until stopped or the test ends.
-func runDaemon(t *testing.T, path string, b api.Backend) *daemonRun {
+func runDaemon(t *testing.T, path string, b api.Backend, with ...func(*daemon.Daemon)) *daemonRun {
 	t.Helper()
 
 	ln, err := daemon.Listen(context.Background(), path)
@@ -106,12 +106,15 @@ func runDaemon(t *testing.T, path string, b api.Backend) *daemonRun {
 		served: make(chan error, 1), pumped: make(chan struct{}),
 	}
 	go func() { defer close(run.pumped); streams.Run(ctx, b) }()
-	go func() {
-		run.served <- daemon.Serve(ctx, ln, complete(t, &daemon.Daemon{
-			Backend: b, Streams: streams, State: daemon.NewState(),
-			Notifications: notifications, Reload: (&reloadStub{}).fn,
-		}))
-	}()
+	d := &daemon.Daemon{
+		Backend: b, Streams: streams, State: daemon.NewState(),
+		Notifications: notifications, Reload: (&reloadStub{}).fn,
+	}
+	for _, f := range with {
+		f(d)
+	}
+	complete(t, d)
+	go func() { run.served <- daemon.Serve(ctx, ln, d) }()
 	t.Cleanup(func() { run.stop(t) })
 	return run
 }

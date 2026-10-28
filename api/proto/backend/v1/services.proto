@@ -1148,7 +1148,7 @@ message MessagesRequest {
 }
 
 message MessagesResponse {
-  // Absent when read_again.
+  // Absent on the first frame, which says where the stream starts, and when read_again.
   Message message = 1;
   // The numbering this change is in, and its number.
   string epoch = 2;

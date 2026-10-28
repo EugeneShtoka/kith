@@ -25,7 +25,10 @@ const streamBuffer = 64
 type Remote struct {
 	c backendv1connect.BackendServiceClient
 
-	msgs          *stream[domain.Message]
+	msgs *stream[domain.Message]
+	// read is where the message stream stands: the last change delivered, from which a
+	// reattached stream resumes. Nil until the stream first opens.
+	read          atomic.Pointer[readAt]
 	unread        *stream[domain.Unread]
 	reactions     *stream[domain.ReactionUpdate]
 	invites       *stream[[]domain.Room]

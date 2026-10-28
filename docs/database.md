@@ -103,6 +103,7 @@ holds data but appears in neither list until the next refresh promotes it.
 | `message_html` | the formatting, in kith's markup (the sanitized HTML subset of `internal/richtext`, which each network's formatting converts into), only for messages that carry formatting |
 | `message_media` | the attachment: kind, name, MIME type, size, dimensions, and how to fetch it: for Matrix the `mxc` URI and the encrypted-file JSON, for WhatsApp `{"whatsapp": kind, "proto": …}` (the message's media part, with its keys) in `file_json` |
 | `message_redaction` | who deleted a message and why, which outlives the content |
+| `message_redaction_at` | when a message was deleted, the first time heard (`RedactedAt`); only messages deleted since v30 have one |
 | `person_names` | what each source (an account, a bridge login) calls an identifier: a number as `tel:<digits>`, or a person's ID on a network, ranked saved < bridged < chosen |
 | `person_links` | identifiers a source says are one person (a Telegram user and their number) |
 | `message_mentions` | the people a message mentions (`domain.Mention`), each with the text that names them in the body |
@@ -385,7 +386,12 @@ Since then:
   by triggers on `messages` and every side table a message is read with. Messages already cached get a number at their
   next change; the new epoch tells every client to read again.
 
-so a current cache is at version 29.
+- v30 (`message_redaction_at`): when a cached message was deleted, kept from the
+  deletion, a tombstone or a deleted copy, so a message read from the cache (the
+  message stream sends no other kind) carries `RedactedAt`. Messages deleted before it
+  have none.
+
+so a current cache is at version 30.
 
 ### Indexes need no migration
 
