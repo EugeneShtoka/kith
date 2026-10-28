@@ -161,7 +161,7 @@ func attach(ctx context.Context, configPath string, timeout time.Duration) (atta
 	if err != nil || !ready {
 		return attached{cfg: cfg}, err
 	}
-	device, dev, err := loadDevice(path, cfg)
+	device, dev, err := loadDevice(path)
 	if err != nil {
 		return attached{cfg: cfg}, err
 	}
@@ -175,8 +175,8 @@ func attach(ctx context.Context, configPath string, timeout time.Duration) (atta
 }
 
 // loadDevice reads this device's settings beside the config at path, writing the
-// documented default on its first run, and checks them against cfg.
-func loadDevice(path string, cfg config.Config) (string, config.Device, error) {
+// documented default on its first run, and checks them.
+func loadDevice(path string) (string, config.Device, error) {
 	device := config.DevicePath(path)
 	if _, err := config.WriteDeviceDefaultIfMissing(device); err != nil {
 		return "", config.Device{}, fmt.Errorf("write default device settings: %w", err)
@@ -185,7 +185,7 @@ func loadDevice(path string, cfg config.Config) (string, config.Device, error) {
 	if err != nil {
 		return "", config.Device{}, fmt.Errorf("load device settings: %w", err)
 	}
-	if err := setup.ValidateDevice(dev, cfg); err != nil {
+	if err := setup.ValidateDevice(dev); err != nil {
 		return "", config.Device{}, fmt.Errorf("load device settings %s: %w", device, err)
 	}
 	return device, dev, nil

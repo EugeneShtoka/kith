@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -109,6 +110,7 @@ func (m Model) applyDerived(s config.Settings, derived derivations, done string)
 // runDerived makes s, already checked and derived, the running configuration.
 func (m Model) runDerived(s config.Settings, derived derivations, done string) (Model, tea.Cmd) {
 	cfg, dev := s.Bridge, s.Device
+	wasDangling := setup.DanglingTags(m.settings())
 	m.conf.applied++
 	m = m.applyIntegrations(cfg, derived).runningOn(dev)
 	m.prefs.display = cfg.Display
@@ -151,7 +153,7 @@ func (m Model) runDerived(s config.Settings, derived derivations, done string) (
 	m.notifications.rules = derived.rules
 	m.notifications.on = dev.Notifications.Enabled
 
-	m = m.say(done)
+	m = m.say(done).warnDangling(derived.dangling, wasDangling)
 	// Naming or unnaming a room renames the person it is named after.
 	m, peers := m.refreshPeers()
 	m, fields := m.refreshFieldMembers()
@@ -200,6 +202,28 @@ func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	return m
 }
 
+// warnDangling says and logs each setting naming a tag that does not exist that was not
+// already so before (all at start), after what the status line says.
+func (m Model) warnDangling(dangling, before []string) Model {
+	var fresh []string
+	for _, warning := range dangling {
+		if !slices.Contains(before, warning) {
+			fresh = append(fresh, warning)
+		}
+	}
+	if len(fresh) == 0 {
+		return m
+	}
+	said := strings.Join(fresh, "; ") + " (it matches no room)"
+	if m.log != nil {
+		m.log.Warn(said)
+	}
+	if m.st.event != "" {
+		said = m.st.event + " — " + said
+	}
+	return m.say(said)
+}
+
 // runningOn makes dev the device's settings the window runs on, as read off it
 // directly rather than derived.
 func (m Model) runningOn(dev config.Device) Model {
@@ -243,6 +267,8 @@ type derivations struct {
 	// tags are the [[tag]]s, and tagWarnings the cycles among them (said, not fatal).
 	tags        domain.TagSet
 	tagWarnings []string
+	// dangling is each setting naming a tag that does not exist (setup.DanglingTags).
+	dangling []string
 	// archives is the archive tag of each followed network; mirrored lists the networks
 	// whose archive kith's filing changes (fileTags).
 	archives map[domain.Protocol]string
@@ -261,7 +287,7 @@ func derive(s config.Settings, profile string) (derivations, error) {
 	if err := setup.Validate(cfg); err != nil {
 		return derivations{}, err
 	}
-	if err := setup.ValidateDevice(dev, cfg); err != nil {
+	if err := setup.ValidateDevice(dev); err != nil {
 		return derivations{}, err
 	}
 	rules, err := setup.NotificationRules(cfg.Notifications)
@@ -308,6 +334,7 @@ func derive(s config.Settings, profile string) (derivations, error) {
 	out.palette, out.rules, out.unreadLocal = palette, rules, source != config.UnreadNotifications
 	out.tone, out.clock, out.media, out.detail = tone, clock, media, detail
 	out.emoji, out.codeRules, out.codeScope = newEmojiSet(tier, dev.Display.Emoji.Extra), codeRules, codeScope
+	out.dangling = setup.DanglingTags(s)
 	return out, nil
 }
 

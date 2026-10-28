@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 )
 
@@ -144,8 +145,8 @@ func TestMakingATag(t *testing.T) {
 	}
 }
 
-// Deleting asks first, takes the tag out of the rail's lists, and is refused while a
-// rule still names it.
+// Deleting asks first and takes the tag out of the rail's lists and this device's; a
+// rule naming it alone stays, matching no room, and the status line names it.
 func TestDeletingATagFromTheEditor(t *testing.T) {
 	t.Parallel()
 	m, _ := editingTag(t, "Pinned")
@@ -161,10 +162,44 @@ func TestDeletingATagFromTheEditor(t *testing.T) {
 	cfg := m.conf.base.Clone()
 	cfg.Notifications.Rules = append(cfg.Notifications.Rules, config.Rule{Match: "tag:Drafts", Show: "all"})
 	m, _ = m.applyConfig(cfg, "")
+	dev := m.conf.device.Clone()
+	dev.Display.Direction.RTL = []string{"tag:Drafts"}
+	dev.UserCommands = []config.Command{{Name: "standup", In: []string{"tag:Drafts"}}}
+	m, _ = m.applyDevice(dev, "")
+	if len(m.conf.device.UserCommands) != 1 {
+		t.Fatalf("status %q: the device's command was not applied", m.status())
+	}
 	m.confirm = confirmState{action: pendingDeleteTag, group: "Drafts"}
 	m, _ = m.resolveConfirm(true)
-	if m.configTag("Drafts") < 0 || !strings.Contains(m.status(), "tag:Drafts") {
-		t.Errorf("status %q: want Drafts kept, and the rule naming it said", m.status())
+	if m.configTag("Drafts") >= 0 || !strings.Contains(m.status(), "notifications.rule[0].match: tag:Drafts") {
+		t.Errorf("status %q: want Drafts gone, and the rule still naming it said", m.status())
+	}
+	if len(m.conf.device.Display.Direction.RTL) != 0 || len(m.conf.device.UserCommands) != 0 {
+		t.Errorf("device %+v, commands %+v: want Drafts gone from both", m.conf.device.Display.Direction, m.conf.device.UserCommands)
+	}
+}
+
+// A setting naming a tag that does not exist is said once, when the window starts on
+// it or a change brings it in, not again on every change after.
+func TestASettingNamingNoTagIsSaidOnce(t *testing.T) {
+	t.Parallel()
+	m := starterNew(apitest.Nop{}, config.Display{})
+	cfg := m.conf.base.Clone()
+	cfg.Notifications.Rules = []config.Rule{{Match: "tag:Gone", Show: "all"}}
+	m = m.WithConfigFile("", asStarted(cfg))
+	if !strings.Contains(m.status(), "notifications.rule[0].match: tag:Gone names no [[tag]]") {
+		t.Errorf("at start: status %q, want the rule named", m.status())
+	}
+	cfg = m.conf.base.Clone()
+	cfg.Display.Rail.NetworkColors = !cfg.Display.Rail.NetworkColors
+	if m, _ = m.applyConfig(cfg, "changed"); m.status() != "changed" {
+		t.Errorf("an unrelated change: status %q, want it alone", m.status())
+	}
+	dev := m.conf.device.Clone()
+	dev.Display.Direction.LTR = []string{"tag:Gone"}
+	m, _ = m.applyDevice(dev, "set")
+	if got := m.status(); !strings.Contains(got, "display.direction.ltr: tag:Gone") || strings.Contains(got, "notifications") {
+		t.Errorf("a change naming it: status %q, want that setting alone named", got)
 	}
 }
 

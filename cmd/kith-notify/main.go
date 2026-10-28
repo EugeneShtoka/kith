@@ -122,7 +122,7 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", device, err)
 	}
-	if err := setup.ValidateDevice(dev, cfg); err != nil {
+	if err := setup.ValidateDevice(dev); err != nil {
 		return fmt.Errorf("reading %s: %w", device, err)
 	}
 	if uerr := setup.AutoCopyUnavailable(cfg, dev); uerr != nil {

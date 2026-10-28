@@ -103,12 +103,32 @@ func TestTagsThatNameNothingAreRefused(t *testing.T) {
 		"no name":            {{Rule: []string{"dm"}}},
 		"twice":              {{Name: "A"}, {Name: "a"}},
 		"unknown term":       {{Name: "A", Rule: []string{"unred"}}},
-		"unknown tag":        {{Name: "A", Rule: []string{"tag:B"}}},
+		"no tag's name":      {{Name: "A", Rule: []string{"tag: "}}},
 		"picked a space":     {{Name: "A", Picked: []string{"space:Work"}}},
 		"excluded a network": {{Name: "A", Excluded: []string{"protocol:WhatsApp"}}},
 	} {
 		if _, _, err := NewTagSet(tags); err == nil {
 			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+// A tag that does not exist is an empty one: a term naming it matches no room, so a
+// rule of it alone holds nothing and `not` it leaves out nothing.
+func TestAMissingTagMatchesNothing(t *testing.T) {
+	t.Parallel()
+	set := mustTags(t,
+		Tag{Name: "Only", Rule: []string{"tag:Gone"}},
+		Tag{Name: "Either", Rule: []string{"tag:Gone", "dm"}},
+		Tag{Name: "Unless", Rule: []string{"not tag:Gone"}},
+		Tag{Name: "Through", Rule: []string{"tag:Only"}},
+	)
+	for _, room := range []RoomFacts{momDM, workGrp, botsGrp} {
+		if set.Has("Only", room, RoomState{}) || set.Has("Through", room, RoomState{}) {
+			t.Errorf("%s: a missing tag matched", room.Name)
+		}
+		if set.Has("Either", room, RoomState{}) != room.Direct || !set.Has("Unless", room, RoomState{}) {
+			t.Errorf("%s: a missing tag changed what the other terms say", room.Name)
 		}
 	}
 }

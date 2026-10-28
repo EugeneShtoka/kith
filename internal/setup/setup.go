@@ -59,12 +59,11 @@ func Validate(cfg config.Config) error {
 }
 
 // ValidateDevice checks a device file at a client's start and before it is written,
-// returning the first problem in list order. cfg is the bridge's config, whose tags
-// the device's lists of places may name.
-func ValidateDevice(dev config.Device, cfg config.Config) error {
+// returning the first problem in list order.
+func ValidateDevice(dev config.Device) error {
 	d := dev.Display
 	for _, err := range []error{
-		devicePlaceEntries(dev, cfg),
+		devicePlaceEntries(dev),
 		Scripts(dev),
 		errOf(SkinTone(d.SkinTone)),
 		errOf(EmojiTier(d.Emoji.Set)),

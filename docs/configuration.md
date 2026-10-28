@@ -216,6 +216,10 @@ quietly ignored would look exactly like one that works.
 Key *names* are checked too: a key kith doesn't read (misspelled, or under the
 wrong `[section]` header) stops startup with a list of the unknown keys.
 
+One thing is warned of instead: a `tag:<name>` naming a tag `config.toml` does not
+have. Tags live in `config.toml` while `device.toml` names them too, so a tag deleted
+on one device must not stop another; the entry matches no room.
+
 ## The settings screen
 
 You rarely need to open the files. Inside kith:
@@ -336,7 +340,9 @@ Settings that name a place say which kind with a prefix:
 
 - `space:<name>`: a space by its name (a Telegram forum, a WhatsApp community and a
   Slack workspace are spaces too);
-- `tag:<name>`: a tag;
+- `tag:<name>`: a tag. A tag that does not exist is an empty one: the entry matches no
+  room, and is warned of, never refused (the client says where on its status line,
+  kithd in its log). Deleting a tag cleans what it can ([Tags](usage.md#tags));
 - `place:<name>`: every rail row shown as `<name>`, its label after a
   `[[display.name]]` rename or its name, in any case: a space, a tag, anything the
   rail shows. Where several rows share the name it means all of them;

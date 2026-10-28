@@ -104,10 +104,10 @@ func parseTerm(raw string, known map[string]bool) (term, error) {
 		t.state = stateWords[lower]
 	case hasPrefixFold(s, termTag):
 		name, _ := TagOf(s)
-		if !known[strings.ToLower(name)] {
+		if name == "" {
 			return term{}, fmt.Errorf("%q names no tag", raw)
 		}
-		t.tag = strings.ToLower(name)
+		t.tag = strings.ToLower(name) // a tag that does not exist is empty: it matches nothing
 	case hasPrefixFold(s, entryPlace):
 		_, name, ok := ParseHomeEntry(s)
 		if !ok {
@@ -237,8 +237,8 @@ func (s TagSet) references() [][]int {
 	refs := make([][]int, len(s.tags))
 	for i := range s.tags {
 		for _, t := range slices.Concat(s.tags[i].positive, s.tags[i].negated) {
-			if t.tag != "" {
-				refs[i] = append(refs[i], s.byName[t.tag])
+			if j, ok := s.byName[t.tag]; ok {
+				refs[i] = append(refs[i], j)
 			}
 		}
 	}
@@ -403,8 +403,8 @@ func (s TagSet) has(i int, facts RoomFacts, state RoomState, asking map[int]bool
 		case t.shownAs != "" && facts.inSpaceShownAs(t.shownAs):
 			return true
 		case t.tag != "":
-			j := s.byName[t.tag]
-			if s.cyclic[[2]string{from, t.tag}] || asking[j] {
+			j, ok := s.byName[t.tag]
+			if !ok || s.cyclic[[2]string{from, t.tag}] || asking[j] {
 				return false
 			}
 			return s.has(j, facts, state, asking)

@@ -240,8 +240,8 @@ func (m Model) fileInNewTag(name string, room domain.Room) (Model, tea.Cmd) {
 	return next, tea.Batch(made, filed)
 }
 
-// deleteTag removes the tag and its rail list and priority entries; a rule still
-// naming it refuses the change, saying where.
+// deleteTag removes the tag and every entry naming it that can go (setup.DeleteTag);
+// the status line names what still does, matching no room.
 func (m Model) deleteTag(name string) (Model, tea.Cmd) {
 	deleted := config.Settings{Bridge: setup.DeleteTag(m.conf.base, name), Device: setup.DeleteTagOnDevice(m.conf.device, name)}
 	next, cmd := m.applySettings(deleted, "deleted the tag "+isolate(name))

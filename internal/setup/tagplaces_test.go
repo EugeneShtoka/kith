@@ -10,32 +10,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// tag:<name> is a place everywhere places are read; a missing tag is refused.
-func TestTagPlacesMustNameATag(t *testing.T) {
-	t.Parallel()
-	base := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
-	for name, set := range map[string]func(*config.Config){
-		"a notification rule": func(c *config.Config) { c.Notifications.Rules = []config.Rule{{Match: "tag:Nope"}} },
-		"agent read":          func(c *config.Config) { c.Agent.Read.Rooms = []string{"tag:Nope"} },
-		"codes":               func(c *config.Config) { c.Codes.Include = []string{"tag:Nope"} },
-		"a spam filter's in": func(c *config.Config) {
-			c.Filters = []config.Filter{{Name: "x", Tag: "Family", Words: []string{"w"}, In: []string{"tag:Nope"}}}
-		},
-	} {
-		cfg := base
-		set(&cfg)
-		if err := PlaceEntries(cfg); err == nil || !strings.Contains(err.Error(), `"tag:Nope"`) {
-			t.Errorf("%s naming no tag: %v, want refused", name, err)
-		}
-	}
-	ok := base
-	ok.Agent.Read.Rooms = []string{"tag:family"}
-	ok.Notifications.Rules = []config.Rule{{Match: "tag:Family"}}
-	if err := PlaceEntries(ok); err != nil {
-		t.Errorf("places naming a tag that exists: %v", err)
-	}
-}
-
 // Places carry the tags and the home order ([display] priority, rail order, tags).
 func TestPlacesCarryTagsAndPriority(t *testing.T) {
 	t.Parallel()

@@ -1,6 +1,7 @@
 package setup_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -110,7 +111,7 @@ func validate(s config.Settings) error {
 	if err := setup.Validate(s.Bridge); err != nil {
 		return err
 	}
-	return setup.ValidateDevice(s.Device, s.Bridge)
+	return setup.ValidateDevice(s.Device)
 }
 
 // Every setting naming a place refuses a bare name at load, saying which setting, which
@@ -139,6 +140,41 @@ func TestEverySettingNamingAPlaceRefusesABareName(t *testing.T) {
 				t.Errorf("%s: %q refused: %v", s.what, entry, err)
 			}
 		}
+	}
+}
+
+// A tag that does not exist is an empty one: every setting naming a place takes it
+// (`not` it too, in a rule), and DanglingTags names that setting, once.
+func TestASettingNamingNoTagIsWarnedOfNotRefused(t *testing.T) {
+	t.Parallel()
+	for _, s := range placeSettings() {
+		if !slices.Contains(s.ok, "tag:Pinned") {
+			continue // takes no tag at all
+		}
+		for _, entry := range []string{"tag:Gone", "not tag:Gone"} {
+			if strings.HasPrefix(entry, "not ") && !slices.Contains(s.ok, "not dm") {
+				continue
+			}
+			cfg := config.Settings{Bridge: valid()}
+			s.set(&cfg, entry)
+			if err := validate(cfg); err != nil {
+				t.Errorf("%s: %q refused: %v", s.what, entry, err)
+			}
+			if got := setup.DanglingTags(cfg); len(got) != 1 || !strings.HasSuffix(got[0], ": "+entry+" names no [[tag]]") {
+				t.Errorf("%s: %q warned of as %q, want once", s.what, entry, got)
+			}
+		}
+	}
+	cfg := config.Settings{Bridge: valid()}
+	cfg.Device.Display.Direction.RTL = []string{"tag:Gone"}
+	cfg.Device.UserCommands = []config.Command{{Name: "zoom", In: []string{"dm", "tag:Gone"}}}
+	want := []string{"display.direction.rtl: tag:Gone names no [[tag]]", "command[0].in: tag:Gone names no [[tag]]"}
+	if got := setup.DanglingTags(cfg); !slices.Equal(got, want) {
+		t.Errorf("DanglingTags = %q, want %q", got, want)
+	}
+	cfg.Bridge.Tags = append(cfg.Bridge.Tags, config.Tag{Name: " gone "})
+	if got := setup.DanglingTags(cfg); len(got) != 0 {
+		t.Errorf("DanglingTags = %q with the tag there", got)
 	}
 }
 

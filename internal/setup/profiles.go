@@ -66,9 +66,6 @@ func profileOf(cfg config.Config, shared domain.TagSet, p *config.Profile, name 
 		if err := domain.ValidateEntries(what, entries); err != nil {
 			return domain.Profile{}, fmt.Errorf("setup: %w", err)
 		}
-		if err := knownTags(cfg, what, entries); err != nil {
-			return domain.Profile{}, err
-		}
 		if err := stateFree(judged, what, entries); err != nil {
 			return domain.Profile{}, err
 		}

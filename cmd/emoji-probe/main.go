@@ -60,7 +60,7 @@ func run(setName, toneName string) error {
 	if verr := setup.Validate(cfg); verr != nil {
 		return fmt.Errorf("config: %w", verr)
 	}
-	if verr := setup.ValidateDevice(dev, cfg); verr != nil {
+	if verr := setup.ValidateDevice(dev); verr != nil {
 		return fmt.Errorf("device settings: %w", verr)
 	}
 	cells, err := tui.EmojiCells(dev.Display)

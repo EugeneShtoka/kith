@@ -9,8 +9,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A tag is referenced as `tag:<name>`. Deleting one leaves other references for the
-// person: a rule naming a missing tag is refused, saying where. A `place:<name>` entry
+// A tag is referenced as `tag:<name>`. A tag that does not exist is an empty one, so
+// deleting a tag takes out each reference whose list then matches the same rooms, and
+// leaves the rest, matching nothing, for DanglingTags to name. A `place:<name>` entry
 // names whatever the rail shows by that name, so neither touches it.
 
 // RenameTag renames tag from (case-insensitive) to to: its [[tag]], every
@@ -53,15 +54,13 @@ func RenameTagOnDevice(dev config.Device, from, to string) config.Device {
 }
 
 // DeleteTag removes tag name, its entries in the rails' lists (each profile's too)
-// and [display] priority, and the filters moving rooms into it. A device's keys follow
-// with DeleteTagOnDevice.
+// and [display] priority, the filters moving rooms into it, and every other reference
+// to it whose list or rule then holds the same rooms. A device's settings follow with
+// DeleteTagOnDevice.
 func DeleteTag(cfg config.Config, name string) config.Config {
 	out := cfg.Clone()
 	out.Tags = slices.DeleteFunc(out.Tags, func(t config.Tag) bool { return sameTag(t.Name, name) })
-	names := func(entry string) bool {
-		tag, ok := domain.TagOf(entry)
-		return ok && sameTag(tag, name)
-	}
+	names := namesTag(name)
 	out.Display.Rail.Order = slices.DeleteFunc(out.Display.Rail.Order, names)
 	out.Display.Rail.Hidden = slices.DeleteFunc(out.Display.Rail.Hidden, names)
 	out.Display.Rail.HideWhenEmpty = slices.DeleteFunc(out.Display.Rail.HideWhenEmpty, names)
@@ -78,14 +77,100 @@ func DeleteTag(cfg config.Config, name string) config.Config {
 			archive.Tag = "" // a network's archive then follows no tag (the default, if any)
 		}
 	}
+	// An exclusion list's entry naming the tag now leaves out nothing.
+	for _, list := range []*[]string{
+		&out.Codes.Exclude, &out.Agent.Read.Except, &out.Agent.Write.Except, &out.Assist.Except,
+	} {
+		*list = slices.DeleteFunc(*list, names)
+	}
+	for _, list := range []*[]string{
+		&out.Codes.Include, &out.Agent.Read.Rooms, &out.Agent.Write.Rooms, &out.Agent.Write.Send, &out.Assist.Rooms,
+	} {
+		*list = inclusionWithout(*list, names)
+	}
+	for i := range out.Display.Tracked.Rules {
+		rule := &out.Display.Tracked.Rules[i]
+		rule.In, rule.Except = inclusionWithout(rule.In, names), slices.DeleteFunc(rule.Except, names)
+	}
+	for i := range out.Filters {
+		out.Filters[i].In = inclusionWithout(out.Filters[i].In, names)
+	}
+	for i := range out.Profiles {
+		p := &out.Profiles[i]
+		p.Include, p.Exclude = inclusionWithout(p.Include, names), slices.DeleteFunc(p.Exclude, names)
+		p.Archive.Rooms = ruleWithout(p.Archive.Rooms, names)
+	}
+	for i := range out.Tags {
+		out.Tags[i].Rule = ruleWithout(out.Tags[i].Rule, names)
+	}
 	return out
 }
 
-// DeleteTagOnDevice removes the keys moving rooms into tag name.
+// DeleteTagOnDevice removes the keys moving rooms into tag name, and its entries in
+// the device's lists of places as DeleteTag does: [display.direction] always (empty
+// sets no room, as the tag now does), a command's `in` while another entry remains. A
+// command whose `in` names only the tag goes with it.
 func DeleteTagOnDevice(dev config.Device, name string) config.Device {
 	out := dev.Clone()
+	names := namesTag(name)
 	out.Keys.Tag = slices.DeleteFunc(out.Keys.Tag, func(k config.TagKey) bool { return sameTag(k.Tag, name) })
+	out.Display.Direction.RTL = slices.DeleteFunc(out.Display.Direction.RTL, names)
+	out.Display.Direction.LTR = slices.DeleteFunc(out.Display.Direction.LTR, names)
+	out.UserCommands = slices.DeleteFunc(out.UserCommands, func(c config.Command) bool {
+		return len(c.In) > 0 && !slices.ContainsFunc(c.In, others(names))
+	})
+	for i := range out.UserCommands {
+		out.UserCommands[i].In = inclusionWithout(out.UserCommands[i].In, names)
+	}
 	return out
+}
+
+// namesTag reports an entry `tag:<name>`.
+func namesTag(name string) func(string) bool {
+	return func(entry string) bool {
+		tag, ok := domain.TagOf(entry)
+		return ok && sameTag(tag, name)
+	}
+}
+
+// inclusionWithout drops the entries names picks from an inclusion list while another
+// entry remains; alone they stay, matching nothing, since emptied most such lists
+// include every room.
+func inclusionWithout(list []string, names func(string) bool) []string {
+	if !slices.ContainsFunc(list, others(names)) {
+		return list
+	}
+	return slices.DeleteFunc(list, names)
+}
+
+// others reports an entry that is not one names picks.
+func others(names func(string) bool) func(string) bool {
+	return func(entry string) bool { return !names(entry) }
+}
+
+// ruleWithout drops a [[tag]] rule's terms naming a now empty tag where the rule then
+// holds the same rooms: a positive one while another positive term remains (with none
+// left, the rule holds every room its `not` terms leave), a `not` one while any other
+// term remains (an empty rule holds no room).
+func ruleWithout(rule []string, names func(string) bool) []string {
+	positive := func(term string) bool { _, not := notTerm(term); return !not && names(term) }
+	if slices.ContainsFunc(rule, func(term string) bool { _, not := notTerm(term); return !not && !names(term) }) {
+		rule = slices.DeleteFunc(rule, positive)
+	}
+	negative := func(term string) bool { body, not := notTerm(term); return not && names(body) }
+	if slices.ContainsFunc(rule, func(term string) bool { return !negative(term) }) {
+		rule = slices.DeleteFunc(rule, negative)
+	}
+	return rule
+}
+
+// notTerm is a rule term without its `not`, and whether it had one.
+func notTerm(term string) (string, bool) {
+	t := strings.TrimSpace(term)
+	if len(t) > len("not ") && strings.EqualFold(t[:len("not ")], "not ") {
+		return strings.TrimSpace(t[len("not "):]), true
+	}
+	return t, false
 }
 
 // renamedReference renames a whole `[not ]tag:<from>` entry; anything else is

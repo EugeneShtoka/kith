@@ -191,6 +191,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	configure(log, backend, cfg, storage)
 
 	warnAboutAgentScope(ctx, log, backend, cfg)
+	warnAboutDanglingTags(log, cfg)
 
 	err = serve(ctx, log, relevel, lock, backend, cfg, file)
 	if handlersLive = errors.Is(err, daemon.ErrHandlersRunning); handlersLive {
@@ -239,6 +240,14 @@ func warnAboutAgentScope(ctx context.Context, log *slog.Logger, places setup.Age
 	defer cancel()
 	for _, warning := range setup.AgentWarnings(ctx, places, setup.PlacesOf(cfg), cfg.Agent) {
 		log.Warn("agent scope: " + warning)
+	}
+}
+
+// warnAboutDanglingTags logs each setting naming a tag the config does not have: it
+// matches no room. Never fatal.
+func warnAboutDanglingTags(log *slog.Logger, cfg config.Config) {
+	for _, warning := range setup.DanglingTags(config.Settings{Bridge: cfg}) {
+		log.Warn(warning + " (it matches no room)")
 	}
 }
 
@@ -519,7 +528,7 @@ func serve(
 	logins := daemon.NewLogins(ctx, backend.loginLeaders)
 	logins.LogTo(log)
 	log.Info("serving", "socket", lock.Socket(), "version", buildinfo.String("kithd"))
-	reload := reloader(file, relevel, cutoff, backend, w.notifications)
+	reload := reloader(log, file, relevel, cutoff, backend, w.notifications)
 	// A hand edit to config.toml is picked up without a restart: the watcher
 	// runs the same reload the RPC does, and logs the outcome.
 	if werr := daemon.WatchConfig(ctx, file.path, reload, log); werr != nil {
@@ -547,6 +556,7 @@ func serve(
 
 // reloader re-reads the file the daemon was started with, never a client payload.
 func reloader(
+	log *slog.Logger,
 	file configFile,
 	relevel func(string),
 	cutoff *atomic.Int64,
@@ -566,6 +576,7 @@ func reloader(
 		if err := backend.checkConfig(ctx, reloaded); err != nil {
 			return err
 		}
+		warnAboutDanglingTags(log, reloaded)
 		relevel(reloaded.Log.Level)
 		cutoff.Store(int64(reloaded.Schedule.Cutoff()))
 		backend.UseCompletionModel(modelsetup.CompletionModel(reloaded.Complete.Model, backend.dataDir))

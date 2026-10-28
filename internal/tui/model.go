@@ -3010,7 +3010,7 @@ func (m Model) WithConfigFile(path string, cfg config.Config) Model {
 		m = m.sayErr("config", err)
 		derived, _ = derive(config.Settings{}, "")
 	}
-	next := m.applyIntegrations(cfg, derived)
+	next := m.applyIntegrations(cfg, derived).warnDangling(derived.dangling, nil)
 	// The rail is the spaces and the tags; New had no tags to build it from.
 	return next.rebuiltRail()
 }
