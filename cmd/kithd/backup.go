@@ -73,7 +73,7 @@ func runBackup(args []string) error {
 	}
 	src := backup.Source{ConfigPath: path, Config: cfg, Storage: storage, CacheKey: key}
 	if !*noMedia {
-		src.MediaDir = setup.MediaDir(cfg, storage)
+		src.MediaDir = storage.MediaDir()
 	}
 	made, err := backup.Create(ctx, src, out, to)
 	if err != nil {

@@ -81,7 +81,7 @@ func childOnAFullDisk() bool {
 			println("config:", lerr, serr)
 			os.Exit(2)
 		}
-		src := backup.Source{ConfigPath: lines[2], Config: cfg, Storage: storage, CacheKey: keyAt(storage.DataDir), MediaDir: setup.MediaDir(cfg, storage)}
+		src := backup.Source{ConfigPath: lines[2], Config: cfg, Storage: storage, CacheKey: keyAt(storage.DataDir), MediaDir: storage.MediaDir()}
 		_, err = backup.MakeDaily(context.Background(), src, key.Recipient(), lines[3], defaultSchedule, day(30))
 	}
 	if err == nil {

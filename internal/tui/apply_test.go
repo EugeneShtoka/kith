@@ -15,15 +15,19 @@ func TestNewDerivesWhatApplyConfigDerives(t *testing.T) {
 			{Target: mx + "!a:x", Name: "the one room"},
 			{Target: config.NameTargetThread + mx + "$t:x", Name: "the thread"},
 		},
-		Media: config.Media{Audio: config.Audio{Speed: 1.5}},
 	}
+	device := config.DeviceDisplay{Media: config.Media{Audio: config.Audio{Speed: 1.5}}}
 
 	fresh, _ := attaching(t)
-	fresh = starterNew(fresh.backend, display)
+	fresh = starterNew(fresh.backend, display, device)
 
-	// The same display, arriving as a settings change instead of at startup.
+	// The same settings, arriving as a change instead of at startup.
 	changed, _ := attaching(t)
-	applied, _ := changed.applyConfig(config.Config{Profiles: starter(t).Profiles, Display: display}, "ok")
+	dev := changed.conf.device.Clone()
+	dev.Display = device
+	applied, _ := changed.applySettings(config.Settings{
+		Bridge: config.Config{Profiles: starter(t).Profiles, Display: display}, Device: dev,
+	}, "ok")
 	after := applied
 
 	if got, want := fresh.prefs.roomAliases, after.prefs.roomAliases; len(got) != len(want) || got[mx+"!a:x"] != want[mx+"!a:x"] {

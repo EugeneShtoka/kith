@@ -119,7 +119,7 @@ func (m Model) play() (Model, tea.Cmd) {
 	if m.player.active() && m.player.event == msg.ID {
 		return m.togglePlay()
 	}
-	command, err := audio.Resolve(m.prefs.display.Media.Audio.PlayerCommand())
+	command, err := audio.Resolve(m.prefs.device.Media.Audio.PlayerCommand())
 	if err != nil {
 		return m.say(playerAdvice(err)), nil
 	}
@@ -218,7 +218,7 @@ func (m Model) armClose() (Model, tea.Cmd) {
 	if !ok || !state.Done {
 		return m, nil
 	}
-	switch delay := m.prefs.display.Media.Audio.CloseDelay(); {
+	switch delay := m.prefs.device.Media.Audio.CloseDelay(); {
 	case delay < 0:
 		return m, nil // stays until stopped by hand
 	case delay == 0:
@@ -268,9 +268,9 @@ func (m Model) playerAction(act action) (Model, tea.Cmd, bool) {
 	case actPlayPause:
 		return answered(m.togglePlay())
 	case actSeekBack:
-		return answered(m.seekAudio(-m.prefs.display.Media.Audio.SkipStep()))
+		return answered(m.seekAudio(-m.prefs.device.Media.Audio.SkipStep()))
 	case actSeekForward:
-		return answered(m.seekAudio(m.prefs.display.Media.Audio.SkipStep()))
+		return answered(m.seekAudio(m.prefs.device.Media.Audio.SkipStep()))
 	case actSlower:
 		return answered(m.changeSpeed(-speedStep))
 	case actFaster:
@@ -427,7 +427,7 @@ func (m Model) playerHints(full bool) string {
 	return m.hintLine(
 		keyed(m.keys.keyHint(scopePlayer, actPlayPause), "play/pause"),
 		keyed(m.keys.keyHint(scopePlayer, actSeekBack)+"/"+m.keys.keyHint(scopePlayer, actSeekForward),
-			fmt.Sprintf("±%ds", int(m.prefs.display.Media.Audio.SkipStep().Seconds()))),
+			fmt.Sprintf("±%ds", int(m.prefs.device.Media.Audio.SkipStep().Seconds()))),
 		keyed(m.keys.keyHint(scopePlayer, actSlower)+"/"+m.keys.keyHint(scopePlayer, actFaster), "speed"),
 		keyed(m.keys.keyHint(scopePlayer, actSaveSpeed), "remember"),
 		keyed(m.keys.keyHint(scopePlayer, actStopPlay), "stop"),
@@ -497,14 +497,14 @@ func (m Model) chooseSpeedScope(index int) (Model, tea.Cmd) {
 	}
 	target := m.choosing.speedScopes[index]
 	speed := m.player.speed
-	cfg := m.conf.base.Clone()
+	dev := m.conf.device.Clone()
 	if target.match == "" && target.sender == "" {
-		cfg.Display.Media.Audio.Speed = speed
+		dev.Display.Media.Audio.Speed = speed
 	} else {
-		cfg.Display.Media.Rules = withSpeedRule(cfg.Display.Media.Rules, target, speed)
+		dev.Display.Media.Rules = withSpeedRule(dev.Display.Media.Rules, target, speed)
 	}
 	m = m.closePicker()
-	return m.applyConfig(cfg, fmt.Sprintf("%s plays at %s", target.what, audio.FormatSpeed(speed)))
+	return m.applyDevice(dev, fmt.Sprintf("%s plays at %s", target.what, audio.FormatSpeed(speed)))
 }
 
 // withSpeedRule sets the speed on the rule naming this place, adding one if none.

@@ -69,6 +69,10 @@ func serve(t *testing.T, socket string, cfg config.Config) kithd {
 	if err != nil {
 		t.Fatal(err)
 	}
+	uploads, err := daemon.NewUploads(filepath.Join(dir, "uploads"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan struct{})
 	go func() {
@@ -80,8 +84,9 @@ func serve(t *testing.T, socket string, cfg config.Config) kithd {
 			Config:      daemon.NewConfigFile(path),
 			Scheduler: daemon.NewScheduler(schedule.New(filepath.Join(dir, "scheduled.toml")), backend,
 				func() time.Duration { return time.Hour }, nil),
-			Logins: daemon.NewLogins(ctx, func() []api.LoginLeader { return nil }),
-			Log:    logging.Discard(),
+			Logins:  daemon.NewLogins(ctx, func() []api.LoginLeader { return nil }),
+			Uploads: uploads,
+			Log:     logging.Discard(),
 		})
 	}()
 	k := kithd{n: n, stop: func() { cancel(); <-served }}

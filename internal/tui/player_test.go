@@ -80,10 +80,10 @@ func voice(id domain.EventID) domain.Message {
 }
 
 // playing is a model with a voice note loaded and a fake player behind it.
-func playing(t *testing.T, disp config.Display) (Model, *fakeSession) {
+func playing(t *testing.T, disp config.DeviceDisplay) (Model, *fakeSession) {
 	t.Helper()
 
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{}, disp)))
 	m.focus = paneTimeline
 	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{voice(mx + "$v")}}})
 	session := &fakeSession{st: audio.State{Duration: 34 * time.Second, Position: 5 * time.Second, Speed: 1}}
@@ -123,7 +123,7 @@ func TestPlayerKeysWorkFromEveryPane(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			m, session := playing(t, config.Display{})
+			m, session := playing(t, config.DeviceDisplay{})
 			m.focus = focus
 			pressedThrough(t, m, tea.KeyPressMsg{Code: tea.KeySpace})
 			if session.toggle != 1 {
@@ -136,7 +136,7 @@ func TestPlayerKeysWorkFromEveryPane(t *testing.T) {
 func TestSkipKeysMoveByTheConfiguredStep(t *testing.T) {
 	t.Parallel()
 
-	m, session := playing(t, config.Display{Media: config.Media{Audio: config.Audio{Skip: 15}}})
+	m, session := playing(t, config.DeviceDisplay{Media: config.Media{Audio: config.Audio{Skip: 15}}})
 	m = pressedThrough(t, m, keyCode('['))
 	pressedThrough(t, m, keyCode(']'))
 	want := []time.Duration{-15 * time.Second, 15 * time.Second}
@@ -149,7 +149,7 @@ func TestSkipKeysMoveByTheConfiguredStep(t *testing.T) {
 func TestSpeedKeysStepAndClamp(t *testing.T) {
 	t.Parallel()
 
-	m, session := playing(t, config.Display{})
+	m, session := playing(t, config.DeviceDisplay{})
 	for range 3 {
 		m = pressedThrough(t, m, keyCode('}'))
 	}
@@ -177,7 +177,7 @@ func TestSpeedKeysStepAndClamp(t *testing.T) {
 func TestNormalSpeedReturnsToTheConfiguredOne(t *testing.T) {
 	t.Parallel()
 
-	m, _ := playing(t, config.Display{Media: config.Media{Audio: config.Audio{Speed: 1.5}}})
+	m, _ := playing(t, config.DeviceDisplay{Media: config.Media{Audio: config.Audio{Speed: 1.5}}})
 	m, _ = press(t, m, keyCode('}'))
 	m, _ = press(t, m, keyCode('='))
 	if m.player.speed != 1.5 {
@@ -188,7 +188,7 @@ func TestNormalSpeedReturnsToTheConfiguredOne(t *testing.T) {
 func TestStopClosesThePlayer(t *testing.T) {
 	t.Parallel()
 
-	m, session := playing(t, config.Display{})
+	m, session := playing(t, config.DeviceDisplay{})
 	m, _ = press(t, m, keyCode('P'))
 	if m.player.active() {
 		t.Error("the bar is still up after stopping")
@@ -202,7 +202,7 @@ func TestStopClosesThePlayer(t *testing.T) {
 func TestPlayerKeysAreGivenBack(t *testing.T) {
 	t.Parallel()
 
-	m, _ := playing(t, config.Display{})
+	m, _ := playing(t, config.DeviceDisplay{})
 	m.focus = paneRail
 	if act := m.keys.lookup("m", m.withPlayerScope(scopeRail, scopeNav, scopeCommand)...); act != actMarkRead {
 		t.Fatalf("the rail's own m should still work while a note plays, got %v", act)
@@ -217,7 +217,7 @@ func TestPlayerKeysAreGivenBack(t *testing.T) {
 func TestPlayerKeysDoNotReachTheComposer(t *testing.T) {
 	t.Parallel()
 
-	m, session := playing(t, config.Display{})
+	m, session := playing(t, config.DeviceDisplay{})
 	m.focus, m.compose.insertMode = paneTimeline, true
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	if session.toggle != 0 {
@@ -232,7 +232,7 @@ func TestPlayerKeysDoNotReachTheComposer(t *testing.T) {
 func TestPlayingTheSameNoteAgainIsPlayPause(t *testing.T) {
 	t.Parallel()
 
-	m, session := playing(t, config.Display{})
+	m, session := playing(t, config.DeviceDisplay{})
 	m.focus = paneTimeline
 	m = pressedThrough(t, m, keyCode('p'))
 	if session.toggle != 1 {
@@ -247,7 +247,7 @@ func TestPlayingTheSameNoteAgainIsPlayPause(t *testing.T) {
 func TestAStalePlayerIsClosedRatherThanShown(t *testing.T) {
 	t.Parallel()
 
-	m, session := playing(t, config.Display{})
+	m, session := playing(t, config.DeviceDisplay{})
 	m = update(t, m, audioReadyMsg{event: mx + "$other"})
 	if m.player.session != audioSession(session) {
 		t.Error("a player for another note replaced the loaded one")
@@ -257,7 +257,7 @@ func TestAStalePlayerIsClosedRatherThanShown(t *testing.T) {
 func TestPlayerBarSaysWhereItIsUpTo(t *testing.T) {
 	t.Parallel()
 
-	m, _ := playing(t, config.Display{Media: config.Media{Audio: config.Audio{Speed: 1.5}}})
+	m, _ := playing(t, config.DeviceDisplay{Media: config.Media{Audio: config.Audio{Speed: 1.5}}})
 	bar := m.renderPlayer(m.width)
 	for _, want := range []string{"note.ogg", "0:05", "0:34", "1.5×"} {
 		if !strings.Contains(bar, want) {
@@ -284,7 +284,7 @@ func TestTheBarTakesARowFromThePanes(t *testing.T) {
 	t.Parallel()
 
 	quiet := sized(t, withRooms(t, newModel()))
-	loud, _ := playing(t, config.Display{})
+	loud, _ := playing(t, config.DeviceDisplay{})
 	before := strings.Split(stripStyles(quiet.View().Content), "\n")
 	after := strings.Split(stripStyles(loud.View().Content), "\n")
 	if len(after) != len(before) {
@@ -320,7 +320,7 @@ func TestAudioTitle(t *testing.T) {
 func TestRememberingASpeedOffersTheUsualScopes(t *testing.T) {
 	t.Parallel()
 
-	m, _ := playing(t, config.Display{})
+	m, _ := playing(t, config.DeviceDisplay{})
 	m, _ = press(t, m, keyCode('w'))
 	if m.picker.kind != pickerSpeedScope {
 		t.Fatalf("picker = %v, want the speed scopes", m.picker.kind)
@@ -339,12 +339,12 @@ func TestRememberingASpeedOffersTheUsualScopes(t *testing.T) {
 func TestRememberingASpeedWritesARule(t *testing.T) {
 	t.Parallel()
 
-	m, _ := playing(t, config.Display{})
+	m, _ := playing(t, config.DeviceDisplay{})
 	m, _ = press(t, m, keyCode('}')) // 1.25×
 	m, _ = press(t, m, keyCode('w'))
 	m = choose(t, m, "everything in Alpha")
 
-	rules := m.conf.base.Display.Media.Rules
+	rules := m.conf.device.Display.Media.Rules
 	if len(rules) != 1 || rules[0].Match != mx+"!a:x" || rules[0].Sender != "" {
 		t.Fatalf("rules = %+v, want one naming the room", rules)
 	}
@@ -360,15 +360,15 @@ func TestRememberingASpeedWritesARule(t *testing.T) {
 func TestRememberingASpeedEverywhereIsNotARule(t *testing.T) {
 	t.Parallel()
 
-	m, _ := playing(t, config.Display{})
+	m, _ := playing(t, config.DeviceDisplay{})
 	m, _ = press(t, m, keyCode('}'))
 	m, _ = press(t, m, keyCode('w'))
 	m = choose(t, m, "everywhere")
 
-	if len(m.conf.base.Display.Media.Rules) != 0 {
-		t.Errorf("rules = %+v, want none", m.conf.base.Display.Media.Rules)
+	if len(m.conf.device.Display.Media.Rules) != 0 {
+		t.Errorf("rules = %+v, want none", m.conf.device.Display.Media.Rules)
 	}
-	if got := m.conf.base.Display.Media.Audio.Speed; got != 1.25 {
+	if got := m.conf.device.Display.Media.Audio.Speed; got != 1.25 {
 		t.Errorf("the outer speed = %v, want 1.25", got)
 	}
 }
@@ -377,7 +377,7 @@ func TestRememberingASpeedEverywhereIsNotARule(t *testing.T) {
 func TestRememberingASpeedTwiceEditsTheRule(t *testing.T) {
 	t.Parallel()
 
-	m, _ := playing(t, config.Display{})
+	m, _ := playing(t, config.DeviceDisplay{})
 	for _, faster := range []int{1, 2} {
 		for range faster {
 			m, _ = press(t, m, keyCode('}'))
@@ -385,7 +385,7 @@ func TestRememberingASpeedTwiceEditsTheRule(t *testing.T) {
 		m, _ = press(t, m, keyCode('w'))
 		m = choose(t, m, "everything in Alpha")
 	}
-	if rules := m.conf.base.Display.Media.Rules; len(rules) != 1 {
+	if rules := m.conf.device.Display.Media.Rules; len(rules) != 1 {
 		t.Errorf("rules = %+v, want the one rule edited", rules)
 	}
 }
@@ -430,7 +430,7 @@ func TestThePlayKeyIsAdvertisedOnlyOnAVoiceNote(t *testing.T) {
 func TestTheBarGivesUpItsLegendBeforeItsProgress(t *testing.T) {
 	t.Parallel()
 
-	m, session := playing(t, config.Display{})
+	m, session := playing(t, config.DeviceDisplay{})
 	session.st = audio.State{Position: 30 * time.Second, Duration: 60 * time.Second, Speed: 1}
 
 	wide := m.renderPlayer(140)
@@ -459,7 +459,7 @@ func TestTheBarGivesUpItsLegendBeforeItsProgress(t *testing.T) {
 func TestALongNameDoesNotCrowdOutTheClock(t *testing.T) {
 	t.Parallel()
 
-	m, session := playing(t, config.Display{})
+	m, session := playing(t, config.DeviceDisplay{})
 	session.st = audio.State{Position: 30 * time.Second, Duration: 60 * time.Second, Speed: 1}
 	m.player.title = strings.Repeat("long-", 20) + "name.ogg"
 	bar := m.renderPlayer(100)
@@ -515,7 +515,7 @@ func TestPulseRearmsOnlyWhileMoving(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			m, session := playing(t, config.Display{})
+			m, session := playing(t, config.DeviceDisplay{})
 			m.player.pulsing = true
 			m = update(t, tc.setup(m, session), playerTickMsg{})
 			if m.player.pulsing != tc.want {
@@ -537,7 +537,7 @@ func TestAControlRestartsAStoppedPulse(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			m, session := playing(t, config.Display{})
+			m, session := playing(t, config.DeviceDisplay{})
 			session.finish()
 			m = update(t, m, playerTickMsg{})
 			if m.player.pulsing {
@@ -559,7 +559,7 @@ func TestAControlRestartsAStoppedPulse(t *testing.T) {
 func TestAControlBuysTheBarAGracePeriod(t *testing.T) {
 	t.Parallel()
 
-	m, session := playing(t, config.Display{})
+	m, session := playing(t, config.DeviceDisplay{})
 	session.finish()
 	m, cmd := m.togglePlay()
 	if cmd == nil {
@@ -581,7 +581,7 @@ func TestAControlBuysTheBarAGracePeriod(t *testing.T) {
 func TestArmingAnAlreadyRunningPulseAddsNothing(t *testing.T) {
 	t.Parallel()
 
-	m, _ := playing(t, config.Display{})
+	m, _ := playing(t, config.DeviceDisplay{})
 	m, first := m.armPulse()
 	if first == nil {
 		t.Fatal("the first arm returned no tick")
@@ -596,7 +596,7 @@ func TestArmingAnAlreadyRunningPulseAddsNothing(t *testing.T) {
 func TestSwappingTheNoteKeepsTheTickAccountedFor(t *testing.T) {
 	t.Parallel()
 
-	m, _ := playing(t, config.Display{})
+	m, _ := playing(t, config.DeviceDisplay{})
 	m.player.pulsing = true
 	stopped, _ := m.stopPlaying()
 	if !stopped.player.pulsing {
@@ -619,7 +619,7 @@ func pulseOnce(t *testing.T, m Model) (Model, time.Duration, bool) {
 
 func noted(t *testing.T, length time.Duration, speed float64) (Model, *fakeSession) {
 	t.Helper()
-	m, session := playing(t, config.Display{})
+	m, session := playing(t, config.DeviceDisplay{})
 	session.mu.Lock()
 	session.st = audio.State{Duration: length, Position: length / 2, Speed: speed}
 	session.mu.Unlock()
@@ -692,12 +692,12 @@ func TestGraceTicksUseTheFloorRate(t *testing.T) {
 	}
 }
 
-func closeAfter(seconds int) config.Display {
-	return config.Display{Media: config.Media{Audio: config.Audio{CloseAfter: &seconds}}}
+func closeAfter(seconds int) config.DeviceDisplay {
+	return config.DeviceDisplay{Media: config.Media{Audio: config.Audio{CloseAfter: &seconds}}}
 }
 
 // finished drives a playing note to its end and returns the tick's result.
-func finished(t *testing.T, disp config.Display) (Model, tea.Cmd) {
+func finished(t *testing.T, disp config.DeviceDisplay) (Model, tea.Cmd) {
 	t.Helper()
 	m, session := playing(t, disp)
 	m.player.pulsing = true
@@ -712,12 +712,12 @@ func TestAFinishedNoteClosesPerConfig(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
-		disp   config.Display
+		disp   config.DeviceDisplay
 		after  time.Duration // 0: no timer armed
 		active bool
 	}{
 		{"configured", closeAfter(15), 15 * time.Second, true},
-		{"default", config.Display{}, config.DefaultCloseAfterSeconds * time.Second, true},
+		{"default", config.DeviceDisplay{}, config.DefaultCloseAfterSeconds * time.Second, true},
 		{"zero closes at once", closeAfter(0), 0, false},
 		{"negative never closes", closeAfter(-1), 0, true},
 	} {
@@ -727,7 +727,7 @@ func TestAFinishedNoteClosesPerConfig(t *testing.T) {
 			if m.player.active() != tc.active {
 				t.Errorf("active = %v, want %v", m.player.active(), tc.active)
 			}
-			if got := m.prefs.display.Media.Audio.CloseDelay(); tc.after != 0 && got != tc.after {
+			if got := m.prefs.device.Media.Audio.CloseDelay(); tc.after != 0 && got != tc.after {
 				t.Fatalf("close delay %v, want %v", got, tc.after)
 			}
 			armed := timers(t, cmd) == 1
@@ -828,7 +828,7 @@ func (h hungSession) SetSpeed(f float64) error {
 // Controls reach the player off the event loop, so a hung player does not freeze the screen.
 func TestAHungPlayerDoesNotHoldUpTheKeys(t *testing.T) {
 	t.Parallel()
-	m, session := playing(t, config.Display{})
+	m, session := playing(t, config.DeviceDisplay{})
 	const wait = 300 * time.Millisecond
 	m.player.session = hungSession{fakeSession: session, wait: wait}
 	for _, key := range []tea.KeyPressMsg{keyText(" "), keyCode(']'), keyCode('}')} {

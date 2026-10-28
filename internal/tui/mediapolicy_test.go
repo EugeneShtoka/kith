@@ -15,11 +15,11 @@ import (
 func TestARoomCanRefuseToFetchPicturesUnasked(t *testing.T) {
 	t.Parallel()
 
-	disp := config.Display{Media: config.Media{
+	disp := config.DeviceDisplay{Media: config.Media{
 		Mode:  "inline",
 		Rules: []config.MediaRule{{Match: mx + "!a:x", Auto: new(false)}},
 	}}
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{}, disp)))
 	m.focus = paneTimeline
 	m = update(t, m, oneImage())
 	if len(m.pics.imageLoading) != 0 {
@@ -113,11 +113,11 @@ func TestViewingListsThePictureUnderTheCursorFirst(t *testing.T) {
 func TestViewingCarriesTheRoomsCachingRule(t *testing.T) {
 	t.Parallel()
 
-	disp := config.Display{Media: config.Media{
+	disp := config.DeviceDisplay{Media: config.Media{
 		Mode:  "inline",
 		Rules: []config.MediaRule{{Match: mx + "!a:x", Cache: new(false)}},
 	}}
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{}, disp)))
 	m.focus = paneTimeline
 	m = update(t, m, oneImage())
 	jobs, _ := m.gallery("")
@@ -176,8 +176,8 @@ func TestPictureSizeFollowsTheWindow(t *testing.T) {
 func TestConfiguredPictureSizeWins(t *testing.T) {
 	t.Parallel()
 
-	disp := config.Display{Media: config.Media{Mode: "inline", MaxHeight: 5, MaxWidth: 11}}
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
+	disp := config.DeviceDisplay{Media: config.Media{Mode: "inline", MaxHeight: 5, MaxWidth: 11}}
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{}, disp)))
 	m = update(t, m, tea.WindowSizeMsg{Width: 200, Height: 60})
 	if got := m.imageMaxHeight(); got != 5 {
 		t.Errorf("max_height = %d, want the configured 5", got)
@@ -191,8 +191,8 @@ func TestConfiguredPictureSizeWins(t *testing.T) {
 func TestConfiguredViewerIsTakenAsWritten(t *testing.T) {
 	t.Parallel()
 
-	disp := config.Display{Media: config.Media{Viewer: "sh -c true"}}
-	m := starterNew(apitest.Nop{}, disp)
+	disp := config.DeviceDisplay{Media: config.Media{Viewer: "sh -c true"}}
+	m := starterNew(apitest.Nop{}, config.Display{}, disp)
 	got, err := m.viewerCommand()
 	if err != nil {
 		t.Fatalf("viewerCommand: %v", err)

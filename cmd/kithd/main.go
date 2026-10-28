@@ -170,6 +170,10 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	if derr := makeStorageDirs(storage); derr != nil {
 		return derr
 	}
+	uploads, err := daemon.NewUploads(storage.UploadsDir())
+	if err != nil {
+		return fmt.Errorf("uploads: %w", err)
+	}
 
 	cache, err := openCache(ctx, log, lock, storage)
 	if err != nil || cache == nil {
@@ -193,7 +197,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel string, cfg config.Co
 	warnAboutAgentScope(ctx, log, backend, cfg)
 	warnAboutDanglingTags(log, cfg)
 
-	err = serve(ctx, log, relevel, lock, backend, cfg, file)
+	err = serve(ctx, log, relevel, lock, backend, uploads, cfg, file)
 	if handlersLive = errors.Is(err, daemon.ErrHandlersRunning); handlersLive {
 		log.Error("leaving the stores open: handlers were still running at exit", "err", err)
 	}
@@ -491,6 +495,7 @@ func serve(
 	relevel func(configured string),
 	lock *daemon.Lock,
 	backend served,
+	uploads *daemon.Uploads,
 	cfg config.Config,
 	file configFile,
 ) error {
@@ -542,6 +547,7 @@ func serve(
 		Notifications: w.notifications,
 		Scheduler:     scheduler,
 		Logins:        logins,
+		Uploads:       uploads,
 		Log:           log,
 		Reload:        reload,
 		CheckConfig:   backend.checkConfig,

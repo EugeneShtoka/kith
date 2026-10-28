@@ -51,7 +51,7 @@ func placeSettings() []placeSetting {
 			c.Device.Display.Threads.Rules = []config.ThreadRule{{Match: e, MaxInRoomList: 3}}
 		}, append(cloned(homeForms), roomForms...)},
 		{"display.media.rule[0].match", func(c *config.Settings, e string) {
-			c.Bridge.Display.Media.Rules = []config.MediaRule{{Match: e, Auto: new(false)}}
+			c.Device.Display.Media.Rules = []config.MediaRule{{Match: e, Auto: new(false)}}
 		}, append(cloned(homeForms), roomForms...)},
 		{`keys.jump "g w"`, func(c *config.Settings, e string) {
 			c.Device.Keys.Jump = config.Jumps{{Chord: "g w", Target: e}}

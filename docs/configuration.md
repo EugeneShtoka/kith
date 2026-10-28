@@ -315,8 +315,8 @@ key.
 | `[[tag]]` | config | Your own groupings of rooms in the rail, by rule, picked and excluded rooms. | [usage.md](usage.md#tags) |
 | `[display.rooms]` | device | The room list's sort chain, globally and per rail group. | [usage.md](usage.md) |
 | `[display.deleted]` | config | Whether deleted messages show as placeholders, and whether their content is kept in the cache. | [usage.md](usage.md) |
-| `[display.media]` | config | Images (placeholder chip or inline), viewer, video player, download folder and layout, the media cache. | [usage.md](usage.md) |
-| `[display.media.audio]` | config | The voice-note player: speed, skip, `mpv` or VLC. | [usage.md](usage.md) |
+| `[display.media]` | device | Images (placeholder chip or inline), viewer, video player, download folder and layout, the media cache. | [usage.md](usage.md) |
+| `[display.media.audio]` | device | The voice-note player: speed, skip, `mpv` or VLC. | [usage.md](usage.md) |
 | `[display.reactions]` | device | The quick-react palette and how it ranks by your usage. | [usage.md](usage.md) |
 | `[display.threads]` | device | Which threads appear as rows under their room. | [usage.md](usage.md) |
 | `[display.direction]` | device | Which rooms read right to left, mirrored with names on the right: set by place, or guessed per room (`auto`). | [usage.md](usage.md#the-timeline) |
@@ -464,7 +464,7 @@ More in [notifications.md](notifications.md).
 ### Show images in the timeline
 
 By default a picture appears as a text chip, and the view key opens it in an image
-viewer. To draw it inline with block characters instead:
+viewer. To draw it inline with block characters instead, in `device.toml`:
 
 ```toml
 [display.media]

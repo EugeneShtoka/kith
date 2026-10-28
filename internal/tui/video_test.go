@@ -25,8 +25,8 @@ func clip(id domain.EventID) domain.Message {
 func watching(t *testing.T, player string) Model {
 	t.Helper()
 	b := &videoBackend{bytes: []byte("not really an mp4, but bytes on disk are bytes")}
-	disp := config.Display{Media: config.Media{VideoPlayer: player}}
-	m := sized(t, withRooms(t, starterNew(b, disp)))
+	disp := config.DeviceDisplay{Media: config.Media{VideoPlayer: player}}
+	m := sized(t, withRooms(t, starterNew(b, config.Display{}, disp)))
 	m.focus = paneTimeline
 	cache, err := media.New(t.TempDir(), -1)
 	if err != nil {

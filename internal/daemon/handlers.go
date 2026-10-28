@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"connectrpc.com/connect"
@@ -222,17 +221,30 @@ func (s *server) SendTyping(ctx context.Context, r *req[v1.SendTypingRequest]) (
 	return reply(&v1.SendTypingResponse{}, s.Backend.SendTyping(ctx, roomID(r.Msg.GetRoomId()), r.Msg.GetTyping(), timeout))
 }
 
-// SendFile refuses relative paths: the daemon's working directory is systemd's,
-// not the user's. A request naming no name sends the file under its own.
+func (s *server) StartUpload(_ context.Context, r *req[v1.StartUploadRequest]) (*resp[v1.StartUploadResponse], error) {
+	id, err := s.Uploads.start(r.Msg.GetName(), r.Msg.GetSize())
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&v1.StartUploadResponse{UploadId: id}), nil
+}
+
+func (s *server) PutUpload(_ context.Context, r *req[v1.PutUploadRequest]) (*resp[v1.PutUploadResponse], error) {
+	if err := s.Uploads.put(r.Msg.GetUploadId(), r.Msg.GetOffset(), r.Msg.GetData()); err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&v1.PutUploadResponse{}), nil
+}
+
+// SendFile hands the backend a complete upload's staged file, under the name asked
+// for or else the file's own, and removes the file once it is sent or failed.
 func (s *server) SendFile(ctx context.Context, r *req[v1.SendFileRequest]) (*resp[v1.SendFileResponse], error) {
-	path := r.Msg.GetPath()
-	if !filepath.IsAbs(path) {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("daemon: send file: the path must be absolute"))
+	path, own, done, err := s.Uploads.take(r.Msg.GetUploadId())
+	if err != nil {
+		return nil, err
 	}
-	name := r.Msg.GetName()
-	if name == "" {
-		name = filepath.Base(path)
-	}
+	defer done()
+	name := cmp.Or(r.Msg.GetName(), own)
 	return reply(&v1.SendFileResponse{}, s.Backend.SendFile(ctx, roomID(r.Msg.GetRoomId()), path, name, r.Msg.GetCaption()))
 }
 

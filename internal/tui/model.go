@@ -756,7 +756,7 @@ type resolvedIdentity struct {
 func New(ctx context.Context, backend api.Backend, display config.Display, device config.DeviceDisplay) Model {
 	// unread is shared with the rail's Unread filter, so it is never reassigned.
 	unread := make(map[domain.RoomID]domain.Unread)
-	mediaMode := startupMediaMode(display)
+	mediaMode := startupMediaMode(device)
 	reactScope := device.Reactions.Scope
 	if reactScope == "" {
 		reactScope = "room"
@@ -789,7 +789,7 @@ func New(ctx context.Context, backend api.Backend, display config.Display, devic
 		pics: mediaState{
 			mode:         mediaMode,
 			graphics:     resolveGraphics(mediaMode),
-			blocks:       resolveBlocks(display.Media.Detail),
+			blocks:       resolveBlocks(device.Media.Detail),
 			imageRows:    map[domain.EventID][]string{},
 			imageLoading: map[domain.EventID]bool{},
 		},
@@ -805,7 +805,7 @@ func New(ctx context.Context, backend api.Backend, display config.Display, devic
 		conf: configState{device: config.Device{Display: device, Keys: config.DefaultKeys()}},
 	}
 	m = m.applyNaming(display, device)
-	return m.applyMedia(display.Media)
+	return m.applyMedia(device.Media)
 }
 
 // startupEmoji resolves the react palette (toned), skin tone and emoji tier. Validated at
@@ -819,8 +819,8 @@ func startupEmoji(display config.DeviceDisplay) (static []string, tone string, t
 
 // startupMediaMode resolves how attachments are drawn; an invalid mode (only from a config built
 // in code) draws placeholders.
-func startupMediaMode(display config.Display) string {
-	mode, err := setup.MediaMode(display.Media.Mode)
+func startupMediaMode(device config.DeviceDisplay) string {
+	mode, err := setup.MediaMode(device.Media.Mode)
 	if err != nil {
 		return mediaPlaceholder
 	}
@@ -3251,7 +3251,7 @@ func (m Model) loadInlineImages() (Model, tea.Cmd) {
 // imageTargetWidth is an inline picture's width in cells: the body column, or the configured cap if narrower.
 func (m Model) imageTargetWidth() int {
 	w := m.contentWidth() - m.bodyColumn(m.nameColWidth())
-	if capped := m.prefs.display.Media.MaxWidth; capped > 0 && capped < w {
+	if capped := m.prefs.device.Media.MaxWidth; capped > 0 && capped < w {
 		w = capped
 	}
 	return max(w, minImageCells)
@@ -3259,7 +3259,7 @@ func (m Model) imageTargetWidth() int {
 
 // imageMaxHeight is an inline picture's max rows: the configured value, else half the message area within bounds.
 func (m Model) imageMaxHeight() int {
-	if h := m.prefs.display.Media.MaxHeight; h > 0 {
+	if h := m.prefs.device.Media.MaxHeight; h > 0 {
 		return h
 	}
 	return min(max(m.msgAreaRows()/2, minImageCells), maxAutoImageRows)

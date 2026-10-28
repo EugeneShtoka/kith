@@ -421,3 +421,51 @@ func TestASplitKeepsTheConfigAsItWas(t *testing.T) {
 		t.Fatalf("kept %q (%v), want the config as it was before its first split", got, err)
 	}
 }
+
+// A config split before [display.media] was the device's still holds it, rules and
+// player included: the next split moves the whole table, keeping what the device file
+// already set, and the config loads without it.
+func TestASplitMovesDisplayMediaFromAnEarlierSplit(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	configPath, devicePath := filepath.Join(dir, BridgeFile), filepath.Join(dir, DeviceFile)
+	writeFile(t, configPath, `[display]
+time_format = "12h"
+
+[display.media]
+mode = "inline"
+cache_dir = "~/pictures"
+anonymize = false
+
+[[display.media.rule]]
+match = "space:Work"
+dir = "~/work"
+
+[display.media.audio]
+speed = 1.5
+`)
+	writeFile(t, devicePath, "[display]\nfps = 60\n\n[display.media]\nmode = \"placeholder\"\ndetail = \"half\"\n")
+	if _, err := Load(configPath); err == nil || !strings.Contains(err.Error(), "display.media.mode") {
+		t.Fatalf("Load before the split = %v, want display.media refused as a device key", err)
+	}
+	if moved, err := SplitDevice(configPath, devicePath); !moved || err != nil {
+		t.Fatalf("SplitDevice = %v, %v; want display.media moved", moved, err)
+	}
+	cfg, err := Load(configPath)
+	if err != nil || cfg.Display.TimeFormat != "12h" {
+		t.Fatalf("the config after = %+v, %v", cfg.Display, err)
+	}
+	dev, err := LoadDevice(devicePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := dev.Display.Media
+	// mode is set in both: the device file's, other than the default, is kept.
+	if dev.Display.FPS != 60 || m.Detail != "half" || m.Mode != "placeholder" {
+		t.Errorf("device display = fps %d, media %+v", dev.Display.FPS, m)
+	}
+	if m.CacheDir != "~/pictures" || m.Anonymizes() || m.Audio.Speed != 1.5 ||
+		len(m.Rules) != 1 || m.Rules[0].Match != "space:Work" || m.Rules[0].Dir != "~/work" {
+		t.Errorf("the config's media did not all move: %+v", m)
+	}
+}

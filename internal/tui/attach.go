@@ -19,7 +19,7 @@ import (
 // downloadDir is where attachments land: the configured directory, else
 // $XDG_DOWNLOAD_DIR, else ~/Downloads.
 func (m Model) downloadDir() (string, error) {
-	if dir := strings.TrimSpace(m.prefs.display.Media.DownloadDir); dir != "" {
+	if dir := strings.TrimSpace(m.prefs.device.Media.DownloadDir); dir != "" {
 		return expandHome(dir)
 	}
 	if dir := strings.TrimSpace(os.Getenv("XDG_DOWNLOAD_DIR")); dir != "" {
@@ -104,9 +104,9 @@ func (m Model) submitAttach(input string) (Model, tea.Cmd) {
 	return m.attachPath(room, path, caption)
 }
 
-// attachPath sends the file. The path is resolved here: the daemon (under systemd)
-// has no home or working directory and accepts only absolute paths. To a chat that
-// sends as SMS it asks first, the caption back in the composer meanwhile.
+// attachPath sends the file, its path resolved against this window's home and working
+// directory. To a chat that sends as SMS it asks first, the caption back in the
+// composer meanwhile.
 func (m Model) attachPath(room domain.Room, path, caption string) (Model, tea.Cmd) {
 	if room.ReadOnly {
 		m.compose.input = caption
@@ -308,12 +308,12 @@ func (m Model) downloadTarget() (domain.Message, domain.DownloadTarget, bool) {
 	if err != nil {
 		return msg, domain.DownloadTarget{}, false
 	}
-	return msg, domain.ResolveDownload(dir, m.prefs.display.Media.DownloadTemplate, m.downloadRules(), m.placeOf(msg)), true
+	return msg, domain.ResolveDownload(dir, m.prefs.device.Media.DownloadTemplate, m.downloadRules(), m.placeOf(msg)), true
 }
 
 // downloadRules converts the configured overrides to domain.DownloadRule.
 func (m Model) downloadRules() []domain.DownloadRule {
-	configured := m.prefs.display.Media.Rules
+	configured := m.prefs.device.Media.Rules
 	rules := make([]domain.DownloadRule, 0, len(configured))
 	for _, rule := range configured {
 		dir := rule.Dir

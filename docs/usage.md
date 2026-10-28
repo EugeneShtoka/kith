@@ -266,8 +266,8 @@ kith backup --no-media           # without the pictures
 
 It writes one encrypted file: the cache (every cached message, reaction, draft and read
 position), your config and the commands beside it, what an assistant sent for you and
-the send-later queue, and the picture cache, since WhatsApp and Signal pictures cannot
-be fetched again once their servers drop them. `--no-media` leaves the pictures out.
+the send-later queue, and the picture cache on kithd's machine (`[storage] cache_dir`),
+since WhatsApp and Signal pictures cannot be fetched again once their servers drop them. `--no-media` leaves the pictures out.
 kithd may keep running; the cache is copied as it stands.
 
 **Your backup key.** Every backup, by hand or kithd's scheduled one, is encrypted to

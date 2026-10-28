@@ -586,7 +586,8 @@ don't reveal who is logged in.
 | Scheduled messages | `~/.local/state/kith/scheduled-<hash>.toml` | The send-later queue. |
 | Assistant ledger | `~/.local/state/kith/agent-sends-<hash>.jsonl` | What `kith-mcp` wrote on your behalf. Read it with `kith --agent-log`. |
 | Token file (opt-in only) | `~/.local/state/kith/session-<hash>-<account>.toml` | Only with `allow_token_file = true`. Mode 0600, one per account. An older single `session.toml` is still read for the account it belongs to and renamed on first use. |
-| Media cache | `~/.cache/kith/media/` | Attachments and their rendered previews, capped at 1 GiB by default (`[display.media] cache_dir`, `cache_max_mb`). |
+| Media cache | `~/.cache/kith/media/` | Attachments and their rendered previews, capped at 1 GiB by default (`[display.media] cache_dir`, `cache_max_mb`, in `device.toml`). |
+| Files being sent | `~/.cache/kith/uploads-<hash>/` | What a client has sent `kithd` and it has not posted yet: removed once posted, an hour after the client stops sending it, and when `kithd` starts. |
 | Socket and lock | `$XDG_RUNTIME_DIR/kith/<hash>.sock` and `<hash>.lock` | Usually under `/run/user/<uid>/`. The socket is mode 0600 in a 0700 directory. |
 
 On macOS, the config, data and state files all go under

@@ -171,8 +171,9 @@ type Timeline interface {
 	// SendTyping sets or clears the typing notice for timeout.
 	SendTyping(ctx context.Context, roomID domain.RoomID, typing bool, timeout time.Duration) error
 	// SendFile uploads (encrypting where needed) and posts a file under name (its own,
-	// or a neutral one: domain.SentName). path is absolute on the shared machine; empty
-	// caption uses the name.
+	// or a neutral one: domain.SentName). path is on the caller's machine: a client's
+	// Remote sends kithd the bytes, which a network adapter reads from kithd's staged
+	// copy. Empty caption uses the name.
 	SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error
 }
 

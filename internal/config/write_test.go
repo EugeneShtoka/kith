@@ -149,8 +149,7 @@ func TestSaveRoundTripsEveryShape(t *testing.T) {
 	cfg.Display.Rail.Order = []string{"tag:Unread", "-"}                                                  // []string in a table
 	cfg.Display.Rail.Hidden = []string{"tag:All"}                                                         //
 	cfg.Display.Names = []DisplayName{{Target: NameTargetSpace + "Work", Name: "Job"}}                    // one list
-	cfg.Display.Media.Mode = "inline"                                                                     // string in a nested table
-	cfg.Display.Media.MaxHeight = 12                                                                      //
+	cfg.Display.Deleted.Mine = "hide"                                                                     // string in a nested table
 	cfg.Display.Tracked.Words = []string{"👍", "🎉"}                                                        // non-ASCII array
 	cfg.Display.Names = append(cfg.Display.Names, DisplayName{Target: mx + "!a:x", Name: `He said "hi"`}) // escaping
 	cfg.Display.SpaceRules = []SpaceRule{{Space: "Work", FirstNameOnly: true}}
@@ -374,16 +373,16 @@ func TestFloatSettingsSurviveASaveAndReload(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg := minimal()
-			cfg.Display.Media.Audio.Speed = tc.outer
+			dev := deviceBaseline()
+			dev.Display.Media.Audio.Speed = tc.outer
 			rate := tc.rule
-			cfg.Display.Media.Rules = []MediaRule{{Match: "Work", Speed: &rate}}
+			dev.Display.Media.Rules = []MediaRule{{Match: "Work", Speed: &rate}}
 
-			path := filepath.Join(t.TempDir(), "config.toml")
-			if err := Save(path, cfg); err != nil {
+			path := filepath.Join(t.TempDir(), DeviceFile)
+			if err := saveDevice(path, dev); err != nil {
 				t.Fatal(err)
 			}
-			back, err := Load(path)
+			back, err := LoadDevice(path)
 			if err != nil {
 				body, _ := os.ReadFile(path)
 				t.Fatalf("the file we just wrote does not load: %v\n%s", err, body)

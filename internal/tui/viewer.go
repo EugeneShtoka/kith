@@ -74,7 +74,7 @@ func (m Model) viewMedia() (Model, tea.Cmd) {
 		return m.say(err.Error()), nil
 	}
 	m = m.doing(fmt.Sprintf("opening %s…", countOf(len(jobs), "picture")))
-	configured := strings.TrimSpace(m.prefs.display.Media.Viewer) != ""
+	configured := strings.TrimSpace(m.prefs.device.Media.Viewer) != ""
 	return m, m.viewMediaCmd(viewer, configured, jobs, start)
 }
 
@@ -316,7 +316,7 @@ func ensureAside(
 
 // viewerCommand is the picture viewer program and its arguments.
 func (m Model) viewerCommand() ([]string, error) {
-	return resolveCommand(m.prefs.display.Media.Viewer, viewerCandidates, "image viewer")
+	return resolveCommand(m.prefs.device.Media.Viewer, viewerCandidates, "image viewer")
 }
 
 func (m Model) handleMediaViewed(msg mediaViewedMsg) (Model, tea.Cmd) {

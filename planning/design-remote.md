@@ -54,14 +54,14 @@ each key sits in the file the rule puts it in; three judgment calls:
   files.
 - **`[agent.*]` stays on the bridge whole**: what an assistant may read and write is
   policy, not a device's taste.
-- **`[display.media]` moves in step 2**, with the media cache it names.
+- **`[display.media]` moved in step 2**, with the media cache it names.
 
 Device keys:
 
 | table | keys |
 | --- | --- |
 | top level | `terminal`, `[keys]`, `[composer]`, `[[command]]` |
-| `[display]` | `color_messages`, `direction`, `emoji`, `fps`, `filing_spaces`, `hyperlinks`, `max_name_length`, `mouse`, `network_colors`, `open_in_insert_mode`, `reactions`, `read_delay`, `read_rule`, `rooms`, `row_numbers`, `send_receipts`, `send_typing`, `show_archived`, `skin_tone`, `theme`, `threads`, `typing`, `unread`, `unread_line` |
+| `[display]` | `color_messages`, `direction`, `emoji`, `fps`, `filing_spaces`, `hyperlinks`, `max_name_length`, `media`, `mouse`, `network_colors`, `open_in_insert_mode`, `reactions`, `read_delay`, `read_rule`, `rooms`, `row_numbers`, `send_receipts`, `send_typing`, `show_archived`, `skin_tone`, `theme`, `threads`, `typing`, `unread`, `unread_line` |
 | `[notifications]` | how this device shows one: `enabled`, `desktop`, `command`, `sound_command`, `timeout`, `title`, `body` |
 | `[clipboard]` | all but `auto_copy` |
 | `[commands]` | `timeout` |

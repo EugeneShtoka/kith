@@ -215,6 +215,92 @@ auto = false
 # rtl  = ["space:Friends", "matrix:4f1c9e2a7b3d5c60/!family:example.org"]
 # ltr  = ["room:Work chat"]
 
+# Attachments.
+#
+#   mode        "placeholder" (a text chip) or "inline" (pictures drawn in text cells)
+#   detail      "sextant" (2x3 pixels per cell) or "half" (half-blocks, for fonts
+#               without sextants)
+#   max_height  rows an inline picture may take; 0 = half the message area
+#   max_width   columns it may take; 0 = the body column
+#   viewer      shows pictures full size, given the one under the cursor and every
+#               other picture in the room; empty picks a known installed viewer
+#               (told where to start the way it understands). A viewer you name runs
+#               as written, with nothing added: to say which picture to open on, put
+#               {index} (its 1-based position) or {file} (its path) in the command,
+#               e.g. "nsxiv -n {index}". Without either, the list simply starts there.
+#   video_player  gets one video (`p`); empty uses xdg-open
+#   opener      opens other attachments (PDF, zip, …)
+#
+# download_dir is where `s` saves (leading ~ expanded; empty: $XDG_DOWNLOAD_DIR, else
+# ~/Downloads). Nothing is overwritten: a second "photo.png" becomes "photo (2).png".
+# download_template lays out the path under it over `{space} {room} {person} {name}
+# {ext} {date} {time}`; folders are created, empty fields leave no empty folder, and
+# every field is reduced to one safe path segment. Empty saves straight into the
+# directory.
+[display.media]
+mode       = "placeholder"
+detail     = "sextant"
+max_height = 16
+# viewer       = "feh --scale-down --start-at {file}"
+# video_player = "mpv"
+# opener       = "xdg-open"
+# download_dir      = "~/Downloads"
+# download_template = "{space}/{room}/{person}/{name}-{date}{ext}"
+
+# `auto` fetches pictures without being asked. `cache` keeps attachments and their
+# scaled renders on disk under cache_dir (empty: $XDG_CACHE_HOME/kith/media), at
+# most cache_max_mb megabytes (0 = 1024), least recently opened evicted first.
+# auto         = true
+# cache        = true
+# cache_dir    = ""
+# cache_max_mb = 0
+
+# `anonymize` sends attachments under a neutral name for what they are, so a file's
+# own name ("IMG_2041 Haifa.jpg", "contract-Dana.docx") does not travel with it:
+# photo.jpg, video.mkv, music.mp3, document.pdf, archive.zip (file.ext for anything
+# else). The extension stays, so the file still opens. On every network; a rule turns
+# it off for a place.
+# anonymize    = true
+
+# Per-place overrides, matched by room ID, space:, tag: or place: (a room's first
+# home). The narrower match wins; a rule changes only what it sets. Fields: auto (fetch pictures
+# unasked), cache (keep on disk), anonymize (send under a neutral name), dir, template
+# ("-" turns the layout off), speed (voice notes). `sender` makes a rule about a person,
+# for speed.
+#
+# [[display.media.rule]]
+# match = "space:Work"
+# dir   = "~/work/attachments"
+#
+# [[display.media.rule]]
+# match    = "matrix:4f1c9e2a7b3d5c60/!standup:server"
+# template = "{date}-{name}{ext}"
+#
+# [[display.media.rule]]
+# match     = "space:Work"
+# anonymize = false
+#
+# [[display.media.rule]]
+# sender = "matrix:@dana:example.org"
+# speed  = 2.0
+
+# Voice notes. `p` opens a player bar: space plays/pauses, [ ] skip by `skip`
+# seconds, { } change speed (pitch-corrected), = resets it, w remembers it for the
+# place, P stops.
+#
+# `player` must be controllable over a socket: mpv (JSON IPC, the default) or VLC
+# (`vlc`/`cvlc`/`nvlc`, remote-control interface), chosen by the program's name.
+# Empty tries mpv then VLC with engine flags (mpv gets `--no-config`); set it in full
+# to use your own flags.
+#
+# close_after: how long the bar stays after a note ends (while up, it owns six keys).
+# -1 until P, 0 immediately, otherwise seconds. Pausing never closes it.
+[display.media.audio]
+speed        = 1.0     # 0.25 - 4.0
+skip         = 10      # seconds
+close_after  = 15      # seconds
+# player = "mpv"          # or "vlc"
+
 # Desktop notifications on this device. This section is the switch and the delivery;
 # what notifies is decided by [[notifications.rule]] in config.toml.
 #

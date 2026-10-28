@@ -1597,7 +1597,7 @@ func TestUncaptionedAttachmentDrawsOneChip(t *testing.T) {
 func TestInlineModeTriggersLoadAndRenders(t *testing.T) {
 	t.Parallel()
 
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{Media: config.Media{Mode: "inline"}})))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{}, config.DeviceDisplay{Media: config.Media{Mode: "inline"}})))
 	m.focus = paneTimeline // pictures are only fetched once a room is open
 	m = loadPage(t, m, []domain.Message{{
 		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Timestamp: at(1),
@@ -1621,8 +1621,8 @@ func TestInlineModeTriggersLoadAndRenders(t *testing.T) {
 func TestPlaceholderModeDoesNotLoad(t *testing.T) {
 	t.Parallel()
 
-	disp := config.Display{Media: config.Media{Mode: "placeholder"}}
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
+	disp := config.DeviceDisplay{Media: config.Media{Mode: "placeholder"}}
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{}, disp)))
 	m = loadPage(t, m, []domain.Message{{
 		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Timestamp: at(1),
 		Media: &domain.Media{Type: domain.MediaImage, Name: "cat.jpg", Width: 4, Height: 4},
