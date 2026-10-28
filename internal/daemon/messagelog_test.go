@@ -44,16 +44,27 @@ func (c *numberedCache) commit(msgs ...domain.Message) {
 		c.last++
 		c.changes = append(c.changes, domain.MessageChange{Number: c.last, Message: *m})
 	}
+	streams := c.streams
 	c.mu.Unlock()
-	c.streams.MessagesChanged()
+	streams.MessagesChanged()
 }
 
 // clear empties the cache and starts a new epoch; the numbers go on.
 func (c *numberedCache) clear(epoch string) {
 	c.mu.Lock()
 	c.epoch, c.changes = epoch, nil
+	streams := c.streams
 	c.mu.Unlock()
-	c.streams.MessagesChanged()
+	streams.MessagesChanged()
+}
+
+// serves has the cache tell d's streams of its changes, and d read it: the cache
+// outlives each daemon, as kithd's file does.
+func (c *numberedCache) serves(d *daemon.Daemon) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.streams = d.Streams
+	d.MessageLog = c
 }
 
 // skip gives n numbers to messages since trimmed.
@@ -109,10 +120,7 @@ func (c *numberedCache) ChangesAfter(_ context.Context, after int64, limit int) 
 func serveNumbered(t *testing.T) (*harness, *numberedCache) {
 	t.Helper()
 	cache := &numberedCache{epoch: "one"}
-	h := serve(t, &fakeBackend{Nop: nopWithChannels()}, func(d *daemon.Daemon) {
-		cache.streams = d.Streams
-		d.MessageLog = cache
-	})
+	h := serve(t, &fakeBackend{Nop: nopWithChannels()}, cache.serves)
 	return h, cache
 }
 
@@ -125,8 +133,8 @@ type frame struct {
 }
 
 // openMessages opens the message stream from since and passes on its frames until the
-// test ends.
-func openMessages(t *testing.T, h *harness, epoch string, change int64) <-chan frame {
+// test ends, but the first, which says where it starts and is returned.
+func openMessages(t *testing.T, h *harness, epoch string, change int64) (<-chan frame, frame) {
 	t.Helper()
 	c := backendv1connect.NewBackendServiceClient(daemon.Dial(h.path), "http://kithd")
 	st, err := c.Messages(t.Context(), connect.NewRequest(&v1.MessagesRequest{SinceEpoch: epoch, SinceChange: change}))
@@ -151,7 +159,11 @@ func openMessages(t *testing.T, h *harness, epoch string, change int64) <-chan f
 			}
 		}
 	}()
-	return out
+	first := nextFrame(t, out)
+	if first.msg != nil {
+		t.Fatalf("the stream opened with %+v, want where it starts", first)
+	}
+	return out, first
 }
 
 func nextFrame(t *testing.T, frames <-chan frame) frame {
@@ -197,7 +209,7 @@ func TestAResumingReaderGetsEachChangeAfterItsNumberOnce(t *testing.T) {
 			}
 			epoch, last := cache.at()
 			since := r.Int64N(last + 1)
-			frames := openMessages(t, h, epoch, since)
+			frames, _ := openMessages(t, h, epoch, since)
 			h.waitStreams(1)
 			for range 1 + r.IntN(30) {
 				commit()
@@ -248,8 +260,8 @@ func TestAReaderThatCannotResumeIsToldToReadAgain(t *testing.T) {
 			cache.skip(6000)
 			epoch, last := cache.at()
 			fromEpoch, from := since(epoch, last)
-			frames := openMessages(t, h, fromEpoch, from)
-			if f := nextFrame(t, frames); !f.readAgain || f.msg != nil || f.epoch != epoch || f.change != last {
+			frames, f := openMessages(t, h, fromEpoch, from)
+			if !f.readAgain || f.msg != nil || f.epoch != epoch || f.change != last {
 				t.Fatalf("first frame %+v, want read again at %s/%d", f, epoch, last)
 			}
 			cache.commit(message("new"))
@@ -266,7 +278,10 @@ func TestAReaderWithoutANumberStartsAtTheNewest(t *testing.T) {
 	t.Parallel()
 	h, cache := serveNumbered(t)
 	cache.commit(message("before"))
-	frames := openMessages(t, h, "", 0)
+	frames, start := openMessages(t, h, "", 0)
+	if epoch, last := cache.at(); start.readAgain || start.epoch != epoch || start.change != last {
+		t.Fatalf("opened at %+v, want %s/%d", start, epoch, last)
+	}
 	h.waitStreams(1)
 	cache.commit(message("after"))
 	if f := nextFrame(t, frames); f.readAgain || f.msg == nil || f.msg.Body != "after" {
@@ -279,7 +294,7 @@ func TestAReaderWithoutANumberStartsAtTheNewest(t *testing.T) {
 func TestAClearedCacheTellsTheReaderToReadAgain(t *testing.T) {
 	t.Parallel()
 	h, cache := serveNumbered(t)
-	frames := openMessages(t, h, "", 0)
+	frames, _ := openMessages(t, h, "", 0)
 	h.waitStreams(1)
 	cache.commit(message("kept"))
 	_ = nextFrame(t, frames)
@@ -298,7 +313,8 @@ func TestAClearedCacheTellsTheReaderToReadAgain(t *testing.T) {
 func TestEveryReaderReadsEveryChange(t *testing.T) {
 	t.Parallel()
 	h, cache := serveNumbered(t)
-	first, second := openMessages(t, h, "", 0), openMessages(t, h, "", 0)
+	first, _ := openMessages(t, h, "", 0)
+	second, _ := openMessages(t, h, "", 0)
 	h.waitStreams(2)
 	for i := range 50 {
 		cache.commit(message(fmt.Sprint(i)))
@@ -318,11 +334,8 @@ func TestTheMessageStreamEndsWithTheBackendsMessages(t *testing.T) {
 	t.Parallel()
 	msgs := make(chan domain.Message)
 	cache := &numberedCache{epoch: "one"}
-	h := serve(t, &fakeBackend{Nop: apitest.Nop{Msgs: msgs}}, func(d *daemon.Daemon) {
-		cache.streams = d.Streams
-		d.MessageLog = cache
-	})
-	frames := openMessages(t, h, "", 0)
+	h := serve(t, &fakeBackend{Nop: apitest.Nop{Msgs: msgs}}, cache.serves)
+	frames, _ := openMessages(t, h, "", 0)
 	h.waitStreams(1)
 	close(msgs)
 	select {
@@ -339,7 +352,7 @@ func TestTheMessageStreamEndsWithTheBackendsMessages(t *testing.T) {
 func TestACommitLargerThanAReadArrivesWhole(t *testing.T) {
 	t.Parallel()
 	h, cache := serveNumbered(t)
-	frames := openMessages(t, h, "", 0)
+	frames, _ := openMessages(t, h, "", 0)
 	h.waitStreams(1)
 	var msgs []domain.Message
 	for i := range 600 {
@@ -357,7 +370,7 @@ func TestACommitLargerThanAReadArrivesWhole(t *testing.T) {
 func TestACommitDuringAReadWakesTheReader(t *testing.T) {
 	t.Parallel()
 	h, cache := serveNumbered(t)
-	frames := openMessages(t, h, "", 0)
+	frames, _ := openMessages(t, h, "", 0)
 	h.waitStreams(1)
 	cache.mu.Lock()
 	cache.whileRead = func() { cache.commit(message("during")) }
@@ -376,7 +389,7 @@ func TestAMessageRightAfterTheStreamOpensIsOnIt(t *testing.T) {
 	t.Parallel()
 	h, cache := serveNumbered(t)
 	cache.slowStart = 100 * time.Millisecond
-	frames := openMessages(t, h, "", 0) // returns with the headers
+	frames, _ := openMessages(t, h, "", 0) // returns with the headers
 	cache.commit(message("right after"))
 	if f := nextFrame(t, frames); f.msg == nil || f.msg.Body != "right after" {
 		t.Fatalf("frame %+v, want the message committed right after the stream opened", f)

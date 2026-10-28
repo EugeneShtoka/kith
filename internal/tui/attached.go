@@ -18,20 +18,17 @@ type linkState struct {
 	restart func(context.Context) error
 }
 
-// handleAttached shows the daemon connection state and re-reads the open room on
-// reconnect: no stream replays what arrived meanwhile.
+// handleAttached shows the daemon connection state and re-reads, on reconnect, what
+// no stream replays. Messages are replayed: the message stream resumes after the last
+// one this client got, or says to read them again (ChangeMessages).
 func (m Model) handleAttached(msg attachedMsg) (Model, tea.Cmd) {
 	m.link.detached = !msg.attached
 	if !msg.attached {
 		return m.say("lost the daemon — reconnecting"), m.listenAttachedCmd()
 	}
 	m = m.say("daemon back — catching up")
-	cmds := []tea.Cmd{m.listenAttachedCmd(), m.loadRoomsCmd(), m.loadUnreadCmd(),
-		m.loadInvitesCmd(), m.lastMessagesCmd(), m.readConfigCmd(false)}
-	if m.openRoom != "" {
-		cmds = append(cmds, m.loadRoomCmd(m.openRoom))
-	}
-	return m, tea.Batch(cmds...)
+	return m, tea.Batch(m.listenAttachedCmd(), m.loadRoomsCmd(), m.loadUnreadCmd(),
+		m.loadInvitesCmd(), m.lastMessagesCmd(), m.readConfigCmd(false))
 }
 
 // connectionBadge is the right-edge marker while the daemon is lost; it outranks the

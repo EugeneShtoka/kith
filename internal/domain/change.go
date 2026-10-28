@@ -8,4 +8,8 @@ const (
 	ChangeRooms Change = iota + 1
 	// ChangeAccounts is a network account's state having changed.
 	ChangeAccounts
+	// ChangeMessages is the messages a client holds being possibly stale: its message
+	// stream could not resume, or the cache was cleared. The client's own stream says
+	// so (read_again), never the daemon's Changed stream.
+	ChangeMessages
 )

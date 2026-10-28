@@ -73,6 +73,9 @@ func saveExtras(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain
 		if err := recordRedaction(ctx, tx, roomID, m.ID, m.RedactedBy, m.RedactedReason); err != nil {
 			return err
 		}
+		if err := recordRedactionTime(ctx, tx, roomID, m.ID, m.RedactedAt); err != nil {
+			return err
+		}
 		if err := forgetEdit(ctx, tx, roomID, m.ID); err != nil {
 			return err
 		}

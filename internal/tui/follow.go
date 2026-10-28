@@ -342,6 +342,14 @@ func (m Model) handleChanged(msg changedMsg) (Model, tea.Cmd) {
 		return m, tea.Batch(m.loadRoomsCmd(), m.listenChangesCmd())
 	case domain.ChangeAccounts:
 		return m, tea.Batch(m.loadAccountStatesCmd(), m.listenChangesCmd())
+	case domain.ChangeMessages:
+		// The message stream could not resume: what arrived meanwhile is read from the
+		// cache instead.
+		cmds := []tea.Cmd{m.lastMessagesCmd(), m.listenChangesCmd()}
+		if m.openRoom != "" {
+			cmds = append(cmds, m.loadRoomCmd(m.openRoom))
+		}
+		return m, tea.Batch(cmds...)
 	}
 	return m, m.listenChangesCmd()
 }

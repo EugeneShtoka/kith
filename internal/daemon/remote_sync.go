@@ -181,6 +181,12 @@ func (r *Remote) SwitchProfile(name string) error {
 		return nil
 	}
 	if current.profile != name {
+		// Not before it is open: the message stream learns where it starts on opening,
+		// and one ended sooner would resume from the newest, missing what came between.
+		select {
+		case <-current.ready:
+		case <-current.ended:
+		}
 		r.mu.Lock()
 		r.switchedOff = current.ended
 		r.mu.Unlock()
@@ -288,12 +294,7 @@ func (r *Remote) configPump(ctx context.Context) error {
 // they share one connection. Channels are not closed here.
 func (r *Remote) attach(ctx context.Context, detach context.CancelFunc, ready chan struct{}) error {
 	pumps := []func(context.Context) error{
-		func(ctx context.Context) error {
-			return pumpStream(ctx, "messages", r.msgs, r.c.Messages, &v1.MessagesRequest{},
-				func(f *v1.MessagesResponse) (domain.Message, bool) {
-					return pc.ProtoToMessage(f.GetMessage()), f.GetMessage() != nil
-				})
-		},
+		r.pumpMessages,
 		func(ctx context.Context) error {
 			return pumpStream(ctx, "unread", r.unread, r.c.UnreadStream, &v1.UnreadStreamRequest{},
 				func(f *v1.UnreadStreamResponse) (domain.Unread, bool) {
@@ -361,6 +362,71 @@ func runPumps(ctx context.Context, pumps []func(context.Context) error, detach c
 	}
 	wg.Wait()
 	return errors.Join(errs...)
+}
+
+// readAt is a change in the cache's numbering: its epoch and number.
+type readAt struct {
+	epoch  string
+	change int64
+}
+
+// pumpMessages forwards the message stream, resuming after the last change it
+// delivered. A frame's position counts only once what it carries is delivered, so a
+// stream cut mid-delivery resends it. A stream that cannot resume says the messages the
+// UI holds may be stale: ChangeMessages on Changed, for it to read them again.
+func (r *Remote) pumpMessages(ctx context.Context) error {
+	since := &v1.MessagesRequest{}
+	if at := r.read.Load(); at != nil {
+		since.SinceEpoch, since.SinceChange = at.epoch, at.change
+	}
+	s, err := r.c.Messages(ctx, connect.NewRequest(since))
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
+		return callErr("subscribe to messages", err)
+	}
+	defer func() { _ = s.Close() }() // the stream's own error (below) is the report
+	opened, _ := ctx.Value(streamOpenedKey{}).(func())
+	if opened == nil {
+		opened = func() {}
+	}
+	for first := true; s.Receive(); first = false {
+		f := s.Msg()
+		// The first frame says where the stream starts: it counts as open once that is
+		// held, so a switch or reattach right after resumes from it rather than from
+		// the newest. One to read again opens before the UI is told, and is held only
+		// once it is: cut off between, the next stream says so again.
+		if first && !f.GetReadAgain() {
+			r.read.Store(&readAt{epoch: f.GetEpoch(), change: f.GetChange()})
+			opened()
+			continue
+		}
+		if first {
+			opened()
+		}
+		if f.GetReadAgain() && !deliver(ctx, r.changes, domain.ChangeMessages) {
+			return nil
+		}
+		if m := f.GetMessage(); m != nil && !deliver(ctx, r.msgs, pc.ProtoToMessage(m)) {
+			return nil
+		}
+		r.read.Store(&readAt{epoch: f.GetEpoch(), change: f.GetChange()})
+	}
+	if err := s.Err(); err != nil && ctx.Err() == nil {
+		return callErr("messages stream", err)
+	}
+	return nil
+}
+
+// deliver puts v on out, reporting false when ctx ended first.
+func deliver[T any](ctx context.Context, out *stream[T], v T) bool {
+	select {
+	case out.ch <- v:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // pumpStream forwards one server stream onto out until it ends or ctx is canceled;

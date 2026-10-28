@@ -1,6 +1,7 @@
 # Design: replay (Phase 1 of design-clients.md)
 
-Status: planned 2026-10-28. Phase 1 of [design-clients.md](design-clients.md), in
+Status: done. Planned 2026-10-28; the three steps landed as #384, #386 and the
+client's resume (step 3). Phase 1 of [design-clients.md](design-clients.md), in
 today's kithd with one bridge. The mesh CRDT, once planned for this phase, moved to
 Phase 2: with one kithd and a TUI that keeps no store, there is one replica and nothing
 to merge, so it lands with its first second replica (a paired bridge).
@@ -134,7 +135,10 @@ Each PR lands working.
    than a read, a since from another epoch, the future or too far back, a clear under a
    reader, two readers, and the stream ending with the backend's messages.
 3. **feat: the client resumes.** `Remote` keeps and sends the position and handles
-   `read_again`; the TUI stops re-reading the open room after a resume; `RedactedAt` kept in the cache, the one field the TUI
+   `read_again` (as `ChangeMessages` on `Changed`); every stream opens with a frame
+   saying where it starts, and counts as open once `Remote` holds it, so a switch or
+   reattach right after an open resumes rather than starting at the newest; the TUI
+   stops re-reading the open room after a resume; `RedactedAt` kept in the cache, the one field the TUI
    reads that a row lacks (moved from step 1, where nothing read it yet). **Failure review** (concurrent): kithd restarting
    mid-burst, a burst larger than the old queue, a profile switch mid-read, two
    windows on one kithd, a history page into the open room.
