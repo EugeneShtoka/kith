@@ -18,8 +18,8 @@ import (
 )
 
 // complete gives d every part a test left out, as kithd builds it: a cache of what the
-// backend sends (cacheOf), a config file and
-// a send-later queue in a temp dir, no networks to log in, a silent notifier and log,
+// backend sends (cacheOf), a config file,
+// a send-later queue and an uploads folder in a temp dir, no networks to log in, a silent notifier and log,
 // and a config check and reload that accept.
 func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
 	t.Helper()
@@ -55,6 +55,13 @@ func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
 	}
 	if d.Logins == nil {
 		d.Logins = daemon.NewLogins(t.Context(), func() []api.LoginLeader { return nil })
+	}
+	if d.Uploads == nil {
+		u, err := daemon.NewUploads(filepath.Join(dir, "uploads"))
+		if err != nil {
+			t.Fatalf("NewUploads: %v", err)
+		}
+		d.Uploads = u
 	}
 	if d.Log == nil {
 		d.Log = logging.Discard()

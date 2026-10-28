@@ -350,19 +350,19 @@ var curatedSettings = []setting{
 	{
 		key: "display.media.mode", group: "media", label: "Images",
 		show: func(c config.Settings) string {
-			return orDefault(c.Bridge.Display.Media.Mode, config.MediaPlaceholder)
+			return orDefault(c.Device.Display.Media.Mode, config.MediaPlaceholder)
 		},
 		kind:    settingChoice,
 		choices: mediaModeChoices,
-		set:     func(c *config.Settings, v string) error { c.Bridge.Display.Media.Mode = v; return nil },
+		set:     func(c *config.Settings, v string) error { c.Device.Display.Media.Mode = v; return nil },
 	},
 	{
 		key: "display.media.max_height", group: "media", label: "Inline image height",
-		show:  func(c config.Settings) string { return showCount(c.Bridge.Display.Media.MaxHeight, "default") },
+		show:  func(c config.Settings) string { return showCount(c.Device.Display.Media.MaxHeight, "default") },
 		kind:  settingNumber,
-		edit:  func(c config.Settings) string { return countText(c.Bridge.Display.Media.MaxHeight) },
-		set:   func(c *config.Settings, v string) error { return setInt(&c.Bridge.Display.Media.MaxHeight, v) },
-		count: func(c config.Settings) int { return c.Bridge.Display.Media.MaxHeight },
+		edit:  func(c config.Settings) string { return countText(c.Device.Display.Media.MaxHeight) },
+		set:   func(c *config.Settings, v string) error { return setInt(&c.Device.Display.Media.MaxHeight, v) },
+		count: func(c config.Settings) int { return c.Device.Display.Media.MaxHeight },
 		help:  "rows — 0 or empty for the default",
 	},
 	{

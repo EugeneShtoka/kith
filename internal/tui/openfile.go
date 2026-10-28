@@ -16,7 +16,7 @@ func (m Model) openFile(msg domain.Message) (Model, tea.Cmd) {
 
 // fileOpenerCommand is the desktop's file handler, or `[display.media] opener`.
 func (m Model) fileOpenerCommand() ([]string, error) {
-	return resolveCommand(m.prefs.display.Media.Opener, fileOpenerCandidates, "file opener")
+	return resolveCommand(m.prefs.device.Media.Opener, fileOpenerCandidates, "file opener")
 }
 
 var fileOpenerCandidates = [][]string{

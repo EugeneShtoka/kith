@@ -57,7 +57,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 	defer restoreKeyboard()
 
 	// A cache that will not open is reported, not fatal.
-	cache, cacheErr := openMediaCache(cfg.Display.Media, log)
+	cache, cacheErr := openMediaCache(dev.Display.Media, log)
 
 	model := New(ctx, backend, cfg.Display, dev.Display).
 		WithLogger(log).

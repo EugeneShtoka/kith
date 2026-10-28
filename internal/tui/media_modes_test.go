@@ -104,8 +104,8 @@ func TestResizeRefitsThePictures(t *testing.T) {
 func inlineModel(t *testing.T) Model {
 	t.Helper()
 
-	disp := config.Display{Media: config.Media{Mode: "inline"}}
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
+	disp := config.DeviceDisplay{Media: config.Media{Mode: "inline"}}
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{}, disp)))
 	m.focus = paneTimeline
 	return m
 }

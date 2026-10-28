@@ -131,7 +131,7 @@ func (d dailyBackups) once(ctx context.Context, now time.Time) (done backup.Dail
 	}
 	src := backup.Source{
 		ConfigPath: d.file.path, Config: cfg, Storage: d.storage, CacheKey: key,
-		MediaDir: setup.MediaDir(cfg, d.storage),
+		MediaDir: d.storage.MediaDir(),
 	}
 	d.maintenance.Lock()
 	defer d.maintenance.Unlock()

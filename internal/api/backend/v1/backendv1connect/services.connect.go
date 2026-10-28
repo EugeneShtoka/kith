@@ -110,6 +110,12 @@ const (
 	BackendServiceSendProcedure = "/backend.v1.BackendService/Send"
 	// BackendServiceRedactProcedure is the fully-qualified name of the BackendService's Redact RPC.
 	BackendServiceRedactProcedure = "/backend.v1.BackendService/Redact"
+	// BackendServiceStartUploadProcedure is the fully-qualified name of the BackendService's
+	// StartUpload RPC.
+	BackendServiceStartUploadProcedure = "/backend.v1.BackendService/StartUpload"
+	// BackendServicePutUploadProcedure is the fully-qualified name of the BackendService's PutUpload
+	// RPC.
+	BackendServicePutUploadProcedure = "/backend.v1.BackendService/PutUpload"
 	// BackendServiceSendFileProcedure is the fully-qualified name of the BackendService's SendFile RPC.
 	BackendServiceSendFileProcedure = "/backend.v1.BackendService/SendFile"
 	// BackendServiceSendTypingProcedure is the fully-qualified name of the BackendService's SendTyping
@@ -484,6 +490,10 @@ type BackendServiceClient interface {
 	Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error)
 	// Redact removes a message's content.
 	Redact(context.Context, *connect.Request[v1.RedactRequest]) (*connect.Response[v1.RedactResponse], error)
+	// StartUpload and PutUpload bring a file's bytes from the client, in chunks, so a
+	// client on another machine can send it; SendFile then posts it.
+	StartUpload(context.Context, *connect.Request[v1.StartUploadRequest]) (*connect.Response[v1.StartUploadResponse], error)
+	PutUpload(context.Context, *connect.Request[v1.PutUploadRequest]) (*connect.Response[v1.PutUploadResponse], error)
 	// SendFile uploads a file and posts it, encrypting it first where the room is.
 	SendFile(context.Context, *connect.Request[v1.SendFileRequest]) (*connect.Response[v1.SendFileResponse], error)
 	// SendTyping tells a room you are typing, or that you have stopped.
@@ -940,6 +950,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceRedactProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("Redact")),
+			connect.WithClientOptions(opts...),
+		),
+		startUpload: connect.NewClient[v1.StartUploadRequest, v1.StartUploadResponse](
+			httpClient,
+			baseURL+BackendServiceStartUploadProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("StartUpload")),
+			connect.WithClientOptions(opts...),
+		),
+		putUpload: connect.NewClient[v1.PutUploadRequest, v1.PutUploadResponse](
+			httpClient,
+			baseURL+BackendServicePutUploadProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("PutUpload")),
 			connect.WithClientOptions(opts...),
 		),
 		sendFile: connect.NewClient[v1.SendFileRequest, v1.SendFileResponse](
@@ -1606,6 +1628,8 @@ type backendServiceClient struct {
 	fetchEventSource      *connect.Client[v1.FetchEventSourceRequest, v1.FetchEventSourceResponse]
 	send                  *connect.Client[v1.SendRequest, v1.SendResponse]
 	redact                *connect.Client[v1.RedactRequest, v1.RedactResponse]
+	startUpload           *connect.Client[v1.StartUploadRequest, v1.StartUploadResponse]
+	putUpload             *connect.Client[v1.PutUploadRequest, v1.PutUploadResponse]
 	sendFile              *connect.Client[v1.SendFileRequest, v1.SendFileResponse]
 	sendTyping            *connect.Client[v1.SendTypingRequest, v1.SendTypingResponse]
 	cachedUnread          *connect.Client[v1.CachedUnreadRequest, v1.CachedUnreadResponse]
@@ -1856,6 +1880,16 @@ func (c *backendServiceClient) Send(ctx context.Context, req *connect.Request[v1
 // Redact calls backend.v1.BackendService.Redact.
 func (c *backendServiceClient) Redact(ctx context.Context, req *connect.Request[v1.RedactRequest]) (*connect.Response[v1.RedactResponse], error) {
 	return c.redact.CallUnary(ctx, req)
+}
+
+// StartUpload calls backend.v1.BackendService.StartUpload.
+func (c *backendServiceClient) StartUpload(ctx context.Context, req *connect.Request[v1.StartUploadRequest]) (*connect.Response[v1.StartUploadResponse], error) {
+	return c.startUpload.CallUnary(ctx, req)
+}
+
+// PutUpload calls backend.v1.BackendService.PutUpload.
+func (c *backendServiceClient) PutUpload(ctx context.Context, req *connect.Request[v1.PutUploadRequest]) (*connect.Response[v1.PutUploadResponse], error) {
+	return c.putUpload.CallUnary(ctx, req)
 }
 
 // SendFile calls backend.v1.BackendService.SendFile.
@@ -2462,6 +2496,10 @@ type BackendServiceHandler interface {
 	Send(context.Context, *connect.Request[v1.SendRequest]) (*connect.Response[v1.SendResponse], error)
 	// Redact removes a message's content.
 	Redact(context.Context, *connect.Request[v1.RedactRequest]) (*connect.Response[v1.RedactResponse], error)
+	// StartUpload and PutUpload bring a file's bytes from the client, in chunks, so a
+	// client on another machine can send it; SendFile then posts it.
+	StartUpload(context.Context, *connect.Request[v1.StartUploadRequest]) (*connect.Response[v1.StartUploadResponse], error)
+	PutUpload(context.Context, *connect.Request[v1.PutUploadRequest]) (*connect.Response[v1.PutUploadResponse], error)
 	// SendFile uploads a file and posts it, encrypting it first where the room is.
 	SendFile(context.Context, *connect.Request[v1.SendFileRequest]) (*connect.Response[v1.SendFileResponse], error)
 	// SendTyping tells a room you are typing, or that you have stopped.
@@ -2914,6 +2952,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceRedactProcedure,
 		svc.Redact,
 		connect.WithSchema(backendServiceMethods.ByName("Redact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceStartUploadHandler := connect.NewUnaryHandler(
+		BackendServiceStartUploadProcedure,
+		svc.StartUpload,
+		connect.WithSchema(backendServiceMethods.ByName("StartUpload")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServicePutUploadHandler := connect.NewUnaryHandler(
+		BackendServicePutUploadProcedure,
+		svc.PutUpload,
+		connect.WithSchema(backendServiceMethods.ByName("PutUpload")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceSendFileHandler := connect.NewUnaryHandler(
@@ -3606,6 +3656,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceSendHandler.ServeHTTP(w, r)
 		case BackendServiceRedactProcedure:
 			backendServiceRedactHandler.ServeHTTP(w, r)
+		case BackendServiceStartUploadProcedure:
+			backendServiceStartUploadHandler.ServeHTTP(w, r)
+		case BackendServicePutUploadProcedure:
+			backendServicePutUploadHandler.ServeHTTP(w, r)
 		case BackendServiceSendFileProcedure:
 			backendServiceSendFileHandler.ServeHTTP(w, r)
 		case BackendServiceSendTypingProcedure:
@@ -3939,6 +3993,14 @@ func (UnimplementedBackendServiceHandler) Send(context.Context, *connect.Request
 
 func (UnimplementedBackendServiceHandler) Redact(context.Context, *connect.Request[v1.RedactRequest]) (*connect.Response[v1.RedactResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Redact is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) StartUpload(context.Context, *connect.Request[v1.StartUploadRequest]) (*connect.Response[v1.StartUploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.StartUpload is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) PutUpload(context.Context, *connect.Request[v1.PutUploadRequest]) (*connect.Response[v1.PutUploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PutUpload is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) SendFile(context.Context, *connect.Request[v1.SendFileRequest]) (*connect.Response[v1.SendFileResponse], error) {

@@ -32,5 +32,5 @@ func (m Model) playVideo(msg domain.Message) (Model, tea.Cmd) {
 
 // videoPlayerCommand is the player program and its arguments.
 func (m Model) videoPlayerCommand() ([]string, error) {
-	return resolveCommand(m.prefs.display.Media.VideoPlayer, videoPlayerCandidates, "video player")
+	return resolveCommand(m.prefs.device.Media.VideoPlayer, videoPlayerCandidates, "video player")
 }

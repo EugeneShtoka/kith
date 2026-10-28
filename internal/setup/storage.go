@@ -176,15 +176,6 @@ func PhonebookDir(cfg config.Config) string {
 	return filepath.Clean(dir)
 }
 
-// MediaDir is the picture cache: [display.media] cache_dir, ~ expanded, else the one in
-// storage's cache directory.
-func MediaDir(cfg config.Config, storage domain.Storage) string {
-	if dir := dirOr(cfg.Display.Media.CacheDir, ""); dir != "" {
-		return dir
-	}
-	return storage.MediaDir()
-}
-
 // KeepRules validates [storage] messages_per_room and [[storage.rule]]: a count is
 // negative (keep all) or at least one; a match is a place entry.
 func KeepRules(st config.Storage) (int, []domain.KeepRule, error) {

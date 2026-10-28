@@ -128,7 +128,7 @@ func (m Model) runDerived(s config.Settings, derived derivations, done string) (
 	m.pics.graphics = resolveGraphics(m.pics.mode)
 	m.pics.blocks = resolveBlocks(derived.detail)
 	m.glyphs.scope = dev.Display.Reactions.Scope
-	m = m.applyMedia(cfg.Display.Media)
+	m = m.applyMedia(dev.Display.Media)
 	// Set before the rail is rebuilt: a group's Unread filter captures unreadView.
 	m.prefs.unreadLocal = derived.unreadLocal
 	m = m.refreshPlaces()
@@ -307,7 +307,7 @@ func derive(s config.Settings, profile string) (derivations, error) {
 	if err != nil {
 		return derivations{}, err
 	}
-	media, err := setup.MediaMode(cfg.Display.Media.Mode)
+	media, err := setup.MediaMode(dev.Display.Media.Mode)
 	if err != nil {
 		return derivations{}, err
 	}
@@ -319,7 +319,7 @@ func derive(s config.Settings, profile string) (derivations, error) {
 	if bad := setup.RoomList(dev.Display.Rooms); bad != nil {
 		return derivations{}, bad
 	}
-	detail, err := setup.MediaDetail(cfg.Display.Media.Detail)
+	detail, err := setup.MediaDetail(dev.Display.Media.Detail)
 	if err != nil {
 		return derivations{}, err
 	}

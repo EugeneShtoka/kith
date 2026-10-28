@@ -188,7 +188,7 @@ func (r *restore) prepare() error {
 	if err != nil {
 		return fmt.Errorf("restore: the backup's config: %w", err)
 	}
-	r.cfg, r.storage, r.media = cfg, storage, setup.MediaDir(cfg, storage)
+	r.cfg, r.storage, r.media = cfg, storage, storage.MediaDir()
 	if lockErr := r.lock(storage); lockErr != nil {
 		return lockErr
 	}

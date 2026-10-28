@@ -21,7 +21,6 @@ type Display struct {
 	RoomNameRules   *bool         `toml:"room_name_rules"`
 	Priority        []string      `toml:"priority"` // home entries (space:, tag:, place:), most preferred first
 	Rail            Rail          `toml:"rail"`
-	Media           Media         `toml:"media"`
 }
 
 // DeviceDisplay is [display] in device.toml: how this device draws the timeline, room
@@ -55,6 +54,7 @@ type DeviceDisplay struct {
 	Reactions    Reactions  `toml:"reactions"`
 	Threads      Threads    `toml:"threads"`
 	Direction    Direction  `toml:"direction"`
+	Media        Media      `toml:"media"`
 }
 
 // Direction is [display.direction]: which rooms read right to left, the sender column

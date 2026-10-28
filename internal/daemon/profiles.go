@@ -76,7 +76,7 @@ var reaches = map[string]profileReach{
 	"AllowRareWord": passes, "SetDND": passes, "ClearDND": passes, "DND": passes,
 	"RescanFilters": passes, "RescanPeople": passes, "ReloadConfig": passes, "CheckConfig": passes,
 	"GetConfig": passes, "PreviewGroupings": passes, "ApplyGroupings": passes, "UpdateConfig": passes,
-	"ConfigChanged": passes,
+	"ConfigChanged": passes, "StartUpload": passes, "PutUpload": passes,
 }
 
 // profileGate is the server's interceptor: it refuses a profile the config does not

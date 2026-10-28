@@ -185,7 +185,7 @@ func (m machine) backUp(t *testing.T) string {
 func (m machine) source(t *testing.T, cfg config.Config) backup.Source {
 	t.Helper()
 	s := m.storage(t)
-	return backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: s, CacheKey: keyAt(s.DataDir), MediaDir: setup.MediaDir(cfg, s)}
+	return backup.Source{ConfigPath: m.configPath, Config: cfg, Storage: s, CacheKey: keyAt(s.DataDir), MediaDir: s.MediaDir()}
 }
 
 // answer is a key prompt that answers id and counts how often it was asked.

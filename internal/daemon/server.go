@@ -49,6 +49,8 @@ type Daemon struct {
 	Scheduler *Scheduler
 	// Logins logs network accounts in.
 	Logins api.Logins
+	// Uploads keeps the files clients send until each is posted.
+	Uploads *Uploads
 	// Log receives every failed call with procedure and reason, so a failure a client
 	// only counted reaches the journal.
 	Log *slog.Logger
@@ -61,7 +63,7 @@ func (d *Daemon) missing() []string {
 		"Backend": d.Backend == nil, "Streams": d.Streams == nil, "MessageLog": d.MessageLog == nil, "State": d.State == nil,
 		"Notifications": d.Notifications == nil, "Reload": d.Reload == nil,
 		"CheckConfig": d.CheckConfig == nil, "Config": d.Config == nil,
-		"Scheduler": d.Scheduler == nil, "Logins": d.Logins == nil, "Log": d.Log == nil,
+		"Scheduler": d.Scheduler == nil, "Logins": d.Logins == nil, "Uploads": d.Uploads == nil, "Log": d.Log == nil,
 	} {
 		if absent {
 			out = append(out, name)

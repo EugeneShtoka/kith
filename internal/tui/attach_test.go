@@ -253,7 +253,7 @@ func TestDownloadSavesTheSelectedAttachment(t *testing.T) {
 	m, backend := attaching(t)
 	backend.media = []byte("PNG-ish bytes")
 	dir := t.TempDir()
-	m.prefs.display.Media.DownloadDir = dir
+	m.prefs.device.Media.DownloadDir = dir
 	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
 		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "photo.png",
 		Media: &domain.Media{Type: domain.MediaImage, Name: "photo.png", Mime: "image/png"},
@@ -462,8 +462,8 @@ func TestDownloadFollowsTheTemplate(t *testing.T) {
 	m, backend := attaching(t)
 	backend.media = []byte("bytes")
 	root := t.TempDir()
-	m.prefs.display.Media.DownloadDir = root
-	m.prefs.display.Media.DownloadTemplate = "{room}/{person}/{name}{ext}"
+	m.prefs.device.Media.DownloadDir = root
+	m.prefs.device.Media.DownloadTemplate = "{room}/{person}/{name}{ext}"
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
@@ -488,8 +488,8 @@ func TestDownloadRuleOverridesTheDirectory(t *testing.T) {
 	m, backend := attaching(t)
 	backend.media = []byte("bytes")
 	root, elsewhere := t.TempDir(), t.TempDir()
-	m.prefs.display.Media.DownloadDir = root
-	m.prefs.display.Media.Rules = []config.MediaRule{{Match: mx + "!a:x", Dir: elsewhere}}
+	m.prefs.device.Media.DownloadDir = root
+	m.prefs.device.Media.Rules = []config.MediaRule{{Match: mx + "!a:x", Dir: elsewhere}}
 	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
 		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "doc.pdf",
 		Media: &domain.Media{Type: domain.MediaFile, Name: "doc.pdf", Mime: "application/pdf"},
@@ -510,7 +510,7 @@ func TestSaveAsRemembersWhatIsBeingSaved(t *testing.T) {
 	m, backend := attaching(t)
 	backend.media = []byte("bytes")
 	root := t.TempDir()
-	m.prefs.display.Media.DownloadDir = root
+	m.prefs.device.Media.DownloadDir = root
 	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
 		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "bill.pdf",
 		Media: &domain.Media{Type: domain.MediaFile, Name: "bill.pdf", Mime: "application/pdf"},
@@ -542,7 +542,7 @@ func TestSaveAsCanceled(t *testing.T) {
 	t.Parallel()
 
 	m, _ := attaching(t)
-	m.prefs.display.Media.DownloadDir = t.TempDir()
+	m.prefs.device.Media.DownloadDir = t.TempDir()
 	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{{
 		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@alice:x", SenderName: "Alice", Body: "bill.pdf",
 		Media: &domain.Media{Type: domain.MediaFile, Name: "bill.pdf", Mime: "application/pdf"},

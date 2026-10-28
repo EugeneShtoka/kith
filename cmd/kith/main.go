@@ -169,6 +169,9 @@ func attach(ctx context.Context, configPath string, timeout time.Duration) (atta
 	if err != nil {
 		return attached{cfg: cfg}, err
 	}
+	if dev.Display.Media.CacheDir == "" {
+		dev.Display.Media.CacheDir = storage.MediaDir() // [storage] cache_dir
+	}
 	at, err := reach(ctx, path, cfg, storage, timeout)
 	at.device, at.dev = device, dev
 	return at, err
@@ -230,9 +233,6 @@ func reach(ctx context.Context, path string, cfg config.Config, storage domain.S
 	// kith-notify shows kithd's notifications here; one already running keeps them.
 	if nerr := daemon.StartNotifier(ctx, storage, launch); nerr != nil {
 		note = strings.TrimSpace(note + "\nDesktop notifications are off: kith-notify did not start: " + nerr.Error())
-	}
-	if cfg.Display.Media.CacheDir == "" {
-		cfg.Display.Media.CacheDir = storage.MediaDir() // [storage] cache_dir
 	}
 	return attached{path: path, cfg: cfg, storage: storage, launch: launch, backend: backend, note: note}, nil
 }

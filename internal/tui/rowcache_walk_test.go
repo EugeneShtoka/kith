@@ -45,11 +45,10 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 	}()
 
 	display := config.Display{
-		Media:      config.Media{Mode: "inline"},
 		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
 		Tracked:    config.Tracked{Rules: []config.TrackedRule{{Words: []string{"word3"}, In: []string{"room:Alpha"}}}},
 	}
-	m := update(t, starterNew(&quoteBackend{}, display),
+	m := update(t, starterNew(&quoteBackend{}, display, config.DeviceDisplay{Media: config.Media{Mode: "inline"}}),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
@@ -191,7 +190,7 @@ func walkMessages() []domain.Message {
 // the rows around a picture.
 func TestPictureRowsFollowTheFocus(t *testing.T) {
 	t.Parallel()
-	m := update(t, starterNew(&quoteBackend{}, config.Display{Media: config.Media{Mode: "inline"}}),
+	m := update(t, starterNew(&quoteBackend{}, config.Display{}, config.DeviceDisplay{Media: config.Media{Mode: "inline"}}),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	m, _ = m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})

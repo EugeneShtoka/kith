@@ -118,3 +118,23 @@ func TestDeletedMessagesRefusesByName(t *testing.T) {
 		}
 	}
 }
+
+// [display.media] is the device's, checked with the device's other settings.
+func TestTheDeviceChecksItsMediaSettings(t *testing.T) {
+	t.Parallel()
+	if err := setup.ValidateDevice(config.Device{}); err != nil {
+		t.Fatalf("an empty device file is refused: %v", err)
+	}
+	for name, media := range map[string]config.Media{
+		"mode":   {Mode: "huge"},
+		"detail": {Detail: "fine"},
+		"speed":  {Audio: config.Audio{Speed: 9}},
+		"skip":   {Audio: config.Audio{Skip: -1}},
+	} {
+		var dev config.Device
+		dev.Display.Media = media
+		if err := setup.ValidateDevice(dev); err == nil || !strings.Contains(err.Error(), "display.media") {
+			t.Errorf("%s: ValidateDevice = %v, want display.media refused", name, err)
+		}
+	}
+}

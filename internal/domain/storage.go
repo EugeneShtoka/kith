@@ -113,3 +113,8 @@ func (s Storage) LogPath(program string) string { return filepath.Join(s.StateDi
 
 // MediaDir is the client's picture cache.
 func (s Storage) MediaDir() string { return filepath.Join(s.CacheDir, "media") }
+
+// UploadsDir is where kithd keeps the files clients send it until each is posted.
+func (s Storage) UploadsDir() string {
+	return filepath.Join(s.CacheDir, "uploads-"+s.Instance)
+}

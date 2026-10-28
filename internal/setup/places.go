@@ -155,12 +155,8 @@ func ruleLists(cfg config.Config) []placeList {
 			out = append(out, placeList{what, prefixes, words, []string{entry}, ok})
 		}
 	}
-	match := func(e string) bool { return isHomeEntry(e) || isIDEntry(e) }
 	for i, r := range d.SpaceRules {
 		add(fmt.Sprintf("display.space_rule[%d].space", i), homePrefixes, "", r.Space, isHomeEntry)
-	}
-	for i := range d.Media.Rules {
-		add(fmt.Sprintf("display.media.rule[%d].match", i), homePrefixes, ruleWords, d.Media.Rules[i].Match, match)
 	}
 	return out
 }
@@ -187,6 +183,9 @@ func deviceRuleLists(dev config.Device) []placeList {
 	}
 	for i, r := range d.Threads.Rules {
 		add(fmt.Sprintf("display.threads.rule[%d].match", i), homePrefixes, ruleWords, r.Match, match)
+	}
+	for i := range d.Media.Rules {
+		add(fmt.Sprintf("display.media.rule[%d].match", i), homePrefixes, ruleWords, d.Media.Rules[i].Match, match)
 	}
 	for _, j := range dev.Keys.Jump {
 		add(fmt.Sprintf("keys.jump %q", j.Chord), jumpPrefixes, "", j.Target, domain.HasJumpPrefix)

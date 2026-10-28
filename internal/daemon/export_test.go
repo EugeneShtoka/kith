@@ -1,6 +1,20 @@
 package daemon
 
+import (
+	"net/http"
+
+	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
+)
+
 // Test-only accessors.
+
+// RemoteOver is a Remote whose requests go through hc, which may fail some.
+func RemoteOver(hc *http.Client) *Remote { return newRemote(hc) }
+
+// Client is the raw socket API at path, for calls in an order no Remote makes.
+func Client(path string) backendv1connect.BackendServiceClient {
+	return backendv1connect.NewBackendServiceClient(Dial(path), socketBaseURL)
+}
 
 // MessageSubscribers counts every reader of the backend's messages, the notifier included.
 func (s *Streams) MessageSubscribers() int { return s.messages.subscribers() }

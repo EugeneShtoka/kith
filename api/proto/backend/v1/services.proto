@@ -265,10 +265,31 @@ message SendRequest {
 
 message SendResponse {}
 
-// SendFile posts an attachment.
+// StartUpload begins a file's upload: kithd keeps the bytes PutUpload brings until
+// SendFile posts them. name is the file's own; size is every byte it will bring.
+message StartUploadRequest {
+  string name = 1;
+  int64 size = 2;
+}
+
+message StartUploadResponse {
+  string upload_id = 1;
+}
+
+// PutUpload writes one chunk of an upload at offset. A chunk sent again is written
+// again; one reaching past the upload's size is refused.
+message PutUploadRequest {
+  string upload_id = 1;
+  int64 offset = 2;
+  bytes data = 3;
+}
+
+message PutUploadResponse {}
+
+// SendFile posts an attachment: an upload with every byte written, which it uses up.
 message SendFileRequest {
   string room_id = 1;
-  string path = 2;
+  string upload_id = 2;
   // caption becomes the message body.
   string caption = 3;
   // name is what the file is sent as (domain.SentName where names are anonymized);
@@ -1778,6 +1799,10 @@ service BackendService {
   rpc Send(SendRequest) returns (SendResponse);
   // Redact removes a message's content.
   rpc Redact(RedactRequest) returns (RedactResponse);
+  // StartUpload and PutUpload bring a file's bytes from the client, in chunks, so a
+  // client on another machine can send it; SendFile then posts it.
+  rpc StartUpload(StartUploadRequest) returns (StartUploadResponse);
+  rpc PutUpload(PutUploadRequest) returns (PutUploadResponse);
   // SendFile uploads a file and posts it, encrypting it first where the room is.
   rpc SendFile(SendFileRequest) returns (SendFileResponse);
   // SendTyping tells a room you are typing, or that you have stopped.

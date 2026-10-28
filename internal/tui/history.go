@@ -162,7 +162,7 @@ func (m Model) viewHistoryMedia() (Model, tea.Cmd) {
 		if err != nil {
 			return m.say(err.Error()), nil
 		}
-		configured := strings.TrimSpace(m.prefs.display.Media.Viewer) != ""
+		configured := strings.TrimSpace(m.prefs.device.Media.Viewer) != ""
 		return m.doing("opening the picture…"), m.viewMediaCmd(viewer, configured, []mediaJob{m.jobFor(msg)}, 0)
 	case msg.Media.IsVideo():
 		return m.playVideo(msg)

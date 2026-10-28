@@ -3,7 +3,12 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"time"
+
+	"connectrpc.com/connect"
 
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	pc "github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
@@ -427,11 +432,84 @@ func (r *Remote) Redact(ctx context.Context, roomID domain.RoomID, eventID domai
 	return err
 }
 
-// SendFile passes the path, not the bytes: client and daemon are the same user on the
-// same machine. The caller makes it absolute.
+// uploadChunk is how much of a file one PutUpload carries, all either side holds of it
+// in memory at once.
+const uploadChunk = 1 << 20
+
+// chunkTries bounds the attempts at one chunk, and chunkPause is the wait before the
+// next, longer each time.
+const (
+	chunkTries = 4
+	chunkPause = 250 * time.Millisecond
+)
+
+// SendFile sends the bytes of the file at path, on this machine, which kithd may not
+// share: StartUpload, then PutUpload chunk by chunk, each retried where it was cut off,
+// then SendFile naming the upload.
 func (r *Remote) SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error {
-	_, err := call(ctx, "send file", r.c.SendFile, &v1.SendFileRequest{RoomId: string(roomID), Path: path, Name: name, Caption: caption})
+	f, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return fmt.Errorf("send file: %w", err)
+	}
+	defer func() { _ = f.Close() }() // read only
+	info, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("send file: %w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("send file: %s is a directory", filepath.Base(path))
+	}
+	size := info.Size()
+	start, err := call(ctx, "upload", r.c.StartUpload, &v1.StartUploadRequest{Name: filepath.Base(path), Size: size})
+	if err != nil {
+		return err
+	}
+	id := start.GetUploadId()
+	chunk := make([]byte, min(size, uploadChunk))
+	for offset := int64(0); offset < size; {
+		n := min(size-offset, uploadChunk)
+		if _, rerr := f.ReadAt(chunk[:n], offset); rerr != nil {
+			return fmt.Errorf("send file: read %s: %w", filepath.Base(path), rerr)
+		}
+		if perr := r.putChunk(ctx, id, offset, chunk[:n]); perr != nil {
+			return perr
+		}
+		offset += n
+	}
+	_, err = call(ctx, "send file", r.c.SendFile,
+		&v1.SendFileRequest{RoomId: string(roomID), UploadId: id, Name: name, Caption: caption})
 	return err
+}
+
+// putChunk writes one chunk, again after a failure that may pass (a connection cut
+// before or after kithd wrote it: writing it twice is harmless), not after a refusal.
+func (r *Remote) putChunk(ctx context.Context, id string, offset int64, data []byte) error {
+	var err error
+	for try := range chunkTries {
+		if try > 0 {
+			select {
+			case <-ctx.Done():
+				return errors.Join(err, ctx.Err())
+			case <-time.After(time.Duration(try) * chunkPause):
+			}
+		}
+		_, err = call(ctx, "upload", r.c.PutUpload, &v1.PutUploadRequest{UploadId: id, Offset: offset, Data: data})
+		if err == nil || ctx.Err() != nil || refused(err) {
+			return err
+		}
+	}
+	return err
+}
+
+// refused reports whether kithd turned a call down, which asking again will not change.
+func refused(err error) bool {
+	switch connect.CodeOf(err) {
+	case connect.CodeNotFound, connect.CodeInvalidArgument, connect.CodeFailedPrecondition,
+		connect.CodeResourceExhausted, connect.CodeUnimplemented, connect.CodeCanceled, connect.CodeDeadlineExceeded:
+		return true
+	default:
+		return false
+	}
 }
 
 // ── Unread & reactions ──

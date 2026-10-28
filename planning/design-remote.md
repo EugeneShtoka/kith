@@ -54,14 +54,14 @@ each key sits in the file the rule puts it in; three judgment calls:
   files.
 - **`[agent.*]` stays on the bridge whole**: what an assistant may read and write is
   policy, not a device's taste.
-- **`[display.media]` moves in step 2**, with the media cache it names.
+- **`[display.media]` moved in step 2**, with the media cache it names.
 
 Device keys:
 
 | table | keys |
 | --- | --- |
 | top level | `terminal`, `[keys]`, `[composer]`, `[[command]]` |
-| `[display]` | `color_messages`, `direction`, `emoji`, `fps`, `filing_spaces`, `hyperlinks`, `max_name_length`, `mouse`, `network_colors`, `open_in_insert_mode`, `reactions`, `read_delay`, `read_rule`, `rooms`, `row_numbers`, `send_receipts`, `send_typing`, `show_archived`, `skin_tone`, `theme`, `threads`, `typing`, `unread`, `unread_line` |
+| `[display]` | `color_messages`, `direction`, `emoji`, `fps`, `filing_spaces`, `hyperlinks`, `max_name_length`, `media`, `mouse`, `network_colors`, `open_in_insert_mode`, `reactions`, `read_delay`, `read_rule`, `rooms`, `row_numbers`, `send_receipts`, `send_typing`, `show_archived`, `skin_tone`, `theme`, `threads`, `typing`, `unread`, `unread_line` |
 | `[notifications]` | how this device shows one: `enabled`, `desktop`, `command`, `sound_command`, `timeout`, `title`, `body` |
 | `[clipboard]` | all but `auto_copy` |
 | `[commands]` | `timeout` |
@@ -126,10 +126,20 @@ priority with fallback across a bridge's addresses; across bridges is Phase 3).
 `kith-notify` and `kith-mcp` dial the same way. On a device without a local kithd the
 TUI does not spawn one, and `kith --open` hands links to the local window as today.
 
-**Files cross as bytes.** `SendFile` carries the file's contents (a client-streaming
-upload, or chunked unary calls if HTTP/1.1 is kept for the socket), and attachments
-are fetched as bytes into a cache on the device. On the socket the same calls are used:
-one path, not two.
+**Files cross as bytes.** Downloads already do (`LoadImage`), into the media cache,
+which is the client's (`internal/media`). The one path that crosses is `SendFile`'s,
+which every adapter opens inside kithd. It becomes an upload in chunks by unary calls
+(`StartUpload`, `PutUpload` at an offset, then `SendFile` naming the upload), which
+work over the HTTP/1.1 socket and TLS alike, hold one chunk in memory, and resume
+after a cut; kithd stages the file in its own cache and hands the adapter a path as
+today. `Remote.SendFile` keeps its signature, the path now the client's. On the socket
+the same calls are used: one path, not two. `[display.media]` moves to `device.toml`;
+kithd's backup takes the media folder on its own machine.
+
+Left with shared folders after step 2: the phonebook (the TUI edits cards, kithd reads
+them: design-clients.md open question 10), a notification `sound` (a path on kithd's
+machine; a remote `kith-notify` plays its own default), and `kith --add-dictionary`
+(writes kithd's data folder from the CLI).
 
 **Liveness** is HTTP/2's own PING (`ReadIdleTimeout`) on the client; the
 `Heartbeat(network, caught_up_as_of)` of design-clients.md is for choosing among bridges
@@ -146,9 +156,10 @@ Each PR lands working.
    settings editor writing each to its own file. **Failure review** (merges writers):
    kithd and the client splitting at once, a split interrupted midway, a device key
    written into the bridge's file by hand after the split, two windows editing at once.
-2. **feat: files cross as bytes.** Uploads and attachment downloads by content; the
-   media cache moves to the device. **Failure review**: a large file, a cut-off upload,
-   two windows downloading one attachment.
+2. **feat: files cross as bytes.** Uploads in chunks; `[display.media]` to the device.
+   **Failure review** (concurrent): a large file, an upload cut off and resumed, chunks
+   out of order or repeated, two uploads at once, an upload never sent (staging
+   cleaned), the staging folder full.
 3. **feat: device keys, and kithd listens over TLS.** Keys and IDs, `[remote] listen`,
    pinned mutual TLS, the roster, rate limiting, `kith devices` (list, unpair, and add
    by pasted ID, as Syncthing does, before QR pairing exists). **Failure review**

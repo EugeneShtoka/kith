@@ -36,6 +36,10 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	uploads, err := NewUploads(filepath.Join(t.TempDir(), "uploads"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	d := &Daemon{
 		Backend: b, Streams: streams, MessageLog: noMessages{}, State: NewState(), Notifications: notifications,
 		Reload:      func(context.Context) error { return nil },
@@ -43,6 +47,7 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 		Config:      NewConfigFile(filepath.Join(t.TempDir(), "config.toml")),
 		Scheduler:   NewScheduler(schedule.New(filepath.Join(t.TempDir(), "scheduled.toml")), b, func() time.Duration { return time.Hour }, nil),
 		Logins:      NewLogins(ctx, func() []api.LoginLeader { return nil }),
+		Uploads:     uploads,
 		Log:         logging.Discard(),
 	}
 	served := make(chan error, 1)
