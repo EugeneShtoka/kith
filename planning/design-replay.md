@@ -11,9 +11,10 @@ A client that loses some of the message stream gets the rest from kithd's cache 
 of going without. Today the stream starts empty and nothing resumes it:
 
 - **A slow reader loses values.** Each RPC subscriber queues 64 values and the rest are
-  dropped (`internal/daemon/hub.go`); a burst after suspend is hundreds of messages. A
-  dropped message in the open room is missing from the timeline until the room is
-  opened again.
+  dropped (`internal/daemon/hub.go`); so does each adapter's own channel, and Matrix
+  has a second such hop (`internal/matrix/streams.go`, `merge.go`). A burst after
+  suspend is hundreds of messages. A dropped message in the open room is missing from
+  the timeline until the room is opened again.
 - **A reconnect re-reads, it does not resume.** When kithd restarts, the TUI reloads
   rooms, unread, last messages and the open room (`internal/tui/attached.go`, "no
   stream replays what arrived meanwhile"). That covers what is on screen, not what a
@@ -48,7 +49,7 @@ it counts writes, not places in the room.
 - **An unknown epoch** (the cache was rebuilt, or the client asks another bridge)
   means the change means nothing here: kithd answers that it cannot resume, and the
   client reloads as it does today.
-- **Too far behind**: past a bound (some thousands of messages), kithd answers the same,
+- **Too far behind**: past a bound (some thousands of changes), kithd answers the same,
   and the client reloads instead of being sent the whole backlog.
 - Profiles hold as on every stream: replay sends only rooms in the client's profile and
   leaves out people the profile hides.
@@ -72,22 +73,38 @@ message MessagesResponse {
 }
 ```
 
-kithd subscribes the client to the live hub first, then reads the cache for changes
-after `since`, sends them, and then passes on live values, dropping any whose change it
-has already sent. A message written between the subscribe and the read arrives once.
+**The stream tails the cache.** Every adapter writes a message to the cache before it
+puts it on its channel, so the cache already holds everything the stream carries, and
+more. After each commit that numbered changes, the cache says so; each stream reads the
+changes after the last one it sent, in profile, and sends them. Live and replay are one
+path: a resume is a stream that starts further back. A slow reader lags and catches up;
+nothing is dropped, whatever an adapter's channel dropped, and the sync loop never
+waits on a reader. (Rejected: stamping the adapters' live values with their change and
+ending a slow subscriber. Drops inside an adapter stay invisible, and a gap in the
+numbers cannot be told from history pages that were cached but never sent.)
 
-**The hub stops dropping messages on this stream.** A subscriber whose queue fills is
-ended with a "behind" error instead of skipped, and the client resumes from its last
-change; the sync loop never blocks on a slow reader, and nothing is lost. The other
-streams keep their lossy hub: each is recovered by a cache read it already pairs with.
+What this changes for a client:
+
+- **A value is the row as kithd keeps it**, not a delta: an edit arrives as the edited
+  message, a deletion as the deleted one. The client replaces the row by ID instead of
+  merging. Live-only fields go: `Reverted` (a replaced row needs none), `Late`
+  (never on the wire; the notifier keeps the adapters' channel). `RedactedAt`, which the
+  history view shows, is kept in the cache so the row carries it.
+- **History reaches the client too**: pages a network backfilled, which today only
+  the cache saw. They merge into the timeline by their place in the room.
+- **A write that changes nothing is not a change**: a sync echo or a redelivery of a
+  cached message is not resent.
+
+The notifier stays on the adapters' channel: it needs `Late` and `Placeholder`, and
+what it misses is a separate matter from this stream.
 
 ## The client
 
 `daemon.Remote` keeps the last `(epoch, change)` it delivered and sends it whenever it
-opens the stream: after a reconnect, after "behind", after a profile switch (where a
-change outside the new profile was never delivered, so the client reloads anyway). The
-TUI keeps its reload on reconnect for rooms and unread; the open room no longer needs
-re-reading when the resume succeeded.
+opens the stream: after a reconnect, after a profile switch (where a change outside the
+new profile was never delivered, so the client reloads anyway). The TUI replaces a row
+by ID when one arrives, keeps its reload on reconnect for rooms and unread, and no
+longer re-reads the open room when the resume succeeded.
 
 ## Plan
 
@@ -95,27 +112,27 @@ Each PR lands working.
 
 1. **feat: kithd numbers message changes.** The epoch in the cache's metadata, made at
    creation and on rebuild or clear; a side table `message_changes(room_id, event_id,
-   change)` with an index on `change`, written in every transaction that writes a
-   message row; `domain.Message` carries its change, set by the write. Migration,
-   fingerprint row, docs/database.md. Verify first that every message an adapter puts
-   on the stream has been written to the cache before it is sent, or the change does
-   not exist yet. **Failure review** (caches a derived result): an edit and a
-   redaction of an old message, a message written twice in one transaction, a message
-   seen again with nothing new (no change, or a change: decide and test), two adapters
-   writing at once, a clear and a rebuild.
-2. **feat: the message stream resumes from a change.** The request and response fields
-   above, replay in profile, subscribe-then-read with the overlap dropped, `reset` for
-   an unknown epoch or too far behind, "behind" in place of a dropped value. protoconv
-   and its round trip. **Failure review** (concurrent, enforces scope): the generator
-   interleaves cache writes with a resuming subscriber and asserts every change after
-   `since` arrives exactly once and in order; plus a profile reload mid-replay, a room
-   leaving the profile between since and now, a hidden person's message, a since from
-   the future, a client behind twice in a row.
-3. **feat: the client resumes instead of losing messages.** `Remote` keeps and sends
-   the position, handles `reset` and "behind"; the TUI stops re-reading the open room
-   when the resume succeeded. **Failure review** (concurrent): kithd restarting
-   mid-burst, a burst larger than the old queue, a profile switch while behind, two
-   windows on one kithd.
+   change)` with an index on `change`, written in every transaction that changes what
+   the cache returns for a message (upsert, side rows, deletion, revert, expiry, poll),
+   and only when it does; `RedactedAt` kept. A cache call reading the changes after a
+   number, and a signal after each commit that numbered one. Migration, fingerprint
+   row, docs/database.md. **Failure review** (caches a derived result): an edit and a
+   redaction of an old message, a message written twice in one transaction, a sync
+   echo that changes nothing, a side row alone changing (media, mentions, order), a
+   trimmed message, two adapters writing at once, a clear and a rebuild.
+2. **feat: the message stream tails the cache.** The request and response fields
+   above; the stream reads changes in profile from `since` and then on each signal;
+   `reset` for an unknown epoch or too far behind. The RPC stream leaves the hub.
+   protoconv and its round trip. **Failure review** (concurrent, enforces scope): the
+   generator interleaves cache writes with a resuming reader and asserts every change
+   after `since` arrives exactly once, in order, as the cache holds it; plus a profile
+   reload mid-read, a room leaving the profile between since and now, a hidden
+   person's message, a since from the future, a signal while the reader is mid-batch.
+3. **feat: the client resumes and replaces rows.** `Remote` keeps and sends the
+   position and handles `reset`; the TUI replaces rows by ID and stops re-reading the
+   open room after a resume. **Failure review** (concurrent): kithd restarting
+   mid-burst, a burst larger than the old queue, a profile switch mid-read, two
+   windows on one kithd, a history page into the open room.
 
 ## Left open
 
