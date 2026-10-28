@@ -40,12 +40,40 @@ reissued freely.
 - what only a client reads: theme, keys, media display, time formats, mouse, FPS.
 
 The rule that sorts every key: **kithd reads it → the bridge's `config.toml`; only a
-client reads it → `device.toml`.** A key both read stays on the bridge. Today's file is
-split once, on first run of a version that has `device.toml`: the device keys are
-copied out and left in place (unknown keys are ignored, so an older client still
-works), and the TUI's settings editor writes device keys to `device.toml` from then on.
-(Decided 2026-10-28: a device file on each device, rather than one theme for every
-device on the bridge.)
+client reads it → `device.toml`.** A key both read stays on the bridge. (Decided
+2026-10-28: a device file on each device, with every key only a client reads, so a
+phone and a laptop may behave differently too, not only look so.)
+
+Applied 2026-10-28 by following every read of each config field through the config
+accessors and setup helpers to the package that reads it (validation and encoding
+left out), against kithd's dependency graph. A table keeps its name in both files and
+each key sits in the file the rule puts it in; three judgment calls:
+
+- **A list of tables whose element is mixed stays on the bridge whole**
+  (`[[display.space_rule]]`, `[[display.identity]]`): one rule cannot be split across
+  files.
+- **`[agent.*]` stays on the bridge whole**: what an assistant may read and write is
+  policy, not a device's taste.
+- **`[display.media]` moves in step 2**, with the media cache it names.
+
+Device keys:
+
+| table | keys |
+| --- | --- |
+| top level | `terminal`, `[keys]`, `[composer]`, `[[command]]` |
+| `[display]` | `color_messages`, `direction`, `emoji`, `fps`, `filing_spaces`, `hyperlinks`, `max_name_length`, `mouse`, `network_colors`, `open_in_insert_mode`, `reactions`, `read_delay`, `read_rule`, `rooms`, `row_numbers`, `send_receipts`, `send_typing`, `show_archived`, `skin_tone`, `theme`, `threads`, `typing`, `unread`, `unread_line` |
+| `[notifications]` | how this device shows one: `enabled`, `desktop`, `command`, `sound_command`, `timeout`, `title`, `body` |
+| `[clipboard]` | all but `auto_copy` |
+| `[commands]` | `timeout` |
+| `[complete]` | `enabled`, `ghost`, `ratio`, `scope`, `sources`; `[complete.model]` `declined` |
+| `[spell]` | `autocorrect`, `check_before_send`, `declined`, `frequencies_declined`, `rare_before_send`, `rare_underline`, `underline` |
+| `[assist]` | `name_threads`, `name_threads_after` |
+
+Today's file is split once, by whichever of kithd and the client opens it first: the
+device keys move into `device.toml` beside it (a copy of the old file kept, as every
+write keeps one). They cannot stay behind: the config refuses unknown keys, so kithd
+would refuse its own file. The TUI's settings editor writes each key to its own file
+from then on.
 
 ## The listener
 
@@ -111,12 +139,13 @@ and lands with failover (Phase 3).
 
 Each PR lands working.
 
-1. **feat: device settings in `device.toml`.** The sorting rule applied to every key,
-   with a test that fails when a key is read by kithd and filed as a device's; the
-   one-time split; the TUI reading device keys locally and the bridge's through
-   `GetConfig`; the settings editor writing each to its own. **Failure review**
-   (merges writers): a device key edited on the bridge after the split, an older
-   client, a split interrupted midway, two windows editing at once.
+1. **feat: device settings in `device.toml`.** `config.Device` beside `config.Config`,
+   the device keys moved out of the bridge's types so kithd reading one does not
+   compile; device validation moved to the client; the one-time split; the TUI and
+   `kith-notify` reading device keys locally and the bridge's through `GetConfig`; the
+   settings editor writing each to its own file. **Failure review** (merges writers):
+   kithd and the client splitting at once, a split interrupted midway, a device key
+   written into the bridge's file by hand after the split, two windows editing at once.
 2. **feat: files cross as bytes.** Uploads and attachment downloads by content; the
    media cache moves to the device. **Failure review**: a large file, a cut-off upload,
    two windows downloading one attachment.
