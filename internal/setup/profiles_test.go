@@ -68,7 +68,7 @@ func TestAProfileIsRefusedWhatItCannotMean(t *testing.T) {
 		"as a row":                {[]config.Profile{{Name: "p", Include: []string{"place:unread"}}}, `"place:unread"`},
 		"a place tag":             {[]config.Profile{{Name: "p", Include: []string{"tag:Family", "place:Pinned"}}}, ""},
 		"a space named like one":  {[]config.Profile{{Name: "p", Include: []string{"space:Unread"}}}, ""},
-		"a missing tag":           {[]config.Profile{{Name: "p", Include: []string{"tag:Nope"}}}, `"tag:Nope"`},
+		"a missing tag":           {[]config.Profile{{Name: "p", Include: []string{"tag:Nope"}}}, ""}, // empty: no room
 		"an empty name":           {[]config.Profile{{Name: " "}}, "profile 1"},
 		"a name twice":            {[]config.Profile{{Name: "Work", Include: []string{"*"}}, {Name: "work ", Include: []string{"*"}}}, `profile "work"`},
 		"a bare Matrix room":      {[]config.Profile{{Name: "p", Include: []string{"!abc:example.org"}}}, `profile "p": include`},

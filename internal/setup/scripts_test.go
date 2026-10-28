@@ -8,8 +8,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-func withScripts(scripts ...config.Command) config.Config {
-	return config.Config{UserCommands: scripts}
+func withScripts(scripts ...config.Command) config.Device {
+	return config.Device{UserCommands: scripts}
 }
 
 // An unknown need is refused at startup, listing the vocabulary.

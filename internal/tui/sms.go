@@ -13,7 +13,7 @@ import (
 
 // asksSMS reports whether sending to room asks first.
 func (m Model) asksSMS(room domain.Room) bool {
-	return room.SMS && m.conf.base.Composer.ConfirmsSMS()
+	return room.SMS && m.conf.device.Composer.ConfirmsSMS()
 }
 
 // smsPrompt is the question before sending or scheduling to a chat that sends as SMS.

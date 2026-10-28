@@ -6,7 +6,7 @@ The authoritative list is always the one in the app: press `?` for the help over
 
 ## How the keymap is resolved
 
-- **Scopes.** Each table below is one section of the config file (`[keys.timeline]`, `[keys.rooms]`, …). When you press a key, the most specific scope wins — `[keys.timeline]` before `[keys.nav]`, a completion popup before the global keys.
+- **Scopes.** Each table below is one section of the device file (`[keys.timeline]`, `[keys.rooms]`, …). When you press a key, the most specific scope wins — `[keys.timeline]` before `[keys.nav]`, a completion popup before the global keys.
 - **Typing wins.** While a text field has the keyboard (the composer, a prompt, a filter), any key that produces a character types it. Only keys marked *anywhere* below, and the scope of that field, are consulted. A letter bound to an action can never become untypeable.
 - **Overlays own the keyboard.** The help overlay, a confirmation, a prompt, a chooser and device verification each capture keys until you close them.
 - **Sequences.** `gg`, `yy`, `gx`, `s u` and `z =` are key sequences. The first key waits for the rest (the status line shows what is pending); a key that does not continue the sequence ends it and does what it does on its own. There is no timeout.
@@ -316,7 +316,7 @@ No key is fixed: the arrow keys, `esc`, `pgup`/`pgdown`, the palette digits and 
 
 ## Rebinding
 
-Bindings live in the config file (`~/.config/kith/config.toml`), under the section named in each table. Only write what you change; everything omitted keeps its default. See [Configuration](configuration.md) for the file itself.
+Bindings live in the device file (`~/.config/kith/device.toml`, beside `config.toml`), under the section named in each table. Only write what you change; everything omitted keeps its default. See [Configuration](configuration.md) for the file itself.
 
 ```toml
 [keys]

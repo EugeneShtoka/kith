@@ -118,7 +118,7 @@ func TestLeavingASpaceFromTheRail(t *testing.T) {
 	for i := range 300 {
 		c := genSpaceCase(r)
 		var left []domain.RoomID
-		m := update(t, New(context.Background(), failingLeaver{left: &left, fail: c.fail}, config.Display{}), roomsMsg{rooms: c.rooms})
+		m := update(t, New(context.Background(), failingLeaver{left: &left, fail: c.fail}, config.Display{}, config.DeviceDisplay{}), roomsMsg{rooms: c.rooms})
 		m = sized(t, update(t, m, spacesMsg{spaces: append([]domain.Space{c.target}, c.others...)}))
 		m.focus = paneRail
 		m.rail.cursor = indexOfGroup(m.rail.groups, "Target")

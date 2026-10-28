@@ -52,7 +52,7 @@ func (m Model) keptIn() Model {
 }
 
 // madeOn is a fileStore that checks no write lands over an outside change unless made
-// on it: each change carries (in Terminal) the window's revision when it was made;
+// on it: each change carries (in [phonebook] dir) the window's revision when it was made;
 // elsewhere holds the revisions written elsewhere.
 type madeOn struct {
 	fileStore
@@ -62,8 +62,8 @@ type madeOn struct {
 
 func (s madeOn) UpdateConfig(ctx context.Context, base string, cfg config.Config) (string, error) {
 	rev, err := s.fileStore.UpdateConfig(ctx, base, cfg)
-	if err == nil && s.elsewhere[base] && cfg.Terminal != base {
-		s.t.Errorf("a change made on %s landed on %s, a change made elsewhere", cfg.Terminal, base)
+	if err == nil && s.elsewhere[base] && cfg.Phonebook.Dir != base {
+		s.t.Errorf("a change made on %s landed on %s, a change made elsewhere", cfg.Phonebook.Dir, base)
 	}
 	return rev, err
 }
@@ -95,7 +95,7 @@ func TestNoChangeLandsOverOneItWasNotMadeOn(t *testing.T) {
 				w.mu.Lock()
 				on := w.rev
 				w.mu.Unlock()
-				saves = append(saves, queued{w.take(), config.Config{Terminal: on, Display: config.Display{FPS: 10 + step}}})
+				saves = append(saves, queued{w.take(), config.Config{Phonebook: config.Phonebook{Dir: on}, Notifications: config.Notifications{MaxPerRoom: 10 + step}}})
 			case 1: // a save runs: any queued one, as goroutines may
 				if len(saves) == 0 {
 					continue
@@ -105,7 +105,7 @@ func TestNoChangeLandsOverOneItWasNotMadeOn(t *testing.T) {
 				saves = append(saves[:i], saves[i+1:]...)
 				_ = w.save(context.Background(), s.gen, s.cfg)
 			case 2: // a change elsewhere: the file rewritten, its news on the way
-				if err := config.Save(path, config.Config{Display: config.Display{FPS: 100 + step}}); err != nil {
+				if err := config.Save(path, config.Config{Notifications: config.Notifications{MaxPerRoom: 100 + step}}); err != nil {
 					t.Fatal(err)
 				}
 				data, _ := os.ReadFile(path)
@@ -140,12 +140,12 @@ func TestAConfigChangedElsewhereIsRunHere(t *testing.T) {
 	store := fileStore{path: path}
 
 	mine := base
-	mine.Display.FPS = 30
+	mine.Notifications.MaxPerRoom = 30
 	m, cmd := m.applyConfig(mine, "set")
 	m = deliver(t, m, cmd).clearStatus()
 	echo, _ := store.GetConfig(ctx)
-	if echo.Config.Display.FPS != 30 {
-		t.Fatalf("the window's save did not reach the file: fps %d", echo.Config.Display.FPS)
+	if echo.Config.Notifications.MaxPerRoom != 30 {
+		t.Fatalf("the window's save did not reach the file: max_per_room %d", echo.Config.Notifications.MaxPerRoom)
 	}
 	m = update(t, m, configNewsMsg{snap: echo})
 	if strings.Contains(m.status(), "elsewhere") {
@@ -153,14 +153,14 @@ func TestAConfigChangedElsewhereIsRunHere(t *testing.T) {
 	}
 
 	theirs := echo.Config.Clone()
-	theirs.Display.FPS = 50
+	theirs.Notifications.MaxPerRoom = 50
 	if err := config.Save(path, theirs); err != nil {
 		t.Fatal(err)
 	}
 	snap, _ := store.GetConfig(ctx)
 	m = update(t, m, configNewsMsg{snap: snap})
-	if m.conf.base.Display.FPS != 50 || !strings.Contains(m.status(), "changed elsewhere") {
-		t.Errorf("after a change elsewhere: fps %d, status %q", m.conf.base.Display.FPS, m.status())
+	if m.conf.base.Notifications.MaxPerRoom != 50 || !strings.Contains(m.status(), "changed elsewhere") {
+		t.Errorf("after a change elsewhere: max_per_room %d, status %q", m.conf.base.Notifications.MaxPerRoom, m.status())
 	}
 
 	behind := m

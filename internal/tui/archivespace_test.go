@@ -116,7 +116,7 @@ func TestAnUnrelatedSettingsChangeLeavesTheCursorAlone(t *testing.T) {
 	m = next
 
 	display := m.prefs.display
-	display.MaxNameLength = 22
+	display.TimeFormat = "12h"
 	next, _ = m.applyDisplay(display, "renamed")
 	m = next
 

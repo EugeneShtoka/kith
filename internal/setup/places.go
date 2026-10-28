@@ -2,6 +2,7 @@ package setup
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -16,17 +17,15 @@ func PlaceEntries(cfg config.Config) error {
 		return err
 	}
 	lists := map[string][]string{
-		"codes.include":         cfg.Codes.Include,
-		"codes.exclude":         cfg.Codes.Exclude,
-		"display.direction.rtl": cfg.Display.Direction.RTL,
-		"display.direction.ltr": cfg.Display.Direction.LTR,
-		"agent.read.rooms":      cfg.Agent.Read.Rooms,
-		"agent.read.except":     cfg.Agent.Read.Except,
-		"agent.write.rooms":     cfg.Agent.Write.Rooms,
-		"agent.write.except":    cfg.Agent.Write.Except,
-		"agent.write.send":      cfg.Agent.Write.Send,
-		"assist.rooms":          cfg.Assist.Rooms,
-		"assist.except":         cfg.Assist.Except,
+		"codes.include":      cfg.Codes.Include,
+		"codes.exclude":      cfg.Codes.Exclude,
+		"agent.read.rooms":   cfg.Agent.Read.Rooms,
+		"agent.read.except":  cfg.Agent.Read.Except,
+		"agent.write.rooms":  cfg.Agent.Write.Rooms,
+		"agent.write.except": cfg.Agent.Write.Except,
+		"agent.write.send":   cfg.Agent.Write.Send,
+		"assist.rooms":       cfg.Assist.Rooms,
+		"assist.except":      cfg.Assist.Except,
 	}
 	for i := range cfg.Display.Tracked.Rules {
 		lists[fmt.Sprintf("tracked.rule[%d].in", i)] = cfg.Display.Tracked.Rules[i].In
@@ -35,29 +34,51 @@ func PlaceEntries(cfg config.Config) error {
 	for i := range cfg.Filters {
 		lists[fmt.Sprintf("filter[%d].in", i)] = cfg.Filters[i].In
 	}
-	for i := range cfg.UserCommands {
-		lists[fmt.Sprintf("command[%d].in", i)] = cfg.UserCommands[i].In
-	}
 	// An empty notification match is the account-wide rule, not a mistyped place.
 	for i := range cfg.Notifications.Rules {
 		if match := cfg.Notifications.Rules[i].Match; match != "" {
 			lists[fmt.Sprintf("notifications.rule[%d].match", i)] = []string{match}
 		}
 	}
+	if err := placeLists(lists); err != nil {
+		return err
+	}
+	return homeEntries(cfg)
+}
+
+// devicePlaceEntries is PlaceEntries for a device's lists of places.
+func devicePlaceEntries(dev config.Device) error {
+	if err := dev.Keys.Jump.Validate(); err != nil {
+		return fmt.Errorf("setup: %w", err)
+	}
+	d := dev.Display
+	lists := map[string][]string{
+		"display.direction.rtl": d.Direction.RTL,
+		"display.direction.ltr": d.Direction.LTR,
+	}
+	for i := range dev.UserCommands {
+		lists[fmt.Sprintf("command[%d].in", i)] = dev.UserCommands[i].In
+	}
+	if err := placeLists(lists); err != nil {
+		return err
+	}
+	for _, entry := range d.Direction.RTL {
+		if slices.Contains(d.Direction.LTR, entry) {
+			return fmt.Errorf("setup: display.direction: %q is in both rtl and ltr", entry)
+		}
+	}
+	return checkLists(deviceRuleLists(dev))
+}
+
+// placeLists refuses an entry of the place vocabulary that declares no kind. One naming
+// a tag that does not exist is an empty tag, not an error (DanglingTags warns of it).
+func placeLists(lists map[string][]string) error {
 	for what, entries := range lists {
 		if err := domain.ValidateEntries(what, entries); err != nil {
 			return fmt.Errorf("setup: %w", err)
 		}
-		if err := knownTags(cfg, what, entries); err != nil {
-			return err
-		}
 	}
-	for _, entry := range cfg.Display.Direction.RTL {
-		if slices.Contains(cfg.Display.Direction.LTR, entry) {
-			return fmt.Errorf("setup: display.direction: %q is in both rtl and ltr", entry)
-		}
-	}
-	return homeEntries(cfg)
+	return nil
 }
 
 // What a list naming rail rows may hold besides space:, tag: and place: entries.
@@ -92,15 +113,11 @@ func isIDEntry(entry string) bool {
 	return domain.IsRoomID(entry) || domain.IsMatrixEventID(entry)
 }
 
-// railLists are the lists of rail rows: priority, the rail's own, filing_spaces.
+// railLists are the lists of rail rows: priority and the rail's own.
 func railLists(d config.Display) []placeList {
 	return slices.Concat(
 		[]placeList{{"display.priority", homePrefixes, "", d.Priority, isHomeEntry}},
 		railRows("display.rail", d.Rail),
-		[]placeList{{"display.filing_spaces", filingPrefix, filingWords, d.FilingSpaces, func(e string) bool {
-			_, isTag := domain.TagOf(e)
-			return isIDEntry(e) || (isHomeEntry(e) && !isTag)
-		}}},
 	)
 }
 
@@ -142,6 +159,26 @@ func ruleLists(cfg config.Config) []placeList {
 	for i, r := range d.SpaceRules {
 		add(fmt.Sprintf("display.space_rule[%d].space", i), homePrefixes, "", r.Space, isHomeEntry)
 	}
+	for i := range d.Media.Rules {
+		add(fmt.Sprintf("display.media.rule[%d].match", i), homePrefixes, ruleWords, d.Media.Rules[i].Match, match)
+	}
+	return out
+}
+
+// deviceRuleLists are ruleLists' device half, with the filing spaces: its rules'
+// places and its jumps' targets.
+func deviceRuleLists(dev config.Device) []placeList {
+	d := dev.Display
+	out := []placeList{{"display.filing_spaces", filingPrefix, filingWords, d.FilingSpaces, func(e string) bool {
+		_, isTag := domain.TagOf(e)
+		return isIDEntry(e) || (isHomeEntry(e) && !isTag)
+	}}}
+	add := func(what, prefixes, words, entry string, ok func(string) bool) {
+		if strings.TrimSpace(entry) != "" {
+			out = append(out, placeList{what, prefixes, words, []string{entry}, ok})
+		}
+	}
+	match := func(e string) bool { return isHomeEntry(e) || isIDEntry(e) }
 	for i, r := range d.Rooms.Rules {
 		add(fmt.Sprintf("display.rooms.rule[%d].group", i), homePrefixes, "", r.Group, isHomeEntry)
 	}
@@ -151,27 +188,76 @@ func ruleLists(cfg config.Config) []placeList {
 	for i, r := range d.Threads.Rules {
 		add(fmt.Sprintf("display.threads.rule[%d].match", i), homePrefixes, ruleWords, r.Match, match)
 	}
-	for i := range d.Media.Rules {
-		add(fmt.Sprintf("display.media.rule[%d].match", i), homePrefixes, ruleWords, d.Media.Rules[i].Match, match)
-	}
-	for _, j := range cfg.Keys.Jump {
+	for _, j := range dev.Keys.Jump {
 		add(fmt.Sprintf("keys.jump %q", j.Chord), jumpPrefixes, "", j.Target, domain.HasJumpPrefix)
 	}
 	return out
 }
 
-// knownTags refuses a tag:<name> entry that names no [[tag]].
-func knownTags(cfg config.Config, what string, entries []string) error {
-	for _, entry := range entries {
-		name, ok := domain.TagOf(entry)
-		if !ok {
-			continue
-		}
-		if !slices.ContainsFunc(cfg.Tags, func(t config.Tag) bool { return strings.EqualFold(strings.TrimSpace(t.Name), name) }) {
-			return fmt.Errorf("setup: %s: %q names no [[tag]]", what, entry)
+// DanglingTags names each setting, in either file, that names a tag the bridge does not
+// have ("display.direction.rtl: tag:Work names no [[tag]]"). Such an entry matches no
+// room, as an empty tag's would, so it is warned of, never refused. Every string
+// setting is read, so a list added later is covered too.
+func DanglingTags(s config.Settings) []string {
+	var out []string
+	named := func(path, entry string) {
+		body, _ := notTerm(entry)
+		name, ok := domain.TagOf(body)
+		if ok && name != "" && !slices.ContainsFunc(s.Bridge.Tags, func(t config.Tag) bool { return sameTag(t.Name, name) }) {
+			out = append(out, fmt.Sprintf("%s: %s names no [[tag]]", path, strings.TrimSpace(entry)))
 		}
 	}
-	return nil
+	eachString(reflect.ValueOf(s.Bridge), "", named)
+	eachString(reflect.ValueOf(s.Device), "", named)
+	return out
+}
+
+// eachString calls f with every string reachable from v and its TOML path: a table's
+// keys by their names, an array of tables' by index.
+func eachString(v reflect.Value, path string, f func(path, s string)) {
+	switch v.Kind() {
+	case reflect.String:
+		f(path, v.String())
+	case reflect.Pointer, reflect.Interface:
+		if !v.IsNil() {
+			eachString(v.Elem(), path, f)
+		}
+	case reflect.Slice, reflect.Array:
+		for i := range v.Len() {
+			if v.Index(i).Kind() == reflect.String {
+				eachString(v.Index(i), path, f)
+			} else {
+				eachString(v.Index(i), fmt.Sprintf("%s[%d]", path, i), f)
+			}
+		}
+	case reflect.Map:
+		keys := v.MapKeys()
+		slices.SortFunc(keys, func(a, b reflect.Value) int { return strings.Compare(a.String(), b.String()) })
+		for _, key := range keys {
+			eachString(v.MapIndex(key), tomlPath(path, key.String()), f)
+		}
+	case reflect.Struct:
+		for i := range v.NumField() {
+			field := v.Type().Field(i)
+			name, _, _ := strings.Cut(field.Tag.Get("toml"), ",")
+			if !field.IsExported() || name == "-" {
+				continue
+			}
+			if name == "" {
+				name = strings.ToLower(field.Name)
+			}
+			eachString(v.Field(i), tomlPath(path, name), f)
+		}
+	default:
+	}
+}
+
+// tomlPath is key under the table at path ("" the top).
+func tomlPath(path, key string) string {
+	if path == "" {
+		return key
+	}
+	return path + "." + key
 }
 
 // HomeNamer reports, for one home (a space's name, or tag:<name>), whether a home entry
@@ -232,10 +318,7 @@ func TrackedRules(cfg config.Tracked) []domain.TrackedRule {
 	return out
 }
 
-// naming checks that name targets declare a kind and each jump chord goes to one place.
+// naming checks that name targets declare a kind.
 func naming(cfg config.Config) error {
-	if err := cfg.Keys.Jump.Validate(); err != nil {
-		return fmt.Errorf("setup: %w", err)
-	}
 	return NameTargets(cfg.Display)
 }

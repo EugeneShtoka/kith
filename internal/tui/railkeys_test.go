@@ -73,7 +73,7 @@ func TestEveryRowHasItsLabel(t *testing.T) {
 func TestTheFallbackRowRefusesPlaceRules(t *testing.T) {
 	t.Parallel()
 
-	m := withRooms(t, New(t.Context(), apitest.Nop{}, config.Display{}))
+	m := withRooms(t, New(t.Context(), apitest.Nop{}, config.Display{}, config.DeviceDisplay{}))
 	if keys := groupKeys(m.rail.groups); len(keys) != 1 || keys[0] != fallbackGroupKey {
 		t.Fatalf("rail = %v, want the fallback row alone", keys)
 	}

@@ -74,7 +74,7 @@ func (m Model) handleDictionaryOffer(msg dictionaryOfferMsg) (Model, tea.Cmd) {
 	checked := make(map[string]bool, len(msg.suggestion.Candidates))
 	shown := make([]string, 0, len(msg.suggestion.Candidates))
 	for _, c := range msg.suggestion.Candidates {
-		if m.conf.base.Spell.SpellDeclined(c.Tag) {
+		if m.conf.device.Spell.SpellDeclined(c.Tag) {
 			continue
 		}
 		items = append(items, pickerItem{
@@ -102,7 +102,7 @@ func (m Model) offerFrequencies(candidates []domain.FrequencyCandidate) (Model, 
 	checked := make(map[string]bool, len(candidates))
 	shown := make([]string, 0, len(candidates))
 	for _, c := range candidates {
-		if m.conf.base.Spell.FrequenciesDeclinedFor(c.Tag) {
+		if m.conf.device.Spell.FrequenciesDeclinedFor(c.Tag) {
 			continue
 		}
 		items = append(items, pickerItem{
@@ -148,10 +148,10 @@ func (m Model) declineFrequencies(tags []string) (Model, tea.Cmd) {
 	if len(tags) == 0 {
 		return m, nil
 	}
-	cfg := m.conf.base.Clone()
-	cfg.Spell.FrequenciesDeclined = append(
-		append([]string(nil), cfg.Spell.FrequenciesDeclined...), tags...)
-	return m.applyConfig(cfg, "")
+	dev := m.conf.device.Clone()
+	dev.Spell.FrequenciesDeclined = append(
+		append([]string(nil), dev.Spell.FrequenciesDeclined...), tags...)
+	return m.applyDevice(dev, "")
 }
 
 // installFrequencies fetches the ticked lists off the event loop, reporting once.
@@ -201,9 +201,9 @@ func (m Model) declineDictionaries(tags []string) (Model, tea.Cmd) {
 	if len(tags) == 0 {
 		return m, nil
 	}
-	cfg := m.conf.base.Clone()
-	cfg.Spell.Declined = append(append([]string(nil), cfg.Spell.Declined...), tags...)
-	return m.applyConfig(cfg, "")
+	dev := m.conf.device.Clone()
+	dev.Spell.Declined = append(append([]string(nil), dev.Spell.Declined...), tags...)
+	return m.applyDevice(dev, "")
 }
 
 // installDictionaries fetches the ticked ones off the event loop, reporting once.

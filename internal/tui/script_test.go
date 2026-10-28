@@ -27,8 +27,8 @@ func withContext(t *testing.T, name, body string, script config.Command, msgs ..
 
 	m, _ := attaching(t)
 	script.Name = name
-	cfg := config.Config{Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: []config.Command{script}}
-	m = m.WithConfigFile(filepath.Join(home, "config.toml"), asStarted(cfg)).keptIn()
+	cfg := config.Config{Commands: config.Commands{Dir: dir}}
+	m = m.WithConfigFile(filepath.Join(home, "config.toml"), asStarted(cfg)).WithDevice("", commanding([]config.Command{script})).keptIn()
 	if len(msgs) > 0 {
 		m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: msgs}})
 	}
@@ -246,7 +246,7 @@ func TestAKeyBoundScriptStillAsks(t *testing.T) {
 func TestAScriptKeyCannotShadowABuiltIn(t *testing.T) {
 	t.Parallel()
 
-	km := keymapFor(config.Config{Keys: config.DefaultKeys(), UserCommands: []config.Command{
+	km := keymapFor(config.Device{Keys: config.DefaultKeys(), UserCommands: []config.Command{
 		{Name: "save", Keys: "gx"},
 	}})
 
@@ -262,7 +262,7 @@ func TestAScriptKeyCannotShadowABuiltIn(t *testing.T) {
 func TestTwoScriptsCannotShareAKey(t *testing.T) {
 	t.Parallel()
 
-	km := keymapFor(config.Config{Keys: config.DefaultKeys(), UserCommands: []config.Command{
+	km := keymapFor(config.Device{Keys: config.DefaultKeys(), UserCommands: []config.Command{
 		{Name: "first", Keys: "alt+t"},
 		{Name: "second", Keys: "alt+t"},
 	}})
@@ -350,7 +350,7 @@ func TestTheFocusKeyCanBeReplacedByAScript(t *testing.T) {
 
 	m := withContext(t, "go", "#!/bin/sh\necho \"would open $KITH_URL\" >&2\n", script,
 		msgWith(mx+"$1", "read https://one.org today"))
-	m.keys = keymapFor(config.Config{
+	m.keys = keymapFor(config.Device{
 		Keys:         keys,
 		UserCommands: []config.Command{script},
 	})
@@ -385,7 +385,7 @@ func TestTheReplacementStillAsksWhichLink(t *testing.T) {
 
 	m := withContext(t, "go", "#!/bin/sh\nexit 0\n", script,
 		msgWith(mx+"$1", "https://one.org and https://two.org"))
-	m.keys = keymapFor(config.Config{
+	m.keys = keymapFor(config.Device{
 		Keys:         keys,
 		UserCommands: []config.Command{script},
 	})
@@ -406,7 +406,7 @@ func TestTheReplacementStillAsksWhichLink(t *testing.T) {
 func TestASequenceBoundToAScriptCompletes(t *testing.T) {
 	t.Parallel()
 
-	km := keymapFor(config.Config{Keys: config.DefaultKeys(), UserCommands: []config.Command{
+	km := keymapFor(config.Device{Keys: config.DefaultKeys(), UserCommands: []config.Command{
 		{Name: "go", Keys: "z s"},
 	}})
 

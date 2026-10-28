@@ -30,10 +30,10 @@ const (
 	thirdOnly domain.RoomID = mx + "!third:x"
 )
 
-// threeProfiles is a config whose profiles name those rooms; notifications on.
+// threeProfiles is a config whose profiles name those rooms; every message notifies.
 func threeProfiles() config.Config {
 	return config.Config{
-		Notifications: config.Notifications{Enabled: true, Rules: []config.Rule{{Show: "all"}}},
+		Notifications: config.Notifications{Rules: []config.Rule{{Show: "all"}}},
 		Profiles: []config.Profile{
 			{Name: "First", Include: []string{string(firstOnly), string(both)}},
 			{Name: "Second", Include: []string{string(both)}},
@@ -142,19 +142,38 @@ func (b *logBuffer) count(s string) int {
 	return strings.Count(b.buf.String(), s)
 }
 
-// listening runs an agent on profiles against socket, showing to rec while kithd's
+// notificationsOn is a device file turning notifications on.
+const notificationsOn = "[notifications]\nenabled = true\n"
+
+// deviceFile is a device file holding body, by its path.
+func deviceFile(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), config.DeviceFile)
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// listening runs an agent on profiles against socket, showing to rec while the device's
 // notifications are on, and waits until it has listened n times.
 func listening(t *testing.T, socket string, rec *shown, profiles ...string) *logBuffer {
 	t.Helper()
+	return listeningWith(t, socket, deviceFile(t, notificationsOn), rec, profiles...)
+}
+
+// listeningWith is listening with the device file at device.
+func listeningWith(t *testing.T, socket, device string, rec *shown, profiles ...string) *logBuffer {
+	t.Helper()
 	logs := &logBuffer{}
-	sinks := func(notifs config.Notifications) notify.Notifier {
+	sinks := func(notifs config.DeviceNotifications) notify.Notifier {
 		if !notifs.Enabled {
 			return notify.Nop{}
 		}
 		return rec
 	}
 	a := newAgent(slog.New(slog.NewTextHandler(logs, nil)), func() *daemon.Remote { return daemon.NewRemote(socket) },
-		sinks, config.Config{Notifications: config.Notifications{Enabled: true}})
+		sinks, device, config.Device{Notifications: config.DeviceNotifications{Enabled: true}})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); a.run(ctx, profiles) }()
@@ -222,21 +241,28 @@ func TestARestartedKithdIsListenedToAgain(t *testing.T) {
 	settled(t, rec, []string{"before", "after"})
 }
 
-// The agent shows with kithd's notification settings as they are when a notification
-// arrives: turned off there, nothing is shown.
-func TestTheAgentFollowsKithdsSettings(t *testing.T) {
+// The agent shows with the device file's notification settings as they are when a
+// notification arrives: turned off there, nothing is shown; on again, it is.
+func TestTheAgentFollowsTheDeviceFile(t *testing.T) {
 	t.Parallel()
 	socket := socketPath(t)
-	cfg := threeProfiles()
-	cfg.Notifications.Enabled = false
-	k := serve(t, socket, cfg)
+	k := serve(t, socket, threeProfiles())
 	rec := &shown{}
-	listening(t, socket, rec, "first") // started with notifications on
+	device := deviceFile(t, notificationsOn)
+	listeningWith(t, socket, device, rec, "first")
+	if err := os.WriteFile(device, []byte("[notifications]\nenabled = false\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	k.says(firstOnly, "while off")
 	time.Sleep(200 * time.Millisecond)
 	if got := rec.all(); len(got) != 0 {
-		t.Errorf("shown %v with kithd's notifications off", got)
+		t.Errorf("shown %v with the device's notifications off", got)
 	}
+	if err := os.WriteFile(device, []byte(notificationsOn), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	k.says(firstOnly, "on again")
+	settled(t, rec, []string{"on again"})
 }
 
 // A profile the config lacks is refused, naming those it has; none named is the first.
@@ -302,12 +328,12 @@ func TestRunListensForTheConfigsProfiles(t *testing.T) {
 	}
 }
 
-// codesFrom is threeProfiles finding codes in every room, copied by appending to clip;
-// no message notifies, which a code ignores.
-func codesFrom(clip string) config.Config {
+// codesFrom is threeProfiles finding codes in every room; no message notifies, which a
+// code ignores.
+func codesFrom() config.Config {
 	cfg := threeProfiles()
 	cfg.Notifications.Rules = []config.Rule{{Show: "none"}}
-	cfg.Clipboard = config.Clipboard{Command: "cat >> " + clip, AutoCopy: true}
+	cfg.Clipboard = config.Clipboard{AutoCopy: true}
 	cfg.Codes.Include = []string{string(firstOnly), string(both), string(thirdOnly)}
 	return cfg
 }
@@ -319,9 +345,10 @@ func TestTheAgentCopiesACodeOnce(t *testing.T) {
 	clip := filepath.Join(t.TempDir(), "clipboard")
 	t.Setenv("WAYLAND_DISPLAY", "wayland-test")
 	socket := socketPath(t)
-	k := serve(t, socket, codesFrom(clip))
+	k := serve(t, socket, codesFrom())
 	rec := &shown{}
-	listening(t, socket, rec, "second", "third")
+	// The device copies by appending to clip.
+	listeningWith(t, socket, deviceFile(t, notificationsOn+"\n[clipboard]\ncommand = 'cat >> "+clip+"'\n"), rec, "second", "third")
 
 	k.says(both, "Your code is 482910")
 	waitFor(t, func() bool { return len(rec.all()) >= 1 }, "the first code's popup")

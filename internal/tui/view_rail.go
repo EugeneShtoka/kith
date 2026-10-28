@@ -173,14 +173,14 @@ func (m Model) roomListLine(r roomRow, inner int, selected, active bool) string 
 	tint := m.roomNameColor(r.room)
 	switch {
 	case r.more > 0:
-		return m.listRow(rowLabel{lead: m.prefs.display.Threads.RowMark(), name: m.moreThreadsLabel(r.more), color: tint},
+		return m.listRow(rowLabel{lead: m.prefs.device.Threads.RowMark(), name: m.moreThreadsLabel(r.more), color: tint},
 			"", false, inner, false, active)
 	case r.isThread():
 		badge := ""
 		if r.thread.Unread > 0 {
 			badge = fmt.Sprintf("●%d", r.thread.Unread)
 		}
-		return m.listRow(rowLabel{lead: m.prefs.display.Threads.RowMark(), name: m.threadRowLabel(r.thread), color: tint},
+		return m.listRow(rowLabel{lead: m.prefs.device.Threads.RowMark(), name: m.threadRowLabel(r.thread), color: tint},
 			badge, r.thread.Mentions > 0, inner, selected, active)
 	}
 	label := rowLabel{name: m.roomLabelHere(r.room), color: tint}

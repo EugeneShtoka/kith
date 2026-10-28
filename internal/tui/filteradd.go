@@ -199,14 +199,14 @@ func (m Model) chosenField(s setting, table, field string) setting {
 			s.choices = append(s.choices, settingChoiceOption{row.value, row.label, row.detail})
 		}
 		set := s.setEntries
-		s.setEntries = func(c *config.Config, moves []string) error {
+		s.setEntries = func(c *config.Settings, moves []string) error {
 			if len(moves) == 0 {
 				return errors.New("tick at least one move — a filter that moves nothing does nothing")
 			}
 			return set(c, moves)
 		}
 	case "in":
-		s.kind, s.choices = settingMulti, m.placeChoices(s.entries(m.conf.base))
+		s.kind, s.choices = settingMulti, m.placeChoices(s.entries(m.settings()))
 	}
 	return s
 }

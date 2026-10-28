@@ -151,9 +151,9 @@ func (m Model) tagOpen(name string) Model {
 	return m.settingsIn(placePage(tagGroupKey(m.conf.base.Tags[at].Name)), "")
 }
 
-// applyTagConfig applies cfg and reopens the page of the tag now named name.
-func (m Model) applyTagConfig(cfg config.Config, name, done string) (Model, tea.Cmd) {
-	next, cmd := m.applyConfig(cfg, done)
+// applyTagConfig applies s and reopens the page of the tag now named name.
+func (m Model) applyTagConfig(s config.Settings, name, done string) (Model, tea.Cmd) {
+	next, cmd := m.applySettings(s, done)
 	return next.tagOpen(name), cmd
 }
 
@@ -184,7 +184,10 @@ func (m Model) submitTagName(input string) (Model, tea.Cmd) {
 		m.confirm = confirmState{action: pendingCombineTags, group: from, address: m.conf.base.Tags[at].Name}
 		return m, nil
 	}
-	next, cmd := m.applyTagConfig(setup.RenameTag(m.conf.base, from, name), name,
+	renamed := config.Settings{
+		Bridge: setup.RenameTag(m.conf.base, from, name), Device: setup.RenameTagOnDevice(m.conf.device, from, name),
+	}
+	next, cmd := m.applyTagConfig(renamed, name,
 		"renamed "+isolate(from)+" to "+isolate(name)+", everywhere it is named")
 	return next, tea.Batch(cmd, next.retagCmd(from, name))
 }
@@ -202,7 +205,10 @@ func (m Model) combineTags(from, into string) (Model, tea.Cmd) {
 		i, ok := view.tags.Index(tag)
 		return ok && view.tagsOf(byID[facts.ID]).in[i]
 	}
-	next, cmd := m.applyTagConfig(setup.CombineTags(m.conf.base, from, into, rooms, held), into,
+	combined := config.Settings{
+		Bridge: setup.CombineTags(m.conf.base, from, into, rooms, held), Device: setup.RenameTagOnDevice(m.conf.device, from, into),
+	}
+	next, cmd := m.applyTagConfig(combined, into,
 		"combined "+isolate(from)+" into "+isolate(into))
 	return next, tea.Batch(cmd, next.retagCmd(from, into))
 }
@@ -234,10 +240,11 @@ func (m Model) fileInNewTag(name string, room domain.Room) (Model, tea.Cmd) {
 	return next, tea.Batch(made, filed)
 }
 
-// deleteTag removes the tag and its rail list and priority entries; a rule still
-// naming it refuses the change, saying where.
+// deleteTag removes the tag and every entry naming it that can go (setup.DeleteTag);
+// the status line names what still does, matching no room.
 func (m Model) deleteTag(name string) (Model, tea.Cmd) {
-	next, cmd := m.applyConfig(setup.DeleteTag(m.conf.base, name), "deleted the tag "+isolate(name))
+	deleted := config.Settings{Bridge: setup.DeleteTag(m.conf.base, name), Device: setup.DeleteTagOnDevice(m.conf.device, name)}
+	next, cmd := m.applySettings(deleted, "deleted the tag "+isolate(name))
 	if next.configTag(name) >= 0 {
 		return next.tagOpen(name), cmd // refused: the reason is on the status line
 	}

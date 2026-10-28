@@ -107,7 +107,7 @@ rooms. The terms are:
   or tag the rail shows by that name), `protocol:<network>`, `dm`, `group`;
 - the state words: `unread`, `mention`, `draft`, `invite`, which follow
   the room as it changes;
-- `tag:<name>`: another tag's rooms.
+- `tag:<name>`: another tag's rooms; a tag that does not exist holds none.
 
 Two tags whose rules name each other, directly or through others, are reported when
 the config is read, and their references to each other match nothing; the rest of
@@ -157,9 +157,16 @@ holds every room either held and keeps its own settings, and everything that nam
 the renamed tag names it. Their rules are joined, unless one has a `not` term (which
 would start filtering the other's rooms) or the join would make tags name each other
 in a circle; then the combined tag holds the rooms both held, picked one by one.
-Deleting it asks first and takes it out of the rail's lists and priority; while a rule
-or a list elsewhere still names it, the delete is refused and the status line says
-where.
+Deleting it asks first. A tag that does not exist holds no room, so the delete takes
+`tag:<name>` out of everything that then matches the same rooms: the rail's lists and
+priority, every `except` and `exclude` list, `[display.direction]`, any other list
+that names something else too, and another tag's rule where `tag:<name>` sits beside
+another positive term or `not tag:<name>` beside any other term. The filters moving
+rooms into it are deleted, and so is a `[[command]]` whose `in` named only the tag.
+What is left (a list naming only the tag, as empty it would mean every room; a rule's
+`match`) stays, matching no room, and the status line names each. Only this
+device's `device.toml` is cleaned: another device keeps its entries, and says so when
+it starts.
 
 Exclusivity decides where a room shows, not what rules match: `tag:Family` in
 another rule still matches a room Family claims.

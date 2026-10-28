@@ -63,7 +63,7 @@ func (m Model) submitEdit(room domain.Room, body string) (Model, tea.Cmd) {
 	revision := domain.Draft{
 		Body: body, Mentions: mentions, Edits: target,
 		// Rendered like a new message: an edit is no way around markdown = false.
-		Plain: !m.conf.base.Composer.MarkdownEnabled(),
+		Plain: !m.conf.device.Composer.MarkdownEnabled(),
 	}
 	m = m.doing("editing…")
 	// The revision ends the typing notice, as a send does.

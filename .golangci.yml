@@ -86,6 +86,8 @@ linters:
             - "$gostd"
             - "github.com/BurntSushi/toml"
             - "github.com/adrg/xdg"
+            # The device file's lock, which every writer of it holds.
+            - "github.com/gofrs/flock"
         # The theme as data, for every binary's config check: nothing that renders.
         themespec-is-standalone:
           files:

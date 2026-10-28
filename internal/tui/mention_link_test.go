@@ -89,7 +89,7 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 	}
 
 	// Off means no link escapes at all.
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{Hyperlinks: new(false)})))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{}, config.DeviceDisplay{Hyperlinks: new(false)})))
 	m = loadPage(t, m, []domain.Message{{
 		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Timestamp: at(1),
 		Body: "שאל את Dana על זה", Mentions: dana,

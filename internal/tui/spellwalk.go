@@ -66,7 +66,7 @@ func (m Model) startSpellWalk(marks []domain.Misspelling, sendWhenDone bool) Mod
 // spellGate is [spell] check_before_send: with something misspelled the walk opens
 // instead, and the send resumes at its end. held reports the send was taken over.
 func (m Model) spellGate() (Model, tea.Cmd, bool) {
-	if !m.conf.base.Spell.CheckBeforeSend || !m.conf.base.Spell.SpellEnabled() ||
+	if !m.conf.device.Spell.CheckBeforeSend || !m.conf.base.Spell.SpellEnabled() ||
 		m.spell.off || m.spell.passed || m.walk.active {
 		return m, nil, false
 	}
@@ -82,7 +82,7 @@ func (m Model) spellGate() (Model, tea.Cmd, bool) {
 
 func (m Model) checkBeforeSendCmd(gen int, text string) tea.Cmd {
 	parent, backend := m.ctx, m.backend
-	rareGates := m.conf.base.Spell.RareBeforeSend
+	rareGates := m.conf.device.Spell.RareBeforeSend
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(parent, spellTimeout)
 		defer cancel()

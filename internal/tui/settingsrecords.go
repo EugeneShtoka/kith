@@ -70,7 +70,7 @@ func recordTableSettings() []setting {
 		path := t.Path
 		out = append(out, setting{
 			key: recordPrefix + path, group: group, label: label, kind: settingOpen, doc: t.Doc,
-			show: func(c config.Config) string { return showCount(c.Records(path), "none") },
+			show: func(c config.Settings) string { return showCount(c.Records(path), "none") },
 		})
 	}
 	return out
@@ -161,28 +161,28 @@ func (m Model) settingGroupLabel(group string) string {
 	t, _ := recordTable(group)
 	label := recordTableLabels[t.Path]
 	if _, rest, isRecord := strings.Cut(strings.TrimPrefix(group, recordPrefix), "#"); isRecord {
-		return label + " · " + recordSummary(m.conf.base, t, atoiSafe(rest))
+		return label + " · " + recordSummary(m.settings(), t, atoiSafe(rest))
 	}
 	return label
 }
 
 // recordRows are a table's records, each leading to its fields, then an add row.
 func (m Model) recordRows(t config.RecordTable) []setting {
-	n := m.conf.base.Records(t.Path)
+	n := m.settings().Records(t.Path)
 	rows := make([]setting, 0, n+1)
 	group := recordPrefix + t.Path
 	for i := range n {
 		key := fmt.Sprintf("%s#%d", group, i)
 		shown := ""
-		if group == commandsTable && i < len(m.conf.base.UserCommands) {
-			if missing := m.missingSecrets(m.conf.base.UserCommands[i]); len(missing) > 0 {
+		if group == commandsTable && i < len(m.conf.device.UserCommands) {
+			if missing := m.missingSecrets(m.conf.device.UserCommands[i]); len(missing) > 0 {
 				shown = "missing " + strings.Join(missing, ", ")
 			}
 		}
 		rows = append(rows, setting{
 			key: key, group: group, kind: settingOpen, doc: t.Doc,
-			label: recordSummary(m.conf.base, t, i),
-			show:  func(config.Config) string { return shown },
+			label: recordSummary(m.settings(), t, i),
+			show:  func(config.Settings) string { return shown },
 			open: func(m Model) (Model, tea.Cmd) {
 				if group == commandsTable { // asks the keyring again: a secret may be kept or gone since
 					return m.settingsIn(key, ""), m.checkCommandSecretsCmd()
@@ -197,7 +197,7 @@ func (m Model) recordRows(t config.RecordTable) []setting {
 	if group == filterTable {
 		return append(rows, setting{
 			key: group + recordAdd, group: group, kind: settingOpen, label: "Add one", doc: t.Doc,
-			show: func(config.Config) string { return "" },
+			show: func(config.Settings) string { return "" },
 			open: Model.startFilter,
 		})
 	}
@@ -212,9 +212,9 @@ func addRecordRow(t config.RecordTable, group string) setting {
 	return setting{
 		key: group + recordAdd, group: group, kind: settingText, label: "Add one", doc: t.Doc,
 		help: firstFieldHelp(first),
-		show: func(config.Config) string { return "" },
-		edit: func(config.Config) string { return "" },
-		set: func(c *config.Config, v string) error {
+		show: func(config.Settings) string { return "" },
+		edit: func(config.Settings) string { return "" },
+		set: func(c *config.Settings, v string) error {
 			if strings.TrimSpace(v) == "" {
 				return fmt.Errorf("type its %s first", propertyLabel(first.Path))
 			}
@@ -238,7 +238,7 @@ func firstFieldHelp(first config.Property) string {
 }
 
 // recordSummary names a record by its first two set fields.
-func recordSummary(c config.Config, t config.RecordTable, i int) string {
+func recordSummary(c config.Settings, t config.RecordTable, i int) string {
 	var parts []string
 	for _, f := range t.Fields {
 		if v, set := c.RecordValue(t.Path, i, f.Path); set && len(parts) < 2 {
@@ -263,7 +263,7 @@ func (m Model) recordFieldRows(t config.RecordTable, i int) []setting {
 	}
 	return append(rows, setting{
 		key: group + recordRemove, group: group, kind: settingOpen, label: "Remove this one", doc: t.Doc,
-		show: func(config.Config) string { return "" },
+		show: func(config.Settings) string { return "" },
 		open: func(m Model) (Model, tea.Cmd) { return m.removeRecord(t, i) },
 	})
 }
@@ -274,23 +274,23 @@ func recordField(t config.RecordTable, i int, group string, f config.Property) s
 	if doc == "" {
 		doc = t.Doc
 	}
-	get := func(c config.Config) string { v, _ := c.RecordValue(path, i, name); return v }
-	set := func(c *config.Config, v string) error { return c.SetRecordValue(path, i, name, v) }
+	get := func(c config.Settings) string { v, _ := c.RecordValue(path, i, name); return v }
+	set := func(c *config.Settings, v string) error { return c.SetRecordValue(path, i, name, v) }
 	s := setting{key: group + "." + name, group: group, label: propertyLabel(name), doc: doc, set: set, edit: get}
-	s.show = func(c config.Config) string { return fieldWords(c, path, i, f) }
+	s.show = func(c config.Settings) string { return fieldWords(c, path, i, f) }
 	switch f.Kind {
 	case config.PropertyBool:
 		s.kind = settingToggle
-		s.set = func(c *config.Config, _ string) error { return set(c, strconv.FormatBool(get(*c) != "true")) }
+		s.set = func(c *config.Settings, _ string) error { return set(c, strconv.FormatBool(get(*c) != "true")) }
 	case config.PropertyOptionalBool:
 		s.kind, s.choices, s.show = settingChoice, inheritChoices, get // on, off, or unset (inherits)
 	case config.PropertyInt, config.PropertyOptionalInt:
 		s.kind, s.least, s.help = settingNumber, -1, "a whole number — empty unsets it"
-		s.count = func(c config.Config) int { n, _ := strconv.Atoi(get(c)); return n }
+		s.count = func(c config.Settings) int { n, _ := strconv.Atoi(get(c)); return n }
 	case config.PropertyList:
 		s.kind = settingList
-		s.entries = func(c config.Config) []string { return c.RecordList(path, i, name) }
-		s.setEntries = func(c *config.Config, e []string) error { return c.SetRecordList(path, i, name, e) }
+		s.entries = func(c config.Settings) []string { return c.RecordList(path, i, name) }
+		s.setEntries = func(c *config.Settings, e []string) error { return c.SetRecordList(path, i, name, e) }
 	case config.PropertyFloat, config.PropertyOptionalFloat, config.PropertyText:
 		s.kind, s.help = settingText, "empty unsets it"
 	}
@@ -298,7 +298,7 @@ func recordField(t config.RecordTable, i int, group string, f config.Property) s
 }
 
 // fieldWords is a record field's row value: on or off, the value, or that it is unset.
-func fieldWords(c config.Config, path string, i int, f config.Property) string {
+func fieldWords(c config.Settings, path string, i int, f config.Property) string {
 	v, set := c.RecordValue(path, i, f.Path)
 	switch {
 	case f.Kind == config.PropertyBool:
@@ -320,11 +320,11 @@ var inheritChoices = []settingChoiceOption{
 }
 
 func (m Model) removeRecord(t config.RecordTable, i int) (Model, tea.Cmd) {
-	cfg := m.conf.base.Clone()
+	cfg := m.settings().Clone()
 	if err := cfg.RemoveRecord(t.Path, i); err != nil {
 		return m.sayErr(recordTableLabels[t.Path], err), nil
 	}
-	next, cmd := m.applyConfig(cfg, "removed from "+recordTableLabels[t.Path])
+	next, cmd := m.applySettings(cfg, "removed from "+recordTableLabels[t.Path])
 	return next.settingsIn(recordPrefix+t.Path, ""), cmd
 }
 
@@ -338,9 +338,9 @@ func nameRow(place, label, group string) setting {
 		key: namesPrefix + place, group: group, kind: settingToggle,
 		label: "First names only",
 		doc:   "Senders in rooms whose home is " + label + " are shown by their first name. A room in several places follows its home: [display] priority, then the rail's order.",
-		show:  func(c config.Config) string { return onOff(firstNamesIn(c, place)) },
-		set: func(c *config.Config, _ string) error {
-			c.Display.SpaceRules = withFirstNames(c.Display, place, !firstNamesIn(*c, place))
+		show:  func(c config.Settings) string { return onOff(firstNamesIn(c, place)) },
+		set: func(c *config.Settings, _ string) error {
+			c.Bridge.Display.SpaceRules = withFirstNames(c.Bridge.Display, place, !firstNamesIn(*c, place))
 			return nil
 		},
 	}
@@ -361,17 +361,17 @@ func (m Model) fieldRow(place, group string) setting {
 		label:   "Field beside names",
 		doc:     "In this " + placeWord(place) + "'s room list, a DM or a room with one person in it besides you and bots shows a field of that person's phonebook card after the name (\"Dana Levi · Meta\"), and so does the member list.",
 		choices: choices,
-		show: func(c config.Config) string {
-			if key := c.Display.ShowFieldIn(setup.HomeNamer(c.Display, place)); key != "" {
+		show: func(c config.Settings) string {
+			if key := c.Bridge.Display.ShowFieldIn(setup.HomeNamer(c.Bridge.Display, place)); key != "" {
 				return key
 			}
 			return "none"
 		},
-		set: func(c *config.Config, value string) error {
+		set: func(c *config.Settings, value string) error {
 			if value == noShowField {
 				value = ""
 			}
-			c.Display.SpaceRules = withSpaceRule(c.Display, place, func(r *config.SpaceRule) { r.ShowField = value })
+			c.Bridge.Display.SpaceRules = withSpaceRule(c.Bridge.Display, place, func(r *config.SpaceRule) { r.ShowField = value })
 			return nil
 		},
 	}
@@ -385,9 +385,9 @@ func colorRow(place, group string) setting {
 		label:   "Network colors",
 		doc:     "Rooms in this " + placeWord(place) + "'s room list are named in their network's color, as [display.theme.networks] sets: a bridged room in its bridge's network's. As everywhere follows [display] network_colors.",
 		choices: placeColorChoices,
-		show:    func(c config.Config) string { return placeColorsShown(c, place) },
-		set: func(c *config.Config, value string) error {
-			c.Display.SpaceRules = withNetworkColors(c.Display, place, placeColorValues[value])
+		show:    func(c config.Settings) string { return placeColorsShown(c, place) },
+		set: func(c *config.Settings, value string) error {
+			c.Bridge.Display.SpaceRules = withNetworkColors(c.Bridge.Display, place, placeColorValues[value])
 			return nil
 		},
 	}
@@ -405,11 +405,11 @@ var (
 )
 
 // placeColorsShown is a place's network-colors choice: its own, or the inherited one.
-func placeColorsShown(c config.Config, place string) string {
-	if r, ok := c.Display.SpaceRule(setup.HomeNamer(c.Display, place)); ok && r.NetworkColors != nil {
+func placeColorsShown(c config.Settings, place string) string {
+	if r, ok := c.Bridge.Display.SpaceRule(setup.HomeNamer(c.Bridge.Display, place)); ok && r.NetworkColors != nil {
 		return onOff(*r.NetworkColors)
 	}
-	return "as everywhere (" + onOff(c.Display.NetworkColors) + ")"
+	return "as everywhere (" + onOff(c.Device.Display.NetworkColors) + ")"
 }
 
 // archivedRow is place's archived-rooms choice: follow [display] show_archived, or force
@@ -420,9 +420,9 @@ func archivedRow(place, group string) setting {
 		label:   "Archived rooms",
 		doc:     "Whether this " + placeWord(place) + "'s room list lists the rooms the archive tag holds. As everywhere follows [display] show_archived; the archived key flips it until kith restarts.",
 		choices: placeArchivedChoices,
-		show:    func(c config.Config) string { return placeArchivedShown(c, place) },
-		set: func(c *config.Config, value string) error {
-			c.Display.SpaceRules = withSpaceRule(c.Display, place, func(r *config.SpaceRule) { r.ShowArchived = placeArchivedValues[value] })
+		show:    func(c config.Settings) string { return placeArchivedShown(c, place) },
+		set: func(c *config.Settings, value string) error {
+			c.Bridge.Display.SpaceRules = withSpaceRule(c.Bridge.Display, place, func(r *config.SpaceRule) { r.ShowArchived = placeArchivedValues[value] })
 			return nil
 		},
 	}
@@ -440,12 +440,12 @@ var (
 )
 
 // placeArchivedShown is a place's archived-rooms choice: its own, or the inherited one.
-func placeArchivedShown(c config.Config, place string) string {
+func placeArchivedShown(c config.Settings, place string) string {
 	word := map[bool]string{true: "shown", false: "hidden"}
-	if r, ok := c.Display.SpaceRule(setup.HomeNamer(c.Display, place)); ok && r.ShowArchived != nil {
+	if r, ok := c.Bridge.Display.SpaceRule(setup.HomeNamer(c.Bridge.Display, place)); ok && r.ShowArchived != nil {
 		return word[*r.ShowArchived]
 	}
-	return "as everywhere (" + word[c.Display.ShowsArchived()] + ")"
+	return "as everywhere (" + word[c.Device.Display.ShowsArchived()] + ")"
 }
 
 // isHomeTag reports whether a tag (tag:<name>) holds some rooms, but not every room.
@@ -470,7 +470,9 @@ func placeWord(key string) string {
 }
 
 // firstNamesIn reports whether place (a space's name, or tag:<name>) shows first names.
-func firstNamesIn(c config.Config, place string) bool { return setup.FirstNamesIn(c.Display, place) }
+func firstNamesIn(c config.Settings, place string) bool {
+	return setup.FirstNamesIn(c.Bridge.Display, place)
+}
 
 func withFirstNames(d config.Display, place string, on bool) []config.SpaceRule {
 	return withSpaceRule(d, place, func(r *config.SpaceRule) { r.FirstNameOnly = on })

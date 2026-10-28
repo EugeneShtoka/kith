@@ -10,9 +10,9 @@ import (
 
 // archiving is a bridge space holding Alpha and Bravo, with Alpha tagged Archived:
 // an archived room still belongs in its bridge's space.
-func archiving(t *testing.T, display config.Display) Model {
+func archiving(t *testing.T, display config.Display, device ...config.DeviceDisplay) Model {
 	t.Helper()
-	m := update(t, starterNew(&bulkReader{}, display), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(&bulkReader{}, display, device...), roomsMsg{rooms: []domain.Room{
 		{ID: mx + "!a:x", Name: "Alpha"},
 		{ID: mx + "!b:x", Name: "Bravo"},
 	}})
@@ -41,7 +41,7 @@ func TestArchivedRoomsAreShownAsConfigured(t *testing.T) {
 	if got := archivedListed(archiving(t, config.Display{})); !slices.Equal(got, []domain.RoomID{mx + "!a:x", mx + "!b:x"}) {
 		t.Errorf("by default the bridge's space lists %v, want the archived room too", got)
 	}
-	hidden := archiving(t, config.Display{ShowArchived: new(false)})
+	hidden := archiving(t, config.Display{}, config.DeviceDisplay{ShowArchived: new(false)})
 	if got := archivedListed(hidden); !slices.Equal(got, []domain.RoomID{mx + "!b:x"}) {
 		t.Errorf("with show_archived off: %v, want Bravo alone", got)
 	}
@@ -49,7 +49,7 @@ func TestArchivedRoomsAreShownAsConfigured(t *testing.T) {
 	if got := archivedListed(hidden); !slices.Equal(got, []domain.RoomID{mx + "!a:x"}) {
 		t.Errorf("the archive's own list with show_archived off: %v, want Alpha", got)
 	}
-	ruled := archiving(t, config.Display{ShowArchived: new(false), SpaceRules: []config.SpaceRule{{Space: "space:WhatsApp UK", ShowArchived: new(true)}}})
+	ruled := archiving(t, config.Display{SpaceRules: []config.SpaceRule{{Space: "space:WhatsApp UK", ShowArchived: new(true)}}}, config.DeviceDisplay{ShowArchived: new(false)})
 	if got := archivedListed(ruled); len(got) != 2 {
 		t.Errorf("a place shown whatever show_archived says: %v, want both", got)
 	}
@@ -75,7 +75,7 @@ func TestTheArchivedKeyFlipsThePlaceInView(t *testing.T) {
 	if got := archivedListed(m); len(got) != 2 {
 		t.Errorf(":archived again: %v, want both back", got)
 	}
-	if m.prefs.display.ShowArchived != nil || len(m.conf.base.Display.SpaceRules) != 0 {
+	if m.prefs.device.ShowArchived != nil || len(m.conf.base.Display.SpaceRules) != 0 {
 		t.Error("the key wrote the config; it lasts until restart")
 	}
 }
@@ -93,18 +93,18 @@ func TestEachPlaceChoosesItsArchivedRooms(t *testing.T) {
 	if _, ok := m.setting(archivedKey + "tag:Archived"); ok {
 		t.Error("the archive has a row of its own")
 	}
-	cfg := m.conf.base.Clone()
+	cfg := m.settings().Clone()
 	if err := row.set(&cfg, "hidden"); err != nil {
 		t.Fatal(err)
 	}
 	// Written prefixed: a bare name is refused at load.
-	if rules := cfg.Display.SpaceRules; len(rules) != 1 || rules[0].Space != "space:WhatsApp UK" || rules[0].ShowArchived == nil || *rules[0].ShowArchived {
-		t.Errorf("rules = %+v, want space:WhatsApp UK hidden", cfg.Display.SpaceRules)
+	if rules := cfg.Bridge.Display.SpaceRules; len(rules) != 1 || rules[0].Space != "space:WhatsApp UK" || rules[0].ShowArchived == nil || *rules[0].ShowArchived {
+		t.Errorf("rules = %+v, want space:WhatsApp UK hidden", cfg.Bridge.Display.SpaceRules)
 	}
 	if got := row.show(cfg); got != "hidden" {
 		t.Errorf("shown as %q", got)
 	}
-	if err := row.set(&cfg, "everywhere"); err != nil || len(cfg.Display.SpaceRules) != 0 {
-		t.Errorf("as everywhere left %+v", cfg.Display.SpaceRules)
+	if err := row.set(&cfg, "everywhere"); err != nil || len(cfg.Bridge.Display.SpaceRules) != 0 {
+		t.Errorf("as everywhere left %+v", cfg.Bridge.Display.SpaceRules)
 	}
 }

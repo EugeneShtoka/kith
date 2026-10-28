@@ -189,7 +189,7 @@ var defaultKeys = func() Keys {
 	for path, b := range keyByPath {
 		k.Bindings[path] = b.def
 	}
-	k.Tag = starter().Keys.Tag // the starter's tag keys, beside its tags
+	k.Tag = starterTagKeys()
 	return k
 }()
 

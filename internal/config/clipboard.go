@@ -1,9 +1,15 @@
 package config
 
-// Clipboard is [clipboard]: copying out of the timeline and opening links.
+// Clipboard is [clipboard] in the bridge's config: whether codes are copied as they
+// arrive.
 type Clipboard struct {
-	Command       string `toml:"command"` // gets copied text on stdin, never argv
-	AutoCopy      bool   `toml:"auto_copy"`
+	AutoCopy bool `toml:"auto_copy"`
+}
+
+// DeviceClipboard is [clipboard] in device.toml: copying out of the timeline and
+// opening links on this device.
+type DeviceClipboard struct {
+	Command       string `toml:"command"`       // gets copied text on stdin, never argv
 	OpenCommand   string `toml:"open_command"`  // gets one URL argument, no shell; empty xdg-open
 	FocusCommand  string `toml:"focus_command"` // run through a shell; empty detects the WM
 	RaiseCommand  string `toml:"raise_command"` // run through a shell by the client a link is handed to
@@ -14,7 +20,7 @@ type Clipboard struct {
 const defaultOpenCommand = "xdg-open"
 
 // OpenCommandOrDefault is the link opener, defaulting to xdg-open.
-func (c Clipboard) OpenCommandOrDefault() string {
+func (c DeviceClipboard) OpenCommandOrDefault() string {
 	if c.OpenCommand == "" {
 		return defaultOpenCommand
 	}

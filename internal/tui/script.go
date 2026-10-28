@@ -51,7 +51,7 @@ type pendingScript struct {
 
 // scriptNeeds parses a command's declared needs (setup.Scripts already refused unknown ones).
 func (m Model) scriptNeeds(name string) []domain.Need {
-	script, configured := m.conf.base.CommandFor(name)
+	script, configured := m.conf.device.CommandFor(name)
 	if !configured {
 		return nil
 	}
@@ -66,7 +66,7 @@ func (m Model) scriptNeeds(name string) []domain.Need {
 
 // scriptOutput is where a command's output goes: its block's `output`, else the composer.
 func (m Model) scriptOutput(name string) domain.ScriptOutput {
-	if script, configured := m.conf.base.CommandFor(name); configured {
+	if script, configured := m.conf.device.CommandFor(name); configured {
 		if out, ok := domain.ParseScriptOutput(script.Output); ok {
 			return out
 		}

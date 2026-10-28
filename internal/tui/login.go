@@ -447,13 +447,15 @@ func (m Model) writeLoginRecord(rec api.LoginRecord) (Model, tea.Cmd, func() err
 	}
 	// Not held to kithd's check (applyConfig): the record is the network's own, and kithd judges
 	// it again on re-read.
-	derived, err := derive(cfg, m.profiles.current)
+	running := m.settings()
+	running.Bridge = cfg
+	derived, err := derive(running, m.profiles.current)
 	if err != nil {
 		return m.sayErr("could not apply", err), nil, func() error {
 			return errors.New("the config refused the new account (the status line says why)")
 		}
 	}
-	next, applied := m.runDerived(cfg, derived, "set up "+m.login.network.Label+" "+m.login.account)
+	next, applied := m.runDerived(running, derived, "set up "+m.login.network.Label+" "+m.login.account)
 	// Saved by the login itself, which waits for the daemon to have it before going on.
 	gen, writer, app := next.conf.writer.take(), next.conf.writer, m.ctx
 	return next, applied, func() error {

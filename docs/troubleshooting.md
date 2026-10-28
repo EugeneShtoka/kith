@@ -207,7 +207,7 @@ a bad value stops them with a message that names the key. Common ones:
 | --- | --- |
 | `config: matrix.account[0] (personal): user "…" is no Matrix ID` | Write the Matrix ID whole, as `@you:matrix.org`. |
 | `config: matrix.account[0] (personal): homeserver "…" is no URL` | Write the server's address, as `https://matrix.org`. |
-| `config: …: unknown keys: notifications.on, …` | The key is misspelled, in the wrong section, or no longer exists. `kith --print-config` shows every valid key. |
+| `config: …: unknown keys: notifications.on, …` | The key is misspelled, in the wrong section or the wrong file, or no longer exists. `kith --print-config` shows every valid key of `config.toml`, `kith --print-device-config` those of `device.toml`. |
 
 Keys kith doesn't know are refused at startup, naming each one. See
 [configuration.md](configuration.md#validation).

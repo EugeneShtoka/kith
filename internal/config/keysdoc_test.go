@@ -6,23 +6,23 @@ import (
 	"testing"
 )
 
-// default.toml's [keys] part matches keySections; `make keys-doc` regenerates it.
+// default_device.toml's [keys] part matches keySections; `make keys-doc` regenerates it.
 func TestDefaultTOMLKeysSectionIsGenerated(t *testing.T) {
 	t.Parallel()
 
-	before, _, ok := strings.Cut(defaultConfigTOML, keysTOMLStart)
+	before, _, ok := strings.Cut(defaultDeviceTOML, keysTOMLStart)
 	if !ok {
-		t.Fatalf("default.toml has no %q line to start the generated [keys] part at", keysTOMLStart)
+		t.Fatalf("default_device.toml has no %q line to start the generated [keys] part at", keysTOMLStart)
 	}
 	want := before + renderKeysTOML()
 	if *updateGolden {
-		if err := os.WriteFile("default.toml", []byte(want), 0o600); err != nil {
+		if err := os.WriteFile("default_device.toml", []byte(want), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		return
 	}
-	if defaultConfigTOML != want {
-		t.Error("default.toml's [keys] part is stale or hand-edited — edit keySections and run `make keys-doc`")
+	if defaultDeviceTOML != want {
+		t.Error("default_device.toml's [keys] part is stale or hand-edited — edit keySections and run `make keys-doc`")
 	}
 }
 

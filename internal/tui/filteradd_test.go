@@ -14,7 +14,7 @@ import (
 // is written, so a filter with a name alone is never refused and lost.
 func TestAddingAFilterAsksForEachPart(t *testing.T) {
 	t.Parallel()
-	m, _ := opened(t, config.Notifications{Enabled: true})
+	m, _ := opened(t, config.Notifications{})
 	m = m.settingsIn(filterTable, "")
 	m, _ = m.chooseSetting(filterTable + recordAdd)
 	if m.prompt.kind != promptFilterName {

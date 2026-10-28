@@ -7,22 +7,26 @@ import (
 
 // Assist is [assist]: the remote model that answers questions about your conversations.
 type Assist struct {
-	Endpoint         string      `toml:"endpoint"` // OpenAI-compatible chat completions URL; empty off
-	Model            string      `toml:"model"`
-	KeyRef           string      `toml:"key_ref"` // keyring entry name, never the key
-	Rooms            []string    `toml:"rooms"`   // place vocabulary allow list
-	Except           []string    `toml:"except"`  // deny list, used when Rooms is empty
-	Encrypted        bool        `toml:"encrypted"`
-	Budget           int         `toml:"budget"`         // tokens; 0 DefaultModelBudget
-	MaxPerMinute     int         `toml:"max_per_minute"` // 0 DefaultModelPerMinute
-	Timeout          string      `toml:"timeout"`        // a duration; empty DefaultModelTimeout
-	Rewrite          ModelPrompt `toml:"rewrite"`
-	Summary          ModelPrompt `toml:"summary"`
-	ThreadName       ModelPrompt `toml:"thread_name"`
-	Todo             ModelPrompt `toml:"todo"`
-	TodoRooms        int         `toml:"todo_rooms"`
-	NameThreads      bool        `toml:"name_threads"`
-	NameThreadsAfter int         `toml:"name_threads_after"` // replies; 0 DefaultNameThreadsAfter
+	Endpoint     string      `toml:"endpoint"` // OpenAI-compatible chat completions URL; empty off
+	Model        string      `toml:"model"`
+	KeyRef       string      `toml:"key_ref"` // keyring entry name, never the key
+	Rooms        []string    `toml:"rooms"`   // place vocabulary allow list
+	Except       []string    `toml:"except"`  // deny list, used when Rooms is empty
+	Encrypted    bool        `toml:"encrypted"`
+	Budget       int         `toml:"budget"`         // tokens; 0 DefaultModelBudget
+	MaxPerMinute int         `toml:"max_per_minute"` // 0 DefaultModelPerMinute
+	Timeout      string      `toml:"timeout"`        // a duration; empty DefaultModelTimeout
+	Rewrite      ModelPrompt `toml:"rewrite"`
+	Summary      ModelPrompt `toml:"summary"`
+	ThreadName   ModelPrompt `toml:"thread_name"`
+	Todo         ModelPrompt `toml:"todo"`
+	TodoRooms    int         `toml:"todo_rooms"`
+}
+
+// DeviceAssist is [assist] in device.toml: whether this device names threads.
+type DeviceAssist struct {
+	NameThreads      bool `toml:"name_threads"`
+	NameThreadsAfter int  `toml:"name_threads_after"` // replies; 0 DefaultNameThreadsAfter
 }
 
 // ModelPrompt is one [assist.*] task: its instruction and the bounds on its answer.
@@ -71,7 +75,7 @@ const (
 )
 
 // NameThreadsAfterOrDefault is how many replies a thread needs before it is named.
-func (c Assist) NameThreadsAfterOrDefault() int {
+func (c DeviceAssist) NameThreadsAfterOrDefault() int {
 	if c.NameThreadsAfter > 0 {
 		return c.NameThreadsAfter
 	}

@@ -39,7 +39,7 @@ func keyTableSettings() []setting {
 		n := len(t.Bindings)
 		out = append(out, setting{
 			key: keyTableKey(t.Name), group: "keys", label: keyTableLabel(t.Name), kind: settingOpen, doc: t.Intro,
-			show: func(config.Config) string { return showCount(n, "none") + " keys" },
+			show: func(config.Settings) string { return showCount(n, "none") + " keys" },
 		})
 	}
 	return out
@@ -80,9 +80,9 @@ func keyBindingRows(t config.KeyTable) []setting {
 			key: keysPrefix + path, group: group, kind: settingText,
 			label: strings.ToUpper(b.Doc[:1]) + b.Doc[1:], doc: doc,
 			help: "keys, comma-separated (k,up; g g for a sequence) — empty restores " + spellBinding(b.Default) + ", - binds nothing",
-			show: func(c config.Config) string { v, _ := c.Keys.Binding(path); return spellBinding(v) },
-			edit: func(c config.Config) string { v, _ := c.Keys.Binding(path); return v },
-			set:  func(c *config.Config, v string) error { return setBinding(c, path, v) },
+			show: func(c config.Settings) string { v, _ := c.Device.Keys.Binding(path); return spellBinding(v) },
+			edit: func(c config.Settings) string { v, _ := c.Device.Keys.Binding(path); return v },
+			set:  func(c *config.Settings, v string) error { return setBinding(c, path, v) },
 		})
 	}
 	return rows
@@ -98,13 +98,13 @@ func spellBinding(v string) string {
 
 // setBinding writes a binding, refusing one that adds a keymap problem (a clash, a
 // shadowed sequence, a key the terminal never reports) with its reason.
-func setBinding(c *config.Config, path, value string) error {
-	before := keymapFor(*c).issues
-	if err := c.Keys.SetBinding(path, value); err != nil {
+func setBinding(c *config.Settings, path, value string) error {
+	before := keymapFor(c.Device).issues
+	if err := c.Device.Keys.SetBinding(path, value); err != nil {
 		return err //nolint:wrapcheck // config says what is wrong
 	}
 	var added []string
-	for _, issue := range keymapFor(*c).issues {
+	for _, issue := range keymapFor(c.Device).issues {
 		if !slices.Contains(before, issue) {
 			added = append(added, issue)
 		}

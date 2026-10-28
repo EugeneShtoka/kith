@@ -139,22 +139,24 @@ func propertySetting(p config.Property) (setting, bool) {
 		return setting{}, false
 	}
 	s := setting{key: p.Path, group: group, label: label, doc: p.Doc}
-	s.show = func(c config.Config) string { return propertyWords(c, p) }
+	s.show = func(c config.Settings) string { return propertyWords(c, p) }
 	switch p.Kind {
 	case config.PropertyBool, config.PropertyOptionalBool:
 		s.kind = settingToggle
-		s.set = func(c *config.Config, _ string) error { return setProperty(c, p, strconv.FormatBool(!boolNow(*c, p))) }
+		s.set = func(c *config.Settings, _ string) error {
+			return setProperty(c, p, strconv.FormatBool(!boolNow(*c, p)))
+		}
 	case config.PropertyInt, config.PropertyOptionalInt:
 		s = propertyNumber(s, p)
 	case config.PropertyList:
 		s.kind = settingList
-		s.set = func(c *config.Config, v string) error { return setProperty(c, p, v) }
-		s.entries = func(c config.Config) []string { return listNow(c, p) }
-		s.setEntries = func(c *config.Config, e []string) error { return c.SetList(p.Path, e) }
+		s.set = func(c *config.Settings, v string) error { return setProperty(c, p, v) }
+		s.entries = func(c config.Settings) []string { return listNow(c, p) }
+		s.setEntries = func(c *config.Settings, e []string) error { return c.SetList(p.Path, e) }
 	case config.PropertyFloat, config.PropertyOptionalFloat, config.PropertyText:
 		s.kind = settingText
-		s.edit = func(c config.Config) string { v, _, _ := c.Value(p.Path); return v }
-		s.set = func(c *config.Config, v string) error { return setProperty(c, p, v) }
+		s.edit = func(c config.Settings) string { v, _, _ := c.Value(p.Path); return v }
+		s.set = func(c *config.Settings, v string) error { return setProperty(c, p, v) }
 		s.help = "empty for the default"
 	default:
 		return setting{}, false
@@ -169,15 +171,15 @@ func propertyNumber(s setting, p config.Property) setting {
 	if strings.Contains(p.Doc, "-1") {
 		s.least = -1
 	}
-	s.count = func(c config.Config) int { n, _ := strconv.Atoi(effective(c, p)); return n }
-	s.edit = func(c config.Config) string { return effective(c, p) }
-	s.set = func(c *config.Config, v string) error { return setProperty(c, p, v) }
+	s.count = func(c config.Settings) int { n, _ := strconv.Atoi(effective(c, p)); return n }
+	s.edit = func(c config.Settings) string { return effective(c, p) }
+	s.set = func(c *config.Settings, v string) error { return setProperty(c, p, v) }
 	s.help = "a whole number — empty for the default"
 	return s
 }
 
 // listNow is a list property's entries in force: what is set, else default.toml's.
-func listNow(c config.Config, p config.Property) []string {
+func listNow(c config.Settings, p config.Property) []string {
 	if list := c.List(p.Path); len(list) > 0 {
 		return list
 	}
@@ -185,7 +187,7 @@ func listNow(c config.Config, p config.Property) []string {
 }
 
 // effective is a property's value as text: what is set, else an optional's default.
-func effective(c config.Config, p config.Property) string {
+func effective(c config.Settings, p config.Property) string {
 	v, set, _ := c.Value(p.Path)
 	if !set && (p.Kind == config.PropertyOptionalBool || p.Kind == config.PropertyOptionalInt) {
 		return strings.Trim(p.Default, `"`)
@@ -193,14 +195,14 @@ func effective(c config.Config, p config.Property) string {
 	return v
 }
 
-func boolNow(c config.Config, p config.Property) bool {
+func boolNow(c config.Settings, p config.Property) bool {
 	b, _ := strconv.ParseBool(effective(c, p))
 	return b
 }
 
 // setProperty writes v, unsetting an optional set back to its default so the file
 // keeps only what differs.
-func setProperty(c *config.Config, p config.Property, v string) error {
+func setProperty(c *config.Settings, p config.Property, v string) error {
 	optional := p.Kind == config.PropertyOptionalBool || p.Kind == config.PropertyOptionalInt
 	if optional && strings.TrimSpace(v) == strings.Trim(p.Default, `"`) {
 		v = ""
@@ -208,7 +210,7 @@ func setProperty(c *config.Config, p config.Property, v string) error {
 	return c.SetValue(p.Path, v) //nolint:wrapcheck // config's error says what is wrong
 }
 
-func propertyWords(c config.Config, p config.Property) string {
+func propertyWords(c config.Settings, p config.Property) string {
 	switch p.Kind {
 	case config.PropertyBool, config.PropertyOptionalBool:
 		return onOff(boolNow(c, p))

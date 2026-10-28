@@ -52,7 +52,7 @@ func TestDeletingAChatThatCannotBeLeft(t *testing.T) {
 		var left []domain.RoomID
 		var deleted []string
 		room := domain.Room{ID: "telegram:1/7", Name: "Dana", IsDirect: true, Deleting: way}
-		m := update(t, New(context.Background(), chatEnder{left: &left, deleted: &deleted, fail: fail}, config.Display{}),
+		m := update(t, New(context.Background(), chatEnder{left: &left, deleted: &deleted, fail: fail}, config.Display{}, config.DeviceDisplay{}),
 			roomsMsg{rooms: []domain.Room{room, {ID: "telegram:1/8", Name: "Eli", IsDirect: true}}})
 		m = sized(t, m)
 		m.focus = paneRooms

@@ -14,7 +14,6 @@ import (
 func autoCopyNotifier(t *testing.T, autoCopy bool, syncs int) (*daemon.Notifications, *recorder) {
 	t.Helper()
 	cfg := notifsOn("all")
-	cfg.Clipboard.Command = "wl-copy"
 	cfg.Clipboard.AutoCopy = autoCopy
 	cfg.Codes.Include = []string{smsRoom}
 

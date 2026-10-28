@@ -82,7 +82,7 @@ func (m Model) commandsDir() (string, error) {
 
 // commandPlaces is where a command applies, its block's `in`; empty is everywhere.
 func (m Model) commandPlaces(name string) []string {
-	block, _ := m.conf.base.CommandFor(name)
+	block, _ := m.conf.device.CommandFor(name)
 	return block.In
 }
 
@@ -116,7 +116,7 @@ func (m Model) launchScript() (Model, tea.Cmd) {
 
 // userCommandCmd runs the script off the event loop and reports what it produced.
 func (m Model) userCommandCmd(name, path, arg string, room domain.Room) tea.Cmd {
-	timeout := m.conf.base.Commands.RunTimeout()
+	timeout := m.conf.device.Commands.RunTimeout()
 	env := append(os.Environ(),
 		commandEnvPrefix+"ARG="+arg,
 		commandEnvPrefix+"ROOM_ID="+string(room.ID),

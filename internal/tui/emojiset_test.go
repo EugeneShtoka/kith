@@ -107,7 +107,7 @@ func TestEverySetIsWellFormed(t *testing.T) {
 func TestEmojiTierValidation(t *testing.T) {
 	t.Parallel()
 
-	err := setup.Validate(config.Config{Display: config.Display{Emoji: config.Emoji{Set: "everything"}}})
+	err := setup.ValidateDevice(config.Device{Display: config.DeviceDisplay{Emoji: config.Emoji{Set: "everything"}}})
 	if err == nil || !strings.Contains(err.Error(), "emoji.set") {
 		t.Errorf("Validate error = %v, want it to name display.emoji.set", err)
 	}

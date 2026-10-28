@@ -48,8 +48,8 @@ var starterOnce = sync.OnceValues(func() (config.Config, error) {
 })
 
 // starterNew is New with the starter config's tags and rail order, display's other
-// settings kept.
-func starterNew(backend api.Backend, display config.Display) Model {
+// settings kept, and the device's display when one is given.
+func starterNew(backend api.Backend, display config.Display, device ...config.DeviceDisplay) Model {
 	cfg, err := starterOnce()
 	if err != nil {
 		panic(err)
@@ -58,7 +58,11 @@ func starterNew(backend api.Backend, display config.Display) Model {
 		display.Rail.Order = cfg.Display.Rail.Order
 	}
 	cfg.Display = display
-	return New(context.Background(), backend, display).WithConfigFile("", asStarted(cfg))
+	var dev config.DeviceDisplay
+	if len(device) > 0 {
+		dev = device[0]
+	}
+	return New(context.Background(), backend, display, dev).WithConfigFile("", asStarted(cfg))
 }
 
 // starterView is view with the starter config's tags.

@@ -46,6 +46,7 @@ var rowReads = map[string]string{
 	// Set only by applyConfig, which bumps conf.rev (derivedKey.cfg).
 	"theme":             "derivedKey.cfg",
 	"prefs.display":     "derivedKey.cfg",
+	"prefs.device":      "derivedKey.cfg",
 	"prefs.identities":  "derivedKey.cfg",
 	"prefs.aliases":     "derivedKey.cfg",
 	"prefs.roomAliases": "derivedKey.cfg",
@@ -191,6 +192,7 @@ var derivedReads = map[string]string{
 	"rail.roomFacts":    "derivedKey.place (the open room's facts, its tags included)",
 	"rail.homes":        "derivedKey.cfg and derivedKey.place (see rowReads)",
 	"prefs.display":     "derivedKey.cfg",
+	"prefs.device":      "derivedKey.cfg",
 	"prefs.identities":  "derivedKey.cfg",
 	"theme":             "derivedKey.cfg",
 	"selves":            "derivedKey.selves",

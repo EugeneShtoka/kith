@@ -57,7 +57,7 @@ func TestAStoppedAccountIsMarkedOnItsRow(t *testing.T) {
 		rng := rand.New(rand.NewPCG(seed, 7))
 		var states []domain.AccountStatus
 		var listed []domain.Account
-		m := New(context.Background(), accountsBackend{states: &states, accounts: &listed}, config.Display{})
+		m := New(context.Background(), accountsBackend{states: &states, accounts: &listed}, config.Display{}, config.DeviceDisplay{})
 		m = sized(t, update(t, m, spacesMsg{spaces: spaces}))
 		seen := map[string]bool{}
 		for step := range 8 {
@@ -112,7 +112,7 @@ func TestAnAccountUpAgainLosesItsMarkOnTheChange(t *testing.T) {
 		Original: true, Leaving: domain.LeftBySigningOut}
 	states := []domain.AccountStatus{{Network: domain.ProtocolGMessages, Account: "SMS", Phase: domain.AccountLoggedOut, Detail: "cookies"}}
 	var listed []domain.Account
-	m := New(context.Background(), accountsBackend{states: &states, accounts: &listed}, config.Display{})
+	m := New(context.Background(), accountsBackend{states: &states, accounts: &listed}, config.Display{}, config.DeviceDisplay{})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{space}}))
 	m = update(t, m, m.loadAccountStatesCmd()())
 	row := func() string {

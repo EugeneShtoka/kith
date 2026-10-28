@@ -15,7 +15,7 @@ func TestThePhraseIndexMatchesARebuild(t *testing.T) {
 	t.Parallel()
 
 	m := benchTimelineModel(200)
-	if !m.conf.base.Complete.CompleteEnabled() {
+	if !m.conf.device.Complete.CompleteEnabled() {
 		t.Skip("completion is off by default; the index is not kept")
 	}
 	m = m.armPhrases()
@@ -63,7 +63,7 @@ func TestAnOlderCopyDoesNotGrowTheSharedIndex(t *testing.T) {
 	t.Parallel()
 
 	m := benchTimelineModel(50)
-	if !m.conf.base.Complete.CompleteEnabled() {
+	if !m.conf.device.Complete.CompleteEnabled() {
 		t.Skip("completion is off by default; the index is not kept")
 	}
 	base := m.armPhrases()

@@ -84,7 +84,7 @@ func newLogger(file string, level slog.Leveler) (*slog.Logger, func()) {
 }
 
 func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string, profiles []string) error {
-	cfg, storage, err := loadAccount(log, configPath)
+	cfg, storage, device, err := loadAccount(log, configPath)
 	if err != nil {
 		return err
 	}
@@ -118,39 +118,51 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 	sinks := setup.NotifierSinks(func(sink string, err error) {
 		log.Warn("notification delivery failed", "sink", sink, "err", err)
 	})
-	if uerr := setup.AutoCopyUnavailable(cfg); uerr != nil {
+	dev, err := config.LoadDevice(device)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", device, err)
+	}
+	if err := setup.ValidateDevice(dev); err != nil {
+		return fmt.Errorf("reading %s: %w", device, err)
+	}
+	if uerr := setup.AutoCopyUnavailable(cfg, dev); uerr != nil {
 		log.Warn("auto-copy is on but cannot run", "err", uerr)
 	}
-	a := newAgent(log, func() *daemon.Remote { return daemon.NewRemote(socket) }, sinks, cfg)
+	a := newAgent(log, func() *daemon.Remote { return daemon.NewRemote(socket) }, sinks, device, dev)
 	a.run(ctx, names)
 	return nil
 }
 
-// loadAccount reads the config for where kithd's socket is, as kith-mcp does.
-func loadAccount(log *slog.Logger, configPath string) (config.Config, domain.Storage, error) {
+// loadAccount reads the config for where kithd's socket is, as kith-mcp does, after
+// moving its device settings out (config.SplitDevice); device is the device file.
+func loadAccount(log *slog.Logger, configPath string) (cfg config.Config, storage domain.Storage, device string, err error) {
 	path := configPath
 	if path == "" {
-		resolved, err := config.Path()
-		if err != nil {
-			return config.Config{}, domain.Storage{}, fmt.Errorf("finding the config: %w", err)
+		resolved, perr := config.Path()
+		if perr != nil {
+			return config.Config{}, domain.Storage{}, "", fmt.Errorf("finding the config: %w", perr)
 		}
 		path = resolved
 	}
-	cfg, err := config.Load(path)
+	device = config.DevicePath(path)
+	if _, serr := config.SplitDevice(path, device); serr != nil {
+		return config.Config{}, domain.Storage{}, "", fmt.Errorf("reading %s: %w", path, serr)
+	}
+	cfg, err = config.Load(path)
 	if err != nil {
-		return config.Config{}, domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
+		return config.Config{}, domain.Storage{}, "", fmt.Errorf("reading %s: %w", path, err)
 	}
 	if warning := config.ModeWarning(path); warning != "" {
 		log.Warn(warning)
 	}
 	if err = setup.Validate(cfg); err != nil {
-		return config.Config{}, domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
+		return config.Config{}, domain.Storage{}, "", fmt.Errorf("reading %s: %w", path, err)
 	}
-	storage, err := setup.StorageFor(cfg, path)
+	storage, err = setup.StorageFor(cfg, path)
 	if err != nil {
-		return config.Config{}, domain.Storage{}, err
+		return config.Config{}, domain.Storage{}, "", err
 	}
-	return cfg, storage, nil
+	return cfg, storage, device, nil
 }
 
 // profileNames are the profiles named, as the config spells them, or the first when
@@ -184,22 +196,21 @@ const (
 	retryMost  = 30 * time.Second
 )
 
-// configWait bounds reading kithd's config before a notification is shown; the last
-// one read is used past it.
-const configWait = 5 * time.Second
-
 // agent shows the notifications kithd publishes to its profiles, each once.
 type agent struct {
 	log   *slog.Logger
 	kithd func() *daemon.Remote // a new client of kithd
-	sinks func(config.Notifications) notify.Notifier
+	sinks func(config.DeviceNotifications) notify.Notifier
+	// device is the device file whose [notifications] and [clipboard] it shows and
+	// copies with.
+	device string
 
 	mu sync.Mutex
 	// seen are the notifications shown lately, by ID: one in several profiles arrives
 	// on each of their streams.
 	seen recent
-	// notifier shows, and clip copies codes, with kithd's [notifications] and
-	// [clipboard] settings as of revision.
+	// notifier shows, and clip copies codes, with the device file's [notifications]
+	// and [clipboard] as of revision.
 	notifier notify.Notifier
 	clip     notify.Clipboard
 	revision string
@@ -208,26 +219,28 @@ type agent struct {
 	toldWaiting bool
 }
 
-// newAgent shows and copies with cfg's settings until kithd's own config is read.
-func newAgent(log *slog.Logger, kithd func() *daemon.Remote, sinks func(config.Notifications) notify.Notifier, cfg config.Config) *agent {
+// newAgent shows and copies with dev's settings until the device file at device is
+// read again.
+func newAgent(log *slog.Logger, kithd func() *daemon.Remote, sinks func(config.DeviceNotifications) notify.Notifier,
+	device string, dev config.Device,
+) *agent {
 	return &agent{
-		log: log, kithd: kithd, sinks: sinks, seen: newRecent(recentIDs),
-		notifier: sinks(cfg.Notifications), clip: notify.Clipboard{Command: cfg.Clipboard.Command},
+		log: log, kithd: kithd, sinks: sinks, device: device, seen: newRecent(recentIDs),
+		notifier: sinks(dev.Notifications), clip: notify.Clipboard{Command: dev.Clipboard.Command},
 	}
 }
 
 // run listens to every profile until ctx ends.
 func (a *agent) run(ctx context.Context, profiles []string) {
-	settings := a.kithd()
 	var wg sync.WaitGroup
 	for _, profile := range profiles {
-		wg.Go(func() { a.listen(ctx, settings, profile) })
+		wg.Go(func() { a.listen(ctx, profile) })
 	}
 	wg.Wait()
 }
 
 // listen holds one profile's stream open, opening it again whenever it ends.
-func (a *agent) listen(ctx context.Context, settings *daemon.Remote, profile string) {
+func (a *agent) listen(ctx context.Context, profile string) {
 	r := a.kithd()
 	r.UseProfile(profile)
 	wait := retryFirst
@@ -236,7 +249,7 @@ func (a *agent) listen(ctx context.Context, settings *daemon.Remote, profile str
 			wait = retryFirst
 			a.started()
 			a.log.Info("listening for notifications", "profile", profile)
-		}, func(v daemon.Notice) { a.show(ctx, settings, v) })
+		}, func(v daemon.Notice) { a.show(ctx, v) })
 		if ctx.Err() != nil {
 			return
 		}
@@ -279,24 +292,15 @@ func (a *agent) started() {
 	a.toldWaiting = false
 }
 
-// show shows v unless it was shown already, with kithd's settings as they are now,
-// first copying the code it announces, if any, and saying whether it could.
-func (a *agent) show(ctx context.Context, settings *daemon.Remote, v daemon.Notice) {
+// show shows v unless it was shown already, with the device's settings as they are
+// now, first copying the code it announces, if any, and saying whether it could.
+func (a *agent) show(ctx context.Context, v daemon.Notice) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !a.seen.add(v.ID) {
 		return
 	}
-	read, cancel := context.WithTimeout(ctx, configWait)
-	snap, err := settings.GetConfig(read)
-	cancel()
-	switch {
-	case err != nil:
-		a.log.Warn("reading kithd's config; showing with the settings read last", "err", err)
-	case snap.Revision != a.revision:
-		a.notifier, a.revision = a.sinks(snap.Config.Notifications), snap.Revision
-		a.clip = notify.Clipboard{Command: snap.Config.Clipboard.Command}
-	}
+	a.reread()
 	if v.Code != "" {
 		v.Alert.Body = v.Code + " — copied to the clipboard"
 		if err := a.clip.Copy(ctx, v.Code); err != nil {
@@ -307,6 +311,27 @@ func (a *agent) show(ctx context.Context, settings *daemon.Remote, v daemon.Noti
 		}
 	}
 	a.notifier.Notify(v.Alert)
+}
+
+// reread takes the device file's settings again when the file changed since they
+// were read, so a change made in the app applies to the next notification.
+func (a *agent) reread() {
+	data, err := os.ReadFile(a.device)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		a.log.Warn("reading the device file; showing with the settings read last", "err", err)
+		return
+	}
+	revision := config.Revision(data)
+	if revision == a.revision {
+		return
+	}
+	dev, err := config.LoadDevice(a.device)
+	if err != nil {
+		a.log.Warn("reading the device file; showing with the settings read last", "err", err)
+		return
+	}
+	a.notifier, a.revision = a.sinks(dev.Notifications), revision
+	a.clip = notify.Clipboard{Command: dev.Clipboard.Command}
 }
 
 // recentIDs is how many notification IDs are remembered: far more than arrive while

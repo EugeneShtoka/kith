@@ -101,7 +101,7 @@ func TestAnEditFollowsTheMarkdownSetting(t *testing.T) {
 		wantPlain bool
 	}{{"default", nil, false}, {"false", &off, true}} {
 		m, backend := editingWith(t, domain.Message{Body: "**not bold**"})
-		m.conf.base.Composer = config.Composer{Markdown: tc.markdown}
+		m.conf.device.Composer = config.Composer{Markdown: tc.markdown}
 		m, _ = press(t, m, keyText("E"))
 		if draft := sentEdit(t, m, backend); draft.Plain != tc.wantPlain {
 			t.Errorf("markdown=%s: Plain = %v, want %v", tc.name, draft.Plain, tc.wantPlain)

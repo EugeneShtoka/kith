@@ -61,7 +61,7 @@ func assistTickCmd(gen int) tea.Cmd {
 // armCompletion schedules a lookup when the word under the caret changed. Called
 // after every Update message, since many paths change the composer.
 func (m Model) armCompletion() (Model, tea.Cmd) {
-	if !m.conf.base.Complete.CompleteEnabled() || m.openRoom == "" {
+	if !m.conf.device.Complete.CompleteEnabled() || m.openRoom == "" {
 		return m, nil
 	}
 	typed, ok := m.wordBeingTyped()
@@ -109,8 +109,8 @@ func (m Model) completeWordCmd(gen int, prefix, typed string) tea.Cmd {
 		Prefix:     prefix,
 		RoomIDs:    []domain.RoomID{room},
 		SpaceRooms: m.spaceRoomsFor(room),
-		Scope:      m.conf.base.Complete.ScopeOrDefault(),
-		Sources:    m.conf.base.Complete.Sources,
+		Scope:      m.conf.device.Complete.ScopeOrDefault(),
+		Sources:    m.conf.device.Complete.Sources,
 		Limit:      assistCandidates,
 	}
 	parent, backend := m.ctx, m.backend
@@ -165,7 +165,7 @@ func trailingWord(text string) string {
 // ghost is the suggestion to draw after the caret. `[complete] ghost` switches inline
 // suggestions off; the popup is unaffected.
 func (m Model) ghost() (string, bool) {
-	if !m.conf.base.Complete.GhostEnabled() {
+	if !m.conf.device.Complete.GhostEnabled() {
 		return "", false
 	}
 	if word, ok := m.assistLead(); ok {
@@ -184,7 +184,7 @@ func (m Model) assistLead() (string, bool) {
 	if !ok || typed != m.assist.typed {
 		return "", false
 	}
-	lead, ok := domain.Dominant(m.offered(typed), m.conf.base.Complete.RatioOrDefault())
+	lead, ok := domain.Dominant(m.offered(typed), m.conf.device.Complete.RatioOrDefault())
 	if !ok {
 		return "", false
 	}
@@ -425,7 +425,7 @@ const phraseLeast = 2
 // armPhrases rebuilds the room's phrase index when its messages change, keyed on the
 // timeline revision rather than comparing slices.
 func (m Model) armPhrases() Model {
-	if !m.conf.base.Complete.CompleteEnabled() || m.openRoom == "" {
+	if !m.conf.device.Complete.CompleteEnabled() || m.openRoom == "" {
 		return m
 	}
 	if m.phrases.rev == m.timeline.rev && m.phrases.room == m.openRoom {
@@ -508,7 +508,7 @@ func phraseSum(h uint64, msgs []domain.Message) uint64 {
 
 // phraseGhost is what this room usually says next, when clear enough.
 func (m Model) phraseGhost() (string, bool) {
-	if !m.conf.base.Complete.GhostEnabled() {
+	if !m.conf.device.Complete.GhostEnabled() {
 		return "", false
 	}
 	draft, ok := m.draftForModel()
@@ -519,7 +519,7 @@ func (m Model) phraseGhost() (string, bool) {
 	if !ok {
 		return "", false
 	}
-	next, ok := m.phrases.phrases().Next(first, second, m.conf.base.Complete.RatioOrDefault(), phraseLeast)
+	next, ok := m.phrases.phrases().Next(first, second, m.conf.device.Complete.RatioOrDefault(), phraseLeast)
 	if !ok {
 		return "", false
 	}
@@ -602,7 +602,7 @@ func sameAsk(a, b string) bool {
 
 // armModelAsk schedules a model ask when the draft has reached a word boundary.
 func (m Model) armModelAsk() (Model, tea.Cmd) {
-	if !m.conf.base.Complete.CompleteEnabled() || !m.modelLayerOn() {
+	if !m.conf.device.Complete.CompleteEnabled() || !m.modelLayerOn() {
 		return m, nil
 	}
 	draft, ok := m.draftForModel()
@@ -689,7 +689,7 @@ const modelMinWords = 3
 
 // modelGhost is the model's suggestion when it answers the current draft.
 func (m Model) modelGhost() (string, bool) {
-	if !m.conf.base.Complete.GhostEnabled() || m.model.suggestion == "" {
+	if !m.conf.device.Complete.GhostEnabled() || m.model.suggestion == "" {
 		return "", false
 	}
 	draft, ok := m.draftForModel()
@@ -720,8 +720,7 @@ func (m Model) modelMarker() string {
 // modelLayerOn reports whether the local model may run, from config alone; whether
 // the weights exist is the daemon's question.
 func (m Model) modelLayerOn() bool {
-	model := m.conf.base.Complete.Model
-	return model.ModelEnabled() && !model.Declined
+	return m.conf.base.Complete.Model.ModelEnabled() && !m.conf.device.Complete.Model.Declined
 }
 
 // modelPreviewMsg carries `:model`'s dry run (the exact request, unsent) into the overlay.

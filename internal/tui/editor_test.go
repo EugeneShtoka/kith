@@ -470,15 +470,14 @@ func TestEnterSendsWhenFlipped(t *testing.T) {
 	t.Parallel()
 
 	m, _ := composing(t)
-	cfg := config.Config{}
-	cfg.Keys.FillDefaults()
+	cfg := config.Settings{Device: config.Device{Keys: config.DefaultKeys()}}
 	if err := toggleEnterKey(&cfg, ""); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Keys.Bindings["insert.send"] != "enter" || cfg.Keys.Bindings["insert.newline"] != "ctrl+enter,alt+enter" {
-		t.Fatalf("flip gave send=%q newline=%q", cfg.Keys.Bindings["insert.send"], cfg.Keys.Bindings["insert.newline"])
+	if keys := cfg.Device.Keys; keys.Bindings["insert.send"] != "enter" || keys.Bindings["insert.newline"] != "ctrl+enter,alt+enter" {
+		t.Fatalf("flip gave send=%q newline=%q", keys.Bindings["insert.send"], keys.Bindings["insert.newline"])
 	}
-	m.keys = newKeymap(cfg.Keys)
+	m.keys = newKeymap(cfg.Device.Keys)
 	if len(m.keys.issues) > 0 {
 		t.Errorf("the flipped pair should not clash: %v", m.keys.issues)
 	}
@@ -502,8 +501,7 @@ func TestEnterSendsWhenFlipped(t *testing.T) {
 func TestEnterKeySettingRow(t *testing.T) {
 	t.Parallel()
 
-	cfg := config.Config{}
-	cfg.Keys.FillDefaults()
+	cfg := config.Settings{Device: config.Device{Keys: config.DefaultKeys()}}
 	if got := enterKeyShow(cfg); !strings.HasPrefix(got, "ctrl+enter ") {
 		t.Errorf("row shows %q, want the send key ctrl+enter first", got)
 	}

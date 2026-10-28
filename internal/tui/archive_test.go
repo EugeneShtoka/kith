@@ -17,9 +17,9 @@ import (
 
 // counting builds rooms where the two meanings of "unread" disagree: Alpha is muted
 // (no notifications, three unread messages), Bravo is ordinary.
-func counting(t *testing.T, display config.Display) Model {
+func counting(t *testing.T, display config.Display, device ...config.DeviceDisplay) Model {
 	t.Helper()
-	m := update(t, starterNew(&bulkReader{}, display), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(&bulkReader{}, display, device...), roomsMsg{rooms: []domain.Room{
 		{ID: mx + "!a:x", Name: "Alpha"},
 		{ID: mx + "!b:x", Name: "Bravo"},
 	}})
@@ -53,7 +53,7 @@ func TestBadgeCountsUnreadMessagesNotNotifications(t *testing.T) {
 	}
 
 	// The notifications meaning is still available.
-	server := counting(t, config.Display{Unread: "notifications"})
+	server := counting(t, config.Display{}, config.DeviceDisplay{Unread: "notifications"})
 	if badge, _ := server.unreadBadge(roomByName(t, server, mx+"!a:x")); badge != "" {
 		t.Errorf("with unread=notifications the muted room badged %q, want nothing", badge)
 	}
@@ -346,7 +346,7 @@ func TestOnlyOneOfSpacesAndOriginAsksForTheHome(t *testing.T) {
 	} {
 		asker := &parentAsker{answer: map[domain.RoomID]domain.SpaceID{mx + "!a:x": mx + "!w:x"}}
 		cfg := config.Config{Profiles: starter(t).Profiles, Tags: []config.Tag{{Name: "Out", Picked: []string{mx + "!a:x"}, Exclusive: tc.exclusive}}}
-		m := New(context.Background(), asker, cfg.Display).WithConfigFile("", asStarted(cfg))
+		m := New(context.Background(), asker, cfg.Display, config.DeviceDisplay{}).WithConfigFile("", asStarted(cfg))
 		m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 		m = update(t, m, spacesMsg{spaces: []domain.Space{
 			{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},

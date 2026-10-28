@@ -53,9 +53,9 @@ func TestDocsAreReadFromWhereTheyAre(t *testing.T) {
 // never reach a clone's source.
 func TestPropertiesAreSetAndReadBack(t *testing.T) {
 	t.Parallel()
-	var base Config
+	var base Settings
 	on := true
-	base.Display.Mouse = &on
+	base.Device.Display.Mouse = &on
 	cfg := base.Clone()
 	for _, tc := range []struct{ path, text, want string }{
 		{"display.color_messages", "true", "true"},
@@ -73,7 +73,7 @@ func TestPropertiesAreSetAndReadBack(t *testing.T) {
 			t.Errorf("%s = %q (set %v, ok %v), want %q", tc.path, got, set, ok, tc.want)
 		}
 	}
-	if *base.Display.Mouse != true {
+	if *base.Device.Display.Mouse != true {
 		t.Error("setting the clone's display.mouse wrote through to the original")
 	}
 	if !slices.Equal(cfg.List("display.priority"), []string{"tag:Work", "Friends"}) {

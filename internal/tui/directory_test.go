@@ -36,7 +36,7 @@ func TestANumberIsNamedFromTheDirectory(t *testing.T) {
 		Names:      []config.DisplayName{{Target: mx + "!e:x", Name: "Eli (mine)"}},
 		Identities: []config.Identity{{Alias: "Fay (mine)", IDs: []string{"matrix:@whatsapp_15550100003:x"}}},
 	}
-	m := New(context.Background(), b, display)
+	m := New(context.Background(), b, display, config.DeviceDisplay{})
 	m, cmd := asModel(m.Update(roomsMsg{rooms: []domain.Room{
 		{ID: mx + "!d:x", Name: "+15550100001 (WA)", IsDirect: true},
 		{ID: mx + "!e:x", Name: "+15550100002", IsDirect: true},

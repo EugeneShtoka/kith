@@ -63,7 +63,7 @@ func (m Model) WithProfiles(p Profiles, current string) Model {
 // profile's archive and rail can differ from another's. The new tags revision drops
 // the tag memo.
 func (m Model) runProfile() Model {
-	derived, err := derive(m.conf.base, m.profiles.current)
+	derived, err := derive(m.settings(), m.profiles.current)
 	if err != nil {
 		return m.sayErr("profile "+m.currentProfile(), err)
 	}

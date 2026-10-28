@@ -1,6 +1,7 @@
 package setup_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 // refusal names, and the forms it takes besides a bare name.
 type placeSetting struct {
 	what string // as the error names it
-	set  func(c *config.Config, entry string)
+	set  func(c *config.Settings, entry string)
 	ok   []string // accepted entries
 }
 
@@ -26,72 +27,72 @@ var (
 func placeSettings() []placeSetting {
 	one := func(entry string) []string { return []string{entry} }
 	return []placeSetting{
-		{"display.priority", func(c *config.Config, e string) { c.Display.Priority = one(e) }, homeForms},
-		{"display.rail.order", func(c *config.Config, e string) { c.Display.Rail.Order = one(e) },
+		{"display.priority", func(c *config.Settings, e string) { c.Bridge.Display.Priority = one(e) }, homeForms},
+		{"display.rail.order", func(c *config.Settings, e string) { c.Bridge.Display.Rail.Order = one(e) },
 			append([]string{"*", "-", "---"}, homeForms...)},
-		{"display.rail.hidden", func(c *config.Config, e string) { c.Display.Rail.Hidden = one(e) }, homeForms},
-		{"display.rail.hide_when_empty", func(c *config.Config, e string) { c.Display.Rail.HideWhenEmpty = one(e) }, homeForms},
-		{`profile "default": rail.order`, func(c *config.Config, e string) { c.Profiles[0].Rail.Order = one(e) },
+		{"display.rail.hidden", func(c *config.Settings, e string) { c.Bridge.Display.Rail.Hidden = one(e) }, homeForms},
+		{"display.rail.hide_when_empty", func(c *config.Settings, e string) { c.Bridge.Display.Rail.HideWhenEmpty = one(e) }, homeForms},
+		{`profile "default": rail.order`, func(c *config.Settings, e string) { c.Bridge.Profiles[0].Rail.Order = one(e) },
 			append([]string{"*", "-", "---"}, homeForms...)},
-		{`profile "default": rail.hidden`, func(c *config.Config, e string) { c.Profiles[0].Rail.Hidden = one(e) }, homeForms},
-		{`profile "default": rail.hide_when_empty`, func(c *config.Config, e string) { c.Profiles[0].Rail.HideWhenEmpty = one(e) }, homeForms},
-		{"display.filing_spaces", func(c *config.Config, e string) { c.Display.FilingSpaces = one(e) },
+		{`profile "default": rail.hidden`, func(c *config.Settings, e string) { c.Bridge.Profiles[0].Rail.Hidden = one(e) }, homeForms},
+		{`profile "default": rail.hide_when_empty`, func(c *config.Settings, e string) { c.Bridge.Profiles[0].Rail.HideWhenEmpty = one(e) }, homeForms},
+		{"display.filing_spaces", func(c *config.Settings, e string) { c.Device.Display.FilingSpaces = one(e) },
 			[]string{"space:Work", "place:Work", mx + "!abc:example.org"}},
-		{"display.space_rule[0].space", func(c *config.Config, e string) {
-			c.Display.SpaceRules = []config.SpaceRule{{Space: e, FirstNameOnly: true}}
+		{"display.space_rule[0].space", func(c *config.Settings, e string) {
+			c.Bridge.Display.SpaceRules = []config.SpaceRule{{Space: e, FirstNameOnly: true}}
 		}, homeForms},
-		{"display.rooms.rule[0].group", func(c *config.Config, e string) {
-			c.Display.Rooms.Rules = []config.RoomsRule{{Group: e, Sort: []string{"name"}}}
+		{"display.rooms.rule[0].group", func(c *config.Settings, e string) {
+			c.Device.Display.Rooms.Rules = []config.RoomsRule{{Group: e, Sort: []string{"name"}}}
 		}, homeForms},
-		{"display.read_rule[0].match", func(c *config.Config, e string) {
-			c.Display.ReadRules = []config.ReadRule{{Match: e, Send: new(false)}}
+		{"display.read_rule[0].match", func(c *config.Settings, e string) {
+			c.Device.Display.ReadRules = []config.ReadRule{{Match: e, Send: new(false)}}
 		}, append(append([]string{mx + "$thread:example.org"}, homeForms...), roomForms...)},
-		{"display.threads.rule[0].match", func(c *config.Config, e string) {
-			c.Display.Threads.Rules = []config.ThreadRule{{Match: e, MaxInRoomList: 3}}
+		{"display.threads.rule[0].match", func(c *config.Settings, e string) {
+			c.Device.Display.Threads.Rules = []config.ThreadRule{{Match: e, MaxInRoomList: 3}}
 		}, append(cloned(homeForms), roomForms...)},
-		{"display.media.rule[0].match", func(c *config.Config, e string) {
-			c.Display.Media.Rules = []config.MediaRule{{Match: e, Auto: new(false)}}
+		{"display.media.rule[0].match", func(c *config.Settings, e string) {
+			c.Bridge.Display.Media.Rules = []config.MediaRule{{Match: e, Auto: new(false)}}
 		}, append(cloned(homeForms), roomForms...)},
-		{`keys.jump "g w"`, func(c *config.Config, e string) {
-			c.Keys.Jump = config.Jumps{{Chord: "g w", Target: e}}
+		{`keys.jump "g w"`, func(c *config.Settings, e string) {
+			c.Device.Keys.Jump = config.Jumps{{Chord: "g w", Target: e}}
 		}, []string{"space:Work", "tag:Pinned", "place:Work", "room:" + mx + "!abc:example.org"}},
-		{"codes.include", func(c *config.Config, e string) { c.Codes.Include = one(e) }, placeForms},
-		{"codes.exclude", func(c *config.Config, e string) { c.Codes.Exclude = one(e) }, placeForms},
-		{"display.direction.rtl", func(c *config.Config, e string) { c.Display.Direction.RTL = one(e) }, placeForms},
-		{"display.direction.ltr", func(c *config.Config, e string) { c.Display.Direction.LTR = one(e) }, placeForms},
-		{"agent.read.rooms", func(c *config.Config, e string) { c.Agent.Read.Rooms = one(e) }, placeForms},
-		{"agent.read.except", func(c *config.Config, e string) { c.Agent.Read.Except = one(e) }, placeForms},
-		{"agent.write.rooms", func(c *config.Config, e string) { c.Agent.Write.Rooms = one(e) }, placeForms},
-		{"agent.write.except", func(c *config.Config, e string) { c.Agent.Write.Except = one(e) }, placeForms},
-		{"agent.write.send", func(c *config.Config, e string) { c.Agent.Write.Send = one(e) }, placeForms},
-		{"filter[0].in", func(c *config.Config, e string) {
-			c.Filters = []config.Filter{{Name: "x", Tag: "Pinned", Words: one("w"), In: one(e)}}
+		{"codes.include", func(c *config.Settings, e string) { c.Bridge.Codes.Include = one(e) }, placeForms},
+		{"codes.exclude", func(c *config.Settings, e string) { c.Bridge.Codes.Exclude = one(e) }, placeForms},
+		{"display.direction.rtl", func(c *config.Settings, e string) { c.Device.Display.Direction.RTL = one(e) }, placeForms},
+		{"display.direction.ltr", func(c *config.Settings, e string) { c.Device.Display.Direction.LTR = one(e) }, placeForms},
+		{"agent.read.rooms", func(c *config.Settings, e string) { c.Bridge.Agent.Read.Rooms = one(e) }, placeForms},
+		{"agent.read.except", func(c *config.Settings, e string) { c.Bridge.Agent.Read.Except = one(e) }, placeForms},
+		{"agent.write.rooms", func(c *config.Settings, e string) { c.Bridge.Agent.Write.Rooms = one(e) }, placeForms},
+		{"agent.write.except", func(c *config.Settings, e string) { c.Bridge.Agent.Write.Except = one(e) }, placeForms},
+		{"agent.write.send", func(c *config.Settings, e string) { c.Bridge.Agent.Write.Send = one(e) }, placeForms},
+		{"filter[0].in", func(c *config.Settings, e string) {
+			c.Bridge.Filters = []config.Filter{{Name: "x", Tag: "Pinned", Words: one("w"), In: one(e)}}
 		}, placeForms},
-		{"command[0].in", func(c *config.Config, e string) {
-			c.UserCommands = []config.Command{{Name: "zoom", In: one(e)}}
+		{"command[0].in", func(c *config.Settings, e string) {
+			c.Device.UserCommands = []config.Command{{Name: "zoom", In: one(e)}}
 		}, placeForms},
-		{"assist.rooms", func(c *config.Config, e string) { c.Assist.Rooms = one(e) }, placeForms},
-		{"assist.except", func(c *config.Config, e string) { c.Assist.Except = one(e) }, placeForms},
-		{"tracked.rule[0].in", func(c *config.Config, e string) {
-			c.Display.Tracked.Rules = []config.TrackedRule{{Words: one("deploy"), In: one(e)}}
+		{"assist.rooms", func(c *config.Settings, e string) { c.Bridge.Assist.Rooms = one(e) }, placeForms},
+		{"assist.except", func(c *config.Settings, e string) { c.Bridge.Assist.Except = one(e) }, placeForms},
+		{"tracked.rule[0].in", func(c *config.Settings, e string) {
+			c.Bridge.Display.Tracked.Rules = []config.TrackedRule{{Words: one("deploy"), In: one(e)}}
 		}, placeForms},
-		{"tracked.rule[0].except", func(c *config.Config, e string) {
-			c.Display.Tracked.Rules = []config.TrackedRule{{Words: one("deploy"), Except: one(e)}}
+		{"tracked.rule[0].except", func(c *config.Settings, e string) {
+			c.Bridge.Display.Tracked.Rules = []config.TrackedRule{{Words: one("deploy"), Except: one(e)}}
 		}, placeForms},
-		{"notifications.rule[0].match", func(c *config.Config, e string) {
-			c.Notifications.Rules = []config.Rule{{Match: e, Show: "all"}}
+		{"notifications.rule[0].match", func(c *config.Settings, e string) {
+			c.Bridge.Notifications.Rules = []config.Rule{{Match: e, Show: "all"}}
 		}, placeForms},
-		{"storage.rule[0].match", func(c *config.Config, e string) {
-			c.Storage.Rules = []config.StorageRule{{Match: e, Messages: new(10)}}
+		{"storage.rule[0].match", func(c *config.Settings, e string) {
+			c.Bridge.Storage.Rules = []config.StorageRule{{Match: e, Messages: new(10)}}
 		}, placeForms},
-		{`profile "p": include`, func(c *config.Config, e string) {
-			c.Profiles = []config.Profile{{Name: "p", Include: one(e)}}
+		{`profile "p": include`, func(c *config.Settings, e string) {
+			c.Bridge.Profiles = []config.Profile{{Name: "p", Include: one(e)}}
 		}, placeForms},
-		{`profile "p": exclude`, func(c *config.Config, e string) {
-			c.Profiles = []config.Profile{{Name: "p", Include: []string{"*"}, Exclude: one(e)}}
+		{`profile "p": exclude`, func(c *config.Settings, e string) {
+			c.Bridge.Profiles = []config.Profile{{Name: "p", Include: []string{"*"}, Exclude: one(e)}}
 		}, placeForms},
-		{`tag "Busy": rule`, func(c *config.Config, e string) {
-			c.Tags = append(c.Tags, config.Tag{Name: "Busy", Rule: []string{e}})
+		{`tag "Busy": rule`, func(c *config.Settings, e string) {
+			c.Bridge.Tags = append(c.Bridge.Tags, config.Tag{Name: "Busy", Rule: []string{e}})
 		}, append([]string{"unread", "not dm", "*"}, placeForms...)},
 	}
 }
@@ -105,15 +106,23 @@ func valid() config.Config {
 		Profiles: []config.Profile{{Name: "default", Include: []string{"*"}}}}
 }
 
+// validate checks both files, as a client does.
+func validate(s config.Settings) error {
+	if err := setup.Validate(s.Bridge); err != nil {
+		return err
+	}
+	return setup.ValidateDevice(s.Device)
+}
+
 // Every setting naming a place refuses a bare name at load, saying which setting, which
 // entry, and the prefixes to choose from; it takes each prefixed form it lists.
 func TestEverySettingNamingAPlaceRefusesABareName(t *testing.T) {
 	t.Parallel()
 	for _, s := range placeSettings() {
 		for _, bare := range []string{"Work", "work chat"} {
-			cfg := valid()
+			cfg := config.Settings{Bridge: valid()}
 			s.set(&cfg, bare)
-			err := setup.Validate(cfg)
+			err := validate(cfg)
 			if err == nil {
 				t.Errorf("%s: bare %q accepted", s.what, bare)
 				continue
@@ -125,12 +134,47 @@ func TestEverySettingNamingAPlaceRefusesABareName(t *testing.T) {
 			}
 		}
 		for _, entry := range s.ok {
-			cfg := valid()
+			cfg := config.Settings{Bridge: valid()}
 			s.set(&cfg, entry)
-			if err := setup.Validate(cfg); err != nil {
+			if err := validate(cfg); err != nil {
 				t.Errorf("%s: %q refused: %v", s.what, entry, err)
 			}
 		}
+	}
+}
+
+// A tag that does not exist is an empty one: every setting naming a place takes it
+// (`not` it too, in a rule), and DanglingTags names that setting, once.
+func TestASettingNamingNoTagIsWarnedOfNotRefused(t *testing.T) {
+	t.Parallel()
+	for _, s := range placeSettings() {
+		if !slices.Contains(s.ok, "tag:Pinned") {
+			continue // takes no tag at all
+		}
+		for _, entry := range []string{"tag:Gone", "not tag:Gone"} {
+			if strings.HasPrefix(entry, "not ") && !slices.Contains(s.ok, "not dm") {
+				continue
+			}
+			cfg := config.Settings{Bridge: valid()}
+			s.set(&cfg, entry)
+			if err := validate(cfg); err != nil {
+				t.Errorf("%s: %q refused: %v", s.what, entry, err)
+			}
+			if got := setup.DanglingTags(cfg); len(got) != 1 || !strings.HasSuffix(got[0], ": "+entry+" names no [[tag]]") {
+				t.Errorf("%s: %q warned of as %q, want once", s.what, entry, got)
+			}
+		}
+	}
+	cfg := config.Settings{Bridge: valid()}
+	cfg.Device.Display.Direction.RTL = []string{"tag:Gone"}
+	cfg.Device.UserCommands = []config.Command{{Name: "zoom", In: []string{"dm", "tag:Gone"}}}
+	want := []string{"display.direction.rtl: tag:Gone names no [[tag]]", "command[0].in: tag:Gone names no [[tag]]"}
+	if got := setup.DanglingTags(cfg); !slices.Equal(got, want) {
+		t.Errorf("DanglingTags = %q, want %q", got, want)
+	}
+	cfg.Bridge.Tags = append(cfg.Bridge.Tags, config.Tag{Name: " gone "})
+	if got := setup.DanglingTags(cfg); len(got) != 0 {
+		t.Errorf("DanglingTags = %q with the tag there", got)
 	}
 }
 
@@ -138,20 +182,20 @@ func TestEverySettingNamingAPlaceRefusesABareName(t *testing.T) {
 func TestAPlaceSettingRefusesAFormItCannotUse(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
-		set   func(*config.Config)
+		set   func(*config.Settings)
 		entry string
 	}{
-		{func(c *config.Config) { c.Display.Priority = []string{"room:Standup"} }, "room:Standup"},
-		{func(c *config.Config) { c.Display.Rail.Order = []string{mx + "!abc:example.org"} }, mx + "!abc:example.org"},
-		{func(c *config.Config) { c.Display.Rail.Hidden = []string{"dm"} }, "dm"},
-		{func(c *config.Config) { c.Display.FilingSpaces = []string{"tag:Pinned"} }, "tag:Pinned"},
-		{func(c *config.Config) { c.Display.ReadRules = []config.ReadRule{{Match: "room:Standup"}} }, "room:Standup"},
-		{func(c *config.Config) { c.Display.Priority = []string{"place:"} }, "place:"},
-		{func(c *config.Config) { c.Keys.Jump = config.Jumps{{Chord: "g w", Target: "Work"}} }, "Work"},
+		{func(c *config.Settings) { c.Bridge.Display.Priority = []string{"room:Standup"} }, "room:Standup"},
+		{func(c *config.Settings) { c.Bridge.Display.Rail.Order = []string{mx + "!abc:example.org"} }, mx + "!abc:example.org"},
+		{func(c *config.Settings) { c.Bridge.Display.Rail.Hidden = []string{"dm"} }, "dm"},
+		{func(c *config.Settings) { c.Device.Display.FilingSpaces = []string{"tag:Pinned"} }, "tag:Pinned"},
+		{func(c *config.Settings) { c.Device.Display.ReadRules = []config.ReadRule{{Match: "room:Standup"}} }, "room:Standup"},
+		{func(c *config.Settings) { c.Bridge.Display.Priority = []string{"place:"} }, "place:"},
+		{func(c *config.Settings) { c.Device.Keys.Jump = config.Jumps{{Chord: "g w", Target: "Work"}} }, "Work"},
 	} {
-		cfg := valid()
+		cfg := config.Settings{Bridge: valid()}
 		c.set(&cfg)
-		if err := setup.Validate(cfg); err == nil || !strings.Contains(err.Error(), `"`+c.entry+`"`) {
+		if err := validate(cfg); err == nil || !strings.Contains(err.Error(), `"`+c.entry+`"`) {
 			t.Errorf("%q: Validate = %v, want it refused", c.entry, err)
 		}
 	}

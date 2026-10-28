@@ -8,14 +8,16 @@ properties make it quiet, and any tag can have filters moving rooms into it.
 ## The Spam tag
 
 ```toml
-[[tag]]
+[[tag]]                                         # config.toml
 name            = "Spam"
 counts_unread   = false                         # out of the unread totals
 notifies        = false                         # nothing in it notifies
 exclusive       = ["tags", "spaces", "origin"]  # out of every other tag and space
 hide_when_empty = true
+```
 
-[[keys.tag]]
+```toml
+[[keys.tag]]       # device.toml
 chord = "!"        # the mail clients' "report spam" key
 tag   = "Spam"
 ```

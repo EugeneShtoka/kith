@@ -219,9 +219,10 @@ func (o markedOracle) shown(c markedCase) []domain.EventID {
 func markedModel(t *testing.T, c markedCase) Model {
 	t.Helper()
 	cfg := config.Config{Tags: c.tags}
-	cfg.Keys.Tag = c.keys
 	cfg.Display.Identities = c.identities
-	m := sized(t, taggedModel(t, cfg))
+	dev := config.Device{Keys: config.DefaultKeys()}
+	dev.Keys.Tag = c.keys
+	m := sized(t, withRooms(t, configured(cfg).WithDevice("", dev)))
 	m.selves = []string{markedMe}
 	m.dir = directoryState{dir: domain.NewDirectory(c.names, c.links), rev: 1}
 	next, _ := m.selectRoom(m.rooms.all[0])

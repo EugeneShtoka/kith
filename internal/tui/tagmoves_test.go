@@ -202,9 +202,9 @@ func TestTagKeysAreListedAndAMissingTagIsSaid(t *testing.T) {
 	if help := stripStyles(strings.Join(m.tagKeyHelp(12), "\n")); !strings.Contains(help, "!") || !strings.Contains(help, "Spam") {
 		t.Errorf("help = %q, want ! and Spam", help)
 	}
-	cfg := m.conf.base.Clone()
-	cfg.Keys.Tag = config.TagKeys{{Chord: "!", Tag: "Junk"}}
-	m, _ = m.applyConfig(cfg, "")
+	dev := m.conf.device.Clone()
+	dev.Keys.Tag = config.TagKeys{{Chord: "!", Tag: "Junk"}}
+	m, _ = m.applyDevice(dev, "")
 	m = openedFromList(t, m, mx+"!a:x")
 	m.focus, m.compose.insertMode = paneRooms, false
 	m, _ = pressed(t, m, "!")

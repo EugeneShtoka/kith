@@ -251,7 +251,7 @@ func TestGhostStandsDownWhenItCannotApply(t *testing.T) {
 		}},
 		{"the setting is off", func(m Model) Model {
 			off := false
-			m.conf.base.Complete.Ghost = &off
+			m.conf.device.Complete.Ghost = &off
 			return m
 		}},
 	}
@@ -270,7 +270,7 @@ func TestCompletionLookupCarriesItsScope(t *testing.T) {
 	t.Parallel()
 
 	m, b := completing(t, domain.WordCandidate{Word: "coriander", Score: 30})
-	m.conf.base.Complete.Scope = config.CompleteScopeSpace
+	m.conf.device.Complete.Scope = config.CompleteScopeSpace
 	m = typeAndAnswer(t, m, "cori")
 	if len(b.asked) != 1 {
 		t.Fatalf("asked %d times, want one", len(b.asked))

@@ -506,7 +506,7 @@ It doesn't draw anything. It hands the link to the
 attached, it starts one in a terminal, as a new tab if the terminal supports it. It
 prefers wezterm, kitty, konsole or gnome-terminal (which can open tabs), then foot,
 alacritty, ghostty and xterm. To choose one yourself, set `terminal` at the top of
-the config, either to one of those names or to any command that accepts `-e`:
+`device.toml`, either to one of those names or to any command that accepts `-e`:
 
 ```toml
 terminal = "kitty"
@@ -577,6 +577,7 @@ don't reveal who is logged in.
 | What | Path | Notes |
 | --- | --- | --- |
 | Config | `~/.config/kith/config.toml` | Holds no secrets. The first settings-screen save leaves `config.toml.bak` beside it. |
+| Device settings | `~/.config/kith/device.toml` | What only this device reads: look, keys, how it shows a notification. See [configuration.md](configuration.md#the-device-file). |
 | Your commands | `~/.config/kith/commands/` | Default `[commands] dir`. See [commands.md](commands.md). |
 | Message cache | `~/.local/share/kith/cache-<hash>.db` | SQLite. A copy of what the homeserver has, so it is safe to rebuild. See [database.md](database.md). |
 | Crypto store | `~/.local/share/kith/crypto-<hash>-<account>.db`, one per Matrix account (`<account>`: a hash of its Matrix ID) | Olm/Megolm keys and the sync position. **Not** a cache: don't delete it. |

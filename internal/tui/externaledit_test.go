@@ -15,7 +15,7 @@ func TestExternalEditWritesTheCurrentDraft(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
 	m.openRoom = mx + "!a:x"
 	m = m.store(fieldComposer, newEditor("half a sentence"))
-	m.conf.base.Composer = config.Composer{Editor: "true"}
+	m.conf.device.Composer = config.Composer{Editor: "true"}
 
 	_, cmd := m.openExternalEditor()
 	if cmd == nil {

@@ -118,8 +118,7 @@ func TestAProfilesArchiveIsRefusedWhatItCannotMean(t *testing.T) {
 		refusal string // "" when accepted
 	}{
 		"no archive tag": {func(c *config.Config) { c.Tags = c.Tags[:1] }, `profile "phone": archive`},
-		"a missing tag": {func(c *config.Config) { c.Profiles[1].Archive.Rooms = []string{"tag:Nope"} },
-			`profile "phone": archive.rooms`},
+		"a missing tag":  {func(c *config.Config) { c.Profiles[1].Archive.Rooms = []string{"tag:Nope"} }, ""}, // empty: no room
 		// phone excludes tag:Archived, so its own archive must not read a room's state.
 		"a state word": {func(c *config.Config) { c.Profiles[1].Archive.Rooms = []string{"unread"} },
 			`profile "phone": exclude: "tag:Archived"`},

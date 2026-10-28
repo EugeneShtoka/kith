@@ -159,11 +159,11 @@ func TestDecliningALanguageIsRemembered(t *testing.T) {
 	mdl, _ = m.acceptDictionaryOffer([]string{"en_US", "he_IL"})
 	next := mdl
 
-	if !next.conf.base.Spell.SpellDeclined("ru_RU") {
+	if !next.conf.device.Spell.SpellDeclined("ru_RU") {
 		t.Error("ru_RU was unticked and accepted, and was not recorded as declined")
 	}
 	for _, taken := range []string{"en_US", "he_IL"} {
-		if next.conf.base.Spell.SpellDeclined(taken) {
+		if next.conf.device.Spell.SpellDeclined(taken) {
 			t.Errorf("%s was ticked and should not be declined", taken)
 		}
 	}
@@ -174,7 +174,7 @@ func TestADeclinedLanguageIsNotOfferedAgain(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m.conf.base.Spell.Declined = []string{"ru_RU"}
+	m.conf.device.Spell.Declined = []string{"ru_RU"}
 
 	mdl, _ := m.handleDictionaryOffer(suggest(candidates()...))
 	next := mdl
@@ -195,7 +195,7 @@ func TestAllDeclinedRaisesNothing(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m.conf.base.Spell.Declined = []string{"en_US", "he_IL", "ru_RU"}
+	m.conf.device.Spell.Declined = []string{"en_US", "he_IL", "ru_RU"}
 
 	mdl, _ := m.handleDictionaryOffer(suggest(candidates()...))
 	next := mdl
@@ -275,10 +275,10 @@ func TestDecliningCountsIsRememberedSeparately(t *testing.T) {
 
 	next, _ := m.acceptFrequencyOffer([]string{"he_IL"})
 	m = next
-	if !m.conf.base.Spell.FrequenciesDeclinedFor("en_US") {
+	if !m.conf.device.Spell.FrequenciesDeclinedFor("en_US") {
 		t.Error("the unticked language was not recorded as declined")
 	}
-	if m.conf.base.Spell.SpellDeclined("en_US") {
+	if m.conf.device.Spell.SpellDeclined("en_US") {
 		t.Error("declining the counts also declined the dictionary; they are separate answers")
 	}
 

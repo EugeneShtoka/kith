@@ -11,7 +11,7 @@ import (
 
 func TestEveryBindingHasARow(t *testing.T) {
 	t.Parallel()
-	m, _ := opened(t, config.Notifications{Enabled: true})
+	m, _ := opened(t, config.Notifications{})
 	for _, table := range config.KeyTables() {
 		if _, ok := findSetting(keyTableKey(table.Name)); !ok {
 			t.Errorf("key table %q has no row in Keys", table.Name)
@@ -33,7 +33,7 @@ func TestEveryBindingHasARow(t *testing.T) {
 // empty restores the default; "-" binds nothing.
 func TestABindingIsChangedFromSettings(t *testing.T) {
 	t.Parallel()
-	m, path := opened(t, config.Notifications{Enabled: true})
+	m, path := opened(t, config.Notifications{})
 	m = m.settingsIn(keyTableKey("timeline"), keysPrefix+"timeline.reply")
 	set := func(m Model, keys string) Model {
 		m = m.settingsIn(keyTableKey("timeline"), keysPrefix+"timeline.reply")
@@ -44,16 +44,12 @@ func TestABindingIsChangedFromSettings(t *testing.T) {
 	if act := m.keys.lookup("R", scopeTimeline); act != actReply {
 		t.Errorf("R in the timeline = %v, want reply at once", act)
 	}
-	reloaded, err := config.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, _ := reloaded.Keys.Binding("timeline.reply"); got != "R" {
+	if got, _ := savedDevice(t, path).Keys.Binding("timeline.reply"); got != "R" {
 		t.Errorf("saved reply = %q", got)
 	}
 
 	m = set(m, "e") // react's key
-	if got, _ := m.conf.base.Keys.Binding("timeline.reply"); got != "R" {
+	if got, _ := m.conf.device.Keys.Binding("timeline.reply"); got != "R" {
 		t.Errorf("a clashing key was written: reply = %q", got)
 	}
 	if !strings.Contains(m.status(), "timeline.reply") {
@@ -61,7 +57,7 @@ func TestABindingIsChangedFromSettings(t *testing.T) {
 	}
 
 	m = set(m, "")
-	if got, _ := m.conf.base.Keys.Binding("timeline.reply"); got != "r" {
+	if got, _ := m.conf.device.Keys.Binding("timeline.reply"); got != "r" {
 		t.Errorf("empty left reply = %q, want its default r", got)
 	}
 	m = set(m, "-")
@@ -77,10 +73,10 @@ func TestABindingIsChangedFromSettings(t *testing.T) {
 // Keys, then to the groups.
 func TestJumpShortcutsAndKeysNavigation(t *testing.T) {
 	t.Parallel()
-	m, _ := opened(t, config.Notifications{Enabled: true})
-	cfg := m.conf.base.Clone()
-	cfg.Keys.Jump = config.Jumps{{Chord: "g w", Target: "space:Work"}}
-	m, _ = m.applyConfig(cfg, "")
+	m, _ := opened(t, config.Notifications{})
+	dev := m.conf.device.Clone()
+	dev.Keys.Jump = config.Jumps{{Chord: "g w", Target: "space:Work"}}
+	m, _ = m.applyDevice(dev, "")
 	m = m.settingsIn("keys", "")
 	if got := rowFor(t, m, "Jump shortcuts").detail; got != "1" {
 		t.Errorf("jump shortcuts read %q, want 1", got)
@@ -88,8 +84,8 @@ func TestJumpShortcutsAndKeysNavigation(t *testing.T) {
 	m = pickLabel(t, m, "Jump shortcuts")
 	m = pickLabel(t, m, "g w")
 	m = pickLabel(t, m, "Remove this one")
-	if len(m.conf.base.Keys.Jump) != 0 {
-		t.Errorf("jumps = %+v after removing", m.conf.base.Keys.Jump)
+	if len(m.conf.device.Keys.Jump) != 0 {
+		t.Errorf("jumps = %+v after removing", m.conf.device.Keys.Jump)
 	}
 
 	m = m.settingsIn(keyTableKey("timeline"), "")

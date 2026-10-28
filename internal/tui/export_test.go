@@ -48,7 +48,7 @@ func TestExportWritesTheRoomToAFile(t *testing.T) {
 	}
 	all[4].ThreadRoot = mx + "$four"
 	b := cachedRoomBackend{all: all, newest: 2, around: &around}
-	m := New(context.Background(), b, config.Display{})
+	m := New(context.Background(), b, config.Display{}, config.DeviceDisplay{})
 	m.conf.base.Storage.ExportDir = dir
 	m = withRooms(t, m)
 	room, _ := m.roomByID(mx + "!a:x")
@@ -101,7 +101,7 @@ func TestExportGoesWhereItIsSent(t *testing.T) {
 	home := t.TempDir()
 	around := 0
 	all := []domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@maya:x", SenderName: "Maya", Body: "hello", Timestamp: at(60)}}
-	m := New(context.Background(), cachedRoomBackend{all: all, newest: 1, around: &around}, config.Display{})
+	m := New(context.Background(), cachedRoomBackend{all: all, newest: 1, around: &around}, config.Display{}, config.DeviceDisplay{})
 	m.conf.base.Storage.ExportDir = filepath.Join(home, "default")
 	m = withRooms(t, m)
 	room, _ := m.roomByID(mx + "!a:x")

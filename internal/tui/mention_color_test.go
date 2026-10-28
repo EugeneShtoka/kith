@@ -22,10 +22,9 @@ const (
 func colorRoom(t *testing.T, msg domain.Message) Model {
 	t.Helper()
 	disp := config.Display{
-		ColorMessages: true,
-		Identities:    []config.Identity{{Alias: "Me", Color: "#8ff586", IDs: []string{colorMe}}},
+		Identities: []config.Identity{{Alias: "Me", Color: "#8ff586", IDs: []string{colorMe}}},
 	}
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp, config.DeviceDisplay{ColorMessages: true})))
 	return loadPage(t, m, []domain.Message{
 		{ID: mx + "$0", RoomID: mx + "!a:x", Sender: colorBob, Body: "hello", Timestamp: at(1)},
 		msg,

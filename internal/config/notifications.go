@@ -2,20 +2,24 @@ package config
 
 import "time"
 
-// Notifications is [notifications]: sinks, templates, rate limits and rules (see
-// docs/notifications.md).
+// Notifications is [notifications] in the bridge's config: what notifies, its sound,
+// rate limits and rules (see docs/notifications.md).
 type Notifications struct {
+	Sound      string `toml:"sound"`        // a file; empty silent
+	MaxPerRoom int    `toml:"max_per_room"` // per RateWindow; 0 no limit
+	RateWindow string `toml:"rate_window"`  // a duration
+	Rules      []Rule `toml:"rule"`
+}
+
+// DeviceNotifications is [notifications] in device.toml: how this device shows one.
+type DeviceNotifications struct {
 	Enabled      bool   `toml:"enabled"`
 	Desktop      bool   `toml:"desktop"` // freedesktop D-Bus popup
 	Command      string `toml:"command"`
 	Title        string `toml:"title"` // template; empty DefaultTitleTemplate, "-" none
 	Body         string `toml:"body"`  // template; empty DefaultBodyTemplate, "-" none
-	Sound        string `toml:"sound"` // a file; empty silent
 	SoundCommand string `toml:"sound_command"`
-	Timeout      *int   `toml:"timeout"`      // seconds; nil default, -1 until dismissed
-	MaxPerRoom   int    `toml:"max_per_room"` // per RateWindow; 0 no limit
-	RateWindow   string `toml:"rate_window"`  // a duration
-	Rules        []Rule `toml:"rule"`
+	Timeout      *int   `toml:"timeout"` // seconds; nil default, -1 until dismissed
 }
 
 // Rule is one [[notifications.rule]]: part of the policy for one place or person.
@@ -34,7 +38,7 @@ type Rule struct {
 const DefaultTimeoutSeconds = 15
 
 // PopupTimeout is how long a popup stays up; negative means until dismissed (config -1).
-func (n Notifications) PopupTimeout() time.Duration {
+func (n DeviceNotifications) PopupTimeout() time.Duration {
 	seconds := DefaultTimeoutSeconds
 	if n.Timeout != nil {
 		seconds = *n.Timeout
@@ -52,10 +56,10 @@ const (
 )
 
 // TitleTemplate is the effective summary template, defaulting to DefaultTitleTemplate.
-func (n Notifications) TitleTemplate() string { return template(n.Title, DefaultTitleTemplate) }
+func (n DeviceNotifications) TitleTemplate() string { return template(n.Title, DefaultTitleTemplate) }
 
 // BodyTemplate is the effective body template, defaulting to DefaultBodyTemplate.
-func (n Notifications) BodyTemplate() string { return template(n.Body, DefaultBodyTemplate) }
+func (n DeviceNotifications) BodyTemplate() string { return template(n.Body, DefaultBodyTemplate) }
 
 // template resolves a configured template: unset is fallback, "-" is empty.
 func template(configured, fallback string) string {

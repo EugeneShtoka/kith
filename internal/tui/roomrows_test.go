@@ -14,9 +14,9 @@ import (
 var mark = config.Threads{}.RowMark()
 
 // withThreadRows opens a room list where Alpha has two unread threads.
-func withThreadRows(t *testing.T, display config.Display) Model {
+func withThreadRows(t *testing.T, display config.DeviceDisplay) Model {
 	t.Helper()
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, display)))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{}, display)))
 	return update(t, m, unreadUpdateMsg{u: domain.Unread{
 		RoomID: mx + "!a:x", Counted: true, Messages: 3,
 		Threads: []domain.ThreadUnread{
@@ -30,7 +30,7 @@ func withThreadRows(t *testing.T, display config.Display) Model {
 func TestUnreadThreadsAreListedUnderTheirRoom(t *testing.T) {
 	t.Parallel()
 
-	m := withThreadRows(t, config.Display{})
+	m := withThreadRows(t, config.DeviceDisplay{})
 	m.focus = paneRooms
 	frame := stripStyles(m.View().Content)
 	for _, want := range []string{"Alpha", mark + " ship the release", mark + " Q3 planning", "●2", "●1"} {
@@ -44,7 +44,7 @@ func TestUnreadThreadsAreListedUnderTheirRoom(t *testing.T) {
 func TestTheThreadCapSaysWhatItLeftOut(t *testing.T) {
 	t.Parallel()
 
-	m := withThreadRows(t, config.Display{Threads: config.Threads{MaxInRoomList: 1}})
+	m := withThreadRows(t, config.DeviceDisplay{Threads: config.Threads{MaxInRoomList: 1}})
 	m.focus = paneRooms
 	frame := stripStyles(m.View().Content)
 	if !strings.Contains(frame, mark+" ship the release") {
@@ -61,7 +61,7 @@ func TestTheThreadCapSaysWhatItLeftOut(t *testing.T) {
 func TestThreadsCanBeKeptOutOfTheRoomList(t *testing.T) {
 	t.Parallel()
 
-	m := withThreadRows(t, config.Display{Threads: config.Threads{InRoomList: "never"}})
+	m := withThreadRows(t, config.DeviceDisplay{Threads: config.Threads{InRoomList: "never"}})
 	m.focus = paneRooms
 	if frame := stripStyles(m.View().Content); strings.Contains(frame, mark) {
 		t.Errorf("threads are listed under never:\n%s", frame)
@@ -72,7 +72,7 @@ func TestThreadsCanBeKeptOutOfTheRoomList(t *testing.T) {
 func TestTheCursorWalksRoomsAndThreadsAsOneList(t *testing.T) {
 	t.Parallel()
 
-	m := withThreadRows(t, config.Display{Threads: config.Threads{MaxInRoomList: 1}})
+	m := withThreadRows(t, config.DeviceDisplay{Threads: config.Threads{MaxInRoomList: 1}})
 	m.focus = paneRooms
 	m, _ = m.selectRoom(m.filteredRooms()[0])
 	if got := m.roomCursor(); got != 0 {

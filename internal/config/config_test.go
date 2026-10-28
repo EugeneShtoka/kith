@@ -16,7 +16,6 @@ func TestLoad(t *testing.T) {
 	cfg, err := loadText(t, `allow_token_file = true
 
 [display]
-max_name_length = 12
 room_name_rules = false
 
 [[display.space_rule]]
@@ -33,14 +32,13 @@ order  = ["dms", "home"]
 hidden = ["Work"]
 
 [notifications]
-enabled = true
-title = "{protocol} · {sender}"
+max_per_room = 3
 `)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	d := cfg.Display
-	if cfg.Matrix.Accounts[0].Homeserver != "https://x" || !cfg.AllowTokenFile || d.MaxNameLength != 12 || d.ApplyRoomNameRules() {
+	if cfg.Matrix.Accounts[0].Homeserver != "https://x" || !cfg.AllowTokenFile || d.ApplyRoomNameRules() {
 		t.Errorf("top level / display = %+v", cfg)
 	}
 	if len(d.SpaceRules) != 1 || d.SpaceRules[0].Space != "Friends" || !d.SpaceRules[0].FirstNameOnly {
@@ -52,7 +50,7 @@ title = "{protocol} · {sender}"
 	if len(d.Rail.Order) != 2 || d.Rail.Order[0] != "dms" || len(d.Rail.Hidden) != 1 {
 		t.Errorf("Rail = %+v", d.Rail)
 	}
-	if !cfg.Notifications.Enabled || cfg.Notifications.TitleTemplate() != "{protocol} · {sender}" {
+	if cfg.Notifications.MaxPerRoom != 3 {
 		t.Errorf("Notifications = %+v", cfg.Notifications)
 	}
 }
@@ -111,12 +109,12 @@ func TestNotificationTemplates(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		n           Notifications
+		n           DeviceNotifications
 		title, body string
 	}{
-		{Notifications{}, DefaultTitleTemplate, DefaultBodyTemplate},
-		{Notifications{Title: "[{protocol}] {sender}", Body: "{time} {body}"}, "[{protocol}] {sender}", "{time} {body}"},
-		{Notifications{Title: "-", Body: "-"}, "", ""}, // "-" is an explicit empty
+		{DeviceNotifications{}, DefaultTitleTemplate, DefaultBodyTemplate},
+		{DeviceNotifications{Title: "[{protocol}] {sender}", Body: "{time} {body}"}, "[{protocol}] {sender}", "{time} {body}"},
+		{DeviceNotifications{Title: "-", Body: "-"}, "", ""}, // "-" is an explicit empty
 	} {
 		if got := tc.n.TitleTemplate(); got != tc.title {
 			t.Errorf("TitleTemplate(%q) = %q, want %q", tc.n.Title, got, tc.title)
@@ -143,7 +141,7 @@ func TestSecondsSignConvention(t *testing.T) {
 		{seconds(0), 0, 0},
 		{seconds(30), 30 * time.Second, 30 * time.Second},
 	} {
-		if got := (Notifications{Timeout: tc.set}).PopupTimeout(); got != tc.popup {
+		if got := (DeviceNotifications{Timeout: tc.set}).PopupTimeout(); got != tc.popup {
 			t.Errorf("PopupTimeout(%v) = %v, want %v", tc.set, got, tc.popup)
 		}
 		if got := (Audio{CloseAfter: tc.set}).CloseDelay(); got != tc.closeAfter {
@@ -168,7 +166,7 @@ func TestModelIdleZeroMeansNever(t *testing.T) {
 func TestCommandBlocks(t *testing.T) {
 	t.Parallel()
 
-	var cfg Config
+	var cfg Device
 	if _, err := toml.Decode(`
 [[command]]
 name   = "save"

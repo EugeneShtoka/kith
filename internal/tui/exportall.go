@@ -60,7 +60,7 @@ func ExportAll(ctx context.Context, backend api.Backend, cfg config.Config, span
 // exporting is a model with cfg's display (your names, your clock) and what naming
 // reads loaded.
 func exporting(ctx context.Context, backend api.Backend, cfg config.Config) (Model, error) {
-	m := New(ctx, backend, cfg.Display)
+	m := New(ctx, backend, cfg.Display, config.DeviceDisplay{}) // an export reads no device setting
 	rooms, err := backend.Rooms(ctx)
 	if err != nil {
 		return Model{}, fmt.Errorf("list the rooms: %w", err)

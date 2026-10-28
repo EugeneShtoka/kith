@@ -35,8 +35,8 @@ func TestRecordTablesAreListedAndDocumented(t *testing.T) {
 // changes never reach the original.
 func TestRecordsAreEditedFieldByField(t *testing.T) {
 	t.Parallel()
-	var base Config
-	base.Display.ReadRules = []ReadRule{{Match: "Work"}}
+	var base Settings
+	base.Device.Display.ReadRules = []ReadRule{{Match: "Work"}}
 	cfg := base // a plain copy: the slice is shared
 	i, err := cfg.AddRecord("display.read_rule")
 	if err != nil || i != 1 {
@@ -53,8 +53,8 @@ func TestRecordsAreEditedFieldByField(t *testing.T) {
 	if err := cfg.SetRecordValue("display.read_rule", 0, "match", "Home"); err != nil {
 		t.Fatal(err)
 	}
-	if base.Display.ReadRules[0].Match != "Work" || len(base.Display.ReadRules) != 1 {
-		t.Errorf("the original changed under its copy: %+v", base.Display.ReadRules)
+	if base.Device.Display.ReadRules[0].Match != "Work" || len(base.Device.Display.ReadRules) != 1 {
+		t.Errorf("the original changed under its copy: %+v", base.Device.Display.ReadRules)
 	}
 	if err := cfg.SetRecordValue("display.read_rule", i, "delay", ""); err != nil {
 		t.Fatal(err)
@@ -76,11 +76,11 @@ func TestRecordsAreEditedFieldByField(t *testing.T) {
 	if err := cfg.RemoveRecord("display.read_rule", 0); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Records("display.read_rule") != 1 || cfg.Display.ReadRules[0].Match != "Friends" {
-		t.Errorf("after removing the first: %+v", cfg.Display.ReadRules)
+	if cfg.Records("display.read_rule") != 1 || cfg.Device.Display.ReadRules[0].Match != "Friends" {
+		t.Errorf("after removing the first: %+v", cfg.Device.Display.ReadRules)
 	}
-	if err := cfg.RemoveRecord("display.read_rule", 0); err != nil || cfg.Display.ReadRules != nil {
-		t.Errorf("removing the last left %v (%v), want the table unset", cfg.Display.ReadRules, err)
+	if err := cfg.RemoveRecord("display.read_rule", 0); err != nil || cfg.Device.Display.ReadRules != nil {
+		t.Errorf("removing the last left %v (%v), want the table unset", cfg.Device.Display.ReadRules, err)
 	}
 	for _, own := range []string{"tag", "notifications.rule"} {
 		if _, err := cfg.AddRecord(own); err == nil {

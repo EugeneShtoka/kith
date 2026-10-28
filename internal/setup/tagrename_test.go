@@ -5,7 +5,6 @@ import (
 	"math/rand/v2"
 	"reflect"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -41,7 +40,6 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 		cfg.Display.Rail.Order = []string{positive(), "place:T0", "-"}
 		cfg.Display.Rail.Hidden = []string{"tag:t0", decoy()}
 		cfg.Display.SpaceRules = []config.SpaceRule{{Space: positive(), FirstNameOnly: true}}
-		cfg.Display.Emoji.Extra = map[string]string{"tag:T0": "x"} // a key, not a value
 
 		out := RenameTag(cfg, "t0", "Family")
 		before, _, errBefore := Tags(cfg)
@@ -77,7 +75,7 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 			}
 		}
 		if out.Tags[0].Rule[1] != "room:tag:T0" || out.Notifications.Rules[1].Match != "space:T0" ||
-			out.Display.Priority[1] != "space:T0" || out.Display.Rail.Order[1] != "place:T0" || out.Display.Emoji.Extra["tag:T0"] != "x" {
+			out.Display.Priority[1] != "space:T0" || out.Display.Rail.Order[1] != "place:T0" {
 			t.Fatalf("seed %d: a decoy changed: %+v", seed, out)
 		}
 		if out.Display.Rail.Hidden[0] != "tag:Family" {
@@ -92,8 +90,8 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 	}
 }
 
-// Deleting drops the tag from rail lists and priority; rules naming it are left and
-// then reported.
+// Deleting drops the tag from rail lists and priority; a rule naming it alone is left,
+// matching no room, and named as a warning.
 func TestDeletingATag(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Tags: []config.Tag{{Name: "Old"}, {Name: "Keep"}},
@@ -113,10 +111,12 @@ func TestDeletingATag(t *testing.T) {
 		t.Errorf("valid config refused: %v", err)
 	}
 	cfg.Notifications.Rules = []config.Rule{{Match: "tag:Old"}}
-	if err := Validate(DeleteTag(cfg, "Old")); err == nil {
-		t.Error("a rule naming the deleted tag was accepted")
-	} else if !strings.Contains(strings.ToLower(err.Error()), "tag:old") {
-		t.Errorf("error %v does not say what names it", err)
+	out = DeleteTag(cfg, "Old")
+	if err := Validate(out); err != nil {
+		t.Errorf("a rule naming the deleted tag was refused: %v", err)
+	}
+	if got := DanglingTags(config.Settings{Bridge: out}); !slices.Equal(got, []string{"notifications.rule[0].match: tag:Old names no [[tag]]"}) {
+		t.Errorf("DanglingTags = %q, want the rule named", got)
 	}
 }
 

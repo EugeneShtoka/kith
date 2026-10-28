@@ -1,27 +1,30 @@
 package config
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
 )
 
-// Every key the printed default configuration sets is one the loader reads.
+// Every key the printed default configuration and device file set is one the loader
+// reads.
 func TestEveryDefaultKeyIsDecoded(t *testing.T) {
 	t.Parallel()
 
-	var cfg Config
-	meta, err := toml.Decode(defaultConfigTOML, &cfg)
-	if err != nil {
-		t.Fatalf("decode default.toml: %v", err)
-	}
-	var unread []string
-	for _, key := range meta.Undecoded() {
-		unread = append(unread, key.String())
-	}
-	if len(unread) > 0 {
-		t.Errorf("default.toml sets keys the loader never reads — a table header is "+
-			"missing or misplaced:\n  %s", strings.Join(unread, "\n  "))
+	for _, f := range settingsFiles {
+		meta, err := toml.Decode(f.annotated, reflect.New(f.typ).Interface())
+		if err != nil {
+			t.Fatalf("decode the annotated %s: %v", f.name, err)
+		}
+		var unread []string
+		for _, key := range meta.Undecoded() {
+			unread = append(unread, key.String())
+		}
+		if len(unread) > 0 {
+			t.Errorf("the annotated %s sets keys the loader never reads — a table header is "+
+				"missing or misplaced:\n  %s", f.name, strings.Join(unread, "\n  "))
+		}
 	}
 }

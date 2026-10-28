@@ -203,8 +203,8 @@ func TestClipboardFallbackSink(t *testing.T) {
 func TestClipboardConfigReachesTheModel(t *testing.T) {
 	t.Parallel()
 
-	cfg := config.Config{Clipboard: config.Clipboard{OpenCommand: "my-browser", Command: "wl-copy"}}
-	m := yanking(t, msgWith(mx+"$1", "text")).WithConfigFile("/tmp/x.toml", asStarted(cfg)).keptIn()
+	dev := config.Device{Keys: config.DefaultKeys(), Clipboard: config.DeviceClipboard{OpenCommand: "my-browser", Command: "wl-copy"}}
+	m := yanking(t, msgWith(mx+"$1", "text")).WithDevice("", dev)
 	if m.prefs.external.open != "my-browser" || m.prefs.external.clipboard != "wl-copy" {
 		t.Errorf("external.open = %q, external.clipboard = %q", m.prefs.external.open, m.prefs.external.clipboard)
 	}

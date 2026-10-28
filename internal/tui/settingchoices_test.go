@@ -9,10 +9,9 @@ import (
 func TestEverySettingChoiceIsAcceptedByTheApp(t *testing.T) {
 	t.Parallel()
 
-	base := func() config.Config {
+	base := func() config.Settings {
 		cfg := config.Config{Profiles: starter(t).Profiles, Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://example.org", User: "@me:example.org"}}}}
-		cfg.Keys.FillDefaults()
-		return cfg
+		return config.Settings{Bridge: cfg, Device: config.Device{Keys: config.DefaultKeys()}}
 	}
 
 	checked := 0

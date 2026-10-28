@@ -116,17 +116,24 @@ The script also inherits kith's own environment.
 
 ### Configuration
 
+Where the scripts live is the bridge's, in `config.toml`; how long one may run is this
+device's, in `device.toml`:
+
 ```toml
 [commands]
-dir     = ""     # empty: the commands folder beside config.toml
-timeout = 15     # seconds before a command is killed and reported
+dir = ""         # config.toml; empty: the commands folder beside config.toml
+```
+
+```toml
+[commands]
+timeout = 15     # device.toml; seconds before a command is killed and reported
 ```
 
 **Proposing the text is the default** because a script that misfires should cost you a keystroke, not a message in a room full of people. For scripts whose output you would never edit, such as "start a call and post the link", set `output = "send"` in the command's block (below). The policy lives in the config rather than in the scripts so a script copied from somewhere else cannot grant itself permission to post.
 
 ### A command's settings: `[[command]]`
 
-A block per command lets it receive **what you are looking at**, choose where its output goes, bind it to a key, and say where it applies:
+A block per command, in `device.toml`, lets it receive **what you are looking at**, choose where its output goes, bind it to a key, and say where it applies:
 
 ```toml
 [[command]]
@@ -161,7 +168,7 @@ Bulk context goes on stdin and never on the command line, because a process's co
 
 **`keys`** runs the command without typing its name. It is written like any other binding, and it works everywhere except while you are typing. A script run from a key gets an empty argument. A key sequence that a built-in already uses is refused. To free one, unbind the built-in first with `"-"`. Two scripts cannot share a key. `?` lists your script bindings together with what each is given.
 
-**`in`** limits the command to some places, in the place vocabulary every other list uses (`protocol:`, `space:`, `tag:`, `place:`, `room:`, `dm`, `group`; see [Configuration](configuration.md)). Empty, the default, is everywhere. Outside its places the command is left out of the `/` list, its key does nothing, and typing it is refused with a status line naming its places. It is not sent as text the way an unknown `/word` is, because `/zoom` posted into a room full of people is the misfire `in` is there to stop. `?` shows where each keyed command applies.
+**`in`** limits the command to some places, in the place vocabulary every other list uses (`protocol:`, `space:`, `tag:`, `place:`, `room:`, `dm`, `group`; see [Configuration](configuration.md)). Empty, the default, is everywhere. Outside its places the command is left out of the `/` list, its key does nothing, and typing it is refused with a status line naming its places. It is not sent as text the way an unknown `/word` is, because `/zoom` posted into a room full of people is the misfire `in` is there to stop. `?` shows where each keyed command applies. Deleting a tag takes it out of `in`, and deletes a command whose `in` named only that tag.
 
 ```toml
 [[command]]

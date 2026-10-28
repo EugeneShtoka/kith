@@ -508,25 +508,33 @@ Two consequences, both deliberate:
 
 ## Config layer (`internal/config`)
 
-XDG-compliant TOML: the account, display preferences, the colour palette,
-notification rules, keybindings (comma-separated, with chord sequences), scripts,
-and the optional assistant features. `internal/setup` turns it into running
-structures, and a spelling it does not recognize **stops startup** rather than
-falling back. In a client whose failure mode is silence, a quietly ignored setting
-looks exactly like a working one. The user-facing reference is
-[docs/configuration.md](docs/configuration.md); `kith --print-config` prints the
-annotated default file.
+XDG-compliant TOML in two files, each key in the file of whoever reads it. The
+bridge's `config.toml` (`config.Config`) is what kithd reads: the accounts, tags,
+notification rules, profiles, the assistant's policy. A device's `device.toml`
+(`config.Device`) is what only a client reads: the colour palette, keybindings
+(comma-separated, with chord sequences), the scripts' bindings, how a notification is
+shown; a table split between them keeps its name in both. kithd's types have no
+device field, so kithd reading one does not compile, and kithd never opens
+`device.toml`. `config.SplitDevice` moves the device keys out of an older
+`config.toml` once, run by kithd and every client before loading. `internal/setup`
+turns the files into running structures (`Validate` for the bridge's,
+`ValidateDevice` for a device's), and a spelling it does not recognize **stops
+startup** rather than falling back. In a client whose failure mode is silence, a
+quietly ignored setting looks exactly like a working one. The user-facing reference is
+[docs/configuration.md](docs/configuration.md); `kith --print-config` and
+`kith --print-device-config` print the annotated default files.
 
 - **Theme.** `[display.theme]` picks one of four palettes (`cobalt2`, `gruvbox`,
   `nord`, and `terminal`, which uses the ANSI colours so the client wears the
   terminal's own scheme) and overrides any of nine roles. Nine colours with nine
   jobs is the whole model; there is no per-widget styling.
-- **Written back, not just read.** In-app settings edits go through one writer that
-  writes only what differs from the defaults, so the user's values survive and the
-  surrounding comments do not; the first rewrite leaves a `.bak` of the hand-written
-  file. The daemon
-  re-reads the file on `ReloadConfig`, and a file that will not parse is reported
-  back rather than half-applied.
+- **Written back, not just read.** In-app settings edits go through one writer per
+  file that writes only what differs from the defaults, so the user's values survive
+  and the surrounding comments do not; the first rewrite leaves a `.bak` of the
+  hand-written file. The daemon writes `config.toml` and re-reads it on `ReloadConfig`,
+  and a file that will not parse is reported back rather than half-applied. A client
+  writes `device.toml` itself (`config.UpdateDevice`): only the settings it changed,
+  onto the file as it is now, under a lock, so another window's change is kept.
 
 > **Secrets vs. preferences.** The config file holds **no secrets**: only the
 > homeserver URL, user ID and preferences, so it is safe to share. The **password**

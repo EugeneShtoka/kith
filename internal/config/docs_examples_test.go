@@ -1,16 +1,18 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
 )
 
-// Every ```toml example in docs/ decodes with no unknown or duplicate keys, since
-// readers paste them into their config.
+// Every ```toml example in docs/ decodes with no unknown or duplicate keys in one of
+// the two files, config.toml or device.toml, since readers paste them into it.
 func TestTheDocsTOMLExamplesDecode(t *testing.T) {
 	t.Parallel()
 	files, err := filepath.Glob(filepath.Join("..", "..", "docs", "*.md"))
@@ -25,14 +27,18 @@ func TestTheDocsTOMLExamplesDecode(t *testing.T) {
 		}
 		for i, block := range tomlBlocks(string(raw)) {
 			checked++
-			var cfg Config
-			meta, err := toml.Decode(block, &cfg)
-			if err != nil {
-				t.Errorf("%s, toml block %d does not decode: %v\n%s", filepath.Base(file), i+1, err, block)
-				continue
+			var problems []string
+			for _, f := range settingsFiles {
+				meta, err := toml.Decode(block, reflect.New(f.typ).Interface())
+				switch {
+				case err != nil:
+					problems = append(problems, fmt.Sprintf("as %s it does not decode: %v", f.name, err))
+				case len(meta.Undecoded()) > 0:
+					problems = append(problems, fmt.Sprintf("as %s it has keys nothing reads: %v", f.name, meta.Undecoded()))
+				}
 			}
-			if undecoded := meta.Undecoded(); len(undecoded) > 0 {
-				t.Errorf("%s, toml block %d has keys nothing reads: %v\n%s", filepath.Base(file), i+1, undecoded, block)
+			if len(problems) == len(settingsFiles) {
+				t.Errorf("%s, toml block %d fits neither file: %s\n%s", filepath.Base(file), i+1, strings.Join(problems, "; "), block)
 			}
 		}
 	}

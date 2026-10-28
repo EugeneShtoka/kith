@@ -17,7 +17,7 @@ func naming(t *testing.T, reply string) (Model, *modelBackend) {
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
 	m.conf.base.Assist.Endpoint = "https://example.invalid/v1/chat/completions"
-	m.conf.base.Assist.NameThreads = true
+	m.conf.device.Assist.NameThreads = true
 	return m, b
 }
 
@@ -68,7 +68,7 @@ func TestTheThreadNamerAsksNothingUnlessItShould(t *testing.T) {
 		name string
 		with func(Model) Model
 	}{
-		{"off by default", func(m Model) Model { m.conf.base.Assist.NameThreads = false; return m }},
+		{"off by default", func(m Model) Model { m.conf.device.Assist.NameThreads = false; return m }},
 		{"no endpoint", func(m Model) Model { m.conf.base.Assist.Endpoint = ""; return m }},
 		{"already named by hand", func(m Model) Model {
 			m.prefs.threadAliases = map[domain.EventID]string{mx + "$root": "What I called it"}
@@ -79,7 +79,7 @@ func TestTheThreadNamerAsksNothingUnlessItShould(t *testing.T) {
 			return m
 		}},
 		{"too few replies to be about anything yet", func(m Model) Model {
-			m.conf.base.Assist.NameThreadsAfter = 5
+			m.conf.device.Assist.NameThreadsAfter = 5
 			return m
 		}},
 	} {
@@ -134,9 +134,9 @@ func TestThreadsAreNamedWhenTheTimelineLands(t *testing.T) {
 	next, _ := m.selectRoom(m.filteredRooms()[0])
 	m = next
 	m.conf.base.Assist.Endpoint = "https://example.invalid/v1/chat/completions"
-	m.conf.base.Assist.NameThreads = true
+	m.conf.device.Assist.NameThreads = true
 	// The room list's thread rows stay off (the default).
-	if m.prefs.display.Threads.Mode() == config.ThreadsAll {
+	if m.prefs.device.Threads.Mode() == config.ThreadsAll {
 		t.Fatal("the room list is showing all threads; the test is not about the thing it says")
 	}
 

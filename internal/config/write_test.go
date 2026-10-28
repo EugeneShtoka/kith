@@ -27,9 +27,21 @@ func saved(t *testing.T, cfg Config) (string, string) {
 
 // minimal is a config with only the required fields set.
 func minimal() Config {
-	cfg := Config{Matrix: Matrix{Accounts: []MatrixAccount{{Name: "me", Homeserver: "https://example.org", User: "@me:example.org"}}}}
-	cfg.Keys.FillDefaults()
-	return cfg
+	return Config{Matrix: Matrix{Accounts: []MatrixAccount{{Name: "me", Homeserver: "https://example.org", User: "@me:example.org"}}}}
+}
+
+// savedDevice writes dev and returns the file's text.
+func savedDevice(t *testing.T, dev Device) (string, string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), DeviceFile)
+	if err := saveDevice(path, dev); err != nil {
+		t.Fatalf("saveDevice: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	return string(body), path
 }
 
 // The baseline is what a missing key produces, not the shipped default.toml.
@@ -37,18 +49,18 @@ func TestSaveBaselineIsTheAbsentKeyNotTheShippedDefault(t *testing.T) {
 	t.Parallel()
 
 	cfg := minimal()
-	cfg.Display.MaxNameLength = 15 // the value default.toml also happens to show
+	cfg.Spell.RareRatio = 100 // the value default.toml also happens to show
 	body, path := saved(t, cfg)
 
-	if !strings.Contains(body, "max_name_length = 15") {
+	if !strings.Contains(body, "rare_ratio = 100") {
 		t.Errorf("a value that matches the shipped default must still be written:\n%s", body)
 	}
 	reloaded, err := Load(path)
 	if err != nil {
 		t.Fatalf("reload: %v", err)
 	}
-	if reloaded.Display.MaxNameLength != 15 {
-		t.Errorf("reloaded max_name_length = %d, want 15", reloaded.Display.MaxNameLength)
+	if reloaded.Spell.RareRatio != 100 {
+		t.Errorf("reloaded rare_ratio = %d, want 100", reloaded.Spell.RareRatio)
 	}
 }
 
@@ -74,9 +86,9 @@ func TestSaveOmitsDefaults(t *testing.T) {
 func TestSaveWritesOnlyChangedBindings(t *testing.T) {
 	t.Parallel()
 
-	cfg := minimal()
+	cfg := deviceBaseline()
 	cfg.Keys.Bindings["timeline.react"] = "R"
-	body, path := saved(t, cfg)
+	body, path := savedDevice(t, cfg)
 
 	if !strings.Contains(body, `react = "R"`) {
 		t.Errorf("the changed binding should be written:\n%s", body)
@@ -84,7 +96,7 @@ func TestSaveWritesOnlyChangedBindings(t *testing.T) {
 	if strings.Contains(body, `insert = "i"`) {
 		t.Errorf("unchanged bindings should not be:\n%s", body)
 	}
-	reloaded, err := Load(path)
+	reloaded, err := LoadDevice(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,21 +142,20 @@ func TestSaveRoundTripsEveryShape(t *testing.T) {
 	yes, no := true, false
 	cfg := minimal()
 	cfg.AllowTokenFile = true                                                                             // bool
-	cfg.Display.MaxNameLength = 20                                                                        // int
-	cfg.Display.ColorMessages = true                                                                      // bool in a table
-	cfg.Display.OpenInInsert = &no                                                                        // *bool, set false
+	cfg.Notifications.MaxPerRoom = 20                                                                     // int
+	cfg.Display.Deleted.KeepDeleted = true                                                                // bool in a table
+	cfg.Spell.Enabled = &no                                                                               // *bool, set false
 	cfg.Display.RoomNameRules = &yes                                                                      // *bool, set true
 	cfg.Display.Rail.Order = []string{"tag:Unread", "-"}                                                  // []string in a table
 	cfg.Display.Rail.Hidden = []string{"tag:All"}                                                         //
 	cfg.Display.Names = []DisplayName{{Target: NameTargetSpace + "Work", Name: "Job"}}                    // one list
 	cfg.Display.Media.Mode = "inline"                                                                     // string in a nested table
 	cfg.Display.Media.MaxHeight = 12                                                                      //
-	cfg.Display.Reactions.Static = []string{"👍", "🎉"}                                                     // non-ASCII array
+	cfg.Display.Tracked.Words = []string{"👍", "🎉"}                                                        // non-ASCII array
 	cfg.Display.Names = append(cfg.Display.Names, DisplayName{Target: mx + "!a:x", Name: `He said "hi"`}) // escaping
 	cfg.Display.SpaceRules = []SpaceRule{{Space: "Work", FirstNameOnly: true}}
-	cfg.Notifications.Enabled = true
 	cfg.Notifications.Rules = []Rule{{Match: "Work", Show: "all", When: "22:00-08:00"}}
-	cfg.Notifications.Command = `notify-send "$KITH_TITLE"`
+	cfg.Notifications.Sound = `/sounds/"ding".oga`
 
 	body, path := saved(t, cfg)
 	reloaded, err := Load(path)
@@ -210,7 +221,7 @@ func TestSaveBacksUpOnce(t *testing.T) {
 	}
 
 	// A second save must not replace it.
-	cfg.Display.ColorMessages = true
+	cfg.AllowTokenFile = true
 	if err := Save(path, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -254,9 +265,9 @@ func TestSavePermissions(t *testing.T) {
 func TestSaveEmptiedList(t *testing.T) {
 	t.Parallel()
 
-	cfg := minimal()
+	cfg := deviceBaseline()
 	cfg.Display.Reactions.Static = []string{}
-	body, _ := saved(t, cfg)
+	body, _ := savedDevice(t, cfg)
 	// Nothing to write: an empty list matches the baseline's empty list.
 	if strings.Contains(body, "static") {
 		t.Errorf("an empty list equal to the baseline should be omitted:\n%s", body)
@@ -264,11 +275,11 @@ func TestSaveEmptiedList(t *testing.T) {
 
 	// But a list emptied from a non-default one is a real change.
 	cfg.Keys.Bindings["nav.up"] = "" // unbound, which differs from the filled default
-	body2, path := saved(t, cfg)
+	body2, path := savedDevice(t, cfg)
 	if !strings.Contains(body2, `up = ""`) {
 		t.Errorf("an unbound key differs from its default and must be written:\n%s", body2)
 	}
-	reloaded, err := Load(path)
+	reloaded, err := LoadDevice(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,9 +325,10 @@ func TestEveryScalarKindInConfigHasALiteral(t *testing.T) {
 		}
 	}
 	walk(reflect.TypeFor[Config](), "")
+	walk(reflect.TypeFor[Device](), "")
 
 	if len(found) == 0 {
-		t.Fatal("walked Config and found no scalar fields at all; the walk is broken")
+		t.Fatal("walked Config and Device and found no scalar fields at all; the walk is broken")
 	}
 	for kind, at := range found {
 		if _, ok := scalarLiteral(reflect.New(reflectTypeOfKind(kind)).Elem()); !ok {
@@ -394,9 +406,8 @@ func TestALongArrayIsWrittenOnePerLine(t *testing.T) {
 	t.Parallel()
 
 	cfg := Config{Matrix: Matrix{Accounts: []MatrixAccount{{Name: "me", Homeserver: "https://example.org", User: "@me:example.org"}}}}
-	cfg.Keys.FillDefaults()
 	short := cfg
-	short.Complete.Sources = []string{"history", "frequency"}
+	short.Spell.Dictionaries = []string{"en_US", "he_IL"}
 	long := cfg
 	for i := range 30 {
 		long.Display.Priority = append(long.Display.Priority,
@@ -425,7 +436,7 @@ func TestALongArrayIsWrittenOnePerLine(t *testing.T) {
 			t.Fatalf("%s: the written config does not load: %v", name, err)
 		}
 		if len(round.Display.Priority) != len(tc.cfg.Display.Priority) ||
-			len(round.Complete.Sources) != len(tc.cfg.Complete.Sources) {
+			len(round.Spell.Dictionaries) != len(tc.cfg.Spell.Dictionaries) {
 			t.Errorf("%s: round trip lost entries", name)
 		}
 	}

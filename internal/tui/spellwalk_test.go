@@ -323,7 +323,7 @@ func TestAWordWithNoSuggestionsSaysThereAreNone(t *testing.T) {
 func sendReady(t *testing.T, b *spellBackend, draft string, marks ...domain.Misspelling) Model {
 	t.Helper()
 	m := spellComposing(t, b)
-	m.conf.base.Spell.CheckBeforeSend = true
+	m.conf.device.Spell.CheckBeforeSend = true
 	m = typeInto(t, m, draft)
 	m.spell.shown = marks
 	// applied == gen: nothing is outstanding, so the gate reads what it holds rather than asking.
@@ -454,7 +454,7 @@ func TestSendingBeforeTheCheckHasRunAsksForOne(t *testing.T) {
 	draft := "I " + typoReceive + " mail"
 	b := &spellBackend{found: []domain.Misspelling{wrong(draft, typoReceive, "receive")}}
 	m := spellComposing(t, b)
-	m.conf.base.Spell.CheckBeforeSend = true
+	m.conf.device.Spell.CheckBeforeSend = true
 	m = typeInto(t, m, draft)
 	// No answer has landed: applied is behind gen.
 
@@ -615,8 +615,8 @@ func TestRareBeforeSendDecidesWhetherAHintGatesTheSend(t *testing.T) {
 	for _, gates := range []bool{false, true} {
 		b := &spellBackend{found: []domain.Misspelling{rareHint(draft, "send", "sent")}}
 		m := spellComposing(t, b)
-		m.conf.base.Spell.CheckBeforeSend = true
-		m.conf.base.Spell.RareBeforeSend = gates
+		m.conf.device.Spell.CheckBeforeSend = true
+		m.conf.device.Spell.RareBeforeSend = gates
 		m = typeInto(t, m, draft)
 
 		msg, ok := m.checkBeforeSendCmd(m.spell.gen, draft)().(spellBeforeSendMsg)

@@ -121,7 +121,7 @@ func TestTypingSettingsAreTwoSwitches(t *testing.T) {
 	t.Parallel()
 
 	off := false
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{Typing: &off})))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{}, config.DeviceDisplay{Typing: &off})))
 	m.openRoom = mx + "!a:x"
 	m = update(t, m, activityMsg{a: domain.Activity{RoomID: mx + "!a:x", Typing: []string{"matrix:@alice:x"}}})
 	if got := m.typingNote(); got != "" {
@@ -129,7 +129,7 @@ func TestTypingSettingsAreTwoSwitches(t *testing.T) {
 	}
 
 	tp := &typer{}
-	quiet := sized(t, withRooms(t, starterNew(tp, config.Display{SendTyping: &off})))
+	quiet := sized(t, withRooms(t, starterNew(tp, config.Display{}, config.DeviceDisplay{SendTyping: &off})))
 	next, _ := quiet.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	quiet = next
 	quiet.focus = paneTimeline

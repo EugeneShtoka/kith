@@ -57,7 +57,7 @@ func TestRescanPreviewsThenMovesTheTickedRooms(t *testing.T) {
 		}
 	}
 	b := &rescanBackend{found: []domain.MoveCandidate{candidate(mx+"!a:x", "go vote"), candidate(mx+"!b:x", "vote today")}}
-	m := New(context.Background(), b, config.Display{}).WithConfigFile("", asStarted(config.Config{}))
+	m := New(context.Background(), b, config.Display{}, config.DeviceDisplay{}).WithConfigFile("", asStarted(config.Config{}))
 
 	m, cmd := m.runCommandLine(":rescan 30d")
 	if cmd == nil {
@@ -134,7 +134,7 @@ func TestRescanListsPeopleBesideRooms(t *testing.T) {
 			Sample:  domain.Message{RoomID: mx + "!b:x", Body: "free bitcoin"},
 		}},
 	}
-	m := New(context.Background(), b, config.Display{}).WithConfigFile("", asStarted(config.Config{}))
+	m := New(context.Background(), b, config.Display{}, config.DeviceDisplay{}).WithConfigFile("", asStarted(config.Config{}))
 	m, cmd := m.runCommandLine(":rescan")
 	m = update(t, m, cmd())
 	if got := m.picker.checkedValues(); m.picker.kind != pickerRescan || len(got) != 2 || !strings.Contains(m.picker.spec.title, "1 move and 1 mark") {

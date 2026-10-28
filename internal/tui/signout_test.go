@@ -43,7 +43,7 @@ func TestSigningAnAccountOutFromTheRail(t *testing.T) {
 	for i := range 100 {
 		fail := r.IntN(5) == 0
 		var signedOut []string
-		m := update(t, New(context.Background(), signOuter{signedOut: &signedOut, fail: fail}, config.Display{}),
+		m := update(t, New(context.Background(), signOuter{signedOut: &signedOut, fail: fail}, config.Display{}, config.DeviceDisplay{}),
 			roomsMsg{rooms: []domain.Room{{ID: "telegram:1/7", Name: "Dana", IsDirect: true}, {ID: "telegram:1/8", Name: "Eli", IsDirect: true}}})
 		m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{account}}))
 		m.focus = paneRail

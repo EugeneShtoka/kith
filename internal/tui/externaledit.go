@@ -34,7 +34,7 @@ type draftFileMsg struct {
 // runs on it when that lands (handleDraftFile).
 func (m Model) openExternalEditor() (Model, tea.Cmd) {
 	draft := m.editorFor(fieldComposer).text
-	suffix := m.conf.base.Composer.FileSuffixOrDefault()
+	suffix := m.conf.device.Composer.FileSuffixOrDefault()
 	return m, func() tea.Msg { return writeDraftFile(draft, suffix) }
 }
 
@@ -62,7 +62,7 @@ func (m Model) handleDraftFile(msg draftFileMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.sayErr("could not open an editor", msg.err), nil
 	}
-	argv := m.conf.base.Composer.EditorCommand()
+	argv := m.conf.device.Composer.EditorCommand()
 	// #nosec G204 -- argv comes from this user's own config or their $EDITOR, and is
 	// passed as separate arguments with no shell, so the path is the only input.
 	cmd := exec.CommandContext(m.ctx, argv[0], append(argv[1:], msg.path)...)

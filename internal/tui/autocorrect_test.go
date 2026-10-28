@@ -111,7 +111,7 @@ func TestFinishingAWordCorrectsIt(t *testing.T) {
 
 	b := &spellBackend{}
 	m := spellComposing(t, b)
-	m.conf.base.Spell.Autocorrect = config.AutocorrectMisspellings
+	m.conf.device.Spell.Autocorrect = config.AutocorrectMisspellings
 	m = typeInto(t, m, "I "+typoThe)
 
 	// The space arms the check, which gets the whole draft with the word's end marked.
@@ -146,7 +146,7 @@ func TestAnAutocorrectIsItsOwnUndoStep(t *testing.T) {
 
 	b := &spellBackend{}
 	m := spellComposing(t, b)
-	m.conf.base.Spell.Autocorrect = config.AutocorrectMisspellings
+	m.conf.device.Spell.Autocorrect = config.AutocorrectMisspellings
 	m = typeInto(t, m, "I "+typoThe+" ")
 	typed := m.compose.input
 
@@ -197,7 +197,7 @@ func TestAPasteIsNotAWordBoundary(t *testing.T) {
 
 	b := &spellBackend{}
 	m := spellComposing(t, b)
-	m.conf.base.Spell.Autocorrect = config.AutocorrectMisspellings
+	m.conf.device.Spell.Autocorrect = config.AutocorrectMisspellings
 	m = m.store(fieldComposer, m.editorFor(fieldComposer).insert("I "+typoThe+" mail "))
 
 	next, _ := m.composerTyped("I " + typoThe + " mail ")
@@ -212,7 +212,7 @@ func TestTypingInsideAWordCorrectsNothing(t *testing.T) {
 
 	b := &spellBackend{}
 	m := spellComposing(t, b)
-	m.conf.base.Spell.Autocorrect = config.AutocorrectMisspellings
+	m.conf.device.Spell.Autocorrect = config.AutocorrectMisspellings
 
 	for _, typed := range []string{"a", "'", "-", "4"} {
 		next, _ := m.composerTyped(typed)
@@ -228,7 +228,7 @@ func TestAWordChangedWhileTheAnswerWasInFlightIsLeftAlone(t *testing.T) {
 
 	b := &spellBackend{}
 	m := spellComposing(t, b)
-	m.conf.base.Spell.Autocorrect = config.AutocorrectMisspellings
+	m.conf.device.Spell.Autocorrect = config.AutocorrectMisspellings
 	asked := "I " + typoThe + " "
 	m = typeInto(t, m, "I there ") // what the draft says now
 
@@ -299,7 +299,7 @@ func TestRareWordsAreOnlyCorrectedWhenTheCorpusIsCertain(t *testing.T) {
 			t.Parallel()
 
 			m := Model{}
-			m.conf.base.Spell.Autocorrect = c.mode
+			m.conf.device.Spell.Autocorrect = c.mode
 			got, sure := m.autocorrection(c.mark)
 			if c.want == "" {
 				if sure {
@@ -319,7 +319,7 @@ func TestRareOnlyDoesNotCorrectMisspellings(t *testing.T) {
 	t.Parallel()
 
 	m := Model{}
-	m.conf.base.Spell.Autocorrect = config.AutocorrectRare
+	m.conf.device.Spell.Autocorrect = config.AutocorrectRare
 	mark := domain.Misspelling{Word: typoReceive, Suggestions: []string{"receive"}}
 	if got, sure := m.autocorrection(mark); sure {
 		t.Errorf("rewrote a misspelling to %q with autocorrect = rare", got)

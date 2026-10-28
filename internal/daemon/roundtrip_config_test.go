@@ -27,9 +27,8 @@ func TestCheckConfigRoundTrip(t *testing.T) {
 	client := serveCheck(t, check)
 
 	var sent config.Config
-	sent.Display.FPS = 30
+	sent.Notifications.MaxPerRoom = 30
 	sent.WhatsApp.Accounts = []config.WhatsAppAccount{{Name: "home", Phone: "+44 7700 900001"}}
-	sent.Keys.FillDefaults()
 	if err := client.CheckConfig(context.Background(), sent); err != nil {
 		t.Fatalf("CheckConfig = %v", err)
 	}

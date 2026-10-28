@@ -162,9 +162,7 @@ func TestWithConfigFileLeavesItsReceiversKeymapAlone(t *testing.T) {
 	t.Parallel()
 	before := starterNew(apitest.Nop{}, config.Display{}).WithKeys(config.DefaultKeys())
 	prefixes, scripts := len(before.keys.prefixes), len(before.keys.scripts)
-	cfg := config.Config{}
-	cfg.UserCommands = []config.Command{{Name: "deploy", Keys: "f9 f10"}}
-	after := before.WithConfigFile("", asStarted(cfg))
+	after := before.WithDevice("", config.Device{Keys: config.DefaultKeys(), UserCommands: []config.Command{{Name: "deploy", Keys: "f9 f10"}}})
 	if len(before.keys.prefixes) != prefixes || len(before.keys.scripts) != scripts {
 		t.Errorf("the receiver's keymap changed: prefixes %d → %d, scripts %d → %d",
 			prefixes, len(before.keys.prefixes), scripts, len(before.keys.scripts))

@@ -29,7 +29,7 @@ You need two things:
    kith --add-model smollm2-360m   # 369 MB, checked against a pinned SHA-256
    ```
 
-That is all the setup there is. Weights land in `~/.local/share/kith/models`, and the daemon finds them the next time you type. The first time completion has nothing to answer with, kith offers to install the model for you. If you untick that offer and accept, it writes `declined = true` and does not ask again.
+That is all the setup there is. Weights land in `~/.local/share/kith/models`, and the daemon finds them the next time you type. The first time completion has nothing to answer with, kith offers to install the model for you. If you untick that offer and accept, it writes `declined = true` under `[complete.model]` in `device.toml` and does not ask again.
 
 ### What it costs
 
@@ -49,6 +49,8 @@ While the local model is active, the composer gutter shows `⌂` and the model's
 
 ### Configuration
 
+The model is the bridge's, in `config.toml`:
+
 ```toml
 [complete.model]
 enabled = true            # on whenever the weights are installed; false keeps them unused
@@ -61,7 +63,6 @@ idle    = "10m"           # stop the server after this long unused; "0s" = never
 startup = "20s"           # how long a spawn may take
 timeout = "1s"            # how long one prediction may take
 options = 4               # how many model words the strip offers, 1–5
-declined = false
 
 # Which conversation to show the model. None of it leaves the machine.
 budget       = 1500       # roughly how many tokens of context
@@ -182,7 +183,7 @@ A [hidden person](filters.md#hiding-a-person) and the direct replies to them are
 
 ### Thread naming
 
-A thread with no name is labelled with a snippet of its first message. With `name_threads` on, the model is asked for a better name once the thread has enough replies:
+A thread with no name is labelled with a snippet of its first message. With `name_threads` on (in `device.toml`), the model is asked for a better name once the thread has enough replies:
 
 ```toml
 [assist]
@@ -190,7 +191,7 @@ name_threads       = false   # off by default: the one task that runs without be
 name_threads_after = 2       # replies a thread needs first
 ```
 
-The name is written to `[[display.name]]` under `thread:<root>`, the same place a name you set yourself with `R` goes. A name you set yourself wins. If you clear a generated name, it can come back on a later run.
+The name is written to `[[display.name]]` in `config.toml` under `thread:<root>`, the same place a name you set yourself with `R` goes. A name you set yourself wins. If you clear a generated name, it can come back on a later run.
 
 ### Rewrite
 

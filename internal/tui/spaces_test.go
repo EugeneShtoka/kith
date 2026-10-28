@@ -218,7 +218,7 @@ func TestFilingSpacesNamesTheList(t *testing.T) {
 	t.Parallel()
 
 	m, _ := filing(t)
-	m.prefs.display.FilingSpaces = []string{"space:Friends", mx + "!w:x"}
+	m.prefs.device.FilingSpaces = []string{"space:Friends", mx + "!w:x"}
 	m, _ = press(t, m, keyText("S"))
 
 	var got []string
@@ -234,7 +234,7 @@ func TestFilingSpacesOverridesTheJudgment(t *testing.T) {
 	t.Parallel()
 
 	m, _ := filing(t)
-	m.prefs.display.FilingSpaces = []string{"space:WhatsApp"}
+	m.prefs.device.FilingSpaces = []string{"space:WhatsApp"}
 	m, _ = press(t, m, keyText("S"))
 	if rows := spaceRows(m.picker.all); len(rows) != 1 || rows[0].value != mx+"!wa:x" {
 		t.Errorf("rows = %+v, want the named bridge space", rows)
@@ -245,14 +245,14 @@ func TestFilingSpacesSkipsWhatItCannotFind(t *testing.T) {
 	t.Parallel()
 
 	m, _ := filing(t)
-	m.prefs.display.FilingSpaces = []string{"space:Gone", "space:Work"}
+	m.prefs.device.FilingSpaces = []string{"space:Gone", "space:Work"}
 	m, _ = press(t, m, keyText("S"))
 	if rows := spaceRows(m.picker.all); len(rows) != 1 || rows[0].value != mx+"!w:x" {
 		t.Errorf("rows = %+v, want just Work", rows)
 	}
 
 	m2, _ := filing(t)
-	m2.prefs.display.FilingSpaces = []string{"space:Gone", "place:Also gone"}
+	m2.prefs.device.FilingSpaces = []string{"space:Gone", "place:Also gone"}
 	m2, _ = press(t, m2, keyText("S"))
 	if m2.picker.active() {
 		t.Error("a list matching nothing should open no picker")
@@ -266,7 +266,7 @@ func TestFilingSpacesLeavesUnlistedSpacesAlone(t *testing.T) {
 	t.Parallel()
 
 	m, f := filing(t)
-	m.prefs.display.FilingSpaces = []string{"space:Friends"} // Alpha is in Work, which is not listed
+	m.prefs.device.FilingSpaces = []string{"space:Friends"} // Alpha is in Work, which is not listed
 	m, _ = press(t, m, keyText("S"))
 	next, cmd := m.acceptPick()
 	mdl := next

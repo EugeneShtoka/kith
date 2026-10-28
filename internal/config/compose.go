@@ -48,27 +48,32 @@ func (c Composer) FileSuffixOrDefault() string {
 	return suffix
 }
 
-// Spell is [spell]: the spellchecker.
+// Spell is [spell] in the bridge's config: the spellchecker and its dictionaries.
 type Spell struct {
-	Enabled             *bool       `toml:"enabled"`
-	Command             string      `toml:"command"`      // empty is hunspell
-	Dictionaries        []string    `toml:"dictionaries"` // empty is every one installed
+	Enabled       *bool    `toml:"enabled"`
+	Command       string   `toml:"command"`      // empty is hunspell
+	Dictionaries  []string `toml:"dictionaries"` // empty is every one installed
+	FlagRareWords bool     `toml:"flag_rare_words"`
+	RareRatio     int      `toml:"rare_ratio"` // 0 is the built-in default
+}
+
+// DeviceSpell is [spell] in device.toml: how this device marks and corrects words, and
+// the downloads it was offered and turned down.
+type DeviceSpell struct {
 	Declined            []string    `toml:"declined"`
 	FrequenciesDeclined []string    `toml:"frequencies_declined"`
 	Underline           string      `toml:"underline"` // SpellUnderlines; empty is "curly"
 	CheckBeforeSend     bool        `toml:"check_before_send"`
-	Autocorrect         Autocorrect `toml:"autocorrect"` // AutocorrectModes; empty is off
-	FlagRareWords       bool        `toml:"flag_rare_words"`
+	Autocorrect         Autocorrect `toml:"autocorrect"`    // AutocorrectModes; empty is off
 	RareUnderline       string      `toml:"rare_underline"` // RareUnderlines
 	RareBeforeSend      bool        `toml:"rare_before_send"`
-	RareRatio           int         `toml:"rare_ratio"` // 0 is the built-in default
 }
 
 // Autocorrect is `[spell] autocorrect`: which classes of word may be rewritten as typed.
 type Autocorrect string
 
 // Corrects reports whether autocorrect may rewrite the given class of word; empty is off.
-func (s Spell) Corrects(mode string) bool {
+func (s DeviceSpell) Corrects(mode string) bool {
 	switch string(s.Autocorrect) {
 	case AutocorrectAll:
 		return mode == AutocorrectMisspellings || mode == AutocorrectRare
@@ -80,12 +85,12 @@ func (s Spell) Corrects(mode string) bool {
 
 // FrequenciesDeclinedFor reports whether a language's word counts were offered and
 // turned down.
-func (s Spell) FrequenciesDeclinedFor(tag string) bool {
+func (s DeviceSpell) FrequenciesDeclinedFor(tag string) bool {
 	return slices.Contains(s.FrequenciesDeclined, tag)
 }
 
 // SpellDeclined reports whether a dictionary was offered and turned down.
-func (s Spell) SpellDeclined(tag string) bool { return slices.Contains(s.Declined, tag) }
+func (s DeviceSpell) SpellDeclined(tag string) bool { return slices.Contains(s.Declined, tag) }
 
 // SpellEnabled reports whether checking is on (unset: true).
 func (s Spell) SpellEnabled() bool { return enabled(s.Enabled) }
@@ -98,14 +103,26 @@ func (s Spell) EngineOrDefault() string {
 	return s.Command
 }
 
-// Complete is [complete]: word completion from what has been said.
+// Complete is [complete] in the bridge's config: the local model that finishes words.
 type Complete struct {
-	Enabled *bool         `toml:"enabled"`
-	Ghost   *bool         `toml:"ghost"`
-	Ratio   int           `toml:"ratio"`   // 0 is DefaultCompleteRatio
-	Scope   string        `toml:"scope"`   // CompleteScopes; empty is "room"
-	Sources []string      `toml:"sources"` // CompleteSources; empty is both
-	Model   CompleteModel `toml:"model"`
+	Model CompleteModel `toml:"model"`
+}
+
+// DeviceComplete is [complete] in device.toml: word completion as this device offers
+// it.
+type DeviceComplete struct {
+	Enabled *bool               `toml:"enabled"`
+	Ghost   *bool               `toml:"ghost"`
+	Ratio   int                 `toml:"ratio"`   // 0 is DefaultCompleteRatio
+	Scope   string              `toml:"scope"`   // CompleteScopes; empty is "room"
+	Sources []string            `toml:"sources"` // CompleteSources; empty is both
+	Model   DeviceCompleteModel `toml:"model"`
+}
+
+// DeviceCompleteModel is [complete.model] in device.toml: whether this device was
+// offered the model and turned it down.
+type DeviceCompleteModel struct {
+	Declined bool `toml:"declined"`
 }
 
 // CompleteModel is [complete.model]: the local language model that finishes words.
@@ -124,7 +141,6 @@ type CompleteModel struct {
 	Recent      int    `toml:"recent"`
 	Gap         string `toml:"gap"` // a duration
 	BeforeReply int    `toml:"before_reply"`
-	Declined    bool   `toml:"declined"`
 }
 
 // ModelEnabled reports whether the completion model may run (unset: true); installing
@@ -174,13 +190,13 @@ const (
 )
 
 // CompleteEnabled reports whether completion is on (unset: true).
-func (c Complete) CompleteEnabled() bool { return enabled(c.Enabled) }
+func (c DeviceComplete) CompleteEnabled() bool { return enabled(c.Enabled) }
 
 // GhostEnabled reports whether the inline suggestion draws (unset: true).
-func (c Complete) GhostEnabled() bool { return enabled(c.Ghost) }
+func (c DeviceComplete) GhostEnabled() bool { return enabled(c.Ghost) }
 
 // RatioOrDefault is the dominance the ghost requires, defaulting to three.
-func (c Complete) RatioOrDefault() int {
+func (c DeviceComplete) RatioOrDefault() int {
 	if c.Ratio <= 0 {
 		return DefaultCompleteRatio
 	}
@@ -189,7 +205,7 @@ func (c Complete) RatioOrDefault() int {
 
 // ScopeOrDefault is the vocabulary scope, default "room": weigh this room's words
 // highest, still counting the whole cache.
-func (c Complete) ScopeOrDefault() string {
+func (c DeviceComplete) ScopeOrDefault() string {
 	if c.Scope == "" {
 		return CompleteScopeRoom
 	}
