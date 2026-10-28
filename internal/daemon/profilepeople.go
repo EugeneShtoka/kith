@@ -124,24 +124,40 @@ func (p *ProfilePeople) watch(ctx context.Context, dir string) {
 
 // watchDown adds to watcher the deepest folder on the way to dir that exists now (dir
 // itself once it does), so the next folder down, or a card, is heard when made; there
-// reports whether dir is watched.
+// reports whether dir is watched. A folder made between looking and watching (`mkdir
+// -p`) is never heard, so it looks again after each watch until nothing new is there.
 func watchDown(watcher *fsnotify.Watcher, dir string) (there bool, err error) {
+	watched := ""
+	for {
+		at, err := deepestOnTheWay(dir)
+		if err != nil {
+			return false, err
+		}
+		if at == watched {
+			return at == dir, nil
+		}
+		if err := watcher.Add(at); err != nil {
+			return false, fmt.Errorf("daemon: watch %s: %w", at, err)
+		}
+		watched = at
+	}
+}
+
+// deepestOnTheWay is the deepest folder on the way to dir that exists now, dir itself
+// once it does.
+func deepestOnTheWay(dir string) (string, error) {
 	at := dir
 	for {
 		info, statErr := os.Stat(at)
 		if statErr == nil && info.IsDir() {
-			break
+			return at, nil
 		}
 		parent := filepath.Dir(at)
 		if parent == at {
-			return false, fmt.Errorf("daemon: no folder on the way to %s: %w", dir, statErr)
+			return "", fmt.Errorf("daemon: no folder on the way to %s: %w", dir, statErr)
 		}
 		at = parent
 	}
-	if err := watcher.Add(at); err != nil {
-		return false, fmt.Errorf("daemon: watch %s: %w", at, err)
-	}
-	return at == dir, nil
 }
 
 // heard takes one event of the folder watch and reports whether the phonebook may have
