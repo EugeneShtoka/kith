@@ -7,6 +7,7 @@ toolchain go1.26.10
 tool (
 	connectrpc.com/connect/cmd/protoc-gen-connect-go
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	github.com/kojah/gohawk
 	golang.org/x/tools/cmd/deadcode
 	golang.org/x/vuln/cmd/govulncheck
 	google.golang.org/protobuf/cmd/protoc-gen-go
@@ -60,6 +61,7 @@ require (
 	github.com/bytemare/voprf v0.0.0-20210221170502-f0af88d24d16 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
+	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-faster/errors v0.8.0 // indirect
 	github.com/go-faster/jx v1.2.0 // indirect
@@ -74,6 +76,7 @@ require (
 	github.com/icholy/digest v1.2.0 // indirect
 	github.com/imroc/req/v3 v3.56.0 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
+	github.com/kojah/gohawk v0.7.1 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v6 v6.3.35304 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
@@ -86,6 +89,7 @@ require (
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.2.0 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	go.mau.fi/zeroconfig v0.2.0 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect

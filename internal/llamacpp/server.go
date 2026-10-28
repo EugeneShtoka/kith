@@ -74,6 +74,7 @@ func start(ctx context.Context, settings Settings) (*server, error) {
 
 	got := <-started
 	if got.err != nil {
+		<-exited // it ends once it has reported
 		if errors.Is(got.err, exec.ErrNotFound) {
 			return nil, fmt.Errorf("%w: %s", ErrNoServer, settings.Command)
 		}
