@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"log/slog"
+	"slices"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -63,6 +64,10 @@ func (m Model) handleRedacted(msg redactedMsg) (Model, tea.Cmd) {
 	}
 	m = m.sayErr("could not delete it", msg.err)
 	if msg.roomID == m.openRoom {
+		// The fold is sticky in a merge, so the row goes and the cache's copy comes back.
+		m = m.setMessages(slices.DeleteFunc(slices.Clone(m.timeline.messages), func(row domain.Message) bool {
+			return row.ID == msg.eventID
+		}))
 		return m, m.cachedTimelineCmd(msg.roomID)
 	}
 	return m, nil

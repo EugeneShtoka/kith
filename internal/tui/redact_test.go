@@ -12,17 +12,23 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// redactBackend records what was asked to be deleted, and can refuse.
+// redactBackend records what was asked to be deleted, and can refuse. Its cache holds
+// cached, which a refused deletion never reached.
 type redactBackend struct {
 	apitest.Nop
-	room domain.RoomID
-	dead domain.EventID
-	err  error
+	room   domain.RoomID
+	dead   domain.EventID
+	err    error
+	cached []domain.Message
 }
 
 func (b *redactBackend) Redact(_ context.Context, room domain.RoomID, event domain.EventID, _ string) error {
 	b.room, b.dead = room, event
 	return b.err
+}
+
+func (b *redactBackend) CachedTimeline(context.Context, domain.RoomID) ([]domain.Message, error) {
+	return b.cached, nil
 }
 
 // deleting opens a room holding one of our messages and one of somebody else's.
@@ -103,14 +109,19 @@ func TestDecliningLeavesTheMessage(t *testing.T) {
 func TestAFailedDeletionRestoresTheRow(t *testing.T) {
 	t.Parallel()
 
-	backend := &redactBackend{err: context.DeadlineExceeded}
+	backend := &redactBackend{err: context.DeadlineExceeded, cached: []domain.Message{
+		{ID: mx + "$mine", RoomID: mx + "!a:x", Sender: "matrix:@me:x", Body: "the wrong room", Timestamp: at(2)},
+	}}
 	m := deleting(t, backend)
 	m, _ = press(t, m, keyText("x"))
 	m, cmd := press(t, m, keyText("y"))
-	m = deliver(t, m, cmd)
+	m = deliverTwice(t, m, cmd)
 
 	if m.status() == "" {
 		t.Errorf("status = %q, want the failure said out loud", m.status())
+	}
+	if idx := indexIn(m.timeline.messages, mx+"$mine"); idx < 0 || m.timeline.messages[idx].Redacted {
+		t.Errorf("the refused deletion left the row folded: %+v", m.timeline.messages)
 	}
 }
 

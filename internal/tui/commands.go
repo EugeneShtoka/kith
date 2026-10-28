@@ -350,15 +350,16 @@ func (m Model) lastMessagesCmd() tea.Cmd {
 
 // redactedMsg reports a deletion attempt; the room lets a failure restore the row.
 type redactedMsg struct {
-	roomID domain.RoomID
-	err    error
+	roomID  domain.RoomID
+	eventID domain.EventID
+	err     error
 }
 
 // redactCmd asks the daemon to delete a message; the change arrives on the stream.
 func (m Model) redactCmd(roomID domain.RoomID, eventID domain.EventID) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
-		return redactedMsg{roomID: roomID, err: backend.Redact(ctx, roomID, eventID, "")}
+		return redactedMsg{roomID: roomID, eventID: eventID, err: backend.Redact(ctx, roomID, eventID, "")}
 	}
 }
 
