@@ -2,8 +2,10 @@ package gmessages
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"runtime/debug"
 	"sync"
@@ -29,6 +31,10 @@ const (
 	retryFirst = 5 * time.Second
 	retryMax   = 5 * time.Minute
 )
+
+// cookieCheck is how often a connection looks for cookies Google changed: libgm takes
+// them from every response without saying so.
+const cookieCheck = time.Minute
 
 // Account details, as the account's status says them.
 const (
@@ -177,6 +183,7 @@ func (a *Adapter) connect(ctx context.Context, c *conn, client *libgm.Client) {
 	}()
 	a.seedRooms(ctx, c)
 	go a.work(ctx, c)
+	go a.watchCookies(ctx, c)
 	wait := retryFirst
 	for ctx.Err() == nil {
 		if client == nil {
@@ -369,6 +376,52 @@ func (a *Adapter) keep(c *conn) {
 	}
 	if err := a.secrets.StoreSecret(sessionRef(c.account.Name), blob); err != nil {
 		a.log.Warn("save the refreshed pairing failed", "account", c.account.Name, "err", err)
+		return
+	}
+	c.saved = blob
+}
+
+// watchCookies saves c's cookies whenever Google has changed them, until c is let go.
+func (a *Adapter) watchCookies(ctx context.Context, c *conn) {
+	tick := time.NewTicker(cookieCheck)
+	defer tick.Stop()
+	for {
+		select {
+		case <-tick.C:
+			a.keepCookies(c)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// keepCookies saves c's live cookies over its last saved session, when they differ,
+// unless a newer pairing has taken the account over. It runs off libgm's goroutines, so
+// it reads only the cookies, under libgm's lock: the token is saved by keep, from the
+// goroutine that changes it.
+func (a *Adapter) keepCookies(c *conn) {
+	a.keeping.Lock()
+	defer a.keeping.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var stored Session
+	if err := json.Unmarshal([]byte(c.saved), &stored); err != nil || stored.Auth == nil || !a.current(c) {
+		return
+	}
+	live := c.session.Auth
+	live.CookiesLock.RLock()
+	cookies := maps.Clone(live.Cookies)
+	live.CookiesLock.RUnlock()
+	if maps.Equal(cookies, stored.Auth.Cookies) {
+		return
+	}
+	stored.Auth.Cookies = cookies
+	blob, err := stored.encode()
+	if err != nil {
+		return
+	}
+	if err := a.secrets.StoreSecret(sessionRef(c.account.Name), blob); err != nil {
+		a.log.Warn("save the changed cookies failed", "account", c.account.Name, "err", err)
 		return
 	}
 	c.saved = blob

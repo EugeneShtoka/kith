@@ -350,11 +350,13 @@ func TestConnectionsFollowPairingsAndConfig(t *testing.T) {
 	}
 }
 
-// writer is one pairing's connection, as the generator drives it.
+// writer is one pairing's connection, as the generator drives it: n counts its token
+// refreshes, cookies the times Google changed its cookies.
 type writer struct {
-	c      *conn
-	signIn int
-	n      int
+	c       *conn
+	signIn  int
+	n       int
+	cookies int
 }
 
 // refresh gives w's pairing a new token, tagged with its pairing, as libgm does.
@@ -363,6 +365,26 @@ func (w *writer) refresh() {
 	w.c.mu.Lock()
 	defer w.c.mu.Unlock()
 	w.c.session.Auth.TachyonAuthToken = []byte(fmt.Sprintf("s%d-%d", w.signIn, w.n))
+}
+
+// rotate has Google change w's cookies, tagged with its pairing, as libgm takes them
+// from a response: under libgm's lock, not the connection's.
+func (w *writer) rotate() {
+	w.cookies++
+	auth := w.c.session.Auth
+	auth.CookiesLock.Lock()
+	defer auth.CookiesLock.Unlock()
+	auth.Cookies = map[string]string{"SAPISID": fmt.Sprintf("s%d-c%d", w.signIn, w.cookies)}
+}
+
+// cookieOf is the SAPISID a stored session holds.
+func cookieOf(t *testing.T, secrets *memSecrets, account string) string {
+	t.Helper()
+	s, ok, err := loadSession(secrets, account)
+	if err != nil || !ok {
+		t.Fatalf("load = %v, %v", ok, err)
+	}
+	return s.Auth.Cookies["SAPISID"]
 }
 
 // pair is a pairing landing as finish does: counted, saved under keeping, adopted.
@@ -382,8 +404,9 @@ func pair(t *testing.T, a *Adapter, secrets *memSecrets) *writer {
 }
 
 // Two writers keep one account's pairing: a new pairing saves its own, and every
-// connection saves its refreshed token. Whatever the interleaving, the stored pairing
-// is always the newest one's, with its latest kept token.
+// connection saves its refreshed token and the cookies Google changed. Whatever the
+// interleaving, the stored pairing is always the newest one's, with its latest kept
+// token and cookies.
 func TestTheStoredPairingIsAlwaysTheNewest(t *testing.T) {
 	t.Parallel()
 
@@ -396,27 +419,41 @@ func TestTheStoredPairingIsAlwaysTheNewest(t *testing.T) {
 		var steps []string
 		for range 12 {
 			w := writers[rng.IntN(len(writers))]
-			switch rng.IntN(3) {
+			switch rng.IntN(5) {
 			case 0:
 				writers = append(writers, pair(t, a, secrets))
 				steps = append(steps, "pair")
 			case 1:
 				w.refresh()
 				steps = append(steps, fmt.Sprintf("refresh s%d", w.signIn))
-			default:
+			case 2:
 				a.keep(w.c)
 				steps = append(steps, fmt.Sprintf("keep s%d", w.signIn))
+			case 3:
+				w.rotate()
+				steps = append(steps, fmt.Sprintf("rotate s%d", w.signIn))
+			default:
+				a.keepCookies(w.c)
+				steps = append(steps, fmt.Sprintf("keepCookies s%d", w.signIn))
 			}
 			newest := writers[len(writers)-1]
 			if got := tokenOf(t, secrets, "phone"); !strings.HasPrefix(got, fmt.Sprintf("s%d-", newest.signIn)) {
 				t.Fatalf("run %d: after %v the stored token is %s, not pairing %d's", run, steps, got, newest.signIn)
 			}
+			if got := cookieOf(t, secrets, "phone"); got != "" && !strings.HasPrefix(got, fmt.Sprintf("s%d-", newest.signIn)) {
+				t.Fatalf("run %d: after %v the stored cookie is %s, not pairing %d's", run, steps, got, newest.signIn)
+			}
 		}
 		newest := writers[len(writers)-1]
 		newest.refresh()
 		a.keep(newest.c)
+		newest.rotate()
+		a.keepCookies(newest.c)
 		if got, want := tokenOf(t, secrets, "phone"), fmt.Sprintf("s%d-%d", newest.signIn, newest.n); got != want {
 			t.Fatalf("run %d: stored %s, want the newest refresh %s", run, got, want)
+		}
+		if got, want := cookieOf(t, secrets, "phone"), fmt.Sprintf("s%d-c%d", newest.signIn, newest.cookies); got != want {
+			t.Fatalf("run %d: stored cookie %s, want the newest %s", run, got, want)
 		}
 	}
 }
@@ -443,6 +480,36 @@ func TestPairingWritersRacing(t *testing.T) {
 	wg.Wait()
 	if got := tokenOf(t, secrets, "phone"); !strings.HasPrefix(got, fmt.Sprintf("s%d-", newest.signIn)) {
 		t.Errorf("the stored token is %s, not pairing %d's", got, newest.signIn)
+	}
+}
+
+// Cookies Google changed are saved while libgm goes on refreshing the token on its own
+// goroutine, without the connection's lock: the cookie save never reads it, and keeps
+// the token keep last saved.
+func TestChangedCookiesSaveBesideARefreshingToken(t *testing.T) {
+	t.Parallel()
+
+	secrets := newSecrets()
+	a := New(nil, secrets, nil, nil)
+	a.UseConfig(context.Background(), withAccounts("phone"))
+	w := pair(t, a, secrets)
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for i := range 200 {
+			w.c.session.Auth.TachyonAuthToken = []byte(fmt.Sprintf("live-%d", i))
+			w.rotate()
+		}
+	})
+	for range 200 {
+		a.keepCookies(w.c)
+	}
+	wg.Wait()
+	a.keepCookies(w.c)
+	if got, want := cookieOf(t, secrets, "phone"), fmt.Sprintf("s%d-c%d", w.signIn, w.cookies); got != want {
+		t.Errorf("stored cookie %s, want the latest %s", got, want)
+	}
+	if got, want := tokenOf(t, secrets, "phone"), fmt.Sprintf("s%d-0", w.signIn); got != want {
+		t.Errorf("stored token %s, want the one keep saved, %s", got, want)
 	}
 }
 
