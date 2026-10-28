@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"runtime/debug"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -415,6 +416,9 @@ func (a *Adapter) keepCookies(c *conn) {
 	if maps.Equal(cookies, stored.Auth.Cookies) {
 		return
 	}
+	// Which cookies Google changes, and when, is what shows why it later refuses them;
+	// their names only, as their values are the account.
+	a.log.Debug("Google changed the cookies", "account", c.account.Name, "names", changedCookies(stored.Auth.Cookies, cookies))
 	stored.Auth.Cookies = cookies
 	blob, err := stored.encode()
 	if err != nil {
@@ -425,6 +429,24 @@ func (a *Adapter) keepCookies(c *conn) {
 		return
 	}
 	c.saved = blob
+}
+
+// changedCookies is the names of the cookies added, changed or dropped from was to now,
+// sorted.
+func changedCookies(was, now map[string]string) []string {
+	var names []string
+	for name, value := range now {
+		if old, ok := was[name]; !ok || old != value {
+			names = append(names, name)
+		}
+	}
+	for name := range was {
+		if _, ok := now[name]; !ok {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // guard runs fn, turning a panic into an error. Google changes Messages for web
