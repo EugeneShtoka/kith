@@ -26,6 +26,7 @@ var testKey = bytes.Repeat([]byte{7}, sealeddb.KeyLen)
 // freeText is every text column of the cache that holds no ID: the migration must
 // leave it alone. With idColumns, jsonColumns and tokenColumns it covers the schema.
 var freeText = map[string][]string{
+	"change_counter":    {"epoch"},
 	"drafts":            {"body", "edit_saved", "author"},
 	"emoji_usage":       {"kind", "emoji"},
 	"ignored_users":     {"account"},
@@ -109,6 +110,10 @@ func TestTheCacheMigrationRewritesEveryIDColumnAndNoText(t *testing.T) {
 				}
 				text = append(text, column{table, name})
 			}
+		}
+		// One row per table, the seeded one (change_counter is made with its own).
+		if _, err := conn.ExecContext(ctx, "DELETE FROM "+table); err != nil {
+			t.Fatalf("empty %s: %v", table, err)
 		}
 		if _, err := conn.ExecContext(ctx, "INSERT INTO "+table+" ("+strings.Join(names, ", ")+") VALUES ("+
 			strings.Join(marks, ", ")+")", values...); err != nil {

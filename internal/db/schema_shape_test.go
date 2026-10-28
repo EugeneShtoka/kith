@@ -50,6 +50,9 @@ func TestACacheOfTheCurrentNumberButAnotherShapeIsRebuilt(t *testing.T) {
 	t.Parallel()
 	preFold := withoutTable(t, baseSchema, "CREATE TABLE message_edit (", ") STRICT, WITHOUT ROWID;")
 	preFold = withoutTable(t, preFold, "CREATE INDEX message_edit_by_revision", ";")
+	for _, change := range []string{"insert", "update", "delete"} {
+		preFold = withoutTable(t, preFold, "CREATE TRIGGER IF NOT EXISTS message_edit_changed_"+change, "END;")
+	}
 	preFold = withoutTable(t, preFold, "CREATE TABLE message_tombstone (", ") STRICT, WITHOUT ROWID;")
 	path := seedCache(t, preFold, schemaVersion+len(migrations))
 	c, err := Open(context.Background(), path, testKey)

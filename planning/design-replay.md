@@ -114,13 +114,15 @@ Each PR lands working.
    creation and on rebuild or clear; a side table `message_changes(room_id, event_id,
    change)` with an index on `change`, written in every transaction that changes what
    the cache returns for a message (upsert, side rows, deletion, revert, expiry, poll),
-   and only when it does; `RedactedAt` kept. A cache call reading the changes after a
-   number, and a signal after each commit that numbered one. Migration, fingerprint
-   row, docs/database.md. **Failure review** (caches a derived result): an edit and a
+   and only when it does: triggers record what a write touched and the transaction
+   numbers it before committing (a numbering trigger tripled a save's cost; recording
+   adds about a third). Migration, fingerprint row, docs/database.md. **Failure review** (caches a derived result): an edit and a
    redaction of an old message, a message written twice in one transaction, a sync
    echo that changes nothing, a side row alone changing (media, mentions, order), a
    trimmed message, two adapters writing at once, a clear and a rebuild.
-2. **feat: the message stream tails the cache.** The request and response fields
+2. **feat: the message stream tails the cache.** A cache call reading the changes after
+   a number, and a signal after each commit that numbered one (here, not in step 1:
+   no exported call exists before its caller). The request and response fields
    above; the stream reads changes in profile from `since` and then on each signal;
    `reset` for an unknown epoch or too far behind. The RPC stream leaves the hub.
    protoconv and its round trip. **Failure review** (concurrent, enforces scope): the
@@ -130,7 +132,8 @@ Each PR lands working.
    person's message, a since from the future, a signal while the reader is mid-batch.
 3. **feat: the client resumes and replaces rows.** `Remote` keeps and sends the
    position and handles `reset`; the TUI replaces rows by ID and stops re-reading the
-   open room after a resume. **Failure review** (concurrent): kithd restarting
+   open room after a resume; `RedactedAt` kept in the cache, the one field the TUI
+   reads that a row lacks (moved from step 1, where nothing read it yet). **Failure review** (concurrent): kithd restarting
    mid-burst, a burst larger than the old queue, a profile switch mid-read, two
    windows on one kithd, a history page into the open room.
 

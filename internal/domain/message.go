@@ -97,6 +97,13 @@ func (m Mention) URI() string {
 // Notifies reports whether this mention belongs in `m.mentions`.
 func (m Mention) Notifies() bool { return m.UserID != "" }
 
+// MessageChange is a message as the cache holds it after its latest change. Number
+// orders changes as the cache wrote them, within the numbering one epoch names.
+type MessageChange struct {
+	Number  int64
+	Message Message
+}
+
 // IsUpdate reports whether this stream item revises a delivered message (edit or
 // redaction).
 func (m Message) IsUpdate() bool { return m.Edited || m.Redacted }

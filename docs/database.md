@@ -111,6 +111,9 @@ holds data but appears in neither list until the next refresh promotes it.
 | `message_tombstone` | a redaction whose message was not cached yet (who, why, when): a copy arriving later, such as an edit, which servers do not redact, is saved as deleted. Spent when applied, and trimmed with the room |
 | `message_revisions` | every version of an edited message, keyed by the event that carried it |
 | `messages_fts` | the FTS5 index over `messages.body` (see [Search](#search-and-word-completion)) |
+| `message_changes` | each message's latest change number: every write that changes what the cache returns for a message (the row or any table above it is read with) numbers it anew, so the message stream can resume from the last number a client holds. A write that changes nothing (a sync echo) is not a change |
+| `change_counter` | one row: the last change number given, and the epoch naming the numbering, made with the cache and anew by `Clear` |
+| `message_touched` | empty between transactions: a trigger on each table above records the messages a write changed, and the transaction numbers them before it commits (`numberTouched`). A trigger that numbered itself would be compiled into every statement that writes a message, tripling a save's cost; recording costs about a third more. So every write that changes what a read returns goes through `inTx` |
 
 ### Per-room state
 
@@ -377,8 +380,12 @@ Since then:
   first message, a row only for one; written by Google Messages when paging back from
   the phone finds nothing older, so its backfill does not ask the phone again for every
   conversation after a restart.
+- v29 (`change_counter`): the epoch naming the numbering of changes, with
+  `message_changes` and `message_touched`: messages numbered as they change, recorded
+  by triggers on `messages` and every side table a message is read with. Messages already cached get a number at their
+  next change; the new epoch tells every client to read again.
 
-so a current cache is at version 28.
+so a current cache is at version 29.
 
 ### Indexes need no migration
 
