@@ -487,3 +487,21 @@ func ProtoToSeatHolder(h *v1.SeatHolder) domain.SeatHolder {
 	}
 	return out
 }
+
+var changes = map[domain.Change]v1.Change{
+	domain.ChangeRooms:    v1.Change_CHANGE_ROOMS,
+	domain.ChangeAccounts: v1.Change_CHANGE_ACCOUNTS,
+}
+
+// ChangeToProto converts what changed in the daemon.
+func ChangeToProto(c domain.Change) v1.Change { return changes[c] }
+
+// ProtoToChange converts what changed back; anything unknown is 0.
+func ProtoToChange(pb v1.Change) domain.Change {
+	for c, wire := range changes {
+		if wire == pb {
+			return c
+		}
+	}
+	return 0
+}

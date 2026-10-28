@@ -103,3 +103,42 @@ func TestAStoppedAccountIsMarkedOnItsRow(t *testing.T) {
 		}
 	}
 }
+
+// An account paired again loses its mark as soon as the daemon says its state changed,
+// not at the next poll.
+func TestAnAccountUpAgainLosesItsMarkOnTheChange(t *testing.T) {
+	t.Parallel()
+	space := domain.Space{ID: "gmessages:g/account", Name: "Google Messages SMS", Bridge: domain.ProtocolGMessages,
+		Original: true, Leaving: domain.LeftBySigningOut}
+	states := []domain.AccountStatus{{Network: domain.ProtocolGMessages, Account: "SMS", Phase: domain.AccountLoggedOut, Detail: "cookies"}}
+	var listed []domain.Account
+	m := New(context.Background(), accountsBackend{states: &states, accounts: &listed}, config.Display{})
+	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{space}}))
+	m = update(t, m, m.loadAccountStatesCmd()())
+	row := func() string {
+		i := indexOfGroup(m.rail.groups, space.Name)
+		if i < 0 {
+			t.Fatalf("no rail row %q", space.Name)
+		}
+		return m.railRow(m.rail.groups[i], false, false, 40)
+	}
+	if !strings.Contains(row(), downMark) {
+		t.Fatalf("the signed-out account's row %q is not marked", row())
+	}
+
+	states[0].Phase, states[0].Detail = domain.AccountOnline, ""
+	listed = []domain.Account{{Network: domain.ProtocolGMessages, On: "gmessages:g/", Name: "SMS"}}
+	if _, cmd := m.Update(changedMsg{change: domain.ChangeRooms}); cmd != nil {
+		if _, isStates := cmd().(accountStatesMsg); isStates {
+			t.Error("a rooms change read the account states")
+		}
+	}
+	next, cmd := m.Update(changedMsg{change: domain.ChangeAccounts})
+	if cmd == nil {
+		t.Fatal("an account change read nothing")
+	}
+	m = update(t, next.(Model), cmd())
+	if strings.Contains(row(), downMark) {
+		t.Errorf("the account up again is still marked: %q", row())
+	}
+}

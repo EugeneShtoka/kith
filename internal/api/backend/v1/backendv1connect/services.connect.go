@@ -293,9 +293,8 @@ const (
 	// BackendServiceFollowStreamProcedure is the fully-qualified name of the BackendService's
 	// FollowStream RPC.
 	BackendServiceFollowStreamProcedure = "/backend.v1.BackendService/FollowStream"
-	// BackendServiceRoomsChangedProcedure is the fully-qualified name of the BackendService's
-	// RoomsChanged RPC.
-	BackendServiceRoomsChangedProcedure = "/backend.v1.BackendService/RoomsChanged"
+	// BackendServiceChangedProcedure is the fully-qualified name of the BackendService's Changed RPC.
+	BackendServiceChangedProcedure = "/backend.v1.BackendService/Changed"
 	// BackendServiceNotificationStreamProcedure is the fully-qualified name of the BackendService's
 	// NotificationStream RPC.
 	BackendServiceNotificationStreamProcedure = "/backend.v1.BackendService/NotificationStream"
@@ -649,9 +648,10 @@ type BackendServiceClient interface {
 	Follow(context.Context, *connect.Request[v1.FollowRequest]) (*connect.Response[v1.FollowResponse], error)
 	// FollowStream is the receiving end, held open by each TUI window.
 	FollowStream(context.Context, *connect.Request[v1.FollowStreamRequest]) (*connect.ServerStreamForClient[v1.FollowStreamResponse], error)
-	// RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
-	// renamed, archived on another device), so the client reads its room list again.
-	RoomsChanged(context.Context, *connect.Request[v1.RoomsChangedRequest]) (*connect.ServerStreamForClient[v1.RoomsChangedResponse], error)
+	// Changed streams a frame each time something a client shows changes in the daemon:
+	// a network rewriting its rooms (a chat begun, renamed, archived on another device),
+	// or an account's state. The frame says which, and the client reads it again.
+	Changed(context.Context, *connect.Request[v1.ChangedRequest]) (*connect.ServerStreamForClient[v1.ChangedResponse], error)
 	// NotificationStream streams the notifications published to the request's profile:
 	// kithd publishes each to every profile holding its room, so a listener on several
 	// profiles gets one on each and shows it once, by its ID.
@@ -1338,10 +1338,10 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("FollowStream")),
 			connect.WithClientOptions(opts...),
 		),
-		roomsChanged: connect.NewClient[v1.RoomsChangedRequest, v1.RoomsChangedResponse](
+		changed: connect.NewClient[v1.ChangedRequest, v1.ChangedResponse](
 			httpClient,
-			baseURL+BackendServiceRoomsChangedProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("RoomsChanged")),
+			baseURL+BackendServiceChangedProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Changed")),
 			connect.WithClientOptions(opts...),
 		),
 		notificationStream: connect.NewClient[v1.NotificationStreamRequest, v1.NotificationStreamResponse](
@@ -1672,7 +1672,7 @@ type backendServiceClient struct {
 	activityStream        *connect.Client[v1.ActivityStreamRequest, v1.ActivityStreamResponse]
 	follow                *connect.Client[v1.FollowRequest, v1.FollowResponse]
 	followStream          *connect.Client[v1.FollowStreamRequest, v1.FollowStreamResponse]
-	roomsChanged          *connect.Client[v1.RoomsChangedRequest, v1.RoomsChangedResponse]
+	changed               *connect.Client[v1.ChangedRequest, v1.ChangedResponse]
 	notificationStream    *connect.Client[v1.NotificationStreamRequest, v1.NotificationStreamResponse]
 	verifications         *connect.Client[v1.VerificationsRequest, v1.VerificationsResponse]
 	startVerification     *connect.Client[v1.StartVerificationRequest, v1.StartVerificationResponse]
@@ -2188,9 +2188,9 @@ func (c *backendServiceClient) FollowStream(ctx context.Context, req *connect.Re
 	return c.followStream.CallServerStream(ctx, req)
 }
 
-// RoomsChanged calls backend.v1.BackendService.RoomsChanged.
-func (c *backendServiceClient) RoomsChanged(ctx context.Context, req *connect.Request[v1.RoomsChangedRequest]) (*connect.ServerStreamForClient[v1.RoomsChangedResponse], error) {
-	return c.roomsChanged.CallServerStream(ctx, req)
+// Changed calls backend.v1.BackendService.Changed.
+func (c *backendServiceClient) Changed(ctx context.Context, req *connect.Request[v1.ChangedRequest]) (*connect.ServerStreamForClient[v1.ChangedResponse], error) {
+	return c.changed.CallServerStream(ctx, req)
 }
 
 // NotificationStream calls backend.v1.BackendService.NotificationStream.
@@ -2626,9 +2626,10 @@ type BackendServiceHandler interface {
 	Follow(context.Context, *connect.Request[v1.FollowRequest]) (*connect.Response[v1.FollowResponse], error)
 	// FollowStream is the receiving end, held open by each TUI window.
 	FollowStream(context.Context, *connect.Request[v1.FollowStreamRequest], *connect.ServerStream[v1.FollowStreamResponse]) error
-	// RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
-	// renamed, archived on another device), so the client reads its room list again.
-	RoomsChanged(context.Context, *connect.Request[v1.RoomsChangedRequest], *connect.ServerStream[v1.RoomsChangedResponse]) error
+	// Changed streams a frame each time something a client shows changes in the daemon:
+	// a network rewriting its rooms (a chat begun, renamed, archived on another device),
+	// or an account's state. The frame says which, and the client reads it again.
+	Changed(context.Context, *connect.Request[v1.ChangedRequest], *connect.ServerStream[v1.ChangedResponse]) error
 	// NotificationStream streams the notifications published to the request's profile:
 	// kithd publishes each to every profile holding its room, so a listener on several
 	// profiles gets one on each and shows it once, by its ID.
@@ -3311,10 +3312,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("FollowStream")),
 		connect.WithHandlerOptions(opts...),
 	)
-	backendServiceRoomsChangedHandler := connect.NewServerStreamHandler(
-		BackendServiceRoomsChangedProcedure,
-		svc.RoomsChanged,
-		connect.WithSchema(backendServiceMethods.ByName("RoomsChanged")),
+	backendServiceChangedHandler := connect.NewServerStreamHandler(
+		BackendServiceChangedProcedure,
+		svc.Changed,
+		connect.WithSchema(backendServiceMethods.ByName("Changed")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceNotificationStreamHandler := connect.NewServerStreamHandler(
@@ -3737,8 +3738,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceFollowHandler.ServeHTTP(w, r)
 		case BackendServiceFollowStreamProcedure:
 			backendServiceFollowStreamHandler.ServeHTTP(w, r)
-		case BackendServiceRoomsChangedProcedure:
-			backendServiceRoomsChangedHandler.ServeHTTP(w, r)
+		case BackendServiceChangedProcedure:
+			backendServiceChangedHandler.ServeHTTP(w, r)
 		case BackendServiceNotificationStreamProcedure:
 			backendServiceNotificationStreamHandler.ServeHTTP(w, r)
 		case BackendServiceVerificationsProcedure:
@@ -4204,8 +4205,8 @@ func (UnimplementedBackendServiceHandler) FollowStream(context.Context, *connect
 	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.FollowStream is not implemented"))
 }
 
-func (UnimplementedBackendServiceHandler) RoomsChanged(context.Context, *connect.Request[v1.RoomsChangedRequest], *connect.ServerStream[v1.RoomsChangedResponse]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RoomsChanged is not implemented"))
+func (UnimplementedBackendServiceHandler) Changed(context.Context, *connect.Request[v1.ChangedRequest], *connect.ServerStream[v1.ChangedResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Changed is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) NotificationStream(context.Context, *connect.Request[v1.NotificationStreamRequest], *connect.ServerStream[v1.NotificationStreamResponse]) error {

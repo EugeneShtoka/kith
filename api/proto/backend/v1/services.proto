@@ -1160,10 +1160,22 @@ message FollowResponse {
   bool delivered = 1;
 }
 
-message RoomsChangedRequest {}
+// Change is what changed in the daemon, for a client to read again.
+enum Change {
+  CHANGE_UNSPECIFIED = 0;
+  // A network rewrote its rooms: read the room list again.
+  CHANGE_ROOMS = 1;
+  // A network account's state changed (paired again, signed out, its session refused):
+  // read the states again (Status).
+  CHANGE_ACCOUNTS = 2;
+}
 
-// RoomsChangedResponse says a network rewrote its rooms; the client reads them again.
-message RoomsChangedResponse {}
+message ChangedRequest {}
+
+// ChangedResponse says one thing changed; the client reads it again.
+message ChangedResponse {
+  Change change = 1;
+}
 
 message FollowStreamRequest {
   // The window listening, as SeatRequest names it.
@@ -1916,9 +1928,10 @@ service BackendService {
   rpc Follow(FollowRequest) returns (FollowResponse);
   // FollowStream is the receiving end, held open by each TUI window.
   rpc FollowStream(FollowStreamRequest) returns (stream FollowStreamResponse);
-  // RoomsChanged streams a frame each time a network rewrites its rooms (a chat begun,
-  // renamed, archived on another device), so the client reads its room list again.
-  rpc RoomsChanged(RoomsChangedRequest) returns (stream RoomsChangedResponse);
+  // Changed streams a frame each time something a client shows changes in the daemon:
+  // a network rewriting its rooms (a chat begun, renamed, archived on another device),
+  // or an account's state. The frame says which, and the client reads it again.
+  rpc Changed(ChangedRequest) returns (stream ChangedResponse);
   // NotificationStream streams the notifications published to the request's profile:
   // kithd publishes each to every profile holding its room, so a listener on several
   // profiles gets one on each and shows it once, by its ID.

@@ -316,24 +316,35 @@ func (m Model) listenFollowCmd() tea.Cmd {
 		func(uri string) tea.Msg { return followMsg{uri: uri} })
 }
 
-// roomsSource is a backend that says when a network rewrote its rooms. Optional, like
-// followSource.
-type roomsSource interface {
-	RoomsChanged() <-chan struct{}
+// changesSource is a backend that says what changed in the daemon (a network's rooms,
+// an account's state). Optional, like followSource.
+type changesSource interface {
+	Changed() <-chan domain.Change
 }
 
-// listenRoomsCmd waits for a network to rewrite its rooms; nil for backends without
-// the stream.
-func (m Model) listenRoomsCmd() tea.Cmd {
-	source, ok := m.backend.(roomsSource)
+// listenChangesCmd waits for something to change in the daemon; nil for backends
+// without the stream.
+func (m Model) listenChangesCmd() tea.Cmd {
+	source, ok := m.backend.(changesSource)
 	if !ok {
 		return nil
 	}
-	return listen(m.ctx, source.RoomsChanged(), func(struct{}) tea.Msg { return roomsChangedMsg{} })
+	return listen(m.ctx, source.Changed(), func(c domain.Change) tea.Msg { return changedMsg{change: c} })
 }
 
-// roomsChangedMsg is a network having rewritten its rooms.
-type roomsChangedMsg struct{}
+// changedMsg is something having changed in the daemon.
+type changedMsg struct{ change domain.Change }
+
+// handleChanged reads again what changed, and listens for the next change.
+func (m Model) handleChanged(msg changedMsg) (Model, tea.Cmd) {
+	switch msg.change {
+	case domain.ChangeRooms:
+		return m, tea.Batch(m.loadRoomsCmd(), m.listenChangesCmd())
+	case domain.ChangeAccounts:
+		return m, tea.Batch(m.loadAccountStatesCmd(), m.listenChangesCmd())
+	}
+	return m, m.listenChangesCmd()
+}
 
 // followMsg is a link the desktop handed to this client.
 type followMsg struct{ uri string }

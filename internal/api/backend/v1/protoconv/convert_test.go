@@ -54,6 +54,29 @@ func TestNilProtoYieldsZeroValue(t *testing.T) {
 
 // Every verification kind has a distinct wire form; unknown is refused rather than
 // defaulting to VerificationRequested.
+// Each change crosses the wire as its own value and comes back; one this side does not
+// know comes back as none.
+func TestChangesSurviveTheRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	seen := map[v1.Change]bool{}
+	for _, c := range []domain.Change{domain.ChangeRooms, domain.ChangeAccounts} {
+		wire := protoconv.ChangeToProto(c)
+		if wire == v1.Change_CHANGE_UNSPECIFIED || seen[wire] {
+			t.Errorf("change %d: wire form %v is unspecified or shared", c, wire)
+		}
+		seen[wire] = true
+		if back := protoconv.ProtoToChange(wire); back != c {
+			t.Errorf("ProtoToChange(%v) = %d, want %d", wire, back, c)
+		}
+	}
+	for _, wire := range []v1.Change{v1.Change_CHANGE_UNSPECIFIED, 99} {
+		if back := protoconv.ProtoToChange(wire); back != 0 {
+			t.Errorf("ProtoToChange(%v) = %d, want none", wire, back)
+		}
+	}
+}
+
 func TestVerificationKinds(t *testing.T) {
 	t.Parallel()
 

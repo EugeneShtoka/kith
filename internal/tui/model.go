@@ -960,7 +960,7 @@ func (m Model) Init() tea.Cmd {
 		m.loadUnreadCmd(), m.loadInvitesCmd(),
 		m.startSyncCmd(), m.listenCmd(), m.listenVerifyCmd(), m.listenUnreadCmd(),
 		m.listenReactionsCmd(), m.listenInvitesCmd(), m.listenActivityCmd(),
-		m.listenFollowCmd(), m.listenSeatCmd(), m.listenRoomsCmd(), m.listenConfigCmd(),
+		m.listenFollowCmd(), m.listenSeatCmd(), m.listenChangesCmd(), m.listenConfigCmd(),
 		m.loadDraftsCmd(),
 		m.loadVerdictsCmd(), m.loadAccountStatesCmd(),
 		m.readDNDCmd(), m.pollTickCmd(), m.refusalsCmd(),
@@ -1396,8 +1396,8 @@ func (m Model) handleContentMsg(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleFetchedEvent(msg)
 	case followMsg, linkResolvedMsg, accountsPickedMsg, accountListMsg:
 		return m.handleLinking(msg)
-	case roomsChangedMsg:
-		return m, tea.Batch(m.loadRoomsCmd(), m.listenRoomsCmd())
+	case changedMsg:
+		return m.handleChanged(msg)
 	case historyMsg:
 		return m.handleHistory(msg)
 	case commandRanMsg:

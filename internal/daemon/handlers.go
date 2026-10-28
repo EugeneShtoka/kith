@@ -727,8 +727,11 @@ func (s *server) Present(_ context.Context, r *req[v1.PresentRequest]) (*resp[v1
 	return connect.NewResponse(&v1.PresentResponse{}), nil
 }
 
-func (s *server) RoomsChanged(ctx context.Context, _ *req[v1.RoomsChangedRequest], st *connect.ServerStream[v1.RoomsChangedResponse]) error {
-	return serveStream(ctx, s.Streams.rooms, st, func(struct{}) *v1.RoomsChangedResponse { return &v1.RoomsChangedResponse{} })
+// Changed streams what changed in the daemon (a network's rooms, an account's state).
+func (s *server) Changed(ctx context.Context, _ *req[v1.ChangedRequest], st *connect.ServerStream[v1.ChangedResponse]) error {
+	return serveStream(ctx, s.Streams.changes, st, func(c domain.Change) *v1.ChangedResponse {
+		return &v1.ChangedResponse{Change: pc.ChangeToProto(c)}
+	})
 }
 
 // FollowStream hands this window the links Follow picks it for.

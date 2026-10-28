@@ -67,7 +67,7 @@ var reaches = map[string]profileReach{
 	"BlockPerson": passes, "UnblockPerson": passes, "BlockedPeople": passes, "SignOut": passes,
 	"ChatOffers": passes, "Accounts": passes, "Seat": passes, "LoginNetworks": passes,
 	"BeginLogin": passes, "AnswerLogin": passes, "CancelLogin": passes, "InsteadLogin": passes, "MessageCounts": passes,
-	"FollowStream": passes, "RoomsChanged": passes, "Verifications": passes, "StartVerification": passes,
+	"FollowStream": passes, "Changed": passes, "Verifications": passes, "StartVerification": passes,
 	"AcceptVerification": passes, "ConfirmSAS": passes, "CancelVerification": passes, "Status": passes,
 	"Selves": passes, "Directory": passes, "ClearCache": passes, "RestoreKeyBackup": passes,
 	"ExportRoomKeys": passes, "ImportRoomKeys": passes, "BootstrapKeyBackup": passes,
