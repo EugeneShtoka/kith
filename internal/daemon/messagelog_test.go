@@ -31,6 +31,8 @@ type numberedCache struct {
 	// whileRead runs once, inside the next read, after it has taken what it returns:
 	// a commit landing while a reader reads.
 	whileRead func()
+	// slowStart is how long saying where the numbering stands takes.
+	slowStart time.Duration
 }
 
 // commit numbers msgs in one commit.
@@ -81,6 +83,7 @@ func (c *numberedCache) held(since int64) map[domain.EventID]domain.Message {
 }
 
 func (c *numberedCache) LastChange(context.Context) (string, int64, error) {
+	time.Sleep(c.slowStart)
 	epoch, last := c.at()
 	return epoch, last, nil
 }
@@ -364,5 +367,18 @@ func TestACommitDuringAReadWakesTheReader(t *testing.T) {
 		if f := nextFrame(t, frames); f.msg == nil || f.msg.Body != want {
 			t.Fatalf("frame %+v, want %s", f, want)
 		}
+	}
+}
+
+// A stream is open once the client has its headers: a message committed the moment
+// after is on it, however long the daemon took to find where to read from.
+func TestAMessageRightAfterTheStreamOpensIsOnIt(t *testing.T) {
+	t.Parallel()
+	h, cache := serveNumbered(t)
+	cache.slowStart = 100 * time.Millisecond
+	frames := openMessages(t, h, "", 0) // returns with the headers
+	cache.commit(message("right after"))
+	if f := nextFrame(t, frames); f.msg == nil || f.msg.Body != "right after" {
+		t.Fatalf("frame %+v, want the message committed right after the stream opened", f)
 	}
 }

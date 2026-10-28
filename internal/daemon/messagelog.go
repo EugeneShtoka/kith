@@ -31,6 +31,12 @@ const (
 // have a room open from outside its profile). A reader that falls behind lags and
 // catches up; nothing is dropped.
 func (s *server) Messages(ctx context.Context, r *req[v1.MessagesRequest], st *connect.ServerStream[v1.MessagesResponse]) error {
+	// Where it reads from is taken before the headers go: they tell the client the
+	// stream is open, and it reads anything older itself.
+	epoch, at, readAgain, err := s.resumeAt(ctx, r.Msg)
+	if err != nil {
+		return err
+	}
 	s.Streams.tail.join()
 	defer s.Streams.tail.leave()
 	// Send headers now: the client bounds its wait for them (answerTimeout), and a stream
@@ -38,9 +44,10 @@ func (s *server) Messages(ctx context.Context, r *req[v1.MessagesRequest], st *c
 	if err := st.Send(nil); err != nil {
 		return rpcErr(fmt.Errorf("open stream: %w", err))
 	}
-	epoch, at, err := s.resumeAt(ctx, r.Msg, st)
-	if err != nil {
-		return err
+	if readAgain {
+		if err := send(st, &v1.MessagesResponse{Epoch: epoch, Change: at, ReadAgain: true}); err != nil {
+			return err
+		}
 	}
 	for {
 		bell, ended := s.Streams.tail.next()
@@ -78,20 +85,20 @@ func (s *server) Messages(ctx context.Context, r *req[v1.MessagesRequest], st *c
 
 // resumeAt is where a stream asking for since reads from: there, or, when the cache
 // cannot resume from it (another epoch, a number it never gave, too far behind), the
-// newest, the client told to read again.
-func (s *server) resumeAt(ctx context.Context, since *v1.MessagesRequest, st *connect.ServerStream[v1.MessagesResponse]) (string, int64, error) {
+// newest, the client to be told to read again.
+func (s *server) resumeAt(ctx context.Context, since *v1.MessagesRequest) (epoch string, at int64, readAgain bool, err error) {
 	epoch, last, err := s.MessageLog.LastChange(ctx)
 	if err != nil {
-		return "", 0, rpcErr(err)
+		return "", 0, false, rpcErr(err)
 	}
 	if since.GetSinceEpoch() == "" {
-		return epoch, last, nil
+		return epoch, last, false, nil
 	}
 	from := since.GetSinceChange()
 	if since.GetSinceEpoch() == epoch && from <= last && last-from <= tailBehind {
-		return epoch, from, nil
+		return epoch, from, false, nil
 	}
-	return epoch, last, send(st, &v1.MessagesResponse{Epoch: epoch, Change: last, ReadAgain: true})
+	return epoch, last, true, nil
 }
 
 func send(st *connect.ServerStream[v1.MessagesResponse], frame *v1.MessagesResponse) error {
