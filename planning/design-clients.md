@@ -250,9 +250,9 @@ surviving device can revoke a lost one (roster-removal propagates). Rejected: a
 local CA with signed device certs, because it makes one device "special" (lose
 the root, can't enroll new devices) with no real gain at a 3–4 device mesh size.
 
-mTLS between all paired entities (device↔bridge, device↔device for mesh).
-bridge↔bridge is **not** paired because there is no bridge-to-bridge
-coordination — each bridge is independent, syncing from the networks on its own.
+mTLS between all paired entities (device↔bridge, device↔device and bridge↔bridge
+for the mesh CRDT). Bridges never exchange messages: each syncs from the networks on
+its own (Decision 12).
 
 ## Discovery, selection, failover
 
@@ -279,14 +279,14 @@ it adds measurement overhead for no real benefit at 2–4 bridges.
 **Failover.**
 1. Current bridge disconnects, times out, or heartbeat goes stale.
 2. Device dials next bridge in priority order.
-3. On connect, device resubscribes with "give me events since X" per room, where
-   X is the **network's own position** for that room (the last event ID the device
-   holds, with its network timestamp), not a bridge's cache sequence. Each bridge
-   numbers rows in its own cache, so a sequence from bridge A means nothing to
-   bridge B.
-4. New bridge replays everything it has after that event; if it does not hold the
-   event (it joined later, or its cache was rebuilt), it replays from the timestamp
-   and the device dedupes the overlap.
+3. On connect, device resubscribes with what it last held. To the same bridge that
+   is the bridge's own change number ([design-replay.md](design-replay.md)). To
+   another bridge a change number means nothing (each numbers its own cache), and a
+   network position misses edits and late messages, whose place in the room is old;
+   the device sends the time it last heard from its bridge, less a grace window.
+   Decided with this phase.
+4. New bridge replays everything it changed after that time, and the device dedupes
+   the overlap.
 5. Device dedupes against recently-seen IDs.
 
 **Dedup.** By network-level stable ID (`event_id` on Matrix, `message_id` on WA,
@@ -451,10 +451,13 @@ As of 2026-10-24, from each product's public site and documentation.
 
 11. **Dedup on failover is by network-level stable ID.** Bounded set per room.
 
-12. **Each bridge is independent — no bridge-to-bridge coordination.** Networks
-    are the source of truth; each bridge sees the same events on its own sync.
-    Mesh CRDT runs between *devices*, not between bridges, and bridges don't
-    participate (their state is derivable from the networks).
+12. **Each bridge is independent — no bridge-to-bridge coordination of messages.**
+    Networks are the source of truth; each bridge sees the same events on its own
+    sync. Amended 2026-10-28: the mesh CRDT's replicas are everything that keeps a
+    store, bridges included (and later the Electron and Android clients); a thin
+    client (the TUI) writes through its bridge. Bridges pair with each other for
+    this soft state only. (Was: devices only, which left drafts, cursors and config
+    edits with no way between bridges while every device was a thin client.)
 
 ## Phasing
 
@@ -467,15 +470,21 @@ topics and `kith-notify` shows the topics it subscribes to. Rooms first, then
 notifications, then people, then archive and rail. Useful at once with one bridge:
 two terminals can already run different profiles.
 
-**Phase 1 — mesh CRDT skeleton and replay.**
-- Mesh CRDT library in `internal/mesh/crdt` (spike: pick library or roll
-  minimal); carries drafts, read cursors and bridge-config edits first.
-- Bridge gains replay by network position (`StreamSince(room, event)`).
+**Phase 1 — replay.** Planned in [design-replay.md](design-replay.md). kithd numbers
+every change to a cached message; the message stream resumes from the last change a
+client holds, and stops dropping values for a slow reader. (Changed 2026-10-28: the
+mesh CRDT moved to Phase 2, where its first second replica appears; replay is by
+kithd's change number, not the network's position, which never resends an edit or a
+late message.)
 
-**Phase 2 — remote bridge transport and pairing.**
+**Phase 2 — remote bridge transport, pairing and the mesh CRDT.**
 - Bridge listens on TCP+TLS alongside unix socket. Same `BackendService`.
-- Pairing flow: QR between any two paired entities (device↔bridge, device↔device).
-  Reuse `internal/qrtext`; TOFU + pinned keys.
+- Pairing flow: QR between any two paired entities (device↔bridge, device↔device,
+  bridge↔bridge). Reuse `internal/qrtext`; TOFU + pinned keys.
+- Mesh CRDT in `internal/mesh/crdt`, rolled in kith (spike 2026-10-28: no pure-Go
+  library fits; automerge-go and loro-go need cgo). LWW map ordered by a hybrid
+  logical clock and device ID, a max register for cursors, per-device counters, a
+  signed roster; delta sync by version vector. Lands with the first paired bridge.
 - Bridge heartbeat RPC (`Heartbeat(network, caught_up_as_of)`).
 - A push sink in `notify` publishing wakes to profile topics; each profile's topic
   ID generated and kept in the config.
@@ -504,10 +513,15 @@ master-device constraint from above still applies.
 
 ## Open questions (next sessions)
 
-1. **Mesh CRDT shape in detail.** Spike: Automerge-Go vs a minimal rolled impl.
-   What exactly goes in each CRDT variant (scalar LWW, monotonic max, structured),
-   how roster entries authorize themselves (signed by adding device?), bounded
-   size story, compaction / snapshotting.
+1. **Mesh CRDT shape in detail.** Rolled in kith (see Phase 2). Left: how roster
+   entries authorize themselves (signed by adding device?), bounded size story,
+   compaction / snapshotting. Two things the first sketch missed:
+   - **Drafts are not plain LWW today.** kith-mcp appends to a draft while you type,
+     and the TUI rebases your text onto the append (`internal/tui/draft.go`). LWW
+     per draft would drop one of the two; whatever crosses must keep the append.
+   - **Config is one file**, rewritten whole by kithd behind a revision check, and
+     edited by hand. LWW per key across bridges has to say what a hand edit on one
+     bridge is.
 2. **Which sections a profile overrides.** Decided: rooms, people, rail,
    archive rules. Candidates: notification rules and quiet hours, display
    (theme, media), keys, assist and `[agent.*]` room lists. List them explicitly
