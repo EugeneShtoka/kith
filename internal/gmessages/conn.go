@@ -326,6 +326,8 @@ func (a *Adapter) react(ctx context.Context, c *conn, client *libgm.Client, evt 
 	case *gmproto.UserAlertEvent:
 		a.alert(ctx, c, client, e.GetAlertType())
 	case *events.AuthTokenRefreshed:
+		// Read here, on the goroutine that refreshed it.
+		a.log.Debug("the token was refreshed", "account", c.account.Name, "expires", c.session.Auth.TachyonExpiry)
 		a.keep(c)
 	case *gmproto.Settings:
 		c.keepSIMs(e.GetSIMCards())
@@ -374,6 +376,16 @@ func (a *Adapter) keep(c *conn) {
 	blob, err := c.session.encode()
 	if err != nil || blob == c.saved || !a.current(c) {
 		return
+	}
+	var stored Session
+	if json.Unmarshal([]byte(c.saved), &stored) == nil && stored.Auth != nil {
+		live := c.session.Auth
+		live.CookiesLock.RLock()
+		names := changedCookies(stored.Auth.Cookies, live.Cookies)
+		live.CookiesLock.RUnlock()
+		if len(names) > 0 {
+			a.log.Debug("Google changed the cookies", "account", c.account.Name, "names", names)
+		}
 	}
 	if err := a.secrets.StoreSecret(sessionRef(c.account.Name), blob); err != nil {
 		a.log.Warn("save the refreshed pairing failed", "account", c.account.Name, "err", err)
