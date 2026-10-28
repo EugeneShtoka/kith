@@ -1,9 +1,11 @@
 package gmessages
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"strings"
@@ -510,6 +512,40 @@ func TestChangedCookiesSaveBesideARefreshingToken(t *testing.T) {
 	}
 	if got, want := tokenOf(t, secrets, "phone"), fmt.Sprintf("s%d-0", w.signIn); got != want {
 		t.Errorf("stored token %s, want the one keep saved, %s", got, want)
+	}
+}
+
+// Saving changed cookies logs, at debug, the names of those added, changed and dropped,
+// never a value.
+func TestChangedCookiesAreLoggedByName(t *testing.T) {
+	t.Parallel()
+
+	var logged bytes.Buffer
+	secrets := newSecrets()
+	a := New(nil, secrets, nil, slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	a.UseConfig(context.Background(), withAccounts("phone"))
+	w := pair(t, a, secrets)
+	auth := w.c.session.Auth
+	auth.SetCookies(map[string]string{"SID": "sid-kept", "SIDCC": "sidcc-old", "NID": "nid-old"})
+	a.keepCookies(w.c)
+	logged.Reset()
+
+	auth.SetCookies(map[string]string{"SID": "sid-kept", "SIDCC": "sidcc-new", "__Secure-1PSIDTS": "psidts-new"})
+	a.keepCookies(w.c)
+	line := logged.String()
+	if !strings.Contains(line, "names=\"[NID SIDCC __Secure-1PSIDTS]\"") {
+		t.Errorf("log %q does not name exactly the dropped, changed and added cookies", line)
+	}
+	for _, value := range []string{"sid-kept", "sidcc-old", "sidcc-new", "nid-old", "psidts-new"} {
+		if strings.Contains(line, value) {
+			t.Errorf("log %q shows a cookie's value", line)
+		}
+	}
+
+	logged.Reset()
+	a.keepCookies(w.c)
+	if logged.Len() != 0 {
+		t.Errorf("cookies unchanged since the last save logged %q", logged.String())
 	}
 }
 
