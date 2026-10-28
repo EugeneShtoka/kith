@@ -37,7 +37,7 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := &Daemon{
-		Backend: b, Streams: streams, State: NewState(), Notifications: notifications,
+		Backend: b, Streams: streams, MessageLog: noMessages{}, State: NewState(), Notifications: notifications,
 		Reload:      func(context.Context) error { return nil },
 		CheckConfig: func(context.Context, config.Config) error { return nil },
 		Config:      NewConfigFile(filepath.Join(t.TempDir(), "config.toml")),
@@ -66,4 +66,13 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 		t.Fatalf("attachment changed to %v with the daemon up: a quiet stream hit the answer timeout", attached)
 	case <-time.After(6 * answer):
 	}
+}
+
+// noMessages is a cache that never changes.
+type noMessages struct{}
+
+func (noMessages) LastChange(context.Context) (string, int64, error) { return "test", 0, nil }
+
+func (noMessages) ChangesAfter(context.Context, int64, int) (string, []domain.MessageChange, error) {
+	return "test", nil, nil
 }

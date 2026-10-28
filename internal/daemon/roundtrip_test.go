@@ -136,6 +136,18 @@ func (h *harness) waitAttached(want int) {
 	h.t.Fatalf("timed out waiting for %d client(s) to attach; %d attached", want, h.streams.Attached())
 }
 
+// waitStreams blocks until want message streams read the cache.
+func (h *harness) waitStreams(want int) {
+	h.t.Helper()
+	deadline := time.Now().Add(settle)
+	for h.streams.MessageStreams() < want {
+		if time.Now().After(deadline) {
+			h.t.Fatalf("timed out waiting for %d message stream(s); %d open", want, h.streams.MessageStreams())
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 // attach is serve plus one client.
 func attach(t *testing.T, b api.Backend) (*daemon.Remote, *harness) {
 	t.Helper()

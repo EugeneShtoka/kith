@@ -1049,8 +1049,10 @@ func TestIncomingRedactionFoldsOntoMessage(t *testing.T) {
 
 	m := withRooms(t, newModel()) // current room !a:x
 	m = loadPage(t, m, []domain.Message{msgAt(mx+"$1", "secret", 1)})
-	// A live redaction arrives as a synthetic message (only ID + Redacted).
-	m = update(t, m, incomingMsg{message: domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Redacted: true}})
+	// A deletion arrives as the cache then holds the message: deleted, its words gone.
+	deleted := msgAt(mx+"$1", "", 1)
+	deleted.Redacted = true
+	m = update(t, m, incomingMsg{message: deleted})
 	if len(m.timeline.messages) != 1 {
 		t.Fatalf("redaction added a row instead of folding: %+v", m.timeline.messages)
 	}
@@ -1082,8 +1084,11 @@ func TestIncomingEditFoldsOntoMessage(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel())) // current room !a:x
 	m = loadPage(t, m, []domain.Message{msgAt(mx+"$1", "old", 1)})
-	// A live edit arrives carrying the target ID + replacement body + a later ts.
-	m = update(t, m, incomingMsg{message: domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@a:x", Body: "new", Timestamp: at(9), Edited: true}})
+	// An edit arrives as the cache then holds the message: the new words, the time it
+	// was sent, and the edit's.
+	edited := msgAt(mx+"$1", "new", 1)
+	edited.Edited, edited.EditedAt, edited.RevisionID = true, at(9), mx+"$e"
+	m = update(t, m, incomingMsg{message: edited})
 	if len(m.timeline.messages) != 1 {
 		t.Fatalf("edit added a row instead of folding: %+v", m.timeline.messages)
 	}

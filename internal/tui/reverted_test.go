@@ -7,39 +7,34 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// The daemon sends a message back when the edit it showed was deleted. That copy
-// replaces the shown words, although it is older than the edit; and it never brings
-// words back to a message deleted meanwhile.
-func TestARevertedCopyReplacesTheDeletedEdit(t *testing.T) {
+// When the edit a message showed is deleted, the cache holds the message with its
+// words before the edit, and sends that: it replaces the shown words, although it is
+// older than the edit. A message deleted meanwhile comes as deleted, never with words.
+func TestTheCachesCopyReplacesADeletedEdit(t *testing.T) {
 	t.Parallel()
 	edited := domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "v1 secret", Edited: true,
 		Timestamp: time.UnixMilli(5000), EditedAt: time.UnixMilli(7000), RevisionID: mx + "$e1"}
-	back := domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "v0",
-		Timestamp: time.UnixMilli(5000), Reverted: true}
 
 	for _, tc := range []struct {
-		name  string
-		shown domain.Message
-		want  string
+		name string
+		back domain.Message
+		want string
 	}{
-		{"an edited message goes back", edited, "v0"},
+		{"an edited message goes back", domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", Body: "v0",
+			Timestamp: time.UnixMilli(5000)}, "v0"},
 		{"a deleted message stays empty", domain.Message{ID: mx + "$m", RoomID: mx + "!a:x", Sender: "matrix:@dana:x",
-			Redacted: true, Timestamp: time.UnixMilli(5000)}, ""},
+			Redacted: true, Edited: true, Timestamp: time.UnixMilli(5000)}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			m := quoting(t, &quoteBackend{})
-			m, _ = routed(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{tc.shown}}})
-			m, _ = routed(t, m, incomingMsg{message: back})
+			m, _ = routed(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{edited}}})
+			m, _ = routed(t, m, incomingMsg{message: tc.back})
 			if len(m.timeline.messages) != 1 {
 				t.Fatalf("%d messages, want the one row", len(m.timeline.messages))
 			}
-			got := m.timeline.messages[0]
-			if got.Body != tc.want {
-				t.Errorf("shows %q, want %q", got.Body, tc.want)
-			}
-			if got.Reverted {
-				t.Error("the marker stuck to the row; it is only an instruction to replace")
+			if got := m.timeline.messages[0].Body; got != tc.want {
+				t.Errorf("shows %q, want %q", got, tc.want)
 			}
 		})
 	}

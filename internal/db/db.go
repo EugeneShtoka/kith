@@ -33,6 +33,8 @@ type Cache struct {
 	hidden hiddenState
 	// arrived hears each room that gained messages (see OnArrived); nil is silent.
 	arrived func(domain.RoomID, time.Time)
+	// changed hears that messages changed (see OnChanged); nil is silent.
+	changed func()
 }
 
 // OnArrived has fn called after each write that cached messages a room did not have,
@@ -158,9 +160,9 @@ func (c *Cache) Close() error {
 
 // Clear empties every cached table in one transaction so the next startup
 // repopulates from the homeserver. The crypto store is untouched. The numbering of
-// changes starts a new epoch: what a reader holds was emptied with the rest.
+// changes starts a new epoch, and OnChanged hears: what a reader holds was emptied.
 func (c *Cache) Clear(ctx context.Context) error {
-	return c.inTx(ctx, func(tx *sql.Tx) error {
+	err := c.inTx(ctx, func(tx *sql.Tx) error {
 		// Everything else cascades from rooms or spaces except reaction_refusals and
 		// person_verdicts.
 		for _, stmt := range []string{
@@ -176,10 +178,14 @@ func (c *Cache) Clear(ctx context.Context) error {
 		}
 		return nil
 	})
+	if err == nil && c.changed != nil {
+		c.changed() // no number moved, but every one now means nothing
+	}
+	return err
 }
 
 // inTx runs fn in a transaction, committing on success; the messages it changed are
-// numbered as it commits.
+// numbered as it commits, and OnChanged hears after.
 func (c *Cache) inTx(ctx context.Context, fn func(*sql.Tx) error) error {
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -189,11 +195,15 @@ func (c *Cache) inTx(ctx context.Context, fn func(*sql.Tx) error) error {
 	if err := fn(tx); err != nil {
 		return err
 	}
-	if err := numberTouched(ctx, tx); err != nil {
-		return err
+	numbered, nerr := numberTouched(ctx, tx)
+	if nerr != nil {
+		return nerr
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("db: commit tx: %w", err)
+	}
+	if numbered && c.changed != nil {
+		c.changed()
 	}
 	return nil
 }

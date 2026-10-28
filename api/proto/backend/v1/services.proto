@@ -1139,10 +1139,24 @@ message ModelTaskResponse {
 
 // ── Sync ──
 
-message MessagesRequest {}
+// The message stream is the cache's changes, each message as the cache holds it after
+// its latest change, numbered in the order the cache wrote them.
+message MessagesRequest {
+  // Resume after this change in this epoch; empty starts at the newest change.
+  string since_epoch = 1;
+  int64 since_change = 2;
+}
 
 message MessagesResponse {
+  // Absent when read_again.
   Message message = 1;
+  // The numbering this change is in, and its number.
+  string epoch = 2;
+  int64 change = 3;
+  // The stream could not resume from since (another epoch, a number it never gave,
+  // or too far behind), or the cache was cleared: what the client holds may be stale,
+  // so it reads again, then continues from this frame's change.
+  bool read_again = 4;
 }
 
 message ActivityStreamRequest {}

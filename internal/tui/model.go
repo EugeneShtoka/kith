@@ -3407,8 +3407,13 @@ func (m Model) handleIncoming(msg incomingMsg) (Model, tea.Cmd) {
 	m = m.noteActivity(msg.message)
 	if room, ok := m.currentRoom(); ok && msg.message.RoomID == room.ID {
 		scrolled := m.timeline.scroll > 0
+		// Each is the message as the cache now holds it, so it replaces the row shown
+		// rather than folding onto it: a deleted edit takes its words back.
 		m = m.keepAnchored(func(m Model) Model {
-			return m.setMessages(domain.MergeMessages(m.timeline.messages, []domain.Message{msg.message}))
+			others := slices.DeleteFunc(slices.Clone(m.timeline.messages), func(shown domain.Message) bool {
+				return shown.ID == msg.message.ID
+			})
+			return m.setMessages(domain.MergeMessages(others, []domain.Message{msg.message}))
 		})
 		if !scrolled && m.focus == paneTimeline {
 			// Watching live at the bottom: keep it marked read.

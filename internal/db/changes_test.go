@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"maps"
 	"math/rand/v2"
@@ -45,49 +44,23 @@ func readAll(t *testing.T, cache *Cache) map[changeKey]domain.Message {
 	return out
 }
 
-// numberedMessage is a message with the number of its latest change.
-type numberedMessage struct {
-	number int64
-	msg    domain.Message
-}
-
 // changedAfter is every message numbered after from, in number order, as the cache
 // holds it.
-func changedAfter(t *testing.T, cache *Cache, from int64) []numberedMessage {
+func changedAfter(t *testing.T, cache *Cache, from int64) []domain.MessageChange {
 	t.Helper()
-	ctx := context.Background()
-	type key struct {
-		number int64
-		changeKey
-	}
-	keys, err := collect(ctx, cache.db, "the changes",
-		"SELECT change, room_id, event_id FROM message_changes WHERE change > ? ORDER BY change",
-		func(rows *sql.Rows) (k key, err error) {
-			var room, event string
-			err = rows.Scan(&k.number, &room, &event)
-			k.room, k.event = domain.RoomID(room), domain.EventID(event)
-			return k, err
-		}, from)
+	_, got, err := cache.ChangesAfter(context.Background(), from, 1000)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("ChangesAfter: %v", err)
 	}
-	out := make([]numberedMessage, 0, len(keys))
-	for _, k := range keys {
-		msg, ok, err := cache.MessageByID(ctx, k.room, k.event)
-		if err != nil || !ok {
-			t.Fatalf("message %v numbered %d: cached %v, %v", k.changeKey, k.number, ok, err)
-		}
-		out = append(out, numberedMessage{k.number, msg})
-	}
-	return out
+	return got
 }
 
 // epochOf names the cache's numbering.
 func epochOf(t *testing.T, cache *Cache) string {
 	t.Helper()
-	var epoch string
-	if err := cache.db.QueryRowContext(context.Background(), "SELECT epoch FROM change_counter").Scan(&epoch); err != nil {
-		t.Fatalf("read the epoch: %v", err)
+	epoch, _, err := cache.LastChange(context.Background())
+	if err != nil {
+		t.Fatalf("LastChange: %v", err)
 	}
 	return epoch
 }
@@ -95,9 +68,9 @@ func epochOf(t *testing.T, cache *Cache) string {
 // lastChange is the last number the cache gave.
 func lastChange(t *testing.T, cache *Cache) int64 {
 	t.Helper()
-	var last int64
-	if err := cache.db.QueryRowContext(context.Background(), "SELECT last FROM change_counter").Scan(&last); err != nil {
-		t.Fatalf("read the counter: %v", err)
+	_, last, err := cache.LastChange(context.Background())
+	if err != nil {
+		t.Fatalf("LastChange: %v", err)
 	}
 	return last
 }
@@ -204,7 +177,7 @@ func randomChangeOp(r *rand.Rand, keep *int) changeOp {
 
 // The numbering tells exactly what changed: after any write, the messages numbered
 // after the counter it started from are those whose read changed, each once, in order,
-// as the cache now returns them; a write that changes nothing
+// as the cache now returns them, and OnChanged has heard; a write that changes nothing
 // (an echo, a deletion of a message not cached) numbers nothing.
 func TestEveryChangeToAMessageIsNumberedAndNothingElse(t *testing.T) {
 	t.Parallel()
@@ -215,10 +188,12 @@ func TestEveryChangeToAMessageIsNumberedAndNothingElse(t *testing.T) {
 			cache := openTemp(t)
 			keep := -1
 			cache.UseKeep(func(domain.RoomID) int { return keep })
+			told := 0
+			cache.OnChanged(func() { told++ })
 			r := rand.New(rand.NewPCG(seed, 29))
 			for step := range 150 {
 				op := randomChangeOp(r, &keep)
-				before, from := readAll(t, cache), lastChange(t, cache)
+				before, from, toldBefore := readAll(t, cache), lastChange(t, cache), told
 				if err := op.run(ctx, cache); err != nil {
 					t.Fatalf("step %d, %s: %v", step, op.name, err)
 				}
@@ -228,20 +203,23 @@ func TestEveryChangeToAMessageIsNumberedAndNothingElse(t *testing.T) {
 					t.Fatalf("step %d, %s: %d numbers of messages gone (%v)", step, op.name, orphans, err)
 				}
 				got := changedAfter(t, cache, from)
+				if len(got) > 0 && told == toldBefore {
+					t.Fatalf("step %d, %s: numbered %d changes and told nobody", step, op.name, len(got))
+				}
 				numbered := map[changeKey]bool{}
 				last := from
 				for _, c := range got {
-					key := changeKey{c.msg.RoomID, c.msg.ID}
-					if c.number <= last {
-						t.Fatalf("step %d, %s: number %d after %d", step, op.name, c.number, last)
+					key := changeKey{c.Message.RoomID, c.Message.ID}
+					if c.Number <= last {
+						t.Fatalf("step %d, %s: number %d after %d", step, op.name, c.Number, last)
 					}
-					last = c.number
+					last = c.Number
 					if numbered[key] {
 						t.Fatalf("step %d, %s: %v numbered twice", step, op.name, key)
 					}
 					numbered[key] = true
-					if !reflect.DeepEqual(c.msg, after[key]) {
-						t.Fatalf("step %d, %s: %v came as\n  %+v\nthe cache holds\n  %+v", step, op.name, key, c.msg, after[key])
+					if !reflect.DeepEqual(c.Message, after[key]) {
+						t.Fatalf("step %d, %s: %v came as\n  %+v\nthe cache holds\n  %+v", step, op.name, key, c.Message, after[key])
 					}
 				}
 				for key, now := range after {
@@ -282,11 +260,11 @@ func TestWritersAtOnceLeaveEveryMessageNumbered(t *testing.T) {
 	seen := map[changeKey]domain.Message{}
 	numbers := map[int64]bool{}
 	for _, c := range changedAfter(t, cache, 0) {
-		if numbers[c.number] {
-			t.Fatalf("number %d given twice", c.number)
+		if numbers[c.Number] {
+			t.Fatalf("number %d given twice", c.Number)
 		}
-		numbers[c.number] = true
-		seen[changeKey{c.msg.RoomID, c.msg.ID}] = c.msg
+		numbers[c.Number] = true
+		seen[changeKey{c.Message.RoomID, c.Message.ID}] = c.Message
 	}
 	if last := lastChange(t, cache); len(numbers) > 0 && slices.Max(slices.Collect(maps.Keys(numbers))) > last {
 		t.Fatalf("a number past the counter's %d", last)
@@ -306,6 +284,8 @@ func TestClearStartsANewEpoch(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	cache := openTemp(t)
+	told := 0
+	cache.OnChanged(func() { told++ })
 	if err := cache.SaveMessages(ctx, changeRooms[0], []domain.Message{{ID: changeEvents[0], RoomID: changeRooms[0], Body: "hi", Timestamp: time.UnixMilli(1000)}}); err != nil {
 		t.Fatal(err)
 	}
@@ -316,10 +296,80 @@ func TestClearStartsANewEpoch(t *testing.T) {
 	if other := epochOf(t, openTemp(t)); other == first {
 		t.Fatalf("a second cache's epoch is the first's, %q", first)
 	}
+	told = 0
 	if err := cache.Clear(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if now := epochOf(t, cache); now == first {
 		t.Fatalf("after Clear the epoch is %q, as before", now)
+	}
+	if told != 1 {
+		t.Fatalf("Clear told %d times, want once", told)
+	}
+}
+
+// A reader that reads on from its last number whenever it is told gets every message
+// as the cache ends up holding it, however the writers interleave.
+func TestAReaderToldOfEachChangeEndsWithWhatTheCacheHolds(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cache := openTemp(t)
+	told := make(chan struct{}, 1)
+	cache.OnChanged(func() {
+		select {
+		case told <- struct{}{}:
+		default:
+		}
+	})
+
+	seen := map[changeKey]domain.Message{}
+	var after int64
+	read := func() {
+		for {
+			_, got, err := cache.ChangesAfter(ctx, after, 7)
+			if err != nil {
+				t.Errorf("ChangesAfter: %v", err)
+				return
+			}
+			for _, c := range got {
+				seen[changeKey{c.Message.RoomID, c.Message.ID}] = c.Message
+				after = c.Number
+			}
+			if len(got) == 0 {
+				return
+			}
+		}
+	}
+
+	var writers sync.WaitGroup
+	for w := range uint64(4) {
+		writers.Go(func() {
+			keep := -1 // not the cache's (no UseKeep): writers share no state but it
+			r := rand.New(rand.NewPCG(w, 37))
+			for range 60 {
+				op := randomChangeOp(r, &keep)
+				if err := op.run(ctx, cache); err != nil {
+					t.Errorf("%s: %v", op.name, err)
+				}
+			}
+		})
+	}
+	done := make(chan struct{})
+	go func() { writers.Wait(); close(done) }()
+	for open := true; open; {
+		select {
+		case <-told:
+			read()
+		case <-done:
+			open = false
+		}
+	}
+	select { // a last tell may still be queued; a change after the last read has one
+	case <-told:
+		read()
+	default:
+	}
+	if held := readAll(t, cache); !reflect.DeepEqual(seen, held) {
+		t.Fatalf("the reader holds\n  %v\nthe cache\n  %v", seen, held)
 	}
 }

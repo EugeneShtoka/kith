@@ -328,15 +328,19 @@ as value messages on the Bubble Tea loop; no network's goroutine ever touches a 
 
 | stream | carries | shape |
 | --- | --- | --- |
-| `messages` | timeline events, edits, redactions | deltas |
+| `messages` | each message as the cache holds it after a change | whole rows, numbered, read from the cache |
 | `unread` | per-room counts, read position, `m.marked_unread` | whole per-room state |
 | `reactions` | `m.annotation` adds and removals | deltas |
 | `invites` | pending invitations | the **whole current set**: emptiness is the news |
 | `verifications` | SAS verification steps | deltas |
 | `activity` | who is typing | the whole set per room |
 
-Every one is **drop-on-full per subscriber** (`subBuffer`): a slow reader must never
-stall the sync loop. What that costs differs per stream and is stated where it is
+Every one but `messages` is **drop-on-full per subscriber** (`subBuffer`): a slow
+reader must never stall the sync loop. A client's `messages` stream reads the cache
+instead: the cache numbers every change to a message, and the stream sends the changes
+after the last one it sent, woken after each commit (`MessageLog`, `Streams.MessagesChanged`).
+A slow reader lags and catches up, losing nothing, and a client resumes from the last
+number it holds. The `messages` hub still feeds the in-process notifier. What that costs differs per stream and is stated where it is
 decided. A dropped `activity` frame is a typing indicator that clears a moment late,
 while `invites` is sent whatever its length precisely because a dropped empty set
 would leave an answered invitation on screen.

@@ -74,7 +74,7 @@ func serve(t *testing.T, socket string, cfg config.Config) kithd {
 	go func() {
 		defer close(served)
 		_ = daemon.Serve(ctx, ln, &daemon.Daemon{
-			Backend: backend, Streams: daemon.NewStreams(), State: daemon.NewState(), Notifications: n,
+			Backend: backend, Streams: daemon.NewStreams(), MessageLog: noMessages{}, State: daemon.NewState(), Notifications: n,
 			Reload:      func(context.Context) error { return nil },
 			CheckConfig: func(context.Context, config.Config) error { return nil },
 			Config:      daemon.NewConfigFile(path),
@@ -87,6 +87,15 @@ func serve(t *testing.T, socket string, cfg config.Config) kithd {
 	k := kithd{n: n, stop: func() { cancel(); <-served }}
 	t.Cleanup(k.stop)
 	return k
+}
+
+// noMessages is a cache that never changes: the agent reads notifications, not messages.
+type noMessages struct{}
+
+func (noMessages) LastChange(context.Context) (string, int64, error) { return "test", 0, nil }
+
+func (noMessages) ChangesAfter(context.Context, int64, int) (string, []domain.MessageChange, error) {
+	return "test", nil, nil
 }
 
 // says has kithd notify about a message in room whose body is body.
