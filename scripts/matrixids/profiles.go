@@ -287,6 +287,8 @@ func mergeTable(ctx context.Context, tx *sql.Tx, table string, owner domain.Room
 	}
 	var where string
 	switch {
+	case table == "message_changes" || table == "message_touched":
+		return 0, nil // src's numbering means nothing in dst, whose triggers record each message copied
 	case table == "rooms" || table == "spaces":
 		where = owned("id")
 	case slices.Contains(cols, "room_id"):

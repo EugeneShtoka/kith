@@ -397,7 +397,9 @@ CREATE TRIGGER messages_fts_update AFTER UPDATE OF body ON messages
 	INSERT INTO messages_fts(messages_fts, rowid, body) VALUES('delete', old.rowid, old.body);
 	INSERT INTO messages_fts(rowid, body) VALUES (new.rowid, new.body);
 END;
-
+` + messageChanges + `
+CREATE INDEX message_changes_in_order ON message_changes(change);
+INSERT INTO change_counter(epoch, last) VALUES (lower(hex(randomblob(16))), 0);
 
 -- Persisted drafts, including ones an agent wrote while the client was closed.
 CREATE TABLE drafts (
@@ -715,7 +717,135 @@ DROP TABLE matrix_owner;`,
 	`CREATE TABLE IF NOT EXISTS room_history_start (
 	room_id TEXT NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;`,
+	// v29: messages numbered as they change, and the numbering's epoch.
+	messageChanges + `
+INSERT INTO change_counter(epoch, last) SELECT lower(hex(randomblob(16))), 0
+ WHERE NOT EXISTS (SELECT 1 FROM change_counter);`,
 }
+
+// messageChanges numbers every change to what the cache returns for a message, in the
+// order they are written, for the message stream to resume from.
+// The base and v29 share it, so a migrated cache is spelled as a fresh one.
+//
+// change_counter is one row: the last number given, and the epoch that names this
+// numbering, made with the cache and anew when it is cleared, so a number from before
+// means nothing. message_changes is each message's latest number. A trigger on every
+// table a message is read from (messageSelect) records the message in message_touched,
+// and the transaction numbers what it touched before it commits (numberTouched): a
+// trigger that numbered would be compiled into every statement that writes a message,
+// tripling the cost of a save. Writes that change nothing (sync re-delivers unchanged
+// messages constantly) record nothing, nor do columns no read returns (a file's source).
+const messageChanges = `
+CREATE TABLE IF NOT EXISTS change_counter (
+	epoch TEXT    NOT NULL,
+	last  INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS message_changes (
+	room_id  TEXT    NOT NULL,
+	event_id TEXT    NOT NULL,
+	change   INTEGER NOT NULL,
+	PRIMARY KEY (room_id, event_id),
+	FOREIGN KEY (room_id, event_id) REFERENCES messages(room_id, event_id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS message_touched (
+	room_id  TEXT NOT NULL,
+	event_id TEXT NOT NULL
+) STRICT;
+
+CREATE TRIGGER IF NOT EXISTS messages_changed_insert AFTER INSERT ON messages BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_changed_update AFTER UPDATE ON messages
+	WHEN old.sender IS NOT new.sender OR old.sender_name IS NOT new.sender_name
+	  OR old.body IS NOT new.body OR old.ts_ms IS NOT new.ts_ms
+	  OR old.redacted IS NOT new.redacted OR old.edited IS NOT new.edited
+	  OR old.reply_to IS NOT new.reply_to OR old.mentioned IS NOT new.mentioned
+	  OR old.thread_root IS NOT new.thread_root OR old.emote IS NOT new.emote BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+
+CREATE TRIGGER IF NOT EXISTS message_media_changed_insert AFTER INSERT ON message_media
+	WHEN new.kind <> '' BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_media_changed_update AFTER UPDATE ON message_media
+	WHEN old.kind IS NOT new.kind OR old.name IS NOT new.name OR old.mime IS NOT new.mime
+	  OR old.width IS NOT new.width OR old.height IS NOT new.height OR old.size IS NOT new.size BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_media_changed_delete AFTER DELETE ON message_media
+	WHEN old.kind <> '' BEGIN
+	INSERT INTO message_touched VALUES (old.room_id, old.event_id);
+END;
+
+CREATE TRIGGER IF NOT EXISTS message_html_changed_insert AFTER INSERT ON message_html BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_html_changed_update AFTER UPDATE ON message_html
+	WHEN old.html IS NOT new.html BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_html_changed_delete AFTER DELETE ON message_html BEGIN
+	INSERT INTO message_touched VALUES (old.room_id, old.event_id);
+END;
+
+CREATE TRIGGER IF NOT EXISTS message_redaction_changed_insert AFTER INSERT ON message_redaction BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_redaction_changed_update AFTER UPDATE ON message_redaction
+	WHEN old.by IS NOT new.by OR old.reason IS NOT new.reason BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_redaction_changed_delete AFTER DELETE ON message_redaction BEGIN
+	INSERT INTO message_touched VALUES (old.room_id, old.event_id);
+END;
+
+CREATE TRIGGER IF NOT EXISTS message_edit_changed_insert AFTER INSERT ON message_edit BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_edit_changed_update AFTER UPDATE ON message_edit
+	WHEN old.revision_id IS NOT new.revision_id OR old.ts_ms IS NOT new.ts_ms BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_edit_changed_delete AFTER DELETE ON message_edit BEGIN
+	INSERT INTO message_touched VALUES (old.room_id, old.event_id);
+END;
+
+CREATE TRIGGER IF NOT EXISTS message_polls_changed_insert AFTER INSERT ON message_polls BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_polls_changed_update AFTER UPDATE ON message_polls
+	WHEN old.poll IS NOT new.poll BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_polls_changed_delete AFTER DELETE ON message_polls BEGIN
+	INSERT INTO message_touched VALUES (old.room_id, old.event_id);
+END;
+
+CREATE TRIGGER IF NOT EXISTS message_order_changed_insert AFTER INSERT ON message_order BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_order_changed_update AFTER UPDATE ON message_order
+	WHEN old.seq IS NOT new.seq BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_order_changed_delete AFTER DELETE ON message_order BEGIN
+	INSERT INTO message_touched VALUES (old.room_id, old.event_id);
+END;
+
+CREATE TRIGGER IF NOT EXISTS message_mentions_changed_insert AFTER INSERT ON message_mentions BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_mentions_changed_update AFTER UPDATE ON message_mentions
+	WHEN old.user_id IS NOT new.user_id OR old.name IS NOT new.name BEGIN
+	INSERT INTO message_touched VALUES (new.room_id, new.event_id);
+END;
+CREATE TRIGGER IF NOT EXISTS message_mentions_changed_delete AFTER DELETE ON message_mentions BEGIN
+	INSERT INTO message_touched VALUES (old.room_id, old.event_id);
+END;
+`
 
 // forgetFrozenStats drops the row counts ANALYZE kept for tables without an index
 // (sqlite_stat1 rows with no idx), reporting whether there were any. PRAGMA optimize

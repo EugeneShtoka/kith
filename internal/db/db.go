@@ -157,7 +157,8 @@ func (c *Cache) Close() error {
 }
 
 // Clear empties every cached table in one transaction so the next startup
-// repopulates from the homeserver. The crypto store is untouched.
+// repopulates from the homeserver. The crypto store is untouched. The numbering of
+// changes starts a new epoch: what a reader holds was emptied with the rest.
 func (c *Cache) Clear(ctx context.Context) error {
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		// Everything else cascades from rooms or spaces except reaction_refusals and
@@ -167,6 +168,7 @@ func (c *Cache) Clear(ctx context.Context) error {
 			"DELETE FROM spaces",
 			"DELETE FROM reaction_refusals",
 			"DELETE FROM person_verdicts",
+			"UPDATE change_counter SET epoch = lower(hex(randomblob(16)))",
 		} {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("db: clear (%s): %w", stmt, err)
@@ -176,7 +178,8 @@ func (c *Cache) Clear(ctx context.Context) error {
 	})
 }
 
-// inTx runs fn in a transaction, committing on success.
+// inTx runs fn in a transaction, committing on success; the messages it changed are
+// numbered as it commits.
 func (c *Cache) inTx(ctx context.Context, fn func(*sql.Tx) error) error {
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -184,6 +187,9 @@ func (c *Cache) inTx(ctx context.Context, fn func(*sql.Tx) error) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := numberTouched(ctx, tx); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {

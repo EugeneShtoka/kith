@@ -35,14 +35,17 @@ func (c *Cache) SetPoll(ctx context.Context, roomID domain.RoomID, eventID domai
 	if err != nil {
 		return fmt.Errorf("db: encode the poll of %s: %w", eventID, err)
 	}
-	if _, err := c.db.ExecContext(ctx, `INSERT INTO message_polls(room_id, event_id, poll)
-		SELECT ?1, ?2, ?3 WHERE EXISTS
-			(SELECT 1 FROM messages WHERE room_id = ?1 AND event_id = ?2 AND redacted = 0)
-		ON CONFLICT(room_id, event_id) DO UPDATE SET poll = excluded.poll`,
-		string(roomID), string(eventID), string(data)); err != nil {
-		return fmt.Errorf("db: set the poll of %s: %w", eventID, err)
-	}
-	return nil
+	// In a transaction, so its change is numbered as it commits (numberTouched).
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO message_polls(room_id, event_id, poll)
+			SELECT ?1, ?2, ?3 WHERE EXISTS
+				(SELECT 1 FROM messages WHERE room_id = ?1 AND event_id = ?2 AND redacted = 0)
+			ON CONFLICT(room_id, event_id) DO UPDATE SET poll = excluded.poll`,
+			string(roomID), string(eventID), string(data)); err != nil {
+			return fmt.Errorf("db: set the poll of %s: %w", eventID, err)
+		}
+		return nil
+	})
 }
 
 // PollsByID is the cached messages in owner's rooms with poll id: a results update
