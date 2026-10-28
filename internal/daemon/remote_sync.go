@@ -181,6 +181,12 @@ func (r *Remote) SwitchProfile(name string) error {
 		return nil
 	}
 	if current.profile != name {
+		// Not before it is open: the message stream learns where it starts on opening,
+		// and one ended sooner would resume from the newest, missing what came between.
+		select {
+		case <-current.ready:
+		case <-current.ended:
+		}
 		r.mu.Lock()
 		r.switchedOff = current.ended
 		r.mu.Unlock()
