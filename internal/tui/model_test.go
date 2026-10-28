@@ -637,7 +637,7 @@ func TestRoomOpensInInsertMode(t *testing.T) {
 	// And the knob turns it off.
 	off := false
 	opt := sized(t, withRooms(t, starterNew(apitest.Nop{},
-		config.Display{OpenInInsert: &off})))
+		config.Display{}, config.DeviceDisplay{OpenInInsert: &off})))
 	opt, _ = press(t, opt, keyCode(tea.KeyEnter))
 	opt, _ = press(t, opt, keyCode(tea.KeyEnter))
 	if opt.compose.insertMode {
@@ -1327,7 +1327,7 @@ func TestFrequentPaletteApplied(t *testing.T) {
 func TestStaticScopeAndCustomStatic(t *testing.T) {
 	t.Parallel()
 
-	m := starterNew(apitest.Nop{}, config.Display{
+	m := starterNew(apitest.Nop{}, config.Display{}, config.DeviceDisplay{
 		Reactions: config.Reactions{Scope: "static", Static: []string{"✅", "🚀"}},
 	})
 	if m.glyphs.scope != "static" {
@@ -1871,9 +1871,9 @@ func TestNameProcessing(t *testing.T) {
 		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
 	m.prefs.display = config.Display{
-		MaxNameLength: 8,
-		SpaceRules:    []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
+		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
 	}
+	m.prefs.device = config.DeviceDisplay{MaxNameLength: 8}
 	inWork := domain.Message{RoomID: mx + "!a:x", Sender: "matrix:@x:x", SenderName: "Rowan Blackwood"}
 
 	// First-name-only: full display name collapses to its first token.
@@ -1909,7 +1909,7 @@ func TestNameProcessing(t *testing.T) {
 
 	// Without a matching rule, the name is left intact — alias or not.
 	m.prefs.display.SpaceRules = nil
-	m.prefs.display.MaxNameLength = 0
+	m.prefs.device.MaxNameLength = 0
 	if got := m.processedName(inWork); got != "Rowan Blackwood" {
 		t.Errorf("no rule = %q, want full name", got)
 	}
@@ -1930,10 +1930,9 @@ func TestRoomName(t *testing.T) {
 
 	// A configured alias wins verbatim, over the space name rules.
 	m := starterNew(apitest.Nop{}, config.Display{
-		Names:         []config.DisplayName{{Target: mx + "!dm:x", Name: "Mom"}},
-		SpaceRules:    []config.SpaceRule{{Space: homeGroupKey, FirstNameOnly: true}},
-		MaxNameLength: 8,
-	})
+		Names:      []config.DisplayName{{Target: mx + "!dm:x", Name: "Mom"}},
+		SpaceRules: []config.SpaceRule{{Space: homeGroupKey, FirstNameOnly: true}},
+	}, config.DeviceDisplay{MaxNameLength: 8})
 	m = sized(t, withRooms(t, m)) // current rail group key is homeGroupKey
 	if got := m.roomName(single); got != "Mom" {
 		t.Errorf("aliased room = %q, want Mom", got)
@@ -1977,9 +1976,8 @@ func TestRoomName(t *testing.T) {
 		Members: []string{"Rowan Blackwood", "Piper Nightingale", "Quinn Foster"},
 	}
 	m = starterNew(apitest.Nop{}, config.Display{
-		SpaceRules:    []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
-		MaxNameLength: 8,
-	})
+		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
+	}, config.DeviceDisplay{MaxNameLength: 8})
 	m = sized(t, withRooms(t, m))
 	m = update(t, m, spacesMsg{spaces: []domain.Space{{
 		ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!trio:x"},

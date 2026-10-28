@@ -1,13 +1,17 @@
 # Configuration
 
-kith reads one TOML file. Only the account is required, and every other setting has
-a working default. This page covers where the file lives, how it gets written, what
-each section is for, and some common tweaks.
+kith reads two TOML files: the bridge's `config.toml`, which `kithd` reads (accounts,
+tags, rules, what notifies), and `device.toml` beside it, which holds what only this
+device reads (its look, keys, how it shows a notification), so a phone and a laptop
+may differ. Only the account is required, and every other setting has a working
+default. This page covers where the files live, how they get written, what each
+section is for, and some common tweaks.
 
 For the complete reference, with every option and its default documented inline, run
-`kith --print-config`. It prints the same annotated file kith writes on first run.
-The source copy is
-[`internal/config/default.toml`](../internal/config/default.toml).
+`kith --print-config` (config.toml) and `kith --print-device-config` (device.toml).
+They print the same annotated files kith writes on first run. The source copies are
+[`internal/config/default.toml`](../internal/config/default.toml) and
+[`internal/config/default_device.toml`](../internal/config/default_device.toml).
 
 ## The config file
 
@@ -57,7 +61,7 @@ Top-level keys:
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `allow_token_file` | `false` | Store the access token in a 0600 file under `~/.local/state/kith/` (one per account) when no OS keyring exists. Use it only on a headless machine. |
-| `terminal` | `""` (detect) | What `kith --open` starts when a `matrix:`, `tg:` or `whatsapp:` link arrives and no client is running. See [getting-started.md](getting-started.md#open-matrix-tg-whatsapp-and-signal-links-in-kith). |
+| `terminal` | `""` (detect) | In `device.toml`: what `kith --open` starts when a `matrix:`, `tg:` or `whatsapp:` link arrives and no client is running. See [getting-started.md](getting-started.md#open-matrix-tg-whatsapp-and-signal-links-in-kith). |
 
 ### Several accounts on a network
 
@@ -184,6 +188,24 @@ tag, a profile moves no room: a direct message with someone it hides stays where
 tags and the profile's own archive put it, empty in that profile. `/why` on a hidden message says which profile hides its
 sender, and `z h` (`/hidden`) shows them in the open room until you leave it.
 
+### The device file
+
+`device.toml` sits beside `config.toml` (`~/.config/kith/device.toml` for the default
+config; a config elsewhere keeps its own beside it). kith writes its annotated default
+there on first run. Each key is in the file of whoever reads it: if `kithd` reads a
+key, it is in `config.toml`; if only a client reads it, it is in `device.toml`. A
+table whose keys are split keeps its name in both, so `[display] time_format` is in
+`config.toml` and `[display] theme` in `device.toml`. The [sections](#sections) table
+says which file each is in; `kith --print-device-config` lists every device key.
+
+`kithd` never reads `device.toml`, and a device key written into `config.toml` is
+refused there as any unknown key is. A `config.toml` from before the split still
+holding device keys is split once, by whichever of `kithd` and the client opens it
+first: the device keys move into `device.toml` (a setting `device.toml` already gives
+a value other than its default keeps it), then `config.toml` is rewritten without
+them, the original, comments and all, kept as `config.toml.before-device`. A key neither
+file reads stops the split, named, and nothing is written.
+
 ### Validation
 
 A value kith can't use, such as a misspelled theme preset, a malformed color or an
@@ -196,7 +218,7 @@ wrong `[section]` header) stops startup with a list of the unknown keys.
 
 ## The settings screen
 
-You rarely need to open the file. Inside kith:
+You rarely need to open the files. Inside kith:
 
 - `,` opens the settings screen: every setting in the file, in groups (Notifications,
   Names, Messages, Rail and room list, …, Keys, Tags). `enter` opens a group; under
@@ -239,7 +261,8 @@ would refuse is not applied, and the status line says why.
 
 ### How changes are written back
 
-A change made in the app is saved to `config.toml` right away:
+A change made in the app is saved right away, each setting to its own file:
+`config.toml` through `kithd`, `device.toml` by the client itself.
 
 - **Only settings that differ from the built-in defaults are written.** Anything you
   set yourself is kept, anything at its default is left out, and a later change to a
@@ -247,8 +270,8 @@ A change made in the app is saved to `config.toml` right away:
   a fully configured one.
 - **Comments are not kept.** The rewritten file has a short header, then your values.
   The inline documentation is always available from `kith --print-config`.
-- **The first rewrite leaves `config.toml.bak`** beside the file, holding what you
-  wrote by hand. Later saves never overwrite it.
+- **The first rewrite leaves `config.toml.bak`** (or `device.toml.bak`) beside the
+  file, holding what you wrote by hand. Later saves never overwrite it.
 - **`kithd` is the one writer.** A window hands its change to the daemon, which
   checks it would run with it (a refused change is never written, and the status line
   says why), writes the file, puts it in force, and tells every open window, which
@@ -257,6 +280,9 @@ A change made in the app is saved to `config.toml` right away:
   another window or by hand, the change is refused rather than written over it: the
   window takes the file as it is now and says your last change was not saved, so you
   can make it again.
+- **`device.toml` keeps every window's change.** A window writes only the settings
+  it changed onto the file as it is now, so another window's change made meanwhile is
+  kept, and the window then runs the file as written.
 
 When you edit the file by hand, restart `kith` to pick up the change. Settings the
 daemon acts on (notifications, spelling, the assistant, deletion handling) take effect
@@ -268,42 +294,43 @@ systemctl --user restart kithd
 
 ## Sections
 
-Each top-level section, and what it's for. The linked page covers the feature, and
-`kith --print-config` documents every key.
+Each top-level section, which file it is in, and what it's for. The linked page covers
+the feature; `kith --print-config` and `kith --print-device-config` document every
+key.
 
-| Section | Purpose | More |
-| --- | --- | --- |
-| *(top level)* | `allow_token_file`, `terminal`, `bridge_contacts`. | [getting-started.md](getting-started.md) |
-| `[matrix]` | The Matrix accounts (`[[matrix.account]]`) and which is the default. | [Matrix accounts](#matrix-accounts) |
-| `[display]` | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, how times and dates are written (`time_format`, `long_date_format`, `short_date_format`), and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
-| `[display.theme]` | The color palette: a preset plus per-role overrides. | [Themes](#themes) |
-| `[display.theme.networks]` | The color each network's rooms are named in, where the room lists or the rail ask for it. | [usage.md](usage.md) |
-| `[display.emoji]` | Emoji set size (`curated`, `standard`, `complete`) and your own shortcodes. | [composer.md](composer.md) |
-| `[display.tracked]` | Words highlighted wherever they are said and listed by `/tracked`, optionally with notifications. | [search.md](search.md) |
-| `[display.rail]` | Order, dividers and visibility of the spaces rail. | [usage.md](usage.md) |
-| `[[tag]]` | Your own groupings of rooms in the rail, by rule, picked and excluded rooms. | [usage.md](usage.md#tags) |
-| `[display.rooms]` | The room list's sort chain, globally and per rail group. | [usage.md](usage.md) |
-| `[display.deleted]` | Whether deleted messages show as placeholders, and whether their content is kept in the cache. | [usage.md](usage.md) |
-| `[display.media]` | Images (placeholder chip or inline), viewer, video player, download folder and layout, the media cache. | [usage.md](usage.md) |
-| `[display.media.audio]` | The voice-note player: speed, skip, `mpv` or VLC. | [usage.md](usage.md) |
-| `[display.reactions]` | The quick-react palette and how it ranks by your usage. | [usage.md](usage.md) |
-| `[display.threads]` | Which threads appear as rows under their room. | [usage.md](usage.md) |
-| `[display.direction]` | Which rooms read right to left, mirrored with names on the right: set by place, or guessed per room (`auto`). | [usage.md](usage.md#the-timeline) |
-| `[notifications]` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
-| `[clipboard]` | The copy command, link opener, window focusing, unattended code copy, copying saved-file paths. | [usage.md](usage.md) |
-| `[codes]` | Where verification codes are looked for and what one looks like. | [notifications.md](notifications.md) |
-| `[[profile]]` | Named setups, each with its own rooms, archive, rail and notification topic. | [Profiles](#profiles) |
-| `[[filter]]` | Words, a sender or a language that move rooms into a tag (the starter's Spam, or any other). | [filters.md](filters.md) |
-| `[composer]` | External editor (`alt+e`), temp-file suffix, Markdown on send. | [composer.md](composer.md) |
-| `[spell]` | Spell-checking engine, dictionaries, rare-word detection, check before sending. | [composer.md](composer.md) |
-| `[complete]`, `[complete.model]` | Word completion and ghost text, and the local llama.cpp model behind it. | [composer.md](composer.md) |
-| `[assist]` and its sub-tables | The optional remote language model for `/summary`, `:todo`, rewrites and thread names: endpoint, scope, budgets, prompts. | [assist.md](assist.md) |
-| `[agent.read]`, `[agent.write]` | What `kith-mcp` may read (**nothing until you list rooms** — the one room list where empty means none); where it may write (never wider than what it may read), where it sends instead of drafting, its cooldown. Write entries that reading rules out are warned about at startup. | [mcp.md](mcp.md) |
-| `[commands]`, `[[command]]` | Your own slash commands: their folder and timeout; per command, its context, output (compose, send, …) and keys. | [commands.md](commands.md) |
-| `[schedule]` | Send-later messages: `overdue_cutoff_hours` (default 24) holds back messages that come due too late. | [usage.md](usage.md) |
-| `[backup]` | kithd's scheduled backups: on or off (`enabled`), the age public key they are encrypted to (`key`, never the private one), the folder (`dir`), when (`every`, an interval with `7d` for days, or `cron`, a cron expression; one of them) and how many are kept (`keep`). Changes apply without a restart. | [usage.md](usage.md#backing-up-and-moving-to-a-new-machine) |
-| `[log]` | `level`: how much the daemon, the client and `kith-mcp` log (`debug`, `info`, `warn`, `error`; default `info`). `--log-level` and `KITH_LOG_LEVEL` override it. `target`: where the client and a daemon it started log (`auto`, `journal`, `file`; default `auto`, the journal when there is one). `--log-target` and `KITH_LOG_TARGET` override it. | [troubleshooting.md](troubleshooting.md#where-the-log-goes) |
-| `[keys]` and `[keys.*]` | Every keybinding, one table per mode. | [keybindings.md](keybindings.md) |
+| Section | File | Purpose | More |
+| --- | --- | --- | --- |
+| *(top level)* | config, but `terminal` device | `allow_token_file`, `terminal`, `bridge_contacts`. | [getting-started.md](getting-started.md) |
+| `[matrix]` | config | The Matrix accounts (`[[matrix.account]]`) and which is the default. | [Matrix accounts](#matrix-accounts) |
+| `[display]` | config: `time_format`, `long_date_format`, `short_date_format`, `priority`, `room_name_rules`, `[[display.space_rule]]`, `[[display.identity]]`, `[[display.name]]`; device: the rest, `[[display.read_rule]]` included | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, how times and dates are written (`time_format`, `long_date_format`, `short_date_format`), and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
+| `[display.theme]` | device | The color palette: a preset plus per-role overrides. | [Themes](#themes) |
+| `[display.theme.networks]` | device | The color each network's rooms are named in, where the room lists or the rail ask for it. | [usage.md](usage.md) |
+| `[display.emoji]` | device | Emoji set size (`curated`, `standard`, `complete`) and your own shortcodes. | [composer.md](composer.md) |
+| `[display.tracked]` | config | Words highlighted wherever they are said and listed by `/tracked`, optionally with notifications. | [search.md](search.md) |
+| `[display.rail]` | config | Order, dividers and visibility of the spaces rail. | [usage.md](usage.md) |
+| `[[tag]]` | config | Your own groupings of rooms in the rail, by rule, picked and excluded rooms. | [usage.md](usage.md#tags) |
+| `[display.rooms]` | device | The room list's sort chain, globally and per rail group. | [usage.md](usage.md) |
+| `[display.deleted]` | config | Whether deleted messages show as placeholders, and whether their content is kept in the cache. | [usage.md](usage.md) |
+| `[display.media]` | config | Images (placeholder chip or inline), viewer, video player, download folder and layout, the media cache. | [usage.md](usage.md) |
+| `[display.media.audio]` | config | The voice-note player: speed, skip, `mpv` or VLC. | [usage.md](usage.md) |
+| `[display.reactions]` | device | The quick-react palette and how it ranks by your usage. | [usage.md](usage.md) |
+| `[display.threads]` | device | Which threads appear as rows under their room. | [usage.md](usage.md) |
+| `[display.direction]` | device | Which rooms read right to left, mirrored with names on the right: set by place, or guessed per room (`auto`). | [usage.md](usage.md#the-timeline) |
+| `[notifications]` | config: `sound`, `max_per_room`, `rate_window`, `[[notifications.rule]]`; device: `enabled`, `desktop`, `command`, `sound_command`, `timeout`, `title`, `body` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
+| `[clipboard]` | config: `auto_copy`; device: the rest | The copy command, link opener, window focusing, unattended code copy, copying saved-file paths. | [usage.md](usage.md) |
+| `[codes]` | config | Where verification codes are looked for and what one looks like. | [notifications.md](notifications.md) |
+| `[[profile]]` | config | Named setups, each with its own rooms, archive, rail and notification topic. | [Profiles](#profiles) |
+| `[[filter]]` | config | Words, a sender or a language that move rooms into a tag (the starter's Spam, or any other). | [filters.md](filters.md) |
+| `[composer]` | device | External editor (`alt+e`), temp-file suffix, Markdown on send. | [composer.md](composer.md) |
+| `[spell]` | config: `enabled`, `command`, `dictionaries`, `flag_rare_words`, `rare_ratio`; device: the rest | Spell-checking engine, dictionaries, rare-word detection, check before sending. | [composer.md](composer.md) |
+| `[complete]`, `[complete.model]` | `[complete]` device; `[complete.model]` config, but its `declined` device | Word completion and ghost text, and the local llama.cpp model behind it. | [composer.md](composer.md) |
+| `[assist]` and its sub-tables | config, but `name_threads` and `name_threads_after` device | The optional remote language model for `/summary`, `:todo`, rewrites and thread names: endpoint, scope, budgets, prompts. | [assist.md](assist.md) |
+| `[agent.read]`, `[agent.write]` | config | What `kith-mcp` may read (**nothing until you list rooms** — the one room list where empty means none); where it may write (never wider than what it may read), where it sends instead of drafting, its cooldown. Write entries that reading rules out are warned about at startup. | [mcp.md](mcp.md) |
+| `[commands]`, `[[command]]` | `[commands] dir` config; `[commands] timeout` and `[[command]]` device | Your own slash commands: their folder and timeout; per command, its context, output (compose, send, …) and keys. | [commands.md](commands.md) |
+| `[schedule]` | config | Send-later messages: `overdue_cutoff_hours` (default 24) holds back messages that come due too late. | [usage.md](usage.md) |
+| `[backup]` | config | kithd's scheduled backups: on or off (`enabled`), the age public key they are encrypted to (`key`, never the private one), the folder (`dir`), when (`every`, an interval with `7d` for days, or `cron`, a cron expression; one of them) and how many are kept (`keep`). Changes apply without a restart. | [usage.md](usage.md#backing-up-and-moving-to-a-new-machine) |
+| `[log]` | config | `level`: how much the daemon, the client and `kith-mcp` log (`debug`, `info`, `warn`, `error`; default `info`). `--log-level` and `KITH_LOG_LEVEL` override it. `target`: where the client and a daemon it started log (`auto`, `journal`, `file`; default `auto`, the journal when there is one). `--log-target` and `KITH_LOG_TARGET` override it. | [troubleshooting.md](troubleshooting.md#where-the-log-goes) |
+| `[keys]` and `[keys.*]` | device | Every keybinding, one table per mode. | [keybindings.md](keybindings.md) |
 
 Settings that name a place say which kind with a prefix:
 
@@ -357,7 +384,7 @@ which beats the person anywhere, which beats a space.
 
 ## Themes
 
-`[display.theme]` has one `preset` and nine optional color roles.
+`[display.theme]`, in `device.toml`, has one `preset` and nine optional color roles.
 
 | Preset | Look |
 | --- | --- |
@@ -391,19 +418,26 @@ accent = "#ff8800"
 
 ## Examples
 
-These snippets go into your `config.toml`. Merge them with any section header you
-already have, because TOML allows each `[table]` only once.
+These snippets go into the file each one names. Merge them with any section header
+you already have, because TOML allows each `[table]` only once.
 
 ### Turn on desktop notifications
 
-Notifications ship off. This setup pings for mentions and direct messages, stays
-silent overnight, lets one room through anyway, and plays a sound:
+Notifications ship off. Turning them on is this device's, in `device.toml`:
 
 ```toml
 [notifications]
 enabled = true
 desktop = true                 # the popup; off unless set
-sound   = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"
+```
+
+What notifies is the bridge's, in `config.toml`. This setup pings for mentions and
+direct messages, stays silent overnight, lets one room through anyway, and plays a
+sound:
+
+```toml
+[notifications]
+sound = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"
 
 [[notifications.rule]]
 name = "everything"
@@ -487,6 +521,8 @@ filing stays in kith (taking a followed chat out writes `excluded`, as for any r
 
 ### Sort the room list
 
+In `device.toml`:
+
 ```toml
 [display.rooms]
 sort = ["mentions", "unread", "recent", "name"]
@@ -499,7 +535,7 @@ sort  = ["drafts", "unread", "name"]
 ### Copy through a command instead of OSC 52
 
 `c` copies with the OSC 52 terminal escape. If your terminal or multiplexer blocks it,
-name a command, which receives the text on stdin:
+name a command in `device.toml`, which receives the text on stdin:
 
 ```toml
 [clipboard]
@@ -514,7 +550,7 @@ tmux config.
 A `matrix:` or `tg:` link clicked elsewhere goes to the running kith (`kith --open`),
 but its window stays where it was. `raise_command` is run by the kith that got the
 link, through `sh -c`, so the terminal's own variables name that kith's pane or window
-(and `$PPID` is kith):
+(and `$PPID` is kith). In `device.toml`:
 
 ```toml
 [clipboard]
@@ -534,7 +570,7 @@ opened. A command that fails is reported on the status line.
 ### Rebind keys
 
 Each value is a comma-separated list of key names, `"-"` unbinds an action, and the
-comma key is written `comma`:
+comma key is written `comma`. In `device.toml`:
 
 ```toml
 [keys]

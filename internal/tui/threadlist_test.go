@@ -18,8 +18,8 @@ func TestSteppingDownTheThreadListReachesEveryThread(t *testing.T) {
 		{RoomID: mx + "!f:x", Root: mx + "$c", Title: "C", LatestAt: at(7)},
 		{RoomID: mx + "!f:x", Root: mx + "$d", Title: "D", LatestAt: at(6)},
 	}
-	display := config.Display{Threads: config.Threads{InRoomList: config.ThreadsAll}}
-	m := sized(t, update(t, starterNew(&threadListBackend{}, display), roomsMsg{rooms: []domain.Room{{ID: mx + "!f:x", Name: "Hikers"}}}))
+	device := config.DeviceDisplay{Threads: config.Threads{InRoomList: config.ThreadsAll}}
+	m := sized(t, update(t, starterNew(&threadListBackend{}, config.Display{}, device), roomsMsg{rooms: []domain.Room{{ID: mx + "!f:x", Name: "Hikers"}}}))
 	m = update(t, m, unreadMsg{list: []domain.Unread{{RoomID: mx + "!f:x", Messages: 1, Threads: []domain.ThreadUnread{{Root: mx + "$a", Title: "A", LatestAt: at(9)}}}}})
 	m = update(t, m, roomThreadsMsg{roomID: mx + "!f:x", threads: threads})
 	// The timeline holds each thread's start and a reply in it, as an open room's does.

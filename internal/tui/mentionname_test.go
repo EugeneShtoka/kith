@@ -160,7 +160,7 @@ func TestMentionCandidatesAreNamedAsTheTimelineNamesThem(t *testing.T) {
 	m.prefs.identities = map[string]resolvedIdentity{"matrix:@vanya:x": {key: "vanya", alias: "Vanya Sokolov"}}
 	m.peers.aliases = map[string]string{"matrix:@dm:x": "Dana Mor"}
 	m.prefs.display.SpaceRules = []config.SpaceRule{{Space: m.ownSpace(mx + "!a:x"), FirstNameOnly: true}}
-	m.prefs.display.MaxNameLength = 3
+	m.prefs.device.MaxNameLength = 3
 
 	var got []string
 	for _, c := range m.mentionCandidates("") {
@@ -172,9 +172,9 @@ func TestMentionCandidatesAreNamedAsTheTimelineNamesThem(t *testing.T) {
 	}
 	for _, member := range m.timeline.members {
 		_, name := m.personOf(member)
-		m.prefs.display.MaxNameLength = 0
+		m.prefs.device.MaxNameLength = 0
 		timeline := m.processedName(domain.Message{RoomID: mx + "!a:x", Sender: member.UserID, SenderName: member.DisplayName})
-		m.prefs.display.MaxNameLength = 3
+		m.prefs.device.MaxNameLength = 3
 		if name != timeline {
 			t.Errorf("%s: @ offers %q, the timeline says %q", member.UserID, name, timeline)
 		}

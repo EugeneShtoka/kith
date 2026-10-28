@@ -417,7 +417,7 @@ func (m Model) renderEntry(w walk, i int) rowEntry {
 	e := rowEntry{in: m.entryInputs(w, i)}
 	e.divider = dayKey(msg.Timestamp) != "" &&
 		(i == 0 || dayKey(msg.Timestamp) != dayKey(w.msgs[i-1].Timestamp))
-	e.unread = m.prefs.display.ShowUnreadLine() && m.timeline.opened.unreadFrom != "" &&
+	e.unread = m.prefs.device.ShowUnreadLine() && m.timeline.opened.unreadFrom != "" &&
 		i > 0 && w.msgs[i-1].ID == m.timeline.opened.unreadFrom
 	e.rows = m.renderRows(w, i, false)
 	e.height = len(e.rows)

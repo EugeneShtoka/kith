@@ -99,21 +99,23 @@ func TestSenderMovesRead(t *testing.T) {
 	}
 }
 
-// Renaming a tag renames the filters and keys naming it; deleting it drops them.
+// Renaming a tag renames the filters and a device's keys naming it; deleting it drops
+// them.
 func TestFiltersAndKeysFollowTheirTag(t *testing.T) {
 	t.Parallel()
 	cfg := spamTagged(config.Filter{Name: "crypto", Tag: "spam", Words: []string{"x"}})
 	cfg.Tags = append(cfg.Tags, config.Tag{Name: "Other"})
 	cfg.Filters = append(cfg.Filters, config.Filter{Name: "other", Tag: "Other", Words: []string{"y"}})
-	cfg.Keys.Tag = config.TagKeys{{Chord: "!", Tag: "SPAM"}, {Chord: "o", Tag: "Other"}}
+	var dev config.Device
+	dev.Keys.Tag = config.TagKeys{{Chord: "!", Tag: "SPAM"}, {Chord: "o", Tag: "Other"}}
 
-	renamed := setup.RenameTag(cfg, "Spam", "Junk")
-	if renamed.Filters[0].Tag != "Junk" || renamed.Keys.Tag[0].Tag != "Junk" || renamed.Filters[1].Tag != "Other" {
-		t.Errorf("after rename: filters %+v, keys %+v", renamed.Filters, renamed.Keys.Tag)
+	renamed, renamedKeys := setup.RenameTag(cfg, "Spam", "Junk"), setup.RenameTagOnDevice(dev, "Spam", "Junk").Keys
+	if renamed.Filters[0].Tag != "Junk" || renamedKeys.Tag[0].Tag != "Junk" || renamed.Filters[1].Tag != "Other" {
+		t.Errorf("after rename: filters %+v, keys %+v", renamed.Filters, renamedKeys.Tag)
 	}
-	deleted := setup.DeleteTag(cfg, "spam")
-	if len(deleted.Filters) != 1 || deleted.Filters[0].Name != "other" || len(deleted.Keys.Tag) != 1 || deleted.Keys.Tag[0].Chord != "o" {
-		t.Errorf("after delete: filters %+v, keys %+v", deleted.Filters, deleted.Keys.Tag)
+	deleted, deletedKeys := setup.DeleteTag(cfg, "spam"), setup.DeleteTagOnDevice(dev, "spam").Keys
+	if len(deleted.Filters) != 1 || deleted.Filters[0].Name != "other" || len(deletedKeys.Tag) != 1 || deletedKeys.Tag[0].Chord != "o" {
+		t.Errorf("after delete: filters %+v, keys %+v", deleted.Filters, deletedKeys.Tag)
 	}
 	if _, err := setup.Filters(deleted); err != nil {
 		t.Errorf("a config with a tag deleted does not validate: %v", err)

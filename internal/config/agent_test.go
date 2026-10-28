@@ -18,6 +18,16 @@ func loadText(t *testing.T, body string) (Config, error) {
 	return Load(path)
 }
 
+// loadDeviceText loads body as a device file.
+func loadDeviceText(t *testing.T, body string) (Device, error) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), DeviceFile)
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write device file: %v", err)
+	}
+	return LoadDevice(path)
+}
+
 // [agent.read] and [agent.write] decode into their own tables.
 func TestAgentReadAndWriteAreSeparateTables(t *testing.T) {
 	t.Parallel()

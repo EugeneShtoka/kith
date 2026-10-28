@@ -81,7 +81,7 @@ Key sequences bound to tags: the room under the cursor (or the open one) goes in
 the tag, or out of it; in the timeline, the selected message's sender does (a muted
 tag hides them in every room). Taking out a room a filter moved writes the tag's excluded, so
 no filter puts it back. The starter binds "!", the mail clients' "report spam" key,
-to Spam (next to the [[tag]] list); a binding to a tag that does not exist is
+to Spam (just above; the tags are config.toml's); a binding to a tag that does not exist is
 reported in ` + "`?`" + ` and does nothing.
 
   [[keys.tag]]
@@ -90,7 +90,7 @@ reported in ` + "`?`" + ` and does nothing.
 	},
 	{
 		table: "rail",
-		intro: `The rail. Its order and hidden rows are [display.rail]'s.`,
+		intro: `The rail. Its order and hidden rows are [display.rail]'s, in config.toml.`,
 		binds: []keyBinding{
 			{path: "rail.name", def: "a", doc: "name this group", note: "A local name; an empty one clears it."},
 			{path: "rail.notify_rule", def: "b", doc: "notification rule for this space"},

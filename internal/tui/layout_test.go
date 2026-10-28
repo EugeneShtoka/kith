@@ -12,15 +12,18 @@ import (
 )
 
 // laidOut returns a model with two spaces, two rooms and a config file to write to.
-func laidOut(t *testing.T, display config.Display) (Model, string) {
+func laidOut(t *testing.T, display config.Display, device ...config.DeviceDisplay) (Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
 	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Display: display, Tags: starter(t).Tags, Profiles: starter(t).Profiles}
-	base.Keys.FillDefaults()
 	if err := config.Save(path, base); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
-	m := update(t, New(t.Context(), apitest.Nop{}, display).WithConfigFile("", asStarted(base)),
+	var dev config.DeviceDisplay
+	if len(device) > 0 {
+		dev = device[0]
+	}
+	m := update(t, New(t.Context(), apitest.Nop{}, display, dev).WithConfigFile("", asStarted(base)),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
@@ -311,7 +314,7 @@ func TestASpanningGroupLeavesTheRoomsOwnSpaceToDecide(t *testing.T) {
 func TestTheWidthCapIsForSenderLabelsOnly(t *testing.T) {
 	t.Parallel()
 
-	m, _ := laidOut(t, config.Display{MaxNameLength: 6})
+	m, _ := laidOut(t, config.Display{}, config.DeviceDisplay{MaxNameLength: 6})
 	if got := m.shapedName("Michael Livingston", mx+"!a:x"); got != "Micha…" {
 		t.Errorf("sender label = %q, want it capped at 6", got)
 	}

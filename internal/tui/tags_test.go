@@ -19,7 +19,7 @@ func taggedModel(t *testing.T, cfg config.Config) Model {
 
 // configured builds a model as the program does: display first, then the rest.
 func configured(cfg config.Config) Model {
-	return New(context.Background(), apitest.Nop{}, cfg.Display).WithConfigFile("", asStarted(cfg))
+	return New(context.Background(), apitest.Nop{}, cfg.Display, config.DeviceDisplay{}).WithConfigFile("", asStarted(cfg))
 }
 
 func railRow(t *testing.T, m Model, key string) group {

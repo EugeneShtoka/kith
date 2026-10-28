@@ -186,6 +186,7 @@ sort a sender's messages away instead, use a tag such as Spam ([filters.md](filt
 | `--config path` | Config file to read. Default: `$XDG_CONFIG_HOME/kith/config.toml`. If it doesn't exist, an annotated default is written there and kith exits. |
 | `--version` | Print the version, commit and build date, then exit. |
 | `--print-config` | Print the fully documented default configuration, then exit. It needs no config or session. |
+| `--print-device-config` | Print the fully documented default device settings (`device.toml`), then exit. It needs no config or session. |
 | `--log-level level` | How much to log: `debug`, `info`, `warn` or `error`. Overrides `KITH_LOG_LEVEL` and `[log] level`. See [troubleshooting.md](troubleshooting.md#logs). |
 | `--log-target target` | Where to log: `journal` (tagged `kith`), `file` (`$XDG_STATE_HOME/kith/kith.log`), or `auto`, the journal when there is one. Overrides `KITH_LOG_TARGET` and `[log] target`. Never the terminal. See [troubleshooting.md](troubleshooting.md#where-the-log-goes). |
 

@@ -83,7 +83,7 @@ func TestUntickingTheRowDeclinesItForGood(t *testing.T) {
 
 	mdl, _ = m.acceptModelOffer(nil) // everything unticked
 	m = mdl
-	if !m.conf.base.Complete.Model.Declined {
+	if !m.conf.device.Complete.Model.Declined {
 		t.Error("unticking the row did not record the no, so it will be asked again")
 	}
 	if m.picker.active() {
@@ -97,9 +97,9 @@ func TestNothingIsOfferedWhenDeclinedOrOff(t *testing.T) {
 
 	off := false
 	for name, set := range map[string]func(*Model){
-		"declined":       func(m *Model) { m.conf.base.Complete.Model.Declined = true },
+		"declined":       func(m *Model) { m.conf.device.Complete.Model.Declined = true },
 		"model off":      func(m *Model) { m.conf.base.Complete.Model.Enabled = &off },
-		"completion off": func(m *Model) { m.conf.base.Complete.Enabled = &off },
+		"completion off": func(m *Model) { m.conf.device.Complete.Enabled = &off },
 	} {
 		m := sized(t, withRooms(t, newModel()))
 		set(&m)
@@ -179,7 +179,7 @@ func TestTheGateIsTheCompletionModelAlone(t *testing.T) {
 	if !m.modelLayerOn() {
 		t.Error("the completion model defaults to off, so nothing would ever ask")
 	}
-	m.conf.base.Complete.Model.Declined = true
+	m.conf.device.Complete.Model.Declined = true
 	if m.modelLayerOn() {
 		t.Error("a declined model still arms the asker")
 	}

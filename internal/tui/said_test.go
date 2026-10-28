@@ -90,7 +90,7 @@ func danaSays(n int) []domain.Message {
 func saidModel(t *testing.T, b *saidBackend, cfg config.Config) Model {
 	t.Helper()
 	cfg.Display.Identities = append(cfg.Display.Identities, config.Identity{Alias: "Dana", IDs: []string{danaMatrix, danaWhatsApp}})
-	m := New(context.Background(), b, cfg.Display).WithConfigFile("", asStarted(cfg))
+	m := New(context.Background(), b, cfg.Display, config.DeviceDisplay{}).WithConfigFile("", asStarted(cfg))
 	m = sized(t, withRooms(t, m))
 	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next.setMessages([]domain.Message{

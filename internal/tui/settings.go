@@ -36,16 +36,16 @@ type setting struct {
 	label string
 	// group is the settingGroups entry it is listed under.
 	group   string
-	show    func(config.Config) string
+	show    func(config.Settings) string
 	kind    settingKind
 	choices []settingChoiceOption
 	// edit is what a settingText prompt starts with when the shown form ("no limit") is
 	// not typeable back. Empty means unset.
-	edit func(config.Config) string
+	edit func(config.Settings) string
 	// set writes a new value; an error is shown to the user.
-	set func(*config.Config, string) error
+	set func(*config.Settings, string) error
 	// count is a settingNumber's value; least is the lowest + and - step to.
-	count func(config.Config) int
+	count func(config.Settings) int
 	least int
 	// help says what a typed value may be.
 	help string
@@ -53,8 +53,8 @@ type setting struct {
 	// stands for besides its key, which get no row.
 	doc        string
 	covers     []string
-	entries    func(config.Config) []string
-	setEntries func(*config.Config, []string) error
+	entries    func(config.Settings) []string
+	setEntries func(*config.Settings, []string) error
 	open       func(Model) (Model, tea.Cmd)
 	// entryLabel shows a list entry (a room by its name); nil shows it as written.
 	entryLabel func(string) string
@@ -126,36 +126,36 @@ func quietRuleAt(rules []config.Rule) int {
 }
 
 // editAccountRule applies change to the account-wide rule, creating it on first edit.
-func editAccountRule(c *config.Config, change func(*config.Rule)) {
-	at := accountRuleAt(c.Notifications.Rules)
+func editAccountRule(c *config.Settings, change func(*config.Rule)) {
+	at := accountRuleAt(c.Bridge.Notifications.Rules)
 	if at < 0 {
-		c.Notifications.Rules = append(c.Notifications.Rules, config.Rule{Name: "everything"})
-		at = len(c.Notifications.Rules) - 1
+		c.Bridge.Notifications.Rules = append(c.Bridge.Notifications.Rules, config.Rule{Name: "everything"})
+		at = len(c.Bridge.Notifications.Rules) - 1
 	}
-	change(&c.Notifications.Rules[at])
+	change(&c.Bridge.Notifications.Rules[at])
 }
 
-func accountShow(c config.Config) string {
-	if at := accountRuleAt(c.Notifications.Rules); at >= 0 && c.Notifications.Rules[at].Show != "" {
-		return c.Notifications.Rules[at].Show
+func accountShow(c config.Settings) string {
+	if at := accountRuleAt(c.Bridge.Notifications.Rules); at >= 0 && c.Bridge.Notifications.Rules[at].Show != "" {
+		return c.Bridge.Notifications.Rules[at].Show
 	}
 	return notify.LevelMention.String()
 }
 
-func setAccountShow(c *config.Config, v string) error {
+func setAccountShow(c *config.Settings, v string) error {
 	editAccountRule(c, func(r *config.Rule) { r.Show = v })
 	return nil
 }
 
 // accountRing is the account-wide sound level; unset follows the popup.
-func accountRing(c config.Config) string {
-	if at := accountRuleAt(c.Notifications.Rules); at >= 0 && c.Notifications.Rules[at].Ring != "" {
-		return c.Notifications.Rules[at].Ring
+func accountRing(c config.Settings) string {
+	if at := accountRuleAt(c.Bridge.Notifications.Rules); at >= 0 && c.Bridge.Notifications.Rules[at].Ring != "" {
+		return c.Bridge.Notifications.Rules[at].Ring
 	}
 	return ringFollowsShow
 }
 
-func setAccountRing(c *config.Config, v string) error {
+func setAccountRing(c *config.Settings, v string) error {
 	if v == ringFollowsShow {
 		v = ""
 	}
@@ -164,21 +164,21 @@ func setAccountRing(c *config.Config, v string) error {
 }
 
 // quietWindowText is the quiet-hours schedule as the prompt accepts it, empty when none.
-func quietWindowText(c config.Config) string {
-	if at := quietRuleAt(c.Notifications.Rules); at >= 0 {
-		return c.Notifications.Rules[at].When
+func quietWindowText(c config.Settings) string {
+	if at := quietRuleAt(c.Bridge.Notifications.Rules); at >= 0 {
+		return c.Bridge.Notifications.Rules[at].When
 	}
 	return ""
 }
 
 // setQuietWindow writes the schedule onto the scheduled rule, creating it on first
 // edit and removing it when cleared.
-func setQuietWindow(c *config.Config, value string) error {
+func setQuietWindow(c *config.Settings, value string) error {
 	value = strings.TrimSpace(value)
-	at := quietRuleAt(c.Notifications.Rules)
+	at := quietRuleAt(c.Bridge.Notifications.Rules)
 	if value == "" || value == "none" {
 		if at >= 0 {
-			c.Notifications.Rules = append(c.Notifications.Rules[:at], c.Notifications.Rules[at+1:]...)
+			c.Bridge.Notifications.Rules = append(c.Bridge.Notifications.Rules[:at], c.Bridge.Notifications.Rules[at+1:]...)
 		}
 		return nil
 	}
@@ -187,27 +187,27 @@ func setQuietWindow(c *config.Config, value string) error {
 		return fmt.Errorf("%q is not two HH:MM times — try 22:00-08:00, or empty for none", value)
 	}
 	if at < 0 {
-		c.Notifications.Rules = append(c.Notifications.Rules, config.Rule{Name: "quiet hours", Show: notify.LevelNone.String()})
-		at = len(c.Notifications.Rules) - 1
+		c.Bridge.Notifications.Rules = append(c.Bridge.Notifications.Rules, config.Rule{Name: "quiet hours", Show: notify.LevelNone.String()})
+		at = len(c.Bridge.Notifications.Rules) - 1
 	}
-	c.Notifications.Rules[at].When = value
+	c.Bridge.Notifications.Rules[at].When = value
 	return nil
 }
 
 // quietShow is what still notifies during quiet hours: the scheduled rule's level.
-func quietShow(c config.Config) string {
-	if at := quietRuleAt(c.Notifications.Rules); at >= 0 {
-		return orDefault(c.Notifications.Rules[at].Show, "none")
+func quietShow(c config.Settings) string {
+	if at := quietRuleAt(c.Bridge.Notifications.Rules); at >= 0 {
+		return orDefault(c.Bridge.Notifications.Rules[at].Show, "none")
 	}
 	return "none"
 }
 
-func setQuietShow(c *config.Config, v string) error {
-	at := quietRuleAt(c.Notifications.Rules)
+func setQuietShow(c *config.Settings, v string) error {
+	at := quietRuleAt(c.Bridge.Notifications.Rules)
 	if at < 0 {
 		return errors.New("there are no quiet hours yet — set them first")
 	}
-	c.Notifications.Rules[at].Show = v
+	c.Bridge.Notifications.Rules[at].Show = v
 	return nil
 }
 
@@ -219,9 +219,12 @@ var settingsList = buildSettings(curatedSettings)
 var curatedSettings = []setting{
 	{
 		key: "notifications.enabled", group: "notifications", label: "Notifications",
-		show: func(c config.Config) string { return onOff(c.Notifications.Enabled) },
+		show: func(c config.Settings) string { return onOff(c.Device.Notifications.Enabled) },
 		kind: settingToggle,
-		set:  func(c *config.Config, _ string) error { c.Notifications.Enabled = !c.Notifications.Enabled; return nil },
+		set: func(c *config.Settings, _ string) error {
+			c.Device.Notifications.Enabled = !c.Device.Notifications.Enabled
+			return nil
+		},
 	},
 	{
 		key: "notifications.show", group: "notifications", label: "Notify me for",
@@ -239,7 +242,7 @@ var curatedSettings = []setting{
 	},
 	{
 		key: "notifications.quiet_hours", group: "notifications", label: "Quiet hours",
-		show: func(c config.Config) string { return orDefault(quietWindowText(c), "none") },
+		show: func(c config.Settings) string { return orDefault(quietWindowText(c), "none") },
 		kind: settingText,
 		edit: quietWindowText,
 		set:  setQuietWindow,
@@ -254,33 +257,36 @@ var curatedSettings = []setting{
 	},
 	{
 		key: "notifications.desktop", group: "notifications", label: "Desktop popups",
-		show: func(c config.Config) string { return onOff(c.Notifications.Desktop) },
+		show: func(c config.Settings) string { return onOff(c.Device.Notifications.Desktop) },
 		kind: settingToggle,
-		set:  func(c *config.Config, _ string) error { c.Notifications.Desktop = !c.Notifications.Desktop; return nil },
+		set: func(c *config.Settings, _ string) error {
+			c.Device.Notifications.Desktop = !c.Device.Notifications.Desktop
+			return nil
+		},
 	},
 	{
 		key: "notifications.rules", group: "notifications", label: "Notification rules",
-		show: func(c config.Config) string { return ruleCountNote(len(c.Notifications.Rules)) },
+		show: func(c config.Settings) string { return ruleCountNote(len(c.Bridge.Notifications.Rules)) },
 		kind: settingOpen,
 		open: Model.openRuleList,
 	},
 	{
 		key: "notifications.sound", group: "notifications", label: "Notification sound",
-		show: func(c config.Config) string { return orDefault(c.Notifications.Sound, "silent") },
+		show: func(c config.Settings) string { return orDefault(c.Bridge.Notifications.Sound, "silent") },
 		kind: settingText,
-		edit: func(c config.Config) string { return c.Notifications.Sound },
-		set:  func(c *config.Config, v string) error { c.Notifications.Sound = v; return nil },
+		edit: func(c config.Settings) string { return c.Bridge.Notifications.Sound },
+		set:  func(c *config.Settings, v string) error { c.Bridge.Notifications.Sound = v; return nil },
 		help: "a sound file's path — empty for silent",
 	},
 	{
 		key: "notifications.timeout", group: "notifications", label: "Popup stays up for",
-		show: func(c config.Config) string { return timeoutNote(c.Notifications) },
+		show: func(c config.Settings) string { return timeoutNote(c.Device.Notifications) },
 		kind: settingNumber,
-		edit: func(c config.Config) string {
-			if c.Notifications.Timeout == nil {
+		edit: func(c config.Settings) string {
+			if c.Device.Notifications.Timeout == nil {
 				return ""
 			}
-			return strconv.Itoa(*c.Notifications.Timeout)
+			return strconv.Itoa(*c.Device.Notifications.Timeout)
 		},
 		set:   setPopupTimeout,
 		count: popupSeconds,
@@ -289,10 +295,10 @@ var curatedSettings = []setting{
 	},
 	{
 		key: "display.open_in_insert_mode", group: "composer", label: "Open rooms ready to type",
-		show: func(c config.Config) string { return onOff(c.Display.OpenInInsertMode()) },
+		show: func(c config.Settings) string { return onOff(c.Device.Display.OpenInInsertMode()) },
 		kind: settingToggle,
-		set: func(c *config.Config, _ string) error {
-			c.Display.OpenInInsert = flipped(c.Display.OpenInInsertMode())
+		set: func(c *config.Settings, _ string) error {
+			c.Device.Display.OpenInInsert = flipped(c.Device.Display.OpenInInsertMode())
 			return nil
 		},
 	},
@@ -305,87 +311,93 @@ var curatedSettings = []setting{
 	},
 	{
 		key: "display.color_messages", group: "display", label: "Tint message bodies",
-		show: func(c config.Config) string { return onOff(c.Display.ColorMessages) },
+		show: func(c config.Settings) string { return onOff(c.Device.Display.ColorMessages) },
 		kind: settingToggle,
-		set:  func(c *config.Config, _ string) error { c.Display.ColorMessages = !c.Display.ColorMessages; return nil },
+		set: func(c *config.Settings, _ string) error {
+			c.Device.Display.ColorMessages = !c.Device.Display.ColorMessages
+			return nil
+		},
 	},
 	{
 		key: "display.room_name_rules", group: "names", label: "Name rules apply to room names",
-		show: func(c config.Config) string { return onOff(c.Display.ApplyRoomNameRules()) },
+		show: func(c config.Settings) string { return onOff(c.Bridge.Display.ApplyRoomNameRules()) },
 		kind: settingToggle,
-		set: func(c *config.Config, _ string) error {
-			c.Display.RoomNameRules = flipped(c.Display.ApplyRoomNameRules())
+		set: func(c *config.Settings, _ string) error {
+			c.Bridge.Display.RoomNameRules = flipped(c.Bridge.Display.ApplyRoomNameRules())
 			return nil
 		},
 	},
 	{
 		key: "display.max_name_length", group: "names", label: "Sender name width",
-		show:  func(c config.Config) string { return showCount(c.Display.MaxNameLength, "no limit") },
+		show:  func(c config.Settings) string { return showCount(c.Device.Display.MaxNameLength, "no limit") },
 		kind:  settingNumber,
-		edit:  func(c config.Config) string { return countText(c.Display.MaxNameLength) },
-		set:   func(c *config.Config, v string) error { return setInt(&c.Display.MaxNameLength, v) },
-		count: func(c config.Config) int { return c.Display.MaxNameLength },
+		edit:  func(c config.Settings) string { return countText(c.Device.Display.MaxNameLength) },
+		set:   func(c *config.Settings, v string) error { return setInt(&c.Device.Display.MaxNameLength, v) },
+		count: func(c config.Settings) int { return c.Device.Display.MaxNameLength },
 		help:  "columns — 0 or empty for no limit",
 	},
 	{
 		key: "display.unread", group: "display", label: "Unread badges count",
-		show: func(c config.Config) string { return orDefault(c.Display.Unread, config.UnreadMessages) },
+		show: func(c config.Settings) string { return orDefault(c.Device.Display.Unread, config.UnreadMessages) },
 		kind: settingChoice,
 		choices: []settingChoiceOption{
 			{config.UnreadMessages, config.UnreadMessages, "what you have not read"},
 			{config.UnreadNotifications, config.UnreadNotifications,
 				"what your push rules would have pinged you about"},
 		},
-		set: func(c *config.Config, v string) error { c.Display.Unread = v; return nil },
+		set: func(c *config.Settings, v string) error { c.Device.Display.Unread = v; return nil },
 	},
 	{
 		key: "display.media.mode", group: "media", label: "Images",
-		show: func(c config.Config) string {
-			return orDefault(c.Display.Media.Mode, config.MediaPlaceholder)
+		show: func(c config.Settings) string {
+			return orDefault(c.Bridge.Display.Media.Mode, config.MediaPlaceholder)
 		},
 		kind:    settingChoice,
 		choices: mediaModeChoices,
-		set:     func(c *config.Config, v string) error { c.Display.Media.Mode = v; return nil },
+		set:     func(c *config.Settings, v string) error { c.Bridge.Display.Media.Mode = v; return nil },
 	},
 	{
 		key: "display.media.max_height", group: "media", label: "Inline image height",
-		show:  func(c config.Config) string { return showCount(c.Display.Media.MaxHeight, "default") },
+		show:  func(c config.Settings) string { return showCount(c.Bridge.Display.Media.MaxHeight, "default") },
 		kind:  settingNumber,
-		edit:  func(c config.Config) string { return countText(c.Display.Media.MaxHeight) },
-		set:   func(c *config.Config, v string) error { return setInt(&c.Display.Media.MaxHeight, v) },
-		count: func(c config.Config) int { return c.Display.Media.MaxHeight },
+		edit:  func(c config.Settings) string { return countText(c.Bridge.Display.Media.MaxHeight) },
+		set:   func(c *config.Settings, v string) error { return setInt(&c.Bridge.Display.Media.MaxHeight, v) },
+		count: func(c config.Settings) int { return c.Bridge.Display.Media.MaxHeight },
 		help:  "rows — 0 or empty for the default",
 	},
 	{
 		key: "codes.length", group: "codes", label: "Code length",
-		show:   func(c config.Config) string { return showRange(c.Codes.Min(), c.Codes.Max()) },
+		show:   func(c config.Settings) string { return showRange(c.Bridge.Codes.Min(), c.Bridge.Codes.Max()) },
 		kind:   settingText,
-		edit:   func(c config.Config) string { return showRange(c.Codes.Min(), c.Codes.Max()) },
+		edit:   func(c config.Settings) string { return showRange(c.Bridge.Codes.Min(), c.Bridge.Codes.Max()) },
 		set:    setCodeLength,
 		covers: []string{"codes.min_length", "codes.max_length"},
 		help:   "a range like 4-8, or 6 for exactly six — empty for the default",
 	},
 	{
 		key: "codes.letters", group: "codes", label: "Codes may contain letters",
-		show: func(c config.Config) string { return onOff(c.Codes.LettersAllowed()) },
+		show: func(c config.Settings) string { return onOff(c.Bridge.Codes.LettersAllowed()) },
 		kind: settingToggle,
-		set: func(c *config.Config, _ string) error {
-			c.Codes.Letters = flipped(c.Codes.LettersAllowed())
+		set: func(c *config.Settings, _ string) error {
+			c.Bridge.Codes.Letters = flipped(c.Bridge.Codes.LettersAllowed())
 			return nil
 		},
 	},
 	{
 		key: "codes.digits", group: "codes", label: "Codes may contain digits",
-		show: func(c config.Config) string { return onOff(c.Codes.DigitsAllowed()) },
+		show: func(c config.Settings) string { return onOff(c.Bridge.Codes.DigitsAllowed()) },
 		kind: settingToggle,
-		set:  func(c *config.Config, _ string) error { c.Codes.Digits = flipped(c.Codes.DigitsAllowed()); return nil },
+		set: func(c *config.Settings, _ string) error {
+			c.Bridge.Codes.Digits = flipped(c.Bridge.Codes.DigitsAllowed())
+			return nil
+		},
 	},
 	{
 		key: "codes.require_digit", group: "codes", label: "Codes must contain a digit",
-		show: func(c config.Config) string { return onOff(c.Codes.DigitRequired()) },
+		show: func(c config.Settings) string { return onOff(c.Bridge.Codes.DigitRequired()) },
 		kind: settingToggle,
-		set: func(c *config.Config, _ string) error {
-			c.Codes.RequireDigit = flipped(c.Codes.DigitRequired())
+		set: func(c *config.Settings, _ string) error {
+			c.Bridge.Codes.RequireDigit = flipped(c.Bridge.Codes.DigitRequired())
 			return nil
 		},
 	},
@@ -393,58 +405,58 @@ var curatedSettings = []setting{
 		// Turning it on is refused unless [clipboard] command and [codes] include are set,
 		// rather than reading "on" while doing nothing.
 		key: "clipboard.auto_copy", group: "codes", label: "Auto-copy codes as they arrive",
-		show: func(c config.Config) string { return onOff(c.Clipboard.AutoCopy) },
+		show: func(c config.Settings) string { return onOff(c.Bridge.Clipboard.AutoCopy) },
 		kind: settingToggle,
-		set: func(c *config.Config, _ string) error {
-			if c.Clipboard.AutoCopy {
-				c.Clipboard.AutoCopy = false
+		set: func(c *config.Settings, _ string) error {
+			if c.Bridge.Clipboard.AutoCopy {
+				c.Bridge.Clipboard.AutoCopy = false
 				return nil
 			}
-			flipped := *c
+			flipped := c.Bridge
 			flipped.Clipboard.AutoCopy = true
-			if err := setup.AutoCopyUnavailable(flipped); err != nil {
+			if err := setup.AutoCopyUnavailable(flipped, c.Device); err != nil {
 				return err
 			}
-			c.Clipboard.AutoCopy = true
+			c.Bridge.Clipboard.AutoCopy = true
 			return nil
 		},
 	},
 	{
 		key: "codes.symbols", group: "codes", label: "Other characters in a code",
-		show: func(c config.Config) string { return orDefault(c.Codes.Symbols, "none") },
+		show: func(c config.Settings) string { return orDefault(c.Bridge.Codes.Symbols, "none") },
 		kind: settingText,
-		edit: func(c config.Config) string { return c.Codes.Symbols },
-		set:  func(c *config.Config, v string) error { c.Codes.Symbols = v; return nil },
+		edit: func(c config.Settings) string { return c.Bridge.Codes.Symbols },
+		set:  func(c *config.Settings, v string) error { c.Bridge.Codes.Symbols = v; return nil },
 		help: "the characters, written together — empty for none",
 	},
 	{
 		key: "display.emoji.set", group: "emoji", label: "Emoji set",
-		show: func(c config.Config) string { return orDefault(c.Display.Emoji.Set, emojiCurated) },
+		show: func(c config.Settings) string { return orDefault(c.Device.Display.Emoji.Set, emojiCurated) },
 		kind: settingChoice,
 		choices: []settingChoiceOption{
 			{emojiCurated, emojiCurated, fmt.Sprintf("%d hand-picked, browsable end to end", len(emojidata.Curated))},
 			{emojiStandard, emojiStandard, fmt.Sprintf("+%d single-glyph emoji from Unicode", len(emojidata.Standard))},
 			{emojiComplete, emojiComplete, fmt.Sprintf("+%d composed: families, professions, flags", len(emojidata.Sequences))},
 		},
-		set: func(c *config.Config, v string) error { c.Display.Emoji.Set = v; return nil },
+		set: func(c *config.Settings, v string) error { c.Device.Display.Emoji.Set = v; return nil },
 	},
 	{
 		key: "display.time_format", group: "look", label: "Time format",
-		show:    func(c config.Config) string { return orDefault(c.Display.TimeFormat, domain.DefaultTimeStyle) },
+		show:    func(c config.Settings) string { return orDefault(c.Bridge.Display.TimeFormat, domain.DefaultTimeStyle) },
 		kind:    settingChoice,
 		choices: timeStyleChoices(),
-		set:     func(c *config.Config, v string) error { c.Display.TimeFormat = v; return nil },
+		set:     func(c *config.Settings, v string) error { c.Bridge.Display.TimeFormat = v; return nil },
 	},
 	{
 		key: "display.skin_tone", group: "emoji", label: "Emoji skin tone",
-		show:    func(c config.Config) string { return orDefault(c.Display.SkinTone, "none") },
+		show:    func(c config.Settings) string { return orDefault(c.Device.Display.SkinTone, "none") },
 		kind:    settingChoice,
 		choices: skinToneChoices(),
-		set:     func(c *config.Config, v string) error { c.Display.SkinTone = v; return nil },
+		set:     func(c *config.Settings, v string) error { c.Device.Display.SkinTone = v; return nil },
 	},
 	{
 		key: "display.reactions.scope", group: "emoji", label: "React palette ranking",
-		show: func(c config.Config) string { return orDefault(c.Display.Reactions.Scope, "room") },
+		show: func(c config.Settings) string { return orDefault(c.Device.Display.Reactions.Scope, "room") },
 		kind: settingChoice,
 		choices: []settingChoiceOption{
 			{"room", "room", "this conversation, then its space, then everywhere"},
@@ -452,13 +464,13 @@ var curatedSettings = []setting{
 			{"global", "global", "one ranking everywhere"},
 			{"static", "static", "no ranking; the fixed list"},
 		},
-		set: func(c *config.Config, v string) error { c.Display.Reactions.Scope = v; return nil },
+		set: func(c *config.Settings, v string) error { c.Device.Display.Reactions.Scope = v; return nil },
 	},
 	{
 		key: "backup.every", group: "advanced", label: "Backup · schedule",
 		show:   showBackupSchedule,
 		kind:   settingText,
-		edit:   func(c config.Config) string { return orDefault(c.Backup.Cron, c.Backup.Every) },
+		edit:   func(c config.Settings) string { return orDefault(c.Bridge.Backup.Cron, c.Bridge.Backup.Every) },
 		set:    setBackupSchedule,
 		covers: []string{"backup.cron"},
 		help:   "an interval (6h, 7d) or a cron expression (0 3 * * *) — empty for every 24h",
@@ -466,12 +478,12 @@ var curatedSettings = []setting{
 }
 
 // showBackupSchedule is [backup]'s schedule in words: its cron expression or interval.
-func showBackupSchedule(c config.Config) string {
+func showBackupSchedule(c config.Settings) string {
 	switch {
-	case strings.TrimSpace(c.Backup.Cron) != "":
-		return "cron " + c.Backup.Cron
-	case strings.TrimSpace(c.Backup.Every) != "":
-		return "every " + c.Backup.Every
+	case strings.TrimSpace(c.Bridge.Backup.Cron) != "":
+		return "cron " + c.Bridge.Backup.Cron
+	case strings.TrimSpace(c.Bridge.Backup.Every) != "":
+		return "every " + c.Bridge.Backup.Every
 	}
 	return "every 24h (default)"
 }
@@ -480,13 +492,13 @@ func showBackupSchedule(c config.Config) string {
 // expression (five fields, a descriptor like @daily, or a CRON_TZ= prefix), else to
 // every, clearing the other so only one is set; empty clears both (the default).
 // setup.Backups checks what was written.
-func setBackupSchedule(c *config.Config, v string) error {
+func setBackupSchedule(c *config.Settings, v string) error {
 	v = strings.TrimSpace(v)
-	c.Backup.Every, c.Backup.Cron = "", ""
+	c.Bridge.Backup.Every, c.Bridge.Backup.Cron = "", ""
 	if len(strings.Fields(v)) == 5 || strings.HasPrefix(v, "@") || strings.HasPrefix(v, "CRON_TZ=") {
-		c.Backup.Cron = v
+		c.Bridge.Backup.Cron = v
 	} else {
-		c.Backup.Every = v
+		c.Bridge.Backup.Every = v
 	}
 	return nil
 }
@@ -569,7 +581,7 @@ func (m Model) settingsTop(at string) Model {
 		rows := m.groupRows(g.key)
 		detail := fmt.Sprintf("%d settings", len(rows))
 		if len(rows) == 1 {
-			detail = rows[0].show(m.conf.base)
+			detail = rows[0].show(m.settings())
 		}
 		items = append(items, pickerItem{label: g.label, detail: detail, value: g.key, match: g.label})
 	}
@@ -584,7 +596,7 @@ func (m Model) settingsIn(group, at string) Model {
 	for i := range rows {
 		items = append(items, pickerItem{
 			label:  rows[i].label,
-			detail: choiceWords(rows[i], rows[i].show(m.conf.base)),
+			detail: choiceWords(rows[i], rows[i].show(m.settings())),
 			value:  rows[i].key,
 			match:  rows[i].label + " " + rows[i].key,
 		})
@@ -636,12 +648,12 @@ func (m Model) chooseSetting(key string) (Model, tea.Cmd) {
 		return m.writeSetting(s, "")
 	case settingChoice:
 		m.choosing.setting = key
-		m.picker = newPicker(pickerSettingValue, settingValueItems(s, s.show(m.conf.base))).at(s.show(m.conf.base))
+		m.picker = newPicker(pickerSettingValue, settingValueItems(s, s.show(m.settings()))).at(s.show(m.settings()))
 		return m, nil
 	case settingMulti:
 		return m.settingSetOpen(s), nil
 	case settingText, settingNumber:
-		return m.editSettingInPlace(s, editText(s, m.conf.base)), nil
+		return m.editSettingInPlace(s, editText(s, m.settings())), nil
 	case settingList:
 		return m.settingEntriesOpen(s.key, ""), nil
 	}
@@ -667,7 +679,7 @@ func (m Model) stepSetting(delta int) (Model, tea.Cmd) {
 	if !ok || s.kind != settingNumber {
 		return m.say("+ and - change numbers; enter changes this one"), nil
 	}
-	return m.writeSetting(s, strconv.Itoa(max(s.count(m.conf.base)+delta, s.least)))
+	return m.writeSetting(s, strconv.Itoa(max(s.count(m.settings())+delta, s.least)))
 }
 
 func settingValueItems(s setting, current string) []pickerItem {
@@ -702,7 +714,7 @@ func (m Model) submitSetting(value string) (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	cfg := m.conf.base.Clone()
+	cfg := m.settings().Clone()
 	if err := s.set(&cfg, strings.TrimSpace(value)); err != nil {
 		m = m.editSettingInPlace(s, value)
 		m.prompt.fresh = false
@@ -714,11 +726,11 @@ func (m Model) submitSetting(value string) (Model, tea.Cmd) {
 // writeSetting applies one setting, saves, and reopens its group on its row; a value
 // that won't parse changes nothing.
 func (m Model) writeSetting(s setting, value string) (Model, tea.Cmd) {
-	cfg := m.conf.base.Clone()
+	cfg := m.settings().Clone()
 	if err := s.set(&cfg, value); err != nil {
 		return m.settingsIn(s.group, s.key).sayErr(s.label, err), nil
 	}
-	next, cmd := m.applyConfig(cfg, s.label+": "+s.show(cfg))
+	next, cmd := m.applySettings(cfg, s.label+": "+s.show(cfg))
 	return next.settingsIn(s.group, s.key), cmd
 }
 
@@ -748,11 +760,11 @@ func (m Model) settingHelp() string {
 
 // popupSeconds is the popup timeout as + and - step it: -1 until dismissed, 0 the
 // desktop's default, else seconds.
-func popupSeconds(c config.Config) int {
-	if t := c.Notifications.Timeout; t != nil && *t <= 0 {
+func popupSeconds(c config.Settings) int {
+	if t := c.Device.Notifications.Timeout; t != nil && *t <= 0 {
 		return *t
 	}
-	return int(c.Notifications.PopupTimeout().Seconds())
+	return int(c.Device.Notifications.PopupTimeout().Seconds())
 }
 
 func findSetting(key string) (setting, bool) {
@@ -764,7 +776,7 @@ func findSetting(key string) (setting, bool) {
 	return setting{}, false
 }
 
-func timeoutNote(n config.Notifications) string {
+func timeoutNote(n config.DeviceNotifications) string {
 	if n.Timeout == nil {
 		return strconv.Itoa(int(n.PopupTimeout().Seconds())) + "s"
 	}
@@ -778,10 +790,10 @@ func timeoutNote(n config.Notifications) string {
 }
 
 // setPopupTimeout reads a number of seconds; empty restores the default.
-func setPopupTimeout(c *config.Config, v string) error {
+func setPopupTimeout(c *config.Settings, v string) error {
 	trimmed := strings.TrimSpace(v)
 	if trimmed == "" {
-		c.Notifications.Timeout = nil
+		c.Device.Notifications.Timeout = nil
 		return nil
 	}
 	seconds, err := strconv.Atoi(trimmed)
@@ -793,7 +805,7 @@ func setPopupTimeout(c *config.Config, v string) error {
 	if seconds < 0 {
 		seconds = -1
 	}
-	c.Notifications.Timeout = &seconds
+	c.Device.Notifications.Timeout = &seconds
 	return nil
 }
 
@@ -841,9 +853,9 @@ func showRange(lo, hi int) string {
 }
 
 // setCodeLength parses "4-8", or a single number for an exact length.
-func setCodeLength(c *config.Config, value string) error {
+func setCodeLength(c *config.Settings, value string) error {
 	if value == "" {
-		c.Codes.MinLength, c.Codes.MaxLength = 0, 0
+		c.Bridge.Codes.MinLength, c.Bridge.Codes.MaxLength = 0, 0
 		return nil
 	}
 	lo, hi, ranged := strings.Cut(value, "-")
@@ -860,11 +872,11 @@ func setCodeLength(c *config.Config, value string) error {
 	if min < 1 || max < min {
 		return fmt.Errorf("%q is not a length range — try 4-8, or 6 for exactly six", value)
 	}
-	c.Codes.MinLength, c.Codes.MaxLength = min, max
+	c.Bridge.Codes.MinLength, c.Bridge.Codes.MaxLength = min, max
 	return nil
 }
 
-func editText(s setting, cfg config.Config) string {
+func editText(s setting, cfg config.Settings) string {
 	if s.edit != nil {
 		return s.edit(cfg)
 	}
@@ -893,14 +905,14 @@ func setInt(target *int, value string) error {
 	return nil
 }
 
-func enterKeyShow(c config.Config) string {
+func enterKeyShow(c config.Settings) string {
 	return fmt.Sprintf("%s sends · %s new line",
-		firstKey(c.Keys.Bindings["insert.send"]), firstKey(c.Keys.Bindings["insert.newline"]))
+		firstKey(c.Device.Keys.Bindings["insert.send"]), firstKey(c.Device.Keys.Bindings["insert.newline"]))
 }
 
 // toggleEnterKey swaps the send and newline bindings, so no key is claimed twice.
-func toggleEnterKey(c *config.Config, _ string) error {
-	b := c.Keys.Bindings
+func toggleEnterKey(c *config.Settings, _ string) error {
+	b := c.Device.Keys.Bindings
 	b["insert.send"], b["insert.newline"] = b["insert.newline"], b["insert.send"]
 	return nil
 }

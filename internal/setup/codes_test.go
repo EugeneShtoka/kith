@@ -48,24 +48,22 @@ func TestAutoCopyUnavailable(t *testing.T) {
 	t.Parallel()
 
 	working := config.Config{
-		Clipboard: config.Clipboard{Command: "wl-copy", AutoCopy: true},
+		Clipboard: config.Clipboard{AutoCopy: true},
 		Codes:     config.Codes{Include: []string{"Bridges"}},
 	}
-	if err := setup.AutoCopyUnavailable(working); err != nil {
+	dev := config.Device{Clipboard: config.DeviceClipboard{Command: "wl-copy"}}
+	if err := setup.AutoCopyUnavailable(working, dev); err != nil {
 		t.Errorf("a complete configuration should be usable: %v", err)
 	}
 
 	// Off is not a problem.
 	off := working
 	off.Clipboard.AutoCopy = false
-	off.Clipboard.Command = ""
-	if err := setup.AutoCopyUnavailable(off); err != nil {
+	if err := setup.AutoCopyUnavailable(off, config.Device{}); err != nil {
 		t.Errorf("auto-copy switched off is not a misconfiguration: %v", err)
 	}
 
-	noCommand := working
-	noCommand.Clipboard.Command = ""
-	err := setup.AutoCopyUnavailable(noCommand)
+	err := setup.AutoCopyUnavailable(working, config.Device{})
 	if err == nil || !strings.Contains(err.Error(), "clipboard") {
 		t.Errorf("error = %v, should name the missing clipboard command", err)
 	}
@@ -73,7 +71,7 @@ func TestAutoCopyUnavailable(t *testing.T) {
 	// No scope means everywhere: anyone could rewrite the clipboard.
 	nowhere := working
 	nowhere.Codes.Include = nil
-	err = setup.AutoCopyUnavailable(nowhere)
+	err = setup.AutoCopyUnavailable(nowhere, dev)
 	if err == nil || !strings.Contains(err.Error(), "include") {
 		t.Errorf("error = %v, should refuse an unnamed place", err)
 	}

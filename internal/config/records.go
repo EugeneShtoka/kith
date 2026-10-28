@@ -13,10 +13,12 @@ import (
 // one record at a time, fields set like properties. Tags and notification rules are
 // edited elsewhere.
 
-// RecordTable is one table with its default.toml doc and fields (Path is the field
-// name, Doc its comment in default.toml's example).
+// RecordTable is one table with its file's doc and fields (Path is the field name, Doc
+// its comment in the annotated default's example).
 type RecordTable struct {
-	Path   string
+	Path string
+	// File is BridgeFile or DeviceFile.
+	File   string
 	Doc    string
 	Fields []Property
 }
@@ -24,18 +26,21 @@ type RecordTable struct {
 // ownEditors are the record tables edited elsewhere.
 var ownEditors = []string{"tag", "notifications.rule"}
 
-// RecordTables is every record table, in the order the config declares them.
+// RecordTables is every record table, the bridge's then the device's, each in the
+// order its file's type declares them.
 func RecordTables() []RecordTable {
 	tablesOnce.Do(func() {
-		docs := documented()
-		walkTables(reflect.TypeFor[Config](), nil, func(path string, elem reflect.Type) {
-			t := RecordTable{Path: path, Doc: docs[path].text}
-			if t.Doc == "" {
-				t.Doc = paragraphAround("[[" + path + "]]")
-			}
-			t.Fields = recordProperties(elem, "", path, docs)
-			tables = append(tables, t)
-		})
+		for _, f := range settingsFiles {
+			docs := documented(f)
+			walkTables(f.typ, nil, func(path string, elem reflect.Type) {
+				t := RecordTable{Path: path, File: f.name, Doc: docs[path].text}
+				if t.Doc == "" {
+					t.Doc = paragraphAround(f.annotated, "[["+path+"]]")
+				}
+				t.Fields = recordProperties(elem, "", path, docs)
+				tables = append(tables, t)
+			})
+		}
 	})
 	return slices.Clone(tables)
 }
@@ -65,9 +70,10 @@ func recordProperties(elem reflect.Type, prefix, path string, docs map[string]do
 	return out
 }
 
-// paragraphAround is the default.toml comment paragraph containing needle; "" if none.
-func paragraphAround(needle string) string {
-	lines := strings.Split(defaultConfigTOML, "\n")
+// paragraphAround is the annotated default's comment paragraph containing needle; ""
+// if none.
+func paragraphAround(annotated, needle string) string {
+	lines := strings.Split(annotated, "\n")
 	at := slices.IndexFunc(lines, func(l string) bool { return strings.HasPrefix(l, "#") && strings.Contains(l, needle) })
 	if at < 0 {
 		return ""
@@ -109,17 +115,18 @@ func walkTables(typ reflect.Type, path []string, found func(string, reflect.Type
 	}
 }
 
-// table is the record table at path in c, settable when c is.
-func table(c reflect.Value, path string) (reflect.Value, bool) {
-	if !slices.ContainsFunc(RecordTables(), func(t RecordTable) bool { return t.Path == path }) {
+// table is the record table at path in the file root, named file, settable when root
+// is.
+func table(root reflect.Value, file, path string) (reflect.Value, bool) {
+	if !slices.ContainsFunc(RecordTables(), func(t RecordTable) bool { return t.File == file && t.Path == path }) {
 		return reflect.Value{}, false
 	}
-	return field(c, path)
+	return field(root, path)
 }
 
 // recordField is field name of record i in the table at path.
-func recordField(c reflect.Value, path string, i int, name string) (reflect.Value, error) {
-	t, ok := table(c, path)
+func recordField(root reflect.Value, file, path string, i int, name string) (reflect.Value, error) {
+	t, ok := table(root, file, path)
 	if !ok {
 		return reflect.Value{}, fmt.Errorf("config: %s is not a list of records", path)
 	}
@@ -151,8 +158,9 @@ func fieldNamed(v reflect.Value, name string) (reflect.Value, bool) {
 }
 
 // Records is how many records the table at path holds.
-func (c Config) Records(path string) int {
-	t, ok := table(reflect.ValueOf(c), path)
+func (s Settings) Records(path string) int {
+	root, file := s.root(path)
+	t, ok := table(root, file, path)
 	if !ok {
 		return 0
 	}
@@ -160,8 +168,9 @@ func (c Config) Records(path string) int {
 }
 
 // RecordValue is a field of record i as text, and whether it is set (see Value).
-func (c Config) RecordValue(path string, i int, name string) (text string, set bool) {
-	v, err := recordField(reflect.ValueOf(c), path, i, name)
+func (s Settings) RecordValue(path string, i int, name string) (text string, set bool) {
+	root, file := s.root(path)
+	v, err := recordField(root, file, path, i, name)
 	if err != nil {
 		return "", false
 	}
@@ -169,8 +178,9 @@ func (c Config) RecordValue(path string, i int, name string) (text string, set b
 }
 
 // RecordList is a list field of record i.
-func (c Config) RecordList(path string, i int, name string) []string {
-	v, err := recordField(reflect.ValueOf(c), path, i, name)
+func (s Settings) RecordList(path string, i int, name string) []string {
+	root, file := s.root(path)
+	v, err := recordField(root, file, path, i, name)
 	if err != nil || v.Kind() != reflect.Slice {
 		return nil
 	}
@@ -178,11 +188,17 @@ func (c Config) RecordList(path string, i int, name string) []string {
 }
 
 // SetRecordValue writes text into a field of record i, parsed by its kind ("" unsets).
-func (c *Config) SetRecordValue(path string, i int, name, text string) error {
-	if err := c.ownTable(path); err != nil {
+func (s *Settings) SetRecordValue(path string, i int, name, text string) error {
+	root, file := s.root(path)
+	return setRecordValue(root, file, path, i, name, text)
+}
+
+// setRecordValue is SetRecordValue in the file root, named file.
+func setRecordValue(root reflect.Value, file, path string, i int, name, text string) error {
+	if err := ownTable(root, file, path); err != nil {
 		return err
 	}
-	v, err := recordField(reflect.ValueOf(c).Elem(), path, i, name)
+	v, err := recordField(root, file, path, i, name)
 	if err != nil {
 		return err
 	}
@@ -190,11 +206,12 @@ func (c *Config) SetRecordValue(path string, i int, name, text string) error {
 }
 
 // SetRecordList writes a list field of record i; an empty list unsets it.
-func (c *Config) SetRecordList(path string, i int, name string, entries []string) error {
-	if err := c.ownTable(path); err != nil {
+func (s *Settings) SetRecordList(path string, i int, name string, entries []string) error {
+	root, file := s.root(path)
+	if err := ownTable(root, file, path); err != nil {
 		return err
 	}
-	v, err := recordField(reflect.ValueOf(c).Elem(), path, i, name)
+	v, err := recordField(root, file, path, i, name)
 	if err != nil {
 		return err
 	}
@@ -210,21 +227,28 @@ func (c *Config) SetRecordList(path string, i int, name string, entries []string
 }
 
 // AddRecord appends an empty record to the table at path and returns its index.
-func (c *Config) AddRecord(path string) (int, error) {
-	if err := c.ownTable(path); err != nil {
+func (s *Settings) AddRecord(path string) (int, error) {
+	root, file := s.root(path)
+	return addRecord(root, file, path)
+}
+
+// addRecord is AddRecord in the file root, named file.
+func addRecord(root reflect.Value, file, path string) (int, error) {
+	if err := ownTable(root, file, path); err != nil {
 		return 0, err
 	}
-	t, _ := table(reflect.ValueOf(c).Elem(), path)
+	t, _ := table(root, file, path)
 	t.Set(reflect.Append(t, reflect.Zero(t.Type().Elem())))
 	return t.Len() - 1, nil
 }
 
 // RemoveRecord takes record i out of the table at path.
-func (c *Config) RemoveRecord(path string, i int) error {
-	if err := c.ownTable(path); err != nil {
+func (s *Settings) RemoveRecord(path string, i int) error {
+	root, file := s.root(path)
+	if err := ownTable(root, file, path); err != nil {
 		return err
 	}
-	t, _ := table(reflect.ValueOf(c).Elem(), path)
+	t, _ := table(root, file, path)
 	if i < 0 || i >= t.Len() {
 		return fmt.Errorf("config: %s has no record %d", path, i+1)
 	}
@@ -240,8 +264,8 @@ func (c *Config) RemoveRecord(path string, i int) error {
 
 // ownTable copies the table at path before a change, so a shallow clone never writes
 // through to its source.
-func (c *Config) ownTable(path string) error {
-	t, ok := table(reflect.ValueOf(c).Elem(), path)
+func ownTable(root reflect.Value, file, path string) error {
+	t, ok := table(root, file, path)
 	if !ok {
 		return fmt.Errorf("config: %s is not a list of records", path)
 	}
@@ -255,22 +279,23 @@ func (c *Config) ownTable(path string) error {
 // values by key path. All or nothing.
 func (c *Config) Write(table string, values map[string]string) error {
 	next := c.Clone()
+	root := reflect.ValueOf(&next).Elem()
 	keys := slices.Sorted(maps.Keys(values))
 	if table == "" {
 		for _, key := range keys {
-			if err := next.SetValue(key, values[key]); err != nil {
+			if err := setValue(root, BridgeFile, key, values[key]); err != nil {
 				return err
 			}
 		}
 		*c = next
 		return nil
 	}
-	i, err := next.AddRecord(table)
+	i, err := addRecord(root, BridgeFile, table)
 	if err != nil {
 		return err
 	}
 	for _, key := range keys {
-		if err := next.SetRecordValue(table, i, key, values[key]); err != nil {
+		if err := setRecordValue(root, BridgeFile, table, i, key, values[key]); err != nil {
 			return err
 		}
 	}

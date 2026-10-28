@@ -22,7 +22,7 @@ import (
 // or not.
 func TestAColoredNameLaysOutAsAPlainOne(t *testing.T) {
 	t.Parallel()
-	m := New(context.Background(), apitest.Nop{}, config.Display{})
+	m := New(context.Background(), apitest.Nop{}, config.Display{}, config.DeviceDisplay{})
 	green, _ := theme.ParseColor("green")
 	r := rand.New(rand.NewPCG(1, 2))
 	names := []string{"Dana", "A rather long room name that will not fit", "שלום עולם", "日本語のチャット", "🇧🇬 Болгария", ""}
@@ -65,10 +65,10 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 	}
 	display := config.Display{
 		SpaceRules: []config.SpaceRule{{Space: "space:Mixed", NetworkColors: new(true)}, {Space: "space:Only WhatsApp", NetworkColors: new(false)}},
-		Theme:      config.Theme{Networks: config.NetworkColors{Telegram: "orange", Matrix: "none"}},
 		Rail:       config.Rail{NetworkColors: true},
 	}
-	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: rooms})
+	device := config.DeviceDisplay{Theme: config.Theme{Networks: config.NetworkColors{Telegram: "orange", Matrix: "none"}}}
+	m := update(t, New(context.Background(), apitest.Nop{}, display, device), roomsMsg{rooms: rooms})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: mx + "!mixed:x", Name: "Mixed", Children: []domain.RoomID{"whatsapp:1/g@g.us", "telegram:1/-11", mx + "!bridged:x", mx + "!plain:x"}},
 		{ID: mx + "!quiet:x", Name: "Quiet", Children: []domain.RoomID{"whatsapp:1/g@g.us", "telegram:1/-11"}},
@@ -105,7 +105,7 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 	}
 	// Everywhere: a place with no rule follows; one set off does not.
 	everywhere := m
-	everywhere.prefs.display.NetworkColors = true
+	everywhere.prefs.device.NetworkColors = true
 	if g := got(everywhere, rooms[1]); g != color("orange") {
 		t.Errorf("with every room list asking, Quiet's %s = %v, want orange", rooms[1].Name, g)
 	}
@@ -141,20 +141,20 @@ func TestAPlacesSwitchesKeepEachOther(t *testing.T) {
 	friends := setup.HomeNamer(d, "Friends")
 	d.SpaceRules = withFirstNames(d, "Friends", true)
 	d.SpaceRules = withNetworkColors(d, "Friends", new(true))
-	c := config.Config{Display: d}
-	if !firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn(friends) || len(d.SpaceRules) != 2 ||
+	c := config.Settings{Bridge: config.Config{Display: d}}
+	if !firstNamesIn(c, "Friends") || !c.Bridge.Display.NetworkColorsIn(c.Device.Display, friends) || len(d.SpaceRules) != 2 ||
 		d.SpaceRules[1].Space != "space:Friends" {
 		t.Fatalf("both on: %+v, want one space:Friends rule", d.SpaceRules)
 	}
 	d.SpaceRules = withFirstNames(d, "Friends", false)
-	c.Display = d
-	if firstNamesIn(c, "Friends") || !c.Display.NetworkColorsIn(friends) {
+	c.Bridge.Display = d
+	if firstNamesIn(c, "Friends") || !c.Bridge.Display.NetworkColorsIn(c.Device.Display, friends) {
 		t.Fatalf("first names off took the colors with it: %+v", d.SpaceRules)
 	}
 	d.SpaceRules = withNetworkColors(d, "Friends", new(false))
-	d.NetworkColors = true
-	c.Display = d
-	if c.Display.NetworkColorsIn(friends) || len(d.SpaceRules) != 2 {
+	c.Device.Display.NetworkColors = true
+	c.Bridge.Display = d
+	if c.Bridge.Display.NetworkColorsIn(c.Device.Display, friends) || len(d.SpaceRules) != 2 {
 		t.Fatalf("off is not kept against [display] network_colors: %+v", d.SpaceRules)
 	}
 	d.SpaceRules = withNetworkColors(d, "Friends", nil)
@@ -168,11 +168,11 @@ func TestAPlacesSwitchesKeepEachOther(t *testing.T) {
 func TestAThreadRowTakesItsRoomsColor(t *testing.T) {
 	t.Parallel()
 	room := domain.Room{ID: "telegram:1/-11", Name: "Book club"}
-	display := config.Display{
+	device := config.DeviceDisplay{
 		NetworkColors: true,
 		Theme:         config.Theme{Networks: config.NetworkColors{Telegram: "orange"}},
 	}
-	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: []domain.Room{room}})
+	m := update(t, New(context.Background(), apitest.Nop{}, config.Display{}, device), roomsMsg{rooms: []domain.Room{room}})
 	m = sized(t, m)
 	orange := sgrOf(t, m.roomNameColor(room))
 	rows := []roomRow{
@@ -186,7 +186,7 @@ func TestAThreadRowTakesItsRoomsColor(t *testing.T) {
 		}
 	}
 	off := m
-	off.prefs.display.NetworkColors = false
+	off.prefs.device.NetworkColors = false
 	for _, r := range rows {
 		if line := off.roomListLine(r, 30, false, true); strings.Contains(line, orange) {
 			t.Errorf("with network colors off, row %+v is colored: %q", r, line)
@@ -209,7 +209,7 @@ func sgrOf(t *testing.T, c color.Color) string {
 func TestTheRailKeepsItsColorsWhenTheConfigIsApplied(t *testing.T) {
 	t.Parallel()
 	display := config.Display{Rail: config.Rail{NetworkColors: true}}
-	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: []domain.Room{{ID: "whatsapp:1/g@g.us", Name: "Family"}}})
+	m := update(t, New(context.Background(), apitest.Nop{}, display, config.DeviceDisplay{}), roomsMsg{rooms: []domain.Room{{ID: "whatsapp:1/g@g.us", Name: "Family"}}})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: mx + "!onlywa:x", Name: "Only WhatsApp", Children: []domain.RoomID{"whatsapp:1/g@g.us"}},
 	}}))
@@ -232,12 +232,10 @@ func TestTheRailKeepsItsColorsWhenTheConfigIsApplied(t *testing.T) {
 // the network, its rooms decide as for any space. A space you made has no network of its own.
 func TestANetworksOwnSpaceTakesItsColor(t *testing.T) {
 	t.Parallel()
-	display := config.Display{
-		Theme: config.Theme{Networks: config.NetworkColors{GoogleMessages: "coral", LinkedIn: "none"}},
-		Rail:  config.Rail{NetworkColors: true},
-	}
+	display := config.Display{Rail: config.Rail{NetworkColors: true}}
+	device := config.DeviceDisplay{Theme: config.Theme{Networks: config.NetworkColors{GoogleMessages: "coral", LinkedIn: "none"}}}
 	rooms := []domain.Room{{ID: "whatsapp:1/g@g.us", Name: "Family"}}
-	m := update(t, New(context.Background(), apitest.Nop{}, display), roomsMsg{rooms: rooms})
+	m := update(t, New(context.Background(), apitest.Nop{}, display, device), roomsMsg{rooms: rooms})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: "gmessages:a/account", Name: "SMS", Bridge: domain.ProtocolGMessages, Original: true},
 		{ID: "gmessages:b/account", Name: "SMS mixed", Bridge: domain.ProtocolGMessages, Original: true,

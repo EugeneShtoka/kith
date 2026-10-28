@@ -41,7 +41,7 @@ func (m Model) settingEntriesOpen(key, at string) Model {
 // editing one entry of a default list starts from all of it.
 func (m Model) settingEntries(key string) []string {
 	if s, ok := m.setting(key); ok && s.entries != nil {
-		return s.entries(m.conf.base)
+		return s.entries(m.settings())
 	}
 	return nil
 }
@@ -119,21 +119,21 @@ func (m Model) writeSettingList(key string, entries []string, at string) (Model,
 	if !ok {
 		return m, nil
 	}
-	cfg := m.conf.base.Clone()
+	cfg := m.settings().Clone()
 	if s.setEntries == nil {
 		return m, nil
 	}
 	if err := s.setEntries(&cfg, entries); err != nil {
 		return m.settingEntriesOpen(key, at).sayErr(s.label, err), nil
 	}
-	next, cmd := m.applyConfig(cfg, s.label+": "+s.show(cfg))
+	next, cmd := m.applySettings(cfg, s.label+": "+s.show(cfg))
 	return next.settingEntriesOpen(key, at), cmd
 }
 
 // settingSetOpen ticks a set setting's values among its choices.
 func (m Model) settingSetOpen(s setting) Model {
 	ticked := map[string]bool{}
-	for _, v := range s.entries(m.conf.base) {
+	for _, v := range s.entries(m.settings()) {
 		ticked[v] = true
 	}
 	items := make([]pickerItem, 0, len(s.choices))
@@ -155,10 +155,10 @@ func (m Model) writeSettingSet(values []string) (Model, tea.Cmd) {
 	if !ok || s.setEntries == nil {
 		return m.closePicker(), nil
 	}
-	cfg := m.conf.base.Clone()
+	cfg := m.settings().Clone()
 	if err := s.setEntries(&cfg, values); err != nil {
 		return m.sayErr(s.label, err), nil
 	}
-	next, cmd := m.applyConfig(cfg, s.label+": "+s.show(cfg))
+	next, cmd := m.applySettings(cfg, s.label+": "+s.show(cfg))
 	return next.settingsIn(s.group, s.key), cmd
 }

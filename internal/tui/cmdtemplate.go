@@ -57,7 +57,7 @@ func templateRow(t config.RecordTable) setting {
 	return setting{
 		key: commandsTable + "#template", group: commandsTable, kind: settingOpen,
 		label: "Add from template", doc: t.Doc,
-		show: func(config.Config) string { return "" },
+		show: func(config.Settings) string { return "" },
 		open: func(m Model) (Model, tea.Cmd) { return m.openCommandTemplates(), nil },
 	}
 }
@@ -91,7 +91,7 @@ func (m Model) chooseCommandTemplate(name string) (Model, tea.Cmd) {
 	tmpl := all[at]
 	page := m.settingsIn(commandsTable, commandsTable+"#template")
 	command := "/" + tmpl.Block.Name
-	if _, taken := m.conf.base.CommandFor(command); taken {
+	if _, taken := m.conf.device.CommandFor(command); taken {
 		return page.say("a command is already called " + command + " — nothing written"), nil
 	}
 	if _, taken := m.userCommand(command); taken {
@@ -218,9 +218,9 @@ func (m Model) handleSecretsKept(msg secretsKeptMsg) (Model, tea.Cmd) {
 	if msg.tmpl == nil {
 		return m.say("kept /" + msg.command + "'s secret in the keyring"), m.checkCommandSecretsCmd()
 	}
-	cfg := m.conf.base.Clone()
-	cfg.UserCommands = append(slices.Clip(cfg.UserCommands), msg.tmpl.Block)
-	next, cmd := m.applyConfig(cfg, "added /"+msg.command+" from its template")
+	dev := m.conf.device.Clone()
+	dev.UserCommands = append(slices.Clip(dev.UserCommands), msg.tmpl.Block)
+	next, cmd := m.applyDevice(dev, "added /"+msg.command+" from its template")
 	return next.settingsIn(commandsTable, ""), tea.Batch(cmd, next.checkCommandSecretsCmd())
 }
 
@@ -232,7 +232,7 @@ type commandSecretsMsg struct{ kept map[string]bool }
 func (m Model) checkCommandSecretsCmd() tea.Cmd {
 	store := m.secrets
 	var refs []string
-	for _, block := range m.conf.base.UserCommands {
+	for _, block := range m.conf.device.UserCommands {
 		for _, name := range block.Secrets {
 			refs = append(refs, config.SecretRef(block.Name, name))
 		}
@@ -283,10 +283,10 @@ func (m Model) secretWords(command, name string) string {
 
 // commandSecretRows are a command's secrets, each set from a masked prompt.
 func (m Model) commandSecretRows(i int, group string) []setting {
-	if i < 0 || i >= len(m.conf.base.UserCommands) {
+	if i < 0 || i >= len(m.conf.device.UserCommands) {
 		return nil
 	}
-	block := m.conf.base.UserCommands[i]
+	block := m.conf.device.UserCommands[i]
 	command := strings.TrimPrefix(strings.TrimSpace(block.Name), "/")
 	rows := make([]setting, 0, len(block.Secrets))
 	for _, name := range block.Secrets {
@@ -295,7 +295,7 @@ func (m Model) commandSecretRows(i int, group string) []setting {
 			key: group + ".secret." + name, group: group, kind: settingOpen,
 			label: "Secret · " + name,
 			doc:   "Kept in the keyring and given to the script as $" + config.SecretEnv(name) + ", never on its command line. Enter replaces it.",
-			show:  func(config.Config) string { return words },
+			show:  func(config.Settings) string { return words },
 			open:  func(m Model) (Model, tea.Cmd) { return m.setCommandSecret(command, name) },
 		})
 	}
@@ -305,7 +305,7 @@ func (m Model) commandSecretRows(i int, group string) []setting {
 // secretReader reads a command's declared secrets when called: off the event loop, since
 // the keyring is a D-Bus call.
 func (m Model) secretReader(command string) func() ([]string, error) {
-	block, _ := m.conf.base.CommandFor(command)
+	block, _ := m.conf.device.CommandFor(command)
 	store := m.secrets
 	return func() ([]string, error) { return commandSecretEnv(store, block) }
 }

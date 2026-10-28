@@ -25,6 +25,16 @@ func opened(t *testing.T, notifs config.Notifications) (Model, string) {
 	return m, path
 }
 
+// savedDevice is the device file beside the config at path, as the window saved it.
+func savedDevice(t *testing.T, path string) config.Device {
+	t.Helper()
+	dev, err := config.LoadDevice(config.DevicePath(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dev
+}
+
 // toSetting opens the group of the first setting whose label or key holds substr and
 // chooses its row. In a value picker it picks a value.
 func toSetting(t *testing.T, m Model, substr string) Model {
@@ -84,7 +94,7 @@ func rowFor(t *testing.T, m Model, label string) pickerItem {
 func TestSettingsShowCurrentValues(t *testing.T) {
 	t.Parallel()
 
-	m, _ := opened(t, config.Notifications{Enabled: true})
+	m, _ := opened(t, config.Notifications{})
 	for _, want := range []struct{ label, value string }{
 		{"Notifications", "on"},
 		{"Notify me for", "mention"},
@@ -106,7 +116,7 @@ func TestSettingsShowCurrentValues(t *testing.T) {
 func TestSettingChoiceChangesTheDecision(t *testing.T) {
 	t.Parallel()
 
-	m, path := opened(t, config.Notifications{Enabled: true})
+	m, path := opened(t, config.Notifications{})
 	chat := domain.Message{ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@bob:x", SenderName: "B", Body: "morning"}
 	if notifies(t, m, chat) {
 		t.Fatal("mention-only should not notify for ordinary chat")
@@ -141,7 +151,7 @@ func TestSettingChoiceMarksTheCurrentValue(t *testing.T) {
 		{"images", "placeholder"},
 		{"react", "room"},
 	} {
-		m, _ := opened(t, config.Notifications{Enabled: true})
+		m, _ := opened(t, config.Notifications{})
 		m = toSetting(t, m, tc.row)
 		marked := ""
 		for _, item := range m.picker.items {
@@ -158,7 +168,7 @@ func TestSettingChoiceMarksTheCurrentValue(t *testing.T) {
 func TestSettingToggleTakesEffectImmediately(t *testing.T) {
 	t.Parallel()
 
-	m, path := opened(t, config.Notifications{Enabled: true})
+	m, path := opened(t, config.Notifications{})
 	if !m.prefs.openInsert {
 		t.Fatal("rooms open in insert mode by default")
 	}
@@ -170,11 +180,7 @@ func TestSettingToggleTakesEffectImmediately(t *testing.T) {
 	if item, ok := m.picker.selected(); m.picker.kind != pickerSetting || !ok || item.label != "Open rooms ready to type" || item.detail != "off" {
 		t.Errorf("after the toggle: picker %v on %+v, want the group on the row reading off", m.picker.kind, item)
 	}
-	reloaded, err := config.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reloaded.Display.OpenInInsertMode() {
+	if savedDevice(t, path).Display.OpenInInsertMode() {
 		t.Error("the toggle was not saved")
 	}
 }
@@ -182,7 +188,7 @@ func TestSettingToggleTakesEffectImmediately(t *testing.T) {
 func TestSettingRejectsAValueThatWillNotParse(t *testing.T) {
 	t.Parallel()
 
-	m, path := opened(t, config.Notifications{Enabled: true})
+	m, path := opened(t, config.Notifications{})
 	before, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -192,8 +198,8 @@ func TestSettingRejectsAValueThatWillNotParse(t *testing.T) {
 	if m.status() == "" {
 		t.Errorf("status = %q, should say what was wrong", m.status())
 	}
-	if m.conf.base.Display.MaxNameLength != 0 {
-		t.Errorf("width = %d, should be untouched", m.conf.base.Display.MaxNameLength)
+	if m.conf.device.Display.MaxNameLength != 0 {
+		t.Errorf("width = %d, should be untouched", m.conf.device.Display.MaxNameLength)
 	}
 	after, err := os.ReadFile(path)
 	if err != nil {
@@ -207,17 +213,13 @@ func TestSettingRejectsAValueThatWillNotParse(t *testing.T) {
 func TestSettingNumberIsAppliedAndSaved(t *testing.T) {
 	t.Parallel()
 
-	m, path := opened(t, config.Notifications{Enabled: true})
+	m, path := opened(t, config.Notifications{})
 	m = toSetting(t, m, "width")
 	m = typeIn(t, m, "24")
-	if m.conf.base.Display.MaxNameLength != 24 {
-		t.Errorf("width = %d, want 24", m.conf.base.Display.MaxNameLength)
+	if m.conf.device.Display.MaxNameLength != 24 {
+		t.Errorf("width = %d, want 24", m.conf.device.Display.MaxNameLength)
 	}
-	reloaded, err := config.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reloaded.Display.MaxNameLength != 24 {
+	if reloaded := savedDevice(t, path); reloaded.Display.MaxNameLength != 24 {
 		t.Errorf("saved width = %d, want 24", reloaded.Display.MaxNameLength)
 	}
 }
@@ -225,7 +227,7 @@ func TestSettingNumberIsAppliedAndSaved(t *testing.T) {
 func TestSettingQuietHoursUseTheRuleParser(t *testing.T) {
 	t.Parallel()
 
-	m, path := opened(t, config.Notifications{Enabled: true})
+	m, path := opened(t, config.Notifications{})
 	m = toSetting(t, m, "quiet")
 	m = typeIn(t, m, "22:00-08:00")
 	reloaded, err := config.Load(path)
@@ -246,7 +248,7 @@ func TestSettingQuietHoursUseTheRuleParser(t *testing.T) {
 	if !strings.Contains(m.status(), "HH:MM") {
 		t.Errorf("status = %q, should carry the parser's complaint", m.status())
 	}
-	if got := quietWindowText(m.conf.base); got != "22:00-08:00" {
+	if got := quietWindowText(m.settings()); got != "22:00-08:00" {
 		t.Errorf("window = %q, a rejected time should leave the working one alone", got)
 	}
 }
@@ -255,7 +257,7 @@ func TestSettingQuietHoursUseTheRuleParser(t *testing.T) {
 func TestSettingQuietHoursCanBeCleared(t *testing.T) {
 	t.Parallel()
 
-	m, _ := opened(t, config.Notifications{Enabled: true, Rules: []config.Rule{
+	m, _ := opened(t, config.Notifications{Rules: []config.Rule{
 		{Name: "quiet hours", Show: "none", When: "22:00-08:00"},
 	}})
 	if rowFor(t, m, "Quiet hours").detail != "22:00-08:00" {
@@ -276,7 +278,7 @@ func TestSettingQuietHoursCanBeCleared(t *testing.T) {
 func TestASettingLeavesThePreviousConfigUntouched(t *testing.T) {
 	t.Parallel()
 
-	m, _ := opened(t, config.Notifications{Enabled: true, Rules: []config.Rule{
+	m, _ := opened(t, config.Notifications{Rules: []config.Rule{
 		{Name: "quiet hours", Show: "none", When: "22:00-08:00"},
 		{Name: "work", Match: "space:Work", Show: "all"},
 	}})
@@ -295,7 +297,7 @@ func TestASettingLeavesThePreviousConfigUntouched(t *testing.T) {
 func TestSettingCodeShape(t *testing.T) {
 	t.Parallel()
 
-	m, path := opened(t, config.Notifications{Enabled: true})
+	m, path := opened(t, config.Notifications{})
 	if got := rowFor(t, m, "Code length").detail; got != "4-8" {
 		t.Errorf("length shows %q, want 4-8", got)
 	}
@@ -322,7 +324,7 @@ func TestSettingCodeShape(t *testing.T) {
 func TestSettingCodeShapeRefusesTheImpossible(t *testing.T) {
 	t.Parallel()
 
-	m, _ := opened(t, config.Notifications{Enabled: true})
+	m, _ := opened(t, config.Notifications{})
 
 	// Digits off while a digit is still required: refused, naming which.
 	before := m.prefs.codes.rules
@@ -361,7 +363,7 @@ func TestSettingCodeShapeRefusesTheImpossible(t *testing.T) {
 func TestSettingsTableIsWellFormed(t *testing.T) {
 	t.Parallel()
 
-	var cfg config.Config
+	var cfg config.Settings
 	seen := make(map[string]bool, len(settingsList))
 	for _, s := range settingsList {
 		if seen[s.key] {
@@ -433,7 +435,7 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 
 	const row = "Auto-copy codes as they arrive"
 
-	m, _ := opened(t, config.Notifications{Enabled: true})
+	m, _ := opened(t, config.Notifications{})
 	if got := rowFor(t, m, row).detail; got != "off" {
 		t.Errorf("row shows %q, want off — it ships off", got)
 	}
@@ -448,9 +450,9 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 	}
 
 	// A command but no include: refused for the other reason.
-	cfg := m.conf.base.Clone()
-	cfg.Clipboard.Command = "wl-copy"
-	next, _ := m.applyConfig(cfg, "")
+	dev := m.conf.device.Clone()
+	dev.Clipboard.Command = "wl-copy"
+	next, _ := m.applyDevice(dev, "")
 	m = next
 	m = m.closePicker()
 	m, _ = press(t, m, keyText(","))
@@ -462,7 +464,7 @@ func TestAutoCopyToggleRefusesWhatCannotRun(t *testing.T) {
 		t.Errorf("status = %q, should name the missing place", m.status())
 	}
 
-	cfg = m.conf.base
+	cfg := m.conf.base
 	cfg.Codes.Include = []string{"space:Bridges"}
 	next, _ = m.applyConfig(cfg, "")
 	m = next
@@ -501,7 +503,7 @@ func TestPopupTimeoutRowReadsBackInWords(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := timeoutNote(config.Notifications{Timeout: tc.set}); got != tc.want {
+			if got := timeoutNote(config.DeviceNotifications{Timeout: tc.set}); got != tc.want {
 				t.Errorf("timeoutNote() = %q, want %q", got, tc.want)
 			}
 		})
@@ -524,22 +526,22 @@ func TestPopupTimeoutRowTakesTheNegative(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			var cfg config.Config
+			var cfg config.Settings
 			if err := setPopupTimeout(&cfg, tc.typed); err != nil {
 				t.Fatalf("setPopupTimeout(%q) = %v, want it accepted", tc.typed, err)
 			}
 			switch {
-			case tc.want == nil && cfg.Notifications.Timeout != nil:
-				t.Errorf("timeout = %d, want it unset", *cfg.Notifications.Timeout)
-			case tc.want != nil && cfg.Notifications.Timeout == nil:
+			case tc.want == nil && cfg.Device.Notifications.Timeout != nil:
+				t.Errorf("timeout = %d, want it unset", *cfg.Device.Notifications.Timeout)
+			case tc.want != nil && cfg.Device.Notifications.Timeout == nil:
 				t.Errorf("timeout is unset, want %d", *tc.want)
-			case tc.want != nil && *cfg.Notifications.Timeout != *tc.want:
-				t.Errorf("timeout = %d, want %d", *cfg.Notifications.Timeout, *tc.want)
+			case tc.want != nil && *cfg.Device.Notifications.Timeout != *tc.want:
+				t.Errorf("timeout = %d, want %d", *cfg.Device.Notifications.Timeout, *tc.want)
 			}
 		})
 	}
 
-	var cfg config.Config
+	var cfg config.Settings
 	if err := setPopupTimeout(&cfg, "soon"); err == nil {
 		t.Fatal("a value that is not a number was accepted")
 	}
@@ -548,7 +550,7 @@ func TestPopupTimeoutRowTakesTheNegative(t *testing.T) {
 // A change keeps the group open, so several settings change in a row.
 func TestSeveralSettingsChangeInARow(t *testing.T) {
 	t.Parallel()
-	m, path := opened(t, config.Notifications{Enabled: true})
+	m, path := opened(t, config.Notifications{})
 	m = pickLabel(t, m, "Codes")
 	if m.picker.kind != pickerSetting || m.choosing.settingGroup != "codes" {
 		t.Fatalf("choosing Codes opened picker %v on %q", m.picker.kind, m.choosing.settingGroup)
@@ -577,12 +579,12 @@ func TestSeveralSettingsChangeInARow(t *testing.T) {
 // place, the value selected so typing replaces it.
 func TestANumberStepsAndIsTypedInPlace(t *testing.T) {
 	t.Parallel()
-	m, path := opened(t, config.Notifications{Enabled: true})
+	m, path := opened(t, config.Notifications{})
 	m = m.settingsIn("names", "display.max_name_length")
 	for range 15 {
 		m, _ = press(t, m, keyText("+"))
 	}
-	if got := m.conf.base.Display.MaxNameLength; got != 15 {
+	if got := m.conf.device.Display.MaxNameLength; got != 15 {
 		t.Fatalf("width after 15 presses of + = %d", got)
 	}
 	m, _ = press(t, m, keyText("-"))
@@ -601,17 +603,13 @@ func TestANumberStepsAndIsTypedInPlace(t *testing.T) {
 	m, _ = press(t, m, keyText("8"))
 	next, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = deliver(t, next, cmd)
-	if got := m.conf.base.Display.MaxNameLength; got != 8 {
+	if got := m.conf.device.Display.MaxNameLength; got != 8 {
 		t.Errorf("width = %d, want 8 (typing replaces the selected value)", got)
 	}
 	if item, _ := m.picker.selected(); m.picker.kind != pickerSetting || item.value != "display.max_name_length" {
 		t.Errorf("after saving: picker %v on %q, want the group on the row", m.picker.kind, item.value)
 	}
-	reloaded, err := config.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reloaded.Display.MaxNameLength != 8 {
+	if reloaded := savedDevice(t, path); reloaded.Display.MaxNameLength != 8 {
 		t.Errorf("saved width = %d, want 8", reloaded.Display.MaxNameLength)
 	}
 
@@ -620,28 +618,28 @@ func TestANumberStepsAndIsTypedInPlace(t *testing.T) {
 	for range 12 {
 		m, _ = press(t, m, keyText("-"))
 	}
-	if got := m.conf.base.Display.MaxNameLength; got != 0 {
+	if got := m.conf.device.Display.MaxNameLength; got != 0 {
 		t.Errorf("width stepped down to %d, want it to stop at 0", got)
 	}
 	m = m.settingsIn("notifications", "notifications.timeout")
 	for range 40 {
 		m, _ = press(t, m, keyText("-"))
 	}
-	if got := m.conf.base.Notifications.Timeout; got == nil || *got != -1 {
+	if got := m.conf.device.Notifications.Timeout; got == nil || *got != -1 {
 		t.Errorf("timeout stepped down to %v, want it to stop at -1", got)
 	}
 	// + on a non-number row says so and changes nothing.
 	m = m.settingsIn("display", "display.color_messages")
-	before := m.conf.base.Display.ColorMessages
+	before := m.conf.device.Display.ColorMessages
 	m, _ = press(t, m, keyText("+"))
-	if m.conf.base.Display.ColorMessages != before {
-		t.Errorf("+ on a toggle: changed %v, status %q", m.conf.base.Display.ColorMessages != before, m.status())
+	if m.conf.device.Display.ColorMessages != before {
+		t.Errorf("+ on a toggle: changed %v, status %q", m.conf.device.Display.ColorMessages != before, m.status())
 	}
 }
 
 func TestARefusedValueStaysToBeFixed(t *testing.T) {
 	t.Parallel()
-	m, _ := opened(t, config.Notifications{Enabled: true})
+	m, _ := opened(t, config.Notifications{})
 	m = toSetting(t, m, "width")
 	m = typeIn(t, m, "wide")
 	if m.prompt.kind != promptSetting || m.prompt.input != "wide" || m.prompt.fresh {
@@ -661,7 +659,7 @@ func TestEscStepsBackALevel(t *testing.T) {
 		m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 		return m
 	}
-	m, _ := opened(t, config.Notifications{Enabled: true})
+	m, _ := opened(t, config.Notifications{})
 	m = toSetting(t, m, "Images")
 	if m.picker.kind != pickerSettingValue {
 		t.Fatalf("Images opened %v, want its values", m.picker.kind)

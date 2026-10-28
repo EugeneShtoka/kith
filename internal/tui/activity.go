@@ -42,7 +42,7 @@ func (m Model) handleActivity(msg activityMsg) (Model, tea.Cmd) {
 // typingNote is the composer divider's note on who is typing, or "" when nobody is
 // or the setting is off. Past two people it becomes a count.
 func (m Model) typingNote() string {
-	if !m.prefs.display.ShowTyping() {
+	if !m.prefs.device.ShowTyping() {
 		return ""
 	}
 	who := m.live.typists[m.openRoom]
@@ -89,7 +89,7 @@ const (
 // noteTyping tells the open room you are typing, unless told recently. The notice
 // expires server-side, so no timer; an empty composer stops it.
 func (m Model) noteTyping() (Model, tea.Cmd) {
-	if !m.prefs.display.SendsTyping() {
+	if !m.prefs.device.SendsTyping() {
 		return m, nil
 	}
 	room, ok := m.currentRoom()

@@ -73,20 +73,20 @@ func (m Model) replaceWord(r domain.Misspelling, with string) Model {
 }
 
 func (m Model) correcting() bool {
-	return m.conf.base.Spell.Corrects(config.AutocorrectMisspellings) ||
-		m.conf.base.Spell.Corrects(config.AutocorrectRare)
+	return m.conf.device.Spell.Corrects(config.AutocorrectMisspellings) ||
+		m.conf.device.Spell.Corrects(config.AutocorrectRare)
 }
 
 // autocorrection is the replacement for a mark and whether it is certain enough to
 // apply unasked. For a rare word the backend, which has the corpus, decides.
 func (m Model) autocorrection(r domain.Misspelling) (string, bool) {
 	if r.Rare {
-		if !m.conf.base.Spell.Corrects(config.AutocorrectRare) || !r.Certain || len(r.Suggestions) != 1 {
+		if !m.conf.device.Spell.Corrects(config.AutocorrectRare) || !r.Certain || len(r.Suggestions) != 1 {
 			return "", false
 		}
 		return r.Suggestions[0], true
 	}
-	if !m.conf.base.Spell.Corrects(config.AutocorrectMisspellings) {
+	if !m.conf.device.Spell.Corrects(config.AutocorrectMisspellings) {
 		return "", false
 	}
 	return misspellingCorrection(r.Word, r.Suggestions)

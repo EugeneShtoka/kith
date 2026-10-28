@@ -28,7 +28,7 @@ In a Matrix room you may read but not post in (an announcements room, a bridge's
 | `alt+s` | Walk through the misspellings |
 | `ctrl+e` | Open the emoji browser |
 
-`ctrl+enter` is only distinct from `enter` on terminals that speak the Kitty keyboard protocol or modifyOtherKeys (wezterm, kitty, foot, ghostty, recent xterm). `alt+enter` works everywhere. If you prefer enter to send, swap the pair:
+`ctrl+enter` is only distinct from `enter` on terminals that speak the Kitty keyboard protocol or modifyOtherKeys (wezterm, kitty, foot, ghostty, recent xterm). `alt+enter` works everywhere. If you prefer enter to send, swap the pair in `device.toml`:
 
 ```toml
 [keys.insert]
@@ -69,7 +69,7 @@ An ordinary sentence with no formatting is sent as plain text with no HTML body.
 
 **Why it matters on bridged accounts:** bridges convert the HTML body, not the characters. Without it, your asterisks reach WhatsApp, Slack or Telegram as literal asterisks.
 
-To send one message exactly as typed, start it with `/plain`. To turn rendering off for good:
+To send one message exactly as typed, start it with `/plain`. To turn rendering off for good, in `device.toml`:
 
 ```toml
 [composer]
@@ -113,7 +113,7 @@ The pill is tied to the name in the text. If you delete or change the name befor
 
 ## Writing in `$EDITOR`
 
-Press `alt+e` in the composer, or on the timeline, to hand the draft to your editor. When the editor exits, its contents replace the draft. **Nothing is sent** until you press send. If the editor exits with an error, the draft is left as it was.
+Press `alt+e` in the composer, or on the timeline, to hand the draft to your editor. When the editor exits, its contents replace the draft. **Nothing is sent** until you press send. If the editor exits with an error, the draft is left as it was. The editor is this device's, in `device.toml`:
 
 ```toml
 [composer]
@@ -131,7 +131,7 @@ There are three ways to insert an emoji:
 2. **The browser.** `ctrl+e` opens a grid of every emoji. Type to filter it, use the arrows to move, and press `enter` or `tab` to insert. From the timeline, the same key reacts to the selected message instead.
 3. **Reactions.** `e` on the timeline opens the reaction prompt, where the ten quick slots are bound to `1`–`9` and `0`.
 
-**All three share one ranking.** Each emoji is scored by how often you use it: 10 points for each use in this room, 3 for each use in the room's spaces, and 1 for each use anywhere else. Emoji you have never used keep their alphabetical place. The ranking is fetched when you open a room and then stays fixed for the session, so nothing moves while you are looking at it. Emoji you type in messages and emoji you react with are ranked separately.
+**All three share one ranking.** Each emoji is scored by how often you use it: 10 points for each use in this room, 3 for each use in the room's spaces, and 1 for each use anywhere else. Emoji you have never used keep their alphabetical place. The ranking is fetched when you open a room and then stays fixed for the session, so nothing moves while you are looking at it. Emoji you type in messages and emoji you react with are ranked separately. These are this device's, in `device.toml`:
 
 ```toml
 [display]
@@ -213,13 +213,19 @@ overdue_cutoff_hours = 24   # 0 = never too late
 
 ## Spell-checking
 
-kith checks what you write as you type, using any engine that speaks the ispell pipe protocol: hunspell (the default), enchant, nuspell or aspell. Misspelled words get a curly underline.
+kith checks what you write as you type, using any engine that speaks the ispell pipe protocol: hunspell (the default), enchant, nuspell or aspell. Misspelled words get a curly underline. The engine and its dictionaries are in `config.toml`:
 
 ```toml
 [spell]
 enabled           = true
 command           = "hunspell"
 dictionaries      = []        # empty: every installed dictionary
+```
+
+How this device marks and corrects a word is in `device.toml`:
+
+```toml
+[spell]
 underline         = "curly"   # curly, line or none
 check_before_send = false
 autocorrect       = "off"     # off, misspellings, rare or all
@@ -268,9 +274,13 @@ kith --add-frequencies he_IL
 ```
 
 ```toml
-[spell]
+[spell]                       # config.toml
 flag_rare_words  = true
 rare_ratio       = 100        # how many times commoner the neighbour must be
+```
+
+```toml
+[spell]                       # device.toml
 rare_underline   = "dotted"   # dotted, line or none
 rare_before_send = false      # also stop the check-before-send walk on these
 ```
@@ -291,7 +301,7 @@ kith completes words from what has recently been said in the room, the room's sp
 | `tab` | Take the whole suggestion, or open the chooser when nothing is confident enough to draw |
 | `alt+1` … `alt+5` | Take that candidate directly |
 
-In a right-to-left word, the arrows are swapped, so the key that points *into* the suggestion is the left arrow. This follows the word being typed, not the whole message.
+In a right-to-left word, the arrows are swapped, so the key that points *into* the suggestion is the left arrow. This follows the word being typed, not the whole message. Completion is this device's, in `device.toml`:
 
 ```toml
 [complete]

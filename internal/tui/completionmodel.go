@@ -25,7 +25,7 @@ func (m Model) maybeOfferModel() (Model, tea.Cmd) {
 	switch {
 	case m.offers.model.asked:
 		return m, nil
-	case !m.conf.base.Complete.CompleteEnabled(), !model.ModelEnabled(), model.Declined:
+	case !m.conf.device.Complete.CompleteEnabled(), !model.ModelEnabled(), m.conf.device.Complete.Model.Declined:
 		return m, nil
 	}
 	m.offers.model.asked = true
@@ -79,9 +79,9 @@ func (m Model) acceptModelOffer(tags []string) (Model, tea.Cmd) {
 	m = m.closePicker()
 	if declined {
 		// Only an explicit "not this one" is written down.
-		cfg := m.conf.base.Clone()
-		cfg.Complete.Model.Declined = true
-		return m.applyConfig(cfg, "")
+		dev := m.conf.device.Clone()
+		dev.Complete.Model.Declined = true
+		return m.applyDevice(dev, "")
 	}
 	return m.installModel(tags)
 }

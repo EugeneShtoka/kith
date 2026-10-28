@@ -38,7 +38,7 @@ func TestFillDefaults(t *testing.T) {
 func TestLoadKeys(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "config.toml")
+	path := filepath.Join(t.TempDir(), "device.toml")
 	body := `
 [keys]
 quit = "Q,ctrl+q"
@@ -49,9 +49,9 @@ react = "e"
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	cfg, err := Load(path)
+	cfg, err := LoadDevice(path)
 	if err != nil {
-		t.Fatalf("Load: %v", err)
+		t.Fatalf("LoadDevice: %v", err)
 	}
 	if cfg.Keys.Bindings["quit"] != "Q,ctrl+q" {
 		t.Errorf("Quit = %q, want the configured list", cfg.Keys.Bindings["quit"])
@@ -68,18 +68,18 @@ react = "e"
 	}
 }
 
-// A config with no [keys] section at all still ends up fully bound.
+// A device file with no [keys] section at all still ends up fully bound.
 func TestLoadWithoutKeysSection(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "config.toml")
-	body := "allow_token_file = true\n"
+	path := filepath.Join(t.TempDir(), "device.toml")
+	body := "terminal = \"foot\"\n"
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	cfg, err := Load(path)
+	cfg, err := LoadDevice(path)
 	if err != nil {
-		t.Fatalf("Load: %v", err)
+		t.Fatalf("LoadDevice: %v", err)
 	}
 	if !reflect.DeepEqual(cfg.Keys, DefaultKeys()) {
 		t.Errorf("Keys = %+v, want the defaults", cfg.Keys)
@@ -90,7 +90,7 @@ func TestLoadWithoutKeysSection(t *testing.T) {
 func TestLoadJumpBindings(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := loadText(t, `
+	cfg, err := loadDeviceText(t, `
 [keys]
 jump_to = "ctrl+j"
 
@@ -103,7 +103,7 @@ chord = "g i"
 target = "room:!inbox:example.org"
 `)
 	if err != nil {
-		t.Fatalf("Load: %v", err)
+		t.Fatalf("LoadDevice: %v", err)
 	}
 	want := Jumps{{Chord: "g w", Target: "space:Work"}, {Chord: "g i", Target: "room:!inbox:example.org"}}
 	if cfg.Keys.Bindings["jump_to"] != "ctrl+j" || !reflect.DeepEqual(cfg.Keys.Jump, want) {
@@ -151,21 +151,21 @@ func TestAChordGoesToOnePlace(t *testing.T) {
 // save.
 func TestTagKeysDefaultToTheStartersAndCanBeEmptied(t *testing.T) {
 	t.Parallel()
-	absent, err := Decode("")
+	absent, err := decodeDevice("an empty file", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(absent.Keys.Tag) != 1 || absent.Keys.Tag[0] != (TagKey{Chord: "!", Tag: "Spam"}) {
 		t.Errorf("absent = %+v, want the starter's", absent.Keys.Tag)
 	}
-	emptied, err := Decode("[keys]\ntag = []\n")
+	emptied, err := decodeDevice("a file", "[keys]\ntag = []\n")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(emptied.Keys.Tag) != 0 {
 		t.Errorf("tag = [] decoded as %+v, want none", emptied.Keys.Tag)
 	}
-	again, err := Decode(Encode(emptied))
+	again, err := decodeDevice("the saved file", encodeDevice(emptied))
 	if err != nil || len(again.Keys.Tag) != 0 {
 		t.Errorf("after a save: %+v, %v; want none still", again.Keys.Tag, err)
 	}
@@ -175,7 +175,7 @@ func TestTagKeysDefaultToTheStartersAndCanBeEmptied(t *testing.T) {
 func TestEveryBindingRoundTrips(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := loadText(t, "")
+	cfg, err := loadDeviceText(t, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,9 +184,9 @@ func TestEveryBindingRoundTrips(t *testing.T) {
 	}
 	cfg.Keys.Jump = Jumps{{Chord: "g w", Target: "space:Work"}}
 	cfg.Keys.Tag = TagKeys{}
-	reloaded, err := Decode(Encode(cfg))
+	reloaded, err := decodeDevice("the saved file", encodeDevice(cfg))
 	if err != nil {
-		t.Fatalf("reload: %v\n%s", err, Encode(cfg))
+		t.Fatalf("reload: %v\n%s", err, encodeDevice(cfg))
 	}
 	if !reflect.DeepEqual(reloaded.Keys, cfg.Keys) {
 		t.Errorf("keys changed across a save:\n got %+v\nwant %+v", reloaded.Keys, cfg.Keys)
@@ -209,7 +209,7 @@ func TestLoadRefusesMalformedKeys(t *testing.T) {
 		"[[keys.tag]]\nchord = \"t s\"\ntag = 1\n":                     "keys.tag.tag",
 		"[keys]\njump = \"g w\"\n":                                     "keys.jump",
 	} {
-		_, err := loadText(t, body)
+		_, err := loadDeviceText(t, body)
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%q: err = %v, want one naming %s", body, err, want)
 		}

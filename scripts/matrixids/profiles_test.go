@@ -33,7 +33,7 @@ func TestProfilesBecomeOneDaemonsAccounts(t *testing.T) {
 instance = "base"
 
 [display]
-fps = 30
+time_format = "12h"
 
 [[display.name]]
 target = "room:!club:h.example"
@@ -100,8 +100,8 @@ user = "@me:w.example"
 		{Name: "home", Homeserver: "https://h.example", User: "@me:h.example"},
 		{Name: "work", Homeserver: "https://w.example", User: "@me:w.example"},
 	}
-	if !slices.Equal(cfg.Matrix.Accounts, want) || cfg.Storage.Instance != "base-home" || cfg.Display.FPS != 30 {
-		t.Errorf("config = %+v, instance %q, fps %d\n%s", cfg.Matrix.Accounts, cfg.Storage.Instance, cfg.Display.FPS, text)
+	if !slices.Equal(cfg.Matrix.Accounts, want) || cfg.Storage.Instance != "base-home" || cfg.Display.TimeFormat != "12h" {
+		t.Errorf("config = %+v, instance %q, time format %q\n%s", cfg.Matrix.Accounts, cfg.Storage.Instance, cfg.Display.TimeFormat, text)
 	}
 	if got := cfg.Display.Names[0].Target; got != "room:"+string(ownerOf(home))+"!club:h.example" {
 		t.Errorf("a room entry = %q, want it the first profile's account's", got)

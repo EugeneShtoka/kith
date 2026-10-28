@@ -17,8 +17,8 @@ func TestAnOlderConfigSaveNeverLandsLast(t *testing.T) {
 	m := starterNew(apitest.Nop{}, config.Display{}).WithConfigFile(path, asStarted(base)).keptIn()
 
 	older, newer := base, base
-	older.Notifications.Enabled = false
-	newer.Notifications.Enabled = true
+	older.Notifications.MaxPerRoom = 1
+	newer.Notifications.MaxPerRoom = 2
 	first := m.saveConfigFileCmd(older)
 	second := m.saveConfigFileCmd(newer)
 
@@ -32,7 +32,7 @@ func TestAnOlderConfigSaveNeverLandsLast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if !got.Notifications.Enabled {
+	if got.Notifications.MaxPerRoom != 2 {
 		t.Error("the older snapshot overwrote the newer one")
 	}
 }

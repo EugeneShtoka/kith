@@ -27,28 +27,17 @@ func Validate(cfg config.Config) error {
 	d := cfg.Display
 	for _, err := range []error{
 		PlaceEntries(cfg),
-		Scripts(cfg),
 		errOf(NotificationRules(cfg.Notifications)),
 		errOf(CodeRules(cfg.Codes)),
 		errOf(Filters(cfg)),
-		errOf(SkinTone(d.SkinTone)),
 		errOf(Clock(d)),
-		errOf(EmojiTier(d.Emoji.Set)),
-		FrameRate(d.FPS),
 		errOf(MediaMode(d.Media.Mode)),
 		errOf(MediaDetail(d.Media.Detail)),
-		errOf(UnreadSource(d.Unread)),
-		RoomList(d.Rooms),
-		themeCheck(d.Theme),
-		NetworkColors(d.Theme.Networks),
-		errOf(ThreadListing(d.Threads.InRoomList)),
 		AudioPlayback(d.Media),
 		errOf(NotificationLimit(cfg.Notifications)),
-		errOf(RareUnderline(cfg.Spell.RareUnderline)),
-		errOf(AutocorrectMode(cfg.Spell.Autocorrect)),
-		errOf(SpellUnderline(cfg.Spell.Underline)),
 		DeletedMessages(d.Deleted),
-		Completion(cfg.Complete),
+		ModelDurations(cfg.Complete.Model),
+		ModelNames(cfg.Complete.Model),
 		ModelLayer(cfg.Assist),
 		errOf(CompletionPick(cfg.Complete.Model)),
 		errOf(AgentCooldown(cfg.Agent)),
@@ -61,6 +50,34 @@ func Validate(cfg config.Config) error {
 		Backups(cfg.Backup),
 		BridgeContacts(cfg.BridgeContacts),
 		DefaultAccounts(cfg),
+	} {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ValidateDevice checks a device file at a client's start and before it is written,
+// returning the first problem in list order. cfg is the bridge's config, whose tags
+// the device's lists of places may name.
+func ValidateDevice(dev config.Device, cfg config.Config) error {
+	d := dev.Display
+	for _, err := range []error{
+		devicePlaceEntries(dev, cfg),
+		Scripts(dev),
+		errOf(SkinTone(d.SkinTone)),
+		errOf(EmojiTier(d.Emoji.Set)),
+		FrameRate(d.FPS),
+		errOf(UnreadSource(d.Unread)),
+		RoomList(d.Rooms),
+		themeCheck(d.Theme),
+		NetworkColors(d.Theme.Networks),
+		errOf(ThreadListing(d.Threads.InRoomList)),
+		errOf(RareUnderline(dev.Spell.RareUnderline)),
+		errOf(AutocorrectMode(dev.Spell.Autocorrect)),
+		errOf(SpellUnderline(dev.Spell.Underline)),
+		Completion(dev.Complete),
 	} {
 		if err != nil {
 			return err
@@ -121,8 +138,8 @@ func RareUnderline(name string) (string, error) {
 	return oneOf("spell.rare_underline", "underline", name, config.RareUnderlines())
 }
 
-// Completion checks [complete]: vocabulary scope, sources, and the local model.
-func Completion(cfg config.Complete) error {
+// Completion checks a device's [complete]: vocabulary scope and sources.
+func Completion(cfg config.DeviceComplete) error {
 	if _, err := oneOf("complete.scope", "scope", cfg.ScopeOrDefault(), config.CompleteScopes()); err != nil {
 		return err
 	}
@@ -131,10 +148,7 @@ func Completion(cfg config.Complete) error {
 			return err
 		}
 	}
-	if err := ModelDurations(cfg.Model); err != nil {
-		return err
-	}
-	return ModelNames(cfg.Model)
+	return nil
 }
 
 // AutocorrectMode resolves what autocorrect may rewrite; empty is "off".
@@ -191,7 +205,7 @@ func MediaDetail(name string) (string, error) {
 
 // FrameRate checks a configured repaint rate; out of range is refused, not clamped.
 func FrameRate(fps int) error {
-	if fps == 0 { // unset: config.Display.FrameRate supplies the default
+	if fps == 0 { // unset: config.DeviceDisplay.FrameRate supplies the default
 		return nil
 	}
 	if fps < config.MinFPS || fps > config.MaxFPS {

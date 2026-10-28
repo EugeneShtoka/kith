@@ -30,11 +30,11 @@ func (s *receiptSpy) MarkRoomsRead(_ context.Context, ids []domain.RoomID, priva
 	return domain.ReadResult{Marked: len(ids)}, nil
 }
 
-func readingRoom(t *testing.T, spy *receiptSpy, display config.Display) Model {
+func readingRoom(t *testing.T, spy *receiptSpy, display config.DeviceDisplay) Model {
 	t.Helper()
-	m := sized(t, update(t, starterNew(spy, display),
+	m := sized(t, update(t, starterNew(spy, config.Display{}, display),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}}))
-	m.conf.base.Display = display
+	m.conf.device.Display = display
 	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
 	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
@@ -47,7 +47,7 @@ func readingRoom(t *testing.T, spy *receiptSpy, display config.Display) Model {
 // By default entering a room reads it, announced.
 func TestReadOnEnteringByDefault(t *testing.T) {
 	spy := &receiptSpy{}
-	m := readingRoom(t, spy, config.Display{})
+	m := readingRoom(t, spy, config.DeviceDisplay{})
 	m, cmd := m.markRead()
 	deliver(t, m, cmd)
 	if len(spy.reads) != 1 || spy.reads[0] != mx+"$1" {
@@ -62,7 +62,7 @@ func TestReadOnEnteringByDefault(t *testing.T) {
 func TestReadOnFocusImmediately(t *testing.T) {
 	spy := &receiptSpy{}
 	zero := 0
-	m := readingRoom(t, spy, config.Display{ReadDelay: &zero})
+	m := readingRoom(t, spy, config.DeviceDisplay{ReadDelay: &zero})
 	m, cmd := m.armFocusRead()
 	deliver(t, m, cmd)
 	if len(spy.reads) != 1 || spy.reads[0] != mx+"$1" {
@@ -74,7 +74,7 @@ func TestReadOnFocusImmediately(t *testing.T) {
 func TestReadOnFocusAfterTheDelay(t *testing.T) {
 	spy := &receiptSpy{}
 	delay := 15
-	m := readingRoom(t, spy, config.Display{ReadDelay: &delay})
+	m := readingRoom(t, spy, config.DeviceDisplay{ReadDelay: &delay})
 
 	m, cmd := m.armFocusRead()
 	if cmd == nil {
@@ -96,7 +96,7 @@ func TestReadOnFocusAfterTheDelay(t *testing.T) {
 func TestStaleReadTimerIsIgnored(t *testing.T) {
 	spy := &receiptSpy{}
 	delay := 15
-	m := readingRoom(t, spy, config.Display{ReadDelay: &delay})
+	m := readingRoom(t, spy, config.DeviceDisplay{ReadDelay: &delay})
 	m, _ = m.armFocusRead()
 
 	for _, stale := range []readTimerMsg{
@@ -118,7 +118,7 @@ func TestReadDelayNeverOnFocus(t *testing.T) {
 	never := -1
 	for _, delay := range []*int{nil, &never} {
 		spy := &receiptSpy{}
-		m := readingRoom(t, spy, config.Display{ReadDelay: delay})
+		m := readingRoom(t, spy, config.DeviceDisplay{ReadDelay: delay})
 		m, cmd := m.armFocusRead()
 		deliver(t, m, cmd)
 		if cmd != nil || len(spy.reads) != 0 {
@@ -136,7 +136,7 @@ func TestReadDelayNeverOnFocus(t *testing.T) {
 func TestReceiptsOffSendPrivately(t *testing.T) {
 	spy := &receiptSpy{}
 	off := false
-	m := readingRoom(t, spy, config.Display{SendReceipts: &off})
+	m := readingRoom(t, spy, config.DeviceDisplay{SendReceipts: &off})
 	m, cmd := m.markRead()
 	deliver(t, m, cmd)
 	if len(spy.reads) != 1 {
@@ -151,7 +151,7 @@ func TestReceiptsOffSendPrivately(t *testing.T) {
 func TestReceiptRuleOverridesTheGlobal(t *testing.T) {
 	spy := &receiptSpy{}
 	off := false
-	m := readingRoom(t, spy, config.Display{
+	m := readingRoom(t, spy, config.DeviceDisplay{
 		ReadRules: []config.ReadRule{{Match: mx + "!a:x", Send: &off}},
 	})
 	m, cmd := m.markRead()
@@ -165,12 +165,12 @@ func TestReceiptRuleOverridesTheGlobal(t *testing.T) {
 func TestBulkMarkReadSplitsByPolicy(t *testing.T) {
 	spy := &receiptSpy{}
 	off := false
-	m := sized(t, update(t, starterNew(spy, config.Display{
+	m := sized(t, update(t, starterNew(spy, config.Display{}, config.DeviceDisplay{
 		ReadRules: []config.ReadRule{{Match: mx + "!quiet:x", Send: &off}},
 	}), roomsMsg{rooms: []domain.Room{
 		{ID: mx + "!loud:x", Name: "Loud"}, {ID: mx + "!quiet:x", Name: "Quiet"},
 	}}))
-	m.receipts.policy = readSettingsFrom(config.Display{ReadRules: []config.ReadRule{{Match: mx + "!quiet:x", Send: &off}}})
+	m.receipts.policy = readSettingsFrom(config.DeviceDisplay{ReadRules: []config.ReadRule{{Match: mx + "!quiet:x", Send: &off}}})
 
 	cmd := m.markRoomsReadCmd([]domain.RoomID{mx + "!loud:x", mx + "!quiet:x"}, "both")
 	msg, _ := cmd().(markedReadMsg)

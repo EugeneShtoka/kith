@@ -39,9 +39,9 @@ func TestAWaitingKithdIsToldOnceWithWhy(t *testing.T) {
 
 	rec := &shown{}
 	logs := &logBuffer{}
-	sinks := func(config.Notifications) notify.Notifier { return rec }
+	sinks := func(config.DeviceNotifications) notify.Notifier { return rec }
 	a := newAgent(slog.New(slog.NewTextHandler(logs, nil)), func() *daemon.Remote { return daemon.NewRemote(socket) },
-		sinks, config.Config{Notifications: config.Notifications{Enabled: true}})
+		sinks, deviceFile(t, notificationsOn), config.Device{})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); a.run(ctx, []string{"First", "Third"}) }()

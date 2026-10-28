@@ -59,13 +59,13 @@ func (m Model) placesRows() []setting {
 		page := placePage(key)
 		rows = append(rows, setting{
 			key: page, group: "places", kind: settingOpen, label: m.pageLabel(key),
-			show: func(config.Config) string { return m.placeSummary(key) },
+			show: func(config.Settings) string { return m.placeSummary(key) },
 			open: func(m Model) (Model, tea.Cmd) { return m.settingsIn(page, ""), nil },
 		})
 	}
 	return append(rows, setting{
 		key: "places#new", group: "places", kind: settingOpen, label: "New tag",
-		show: func(config.Config) string { return "" },
+		show: func(config.Settings) string { return "" },
 		open: func(m Model) (Model, tea.Cmd) {
 			m.choosing.tag = tagEditing{}
 			return m.openPrompt(promptTagName), nil
@@ -111,7 +111,7 @@ func (m Model) placePageRows(key string) []setting {
 	if isTag {
 		rows = append(rows, setting{
 			key: group + "#delete", group: group, kind: settingOpen, label: "Delete this tag",
-			show: func(config.Config) string { return "" },
+			show: func(config.Settings) string { return "" },
 			open: func(m Model) (Model, tea.Cmd) {
 				m.confirm = confirmState{action: pendingDeleteTag, group: name}
 				return m.closePicker(), nil
@@ -128,7 +128,7 @@ func (m Model) tagPageRows(name, group string) []setting {
 	t := m.conf.base.Tags[at]
 	rows := []setting{{
 		key: group + "#name", group: group, kind: settingOpen, label: "Name",
-		show: func(config.Config) string { return isolate(t.Name) },
+		show: func(config.Settings) string { return isolate(t.Name) },
 		open: func(m Model) (Model, tea.Cmd) {
 			m.choosing.tag = tagEditing{tag: t.Name}
 			return m.openPromptWith(promptTagName, t.Name), nil
@@ -156,7 +156,7 @@ func (m Model) tagPageRows(name, group string) []setting {
 	if claimed := m.claimedFrom(at); claimed != "" {
 		rows = append(rows, setting{
 			key: group + "#claimed", group: group, kind: settingOpen, label: "Also excludes",
-			show: func(config.Config) string { return claimed },
+			show: func(config.Settings) string { return claimed },
 			open: func(m Model) (Model, tea.Cmd) {
 				return m.say("a tag exclusive from tags shows its rooms alone"), nil
 			},
@@ -168,36 +168,36 @@ func (m Model) tagPageRows(name, group string) []setting {
 // tagListRow is one of the tag's lists, edited an entry at a time as any list setting
 // is; a room entry is shown by the room's name.
 func (m Model) tagListRow(name, group, key, label string, field func(*config.Tag) *[]string) setting {
-	at := func(c config.Config) int {
-		return slices.IndexFunc(c.Tags, func(t config.Tag) bool { return domain.SameTag(t.Name, name) })
+	at := func(c config.Settings) int {
+		return slices.IndexFunc(c.Bridge.Tags, func(t config.Tag) bool { return domain.SameTag(t.Name, name) })
 	}
-	entries := func(c config.Config) []string {
+	entries := func(c config.Settings) []string {
 		if i := at(c); i >= 0 {
-			return slices.Clone(*field(&c.Tags[i]))
+			return slices.Clone(*field(&c.Bridge.Tags[i]))
 		}
 		return nil
 	}
 	s := setting{
 		key: group + "#" + key, group: group, kind: settingList, label: label,
-		show:    func(c config.Config) string { return m.entriesWords(entries(c)) },
-		set:     func(*config.Config, string) error { return errors.New("edited an entry at a time") },
+		show:    func(c config.Settings) string { return m.entriesWords(entries(c)) },
+		set:     func(*config.Settings, string) error { return errors.New("edited an entry at a time") },
 		entries: entries,
-		setEntries: func(c *config.Config, list []string) error {
+		setEntries: func(c *config.Settings, list []string) error {
 			i := at(*c)
 			if i < 0 {
 				return fmt.Errorf("no tag is called %q", name)
 			}
-			*field(&c.Tags[i]) = list
+			*field(&c.Bridge.Tags[i]) = list
 			return nil
 		},
 		entryLabel: m.entryName,
 	}
 	switch key {
 	case tagRule:
-		s.show = func(c config.Config) string { return ruleWords(entries(c)) }
+		s.show = func(c config.Settings) string { return ruleWords(entries(c)) }
 		s.entryLabel = nil
 	case tagPeople:
-		s.show = func(c config.Config) string { return m.peopleWords(entries(c)) }
+		s.show = func(c config.Settings) string { return m.peopleWords(entries(c)) }
 		s.entryLabel = m.personName
 	}
 	return s
@@ -220,7 +220,7 @@ func (m Model) peopleWords(ids []string) string {
 func (m Model) tagMarksRow(name, group string) setting {
 	return setting{
 		key: group + "#marks", group: group, kind: settingOpen, label: "Put here by filters",
-		show: func(config.Config) string {
+		show: func(config.Settings) string {
 			var marks []string
 			for _, v := range m.rail.people {
 				if v.In() && domain.SameTag(v.Tag, name) {
@@ -249,23 +249,23 @@ func unsetIfOn(on bool) *bool {
 
 // tagToggle is one on/off property of the named tag.
 func tagToggle(name, group, key, label string, get func(config.Tag) bool, set func(*config.Tag, bool)) setting {
-	at := func(c config.Config) int {
-		return slices.IndexFunc(c.Tags, func(t config.Tag) bool { return domain.SameTag(t.Name, name) })
+	at := func(c config.Settings) int {
+		return slices.IndexFunc(c.Bridge.Tags, func(t config.Tag) bool { return domain.SameTag(t.Name, name) })
 	}
 	return setting{
 		key: group + "#" + key, group: group, kind: settingToggle, label: label,
-		show: func(c config.Config) string {
+		show: func(c config.Settings) string {
 			if i := at(c); i >= 0 {
-				return onOff(get(c.Tags[i]))
+				return onOff(get(c.Bridge.Tags[i]))
 			}
 			return ""
 		},
-		set: func(c *config.Config, _ string) error {
+		set: func(c *config.Settings, _ string) error {
 			i := at(*c)
 			if i < 0 {
 				return fmt.Errorf("no tag is called %q", name)
 			}
-			set(&c.Tags[i], !get(c.Tags[i]))
+			set(&c.Bridge.Tags[i], !get(c.Bridge.Tags[i]))
 			return nil
 		},
 	}
@@ -294,10 +294,10 @@ func (m Model) placeFilterRows(key, group string) []setting {
 	var rows []setting
 	for _, i := range m.placeFilters(key) {
 		record := filterTable + "#" + strconv.Itoa(i)
-		summary := recordSummary(m.conf.base, t, i)
+		summary := recordSummary(m.settings(), t, i)
 		rows = append(rows, setting{
 			key: group + "#" + record, group: group, kind: settingOpen, label: "Filter",
-			show: func(config.Config) string { return summary },
+			show: func(config.Settings) string { return summary },
 			open: func(m Model) (Model, tea.Cmd) { return m.settingsIn(record, ""), nil },
 		})
 	}
@@ -308,7 +308,7 @@ func (m Model) placeFilterRows(key, group string) []setting {
 	}
 	return append(rows, setting{
 		key: group + "#addfilter", group: group, kind: settingOpen, label: label,
-		show: func(config.Config) string { return "" },
+		show: func(config.Settings) string { return "" },
 		open: func(m Model) (Model, tea.Cmd) { return m.startFilterFrom(group, preset) },
 	})
 }

@@ -26,7 +26,7 @@ type tagFiling struct {
 func (m Model) filingRows(room domain.Room) ([]pickerItem, map[string]bool, bool) {
 	spaces, checked := m.fileableSpaces(room.ID)
 	tags := m.tagRows(checked, room)
-	if len(m.prefs.display.FilingSpaces) > 0 {
+	if len(m.prefs.device.FilingSpaces) > 0 {
 		if len(spaces) == 0 {
 			return nil, nil, false
 		}

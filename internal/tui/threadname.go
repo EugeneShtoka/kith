@@ -29,10 +29,10 @@ func (m Model) nameOpenRoomThreads() (Model, tea.Cmd) {
 
 // nameThreads asks the model to name each unnamed thread in a room, once per session.
 func (m Model) nameThreads(roomID domain.RoomID, threads []domain.Thread) (Model, tea.Cmd) {
-	if !m.conf.base.Assist.NameThreads || !m.conf.base.Assist.AssistEnabled() {
+	if !m.conf.device.Assist.NameThreads || !m.conf.base.Assist.AssistEnabled() {
 		return m, nil
 	}
-	after := m.conf.base.Assist.NameThreadsAfterOrDefault()
+	after := m.conf.device.Assist.NameThreadsAfterOrDefault()
 	var cmds []tea.Cmd
 	for i := range threads {
 		root := threads[i].Root

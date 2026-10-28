@@ -186,7 +186,7 @@ func TestAConfigChangeReachesEveryWindow(t *testing.T) {
 		t.Fatal(err)
 	}
 	changed := read.Config.Clone()
-	changed.Display.FPS = 42
+	changed.Notifications.MaxPerRoom = 42
 	original := read.Revision // older than whatever lands
 	deadline := time.Now().Add(settle)
 	var rev string
@@ -197,8 +197,8 @@ func TestAConfigChangeReachesEveryWindow(t *testing.T) {
 		}
 		select {
 		case snap := <-watching.ConfigChanges():
-			if snap.Config.Display.FPS != 42 || snap.Revision != rev {
-				t.Errorf("heard %d at %s, want 42 at %s", snap.Config.Display.FPS, snap.Revision, rev)
+			if snap.Config.Notifications.MaxPerRoom != 42 || snap.Revision != rev {
+				t.Errorf("heard %d at %s, want 42 at %s", snap.Config.Notifications.MaxPerRoom, snap.Revision, rev)
 			}
 			if _, err := saving.UpdateConfig(ctx, original, changed); !errors.Is(err, api.ErrConfigMoved) {
 				t.Errorf("a save on the older revision = %v, want ErrConfigMoved", err)

@@ -22,8 +22,12 @@ type RunOptions struct {
 	Notifications Notifications
 	Schedules     Schedules
 	Config        config.Config
-	// ConfigPath is where in-app setting changes are written.
+	// ConfigPath is the bridge's config, whose changes kithd writes.
 	ConfigPath string
+	// Device is this device's settings, and DevicePath their file, where in-app changes
+	// to them are written.
+	Device     config.Device
+	DevicePath string
 	// Log is the client's log, a file since the terminal is the program's.
 	Log *slog.Logger
 	// Follow is a matrix URI to open at start, or "".
@@ -44,7 +48,7 @@ type RunOptions struct {
 
 // Run starts the Bubble Tea program bound to ctx and blocks until it exits.
 func Run(ctx context.Context, opts RunOptions) error {
-	backend, cfg, log := opts.Backend, opts.Config, opts.Log
+	backend, cfg, dev, log := opts.Backend, opts.Config, opts.Device, opts.Log
 	// Commands end with the program, so an abandoned save stops retrying while flushAtExit runs.
 	ctx, endCommands := context.WithCancel(ctx)
 	defer endCommands()
@@ -55,9 +59,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 	// A cache that will not open is reported, not fatal.
 	cache, cacheErr := openMediaCache(cfg.Display.Media, log)
 
-	model := New(ctx, backend, cfg.Display).
+	model := New(ctx, backend, cfg.Display, dev.Display).
 		WithLogger(log).
-		WithKeys(cfg.Keys).
+		WithDevice(opts.DevicePath, dev).
 		WithNotifications(opts.Notifications).
 		WithSchedules(opts.Schedules).
 		WithConfigFile(opts.ConfigPath, cfg).
@@ -82,9 +86,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if err != nil {
 		return err
 	}
-	model = model.WithRules(rules, cfg.Notifications.Enabled)
-	// The frame rate is the client's cost at rest; see config.Display.FPS.
-	program := tea.NewProgram(model, tea.WithContext(ctx), tea.WithFPS(cfg.Display.FrameRate()))
+	model = model.WithRules(rules, dev.Notifications.Enabled)
+	// The frame rate is the client's cost at rest; see config.DeviceDisplay.FPS.
+	program := tea.NewProgram(model, tea.WithContext(ctx), tea.WithFPS(dev.Display.FrameRate()))
 	final, err := program.Run()
 	// A playing voice note is an external process that quitting does not cancel.
 	last, ok := final.(Model)

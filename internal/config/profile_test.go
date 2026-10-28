@@ -67,7 +67,7 @@ func TestSettingsEditAProfilesArchiveAndRail(t *testing.T) {
 		t.Errorf("dotted record fields = %v, want %v", fields, want)
 	}
 
-	cfg := Config{Profiles: []Profile{{Name: "default", Include: []string{"*"}}, {Name: "phone", Include: []string{"dm"}}}}
+	cfg := Settings{Bridge: Config{Profiles: []Profile{{Name: "default", Include: []string{"*"}}, {Name: "phone", Include: []string{"dm"}}}}}
 	if err := cfg.SetRecordList("profile", 1, "archive.rooms", []string{"not tag:Family"}); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestSettingsEditAProfilesArchiveAndRail(t *testing.T) {
 	if err := cfg.SetRecordList("profile", 1, "rail.order", []string{"tag:Unread", "*"}); err != nil {
 		t.Fatal(err)
 	}
-	phone := cfg.Profiles[1]
+	phone := cfg.Bridge.Profiles[1]
 	if !slices.Equal(phone.Archive.Rooms, []string{"not tag:Family"}) || phone.Archive.Push == nil || *phone.Archive.Push ||
 		!slices.Equal(phone.Rail.Order, []string{"tag:Unread", "*"}) {
 		t.Errorf("phone = %+v, want its archive and rail set", phone)
@@ -92,7 +92,7 @@ func TestSettingsEditAProfilesArchiveAndRail(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := cfg.RecordList("profile", 1, "people.exclude"); !slices.Equal(got, []string{"role:colleagues"}) ||
-		!slices.Equal(cfg.Profiles[1].People.Exclude, []string{"role:colleagues"}) {
-		t.Errorf("people.exclude reads %v, profile %+v", got, cfg.Profiles[1].People)
+		!slices.Equal(cfg.Bridge.Profiles[1].People.Exclude, []string{"role:colleagues"}) {
+		t.Errorf("people.exclude reads %v, profile %+v", got, cfg.Bridge.Profiles[1].People)
 	}
 }

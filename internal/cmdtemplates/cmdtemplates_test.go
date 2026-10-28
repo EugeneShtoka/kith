@@ -26,7 +26,7 @@ func TestEveryTemplateIsWhole(t *testing.T) {
 		if tmpl.About == "" || tmpl.Block.Name == "" {
 			t.Errorf("%s: about %q, name %q, want both", tmpl.Name, tmpl.About, tmpl.Block.Name)
 		}
-		if err := setup.Scripts(config.Config{UserCommands: []config.Command{tmpl.Block}}); err != nil {
+		if err := setup.Scripts(config.Device{UserCommands: []config.Command{tmpl.Block}}); err != nil {
 			t.Errorf("%s: the block is refused: %v", tmpl.Name, err)
 		}
 		if !bytes.HasPrefix(tmpl.Script, []byte("#!/bin/sh")) {

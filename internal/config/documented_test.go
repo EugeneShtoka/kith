@@ -28,13 +28,21 @@ func configLeaves(t reflect.Type, table string, out map[string]string) {
 	}
 }
 
-// Every setting's key is named in its table's text in default.toml: from the comment
-// above each of its headers (live or commented) to the next live header.
+// Every setting's key is named in its table's text in its file's annotated default:
+// from the comment above each of its headers (live or commented) to the next live
+// header.
 func TestEveryConfigFieldIsDocumented(t *testing.T) {
 	t.Parallel()
+	for _, f := range settingsFiles {
+		checkDocumented(t, f)
+	}
+}
 
+// checkDocumented is TestEveryConfigFieldIsDocumented for one file.
+func checkDocumented(t *testing.T, f settingsFile) {
+	t.Helper()
 	leaves := map[string]string{}
-	configLeaves(reflect.TypeFor[Config](), "", leaves)
+	configLeaves(f.typ, "", leaves)
 	// ModelPrompt.Budget is read only for summary and todo.
 	for path := range leaves {
 		if path == "assist.rewrite.budget" || path == "assist.thread_name.budget" {
@@ -42,7 +50,7 @@ func TestEveryConfigFieldIsDocumented(t *testing.T) {
 		}
 	}
 
-	lines := strings.Split(defaultConfigTOML, "\n")
+	lines := strings.Split(f.annotated, "\n")
 	header := regexp.MustCompile(`^(#\s*)?\[\[?([\w.]+)\]\]?\s*$`)
 	liveHeaderAfter := func(from int) int {
 		for j := from; j < len(lines); j++ {
@@ -78,11 +86,11 @@ func TestEveryConfigFieldIsDocumented(t *testing.T) {
 			regions[table] = region
 		}
 		if region == "" {
-			t.Errorf("%s: default.toml never shows its table [%s]", path, table)
+			t.Errorf("%s: %s never shows its table [%s]", path, f.name, table)
 			continue
 		}
 		if !regexp.MustCompile(`(^|[^\w])` + regexp.QuoteMeta(key) + `([^\w]|$)`).MatchString(region) {
-			t.Errorf("%s: default.toml does not document %q under [%s]", path, key, table)
+			t.Errorf("%s: %s does not document %q under [%s]", path, f.name, key, table)
 		}
 	}
 }

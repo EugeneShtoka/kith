@@ -68,7 +68,7 @@ func TestFirstNamesPerPlace(t *testing.T) {
 // change is saved; esc walks back record → table → group → groups.
 func TestRecordsAreEditedInSettings(t *testing.T) {
 	t.Parallel()
-	m, path := opened(t, config.Notifications{Enabled: true})
+	m, path := opened(t, config.Notifications{})
 	m = m.settingsIn("display", recordPrefix+"display.read_rule")
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.picker.kind != pickerSetting || m.choosing.settingGroup != recordPrefix+"display.read_rule" {
@@ -76,7 +76,7 @@ func TestRecordsAreEditedInSettings(t *testing.T) {
 	}
 	m = pickLabel(t, m, "Add one")
 	m = typeIn(t, m, "space:Work")
-	if got := m.conf.base.Display.ReadRules; len(got) != 1 || got[0].Match != "space:Work" {
+	if got := m.conf.device.Display.ReadRules; len(got) != 1 || got[0].Match != "space:Work" {
 		t.Fatalf("after adding: %+v, want one rule matching space:Work", got)
 	}
 	m = pickLabel(t, m, "space:Work") // the record
@@ -89,21 +89,17 @@ func TestRecordsAreEditedInSettings(t *testing.T) {
 	}
 	m = pickLabel(t, m, "Send")
 	m = pickLabel(t, m, "off")
-	rule := m.conf.base.Display.ReadRules[0]
+	rule := m.conf.device.Display.ReadRules[0]
 	if rule.Delay == nil || *rule.Delay != 5 || rule.Send == nil || *rule.Send {
 		t.Errorf("rule = %+v, want delay 5 and send off", rule)
 	}
-	reloaded, err := config.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r := reloaded.Display.ReadRules; len(r) != 1 || r[0].Delay == nil || *r[0].Delay != 5 {
+	if r := savedDevice(t, path).Display.ReadRules; len(r) != 1 || r[0].Delay == nil || *r[0].Delay != 5 {
 		t.Errorf("saved %+v", r)
 	}
 
 	m = pickLabel(t, m, "Remove this one")
-	if len(m.conf.base.Display.ReadRules) != 0 || m.choosing.settingGroup != recordPrefix+"display.read_rule" {
-		t.Errorf("after removing: %+v, in %q", m.conf.base.Display.ReadRules, m.choosing.settingGroup)
+	if len(m.conf.device.Display.ReadRules) != 0 || m.choosing.settingGroup != recordPrefix+"display.read_rule" {
+		t.Errorf("after removing: %+v, in %q", m.conf.device.Display.ReadRules, m.choosing.settingGroup)
 	}
 
 	// A list field: a person's IDs, an entry at a time.

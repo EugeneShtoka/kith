@@ -41,7 +41,7 @@ func (m Model) settleLayout() Model {
 	case set != domain.LayoutUnset:
 		l.rtl, l.settled = set == domain.LayoutRTL, true
 	case l.settled:
-	case !m.prefs.display.Direction.Auto:
+	case !m.prefs.device.Direction.Auto:
 		l.rtl, l.settled = false, true
 	default:
 		if guess := guessLayout(m.timeline.messages); guess != domain.LayoutUnset {
@@ -69,7 +69,7 @@ func (m Model) handSetLayout() domain.Layout {
 
 // directions is [display.direction]'s hand-set lists.
 func (m Model) directions() domain.Directions {
-	d := m.prefs.display.Direction
+	d := m.prefs.device.Direction
 	return domain.Directions{RTL: d.RTL, LTR: d.LTR}
 }
 
@@ -104,9 +104,9 @@ func (m Model) cycleDirection() (Model, tea.Cmd) {
 	case domain.LayoutUnset:
 	}
 	dirs = dirs.With(id, next)
-	display := m.prefs.display
-	display.Direction.RTL, display.Direction.LTR = dirs.RTL, dirs.LTR
-	return m.applyDisplay(display, done)
+	dev := m.conf.device.Clone()
+	dev.Display.Direction.RTL, dev.Display.Direction.LTR = dirs.RTL, dirs.LTR
+	return m.applyDevice(dev, done)
 }
 
 // padStart flushes a drawn row against the right edge of width.

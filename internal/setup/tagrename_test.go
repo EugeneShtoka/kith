@@ -41,7 +41,6 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 		cfg.Display.Rail.Order = []string{positive(), "place:T0", "-"}
 		cfg.Display.Rail.Hidden = []string{"tag:t0", decoy()}
 		cfg.Display.SpaceRules = []config.SpaceRule{{Space: positive(), FirstNameOnly: true}}
-		cfg.Display.Emoji.Extra = map[string]string{"tag:T0": "x"} // a key, not a value
 
 		out := RenameTag(cfg, "t0", "Family")
 		before, _, errBefore := Tags(cfg)
@@ -77,7 +76,7 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 			}
 		}
 		if out.Tags[0].Rule[1] != "room:tag:T0" || out.Notifications.Rules[1].Match != "space:T0" ||
-			out.Display.Priority[1] != "space:T0" || out.Display.Rail.Order[1] != "place:T0" || out.Display.Emoji.Extra["tag:T0"] != "x" {
+			out.Display.Priority[1] != "space:T0" || out.Display.Rail.Order[1] != "place:T0" {
 			t.Fatalf("seed %d: a decoy changed: %+v", seed, out)
 		}
 		if out.Display.Rail.Hidden[0] != "tag:Family" {

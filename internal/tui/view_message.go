@@ -419,11 +419,11 @@ func (m Model) styleSegment(msg domain.Message, vis string, mentions []mentionSp
 		return m.theme.Faint.Render(vis)
 	case len(mentions) > 0 && dir != bidi.RightToLeft:
 		base := lipgloss.NewStyle()
-		if m.prefs.display.ColorMessages {
+		if m.prefs.device.ColorMessages {
 			base = base.Foreground(c)
 		}
 		return styleMentions(vis, mentions, base)
-	case m.prefs.display.ColorMessages:
+	case m.prefs.device.ColorMessages:
 		// The sender's hue without the bold, so the name still stands out.
 		return lipgloss.NewStyle().Foreground(c).Render(vis)
 	}
@@ -626,7 +626,7 @@ type nameRule struct {
 func (m Model) nameRuleFor(space string) nameRule {
 	rule := nameRule{
 		rooms: m.prefs.display.ApplyRoomNameRules(),
-		width: m.prefs.display.MaxNameLength,
+		width: m.prefs.device.MaxNameLength,
 	}
 	if space == "" {
 		return rule

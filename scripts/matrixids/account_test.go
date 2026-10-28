@@ -17,7 +17,7 @@ import (
 // account; a config with none, or with profiles, is left alone.
 func TestTheAccountMovesIntoMatrixAccount(t *testing.T) {
 	const user = "@me:example.org"
-	in := "# mine\nhomeserver = \"https://example.org\" # the server\nuser = \"@me:example.org\"\nallow_token_file = true\n\n[display]\nfps = 30\n"
+	in := "# mine\nhomeserver = \"https://example.org\" # the server\nuser = \"@me:example.org\"\nallow_token_file = true\n\n[display]\ntime_format = \"12h\"\n"
 	out, n, err := moveAccount(user)(ids{}, []byte(in))
 	if err != nil || n != 2 {
 		t.Fatalf("moveAccount = (%d, %v), want both keys moved", n, err)
@@ -27,13 +27,13 @@ func TestTheAccountMovesIntoMatrixAccount(t *testing.T) {
 		t.Fatalf("the moved config does not load: %v\n%s", err, out)
 	}
 	want := config.MatrixAccount{Name: "me", Homeserver: "https://example.org", User: user}
-	if len(cfg.Matrix.Accounts) != 1 || cfg.Matrix.Accounts[0] != want || !cfg.AllowTokenFile || cfg.Display.FPS != 30 {
+	if len(cfg.Matrix.Accounts) != 1 || cfg.Matrix.Accounts[0] != want || !cfg.AllowTokenFile || cfg.Display.TimeFormat != "12h" {
 		t.Errorf("moved config = %+v, %+v; want the one account and the rest kept\n%s", cfg.Matrix, cfg.Display, out)
 	}
 	if !strings.HasPrefix(string(out), "# mine\n") {
 		t.Errorf("the comment moved:\n%s", out)
 	}
-	for _, alone := range []string{"[display]\nfps = 30\n", "[[profile]]\nname = \"w\"\nhomeserver = \"h\"\nuser = \"@w:x\"\n"} {
+	for _, alone := range []string{"[display]\ntime_format = \"12h\"\n", "[[profile]]\nname = \"w\"\nhomeserver = \"h\"\nuser = \"@w:x\"\n"} {
 		if got, n, err := moveAccount(user)(ids{}, []byte(alone)); err != nil || n != 0 || string(got) != alone {
 			t.Errorf("moveAccount(%q) = (%q, %d, %v), want it left alone", alone, got, n, err)
 		}

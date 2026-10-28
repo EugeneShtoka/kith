@@ -398,7 +398,9 @@ func namesakes(t *testing.T) Model {
 func TestNamesakesAreToldApartByID(t *testing.T) {
 	t.Parallel()
 
-	m := namesakes(t).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), asStarted(config.Config{})).keptIn()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	m := namesakes(t).WithConfigFile(path, asStarted(config.Config{})).
+		WithDevice(config.DevicePath(path), config.Device{Keys: config.DefaultKeys()}).keptIn()
 	m.focus = paneRooms
 	rooms := m.filteredRooms()
 	if len(rooms) != 3 {
@@ -424,15 +426,15 @@ func TestNamesakesAreToldApartByID(t *testing.T) {
 		t.Errorf("bound %+v, want the ID of the room written in (%s)", target, want)
 	}
 
-	// It is written to the file, so it survives a restart.
-	saved := deliver(t, after, cmd)
-	written, err := os.ReadFile(saved.conf.path)
+	// It is written to the device file, so it survives a restart.
+	deliver(t, after, cmd)
+	written, err := os.ReadFile(config.DevicePath(path))
 	if err != nil {
-		t.Fatalf("read back the config: %v", err)
+		t.Fatalf("read back the device file: %v", err)
 	}
 	// One [[keys.jump]] block per binding.
 	if !strings.Contains(string(written), "[[keys.jump]]\nchord = \"g d\"\ntarget = \"room:"+string(want)+"\"") {
-		t.Errorf("the config does not carry the binding:\n%s", written)
+		t.Errorf("the device file does not carry the binding:\n%s", written)
 	}
 }
 
@@ -440,9 +442,10 @@ func TestNamesakesAreToldApartByID(t *testing.T) {
 func TestBindPromptPrefillsTheExistingSequence(t *testing.T) {
 	t.Parallel()
 
-	cfg := config.Config{Keys: config.DefaultKeys()}
-	cfg.Keys.Jump = config.Jumps{{Chord: "g d", Target: "room:" + mx + "!dana:x"}}
-	m := namesakes(t).WithKeys(cfg.Keys).WithConfigFile(filepath.Join(t.TempDir(), "config.toml"), asStarted(cfg)).keptIn()
+	dev := config.Device{Keys: config.DefaultKeys()}
+	dev.Keys.Jump = config.Jumps{{Chord: "g d", Target: "room:" + mx + "!dana:x"}}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	m := namesakes(t).WithConfigFile(path, asStarted(config.Config{})).WithDevice(config.DevicePath(path), dev).keptIn()
 	m.focus = paneRooms
 	next, _ := m.selectRoom(roomByName(t, m, mx+"!dana:x"))
 	m = next

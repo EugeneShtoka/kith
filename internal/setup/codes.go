@@ -50,13 +50,13 @@ func AutoCopy(cfg config.Config) (domain.AutoCopy, error) {
 
 // AutoCopyUnavailable reports why auto-copy cannot work as configured, or nil when it
 // can.
-func AutoCopyUnavailable(cfg config.Config) error {
+func AutoCopyUnavailable(cfg config.Config, dev config.Device) error {
 	if !cfg.Clipboard.AutoCopy {
 		return nil
 	}
-	if cfg.Clipboard.Command == "" {
+	if dev.Clipboard.Command == "" {
 		return errors.New(
-			"no `[clipboard] command` is set, and kith-notify has no terminal to copy through — " +
+			"no `[clipboard] command` is set in device.toml, and kith-notify has no terminal to copy through — " +
 				"set one (wl-copy, pbcopy, xclip -selection clipboard)")
 	}
 	if len(cfg.Codes.Include) == 0 {

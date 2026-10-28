@@ -17,7 +17,7 @@ func TestSettingsRefuseAPrivateBackupKey(t *testing.T) {
 	secret := strings.Repeat("Q", 58)
 	private := "AGE-SECRET-KEY-1" + secret
 
-	m, path := opened(t, config.Notifications{Enabled: true})
+	m, path := opened(t, config.Notifications{})
 	m = toSetting(t, m, "backup.key")
 	m = typeIn(t, m, private)
 	if status := m.status(); status == "" || strings.Contains(status, secret) {
@@ -44,13 +44,13 @@ func TestTheBackupScheduleRowSetsEveryOrCron(t *testing.T) {
 		"@daily":                         {Cron: "@daily"},
 		"CRON_TZ=Europe/Sofia 0 3 * * *": {Cron: "CRON_TZ=Europe/Sofia 0 3 * * *"},
 	} {
-		c := config.Config{Backup: config.Backup{Every: "12h", Cron: "0 1 * * *"}}
+		c := config.Settings{Bridge: config.Config{Backup: config.Backup{Every: "12h", Cron: "0 1 * * *"}}}
 		if err := setBackupSchedule(&c, typed); err != nil {
 			t.Fatalf("setBackupSchedule(%q) = %v", typed, err)
 		}
-		if c.Backup.Every != want.Every || c.Backup.Cron != want.Cron {
+		if c.Bridge.Backup.Every != want.Every || c.Bridge.Backup.Cron != want.Cron {
 			t.Errorf("setBackupSchedule(%q): every %q, cron %q; want every %q, cron %q",
-				typed, c.Backup.Every, c.Backup.Cron, want.Every, want.Cron)
+				typed, c.Bridge.Backup.Every, c.Bridge.Backup.Cron, want.Every, want.Cron)
 		}
 	}
 }

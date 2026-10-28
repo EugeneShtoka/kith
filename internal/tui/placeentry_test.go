@@ -150,24 +150,24 @@ func TestASettingsListRefusesABareName(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
 		key  string
-		read func(config.Config) []string
+		read func(config.Settings) []string
 		want string
 	}{
-		{"display.priority", func(c config.Config) []string { return c.Display.Priority },
+		{"display.priority", func(c config.Settings) []string { return c.Bridge.Display.Priority },
 			`display.priority: "Work" needs a prefix: space:, tag:, place:`},
-		{"display.rail.hidden", func(c config.Config) []string { return c.Display.Rail.Hidden },
+		{"display.rail.hidden", func(c config.Settings) []string { return c.Bridge.Display.Rail.Hidden },
 			`display.rail.hidden: "Work" needs a prefix: space:, tag:, place:`},
-		{"display.filing_spaces", func(c config.Config) []string { return c.Display.FilingSpaces },
+		{"display.filing_spaces", func(c config.Settings) []string { return c.Device.Display.FilingSpaces },
 			`display.filing_spaces: "Work" needs a prefix: space:, place: (or a space's ID)`},
-		{"agent.read.rooms", func(c config.Config) []string { return c.Agent.Read.Rooms },
+		{"agent.read.rooms", func(c config.Settings) []string { return c.Bridge.Agent.Read.Rooms },
 			`agent.read.rooms: "Work" needs a prefix: room:, space:, tag:, place:, protocol: (or a room ID, dm, group)`},
 	} {
-		m, _ := opened(t, config.Notifications{Enabled: true})
-		before := c.read(m.conf.base)
+		m, _ := opened(t, config.Notifications{})
+		before := c.read(m.settings())
 		m = m.settingEntriesOpen(c.key, settingAdd)
 		m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 		m = typeIn(t, m, "Work")
-		if got := c.read(m.conf.base); !slices.Equal(got, before) {
+		if got := c.read(m.settings()); !slices.Equal(got, before) {
 			t.Errorf("%s: a bare name was written: %v", c.key, got)
 		}
 		if !strings.Contains(m.status(), c.want) {
@@ -176,7 +176,7 @@ func TestASettingsListRefusesABareName(t *testing.T) {
 		m = m.settingEntriesOpen(c.key, settingAdd)
 		m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 		m = typeIn(t, m, "place:Work")
-		if got := c.read(m.conf.base); !slices.Contains(got, "place:Work") {
+		if got := c.read(m.settings()); !slices.Contains(got, "place:Work") {
 			t.Errorf("%s: place:Work not written: %v", c.key, got)
 		}
 	}

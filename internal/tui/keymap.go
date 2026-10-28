@@ -599,9 +599,9 @@ func (k keymap) withScripts(scripts []config.Command) keymap {
 
 // keymapFor builds the whole keymap: the action table, then [keys.jump] and user-command
 // bindings, refused where they collide with the table.
-func keymapFor(cfg config.Config) keymap {
-	km := newKeymap(cfg.Keys)
-	km.bindScripts(cfg.UserCommands)
+func keymapFor(dev config.Device) keymap {
+	km := newKeymap(dev.Keys)
+	km.bindScripts(dev.UserCommands)
 	return km
 }
 

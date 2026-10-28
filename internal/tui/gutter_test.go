@@ -149,7 +149,7 @@ func TestTheGutterIsOffUntilAskedFor(t *testing.T) {
 	}
 	wide := m.contentWidth()
 
-	m.prefs.display.RowNumbers = true
+	m.prefs.device.RowNumbers = true
 	if m.gutterWidth() != gutterCells {
 		t.Errorf("gutter width = %d when on, want %d", m.gutterWidth(), gutterCells)
 	}
@@ -166,7 +166,7 @@ func TestTheGutterNumbersMessagesNotRows(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m.prefs.display.RowNumbers = true
+	m.prefs.device.RowNumbers = true
 	rows := []string{"first", "wrapped", "second", "third"}
 	owners := []int{4, 4, 5, 6}
 
@@ -187,7 +187,7 @@ func TestTheGutterSkipsRowsThatBelongToNoMessage(t *testing.T) {
 	t.Parallel()
 
 	m := sized(t, withRooms(t, newModel()))
-	m.prefs.display.RowNumbers = true
+	m.prefs.device.RowNumbers = true
 	got := m.numbered([]string{"— Tuesday —", "hello"}, []int{noOwner, 3}, 0)
 	if cell := strings.TrimSpace(stripStyles(got[0])[:gutterCells]); cell != "" {
 		t.Errorf("the divider got %q in the gutter", cell)

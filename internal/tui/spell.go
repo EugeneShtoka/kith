@@ -278,7 +278,7 @@ func (m Model) hinting() bool { return m.rareUnderlineStyle() != config.SpellNoU
 
 // underlineStyle is the configured mark (setup.Validate rejects unknown ones).
 func (m Model) underlineStyle() string {
-	style, err := setup.SpellUnderline(m.conf.base.Spell.Underline)
+	style, err := setup.SpellUnderline(m.conf.device.Spell.Underline)
 	if err != nil {
 		return config.SpellCurly
 	}
@@ -286,7 +286,7 @@ func (m Model) underlineStyle() string {
 }
 
 func (m Model) rareUnderlineStyle() string {
-	style, err := setup.RareUnderline(m.conf.base.Spell.RareUnderline)
+	style, err := setup.RareUnderline(m.conf.device.Spell.RareUnderline)
 	if err != nil {
 		return config.SpellDotted
 	}

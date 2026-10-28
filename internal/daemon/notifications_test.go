@@ -114,7 +114,7 @@ func (r *recorder) all() []notify.Notification {
 
 // notifsOn notifies at level with the sinks disabled; tests deliver to a recorder.
 func notifsOn(level string) config.Config {
-	return config.Config{Notifications: config.Notifications{Enabled: true, Rules: []config.Rule{{Show: level}}}}
+	return config.Config{Notifications: config.Notifications{Rules: []config.Rule{{Show: level}}}}
 }
 
 // notifier builds a Notifications over world() with a recorder as its sink.

@@ -117,7 +117,7 @@ func TestHyperlinkSpanBeatsThePill(t *testing.T) {
 func TestTheSendersColorOutlivesALink(t *testing.T) {
 	t.Parallel()
 	m := sized(t, newModel())
-	m.prefs.display.ColorMessages = true
+	m.prefs.device.ColorMessages = true
 	yellow := color.RGBA{R: 255, G: 255, A: 255}
 	tint := ansi.Style{}.ForegroundColor(yellow).String()
 	for _, body := range []string{

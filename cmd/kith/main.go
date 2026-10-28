@@ -67,7 +67,8 @@ func main() {
 	bootstrapKeys := flag.Bool("bootstrap-keys", false, "set this account up for room-key backup (prompts for the account password), print the recovery key and exit")
 	exportKeys := flag.String("export-keys", "", "write this device's room keys to `file`, encrypted with a passphrase, and exit")
 	importKeys := flag.String("import-keys", "", "add the room keys in `file` (a Matrix key export) before starting")
-	printConfig := flag.Bool("print-config", false, "print the fully-documented default configuration and exit")
+	printConfig, printDevice := flag.Bool("print-config", false, "print the fully-documented default configuration and exit"),
+		flag.Bool("print-device-config", false, "print the fully-documented default device settings (device.toml) and exit")
 	addDict := flag.String("add-dictionary", "", "install a spelling dictionary by `tag` (\"list\" to see them) and exit")
 	addFreq := flag.String("add-frequencies", "", "install word counts for a language by dictionary `tag` (\"list\" to see them) and exit; what `[spell] flag_rare_words` reads")
 	addModelTag := flag.String("add-model", "", "install the local completion model by `tag` (\"list\" to see them) and exit; what `[complete.model]` reads")
@@ -86,8 +87,8 @@ func main() {
 	switch {
 	case *showVersion:
 		fmt.Println(buildinfo.String("kith"))
-	case *printConfig:
-		fmt.Print(config.Annotated())
+	case *printConfig, *printDevice:
+		fmt.Print(annotated(*printDevice))
 	case *addDict != "":
 		exitOn(addDictionary(sharedStorage(*configPath).DataDir, *addDict))
 	case *addFreq != "":
@@ -116,6 +117,14 @@ func main() {
 	}
 }
 
+// annotated is the documented default config, or the device file's.
+func annotated(device bool) string {
+	if device {
+		return config.AnnotatedDevice()
+	}
+	return config.Annotated()
+}
+
 // startup is the one-off work flags ask for around the session.
 type startup struct {
 	follow        string // a matrix URI to open first
@@ -131,29 +140,55 @@ type startup struct {
 	importKeys string
 }
 
-// attached is a config's attached daemon: the config, its storage and the client.
+// attached is a config's attached daemon: the config, this device's settings, its
+// storage and the client.
 type attached struct {
 	path    string
 	cfg     config.Config
+	device  string // the device file
+	dev     config.Device
 	storage domain.Storage
 	launch  daemon.Launch // how its daemon is started and restarted
 	backend *daemon.Remote
 	note    string
 }
 
-// attach loads the config and attaches to (or starts) the daemon whatever is logged in;
-// logged-out networks show in the daemon's status. backend is nil when a first-run
-// default config was just written.
+// attach loads the config and this device's settings and attaches to (or starts) the
+// daemon whatever is logged in; logged-out networks show in the daemon's status.
+// backend is nil when a first-run default config was just written.
 func attach(ctx context.Context, configPath string, timeout time.Duration) (attached, error) {
 	path, cfg, ready, err := loadConfig(configPath)
 	if err != nil || !ready {
+		return attached{cfg: cfg}, err
+	}
+	device, dev, err := loadDevice(path, cfg)
+	if err != nil {
 		return attached{cfg: cfg}, err
 	}
 	storage, err := storageFor(cfg, path)
 	if err != nil {
 		return attached{cfg: cfg}, err
 	}
-	return reach(ctx, path, cfg, storage, timeout)
+	at, err := reach(ctx, path, cfg, storage, timeout)
+	at.device, at.dev = device, dev
+	return at, err
+}
+
+// loadDevice reads this device's settings beside the config at path, writing the
+// documented default on its first run, and checks them against cfg.
+func loadDevice(path string, cfg config.Config) (string, config.Device, error) {
+	device := config.DevicePath(path)
+	if _, err := config.WriteDeviceDefaultIfMissing(device); err != nil {
+		return "", config.Device{}, fmt.Errorf("write default device settings: %w", err)
+	}
+	dev, err := config.LoadDevice(device)
+	if err != nil {
+		return "", config.Device{}, fmt.Errorf("load device settings: %w", err)
+	}
+	if err := setup.ValidateDevice(dev, cfg); err != nil {
+		return "", config.Device{}, fmt.Errorf("load device settings %s: %w", device, err)
+	}
+	return device, dev, nil
 }
 
 // storageFor is where the config keeps its files, recording its instance in the config
@@ -237,13 +272,15 @@ func inDefaultDirs(storage domain.Storage) bool {
 }
 
 // sharedStorage is where the config's shared files go (dictionaries, models, API keys),
-// read without writing anything; the defaults without a config.
+// read writing nothing but the one-time move of its device settings (config.SplitDevice),
+// without which it would not load; the defaults without a config.
 func sharedStorage(configPath string) domain.Storage {
 	cfg := config.Config{}
 	path := configPath
 	if path == "" {
 		path, _ = config.Path()
 	}
+	_, _ = config.SplitDevice(path, config.DevicePath(path)) // a config that will not split will not load either
 	if loaded, err := config.Load(path); err == nil {
 		cfg = loaded
 	}
@@ -355,7 +392,8 @@ func run(configPath string, jobs startup) error {
 	}
 	if err := tui.Run(ctx, tui.RunOptions{
 		Backend: backend, Notifications: backend, Schedules: backend,
-		Config: cfg, ConfigPath: path, Log: log, Follow: jobs.follow, Notice: notice,
+		Config: cfg, ConfigPath: path, Device: at.dev, DevicePath: at.device,
+		Log: log, Follow: jobs.follow, Notice: notice,
 		RestartDaemon: func(ctx context.Context) error {
 			return daemon.Restart(ctx, at.storage, at.launch, readyTimeout)
 		},
@@ -461,14 +499,18 @@ func openLogTo(d logging.Destination) (*slog.Logger, func()) {
 	}
 }
 
-// loadConfig resolves, loads and validates the config. On first
-// run it writes a documented default and returns ready=false.
+// loadConfig resolves, loads and validates the config, once its device settings are
+// moved out (config.SplitDevice). On first run it writes a documented default and
+// returns ready=false.
 func loadConfig(configPath string) (path string, cfg config.Config, ready bool, err error) {
 	path = configPath
 	if path == "" {
 		if path, err = config.Path(); err != nil {
 			return "", config.Config{}, false, fmt.Errorf("resolve config path: %w", err)
 		}
+	}
+	if _, serr := config.SplitDevice(path, config.DevicePath(path)); serr != nil {
+		return "", config.Config{}, false, fmt.Errorf("load config: %w", serr)
 	}
 	if created, cerr := config.WriteDefaultIfMissing(path); cerr != nil {
 		return "", config.Config{}, false, fmt.Errorf("write default config: %w", cerr)

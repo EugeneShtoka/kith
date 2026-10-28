@@ -14,7 +14,8 @@ import (
 // names whatever the rail shows by that name, so neither touches it.
 
 // RenameTag renames tag from (case-insensitive) to to: its [[tag]], every
-// `[not ]tag:<from>` entry in any setting, and the filters and keys naming it.
+// `[not ]tag:<from>` entry in any setting, and the filters naming it. A device's
+// settings follow with RenameTagOnDevice.
 func RenameTag(cfg config.Config, from, to string) config.Config {
 	out := cfg.Clone()
 	to = strings.TrimSpace(to)
@@ -34,6 +35,15 @@ func RenameTag(cfg config.Config, from, to string) config.Config {
 			out.Filters[i].Tag = to
 		}
 	}
+	return out
+}
+
+// RenameTagOnDevice is RenameTag in a device's settings: every `[not ]tag:<from>`
+// entry, and the keys moving rooms into it.
+func RenameTagOnDevice(dev config.Device, from, to string) config.Device {
+	out := dev.Clone()
+	to = strings.TrimSpace(to)
+	rewriteStrings(reflect.ValueOf(&out).Elem(), func(s string) string { return renamedReference(s, from, to) })
 	for i := range out.Keys.Tag {
 		if sameTag(out.Keys.Tag[i].Tag, from) {
 			out.Keys.Tag[i].Tag = to
@@ -43,7 +53,8 @@ func RenameTag(cfg config.Config, from, to string) config.Config {
 }
 
 // DeleteTag removes tag name, its entries in the rails' lists (each profile's too)
-// and [display] priority, and the filters and keys moving rooms into it.
+// and [display] priority, and the filters moving rooms into it. A device's keys follow
+// with DeleteTagOnDevice.
 func DeleteTag(cfg config.Config, name string) config.Config {
 	out := cfg.Clone()
 	out.Tags = slices.DeleteFunc(out.Tags, func(t config.Tag) bool { return sameTag(t.Name, name) })
@@ -62,12 +73,18 @@ func DeleteTag(cfg config.Config, name string) config.Config {
 	}
 	out.Display.Priority = slices.DeleteFunc(out.Display.Priority, names)
 	out.Filters = slices.DeleteFunc(out.Filters, func(f config.Filter) bool { return sameTag(f.Tag, name) })
-	out.Keys.Tag = slices.DeleteFunc(out.Keys.Tag, func(k config.TagKey) bool { return sameTag(k.Tag, name) })
 	for _, archive := range out.Archives() {
 		if sameTag(archive.Tag, name) {
 			archive.Tag = "" // a network's archive then follows no tag (the default, if any)
 		}
 	}
+	return out
+}
+
+// DeleteTagOnDevice removes the keys moving rooms into tag name.
+func DeleteTagOnDevice(dev config.Device, name string) config.Device {
+	out := dev.Clone()
+	out.Keys.Tag = slices.DeleteFunc(out.Keys.Tag, func(k config.TagKey) bool { return sameTag(k.Tag, name) })
 	return out
 }
 

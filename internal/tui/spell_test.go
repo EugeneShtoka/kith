@@ -374,7 +374,7 @@ func TestUnderlineNoneDrawsNothingAndStillChecks(t *testing.T) {
 
 	b := &spellBackend{}
 	m := spellComposing(t, b)
-	m.conf.base.Spell.Underline = config.SpellNoUnderline
+	m.conf.device.Spell.Underline = config.SpellNoUnderline
 	m = typeInto(t, m, typoReceive+" mail")
 	m.spell.shown = []domain.Misspelling{wrong(m.spell.text, typoReceive)}
 
@@ -512,7 +512,7 @@ func TestRareUnderlineNoneDropsTheMarkAndKeepsTheCheck(t *testing.T) {
 		rareHint(draft, "mail", "mall", "mile"),
 	}}
 	m := spellComposing(t, b)
-	m.conf.base.Spell.RareUnderline = config.SpellNoUnderline
+	m.conf.device.Spell.RareUnderline = config.SpellNoUnderline
 	m = typeInto(t, m, draft+" ")
 	m = checkedNow(t, m)
 	m.spell.shown = shiftRanges(b.found, draft, m.spell.text)
@@ -571,7 +571,7 @@ func TestRareHintsDoNotHoldUpASend(t *testing.T) {
 	const draft = "send this"
 	b := &spellBackend{found: []domain.Misspelling{rareHint(draft, "send", "sent")}}
 	m := spellComposing(t, b)
-	m.conf.base.Spell.CheckBeforeSend = true
+	m.conf.device.Spell.CheckBeforeSend = true
 	m = typeInto(t, m, draft)
 
 	msg, ok := m.checkBeforeSendCmd(m.spell.gen, draft)().(spellBeforeSendMsg)

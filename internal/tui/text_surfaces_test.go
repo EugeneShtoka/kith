@@ -139,7 +139,7 @@ func textSurfaces() []textSurface {
 			return m.listRow(rowLabel{name: m.roomLabel(m.fixtureRoom(t))}, "", false, 40, false, true)
 		}},
 		{name: "pinned thread row", draw: func(t *testing.T, m Model, text string) string {
-			return m.listRow(rowLabel{lead: m.prefs.display.Threads.RowMark(), name: m.threadRowLabel(domain.ThreadUnread{Title: text})},
+			return m.listRow(rowLabel{lead: m.prefs.device.Threads.RowMark(), name: m.threadRowLabel(domain.ThreadUnread{Title: text})},
 				"", false, 40, false, true)
 		}},
 		{name: "timeline pane title", draw: func(t *testing.T, m Model, text string) string {

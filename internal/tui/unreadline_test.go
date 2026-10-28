@@ -72,7 +72,7 @@ func TestUnreadLineCanBeTurnedOff(t *testing.T) {
 
 	m := unreadRoom(t)
 	off := false
-	m.prefs.display.UnreadLine = &off
+	m.prefs.device.UnreadLine = &off
 	_, w := m.walkFor()
 	i := messageRow(t, w, mx+"$d2m0")
 	_, rule := m.cachedRows(w, i)

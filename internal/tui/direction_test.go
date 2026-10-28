@@ -16,7 +16,7 @@ import (
 // directed is a model in !a:x under [display.direction] dir, its page loaded.
 func directed(t *testing.T, dir config.Direction, msgs []domain.Message) Model {
 	t.Helper()
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{Direction: dir})))
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{}, config.DeviceDisplay{Direction: dir})))
 	return loadPage(t, m, msgs)
 }
 
@@ -156,7 +156,7 @@ func TestCyclingTheDirectionRedrawsTheTimeline(t *testing.T) {
 	}{{true, false, true}, {false, true, false}, {false, false, false}} {
 		m, _ = m.cycleDirection()
 		m = m.primeTimeline()
-		d := m.prefs.display.Direction
+		d := m.prefs.device.Direction
 		if slices.Contains(d.RTL, mx+"!a:x") != want.rtl || slices.Contains(d.LTR, mx+"!a:x") != want.ltr {
 			t.Fatalf("after a cycle: rtl %v ltr %v, want %v %v", d.RTL, d.LTR, want.rtl, want.ltr)
 		}

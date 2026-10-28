@@ -14,6 +14,11 @@ import (
 )
 
 // scripted gives a model whose commands directory holds one script, plus the directory.
+// commanding is a device whose commands are blocks, each given five seconds.
+func commanding(blocks []config.Command) config.Device {
+	return config.Device{Keys: config.DefaultKeys(), Commands: config.DeviceCommands{Timeout: 5}, UserCommands: blocks}
+}
+
 func scripted(t *testing.T, name, body string) (Model, string) {
 	t.Helper()
 	home := t.TempDir()
@@ -24,8 +29,9 @@ func scripted(t *testing.T, name, body string) (Model, string) {
 	write(t, dir, name, body, 0o755)
 
 	m, _ := attaching(t)
-	cfg := config.Config{Commands: config.Commands{Dir: dir, Timeout: 5}}
-	m = m.WithConfigFile(filepath.Join(home, "config.toml"), asStarted(cfg)).keptIn()
+	cfg := config.Config{Commands: config.Commands{Dir: dir}}
+	path := filepath.Join(home, "config.toml")
+	m = m.WithConfigFile(path, asStarted(cfg)).WithDevice(config.DevicePath(path), commanding(nil)).keptIn()
 	m, _ = press(t, m, keyText("i"))
 	return m, dir
 }
@@ -142,8 +148,8 @@ func TestHungCommandIsKilled(t *testing.T) {
 
 	m, _ := attaching(t)
 	// One second, so the test waits about that long rather than fifteen.
-	m = m.WithConfigFile(filepath.Join(home, "config.toml"),
-		config.Config{Commands: config.Commands{Dir: dir, Timeout: 1}})
+	m = m.WithConfigFile(filepath.Join(home, "config.toml"), config.Config{Commands: config.Commands{Dir: dir}}).
+		WithDevice("", config.Device{Keys: config.DefaultKeys(), Commands: config.DeviceCommands{Timeout: 1}})
 	m, _ = press(t, m, keyText("i"))
 	m = typeInto(t, m, "/hang")
 	m, cmd := press(t, m, sendKey())
@@ -345,9 +351,8 @@ func TestSendOutputPostsStraightAway(t *testing.T) {
 	write(t, dir, "zoom", "#!/bin/sh\nprintf 'Zoom meeting started\\nMeeting ID: 653-052-4978\\n'\n", 0o755)
 
 	m, backend := attaching(t)
-	m = m.WithConfigFile(filepath.Join(home, "config.toml"), config.Config{
-		Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: []config.Command{{Name: "zoom", Output: "send"}},
-	})
+	m = m.WithConfigFile(filepath.Join(home, "config.toml"), config.Config{Commands: config.Commands{Dir: dir}}).
+		WithDevice("", commanding([]config.Command{{Name: "zoom", Output: "send"}}))
 	m, _ = press(t, m, keyText("i"))
 	m = typeInto(t, m, "/zoom")
 	m, cmd := press(t, m, sendKey())
@@ -377,9 +382,8 @@ func TestSentOutputGoesToTheRoomItWasTypedIn(t *testing.T) {
 	write(t, dir, "zoom", "#!/bin/sh\necho 'a link'\n", 0o755)
 
 	m, backend := attaching(t)
-	m = m.WithConfigFile(filepath.Join(home, "config.toml"), config.Config{
-		Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: []config.Command{{Name: "zoom", Output: "send"}},
-	})
+	m = m.WithConfigFile(filepath.Join(home, "config.toml"), config.Config{Commands: config.Commands{Dir: dir}}).
+		WithDevice("", commanding([]config.Command{{Name: "zoom", Output: "send"}}))
 	m, _ = press(t, m, keyText("i"))
 	m = typeInto(t, m, "/zoom")
 	m, cmd := press(t, m, sendKey())
@@ -407,9 +411,8 @@ func TestTruncatedOutputIsNeverSentUnreviewed(t *testing.T) {
 	write(t, dir, "flood", "#!/bin/sh\nyes 'aaaaaaaaaaaaaaaaaaaa' | head -c 20000\n", 0o755)
 
 	m, backend := attaching(t)
-	m = m.WithConfigFile(filepath.Join(home, "config.toml"), config.Config{
-		Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: []config.Command{{Name: "flood", Output: "send"}},
-	})
+	m = m.WithConfigFile(filepath.Join(home, "config.toml"), config.Config{Commands: config.Commands{Dir: dir}}).
+		WithDevice("", commanding([]config.Command{{Name: "flood", Output: "send"}}))
 	m, _ = press(t, m, keyText("i"))
 	m = typeInto(t, m, "/flood")
 	m, cmd := press(t, m, sendKey())

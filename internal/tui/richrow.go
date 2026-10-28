@@ -225,7 +225,7 @@ func segmentStarts(text string, segments []string) ([]int, bool) {
 // richStyleFor is a message's styling over the sender's tint.
 func (m Model) richStyleFor(msg domain.Message, text string, mentions []mentionSpan, c color.Color) richStyle {
 	base := ansi.Style{}
-	if m.prefs.display.ColorMessages {
+	if m.prefs.device.ColorMessages {
 		base = base.ForegroundColor(ansiColor(c))
 	}
 	return richStyle{
@@ -238,7 +238,7 @@ func (m Model) richStyleFor(msg domain.Message, text string, mentions []mentionS
 		tracked:      trackedRanges(m.trackedIn(msg), text),
 		hidden:       ansiColor(m.theme.Palette.SelectedDimBG),
 		revealed:     m.timeline.revealed[msg.ID],
-		hyperlinks:   m.prefs.display.UseHyperlinks(),
+		hyperlinks:   m.prefs.device.UseHyperlinks(),
 	}
 }
 

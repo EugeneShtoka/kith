@@ -113,8 +113,9 @@ func placedModel(t *testing.T, commands []placedCommand, room domain.Room) (Mode
 	backend := &sendingBackend{}
 	m := sized(t, update(t, starterNew(backend, config.Display{}), roomsMsg{rooms: placeRooms}))
 	m, _ = m.selectRoom(room)
-	m = m.WithConfigFile(filepath.Join(home, "config.toml"),
-		config.Config{Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: blocks}).keptIn()
+	path := filepath.Join(home, "config.toml")
+	m = m.WithConfigFile(path, config.Config{Commands: config.Commands{Dir: dir}}).
+		WithDevice(config.DevicePath(path), commanding(blocks)).keptIn()
 	if len(m.keys.issues) > 0 {
 		t.Fatalf("the fixture's keys collide: %v", m.keys.issues)
 	}

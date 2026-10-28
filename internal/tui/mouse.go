@@ -12,7 +12,7 @@ const wheelRows = 3
 
 // mouseMode is what the view asks the terminal for.
 func (m Model) mouseMode() tea.MouseMode {
-	if !m.prefs.display.UseMouse() {
+	if !m.prefs.device.UseMouse() {
 		return tea.MouseModeNone
 	}
 	return tea.MouseModeCellMotion

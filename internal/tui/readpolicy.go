@@ -30,7 +30,7 @@ type readSettings struct {
 	rules []domain.ReadRule
 }
 
-func readSettingsFrom(cfg config.Display) readSettings {
+func readSettingsFrom(cfg config.DeviceDisplay) readSettings {
 	return readSettings{send: cfg.SendsReceipts(), delay: cfg.ReadAfter(), rules: readRules(cfg)}
 }
 
@@ -107,7 +107,7 @@ func (m Model) handleReadTimer(msg readTimerMsg) (Model, tea.Cmd) {
 }
 
 // readRules converts the configured per-place rules into the pure layer's shape.
-func readRules(cfg config.Display) []domain.ReadRule {
+func readRules(cfg config.DeviceDisplay) []domain.ReadRule {
 	if len(cfg.ReadRules) == 0 {
 		return nil
 	}

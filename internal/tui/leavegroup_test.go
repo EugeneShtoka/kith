@@ -28,7 +28,7 @@ func (l leaver) LeaveRoom(_ context.Context, room domain.RoomID) error {
 func TestLeavingFromTheRail(t *testing.T) {
 	t.Parallel()
 	var left []domain.RoomID
-	m := update(t, New(context.Background(), leaver{left: &left}, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, New(context.Background(), leaver{left: &left}, config.Display{}, config.DeviceDisplay{}), roomsMsg{rooms: []domain.Room{
 		{ID: "telegram:1/-100", Name: "Baking", Forum: true},
 		{ID: "telegram:1/-100~7", Name: "Recipes"},
 		{ID: "telegram:1/-100~8", Name: "Market"},
@@ -83,7 +83,7 @@ func TestLeavingFromTheRail(t *testing.T) {
 func TestAForumsRoomIsNotLeftAlone(t *testing.T) {
 	t.Parallel()
 	var left []domain.RoomID
-	m := update(t, New(context.Background(), leaver{left: &left}, config.Display{}), roomsMsg{rooms: []domain.Room{
+	m := update(t, New(context.Background(), leaver{left: &left}, config.Display{}, config.DeviceDisplay{}), roomsMsg{rooms: []domain.Room{
 		{ID: mx + "!topic:x", Name: "Trips"}, {ID: "telegram:1/-100", Name: "General", Forum: true},
 		{ID: "telegram:1/-100~7", Name: "Recipes"}, {ID: mx + "!plain:x", Name: "Lounge"},
 	}})

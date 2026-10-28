@@ -24,7 +24,6 @@ func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
 	base := config.Config{Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Notifications: notifs, Tags: starter(t).Tags, Profiles: starter(t).Profiles}
-	base.Keys.FillDefaults()
 	if err := config.Save(path, base); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
@@ -33,7 +32,9 @@ func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!standup:x"}},
 	}})
-	m = sized(t, m).WithConfigFile(path, asStarted(base)).keptIn()
+	// Notifications on, as the rules installed below say; device settings beside the config.
+	on := config.Device{Notifications: config.DeviceNotifications{Enabled: true}, Keys: config.DefaultKeys()}
+	m = sized(t, m).WithConfigFile(path, asStarted(base)).WithDevice(config.DevicePath(path), on).keptIn()
 	// Install the rules as startup does, so the status line describes the real ones.
 	rules, err := setup.NotificationRules(notifs)
 	if err != nil {
@@ -52,7 +53,7 @@ func ruling(t *testing.T, notifs config.Notifications) (Model, string) {
 
 // notifyAll is a notifications section whose account-wide rule shows everything, then rules.
 func notifyAll(rules ...config.Rule) config.Notifications {
-	return config.Notifications{Enabled: true, Rules: append([]config.Rule{{Name: "everything", Show: "all"}}, rules...)}
+	return config.Notifications{Rules: append([]config.Rule{{Name: "everything", Show: "all"}}, rules...)}
 }
 
 func lastRule(t *testing.T, rules []config.Rule) config.Rule {
@@ -190,7 +191,7 @@ func TestRuleAuthoringChangesTheDecision(t *testing.T) {
 		t.Parallel()
 		// Mention-only and quiet all day: a rule naming Alice is narrower than quiet hours, so
 		// `show = all` gets her through.
-		m, path := ruling(t, config.Notifications{Enabled: true, Rules: []config.Rule{
+		m, path := ruling(t, config.Notifications{Rules: []config.Rule{
 			{Name: "quiet hours", Show: "none", When: "00:00-23:59"},
 		}})
 		m, _ = press(t, m, keyText("b"))
@@ -481,7 +482,7 @@ func hasLabel(items []pickerItem, label string) bool {
 func TestRuleListReadsRulesBack(t *testing.T) {
 	t.Parallel()
 
-	m, _ := ruling(t, config.Notifications{Enabled: true, Rules: []config.Rule{
+	m, _ := ruling(t, config.Notifications{Rules: []config.Rule{
 		{Match: mx + "!standup:x", Show: "none"},
 		{Match: "space:Work", Sender: "matrix:@alice:x", Ring: "all", Sound: "/s/boss.wav"},
 		{Sender: "matrix:@bob:x", Show: "mention"},
@@ -541,7 +542,7 @@ func TestRuleListOpensARuleForEditing(t *testing.T) {
 func TestRuleListWithNoRules(t *testing.T) {
 	t.Parallel()
 
-	m, _ := ruling(t, config.Notifications{Enabled: true})
+	m, _ := ruling(t, config.Notifications{})
 	next, _ := m.openRuleList()
 	m = next
 	if m.picker.active() {

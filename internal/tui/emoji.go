@@ -201,10 +201,10 @@ func distinctEmoji(set emojiSet) []string {
 	return out
 }
 
-// EmojiCells is every cell the browser would draw for a display config, toned and
-// presentation-reconciled. Exported for cmd/emoji-probe, which measures each in the
-// terminal.
-func EmojiCells(display config.Display) ([]string, error) {
+// EmojiCells is every cell the browser would draw for a device's display settings,
+// toned and presentation-reconciled. Exported for cmd/emoji-probe, which measures each
+// in the terminal.
+func EmojiCells(display config.DeviceDisplay) ([]string, error) {
 	tone, err := setup.SkinTone(display.SkinTone)
 	if err != nil {
 		return nil, err

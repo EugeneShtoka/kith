@@ -5,50 +5,56 @@ import (
 	"time"
 )
 
-// Display is [display]: how the timeline, room list and rail are drawn.
+// Display is [display] in the bridge's config: what kithd reads of how rooms and
+// people are shown. The rest of [display] is a device's (DeviceDisplay).
 type Display struct {
-	MaxNameLength int    `toml:"max_name_length"` // sender-name width cap; 0 no limit
-	Emoji         Emoji  `toml:"emoji"`
-	SkinTone      string `toml:"skin_tone"` // SkinToneNames; empty is "none"
 	// TimeFormat is a domain.TimeStyles name; the dates are domain date patterns.
 	// Empty is the default.
-	TimeFormat      string `toml:"time_format"`
-	LongDateFormat  string `toml:"long_date_format"`
-	ShortDateFormat string `toml:"short_date_format"`
-	ColorMessages   bool   `toml:"color_messages"` // tint bodies in the sender's color
-	FPS             int    `toml:"fps"`            // repaint cap, MinFPS-MaxFPS; 0 DefaultFPS
-	OpenInInsert    *bool  `toml:"open_in_insert_mode"`
-	RowNumbers      bool   `toml:"row_numbers"`
-	Mouse           *bool  `toml:"mouse"`
-	UnreadLine      *bool  `toml:"unread_line"`
-	Hyperlinks      *bool  `toml:"hyperlinks"` // OSC 8
-	Theme           Theme  `toml:"theme"`
+	TimeFormat      string        `toml:"time_format"`
+	LongDateFormat  string        `toml:"long_date_format"`
+	ShortDateFormat string        `toml:"short_date_format"`
+	Tracked         Tracked       `toml:"tracked"`
+	SpaceRules      []SpaceRule   `toml:"space_rule"`
+	Deleted         Deleted       `toml:"deleted"`
+	Identities      []Identity    `toml:"identity"`
+	Names           []DisplayName `toml:"name"`
+	RoomNameRules   *bool         `toml:"room_name_rules"`
+	Priority        []string      `toml:"priority"` // home entries (space:, tag:, place:), most preferred first
+	Rail            Rail          `toml:"rail"`
+	Media           Media         `toml:"media"`
+}
+
+// DeviceDisplay is [display] in device.toml: how this device draws the timeline, room
+// list and rail.
+type DeviceDisplay struct {
+	MaxNameLength int    `toml:"max_name_length"` // sender-name width cap; 0 no limit
+	Emoji         Emoji  `toml:"emoji"`
+	SkinTone      string `toml:"skin_tone"`      // SkinToneNames; empty is "none"
+	ColorMessages bool   `toml:"color_messages"` // tint bodies in the sender's color
+	FPS           int    `toml:"fps"`            // repaint cap, MinFPS-MaxFPS; 0 DefaultFPS
+	OpenInInsert  *bool  `toml:"open_in_insert_mode"`
+	RowNumbers    bool   `toml:"row_numbers"`
+	Mouse         *bool  `toml:"mouse"`
+	UnreadLine    *bool  `toml:"unread_line"`
+	Hyperlinks    *bool  `toml:"hyperlinks"` // OSC 8
+	Theme         Theme  `toml:"theme"`
 	// NetworkColors names each room in every room list in its network's color
 	// (Theme.Networks); a place's [[display.space_rule]] can say otherwise.
 	NetworkColors bool `toml:"network_colors"`
 	// ShowArchived lists the rooms the archive tag holds in every room list but the
 	// archive's own (which always does); nil is true. A place's rule can say otherwise.
-	ShowArchived  *bool         `toml:"show_archived"`
-	Tracked       Tracked       `toml:"tracked"`
-	Typing        *bool         `toml:"typing"`
-	SendTyping    *bool         `toml:"send_typing"`
-	SendReceipts  *bool         `toml:"send_receipts"`
-	ReadDelay     *int          `toml:"read_delay"` // seconds; nil or -1 never, 0 at once
-	ReadRules     []ReadRule    `toml:"read_rule"`
-	FilingSpaces  []string      `toml:"filing_spaces"`
-	SpaceRules    []SpaceRule   `toml:"space_rule"`
-	Deleted       Deleted       `toml:"deleted"`
-	Identities    []Identity    `toml:"identity"`
-	Names         []DisplayName `toml:"name"`
-	RoomNameRules *bool         `toml:"room_name_rules"`
-	Unread        string        `toml:"unread"`   // UnreadSources; empty is "messages"
-	Priority      []string      `toml:"priority"` // home entries (space:, tag:, place:), most preferred first
-	Rooms         Rooms         `toml:"rooms"`
-	Rail          Rail          `toml:"rail"`
-	Media         Media         `toml:"media"`
-	Reactions     Reactions     `toml:"reactions"`
-	Threads       Threads       `toml:"threads"`
-	Direction     Direction     `toml:"direction"`
+	ShowArchived *bool      `toml:"show_archived"`
+	Typing       *bool      `toml:"typing"`
+	SendTyping   *bool      `toml:"send_typing"`
+	SendReceipts *bool      `toml:"send_receipts"`
+	ReadDelay    *int       `toml:"read_delay"` // seconds; nil or -1 never, 0 at once
+	ReadRules    []ReadRule `toml:"read_rule"`
+	FilingSpaces []string   `toml:"filing_spaces"`
+	Unread       string     `toml:"unread"` // UnreadSources; empty is "messages"
+	Rooms        Rooms      `toml:"rooms"`
+	Reactions    Reactions  `toml:"reactions"`
+	Threads      Threads    `toml:"threads"`
+	Direction    Direction  `toml:"direction"`
 }
 
 // Direction is [display.direction]: which rooms read right to left, the sender column
@@ -62,29 +68,29 @@ type Direction struct {
 }
 
 // OpenInInsertMode reports whether opening a room starts in the composer (unset: true).
-func (d Display) OpenInInsertMode() bool { return enabled(d.OpenInInsert) }
+func (d DeviceDisplay) OpenInInsertMode() bool { return enabled(d.OpenInInsert) }
 
 // UseMouse reports whether the wheel scrolls (unset: true).
-func (d Display) UseMouse() bool { return enabled(d.Mouse) }
+func (d DeviceDisplay) UseMouse() bool { return enabled(d.Mouse) }
 
 // UseHyperlinks reports whether links are wrapped in OSC 8 (unset: true).
-func (d Display) UseHyperlinks() bool { return enabled(d.Hyperlinks) }
+func (d DeviceDisplay) UseHyperlinks() bool { return enabled(d.Hyperlinks) }
 
 // ShowUnreadLine reports whether the unread rule is drawn (unset: true).
-func (d Display) ShowUnreadLine() bool { return enabled(d.UnreadLine) }
+func (d DeviceDisplay) ShowUnreadLine() bool { return enabled(d.UnreadLine) }
 
 // ShowTyping reports whether to show who else is typing (unset: true).
-func (d Display) ShowTyping() bool { return enabled(d.Typing) }
+func (d DeviceDisplay) ShowTyping() bool { return enabled(d.Typing) }
 
 // SendsTyping reports whether to tell rooms when you are typing (unset: true).
-func (d Display) SendsTyping() bool { return enabled(d.SendTyping) }
+func (d DeviceDisplay) SendsTyping() bool { return enabled(d.SendTyping) }
 
 // SendsReceipts reports whether read receipts are sent (unset: true).
-func (d Display) SendsReceipts() bool { return enabled(d.SendReceipts) }
+func (d DeviceDisplay) SendsReceipts() bool { return enabled(d.SendReceipts) }
 
 // ReadAfter is how long the cursor must rest on a room before it counts as read without
 // being opened; negative is never.
-func (d Display) ReadAfter() time.Duration {
+func (d DeviceDisplay) ReadAfter() time.Duration {
 	if d.ReadDelay == nil || *d.ReadDelay < 0 {
 		return -time.Second
 	}
@@ -106,7 +112,7 @@ const (
 )
 
 // FrameRate is the repaint rate to build the program with.
-func (d Display) FrameRate() int {
+func (d DeviceDisplay) FrameRate() int {
 	if d.FPS == 0 {
 		return DefaultFPS
 	}
@@ -210,12 +216,13 @@ func isPlaceEntry(entry string) bool {
 }
 
 // NetworkColorsIn reports whether a place's room list names its rooms in their
-// networks' colors: as its rule says (SpaceRule), else as NetworkColors does.
-func (d Display) NetworkColorsIn(names func(entry string) bool) bool {
+// networks' colors: as its rule says (SpaceRule), else as the device's NetworkColors
+// does.
+func (d Display) NetworkColorsIn(device DeviceDisplay, names func(entry string) bool) bool {
 	if r, ok := d.SpaceRule(names); ok && r.NetworkColors != nil {
 		return *r.NetworkColors
 	}
-	return d.NetworkColors
+	return device.NetworkColors
 }
 
 // ShowFieldIn is the phonebook field a place shows beside names, "" for none.
@@ -226,15 +233,15 @@ func (d Display) ShowFieldIn(names func(entry string) bool) string {
 
 // ShowsArchived reports whether room lists show archived rooms ([display] show_archived;
 // unset is true).
-func (d Display) ShowsArchived() bool { return enabled(d.ShowArchived) }
+func (d DeviceDisplay) ShowsArchived() bool { return enabled(d.ShowArchived) }
 
 // ShowsArchivedIn reports whether a place's room list shows archived rooms: as its
-// rule says (SpaceRule), else as ShowArchived does.
-func (d Display) ShowsArchivedIn(names func(entry string) bool) bool {
+// rule says (SpaceRule), else as the device's ShowArchived does.
+func (d Display) ShowsArchivedIn(device DeviceDisplay, names func(entry string) bool) bool {
 	if r, ok := d.SpaceRule(names); ok && r.ShowArchived != nil {
 		return *r.ShowArchived
 	}
-	return d.ShowsArchived()
+	return device.ShowsArchived()
 }
 
 // NetworkColors is [display.theme.networks]: each network's room-name color, #rrggbb or

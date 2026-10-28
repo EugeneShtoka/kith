@@ -11,9 +11,9 @@ import (
 )
 
 // Scripts refuses a `[[command]]` block this client cannot honor.
-func Scripts(cfg config.Config) error {
+func Scripts(dev config.Device) error {
 	seen := map[string]bool{}
-	for i, script := range cfg.UserCommands {
+	for i, script := range dev.UserCommands {
 		name := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(script.Name), "/"))
 		if name == "" {
 			return fmt.Errorf("command[%d]: needs a name — the command, without its slash", i)

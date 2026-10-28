@@ -19,7 +19,7 @@ func TestTrackedWordIsMarkedInAPlainMessage(t *testing.T) {
 
 	m := dayRoom(t)
 	m.prefs.display.Tracked = config.Tracked{Words: []string{"deploy"}}
-	m = m.applyNaming(m.prefs.display)
+	m = m.applyNaming(m.prefs.display, m.prefs.device)
 	const body = "the deploy is done"
 	style := m.richStyleFor(m.timeline.messages[0], body, nil, nil)
 	if len(style.tracked) != 1 {
@@ -54,7 +54,7 @@ func TestTrackedMarksNarrowToTheirRow(t *testing.T) {
 
 	m := dayRoom(t)
 	m.prefs.display.Tracked = config.Tracked{Words: []string{"invoice"}}
-	m = m.applyNaming(m.prefs.display)
+	m = m.applyNaming(m.prefs.display, m.prefs.device)
 	const body = "first line here\nthe invoice arrived"
 	style := m.richStyleFor(m.timeline.messages[0], body, nil, nil)
 	if len(style.tracked) != 1 {

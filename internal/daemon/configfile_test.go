@@ -36,9 +36,9 @@ func TestTheConfigIsWrittenOnlyOnTheRevisionItWasMadeOn(t *testing.T) {
 	apply := func(context.Context) error { applied++; return nil }
 
 	quiet := read.Config.Clone()
-	quiet.Notifications.Enabled = false
+	quiet.Notifications.MaxPerRoom = 5
 	wrote, err := f.Write(ctx, read.Revision, quiet, nil, apply)
-	if err != nil || wrote.Config.Notifications.Enabled || wrote.Revision == read.Revision || applied != 1 {
+	if err != nil || wrote.Config.Notifications.MaxPerRoom != 5 || wrote.Revision == read.Revision || applied != 1 {
 		t.Fatalf("first write = (%+v, %v), applied %d", wrote.Revision, err, applied)
 	}
 	if _, err := f.Write(ctx, read.Revision, read.Config, nil, apply); !errors.Is(err, api.ErrConfigMoved) {
@@ -75,7 +75,7 @@ func TestWritersOnOneRevisionAreWrittenOnce(t *testing.T) {
 		for i := range 8 {
 			wg.Go(func() {
 				cfg := read.Config.Clone()
-				cfg.Display.FPS = 10 + i
+				cfg.Notifications.MaxPerRoom = 10 + i
 				if _, err := f.Write(context.Background(), read.Revision, cfg, nil, nil); err == nil {
 					mu.Lock()
 					won = append(won, i)
@@ -87,8 +87,8 @@ func TestWritersOnOneRevisionAreWrittenOnce(t *testing.T) {
 		}
 		wg.Wait()
 		final, _ := f.Read()
-		if len(won) != 1 || final.Config.Display.FPS != 10+won[0] {
-			t.Fatalf("round %d: %v written, the file has fps %d", round, won, final.Config.Display.FPS)
+		if len(won) != 1 || final.Config.Notifications.MaxPerRoom != 10+won[0] {
+			t.Fatalf("round %d: %v written, the file has max_per_room %d", round, won, final.Config.Notifications.MaxPerRoom)
 		}
 	}
 }

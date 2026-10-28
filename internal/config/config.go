@@ -1,5 +1,6 @@
-// Package config loads kith's XDG TOML configuration. It imports no other internal
-// package. default.toml documents every setting for users; Go comments here give only
+// Package config loads kith's XDG TOML configuration: the bridge's config.toml and a
+// device's device.toml. It imports no other internal package. default.toml and
+// default_device.toml document every setting for users; Go comments here give only
 // type, unit and zero-value meaning.
 package config
 
@@ -21,19 +22,17 @@ import (
 //go:embed default.toml
 var defaultConfigTOML string
 
-// Config is kith's user configuration, one field per top-level key or table.
+// Config is the bridge's configuration, config.toml: what kithd reads, one field per
+// top-level key or table. What only a client reads is a device's (Device).
 type Config struct {
 	AllowTokenFile bool `toml:"allow_token_file"`
 	// BridgeContacts is each bridge's provisioning API base URL whose contact lists
 	// name people a network shows only by number (domain.Directory).
 	BridgeContacts []string      `toml:"bridge_contacts"`
-	Terminal       string        `toml:"terminal"` // what `kith --open` starts; empty detects one
 	Display        Display       `toml:"display"`
 	Notifications  Notifications `toml:"notifications"`
-	Keys           Keys          `toml:"keys"`
 	Clipboard      Clipboard     `toml:"clipboard"`
 	Codes          Codes         `toml:"codes"`
-	Composer       Composer      `toml:"composer"`
 	Spell          Spell         `toml:"spell"`
 	Complete       Complete      `toml:"complete"`
 	Assist         Assist        `toml:"assist"`
@@ -56,7 +55,6 @@ type Config struct {
 	Tags           []Tag         `toml:"tag"`
 	Profiles       []Profile     `toml:"profile"`
 	Filters        []Filter      `toml:"filter"`
-	UserCommands   []Command     `toml:"command"`
 }
 
 // Log is `[log]`: how much each binary writes to its log, and where. Level empty is
@@ -93,6 +91,11 @@ func Path() (string, error) {
 // WriteDefaultIfMissing writes the annotated default config to path if no file exists;
 // created reports whether it wrote one.
 func WriteDefaultIfMissing(path string) (created bool, err error) {
+	return writeIfMissing(path, defaultConfigTOML)
+}
+
+// writeIfMissing writes body to path if no file exists.
+func writeIfMissing(path, body string) (created bool, err error) {
 	if _, statErr := os.Stat(path); statErr == nil {
 		return false, nil
 	} else if !errors.Is(statErr, os.ErrNotExist) {
@@ -103,7 +106,7 @@ func WriteDefaultIfMissing(path string) (created bool, err error) {
 	if mkErr := os.MkdirAll(dir, 0o750); mkErr != nil {
 		return false, fmt.Errorf("config: create %s: %w", dir, mkErr)
 	}
-	if err := writeAtomic(path, defaultConfigTOML); err != nil {
+	if err := writeAtomic(path, body); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -128,10 +131,7 @@ func starter() Config {
 	if _, err := toml.Decode(defaultConfigTOML, &cfg); err != nil {
 		panic("config: the starter config does not decode: " + err.Error()) // a build that cannot happen
 	}
-	return Config{
-		Tags: cfg.Tags, Display: Display{Rail: Rail{Order: cfg.Display.Rail.Order}},
-		Keys: Keys{Tag: cfg.Keys.Tag},
-	}
+	return Config{Tags: cfg.Tags, Display: Display{Rail: Rail{Order: cfg.Display.Rail.Order}}}
 }
 
 // Decode parses config text as Load does; the daemon uses it to check a client's config
@@ -140,20 +140,23 @@ func Decode(text string) (Config, error) { return decode("the sent config", text
 
 // decode is Load and Decode's reading; source names the text in errors.
 func decode(source, text string) (Config, error) {
+	cfg, meta, err := decodeLoose(source, text)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := unknownKeys(source, meta.Undecoded()); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+// decodeLoose is decode leaving the keys Config does not have to the caller.
+func decodeLoose(source, text string) (Config, toml.MetaData, error) {
 	var cfg Config
 	meta, err := toml.Decode(text, &cfg)
 	if err != nil {
-		return Config{}, fmt.Errorf("config: decode %s: %w", source, err)
+		return Config{}, meta, fmt.Errorf("config: decode %s: %w", source, err)
 	}
-	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
-		keys := make([]string, 0, len(undecoded))
-		for _, key := range undecoded {
-			keys = append(keys, key.String())
-		}
-		return Config{}, fmt.Errorf("config: %s: unknown keys: %s", source, strings.Join(keys, ", "))
-	}
-	// Unmentioned fields decode as zero; give every action its default key.
-	cfg.Keys.FillDefaults()
 	// Absent tags or rail order take the starter's; an explicit `[]` means none.
 	switch {
 	case !meta.IsDefined("tag"):
@@ -161,15 +164,24 @@ func decode(source, text string) (Config, error) {
 	case len(cfg.Tags) == 0:
 		cfg.Tags = nil
 	}
-	// Absent tag keys take the starter's too; `[keys] tag = []` means none.
-	if !meta.IsDefined("keys", "tag") {
-		cfg.Keys.Tag = DefaultKeys().Tag
-	}
 	switch {
 	case !meta.IsDefined("display", "rail", "order"):
 		cfg.Display.Rail.Order = starter().Display.Rail.Order
 	case len(cfg.Display.Rail.Order) == 0:
 		cfg.Display.Rail.Order = nil
 	}
-	return cfg, nil
+	return cfg, meta, nil
+}
+
+// unknownKeys refuses the keys a file holds that its type does not read, so a
+// misspelled setting is not silently ignored.
+func unknownKeys(source string, undecoded []toml.Key) error {
+	if len(undecoded) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(undecoded))
+	for _, key := range undecoded {
+		keys = append(keys, key.String())
+	}
+	return fmt.Errorf("config: %s: unknown keys: %s", source, strings.Join(keys, ", "))
 }

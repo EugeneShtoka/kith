@@ -67,7 +67,7 @@ func TestSendingAsSMSAsksFirst(t *testing.T) {
 				for _, yes := range []bool{true, false} {
 					name := fmt.Sprintf("sms=%v confirm=%v way=%q yes=%v", sms, setting != nil && *setting || setting == nil, way, yes)
 					m, b := composingIn(t, domain.Room{ID: "gmessages:a/1", Name: "Dana", SMS: sms})
-					m.conf.base.Composer.ConfirmSMS = setting
+					m.conf.device.Composer.ConfirmSMS = setting
 					m = typeInto(t, m, way+"see you")
 					m, cmd := press(t, m, sendKey())
 					asks := sms && (setting == nil || *setting)

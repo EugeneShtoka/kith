@@ -394,8 +394,8 @@ func (m Model) submitJumpBinding(input string) (Model, tea.Cmd) {
 
 // jumpsWithout is the configured list, order kept, minus whatever points at a place.
 func (m Model) jumpsWithout(target domain.JumpTarget) config.Jumps {
-	jumps := make(config.Jumps, 0, len(m.conf.base.Keys.Jump)+1)
-	for _, entry := range m.conf.base.Keys.Jump {
+	jumps := make(config.Jumps, 0, len(m.conf.device.Keys.Jump)+1)
+	for _, entry := range m.conf.device.Keys.Jump {
 		if existing, ok := domain.ParseJump(entry.Target); ok && m.samePlace(existing, target) {
 			continue
 		}
@@ -406,13 +406,13 @@ func (m Model) jumpsWithout(target domain.JumpTarget) config.Jumps {
 
 // applyJumps makes a new jump table the running configuration and writes it.
 func (m Model) applyJumps(jumps config.Jumps, done string) (Model, tea.Cmd) {
-	cfg := m.conf.base.Clone()
+	dev := m.conf.device.Clone()
 	if len(jumps) == 0 {
 		// nil so the writer omits the section.
 		jumps = nil
 	}
-	cfg.Keys.Jump = jumps
-	return m.applyConfig(cfg, done)
+	dev.Keys.Jump = jumps
+	return m.applyDevice(dev, done)
 }
 
 // targetName is what the status line calls a target: its local name.

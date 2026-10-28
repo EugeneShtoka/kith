@@ -14,7 +14,7 @@ import (
 func TestNotificationRulesDefaults(t *testing.T) {
 	t.Parallel()
 
-	rules, err := setup.NotificationRules(config.Notifications{Enabled: true})
+	rules, err := setup.NotificationRules(config.Notifications{})
 	if err != nil {
 		t.Fatalf("NotificationRules: %v", err)
 	}
@@ -37,7 +37,6 @@ func TestRulesLeaveUnsetFieldsAlone(t *testing.T) {
 	t.Parallel()
 
 	rules, err := setup.NotificationRules(config.Notifications{
-		Enabled: true,
 		Rules: []config.Rule{
 			{Name: "Standup", Match: mx + "!standup:x", Sender: "matrix:@alice:x", Show: "all"},
 			{Match: "Work", Sound: "/s/boss.wav"},
@@ -115,13 +114,13 @@ func TestNotificationRulesRejectBadSpellings(t *testing.T) {
 func TestNotifierComposesFromConfig(t *testing.T) {
 	t.Parallel()
 
-	if got := setup.NotifierReporting(config.Notifications{Desktop: true}, nil); got != (notify.Nop{}) {
+	if got := setup.NotifierReporting(config.DeviceNotifications{Desktop: true}, nil); got != (notify.Nop{}) {
 		t.Errorf("notifier = %T, want a Nop while notifications are off", got)
 	}
-	if got := setup.NotifierReporting(config.Notifications{Enabled: true}, nil); got != (notify.Nop{}) {
+	if got := setup.NotifierReporting(config.DeviceNotifications{Enabled: true}, nil); got != (notify.Nop{}) {
 		t.Errorf("notifier = %T, want a Nop with no sinks configured", got)
 	}
-	if got := setup.NotifierReporting(config.Notifications{Enabled: true, Desktop: true}, nil); got == (notify.Nop{}) {
+	if got := setup.NotifierReporting(config.DeviceNotifications{Enabled: true, Desktop: true}, nil); got == (notify.Nop{}) {
 		t.Error("a configured desktop sink should produce something that delivers")
 	}
 }
@@ -132,8 +131,7 @@ func TestAnUnscopedRuleSetsTheAccountWideLevel(t *testing.T) {
 	t.Parallel()
 
 	rules, err := setup.NotificationRules(config.Notifications{
-		Enabled: true,
-		Rules:   []config.Rule{{Name: "everything", Show: "all"}},
+		Rules: []config.Rule{{Name: "everything", Show: "all"}},
 	})
 	if err != nil {
 		t.Fatal(err)

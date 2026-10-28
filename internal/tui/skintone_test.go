@@ -79,7 +79,7 @@ func TestTonedEmojiKeepsItsShortcode(t *testing.T) {
 func TestSkinToneValidation(t *testing.T) {
 	t.Parallel()
 
-	if err := setup.Validate(config.Config{Display: config.Display{SkinTone: "pale"}}); err == nil {
+	if err := setup.ValidateDevice(config.Device{Display: config.DeviceDisplay{SkinTone: "pale"}}, config.Config{}); err == nil {
 		t.Error("Validate should reject a bad tone at startup")
 	}
 }

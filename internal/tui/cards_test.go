@@ -104,8 +104,7 @@ func carded(t *testing.T, back cardRooms, rules ...config.SpaceRule) (Model, str
 	dir := writeCards(t, folderCards)
 	base := config.Config{Profiles: starter(t).Profiles, Matrix: config.Matrix{Accounts: []config.MatrixAccount{{Name: "me", Homeserver: "https://x", User: "@me:x"}}}, Display: config.Display{SpaceRules: rules}}
 	base.Phonebook.Dir = dir
-	base.Keys.FillDefaults()
-	m := New(t.Context(), back, base.Display).WithConfigFile("", asStarted(base))
+	m := New(t.Context(), back, base.Display, config.DeviceDisplay{}).WithConfigFile("", asStarted(base))
 	m.selves = []string{"matrix:@me:x"}
 	next, cmd := asModel(m.Update(roomsMsg{rooms: []domain.Room{danaDM, eliRoom, crowd}}))
 	m = deliver(t, next, cmd)

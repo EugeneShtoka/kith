@@ -17,7 +17,7 @@ func (m Model) networkColor(network domain.Protocol) color.Color {
 	if network == "" {
 		return nil
 	}
-	c, ok := theme.ParseColor(m.prefs.display.Theme.Networks.For(network.String()))
+	c, ok := theme.ParseColor(m.prefs.device.Theme.Networks.For(network.String()))
 	if !ok {
 		return nil
 	}
@@ -27,7 +27,7 @@ func (m Model) networkColor(network domain.Protocol) color.Color {
 // roomNameColor is the color of a room's name in the rail-selected place's list, nil for the
 // row's own.
 func (m Model) roomNameColor(room domain.Room) color.Color {
-	if !m.prefs.display.NetworkColorsIn(m.namesHome(m.rail.key())) {
+	if !m.prefs.display.NetworkColorsIn(m.prefs.device, m.namesHome(m.rail.key())) {
 		return nil
 	}
 	return m.networkColor(m.unreadView().factsOf(room).Protocol)

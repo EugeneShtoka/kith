@@ -47,26 +47,29 @@ func main() {
 }
 
 func run(setName, toneName string) error {
-	cfg, path, err := loadConfig()
+	cfg, dev, path, err := loadConfig()
 	if err != nil {
 		return err
 	}
 	if setName != "" {
-		cfg.Display.Emoji.Set = setName
+		dev.Display.Emoji.Set = setName
 	}
 	if toneName != "" {
-		cfg.Display.SkinTone = toneName
+		dev.Display.SkinTone = toneName
 	}
 	if verr := setup.Validate(cfg); verr != nil {
 		return fmt.Errorf("config: %w", verr)
 	}
-	cells, err := tui.EmojiCells(cfg.Display)
+	if verr := setup.ValidateDevice(dev, cfg); verr != nil {
+		return fmt.Errorf("device settings: %w", verr)
+	}
+	cells, err := tui.EmojiCells(dev.Display)
 	if err != nil {
 		return fmt.Errorf("emoji cells: %w", err)
 	}
-	fmt.Printf("probing %d cells (set=%s tone=%s, config %s)\n",
-		len(cells), orDefault(cfg.Display.Emoji.Set, "curated"),
-		orDefault(cfg.Display.SkinTone, "none"), path)
+	fmt.Printf("probing %d cells (set=%s tone=%s, device settings %s)\n",
+		len(cells), orDefault(dev.Display.Emoji.Set, "curated"),
+		orDefault(dev.Display.SkinTone, "none"), path)
 
 	tty, closeTTY, err := openRaw()
 	if err != nil {
@@ -197,16 +200,25 @@ func probe(tty *os.File, cell string) (int, error) {
 	return col - 1, nil // the cursor sits one past what was drawn
 }
 
-func loadConfig() (config.Config, string, error) {
+// loadConfig reads the default config and its device file, whose path it returns.
+func loadConfig() (config.Config, config.Device, string, error) {
 	path, err := config.Path()
 	if err != nil {
-		return config.Config{}, "", fmt.Errorf("resolve config path: %w", err)
+		return config.Config{}, config.Device{}, "", fmt.Errorf("resolve config path: %w", err)
+	}
+	device := config.DevicePath(path)
+	if _, serr := config.SplitDevice(path, device); serr != nil {
+		return config.Config{}, config.Device{}, path, fmt.Errorf("load config: %w", serr)
 	}
 	cfg, err := config.Load(path)
 	if err != nil {
-		return config.Config{}, path, fmt.Errorf("load config: %w", err)
+		return config.Config{}, config.Device{}, path, fmt.Errorf("load config: %w", err)
 	}
-	return cfg, path, nil
+	dev, err := config.LoadDevice(device)
+	if err != nil {
+		return config.Config{}, config.Device{}, device, fmt.Errorf("load device settings: %w", err)
+	}
+	return cfg, dev, device, nil
 }
 
 func orDefault(v, fallback string) string {

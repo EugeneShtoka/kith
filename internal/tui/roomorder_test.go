@@ -18,9 +18,9 @@ import (
 //	Charlie   middle         yes
 //	Delta     none cached    no
 func ordering(t *testing.T, rooms config.Rooms) Model {
-	display := config.Display{Rooms: rooms}
+	device := config.DeviceDisplay{Rooms: rooms}
 	t.Helper()
-	m := update(t, starterNew(apitest.Nop{}, display), roomsMsg{rooms: []domain.Room{
+	m := update(t, starterNew(apitest.Nop{}, config.Display{}, device), roomsMsg{rooms: []domain.Room{
 		{ID: mx + "!alpha:x", Name: "Alpha"},
 		{ID: mx + "!bravo:x", Name: "Bravo"},
 		{ID: mx + "!charlie:x", Name: "Charlie"},
@@ -207,7 +207,7 @@ func TestBadOrderIsRefused(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := derive(config.Config{Display: config.Display{Rooms: tc.rooms}}, ""); err == nil {
+			if _, err := derive(config.Settings{Device: config.Device{Display: config.DeviceDisplay{Rooms: tc.rooms}}}, ""); err == nil {
 				t.Error("a misspelled order was accepted")
 			}
 		})

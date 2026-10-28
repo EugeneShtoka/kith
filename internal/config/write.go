@@ -42,7 +42,6 @@ const header = `# kith configuration — written by kith.
 // omittedBaseline is what Load produces from an empty file.
 func omittedBaseline() Config {
 	var cfg Config
-	cfg.Keys.FillDefaults()
 	start := starter()
 	cfg.Tags, cfg.Display.Rail.Order = start.Tags, start.Display.Rail.Order
 	return cfg

@@ -2,11 +2,11 @@
 
 `kithd`, the daemon, decides what notifies. It sees every message whether or not a terminal is attached, so a popup arrives with no `kith` open. `kith-notify` shows the popups, on the machine it runs on. The TUI only edits the rules and shows you why something was or was not delivered.
 
-Everything here is configured in `config.toml` (see [configuration](configuration.md)). Most of it can also be changed from inside the app, which writes the file for you and asks the daemon to reload it. A change takes effect on the next message, with no restart.
+What notifies (the rules, the sound, the rate limit) is configured in `config.toml`; how this device shows a notification (on or off, the popup, the command hook, the timeout, the templates) in `device.toml` beside it (see [configuration](configuration.md#the-device-file)). Most of it can also be changed from inside the app, which writes each file for you. A change takes effect on the next message, with no restart.
 
 ## Where popups appear: kith-notify
 
-kithd publishes each notification to every [profile](configuration.md#profiles) holding its room. `kith-notify` listens to profiles and shows what arrives: a message in two of the profiles it listens to pops up once. It holds no rules of its own: it reads `[notifications]` (the sinks, templates, sounds) from kithd's config as it changes, and `enabled = false` there stops it showing anything.
+kithd publishes each notification to every [profile](configuration.md#profiles) holding its room. `kith-notify` listens to profiles and shows what arrives: a message in two of the profiles it listens to pops up once. It holds no rules of its own: it reads `[notifications]` (the sinks, templates, timeout) from the device file as it changes, and `enabled = false` there stops it showing anything.
 
 `kith` starts it when it starts, as it does kithd: through its systemd user unit when there is one, else detached. Only one runs for a config on a machine, however often it is started. To have popups from login, before you open `kith`, enable its unit:
 
@@ -18,7 +18,7 @@ It listens to the first profile. To listen to others, give each with `--profile`
 
 ## Turning notifications on
 
-Notifications are **off by default**.
+Notifications are **off by default**. Turning them on is this device's, in `device.toml`:
 
 ```toml
 [notifications]
@@ -31,7 +31,7 @@ With `enabled = true` and no rules, you are notified for **mentions**: that is t
 
 ### What a popup says
 
-`title` and `body` are templates:
+`title` and `body` are templates, in `device.toml`:
 
 ```toml
 [notifications]
@@ -66,6 +66,8 @@ If a field is empty, one separator next to it is dropped too. A room in no space
 | `KITH_MESSAGE` | The message text |
 | `KITH_DATE`, `KITH_TIME` | The send time, always ISO (`2026-08-21`, `14:05`) whatever `[display]` says, so a script can parse it |
 
+In `device.toml`:
+
 ```toml
 [notifications]
 desktop = false
@@ -73,6 +75,8 @@ command = 'notify-send -a kith "$KITH_TITLE" "$KITH_BODY"'
 ```
 
 ### Popup timeout
+
+In `device.toml`:
 
 ```toml
 [notifications]
@@ -256,8 +260,12 @@ Beyond the limit, messages are **counted, not dropped**. At most once per window
 ## Sounds
 
 ```toml
-[notifications]
+[notifications]   # config.toml
 sound = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"  # global; empty = silent
+```
+
+```toml
+[notifications]   # device.toml
 sound_command = ""   # fallback player, e.g. "pw-play" or "paplay"
 ```
 
@@ -332,8 +340,12 @@ Rules add together rather than overriding each other. A tracked word does not br
 kith can put a one-time code into your clipboard as it arrives, with no terminal open: `kithd` finds it, and `kith-notify` copies it on the machine it shows notifications on, once however many of its profiles carry it. This is **off by default** and deliberately hard to turn on by accident, because anyone who can message you can trigger it.
 
 ```toml
-[clipboard]
+[clipboard]                    # device.toml
 command   = "wl-copy"          # required: kith-notify has no terminal to copy through
+```
+
+```toml
+[clipboard]                    # config.toml
 auto_copy = true
 
 [codes]

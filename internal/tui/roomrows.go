@@ -59,7 +59,7 @@ func (m Model) roomRows() []roomRow {
 	}
 	rooms := m.filteredRooms()
 	rows := make([]roomRow, 0, len(rooms))
-	mode := m.prefs.display.Threads.Mode()
+	mode := m.prefs.device.Threads.Mode()
 	view := m.unreadView()
 	for i := range rooms {
 		rows = append(rows, roomRow{room: rooms[i]})
@@ -77,11 +77,11 @@ func (m Model) roomRows() []roomRow {
 }
 
 func (m Model) threadCap(room domain.Room) int {
-	rules := make([]domain.ThreadRule, 0, len(m.prefs.display.Threads.Rules))
-	for _, rule := range m.prefs.display.Threads.Rules {
+	rules := make([]domain.ThreadRule, 0, len(m.prefs.device.Threads.Rules))
+	for _, rule := range m.prefs.device.Threads.Rules {
 		rules = append(rules, domain.ThreadRule{Match: rule.Match, Max: rule.MaxInRoomList})
 	}
-	return domain.ThreadCap(m.prefs.display.Threads.MaxInRoomList, config.DefaultThreadsInRoomList,
+	return domain.ThreadCap(m.prefs.device.Threads.MaxInRoomList, config.DefaultThreadsInRoomList,
 		rules, m.scopeOfRoom(room))
 }
 
@@ -330,7 +330,7 @@ func hasThreadCursorIn(u domain.Unread, root domain.EventID) bool {
 // listThreadsCmd fetches, once per room in view, the thread lists mode "all" needs; a room's
 // list is refreshed on open (selectRoom).
 func (m Model) listThreadsCmd() tea.Cmd {
-	if m.prefs.display.Threads.Mode() != config.ThreadsAll {
+	if m.prefs.device.Threads.Mode() != config.ThreadsAll {
 		return nil
 	}
 	var cmds []tea.Cmd

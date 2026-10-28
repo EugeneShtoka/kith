@@ -30,7 +30,7 @@ func runOpen(configPath, uri string) error {
 	if err != nil || at.backend == nil {
 		return err
 	}
-	cfg, backend := at.cfg, at.backend
+	dev, backend := at.dev, at.backend
 	defer backend.Stop()
 
 	delivered, err := backend.Follow(ctx, uri)
@@ -40,7 +40,7 @@ func runOpen(configPath, uri string) error {
 	if delivered {
 		return nil
 	}
-	return openInTerminal(ctx, cfg.Terminal, uri)
+	return openInTerminal(ctx, dev.Terminal, uri)
 }
 
 // openInTerminal starts a terminal running a client with --follow; the URI on the

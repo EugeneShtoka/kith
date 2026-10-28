@@ -5,10 +5,15 @@ import (
 	"time"
 )
 
-// Commands is [commands]: where the slash commands you write yourself live, and how long they run.
+// Commands is [commands] in the bridge's config: where the slash commands you write
+// yourself live.
 type Commands struct {
-	Dir     string `toml:"dir"`     // empty is the `commands` folder beside the config
-	Timeout int    `toml:"timeout"` // seconds; 0 is DefaultCommandTimeout
+	Dir string `toml:"dir"` // empty is the `commands` folder beside the config
+}
+
+// DeviceCommands is [commands] in device.toml: how long a command may run here.
+type DeviceCommands struct {
+	Timeout int `toml:"timeout"` // seconds; 0 is DefaultCommandTimeout
 }
 
 // Command is one [[command]]: a command's settings.
@@ -29,9 +34,9 @@ func SecretEnv(name string) string { return "KITH_SECRET_" + strings.ToUpper(nam
 func SecretRef(command, name string) string { return "command|" + commandName(command) + "|" + name }
 
 // CommandFor returns a command's block, matched case-insensitively without the slash.
-func (c Config) CommandFor(command string) (Command, bool) {
+func (d Device) CommandFor(command string) (Command, bool) {
 	command = commandName(command)
-	for _, block := range c.UserCommands {
+	for _, block := range d.UserCommands {
 		if commandName(block.Name) == command {
 			return block, true
 		}
@@ -48,7 +53,7 @@ func commandName(name string) string {
 const DefaultCommandTimeout = 15 * time.Second
 
 // RunTimeout is how long a command may run: the configured seconds, else the default.
-func (c Commands) RunTimeout() time.Duration {
+func (c DeviceCommands) RunTimeout() time.Duration {
 	if c.Timeout <= 0 {
 		return DefaultCommandTimeout
 	}

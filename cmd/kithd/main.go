@@ -725,6 +725,8 @@ func (f configFile) read() (config.Config, error) {
 }
 
 // loadConfig reads and validates the config to serve, returning its path for reloads.
+// A config still holding device settings has them moved out first (config.SplitDevice):
+// kithd reads none, and refuses them as unknown keys.
 func loadConfig(configPath string) (config.Config, string, error) {
 	path := configPath
 	if path == "" {
@@ -733,6 +735,9 @@ func loadConfig(configPath string) (config.Config, string, error) {
 			return config.Config{}, "", fmt.Errorf("resolve config path: %w", err)
 		}
 		path = resolved
+	}
+	if _, err := config.SplitDevice(path, config.DevicePath(path)); err != nil {
+		return config.Config{}, "", fmt.Errorf("load config: %w", err)
 	}
 	cfg, err := config.Load(path)
 	if err != nil {

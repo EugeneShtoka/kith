@@ -41,7 +41,7 @@ const spaceNew = "\x00new space"
 // spaces (a bridge's, or an origin) are left out: filing into them is meaningless.
 // Hidden spaces are absent and untouched, since the diff covers shown rows only.
 func (m Model) fileableSpaces(room domain.RoomID) ([]pickerItem, map[string]bool) {
-	if named := m.prefs.display.FilingSpaces; len(named) > 0 {
+	if named := m.prefs.device.FilingSpaces; len(named) > 0 {
 		return m.namedSpaces(named, room)
 	}
 	items := make([]pickerItem, 0, len(m.rail.groups))

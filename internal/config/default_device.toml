@@ -1,0 +1,844 @@
+# kith device settings, with every option documented at its default: what only this
+# device reads — how it looks, its keys, how it shows a notification — so a phone and
+# a laptop may differ. The bridge's settings (accounts, tags, rules, what notifies)
+# are in config.toml beside this file, and a table split between the two keeps its
+# name in both.
+#
+# Press "," in kith for the settings screen; each setting is written back to its own
+# file (only values that differ from the defaults; comments are not kept, and a .bak
+# is left the first time). `kith --print-device-config` prints this reference.
+#
+# Unknown keys are refused at startup.
+
+# What `kith --open` (the desktop's `matrix:` handler) starts when no client is
+# running: a new tab in an open terminal where possible, else a new window. Empty
+# picks the first found of wezterm, kitty, konsole, gnome-terminal, foot, alacritty,
+# ghostty, xterm; or give any command that takes `-e`.
+# terminal = "wezterm"
+
+# How this device draws the timeline, room list and rail. A list of places here takes
+# the place vocabulary that [display] in config.toml describes.
+[display]
+
+# Sender-name column width; longer names are truncated. 0 = no limit.
+max_name_length = 15
+# Skin tone for every emoji offered: none, light, medium-light, medium, medium-dark,
+# dark.
+skin_tone = "none"
+
+# Tint each message body in its sender's color (not just the name).
+color_messages = false
+
+# Name each room in every room list in its network's color ([display.theme.networks]):
+# a bridged room in its bridge's network's. A place's [[display.space_rule]]
+# network_colors (config.toml) says otherwise for its own room list.
+network_colors = false
+
+# List archived rooms (those the archive tag holds: [whatsapp.archive] and
+# [telegram.archive] tag, "Archived" by default) in room lists: in a bridge's space or a
+# forum, where an archived room still belongs. The archive's own list always shows
+# them. A place's [[display.space_rule]] show_archived (config.toml) says otherwise
+# for its room list, and the archived key (`A` in the room list, or :archived) flips
+# it for the place you are in until kith restarts.
+show_archived = true
+
+# Which spaces the filing key (`S` in the room list) offers. Empty works it out: your
+# spaces, minus those a bridge keeps and those a room calls its origin. Naming spaces
+# (space:<name>, place:<name> or a space's ID) makes this the whole list, in order.
+#
+#   filing_spaces = ["space:Work", "place:Friends", "matrix:4f1c9e2a7b3d5c60/!w1kIQdLjYDUj7wgUis:example.org"]
+filing_spaces = []
+
+# The wheel scrolls the pane under the pointer; clicks do nothing. While on, the
+# terminal's own drag-to-select needs shift held.
+mouse = true
+
+# A rule between the last message you had read when you opened a room and the first
+# you had not. Frozen at open, gone the next time you open the room.
+unread_line = true
+
+# Wrap links (including named links in formatted messages) in OSC 8 so the terminal
+# can open them (ctrl+click in most). Terminals that do not know it print the text
+# unchanged.
+hyperlinks = true
+
+# Show who else is typing (on the rule above the composer), and tell rooms when you
+# are.
+typing = true
+send_typing = true
+
+# What a badge counts:
+#
+#   messages      — what you have not read, from the local cache (default)
+#   notifications — what your push rules would have notified you about, as the
+#                   homeserver counts it (a muted room badges nothing)
+unread = "messages"
+
+# Open a room in the composer rather than the message cursor (one esc away).
+open_in_insert_mode = true
+
+# A vim-style relative-number gutter (messages in the timeline, rooms in the list).
+# Counts before motions (`12j`) work either way.
+row_numbers = false
+
+# The most times a second the screen is repainted, 1-120. 0 = 30.
+# fps = 30
+
+# Read receipts and when a room counts as read.
+#
+# send_receipts = false still moves your read position (as a private `m.read.private`
+# receipt), so badges clear on all your clients while nobody else sees it.
+#
+# read_delay is about selecting a room in the list without opening it (opening always
+# reads it):
+#
+#   -1  never (default): only opening, or marking read by hand
+#    0  every room the cursor lands on is read
+#   15  a room you rest on for fifteen seconds is read
+send_receipts = true
+read_delay    = -1
+
+# Either can be overridden per place, narrowest first (the notification-rule ladder).
+# `sender` is the author of the message being receipted, i.e. the other person in a
+# DM.
+#
+# [[display.read_rule]]
+# match = "space:Work"  # a room ID, space:, tag: or place:
+# delay = 30
+#
+# [[display.read_rule]]
+# sender = "matrix:@dana:example.org"
+# send   = false        # read her messages without telling her
+
+# How much of the emoji set to offer:
+#
+#   curated  — a hand-picked set (default)
+#   standard — every single-glyph emoji in Unicode's data
+#   complete — plus ZWJ sequences and flags (need font ligatures to render one cell)
+[display.emoji]
+set = "curated"
+# Your own shortcodes; they win over (and can redefine) built-in names.
+# extra = { shrug = "🤷", table_flip = "(╯°□°）╯︵ ┻━┻" }
+
+# Colors: a preset — cobalt2 (default), gruvbox, nord, or terminal (the terminal's own
+# ANSI 0-15) — plus any of these roles overridden as #rgb/#rrggbb. A bad preset or
+# color stops startup.
+[display.theme]
+preset = "cobalt2"
+# accent          = "#00aaff"  # focused frame, titles
+# border          = "#0050a4"  # unfocused frame
+# text            = "#8ff586"  # message bodies
+# muted           = "#668799"  # timestamps, hints, dividers
+# cursor          = "#ffc600"  # the ▸ marker and the composer prompt
+# badge           = "#ffc600"  # unread counts
+# badge_alert     = "#ff628c"  # unread counts that mention you
+# selected_bg     = "#185294"  # the row under the cursor, focused pane
+# selected_dim_bg = "#0d3a58"  # the same row when the pane is not focused
+
+# The color each network's rooms are named in, where the room lists ask for it
+# ([display] network_colors, [[display.space_rule]] network_colors) or the rail does
+# ([display.rail] network_colors, in config.toml): #rrggbb or a named color (red,
+# green, teal, yellow, blue, magenta, orchid, periwinkle, coral, ultramarine, cyan,
+# orange, white), or "none".
+# Unset: each its own, apart from the theme's text, accent, badge and alert, as below;
+# the rest none. A bad color stops startup.
+[display.theme.networks]
+# whatsapp        = "teal"
+# telegram        = "blue"
+# slack           = "magenta"
+# signal          = "ultramarine"
+# discord         = ""
+# messenger       = "orchid"      # Meta's two share one
+# instagram       = "orchid"
+# linkedin        = "periwinkle"
+# google_messages = "coral"       # SMS
+# google_chat     = ""
+# imessage        = ""
+# twitter         = ""
+# matrix          = ""
+
+# Room list order: a chain of comparators applied in order until one decides; `~`
+# reverses a key.
+#
+#   unread     rooms with something unread first
+#   mentions   rooms where something unread names you first
+#   drafts     rooms holding an unsent message first
+#   recent     newest activity first (rooms with no cached activity stay last)
+#   name       by displayed name
+#
+#   sort = ["mentions", "unread", "recent", "name"]
+#   sort = ["drafts", "~recent"]
+#
+# A room unread when you opened it keeps its place while you read it. [keys.sort]
+# edits the chain of the current group for the session.
+[display.rooms]
+sort = ["unread", "recent", "name"]
+
+# Per rail group (space:, tag: or place:<name>). `sort` replaces the chain whole.
+#
+#   [[display.rooms.rule]]
+#   group = "space:Work"
+#   sort  = ["recent", "name"]
+
+# Quick-react palette (1-9, 0 in the react prompt). scope ranks by your usage: "room"
+# (this room → its space → global → static), "space", "global", or "static" (always
+# `static`). `static` fills unranked slots. Up to 10 are shown.
+[display.reactions]
+scope  = "room"
+static = ["👍", "❤️", "😂", "🎉", "😮", "😢", "🙏", "👀", "🔥", "💯"]
+
+# Which of a room's threads are listed beneath it in the room list: "unread" (with
+# something unread; default), "all" (every cached thread; costly in busy rooms), or
+# "never". `enter` opens one, `m` marks it read. max_in_room_list caps the rows before
+# a "+N more threads" line; 0 = default (5), negative = no cap.
+[display.threads]
+in_room_list     = "unread"
+max_in_room_list = 5
+# marker         = "↳"   # leads a thread's row
+
+# Per place (room ID, space:, tag: or place:; narrowest wins, later wins among equals):
+#
+# [[display.threads.rule]]
+# match            = "matrix:4f1c9e2a7b3d5c60/!busy:example.org"
+# max_in_room_list = 12
+
+# Which rooms read right to left. Such a room's timeline is mirrored: the text sits
+# against the sender column on the right, then the name and the time. `auto` guesses
+# each room from its newest messages when it opens (one vote per message, links left
+# out; more than half right to left wins) and keeps that until you leave the room.
+# `rtl` and `ltr` set places by hand (the place vocabulary): the
+# narrowest entry wins, a room over its space, and wins over the guess. `D` in the
+# room list (or /direction) cycles the room under the cursor: right to left, left to
+# right, back to this section's say.
+[display.direction]
+auto = false
+# rtl  = ["space:Friends", "matrix:4f1c9e2a7b3d5c60/!family:example.org"]
+# ltr  = ["room:Work chat"]
+
+# Desktop notifications on this device. This section is the switch and the delivery;
+# what notifies is decided by [[notifications.rule]] in config.toml.
+#
+# `desktop` posts a freedesktop (D-Bus) notification. `command` runs once per
+# notification with the fields in its environment, never interpolated, so a message
+# cannot inject shell code: $KITH_TITLE and $KITH_BODY (rendered), plus $KITH_SENDER,
+# $KITH_SENDER_ID, $KITH_ROOM, $KITH_SPACE, $KITH_MESSAGE, $KITH_PROTOCOL, $KITH_DATE and $KITH_TIME (ISO always, for scripts).
+#
+# `title` and `body` are templates over:
+#
+#   {space}     the room's space (the first, for several); empty for none, and an
+#               empty field drops one neighboring separator
+#   {sender}    the sender's name (their MXID until it resolves)
+#   {sender_id} the sender's ID on their network
+#   {room}      the room's displayed name
+#   {body}      the message text
+#   {protocol}  the sender's network (WhatsApp, Telegram, …; "Matrix" for native)
+#   {date}      local date, as [display] short_date_format (config.toml) writes it
+#   {time}      local time, as [display] time_format (config.toml) writes it
+#
+# Omit a template for the default shown; "-" means deliberately empty.
+[notifications]
+enabled = false
+desktop = true
+title   = "{space} · {room} · {sender}"
+body    = "{body}"
+# title = "{sender} · {room}"
+# title = "{space} · {room} · {sender} [{protocol}]"
+command = ""
+# command = 'notify-send -a kith "$KITH_TITLE" "$KITH_BODY"'
+
+# How long a popup stays up, in seconds: -1 until dismissed, 0 the notification
+# daemon's default.
+timeout = 15
+
+# Fallback player given the sound file's path ([notifications] sound in config.toml,
+# or a rule's), for a daemon that ignores the hint (pw-play, paplay, ffplay -nodisp
+# -autoexit).
+sound_command = ""
+
+# Clipboard and links.
+#
+# `c`/`y…` copy over OSC 52, which sets the clipboard of the terminal you are looking
+# at (right over SSH; tmux needs `set -g set-clipboard on`). `command` is the fallback,
+# and for kith-notify's auto-copy ([clipboard] auto_copy in config.toml) the only
+# sink; text reaches it on stdin, never argv.
+#
+# `open_command` gets a single http/https URL as one argument, no shell. `focus_command`
+# is what `gX` runs afterwards to bring the browser forward; empty detects i3, sway,
+# Hyprland, KWin or wmctrl. It runs through a shell and receives nothing from messages:
+#
+#     focus_command = "i3-msg '[class=\"Vivaldi-stable\"] focus'"
+#
+# `raise_command` brings kith's own window forward when `kith --open` hands a clicked
+# link to it (not for a link kith was started with); empty does nothing. It runs
+# through a shell in the kith that got the link, so $WEZTERM_PANE, $TMUX_PANE,
+# $KITTY_WINDOW_ID and $WINDOWID name its pane or window, and $PPID is kith:
+#
+#     raise_command = "xdotool windowactivate $WINDOWID"
+[clipboard]
+command       = ""           # e.g. "wl-copy", "pbcopy", "xclip -selection clipboard"
+open_command  = "xdg-open"
+focus_command = ""           # empty detects i3/sway/Hyprland/KWin/wmctrl
+raise_command = ""           # empty leaves the window where it is
+# Put a saved attachment's path on the clipboard too.
+copy_downloads = false
+
+# Writing in your own editor (`alt+e`, see [keys.composer]). If the editor fails or
+# the file cannot be read back, the draft is left unchanged.
+[composer]
+# The editor command, split on spaces, no shell. Empty: $VISUAL, then $EDITOR, then vi.
+editor      = ""
+# The temporary file's extension (tells the editor what it is editing).
+file_suffix = ".md"
+# Render **bold**, _italic_, `code`, fenced blocks, > quotes and lists into the HTML
+# body (bridges translate the HTML, so this is what formats bridged messages). The
+# plain body is always what you typed. `/plain` sends one message unformatted.
+markdown    = true
+# Ask before sending to a chat whose messages go out as SMS or MMS through your phone's
+# carrier (a Google Messages SMS chat), which may cost what your plan charges for them.
+# Also asked before sending a file (as MMS) or scheduling a message there.
+confirm_sms = true
+
+# How the spellchecker ([spell] in config.toml) marks and corrects words here.
+[spell]
+# Dictionaries offered (from the languages in your messages) and declined by
+# unticking; never offered again. esc on the offer records nothing.
+declined = []
+# Word-frequency lists offered and declined.
+frequencies_declined = []
+# How a misspelling is marked: "curly" (SGR 4:3), "line" or "none" ("none" stops the
+# drawing, not the checking).
+underline = "curly"
+# Open the correction walk when sending a draft with misspellings; esc stops the walk
+# and the send.
+check_before_send = false
+# Fix a word as you finish it, only when the fix is not a guess (one suggestion, or a
+# single case change / transposition / missing letter). Each fix is one undo step.
+#
+#   "off"           nothing
+#   "misspellings"  words the dictionary rejects
+#   "rare"          accepted words the corpus has never seen, with exactly one much
+#                   commoner neighbor one slip away
+#   "all"           both
+autocorrect = "off"
+# How a rare word is marked: "dotted" (SGR 4:4), "line" or "none".
+rare_underline = "dotted"
+# Include rare words in the check-before-send walk.
+rare_before_send = false
+
+# Word completion from what has been said (this room, its spaces, everywhere), with
+# the word-frequency list filling gaps. Offered from three typed characters, and only
+# when it saves at least two.
+#
+#   forward arrow  accept one word (`[keys.insert] complete`); it is the left arrow
+#                  inside a right-to-left word
+#   tab            accept the whole suggestion, or open the chooser
+#                  (`[keys.insert] complete_all`)
+#   alt+<n>        accept the n-th candidate
+#
+# After a finished word, a next-word suggestion comes from this room's history (the
+# last two words, seen at least twice), gated by `ratio`.
+[complete]
+enabled = true
+# Draw the leading candidate after the cursor, dimmed.
+ghost = true
+# How many times the leader must outweigh the runner-up before the ghost draws.
+ratio = 3
+# Vocabulary width: "room" (this room's words weigh most), "space", or "global".
+scope = "room"
+# Where candidates come from: "history" (the cache) and "frequency" (installed
+# word-frequency lists). History keeps its order; frequency fills the rest. Empty =
+# both.
+sources = ["history", "frequency"]
+
+# The local completion model is set up in config.toml ([complete.model]).
+[complete.model]
+# Written when the model offer is declined. Delete to be asked again.
+declined = false
+
+# The remote model ([assist] in config.toml) at work unasked.
+[assist]
+# Name threads from their contents; the only request here nobody asked for. The name
+# is written to [[display.name]] (config.toml) as `thread:<root>`, like one you typed.
+# Needs an endpoint.
+name_threads = false
+# Replies a thread needs before it is named.
+name_threads_after = 2
+
+# Your own commands live in [commands] dir (config.toml); they run here.
+[commands]
+# How long a command may run before it is killed and reported, in seconds.
+timeout = 15
+
+# Per-command settings: what a command is given and where its output goes.
+#
+#   [[command]]
+#   name   = "save"
+#   needs  = ["url", "message"]
+#   output = "none"
+#   keys   = "alt+s"
+#   in     = ["protocol:slack", "dm"]
+#
+# `in` is where it applies, in the place vocabulary; empty is everywhere. Elsewhere it is
+# left out of the `/` list, its key does nothing, and typing it is refused, not sent.
+#
+#   secrets = ["client_id", "client_secret"]
+#
+# `secrets` names values kept in the OS keyring, set in Settings → Advanced → Commands
+# (masked); the script reads each as $KITH_SECRET_CLIENT_ID and so on, never on its
+# command line. One that is not set stops the command before it runs, naming it. With
+# no keyring a command with secrets does not run. Settings → Commands → Add from template
+# writes a ready-made one (Jitsi, Zoom, Google Meet, standup, who) and asks for its secrets.
+#
+# `keys` binds it; a sequence a built-in holds is refused (unbind it with "-" first),
+# as is one two commands share.
+#
+# `needs`: a need with several answers (three links) asks which before running.
+#
+#   message      the message under the cursor (or the newest)
+#   url          one http/https link from that message
+#   history:n    the last n messages, oldest first (1 to 500)
+#
+# Small values arrive in the environment ($KITH_URL, $KITH_MESSAGE_ID, $KITH_SENDER,
+# $KITH_SENDER_NAME), the rest as one JSON object on stdin — {"message": {…},
+# "history": [{…}], "url": "…"}, only what was declared — never on argv. A script sees
+# what the screen shows (covered spoilers stay covered).
+#
+# `output`:
+#
+#   compose      replace the composer (default)
+#   send         send to the room (truncated output is never sent unreviewed)
+#   status       one line on the status bar
+#   pager        a scrolling read-and-dismiss overlay
+#   clipboard    copy it
+#   none         discard it
+#
+# Truncated output falls back to the pager (if that was the target) or the composer.
+#
+# A script can take over a built-in key by unbinding it first:
+#
+#   [keys.timeline]
+#   open_url_focus = "-"
+#
+#   [[command]]
+#   name   = "go"
+#   needs  = ["url"]
+#   output = "none"
+#   keys   = "gX"
+
+# `!` puts the room under the cursor in Spam, or takes it out, and in the timeline the
+# selected message's sender: a key bound to a tag by its chord. See [keys] for more.
+[[keys.tag]]
+chord = "!"
+tag   = "Spam"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Keybindings. Each value is a comma-separated list ("k,up"); names are what the
+# terminal reports ("enter", "esc", "tab", "shift+tab", "ctrl+u", "pgup"); the comma
+# key is "comma", and the minus key "minus". A space separates the steps of a
+# sequence ("s u"); "gg" is also a sequence. `?` shows the live bindings.
+#
+# Groups are per mode, and the more specific group wins ([keys.timeline] over
+# [keys.nav]). While typing, any key that produces text types it. Omit a key to keep
+# its default; "-" binds nothing.
+#
+# By default esc cancels, the arrows move and pgup/pgdown page, and all of them can be
+# rebound. Moving, going back and each mode's cancel or close always keep a key: one
+# left with none gets its default back. A binding that collides within a mode is
+# reported in `?` and falls back to its default.
+[keys]
+# Not while typing, where q types itself.
+quit         = "q"             # quit
+# No key by default: most terminals keep ctrl+c for copying. Checked before every other
+# key.
+interrupt    = "-"             # quit, from anywhere — typing, a prompt, a picker
+# For terminals that pass the key through rather than pasting themselves.
+paste        = "ctrl+v"        # paste the terminal's clipboard, from anywhere
+help         = "?"             # this help
+settings     = "comma"         # settings, showing what each is set to
+# With more than one [[profile]]; :profile <name> goes straight to one.
+profile      = "gP"            # switch to another profile
+command      = ":"             # command line — global commands, as / is for this room
+focus_next   = "tab"           # next pane
+focus_prev   = "shift+tab"     # previous pane
+# Works while typing too, as do the pane, redraw and jump keys.
+toggle_dnd   = "ctrl+n"        # do not disturb on/off
+toggle_mute  = "alt+n"         # mute sound on/off
+redraw       = "ctrl+l"        # redraw the screen
+# By typing its name.
+jump_to      = "ctrl+k"        # go to a room, person or space
+# ctrl+i equals tab except on terminals with the Kitty keyboard protocol, hence alt+o.
+jump_back    = "ctrl+o"        # back to the room you jumped from
+jump_forward = "ctrl+i,alt+o"  # forward again
+
+# Key sequences bound to places. Write them from the app with :shortcut (tab moves
+# between the open room and the rail's space), or /shortcut for the room written in.
+# Targets:
+#
+#   room:<room ID>     a room, by ID (names are ambiguous across bridges)
+#   space:<name>       a space's rail row
+#   tag:<name>         a tag's rail row
+#   place:<name>       the first rail row shown as <name>
+#
+# `?` lists them resolved to names. A chord bound twice, or colliding with a command
+# (bound, a prefix of one, or prefixed by one), is refused.
+#
+#   [[keys.jump]]
+#   chord  = "g w"
+#   target = "space:Work"
+#
+#   [[keys.jump]]
+#   chord  = "g d"
+#   target = "room:matrix:4f1c9e2a7b3d5c60/!dana:example.org"
+#
+# Key sequences bound to tags: the room under the cursor (or the open one) goes into
+# the tag, or out of it; in the timeline, the selected message's sender does (a muted
+# tag hides them in every room). Taking out a room a filter moved writes the tag's excluded, so
+# no filter puts it back. The starter binds "!", the mail clients' "report spam" key,
+# to Spam (just above; the tags are config.toml's); a binding to a tag that does not exist is
+# reported in `?` and does nothing.
+#
+#   [[keys.tag]]
+#   chord = "!"
+#   tag   = "Spam"
+
+# The rail. Its order and hidden rows are [display.rail]'s, in config.toml.
+[keys.rail]
+# A local name; an empty one clears it.
+name        = "a"    # name this group
+notify_rule = "b"    # notification rule for this space
+# Asks first.
+mark_read   = "m"    # mark every unread room in this group read
+# Its rule, rooms, display and filters; the settings key opens all of settings.
+edit        = "e"    # this space's or tag's settings page
+# Asks first. A Telegram forum is left with all its topics, a WhatsApp community with
+# all its groups; leaving a Matrix space asks which of its rooms go too; an account's
+# own space signs it out.
+leave       = "L,x"  # leave this space, or delete this tag
+
+# Cursor motion, shared by every pane.
+[keys.nav]
+up             = "k,up"           # up
+down           = "j,down"         # down
+open           = "l,right,enter"  # open / enter pane to the right
+back           = "h,left,esc"     # back / leave pane to the left
+page_up        = "pgup"           # scroll a screen back
+page_down      = "pgdown"         # scroll a screen forward
+# Outside the composer only; while typing ctrl+u clears the line.
+half_page_up   = "ctrl+u"         # scroll half a screen back
+half_page_down = "ctrl+d"         # scroll half a screen forward
+# the top: oldest message, or the first row of a list — with a count, that row (12G)
+# In the timeline this pulls more history in.
+select_oldest  = "gg"
+# the bottom: newest message, or the last row of a list — with a count, that row
+select_newest  = "G"
+# The ends of the conversation; while typing they move the view only.
+scroll_oldest  = "home"           # scroll to the start
+scroll_newest  = "end"            # jump to the latest
+
+# The room list. Consulted before [keys.nav]. accept/reject apply to invitations,
+# leave to joined rooms; leave and reject ask first.
+[keys.rooms]
+join          = "J"       # join a room by ID or alias
+# Asks first. A private chat its network cannot leave is deleted instead; a room of a
+# forum is left only with the whole forum, from the rail.
+leave         = "L,x"     # leave the selected room
+accept        = "y"       # accept the selected invitation
+reject        = "d"       # reject the selected invitation
+people        = "p"       # list the people in this room
+# A local name; an empty one clears it.
+name          = "a"       # name this room
+notify_rule   = "b"       # notification rule for this room
+mark_read     = "m"       # mark this room read without opening it
+# MSC2867, synced to your other clients.
+mark_unread   = "M"       # mark this room unread, or clear the mark
+# Tick with space, apply with enter.
+spaces        = "S"       # file this room into a space or a tag, or take it out of one
+# Prompts for an @user:server.
+invite        = "i"       # invite someone to this room
+view_media    = "v"       # open this room's pictures in an image viewer, newest first
+# A DM, or a room with one person besides you and bots.
+person        = "I"       # the phonebook card of the room's one person
+# everything the room's one person said, in every room you share
+said          = "gI"
+# One row per person: how they got there and how much they wrote; the tag's key takes
+# one out.
+tag_people    = "gp"      # on a tag: its people instead of its rooms, and back
+# Until kith restarts; [display] show_archived and a place's space_rule set where it
+# starts.
+archived      = "A"       # show or hide this place's archived rooms
+# An empty name clears it.
+rename_thread = "alt+r"   # name the thread under the cursor
+list_threads  = "ctrl+t"  # list the threads in the room under the cursor
+
+# Room list sorting for the current group, this session only ([display.rooms] holds
+# the defaults). A bare `s` is deliberately unbound so these sequences work.
+[keys.sort]
+unread_first   = "s u"  # unread rooms on top, on/off
+mentions_first = "s m"  # rooms that name you on top, on/off
+drafts_first   = "s d"  # rooms holding a draft on top, on/off
+recent         = "s r"  # sort by newest
+alphabetical   = "s a"  # sort by name
+
+# Message search over the local cache: instant, offline, newest first. Input is terms,
+# never a query language; a "quoted phrase" matches in order, and the last word is a
+# prefix. `room` scopes to where you pressed it (rail: everywhere; room list: that
+# group; timeline: the open room); `scope` cycles room → group → everywhere. Filters:
+# `from:dana`, `since:7d`, `since:yesterday`, `since:2026-08-01`, `until:2026-08-31`.
+[keys.search]
+# The pane you press it in picks the scope.
+room     = "/"       # search this room
+all      = "ctrl+f"  # search every room
+mentions = "@"       # every message that names you, newest first
+# Starting in this room.
+files    = "gf"      # every message with a file, newest first
+# In its own room.
+jump     = "enter"   # go to the selected message
+scope    = "tab"     # widen or narrow: room → group → everywhere
+close    = "esc"     # close the results
+star     = "*"       # unstar the selected message (the starred list)
+
+# The timeline's message cursor. Consulted before [keys.nav].
+[keys.timeline]
+insert          = "i"       # compose a message
+reply           = "r"       # reply to the selected message
+go_reply        = "enter"   # go to the message this answers
+react           = "e"       # react to the selected message
+# For everyone.
+redact          = "x"       # delete this message (asks first)
+# esc restores your draft.
+edit            = "E"       # edit this message of yours, in the composer
+# The mention and attachment motions wrap.
+next_mention    = "m"       # next mention of you
+prev_mention    = "M"       # previous mention of you
+next_attachment = "f"       # next message with a file
+prev_attachment = "F"       # previous message with a file
+prev_day        = "["       # back a day (start of this day first)
+next_day        = "]"       # forward a day
+# the sender's card in the phonebook: their fields, to read and edit
+person          = "I"
+# By every ID kith links to them; enter goes to a message, search.scope narrows to its
+# room or network.
+said            = "gI"      # everything the sender said, in every room you share
+# A local name; an empty one clears it.
+name            = "a"       # name the sender of the selected message
+notify_rule     = "b"       # notification rule for this sender or room
+# uncover what this message is hiding — a spoiler, or a kept deletion
+# Press again to cover it.
+reveal          = "z o"
+# show the hidden people's messages in this room, until you leave it
+# A [keys.tag] key on a message puts its sender in that tag; a muted tag (Spam) hides
+# them.
+show_marked     = "z h"
+# The copy and open keys ask which when a message holds several candidates.
+copy_text       = "yy"      # copy this message's text
+copy_url        = "yu"      # copy a link from it
+copy_code       = "yc"      # copy the verification code in it
+# A Matrix, Telegram or WhatsApp link, on a network in your room list, opens in this
+# client (mention pills included): the room, message or chat, a question before joining,
+# or the switcher for a person. Other links open in the browser.
+open_url        = "gx"      # open a link from it
+# See [clipboard] focus_command.
+open_url_focus  = "gX"      # open a link from it and go to the browser
+topic           = "gt"      # read the room's topic
+# show the raw event JSON of the selected message (Matrix only)
+source          = "gs"
+# Private, synced account data. `/starred` lists them.
+star            = "*"       # star it, or unstar it
+# Every version and its deletion, if any (complete only with [display.deleted] keep).
+history         = "H"       # what this message used to say
+# Sending a file is the composer's alt+u.
+download        = "s"       # save this message's attachment
+# The desktop's chooser (XDG portal), falling back to the download directory.
+save_as         = "S"       # save it somewhere else — opens a folder picker
+# open this picture and the ones before it in an image viewer
+view_media      = "v"
+vote            = "P"       # vote in this message's poll, or take the vote back
+play            = "p"       # play this voice note, or watch this video
+open_thread     = "t"       # open the thread this message is in (back closes it)
+start_thread    = "T"       # start a thread on this message
+list_threads    = "ctrl+t"  # list this room's threads
+# An empty name clears it.
+rename_thread   = "alt+r"   # name this thread
+
+# While composing. Unlisted keys type themselves; editing the text is [keys.edit].
+#
+# `send` and `newline` are a pair. For enter-sends, swap them:
+#
+#     send    = "enter"
+#     newline = "ctrl+enter,alt+enter"
+#
+# ctrl+enter differs from enter only on terminals with the Kitty keyboard protocol or
+# modifyOtherKeys; alt+enter works everywhere.
+[keys.insert]
+send          = "ctrl+enter,alt+enter"  # send
+newline       = "enter"                 # new line in the message
+# attach a file — what you have typed becomes its caption
+# Through the desktop's file chooser.
+attach        = "alt+u"
+cancel        = "esc"                   # back to the message cursor
+# See [complete].
+complete      = "right"                 # take a word of the completion being offered
+# take the whole completion, or choose from the list
+complete_all  = "tab"
+# show what the model would be sent for this draft — and send nothing
+# See [assist].
+model_preview = "alt+m"
+# See [complete].
+choose_1      = "alt+1"                 # take the first option on offer
+choose_2      = "alt+2"                 # take the second option on offer
+choose_3      = "alt+3"                 # take the third option on offer
+choose_4      = "alt+4"                 # take the fourth option on offer
+choose_5      = "alt+5"                 # take the fifth option on offer
+
+# Editing text, in every field that takes typing: the composer, prompts and filters.
+# Checked after the field's own actions, so a binding there wins (ctrl+e browses emoji
+# in the composer). The aliases exist because terminals disagree: ctrl+backspace
+# arrives as ctrl+h from most (0x08), and alt+backspace is readline's spelling.
+[keys.edit]
+left                = "left"                                        # one character left
+# one character right
+right               = "right"
+word_left           = "ctrl+left,alt+left,alt+b"                    # one word left
+word_right          = "ctrl+right,alt+right,alt+f"                  # one word right
+# In a field, not the timeline's top.
+start               = "home,ctrl+a"                                 # to the start
+end                 = "end,ctrl+e"                                  # to the end
+# delete the character before the caret
+delete_back         = "backspace"
+# delete the character after it
+delete_forward      = "delete"
+# delete the word before it
+delete_word_back    = "ctrl+w,ctrl+backspace,ctrl+h,alt+backspace"
+# delete the word after it
+delete_word_forward = "ctrl+delete,alt+d"
+# delete everything before it
+delete_to_start     = "ctrl+u"
+# delete everything after it
+delete_to_end       = "ctrl+k"
+undo                = "ctrl+z"                                      # undo
+redo                = "ctrl+r"                                      # redo
+# one row up (in the composer)
+row_up              = "up"
+# one row down (in the composer)
+row_down            = "down"
+
+# The completion popup (`@` for mentions). Accepting a person inserts a real mention.
+[keys.completion]
+next    = "ctrl+n,down"  # next candidate
+prev    = "ctrl+p,up"    # previous candidate
+accept  = "tab,enter"    # insert the selected candidate
+dismiss = "esc"          # close the popup
+
+# The correction walk through the draft's misspellings: `alt+s` while typing, `z=`
+# from the message cursor. 1-9 choose a suggestion. `add` saves the word to your
+# personal dictionary; `ignore` accepts it for this session. (Some layouts turn alt+s
+# into ß; bind e.g. alt+k instead.)
+[keys.spell]
+# From the message cursor; shown as z=.
+open        = "z ="      # correct the misspellings in the draft, one at a time
+open_insert = "alt+s"    # correct the misspellings in what you are writing
+# leave this word and its other copies, go to the next (space too)
+skip        = "s,space"
+add         = "a"        # add it to your dictionary, every copy — kept after a restart
+ignore      = "i"        # accept it, every copy, for this session
+skip_all    = "S"        # leave every word left and finish — a send goes out
+# accept every word left for this session and finish — a send goes out
+ignore_all  = "I"
+stop        = "esc"      # stop, leaving the rest underlined
+choose_1    = "1"        # take the first suggestion and go to the next word
+choose_2    = "2"        # take the second suggestion and go to the next word
+choose_3    = "3"        # take the third suggestion and go to the next word
+choose_4    = "4"        # take the fourth suggestion and go to the next word
+choose_5    = "5"        # take the fifth suggestion and go to the next word
+choose_6    = "6"        # take the sixth suggestion and go to the next word
+choose_7    = "7"        # take the seventh suggestion and go to the next word
+choose_8    = "8"        # take the eighth suggestion and go to the next word
+choose_9    = "9"        # take the ninth suggestion and go to the next word
+
+# The emoji browser. Typing filters; `:` in a message also completes shortcodes.
+[keys.emoji]
+# From the message cursor it reacts instead.
+open   = "ctrl+e"     # browse emoji to insert
+accept = "enter,tab"  # insert the selected emoji
+cancel = "esc"        # close the browser
+
+# Writing a message: see [composer].
+[keys.composer]
+external_edit = "alt+e"   # write a message in $EDITOR
+# ctrl+z restores it.
+cut           = "ctrl+x"  # cut the whole draft to the clipboard
+
+# Chooser overlays (people, identities, colors). One with letter actions starts in
+# navigate mode; `filter` switches to typing.
+[keys.picker]
+filter    = "i"          # start typing to narrow the list
+name      = "a"          # name the person under the cursor
+# In the member list.
+person    = "I"          # the phonebook card of the person under the cursor
+toggle    = "space"      # tick the row under the cursor (in a list of checkboxes)
+# In settings.
+increase  = "+"          # raise the number under the cursor
+# In settings.
+decrease  = "minus"      # lower the number under the cursor
+# In a settings list.
+move_up   = "K"          # move the entry under the cursor up
+# In a settings list.
+move_down = "J"          # move the entry under the cursor down
+# A list setting's entry, a tag's rule or room, a card's field, a settings record (an
+# alias, a name, a rule), a tag (asks first), a notification rule, a scheduled message;
+# in the filing picker it unticks.
+remove    = "x"          # remove the row under the cursor from its list
+# Asks first.
+kick      = "r"          # remove the person under the cursor from this room
+# Asks first.
+ban       = "b"          # ban the person under the cursor from this room
+# In the thread list.
+rename    = "alt+r"      # name the thread under the cursor
+accept    = "enter,tab"  # choose the item under the cursor, or apply the ticked ones
+close     = "esc"        # stop typing, then close
+
+# The react prompt. A pick key reacts with that palette position, while nothing is typed.
+[keys.react]
+send    = "enter"  # post the typed reaction
+cancel  = "esc"    # close the prompt
+pick_1  = "1"      # react with the palette's first emoji
+pick_2  = "2"      # react with the palette's second emoji
+pick_3  = "3"      # react with the palette's third emoji
+pick_4  = "4"      # react with the palette's fourth emoji
+pick_5  = "5"      # react with the palette's fifth emoji
+pick_6  = "6"      # react with the palette's sixth emoji
+pick_7  = "7"      # react with the palette's seventh emoji
+pick_8  = "8"      # react with the palette's eighth emoji
+pick_9  = "9"      # react with the palette's ninth emoji
+pick_10 = "0"      # react with the palette's tenth emoji
+
+# One-line prompts (joining by address).
+[keys.prompt]
+submit = "enter"  # accept what you typed
+cancel = "esc"    # close the prompt
+
+# Confirmations of destructive actions.
+[keys.confirm]
+yes     = "y"      # go ahead
+no      = "n,esc"  # never mind
+# Leaving a space: every room also in another space goes too.
+yes_all = "Y"      # yes, and to each question like it
+# Leaving a space: every room also in another space stays.
+no_all  = "N"      # no, and to each question like it
+
+# The device-verification overlay.
+[keys.verify]
+confirm = "y"      # accept / confirm the emoji match
+cancel  = "n,esc"  # reject
+
+# The voice-note player bar (see [display.media.audio]). While a note is loaded
+# these are consulted before the focused pane.
+[keys.player]
+play_pause   = "space"  # play / pause (from the end, plays it again)
+back         = "["      # back by the skip step
+forward      = "]"      # forward by the skip step
+slower       = "{"      # slower
+faster       = "}"      # faster
+normal_speed = "="      # back to the speed set for this place
+save_speed   = "w"      # remember this speed for a room, a space or a person
+stop         = "P"      # stop and close the player

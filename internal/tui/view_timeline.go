@@ -249,7 +249,7 @@ func (m Model) contentWidth() int {
 // gutterWidth is the row-number column's width, taken out of the content width so
 // layout and scroll math agree.
 func (m Model) gutterWidth() int {
-	if !m.prefs.display.RowNumbers {
+	if !m.prefs.device.RowNumbers {
 		return 0
 	}
 	return gutterCells

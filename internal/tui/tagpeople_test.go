@@ -176,8 +176,7 @@ func TestATagsRoomListSwitchesToItsPeople(t *testing.T) {
 	muted := false
 	cfg := config.Config{Tags: []config.Tag{{Name: "Spam", Notifies: &muted, People: []string{"matrix:@bob:example.org"}}}}
 	cfg.Display.Identities = []config.Identity{{Alias: "Bob", IDs: []string{"matrix:@bob:example.org", "telegram:1001"}}}
-	cfg.Keys.Tag = config.TagKeys{{Chord: "!", Tag: "Spam"}}
-	m := sized(t, withRooms(t, New(context.Background(), tagPeopleBackend{}, cfg.Display).WithConfigFile("", asStarted(cfg))))
+	m := sized(t, withRooms(t, New(context.Background(), tagPeopleBackend{}, cfg.Display, config.DeviceDisplay{}).WithConfigFile("", asStarted(cfg))))
 	m = update(t, m, personVerdictsLoadedMsg{verdicts: []domain.PersonVerdict{
 		{Person: "matrix:@cat:example.org", Tag: "spam", Rule: domain.MoveAlways, Filter: "crypto", At: at(86400 * 400)},
 	}})
@@ -231,14 +230,14 @@ func TestATagsPageListsItsPeople(t *testing.T) {
 
 	muted := false
 	cfg := config.Config{Tags: []config.Tag{{Name: "Spam", Notifies: &muted, People: []string{"matrix:@bob:example.org"}}}}
-	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, cfg.Display).WithConfigFile("", asStarted(cfg))))
+	m := sized(t, withRooms(t, New(context.Background(), apitest.Nop{}, cfg.Display, config.DeviceDisplay{}).WithConfigFile("", asStarted(cfg))))
 	m = update(t, m, personVerdictsLoadedMsg{verdicts: []domain.PersonVerdict{
 		{Person: "matrix:@cat:example.org", Tag: "spam", Rule: domain.MoveAlways, Filter: "crypto"},
 	}})
 	rows := m.tagPageRows("Spam", "place:tag:Spam")
 	shown := map[string]string{}
 	for _, r := range rows {
-		shown[r.label] = stripIsolates(r.show(m.conf.base))
+		shown[r.label] = stripIsolates(r.show(m.settings()))
 	}
 	if got := shown["People"]; !strings.HasPrefix(got, "1: ") || !strings.Contains(got, "bob") {
 		t.Errorf("People shows %q, want Bob", got)

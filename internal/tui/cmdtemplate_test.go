@@ -78,8 +78,9 @@ func secretModel(t *testing.T, blocks []config.Command, scripts map[string]strin
 	if keyring != nil {
 		m = m.WithSecrets(keyring)
 	}
-	m = m.WithConfigFile(filepath.Join(home, "config.toml"),
-		config.Config{Profiles: starter(t).Profiles, Commands: config.Commands{Dir: dir, Timeout: 5}, UserCommands: blocks}).keptIn()
+	path := filepath.Join(home, "config.toml")
+	m = m.WithConfigFile(path, config.Config{Profiles: starter(t).Profiles, Commands: config.Commands{Dir: dir}}).
+		WithDevice(config.DevicePath(path), commanding(blocks)).keptIn()
 	return m, dir
 }
 
@@ -266,7 +267,7 @@ func checkTemplateCase(t *testing.T, tmpl cmdtemplates.Template, c templateCase)
 	want := free && keyringOK && allTyped
 
 	script, readErr := os.ReadFile(filepath.Join(dir, name))
-	_, configured := m.conf.base.CommandFor(name)
+	_, configured := m.conf.device.CommandFor(name)
 	switch {
 	case c.taken == "file":
 		if string(script) != theirs {
@@ -298,8 +299,8 @@ func checkTemplateCase(t *testing.T, tmpl cmdtemplates.Template, c templateCase)
 	if c.taken != "" && len(keyring.snapshot()) > 0 {
 		t.Errorf("%s: secrets were kept for a name already taken: %v", what, keyring.snapshot())
 	}
-	if c.taken == "block" && len(m.conf.base.UserCommands) != 1 {
-		t.Errorf("%s: blocks = %+v, want the existing one alone", what, m.conf.base.UserCommands)
+	if c.taken == "block" && len(m.conf.device.UserCommands) != 1 {
+		t.Errorf("%s: blocks = %+v, want the existing one alone", what, m.conf.device.UserCommands)
 	}
 	if m.choosing.secret.values != nil {
 		t.Errorf("%s: typed secrets are still held by the model", what)
@@ -342,8 +343,8 @@ func TestSettingsShowsTemplatesAndMissingSecrets(t *testing.T) {
 
 	t1, _ := recordTable(commandsTable)
 	rows := m.recordRows(t1)
-	if rows[0].show(m.conf.base) != "missing client_secret" {
-		t.Errorf("row = %q, want the missing secret named", rows[0].show(m.conf.base))
+	if rows[0].show(m.settings()) != "missing client_secret" {
+		t.Errorf("row = %q, want the missing secret named", rows[0].show(m.settings()))
 	}
 	if !slices.ContainsFunc(rows, func(s setting) bool { return s.label == "Add from template" }) {
 		t.Error("the commands list has no Add from template row")
@@ -351,7 +352,7 @@ func TestSettingsShowsTemplatesAndMissingSecrets(t *testing.T) {
 	fields := m.recordFieldRows(t1, 0)
 	shown := map[string]string{}
 	for _, s := range fields {
-		shown[s.label] = s.show(m.conf.base)
+		shown[s.label] = s.show(m.settings())
 	}
 	if shown["Secret · client_id"] != "kept" || shown["Secret · client_secret"] != "missing" {
 		t.Errorf("secret rows = %v", shown)

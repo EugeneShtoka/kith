@@ -67,7 +67,7 @@ func optionalLevel(key, spelled string) (*notify.Level, error) {
 
 // NotifierReporting builds the delivery sinks, or a Nop when notifications are off;
 // report receives every failed delivery.
-func NotifierReporting(notifs config.Notifications, report func(sink string, err error)) notify.Notifier {
+func NotifierReporting(notifs config.DeviceNotifications, report func(sink string, err error)) notify.Notifier {
 	if !notifs.Enabled {
 		return notify.Nop{}
 	}
@@ -82,8 +82,8 @@ func NotifierReporting(notifs config.Notifications, report func(sink string, err
 }
 
 // NotifierSinks is NotifierReporting as a builder, for rebuilding sinks on reload.
-func NotifierSinks(report func(sink string, err error)) func(config.Notifications) notify.Notifier {
-	return func(notifs config.Notifications) notify.Notifier { return NotifierReporting(notifs, report) }
+func NotifierSinks(report func(sink string, err error)) func(config.DeviceNotifications) notify.Notifier {
+	return func(notifs config.DeviceNotifications) notify.Notifier { return NotifierReporting(notifs, report) }
 }
 
 // NotificationLimit is how much one room may interrupt you with, resolved.
@@ -109,6 +109,6 @@ func NotificationLimit(notifs config.Notifications) (notify.Limit, error) {
 const defaultRateWindow = 2 * time.Minute
 
 // Templates is the user's title and body format, defaults filled in.
-func Templates(notifs config.Notifications) notify.Templates {
+func Templates(notifs config.DeviceNotifications) notify.Templates {
 	return notify.Templates{Title: notifs.TitleTemplate(), Body: notifs.BodyTemplate()}
 }

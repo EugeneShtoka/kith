@@ -166,17 +166,18 @@ func (m Model) railFromState() []group {
 }
 
 // startupPrefs is the settings New starts with, before a config is applied.
-func startupPrefs(display config.Display, unreadLocal bool) prefsState {
+func startupPrefs(display config.Display, device config.DeviceDisplay, unreadLocal bool) prefsState {
 	clock, _ := setup.Clock(display) // validated at startup; the zero Clock is the default
 	return prefsState{
 		clock:       clock,
 		display:     display,
+		device:      device,
 		identities:  buildIdentities(display.Identities),
 		aliases:     setup.Aliases(display.Identities),
-		openInsert:  display.OpenInInsertMode(),
+		openInsert:  device.OpenInInsertMode(),
 		unreadLocal: unreadLocal,
 		// A working default even with no config.
-		external: externalCommands{open: config.Clipboard{}.OpenCommandOrDefault()},
+		external: externalCommands{open: config.DeviceClipboard{}.OpenCommandOrDefault()},
 	}
 }
 
@@ -456,7 +457,9 @@ type timelineState struct {
 // prefsState is the settings resolved from the config on each apply (applyConfig): read
 // everywhere, written nowhere else.
 type prefsState struct {
+	// display is the bridge's [display], device this device's.
 	display config.Display
+	device  config.DeviceDisplay
 	// identities maps each merged MXID to its resolved person, from display.Identities.
 	identities map[string]resolvedIdentity
 	// aliases maps every ID and number an identity names to its alias (setup.Aliases), so an alias
@@ -491,6 +494,9 @@ type configState struct {
 	// writer keeps saves to path in order; shared by every copy of the Model.
 	writer *configWriter
 	base   config.Config
+	// device is this device's settings; deviceFile writes them, nil not at all.
+	device     config.Device
+	deviceFile *deviceWriter
 	// rev counts live config reloads, which also invalidate derived answers.
 	rev uint64
 	// applied counts changes applied, so one kithd was still checking can tell whether it would
@@ -747,17 +753,17 @@ type resolvedIdentity struct {
 }
 
 // New returns a Model wired to backend, using ctx for all backend calls.
-func New(ctx context.Context, backend api.Backend, display config.Display) Model {
+func New(ctx context.Context, backend api.Backend, display config.Display, device config.DeviceDisplay) Model {
 	// unread is shared with the rail's Unread filter, so it is never reassigned.
 	unread := make(map[domain.RoomID]domain.Unread)
 	mediaMode := startupMediaMode(display)
-	reactScope := display.Reactions.Scope
+	reactScope := device.Reactions.Scope
 	if reactScope == "" {
 		reactScope = "room"
 	}
-	static, tone, tier := startupEmoji(display)
+	static, tone, tier := startupEmoji(device)
 	// Validated at startup; an error here means a config built in code.
-	source, _ := setup.UnreadSource(display.Unread)
+	source, _ := setup.UnreadSource(device.Unread)
 	unreadLocal := source != config.UnreadNotifications
 	parents := make(map[domain.RoomID]domain.SpaceID)
 	// Naming and media are set by applyNaming/applyMedia below, as for every settings change.
@@ -765,8 +771,8 @@ func New(ctx context.Context, backend api.Backend, display config.Display) Model
 		backend:      backend,
 		log:          logging.Discard(),
 		ctx:          ctx,
-		theme:        theme.New(paletteOf(display)),
-		prefs:        startupPrefs(display, unreadLocal),
+		theme:        theme.New(paletteOf(device)),
+		prefs:        startupPrefs(display, device, unreadLocal),
 		unread:       unread,
 		live:         newLiveActivity(),
 		rows:         newThreadRows(),
@@ -774,7 +780,7 @@ func New(ctx context.Context, backend api.Backend, display config.Display) Model
 		namedThreads: map[domain.EventID]bool{},
 		glyphs: emojiState{
 			skin:    tone,
-			set:     newEmojiSet(tier, display.Emoji.Extra),
+			set:     newEmojiSet(tier, device.Emoji.Extra),
 			orders:  map[domain.RoomID]emojiOrder{},
 			scope:   reactScope,
 			static:  static,
@@ -791,19 +797,20 @@ func New(ctx context.Context, backend api.Backend, display config.Display) Model
 		focus:    paneRail,
 		derived:  newDerivedCache(),
 		frames:   &frameClock{},
-		receipts: receiptState{policy: readSettingsFrom(display)},
+		receipts: receiptState{policy: readSettingsFrom(device)},
 		parents:  parents,
 		// Tags arrive with the config (WithConfigFile): until then, the fallback row.
 		rail: railState{groups: []group{fallbackGroup()}, cfg: display.Rail, tagMemo: &tagMemo{}},
 		st:   statusState{standing: "loading rooms…"},
+		conf: configState{device: config.Device{Display: device, Keys: config.DefaultKeys()}},
 	}
-	m = m.applyNaming(display)
+	m = m.applyNaming(display, device)
 	return m.applyMedia(display.Media)
 }
 
 // startupEmoji resolves the react palette (toned), skin tone and emoji tier. Validated at
 // startup, so errors fall back to defaults.
-func startupEmoji(display config.Display) (static []string, tone string, tier string) {
+func startupEmoji(display config.DeviceDisplay) (static []string, tone string, tier string) {
 	static = cappedStatic(display.Reactions.Static)
 	tone, _ = setup.SkinTone(display.SkinTone)
 	tier, _ = setup.EmojiTier(display.Emoji.Set)
@@ -1067,7 +1074,7 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleMemberChanged(msg))
 	case roomCreatedMsg, chatOffersMsg:
 		return answered(m.handleCreating(msg))
-	case configCheckedMsg, configSavedMsg, configNewsMsg:
+	case configCheckedMsg, configSavedMsg, configNewsMsg, deviceSavedMsg:
 		return answered(m.handleConfigNews(msg))
 	case loginMsg, loginNetworksMsg, insteadFailedMsg, importNetworksMsg, importPreviewMsg, importedMsg:
 		return answered(m.handleAccounts(msg))
@@ -2586,7 +2593,7 @@ func (m Model) loadRoomCmd(roomID domain.RoomID) tea.Cmd {
 	if _, ranked := m.glyphs.orders[roomID]; !ranked {
 		cmds = append(cmds, m.emojiScoresCmd(roomID, domain.EmojiReaction), m.emojiScoresCmd(roomID, domain.EmojiComposed))
 	}
-	if m.prefs.display.Threads.Mode() == config.ThreadsAll {
+	if m.prefs.device.Threads.Mode() == config.ThreadsAll {
 		cmds = append(cmds, m.roomThreadsCmd(roomID))
 	}
 	return tea.Batch(append(cmds, m.listThreadsCmd())...)
@@ -2670,7 +2677,7 @@ func (m Model) sendComposedNow(room domain.Room, body string, emote bool) (Model
 	draft := domain.Draft{
 		Body: body, Mentions: m.compose.drafted, ReplyTo: m.compose.replyTo, ThreadRoot: m.thread.root, Emote: emote,
 		// Markup-or-not travels with the draft, so a queued or scheduled send renders as written.
-		Plain: m.plainSend || !m.conf.base.Composer.MarkdownEnabled(),
+		Plain: m.plainSend || !m.conf.device.Composer.MarkdownEnabled(),
 		// One TxnID per message: retries reuse it so the homeserver dedupes (see domain.Draft.TxnID).
 		TxnID: newTxnID(),
 	}
@@ -2962,6 +2969,21 @@ func (m Model) WithKeys(keys config.Keys) Model {
 	return m
 }
 
+// WithDevice applies this device's settings, read from path at start (New took their
+// [display]): its keys, commands and clipboard. Changes are saved to path; empty is
+// not saved.
+func (m Model) WithDevice(path string, dev config.Device) Model {
+	m.conf.device = dev
+	if path != "" {
+		m.conf.deviceFile = &deviceWriter{path: path, base: dev}
+	}
+	m = m.WithKeys(dev.Keys)
+	// Command bindings live in [[command]], not [keys], so bind them onto the keymap.
+	m.keys = m.keys.withScripts(dev.UserCommands)
+	m.prefs.external = externalsOf(dev.Clipboard)
+	return m
+}
+
 // helpKey names a key that opens help, falling back to the config field name.
 func (m Model) helpKey() string {
 	if bound := m.keys.labels[scopeCommand][actHelp]; len(bound) > 0 {
@@ -2983,14 +3005,12 @@ func (m Model) WithConfigFile(path string, cfg config.Config) Model {
 		}
 	}
 	// main validates first; an error here means a config built in code, so fall back to defaults whole.
-	derived, err := derive(cfg, m.profiles.current)
+	derived, err := derive(config.Settings{Bridge: cfg, Device: m.conf.device}, m.profiles.current)
 	if err != nil {
 		m = m.sayErr("config", err)
-		derived, _ = derive(config.Config{}, "")
+		derived, _ = derive(config.Settings{}, "")
 	}
 	next := m.applyIntegrations(cfg, derived)
-	// Command bindings live in [[command]], not [keys], so bind them onto the existing keymap.
-	next.keys = next.keys.withScripts(cfg.UserCommands)
 	// The rail is the spaces and the tags; New had no tags to build it from.
 	return next.rebuiltRail()
 }
@@ -3003,6 +3023,8 @@ func (m Model) handleConfigNews(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleConfigChecked(msg)
 	case configSavedMsg:
 		return m.handleConfigSaved(msg)
+	case deviceSavedMsg:
+		return m.handleDeviceSaved(msg)
 	}
 	news, _ := msg.(configNewsMsg)
 	return m.handleConfigNewsMsg(news)

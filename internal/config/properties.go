@@ -34,12 +34,15 @@ const (
 	PropertyList
 )
 
-// Property is one setting: its path, its kind, and what default.toml says of it.
+// Property is one setting: its path, its kind, the file it is in, and what that file's
+// annotated default (default.toml, default_device.toml) says of it.
 type Property struct {
 	Path string
 	Kind PropertyKind
-	// Doc is default.toml's comment and Default its value as TOML (true, 30, "room");
-	// "" when absent. Example marks a Default written only commented out.
+	// File is BridgeFile or DeviceFile.
+	File string
+	// Doc is the annotated default's comment and Default its value as TOML (true, 30,
+	// "room"); "" when absent. Example marks a Default written only commented out.
 	Doc, Default string
 	Example      bool
 }
@@ -47,17 +50,32 @@ type Property struct {
 // notProperties are the top-level tables that hold no properties.
 var notProperties = []string{"keys", "storage"}
 
-// Properties is every property, in the order the config declares them.
+// settingsFile is one file settings live in: its name, annotated default and type.
+type settingsFile struct {
+	name, annotated string
+	typ             reflect.Type
+}
+
+// settingsFiles are the bridge's file and the device's, in the order settings list.
+var settingsFiles = []settingsFile{
+	{BridgeFile, defaultConfigTOML, reflect.TypeFor[Config]()},
+	{DeviceFile, defaultDeviceTOML, reflect.TypeFor[Device]()},
+}
+
+// Properties is every property, the bridge's then the device's, each in the order its
+// file's type declares them.
 func Properties() []Property {
 	propertiesOnce.Do(func() {
-		docs := documented()
-		walkProperties(reflect.TypeFor[Config](), nil, func(path []string, kind PropertyKind) {
-			p := Property{Path: strings.Join(path, "."), Kind: kind}
-			if d, ok := docs[p.Path]; ok {
-				p.Doc, p.Default, p.Example = d.text, d.value, d.example
-			}
-			properties = append(properties, p)
-		})
+		for _, f := range settingsFiles {
+			docs := documented(f)
+			walkProperties(f.typ, nil, func(path []string, kind PropertyKind) {
+				p := Property{Path: strings.Join(path, "."), Kind: kind, File: f.name}
+				if d, ok := docs[p.Path]; ok {
+					p.Doc, p.Default, p.Example = d.text, d.value, d.example
+				}
+				properties = append(properties, p)
+			})
+		}
 	})
 	return slices.Clone(properties)
 }
@@ -67,10 +85,42 @@ var (
 	properties     []Property
 )
 
-// isProperty reports whether path names a property.
-func isProperty(path string) bool {
-	return slices.ContainsFunc(Properties(), func(p Property) bool { return p.Path == path })
+// isProperty reports whether path names a property of file.
+func isProperty(file, path string) bool {
+	return slices.ContainsFunc(Properties(), func(p Property) bool { return p.File == file && p.Path == path })
 }
+
+// Settings is everything a client runs on: the bridge's config, which kithd keeps,
+// and this device's. Its property and record methods reach each path in its own file.
+type Settings struct {
+	Bridge Config
+	Device Device
+}
+
+// Clone returns a deep copy of s.
+func (s Settings) Clone() Settings {
+	return Settings{Bridge: s.Bridge.Clone(), Device: s.Device.Clone()}
+}
+
+// root is the file path is in, as a value of s settable when s is, and its name.
+func (s *Settings) root(path string) (reflect.Value, string) {
+	if devicePaths()[path] {
+		return reflect.ValueOf(&s.Device).Elem(), DeviceFile
+	}
+	return reflect.ValueOf(&s.Bridge).Elem(), BridgeFile
+}
+
+// devicePaths are the device's properties and record tables, by path.
+var devicePaths = sync.OnceValue(func() map[string]bool {
+	out := map[string]bool{}
+	for _, p := range Properties() {
+		out[p.Path] = out[p.Path] || p.File == DeviceFile
+	}
+	for _, t := range RecordTables() {
+		out[t.Path] = out[t.Path] || t.File == DeviceFile
+	}
+	return out
+})
 
 // walkProperties calls found for each property field under typ, path naming typ.
 func walkProperties(typ reflect.Type, path []string, found func([]string, PropertyKind)) {
@@ -137,9 +187,10 @@ func field(c reflect.Value, path string) (reflect.Value, bool) {
 
 // Value is the property at path as text: a list joined by ", ", an unset optional
 // "" (set reports whether it is set). false when path is no property.
-func (c Config) Value(path string) (text string, set, ok bool) {
-	v, ok := field(reflect.ValueOf(c), path)
-	if !ok || !isProperty(path) {
+func (s Settings) Value(path string) (text string, set, ok bool) {
+	root, file := s.root(path)
+	v, ok := field(root, path)
+	if !ok || !isProperty(file, path) {
 		return "", false, false
 	}
 	text, set = valueText(v)
@@ -164,9 +215,10 @@ func valueText(v reflect.Value) (text string, set bool) {
 }
 
 // List is the list property at path; nil when path is no list.
-func (c Config) List(path string) []string {
-	v, ok := field(reflect.ValueOf(c), path)
-	if !ok || v.Kind() != reflect.Slice || !isProperty(path) {
+func (s Settings) List(path string) []string {
+	root, file := s.root(path)
+	v, ok := field(root, path)
+	if !ok || v.Kind() != reflect.Slice || !isProperty(file, path) {
 		return nil
 	}
 	return slices.Clone(v.Interface().([]string)) //nolint:forcetypeassert // as Value
@@ -174,9 +226,15 @@ func (c Config) List(path string) []string {
 
 // SetValue writes text into the property at path, parsed by its kind. "" unsets an
 // optional and zeroes the rest, which is the default a file without the key has.
-func (c *Config) SetValue(path, text string) error {
-	v, ok := field(reflect.ValueOf(c).Elem(), path)
-	if !ok || !isProperty(path) {
+func (s *Settings) SetValue(path, text string) error {
+	root, file := s.root(path)
+	return setValue(root, file, path, text)
+}
+
+// setValue is SetValue in the file root, named file.
+func setValue(root reflect.Value, file, path, text string) error {
+	v, ok := field(root, path)
+	if !ok || !isProperty(file, path) {
 		return fmt.Errorf("config: %s is not a setting", path)
 	}
 	return setText(v, text)
@@ -225,9 +283,10 @@ func setText(v reflect.Value, text string) error {
 }
 
 // SetList writes the list property at path; an empty list unsets it.
-func (c *Config) SetList(path string, entries []string) error {
-	v, ok := field(reflect.ValueOf(c).Elem(), path)
-	if !ok || v.Kind() != reflect.Slice || v.Type().Elem().Kind() != reflect.String || !isProperty(path) {
+func (s *Settings) SetList(path string, entries []string) error {
+	root, file := s.root(path)
+	v, ok := field(root, path)
+	if !ok || v.Kind() != reflect.Slice || v.Type().Elem().Kind() != reflect.String || !isProperty(file, path) {
 		return fmt.Errorf("config: %s is not a list", path)
 	}
 	if len(entries) == 0 {
@@ -265,17 +324,17 @@ var (
 	keyLine = regexp.MustCompile(`^(?:# ?)?([a-z_0-9]+)\s*=\s*(.*)$`)
 )
 
-// documented reads each key's doc and value from default.toml. The doc is the comment
-// directly above the key; else its paragraph's opening comment; else, in a table's
-// first paragraph, the key's entry in the header comment ("#   mode   ...") or the
-// whole header. A key written twice keeps the first.
-func documented() map[string]doc {
+// documented reads each key's doc and value from a file's annotated default. The doc
+// is the comment directly above the key; else its paragraph's opening comment; else,
+// in a table's first paragraph, the key's entry in the header comment ("#   mode
+// ...") or the whole header. A key written twice keeps the first.
+func documented(f settingsFile) map[string]doc {
 	r := docReader{docs: map[string]doc{}, live: map[string]bool{}, headers: map[string][]string{}}
-	for raw := range strings.SplitSeq(defaultConfigTOML, "\n") {
+	for raw := range strings.SplitSeq(f.annotated, "\n") {
 		r.line(strings.TrimRight(raw, " \t"))
 	}
 	// A key a table's header describes but the file never writes ("#   max_width ...").
-	walkProperties(reflect.TypeFor[Config](), nil, func(path []string, _ PropertyKind) {
+	walkProperties(f.typ, nil, func(path []string, _ PropertyKind) {
 		p := strings.Join(path, ".")
 		if _, ok := r.docs[p]; ok || len(path) < 2 {
 			return

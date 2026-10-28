@@ -36,7 +36,7 @@ func (m Model) archivedShownIn(place string) bool {
 	if shown, flipped := m.rail.archivedShown[place]; flipped {
 		return shown
 	}
-	return m.prefs.display.ShowsArchivedIn(m.namesHome(place))
+	return m.prefs.display.ShowsArchivedIn(m.prefs.device, m.namesHome(place))
 }
 
 // toggleArchived shows or hides archived rooms in the place in view until restart.

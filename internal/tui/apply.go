@@ -16,28 +16,44 @@ import (
 	"github.com/EugeneShtoka/kith/internal/theme"
 )
 
-// applyConfig makes cfg the running configuration: re-derives everything the UI reads,
+// applyConfig makes cfg the bridge's running configuration (applySettings).
+func (m Model) applyConfig(cfg config.Config, done string) (Model, tea.Cmd) {
+	return m.applySettings(config.Settings{Bridge: cfg, Device: m.conf.device}, done)
+}
+
+// applyDevice makes dev this device's running settings (applySettings).
+func (m Model) applyDevice(dev config.Device, done string) (Model, tea.Cmd) {
+	return m.applySettings(config.Settings{Bridge: m.conf.base, Device: dev}, done)
+}
+
+// settings is what the window runs on: the bridge's config and this device's.
+func (m Model) settings() config.Settings {
+	return config.Settings{Bridge: m.conf.base, Device: m.conf.device}
+}
+
+// applySettings makes s the running configuration: re-derives everything the UI reads,
 // keeps the rail cursor on focusGroup (empty = where it was), reports done, and writes
-// the file. Every in-app setting change goes through here so nothing derived goes stale.
+// each file that changed, the bridge's through kithd and the device's here. Every
+// in-app setting change goes through here so nothing derived goes stale.
 //
 // A change to a network's accounts waits for kithd to accept it (configCheckedMsg),
 // and is dropped if another change was applied meanwhile, which it would undo.
-func (m Model) applyConfig(cfg config.Config, done string) (Model, tea.Cmd) {
+func (m Model) applySettings(s config.Settings, done string) (Model, tea.Cmd) {
 	// Rules are derived only to validate them; the daemon resolves them itself.
-	derived, err := derive(cfg, m.profiles.current)
+	derived, err := derive(s, m.profiles.current)
 	if err != nil {
 		m = m.sayErr("could not apply", err)
 		return m, nil
 	}
 	checker, ok := m.backend.(configChecker)
-	if !ok || !networksChanged(m.conf.base, cfg) {
-		return m.applyDerived(cfg, derived, done)
+	if !ok || !networksChanged(m.conf.base, s.Bridge) {
+		return m.applyDerived(s, derived, done)
 	}
 	app, over := m.ctx, m.conf.applied
 	return m, func() tea.Msg {
 		ctx, cancel := context.WithTimeout(app, configCheckTimeout)
 		defer cancel()
-		return configCheckedMsg{cfg: cfg, derived: derived, done: done, over: over, err: checker.CheckConfig(ctx, cfg)}
+		return configCheckedMsg{cfg: s, derived: derived, done: done, over: over, err: checker.CheckConfig(ctx, s.Bridge)}
 	}
 }
 
@@ -51,7 +67,7 @@ const configCheckTimeout = 15 * time.Second
 
 // configCheckedMsg is kithd's verdict on a change applyConfig held back.
 type configCheckedMsg struct {
-	cfg     config.Config
+	cfg     config.Settings
 	derived derivations
 	done    string
 	// over is how many changes had been applied when it was made (configState.applied).
@@ -75,32 +91,41 @@ func networksChanged(was, now config.Config) bool {
 	return !reflect.DeepEqual(was.Networks(), now.Networks())
 }
 
-// applyDerived makes cfg, already checked and derived, the running configuration and
-// has the daemon save it.
-func (m Model) applyDerived(cfg config.Config, derived derivations, done string) (Model, tea.Cmd) {
-	next, cmd := m.runDerived(cfg, derived, done)
-	return next, tea.Batch(next.saveConfigFileCmd(cfg), cmd)
+// applyDerived makes s, already checked and derived, the running configuration, has
+// the daemon save the bridge's config if it changed, and saves the device's if it did.
+func (m Model) applyDerived(s config.Settings, derived derivations, done string) (Model, tea.Cmd) {
+	was := m.settings()
+	next, cmd := m.runDerived(s, derived, done)
+	var saves []tea.Cmd
+	if !reflect.DeepEqual(was.Bridge, s.Bridge) {
+		saves = append(saves, next.saveConfigFileCmd(s.Bridge))
+	}
+	if !reflect.DeepEqual(was.Device, s.Device) {
+		saves = append(saves, next.saveDeviceCmd(s.Device))
+	}
+	return next, tea.Batch(append(saves, cmd)...)
 }
 
-// runDerived makes cfg, already checked and derived, the running configuration.
-func (m Model) runDerived(cfg config.Config, derived derivations, done string) (Model, tea.Cmd) {
+// runDerived makes s, already checked and derived, the running configuration.
+func (m Model) runDerived(s config.Settings, derived derivations, done string) (Model, tea.Cmd) {
+	cfg, dev := s.Bridge, s.Device
 	m.conf.applied++
-	m = m.applyIntegrations(cfg, derived)
+	m = m.applyIntegrations(cfg, derived).runningOn(dev)
 	m.prefs.display = cfg.Display
-	m.keys = keymapFor(cfg)
+	m.keys = keymapFor(dev)
 	m.theme = theme.New(derived.palette)
 	m.prefs.identities = buildIdentities(cfg.Display.Identities)
 	m.prefs.aliases = setup.Aliases(cfg.Display.Identities)
 	m.prefs.clock = derived.clock
-	m.receipts.policy = readSettingsFrom(cfg.Display)
+	m.receipts.policy = readSettingsFrom(dev.Display)
 	// Invalidates the timeline's cached colors, name column and rows.
 	m.conf.rev++
-	m = m.applyNaming(cfg.Display)
-	m.prefs.openInsert = cfg.Display.OpenInInsertMode()
+	m = m.applyNaming(cfg.Display, dev.Display)
+	m.prefs.openInsert = dev.Display.OpenInInsertMode()
 	m.pics.mode = derived.media
 	m.pics.graphics = resolveGraphics(m.pics.mode)
 	m.pics.blocks = resolveBlocks(derived.detail)
-	m.glyphs.scope = cfg.Display.Reactions.Scope
+	m.glyphs.scope = dev.Display.Reactions.Scope
 	m = m.applyMedia(cfg.Display.Media)
 	// Set before the rail is rebuilt: a group's Unread filter captures unreadView.
 	m.prefs.unreadLocal = derived.unreadLocal
@@ -109,7 +134,7 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m = m.resettleLayout()
 	m.glyphs.skin = derived.tone
 	m.glyphs.set = derived.emoji
-	m.glyphs.static = toneEach(cappedStatic(cfg.Display.Reactions.Static), derived.tone)
+	m.glyphs.static = toneEach(cappedStatic(dev.Display.Reactions.Static), derived.tone)
 	m.glyphs.palette = m.toneAll(m.glyphs.palette)
 
 	// Keep the rail cursor on a group by key, not position.
@@ -124,7 +149,7 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 	m.rail.cursor = clampIndex(m.rail.cursor, len(m.rail.groups))
 
 	m.notifications.rules = derived.rules
-	m.notifications.on = cfg.Notifications.Enabled
+	m.notifications.on = dev.Notifications.Enabled
 
 	m = m.say(done)
 	// Naming or unnaming a room renames the person it is named after.
@@ -139,11 +164,16 @@ func (m Model) runDerived(cfg config.Config, derived derivations, done string) (
 // adoptConfig runs a config changed elsewhere (another window, a hand edit, the
 // daemon) without saving it back. note goes on the status line.
 func (m Model) adoptConfig(cfg config.Config, note string) (Model, tea.Cmd) {
-	derived, err := derive(cfg, m.profiles.current)
+	return m.adoptSettings(config.Settings{Bridge: cfg, Device: m.conf.device}, note)
+}
+
+// adoptSettings is adoptConfig for either file.
+func (m Model) adoptSettings(s config.Settings, note string) (Model, tea.Cmd) {
+	derived, err := derive(s, m.profiles.current)
 	if err != nil {
 		return m.sayErr("the configuration changed elsewhere, and this window cannot run it", err), nil
 	}
-	return m.runDerived(cfg, derived, note)
+	return m.runDerived(s, derived, note)
 }
 
 // applyIntegrations sets what is read off the config directly rather than derived.
@@ -151,11 +181,6 @@ func (m Model) adoptConfig(cfg config.Config, note string) (Model, tea.Cmd) {
 func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.conf.base = cfg
 	m.prefs.phonebookDir = setup.PhonebookDir(cfg)
-	m.prefs.external.clipboard = cfg.Clipboard.Command
-	m.prefs.external.copyDownloads = cfg.Clipboard.CopyDownloads
-	m.prefs.external.open = cfg.Clipboard.OpenCommandOrDefault()
-	m.prefs.external.focus = cfg.Clipboard.FocusCommand
-	m.prefs.external.raise = cfg.Clipboard.RaiseCommand
 	m.prefs.codes.rules, m.prefs.codes.scope = derived.codeRules, derived.codeScope
 	m.rail.tags = derived.tags
 	m.rail.archives, m.rail.mirrored = derived.archives, derived.mirrored
@@ -175,11 +200,28 @@ func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	return m
 }
 
+// runningOn makes dev the device's settings the window runs on, as read off it
+// directly rather than derived.
+func (m Model) runningOn(dev config.Device) Model {
+	m.conf.device = dev
+	m.prefs.device = dev.Display
+	m.prefs.external = externalsOf(dev.Clipboard)
+	return m
+}
+
+// externalsOf is a device's [clipboard] commands for copying and opening links.
+func externalsOf(c config.DeviceClipboard) externalCommands {
+	return externalCommands{
+		clipboard: c.Command, copyDownloads: c.CopyDownloads, open: c.OpenCommandOrDefault(),
+		focus: c.FocusCommand, raise: c.RaiseCommand,
+	}
+}
+
 // applyNaming rebuilds the room/thread aliases and per-group room-list rules.
-func (m Model) applyNaming(display config.Display) Model {
+func (m Model) applyNaming(display config.Display, device config.DeviceDisplay) Model {
 	m.prefs.roomAliases = buildRoomAliases(display.Names)
 	m.prefs.threadAliases = buildThreadAliases(display.Names)
-	m.rail.rules = roomListRules(display.Rooms)
+	m.rail.rules = roomListRules(device.Rooms)
 	m.prefs.tracked = setup.TrackedRules(display.Tracked)
 	return m
 }
@@ -211,23 +253,27 @@ type derivations struct {
 	rail config.Rail
 }
 
-// derive resolves a config into what the model reads in a profile ("" the first), or
-// returns the first error. The tags and the rail are the profile's.
-func derive(cfg config.Config, profile string) (derivations, error) {
+// derive resolves both files into what the model reads in a profile ("" the first),
+// or returns the first error. The tags and the rail are the profile's.
+func derive(s config.Settings, profile string) (derivations, error) {
+	cfg, dev := s.Bridge, s.Device
 	// A config the app applies must load, or the daemon and the next start refuse it.
 	if err := setup.Validate(cfg); err != nil {
+		return derivations{}, err
+	}
+	if err := setup.ValidateDevice(dev, cfg); err != nil {
 		return derivations{}, err
 	}
 	rules, err := setup.NotificationRules(cfg.Notifications)
 	if err != nil {
 		return derivations{}, err
 	}
-	tone, err := setup.SkinTone(cfg.Display.SkinTone)
+	tone, err := setup.SkinTone(dev.Display.SkinTone)
 	if err != nil {
 		return derivations{}, err
 	}
 	clock, _ := setup.Clock(cfg.Display) // checked by Validate above
-	tier, err := setup.EmojiTier(cfg.Display.Emoji.Set)
+	tier, err := setup.EmojiTier(dev.Display.Emoji.Set)
 	if err != nil {
 		return derivations{}, err
 	}
@@ -239,19 +285,19 @@ func derive(cfg config.Config, profile string) (derivations, error) {
 	if err != nil {
 		return derivations{}, err
 	}
-	source, err := setup.UnreadSource(cfg.Display.Unread)
+	source, err := setup.UnreadSource(dev.Display.Unread)
 	if err != nil {
 		return derivations{}, err
 	}
 	// Validated only: roomOrder resolves the order per group on every draw.
-	if bad := setup.RoomList(cfg.Display.Rooms); bad != nil {
+	if bad := setup.RoomList(dev.Display.Rooms); bad != nil {
 		return derivations{}, bad
 	}
 	detail, err := setup.MediaDetail(cfg.Display.Media.Detail)
 	if err != nil {
 		return derivations{}, err
 	}
-	palette, err := theme.Resolve(cfg.Display.Theme.Preset, cfg.Display.Theme.Overrides())
+	palette, err := theme.Resolve(dev.Display.Theme.Preset, dev.Display.Theme.Overrides())
 	if err != nil {
 		return derivations{}, fmt.Errorf("display.theme: %w", err)
 	}
@@ -261,7 +307,7 @@ func derive(cfg config.Config, profile string) (derivations, error) {
 	}
 	out.palette, out.rules, out.unreadLocal = palette, rules, source != config.UnreadNotifications
 	out.tone, out.clock, out.media, out.detail = tone, clock, media, detail
-	out.emoji, out.codeRules, out.codeScope = newEmojiSet(tier, cfg.Display.Emoji.Extra), codeRules, codeScope
+	out.emoji, out.codeRules, out.codeScope = newEmojiSet(tier, dev.Display.Emoji.Extra), codeRules, codeScope
 	return out, nil
 }
 
@@ -342,9 +388,9 @@ func (m Model) applyNotifications(notifs config.Notifications, done string) (Mod
 	return m.applyConfig(cfg, done)
 }
 
-// paletteOf resolves a display config's colors, falling back to the default palette
-// (a bad preset was refused at startup; derive is the erroring version).
-func paletteOf(display config.Display) theme.Palette {
+// paletteOf resolves a device's colors, falling back to the default palette (a bad
+// preset was refused at startup; derive is the erroring version).
+func paletteOf(display config.DeviceDisplay) theme.Palette {
 	palette, err := theme.Resolve(display.Theme.Preset, display.Theme.Overrides())
 	if err != nil {
 		return theme.Default()

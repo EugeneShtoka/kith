@@ -19,8 +19,16 @@ func TestShippedDefaultTOMLMatchesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the shipped default config does not load: %v", err)
 	}
-	if !reflect.DeepEqual(cfg.Keys, DefaultKeys()) {
-		t.Errorf("shipped [keys] differs from DefaultKeys()\n got %+v\nwant %+v", cfg.Keys, DefaultKeys())
+	devicePath := DevicePath(path)
+	if _, werr := WriteDeviceDefaultIfMissing(devicePath); werr != nil {
+		t.Fatalf("WriteDeviceDefaultIfMissing: %v", werr)
+	}
+	dev, err := LoadDevice(devicePath)
+	if err != nil {
+		t.Fatalf("the shipped default device file does not load: %v", err)
+	}
+	if !reflect.DeepEqual(dev.Keys, DefaultKeys()) {
+		t.Errorf("shipped [keys] differs from DefaultKeys()\n got %+v\nwant %+v", dev.Keys, DefaultKeys())
 	}
 	// The code-detection section's stated defaults match the code.
 	c := cfg.Codes
@@ -32,7 +40,7 @@ func TestShippedDefaultTOMLMatchesDefaults(t *testing.T) {
 	}
 	// The local model's stated defaults match the code.
 	model := cfg.Complete.Model
-	if !model.ModelEnabled() || model.Declined {
+	if !model.ModelEnabled() || dev.Complete.Model.Declined {
 		t.Errorf("shipped [complete.model] = %+v, want enabled and not declined", model)
 	}
 	if model.CommandOrDefault() != "llama-server" {
@@ -47,7 +55,7 @@ func TestShippedDefaultTOMLMatchesDefaults(t *testing.T) {
 	}
 
 	// The notification section documents its own defaults too.
-	n := cfg.Notifications
+	n := dev.Notifications
 	if n.TitleTemplate() != DefaultTitleTemplate || n.BodyTemplate() != DefaultBodyTemplate {
 		t.Errorf("shipped templates = %q/%q, want the defaults", n.TitleTemplate(), n.BodyTemplate())
 	}
@@ -58,12 +66,12 @@ func TestShippedDefaultTOMLMatchesDefaults(t *testing.T) {
 	if cfg.Clipboard.AutoCopy {
 		t.Error("auto-copy should ship off: a clipboard that rewrites itself is remotely triggerable")
 	}
-	if cfg.Clipboard.Command != "" {
-		t.Errorf("shipped [clipboard] command = %q, want empty", cfg.Clipboard.Command)
+	if dev.Clipboard.Command != "" {
+		t.Errorf("shipped [clipboard] command = %q, want empty", dev.Clipboard.Command)
 	}
 	// Sound ships silent.
-	if n.Sound != "" {
-		t.Errorf("shipped [notifications] sound = %q, want silent", n.Sound)
+	if cfg.Notifications.Sound != "" {
+		t.Errorf("shipped [notifications] sound = %q, want silent", cfg.Notifications.Sound)
 	}
 	if got := n.PopupTimeout(); got != DefaultTimeoutSeconds*time.Second {
 		t.Errorf("shipped timeout = %v, want the documented default", got)
@@ -80,8 +88,8 @@ func TestShippedDefaultTOMLMatchesDefaults(t *testing.T) {
 		t.Errorf("shipped [spell] dictionaries = %v, want empty (meaning all of them)", s.Dictionaries)
 	}
 	// The shipped underline equals the vocabulary's first entry, the omitted-key default.
-	if s.Underline != SpellCurly {
-		t.Errorf("shipped [spell] underline = %q, want %q", s.Underline, SpellCurly)
+	if dev.Spell.Underline != SpellCurly {
+		t.Errorf("shipped [spell] underline = %q, want %q", dev.Spell.Underline, SpellCurly)
 	}
 	if want := SpellUnderlines()[0]; want != SpellCurly {
 		t.Errorf("an omitted [spell] underline resolves to %q, but the file ships %q", want, SpellCurly)

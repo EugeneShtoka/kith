@@ -30,7 +30,7 @@ func checkedModel(t *testing.T, d *checkingDaemon) Model {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return New(context.Background(), d, cfg.Display).WithConfigFile("", asStarted(cfg.Clone()))
+	return New(context.Background(), d, cfg.Display, config.DeviceDisplay{}).WithConfigFile("", asStarted(cfg.Clone()))
 }
 
 // withAccount is m's config with one more WhatsApp account.
@@ -81,10 +81,10 @@ func TestAnAccountChangeWaitsForKithd(t *testing.T) {
 
 	asked := d.asked
 	cfg := m.conf.base.Clone()
-	cfg.Display.FPS = 24
+	cfg.Notifications.MaxPerRoom = 24
 	m, _ = m.applyConfig(cfg, "set")
-	if m.conf.base.Display.FPS != 24 || d.asked != asked {
-		t.Errorf("fps %d, kithd asked %d more times; want it applied at once, nothing asked", m.conf.base.Display.FPS, d.asked-asked)
+	if m.conf.base.Notifications.MaxPerRoom != 24 || d.asked != asked {
+		t.Errorf("max_per_room %d, kithd asked %d more times; want it applied at once, nothing asked", m.conf.base.Notifications.MaxPerRoom, d.asked-asked)
 	}
 }
 
@@ -96,12 +96,12 @@ func TestAHeldChangeDoesNotUndoANewerOne(t *testing.T) {
 
 	held, cmd := m.applyConfig(withAccount(m, "home"), "added")
 	cfg := held.conf.base.Clone()
-	cfg.Display.FPS = 24
+	cfg.Notifications.MaxPerRoom = 24
 	m, _ = held.applyConfig(cfg, "set")
 	said := m.status()
 	m = verdict(t, m, cmd)
-	if m.conf.base.Display.FPS != 24 {
-		t.Errorf("fps = %d, want the newer change kept", m.conf.base.Display.FPS)
+	if m.conf.base.Notifications.MaxPerRoom != 24 {
+		t.Errorf("max_per_room = %d, want the newer change kept", m.conf.base.Notifications.MaxPerRoom)
 	}
 	if len(m.conf.base.WhatsApp.Accounts) != 0 || m.status() == said {
 		t.Errorf("accounts %+v, status %q; want the held change dropped, and said", m.conf.base.WhatsApp.Accounts, m.status())
