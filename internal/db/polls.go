@@ -35,7 +35,7 @@ func (c *Cache) SetPoll(ctx context.Context, roomID domain.RoomID, eventID domai
 	if err != nil {
 		return fmt.Errorf("db: encode the poll of %s: %w", eventID, err)
 	}
-	// In a transaction, so its change is numbered as it commits (numberTouched).
+	// In a transaction, so its change is numbered and told as it commits (numberTouched).
 	return c.inTx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO message_polls(room_id, event_id, poll)
 			SELECT ?1, ?2, ?3 WHERE EXISTS

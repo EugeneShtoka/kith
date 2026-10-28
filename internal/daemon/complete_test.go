@@ -3,18 +3,22 @@ package daemon_test
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
+	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
 	"github.com/EugeneShtoka/kith/internal/schedule"
 )
 
-// complete gives d every part a test left out, as kithd builds it: a config file and
+// complete gives d every part a test left out, as kithd builds it: a cache of what the
+// backend sends (cacheOf), a config file and
 // a send-later queue in a temp dir, no networks to log in, a silent notifier and log,
 // and a config check and reload that accept.
 func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
@@ -22,6 +26,9 @@ func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
 	dir := t.TempDir()
 	if d.Streams == nil {
 		d.Streams = daemon.NewStreams()
+	}
+	if d.MessageLog == nil {
+		d.MessageLog = cacheOf(d.Streams)
 	}
 	if d.State == nil {
 		d.State = daemon.NewState()
@@ -68,4 +75,53 @@ func TestServeRefusesAnIncompleteDaemon(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "CheckConfig, Logins") {
 		t.Errorf("Serve = %v, want it to name CheckConfig and Logins", err)
 	}
+}
+
+// messageCache stands in for kithd's cache: every message the backend sends is one it
+// cached first, numbered as the cache numbers a change, a message seen again moving to
+// a new number.
+type messageCache struct {
+	mu      sync.Mutex
+	last    int64
+	changes []domain.MessageChange
+}
+
+// cacheOf caches what streams' backend sends, from now until it ends, telling streams
+// of each change as kithd's cache does.
+func cacheOf(streams *daemon.Streams) *messageCache {
+	c := &messageCache{}
+	_, msgs := streams.SubscribeMessages()
+	go func() {
+		for m := range msgs {
+			c.add(m)
+			streams.MessagesChanged()
+		}
+	}()
+	return c
+}
+
+func (c *messageCache) add(m domain.Message) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.changes = slices.DeleteFunc(c.changes, func(old domain.MessageChange) bool { return old.Message.ID == m.ID })
+	c.last++
+	c.changes = append(c.changes, domain.MessageChange{Number: c.last, Message: m})
+}
+
+func (c *messageCache) LastChange(context.Context) (string, int64, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return "test", c.last, nil
+}
+
+func (c *messageCache) ChangesAfter(_ context.Context, after int64, limit int) (string, []domain.MessageChange, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var out []domain.MessageChange
+	for i := range c.changes {
+		if ch := &c.changes[i]; ch.Number > after && len(out) < limit {
+			out = append(out, *ch)
+		}
+	}
+	return "test", out, nil
 }

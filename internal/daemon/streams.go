@@ -11,6 +11,8 @@ import (
 
 // Streams owns the fan-out for every channel api.Backend exposes (see hub).
 type Streams struct {
+	// messages feeds the in-process notifier; clients read the cache's changes instead
+	// (tail).
 	messages      *hub[domain.Message]
 	unread        *hub[domain.Unread]
 	reactions     *hub[domain.ReactionUpdate]
@@ -24,6 +26,8 @@ type Streams struct {
 	changes *hub[domain.Change]
 	// configs carries the configuration after each change (Configured), like rooms.
 	configs *hub[config.Snapshot]
+	// tail wakes the clients' message streams when the cache numbered more changes.
+	tail *tail
 }
 
 // NewStreams returns Streams with nothing attached. Subscribing before Run is safe.
@@ -37,14 +41,19 @@ func NewStreams() *Streams {
 		activity:      newHub[domain.Activity](),
 		changes:       newHub[domain.Change](),
 		configs:       newHub[config.Snapshot](),
+		tail:          newTail(),
 	}
 }
 
 // Run pumps every backend channel into its hub until ctx ends or the backend closes
-// them, then ends every stream. It blocks.
+// them, then ends every stream. It blocks. The clients' message streams end with the
+// backend's messages, as they did when they were its fan-out.
 func (s *Streams) Run(ctx context.Context, b api.Backend) {
 	var wg sync.WaitGroup
-	wg.Go(func() { s.messages.pump(ctx, b.Messages()) })
+	wg.Go(func() {
+		s.messages.pump(ctx, b.Messages())
+		s.tail.end()
+	})
 	wg.Go(func() { s.unread.pump(ctx, b.Unread()) })
 	wg.Go(func() { s.reactions.pump(ctx, b.Reactions()) })
 	wg.Go(func() { s.invites.pump(ctx, b.Invites()) })
@@ -73,7 +82,7 @@ func (s *Streams) ReleaseMessages(id uint64) { s.messages.release(id) }
 // across the five streams, since a client subscribes one by one.
 func (s *Streams) Attached() int {
 	return min(
-		s.messages.subscribers(),
+		s.tail.readers(),
 		s.unread.subscribers(),
 		s.reactions.subscribers(),
 		s.invites.subscribers(),
@@ -89,3 +98,67 @@ func (s *Streams) RoomsChanged() { s.changes.broadcast(domain.ChangeRooms) }
 
 // AccountsChanged tells every attached client that a network account's state changed.
 func (s *Streams) AccountsChanged() { s.changes.broadcast(domain.ChangeAccounts) }
+
+// MessagesChanged wakes the clients' message streams: the cache numbered more changes,
+// or started a new epoch (db.Cache.OnChanged).
+func (s *Streams) MessagesChanged() { s.tail.ring() }
+
+// tail is what a client's message stream waits on between reads of the cache. A reader
+// takes the bell before it reads, so a change committed while it reads rings one it
+// already holds.
+type tail struct {
+	mu   sync.Mutex
+	bell chan struct{}
+	// ended means the backend's messages ended: every stream ends with them.
+	ended bool
+	count int
+}
+
+func newTail() *tail { return &tail{bell: make(chan struct{})} }
+
+// join counts a reader in; leave counts it out.
+func (t *tail) join() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.count++
+}
+
+func (t *tail) leave() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.count--
+}
+
+func (t *tail) readers() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.count
+}
+
+// next is the bell the next change rings, and whether the stream has ended.
+func (t *tail) next() (<-chan struct{}, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.bell, t.ended
+}
+
+// ring wakes every reader waiting on the current bell and hangs a new one.
+func (t *tail) ring() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.ended {
+		return
+	}
+	close(t.bell)
+	t.bell = make(chan struct{})
+}
+
+// end wakes every reader for the last time.
+func (t *tail) end() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !t.ended {
+		t.ended = true
+		close(t.bell)
+	}
+}

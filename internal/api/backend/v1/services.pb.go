@@ -10647,8 +10647,13 @@ func (x *ModelTaskResponse) GetOptions() []string {
 	return nil
 }
 
+// The message stream is the cache's changes, each message as the cache holds it after
+// its latest change, numbered in the order the cache wrote them.
 type MessagesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Resume after this change in this epoch; empty starts at the newest change.
+	SinceEpoch    string `protobuf:"bytes,1,opt,name=since_epoch,json=sinceEpoch,proto3" json:"since_epoch,omitempty"`
+	SinceChange   int64  `protobuf:"varint,2,opt,name=since_change,json=sinceChange,proto3" json:"since_change,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10683,9 +10688,31 @@ func (*MessagesRequest) Descriptor() ([]byte, []int) {
 	return file_backend_v1_services_proto_rawDescGZIP(), []int{204}
 }
 
+func (x *MessagesRequest) GetSinceEpoch() string {
+	if x != nil {
+		return x.SinceEpoch
+	}
+	return ""
+}
+
+func (x *MessagesRequest) GetSinceChange() int64 {
+	if x != nil {
+		return x.SinceChange
+	}
+	return 0
+}
+
 type MessagesResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Message       *Message               `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Absent when read_again.
+	Message *Message `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	// The numbering this change is in, and its number.
+	Epoch  string `protobuf:"bytes,2,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	Change int64  `protobuf:"varint,3,opt,name=change,proto3" json:"change,omitempty"`
+	// The stream could not resume from since (another epoch, a number it never gave,
+	// or too far behind), or the cache was cleared: what the client holds may be stale,
+	// so it reads again, then continues from this frame's change.
+	ReadAgain     bool `protobuf:"varint,4,opt,name=read_again,json=readAgain,proto3" json:"read_again,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10725,6 +10752,27 @@ func (x *MessagesResponse) GetMessage() *Message {
 		return x.Message
 	}
 	return nil
+}
+
+func (x *MessagesResponse) GetEpoch() string {
+	if x != nil {
+		return x.Epoch
+	}
+	return ""
+}
+
+func (x *MessagesResponse) GetChange() int64 {
+	if x != nil {
+		return x.Change
+	}
+	return 0
+}
+
+func (x *MessagesResponse) GetReadAgain() bool {
+	if x != nil {
+		return x.ReadAgain
+	}
+	return false
 }
 
 type ActivityStreamRequest struct {
@@ -15805,10 +15853,17 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\bendpoint\x18\x03 \x01(\tR\bendpoint\x12\x14\n" +
 	"\x05model\x18\x04 \x01(\tR\x05model\x12\x12\n" +
 	"\x04note\x18\x05 \x01(\tR\x04note\x12\x18\n" +
-	"\aoptions\x18\x06 \x03(\tR\aoptions\"\x11\n" +
-	"\x0fMessagesRequest\"A\n" +
+	"\aoptions\x18\x06 \x03(\tR\aoptions\"U\n" +
+	"\x0fMessagesRequest\x12\x1f\n" +
+	"\vsince_epoch\x18\x01 \x01(\tR\n" +
+	"sinceEpoch\x12!\n" +
+	"\fsince_change\x18\x02 \x01(\x03R\vsinceChange\"\x8e\x01\n" +
 	"\x10MessagesResponse\x12-\n" +
-	"\amessage\x18\x01 \x01(\v2\x13.backend.v1.MessageR\amessage\"\x17\n" +
+	"\amessage\x18\x01 \x01(\v2\x13.backend.v1.MessageR\amessage\x12\x14\n" +
+	"\x05epoch\x18\x02 \x01(\tR\x05epoch\x12\x16\n" +
+	"\x06change\x18\x03 \x01(\x03R\x06change\x12\x1d\n" +
+	"\n" +
+	"read_again\x18\x04 \x01(\bR\treadAgain\"\x17\n" +
 	"\x15ActivityStreamRequest\"J\n" +
 	"\x16ActivityStreamResponse\x120\n" +
 	"\bactivity\x18\x01 \x01(\v2\x14.backend.v1.ActivityR\bactivity\"!\n" +

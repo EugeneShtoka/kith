@@ -528,6 +528,7 @@ func serve(
 	err = daemon.Serve(ctx, ln, &daemon.Daemon{
 		Backend:       backend,
 		Streams:       w.streams,
+		MessageLog:    backend.cache,
 		State:         w.state,
 		Notifications: w.notifications,
 		Scheduler:     scheduler,
@@ -628,6 +629,10 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	// cache looks like no rooms.
 	state := daemon.NewState()
 	streams := daemon.NewStreams()
+	if backend.cache != nil {
+		// Before any network writes: clients' message streams read each change.
+		backend.cache.OnChanged(streams.MessagesChanged)
+	}
 	for _, n := range backend.networks {
 		n.OnStatus(func(s domain.AccountStatus) {
 			backend.ForgetMe() // who you are on it may have changed with it

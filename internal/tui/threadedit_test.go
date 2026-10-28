@@ -36,10 +36,11 @@ func TestAnEditInAThreadShowsTheNewTextAtOnce(t *testing.T) {
 		t.Fatalf("after the edit the thread shows:\n%s", frame)
 	}
 
-	// The homeserver's copy of the edit, formatted again.
+	// The cache's copy after the homeserver's edit, formatted again.
 	m, _ = asModel(m.Update(incomingMsg{message: domain.Message{
-		ID: mx + "$mine", RoomID: m.openRoom, Sender: m.selves[0], Body: "see you at nine",
-		Format: richtext.FromMarkup("see you at <i>nine</i>"), Edited: true, RevisionID: mx + "$e2",
+		ID: mx + "$mine", RoomID: m.openRoom, Sender: m.selves[0], ThreadRoot: mx + "$root", Timestamp: at.Add(time.Minute),
+		Body: "see you at nine", Format: richtext.FromMarkup("see you at <i>nine</i>"),
+		Edited: true, EditedAt: at.Add(2 * time.Minute), RevisionID: mx + "$e2",
 	}}))
 	frame = stripStyles(m.View().Content)
 	if !strings.Contains(frame, "see you at nine") || strings.Contains(frame, "eight") {

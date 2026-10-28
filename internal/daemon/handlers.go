@@ -693,12 +693,6 @@ func (s *server) RoomEncryption(ctx context.Context, r *req[v1.RoomEncryptionReq
 
 // ── Sync ──
 
-func (s *server) Messages(ctx context.Context, _ *req[v1.MessagesRequest], st *connect.ServerStream[v1.MessagesResponse]) error {
-	return serveStream(ctx, s.Streams.messages, st, func(m domain.Message) *v1.MessagesResponse {
-		return &v1.MessagesResponse{Message: pc.MessageToProto(m)}
-	})
-}
-
 // Follow hands a link to one window (seats.follow), now if it listens, else when its
 // link stream opens. The link's chat is looked for among the cached rooms; one not
 // found (an alias, an invite) goes to the window used last. Delivered is false only

@@ -58,7 +58,7 @@ func TestShutdownFreesAStreamWhoseClientStoppedReading(t *testing.T) {
 		"Content-Length: 5\r\n\r\n\x00\x00\x00\x00\x00"); err != nil {
 		t.Fatal(err)
 	}
-	waitUntil(t, func() bool { return streams.MessageSubscribers() == 1 }, "the stream to subscribe")
+	waitUntil(t, func() bool { return streams.MessageStreams() == 1 }, "the stream to subscribe")
 
 	// Far more than the socket buffers and hub queue hold, paced so the handler ends stuck
 	// in a write only closing the connection ends.
@@ -81,7 +81,7 @@ func TestShutdownFreesAStreamWhoseClientStoppedReading(t *testing.T) {
 	if took := time.Since(start); took > timeout+3*time.Second {
 		t.Errorf("shutdown took %s, want about %s", took, timeout)
 	}
-	if n := streams.MessageSubscribers(); n != 0 {
+	if n := streams.MessageStreams(); n != 0 {
 		t.Errorf("%d stream handler(s) still running after Serve returned", n)
 	}
 }
@@ -161,7 +161,7 @@ func TestAFailedListenerStillDrainsTheHandlers(t *testing.T) {
 		"Content-Length: 5\r\n\r\n\x00\x00\x00\x00\x00"); err != nil {
 		t.Fatal(err)
 	}
-	waitUntil(t, func() bool { return streams.MessageSubscribers() == 1 }, "the stream to subscribe")
+	waitUntil(t, func() bool { return streams.MessageStreams() == 1 }, "the stream to subscribe")
 
 	close(ln.broken)
 	select {
@@ -172,7 +172,7 @@ func TestAFailedListenerStillDrainsTheHandlers(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("Serve did not return")
 	}
-	if n := streams.MessageSubscribers(); n != 0 {
+	if n := streams.MessageStreams(); n != 0 {
 		t.Errorf("%d stream handler(s) still running after Serve returned", n)
 	}
 }

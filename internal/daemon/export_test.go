@@ -2,8 +2,11 @@ package daemon
 
 // Test-only accessors.
 
-// MessageSubscribers counts every message-stream reader, the notifier included.
+// MessageSubscribers counts every reader of the backend's messages, the notifier included.
 func (s *Streams) MessageSubscribers() int { return s.messages.subscribers() }
+
+// MessageStreams counts the clients' message streams, which read the cache.
+func (s *Streams) MessageStreams() int { return s.tail.readers() }
 
 // NarrowingCalls is every call a profile narrows, by method name.
 func NarrowingCalls() []string {
