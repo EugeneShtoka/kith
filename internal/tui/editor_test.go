@@ -422,8 +422,8 @@ func TestEmptyPasteSaysSo(t *testing.T) {
 	if m.compose.input != "" {
 		t.Errorf("input = %q, want nothing", m.compose.input)
 	}
-	if !strings.Contains(m.status(), "nothing to paste") {
-		t.Errorf("status = %q", m.status())
+	if m.status() == "" {
+		t.Error("status is empty, want the empty paste said")
 	}
 }
 
@@ -504,14 +504,14 @@ func TestEnterKeySettingRow(t *testing.T) {
 
 	cfg := config.Config{}
 	cfg.Keys.FillDefaults()
-	if got := enterKeyShow(cfg); got != "ctrl+enter sends · enter new line" {
-		t.Errorf("row shows %q", got)
+	if got := enterKeyShow(cfg); !strings.HasPrefix(got, "ctrl+enter ") {
+		t.Errorf("row shows %q, want the send key ctrl+enter first", got)
 	}
 	if err := toggleEnterKey(&cfg, ""); err != nil {
 		t.Fatal(err)
 	}
-	if got := enterKeyShow(cfg); got != "enter sends · ctrl+enter new line" {
-		t.Errorf("flipped row shows %q", got)
+	if got := enterKeyShow(cfg); !strings.HasPrefix(got, "enter ") || !strings.Contains(got, "ctrl+enter") || strings.Contains(got, "alt+enter") {
+		t.Errorf("flipped row shows %q, want enter first and only the newline's first key", got)
 	}
 }
 

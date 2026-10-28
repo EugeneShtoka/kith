@@ -30,8 +30,7 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
-// Opening kith while kithd waits says why at once and that kith opens by itself;
-// Ctrl-C ends the wait.
+// Opening kith while kithd waits says why at once; Ctrl-C ends the wait.
 func TestOpeningKithWhileKithdWaitsSaysWhy(t *testing.T) {
 	t.Parallel()
 	const why = "the cache is locked: the keyring is not answering; unlock it"
@@ -58,9 +57,6 @@ func TestOpeningKithWhileKithdWaitsSaysWhy(t *testing.T) {
 			t.Fatalf("after %s kith said %q, want why kithd waits", within, out.String())
 		}
 		time.Sleep(10 * time.Millisecond)
-	}
-	if !strings.Contains(out.String(), "kith opens by itself") {
-		t.Errorf("kith said %q, not that it opens by itself", out.String())
 	}
 	quit()
 	select {

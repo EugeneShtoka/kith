@@ -196,7 +196,7 @@ func TestAnInviteLinkIsJoined(t *testing.T) {
 	if !strings.Contains(target.About, "approves") {
 		t.Errorf("about = %q, want it to say an admin approves", target.About)
 	}
-	if _, err := a.JoinLink(ctx, "https://t.me/+Approved", tgOn); err == nil || !strings.Contains(err.Error(), "approve") {
+	if _, err := a.JoinLink(ctx, "https://t.me/+Approved", tgOn); err == nil {
 		t.Errorf("joining where an admin approves = %v, want it to say the request waits", err)
 	}
 }

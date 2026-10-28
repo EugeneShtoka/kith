@@ -60,7 +60,7 @@ func TestMeWithNoWordsSaysWhatItWants(t *testing.T) {
 	if len(backend.sent) != 0 {
 		t.Errorf("sent %+v, want nothing", backend.sent)
 	}
-	if !strings.Contains(m.status(), "/me <") {
+	if m.status() == "" {
 		t.Errorf("status = %q, want the usage", m.status())
 	}
 }

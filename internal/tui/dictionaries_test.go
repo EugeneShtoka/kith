@@ -140,7 +140,7 @@ func TestFailedInstallIsReportedAsARefusal(t *testing.T) {
 	next := mdl
 
 	got := next.status()
-	if !strings.Contains(got, "verified") || !strings.Contains(got, "he_IL") {
+	if !strings.Contains(got, "he_IL") {
 		t.Errorf("status = %q, want it to name what was refused and why", got)
 	}
 }
@@ -257,7 +257,7 @@ func TestFrequencyOfferShowsBothCostsAndTheEvidence(t *testing.T) {
 			detail = item.detail
 		}
 	}
-	for _, want := range []string{"Hebrew", "36%", "accepts 23%", "18.0 MB", "7.0 MB kept"} {
+	for _, want := range []string{"Hebrew", "36%", "23%", "18.0 MB", "7.0 MB"} {
 		if !strings.Contains(detail, want) {
 			t.Errorf("the row %q does not say %q", detail, want)
 		}

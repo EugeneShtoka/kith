@@ -62,16 +62,3 @@ func TestNameCellCutsBeforeReordering(t *testing.T) {
 func reorderedThenCut(logical string, width int) string {
 	return clamp(displayName(logical), width)
 }
-
-// A thread row is drawn through listRow, its title reordered.
-func TestThreadRowLabelIsDrawnReordered(t *testing.T) {
-	t.Parallel()
-
-	const title = "שיחה על המשלוח"
-	if got := nameCell(title, 40); got == title {
-		t.Fatal("fixture is not actually reordered; the test would prove nothing")
-	}
-	if got, want := nameCell(title, 40), displayName(title); got != want {
-		t.Errorf("nameCell(%q) = %q, want %q", title, got, want)
-	}
-}

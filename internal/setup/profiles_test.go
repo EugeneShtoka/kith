@@ -20,7 +20,7 @@ func TestAProfileIsWrittenDown(t *testing.T) {
 		t.Errorf("no profile: %v, want it refused", err)
 	}
 	cfg.Profiles = []config.Profile{{Name: "work"}}
-	if _, err := setup.Profiles(cfg); err == nil || !strings.Contains(err.Error(), `"*" is every room`) {
+	if _, err := setup.Profiles(cfg); err == nil || !strings.Contains(err.Error(), `profile "work": include`) {
 		t.Errorf("a profile naming no room: %v, want it refused", err)
 	}
 
@@ -60,17 +60,17 @@ func TestAProfileIsRefusedWhatItCannotMean(t *testing.T) {
 		profiles []config.Profile
 		refusal  string // "" when accepted
 	}{
-		"a state tag":             {[]config.Profile{{Name: "p", Include: []string{"tag:Unread"}}}, `"tag:Unread" reads whether`},
-		"a negated state word":    {[]config.Profile{{Name: "p", Include: []string{"tag:Quiet"}}}, `"tag:Quiet" reads whether`},
-		"through another tag":     {[]config.Profile{{Name: "p", Include: []string{"*"}, Exclude: []string{"tag:Busy"}}}, `"tag:Busy" reads whether`},
-		"in a cycle":              {[]config.Profile{{Name: "p", Include: []string{"tag:Loop2"}}}, `"tag:Loop2" reads whether`},
+		"a state tag":             {[]config.Profile{{Name: "p", Include: []string{"tag:Unread"}}}, `"tag:Unread"`},
+		"a negated state word":    {[]config.Profile{{Name: "p", Include: []string{"tag:Quiet"}}}, `"tag:Quiet"`},
+		"through another tag":     {[]config.Profile{{Name: "p", Include: []string{"*"}, Exclude: []string{"tag:Busy"}}}, `"tag:Busy"`},
+		"in a cycle":              {[]config.Profile{{Name: "p", Include: []string{"tag:Loop2"}}}, `"tag:Loop2"`},
 		"only through a cycle":    {[]config.Profile{{Name: "p", Include: []string{"tag:Loop"}}}, ""},
-		"as a row":                {[]config.Profile{{Name: "p", Include: []string{"place:unread"}}}, `"place:unread" reads whether`},
+		"as a row":                {[]config.Profile{{Name: "p", Include: []string{"place:unread"}}}, `"place:unread"`},
 		"a place tag":             {[]config.Profile{{Name: "p", Include: []string{"tag:Family", "place:Pinned"}}}, ""},
 		"a space named like one":  {[]config.Profile{{Name: "p", Include: []string{"space:Unread"}}}, ""},
-		"a missing tag":           {[]config.Profile{{Name: "p", Include: []string{"tag:Nope"}}}, `"tag:Nope" names no [[tag]]`},
-		"an empty name":           {[]config.Profile{{Name: " "}}, "profile 1: name is empty"},
-		"a name twice":            {[]config.Profile{{Name: "Work", Include: []string{"*"}}, {Name: "work ", Include: []string{"*"}}}, `profile "work" is defined twice`},
+		"a missing tag":           {[]config.Profile{{Name: "p", Include: []string{"tag:Nope"}}}, `"tag:Nope"`},
+		"an empty name":           {[]config.Profile{{Name: " "}}, "profile 1"},
+		"a name twice":            {[]config.Profile{{Name: "Work", Include: []string{"*"}}, {Name: "work ", Include: []string{"*"}}}, `profile "work"`},
 		"a bare Matrix room":      {[]config.Profile{{Name: "p", Include: []string{"!abc:example.org"}}}, `profile "p": include`},
 		"entries in the profiles": {[]config.Profile{{Name: "p", Include: []string{"*"}}, {Name: "q", Include: []string{"*"}, Exclude: []string{"tag:Unread"}}}, `profile "q": exclude`},
 	}

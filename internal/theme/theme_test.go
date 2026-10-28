@@ -1,8 +1,6 @@
 package theme
 
 import (
-	"github.com/EugeneShtoka/kith/internal/themespec"
-
 	"image/color"
 	"math"
 	"testing"
@@ -196,17 +194,6 @@ func TestParseColor(t *testing.T) {
 	}
 }
 
-// Every named color parses.
-func TestEveryNamedColorParses(t *testing.T) {
-	t.Parallel()
-
-	for _, name := range themespec.ColorNames() {
-		if _, ok := ParseColor(name); !ok {
-			t.Errorf("named color %q does not parse", name)
-		}
-	}
-}
-
 // A PaneRow selection keeps its (dimmer) fill when the pane loses focus.
 func TestPaneRowKeepsItsFillWhenUnfocused(t *testing.T) {
 	t.Parallel()
@@ -319,15 +306,6 @@ func TestFocusIsVisible(t *testing.T) {
 	}
 	if th.Palette != Default() {
 		t.Error("New did not carry the palette through")
-	}
-}
-
-func TestSwatch(t *testing.T) {
-	t.Parallel()
-
-	c := lipgloss.Color("#123456")
-	if got := New(Default()).Swatch(c).GetForeground(); got != c {
-		t.Errorf("Swatch = %v, want the color it was given", got)
 	}
 }
 

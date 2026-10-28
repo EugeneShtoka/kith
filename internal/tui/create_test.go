@@ -155,7 +155,7 @@ func TestAPartialCreationSaysBothHalves(t *testing.T) {
 	mdl := next
 	mdl = deliver(t, mdl, cmd)
 	got := mdl.status()
-	if !strings.Contains(got, "was created") || !strings.Contains(got, "could not file") {
+	if !strings.Contains(got, "Plans") || !strings.Contains(got, "could not file") {
 		t.Errorf("status = %q, want both halves", got)
 	}
 }

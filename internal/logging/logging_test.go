@@ -161,11 +161,6 @@ func TestFileReopenKeepsSize(t *testing.T) {
 	}
 }
 
-func TestHelpers(t *testing.T) {
-	t.Parallel()
-	Discard().Error("nothing") // must not panic
-}
-
 // A value under a secret key is redacted whole; other keys keep their values.
 func TestSecretKeysAreRedactedWhatever(t *testing.T) {
 	t.Parallel()

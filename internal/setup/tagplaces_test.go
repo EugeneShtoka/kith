@@ -24,7 +24,7 @@ func TestTagPlacesMustNameATag(t *testing.T) {
 	} {
 		cfg := base
 		set(&cfg)
-		if err := PlaceEntries(cfg); err == nil || !strings.Contains(err.Error(), "names no [[tag]]") {
+		if err := PlaceEntries(cfg); err == nil || !strings.Contains(err.Error(), `"tag:Nope"`) {
 			t.Errorf("%s naming no tag: %v, want refused", name, err)
 		}
 	}

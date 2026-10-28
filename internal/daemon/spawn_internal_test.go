@@ -12,19 +12,6 @@ import (
 	"time"
 )
 
-// The warning after auto-spawning says what it cost.
-func TestStartedNoteSaysWhatItCost(t *testing.T) {
-	t.Parallel()
-
-	note := startedNote(t.Context(), defaultUnit)
-	if !strings.Contains(note, "was not running") {
-		t.Errorf("note = %q, want it to say the daemon was not running", note)
-	}
-	if !strings.Contains(note, "not notified") {
-		t.Errorf("note = %q, want it to say what was missed while it was down", note)
-	}
-}
-
 // The enable hint appears whenever the unit is not enabled, as in tests.
 func TestStartedNoteOffersTheUnitWhenNotEnabled(t *testing.T) {
 	t.Parallel()

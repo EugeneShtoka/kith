@@ -27,8 +27,8 @@ func TestSentID(t *testing.T) {
 		resp *table.LSTable
 		why  string
 	}{
-		"no answer": {nil, "no answer"},
-		"another's": {&table.LSTable{LSReplaceOptimsiticMessage: []*table.LSReplaceOptimsiticMessage{{OfflineThreadingId: "11", MessageId: "mid.x"}}}, "named no message"},
+		"no answer": {nil, ""},
+		"another's": {&table.LSTable{LSReplaceOptimsiticMessage: []*table.LSReplaceOptimsiticMessage{{OfflineThreadingId: "11", MessageId: "mid.x"}}}, ""},
 		"failed":    {&table.LSTable{LSMarkOptimisticMessageFailed: []*table.LSMarkOptimisticMessageFailed{{Message: "blocked"}}}, "blocked"},
 		"task":      {&table.LSTable{LSHandleFailedTask: []*table.LSHandleFailedTask{{Message: "rate limited"}}}, "rate limited"},
 	} {

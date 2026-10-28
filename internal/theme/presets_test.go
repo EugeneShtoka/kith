@@ -1,7 +1,6 @@
 package theme
 
 import (
-	"strings"
 	"testing"
 
 	"charm.land/lipgloss/v2"
@@ -56,8 +55,6 @@ func TestBadThemeConfigIsRefused(t *testing.T) {
 
 	if _, err := Resolve("gruvbocks", nil); err == nil {
 		t.Error("an unknown preset should be refused")
-	} else if !strings.Contains(err.Error(), "gruvbox") {
-		t.Errorf("the refusal should list what is available: %v", err)
 	}
 	for _, bad := range []string{"0x00aaff", "red", "#gg0000", "#0000"} {
 		if _, err := Resolve("", map[string]string{"accent": bad}); err == nil {

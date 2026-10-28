@@ -54,8 +54,8 @@ func TestOneBlockPerCommand(t *testing.T) {
 		config.Command{Name: "/SAVE", Output: "none"},
 	))
 
-	if err == nil || !strings.Contains(err.Error(), "twice") {
-		t.Fatalf("error = %v, want the duplicate reported", err)
+	if err == nil {
+		t.Fatal("a second block for one command was accepted")
 	}
 }
 

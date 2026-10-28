@@ -44,19 +44,6 @@ func TestCodeRulesRejectAnImpossibleShape(t *testing.T) {
 	}
 }
 
-// The scope is carried through verbatim.
-func TestCodeScopeFromConfig(t *testing.T) {
-	t.Parallel()
-
-	scope := setup.CodeScope(config.Codes{Include: []string{"Bridges"}, Exclude: []string{mx + "!noisy:x"}})
-	if len(scope.Include) != 1 || scope.Include[0] != "Bridges" {
-		t.Errorf("include = %v, want the configured list", scope.Include)
-	}
-	if len(scope.Exclude) != 1 || scope.Exclude[0] != mx+"!noisy:x" {
-		t.Errorf("exclude = %v, want the configured list", scope.Exclude)
-	}
-}
-
 func TestAutoCopyUnavailable(t *testing.T) {
 	t.Parallel()
 

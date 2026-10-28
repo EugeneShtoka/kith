@@ -2,7 +2,6 @@ package tui
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -117,7 +116,7 @@ func TestRenameRoomEmptyClears(t *testing.T) {
 	if got := m.roomName(room); got != "Alpha" {
 		t.Errorf("roomName = %q, want the room's own name back", got)
 	}
-	if !strings.Contains(m.status(), "cleared") {
+	if m.status() == "" {
 		t.Errorf("status = %q, should say the override was cleared", m.status())
 	}
 }

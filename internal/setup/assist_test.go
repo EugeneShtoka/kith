@@ -26,18 +26,18 @@ func TestModelLayerRefusesWhatCannotWork(t *testing.T) {
 			Endpoint: "https://example.invalid/v1", Except: []string{mx + "!a:x"},
 		}, ""},
 		// Otherwise every ask fails with an error that reads as a bug.
-		{"an endpoint that is not a URL", config.Assist{Endpoint: "api.groq.com/v1/chat"}, "not an http(s) URL"},
+		{"an endpoint that is not a URL", config.Assist{Endpoint: "api.groq.com/v1/chat"}, "complete.model.endpoint"},
 		{"a timeout that is not a duration", config.Assist{
 			Endpoint: "https://example.invalid/v1", Timeout: "soon",
-		}, "not a duration"},
+		}, "complete.model.timeout"},
 		{"a negative timeout", config.Assist{
 			Endpoint: "https://example.invalid/v1", Timeout: "-1s",
-		}, "must be positive"},
+		}, "complete.model.timeout"},
 		// The allow list answers alone, so the exception would do nothing.
 		{"a room named in both lists", config.Assist{
 			Endpoint: "https://example.invalid/v1",
 			Rooms:    []string{" " + mx + "!a:x "}, Except: []string{mx + "!A:X"},
-		}, "the allow list answers alone"},
+		}, "complete.model.except"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

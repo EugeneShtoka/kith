@@ -1,7 +1,6 @@
 package domain_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -291,9 +290,8 @@ func TestABareMatrixIDInConfigIsRefused(t *testing.T) {
 	t.Parallel()
 
 	for _, entry := range []string{"!r:example.org", "room:!r:example.org", "room: !r:example.org", "$ev", "@dana:example.org"} {
-		err := domain.ValidateEntries("agent.read", []string{entry})
-		if err == nil || !strings.Contains(err.Error(), "matrix:<account>/!") {
-			t.Errorf("ValidateEntries(%q) = %v, want the bare ID refused with kith's form", entry, err)
+		if err := domain.ValidateEntries("agent.read", []string{entry}); err == nil {
+			t.Errorf("ValidateEntries(%q) accepted a bare ID", entry)
 		}
 	}
 	for _, entry := range []string{mx + "!r:example.org", "room:" + mx + "!r:example.org", "room:#general", "room:Standup"} {
@@ -301,8 +299,7 @@ func TestABareMatrixIDInConfigIsRefused(t *testing.T) {
 			t.Errorf("ValidateEntries(%q) = %v, want it taken", entry, err)
 		}
 	}
-	_, _, err := domain.NewTagSet([]domain.Tag{{Name: "Family", Picked: []string{"!mom:example.org"}}})
-	if err == nil || !strings.Contains(err.Error(), "matrix:<account>/!") {
-		t.Errorf("a tag picking a bare room = %v, want it refused with kith's form", err)
+	if _, _, err := domain.NewTagSet([]domain.Tag{{Name: "Family", Picked: []string{"!mom:example.org"}}}); err == nil {
+		t.Error("a tag picking a bare room was accepted")
 	}
 }

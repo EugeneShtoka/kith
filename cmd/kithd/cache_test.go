@@ -75,10 +75,13 @@ func TestEncryptingAPlainCacheIsSaid(t *testing.T) {
 			t.Fatal(err)
 		}
 		_ = cache.Close()
-		for _, line := range []string{"encrypting the cache, one time", "the cache is encrypted"} {
-			if said := strings.Contains(logged.String(), line); said != first {
-				t.Errorf("first start %t: %q said %t; log:\n%s", first, line, said, logged.String())
-			}
+		// Said twice (before and after, each with the size) at the first start only.
+		want := 0
+		if first {
+			want = 2
+		}
+		if said := strings.Count(logged.String(), "size="); said != want {
+			t.Errorf("first start %t: the size said %d times, want %d; log:\n%s", first, said, want, logged.String())
 		}
 	}
 }

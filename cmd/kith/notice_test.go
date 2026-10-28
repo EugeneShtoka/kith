@@ -17,7 +17,7 @@ func TestLoggedOutNotice(t *testing.T) {
 		{Network: "WhatsApp", Account: "us", Phase: daemon.PhaseConnecting},
 	}
 	got := loggedOutNotice(rows)
-	for _, want := range []string{"Matrix @me:x is logged out: no saved session; run `kith login`", "WhatsApp work is logged out", "kith login whatsapp work"} {
+	for _, want := range []string{"@me:x", "no saved session; run `kith login`", "not linked yet; run `kith login whatsapp work`"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("notice = %q, want it to contain %q", got, want)
 		}

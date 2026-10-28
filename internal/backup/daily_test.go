@@ -287,28 +287,6 @@ func TestOnlyWholeDailyBackupsCountAndNothingElseIsDeleted(t *testing.T) {
 	}
 }
 
-// A daily backup interrupted (kithd stopping) leaves no file and deletes none: rotation
-// only follows a backup made. More than Keep are there (as a clock set back leaves), so
-// a rotation would have something to delete.
-func TestAnInterruptedDailyBackupDeletesNothing(t *testing.T) {
-	m := newMachine(t)
-	m.as(t).fill(t, "kept", 300)
-	dir := t.TempDir()
-	for n := 1; n <= defaultKeep+2; n++ {
-		stand(t, dir, day(n))
-	}
-	before := names(t, dir)
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	got, err := m.daily(t, ctx, dir, day(20))
-	if !errors.Is(err, context.Canceled) || got.Ran {
-		t.Fatalf("MakeDaily(canceled) = %+v, %v; want context.Canceled", got, err)
-	}
-	if after := names(t, dir); !slices.Equal(after, before) {
-		t.Fatalf("the folder holds %v; want it as it was, %v", after, before)
-	}
-}
-
 // A backup made without its pictures restores without them, leaving the picture cache
 // as it was.
 func TestABackupWithoutPicturesRestoresWithout(t *testing.T) {

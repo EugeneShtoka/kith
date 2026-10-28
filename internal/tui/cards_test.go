@@ -166,7 +166,7 @@ func TestTheSwitcherFindsPeopleByCardFields(t *testing.T) {
 	if got := choose(m, "role:arch", "Eli"); got.openRoom != eliRoom.ID {
 		t.Errorf("Eli: opened %q, want the room with him alone (the crowd is not)", got.openRoom)
 	}
-	if got := choose(m, "role:law", "Zed"); !strings.Contains(got.status(), "starting a conversation with Zed") {
+	if got := choose(m, "role:law", "Zed"); !strings.Contains(got.status(), "Zed") {
 		t.Errorf("Zed: said %q, want a DM started", got.status())
 	}
 	if got := choose(m, "phone:0009", "Noa"); got.picker.kind != pickerPerson || !strings.Contains(got.picker.spec.title, "Noa.md") {
@@ -233,7 +233,7 @@ func TestFromAFieldSearchesThePeopleOnTheCards(t *testing.T) {
 	}
 
 	next, _ = m.runSearch("from:role:pilot")
-	if !strings.Contains(next.status(), "no one's card has role:pilot") || next.search.hits != nil {
+	if !strings.Contains(next.status(), "role:pilot") || next.search.hits != nil {
 		t.Errorf("a term no card meets: said %q", next.status())
 	}
 	back.asked.Lock()

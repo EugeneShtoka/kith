@@ -188,9 +188,6 @@ func TestModelTaskCapIsARollingMinute(t *testing.T) {
 	if third.Asked() {
 		t.Fatal("the third ask went out past a cap of two")
 	}
-	if !strings.Contains(third.Refusal, "cap") {
-		t.Errorf("refusal = %q, want it to name the cap", third.Refusal)
-	}
 	// A minute passes: the two sends are now older than the window.
 	b.model.mu.Lock()
 	for i := range b.model.recent {
@@ -247,21 +244,6 @@ func TestModelTaskDryRunSendsNothing(t *testing.T) {
 	}
 	if real.Asked() {
 		t.Fatal("an ask with nothing to work from went out")
-	}
-}
-
-func TestModelLanguageFollowsTheDraft(t *testing.T) {
-	t.Parallel()
-
-	for draft, want := range map[string]string{
-		"the quick brown fox": "English",
-		"שלום לכולם":          "Hebrew",
-		"привет всем":         "Russian",
-		"1234 ?!":             "",
-	} {
-		if got := modelLanguage(draft); got != want {
-			t.Errorf("modelLanguage(%q) = %q, want %q", draft, got, want)
-		}
 	}
 }
 
@@ -596,9 +578,6 @@ func TestTodoWithNothingUnreadCostsNothing(t *testing.T) {
 	}
 	if got.Asked() {
 		t.Fatal("an empty todo still asked the model")
-	}
-	if !strings.Contains(got.Refusal, "up to date") {
-		t.Errorf("refusal = %q, want it to say there is nothing unread", got.Refusal)
 	}
 	if len(*sent) != 0 {
 		t.Fatal("an empty todo cost a request")

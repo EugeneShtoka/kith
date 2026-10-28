@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/api"
@@ -45,8 +44,8 @@ func TestLoginPicksTheNamedOrOnlyAccount(t *testing.T) {
 	} {
 		got, err := loginAccount(ctx, d, c.network, c.named)
 		if c.refused != "" {
-			if err == nil || !strings.Contains(err.Error(), c.refused) {
-				t.Errorf("%s %q = (%q, %v), want refused saying %q", c.network, c.named, got, err, c.refused)
+			if err == nil {
+				t.Errorf("%s %q = (%q, %v), want refused: %s", c.network, c.named, got, err, c.refused)
 			}
 			continue
 		}

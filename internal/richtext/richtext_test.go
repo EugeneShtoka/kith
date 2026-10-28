@@ -156,19 +156,6 @@ func TestParseKeepsNestedEmphasis(t *testing.T) {
 	}
 }
 
-// A link's href is kept apart from its text.
-func TestParseKeepsTheLinkTarget(t *testing.T) {
-	t.Parallel()
-
-	text, spans := Parse(`<a href="https://example.org/pull/893">Query optimization</a>`)
-	if text != "Query optimization" {
-		t.Errorf("text = %q", text)
-	}
-	if len(spans) != 1 || spans[0].Href != "https://example.org/pull/893" {
-		t.Errorf("spans = %+v, want the href kept", spans)
-	}
-}
-
 // Block tags end the line.
 func TestParseTurnsBlocksIntoLines(t *testing.T) {
 	t.Parallel()

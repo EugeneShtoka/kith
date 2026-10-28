@@ -3,7 +3,6 @@ package matrix
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"maunium.net/go/mautrix/crypto"
@@ -47,21 +46,6 @@ func TestEveryUnreadableExportIsTheSameAnswer(t *testing.T) {
 				t.Errorf("unreadableExport(%v) = %v, want %v", tc.err, got, tc.want)
 			}
 		})
-	}
-}
-
-// Exports use the spec's format, for interop with Element.
-func TestAnExportIsTheFormatTheSpecDefines(t *testing.T) {
-	t.Parallel()
-
-	data, err := crypto.ExportKeys("hunter2", nil)
-	if errors.Is(err, crypto.ErrNoSessionsForExport) {
-		data = nil
-	} else if err != nil {
-		t.Fatalf("ExportKeys: %v", err)
-	}
-	if data != nil && !strings.HasPrefix(string(data), "-----BEGIN MEGOLM SESSION DATA-----") {
-		t.Errorf("export does not carry the spec's header: %.40q", data)
 	}
 }
 

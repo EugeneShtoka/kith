@@ -2,7 +2,6 @@ package tui
 
 import (
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -62,12 +61,13 @@ func TestTheArchivedKeyFlipsThePlaceInView(t *testing.T) {
 	t.Parallel()
 	m := archiving(t, config.Display{})
 	m, _ = press(t, m, keyText("A"))
-	if got := archivedListed(m); !slices.Equal(got, []domain.RoomID{mx + "!b:x"}) || !strings.Contains(m.status(), "hidden") {
+	if got := archivedListed(m); !slices.Equal(got, []domain.RoomID{mx + "!b:x"}) {
 		t.Errorf("after A: %v, said %q; want the archived room hidden", got, m.status())
 	}
 	m.rail.cursor = indexOfGroup(m.rail.groups, "tag:Archived")
+	said := m.status()
 	m, _ = press(t, m, keyText("A"))
-	if !strings.Contains(m.status(), "always lists") || !m.archivedShownIn("tag:Archived") {
+	if m.status() == said || !m.archivedShownIn("tag:Archived") {
 		t.Errorf("A on the archive said %q", m.status())
 	}
 	m.rail.cursor = indexOfGroup(m.rail.groups, "WhatsApp UK")

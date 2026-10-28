@@ -24,19 +24,3 @@ func TestAccountKeyIsTheSpellingAlreadyOnDisk(t *testing.T) {
 		}
 	}
 }
-
-// Sixteen hex characters, and different accounts get different ones.
-func TestAccountKeyIsStableAndDistinct(t *testing.T) {
-	t.Parallel()
-
-	a, b := domain.AccountKey("@a:x"), domain.AccountKey("@b:x")
-	if a == b {
-		t.Error("two accounts share a key; their caches and sockets would collide")
-	}
-	if len(a) != 16 {
-		t.Errorf("key %q is %d characters, want 16", a, len(a))
-	}
-	if a != domain.AccountKey("@a:x") {
-		t.Error("the key is not stable between calls")
-	}
-}

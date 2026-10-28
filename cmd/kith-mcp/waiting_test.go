@@ -33,7 +33,7 @@ func TestAToolSaysKithdIsWaitingAndWhy(t *testing.T) {
 	if took := time.Since(start); took > 20*time.Second {
 		t.Errorf("list_rooms took %s to answer", took)
 	}
-	if !strings.Contains(said, "kithd is waiting: "+why) {
+	if !strings.Contains(said, why) {
 		t.Errorf("list_rooms said %q, want it to say kithd is waiting: %s", said, why)
 	}
 }

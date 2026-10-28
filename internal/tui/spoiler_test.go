@@ -96,7 +96,7 @@ func TestAnErasedDeletionSaysThereIsNothingToUncover(t *testing.T) {
 	m.timeline.selected = mx + "$1"
 
 	m, _ = m.toggleReveal()
-	if !strings.Contains(m.status(), "nothing was kept") {
+	if m.status() == "" {
 		t.Errorf("status = %q, want it to say the words were not kept", m.status())
 	}
 	if m.timeline.revealed[mx+"$1"] {

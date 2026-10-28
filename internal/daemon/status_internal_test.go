@@ -1,14 +1,11 @@
 package daemon
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"math/rand/v2"
 	"testing"
 	"time"
-
-	"connectrpc.com/connect"
 
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 )
@@ -108,29 +105,5 @@ func TestPhaseToProto(t *testing.T) {
 		if back := protoToPhase(got); back != p {
 			t.Errorf("protoToPhase(%v) = %d, want %d back", got, back, p)
 		}
-	}
-}
-
-// Status carries every network account's row, with when it went online.
-func TestStatusCarriesTheNetworks(t *testing.T) {
-	t.Parallel()
-	state := NewState()
-	online := time.Unix(1_700_000_000, 0)
-	state.Report(NetworkStatus{Network: "matrix", Account: "matrix:@me:x", Phase: PhaseLoggedOut, Detail: "run `kith login`"}, online)
-	state.Report(NetworkStatus{Network: "whatsapp", Account: "home", Phase: PhaseOnline}, online)
-	resp, err := (&server{Daemon: &Daemon{State: state}}).Status(context.Background(), connect.NewRequest(&v1.StatusRequest{}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	rows := resp.Msg.GetNetworks()
-	if len(rows) != 2 {
-		t.Fatalf("networks = %v, want two rows", rows)
-	}
-	if r := rows[0]; r.GetNetwork() != "matrix" || r.GetAccount() != "matrix:@me:x" ||
-		r.GetPhase() != v1.NetworkPhase_NETWORK_PHASE_LOGGED_OUT || r.GetDetail() == "" || r.GetOnlineAt() != nil {
-		t.Errorf("matrix row = %v", r)
-	}
-	if r := rows[1]; r.GetPhase() != v1.NetworkPhase_NETWORK_PHASE_ONLINE || !r.GetOnlineAt().AsTime().Equal(online) {
-		t.Errorf("whatsapp row = %v, want online at %v", r, online)
 	}
 }

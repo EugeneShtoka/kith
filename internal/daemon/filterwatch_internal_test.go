@@ -95,9 +95,12 @@ func TestFilterStoreFailuresAreLogged(t *testing.T) {
 		t.Errorf("caught = %v, want the unwritten move", got)
 	}
 	got := out.String()
-	for _, want := range []string{"reread the moves failed", "record the move failed", "room=" + mx + "!r:x", "database is locked", "level=WARN"} {
+	for _, want := range []string{"room=" + mx + "!r:x", "database is locked"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("log lacks %q:\n%s", want, got)
 		}
+	}
+	if n := strings.Count(got, "level=WARN"); n != 2 {
+		t.Errorf("%d warnings, want the failed reseed and the failed write:\n%s", n, got)
 	}
 }

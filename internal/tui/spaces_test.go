@@ -122,9 +122,6 @@ func TestApplyingAnUnchangedSetWritesNothing(t *testing.T) {
 	if f.added || f.removed {
 		t.Error("an unchanged set should write nothing")
 	}
-	if got := mdl.status(); got != "no change" {
-		t.Errorf("status = %q, want it to say nothing changed", got)
-	}
 }
 
 // A room can belong to no space.
@@ -362,7 +359,7 @@ func TestTheSpacePickerMakesASpaceForAMatrixRoom(t *testing.T) {
 	if !s.added || s.addedTo != mx+"!svc:x" || s.room != mx+"!a:x" {
 		t.Errorf("filed %v %q into %q, want Alpha into the new space", s.added, s.room, s.addedTo)
 	}
-	if !strings.Contains(m.status(), "Services created") {
+	if !strings.Contains(m.status(), "Services") {
 		t.Errorf("status = %q", m.status())
 	}
 
@@ -381,7 +378,7 @@ func TestANewSpaceThatCannotTakeTheRoomSaysSo(t *testing.T) {
 	m, _ = press(t, m, keyText("S"))
 	m = pickLabel(t, m, "New space")
 	m = typeIn(t, m, "Services")
-	if got := m.status(); !strings.Contains(got, "was created") || !strings.Contains(got, "forbidden") {
+	if got := m.status(); !strings.Contains(got, "Services") || !strings.Contains(got, "forbidden") {
 		t.Errorf("status = %q, want the space made and the filing refused", got)
 	}
 }

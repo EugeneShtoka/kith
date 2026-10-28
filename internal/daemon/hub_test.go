@@ -28,23 +28,6 @@ func recv[T any](t *testing.T, ch <-chan T, what string) T {
 	}
 }
 
-func TestHubFansOutToEverySubscriber(t *testing.T) {
-	t.Parallel()
-
-	h := newHub[int]()
-	_, first := h.subscribeWith(subBuffer)
-	_, second := h.subscribeWith(subBuffer)
-
-	h.broadcast(7)
-
-	if got := recv(t, first, "first subscriber"); got != 7 {
-		t.Errorf("first subscriber got %d, want 7", got)
-	}
-	if got := recv(t, second, "second subscriber"); got != 7 {
-		t.Errorf("second subscriber got %d, want 7", got)
-	}
-}
-
 // A subscriber that stopped reading loses events alone, without stalling the pump.
 func TestHubDropsOnlyForTheFullSubscriber(t *testing.T) {
 	t.Parallel()

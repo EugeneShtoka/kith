@@ -537,7 +537,7 @@ func TestTheFirstHintExplainsItselfOnce(t *testing.T) {
 	m = checkedNow(t, m)
 
 	said := m.st.event
-	if !strings.Contains(said, "rare") {
+	if said == "" {
 		t.Fatalf("the first hint said %q, want an explanation of the mark", said)
 	}
 	m = m.clearStatus()

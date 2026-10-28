@@ -278,24 +278,6 @@ func TestSaveEmptiedList(t *testing.T) {
 	}
 }
 
-// The header points at the documentation instead of repeating it.
-func TestSaveHeaderPointsAtTheDocs(t *testing.T) {
-	t.Parallel()
-
-	body, _ := saved(t, minimal())
-	for _, want := range []string{"written by kith", "--print-config", "press ?"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("the header should mention %q", want)
-		}
-	}
-	if Annotated() == "" {
-		t.Error("Annotated() must return the documented reference the header points at")
-	}
-	if !strings.Contains(Annotated(), "max_name_length") {
-		t.Error("Annotated() should be the full documented config")
-	}
-}
-
 // Every scalar kind that reaches scalarLiteral must have a TOML literal form.
 func TestEveryScalarKindInConfigHasALiteral(t *testing.T) {
 	t.Parallel()

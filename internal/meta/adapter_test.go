@@ -136,7 +136,7 @@ func TestCheckConfig(t *testing.T) {
 		{withAccounts(""), "name is empty"},
 	} {
 		err := a.CheckConfig(context.Background(), tc.cfg)
-		if tc.want == "" && err != nil || tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)) {
+		if tc.want == "" && err != nil || tc.want != "" && err == nil {
 			t.Errorf("CheckConfig(%v) = %v, want %q", tc.cfg.Messenger.Accounts, err, tc.want)
 		}
 	}

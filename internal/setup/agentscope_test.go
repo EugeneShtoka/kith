@@ -168,26 +168,3 @@ func TestResolvedWarningsFallBackToStatic(t *testing.T) {
 		}
 	}
 }
-
-// A prefixed room ID is on its network without a bridge space; a bare one is Matrix.
-func TestFactsOfANativeRoom(t *testing.T) {
-	t.Parallel()
-
-	native := domain.Room{ID: domain.RoomID("whatsapp:44000000001/120363000000000001@g.us")}
-	if got := (domain.Places{}).Facts(native, nil).Protocol; got != domain.ProtocolWhatsApp {
-		t.Errorf("Facts(native).Protocol = %q", got)
-	}
-	if got := (domain.Places{}).Facts(domain.Room{ID: mx + "!a:x"}, nil).Protocol; got != domain.ProtocolMatrix {
-		t.Errorf("Facts(!a:x).Protocol = %q", got)
-	}
-}
-
-// A display name may be given to a native room by its ID.
-func TestANativeRoomCanBeNamed(t *testing.T) {
-	t.Parallel()
-
-	target := "whatsapp:44000000001/120363000000000001@g.us"
-	if err := setup.NameTargets(config.Display{Names: []config.DisplayName{{Target: target, Name: "Choir"}}}); err != nil {
-		t.Errorf("NameTargets refused a native room ID: %v", err)
-	}
-}

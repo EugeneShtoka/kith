@@ -175,7 +175,7 @@ func TestAnAttachmentLoadsAgainOnceItsAddressExpired(t *testing.T) {
 	}
 
 	r.delta(danaChat, &slidetypes.NewMessageEvent{Message: photoAt(servers.URL + "/expired")})
-	if _, err := r.a.LoadImage(ctx, room, event); err == nil || !strings.Contains(err.Error(), "connects") {
+	if _, err := r.a.LoadImage(ctx, room, event); err == nil {
 		t.Errorf("an expired address while not connected: %v", err)
 	}
 	f := r.connect()

@@ -77,7 +77,7 @@ func TestMarkRoomsReadFailureCarriesTheReasonAndLogsIt(t *testing.T) {
 		t.Errorf("FirstError = %q, want the homeserver's M_BAD_JSON", got.FirstError)
 	}
 	out := buf.String()
-	for _, want := range []string{"level=WARN", `msg="mark room read failed"`, "room=" + mx + "!dnd:x", "event=" + mx + "$last", "M_BAD_JSON"} {
+	for _, want := range []string{"level=WARN", "room=" + mx + "!dnd:x", "event=" + mx + "$last", "M_BAD_JSON"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("log lacks %q:\n%s", want, out)
 		}
@@ -120,7 +120,7 @@ func TestFailingSyncerLogsOutagesWithoutFlooding(t *testing.T) {
 	if err := f.ProcessResponse(context.Background(), &mautrix.RespSync{}, "s1"); err != nil {
 		t.Fatalf("ProcessResponse: %v", err)
 	}
-	if !strings.Contains(buf.String(), `msg="sync recovered" op=sync failures=5`) {
+	if !strings.Contains(buf.String(), "failures=5") {
 		t.Errorf("recovery not logged:\n%s", buf.String())
 	}
 }

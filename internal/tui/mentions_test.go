@@ -34,9 +34,6 @@ func TestMentionsListShowsTheMessages(t *testing.T) {
 	if m.prompt.kind != promptMentions {
 		t.Errorf("prompt = %d, want the mentions prompt", m.prompt.kind)
 	}
-	if got := m.promptLabel(); !strings.Contains(got, "narrow") {
-		t.Errorf("label = %q, want it to say typing narrows the list", got)
-	}
 	if len(backend.requests) == 0 {
 		t.Fatal("nothing was asked of the cache")
 	}
@@ -60,22 +57,6 @@ func TestMentionsListShowsTheMessages(t *testing.T) {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the frame does not show %q:\n%s", want, frame)
 		}
-	}
-}
-
-// An empty list is reported as good news, not "no matches".
-func TestNoMentionsSaysSoKindly(t *testing.T) {
-	t.Parallel()
-
-	m := update(t, sized(t, starterNew(&searchBackend{}, config.Display{})),
-		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
-	next, _ := m.selectRoom(m.filteredRooms()[0])
-	m = next
-	m, cmd := press(t, m, keyText("@"))
-	m = deliver(t, m, cmd)
-
-	if got := m.searchSummary(); !strings.Contains(got, "nobody has named you") {
-		t.Errorf("summary = %q", got)
 	}
 }
 

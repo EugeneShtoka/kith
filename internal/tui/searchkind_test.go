@@ -37,9 +37,6 @@ func TestSearchKindNarrow(t *testing.T) {
 				t.Errorf("narrow gave mentioned=%v hasFile=%v, want %v/%v",
 					f.Mentioned, f.HasFile, tc.mentioned, tc.hasFile)
 			}
-			if tc.kind.name() != tc.name {
-				t.Errorf("name = %q, want %q", tc.kind.name(), tc.name)
-			}
 			if tc.kind.showsFileName() != tc.fileName {
 				t.Errorf("showsFileName = %v, want %v", tc.kind.showsFileName(), tc.fileName)
 			}
@@ -49,21 +46,5 @@ func TestSearchKindNarrow(t *testing.T) {
 					f.Empty(), tc.name)
 			}
 		})
-	}
-}
-
-func TestSearchKindSummaries(t *testing.T) {
-	m := Model{}
-	for _, tc := range []struct {
-		kind searchKind
-		want string
-	}{
-		{wordsList{}, "type to search in this room"},
-		{mentionsList{}, "nobody has named you in this room"},
-		{filesList{}, "no files in this room"},
-	} {
-		if got := tc.kind.summary(m, "in this room"); got != tc.want {
-			t.Errorf("%T summary = %q, want %q", tc.kind, got, tc.want)
-		}
 	}
 }

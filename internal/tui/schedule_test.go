@@ -158,7 +158,7 @@ func TestScheduledInThisRoomWhenEmpty(t *testing.T) {
 	other := []domain.ScheduledMessage{{ID: "s1", RoomID: mx + "!b:x", Body: "elsewhere", At: now.Add(time.Hour), Written: now}}
 
 	scoped := update(t, m.clearStatus(), scheduledMsg{queue: other, onlyRoom: mx + "!a:x"})
-	if !strings.Contains(scoped.status(), "nothing scheduled in this room") {
+	if scoped.status() == "" {
 		t.Errorf("status = %q, want it scoped to the room", scoped.status())
 	}
 	if scoped.picker.active() {

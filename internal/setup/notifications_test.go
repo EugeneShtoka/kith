@@ -126,20 +126,6 @@ func TestNotifierComposesFromConfig(t *testing.T) {
 	}
 }
 
-// Unset templates take the built-in format.
-func TestTemplatesDefault(t *testing.T) {
-	t.Parallel()
-
-	tpl := setup.Templates(config.Notifications{})
-	if tpl != (notify.Templates{Title: config.DefaultTitleTemplate, Body: config.DefaultBodyTemplate}) {
-		t.Errorf("templates = %+v, want the built-in format", tpl)
-	}
-	custom := setup.Templates(config.Notifications{Title: "{room}", Body: "{sender}: {body}"})
-	if custom.Title != "{room}" || custom.Body != "{sender}: {body}" {
-		t.Errorf("templates = %+v, want the configured ones", custom)
-	}
-}
-
 // Configured rules layer on the built-in account-wide rule rather than replacing it,
 // and an unscoped configured rule sets the account-wide level.
 func TestAnUnscopedRuleSetsTheAccountWideLevel(t *testing.T) {

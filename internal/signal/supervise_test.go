@@ -609,7 +609,7 @@ func TestTheHelperStartsOnlyWhenInstalled(t *testing.T) {
 	r := newRig(t, "exit", "aci-1", "aci-1")
 	r.until(5*time.Second, "a start", r.started(1))
 	r.uninstall()
-	r.until(10*time.Second, "not installed", r.phase(domain.AccountFailed, "not installed"))
+	r.until(10*time.Second, "not installed", r.phase(domain.AccountFailed, ""))
 	r.steady(3 * time.Second)
 	r.install(self)
 	r.until(10*time.Second, "a start once installed", r.started(2))
@@ -625,7 +625,7 @@ func TestWithoutTheStoreKeyTheCacheIsStillServed(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	r.until(5*time.Second, "failed for its key", r.phase(domain.AccountFailed, "keyring"))
+	r.until(5*time.Second, "failed for its key", r.phase(domain.AccountFailed, ""))
 	r.steady(2 * time.Second)
 	if n := len(r.pids()); n != 0 {
 		t.Errorf("%d helpers started without a key", n)

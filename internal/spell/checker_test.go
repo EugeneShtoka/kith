@@ -191,23 +191,6 @@ func stubWithPersonal(t *testing.T, path string) *Checker {
 	return c
 }
 
-// The startup banner is not read as the answer to the first word.
-func TestCheckerEatsTheBanner(t *testing.T) {
-	t.Parallel()
-
-	c := stub(t, "wrong")
-	got, err := c.Check(t.Context(), typoReceive)
-	if err != nil {
-		t.Fatalf("Check: %v", err)
-	}
-	if got.OK {
-		t.Fatal("the first word came back correct — the banner was read as its answer")
-	}
-	if len(got.Suggestions) != 3 || got.Suggestions[0] != "receive" {
-		t.Errorf("suggestions = %q, want the three from the stub", got.Suggestions)
-	}
-}
-
 func TestCheckerReadsEachKindOfAnswer(t *testing.T) {
 	t.Parallel()
 

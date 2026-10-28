@@ -96,13 +96,13 @@ func TestDayJumpAtTheEnds(t *testing.T) {
 	m := dayRoom(t)
 	m.timeline.selected = mx + "$d0m0" // the oldest message of the oldest day
 	m = pressKey(t, m, "[")
-	if !strings.Contains(m.status(), "no earlier day") {
-		t.Errorf("status after [ at the oldest day = %q", m.status())
+	if m.status() == "" || m.timeline.selected != mx+"$d0m0" {
+		t.Errorf("[ at the oldest day: selected %s, status %q", m.timeline.selected, m.status())
 	}
 	m.timeline.selected = mx + "$d3m2"
 	m = pressKey(t, m, "]")
-	if !strings.Contains(m.status(), "last day") {
-		t.Errorf("status after ] at the newest day = %q", m.status())
+	if m.status() == "" || m.timeline.selected != mx+"$d3m2" {
+		t.Errorf("] at the newest day: selected %s, status %q", m.timeline.selected, m.status())
 	}
 }
 

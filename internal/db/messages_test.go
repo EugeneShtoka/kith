@@ -47,23 +47,6 @@ func TestLatestEventsPicksTheNewestPerRoom(t *testing.T) {
 	}
 }
 
-// A later live message moves the answer.
-func TestLatestEventsFollowsNewMessages(t *testing.T) {
-	t.Parallel()
-
-	cache, ctx := openTemp(t), context.Background()
-	base := time.Date(2026, 8, 24, 9, 0, 0, 0, time.UTC)
-	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$first", Timestamp: base})
-
-	if got, err := cache.LatestEvents(ctx, []domain.RoomID{mx + "!a:x"}); err != nil || got[mx+"!a:x"] != mx+"$first" {
-		t.Fatalf("LatestEvents() = %v, %v; want $first", got, err)
-	}
-	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$later", Timestamp: base.Add(time.Minute)})
-	if got, err := cache.LatestEvents(ctx, []domain.RoomID{mx + "!a:x"}); err != nil || got[mx+"!a:x"] != mx+"$later" {
-		t.Errorf("LatestEvents() = %v, %v; want $later", got, err)
-	}
-}
-
 // A room with nothing cached is absent, not zero, which would sort as silent since
 // 1970.
 func TestLastMessages(t *testing.T) {

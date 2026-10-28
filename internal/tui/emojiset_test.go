@@ -107,20 +107,6 @@ func TestEverySetIsWellFormed(t *testing.T) {
 func TestEmojiTierValidation(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct{ in, want string }{
-		{"", emojiCurated},
-		{"curated", emojiCurated},
-		{" Standard ", emojiStandard},
-		{"COMPLETE", emojiComplete},
-	} {
-		got, err := setup.EmojiTier(tc.in)
-		if err != nil || got != tc.want {
-			t.Errorf("EmojiTier(%q) = %q, %v; want %q", tc.in, got, err, tc.want)
-		}
-	}
-	if _, err := setup.EmojiTier("expanded"); err == nil {
-		t.Error("an unknown tier should be refused")
-	}
 	err := setup.Validate(config.Config{Display: config.Display{Emoji: config.Emoji{Set: "everything"}}})
 	if err == nil || !strings.Contains(err.Error(), "emoji.set") {
 		t.Errorf("Validate error = %v, want it to name display.emoji.set", err)

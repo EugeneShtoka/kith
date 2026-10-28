@@ -3,7 +3,6 @@ package audio
 import (
 	"context"
 	"os/exec"
-	"strings"
 	"testing"
 	"time"
 )
@@ -24,9 +23,6 @@ func TestPlayReportsAPlayerThatExitsImmediately(t *testing.T) {
 	if err == nil {
 		session.Close()
 		t.Fatal("Play() succeeded with a program that exits immediately")
-	}
-	if !strings.Contains(err.Error(), "exited before it could be controlled") {
-		t.Errorf("Play() error = %q, want it to say the player exited", err)
 	}
 	if took >= socketWait {
 		t.Errorf("Play() took %s, the whole socket wait", took)

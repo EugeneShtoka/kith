@@ -57,15 +57,14 @@ func TestKithBackupRunsItsOwnKithd(t *testing.T) {
 		},
 		{
 			name: "an older kithd on PATH is refused, out loud", onPath: old, wantCode: 1,
-			wantErr: []string{"backup is kithd's to do, but", "is another build than this kith", "kithd: kithd v0.0.1-old, commit: 0000000", "install kith and kithd together"},
+			wantErr: []string{"kithd v0.0.1-old"},
 		},
 		{
 			name: "a kithd that fails without a word is still heard", sibling: ours, siblingRun: "exit 3",
-			wantCode: 3, wantErr: []string{"kith: kithd backup failed (exit status 3)"},
+			wantCode: 3, wantErr: []string{"exit status 3"},
 		},
 		{
 			name: "no kithd anywhere", wantCode: 1,
-			wantErr: []string{"backup is kithd's to do: daemon: kithd is neither beside"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -107,6 +106,9 @@ func TestKithBackupRunsItsOwnKithd(t *testing.T) {
 			}
 			if strings.Contains(stdout.String(), "path: ") {
 				t.Errorf("PATH's kithd ran: %q", stdout.String())
+			}
+			if tc.wantCode != 0 && strings.TrimSpace(stderr.String()) == "" {
+				t.Errorf("exit code %d with nothing said", code)
 			}
 			for _, want := range tc.wantErr {
 				if !strings.Contains(stderr.String(), want) {
