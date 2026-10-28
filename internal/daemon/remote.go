@@ -33,8 +33,8 @@ type Remote struct {
 	activity      *stream[domain.Activity]
 	// follows carries links handed over by a second kith process; not in api.Backend.
 	follows *stream[string]
-	// rooms says a network rewrote its rooms; not in api.Backend.
-	rooms *stream[struct{}]
+	// changes says what changed in the daemon (rooms, accounts); not in api.Backend.
+	changes *stream[domain.Change]
 	// configs is the configuration after each change; not in api.Backend.
 	configs  *stream[config.Snapshot]
 	attached *stream[bool]
@@ -85,7 +85,7 @@ func newRemote(hc *http.Client) *Remote {
 		verifications: newStream[domain.Verification](),
 		activity:      newStream[domain.Activity](),
 		follows:       newStream[string](),
-		rooms:         newStream[struct{}](),
+		changes:       newStream[domain.Change](),
 		configs:       newStream[config.Snapshot](),
 		attached:      newStream[bool](),
 		client:        rand.Text(),

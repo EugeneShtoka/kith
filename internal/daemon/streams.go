@@ -18,10 +18,10 @@ type Streams struct {
 	verifications *hub[domain.Verification]
 	// activity (typing, receipts) has no paired cache read.
 	activity *hub[domain.Activity]
-	// rooms tells clients a network rewrote its rooms so they reread the list. It has no
-	// backend channel (RoomsChanged feeds it), so Run does not pump it and Attached does
-	// not count it.
-	rooms *hub[struct{}]
+	// changes tells clients what changed (a network's rooms, an account's state) so they
+	// read it again. It has no backend channel (RoomsChanged and AccountsChanged feed
+	// it), so Run does not pump it and Attached does not count it.
+	changes *hub[domain.Change]
 	// configs carries the configuration after each change (Configured), like rooms.
 	configs *hub[config.Snapshot]
 }
@@ -35,7 +35,7 @@ func NewStreams() *Streams {
 		invites:       newHub[[]domain.Room](),
 		verifications: newHub[domain.Verification](),
 		activity:      newHub[domain.Activity](),
-		rooms:         newHub[struct{}](),
+		changes:       newHub[domain.Change](),
 		configs:       newHub[config.Snapshot](),
 	}
 }
@@ -51,7 +51,7 @@ func (s *Streams) Run(ctx context.Context, b api.Backend) {
 	wg.Go(func() { s.verifications.pump(ctx, b.Verifications()) })
 	wg.Go(func() { s.activity.pump(ctx, b.Activity()) })
 	wg.Wait()
-	s.rooms.end() // no backend channel ends these
+	s.changes.end() // no backend channel ends these
 	s.configs.end()
 }
 
@@ -85,4 +85,7 @@ func (s *Streams) Attached() int {
 func (s *Streams) Configured(snap config.Snapshot) { s.configs.broadcast(snap) }
 
 // RoomsChanged tells every attached client that a network rewrote its rooms.
-func (s *Streams) RoomsChanged() { s.rooms.broadcast(struct{}{}) }
+func (s *Streams) RoomsChanged() { s.changes.broadcast(domain.ChangeRooms) }
+
+// AccountsChanged tells every attached client that a network account's state changed.
+func (s *Streams) AccountsChanged() { s.changes.broadcast(domain.ChangeAccounts) }

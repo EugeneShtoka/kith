@@ -135,22 +135,35 @@ func TestTwoClientsBothSeeEveryMessage(t *testing.T) {
 	}
 }
 
-// A network rewriting its rooms reaches every attached client.
-func TestRoomsChangedReachesTheClient(t *testing.T) {
+// A network rewriting its rooms, and an account's state changing, reach the client
+// saying which.
+func TestChangesReachTheClient(t *testing.T) {
 	t.Parallel()
 	r, h := attach(t, &fakeBackend{Nop: apitest.Nop{}})
 	go func() { _ = r.Start(context.Background()) }()
 	h.waitAttached(1)
-	deadline := time.Now().Add(settle)
-	for {
-		h.streams.RoomsChanged()
-		select {
-		case <-r.RoomsChanged():
-			return
-		case <-time.After(20 * time.Millisecond): // its stream may not be open yet
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("RoomsChanged() never arrived")
+	for _, tc := range []struct {
+		name   string
+		change func()
+		want   domain.Change
+	}{
+		{"rooms", h.streams.RoomsChanged, domain.ChangeRooms},
+		{"accounts", h.streams.AccountsChanged, domain.ChangeAccounts},
+	} {
+		deadline := time.Now().Add(settle)
+	waiting:
+		for {
+			tc.change()
+			select {
+			case got := <-r.Changed():
+				if got == tc.want {
+					break waiting
+				} // else a repeat of the last case, sent while the stream opened
+			case <-time.After(20 * time.Millisecond): // its stream may not be open yet
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%s: change %d never arrived", tc.name, tc.want)
+			}
 		}
 	}
 }

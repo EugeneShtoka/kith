@@ -632,6 +632,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		n.OnStatus(func(s domain.AccountStatus) {
 			backend.ForgetMe() // who you are on it may have changed with it
 			notifications.AccountChanged(s, state.Report(daemon.StatusOf(s), time.Now()))
+			streams.AccountsChanged() // attached clients reread the account states
 		})
 		// A network rewriting its own rooms needs the scope reread and clients told; one whose
 		// rooms went stale needs the refresher, which refreshes every network (not for the

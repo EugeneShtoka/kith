@@ -188,7 +188,7 @@ func TestAnArchiveRefusedPutsTheRoomBack(t *testing.T) {
 	if _, cmd := m.handleArchived(archivedMsg{label: "Dana", archived: true}); cmd != nil {
 		t.Error("an archive that went through read the list again")
 	}
-	if _, cmd := m.Update(roomsChangedMsg{}); cmd == nil {
+	if _, cmd := m.Update(changedMsg{change: domain.ChangeRooms}); cmd == nil {
 		t.Error("a network's rooms changing was not read again")
 	}
 }

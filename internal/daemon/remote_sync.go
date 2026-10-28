@@ -327,8 +327,11 @@ func (r *Remote) attach(ctx context.Context, detach context.CancelFunc, ready ch
 				})
 		},
 		func(ctx context.Context) error {
-			return pumpStream(ctx, "rooms", r.rooms, r.c.RoomsChanged, &v1.RoomsChangedRequest{},
-				func(*v1.RoomsChangedResponse) (struct{}, bool) { return struct{}{}, true })
+			return pumpStream(ctx, "changes", r.changes, r.c.Changed, &v1.ChangedRequest{},
+				func(f *v1.ChangedResponse) (domain.Change, bool) {
+					c := pc.ProtoToChange(f.GetChange())
+					return c, c != 0 // a change this client does not know is nothing to read
+				})
 		},
 		func(ctx context.Context) error {
 			return pumpStream(ctx, "follows", r.follows, r.c.FollowStream, &v1.FollowStreamRequest{Client: r.client},
@@ -427,8 +430,8 @@ func (r *Remote) Follows() <-chan string { return r.follows.ch }
 // ConfigChanges is the configuration after each change, however made.
 func (r *Remote) ConfigChanges() <-chan config.Snapshot { return r.configs.ch }
 
-// RoomsChanged says a network rewrote its rooms: read the list again.
-func (r *Remote) RoomsChanged() <-chan struct{} { return r.rooms.ch }
+// Changed says what changed in the daemon: read it again.
+func (r *Remote) Changed() <-chan domain.Change { return r.changes.ch }
 
 type armState int
 
@@ -478,6 +481,6 @@ func (r *Remote) closeStreams() {
 	r.activity.done()
 	r.attached.done()
 	r.follows.done()
-	r.rooms.done()
+	r.changes.done()
 	r.configs.done()
 }
