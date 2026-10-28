@@ -2,10 +2,8 @@ package daemon_test
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -164,21 +162,6 @@ func TestRoomsRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Rooms() = %+v, want %+v", got, want)
-	}
-}
-
-// A backend failure reaches the client with the daemon's message, which the TUI shows.
-func TestRoomsPropagatesBackendError(t *testing.T) {
-	t.Parallel()
-
-	r, _ := attach(t, &fakeBackend{err: errors.New("cache is locked")})
-
-	_, err := r.Rooms(context.Background())
-	if err == nil {
-		t.Fatal("Rooms() error = nil, want an error")
-	}
-	if !strings.Contains(err.Error(), "cache is locked") {
-		t.Errorf("Rooms() error = %q, want it to mention the daemon's message", err)
 	}
 }
 

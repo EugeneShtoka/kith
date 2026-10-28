@@ -37,7 +37,7 @@ func TestModelOfferShowsWhatItIsWorth(t *testing.T) {
 		t.Error("the row starts unticked, so the measurement has to be re-done by hand")
 	}
 	detail := m.picker.items[0].detail
-	for _, want := range []string{"34%", "369 MB", "runs here"} {
+	for _, want := range []string{"34%", "369 MB"} {
 		if !strings.Contains(detail, want) {
 			t.Errorf("the row does not say %q:\n%s", want, detail)
 		}

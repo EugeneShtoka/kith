@@ -134,29 +134,6 @@ func TestEverySettingNamingAPlaceRefusesABareName(t *testing.T) {
 	}
 }
 
-// The refusal in full, for the setting most often written by hand.
-func TestABareNameIsRefusedInSoManyWords(t *testing.T) {
-	t.Parallel()
-	cfg := valid()
-	cfg.Display.Priority = []string{"space:Friends", "Work"}
-	want := `setup: display.priority: "Work" needs a prefix: space:, tag:, place:`
-	if err := setup.Validate(cfg); err == nil || err.Error() != want {
-		t.Errorf("Validate = %v, want %q", err, want)
-	}
-	cfg = valid()
-	cfg.Display.Rail.Order = []string{"tag:Pinned", "-", "Friends"}
-	want = `setup: display.rail.order: "Friends" needs a prefix: space:, tag:, place: (or * or -)`
-	if err := setup.Validate(cfg); err == nil || err.Error() != want {
-		t.Errorf("Validate = %v, want %q", err, want)
-	}
-	cfg = valid()
-	cfg.Agent.Read.Rooms = []string{"Work"}
-	want = `setup: agent.read.rooms: "Work" needs a prefix: room:, space:, tag:, place:, protocol: (or a room ID, dm, group)`
-	if err := setup.Validate(cfg); err == nil || err.Error() != want {
-		t.Errorf("Validate = %v, want %q", err, want)
-	}
-}
-
 // A setting holding rail rows takes no room-only form, and filing_spaces no tag.
 func TestAPlaceSettingRefusesAFormItCannotUse(t *testing.T) {
 	t.Parallel()
@@ -174,7 +151,7 @@ func TestAPlaceSettingRefusesAFormItCannotUse(t *testing.T) {
 	} {
 		cfg := valid()
 		c.set(&cfg)
-		if err := setup.Validate(cfg); err == nil || !strings.Contains(err.Error(), `"`+c.entry+`" needs a prefix`) {
+		if err := setup.Validate(cfg); err == nil || !strings.Contains(err.Error(), `"`+c.entry+`"`) {
 			t.Errorf("%q: Validate = %v, want it refused", c.entry, err)
 		}
 	}

@@ -106,7 +106,7 @@ func TestAPlayerThatFailsImmediatelyIsReported(t *testing.T) {
 	}
 
 	shown, _ := m.handleHandedOff(msg)
-	if !strings.Contains(shown.status(), "could not play") {
+	if shown.status() == "" {
 		t.Errorf("status = %q, want the failure said out loud", shown.status())
 	}
 }

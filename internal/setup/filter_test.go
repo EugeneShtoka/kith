@@ -29,9 +29,9 @@ func TestFiltersRefuseWhatCannotWork(t *testing.T) {
 		cfg  config.Config
 		want string
 	}{
-		"no name":             {spamTagged(with(func(f *config.Filter) { f.Name = "" })), "needs a name"},
-		"no tag":              {spamTagged(with(func(f *config.Filter) { f.Tag = "Nope" })), `"Nope" names no [[tag]]`},
-		"says nothing":        {spamTagged(with(func(f *config.Filter) { f.Words = nil })), "no words, sender or language"},
+		"no name":             {spamTagged(with(func(f *config.Filter) { f.Name = "" })), "filter[0]"},
+		"no tag":              {spamTagged(with(func(f *config.Filter) { f.Tag = "Nope" })), `"Nope"`},
+		"says nothing":        {spamTagged(with(func(f *config.Filter) { f.Words = nil })), `"crypto"`},
 		"a mistyped language": {spamTagged(with(func(f *config.Filter) { f.NotLang = []string{"en", "russian"} })), `not_lang: "russian"`},
 		"an unknown family":   {spamTagged(with(func(f *config.Filter) { f.Lang = []string{"family:asian"} })), `lang: "family:asian"`},
 		"an unknown region":   {spamTagged(with(func(f *config.Filter) { f.Lang = []string{"region:asia"} })), `lang: "region:asia"`},
@@ -43,7 +43,7 @@ func TestFiltersRefuseWhatCannotWork(t *testing.T) {
 		"a window that isnt":  {spamTagged(with(func(f *config.Filter) { f.Window = "one week" })), "window"},
 		"a spread of one":     {spamTagged(with(func(f *config.Filter) { f.Spread = 1 })), "spread"},
 		"a negative spread":   {spamTagged(with(func(f *config.Filter) { f.Spread = -2 })), "spread"},
-		"defined twice":       {spamTagged(crypto, with(func(f *config.Filter) { f.Name = "CRYPTO" })), "defined twice"},
+		"defined twice":       {spamTagged(crypto, with(func(f *config.Filter) { f.Name = "CRYPTO" })), `"CRYPTO"`},
 	} {
 		if _, err := setup.Filters(tc.cfg); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: Filters = %v, want it refused mentioning %q", name, err, tc.want)

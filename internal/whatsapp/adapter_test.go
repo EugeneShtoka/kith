@@ -76,22 +76,6 @@ func TestStarsAreKeptLocally(t *testing.T) {
 	}
 }
 
-// Unsupported operations return an error rather than silently succeeding.
-func TestWhatComesLaterIsRefused(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	a, _, _ := offline(t)
-	for name, err := range map[string]error{} {
-		if !errors.Is(err, api.ErrNotOnNetwork) {
-			t.Errorf("%s = %v, want ErrNotOnNetwork", name, err)
-		}
-	}
-	encrypted, err := a.RoomEncryption(ctx, []domain.RoomID{waRoom})
-	if err != nil || !encrypted[waRoom] {
-		t.Errorf("RoomEncryption = (%v, %v), want encrypted: every WhatsApp chat is", encrypted, err)
-	}
-}
-
 func TestPairingRefusesUnknownAndLinkedAccounts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

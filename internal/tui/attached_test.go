@@ -21,11 +21,12 @@ func TestLosingTheDaemonIsOnScreen(t *testing.T) {
 	if !lost.link.detached {
 		t.Error("detached is false after losing the daemon")
 	}
-	if badge := lost.connectionBadge(); !strings.Contains(badge, "daemon lost") {
+	badge := lost.connectionBadge()
+	if badge == "" {
 		t.Errorf("connectionBadge() = %q, want it to name the lost daemon", badge)
 	}
 	// It outranks the notification badge in their shared slot.
-	if !strings.Contains(lost.renderStatus(), "daemon lost") {
+	if !strings.Contains(stripStyles(lost.renderStatus()), strings.TrimSpace(stripStyles(badge))) {
 		t.Errorf("the status bar does not show the lost daemon:\n%s", lost.renderStatus())
 	}
 

@@ -186,7 +186,7 @@ func TestAskReportsAnUndecodableReply(t *testing.T) {
 	url, _, _ := serve(t, http.StatusOK, `<html>gateway</html>`)
 	client, _ := New(url, "m", "", time.Second)
 	_, err := client.Ask(context.Background(), completeTask(), fields())
-	if err == nil || !strings.Contains(err.Error(), "decode reply") {
+	if _, ok := errors.AsType[*json.SyntaxError](err); !ok {
 		t.Fatalf("Ask() error = %v, want the decode failure named", err)
 	}
 }

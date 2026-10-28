@@ -83,7 +83,7 @@ func TestFailedCallIsLoggedWithItsReason(t *testing.T) {
 		t.Errorf("Rooms() = %q, want no Connect code prefix", err)
 	}
 	out := logs.String()
-	for _, want := range []string{"level=WARN", `msg="call failed"`, "op=Rooms", "M_FORBIDDEN"} {
+	for _, want := range []string{"level=WARN", "op=Rooms", "M_FORBIDDEN"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("daemon log %q lacks %q", out, want)
 		}

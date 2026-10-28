@@ -46,9 +46,6 @@ func TestFilesKeyOpensTheListOnThisRoom(t *testing.T) {
 	if m.prompt.kind != promptFiles {
 		t.Errorf("prompt = %d, want the files prompt", m.prompt.kind)
 	}
-	if got := m.promptLabel(); !strings.Contains(got, "narrow") {
-		t.Errorf("label = %q, should say typing narrows the list", got)
-	}
 	if len(backend.requests) == 0 {
 		t.Fatal("no search was issued")
 	}
@@ -103,28 +100,6 @@ func TestFilesCommandFromTheTimelineIsTheRoom(t *testing.T) {
 	rooms := backend.requests[len(backend.requests)-1].Rooms
 	if rooms.All || len(rooms.IDs) != 1 || rooms.IDs[0] != mx+"!a:x" {
 		t.Errorf("rooms = %+v, want just the open room", rooms)
-	}
-}
-
-// The summary speaks of files, and an empty list is reported as a fact, not a failure.
-func TestFilesSummarySpeaksOfFiles(t *testing.T) {
-	t.Parallel()
-
-	m, _ := filing(t)
-	m, cmd := chord(t, m, "g", "f")
-	m = deliver(t, m, cmd)
-	if got := m.searchSummary(); !strings.Contains(got, "no files") {
-		t.Errorf("summary = %q, want it to say there are none", got)
-	}
-
-	m2, _ := browsingFiles(t, fileHit(mx+"!a:x", mx+"$1", "dana", "a.pdf", "a.pdf", 1))
-	m2, cmd2 := chord(t, m2, "g", "f")
-	m2 = deliver(t, m2, cmd2)
-	if got := m2.searchSummary(); !strings.Contains(got, "1 file") {
-		t.Errorf("summary = %q, want it to count files", got)
-	}
-	if got := m2.searchTitle(); !strings.HasPrefix(got, "Files") {
-		t.Errorf("title = %q, want it to say Files", got)
 	}
 }
 

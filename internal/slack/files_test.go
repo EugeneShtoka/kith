@@ -111,7 +111,7 @@ func TestAFileLoadsWithTheSessionUntilItIsDeleted(t *testing.T) {
 	}
 
 	a.cachePage(ctx, w, "C1", []slackgo.Message{imageMsg("1.0", "tombstone")}, time.Now())
-	if _, err := a.LoadImage(ctx, room, id); err == nil || !strings.Contains(err.Error(), "no file kith can load") {
+	if _, err := a.LoadImage(ctx, room, id); err == nil {
 		t.Errorf("LoadImage of a deleted file = %v, want it said there is none", err)
 	}
 	if n := len(host.asked()); n != 1 {

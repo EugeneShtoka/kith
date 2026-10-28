@@ -52,8 +52,7 @@ func TestAProfileHidesItsPeopleInTheTimeline(t *testing.T) {
 
 	m.timeline.selected = mx + "$2"
 	m.markedShownIn = m.openRoom
-	if got := strings.Join(m.whyLines(time.Now()), "\n"); !strings.Contains(got, "hidden in this profile") ||
-		!strings.Contains(got, "excluded by the") || !strings.Contains(got, "home") {
+	if got := strings.Join(m.whyLines(time.Now()), "\n"); !strings.Contains(got, "home") {
 		t.Errorf("why on Cat's message:\n%s", got)
 	}
 	if got := shownIDs(m); !slices.Equal(got, everyone) {

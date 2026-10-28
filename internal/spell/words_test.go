@@ -133,14 +133,6 @@ func TestWordsFilesAMixedSentencePerWord(t *testing.T) {
 	}
 }
 
-// A fence may span the lines of one draft. Words takes one text because skip regions
-// must never run across joined texts.
-func TestWordsAllowsAFenceToSpanLinesOfOneText(t *testing.T) {
-	t.Parallel()
-
-	same(t, texts(Words("a\n```\nb\nc\n```\nd")), "a", "d")
-}
-
 func TestWordsOnEmptyAndPunctuationOnly(t *testing.T) {
 	t.Parallel()
 

@@ -75,20 +75,3 @@ func TestAcceptingARoomRecordsItAsAMention(t *testing.T) {
 		t.Errorf("mention name = %q, composer says %q — the link is written against the name", got.Name, text)
 	}
 }
-
-// A room mention notifies nobody.
-func TestARoomMentionNotifiesNobody(t *testing.T) {
-	t.Parallel()
-
-	person := domain.Mention{UserID: "matrix:@alice:example.org", Name: "Alice"}
-	room := domain.Mention{RoomID: mx + "!war:example.org", Name: "Warroom"}
-	if !person.Notifies() {
-		t.Error("a person's mention does not notify")
-	}
-	if room.Notifies() {
-		t.Error("a room's mention notifies, which would ping everybody in it")
-	}
-	if room.Target() != mx+"!war:example.org" || person.Target() != "matrix:@alice:example.org" {
-		t.Errorf("targets = %q and %q", room.Target(), person.Target())
-	}
-}

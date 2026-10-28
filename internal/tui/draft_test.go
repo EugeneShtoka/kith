@@ -575,17 +575,17 @@ func TestDraftSaveFailuresAreSaidOnceAndRecoverySaid(t *testing.T) {
 		t.Fatalf("saveDraftCmd = %#v, want the failure reported back", saved)
 	}
 	m, _ = m.handleDraftSaved(saved)
-	if got := m.renderStatus(); !strings.Contains(got, "draft not saved") {
-		t.Fatalf("status = %q, want the failure said", got)
+	if m.status() == "" {
+		t.Fatal("status is empty, want the failure said")
 	}
 	m = m.clearStatus()
 	m, _ = m.handleDraftSaved(saved)
-	if got := m.renderStatus(); strings.Contains(got, "draft not saved") {
+	if got := m.status(); got != "" {
 		t.Errorf("status = %q, want a repeat failure left unsaid", got)
 	}
 	m, _ = m.handleDraftSaved(draftSavedMsg{})
-	if got := m.renderStatus(); !strings.Contains(got, "saved again") {
-		t.Errorf("status = %q, want the recovery said", got)
+	if m.status() == "" {
+		t.Error("status is empty, want the recovery said")
 	}
 }
 

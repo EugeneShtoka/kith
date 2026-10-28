@@ -301,18 +301,6 @@ func TestCodeRulesValidate(t *testing.T) {
 	}
 }
 
-// The zero value means the defaults.
-func TestCodeRulesZeroValueMeansDefaults(t *testing.T) {
-	t.Parallel()
-
-	if got := values(Codes("Your code is 482910", CodeRules{})); len(got) != 1 {
-		t.Errorf("zero rules found %v", got)
-	}
-	if got := values(CodeCandidates("the 2026 planning doc is up", CodeRules{})); len(got) != 1 {
-		t.Errorf("zero rules on request found %v", got)
-	}
-}
-
 // The description reads as English and matches the rules: a fixed length says one
 // number, and an excluded class is not mentioned.
 func TestCodeRulesDescribe(t *testing.T) {

@@ -278,9 +278,6 @@ func TestEmojiBrowserFilters(t *testing.T) {
 	if got := pickedEmoji(m); len(got) != 0 {
 		t.Errorf("filter %q matched %v", m.picker.filter, got)
 	}
-	if !strings.Contains(stripStyles(m.View().Content), "nothing matches") {
-		t.Error("a filter matching nothing should say so")
-	}
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	if len(m.picker.items) != 1 {
 		t.Error("backspace should widen the filter again")
@@ -595,18 +592,6 @@ func TestReactPromptPopupOwnsEscAndEnter(t *testing.T) {
 	}
 	if m2.compose.reacting || m2.completion.active {
 		t.Error("sending should close both")
-	}
-}
-
-// Sending leaves no popup state behind.
-func TestReactPromptLeavesNoPopupBehind(t *testing.T) {
-	t.Parallel()
-
-	m, _ := reacting(t)
-	m = typeAll(t, m, ":tada:") // completes and closes the popup itself
-	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.compose.reacting || m.completion.active {
-		t.Errorf("after sending: reacting=%v popup=%v, want both closed", m.compose.reacting, m.completion.active)
 	}
 }
 

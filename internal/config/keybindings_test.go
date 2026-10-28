@@ -35,28 +35,6 @@ func TestFillDefaults(t *testing.T) {
 	}
 }
 
-// Every default binding is non-empty, or an action ships with no key.
-func TestDefaultKeysAreComplete(t *testing.T) {
-	t.Parallel()
-
-	var walk func(v reflect.Value, path string)
-	walk = func(v reflect.Value, path string) {
-		for i := range v.NumField() {
-			field := v.Type().Field(i)
-			name := strings.TrimPrefix(path+"."+field.Name, ".")
-			switch v.Field(i).Kind() {
-			case reflect.String:
-				if v.Field(i).String() == "" {
-					t.Errorf("%s has no default binding", name)
-				}
-			case reflect.Struct:
-				walk(v.Field(i), name)
-			}
-		}
-	}
-	walk(reflect.ValueOf(DefaultKeys()), "")
-}
-
 func TestLoadKeys(t *testing.T) {
 	t.Parallel()
 

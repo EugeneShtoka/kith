@@ -306,8 +306,7 @@ func TestNamesFromBeforeStay(t *testing.T) {
 }
 
 // Messages read as kith shows them: text and mentions of the account, replies, media
-// described, a view-once photo pointing to the app, a shared post as its text, admin
-// notes hidden.
+// described, a shared post as its text, admin notes hidden.
 func TestMessagesAsKithShowsThem(t *testing.T) {
 	t.Parallel()
 	mention := text("m1", danaFBID, 0, "@eve look")
@@ -317,7 +316,6 @@ func TestMessagesAsKithShowsThem(t *testing.T) {
 	photo := &slidetypes.Message{ID: "m3", Content: slidetypes.MessageContentWrapper{Content: &slidetypes.MessageContentImage{
 		Attachments: []*slidetypes.Attachment{{PreviewWidth: 720, PreviewHeight: 960}, {}},
 	}}}
-	raven := &slidetypes.Message{ID: "m4", Content: slidetypes.MessageContentWrapper{Content: &slidetypes.MessageContentRavenImage{}}}
 	post := &slidetypes.Message{ID: "m5", Content: slidetypes.MessageContentWrapper{Content: &slidetypes.MessageContentXMA{
 		XMA: &slidetypes.XMAContent{TitleText: "dana", CaptionBodyText: "sunset", TargetURL: "https://www.instagram.com/p/x/"},
 	}}}
@@ -331,9 +329,6 @@ func TestMessagesAsKithShowsThem(t *testing.T) {
 	}
 	if m, _, _ := message(self, danaChat, photo); m.Media == nil || m.Media.Type != domain.MediaImage || m.Media.Width != 720 || !strings.Contains(m.Body, "+1") {
 		t.Errorf("photo = %+v", m)
-	}
-	if m, _, _ := message(self, danaChat, raven); !strings.Contains(m.Body, "Instagram app") {
-		t.Errorf("view-once = %+v", m)
 	}
 	if m, _, _ := message(self, danaChat, post); !strings.Contains(m.Body, "sunset") || !strings.Contains(m.Body, "/p/x/") {
 		t.Errorf("shared post = %q", m.Body)

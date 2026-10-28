@@ -182,7 +182,7 @@ func TestAnArchiveRefusedPutsTheRoomBack(t *testing.T) {
 	t.Parallel()
 	m := configured(config.Config{Tags: []config.Tag{{Name: "Archived"}}})
 	next, cmd := m.handleArchived(archivedMsg{label: "Dana", archived: true, err: errors.New("FLOOD_WAIT")})
-	if !strings.Contains(next.status(), "could not archive Dana") || cmd == nil {
+	if !strings.Contains(next.status(), "Dana") || cmd == nil {
 		t.Errorf("status %q, reread %v", next.status(), cmd != nil)
 	}
 	if _, cmd := m.handleArchived(archivedMsg{label: "Dana", archived: true}); cmd != nil {

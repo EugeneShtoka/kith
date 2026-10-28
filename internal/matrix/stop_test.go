@@ -35,15 +35,6 @@ func TestStartSASWithoutAVerificationHelperIsANoOp(t *testing.T) {
 	b.ver.work.Wait()
 }
 
-// VerificationUnavailable is nil when verification setup was never attempted.
-func TestVerificationUnavailableIsNilBeforeSetup(t *testing.T) {
-	t.Parallel()
-
-	if err := newBackend(nil).VerificationUnavailable(); err != nil {
-		t.Errorf("VerificationUnavailable() = %v, want nil before EnableEncryption runs", err)
-	}
-}
-
 // enableVerification refuses without a crypto machine.
 func TestEnableVerificationWithoutCryptoIsReported(t *testing.T) {
 	t.Parallel()

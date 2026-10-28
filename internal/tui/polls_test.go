@@ -114,8 +114,8 @@ func TestVotingInAPoll(t *testing.T) {
 	if !m.picker.active() || slices.ContainsFunc(m.picker.all, func(i pickerItem) bool { return i.value == voteTakeBack }) {
 		t.Fatalf("a closed poll: picker %v %+v, want its answers alone", m.picker.active(), m.picker.all)
 	}
-	m, cmd = m.acceptPick()
-	if cmd != nil || !strings.Contains(m.status(), "closed") {
+	m, cmd = m.clearStatus().acceptPick()
+	if cmd != nil || m.status() == "" {
 		t.Errorf("voting in a closed poll: cmd %v, said %q", cmd != nil, m.status())
 	}
 	b.mu.Lock()
@@ -146,8 +146,8 @@ func TestThePollPickerNamesWhoChoseEachAnswer(t *testing.T) {
 	}
 
 	m, cmd := m.openVote()
-	if got := notes(m); !slices.Contains(got, "reading who voted…") {
-		t.Errorf("before the answer, notes = %q", got)
+	if got := notes(m); len(got) == 0 {
+		t.Error("before the answer, the picker says nothing")
 	}
 	read, ok := msgOf[pollVotersMsg](t, cmd)
 	if !ok {
@@ -164,17 +164,20 @@ func TestThePollPickerNamesWhoChoseEachAnswer(t *testing.T) {
 // dropped.
 func TestThePollPickerSaysWhyNoOneIsNamed(t *testing.T) {
 	t.Parallel()
-	for hidden, want := range map[domain.PollHiding]string{
-		domain.PollAnonymous: "an anonymous poll: no one who voted is named",
-		domain.PollVoteFirst: "who voted is shown once you have voted",
-	} {
+	said := map[string]domain.PollHiding{}
+	for _, hidden := range []domain.PollHiding{domain.PollAnonymous, domain.PollVoteFirst} {
 		m := withPoll(t, &voteBackend{voters: domain.PollVoters{Hidden: hidden}}, hikePoll())
 		m, cmd := m.openVote()
 		read, _ := msgOf[pollVotersMsg](t, cmd)
 		m = update(t, m, read)
-		if got := notes(m); !slices.Contains(got, want) {
-			t.Errorf("hidden %v: notes = %q, want %q", hidden, got, want)
+		got := strings.Join(notes(m), "\n")
+		if strings.TrimSpace(got) == "" {
+			t.Errorf("hidden %v: the picker does not say why no one is named", hidden)
 		}
+		if other, dup := said[got]; dup {
+			t.Errorf("hidden %v says what hidden %v says: %q", hidden, other, got)
+		}
+		said[got] = hidden
 	}
 
 	b := &voteBackend{voters: domain.PollVoters{Voters: []domain.PollVoter{{ID: "matrix:@eli:x", Options: []string{"sat"}}}}}

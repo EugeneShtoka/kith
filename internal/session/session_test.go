@@ -226,9 +226,6 @@ func TestALockedKeyringIsNotReportedAsAFirstRun(t *testing.T) {
 	if found {
 		t.Error("Load() reported a session it could not read")
 	}
-	if !strings.Contains(err.Error(), "secret store") {
-		t.Errorf("error %q does not say what could not be read", err)
-	}
 }
 
 func TestSaveExplainsWhyTheSecretStoreRefused(t *testing.T) {

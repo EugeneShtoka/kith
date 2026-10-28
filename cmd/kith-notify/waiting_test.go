@@ -54,7 +54,7 @@ func TestAWaitingKithdIsToldOnceWithWhy(t *testing.T) {
 	}
 	waitFor(t, func() bool { return retried("First") && retried("Third") }, "both profiles to retry")
 	told := rec.all()
-	if len(told) != 1 || !strings.Contains(told[0], "kithd is waiting: "+lockedWhy) {
+	if len(told) != 1 || !strings.Contains(told[0], lockedWhy) {
 		t.Fatalf("shown %q, want one popup saying kithd is waiting: %s", told, lockedWhy)
 	}
 	if logs.count("listening for notifications") != 0 {

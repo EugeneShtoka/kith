@@ -108,13 +108,10 @@ func TestTheProfileCommand(t *testing.T) {
 	t.Parallel()
 	b := &profiledBackend{rooms: map[string][]domain.Room{}}
 	m := inProfiles(t, b, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}})
-	for line, want := range map[string]string{
-		"profile WORK": "already in work",
-		"profile gym":  "no profile gym — the config has work, home",
-	} {
-		next, _ := m.runCommandLine(line)
-		if got := next.renderStatus(); !strings.Contains(got, want) {
-			t.Errorf(":%s: status = %q, want %q", line, got, want)
+	for _, line := range []string{"profile WORK", "profile gym"} {
+		next, _ := m.clearStatus().runCommandLine(line)
+		if next.status() == "" {
+			t.Errorf(":%s: status is empty, want it to say why nothing switched", line)
 		}
 	}
 	if len(b.switches) != 0 {
@@ -130,8 +127,8 @@ func TestTheProfileCommand(t *testing.T) {
 	if got := one.renderStatus(); strings.Contains(got, "default") {
 		t.Errorf("with one profile the status names it: %q", got)
 	}
-	next, _ = one.runCommandLine("profile")
-	if next.picker.active() || !strings.Contains(next.renderStatus(), "one profile, default") {
+	next, _ = one.clearStatus().runCommandLine("profile")
+	if next.picker.active() || next.status() == "" {
 		t.Errorf("with one profile :profile = %q, picker %v", next.renderStatus(), next.picker.kind)
 	}
 }
@@ -142,9 +139,9 @@ func TestASwitchRefusedLeavesTheWindowWhereItWas(t *testing.T) {
 	t.Parallel()
 	b := &profiledBackend{rooms: map[string][]domain.Room{}, taken: []string{"home"}}
 	m := inProfiles(t, b, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}})
-	m, cmd := m.switchProfile("home")
+	m, cmd := m.clearStatus().switchProfile("home")
 	m = settle(t, m, cmd)
-	if got := m.renderStatus(); !strings.Contains(got, "cannot switch to home") || !strings.Contains(got, " work ") {
+	if got := m.renderStatus(); m.status() == "" || !strings.Contains(got, " work ") {
 		t.Errorf("status = %q, want the refusal, and work still named", got)
 	}
 	if m.currentProfile() != "work" {

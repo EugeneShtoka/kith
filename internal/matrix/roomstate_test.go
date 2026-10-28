@@ -47,7 +47,9 @@ func TestRoomsChanged(t *testing.T) {
 		"a space parent added":  {joined(stateEvent(event.StateSpaceParent, "!parent:example.org")), true},
 		"a room created":        {joined(stateEvent(event.StateCreate, "")), true},
 		// The topic is shown in the title.
-		"a topic change":        {joined(stateEvent(event.StateTopic, "")), true},
+		"a topic change": {joined(stateEvent(event.StateTopic, "")), true},
+		// A room's read-only mark follows its power levels.
+		"a power-level change":  {joined(stateEvent(event.StatePowerLevels, "")), true},
 		"we joined or left":     {joined(stateEvent(event.StateMember, string(meUser))), true},
 		"we left the room":      {left, true},
 		"the direct list moved": {directs, true},

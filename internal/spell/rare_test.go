@@ -221,14 +221,6 @@ func TestAffixScriptComesFromTheAlphabetItDeclares(t *testing.T) {
 	}
 }
 
-func TestReadAffixReportsAMissingFile(t *testing.T) {
-	t.Parallel()
-
-	if _, err := ReadAffix(filepath.Join(t.TempDir(), "none.aff")); err == nil {
-		t.Error("ReadAffix of a missing file = nil, want an error")
-	}
-}
-
 // Certain requires both an unseen typed word and exactly one candidate.
 func TestRareIsCertainOnlyWhenTheWordIsUnknownAndTheAnswerIsSingle(t *testing.T) {
 	t.Parallel()

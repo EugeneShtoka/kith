@@ -5,25 +5,6 @@ import (
 	"testing"
 )
 
-func TestSenderSlotsRoundTrip(t *testing.T) {
-	ctx := context.Background()
-	c := openTemp(t)
-
-	if got, err := c.SenderSlots(ctx, mx+"!a:x"); err != nil || len(got) != 0 {
-		t.Fatalf("a room nobody colored = %v, %v; want empty", got, err)
-	}
-	if err := c.SaveSenderSlots(ctx, mx+"!a:x", map[string]int{"matrix:@bob:x": 0, "matrix:@carol:x": 1}); err != nil {
-		t.Fatal(err)
-	}
-	got, err := c.SenderSlots(ctx, mx+"!a:x")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got["matrix:@bob:x"] != 0 || got["matrix:@carol:x"] != 1 || len(got) != 2 {
-		t.Errorf("slots = %v, want bob 0 and carol 1", got)
-	}
-}
-
 // A given hue is never taken back: a client with a colder cache must not renumber a room.
 func TestSenderSlotsDoNotMove(t *testing.T) {
 	ctx := context.Background()

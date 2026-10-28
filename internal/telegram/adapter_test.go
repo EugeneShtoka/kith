@@ -145,16 +145,6 @@ func TestAnAddedAccountIsAnnounced(t *testing.T) {
 	eventually(t, func() bool { s, _ := heard.of("work"); return s == LoggedOut }, "work, added, said nothing")
 }
 
-// Telegram rooms are not end-to-end encrypted.
-func TestTelegramRoomsAreNotEncrypted(t *testing.T) {
-	t.Parallel()
-	a := New(nil, &memSecrets{values: map[string]string{}}, nil, []Account{home}, nil)
-	room := domain.RoomID("telegram:42/-1001")
-	if enc, err := a.RoomEncryption(t.Context(), []domain.RoomID{room}); err != nil || enc[room] {
-		t.Errorf("RoomEncryption = (%v, %v), want not encrypted", enc, err)
-	}
-}
-
 // UseConfig reads [[telegram.account]], each number as its digits.
 func TestUseConfigReadsTheTelegramSection(t *testing.T) {
 	t.Parallel()

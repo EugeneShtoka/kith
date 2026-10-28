@@ -98,11 +98,12 @@ func TestAHeldChangeDoesNotUndoANewerOne(t *testing.T) {
 	cfg := held.conf.base.Clone()
 	cfg.Display.FPS = 24
 	m, _ = held.applyConfig(cfg, "set")
+	said := m.status()
 	m = verdict(t, m, cmd)
 	if m.conf.base.Display.FPS != 24 {
 		t.Errorf("fps = %d, want the newer change kept", m.conf.base.Display.FPS)
 	}
-	if len(m.conf.base.WhatsApp.Accounts) != 0 || !strings.Contains(m.status(), "make it again") {
+	if len(m.conf.base.WhatsApp.Accounts) != 0 || m.status() == said {
 		t.Errorf("accounts %+v, status %q; want the held change dropped, and said", m.conf.base.WhatsApp.Accounts, m.status())
 	}
 

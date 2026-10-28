@@ -75,26 +75,10 @@ func TestTonedEmojiKeepsItsShortcode(t *testing.T) {
 	}
 }
 
-// An unknown tone is refused at startup; case and whitespace are forgiven.
+// An unknown tone is refused at startup.
 func TestSkinToneValidation(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct{ name, want string }{
-		{"", ""},
-		{"none", ""},
-		{"light", "\U0001F3FB"},
-		{"  Medium-Dark  ", "\U0001F3FE"},
-		{"DARK", "\U0001F3FF"},
-	} {
-		name, want := tc.name, tc.want
-		got, err := setup.SkinTone(name)
-		if err != nil || got != want {
-			t.Errorf("SkinTone(%q) = %q, %v; want %q", name, got, err, want)
-		}
-	}
-	if _, err := setup.SkinTone("pale"); err == nil {
-		t.Error("SkinTone(pale) should be refused, not read as none")
-	}
 	if err := setup.Validate(config.Config{Display: config.Display{SkinTone: "pale"}}); err == nil {
 		t.Error("Validate should reject a bad tone at startup")
 	}

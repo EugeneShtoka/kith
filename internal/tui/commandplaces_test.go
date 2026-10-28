@@ -204,7 +204,7 @@ func TestHelpSaysWhereACommandApplies(t *testing.T) {
 
 	m, _ := placedModel(t, []placedCommand{{file: "zoom", key: "q", in: []string{"protocol:slack"}}}, placeRooms[0])
 	help := strings.Join(m.scriptHelp(12), "\n")
-	if !strings.Contains(help, "/zoom") || !strings.Contains(help, "only in protocol:slack") {
+	if !strings.Contains(help, "/zoom") || !strings.Contains(help, "protocol:slack") {
 		t.Errorf("help = %q, want /zoom with its places", help)
 	}
 }

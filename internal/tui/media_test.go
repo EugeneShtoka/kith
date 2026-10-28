@@ -126,8 +126,11 @@ func TestSextantGlyphs(t *testing.T) {
 			t.Fatalf("patterns %06b and %06b both draw %q", prev, bits, g)
 		}
 		seen[g] = bits
-		if g >= 0x1FB00 && g > 0x1FB3B {
-			t.Errorf("pattern %06b maps to U+%04X, past the end of the sextants", bits, g)
+		if strings.ContainsRune(" ▌▐█", g) {
+			continue // the four patterns the block leaves to older characters
+		}
+		if g < 0x1FB00 || g > 0x1FB3B {
+			t.Errorf("pattern %06b maps to U+%04X, outside the sextants", bits, g)
 		}
 	}
 }

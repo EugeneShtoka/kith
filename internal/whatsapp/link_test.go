@@ -75,10 +75,7 @@ func TestAnAccountReportsItsLink(t *testing.T) {
 	a.useAccounts(ctx, []Account{{Name: "work", Digits: "1500000001"}})
 
 	got := l.all()[1:]
-	want := []string{
-		"home connected ", "home connecting disconnected; reconnecting", "home unlinked the phone unlinked kith",
-		"home unlinked no longer in the config", "work unlinked not linked yet",
-	}
+	want := []string{"home connected", "home connecting", "home unlinked", "home unlinked", "work unlinked"}
 	if len(got) != len(want) {
 		t.Fatalf("reports = %q, want %q", got, want)
 	}

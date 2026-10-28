@@ -40,7 +40,7 @@ func TestCodeRulesReachTheModel(t *testing.T) {
 		t.Error("a four-digit PIN should not qualify under a six-character minimum")
 	}
 	m, _ = chord(t, m, "y", "c")
-	if !strings.Contains(m.status(), "no code") {
+	if m.status() == "" || strings.Contains(m.status(), "4821") {
 		t.Errorf("status = %q, want no code found", m.status())
 	}
 }

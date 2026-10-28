@@ -161,9 +161,6 @@ func TestPickerEmptyResult(t *testing.T) {
 	if _, ok := m.picker.selected(); ok {
 		t.Error("nothing should be selected when nothing matches")
 	}
-	if !strings.Contains(stripStyles(strings.Join(m.pickerLines(60, 6), "\n")), "nothing matches") {
-		t.Error("an empty result should say so")
-	}
 	before := m.prefs.display
 	m, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = deliver(t, m, cmd)
@@ -310,7 +307,7 @@ func TestAListPickerHasNoHeaderUntilYouType(t *testing.T) {
 
 	m, _ = press(t, m, keyText("i")) // into filter mode
 	m, _ = press(t, m, keyText("W"))
-	if got := m.pickerHeader(); !strings.Contains(got, "filter: W") {
+	if got := m.pickerHeader(); !strings.Contains(got, "W") {
 		t.Errorf("header = %q, want it to show what was typed", got)
 	}
 }

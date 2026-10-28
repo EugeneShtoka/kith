@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -448,7 +449,7 @@ func TestMentionPopupCapsAndCounts(t *testing.T) {
 	if len(rows) != completionRows+1 {
 		t.Fatalf("popup rendered %d rows, want %d plus a footer", len(rows), completionRows)
 	}
-	if !strings.Contains(stripStyles(rows[len(rows)-1]), "more") {
+	if !strings.Contains(stripStyles(rows[len(rows)-1]), strconv.Itoa(len(many)-completionRows)) {
 		t.Errorf("the last row should count what is hidden, got %q", stripStyles(rows[len(rows)-1]))
 	}
 }

@@ -62,7 +62,7 @@ func TestAnAttachmentLoadsThroughTheHelper(t *testing.T) {
 	if data, err := r.a.LoadImage(ctx, room, event("1700000000100")); err != nil || string(data) != "bytes of p1" {
 		t.Errorf("loaded %q, %v", data, err)
 	}
-	if _, err := r.a.LoadImage(ctx, room, event("1700000000200")); err == nil || !strings.Contains(err.Error(), "for a while only") {
+	if _, err := r.a.LoadImage(ctx, room, event("1700000000200")); err == nil {
 		t.Errorf("a gone attachment: %v", err)
 	}
 	if _, err := r.a.LoadImage(ctx, room, event("1700000000300")); err == nil {

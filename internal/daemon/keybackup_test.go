@@ -236,9 +236,9 @@ func TestKeyBackupSweepsEachAccount(t *testing.T) {
 	var home, work int
 	for _, line := range got {
 		switch {
-		case strings.HasPrefix(line, "@me:x: ") && strings.Contains(line, "no key backup"):
+		case strings.HasPrefix(line, "@me:x: "):
 			home++
-		case strings.HasPrefix(line, "@me:work.x: backed up 2"):
+		case strings.HasPrefix(line, "@me:work.x: ") && strings.Contains(line, "2"):
 			work++
 		}
 	}

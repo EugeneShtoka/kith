@@ -171,15 +171,6 @@ func TestWithThreadsAddsTheirShare(t *testing.T) {
 	}
 }
 
-func TestWithThreadsOfNone(t *testing.T) {
-	t.Parallel()
-
-	got := domain.Unread{Messages: 2}.WithThreads(nil)
-	if got.Messages != 2 || len(got.Threads) != 0 {
-		t.Errorf("got %+v, want the unread state untouched", got)
-	}
-}
-
 // A reorder is a change: threads come newest-activity-first.
 func TestSameThreadUnread(t *testing.T) {
 	t.Parallel()

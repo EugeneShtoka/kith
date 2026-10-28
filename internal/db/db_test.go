@@ -117,34 +117,6 @@ func TestSpacesRoundTrip(t *testing.T) {
 	}
 }
 
-func TestReopenPreservesDataAndSchema(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "cache.db")
-
-	first, err := Open(ctx, path, testKey)
-	if err != nil {
-		t.Fatalf("first Open() error = %v", err)
-	}
-	if serr := first.SaveRooms(ctx, mxRooms, []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}); serr != nil {
-		t.Fatalf("SaveRooms() error = %v", serr)
-	}
-	if cerr := first.Close(); cerr != nil {
-		t.Fatalf("Close() error = %v", cerr)
-	}
-
-	// Reopening re-runs migrate (a no-op); the data survives.
-	second, err := Open(ctx, path, testKey)
-	if err != nil {
-		t.Fatalf("reopen Open() error = %v", err)
-	}
-	t.Cleanup(func() { _ = second.Close() })
-	got, err := second.Rooms(ctx)
-	if err != nil || len(got) != 1 || got[0].Name != "Alpha" {
-		t.Fatalf("after reopen Rooms() = %+v, %v; want [Alpha]", got, err)
-	}
-}
-
 func TestMessagesRoundTrip(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

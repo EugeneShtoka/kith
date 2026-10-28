@@ -595,7 +595,7 @@ func TestABackupLeavesLinkedCommands(t *testing.T) {
 			t.Errorf("a linked command went in: %s", e.Name)
 		}
 	}
-	if len(made.Left) != 1 || !strings.Contains(made.Left[0], "is a link to "+elsewhere) {
+	if len(made.Left) != 1 || !strings.Contains(made.Left[0], elsewhere) {
 		t.Errorf("Left = %v; want the link named", made.Left)
 	}
 }

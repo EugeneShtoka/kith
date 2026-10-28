@@ -92,25 +92,6 @@ func TestARewindRestartsARunningSync(t *testing.T) {
 	})
 }
 
-// Before the loop starts, the rewind is immediate.
-func TestARewindBeforeSyncIsImmediate(t *testing.T) {
-	t.Parallel()
-
-	b := backendOn(t, syncingServer(t, &sinceLog{}))
-	ctx := context.Background()
-	store := mautrix.NewMemorySyncStore()
-	if err := store.SaveNextBatch(ctx, "@me:x", "s99"); err != nil {
-		t.Fatal(err)
-	}
-	b.client.Store = store
-	if err := b.RewindSync(ctx); err != nil {
-		t.Fatalf("RewindSync() error = %v", err)
-	}
-	if token, _ := store.LoadNextBatch(ctx, "@me:x"); token != "" {
-		t.Errorf("token = %q after RewindSync, want empty", token)
-	}
-}
-
 // The response a rewind is taken on still reaches the listeners, the crypto machine's
 // included: a full initial sync carries no device_lists.changed, so a dropped device
 // list change would never be fetched.

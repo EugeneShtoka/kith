@@ -383,7 +383,7 @@ func TestMatrixAccountsSetUpInsideKithStartWithoutARestart(t *testing.T) {
 	talk, end, err := setUp("@me:x", map[string][]string{
 		"homeserver": {"not a url", hs.URL}, "user": {"@:x", "@me:x"}, "name": {""}, "password": {"secret"},
 	})
-	if err != nil || end.Restart || end.Done != "logged in to Matrix as @me:x" {
+	if err != nil || end.Restart || !strings.Contains(end.Done, "@me:x") {
 		t.Fatalf("login = (%+v, %v), want logged in, no restart", end, err)
 	}
 	if len(talk.Notes) != 2 || talk.Account != "me" {

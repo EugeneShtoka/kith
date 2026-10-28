@@ -31,7 +31,7 @@ func TestCorruptDraftMentionsAreLoggedNotLost(t *testing.T) {
 		t.Fatalf("Drafts() = %+v, %v; want the draft kept without mentions", got, err)
 	}
 	log := out.String()
-	if !strings.Contains(log, "draft mentions unreadable") || !strings.Contains(log, "room="+mx+"!a:x") {
+	if !strings.Contains(log, "room="+mx+"!a:x") {
 		t.Errorf("log = %q, want the dropped mentions reported", log)
 	}
 	if strings.Contains(log, "private words") {

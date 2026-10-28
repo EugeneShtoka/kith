@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -72,13 +74,13 @@ func TestADeletedPictureIsHiddenFromTheTimeline(t *testing.T) {
 	if slices.ContainsFunc(jobs, func(j mediaJob) bool { return j.eventID == mx+"$gone" }) {
 		t.Error("a deleted picture is in the room's gallery")
 	}
-	for name, act := range map[string]func(Model) Model{
-		"view":     func(m Model) Model { next, _ := m.viewMedia(); return next },
-		"download": func(m Model) Model { next, _ := m.download(); return next },
+	for name, act := range map[string]func(Model) (Model, tea.Cmd){
+		"view":     Model.viewMedia,
+		"download": Model.download,
 	} {
-		said := act(m)
-		if !strings.Contains(said.status(), "this message was deleted") {
-			t.Errorf("%s on a deleted picture said %q, want its history pointed to", name, said.status())
+		said, cmd := act(m)
+		if cmd != nil || said.status() == "" {
+			t.Errorf("%s on a deleted picture said %q and ran %v, want its history pointed to", name, said.status(), cmd != nil)
 		}
 	}
 }

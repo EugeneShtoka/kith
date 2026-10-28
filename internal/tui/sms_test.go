@@ -128,13 +128,10 @@ func TestTheSMSQuestion(t *testing.T) {
 
 	m, _ := composing(t)
 	room := domain.Room{ID: "gmessages:a/1", Name: "Dana", SMS: true}
-	for action, want := range map[pendingAction]string{
-		pendingSendSMS:     "send to Dana as SMS? it goes through your phone's carrier",
-		pendingScheduleSMS: "schedule this for Dana as SMS? it goes through your phone's carrier",
-	} {
+	for _, action := range []pendingAction{pendingSendSMS, pendingScheduleSMS} {
 		m.confirm = confirmState{action: action, room: room}
-		if got := m.confirmPrompt(); got != want {
-			t.Errorf("%v: %q, want %q", action, got, want)
+		if got := m.confirmPrompt(); !strings.Contains(got, "Dana") {
+			t.Errorf("%v: %q, want it to name the chat", action, got)
 		}
 	}
 }

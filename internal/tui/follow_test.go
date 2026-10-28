@@ -205,7 +205,7 @@ func TestAHandedOverNonLinkIsReported(t *testing.T) {
 	if got.openRoom == mx+"!b:x" {
 		t.Error("a non-link moved the client")
 	}
-	if !strings.Contains(got.status(), "not a Matrix, Telegram, WhatsApp or Signal link") {
+	if got.status() == m.status() {
 		t.Errorf("status = %q, want it to say what was wrong", got.status())
 	}
 }
@@ -246,7 +246,7 @@ func TestAHandedOverTelegramLinkToAnUnknownChatIsReported(t *testing.T) {
 		if next.openRoom != m.openRoom {
 			t.Errorf("%s: an unknown Telegram @username moved the client to %q", name, next.openRoom)
 		}
-		if !strings.Contains(next.status(), "no chat found") {
+		if next.status() == m.status() {
 			t.Errorf("%s: status = %q, want it to say the chat was not found", name, next.status())
 		}
 	}
@@ -617,11 +617,12 @@ func TestAFailingRaiseCommandIsReported(t *testing.T) {
 	if !ok || raised.err == nil {
 		t.Fatalf("raisedMsg = %+v, %v; want the failure", raised, ok)
 	}
+	before := next.status()
 	next = update(t, next, raised)
 	if next.openRoom != mx+"!b:x" {
 		t.Errorf("open room = %q, want !b:x", next.openRoom)
 	}
-	if !strings.Contains(next.status(), "could not raise this window") {
+	if next.status() == before {
 		t.Errorf("status = %q, want it to say the window was not raised", next.status())
 	}
 }

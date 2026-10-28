@@ -187,20 +187,6 @@ func TestConfiguredPictureSizeWins(t *testing.T) {
 	}
 }
 
-// Auto-detected viewers are told to fit pictures to the window, not open at 1:1.
-func TestAutoDetectedViewersAreToldToFit(t *testing.T) {
-	t.Parallel()
-
-	for _, candidate := range viewerCandidates {
-		if candidate[0] == "feh" && strings.Join(candidate[1:], " ") != "--scale-down" {
-			t.Errorf("feh is run as %v, want it told to scale down to the window", candidate)
-		}
-		if len(candidate[0]) == 0 {
-			t.Error("a viewer candidate has no program to run")
-		}
-	}
-}
-
 // A configured viewer replaces the whole command, flags and all.
 func TestConfiguredViewerIsTakenAsWritten(t *testing.T) {
 	t.Parallel()

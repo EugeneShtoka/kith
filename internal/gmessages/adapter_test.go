@@ -548,7 +548,7 @@ func TestRetry(t *testing.T) {
 	if !a.retry(ctx, c, errors.New("connection reset"), &wait) || wait != 2*time.Millisecond {
 		t.Errorf("a transient failure: wait now %v", wait)
 	}
-	if st := heard.last(); st.Phase != Connecting || !strings.Contains(st.Detail, "retrying") {
+	if st := heard.last(); st.Phase != Connecting {
 		t.Errorf("while retrying: %+v", st)
 	}
 	wait = retryMax

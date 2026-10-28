@@ -52,6 +52,10 @@ func TestReorderStillMirrorsBrackets(t *testing.T) {
 	if strings.Count(vis, "(") != 1 || strings.Count(vis, ")") != 1 {
 		t.Errorf("brackets lost: %q", vis)
 	}
+	// Reversed without mirroring, the pair would read )…( on screen.
+	if open, closing := strings.Index(vis, "("), strings.Index(vis, ")"); open > closing {
+		t.Errorf("brackets not mirrored: %q", vis)
+	}
 }
 
 func clusters(s string) int {

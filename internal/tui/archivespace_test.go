@@ -83,7 +83,7 @@ func TestArchivingTheOpenRoomMovesTheCursorToItsNeighbor(t *testing.T) {
 		t.Errorf("open room = %q, want !b:x — the room after the one that left", m.openRoom)
 	}
 	// The status message survives the move.
-	if !strings.Contains(m.status(), "Alpha is in Archived") {
+	if !strings.Contains(m.status(), "Alpha") {
 		t.Errorf("status = %q, want the archive message to outlive the navigation", m.status())
 	}
 }

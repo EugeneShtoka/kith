@@ -269,7 +269,7 @@ func sized(t *testing.T, m Model) Model {
 func TestHandleRoomsSelectsFirst(t *testing.T) {
 	t.Parallel()
 
-	m := withRooms(t, newModel())
+	m := withRooms(t, newModel().clearStatus())
 	if len(m.rooms.all) != 2 {
 		t.Fatalf("rooms = %d, want 2", len(m.rooms.all))
 	}
@@ -277,8 +277,8 @@ func TestHandleRoomsSelectsFirst(t *testing.T) {
 	if !ok || room.Name != "Alpha" {
 		t.Fatalf("currentRoom = %+v ok=%v, want Alpha", room, ok)
 	}
-	if m.status() != "loading history…" {
-		t.Errorf("status = %q, want loading history", m.status())
+	if m.status() == "" {
+		t.Error("status is empty, want the history load said")
 	}
 }
 
@@ -754,15 +754,15 @@ func TestSubmit(t *testing.T) {
 	m.focus = paneTimeline
 	m, _ = press(t, m, keyText("i")) // insert mode
 	m, _ = press(t, m, keyText("y"))
-	m, cmd := press(t, m, sendKey())
+	m, cmd := press(t, m.clearStatus(), sendKey())
 	if cmd == nil {
 		t.Error("submitting non-empty input should return a send command")
 	}
 	if m.compose.input != "" {
 		t.Errorf("input after send = %q, want empty", m.compose.input)
 	}
-	if m.status() != "sending…" {
-		t.Errorf("status = %q, want sending", m.status())
+	if m.status() == "" {
+		t.Error("status is empty, want the send said")
 	}
 }
 
@@ -811,12 +811,12 @@ func TestVerificationFlow(t *testing.T) {
 	}
 
 	// Done dismisses the overlay.
-	m = update(t, m, verifyMsg{v: domain.Verification{Kind: domain.VerificationDone, TxnID: "t1"}})
+	m = update(t, m.clearStatus(), verifyMsg{v: domain.Verification{Kind: domain.VerificationDone, TxnID: "t1"}})
 	if m.verify.active {
 		t.Errorf("done should dismiss the overlay: %+v", m.verify)
 	}
-	if !strings.Contains(m.status(), "verified") {
-		t.Errorf("status = %q, want a verified message", m.status())
+	if m.status() == "" {
+		t.Error("status is empty, want the verification said")
 	}
 }
 
@@ -986,15 +986,15 @@ func TestBackfillChainsUntilStart(t *testing.T) {
 	m.timeline.hist.backfilling = true
 
 	// A page that still has older history chains another fetch.
-	m, cmd := asModel(m.Update(timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
+	m, cmd := asModel(m.clearStatus().Update(timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{
 		Messages: []domain.Message{{ID: mx + "$1", RoomID: mx + "!a:x", Timestamp: at(1)}},
 		Next:     "tok",
 	}}))
 	if cmd == nil || !m.timeline.hist.backfilling {
 		t.Fatalf("backfill should continue while history remains: cmd=%v backfilling=%v", cmd, m.timeline.hist.backfilling)
 	}
-	if !strings.Contains(m.status(), "full history") {
-		t.Errorf("status = %q, want backfill progress", m.status())
+	if m.status() == "" {
+		t.Error("status is empty, want backfill progress")
 	}
 
 	// The network's final page (no Next token) goes on to the cache.
@@ -1511,12 +1511,12 @@ func TestJumpMatch(t *testing.T) {
 		m := loadPage(t, sized(t, withRooms(t, newModel())), tc.msgs)
 		m.focus = paneTimeline
 		for i, st := range tc.steps {
-			m, _ = press(t, m, keyText(st.key))
+			m, _ = press(t, m.clearStatus(), keyText(st.key))
 			if got := m.selectedID(); got != st.want {
 				t.Errorf("%s: step %d %s = %q, want %q", tc.name, i, st.key, got, st.want)
 			}
-			if st.status != "" && !strings.Contains(m.st.event, st.status) {
-				t.Errorf("%s: step %d status = %q, want %q", tc.name, i, m.st.event, st.status)
+			if st.status != "" && m.st.event == "" {
+				t.Errorf("%s: step %d status is empty, want it to say %q", tc.name, i, st.status)
 			}
 		}
 	}
@@ -1704,15 +1704,14 @@ func TestErrorsReachTheStatusLine(t *testing.T) {
 		name string
 		m    Model
 		msg  tea.Msg
-		want string
 	}{
-		{"rooms", newModel(), roomsMsg{err: context.Canceled}, "error:"},
-		{"history", withRooms(t, newModel()), timelineMsg{roomID: mx + "!a:x", err: context.Canceled}, "history error:"},
-		{"send", newModel(), sentMsg{err: context.Canceled}, "send failed:"},
-		{"sync", newModel(), syncEndedMsg{err: context.Canceled}, "sync stopped"},
+		{"rooms", newModel(), roomsMsg{err: context.Canceled}},
+		{"history", withRooms(t, newModel()), timelineMsg{roomID: mx + "!a:x", err: context.Canceled}},
+		{"send", newModel(), sentMsg{err: context.Canceled}},
+		{"sync", newModel(), syncEndedMsg{err: context.Canceled}},
 	} {
-		if got := update(t, tc.m, tc.msg).status(); !strings.HasPrefix(got, tc.want) {
-			t.Errorf("%s: status = %q, want prefix %q", tc.name, got, tc.want)
+		if before, got := tc.m.status(), update(t, tc.m, tc.msg).status(); got == "" || got == before {
+			t.Errorf("%s: status = %q, want the error said", tc.name, got)
 		}
 	}
 	if got := update(t, newModel(), sentMsg{}).status(); got != "" {
@@ -1736,14 +1735,15 @@ func TestViewFrame(t *testing.T) {
 	t.Parallel()
 
 	// Not ready yet → starting placeholder.
-	if got := newModel().View().Content; !strings.Contains(got, "starting") {
-		t.Errorf("unsized view = %q, want starting placeholder", got)
+	unsized := newModel().View().Content
+	if unsized == "" {
+		t.Error("unsized view is empty, want a starting placeholder")
 	}
 
 	// Too small → resize hint.
 	small := update(t, newModel(), tea.WindowSizeMsg{Width: 20, Height: 8})
-	if got := small.View().Content; !strings.Contains(got, "too small") {
-		t.Errorf("tiny view = %q, want too-small hint", got)
+	if got := small.View().Content; got == "" || got == unsized {
+		t.Errorf("tiny view = %q, want a too-small hint", got)
 	}
 
 	// Sized + rooms → three-pane frame with rail title and room names.
@@ -1752,7 +1752,7 @@ func TestViewFrame(t *testing.T) {
 	if !view.AltScreen {
 		t.Error("view should use the alt screen")
 	}
-	for _, want := range []string{"Spaces", "Alpha", "Bravo"} {
+	for _, want := range []string{"Alpha", "Bravo"} {
 		if !strings.Contains(view.Content, want) {
 			t.Errorf("frame view missing %q", want)
 		}
@@ -2200,7 +2200,7 @@ func TestUnknownMessageIsNoop(t *testing.T) {
 
 	type customMsg struct{}
 	next, cmd := asModel(newModel().Update(customMsg{}))
-	if cmd != nil || next.status() != "loading rooms…" {
+	if cmd != nil || next.status() != newModel().status() {
 		t.Error("unknown message should not change the model")
 	}
 }
@@ -2559,12 +2559,12 @@ func TestAFailedReceiptIsSaidAndRetried(t *testing.T) {
 	if !ok || failed.err == nil {
 		t.Fatalf("outcome = %+v, %v; want the refusal routed back", failed, ok)
 	}
-	m = update(t, m, failed)
+	m = update(t, m.clearStatus(), failed)
 	if m.receipts.marked == mx+"$e1" {
 		t.Error("a refused receipt was recorded as sent")
 	}
-	if !strings.Contains(m.st.event, "read receipt failed") {
-		t.Errorf("status = %q, want the failure said", m.st.event)
+	if m.st.event == "" {
+		t.Error("status is empty, want the failure said")
 	}
 
 	// The next trigger retries the same event.

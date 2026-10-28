@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -827,18 +828,22 @@ func TestReachableClassifiesLikeResume(t *testing.T) {
 
 	t.Run("a rejected token is not something to wait out", func(t *testing.T) {
 		t.Parallel()
+		// Accepted at Resume, so the client is kept; rejected by the time Reachable asks.
+		var rejecting atomic.Bool
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if !rejecting.Load() {
+				_, _ = w.Write([]byte(`{"user_id":"@eugene:example.org","device_id":"DEV1"}`))
+				return
+			}
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(`{"errcode":"M_UNKNOWN_TOKEN","error":"Invalid access token"}`))
 		}))
 		defer srv.Close()
 
-		b := newBackend(nil)
-		_ = b.Resume(t.Context(), domain.Session{
-			Homeserver: srv.URL, UserID: "matrix:@eugene:example.org", DeviceID: "DEV1", AccessToken: "token",
-		}, nil)
-		if err := b.Reachable(t.Context()); !errors.Is(err, api.ErrUnreachable) && !errors.Is(err, api.ErrSessionRejected) {
-			t.Errorf("Reachable = %v, want a classified error", err)
+		b := resumed(t, srv.URL)
+		rejecting.Store(true)
+		if err := b.Reachable(t.Context()); !errors.Is(err, api.ErrSessionRejected) {
+			t.Errorf("Reachable = %v, want ErrSessionRejected", err)
 		}
 	})
 }

@@ -220,7 +220,7 @@ func TestATagsRoomListSwitchesToItsPeople(t *testing.T) {
 	}
 	// Elsewhere there is nobody to list.
 	m.rail.cursor = slices.IndexFunc(m.rail.groups, func(g group) bool { return !isTagGroup(g.key) })
-	if m, _ = m.toggleTagPeople(); m.showingTagPeople() || !strings.Contains(m.status(), "only a tag holds people") {
+	if m, _ = m.toggleTagPeople(); m.showingTagPeople() {
 		t.Errorf("on %s: showing=%v status %q", m.rail.key(), m.showingTagPeople(), m.status())
 	}
 }

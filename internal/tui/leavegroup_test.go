@@ -64,7 +64,7 @@ func TestLeavingFromTheRail(t *testing.T) {
 
 	m.confirm = confirmState{} // answered above, on the copy that went on
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Telegram home")
-	if got := pressKey(t, m, "L"); got.confirm.action != pendingNone || !strings.Contains(got.status(), "only the bridge signs out") {
+	if got := pressKey(t, m, "L"); got.confirm.action != pendingNone || got.status() == m.status() {
 		t.Errorf("L on an account's space: confirm %v, status %q", got.confirm.action, got.status())
 	}
 

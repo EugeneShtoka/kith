@@ -41,6 +41,7 @@ func TestANameTargetHasToSayWhatItNames(t *testing.T) {
 		mx + "!abc:example.org", config.NameTargetRoom + "Standup",
 		config.NameTargetSpace + "Work",
 		config.NameTargetThread + mx + "$evt",
+		"whatsapp:44000000001/120363000000000001@g.us",
 	} {
 		if err := NameTargets(config.Display{
 			Names: []config.DisplayName{{Target: target, Name: "x"}},

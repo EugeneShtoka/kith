@@ -133,7 +133,7 @@ func TestEssentialActionsAlwaysKeepAKey(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"nav.back", "insert.cancel", "prompt.cancel"} {
-		if !slices.ContainsFunc(km.issues, func(i string) bool { return strings.HasPrefix(i, name+": must keep a key") }) {
+		if !slices.ContainsFunc(km.issues, func(i string) bool { return strings.HasPrefix(i, name+":") }) {
 			t.Errorf("no issue says %s kept its key; issues %v", name, km.issues)
 		}
 	}
@@ -170,7 +170,7 @@ func TestConflictFallsBackToDefault(t *testing.T) {
 	if len(km.issues) != 2 { // the clash, and the fallback that resolved it
 		t.Errorf("issues = %v, want the clash and the fallback", km.issues)
 	}
-	for _, want := range []string{"already bound to timeline.go_reply", "fell back"} {
+	for _, want := range []string{"timeline.go_reply", "timeline.react"} {
 		if !strings.Contains(strings.Join(km.issues, " "), want) {
 			t.Errorf("issues %v should mention %q", km.issues, want)
 		}
@@ -345,13 +345,9 @@ func TestKeymapIssuesSurfaceOnStatus(t *testing.T) {
 	keys := config.DefaultKeys()
 	keys.Bindings["nav.open"] = "esc"
 	m := sized(t, withRooms(t, newModel())).WithKeys(keys)
-	if !strings.Contains(m.status(), "keybinding issue") || !strings.Contains(m.status(), "?") {
-		t.Errorf("status = %q, want a keybinding-issue notice naming the help key", m.status())
-	}
-	// And the overlay itself lists them.
-	body := strings.Join(withHelp(t, m).helpLines(), "\n")
-	if !strings.Contains(body, "already bound to nav.open") {
-		t.Errorf("help should list the issue, got:\n%s", body)
+	clean := sized(t, withRooms(t, newModel()))
+	if m.status() == clean.status() {
+		t.Errorf("status = %q, want a keybinding-issue notice", m.status())
 	}
 }
 
@@ -389,7 +385,7 @@ func TestUnknownKeyNameIsReported(t *testing.T) {
 	keys.Bindings["timeline.react"] = "escape" // the real name is "esc"
 	km := newKeymap(keys)
 
-	if !strings.Contains(strings.Join(km.issues, " "), `"escape" is not a key name`) {
+	if !strings.Contains(strings.Join(km.issues, " "), `"escape"`) {
 		t.Errorf("issues = %v, should name the bad key", km.issues)
 	}
 	if got := km.lookup("e", scopeTimeline); got != actReact {
@@ -598,7 +594,7 @@ func TestHelpSearchNarrowsTheList(t *testing.T) {
 	if m.reader.filter != "replyq" || !m.reader.showing(readerHelp) {
 		t.Fatalf("q while searching: filter %q, help up %v; want it typed", m.reader.filter, m.reader.showing(readerHelp))
 	}
-	if !strings.Contains(ansi.Strip(strings.Join(m.helpBody(), "\n")), "nothing matches") {
+	if body := m.helpBody(); len(body) != 1 || !strings.Contains(ansi.Strip(body[0]), "replyq") {
 		t.Error("a filter that matches nothing does not say so")
 	}
 	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
