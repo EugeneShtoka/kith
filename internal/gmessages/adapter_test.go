@@ -549,6 +549,42 @@ func TestChangedCookiesAreLoggedByName(t *testing.T) {
 	}
 }
 
+// A refreshed token logs, at debug, when it expires, and the cookies saved with it by
+// name, never a value.
+func TestARefreshedTokenIsLoggedWithItsCookies(t *testing.T) {
+	t.Parallel()
+
+	var logged bytes.Buffer
+	secrets := newSecrets()
+	a := New(nil, secrets, nil, slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	a.UseConfig(context.Background(), withAccounts("phone"))
+	w := pair(t, a, secrets)
+	auth := w.c.session.Auth
+	auth.SetCookies(map[string]string{"SID": "sid-kept", "SIDCC": "sidcc-old"})
+	a.keepCookies(w.c)
+	logged.Reset()
+
+	w.refresh()
+	auth.TachyonExpiry = time.Date(2026, 10, 29, 9, 20, 53, 0, time.UTC)
+	auth.SetCookies(map[string]string{"SID": "sid-kept", "SIDCC": "sidcc-new"})
+	a.handle(context.Background(), w.c, nil, &events.AuthTokenRefreshed{})
+	line := logged.String()
+	if !strings.Contains(line, `msg="the token was refreshed"`) || !strings.Contains(line, "expires=2026-10-29T09:20:53") {
+		t.Errorf("log %q does not say the token was refreshed and when it expires", line)
+	}
+	if !strings.Contains(line, `names=[SIDCC]`) {
+		t.Errorf("log %q does not name the cookie saved with the token", line)
+	}
+	for _, value := range []string{"sid-kept", "sidcc-old", "sidcc-new", string(auth.TachyonAuthToken)} {
+		if strings.Contains(line, value) {
+			t.Errorf("log %q shows a secret", line)
+		}
+	}
+	if got, want := tokenOf(t, secrets, "phone"), string(auth.TachyonAuthToken); got != want {
+		t.Errorf("stored token %s, want the refreshed %s", got, want)
+	}
+}
+
 // libgm's events show in the account: the long poll dropping and recovering, the
 // phone falling silent and answering again, another session taking over; the pairing
 // ending reaches the connection, a refreshed token is saved, and nothing else is.
