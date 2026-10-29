@@ -1719,6 +1719,44 @@ message RetryScheduledRequest {
 
 message RetryScheduledResponse {}
 
+// ── Devices ──
+
+// Device is one device paired with this kithd: it may reach every call over
+// [remote] listen. id is its device ID (the SHA-256 of its public key, in base32
+// groups); added_by is the device ID of the one that paired it, kithd's own for its
+// socket.
+message Device {
+  string name = 1;
+  string id = 2;
+  google.protobuf.Timestamp added_at = 3;
+  string added_by = 4;
+}
+
+message DevicesRequest {}
+
+// self is kithd's own device ID, which a client pins.
+message DevicesResponse {
+  string self = 1;
+  repeated Device devices = 2;
+}
+
+// AddDeviceRequest pins a device by its ID, as pasted; name is how it is listed.
+message AddDeviceRequest {
+  string id = 1;
+  string name = 2;
+}
+
+message AddDeviceResponse {
+  Device device = 1;
+}
+
+// RemoveDeviceRequest unpairs a device by its ID, closing its live connections.
+message RemoveDeviceRequest {
+  string id = 1;
+}
+
+message RemoveDeviceResponse {}
+
 // BackendService is the daemon's whole socket API; its RPCs mirror api.Backend.
 // There is no login: the daemon owns its session, so nothing on the socket can
 // replace the client it syncs with.
@@ -2075,4 +2113,11 @@ service BackendService {
   rpc CancelScheduled(CancelScheduledRequest) returns (CancelScheduledResponse);
   // RetryScheduled sends a refused or failing message now.
   rpc RetryScheduled(RetryScheduledRequest) returns (RetryScheduledResponse);
+  // Devices
+  // Devices lists the devices paired with this kithd, and its own device ID.
+  rpc Devices(DevicesRequest) returns (DevicesResponse);
+  // AddDevice pairs a device by its pasted ID.
+  rpc AddDevice(AddDeviceRequest) returns (AddDeviceResponse);
+  // RemoveDevice unpairs a device and closes its live connections.
+  rpc RemoveDevice(RemoveDeviceRequest) returns (RemoveDeviceResponse);
 }

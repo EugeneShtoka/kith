@@ -510,10 +510,11 @@ among bridges with it; the push sink to Phase 5.
 - CRDT-propagated bridge roster (so pairing on one device propagates endpoints
   to the others).
 
-**Phase 4 — Electron client.** TypeScript Connect client to a bridge (local
-socket or TLS). Platform glue: native notifications, file picker, media viewer.
-This is the calendar-time phase — the seam work is cheap; the UI is a
-from-scratch rewrite of what `internal/tui` does today.
+**Phase 4 — Electron client.** Planned in [design-electron.md](design-electron.md):
+TypeScript and React, reaching the bridge through `kith-relay`, a small Go process on the
+client holding the device's key and its bridges. Notifications stay `kith-notify`'s. Platform
+glue: file picker, media viewer. This is the calendar-time phase — the seam work is cheap;
+the UI is a from-scratch rewrite of what `internal/tui` does today.
 
 **Phase 5 — Android client.** Kotlin app, woken by UnifiedPush: the push sink in
 `notify` POSTs encrypted wakes to each profile's endpoints. Local SQLite cache for

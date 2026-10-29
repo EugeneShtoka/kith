@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,6 +38,25 @@ const (
 // cookieCheck is how often a connection looks for cookies Google changed: libgm takes
 // them from every response without saying so.
 const cookieCheck = time.Minute
+
+// A connection has Google renew the account's cookies every cookieRenew, as a browser
+// signed in to Google does: libgm never asks, and __Secure-1PSIDTS, which Google
+// changes only when asked, goes stale. renewURL and renewBody are the request
+// Google's own pages send; renewWait bounds it.
+const (
+	cookieRenew = 10 * time.Minute
+	renewURL    = "https://accounts.google.com/RotateCookies"
+	renewBody   = `[000,"-0000000000000000000"]`
+	renewWait   = 30 * time.Second
+)
+
+// renewNeeds is the cookie Google renews; a pairing without it (by QR code) has
+// nothing to renew. hostOnly is the one cookie kith holds for messages.google.com
+// alone, which a browser never sends to accounts.google.com.
+const (
+	renewNeeds = "__Secure-1PSID"
+	hostOnly   = "OSID"
+)
 
 // Account details, as the account's status says them.
 const (
@@ -185,6 +206,7 @@ func (a *Adapter) connect(ctx context.Context, c *conn, client *libgm.Client) {
 	a.seedRooms(ctx, c)
 	go a.work(ctx, c)
 	go a.watchCookies(ctx, c)
+	go a.renewCookies(ctx, c)
 	wait := retryFirst
 	for ctx.Err() == nil {
 		if client == nil {
@@ -442,6 +464,96 @@ func (a *Adapter) keepCookies(c *conn) {
 	}
 	c.saved = blob
 }
+
+// errNotRenewed is Google answering a renewal with anything but 200.
+var errNotRenewed = errors.New("gmessages: Google did not renew the cookies")
+
+// renewCookies has Google renew c's cookies at once and then every cookieRenew, saving
+// what it sends back, until c is let go. A refusal is only logged: the long poll is
+// what says the pairing is over.
+func (a *Adapter) renewCookies(ctx context.Context, c *conn) {
+	c.mu.Lock()
+	auth := c.session.Auth
+	c.mu.Unlock()
+	web := &http.Client{Timeout: renewWait}
+	tick := time.NewTicker(cookieRenew)
+	defer tick.Stop()
+	for {
+		names, err := renew(ctx, web, auth)
+		switch {
+		case errors.Is(err, errNothingToRenew):
+			return
+		case err != nil && ctx.Err() == nil:
+			a.log.Warn("renew the cookies failed", "account", c.account.Name, "err", err)
+		case err == nil:
+			a.log.Debug("Google renewed the cookies", "account", c.account.Name, "names", names)
+			a.keepCookies(c)
+		}
+		select {
+		case <-tick.C:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// errNothingToRenew is a pairing with no Google account cookies.
+var errNothingToRenew = errors.New("gmessages: no Google account cookies to renew")
+
+// renew asks Google, through web, to renew auth's cookies, and merges those it sends
+// back for all of google.com into them, under libgm's lock: a cookie it sets is
+// replaced or added, one it expires is dropped, and every other is left as libgm has
+// it. It returns the names Google set, sorted.
+func renew(ctx context.Context, web *http.Client, auth *libgm.AuthData) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, renewURL, strings.NewReader(renewBody))
+	if err != nil {
+		return nil, fmt.Errorf("gmessages: renew the cookies: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://accounts.google.com")
+	auth.CookiesLock.RLock()
+	_, held := auth.Cookies[renewNeeds]
+	pairs := make([]string, 0, len(auth.Cookies))
+	for name, value := range auth.Cookies {
+		if name != hostOnly {
+			pairs = append(pairs, name+"="+value)
+		}
+	}
+	auth.CookiesLock.RUnlock()
+	req.Header.Set("Cookie", strings.Join(pairs, "; "))
+	if !held {
+		return nil, errNothingToRenew
+	}
+	resp, err := web.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("gmessages: renew the cookies: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, renewDrain))
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%w: http %d", errNotRenewed, resp.StatusCode)
+	}
+	var names []string
+	now := time.Now()
+	auth.CookiesLock.Lock()
+	defer auth.CookiesLock.Unlock()
+	for _, cookie := range resp.Cookies() {
+		if !strings.EqualFold(strings.TrimPrefix(cookie.Domain, "."), "google.com") {
+			continue // accounts.google.com's own: a browser keeps it from messages.google.com
+		}
+		names = append(names, cookie.Name)
+		if cookie.MaxAge < 0 || (!cookie.Expires.IsZero() && !cookie.Expires.After(now)) {
+			delete(auth.Cookies, cookie.Name)
+			continue
+		}
+		auth.Cookies[cookie.Name] = cookie.Value
+	}
+	slices.Sort(names)
+	return names, nil
+}
+
+// renewDrain bounds the renewal's body read before it is let go.
+const renewDrain = 64 << 10
 
 // changedCookies is the names of the cookies added, changed or dropped from was to now,
 // sorted.

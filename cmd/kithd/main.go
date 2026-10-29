@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/db"
+	"github.com/EugeneShtoka/kith/internal/devicekey"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/local"
 	"github.com/EugeneShtoka/kith/internal/logging"
@@ -529,11 +531,10 @@ func serve(
 
 	scheduler, cutoff := startScheduler(ctx, log, cfg, backend, backend.schedulePath)
 	defer scheduler.Stop()
-
 	logins := daemon.NewLogins(ctx, backend.loginLeaders)
 	logins.LogTo(log)
 	log.Info("serving", "socket", lock.Socket(), "version", buildinfo.String("kithd"))
-	reload := reloader(log, file, relevel, cutoff, backend, w.notifications)
+	reload := reloader(log, file, relevel, cutoff, backend, w.notifications, w.paired)
 	// A hand edit to config.toml is picked up without a restart: the watcher
 	// runs the same reload the RPC does, and logs the outcome.
 	if werr := daemon.WatchConfig(ctx, file.path, reload, log); werr != nil {
@@ -552,12 +553,29 @@ func serve(
 		Reload:        reload,
 		CheckConfig:   backend.checkConfig,
 		Config:        daemon.NewConfigFile(file.path),
+		Paired:        w.paired,
 	})
 	// Cancel (not backend.Stop) and join: a sync still decrypting needs the store, and
 	// when Serve failed the parent ctx is still live.
 	cancel()
 	wg.Wait()
 	return errors.Join(err, syncErr)
+}
+
+// deviceIdentity is kithd's TLS certificate, made from its device key (made on first
+// use, in the keyring or, with allow_token_file, a 0600 file).
+func deviceIdentity(storage domain.Storage, allowFile bool) func() (tls.Certificate, error) {
+	return func() (tls.Certificate, error) {
+		key, err := session.LoadOrCreateDeviceKey(session.DeviceStore(storage, "device"), allowFile)
+		if err != nil {
+			return tls.Certificate{}, fmt.Errorf("its device key: %w", err)
+		}
+		cert, err := devicekey.Certificate(key)
+		if err != nil {
+			return tls.Certificate{}, fmt.Errorf("its certificate: %w", err)
+		}
+		return cert, nil
+	}
 }
 
 // reloader re-reads the file the daemon was started with, never a client payload.
@@ -568,6 +586,7 @@ func reloader(
 	cutoff *atomic.Int64,
 	backend served,
 	notifications *daemon.Notifications,
+	paired *daemon.Devices,
 ) daemon.Reload {
 	// One reload at a time: interleaved ones would mix both files' settings.
 	var one sync.Mutex
@@ -591,6 +610,7 @@ func reloader(
 		for _, n := range backend.networks {
 			n.UseConfig(ctx, reloaded)
 		}
+		paired.Listen(reloaded.Remote.Listen)
 		if err := notifications.Reload(reloaded); err != nil {
 			return fmt.Errorf("reload notifications: %w", err)
 		}
@@ -607,6 +627,8 @@ type workers struct {
 	state         *daemon.State
 	streams       *daemon.Streams
 	backups       *daemon.KeyBackup
+	// paired listens for paired devices on [remote] listen.
+	paired *daemon.Devices
 	// maintenance is held by the cache's vacuum and the daily backup, so they never
 	// run at once: the vacuum would put itself off while the backup reads the cache.
 	maintenance sync.Mutex
@@ -685,12 +707,15 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		state.Report(daemon.StatusOf(m.Online(on)), t)
 		notifications.Synced(on, t)
 	})
+	paired := daemon.NewDevices(backend.storage.DevicesPath(), deviceIdentity(backend.storage, cfg.AllowTokenFile), log)
+	paired.Listen(cfg.Remote.Listen) // from when Serve runs
 	return &workers{
 		notifications: notifications,
 		refresher:     refresher,
 		state:         state,
 		streams:       streams,
 		backups:       backups,
+		paired:        paired,
 	}, nil
 }
 

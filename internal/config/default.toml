@@ -1046,6 +1046,15 @@ cron = ""
 # made by hand or put in the folder yourself are never counted or deleted.
 keep = 7
 
+# Clients on other machines: kithd listens on each address in `listen` (host:port),
+# over TLS 1.3, for the devices paired with it (`kith devices`) and nobody else. Empty,
+# the default, listens nowhere: the socket on this machine is all there is. Only the
+# addresses named are listened on: write the address of the network a client comes
+# from (a LAN or tailnet address), or 0.0.0.0:7443 / [::]:7443 to take every
+# interface; a bare ":7443" is refused. A change applies on the next reload.
+[remote]
+listen = []
+
 # Your own commands: `/zoom` runs the executable `zoom` in `dir`, and its stdout lands
 # in the composer for you to send or not. A non-zero exit, timeout or empty output
 # leaves the composer untouched and says why. Built-ins of the same name win.

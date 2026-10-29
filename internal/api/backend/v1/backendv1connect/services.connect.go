@@ -409,6 +409,14 @@ const (
 	// BackendServiceRetryScheduledProcedure is the fully-qualified name of the BackendService's
 	// RetryScheduled RPC.
 	BackendServiceRetryScheduledProcedure = "/backend.v1.BackendService/RetryScheduled"
+	// BackendServiceDevicesProcedure is the fully-qualified name of the BackendService's Devices RPC.
+	BackendServiceDevicesProcedure = "/backend.v1.BackendService/Devices"
+	// BackendServiceAddDeviceProcedure is the fully-qualified name of the BackendService's AddDevice
+	// RPC.
+	BackendServiceAddDeviceProcedure = "/backend.v1.BackendService/AddDevice"
+	// BackendServiceRemoveDeviceProcedure is the fully-qualified name of the BackendService's
+	// RemoveDevice RPC.
+	BackendServiceRemoveDeviceProcedure = "/backend.v1.BackendService/RemoveDevice"
 )
 
 // BackendServiceClient is a client for the backend.v1.BackendService service.
@@ -765,6 +773,13 @@ type BackendServiceClient interface {
 	CancelScheduled(context.Context, *connect.Request[v1.CancelScheduledRequest]) (*connect.Response[v1.CancelScheduledResponse], error)
 	// RetryScheduled sends a refused or failing message now.
 	RetryScheduled(context.Context, *connect.Request[v1.RetryScheduledRequest]) (*connect.Response[v1.RetryScheduledResponse], error)
+	// Devices
+	// Devices lists the devices paired with this kithd, and its own device ID.
+	Devices(context.Context, *connect.Request[v1.DevicesRequest]) (*connect.Response[v1.DevicesResponse], error)
+	// AddDevice pairs a device by its pasted ID.
+	AddDevice(context.Context, *connect.Request[v1.AddDeviceRequest]) (*connect.Response[v1.AddDeviceResponse], error)
+	// RemoveDevice unpairs a device and closes its live connections.
+	RemoveDevice(context.Context, *connect.Request[v1.RemoveDeviceRequest]) (*connect.Response[v1.RemoveDeviceResponse], error)
 }
 
 // NewBackendServiceClient constructs a client for the backend.v1.BackendService service. By
@@ -1594,6 +1609,24 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("RetryScheduled")),
 			connect.WithClientOptions(opts...),
 		),
+		devices: connect.NewClient[v1.DevicesRequest, v1.DevicesResponse](
+			httpClient,
+			baseURL+BackendServiceDevicesProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Devices")),
+			connect.WithClientOptions(opts...),
+		),
+		addDevice: connect.NewClient[v1.AddDeviceRequest, v1.AddDeviceResponse](
+			httpClient,
+			baseURL+BackendServiceAddDeviceProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("AddDevice")),
+			connect.WithClientOptions(opts...),
+		),
+		removeDevice: connect.NewClient[v1.RemoveDeviceRequest, v1.RemoveDeviceResponse](
+			httpClient,
+			baseURL+BackendServiceRemoveDeviceProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("RemoveDevice")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1735,6 +1768,9 @@ type backendServiceClient struct {
 	scheduledMessages     *connect.Client[v1.ScheduledMessagesRequest, v1.ScheduledMessagesResponse]
 	cancelScheduled       *connect.Client[v1.CancelScheduledRequest, v1.CancelScheduledResponse]
 	retryScheduled        *connect.Client[v1.RetryScheduledRequest, v1.RetryScheduledResponse]
+	devices               *connect.Client[v1.DevicesRequest, v1.DevicesResponse]
+	addDevice             *connect.Client[v1.AddDeviceRequest, v1.AddDeviceResponse]
+	removeDevice          *connect.Client[v1.RemoveDeviceRequest, v1.RemoveDeviceResponse]
 }
 
 // Rooms calls backend.v1.BackendService.Rooms.
@@ -2417,6 +2453,21 @@ func (c *backendServiceClient) RetryScheduled(ctx context.Context, req *connect.
 	return c.retryScheduled.CallUnary(ctx, req)
 }
 
+// Devices calls backend.v1.BackendService.Devices.
+func (c *backendServiceClient) Devices(ctx context.Context, req *connect.Request[v1.DevicesRequest]) (*connect.Response[v1.DevicesResponse], error) {
+	return c.devices.CallUnary(ctx, req)
+}
+
+// AddDevice calls backend.v1.BackendService.AddDevice.
+func (c *backendServiceClient) AddDevice(ctx context.Context, req *connect.Request[v1.AddDeviceRequest]) (*connect.Response[v1.AddDeviceResponse], error) {
+	return c.addDevice.CallUnary(ctx, req)
+}
+
+// RemoveDevice calls backend.v1.BackendService.RemoveDevice.
+func (c *backendServiceClient) RemoveDevice(ctx context.Context, req *connect.Request[v1.RemoveDeviceRequest]) (*connect.Response[v1.RemoveDeviceResponse], error) {
+	return c.removeDevice.CallUnary(ctx, req)
+}
+
 // BackendServiceHandler is an implementation of the backend.v1.BackendService service.
 type BackendServiceHandler interface {
 	// Room
@@ -2771,6 +2822,13 @@ type BackendServiceHandler interface {
 	CancelScheduled(context.Context, *connect.Request[v1.CancelScheduledRequest]) (*connect.Response[v1.CancelScheduledResponse], error)
 	// RetryScheduled sends a refused or failing message now.
 	RetryScheduled(context.Context, *connect.Request[v1.RetryScheduledRequest]) (*connect.Response[v1.RetryScheduledResponse], error)
+	// Devices
+	// Devices lists the devices paired with this kithd, and its own device ID.
+	Devices(context.Context, *connect.Request[v1.DevicesRequest]) (*connect.Response[v1.DevicesResponse], error)
+	// AddDevice pairs a device by its pasted ID.
+	AddDevice(context.Context, *connect.Request[v1.AddDeviceRequest]) (*connect.Response[v1.AddDeviceResponse], error)
+	// RemoveDevice unpairs a device and closes its live connections.
+	RemoveDevice(context.Context, *connect.Request[v1.RemoveDeviceRequest]) (*connect.Response[v1.RemoveDeviceResponse], error)
 }
 
 // NewBackendServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -3596,6 +3654,24 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("RetryScheduled")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceDevicesHandler := connect.NewUnaryHandler(
+		BackendServiceDevicesProcedure,
+		svc.Devices,
+		connect.WithSchema(backendServiceMethods.ByName("Devices")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceAddDeviceHandler := connect.NewUnaryHandler(
+		BackendServiceAddDeviceProcedure,
+		svc.AddDevice,
+		connect.WithSchema(backendServiceMethods.ByName("AddDevice")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceRemoveDeviceHandler := connect.NewUnaryHandler(
+		BackendServiceRemoveDeviceProcedure,
+		svc.RemoveDevice,
+		connect.WithSchema(backendServiceMethods.ByName("RemoveDevice")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/backend.v1.BackendService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case BackendServiceRoomsProcedure:
@@ -3870,6 +3946,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceCancelScheduledHandler.ServeHTTP(w, r)
 		case BackendServiceRetryScheduledProcedure:
 			backendServiceRetryScheduledHandler.ServeHTTP(w, r)
+		case BackendServiceDevicesProcedure:
+			backendServiceDevicesHandler.ServeHTTP(w, r)
+		case BackendServiceAddDeviceProcedure:
+			backendServiceAddDeviceHandler.ServeHTTP(w, r)
+		case BackendServiceRemoveDeviceProcedure:
+			backendServiceRemoveDeviceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -4421,4 +4503,16 @@ func (UnimplementedBackendServiceHandler) CancelScheduled(context.Context, *conn
 
 func (UnimplementedBackendServiceHandler) RetryScheduled(context.Context, *connect.Request[v1.RetryScheduledRequest]) (*connect.Response[v1.RetryScheduledResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RetryScheduled is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Devices(context.Context, *connect.Request[v1.DevicesRequest]) (*connect.Response[v1.DevicesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Devices is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) AddDevice(context.Context, *connect.Request[v1.AddDeviceRequest]) (*connect.Response[v1.AddDeviceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.AddDevice is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) RemoveDevice(context.Context, *connect.Request[v1.RemoveDeviceRequest]) (*connect.Response[v1.RemoveDeviceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RemoveDevice is not implemented"))
 }

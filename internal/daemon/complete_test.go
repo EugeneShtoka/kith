@@ -66,6 +66,9 @@ func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
 	if d.Log == nil {
 		d.Log = logging.Discard()
 	}
+	if d.Paired == nil {
+		d.Paired = daemon.NewDevices(filepath.Join(dir, "devices.toml"), identityOf(t, newDeviceKey(t)), d.Log)
+	}
 	return d
 }
 

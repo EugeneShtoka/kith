@@ -52,6 +52,7 @@ type Config struct {
 	Instagram      Instagram     `toml:"instagram"`
 	Storage        Storage       `toml:"storage"`
 	Backup         Backup        `toml:"backup"`
+	Remote         Remote        `toml:"remote"`
 	Tags           []Tag         `toml:"tag"`
 	Profiles       []Profile     `toml:"profile"`
 	Filters        []Filter      `toml:"filter"`

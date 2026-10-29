@@ -20,6 +20,7 @@ kith import [--config path] network [account]
 kith ignore [--config path] mxid
 kith unignore [--config path] mxid
 kith ignored [--config path]
+kith devices [--config path] [add id [name] | remove id|name | id]
 ```
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
@@ -178,6 +179,25 @@ changes nothing. `kith ignored` prints the ignored users, one per line, alphabet
 Each takes a Matrix user ID only (`@name:homeserver`) and starts kithd if it isn't
 running. Ignoring reaches only Matrix, and leaves no history for a filter to judge: to
 sort a sender's messages away instead, use a tag such as Spam ([filters.md](filters.md)).
+
+### kith devices
+
+```sh
+kith devices [--config path]
+kith devices [--config path] add id [name]
+kith devices [--config path] remove id|name
+kith devices [--config path] id
+```
+
+The devices paired with this config's kithd, which it serves over `[remote] listen`
+([remote.md](remote.md)). With no argument it prints kithd's own device ID (what a
+client pins) and each paired device: name, ID, when and by which device it was
+paired. `add` pairs a device by the ID printed on it, under an optional name (the
+rest of the line); `remove` unpairs one by its ID or name and closes its open
+connections. `id` prints this machine's own device ID as a client, making its key the
+first time, to paste into `kith devices add` on another machine's kithd; it needs no
+daemon. An ID is taken in any case, with or without its dashes. Each but `id` starts
+kithd if it isn't running.
 
 ### General flags
 

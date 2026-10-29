@@ -45,6 +45,7 @@ func Validate(cfg config.Config) error {
 		archivesCheck(cfg),
 		keepCheck(cfg),
 		Backups(cfg.Backup),
+		RemoteListen(cfg.Remote),
 		BridgeContacts(cfg.BridgeContacts),
 		DefaultAccounts(cfg),
 	} {

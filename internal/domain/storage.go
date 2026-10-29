@@ -96,6 +96,20 @@ func (s Storage) BackupsDir() string {
 	return filepath.Join(s.ExportDir, "backups")
 }
 
+// DevicesPath is the roster of devices paired with kithd: kept beside the stores, not
+// in the config (nobody edits it into sense by hand) nor the cache (a rebuild must not
+// unpair them).
+func (s Storage) DevicesPath() string {
+	return filepath.Join(s.DataDir, "devices-"+s.Instance+".toml")
+}
+
+// DeviceKeyFile is the fallback file of the device key named name ("device" is
+// kithd's, "client-device" this machine's as a client), when the keyring cannot hold
+// it.
+func (s Storage) DeviceKeyFile(name string) string {
+	return filepath.Join(s.StateDir, name+"-"+s.Instance+".key")
+}
+
 // SocketPath is the daemon's socket.
 func (s Storage) SocketPath() string { return filepath.Join(s.RuntimeDir, s.Instance+".sock") }
 

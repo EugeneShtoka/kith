@@ -120,6 +120,9 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"WordCandidate", domain.WordCandidate{}, func(v any) any {
 			return protoconv.ProtoToWordCandidates(protoconv.WordCandidatesToProto([]domain.WordCandidate{v.(domain.WordCandidate)}))[0]
 		}},
+		{"Device", domain.Device{}, func(v any) any {
+			return protoconv.ProtoToDevices(protoconv.DevicesToProto([]domain.Device{v.(domain.Device)}))[0]
+		}},
 		{"KeyBackup", domain.KeyBackup{}, func(v any) any {
 			return protoconv.ProtoToKeyBackup(protoconv.KeyBackupToProto(v.(domain.KeyBackup)))
 		}},

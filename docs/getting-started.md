@@ -583,9 +583,11 @@ don't reveal who is logged in.
 | Crypto store | `~/.local/share/kith/crypto-<hash>-<account>.db`, one per Matrix account (`<account>`: a hash of its Matrix ID) | Olm/Megolm keys and the sync position. **Not** a cache: don't delete it. |
 | Old caches | `~/.local/share/kith/cache-<hash>.db.pre-schema-<date>-<time>` | Kept when a schema change rebuilt the cache; the two newest are kept, older ones are deleted at the next rebuild. Delete them when you no longer need them. |
 | Dictionaries, word lists, models | `~/.local/share/kith/hunspell/`, `~/.local/share/kith/models/`, … | Written by `--add-dictionary`, `--add-frequencies` and `--add-model`. |
+| Paired devices | `~/.local/share/kith/devices-<hash>.toml` | The devices kithd serves over `[remote] listen`, changed with `kith devices`. Mode 0600. See [remote.md](remote.md). |
 | Scheduled messages | `~/.local/state/kith/scheduled-<hash>.toml` | The send-later queue. |
 | Assistant ledger | `~/.local/state/kith/agent-sends-<hash>.jsonl` | What `kith-mcp` wrote on your behalf. Read it with `kith --agent-log`. |
 | Token file (opt-in only) | `~/.local/state/kith/session-<hash>-<account>.toml` | Only with `allow_token_file = true`. Mode 0600, one per account. An older single `session.toml` is still read for the account it belongs to and renamed on first use. |
+| Device key file (opt-in only) | `~/.local/state/kith/device-<hash>.key`, `client-device-<hash>.key` | Only with `allow_token_file = true` and no keyring. Mode 0600. Moved into the keyring once it answers. |
 | Media cache | `~/.cache/kith/media/` | Attachments and their rendered previews, capped at 1 GiB by default (`[display.media] cache_dir`, `cache_max_mb`, in `device.toml`). |
 | Files being sent | `~/.cache/kith/uploads-<hash>/` | What a client has sent `kithd` and it has not posted yet: removed once posted, an hour after the client stops sending it, and when `kithd` starts. |
 | Socket and lock | `$XDG_RUNTIME_DIR/kith/<hash>.sock` and `<hash>.lock` | Usually under `/run/user/<uid>/`. The socket is mode 0600 in a 0700 directory. |
@@ -604,6 +606,7 @@ kith stores these entries under the keyring service `kith`:
 | `<your Matrix ID>` | The session: homeserver, device ID and access token. |
 | `<your Matrix ID>\|pickle` | The key that encrypts the crypto store at rest. It is generated on first use and never written to disk. |
 | `secret\|<ref>` | API keys stored with `kith --set-model-key <ref>`. |
+| `<hash>\|device`, `<hash>\|client-device` | kithd's device key, and this machine's as a client ([remote.md](remote.md)), made on first use. |
 
 Without a keyring, `kith login` can't store the session and says so. On a headless
 machine you can set `allow_token_file = true` to keep the token in a 0600 file

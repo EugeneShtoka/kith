@@ -64,6 +64,7 @@ var propertyGroups = append([]propertyGroup{
 	{"log.", "advanced", ""},
 	{"schedule.", "advanced", ""},
 	{"backup.", "advanced", ""},
+	{"remote.", "advanced", ""},
 	{"keys.", "keys", "keys."},
 }, networkGroups()...)
 
