@@ -612,6 +612,17 @@ linters:
             - "connectrpc.com/connect"
             - "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 
+        # kith-relay's wire (DeviceService), generated likewise.
+        device-wire-is-generated:
+          files:
+            - "**/internal/api/device/v1/*.go"
+            - "**/internal/api/device/v1/devicev1connect/**"
+          allow:
+            - "$gostd"
+            - "google.golang.org/protobuf"
+            - "connectrpc.com/connect"
+            - "github.com/EugeneShtoka/kith/internal/api/device/v1"
+
         # Wire <-> domain mapping; no infrastructure.
         protoconv-maps-wire-to-domain:
           files:
@@ -880,6 +891,23 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/schedule"
             # This machine's device key, to dial a bridge elsewhere.
             - "github.com/EugeneShtoka/kith/internal/keystore"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+
+        # The desktop window's link to kithd: the wire and the config, as kith-notify's,
+        # and no daemon-side package (deps-check holds it to that at any depth).
+        relay-main-wiring:
+          files:
+            - "**/cmd/kith-relay/**"
+          allow:
+            - "$gostd"
+            - "connectrpc.com/connect"
+            - "github.com/EugeneShtoka/kith/internal/api/backend/v1"
+            - "github.com/EugeneShtoka/kith/internal/api/device/v1"
+            - "github.com/EugeneShtoka/kith/internal/buildinfo"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/daemon"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/setup"
 
         # The Signal helper's main: the helper and, built with the signal tag, Signal.

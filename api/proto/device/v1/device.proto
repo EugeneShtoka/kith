@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package device.v1;
+
+option go_package = "github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1";
+
+// DeviceService is served by kith-relay, the desktop window's link to kithd, beside the
+// BackendService it forwards: what this device is, which only the relay knows.
+service DeviceService {
+  // Device is where this device's requests go and the profile it runs in.
+  rpc Device(DeviceRequest) returns (DeviceResponse);
+}
+
+message DeviceRequest {}
+
+message DeviceResponse {
+  // socket is the local kithd's socket, which the relay forwards BackendService to.
+  string socket = 1;
+  // profile is the [[profile]] this device runs in, as the config spells it: the
+  // config's first.
+  string profile = 2;
+}

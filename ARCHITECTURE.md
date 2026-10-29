@@ -74,6 +74,8 @@ cmd/kith          → the client: config.Load → attach to the daemon → Bubbl
         │              also `login`, key import/export, dictionary and model installs
 cmd/kith-mcp          → the MCP server (stdio): a third client of the daemon's socket
 cmd/kith-notify       → shows the notifications the daemon publishes to its profiles
+cmd/kith-relay        → the desktop window's link to the daemon: forwards BackendService
+        │              to its socket and answers DeviceService (desktop/, Electron)
         │
 internal/tui        → presentation (Bubble Tea models, overlays, pickers)
         │              talks to the world through the api.Backend interface

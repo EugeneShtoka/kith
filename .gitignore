@@ -5,6 +5,7 @@
 /kith-mcp
 /kith-notify
 /kith-signal
+/kith-relay
 /emoji-probe
 dist/
 # Generated packaging inputs (scripts/prepare-packaging.sh, the GoReleaser before hook)
@@ -73,6 +74,11 @@ crypto.db
 
 # Pinned tools (scripts/ensure-tools.sh)
 /.tools/
+
+# The desktop's dependencies and build output (Vite's bundles, Forge's packages)
+/desktop/node_modules/
+/desktop/.vite/
+/desktop/out/
 
 # Python bytecode from tools/*.py
 __pycache__/

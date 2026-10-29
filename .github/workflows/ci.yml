@@ -169,7 +169,8 @@ jobs:
       - name: Lint and format check (gofmt/goimports)
         run: make lint fmt-check
 
-  # govulncheck is a go.mod tool; npm audit covers markdownlint's lock.
+  # govulncheck is a go.mod tool; npm audit covers markdownlint's lock and the desktop's
+  # runtime tree.
   vuln:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -209,7 +210,8 @@ jobs:
       - name: Scan history and working tree
         run: make secrets CHECK_STRICT=1
 
-  # Generated wire types must match api/proto (buf at tools/versions.env's version).
+  # Generated wire types must match api/proto (buf at tools/versions.env's version; the
+  # desktop's TypeScript by protoc-gen-es from tools/protoc-gen-es's lock).
   proto:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -221,6 +223,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      # protoc-gen-es runs on node: pinned, as every other tool is.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
 
       # Lints, generates into a scratch dir and compares file by file, so a new
       # (untracked) generated file fails it too.
@@ -247,12 +253,36 @@ jobs:
       - name: Lint Markdown
         run: make docs-check
 
+  # The desktop (scripts/desktop-check.sh): installed from its lock with no install
+  # scripts and no Electron binary, then typecheck, lint, format, unit tests, an
+  # electron-forge package and the audit of what it ships. npm's store and the Electron
+  # zip the package step fetches (checked against its SHASUMS256) are cached on the lock.
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: desktop/.nvmrc
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('desktop/package-lock.json') }}
+
+      - name: Desktop typecheck, lint, format, tests, package and runtime audit
+        run: make desktop-check
+
   # The single required check for branch protection.
   ci-ok:
     # always(): a skipped required check counts as passed on GitHub. release-builds is
     # not here: it runs on tags alone, and a release needs this whole workflow to pass.
     if: always()
-    needs: [build-and-test, test, coverage, repo-checks, release-config, lint, vuln, secrets, proto, docs]
+    needs: [build-and-test, test, coverage, repo-checks, release-config, lint, vuln, secrets, proto, docs, desktop]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

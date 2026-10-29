@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# npm-audit.sh — npm audit of markdownlint's lock (the only npm tree in the repo),
-# failing on every advisory except those named in tools/markdownlint/audit-allow.json,
-# each with a reason and an expiry date: an allowed advisory past its date fails too,
-# so an exception is revisited rather than forgotten.
+# npm-audit.sh <dir> — npm audit of the runtime tree in dir's lock (markdownlint's, the
+# desktop's: what ships), failing on every advisory except those named in
+# <dir>/audit-allow.json, each with a reason and an expiry date: an allowed advisory
+# past its date fails too, so an exception is revisited rather than forgotten.
 
 set -euo pipefail
 
-dir=tools/markdownlint
+dir=${1:?usage: npm-audit.sh <dir holding package-lock.json and audit-allow.json>}
 cd "$dir"
 # npm audit exits non-zero whenever it finds anything; the verdict is ours.
 report=$(npm audit --json --omit=dev || true)

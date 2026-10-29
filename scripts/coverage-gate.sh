@@ -24,6 +24,8 @@ exempt=(
 	internal/api/backend/v1/backendv1connect  # generated Connect stubs
 	internal/api/signal/v1                    # generated protobuf types (kith-signal's wire)
 	internal/api/signal/v1/signalv1connect    # generated Connect stubs (kith-signal's wire)
+	internal/api/device/v1                    # generated protobuf types (kith-relay's wire)
+	internal/api/device/v1/devicev1connect    # generated Connect stubs (kith-relay's wire)
 	internal/apitest                          # test-only fakes (Nop backend)
 	internal/filedialog                       # XDG desktop portal over D-Bus; needs a session bus and a human to pick a file
 	cmd/kith                                # main wiring

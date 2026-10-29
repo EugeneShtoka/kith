@@ -1,0 +1,4 @@
+# Generated (make proto), and build output.
+src/gen/
+.vite/
+out/

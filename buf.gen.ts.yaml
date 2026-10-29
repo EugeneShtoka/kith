@@ -1,0 +1,16 @@
+version: v2
+# The desktop's wire in TypeScript (`buf generate --template buf.gen.ts.yaml`; make proto
+# runs both templates). A template of its own because buf.gen.yaml also generates
+# signal/v1, which no client sees. protoc-gen-es is pinned by tools/protoc-gen-es's lock
+# and installed into .tools by scripts/ensure-tools.sh, as markdownlint is. Connect v2
+# needs no protoc-gen-connect-es: the service descriptors come from protoc-gen-es.
+inputs:
+  - directory: api/proto
+    paths:
+      - api/proto/backend/v1
+      - api/proto/device/v1
+plugins:
+  - local: .tools/bin/protoc-gen-es
+    out: desktop/src/gen
+    opt:
+      - target=ts
