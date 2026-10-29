@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/devicekey"
 )
 
@@ -19,6 +20,15 @@ const bridgeBaseURL = "https://kithd"
 // bridgeDialTimeout bounds one address's dial and handshake, so an address that does
 // not answer leaves time for the next.
 const bridgeDialTimeout = 5 * time.Second
+
+// bridgeIdle is how long a connection to a bridge may go without a frame before a PING
+// asks whether it is still there, and bridgePingWait how long the answer may take: a
+// laptop that changed networks finds its old connection dead within their sum, and its
+// streams reopen on a new one (the message stream resumes where it stood).
+const (
+	bridgeIdle     = 15 * time.Second
+	bridgePingWait = 10 * time.Second
+)
 
 // errNotTheBridge is a peer whose key is not the one pinned.
 var errNotTheBridge = errors.New("daemon: the address answered with another key than the bridge's")
@@ -66,6 +76,7 @@ func dialBridge(cert tls.Certificate, pin devicekey.ID, addrs []string) *http.Cl
 			return nil, fmt.Errorf("daemon: no address of the bridge answered: %w", errors.Join(errs...))
 		},
 		ForceAttemptHTTP2:     true,
+		HTTP2:                 &http.HTTP2Config{SendPingTimeout: bridgeIdle, PingTimeout: bridgePingWait},
 		ResponseHeaderTimeout: answerTimeout,
 	}}
 }
@@ -75,4 +86,29 @@ func dialBridge(cert tls.Certificate, pin devicekey.ID, addrs []string) *http.Cl
 // I/O.
 func NewBridgeRemote(cert tls.Certificate, pin devicekey.ID, addrs []string) *Remote {
 	return newRemoteAt(dialBridge(cert, pin, addrs), bridgeBaseURL)
+}
+
+// AttachBridge returns a client of the bridge b once it reports ready, as the device whose
+// certificate is cert: b's addresses in order, the first answering with b's key. It never
+// starts a daemon; one that does not answer is waited for until timeout.
+func AttachBridge(ctx context.Context, cert tls.Certificate, b config.Bridge, timeout time.Duration) (*Remote, error) {
+	dial, err := BridgeDialer(cert, b)
+	if err != nil {
+		return nil, err
+	}
+	r := dial()
+	if err := waitReady(ctx, r, timeout); err != nil {
+		return nil, fmt.Errorf("bridge %s: %w", b.Name, err)
+	}
+	return r, nil
+}
+
+// BridgeDialer makes Remotes for the bridge b ([[bridge]]) as the device whose certificate
+// is cert, each new one as NewBridgeRemote makes it; an error when b's ID is not one.
+func BridgeDialer(cert tls.Certificate, b config.Bridge) (func() *Remote, error) {
+	pin, err := devicekey.ParseID(b.ID)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: bridge %s: %w", b.Name, err)
+	}
+	return func() *Remote { return NewBridgeRemote(cert, pin, b.Addresses) }, nil
 }

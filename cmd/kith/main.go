@@ -146,7 +146,7 @@ type startup struct {
 // attached is a config's attached daemon: the config, this device's settings, its
 // storage and the client.
 type attached struct {
-	path    string
+	path    string // the config file kithd reads; "" for a bridge elsewhere
 	cfg     config.Config
 	device  string // the device file
 	dev     config.Device
@@ -154,12 +154,20 @@ type attached struct {
 	launch  daemon.Launch // how its daemon is started and restarted
 	backend *daemon.Remote
 	note    string
+
+	// remote is a bridge elsewhere, dialed over TLS, and revision its config's, read
+	// through it.
+	remote   bool
+	revision string
 }
 
 // attach loads the config and this device's settings and attaches to (or starts) the
 // daemon whatever is logged in; logged-out networks show in the daemon's status.
 // backend is nil when a first-run default config was just written.
 func attach(ctx context.Context, configPath string, timeout time.Duration) (attached, error) {
+	if at, joined, err := viaBridge(ctx, configPath, timeout); joined || err != nil {
+		return at, err
+	}
 	path, cfg, ready, err := loadConfig(configPath)
 	if err != nil || !ready {
 		return attached{cfg: cfg}, err
@@ -243,6 +251,9 @@ func reach(ctx context.Context, path string, cfg config.Config, storage domain.S
 // reachForLogin loads the config and reaches its daemon; backend is nil when a
 // first-run default config was just written.
 func reachForLogin(ctx context.Context, configPath string) (attached, error) {
+	if at, joined, err := viaBridge(ctx, configPath, readyTimeout); joined || err != nil {
+		return at, err
+	}
 	path, cfg, ready, err := loadConfig(configPath)
 	if err != nil || !ready {
 		return attached{cfg: cfg}, err
@@ -395,13 +406,11 @@ func run(configPath string, jobs startup) error {
 	}
 	if err := tui.Run(ctx, tui.RunOptions{
 		Backend: backend, Notifications: backend, Schedules: backend,
-		Config: cfg, ConfigPath: path, Device: at.dev, DevicePath: at.device,
+		Config: cfg, ConfigPath: path, ConfigRevision: at.revision, Device: at.dev, DevicePath: at.device,
 		Log: log, Follow: jobs.follow, Notice: notice,
-		RestartDaemon: func(ctx context.Context) error {
-			return daemon.Restart(ctx, at.storage, at.launch, readyTimeout)
-		},
-		Secrets:  commandSecrets{service: at.storage.KeyringService},
-		Profiles: backend, Profile: profile, Presence: backend,
+		RestartDaemon: at.restarter(),
+		Secrets:       commandSecrets{service: at.storage.KeyringService},
+		Profiles:      backend, Profile: profile, Presence: backend,
 	}); errors.Is(err, tui.ErrOpenedElsewhere) {
 		log.Info("kith closed: opened in another window")
 		fmt.Fprintln(os.Stderr, "kith: opened in another window")

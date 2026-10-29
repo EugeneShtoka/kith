@@ -609,7 +609,7 @@ func (s *server) InsteadLogin(ctx context.Context, r *req[v1.InsteadLoginRequest
 // or says who has it.
 func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.ServerStream[v1.SeatResponse]) error {
 	profile := s.requestProfile(ctx)
-	sat, err := s.seats.take(ctx, profile, r.Msg.GetClient(), r.Msg.GetForce(), pc.ProtoToSeatHolder(r.Msg.GetWhere()))
+	sat, err := s.seats.take(ctx, profile, r.Msg.GetClient(), s.deviceOf(ctx), r.Msg.GetForce(), pc.ProtoToSeatHolder(r.Msg.GetWhere()))
 	if errors.Is(err, api.ErrSeatTaken) {
 		other := s.seats.holderOf(profile)
 		return sendFrame(st, &v1.SeatResponse{Event: &v1.SeatResponse_Taken{Taken: pc.SeatHolderToProto(other)}})
@@ -725,7 +725,7 @@ func (s *server) Follow(ctx context.Context, r *req[v1.FollowRequest]) (*resp[v1
 		p, err := s.Notifications.Profile(profile)
 		return err == nil && p.Holds(s.Notifications.scope.Facts(ctx, room))
 	}
-	return connect.NewResponse(&v1.FollowResponse{Delivered: s.seats.follow(uri, linked, holds)}), nil
+	return connect.NewResponse(&v1.FollowResponse{Delivered: s.seats.follow(uri, s.deviceOf(ctx), linked, holds)}), nil
 }
 
 // Present records the room a window has open and that it was used now.
@@ -743,7 +743,7 @@ func (s *server) Changed(ctx context.Context, _ *req[v1.ChangedRequest], st *con
 
 // FollowStream hands this window the links Follow picks it for.
 func (s *server) FollowStream(ctx context.Context, r *req[v1.FollowStreamRequest], st *connect.ServerStream[v1.FollowStreamResponse]) error {
-	wake, take, release := s.seats.listen(r.Msg.GetClient(), s.requestProfile(ctx))
+	wake, take, release := s.seats.listen(r.Msg.GetClient(), s.deviceOf(ctx), s.requestProfile(ctx))
 	defer release()
 	// Headers now, as serveStream sends them: the client bounds its wait for them.
 	if err := st.Send(nil); err != nil {

@@ -392,7 +392,7 @@ linters:
             - "$gostd"
             - "rsc.io/qr"
 
-        # A device's key, ID and certificate: crypto only. Keeping the key is session's.
+        # A device's key, ID and certificate: crypto only. Keeping the key is keystore's.
         devicekey-is-a-leaf:
           files:
             - "**/internal/devicekey/**"
@@ -478,13 +478,26 @@ linters:
             - "github.com/gofrs/flock"
             - "github.com/ncruces/go-sqlite3"
 
+        # Keys in the OS keyring, bounded, with a 0600 file as the opted-in fallback; and
+        # the device key kept there. Clients link it to dial a bridge, so it holds no
+        # network's session: that is session's, built on it.
+        keystore-is-a-leaf:
+          files:
+            - "**/internal/keystore/**"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/keystore"
+            - "github.com/zalando/go-keyring"
+
         session-is-a-leaf:
           files:
             - "**/internal/session/**"
           allow:
             - "$gostd"
-            - "github.com/EugeneShtoka/kith/internal/devicekey"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/keystore"
             - "github.com/EugeneShtoka/kith/internal/session"
             - "github.com/adrg/xdg"
             - "github.com/zalando/go-keyring"
@@ -779,6 +792,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/devicekey"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/keystore"
             - "github.com/EugeneShtoka/kith/internal/launch"
             - "github.com/EugeneShtoka/kith/internal/llamacpp"
             - "github.com/EugeneShtoka/kith/internal/logging"
@@ -809,6 +823,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/gmessages"
             - "github.com/EugeneShtoka/kith/internal/instagram"
+            - "github.com/EugeneShtoka/kith/internal/keystore"
             - "github.com/EugeneShtoka/kith/internal/linkedin"
             - "github.com/EugeneShtoka/kith/internal/local"
             - "github.com/EugeneShtoka/kith/internal/logging"
@@ -843,6 +858,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/human"
             - "github.com/EugeneShtoka/kith/internal/phonebook"
+            # This machine's device key, to dial a bridge elsewhere.
+            - "github.com/EugeneShtoka/kith/internal/keystore"
             - "github.com/EugeneShtoka/kith/internal/setup"
 
         # Shows kithd's notifications on this machine; talks only to the daemon. Its tests
@@ -861,6 +878,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/notify"
             - "github.com/EugeneShtoka/kith/internal/schedule"
+            # This machine's device key, to dial a bridge elsewhere.
+            - "github.com/EugeneShtoka/kith/internal/keystore"
             - "github.com/EugeneShtoka/kith/internal/setup"
 
         # The Signal helper's main: the helper and, built with the signal tag, Signal.
@@ -953,6 +972,9 @@ linters:
       # setup's errors already name the config section at fault.
       ignore-package-globs:
         - github.com/EugeneShtoka/kith/internal/setup
+        # keystore's are session's own, moved beneath it: sentinels (a keyring not
+        # answering) and file errors that name the file, shown as they are.
+        - github.com/EugeneShtoka/kith/internal/keystore
 
     misspell:
       locale: US

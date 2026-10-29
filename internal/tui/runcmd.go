@@ -69,15 +69,16 @@ func (m Model) userCommand(name string) (string, bool) {
 	return path, true
 }
 
-// commandsDir is the configured scripts directory, else the one beside the config file.
+// commandsDir is the configured scripts directory, else the one beside the device file,
+// which is this machine's (and beside the config file when kithd is this machine's too).
 func (m Model) commandsDir() (string, error) {
 	if dir := strings.TrimSpace(m.conf.base.Commands.Dir); dir != "" {
 		return expandHome(dir)
 	}
-	if m.conf.path == "" {
+	if m.conf.deviceFile == nil {
 		return "", nil
 	}
-	return filepath.Join(filepath.Dir(m.conf.path), "commands"), nil
+	return filepath.Join(filepath.Dir(m.conf.deviceFile.path), "commands"), nil
 }
 
 // commandPlaces is where a command applies, its block's `in`; empty is everywhere.

@@ -20,7 +20,8 @@ import (
 // should not hang on it.
 func attachOrWait(ctx context.Context, configPath string) (attached, error) {
 	at, err := attach(ctx, configPath, readyTimeout)
-	for errors.Is(err, api.ErrDaemonWaiting) {
+	// A bridge elsewhere is waited out by whoever is at it: this machine has no socket to watch.
+	for errors.Is(err, api.ErrDaemonWaiting) && !at.remote {
 		if !waitOut(ctx, at.storage, func(line string) { fmt.Fprintln(os.Stderr, line) }) {
 			return attached{}, nil
 		}

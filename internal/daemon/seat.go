@@ -36,9 +36,11 @@ type sitter struct {
 	left   chan struct{}
 }
 
-// viewer is one TUI window: the profile it runs in, the link waiting for it and the wake that
-// says one is, and what Present said of it.
+// viewer is one TUI window: the device it runs on, the profile it runs in, the link waiting
+// for it and the wake that says one is, and what Present said of it.
 type viewer struct {
+	// device is the paired device it reaches kithd from; "" over the socket, kithd's own.
+	device  string
 	profile string // lower case
 	// listening counts its open link streams; wake is the one now reading.
 	listening int
@@ -69,10 +71,10 @@ type sitting struct {
 // seatKey is how a profile's name keys the seats: names are unique in any case.
 func seatKey(name string) string { return strings.ToLower(strings.TrimSpace(name)) }
 
-// take gives client the profile's seat when free, or (force only) once the holder has
-// left or ignored a step-aside request. Without force a taken seat is refused with
-// ErrSeatTaken naming the holder's whereabouts.
-func (s *seats) take(ctx context.Context, profile, client string, force bool, where domain.SeatHolder) (sitting, error) {
+// take gives client, on device, the profile's seat when free, or (force only) once the
+// holder has left or ignored a step-aside request. Without force a taken seat is refused
+// with ErrSeatTaken naming the holder's whereabouts.
+func (s *seats) take(ctx context.Context, profile, client, device string, force bool, where domain.SeatHolder) (sitting, error) {
 	profile = seatKey(profile)
 	timeout := time.NewTimer(stepAsideWait)
 	defer timeout.Stop()
@@ -80,7 +82,7 @@ func (s *seats) take(ctx context.Context, profile, client string, force bool, wh
 		s.mu.Lock()
 		holder := s.held[profile]
 		if holder == nil {
-			sat := s.sitLocked(profile, client, where)
+			sat := s.sitLocked(profile, client, device, where)
 			s.mu.Unlock()
 			return sat, nil
 		}
@@ -96,7 +98,7 @@ func (s *seats) take(ctx context.Context, profile, client string, force bool, wh
 		case <-left:
 		case <-timeout.C:
 			s.mu.Lock()
-			sat := s.sitLocked(profile, client, where)
+			sat := s.sitLocked(profile, client, device, where)
 			s.mu.Unlock()
 			return sat, nil
 		case <-ctx.Done():
@@ -105,7 +107,7 @@ func (s *seats) take(ctx context.Context, profile, client string, force bool, wh
 	}
 }
 
-func (s *seats) sitLocked(profile, client string, where domain.SeatHolder) sitting {
+func (s *seats) sitLocked(profile, client, device string, where domain.SeatHolder) sitting {
 	before := s.held[profile]
 	s.turn++
 	sat := &sitter{turn: s.turn, client: client, where: where, aside: make(chan struct{}), left: make(chan struct{})}
@@ -117,7 +119,7 @@ func (s *seats) sitLocked(profile, client string, where domain.SeatHolder) sitti
 		s.forgetLocked(before.client)
 	}
 	w := s.windowLocked(client)
-	w.profile = profile
+	w.device, w.profile = device, profile
 	return sitting{profile: profile, turn: sat.turn, aside: sat.aside, over: sat.left}
 }
 
@@ -190,13 +192,13 @@ func (s *seats) forgetLocked(client string) {
 	delete(s.windows, client)
 }
 
-// listen opens client's link stream in profile: wake says a link waits, take hands it
-// over once. A link already waiting wakes it at once.
-func (s *seats) listen(client, profile string) (wake <-chan struct{}, take func() string, release func()) {
+// listen opens client's link stream, on device, in profile: wake says a link waits, take
+// hands it over once. A link already waiting wakes it at once.
+func (s *seats) listen(client, device, profile string) (wake <-chan struct{}, take func() string, release func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	w := s.windowLocked(client)
-	w.profile, w.listening = seatKey(profile), w.listening+1
+	w.device, w.profile, w.listening = device, seatKey(profile), w.listening+1
 	w.wake = make(chan struct{}, 1)
 	if w.link != "" {
 		w.wake <- struct{}{}
@@ -230,11 +232,11 @@ func (s *seats) present(client string, open domain.RoomID, at time.Time) {
 	}
 }
 
-// follow hands uri to one window: the one with one of rooms (the link's chat, as each
-// account sees it) open, else the one used last whose profile holds one, else the one
-// used last; a window not listening yet gets it when it does. False when no window
-// sits or listens, so the caller starts one.
-func (s *seats) follow(uri string, rooms []domain.RoomID, holds func(profile string, room domain.RoomID) bool) bool {
+// follow hands uri to one window on device, the one the link was clicked on: the one with
+// one of rooms (the link's chat, as each account sees it) open, else the one used last
+// whose profile holds one, else the one used last; a window not listening yet gets it when
+// it does. False when no window there sits or listens, so the caller starts one.
+func (s *seats) follow(uri, device string, rooms []domain.RoomID, holds func(profile string, room domain.RoomID) bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var hasOpen, inProfile, any *viewer
@@ -242,6 +244,9 @@ func (s *seats) follow(uri string, rooms []domain.RoomID, holds func(profile str
 		return b == nil || a.used.After(b.used) || a.used.Equal(b.used) && a.seen > b.seen
 	}
 	for _, w := range s.windows {
+		if w.device != device {
+			continue
+		}
 		if later(w, any) {
 			any = w
 		}

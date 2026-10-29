@@ -1,7 +1,8 @@
-package session
+package keystore
 
 import (
 	"crypto/ecdsa"
+	"crypto/tls"
 	"errors"
 	"fmt"
 
@@ -17,9 +18,23 @@ func DeviceStore(storage domain.Storage, name string) Store {
 	return Store{Service: storage.KeyringService, Account: storage.Instance + "|" + name, File: storage.DeviceKeyFile(name)}
 }
 
+// ClientCertificate is this machine's device key as a client of a bridge ("client-device"),
+// made on first use as LoadOrCreateDeviceKey makes one, as the certificate it presents.
+func ClientCertificate(storage domain.Storage, allowFile bool) (tls.Certificate, error) {
+	key, err := LoadOrCreateDeviceKey(DeviceStore(storage, "client-device"), allowFile)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("this machine's device key: %w", err)
+	}
+	cert, err := devicekey.Certificate(key)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("this machine's device key: %w", err)
+	}
+	return cert, nil
+}
+
 // ErrCorruptDeviceKey is a kept device key that does not read as one. It is never
 // replaced: a new key is a new device, which every peer would have to pair again.
-var ErrCorruptDeviceKey = errors.New("session: the device key is corrupt")
+var ErrCorruptDeviceKey = errors.New("keystore: the device key is corrupt")
 
 // LoadOrCreateDeviceKey returns the device key st keeps, making and keeping one on
 // first use: in the keyring, or with allowFile in st.File when there is no keyring. A
@@ -27,7 +42,7 @@ var ErrCorruptDeviceKey = errors.New("session: the device key is corrupt")
 // device keeps its ID. A keyring that does not answer is ErrKeyringNotAnswering, and
 // no key is made for it.
 func LoadOrCreateDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) {
-	existing, err := get(st.Service, st.Account)
+	existing, err := Get(st.Service, st.Account)
 	switch {
 	case err == nil:
 		return parseDeviceKey([]byte(existing), "keyring account "+st.Account)
@@ -39,7 +54,7 @@ func LoadOrCreateDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) 
 		return nil, ErrNoSecretStore
 	}
 	// No keyring: the file, made on first use.
-	blob, found, err := readOwnerOnly(st.File, "a device key")
+	blob, found, err := ReadOwnerOnly(st.File, "a device key")
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +65,7 @@ func LoadOrCreateDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) 
 	if err != nil {
 		return nil, err
 	}
-	if err := saveFile(st.File, text); err != nil {
+	if err := SaveFile(st.File, text); err != nil {
 		return nil, err
 	}
 	return key, nil
@@ -61,7 +76,7 @@ func LoadOrCreateDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) 
 func createDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) {
 	var text []byte
 	if allowFile {
-		blob, found, err := readOwnerOnly(st.File, "a device key")
+		blob, found, err := ReadOwnerOnly(st.File, "a device key")
 		if err != nil {
 			return nil, err
 		}
@@ -78,10 +93,7 @@ func createDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) {
 			return nil, err
 		}
 	}
-	// A write still waiting from an earlier call is joined, and its key is the one kept.
-	kept, err := bounded("set\x00"+st.Service+"\x00"+st.Account, keyringWait, func() (string, error) {
-		return string(text), keyring.Set(st.Service, st.Account, string(text))
-	})
+	kept, err := Set(st.Service, st.Account, string(text))
 	switch {
 	case errors.Is(err, ErrKeyringNotAnswering):
 		return nil, err
@@ -89,7 +101,7 @@ func createDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) {
 		return nil, ErrNoSecretStore
 	}
 	if allowFile {
-		if err := removeFile(st.File); err != nil {
+		if err := RemoveFile(st.File); err != nil {
 			return nil, err
 		}
 	}
@@ -99,11 +111,11 @@ func createDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) {
 func newDeviceKey() (*ecdsa.PrivateKey, []byte, error) {
 	key, err := devicekey.Generate()
 	if err != nil {
-		return nil, nil, fmt.Errorf("session: %w", err)
+		return nil, nil, fmt.Errorf("keystore: %w", err)
 	}
 	text, err := devicekey.Marshal(key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("session: %w", err)
+		return nil, nil, fmt.Errorf("keystore: %w", err)
 	}
 	return key, text, nil
 }

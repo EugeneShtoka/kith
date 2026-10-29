@@ -17,8 +17,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/devicekey"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/keystore"
 	"github.com/EugeneShtoka/kith/internal/pairing"
-	"github.com/EugeneShtoka/kith/internal/session"
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
@@ -149,15 +149,16 @@ func runJoin(args []string) error {
 	if *name == "" {
 		*name, _ = os.Hostname() // none leaves the name to the bridge's side
 	}
-	path, cfg, ready, err := loadConfig(*configPath)
-	if err != nil || !ready {
-		return err
-	}
-	storage, err := storageFor(cfg, path)
+	// A new machine has no config of its own, and gets none: its kithd is the bridge's.
+	path, err := configFile(*configPath)
 	if err != nil {
 		return err
 	}
-	key, err := session.LoadOrCreateDeviceKey(session.DeviceStore(storage, "client-device"), cfg.AllowTokenFile)
+	storage, allowFile, err := setup.ClientStorage(path)
+	if err != nil {
+		return err
+	}
+	key, err := keystore.LoadOrCreateDeviceKey(keystore.DeviceStore(storage, "client-device"), allowFile)
 	if err != nil {
 		return fmt.Errorf("this machine's device key: %w", err)
 	}

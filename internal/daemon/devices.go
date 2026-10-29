@@ -263,6 +263,14 @@ func (d *Devices) peer(ctx context.Context) *devicekey.ID {
 	return &id
 }
 
+// deviceOf is the paired device a request came from, as its ID; "" over the socket.
+func (s *server) deviceOf(ctx context.Context) string {
+	if id := s.Paired.peer(ctx); id != nil {
+		return id.String()
+	}
+	return ""
+}
+
 // Listen listens on addrs from now on, stopping what is no longer named and starting
 // what is newly named, once Serve runs; a reload calls it with the reloaded config's.
 func (d *Devices) Listen(addrs []string) {

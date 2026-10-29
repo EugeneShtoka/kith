@@ -1,9 +1,11 @@
-package session
+package keystore
 
 import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/zalando/go-keyring"
 )
 
 // go-keyring's calls take no context and no timeout, and a keyring that never answers
@@ -12,14 +14,14 @@ import (
 // to serving, so every read here, and the write that makes a missing key, goes through
 // bounded: a keyring that does not answer is said, never waited on.
 
-// keyringWait is how long one keyring call is waited for. A running Secret Service
+// Wait is how long one keyring call is waited for. A running Secret Service
 // answers in milliseconds, and one D-Bus starts on first use in about a second, a few
 // on a cold boot; longer is a keyring that will not answer without someone. Five
 // seconds lets a slow start through and still tells a client, which waits a minute
 // for the daemon, why it is not ready well within that.
-const keyringWait = 5 * time.Second
+const Wait = 5 * time.Second
 
-// ErrKeyringNotAnswering is a keyring that did not answer within keyringWait. It is
+// ErrKeyringNotAnswering is a keyring that did not answer within Wait. It is
 // not "no key": a key is never made for it.
 var ErrKeyringNotAnswering = errors.New("session: the keyring is not answering (is it locked?)")
 
@@ -82,4 +84,20 @@ func failed(c *call) bool {
 	default:
 		return false
 	}
+}
+
+// Get reads a keyring entry, waiting at most Wait (bounded).
+func Get(service, acct string) (string, error) {
+	return bounded("get\x00"+service+"\x00"+acct, Wait, func() (string, error) {
+		return keyring.Get(service, acct)
+	})
+}
+
+// Set writes value to a keyring entry, waiting at most Wait (bounded), and returns the
+// value kept: a write still waiting from an earlier call is joined, and its value is the
+// one kept.
+func Set(service, acct, value string) (string, error) {
+	return bounded("set\x00"+service+"\x00"+acct, Wait, func() (string, error) {
+		return value, keyring.Set(service, acct, value)
+	})
 }

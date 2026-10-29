@@ -105,6 +105,17 @@ threat model:
   for a client certificate; kithd's certificate, which carries its device ID (public:
   it names a key, it grants nothing) and no account names. Without a paired key,
   nothing past the handshake. A refused handshake is logged at debug level only.
+- **The client side.** A machine that joined a bridge dials only the addresses its
+  `[[bridge]]` entry names and takes the connection only if the peer's key has the
+  pinned ID, checked in the handshake (`VerifyConnection`, run on resumed sessions
+  too); an address answering with any other key is passed over, never trusted. It
+  presents its own `client-device` key. kithd's config travels to it over that
+  connection, as everything else a paired device may read does. Idle connections are
+  pinged (HTTP/2 PING) and dropped when unanswered, so a connection a network change
+  left behind is not kept.
+- **Links stay on their device.** `kith --open` hands a link through kithd to a
+  window on the same device only, by the device each connection authenticated as, not
+  by anything a client says of itself; the socket counts as kithd's own machine.
 - **Key storage.** Device keys live in the OS keyring (account
   `<instance>|device` for kithd, `<instance>|client-device` for a client machine),
   or, only with `allow_token_file` and no keyring, in a `0600` file in the state

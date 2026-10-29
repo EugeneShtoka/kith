@@ -22,8 +22,10 @@ type RunOptions struct {
 	Notifications Notifications
 	Schedules     Schedules
 	Config        config.Config
-	// ConfigPath is the bridge's config, whose changes kithd writes.
-	ConfigPath string
+	// ConfigPath is the bridge's config, whose changes kithd writes; "" for a bridge
+	// elsewhere, whose Config was read through it at ConfigRevision.
+	ConfigPath     string
+	ConfigRevision string
 	// Device is this device's settings, and DevicePath their file, where in-app changes
 	// to them are written.
 	Device     config.Device
@@ -65,6 +67,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 		WithNotifications(opts.Notifications).
 		WithSchedules(opts.Schedules).
 		WithConfigFile(opts.ConfigPath, cfg).
+		atRevision(opts.ConfigPath, opts.ConfigRevision).
 		WithCache(cache).
 		WithRestart(opts.RestartDaemon).
 		WithSecrets(opts.Secrets).
