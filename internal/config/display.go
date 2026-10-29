@@ -323,17 +323,6 @@ const (
 // under `space:`. A tag is named in its [[tag]].
 func GroupTarget(key string) string { return NameTargetSpace + key }
 
-// NameFor is the name given to one target, or empty.
-func (d Display) NameFor(target string) string {
-	name := ""
-	for _, entry := range d.Names {
-		if entry.Target == target {
-			name = entry.Name
-		}
-	}
-	return name
-}
-
 // SpaceLabels maps each renamed space's name to the label its rail row shows.
 func (d Display) SpaceLabels() map[string]string {
 	out := map[string]string{}

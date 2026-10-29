@@ -234,14 +234,14 @@ func checkTagInvariants(t *testing.T, where string, m Model, tags []config.Tag) 
 				shows = append(shows, g.key)
 			}
 		}
-		if fresh.owner >= 0 {
-			owner := tagGroupKey(tags[fresh.owner].Name)
+		if fresh.Owner >= 0 {
+			owner := tagGroupKey(tags[fresh.Owner].Name)
 			for _, key := range shows {
 				if isTagGroup(key) && key != owner {
 					t.Fatalf("%s: %s is claimed by %s but shows in %s (%v)", where, room.ID, owner, key, shows)
 				}
 			}
-			if tags[fresh.owner].Hidden {
+			if tags[fresh.Owner].Hidden {
 				continue // claimed into a hidden tag: the person's choice
 			}
 		}
@@ -250,7 +250,7 @@ func checkTagInvariants(t *testing.T, where string, m Model, tags []config.Tag) 
 		}
 		var leaves domain.Exclusive
 		for j := range tags {
-			if tag := &tags[j]; fresh.in[j] {
+			if tag := &tags[j]; fresh.In[j] {
 				leaves.Spaces = leaves.Spaces || tag.ExclusiveFrom("spaces")
 				leaves.Origin = leaves.Origin || tag.ExclusiveFrom("origin")
 			}
@@ -268,7 +268,7 @@ func checkTagInvariants(t *testing.T, where string, m Model, tags []config.Tag) 
 				t.Fatalf("%s: %s in %s = %t, want %t (leaves %+v)", where, room.ID, space.Name, left, !left, leaves)
 			}
 		}
-		if fresh.silenced && view.tallies(room) {
+		if fresh.Silenced && view.tallies(room) {
 			t.Fatalf("%s: silenced %s still counts as unread", where, room.ID)
 		}
 	}

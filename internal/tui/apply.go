@@ -189,8 +189,8 @@ func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.rail.archiveTags = derived.archiveTags
 	m.rail.cfg = derived.rail
 	m.rail.tagsRev++
-	if m.rail.tagMemo == nil {
-		m.rail.tagMemo = &tagMemo{}
+	if m.rail.railMemo == nil {
+		m.rail.railMemo = &railMemo{}
 	}
 	if len(derived.tagWarnings) > 0 {
 		said := strings.Join(derived.tagWarnings, "; ")

@@ -108,7 +108,7 @@ func (m Model) tagKey(press string) (Model, tea.Cmd, bool) {
 	if !ok || room.IsInvite() {
 		return m, nil, true
 	}
-	next, cmd := m.fileTags(room, []tagFiling{{tag: i, label: view.tags.At(i).Name, in: !view.tagsOf(room).in[i]}})
+	next, cmd := m.fileTags(room, []tagFiling{{tag: i, label: view.tags.At(i).Name, in: !view.tagsOf(room).In[i]}})
 	return next, cmd, true
 }
 
@@ -168,7 +168,7 @@ func (m Model) tagLabel(name string) string {
 // mutingTags are the tags holding room that do not notify.
 func (m Model) mutingTags(room domain.Room) []string {
 	view := m.unreadView()
-	held := view.tagsOf(room).in
+	held := view.tagsOf(room).In
 	var out []string
 	for i := range view.tags.Len() {
 		if i < len(held) && held[i] && view.tags.At(i).Mute {

@@ -80,13 +80,14 @@ type unreadView struct {
 	parents map[domain.RoomID]domain.SpaceID
 	// facts is the slow way to a room's facts (roomFacts holds them precomputed).
 	facts func(domain.Room) domain.RoomFacts
-	// tags and the facts they judge by (precomputed), and the drafts the `draft` state word reads;
-	// tagMemo caches the per-room result (tagged.go), keyed by tagsRev.
+	// tags and the facts they judge by (precomputed), and the drafts the `draft` state word reads.
 	tags      domain.TagSet
 	tagsRev   uint64
-	tagMemo   *tagMemo
 	roomFacts map[domain.RoomID]domain.RoomFacts
 	drafts    map[domain.RoomID]draft
+	// rail is what the rail is built from besides the above; railMemo caches the rail (rail.go).
+	rail     railInputs
+	railMemo *railMemo
 }
 
 // count is one room's own numbers, archived or not.
@@ -142,9 +143,10 @@ func (m Model) unreadView() unreadView {
 		facts:     m.factsFor,
 		tags:      m.rail.tags,
 		tagsRev:   m.rail.tagsRev,
-		tagMemo:   m.rail.tagMemo,
 		roomFacts: m.rail.roomFacts,
 		drafts:    m.drafts,
+		rail:      railInputs{spaces: m.rooms.spaces, rooms: m.rooms.all, cfg: m.rail.cfg, names: m.prefs.display.Names},
+		railMemo:  m.rail.railMemo,
 	}
 }
 
@@ -246,7 +248,7 @@ func (m Model) resolveParentsCmd() tea.Cmd {
 	var want []domain.RoomID
 	for i := range m.rooms.all {
 		room := m.rooms.all[i]
-		if leaves := view.tagsOf(room).leaves; leaves.Spaces == leaves.Origin {
+		if leaves := view.tagsOf(room).Leaves; leaves.Spaces == leaves.Origin {
 			continue
 		}
 		if _, known := m.parents[room.ID]; !known {

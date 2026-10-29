@@ -83,7 +83,7 @@ func (m Model) tagRows(checked map[string]bool, room domain.Room) []pickerItem {
 	if view.tags.Len() == 0 {
 		return items
 	}
-	held := view.tagsOf(room).in
+	held := view.tagsOf(room).In
 	listed := make(map[int]bool, view.tags.Len())
 	add := func(i int, label string) {
 		listed[i] = true
@@ -122,7 +122,7 @@ func (m Model) fileInTags(roomID domain.RoomID, rows []pickerItem, want map[doma
 	if view.tags.Len() == 0 {
 		return m, false, nil
 	}
-	held := view.tagsOf(room).in
+	held := view.tagsOf(room).In
 	var filings []tagFiling
 	for _, item := range rows {
 		name, ok := domain.TagOf(item.value)
@@ -157,7 +157,7 @@ func (m Model) toggleTag(name string, room domain.Room) (Model, tea.Cmd) {
 		return m.fileInNewTag(strings.TrimSpace(name), room)
 	}
 	label := view.tags.At(i).Name
-	return m.fileTags(room, []tagFiling{{tag: i, label: label, in: !view.tagsOf(room).in[i]}})
+	return m.fileTags(room, []tagFiling{{tag: i, label: label, in: !view.tagsOf(room).In[i]}})
 }
 
 // fileTags writes the filings into the config's tags and applies it, keeping the

@@ -17,7 +17,7 @@ func memberships(m Model) map[domain.RoomID][]bool {
 	view := m.unreadView()
 	out := make(map[domain.RoomID][]bool, len(m.rooms.all))
 	for i := range m.rooms.all {
-		out[m.rooms.all[i].ID] = slices.Clone(view.tagsOf(m.rooms.all[i]).in)
+		out[m.rooms.all[i].ID] = slices.Clone(view.tagsOf(m.rooms.all[i]).In)
 	}
 	return out
 }

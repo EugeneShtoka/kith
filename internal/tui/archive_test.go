@@ -104,7 +104,7 @@ func TestMarkingASpaceReadReadsItsArchivedRooms(t *testing.T) {
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}, Bridge: domain.ProtocolTelegram},
 	}})
-	m.unread[mx+"!b:x"] = domain.Unread{RoomID: mx + "!b:x"}
+	m.unread = withEntry(m.unread, mx+"!b:x", domain.Unread{RoomID: mx + "!b:x"})
 	m.rail.cursor = indexOfGroup(m.rail.groups, "Work")
 	m, _ = m.askMarkGroupRead()
 	if m.confirm.action != pendingMarkGroupRead || !slices.Equal(m.confirm.rooms, []domain.RoomID{mx + "!a:x"}) {

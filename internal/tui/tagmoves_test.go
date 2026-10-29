@@ -75,8 +75,8 @@ func TestExcludedOutranksAMoveAndAMutedTagStopsCounting(t *testing.T) {
 		t.Error("an excluded room was kept in Spam by a filter's move")
 	}
 	m.prefs.unreadLocal = true
-	m.unread[mx+"!ops:x"] = domain.Unread{Messages: 2, Counted: true}
-	m.unread[mx+"!a:x"] = domain.Unread{Messages: 2, Counted: true}
+	m.unread = withEntry(m.unread, mx+"!ops:x", domain.Unread{Messages: 2, Counted: true})
+	m.unread = withEntry(m.unread, mx+"!a:x", domain.Unread{Messages: 2, Counted: true})
 	if view := m.unreadView(); view.tallies(domain.Room{ID: mx + "!ops:x"}) || !view.tallies(domain.Room{ID: mx + "!a:x"}) {
 		t.Error("counts_unread = false does not decide which room counts")
 	}

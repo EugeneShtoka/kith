@@ -5,10 +5,14 @@ import (
 )
 
 // asModel converts Update's result into the concrete Model and checks the row-cache
-// invariant (see staleRow) after each call, panicking since it has no *testing.T.
+// and rail-memo invariants (see staleRow, staleRail) after each call, panicking since it
+// has no *testing.T.
 func asModel(mdl tea.Model, cmd tea.Cmd) (Model, tea.Cmd) {
 	m := mdl.(Model)
 	if err := staleRow(m); err != nil {
+		panic(err)
+	}
+	if err := staleRail(m); err != nil {
 		panic(err)
 	}
 	if m.hasFrameRows {

@@ -237,15 +237,15 @@ func textSurfaces() []textSurface {
 			return next.renderStatus()
 		}},
 		{name: "space with nothing unread", draw: func(t *testing.T, m Model, text string) string {
-			m.rail.groups = []group{{key: "s", label: text, admits: func(unreadView, domain.Room) bool { return false }}}
+			m.rail.groups = []group{{key: "s", label: text}} // no row of the rail: it holds nothing
 			m.rail.cursor = 0
 			next, _ := m.askMarkGroupRead()
 			return next.renderStatus()
 		}},
 		{name: "mark space read prompt", draw: func(t *testing.T, m Model, text string) string {
-			m.rail.groups = []group{{key: "s", label: text, admits: func(unreadView, domain.Room) bool { return true }}}
+			m.rail.groups = []group{{key: tagGroupKey("All"), label: text}} // every room
 			m.rail.cursor = 0
-			m.unread[mx+"!a:x"] = domain.Unread{RoomID: mx + "!a:x", Messages: 1, Counted: true}
+			m.unread = withEntry(m.unread, mx+"!a:x", domain.Unread{RoomID: mx + "!a:x", Messages: 1, Counted: true})
 			next, _ := m.askMarkGroupRead()
 			if next.confirm.action != pendingMarkGroupRead {
 				t.Fatal("no confirmation asked")

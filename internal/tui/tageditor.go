@@ -203,7 +203,7 @@ func (m Model) combineTags(from, into string) (Model, tea.Cmd) {
 	}
 	held := func(tag string, facts domain.RoomFacts) bool {
 		i, ok := view.tags.Index(tag)
-		return ok && view.tagsOf(byID[facts.ID]).in[i]
+		return ok && view.tagsOf(byID[facts.ID]).In[i]
 	}
 	combined := config.Settings{
 		Bridge: setup.CombineTags(m.conf.base, from, into, rooms, held), Device: setup.RenameTagOnDevice(m.conf.device, from, into),
@@ -233,7 +233,7 @@ func (m Model) fileInNewTag(name string, room domain.Room) (Model, tea.Cmd) {
 		return m, made // refused: the reason is on the status line
 	}
 	view := m.unreadView()
-	if view.tagsOf(room).in[i] {
+	if view.tagsOf(room).In[i] {
 		return m.say(m.roomName(room) + " is already in " + isolate(view.tags.At(i).Name)), made
 	}
 	next, filed := m.fileTags(room, []tagFiling{{tag: i, label: view.tags.At(i).Name, in: true}})

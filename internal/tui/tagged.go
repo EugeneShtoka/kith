@@ -7,29 +7,8 @@ import (
 )
 
 // What the tags make of each room: which hold it, whether it is silenced, the tag it
-// shows under alone, and which spaces it leaves. Every rail row asks this per
-// room per draw, so it is memoized, keyed by the identity of its copy-on-write inputs
-// (cow.go): any change is a new map and a new key.
-
-type roomTags struct {
-	in       []bool // by tag index: the tag holds it
-	silenced bool   // a silent tag holds it
-	owner    int    // the tag it shows under alone (exclusive tags), first in config order; -1 none
-	// leaves is where the tags holding it take it from.
-	leaves domain.Exclusive
-}
-
-type tagMemo struct {
-	key  tagKey
-	byID map[domain.RoomID]roomTags
-}
-
-// tagKey identifies the inputs: the tags (by revision) and each map by identity.
-type tagKey struct {
-	tagsRev               uint64
-	unread, drafts, facts uintptr
-	local                 bool
-}
+// shows under alone, and which spaces it leaves. Every rail row asks this per room per
+// draw, so it is judged with the rail and memoized with it (rail.go).
 
 // identity is a map's identity; nil is 0.
 func identity(m any) uintptr {
@@ -40,67 +19,18 @@ func identity(m any) uintptr {
 	return v.Pointer()
 }
 
-func (v unreadView) tagKey() tagKey {
-	return tagKey{
-		tagsRev: v.tagsRev,
-		unread:  identity(v.counts), drafts: identity(v.drafts), facts: identity(v.roomFacts),
-		local: v.local,
+// tagsOf is what the tags make of room, as the rail judged it; a room the rail does not
+// hold is judged on its own.
+func (v unreadView) tagsOf(room domain.Room) domain.RoomTags {
+	if judged, ok := v.currentRail().built.rail.Judged[room.ID]; ok {
+		return judged
 	}
+	return v.computeTags(room)
 }
 
-// tagsOf is what the tags make of room, from the memo when current.
-func (v unreadView) tagsOf(room domain.Room) roomTags {
-	if v.tags.Len() == 0 {
-		return roomTags{owner: -1}
-	}
-	memo := v.tagMemo
-	if memo != nil {
-		if key := v.tagKey(); memo.key != key || memo.byID == nil {
-			memo.key, memo.byID = key, map[domain.RoomID]roomTags{}
-		}
-		if got, ok := memo.byID[room.ID]; ok {
-			return got
-		}
-	}
-	got := v.computeTags(room)
-	if memo != nil {
-		memo.byID[room.ID] = got
-	}
-	return got
-}
-
-// computeTags judges every tag on one room. Silence uses the room's own state; other
-// tags see a silenced room as read, so a silent tag never feeds back on itself.
-func (v unreadView) computeTags(room domain.Room) roomTags {
-	facts := v.factsOf(room)
-	raw := v.rawState(room)
-	n := v.tags.Len()
-	out := roomTags{in: make([]bool, n), owner: -1}
-	for i := range n {
-		if v.tags.At(i).Silent && v.tags.HasAt(i, facts, raw) {
-			out.silenced = true
-			break
-		}
-	}
-	seen := raw
-	if out.silenced {
-		seen.Unread, seen.Mention = false, false
-	}
-	for i := range n {
-		tag, state := v.tags.At(i), seen
-		if tag.Silent {
-			state = raw
-		}
-		if out.in[i] = v.tags.HasAt(i, facts, state); !out.in[i] {
-			continue
-		}
-		if tag.Exclusive.Tags && out.owner < 0 {
-			out.owner = i
-		}
-		out.leaves.Spaces = out.leaves.Spaces || tag.Exclusive.Spaces
-		out.leaves.Origin = out.leaves.Origin || tag.Exclusive.Origin
-	}
-	return out
+// computeTags judges every tag on one room (domain.TagSet.Judge).
+func (v unreadView) computeTags(room domain.Room) domain.RoomTags {
+	return v.tags.Judge(v.factsOf(room), v.rawState(room))
 }
 
 // factsOf is what a place entry can match about room.
@@ -134,29 +64,12 @@ func (v unreadView) rawState(room domain.Room) domain.RoomState {
 	}
 }
 
-// showsInTag reports whether tag i's row lists room: the tag holds it and no
-// exclusive tag claims it.
-func (v unreadView) showsInTag(i int, room domain.Room) bool {
-	t := v.tagsOf(room)
-	return t.in[i] && (t.owner < 0 || t.owner == i)
-}
-
 // ownerName is the name of the exclusive tag room shows under; "" for none.
 func (v unreadView) ownerName(room domain.Room) string {
-	if owner := v.tagsOf(room).owner; owner >= 0 {
+	if owner := v.tagsOf(room).Owner; owner >= 0 {
 		return v.tags.At(owner).Name
 	}
 	return ""
 }
 
-// leavesSpace reports whether a tag holding room takes it out of a space; origin is
-// whether the room belongs there.
-func (v unreadView) leavesSpace(room domain.Room, origin bool) bool {
-	leaves := v.tagsOf(room).leaves
-	if origin {
-		return leaves.Origin
-	}
-	return leaves.Spaces
-}
-
-func (v unreadView) silenced(room domain.Room) bool { return v.tagsOf(room).silenced }
+func (v unreadView) silenced(room domain.Room) bool { return v.tagsOf(room).Silenced }

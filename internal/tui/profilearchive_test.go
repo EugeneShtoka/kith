@@ -51,7 +51,7 @@ func archivedIn(t *testing.T, m Model, room domain.Room) bool {
 	if !ok {
 		t.Fatal("no Archived tag")
 	}
-	return view.tagsOf(room).in[i]
+	return view.tagsOf(room).In[i]
 }
 
 // A window shows its profile's archive and rail; switching re-reads both, though the
