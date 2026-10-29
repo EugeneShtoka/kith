@@ -25,12 +25,17 @@ description = "Project false positives: documented placeholders"
 # false-positive. If a new test fixture ever does trip a rule, add it to `regexes`, or
 # scope it with a per-rule [[rules.allowlist]] — never re-broaden by path.
 
-# The one path entry: .tools/ holds the pinned third-party tools (scripts/ensure-tools.sh:
+# The path entries. .tools/ holds the pinned third-party tools (scripts/ensure-tools.sh:
 # gitleaks, buf and goreleaser binaries, and markdownlint's node_modules). It is
 # gitignored, never part of the project, and `gitleaks dir` would otherwise scan
 # ~100 MB of other people's code on every run.
+#
+# The desktop's node_modules, where packages ship test keys, gitleaks' own defaults skip;
+# its build output (.vite, out) bundles that code, plus Electron (~40 MB), and is
+# gitignored too.
 paths = [
   '''(^|/)\.tools/''',
+  '''(^|/)desktop/(\.vite|out)/''',
 ]
 
 # Placeholder strings that appear in the README / config samples and in test

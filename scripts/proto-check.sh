@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Generated wire types must match api/proto. The code is generated into a scratch
-# directory and compared with the tree, so the check needs no git: it works in a
-# checkout with nothing committed, and a newly generated file (untracked) fails it
-# just as a changed one does.
+# Generated wire types must match api/proto: Go (buf.gen.yaml) and the desktop's
+# TypeScript (buf.gen.ts.yaml). The code is generated into a scratch directory and
+# compared with the tree, so the check needs no git: it works in a checkout with
+# nothing committed, and a newly generated file (untracked) fails it just as a changed
+# one does.
 #
 # Without buf it prints SKIPPED, unless PROTO_CHECK_REQUIRED=1 (CI), where a missing
 # buf is a broken gate rather than a skipped one.
@@ -20,9 +21,18 @@ fi
 
 buf lint
 
+# The generator and the runtime the generated code imports must be one version.
+generator=$(sed -nE 's/^ *"@bufbuild\/protoc-gen-es": *"([^"]+)".*/\1/p' tools/protoc-gen-es/package.json)
+runtime=$(sed -nE 's/^ *"@bufbuild\/protobuf": *"([^"]+)".*/\1/p' desktop/package.json)
+if [[ -z $generator || $generator != "$runtime" ]]; then
+	echo "proto-check: tools/protoc-gen-es pins protoc-gen-es '${generator:-?}', desktop/package.json @bufbuild/protobuf '${runtime:-?}'; make them one version" >&2
+	exit 1
+fi
+
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 buf generate --output "$scratch"
+buf generate --template buf.gen.ts.yaml --output "$scratch"
 
 # File by file: hand-written code (protoconv) lives beside the generated files.
 stale=0
@@ -39,7 +49,7 @@ while IFS= read -r kept; do
 		echo "proto-check: $kept is no longer generated from api/proto; delete it" >&2
 		stale=1
 	fi
-done < <(find internal/api -type f \( -name '*.pb.go' -o -name '*.connect.go' \))
+done < <(find internal/api -type f \( -name '*.pb.go' -o -name '*.connect.go' \); find desktop/src/gen -type f -name '*_pb.ts')
 if [[ $stale -ne 0 ]]; then
 	echo "proto-check: run 'make proto' and commit the result" >&2
 	exit 1

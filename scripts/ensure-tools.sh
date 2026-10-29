@@ -5,7 +5,7 @@
 # pinned version is not already there, so the call is cheap enough to run before
 # every gate.
 #
-#   scripts/ensure-tools.sh [goreleaser|gitleaks|buf|markdownlint]...   (default: all)
+#   scripts/ensure-tools.sh [goreleaser|gitleaks|buf|markdownlint|protoc-gen-es]...   (default: all)
 #
 # For the tests (scripts/test/tools-test.sh): TOOLS_DIR overrides .tools,
 # VERSIONS_FILE overrides tools/versions.env, and TOOLS_BASE_URL replaces
@@ -105,32 +105,39 @@ buf() {
 		"$BASE/bufbuild/buf/releases/download/v$BUF_VERSION/buf-$o-$a.tar.gz" buf/bin/buf
 }
 
-# markdownlint-cli2 and its whole dependency tree, exactly as the lock says.
-markdownlint() {
-	local src="$ROOT/tools/markdownlint" dest="$TOOLS_DIR/markdownlint"
+# An npm tool and its whole dependency tree, exactly as tools/<name>'s lock says:
+# from_lock <name> <the binary it puts on PATH>.
+from_lock() {
+	local name=$1 bin=$2
+	local src="$ROOT/tools/$name" dest="$TOOLS_DIR/$name"
 	local lock
 	lock=$(sha256 "$src/package-lock.json")
-	if [[ -x "$dest/node_modules/.bin/markdownlint-cli2" && -f "$TOOLS_DIR/stamps/markdownlint" &&
-		"$(cat "$TOOLS_DIR/stamps/markdownlint")" == "$lock" ]]; then
+	if [[ -x "$dest/node_modules/.bin/$bin" && -f "$TOOLS_DIR/stamps/$name" &&
+		"$(cat "$TOOLS_DIR/stamps/$name")" == "$lock" ]]; then
 		return 0
 	fi
 	if ! command -v npm >/dev/null 2>&1 || ! npm --version >/dev/null 2>&1; then
-		echo "ensure-tools: markdownlint needs node and npm (https://nodejs.org)" >&2
+		echo "ensure-tools: $name needs node and npm (https://nodejs.org)" >&2
 		return 1
 	fi
-	echo "ensure-tools: installing markdownlint-cli2 from the lock" >&2
+	echo "ensure-tools: installing $bin from the lock" >&2
 	mkdir -p "$dest" "$TOOLS_DIR/stamps" "$BIN"
 	cp "$src/package.json" "$src/package-lock.json" "$dest/"
 	(cd "$dest" && npm ci --ignore-scripts --no-audit --no-fund --silent)
-	ln -sf "../markdownlint/node_modules/.bin/markdownlint-cli2" "$BIN/markdownlint-cli2"
-	echo "$lock" >"$TOOLS_DIR/stamps/markdownlint"
+	ln -sf "../$name/node_modules/.bin/$bin" "$BIN/$bin"
+	echo "$lock" >"$TOOLS_DIR/stamps/$name"
 }
 
+markdownlint() { from_lock markdownlint markdownlint-cli2; }
+
+# The TypeScript generator buf.gen.ts.yaml runs for the desktop.
+protoc-gen-es() { from_lock protoc-gen-es protoc-gen-es; }
+
 tools=("$@")
-[[ ${#tools[@]} -gt 0 ]] || tools=(goreleaser gitleaks buf markdownlint)
+[[ ${#tools[@]} -gt 0 ]] || tools=(goreleaser gitleaks buf markdownlint protoc-gen-es)
 for t in "${tools[@]}"; do
 	case "$t" in
-	goreleaser | gitleaks | buf | markdownlint) "$t" ;;
+	goreleaser | gitleaks | buf | markdownlint | protoc-gen-es) "$t" ;;
 	*) echo "ensure-tools: unknown tool $t" >&2; exit 2 ;;
 	esac
 done

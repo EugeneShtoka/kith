@@ -38,6 +38,9 @@ check ./cmd/kith-mcp "$drawing" "kith-mcp is headless: it draws nothing"
 check ./cmd/kith-notify "$daemon_only" "it shows what the daemon publishes, never reading the cache"
 check ./cmd/kith-notify "$models" "model work runs in the daemon"
 check ./cmd/kith-notify "$drawing" "kith-notify is headless: it draws nothing"
+check ./cmd/kith-relay "$daemon_only" "it forwards to the daemon, never reading the cache"
+check ./cmd/kith-relay "$models" "model work runs in the daemon"
+check ./cmd/kith-relay "$drawing" "kith-relay is headless: the window draws"
 
 (( status == 0 )) && echo "deps-check: OK"
 exit $status

@@ -12,8 +12,9 @@ and submit changes. For how the code is laid out, read
   sets `GOTOOLCHAIN` to it (downloaded once) and `GOENV=off`, so neither a newer local
   go nor a user `go env` setting (a `GOEXPERIMENT`, say) changes what is checked.
   `GOTOOLCHAIN=local make …` opts out, for offline work.
-- **Node.js 20 or newer with npm**, for `docs-check` (markdownlint) and `vuln` (npm
-  audit of markdownlint's lock).
+- **Node.js 24 with npm** (`desktop/.nvmrc`), for `docs-check` (markdownlint), `vuln`
+  (npm audit of markdownlint's lock and the desktop's), `proto-check` (protoc-gen-es) and
+  `desktop-check` (the Electron window in `desktop/`).
 - **An account on a network kith speaks** (Matrix, WhatsApp, Telegram or Slack) to
   run the client end to end. Use a test account if you can: the client's
   diagnostics drive a real session.
@@ -28,6 +29,7 @@ installs them the same way:
 | golangci-lint, gohawk, govulncheck, the protoc plugins | the `tool` directive in `go.mod` | run through `go tool` |
 | goreleaser, gitleaks, buf | `tools/versions.env` (version and SHA-256 per platform) | `scripts/ensure-tools.sh`, into `.tools/` (gitignored), by the gate that needs it |
 | markdownlint-cli2 | `tools/markdownlint/package-lock.json` | `npm ci` into `.tools/` |
+| protoc-gen-es (the desktop's TypeScript wire) | `tools/protoc-gen-es/package-lock.json` | `npm ci` into `.tools/` |
 
 A tool is fetched only when its pinned version is not already in `.tools/`, and an
 archive whose checksum differs is refused before it is unpacked. `make pins-outdated`
@@ -138,7 +140,7 @@ calls a tool directly instead of through its target. In order:
 | `cross` | every package builds for linux, darwin, freebsd and windows on amd64 and arm64 (`CROSS_TARGETS`) |
 | `lint` | `golangci-lint run`, including the depguard layer rules; then gohawk's core analyzers (goroutine and lock ownership, resources released on every path), which `_test.go` files are outside of |
 | `fmt-check` | `golangci-lint fmt --diff` (gofmt + goimports), non-mutating |
-| `vuln` | `govulncheck ./...`, and `npm audit` of markdownlint's lock (`scripts/npm-audit.sh`: an advisory with no fixed release can be allowed in `tools/markdownlint/audit-allow.json`, with a reason and an expiry date) |
+| `vuln` | `govulncheck ./...`, and `npm audit` of markdownlint's lock and of the desktop's runtime tree (`scripts/npm-audit.sh <dir>`: an advisory with no fixed release can be allowed in `<dir>/audit-allow.json`, with a reason and an expiry date). The desktop's dev tree is audited weekly, without blocking |
 | `secrets` | gitleaks over the committed history **and** the working tree |
 | `pin-check` | every GitHub Actions `uses:` is pinned to a commit SHA |
 | `unit-check` | the systemd unit creates every directory its sandbox lets it write |
@@ -146,8 +148,9 @@ calls a tool directly instead of through its target. In order:
 | `ci-parity` | CI runs exactly these targets (`scripts/ci-parity-check.sh`) |
 | `script-check` | the tests of those gate scripts (`scripts/test/tools-test.sh`): a tampered or missing tool download, and each way CI and `check` can drift |
 | `release-check` | `goreleaser check` over `.goreleaser.yaml` |
-| `proto-check` | `buf lint`, then `buf generate` into a scratch dir matches `internal/api/backend` file for file |
+| `proto-check` | `buf lint`, then both templates (`buf.gen.yaml`, Go; `buf.gen.ts.yaml`, the desktop's TypeScript) generate into a scratch dir that matches `internal/api` and `desktop/src/gen` file for file; protoc-gen-es and the desktop's `@bufbuild/protobuf` are one version |
 | `docs-check` | markdownlint over `*.md`, `docs/**/*.md` and `.github/**/*.md` |
+| `desktop-check` | `desktop/`, from its lock with no install scripts: `tsc` (strict), ESLint (with the layer rules), Prettier, vitest, `electron-forge package`, and `npm audit` of the runtime tree (`scripts/desktop-check.sh`) |
 
 Nothing is skipped for want of a tool. The one gate that can be skipped is the history
 secret scan, when the tree is not the root of its own git repository; `CHECK_STRICT=1`
@@ -238,8 +241,11 @@ The daemon's wire types are generated from `api/proto/backend/v1/*.proto`. After
 editing a `.proto`:
 
 ```sh
-make proto   # buf lint + buf generate into internal/api/backend/v1
+make proto   # buf lint + buf generate: Go into internal/api, TypeScript into desktop/src/gen
 ```
+
+A change to the wire breaks the desktop's build in the same PR, as it would the TUI's:
+clients and kithd ship together.
 
 Commit the generated code with the schema change. Domain↔proto conversion lives in
 one place, `internal/api/backend/v1/protoconv`; add the mapping there and a round-trip

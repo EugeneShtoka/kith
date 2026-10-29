@@ -1,9 +1,9 @@
-.PHONY: build build-tui build-daemon build-mcp build-notify run run-daemon install deploy undeploy \
+.PHONY: build build-tui build-daemon build-mcp build-notify build-relay run run-daemon install deploy undeploy \
 	daemon-status daemon-logs daemon-restart daemon-stop \
 	test lint fmt fmt-check fix vuln secrets pin-check unit-check arch-check mod-check release-check \
 	proto-check docs-check nix-check hooks check coverage coverage-check tools pins-outdated \
 	compile cross ci-parity ensure-tools vet script-check quick test-quick arch-quick \
-	proto emoji dict-manifest freq-manifest model-manifest keys-doc build-signal signal-check
+	proto emoji dict-manifest freq-manifest model-manifest keys-doc build-signal signal-check desktop-check
 
 # goolm = mautrix's pure-Go E2EE (no libolm/cgo). Also set in .golangci.yml,
 # .goreleaser.yaml and the CI env. With cgo on (the race detector), mautrix's
@@ -18,8 +18,8 @@ export GOFLAGS := -tags=goolm -ldflags=-X=github.com/ncruces/go-sqlite3/driver.d
 #  - No user `go env` file: CI has none, and one can carry GOEXPERIMENT or GOFLAGS
 #    that change the build.
 #  - golangci-lint, gohawk, govulncheck and the protoc plugins: the go.mod `tool` directive.
-#  - goreleaser, gitleaks, buf and markdownlint-cli2: tools/versions.env and
-#    tools/markdownlint's lock, installed into .tools by scripts/ensure-tools.sh,
+#  - goreleaser, gitleaks, buf, markdownlint-cli2 and protoc-gen-es: tools/versions.env
+#    and the locks under tools/, installed into .tools by scripts/ensure-tools.sh,
 #    which CI runs too.
 # scripts/ci-parity-check.sh fails when a `check` gate is not a CI step or back.
 GO_TOOLCHAIN := $(shell awk '$$1 == "toolchain" {print $$2}' go.mod)
@@ -58,7 +58,7 @@ cross:
 	done
 
 # The client needs the daemon (no in-process fallback), so build both by default.
-build: build-tui build-daemon build-mcp build-notify
+build: build-tui build-daemon build-mcp build-notify build-relay
 
 build-tui:
 	$(GOBUILD) -o kith ./cmd/kith/
@@ -76,6 +76,10 @@ build-mcp:
 
 build-notify:
 	$(GOBUILD) -o kith-notify ./cmd/kith-notify/
+
+# The desktop window's link to kithd; desktop/ runs ./kith-relay when not packaged.
+build-relay:
+	$(GOBUILD) -o kith-relay ./cmd/kith-relay/
 
 # ── Signal helper ────────────────────────────────────────────────────────────
 # kith-signal is the one binary built with cgo: it links libsignal_ffi (Rust), at the
@@ -176,15 +180,19 @@ fix:
 	go fmt ./...
 	$(GOLANGCI) run --fix ./...
 
-# Go modules, and the one npm tree the gates run (markdownlint-cli2's lock).
+# Go modules, the npm tree the gates run (markdownlint-cli2's lock), and what the
+# desktop ships (its runtime tree; the dev tree is audited weekly, without blocking).
 vuln:
 	$(GOVULN) ./...
-	scripts/npm-audit.sh
+	scripts/npm-audit.sh tools/markdownlint
+	scripts/npm-audit.sh desktop
 
-# Regenerate api/proto codegen (needs buf). Output is committed.
+# Regenerate api/proto codegen: Go, and the desktop's TypeScript. Output is committed.
 proto:
+	@$(ENSURE) protoc-gen-es
 	buf lint
 	buf generate
+	buf generate --template buf.gen.ts.yaml
 
 # Generated tables/manifests below are committed so builds need no network.
 emoji:
@@ -233,7 +241,7 @@ ensure-tools:
 	@$(ENSURE)
 
 proto-check:
-	@$(ENSURE) buf
+	@$(ENSURE) buf protoc-gen-es
 	PROTO_CHECK_REQUIRED=1 bash scripts/proto-check.sh
 
 # The Nix flake builds: flake.lock resolves and packaging/nix/package.nix's vendorHash
@@ -257,6 +265,12 @@ release-check:
 docs-check:
 	@$(ENSURE) markdownlint
 	markdownlint-cli2 "*.md" "docs/**/*.md" ".github/**/*.md"
+
+# The desktop: install from the lock (no install scripts, no Electron binary), then
+# typecheck, lint, format, unit tests, an `electron-forge package` and the audit of
+# what it ships. scripts/desktop-check.sh says how.
+desktop-check:
+	bash scripts/desktop-check.sh
 
 # go.mod/go.sum are tidy and every module matches its checksum. Also in GoReleaser's
 # before-hook, where a failure would come only after every other gate passed.
@@ -329,12 +343,12 @@ coverage-check: test coverage-gate
 # the coverage floors, cross builds, the vulnerability scan, deadcode, the Nix flake and
 # the release config are CI's (`check`); pushing a tag runs them here too.
 quick: mod-check compile test-quick lint fmt-check secrets pin-check unit-check arch-quick \
-	ci-parity script-check proto-check docs-check
+	ci-parity script-check proto-check docs-check desktop-check
 
 # Every CI gate, with CI's tools (ci-parity-check.sh holds the two lists equal).
 # Non-mutating. CHECK_STRICT=1 also fails what would be skipped here.
 check: mod-check compile test coverage-gate cross lint fmt-check vuln secrets pin-check unit-check \
-	arch-check ci-parity script-check release-check proto-check docs-check nix-check
+	arch-check ci-parity script-check release-check proto-check docs-check desktop-check nix-check
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
 # Default install is per-user ($HOME/.local/bin); `make deploy PREFIX=/usr/local`

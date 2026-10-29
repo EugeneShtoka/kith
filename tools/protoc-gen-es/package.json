@@ -1,0 +1,8 @@
+{
+  "name": "kith-protoc-gen-es",
+  "private": true,
+  "description": "The protoc-gen-es that make proto and proto-check both run (npm ci against the lock). Its version is desktop's @bufbuild/protobuf: the generator and the runtime agree.",
+  "dependencies": {
+    "@bufbuild/protoc-gen-es": "2.16.0"
+  }
+}
