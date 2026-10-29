@@ -77,6 +77,31 @@ func TestChangesSurviveTheRoundTrip(t *testing.T) {
 	}
 }
 
+// Every outcome crosses and comes back, each to a wire value of its own; anything else
+// is refused, never read as confirmed.
+func TestPairingOutcomes(t *testing.T) {
+	t.Parallel()
+
+	seen := map[v1.PairingOutcome]bool{}
+	for _, o := range []domain.PairingOutcome{
+		domain.PairingConfirmed, domain.PairingRefused, domain.PairingExpired, domain.PairingAbandoned,
+	} {
+		wire := protoconv.PairingOutcomeToProto(o)
+		if wire == v1.PairingOutcome_PAIRING_OUTCOME_UNSPECIFIED || seen[wire] {
+			t.Errorf("outcome %d: wire form %v is unspecified or shared", o, wire)
+		}
+		seen[wire] = true
+		if back, ok := protoconv.ProtoToPairingOutcome(wire); !ok || back != o {
+			t.Errorf("ProtoToPairingOutcome(%v) = %d, %t; want %d", wire, back, ok, o)
+		}
+	}
+	for _, wire := range []v1.PairingOutcome{v1.PairingOutcome_PAIRING_OUTCOME_UNSPECIFIED, 99} {
+		if o, ok := protoconv.ProtoToPairingOutcome(wire); ok {
+			t.Errorf("ProtoToPairingOutcome(%v) = %d, accepted", wire, o)
+		}
+	}
+}
+
 func TestVerificationKinds(t *testing.T) {
 	t.Parallel()
 

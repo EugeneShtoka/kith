@@ -123,6 +123,12 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"Device", domain.Device{}, func(v any) any {
 			return protoconv.ProtoToDevices(protoconv.DevicesToProto([]domain.Device{v.(domain.Device)}))[0]
 		}},
+		{"PairingTicket", domain.PairingTicket{}, func(v any) any {
+			return protoconv.ProtoToPairingTicket(protoconv.PairingTicketToProto(v.(domain.PairingTicket)))
+		}},
+		{"PendingDevice", domain.PendingDevice{}, func(v any) any {
+			return protoconv.ProtoToPendingDevice(protoconv.PendingDeviceToProto(v.(domain.PendingDevice)))
+		}},
 		{"KeyBackup", domain.KeyBackup{}, func(v any) any {
 			return protoconv.ProtoToKeyBackup(protoconv.KeyBackupToProto(v.(domain.KeyBackup)))
 		}},

@@ -129,6 +129,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/devicekey"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/notify"
+            # Pairing tokens and their digits.
+            - "github.com/EugeneShtoka/kith/internal/pairing"
             # The profiles' people.exclude reads the phonebook's cards (ProfilePeople).
             - "github.com/EugeneShtoka/kith/internal/phonebook"
             - "github.com/EugeneShtoka/kith/internal/setup"
@@ -397,6 +399,15 @@ linters:
             - "!$test"
           allow:
             - "$gostd"
+
+        # What both ends of a QR pairing share: the token, the digits, the URI.
+        pairing-is-a-leaf:
+          files:
+            - "**/internal/pairing/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
 
         # The command templates kith ships: embedded files and the block they write.
         cmdtemplates-is-a-leaf:
@@ -692,6 +703,9 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/llamacpp/models"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/notify"
+            # [[bridge]]: its id reads as a device ID, its addresses as a pairing URI's.
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
+            - "github.com/EugeneShtoka/kith/internal/pairing"
             # A profile's people.exclude names phonebook fields in the phonebook's own
             # term syntax; the phonebook is a leaf (files and YAML).
             - "github.com/EugeneShtoka/kith/internal/phonebook"
@@ -769,6 +783,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/llamacpp"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/matrix"
+            - "github.com/EugeneShtoka/kith/internal/pairing"
             - "github.com/EugeneShtoka/kith/internal/qrtext"
             - "github.com/EugeneShtoka/kith/internal/session"
             - "github.com/EugeneShtoka/kith/internal/setup"

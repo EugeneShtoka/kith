@@ -119,6 +119,7 @@ internal/backup     → one passphrase-encrypted file of the cache, config and l
 internal/session    → the Matrix access token and pickle key, in the OS keyring
         │              (and the device keys the TLS listener pins)
 internal/devicekey  → a device's key, its ID and self-signed certificate (crypto only)
+internal/pairing    → what both ends of a QR pairing share: token, digits, kith://pair URI
 internal/emoji      → emoji by name: the curated set and every Unicode name, generated
 internal/agent      → the append-only ledger of what an assistant sent through kith-mcp
 internal/media      → the attachment cache: originals on disk, drawn rows beside them
@@ -170,7 +171,7 @@ violates them fails lint rather than review. `make arch-check` adds more gates:
   segmenter, and nothing else (an allow list). It is the shared vocabulary; everything
   else depends on it.
 - **The stores and the adapter have allow lists.** `daemon` (which every client
-  links as the wire) reaches `api`, `config`, `devicekey`, `domain`, `notify`, `setup` and its
+  links as the wire) reaches `api`, `config`, `devicekey`, `pairing`, `domain`, `notify`, `setup` and its
   transport; `db` only SQLite and `domain`; `matrix` the SDK, `db` and the helpers it
   drives; `session` and `schedule` only `domain` and their storage (`session` also
   `devicekey`, which is crypto only).

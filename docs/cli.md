@@ -21,6 +21,8 @@ kith ignore [--config path] mxid
 kith unignore [--config path] mxid
 kith ignored [--config path]
 kith devices [--config path] [add id [name] | remove id|name | id]
+kith pair [--config path] [name]
+kith join [--config path] [--name name] uri
 ```
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
@@ -198,6 +200,33 @@ connections. `id` prints this machine's own device ID as a client, making its ke
 first time, to paste into `kith devices add` on another machine's kithd; it needs no
 daemon. An ID is taken in any case, with or without its dashes. Each but `id` starts
 kithd if it isn't running.
+
+### kith pair
+
+```sh
+kith pair [--config path] [name]
+```
+
+Pairs a new device with this config's kithd by QR code ([remote.md](remote.md#pairing-by-qr-code)).
+It prints a QR code and the same as a `kith join 'kith://pair?…'` line, good once for
+ten minutes, and waits. When a device answers, it names the device and the six digits
+it shows, and asks whether to pair it (`y`; anything else refuses). A name given here
+is what the device is listed as, over the one it gives. It needs `[remote] listen`
+set, starts kithd if it isn't running, and exits non-zero unless the device was
+paired; interrupting it ends the pairing with nothing paired.
+
+### kith join
+
+```sh
+kith join [--config path] [--name name] 'kith://pair?…'
+```
+
+Answers a pairing `kith pair` showed, on the new device: it dials the bridge at the
+addresses in the URI, in order, with this machine's device key, and takes only the
+key the URI names. It prints six digits to compare with the other screen; once they
+are confirmed there it writes the bridge into this device's `device.toml` as a
+`[[bridge]]`, replacing the entry for the same bridge if one is there. `--name` is how
+the bridge lists this device (default: the hostname). It needs no daemon.
 
 ### General flags
 

@@ -78,6 +78,7 @@ func ValidateDevice(dev config.Device) error {
 		errOf(AutocorrectMode(dev.Spell.Autocorrect)),
 		errOf(SpellUnderline(dev.Spell.Underline)),
 		Completion(dev.Complete),
+		Bridges(dev.Bridges),
 	} {
 		if err != nil {
 			return err

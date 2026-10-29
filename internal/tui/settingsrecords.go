@@ -46,6 +46,7 @@ var recordTableLabels = withNetworkTables(map[string]string{
 	"profile":              "Profiles",
 	"filter":               "Filters",
 	"command":              "Commands",
+	"bridge":               "Bridges this device dials",
 	"keys.jump":            "Jump shortcuts",
 	"keys.tag":             "Tag keys",
 })

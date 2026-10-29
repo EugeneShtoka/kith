@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
 )
@@ -62,3 +63,14 @@ const (
 	HandshakeBurst = handshakeBurst
 	MaxHandshakes  = maxHandshakes
 )
+
+// ExpirePairings fires every open pairing's expiry timer now, as ten minutes passing
+// would.
+func (d *Devices) ExpirePairings() {
+	d.mu.Lock()
+	open := slices.Clone(d.tickets)
+	d.mu.Unlock()
+	for _, t := range open {
+		t.timer.Reset(0)
+	}
+}

@@ -16,6 +16,19 @@
 # ghostty, xterm; or give any command that takes `-e`.
 # terminal = "wezterm"
 
+# The bridges this device dials: a kithd on another machine, over its [remote] listen.
+# `kith join` writes one when it pairs this device (`kith pair`, on a device that bridge
+# already trusts, shows what to join).
+#
+#   [[bridge]]
+#   name      = "192.168.1.5"
+#   addresses = ["192.168.1.5:7443", "100.64.0.3:7443"]
+#   id        = "C523-XW2U-B4T2-RKIG-PNZM-42UB-FX3Z-OLGG-UHU5-KVZ4-3YQV-KQR7-KXKA"
+#
+# `addresses` (host:port) are tried in order. `id` is the device ID the bridge's key
+# must have (`kith devices` on it prints it): an address that answers with another key
+# is not this bridge, and is never served a call. `name` is how it is known here.
+
 # How this device draws the timeline, room list and rail. A list of places here takes
 # the place vocabulary that [display] in config.toml describes.
 [display]

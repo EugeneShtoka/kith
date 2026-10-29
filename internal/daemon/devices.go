@@ -38,12 +38,17 @@ type Devices struct {
 	self   devicekey.ID
 	paired []pairedDevice
 	conns  map[devicekey.ID]map[*remoteConn]struct{}
+	// tickets are the pairings open now; while there is one, an unpaired key is let
+	// in to call Pair alone, its connection held in joining.
+	tickets []*ticket
+	joining map[*remoteConn]struct{}
 
 	lmu       sync.Mutex
 	want      []string
 	handler   http.Handler // nil while Serve is not running
 	base      func(net.Listener) context.Context
 	listeners map[string]*http.Server
+	bound     map[string]string // each listener's address as bound: a device dials it
 	serving   sync.WaitGroup
 }
 
@@ -56,7 +61,10 @@ type pairedDevice struct {
 // NewDevices keeps the roster at path. identity is kithd's own certificate, made from
 // its device key; it is asked for when first needed and again after a failure.
 func NewDevices(path string, identity func() (tls.Certificate, error), log *slog.Logger) *Devices {
-	return &Devices{path: path, identity: identity, log: log, conns: map[devicekey.ID]map[*remoteConn]struct{}{}}
+	return &Devices{
+		path: path, identity: identity, log: log,
+		conns: map[devicekey.ID]map[*remoteConn]struct{}{}, joining: map[*remoteConn]struct{}{},
+	}
 }
 
 // Errors a device change is refused with.
@@ -110,6 +118,11 @@ func (d *Devices) Add(idText, name string, by *devicekey.ID) (domain.Device, err
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	return d.addLocked(id, name, by)
+}
+
+// addLocked pairs id under name, against the roster file as it stands.
+func (d *Devices) addLocked(id devicekey.ID, name string, by *devicekey.ID) (domain.Device, error) {
 	_, self, err := d.identityLocked()
 	if err != nil {
 		return domain.Device{}, err
@@ -192,19 +205,32 @@ func (d *Devices) cutLocked(id devicekey.ID) {
 
 // admit takes a connection whose handshake shows id, if id is paired, tracking it
 // under id: in one step with Remove's, so no connection is admitted after its device
-// was removed and missed by the cut.
+// was removed and missed by the cut. While a pairing is open, any other key is let in
+// to answer it and nothing else (pairingGate).
 func (d *Devices) admit(id devicekey.ID, c *remoteConn) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if c.gone || !slices.ContainsFunc(d.paired, func(p pairedDevice) bool { return p.id == id }) {
+	switch {
+	case c.gone:
+		return false
+	case slices.ContainsFunc(d.paired, func(p pairedDevice) bool { return p.id == id }):
+		c.id, c.admitted = id, true
+		d.trackLocked(c)
+	case len(d.tickets) > 0:
+		c.id, c.admitted, c.onlyPairs = id, true, true
+		d.joining[c] = struct{}{}
+	default:
 		return false
 	}
-	c.id, c.admitted = id, true
-	if d.conns[id] == nil {
-		d.conns[id] = map[*remoteConn]struct{}{}
-	}
-	d.conns[id][c] = struct{}{}
 	return true
+}
+
+// trackLocked holds c under its device's ID, so unpairing the device cuts it.
+func (d *Devices) trackLocked(c *remoteConn) {
+	if d.conns[c.id] == nil {
+		d.conns[c.id] = map[*remoteConn]struct{}{}
+	}
+	d.conns[c.id][c] = struct{}{}
 }
 
 // forget stops tracking a connection that closed.
@@ -215,6 +241,7 @@ func (d *Devices) forget(c *remoteConn) {
 	if !c.admitted {
 		return
 	}
+	delete(d.joining, c)
 	delete(d.conns[c.id], c)
 	if len(d.conns[c.id]) == 0 {
 		delete(d.conns, c.id)
@@ -270,6 +297,7 @@ func (d *Devices) stopLocked(keep []string) {
 		if !slices.Contains(keep, addr) {
 			_ = srv.Close() // its connections close with it; nothing else to report
 			delete(d.listeners, addr)
+			delete(d.bound, addr)
 			d.log.Info("stopped listening for paired devices", "addr", addr)
 		}
 	}
@@ -295,7 +323,7 @@ func (d *Devices) reconcileLocked() {
 		return
 	}
 	if d.listeners == nil {
-		d.listeners = map[string]*http.Server{}
+		d.listeners, d.bound = map[string]*http.Server{}, map[string]string{}
 	}
 	for _, addr := range d.want {
 		if _, ok := d.listeners[addr]; ok {
@@ -308,6 +336,7 @@ func (d *Devices) reconcileLocked() {
 		}
 		srv := d.remoteServer(cert)
 		d.listeners[addr] = srv
+		d.bound[addr] = ln.Addr().String()
 		d.serving.Go(func() {
 			if serr := srv.ServeTLS(newGate(ln, d), "", ""); !errors.Is(serr, http.ErrServerClosed) {
 				d.log.Warn("stopped listening for paired devices", "addr", addr, "err", serr)
@@ -315,6 +344,7 @@ func (d *Devices) reconcileLocked() {
 				d.lmu.Lock()
 				if d.listeners[addr] == srv {
 					delete(d.listeners, addr)
+					delete(d.bound, addr)
 				}
 				d.lmu.Unlock()
 			}

@@ -65,6 +65,7 @@ var propertyGroups = append([]propertyGroup{
 	{"schedule.", "advanced", ""},
 	{"backup.", "advanced", ""},
 	{"remote.", "advanced", ""},
+	{"bridge", "advanced", ""}, // [[bridge]]; bridge_contacts is placed above
 	{"keys.", "keys", "keys."},
 }, networkGroups()...)
 

@@ -91,7 +91,7 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 	defer cancelHandlers()
 	mux := http.NewServeMux()
 	mux.Handle(backendv1connect.NewBackendServiceHandler(&server{Daemon: d, lifetime: ctx, seats: newSeats()},
-		connect.WithInterceptors(failureLog{log: d.Log}, profileGate{profiles: d.Notifications})))
+		connect.WithInterceptors(failureLog{log: d.Log}, pairingGate{devices: d.Paired}, profileGate{profiles: d.Notifications})))
 	// Every handler is counted so none runs after Serve returns and the caller closes
 	// the stores, and none starts once Serve is ending.
 	var inflight handlerGate

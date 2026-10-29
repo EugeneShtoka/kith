@@ -1756,6 +1756,83 @@ message RemoveDeviceRequest {
 
 message RemoveDeviceResponse {}
 
+// ── Pairing ──
+
+// StartPairingRequest opens a pairing on a device kithd trusts; name, when set, is
+// what the new device is listed as, over the name it gives.
+message StartPairingRequest {
+  string name = 1;
+}
+
+// PairingTicket is what the new device needs to pair: kithd's addresses as a device
+// dials them, its device ID to pin, and the token, good once until expires.
+message PairingTicket {
+  string token = 1;
+  repeated string addresses = 2;
+  string id = 3;
+  google.protobuf.Timestamp expires = 4;
+}
+
+// PendingDevice is the device that answered a pairing, waiting to be confirmed:
+// digits are the six both screens show.
+message PendingDevice {
+  string name = 1;
+  string id = 2;
+  string digits = 3;
+}
+
+// PairingOutcome is how a pairing ended.
+enum PairingOutcome {
+  PAIRING_OUTCOME_UNSPECIFIED = 0;
+  // The device is paired.
+  PAIRING_OUTCOME_CONFIRMED = 1;
+  // The trusted device said no.
+  PAIRING_OUTCOME_REFUSED = 2;
+  // Ten minutes passed without a confirmation.
+  PAIRING_OUTCOME_EXPIRED = 3;
+  // The other side went away before it was confirmed.
+  PAIRING_OUTCOME_ABANDONED = 4;
+}
+
+// StartPairingResponse is one frame: the ticket first, then the device that answered
+// it, then the outcome, which ends the stream. The token lives while the stream is
+// open, and no longer.
+message StartPairingResponse {
+  oneof event {
+    PairingTicket ticket = 1;
+    PendingDevice pending = 2;
+    PairingOutcome outcome = 3;
+  }
+}
+
+// ConfirmPairingRequest answers the device pending under token: accept pairs it,
+// anything else ends the pairing.
+message ConfirmPairingRequest {
+  string token = 1;
+  bool accept = 2;
+}
+
+// device is the device paired, when accepted.
+message ConfirmPairingResponse {
+  Device device = 1;
+}
+
+// PairRequest is a new device answering a pairing over [remote] listen; name is how
+// it would be listed.
+message PairRequest {
+  string token = 1;
+  string name = 2;
+}
+
+// PairResponse is one frame: the six digits first, then the outcome, which ends the
+// stream.
+message PairResponse {
+  oneof event {
+    string digits = 1;
+    PairingOutcome outcome = 2;
+  }
+}
+
 // BackendService is the daemon's whole socket API; its RPCs mirror api.Backend.
 // There is no login: the daemon owns its session, so nothing on the socket can
 // replace the client it syncs with.
@@ -2119,4 +2196,13 @@ service BackendService {
   rpc AddDevice(AddDeviceRequest) returns (AddDeviceResponse);
   // RemoveDevice unpairs a device and closes its live connections.
   rpc RemoveDevice(RemoveDeviceRequest) returns (RemoveDeviceResponse);
+  // Pairing
+  // StartPairing makes a pairing token, reports the device that answers it and how
+  // the pairing ends; closing the stream ends the pairing.
+  rpc StartPairing(StartPairingRequest) returns (stream StartPairingResponse);
+  // ConfirmPairing pairs the device pending under a token, or refuses it.
+  rpc ConfirmPairing(ConfirmPairingRequest) returns (ConfirmPairingResponse);
+  // Pair is a new device answering a pairing: the one call an unpaired key may make,
+  // and only while a token is live.
+  rpc Pair(PairRequest) returns (stream PairResponse);
 }

@@ -30,6 +30,16 @@ type Device struct {
 	Assist        DeviceAssist        `toml:"assist"`
 	Commands      DeviceCommands      `toml:"commands"`
 	UserCommands  []Command           `toml:"command"`
+	Bridges       []Bridge            `toml:"bridge"`
+}
+
+// Bridge is a kithd this device dials over its [remote] listen ([[bridge]]), written by
+// `kith join`: Addresses in the order to try them, and ID, the device ID its key must
+// have.
+type Bridge struct {
+	Name      string   `toml:"name"`
+	Addresses []string `toml:"addresses"`
+	ID        string   `toml:"id"`
 }
 
 // The files a setting can be in: the bridge's, which kithd reads, and a device's.
