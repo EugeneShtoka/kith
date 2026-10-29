@@ -224,6 +224,29 @@ func TestSettingNumberIsAppliedAndSaved(t *testing.T) {
 	}
 }
 
+// The default sound is this device's: typed in, it is saved to the device file and the
+// bridge's config is left alone.
+func TestSettingNotificationSoundIsTheDevices(t *testing.T) {
+	t.Parallel()
+
+	m, path := opened(t, config.Notifications{})
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m = toSetting(t, m, "Notification sound")
+	m = typeIn(t, m, "/s/ding.oga")
+	if m.conf.device.Notifications.Sound != "/s/ding.oga" {
+		t.Errorf("running sound = %q, want /s/ding.oga", m.conf.device.Notifications.Sound)
+	}
+	if reloaded := savedDevice(t, path); reloaded.Notifications.Sound != "/s/ding.oga" {
+		t.Errorf("saved sound = %q, want /s/ding.oga", reloaded.Notifications.Sound)
+	}
+	if after, _ := os.ReadFile(path); !bytes.Equal(after, before) {
+		t.Error("the device's sound rewrote the bridge's config")
+	}
+}
+
 func TestSettingQuietHoursUseTheRuleParser(t *testing.T) {
 	t.Parallel()
 

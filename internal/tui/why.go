@@ -91,7 +91,7 @@ func (m Model) whyChain(resolved notify.Resolved, scope notify.Scope, now time.T
 		lines = append(lines, "nothing applies here, so nothing notifies")
 	}
 	for i := range resolved.Applied {
-		lines = append(lines, "  "+whyLine(resolved.Applied[i], resolved, now))
+		lines = append(lines, "  "+whyLine(resolved.Applied[i], resolved, now, m.conf.device.Notifications.Sounds))
 	}
 
 	lines = append(lines, "", m.theme.Muted.Render("result: ")+whyResult(resolved))
@@ -101,9 +101,9 @@ func (m Model) whyChain(resolved notify.Resolved, scope notify.Scope, now time.T
 	return lines
 }
 
-// whyLine is one rule in the chain: its name, when it is active, what it says, and
-// whether it had the last word.
-func whyLine(rule notify.Rule, resolved notify.Resolved, now time.Time) string {
+// whyLine is one rule in the chain: its name, when it is active, what it says, this
+// device's sound for it, and whether it had the last word.
+func whyLine(rule notify.Rule, resolved notify.Resolved, now time.Time, sounds map[string]string) string {
 	parts := []string{ruleName(rule)}
 	if rule.Temp {
 		parts = append(parts, "muted"+remainingNote(rule, now))
@@ -116,8 +116,8 @@ func whyLine(rule notify.Rule, resolved notify.Resolved, now time.Time) string {
 	if rule.Ring != nil {
 		parts = append(parts, "ring = "+rule.Ring.String())
 	}
-	if rule.Sound != "" {
-		parts = append(parts, "sound "+rule.Sound)
+	if file := sounds[rule.Name]; file != "" && rule.Name != "" && !rule.Temp {
+		parts = append(parts, "sound "+file)
 	}
 	if rule.Thread != notify.ThreadAny {
 		parts = append(parts, "thread = "+rule.Thread.String())

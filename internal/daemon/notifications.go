@@ -714,7 +714,7 @@ func (n *Notifications) decide(ctx context.Context, msg domain.Message, scope no
 		Body:     truncateRunes(body, notifyBodyRunes),
 		Protocol: domain.ProtocolOf(msg.Sender).String(),
 		Sent:     msg.Timestamp,
-		Sound:    outcome.Sound,
+		Rules:    outcome.Rules,
 		Silent:   outcome.Silent,
 	}, true
 }

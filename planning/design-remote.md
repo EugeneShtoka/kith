@@ -55,6 +55,11 @@ each key sits in the file the rule puts it in; three judgment calls:
 - **`[agent.*]` stays on the bridge whole**: what an assistant may read and write is
   policy, not a device's taste.
 - **`[display.media]` moved in step 2**, with the media cache it names.
+- **Notification sounds are the device's** (decided 2026-10-29): kithd decides whether
+  a notification rings, and sends the names of the rules that matched it, most
+  specific first; the device plays the first of them its `[notifications.sounds]`
+  maps, else its own `sound`. A rule's `sound` moves there under the rule's name,
+  an unnamed rule named first.
 
 Device keys:
 
@@ -62,7 +67,7 @@ Device keys:
 | --- | --- |
 | top level | `terminal`, `[keys]`, `[composer]`, `[[command]]` |
 | `[display]` | `color_messages`, `direction`, `emoji`, `fps`, `filing_spaces`, `hyperlinks`, `max_name_length`, `media`, `mouse`, `network_colors`, `open_in_insert_mode`, `reactions`, `read_delay`, `read_rule`, `rooms`, `row_numbers`, `send_receipts`, `send_typing`, `show_archived`, `skin_tone`, `theme`, `threads`, `typing`, `unread`, `unread_line` |
-| `[notifications]` | how this device shows one: `enabled`, `desktop`, `command`, `sound_command`, `timeout`, `title`, `body` |
+| `[notifications]` | how this device shows one: `enabled`, `desktop`, `command`, `sound`, `sound_command`, `sounds`, `timeout`, `title`, `body` |
 | `[clipboard]` | all but `auto_copy` |
 | `[commands]` | `timeout` |
 | `[complete]` | `enabled`, `ghost`, `ratio`, `scope`, `sources`; `[complete.model]` `declined` |
@@ -137,8 +142,7 @@ the same calls are used: one path, not two. `[display.media]` moves to `device.t
 kithd's backup takes the media folder on its own machine.
 
 Left with shared folders after step 2: the phonebook (the TUI edits cards, kithd reads
-them: design-clients.md open question 10), a notification `sound` (a path on kithd's
-machine; a remote `kith-notify` plays its own default), and `kith --add-dictionary`
+them: design-clients.md open question 10) and `kith --add-dictionary`
 (writes kithd's data folder from the CLI).
 
 **Liveness** is HTTP/2's own PING (`ReadIdleTimeout`) on the client; the

@@ -23,6 +23,10 @@ func TestWhyExplainsTheChain(t *testing.T) {
 		{Name: "Work", Match: "space:Work", Show: new(notify.LevelAll)},
 		{Name: "Alice", Sender: "matrix:@alice:x", Show: new(notify.LevelAll)},
 	}
+	// A do-not-disturb rule never picks a sound (kithd does not send its name), so its
+	// line shows none even where the device names one.
+	m.notifications.temps = notify.Temps{}.Add(notify.Rule{Name: "hush", Match: "space:Work", Ring: new(notify.LevelNone)})
+	m.conf.device.Notifications.Sounds = map[string]string{"Work": "/s/work.oga", "hush": "/s/hush.oga"}
 
 	raw := m.whyLines(time.Date(2026, 8, 23, 23, 30, 0, 0, time.Local))
 	lines := strings.Join(raw, "\n")
@@ -40,6 +44,10 @@ func TestWhyExplainsTheChain(t *testing.T) {
 	}
 	if !strings.Contains(deciding, "Work") {
 		t.Errorf("the deciding rule is %q, want Work — the narrowest one awake", deciding)
+	}
+	// This device's sound for a rule is shown on that rule's line alone.
+	if !strings.Contains(deciding, "sound /s/work.oga") || strings.Count(lines, "sound /") != 1 {
+		t.Errorf("want this device's sound on Work's line alone:\n%s", lines)
 	}
 	// Alice's rule needs a sender, so it is reported as pending.
 	if !strings.Contains(lines, "depends on who is writing") {

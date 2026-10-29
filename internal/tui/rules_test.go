@@ -350,55 +350,127 @@ func TestRemoveRule(t *testing.T) {
 	}
 }
 
-// The sound preset prompts for a path; an empty path clears it.
-func TestRuleSoundPreset(t *testing.T) {
-	t.Parallel()
-
-	m, path := ruling(t, config.Notifications{})
+// typeSound answers the sound prompt for the target labeled target with path, over
+// whatever it was prefilled with, and saves both files.
+func typeSound(t *testing.T, m Model, target, path string) Model {
+	t.Helper()
 	m, _ = press(t, m, keyText("b"))
-	m = pickLabel(t, m, "Alice in Standup")
+	m = pickLabel(t, m, target)
 	m = pickLabel(t, m, "own sound")
 	if m.prompt.kind != promptRuleSound {
 		t.Fatalf("the sound preset should prompt, got %v", m.prompt.kind)
 	}
-	for _, r := range "/s/boss.wav" {
-		m, _ = press(t, m, keyText(string(r)))
-	}
-	m, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if cmd != nil {
-		runCmd(t, cmd)
-	}
-	rules := m.conf.base.Notifications.Rules
-	if len(rules) != 1 || rules[0].Sound != "/s/boss.wav" {
-		t.Fatalf("rules = %+v", rules)
-	}
-	got, _ := resolveFor(t, m, domain.Message{
-		ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", SenderName: "A", Body: "hi",
-	})
-	if got.Sound != "/s/boss.wav" {
-		t.Errorf("resolved sound = %q", got.Sound)
-	}
-
-	// Clearing it: the prompt is prefilled with what is set, and emptying removes it.
-	m, _ = press(t, m, keyText("b"))
-	m = pickLabel(t, m, "Alice in Standup")
-	m = pickLabel(t, m, "own sound")
-	if m.prompt.input != "/s/boss.wav" {
-		t.Errorf("prompt = %q, want it prefilled", m.prompt.input)
-	}
 	for range len(m.prompt.input) {
 		m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	}
-	m, cmd = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if cmd != nil {
-		runCmd(t, cmd)
+	for _, r := range path {
+		m, _ = press(t, m, keyText(string(r)))
 	}
-	// The rule set nothing else, so it is dropped.
-	if len(m.conf.base.Notifications.Rules) != 0 {
-		t.Errorf("rules = %+v, want the empty rule dropped", m.conf.base.Notifications.Rules)
+	m, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	return deliver(t, m, cmd)
+}
+
+// soundOn is the sound this device's file gives what msg's rules, as the TUI's config
+// resolves them, name.
+func soundOn(t *testing.T, m Model, path string, msg domain.Message) string {
+	t.Helper()
+	dev, err := config.LoadDevice(config.DevicePath(path))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := config.Load(path); err != nil {
-		t.Errorf("written config does not load: %v", err)
+	resolved, event := resolveFor(t, m, msg)
+	return dev.Notifications.SoundFor(resolved.Decide(event).Rules)
+}
+
+// The sound preset gives the rule its sound on this device, by its name: an unnamed
+// rule is named first on the bridge, uniquely, and the device's file holds the sound.
+// The prompt is prefilled with it, and emptying it takes it away, the rule staying.
+func TestRuleSoundPreset(t *testing.T) {
+	t.Parallel()
+
+	// A rule elsewhere already has the name the scope would give.
+	m, path := ruling(t, notifyAll(config.Rule{Name: "Alice in Standup", Match: "space:Work", Show: "all"}))
+	m = typeSound(t, m, "Alice in Standup", "/s/boss.wav")
+	rule := lastRule(t, m.conf.base.Notifications.Rules)
+	if rule.Sender != "matrix:@alice:x" || rule.Name != "Alice in Standup 2" {
+		t.Fatalf("rules = %+v, want Alice's in Standup named apart", m.conf.base.Notifications.Rules)
+	}
+	reloaded, err := config.Load(path)
+	if err != nil || lastRule(t, reloaded.Notifications.Rules).Name != rule.Name {
+		t.Fatalf("the bridge saved %+v, %v; want the name", reloaded.Notifications.Rules, err)
+	}
+	hi := domain.Message{ID: mx + "$2", RoomID: mx + "!standup:x", Sender: "matrix:@alice:x", SenderName: "A", Body: "hi"}
+	if got := soundOn(t, m, path, hi); got != "/s/boss.wav" {
+		t.Errorf("the device sounds Alice's message %q, want her rule's", got)
+	}
+	bob := hi
+	bob.Sender = "matrix:@bob:x"
+	if got := soundOn(t, m, path, bob); got != "" {
+		t.Errorf("the device sounds Bob's message %q, want nothing of Alice's", got)
+	}
+	if !presetMarked(t, m, "Alice in Standup", "Give it its own sound") {
+		t.Error("the sound preset should be marked as in effect")
+	}
+
+	m = typeSound(t, m, "Alice in Standup", "")
+	if got := soundOn(t, m, path, hi); got != "" {
+		t.Errorf("after clearing, the device sounds %q", got)
+	}
+	if got := lastRule(t, m.conf.base.Notifications.Rules); got.Name != rule.Name {
+		t.Errorf("rules = %+v, want the named rule kept", m.conf.base.Notifications.Rules)
+	}
+}
+
+// presetMarked reports whether the preset labeled preset is marked in effect for target.
+func presetMarked(t *testing.T, m Model, target, preset string) bool {
+	t.Helper()
+	m, _ = press(t, m, keyText("b"))
+	m = pickLabel(t, m, target)
+	for _, item := range m.picker.items {
+		if item.label == preset {
+			return strings.Contains(item.detail, "currently set")
+		}
+	}
+	t.Fatalf("no preset %q", preset)
+	return false
+}
+
+// A named rule's sound is under its name, the bridge untouched; renaming the rule takes
+// its sound along.
+func TestANamedRulesSoundFollowsItsName(t *testing.T) {
+	t.Parallel()
+
+	m, path := ruling(t, notifyAll(config.Rule{Name: "standup", Match: mx + "!standup:x", Show: "all"}))
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.focus = paneRooms
+	m = typeSound(t, m, "Standup", "/s/standup.wav")
+	if after, _ := os.ReadFile(path); !bytes.Equal(before, after) {
+		t.Errorf("giving a named rule a sound rewrote the bridge's config")
+	}
+	if got := m.conf.device.Notifications.Sounds; got["standup"] != "/s/standup.wav" || len(got) != 1 {
+		t.Errorf("device sounds = %v, want the rule's under its name", got)
+	}
+
+	m, _ = press(t, m, keyText("b"))
+	m = pickLabel(t, m, "Standup")
+	m = pickLabel(t, m, "Name this rule")
+	for range len(m.prompt.input) {
+		m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
+	}
+	for _, r := range "daily" {
+		m, _ = press(t, m, keyText(string(r)))
+	}
+	m, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = deliver(t, m, cmd)
+	dev, err := config.LoadDevice(config.DevicePath(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := dev.Notifications.Sounds; got["daily"] != "/s/standup.wav" || len(got) != 1 {
+		t.Errorf("device sounds after the rename = %v, want the sound under the new name", got)
 	}
 }
 
@@ -484,10 +556,11 @@ func TestRuleListReadsRulesBack(t *testing.T) {
 
 	m, _ := ruling(t, config.Notifications{Rules: []config.Rule{
 		{Match: mx + "!standup:x", Show: "none"},
-		{Match: "space:Work", Sender: "matrix:@alice:x", Ring: "all", Sound: "/s/boss.wav"},
+		{Name: "boss", Match: "space:Work", Sender: "matrix:@alice:x", Ring: "all"},
 		{Sender: "matrix:@bob:x", Show: "mention"},
 		{Match: mx + "!gone:x", Show: "none"}, // a room we have left
 	}})
+	m.conf.device.Notifications.Sounds = map[string]string{"boss": "/s/boss.wav"}
 
 	next, _ := m.openRuleList()
 	m = next
@@ -498,7 +571,7 @@ func TestRuleListReadsRulesBack(t *testing.T) {
 		t.Fatalf("%d rows, want one per rule", len(m.picker.all))
 	}
 
-	for _, want := range []string{"Standup", "matrix:@alice:x in Work", "matrix:@bob:x, anywhere"} {
+	for _, want := range []string{"Standup", "boss", "matrix:@bob:x, anywhere"} {
 		if !hasLabel(m.picker.all, want) {
 			t.Errorf("the list should name %q: %+v", want, m.picker.all)
 		}
@@ -510,9 +583,9 @@ func TestRuleListReadsRulesBack(t *testing.T) {
 	if got := m.picker.all[0].detail; got != "show = none" {
 		t.Errorf("detail = %q, want what the rule does", got)
 	}
-	if got := m.picker.all[1].detail; !strings.Contains(got, "ring = all") ||
-		!strings.Contains(got, "/s/boss.wav") {
-		t.Errorf("detail = %q, want both settings named", got)
+	if got := m.picker.all[1].detail; !strings.Contains(got, "matrix:@alice:x in Work") ||
+		!strings.Contains(got, "ring = all") || !strings.Contains(got, "/s/boss.wav") {
+		t.Errorf("detail = %q, want the scope, the ring and this device's sound named", got)
 	}
 }
 

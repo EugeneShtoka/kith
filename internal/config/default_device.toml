@@ -336,10 +336,23 @@ command = ""
 # daemon's default.
 timeout = 15
 
-# Fallback player given the sound file's path ([notifications] sound in config.toml,
-# or a rule's), for a daemon that ignores the hint (pw-play, paplay, ffplay -nodisp
-# -autoexit).
+# The sound this device plays when a notification rings (empty: silent). Whether it
+# rings is the bridge's ([[notifications.rule]] show and ring in config.toml); what it
+# sounds like is each device's. The path goes to the notification daemon as a
+# `sound-file` hint.
+sound = ""
+# sound = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"
+
+# Fallback player given the sound file's path, for a daemon that ignores the hint
+# (pw-play, paplay, ffplay -nodisp -autoexit).
 sound_command = ""
+
+# A rule's own sound, by the rule's `name` in config.toml, in place of `sound` for what
+# the rule matches; where several named rules match, the most specific one this table
+# names wins. A rule named nowhere here rings with `sound`. `b` in the app writes these,
+# naming the rule first if it has no name.
+[notifications.sounds]
+# "the boss" = "/home/you/sounds/boss.wav"
 
 # Clipboard and links.
 #

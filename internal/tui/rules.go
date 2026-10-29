@@ -53,7 +53,7 @@ var rulePresets = []rulePreset{
 	},
 	{
 		key: "sound", label: "Give it its own sound",
-		detail: "asks for a file",
+		detail: "asks for a file · on this device, by the rule's name",
 	},
 	{
 		key: "name", label: "Name this rule",
@@ -153,19 +153,20 @@ func (m Model) chooseRuleScope(index int) (Model, tea.Cmd) {
 		return m.closePicker(), nil
 	}
 	m.aimedAt.rule = m.aimedAt.ruleScopes[index]
-	m.picker = newPicker(pickerRulePreset, rulePresetItems(m.existingRule(m.aimedAt.rule)))
+	m.picker = newPicker(pickerRulePreset, rulePresetItems(m.existingRule(m.aimedAt.rule), m.conf.device.Notifications.Sounds))
 	return m, nil
 }
 
-// rulePresetItems lists the presets, marking those in effect; "remove" only when a rule exists.
-func rulePresetItems(existing *config.Rule) []pickerItem {
+// rulePresetItems lists the presets, marking those in effect (a sound, by this device's
+// sounds); "remove" only when a rule exists.
+func rulePresetItems(existing *config.Rule, sounds map[string]string) []pickerItem {
 	items := make([]pickerItem, 0, len(rulePresets))
 	for _, preset := range rulePresets {
 		if preset.key == "remove" && existing == nil {
 			continue
 		}
 		detail := preset.detail
-		if existing != nil && presetInEffect(preset, *existing) {
+		if existing != nil && presetInEffect(preset, *existing, sounds) {
 			detail = "currently set · " + detail
 		}
 		items = append(items, pickerItem{
@@ -179,14 +180,14 @@ func rulePresetItems(existing *config.Rule) []pickerItem {
 }
 
 // presetInEffect reports whether a rule already carries what a preset would set.
-func presetInEffect(preset rulePreset, rule config.Rule) bool {
+func presetInEffect(preset rulePreset, rule config.Rule, sounds map[string]string) bool {
 	switch preset.key {
 	case "all", "mentions", "mute":
 		return rule.Show == presetLevel(preset.key)
 	case "silent":
 		return rule.Ring == "none"
 	case "sound":
-		return rule.Sound != ""
+		return ruleSound(rule, sounds) != ""
 	case "name":
 		return rule.Name != ""
 	default:
@@ -220,7 +221,9 @@ func (m Model) chooseRulePreset(key string) (Model, tea.Cmd) {
 	case "remove":
 		return m.removeRule()
 	case "sound":
-		m = m.openPromptWith(promptRuleSound, m.existingRuleField(func(r config.Rule) string { return r.Sound }))
+		m = m.openPromptWith(promptRuleSound, m.existingRuleField(func(r config.Rule) string {
+			return ruleSound(r, m.conf.device.Notifications.Sounds)
+		}))
 		return m, nil
 	case "name":
 		m = m.openPromptWith(promptRuleName, m.existingRuleField(func(r config.Rule) string { return r.Name }))
@@ -234,17 +237,41 @@ func (m Model) chooseRulePreset(key string) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// submitRuleSound finishes the sound preset; an empty path clears it.
+// submitRuleSound finishes the sound preset: this device's sound for the rule, by its
+// name, the rule named on the bridge first if it has none. An empty path clears it.
 func (m Model) submitRuleSound(path string) (Model, tea.Cmd) {
 	path = strings.TrimSpace(path)
-	return m.applyRule(func(r *config.Rule) { r.Sound = path }, soundNote(path))
+	return m.changeRule(func(s *config.Settings, target ruleTarget) {
+		name := ""
+		if rule := m.existingRule(target); rule != nil {
+			name = rule.Name
+		}
+		if name == "" && path == "" {
+			return
+		}
+		if name == "" {
+			name = config.UniqueRuleName(stripIsolates(target.what), s.Bridge.Notifications.Rules)
+			s.Bridge.Notifications.Rules = upsertRule(s.Bridge.Notifications.Rules, target, func(r *config.Rule) { r.Name = name })
+		}
+		sounds := &s.Device.Notifications.Sounds
+		if path == "" {
+			delete(*sounds, name)
+			return
+		}
+		if *sounds == nil {
+			*sounds = map[string]string{}
+		}
+		(*sounds)[name] = path
+	}, soundNote(path))
 }
 
-// submitRuleName finishes the naming preset; an empty name clears it.
+// submitRuleName finishes the naming preset; an empty name clears it. This device's
+// sound for the rule follows its name.
 func (m Model) submitRuleName(name string) (Model, tea.Cmd) {
 	name = strings.TrimSpace(name)
-	// A name alone would be dropped by ruleIsEmpty; say so instead.
-	if m.existingRule(m.aimedAt.rule) == nil {
+	// A rule that is only a name does nothing until a sound is given it; say so instead.
+	existing := m.existingRule(m.aimedAt.rule)
+	if existing == nil {
 		m.aimedAt.rule, m.aimedAt.ruleScopes = ruleTarget{}, nil
 		m = m.say("a name alone changes nothing — set what the rule does first")
 		return m, nil
@@ -253,7 +280,25 @@ func (m Model) submitRuleName(name string) (Model, tea.Cmd) {
 	if name == "" {
 		what = "removed the name"
 	}
-	return m.applyRule(func(r *config.Rule) { r.Name = name }, what)
+	was := existing.Name
+	return m.changeRule(func(s *config.Settings, target ruleTarget) {
+		s.Bridge.Notifications.Rules = upsertRule(s.Bridge.Notifications.Rules, target, func(r *config.Rule) { r.Name = name })
+		sounds := s.Device.Notifications.Sounds
+		if file, ok := sounds[was]; ok && was != "" && was != name {
+			delete(sounds, was)
+			if name != "" {
+				sounds[name] = file
+			}
+		}
+	}, what)
+}
+
+// ruleSound is this device's sound for rule, by its name; "" for none.
+func ruleSound(rule config.Rule, sounds map[string]string) string {
+	if rule.Name == "" {
+		return ""
+	}
+	return sounds[rule.Name]
 }
 
 func soundNote(path string) string {
@@ -265,14 +310,22 @@ func soundNote(path string) string {
 
 // applyRule writes the change onto the target's rule, creating one, and applies it live.
 func (m Model) applyRule(change func(*config.Rule), what string) (Model, tea.Cmd) {
+	return m.changeRule(func(s *config.Settings, target ruleTarget) {
+		s.Bridge.Notifications.Rules = upsertRule(s.Bridge.Notifications.Rules, target, change)
+	}, what)
+}
+
+// changeRule makes change to both files' settings for the aimed-at target and applies
+// it live.
+func (m Model) changeRule(change func(*config.Settings, ruleTarget), what string) (Model, tea.Cmd) {
 	target := m.aimedAt.rule
 	m.aimedAt.rule, m.aimedAt.ruleScopes = ruleTarget{}, nil
 	if target.match == "" && target.sender == "" {
 		return m, nil
 	}
-	notifs := m.conf.base.Clone().Notifications
-	notifs.Rules = upsertRule(notifs.Rules, target, change)
-	return m.applyNotifications(notifs, what+" for "+target.what)
+	s := m.settings().Clone()
+	change(&s, target)
+	return m.applySettings(s, what+" for "+target.what)
 }
 
 // removeRule drops the target's rule entirely, returning it to the global settings.
@@ -323,9 +376,10 @@ func removeRuleFor(rules []config.Rule, target ruleTarget) []config.Rule {
 	return out
 }
 
-// ruleIsEmpty reports whether a rule sets nothing. A name alone does not count.
+// ruleIsEmpty reports whether a rule sets nothing. A name counts: a device's sound for
+// the rule is under it.
 func ruleIsEmpty(rule config.Rule) bool {
-	return rule.Show == "" && rule.Ring == "" && rule.When == "" && rule.Sound == ""
+	return rule.Show == "" && rule.Ring == "" && rule.When == "" && rule.Name == ""
 }
 
 // existingRule is the rule already set for a target, or nil.
@@ -365,7 +419,7 @@ func (m Model) openRuleList() (Model, tea.Cmd) {
 			match: rules[i].Match, sender: rules[i].Sender, what: m.describeRuleScope(rules[i]),
 		})
 	}
-	m.picker = newPicker(pickerRuleList, ruleListItems(m.aimedAt.ruleScopes, rules))
+	m.picker = newPicker(pickerRuleList, ruleListItems(m.aimedAt.ruleScopes, rules, m.conf.device.Notifications.Sounds))
 	return m, nil
 }
 
@@ -403,11 +457,11 @@ func (m Model) placeName(match string) string {
 }
 
 // ruleListItems lists the rules, each with what it does as the qualifier.
-func ruleListItems(scopes []ruleTarget, rules []config.Rule) []pickerItem {
+func ruleListItems(scopes []ruleTarget, rules []config.Rule, sounds map[string]string) []pickerItem {
 	items := make([]pickerItem, 0, len(scopes))
 	for i, scope := range scopes {
 		// A named rule is listed by the name the status line uses for it.
-		label, detail := scope.what, describeRule(rules[i])
+		label, detail := scope.what, describeRule(rules[i], sounds)
 		match := scope.what
 		if name := rules[i].Name; name != "" {
 			label = isolate(name)
@@ -424,8 +478,9 @@ func ruleListItems(scopes []ruleTarget, rules []config.Rule) []pickerItem {
 	return items
 }
 
-// describeRule says what a rule does, in the config's own terms.
-func describeRule(rule config.Rule) string {
+// describeRule says what a rule does, in the config's own terms, with this device's
+// sound for it.
+func describeRule(rule config.Rule, sounds map[string]string) string {
 	var parts []string
 	if rule.Show != "" {
 		parts = append(parts, "show = "+rule.Show)
@@ -436,8 +491,8 @@ func describeRule(rule config.Rule) string {
 	if rule.When != "" {
 		parts = append(parts, "when "+rule.When)
 	}
-	if rule.Sound != "" {
-		parts = append(parts, "sound "+rule.Sound)
+	if file := ruleSound(rule, sounds); file != "" {
+		parts = append(parts, "sound "+file)
 	}
 	return strings.Join(parts, " · ")
 }

@@ -36,7 +36,9 @@ type Notification struct {
 	// Date and Time are Sent in the user's [display] formats; empty means ISO. Hook
 	// KITH_DATE and KITH_TIME are always ISO, since scripts parse them.
 	Date, Time string
-	// Sound is the file to play: the [notifications] default or the matching rule's.
+	// Rules names the rules that matched, most specific first (Outcome.Rules).
+	Rules []string
+	// Sound is the file to play, which the device picks by Rules.
 	Sound string
 	// Silent shows the notification without sound.
 	Silent bool
@@ -344,7 +346,7 @@ func (c commandSink) Notify(n Notification) {
 	})
 }
 
-// soundSink plays a notification's sound, if a rule gave it one.
+// soundSink plays the sound the device picked for a notification, if any.
 type soundSink struct {
 	player string
 	report reporter

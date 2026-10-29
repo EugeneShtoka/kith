@@ -88,8 +88,8 @@ func TestXUnticksAPlaceInTheFilingPicker(t *testing.T) {
 func TestXRemovesANotificationRule(t *testing.T) {
 	t.Parallel()
 	m, _ := ruling(t, config.Notifications{Rules: []config.Rule{
-		{Match: "room:Standup", Sound: "a.ogg"},
-		{Match: "room:Random", Sound: "b.ogg"},
+		{Match: "room:Standup", Show: "all"},
+		{Match: "room:Random", Show: "none"},
 	}})
 	m, _ = m.openRuleList()
 	m.picker.cursor = 0

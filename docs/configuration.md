@@ -203,8 +203,10 @@ refused there as any unknown key is. A `config.toml` from before the split still
 holding device keys is split once, by whichever of `kithd` and the client opens it
 first: the device keys move into `device.toml` (a setting `device.toml` already gives
 a value other than its default keeps it), then `config.toml` is rewritten without
-them, the original, comments and all, kept as `config.toml.before-device`. A key neither
-file reads stops the split, named, and nothing is written.
+them, the original, comments and all, kept as `config.toml.before-device`. A rule's
+`sound` moves to `device.toml`'s `[notifications.sounds]` under the rule's `name`; a
+rule without one is named first, from what it matches. A key neither file reads stops
+the split, named, and nothing is written.
 
 ### Validation
 
@@ -320,7 +322,7 @@ key.
 | `[display.reactions]` | device | The quick-react palette and how it ranks by your usage. | [usage.md](usage.md) |
 | `[display.threads]` | device | Which threads appear as rows under their room. | [usage.md](usage.md) |
 | `[display.direction]` | device | Which rooms read right to left, mirrored with names on the right: set by place, or guessed per room (`auto`). | [usage.md](usage.md#the-timeline) |
-| `[notifications]` | config: `sound`, `max_per_room`, `rate_window`, `[[notifications.rule]]`; device: `enabled`, `desktop`, `command`, `sound_command`, `timeout`, `title`, `body` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
+| `[notifications]` | config: `max_per_room`, `rate_window`, `[[notifications.rule]]`; device: `enabled`, `desktop`, `command`, `sound`, `sound_command`, `[notifications.sounds]`, `timeout`, `title`, `body` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
 | `[clipboard]` | config: `auto_copy`; device: the rest | The copy command, link opener, window focusing, unattended code copy, copying saved-file paths. | [usage.md](usage.md) |
 | `[codes]` | config | Where verification codes are looked for and what one looks like. | [notifications.md](notifications.md) |
 | `[[profile]]` | config | Named setups, each with its own rooms, archive, rail and notification topic. | [Profiles](#profiles) |
@@ -436,16 +438,14 @@ Notifications ship off. Turning them on is this device's, in `device.toml`:
 [notifications]
 enabled = true
 desktop = true                 # the popup; off unless set
+sound   = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"
 ```
 
-What notifies is the bridge's, in `config.toml`. This setup pings for mentions and
-direct messages, stays silent overnight, lets one room through anyway, and plays a
-sound:
+What notifies, and whether it rings, is the bridge's, in `config.toml`. This setup
+pings for mentions and direct messages, stays silent overnight, and lets one room
+through anyway:
 
 ```toml
-[notifications]
-sound = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"
-
 [[notifications.rule]]
 name = "everything"
 show = "dm"                    # none | mention | dm | all

@@ -70,8 +70,8 @@ func TestShippedDefaultTOMLMatchesDefaults(t *testing.T) {
 		t.Errorf("shipped [clipboard] command = %q, want empty", dev.Clipboard.Command)
 	}
 	// Sound ships silent.
-	if cfg.Notifications.Sound != "" {
-		t.Errorf("shipped [notifications] sound = %q, want silent", cfg.Notifications.Sound)
+	if n.Sound != "" || len(n.Sounds) != 0 {
+		t.Errorf("shipped [notifications] sound = %q, sounds %v; want silent", n.Sound, n.Sounds)
 	}
 	if got := n.PopupTimeout(); got != DefaultTimeoutSeconds*time.Second {
 		t.Errorf("shipped timeout = %v, want the documented default", got)

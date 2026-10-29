@@ -1,11 +1,14 @@
 package config
 
-import "time"
+import (
+	"slices"
+	"strconv"
+	"time"
+)
 
-// Notifications is [notifications] in the bridge's config: what notifies, its sound,
-// rate limits and rules (see docs/notifications.md).
+// Notifications is [notifications] in the bridge's config: what notifies, rate limits
+// and rules (see docs/notifications.md).
 type Notifications struct {
-	Sound      string `toml:"sound"`        // a file; empty silent
 	MaxPerRoom int    `toml:"max_per_room"` // per RateWindow; 0 no limit
 	RateWindow string `toml:"rate_window"`  // a duration
 	Rules      []Rule `toml:"rule"`
@@ -20,6 +23,20 @@ type DeviceNotifications struct {
 	Body         string `toml:"body"`  // template; empty DefaultBodyTemplate, "-" none
 	SoundCommand string `toml:"sound_command"`
 	Timeout      *int   `toml:"timeout"` // seconds; nil default, -1 until dismissed
+	Sound        string `toml:"sound"`   // a file; empty silent
+	// Sounds are each rule's own sound on this device, by the rule's name.
+	Sounds map[string]string `toml:"sounds"`
+}
+
+// SoundFor is the file to play for a notification whose matching rules are named, most
+// specific first: the first this device gives a sound, else its default.
+func (n DeviceNotifications) SoundFor(rules []string) string {
+	for _, name := range rules {
+		if file := n.Sounds[name]; file != "" {
+			return file
+		}
+	}
+	return n.Sound
 }
 
 // Rule is one [[notifications.rule]]: part of the policy for one place or person.
@@ -27,11 +44,23 @@ type Rule struct {
 	Name   string `toml:"name"`
 	Match  string `toml:"match"`  // one place-vocabulary entry (setup.PlaceEntries); empty is account-wide
 	Sender string `toml:"sender"` // a person's ID
-	Sound  string `toml:"sound"`
-	Show   string `toml:"show"` // none, mention, dm or all
-	Ring   string `toml:"ring"` // as Show; unset follows it
-	When   string `toml:"when"` // a daily window, "22:00-08:00"; empty always
+	Show   string `toml:"show"`   // none, mention, dm or all
+	Ring   string `toml:"ring"`   // as Show; unset follows it
+	When   string `toml:"when"`   // a daily window, "22:00-08:00"; empty always
 	Thread string `toml:"thread"`
+}
+
+// UniqueRuleName is base, numbered when a rule already has that name, so a device's
+// sound for it is that rule's alone.
+func UniqueRuleName(base string, rules []Rule) string {
+	taken := func(name string) bool {
+		return slices.ContainsFunc(rules, func(r Rule) bool { return r.Name == name })
+	}
+	name := base
+	for n := 2; taken(name); n++ {
+		name = base + " " + strconv.Itoa(n)
+	}
+	return name
 }
 
 // DefaultTimeoutSeconds is how long a desktop popup stays up by default.

@@ -2,11 +2,11 @@
 
 `kithd`, the daemon, decides what notifies. It sees every message whether or not a terminal is attached, so a popup arrives with no `kith` open. `kith-notify` shows the popups, on the machine it runs on. The TUI only edits the rules and shows you why something was or was not delivered.
 
-What notifies (the rules, the sound, the rate limit) is configured in `config.toml`; how this device shows a notification (on or off, the popup, the command hook, the timeout, the templates) in `device.toml` beside it (see [configuration](configuration.md#the-device-file)). Most of it can also be changed from inside the app, which writes each file for you. A change takes effect on the next message, with no restart.
+What notifies (the rules, whether it rings, the rate limit) is configured in `config.toml`; how this device shows a notification (on or off, the popup, the command hook, the timeout, the templates, the sounds) in `device.toml` beside it (see [configuration](configuration.md#the-device-file)). Most of it can also be changed from inside the app, which writes each file for you. A change takes effect on the next message, with no restart.
 
 ## Where popups appear: kith-notify
 
-kithd publishes each notification to every [profile](configuration.md#profiles) holding its room. `kith-notify` listens to profiles and shows what arrives: a message in two of the profiles it listens to pops up once. It holds no rules of its own: it reads `[notifications]` (the sinks, templates, timeout) from the device file as it changes, and `enabled = false` there stops it showing anything.
+kithd publishes each notification to every [profile](configuration.md#profiles) holding its room. `kith-notify` listens to profiles and shows what arrives: a message in two of the profiles it listens to pops up once. It holds no rules of its own: it reads `[notifications]` (the sinks, templates, timeout, sounds) from the device file as it changes, and `enabled = false` there stops it showing anything.
 
 `kith` starts it when it starts, as it does kithd: through its systemd user unit when there is one, else detached. Only one runs for a config on a machine, however often it is started. To have popups from login, before you open `kith`, enable its unit:
 
@@ -98,19 +98,17 @@ when   = "09:00-18:00"
 thread = "any"
 show   = "all"
 ring   = "all"
-sound  = "/home/you/sounds/boss.wav"
 ```
 
 | Key | Meaning | Values |
 | --- | --- | --- |
-| `name` | What to call the rule in the status line and the `W` overlay | Any text. Optional |
+| `name` | What to call the rule in the status line and the `W` overlay, and what a device gives [its own sound](#sounds) under | Any text. Optional |
 | `match` | The place it applies to. Empty means anywhere | See [Naming a place](#naming-a-place) |
 | `sender` | One person | Their ID, `matrix:@alice:example.org` for a Matrix person. Empty means anyone |
 | `when` | A daily window when the rule is in force. It wraps past midnight if the end is before the start | `"HH:MM-HH:MM"`. Absent means always |
 | `thread` | Where in a conversation it applies | `any` (default), `participating` (only threads you have written in), `none` (only messages outside threads) |
 | `show` | The bar a message must clear to raise a popup | `none`, `mention`, `dm`, `all` |
 | `ring` | The bar it must also clear to make a sound. Unset follows `show` | `none`, `mention`, `dm`, `all` |
-| `sound` | The sound file to play when it rings | A path |
 
 The levels are cumulative. `mention` lets through messages that mention you (and [tracked words](#tracked-words), if they are allowed to notify). `dm` adds every direct message. `all` lets everything through. `show` is checked before `ring`, so `show = "none"` is silent without also setting `ring`.
 
@@ -182,7 +180,6 @@ name   = "the boss"
 match  = "matrix:4f1c9e2a7b3d5c60/!standup:example.org"
 sender = "matrix:@alice:example.org"
 show   = "all"
-sound  = "/home/you/sounds/boss.wav"
 
 # Seen but not heard: popups without sound for a space.
 [[notifications.rule]]
@@ -259,17 +256,18 @@ Beyond the limit, messages are **counted, not dropped**. At most once per window
 
 ## Sounds
 
-```toml
-[notifications]   # config.toml
-sound = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"  # global; empty = silent
-```
+Whether a notification rings is the bridge's (`show` and `ring` in the rules above); what it sounds like is each device's, so a laptop and a phone may sound different:
 
 ```toml
 [notifications]   # device.toml
+sound = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"  # default; empty = silent
 sound_command = ""   # fallback player, e.g. "pw-play" or "paplay"
+
+[notifications.sounds]   # a rule's own sound, by its name in config.toml
+"the boss" = "/home/you/sounds/boss.wav"
 ```
 
-- `sound` is the account-wide default. A rule's own `sound` replaces it for whatever that rule matches, so a space, a room or a person can have a different sound. To silence one scope, use `ring = "none"`.
+- `sound` is this device's default. `[notifications.sounds]` gives a rule its own sound by the rule's `name`, so a space, a room or a person can sound different. kithd sends the names of the rules that matched a notification, most specific first; the device plays the first of them it has a sound for, else `sound`. A rule with no `name` cannot have its own sound. To silence one scope, use `ring = "none"`.
 - The file is passed to your notification daemon as a `sound-file` hint, so the desktop plays it with its own audio settings and nothing extra is started. A silenced notification sends `suppress-sound` instead, which also stops the notification daemon's own sound.
 - `sound_command` is for a notification daemon that ignores the hint. It is started with the file path as its only argument, with no shell.
 
@@ -298,7 +296,7 @@ Then pick a preset. The one already in effect is marked:
 | Only when I'm mentioned | `show = "mention"` |
 | Mute — never notify | `show = "none"` |
 | Seen but not heard | `ring = "none"` |
-| Give it its own sound | `sound = "<path>"` (an empty path removes it) |
+| Give it its own sound | This device's `[notifications.sounds]` entry under the rule's `name`, naming the rule first if it has none (an empty path removes it) |
 | Name this rule | `name = "<text>"` |
 | Remove the rule | Deletes it, so the less specific rules apply again |
 

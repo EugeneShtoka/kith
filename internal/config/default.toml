@@ -353,9 +353,9 @@ others = "show"
 # shows them).
 keep   = false
 
-# Notifications: what notifies, decided by [[notifications.rule]] below, with its
-# sound and how often one room may. Your own messages never notify. Whether this
-# device shows them, and how (a popup, a command, the templates), is
+# Notifications: what notifies, decided by [[notifications.rule]] below, whether it
+# rings, and how often one room may. Your own messages never notify. Whether this
+# device shows them, and how (a popup, a command, the templates, the sounds), is
 # [notifications] in device.toml.
 [notifications]
 # Popups one room may raise per rate_window before further messages are counted into
@@ -365,19 +365,15 @@ max_per_room = 0
 # max_per_room = 5
 rate_window = "2m"
 
-# The sound played with every notification (empty: silent). A rule's `sound` replaces
-# it for what the rule matches. The path goes to the notification daemon as a
-# `sound-file` hint.
-sound = ""
-# sound = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"
-
 # Do-not-disturb is a keystroke, not a setting: `ctrl+n` hides notifications, `alt+n`
 # silences only the sound; each asks what (everything, a space, a room, a person) and
 # for how long. It lives in kithd and clears on a daemon restart.
 
 # Rules decide what notifies. A rule says where, when, and what gets through:
 #
-#   name    shown when the status line says which rule silenced you
+#   name    shown when the status line says which rule silenced you; a device
+#           gives the rule its own sound by this name ([notifications.sounds] in
+#           device.toml)
 #   match   one place: a room ID, room:<name>, space:<name>, tag:<name>,
 #           protocol:<network>, dm or group; empty = anywhere. A bare word
 #           is refused.
@@ -387,7 +383,6 @@ sound = ""
 #           threads)
 #   show    the bar to raise a popup: none · mention · dm · all
 #   ring    the bar to also make a sound; unset follows `show`
-#   sound   the file to play when it rings
 #
 # A rule changes only the fields it sets. A message must clear `show` before `ring` is
 # asked. A built-in account-wide rule (show = "mention") always applies first, and your
@@ -422,8 +417,7 @@ sound = ""
 # name = "the boss"              # …except one person in it, who also gets through
 # match = "matrix:4f1c9e2a7b3d5c60/!standup:server"      # quiet hours and do-not-disturb
 # sender = "matrix:@alice:server"
-# show = "all"
-# sound = "/home/you/sounds/boss.wav"
+# show = "all"                   # its sound: [notifications.sounds] in device.toml
 #
 # [[notifications.rule]]
 # match = "space:Social"         # popups without sound

@@ -119,12 +119,24 @@ func (k kithd) says(room domain.RoomID, body string) {
 type shown struct {
 	mu     sync.Mutex
 	bodies []string
+	sounds map[string]string // by body
 }
 
 func (s *shown) Notify(n notify.Notification) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.bodies = append(s.bodies, n.Body)
+	if s.sounds == nil {
+		s.sounds = map[string]string{}
+	}
+	s.sounds[n.Body] = n.Sound
+}
+
+// soundOf is the sound the notification with body was shown with.
+func (s *shown) soundOf(body string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.sounds[body]
 }
 
 func (s *shown) all() []string {
@@ -378,5 +390,70 @@ func TestTheAgentCopiesACodeOnce(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(clip); string(got) != "482910" {
 		t.Errorf("clipboard = %q after a copy that could not run", got)
+	}
+}
+
+// soundRules notify everything; two rules name the room both profiles hold, Alice's the
+// narrower, and one silences the third's room.
+func soundRules() config.Config {
+	cfg := threeProfiles()
+	cfg.Notifications.Rules = append(cfg.Notifications.Rules,
+		config.Rule{Name: "boss", Match: string(both), Sender: "matrix:@alice:x"},
+		config.Rule{Name: "both", Match: string(both)},
+		config.Rule{Name: "third", Match: string(thirdOnly), Ring: "none"},
+	)
+	return cfg
+}
+
+// Two devices listening to one kithd sound its notifications each its own way: the
+// most specific rule the device gives a sound wins, a rule it gives none is passed
+// over, a notification no named rule of it matched takes its default, and a silenced
+// one plays nothing though the device has a sound for its rule.
+func TestEachDevicePicksItsOwnSound(t *testing.T) {
+	t.Parallel()
+	socket := socketPath(t)
+	k := serve(t, socket, soundRules())
+	laptop, phone := &shown{}, &shown{}
+	listeningWith(t, socket, deviceFile(t, notificationsOn+`sound = "/l/default.oga"
+
+[notifications.sounds]
+boss  = "/l/boss.oga"
+both  = "/l/both.oga"
+third = "/l/third.oga"
+`), laptop, "first", "third")
+	listeningWith(t, socket, deviceFile(t, notificationsOn+`sound = "/p/default.oga"
+
+[notifications.sounds]
+both = "/p/both.oga"
+`), phone, "first", "third")
+
+	k.says(both, "in both")
+	k.says(firstOnly, "in the first")
+	k.says(thirdOnly, "in the third")
+	// Two profiles' streams: the order they arrive in is theirs.
+	for _, rec := range []*shown{laptop, phone} {
+		waitFor(t, func() bool { return len(rec.all()) >= 3 }, "the notifications")
+	}
+	time.Sleep(100 * time.Millisecond)
+	for _, rec := range []*shown{laptop, phone} {
+		if got := rec.all(); len(got) != 3 {
+			t.Errorf("shown %v, want each once", got)
+		}
+	}
+	for _, c := range []struct {
+		rec         *shown
+		device      string
+		body, sound string
+	}{
+		{laptop, "laptop", "in both", "/l/boss.oga"},
+		{phone, "phone", "in both", "/p/both.oga"},
+		{laptop, "laptop", "in the first", "/l/default.oga"},
+		{phone, "phone", "in the first", "/p/default.oga"},
+		{laptop, "laptop", "in the third", ""},
+		{phone, "phone", "in the third", ""},
+	} {
+		if got := c.rec.soundOf(c.body); got != c.sound {
+			t.Errorf("the %s sounded %q %q, want %q", c.device, c.body, got, c.sound)
+		}
 	}
 }
