@@ -125,6 +125,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/api"
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/daemon"
+            # The remote listener pins device keys; the roster is a TOML file.
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/notify"
             # The profiles' people.exclude reads the phonebook's cards (ProfilePeople).
@@ -132,6 +134,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/setup"
             - "github.com/EugeneShtoka/kith/internal/human"
             - "connectrpc.com/connect"
+            - "github.com/BurntSushi/toml"
             - "github.com/adrg/xdg"
             - "github.com/fsnotify/fsnotify"
             - "github.com/gofrs/flock"
@@ -387,6 +390,14 @@ linters:
             - "$gostd"
             - "rsc.io/qr"
 
+        # A device's key, ID and certificate: crypto only. Keeping the key is session's.
+        devicekey-is-a-leaf:
+          files:
+            - "**/internal/devicekey/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+
         # The command templates kith ships: embedded files and the block they write.
         cmdtemplates-is-a-leaf:
           files:
@@ -461,6 +472,7 @@ linters:
             - "**/internal/session/**"
           allow:
             - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/session"
             - "github.com/adrg/xdg"
@@ -751,6 +763,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/buildinfo"
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/daemon"
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/launch"
             - "github.com/EugeneShtoka/kith/internal/llamacpp"
@@ -776,6 +789,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/buildinfo"
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/daemon"
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/gmessages"

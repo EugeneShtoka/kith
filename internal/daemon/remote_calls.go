@@ -996,3 +996,24 @@ func (r *Remote) Present(ctx context.Context, open domain.RoomID) error {
 	_, err := call(ctx, "present", r.c.Present, &v1.PresentRequest{Client: r.client, OpenRoomId: string(open)})
 	return err
 }
+
+// Devices is kithd's own device ID and the devices paired with it.
+func (r *Remote) Devices(ctx context.Context) (self string, devices []domain.Device, err error) {
+	resp, err := call(ctx, "list the paired devices", r.c.Devices, &v1.DevicesRequest{})
+	if err != nil {
+		return "", nil, err
+	}
+	return resp.GetSelf(), pc.ProtoToDevices(resp.GetDevices()), nil
+}
+
+// AddDevice pairs the device with the pasted ID, listing it as name.
+func (r *Remote) AddDevice(ctx context.Context, id, name string) (domain.Device, error) {
+	resp, err := call(ctx, "pair the device", r.c.AddDevice, &v1.AddDeviceRequest{Id: id, Name: name})
+	return pc.ProtoToDevice(resp.GetDevice()), err
+}
+
+// RemoveDevice unpairs the device with the ID, cutting its live connections.
+func (r *Remote) RemoveDevice(ctx context.Context, id string) error {
+	_, err := call(ctx, "unpair the device", r.c.RemoveDevice, &v1.RemoveDeviceRequest{Id: id})
+	return err
+}

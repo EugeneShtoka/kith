@@ -36,10 +36,13 @@ security-relevant — please flag anything in these areas:
   cross-signing keys) and the keyring-held pickle key that encrypts it are
   sensitive. Report anything that could exfiltrate them, weaken verification, or
   cause the client to send to unverified/unexpected devices when it shouldn't.
-- **The daemon socket.** `kithd` serves every client over a unix socket under
-  `$XDG_RUNTIME_DIR`, and its `0600` permissions are the only authorization. Report
-  any way another local user could reach it, or any request that reaches beyond the
-  account the daemon serves.
+- **The daemon socket.** `kithd` serves every client on its machine over a unix
+  socket under `$XDG_RUNTIME_DIR`, and its `0600` permissions are the authorization
+  there. Report any way another local user could reach it, or any request that
+  reaches beyond the account the daemon serves.
+- **A listening kithd** (`[remote] listen`): see [below](#a-listening-kithd). Report
+  any way to be served without a paired key, to stay connected or reconnect after
+  being unpaired, or to exhaust the listener from one address.
 - **Assistant and model features.** `kith-mcp` lets an assistant read the cache and
   send or draft messages, within the rooms `[agent.read]` and `[agent.write]` allow; the
   optional model features send message context to a configured endpoint, within the
@@ -55,6 +58,42 @@ security-relevant — please flag anything in these areas:
 - **Secrets in logs.** Report any case where tokens, keys, or decrypted message
   content end up on stderr or in the daemon's journal
   (`journalctl --user -u kithd.service`).
+
+## A listening kithd
+
+`[remote] listen` lets clients on other machines reach kithd over the network. The
+threat model:
+
+- **Off by default.** With `listen` empty, kithd opens no network port; the socket is
+  all there is. It listens only on the addresses written, and refuses a bare `:port`,
+  so every interface (`0.0.0.0`, `[::]`) is only ever taken when written out.
+- **Pinned mutual TLS.** TLS 1.3 only. Each side presents a self-signed certificate
+  for its device key (ECDSA P-256); the device ID is the SHA-256 of the key's
+  SubjectPublicKeyInfo. kithd requires a client certificate and admits it only if
+  its key's ID is in the device list (`devices-<instance>.toml` in the data
+  directory), checked in the handshake, before any call is read. No CA is involved;
+  certificates are reissued at will, keys are what is pinned. Session tickets are
+  off, so no session outlives an unpairing; the check runs on every handshake.
+- **Paired = full authority.** A paired device may do everything the socket allows:
+  read and send on every account, edit the config, pair and unpair devices. There
+  are no per-device roles. Unpairing closes that device's live connections at once,
+  and its next handshake is refused. Pairing is by pasting an ID on an
+  already-trusted device (the socket, or a paired device).
+- **Before TLS.** Each remote address (an IPv6 /64 counting as one) gets a burst of
+  10 handshakes, then one per two seconds; at most 32 handshakes run at once; a
+  handshake, and each request's headers, must arrive within 10 seconds. A throttled
+  connection is closed before a byte of TLS.
+- **What an attacker on the network sees.** An open port that speaks TLS 1.3 and asks
+  for a client certificate; kithd's certificate, which carries its device ID (public:
+  it names a key, it grants nothing) and no account names. Without a paired key,
+  nothing past the handshake. A refused handshake is logged at debug level only.
+- **Key storage.** Device keys live in the OS keyring (account
+  `<instance>|device` for kithd, `<instance>|client-device` for a client machine),
+  or, only with `allow_token_file` and no keyring, in a `0600` file in the state
+  directory. A corrupt key is reported, never silently replaced: a new key is a new
+  device that every peer must pair again. The device list holds no secrets, but it
+  is the authorization: it is written `0600`, atomically, and a list that does not
+  read keeps kithd from listening at all.
 
 ## Supported versions
 

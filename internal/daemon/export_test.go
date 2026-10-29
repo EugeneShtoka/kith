@@ -56,3 +56,9 @@ func (n *Notifications) Publications() (take func() []Published, release func())
 	}
 	return take, func() { n.notices.release(id) }
 }
+
+// The remote listener's throttle.
+const (
+	HandshakeBurst = handshakeBurst
+	MaxHandshakes  = maxHandshakes
+)

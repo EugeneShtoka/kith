@@ -492,7 +492,7 @@ func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 			t.Fatal(err)
 		}
 		relevel := func(string) { t.Errorf("%s: a refused re-read changed the log level", n.Network()) }
-		if err := reloader(slog.New(slog.DiscardHandler), configFile{path: path}, relevel, nil, backend, nil)(ctx); err == nil {
+		if err := reloader(slog.New(slog.DiscardHandler), configFile{path: path}, relevel, nil, backend, nil, nil)(ctx); err == nil {
 			t.Errorf("%s: the re-read took a config its network refuses", n.Network())
 		}
 	}

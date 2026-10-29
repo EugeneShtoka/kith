@@ -226,23 +226,33 @@ func decode(blob []byte) (domain.Session, bool, error) {
 
 // readFile reads the fallback file, refusing one others can read.
 func readFile(path string) (domain.Session, bool, error) {
-	info, err := os.Stat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return domain.Session{}, false, nil
-	}
-	if err != nil {
-		return domain.Session{}, false, fmt.Errorf("session: stat %s: %w", path, err)
-	}
-	if perm := info.Mode().Perm(); perm&^ownerOnly != 0 {
-		return domain.Session{}, false, fmt.Errorf(
-			"session: %s is group/other-accessible (%#o); it holds an access token — run: chmod 600 %s",
-			path, perm, path)
-	}
-	blob, err := os.ReadFile(path) // #nosec G304 -- the session file, mode-checked above
-	if err != nil {
-		return domain.Session{}, false, fmt.Errorf("session: read %s: %w", path, err)
+	blob, found, err := readOwnerOnly(path, "an access token")
+	if err != nil || !found {
+		return domain.Session{}, false, err
 	}
 	return decode(blob)
+}
+
+// readOwnerOnly reads a fallback file holding what, refusing one others can read;
+// found is false when there is none.
+func readOwnerOnly(path, what string) (blob []byte, found bool, err error) {
+	info, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("session: stat %s: %w", path, err)
+	}
+	if perm := info.Mode().Perm(); perm&^ownerOnly != 0 {
+		return nil, false, fmt.Errorf(
+			"session: %s is group/other-accessible (%#o); it holds %s — run: chmod 600 %s",
+			path, perm, what, path)
+	}
+	blob, err = os.ReadFile(path) // #nosec G304 -- a fallback file, mode-checked above
+	if err != nil {
+		return nil, false, fmt.Errorf("session: read %s: %w", path, err)
+	}
+	return blob, true, nil
 }
 
 // saveFile writes atomically so a failed save never destroys the previous token.

@@ -81,7 +81,8 @@ internal/api        → the Backend interface and its sentinel errors; the gener
         │              wire code lives beneath it in internal/api/backend/v1, and
         │              protoconv converts between it and internal/domain
 internal/apitest    → the fakes the TUI's tests run against (api.Backend doubles)
-internal/daemon     → both sides of the kithd wire (Connect over a unix socket),
+internal/daemon     → both sides of the kithd wire (Connect over a unix socket, and
+        │              over pinned mutual TLS to paired devices: [remote] listen),
         │              plus the daemon's own state: readiness, the stream fan-out,
         │              the notification decision, do-not-disturb, the send queue
 internal/setup      → config → running structures, shared by every binary
@@ -116,6 +117,8 @@ internal/schedule   → the durable queue behind messages written now, sent late
 internal/backup     → one passphrase-encrypted file of the cache, config and local
         │              records (no sessions), and putting it back under the daemon's lock
 internal/session    → the Matrix access token and pickle key, in the OS keyring
+        │              (and the device keys the TLS listener pins)
+internal/devicekey  → a device's key, its ID and self-signed certificate (crypto only)
 internal/emoji      → emoji by name: the curated set and every Unicode name, generated
 internal/agent      → the append-only ledger of what an assistant sent through kith-mcp
 internal/media      → the attachment cache: originals on disk, drawn rows beside them
@@ -167,9 +170,10 @@ violates them fails lint rather than review. `make arch-check` adds more gates:
   segmenter, and nothing else (an allow list). It is the shared vocabulary; everything
   else depends on it.
 - **The stores and the adapter have allow lists.** `daemon` (which every client
-  links as the wire) reaches `api`, `config`, `domain`, `notify`, `setup` and its
+  links as the wire) reaches `api`, `config`, `devicekey`, `domain`, `notify`, `setup` and its
   transport; `db` only SQLite and `domain`; `matrix` the SDK, `db` and the helpers it
-  drives; `session` and `schedule` only `domain` and their storage.
+  drives; `session` and `schedule` only `domain` and their storage (`session` also
+  `devicekey`, which is crypto only).
 - **Infrastructure is Bubble-Tea-free.** `matrix`, `db`, `domain`, `media`,
   `session`, `notify`, `audio`, `daemon` and `schedule` must not import
   `bubbletea`. The daemon is on that list for the sharpest reason: it runs under
@@ -247,8 +251,12 @@ attached client. None of those is Matrix; the daemon is simply the process both 
 can always reach. One service means the client and the daemon are deployed together:
 an old client cannot talk to a new daemon.
 
-The socket is `0600` and there is no token on the wire: the file permissions are
-the whole authorization story.
+The socket is `0600` and there is no token on the wire: on kithd's own machine the
+file permissions are the whole authorization story. `[remote] listen` serves the same
+handler, behind the same interceptors, over TLS 1.3 to paired devices only: the
+client's key is pinned in the handshake against the device list
+(`internal/daemon/devices.go`), a throttle before TLS bounds handshakes per address,
+and unpairing a device closes its connections ([SECURITY.md](SECURITY.md#a-listening-kithd)).
 
 A client names the `[[profile]]` it runs in with a `Kith-Profile` header on every
 request (none is the first; an unknown one is refused). The daemon narrows every call

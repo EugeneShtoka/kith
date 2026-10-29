@@ -17,6 +17,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
 	pc "github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/devicekey"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
@@ -1066,4 +1067,44 @@ func newScheduleID() string {
 		return fmt.Sprintf("t%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(b[:])
+}
+
+// ── Devices ──
+
+func (s *server) Devices(context.Context, *req[v1.DevicesRequest]) (*resp[v1.DevicesResponse], error) {
+	self, devices, err := s.Paired.List()
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	return connect.NewResponse(&v1.DevicesResponse{Self: self, Devices: pc.DevicesToProto(devices)}), nil
+}
+
+func (s *server) AddDevice(ctx context.Context, r *req[v1.AddDeviceRequest]) (*resp[v1.AddDeviceResponse], error) {
+	added, err := s.Paired.Add(r.Msg.GetId(), r.Msg.GetName(), s.Paired.peer(ctx))
+	if err != nil {
+		return nil, deviceErr(err)
+	}
+	return connect.NewResponse(&v1.AddDeviceResponse{Device: pc.DeviceToProto(added)}), nil
+}
+
+func (s *server) RemoveDevice(_ context.Context, r *req[v1.RemoveDeviceRequest]) (*resp[v1.RemoveDeviceResponse], error) {
+	if err := s.Paired.Remove(r.Msg.GetId()); err != nil {
+		return nil, deviceErr(err)
+	}
+	return connect.NewResponse(&v1.RemoveDeviceResponse{}), nil
+}
+
+// deviceErr gives a refused roster change its code; anything else (a roster that
+// will not read or write, no device key) is the bridge's state.
+func deviceErr(err error) error {
+	code := connect.CodeFailedPrecondition
+	switch {
+	case errors.Is(err, devicekey.ErrNotAnID), errors.Is(err, errOwnID):
+		code = connect.CodeInvalidArgument
+	case errors.Is(err, errUnknownDevice):
+		code = connect.CodeNotFound
+	case errors.Is(err, errAlreadyPaired), errors.Is(err, errNameTaken):
+		code = connect.CodeAlreadyExists
+	}
+	return connect.NewError(code, err)
 }

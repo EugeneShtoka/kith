@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -49,6 +51,7 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 		Logins:      NewLogins(ctx, func() []api.LoginLeader { return nil }),
 		Uploads:     uploads,
 		Log:         logging.Discard(),
+		Paired:      NewDevices(filepath.Join(t.TempDir(), "devices.toml"), func() (tls.Certificate, error) { return tls.Certificate{}, errors.New("no key") }, logging.Discard()),
 	}
 	served := make(chan error, 1)
 	go func() { served <- Serve(ctx, ln, d) }()

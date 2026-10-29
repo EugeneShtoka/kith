@@ -37,6 +37,7 @@ New here? Start with [Getting started](getting-started.md), then take the
 | [Messenger](messenger.md) | Signing in to Messenger directly (being built): the password login, the risks |
 | [Signal](signal.md) | Linking Signal as one of your phone's devices: building the `kith-signal` helper, what works, disappearing messages, the risks |
 | [Instagram](instagram.md) | Signing in to Instagram's direct messages directly: the browser's cookies, no private read, the risks |
+| [Clients on other machines](remote.md) | kithd listening over TLS for paired devices (being built): `[remote] listen`, device IDs, `kith devices`, what an attacker sees |
 | [Phonebook](phonebook.md) | A folder of Markdown cards, one per person, shared with other programs: the format, and `I` on a person |
 | [Encryption](encryption.md) | End-to-end encryption, device verification, key backup, key export and import, what is stored where |
 
