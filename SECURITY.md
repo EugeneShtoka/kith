@@ -42,7 +42,8 @@ security-relevant — please flag anything in these areas:
   reaches beyond the account the daemon serves.
 - **A listening kithd** (`[remote] listen`): see [below](#a-listening-kithd). Report
   any way to be served without a paired key, to stay connected or reconnect after
-  being unpaired, or to exhaust the listener from one address.
+  being unpaired, to pair without the confirmation on a trusted device, or to exhaust
+  the listener from one address.
 - **Assistant and model features.** `kith-mcp` lets an assistant read the cache and
   send or draft messages, within the rooms `[agent.read]` and `[agent.write]` allow; the
   optional model features send message context to a configured endpoint, within the
@@ -77,8 +78,25 @@ threat model:
 - **Paired = full authority.** A paired device may do everything the socket allows:
   read and send on every account, edit the config, pair and unpair devices. There
   are no per-device roles. Unpairing closes that device's live connections at once,
-  and its next handshake is refused. Pairing is by pasting an ID on an
-  already-trusted device (the socket, or a paired device).
+  and its next handshake is refused. Pairing is on an already-trusted device (the
+  socket, or a paired device): by pasting an ID, or by QR code (below).
+- **Pairing by QR code.** `kith pair` asks kithd for a token: 128 random bits, good
+  for one pairing, for ten minutes, and only while the `kith pair` that asked waits.
+  The QR code (or `kith://pair` URI) carries it with kithd's addresses and device ID,
+  so the new device pins kithd's key from its very first connection: there is no
+  trust on first use for an attacker in the middle to take. While a token is live,
+  kithd completes the handshake with an unpaired key, but serves that connection
+  only `Pair`; every other call is refused, and the connection is cut once no pairing
+  is open. Tokens are compared in constant time; one device may answer a token, and
+  any other is refused.
+- **The confirmation digits.** The device that answers is held, not paired, until a
+  person confirms it on the trusted device. Both screens show six digits derived from
+  kithd's ID, the new device's ID and the token (SHA-256), so a QR code photographed
+  or a URI copied, and used first by someone else, shows digits that do not match the
+  person's own device: refused, it is never paired. A refusal, the ten minutes passing,
+  or either side going away spends the token, drops the waiting key and cuts its
+  connection. The digits guard the confirmation, not the token: whoever confirms
+  without comparing them pairs whoever answered.
 - **Before TLS.** Each remote address (an IPv6 /64 counting as one) gets a burst of
   10 handshakes, then one per two seconds; at most 32 handshakes run at once; a
   handshake, and each request's headers, must arrive within 10 seconds. A throttled

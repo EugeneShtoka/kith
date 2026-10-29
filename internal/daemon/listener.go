@@ -153,6 +153,8 @@ type remoteConn struct {
 	id       devicekey.ID
 	admitted bool
 	gone     bool
+	// onlyPairs is a key let in, unpaired, to answer a pairing: it may call Pair alone.
+	onlyPairs bool
 }
 
 func newRemoteConn(c net.Conn, devices *Devices, slot func()) *remoteConn {

@@ -242,7 +242,7 @@ var notPlaces = []string{
 	"profile.people.exclude", "spell.dictionaries", "display.rooms.sort", "display.filing_spaces", // spaces only
 	"assist.rewrite.stop", "assist.summary.stop", "assist.thread_name.stop", "assist.todo.stop",
 	"display.rooms.rule.sort", "display.reactions.static", "spell.declined", "spell.frequencies_declined",
-	"complete.sources", "command.needs", "command.secrets", "remote.listen",
+	"complete.sources", "command.needs", "command.secrets", "remote.listen", "bridge.addresses",
 }
 
 // Every list of strings in either file holding tag:X and another entry loses tag:X on

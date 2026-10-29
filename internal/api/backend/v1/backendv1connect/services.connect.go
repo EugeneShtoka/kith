@@ -417,6 +417,14 @@ const (
 	// BackendServiceRemoveDeviceProcedure is the fully-qualified name of the BackendService's
 	// RemoveDevice RPC.
 	BackendServiceRemoveDeviceProcedure = "/backend.v1.BackendService/RemoveDevice"
+	// BackendServiceStartPairingProcedure is the fully-qualified name of the BackendService's
+	// StartPairing RPC.
+	BackendServiceStartPairingProcedure = "/backend.v1.BackendService/StartPairing"
+	// BackendServiceConfirmPairingProcedure is the fully-qualified name of the BackendService's
+	// ConfirmPairing RPC.
+	BackendServiceConfirmPairingProcedure = "/backend.v1.BackendService/ConfirmPairing"
+	// BackendServicePairProcedure is the fully-qualified name of the BackendService's Pair RPC.
+	BackendServicePairProcedure = "/backend.v1.BackendService/Pair"
 )
 
 // BackendServiceClient is a client for the backend.v1.BackendService service.
@@ -780,6 +788,15 @@ type BackendServiceClient interface {
 	AddDevice(context.Context, *connect.Request[v1.AddDeviceRequest]) (*connect.Response[v1.AddDeviceResponse], error)
 	// RemoveDevice unpairs a device and closes its live connections.
 	RemoveDevice(context.Context, *connect.Request[v1.RemoveDeviceRequest]) (*connect.Response[v1.RemoveDeviceResponse], error)
+	// Pairing
+	// StartPairing makes a pairing token, reports the device that answers it and how
+	// the pairing ends; closing the stream ends the pairing.
+	StartPairing(context.Context, *connect.Request[v1.StartPairingRequest]) (*connect.ServerStreamForClient[v1.StartPairingResponse], error)
+	// ConfirmPairing pairs the device pending under a token, or refuses it.
+	ConfirmPairing(context.Context, *connect.Request[v1.ConfirmPairingRequest]) (*connect.Response[v1.ConfirmPairingResponse], error)
+	// Pair is a new device answering a pairing: the one call an unpaired key may make,
+	// and only while a token is live.
+	Pair(context.Context, *connect.Request[v1.PairRequest]) (*connect.ServerStreamForClient[v1.PairResponse], error)
 }
 
 // NewBackendServiceClient constructs a client for the backend.v1.BackendService service. By
@@ -1627,6 +1644,24 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("RemoveDevice")),
 			connect.WithClientOptions(opts...),
 		),
+		startPairing: connect.NewClient[v1.StartPairingRequest, v1.StartPairingResponse](
+			httpClient,
+			baseURL+BackendServiceStartPairingProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("StartPairing")),
+			connect.WithClientOptions(opts...),
+		),
+		confirmPairing: connect.NewClient[v1.ConfirmPairingRequest, v1.ConfirmPairingResponse](
+			httpClient,
+			baseURL+BackendServiceConfirmPairingProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("ConfirmPairing")),
+			connect.WithClientOptions(opts...),
+		),
+		pair: connect.NewClient[v1.PairRequest, v1.PairResponse](
+			httpClient,
+			baseURL+BackendServicePairProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Pair")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1771,6 +1806,9 @@ type backendServiceClient struct {
 	devices               *connect.Client[v1.DevicesRequest, v1.DevicesResponse]
 	addDevice             *connect.Client[v1.AddDeviceRequest, v1.AddDeviceResponse]
 	removeDevice          *connect.Client[v1.RemoveDeviceRequest, v1.RemoveDeviceResponse]
+	startPairing          *connect.Client[v1.StartPairingRequest, v1.StartPairingResponse]
+	confirmPairing        *connect.Client[v1.ConfirmPairingRequest, v1.ConfirmPairingResponse]
+	pair                  *connect.Client[v1.PairRequest, v1.PairResponse]
 }
 
 // Rooms calls backend.v1.BackendService.Rooms.
@@ -2468,6 +2506,21 @@ func (c *backendServiceClient) RemoveDevice(ctx context.Context, req *connect.Re
 	return c.removeDevice.CallUnary(ctx, req)
 }
 
+// StartPairing calls backend.v1.BackendService.StartPairing.
+func (c *backendServiceClient) StartPairing(ctx context.Context, req *connect.Request[v1.StartPairingRequest]) (*connect.ServerStreamForClient[v1.StartPairingResponse], error) {
+	return c.startPairing.CallServerStream(ctx, req)
+}
+
+// ConfirmPairing calls backend.v1.BackendService.ConfirmPairing.
+func (c *backendServiceClient) ConfirmPairing(ctx context.Context, req *connect.Request[v1.ConfirmPairingRequest]) (*connect.Response[v1.ConfirmPairingResponse], error) {
+	return c.confirmPairing.CallUnary(ctx, req)
+}
+
+// Pair calls backend.v1.BackendService.Pair.
+func (c *backendServiceClient) Pair(ctx context.Context, req *connect.Request[v1.PairRequest]) (*connect.ServerStreamForClient[v1.PairResponse], error) {
+	return c.pair.CallServerStream(ctx, req)
+}
+
 // BackendServiceHandler is an implementation of the backend.v1.BackendService service.
 type BackendServiceHandler interface {
 	// Room
@@ -2829,6 +2882,15 @@ type BackendServiceHandler interface {
 	AddDevice(context.Context, *connect.Request[v1.AddDeviceRequest]) (*connect.Response[v1.AddDeviceResponse], error)
 	// RemoveDevice unpairs a device and closes its live connections.
 	RemoveDevice(context.Context, *connect.Request[v1.RemoveDeviceRequest]) (*connect.Response[v1.RemoveDeviceResponse], error)
+	// Pairing
+	// StartPairing makes a pairing token, reports the device that answers it and how
+	// the pairing ends; closing the stream ends the pairing.
+	StartPairing(context.Context, *connect.Request[v1.StartPairingRequest], *connect.ServerStream[v1.StartPairingResponse]) error
+	// ConfirmPairing pairs the device pending under a token, or refuses it.
+	ConfirmPairing(context.Context, *connect.Request[v1.ConfirmPairingRequest]) (*connect.Response[v1.ConfirmPairingResponse], error)
+	// Pair is a new device answering a pairing: the one call an unpaired key may make,
+	// and only while a token is live.
+	Pair(context.Context, *connect.Request[v1.PairRequest], *connect.ServerStream[v1.PairResponse]) error
 }
 
 // NewBackendServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -3672,6 +3734,24 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("RemoveDevice")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceStartPairingHandler := connect.NewServerStreamHandler(
+		BackendServiceStartPairingProcedure,
+		svc.StartPairing,
+		connect.WithSchema(backendServiceMethods.ByName("StartPairing")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceConfirmPairingHandler := connect.NewUnaryHandler(
+		BackendServiceConfirmPairingProcedure,
+		svc.ConfirmPairing,
+		connect.WithSchema(backendServiceMethods.ByName("ConfirmPairing")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServicePairHandler := connect.NewServerStreamHandler(
+		BackendServicePairProcedure,
+		svc.Pair,
+		connect.WithSchema(backendServiceMethods.ByName("Pair")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/backend.v1.BackendService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case BackendServiceRoomsProcedure:
@@ -3952,6 +4032,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceAddDeviceHandler.ServeHTTP(w, r)
 		case BackendServiceRemoveDeviceProcedure:
 			backendServiceRemoveDeviceHandler.ServeHTTP(w, r)
+		case BackendServiceStartPairingProcedure:
+			backendServiceStartPairingHandler.ServeHTTP(w, r)
+		case BackendServiceConfirmPairingProcedure:
+			backendServiceConfirmPairingHandler.ServeHTTP(w, r)
+		case BackendServicePairProcedure:
+			backendServicePairHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -4515,4 +4601,16 @@ func (UnimplementedBackendServiceHandler) AddDevice(context.Context, *connect.Re
 
 func (UnimplementedBackendServiceHandler) RemoveDevice(context.Context, *connect.Request[v1.RemoveDeviceRequest]) (*connect.Response[v1.RemoveDeviceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RemoveDevice is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) StartPairing(context.Context, *connect.Request[v1.StartPairingRequest], *connect.ServerStream[v1.StartPairingResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.StartPairing is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) ConfirmPairing(context.Context, *connect.Request[v1.ConfirmPairingRequest]) (*connect.Response[v1.ConfirmPairingResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ConfirmPairing is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Pair(context.Context, *connect.Request[v1.PairRequest], *connect.ServerStream[v1.PairResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Pair is not implemented"))
 }

@@ -1017,3 +1017,65 @@ func (r *Remote) RemoveDevice(ctx context.Context, id string) error {
 	_, err := call(ctx, "unpair the device", r.c.RemoveDevice, &v1.RemoveDeviceRequest{Id: id})
 	return err
 }
+
+// StartPairing opens a pairing for a device listed as name ("" leaves it to the
+// device): ticket is called with what the device needs, pending with the device that
+// answers; it returns how the pairing ended. Canceling ctx ends it unconfirmed.
+func (r *Remote) StartPairing(ctx context.Context, name string,
+	ticket func(domain.PairingTicket), pending func(domain.PendingDevice),
+) (domain.PairingOutcome, error) {
+	st, err := r.c.StartPairing(ctx, connect.NewRequest(&v1.StartPairingRequest{Name: name}))
+	if err != nil {
+		return 0, callErr("start a pairing", err)
+	}
+	defer func() { _ = st.Close() }() // the outcome is read, or the stream failed
+	for st.Receive() {
+		switch ev := st.Msg().GetEvent().(type) {
+		case *v1.StartPairingResponse_Ticket:
+			ticket(pc.ProtoToPairingTicket(ev.Ticket))
+		case *v1.StartPairingResponse_Pending:
+			pending(pc.ProtoToPendingDevice(ev.Pending))
+		case *v1.StartPairingResponse_Outcome:
+			return pairingOutcome("start a pairing", ev.Outcome)
+		}
+	}
+	return 0, callErr("start a pairing", cmpErr(st.Err(), errPairingCut))
+}
+
+// ConfirmPairing pairs the device pending under token, or refuses it.
+func (r *Remote) ConfirmPairing(ctx context.Context, token string, accept bool) (domain.Device, error) {
+	resp, err := call(ctx, "confirm the pairing", r.c.ConfirmPairing, &v1.ConfirmPairingRequest{Token: token, Accept: accept})
+	return pc.ProtoToDevice(resp.GetDevice()), err
+}
+
+// Pair answers the pairing under token as a device listed as name: digits is called
+// with the six kithd shows; it returns how the pairing ended.
+func (r *Remote) Pair(ctx context.Context, token, name string, digits func(string)) (domain.PairingOutcome, error) {
+	st, err := r.c.Pair(ctx, connect.NewRequest(&v1.PairRequest{Token: token, Name: name}))
+	if err != nil {
+		return 0, callErr("pair", err)
+	}
+	defer func() { _ = st.Close() }() // the outcome is read, or the stream failed
+	for st.Receive() {
+		switch ev := st.Msg().GetEvent().(type) {
+		case *v1.PairResponse_Digits:
+			digits(ev.Digits)
+		case *v1.PairResponse_Outcome:
+			return pairingOutcome("pair", ev.Outcome)
+		}
+	}
+	return 0, callErr("pair", cmpErr(st.Err(), errPairingCut))
+}
+
+// errPairingCut is a pairing stream that ended without an outcome.
+var errPairingCut = errors.New("the bridge ended the pairing without saying how")
+
+// pairingOutcome reads an outcome frame; one this client does not know is an error,
+// never read as confirmed.
+func pairingOutcome(op string, pb v1.PairingOutcome) (domain.PairingOutcome, error) {
+	o, ok := pc.ProtoToPairingOutcome(pb)
+	if !ok {
+		return 0, callErr(op, fmt.Errorf("the pairing ended in an outcome this client does not know (%v)", pb))
+	}
+	return o, nil
+}

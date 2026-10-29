@@ -7,6 +7,8 @@ import (
 	"strconv"
 
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/devicekey"
+	"github.com/EugeneShtoka/kith/internal/pairing"
 )
 
 // RemoteListen refuses a [remote] listen entry that is no host:port with a port, one
@@ -27,6 +29,31 @@ func RemoteListen(r config.Remote) error {
 		if slices.Contains(r.Listen[:i], addr) {
 			return fmt.Errorf("remote.listen: %q is named twice", addr)
 		}
+	}
+	return nil
+}
+
+// Bridges refuses a [[bridge]] with no address, an address no device can dial, an ID
+// that does not read, or an ID another entry has.
+func Bridges(bridges []config.Bridge) error {
+	var seen []devicekey.ID
+	for _, b := range bridges {
+		if len(b.Addresses) == 0 {
+			return fmt.Errorf("bridge %q: no addresses; write host:port for each", b.Name)
+		}
+		for _, addr := range b.Addresses {
+			if err := pairing.CheckAddress(addr); err != nil {
+				return fmt.Errorf("bridge %q: addresses: %w", b.Name, err)
+			}
+		}
+		id, err := devicekey.ParseID(b.ID)
+		if err != nil {
+			return fmt.Errorf("bridge %q: id: %w", b.Name, err)
+		}
+		if slices.Contains(seen, id) {
+			return fmt.Errorf("bridge %q: another [[bridge]] has its id", b.Name)
+		}
+		seen = append(seen, id)
 	}
 	return nil
 }

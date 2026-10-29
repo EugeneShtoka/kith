@@ -79,7 +79,10 @@ func NewRemote(path string) *Remote {
 	return newRemote(Dial(path))
 }
 
-func newRemote(hc *http.Client) *Remote {
+func newRemote(hc *http.Client) *Remote { return newRemoteAt(hc, socketBaseURL) }
+
+// newRemoteAt is a Remote whose requests go to base through hc.
+func newRemoteAt(hc *http.Client, base string) *Remote {
 	r := &Remote{
 		msgs:          newStream[domain.Message](),
 		unread:        newStream[domain.Unread](),
@@ -95,7 +98,7 @@ func newRemote(hc *http.Client) *Remote {
 		lost:          make(chan struct{}),
 		over:          make(chan struct{}),
 	}
-	r.c = backendv1connect.NewBackendServiceClient(hc, socketBaseURL,
+	r.c = backendv1connect.NewBackendServiceClient(hc, base,
 		connect.WithInterceptors(profileName{name: r.profileName}))
 	return r
 }

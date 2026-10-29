@@ -4,8 +4,8 @@ kithd can serve clients on other machines as well as the socket on its own: it
 listens on the addresses you name, over TLS 1.3, and serves only the devices paired
 with it. It is off by default.
 
-This is being built. kithd listens and pairs devices now; the client that dials a
-remote kithd, and pairing by QR code, come next.
+This is being built. kithd listens and pairs devices now, by QR code or by pasted ID;
+the client that dials a remote kithd comes next.
 
 ## Device IDs
 
@@ -41,7 +41,60 @@ If kithd has no device key (a locked keyring) or the device list does not read, 
 listens nowhere and says why in its log; the socket on its own machine is served
 either way. An address it cannot listen on is logged and skipped.
 
-## Pairing a device
+## Pairing by QR code
+
+On a machine the bridge already trusts (its own, or a device already paired), start
+a pairing:
+
+```sh
+kith pair            # or: kith pair laptop, to name the device here
+```
+
+It prints a QR code and the same as a line to paste, such as
+
+```text
+kith join 'kith://pair?addr=192.168.1.5%3A7443&exp=1793270400&id=C523-XW2U-…&token=K5QW…'
+```
+
+good once, for ten minutes. The URI carries the bridge's addresses (each `[remote]
+listen` address; `0.0.0.0` or `[::]` becomes every address of the machine another
+device could reach, not loopback or link-local), its device ID, the token and when it
+expires. With `[remote] listen` empty there is nothing to dial, and `kith pair` says
+so.
+
+On the new device, scan it or paste the line:
+
+```sh
+kith join 'kith://pair?…'          # --name desk to be listed as desk, not the hostname
+```
+
+`kith join` dials the addresses in order with this machine's device key, and takes
+only the bridge whose key has the ID in the URI: its first connection is already
+authenticated, with nothing to trust on first use. While a pairing is open, the
+bridge lets an unpaired key complete the handshake, but serves it only the one call
+that answers a pairing, and only with the token.
+
+Both screens then show six digits, worked out from both device IDs and the token.
+Check they match, then answer `y` on the trusted machine. The device is paired (listed
+as added by the device that confirmed it), and `kith join` writes the bridge into its
+`device.toml`:
+
+```toml
+[[bridge]]
+name      = "192.168.1.5"
+addresses = ["192.168.1.5:7443", "100.64.0.3:7443"]
+id        = "C523-XW2U-B4T2-RKIG-PNZM-42UB-FX3Z-OLGG-UHU5-KVZ4-3YQV-KQR7-KXKA"
+```
+
+`name` is the first address's host until you change it; joining the same bridge again
+updates its addresses and keeps the name.
+
+Nothing is paired if the digits differ (answer anything but `y`), if ten minutes pass,
+or if either side goes away first (`kith pair` interrupted, `kith join` closed): the
+token is spent either way, the waiting device is cut off, and `kith pair` makes a new
+one. Only one device may answer a token; a second is refused.
+
+## Pairing by pasted ID
 
 On the device, print its ID:
 
@@ -70,7 +123,8 @@ then. One that does not read keeps kithd from listening until it is fixed.
 ## What an attacker on the network sees
 
 A TLS 1.3 handshake that asks for a client certificate. A key that is not paired is
-refused in the handshake, before any call is read. Before TLS, each address (an IPv6
+refused in the handshake, before any call is read, except while a pairing is open, and
+then it may answer the pairing and do nothing else. Before TLS, each address (an IPv6
 /64 as one) gets a burst of 10 handshakes and then one every two seconds, at most 32
 handshakes run at once, and one that stalls is dropped after 10 seconds. See
 [SECURITY.md](../SECURITY.md#a-listening-kithd).
