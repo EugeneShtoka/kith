@@ -51,6 +51,9 @@ type Daemon struct {
 	Logins api.Logins
 	// Uploads keeps the files clients send until each is posted.
 	Uploads *Uploads
+	// Paired is the devices paired with kithd and the TLS listeners serving them the
+	// same handlers ([remote] listen).
+	Paired *Devices
 	// Log receives every failed call with procedure and reason, so a failure a client
 	// only counted reaches the journal.
 	Log *slog.Logger
@@ -64,6 +67,7 @@ func (d *Daemon) missing() []string {
 		"Notifications": d.Notifications == nil, "Reload": d.Reload == nil,
 		"CheckConfig": d.CheckConfig == nil, "Config": d.Config == nil,
 		"Scheduler": d.Scheduler == nil, "Logins": d.Logins == nil, "Uploads": d.Uploads == nil, "Log": d.Log == nil,
+		"Paired": d.Paired == nil,
 	} {
 		if absent {
 			out = append(out, name)
@@ -74,7 +78,8 @@ func (d *Daemon) missing() []string {
 }
 
 // Serve hosts d on ln until ctx is canceled, then shuts down gracefully; the caller
-// runs Streams.Run. No authentication: the socket is 0600.
+// runs Streams.Run. No authentication on ln: the socket is 0600. The same handlers are
+// served over TLS to paired devices only, on the addresses d.Paired listens on.
 func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 	if missing := d.missing(); len(missing) > 0 {
 		_ = ln.Close() // nothing will be served on it
@@ -105,12 +110,14 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
+	d.Paired.serve(srv.Handler, srv.BaseContext)
 
 	select {
 	case err := <-errc:
 		// The listener broke: cut handlers off, end those on the daemon's lifetime, and wait
 		// before the caller closes the stores.
 		_ = srv.Close() // ignored: the serve error is the one to report
+		d.Paired.shut()
 		inflight.shut()
 		cancelHandlers()
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -126,7 +133,13 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 		timeout := shutdownTimeout
 		shutCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 		defer cancel()
+		// Remote connections are cut at once: their clients reconnect to the next kithd.
+		d.Paired.shut()
 		if srv.Shutdown(shutCtx) == nil {
+			inflight.shut()
+			if !drained(&inflight, timeout) {
+				return fmt.Errorf("daemon: shutdown: a remote call still running after %s: %w", human.Duration(timeout), ErrHandlersRunning)
+			}
 			return nil
 		}
 		// A client that stopped reading (a suspended TUI) holds its stream in a write: cut

@@ -45,6 +45,7 @@ var subcommands = map[string]func([]string) error{
 	"ignore":   runIgnore,
 	"unignore": runUnignore,
 	"ignored":  runIgnored,
+	"devices":  runDevices,
 }
 
 func firstArg() string {

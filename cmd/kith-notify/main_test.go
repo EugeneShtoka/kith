@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -87,6 +89,8 @@ func serve(t *testing.T, socket string, cfg config.Config) kithd {
 			Logins:  daemon.NewLogins(ctx, func() []api.LoginLeader { return nil }),
 			Uploads: uploads,
 			Log:     logging.Discard(),
+			Paired: daemon.NewDevices(filepath.Join(dir, "devices.toml"),
+				func() (tls.Certificate, error) { return tls.Certificate{}, errors.New("no key") }, logging.Discard()),
 		})
 	}()
 	k := kithd{n: n, stop: func() { cancel(); <-served }}
