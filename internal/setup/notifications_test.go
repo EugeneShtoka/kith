@@ -39,7 +39,7 @@ func TestRulesLeaveUnsetFieldsAlone(t *testing.T) {
 	rules, err := setup.NotificationRules(config.Notifications{
 		Rules: []config.Rule{
 			{Name: "Standup", Match: mx + "!standup:x", Sender: "matrix:@alice:x", Show: "all"},
-			{Match: "Work", Sound: "/s/boss.wav"},
+			{Name: "boss", Match: "Work"},
 			{Match: "Night", Show: "none", When: "22:00-08:00", Ring: "none"},
 		},
 	})
@@ -57,13 +57,13 @@ func TestRulesLeaveUnsetFieldsAlone(t *testing.T) {
 	if first.Show == nil || *first.Show != notify.LevelAll {
 		t.Errorf("Show = %v, want all", first.Show)
 	}
-	if first.Ring != nil || first.When != nil || first.Sound != "" {
+	if first.Ring != nil || first.When != nil {
 		t.Errorf("rule = %+v, want everything it did not set left unset", first)
 	}
 
 	second := rules[2]
-	if second.Sound != "/s/boss.wav" {
-		t.Errorf("rule = %+v, want the sound", second)
+	if second.Name != "boss" {
+		t.Errorf("rule = %+v, want the name", second)
 	}
 	if second.Show != nil {
 		t.Error("a rule that set no level should leave the level alone")

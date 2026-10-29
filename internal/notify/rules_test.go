@@ -165,15 +165,15 @@ func TestRuleOverridesOnlyWhatItSets(t *testing.T) {
 	t.Parallel()
 
 	rules := []notify.Rule{
-		{Name: "global", Show: new(notify.LevelMention), Sound: "/base.wav"},
-		{Name: "Work", Match: "space:Work", Sound: "/work.wav"},
+		{Name: "global", Show: new(notify.LevelMention)},
+		{Name: "Work", Match: "space:Work", Ring: new(notify.LevelAll)},
 	}
 	got := notify.Resolve(rules, notify.Scope{Room: place{room: mx + "!a:x", class: "space:Work"}}, clock(12, 0))
 	if got.Show != notify.LevelMention {
-		t.Errorf("Show = %v, want the global mention to survive a rule that only sets a sound", got.Show)
+		t.Errorf("Show = %v, want the global mention to survive a rule that only sets a ring", got.Show)
 	}
-	if got.Sound != "/work.wav" {
-		t.Errorf("Sound = %q, want the space's own", got.Sound)
+	if got.Ring != notify.LevelAll {
+		t.Errorf("Ring = %v, want the space's own", got.Ring)
 	}
 }
 

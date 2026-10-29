@@ -2,6 +2,7 @@ package notify
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -76,8 +77,6 @@ type Rule struct {
 	Show *Level
 	// Ring is the bar to also make a sound.
 	Ring *Level
-	// Sound is the file to play when it rings.
-	Sound string
 	// Temp marks a do-not-disturb rule set at runtime rather than read from config.
 	Temp bool
 	// Until is when a temporary rule lapses. Zero means until it is turned off.
@@ -202,10 +201,8 @@ func (r Rule) threadRank() int {
 type Resolved struct {
 	// Show and Ring are the effective bars.
 	Show, Ring Level
-	// Sound is the file to play when a notification rings.
-	Sound string
-	// ShowBy, RingBy and SoundBy are the rules that last set each.
-	ShowBy, RingBy, SoundBy Rule
+	// ShowBy and RingBy are the rules that last set each.
+	ShowBy, RingBy Rule
 	// Applied is every matching rule, least specific first, for explaining a decision.
 	Applied []Rule
 }
@@ -251,9 +248,6 @@ func Resolve(rules []Rule, s Scope, now time.Time) Resolved {
 		if rule.Ring != nil {
 			out.Ring, out.RingBy, ringSet = *rule.Ring, rule, true
 		}
-		if rule.Sound != "" {
-			out.Sound, out.SoundBy = rule.Sound, rule
-		}
 	}
 	// Ring follows Show unless a rule set it.
 	if !ringSet {
@@ -268,8 +262,9 @@ type Outcome struct {
 	Notify bool
 	// Silent shows it without a sound.
 	Silent bool
-	// Sound is the file to play when it is not silent.
-	Sound string
+	// Rules names the rules that matched, most specific first, for the device to pick
+	// a sound by; unnamed and temporary rules are left out.
+	Rules []string
 	// By is the rule whose Show blocked it, whose Ring silenced it, or whose Show admitted it.
 	By Rule
 }
@@ -284,9 +279,21 @@ func (r Resolved) Decide(e Event) Outcome {
 		return Outcome{By: r.ShowBy}
 	}
 	if !r.Ring.Admits(e) {
-		return Outcome{Notify: true, Silent: true, By: r.RingBy}
+		return Outcome{Notify: true, Silent: true, Rules: r.names(), By: r.RingBy}
 	}
-	return Outcome{Notify: true, Sound: r.Sound, By: r.ShowBy}
+	return Outcome{Notify: true, Rules: r.names(), By: r.ShowBy}
+}
+
+// names are the applied rules' names, most specific first: the one with the last word
+// on a sound comes first.
+func (r Resolved) names() []string {
+	var out []string
+	for _, rule := range slices.Backward(r.Applied) {
+		if rule.Name != "" && !rule.Temp {
+			out = append(out, rule.Name)
+		}
+	}
+	return out
 }
 
 // Temps is the set of temporary (do-not-disturb) rules the daemon holds.

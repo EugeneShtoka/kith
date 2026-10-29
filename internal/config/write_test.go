@@ -154,7 +154,6 @@ func TestSaveRoundTripsEveryShape(t *testing.T) {
 	cfg.Display.Names = append(cfg.Display.Names, DisplayName{Target: mx + "!a:x", Name: `He said "hi"`}) // escaping
 	cfg.Display.SpaceRules = []SpaceRule{{Space: "Work", FirstNameOnly: true}}
 	cfg.Notifications.Rules = []Rule{{Match: "Work", Show: "all", When: "22:00-08:00"}}
-	cfg.Notifications.Sound = `/sounds/"ding".oga`
 
 	body, path := saved(t, cfg)
 	reloaded, err := Load(path)

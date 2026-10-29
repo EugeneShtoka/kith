@@ -9,13 +9,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
-// NotificationRules is a built-in account-wide rule (show = mention, base sound)
-// followed by the configured rules. A configured rule with no match or sender ties on
+// NotificationRules is a built-in account-wide rule (show = mention) followed by the
+// configured rules. A configured rule with no match or sender ties on
 // specificity and, being later, overrides the account-wide level. Misspellings are errors.
 func NotificationRules(notifs config.Notifications) ([]notify.Rule, error) {
 	show := notify.LevelMention
-	// The account-wide rule's sound is the base one; a rule's own sound replaces it.
-	rules := []notify.Rule{{Name: everythingRule, Show: &show, Sound: notifs.Sound}}
+	rules := []notify.Rule{{Name: everythingRule, Show: &show}}
 	for i := range notifs.Rules {
 		rule, err := notificationRule(&notifs.Rules[i])
 		if err != nil {
@@ -36,7 +35,7 @@ func notificationRule(c *config.Rule) (notify.Rule, error) {
 	if err != nil {
 		return notify.Rule{}, fmt.Errorf("thread: %w", err)
 	}
-	rule := notify.Rule{Name: c.Name, Match: c.Match, Sender: c.Sender, Sound: c.Sound, Thread: thread}
+	rule := notify.Rule{Name: c.Name, Match: c.Match, Sender: c.Sender, Thread: thread}
 	if rule.Show, err = optionalLevel("show", c.Show); err != nil {
 		return notify.Rule{}, err
 	}

@@ -572,22 +572,34 @@ func TestSoundMuteSilencesWithoutHiding(t *testing.T) {
 	}
 }
 
-// The global sound is the default; a rule replaces it.
-func TestSoundIsGlobalWithRuleOverrides(t *testing.T) {
+// A notification names the rules that matched it, most specific first whatever their
+// order in the file, unnamed and do-not-disturb rules left out: the device picks its
+// sound by them. One a mute silenced names them too.
+func TestANotificationNamesItsRulesMostSpecificFirst(t *testing.T) {
 	t.Parallel()
 
 	cfg := notifsOn("all")
-	cfg.Notifications.Sound = "/s/default.oga"
-	cfg.Notifications.Rules = append(cfg.Notifications.Rules, config.Rule{Match: spaceEntry, Sound: "/s/work.oga"})
+	cfg.Notifications.Rules = append(cfg.Notifications.Rules,
+		config.Rule{Name: "alice", Sender: alice},
+		config.Rule{Name: "work", Match: spaceEntry},
+		config.Rule{Match: string(chatRm), Show: "all"},
+	)
 	n, _, _ := notifier(t, cfg)
 
-	got, _ := n.Deliver(context.Background(), msg(dmRoom, alice, "hi"))
-	if got.Sound != "/s/default.oga" {
-		t.Errorf("Sound = %q, want the global default", got.Sound)
+	want := []string{"alice", "work", "all rooms"}
+	got, _ := n.Deliver(context.Background(), msg(chatRm, alice, "hi"))
+	if !slices.Equal(got.Rules, want) {
+		t.Errorf("Rules = %q, want %q", got.Rules, want)
 	}
+	got, _ = n.Deliver(context.Background(), msg(dmRoom, alice, "hi"))
+	if elsewhere := []string{"alice", "all rooms"}; !slices.Equal(got.Rules, elsewhere) {
+		t.Errorf("Rules elsewhere = %q, want %q", got.Rules, elsewhere)
+	}
+
+	n.SetDND(named(silenceRule(chatRm, ""), "hush"))
 	got, _ = n.Deliver(context.Background(), msg(chatRm, alice, "hi"))
-	if got.Sound != "/s/work.oga" {
-		t.Errorf("Sound = %q, want the space rule's sound", got.Sound)
+	if !got.Silent || !slices.Equal(got.Rules, want) {
+		t.Errorf("muted: silent %v, Rules = %q; want silent, %q", got.Silent, got.Rules, want)
 	}
 }
 

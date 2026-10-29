@@ -272,10 +272,10 @@ var curatedSettings = []setting{
 	},
 	{
 		key: "notifications.sound", group: "notifications", label: "Notification sound",
-		show: func(c config.Settings) string { return orDefault(c.Bridge.Notifications.Sound, "silent") },
+		show: func(c config.Settings) string { return orDefault(c.Device.Notifications.Sound, "silent") },
 		kind: settingText,
-		edit: func(c config.Settings) string { return c.Bridge.Notifications.Sound },
-		set:  func(c *config.Settings, v string) error { c.Bridge.Notifications.Sound = v; return nil },
+		edit: func(c config.Settings) string { return c.Device.Notifications.Sound },
+		set:  func(c *config.Settings, v string) error { c.Device.Notifications.Sound = v; return nil },
 		help: "a sound file's path — empty for silent",
 	},
 	{

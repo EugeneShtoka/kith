@@ -42,7 +42,7 @@ func noticeToProto(v notice) *v1.Notification {
 	return &v1.Notification{
 		Id: v.id, Sender: a.Sender, SenderId: a.SenderID, Room: a.Room, Space: a.Space,
 		Body: a.Body, Protocol: a.Protocol, SentMs: sent, Date: a.Date, Time: a.Time,
-		Sound: a.Sound, Silent: a.Silent, Replaces: a.Replaces, Code: v.code,
+		Rules: a.Rules, Silent: a.Silent, Replaces: a.Replaces, Code: v.code,
 	}
 }
 
@@ -54,7 +54,7 @@ func protoToNotice(p *v1.Notification) Notice {
 	return Notice{ID: p.GetId(), Alert: notify.Notification{
 		Sender: p.GetSender(), SenderID: p.GetSenderId(), Room: p.GetRoom(), Space: p.GetSpace(),
 		Body: p.GetBody(), Protocol: p.GetProtocol(), Sent: sent, Date: p.GetDate(), Time: p.GetTime(),
-		Sound: p.GetSound(), Silent: p.GetSilent(), Replaces: p.GetReplaces(),
+		Rules: p.GetRules(), Silent: p.GetSilent(), Replaces: p.GetReplaces(),
 	}, Code: p.GetCode()}
 }
 

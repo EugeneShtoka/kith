@@ -11456,9 +11456,10 @@ type Notification struct {
 	SentMs int64  `protobuf:"varint,8,opt,name=sent_ms,json=sentMs,proto3" json:"sent_ms,omitempty"`
 	Date   string `protobuf:"bytes,9,opt,name=date,proto3" json:"date,omitempty"`
 	Time   string `protobuf:"bytes,10,opt,name=time,proto3" json:"time,omitempty"`
-	// The sound file to play, and whether to play none.
-	Sound  string `protobuf:"bytes,11,opt,name=sound,proto3" json:"sound,omitempty"`
-	Silent bool   `protobuf:"varint,12,opt,name=silent,proto3" json:"silent,omitempty"`
+	// The names of the rules that matched, most specific first, unnamed ones left out:
+	// the device picks the sound it maps to the first it has one for. silent plays none.
+	Rules  []string `protobuf:"bytes,11,rep,name=rules,proto3" json:"rules,omitempty"`
+	Silent bool     `protobuf:"varint,12,opt,name=silent,proto3" json:"silent,omitempty"`
 	// A key (the room) whose earlier popup this one replaces; "" for none.
 	Replaces string `protobuf:"bytes,13,opt,name=replaces,proto3" json:"replaces,omitempty"`
 	// A verification code to copy to the clipboard ([codes]), set on the notification
@@ -11568,11 +11569,11 @@ func (x *Notification) GetTime() string {
 	return ""
 }
 
-func (x *Notification) GetSound() string {
+func (x *Notification) GetRules() []string {
 	if x != nil {
-		return x.Sound
+		return x.Rules
 	}
-	return ""
+	return nil
 }
 
 func (x *Notification) GetSilent() bool {
@@ -16102,7 +16103,7 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x04date\x18\t \x01(\tR\x04date\x12\x12\n" +
 	"\x04time\x18\n" +
 	" \x01(\tR\x04time\x12\x14\n" +
-	"\x05sound\x18\v \x01(\tR\x05sound\x12\x16\n" +
+	"\x05rules\x18\v \x03(\tR\x05rules\x12\x16\n" +
 	"\x06silent\x18\f \x01(\bR\x06silent\x12\x1a\n" +
 	"\breplaces\x18\r \x01(\tR\breplaces\x12\x12\n" +
 	"\x04code\x18\x0e \x01(\tR\x04code\"Z\n" +

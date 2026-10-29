@@ -63,11 +63,15 @@ func splitOnce(configPath, devicePath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	// A key neither file reads is a mistake to show, not one to drop with the rewrite.
+	if merr := moveRuleSounds(configPath, string(body), &cfg, &fromConfig); merr != nil {
+		return false, merr
+	}
+	// A key neither file reads is a mistake to show, not one to drop with the rewrite;
+	// a rule's sound is moved by its rule's name, above.
 	notDevice := keyStrings(deviceMeta.Undecoded())
 	var unknown []toml.Key
 	for _, key := range notBridge {
-		if slices.Contains(notDevice, key.String()) {
+		if key.String() != ruleSoundKey && slices.Contains(notDevice, key.String()) {
 			unknown = append(unknown, key)
 		}
 	}
@@ -100,6 +104,69 @@ func splitOnce(configPath, devicePath string) (bool, error) {
 		return false, err
 	}
 	return true, Save(configPath, cfg)
+}
+
+// ruleSoundKey is a rule's sound, written when a rule carried its own: now the device's,
+// under the rule's name ([notifications.sounds]).
+const ruleSoundKey = "notifications.rule.sound"
+
+// moveRuleSounds moves each rule's sound in text to dev's sounds, by the name of its
+// rule in cfg: an unnamed rule, or one sharing its name with a rule of another sound (or
+// none), is given a name of its own first, so no other rule takes its sound. The same
+// text always gives the same names, so a split cut off before the config's rewrite is
+// finished alike.
+func moveRuleSounds(source, text string, cfg *Config, dev *Device) error {
+	var file struct {
+		Notifications struct {
+			Rules []struct {
+				Sound string `toml:"sound"`
+			} `toml:"rule"`
+		} `toml:"notifications"`
+	}
+	if _, err := toml.Decode(text, &file); err != nil {
+		return fmt.Errorf("config: decode %s: %w", source, err)
+	}
+	rules, had := cfg.Notifications.Rules, file.Notifications.Rules
+	if len(had) != len(rules) {
+		return fmt.Errorf("config: %s: its rules read differently twice", source)
+	}
+	shared := func(i int) bool {
+		for j := range rules {
+			if j != i && rules[j].Name == rules[i].Name && had[j].Sound != had[i].Sound {
+				return true
+			}
+		}
+		return false
+	}
+	for i := range rules {
+		if had[i].Sound == "" {
+			continue
+		}
+		if rules[i].Name == "" {
+			rules[i].Name = UniqueRuleName(derivedRuleName(rules[i]), rules)
+		} else if shared(i) {
+			rules[i].Name = UniqueRuleName(rules[i].Name, rules)
+		}
+		if dev.Notifications.Sounds == nil {
+			dev.Notifications.Sounds = map[string]string{}
+		}
+		dev.Notifications.Sounds[rules[i].Name] = had[i].Sound
+	}
+	return nil
+}
+
+// derivedRuleName names a rule by what it matches.
+func derivedRuleName(r Rule) string {
+	switch {
+	case r.Sender != "" && r.Match != "":
+		return r.Sender + " in " + r.Match
+	case r.Sender != "":
+		return r.Sender
+	case r.Match != "":
+		return r.Match
+	default:
+		return "everything"
+	}
 }
 
 // keepBefore keeps body as the config before its first split, beside it; a later split

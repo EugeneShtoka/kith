@@ -209,9 +209,10 @@ type agent struct {
 	// seen are the notifications shown lately, by ID: one in several profiles arrives
 	// on each of their streams.
 	seen recent
-	// notifier shows, and clip copies codes, with the device file's [notifications]
-	// and [clipboard] as of revision.
+	// notifier shows, sounds picks its sound, and clip copies codes, with the device
+	// file's [notifications] and [clipboard] as of revision.
 	notifier notify.Notifier
+	sounds   config.DeviceNotifications
 	clip     notify.Clipboard
 	revision string
 	// toldWaiting is set once kithd's waiting (api.ErrDaemonWaiting) has been shown, so
@@ -226,7 +227,7 @@ func newAgent(log *slog.Logger, kithd func() *daemon.Remote, sinks func(config.D
 ) *agent {
 	return &agent{
 		log: log, kithd: kithd, sinks: sinks, device: device, seen: newRecent(recentIDs),
-		notifier: sinks(dev.Notifications), clip: notify.Clipboard{Command: dev.Clipboard.Command},
+		notifier: sinks(dev.Notifications), sounds: dev.Notifications, clip: notify.Clipboard{Command: dev.Clipboard.Command},
 	}
 }
 
@@ -293,7 +294,8 @@ func (a *agent) started() {
 }
 
 // show shows v unless it was shown already, with the device's settings as they are
-// now, first copying the code it announces, if any, and saying whether it could.
+// now and the sound they give its rules, first copying the code it announces, if any,
+// and saying whether it could.
 func (a *agent) show(ctx context.Context, v daemon.Notice) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -301,6 +303,9 @@ func (a *agent) show(ctx context.Context, v daemon.Notice) {
 		return
 	}
 	a.reread()
+	if !v.Alert.Silent {
+		v.Alert.Sound = a.sounds.SoundFor(v.Alert.Rules)
+	}
 	if v.Code != "" {
 		v.Alert.Body = v.Code + " — copied to the clipboard"
 		if err := a.clip.Copy(ctx, v.Code); err != nil {
@@ -330,7 +335,7 @@ func (a *agent) reread() {
 		a.log.Warn("reading the device file; showing with the settings read last", "err", err)
 		return
 	}
-	a.notifier, a.revision = a.sinks(dev.Notifications), revision
+	a.notifier, a.sounds, a.revision = a.sinks(dev.Notifications), dev.Notifications, revision
 	a.clip = notify.Clipboard{Command: dev.Clipboard.Command}
 }
 

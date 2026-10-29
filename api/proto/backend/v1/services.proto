@@ -1253,8 +1253,9 @@ message Notification {
   int64 sent_ms = 8;
   string date = 9;
   string time = 10;
-  // The sound file to play, and whether to play none.
-  string sound = 11;
+  // The names of the rules that matched, most specific first, unnamed ones left out:
+  // the device picks the sound it maps to the first it has one for. silent plays none.
+  repeated string rules = 11;
   bool silent = 12;
   // A key (the room) whose earlier popup this one replaces; "" for none.
   string replaces = 13;

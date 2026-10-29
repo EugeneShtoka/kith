@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/BurntSushi/toml"
 )
 
 // A setting written into a test file: its property, and its value as TOML.
@@ -91,8 +94,12 @@ func bridgeValue(cfg Config, path string) string {
 // settings, and what the device file already holds.
 type splitCase struct {
 	bridge, inConfig, inDevice []written
-	reply                      string // [keys] timeline.reply in the config, if any
+	reply                      string     // [keys] timeline.reply in the config, if any
+	rules                      []ruleCase // [[notifications.rule]] in the config
 }
+
+// ruleCase is a rule as a config from before device sounds wrote it.
+type ruleCase struct{ name, match, sound string }
 
 func genSplitCase(rng *rand.Rand) splitCase {
 	c := splitCase{
@@ -105,7 +112,59 @@ func genSplitCase(rng *rand.Rand) splitCase {
 	if rng.IntN(3) == 0 {
 		c.reply = "R"
 	}
+	// Names and matches from small sets, so names repeat, an unnamed rule's derived name
+	// is another's, and rules sharing a name differ in sound or have none.
+	pick := func(of ...string) string { return of[rng.IntN(len(of))] }
+	for range rng.IntN(5) {
+		c.rules = append(c.rules, ruleCase{
+			name: pick("", "", "a", "dm"), match: pick("", "dm", "space:W"), sound: pick("", "/1.oga", "/2.oga"),
+		})
+	}
 	return c
+}
+
+// rulesText is the case's rules as TOML.
+func (c splitCase) rulesText() string {
+	var b strings.Builder
+	for _, r := range c.rules {
+		b.WriteString("\n[[notifications.rule]]\nshow = \"all\"\n")
+		for key, value := range map[string]string{"name": r.name, "match": r.match, "sound": r.sound} {
+			if value != "" {
+				fmt.Fprintf(&b, "%s = %q\n", key, value)
+			}
+		}
+	}
+	return b.String()
+}
+
+// ruleSounds are the sounds the case's rules give: rule i's sound, under its name in
+// cfg, as dev holds them; "" where dev maps none.
+func ruleSounds(cfg Config, dev Device) []string {
+	out := make([]string, len(cfg.Notifications.Rules))
+	for i, r := range cfg.Notifications.Rules {
+		if r.Name != "" {
+			out[i] = dev.Notifications.Sounds[r.Name]
+		}
+	}
+	return out
+}
+
+// checkRuleSounds holds that every rule sounds on the device as it did in the config:
+// its own sound under its name, and no other rule's.
+func (c splitCase) checkRuleSounds(t *testing.T, seed uint64, cfg Config, dev Device) {
+	t.Helper()
+	if len(cfg.Notifications.Rules) != len(c.rules) {
+		t.Fatalf("seed %d: %d rules after the split, want %d", seed, len(cfg.Notifications.Rules), len(c.rules))
+	}
+	got := ruleSounds(cfg, dev)
+	for i, r := range c.rules {
+		if got[i] != r.sound {
+			t.Fatalf("seed %d: rule %d %+v sounds %q on the device as %q, want %q", seed, i, r, got[i], cfg.Notifications.Rules[i].Name, r.sound)
+		}
+		if r.name != "" && r.sound == "" && cfg.Notifications.Rules[i].Name != r.name {
+			t.Fatalf("seed %d: rule %d %+v with no sound was renamed %q", seed, i, r, cfg.Notifications.Rules[i].Name)
+		}
+	}
 }
 
 // files writes the case's config.toml (and device.toml when it has one) into dir.
@@ -116,7 +175,7 @@ func (c splitCase) files(t *testing.T, dir string) (configPath, devicePath strin
 	if c.reply != "" {
 		text += "\n[keys.timeline]\nreply = \"" + c.reply + "\"\n"
 	}
-	writeFile(t, configPath, text)
+	writeFile(t, configPath, text+c.rulesText())
 	if c.inDevice != nil {
 		writeFile(t, devicePath, tomlText(c.inDevice))
 	}
@@ -190,6 +249,7 @@ func (c splitCase) check(t *testing.T, seed uint64, configPath, devicePath strin
 	if got := dev.Keys.Bindings["timeline.reply"]; got != want.Keys.Bindings["timeline.reply"] {
 		t.Fatalf("seed %d: reply bound to %q, want %q", seed, got, want.Keys.Bindings["timeline.reply"])
 	}
+	c.checkRuleSounds(t, seed, cfg, dev)
 	before := snapshot(t, configPath, devicePath)
 	if moved, err := SplitDevice(configPath, devicePath); moved || err != nil {
 		t.Fatalf("seed %d: a second split = %v, %v; want nothing to move", seed, moved, err)
@@ -309,9 +369,27 @@ func lostSetting(c splitCase, want Device, configPath, devicePath string) string
 	if err != nil {
 		return ""
 	}
+	cfg, _, err := decodeLoose("", string(configText))
+	if err != nil {
+		return ""
+	}
+	var still struct {
+		Notifications struct {
+			Rules []struct{ Sound string } `toml:"rule"`
+		} `toml:"notifications"`
+	}
+	if _, derr := toml.Decode(string(configText), &still); derr != nil {
+		return ""
+	}
 	dev, err := LoadDevice(devicePath)
 	if err != nil {
 		dev = deviceBaseline()
+	}
+	held := ruleSounds(cfg, dev)
+	for i, r := range still.Notifications.Rules {
+		if r.Sound == "" && i < len(held) && held[i] != c.rules[i].sound {
+			return fmt.Sprintf("rule %d's sound", i)
+		}
 	}
 	for _, s := range c.inConfig {
 		p := s.p.Path
@@ -467,5 +545,106 @@ speed = 1.5
 	if m.CacheDir != "~/pictures" || m.Anonymizes() || m.Audio.Speed != 1.5 ||
 		len(m.Rules) != 1 || m.Rules[0].Match != "space:Work" || m.Rules[0].Dir != "~/work" {
 		t.Errorf("the config's media did not all move: %+v", m)
+	}
+}
+
+// beforeDeviceSounds is a config from before sounds were the device's: a default, a
+// named rule's, two unnamed rules of one scope (whose derived name a later rule has),
+// a rule sharing its name with one of no sound, and an empty sound.
+const beforeDeviceSounds = `[notifications]
+sound = "/d.oga"
+max_per_room = 3
+
+[[notifications.rule]]
+name = "boss"
+sender = "matrix:@alice:x"
+show = "all"
+sound = "/boss.oga"
+
+[[notifications.rule]]
+match = "space:Work"
+sound = "/work.oga"
+
+[[notifications.rule]]
+match = "space:Work"
+when = "22:00-08:00"
+sound = "/night.oga"
+
+[[notifications.rule]]
+name = "space:Work"
+show = "none"
+
+[[notifications.rule]]
+name = "dup"
+match = "dm"
+sound = "/dm.oga"
+
+[[notifications.rule]]
+name = "dup"
+match = "group"
+show = "all"
+
+[[notifications.rule]]
+name = "hush"
+ring = "none"
+sound = ""
+`
+
+// The default sound and every rule's move to the device, each rule's under a name only
+// it has, and a sound the device file already gives a name is kept; splitting again
+// changes nothing, and a split cut off between its writes is finished alike.
+func TestASplitMovesRuleSoundsToTheDevice(t *testing.T) {
+	t.Parallel()
+	whole := t.TempDir()
+	configPath, devicePath := filepath.Join(whole, BridgeFile), filepath.Join(whole, DeviceFile)
+	writeFile(t, configPath, beforeDeviceSounds)
+	writeFile(t, devicePath, "[notifications.sounds]\nboss = \"/mine.oga\"\n")
+	if moved, err := SplitDevice(configPath, devicePath); !moved || err != nil {
+		t.Fatalf("SplitDevice = %v, %v; want the sounds moved", moved, err)
+	}
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, r := range cfg.Notifications.Rules {
+		names = append(names, r.Name)
+	}
+	if want := []string{"boss", "space:Work 2", "space:Work 3", "space:Work", "dup 2", "dup", "hush"}; !slices.Equal(names, want) {
+		t.Errorf("rule names = %q, want %q", names, want)
+	}
+	if cfg.Notifications.MaxPerRoom != 3 || cfg.Notifications.Rules[2].When != "22:00-08:00" {
+		t.Errorf("the config's own settings changed: %+v", cfg.Notifications)
+	}
+	dev, err := LoadDevice(devicePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"boss": "/mine.oga", "space:Work 2": "/work.oga", "space:Work 3": "/night.oga", "dup 2": "/dm.oga"}
+	if dev.Notifications.Sound != "/d.oga" || !maps.Equal(dev.Notifications.Sounds, want) {
+		t.Errorf("device sound %q, sounds %v; want /d.oga, %v", dev.Notifications.Sound, dev.Notifications.Sounds, want)
+	}
+	if got, _ := os.ReadFile(configPath + ".before-device"); string(got) != beforeDeviceSounds {
+		t.Errorf("kept %q, want the config as it was", got)
+	}
+	split := snapshot(t, configPath, devicePath)
+	if moved, serr := SplitDevice(configPath, devicePath); moved || serr != nil || snapshot(t, configPath, devicePath) != split {
+		t.Errorf("a second split = %v, %v, or rewrote a file; want nothing to move", moved, serr)
+	}
+
+	// Cut off after the device file: the config still holds the sounds.
+	cut := t.TempDir()
+	cutConfig, cutDevice := filepath.Join(cut, BridgeFile), filepath.Join(cut, DeviceFile)
+	writeFile(t, cutConfig, beforeDeviceSounds)
+	data, err := os.ReadFile(devicePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, cutDevice, string(data))
+	if _, err := SplitDevice(cutConfig, cutDevice); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot(t, cutConfig, cutDevice) != split {
+		t.Error("the split after a cut-off one ended elsewhere than one never cut off")
 	}
 }
