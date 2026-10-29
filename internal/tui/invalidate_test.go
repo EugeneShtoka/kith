@@ -84,12 +84,12 @@ func TestCacheInvalidatedByUnreadChange(t *testing.T) {
 		{ID: mx + "$root", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob", Body: "question", Timestamp: at(1)},
 		{ID: mx + "$r1", RoomID: mx + "!a:x", Sender: "matrix:@carol:x", SenderName: "Carol", Body: "answer", ThreadRoot: mx + "$root", Timestamp: at(2)},
 	})
-	m.unread[mx+"!a:x"] = domain.Unread{Threads: []domain.ThreadUnread{{Root: mx + "$root", Unread: 2}}}
+	m.unread = withEntry(m.unread, mx+"!a:x", domain.Unread{Threads: []domain.ThreadUnread{{Root: mx + "$root", Unread: 2}}})
 	if got := strings.Join(m.layoutRows(), "\n"); !strings.Contains(got, "●2") {
 		t.Fatalf("thread badge missing:\n%s", got)
 	}
 	// Read elsewhere: same messages, different counts.
-	m.unread[mx+"!a:x"] = domain.Unread{Threads: []domain.ThreadUnread{{Root: mx + "$root", Unread: 0}}}
+	m.unread = withEntry(m.unread, mx+"!a:x", domain.Unread{Threads: []domain.ThreadUnread{{Root: mx + "$root", Unread: 0}}})
 	if got := strings.Join(m.layoutRows(), "\n"); strings.Contains(got, "●2") {
 		t.Errorf("the thread badge survived being read:\n%s", got)
 	}

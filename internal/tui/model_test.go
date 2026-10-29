@@ -2403,7 +2403,7 @@ func TestMarkReadDedupes(t *testing.T) {
 	rb := &recordingBackend{}
 	m := update(t, starterNew(rb, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
-	m.unread[mx+"!a:x"] = domain.Unread{RoomID: mx + "!a:x", Notifications: 3}
+	m.unread = withEntry(m.unread, mx+"!a:x", domain.Unread{RoomID: mx + "!a:x", Notifications: 3})
 	m = m.setMessages([]domain.Message{{ID: mx + "$e1", RoomID: mx + "!a:x"}})
 
 	// First mark sends a receipt for the newest event and records the target.

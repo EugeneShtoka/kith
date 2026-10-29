@@ -51,19 +51,18 @@ const (
 )
 
 // group is a rail entry: a stable key ("home", "dms", … or a space's name), a
-// possibly renamed label, and a room filter.
+// possibly renamed label, and the rail row it draws (domain.RailRow).
 type group struct {
 	key   string
 	label string
-	// admits reports whether a room belongs, judged by the view passed in (the Model's current
-	// one); a group captures only its own shape (a space's children), never changing state.
-	admits func(unreadView, domain.Room) bool
+	// space is the space a space's row is, "" for any other; with key it names the row whose
+	// rooms admits reads.
+	space domain.SpaceID
 	// sepAfter draws a divider row beneath this group (a separator token in the rail order).
 	sepAfter bool
-	// sticky keeps the open room listed until you move off it; first puts the row at the top
-	// unless the rail order places it; countInLabel appends the room count; hideWhenEmpty drops
-	// the row while empty.
-	sticky, first, countInLabel, hideWhenEmpty bool
+	// sticky keeps the open room listed until you move off it; countInLabel appends the room
+	// count.
+	sticky, countInLabel bool
 	// network is the one network all its rooms are on, "" otherwise; set by rebuiltRail only while
 	// the rail colors by network.
 	network domain.Protocol
@@ -74,9 +73,15 @@ type group struct {
 	owner domain.RoomOwner
 }
 
-// railGroups builds the rail (a row per tag, then a group per space) and applies the rail
-// config. All, Unread, Archived and the rest are config-defined tags; a rail with nothing to
-// show gets one All row.
+// admits reports whether a room belongs, judged by the view passed in (the Model's current
+// one): the group's row holds it in the rail built from the view's state now.
+func (g group) admits(v unreadView, r domain.Room) bool {
+	return v.railHolds(railRowRef{key: g.key, space: g.space}, r.ID)
+}
+
+// railGroups builds the rail (domain.BuildRail: a row per tag, then a group per space) and
+// the rows it shows (domain.ShownRows). All, Unread, Archived and the rest are config-defined
+// tags; a rail with nothing to show gets one All row.
 func railGroups(
 	spaces []domain.Space,
 	cfg config.Rail,
@@ -85,66 +90,27 @@ func railGroups(
 	view unreadView,
 	rooms []domain.Room,
 ) []group {
-	groups := tagGroups(view)
-	for _, s := range spaces {
-		children := make(map[domain.RoomID]bool, len(s.Children))
-		for _, id := range s.Children {
-			children[id] = true
-		}
-		name, spaceID := s.DisplayName(), s.ID
-		// A bridge-kept space (a network's grouping, a community) is where its rooms belong; a
-		// person-made space is not.
-		belongs := s.Keeper != "" || s.Bridge.IsBridged()
-		var home domain.Protocol
-		if s.Bridge != "" && s.Bridge != domain.ProtocolMatrix {
-			home = s.Bridge
-		}
-		var owner domain.RoomOwner
-		if s.Leaving == domain.LeftBySigningOut {
-			owner = domain.OwnerOf(domain.RoomID(spaceID))
-		}
+	view.rail = railInputs{spaces: spaces, rooms: rooms, cfg: cfg, names: names}
+	built := view.builtRail()
+	rows := domain.ShownRows(built.rail, built.spec)
+	groups := make([]group, 0, len(rows))
+	for i := range rows {
+		r := &rows[i]
 		groups = append(groups, group{
-			key:   name,
-			label: name,
-			home:  home,
-			owner: owner,
-			admits: func(v unreadView, r domain.Room) bool {
-				// An invitation is not in any space until dealt with.
-				if !children[r.ID] || r.IsInvite() {
-					return false
-				}
-				// Its origin is where it belongs: a bridge's space or its canonical home.
-				return !v.leavesSpace(r, belongs || v.parents[r.ID] == spaceID)
-			},
+			key: r.Key, label: r.Label, space: r.Space, sepAfter: r.SepAfter,
+			sticky: r.Sticky, countInLabel: r.CountInLabel, home: r.Home, owner: r.Owner,
 		})
 	}
-	if len(groups) == 0 {
-		groups = []group{fallbackGroup()}
-	}
-	groups, cfg.Order = applyRailConfig(groups, cfg, names, view, rooms)
-	return withoutTrailingSeparator(promoteFirst(groups, cfg))
+	return groups
 }
 
 // fallbackGroupKey is the rail key of the single row a rail with no spaces and no tags gets.
-const fallbackGroupKey = "*all"
+const fallbackGroupKey = domain.RailFallbackKey
 
 // fallbackGroup is every room but invitations, for a config with no tags and an account
 // with no spaces.
 func fallbackGroup() group {
-	return group{
-		key:    fallbackGroupKey,
-		label:  "All",
-		admits: func(v unreadView, r domain.Room) bool { return !r.IsInvite() },
-	}
-}
-
-// withoutTrailingSeparator drops a divider under the last group, e.g. from
-// `["*", "-", "tag:Archived"]` on a day nothing is archived.
-func withoutTrailingSeparator(groups []group) []group {
-	if n := len(groups); n > 0 && groups[n-1].sepAfter {
-		groups[n-1].sepAfter = false
-	}
-	return groups
+	return group{key: fallbackGroupKey, label: "All"}
 }
 
 // rebuiltRail rebuilds the rail from the model's state, keeping the cursor on the same group.
@@ -194,108 +160,6 @@ func isTagGroup(key string) bool {
 // fallback row. A space's key is its name.
 func isSpaceGroup(key string) bool { return key != fallbackGroupKey && !isTagGroup(key) }
 
-// tagGroups is a rail row per visible tag, in configured order (see unreadView.showsInTag for
-// membership).
-func tagGroups(view unreadView) []group {
-	groups := make([]group, 0, view.tags.Len())
-	for i := range view.tags.Len() {
-		t := view.tags.At(i)
-		if t.Hidden {
-			continue
-		}
-		groups = append(groups, group{
-			key:    tagGroupKey(t.Name),
-			label:  t.Name,
-			admits: func(v unreadView, r domain.Room) bool { return v.showsInTag(i, r) },
-			sticky: t.Sticky, first: t.First, countInLabel: t.CountInLabel, hideWhenEmpty: t.HideWhenEmpty,
-		})
-	}
-	return groups
-}
-
-// promoteFirst moves rows marked first (a tag with `first`, as Invites) to the top unless the
-// rail order places them: applyRailConfig demotes unnamed groups, which would bury invitations.
-func promoteFirst(groups []group, cfg config.Rail) []group {
-	var front, rest []group
-	for _, g := range groups {
-		if g.first && !containsKey(cfg.Order, g.key) {
-			front = append(front, g)
-		} else {
-			rest = append(rest, g)
-		}
-	}
-	if len(front) == 0 {
-		return groups
-	}
-	return append(front, rest...)
-}
-
-// applyRailConfig renames, hides, then reorders groups; hiding everything keeps Home. Order:
-// named keys first, a separator draws a divider after the preceding group, the wildcard stands
-// for every unnamed group, and the rest keep default order at the end. Each list holds home
-// entries (domain.NamesHome); it returns the order resolved to group keys (resolveOrder).
-func applyRailConfig(groups []group, cfg config.Rail, names []config.DisplayName, view unreadView, rooms []domain.Room) ([]group, []string) {
-	display := config.Display{Names: names}
-	for i := range groups {
-		if label := display.NameFor(config.GroupTarget(groups[i].key)); label != "" {
-			groups[i].label = label
-		}
-	}
-
-	hidden := make(map[string]bool, len(cfg.Hidden))
-	for _, entry := range cfg.Hidden {
-		for _, key := range groupsNamed(groups, entry) {
-			hidden[key] = true
-		}
-	}
-	// A tag with hide_when_empty, as if listed in [display.rail] hide_when_empty.
-	for _, g := range groups {
-		if g.hideWhenEmpty && !hidden[g.key] && !anyRoomIn(g, view, rooms) {
-			hidden[g.key] = true
-		}
-	}
-	// hide_when_empty drops a group whose filter matches no room.
-	for _, g := range groups {
-		named := slices.ContainsFunc(cfg.HideWhenEmpty, g.namedBy)
-		if named && !hidden[g.key] && !anyRoomIn(g, view, rooms) {
-			hidden[g.key] = true
-		}
-	}
-	byKey := make(map[string]group, len(groups))
-	kept := make([]group, 0, len(groups))
-	for _, g := range groups {
-		if hidden[g.key] {
-			continue
-		}
-		byKey[g.key] = g
-		kept = append(kept, g)
-	}
-	order := resolveOrder(groups, cfg.Order)
-	if len(kept) == 0 { // never leave the rail empty
-		return groups[:1], order
-	}
-	if len(order) == 0 {
-		return kept, order
-	}
-
-	return orderGroups(kept, byKey, order), order
-}
-
-// resolveOrder maps each rail-order entry to the keys of the groups it names, in rail order (a
-// place:<name> can name several). Dividers and the wildcard stay as written; an entry naming no
-// group drops out.
-func resolveOrder(groups []group, order []string) []string {
-	out := make([]string, 0, len(order))
-	for _, tok := range order {
-		if isSeparator(tok) || isWildcard(tok) {
-			out = append(out, tok)
-			continue
-		}
-		out = append(out, groupsNamed(groups, tok)...)
-	}
-	return out
-}
-
 // groupsNamed is the keys of the groups a home entry names, in rail order.
 func groupsNamed(groups []group, entry string) []string {
 	var keys []string
@@ -310,65 +174,6 @@ func groupsNamed(groups []group, entry string) []string {
 // namedBy reports whether a home entry names the group: space:<its name>, tag:<its name>, or
 // place: with its label or name.
 func (g group) namedBy(entry string) bool { return domain.NamesHome(entry, g.key, g.label) }
-
-// orderGroups emits the kept groups in configured order, unplaced ones last.
-func orderGroups(kept []group, byKey map[string]group, order []string) []group {
-	// The wildcard expands against the whole order, so a group named after it (`["*", "archived"]`)
-	// is not swallowed.
-	named := make(map[string]bool, len(order))
-	for _, tok := range order {
-		if !isSeparator(tok) && !isWildcard(tok) {
-			named[tok] = true
-		}
-	}
-
-	placed := make(map[string]bool, len(kept))
-	out := make([]group, 0, len(kept))
-	for _, tok := range order {
-		switch {
-		case isSeparator(tok):
-			if len(out) > 0 {
-				out[len(out)-1].sepAfter = true
-			}
-		case isWildcard(tok):
-			out = placeUnnamed(out, kept, named, placed)
-		default:
-			if g, ok := byKey[tok]; ok && !placed[tok] {
-				out, placed[tok] = append(out, g), true
-			}
-		}
-	}
-	for _, g := range kept {
-		if !placed[g.key] {
-			out = append(out, g)
-		}
-	}
-	return out
-}
-
-// placeUnnamed appends every group the order neither names nor has placed — the wildcard's share.
-func placeUnnamed(out, kept []group, named, placed map[string]bool) []group {
-	for _, g := range kept {
-		if !named[g.key] && !placed[g.key] {
-			out, placed[g.key] = append(out, g), true
-		}
-	}
-	return out
-}
-
-// railWildcard is the rail-order token standing for every group the order does not name.
-const railWildcard = "*"
-
-// isWildcard reports whether a rail-order token is the wildcard.
-func isWildcard(tok string) bool { return tok == railWildcard }
-
-// isSeparator reports whether a rail-order token is one or more dashes (a divider).
-func isSeparator(tok string) bool { return tok != "" && strings.Trim(tok, "-") == "" }
-
-// anyRoomIn reports whether a group would show anything.
-func anyRoomIn(g group, view unreadView, rooms []domain.Room) bool {
-	return slices.ContainsFunc(rooms, func(r domain.Room) bool { return g.admits(view, r) })
-}
 
 // scrollback is a pane's position in a conversation's history.
 type scrollback struct {
@@ -800,7 +605,7 @@ func New(ctx context.Context, backend api.Backend, display config.Display, devic
 		receipts: receiptState{policy: readSettingsFrom(device)},
 		parents:  parents,
 		// Tags arrive with the config (WithConfigFile): until then, the fallback row.
-		rail: railState{groups: []group{fallbackGroup()}, cfg: display.Rail, tagMemo: &tagMemo{}},
+		rail: railState{groups: []group{fallbackGroup()}, cfg: display.Rail, railMemo: &railMemo{}},
 		st:   statusState{standing: "loading rooms…"},
 		conf: configState{device: config.Device{Display: device, Keys: config.DefaultKeys()}},
 	}

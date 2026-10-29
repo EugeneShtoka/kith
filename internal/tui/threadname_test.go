@@ -54,7 +54,7 @@ func TestAThreadWithNoNameIsNamed(t *testing.T) {
 	if got := named.prefs.threadAliases[mx+"$root"]; got != "Rolling back the migration" {
 		t.Errorf("threadAliases = %q, want the generated name", got)
 	}
-	if got := named.prefs.display.NameFor(config.NameTargetThread + mx + "$root"); got == "" {
+	if got := nameFor(named.prefs.display, config.NameTargetThread+mx+"$root"); got == "" {
 		t.Error("the name was not written to the config, so it would not survive a restart")
 	}
 }

@@ -362,6 +362,61 @@ func (s TagSet) HasAt(i int, facts RoomFacts, state RoomState) bool {
 	return s.has(i, facts, state, map[int]bool{})
 }
 
+// RoomTags is what the tags make of one room: which hold it, whether it is silenced,
+// the tag it shows under alone, and which spaces it leaves.
+type RoomTags struct {
+	In       []bool // by tag index: the tag holds it
+	Silenced bool   // a silent tag holds it
+	Owner    int    // the tag it shows under alone (exclusive tags), first in config order; -1 none
+	// Leaves is where the tags holding it take it from.
+	Leaves Exclusive
+}
+
+// Judge judges every tag on one room. Silence uses the room's own state; other tags
+// see a silenced room as read, so a silent tag never feeds back on itself.
+func (s TagSet) Judge(facts RoomFacts, raw RoomState) RoomTags {
+	n := s.Len()
+	out := RoomTags{In: make([]bool, n), Owner: -1}
+	for i := range n {
+		if s.At(i).Silent && s.HasAt(i, facts, raw) {
+			out.Silenced = true
+			break
+		}
+	}
+	seen := raw
+	if out.Silenced {
+		seen.Unread, seen.Mention = false, false
+	}
+	for i := range n {
+		tag, state := s.At(i), seen
+		if tag.Silent {
+			state = raw
+		}
+		if out.In[i] = s.HasAt(i, facts, state); !out.In[i] {
+			continue
+		}
+		if tag.Exclusive.Tags && out.Owner < 0 {
+			out.Owner = i
+		}
+		out.Leaves.Spaces = out.Leaves.Spaces || tag.Exclusive.Spaces
+		out.Leaves.Origin = out.Leaves.Origin || tag.Exclusive.Origin
+	}
+	return out
+}
+
+// shows reports whether tag i's row lists the room: the tag holds it and no exclusive
+// tag claims it.
+func (t RoomTags) shows(i int) bool { return t.In[i] && (t.Owner < 0 || t.Owner == i) }
+
+// leavesSpace reports whether a tag holding the room takes it out of a space; origin is
+// whether the room belongs there.
+func (t RoomTags) leavesSpace(origin bool) bool {
+	if origin {
+		return t.Leaves.Origin
+	}
+	return t.Leaves.Spaces
+}
+
 // Has reports whether the named tag holds a room. Excluded beats picked beats the
 // rule; the rule needs no `not` term to match and some positive term to match
 // (none if it has only `not` terms). An empty rule holds only picked rooms.

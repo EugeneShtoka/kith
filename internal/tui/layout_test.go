@@ -138,7 +138,7 @@ func TestSetName(t *testing.T) {
 		t.Fatalf("replacing gave %+v, want two entries", replaced)
 	}
 	got := config.Display{Names: replaced}
-	if got.NameFor(mx+"!a:x") != "A2" || got.NameFor(config.NameTargetSpace+"Work") != "B" {
+	if nameFor(got, mx+"!a:x") != "A2" || nameFor(got, config.NameTargetSpace+"Work") != "B" {
 		t.Errorf("names = %+v", replaced)
 	}
 	if added := config.SetName(start, config.NameTargetThread+mx+"$t:x", "C"); len(added) != 3 {
@@ -188,7 +188,7 @@ func TestRenameGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reloaded.Display.NameFor(config.NameTargetSpace+"Work") != "Day Job" {
+	if nameFor(reloaded.Display, config.NameTargetSpace+"Work") != "Day Job" {
 		t.Errorf("names = %v", reloaded.Display.Names)
 	}
 
