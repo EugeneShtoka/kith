@@ -61,9 +61,12 @@ type DeviceResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// socket is the local kithd's socket, which the relay forwards BackendService to.
 	Socket string `protobuf:"bytes,1,opt,name=socket,proto3" json:"socket,omitempty"`
-	// profile is the [[profile]] this device runs in, as the config spells it: the
-	// config's first.
-	Profile       string `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
+	// profile is the [[profile]] this device last ran in, as the config spells it; ""
+	// when none was ever chosen, or the config no longer has it. With one profile a
+	// window runs in it unasked; with several and none here, it asks.
+	Profile string `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
+	// profiles are the names of the config's [[profile]]s, in its order.
+	Profiles      []string `protobuf:"bytes,3,rep,name=profiles,proto3" json:"profiles,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -112,17 +115,120 @@ func (x *DeviceResponse) GetProfile() string {
 	return ""
 }
 
+func (x *DeviceResponse) GetProfiles() []string {
+	if x != nil {
+		return x.Profiles
+	}
+	return nil
+}
+
+type ChooseProfileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name is a profile's name, in any case.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChooseProfileRequest) Reset() {
+	*x = ChooseProfileRequest{}
+	mi := &file_device_v1_device_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChooseProfileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChooseProfileRequest) ProtoMessage() {}
+
+func (x *ChooseProfileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChooseProfileRequest.ProtoReflect.Descriptor instead.
+func (*ChooseProfileRequest) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ChooseProfileRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type ChooseProfileResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// profile is the profile now remembered, as the config spells it.
+	Profile       string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChooseProfileResponse) Reset() {
+	*x = ChooseProfileResponse{}
+	mi := &file_device_v1_device_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChooseProfileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChooseProfileResponse) ProtoMessage() {}
+
+func (x *ChooseProfileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChooseProfileResponse.ProtoReflect.Descriptor instead.
+func (*ChooseProfileResponse) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ChooseProfileResponse) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
 var File_device_v1_device_proto protoreflect.FileDescriptor
 
 const file_device_v1_device_proto_rawDesc = "" +
 	"\n" +
 	"\x16device/v1/device.proto\x12\tdevice.v1\"\x0f\n" +
-	"\rDeviceRequest\"B\n" +
+	"\rDeviceRequest\"^\n" +
 	"\x0eDeviceResponse\x12\x16\n" +
 	"\x06socket\x18\x01 \x01(\tR\x06socket\x12\x18\n" +
-	"\aprofile\x18\x02 \x01(\tR\aprofile2N\n" +
+	"\aprofile\x18\x02 \x01(\tR\aprofile\x12\x1a\n" +
+	"\bprofiles\x18\x03 \x03(\tR\bprofiles\"*\n" +
+	"\x14ChooseProfileRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"1\n" +
+	"\x15ChooseProfileResponse\x12\x18\n" +
+	"\aprofile\x18\x01 \x01(\tR\aprofile2\xa2\x01\n" +
 	"\rDeviceService\x12=\n" +
-	"\x06Device\x12\x18.device.v1.DeviceRequest\x1a\x19.device.v1.DeviceResponseB>Z<github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1b\x06proto3"
+	"\x06Device\x12\x18.device.v1.DeviceRequest\x1a\x19.device.v1.DeviceResponse\x12R\n" +
+	"\rChooseProfile\x12\x1f.device.v1.ChooseProfileRequest\x1a .device.v1.ChooseProfileResponseB>Z<github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1b\x06proto3"
 
 var (
 	file_device_v1_device_proto_rawDescOnce sync.Once
@@ -136,16 +242,20 @@ func file_device_v1_device_proto_rawDescGZIP() []byte {
 	return file_device_v1_device_proto_rawDescData
 }
 
-var file_device_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_device_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_device_v1_device_proto_goTypes = []any{
-	(*DeviceRequest)(nil),  // 0: device.v1.DeviceRequest
-	(*DeviceResponse)(nil), // 1: device.v1.DeviceResponse
+	(*DeviceRequest)(nil),         // 0: device.v1.DeviceRequest
+	(*DeviceResponse)(nil),        // 1: device.v1.DeviceResponse
+	(*ChooseProfileRequest)(nil),  // 2: device.v1.ChooseProfileRequest
+	(*ChooseProfileResponse)(nil), // 3: device.v1.ChooseProfileResponse
 }
 var file_device_v1_device_proto_depIdxs = []int32{
 	0, // 0: device.v1.DeviceService.Device:input_type -> device.v1.DeviceRequest
-	1, // 1: device.v1.DeviceService.Device:output_type -> device.v1.DeviceResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 1: device.v1.DeviceService.ChooseProfile:input_type -> device.v1.ChooseProfileRequest
+	1, // 2: device.v1.DeviceService.Device:output_type -> device.v1.DeviceResponse
+	3, // 3: device.v1.DeviceService.ChooseProfile:output_type -> device.v1.ChooseProfileResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -162,7 +272,7 @@ func file_device_v1_device_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_device_v1_device_proto_rawDesc), len(file_device_v1_device_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

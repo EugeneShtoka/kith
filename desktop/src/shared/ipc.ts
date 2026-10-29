@@ -7,6 +7,8 @@ export const channels = {
   call: "kith:call",
   /** A stream: { method, request } with a MessagePort its events come on. */
   subscribe: "kith:subscribe",
+  /** The profile's unread count, for the tray and the dock badge. */
+  unread: "kith:unread",
 } as const;
 
 /** What a stream's port carries, in order. */
@@ -32,4 +34,6 @@ export interface KithBridge {
   call(method: string, request: Uint8Array): Promise<Uint8Array>;
   /** Opens the stream named, if the window may; returns what closes it. */
   subscribe(method: string, request: Uint8Array, listener: (event: StreamEvent) => void): () => void;
+  /** Says how many unread the profile's rooms hold, for the tray and the dock badge. */
+  unread(count: number): void;
 }

@@ -62,6 +62,7 @@ Top-level keys:
 | --- | --- | --- |
 | `allow_token_file` | `false` | Store the access token in a 0600 file under `~/.local/state/kith/` (one per account) when no OS keyring exists. Use it only on a headless machine. |
 | `terminal` | `""` (detect) | In `device.toml`: what `kith --open` starts when a `matrix:`, `tg:` or `whatsapp:` link arrives and no client is running. See [getting-started.md](getting-started.md#open-matrix-tg-whatsapp-and-signal-links-in-kith). |
+| `profile_in_use` | `""` (none) | In `device.toml`: the [profile](#profiles) the desktop window runs in, written when you pick one there. |
 
 ### Several accounts on a network
 
@@ -103,6 +104,11 @@ every profile holding its room, and `kith-notify` shows the profiles it listens 
 first, unless told others; see
 [notifications.md](notifications.md#where-popups-appear-kith-notify)). A room no
 profile holds never notifies, whatever the [rules](notifications.md#rules) say.
+
+The desktop window runs in the profile `device.toml`'s `profile_in_use` names, which
+it writes when you pick one there. With one profile it runs in it unasked; with
+several and none picked yet, or the one picked since removed from `config.toml`, it
+asks which.
 
 A config has at least one profile; the starter writes `default`, holding every room:
 
@@ -306,7 +312,7 @@ key.
 
 | Section | File | Purpose | More |
 | --- | --- | --- | --- |
-| *(top level)* | config, but `terminal` device | `allow_token_file`, `terminal`, `bridge_contacts`. | [getting-started.md](getting-started.md) |
+| *(top level)* | config, but `terminal` and `profile_in_use` device | `allow_token_file`, `terminal`, `bridge_contacts`, and `profile_in_use`, the profile the desktop window runs in. | [getting-started.md](getting-started.md), [Profiles](#profiles) |
 | `[matrix]` | config | The Matrix accounts (`[[matrix.account]]`) and which is the default. | [Matrix accounts](#matrix-accounts) |
 | `[display]` | config: `time_format`, `long_date_format`, `short_date_format`, `priority`, `room_name_rules`, `[[display.space_rule]]`, `[[display.identity]]`, `[[display.name]]`; device: the rest, `[[display.read_rule]]` included | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, how times and dates are written (`time_format`, `long_date_format`, `short_date_format`), and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
 | `[display.theme]` | device | The color palette: a preset plus per-role overrides. | [Themes](#themes) |

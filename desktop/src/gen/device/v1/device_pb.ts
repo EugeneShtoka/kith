@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file device/v1/device.proto.
  */
 export const file_device_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiDwoNRGV2aWNlUmVxdWVzdCIxCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCTJOCg1EZXZpY2VTZXJ2aWNlEj0KBkRldmljZRIYLmRldmljZS52MS5EZXZpY2VSZXF1ZXN0GhkuZGV2aWNlLnYxLkRldmljZVJlc3BvbnNlQj5aPGdpdGh1Yi5jb20vRXVnZW5lU2h0b2thL2tpdGgvaW50ZXJuYWwvYXBpL2RldmljZS92MTtkZXZpY2V2MWIGcHJvdG8z");
+  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiDwoNRGV2aWNlUmVxdWVzdCJDCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCSIkChRDaG9vc2VQcm9maWxlUmVxdWVzdBIMCgRuYW1lGAEgASgJIigKFUNob29zZVByb2ZpbGVSZXNwb25zZRIPCgdwcm9maWxlGAEgASgJMqIBCg1EZXZpY2VTZXJ2aWNlEj0KBkRldmljZRIYLmRldmljZS52MS5EZXZpY2VSZXF1ZXN0GhkuZGV2aWNlLnYxLkRldmljZVJlc3BvbnNlElIKDUNob29zZVByb2ZpbGUSHy5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlcXVlc3QaIC5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlc3BvbnNlQj5aPGdpdGh1Yi5jb20vRXVnZW5lU2h0b2thL2tpdGgvaW50ZXJuYWwvYXBpL2RldmljZS92MTtkZXZpY2V2MWIGcHJvdG8z");
 
 /**
  * @generated from message device.v1.DeviceRequest
@@ -37,12 +37,20 @@ export type DeviceResponse = Message<"device.v1.DeviceResponse"> & {
   socket: string;
 
   /**
-   * profile is the [[profile]] this device runs in, as the config spells it: the
-   * config's first.
+   * profile is the [[profile]] this device last ran in, as the config spells it; ""
+   * when none was ever chosen, or the config no longer has it. With one profile a
+   * window runs in it unasked; with several and none here, it asks.
    *
    * @generated from field: string profile = 2;
    */
   profile: string;
+
+  /**
+   * profiles are the names of the config's [[profile]]s, in its order.
+   *
+   * @generated from field: repeated string profiles = 3;
+   */
+  profiles: string[];
 };
 
 /**
@@ -53,6 +61,44 @@ export const DeviceResponseSchema: GenMessage<DeviceResponse> = /*@__PURE__*/
   messageDesc(file_device_v1_device, 1);
 
 /**
+ * @generated from message device.v1.ChooseProfileRequest
+ */
+export type ChooseProfileRequest = Message<"device.v1.ChooseProfileRequest"> & {
+  /**
+   * name is a profile's name, in any case.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message device.v1.ChooseProfileRequest.
+ * Use `create(ChooseProfileRequestSchema)` to create a new message.
+ */
+export const ChooseProfileRequestSchema: GenMessage<ChooseProfileRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 2);
+
+/**
+ * @generated from message device.v1.ChooseProfileResponse
+ */
+export type ChooseProfileResponse = Message<"device.v1.ChooseProfileResponse"> & {
+  /**
+   * profile is the profile now remembered, as the config spells it.
+   *
+   * @generated from field: string profile = 1;
+   */
+  profile: string;
+};
+
+/**
+ * Describes the message device.v1.ChooseProfileResponse.
+ * Use `create(ChooseProfileResponseSchema)` to create a new message.
+ */
+export const ChooseProfileResponseSchema: GenMessage<ChooseProfileResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 3);
+
+/**
  * DeviceService is served by kith-relay, the desktop window's link to kithd, beside the
  * BackendService it forwards: what this device is, which only the relay knows.
  *
@@ -60,7 +106,9 @@ export const DeviceResponseSchema: GenMessage<DeviceResponse> = /*@__PURE__*/
  */
 export const DeviceService: GenService<{
   /**
-   * Device is where this device's requests go and the profile it runs in.
+   * Device is where this device's requests go, the profiles the config defines, and
+   * the one this device last ran in. Each call reads the files again, so a window asks
+   * after a config change (ConfigChanged).
    *
    * @generated from rpc device.v1.DeviceService.Device
    */
@@ -68,6 +116,17 @@ export const DeviceService: GenService<{
     methodKind: "unary";
     input: typeof DeviceRequestSchema;
     output: typeof DeviceResponseSchema;
+  },
+  /**
+   * ChooseProfile remembers a profile as the one this device runs in (device.toml's
+   * profile_in_use), refusing a name the config lacks (INVALID_ARGUMENT).
+   *
+   * @generated from rpc device.v1.DeviceService.ChooseProfile
+   */
+  chooseProfile: {
+    methodKind: "unary";
+    input: typeof ChooseProfileRequestSchema;
+    output: typeof ChooseProfileResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_device_v1_device, 0);

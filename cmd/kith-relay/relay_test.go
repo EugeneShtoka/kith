@@ -93,15 +93,23 @@ func (k *kithd) stop() {
 	<-k.served
 }
 
-// relayOn serves the relay's handler on a socket of its own, forwarding to kithdSocket.
+// relayOn serves the relay's handler on a socket of its own, forwarding to kithdSocket,
+// for relayConfig's config.
 func relayOn(t *testing.T, kithdSocket string) string {
+	t.Helper()
+	configPath, _ := relayConfig(t, t.TempDir())
+	return relayFor(t, kithdSocket, configPath)
+}
+
+// relayFor is relayOn for the config at configPath.
+func relayFor(t *testing.T, kithdSocket, configPath string) string {
 	t.Helper()
 	socket := filepath.Join(t.TempDir(), "relay.sock")
 	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", socket)
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &http.Server{Handler: newHandler(kithdSocket, "Home", slog.New(slog.DiscardHandler)), ReadHeaderTimeout: time.Second}
+	srv := &http.Server{Handler: newHandler(kithdSocket, configPath, slog.New(slog.DiscardHandler)), ReadHeaderTimeout: time.Second}
 	served := make(chan struct{})
 	go func() { defer close(served); _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Close(); <-served })
@@ -238,11 +246,14 @@ func TestOnlyBackendServiceReachesKithdThroughTheRelay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.Msg.GetSocket() != socket || resp.Msg.GetProfile() != "Home" {
-		t.Errorf("Device = %v, want socket %s and profile Home", resp.Msg, socket)
+	if resp.Msg.GetSocket() != socket || strings.Join(resp.Msg.GetProfiles(), ",") != "Home,Work" {
+		t.Errorf("Device = %v, want socket %s and profiles Home,Work", resp.Msg, socket)
+	}
+	if _, err := devicev1connect.NewDeviceServiceClient(client, relayBase).ChooseProfile(t.Context(), connect.NewRequest(&devicev1.ChooseProfileRequest{Name: "Work"})); err != nil {
+		t.Fatal(err)
 	}
 	if got := taken(); len(got) != 0 {
-		t.Errorf("Device reached kithd as %q, want the relay to answer it", got)
+		t.Errorf("DeviceService reached kithd as %q, want the relay to answer it", got)
 	}
 }
 
@@ -433,7 +444,7 @@ func deviceOf(t *testing.T, socket string) (*devicev1.DeviceResponse, error) {
 
 // The relay never outlives its window: when the window's end of stdin closes, crashed
 // or not, it stops serving and takes its socket with it. Until then only this user can
-// open the socket, and it forwards to the config's kithd with the config's first profile.
+// open the socket, and it forwards to the config's kithd.
 func TestTheRelayLeavesWithItsWindow(t *testing.T) {
 	t.Parallel()
 	path, kithdAt := relayConfig(t, t.TempDir())
@@ -453,8 +464,8 @@ func TestTheRelayLeavesWithItsWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.GetSocket() != kithdAt || got.GetProfile() != "Home" {
-		t.Errorf("Device = %v, want socket %s and profile Home", got, kithdAt)
+	if got.GetSocket() != kithdAt {
+		t.Errorf("Device = %v, want socket %s", got, kithdAt)
 	}
 
 	k := newKithd()

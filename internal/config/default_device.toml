@@ -16,6 +16,11 @@
 # ghostty, xterm; or give any command that takes `-e`.
 # terminal = "wezterm"
 
+# The [[profile]] (config.toml) the desktop window runs in, by name: picking a profile
+# there writes it. Empty, or a name config.toml no longer has: with one profile the
+# window runs in it, with several it asks which.
+# profile_in_use = "work"
+
 # The bridges this device dials: a kithd on another machine, over its [remote] listen.
 # `kith join` writes one when it pairs this device (`kith pair`, on a device that bridge
 # already trusts, shows what to join).

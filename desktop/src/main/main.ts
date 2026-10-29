@@ -3,13 +3,22 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, session } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  type NativeImage,
+  nativeImage,
+  net,
+  protocol,
+  session,
+  Tray,
+} from "electron";
 
-import { DeviceService } from "../gen/device/v1/device_pb";
 import { channels, type Subscribe } from "../shared/ipc";
-import { appURL, Gate } from "./gate";
+import { appURL, fromTheWindow, Gate } from "./gate";
 import { startRelay } from "./relay";
 import { appFile, csp, devCSP } from "./serve";
 
@@ -60,8 +69,7 @@ async function start(): Promise<void> {
     baseUrl: "http://kithd",
     nodeOptions: { socketPath: relay.socket },
   });
-  const device = await createClient(DeviceService, transport).device({});
-  const gate = new Gate(transport, { "Kith-Profile": device.profile });
+  const gate = new Gate(transport);
 
   serveApp();
   ipcMain.handle(channels.call, (event, name: unknown, request: unknown) =>
@@ -75,6 +83,9 @@ async function start(): Promise<void> {
     try {
       const stop = gate.subscribe(event.senderFrame, message?.method, message?.request, (e) => {
         port.postMessage(e);
+        if (e.kind === "refused") {
+          port.close(); // the gate ended it: the window left its profile
+        }
       });
       port.on("close", stop);
       port.start();
@@ -82,6 +93,21 @@ async function start(): Promise<void> {
       port.postMessage({ kind: "refused", error: err instanceof Error ? err.message : String(err) });
       port.close();
     }
+  });
+  const tray = new Tray(trayIcon(false));
+  tray.setToolTip("kith");
+  tray.on("click", () => {
+    window?.show();
+    window?.focus();
+  });
+  ipcMain.on(channels.unread, (event, count: unknown) => {
+    if (!fromTheWindow(event.senderFrame) || !Number.isSafeInteger(count) || (count as number) < 0) {
+      return;
+    }
+    const n = count as number;
+    app.setBadgeCount(n);
+    tray.setImage(trayIcon(n > 0));
+    tray.setToolTip(n > 0 ? `kith: ${String(n)} unread` : "kith");
   });
 
   window = new BrowserWindow({
@@ -95,6 +121,9 @@ async function start(): Promise<void> {
       sandbox: true,
       nodeIntegration: false,
     },
+  });
+  window.webContents.on("did-start-loading", () => {
+    gate.restart();
   });
   await window.loadURL(appURL + "index.html");
 }
@@ -119,6 +148,23 @@ function serveApp(): void {
     headers.set("Content-Security-Policy", dev ? devCSP : csp);
     return new Response(response.body, { status: response.status, headers });
   });
+}
+
+/**
+ * trayIcon is the tray's mark, drawn here (the app ships no image yet): a disc, in the
+ * accent when the profile has something unread.
+ */
+function trayIcon(unread: boolean): NativeImage {
+  const size = 16;
+  const [b, g, r] = unread ? [0x18, 0x23, 0xb4] : [0x80, 0x80, 0x80];
+  const pixels = Buffer.alloc(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const inside = (x - 7.5) ** 2 + (y - 7.5) ** 2 <= 6.5 ** 2;
+      pixels.set(inside ? [b, g, r, 0xff] : [0, 0, 0, 0], (y * size + x) * 4);
+    }
+  }
+  return nativeImage.createFromBitmap(pixels, { width: size, height: size });
 }
 
 /** relayFile is the kith-relay beside the packaged app, or the repo's (make build-relay). */

@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
+	"strings"
 
 	"connectrpc.com/connect"
 
@@ -12,21 +14,23 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
 	devicev1 "github.com/EugeneShtoka/kith/internal/api/device/v1"
 	"github.com/EugeneShtoka/kith/internal/api/device/v1/devicev1connect"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
+	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
 // newHandler serves what the window may reach: BackendService, forwarded to kithd's
 // socket, and DeviceService, answered here. Each of BackendService's methods is a path
 // of its own, so anything else (another service, a path that cleans to one) is refused
 // and the relay lends its socket's reach to nothing else of kithd's.
-func newHandler(socket, profile string, log *slog.Logger) http.Handler {
+func newHandler(socket, configPath string, log *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	proxy := forward(socket, log)
 	methods := backendv1.File_backend_v1_services_proto.Services().ByName("BackendService").Methods()
 	for i := range methods.Len() {
 		mux.Handle("POST /"+backendv1connect.BackendServiceName+"/"+string(methods.Get(i).Name()), proxy)
 	}
-	mux.Handle(devicev1connect.NewDeviceServiceHandler(device{socket: socket, profile: profile}))
+	mux.Handle(devicev1connect.NewDeviceServiceHandler(device{socket: socket, configPath: configPath}))
 	return mux
 }
 
@@ -56,12 +60,90 @@ func forward(socket string, log *slog.Logger) http.Handler {
 	})
 }
 
-// device answers DeviceService from what the relay was started with.
+// device answers DeviceService: the socket it was started with, and the profiles as the
+// config and the device file say now, read again on each call.
 type device struct {
-	socket  string
-	profile string
+	socket string
+	// configPath is the bridge's config; the device file is beside it.
+	configPath string
 }
 
 func (d device) Device(context.Context, *connect.Request[devicev1.DeviceRequest]) (*connect.Response[devicev1.DeviceResponse], error) {
-	return connect.NewResponse(&devicev1.DeviceResponse{Socket: d.socket, Profile: d.profile}), nil
+	profiles, err := profileNames(d.configPath)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	dev, err := loadDevice(d.configPath)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	return connect.NewResponse(&devicev1.DeviceResponse{
+		Socket: d.socket, Profile: spelled(profiles, dev.ProfileInUse), Profiles: profiles,
+	}), nil
+}
+
+// ChooseProfile writes the profile named into the device file through the writer every
+// window shares (config.UpdateDevice, under the file's lock), so a change made to the
+// file meanwhile, by hand or by another window, is kept.
+func (d device) ChooseProfile(_ context.Context, req *connect.Request[devicev1.ChooseProfileRequest]) (*connect.Response[devicev1.ChooseProfileResponse], error) {
+	profiles, err := profileNames(d.configPath)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	name := spelled(profiles, req.Msg.GetName())
+	if name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			fmt.Errorf("the config has no profile %q (it has %s)", req.Msg.GetName(), strings.Join(profiles, ", ")))
+	}
+	was, err := loadDevice(d.configPath)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	now := was.Clone()
+	now.ProfileInUse = name
+	if _, err := config.UpdateDevice(config.DevicePath(d.configPath), was, now); err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	return connect.NewResponse(&devicev1.ChooseProfileResponse{Profile: name}), nil
+}
+
+// profileNames are the names of the config's profiles, in its order.
+func profileNames(configPath string) ([]string, error) {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", configPath, err)
+	}
+	profiles, err := setup.Profiles(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", configPath, err)
+	}
+	names := make([]string, len(profiles))
+	for i, p := range profiles {
+		names[i] = p.Name
+	}
+	return names, nil
+}
+
+// loadDevice is the device file beside the config, checked as every client checks it.
+func loadDevice(configPath string) (config.Device, error) {
+	path := config.DevicePath(configPath)
+	dev, err := config.LoadDevice(path)
+	if err == nil {
+		err = setup.ValidateDevice(dev)
+	}
+	if err != nil {
+		return config.Device{}, fmt.Errorf("reading %s: %w", path, err)
+	}
+	return dev, nil
+}
+
+// spelled is the profile name names as the config spells it (names are unique in any
+// case, and trimmed); "" when the config has none by that name.
+func spelled(profiles []string, name string) string {
+	for _, p := range profiles {
+		if strings.EqualFold(p, strings.TrimSpace(name)) {
+			return p
+		}
+	}
+	return ""
 }

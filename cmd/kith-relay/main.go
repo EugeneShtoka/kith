@@ -55,7 +55,7 @@ func start() int {
 // run serves the window until ctx ends or stdin closes, having printed the socket's
 // path to stdout.
 func run(ctx context.Context, log *slog.Logger, configPath string, stdin io.Reader, stdout io.Writer) error {
-	storage, profile, err := loadAccount(log, configPath)
+	storage, configPath, err := loadAccount(log, configPath)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func run(ctx context.Context, log *slog.Logger, configPath string, stdin io.Read
 		_, _ = io.Copy(io.Discard, stdin) // its error ends it as EOF does
 		cancel()
 	}()
-	srv := &http.Server{Handler: newHandler(socket, profile, log), ReadHeaderTimeout: readHeaderTimeout}
+	srv := &http.Server{Handler: newHandler(socket, configPath, log), ReadHeaderTimeout: readHeaderTimeout}
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(ln) }()
 	if _, err := fmt.Fprintln(stdout, ln.Addr().String()); err != nil {
@@ -118,9 +118,9 @@ func listen(ctx context.Context, runtimeDir string) (net.Listener, string, error
 }
 
 // loadAccount reads the config for where kithd's socket is, as kith-notify does, after
-// moving its device settings out (config.SplitDevice), and names the profile this
-// device runs in: the config's first, as the TUI's is without --profile.
-func loadAccount(log *slog.Logger, configPath string) (storage domain.Storage, profile string, err error) {
+// moving its device settings out (config.SplitDevice), and returns it with the config's
+// path. Which profile the window runs in is DeviceService's, read on each call.
+func loadAccount(log *slog.Logger, configPath string) (storage domain.Storage, configFile string, err error) {
 	path := configPath
 	if path == "" {
 		resolved, perr := config.Path()
@@ -142,13 +142,9 @@ func loadAccount(log *slog.Logger, configPath string) (storage domain.Storage, p
 	if err = setup.Validate(cfg); err != nil {
 		return domain.Storage{}, "", fmt.Errorf("reading %s: %w", path, err)
 	}
-	profiles, err := setup.Profiles(cfg)
-	if err != nil {
-		return domain.Storage{}, "", err
-	}
 	storage, err = setup.StorageFor(cfg, path)
 	if err != nil {
 		return domain.Storage{}, "", err
 	}
-	return storage, profiles[0].Name, nil
+	return storage, path, nil
 }

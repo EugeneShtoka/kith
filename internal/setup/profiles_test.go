@@ -118,3 +118,14 @@ func TestAProfilesPeopleAreIDsOrFields(t *testing.T) {
 		}
 	}
 }
+
+// The device's profile_in_use is empty or a name: blank is refused, by the device file's
+// own check, while a name the config lacks is not (the window asks again then).
+func TestTheProfileInUseIsEmptyOrAName(t *testing.T) {
+	t.Parallel()
+	for name, ok := range map[string]bool{"": true, "work": true, " work ": true, "no such profile": true, " ": false, "\t\n": false} {
+		if err := setup.ValidateDevice(config.Device{ProfileInUse: name}); (err == nil) != ok {
+			t.Errorf("profile_in_use %q: ValidateDevice = %v, want ok %v", name, err, ok)
+		}
+	}
+}

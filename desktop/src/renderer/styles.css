@@ -7,6 +7,8 @@
   --ok: #1a7f37;
   --lost: #b42318;
   --waiting: #9a6700;
+  --badge: #1f6feb;
+  --mention: #cf222e;
   font-family: system-ui, sans-serif;
   font-size: 15px;
 }
@@ -100,4 +102,59 @@ td {
 footer {
   margin-top: 2rem;
   font-size: 0.85rem;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: 12rem 1fr;
+  gap: 1rem;
+}
+
+.rail {
+  border-right: 1px solid var(--line);
+}
+
+.place {
+  display: block;
+  padding: 0.35rem 0.5rem;
+  font-weight: 600;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.room,
+.invites li,
+.picker li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.room.unread {
+  font-weight: 600;
+}
+
+.badge {
+  margin-left: auto;
+  min-width: 1.25rem;
+  padding: 0 0.4rem;
+  border-radius: 0.65rem;
+  background: var(--badge);
+  color: #fff;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.badge.mention {
+  background: var(--mention);
+}
+
+h2 {
+  font-size: 1rem;
 }

@@ -17,7 +17,8 @@ export const batchFor = 16;
  * keepOpen holds a server stream open for the window until the returned stop is called:
  * opened again after any end (kithd restarting, the relay failing) after a wait, with
  * frames batched so a burst is one message. Every frame of an attempt is posted before
- * the end that follows it.
+ * the end that follows it. Every attempt after the first sends again, when given, in
+ * place of input.
  */
 export function keepOpen<I extends DescMessage, O extends DescMessage>(
   transport: Transport,
@@ -25,6 +26,7 @@ export function keepOpen<I extends DescMessage, O extends DescMessage>(
   input: MessageShape<I>,
   header: HeadersInit,
   post: (event: StreamEvent) => void,
+  again: MessageShape<I> = input,
 ): () => void {
   const stopped = new AbortController();
   let pending: Uint8Array[] = [];
@@ -38,8 +40,10 @@ export function keepOpen<I extends DescMessage, O extends DescMessage>(
     }
   };
 
+  let request = input;
   const attempt = async (): Promise<void> => {
-    const response = await transport.stream(method, stopped.signal, undefined, header, once(input));
+    const response = await transport.stream(method, stopped.signal, undefined, header, once(request));
+    request = again;
     post({ kind: "attached" });
     for await (const message of response.message) {
       pending.push(toBinary(method.output, message));

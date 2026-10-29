@@ -6,18 +6,21 @@ import type { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { create, fromBinary, type Message, toBinary } from "@bufbuild/protobuf";
-import type { ConnectRouter, Transport } from "@connectrpc/connect";
+import {
+  create,
+  type DescMethodServerStreaming,
+  fromBinary,
+  type Message,
+  type MessageInitShape,
+  toBinary,
+} from "@bufbuild/protobuf";
+import { Code, ConnectError, type ConnectRouter, type Transport } from "@connectrpc/connect";
 import { connectNodeAdapter, createConnectTransport } from "@connectrpc/connect-node";
 import { encodeEnvelope } from "@connectrpc/connect/protocol";
 import { endStreamFlag } from "@connectrpc/connect/protocol-connect";
 
-import {
-  BackendService,
-  type Change,
-  ChangedRequestSchema,
-  ChangedResponseSchema,
-} from "../../gen/backend/v1/services_pb";
+import { BackendService, type Change } from "../../gen/backend/v1/services_pb";
+import { RoomSchema } from "../../gen/backend/v1/types_pb";
 import { DeviceService } from "../../gen/device/v1/device_pb";
 
 /** One request kithd received: its method, profile and message. */
@@ -27,11 +30,18 @@ export interface Received {
   message: Message;
 }
 
-const changedPath = `/${BackendService.typeName}/${BackendService.method.changed.name}`;
+/** BackendService's streams, by their path: each is served by hand, as kithd serves it. */
+const streamsByPath = new Map<string, DescMethodServerStreaming>(
+  BackendService.methods
+    .filter((m): m is typeof m & DescMethodServerStreaming => m.methodKind === "server_streaming")
+    .map((m) => [`/${BackendService.typeName}/${m.name}`, m]),
+);
 
 export class FakeKithd {
   readonly socket: string;
   readonly received: Received[] = [];
+  /** Every request that reached kithd, as "Method:profile", any method, answered or not. */
+  readonly reached: string[] = [];
   /** Changed streams opened, and how many have ended. */
   opened = 0;
   closed = 0;
@@ -39,10 +49,15 @@ export class FakeKithd {
   burst: Change[] = [];
   /** Changed ends at once after its burst, like a kithd whose sync failed for good. */
   endAtOnce = false;
+  /** What DeviceService answers: the config's profiles, and the one remembered. */
+  profiles = ["Home"];
+  remembered = "";
+  /** The rooms CachedInvites answers with, by ID. */
+  invited: string[] = [];
   private server: Server | undefined;
   private readonly sockets = new Set<Socket>();
   private readonly dir: string;
-  private readonly open = new Set<ServerResponse>();
+  private readonly open = new Map<string, Set<ServerResponse>>();
 
   constructor() {
     this.dir = mkdtempSync(path.join(tmpdir(), "kith-"));
@@ -60,9 +75,19 @@ export class FakeKithd {
 
   /** send sends c on every open Changed stream. */
   send(c: Change): void {
-    for (const res of this.open) {
-      res.write(frame(c));
+    this.sendOn(BackendService.method.changed, { change: c });
+  }
+
+  /** sendOn sends message on every open stream of method. */
+  sendOn<M extends DescMethodServerStreaming>(method: M, message: MessageInitShape<M["output"]>): void {
+    for (const res of this.open.get(method.name) ?? []) {
+      res.write(frame(method, message));
     }
+  }
+
+  /** streams is how many streams of method are open now. */
+  streams(method: DescMethodServerStreaming): number {
+    return this.open.get(method.name)?.size ?? 0;
   }
 
   async start(): Promise<void> {
@@ -72,18 +97,34 @@ export class FakeKithd {
           this.received.push({ method: "Status", profile: ctx.requestHeader.get("Kith-Profile"), message: req });
           return { ready: true };
         },
+        cachedInvites: () => ({ invites: this.invited.map((id) => create(RoomSchema, { id, membership: "invite" })) }),
+        joinRoom: (req) => ({ roomId: req.roomIdOrAlias }),
+        leaveRoom: () => ({}),
       });
       router.service(DeviceService, {
         device: (req, ctx) => {
           this.received.push({ method: "Device", profile: ctx.requestHeader.get("Kith-Profile"), message: req });
-          return { socket: this.socket, profile: "Home" };
+          // As the relay: a remembered profile the config no longer has is none.
+          const profile = this.profiles.includes(this.remembered) ? this.remembered : "";
+          return { socket: this.socket, profile, profiles: this.profiles };
+        },
+        chooseProfile: (req) => {
+          const name = this.profiles.find((p) => p.toLowerCase() === req.name.toLowerCase());
+          if (name === undefined) {
+            throw new ConnectError(`no profile ${req.name}`, Code.InvalidArgument);
+          }
+          this.remembered = name;
+          return { profile: name };
         },
       });
     };
     const adapter = connectNodeAdapter({ routes });
     const server = createServer((req, res) => {
-      if (req.url === changedPath) {
-        void this.changed(req, res);
+      const profile = req.headers["kith-profile"];
+      this.reached.push(`${req.url?.split("/").pop() ?? ""}:${typeof profile === "string" ? profile : ""}`);
+      const stream = streamsByPath.get(req.url ?? "");
+      if (stream !== undefined) {
+        void this.serve(stream, req, res);
       } else {
         adapter(req, res);
       }
@@ -121,37 +162,46 @@ export class FakeKithd {
   }
 
   /**
-   * changed serves Changed by hand, as kithd does: headers as it opens (a stream may be
-   * silent for hours), then the burst, then each frame sent until the stream ends.
+   * serve serves a stream by hand, as kithd does: headers as it opens (a stream may be
+   * silent for hours), then (Changed) the burst, then each frame sent until it ends.
    */
-  private async changed(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  private async serve(method: DescMethodServerStreaming, req: IncomingMessage, res: ServerResponse): Promise<void> {
     const body: Buffer[] = [];
     for await (const chunk of req) {
       body.push(chunk as Buffer);
     }
-    const message = fromBinary(ChangedRequestSchema, Buffer.concat(body).subarray(5));
+    const message = fromBinary(method.input, Buffer.concat(body).subarray(5));
     const profile = req.headers["kith-profile"];
-    this.received.push({ method: "Changed", profile: typeof profile === "string" ? profile : null, message });
-    this.opened++;
+    this.received.push({ method: method.name, profile: typeof profile === "string" ? profile : null, message });
+    const changed = method.name === BackendService.method.changed.name;
+    if (changed) {
+      this.opened++;
+    }
     res.writeHead(200, { "Content-Type": "application/connect+proto" });
     res.flushHeaders();
-    for (const c of this.burst) {
-      res.write(frame(c));
+    if (changed) {
+      for (const c of this.burst) {
+        res.write(frame(BackendService.method.changed, { change: c }));
+      }
     }
+    const open = this.open.get(method.name) ?? new Set();
+    this.open.set(method.name, open);
     res.on("close", () => {
-      this.open.delete(res);
-      this.closed++;
+      open.delete(res);
+      if (changed) {
+        this.closed++;
+      }
     });
-    if (this.endAtOnce) {
+    if (changed && this.endAtOnce) {
       res.end(encodeEnvelope(endStreamFlag, new TextEncoder().encode("{}")));
       return;
     }
-    this.open.add(res);
+    open.add(res);
   }
 }
 
-function frame(c: Change): Uint8Array {
-  return encodeEnvelope(0, toBinary(ChangedResponseSchema, create(ChangedResponseSchema, { change: c })));
+function frame<M extends DescMethodServerStreaming>(method: M, message: MessageInitShape<M["output"]>): Uint8Array {
+  return encodeEnvelope(0, toBinary(method.output, create(method.output, message)));
 }
 
 /** until waits for cond, failing after ms. */
