@@ -114,6 +114,19 @@ func TestJoiningWritesTheBridgeIntoTheDeviceFile(t *testing.T) {
 	}
 }
 
+// On a new machine, which has no device file yet, joining writes one with the bridge in it.
+func TestJoiningANewMachineWritesItsDeviceFile(t *testing.T) {
+	t.Parallel()
+	path := config.DevicePath(filepath.Join(t.TempDir(), "config.toml"))
+	home := pairing.Invite{Addresses: []string{"192.168.1.5:7443"}, ID: bridgeID(1), Token: pairing.NewToken()}
+	if err := rememberBridge(path, home); err != nil {
+		t.Fatal(err)
+	}
+	if got := deviceFile(t, path).Bridges; len(got) != 1 || got[0].ID != bridgeID(1).String() {
+		t.Fatalf("bridges %+v, want the one joined", got)
+	}
+}
+
 func deviceFile(t *testing.T, path string) config.Device {
 	t.Helper()
 	dev, err := config.LoadDevice(path)

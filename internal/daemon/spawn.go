@@ -145,12 +145,15 @@ func statusProbe(ctx context.Context, r *Remote) (readiness, error) {
 }
 
 // waitReady polls Status until the daemon is ready, ctx ends, or timeout expires. A
-// daemon waiting for someone to act (api.ErrDaemonWaiting) ends it at once, saying why.
+// daemon waiting for someone to act (api.ErrDaemonWaiting) ends it at once, saying why;
+// one that never answered is reported with why the last try failed.
 func waitReady(ctx context.Context, r *Remote, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr string
+	var unanswered error
 	for {
 		st, err := statusProbe(ctx, r)
+		unanswered = err
 		switch {
 		case err == nil && st.ready:
 			return nil
@@ -166,6 +169,9 @@ func waitReady(ctx context.Context, r *Remote, timeout time.Duration) error {
 		if time.Now().After(deadline) {
 			if lastErr != "" {
 				return fmt.Errorf("daemon: %s did not become ready in %s: %s", daemonBinary, human.Duration(timeout), lastErr)
+			}
+			if unanswered != nil {
+				return fmt.Errorf("daemon: %s did not answer in %s: %w", daemonBinary, human.Duration(timeout), unanswered)
 			}
 			return fmt.Errorf("daemon: %s did not become ready in %s", daemonBinary, human.Duration(timeout))
 		}

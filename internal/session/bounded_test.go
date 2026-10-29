@@ -9,57 +9,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/EugeneShtoka/kith/internal/keystore"
 )
-
-// A call that does not answer in time is said and left running; tries meanwhile wait
-// on it instead of asking again, and its late answer is taken, a value but not a
-// failure.
-func TestAKeyringCallThatDoesNotAnswerIsAskedOnce(t *testing.T) {
-	t.Parallel()
-	const wait = 20 * time.Millisecond
-	var asked atomic.Int32
-	answer := make(chan error)
-	op := func(value string) func() (string, error) {
-		return func() (string, error) {
-			asked.Add(1)
-			return value, <-answer
-		}
-	}
-	for range 3 {
-		if _, err := bounded("get\x00test-late", wait, op("the key")); !errors.Is(err, ErrKeyringNotAnswering) {
-			t.Fatalf("a call not answering = %v; want ErrKeyringNotAnswering", err)
-		}
-	}
-	if n := asked.Load(); n != 1 {
-		t.Fatalf("the keyring was asked %d times while one call hung; want once", n)
-	}
-	answer <- nil // it answers, late
-	got, err := bounded("get\x00test-late", wait, op("another"))
-	if err != nil || got != "the key" || asked.Load() != 1 {
-		t.Fatalf("after a late answer = %q, %v, asked %d; want the late value, not asked again", got, err, asked.Load())
-	}
-
-	// A late failure is not taken: the keyring is asked again.
-	go func() { answer <- errors.New("locked") }()
-	if _, err := bounded("get\x00test-failed", time.Second, op("x")); err == nil {
-		t.Fatal("a failure answered in time was not said")
-	}
-	if _, err := bounded("get\x00test-failed2", wait, op("x")); !errors.Is(err, ErrKeyringNotAnswering) {
-		t.Fatalf("= %v", err)
-	}
-	answer <- errors.New("locked") // the late answer, a failure
-	calls.Lock()
-	late := calls.running["get\x00test-failed2"]
-	calls.Unlock()
-	<-late.done
-	go func() { answer <- nil }()
-	if got, err := bounded("get\x00test-failed2", time.Second, op("asked again")); err != nil || got != "asked again" {
-		t.Fatalf("after a late failure = %q, %v; want the keyring asked again", got, err)
-	}
-}
 
 // hangingBusEnv names the private bus TestAKeyringThatNeverAnswersIsNotWaitedOn runs
 // its child on.
@@ -67,7 +21,7 @@ const hangingBusEnv = "KITH_TEST_HANGING_KEYRING"
 
 // On a session bus where nothing owns the Secret Service and starting it never
 // finishes (the rehearsal's hang), reading a key returns ErrKeyringNotAnswering within
-// keyringWait, again on the next try without asking again, and no key is made. The
+// keystore.Wait, again on the next try without asking again, and no key is made. The
 // reads run in a child: the other tests swap go-keyring's real keyring for its mock.
 func TestAKeyringThatNeverAnswersIsNotWaitedOn(t *testing.T) {
 	if os.Getenv(hangingBusEnv) != "" {
@@ -124,13 +78,13 @@ func TestAKeyringThatNeverAnswersIsNotWaitedOn(t *testing.T) {
 		t.Fatalf("the bus's address: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*keyringWait+5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*keystore.Wait+5*time.Second)
 	defer cancel()
 	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestAKeyringThatNeverAnswersIsNotWaitedOn$", "-test.v") // #nosec G204 -- this test's own binary
 	child.Env = append(os.Environ(), hangingBusEnv+"=1", "DBUS_SESSION_BUS_ADDRESS="+strings.TrimSpace(address))
 	report, err := child.CombinedOutput()
 	if ctx.Err() != nil {
-		t.Fatalf("reading a key from a keyring that never answers held the reader past %s:\n%s", 3*keyringWait+5*time.Second, report)
+		t.Fatalf("reading a key from a keyring that never answers held the reader past %s:\n%s", 3*keystore.Wait+5*time.Second, report)
 	}
 	if err != nil {
 		t.Fatalf("the child: %v\n%s", err, report)
@@ -144,8 +98,8 @@ func hangingChild(t *testing.T) {
 		t.Helper()
 		start := time.Now()
 		key, err := LoadOrCreateStoreKey("kith-test-hanging", "test", "cache")
-		if took := time.Since(start); took > keyringWait+2*time.Second {
-			t.Errorf("a read took %s; want at most about %s", took, keyringWait)
+		if took := time.Since(start); took > keystore.Wait+2*time.Second {
+			t.Errorf("a read took %s; want at most about %s", took, keystore.Wait)
 		}
 		if key != nil {
 			t.Errorf("a key was made with no answer from the keyring")

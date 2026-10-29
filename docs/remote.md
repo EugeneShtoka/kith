@@ -4,8 +4,8 @@ kithd can serve clients on other machines as well as the socket on its own: it
 listens on the addresses you name, over TLS 1.3, and serves only the devices paired
 with it. It is off by default.
 
-This is being built. kithd listens and pairs devices now, by QR code or by pasted ID;
-the client that dials a remote kithd comes next.
+Once a machine has joined a bridge (`kith join`, below), `kith`, `kith-notify` and
+`kith-mcp` there dial it instead of a kithd of their own.
 
 ## Device IDs
 
@@ -119,6 +119,27 @@ The list lives in `~/.local/share/kith/devices-<hash>.toml`. It is not the confi
 not the cache, so rebuilding the cache never unpairs anyone. You may edit it by hand;
 the next change, listing or reload reads it, and a device you took out is cut off
 then. One that does not read keeps kithd from listening until it is fixed.
+
+## Using a bridge
+
+A machine whose `device.toml` names a `[[bridge]]` dials it: `kith`, `kith-notify` and
+`kith-mcp` all reach kithd there over TLS and never start one here. The config is the
+bridge's, read and changed through it (`:set`, the settings screen); `device.toml` is
+this machine's, and so are the media cache, the log and the scripts in `commands/`
+beside it. With several `[[bridge]]` entries the first is dialed.
+
+- **Addresses in order.** Each address is tried in turn, and the first that answers
+  with the bridge's own key is used. One that answers with another key is passed
+  over, never trusted, so a bridge's LAN address and its Tailscale address can both
+  be listed.
+- **A network that changes.** A connection with nothing on it for 15 seconds is
+  pinged; with no answer in 10 more it is dropped and a new one dialed, and the
+  message stream resumes where it stood: nothing that arrived meanwhile is lost.
+- **Links.** `kith --open` hands a link to a window on this machine, never to one
+  open on another device; with none here it opens a terminal here.
+- **What stays on the bridge's machine.** Restarting kithd (`:login` turning a
+  network on), the phonebook folder (`[phonebook] dir`), a `[commands] dir` the
+  config sets, and `kith --add-dictionary` are the bridge machine's; do them there.
 
 ## What an attacker on the network sees
 

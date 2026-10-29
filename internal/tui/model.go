@@ -3015,6 +3015,15 @@ func (m Model) WithConfigFile(path string, cfg config.Config) Model {
 	return next.rebuiltRail()
 }
 
+// atRevision saves this window's config changes on rev, the revision a bridge elsewhere
+// served its config at, when there is no file here (path "") to read one from.
+func (m Model) atRevision(path, rev string) Model {
+	if path == "" {
+		m.conf.writer.rev = rev
+	}
+	return m
+}
+
 // handleConfigNews handles config news: kithd's verdict on a held-back change, its save, or the
 // daemon's re-read.
 func (m Model) handleConfigNews(msg tea.Msg) (Model, tea.Cmd) {

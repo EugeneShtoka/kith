@@ -14,6 +14,7 @@ import (
 // and what it said of itself.
 type genWindow struct {
 	client  string
+	device  string // "" is kithd's own machine
 	profile string
 	sits    bool
 	listens bool
@@ -22,12 +23,13 @@ type genWindow struct {
 	gone    bool          // it left its seat and closed its link stream
 }
 
-// A link goes to exactly one window: the one with its room open, else the one used last
-// whose profile holds the room, else the one used last (a window never used counts as
-// used when it came); none when no window sits or listens. A window not listening yet
-// gets it once it does. Generated: windows sitting, listening or both, in profiles
-// holding some rooms, with presence in random orders, ties, and links to a room, to
-// several accounts' views of one chat, or to nothing known.
+// A link goes to exactly one window on the device it was clicked on: the one with its room
+// open, else the one used last whose profile holds the room, else the one used last (a
+// window never used counts as used when it came); none when no window there sits or
+// listens. A window not listening yet gets it once it does. Generated: windows on kithd's
+// machine and on paired devices, sitting, listening or both, in profiles holding some
+// rooms, with presence in random orders, ties, and links to a room, to several accounts'
+// views of one chat, or to nothing known, clicked on any of the devices.
 func TestALinkGoesToTheWindowPlacedForIt(t *testing.T) {
 	t.Parallel()
 	rooms := []domain.RoomID{"r0", "r1", "r2", "r3"}
@@ -48,23 +50,24 @@ func TestALinkGoesToTheWindowPlacedForIt(t *testing.T) {
 		var departures []func()
 		takes := map[string]func() string{}
 		profiles := []string{"work", "home", "phone"}
+		devices := []string{"", "laptop", "tablet"}
 		rng.Shuffle(len(profiles), func(i, j int) { profiles[i], profiles[j] = profiles[j], profiles[i] })
 		for i := range rng.IntN(4) {
-			w := &genWindow{client: fmt.Sprintf("w%d", i), profile: profiles[i%3], sits: rng.IntN(3) > 0, listens: rng.IntN(3) > 0}
+			w := &genWindow{client: fmt.Sprintf("w%d", i), device: devices[rng.IntN(len(devices))], profile: profiles[i%3], sits: rng.IntN(3) > 0, listens: rng.IntN(3) > 0}
 			if !w.sits && !w.listens {
 				w.listens = true
 			}
 			var sat sitting
 			if w.sits {
 				var err error
-				if sat, err = s.take(t.Context(), w.profile, w.client, false, domain.SeatHolder{}); err != nil {
+				if sat, err = s.take(t.Context(), w.profile, w.client, w.device, false, domain.SeatHolder{}); err != nil {
 					t.Fatalf("seed %d: %s could not sit: %v", seed, w.client, err)
 				}
 			}
 			var release func()
 			if w.listens {
 				var take func() string
-				_, take, release = s.listen(w.client, w.profile)
+				_, take, release = s.listen(w.client, w.device, w.profile)
 				takes[w.client] = take
 			}
 			windows = append(windows, w)
@@ -111,9 +114,10 @@ func TestALinkGoesToTheWindowPlacedForIt(t *testing.T) {
 			linked = []domain.RoomID{rooms[rng.IntN(2)], rooms[2+rng.IntN(2)]}
 		}
 
-		want := pickWindow(windows, linked, holds)
-		delivered := s.follow("uri", linked, holds)
-		what := fmt.Sprintf("seed %d, link to %v, windows %+v", seed, linked, windows)
+		clicked := devices[rng.IntN(len(devices))]
+		want := pickWindow(windows, clicked, linked, holds)
+		delivered := s.follow("uri", clicked, linked, holds)
+		what := fmt.Sprintf("seed %d, link to %v clicked on %q, windows %+v", seed, linked, clicked, windows)
 		if delivered != (want != nil) {
 			t.Fatalf("%s: delivered %v, want %v", what, delivered, want != nil)
 		}
@@ -123,7 +127,7 @@ func TestALinkGoesToTheWindowPlacedForIt(t *testing.T) {
 				got = take()
 			} else {
 				// Not listening yet: it gets the link once it listens.
-				_, take, _ := s.listen(w.client, w.profile)
+				_, take, _ := s.listen(w.client, w.device, w.profile)
 				got = take()
 			}
 			if (got == "uri") != (want == w) {
@@ -133,8 +137,9 @@ func TestALinkGoesToTheWindowPlacedForIt(t *testing.T) {
 	}
 }
 
-// pickWindow is the rule, written plainly: open first, then the profile, then use.
-func pickWindow(windows []*genWindow, linked []domain.RoomID, holds func(string, domain.RoomID) bool) *genWindow {
+// pickWindow is the rule, written plainly: the device's windows only; open first, then the
+// profile, then use.
+func pickWindow(windows []*genWindow, device string, linked []domain.RoomID, holds func(string, domain.RoomID) bool) *genWindow {
 	// Never used counts as used when it came: before any presence, in arrival order.
 	rank := func(w *genWindow) int {
 		if w.used > 0 {
@@ -145,7 +150,7 @@ func pickWindow(windows []*genWindow, linked []domain.RoomID, holds func(string,
 	last := func(keep func(*genWindow) bool) *genWindow {
 		var best *genWindow
 		for _, w := range windows {
-			if !w.gone && keep(w) && (best == nil || rank(w) > rank(best)) {
+			if !w.gone && w.device == device && keep(w) && (best == nil || rank(w) > rank(best)) {
 				best = w
 			}
 		}

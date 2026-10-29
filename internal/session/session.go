@@ -10,13 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/zalando/go-keyring"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/keystore"
 )
 
 const (
@@ -28,11 +27,7 @@ const (
 
 // Store locates one instance's session and encryption key: keyring service, account
 // and fallback file.
-type Store struct {
-	Service string
-	Account string
-	File    string
-}
+type Store = keystore.Store
 
 // MatrixStore is where the instance keeps the session and encryption key of the Matrix
 // account whose key (domain.AccountKey) is key: each account its own, so two accounts
@@ -42,8 +37,10 @@ func MatrixStore(storage domain.Storage, key string) Store {
 }
 
 // ErrNoSecretStore means no OS secret store and no file fallback; a warning, not fatal.
-var ErrNoSecretStore = errors.New(
-	"session: no OS secret store available; token not persisted (set allow_token_file to persist to a 0600 file)")
+var ErrNoSecretStore = keystore.ErrNoSecretStore
+
+// ErrKeyringNotAnswering is a keyring that did not answer in time; it is not "no key".
+var ErrKeyringNotAnswering = keystore.ErrKeyringNotAnswering
 
 var errEmptySecret = errors.New("session: a secret needs a name and a value")
 
@@ -56,17 +53,17 @@ func Save(st Store, s domain.Session, allowFile bool) error {
 	}
 	setErr := keyring.Set(st.Service, st.Account, string(blob))
 	if setErr == nil {
-		return removeFile(st.File) // no plaintext copy once the keyring holds it
+		return keystore.RemoveFile(st.File) // no plaintext copy once the keyring holds it
 	}
 	if allowFile {
-		return saveFile(st.File, blob)
+		return keystore.SaveFile(st.File, blob)
 	}
 	return fmt.Errorf("%w: %w", ErrNoSecretStore, setErr)
 }
 
 // Load returns the saved session; found=false with nil error means a first run.
 func Load(st Store, allowFile bool) (domain.Session, bool, error) {
-	blob, err := get(st.Service, st.Account)
+	blob, err := keystore.Get(st.Service, st.Account)
 	switch {
 	case err == nil:
 		return decode([]byte(blob))
@@ -91,7 +88,7 @@ func Load(st Store, allowFile bool) (domain.Session, bool, error) {
 // The encryption key stays. With allowFile, an unreachable secret store is no failure:
 // Save falls back to the file only when it cannot reach the store.
 func Forget(st Store, allowFile bool) error {
-	if err := removeFile(st.File); err != nil {
+	if err := keystore.RemoveFile(st.File); err != nil {
 		return err
 	}
 	err := keyring.Delete(st.Service, st.Account)
@@ -131,7 +128,7 @@ func LoadOrCreateStoreKey(service, instance, name string) ([]byte, error) {
 // answer is ErrKeyringNotAnswering. A key made but not yet kept is not used; if the
 // keyring keeps it later, the next call reads it.
 func loadOrCreateKey(service, acct string, corrupt error, advice string) ([]byte, error) {
-	switch existing, err := get(service, acct); {
+	switch existing, err := keystore.Get(service, acct); {
 	case err == nil:
 		key, derr := base64.StdEncoding.DecodeString(existing)
 		if derr == nil && len(key) == pickleKeyLen {
@@ -149,10 +146,7 @@ func loadOrCreateKey(service, acct string, corrupt error, advice string) ([]byte
 		return nil, fmt.Errorf("session: generate a key: %w", err)
 	}
 	encoded := base64.StdEncoding.EncodeToString(key)
-	// A write still waiting from an earlier call is joined, and its key is the one kept.
-	kept, err := bounded("set\x00"+service+"\x00"+acct, keyringWait, func() (string, error) {
-		return encoded, keyring.Set(service, acct, encoded)
-	})
+	kept, err := keystore.Set(service, acct, encoded)
 	switch {
 	case errors.Is(err, ErrKeyringNotAnswering):
 		return nil, err
@@ -165,13 +159,6 @@ func loadOrCreateKey(service, acct string, corrupt error, advice string) ([]byte
 	return key, nil
 }
 
-// get reads a keyring entry, waiting at most keyringWait (bounded).
-func get(service, acct string) (string, error) {
-	return bounded("get\x00"+service+"\x00"+acct, keyringWait, func() (string, error) {
-		return keyring.Get(service, acct)
-	})
-}
-
 // Secret reads a named secret (e.g. an API key) under service, falling back to the
 // default service; not scoped to an instance. A missing entry is "" and no error.
 func Secret(service, ref string) (string, error) {
@@ -180,7 +167,7 @@ func Secret(service, ref string) (string, error) {
 		return "", nil
 	}
 	for _, svc := range []string{service, legacyService} {
-		value, err := get(svc, secretAccount(ref))
+		value, err := keystore.Get(svc, secretAccount(ref))
 		switch {
 		case err == nil:
 			return value, nil
@@ -226,69 +213,9 @@ func decode(blob []byte) (domain.Session, bool, error) {
 
 // readFile reads the fallback file, refusing one others can read.
 func readFile(path string) (domain.Session, bool, error) {
-	blob, found, err := readOwnerOnly(path, "an access token")
+	blob, found, err := keystore.ReadOwnerOnly(path, "an access token")
 	if err != nil || !found {
 		return domain.Session{}, false, err
 	}
 	return decode(blob)
-}
-
-// readOwnerOnly reads a fallback file holding what, refusing one others can read;
-// found is false when there is none.
-func readOwnerOnly(path, what string) (blob []byte, found bool, err error) {
-	info, err := os.Stat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, fmt.Errorf("session: stat %s: %w", path, err)
-	}
-	if perm := info.Mode().Perm(); perm&^ownerOnly != 0 {
-		return nil, false, fmt.Errorf(
-			"session: %s is group/other-accessible (%#o); it holds %s — run: chmod 600 %s",
-			path, perm, what, path)
-	}
-	blob, err = os.ReadFile(path) // #nosec G304 -- a fallback file, mode-checked above
-	if err != nil {
-		return nil, false, fmt.Errorf("session: read %s: %w", path, err)
-	}
-	return blob, true, nil
-}
-
-// saveFile writes atomically so a failed save never destroys the previous token.
-func saveFile(path string, blob []byte) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("session: create %s: %w", dir, err)
-	}
-	tmp, err := os.CreateTemp(dir, ".session-*.tmp")
-	if err != nil {
-		return fmt.Errorf("session: mktemp beside %s: %w", path, err)
-	}
-	name := tmp.Name()
-	_, err = tmp.Write(blob)
-	if err == nil {
-		err = tmp.Sync()
-	}
-	if cerr := tmp.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = os.Chmod(name, ownerOnly)
-	}
-	if err == nil {
-		err = os.Rename(name, path)
-	}
-	if err != nil {
-		_ = os.Remove(name) // cleanup on the error path; err is the report
-		return fmt.Errorf("session: write %s: %w", path, err)
-	}
-	return nil
-}
-
-func removeFile(path string) error {
-	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("session: remove %s: %w", path, err)
-	}
-	return nil
 }

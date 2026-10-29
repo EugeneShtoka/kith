@@ -24,6 +24,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/keystore"
 	"github.com/EugeneShtoka/kith/internal/logging"
 	"github.com/EugeneShtoka/kith/internal/notify"
 	"github.com/EugeneShtoka/kith/internal/setup"
@@ -84,7 +85,7 @@ func newLogger(file string, level slog.Leveler) (*slog.Logger, func()) {
 }
 
 func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string, profiles []string) error {
-	cfg, storage, device, err := loadAccount(log, configPath)
+	cfg, storage, device, dial, err := loadAccount(ctx, log, configPath)
 	if err != nil {
 		return err
 	}
@@ -96,10 +97,6 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 	names, err := profileNames(cfg, profiles)
 	if err != nil {
 		return err
-	}
-	socket, err := daemon.SocketPath(storage)
-	if err != nil {
-		return fmt.Errorf("finding the daemon's socket: %w", err)
 	}
 	release, held, err := daemon.AcquireNotifier(storage)
 	if err != nil {
@@ -128,41 +125,90 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 	if uerr := setup.AutoCopyUnavailable(cfg, dev); uerr != nil {
 		log.Warn("auto-copy is on but cannot run", "err", uerr)
 	}
-	a := newAgent(log, func() *daemon.Remote { return daemon.NewRemote(socket) }, sinks, device, dev)
+	a := newAgent(log, dial, sinks, device, dev)
 	a.run(ctx, names)
 	return nil
 }
 
 // loadAccount reads the config for where kithd's socket is, as kith-mcp does, after
-// moving its device settings out (config.SplitDevice); device is the device file.
-func loadAccount(log *slog.Logger, configPath string) (cfg config.Config, storage domain.Storage, device string, err error) {
+// moving its device settings out (config.SplitDevice); device is the device file, and
+// dial reaches kithd. On a device that joined a bridge elsewhere the config is the
+// bridge's, read through it once it answers, and dial reaches it over TLS.
+func loadAccount(ctx context.Context, log *slog.Logger, configPath string) (cfg config.Config, storage domain.Storage, device string, dial func() *daemon.Remote, err error) {
 	path := configPath
 	if path == "" {
 		resolved, perr := config.Path()
 		if perr != nil {
-			return config.Config{}, domain.Storage{}, "", fmt.Errorf("finding the config: %w", perr)
+			return config.Config{}, domain.Storage{}, "", nil, fmt.Errorf("finding the config: %w", perr)
 		}
 		path = resolved
 	}
 	device = config.DevicePath(path)
+	b, joined, err := setup.JoinedBridge(path)
+	if err != nil {
+		return config.Config{}, domain.Storage{}, "", nil, err
+	}
+	if joined {
+		cfg, storage, dial, err = loadBridged(ctx, log, path, b)
+		return cfg, storage, device, dial, err
+	}
 	if _, serr := config.SplitDevice(path, device); serr != nil {
-		return config.Config{}, domain.Storage{}, "", fmt.Errorf("reading %s: %w", path, serr)
+		return config.Config{}, domain.Storage{}, "", nil, fmt.Errorf("reading %s: %w", path, serr)
 	}
 	cfg, err = config.Load(path)
 	if err != nil {
-		return config.Config{}, domain.Storage{}, "", fmt.Errorf("reading %s: %w", path, err)
+		return config.Config{}, domain.Storage{}, "", nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	if warning := config.ModeWarning(path); warning != "" {
 		log.Warn(warning)
 	}
 	if err = setup.Validate(cfg); err != nil {
-		return config.Config{}, domain.Storage{}, "", fmt.Errorf("reading %s: %w", path, err)
+		return config.Config{}, domain.Storage{}, "", nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	storage, err = setup.StorageFor(cfg, path)
 	if err != nil {
-		return config.Config{}, domain.Storage{}, "", err
+		return config.Config{}, domain.Storage{}, "", nil, err
 	}
-	return cfg, storage, device, nil
+	socket, err := daemon.SocketPath(storage)
+	if err != nil {
+		return config.Config{}, domain.Storage{}, "", nil, fmt.Errorf("finding the daemon's socket: %w", err)
+	}
+	return cfg, storage, device, func() *daemon.Remote { return daemon.NewRemote(socket) }, nil
+}
+
+// loadBridged is loadAccount for a device that joined the bridge b: this machine's
+// storage and device key, and the bridge's config, asked for until it answers (a laptop
+// may start before its network) or ctx ends.
+func loadBridged(ctx context.Context, log *slog.Logger, path string, b config.Bridge) (config.Config, domain.Storage, func() *daemon.Remote, error) {
+	storage, allowFile, err := setup.ClientStorage(path)
+	if err != nil {
+		return config.Config{}, domain.Storage{}, nil, err
+	}
+	cert, err := keystore.ClientCertificate(storage, allowFile)
+	if err != nil {
+		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("dialing bridge %s: %w", b.Name, err)
+	}
+	dial, err := daemon.BridgeDialer(cert, b)
+	if err != nil {
+		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("dialing bridge %s: %w", b.Name, err)
+	}
+	for wait := retryFirst; ; wait = min(2*wait, retryMost) {
+		r := dial()
+		snap, gerr := r.GetConfig(ctx)
+		r.Stop()
+		if gerr == nil {
+			if verr := setup.Validate(snap.Config); verr != nil {
+				return config.Config{}, domain.Storage{}, nil, fmt.Errorf("the config of bridge %s: %w", b.Name, verr)
+			}
+			return snap.Config, storage, dial, nil
+		}
+		log.Warn("the bridge does not answer yet", "bridge", b.Name, "err", gerr)
+		select {
+		case <-ctx.Done():
+			return config.Config{}, domain.Storage{}, nil, fmt.Errorf("waiting for bridge %s: %w", b.Name, ctx.Err())
+		case <-time.After(wait):
+		}
+	}
 }
 
 // profileNames are the profiles named, as the config spells them, or the first when

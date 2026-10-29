@@ -1,4 +1,4 @@
-package session
+package keystore
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ import (
 
 func deviceStoreIn(t *testing.T) Store {
 	t.Helper()
-	return DeviceStore(domain.Storage{Instance: "test", StateDir: t.TempDir(), KeyringService: legacyService}, "device")
+	return DeviceStore(domain.Storage{Instance: "test", StateDir: t.TempDir(), KeyringService: "kith"}, "device")
 }
 
 func TestADeviceKeyIsMadeOnceAndKept(t *testing.T) {
@@ -33,7 +33,7 @@ func TestADeviceKeyIsMadeOnceAndKept(t *testing.T) {
 		t.Fatalf("a keyring key left a file: %v", err)
 	}
 	// Each name its own key.
-	client, cerr := LoadOrCreateDeviceKey(DeviceStore(domain.Storage{Instance: "test", KeyringService: legacyService}, "client-device"), false)
+	client, cerr := LoadOrCreateDeviceKey(DeviceStore(domain.Storage{Instance: "test", KeyringService: "kith"}, "client-device"), false)
 	if cerr != nil {
 		t.Fatal(cerr)
 	}

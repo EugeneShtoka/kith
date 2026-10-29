@@ -12,7 +12,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/devicekey"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/session"
+	"github.com/EugeneShtoka/kith/internal/keystore"
+	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
 const devicesUsage = "usage: kith devices [add <id> [name] | remove <id|name> | id]"
@@ -129,15 +130,15 @@ func deviceLabel(d domain.Device) string {
 // printClientID prints this machine's device ID as a client, made on first use, for
 // pairing with a bridge elsewhere (`kith devices add` there).
 func printClientID(configPath string) error {
-	path, cfg, ready, err := loadConfig(configPath)
-	if err != nil || !ready {
-		return err
-	}
-	storage, err := storageFor(cfg, path)
+	path, err := configFile(configPath)
 	if err != nil {
 		return err
 	}
-	key, err := session.LoadOrCreateDeviceKey(session.DeviceStore(storage, "client-device"), cfg.AllowTokenFile)
+	storage, allowFile, err := setup.ClientStorage(path)
+	if err != nil {
+		return err
+	}
+	key, err := keystore.LoadOrCreateDeviceKey(keystore.DeviceStore(storage, "client-device"), allowFile)
 	if err != nil {
 		return fmt.Errorf("this machine's device key: %w", err)
 	}

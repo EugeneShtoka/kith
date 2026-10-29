@@ -26,6 +26,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/devicekey"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/keystore"
 	"github.com/EugeneShtoka/kith/internal/local"
 	"github.com/EugeneShtoka/kith/internal/logging"
 	"github.com/EugeneShtoka/kith/internal/matrix"
@@ -566,7 +567,7 @@ func serve(
 // use, in the keyring or, with allow_token_file, a 0600 file).
 func deviceIdentity(storage domain.Storage, allowFile bool) func() (tls.Certificate, error) {
 	return func() (tls.Certificate, error) {
-		key, err := session.LoadOrCreateDeviceKey(session.DeviceStore(storage, "device"), allowFile)
+		key, err := keystore.LoadOrCreateDeviceKey(keystore.DeviceStore(storage, "device"), allowFile)
 		if err != nil {
 			return tls.Certificate{}, fmt.Errorf("its device key: %w", err)
 		}

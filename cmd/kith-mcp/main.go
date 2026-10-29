@@ -34,6 +34,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/keystore"
 	"github.com/EugeneShtoka/kith/internal/logging"
 	"github.com/EugeneShtoka/kith/internal/phonebook"
 	"github.com/EugeneShtoka/kith/internal/setup"
@@ -63,7 +64,7 @@ func main() {
 }
 
 func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string) error {
-	cfg, storage, err := loadAccount(log, configPath)
+	cfg, storage, backend, err := loadAccount(log, configPath)
 	if err != nil {
 		return err
 	}
@@ -72,10 +73,6 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string) e
 		return fmt.Errorf("log level: %w", err)
 	}
 	level.Set(resolved)
-	socket, err := daemon.SocketPath(storage)
-	if err != nil {
-		return fmt.Errorf("finding the daemon's socket: %w", err)
-	}
 	cooldown, err := setup.AgentCooldown(cfg.Agent)
 	if err != nil {
 		return err
@@ -96,7 +93,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string) e
 		excludes: profiles[0].People,
 		cardsDir: setup.PhonebookDir(cfg),
 		places:   setup.PlacesOf(cfg),
-		backend:  daemon.NewRemote(socket),
+		backend:  backend,
 		scope:    setup.AgentReadScope(cfg.Agent),
 		write:    setup.AgentWriteScope(cfg.Agent),
 		send:     cfg.Agent.Write.Send,
@@ -140,36 +137,79 @@ const scopeCheckTimeout = 5 * time.Second
 
 // loadAccount loads and validates the config, once its device settings are moved out
 // (config.SplitDevice): it reads none of them.
-func loadAccount(log *slog.Logger, configPath string) (config.Config, domain.Storage, error) {
+func loadAccount(log *slog.Logger, configPath string) (config.Config, domain.Storage, *daemon.Remote, error) {
 	path := configPath
 	if path == "" {
 		resolved, err := config.Path()
 		if err != nil {
-			return config.Config{}, domain.Storage{}, fmt.Errorf("finding the config: %w", err)
+			return config.Config{}, domain.Storage{}, nil, fmt.Errorf("finding the config: %w", err)
 		}
 		path = resolved
 	}
+	b, joined, jerr := setup.JoinedBridge(path)
+	if jerr != nil {
+		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("finding the bridge: %w", jerr)
+	}
+	if joined {
+		return loadBridged(path, b)
+	}
 	if _, err := config.SplitDevice(path, config.DevicePath(path)); err != nil {
-		return config.Config{}, domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
+		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	cfg, err := config.Load(path)
 	if err != nil {
-		return config.Config{}, domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
+		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	if warning := config.ModeWarning(path); warning != "" {
 		log.Warn(warning)
 	}
 	if err = setup.Validate(cfg); err != nil {
-		return config.Config{}, domain.Storage{}, fmt.Errorf("reading %s: %w", path, err)
+		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	storage, err := setup.StorageFor(cfg, path)
 	if err != nil {
-		return config.Config{}, domain.Storage{}, err
+		return config.Config{}, domain.Storage{}, nil, err
 	}
 	if rerr := setup.RememberInstance(cfg, path); rerr != nil {
 		log.Debug("storage.instance not recorded; it is derived from the config's path", "err", rerr)
 	}
-	return cfg, storage, nil
+	socket, err := daemon.SocketPath(storage)
+	if err != nil {
+		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("finding the daemon's socket: %w", err)
+	}
+	return cfg, storage, daemon.NewRemote(socket), nil
+}
+
+// bridgeWait bounds the wait for a bridge elsewhere to answer at start: an assistant
+// starting this server is waiting.
+const bridgeWait = 20 * time.Second
+
+// loadBridged is loadAccount for a device that joined the bridge b: this machine's
+// storage and device key, and the bridge's config, read through it.
+func loadBridged(path string, b config.Bridge) (config.Config, domain.Storage, *daemon.Remote, error) {
+	storage, allowFile, err := setup.ClientStorage(path)
+	if err != nil {
+		return config.Config{}, domain.Storage{}, nil, err
+	}
+	cert, err := keystore.ClientCertificate(storage, allowFile)
+	if err != nil {
+		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("dialing bridge %s: %w", b.Name, err)
+	}
+	ctx := context.Background()
+	r, err := daemon.AttachBridge(ctx, cert, b, bridgeWait)
+	if err != nil {
+		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("dialing bridge %s: %w", b.Name, err)
+	}
+	snap, err := r.GetConfig(ctx)
+	if err != nil {
+		r.Stop()
+		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("reading the config of bridge %s: %w", b.Name, err)
+	}
+	if err := setup.Validate(snap.Config); err != nil {
+		r.Stop()
+		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("the config of bridge %s: %w", b.Name, err)
+	}
+	return snap.Config, storage, r, nil
 }
 
 // reader is the read half of what this server asks the daemon.
