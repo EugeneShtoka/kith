@@ -2,9 +2,11 @@ import { hostname } from "node:os";
 
 import {
   create,
+  type DescMessage,
   type DescMethodServerStreaming,
   type DescMethodUnary,
   fromBinary,
+  type MessageInitShape,
   type MessageShape,
   toBinary,
 } from "@bufbuild/protobuf";
@@ -44,6 +46,18 @@ const calls = new Map<string, DescMethodUnary>(
     backend.fetchEvent,
     backend.cachedReactions,
     backend.markRead,
+    // The composer: sending, editing and deleting, reactions, typing, mentions, the
+    // emoji ranking, and drafts (written as the seat's, below).
+    backend.send,
+    backend.redact,
+    backend.sendReaction,
+    backend.sendTyping,
+    backend.mentionCandidates,
+    backend.emojiScores,
+    backend.recordEmoji,
+    backend.selves,
+    backend.drafts,
+    backend.replaceDraft,
     device.device,
     device.chooseProfile,
     device.deviceSettings,
@@ -95,6 +109,8 @@ export class Refused extends Error {}
 export class Gate {
   private profile = "";
   private readonly open = new Set<{ profile: string; stop: () => void; post: (event: StreamEvent) => void }>();
+  /** The client each Seat stream open asks the seat for, in its profile. */
+  private readonly seats = new Map<object, { profile: string; client: string }>();
 
   constructor(private readonly transport: Transport) {}
 
@@ -106,6 +122,9 @@ export class Gate {
     const invited = invitedOnly.get(method.name);
     if (invited !== undefined) {
       await this.mustBeInvited(invited(input), header);
+    }
+    if (method.name === backend.replaceDraft.name) {
+      this.asTheSeat(input as MessageShape<typeof backend.replaceDraft.input>);
     }
     const response = await this.transport.unary(method, undefined, undefined, header, input);
     this.follow(method, response.message);
@@ -131,6 +150,13 @@ export class Gate {
       const asked: MessageShape<typeof SeatRequestSchema> = { ...seat, force: false };
       again = () => asked;
     }
+    const seated = method.name === backend.seat.name ? {} : undefined;
+    if (seated !== undefined) {
+      this.seats.set(seated, {
+        profile: this.profile,
+        client: (input as MessageShape<typeof SeatRequestSchema>).client,
+      });
+    }
     if (method.name === backend.messages.name) {
       // Opened again (kithd restarted, the relay failed), the stream resumes after the
       // last change posted to the window, so it is sent what it missed meanwhile, once
@@ -142,12 +168,35 @@ export class Gate {
       });
     }
     const stop = keepOpen(this.transport, method, input, header, post, again);
-    const held = { profile: this.profile, stop, post };
+    const held = {
+      profile: this.profile,
+      stop: () => {
+        if (seated !== undefined) {
+          this.seats.delete(seated);
+        }
+        stop();
+      },
+      post,
+    };
     this.open.add(held);
     return () => {
       this.open.delete(held);
-      stop();
+      held.stop();
     };
+  }
+
+  /**
+   * own makes a call main needs for the window (an attachment's upload, readying the
+   * file), in the window's profile; the window cannot ask for these itself.
+   */
+  async own<I extends DescMessage, O extends DescMessage>(
+    method: DescMethodUnary<I, O>,
+    input: MessageInitShape<I>,
+    signal: AbortSignal,
+  ): Promise<MessageShape<O>> {
+    const header = this.header(method);
+    const response = await this.transport.unary(method, signal, undefined, header, create(method.input, input));
+    return response.message;
   }
 
   /**
@@ -204,6 +253,20 @@ export class Gate {
         held.post({ kind: "refused", error: `kith: the window left the profile ${held.profile}` });
       }
     }
+  }
+
+  /**
+   * asTheSeat names the window's seat in this profile on a draft write, whatever the
+   * window says: kithd refuses it once another window has the seat (daemon seats.write),
+   * so a window that stepped aside never writes over the one that took over. A window
+   * asking for no seat here writes none.
+   */
+  private asTheSeat(request: MessageShape<typeof backend.replaceDraft.input>): void {
+    const seat = [...this.seats.values()].find((s) => s.profile === this.profile);
+    if (seat === undefined || seat.client === "") {
+      throw new Refused(`kith: the window writes drafts only from its seat in ${this.profile}`);
+    }
+    request.client = seat.client;
   }
 
   /** mustBeInvited refuses unless the profile has an invitation to room now. */

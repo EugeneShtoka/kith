@@ -3,6 +3,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse } from "../gen/backend/v1/services_pb";
 import type { Room, Unread } from "../gen/backend/v1/types_pb";
+import { ComposerPane } from "./ComposerPane";
 import { unreadOf } from "./rooms";
 import { type Link, type Seat, Session, type View } from "./session";
 import { TimelinePane } from "./TimelinePane";
@@ -85,7 +86,14 @@ function Body({ view, session }: { view: View; session: Session }) {
             ))}
           </ul>
         </section>
-        {view.timeline && <TimelinePane t={view.timeline} unreadLine={view.unreadLine} session={session} />}
+        {view.timeline && (
+          <div className="open-room">
+            <TimelinePane t={view.timeline} unreadLine={view.unreadLine} composer={view.composer} session={session} />
+            {view.composer && (
+              <ComposerPane c={view.composer} room={view.rooms.find((r) => r.id === view.open)} session={session} />
+            )}
+          </div>
+        )}
       </div>
       {view.status && (
         <details>

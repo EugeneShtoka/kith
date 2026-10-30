@@ -41,6 +41,8 @@ const (
 	// DeviceServiceDeviceSettingsProcedure is the fully-qualified name of the DeviceService's
 	// DeviceSettings RPC.
 	DeviceServiceDeviceSettingsProcedure = "/device.v1.DeviceService/DeviceSettings"
+	// DeviceServiceOutgoingProcedure is the fully-qualified name of the DeviceService's Outgoing RPC.
+	DeviceServiceOutgoingProcedure = "/device.v1.DeviceService/Outgoing"
 )
 
 // DeviceServiceClient is a client for the device.v1.DeviceService service.
@@ -55,6 +57,11 @@ type DeviceServiceClient interface {
 	// DeviceSettings is what the window reads of this device's settings (device.toml),
 	// each key's default applied. Each call reads the file again.
 	DeviceSettings(context.Context, *connect.Request[v1.DeviceSettingsRequest]) (*connect.Response[v1.DeviceSettingsResponse], error)
+	// Outgoing readies a file on this device for sending, as the TUI readies one: where
+	// [display.media] anonymize holds, a picture is copied without its metadata
+	// (media.Strip) and the file goes under a neutral name (domain.SentName). Main asks
+	// it for each file the person offered; the window never names a path.
+	Outgoing(context.Context, *connect.Request[v1.OutgoingRequest]) (*connect.Response[v1.OutgoingResponse], error)
 }
 
 // NewDeviceServiceClient constructs a client for the device.v1.DeviceService service. By default,
@@ -86,6 +93,12 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("DeviceSettings")),
 			connect.WithClientOptions(opts...),
 		),
+		outgoing: connect.NewClient[v1.OutgoingRequest, v1.OutgoingResponse](
+			httpClient,
+			baseURL+DeviceServiceOutgoingProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("Outgoing")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -94,6 +107,7 @@ type deviceServiceClient struct {
 	device         *connect.Client[v1.DeviceRequest, v1.DeviceResponse]
 	chooseProfile  *connect.Client[v1.ChooseProfileRequest, v1.ChooseProfileResponse]
 	deviceSettings *connect.Client[v1.DeviceSettingsRequest, v1.DeviceSettingsResponse]
+	outgoing       *connect.Client[v1.OutgoingRequest, v1.OutgoingResponse]
 }
 
 // Device calls device.v1.DeviceService.Device.
@@ -111,6 +125,11 @@ func (c *deviceServiceClient) DeviceSettings(ctx context.Context, req *connect.R
 	return c.deviceSettings.CallUnary(ctx, req)
 }
 
+// Outgoing calls device.v1.DeviceService.Outgoing.
+func (c *deviceServiceClient) Outgoing(ctx context.Context, req *connect.Request[v1.OutgoingRequest]) (*connect.Response[v1.OutgoingResponse], error) {
+	return c.outgoing.CallUnary(ctx, req)
+}
+
 // DeviceServiceHandler is an implementation of the device.v1.DeviceService service.
 type DeviceServiceHandler interface {
 	// Device is where this device's requests go, the profiles the config defines, and
@@ -123,6 +142,11 @@ type DeviceServiceHandler interface {
 	// DeviceSettings is what the window reads of this device's settings (device.toml),
 	// each key's default applied. Each call reads the file again.
 	DeviceSettings(context.Context, *connect.Request[v1.DeviceSettingsRequest]) (*connect.Response[v1.DeviceSettingsResponse], error)
+	// Outgoing readies a file on this device for sending, as the TUI readies one: where
+	// [display.media] anonymize holds, a picture is copied without its metadata
+	// (media.Strip) and the file goes under a neutral name (domain.SentName). Main asks
+	// it for each file the person offered; the window never names a path.
+	Outgoing(context.Context, *connect.Request[v1.OutgoingRequest]) (*connect.Response[v1.OutgoingResponse], error)
 }
 
 // NewDeviceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -150,6 +174,12 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("DeviceSettings")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServiceOutgoingHandler := connect.NewUnaryHandler(
+		DeviceServiceOutgoingProcedure,
+		svc.Outgoing,
+		connect.WithSchema(deviceServiceMethods.ByName("Outgoing")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/device.v1.DeviceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceServiceDeviceProcedure:
@@ -158,6 +188,8 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 			deviceServiceChooseProfileHandler.ServeHTTP(w, r)
 		case DeviceServiceDeviceSettingsProcedure:
 			deviceServiceDeviceSettingsHandler.ServeHTTP(w, r)
+		case DeviceServiceOutgoingProcedure:
+			deviceServiceOutgoingHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -177,4 +209,8 @@ func (UnimplementedDeviceServiceHandler) ChooseProfile(context.Context, *connect
 
 func (UnimplementedDeviceServiceHandler) DeviceSettings(context.Context, *connect.Request[v1.DeviceSettingsRequest]) (*connect.Response[v1.DeviceSettingsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.DeviceSettings is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) Outgoing(context.Context, *connect.Request[v1.OutgoingRequest]) (*connect.Response[v1.OutgoingResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.Outgoing is not implemented"))
 }

@@ -533,7 +533,7 @@ master-device constraint from above still applies.
    entries authorize themselves (signed by adding device?), bounded size story,
    compaction / snapshotting. Two things the first sketch missed:
    - **Drafts are not plain LWW today.** kith-mcp appends to a draft while you type,
-     and the TUI rebases your text onto the append (`internal/tui/draft.go`). LWW
+     and kithd rebases a window's text onto the append (`domain.RebaseDraft`). LWW
      per draft would drop one of the two; whatever crosses must keep the append.
    - **Config is one file**, rewritten whole by kithd behind a revision check, and
      edited by hand. LWW per key across bridges has to say what a hand edit on one
