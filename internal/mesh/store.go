@@ -1,10 +1,12 @@
 // Package mesh is a replica's store: its ops, the entries they wrote and its version
 // vector, in a SQLite file of its own sealed under the cache's key (internal/sealeddb).
 // Not the cache: a rebuild must not lose a replica's writes or unpair anyone. The data
-// model, the merge and the roster's rules are internal/mesh/crdt's.
+// model, the merge and the roster's rules are internal/mesh/crdt's; the sync session
+// over a pair of frame streams is here (sync.go).
 package mesh
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto"
@@ -32,7 +34,12 @@ const schemaVersion = 1
 var ErrNewer = errors.New("mesh: the store was written by a newer kith; run that kith, or restore the store it replaced")
 
 // schema is the layout of schemaVersion. A replica is a device ID, kept once in
-// replicas and named by its index elsewhere.
+// replicas and named by its index elsewhere. A key holds one entry per concurrent
+// write (crdt.State). The roster's ops are kept for good (roster = 1): membership as
+// of any op is read from them, and a snapshot carries them; every other op leaves the
+// log once past the horizon and acknowledged by every live peer. peers is each other
+// replica's last reported vector, when it was heard and its clock's gap then; forks
+// each origin that signed two ops under one dot, with both.
 const schema = `
 CREATE TABLE replicas (
 	idx INTEGER PRIMARY KEY,
@@ -44,29 +51,68 @@ CREATE TABLE ops (
 	clock  INTEGER NOT NULL,
 	body   BLOB NOT NULL,
 	sig    BLOB NOT NULL,
+	roster INTEGER NOT NULL,
 	PRIMARY KEY (origin, seq)
 ) WITHOUT ROWID;
 CREATE TABLE entries (
-	key    TEXT PRIMARY KEY,
-	value  BLOB NOT NULL,
+	key    TEXT NOT NULL,
 	origin INTEGER NOT NULL REFERENCES replicas(idx),
 	seq    INTEGER NOT NULL,
-	clock  INTEGER NOT NULL
+	value  BLOB NOT NULL,
+	clock  INTEGER NOT NULL,
+	PRIMARY KEY (key, origin, seq)
 ) WITHOUT ROWID;
 CREATE TABLE vv (
 	origin INTEGER PRIMARY KEY REFERENCES replicas(idx),
 	seq    INTEGER NOT NULL,
 	hash   BLOB NOT NULL
 );
+CREATE TABLE peers (
+	origin INTEGER PRIMARY KEY REFERENCES replicas(idx),
+	vector BLOB NOT NULL,
+	heard  INTEGER NOT NULL,
+	gap    INTEGER NOT NULL
+);
+CREATE TABLE forks (
+	origin     INTEGER PRIMARY KEY REFERENCES replicas(idx),
+	seq        INTEGER NOT NULL,
+	found      INTEGER NOT NULL,
+	held_body  BLOB,
+	held_sig   BLOB,
+	other_body BLOB NOT NULL,
+	other_sig  BLOB NOT NULL
+);
 `
 
 // Store is one replica's store, its state held in memory as last committed.
 type Store struct {
-	db *sql.DB
+	db   *sql.DB
+	path string
 
 	mu    sync.Mutex
 	state crdt.State
 	clock crdt.Clock // the latest op's
+	// peers is what each other replica last said: its vector, when, and its clock's gap.
+	peers map[devicekey.ID]peer
+	// forked are the origins that signed two ops under one dot: none of their ops are
+	// taken any more, from them or by relay.
+	forked map[devicekey.ID]bool
+	// held are ops a peer sent that cannot be applied yet: past ops not held, or from
+	// the future. Retried after every change; lost with the process, as a peer sends
+	// them again.
+	held []crdt.Op
+	// changed is closed after every commit, and replaced.
+	changed chan struct{}
+	// sessions are the open sync streams, one per peer.
+	sessions  map[devicekey.ID]*session
+	compacted time.Time
+}
+
+// peer is what a replica last said of itself.
+type peer struct {
+	vector crdt.Vector
+	heard  time.Time
+	gap    time.Duration
 }
 
 // Open opens (creating) the store at path, sealed under key. A key that does not open
@@ -76,7 +122,7 @@ func Open(ctx context.Context, path string, key []byte) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("mesh: open %s: %w", path, err)
 	}
-	s := &Store{db: db}
+	s := &Store{db: db, path: path}
 	if err := s.load(ctx); err != nil {
 		_ = db.Close() // the open failed; its error is the one to report
 		return nil, fmt.Errorf("mesh: open %s: %w", path, err)
@@ -155,6 +201,8 @@ func (s *Store) Close() error {
 
 // load lays out a new store, or reads what one holds.
 func (s *Store) load(ctx context.Context) error {
+	s.changed, s.sessions = make(chan struct{}), map[devicekey.ID]*session{}
+	s.peers, s.forked = map[devicekey.ID]peer{}, map[devicekey.ID]bool{}
 	var version int
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return fmt.Errorf("read the version: %w", err)
@@ -165,7 +213,33 @@ func (s *Store) load(ctx context.Context) error {
 	case version == 0:
 		return s.create(ctx)
 	}
-	state := crdt.State{Entries: map[string]crdt.Entry{}, Vector: crdt.Vector{}}
+	state := crdt.State{Entries: map[string][]crdt.Entry{}, Vector: crdt.Vector{}}
+	if err := s.loadEntries(ctx, state.Entries); err != nil {
+		return err
+	}
+	if err := s.loadVector(ctx, state.Vector); err != nil {
+		return err
+	}
+	var err error
+	if state.RosterOps, err = s.loadOps(ctx, rosterOps); err != nil {
+		return err
+	}
+	if _, err := state.Roster(); err != nil {
+		return fmt.Errorf("read the roster: %w", err)
+	}
+	if err := s.loadPeers(ctx); err != nil {
+		return err
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT max(coalesce((SELECT max(clock) FROM ops), 0), coalesce((SELECT max(clock) FROM entries), 0))`).
+		Scan(&s.clock); err != nil {
+		return fmt.Errorf("read the clock: %w", err)
+	}
+	s.state = state
+	return nil
+}
+
+// loadEntries reads every key's entries into entries.
+func (s *Store) loadEntries(ctx context.Context, entries map[string][]crdt.Entry) error {
 	rows, err := s.db.QueryContext(ctx, `SELECT e.key, e.value, r.id, e.seq, e.clock FROM entries e JOIN replicas r ON r.idx = e.origin`)
 	if err != nil {
 		return fmt.Errorf("read the entries: %w", err)
@@ -182,21 +256,16 @@ func (s *Store) load(ctx context.Context) error {
 			return errors.New("read the entries: a row does not read")
 		}
 		e.Dot.Origin = devicekey.ID(origin)
-		state.Entries[key] = e
+		entries[key] = append(entries[key], e)
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("read the entries: %w", err)
 	}
-	if err := s.loadVector(ctx, state.Vector); err != nil {
-		return err
+	for _, e := range entries {
+		slices.SortFunc(e, func(a, b crdt.Entry) int {
+			return cmp.Or(slices.Compare(a.Dot.Origin[:], b.Dot.Origin[:]), cmp.Compare(a.Dot.Seq, b.Dot.Seq))
+		})
 	}
-	if _, err := state.Roster(); err != nil {
-		return fmt.Errorf("read the roster: %w", err)
-	}
-	if err := s.db.QueryRowContext(ctx, "SELECT coalesce(max(clock), 0) FROM ops").Scan(&s.clock); err != nil {
-		return fmt.Errorf("read the clock: %w", err)
-	}
-	s.state = state
 	return nil
 }
 
@@ -225,6 +294,81 @@ func (s *Store) loadVector(ctx context.Context, v crdt.Vector) error {
 	return nil
 }
 
+// The ops loadOps reads: the roster's, and those of one origin in a range of seqs (the
+// origin's ID, after which seq, up to which), in an order that follows causality: by
+// (clock, origin), as a write's clock is past every op it had seen.
+const (
+	selectOps   = `SELECT o.body, o.sig FROM ops o JOIN replicas r ON r.idx = o.origin `
+	rosterOps   = selectOps + `WHERE o.roster = 1 ORDER BY o.clock, r.id`
+	originOps   = selectOps + `WHERE r.id = ? AND o.seq > ? AND o.seq <= ? ORDER BY o.clock, r.id`
+	deleteEvery = `DELETE FROM entries; DELETE FROM ops; DELETE FROM vv; DELETE FROM peers; DELETE FROM forks;`
+)
+
+// loadOps reads the kept ops query (rosterOps, originOps) names.
+func (s *Store) loadOps(ctx context.Context, query string, args ...any) ([]crdt.Op, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("read the ops: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []crdt.Op
+	for rows.Next() {
+		var body, sig []byte
+		if err := rows.Scan(&body, &sig); err != nil {
+			return nil, fmt.Errorf("read the ops: %w", err)
+		}
+		op, err := crdt.ParseOp(body, sig)
+		if err != nil {
+			return nil, fmt.Errorf("read the ops: %w", err)
+		}
+		out = append(out, op)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read the ops: %w", err)
+	}
+	return out, nil
+}
+
+// loadPeers reads what each peer last said, and the origins found forked.
+func (s *Store) loadPeers(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `SELECT r.id, p.vector, p.heard, p.gap FROM peers p JOIN replicas r ON r.idx = p.origin`)
+	if err != nil {
+		return fmt.Errorf("read the peers: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id, vector []byte
+		var heard, gap int64
+		if err = rows.Scan(&id, &vector, &heard, &gap); err != nil {
+			return fmt.Errorf("read the peers: %w", err)
+		}
+		v, verr := decodeVector(vector)
+		if verr != nil || len(id) != len(devicekey.ID{}) {
+			return errors.New("read the peers: a row does not read")
+		}
+		s.peers[devicekey.ID(id)] = peer{vector: v, heard: time.UnixMilli(heard), gap: time.Duration(gap) * time.Millisecond}
+	}
+	if err = rows.Err(); err != nil {
+		return fmt.Errorf("read the peers: %w", err)
+	}
+	forks, err := s.db.QueryContext(ctx, `SELECT r.id FROM forks f JOIN replicas r ON r.idx = f.origin`)
+	if err != nil {
+		return fmt.Errorf("read the forks: %w", err)
+	}
+	defer func() { _ = forks.Close() }()
+	for forks.Next() {
+		var id []byte
+		if err := forks.Scan(&id); err != nil || len(id) != len(devicekey.ID{}) {
+			return errors.New("read the forks: a row does not read")
+		}
+		s.forked[devicekey.ID(id)] = true
+	}
+	if err := forks.Err(); err != nil {
+		return fmt.Errorf("read the forks: %w", err)
+	}
+	return nil
+}
+
 // create lays out an empty store.
 func (s *Store) create(ctx context.Context) error {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -245,6 +389,19 @@ func (s *Store) create(ctx context.Context) error {
 	return nil
 }
 
+// Changed is closed after the store's next commit: its own write or a peer's.
+func (s *Store) Changed() <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.changed
+}
+
+// notifyLocked wakes everything waiting on Changed.
+func (s *Store) notifyLocked() {
+	close(s.changed)
+	s.changed = make(chan struct{})
+}
+
 // Roster is every member of the roster, this bridge among them, oldest first, and the
 // IDs of those removed.
 func (s *Store) Roster() (members []domain.Device, removed []string, err error) {
@@ -254,20 +411,24 @@ func (s *Store) Roster() (members []domain.Device, removed []string, err error) 
 	if err != nil {
 		return nil, nil, fmt.Errorf("mesh: %w", err)
 	}
-	for id, m := range roster {
+	for id := range roster {
+		m := roster[id]
 		if m.Removed {
 			removed = append(removed, id.String())
 			continue
 		}
-		members = append(members, domain.Device{
-			Name: m.Name, ID: id.String(), Role: domain.DeviceRole(m.Role), AddedAt: m.AddedAt, AddedBy: m.AddedBy,
-		})
+		members = append(members, deviceOf(id, &m))
 	}
 	slices.SortFunc(members, func(a, b domain.Device) int {
 		return cmp.Or(a.AddedAt.Compare(b.AddedAt), cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID))
 	})
 	slices.Sort(removed)
 	return members, removed, nil
+}
+
+// deviceOf is a roster member as a device.
+func deviceOf(id devicekey.ID, m *crdt.Member) domain.Device {
+	return domain.Device{Name: m.Name, ID: id.String(), Role: domain.DeviceRole(m.Role), AddedAt: m.AddedAt, AddedBy: m.AddedBy}
 }
 
 // ChangeRoster writes each device of set, and the removal of each member remove names,
@@ -284,21 +445,27 @@ func (s *Store) ChangeRoster(ctx context.Context, signer crypto.Signer, set []do
 	if err != nil {
 		return err
 	}
+	return s.writeLocked(ctx, signer, origin, writes)
+}
+
+// writeLocked writes writes as this replica's next op, signed by signer.
+func (s *Store) writeLocked(ctx context.Context, signer crypto.Signer, origin devicekey.ID, writes []crdt.Write) error {
 	op := crdt.Op{
 		Origin: origin, Seq: s.state.Vector[origin].Seq + 1, Clock: s.clock.Next(time.Now()),
 		Context: s.state.Vector.Context(), Writes: writes,
 	}
-	if err = op.Sign(signer); err != nil {
+	if err := op.Sign(signer); err != nil {
 		return fmt.Errorf("mesh: %w", err)
 	}
 	next, err := s.state.Apply(op)
 	if err != nil {
 		return fmt.Errorf("mesh: %w", err)
 	}
-	if err := s.commit(ctx, op, next); err != nil {
+	if err := s.commit(ctx, []crdt.Op{op}, next, nil); err != nil {
 		return err
 	}
 	s.state, s.clock = next, op.Clock
+	s.notifyLocked()
 	return nil
 }
 
@@ -319,6 +486,9 @@ func (s *Store) rosterWrites(signer crypto.Signer, origin devicekey.ID, set []do
 			return nil, fmt.Errorf("mesh: %w", err)
 		}
 		m := crdt.Member{Name: d.Name, Role: crdt.Role(d.Role), AddedAt: d.AddedAt, AddedBy: d.AddedBy}
+		if was, ok := roster[id]; ok && !was.Removed {
+			m.Key, m.Addresses = was.Key, was.Addresses // a rename keeps a bridge's key and addresses
+		}
 		if id == origin {
 			if m.Key, err = x509.MarshalPKIXPublicKey(signer.Public()); err != nil {
 				return nil, fmt.Errorf("mesh: %w", err)
@@ -339,8 +509,8 @@ func (s *Store) rosterWrites(signer crypto.Signer, origin devicekey.ID, set []do
 		members, ids = append(members, m), append(ids, id)
 	}
 	writes := make([]crdt.Write, 0, len(members))
-	for i, m := range members {
-		value, err := m.Encode()
+	for i := range members {
+		value, err := members[i].Encode()
 		if err != nil {
 			return nil, fmt.Errorf("mesh: %w", err)
 		}
@@ -349,41 +519,168 @@ func (s *Store) rosterWrites(signer crypto.Signer, origin devicekey.ID, set []do
 	return writes, nil
 }
 
-// commit keeps op and what it changed of next: its entries, and its origin's head.
-func (s *Store) commit(ctx context.Context, op crdt.Op, next crdt.State) error {
+// Bridge writes the roster entry of the bridge d names (its name, when and by whom it
+// was added) with its public key (PKIX) and the addresses it is dialed at, signed by
+// signer: a bridge of the roster. Its own entry carries the signer's key.
+func (s *Store) Bridge(ctx context.Context, signer crypto.Signer, d domain.Device, key []byte, addresses []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	origin, err := devicekey.IDOf(signer.Public())
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	id, err := devicekey.ParseID(d.ID)
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	if id == origin {
+		if key, err = x509.MarshalPKIXPublicKey(signer.Public()); err != nil {
+			return fmt.Errorf("mesh: %w", err)
+		}
+	}
+	value, err := crdt.Member{
+		Key: key, Name: d.Name, Role: crdt.RoleBridge, Addresses: addresses, AddedAt: d.AddedAt, AddedBy: d.AddedBy,
+	}.Encode()
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	return s.writeLocked(ctx, signer, origin, []crdt.Write{{Key: crdt.RosterKey(id), Value: value}})
+}
+
+// PublishAccounts writes the accounts this bridge runs to its own key, signed by
+// signer, when they differ from what it holds there.
+func (s *Store) PublishAccounts(ctx context.Context, signer crypto.Signer, accounts []domain.MeshAccount) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	origin, err := devicekey.IDOf(signer.Public())
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	list := make([]crdt.Account, 0, len(accounts))
+	for _, a := range accounts {
+		list = append(list, crdt.Account{Network: a.Network, ID: a.ID, Label: a.Label})
+	}
+	slices.SortFunc(list, func(a, b crdt.Account) int {
+		return cmp.Or(cmp.Compare(a.Network, b.Network), cmp.Compare(a.ID, b.ID), cmp.Compare(a.Label, b.Label))
+	})
+	value, err := crdt.EncodeAccounts(list)
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	key := crdt.AccountsKey(origin)
+	if held := s.state.Entries[key]; len(held) == 1 && bytes.Equal(held[0].Value, value) {
+		return nil
+	}
+	return s.writeLocked(ctx, signer, origin, []crdt.Write{{Key: key, Value: value}})
+}
+
+// fork is an origin found to have signed two ops under one dot: the one this replica
+// holds (none when it no longer keeps it) and the other.
+type fork struct {
+	held  *crdt.Op
+	other crdt.Op
+}
+
+// commit keeps ops and what they changed of next: the entries of every key they wrote,
+// and each origin's head; and the forks found.
+func (s *Store) commit(ctx context.Context, ops []crdt.Op, next crdt.State, forks []fork) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("mesh: keep an op: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }() // a no-op once committed
+	keys, origins := map[string]bool{}, map[devicekey.ID]bool{}
+	for _, op := range ops {
+		if err := insertOp(ctx, tx, op); err != nil {
+			return err
+		}
+		for _, w := range op.Writes {
+			keys[w.Key] = true
+		}
+		origins[op.Origin] = true
+	}
+	for key := range keys {
+		if err := writeEntries(ctx, tx, key, next.Entries[key]); err != nil {
+			return err
+		}
+	}
+	for origin := range origins {
+		if err := writeHead(ctx, tx, origin, next.Vector[origin]); err != nil {
+			return err
+		}
+	}
+	if err := insertForks(ctx, tx, forks); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("mesh: keep an op: %w", err)
+	}
+	return nil
+}
+
+// insertOp keeps op in the log, unless it is there already.
+func insertOp(ctx context.Context, tx *sql.Tx, op crdt.Op) error {
 	origin, err := replica(ctx, tx, op.Origin)
 	if err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO ops (origin, seq, clock, body, sig) VALUES (?, ?, ?, ?, ?)`,
-		origin, op.Seq, op.Clock, op.Body(), op.Sig); err != nil {
+	roster := slices.ContainsFunc(op.Writes, func(w crdt.Write) bool { return crdt.IsRosterKey(w.Key) })
+	if _, err := tx.ExecContext(ctx, `INSERT INTO ops (origin, seq, clock, body, sig, roster) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT DO NOTHING`, origin, op.Seq, op.Clock, op.Body(), op.Sig, roster); err != nil {
 		return fmt.Errorf("mesh: keep an op: %w", err)
 	}
-	for _, w := range op.Writes {
-		e := next.Entries[w.Key]
+	return nil
+}
+
+// writeEntries makes key's rows entries.
+func writeEntries(ctx context.Context, tx *sql.Tx, key string, entries []crdt.Entry) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM entries WHERE key = ?`, key); err != nil {
+		return fmt.Errorf("mesh: keep an entry: %w", err)
+	}
+	for _, e := range entries {
 		by, err := replica(ctx, tx, e.Dot.Origin)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO entries (key, value, origin, seq, clock) VALUES (?, ?, ?, ?, ?)
-			ON CONFLICT (key) DO UPDATE SET value = excluded.value, origin = excluded.origin, seq = excluded.seq, clock = excluded.clock`,
-			w.Key, e.Value, by, e.Dot.Seq, e.Clock); err != nil {
-			return fmt.Errorf("mesh: keep an op: %w", err)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO entries (key, origin, seq, value, clock) VALUES (?, ?, ?, ?, ?)`,
+			key, by, e.Dot.Seq, e.Value, e.Clock); err != nil {
+			return fmt.Errorf("mesh: keep an entry: %w", err)
 		}
 	}
-	head := next.Vector[op.Origin]
+	return nil
+}
+
+// writeHead keeps origin's head.
+func writeHead(ctx context.Context, tx *sql.Tx, origin devicekey.ID, head crdt.Head) error {
+	idx, err := replica(ctx, tx, origin)
+	if err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO vv (origin, seq, hash) VALUES (?, ?, ?)
 		ON CONFLICT (origin) DO UPDATE SET seq = excluded.seq, hash = excluded.hash`,
-		origin, head.Seq, head.Hash[:]); err != nil {
-		return fmt.Errorf("mesh: keep an op: %w", err)
+		idx, head.Seq, head.Hash[:]); err != nil {
+		return fmt.Errorf("mesh: keep the version vector: %w", err)
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("mesh: keep an op: %w", err)
+	return nil
+}
+
+// insertForks keeps each fork found, the first of each origin.
+func insertForks(ctx context.Context, tx *sql.Tx, forks []fork) error {
+	for i := range forks {
+		f := &forks[i]
+		idx, err := replica(ctx, tx, f.other.Origin)
+		if err != nil {
+			return err
+		}
+		var heldBody, heldSig []byte
+		if f.held != nil {
+			heldBody, heldSig = f.held.Body(), f.held.Sig
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO forks (origin, seq, found, held_body, held_sig, other_body, other_sig)
+			VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+			idx, f.other.Seq, time.Now().UnixMilli(), heldBody, heldSig, f.other.Body(), f.other.Sig); err != nil {
+			return fmt.Errorf("mesh: keep a fork: %w", err)
+		}
 	}
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	meshv1 "github.com/EugeneShtoka/kith/internal/api/mesh/v1"
 	"github.com/EugeneShtoka/kith/internal/devicekey"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -45,6 +47,20 @@ type Devices struct {
 	// in to call Pair alone, its connection held in joining.
 	tickets []*ticket
 	joining map[*remoteConn]struct{}
+	// refreshed is a roster read once (refreshLocked), and rendered the roster file as
+	// kithd last read or wrote it, known its entries: a change arriving by sync renders
+	// over the file only while it still is that, and a hand edit is read against it.
+	refreshed bool
+	rendered  []byte
+	known     []pairedDevice
+	// outOfMesh is this bridge found removed from its mesh, said once.
+	outOfMesh bool
+
+	// wake pokes the mesh's loop (mesh.go) when the listeners change.
+	wake chan struct{}
+	// meshing runs the mesh's loop while Serve does; stopMesh ends it.
+	meshing  sync.WaitGroup
+	stopMesh context.CancelFunc
 
 	lmu       sync.Mutex
 	want      []string
@@ -61,8 +77,9 @@ type pairedDevice struct {
 	domain.Device
 }
 
-// RosterStore keeps the roster as signed ops: the mesh store (internal/mesh), which
-// kithd opens. Clients link this package, so it names the store only through this.
+// RosterStore keeps the roster as signed ops and syncs it with the mesh's other bridges:
+// the mesh store (internal/mesh), which kithd opens. Clients link this package, so it
+// names the store only through this.
 type RosterStore interface {
 	// Roster is every member, this bridge among them, oldest first, and the IDs of
 	// those removed.
@@ -71,6 +88,30 @@ type RosterStore interface {
 	// one op signed by signer: a bridge of the roster, or on an empty store the
 	// genesis, whose set names the signer.
 	ChangeRoster(ctx context.Context, signer crypto.Signer, set []domain.Device, remove []string) error
+	// Bridge writes the entry of the bridge d names with its public key (PKIX) and the
+	// addresses it is dialed at, signed by signer; this bridge's own takes the signer's.
+	Bridge(ctx context.Context, signer crypto.Signer, d domain.Device, key []byte, addresses []string) error
+	// PublishAccounts writes the accounts this bridge runs (bridge/<ID>/accounts),
+	// signed by signer, when they changed.
+	PublishAccounts(ctx context.Context, signer crypto.Signer, accounts []domain.MeshAccount) error
+	// Sync runs one sync session of this bridge (signer, its device key) with the
+	// bridge peer over frames until either ends it; dialed is whether this side dialed.
+	Sync(ctx context.Context, signer crypto.Signer, peer devicekey.ID, dialed bool, frames MeshFrames, log *slog.Logger) error
+	// Join makes this bridge one of the mesh of sponsor, which has just confirmed its
+	// pairing, over frames: the mesh's members it admits from then on.
+	Join(ctx context.Context, self, sponsor devicekey.ID, signer crypto.Signer, frames MeshFrames) ([]domain.Device, error)
+	// Connected reports whether a sync stream with peer is open.
+	Connected(peer devicekey.ID) bool
+	// Changed is closed after the store's next commit.
+	Changed() <-chan struct{}
+	// Status is the mesh as this bridge (self) sees it.
+	Status(self devicekey.ID) (domain.MeshStatus, error)
+}
+
+// MeshFrames is one sync stream as either side sees it (mesh.Frames).
+type MeshFrames = interface {
+	Send(*meshv1.SyncFrame) error
+	Receive() (*meshv1.SyncFrame, error)
 }
 
 // NewDevices keeps the roster in the mesh store, rendered as the file at path. store
@@ -80,6 +121,7 @@ func NewDevices(path string, store func() (RosterStore, error), identity func() 
 	return &Devices{
 		path: path, store: store, identity: identity, log: log,
 		conns: map[devicekey.ID]map[*remoteConn]struct{}{}, joining: map[*remoteConn]struct{}{},
+		wake: make(chan struct{}, 1),
 	}
 }
 
@@ -131,12 +173,14 @@ func (d *Devices) Add(idText, name string, by *devicekey.ID) (domain.Device, err
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.addLocked(id, name, by)
+	return d.addLocked(id, domain.Device{Name: name, Role: domain.RoleDevice}, nil, by)
 }
 
-// addLocked pairs id under name, against the roster as it stands. A device unpaired
-// before is paired again.
-func (d *Devices) addLocked(id devicekey.ID, name string, by *devicekey.ID) (domain.Device, error) {
+// addLocked pairs id as as says (its name and role; a bridge's key, PKIX, and the
+// addresses it is dialed at in joined), against the roster as it stands. A device
+// unpaired before is paired again.
+func (d *Devices) addLocked(id devicekey.ID, as domain.Device, joined *joiner, by *devicekey.ID) (domain.Device, error) {
+	name := as.Name
 	r, err := d.refreshLocked()
 	if err != nil {
 		return domain.Device{}, err
@@ -156,8 +200,13 @@ func (d *Devices) addLocked(id devicekey.ID, name string, by *devicekey.ID) (dom
 	if by == nil {
 		by = &self
 	}
-	added := domain.Device{
-		Name: name, ID: id.String(), Role: domain.RoleDevice, AddedAt: time.Now().UTC().Truncate(time.Second), AddedBy: by.String(),
+	added := as
+	added.ID, added.AddedAt, added.AddedBy = id.String(), time.Now().UTC().Truncate(time.Second), by.String()
+	if added.Role == domain.RoleBridge && joined != nil {
+		if err := r.store.Bridge(context.Background(), r.signer, added, joined.key, joined.addrs); err != nil {
+			return domain.Device{}, fmt.Errorf("daemon: change the device roster: %w", err)
+		}
+		return added, d.settleLocked(&r)
 	}
 	if err := d.changeLocked(r, []domain.Device{added}, nil); err != nil {
 		return domain.Device{}, err
@@ -188,15 +237,20 @@ func (d *Devices) Remove(idText string) error {
 
 // rosterRead is the roster as a refresh found it: the store, kithd's key to sign a
 // change with, and the file as read, which a change renders over only if it still
-// stands.
+// stands, with its entries.
 type rosterRead struct {
-	store  RosterStore
-	signer crypto.Signer
-	file   []byte
+	store   RosterStore
+	signer  crypto.Signer
+	file    []byte
+	entries []pairedDevice
 }
 
 // errNotInMesh is a mesh store whose roster does not list this bridge's key.
 var errNotInMesh = errors.New("this bridge's device key is not a bridge of its mesh store: the key changed since the store was made")
+
+// errOutOfMesh is a mesh store whose roster lists this bridge as removed: another
+// bridge unpaired it, and the removal arrived by sync.
+var errOutOfMesh = errors.New("this bridge was removed from its mesh: it no longer listens, and syncs only to pass that on; `kith join --bridge` joins a mesh again")
 
 // refreshLocked reads the roster: the first time, the file into the mesh store as its
 // genesis; then a hand edit of the file into ops of this bridge's. It renders the file
@@ -223,12 +277,15 @@ func (d *Devices) refreshLocked() (rosterRead, error) {
 	if err != nil {
 		return rosterRead{}, err
 	}
-	r := rosterRead{store: store, signer: signer, file: body}
+	r := rosterRead{store: store, signer: signer, file: body, entries: file}
 	if len(members) == 0 {
 		err = d.migrateLocked(&r, file)
 		return r, err
 	}
 	if !slices.ContainsFunc(members, func(m domain.Device) bool { return m.ID == self.String() && m.Role == domain.RoleBridge }) {
+		if slices.Contains(removed, self.String()) {
+			return rosterRead{}, fmt.Errorf("daemon: %w", errOutOfMesh)
+		}
 		return rosterRead{}, fmt.Errorf("daemon: %w; move the mesh store (mesh-*.db beside %s) aside to make it again from that file", errNotInMesh, d.path)
 	}
 	// A file that is not there (deleted, or a store restored without it) is no edit: it
@@ -236,7 +293,14 @@ func (d *Devices) refreshLocked() (rosterRead, error) {
 	var set []domain.Device
 	var remove []string
 	if body != nil {
-		set, remove = d.handEdits(file, members, removed)
+		base := d.known
+		if !d.refreshed { // since the start, nothing but a hand edit changed the file
+			base = make([]pairedDevice, 0, len(members))
+			for _, m := range members {
+				base = append(base, pairedDevice{Device: m})
+			}
+		}
+		set, remove = d.handEdits(file, base, members, removed)
 	}
 	if len(set)+len(remove) > 0 {
 		if err = store.ChangeRoster(context.Background(), signer, set, remove); err != nil {
@@ -275,23 +339,37 @@ func (d *Devices) migrateLocked(r *rosterRead, file []pairedDevice) error {
 // taken out is a removal, one put in an add, a name changed a rename. Removing wins: a
 // device the roster has unpaired stays unpaired though the file lists it (a stale
 // copy, or an editor open since), and is paired again only by `kith devices add`.
-func (d *Devices) handEdits(file []pairedDevice, members []domain.Device, removed []string) (set []domain.Device, remove []string) {
+// The file is read against base, the entries kithd last wrote or read there, not
+// against the roster: a change another bridge made, arriving by sync before kithd
+// rendered it, is neither taken out nor renamed back by a file that never showed it.
+func (d *Devices) handEdits(file, base []pairedDevice, members []domain.Device, removed []string) (set []domain.Device, remove []string) {
 	self := d.self.String()
-	for _, m := range members {
-		if m.ID != self && !slices.ContainsFunc(file, func(p pairedDevice) bool { return p.ID == m.ID }) {
-			remove = append(remove, m.ID)
+	find := func(list []pairedDevice, id string) (pairedDevice, bool) {
+		i := slices.IndexFunc(list, func(p pairedDevice) bool { return p.ID == id })
+		if i < 0 {
+			return pairedDevice{}, false
+		}
+		return list[i], true
+	}
+	for _, b := range base {
+		_, inFile := find(file, b.ID)
+		if b.ID != self && !inFile && slices.ContainsFunc(members, func(m domain.Device) bool { return m.ID == b.ID }) {
+			remove = append(remove, b.ID)
 		}
 	}
 	var stale []string
 	for _, p := range file {
 		i := slices.IndexFunc(members, func(m domain.Device) bool { return m.ID == p.ID })
+		was, inBase := find(base, p.ID)
 		switch {
 		case p.ID == self:
-		case i >= 0 && members[i].Name == p.Name:
+		case i >= 0 && (members[i].Name == p.Name || inBase && was.Name == p.Name):
 		case i >= 0:
 			renamed := members[i]
 			renamed.Name = p.Name
 			set = append(set, renamed)
+		case inBase:
+			// Unpaired by sync since kithd last wrote the file: not a hand edit.
 		case slices.Contains(removed, p.ID):
 			stale = append(stale, p.ID)
 		default:
@@ -325,8 +403,10 @@ func (d *Devices) changeLocked(r rosterRead, set []domain.Device, remove []strin
 // settleLocked takes the store's roster as the devices served, cuts off every device it
 // no longer holds, and renders the file from it, unless the file changed since r read
 // it: that hand edit is read at the next change, listing or reload, not written over.
-// What it renders is r's file from then on, so a change that follows renders over it.
+// What it renders is r's file from then on, so a change that follows renders over it;
+// and the file kithd knows of, so a change arriving by sync does too (synced).
 func (d *Devices) settleLocked(r *rosterRead) error {
+	defer func() { d.refreshed, d.rendered, d.known = true, r.file, r.entries }()
 	members, _, err := r.store.Roster()
 	if err != nil {
 		return fmt.Errorf("daemon: the mesh store: %w", err)
@@ -361,7 +441,7 @@ func (d *Devices) settleLocked(r *rosterRead) error {
 	if err := writeRoster(d.path, body); err != nil {
 		return err
 	}
-	r.file = body
+	r.file, r.entries = body, paired
 	return nil
 }
 
@@ -376,8 +456,9 @@ func (d *Devices) cutLocked(id devicekey.ID) {
 // admit takes a connection whose handshake shows id, if id is paired, tracking it
 // under id: in one step with Remove's, so no connection is admitted after its device
 // was removed and missed by the cut. While a pairing is open, any other key is let in
-// to answer it and nothing else (pairingGate).
-func (d *Devices) admit(id devicekey.ID, c *remoteConn) bool {
+// to answer it and nothing else (pairingGate), its public key (key, PKIX) kept for a
+// bridge's roster entry.
+func (d *Devices) admit(id devicekey.ID, key []byte, c *remoteConn) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	switch {
@@ -387,7 +468,7 @@ func (d *Devices) admit(id devicekey.ID, c *remoteConn) bool {
 		c.id, c.admitted = id, true
 		d.trackLocked(c)
 	case len(d.tickets) > 0:
-		c.id, c.admitted, c.onlyPairs = id, true, true
+		c.id, c.key, c.admitted, c.onlyPairs = id, key, true, true
 		d.joining[c] = struct{}{}
 	default:
 		return false
@@ -450,22 +531,30 @@ func (d *Devices) Listen(addrs []string) {
 	d.reconcileLocked()
 }
 
-// serve starts the listeners with Serve's handler; base is every connection's context.
+// serve starts the listeners with Serve's handler, and the mesh's loop, which dials the
+// other bridges; base is every connection's context.
 func (d *Devices) serve(handler http.Handler, base func(net.Listener) context.Context) {
 	d.lmu.Lock()
 	defer d.lmu.Unlock()
 	d.handler, d.base = handler, base
 	d.reconcileLocked()
+	ctx, stop := context.WithCancel(base(nil))
+	d.stopMesh = stop
+	d.meshing.Go(func() { d.runMesh(ctx) })
 }
 
-// shut closes every listener and every remote connection, and waits for the
-// listeners to return; Serve calls it on its way out.
+// shut closes every listener and every remote connection, ends the mesh's loop and
+// its streams, and waits for them all to return; Serve calls it on its way out.
 func (d *Devices) shut() {
 	d.lmu.Lock()
 	d.handler = nil
 	d.stopLocked(nil)
+	if d.stopMesh != nil {
+		d.stopMesh()
+	}
 	d.lmu.Unlock()
 	d.serving.Wait()
+	d.meshing.Wait()
 }
 
 // stopLocked closes the listeners whose addresses keep does not name, with their
@@ -487,6 +576,7 @@ func (d *Devices) reconcileLocked() {
 	if d.handler == nil {
 		return
 	}
+	defer d.poke() // the addresses this bridge is dialed at may have changed
 	d.stopLocked(d.want)
 	if len(d.want) == 0 {
 		return
@@ -587,7 +677,11 @@ func (d *Devices) tlsConfig(cert tls.Certificate) *tls.Config {
 			if err != nil {
 				return fmt.Errorf("daemon: %w", err)
 			}
-			if !d.admit(id, c) {
+			key, err := x509.MarshalPKIXPublicKey(state.PeerCertificates[0].PublicKey) // PeerID read it
+			if err != nil {
+				return fmt.Errorf("daemon: %w", err)
+			}
+			if !d.admit(id, key, c) {
 				d.log.Debug("refused an unpaired device", "id", id.String(), "from", c.RemoteAddr().String())
 				return errNotPaired
 			}

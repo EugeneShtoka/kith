@@ -17,6 +17,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
+	"github.com/EugeneShtoka/kith/internal/api/mesh/v1/meshv1connect"
 	"github.com/EugeneShtoka/kith/internal/human"
 )
 
@@ -89,11 +90,10 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 	// can end them while the caller's ctx is still live.
 	ctx, cancelHandlers := context.WithCancel(ctx)
 	defer cancelHandlers()
-	mux := http.NewServeMux()
 	served := &server{Daemon: d, lifetime: ctx, seats: newSeats()}
-	mux.Handle(backendv1connect.NewBackendServiceHandler(served,
-		connect.WithInterceptors(failureLog{log: d.Log}, pairingGate{devices: d.Paired}, profileGate{profiles: d.Notifications})))
+	mux := served.handlers()
 	defer served.startRails(ctx)() // ended with the handlers, before the stores close
+	defer served.startMesh(ctx)()
 	// Every handler is counted so none runs after Serve returns and the caller closes
 	// the stores, and none starts once Serve is ending.
 	var inflight handlerGate
@@ -154,6 +154,17 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 		d.Log.Warn("shutdown closed connections a client had stopped reading", "timeout", timeout)
 		return nil
 	}
+}
+
+// handlers is what Serve serves, on the socket and the listeners alike: the backend
+// behind its gates, and the mesh's sync behind its own (meshService), which refuses
+// the socket.
+func (s *server) handlers() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.Handle(backendv1connect.NewBackendServiceHandler(s,
+		connect.WithInterceptors(failureLog{log: s.Log}, pairingGate{devices: s.Paired}, profileGate{profiles: s.Notifications})))
+	mux.Handle(meshv1connect.NewMeshServiceHandler(meshService{devices: s.Paired, log: s.Log}, connect.WithInterceptors(failureLog{log: s.Log})))
+	return mux
 }
 
 // ErrHandlersRunning means Serve gave up on unfinished handlers. They may be

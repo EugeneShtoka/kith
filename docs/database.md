@@ -80,16 +80,21 @@ with this table as its mirror (see [Account-data mirrors](#account-data-mirrors)
 The mesh store, `$XDG_DATA_HOME/kith/mesh-<hash>.db` (`internal/mesh`), is not a cache:
 it holds writes nothing else has, so none of the rules below apply to it. The design is
 [planning/design-mesh.md](../planning/design-mesh.md). For now it holds the roster of
-paired devices (`devices-<hash>.toml` is written out from it).
+paired devices (`devices-<hash>.toml` is written out from it) and the accounts each
+bridge runs, which every bridge of the mesh syncs.
 
 - Sealed like the cache (`internal/sealeddb`), under the cache's key, but a file of
   its own: a cache rebuild never touches it. Only kithd opens it; `scripts/deps-check.sh`
   keeps `internal/mesh` out of every client.
 - Tables: `replicas` (each device ID once, named by its index elsewhere), `ops` (each
-  replica's signed ops, by `(origin, seq)`: the signed bytes and the signature),
-  `entries` (each key's current value and the op that wrote it) and `vv` (the version
-  vector: per origin, the last op held and its hash). An op, its entries and its vector
-  row are written in one transaction.
+  replica's signed ops, by `(origin, seq)`: the signed bytes, the signature, and
+  whether it writes the roster), `entries` (each key's values, one per write made
+  concurrently, and the op that wrote each), `vv` (the version vector: per origin, the
+  last op held and its hash), `peers` (each other bridge's last reported vector, when it
+  was heard and its clock's gap then) and `forks` (each bridge found to have signed two
+  ops under one number, with both). The roster's ops are kept for good; every other op
+  leaves `ops` once 30 days old and held by every bridge heard from in those 30 days. An
+  op, its entries and its vector row are written in one transaction.
 - A backup takes it as it takes the cache: a copy made in one read transaction
   (`VACUUM INTO`, `mesh.Copy`) while kithd writes, encrypted under the backup's own key,
   checked, and written back under the restoring machine's cache key.

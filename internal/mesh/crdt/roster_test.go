@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -140,7 +141,7 @@ func TestAnOpSignedByANonMemberIsRefused(t *testing.T) {
 			t.Errorf("%s: Apply = %v, want %v", name, err, crdt.ErrNotAMember)
 		}
 	}
-	if !maps.EqualFunc(s.Entries, before, func(x, y crdt.Entry) bool { return bytes.Equal(x.Value, y.Value) && x.Dot == y.Dot }) {
+	if !maps.EqualFunc(s.Entries, before, sameEntries) {
 		t.Error("a refused op changed the state")
 	}
 }
@@ -253,7 +254,7 @@ func TestConcurrentRosterWritesEndAlikeInEitherOrder(t *testing.T) {
 			ab := apply(t, apply(t, s, opA), opB)
 			ba := apply(t, apply(t, s, opB), opA)
 			key := crdt.RosterKey(laptop.id)
-			if !bytes.Equal(ab.Entries[key].Value, ba.Entries[key].Value) {
+			if !sameEntries(ab.Entries[key], ba.Entries[key]) {
 				t.Errorf("%s, a later %v: the orders end differently", tc.name, aLater)
 			}
 			roster, err := ab.Roster()
@@ -265,6 +266,13 @@ func TestConcurrentRosterWritesEndAlikeInEitherOrder(t *testing.T) {
 			}
 		}
 	}
+}
+
+// sameEntries reports whether two keys hold the same entries, written by the same ops.
+func sameEntries(x, y []crdt.Entry) bool {
+	return slices.EqualFunc(x, y, func(a, b crdt.Entry) bool {
+		return bytes.Equal(a.Value, b.Value) && a.Dot == b.Dot && a.Clock == b.Clock
+	})
 }
 
 // The clock moves forward whatever the wall clock does.

@@ -5,6 +5,7 @@ package backend.v1;
 option go_package = "github.com/EugeneShtoka/kith/internal/api/backend/v1;backendv1";
 
 import "backend/v1/types.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 // ── Room ──
@@ -1840,11 +1841,12 @@ message PairingTicket {
 }
 
 // PendingDevice is the device that answered a pairing, waiting to be confirmed:
-// digits are the six both screens show.
+// digits are the six both screens show; role is "bridge" for a kithd joining the mesh.
 message PendingDevice {
   string name = 1;
   string id = 2;
   string digits = 3;
+  string role = 4;
 }
 
 // PairingOutcome is how a pairing ended.
@@ -1884,10 +1886,13 @@ message ConfirmPairingResponse {
 }
 
 // PairRequest is a new device answering a pairing over [remote] listen; name is how
-// it would be listed.
+// it would be listed. role "bridge" is a kithd joining the mesh (kith join --bridge),
+// dialed at addresses; anything else pairs a device.
 message PairRequest {
   string token = 1;
   string name = 2;
+  string role = 3;
+  repeated string addresses = 4;
 }
 
 // PairResponse is one frame: the six digits first, then the outcome, which ends the
@@ -1897,6 +1902,69 @@ message PairResponse {
     string digits = 1;
     PairingOutcome outcome = 2;
   }
+}
+
+// ── The mesh ──
+
+// JoinMeshRequest asks this machine's kithd, over its socket, to join the mesh of the
+// bridge whose pairing uri (kith://pair?…) carries; name is how the mesh lists it.
+message JoinMeshRequest {
+  string uri = 1;
+  string name = 2;
+}
+
+// JoinMeshResponse is one frame: the devices this bridge brings (every bridge of the
+// mesh admits them once it has joined), then the six digits, then the outcome; once
+// confirmed, the members this bridge admits from then on, which ends the stream.
+message JoinMeshResponse {
+  oneof event {
+    MeshDevices bringing = 1;
+    string digits = 2;
+    PairingOutcome outcome = 3;
+    MeshDevices joined = 4;
+  }
+}
+
+message MeshDevices {
+  repeated Device devices = 1;
+}
+
+message MeshStatusRequest {}
+
+// MeshStatusResponse is this bridge's view of its mesh: its own ID, the addresses it
+// is dialed at and the accounts it runs, the size of its mesh store, whether it was
+// removed from the mesh, and each other bridge.
+message MeshStatusResponse {
+  string self = 1;
+  int64 store_bytes = 2;
+  bool removed = 3;
+  repeated MeshAccount accounts = 4;
+  repeated MeshPeer peers = 5;
+  repeated string addresses = 6;
+}
+
+// MeshPeer is another bridge: its roster entry, the addresses it is dialed at (none: it
+// only dials) and the accounts it runs; when this bridge last heard it (unset: never),
+// its wall clock less this one's then, how many ops this bridge holds that it has not
+// acknowledged, whether a sync stream is open with it, and whether it signed two ops
+// under one dot (it is removed for it).
+message MeshPeer {
+  Device bridge = 1;
+  repeated MeshAccount accounts = 2;
+  google.protobuf.Timestamp heard = 3;
+  google.protobuf.Duration clock_gap = 4;
+  uint64 lag = 5;
+  bool connected = 6;
+  bool forked = 7;
+  repeated string addresses = 8;
+}
+
+// MeshAccount is one network account a bridge runs: the network, the account's ID on
+// it, and its label.
+message MeshAccount {
+  string network = 1;
+  string id = 2;
+  string label = 3;
 }
 
 // BackendService is the daemon's whole socket API; its RPCs mirror api.Backend.
@@ -2278,4 +2346,11 @@ service BackendService {
   // Pair is a new device answering a pairing: the one call an unpaired key may make,
   // and only while a token is live.
   rpc Pair(PairRequest) returns (stream PairResponse);
+  // The mesh
+  // JoinMesh has this kithd join the mesh of the bridge a pairing names: over the
+  // socket only.
+  rpc JoinMesh(JoinMeshRequest) returns (stream JoinMeshResponse);
+  // MeshStatus is this bridge's view of its mesh: its peers, the accounts each runs,
+  // when each was last heard, lag, clock gaps and the store's size.
+  rpc MeshStatus(MeshStatusRequest) returns (MeshStatusResponse);
 }

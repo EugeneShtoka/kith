@@ -132,6 +132,9 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"PendingDevice", domain.PendingDevice{}, func(v any) any {
 			return protoconv.ProtoToPendingDevice(protoconv.PendingDeviceToProto(v.(domain.PendingDevice)))
 		}},
+		{"MeshStatus", domain.MeshStatus{}, func(v any) any {
+			return protoconv.ProtoToMeshStatus(protoconv.MeshStatusToProto(v.(domain.MeshStatus)))
+		}},
 		{"KeyBackup", domain.KeyBackup{}, func(v any) any {
 			return protoconv.ProtoToKeyBackup(protoconv.KeyBackupToProto(v.(domain.KeyBackup)))
 		}},

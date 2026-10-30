@@ -35,6 +35,7 @@ var (
 	errNothingPending = errors.New("no device has answered this pairing yet")
 	errPairOverSocket = errors.New("pair is a new device's call, over [remote] listen")
 	errOnlyPair       = errors.New("this device is not paired: it may only answer a pairing")
+	errBadAddress     = errors.New("a bridge's address does not read")
 )
 
 // ticket is one open pairing: its token, good once until expires, and the device that
@@ -52,11 +53,14 @@ type ticket struct {
 	outcome domain.PairingOutcome
 }
 
-// joiner is the device pending under a ticket, and the connection it answered over.
+// joiner is the device pending under a ticket, the connection it answered over, and,
+// for a bridge, the key its handshake showed and the addresses it is dialed at.
 type joiner struct {
 	domain.PendingDevice
-	id   devicekey.ID
-	conn *remoteConn
+	id    devicekey.ID
+	conn  *remoteConn
+	key   []byte
+	addrs []string
 }
 
 // startPairing opens a pairing named name and its ticket. Nothing to dial is refused.
@@ -92,11 +96,20 @@ func (d *Devices) ticketLocked(token pairing.Token) *ticket {
 }
 
 // answer holds the device on c as pending under the token, named name unless the
-// trusted side named it: one device per token, and never one already paired.
-func (d *Devices) answer(tokenText, name string, c *remoteConn) (*ticket, error) {
+// trusted side named it: one device per token, and never one already paired. A bridge
+// (role) pairs with the addresses it is dialed at, each one a device could dial.
+func (d *Devices) answer(tokenText, name string, role domain.DeviceRole, addresses []string, c *remoteConn) (*ticket, error) {
 	token, err := pairing.ParseToken(tokenText)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: pair: %w", err)
+	}
+	if role != domain.RoleBridge {
+		role, addresses = domain.RoleDevice, nil
+	}
+	for _, a := range addresses {
+		if err := pairing.CheckAddress(a); err != nil {
+			return nil, fmt.Errorf("daemon: pair: %w: %w", errBadAddress, err)
+		}
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -121,8 +134,8 @@ func (d *Devices) answer(tokenText, name string, c *remoteConn) (*ticket, error)
 		}
 	}
 	t.pending = &joiner{
-		PendingDevice: domain.PendingDevice{Name: name, ID: c.id.String(), Digits: pairing.Digits(self, c.id, token)},
-		id:            c.id, conn: c,
+		PendingDevice: domain.PendingDevice{Name: name, ID: c.id.String(), Digits: pairing.Digits(self, c.id, token), Role: role},
+		id:            c.id, conn: c, key: c.key, addrs: addresses,
 	}
 	close(t.answered)
 	return t, nil
@@ -147,7 +160,7 @@ func (d *Devices) confirm(tokenText string, accept bool, by *devicekey.ID) (doma
 	case t.pending == nil:
 		return domain.Device{}, errNothingPending
 	}
-	added, err := d.addLocked(t.pending.id, t.pending.Name, by)
+	added, err := d.addLocked(t.pending.id, domain.Device{Name: t.pending.Name, Role: t.pending.Role}, t.pending, by)
 	if err != nil {
 		d.endLocked(t, domain.PairingRefused)
 		return domain.Device{}, err
@@ -372,7 +385,7 @@ func (s *server) Pair(ctx context.Context, r *req[v1.PairRequest], st *connect.S
 	if !ok {
 		return connect.NewError(connect.CodeInvalidArgument, errPairOverSocket)
 	}
-	t, err := s.Paired.answer(r.Msg.GetToken(), r.Msg.GetName(), c)
+	t, err := s.Paired.answer(r.Msg.GetToken(), r.Msg.GetName(), domain.DeviceRole(r.Msg.GetRole()), r.Msg.GetAddresses(), c)
 	if err != nil {
 		return pairingErr(err)
 	}
@@ -393,7 +406,7 @@ func (s *server) Pair(ctx context.Context, r *req[v1.PairRequest], st *connect.S
 func pairingErr(err error) error {
 	var code connect.Code
 	switch {
-	case errors.Is(err, pairing.ErrNotAToken):
+	case errors.Is(err, pairing.ErrNotAToken), errors.Is(err, errBadAddress):
 		code = connect.CodeInvalidArgument
 	case errors.Is(err, errNoPairing):
 		code = connect.CodeNotFound

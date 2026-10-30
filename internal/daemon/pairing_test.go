@@ -201,7 +201,7 @@ func TestAPairingFromTicketToServedKey(t *testing.T) {
 		t.Fatalf("the device was shown %s, want %s", got, want)
 	}
 	pending := recv(t, p.pending, "pending device")
-	if pending != (domain.PendingDevice{Name: "laptop", ID: idOf(t, key).String(), Digits: want}) {
+	if pending != (domain.PendingDevice{Name: "laptop", ID: idOf(t, key).String(), Digits: want, Role: domain.RoleDevice}) {
 		t.Fatalf("pending %+v, want laptop %s showing %s", pending, idOf(t, key), want)
 	}
 	added, err := b.socket.ConfirmPairing(t.Context(), tk.Token, true)

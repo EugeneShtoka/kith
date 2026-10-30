@@ -98,6 +98,22 @@ threat model:
   or either side going away spends the token, drops the waiting key and cuts its
   connection. The digits guard the confirmation, not the token: whoever confirms
   without comparing them pairs whoever answered.
+- **Bridges syncing (the mesh).** A kithd paired as a bridge (`kith join --bridge`) is
+  in the device list like any device, with the bridge role and its public key. The sync
+  call is served over `[remote] listen` only, and only to a connection whose key the
+  list has as a bridge: the socket, a device's key, an unpaired key and a key let in to
+  answer a pairing are refused before a frame is read. Every change in the mesh store
+  is signed by the bridge that made it (ECDSA P-256 over one canonical encoding) and
+  checked by every bridge it reaches, relayed or not: a change to the device list counts
+  only if its signer was a bridge of the list as of what that change had seen, so a
+  bridge joining checks the list back to its first entry rather than take the sender's
+  word, and no bridge can write as another. Unpairing a bridge is unpairing a device: its
+  connections are cut and its key is refused by every bridge that holds the removal; a
+  change it signed before it saw its removal still counts everywhere, and nothing it
+  writes after does. A bridge found signing two different changes under one number is
+  removed by the bridge that finds it. Paired = full authority holds between bridges
+  too: a bridge may pair and unpair anything, on every bridge. A peer whose clock is
+  more than 60 seconds off is refused, and a change dated further ahead waits.
 - **Before TLS.** Each remote address (an IPv6 /64 counting as one) gets a burst of
   10 handshakes, then one per two seconds; at most 32 handshakes run at once; a
   handshake, and each request's headers, must arrive within 10 seconds. A throttled

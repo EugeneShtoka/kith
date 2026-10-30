@@ -116,14 +116,16 @@ account, change the config, pair and unpair other devices. Pair only your own.
 Unpairing closes the device's open connections at once, and it cannot connect again.
 
 `kith devices` lists each device with its role: `device` for a client, `bridge` for
-another kithd (bridges pair with each other in a later release).
+another kithd of the mesh ([below](#bridges-in-a-mesh)).
 
 The list is kept in the mesh store, `~/.local/share/kith/mesh-<hash>.db`: each change
-is an entry signed with the bridge's device key, so a later release can carry it to
-other bridges. It is not the config and not the cache, so rebuilding the cache never
-unpairs anyone. kithd writes the list out to `~/.local/share/kith/devices-<hash>.toml`
-after every change. You may edit that file by hand. The next change, listing or reload
-reads it into the store as changes of the bridge's own:
+is an entry signed with the bridge's device key, which the other bridges of its mesh
+check. It is not the config and not the cache, so rebuilding the cache never unpairs
+anyone. kithd writes the list out to `~/.local/share/kith/devices-<hash>.toml` after
+every change. You may edit that file by hand. The next change, listing or reload reads
+it, against what kithd last wrote there, into the store as changes of the bridge's
+own (a change another bridge made meanwhile is not undone by a file that never showed
+it):
 
 - **An entry taken out unpairs the device**, which is cut off then. This holds even if
   the device was paired after you opened the file: removing is the safer mistake, and
@@ -145,6 +147,52 @@ restore onto a new machine), the store no longer lists it, and kithd does not li
 Move `mesh-<hash>.db` aside, and the next start makes the store again from
 `devices-<hash>.toml`. After a restore onto a new machine there is no such file, and
 the devices pin the old machine's key anyway: pair each one again.
+
+## Bridges in a mesh
+
+Two or more kithd (a home server and a laptop, say) can pair with each other as a
+**mesh**. For now the mesh carries the device list: a device paired with any bridge is
+admitted by every bridge, and one unpaired on any bridge is cut off by every bridge.
+Each bridge still runs its own network accounts and its own config.
+
+On a device the mesh trusts, run `kith pair` as for a device. On the new bridge's
+machine, with its kithd set up (its own `config.toml`), run
+
+```sh
+kith join --bridge 'kith://pair?…'   # --name laptop to be listed as laptop
+```
+
+That machine's kithd answers the pairing with its own key, offering the addresses in
+its `[remote] listen` (none: it only dials the others). It lists the devices paired
+with it, which every bridge admits once it has joined, and shows six digits; `kith
+pair` on the trusted side says a bridge asks to pair. Once confirmed there, the new
+bridge takes the mesh's device list in place of its own, pairs its own devices again
+into it, and `kith join` lists the members it admits from then on. If the confirmation
+was given but its answer was lost, run the same line again: it takes the mesh's list
+without asking a second time. A pairing refused, expired or abandoned changes nothing on
+either bridge.
+
+Each bridge dials every other bridge that has addresses, over the same pinned TLS as a
+device, backing off from one second to five minutes while one does not answer; between
+two that dial each other, one stream is kept. A bridge serves the sync only to a key
+its list has as a bridge: a device's key, an unpaired one and the socket are refused.
+
+```sh
+kith mesh   # the other bridges: where each is dialed, the accounts it runs, last heard, lag, clock gap
+```
+
+- **Clocks.** Two bridges whose clocks are more than 60 seconds apart do not sync, and
+  `kith mesh` names the gap; a change written by a clock further ahead waits until this
+  bridge's clock reaches it. Set the clocks right (NTP).
+- **Removing a bridge.** `kith devices remove <bridge>` on any bridge unpairs it
+  everywhere. A change it made before it learned of its removal still counts on every
+  bridge; once it knows, nothing it writes is taken. The removed bridge stops listening
+  and syncs only to pass its removal on. `kith join --bridge` joins a mesh again.
+- **A bridge back after weeks** gets the mesh's state whole and then sends what it wrote
+  meanwhile; nothing is lost either way.
+- **A forked bridge.** A bridge found to have signed two different changes under one
+  number (its key copied, or a store restored from an old backup while it kept writing)
+  is named in the log and in `kith mesh`, and removed from the mesh; pair it again.
 
 ## Using a bridge
 

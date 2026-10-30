@@ -22,7 +22,8 @@ kith unignore [--config path] mxid
 kith ignored [--config path]
 kith devices [--config path] [add id [name] | remove id|name | id]
 kith pair [--config path] [name]
-kith join [--config path] [--name name] uri
+kith join [--config path] [--name name] [--bridge] uri
+kith mesh [--config path]
 ```
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
@@ -227,6 +228,26 @@ key the URI names. It prints six digits to compare with the other screen; once t
 are confirmed there it writes the bridge into this device's `device.toml` as a
 `[[bridge]]`, replacing the entry for the same bridge if one is there. `--name` is how
 the bridge lists this device (default: the hostname). It needs no daemon.
+
+With `--bridge`, it is this machine's kithd that joins, as another bridge of the
+paired bridge's mesh ([remote.md](remote.md#bridges-in-a-mesh)): `kith join` asks it
+over its socket (starting it if it isn't running), and it dials the URI's addresses
+with its own key, offering the addresses it listens on. It prints the devices paired
+here, which every bridge admits once joined, then the six digits; once confirmed on
+the other side, the members this bridge admits from then on. A join confirmed whose
+answer was lost is finished by running the same line again.
+
+### kith mesh
+
+```sh
+kith mesh [--config path]
+```
+
+This bridge's mesh as it sees it: its ID, where it is dialed, the accounts it runs and
+the size of its mesh store; then each other bridge with the same, whether a sync
+stream is open with it, when it was last heard, how many changes it has not
+acknowledged, and how far its clock is off this one's. A bridge found to have signed
+two different changes under one number is named, and removed.
 
 ### General flags
 

@@ -151,6 +151,7 @@ type remoteConn struct {
 	slot    func()
 
 	id       devicekey.ID
+	key      []byte // the public key (PKIX) of a key let in to pair
 	admitted bool
 	gone     bool
 	// onlyPairs is a key let in, unpaired, to answer a pairing: it may call Pair alone.

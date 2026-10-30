@@ -68,12 +68,16 @@ directory, sealed under the cache's key (`internal/sealeddb`, as `internal/meta`
 WhatsApp store are). Not the cache: a rebuild must not lose a replica's unsent writes or
 unpair anyone. kithd's backup takes it beside the cache. It holds:
 
-- `ops`: the op log, each replica's ops in order (below), kept for the horizon;
-- `entries`: the current entries per key, with the dot and clock of the op that wrote
-  each;
+- `ops`: the op log, each replica's ops in order (below), kept for the horizon; the
+  roster's ops for good (The roster);
+- `entries`: the current entries per key, one per write made concurrently, with the dot
+  and clock of the op that wrote each;
 - `vv`: this replica's version vector, with the hash of the last op held from each
   origin;
-- `peers`: each replica's last reported version vector and when it was heard;
+- `peers`: each replica's last reported version vector, when it was heard and its
+  clock's gap then;
+- `forks`: each origin found to have signed two ops under one dot, with both
+  (Equivocation);
 - `rendered`: the config renderings kithd wrote since the file was last edited by hand
   (Config).
 
@@ -178,26 +182,40 @@ a role (`bridge` or `device`) and, for a bridge, the addresses it is dialed at (
 `[remote] listen`, wildcards expanded as `Devices.dialable` does). Phase 3's failover
 reads those addresses; this phase only dials bridges with them.
 
-- **Add** `(subject, its public key, name, role, addresses)`, signed by a member. The
-  public key travels so any replica can check the subject's signatures; its ID must be
-  the key's.
+- **Add** `(subject, name, role, addresses)`, and the subject's public key when it is
+  known, signed by a member. A bridge's is always known (it pairs over TLS, and it
+  signs), and travels so any replica can check its signatures; its ID must be the
+  key's. A device paired by its pasted ID, by QR or in the file has only its ID, which
+  is all the TLS check needs.
 - **Remove** `(subject)`, signed by a member. Any member may remove any other, itself
   included (design-remote: any paired device may unpair a lost one). A removed ID stays
   listed as removed; an add whose context covers the removal re-pairs it (a new pairing,
   never a stale op).
 - **Rotate** `(old ID → new key)`, signed by both keys: the entry keeps its name and
   role, and the old ID is removed (Key rotation).
-- **Membership is checked in causal order**: an op counts only if its signer was a
-  member in the op's context. The first bridge's own entry is its genesis, self-signed;
-  every other entry chains back to it.
+- **Membership is judged by the op's own context**: an op is taken if and only if its
+  signer is a bridge of the roster as of the op's context, the roster ops that context
+  (and the origin's own earlier ops) holds, their concurrent writes resolved as below.
+  Every replica holding the op holds those same roster ops, so every replica decides
+  alike, whatever order ops reach it in. Judging by the roster a replica holds when the
+  op arrives would not: a removed bridge's op written concurrently with its removal
+  would be taken where it arrived first and refused where the removal did. So the
+  roster's ops are kept for good (they are few), and a snapshot carries them. The first
+  bridge's own entry is its genesis, self-signed; every other entry chains back to it.
 
-**Concurrent changes**: a remove and an add of the same device, concurrent: the remove
-wins (removing is the safer error; re-pair). Two members removing each other at once:
-both are removed, and each, seeing itself removed, stops syncing and says so.
+**Concurrent changes**: each entry keeps every write no other write to it has seen; of
+those, a removal wins (removing is the safer error; re-pair), and of two of a kind the
+later by `(clock, origin)`. Keeping one entry instead, the winner so far, does not
+converge: a removal, a concurrent add, and a re-add that has seen the removal but not
+the add end differently in different orders (step 2's model test found it). Two
+members removing each other at once: both are removed (What a removal does).
 
 **The file stays**: `devices-<instance>.toml` is rendered from the mesh after every
 change. A hand edit is read as today (on the next change, listing or reload) and turned
-into ops signed by this bridge: an entry taken out is a removal, one put in an add. A
+into ops signed by this bridge: an entry taken out is a removal, one put in an add. It
+is read against the entries kithd last wrote or read there, not against the roster: a
+device another bridge paired, arrived by sync but not rendered yet, is not "taken out"
+by a file that never listed it (step 2's two-bridge test found a listing doing so). A
 file that does not read keeps kithd from listening, as today. `Devices`
 (`internal/daemon/devices.go`) keeps admitting by ID in `VerifyConnection`, now against
 the mesh's members, and `cutLocked` runs for a removal that arrives by sync as for one
@@ -205,24 +223,40 @@ made here.
 
 ### What a removal does
 
-**It stops new writes; it undoes nothing** (decision 8). Each replica, once the removal
-reaches it, refuses the removed key in the TLS handshake and closes its connections, as
-an unpairing does today. A thin device's writes were always its bridge's own ops. A
-removed replica's ops that reached any member before the removal did are kept and
-relayed like any other op, so every replica ends up holding the same ones: nothing is
-judged by when it was written, and nothing is voided. A removed replica can get an op
-in only through a member that has not yet heard of the removal, which closes as the
-removal spreads. What it wrote is cleaned up by hand, like any other change: a config
-key written again, a draft cleared.
+**It stops new writes; it undoes nothing** (decision 8). Which of a removed replica's
+ops count is the causal-context rule's: an op it wrote before it had seen its removal
+counts on every replica, however late it arrives; one written after does not, anywhere.
+Nothing is voided, and every replica judges alike. Apart from that, each replica, once
+the removal reaches it, refuses the removed key in the TLS handshake (new connections)
+and closes its connections, as an unpairing does today; that decides only who it talks
+to, not which ops count. A thin device's writes were always its bridge's own ops. A
+removed replica's ops reach the mesh only through members that have not yet heard of the
+removal, which closes as the removal spreads.
+
+A replica that finds itself removed stops listening, but **keeps syncing with every
+member that still admits it**, so the removal reaches each of them (who then refuse it).
+Stopping at once, as first planned, can strand the removal: two members removing each
+other, the one whose removal reaches the rest first is refused everywhere, and the
+removal it signed of the other may be held by the two of them alone; the rest would list
+as a member a bridge that holds itself removed (step 2's model test found it). What a
+removed replica wrote is cleaned up by hand, like any other change: a config key written
+again, a draft cleared.
 
 ### Equivocation
 
 A replica holding the key could sign two ops with one dot and send each to a different
-peer. The hash in each vector entry shows it on the next exchange. The origin is then
-treated as removed (no further ops from it are taken, from it or by relay), and `kith
-mesh` and the log name it; keys its two ops wrote may differ between bridges until they
-are written again. A paired replica can do anything anyway (paired = full authority);
-this only names the fork instead of hiding it.
+peer. The hash in each vector entry shows it on the next exchange: the side holding the
+other op sends it, and a replica receiving a validly signed op under a dot it holds
+otherwise has the proof, keeps both (`forks`), and answers with its own. `kith mesh` and
+the log name the origin, and **the replica that finds it removes it from the roster**,
+signed as its own: its further ops are then judged by the causal-context rule like any
+removed replica's. Refusing its ops locally instead, from when each replica finds out,
+splits the mesh: an honest op written over one of its later ops is never ready where
+those were refused (step 2's model test found it). Keys its two ops wrote may differ
+between bridges until they are written again. A fork is seen only at a vector's head:
+once both sides hold later ops of the origin, the hashes compare equal and it goes
+unseen. A paired replica can do anything anyway (paired = full authority); this only
+names the fork instead of hiding it.
 
 ### Why every op is signed
 
@@ -355,7 +389,8 @@ listener's pinned mutual TLS (`pinnedTLS`, `dialBridge` in
 `internal/daemon/dialbridge.go`), with backoff from 1 second to 5 minutes and HTTP/2
 PING as clients have. A bridge with no `[remote] listen` (a laptop behind NAT) only
 dials. Between two bridges that both dial, the stream dialed by the lower ID is kept and
-the other closed.
+the other closed; a stream counts once both Hellos are said, so a dial still failing
+holds none.
 
 **One bidirectional stream**, because often only one side can dial the other:
 
@@ -386,7 +421,8 @@ gate that serves it only to a connection authenticated as a member bridge (as
 cannot reach each other converge through a third. **An op from the future** (clock past
 the receiver's now plus 60 seconds) is held with every later op of its origin until the
 receiver's clock reaches it: never applied early, so a fast clock cannot take every
-register for an hour. **Reconnection** is the same Hello: the vectors say what is
+register for an hour. A snapshot holding such a write is refused until then, and sent
+again by the next session. **Reconnection** is the same Hello: the vectors say what is
 missing. **A peer back after weeks** gets a snapshot, then its own writes go back as ops.
 
 **HTTP/2.** Bridge to bridge is TLS, so ALPN already gives HTTP/2 (`ServeTLS`,
@@ -409,6 +445,12 @@ The same flow as a device (docs/remote.md), with the new bridge's kithd as the d
    positions and verdicts written again as its own ops, so they chain from its add. Its
    devices are now admitted by every bridge, and every bridge's devices by it; the join
    lists them before confirming, and prints the config it set aside (Config, Joining).
+   Each kind is adopted by the step that makes it cross: step 2 the roster (a device
+   whose name the mesh has taken keeps it with its ID's first group added), step 5 the
+   config with its warning, steps 4, 6 and 7 the rest. Adoption is one transaction, so
+   a join cut off leaves the bridge as it was; a confirmation whose answer was lost is
+   finished by joining again (the mesh lets in a bridge it lists, without a new
+   pairing).
 
 A device keeps dialing the bridge its `device.toml` names; that it is admitted by the
 others too is what Phase 3 builds on. Store-holding clients (Electron, Android) pair the
@@ -649,11 +691,15 @@ Decided by the user on 2026-10-30.
    no longer decide which writes count, but they carry the roster's authority, make the
    writer named in conflicts the writer and not a relay, and prove a fork (Why every op
    is signed). Rejected: signing roster ops only.
-8. **A removal stops new writes and undoes nothing.** Once it arrives, a replica refuses
-   the removed key and takes no more of its ops; what reached any member before stays,
-   relayed like any op, and is cleaned up by hand. Rejected (the user: a corner case
-   that would need far too much logic): voiding a removed replica's ops after a cut,
-   with what they replaced kept to restore it.
+8. **A removal stops new writes and undoes nothing.** An op of the removed replica
+   counts if its signer was a bridge as of the op's own context: what it wrote before it
+   saw its removal counts everywhere, relayed like any op, and is cleaned up by hand;
+   nothing it writes after does. Once the removal arrives, a replica refuses the removed
+   key at the TLS handshake (new connections), which decides who it talks to, not which
+   ops count. (Corrected in step 2: "takes no more of its ops once the removal arrives"
+   made replicas that took the same ops in different orders disagree.) Rejected (the
+   user: a corner case that would need far too much logic): voiding a removed replica's
+   ops after a cut, with what they replaced kept to restore it.
 9. **No HTTP/2 on the socket (h2c) yet**: it lands when a replica first sits beside its
    bridge (Phase 4's relay with a store). Bridge to bridge is TLS, already HTTP/2.
 10. **The horizon is 30 days.** Rejected: 7 or 90.

@@ -32,11 +32,49 @@ type PairingTicket struct {
 }
 
 // PendingDevice is the device that answered a pairing, waiting to be confirmed;
-// Digits are the six both screens show.
+// Digits are the six both screens show. Role is RoleBridge for a kithd joining the
+// mesh.
 type PendingDevice struct {
 	Name   string
 	ID     string
 	Digits string
+	Role   DeviceRole
+}
+
+// MeshStatus is a bridge's view of its mesh: its own ID, the addresses it is dialed at
+// and the accounts it runs, the size of its mesh store, whether it was removed from
+// the mesh, and each other bridge.
+type MeshStatus struct {
+	Self       string
+	Addresses  []string
+	StoreBytes int64
+	Removed    bool
+	Accounts   []MeshAccount
+	Peers      []MeshPeer
+}
+
+// MeshPeer is another bridge of the mesh: its roster entry, the addresses it is dialed
+// at (none: it only dials), the accounts it runs, when it was last heard (zero: never),
+// its wall clock less this bridge's at the time, how many ops this bridge holds that it
+// has not acknowledged, whether a sync stream is open with it, and whether it signed
+// two ops under one dot (Forked: it is removed for it).
+type MeshPeer struct {
+	Bridge    Device
+	Addresses []string
+	Accounts  []MeshAccount
+	Heard     time.Time
+	ClockGap  time.Duration
+	Lag       uint64
+	Connected bool
+	Forked    bool
+}
+
+// MeshAccount is one network account a bridge runs: the network, the account's ID on
+// it, and its label.
+type MeshAccount struct {
+	Network string
+	ID      string
+	Label   string
 }
 
 // PairingOutcome is how a pairing ended.
