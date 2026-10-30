@@ -196,6 +196,9 @@ type roomScrollback struct {
 	// below the oldest loaded message: it may hold more than the network serves (a
 	// cache-only network serves none).
 	cached bool
+	// held are the frames that stayed out of the rows (admits), latest per message, put
+	// back over each page that lands (replayHeld).
+	held []domain.Message
 }
 
 // overlayTarget is what an open overlay aims at, captured by ID on open: the room list
@@ -3090,7 +3093,7 @@ func (m Model) handleCachedTimeline(msg cachedTimelineMsg) (Model, tea.Cmd) {
 	if !ok || msg.roomID != room.ID {
 		return m, nil
 	}
-	m = m.setMessages(domain.MergeMessages(m.timeline.messages, msg.messages))
+	m = m.setMessages(domain.MergeMessages(m.timeline.messages, msg.messages)).replayHeld()
 	m, jump := m.resolveJump(false)
 	m, opening := m.resolveThread(false)
 	m, naming := m.nameOpenRoomThreads()
@@ -3126,6 +3129,7 @@ func (m Model) handleTimeline(msg timelineMsg) (Model, tea.Cmd) {
 		m.timeline.hist.token = msg.page.Next
 		m.timeline.hist.cached = m.timeline.hist.cached || msg.page.Next == ""
 	}
+	m = m.replayHeld()
 	// During a backfill, keep pulling older pages until the start, asking the network
 	// only up to the cap.
 	if m.timeline.hist.backfilling && !m.timeline.hist.atStart &&
@@ -3243,14 +3247,7 @@ func (m Model) handleIncoming(msg incomingMsg) (Model, tea.Cmd) {
 	m = m.noteActivity(msg.message)
 	if room, ok := m.currentRoom(); ok && msg.message.RoomID == room.ID {
 		scrolled := m.timeline.scroll > 0
-		// Each is the message as the cache now holds it, so it replaces the row shown
-		// rather than folding onto it: a deleted edit takes its words back.
-		m = m.keepAnchored(func(m Model) Model {
-			others := slices.DeleteFunc(slices.Clone(m.timeline.messages), func(shown domain.Message) bool {
-				return shown.ID == msg.message.ID
-			})
-			return m.setMessages(domain.MergeMessages(others, []domain.Message{msg.message}))
-		})
+		m = m.keepAnchored(func(m Model) Model { return m.applyFrame(msg.message) })
 		if !scrolled && m.focus == paneTimeline {
 			// Watching live at the bottom: keep it marked read.
 			var readCmd tea.Cmd
@@ -3260,6 +3257,48 @@ func (m Model) handleIncoming(msg incomingMsg) (Model, tea.Cmd) {
 	}
 	cmds = append(cmds, m.listenCmd())
 	return m, tea.Batch(cmds...)
+}
+
+// applyFrame puts a frame into the open room's rows. Each is the message as the cache now
+// holds it, so it replaces the row shown rather than folding onto it: a deleted edit takes
+// its words back. A message not loaded joins only where admits says; otherwise it is held
+// until a page reaches it.
+func (m Model) applyFrame(frame domain.Message) Model {
+	if indexOfMessage(m.timeline.messages, frame.ID) < 0 && !m.admits(frame) {
+		m.timeline.hist.held = append(slices.DeleteFunc(slices.Clone(m.timeline.hist.held), func(held domain.Message) bool {
+			return held.ID == frame.ID
+		}), frame)
+		return m
+	}
+	others := slices.DeleteFunc(slices.Clone(m.timeline.messages), func(shown domain.Message) bool {
+		return shown.ID == frame.ID
+	})
+	return m.setMessages(domain.MergeMessages(others, []domain.Message{frame}))
+}
+
+// admits says whether a frame for a message not loaded joins the rows: at or after the
+// oldest loaded row, or anywhere once the room's start is loaded. One older than every row
+// stays out, since alone at the top it would hide the unloaded history between; with no
+// row loaded, a frame waits for the first page, which may reach below it.
+func (m Model) admits(frame domain.Message) bool {
+	switch {
+	case m.timeline.hist.atStart:
+		return true
+	case len(m.timeline.messages) == 0:
+		return !m.timeline.hist.loading
+	}
+	return domain.CompareMessages(frame, m.timeline.messages[0]) >= 0
+}
+
+// replayHeld puts the held frames back after a page landed: one it reached replaces the
+// page's copy, which may have been read before the frame was sent; the rest stay held.
+func (m Model) replayHeld() Model {
+	held := m.timeline.hist.held
+	m.timeline.hist.held = nil
+	for i := range held {
+		m = m.applyFrame(held[i])
+	}
+	return m
 }
 
 // handleSent reports a failed send; on success it marks the conversation read (replying implies

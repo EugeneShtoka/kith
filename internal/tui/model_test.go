@@ -874,6 +874,7 @@ func TestIncomingMessage(t *testing.T) {
 	t.Parallel()
 
 	m := withRooms(t, newModel()) // current room !a:x
+	m = loadPage(t, m, nil)       // its first page, empty: until it lands, a frame waits
 	m, cmd := asModel(m.Update(incomingMsg{message: domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "hey"}}))
 	if len(m.timeline.messages) != 1 {
 		t.Fatalf("messages = %d, want 1", len(m.timeline.messages))
