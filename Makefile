@@ -152,8 +152,14 @@ test:
 
 # The pre-push gate's tests: no race detector, and from Go's test cache, so a package
 # whose code and tests did not change is not run again. CI runs `test`.
+# Every package in one go test, which CI splits over four runners: a package at a time
+# per two cores (at least two), so each package's own parallel tests are not starved
+# into their waits, and twenty minutes for one package (go test's default is ten; the
+# cache package alone comes close under load).
+QUICK_P := $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4); echo $$(( n / 2 > 2 ? n / 2 : 2 )))
+
 test-quick:
-	$(TEST_ENV) go test ./...
+	$(TEST_ENV) go test -p $(QUICK_P) -timeout 20m ./...
 
 # --allow-serial-runners: a second concurrent run waits for the first instead of
 # failing with "parallel golangci-lint is running". gohawk's core analyzers add what
