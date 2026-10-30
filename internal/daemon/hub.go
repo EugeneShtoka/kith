@@ -17,13 +17,15 @@ const subBuffer = 64
 type hub[T any] struct {
 	mu   sync.Mutex
 	subs map[uint64]chan T
-	next uint64
+	// watchers is the subscribers kithd keeps itself (the rail's), which are not clients.
+	watchers map[uint64]bool
+	next     uint64
 	// ended means the source closed; a late subscriber gets a closed channel.
 	ended bool
 }
 
 func newHub[T any]() *hub[T] {
-	return &hub[T]{subs: make(map[uint64]chan T)}
+	return &hub[T]{subs: make(map[uint64]chan T), watchers: make(map[uint64]bool)}
 }
 
 // subscribeWith attaches a subscriber queueing up to buffer values, returning its id
@@ -42,6 +44,18 @@ func (h *hub[T]) subscribeWith(buffer int) (uint64, <-chan T) {
 	return id, ch
 }
 
+// watchWith is subscribeWith for kithd itself: the subscriber is not a client, so
+// subscribers does not count it.
+func (h *hub[T]) watchWith(buffer int) (uint64, <-chan T) {
+	id, ch := h.subscribeWith(buffer)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if _, ok := h.subs[id]; ok {
+		h.watchers[id] = true
+	}
+	return id, ch
+}
+
 // release detaches a subscriber and closes its channel. Idempotent.
 func (h *hub[T]) release(id uint64) {
 	h.mu.Lock()
@@ -51,6 +65,7 @@ func (h *hub[T]) release(id uint64) {
 		return
 	}
 	delete(h.subs, id)
+	delete(h.watchers, id)
 	close(ch)
 }
 
@@ -74,6 +89,7 @@ func (h *hub[T]) end() {
 	h.ended = true
 	for id, ch := range h.subs {
 		delete(h.subs, id)
+		delete(h.watchers, id)
 		close(ch)
 	}
 }
@@ -95,8 +111,9 @@ func (h *hub[T]) pump(ctx context.Context, src <-chan T) {
 	}
 }
 
+// subscribers is how many clients subscribe, kithd's own watchers not counted.
 func (h *hub[T]) subscribers() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return len(h.subs)
+	return len(h.subs) - len(h.watchers)
 }

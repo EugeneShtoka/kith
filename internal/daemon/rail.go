@@ -358,9 +358,9 @@ func (s *server) railInputs(ctx context.Context) (railRead, error) {
 // streams move the generation. It returns when ctx ends.
 func (s *server) serveRails(ctx context.Context) {
 	c := s.Notifications.rails
-	unreadID, unread := s.Streams.unread.subscribeWith(subBuffer)
+	unreadID, unread := s.Streams.unread.watchWith(subBuffer)
 	defer s.Streams.unread.release(unreadID)
-	invitesID, invites := s.Streams.invites.subscribeWith(subBuffer)
+	invitesID, invites := s.Streams.invites.watchWith(subBuffer)
 	defer s.Streams.invites.release(invitesID)
 	for {
 		select {
