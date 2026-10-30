@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -12,13 +14,42 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/buildinfo"
 	"github.com/EugeneShtoka/kith/internal/daemon"
+	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
 // runBackup is `kith backup …` and runRestore `kith restore …`. kithd does both, since
 // it owns the cache (kith links no SQLite), so these run it in this terminal with the
-// same arguments; it asks for the backup key and reports.
-func runBackup(args []string) error  { return runInKithd("backup", args) }
-func runRestore(args []string) error { return runInKithd("restore", args) }
+// same arguments; it asks for the backup key and reports. A backup holds no device key,
+// so a restore then asks here for kithd's recovery key (askBridgeKey).
+func runBackup(args []string) error { return runInKithd("backup", args) }
+
+func runRestore(args []string) error {
+	if err := runInKithd("restore", args); err != nil {
+		return err
+	}
+	// kithd's flags, read again only for the config; anything else (--help, a usage
+	// error) kithd has answered already.
+	fs := flag.NewFlagSet("restore", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	configPath := fs.String("config", "", "")
+	fs.Bool("replace", false, "")
+	fs.String("key-file", "", "")
+	if fs.Parse(args) != nil || fs.NArg() != 1 {
+		return nil
+	}
+	path, cfg, ready, err := loadConfig(*configPath)
+	if err != nil || !ready {
+		return err
+	}
+	storage, err := setup.StorageFor(cfg, path)
+	if err != nil {
+		return err
+	}
+	if err := askBridgeKey(storage, cfg.AllowTokenFile, true, terminalAsk(), os.Stderr); err != nil {
+		return fmt.Errorf("the backup is restored, but kithd's device key is as it was: %w", err)
+	}
+	return nil
+}
 
 // versionTimeout bounds `kithd --version`, which only prints.
 const versionTimeout = 10 * time.Second

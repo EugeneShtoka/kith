@@ -238,6 +238,9 @@ func reach(ctx context.Context, path string, cfg config.Config, storage domain.S
 	// The packaged units serve only the default config in the default directories; any
 	// other gets its own unit.
 	launch := daemon.Launch{ConfigPath: path, OwnConfig: !isDefaultConfig(path) || !inDefaultDirs(storage)}
+	if err := askBridgeKey(storage, cfg.AllowTokenFile, false, terminalAsk(), os.Stderr); err != nil {
+		return attached{cfg: cfg, storage: storage}, fmt.Errorf("kithd's device key: %w", err)
+	}
 	backend, note, err := daemon.Ensure(ctx, storage, launch, timeout)
 	if err != nil {
 		return attached{cfg: cfg, storage: storage}, fmt.Errorf("attach to kithd: %w", err)
