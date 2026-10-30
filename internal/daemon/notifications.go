@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -60,6 +61,11 @@ type Notifications struct {
 	// profiles are the [[profile]]s: each notification is published to every one
 	// holding its room.
 	profiles []domain.Profile
+	// profileRails is what each profile's rail is built from, by lower-cased name; rails
+	// is the rails served (rail.go), which every change to what they are built from
+	// moves on.
+	profileRails map[string]profileRail
+	rails        *railCache
 	// tracked is the word list as rules; trackedNotify the global switch a rule's
 	// `notify` may override.
 	tracked       []domain.TrackedRule
@@ -258,10 +264,12 @@ func NewNotifications(cfg config.Config, src scopeSource) (*Notifications, error
 		notices:      newHub[notice](),
 		boot:         rand.Text(),
 		arrivalsWake: make(chan struct{}, 1),
+		rails:        newRailCache(),
 	}
 	// A source with nowhere to keep moves leaves the filters off.
 	if store, ok := src.(filterStore); ok {
 		n.filters = newFilterWatch(store)
+		n.filters.changed = n.rails.bump // a catch or a release moves a room's rows
 		n.scope.caught = n.filters.caught
 		n.filters.facts = n.scope.Facts
 		if people, ok := src.(personStore); ok {
@@ -302,18 +310,20 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	profiles, err := setup.Profiles(cfg)
+	profiles, rails, err := profileRails(cfg)
 	if err != nil {
 		return err
 	}
 
+	// Last, once the rest is in place: every rail is built from the config.
+	defer n.rails.bump()
 	n.scope.SetAliases(cfg.Display.Names)
 	n.scope.SetHomeOrder(homeOrderOf(cfg))
 	n.applyTagsAndArchives(cfg, filters, profiles)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.rules, n.limit, n.clock = rules, limit, clock
-	n.profiles = profiles
+	n.profiles, n.profileRails = profiles, rails
 	display := cfg.Display
 	n.aliases = setup.Aliases(display.Identities)
 	n.firstNames = func(home string) bool { return setup.FirstNamesIn(display, home) }
@@ -473,7 +483,32 @@ func (n *Notifications) caughtUp(room domain.RoomID) bool {
 // have changed.
 func (n *Notifications) InvalidateScope() {
 	n.scope.Invalidate()
+	n.rails.bump()
 	n.pushArchiveReconcile()
+}
+
+// TagMarked rereads the moves and releases after a client marked one (MarkTag), so the
+// rooms a release frees leave the tag's row now, not at the next reread.
+func (n *Notifications) TagMarked(ctx context.Context) {
+	if n.filters != nil {
+		n.filters.seed(ctx)
+	}
+}
+
+// caught is the tags filters moved room into; none without filters.
+func (n *Notifications) caught(room domain.RoomID) []string {
+	if n.filters == nil {
+		return nil
+	}
+	return n.filters.caught(room)
+}
+
+// profileRail is what the named profile's rail is built from.
+func (n *Notifications) profileRail(name string) (profileRail, bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	p, ok := n.profileRails[strings.ToLower(name)]
+	return p, ok
 }
 
 // MessagesKept is how many messages the cache keeps of a room, negative for all.

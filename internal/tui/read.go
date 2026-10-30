@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"log/slog"
-	"maps"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -76,8 +75,6 @@ func (m Model) askMarkGroupRead() (Model, tea.Cmd) {
 type unreadView struct {
 	counts map[domain.RoomID]domain.Unread
 	local  bool
-	// parents maps a room to its canonical parent space, as resolved by the daemon.
-	parents map[domain.RoomID]domain.SpaceID
 	// facts is the slow way to a room's facts (roomFacts holds them precomputed).
 	facts func(domain.Room) domain.RoomFacts
 	// tags and the facts they judge by (precomputed), and the drafts the `draft` state word reads.
@@ -85,9 +82,8 @@ type unreadView struct {
 	tagsRev   uint64
 	roomFacts map[domain.RoomID]domain.RoomFacts
 	drafts    map[domain.RoomID]draft
-	// rail is what the rail is built from besides the above; railMemo caches the rail (rail.go).
-	rail     railInputs
-	railMemo *railMemo
+	// served is the rail kithd served: which rows hold a room, and what the tags made of it.
+	served servedRail
 }
 
 // count is one room's own numbers, archived or not.
@@ -113,13 +109,18 @@ func (v unreadView) marked(room domain.Room) bool {
 // refreshPlaces recomputes the rooms' facts.
 func (m Model) refreshPlaces() Model { return m.refreshFacts() }
 
-// refreshFacts recomputes every room's facts, as a new map (see refreshArchived).
+// refreshFacts recomputes every room's facts, as a new map (see refreshArchived): the rail's
+// where it serves the room, else built here.
 func (m Model) refreshFacts() Model {
 	m.rail.homes = domain.NewHomeOrder(m.prefs.display.Priority, m.rail.cfg.Order, m.rail.tags, m.rooms.spaces, m.prefs.display.SpaceLabels())
 	facts := make(map[domain.RoomID]domain.RoomFacts, len(m.rooms.all))
 	held := map[string]int{}
 	for i := range m.rooms.all {
-		f := m.factsFor(m.rooms.all[i])
+		served, ok := m.rail.served.room(m.rooms.all[i].ID)
+		f := served.Facts
+		if !ok {
+			f = m.factsFor(m.rooms.all[i])
+		}
 		facts[m.rooms.all[i].ID] = f
 		for _, tag := range f.Tags {
 			held[strings.ToLower(domain.TagEntry(tag))]++
@@ -139,14 +140,12 @@ func (m Model) unreadView() unreadView {
 	return unreadView{
 		counts:    m.unread,
 		local:     m.prefs.unreadLocal,
-		parents:   m.parents,
 		facts:     m.factsFor,
 		tags:      m.rail.tags,
 		tagsRev:   m.rail.tagsRev,
 		roomFacts: m.rail.roomFacts,
 		drafts:    m.drafts,
-		rail:      railInputs{spaces: m.rooms.spaces, rooms: m.rooms.all, cfg: m.rail.cfg, names: m.prefs.display.Names},
-		railMemo:  m.rail.railMemo,
+		served:    m.rail.served,
 	}
 }
 
@@ -230,54 +229,4 @@ func roomsPhrase(n int) string {
 		return "1 room"
 	}
 	return fmt.Sprintf("%d rooms", n)
-}
-
-// A room that leaves its spaces but not its origin, or the other way round, needs its
-// canonical parent space (m.space.parent with canonical: true), resolved lazily for
-// those rooms only.
-
-// parentsMsg carries canonical parents resolved for the rooms that needed them.
-type parentsMsg struct {
-	parents map[domain.RoomID]domain.SpaceID
-}
-
-// resolveParentsCmd asks the daemon for canonical parents of not-yet-known rooms whose
-// spaces differ by origin; nil when there is nothing to ask.
-func (m Model) resolveParentsCmd() tea.Cmd {
-	view := m.unreadView()
-	var want []domain.RoomID
-	for i := range m.rooms.all {
-		room := m.rooms.all[i]
-		if leaves := view.tagsOf(room).Leaves; leaves.Spaces == leaves.Origin {
-			continue
-		}
-		if _, known := m.parents[room.ID]; !known {
-			want = append(want, room.ID)
-		}
-	}
-	if len(want) == 0 {
-		return nil
-	}
-	backend, ctx := m.backend, m.ctx
-	return func() tea.Msg {
-		out := make(map[domain.RoomID]domain.SpaceID, len(want))
-		for _, roomID := range want {
-			parent, err := backend.CanonicalParent(ctx, roomID)
-			if err != nil {
-				// Left unrecorded so the next attempt retries.
-				continue
-			}
-			out[roomID] = parent
-		}
-		return parentsMsg{parents: out}
-	}
-}
-
-// handleParents records the answers; rail groups read them through their view.
-func (m Model) handleParents(msg parentsMsg) (Model, tea.Cmd) {
-	parents := make(map[domain.RoomID]domain.SpaceID, len(m.parents)+len(msg.parents))
-	maps.Copy(parents, m.parents)
-	maps.Copy(parents, msg.parents)
-	m.parents = parents
-	return m, nil
 }

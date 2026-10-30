@@ -4,11 +4,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// asModel converts Update's result into the concrete Model and checks the row-cache
-// and rail-memo invariants (see staleRow, staleRail) after each call, panicking since it
-// has no *testing.T.
+// asModel converts Update's result into the concrete Model, serves it the rail kithd would
+// (serveRail), and checks the row-cache and rail invariants (see staleRow, staleRail) after
+// each call, panicking since it has no *testing.T.
 func asModel(mdl tea.Model, cmd tea.Cmd) (Model, tea.Cmd) {
-	m := mdl.(Model)
+	m := serveRail(mdl.(Model))
 	if err := staleRow(m); err != nil {
 		panic(err)
 	}

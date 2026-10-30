@@ -37,6 +37,9 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"Space", domain.Space{}, func(v any) any {
 			return protoconv.ProtoToSpace(protoconv.SpaceToProto(v.(domain.Space)))
 		}},
+		{"ServedRail", domain.ServedRail{}, func(v any) any {
+			return protoconv.ProtoToRail(protoconv.RailToProto(v.(domain.ServedRail)))
+		}},
 		{"Unread", domain.Unread{}, func(v any) any {
 			return protoconv.ProtoToUnread(protoconv.UnreadToProto(v.(domain.Unread)))
 		}},

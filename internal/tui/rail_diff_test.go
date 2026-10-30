@@ -66,8 +66,8 @@ func compareRails(t *testing.T, seed uint64) {
 		names = append(names, config.DisplayName{Target: config.GroupTarget(target), Name: []string{"Job", "DMs", "", "Work"}[rng.IntN(4)]})
 	}
 
-	view := unreadView{tags: set, local: pick(0.5), counts: map[domain.RoomID]domain.Unread{}, drafts: map[domain.RoomID]draft{},
-		parents: map[domain.RoomID]domain.SpaceID{}}
+	view := unreadView{tags: set, local: pick(0.5), counts: map[domain.RoomID]domain.Unread{}, drafts: map[domain.RoomID]draft{}}
+	parents := map[domain.RoomID]domain.SpaceID{}
 	places := domain.Places{
 		Order: domain.NewHomeOrder(nil, cfg.Order, set, spaces, config.Display{Names: names}.SpaceLabels()),
 		Tags:  set, Archives: map[domain.Protocol]string{domain.ProtocolTelegram: "Archived"},
@@ -84,19 +84,24 @@ func compareRails(t *testing.T, seed uint64) {
 			view.drafts[id] = draft{input: "x"}
 		}
 		if len(spaces) > 0 && pick(0.4) {
-			view.parents[id] = spaces[rng.IntN(len(spaces))].ID
+			parents[id] = spaces[rng.IntN(len(spaces))].ID
 		}
 	}
 
 	where := fmt.Sprintf("seed %d: tags %+v\nspaces %+v\nrail %+v names %+v", seed, tags, spaces, cfg, names)
-	want := oracleRailGroups(spaces, cfg, names, view, rooms)
-	got := railGroups(spaces, cfg, names, view, rooms)
+	want := oracleRailGroups(spaces, cfg, names, view, rooms, parents)
+	spec := setup.RailSpec(set, cfg, names)
+	in := make([]domain.RailRoom, len(rooms))
+	for i := range rooms {
+		in[i] = domain.RailRoom{ID: rooms[i].ID, Facts: view.factsOf(rooms[i]), State: view.rawState(rooms[i]), Parent: parents[rooms[i].ID]}
+	}
+	served := domain.BuildRail(spec, spaces, in).Served(spec, in)
+	got := groupsOf(served.Rows)
 	if len(got) != len(want) {
 		t.Fatalf("%s\nrows %v, the rail drew %v", where, groupKeys(got), oracleKeys(want))
 	}
 	now := view
-	now.rail = railInputs{spaces: spaces, rooms: rooms, cfg: cfg, names: names}
-	now.railMemo = &railMemo{}
+	now.served = newServedRail("", served)
 	for i := range want {
 		w, g := want[i], got[i]
 		if g.key != w.key || g.label != w.label || g.sepAfter != w.sepAfter || g.sticky != w.sticky ||
@@ -112,7 +117,8 @@ func compareRails(t *testing.T, seed uint64) {
 	for j := range rooms {
 		old := oracleTagsOf(view, rooms[j])
 		judged := now.tagsOf(rooms[j])
-		was := domain.RoomTags{In: old.in, Silenced: old.silenced, Owner: old.owner, Leaves: old.leaves}
+		// Served by name, and without where the tags take it from: no client needs that.
+		was := domain.RoomTags{In: old.in, Silenced: old.silenced, Owner: old.owner}
 		if was.In == nil {
 			was.In = []bool{}
 		}

@@ -82,6 +82,69 @@ func BuildRail(spec RailSpec, spaces []Space, rooms []RailRoom) Rail {
 	return Rail{Rows: rows, Judged: all}
 }
 
+// ServedRail is the rail kithd serves a profile (Rail): the rows it draws, in order
+// (ShownRows), each holding its rooms, and every room the profile holds as the rail
+// judged it. Revision grows with every rail kithd serves, so a client keeps the latest.
+type ServedRail struct {
+	Revision uint64
+	Rows     []RailRow
+	Rooms    []ServedRoom
+}
+
+// ServedRoom is one room of a served rail: its facts, and what the tags made of it in
+// its state then.
+type ServedRoom struct {
+	Facts RoomFacts
+	// In is the tags holding it, by name; Owner is the exclusive tag it shows under alone
+	// ("" for none); Silenced says a silent tag holds it.
+	In       []string
+	Owner    string
+	Silenced bool
+}
+
+// Served is the rail as kithd serves it: the rows ShownRows draws, and each of rooms
+// with what the tags made of it.
+func (r Rail) Served(spec RailSpec, rooms []RailRoom) ServedRail {
+	out := ServedRail{Rows: ShownRows(r, spec), Rooms: make([]ServedRoom, 0, len(rooms))}
+	for i := range rooms {
+		judged := r.Judged[rooms[i].ID]
+		room := ServedRoom{Facts: rooms[i].Facts, Silenced: judged.Silenced}
+		for j, in := range judged.In {
+			if in {
+				room.In = append(room.In, spec.Tags.At(j).Name)
+			}
+		}
+		if judged.Owner >= 0 {
+			room.Owner = spec.Tags.At(judged.Owner).Name
+		}
+		out.Rooms = append(out.Rooms, room)
+	}
+	return out
+}
+
+// NeedsParent reports whether a room's canonical parent space decides which rows hold
+// it: the tags holding it take it out of the spaces it does not belong to but not its
+// origin, or the other way round.
+func (r Rail) NeedsParent(id RoomID) bool {
+	leaves := r.Judged[id].Leaves
+	return leaves.Spaces != leaves.Origin
+}
+
+// Tags is what the tags make of the room by tags' indexes, as served: a tag the
+// served rail names that tags lacks is left out.
+func (r ServedRoom) Tags(tags TagSet) RoomTags {
+	out := RoomTags{In: make([]bool, tags.Len()), Silenced: r.Silenced, Owner: -1}
+	for _, name := range r.In {
+		if i, ok := tags.Index(name); ok {
+			out.In[i] = true
+		}
+	}
+	if i, ok := tags.Index(r.Owner); ok && r.Owner != "" {
+		out.Owner = i
+	}
+	return out
+}
+
 // railHolds reports whether a row holds a room, given what the tags make of it.
 type railHolds func(*RailRoom, RoomTags) bool
 

@@ -92,6 +92,7 @@ func TestFilingInAProfileWritesTheSharedLists(t *testing.T) {
 	t.Parallel()
 	home, _ := archivingWindow(t, archivingConfig(), "home")
 	home, _ = home.toggleTag("Archived", signalRoom)
+	home = serveRail(home)
 	got := home.conf.base
 	if !slices.Equal(got.Tags[0].Excluded, []string{string(signalRoom.ID)}) || len(got.Tags[0].Picked) != 0 {
 		t.Errorf("home filing Signal out wrote picked %v, excluded %v; want it excluded", got.Tags[0].Picked, got.Tags[0].Excluded)
@@ -102,6 +103,7 @@ func TestFilingInAProfileWritesTheSharedLists(t *testing.T) {
 
 	work, _ := archivingWindow(t, archivingConfig(), "work")
 	work, _ = work.toggleTag("Archived", signalRoom)
+	work = serveRail(work)
 	got = work.conf.base
 	if !slices.Equal(got.Tags[0].Picked, []string{string(signalRoom.ID)}) || len(got.Tags[0].Excluded) != 0 {
 		t.Errorf("work filing Signal in wrote picked %v, excluded %v; want it picked", got.Tags[0].Picked, got.Tags[0].Excluded)

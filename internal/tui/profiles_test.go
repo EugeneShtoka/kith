@@ -54,11 +54,12 @@ func (b *profiledBackend) Rooms(context.Context) ([]domain.Room, error) {
 	return b.rooms[b.in], nil
 }
 
-// inProfiles is a window over b, configured with profiles, running in the first.
+// inProfiles is a window over b, configured with profiles, running in the first (the
+// profiles a start in none offers dismissed).
 func inProfiles(t *testing.T, b *profiledBackend, profiles ...config.Profile) Model {
 	t.Helper()
 	m := sized(t, starterNew(b, config.Display{}))
-	m = m.WithConfigFile("", config.Config{Profiles: profiles}).WithProfiles(b, "")
+	m = m.WithConfigFile("", config.Config{Profiles: profiles}).WithProfiles(b, "").closePicker()
 	rooms, _ := b.Rooms(t.Context())
 	return update(t, m, roomsMsg{rooms: rooms})
 }

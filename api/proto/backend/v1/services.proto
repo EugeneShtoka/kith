@@ -223,6 +223,67 @@ message RefreshSpacesResponse {
   repeated Space spaces = 1;
 }
 
+// ── Rail ──
+
+message RailRequest {}
+
+// RailResponse is the rail of the request's profile (domain.ServedRail).
+message RailResponse {
+  // revision grows with every rail kithd serves, across its restarts: a client keeps
+  // the highest it has seen and drops an older answer arriving late.
+  uint64 revision = 1;
+  // rows are the rows the rail draws, in order: hidden ones, and empty ones that hide
+  // while empty, left out.
+  repeated RailRow rows = 2;
+  // rooms are every room the profile holds, as the rail judged it.
+  repeated RailRoom rooms = 3;
+}
+
+// RailRowKind is what makes a rail row.
+enum RailRowKind {
+  RAIL_ROW_KIND_UNSPECIFIED = 0;
+  RAIL_ROW_KIND_TAG = 1;
+  RAIL_ROW_KIND_SPACE = 2;
+  // The one row of a rail with neither spaces nor shown tags: every room but invitations.
+  RAIL_ROW_KIND_ALL = 3;
+}
+
+// RailRow is one row of the rail (domain.RailRow).
+message RailRow {
+  // key is tag:<name> for a tag's row, the space's name for a space's; with space, it
+  // names the row across rails.
+  string key = 1;
+  string label = 2;
+  RailRowKind kind = 3;
+  // space is the space a space's row is; empty for any other.
+  string space = 4;
+  // home is the network whose own space this is (an account's, a bridge's).
+  string home = 5;
+  // owner is the account an account's space is.
+  string owner = 6;
+  // The tag's flags: sticky keeps the open room listed, first puts the row on top,
+  // count_in_label shows its room count.
+  bool sticky = 7;
+  bool first = 8;
+  bool count_in_label = 9;
+  bool hide_when_empty = 10;
+  // sep_after draws a divider beneath the row.
+  bool sep_after = 11;
+  // rooms are the rooms the row holds.
+  repeated string rooms = 12;
+}
+
+// RailRoom is one room as the rail judged it (domain.ServedRoom).
+message RailRoom {
+  RoomFacts facts = 1;
+  // in is the tags holding it, its state judged (unread, mention, draft, invite).
+  repeated string in = 2;
+  // owner is the exclusive tag it shows under alone; empty for none.
+  string owner = 3;
+  // silenced says a silent tag holds it: it counts toward no total.
+  bool silenced = 4;
+}
+
 message AddToSpaceRequest {
   string space_id = 1;
   string room_id = 2;
@@ -1203,6 +1264,9 @@ enum Change {
   // A network account's state changed (paired again, signed out, its session refused):
   // read the states again (Status).
   CHANGE_ACCOUNTS = 2;
+  // The rail of the client's profile changed, or the profile is gone: read it again
+  // (Rail).
+  CHANGE_RAIL = 3;
 }
 
 message ChangedRequest {}
@@ -1891,6 +1955,12 @@ service BackendService {
   rpc Spaces(SpacesRequest) returns (SpacesResponse);
   // RefreshSpaces fetches the hierarchy from the homeserver and caches it.
   rpc RefreshSpaces(RefreshSpacesRequest) returns (RefreshSpacesResponse);
+  // Rail
+  // Rail is the rail of the request's profile: its rows in order, each with its rooms,
+  // and the rooms with their facts, built by kithd from the config and the rooms in their
+  // state now. Changed says CHANGE_RAIL when it differs from the one served last. A
+  // profile the config no longer has is refused.
+  rpc Rail(RailRequest) returns (RailResponse);
   // AddToSpace files a room into a space (m.space.child plus a non-canonical
   // m.space.parent).
   rpc AddToSpace(AddToSpaceRequest) returns (AddToSpaceResponse);
@@ -2085,7 +2155,8 @@ service BackendService {
   rpc FollowStream(FollowStreamRequest) returns (stream FollowStreamResponse);
   // Changed streams a frame each time something a client shows changes in the daemon:
   // a network rewriting its rooms (a chat begun, renamed, archived on another device),
-  // or an account's state. The frame says which, and the client reads it again.
+  // or an account's state, or the rail of the request's profile (told only to clients
+  // running in it). The frame says which, and the client reads it again.
   rpc Changed(ChangedRequest) returns (stream ChangedResponse);
   // NotificationStream streams the notifications published to the request's profile:
   // kithd publishes each to every profile holding its room, so a listener on several

@@ -376,7 +376,7 @@ func run(configPath string, jobs startup) error {
 	if at.note != "" {
 		fmt.Fprintln(os.Stderr, "kith:", at.note)
 	}
-	profile, serr := sitDown(ctx, backend, cfg, jobs)
+	profile, serr := sitDown(ctx, backend, cfg, jobs, at.dev.ProfileInUse)
 	if serr != nil {
 		return serr
 	}
@@ -422,11 +422,15 @@ func run(configPath string, jobs startup) error {
 }
 
 // sitDown names the profile this window runs in ("" the first) and takes the seat,
-// warning first about the assistant's scope.
-func sitDown(ctx context.Context, backend *daemon.Remote, cfg config.Config, jobs startup) (string, error) {
+// warning first about the assistant's scope: --profile for this run, else the one the
+// device remembers (profile_in_use) while the config still has it.
+func sitDown(ctx context.Context, backend *daemon.Remote, cfg config.Config, jobs startup, remembered string) (string, error) {
 	profile, err := useProfile(backend, cfg, jobs.profile)
 	if err != nil {
 		return "", err
+	}
+	if jobs.profile == "" {
+		profile = rememberedProfile(backend, cfg, remembered)
 	}
 	warnAboutAgentScope(ctx, backend, cfg)
 	// One window per daemon (api.Seat), taken first; runs ending in a printout need none.
@@ -459,6 +463,19 @@ func useProfile(backend *daemon.Remote, cfg config.Config, name string) (string,
 		names[i] = p.Name
 	}
 	return "", fmt.Errorf("--profile %q: the config has %s", name, strings.Join(names, ", "))
+}
+
+// rememberedProfile names the profile the device remembers, as the config spells it; ""
+// when the config no longer has it, which is as good as none.
+func rememberedProfile(backend *daemon.Remote, cfg config.Config, name string) string {
+	if strings.TrimSpace(name) == "" {
+		return ""
+	}
+	profile, err := useProfile(backend, cfg, name)
+	if err != nil {
+		return ""
+	}
+	return profile
 }
 
 // whereAmI describes this window for one refused the seat: process, terminal (via /proc

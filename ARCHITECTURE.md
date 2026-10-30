@@ -444,7 +444,8 @@ composer**, with focus moving between panes.
 - **Rail**: the groups that filter the room list. Synthetic **All**, **DMs** and
   **Unread**, one entry per joined space, and conditional groups (Invites,
   Archived, Drafts, Pinned, Spam) that appear only when they have something in them.
-  Renamed, reordered and hidden entries come from `[display.rail]`.
+  Renamed, reordered and hidden entries come from `[display.rail]`. kithd builds
+  it per profile (`Rail`, re-read on `CHANGE_RAIL`); the TUI draws what it serves.
 - **Room list**: the selected group's rooms with unread badges and, beneath a room,
   a row per unread **thread**.
 - **Timeline**: the message list, bottom-aligned, with a modal message cursor. Rows

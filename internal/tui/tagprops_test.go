@@ -158,8 +158,8 @@ func TestTagRowProperties(t *testing.T) {
 // Over random rooms, spaces, tags, properties and state changes: an exclusive tag's
 // room shows under it alone; with an all-rooms tag every room shows somewhere unless a
 // hidden tag claims it; a room leaves a space exactly when a tag holding it lists that
-// kind of space; a silenced room never counts unread; and the memo matches a fresh
-// computation.
+// kind of space; a silenced room never counts unread; and the rail served judges as a
+// fresh computation.
 func TestTagPropertiesOverRandomConfigs(t *testing.T) {
 	t.Parallel()
 	terms := []string{"*", "dm", "group", "unread", "mention", "draft", "space:Made", "space:Bridge", "room:R1", "not dm", "not unread", "tag:T0"}
@@ -214,6 +214,7 @@ func TestTagPropertiesOverRandomConfigs(t *testing.T) {
 			default:
 				m.drafts = setDraft(m.drafts, room, draft{})
 			}
+			m = serveRail(m) // kithd builds again on a draft
 			checkTagInvariants(t, fmt.Sprintf("seed %d step %d", seed, step), m, tags)
 		}
 	}
@@ -225,8 +226,10 @@ func checkTagInvariants(t *testing.T, where string, m Model, tags []config.Tag) 
 	for i := range m.rooms.all {
 		room := m.rooms.all[i]
 		fresh := view.computeTags(room)
-		if got := view.tagsOf(room); fmt.Sprint(got) != fmt.Sprint(fresh) {
-			t.Fatalf("%s: memo for %s = %+v, fresh = %+v", where, room.ID, got, fresh)
+		served := fresh
+		served.Leaves = domain.Exclusive{} // where the tags take it from is kithd's alone
+		if got := view.tagsOf(room); fmt.Sprint(got) != fmt.Sprint(served) {
+			t.Fatalf("%s: served for %s = %+v, fresh = %+v", where, room.ID, got, served)
 		}
 		var shows []string
 		for _, g := range m.rail.groups {

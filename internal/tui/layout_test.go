@@ -218,7 +218,7 @@ func TestRenameIgnoresInvites(t *testing.T) {
 	mdl, _ := m.handleInvites([]domain.Room{
 		{ID: mx + "!i:x", Name: "Invited", Membership: domain.MembershipInvite, InvitedBy: "matrix:@a:x"},
 	})
-	m = mdl
+	m = serveRail(mdl)
 	m.focus = paneRooms
 	m.rail.cursor = indexOfGroup(m.rail.groups, inviteGroupKey)
 	next, _ := m.selectRoom(m.filteredRooms()[0])

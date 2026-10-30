@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -52,6 +53,9 @@ type filterWatch struct {
 	now      func() time.Time
 	// established memoizes rooms known to have history (a room never loses it).
 	established map[domain.RoomID]bool
+	// changed hears the moves and releases in memory change; nil hears nothing. Set
+	// before use.
+	changed func()
 
 	// people is where person marks go (personwatch.go); nil leaves the sender moves off.
 	// facts, directory and selves are each room's facts, the people directory and every
@@ -241,6 +245,7 @@ func (w *filterWatch) record(ctx context.Context, verdict domain.TagVerdict) boo
 			w.stored[verdict.Room] = map[string]domain.TagVerdict{}
 		}
 		w.stored[verdict.Room][key] = domain.TagVerdict{Room: verdict.Room, Tag: key, Released: true}
+		w.tellChanged()
 		return false
 	}
 	// Any other failure keeps the move for this process only: it will not survive a
@@ -250,7 +255,15 @@ func (w *filterWatch) record(ctx context.Context, verdict domain.TagVerdict) boo
 		w.recorded[verdict.Room] = map[string]bool{}
 	}
 	w.recorded[verdict.Room][key] = true
+	w.tellChanged()
 	return true
+}
+
+// tellChanged tells changed, once the change is in memory; it takes none of w's locks.
+func (w *filterWatch) tellChanged() {
+	if w.changed != nil {
+		w.changed()
+	}
 }
 
 // seedIfStale rereads the memo when it is older than filterReseed or a reload.
@@ -284,5 +297,8 @@ func (w *filterWatch) seed(ctx context.Context) {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if !reflect.DeepEqual(w.stored, stored) {
+		w.tellChanged()
+	}
 	w.stored, w.seeded, w.seededAt = stored, true, w.now()
 }

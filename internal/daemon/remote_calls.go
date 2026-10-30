@@ -226,6 +226,15 @@ func (r *Remote) RefreshSpaces(ctx context.Context) ([]domain.Space, error) {
 	return pc.ProtoToSpaces(resp.GetSpaces()), err
 }
 
+// Rail is the rail kithd builds for this client's profile.
+func (r *Remote) Rail(ctx context.Context) (domain.ServedRail, error) {
+	resp, err := call(ctx, "rail", r.c.Rail, &v1.RailRequest{})
+	if err != nil {
+		return domain.ServedRail{}, err
+	}
+	return pc.ProtoToRail(resp), nil
+}
+
 func (r *Remote) AddToSpace(ctx context.Context, spaceID domain.SpaceID, roomID domain.RoomID) error {
 	_, err := call(ctx, "add to space", r.c.AddToSpace, &v1.AddToSpaceRequest{SpaceId: string(spaceID), RoomId: string(roomID)})
 	return err

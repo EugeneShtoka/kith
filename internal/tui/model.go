@@ -61,8 +61,8 @@ type group struct {
 	// sepAfter draws a divider row beneath this group (a separator token in the rail order).
 	sepAfter bool
 	// sticky keeps the open room listed until you move off it; countInLabel appends the room
-	// count.
-	sticky, countInLabel bool
+	// count; hidesEmpty is a tag's hide_when_empty.
+	sticky, countInLabel, hidesEmpty bool
 	// network is the one network all its rooms are on, "" otherwise; set by rebuiltRail only while
 	// the rail colors by network.
 	network domain.Protocol
@@ -74,31 +74,20 @@ type group struct {
 }
 
 // admits reports whether a room belongs, judged by the view passed in (the Model's current
-// one): the group's row holds it in the rail built from the view's state now.
+// one): the group's row holds it in the rail served.
 func (g group) admits(v unreadView, r domain.Room) bool {
 	return v.railHolds(railRowRef{key: g.key, space: g.space}, r.ID)
 }
 
-// railGroups builds the rail (domain.BuildRail: a row per tag, then a group per space) and
-// the rows it shows (domain.ShownRows). All, Unread, Archived and the rest are config-defined
-// tags; a rail with nothing to show gets one All row.
-func railGroups(
-	spaces []domain.Space,
-	cfg config.Rail,
-	// names are the user's display names for rooms, threads and rail rows.
-	names []config.DisplayName,
-	view unreadView,
-	rooms []domain.Room,
-) []group {
-	view.rail = railInputs{spaces: spaces, rooms: rooms, cfg: cfg, names: names}
-	built := view.builtRail()
-	rows := domain.ShownRows(built.rail, built.spec)
+// groupsOf is the rows the rail draws as groups. All, Unread, Archived and the rest are
+// config-defined tags; a rail with nothing to show has one All row.
+func groupsOf(rows []domain.RailRow) []group {
 	groups := make([]group, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		groups = append(groups, group{
 			key: r.Key, label: r.Label, space: r.Space, sepAfter: r.SepAfter,
-			sticky: r.Sticky, countInLabel: r.CountInLabel, home: r.Home, owner: r.Owner,
+			sticky: r.Sticky, countInLabel: r.CountInLabel, hidesEmpty: r.HideWhenEmpty, home: r.Home, owner: r.Owner,
 		})
 	}
 	return groups
@@ -107,24 +96,33 @@ func railGroups(
 // fallbackGroupKey is the rail key of the single row a rail with no spaces and no tags gets.
 const fallbackGroupKey = domain.RailFallbackKey
 
-// fallbackGroup is every room but invitations, for a config with no tags and an account
-// with no spaces.
-func fallbackGroup() group {
-	return group{key: fallbackGroupKey, label: "All"}
-}
-
-// rebuiltRail rebuilds the rail from the model's state, keeping the cursor on the same group.
+// rebuiltRail draws the rail served, keeping the cursor on the same row by its key and
+// space. A row that hides while empty and emptied under the cursor stays drawn, empty,
+// until the cursor leaves it, so reading its last room moves neither the cursor nor the
+// room list; any other row gone hands the cursor to the row now in its place.
 func (m Model) rebuiltRail() Model {
-	prevKey := m.rail.key()
+	was, had := m.rail.at()
 	m.rail.groups = m.railFromState()
-	m.rail.cursor = indexOfGroup(m.rail.groups, prevKey)
+	at := slices.IndexFunc(m.rail.groups, was.sameRow)
+	if at < 0 && had && len(m.rail.groups) > 0 && (was.hidesEmpty || slices.ContainsFunc(m.rail.cfg.HideWhenEmpty, was.namedBy)) {
+		at = min(m.rail.cursor, len(m.rail.groups))
+		m.rail.groups = slices.Insert(m.rail.groups, at, was)
+	}
+	if at < 0 {
+		at = m.rail.cursor
+	}
+	m.rail.cursor = clampIndex(at, len(m.rail.groups))
 	return m
 }
 
-// railFromState builds the rail's groups from rooms, spaces and settings, each with its one
-// network when the rail colors by it. Every rebuild goes through it so none drops the colors.
+// sameRow reports whether two groups draw one rail row: the same key, and the same space
+// for a space's (two spaces can share a name).
+func (g group) sameRow(other group) bool { return g.key == other.key && g.space == other.space }
+
+// railFromState is the rail served as groups, each with its one network when the rail
+// colors by it. Every rebuild goes through it so none drops the colors.
 func (m Model) railFromState() []group {
-	groups := railGroups(m.rooms.spaces, m.rail.cfg, m.prefs.display.Names, m.unreadView(), m.rooms.all)
+	groups := groupsOf(m.rail.served.rail.Rows)
 	if m.rail.cfg.NetworkColors {
 		groups = m.withNetworks(groups)
 	}
@@ -362,8 +360,6 @@ type Model struct {
 	live liveActivity
 	// sentTyping is the typing notice we last sent. See typingNotice.
 	sentTyping typingNotice
-	// parents maps a room to its space, resolved on demand for archived rooms.
-	parents map[domain.RoomID]domain.SpaceID
 
 	// glyphs is the emoji vocabulary and its ranking. See emojiState.
 	glyphs emojiState
@@ -568,9 +564,8 @@ func New(ctx context.Context, backend api.Backend, display config.Display, devic
 	}
 	static, tone, tier := startupEmoji(device)
 	// Validated at startup; an error here means a config built in code.
-	source, _ := setup.UnreadSource(device.Unread)
+	source, _ := setup.UnreadSource(display.Unread)
 	unreadLocal := source != config.UnreadNotifications
-	parents := make(map[domain.RoomID]domain.SpaceID)
 	// Naming and media are set by applyNaming/applyMedia below, as for every settings change.
 	m := Model{
 		backend:      backend,
@@ -603,9 +598,8 @@ func New(ctx context.Context, backend api.Backend, display config.Display, devic
 		derived:  newDerivedCache(),
 		frames:   &frameClock{},
 		receipts: receiptState{policy: readSettingsFrom(device)},
-		parents:  parents,
 		// Tags arrive with the config (WithConfigFile): until then, the fallback row.
-		rail: railState{groups: []group{fallbackGroup()}, cfg: display.Rail, railMemo: &railMemo{}},
+		rail: railState{cfg: display.Rail},
 		st:   statusState{standing: "loading rooms…"},
 		conf: configState{device: config.Device{Display: device, Keys: config.DefaultKeys()}},
 	}
@@ -769,7 +763,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loadRoomsCmd(), m.refreshRoomsCmd(),
 		m.loadSpacesCmd(), m.refreshSpacesCmd(),
-		m.loadUnreadCmd(), m.loadInvitesCmd(),
+		m.loadUnreadCmd(), m.loadInvitesCmd(), m.loadRailCmd(),
 		m.startSyncCmd(), m.listenCmd(), m.listenVerifyCmd(), m.listenUnreadCmd(),
 		m.listenReactionsCmd(), m.listenInvitesCmd(), m.listenActivityCmd(),
 		m.listenFollowCmd(), m.listenSeatCmd(), m.listenChangesCmd(), m.listenConfigCmd(),
@@ -1089,8 +1083,8 @@ func (m Model) handleRoomListMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case activityMsg:
 		return answered(m.handleActivity(msg))
-	case parentsMsg:
-		return answered(m.handleParents(msg))
+	case railMsg:
+		return answered(m.handleRail(msg))
 	case roomsMsg:
 		return answered(m.handleRoomsThenOffer(msg))
 	case verifyStartedMsg:
@@ -2595,30 +2589,25 @@ func (m Model) handleRooms(msg roomsMsg) (Model, tea.Cmd) {
 	was := m.roomCursor()
 	// A chat a link opened stays while open; once listed, the listing's copy replaces it.
 	m.rooms = m.rooms.withJoined(msg.rooms).keepingFresh(m.openRoom)
-	// The rail follows the rooms: a forum's row, a tag hidden while it holds none.
+	// The rooms' facts follow the rooms; the rail follows when kithd serves it.
 	m = m.refreshPlaces().rebuiltRail()
-	// Archived rooms need their parent space; asked only for archived rooms.
-	parents := m.resolveParentsCmd()
 	if mdl, cmd, entered := m.enterPending(); entered {
-		return mdl, tea.Batch(cmd, parents)
+		return mdl, cmd
 	}
 	// Before the cold-start selection, so a client started for a link lands there.
 	if mdl, cmd, followed := m.followPendingLink(); followed {
-		return mdl, tea.Batch(cmd, parents)
+		return mdl, cmd
 	}
 	// With a room open, the cursor rule decides (see keepCursorNearby).
 	if m.openRoom != "" {
-		moved, cmd := m.keepCursorNearby(was)
-		return moved, tea.Batch(cmd, parents)
+		return m.keepCursorNearby(was)
 	}
 	// Cold start: land on the top of the list.
 	fr := m.filteredRooms()
 	if len(fr) == 0 {
-		mdl, cmd := m.clearRoom()
-		return mdl, tea.Batch(cmd, parents)
+		return m.clearRoom()
 	}
-	mdl, cmd := m.selectRoom(fr[0])
-	return mdl, tea.Batch(cmd, parents)
+	return m.selectRoom(fr[0])
 }
 
 // handleSpaces applies a space list; spaces are additive, so an error keeps the current rail.
@@ -3351,14 +3340,16 @@ func (m Model) namedRoom(id domain.RoomID) string {
 }
 
 // filteredRooms returns the selected group's rooms in configured order; the Unread group also
-// keeps the open room listed until you move off it.
+// keeps the open room listed until you move off it, and every group keeps an open room the
+// rail served does not know yet (a chat a link opened).
 func (m Model) filteredRooms() []domain.Room {
 	g, ok := m.rail.at()
 	if !ok {
 		return nil
 	}
-	pinned := g.sticky && m.openRoom != ""
 	view := m.unreadView()
+	_, served := view.served.room(m.openRoom)
+	pinned := (g.sticky || !served) && m.openRoom != ""
 	hideArchived := !m.archivedShownIn(g.key)
 	out := make([]domain.Room, 0, len(m.rooms.all))
 	// Indexed: domain.Room is large enough that a range copy trips gocritic.

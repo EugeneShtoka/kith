@@ -1,14 +1,11 @@
 package tui
 
 import (
-	"context"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/notify"
@@ -53,7 +50,7 @@ func TestBadgeCountsUnreadMessagesNotNotifications(t *testing.T) {
 	}
 
 	// The notifications meaning is still available.
-	server := counting(t, config.Display{}, config.DeviceDisplay{Unread: "notifications"})
+	server := counting(t, config.Display{Unread: "notifications"})
 	if badge, _ := server.unreadBadge(roomByName(t, server, mx+"!a:x")); badge != "" {
 		t.Errorf("with unread=notifications the muted room badged %q, want nothing", badge)
 	}
@@ -73,7 +70,7 @@ func picking(t *testing.T, m Model, tag string, rooms ...string) Model {
 		t.Fatalf("no tag %q in the config", tag)
 	}
 	next, _ := m.applyConfig(cfg, "")
-	return next.clearStatus()
+	return serveRail(next).clearStatus()
 }
 
 // The starter's Archived tag keeps the room and takes it out of the totals.
@@ -122,6 +119,7 @@ func TestTagCommandTogglesAndReportsWhichWay(t *testing.T) {
 	m, _ = m.selectRoom(roomByName(t, m, mx+"!a:x"))
 
 	m, _ = m.toggleTag("archived", roomByName(t, m, mx+"!a:x"))
+	m = serveRail(m)
 	if got := m.conf.base.Tags[tagIndex(t, m, "Archived")].Picked; len(got) != 1 || got[0] != mx+"!a:x" {
 		t.Fatalf("after /tag Archived the tag picks %v, want the room's ID", got)
 	}
@@ -134,6 +132,7 @@ func TestTagCommandTogglesAndReportsWhichWay(t *testing.T) {
 	}
 
 	m, _ = m.toggleTag("Archived", roomByName(t, m, mx+"!a:x"))
+	m = serveRail(m)
 	if got := m.conf.base.Tags[tagIndex(t, m, "Archived")]; len(got.Picked) != 0 || len(got.Excluded) != 0 {
 		t.Errorf("after /tag Archived again the tag is %+v, want it to say nothing about the room", got)
 	}
@@ -169,8 +168,10 @@ func TestTakingARoomOutOfARuleExcludesOnlyIt(t *testing.T) {
 	cfg := m.conf.base.Clone()
 	cfg.Tags = append(cfg.Tags, config.Tag{Name: "Job", Rule: []string{"space:Work"}})
 	m, _ = m.applyConfig(cfg, "")
+	m = serveRail(m) // kithd reloads the config saved
 
 	m, _ = m.toggleTag("Job", roomByName(t, m, mx+"!a:x"))
+	m = serveRail(m)
 	job := m.conf.base.Tags[tagIndex(t, m, "Job")]
 	if len(job.Rule) != 1 || len(job.Excluded) != 1 || job.Excluded[0] != mx+"!a:x" {
 		t.Errorf("Job = %+v, want its rule kept and Alpha excluded", job)
@@ -226,7 +227,7 @@ func TestArchivedRoomLeavesEverythingButItsOwnSpace(t *testing.T) {
 
 	m := picking(t, spaced(t, config.Display{}), "Archived", mx+"!a:x")
 	// The canonical parent: the space the bridge created the portal in.
-	m = update(t, m, parentsMsg{parents: map[domain.RoomID]domain.SpaceID{mx + "!a:x": mx + "!wa:x"}})
+	m = servedWith(m, kithdRail(m, map[domain.RoomID]domain.SpaceID{mx + "!a:x": mx + "!wa:x"}))
 
 	if got := roomsIn(t, m, "Work"); len(got) != 1 || got[0] != mx+"!b:x" {
 		t.Errorf("Work = %v, want only the unarchived room — it was filed there, not born there", got)
@@ -267,107 +268,9 @@ func TestArchivedGroupExistsOnlyWhileSomethingIsArchived(t *testing.T) {
 		t.Errorf("rail = %v, want no archived group with nothing archived", groupKeys(quiet.rail.groups))
 	}
 	m, _ := quiet.toggleTag("Archived", roomByName(t, quiet, mx+"!a:x"))
+	m = serveRail(m)
 	if !hasGroup(m.rail.groups, archivedGroupKey) {
 		t.Errorf("rail = %v, want an archived group after archiving", groupKeys(m.rail.groups))
-	}
-}
-
-// parentAsker records which rooms were asked about and answers for one of them.
-type parentAsker struct {
-	apitest.Nop
-	mu     sync.Mutex
-	asked  []domain.RoomID
-	answer map[domain.RoomID]domain.SpaceID
-}
-
-func (p *parentAsker) CanonicalParent(_ context.Context, roomID domain.RoomID) (domain.SpaceID, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.asked = append(p.asked, roomID)
-	return p.answer[roomID], nil
-}
-
-func (p *parentAsker) askedRooms() []domain.RoomID {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]domain.RoomID(nil), p.asked...)
-}
-
-// Only rooms a space-exclusive tag holds are asked about, each once: resolving a
-// parent costs the daemon room state.
-func TestParentsAreResolvedOnlyForArchivedRooms(t *testing.T) {
-	t.Parallel()
-
-	asker := &parentAsker{answer: map[domain.RoomID]domain.SpaceID{mx + "!a:x": mx + "!wa:x"}}
-	m := picking(t, starterNew(asker, config.Display{}), "Archived", mx+"!a:x")
-	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
-	m = update(t, m, spacesMsg{spaces: []domain.Space{
-		{ID: mx + "!wa:x", Name: "WhatsApp UK", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
-		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
-	}})
-	m = sized(t, m)
-
-	// The resolve command rides with the room list; run it and feed the answer back.
-	_, cmd := m.handleRooms(roomsMsg{rooms: m.rooms.all})
-	if cmd == nil {
-		t.Fatal("no command to resolve the archived room's parent")
-	}
-	m = update(t, m, cmd())
-
-	if got := asker.askedRooms(); len(got) != 1 || got[0] != mx+"!a:x" {
-		t.Errorf("asked about %v, want only the archived room", got)
-	}
-	if m.parents[mx+"!a:x"] != mx+"!wa:x" {
-		t.Errorf("parents = %v, want the resolved space", m.parents)
-	}
-	if got := roomsIn(t, m, "WhatsApp UK"); len(got) != 2 {
-		t.Errorf("WhatsApp UK = %v, want the archived room back once its parent is known", got)
-	}
-
-	// A second pass has nothing left to ask.
-	if cmd := m.resolveParentsCmd(); cmd != nil {
-		t.Error("a resolved room was queued for resolution again")
-	}
-}
-
-// A room's canonical home is asked for only when it matters: its tags take it from
-// its spaces or from its origin, not both. Leaving only its origin, the room leaves
-// its home once that is known.
-func TestOnlyOneOfSpacesAndOriginAsksForTheHome(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		exclusive []string
-		asks      bool
-	}{
-		{nil, false},
-		{[]string{"spaces"}, true},
-		{[]string{"origin"}, true},
-		{[]string{"spaces", "origin"}, false},
-	} {
-		asker := &parentAsker{answer: map[domain.RoomID]domain.SpaceID{mx + "!a:x": mx + "!w:x"}}
-		cfg := config.Config{Profiles: starter(t).Profiles, Tags: []config.Tag{{Name: "Out", Picked: []string{mx + "!a:x"}, Exclusive: tc.exclusive}}}
-		m := New(context.Background(), asker, cfg.Display, config.DeviceDisplay{}).WithConfigFile("", asStarted(cfg))
-		m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
-		m = update(t, m, spacesMsg{spaces: []domain.Space{
-			{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!b:x"}},
-			{ID: mx + "!f:x", Name: "Filed", Children: []domain.RoomID{mx + "!a:x"}},
-		}})
-		cmd := m.resolveParentsCmd()
-		if (cmd != nil) != tc.asks {
-			t.Errorf("exclusive %v: asks for the home = %t, want %t", tc.exclusive, cmd != nil, tc.asks)
-			continue
-		}
-		if cmd == nil {
-			continue
-		}
-		m = update(t, m, cmd())
-		origin := !slices.Contains(tc.exclusive, "origin")
-		if got := slices.Contains(roomsIn(t, m, "Work"), mx+"!a:x"); got != origin {
-			t.Errorf("exclusive %v: its home Work holds it = %t, want %t", tc.exclusive, got, origin)
-		}
-		if got := slices.Contains(roomsIn(t, m, "Filed"), mx+"!a:x"); got == origin {
-			t.Errorf("exclusive %v: Filed holds it = %t, want %t", tc.exclusive, got, !origin)
-		}
 	}
 }
 

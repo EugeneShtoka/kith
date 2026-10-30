@@ -350,6 +350,27 @@ var narrowingProbes = map[string]func(ctx context.Context, r *daemon.Remote, w *
 		rooms, err := r.RoomsWith(ctx, []string{alice}, domain.TheseRooms(named), 10)
 		return roomsOf(rooms, roomOf), err
 	},
+	// The rail's rooms, joined and invited; a row holding a room, or a space's row for a
+	// space, the profile does not reach fails the call.
+	"Rail": func(ctx context.Context, r *daemon.Remote, _ *profileWorld, g generated) ([]domain.RoomID, error) {
+		rail, err := r.Rail(ctx)
+		var rooms []domain.RoomID
+		for _, room := range rail.Rooms {
+			rooms = append(rooms, domain.RoomID(room.Facts.ID))
+		}
+		for _, row := range rail.Rows {
+			if row.Space != "" && !g.spacesIn[domain.RoomID(row.Space)] {
+				return nil, fmt.Errorf("the rail has a row for space %s, which the profile does not reach", row.Space)
+			}
+			for _, id := range row.Rooms {
+				if !slices.Contains(rooms, id) {
+					return nil, fmt.Errorf("row %q holds %s, which the rail does not list", row.Key, id)
+				}
+			}
+		}
+		slices.Sort(rooms)
+		return rooms, err
+	},
 	"MessagesFrom": func(ctx context.Context, r *daemon.Remote, w *profileWorld, _ generated) ([]domain.RoomID, error) {
 		msgs, err := r.MessagesFrom(ctx, domain.SaidRequest{Senders: []string{alice}, Rooms: domain.EveryRoom()})
 		return roomsOf(msgs, func(m domain.Message) domain.RoomID { return m.RoomID }), err
@@ -430,9 +451,12 @@ func TestAProfileSeesOnlyItsRooms(t *testing.T) {
 		slices.Sort(want)
 		for call, probe := range narrowingProbes {
 			expect := want
-			if call == "CachedInvites" {
+			switch call {
+			case "CachedInvites":
 				expect = g.held(g.invites)
 				slices.Sort(expect)
+			case "Rail":
+				expect = slices.Sorted(slices.Values(slices.Concat(g.held(g.rooms), g.held(g.invites))))
 			}
 			got, err := probe(ctx, client, w, g)
 			if err != nil {

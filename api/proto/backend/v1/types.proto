@@ -221,6 +221,25 @@ message Space {
   SpaceLeaving leaving = 8;
 }
 
+// RoomFacts is what a place entry can match about a room (domain.RoomFacts).
+message RoomFacts {
+  string id = 1;
+  string name = 2;
+  // spaces are the names of the spaces holding it; space_labels the rail labels of
+  // those renamed.
+  repeated string spaces = 3;
+  repeated string space_labels = 4;
+  bool direct = 5;
+  string protocol = 6;
+  // tags are the tags holding it judged as a place, without its state.
+  repeated string tags = 7;
+  // archived_in is the tag of the network archive holding it, when kith follows that
+  // archive.
+  string archived_in = 8;
+  // caught is the tags a filter moved it into, released ones left out.
+  repeated string caught = 9;
+}
+
 // SpaceLeaving is how a space is left (domain.SpaceLeaving).
 enum SpaceLeaving {
   SPACE_LEAVING_UNSPECIFIED = 0; // not left: a bridge's own space for an account

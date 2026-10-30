@@ -35,7 +35,7 @@ const (
 // refused (profileGate), so a new call cannot reach a client without a decision.
 var reaches = map[string]profileReach{
 	// Lists, counts and searches over many rooms.
-	"Rooms": narrows, "RefreshRooms": narrows, "Spaces": narrows, "RefreshSpaces": narrows,
+	"Rooms": narrows, "RefreshRooms": narrows, "Spaces": narrows, "RefreshSpaces": narrows, "Rail": narrows,
 	"LastMessages": narrows, "TagVerdicts": narrows, "CachedUnread": narrows, "UnreadStream": narrows,
 	"CachedInvites": narrows, "Invites": narrows, "SearchMessages": narrows, "SearchSenders": narrows,
 	"RoomsWith": narrows, "MessagesFrom": narrows, "Drafts": narrows, "ScheduledMessages": narrows,

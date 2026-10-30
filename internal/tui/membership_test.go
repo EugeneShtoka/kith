@@ -49,8 +49,7 @@ func invited(id domain.RoomID, name, by string) domain.Room {
 func withInvites(t *testing.T, m Model, invites ...domain.Room) Model {
 	t.Helper()
 	next, _ := m.handleInvites(invites)
-	got := next
-	return got
+	return serveRail(next)
 }
 
 // onInvite selects the first invitation in the invites group, with the room list focused.

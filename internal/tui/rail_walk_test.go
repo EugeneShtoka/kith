@@ -11,17 +11,17 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// The memoized rail must be keyed by everything BuildRail reads. This walks random
-// sequences of every rail input: unread (counts, highlights, marks), drafts, the device's
-// unread source, a profile switch, a config reload changing the tags, the rail's order,
-// hidden and hide_when_empty and the rows' names, invitations, a network archiving a room,
-// the archived toggle, a chat a link opened, spaces, canonical parents and moving the
-// cursor. A frame is drawn between most steps (filling the memo), and asModel's staleRail
-// check fails the first Update leaving the memo unlike a fresh build.
-func TestTheRailMemoHoldsOverAnyUpdateSequence(t *testing.T) {
+// The rail drawn is the rail served, whatever arrives in whatever order. This walks random
+// sequences of every rail input: unread (counts, highlights, marks), drafts, the unread
+// source, a profile switch, a config reload changing the tags, the rail's order, hidden and
+// hide_when_empty and the rows' names, invitations, a network archiving a room, the
+// archived toggle, a chat a link opened, spaces, moving the cursor, an older rail arriving
+// late, and an Update kithd has not answered yet. asModel serves the rail kithd would after
+// each Update, and its staleRail check fails the first Update leaving the rows drawn or
+// their index unlike the rail served.
+func TestTheRailDrawnIsTheRailServedOverAnyUpdateSequence(t *testing.T) {
 	t.Parallel()
 	seeds, steps := 60, 40
 	if testing.Short() {
@@ -161,17 +161,18 @@ func walkRailInputs(t *testing.T, seed uint64, steps int) {
 			log = append(log, fmt.Sprintf("draft in %s: %q", r.ID, d.input))
 		case 3:
 			local = !local
-			dev := m.conf.device
-			dev.Display.Unread = map[bool]string{true: config.UnreadMessages, false: config.UnreadNotifications}[local]
-			m, _ = m.applyDevice(dev, "")
-			log = append(log, "unread counts "+dev.Display.Unread)
+			cfg.Display.Unread = map[bool]string{true: config.UnreadMessages, false: config.UnreadNotifications}[local]
+			m, _ = m.adoptConfig(cfg, "")
+			log = append(log, "unread counts "+cfg.Display.Unread)
 		case 4:
 			name := []string{"home", "work"}[rng.IntN(2)]
 			msg = profileSwitchedMsg{name: name}
 			log = append(log, "profile "+name)
 		case 5:
 			shape := rng.IntN(8)
+			unread := cfg.Display.Unread
 			cfg = walkConfig(shape)
+			cfg.Display.Unread = unread
 			m, _ = m.adoptConfig(cfg, "")
 			log = append(log, fmt.Sprintf("config shape %d", shape))
 		case 6:
@@ -200,10 +201,14 @@ func walkRailInputs(t *testing.T, seed uint64, steps int) {
 			msg = spacesMsg{spaces: walkSpaces(shape)}
 			log = append(log, fmt.Sprintf("spaces shape %d", shape))
 		case 11:
-			r := room()
-			parent := []domain.SpaceID{mx + "!sw:x", mx + "!sb:x"}[rng.IntN(2)]
-			msg = parentsMsg{parents: map[domain.RoomID]domain.SpaceID{r.ID: parent}}
-			log = append(log, fmt.Sprintf("%s's home is %s", r.ID, parent))
+			// An answer asked before the last one taken, for the profile it was taken in.
+			held := m.rail.served
+			late := domain.ServedRail{Revision: held.rail.Revision - 1, Rows: []domain.RailRow{{Key: "tag:Late", Label: "Late"}}}
+			next, _ := m.handleRail(railMsg{profile: held.profile, rail: late})
+			if held.rail.Revision > 0 && (!sameServed(next.rail.served.rail, held.rail) || next.rail.served.rail.Revision != held.rail.Revision) {
+				t.Fatalf("seed %d: an older rail arriving late replaced the one held", seed)
+			}
+			log = append(log, "an older rail arrives late")
 		case 12:
 			m.focus = []pane{paneRail, paneRooms}[rng.IntN(2)]
 			key := []rune{'j', 'k'}[rng.IntN(2)]
@@ -215,85 +220,22 @@ func walkRailInputs(t *testing.T, seed uint64, steps int) {
 		default:
 			log = append(log, "draw")
 		}
-		m, _ = routed(t, m, msg)
-		if rng.IntN(3) > 0 {
-			_ = m.View() // fills the memo, as a frame does
+		if rng.IntN(4) == 0 {
+			// kithd has not answered yet: the rows drawn are still the rail served last, and
+			// an open room it does not know stays listed.
+			mdl, _ := m.Update(msg)
+			m = mdl.(Model)
+			log = append(log, "(not served yet)")
+			if err := staleRail(m); err != nil {
+				t.Fatalf("seed %d: %v", seed, err)
+			}
+			if _, known := m.rail.served.room(m.openRoom); m.openRoom != "" && !known && len(m.rail.groups) > 0 &&
+				!slices.ContainsFunc(m.filteredRooms(), func(r domain.Room) bool { return r.ID == m.openRoom }) {
+				t.Fatalf("seed %d: the open room %s, which the rail does not know, is not listed in %q", seed, m.openRoom, m.rail.key())
+			}
+		} else {
+			m, _ = routed(t, m, msg)
 		}
-	}
-}
-
-// Every input the rail is built from is in the memo's key: changing any one alone, which
-// the walk's Updates never do (a refresh of the facts goes with most), rebuilds the rail.
-// Each change is checked to change the rail, so none passes by changing nothing.
-func TestTheRailMemoKeyHoldsEachInputAlone(t *testing.T) {
-	t.Parallel()
-	tagsOf := func(shape int) domain.TagSet {
-		set, _, err := setup.Tags(config.Config{Tags: walkTags(shape)})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return set
-	}
-	spaces := walkSpaces(0)
-	spaces[0].Children = append(slices.Clone(spaces[0].Children), walkBravo.ID)
-	rooms := []domain.Room{walkAlpha, walkBravo, walkTele, walkShared}
-	set := tagsOf(0)
-	places := domain.Places{Tags: set, Archives: map[domain.Protocol]string{domain.ProtocolTelegram: "Archived"}}
-	factsOf := func(rooms []domain.Room) map[domain.RoomID]domain.RoomFacts {
-		out := map[domain.RoomID]domain.RoomFacts{}
-		for i := range rooms {
-			out[rooms[i].ID] = places.Facts(rooms[i], domain.HoldersOf(rooms[i].ID, spaces))
-		}
-		return out
-	}
-	base := unreadView{
-		tags: set, tagsRev: 1, local: true,
-		counts:    map[domain.RoomID]domain.Unread{walkAlpha.ID: {RoomID: walkAlpha.ID, Messages: 1, Counted: true}},
-		roomFacts: factsOf(rooms),
-		rail:      railInputs{spaces: spaces, rooms: rooms, cfg: walkRails[0]},
-	}
-	archived := slices.Clone(rooms)
-	archived[2].Archived = true
-	for _, c := range []struct {
-		input  string
-		change func(v unreadView) unreadView
-	}{
-		{"the tags", func(v unreadView) unreadView { v.tags, v.tagsRev = tagsOf(1), v.tagsRev+1; return v }},
-		{"the unread source", func(v unreadView) unreadView { v.local = false; return v }},
-		{"unread", func(v unreadView) unreadView {
-			v.counts = withEntry(v.counts, walkTele.ID, domain.Unread{RoomID: walkTele.ID, Highlights: 1, Notifications: 1})
-			return v
-		}},
-		{"drafts", func(v unreadView) unreadView {
-			v.drafts = setDraft(v.drafts, walkShared.ID, draft{input: "x"})
-			return v
-		}},
-		{"facts", func(v unreadView) unreadView { v.roomFacts = factsOf(archived); return v }},
-		{"parents", func(v unreadView) unreadView {
-			v.parents = map[domain.RoomID]domain.SpaceID{walkBravo.ID: spaces[0].ID}
-			return v
-		}},
-		{"rooms", func(v unreadView) unreadView { v.rail.rooms = slices.Clone(rooms[:3]); return v }},
-		{"spaces", func(v unreadView) unreadView { v.rail.spaces = walkSpaces(2); return v }},
-		{"names", func(v unreadView) unreadView {
-			v.rail.names = []config.DisplayName{{Target: config.GroupTarget("Work"), Name: "Job"}}
-			return v
-		}},
-		{"order", func(v unreadView) unreadView { v.rail.cfg.Order = []string{"*", "-", "tag:All"}; return v }},
-		{"hidden", func(v unreadView) unreadView { v.rail.cfg.Hidden = []string{"tag:All"}; return v }},
-		{"hide_when_empty", func(v unreadView) unreadView { v.rail.cfg.HideWhenEmpty = []string{"tag:Mentions"}; return v }},
-	} {
-		v := base
-		v.railMemo = &railMemo{}
-		was := v.builtRail() // fills the memo
-		changed := c.change(v)
-		fresh := changed.buildRail()
-		if sameBuilt(was, fresh) == nil {
-			t.Errorf("changing %s changes nothing the rail is built from", c.input)
-			continue
-		}
-		if err := sameBuilt(changed.builtRail(), fresh); err != nil {
-			t.Errorf("after changing %s alone, the memo: %v", c.input, err)
-		}
+		_ = m.View()
 	}
 }

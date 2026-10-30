@@ -139,16 +139,8 @@ func (m Model) runDerived(s config.Settings, derived derivations, done string) (
 	m.glyphs.static = toneEach(cappedStatic(dev.Display.Reactions.Static), derived.tone)
 	m.glyphs.palette = m.toneAll(m.glyphs.palette)
 
-	// Keep the rail cursor on a group by key, not position.
-	focusGroup := ""
-	if entry, ok := m.currentGroup(); ok {
-		focusGroup = entry.key
-	}
-	m.rail.groups = m.railFromState()
-	if at := indexOfGroup(m.rail.groups, focusGroup); at >= 0 && at < len(m.rail.groups) {
-		m.rail.cursor = at
-	}
-	m.rail.cursor = clampIndex(m.rail.cursor, len(m.rail.groups))
+	// The rows are kithd's; the network colors are this device's.
+	m = m.rebuiltRail()
 
 	m.notifications.rules = derived.rules
 	m.notifications.on = dev.Notifications.Enabled
@@ -159,8 +151,7 @@ func (m Model) runDerived(s config.Settings, derived derivations, done string) (
 	m, fields := m.refreshFieldMembers()
 	// The folder may have moved.
 	m, cards := m.loadCards(false, "")
-	// A just-archived room needs its parent space resolved to be filed in the rail.
-	return m, tea.Batch(m.resolveParentsCmd(), peers, fields, cards)
+	return m, tea.Batch(peers, fields, cards)
 }
 
 // adoptConfig runs a config changed elsewhere (another window, a hand edit, the
@@ -189,9 +180,6 @@ func (m Model) applyIntegrations(cfg config.Config, derived derivations) Model {
 	m.rail.archiveTags = derived.archiveTags
 	m.rail.cfg = derived.rail
 	m.rail.tagsRev++
-	if m.rail.railMemo == nil {
-		m.rail.railMemo = &railMemo{}
-	}
 	if len(derived.tagWarnings) > 0 {
 		said := strings.Join(derived.tagWarnings, "; ")
 		if m.log != nil {
@@ -311,7 +299,7 @@ func derive(s config.Settings, profile string) (derivations, error) {
 	if err != nil {
 		return derivations{}, err
 	}
-	source, err := setup.UnreadSource(dev.Display.Unread)
+	source, err := setup.UnreadSource(cfg.Display.Unread)
 	if err != nil {
 		return derivations{}, err
 	}

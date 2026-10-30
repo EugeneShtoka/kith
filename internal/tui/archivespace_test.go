@@ -50,6 +50,7 @@ func TestArchivingKeepsARoomInItsBridgeSpaceAndOnlyItsBridgeSpace(t *testing.T) 
 
 	m := portalRooms(t)
 	m, _ = m.toggleTag("Archived", roomByName(t, m, mx+"!chat:x"))
+	m = serveRail(m)
 
 	if !inGroup(t, m, "WhatsApp BG", mx+"!chat:x") {
 		t.Error("an archived portal left its bridge's space — the only space it ever lived in")
@@ -78,6 +79,7 @@ func TestArchivingTheOpenRoomMovesTheCursorToItsNeighbor(t *testing.T) {
 	next, _ := m.selectRoom(roomByName(t, m, mx+"!a:x"))
 	m = next
 	m, _ = m.toggleTag("Archived", roomByName(t, m, mx+"!a:x"))
+	m = serveRail(m)
 
 	if m.openRoom != mx+"!b:x" {
 		t.Errorf("open room = %q, want !b:x — the room after the one that left", m.openRoom)
@@ -99,6 +101,7 @@ func TestArchivingTheLastRoomMovesTheCursorBackwards(t *testing.T) {
 	next, _ := m.selectRoom(roomByName(t, m, mx+"!b:x"))
 	m = next
 	m, _ = m.toggleTag("Archived", roomByName(t, m, mx+"!b:x"))
+	m = serveRail(m)
 
 	if m.openRoom != mx+"!a:x" {
 		t.Errorf("open room = %q, want !a:x — there is no next room, so the previous one", m.openRoom)

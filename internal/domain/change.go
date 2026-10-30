@@ -12,4 +12,6 @@ const (
 	// stream could not resume, or the cache was cleared. The client's own stream says
 	// so (read_again), never the daemon's Changed stream.
 	ChangeMessages
+	// ChangeRail is the rail of the client's profile having changed (Rail).
+	ChangeRail
 )

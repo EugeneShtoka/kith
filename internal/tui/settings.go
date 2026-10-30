@@ -338,14 +338,14 @@ var curatedSettings = []setting{
 	},
 	{
 		key: "display.unread", group: "display", label: "Unread badges count",
-		show: func(c config.Settings) string { return orDefault(c.Device.Display.Unread, config.UnreadMessages) },
+		show: func(c config.Settings) string { return orDefault(c.Bridge.Display.Unread, config.UnreadMessages) },
 		kind: settingChoice,
 		choices: []settingChoiceOption{
 			{config.UnreadMessages, config.UnreadMessages, "what you have not read"},
 			{config.UnreadNotifications, config.UnreadNotifications,
 				"what your push rules would have pinged you about"},
 		},
-		set: func(c *config.Settings, v string) error { c.Device.Display.Unread = v; return nil },
+		set: func(c *config.Settings, v string) error { c.Bridge.Display.Unread = v; return nil },
 	},
 	{
 		key: "display.media.mode", group: "media", label: "Images",

@@ -145,3 +145,37 @@ func TestTheNotifierQueueHoldsABurst(t *testing.T) {
 		t.Errorf("the notifier holds %d of a 1000-message burst, want all", got)
 	}
 }
+
+// A watcher kithd keeps itself (the rail's, on the unread and invitation streams) gets
+// every value a client does, but is not a client: subscribers, and so Streams.Attached,
+// counts clients alone, or a test waiting for its client would go on before it
+// subscribed.
+func TestAWatcherIsNotCountedAsAClient(t *testing.T) {
+	t.Parallel()
+	h := newHub[int]()
+	watchID, watch := h.watchWith(1)
+	if n := h.subscribers(); n != 0 {
+		t.Fatalf("subscribers() = %d with only kithd's watcher, want 0", n)
+	}
+	clientID, client := h.subscribeWith(1)
+	if n := h.subscribers(); n != 1 {
+		t.Fatalf("subscribers() = %d with one client and a watcher, want 1", n)
+	}
+	h.broadcast(7)
+	if got := recv(t, watch, "the watcher"); got != 7 {
+		t.Errorf("the watcher got %d, want 7", got)
+	}
+	if got := recv(t, client, "the client"); got != 7 {
+		t.Errorf("the client got %d, want 7", got)
+	}
+	h.release(watchID)
+	if n := h.subscribers(); n != 1 {
+		t.Errorf("subscribers() = %d after the watcher left, want the client's 1", n)
+	}
+	h.release(clientID)
+	h.watchWith(1)
+	h.end()
+	if n := h.subscribers(); n != 0 {
+		t.Errorf("subscribers() = %d after the hub ended, want 0", n)
+	}
+}
