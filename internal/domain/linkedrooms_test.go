@@ -36,3 +36,26 @@ func TestALinkNamesItsListedChat(t *testing.T) {
 		}
 	}
 }
+
+// A link to a message names it in each chat, as that chat's account sees it.
+func TestALinkNamesItsMessageInEachChat(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		uri  string
+		room domain.RoomID
+		want domain.EventID
+	}{
+		{"matrix:roomid/abc:x/e/evt", mx + "!abc:x", mx + "$evt"},
+		{"matrix:roomid/abc:x/e/evt", "matrix:" + mxWork + "/!abc:x", domain.EventID("matrix:" + mxWork + "/$evt")},
+		{"https://matrix.to/#/!abc:x/$evt", mx + "!abc:x", mx + "$evt"},
+		{"https://t.me/novosalsa/42", "telegram:1/-1001", "telegram:1/-1001/42"},
+		{"matrix:roomid/abc:x", mx + "!abc:x", ""},
+		{"tg://resolve?domain=novosalsa", "telegram:1/-1001", ""},
+		{"https://wa.me/15550100", "whatsapp:2/15550100@s.whatsapp.net", ""},
+		{"https://example.org", mx + "!abc:x", ""},
+	} {
+		if got := domain.LinkedMessage(c.uri, c.room); got != c.want {
+			t.Errorf("%s in %s names %q, want %q", c.uri, c.room, got, c.want)
+		}
+	}
+}

@@ -22,6 +22,21 @@ func LinkedRooms(uri string, rooms []Room) []Room {
 	return nil
 }
 
+// LinkedMessage is the message a link names in room, one of its LinkedRooms: a Matrix
+// event as that room's account sees it, or a Telegram post; "" for a link to the chat.
+func LinkedMessage(uri string, room RoomID) EventID {
+	if place, ok := ParsePlace(uri); ok {
+		if place.Kind != PlaceEvent {
+			return ""
+		}
+		return TypedEventID(room, string(place.Event))
+	}
+	if link, ok := ParseTelegramLink(uri); ok && link.Post > 0 {
+		return EventID(string(room) + "/" + strconv.Itoa(link.Post))
+	}
+	return ""
+}
+
 // MatrixPlaceRooms is the Matrix room a place names, by its ID: kith's, or Matrix's own
 // as each account sees it.
 func MatrixPlaceRooms(place Place, rooms []Room) []Room {

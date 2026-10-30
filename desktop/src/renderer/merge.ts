@@ -7,7 +7,7 @@ import type { Formatted, Message } from "../gen/backend/v1/types_pb";
 const zero = -(1n << 80n);
 
 /** nanos is a message's time in nanoseconds, zero when it has none. */
-function nanos(m: Message): bigint {
+export function nanos(m: Message): bigint {
   const t = m.timestamp;
   return t === undefined ? zero : t.seconds * 1_000_000_000n + BigInt(t.nanos);
 }

@@ -18,6 +18,7 @@ import {
   Tray,
 } from "electron";
 
+import { BackendService } from "../gen/backend/v1/services_pb";
 import { channels, type Subscribe } from "../shared/ipc";
 import { mediaScheme } from "../shared/media";
 import { Attachments } from "./attach";
@@ -46,12 +47,7 @@ const closeWait = 2500;
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
-    if (window?.isMinimized()) {
-      window.restore();
-    }
-    window?.focus();
-  });
+  app.on("second-instance", raise);
   app.on("window-all-closed", () => {
     app.quit();
   });
@@ -140,6 +136,9 @@ async function start(): Promise<void> {
     try {
       const stop = gate.subscribe(event.senderFrame, message?.method, message?.request, (e) => {
         port.postMessage(e);
+        if (e.kind === "frames" && message?.method === BackendService.method.followStream.name) {
+          raise(); // a link clicked elsewhere (kith --open): the window comes forward to follow it
+        }
         if (e.kind === "refused") {
           port.close(); // the gate ended it: the window left its profile
         }
@@ -209,6 +208,15 @@ async function start(): Promise<void> {
     }
   });
   await window.loadURL(appURL + "index.html");
+}
+
+/** raise brings the window forward: a second start, or a link to follow. */
+function raise(): void {
+  if (window?.isMinimized()) {
+    window.restore();
+  }
+  window?.show();
+  window?.focus();
 }
 
 /** serveApp answers app://kith from the renderer's build, or Vite's server under npm start. */

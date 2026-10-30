@@ -21,7 +21,18 @@ interface Choice {
   take: () => number;
 }
 
-export function ComposerPane({ c, room, session }: { c: ComposerView; room: Room | undefined; session: Session }) {
+export function ComposerPane({
+  c,
+  room,
+  inThread,
+  session,
+}: {
+  c: ComposerView;
+  room: Room | undefined;
+  /** A thread is open beside the room: what answers nothing goes into it. */
+  inThread: boolean;
+  session: Session;
+}) {
   const area = useRef<HTMLTextAreaElement>(null);
   const [caret, setCaret] = useState(0);
   const [chosen, setChosen] = useState(0);
@@ -119,6 +130,7 @@ export function ComposerPane({ c, room, session }: { c: ComposerView; room: Room
           </button>
         </p>
       )}
+      {inThread && c.draft.editing === "" && c.draft.replyTo === "" && <p className="detail">Writing in the thread</p>}
       {(c.draft.editing !== "" || c.draft.replyTo !== "") && (
         <p className="detail">
           {c.draft.editing !== "" ? "Correcting a message" : "Replying to a message"}{" "}

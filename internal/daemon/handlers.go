@@ -768,7 +768,8 @@ func (s *server) Changed(ctx context.Context, _ *req[v1.ChangedRequest], st *con
 	})
 }
 
-// FollowStream hands this window the links Follow picks it for.
+// FollowStream hands this window the links Follow picks it for, each with the chats it
+// names in the window's profile.
 func (s *server) FollowStream(ctx context.Context, r *req[v1.FollowStreamRequest], st *connect.ServerStream[v1.FollowStreamResponse]) error {
 	wake, take, release := s.seats.listen(r.Msg.GetClient(), s.deviceOf(ctx), s.requestProfile(ctx))
 	defer release()
@@ -782,12 +783,28 @@ func (s *server) FollowStream(ctx context.Context, r *req[v1.FollowStreamRequest
 			return nil
 		case <-wake:
 			if uri := take(); uri != "" {
-				if err := sendFrame(st, &v1.FollowStreamResponse{Uri: uri}); err != nil {
+				if err := sendFrame(st, &v1.FollowStreamResponse{Uri: uri, Chats: s.linkedChats(ctx, uri)}); err != nil {
 					return err
 				}
 			}
 		}
 	}
+}
+
+// linkedChats is the chats uri names among the request's profile's rooms, and the
+// message in each it names; none when the rooms cannot be read.
+func (s *server) linkedChats(ctx context.Context, uri string) []*v1.LinkedChat {
+	rooms, err := s.Backend.Rooms(ctx)
+	if err != nil {
+		s.Log.Warn("follow a link: read the rooms failed; it names no chat", "err", err)
+		return nil
+	}
+	found := domain.LinkedRooms(uri, s.profileRooms(ctx, rooms))
+	chats := make([]*v1.LinkedChat, len(found))
+	for i := range found {
+		chats[i] = &v1.LinkedChat{RoomId: string(found[i].ID), EventId: string(domain.LinkedMessage(uri, found[i].ID))}
+	}
+	return chats
 }
 
 func (s *server) ActivityStream(ctx context.Context, _ *req[v1.ActivityStreamRequest], st *connect.ServerStream[v1.ActivityStreamResponse]) error {

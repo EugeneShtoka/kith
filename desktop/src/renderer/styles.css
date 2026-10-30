@@ -110,6 +110,40 @@ footer {
   gap: 1rem;
 }
 
+.columns.with-thread {
+  grid-template-columns: 12rem 16rem 1fr 22rem;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  padding-left: 0.5rem;
+}
+
+.thread header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.thread-rows {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.thread-row {
+  margin-top: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--badge);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
 .rail {
   border-right: 1px solid var(--line);
 }

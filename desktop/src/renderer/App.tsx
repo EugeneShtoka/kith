@@ -8,6 +8,7 @@ import { rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
 import { type Link, type Seat, Session, type View } from "./session";
 import { SearchBar, SearchResults, Switcher } from "./Find";
+import { ThreadPane } from "./ThreadPane";
 import { TimelinePane } from "./TimelinePane";
 
 const phases: Record<NetworkPhase, string> = {
@@ -152,7 +153,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
           }}
         />
       )}
-      <div className="columns">
+      <div className={view.thread ? "columns with-thread" : "columns"}>
         <Rail view={view} session={session} />
         {view.search ? (
           <SearchResults search={view.search} rooms={view.joined} session={session} />
@@ -176,9 +177,17 @@ function Seated({ view, session }: { view: View; session: Session }) {
           <div className="open-room">
             <TimelinePane t={view.timeline} unreadLine={view.unreadLine} composer={view.composer} session={session} />
             {view.composer && (
-              <ComposerPane c={view.composer} room={view.rooms.find((r) => r.id === view.open)} session={session} />
+              <ComposerPane
+                c={view.composer}
+                room={view.rooms.find((r) => r.id === view.open)}
+                inThread={view.thread !== undefined}
+                session={session}
+              />
             )}
           </div>
+        )}
+        {view.thread && view.timeline && (
+          <ThreadPane thread={view.thread} t={view.timeline} composer={view.composer} session={session} />
         )}
       </div>
       {view.status && (

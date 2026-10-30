@@ -65,6 +65,8 @@ export interface Surroundings {
   settings(): DeviceSettingsResponse | undefined;
   /** Who spoke in room lately, newest first: the first people a mention offers. */
   speakers(room: string): string[];
+  /** The thread open beside room ("" none): a message answering nothing goes into it. */
+  thread(room: string): string;
 }
 
 /** One run's composer: its drafts, files, failed sends and what it read for them. */
@@ -331,7 +333,8 @@ export class Composer {
       body,
       mentions: [...c.mentions],
       replyTo: c.editing === "" ? c.replyTo : "",
-      threadRoot: c.threadRoot,
+      // A reply goes where its message is; anything else into the thread open, if any.
+      threadRoot: c.replyTo === "" && c.editing === "" ? this.around.thread(room) || c.threadRoot : c.threadRoot,
       edits: c.editing,
       plain: !(this.around.settings()?.markdown ?? true),
       // One ID per message: sent again, it is the same message (domain.Draft.TxnID).

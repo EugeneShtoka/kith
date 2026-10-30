@@ -6,6 +6,7 @@ import type { DescMessage, DescMethodServerStreaming, MessageInitShape, MessageS
 import {
   BackendService,
   Change,
+  type FollowStreamResponse,
   type RailResponse,
   type RailRow,
   type ReactionsResponse,
@@ -23,6 +24,7 @@ import { call, subscribe } from "./kith";
 import { announces } from "./read";
 import { ordered, total } from "./rooms";
 import { emptyFilter, parseSearch } from "./search";
+import { OpenThread, type ThreadView } from "./threads";
 import { type Ask, newest, Timeline, type TimelineView } from "./timeline";
 
 const backend = BackendService.method;
@@ -34,6 +36,9 @@ const cachedPage = 2000n;
 const quoteFetches = 6;
 /** How many hits a search lists, newest first (as the TUI's). */
 const searchLimit = 200n;
+/** How many replies a page of a thread holds, and how often the window says it is in use, at most. */
+const threadPage = 50n;
+const presentEvery = 2000;
 /**
  * How long the window waits to read the device again after it could not: on a device
  * that joined a bridge, the profiles are the bridge's, read through it, and a window
@@ -101,6 +106,8 @@ export interface View {
   composer: ComposerView | undefined;
   /** The search shown, its hits only in the profile's rooms. */
   search: Search | undefined;
+  /** The thread open beside the open room, which the composer writes into. */
+  thread: ThreadView | undefined;
   /** Whether there is a room to go back, or forward, to. */
   back: boolean;
   forward: boolean;
@@ -116,6 +123,7 @@ const nothingShown = {
   rooms: [],
   joined: [],
   search: undefined,
+  thread: undefined,
   back: false,
   forward: false,
   invites: [],
@@ -159,6 +167,10 @@ interface Run {
   /** The search shown, and how many were asked for: only the last one's answer is shown. */
   search: Search | undefined;
   searches: number;
+  /** The thread open in the open room. */
+  thread: OpenThread | undefined;
+  /** The stream of links kithd hands this window (FollowStream). */
+  follows: (() => void) | undefined;
 }
 
 export class Session {
@@ -184,6 +196,19 @@ export class Session {
    * window runs in, and find their way again when it comes back to one.
    */
   private readonly places = new Map<string, Jumplist>();
+  /**
+   * The last link handed to the window, until the rooms of the profile it runs in are
+   * read; and the link streams of profiles it left, which main ends (their last links
+   * still arrive).
+   */
+  private link: FollowStreamResponse | undefined;
+  private readonly lingering = new Set<() => void>();
+  /** Profile switches asked for and not landed yet. */
+  private switching = 0;
+  /** The open thread is watched: its pane shown, the window focused. */
+  private watchingThread = false;
+  /** What the window last told kithd it has open, and when. */
+  private presented = { room: "", at: 0 };
 
   /** start reads the device, which runs the window in a profile or has it ask. */
   start(): void {
@@ -197,6 +222,10 @@ export class Session {
     this.stopped = true;
     clearTimeout(this.deviceLater);
     this.leave();
+    for (const stop of this.lingering) {
+      stop();
+    }
+    this.lingering.clear();
   }
 
   readonly subscribe = (listener: () => void): (() => void) => {
@@ -208,9 +237,15 @@ export class Session {
 
   /** choose runs the window in the profile named, remembered for its next start. */
   choose(name: string): Promise<void> {
+    this.switching++; // a link handed meanwhile waits for the profile the window ends in
     return this.inTurn(async () => {
-      const chosen = await call(DeviceService.method.chooseProfile, { name });
-      this.enter(chosen.profile);
+      try {
+        const chosen = await call(DeviceService.method.chooseProfile, { name });
+        this.enter(chosen.profile);
+      } finally {
+        this.switching--;
+        this.followLink();
+      }
     });
   }
 
@@ -342,15 +377,61 @@ export class Session {
     }
     this.open(room);
     run.timeline?.seek(event);
-    this.missed(run);
+    this.sought(run);
     this.pump(run);
     this.set({});
   }
 
-  /** missed says so when the open room's jump found nothing. */
-  private missed(run: Run): void {
+  /** sought says so when the open room's jump found nothing, and opens the thread it found a reply in. */
+  private sought(run: Run): void {
     if (run.timeline?.jumpMissed() === true) {
       this.fail("That message is no longer cached");
+    }
+    const root = run.timeline?.jumpThread() ?? "";
+    if (root !== "") {
+      this.openThread(root);
+    }
+  }
+
+  /** openThread opens the thread root of the open room beside it: the composer writes into it. */
+  openThread(root: string): void {
+    const run = this.run;
+    const room = this.view.open;
+    if (run === undefined || room === "" || run.thread?.root === root) {
+      return;
+    }
+    run.thread = new OpenThread(room, root);
+    this.pumpThread(run);
+    this.markThreadRead(run);
+    this.set({});
+  }
+
+  /** closeThread puts the thread pane away: the composer writes into the room again. */
+  closeThread(): void {
+    const run = this.run;
+    const t = run?.thread;
+    if (run === undefined || t === undefined) {
+      return;
+    }
+    run.thread = undefined;
+    this.set({});
+  }
+
+  /** olderInThread asks for the open thread's page of replies before those shown. */
+  olderInThread(): void {
+    const run = this.run;
+    if (run?.thread !== undefined) {
+      run.thread.older();
+      this.pumpThread(run);
+      this.set({});
+    }
+  }
+
+  /** watchThread says whether the open thread is watched (its pane shown, the window focused). */
+  watchThread(watching: boolean): void {
+    this.watchingThread = watching;
+    if (this.run !== undefined) {
+      this.markThreadRead(this.run);
     }
   }
 
@@ -382,6 +463,7 @@ export class Session {
     if (room === this.view.open) {
       return;
     }
+    this.closeThread();
     run.timeline = new Timeline(room, this.view.unread.get(room)?.readEvent ?? "");
     run.settings = undefined;
     run.composer.opened(room);
@@ -389,6 +471,25 @@ export class Session {
     this.readSettings(run, run.timeline);
     this.readReactions(run);
     this.pump(run);
+    this.present(run);
+  }
+
+  /**
+   * present tells kithd the room open, which a clicked link is handed by (to the window
+   * that has its room open): at once for a room opened, at most every presentEvery else.
+   */
+  private present(run: Run): void {
+    const room = this.view.open;
+    const now = Date.now();
+    if (room === this.presented.room && now - this.presented.at < presentEvery) {
+      return;
+    }
+    this.presented = { room, at: now };
+    call(backend.present, { client: this.client, openRoomId: room }).catch((err: unknown) => {
+      if (this.live(run)) {
+        this.fail(err);
+      }
+    });
   }
 
   /** older asks for the open room's page before what is shown. */
@@ -406,6 +507,9 @@ export class Session {
     this.watching = watching;
     if (this.run !== undefined) {
       this.markRead(this.run);
+      if (watching) {
+        this.present(this.run);
+      }
       if (was && !watching) {
         void this.run.composer.drafts.flush(0); // out of sight: the drafts are written now
       }
@@ -538,7 +642,8 @@ export class Session {
     if (profile === this.view.profile) {
       return;
     }
-    this.leave();
+    // Main ends the last profile's link stream: links it handed meanwhile still arrive.
+    this.leave(true);
     this.set({ ...nothingShown, profile });
     if (profile !== "") {
       this.sit(this.begin(profile), false);
@@ -558,6 +663,8 @@ export class Session {
       opening: undefined,
       search: undefined,
       searches: 0,
+      thread: undefined,
+      follows: undefined,
       rail: undefined,
       row: undefined,
       rowAt: 0,
@@ -580,14 +687,19 @@ export class Session {
         room: (id) => run.joined.find((r) => r.id === id),
         settings: () => (typeof run.settings === "object" ? run.settings : undefined),
         speakers: (room) => speakers(run.timeline?.room === room ? run.timeline.view().rows : []),
+        thread: (room) => (run.thread?.room === room ? run.thread.root : ""),
       }),
     };
     this.run = run;
     return run;
   }
 
-  /** leave closes everything the run opened; its late answers are dropped. */
-  private leave(): void {
+  /**
+   * leave closes everything the run opened; its late answers are dropped. Its link
+   * stream is left for main to end when the window leaves the profile (lingers), so a
+   * link handed to it meanwhile is not lost with it.
+   */
+  private leave(lingers = false): void {
     const run = this.run;
     this.run = undefined;
     if (run === undefined) {
@@ -598,6 +710,13 @@ export class Session {
     run.seat?.();
     for (const stop of run.streams) {
       stop();
+    }
+    if (run.follows !== undefined) {
+      if (lingers) {
+        this.lingering.add(run.follows);
+      } else {
+        run.follows();
+      }
     }
   }
 
@@ -664,6 +783,19 @@ export class Session {
   /** follow opens the profile's streams, each read whole as it opens and kept by its frames. */
   private follow(run: Run): void {
     let reopened = false;
+    // The links kithd hands this window: whichever run's stream brings one, it is the
+    // window's, followed in the profile it runs in once that profile's rooms are read.
+    const follows = subscribe(backend.followStream, { client: this.client }, (e) => {
+      if (e.kind === "frames") {
+        this.link = e.frames.at(-1) ?? this.link; // a later link replaces one not followed yet
+        this.followLink();
+      } else if (e.kind === "refused") {
+        if (!this.lingering.delete(follows) && this.live(run)) {
+          this.fail(e.error);
+        }
+      }
+    });
+    run.follows = follows;
     run.streams.push(
       subscribe(backend.changed, {}, (e) => {
         if (!this.live(run)) {
@@ -719,12 +851,16 @@ export class Session {
             for (const f of e.frames) {
               if (f.message !== undefined) {
                 run.timeline?.frame(f.message);
+                run.thread?.frame(f.message);
               }
             }
             // The first frame says where the stream starts: a page read after it misses
             // nothing, each change after it coming as a frame.
             run.positioned = true;
+            this.sought(run);
             this.pump(run);
+            this.pumpThread(run);
+            this.markThreadRead(run);
             this.markRead(run);
             this.set({});
             break;
@@ -733,6 +869,8 @@ export class Session {
             // shown is read again, and so are the rooms' last messages.
             run.positioned = true;
             run.timeline?.reload();
+            run.thread?.reload();
+            this.pumpThread(run);
             this.readRooms(run);
             this.pump(run);
             this.set({});
@@ -883,7 +1021,8 @@ export class Session {
       (p) => {
         if (this.live(run) && run.timeline === t) {
           t.land(ticket, p.messages, p.next, p.reactions);
-          this.missed(run);
+          this.sought(run);
+          this.pumpThread(run); // the root may be a row now
           this.pump(run);
           this.markRead(run);
           this.set({});
@@ -897,6 +1036,110 @@ export class Session {
           }
           this.pump(run);
           this.set({});
+        }
+      },
+    );
+  }
+
+  /**
+   * followLink follows the link handed last, once the rooms of the profile the window
+   * runs in are read: to the chat it names there (at its message, if it names one), and
+   * to nothing outside it. kithd names the chats in the profile of the stream that
+   * brought it; one that came from a profile the window has left opens only if this one
+   * holds it too.
+   */
+  private followLink(): void {
+    const run = this.run;
+    const link = this.link;
+    if (run === undefined || link === undefined || !run.listed || this.switching > 0) {
+      return;
+    }
+    this.link = undefined;
+    const chat = link.chats.find((c) => this.holds(run, c.roomId));
+    if (chat === undefined) {
+      this.fail(`That link names no chat in ${run.profile}`);
+    } else if (chat.eventId === "") {
+      this.open(chat.roomId);
+    } else {
+      this.jump(chat.roomId, chat.eventId);
+    }
+  }
+
+  /** pumpThread asks for the open thread's root, or the page of replies the window asked for. */
+  private pumpThread(run: Run): void {
+    const t = run.thread;
+    if (t === undefined || !run.positioned || !this.live(run)) {
+      return;
+    }
+    const ticket = t.ask(run.timeline?.view().rows ?? []);
+    if (ticket === undefined) {
+      return;
+    }
+    const ask = ticket.ask;
+    const read =
+      ask.kind === "root"
+        ? call(backend.fetchEvent, { roomId: t.room, eventId: t.root }).then((r) => ({
+            messages: r.message === undefined ? [] : [r.message],
+            next: "",
+          }))
+        : call(backend.threadPage, { roomId: t.room, root: t.root, from: ask.from, limit: threadPage }).then((r) => ({
+            messages: r.page?.messages ?? [],
+            next: r.page?.next ?? "",
+          }));
+    read.then(
+      (p) => {
+        if (this.live(run) && run.thread === t) {
+          t.land(ticket, p.messages, p.next);
+          this.pumpThread(run);
+          this.markThreadRead(run);
+          this.set({});
+        }
+      },
+      (err: unknown) => {
+        if (this.live(run) && run.thread === t) {
+          t.failed(ticket);
+          if (ask.kind === "page") {
+            this.fail(err); // a root not cached is shown without it, unsaid
+          }
+          this.set({});
+        }
+      },
+    );
+  }
+
+  /**
+   * markThreadRead sends the open thread's receipt for its newest reply while the pane
+   * is watched, once the settings are read: announced or private as a room's is.
+   */
+  private markThreadRead(run: Run): void {
+    const t = run.thread;
+    if (t === undefined || !this.watchingThread || run.settings === undefined) {
+      return;
+    }
+    const last = t.view(run.timeline?.view().rows ?? []).rows.findLast((m) => m.id !== t.root && m.id !== "");
+    if (last === undefined || last.id === t.marked || last.id === t.sending) {
+      return;
+    }
+    const settings = run.settings === "failed" ? undefined : run.settings;
+    t.sending = last.id;
+    call(backend.markThreadRead, {
+      roomId: t.room,
+      root: t.root,
+      eventId: last.id,
+      private: !announces(settings, t.room, last.sender),
+    }).then(
+      () => {
+        if (t.sending === last.id) {
+          t.sending = "";
+          t.marked = last.id;
+        }
+      },
+      (err: unknown) => {
+        if (t.sending === last.id) {
+          t.sending = "";
+        }
+        if (this.live(run)) {
+          this.fail(err);
         }
       },
     );
@@ -1011,6 +1254,7 @@ export class Session {
           if (opening !== undefined) {
             this.open(opening);
           }
+          this.followLink();
           this.set({});
         }
       },
@@ -1099,6 +1343,7 @@ export class Session {
     next.forward = places.forward.length > 0;
     next.timeline = run?.timeline?.view();
     next.composer = run === undefined || next.open === "" ? undefined : run.composer.view(next.open);
+    next.thread = run?.thread?.view(next.timeline?.rows ?? []);
     this.view = next;
     if (next.unreadTotal !== this.told) {
       this.told = next.unreadTotal;
