@@ -88,6 +88,7 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 			before := memberships(m)
 			_, _, archiveCmd := m.fileArchive(room, []tagFiling{{tag: tag, in: !before[room.ID][tag]}})
 			m, _ = m.toggleTag(tags[tag].Name, room)
+			m = serveRail(m)
 			after := memberships(m)
 			where := fmt.Sprintf("seed %d step %d: /tag T%d on %s (%s)", seed, step, tag, room.ID, room.Name)
 			archive := cfg.Telegram.Archive
@@ -125,6 +126,7 @@ func TestFilingIntoATagChangesThatRoomAlone(t *testing.T) {
 			reread := update(t, configured(m.conf.base.Clone()), roomsMsg{rooms: m.rooms.joined})
 			reread = update(t, reread, spacesMsg{spaces: m.rooms.spaces})
 			reread.unread = m.unread
+			reread = serveRail(reread)
 			if got := memberships(reread); !slices.Equal(got[room.ID], after[room.ID]) {
 				t.Fatalf("%s: the written config reads back as %v, the running one says %v", where, got[room.ID], after[room.ID])
 			}

@@ -51,8 +51,13 @@ type profileSwitchedMsg struct {
 }
 
 // WithProfiles sets the switcher and the profile this window starts in ("" the first).
+// Started in none (neither --profile nor the device's profile_in_use names one) while the
+// config has several, the window offers them: the first runs until one is picked.
 func (m Model) WithProfiles(p Profiles, current string) Model {
 	m.profiles = profileState{switcher: p, current: current}
+	if current == "" && p != nil && len(m.profileNames()) > 1 {
+		m = m.offerProfiles("which profile? the pick is kept for the next start")
+	}
 	if current == "" || len(m.conf.base.Profiles) == 0 {
 		return m // the first profile's, as the config was applied; or no config yet
 	}
@@ -116,10 +121,15 @@ func (m Model) currentProfile() string {
 
 // openProfiles lists the profiles to switch to (`:profile`, the profile key).
 func (m Model) openProfiles() (Model, tea.Cmd) {
-	names, current := m.profileNames(), m.currentProfile()
-	if len(names) < 2 {
+	if names, current := m.profileNames(), m.currentProfile(); len(names) < 2 {
 		return m.say("one profile, " + current + " — a [[profile]] in the config adds another"), nil
 	}
+	return m.offerProfiles(""), nil
+}
+
+// offerProfiles opens the profile picker, saying note.
+func (m Model) offerProfiles(note string) Model {
+	names, current := m.profileNames(), m.currentProfile()
 	items := make([]pickerItem, 0, len(names))
 	for _, name := range names {
 		item := pickerItem{label: name, value: name, match: name}
@@ -129,7 +139,10 @@ func (m Model) openProfiles() (Model, tea.Cmd) {
 		items = append(items, item)
 	}
 	m.picker = newPickerWith(pickerProfile, pickerSpecs[pickerProfile], items)
-	return m, nil
+	if note != "" {
+		m = m.say(note)
+	}
+	return m
 }
 
 // switchProfile runs this window in the named profile (`:profile <name>`, or picked),
@@ -142,7 +155,7 @@ func (m Model) switchProfile(name string) (Model, tea.Cmd) {
 	case i < 0:
 		return m.say("no profile " + name + " — the config has " + strings.Join(names, ", ")), nil
 	case strings.EqualFold(names[i], m.currentProfile()):
-		return m.say("already in " + names[i]), nil
+		return m.say("already in " + names[i]).rememberProfile(names[i])
 	case m.profiles.switcher == nil:
 		return m.say("this window cannot switch profiles"), nil
 	}
@@ -160,8 +173,21 @@ func (m Model) handleProfileSwitched(msg profileSwitchedMsg) (Model, tea.Cmd) {
 	}
 	m.profiles.current = msg.name
 	m = m.runProfile().doing("").say("profile " + msg.name)
+	m, remember := m.rememberProfile(msg.name)
 	return m, tea.Batch(m.loadRoomsCmd(), m.loadSpacesCmd(), m.loadUnreadCmd(),
-		m.loadInvitesCmd(), m.lastMessagesCmd())
+		m.loadInvitesCmd(), m.lastMessagesCmd(), m.loadRailCmd(), remember)
+}
+
+// rememberProfile keeps name as the profile this device runs in (device.toml's
+// profile_in_use), so the next start runs in it.
+func (m Model) rememberProfile(name string) (Model, tea.Cmd) {
+	if m.conf.device.ProfileInUse == name {
+		return m, nil
+	}
+	dev := m.conf.device.Clone()
+	dev.ProfileInUse = name
+	m.conf.device = dev
+	return m, m.saveDeviceCmd(dev)
 }
 
 // profileBadge names the profile on the status line, once there is more than one.

@@ -1,11 +1,17 @@
 package tui
 
 import (
-	"reflect"
+	"context"
+	"errors"
+	"log/slog"
+	"slices"
+	"strings"
 
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
-	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
 // railState is the space rail: groups, cursor, and what decides which rooms a group admits and
@@ -25,7 +31,8 @@ type railState struct {
 	people    []domain.PersonVerdict
 	peopleRev uint64
 	// tags: the [[tag]]s. roomFacts is every room's facts, precomputed since every draw asks a tag
-	// about every room; spanning is the tags (tag:<name>, lower-cased) holding every room.
+	// about every room: the rail's where it serves the room, else built here; spanning is the
+	// tags (tag:<name>, lower-cased) holding every room.
 	tags      domain.TagSet
 	roomFacts map[domain.RoomID]domain.RoomFacts
 	// archives maps each followed network to its archive tag (domain.Places); mirrored is the
@@ -41,10 +48,11 @@ type railState struct {
 	homes domain.HomeOrder
 	// cfg is the rail drawn: the profile's own, or [display.rail] (derive).
 	cfg config.Rail
-	// tagsRev counts tag applications, for railMemo's key; railMemo is the rail built from the
-	// model's state (railInputs), shared by Model copies.
-	tagsRev  uint64
-	railMemo *railMemo
+	// tagsRev counts tag applications, for the derived cache's key.
+	tagsRev uint64
+	// served is the rail kithd served this window (Rail): the rows drawn, and the rooms each
+	// holds.
+	served servedRail
 }
 
 // at is the group under the cursor, bounds-checked because sync can rebuild the groups.
@@ -96,114 +104,125 @@ func (r railState) went(n int) (railState, bool) {
 	return r, true
 }
 
-// The rail as data: domain.BuildRail over the rooms in their state now, memoized since every
-// draw asks each row about every room. The memo is keyed by its inputs' identities (cow.go:
-// any change is a new map or slice) and holds those inputs, so a freed one's address cannot
-// come back as an unchanged key.
+// The rail is kithd's (Rail): it builds it for the profile this window runs in, from the
+// config and the rooms in their state now, and says when it changes (CHANGE_RAIL). The
+// window draws the rows served and asks a row about a room by looking it up, indexed
+// once per rail since every draw asks every row about every room.
 
-// railInputs is what the rail is built from besides the view's tags, facts, unread, drafts and
-// parents.
-type railInputs struct {
-	spaces []domain.Space
-	rooms  []domain.Room
-	cfg    config.Rail
-	names  []config.DisplayName
+// Rails is the rail kithd builds for this window's profile. Declared here because only
+// daemon.Remote implements it.
+type Rails interface {
+	Rail(ctx context.Context) (domain.ServedRail, error)
 }
 
-// railRowRef names a rail row across builds: its key, and for a space's row the space (two
+// railRowRef names a rail row across rails: its key, and for a space's row the space (two
 // spaces can share a name).
 type railRowRef struct {
 	key   string
 	space domain.SpaceID
 }
 
-// builtRail is a rail and the spec it was built from.
-type builtRail struct {
-	spec domain.RailSpec
-	rail domain.Rail
+// servedRail is the rail last served, the profile it was asked in, and its rows' rooms
+// and its rooms indexed.
+type servedRail struct {
+	profile string
+	rail    domain.ServedRail
+	holds   map[railRowRef]map[domain.RoomID]bool
+	rooms   map[domain.RoomID]int
 }
 
-// railMemo is the last rail built and each row's rooms.
-type railMemo struct {
-	key   railKey
-	held  unreadView // the inputs key names, kept alive
-	ok    bool
-	built builtRail
-	holds map[railRowRef]map[domain.RoomID]bool
-}
-
-// railKey identifies the rail's inputs: the tags by revision, each map and slice by identity.
-type railKey struct {
-	tagsRev                        uint64
-	local                          bool
-	unread, drafts, facts, parents uintptr
-	spaces, rooms, names           sliceRef
-	order, hidden, hideWhenEmpty   sliceRef
-}
-
-// sliceRef is a slice's identity: where its elements start, and how many.
-type sliceRef struct {
-	at uintptr
-	n  int
-}
-
-func sliceOf[T any](s []T) sliceRef {
-	if len(s) == 0 {
-		return sliceRef{}
+// newServedRail indexes a rail served for profile.
+func newServedRail(profile string, rail domain.ServedRail) servedRail {
+	out := servedRail{
+		profile: profile, rail: rail,
+		holds: make(map[railRowRef]map[domain.RoomID]bool, len(rail.Rows)),
+		rooms: make(map[domain.RoomID]int, len(rail.Rooms)),
 	}
-	return sliceRef{at: reflect.ValueOf(&s[0]).Pointer(), n: len(s)} // a pointer: boxing one does not allocate
-}
-
-func (v unreadView) railKey() railKey {
-	return railKey{
-		tagsRev: v.tagsRev, local: v.local,
-		unread: identity(v.counts), drafts: identity(v.drafts), facts: identity(v.roomFacts), parents: identity(v.parents),
-		spaces: sliceOf(v.rail.spaces), rooms: sliceOf(v.rail.rooms), names: sliceOf(v.rail.names),
-		order: sliceOf(v.rail.cfg.Order), hidden: sliceOf(v.rail.cfg.Hidden), hideWhenEmpty: sliceOf(v.rail.cfg.HideWhenEmpty),
-	}
-}
-
-// buildRail builds the rail from the view's state now, each room judged in its own.
-func (v unreadView) buildRail() builtRail {
-	spec := setup.RailSpec(v.tags, v.rail.cfg, v.rail.names)
-	rooms := make([]domain.RailRoom, len(v.rail.rooms))
-	for i := range v.rail.rooms {
-		room := &v.rail.rooms[i]
-		rooms[i] = domain.RailRoom{ID: room.ID, Facts: v.factsOf(*room), State: v.rawState(*room), Parent: v.parents[room.ID]}
-	}
-	return builtRail{spec: spec, rail: domain.BuildRail(spec, v.rail.spaces, rooms)}
-}
-
-// currentRail is the memo, made current for the view's inputs; a view without one builds
-// afresh.
-func (v unreadView) currentRail() *railMemo {
-	memo := v.railMemo
-	if memo == nil {
-		memo = &railMemo{}
-	}
-	if key := v.railKey(); !memo.ok || memo.key != key {
-		held := v
-		held.facts, held.railMemo = nil, nil
-		built := v.buildRail()
-		holds := make(map[railRowRef]map[domain.RoomID]bool, len(built.rail.Rows))
-		for i := range built.rail.Rows {
-			row := &built.rail.Rows[i]
-			in := make(map[domain.RoomID]bool, len(row.Rooms))
-			for _, id := range row.Rooms {
-				in[id] = true
-			}
-			holds[railRowRef{key: row.Key, space: row.Space}] = in
+	for i := range rail.Rows {
+		row := &rail.Rows[i]
+		in := make(map[domain.RoomID]bool, len(row.Rooms))
+		for _, id := range row.Rooms {
+			in[id] = true
 		}
-		*memo = railMemo{key: key, held: held, ok: true, built: built, holds: holds}
+		out.holds[railRowRef{key: row.Key, space: row.Space}] = in
 	}
-	return memo
+	for i := range rail.Rooms {
+		out.rooms[domain.RoomID(rail.Rooms[i].Facts.ID)] = i
+	}
+	return out
 }
 
-// builtRail is the rail built from the view's state now.
-func (v unreadView) builtRail() builtRail { return v.currentRail().built }
+// room is a room as the rail served judged it; false for one it does not know (a chat a
+// link opened, or one newer than the rail).
+func (s servedRail) room(id domain.RoomID) (domain.ServedRoom, bool) {
+	i, ok := s.rooms[id]
+	if !ok {
+		return domain.ServedRoom{}, false
+	}
+	return s.rail.Rooms[i], true
+}
 
-// railHolds reports whether the rail row named holds a room, in the rail built from the
-// view's state now.
+// railMsg is the rail kithd served the profile it was asked in, or why it did not.
+type railMsg struct {
+	profile string
+	rail    domain.ServedRail
+	err     error
+}
+
+// loadRailCmd asks kithd for the rail of the profile this window runs in; nil for a
+// backend that builds none.
+func (m Model) loadRailCmd() tea.Cmd {
+	source, ok := m.backend.(Rails)
+	if !ok {
+		return nil
+	}
+	ctx, profile := m.ctx, m.profiles.current
+	return func() tea.Msg {
+		rail, err := source.Rail(ctx)
+		return railMsg{profile: profile, rail: rail, err: err}
+	}
+}
+
+// handleRail draws the rail served, unless the window has left the profile it was asked
+// in or holds a later one. A profile the config no longer has draws no rail, and the
+// window offers the profiles there are.
+func (m Model) handleRail(msg railMsg) (Model, tea.Cmd) {
+	switch {
+	case !strings.EqualFold(msg.profile, m.profiles.current):
+		return m, nil
+	case errors.Is(msg.err, api.ErrUnknownProfile):
+		m.rail.served = servedRail{profile: msg.profile}
+		m = m.refreshPlaces().rebuiltRail()
+		return m.offerProfiles("profile " + m.currentProfile() + " is gone from the config — pick one"), nil
+	case msg.err != nil:
+		m.logErr(slog.LevelWarn, "read the rail", msg.err)
+		return m, nil
+	case strings.EqualFold(msg.profile, m.rail.served.profile) && msg.rail.Revision < m.rail.served.rail.Revision:
+		return m, nil // an answer overtaken by a later one
+	}
+	// The cursor before the change, so the open room leaving the list (archived, filed
+	// elsewhere) hands selection to a neighbor. One the list did not hold (opened from a
+	// search), or held only while the rail did not know it, stays open.
+	was := m.roomCursor()
+	_, known := m.rail.served.room(m.openRoom)
+	listed := known && slices.ContainsFunc(m.filteredRooms(), func(r domain.Room) bool { return r.ID == m.openRoom })
+	m.rail.served = newServedRail(msg.profile, msg.rail)
+	m = m.refreshPlaces().rebuiltRail()
+	if m.openRoom != "" {
+		if !listed {
+			return m, nil
+		}
+		return m.keepCursorNearby(was)
+	}
+	// Nothing open yet (the rooms were listed before their rail): the top of the list, as
+	// handleRooms lands there.
+	if fr := m.filteredRooms(); len(fr) > 0 {
+		return m.selectRoom(fr[0])
+	}
+	return m, nil
+}
+
+// railHolds reports whether the rail row named holds a room, in the rail served.
 func (v unreadView) railHolds(row railRowRef, id domain.RoomID) bool {
-	return v.currentRail().holds[row][id]
+	return v.served.holds[row][id]
 }

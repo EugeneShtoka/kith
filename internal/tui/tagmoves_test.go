@@ -20,7 +20,7 @@ import (
 func moved(t *testing.T, verdicts ...domain.TagVerdict) Model {
 	t.Helper()
 	m, _ := jumping(t).handleVerdictsLoaded(verdictsLoadedMsg{verdicts: verdicts})
-	return m
+	return serveRail(m)
 }
 
 func spamMove(room domain.RoomID) domain.TagVerdict {
@@ -71,12 +71,14 @@ func TestExcludedOutranksAMoveAndAMutedTagStopsCounting(t *testing.T) {
 		}
 	}
 	m, _ = m.applyConfig(cfg, "")
+	m = serveRail(m)
 	if rowHoldsRoom(t, m, spamGroupKey, mx+"!a:x") || !rowHoldsRoom(t, m, "Work", mx+"!a:x") {
 		t.Error("an excluded room was kept in Spam by a filter's move")
 	}
 	m.prefs.unreadLocal = true
 	m.unread = withEntry(m.unread, mx+"!ops:x", domain.Unread{Messages: 2, Counted: true})
 	m.unread = withEntry(m.unread, mx+"!a:x", domain.Unread{Messages: 2, Counted: true})
+	m = serveRail(m)
 	if view := m.unreadView(); view.tallies(domain.Room{ID: mx + "!ops:x"}) || !view.tallies(domain.Room{ID: mx + "!a:x"}) {
 		t.Error("counts_unread = false does not decide which room counts")
 	}

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -58,6 +59,9 @@ func (s *server) Rooms(ctx context.Context, _ *req[v1.RoomsRequest]) (*resp[v1.R
 
 func (s *server) RefreshRooms(ctx context.Context, _ *req[v1.RefreshRoomsRequest]) (*resp[v1.RefreshRoomsResponse], error) {
 	rooms, err := s.Backend.RefreshRooms(ctx)
+	if err == nil {
+		s.Notifications.rails.bump() // the cache's rooms were written again
+	}
 	return reply(&v1.RefreshRoomsResponse{Rooms: pc.RoomsToProto(s.profileRooms(ctx, rooms))}, err)
 }
 
@@ -107,7 +111,11 @@ func (s *server) TagVerdicts(ctx context.Context, _ *req[v1.TagVerdictsRequest])
 }
 
 func (s *server) MarkTag(ctx context.Context, r *req[v1.MarkTagRequest]) (*resp[v1.MarkTagResponse], error) {
-	return reply(&v1.MarkTagResponse{}, s.Backend.MarkTag(ctx, pc.ProtoToVerdict(r.Msg.GetVerdict())))
+	if err := s.Backend.MarkTag(ctx, pc.ProtoToVerdict(r.Msg.GetVerdict())); err != nil {
+		return nil, rpcErr(err)
+	}
+	s.Notifications.TagMarked(ctx)
+	return reply(&v1.MarkTagResponse{}, nil)
 }
 
 func (s *server) PersonVerdicts(ctx context.Context, _ *req[v1.PersonVerdictsRequest]) (*resp[v1.PersonVerdictsResponse], error) {
@@ -165,6 +173,9 @@ func (s *server) Spaces(ctx context.Context, _ *req[v1.SpacesRequest]) (*resp[v1
 
 func (s *server) RefreshSpaces(ctx context.Context, _ *req[v1.RefreshSpacesRequest]) (*resp[v1.RefreshSpacesResponse], error) {
 	spaces, err := s.Backend.RefreshSpaces(ctx)
+	if err == nil {
+		s.Notifications.rails.bump() // the cache's spaces were written again
+	}
 	return reply(&v1.RefreshSpacesResponse{Spaces: pc.SpacesToProto(s.profileSpaces(ctx, spaces))}, err)
 }
 
@@ -559,6 +570,9 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 		saved, wrote = s.Backend.ReplaceDraft(ctx, draft, pc.ProtoToStoredDraft(r.Msg.GetOver()))
 		return nil
 	})
+	if saved {
+		s.Notifications.rails.bump() // a draft is a room's state
+	}
 	return reply(&v1.ReplaceDraftResponse{Saved: saved}, cmp.Or(err, wrote))
 }
 
@@ -736,8 +750,11 @@ func (s *server) Present(_ context.Context, r *req[v1.PresentRequest]) (*resp[v1
 
 // Changed streams what changed in the daemon (a network's rooms, an account's state).
 func (s *server) Changed(ctx context.Context, _ *req[v1.ChangedRequest], st *connect.ServerStream[v1.ChangedResponse]) error {
-	return serveStream(ctx, s.Streams.changes, st, func(c domain.Change) *v1.ChangedResponse {
-		return &v1.ChangedResponse{Change: pc.ChangeToProto(c)}
+	return serveStream(ctx, s.Streams.changes, st, func(c change) *v1.ChangedResponse {
+		if c.profile != "" && !strings.EqualFold(c.profile, s.requestProfile(ctx)) {
+			return nil // another profile's rail
+		}
+		return &v1.ChangedResponse{Change: pc.ChangeToProto(c.what)}
 	})
 }
 

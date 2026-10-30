@@ -62,7 +62,7 @@ Top-level keys:
 | --- | --- | --- |
 | `allow_token_file` | `false` | Store the access token in a 0600 file under `~/.local/state/kith/` (one per account) when no OS keyring exists. Use it only on a headless machine. |
 | `terminal` | `""` (detect) | In `device.toml`: what `kith --open` starts when a `matrix:`, `tg:` or `whatsapp:` link arrives and no client is running. See [getting-started.md](getting-started.md#open-matrix-tg-whatsapp-and-signal-links-in-kith). |
-| `profile_in_use` | `""` (none) | In `device.toml`: the [profile](#profiles) the desktop window runs in, written when you pick one there. |
+| `profile_in_use` | `""` (none) | In `device.toml`: the [profile](#profiles) a window (the TUI, the desktop) runs in, written when you pick or switch to one there. |
 
 ### Several accounts on a network
 
@@ -91,9 +91,11 @@ A `default` that names no account of the network is refused at startup.
 A profile is a named setup with its own rooms. `kith --profile <name>` runs in one:
 the room list, the spaces, unread counts, invitations, drafts, scheduled messages and
 search hold only its rooms, and a space holding none of them is left out. A room you
-name directly (a link, a jump) still opens. Without `--profile`, kith runs in the
-first. `gP` or `:profile <name>` switches the window to another; the status line names
-the profile once there is more than one.
+name directly (a link, a jump) still opens. Without `--profile`, kith runs in the one
+`profile_in_use` remembers (below). `gP` or `:profile <name>` switches the window to
+another; the status line names the profile once there is more than one. kithd builds
+each profile's rail (its rows and the rooms each holds), so every window of a profile
+draws the same one.
 
 Each profile has a window of its own: two terminals can run `work` and `home` side by
 side, and a second window in a profile already open is refused, as is switching into
@@ -105,10 +107,11 @@ first, unless told others; see
 [notifications.md](notifications.md#where-popups-appear-kith-notify)). A room no
 profile holds never notifies, whatever the [rules](notifications.md#rules) say.
 
-The desktop window runs in the profile `device.toml`'s `profile_in_use` names, which
-it writes when you pick one there. With one profile it runs in it unasked; with
-several and none picked yet, or the one picked since removed from `config.toml`, it
-asks which.
+A window (the TUI or the desktop) runs in the profile `device.toml`'s
+`profile_in_use` names, which it writes when you pick or switch to one there;
+`kith --profile` runs one start in another without writing it. With one profile it
+runs in it unasked; with several and none picked yet, or the one it runs in removed
+from `config.toml`, it asks which (and draws no rail meanwhile).
 
 A config has at least one profile; the starter writes `default`, holding every room:
 
@@ -312,9 +315,9 @@ key.
 
 | Section | File | Purpose | More |
 | --- | --- | --- | --- |
-| *(top level)* | config, but `terminal` and `profile_in_use` device | `allow_token_file`, `terminal`, `bridge_contacts`, and `profile_in_use`, the profile the desktop window runs in. | [getting-started.md](getting-started.md), [Profiles](#profiles) |
+| *(top level)* | config, but `terminal` and `profile_in_use` device | `allow_token_file`, `terminal`, `bridge_contacts`, and `profile_in_use`, the profile a window runs in. | [getting-started.md](getting-started.md), [Profiles](#profiles) |
 | `[matrix]` | config | The Matrix accounts (`[[matrix.account]]`) and which is the default. | [Matrix accounts](#matrix-accounts) |
-| `[display]` | config: `time_format`, `long_date_format`, `short_date_format`, `priority`, `room_name_rules`, `[[display.space_rule]]`, `[[display.identity]]`, `[[display.name]]`; device: the rest, `[[display.read_rule]]` included | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, how times and dates are written (`time_format`, `long_date_format`, `short_date_format`), and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
+| `[display]` | config: `time_format`, `long_date_format`, `short_date_format`, `priority`, `room_name_rules`, `unread`, `[[display.space_rule]]`, `[[display.identity]]`, `[[display.name]]`; device: the rest, `[[display.read_rule]]` included | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, how times and dates are written (`time_format`, `long_date_format`, `short_date_format`), and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
 | `[display.theme]` | device | The color palette: a preset plus per-role overrides. | [Themes](#themes) |
 | `[display.theme.networks]` | device | The color each network's rooms are named in, where the room lists or the rail ask for it. | [usage.md](usage.md) |
 | `[display.emoji]` | device | Emoji set size (`curated`, `standard`, `complete`) and your own shortcodes. | [composer.md](composer.md) |

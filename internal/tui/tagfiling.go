@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"maps"
 	"slices"
 	"strings"
 
@@ -239,7 +240,15 @@ func (m Model) withArchived(id domain.RoomID, archived bool) Model {
 		}
 	}
 	m.rooms = m.rooms.withJoined(joined)
-	return m.refreshPlaces()
+	m = m.refreshPlaces()
+	// The rail served says what the network said before this change: until it says this,
+	// the room's facts are worked out here.
+	if room, ok := m.rooms.byID(id); ok {
+		facts := maps.Clone(m.rail.roomFacts)
+		facts[id] = m.factsFor(room)
+		m.rail.roomFacts = facts
+	}
+	return m
 }
 
 type archivedMsg struct {

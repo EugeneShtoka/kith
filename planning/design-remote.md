@@ -55,6 +55,9 @@ each key sits in the file the rule puts it in; three judgment calls:
 - **`[agent.*]` stays on the bridge whole**: what an assistant may read and write is
   policy, not a device's taste.
 - **`[display.media]` moved in step 2**, with the media cache it names.
+- **`[display] unread` is the bridge's** (decided 2026-10-30): kithd builds the rail
+  (design-electron.md) and judges each room's `unread` by it, so every device counts
+  alike.
 - **Notification sounds are the device's** (decided 2026-10-29): kithd decides whether
   a notification rings, and sends the names of the rules that matched it, most
   specific first; the device plays the first of them its `[notifications.sounds]`
@@ -66,7 +69,7 @@ Device keys:
 | table | keys |
 | --- | --- |
 | top level | `terminal`, `profile_in_use`, `[keys]`, `[composer]`, `[[command]]` |
-| `[display]` | `color_messages`, `direction`, `emoji`, `fps`, `filing_spaces`, `hyperlinks`, `max_name_length`, `media`, `mouse`, `network_colors`, `open_in_insert_mode`, `reactions`, `read_delay`, `read_rule`, `rooms`, `row_numbers`, `send_receipts`, `send_typing`, `show_archived`, `skin_tone`, `theme`, `threads`, `typing`, `unread`, `unread_line` |
+| `[display]` | `color_messages`, `direction`, `emoji`, `fps`, `filing_spaces`, `hyperlinks`, `max_name_length`, `media`, `mouse`, `network_colors`, `open_in_insert_mode`, `reactions`, `read_delay`, `read_rule`, `rooms`, `row_numbers`, `send_receipts`, `send_typing`, `show_archived`, `skin_tone`, `theme`, `threads`, `typing`, `unread_line` |
 | `[notifications]` | how this device shows one: `enabled`, `desktop`, `command`, `sound`, `sound_command`, `sounds`, `timeout`, `title`, `body` |
 | `[clipboard]` | all but `auto_copy` |
 | `[commands]` | `timeout` |

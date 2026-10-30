@@ -16,9 +16,10 @@
 # ghostty, xterm; or give any command that takes `-e`.
 # terminal = "wezterm"
 
-# The [[profile]] (config.toml) the desktop window runs in, by name: picking a profile
-# there writes it. Empty, or a name config.toml no longer has: with one profile the
-# window runs in it, with several it asks which.
+# The [[profile]] (config.toml) a window (the TUI, the desktop) runs in, by name:
+# picking or switching to a profile there writes it; kith --profile overrides it for one
+# start. Empty, or a name config.toml no longer has: with one profile the window runs in
+# it, with several it asks which.
 # profile_in_use = "work"
 
 # The bridges this device dials: a kithd on another machine, over its [remote] listen.
@@ -84,13 +85,6 @@ hyperlinks = true
 # are.
 typing = true
 send_typing = true
-
-# What a badge counts:
-#
-#   messages      — what you have not read, from the local cache (default)
-#   notifications — what your push rules would have notified you about, as the
-#                   homeserver counts it (a muted room badges nothing)
-unread = "messages"
 
 # Open a room in the composer rather than the message cursor (one esc away).
 open_in_insert_mode = true

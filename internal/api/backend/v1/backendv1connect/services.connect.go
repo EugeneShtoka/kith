@@ -86,6 +86,8 @@ const (
 	// BackendServiceRefreshSpacesProcedure is the fully-qualified name of the BackendService's
 	// RefreshSpaces RPC.
 	BackendServiceRefreshSpacesProcedure = "/backend.v1.BackendService/RefreshSpaces"
+	// BackendServiceRailProcedure is the fully-qualified name of the BackendService's Rail RPC.
+	BackendServiceRailProcedure = "/backend.v1.BackendService/Rail"
 	// BackendServiceAddToSpaceProcedure is the fully-qualified name of the BackendService's AddToSpace
 	// RPC.
 	BackendServiceAddToSpaceProcedure = "/backend.v1.BackendService/AddToSpace"
@@ -482,6 +484,12 @@ type BackendServiceClient interface {
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
 	// RefreshSpaces fetches the hierarchy from the homeserver and caches it.
 	RefreshSpaces(context.Context, *connect.Request[v1.RefreshSpacesRequest]) (*connect.Response[v1.RefreshSpacesResponse], error)
+	// Rail
+	// Rail is the rail of the request's profile: its rows in order, each with its rooms,
+	// and the rooms with their facts, built by kithd from the config and the rooms in their
+	// state now. Changed says CHANGE_RAIL when it differs from the one served last. A
+	// profile the config no longer has is refused.
+	Rail(context.Context, *connect.Request[v1.RailRequest]) (*connect.Response[v1.RailResponse], error)
 	// AddToSpace files a room into a space (m.space.child plus a non-canonical
 	// m.space.parent).
 	AddToSpace(context.Context, *connect.Request[v1.AddToSpaceRequest]) (*connect.Response[v1.AddToSpaceResponse], error)
@@ -676,7 +684,8 @@ type BackendServiceClient interface {
 	FollowStream(context.Context, *connect.Request[v1.FollowStreamRequest]) (*connect.ServerStreamForClient[v1.FollowStreamResponse], error)
 	// Changed streams a frame each time something a client shows changes in the daemon:
 	// a network rewriting its rooms (a chat begun, renamed, archived on another device),
-	// or an account's state. The frame says which, and the client reads it again.
+	// or an account's state, or the rail of the request's profile (told only to clients
+	// running in it). The frame says which, and the client reads it again.
 	Changed(context.Context, *connect.Request[v1.ChangedRequest]) (*connect.ServerStreamForClient[v1.ChangedResponse], error)
 	// NotificationStream streams the notifications published to the request's profile:
 	// kithd publishes each to every profile holding its room, so a listener on several
@@ -928,6 +937,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceRefreshSpacesProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("RefreshSpaces")),
+			connect.WithClientOptions(opts...),
+		),
+		rail: connect.NewClient[v1.RailRequest, v1.RailResponse](
+			httpClient,
+			baseURL+BackendServiceRailProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Rail")),
 			connect.WithClientOptions(opts...),
 		),
 		addToSpace: connect.NewClient[v1.AddToSpaceRequest, v1.AddToSpaceResponse](
@@ -1687,6 +1702,7 @@ type backendServiceClient struct {
 	ignored               *connect.Client[v1.IgnoredRequest, v1.IgnoredResponse]
 	spaces                *connect.Client[v1.SpacesRequest, v1.SpacesResponse]
 	refreshSpaces         *connect.Client[v1.RefreshSpacesRequest, v1.RefreshSpacesResponse]
+	rail                  *connect.Client[v1.RailRequest, v1.RailResponse]
 	addToSpace            *connect.Client[v1.AddToSpaceRequest, v1.AddToSpaceResponse]
 	removeFromSpace       *connect.Client[v1.RemoveFromSpaceRequest, v1.RemoveFromSpaceResponse]
 	cachedTimeline        *connect.Client[v1.CachedTimelineRequest, v1.CachedTimelineResponse]
@@ -1909,6 +1925,11 @@ func (c *backendServiceClient) Spaces(ctx context.Context, req *connect.Request[
 // RefreshSpaces calls backend.v1.BackendService.RefreshSpaces.
 func (c *backendServiceClient) RefreshSpaces(ctx context.Context, req *connect.Request[v1.RefreshSpacesRequest]) (*connect.Response[v1.RefreshSpacesResponse], error) {
 	return c.refreshSpaces.CallUnary(ctx, req)
+}
+
+// Rail calls backend.v1.BackendService.Rail.
+func (c *backendServiceClient) Rail(ctx context.Context, req *connect.Request[v1.RailRequest]) (*connect.Response[v1.RailResponse], error) {
+	return c.rail.CallUnary(ctx, req)
 }
 
 // AddToSpace calls backend.v1.BackendService.AddToSpace.
@@ -2576,6 +2597,12 @@ type BackendServiceHandler interface {
 	Spaces(context.Context, *connect.Request[v1.SpacesRequest]) (*connect.Response[v1.SpacesResponse], error)
 	// RefreshSpaces fetches the hierarchy from the homeserver and caches it.
 	RefreshSpaces(context.Context, *connect.Request[v1.RefreshSpacesRequest]) (*connect.Response[v1.RefreshSpacesResponse], error)
+	// Rail
+	// Rail is the rail of the request's profile: its rows in order, each with its rooms,
+	// and the rooms with their facts, built by kithd from the config and the rooms in their
+	// state now. Changed says CHANGE_RAIL when it differs from the one served last. A
+	// profile the config no longer has is refused.
+	Rail(context.Context, *connect.Request[v1.RailRequest]) (*connect.Response[v1.RailResponse], error)
 	// AddToSpace files a room into a space (m.space.child plus a non-canonical
 	// m.space.parent).
 	AddToSpace(context.Context, *connect.Request[v1.AddToSpaceRequest]) (*connect.Response[v1.AddToSpaceResponse], error)
@@ -2770,7 +2797,8 @@ type BackendServiceHandler interface {
 	FollowStream(context.Context, *connect.Request[v1.FollowStreamRequest], *connect.ServerStream[v1.FollowStreamResponse]) error
 	// Changed streams a frame each time something a client shows changes in the daemon:
 	// a network rewriting its rooms (a chat begun, renamed, archived on another device),
-	// or an account's state. The frame says which, and the client reads it again.
+	// or an account's state, or the rail of the request's profile (told only to clients
+	// running in it). The frame says which, and the client reads it again.
 	Changed(context.Context, *connect.Request[v1.ChangedRequest], *connect.ServerStream[v1.ChangedResponse]) error
 	// NotificationStream streams the notifications published to the request's profile:
 	// kithd publishes each to every profile holding its room, so a listener on several
@@ -3018,6 +3046,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceRefreshSpacesProcedure,
 		svc.RefreshSpaces,
 		connect.WithSchema(backendServiceMethods.ByName("RefreshSpaces")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceRailHandler := connect.NewUnaryHandler(
+		BackendServiceRailProcedure,
+		svc.Rail,
+		connect.WithSchema(backendServiceMethods.ByName("Rail")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceAddToSpaceHandler := connect.NewUnaryHandler(
@@ -3794,6 +3828,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceSpacesHandler.ServeHTTP(w, r)
 		case BackendServiceRefreshSpacesProcedure:
 			backendServiceRefreshSpacesHandler.ServeHTTP(w, r)
+		case BackendServiceRailProcedure:
+			backendServiceRailHandler.ServeHTTP(w, r)
 		case BackendServiceAddToSpaceProcedure:
 			backendServiceAddToSpaceHandler.ServeHTTP(w, r)
 		case BackendServiceRemoveFromSpaceProcedure:
@@ -4125,6 +4161,10 @@ func (UnimplementedBackendServiceHandler) Spaces(context.Context, *connect.Reque
 
 func (UnimplementedBackendServiceHandler) RefreshSpaces(context.Context, *connect.Request[v1.RefreshSpacesRequest]) (*connect.Response[v1.RefreshSpacesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RefreshSpaces is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Rail(context.Context, *connect.Request[v1.RailRequest]) (*connect.Response[v1.RailResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Rail is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) AddToSpace(context.Context, *connect.Request[v1.AddToSpaceRequest]) (*connect.Response[v1.AddToSpaceResponse], error) {

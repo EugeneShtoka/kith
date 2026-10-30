@@ -76,6 +76,14 @@ short_date_format = "YYYY-MM-DD"
 # (DMs, bridge rooms) too.
 # room_name_rules = true
 
+# What a badge counts, and what makes a room unread to a tag's `unread` (every device
+# alike, since kithd builds the rail):
+#
+#   messages      — what you have not read, from the local cache (default)
+#   notifications — what your push rules would have notified you about, as the
+#                   homeserver counts it (a muted room badges nothing)
+unread = "messages"
+
 # Per-place rules: space is space:<name>, tag:<name> or place:<name>.
 # first_name_only shows just the first token of a sender's name. A room in two places
 # follows the one selected in the rail in the room list, else its home (see priority).

@@ -1,29 +1,18 @@
 package tui
 
 import (
-	"reflect"
-
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // What the tags make of each room: which hold it, whether it is silenced, the tag it
-// shows under alone, and which spaces it leaves. Every rail row asks this per room per
-// draw, so it is judged with the rail and memoized with it (rail.go).
+// shows under alone. kithd judges it with the rail (rail.go); a room the rail does not
+// know is judged here.
 
-// identity is a map's identity; nil is 0.
-func identity(m any) uintptr {
-	v := reflect.ValueOf(m)
-	if v.Kind() != reflect.Map || v.IsNil() {
-		return 0
-	}
-	return v.Pointer()
-}
-
-// tagsOf is what the tags make of room, as the rail judged it; a room the rail does not
-// hold is judged on its own.
+// tagsOf is what the tags make of room, as the rail served judged it; a room the rail
+// does not know is judged on its own.
 func (v unreadView) tagsOf(room domain.Room) domain.RoomTags {
-	if judged, ok := v.currentRail().built.rail.Judged[room.ID]; ok {
-		return judged
+	if served, ok := v.served.room(room.ID); ok {
+		return served.Tags(v.tags)
 	}
 	return v.computeTags(room)
 }
@@ -66,10 +55,19 @@ func (v unreadView) rawState(room domain.Room) domain.RoomState {
 
 // ownerName is the name of the exclusive tag room shows under; "" for none.
 func (v unreadView) ownerName(room domain.Room) string {
-	if owner := v.tagsOf(room).Owner; owner >= 0 {
+	if served, ok := v.served.room(room.ID); ok {
+		return served.Owner
+	}
+	if owner := v.computeTags(room).Owner; owner >= 0 {
 		return v.tags.At(owner).Name
 	}
 	return ""
 }
 
-func (v unreadView) silenced(room domain.Room) bool { return v.tagsOf(room).Silenced }
+// silenced reports whether a silent tag holds room.
+func (v unreadView) silenced(room domain.Room) bool {
+	if served, ok := v.served.room(room.ID); ok {
+		return served.Silenced
+	}
+	return v.computeTags(room).Silenced
+}

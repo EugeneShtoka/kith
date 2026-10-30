@@ -31,8 +31,9 @@ type Device struct {
 	Commands      DeviceCommands      `toml:"commands"`
 	UserCommands  []Command           `toml:"command"`
 	Bridges       []Bridge            `toml:"bridge"`
-	// ProfileInUse is the [[profile]] the desktop window runs in, as it was last picked
-	// there; "" when none was. A name the config no longer has is as good as none.
+	// ProfileInUse is the [[profile]] a window (the TUI, the desktop) runs in, as it was
+	// last picked there; "" when none was. A name the config no longer has is as good as
+	// none.
 	ProfileInUse string `toml:"profile_in_use"`
 }
 

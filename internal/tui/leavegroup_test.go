@@ -69,6 +69,7 @@ func TestLeavingFromTheRail(t *testing.T) {
 	}
 
 	m, _ = m.applyConfig(asStarted(config.Config{Tags: []config.Tag{{Name: "Friends", Rule: []string{"dm"}}}}), "")
+	m = serveRail(m)
 	m.rail.cursor = indexOfGroup(m.rail.groups, tagGroupKey("Friends"))
 	if m.rail.cursor < 0 {
 		t.Fatal("the tag is not on the rail")

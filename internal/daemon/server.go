@@ -90,8 +90,10 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 	ctx, cancelHandlers := context.WithCancel(ctx)
 	defer cancelHandlers()
 	mux := http.NewServeMux()
-	mux.Handle(backendv1connect.NewBackendServiceHandler(&server{Daemon: d, lifetime: ctx, seats: newSeats()},
+	served := &server{Daemon: d, lifetime: ctx, seats: newSeats()}
+	mux.Handle(backendv1connect.NewBackendServiceHandler(served,
 		connect.WithInterceptors(failureLog{log: d.Log}, pairingGate{devices: d.Paired}, profileGate{profiles: d.Notifications})))
+	defer served.startRails(ctx)() // ended with the handlers, before the stores close
 	// Every handler is counted so none runs after Serve returns and the caller closes
 	// the stores, and none starts once Serve is ending.
 	var inflight handlerGate

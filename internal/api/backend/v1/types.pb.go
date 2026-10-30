@@ -1601,6 +1601,121 @@ func (x *Space) GetLeaving() SpaceLeaving {
 	return SpaceLeaving_SPACE_LEAVING_UNSPECIFIED
 }
 
+// RoomFacts is what a place entry can match about a room (domain.RoomFacts).
+type RoomFacts struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// spaces are the names of the spaces holding it; space_labels the rail labels of
+	// those renamed.
+	Spaces      []string `protobuf:"bytes,3,rep,name=spaces,proto3" json:"spaces,omitempty"`
+	SpaceLabels []string `protobuf:"bytes,4,rep,name=space_labels,json=spaceLabels,proto3" json:"space_labels,omitempty"`
+	Direct      bool     `protobuf:"varint,5,opt,name=direct,proto3" json:"direct,omitempty"`
+	Protocol    string   `protobuf:"bytes,6,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	// tags are the tags holding it judged as a place, without its state.
+	Tags []string `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty"`
+	// archived_in is the tag of the network archive holding it, when kith follows that
+	// archive.
+	ArchivedIn string `protobuf:"bytes,8,opt,name=archived_in,json=archivedIn,proto3" json:"archived_in,omitempty"`
+	// caught is the tags a filter moved it into, released ones left out.
+	Caught        []string `protobuf:"bytes,9,rep,name=caught,proto3" json:"caught,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoomFacts) Reset() {
+	*x = RoomFacts{}
+	mi := &file_backend_v1_types_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoomFacts) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoomFacts) ProtoMessage() {}
+
+func (x *RoomFacts) ProtoReflect() protoreflect.Message {
+	mi := &file_backend_v1_types_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoomFacts.ProtoReflect.Descriptor instead.
+func (*RoomFacts) Descriptor() ([]byte, []int) {
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RoomFacts) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RoomFacts) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RoomFacts) GetSpaces() []string {
+	if x != nil {
+		return x.Spaces
+	}
+	return nil
+}
+
+func (x *RoomFacts) GetSpaceLabels() []string {
+	if x != nil {
+		return x.SpaceLabels
+	}
+	return nil
+}
+
+func (x *RoomFacts) GetDirect() bool {
+	if x != nil {
+		return x.Direct
+	}
+	return false
+}
+
+func (x *RoomFacts) GetProtocol() string {
+	if x != nil {
+		return x.Protocol
+	}
+	return ""
+}
+
+func (x *RoomFacts) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *RoomFacts) GetArchivedIn() string {
+	if x != nil {
+		return x.ArchivedIn
+	}
+	return ""
+}
+
+func (x *RoomFacts) GetCaught() []string {
+	if x != nil {
+		return x.Caught
+	}
+	return nil
+}
+
 // Unread is one room's unread state (domain.Unread).
 type Unread struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1621,7 +1736,7 @@ type Unread struct {
 
 func (x *Unread) Reset() {
 	*x = Unread{}
-	mi := &file_backend_v1_types_proto_msgTypes[13]
+	mi := &file_backend_v1_types_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1633,7 +1748,7 @@ func (x *Unread) String() string {
 func (*Unread) ProtoMessage() {}
 
 func (x *Unread) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[13]
+	mi := &file_backend_v1_types_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1646,7 +1761,7 @@ func (x *Unread) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Unread.ProtoReflect.Descriptor instead.
 func (*Unread) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{13}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Unread) GetRoomId() string {
@@ -1728,7 +1843,7 @@ type ThreadUnread struct {
 
 func (x *ThreadUnread) Reset() {
 	*x = ThreadUnread{}
-	mi := &file_backend_v1_types_proto_msgTypes[14]
+	mi := &file_backend_v1_types_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1740,7 +1855,7 @@ func (x *ThreadUnread) String() string {
 func (*ThreadUnread) ProtoMessage() {}
 
 func (x *ThreadUnread) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[14]
+	mi := &file_backend_v1_types_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1753,7 +1868,7 @@ func (x *ThreadUnread) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThreadUnread.ProtoReflect.Descriptor instead.
 func (*ThreadUnread) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{14}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ThreadUnread) GetRoot() string {
@@ -1819,7 +1934,7 @@ type Thread struct {
 
 func (x *Thread) Reset() {
 	*x = Thread{}
-	mi := &file_backend_v1_types_proto_msgTypes[15]
+	mi := &file_backend_v1_types_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1831,7 +1946,7 @@ func (x *Thread) String() string {
 func (*Thread) ProtoMessage() {}
 
 func (x *Thread) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[15]
+	mi := &file_backend_v1_types_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1844,7 +1959,7 @@ func (x *Thread) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Thread.ProtoReflect.Descriptor instead.
 func (*Thread) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{15}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Thread) GetRoot() string {
@@ -1945,7 +2060,7 @@ type Reaction struct {
 
 func (x *Reaction) Reset() {
 	*x = Reaction{}
-	mi := &file_backend_v1_types_proto_msgTypes[16]
+	mi := &file_backend_v1_types_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1957,7 +2072,7 @@ func (x *Reaction) String() string {
 func (*Reaction) ProtoMessage() {}
 
 func (x *Reaction) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[16]
+	mi := &file_backend_v1_types_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1970,7 +2085,7 @@ func (x *Reaction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Reaction.ProtoReflect.Descriptor instead.
 func (*Reaction) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{16}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Reaction) GetId() string {
@@ -2019,7 +2134,7 @@ type ReactionUpdate struct {
 
 func (x *ReactionUpdate) Reset() {
 	*x = ReactionUpdate{}
-	mi := &file_backend_v1_types_proto_msgTypes[17]
+	mi := &file_backend_v1_types_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2031,7 +2146,7 @@ func (x *ReactionUpdate) String() string {
 func (*ReactionUpdate) ProtoMessage() {}
 
 func (x *ReactionUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[17]
+	mi := &file_backend_v1_types_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2044,7 +2159,7 @@ func (x *ReactionUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReactionUpdate.ProtoReflect.Descriptor instead.
 func (*ReactionUpdate) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{17}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ReactionUpdate) GetReaction() *Reaction {
@@ -2074,7 +2189,7 @@ type TimelinePage struct {
 
 func (x *TimelinePage) Reset() {
 	*x = TimelinePage{}
-	mi := &file_backend_v1_types_proto_msgTypes[18]
+	mi := &file_backend_v1_types_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2086,7 +2201,7 @@ func (x *TimelinePage) String() string {
 func (*TimelinePage) ProtoMessage() {}
 
 func (x *TimelinePage) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[18]
+	mi := &file_backend_v1_types_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2099,7 +2214,7 @@ func (x *TimelinePage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TimelinePage.ProtoReflect.Descriptor instead.
 func (*TimelinePage) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{18}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *TimelinePage) GetMessages() []*Message {
@@ -2145,7 +2260,7 @@ type Draft struct {
 
 func (x *Draft) Reset() {
 	*x = Draft{}
-	mi := &file_backend_v1_types_proto_msgTypes[19]
+	mi := &file_backend_v1_types_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2157,7 +2272,7 @@ func (x *Draft) String() string {
 func (*Draft) ProtoMessage() {}
 
 func (x *Draft) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[19]
+	mi := &file_backend_v1_types_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2170,7 +2285,7 @@ func (x *Draft) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Draft.ProtoReflect.Descriptor instead.
 func (*Draft) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{19}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Draft) GetBody() string {
@@ -2240,7 +2355,7 @@ type Member struct {
 
 func (x *Member) Reset() {
 	*x = Member{}
-	mi := &file_backend_v1_types_proto_msgTypes[20]
+	mi := &file_backend_v1_types_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2252,7 +2367,7 @@ func (x *Member) String() string {
 func (*Member) ProtoMessage() {}
 
 func (x *Member) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[20]
+	mi := &file_backend_v1_types_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2265,7 +2380,7 @@ func (x *Member) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Member.ProtoReflect.Descriptor instead.
 func (*Member) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{20}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Member) GetUserId() string {
@@ -2305,7 +2420,7 @@ type SearchHit struct {
 
 func (x *SearchHit) Reset() {
 	*x = SearchHit{}
-	mi := &file_backend_v1_types_proto_msgTypes[21]
+	mi := &file_backend_v1_types_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2317,7 +2432,7 @@ func (x *SearchHit) String() string {
 func (*SearchHit) ProtoMessage() {}
 
 func (x *SearchHit) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[21]
+	mi := &file_backend_v1_types_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2330,7 +2445,7 @@ func (x *SearchHit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchHit.ProtoReflect.Descriptor instead.
 func (*SearchHit) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{21}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *SearchHit) GetRoomId() string {
@@ -2407,7 +2522,7 @@ type SASEmoji struct {
 
 func (x *SASEmoji) Reset() {
 	*x = SASEmoji{}
-	mi := &file_backend_v1_types_proto_msgTypes[22]
+	mi := &file_backend_v1_types_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2419,7 +2534,7 @@ func (x *SASEmoji) String() string {
 func (*SASEmoji) ProtoMessage() {}
 
 func (x *SASEmoji) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[22]
+	mi := &file_backend_v1_types_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2432,7 +2547,7 @@ func (x *SASEmoji) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SASEmoji.ProtoReflect.Descriptor instead.
 func (*SASEmoji) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{22}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *SASEmoji) GetGlyph() string {
@@ -2466,7 +2581,7 @@ type Verification struct {
 
 func (x *Verification) Reset() {
 	*x = Verification{}
-	mi := &file_backend_v1_types_proto_msgTypes[23]
+	mi := &file_backend_v1_types_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2478,7 +2593,7 @@ func (x *Verification) String() string {
 func (*Verification) ProtoMessage() {}
 
 func (x *Verification) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[23]
+	mi := &file_backend_v1_types_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2491,7 +2606,7 @@ func (x *Verification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Verification.ProtoReflect.Descriptor instead.
 func (*Verification) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{23}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *Verification) GetKind() VerificationKind {
@@ -2564,7 +2679,7 @@ type TempRule struct {
 
 func (x *TempRule) Reset() {
 	*x = TempRule{}
-	mi := &file_backend_v1_types_proto_msgTypes[24]
+	mi := &file_backend_v1_types_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2576,7 +2691,7 @@ func (x *TempRule) String() string {
 func (*TempRule) ProtoMessage() {}
 
 func (x *TempRule) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[24]
+	mi := &file_backend_v1_types_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2589,7 +2704,7 @@ func (x *TempRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TempRule.ProtoReflect.Descriptor instead.
 func (*TempRule) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{24}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *TempRule) GetName() string {
@@ -2649,7 +2764,7 @@ type PersonName struct {
 
 func (x *PersonName) Reset() {
 	*x = PersonName{}
-	mi := &file_backend_v1_types_proto_msgTypes[25]
+	mi := &file_backend_v1_types_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2661,7 +2776,7 @@ func (x *PersonName) String() string {
 func (*PersonName) ProtoMessage() {}
 
 func (x *PersonName) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[25]
+	mi := &file_backend_v1_types_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2674,7 +2789,7 @@ func (x *PersonName) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PersonName.ProtoReflect.Descriptor instead.
 func (*PersonName) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{25}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *PersonName) GetSource() string {
@@ -2717,7 +2832,7 @@ type PersonLink struct {
 
 func (x *PersonLink) Reset() {
 	*x = PersonLink{}
-	mi := &file_backend_v1_types_proto_msgTypes[26]
+	mi := &file_backend_v1_types_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2729,7 +2844,7 @@ func (x *PersonLink) String() string {
 func (*PersonLink) ProtoMessage() {}
 
 func (x *PersonLink) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_types_proto_msgTypes[26]
+	mi := &file_backend_v1_types_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2742,7 +2857,7 @@ func (x *PersonLink) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PersonLink.ProtoReflect.Descriptor instead.
 func (*PersonLink) Descriptor() ([]byte, []int) {
-	return file_backend_v1_types_proto_rawDescGZIP(), []int{26}
+	return file_backend_v1_types_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *PersonLink) GetSource() string {
@@ -2894,7 +3009,18 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\boriginal\x18\x05 \x01(\bR\boriginal\x12\x16\n" +
 	"\x06keeper\x18\x06 \x01(\tR\x06keeper\x12\x19\n" +
 	"\bleave_by\x18\a \x01(\tR\aleaveBy\x122\n" +
-	"\aleaving\x18\b \x01(\x0e2\x18.backend.v1.SpaceLeavingR\aleaving\"\xa4\x02\n" +
+	"\aleaving\x18\b \x01(\x0e2\x18.backend.v1.SpaceLeavingR\aleaving\"\xeb\x01\n" +
+	"\tRoomFacts\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
+	"\x06spaces\x18\x03 \x03(\tR\x06spaces\x12!\n" +
+	"\fspace_labels\x18\x04 \x03(\tR\vspaceLabels\x12\x16\n" +
+	"\x06direct\x18\x05 \x01(\bR\x06direct\x12\x1a\n" +
+	"\bprotocol\x18\x06 \x01(\tR\bprotocol\x12\x12\n" +
+	"\x04tags\x18\a \x03(\tR\x04tags\x12\x1f\n" +
+	"\varchived_in\x18\b \x01(\tR\n" +
+	"archivedIn\x12\x16\n" +
+	"\x06caught\x18\t \x03(\tR\x06caught\"\xa4\x02\n" +
 	"\x06Unread\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12$\n" +
 	"\rnotifications\x18\x02 \x01(\x03R\rnotifications\x12\x1e\n" +
@@ -3040,7 +3166,7 @@ func file_backend_v1_types_proto_rawDescGZIP() []byte {
 }
 
 var file_backend_v1_types_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_backend_v1_types_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_backend_v1_types_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_backend_v1_types_proto_goTypes = []any{
 	(ChatDeleting)(0),             // 0: backend.v1.ChatDeleting
 	(PollHiding)(0),               // 1: backend.v1.PollHiding
@@ -3060,27 +3186,28 @@ var file_backend_v1_types_proto_goTypes = []any{
 	(*Formatted)(nil),             // 15: backend.v1.Formatted
 	(*Span)(nil),                  // 16: backend.v1.Span
 	(*Space)(nil),                 // 17: backend.v1.Space
-	(*Unread)(nil),                // 18: backend.v1.Unread
-	(*ThreadUnread)(nil),          // 19: backend.v1.ThreadUnread
-	(*Thread)(nil),                // 20: backend.v1.Thread
-	(*Reaction)(nil),              // 21: backend.v1.Reaction
-	(*ReactionUpdate)(nil),        // 22: backend.v1.ReactionUpdate
-	(*TimelinePage)(nil),          // 23: backend.v1.TimelinePage
-	(*Draft)(nil),                 // 24: backend.v1.Draft
-	(*Member)(nil),                // 25: backend.v1.Member
-	(*SearchHit)(nil),             // 26: backend.v1.SearchHit
-	(*SASEmoji)(nil),              // 27: backend.v1.SASEmoji
-	(*Verification)(nil),          // 28: backend.v1.Verification
-	(*TempRule)(nil),              // 29: backend.v1.TempRule
-	(*PersonName)(nil),            // 30: backend.v1.PersonName
-	(*PersonLink)(nil),            // 31: backend.v1.PersonLink
-	(*timestamppb.Timestamp)(nil), // 32: google.protobuf.Timestamp
+	(*RoomFacts)(nil),             // 18: backend.v1.RoomFacts
+	(*Unread)(nil),                // 19: backend.v1.Unread
+	(*ThreadUnread)(nil),          // 20: backend.v1.ThreadUnread
+	(*Thread)(nil),                // 21: backend.v1.Thread
+	(*Reaction)(nil),              // 22: backend.v1.Reaction
+	(*ReactionUpdate)(nil),        // 23: backend.v1.ReactionUpdate
+	(*TimelinePage)(nil),          // 24: backend.v1.TimelinePage
+	(*Draft)(nil),                 // 25: backend.v1.Draft
+	(*Member)(nil),                // 26: backend.v1.Member
+	(*SearchHit)(nil),             // 27: backend.v1.SearchHit
+	(*SASEmoji)(nil),              // 28: backend.v1.SASEmoji
+	(*Verification)(nil),          // 29: backend.v1.Verification
+	(*TempRule)(nil),              // 30: backend.v1.TempRule
+	(*PersonName)(nil),            // 31: backend.v1.PersonName
+	(*PersonLink)(nil),            // 32: backend.v1.PersonLink
+	(*timestamppb.Timestamp)(nil), // 33: google.protobuf.Timestamp
 }
 var file_backend_v1_types_proto_depIdxs = []int32{
 	0,  // 0: backend.v1.Room.deleting:type_name -> backend.v1.ChatDeleting
-	32, // 1: backend.v1.Revision.at:type_name -> google.protobuf.Timestamp
+	33, // 1: backend.v1.Revision.at:type_name -> google.protobuf.Timestamp
 	15, // 2: backend.v1.Revision.format:type_name -> backend.v1.Formatted
-	32, // 3: backend.v1.Message.timestamp:type_name -> google.protobuf.Timestamp
+	33, // 3: backend.v1.Message.timestamp:type_name -> google.protobuf.Timestamp
 	7,  // 4: backend.v1.Message.media:type_name -> backend.v1.Media
 	6,  // 5: backend.v1.Message.mentions:type_name -> backend.v1.Mention
 	15, // 6: backend.v1.Message.format:type_name -> backend.v1.Formatted
@@ -3089,20 +3216,20 @@ var file_backend_v1_types_proto_depIdxs = []int32{
 	12, // 9: backend.v1.Poll.ballots:type_name -> backend.v1.Ballot
 	16, // 10: backend.v1.Formatted.spans:type_name -> backend.v1.Span
 	2,  // 11: backend.v1.Space.leaving:type_name -> backend.v1.SpaceLeaving
-	19, // 12: backend.v1.Unread.threads:type_name -> backend.v1.ThreadUnread
-	32, // 13: backend.v1.ThreadUnread.latest_at:type_name -> google.protobuf.Timestamp
-	32, // 14: backend.v1.Thread.latest_at:type_name -> google.protobuf.Timestamp
-	21, // 15: backend.v1.ReactionUpdate.reaction:type_name -> backend.v1.Reaction
+	20, // 12: backend.v1.Unread.threads:type_name -> backend.v1.ThreadUnread
+	33, // 13: backend.v1.ThreadUnread.latest_at:type_name -> google.protobuf.Timestamp
+	33, // 14: backend.v1.Thread.latest_at:type_name -> google.protobuf.Timestamp
+	22, // 15: backend.v1.ReactionUpdate.reaction:type_name -> backend.v1.Reaction
 	10, // 16: backend.v1.TimelinePage.messages:type_name -> backend.v1.Message
-	21, // 17: backend.v1.TimelinePage.reactions:type_name -> backend.v1.Reaction
+	22, // 17: backend.v1.TimelinePage.reactions:type_name -> backend.v1.Reaction
 	6,  // 18: backend.v1.Draft.mentions:type_name -> backend.v1.Mention
-	32, // 19: backend.v1.SearchHit.timestamp:type_name -> google.protobuf.Timestamp
+	33, // 19: backend.v1.SearchHit.timestamp:type_name -> google.protobuf.Timestamp
 	6,  // 20: backend.v1.SearchHit.mentions:type_name -> backend.v1.Mention
 	3,  // 21: backend.v1.Verification.kind:type_name -> backend.v1.VerificationKind
-	27, // 22: backend.v1.Verification.emojis:type_name -> backend.v1.SASEmoji
+	28, // 22: backend.v1.Verification.emojis:type_name -> backend.v1.SASEmoji
 	4,  // 23: backend.v1.TempRule.show:type_name -> backend.v1.Level
 	4,  // 24: backend.v1.TempRule.ring:type_name -> backend.v1.Level
-	32, // 25: backend.v1.TempRule.until:type_name -> google.protobuf.Timestamp
+	33, // 25: backend.v1.TempRule.until:type_name -> google.protobuf.Timestamp
 	26, // [26:26] is the sub-list for method output_type
 	26, // [26:26] is the sub-list for method input_type
 	26, // [26:26] is the sub-list for extension type_name
@@ -3121,7 +3248,7 @@ func file_backend_v1_types_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backend_v1_types_proto_rawDesc), len(file_backend_v1_types_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   27,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

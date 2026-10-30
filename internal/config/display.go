@@ -21,6 +21,9 @@ type Display struct {
 	RoomNameRules   *bool         `toml:"room_name_rules"`
 	Priority        []string      `toml:"priority"` // home entries (space:, tag:, place:), most preferred first
 	Rail            Rail          `toml:"rail"`
+	// Unread is what a badge counts (UnreadSources; empty is "messages"): kithd judges
+	// each room's unread state by it when it builds the rail.
+	Unread string `toml:"unread"`
 }
 
 // DeviceDisplay is [display] in device.toml: how this device draws the timeline, room
@@ -49,7 +52,6 @@ type DeviceDisplay struct {
 	ReadDelay    *int       `toml:"read_delay"` // seconds; nil or -1 never, 0 at once
 	ReadRules    []ReadRule `toml:"read_rule"`
 	FilingSpaces []string   `toml:"filing_spaces"`
-	Unread       string     `toml:"unread"` // UnreadSources; empty is "messages"
 	Rooms        Rooms      `toml:"rooms"`
 	Reactions    Reactions  `toml:"reactions"`
 	Threads      Threads    `toml:"threads"`

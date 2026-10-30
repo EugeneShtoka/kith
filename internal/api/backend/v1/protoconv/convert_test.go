@@ -60,7 +60,7 @@ func TestChangesSurviveTheRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	seen := map[v1.Change]bool{}
-	for _, c := range []domain.Change{domain.ChangeRooms, domain.ChangeAccounts} {
+	for _, c := range []domain.Change{domain.ChangeRooms, domain.ChangeAccounts, domain.ChangeRail} {
 		wire := protoconv.ChangeToProto(c)
 		if wire == v1.Change_CHANGE_UNSPECIFIED || seen[wire] {
 			t.Errorf("change %d: wire form %v is unspecified or shared", c, wire)

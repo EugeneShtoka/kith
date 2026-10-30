@@ -77,7 +77,9 @@ func oracleLeavesSpace(v unreadView, room domain.Room, origin bool) bool {
 	return leaves.Spaces
 }
 
-func oracleRailGroups(spaces []domain.Space, cfg config.Rail, names []config.DisplayName, view unreadView, rooms []domain.Room) []oracleGroup {
+func oracleRailGroups(spaces []domain.Space, cfg config.Rail, names []config.DisplayName, view unreadView, rooms []domain.Room,
+	parents map[domain.RoomID]domain.SpaceID,
+) []oracleGroup {
 	groups := oracleTagGroups(view)
 	for _, s := range spaces {
 		children := make(map[domain.RoomID]bool, len(s.Children))
@@ -100,7 +102,7 @@ func oracleRailGroups(spaces []domain.Space, cfg config.Rail, names []config.Dis
 				if !children[r.ID] || r.IsInvite() {
 					return false
 				}
-				return !oracleLeavesSpace(v, r, belongs || v.parents[r.ID] == spaceID)
+				return !oracleLeavesSpace(v, r, belongs || parents[r.ID] == spaceID)
 			},
 		})
 	}

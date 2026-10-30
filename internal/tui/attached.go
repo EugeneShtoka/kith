@@ -28,7 +28,7 @@ func (m Model) handleAttached(msg attachedMsg) (Model, tea.Cmd) {
 	}
 	m = m.say("daemon back — catching up")
 	return m, tea.Batch(m.listenAttachedCmd(), m.loadRoomsCmd(), m.loadUnreadCmd(),
-		m.loadInvitesCmd(), m.lastMessagesCmd(), m.readConfigCmd(false))
+		m.loadInvitesCmd(), m.lastMessagesCmd(), m.readConfigCmd(false), m.loadRailCmd())
 }
 
 // connectionBadge is the right-edge marker while the daemon is lost; it outranks the

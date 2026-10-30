@@ -20,10 +20,11 @@ type Streams struct {
 	verifications *hub[domain.Verification]
 	// activity (typing, receipts) has no paired cache read.
 	activity *hub[domain.Activity]
-	// changes tells clients what changed (a network's rooms, an account's state) so they
-	// read it again. It has no backend channel (RoomsChanged and AccountsChanged feed
-	// it), so Run does not pump it and Attached does not count it.
-	changes *hub[domain.Change]
+	// changes tells clients what changed (a network's rooms, an account's state, a
+	// profile's rail) so they read it again. It has no backend channel (RoomsChanged,
+	// AccountsChanged and railChanged feed it), so Run does not pump it and Attached does
+	// not count it.
+	changes *hub[change]
 	// configs carries the configuration after each change (Configured), like rooms.
 	configs *hub[config.Snapshot]
 	// tail wakes the clients' message streams when the cache numbered more changes.
@@ -39,7 +40,7 @@ func NewStreams() *Streams {
 		invites:       newHub[[]domain.Room](),
 		verifications: newHub[domain.Verification](),
 		activity:      newHub[domain.Activity](),
-		changes:       newHub[domain.Change](),
+		changes:       newHub[change](),
 		configs:       newHub[config.Snapshot](),
 		tail:          newTail(),
 	}
@@ -93,11 +94,23 @@ func (s *Streams) Attached() int {
 // Configured tells every attached client the configuration after a change.
 func (s *Streams) Configured(snap config.Snapshot) { s.configs.broadcast(snap) }
 
+// change is one thing that changed, and the profile whose clients it is for ("" every
+// client's).
+type change struct {
+	what    domain.Change
+	profile string
+}
+
 // RoomsChanged tells every attached client that a network rewrote its rooms.
-func (s *Streams) RoomsChanged() { s.changes.broadcast(domain.ChangeRooms) }
+func (s *Streams) RoomsChanged() { s.changes.broadcast(change{what: domain.ChangeRooms}) }
 
 // AccountsChanged tells every attached client that a network account's state changed.
-func (s *Streams) AccountsChanged() { s.changes.broadcast(domain.ChangeAccounts) }
+func (s *Streams) AccountsChanged() { s.changes.broadcast(change{what: domain.ChangeAccounts}) }
+
+// railChanged tells the clients running in profile that its rail changed.
+func (s *Streams) railChanged(profile string) {
+	s.changes.broadcast(change{what: domain.ChangeRail, profile: profile})
+}
 
 // MessagesChanged wakes the clients' message streams: the cache numbered more changes,
 // or started a new epoch (db.Cache.OnChanged).
