@@ -89,12 +89,18 @@ func TestBothBridgesDialingAtOnceKeepOneStream(t *testing.T) {
 			t.Fatal("neither of the two streams ended")
 		}
 	}
-	if !a.store.Connected(b.id) || !b.store.Connected(a.id) {
-		t.Fatal("no stream is kept")
+	// The stream ended can end on one side before the one kept has said its Hellos
+	// there, so it is held there a moment later.
+	deadline := time.Now().Add(5 * time.Second)
+	for !a.store.Connected(b.id) || !b.store.Connected(a.id) {
+		if time.Now().After(deadline) {
+			t.Fatal("no stream is kept")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	_, id := newDeviceID(t)
 	m.must(a.store.ChangeRoster(m.ctx, a.key, []domain.Device{{ID: id, Name: "phone", Role: domain.RoleDevice}}, nil))
-	deadline := time.Now().Add(5 * time.Second)
+	deadline = time.Now().Add(5 * time.Second)
 	for {
 		members, _, err := b.store.Roster()
 		m.must(err)
