@@ -6,6 +6,8 @@ import type { DescMessage, DescMethodServerStreaming, MessageInitShape, MessageS
 import {
   BackendService,
   Change,
+  type RailResponse,
+  type RailRow,
   type ReactionsResponse,
   type SeatHolder,
   type SeatResponse,
@@ -14,6 +16,7 @@ import {
 import type { Member, Message, Reaction, Room, Unread } from "../gen/backend/v1/types_pb";
 import { type DeviceSettingsResponse, DeviceService } from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
+import { later, listed, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unsent } from "./compose";
 import { call, subscribe } from "./kith";
 import { announces } from "./read";
@@ -52,7 +55,10 @@ export interface View {
   seat: Seat;
   link: Link;
   status: StatusResponse | undefined;
-  /** The profile's joined rooms, in list order, and its invitations. */
+  /** The rail's rows (Rail), and the one the window is on (-1: none, no rail yet). */
+  rail: readonly RailRow[];
+  row: number;
+  /** The joined rooms the row lists, in list order (every one before a rail), and the invitations. */
   rooms: readonly Room[];
   invites: readonly Room[];
   unread: ReadonlyMap<string, Unread>;
@@ -72,6 +78,8 @@ const nothingShown = {
   seat: { state: "none" },
   link: { state: "connecting" },
   status: undefined,
+  rail: [],
+  row: -1,
   rooms: [],
   invites: [],
   unread: new Map(),
@@ -94,6 +102,10 @@ interface Run {
   at: Readonly<Record<string, bigint>>;
   /** Counts the room reads, so an older answer arriving last is dropped. */
   roomReads: number;
+  /** The rail served last (the highest revision), and the row the window is on. */
+  rail: RailResponse | undefined;
+  row: RowRef | undefined;
+  rowAt: number;
   /** The Messages stream has said where it starts: a page read from now misses no change. */
   positioned: boolean;
   /** The open room's timeline, and the device settings it follows: undefined while read. */
@@ -345,6 +357,9 @@ export class Session {
       joined: [],
       at: {},
       roomReads: 0,
+      rail: undefined,
+      row: undefined,
+      rowAt: 0,
       positioned: false,
       timeline: undefined,
       settings: undefined,
@@ -458,10 +473,14 @@ export class Session {
             this.set({ link: { state: "attached" } });
             this.readStatus(run);
             this.readRooms(run);
+            this.readRail(run);
             break;
           case "frames":
             if (e.frames.some((f) => f.change === Change.ROOMS)) {
               this.readRooms(run);
+            }
+            if (e.frames.some((f) => f.change === Change.RAIL)) {
+              this.readRail(run);
             }
             if (e.frames.some((f) => f.change === Change.ACCOUNTS)) {
               this.readStatus(run);
@@ -795,6 +814,44 @@ export class Session {
     );
   }
 
+  /**
+   * readRail reads the profile's rail and stays on the row the window was on, or on the
+   * row now in its place. An answer for a run that ended (another profile) is dropped, as
+   * is one older than the rail held. Refused, the device is read again: a profile gone
+   * from the config leaves it, its rail and its rooms, and the window asks for one.
+   */
+  private readRail(run: Run): void {
+    call(backend.rail, {}).then(
+      (rail) => {
+        if (!this.live(run) || !later(run.rail, rail)) {
+          return;
+        }
+        run.rail = rail;
+        run.rowAt = placed(rail.rows, run.row, run.rowAt);
+        run.row = refOf(rail.rows[run.rowAt]);
+        this.set({});
+      },
+      (err: unknown) => {
+        if (this.live(run)) {
+          this.fail(err);
+          this.readDevice();
+        }
+      },
+    );
+  }
+
+  /** selectRow puts the window on the rail's ith row: the room list is its rooms. */
+  selectRow(i: number): void {
+    const run = this.run;
+    const row = run?.rail?.rows[i];
+    if (run === undefined || row === undefined) {
+      return;
+    }
+    run.rowAt = i;
+    run.row = refOf(row);
+    this.set({});
+  }
+
   private readStatus(run: Run): void {
     call(backend.status, {}).then(
       (status) => {
@@ -818,8 +875,11 @@ export class Session {
   private set(change: Partial<View>): void {
     const next = { ...this.view, ...change };
     const run = this.run;
-    next.rooms = run === undefined ? [] : ordered(run.joined, next.unread, run.at);
-    next.unreadTotal = total(next.rooms, next.unread);
+    const joined = run === undefined ? [] : ordered(run.joined, next.unread, run.at);
+    next.rail = run?.rail?.rows ?? [];
+    next.row = run?.rail === undefined ? -1 : placed(next.rail, run.row, run.rowAt);
+    next.rooms = listed(joined, run?.rail, next.row, next.open);
+    next.unreadTotal = total(joined, next.unread);
     next.timeline = run?.timeline?.view();
     next.composer = run === undefined || next.open === "" ? undefined : run.composer.view(next.open);
     this.view = next;

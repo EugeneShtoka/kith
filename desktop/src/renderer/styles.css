@@ -120,6 +120,28 @@ footer {
   font-weight: 600;
 }
 
+.place.separated {
+  border-bottom: 1px solid var(--line);
+}
+
+.place button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.place button[aria-current="true"] {
+  text-decoration: underline;
+}
+
 ul {
   list-style: none;
   margin: 0;

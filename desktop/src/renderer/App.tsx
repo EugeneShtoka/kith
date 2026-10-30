@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse } from "../gen/backend/v1/services_pb";
 import type { Room, Unread } from "../gen/backend/v1/types_pb";
 import { ComposerPane } from "./ComposerPane";
+import { rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
 import { type Link, type Seat, Session, type View } from "./session";
 import { TimelinePane } from "./TimelinePane";
@@ -74,10 +75,7 @@ function Body({ view, session }: { view: View; session: Session }) {
     <>
       <Banner link={view.link} status={view.status} />
       <div className="columns">
-        {/* The rail (places, tags, spaces) comes with kithd's Rail. */}
-        <nav className="rail" aria-label="Places">
-          <span className="place">All rooms</span>
-        </nav>
+        <Rail view={view} session={session} />
         <section className="rooms" aria-label="Rooms">
           {view.invites.length > 0 && <Invites invites={view.invites} session={session} />}
           <ul>
@@ -172,6 +170,34 @@ function holderText(h: SeatHolder): string {
     text += `, since ${clock.format(new Date(Number(h.sinceUnixMs)))}`;
   }
   return text;
+}
+
+/** Rail draws kithd's rail: its rows in order, the one the window is on marked. */
+function Rail({ view, session }: { view: View; session: Session }) {
+  return (
+    <nav className="rail" aria-label="Places">
+      <ul>
+        {view.rail.map((row, i) => {
+          const { count, mentions } = rowUnread(row, view.unread);
+          return (
+            <li key={`${row.key}\u0000${row.space}`} className={row.sepAfter ? "place separated" : "place"}>
+              <button
+                type="button"
+                aria-current={i === view.row}
+                onClick={() => {
+                  session.selectRow(i);
+                }}
+              >
+                <span dir="auto">{row.label}</span>
+                {row.countInLabel && <span className="detail"> {new Set(row.rooms).size}</span>}
+                {count > 0 && <span className={mentions > 0 ? "badge mention" : "badge"}>{count}</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
 }
 
 function Invites({ invites, session }: { invites: readonly Room[]; session: Session }) {

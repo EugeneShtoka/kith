@@ -290,6 +290,7 @@ describe("the rooms, the unread and the invitations", () => {
           want.rooms = all.filter(() => pick(3) > 0).map((id) => room(id));
           if (up) {
             kithd.send(backend.changed, "Home", { change: Change.ROOMS });
+            kithd.send(backend.changed, "Home", { change: Change.RAIL }); // its rail holds them
           }
           break;
         case 7:
