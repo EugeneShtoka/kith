@@ -60,6 +60,9 @@ func TestAThreadFromFurtherBackStaysInTheThread(t *testing.T) {
 	reply := func(id domain.EventID, body string, sec int) domain.Message {
 		msg := msgAt(id, body, sec)
 		msg.ThreadRoot = mx + "$1"
+		if id == mx+"$11" {
+			msg.ReplyTo = mx + "$5"
+		}
 		return msg
 	}
 	m = loadPage(t, m, []domain.Message{msgAt(mx+"$10", "ten", 10), reply(mx+"$11", "a late reply", 11), msgAt(mx+"$12", "twelve", 12)})
@@ -83,9 +86,80 @@ func TestAThreadFromFurtherBackStaysInTheThread(t *testing.T) {
 	if got := rowIDs(m.derivedFor().shown); !slices.Equal(got, []domain.EventID{mx + "$1", mx + "$5", mx + "$11"}) {
 		t.Errorf("once its root lands the thread shows %v, want $1 $5 $11", got)
 	}
+	// The thread shows $5, so going to it from $11 needs no page of the room.
+	m.timeline.selected = mx + "$11"
+	if m, _ = m.goToReplied(); m.timeline.selected != mx+"$5" || m.timeline.hist.loading {
+		t.Errorf("going from $11 to the $5 it answers selected %s, paging the room: %v", m.timeline.selected, m.timeline.hist.loading)
+	}
 	m, _ = m.closeThread()
 	if got := rowIDs(m.derivedFor().main); !slices.Equal(got, []domain.EventID{mx + "$10", mx + "$12"}) {
 		t.Errorf("the room shows %v, want $10 $12: the thread's root and early reply are from before them", got)
+	}
+}
+
+// Going to the message a reply answers, loaded only as a thread's root from before the
+// rows, pages the room down to it rather than selecting a message the room does not show;
+// so does closing that thread.
+func TestGoingToAMessageFromFurtherBackPagesDownToIt(t *testing.T) {
+	t.Parallel()
+
+	m := sized(t, withRooms(t, newModel())) // current room !a:x
+	m.focus = paneTimeline
+	answer := msgAt(mx+"$12", "twelve", 12)
+	answer.ReplyTo = mx + "$1"
+	late := msgAt(mx+"$11", "a late reply", 11)
+	late.ThreadRoot = mx + "$1"
+	m = loadPage(t, m, []domain.Message{msgAt(mx+"$10", "ten", 10), late, answer})
+	m, _ = m.enterThread(mx+"$1", "")
+	m = update(t, m, fetchedEventMsg{roomID: mx + "!a:x", message: msgAt(mx+"$1", "the root", 1)})
+	m, _ = m.closeThread()
+	if indexOfMessage(m.shownMessages(), m.timeline.selected) < 0 && m.timeline.selected != "" {
+		t.Errorf("closing the thread selected %s, which the room does not show", m.timeline.selected)
+	}
+
+	m.timeline.selected = mx + "$12"
+	m, _ = m.goToReplied()
+	page := func(msgs ...domain.Message) {
+		t.Helper()
+		if !m.timeline.hist.loading {
+			t.Fatalf("selected %s without paging down to $1 (shown: %v)", m.timeline.selected, rowIDs(m.shownMessages()))
+		}
+		m = update(t, m, timelineMsg{roomID: mx + "!a:x", fromCache: true, page: domain.TimelinePage{Messages: msgs}})
+	}
+	page(msgAt(mx+"$5", "five", 5), msgAt(mx+"$10", "ten", 10))
+	page(msgAt(mx+"$1", "the root", 1), msgAt(mx+"$5", "five", 5))
+	if m.timeline.selected != mx+"$1" || indexOfMessage(m.shownMessages(), mx+"$1") < 0 {
+		t.Errorf("selected %s, want $1 shown in the room (shown: %v)", m.timeline.selected, rowIDs(m.shownMessages()))
+	}
+}
+
+// From inside a thread, going to a room message from before the rows pages the room, not
+// the thread, until it shows.
+func TestGoingFromAThreadToAMessageFromFurtherBackPagesTheRoom(t *testing.T) {
+	t.Parallel()
+
+	m := sized(t, withRooms(t, newModel())) // current room !a:x
+	m.focus = paneTimeline
+	late := msgAt(mx+"$11", "a late reply", 11)
+	late.ThreadRoot, late.ReplyTo = mx+"$1", mx+"$2"
+	m = loadPage(t, m, []domain.Message{msgAt(mx+"$10", "ten", 10), late, msgAt(mx+"$12", "twelve", 12)})
+	m, _ = m.enterThread(mx+"$2", "") // $2 is loaded only as this fetch brings it
+	m = update(t, m, fetchedEventMsg{roomID: mx + "!a:x", message: msgAt(mx+"$2", "two", 2)})
+	m, _ = m.closeThread()
+	m, _ = m.enterThread(mx+"$1", mx+"$11")
+
+	m, _ = m.goToReplied()
+	for _, msgs := range [][]domain.Message{
+		{msgAt(mx+"$5", "five", 5), msgAt(mx+"$10", "ten", 10)},
+		{msgAt(mx+"$2", "two", 2), msgAt(mx+"$5", "five", 5)},
+	} {
+		if !m.timeline.hist.loading {
+			t.Fatalf("the room is not paged (the thread is: %v); selected %s", m.thread.loading, m.timeline.selected)
+		}
+		m = update(t, m, timelineMsg{roomID: mx + "!a:x", fromCache: true, page: domain.TimelinePage{Messages: msgs}})
+	}
+	if m.thread.open() || m.timeline.selected != mx+"$2" || indexOfMessage(m.shownMessages(), mx+"$2") < 0 {
+		t.Errorf("thread %q open, selected %s, want $2 shown in the room", m.thread.root, m.timeline.selected)
 	}
 }
 
@@ -174,6 +248,8 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 		msg := msgAt(domain.EventID(fmt.Sprintf(mx+"$%d", made)), fmt.Sprintf("message %d", made), 10*made)
 		if ids := roots(); len(ids) > 0 && rng.IntN(2) == 0 {
 			msg.ThreadRoot = ids[rng.IntN(min(len(ids), 4))] // a reply in one of the oldest threads, which grow long
+		} else if len(cache) > 0 && rng.IntN(3) == 0 {
+			msg.ReplyTo = cache[rng.IntN(len(cache))].ID
 		}
 		cache = append(cache, msg)
 		return msg
@@ -234,6 +310,14 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 		case "thread":
 			m = update(t, m, threadPageMsg{roomID: room, root: p.anchor, page: domain.TimelinePage{Messages: p.page}})
 		}
+		// Paging down to a jump's target, the client asked for the next page itself.
+		if m.timeline.hist.loading && !slices.ContainsFunc(pending, func(q *pendingPage) bool {
+			return q.kind != "root" && q.kind != "thread"
+		}) {
+			m.olderPageCmd(room)() // records where it reads from
+			pending = append(pending, &pendingPage{kind: "older", anchor: backend.anchor})
+			log = append(log, fmt.Sprintf("an older page is asked for the jump, before %q", backend.anchor))
+		}
 		// What the thread asked for shows in it.
 		if (p.kind == "root" || p.kind == "thread") && m.thread.root == p.anchor {
 			shown := m.derivedFor().shown
@@ -258,13 +342,26 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 		}
 		return rng.IntN(len(cache))
 	}
+	// selectedHidden is the selected message when the pane shows it nowhere: not drawn, nor
+	// in the room folded under a thread's summary row (a reply moves into the thread of the
+	// message it answers once that loads).
+	selectedHidden := func() domain.EventID {
+		sel := m.timeline.selected
+		if sel == "" || indexOfMessage(m.shownMessages(), sel) >= 0 {
+			return ""
+		}
+		if root := domain.ThreadRootOf(m.timeline.messages, sel); root != "" && root != sel && !m.thread.open() {
+			return ""
+		}
+		return sel
+	}
 	frame := func(i int, what string) {
 		log = append(log, fmt.Sprintf("frame: %s %s", cache[i].ID, what))
 		m = update(t, m, incomingMsg{message: cache[i]})
 	}
 
 	for step := range steps {
-		switch r := rng.IntN(14); {
+		switch r := rng.IntN(15); {
 		case r < 2 && len(cache) > 0:
 			i := pick()
 			if cache[i].Redacted {
@@ -316,6 +413,21 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 		case r == 13 && m.thread.open():
 			m, _ = m.closeThread()
 			log = append(log, "the thread closes")
+		case r == 14:
+			replies := slices.DeleteFunc(slices.Clone(m.shownMessages()), func(msg domain.Message) bool { return msg.ReplyTo == "" })
+			if len(replies) == 0 {
+				continue
+			}
+			m.timeline.selected = replies[rng.IntN(len(replies))].ID
+			log = append(log, fmt.Sprintf("from %s, go to the message it answers", m.timeline.selected))
+			loading := m.timeline.hist.loading
+			var cmd tea.Cmd
+			m, cmd = m.goToReplied()
+			if !loading && m.timeline.hist.loading && cmd != nil {
+				cmd() // records where it reads from
+				pending = append(pending, &pendingPage{kind: "older", anchor: backend.anchor})
+				log = append(log, fmt.Sprintf("an older page is asked for it, before %q", backend.anchor))
+			}
 		case r == 4:
 			loading := m.timeline.hist.loading
 			var cmd tea.Cmd
@@ -340,13 +452,21 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 		if err := oneStretch(m, cache, deepest); err != "" {
 			fail("%s", err)
 		}
-	}
-	for _, p := range pending {
-		if !p.read {
-			read(p)
+		if sel := selectedHidden(); sel != "" {
+			fail("%s is selected, but not shown (thread %q shows %v)", sel, m.thread.root, rowIDs(m.shownMessages()))
 		}
-		land(p)
 	}
+	drain := func() {
+		for len(pending) > 0 {
+			p := pending[0]
+			pending = pending[1:]
+			if !p.read {
+				read(p)
+			}
+			land(p)
+		}
+	}
+	drain()
 	if err := oneStretch(m, cache, deepest); err != "" {
 		fail("once every page landed: %s", err)
 	}
@@ -366,13 +486,18 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 			fail("paging back stopped before the room's start")
 		}
 		cmd()
-		p := &pendingPage{kind: "older", anchor: backend.anchor}
+		pending = append(pending, &pendingPage{kind: "older", anchor: backend.anchor})
 		log = append(log, fmt.Sprintf("an older page is asked, before %q", backend.anchor))
-		read(p)
-		land(p)
+		drain()
 	}
 	if !m.timeline.hist.atStart {
 		fail("paging back never reached the room's start")
+	}
+	if m.jump.to != "" {
+		fail("the jump to %s never resolved", m.jump.to)
+	}
+	if sel := selectedHidden(); sel != "" {
+		fail("%s is selected, but not shown (thread %q shows %v)", sel, m.thread.root, rowIDs(m.shownMessages()))
 	}
 	if err := oneStretch(m, cache, deepest); err != "" {
 		fail("paged back to the start: %s", err)

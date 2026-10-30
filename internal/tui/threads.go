@@ -205,7 +205,7 @@ func (m Model) closeThread() (Model, tea.Cmd) {
 	m.compose.replyTo = ""
 	m.timeline.scroll = scroll
 	m.timeline.selected = back
-	if indexOfMessage(m.timeline.messages, root) >= 0 {
+	if indexOfMessage(m.roomStretch(), root) >= 0 {
 		m.timeline.selected = root
 	}
 	// The room's receipt was suppressed while the thread was open.

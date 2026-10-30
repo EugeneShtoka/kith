@@ -2566,6 +2566,11 @@ func (m Model) loadOlder() (Model, tea.Cmd) {
 	if m.thread.open() {
 		return m.loadOlderInThread()
 	}
+	return m.loadOlderInRoom()
+}
+
+// loadOlderInRoom is loadOlder for the room's history, even while a thread is open.
+func (m Model) loadOlderInRoom() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if m.timeline.hist.loading || m.timeline.hist.atStart || !m.timeline.hist.ready || !ok {
 		return m, nil
@@ -3314,6 +3319,16 @@ func (m Model) roomStretch() []domain.Message {
 	}
 	i, _ := slices.BinarySearchFunc(msgs, *floor, domain.CompareMessages)
 	return msgs[i:]
+}
+
+// inView says whether revealMessage shows id: in the room's stretch, or in the thread it
+// opens, which keeps replies from before the floor.
+func (m Model) inView(id domain.EventID) bool {
+	if indexOfMessage(m.roomStretch(), id) >= 0 {
+		return true
+	}
+	root := domain.ThreadRootOf(m.timeline.messages, id)
+	return root != "" && root != id
 }
 
 // replayHeld puts the held frames back after a page landed: one it reached replaces the

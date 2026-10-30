@@ -119,7 +119,7 @@ func (m Model) goToReplied() (Model, tea.Cmd) {
 	if msg.ReplyTo == "" {
 		return m.say("this message is not a reply"), nil
 	}
-	if indexOfMessage(m.timeline.messages, msg.ReplyTo) >= 0 {
+	if m.inView(msg.ReplyTo) {
 		next, cmd := m.revealMessage(msg.ReplyTo)
 		return next.clearStatus(), cmd
 	}
@@ -129,5 +129,8 @@ func (m Model) goToReplied() (Model, tea.Cmd) {
 	// Armed, not fetched: a fetched quote stays out of the timeline, so page back.
 	m.jump.to, m.jump.why = msg.ReplyTo, "message it answers"
 	m = m.say("looking back for the message it answers…")
+	if indexOfMessage(m.timeline.messages, msg.ReplyTo) >= 0 {
+		return m.loadOlderInRoom() // a room message from before the floor (a thread's root)
+	}
 	return m.loadOlder()
 }
