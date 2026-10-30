@@ -12,26 +12,26 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// lostReply is a store whose nth ReplaceDraft commits and then errors, as when the
+// lostReply is a store whose nth RebaseDraft commits and then errors, as when the
 // daemon restarts after COMMIT or the socket drops before the answer.
 type lostReply struct {
 	*sharedDrafts
 	loseOn, calls int
-	// before runs before the next ReplaceDraft: another writer landing first.
+	// before runs before the next RebaseDraft: another writer landing first.
 	before func()
 }
 
-func (l *lostReply) ReplaceDraft(ctx context.Context, d, over domain.StoredDraft) (bool, error) {
+func (l *lostReply) RebaseDraft(ctx context.Context, d, base domain.StoredDraft, unanswered []domain.StoredDraft) (domain.StoredDraft, string, error) {
 	l.calls++
 	if hook := l.before; hook != nil {
 		l.before = nil
 		hook()
 	}
-	ok, err := l.sharedDrafts.ReplaceDraft(ctx, d, over)
-	if l.calls == l.loseOn && ok {
-		return false, errors.New("unavailable: connection reset")
+	stored, added, err := l.sharedDrafts.RebaseDraft(ctx, d, base, unanswered)
+	if l.calls == l.loseOn && err == nil {
+		return domain.StoredDraft{}, "", errors.New("unavailable: connection reset")
 	}
-	return ok, err
+	return stored, added, err
 }
 
 // A write that landed with its reply lost is this client's own: the retry after more
@@ -59,7 +59,7 @@ func TestALostReplyThenTypingWritesTheWordsOnce(t *testing.T) {
 func TestALostReplyAfterAFoldKeepsTheAdditionOnce(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
-	l := &lostReply{sharedDrafts: store, loseOn: 2}
+	l := &lostReply{sharedDrafts: store, loseOn: 1}
 	l.before = func() {
 		store.drafts[mx+"!a:x"] = domain.StoredDraft{RoomID: mx + "!a:x", Body: "hi\n\na1", Author: "claude-code", Updated: time.UnixMilli(2000)}
 	}
@@ -79,11 +79,11 @@ func TestALostReplyAfterAFoldKeepsTheAdditionOnce(t *testing.T) {
 func TestALostReplyAfterAFoldThenTypingKeepsTheAdditionOnce(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
-	l := &lostReply{sharedDrafts: store, loseOn: 2}
+	l := &lostReply{sharedDrafts: store, loseOn: 1}
 	l.before = func() {
 		store.drafts[mx+"!a:x"] = domain.StoredDraft{RoomID: mx + "!a:x", Body: "hi\n\na1", Author: "claude-code", Updated: time.UnixMilli(2000)}
 	}
-	w := &writesSeen{Backend: l}
+	w := &writesSeen{Backend: l, store: store}
 	m.backend = w
 	m.compose.caret = caret{owner: fieldComposer, at: len(m.compose.input)}
 	m = typeInto(t, m, " there")
@@ -101,59 +101,17 @@ func TestALostReplyAfterAFoldThenTypingKeepsTheAdditionOnce(t *testing.T) {
 	}
 }
 
-// writesSeen records the body of every write the store took.
+// writesSeen records what the store holds after every write (a lost reply stored too).
 type writesSeen struct {
 	api.Backend
+	store  *sharedDrafts
 	stored []string
 }
 
-func (w *writesSeen) ReplaceDraft(ctx context.Context, d, over domain.StoredDraft) (bool, error) {
-	ok, err := w.Backend.ReplaceDraft(ctx, d, over)
-	if ok || err != nil { // a lost reply stored it too
-		w.stored = append(w.stored, d.Body)
-	}
-	return ok, err
-}
-
-func TestDescentOf(t *testing.T) {
-	t.Parallel()
-	v := func(body string, ms int64) draftStamp { return draftStamp{body: body, ms: ms} }
-	at := func(body string, ms int64) domain.StoredDraft {
-		return domain.StoredDraft{Body: body, Updated: time.UnixMilli(ms)}
-	}
-	cases := []struct {
-		name    string
-		current domain.StoredDraft
-		base    draftStamp
-		own     []ownWrite
-		want    draftStamp
-	}{
-		{"nothing of ours: the base", at("hi\n\na1", 9), v("hi", 1), nil, v("hi", 1)},
-		{"our write, stored as it was", at("hi there", 5), v("hi", 1), []ownWrite{{v: v("hi there", 5)}}, v("hi there", 5)},
-		{"our write, and the assistant after it", at("hi there\n\na1", 9), v("hi", 1),
-			[]ownWrite{{v: v("hi there", 5)}}, v("hi there", 5)},
-		{"the longest of ours that it extends", at("hi there you\n\na1", 9), v("hi", 1),
-			[]ownWrite{{v: v("hi there", 5)}, {v: v("hi there you", 6)}}, v("hi there you", 6)},
-		{"ours that it does not extend: the base", at("hi\n\na1", 9), v("hi", 1),
-			[]ownWrite{{v: v("hi there", 5)}}, v("hi", 1)},
-		{"a base it does not hold does not outrank ours", at("w1\n\na6", 9), v("hi", 1),
-			[]ownWrite{{v: v("w1", 5)}}, v("w1", 5)},
-		{"a reply chosen here, landed unheard, then the assistant: ours", domain.StoredDraft{
-			Body: "hi\n\na1", ReplyTo: mx + "$t", Updated: time.UnixMilli(9),
-		}, v("hi", 1), []ownWrite{{v: draftStamp{body: "hi", reply: mx + "$t", ms: 5}}}, draftStamp{body: "hi", reply: mx + "$t", ms: 5}},
-		{"a word boundary: a10 does not extend a1", at("a10", 9), v("", 0), []ownWrite{{v: v("a1", 5)}}, v("", 0)},
-		{"words alike by chance, the edit state not: not ours", at("a2", 9), v("", 0),
-			[]ownWrite{{v: draftStamp{body: "fixed", saved: "a2", editing: mx + "$e", ms: 5}}}, v("", 0)},
-		{"words alike by chance, the reply target not: not ours", at("hi\n\na1", 9), v("hi", 1),
-			[]ownWrite{{v: draftStamp{body: "hi\n\na1", reply: mx + "$t", ms: 5}}}, v("hi", 1)},
-		{"words alike by chance, the thread not: not ours", at("hi\n\na1", 9), v("hi", 1),
-			[]ownWrite{{v: draftStamp{body: "hi\n\na1", thread: mx + "$t", ms: 5}}}, v("hi", 1)},
-	}
-	for _, c := range cases {
-		if got, _ := descentOf(c.current, c.base, c.own); got != c.want {
-			t.Errorf("%s: descentOf = %+v, want %+v", c.name, got, c.want)
-		}
-	}
+func (w *writesSeen) RebaseDraft(ctx context.Context, d, base domain.StoredDraft, unanswered []domain.StoredDraft) (domain.StoredDraft, string, error) {
+	stored, added, err := w.Backend.RebaseDraft(ctx, d, base, unanswered)
+	w.stored = append(w.stored, w.store.body(d.RoomID))
+	return stored, added, err
 }
 
 // Two writes in one millisecond get different stamps, so a turned-down write is never
@@ -173,8 +131,8 @@ func TestWriteStampsOnlyGoUp(t *testing.T) {
 // failingDrafts stores nothing: the daemon is gone.
 type failingDrafts struct{ *sharedDrafts }
 
-func (failingDrafts) ReplaceDraft(context.Context, domain.StoredDraft, domain.StoredDraft) (bool, error) {
-	return false, errors.New("unavailable: daemon gone")
+func (failingDrafts) RebaseDraft(context.Context, domain.StoredDraft, domain.StoredDraft, []domain.StoredDraft) (domain.StoredDraft, string, error) {
+	return domain.StoredDraft{}, "", errors.New("unavailable: daemon gone")
 }
 
 // The last write at exit reports the rooms the daemon did not take; nothing is kept

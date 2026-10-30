@@ -33,6 +33,17 @@ func (s *draftStore) ReplaceDraft(_ context.Context, draft, _ domain.StoredDraft
 	return true, nil
 }
 
+func (s *draftStore) RebaseDraft(_ context.Context, draft, base domain.StoredDraft, unanswered []domain.StoredDraft) (domain.StoredDraft, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.drafts == nil {
+		s.drafts = map[domain.RoomID]domain.StoredDraft{}
+	}
+	stored, added := domain.RebaseDraft(draft, base, s.drafts[draft.RoomID], unanswered)
+	s.drafts[draft.RoomID] = stored
+	return stored, added, nil
+}
+
 func (s *draftStore) Drafts(context.Context) ([]domain.StoredDraft, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -48,6 +59,33 @@ func window(t *testing.T, h *harness, force bool, pid int) (*daemon.Remote, erro
 	t.Cleanup(func() { r.Stop(); cancel() })
 	err := r.TakeSeat(ctx, force, domain.SeatHolder{PID: pid, TTY: "/dev/pts/7"})
 	return r, err
+}
+
+// A window's write crosses the wire to be rebased in kithd, and comes back as stored,
+// with the assistant's words it took in.
+func TestARebasedWriteAnswersWhatKithdStored(t *testing.T) {
+	t.Parallel()
+	h := serve(t, &draftStore{})
+	w, err := window(t, h, false, 101)
+	if err != nil {
+		t.Fatalf("the window: %v", err)
+	}
+	read, _, err := w.RebaseDraft(t.Context(), domain.StoredDraft{RoomID: mx + "!a:x", Body: "hi", Updated: time.UnixMilli(1000)}, domain.StoredDraft{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appended := read
+	appended.Body, appended.Updated = "hi\n\nthe report", time.UnixMilli(2000)
+	if saved, aerr := h.client().ReplaceDraft(t.Context(), appended, read); !saved || aerr != nil {
+		t.Fatalf("the assistant's append = %v, %v", saved, aerr)
+	}
+	stored, added, err := w.RebaseDraft(t.Context(), domain.StoredDraft{RoomID: mx + "!a:x", Body: "hi there", Updated: time.UnixMilli(3000)}, read, nil)
+	if err != nil || stored.Body != "hi there\n\nthe report" || added != "the report" || stored.Updated.UnixMilli() != 3000 {
+		t.Fatalf("RebaseDraft = %+v, %q, %v; want the window's words, then the assistant's", stored, added, err)
+	}
+	if emptied, _, err := w.RebaseDraft(t.Context(), domain.StoredDraft{RoomID: mx + "!a:x"}, stored, nil); err != nil || !emptied.Empty() || emptied.RoomID != mx+"!a:x" {
+		t.Fatalf("RebaseDraft of an emptied draft = %+v, %v; want none stored", emptied, err)
+	}
 }
 
 func TestASecondWindowIsRefusedAndToldWhereTheFirstIs(t *testing.T) {
@@ -137,6 +175,16 @@ func TestAWindowThatDoesNotAnswerLosesTheSeat(t *testing.T) {
 	}
 	if _, err := hung.ReplaceDraft(t.Context(), domain.StoredDraft{RoomID: mx + "!a:x", Body: "late"}, domain.StoredDraft{}); !errors.Is(err, api.ErrSeatTaken) {
 		t.Errorf("the old window's write = %v, want ErrSeatTaken", err)
+	}
+	// Its rebased writes too (a window's): what the window now seated wrote stands.
+	if _, _, err := h.client().RebaseDraft(t.Context(), domain.StoredDraft{RoomID: mx + "!b:x", Body: "seated"}, domain.StoredDraft{}, nil); err != nil {
+		t.Fatalf("a write to rebase: %v", err)
+	}
+	if _, _, err := hung.RebaseDraft(t.Context(), domain.StoredDraft{RoomID: mx + "!b:x", Body: "late"}, domain.StoredDraft{}, nil); !errors.Is(err, api.ErrSeatTaken) {
+		t.Errorf("the old window's rebased write = %v, want ErrSeatTaken", err)
+	}
+	if drafts, _ := h.client().Drafts(t.Context()); !slices.ContainsFunc(drafts, func(d domain.StoredDraft) bool { return d.Body == "seated" }) {
+		t.Errorf("drafts = %+v, want the seated write untouched", drafts)
 	}
 	if saved, err := h.client().ReplaceDraft(t.Context(), domain.StoredDraft{RoomID: mx + "!a:x", Body: "added"}, domain.StoredDraft{}); !saved || err != nil {
 		t.Errorf("an appender's write = %v, %v; want it taken", saved, err)
