@@ -135,6 +135,10 @@ func meshAt(t *testing.T, path string, key []byte) func() (daemon.RosterStore, e
 	}
 }
 
+// upSettle bounds a bridge coming up: it opens its sealed mesh store first, whose syncs
+// to disk wait their turn when every package's tests run at once.
+const upSettle = 30 * time.Second
+
 // bridge is a daemon serving its socket, and its listener to paired devices.
 type bridge struct {
 	t       *testing.T
@@ -262,7 +266,11 @@ func listening(addr string) bool {
 // waitListening waits for addr to take connections, or to stop, as want says.
 func (b *bridge) waitListening(addr string, want bool) {
 	b.t.Helper()
-	deadline := time.Now().Add(settle)
+	wait := settle
+	if want {
+		wait = upSettle
+	}
+	deadline := time.Now().Add(wait)
 	for listening(addr) != want {
 		if time.Now().After(deadline) {
 			b.t.Fatalf("listening on %s = %v, want %v; log:\n%s", addr, !want, want, b.logs)

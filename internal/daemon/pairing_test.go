@@ -53,7 +53,7 @@ func (b *bridge) openPairing(r *daemon.Remote, name string) *opened {
 	case p.ticket = <-tickets:
 	case e := <-p.ended:
 		b.t.Fatalf("StartPairing ended before its ticket: %v, %v", e.outcome, e.err)
-	case <-time.After(settle):
+	case <-time.After(upSettle): // the ticket waits on the bridge's store and key
 		b.t.Fatal("StartPairing sent no ticket")
 	}
 	return p
