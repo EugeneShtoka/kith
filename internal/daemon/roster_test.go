@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/BurntSushi/toml"
@@ -55,6 +56,28 @@ func writeRosterFile(t *testing.T, path string, names map[string]string) {
 	}
 	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// settled waits until the bridge's mesh loop has written the addresses it listens on
+// into its own roster entry, which it does in the background once it listens: a test
+// counting the roster's ops takes its baseline after that write, not before.
+func (b *bridge) settled() {
+	b.t.Helper()
+	var want []string
+	if listening(b.addr) {
+		want = []string{b.addr}
+	}
+	deadline := time.Now().Add(upSettle)
+	for {
+		st, err := b.socket.MeshStatus(b.t.Context())
+		if err == nil && slices.Equal(st.Addresses, want) {
+			return
+		}
+		if time.Now().After(deadline) {
+			b.t.Fatalf("the bridge never published its addresses %v: %+v, %v", want, st.Addresses, err)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
@@ -297,6 +320,7 @@ func TestAHandEditThatDoesNotReadChangesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	b.settled()
 	ops := opsIn(t, b.mesh, b.meshKey)
 	// The phone taken out, and an ID with a typo put in.
 	bad := fmt.Sprintf("[[device]]\nname = \"laptop\"\nid = %q\n\n[[device]]\nname = \"typo\"\nid = %q\n",
