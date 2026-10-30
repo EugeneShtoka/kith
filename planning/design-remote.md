@@ -190,3 +190,13 @@ Each PR lands working.
   the roster's CRDT (Phase 2b).
 - **HTTP/2 on the socket** (h2c): needed by the first bidirectional call, which is the
   CRDT's sync in Phase 2b.
+- **Matrix single sign-on from a remote client** (asked 2026-10-30). The OAuth and SSO
+  flows (`internal/matrix/oauth.go`) run in kithd and listen for the browser's redirect
+  on kithd's own loopback (`127.0.0.1:0`), but the browser opens on the client's
+  machine, whose loopback is another; the redirect never arrives and the login cannot
+  finish. A password login works remotely; SSO must be done on kithd's machine for now.
+  The fix: the client listens on its own loopback and hands kithd the redirect it
+  receives (the code and state) over the login's stream, kithd keeping the PKCE
+  verifier and the token exchange; the redirect URI registered is the client's.
+  Logins that read a browser's cookies (Meta, Instagram, LinkedIn) need the same check:
+  whose browser they read when the client is remote.
