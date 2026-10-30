@@ -2,6 +2,8 @@ package daemon_test
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -128,7 +130,8 @@ func (b *bridge) syncAs(d device) error {
 	defer tr.CloseIdleConnections()
 	st := meshv1connect.NewMeshServiceClient(&http.Client{Transport: tr}, "https://"+b.addr).Sync(ctx)
 	defer func() { _ = st.CloseResponse() }()
-	if err := st.Send(&meshv1.SyncRequest{Frame: &meshv1.SyncFrame{Frame: &meshv1.SyncFrame_Hello{Hello: &meshv1.Hello{}}}}); err != nil {
+	// A refusal that beats the hello makes Send fail with EOF; Receive holds the refusal.
+	if err := st.Send(&meshv1.SyncRequest{Frame: &meshv1.SyncFrame{Frame: &meshv1.SyncFrame_Hello{Hello: &meshv1.Hello{}}}}); err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
 	_, err := st.Receive()
