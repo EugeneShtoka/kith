@@ -1,6 +1,8 @@
 # Design: bridges pair, and the mesh CRDT (Phase 2b of design-clients.md)
 
-Status: planned 2026-10-30, decisions at the end. Phase 2b of
+Status: planned 2026-10-30; decisions taken the same day (at the end). The questions
+two bridges on one account raise are open at the end of [their
+section](#two-bridges-on-the-same-networks). Phase 2b of
 [design-clients.md](design-clients.md): a second kithd pairs with the first, and the
 state no network holds for kith crosses between them. It builds on Phase 2a
 ([design-remote.md](design-remote.md)): device keys, pinned mutual TLS, pairing by QR,
@@ -71,8 +73,6 @@ unpair anyone. kithd's backup takes it beside the cache. It holds:
 - `ops`: the op log, each replica's ops in order (below), kept for the horizon;
 - `entries`: the current entries per key, with the dot and clock of the op that wrote
   each;
-- `replaced`: what an op still inside the horizon replaced, so a voided op can be undone
-  (Revocation);
 - `vv`: this replica's version vector, with the hash of the last op held from each
   origin;
 - `peers`: each replica's last reported version vector and when it was heard;
@@ -108,7 +108,7 @@ session over any pair of frame streams). Each needs a depguard rule;
   holding different ops under one dot see it in the first exchange (Equivocation).
 - **Keys** are strings by kind: `config/<toml path>`, `read/<room>`,
   `thread/<room>/<root>`, `marked/<room>`, `draft/<room>`, `tag/<room>/<tag>`,
-  `person/<person>/<tag>`, `roster/<device ID>`.
+  `person/<person>/<tag>`, `roster/<device ID>`, `bridge/<device ID>/accounts`.
 
 ### An op
 
@@ -148,8 +148,7 @@ message Op {
   - **drafts**: every sibling's words survive (Drafts).
 - **Max register** (read positions). The value is `(read_ts_ms, event ID)`, ordered by
   time, then ID; merge is the larger. **A message read never becomes unread again**
-  (design-clients.md decision 7): no write lowers it, and revocation never voids one.
-  A position for a room a bridge does not run is kept and passed on, inert there.
+  (design-clients.md decision 7): no write lowers it. A position for a room a bridge does not run is kept and passed on, inert there.
 - **Signed set** (the roster): below.
 
 Counters are not built until something counts (decision 5).
@@ -158,7 +157,7 @@ Counters are not built until something counts (decision 5).
 
 - **The op log is kept for the horizon**, 30 days by clock (decision 10), and longer
   for an op some live replica has not acknowledged. Older ops fold into the entries and
-  leave the log; `replaced` rows go with the op that replaced them.
+  leave the log.
 - **A peer behind the horizon gets a snapshot** instead of ops: every entry with its
   dot and clock, the sender's version vector, and its roster. The receiver merges entry
   by entry, and **drops each of its own entries whose dot the snapshot's vector covers
@@ -183,12 +182,12 @@ reads those addresses; this phase only dials bridges with them.
 - **Add** `(subject, its public key, name, role, addresses)`, signed by a member. The
   public key travels so any replica can check the subject's signatures; its ID must be
   the key's.
-- **Remove** `(subject, cut)`, signed by a member; `cut` is the remover's vector entry
-  for the subject. Any member may remove any other, itself included (design-remote: any
-  paired device may unpair a lost one). A removed ID stays listed as removed; an add
-  whose context covers the removal re-pairs it (a new pairing, never a stale op).
+- **Remove** `(subject)`, signed by a member. Any member may remove any other, itself
+  included (design-remote: any paired device may unpair a lost one). A removed ID stays
+  listed as removed; an add whose context covers the removal re-pairs it (a new pairing,
+  never a stale op).
 - **Rotate** `(old ID → new key)`, signed by both keys: the entry keeps its name and
-  role, the old ID is cut where it stood (Key rotation).
+  role, and the old ID is removed (Key rotation).
 - **Membership is checked in causal order**: an op counts only if its signer was a
   member in the op's context. The first bridge's own entry is its genesis, self-signed;
   every other entry chains back to it.
@@ -205,24 +204,42 @@ file that does not read keeps kithd from listening, as today. `Devices`
 the mesh's members, and `cutLocked` runs for a removal that arrives by sync as for one
 made here.
 
-### Revocation
+### What a removal does
 
-A thin device is cut off when its removal reaches the bridge it is connected to; what it
-wrote before then is that bridge's own op and stands, as an unpairing does today.
-
-A removed **replica's** ops after the cut are void on every replica (decision 8): they
-are taken out, and what they replaced comes back from `replaced`. Every replica voids
-the same ops, so they converge. Read positions are never voided. A removal reaches back
-only within the horizon of its own clock; a replica that was dormant comes back through
-a snapshot first, so its later removals cut at what it now holds.
+**It stops new writes; it undoes nothing** (decision 8). Each replica, once the removal
+reaches it, refuses the removed key in the TLS handshake and closes its connections, as
+an unpairing does today. A thin device's writes were always its bridge's own ops. A
+removed replica's ops that reached any member before the removal did are kept and
+relayed like any other op, so every replica ends up holding the same ones: nothing is
+judged by when it was written, and nothing is voided. A removed replica can get an op
+in only through a member that has not yet heard of the removal, which closes as the
+removal spreads. What it wrote is cleaned up by hand, like any other change: a config
+key written again, a draft cleared.
 
 ### Equivocation
 
 A replica holding the key could sign two ops with one dot and send each to a different
-peer. The hash in each vector entry shows it on the next exchange: the origin is
-treated as removed at the last seq both agree on, and `kith mesh` and the log name it. A
-paired replica can do anything anyway (paired = full authority); this only keeps such
-a fork from leaving bridges disagreeing for good.
+peer. The hash in each vector entry shows it on the next exchange. The origin is then
+treated as removed (no further ops from it are taken, from it or by relay), and `kith
+mesh` and the log name it; keys its two ops wrote may differ between bridges until they
+are written again. A paired replica can do anything anyway (paired = full authority);
+this only names the fork instead of hiding it.
+
+### Why every op is signed
+
+With nothing voided, a signature no longer decides which writes count; what it still
+buys (decision 7):
+
+- **The roster's authority.** An add or remove counts only if a member signed it, and a
+  replica that bootstraps from a snapshot checks the chain back to the genesis instead
+  of taking a relay's word for who is paired.
+- **Attribution through relays.** Ops are relayed. `kith config conflicts` and `kith
+  mesh` name the writer of a value, and only a signature makes that the writer's and not
+  the claim of whichever bridge passed it on. A relay cannot write as another member.
+- **Equivocation is provable**: two signed ops under one dot are the origin's fork, not
+  a relay's corruption.
+- **One rule**: every op verified the same way is simpler than two kinds of op, and at
+  human write rates a P-256 signature costs nothing measurable.
 
 ### Key rotation
 
@@ -280,9 +297,20 @@ config conflicts` lists each key, both values, which bridge wrote each and when;
 settings screen marks the key. Keeping either is a write that has seen both, which ends
 the conflict on every bridge.
 
-**Joining** (decision 3): a bridge that joins a mesh takes its shared config; its own
-shared keys are kept aside as `config.toml.pre-mesh` and listed by the join, not merged
-key by key.
+**Joining** (decision 3): a bridge that joins a mesh takes the mesh's shared config, not
+merged key by key, and says so in three places:
+
+- **`kith join --bridge` prints it** once the mesh's config has arrived: every shared key
+  whose value on this bridge differs from the mesh's, as `path: this bridge's value →
+  the mesh's`, then `Set aside in <path>/config.toml.pre-mesh: N keys. Copy back what
+  you want to keep (kith config, or by hand).` With none differing it says so.
+- **kithd logs a warning** naming the file and the number of keys.
+- **The TUI shows a popup**, as kithd raises one for a failed backup (`BackupsSay`,
+  `internal/daemon/backupstate.go`) to every profile: the count, the file, and that the
+  mesh's values are in force.
+
+`config.toml.pre-mesh` is the whole file as it stood before the join, local keys
+included; nothing reads it.
 
 ## Drafts
 
@@ -311,14 +339,15 @@ other, can write the same room's draft at once.
 
 ## Read positions
 
-A read on a bridge (`MarkRead`, `MarkRoomsRead`, `MarkThreadRead`) is saved locally
+A read made in kith (`MarkRead`, `MarkRoomsRead`, `MarkThreadRead`) is saved locally
 first, as today (local-first, #207–#210), and written to the mesh in the same apply. A
 position arriving from a peer is merged by max into `room_unread`/`thread_read` and the
-room recounted. **Receipts**: every bridge that runs the room's account and holds a
-position the network has not acknowledged sends the receipt, retried as today; two
-bridges sending the same receipt is harmless, and a receipt never moves back
-(design-clients.md). `MarkRoomUnread` writes `marked/<room>`; a later read writes it
-false.
+room recounted; it sends nothing to the network. **The bridge where the read was made
+sends the receipt**, retried as today (decision 13). A read the network reports (made
+on the phone's own app, or echoed from another bridge's receipt) is merged locally by
+max and not written to the mesh: every bridge on that account hears it from the
+network itself (decision 14). `MarkRoomUnread` writes `marked/<room>`; a later read
+writes it false.
 
 ## Sync
 
@@ -380,29 +409,125 @@ The same flow as a device (docs/remote.md), with the new bridge's kithd as the d
    dropped, its shared config set aside (decision 3), its roster entries, drafts, read
    positions and verdicts written again as its own ops, so they chain from its add. Its
    devices are now admitted by every bridge, and every bridge's devices by it; the join
-   lists them before confirming.
+   lists them before confirming, and prints the config it set aside (Config, Joining).
 
 A device keeps dialing the bridge its `device.toml` names; that it is admitted by the
 others too is what Phase 3 builds on. Store-holding clients (Electron, Android) pair the
 same way with a replica role when they exist; nothing in this phase makes one.
 
-## Two bridges, and what is Phase 3
+## Two bridges on the same networks
 
-- **Different networks** (one runs WhatsApp and Matrix, the other Telegram and Slack):
-  their rooms do not overlap. Each client sees its own bridge's rooms (a client merging
-  bridges is open question 7). Rules, profiles, verdicts and drafts are shared; entries
-  for rooms a bridge does not run are kept and passed on, inert. A profile naming
-  `protocol:telegram` shows nothing on the bridge that does not run Telegram.
-- **The same accounts** (each bridge its own linked device): room IDs are the same on
-  both, since `<account>` is the network's own ID (design-adapters.md), so read
-  positions, drafts and verdicts meet on the same keys. Each bridge notifies its own
-  devices; each sends a scheduled message only if it holds it.
-- **Accounts are each bridge's own** (decision 1): which accounts a bridge logs into
-  stays in its file. Logging in is per machine anyway.
-- **Out of scope, Phase 3**: heartbeats, a client choosing or falling over between
-  bridges, dedup by network ID, buffering sends, resuming at another bridge. This phase
-  writes each bridge's addresses into the roster and admits every member's devices
-  everywhere; nothing here moves a client.
+Accounts are each bridge's own (decision 1), but bridges may run the same networks,
+even the same account. The example this section works through: **homelab** runs
+WhatsApp, Telegram and Slack; **laptop** runs WhatsApp and Telegram on the same
+accounts, each bridge its own linked device or session; Slack runs on homelab only. A
+profile `work` (shared config) includes `protocol:slack` and `space:Work`; `default`
+includes everything.
+
+### The same account on two bridges
+
+- **Both receive every message**, each from its own session; neither sends the other
+  anything message-level (design-clients.md decision 12).
+- **A room has one ID on both**, since `<account>` is the network's own ID of the account
+  (design-adapters.md), so read positions, drafts and verdicts meet on the same keys.
+  Checked per network against the adapters:
+
+  | network | room ID | the same on both bridges? |
+  | --- | --- | --- |
+  | Matrix | `matrix:<hash of MXID>/!room` | yes |
+  | Telegram | `telegram:<user ID>/<marked peer ID>` (`internal/telegram/rooms.go`); a message's ID is per chat and per account, shared by the account's sessions | yes |
+  | Slack | `slack:<team>/<channel>`, messages by `ts` | yes |
+  | Signal, Messenger, Instagram, LinkedIn | the server's chat or thread ID | yes |
+  | WhatsApp | groups by group JID: yes. A DM is keyed by the person's phone-number JID when this linked device's store maps the chat's LID to one, else by the LID (`chatOf`, `internal/whatsapp/messages.go`) | **not guaranteed**: one bridge may know a mapping the other does not yet, and key one DM two ways (decision 17) |
+  | Google Messages | one pairing only (design-clients.md) | cannot run on two bridges |
+
+- **Read receipts are sent once.** The bridge where the read was made sends it; it
+  always runs the account, since a client sees only its bridge's rooms. A position
+  arriving through the mesh is merged locally and sends nothing; the network's own echo
+  of the receipt reaches the other bridge and is merged by max (decisions 13, 14).
+- **Notifications are shown once per device.** Both bridges decide alike (one config)
+  and each publishes to its own clients; a device dials one bridge (its first
+  `[[bridge]]`), so `kith-notify` there shows each message once.
+- **Sends go through the client's bridge only.** Nothing is sent through the mesh; a
+  scheduled message is sent by the bridge that holds it (decision 4); `kith-mcp` sends
+  through the bridge it dialed.
+- **Filters and archive run on both.** A filter firing on the same message on both
+  bridges writes the same verdict twice (no conflict); `push_archive` pushes the same
+  archive from both, which the network takes once.
+
+### A profile across bridges
+
+**A bridge answers for what it holds.** `Rail`, `Rooms`, unread and notifications for a
+profile are evaluated by each bridge over its own rooms, as today. So a client on
+laptop asking for `work` gets laptop's WhatsApp and Telegram rooms in `space:Work`, and
+nothing for Slack; on homelab, everything. Place lists, tag rules and `room:` IDs naming
+rooms a bridge does not hold match nothing there, as a room left does today.
+
+**Saying what is elsewhere** (decisions 15, 16): each bridge writes the accounts it runs
+to the mesh (`bridge/<device ID>/accounts`: network, the account's ID, its label),
+written by that bridge alone as it logs in and out. A bridge then knows what another
+member runs and it does not, and answers a profile with those accounts as **elsewhere**:
+"Slack (acme): on homelab", narrowed to the profile's `protocol:` places when it names
+any. The rail shows them as one quiet row under the profile's rooms, with no count and
+nothing to open. Without it, a profile looks empty or partial on laptop with no reason
+given.
+
+**Not in 2b: merging bridges.** A client dialing laptop and homelab at once and showing
+one rail is open question 7 of design-clients.md, with Phase 3. This phase must not
+preclude it:
+
+- **One room, one ID on every bridge**, so a merging client dedupes by room ID (the
+  WhatsApp caveat above is the one gap; decision 17).
+- **Mesh state is keyed by room, never by bridge**: the draft and read position of a
+  room are the same whichever bridge a client asks.
+- **A bridge's answer is about its own rooms only**, with no synthetic rows standing for
+  another bridge's, so a merging client takes the union of each bridge's answer per
+  account. The elsewhere row is marked as such, for the merging client to drop once it
+  dials that bridge too.
+- **Accounts per bridge are in the mesh**, so a merging client knows which bridge to
+  send a room's message through, and the roster gives that bridge's addresses; a device
+  is already admitted by every member.
+- **A stream position is per bridge** (`(epoch, change)`, design-replay.md); a merging
+  client keeps one per bridge.
+- **Notification IDs are per bridge today** (`<boot>-<count>`, `notifications.go`), so a
+  device hearing two bridges would show one message twice. Deriving the ID from the
+  room and event instead is for the phase where a device first hears two bridges
+  (Phase 3, or Phase 5's push, where both bridges POST to a profile's endpoint); nothing
+  in 2b depends on the ID's shape.
+
+**Out of scope, Phase 3**: heartbeats, a client choosing or falling over between
+bridges, dedup by network ID, buffering sends, resuming at another bridge. This phase
+writes each bridge's addresses into the roster and admits every member's devices
+everywhere; nothing here moves a client.
+
+### Decisions to make
+
+- **13. Who sends the receipt for a read?** (a) The bridge where the read was made; others
+  never; (b) as (a), and another bridge on the account also sends it when the
+  network has not echoed the position within a few minutes (the first bridge being
+  down); (c) every bridge on the account (design-clients.md's "harmless" duplicates).
+  **Recommend (a)**: no double receipts, no timers; the first bridge's local-first
+  retry sends it when it is back. (b) only if a receipt held by a bridge that is down
+  for days turns out to matter.
+- **14. Is a read the network reports written to the mesh?** (a) No: only reads made in
+  kith; each bridge on the account hears the network's own; (b) yes, every position.
+  **Recommend (a)**: (b) writes the same position once per bridge for every read on
+  the phone, and a bridge that does not run the account has no use for it.
+- **15. Does each bridge publish the accounts it runs to the mesh?** (a) Yes,
+  `bridge/<ID>/accounts`, written by that bridge only; (b) no. **Recommend (a)**: the
+  elsewhere row needs it, and Phase 3 routes sends by it. An account's ID and label
+  are no secret among the user's own bridges.
+- **16. What does a client see for a profile's accounts that its bridge does not run?**
+  (a) Nothing; (b) an elsewhere row naming the account and the bridge that runs it, no
+  count; (c) as (b) with that bridge's unread count, carried in the mesh. **Recommend
+  (b)**: it explains a partial profile at no cost; (c) puts counts that change with
+  every message into the mesh, which carries only what no network holds.
+- **17. A WhatsApp DM keyed two ways.** (a) Check live first (step 3): pair two bridges on
+  one WhatsApp account and compare their DM room IDs; fix only if they differ, by
+  keying a DM by the LID whenever one is known; (b) re-key every WhatsApp DM by LID
+  now. **Recommend (a)**: the PN mapping is learned from the same server pushes on
+  every linked device, so they may well agree; (b) re-keys rooms (cache, drafts,
+  stars, place lists) on a guess.
 
 ## Plan
 
@@ -421,35 +546,43 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
    kith.
 2. **feat: bridges pair and sync.** `MeshService.Sync`, its gate, `kith join --bridge`
    and `JoinMesh`, adoption, the dial loop, causal delivery, the horizon, snapshots,
-   revocation and equivocation, `kith mesh` (peers, last heard, lag, store size, clock
+   removal and equivocation, `kith mesh` (peers, last heard, lag, store size, clock
    gaps); SECURITY.md's "A listening kithd" gains the sync. Only the roster crosses
    yet, which is enough to unpair everywhere. **Failure review** (concurrent, merges
    writers, enforces scope): a model test of three to five replicas whose generator
    interleaves writes, partitions, reconnects, duplicated, reordered and replayed
    frames, a relay restarting mid-batch, clock skew within and past the bound, a replica
-   dormant past the horizon, a removal concurrent with the removed replica's writes and
-   with an add of it, two members removing each other, an equivocating origin; it
-   asserts every replica converges to the same entries and the same voided set, and
-   that no removed replica's op after its cut survives. Plus: both bridges dialing at
+   dormant past the horizon, a removal concurrent with the removed replica's writes
+   (some relayed before the removal, some after) and with an add of it, two members
+   removing each other, an equivocating origin; it asserts every replica converges to
+   the same entries, and that once every replica holds the removal no new op of the
+   removed replica is taken directly. Plus: both bridges dialing at
    once, an unpaired or device-role key calling `Sync`, the socket calling it, a peer
    unpaired mid-stream, a join whose confirmation never comes.
 3. **feat: read positions cross bridges.** `read/`, `thread/`, `marked/`; the cache's
-   unread rewritten from the mesh; receipts. **Failure review** (merges writers, caches a
-   derived result): the generator of step 2 with reads on every replica asserts that a
-   position never moves back on any replica and that `room_unread` equals what the mesh
-   holds after every step; a network echoing an older receipt, a mark unread concurrent
-   with a read, a room a bridge does not run, a cache rebuilt under a mesh that holds
-   positions, a voided replica's reads (kept).
+   unread rewritten from the mesh; the receipt sent by the bridge where the read was
+   made; reads the network reports kept out of the mesh. Before it lands, two bridges
+   on one WhatsApp account compare their DM room IDs (decision 17). **Failure review**
+   (merges writers, caches a derived result): the generator of step 2 with reads on
+   every replica asserts that a position never moves back on any replica, that
+   `room_unread` equals what the mesh holds after every step, and that each read is
+   receipted by one bridge; a network echoing an older receipt, a mark unread
+   concurrent with a read, a room a bridge does not run, a cache rebuilt under a mesh
+   that holds positions, a removed replica's reads (kept).
 4. **feat: the shared config crosses bridges.** `config.Local`, per-key registers,
    rendering, the three-way read of a hand edit, conflicts (`kith config conflicts`,
    the settings screen), a merged config that does not check, the join's
-   `config.toml.pre-mesh`; `docs/configuration.md` marks each local key. **Failure
+   `config.toml.pre-mesh` with its printed list, log warning and popup;
+   `bridge/<ID>/accounts` and the elsewhere row of a profile;
+   `docs/configuration.md` marks each local key. **Failure
    review** (merges writers): a generator of settings writes, hand edits and remote
    writes in any order, with an editor buffer opened before any remote write and saved
    after, asserting that no remote change is undone by a save that did not touch its
    key and that every bridge renders the same shared keys; a hand edit to a local key
    (never crosses), a hand edit while kithd renders, an invalid hand edit, two concurrent
-   writes of equal values (no conflict), a deleted key against an edited one.
+   writes of equal values (no conflict), a deleted key against an edited one, a join
+   whose config differs in no key and in every key, an account logged out on one bridge
+   while a profile shows it elsewhere.
 5. **feat: drafts cross bridges.** Drafts move from the cache into the mesh (the
    `drafts` tables become its read model; a rebuild no longer loses them), siblings, the
    5-second cadence. Depends on design-electron.md step 4 or does its move. **Failure
@@ -477,51 +610,44 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
   for them.
 - **A text CRDT for drafts**: only if keeping every sibling repeats text in practice.
 - **WAN reach between bridges**: as for devices, addresses or a tailnet (design-remote).
-- **Scheduled sends and rankings**, if decisions 4 and 5 go the recommended way.
+- **Scheduled sends and rankings** stay on each bridge (decisions 4 and 5).
+- **Notification IDs from the message**, for a device that hears two bridges (Phase 3
+  or 5; see [A profile across bridges](#a-profile-across-bridges)).
 - **The phonebook** stays a file on each bridge (open question 10).
 
-## Decisions
+## Decisions (2026-10-30)
 
-Each needs the user's answer; the plan above follows the recommendation.
+Decided by the user on 2026-10-30. Decisions 13–17, raised by two bridges on one
+account, are open at the end of [their section](#decisions-to-make).
 
-1. **Do network accounts cross?** (a) Each bridge's own: `[[<network>.account]]` stays
-   in its file; (b) shared, each bridge running every account. **Recommend (a)**: a
-   session belongs to one machine, and the hybrid shape (design-clients.md) is bridges
-   on different networks.
-2. **How fine is a config register?** (a) Each leaf key, and each array whole, `[[tag]]`
-   and `[[filter]]` included; (b) lists of named tables keyed by `name`, with an order
-   register. **Recommend (a)**: one person rarely edits two tags on two bridges at once,
-   and a conflict is shown with both values; (b) can follow if it happens.
-3. **What does a joining bridge do with its own config?** (a) Takes the mesh's, its own
-   shared keys set aside as `config.toml.pre-mesh`; (b) merges key by key, newest wins.
-   **Recommend (a)**: the merge of two configs written apart is arbitrary; joining is
-   joining.
-4. **Do scheduled messages cross?** (a) No, the bridge that holds one sends it; (b) yes,
-   with an owner and a hand-over when the owner is down. **Recommend (a)**: (b) is
-   failover (Phase 3) and needs sends idempotent across bridges.
-5. **Do emoji and mention rankings cross?** (a) No; (b) per-replica counters. **Recommend
-   (a)**: nice to have (design-clients.md), and a counter kind with no data is dead code.
-6. **Where do Matrix's stars and verdicts live?** (a) In account data, as now, the mesh
-   carrying only networks that keep none; (b) all in the mesh. **Recommend (a)**: the
-   homeserver already carries them to every bridge on the account, and a second source
-   would have to agree with the first.
-7. **Which ops are signed?** (a) Every op; (b) roster ops only, the rest trusted to the
-   connection they came over. **Recommend (a)**: ops are relayed, and a signature is what
-   lets a relay be checked and a removed replica's writes be named; at human write
-   rates it costs nothing measurable.
-8. **What does removing a replica do to what it wrote?** (a) Its ops after the cut are
-   void everywhere, within the horizon; (b) nothing: each bridge stops taking its ops
-   when the removal arrives. **Recommend (a)**: (b) leaves bridges disagreeing about ops
-   relayed before the removal reached them. Read positions are never voided.
-9. **HTTP/2 on the socket (h2c)?** (a) When a replica first sits beside its bridge
-   (Phase 4's relay with a store); (b) now, in step 2. **Recommend (a)**: bridge to
-   bridge is TLS, already HTTP/2, and nothing in this phase calls `Sync` over the socket.
-   (b) is small (`Protocols` on both ends) if wanted for symmetry.
-10. **The horizon.** (a) 30 days; (b) 7; (c) 90. **Recommend (a)**: a laptop bridge
-    unused for a month is plausible; past it, a snapshot costs little.
-11. **Key rotation for bridges.** (a) In step 7, with the old key answered by SNI for
-    the horizon; (b) devices only, a bridge re-paired. **Recommend (a)**: a bridge's key
-    is the one most often pinned, by every device.
-12. **Clock bound.** (a) 60 seconds, a peer past it refused and named; (b) 5 minutes.
-    **Recommend (a)**: every machine here runs NTP; a minute catches a wrong timezone
-    or a dead clock battery without false alarms.
+1. **Network accounts are each bridge's own**: `[[<network>.account]]` stays in its
+   file. Bridges may still run the same networks, even the same account (Two bridges on
+   the same networks). Rejected: shared accounts, every bridge running every one.
+2. **A config register is a leaf key, or an array whole**, `[[tag]]` and `[[filter]]`
+   included. Rejected for now: lists of named tables keyed by `name` with an order
+   register; it can follow if concurrent edits of two tags happen.
+3. **A joining bridge takes the mesh's shared config**, its own set aside in
+   `config.toml.pre-mesh`, **with an explicit warning**: `kith join --bridge` prints
+   every key set aside with both values and the file's path, kithd logs it, and the TUI
+   raises a popup (Config, Joining). Rejected: merging key by key.
+4. **Scheduled messages do not cross**: the bridge that holds one sends it. Rejected: an
+   owner with a hand-over, which is failover (Phase 3).
+5. **Emoji and mention rankings do not cross.** Rejected: per-replica counters.
+6. **Matrix's stars and verdicts stay in account data**; the mesh carries verdicts only
+   for networks that keep none. Rejected: everything in the mesh, a second source.
+7. **Every op is signed.** Re-checked after decision 8: with nothing voided, signatures
+   no longer decide which writes count, but they carry the roster's authority, make the
+   writer named in conflicts the writer and not a relay, and prove a fork (Why every op
+   is signed). Rejected: signing roster ops only.
+8. **A removal stops new writes and undoes nothing.** Once it arrives, a replica refuses
+   the removed key and takes no more of its ops; what reached any member before stays,
+   relayed like any op, and is cleaned up by hand. Rejected (the user: a corner case
+   that would need far too much logic): voiding a removed replica's ops after a cut,
+   with what they replaced kept to restore it.
+9. **No HTTP/2 on the socket (h2c) yet**: it lands when a replica first sits beside its
+   bridge (Phase 4's relay with a store). Bridge to bridge is TLS, already HTTP/2.
+10. **The horizon is 30 days.** Rejected: 7 or 90.
+11. **Bridges rotate keys too** (step 7), the old key answered by SNI for the horizon.
+    Rejected: devices only, a bridge re-paired.
+12. **The clock bound is 60 seconds**: a peer further off is refused and named.
+    Rejected: 5 minutes.
