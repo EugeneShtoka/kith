@@ -34,6 +34,7 @@ const device = DeviceService.method;
 const calls = new Map<string, DescMethodUnary>(
   [
     backend.status,
+    backend.rail,
     backend.rooms,
     backend.lastMessages,
     backend.cachedUnread,

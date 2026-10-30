@@ -14,6 +14,9 @@ import {
 
 import {
   BackendService,
+  type RailResponse,
+  RailResponseSchema,
+  RailRowKind,
   type SeatRequest,
   type StoredDraft,
   StoredDraftSchema,
@@ -96,6 +99,11 @@ export class Kithd {
   readonly holding = new Set<string>();
   /** The stored drafts, by room: kithd keeps them for every profile alike. */
   readonly drafts = new Map<string, StoredDraft>();
+  /**
+   * Each profile's rail, as Rail serves it; "gone" refuses it (the profile is no longer
+   * in the config). Unset, one row holds every room, as a rail with no spaces or tags.
+   */
+  readonly rails = new Map<string, RailResponse | "gone">();
   /** What the next draft writes meet: a failure before the write, or after it (its answer lost). */
   readonly draftFaults: ("before" | "after")[] = [];
   /** Runs as the next draft write reaches kithd, before it is written: another writer first. */
@@ -384,6 +392,20 @@ export class Kithd {
         return reply(backend.status, { ready: true });
       case "Rooms":
         return reply(backend.rooms, { rooms: p.rooms });
+      case "Rail": {
+        const rail = this.rails.get(profile);
+        if (rail === "gone") {
+          throw new Error(`daemon: rail: unknown profile ${profile}`);
+        }
+        return (
+          rail ??
+          create(RailResponseSchema, {
+            revision: 1n,
+            rows: [{ key: "all", label: "All", kind: RailRowKind.ALL, rooms: p.rooms.map((r) => r.id) }],
+            rooms: p.rooms.map((r) => ({ facts: { id: r.id, name: r.name } })),
+          })
+        );
+      }
       case "LastMessages":
         return reply(backend.lastMessages, {});
       case "CachedUnread":
