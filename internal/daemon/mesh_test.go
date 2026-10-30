@@ -140,6 +140,7 @@ func (b *bridge) syncAs(d device) error {
 func TestOnlyABridgeOfTheMeshIsServedSync(t *testing.T) {
 	t.Parallel()
 	a := serveBridge(t, bridgeOpts{})
+	a.waitListening(a.addr, true) // a bridge comes up before it serves anyone Sync
 	phone := newDeviceKey(t)
 	a.pair(phone, "phone")
 	if err := a.syncAs(device{key: phone}); connect.CodeOf(err) != connect.CodePermissionDenied {

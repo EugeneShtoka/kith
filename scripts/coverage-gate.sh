@@ -14,20 +14,15 @@ PROFILE="${1:-coverage.out}"
 TOTAL_MIN="${TOTAL_MIN:-76}"
 PKG_MIN="${PKG_MIN:-55}"
 
-# Generated code is excluded from the gated total.
-GENERATED_RE='\.pb\.go|\.connect\.go|emoji_generated\.go'
+# Generated code is what Go's convention marks so: a "// Code generated ... DO NOT EDIT."
+# line before the package clause. It is left out of the gated total, and a package of
+# nothing else (a wire's protobuf types and Connect stubs) is exempt without a list
+# entry; one hand-written file in it ends the exemption.
+GENERATED_HEADER='^// Code generated .* DO NOT EDIT\.$'
 
 # Exempt only what *cannot* be unit-tested, with a reason. Stale entries fail.
 exempt=(
 	internal/api                              # interface declarations, no logic
-	internal/api/backend/v1                   # generated protobuf types
-	internal/api/backend/v1/backendv1connect  # generated Connect stubs
-	internal/api/signal/v1                    # generated protobuf types (kith-signal's wire)
-	internal/api/signal/v1/signalv1connect    # generated Connect stubs (kith-signal's wire)
-	internal/api/device/v1                    # generated protobuf types (kith-relay's wire)
-	internal/api/device/v1/devicev1connect    # generated Connect stubs (kith-relay's wire)
-	internal/api/mesh/v1                      # generated protobuf types (the mesh's wire)
-	internal/api/mesh/v1/meshv1connect        # generated Connect stubs (the mesh's wire)
 	internal/apitest                          # test-only fakes (Nop backend)
 	internal/filedialog                       # XDG desktop portal over D-Bus; needs a session bus and a human to pick a file
 	cmd/kith                                # main wiring
@@ -35,6 +30,12 @@ exempt=(
 	cmd/kith-signal                         # main wiring (Signal helper); its service and heartbeat are exercised through internal/signalhelper
 	cmd/emoji-probe                           # interactive terminal diagnostic: writes glyphs to a tty and asks what you see
 )
+
+# generated reports whether the Go file at path is generated (GENERATED_HEADER before
+# its package clause).
+generated() {
+	awk -v re="$GENERATED_HEADER" 'BEGIN { r = 1 } /^package / { exit } $0 ~ re { r = 0; exit } END { exit r }' "$1"
+}
 
 is_exempt() {
 	local p="$1" e
@@ -53,9 +54,22 @@ if (( $# > 1 )); then
 fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Every generated file, module-relative, and every package of generated files only.
+declare -A generated_file generated_pkg
+while IFS=$'\t' read -r fq dir files; do
+	pkg="${fq#"$MODULE"/}"
+	own=0 gen=0
+	for f in $files; do
+		if generated "$dir/$f"; then generated_file["$pkg/$f"]=1; gen=1; else own=1; fi
+	done
+	(( gen && !own )) && generated_pkg["$pkg"]=1
+done < <(go list -f '{{.ImportPath}}{{"\t"}}{{.Dir}}{{"\t"}}{{join .GoFiles " "}}' ./...)
+
 stale=0
 for e in "${exempt[@]}"; do
 	[[ -d "$ROOT/$e" ]] || { echo "coverage-gate: exempt entry names no such package: $e" >&2; stale=1; }
+	[[ -n "${generated_pkg["$e"]:-}" ]] && { echo "coverage-gate: exempt entry is generated, so exempt already: $e" >&2; stale=1; }
 done
 (( stale )) && { echo "coverage-gate: fix the exempt list in $0" >&2; exit 2; }
 
@@ -78,6 +92,10 @@ printf '%-48s %8s\n' "PACKAGE" "COVER"
 printf '%-48s %8s\n' "-------" "-----"
 while IFS= read -r fq; do
 	pkg="${fq#"$MODULE"/}"
+	if [[ -n "${generated_pkg["$pkg"]:-}" ]]; then
+		printf '%-48s %8s\n' "$pkg" "generated"
+		continue
+	fi
 	if is_exempt "$pkg"; then
 		printf '%-48s %8s\n' "$pkg" "exempt"
 		continue
@@ -102,7 +120,10 @@ done < <(go list ./...)
 handwritten="$(mktemp)"
 trap 'rm -f "$handwritten" "${merged:-}"' EXIT
 head -1 "$PROFILE" > "$handwritten"
-{ grep -vE "$GENERATED_RE" "$PROFILE" || true; } | tail -n +2 >> "$handwritten"
+tail -n +2 "$PROFILE" | while IFS= read -r line; do
+	file="${line%%:*}"
+	[[ -n "${generated_file["${file#"$MODULE"/}"]:-}" ]] || printf '%s\n' "$line"
+done >> "$handwritten"
 
 tot=$(go tool cover -func="$handwritten" | awk '/^total:/{sub(/%/,"",$NF); print $NF}')
 raw=$(go tool cover -func="$PROFILE" | awk '/^total:/{sub(/%/,"",$NF); print $NF}')

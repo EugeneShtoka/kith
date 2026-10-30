@@ -240,7 +240,7 @@ func (b *bridge) waitStatus() {
 // waitLog waits for a log line saying every one of says.
 func (b *bridge) waitLog(says ...string) {
 	b.t.Helper()
-	deadline := time.Now().Add(settle)
+	deadline := time.Now().Add(upSettle) // what a bridge says as it comes up, too
 	for {
 		logs := b.logs.String()
 		if !slices.ContainsFunc(says, func(s string) bool { return !strings.Contains(logs, s) }) {
