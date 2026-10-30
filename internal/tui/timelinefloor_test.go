@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"slices"
@@ -9,6 +11,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/EugeneShtoka/kith/internal/apitest"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -47,6 +51,44 @@ func TestAFrameBelowTheLoadedRowsStaysOut(t *testing.T) {
 	}
 }
 
+// A thread's root and replies from before the loaded rows show in the thread, not the room,
+// and a thread page read before an edit of one of them lands with the edit.
+func TestAThreadFromFurtherBackStaysInTheThread(t *testing.T) {
+	t.Parallel()
+
+	m := sized(t, withRooms(t, newModel())) // current room !a:x
+	reply := func(id domain.EventID, body string, sec int) domain.Message {
+		msg := msgAt(id, body, sec)
+		msg.ThreadRoot = mx + "$1"
+		return msg
+	}
+	m = loadPage(t, m, []domain.Message{msgAt(mx+"$10", "ten", 10), reply(mx+"$11", "a late reply", 11), msgAt(mx+"$12", "twelve", 12)})
+	m, _ = m.enterThread(mx+"$1", "") // from $11's summary row; its root is fetched
+	m, _ = m.loadOlderInThread()
+
+	edited := reply(mx+"$5", "an early reply, edited", 5)
+	edited.Edited, edited.EditedAt, edited.RevisionID = true, at(50), mx+"$e5"
+	m = update(t, m, incomingMsg{message: edited})
+	m = update(t, m, threadPageMsg{roomID: mx + "!a:x", root: mx + "$1", page: domain.TimelinePage{Messages: []domain.Message{
+		reply(mx+"$5", "an early reply", 5), reply(mx+"$11", "a late reply", 11), // read before the edit
+	}}})
+	shown := m.derivedFor().shown
+	if got := rowIDs(shown); !slices.Equal(got, []domain.EventID{mx + "$5", mx + "$11"}) {
+		t.Fatalf("the thread shows %v, want $5 $11", got)
+	}
+	if shown[0].Body != "an early reply, edited" {
+		t.Errorf("the thread shows $5 as %q, want its edit", shown[0].Body)
+	}
+	m = update(t, m, fetchedEventMsg{roomID: mx + "!a:x", message: msgAt(mx+"$1", "the root", 1)})
+	if got := rowIDs(m.derivedFor().shown); !slices.Equal(got, []domain.EventID{mx + "$1", mx + "$5", mx + "$11"}) {
+		t.Errorf("once its root lands the thread shows %v, want $1 $5 $11", got)
+	}
+	m, _ = m.closeThread()
+	if got := rowIDs(m.derivedFor().main); !slices.Equal(got, []domain.EventID{mx + "$10", mx + "$12"}) {
+		t.Errorf("the room shows %v, want $10 $12: the thread's root and early reply are from before them", got)
+	}
+}
+
 func rowIDs(msgs []domain.Message) []domain.EventID {
 	ids := make([]domain.EventID, len(msgs))
 	for i := range msgs {
@@ -55,11 +97,13 @@ func rowIDs(msgs []domain.Message) []domain.EventID {
 	return ids
 }
 
-// The open room's rows are always one unbroken stretch of its history reaching the newest
-// message, each row as the cache now holds it, whatever order frames (edits, deletions and
-// new messages, of loaded and unloaded messages) and pages (the cached timeline, the
-// network's newest page, older cached pages, each read at some point between its ask and
-// its landing) arrive in.
+// The open room shows one unbroken stretch of its history reaching the newest message, each
+// message as the cache now holds it, whatever order frames (edits, deletions and new
+// messages, of loaded and unloaded messages, in threads or not) and pages arrive in: the
+// cached timeline, the network's newest page, older cached pages, a thread's root fetched on
+// entering it and the thread's pages, each read at some point between its ask and its
+// landing. A thread's root and replies fetched from further back show in the thread, not
+// in the room.
 func TestTheLoadedRowsStayOneStretchOfTheRoom(t *testing.T) {
 	t.Parallel()
 	seeds := 200
@@ -74,10 +118,26 @@ func TestTheLoadedRowsStayOneStretchOfTheRoom(t *testing.T) {
 // pendingPage is a page asked for: read (a snapshot of the cache) at some step after the
 // ask, landing at some step after that.
 type pendingPage struct {
-	kind   string // "cached", "network" or "older"
+	kind   string // "cached", "network", "older", "root" or "thread"
 	anchor domain.EventID
 	read   bool
 	page   []domain.Message
+}
+
+// anchorBackend records where the client asked for an older cached page.
+type anchorBackend struct {
+	apitest.Nop
+	anchor domain.EventID
+}
+
+func (b *anchorBackend) MessagesAround(_ context.Context, _ domain.RoomID, event domain.EventID, _, _ int) ([]domain.Message, error) {
+	b.anchor = event
+	return nil, nil
+}
+
+func (b *anchorBackend) CachedTimeline(context.Context, domain.RoomID) ([]domain.Message, error) {
+	b.anchor = ""
+	return nil, nil
 }
 
 func walkFrames(t *testing.T, seed uint64, steps int) {
@@ -96,10 +156,25 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 
 	room := domain.RoomID(mx + "!a:x")
 	var cache []domain.Message
+	pos := func(id domain.EventID) int {
+		return slices.IndexFunc(cache, func(msg domain.Message) bool { return msg.ID == id })
+	}
+	roots := func() []domain.EventID {
+		var ids []domain.EventID
+		for i := range cache {
+			if cache[i].ThreadRoot == "" {
+				ids = append(ids, cache[i].ID)
+			}
+		}
+		return ids
+	}
 	made := 0
 	add := func() domain.Message {
 		made++
 		msg := msgAt(domain.EventID(fmt.Sprintf(mx+"$%d", made)), fmt.Sprintf("message %d", made), 10*made)
+		if ids := roots(); len(ids) > 0 && rng.IntN(2) == 0 {
+			msg.ThreadRoot = ids[rng.IntN(min(len(ids), 4))] // a reply in one of the oldest threads, which grow long
+		}
 		cache = append(cache, msg)
 		return msg
 	}
@@ -107,7 +182,8 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 		add()
 	}
 
-	m := sized(t, withRooms(t, newModel())) // opens !a:x
+	backend := &anchorBackend{}
+	m := sized(t, withRooms(t, starterNew(backend, config.Display{}))) // opens !a:x
 	if m.openRoom != room || !m.timeline.hist.loading {
 		fail("the walk expects !a:x open and its first pages asked for")
 	}
@@ -123,22 +199,64 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 		case "older":
 			// With no row loaded, the cache's newest (olderPageCmd).
 			p.page = newest(20)
-			if i := slices.IndexFunc(cache, func(msg domain.Message) bool { return msg.ID == p.anchor }); i >= 0 {
+			if i := pos(p.anchor); i >= 0 {
 				p.page = slices.Clone(cache[max(i-15, 0) : i+1])
 			}
+		case "root":
+			p.page = []domain.Message{cache[pos(p.anchor)]}
+		case "thread":
+			p.page = slices.DeleteFunc(slices.Clone(cache), func(msg domain.Message) bool { return msg.ThreadRoot != p.anchor })
 		}
 		log = append(log, fmt.Sprintf("the %s page is read: %v", p.kind, rowIDs(p.page)))
 	}
+	// deepest is the oldest message a room page brought: the room shows from it on.
+	var deepest domain.EventID
 	land := func(p *pendingPage) {
 		log = append(log, "the "+p.kind+" page lands")
+		if room := p.kind == "cached" || p.kind == "network" || p.kind == "older"; room && len(p.page) > 0 &&
+			(deepest == "" || pos(p.page[0].ID) < pos(deepest)) {
+			deepest = p.page[0].ID
+		}
 		switch p.kind {
 		case "cached":
 			m = update(t, m, cachedTimelineMsg{roomID: room, messages: p.page})
 		case "network":
 			m = update(t, m, timelineMsg{roomID: room, page: domain.TimelinePage{Messages: p.page}})
-		default:
+		case "older":
 			m = update(t, m, timelineMsg{roomID: room, fromCache: true, page: domain.TimelinePage{Messages: p.page}})
+		case "root":
+			if rng.IntN(3) == 0 {
+				log = append(log, "  (it failed)")
+				m = update(t, m, fetchedEventMsg{roomID: room, err: errors.New("unreachable")})
+				return
+			}
+			m = update(t, m, fetchedEventMsg{roomID: room, message: p.page[0]})
+		case "thread":
+			m = update(t, m, threadPageMsg{roomID: room, root: p.anchor, page: domain.TimelinePage{Messages: p.page}})
 		}
+		// What the thread asked for shows in it.
+		if (p.kind == "root" || p.kind == "thread") && m.thread.root == p.anchor {
+			shown := m.derivedFor().shown
+			for i := range p.page {
+				if c := cache[pos(p.page[i].ID)]; !c.Redacted && indexOfMessage(shown, c.ID) < 0 {
+					fail("the thread %s does not show %s, which its %s page brought", p.anchor, c.ID, p.kind)
+				}
+			}
+		}
+	}
+	// pick is a message to change: often one a page already read holds, so the page lands
+	// older than the frame.
+	pick := func() int {
+		var read []domain.EventID
+		for _, p := range pending {
+			if p.read {
+				read = append(read, rowIDs(p.page)...)
+			}
+		}
+		if len(read) > 0 && rng.IntN(2) == 0 {
+			return pos(read[rng.IntN(len(read))])
+		}
+		return rng.IntN(len(cache))
 	}
 	frame := func(i int, what string) {
 		log = append(log, fmt.Sprintf("frame: %s %s", cache[i].ID, what))
@@ -146,9 +264,9 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 	}
 
 	for step := range steps {
-		switch r := rng.IntN(11); {
+		switch r := rng.IntN(14); {
 		case r < 2 && len(cache) > 0:
-			i := rng.IntN(len(cache))
+			i := pick()
 			if cache[i].Redacted {
 				continue // a deleted message never regains words
 			}
@@ -157,29 +275,55 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 			cache[i].RevisionID = domain.EventID(fmt.Sprintf(mx+"$e%d", step))
 			frame(i, "edited")
 		case r == 2 && len(cache) > 0:
-			i := rng.IntN(len(cache))
+			i := pick()
 			cache[i].Body, cache[i].Redacted = "", true
 			frame(i, "deleted")
 		case r == 3:
 			add()
-			frame(len(cache)-1, "is new")
+			frame(len(cache)-1, fmt.Sprintf("is new (in thread %q)", cache[len(cache)-1].ThreadRoot))
 		case r == 10 && len(cache) > 0:
 			// History backfilled: a message older than every other.
 			made++
 			msg := msgAt(domain.EventID(fmt.Sprintf(mx+"$%d", made)), "backfilled", int(cache[0].Timestamp.Unix())-1)
 			cache = slices.Insert(cache, 0, msg)
 			frame(0, "is backfilled")
+		case r == 11 && len(m.derivedFor().main) > 0:
+			// From a message the room shows or a thread's summary row, whose root may be
+			// older than the loaded rows.
+			d := m.derivedFor()
+			ids := rowIDs(d.main)
+			if len(d.threads) > 0 && rng.IntN(2) == 0 {
+				ids = ids[:0] // a summary row, most often a thread reaching further back
+				for i := range d.threads {
+					ids = append(ids, d.threads[i].Root)
+				}
+			}
+			root := ids[rng.IntN(len(ids))]
+			fetching := m.thread.fetching
+			m, _ = m.enterThread(root, "")
+			log = append(log, fmt.Sprintf("the thread %s opens", root))
+			if !fetching && m.thread.fetching {
+				pending = append(pending, &pendingPage{kind: "root", anchor: root})
+				log = append(log, "its root is fetched")
+			}
+		case r == 12 && m.thread.open():
+			loading := m.thread.loading
+			m, _ = m.loadOlderInThread()
+			if !loading && m.thread.loading {
+				pending = append(pending, &pendingPage{kind: "thread", anchor: m.thread.root})
+				log = append(log, fmt.Sprintf("a page of the thread %s is asked", m.thread.root))
+			}
+		case r == 13 && m.thread.open():
+			m, _ = m.closeThread()
+			log = append(log, "the thread closes")
 		case r == 4:
 			loading := m.timeline.hist.loading
 			var cmd tea.Cmd
 			m, cmd = m.loadOlder()
 			if !loading && m.timeline.hist.loading && cmd != nil {
-				p := &pendingPage{kind: "older"}
-				if len(m.timeline.messages) > 0 {
-					p.anchor = m.timeline.messages[0].ID
-				}
-				pending = append(pending, p)
-				log = append(log, fmt.Sprintf("an older page is asked, before %q", p.anchor))
+				cmd() // records where it reads from
+				pending = append(pending, &pendingPage{kind: "older", anchor: backend.anchor})
+				log = append(log, fmt.Sprintf("an older page is asked, before %q", backend.anchor))
 			}
 		case r < 7:
 			if i := slices.IndexFunc(pending, func(p *pendingPage) bool { return !p.read }); i >= 0 {
@@ -193,7 +337,7 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 				land(p)
 			}
 		}
-		if err := oneStretch(m.timeline.messages, cache, m.timeline.hist.atStart); err != "" {
+		if err := oneStretch(m, cache, deepest); err != "" {
 			fail("%s", err)
 		}
 	}
@@ -203,36 +347,67 @@ func walkFrames(t *testing.T, seed uint64, steps int) {
 		}
 		land(p)
 	}
-	if err := oneStretch(m.timeline.messages, cache, m.timeline.hist.atStart); err != "" {
+	if err := oneStretch(m, cache, deepest); err != "" {
 		fail("once every page landed: %s", err)
 	}
 	if len(cache) > 0 && len(m.timeline.messages) == 0 {
 		fail("every page landed and no row is loaded")
 	}
+	// Paging back reaches the room's start, every message shown.
+	if m.thread.open() {
+		m, _ = m.closeThread() // a thread pages itself
+	}
+	for range len(cache) + 2 {
+		if m.timeline.hist.atStart {
+			break
+		}
+		var cmd tea.Cmd
+		if m, cmd = m.loadOlder(); cmd == nil {
+			fail("paging back stopped before the room's start")
+		}
+		cmd()
+		p := &pendingPage{kind: "older", anchor: backend.anchor}
+		log = append(log, fmt.Sprintf("an older page is asked, before %q", backend.anchor))
+		read(p)
+		land(p)
+	}
+	if !m.timeline.hist.atStart {
+		fail("paging back never reached the room's start")
+	}
+	if err := oneStretch(m, cache, deepest); err != "" {
+		fail("paged back to the start: %s", err)
+	}
 }
 
-// oneStretch is why rows are not cache's messages from rows' first to the newest, each as
-// cache holds it, starting at its first when atStart, or "".
-func oneStretch(rows, cache []domain.Message, atStart bool) string {
-	if len(rows) == 0 {
-		return ""
-	}
-	i := slices.IndexFunc(cache, func(msg domain.Message) bool { return msg.ID == rows[0].ID })
-	if i < 0 {
-		return fmt.Sprintf("row %s is not in the room", rows[0].ID)
-	}
-	if atStart && i > 0 {
-		return fmt.Sprintf("the room's start is loaded, yet the rows begin at %s, not %s", rows[0].ID, cache[0].ID)
-	}
-	want := cache[i:]
-	if !slices.Equal(rowIDs(rows), rowIDs(want)) {
-		return fmt.Sprintf("rows %v, want the stretch %v", rowIDs(rows), rowIDs(want))
-	}
-	for j := range rows {
-		if rows[j].Body != want[j].Body || rows[j].Redacted != want[j].Redacted {
-			return fmt.Sprintf("row %s shows %q (deleted %v), the cache holds %q (deleted %v)",
-				rows[j].ID, rows[j].Body, rows[j].Redacted, want[j].Body, want[j].Redacted)
+// oneStretch is why the room m shows is not cache's main timeline from deepest to the newest
+// (from the room's first message once m has loaded its start, from its first row before
+// any page brought one), or why a loaded message is not as cache holds it, or "".
+func oneStretch(m Model, cache []domain.Message, deepest domain.EventID) string {
+	for j := range m.timeline.messages {
+		msg := &m.timeline.messages[j]
+		i := slices.IndexFunc(cache, func(c domain.Message) bool { return c.ID == msg.ID })
+		if i < 0 {
+			return fmt.Sprintf("%s is loaded but not in the room", msg.ID)
 		}
+		if msg.Body != cache[i].Body || msg.Redacted != cache[i].Redacted {
+			return fmt.Sprintf("%s is loaded as %q (deleted %v), the cache holds %q (deleted %v)",
+				msg.ID, msg.Body, msg.Redacted, cache[i].Body, cache[i].Redacted)
+		}
+	}
+	main := m.derivedFor().main
+	var from int
+	switch {
+	case m.timeline.hist.atStart:
+	case deepest != "":
+		from = slices.IndexFunc(cache, func(c domain.Message) bool { return c.ID == deepest })
+	case len(main) == 0:
+		return ""
+	default:
+		from = slices.IndexFunc(cache, func(c domain.Message) bool { return c.ID == main[0].ID })
+	}
+	want, _ := domain.CollapseThreads(cache[from:])
+	if !slices.Equal(rowIDs(main), rowIDs(want)) {
+		return fmt.Sprintf("the room shows %v, want the stretch %v", rowIDs(main), rowIDs(want))
 	}
 	return ""
 }
