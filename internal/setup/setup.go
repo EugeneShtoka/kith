@@ -79,10 +79,21 @@ func ValidateDevice(dev config.Device) error {
 		errOf(SpellUnderline(dev.Spell.Underline)),
 		Completion(dev.Complete),
 		Bridges(dev.Bridges),
+		ProfileInUse(dev.ProfileInUse),
 	} {
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// ProfileInUse refuses a profile_in_use that can name no [[profile]]: blank but not
+// empty (profile names are trimmed). A name the config lacks is not refused: the
+// config is the bridge's and may change under the device, which asks again then.
+func ProfileInUse(name string) error {
+	if name != "" && strings.TrimSpace(name) == "" {
+		return fmt.Errorf("profile_in_use: %q names no profile (leave it empty for none)", name)
 	}
 	return nil
 }

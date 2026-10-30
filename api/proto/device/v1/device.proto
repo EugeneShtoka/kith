@@ -7,8 +7,13 @@ option go_package = "github.com/EugeneShtoka/kith/internal/api/device/v1;devicev
 // DeviceService is served by kith-relay, the desktop window's link to kithd, beside the
 // BackendService it forwards: what this device is, which only the relay knows.
 service DeviceService {
-  // Device is where this device's requests go and the profile it runs in.
+  // Device is where this device's requests go, the profiles the config defines, and
+  // the one this device last ran in. Each call reads the files again, so a window asks
+  // after a config change (ConfigChanged).
   rpc Device(DeviceRequest) returns (DeviceResponse);
+  // ChooseProfile remembers a profile as the one this device runs in (device.toml's
+  // profile_in_use), refusing a name the config lacks (INVALID_ARGUMENT).
+  rpc ChooseProfile(ChooseProfileRequest) returns (ChooseProfileResponse);
 }
 
 message DeviceRequest {}
@@ -16,7 +21,20 @@ message DeviceRequest {}
 message DeviceResponse {
   // socket is the local kithd's socket, which the relay forwards BackendService to.
   string socket = 1;
-  // profile is the [[profile]] this device runs in, as the config spells it: the
-  // config's first.
+  // profile is the [[profile]] this device last ran in, as the config spells it; ""
+  // when none was ever chosen, or the config no longer has it. With one profile a
+  // window runs in it unasked; with several and none here, it asks.
   string profile = 2;
+  // profiles are the names of the config's [[profile]]s, in its order.
+  repeated string profiles = 3;
+}
+
+message ChooseProfileRequest {
+  // name is a profile's name, in any case.
+  string name = 1;
+}
+
+message ChooseProfileResponse {
+  // profile is the profile now remembered, as the config spells it.
+  string profile = 1;
 }

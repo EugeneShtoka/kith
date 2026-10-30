@@ -65,7 +65,7 @@ Device keys:
 
 | table | keys |
 | --- | --- |
-| top level | `terminal`, `[keys]`, `[composer]`, `[[command]]` |
+| top level | `terminal`, `profile_in_use`, `[keys]`, `[composer]`, `[[command]]` |
 | `[display]` | `color_messages`, `direction`, `emoji`, `fps`, `filing_spaces`, `hyperlinks`, `max_name_length`, `media`, `mouse`, `network_colors`, `open_in_insert_mode`, `reactions`, `read_delay`, `read_rule`, `rooms`, `row_numbers`, `send_receipts`, `send_typing`, `show_archived`, `skin_tone`, `theme`, `threads`, `typing`, `unread`, `unread_line` |
 | `[notifications]` | how this device shows one: `enabled`, `desktop`, `command`, `sound`, `sound_command`, `sounds`, `timeout`, `title`, `body` |
 | `[clipboard]` | all but `auto_copy` |

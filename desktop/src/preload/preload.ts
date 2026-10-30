@@ -19,6 +19,9 @@ const kith: KithBridge = {
       port1.close();
     };
   },
+  unread(count) {
+    ipcRenderer.send(channels.unread, count);
+  },
 };
 
 contextBridge.exposeInMainWorld("kith", kith);

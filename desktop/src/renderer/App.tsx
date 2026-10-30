@@ -1,18 +1,10 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
-import {
-  BackendService,
-  Change,
-  NetworkPhase,
-  type NetworkStatus,
-  type StatusResponse,
-} from "../gen/backend/v1/services_pb";
-import { type DeviceResponse, DeviceService } from "../gen/device/v1/device_pb";
-import { call, subscribe } from "./kith";
-
-/** Where the window's link to kithd is: its Changed stream, held open by main. */
-type Link = { state: "connecting" } | { state: "attached" } | { state: "detached"; error: string };
+import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse } from "../gen/backend/v1/services_pb";
+import type { Room, Unread } from "../gen/backend/v1/types_pb";
+import { unreadOf } from "./rooms";
+import { type Link, type Seat, Session, type View } from "./session";
 
 const phases: Record<NetworkPhase, string> = {
   [NetworkPhase.UNSPECIFIED]: "unknown",
@@ -23,63 +15,199 @@ const phases: Record<NetworkPhase, string> = {
 };
 
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" });
+const clock = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
 
 export function App() {
-  const [device, setDevice] = useState<DeviceResponse>();
-  const [link, setLink] = useState<Link>({ state: "connecting" });
-  const [status, setStatus] = useState<StatusResponse>();
-  const [problem, setProblem] = useState<string>();
-
+  const [session] = useState(() => new Session());
   useEffect(() => {
-    const failed = (err: unknown) => {
-      setProblem(err instanceof Error ? err.message : String(err));
+    session.start();
+    return () => {
+      session.stop();
     };
-    // Status is read when the link opens, when an account changes, and when the link is
-    // lost: a kithd waiting on someone answers Status and nothing else.
-    const readStatus = () => {
-      call(BackendService.method.status, {}).then((s) => {
-        setStatus(s);
-        setProblem(undefined);
-      }, failed);
-    };
-    call(DeviceService.method.device, {}).then(setDevice, failed);
-    return subscribe(BackendService.method.changed, {}, (event) => {
-      switch (event.kind) {
-        case "attached":
-          setLink({ state: "attached" });
-          readStatus();
-          break;
-        case "frames":
-          if (event.frames.some((f) => f.change === Change.ACCOUNTS)) {
-            readStatus();
-          }
-          break;
-        case "detached":
-          setLink({ state: "detached", error: event.error });
-          readStatus();
-          break;
-        case "refused":
-          failed(new Error(event.error));
-          break;
-      }
-    });
-  }, []);
+  }, [session]);
+  const view = useSyncExternalStore(session.subscribe, session.snapshot);
+  useEffect(() => {
+    document.title = view.unreadTotal > 0 ? `kith (${String(view.unreadTotal)})` : "kith";
+  }, [view.unreadTotal]);
 
   return (
     <main>
       <header>
         <h1>kith</h1>
-        {device && <span className="profile">{device.profile}</span>}
+        {view.profiles.length > 1 && view.profile !== "" && (
+          <select
+            aria-label="Profile"
+            value={view.profile}
+            onChange={(e) => {
+              void session.choose(e.target.value);
+            }}
+          >
+            {view.profiles.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        )}
       </header>
-      <Banner link={link} status={status} />
-      {problem && <p className="problem">{problem}</p>}
-      {status && <Status status={status} />}
-      {device && (
+      {view.problem && <p className="problem">{view.problem}</p>}
+      <Body view={view} session={session} />
+      {view.socket && (
         <footer>
-          kithd at <code>{device.socket}</code>, through kith-relay
+          kithd at <code>{view.socket}</code>, through kith-relay
         </footer>
       )}
     </main>
+  );
+}
+
+function Body({ view, session }: { view: View; session: Session }) {
+  if (view.profile === "") {
+    return view.profiles.length > 0 ? <Picker profiles={view.profiles} session={session} /> : null;
+  }
+  if (view.seat.state !== "seated") {
+    return <SeatState seat={view.seat} profile={view.profile} session={session} />;
+  }
+  return (
+    <>
+      <Banner link={view.link} status={view.status} />
+      <div className="columns">
+        {/* The rail (places, tags, spaces) comes with kithd's Rail. */}
+        <nav className="rail" aria-label="Places">
+          <span className="place">All rooms</span>
+        </nav>
+        <section className="rooms" aria-label="Rooms">
+          {view.invites.length > 0 && <Invites invites={view.invites} session={session} />}
+          <ul>
+            {view.rooms.map((r) => (
+              <RoomRow key={r.id} room={r} unread={view.unread.get(r.id)} />
+            ))}
+          </ul>
+        </section>
+      </div>
+      {view.status && (
+        <details>
+          <summary>Connection</summary>
+          <Status status={view.status} />
+        </details>
+      )}
+    </>
+  );
+}
+
+function Picker({ profiles, session }: { profiles: readonly string[]; session: Session }) {
+  return (
+    <section className="picker">
+      <h2>Which profile should this window run in?</h2>
+      <p className="detail">It is remembered for the next start; the profile menu changes it.</p>
+      <ul>
+        {profiles.map((p) => (
+          <li key={p}>
+            <button
+              type="button"
+              onClick={() => {
+                void session.choose(p);
+              }}
+            >
+              {p}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function SeatState({ seat, profile, session }: { seat: Seat; profile: string; session: Session }) {
+  const takeOver = (label: string) => (
+    <button
+      type="button"
+      onClick={() => {
+        session.takeOver();
+      }}
+    >
+      {label}
+    </button>
+  );
+  switch (seat.state) {
+    case "none":
+    case "asking":
+    case "seated":
+      return <p className="banner">Opening {profile}…</p>;
+    case "taken":
+      return (
+        <p className="banner waiting">
+          {profile} is open in another window{seat.holder && <> ({holderText(seat.holder)})</>}. {takeOver("Take over")}
+        </p>
+      );
+    case "steppedAside":
+      return (
+        <p className="banner waiting">
+          {profile} was opened in another window. {takeOver("Take it back")}
+        </p>
+      );
+  }
+}
+
+/** holderText reads like "pid 4312 on laptop, since 10:41", as the TUI says it. */
+function holderText(h: SeatHolder): string {
+  let text = `pid ${String(h.pid)}`;
+  if (h.tty) {
+    text += ` on ${h.tty}`;
+  }
+  if (h.host) {
+    text += ` (${h.host})`;
+  }
+  if (h.sinceUnixMs > 0n) {
+    text += `, since ${clock.format(new Date(Number(h.sinceUnixMs)))}`;
+  }
+  return text;
+}
+
+function Invites({ invites, session }: { invites: readonly Room[]; session: Session }) {
+  return (
+    <section className="invites" aria-label="Invitations">
+      <h2>Invitations</h2>
+      <ul>
+        {invites.map((r) => (
+          <li key={r.id}>
+            <span dir="auto">{r.name || r.id}</span>
+            {r.invitedBy && (
+              <span className="detail" dir="auto">
+                {" "}
+                from {r.invitedBy}
+              </span>
+            )}{" "}
+            <button
+              type="button"
+              onClick={() => {
+                void session.accept(r.id);
+              }}
+            >
+              Accept
+            </button>{" "}
+            <button
+              type="button"
+              onClick={() => {
+                void session.decline(r.id);
+              }}
+            >
+              Decline
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function RoomRow({ room, unread }: { room: Room; unread: Unread | undefined }) {
+  const { count, mentions } = unreadOf(unread);
+  return (
+    <li className={count > 0 || unread?.marked ? "room unread" : "room"}>
+      <span dir="auto">{room.name || room.id}</span>
+      {count > 0 && <span className={mentions > 0 ? "badge mention" : "badge"}>{count}</span>}
+    </li>
   );
 }
 
@@ -93,7 +221,7 @@ function Banner({ link, status }: { link: Link; status: StatusResponse | undefin
     case "detached":
       return <p className="banner lost">kithd is not reachable ({link.error}). Trying again.</p>;
     case "attached":
-      return <p className="banner ok">Connected</p>;
+      return null;
   }
 }
 
