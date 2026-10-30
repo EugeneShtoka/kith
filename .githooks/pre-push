@@ -24,11 +24,33 @@ gates() {
 	local target=quick
 	if [ -n "${KITH_FULL_CHECK:-}" ] || grep -q ' refs/tags/' <<<"$updates"; then
 		target=check
+	elif only_deletions; then
+		return 0 # nothing leaves this machine but the deletions
+	elif docs_only; then
+		target=docs-check
+		echo "pre-push: only docs change, so only the docs gate runs (make docs-check)" >&2
 	fi
 	if ! make -s "$target" CHECK_STRICT=1; then
 		echo "pre-push: make $target failed (above) — CI would fail the same way." >&2
 		exit 1
 	fi
+}
+# only_deletions reports whether the push deletes branches and sends nothing.
+only_deletions() {
+	! awk '$2 != "0000000000000000000000000000000000000000" { found = 1 } END { exit !found }' <<<"$updates"
+}
+
+# docs_only reports whether every branch pushed changes docs alone since it left main
+# (scripts/docs-only.sh decides what is docs); a deletion changes nothing.
+docs_only() {
+	local zero=0000000000000000000000000000000000000000 _lref oid _rref _roid base any=0
+	while read -r _lref oid _rref _roid; do
+		[ -z "$oid" ] || [ "$oid" = "$zero" ] && continue
+		base=$(git merge-base origin/main "$oid" 2>/dev/null) || return 1
+		git diff --name-only "$base" "$oid" | bash scripts/docs-only.sh || return 1
+		any=1
+	done <<<"$updates"
+	[ "$any" -eq 1 ]
 }
 trap 'status=$?; [ "$status" -eq 0 ] && gates; exit "$status"' EXIT
 

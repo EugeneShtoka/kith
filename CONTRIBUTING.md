@@ -52,7 +52,10 @@ and `go vet` on the staged snapshot (not the working tree, so unstaged edits can
 hide nor cause a failure). The pre-push hook scans history for secrets, then runs `make
 quick` (below): the gates that answer in about a minute. Pushing a tag, or
 `KITH_FULL_CHECK=1 git push`, runs `make check CHECK_STRICT=1` instead, every CI gate.
-`--no-verify` skips a hook.
+A push whose branches change docs alone (`scripts/docs-only.sh`: Markdown outside
+`testdata/`, and `docs/`) runs `make docs-check`, the Markdown lint and the tests that
+read `docs/`; CI does the same for such a pull request, the other gates reporting
+skipped. A push that only deletes branches runs no gate. `--no-verify` skips a hook.
 
 ## The `goolm` build tag
 
