@@ -66,13 +66,12 @@ describe("the Messages stream main holds", () => {
     await until(() => s.count("attached") === 1 && kithd.streams(backend.messages) === 1, "the stream open");
     commit(10);
     await until(() => s.posted().length === 10, "the first changes posted");
-    commit(3000);
-    await new Promise((resolve) => setTimeout(resolve, 2)); // a little of the burst read
-    await kithd.stop(); // the rest cut off: written, never read
+    commit(1500);
+    await kithd.stop(); // the burst cut off, as much of its first half read as happened to be
     await until(() => s.count("detached") === 1, "the stream to end");
     const before = s.posted().length;
-    expect(before).toBeLessThan(3010); // the premise: cut off mid-burst
-    commit(50); // while kithd is away, the cache still changes (another writer)
+    expect(before).toBeLessThanOrEqual(1510); // the premise: the burst's second half was never sent
+    commit(1550); // while kithd is away, the cache still changes: the burst's second half, then another writer's
     await kithd.start();
     await until(() => s.posted().length === 3060, "the rest of the burst", 10_000);
     s.stop();
