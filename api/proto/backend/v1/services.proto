@@ -1305,6 +1305,17 @@ message PresentResponse {}
 
 message FollowStreamResponse {
   string uri = 1;
+  // The chats the link names among the listening window's profile's rooms, as each
+  // account in them sees it, so a client follows it without reading every network's
+  // links itself. None when the profile holds no chat it names.
+  repeated LinkedChat chats = 2;
+}
+
+// LinkedChat is one chat a link names, and the message in it the link names ("" for the
+// chat alone).
+message LinkedChat {
+  string room_id = 1;
+  string event_id = 2;
 }
 
 // ── Notifications ──

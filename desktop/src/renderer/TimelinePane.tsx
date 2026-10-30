@@ -1,5 +1,6 @@
-// The open room's timeline, drawn: the main timeline's messages (a thread's replies are
-// the thread pane's), oldest at the top, scrolled back a page at a time.
+// The open room's timeline, drawn: the main timeline's messages, each thread a row under
+// the message it hangs from (its replies are the thread pane's), oldest at the top,
+// scrolled back a page at a time.
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useEffect, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
@@ -10,6 +11,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { attachmentURL } from "./media";
 import type { Session } from "./session";
 import { FormattedText } from "./spans";
+import { collapse, type ThreadSummary } from "./threads";
 import { tally, type TimelineView } from "./timeline";
 
 /** Where the list's indices start: lowered by each page put on top, so scrollback holds still. */
@@ -28,7 +30,7 @@ export function TimelinePane({
   composer: ComposerView | undefined;
   session: Session;
 }) {
-  const shown = t.rows.filter((m) => m.threadRoot === "");
+  const { main: shown, threads } = collapse(t.rows);
   // The index of the first row: lowered by as many rows as a page put above it.
   const [anchor, setAnchor] = useState({ room: t.room, id: shown[0]?.id ?? "", index: firstIndex });
   const top = shown[0]?.id ?? "";
@@ -88,6 +90,7 @@ export function TimelinePane({
               newSince={unreadLine && before !== undefined && before.id === t.unreadFrom}
               quoted={m.replyTo === "" ? undefined : (byId.get(m.replyTo) ?? t.quotes.get(m.replyTo))}
               reactions={t.reactions.get(m.id)}
+              threads={threads.filter((th) => th.anchor === m.id || (th.anchor === "" && before === undefined))}
               composer={composer}
               session={session}
             />
@@ -99,7 +102,7 @@ export function TimelinePane({
 }
 
 /** useWatched: the window is focused and showing, so what it shows is being read. */
-function useWatched(): boolean {
+export function useWatched(): boolean {
   const now = () => document.hasFocus() && document.visibilityState === "visible";
   const [watched, setWatched] = useState(now);
   useEffect(() => {
@@ -118,12 +121,14 @@ function useWatched(): boolean {
   return watched;
 }
 
-function Row({
+/** Row is one message, in the room's timeline or a thread's pane (threads: none). */
+export function Row({
   m,
   target,
   newSince,
   quoted,
   reactions,
+  threads,
   composer,
   session,
 }: {
@@ -133,6 +138,8 @@ function Row({
   newSince: boolean;
   quoted: Message | undefined;
   reactions: readonly Reaction[] | undefined;
+  /** The threads drawn under it; undefined in a thread's pane, where none starts. */
+  threads: readonly ThreadSummary[] | undefined;
   composer: ComposerView | undefined;
   session: Session;
 }) {
@@ -164,13 +171,38 @@ function Row({
           ))}
         </ul>
       )}
-      {composer !== undefined && !m.redacted && <Actions m={m} c={composer} session={session} />}
+      {threads?.map((th) => (
+        <button
+          key={th.root}
+          type="button"
+          className="thread-row"
+          onClick={() => {
+            session.openThread(th.root);
+          }}
+        >
+          {th.count === 1 ? "1 reply" : `${String(th.count)} replies`}
+          {th.rootLoaded ? "" : " in a thread"} · <span dir="auto">{th.latestSenderName || th.latestSender}</span>
+        </button>
+      ))}
+      {composer !== undefined && !m.redacted && (
+        <Actions m={m} c={composer} startsThread={threads !== undefined} session={session} />
+      )}
     </article>
   );
 }
 
 /** Actions are what the person can do with a message: answer it, react, correct or delete their own. */
-function Actions({ m, c, session }: { m: Message; c: ComposerView; session: Session }) {
+function Actions({
+  m,
+  c,
+  startsThread,
+  session,
+}: {
+  m: Message;
+  c: ComposerView;
+  startsThread: boolean;
+  session: Session;
+}) {
   const [open, setOpen] = useState<"palette" | "picker" | "delete" | undefined>(undefined);
   const mine = c.selves.has(m.sender);
   const react = (key: string) => {
@@ -187,6 +219,16 @@ function Actions({ m, c, session }: { m: Message; c: ComposerView; session: Sess
       >
         Reply
       </button>
+      {startsThread && (
+        <button
+          type="button"
+          onClick={() => {
+            session.openThread(m.id);
+          }}
+        >
+          Thread
+        </button>
+      )}
       <button
         type="button"
         aria-expanded={open === "palette"}

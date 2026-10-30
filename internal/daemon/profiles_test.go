@@ -12,7 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
+
 	"github.com/EugeneShtoka/kith/internal/api"
+	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
+	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
@@ -914,4 +918,43 @@ func TestFollowHandsALinkToTheWindowPlacedForIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	follow("matrix:roomid/group:x", direct) // open beats the profile
+}
+
+// A link reaches a window with the chats it names in that window's profile, and only
+// those: a link to a room outside it names none, so the window neither opens nor learns it.
+func TestALinkNamesOnlyTheChatsOfTheWindowsProfile(t *testing.T) {
+	t.Parallel()
+	dm, group := domain.RoomID(mx+"!dm:x"), domain.RoomID(mx+"!group:x")
+	w := &profileWorld{Nop: nopWithChannels()}
+	w.set([]domain.Room{{ID: dm, IsDirect: true}, {ID: group}}, nil, nil)
+	h := profiledServe(t, w, config.Profile{Name: "direct", Include: []string{"dm"}}, config.Profile{Name: "groups", Include: []string{"group"}})
+	c := backendv1connect.NewBackendServiceClient(daemon.Dial(h.path), "http://kithd")
+	listen := connect.NewRequest(&v1.FollowStreamRequest{Client: "w"})
+	listen.Header().Set("Kith-Profile", "direct")
+	st, err := c.FollowStream(t.Context(), listen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.ResponseHeader() // listening
+	for uri, want := range map[string][]string{
+		"matrix:roomid/dm:x/e/evt": {string(dm) + " " + mx + "$evt"},
+		"matrix:roomid/group:x":    {},
+		"matrix:u/dana:x":          {},
+	} {
+		follow := connect.NewRequest(&v1.FollowRequest{Uri: uri})
+		follow.Header().Set("Kith-Profile", "groups")
+		if r, err := c.Follow(t.Context(), follow); err != nil || !r.Msg.GetDelivered() {
+			t.Fatalf("follow %s: delivered %v, %v", uri, r.Msg.GetDelivered(), err)
+		}
+		if !st.Receive() {
+			t.Fatalf("%s never reached the window: %v", uri, st.Err())
+		}
+		got := []string{}
+		for _, chat := range st.Msg().GetChats() {
+			got = append(got, chat.GetRoomId()+" "+chat.GetEventId())
+		}
+		if st.Msg().GetUri() != uri || !slices.Equal(got, want) {
+			t.Errorf("%s reached the window as %s naming %v, want %v", uri, st.Msg().GetUri(), got, want)
+		}
+	}
 }

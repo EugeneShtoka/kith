@@ -61,6 +61,11 @@ const calls = new Map<string, DescMethodUnary>(
     backend.replaceDraft,
     // Search: kithd answers it in the profile's rooms only.
     backend.searchMessages,
+    // Threads: a thread's older replies, and its receipt.
+    backend.threadPage,
+    backend.markThreadRead,
+    // Links: the room open, which kithd hands a clicked link by (as the seat, below).
+    backend.present,
     device.device,
     device.chooseProfile,
     device.deviceSettings,
@@ -75,6 +80,7 @@ const streams = new Map<string, DescMethodServerStreaming>(
     backend.invites,
     backend.messages,
     backend.reactions,
+    backend.followStream,
   ].map((m) => [m.name, m]),
 );
 
@@ -126,8 +132,8 @@ export class Gate {
     if (invited !== undefined) {
       await this.mustBeInvited(invited(input), header);
     }
-    if (method.name === backend.replaceDraft.name) {
-      this.asTheSeat(input as MessageShape<typeof backend.replaceDraft.input>);
+    if (method.name === backend.replaceDraft.name || method.name === backend.present.name) {
+      this.asTheSeat(input as MessageShape<typeof backend.replaceDraft.input | typeof backend.present.input>);
     }
     const response = await this.transport.unary(method, undefined, undefined, header, input).catch((err: unknown) => {
       // A message gone from its network, or one kithd holds no copy of, is an answer: the
@@ -151,6 +157,9 @@ export class Gate {
     const input = decode(method, request);
     const header = this.header(method);
     let again = () => input;
+    if (method.name === backend.followStream.name) {
+      this.asTheSeat(input as MessageShape<typeof backend.followStream.input>);
+    }
     if (method.name === backend.seat.name) {
       // The seat is asked for from this machine, whatever the window says; and a take by
       // force is forced once: opened again (kithd restarted), it is asked for, so a
@@ -273,12 +282,13 @@ export class Gate {
    * asTheSeat names the window's seat in this profile on a draft write, whatever the
    * window says: kithd refuses it once another window has the seat (daemon seats.write),
    * so a window that stepped aside never writes over the one that took over. A window
-   * asking for no seat here writes none.
+   * asking for no seat here writes none. Its links are listened for, and what it has
+   * open told, as the seat too: the window cannot speak for another.
    */
-  private asTheSeat(request: MessageShape<typeof backend.replaceDraft.input>): void {
+  private asTheSeat(request: { client: string }): void {
     const seat = [...this.seats.values()].find((s) => s.profile === this.profile);
     if (seat === undefined || seat.client === "") {
-      throw new Refused(`kith: the window writes drafts only from its seat in ${this.profile}`);
+      throw new Refused(`kith: the window speaks only as its seat in ${this.profile}`);
     }
     request.client = seat.client;
   }

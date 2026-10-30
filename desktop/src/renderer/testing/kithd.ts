@@ -14,6 +14,7 @@ import {
 
 import {
   BackendService,
+  type FollowStreamResponse,
   type RailResponse,
   RailResponseSchema,
   RailRowKind,
@@ -51,7 +52,9 @@ interface Sub {
   profile: string;
   request: MessageShape<DescMethod["input"]>;
   listener: (event: StreamEvent) => void;
+  /** Ended: by main (what it posted before still arrives), or by the window (dropped). */
   closed: boolean;
+  dropped: boolean;
 }
 
 /** A profile's data in kithd. */
@@ -124,6 +127,10 @@ export class Kithd {
   readonly attached: string[] = [];
   /** Sends of files still to fail. */
   failAttach = 0;
+  /** The links that reached the window, in order (main posted them, the window's port took them). */
+  readonly linksArrived: FollowStreamResponse[] = [];
+  /** What each window last told kithd it has open (Present), by client. */
+  readonly presented = new Map<string, string>();
   private held: (() => void)[] = [];
   private up = true;
   /** main's profile, as the gate keeps it. */
@@ -350,10 +357,13 @@ export class Kithd {
     this.profile = profile;
     for (const s of this.open()) {
       if (s.profile !== profile) {
-        // Main posts the refusal, then closes the port: it is the stream's last word.
+        // Main posts the refusal, then closes the port: it is the stream's last word, after
+        // whatever it posted before.
         this.close(s);
         void later().then(() => {
-          s.listener({ kind: "refused", error: `left ${s.profile}` });
+          if (!s.dropped) {
+            s.listener({ kind: "refused", error: `left ${s.profile}` });
+          }
         });
       }
     }
@@ -537,6 +547,25 @@ export class Kithd {
         this.receipts.push(`${r.roomId} ${r.eventId} ${r.private ? "private" : "public"}`);
         return reply(backend.markRead, {});
       }
+      case "MarkThreadRead": {
+        const r = request as MessageShape<typeof backend.markThreadRead.input>;
+        this.receipts.push(`${r.roomId} ${r.root} ${r.eventId} ${r.private ? "private" : "public"}`);
+        return reply(backend.markThreadRead, {});
+      }
+      case "Present": {
+        const r = request as MessageShape<typeof backend.present.input>;
+        this.presented.set(r.client, r.openRoomId);
+        return reply(backend.present, {});
+      }
+      case "ThreadPage": {
+        // The thread's replies before from, newest first, two a page (Matrix's relations).
+        const r = request as MessageShape<typeof backend.threadPage.input>;
+        const replies = (p.messages.get(r.roomId) ?? []).filter((m) => m.threadRoot === r.root);
+        const before = r.from === "" ? replies.length : replies.findIndex((m) => m.id === r.from);
+        const from = Math.max(0, before - 2);
+        const next = from > 0 ? (replies[from]?.id ?? "") : "";
+        return reply(backend.threadPage, { page: { messages: replies.slice(from, before), next } });
+      }
       default:
         throw new Error(`the fake does not answer ${name}`);
     }
@@ -553,6 +582,7 @@ export class Kithd {
       request: fromBinary(method.input, bytes),
       listener,
       closed: false,
+      dropped: false,
     };
     if (this.profile === "") {
       this.refused.push(name);
@@ -564,6 +594,7 @@ export class Kithd {
       this.attach(sub);
     }
     return () => {
+      sub.dropped = true; // the window closed its port: nothing more arrives
       this.close(sub);
     };
   }
@@ -596,13 +627,40 @@ export class Kithd {
     this.post(sub, { kind: "frames", frames: [toBinary(method.output, create(method.output, frame))] });
   }
 
-  /** post delivers an event later, as a port does, and never once the stream is closed. */
-  private post(sub: Sub, event: StreamEvent): void {
+  /**
+   * post delivers an event later, as a port does: none once the stream is closed, and
+   * none posted before once the window closed its port.
+   */
+  private post(sub: Sub, event: StreamEvent, arrived?: () => void): void {
+    if (sub.closed) {
+      return;
+    }
     void later().then(() => {
-      if (!sub.closed) {
+      if (!sub.dropped) {
         sub.listener(event);
+        arrived?.();
       }
     });
+  }
+
+  /**
+   * follow is kithd handing profile's window a link to uri (Follow): on its link stream
+   * there, with the chats uri names among the profile's rooms (named by id, a room's own
+   * ID or "room/event"): the frame sent, or undefined when no link stream is open
+   * there (kithd hands it to another window).
+   */
+  follow(profile: string, uri: string): FollowStreamResponse | undefined {
+    const p = this.of(profile);
+    const [room = "", event = ""] = uri.split("/");
+    const chats = p.rooms.some((r) => r.id === room) ? [{ roomId: room, eventId: event }] : [];
+    const open = this.open(backend.followStream.name).filter((s) => s.profile === profile);
+    const frame = create(backend.followStream.output, { uri, chats });
+    for (const s of open) {
+      this.post(s, { kind: "frames", frames: [toBinary(backend.followStream.output, frame)] }, () => {
+        this.linksArrived.push(frame);
+      });
+    }
+    return open.length > 0 ? frame : undefined;
   }
 }
 

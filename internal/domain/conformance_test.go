@@ -281,3 +281,56 @@ func TestTheSearchTableIsWhatGoParses(t *testing.T) {
 		}
 	}
 }
+
+// CollapseThreads and ThreadMessages over the table's rooms.
+func TestTheThreadTableIsWhatGoGroups(t *testing.T) {
+	t.Parallel()
+	type summary struct {
+		Root             string `json:"root"`
+		Count            int    `json:"count"`
+		Latest           string `json:"latest"`
+		LatestSender     string `json:"latestSender,omitempty"`
+		LatestSenderName string `json:"latestSenderName,omitempty"`
+		Anchor           string `json:"anchor"`
+		RootLoaded       bool   `json:"rootLoaded"`
+	}
+	var table struct {
+		Cases []struct {
+			Name     string              `json:"name"`
+			Rows     []confRow           `json:"rows"`
+			Main     []string            `json:"main"`
+			Threads  []summary           `json:"threads"`
+			ThreadOf map[string][]string `json:"threadOf"`
+		} `json:"cases"`
+	}
+	readTable(t, "threads.json", &table)
+	if len(table.Cases) == 0 {
+		t.Fatal("threads.json has no cases")
+	}
+	ids := func(msgs []Message) []string {
+		out := []string{}
+		for i := range msgs {
+			out = append(out, string(msgs[i].ID))
+		}
+		return out
+	}
+	for _, c := range table.Cases {
+		msgs := messagesOf(c.Rows)
+		main, threads := CollapseThreads(msgs)
+		got := []summary{}
+		for _, th := range threads {
+			got = append(got, summary{
+				Root: string(th.Root), Count: th.Count, Latest: string(th.Latest), LatestSender: th.LatestSender,
+				LatestSenderName: th.LatestSenderName, Anchor: string(th.Anchor), RootLoaded: th.RootLoaded,
+			})
+		}
+		if !slices.Equal(ids(main), c.Main) || !reflect.DeepEqual(got, c.Threads) {
+			t.Errorf("%s: main %v, threads %+v; the table says %v, %+v", c.Name, ids(main), got, c.Main, c.Threads)
+		}
+		for root, want := range c.ThreadOf {
+			if got := ids(ThreadMessages(msgs, EventID(root))); !slices.Equal(got, want) {
+				t.Errorf("%s: thread %q holds %v, the table says %v", c.Name, root, got, want)
+			}
+		}
+	}
+}

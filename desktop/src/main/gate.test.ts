@@ -109,11 +109,23 @@ const allowedCalls = [
   "Drafts",
   "ReplaceDraft",
   "SearchMessages",
+  "ThreadPage",
+  "MarkThreadRead",
+  "Present",
   "Device",
   "ChooseProfile",
   "DeviceSettings",
 ];
-const allowedStreams = ["Changed", "ConfigChanged", "Seat", "UnreadStream", "Invites", "Messages", "Reactions"];
+const allowedStreams = [
+  "Changed",
+  "ConfigChanged",
+  "Seat",
+  "UnreadStream",
+  "Invites",
+  "Messages",
+  "Reactions",
+  "FollowStream",
+];
 
 // A request each listed call is answered for: an invitation's room, a profile the config has.
 const requests: Record<string, Uint8Array> = {
@@ -189,12 +201,31 @@ describe("the gate", () => {
     expect(written()).toEqual(["w", "w"]);
   });
 
+  it("listens for links and tells what is open as the window's seat, whatever the window names, and not without one", async () => {
+    await device();
+    const as = (client: string) => bytes(backend.followStream.input, { client });
+    const present = (client: string) =>
+      outcome(window, "Present", bytes(backend.present.input, { client, openRoomId: "!r:x" }));
+    expect(await present("someone-else")).toBe("refused");
+    expect(opened(window, "FollowStream", as("someone-else"))).toBe("refused");
+    const seat = listen("Seat", bytes(backend.seat.input, { client: "w" }));
+    expect(await present("someone-else")).toBe("answered");
+    const links = listen("FollowStream", as("someone-else"));
+    await until(() => kithd.received.some((r) => r.method === "FollowStream"), "the link stream to reach kithd");
+    const listening = kithd.received.filter((r) => r.method === "FollowStream");
+    expect(listening.map((r) => (r.message as MessageShape<typeof backend.followStream.input>).client)).toEqual(["w"]);
+    links.stop();
+    seat.stop();
+  });
+
   it("opens only the streams on the list, and refuses every other name before kithd", async () => {
     await device();
+    const seat = listen("Seat", bytes(backend.seat.input, { client: "w" })); // links are the seat's
     for (const name of names) {
       const want = typeof name === "string" && allowedStreams.includes(name) ? "opened" : "refused";
       expect(opened(window, name, empty), String(name)).toBe(want);
     }
+    seat.stop();
   });
 
   // Electron's WebFrameMain: the window's top frame, or anything that is not it.

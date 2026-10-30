@@ -1,0 +1,94 @@
+{
+  "about": "How a room's messages (rows, in timeline order) split into the main timeline and its threads (domain.CollapseThreads), and what a thread's pane shows (domain.ThreadMessages, for each root in threadOf): a reply's thread_root, and a plain reply to a threaded message, put it in the thread. Read by internal/domain's conformance test and the desktop's thread tests. Times are Unix milliseconds; an absent field is its zero.",
+  "cases": [
+    {
+      "name": "no threads: everything is the main timeline",
+      "rows": [
+        { "id": "$a", "ts": 1000 },
+        { "id": "$b", "ts": 2000, "replyTo": "$a" }
+      ],
+      "main": ["$a", "$b"],
+      "threads": [],
+      "threadOf": {}
+    },
+    {
+      "name": "replies leave for a summary under their root",
+      "rows": [
+        { "id": "$root", "ts": 1000, "sender": "@a" },
+        { "id": "$x", "ts": 2000, "sender": "@b", "senderName": "Bea", "threadRoot": "$root" },
+        { "id": "$c", "ts": 3000 },
+        { "id": "$y", "ts": 4000, "sender": "@c", "threadRoot": "$root" }
+      ],
+      "main": ["$root", "$c"],
+      "threads": [
+        { "root": "$root", "count": 2, "latest": "$y", "latestSender": "@c", "anchor": "$root", "rootLoaded": true }
+      ],
+      "threadOf": { "$root": ["$root", "$x", "$y"] }
+    },
+    {
+      "name": "a plain reply to a threaded message joins its thread",
+      "rows": [
+        { "id": "$root", "ts": 1000 },
+        { "id": "$x", "ts": 2000, "threadRoot": "$root" },
+        { "id": "$p", "ts": 3000, "replyTo": "$x" },
+        { "id": "$q", "ts": 4000, "replyTo": "$p" },
+        { "id": "$r", "ts": 5000, "replyTo": "$root" }
+      ],
+      "main": ["$root"],
+      "threads": [{ "root": "$root", "count": 4, "latest": "$r", "anchor": "$root", "rootLoaded": true }],
+      "threadOf": { "$root": ["$root", "$x", "$p", "$q", "$r"] }
+    },
+    {
+      "name": "a thread whose root is not loaded hangs under the last main message before its newest reply",
+      "rows": [
+        { "id": "$a", "ts": 1000 },
+        { "id": "$x", "ts": 2000, "threadRoot": "$gone" },
+        { "id": "$b", "ts": 3000 },
+        { "id": "$y", "ts": 4000, "threadRoot": "$gone" },
+        { "id": "$c", "ts": 5000 }
+      ],
+      "main": ["$a", "$b", "$c"],
+      "threads": [{ "root": "$gone", "count": 2, "latest": "$y", "anchor": "$b", "rootLoaded": false }],
+      "threadOf": { "$gone": ["$x", "$y"] }
+    },
+    {
+      "name": "a rootless thread before any main message hangs above the first",
+      "rows": [
+        { "id": "$x", "ts": 1000, "threadRoot": "$gone" },
+        { "id": "$a", "ts": 2000 }
+      ],
+      "main": ["$a"],
+      "threads": [{ "root": "$gone", "count": 1, "latest": "$x", "anchor": "", "rootLoaded": false }],
+      "threadOf": { "$gone": ["$x"] }
+    },
+    {
+      "name": "threads in the order their newest replies came, a tie by root",
+      "rows": [
+        { "id": "$r1", "ts": 1000 },
+        { "id": "$r2", "ts": 1500 },
+        { "id": "$a", "ts": 2000, "threadRoot": "$r2" },
+        { "id": "$b", "ts": 3000, "threadRoot": "$r1" },
+        { "id": "$c", "ts": 4000, "threadRoot": "$r3" },
+        { "id": "$d", "ts": 4000, "threadRoot": "$r0" }
+      ],
+      "main": ["$r1", "$r2"],
+      "threads": [
+        { "root": "$r2", "count": 1, "latest": "$a", "anchor": "$r2", "rootLoaded": true },
+        { "root": "$r1", "count": 1, "latest": "$b", "anchor": "$r1", "rootLoaded": true },
+        { "root": "$r0", "count": 1, "latest": "$d", "anchor": "$r2", "rootLoaded": false },
+        { "root": "$r3", "count": 1, "latest": "$c", "anchor": "$r2", "rootLoaded": false }
+      ],
+      "threadOf": { "$r1": ["$r1", "$b"], "$r0": ["$d"] }
+    },
+    {
+      "name": "a deleted root keeps its thread",
+      "rows": [
+        { "id": "$root", "ts": 1000, "redacted": true },
+        { "id": "$x", "ts": 2000, "threadRoot": "$root" }
+      ],
+      "main": ["$root"],
+      "threads": [{ "root": "$root", "count": 1, "latest": "$x", "anchor": "$root", "rootLoaded": true }],
+      "threadOf": { "$root": ["$root", "$x"], "": [] }
+    }
+  ]
+}

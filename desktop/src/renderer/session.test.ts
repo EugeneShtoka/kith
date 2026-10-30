@@ -7,7 +7,7 @@ import { DeviceSettingsResponseSchema } from "../gen/device/v1/device_pb";
 import { unreadOf } from "./rooms";
 import { deviceAgain, Session } from "./session";
 import { Kithd, room, settled, unread } from "./testing/kithd";
-import { message } from "./testing/rows";
+import { message, row } from "./testing/rows";
 
 const backend = BackendService.method;
 
@@ -34,6 +34,7 @@ const view = () => session.snapshot();
 
 /** The streams a seated window holds in its profile, besides its seat's. */
 const profileStreams = [
+  backend.followStream,
   backend.changed,
   backend.configChanged,
   backend.messages,
@@ -70,7 +71,7 @@ describe("the window's profile", () => {
     for (const c of kithd.calls.slice(2)) {
       expect(c).toMatch(/:Work$/);
     }
-    expect(kithd.open().map((s) => s.profile)).toEqual(Array(7).fill("Work"));
+    expect(kithd.open().map((s) => s.profile)).toEqual(Array(8).fill("Work"));
   });
 
   it("is the one remembered, when the config still has it", async () => {
@@ -736,6 +737,305 @@ describe("search, jumps, and back and forward", () => {
       kithd.release();
       await settled();
       check(`seed ${String(seed)}, at the end`);
+    },
+  );
+});
+
+describe("a link handed to the window", () => {
+  it("opens the chat it names in the profile, at its message, and nothing outside it", async () => {
+    kithd.of("Home").rooms = [room("!a"), room("!b")];
+    for (let i = 1; i <= 8; i++) {
+      kithd.write("Home", message({ id: `$a${String(i)}`, ts: i * 10 }, "!a"));
+    }
+    await started();
+    expect(kithd.follow("Home", "!b")).toBeDefined();
+    await settled();
+    expect(view().open).toBe("!b");
+    expect(kithd.presented.get([...kithd.presented.keys()][0] ?? "")).toBe("!b");
+
+    kithd.follow("Home", "!a/$a1");
+    await settled();
+    expect(view().open).toBe("!a");
+    expect(view().timeline?.target).toBe("$a1");
+
+    kithd.follow("Home", "!elsewhere");
+    await settled();
+    expect(view().open).toBe("!a");
+    expect(view().problem).toBe("That link names no chat in Home");
+    expect(JSON.stringify(view(), (_, v: unknown) => (typeof v === "bigint" ? String(v) : v))).not.toContain(
+      "!elsewhere",
+    );
+  });
+
+  // A switch from Home to Work, Work's seat free or held by another window (then taken
+  // over), its rooms read at once or late; a link sent on Home's or Work's stream at
+  // every turn of the event loop from before the switch is asked to after it settled:
+  // while main has moved and the window has not, while the seat is asked for or held,
+  // before the rooms are read. Each link handed to it reaches it, and is followed in Work if
+  // its stream's profile named the chat and Work holds it, and else opens nothing.
+  const points = Array.from({ length: 12 }, (_, at) => at);
+  const cases = points.flatMap((at) =>
+    [false, true].flatMap((taken) =>
+      ["Home", "Work"].flatMap((on) => ["!h0", "!w0", "!both"].map((to) => ({ at, taken, on, to }))),
+    ),
+  );
+  it.each(cases)(
+    "sent at turn $at on $on's stream to $to, Work's seat taken: $taken",
+    async ({ at, taken, on, to }) => {
+      const all = { Home: ["!h0", "!both"], Work: ["!w0", "!both"] };
+      kithd.profiles = ["Home", "Work"];
+      kithd.remembered = "Home";
+      for (const [profile, ids] of Object.entries(all)) {
+        kithd.of(profile).rooms = ids.map((id) => room(id));
+      }
+      await started();
+      if (taken) {
+        kithd.seats.set("Work", "other");
+      }
+      if (at % 2 === 1) {
+        kithd.holding.add("Rooms");
+      }
+      void session.choose("Work");
+      for (let i = 0; i < at; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      const link = kithd.follow(on, to);
+      await settled();
+      if (taken) {
+        session.takeOver();
+        await settled();
+      }
+      kithd.holding.clear();
+      kithd.release();
+      await settled();
+      expect(view().profile).toBe("Work");
+      expect(view().seat.state).toBe("seated");
+      // Handed to a stream that was open, the link must reach the window: none is lost.
+      const handed = link !== undefined;
+      expect(handed && !kithd.linksArrived.includes(link)).toBe(false);
+      const follows = handed && link.chats.length > 0 && all.Work.includes(to);
+      expect(view().open).toBe(follows ? to : "");
+      if (handed && !follows) {
+        expect(view().problem).toBe("That link names no chat in Work");
+      }
+    },
+  );
+
+  // Links arrive at every point of a profile switch: before it is asked, while main has
+  // moved and the window has not, while the new profile's seat is asked for or held by
+  // another window, before its rooms are read; and the window steps aside and takes
+  // over. Whenever all is quiet no room outside the profile is open, and at the end the
+  // last link that reached the window was followed where the profile allows, and
+  // refused where it does not.
+  it.each(Array.from({ length: 20 }, (_, i) => i + 1))(
+    "is followed in the profile the window ends in, and only there (seed %i)",
+    async (seed) => {
+      const pick = rng(seed);
+      const all = { Home: ["!h0", "!h1", "!both"], Work: ["!w0", "!w1", "!both"] };
+      const every = [...new Set(Object.values(all).flat())];
+      kithd.profiles = ["Home", "Work"];
+      kithd.remembered = "Home";
+      for (const [profile, ids] of Object.entries(all)) {
+        kithd.of(profile).rooms = ids.map((id) => room(id));
+        for (const id of ids) {
+          kithd.write(profile, message({ id: `$${id}`, ts: 10 }, id));
+        }
+      }
+      await started();
+      const check = (when: string) => {
+        const v = view();
+        if (v.open !== "") {
+          const holds = kithd.of(v.profile).rooms.map((r) => r.id);
+          expect(holds, `${v.open} open in ${v.profile}, ${when}`).toContain(v.open);
+        }
+      };
+      // When each link was sent, and when the window was last moved (a switch asked, a
+      // seat taken): a link followed before a later move is the person's to leave.
+      const sent = new Map<object, number>();
+      let moved = 0;
+      for (let s = 0; s < 60; s++) {
+        for (let i = pick(3); i > 0; i--) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+        switch (pick(9)) {
+          case 0:
+          case 1:
+            moved = s;
+            void session.choose(pick(2) === 0 ? "Home" : "Work");
+            break;
+          case 2: {
+            // Another window sits in a profile, or takes this one's seat over.
+            const p = pick(2) === 0 ? "Home" : "Work";
+            moved = s;
+            if (kithd.seats.get(p) === undefined) {
+              kithd.seats.set(p, "other");
+            } else {
+              kithd.otherTakesOver(p);
+            }
+            break;
+          }
+          case 3:
+            moved = s;
+            session.takeOver();
+            break;
+          case 4:
+          case 5:
+          case 6: {
+            const id = every[pick(every.length)] ?? "";
+            const frame = kithd.follow(pick(2) === 0 ? "Home" : "Work", pick(2) === 0 ? id : `${id}/$${id}`);
+            if (frame !== undefined) {
+              sent.set(frame, s);
+            }
+            break;
+          }
+          case 7:
+            kithd.holding.add("Rooms");
+            break;
+          default:
+            kithd.holding.clear();
+            kithd.release(pick(2) === 0);
+            await settled();
+            check(`seed ${String(seed)}, step ${String(s)}`);
+        }
+      }
+      kithd.holding.clear();
+      kithd.release();
+      await settled();
+      if (view().seat.state !== "seated" && view().profile !== "") {
+        session.takeOver();
+        await settled();
+      }
+      const when = `seed ${String(seed)}, at the end`;
+      check(when);
+      const last = kithd.linksArrived.at(-1);
+      if (last !== undefined && view().profile !== "" && (sent.get(last) ?? 0) > moved) {
+        const [room = ""] = last.uri.split("/");
+        const holds = kithd.of(view().profile).rooms.some((r) => r.id === room);
+        if (last.chats.length > 0 && holds) {
+          expect(view().open, `${last.uri} followed, ${when}`).toBe(room);
+        } else {
+          expect(view().open, `${last.uri} not followed, ${when}`).not.toBe(room);
+        }
+      }
+    },
+  );
+});
+
+describe("a thread", () => {
+  const r = "!r";
+  const write = (id: string, init: Partial<Parameters<typeof message>[0]> = {}) => {
+    kithd.write("Home", message({ id, ts: 10, body: id, ...init }, r));
+  };
+
+  beforeEach(() => {
+    kithd.of("Home").rooms = [room(r)];
+  });
+
+  it("opens beside the room with its root and replies, older replies on asking, and the composer writes into it", async () => {
+    write("$root", { ts: 10 });
+    for (let i = 1; i <= 6; i++) {
+      write(`$t${String(i)}`, { ts: 10 + i, threadRoot: "$root" });
+    }
+    write("$late", { ts: 100 });
+    await started();
+    session.open(r);
+    await settled();
+    session.openThread("$root");
+    session.watchThread(true);
+    await settled();
+    // The room's newest four hold three replies; the root is fetched, older replies asked for.
+    expect(view().thread?.rows.map((m) => m.id)).toEqual(["$root", "$t4", "$t5", "$t6"]);
+    session.olderInThread(); // its newest page: two replies, the room had them
+    await settled();
+    session.olderInThread();
+    await settled();
+    expect(view().thread?.rows.map((m) => m.id)).toEqual(["$root", "$t3", "$t4", "$t5", "$t6"]);
+    expect(kithd.receipts).toEqual(["!r $root $t6 public"]);
+
+    session.type("in the thread", 13);
+    await session.send();
+    session.type("still in it", 11);
+    await session.send();
+    expect(kithd.sent.map((s) => [s.draft.body, s.draft.threadRoot])).toEqual([
+      ["in the thread", "$root"],
+      ["still in it", "$root"],
+    ]);
+    session.closeThread();
+    session.type("in the room", 11);
+    await session.send();
+    expect(kithd.sent.at(-1)?.draft.threadRoot).toBe("");
+  });
+
+  // The root is edited and deleted, and replies come, while the pane reads and the
+  // composer sends: every reply goes into the thread, and the pane ends as the cache
+  // holds the thread.
+  it.each(Array.from({ length: 20 }, (_, i) => i + 1))(
+    "takes replies while its root is edited or deleted (seed %i)",
+    async (seed) => {
+      const pick = rng(seed);
+      write("$root", { ts: 10 });
+      write("$t1", { ts: 11, threadRoot: "$root" });
+      for (let i = 0; i < 6; i++) {
+        write(`$m${String(i)}`, { ts: 20 + i });
+      }
+      await started();
+      session.open(r);
+      await settled();
+      session.openThread("$root");
+      let made = 1;
+      let edits = 0;
+      for (let s = 0; s < 40; s++) {
+        for (let i = pick(3); i > 0; i--) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+        switch (pick(7)) {
+          case 0:
+            edits++;
+            write("$root", {
+              ts: 10,
+              edited: true,
+              body: `root ${String(edits)}`,
+              editedAt: 1000 + edits,
+              revisionId: `$e${String(edits)}`,
+            });
+            break;
+          case 1:
+            write("$root", { ts: 10, redacted: true, body: "" });
+            break;
+          case 2:
+            made++;
+            write(`$t${String(made)}`, { ts: 30 + made, threadRoot: "$root" });
+            break;
+          case 3:
+            session.type(`reply ${String(s)}`, 0);
+            void session.send();
+            break;
+          case 4:
+            kithd.holding.add(pick(2) === 0 ? "FetchEvent" : "ThreadPage");
+            break;
+          case 5:
+            session.olderInThread();
+            break;
+          default:
+            kithd.holding.clear();
+            kithd.release(pick(2) === 0);
+        }
+      }
+      kithd.holding.clear();
+      kithd.release();
+      await settled();
+      for (let i = 0; i < 8; i++) {
+        session.olderInThread();
+        await settled();
+      }
+      const when = `seed ${String(seed)}`;
+      expect(kithd.sent.length, when).toBeGreaterThan(0);
+      for (const sent of kithd.sent) {
+        expect(sent.draft.threadRoot, when).toBe("$root");
+      }
+      const cache = kithd.of("Home").messages.get(r) ?? [];
+      const want = cache.filter((m) => m.id === "$root" || m.threadRoot === "$root").map(row);
+      expect(view().thread?.rows.map(row), when).toEqual(want);
     },
   );
 });

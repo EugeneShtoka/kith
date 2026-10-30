@@ -114,6 +114,8 @@ export class Timeline {
   private jumps = 0;
   /** A jump that found nothing: the message is not in the cache. */
   private missed = false;
+  /** The thread a jump's message is a reply in, its pane to open ("" none). */
+  private replyIn = "";
   private snapshot: TimelineView | undefined;
   /** The newest message a receipt landed for, and the one in flight. */
   marked = "";
@@ -304,9 +306,17 @@ export class Timeline {
     this.jumps++;
     this.target = "";
     this.missed = false;
+    this.replyIn = "";
     this.stalled = false;
     this.sought();
     this.changed();
+  }
+
+  /** jumpThread is the thread the last jump's message is a reply in, its pane to open: said once. */
+  jumpThread(): string {
+    const root = this.replyIn;
+    this.replyIn = "";
+    return root;
   }
 
   /** jumpMissed: the last jump found nothing, said once. */
@@ -317,7 +327,8 @@ export class Timeline {
   }
 
   /**
-   * sought ends the jump once its message is a row (a reply in a thread shows its root),
+   * sought ends the jump once its message is a row (a reply in a thread shows its root,
+   * and its thread is to open),
    * or once nothing older is left to read for it.
    */
   private sought(): void {
@@ -327,6 +338,7 @@ export class Timeline {
     }
     const found = this.shown.rows.find((m) => m.id === id);
     if (found !== undefined && found.threadRoot !== "" && found.threadRoot !== id) {
+      this.replyIn = found.threadRoot;
       this.seeking = found.threadRoot;
       this.readAll = false;
       this.sought();
