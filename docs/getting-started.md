@@ -583,7 +583,8 @@ don't reveal who is logged in.
 | Crypto store | `~/.local/share/kith/crypto-<hash>-<account>.db`, one per Matrix account (`<account>`: a hash of its Matrix ID) | Olm/Megolm keys and the sync position. **Not** a cache: don't delete it. |
 | Old caches | `~/.local/share/kith/cache-<hash>.db.pre-schema-<date>-<time>` | Kept when a schema change rebuilt the cache; the two newest are kept, older ones are deleted at the next rebuild. Delete them when you no longer need them. |
 | Dictionaries, word lists, models | `~/.local/share/kith/hunspell/`, `~/.local/share/kith/models/`, … | Written by `--add-dictionary`, `--add-frequencies` and `--add-model`. |
-| Paired devices | `~/.local/share/kith/devices-<hash>.toml` | The devices kithd serves over `[remote] listen`, changed with `kith devices`. Mode 0600. See [remote.md](remote.md). |
+| Paired devices | `~/.local/share/kith/devices-<hash>.toml` | The devices kithd serves over `[remote] listen`, changed with `kith devices`, written out from the mesh store. Mode 0600. See [remote.md](remote.md). |
+| Mesh store | `~/.local/share/kith/mesh-<hash>.db` | The paired devices as signed changes, encrypted under the cache's key. **Not** a cache: don't delete it. See [database.md](database.md#the-mesh-file). |
 | Scheduled messages | `~/.local/state/kith/scheduled-<hash>.toml` | The send-later queue. |
 | Assistant ledger | `~/.local/state/kith/agent-sends-<hash>.jsonl` | What `kith-mcp` wrote on your behalf. Read it with `kith --agent-log`. |
 | Token file (opt-in only) | `~/.local/state/kith/session-<hash>-<account>.toml` | Only with `allow_token_file = true`. Mode 0600, one per account. An older single `session.toml` is still read for the account it belongs to and renamed on first use. |

@@ -37,9 +37,9 @@ interface, but only when written out: a bare `:7443` is refused. A change takes
 effect when kithd re-reads the config (it notices an edit, and the settings screen
 writes through it), with no restart.
 
-If kithd has no device key (a locked keyring) or the device list does not read, it
-listens nowhere and says why in its log; the socket on its own machine is served
-either way. An address it cannot listen on is logged and skipped.
+If kithd has no device key (a locked keyring), the device list does not read or its
+mesh store does not open, it listens nowhere and says why in its log; the socket on its
+own machine is served either way. An address it cannot listen on is logged and skipped.
 
 ## Pairing by QR code
 
@@ -115,10 +115,33 @@ kith devices remove laptop  # or its ID
 account, change the config, pair and unpair other devices. Pair only your own.
 Unpairing closes the device's open connections at once, and it cannot connect again.
 
-The list lives in `~/.local/share/kith/devices-<hash>.toml`. It is not the config and
-not the cache, so rebuilding the cache never unpairs anyone. You may edit it by hand;
-the next change, listing or reload reads it, and a device you took out is cut off
-then. One that does not read keeps kithd from listening until it is fixed.
+`kith devices` lists each device with its role: `device` for a client, `bridge` for
+another kithd (bridges pair with each other in a later release).
+
+The list is kept in the mesh store, `~/.local/share/kith/mesh-<hash>.db`: each change
+is an entry signed with the bridge's device key, so a later release can carry it to
+other bridges. It is not the config and not the cache, so rebuilding the cache never
+unpairs anyone. kithd writes the list out to `~/.local/share/kith/devices-<hash>.toml`
+after every change. You may edit that file by hand. The next change, listing or reload
+reads it into the store as changes of the bridge's own:
+
+- **An entry taken out unpairs the device**, which is cut off then. This holds even if
+  the device was paired after you opened the file: removing is the safer mistake, and
+  you can pair it again.
+- **An entry put in pairs it**, and a changed `name` renames it. The `role` is the
+  bridge's: changing it between `device` and `bridge` changes nothing.
+- **A device unpaired before stays unpaired** even if the file lists it, so a stale copy
+  of the file cannot let a lost laptop back in. Pair it again with
+  `kith devices add`. kithd logs each one it left out, and writes the file again
+  without it.
+
+A file that does not read, or a mesh store that does not open (another key's, or one
+written by a newer kith), keeps kithd from listening until it is fixed, and nothing is
+written meanwhile. The first kithd of this release reads the file into a new store once,
+keeping the file as it was in `devices-<hash>.toml.pre-mesh`, which nothing reads after.
+If kithd's device key changes (a keyring reset), the store no longer lists it, and kithd
+does not listen. Move `mesh-<hash>.db` aside, and the next start makes the store again
+from `devices-<hash>.toml`.
 
 ## Using a bridge
 

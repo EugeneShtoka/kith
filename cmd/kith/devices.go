@@ -80,13 +80,13 @@ func listDevices(ctx context.Context, b *daemon.Remote) error {
 	}
 	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	// The tabwriter only buffers: Flush reports a failed write.
-	_, _ = fmt.Fprintln(tw, "NAME\tID\tADDED\tBY")
+	_, _ = fmt.Fprintln(tw, "NAME\tROLE\tID\tADDED\tBY")
 	for _, d := range devices {
 		by, ok := names[d.AddedBy]
 		if !ok {
 			by = d.AddedBy // a device since unpaired
 		}
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", d.Name, d.ID, d.AddedAt.Local().Format("2006-01-02 15:04"), by)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", d.Name, d.Role, d.ID, d.AddedAt.Local().Format("2006-01-02 15:04"), by)
 	}
 	if err := tw.Flush(); err != nil {
 		return fmt.Errorf("list the paired devices: %w", err)

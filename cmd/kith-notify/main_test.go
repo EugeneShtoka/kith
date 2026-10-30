@@ -90,6 +90,7 @@ func serve(t *testing.T, socket string, cfg config.Config) kithd {
 			Uploads: uploads,
 			Log:     logging.Discard(),
 			Paired: daemon.NewDevices(filepath.Join(dir, "devices.toml"),
+				func() (daemon.RosterStore, error) { return nil, errors.New("no store") },
 				func() (tls.Certificate, error) { return tls.Certificate{}, errors.New("no key") }, logging.Discard()),
 		})
 	}()

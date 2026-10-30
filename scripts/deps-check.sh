@@ -10,8 +10,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 mod=github.com/EugeneShtoka/kith
-# The single-writer cache, the crypto store's driver and the Matrix SDK.
-daemon_only="^($mod/internal/(db|matrix|session|modelsetup)|maunium\.net/go/mautrix|modernc\.org/sqlite)(/|$)"
+# The single-writer cache, the mesh store and its data model, the crypto store's driver
+# and the Matrix SDK.
+daemon_only="^($mod/internal/(db|matrix|session|modelsetup|mesh)|maunium\.net/go/mautrix|modernc\.org/sqlite)(/|$)"
 # The model clients and the process that serves a model.
 models="^$mod/internal/(llamacpp|llm)$"
 # What draws a terminal UI: Charm's libraries, and the packages built on them.

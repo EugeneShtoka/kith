@@ -7,12 +7,14 @@ import (
 
 // DeviceToProto converts a paired device.
 func DeviceToProto(d domain.Device) *v1.Device {
-	return &v1.Device{Name: d.Name, Id: d.ID, AddedAt: toProtoTime(d.AddedAt), AddedBy: d.AddedBy}
+	return &v1.Device{Name: d.Name, Id: d.ID, Role: string(d.Role), AddedAt: toProtoTime(d.AddedAt), AddedBy: d.AddedBy}
 }
 
 // ProtoToDevice converts a paired device back; nil is the zero value.
 func ProtoToDevice(pb *v1.Device) domain.Device {
-	return domain.Device{Name: pb.GetName(), ID: pb.GetId(), AddedAt: fromProtoTime(pb.GetAddedAt()), AddedBy: pb.GetAddedBy()}
+	return domain.Device{
+		Name: pb.GetName(), ID: pb.GetId(), Role: domain.DeviceRole(pb.GetRole()), AddedAt: fromProtoTime(pb.GetAddedAt()), AddedBy: pb.GetAddedBy(),
+	}
 }
 
 // DevicesToProto converts the roster.

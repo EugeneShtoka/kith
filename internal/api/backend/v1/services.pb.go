@@ -15888,13 +15888,14 @@ func (*RetryScheduledResponse) Descriptor() ([]byte, []int) {
 // Device is one device paired with this kithd: it may reach every call over
 // [remote] listen. id is its device ID (the SHA-256 of its public key, in base32
 // groups); added_by is the device ID of the one that paired it, kithd's own for its
-// socket.
+// socket. role is "bridge" (a kithd of the mesh) or "device" (a client of one).
 type Device struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
 	AddedAt       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=added_at,json=addedAt,proto3" json:"added_at,omitempty"`
 	AddedBy       string                 `protobuf:"bytes,4,opt,name=added_by,json=addedBy,proto3" json:"added_by,omitempty"`
+	Role          string                 `protobuf:"bytes,5,opt,name=role,proto3" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -15953,6 +15954,13 @@ func (x *Device) GetAddedAt() *timestamppb.Timestamp {
 func (x *Device) GetAddedBy() string {
 	if x != nil {
 		return x.AddedBy
+	}
+	return ""
+}
+
+func (x *Device) GetRole() string {
+	if x != nil {
+		return x.Role
 	}
 	return ""
 }
@@ -17632,12 +17640,13 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x17CancelScheduledResponse\"'\n" +
 	"\x15RetryScheduledRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x18\n" +
-	"\x16RetryScheduledResponse\"~\n" +
+	"\x16RetryScheduledResponse\"\x92\x01\n" +
 	"\x06Device\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x125\n" +
 	"\badded_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aaddedAt\x12\x19\n" +
-	"\badded_by\x18\x04 \x01(\tR\aaddedBy\"\x10\n" +
+	"\badded_by\x18\x04 \x01(\tR\aaddedBy\x12\x12\n" +
+	"\x04role\x18\x05 \x01(\tR\x04role\"\x10\n" +
 	"\x0eDevicesRequest\"S\n" +
 	"\x0fDevicesResponse\x12\x12\n" +
 	"\x04self\x18\x01 \x01(\tR\x04self\x12,\n" +

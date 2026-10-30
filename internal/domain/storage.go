@@ -96,11 +96,16 @@ func (s Storage) BackupsDir() string {
 	return filepath.Join(s.ExportDir, "backups")
 }
 
-// DevicesPath is the roster of devices paired with kithd: kept beside the stores, not
-// in the config (nobody edits it into sense by hand) nor the cache (a rebuild must not
-// unpair them).
+// DevicesPath is the roster of devices paired with kithd as a file: rendered from the
+// mesh store (MeshPath), and read back into it after a hand edit.
 func (s Storage) DevicesPath() string {
 	return filepath.Join(s.DataDir, "devices-"+s.Instance+".toml")
+}
+
+// MeshPath is the mesh store: the roster as signed ops (internal/mesh), sealed under
+// the cache's key. Not the cache: a rebuild must not unpair anyone.
+func (s Storage) MeshPath() string {
+	return filepath.Join(s.DataDir, "mesh-"+s.Instance+".db")
 }
 
 // DeviceKeyFile is the fallback file of the device key named name ("device" is

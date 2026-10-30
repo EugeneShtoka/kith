@@ -71,7 +71,8 @@ threat model:
 - **Pinned mutual TLS.** TLS 1.3 only. Each side presents a self-signed certificate
   for its device key (ECDSA P-256); the device ID is the SHA-256 of the key's
   SubjectPublicKeyInfo. kithd requires a client certificate and admits it only if
-  its key's ID is in the device list (`devices-<instance>.toml` in the data
+  its key's ID is in the device list (kept as ops signed by kithd's device key in
+  `mesh-<instance>.db`, written out as `devices-<instance>.toml`, both in the data
   directory), checked in the handshake, before any call is read. No CA is involved;
   certificates are reissued at will, keys are what is pinned. Session tickets are
   off, so no session outlives an unpairing; the check runs on every handshake.

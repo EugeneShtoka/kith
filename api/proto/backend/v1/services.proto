@@ -1788,12 +1788,13 @@ message RetryScheduledResponse {}
 // Device is one device paired with this kithd: it may reach every call over
 // [remote] listen. id is its device ID (the SHA-256 of its public key, in base32
 // groups); added_by is the device ID of the one that paired it, kithd's own for its
-// socket.
+// socket. role is "bridge" (a kithd of the mesh) or "device" (a client of one).
 message Device {
   string name = 1;
   string id = 2;
   google.protobuf.Timestamp added_at = 3;
   string added_by = 4;
+  string role = 5;
 }
 
 message DevicesRequest {}

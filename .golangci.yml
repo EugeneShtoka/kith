@@ -467,6 +467,29 @@ linters:
             - "go.mau.fi/util/dbutil"
             - "google.golang.org/protobuf"
 
+        # The mesh's data model: clocks, dots, version vectors, signed ops and the roster's
+        # rules. Pure: device IDs and keys, nothing that stores or dials.
+        mesh-crdt-is-pure:
+          files:
+            - "**/internal/mesh/crdt/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
+
+        # A replica's store: its ops and entries, sealed under the cache's key. kithd's
+        # alone (deps-check keeps it out of every client).
+        mesh-is-a-store:
+          files:
+            - "**/internal/mesh/*.go"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/mesh/crdt"
+            - "github.com/EugeneShtoka/kith/internal/sealeddb"
+
         # Encrypted SQLite for the network stores that act as the account: a leaf over
         # ncruces' SQLite (WebAssembly, pure Go) and its Adiantum VFS.
         sealeddb-is-a-leaf:
@@ -839,6 +862,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/local"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/matrix"
+            - "github.com/EugeneShtoka/kith/internal/mesh"
             - "github.com/EugeneShtoka/kith/internal/meta"
             - "github.com/EugeneShtoka/kith/internal/modelsetup"
             - "github.com/EugeneShtoka/kith/internal/route"

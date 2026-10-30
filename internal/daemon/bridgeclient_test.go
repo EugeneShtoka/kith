@@ -31,7 +31,7 @@ func overTLS(t *testing.T, addr string, kithd, client *ecdsa.PrivateKey) func(*d
 	}
 	identity := identityOf(t, kithd)
 	return func(d *daemon.Daemon) {
-		d.Paired = daemon.NewDevices(roster, identity, slog.New(slog.DiscardHandler))
+		d.Paired = daemon.NewDevices(roster, meshAt(t, filepath.Join(filepath.Dir(roster), "mesh.db"), storeKey(t)), identity, slog.New(slog.DiscardHandler))
 		d.Paired.Listen([]string{addr})
 		d.State.Synced(time.Now())
 	}
@@ -58,6 +58,9 @@ func TestABridgeIsReachedPastAddressesThatAreNotIt(t *testing.T) {
 	cache := &numberedCache{epoch: "one"}
 	runDaemon(t, filepath.Join(t.TempDir(), "kithd.sock"), &fakeBackend{Nop: nopWithChannels()},
 		cache.serves, overTLS(t, addr, bridgeKey, laptop))
+	// Each listens once its roster is read from its mesh store.
+	other.waitListening(other.addr, true)
+	(&bridge{t: t, logs: &syncBuffer{}}).waitListening(addr, true)
 	pin := idOf(t, bridgeKey).String()
 
 	nobody := freeAddr(t, "127.0.0.1")

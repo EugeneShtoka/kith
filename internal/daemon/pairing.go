@@ -107,13 +107,10 @@ func (d *Devices) answer(tokenText, name string, c *remoteConn) (*ticket, error)
 	case t.pending != nil:
 		return nil, errPairingTaken
 	}
-	_, self, err := d.identityLocked()
-	if err != nil {
+	if _, err := d.refreshLocked(); err != nil {
 		return nil, err
 	}
-	if err := d.refreshLocked(); err != nil {
-		return nil, err
-	}
+	self := d.self
 	name = cmp.Or(t.name, name)
 	for _, p := range d.paired {
 		switch {

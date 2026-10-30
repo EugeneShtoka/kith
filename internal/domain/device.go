@@ -8,9 +8,19 @@ import "time"
 type Device struct {
 	Name    string
 	ID      string
+	Role    DeviceRole
 	AddedAt time.Time
 	AddedBy string
 }
+
+// DeviceRole is what a paired device is: a bridge (a kithd) or a client of one.
+type DeviceRole string
+
+// The roles a paired device has.
+const (
+	RoleBridge DeviceRole = "bridge"
+	RoleDevice DeviceRole = "device"
+)
 
 // PairingTicket is what a new device needs to pair with kithd: its Addresses as a
 // device dials them, its device ID to pin, and the Token, good once until Expires.
