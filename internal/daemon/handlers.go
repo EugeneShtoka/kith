@@ -1126,7 +1126,7 @@ func (s *server) RemoveDevice(_ context.Context, r *req[v1.RemoveDeviceRequest])
 func deviceErr(err error) error {
 	code := connect.CodeFailedPrecondition
 	switch {
-	case errors.Is(err, devicekey.ErrNotAnID), errors.Is(err, errOwnID):
+	case errors.Is(err, devicekey.ErrNotAnID), errors.Is(err, errOwnID), errors.Is(err, errOwnBridge):
 		code = connect.CodeInvalidArgument
 	case errors.Is(err, errUnknownDevice):
 		code = connect.CodeNotFound

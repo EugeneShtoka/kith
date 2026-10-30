@@ -53,7 +53,7 @@ func (b *bridge) openPairing(r *daemon.Remote, name string) *opened {
 	case p.ticket = <-tickets:
 	case e := <-p.ended:
 		b.t.Fatalf("StartPairing ended before its ticket: %v, %v", e.outcome, e.err)
-	case <-time.After(settle):
+	case <-time.After(upSettle): // the ticket waits on the bridge's store and key
 		b.t.Fatal("StartPairing sent no ticket")
 	}
 	return p
@@ -201,7 +201,7 @@ func TestAPairingFromTicketToServedKey(t *testing.T) {
 		t.Fatalf("the device was shown %s, want %s", got, want)
 	}
 	pending := recv(t, p.pending, "pending device")
-	if pending != (domain.PendingDevice{Name: "laptop", ID: idOf(t, key).String(), Digits: want}) {
+	if pending != (domain.PendingDevice{Name: "laptop", ID: idOf(t, key).String(), Digits: want, Role: domain.RoleDevice}) {
 		t.Fatalf("pending %+v, want laptop %s showing %s", pending, idOf(t, key), want)
 	}
 	added, err := b.socket.ConfirmPairing(t.Context(), tk.Token, true)

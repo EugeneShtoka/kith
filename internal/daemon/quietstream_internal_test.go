@@ -51,7 +51,8 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 		Logins:      NewLogins(ctx, func() []api.LoginLeader { return nil }),
 		Uploads:     uploads,
 		Log:         logging.Discard(),
-		Paired:      NewDevices(filepath.Join(t.TempDir(), "devices.toml"), func() (tls.Certificate, error) { return tls.Certificate{}, errors.New("no key") }, logging.Discard()),
+		Paired: NewDevices(filepath.Join(t.TempDir(), "devices.toml"), func() (RosterStore, error) { return nil, errors.New("no store") },
+			func() (tls.Certificate, error) { return tls.Certificate{}, errors.New("no key") }, logging.Discard()),
 	}
 	served := make(chan error, 1)
 	go func() { served <- Serve(ctx, ln, d) }()

@@ -48,6 +48,7 @@ var subcommands = map[string]func([]string) error{
 	"devices":  runDevices,
 	"pair":     runPair,
 	"join":     runJoin,
+	"mesh":     runMesh,
 }
 
 func firstArg() string {
@@ -254,6 +255,13 @@ func reachForLogin(ctx context.Context, configPath string) (attached, error) {
 	if at, joined, err := viaBridge(ctx, configPath, readyTimeout); joined || err != nil {
 		return at, err
 	}
+	return reachHere(ctx, configPath)
+}
+
+// reachHere attaches to this machine's own kithd, as reachForLogin does once no bridge
+// is joined: what `kith join --bridge` asks, whatever bridge this machine dials as a
+// client.
+func reachHere(ctx context.Context, configPath string) (attached, error) {
 	path, cfg, ready, err := loadConfig(configPath)
 	if err != nil || !ready {
 		return attached{cfg: cfg}, err

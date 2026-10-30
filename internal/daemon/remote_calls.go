@@ -1081,7 +1081,12 @@ func (r *Remote) ConfirmPairing(ctx context.Context, token string, accept bool) 
 // Pair answers the pairing under token as a device listed as name: digits is called
 // with the six kithd shows; it returns how the pairing ended.
 func (r *Remote) Pair(ctx context.Context, token, name string, digits func(string)) (domain.PairingOutcome, error) {
-	st, err := r.c.Pair(ctx, connect.NewRequest(&v1.PairRequest{Token: token, Name: name}))
+	return r.pair(ctx, &v1.PairRequest{Token: token, Name: name}, digits)
+}
+
+// pair answers a pairing as req says (a device, or a bridge joining the mesh).
+func (r *Remote) pair(ctx context.Context, req *v1.PairRequest, digits func(string)) (domain.PairingOutcome, error) {
+	st, err := r.c.Pair(ctx, connect.NewRequest(req))
 	if err != nil {
 		return 0, callErr("pair", err)
 	}
@@ -1095,6 +1100,44 @@ func (r *Remote) Pair(ctx context.Context, token, name string, digits func(strin
 		}
 	}
 	return 0, callErr("pair", cmpErr(st.Err(), errPairingCut))
+}
+
+// JoinMesh has the kithd of this machine (over its socket) join the mesh of the bridge
+// whose pairing uri names, listed as name: bringing is called with the devices it
+// brings, digits with the six it shows; it returns how the pairing ended and, once
+// confirmed, the members the bridge admits from then on.
+func (r *Remote) JoinMesh(ctx context.Context, uri, name string, bringing func([]domain.Device), digits func(string),
+) (domain.PairingOutcome, []domain.Device, error) {
+	st, err := r.c.JoinMesh(ctx, connect.NewRequest(&v1.JoinMeshRequest{Uri: uri, Name: name}))
+	if err != nil {
+		return 0, nil, callErr("join the mesh", err)
+	}
+	defer func() { _ = st.Close() }() // the outcome is read, or the stream failed
+	outcome := domain.PairingOutcome(0)
+	for st.Receive() {
+		switch ev := st.Msg().GetEvent().(type) {
+		case *v1.JoinMeshResponse_Bringing:
+			bringing(pc.ProtoToDevices(ev.Bringing.GetDevices()))
+		case *v1.JoinMeshResponse_Digits:
+			digits(ev.Digits)
+		case *v1.JoinMeshResponse_Outcome:
+			if outcome, err = pairingOutcome("join the mesh", ev.Outcome); err != nil || outcome != domain.PairingConfirmed {
+				return outcome, nil, err
+			}
+		case *v1.JoinMeshResponse_Joined:
+			return outcome, pc.ProtoToDevices(ev.Joined.GetDevices()), nil
+		}
+	}
+	return 0, nil, callErr("join the mesh", cmpErr(st.Err(), errPairingCut))
+}
+
+// MeshStatus is the bridge's view of its mesh.
+func (r *Remote) MeshStatus(ctx context.Context) (domain.MeshStatus, error) {
+	resp, err := call(ctx, "read the mesh's state", r.c.MeshStatus, &v1.MeshStatusRequest{})
+	if err != nil {
+		return domain.MeshStatus{}, err
+	}
+	return pc.ProtoToMeshStatus(resp), nil
 }
 
 // errPairingCut is a pairing stream that ended without an outcome.

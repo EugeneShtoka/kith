@@ -25,6 +25,7 @@ What is **not** in it, and why:
 | scheduled messages | `scheduled-<hash>.toml` in the XDG state dir (`internal/schedule`) | an unsent message has no copy anywhere, so it cannot live under "rebuild on doubt" |
 | the assistant ledger | `agent-sends-<hash>.jsonl` in the XDG state dir (`internal/agent`) | a record of what was sent on your behalf exists nowhere else |
 | attachment files | the media cache directory (`internal/media`) | files an external viewer opens by path |
+| the paired devices, as signed ops | the mesh store, `mesh-<hash>.db` (`internal/mesh`, [below](#the-mesh-file)) | a rebuild must not unpair anyone |
 
 A few tables hold state that is local but cheap to lose: usage counters for the
 emoji and mention rankings, per-room sender colours, what bridges have refused, and
@@ -73,6 +74,34 @@ with this table as its mirror (see [Account-data mirrors](#account-data-mirrors)
   down.
 - Opening is non-fatal for the daemon: if the cache cannot be opened it runs
   without one, losing only the instant startup.
+
+## The mesh file
+
+The mesh store, `$XDG_DATA_HOME/kith/mesh-<hash>.db` (`internal/mesh`), is not a cache:
+it holds writes nothing else has, so none of the rules below apply to it. The design is
+[planning/design-mesh.md](../planning/design-mesh.md). For now it holds the roster of
+paired devices (`devices-<hash>.toml` is written out from it) and the accounts each
+bridge runs, which every bridge of the mesh syncs.
+
+- Sealed like the cache (`internal/sealeddb`), under the cache's key, but a file of
+  its own: a cache rebuild never touches it. Only kithd opens it; `scripts/deps-check.sh`
+  keeps `internal/mesh` out of every client.
+- Tables: `replicas` (each device ID once, named by its index elsewhere), `ops` (each
+  replica's signed ops, by `(origin, seq)`: the signed bytes, the signature, and
+  whether it writes the roster), `entries` (each key's values, one per write made
+  concurrently, and the op that wrote each), `vv` (the version vector: per origin, the
+  last op held and its hash), `peers` (each other bridge's last reported vector, when it
+  was heard and its clock's gap then) and `forks` (each bridge found to have signed two
+  ops under one number, with both). The roster's ops are kept for good; every other op
+  leaves `ops` once 30 days old and held by every bridge heard from in those 30 days. An
+  op, its entries and its vector row are written in one transaction.
+- A backup takes it as it takes the cache: a copy made in one read transaction
+  (`VACUUM INTO`, `mesh.Copy`) while kithd writes, encrypted under the backup's own key,
+  checked, and written back under the restoring machine's cache key.
+- `PRAGMA user_version` is the layout, 1. A store of a later one was written by a newer
+  kith and is refused, never read or rebuilt: kithd does not listen for paired devices
+  until that kith runs again. A later layout is reached by migrations in place, never by
+  a rebuild.
 
 ## Tables
 

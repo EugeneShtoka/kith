@@ -20,6 +20,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
+	"github.com/EugeneShtoka/kith/internal/mesh"
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
@@ -107,6 +108,9 @@ func (r *restore) stage(ctx context.Context, hdr *tar.Header, tr io.Reader) erro
 	if hdr.Name == cacheName {
 		return r.stageCache(ctx, tr)
 	}
+	if hdr.Name == meshName {
+		return r.stageMesh(ctx, tr)
+	}
 	body, err := io.ReadAll(io.LimitReader(tr, smallLimit+1))
 	if err != nil {
 		return damaged(err)
@@ -133,8 +137,9 @@ func readManifest(tr *tar.Reader) ([]string, []byte, error) {
 	if decErr := json.NewDecoder(io.LimitReader(tr, smallLimit)).Decode(&m); decErr != nil {
 		return nil, nil, damaged(decErr)
 	}
-	if m.Format != format {
-		return nil, nil, fmt.Errorf("restore: the backup's layout is %d; this kith reads %d (it was made by %s)", m.Format, format, m.Kith)
+	if m.Format < oldestFormat || m.Format > format {
+		return nil, nil, fmt.Errorf("restore: the backup's layout is %d; this kith reads %d to %d (it was made by %s)",
+			m.Format, oldestFormat, format, m.Kith)
 	}
 	key, err := hex.DecodeString(m.CacheKey)
 	if err != nil || len(key) != db.KeyLen {
@@ -154,7 +159,7 @@ func checkEntry(hdr *tar.Header, seen []string, afterCache bool) error {
 	switch {
 	case hdr.Typeflag != tar.TypeReg:
 		return damaged(fmt.Errorf("%q is not a file", name))
-	case !isCommand && !isPicture && !slices.Contains([]string{configName, ledgerName, scheduleName, cacheName}, name):
+	case !isCommand && !isPicture && !slices.Contains([]string{configName, ledgerName, scheduleName, meshName, cacheName}, name):
 		return damaged(fmt.Errorf("it holds %q, which kith never writes", name))
 	case slices.Contains(seen, name):
 		return damaged(fmt.Errorf("it holds %q twice", name))
@@ -231,18 +236,11 @@ func (r *restore) stagePicture(ctx context.Context, name string, hdr *tar.Header
 // stageCache writes the cache beside its place on this machine and adopts it under
 // this machine's key.
 func (r *restore) stageCache(ctx context.Context, tr io.Reader) error {
-	if err := r.prepare(); err != nil {
+	key, err := r.storeKey()
+	if err != nil {
 		return err
 	}
 	storage := r.storage
-	if mkErr := os.MkdirAll(storage.DataDir, 0o700); mkErr != nil {
-		return fmt.Errorf("restore: %w", mkErr)
-	}
-	key, err := r.cacheKey(storage)
-	if err != nil {
-		return fmt.Errorf("restore: the cache's key on this machine: %w", err)
-	}
-	r.key = key
 	copied, err := r.stageStream(ctx, storage.DataDir, ".restore-cache-*.db", archiveReader{tr})
 	if err != nil {
 		return err
@@ -259,15 +257,61 @@ func (r *restore) stageCache(ctx context.Context, tr io.Reader) error {
 	return nil
 }
 
+// storeKey prepares, makes the data folder, and finds the key the cache and the mesh
+// store are encrypted under on this machine.
+func (r *restore) storeKey() ([]byte, error) {
+	if err := r.prepare(); err != nil {
+		return nil, err
+	}
+	if r.key != nil {
+		return r.key, nil
+	}
+	if mkErr := os.MkdirAll(r.storage.DataDir, 0o700); mkErr != nil {
+		return nil, fmt.Errorf("restore: %w", mkErr)
+	}
+	key, err := r.cacheKey(r.storage)
+	if err != nil {
+		return nil, fmt.Errorf("restore: the cache's key on this machine: %w", err)
+	}
+	r.key = key
+	return key, nil
+}
+
+// stageMesh writes the mesh store beside its place on this machine and copies it under
+// this machine's key, checked as kithd reads it.
+func (r *restore) stageMesh(ctx context.Context, tr io.Reader) error {
+	key, err := r.storeKey()
+	if err != nil {
+		return err
+	}
+	copied, err := r.stageStream(ctx, r.storage.DataDir, ".restore-mesh-copy-*.db", archiveReader{tr})
+	if err != nil {
+		return err
+	}
+	adopted, err := r.stageStream(ctx, r.storage.DataDir, ".restore-mesh-*.db", strings.NewReader(""))
+	if err != nil {
+		return err
+	}
+	if copyErr := mesh.Copy(ctx, copied, r.backupKey, adopted, key); copyErr != nil {
+		return fmt.Errorf("restore: the backup's mesh store: %w", copyErr)
+	}
+	_ = os.Remove(copied)
+	r.mesh = adopted
+	return nil
+}
+
 // refuseExisting refuses, unless replacing, when any file the restore would put in
 // place is there already.
 func (r *restore) refuseExisting() error {
 	if r.replace {
 		return nil
 	}
-	cache := r.storage.CachePath()
+	cache, meshStore := r.storage.CachePath(), r.storage.MeshPath()
 	var there []string
-	for _, p := range []string{cache, cache + "-wal", cache + "-shm", r.storage.LedgerPath(), r.storage.SchedulePath(), r.storage.BackupKeyPath()} {
+	for _, p := range []string{
+		cache, cache + "-wal", cache + "-shm", meshStore, meshStore + "-wal", meshStore + "-shm",
+		r.storage.LedgerPath(), r.storage.SchedulePath(), r.storage.BackupKeyPath(),
+	} {
 		if _, err := os.Lstat(p); err == nil {
 			there = append(there, p)
 		}
@@ -327,6 +371,9 @@ func (r *restore) swap(ctx context.Context) (Restored, error) {
 	}
 	stamp := time.Now().Format("20060102-150405")
 	if err := r.placeCache(ctx, stamp); err != nil {
+		return r.done, err
+	}
+	if err := r.placeMesh(stamp); err != nil {
 		return r.done, err
 	}
 	for _, m := range moves {
@@ -449,6 +496,29 @@ func (r *restore) placeCache(ctx context.Context, stamp string) error {
 	}
 	if err := os.Rename(r.cache, dest); err != nil {
 		return fmt.Errorf("restore: put the cache in place: %w", err)
+	}
+	r.done.Files = append(r.done.Files, dest)
+	return nil
+}
+
+// placeMesh moves the copied mesh store into place, if the backup held one. A store
+// there is set aside with its log, which it is read with.
+func (r *restore) placeMesh(stamp string) error {
+	if r.mesh == "" {
+		return nil
+	}
+	dest := r.storage.MeshPath()
+	if _, err := os.Stat(dest); err == nil {
+		aside := dest + asideInfix + stamp
+		for _, suffix := range []string{"", "-wal", "-shm"} {
+			if err := os.Rename(dest+suffix, aside+suffix); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return fmt.Errorf("restore: set the old mesh store aside: %w", err)
+			}
+		}
+		r.done.Aside = append(r.done.Aside, aside)
+	}
+	if err := os.Rename(r.mesh, dest); err != nil {
+		return fmt.Errorf("restore: put the mesh store in place: %w", err)
 	}
 	r.done.Files = append(r.done.Files, dest)
 	return nil

@@ -79,6 +79,7 @@ var reaches = map[string]profileReach{
 	"ConfigChanged": passes, "StartUpload": passes, "PutUpload": passes,
 	"Devices": passes, "AddDevice": passes, "RemoveDevice": passes,
 	"StartPairing": passes, "ConfirmPairing": passes, "Pair": passes,
+	"JoinMesh": passes, "MeshStatus": passes,
 }
 
 // profileGate is the server's interceptor: it refuses a profile the config does not

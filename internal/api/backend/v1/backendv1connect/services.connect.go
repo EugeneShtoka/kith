@@ -427,6 +427,11 @@ const (
 	BackendServiceConfirmPairingProcedure = "/backend.v1.BackendService/ConfirmPairing"
 	// BackendServicePairProcedure is the fully-qualified name of the BackendService's Pair RPC.
 	BackendServicePairProcedure = "/backend.v1.BackendService/Pair"
+	// BackendServiceJoinMeshProcedure is the fully-qualified name of the BackendService's JoinMesh RPC.
+	BackendServiceJoinMeshProcedure = "/backend.v1.BackendService/JoinMesh"
+	// BackendServiceMeshStatusProcedure is the fully-qualified name of the BackendService's MeshStatus
+	// RPC.
+	BackendServiceMeshStatusProcedure = "/backend.v1.BackendService/MeshStatus"
 )
 
 // BackendServiceClient is a client for the backend.v1.BackendService service.
@@ -807,6 +812,13 @@ type BackendServiceClient interface {
 	// Pair is a new device answering a pairing: the one call an unpaired key may make,
 	// and only while a token is live.
 	Pair(context.Context, *connect.Request[v1.PairRequest]) (*connect.ServerStreamForClient[v1.PairResponse], error)
+	// The mesh
+	// JoinMesh has this kithd join the mesh of the bridge a pairing names: over the
+	// socket only.
+	JoinMesh(context.Context, *connect.Request[v1.JoinMeshRequest]) (*connect.ServerStreamForClient[v1.JoinMeshResponse], error)
+	// MeshStatus is this bridge's view of its mesh: its peers, the accounts each runs,
+	// when each was last heard, lag, clock gaps and the store's size.
+	MeshStatus(context.Context, *connect.Request[v1.MeshStatusRequest]) (*connect.Response[v1.MeshStatusResponse], error)
 }
 
 // NewBackendServiceClient constructs a client for the backend.v1.BackendService service. By
@@ -1678,6 +1690,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("Pair")),
 			connect.WithClientOptions(opts...),
 		),
+		joinMesh: connect.NewClient[v1.JoinMeshRequest, v1.JoinMeshResponse](
+			httpClient,
+			baseURL+BackendServiceJoinMeshProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("JoinMesh")),
+			connect.WithClientOptions(opts...),
+		),
+		meshStatus: connect.NewClient[v1.MeshStatusRequest, v1.MeshStatusResponse](
+			httpClient,
+			baseURL+BackendServiceMeshStatusProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("MeshStatus")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1826,6 +1850,8 @@ type backendServiceClient struct {
 	startPairing          *connect.Client[v1.StartPairingRequest, v1.StartPairingResponse]
 	confirmPairing        *connect.Client[v1.ConfirmPairingRequest, v1.ConfirmPairingResponse]
 	pair                  *connect.Client[v1.PairRequest, v1.PairResponse]
+	joinMesh              *connect.Client[v1.JoinMeshRequest, v1.JoinMeshResponse]
+	meshStatus            *connect.Client[v1.MeshStatusRequest, v1.MeshStatusResponse]
 }
 
 // Rooms calls backend.v1.BackendService.Rooms.
@@ -2543,6 +2569,16 @@ func (c *backendServiceClient) Pair(ctx context.Context, req *connect.Request[v1
 	return c.pair.CallServerStream(ctx, req)
 }
 
+// JoinMesh calls backend.v1.BackendService.JoinMesh.
+func (c *backendServiceClient) JoinMesh(ctx context.Context, req *connect.Request[v1.JoinMeshRequest]) (*connect.ServerStreamForClient[v1.JoinMeshResponse], error) {
+	return c.joinMesh.CallServerStream(ctx, req)
+}
+
+// MeshStatus calls backend.v1.BackendService.MeshStatus.
+func (c *backendServiceClient) MeshStatus(ctx context.Context, req *connect.Request[v1.MeshStatusRequest]) (*connect.Response[v1.MeshStatusResponse], error) {
+	return c.meshStatus.CallUnary(ctx, req)
+}
+
 // BackendServiceHandler is an implementation of the backend.v1.BackendService service.
 type BackendServiceHandler interface {
 	// Room
@@ -2921,6 +2957,13 @@ type BackendServiceHandler interface {
 	// Pair is a new device answering a pairing: the one call an unpaired key may make,
 	// and only while a token is live.
 	Pair(context.Context, *connect.Request[v1.PairRequest], *connect.ServerStream[v1.PairResponse]) error
+	// The mesh
+	// JoinMesh has this kithd join the mesh of the bridge a pairing names: over the
+	// socket only.
+	JoinMesh(context.Context, *connect.Request[v1.JoinMeshRequest], *connect.ServerStream[v1.JoinMeshResponse]) error
+	// MeshStatus is this bridge's view of its mesh: its peers, the accounts each runs,
+	// when each was last heard, lag, clock gaps and the store's size.
+	MeshStatus(context.Context, *connect.Request[v1.MeshStatusRequest]) (*connect.Response[v1.MeshStatusResponse], error)
 }
 
 // NewBackendServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -3788,6 +3831,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("Pair")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceJoinMeshHandler := connect.NewServerStreamHandler(
+		BackendServiceJoinMeshProcedure,
+		svc.JoinMesh,
+		connect.WithSchema(backendServiceMethods.ByName("JoinMesh")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceMeshStatusHandler := connect.NewUnaryHandler(
+		BackendServiceMeshStatusProcedure,
+		svc.MeshStatus,
+		connect.WithSchema(backendServiceMethods.ByName("MeshStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/backend.v1.BackendService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case BackendServiceRoomsProcedure:
@@ -4076,6 +4131,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceConfirmPairingHandler.ServeHTTP(w, r)
 		case BackendServicePairProcedure:
 			backendServicePairHandler.ServeHTTP(w, r)
+		case BackendServiceJoinMeshProcedure:
+			backendServiceJoinMeshHandler.ServeHTTP(w, r)
+		case BackendServiceMeshStatusProcedure:
+			backendServiceMeshStatusHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -4655,4 +4714,12 @@ func (UnimplementedBackendServiceHandler) ConfirmPairing(context.Context, *conne
 
 func (UnimplementedBackendServiceHandler) Pair(context.Context, *connect.Request[v1.PairRequest], *connect.ServerStream[v1.PairResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Pair is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) JoinMesh(context.Context, *connect.Request[v1.JoinMeshRequest], *connect.ServerStream[v1.JoinMeshResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.JoinMesh is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) MeshStatus(context.Context, *connect.Request[v1.MeshStatusRequest]) (*connect.Response[v1.MeshStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MeshStatus is not implemented"))
 }

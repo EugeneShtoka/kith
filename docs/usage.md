@@ -265,10 +265,10 @@ kith backup --no-media           # without the pictures
 ```
 
 It writes one encrypted file: the cache (every cached message, reaction, draft and read
-position), your config and the commands beside it, what an assistant sent for you and
-the send-later queue, and the picture cache on kithd's machine (`[storage] cache_dir`),
+position), your config and the commands beside it, what an assistant sent for you, the
+send-later queue and the devices paired with kithd (its mesh store), and the picture cache on kithd's machine (`[storage] cache_dir`),
 since WhatsApp and Signal pictures cannot be fetched again once their servers drop them. `--no-media` leaves the pictures out.
-kithd may keep running; the cache is copied as it stands.
+kithd may keep running; the cache and the mesh store are copied as they stand.
 
 **Your backup key.** Every backup, by hand or kithd's scheduled one, is encrypted to
 one key. The first `kith backup` makes it and shows its private half once (or choose
@@ -400,6 +400,11 @@ first.
    restore printed: a backup holds no sessions, so every network sees a new device.
    Your history is there from the start; what arrived while you moved comes in as each
    account logs in, as far as that network keeps it.
+6. Paired devices: the backup holds the list, but not kithd's device key, which stays in
+   the old machine's keyring. The new kithd's key is not the one the list was signed
+   with, so it does not listen for devices and says so. Move `mesh-<hash>.db` aside in
+   `[storage] data_dir`, and pair each device again (`kith pair`, then `kith join` on
+   it): it still pins the old machine's key ([remote.md](remote.md)).
 
 ## Threads in the room list
 

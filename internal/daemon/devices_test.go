@@ -2,8 +2,10 @@ package daemon_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -27,6 +29,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/devicekey"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
+	"github.com/EugeneShtoka/kith/internal/mesh"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 func newDeviceKey(t *testing.T) *ecdsa.PrivateKey {
@@ -94,45 +98,102 @@ func loopback(t *testing.T) string {
 	return ip
 }
 
+// storeKey is a mesh store's key, made afresh: never a literal.
+func storeKey(t *testing.T) []byte {
+	t.Helper()
+	key := make([]byte, sealeddb.KeyLen)
+	if _, err := rand.Read(key); err != nil {
+		t.Fatal(err)
+	}
+	return key
+}
+
+// meshAt is the mesh store at path under key as kithd keeps it: opened when first asked
+// for, again after a failure, and closed when the test ends.
+func meshAt(t *testing.T, path string, key []byte) func() (daemon.RosterStore, error) {
+	t.Helper()
+	var mu sync.Mutex
+	var store *mesh.Store
+	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		if store != nil {
+			_ = store.Close()
+		}
+	})
+	return func() (daemon.RosterStore, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if store == nil {
+			opened, err := mesh.Open(context.Background(), path, key)
+			if err != nil {
+				return nil, err
+			}
+			store = opened
+		}
+		return store, nil
+	}
+}
+
+// upSettle bounds a bridge coming up: it opens its sealed mesh store first, whose syncs
+// to disk wait their turn when every package's tests run at once.
+const upSettle = 30 * time.Second
+
 // bridge is a daemon serving its socket, and its listener to paired devices.
 type bridge struct {
 	t       *testing.T
 	socket  *daemon.Remote
 	addr    string
 	roster  string
+	mesh    string // the mesh store's path
+	meshKey []byte
+	key     *ecdsa.PrivateKey
 	self    devicekey.ID
 	streams *daemon.Streams
 	paired  *daemon.Devices
 	logs    *syncBuffer
 }
 
-// bridgeOpts shapes a bridge: a roster written before it starts, its identity.
+// bridgeOpts shapes a bridge: a roster written before it starts, its identity and key,
+// and the directory and key of its mesh store, when the test prepares it.
 type bridgeOpts struct {
 	roster   string
 	identity func() (tls.Certificate, error)
+	key      *ecdsa.PrivateKey
 	listen   []string
+	dir      string
+	meshKey  []byte
 }
 
 func serveBridge(t *testing.T, opts bridgeOpts) *bridge {
 	t.Helper()
-	dir := t.TempDir()
-	b := &bridge{t: t, roster: filepath.Join(dir, "devices.toml"), logs: &syncBuffer{}}
+	dir := cmp.Or(opts.dir, t.TempDir())
+	b := &bridge{
+		t: t, roster: filepath.Join(dir, "devices.toml"), mesh: filepath.Join(dir, "mesh.db"),
+		meshKey: opts.meshKey, key: opts.key, logs: &syncBuffer{},
+	}
 	if opts.roster != "" {
 		if err := os.WriteFile(b.roster, []byte(opts.roster), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	key := newDeviceKey(t)
-	b.self = idOf(t, key)
-	if opts.identity == nil {
-		opts.identity = identityOf(t, key)
+	if b.key == nil {
+		b.key = newDeviceKey(t)
 	}
+	if b.meshKey == nil {
+		b.meshKey = storeKey(t)
+	}
+	b.self = idOf(t, b.key)
+	if opts.identity == nil {
+		opts.identity = identityOf(t, b.key)
+	}
+	store := meshAt(t, b.mesh, b.meshKey)
 	b.addr = freeAddr(t, "127.0.0.1")
 	if opts.listen == nil {
 		opts.listen = []string{b.addr}
 	}
 	log := slog.New(slog.NewTextHandler(b.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	b.paired = daemon.NewDevices(b.roster, opts.identity, log)
+	b.paired = daemon.NewDevices(b.roster, store, opts.identity, log)
 	b.paired.Listen(opts.listen)
 	b.streams = daemon.NewStreams()
 	path := filepath.Join(dir, "kithd.sock")
@@ -205,7 +266,11 @@ func listening(addr string) bool {
 // waitListening waits for addr to take connections, or to stop, as want says.
 func (b *bridge) waitListening(addr string, want bool) {
 	b.t.Helper()
-	deadline := time.Now().Add(settle)
+	wait := settle
+	if want {
+		wait = upSettle
+	}
+	deadline := time.Now().Add(wait)
 	for listening(addr) != want {
 		if time.Now().After(deadline) {
 			b.t.Fatalf("listening on %s = %v, want %v; log:\n%s", addr, !want, want, b.logs)
@@ -515,7 +580,8 @@ func TestARosterThatDoesNotReadListensNowhere(t *testing.T) {
 	id := idOf(t, newDeviceKey(t)).String()
 	for _, tc := range []struct{ name, roster string }{
 		{"not TOML", "[[device]\nid = "},
-		{"an unknown key", fmt.Sprintf("[[device]]\nid = %q\nrole = \"admin\"\n", id)},
+		{"an unknown key", fmt.Sprintf("[[device]]\nid = %q\nadmin = true\n", id)},
+		{"an unknown role", fmt.Sprintf("[[device]]\nid = %q\nrole = \"admin\"\n", id)},
 		{"an ID that does not read", "[[device]]\nid = \"ABCD-EFGH\"\n"},
 		{"no ID", "[[device]]\nname = \"laptop\"\n"},
 		{"a device twice", fmt.Sprintf("[[device]]\nid = %q\n[[device]]\nid = %q\n", id, strings.ToLower(id))},
@@ -691,7 +757,7 @@ func TestChangesAtOnceKeepTheRosterWhole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, inFile, err := daemon.NewDevices(b.roster, identityOf(t, newDeviceKey(t)), logging.Discard()).List()
+	_, inFile, err := daemon.NewDevices(b.roster, meshAt(t, b.mesh, b.meshKey), identityOf(t, b.key), logging.Discard()).List()
 	if err != nil {
 		t.Fatal(err)
 	}

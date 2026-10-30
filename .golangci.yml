@@ -467,6 +467,32 @@ linters:
             - "go.mau.fi/util/dbutil"
             - "google.golang.org/protobuf"
 
+        # The mesh's data model: clocks, dots, version vectors, signed ops and the roster's
+        # rules. Pure: device IDs and keys, nothing that stores or dials.
+        mesh-crdt-is-pure:
+          files:
+            - "**/internal/mesh/crdt/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
+
+        # A replica's store: its ops and entries, sealed under the cache's key, and the
+        # sync session over the mesh's frames. kithd's alone (deps-check keeps it out of
+        # every client).
+        mesh-is-a-store:
+          files:
+            - "**/internal/mesh/*.go"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api/mesh/v1"
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/human"
+            - "github.com/EugeneShtoka/kith/internal/mesh/crdt"
+            - "github.com/EugeneShtoka/kith/internal/sealeddb"
+
         # Encrypted SQLite for the network stores that act as the account: a leaf over
         # ncruces' SQLite (WebAssembly, pure Go) and its Adiantum VFS.
         sealeddb-is-a-leaf:
@@ -536,6 +562,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/mesh"
             - "github.com/EugeneShtoka/kith/internal/setup"
 
         # The daemon's model layer from the config: the only place outside matrix that
@@ -611,6 +638,17 @@ linters:
             - "google.golang.org/protobuf"
             - "connectrpc.com/connect"
             - "github.com/EugeneShtoka/kith/internal/api/signal/v1"
+
+        # The mesh's wire (MeshService, bridge to bridge), generated likewise.
+        mesh-wire-is-generated:
+          files:
+            - "**/internal/api/mesh/v1/*.go"
+            - "**/internal/api/mesh/v1/meshv1connect/**"
+          allow:
+            - "$gostd"
+            - "google.golang.org/protobuf"
+            - "connectrpc.com/connect"
+            - "github.com/EugeneShtoka/kith/internal/api/mesh/v1"
 
         # kith-relay's wire (DeviceService), generated likewise.
         device-wire-is-generated:
@@ -803,6 +841,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/devicekey"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            # kith mesh says how long ago a bridge was heard.
+            - "github.com/EugeneShtoka/kith/internal/human"
             - "github.com/EugeneShtoka/kith/internal/keystore"
             - "github.com/EugeneShtoka/kith/internal/launch"
             - "github.com/EugeneShtoka/kith/internal/llamacpp"
@@ -839,6 +879,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/local"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/matrix"
+            - "github.com/EugeneShtoka/kith/internal/mesh"
             - "github.com/EugeneShtoka/kith/internal/meta"
             - "github.com/EugeneShtoka/kith/internal/modelsetup"
             - "github.com/EugeneShtoka/kith/internal/route"

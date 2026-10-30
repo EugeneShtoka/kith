@@ -3,16 +3,19 @@ package protoconv
 import (
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // DeviceToProto converts a paired device.
 func DeviceToProto(d domain.Device) *v1.Device {
-	return &v1.Device{Name: d.Name, Id: d.ID, AddedAt: toProtoTime(d.AddedAt), AddedBy: d.AddedBy}
+	return &v1.Device{Name: d.Name, Id: d.ID, Role: string(d.Role), AddedAt: toProtoTime(d.AddedAt), AddedBy: d.AddedBy}
 }
 
 // ProtoToDevice converts a paired device back; nil is the zero value.
 func ProtoToDevice(pb *v1.Device) domain.Device {
-	return domain.Device{Name: pb.GetName(), ID: pb.GetId(), AddedAt: fromProtoTime(pb.GetAddedAt()), AddedBy: pb.GetAddedBy()}
+	return domain.Device{
+		Name: pb.GetName(), ID: pb.GetId(), Role: domain.DeviceRole(pb.GetRole()), AddedAt: fromProtoTime(pb.GetAddedAt()), AddedBy: pb.GetAddedBy(),
+	}
 }
 
 // DevicesToProto converts the roster.
@@ -35,12 +38,51 @@ func ProtoToPairingTicket(pb *v1.PairingTicket) domain.PairingTicket {
 
 // PendingDeviceToProto converts the device a pairing waits to confirm.
 func PendingDeviceToProto(p domain.PendingDevice) *v1.PendingDevice {
-	return &v1.PendingDevice{Name: p.Name, Id: p.ID, Digits: p.Digits}
+	return &v1.PendingDevice{Name: p.Name, Id: p.ID, Digits: p.Digits, Role: string(p.Role)}
 }
 
 // ProtoToPendingDevice converts it back; nil is the zero value.
 func ProtoToPendingDevice(pb *v1.PendingDevice) domain.PendingDevice {
-	return domain.PendingDevice{Name: pb.GetName(), ID: pb.GetId(), Digits: pb.GetDigits()}
+	return domain.PendingDevice{Name: pb.GetName(), ID: pb.GetId(), Digits: pb.GetDigits(), Role: domain.DeviceRole(pb.GetRole())}
+}
+
+// MeshStatusToProto converts a bridge's view of its mesh.
+func MeshStatusToProto(s domain.MeshStatus) *v1.MeshStatusResponse {
+	return &v1.MeshStatusResponse{
+		Self: s.Self, Addresses: s.Addresses, StoreBytes: s.StoreBytes, Removed: s.Removed,
+		Accounts: mapSlice(s.Accounts, meshAccountToProto), Peers: mapSlice(s.Peers, meshPeerToProto),
+	}
+}
+
+// ProtoToMeshStatus converts it back; nil is the zero value.
+func ProtoToMeshStatus(pb *v1.MeshStatusResponse) domain.MeshStatus {
+	return domain.MeshStatus{
+		Self: pb.GetSelf(), Addresses: pb.GetAddresses(), StoreBytes: pb.GetStoreBytes(), Removed: pb.GetRemoved(),
+		Accounts: mapSlice(pb.GetAccounts(), protoToMeshAccount), Peers: mapSlice(pb.GetPeers(), protoToMeshPeer),
+	}
+}
+
+func meshPeerToProto(p domain.MeshPeer) *v1.MeshPeer {
+	return &v1.MeshPeer{
+		Bridge: DeviceToProto(p.Bridge), Addresses: p.Addresses, Accounts: mapSlice(p.Accounts, meshAccountToProto), Heard: toProtoTime(p.Heard),
+		ClockGap: durationpb.New(p.ClockGap), Lag: p.Lag, Connected: p.Connected, Forked: p.Forked,
+	}
+}
+
+func protoToMeshPeer(pb *v1.MeshPeer) domain.MeshPeer {
+	return domain.MeshPeer{
+		Bridge: ProtoToDevice(pb.GetBridge()), Addresses: pb.GetAddresses(), Accounts: mapSlice(pb.GetAccounts(), protoToMeshAccount),
+		Heard: fromProtoTime(pb.GetHeard()), ClockGap: pb.GetClockGap().AsDuration(),
+		Lag: pb.GetLag(), Connected: pb.GetConnected(), Forked: pb.GetForked(),
+	}
+}
+
+func meshAccountToProto(a domain.MeshAccount) *v1.MeshAccount {
+	return &v1.MeshAccount{Network: a.Network, Id: a.ID, Label: a.Label}
+}
+
+func protoToMeshAccount(pb *v1.MeshAccount) domain.MeshAccount {
+	return domain.MeshAccount{Network: pb.GetNetwork(), ID: pb.GetId(), Label: pb.GetLabel()}
 }
 
 // pairingOutcomes maps the domain enum to the wire enum, both directions.

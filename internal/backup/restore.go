@@ -54,7 +54,7 @@ type Restored struct {
 }
 
 // Restore puts the backup at archive back for the config at configPath: the config
-// itself, then the cache, records and pictures where that config keeps them on this
+// itself, then the cache, the mesh store, records and pictures where that config keeps them on this
 // machine, and the backup key's public half, so this machine's backups go on to the
 // same key. Files already there are refused unless replace, which sets them aside
 // under a ".before-restore-<time>" name; pictures are added to the picture cache,
@@ -109,6 +109,7 @@ type restore struct {
 	smallMode map[string]fs.FileMode
 	order     []string
 	cache     string // the adopted cache, ready to move into place
+	mesh      string // the copied mesh store, ready to move into place; "" when the backup has none
 	// media is the picture cache's folder; pictures, the folder the backup's are staged
 	// in beside it, and pictureNames their names there.
 	media, pictures string

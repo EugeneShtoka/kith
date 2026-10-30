@@ -162,8 +162,9 @@ func bodies(t *testing.T, path string) []string {
 	return out
 }
 
-// backUp writes a backup of m (made current) and returns its path.
-func (m machine) backUp(t *testing.T) string {
+// backUp writes a backup of m (made current) and returns its path; also names what it
+// holds beyond what fill gives every machine.
+func (m machine) backUp(t *testing.T, also ...string) string {
 	t.Helper()
 	m.as(t)
 	cfg, err := config.Load(m.configPath)
@@ -175,8 +176,13 @@ func (m machine) backUp(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if made.Path != out || len(made.Entries) != 6 {
-		t.Fatalf("Create() = %+v; want five files and the pictures at %s", made, out)
+	if made.Path != out || len(made.Entries) != 6+len(also) {
+		t.Fatalf("Create() = %+v; want five files, the pictures and %v at %s", made, also, out)
+	}
+	for _, name := range also {
+		if !slices.ContainsFunc(made.Entries, func(e backup.Entry) bool { return e.Name == name }) {
+			t.Fatalf("Create() = %+v; want %s in it", made, name)
+		}
 	}
 	return out
 }

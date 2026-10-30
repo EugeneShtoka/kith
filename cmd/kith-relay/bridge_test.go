@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -35,7 +36,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/keystore"
 	"github.com/EugeneShtoka/kith/internal/logging"
+	"github.com/EugeneShtoka/kith/internal/mesh"
 	"github.com/EugeneShtoka/kith/internal/schedule"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
@@ -174,7 +177,7 @@ func serveBridge(t *testing.T, paired ...*ecdsa.PrivateKey) *bridgeKithd {
 		t.Fatal(err)
 	}
 	b := &bridgeKithd{addr: freeAddr(t), id: idOf(t, key), messages: &messageLog{streams: daemon.NewStreams()}}
-	b.paired = daemon.NewDevices(filepath.Join(dir, "devices.toml"),
+	b.paired = daemon.NewDevices(filepath.Join(dir, "devices.toml"), meshAt(t, filepath.Join(dir, "mesh.db")),
 		func() (tls.Certificate, error) { return cert, nil }, logging.Discard())
 	b.paired.Listen([]string{b.addr})
 	d := &daemon.Daemon{
@@ -206,6 +209,37 @@ func serveBridge(t *testing.T, paired ...*ecdsa.PrivateKey) *bridgeKithd {
 		}
 	})
 	return b
+}
+
+// meshAt is the bridge's mesh store at path, as kithd keeps it: opened when first asked
+// for, under a key of the test's own, and closed when the test ends.
+func meshAt(t *testing.T, path string) func() (daemon.RosterStore, error) {
+	t.Helper()
+	key := make([]byte, sealeddb.KeyLen)
+	if _, err := rand.Read(key); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var store *mesh.Store
+	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		if store != nil {
+			_ = store.Close()
+		}
+	})
+	return func() (daemon.RosterStore, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if store == nil {
+			opened, err := mesh.Open(context.Background(), path, key)
+			if err != nil {
+				return nil, err
+			}
+			store = opened
+		}
+		return store, nil
+	}
 }
 
 // unpair removes the device whose key is key from the bridge's roster, as `kith devices

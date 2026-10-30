@@ -30,6 +30,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/local"
 	"github.com/EugeneShtoka/kith/internal/logging"
 	"github.com/EugeneShtoka/kith/internal/matrix"
+	"github.com/EugeneShtoka/kith/internal/mesh"
 	"github.com/EugeneShtoka/kith/internal/modelsetup"
 	"github.com/EugeneShtoka/kith/internal/route"
 	"github.com/EugeneShtoka/kith/internal/schedule"
@@ -274,6 +275,8 @@ type served struct {
 	networks []network
 	// stores are the networks' own stores, closed with the backend.
 	stores []store
+	// mesh is the mesh store, which keeps the roster, closed with the backend.
+	mesh *meshFile
 	// cache is the cache every network writes; it learns how much of each room to keep
 	// once the notifications' place index exists (newWorkers).
 	cache *db.Cache
@@ -321,7 +324,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	return served{
 		Router: router, Service: service, matrix: mx, networks: networks, stores: stores,
 		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), storage: storage, cache: cache, defaults: defaults,
-		people: people,
+		people: people, mesh: &meshFile{storage: storage},
 	}
 }
 
@@ -430,6 +433,7 @@ func (s served) Close(log *slog.Logger) {
 			log.Warn("close a network's store failed", "network", st.name, "err", err)
 		}
 	}
+	s.mesh.close(log)
 }
 
 // configure applies the config to the backend; internal/local reads no config itself.
@@ -579,6 +583,47 @@ func deviceIdentity(storage domain.Storage, allowFile bool) func() (tls.Certific
 	}
 }
 
+// meshFile is the instance's mesh store, sealed under the cache's key: opened when the
+// roster is first read, and again after a failure (a store that does not open keeps
+// kithd from listening, as a roster that does not read does), closed at exit.
+type meshFile struct {
+	storage domain.Storage
+
+	mu    sync.Mutex
+	store *mesh.Store
+}
+
+func (m *meshFile) open() (daemon.RosterStore, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.store != nil {
+		return m.store, nil
+	}
+	key, err := cacheKey(m.storage)
+	if err != nil {
+		return nil, err
+	}
+	store, err := mesh.Open(context.Background(), m.storage.MeshPath(), key)
+	if err != nil {
+		return nil, fmt.Errorf("open the mesh store: %w", err)
+	}
+	m.store = store
+	return store, nil
+}
+
+// close closes the store, if it was opened, logging a failure.
+func (m *meshFile) close(log *slog.Logger) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.store == nil {
+		return
+	}
+	if err := m.store.Close(); err != nil {
+		log.Warn("close the mesh store failed", "err", err)
+	}
+	m.store = nil
+}
+
 // reloader re-reads the file the daemon was started with, never a client payload.
 func reloader(
 	log *slog.Logger,
@@ -708,7 +753,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		state.Report(daemon.StatusOf(m.Online(on)), t)
 		notifications.Synced(on, t)
 	})
-	paired := daemon.NewDevices(backend.storage.DevicesPath(), deviceIdentity(backend.storage, cfg.AllowTokenFile), log)
+	paired := daemon.NewDevices(backend.storage.DevicesPath(), backend.mesh.open, deviceIdentity(backend.storage, cfg.AllowTokenFile), log)
 	paired.Listen(cfg.Remote.Listen) // from when Serve runs
 	return &workers{
 		notifications: notifications,

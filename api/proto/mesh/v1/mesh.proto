@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package mesh.v1;
+
+option go_package = "github.com/EugeneShtoka/kith/internal/api/mesh/v1;meshv1";
+
+// MeshService is served by kithd to the other bridges of its mesh, over [remote] listen
+// only, and only to a connection authenticated as a member bridge
+// (planning/design-mesh.md). Each bridge dials every member bridge that has addresses;
+// one stream carries both directions, since often only one side can dial the other.
+service MeshService {
+  // Sync is one sync session: a Hello each way, then each side sends the ops the other
+  // lacks (or a snapshot, when it no longer keeps them), then every op it commits
+  // after, and acknowledges what it applied.
+  rpc Sync(stream SyncRequest) returns (stream SyncResponse);
+}
+
+// SyncRequest is a frame from the side that dialed.
+message SyncRequest {
+  SyncFrame frame = 1;
+}
+
+// SyncResponse is a frame from the side that was dialed.
+message SyncResponse {
+  SyncFrame frame = 1;
+}
+
+// SyncFrame is one frame of a sync session, either way.
+message SyncFrame {
+  oneof frame {
+    Hello hello = 1;
+    Ops ops = 2;
+    Snapshot snapshot = 3;
+    Ack ack = 4;
+  }
+}
+
+// Hello is each side's first frame: its device ID, its wall clock (Unix
+// milliseconds), its version vector and the protocol it speaks. A peer whose clock is
+// more than 60 seconds off is refused, the gap named.
+message Hello {
+  bytes replica = 1;
+  int64 wall_ms = 2;
+  repeated Head vector = 3;
+  uint32 protocol = 4;
+}
+
+// Head is what a version vector holds of one origin: every op up to seq, and the hash
+// of the op at seq.
+message Head {
+  bytes origin = 1;
+  uint64 seq = 2;
+  bytes hash = 3;
+}
+
+// Op is one signed op, as its origin wrote it: body is every field the signature
+// covers, in the mesh's own encoding (internal/mesh/crdt), so a relay passes on
+// exactly what the origin signed.
+message Op {
+  bytes body = 1;
+  bytes sig = 2;
+}
+
+// Ops are ops in an order that follows causality: the sender's apply order.
+message Ops {
+  repeated Op ops = 1;
+}
+
+// Snapshot is the sender's state for a peer whose ops it no longer keeps, in chunks:
+// entries and the roster's ops in any chunk, the vector and the clock with the last.
+message Snapshot {
+  repeated Entry entries = 1;
+  repeated Op roster = 2;
+  repeated Head vector = 3;
+  uint64 clock = 4;
+  bool last = 5;
+}
+
+// Entry is one value a key holds and the op that wrote it.
+message Entry {
+  string key = 1;
+  bytes value = 2;
+  bytes origin = 3;
+  uint64 seq = 4;
+  uint64 clock = 5;
+}
+
+// Ack is the receiver's version vector after it applied a batch.
+message Ack {
+  repeated Head vector = 1;
+}
