@@ -1,8 +1,6 @@
 # Design: bridges pair, and the mesh CRDT (Phase 2b of design-clients.md)
 
-Status: planned 2026-10-30; decisions taken the same day (at the end). The questions
-two bridges on one account raise are open at the end of [their
-section](#two-bridges-on-the-same-networks). Phase 2b of
+Status: planned 2026-10-30; every decision taken the same day (at the end). Phase 2b of
 [design-clients.md](design-clients.md): a second kithd pairs with the first, and the
 state no network holds for kith crosses between them. It builds on Phase 2a
 ([design-remote.md](design-remote.md)): device keys, pinned mutual TLS, pairing by QR,
@@ -438,13 +436,14 @@ includes everything.
   | Telegram | `telegram:<user ID>/<marked peer ID>` (`internal/telegram/rooms.go`); a message's ID is per chat and per account, shared by the account's sessions | yes |
   | Slack | `slack:<team>/<channel>`, messages by `ts` | yes |
   | Signal, Messenger, Instagram, LinkedIn | the server's chat or thread ID | yes |
-  | WhatsApp | groups by group JID: yes. A DM is keyed by the person's phone-number JID when this linked device's store maps the chat's LID to one, else by the LID (`chatOf`, `internal/whatsapp/messages.go`) | **not guaranteed**: one bridge may know a mapping the other does not yet, and key one DM two ways (decision 17) |
+  | WhatsApp | groups by group JID: yes. A DM is keyed today by the person's phone-number JID when this linked device's store maps the chat's LID to one, else by the LID (`chatOf`, `internal/whatsapp/messages.go`) | **not today**: one bridge may know a mapping the other does not yet, and key one DM two ways. Step 3 keys every DM by its LID (decision 17) |
   | Google Messages | one pairing only (design-clients.md) | cannot run on two bridges |
 
 - **Read receipts are sent once.** The bridge where the read was made sends it; it
   always runs the account, since a client sees only its bridge's rooms. A position
   arriving through the mesh is merged locally and sends nothing; the network's own echo
-  of the receipt reaches the other bridge and is merged by max (decisions 13, 14).
+  of the receipt reaches the other bridge and is merged by max, and a read the network
+  reports is not written to the mesh (decisions 13, 14).
 - **Notifications are shown once per device.** Both bridges decide alike (one config)
   and each publishes to its own clients; a device dials one bridge (its first
   `[[bridge]]`), so `kith-notify` there shows each message once.
@@ -458,35 +457,36 @@ includes everything.
 ### A profile across bridges
 
 **A bridge answers for what it holds.** `Rail`, `Rooms`, unread and notifications for a
-profile are evaluated by each bridge over its own rooms, as today. So a client on
-laptop asking for `work` gets laptop's WhatsApp and Telegram rooms in `space:Work`, and
-nothing for Slack; on homelab, everything. Place lists, tag rules and `room:` IDs naming
-rooms a bridge does not hold match nothing there, as a room left does today.
+profile are evaluated by each bridge over its own rooms, as today. Place lists, tag
+rules and `room:` IDs naming rooms a bridge does not hold match nothing there, as a room
+left does today.
 
-**Saying what is elsewhere** (decisions 15, 16): each bridge writes the accounts it runs
-to the mesh (`bridge/<device ID>/accounts`: network, the account's ID, its label),
-written by that bridge alone as it logs in and out. A bridge then knows what another
-member runs and it does not, and answers a profile with those accounts as **elsewhere**:
-"Slack (acme): on homelab", narrowed to the profile's `protocol:` places when it names
-any. The rail shows them as one quiet row under the profile's rooms, with no count and
-nothing to open. Without it, a profile looks empty or partial on laptop with no reason
-given.
+**What the user wants** (decision 16): a client that has joined several bridges (several
+`[[bridge]]` in its `device.toml`) shows everything its profile defines, across all of
+them: on laptop, `work` shows laptop's WhatsApp and Telegram rooms and homelab's Slack,
+as one rail. No placeholder rows stand for what is elsewhere.
 
-**Not in 2b: merging bridges.** A client dialing laptop and homelab at once and showing
-one rail is open question 7 of design-clients.md, with Phase 3. This phase must not
-preclude it:
+**That is Phase 3, not 2b** (decision 16): it is open question 7 of design-clients.md,
+and it needs what Phase 3 builds anyway: a client holding connections to several
+bridges, a stream position per bridge, dedup by network ID for an account two bridges
+run, and sends routed by account to a bridge that runs it. **Meanwhile a client with
+one bridge shows what that bridge holds, and nothing synthetic**: on laptop, `work` has
+no Slack rooms.
 
-- **One room, one ID on every bridge**, so a merging client dedupes by room ID (the
-  WhatsApp caveat above is the one gap; decision 17).
+This phase must not preclude the merge:
+
+- **One room, one ID on every bridge**, so a merging client dedupes by room ID (step 3
+  closes the WhatsApp gap).
 - **Mesh state is keyed by room, never by bridge**: the draft and read position of a
   room are the same whichever bridge a client asks.
 - **A bridge's answer is about its own rooms only**, with no synthetic rows standing for
-  another bridge's, so a merging client takes the union of each bridge's answer per
-  account. The elsewhere row is marked as such, for the merging client to drop once it
-  dials that bridge too.
-- **Accounts per bridge are in the mesh**, so a merging client knows which bridge to
-  send a room's message through, and the roster gives that bridge's addresses; a device
-  is already admitted by every member.
+  another bridge's, so a merging client takes the union of each bridge's answer, per
+  account.
+- **Each bridge publishes the accounts it runs** (decision 15) to
+  `bridge/<device ID>/accounts` (network, the account's ID, its label), written by that
+  bridge alone as it logs in and out; `kith mesh` lists them per bridge. A merging client
+  routes a room's sends by it, and the roster gives that bridge's addresses; a device is
+  already admitted by every member.
 - **A stream position is per bridge** (`(epoch, change)`, design-replay.md); a merging
   client keeps one per bridge.
 - **Notification IDs are per bridge today** (`<boot>-<count>`, `notifications.go`), so a
@@ -499,35 +499,6 @@ preclude it:
 bridges, dedup by network ID, buffering sends, resuming at another bridge. This phase
 writes each bridge's addresses into the roster and admits every member's devices
 everywhere; nothing here moves a client.
-
-### Decisions to make
-
-- **13. Who sends the receipt for a read?** (a) The bridge where the read was made; others
-  never; (b) as (a), and another bridge on the account also sends it when the
-  network has not echoed the position within a few minutes (the first bridge being
-  down); (c) every bridge on the account (design-clients.md's "harmless" duplicates).
-  **Recommend (a)**: no double receipts, no timers; the first bridge's local-first
-  retry sends it when it is back. (b) only if a receipt held by a bridge that is down
-  for days turns out to matter.
-- **14. Is a read the network reports written to the mesh?** (a) No: only reads made in
-  kith; each bridge on the account hears the network's own; (b) yes, every position.
-  **Recommend (a)**: (b) writes the same position once per bridge for every read on
-  the phone, and a bridge that does not run the account has no use for it.
-- **15. Does each bridge publish the accounts it runs to the mesh?** (a) Yes,
-  `bridge/<ID>/accounts`, written by that bridge only; (b) no. **Recommend (a)**: the
-  elsewhere row needs it, and Phase 3 routes sends by it. An account's ID and label
-  are no secret among the user's own bridges.
-- **16. What does a client see for a profile's accounts that its bridge does not run?**
-  (a) Nothing; (b) an elsewhere row naming the account and the bridge that runs it, no
-  count; (c) as (b) with that bridge's unread count, carried in the mesh. **Recommend
-  (b)**: it explains a partial profile at no cost; (c) puts counts that change with
-  every message into the mesh, which carries only what no network holds.
-- **17. A WhatsApp DM keyed two ways.** (a) Check live first (step 3): pair two bridges on
-  one WhatsApp account and compare their DM room IDs; fix only if they differ, by
-  keying a DM by the LID whenever one is known; (b) re-key every WhatsApp DM by LID
-  now. **Recommend (a)**: the PN mapping is learned from the same server pushes on
-  every linked device, so they may well agree; (b) re-keys rooms (cache, drafts,
-  stars, place lists) on a guess.
 
 ## Plan
 
@@ -546,8 +517,8 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
    kith.
 2. **feat: bridges pair and sync.** `MeshService.Sync`, its gate, `kith join --bridge`
    and `JoinMesh`, adoption, the dial loop, causal delivery, the horizon, snapshots,
-   removal and equivocation, `kith mesh` (peers, last heard, lag, store size, clock
-   gaps); SECURITY.md's "A listening kithd" gains the sync. Only the roster crosses
+   removal and equivocation, `bridge/<ID>/accounts`, `kith mesh` (peers, the accounts
+   each runs, last heard, lag, store size, clock gaps); SECURITY.md's "A listening kithd" gains the sync. Only the roster crosses
    yet, which is enough to unpair everywhere. **Failure review** (concurrent, merges
    writers, enforces scope): a model test of three to five replicas whose generator
    interleaves writes, partitions, reconnects, duplicated, reordered and replayed
@@ -559,21 +530,43 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
    removed replica is taken directly. Plus: both bridges dialing at
    once, an unpaired or device-role key calling `Sync`, the socket calling it, a peer
    unpaired mid-stream, a join whose confirmation never comes.
-3. **feat: read positions cross bridges.** `read/`, `thread/`, `marked/`; the cache's
+3. **fix: a WhatsApp DM is keyed by its LID.** `chatOf` and `person`
+   (`internal/whatsapp/messages.go`) key a DM by the person's LID whenever the account's
+   store knows one, by the phone-number JID only while it does not. A cache migration
+   (`internal/db`, a guarded migration with its fingerprint row, `docs/database.md`)
+   merges every DM room keyed by a phone number whose LID is known into the LID's room:
+   messages, side rows and change numbers, drafts, read positions, unread, verdicts;
+   the config's `room:` place lists and `picked` rooms naming the old ID are rewritten
+   through `UpdateConfig`, and queued scheduled messages re-pointed. A LID learned later
+   (a contact whose LID was unknown) merges that room the same way when the mapping
+   arrives; from step 4 on, the merge also writes the room's mesh entries under the new
+   key and deletes the old, which two bridges doing at once converge on (positions by
+   max, equal drafts adding nothing). Group chats are untouched; event IDs carry no chat
+   and do not change. Lands before any room's state crosses the mesh. **Failure review**
+   (merges writers, caches a derived result): a DM known by phone JID and by LID, both
+   rooms holding messages, merging into one room with none lost or doubled (a message
+   in both keeps one row, at a new change number, so a resuming client gets it); a
+   draft in each (joined, as `rebaseOnto` keeps a draft it does not extend); read
+   positions in each (the later wins); tag and person verdicts in each; the old ID in a
+   profile's place list and in a tag's `picked`; a scheduled message to the old room; a
+   contact whose LID is unknown yet (stays on its phone JID, merged once learned); a
+   message arriving under the phone JID during the migration; the migration cut off and
+   run again; the room open in a window when it merges (the window follows the new ID
+   on `Changed`).
+4. **feat: read positions cross bridges.** `read/`, `thread/`, `marked/`; the cache's
    unread rewritten from the mesh; the receipt sent by the bridge where the read was
-   made; reads the network reports kept out of the mesh. Before it lands, two bridges
-   on one WhatsApp account compare their DM room IDs (decision 17). **Failure review**
+   made; reads the network reports kept out of the mesh (decisions 13, 14). **Failure
+   review**
    (merges writers, caches a derived result): the generator of step 2 with reads on
    every replica asserts that a position never moves back on any replica, that
    `room_unread` equals what the mesh holds after every step, and that each read is
    receipted by one bridge; a network echoing an older receipt, a mark unread
    concurrent with a read, a room a bridge does not run, a cache rebuilt under a mesh
    that holds positions, a removed replica's reads (kept).
-4. **feat: the shared config crosses bridges.** `config.Local`, per-key registers,
+5. **feat: the shared config crosses bridges.** `config.Local`, per-key registers,
    rendering, the three-way read of a hand edit, conflicts (`kith config conflicts`,
    the settings screen), a merged config that does not check, the join's
    `config.toml.pre-mesh` with its printed list, log warning and popup;
-   `bridge/<ID>/accounts` and the elsewhere row of a profile;
    `docs/configuration.md` marks each local key. **Failure
    review** (merges writers): a generator of settings writes, hand edits and remote
    writes in any order, with an editor buffer opened before any remote write and saved
@@ -581,21 +574,20 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
    key and that every bridge renders the same shared keys; a hand edit to a local key
    (never crosses), a hand edit while kithd renders, an invalid hand edit, two concurrent
    writes of equal values (no conflict), a deleted key against an edited one, a join
-   whose config differs in no key and in every key, an account logged out on one bridge
-   while a profile shows it elsewhere.
-5. **feat: drafts cross bridges.** Drafts move from the cache into the mesh (the
+   whose config differs in no key and in every key.
+6. **feat: drafts cross bridges.** Drafts move from the cache into the mesh (the
    `drafts` tables become its read model; a rebuild no longer loses them), siblings, the
    5-second cadence. Depends on design-electron.md step 4 or does its move. **Failure
    review** (merges writers): `TestDraftsSurviveEveryInterleaving` gains a second bridge
    with its own window and kith-mcp, partitions and a send on one side; it asserts no
    typed or appended word is lost and every bridge reads the same draft; plus a draft
    over 1 MiB, a send concurrent with an append, a room left mid-save.
-6. **feat: verdicts cross bridges on networks that keep none.** `Router.keeperFor`'s
+7. **feat: verdicts cross bridges on networks that keep none.** `Router.keeperFor`'s
    store keeper writes `tag/` and `person/`; Matrix's stay in account data. **Failure
    review** (merges writers): a filter firing on both bridges for one message, a release
    concurrent with a move, a retag (`domain.Retagged`) concurrent with a move under the
    old name.
-7. **feat: keys rotate.** `kith devices rotate`, the rotation op, a bridge answering on
+8. **feat: keys rotate.** `kith devices rotate`, the rotation op, a bridge answering on
    its old key by SNI for the horizon, clients rewriting their pin. **Failure review**
    (enforces scope): a rotation signed by one key only, a rotated-out key connecting
    after the rotation arrived, a rotation concurrent with the device's removal, a client
@@ -603,8 +595,8 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
 
 ## Left open
 
-- **A client on several bridges** (design-clients.md open question 7) and **failover**
-  (Phase 3).
+- **A client on several bridges**, showing everything its profile defines across them
+  (decision 16; design-clients.md open question 7), and **failover**: Phase 3.
 - **Store-holding clients** (Electron's partial cache, Android): they pair with a
   replica role and sync through their bridge; syncing device to device directly waits
   for them.
@@ -617,8 +609,7 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
 
 ## Decisions (2026-10-30)
 
-Decided by the user on 2026-10-30. Decisions 13–17, raised by two bridges on one
-account, are open at the end of [their section](#decisions-to-make).
+Decided by the user on 2026-10-30.
 
 1. **Network accounts are each bridge's own**: `[[<network>.account]]` stays in its
    file. Bridges may still run the same networks, even the same account (Two bridges on
@@ -647,7 +638,28 @@ account, are open at the end of [their section](#decisions-to-make).
 9. **No HTTP/2 on the socket (h2c) yet**: it lands when a replica first sits beside its
    bridge (Phase 4's relay with a store). Bridge to bridge is TLS, already HTTP/2.
 10. **The horizon is 30 days.** Rejected: 7 or 90.
-11. **Bridges rotate keys too** (step 7), the old key answered by SNI for the horizon.
+11. **Bridges rotate keys too** (step 8), the old key answered by SNI for the horizon.
     Rejected: devices only, a bridge re-paired.
 12. **The clock bound is 60 seconds**: a peer further off is refused and named.
     Rejected: 5 minutes.
+13. **The bridge where a read was made sends its receipt**; a position arriving through
+    the mesh sends nothing. Rejected: another bridge sending it after a grace when the
+    network has not echoed it; every bridge on the account sending it.
+14. **A read the network reports is not written to the mesh**: each bridge on the
+    account hears it from the network. Rejected: writing every position.
+15. **Each bridge publishes the accounts it runs** (`bridge/<ID>/accounts`), for
+    routing sends once a client merges bridges, and for `kith mesh`. Rejected: not
+    publishing them.
+16. **A client that has joined several bridges shows everything its profile defines,
+    across all of them; no placeholder rows.** The user rejected all three options
+    offered (nothing; an "elsewhere" row naming the account and its bridge; such a row
+    with a count): "If the laptop client lists both servers, it shows everything
+    according to its profile." This is the intended behaviour of design-clients.md open
+    question 7, and it lands in **Phase 3**, not 2b: it needs a client on several
+    bridges, a stream position per bridge, dedup by network ID and sends routed by
+    account, all Phase 3's. Until then a client with one bridge shows what that bridge
+    holds, nothing synthetic, and 2b keeps the merge possible (A profile across
+    bridges).
+17. **Every WhatsApp DM is keyed by its LID now** (step 3), merging rooms known by
+    phone number into their LID's. Rejected: checking two bridges live first and fixing
+    only on a difference.
