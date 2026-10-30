@@ -363,6 +363,8 @@ What a backup leaves out:
 
 - **Network sessions and their keys.** After a restore, log in to each account
   again; kith lists them.
+- **kithd's device key.** Its [recovery key](remote.md#kithds-recovery-key), typed in
+  when the restore asks, brings it back.
 - **What refills itself:** downloaded models and dictionaries, and the pictures'
   scaled renders.
 - **A commands folder that is a link** (one home-manager made, say), or one
@@ -395,16 +397,20 @@ first.
    replace without `--replace`. If your install started kithd already, stop it
    (`systemctl --user stop kithd`).
 4. `kith restore <file>`, and paste the key when asked, or give it with
-   `--key-file`.
+   `--key-file`. Then it asks for kithd's recovery key (step 6).
 5. Start `kith`, and log in to each account again with the `kith login` lines the
    restore printed: a backup holds no sessions, so every network sees a new device.
    Your history is there from the start; what arrived while you moved comes in as each
    account logs in, as far as that network keeps it.
 6. Paired devices: the backup holds the list, but not kithd's device key, which stays in
-   the old machine's keyring. The new kithd's key is not the one the list was signed
-   with, so it does not listen for devices and says so. Move `mesh-<hash>.db` aside in
-   `[storage] data_dir`, and pair each device again (`kith pair`, then `kith join` on
-   it): it still pins the old machine's key ([remote.md](remote.md)).
+   the old machine's keyring. Type the old kithd's
+   [recovery key](remote.md#kithds-recovery-key) when `kith restore` asks for it
+   (`kith devices recovery-key` on the old machine shows it), and the new kithd has the
+   old key: the same device ID, the same devices paired. Without it the new kithd's key
+   is not the one the list was signed with, so it does not listen for devices and says
+   so. Move `mesh-<hash>.db` aside in `[storage] data_dir`, and pair each device again
+   (`kith pair`, then `kith join` on it): it still pins the old machine's key
+   ([remote.md](remote.md)).
 
 ## Threads in the room list
 

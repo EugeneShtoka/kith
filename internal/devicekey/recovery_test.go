@@ -49,7 +49,7 @@ func TestARecoveryKeyReadsBackHoweverItIsWritten(t *testing.T) {
 	}
 }
 
-// Every one character mistyped, and every two neighbours swapped, is refused as a
+// Every one character mistyped, and every two neighbors swapped, is refused as a
 // typo: never read as another key, which would be another device.
 func TestATypoInARecoveryKeyIsCaught(t *testing.T) {
 	t.Parallel()
@@ -66,8 +66,8 @@ func TestATypoInARecoveryKeyIsCaught(t *testing.T) {
 		plain := []byte(strings.ReplaceAll(written, "-", ""))
 		refused := func(what string, typed []byte) {
 			t.Helper()
-			if got, err := ParseRecoveryKey(string(typed)); !errors.Is(err, ErrNotARecoveryKey) {
-				t.Fatalf("%s: ParseRecoveryKey(%s) = %v, %v; want ErrNotARecoveryKey", what, typed, got != nil, err)
+			if got, perr := ParseRecoveryKey(string(typed)); !errors.Is(perr, ErrNotARecoveryKey) {
+				t.Fatalf("%s: ParseRecoveryKey(%s) = %v, %v; want ErrNotARecoveryKey", what, typed, got != nil, perr)
 			}
 		}
 		for i := range plain {
@@ -82,7 +82,7 @@ func TestATypoInARecoveryKeyIsCaught(t *testing.T) {
 			if i+1 < len(plain) && plain[i] != plain[i+1] {
 				typed := append([]byte(nil), plain...)
 				typed[i], typed[i+1] = typed[i+1], typed[i]
-				refused("two neighbours swapped", typed)
+				refused("two neighbors swapped", typed)
 			}
 		}
 		refused("one character short", plain[:len(plain)-1])

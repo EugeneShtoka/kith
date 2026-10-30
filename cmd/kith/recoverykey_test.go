@@ -177,6 +177,31 @@ func TestKithdsKeyIsAskedForOnlyWhenItIsFirstMade(t *testing.T) {
 	}
 }
 
+// After `kith restore` the recovery key is asked for the config kithd restored, and
+// not at all when kithd was asked for no restore (its help, a usage error).
+func TestTheRestoredConfigIsTheOneKithdRestored(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		args     []string
+		path     string
+		restored bool
+	}{
+		{args: []string{"b.tar.age"}, restored: true},
+		{args: []string{"--config", "/x/config.toml", "--replace", "--key-file", "k.txt", "b.tar.age"}, path: "/x/config.toml", restored: true},
+		{args: []string{"-config=/x/config.toml", "b.tar.age"}, path: "/x/config.toml", restored: true},
+		{args: []string{"--help"}},
+		{args: []string{"-h", "b.tar.age"}},
+		{args: nil},
+		{args: []string{"a.tar.age", "b.tar.age"}},
+		{args: []string{"--unknown", "b.tar.age"}},
+	} {
+		path, restored := restoredConfig(tc.args)
+		if path != tc.path || restored != tc.restored {
+			t.Errorf("restoredConfig(%q) = %q, %v; want %q, %v", tc.args, path, restored, tc.path, tc.restored)
+		}
+	}
+}
+
 // With stdin not a terminal (a script, a pipe, a unit), nothing is asked: kithd makes
 // its own key as ever.
 func TestNothingIsAskedWithoutATerminal(t *testing.T) {

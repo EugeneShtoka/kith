@@ -53,7 +53,7 @@ func askBridgeKey(storage domain.Storage, allowFile, restored bool, ask func(pro
 		_, _ = fmt.Fprintln(out, "kith: kithd has no device key yet. To keep the device ID of the kithd this machine\n"+
 			"takes over from (its devices stay paired), type that kithd's recovery key.")
 	} else {
-		id, ierr := devicekey.IDOf(have.Public())
+		id, ierr := idText(have)
 		if ierr != nil {
 			return ierr
 		}
@@ -68,27 +68,34 @@ func askBridgeKey(storage domain.Storage, allowFile, restored bool, ask func(pro
 	case key == nil && have != nil:
 		return nil
 	case key == nil:
-		if key, err = devicekey.Generate(); err != nil {
-			return err
-		}
-		if err = keystore.KeepDeviceKey(st, allowFile, key); err != nil {
-			return err
-		}
-		_, _ = fmt.Fprintln(out, "kith: kithd has a new device key.")
-		return showRecoveryKey(out, key)
+		return keepNewKey(st, allowFile, out)
 	case have != nil && key.Equal(have):
 		_, _ = fmt.Fprintln(out, "kith: that is the key kithd has already; kept.")
 		return nil
 	}
-	if err = keystore.KeepDeviceKey(st, allowFile, key); err != nil {
-		return err
+	if kerr := keystore.KeepDeviceKey(st, allowFile, key); kerr != nil {
+		return kerr
 	}
-	id, err := devicekey.IDOf(key.Public())
+	id, err := idText(key)
 	if err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(out, "kith: kithd's device key is the recovery key's: device ID %s.\n", id)
 	return nil
+}
+
+// keepNewKey makes kithd's device key afresh, keeps it, and shows its recovery key,
+// this once.
+func keepNewKey(st keystore.Store, allowFile bool, out io.Writer) error {
+	key, err := devicekey.Generate()
+	if err != nil {
+		return fmt.Errorf("kithd's device key: %w", err)
+	}
+	if kerr := keystore.KeepDeviceKey(st, allowFile, key); kerr != nil {
+		return kerr
+	}
+	_, _ = fmt.Fprintln(out, "kith: kithd has a new device key.")
+	return showRecoveryKey(out, key)
 }
 
 // askRecoveryKey asks until the answer is a recovery key, or nothing (nil).
@@ -109,22 +116,33 @@ func askRecoveryKey(prompt string, ask func(prompt string) (string, error), out 
 	}
 }
 
+// idText is key's device ID, written out.
+func idText(key *ecdsa.PrivateKey) (string, error) {
+	id, err := devicekey.IDOf(key.Public())
+	if err != nil {
+		return "", fmt.Errorf("kithd's device key: %w", err)
+	}
+	return id.String(), nil
+}
+
 // showRecoveryKey prints kithd's device ID and recovery key, and what the key is for.
 func showRecoveryKey(out io.Writer, key *ecdsa.PrivateKey) error {
 	written, err := devicekey.RecoveryKey(key)
 	if err != nil {
-		return err
+		return fmt.Errorf("kithd's recovery key: %w", err)
 	}
-	id, err := devicekey.IDOf(key.Public())
+	id, err := idText(key)
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(out, "kithd's device ID: %s\nIts recovery key, to write down:\n\n    %s\n\n"+
-		"Typed in when `kith restore` (or a first kith run, or `kith pair`) asks for it on a new\n"+
-		"machine, it keeps this device ID, so the devices paired with it stay paired. Anyone who\n"+
-		"has it can pose as this bridge: keep it as you would a password. A backup holds no\n"+
-		"device key. `kith devices recovery-key` shows it again, on this machine only.\n", id, written)
-	return err
+	if _, werr := fmt.Fprintf(out, "kithd's device ID: %s\nIts recovery key, to write down:\n\n    %s\n\n"+
+		"A backup holds no device key. Typed in when kith asks for it on another machine (after\n"+
+		"`kith restore`, or before kithd first starts there), it keeps this device ID, so the\n"+
+		"devices paired with it stay paired. Anyone who has it can pose as this bridge: keep it\n"+
+		"as you would a password. `kith devices recovery-key` shows it again, on this machine.\n", id, written); werr != nil {
+		return fmt.Errorf("show kithd's recovery key: %w", werr)
+	}
+	return nil
 }
 
 // printBridgeRecoveryKey is `kith devices recovery-key`: the recovery key of this

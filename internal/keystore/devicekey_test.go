@@ -117,8 +117,8 @@ func TestAKeptDeviceKeyIsTheOneLoaded(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if found, err := FindDeviceKey(st, true); err != nil || !found.Equal(made) {
-			t.Fatalf("keyring %v: found another key than the one made: %v", keyringUp, err)
+		if found, ferr := FindDeviceKey(st, true); ferr != nil || !found.Equal(made) {
+			t.Fatalf("keyring %v: found another key than the one made: %v", keyringUp, ferr)
 		}
 		kept, err := devicekey.Generate()
 		if err != nil {

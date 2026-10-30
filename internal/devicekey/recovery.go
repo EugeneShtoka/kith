@@ -1,8 +1,10 @@
 package devicekey
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
@@ -41,7 +43,7 @@ func ParseRecoveryKey(s string) (*ecdsa.PrivateKey, error) {
 		return nil, fmt.Errorf("%w (56 letters A–Z and digits 2–7, in groups of four)", ErrNotARecoveryKey)
 	}
 	scalar := raw[:scalarLen]
-	if string(check(scalar)) != string(raw[scalarLen:]) {
+	if !bytes.Equal(check(scalar), raw[scalarLen:]) {
 		return nil, fmt.Errorf("%w: it does not check out, so a character is mistyped", ErrNotARecoveryKey)
 	}
 	key, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), scalar)
@@ -53,7 +55,7 @@ func ParseRecoveryKey(s string) (*ecdsa.PrivateKey, error) {
 
 // check is OpenPGP's CRC-24 of scalar (RFC 4880, 6.1), big-endian. A CRC changes
 // under any error confined to as many consecutive bits as it has, so one character
-// mistyped (5 bits) or two neighbours swapped (10) is always caught, as a hash's
+// mistyped (5 bits) or two neighbors swapped (10) is always caught, as a hash's
 // truncation would only almost always.
 func check(scalar []byte) []byte {
 	crc := uint32(0xB704CE)
@@ -66,5 +68,5 @@ func check(scalar []byte) []byte {
 			}
 		}
 	}
-	return []byte{byte(crc >> 16), byte(crc >> 8), byte(crc)}
+	return binary.BigEndian.AppendUint32(nil, crc)[1:] // its low 24 bits
 }

@@ -20,7 +20,7 @@ kith import [--config path] network [account]
 kith ignore [--config path] mxid
 kith unignore [--config path] mxid
 kith ignored [--config path]
-kith devices [--config path] [add id [name] | remove id|name | id]
+kith devices [--config path] [add id [name] | remove id|name | id | recovery-key]
 kith pair [--config path] [name]
 kith join [--config path] [--name name] [--bridge] uri
 kith mesh [--config path]
@@ -28,7 +28,10 @@ kith mesh [--config path]
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
 needed) and opens the interface over whatever is logged in. A network account that is
-not logged in is named on the status line, with the command that logs it in.
+not logged in is named on the status line, with the command that logs it in. Before it
+starts a kithd that has no device key yet, it asks at a terminal for that kithd's
+[recovery key](remote.md#kithds-recovery-key), as every command that starts kithd
+does.
 
 ### kith login
 
@@ -117,7 +120,10 @@ store), records and pictures where that config keeps them on this machine, and t
 backups go on to the same key. It asks for the backup key without echo. Stop kithd
 first; it refuses while kithd runs on that config. It ends by listing a `kith login`
 line for each account, since a backup holds no sessions. Nothing is changed until the
-whole backup is read and checked.
+whole backup is read and checked. At a terminal it then asks for kithd's
+[recovery key](remote.md#kithds-recovery-key), so the restored kithd keeps the device
+ID its paired devices know (Enter for a new key, or to keep one kithd made already);
+a backup holds no device key.
 
 | Flag | Meaning |
 | --- | --- |
@@ -190,6 +196,7 @@ kith devices [--config path]
 kith devices [--config path] add id [name]
 kith devices [--config path] remove id|name
 kith devices [--config path] id
+kith devices [--config path] recovery-key
 ```
 
 The devices paired with this config's kithd, which it serves over `[remote] listen`
@@ -199,8 +206,11 @@ paired. `add` pairs a device by the ID printed on it, under an optional name (th
 rest of the line); `remove` unpairs one by its ID or name and closes its open
 connections. `id` prints this machine's own device ID as a client, making its key the
 first time, to paste into `kith devices add` on another machine's kithd; it needs no
-daemon. An ID is taken in any case, with or without its dashes. Each but `id` starts
-kithd if it isn't running.
+daemon. `recovery-key` prints kithd's [recovery key](remote.md#kithds-recovery-key),
+to write down, and its device ID. It reads kithd's key from the keyring on kithd's own
+machine and needs no daemon; on a machine that only dials a bridge elsewhere it has
+nothing to show. An ID is taken in any case, with or without its dashes. Each but `id`
+and `recovery-key` starts kithd if it isn't running.
 
 ### kith pair
 

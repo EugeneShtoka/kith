@@ -355,6 +355,17 @@ was current when it was made. A text that is not a key at all (it should start
 the keyring's cache key; a restore needs only the backup key. If it is lost, see
 [if you lose the key](usage.md#backing-up-and-moving-to-a-new-machine).
 
+### "not listening for paired devices … the key changed since the store was made"
+
+kithd's device key is not the one its device list (the mesh store) was signed with:
+the list came from a backup of another machine, or the keyring entry
+(`<instance>|device`) was reset, and kithd made a new key. A backup holds no device
+key. If you have the old kithd's [recovery key](remote.md#kithds-recovery-key) (`kith
+devices recovery-key` on the old machine showed it), stop kithd and restore again with
+`kith restore --replace <file>` (what the first restore put back is set aside, not
+deleted): it then asks for the recovery key, and a key typed replaces kithd's.
+Otherwise move `mesh-<hash>.db` aside and pair each device again.
+
 ## Encryption
 
 ### Undecryptable messages

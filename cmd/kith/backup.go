@@ -27,17 +27,11 @@ func runRestore(args []string) error {
 	if err := runInKithd("restore", args); err != nil {
 		return err
 	}
-	// kithd's flags, read again only for the config; anything else (--help, a usage
-	// error) kithd has answered already.
-	fs := flag.NewFlagSet("restore", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	configPath := fs.String("config", "", "")
-	fs.Bool("replace", false, "")
-	fs.String("key-file", "", "")
-	if fs.Parse(args) != nil || fs.NArg() != 1 {
+	configPath, restored := restoredConfig(args)
+	if !restored {
 		return nil
 	}
-	path, cfg, ready, err := loadConfig(*configPath)
+	path, cfg, ready, err := loadConfig(configPath)
 	if err != nil || !ready {
 		return err
 	}
@@ -49,6 +43,19 @@ func runRestore(args []string) error {
 		return fmt.Errorf("the backup is restored, but kithd's device key is as it was: %w", err)
 	}
 	return nil
+}
+
+// restoredConfig is the config a `kithd restore` that succeeded with args restored,
+// its flags read again for it; false when args asked for no restore (--help, a usage
+// error), which kithd has answered already.
+func restoredConfig(args []string) (configPath string, restored bool) {
+	fs := flag.NewFlagSet("restore", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	path := fs.String("config", "", "")
+	fs.Bool("replace", false, "")
+	fs.String("key-file", "", "")
+	restored = fs.Parse(args) == nil && fs.NArg() == 1
+	return *path, restored
 }
 
 // versionTimeout bounds `kithd --version`, which only prints.
