@@ -427,6 +427,20 @@ export class Kithd {
         const room = (request as MessageShape<typeof backend.cachedTimeline.input>).roomId;
         return reply(backend.cachedTimeline, { messages: (p.messages.get(room) ?? []).slice(-4) });
       }
+      case "SearchMessages": {
+        // As kithd: in the profile's rooms only, those asked for; newest first.
+        const r = request as MessageShape<typeof backend.searchMessages.input>;
+        const asked = (room: string) => r.allRooms || r.roomIds.includes(room);
+        const hits = p.rooms
+          .filter((room) => asked(room.id))
+          .flatMap((room) => p.messages.get(room.id) ?? [])
+          .filter((m) => r.query !== "" && m.body.toLowerCase().includes(r.query.toLowerCase()))
+          .sort(compare)
+          .reverse()
+          .slice(0, Number(r.limit))
+          .map((m) => ({ roomId: m.roomId, eventId: m.id, sender: m.sender, timestamp: m.timestamp, snippet: m.body }));
+        return reply(backend.searchMessages, { hits });
+      }
       case "Timeline":
         throw new Error("the network is off"); // its pages hand over to the cache's
       case "MessagesAround": {

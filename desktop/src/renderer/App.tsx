@@ -7,6 +7,7 @@ import { ComposerPane } from "./ComposerPane";
 import { rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
 import { type Link, type Seat, Session, type View } from "./session";
+import { SearchBar, SearchResults, Switcher } from "./Find";
 import { TimelinePane } from "./TimelinePane";
 
 const phases: Record<NetworkPhase, string> = {
@@ -80,19 +81,97 @@ function Body({ view, session }: { view: View; session: Session }) {
   if (view.seat.state !== "seated") {
     return <SeatState seat={view.seat} profile={view.profile} session={session} />;
   }
+  return <Seated view={view} session={session} />;
+}
+
+/** Seated is the window in its profile's seat: the search bar across the top, then the columns. */
+function Seated({ view, session }: { view: View; session: Session }) {
+  const [switching, setSwitching] = useState(false);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSwitching(true);
+      } else if (e.altKey && !e.ctrlKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        e.preventDefault();
+        if (e.key === "ArrowLeft") {
+          session.back();
+        } else {
+          session.forward();
+        }
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("keydown", key);
+    };
+  }, [session]);
   return (
     <>
       <Banner link={view.link} status={view.status} bridge={view.bridge} />
+      <nav className="find" aria-label="Find">
+        <button
+          type="button"
+          aria-label="Back"
+          title="Back (alt+←)"
+          disabled={!view.back}
+          onClick={() => {
+            session.back();
+          }}
+        >
+          ←
+        </button>
+        <button
+          type="button"
+          aria-label="Forward"
+          title="Forward (alt+→)"
+          disabled={!view.forward}
+          onClick={() => {
+            session.forward();
+          }}
+        >
+          →
+        </button>
+        <SearchBar open={view.open !== ""} session={session} />
+        <button
+          type="button"
+          title="ctrl+K"
+          onClick={() => {
+            setSwitching(true);
+          }}
+        >
+          Go to
+        </button>
+      </nav>
+      {switching && (
+        <Switcher
+          view={view}
+          session={session}
+          close={() => {
+            setSwitching(false);
+          }}
+        />
+      )}
       <div className="columns">
         <Rail view={view} session={session} />
-        <section className="rooms" aria-label="Rooms">
-          {view.invites.length > 0 && <Invites invites={view.invites} session={session} />}
-          <ul>
-            {view.rooms.map((r) => (
-              <RoomRow key={r.id} room={r} unread={view.unread.get(r.id)} open={r.id === view.open} session={session} />
-            ))}
-          </ul>
-        </section>
+        {view.search ? (
+          <SearchResults search={view.search} rooms={view.joined} session={session} />
+        ) : (
+          <section className="rooms" aria-label="Rooms">
+            {view.invites.length > 0 && <Invites invites={view.invites} session={session} />}
+            <ul>
+              {view.rooms.map((r) => (
+                <RoomRow
+                  key={r.id}
+                  room={r}
+                  unread={view.unread.get(r.id)}
+                  open={r.id === view.open}
+                  session={session}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
         {view.timeline && (
           <div className="open-room">
             <TimelinePane t={view.timeline} unreadLine={view.unreadLine} composer={view.composer} session={session} />

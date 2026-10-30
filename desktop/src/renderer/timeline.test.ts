@@ -139,7 +139,8 @@ type Step =
   | { kind: "land" }
   | { kind: "fail" }
   | { kind: "older" }
-  | { kind: "readAgain" };
+  | { kind: "readAgain" }
+  | { kind: "seek"; i: number; cached: boolean };
 
 const step: fc.Arbitrary<Step> = fc.oneof(
   { weight: 6, arbitrary: fc.record({ kind: fc.constant("write"), what: fc.nat(7), i: fc.nat(10_000) }) },
@@ -150,6 +151,10 @@ const step: fc.Arbitrary<Step> = fc.oneof(
   { weight: 1, arbitrary: fc.constant({ kind: "fail" }) },
   { weight: 2, arbitrary: fc.constant({ kind: "older" }) },
   { weight: 1, arbitrary: fc.constant({ kind: "readAgain" }) },
+  {
+    weight: 1,
+    arbitrary: fc.record({ kind: fc.constant("seek"), i: fc.nat(10_000), cached: fc.boolean() }),
+  },
 );
 
 /** Run is one window over one cache: the page in flight, asked and maybe read. */
@@ -159,6 +164,8 @@ class Run {
   private inFlight: { ticket: Ticket; read?: { rows: Message[]; next: string } } | undefined;
   /** Every ticket's answer, kept to land again late: one asked before a reload. */
   private stale: { ticket: Ticket; read: { rows: Message[]; next: string } }[] = [];
+  /** The message the last jump was to. */
+  sought: string | undefined;
 
   constructor(initial: number) {
     this.cache = new Cache(initial);
@@ -208,6 +215,14 @@ class Run {
       case "older":
         this.t.older();
         break;
+      case "seek": {
+        // A jump to a message the cache holds (a search hit), or to one it does not.
+        const all = this.cache.ordered();
+        const to = s.cached && all.length > 0 ? all[s.i % all.length] : undefined;
+        this.sought = to?.id ?? `$gone${String(s.i)}`;
+        this.t.seek(this.sought);
+        break;
+      }
       case "readAgain":
         // The stream could not resume: every frame not delivered is lost, and kithd
         // says to read again. An answer in flight still arrives, later.
@@ -269,6 +284,35 @@ describe("the timeline over any interleaving of pages and frames", () => {
         shownMatchesCache(run);
       }),
       { numRuns: 400 },
+    );
+  });
+
+  it("finds a jump's message wherever the cache holds it, reading back to it, and says when it holds none", () => {
+    fc.assert(
+      fc.property(
+        fc.nat(12),
+        fc.array(step, { maxLength: 80 }),
+        fc.nat(10_000),
+        fc.boolean(),
+        (initial, steps, i, cached) => {
+          const run = new Run(initial);
+          for (const s of [...steps, { kind: "seek", i, cached } as const]) {
+            run.do(s);
+          }
+          run.settle();
+          shownMatchesCache(run);
+          const sought = run.sought ?? "";
+          const held = run.cache.ordered().some((m) => m.id === sought);
+          expect(run.t.view().target).toBe(held ? sought : "");
+          expect(run.t.view().rows.some((m) => m.id === run.t.view().target)).toBe(held);
+          // Held, it may still have been said missing: written after the last page was
+          // read, it came as a frame once the pages ran out.
+          if (!held) {
+            expect(run.t.jumpMissed()).toBe(true);
+          }
+        },
+      ),
+      { numRuns: 2000 },
     );
   });
 

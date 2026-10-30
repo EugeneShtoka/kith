@@ -542,6 +542,204 @@ describe("read receipts", () => {
   });
 });
 
+describe("search, jumps, and back and forward", () => {
+  /** words writes n messages into room in profile, saying hello and bye in turn. */
+  const words = (profile: string, r: string, n: number) => {
+    for (let i = 1; i <= n; i++) {
+      const body = `${i % 2 === 0 ? "hello" : "bye"} from ${r}`;
+      kithd.write(profile, message({ id: `$${r}-${String(i)}`, ts: i * 10, body }, r));
+    }
+  };
+
+  it("finds what is typed where it is asked, and a hit opens its room read back to the message", async () => {
+    kithd.of("Home").rooms = [room("!a"), room("!b")];
+    words("Home", "!a", 12);
+    words("Home", "!b", 2);
+    await started();
+
+    session.search("hello", "all");
+    await settled();
+    expect(view().search?.hits.map((h) => h.eventId)).toEqual([
+      "$!a-12",
+      "$!a-10",
+      "$!a-8",
+      "$!a-6",
+      "$!a-4",
+      "$!b-2",
+      "$!a-2",
+    ]);
+    session.open("!b");
+    session.search("hello", "room");
+    await settled();
+    expect(view().search?.hits.map((h) => h.eventId)).toEqual(["$!b-2"]);
+    session.search("from:role:attorney", "all");
+    expect(view().search?.note).toContain("phonebook");
+    expect(kithd.calls.filter((c) => c.startsWith("SearchMessages"))).toHaveLength(2);
+
+    session.jump("!a", "$!a-2"); // older than the room's newest page
+    await settled();
+    expect(view().open).toBe("!a");
+    expect(view().timeline?.target).toBe("$!a-2");
+    expect(view().timeline?.rows.map((m) => m.id)).toContain("$!a-2");
+    session.jump("!a", "$!a-99");
+    await settled();
+    expect(view().problem).toBe("That message is no longer cached");
+
+    session.back();
+    await settled();
+    expect(view().open).toBe("!b");
+    expect(view().forward).toBe(true);
+    session.forward();
+    await settled();
+    expect(view().open).toBe("!a");
+  });
+
+  it("go back within the profile the window runs in, and find their way again when it returns", async () => {
+    kithd.profiles = ["Home", "Work"];
+    kithd.remembered = "Home";
+    kithd.of("Home").rooms = [room("!a"), room("!b")];
+    kithd.of("Work").rooms = [room("!w"), room("!v")];
+    await started();
+    session.open("!a");
+    session.open("!b");
+    await session.choose("Work");
+    await settled();
+    session.open("!w");
+    expect(view().back).toBe(false);
+    await session.choose("Home");
+    await settled();
+    session.back();
+    await settled();
+    expect(view().open).toBe("!a");
+  });
+
+  it("shows no hit, and opens no room, the profile no longer holds", async () => {
+    kithd.of("Home").rooms = [room("!a"), room("!b")];
+    words("Home", "!a", 2);
+    words("Home", "!b", 2);
+    await started();
+    session.search("hello", "all");
+    await settled();
+    expect(view().search?.hits.map((h) => h.roomId)).toEqual(["!b", "!a"]);
+
+    kithd.of("Home").rooms = [room("!b")];
+    kithd.send(backend.changed, "Home", { change: Change.ROOMS });
+    await settled();
+    expect(view().search?.hits.map((h) => h.roomId)).toEqual(["!b"]);
+    session.jump("!a", "$!a-2");
+    await settled();
+    expect(view().open).toBe("");
+    expect(view().problem).toBe("That room is no longer in this profile");
+  });
+
+  // The window searches, jumps, goes back and forward, and switches profiles, while
+  // searches are answered late and rooms leave and join the profiles; a hit clicked may
+  // be one drawn before any of that. Whenever all is quiet, the window shows nothing of
+  // a room outside the profile it runs in: no room open, no hit, and the hits are the
+  // last search's.
+  it.each(Array.from({ length: 40 }, (_, i) => i + 1))(
+    "stay in the window's profile over every switch (seed %i)",
+    async (seed) => {
+      const pick = rng(seed);
+      const all = { Home: ["!h0", "!h1", "!both"], Work: ["!w0", "!w1", "!both"] };
+      kithd.profiles = ["Home", "Work"];
+      kithd.remembered = "Home";
+      for (const [profile, ids] of Object.entries(all)) {
+        kithd.of(profile).rooms = ids.map((id) => room(id));
+        for (const id of ids) {
+          words(profile, id, 6);
+        }
+      }
+      await started();
+      const drawn: { roomId: string; eventId: string }[] = [];
+      let asked = "";
+      const check = (when: string) => {
+        const v = view();
+        const holds = new Set(kithd.of(v.profile).rooms.map((r) => r.id));
+        if (v.open !== "") {
+          expect(holds.has(v.open), `${v.open} open in ${v.profile}, ${when}`).toBe(true);
+        }
+        if (v.search !== undefined) {
+          expect(`${v.search.query} ${v.search.scope}`, `the search shown, ${when}`).toBe(asked);
+        }
+        for (const h of v.search?.hits ?? []) {
+          expect(holds.has(h.roomId), `a hit in ${h.roomId} in ${v.profile}, ${when}`).toBe(true);
+          expect(h.snippet, when).toContain(v.search?.query);
+        }
+      };
+      for (let s = 0; s < 80; s++) {
+        for (let i = pick(3); i > 0; i--) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+        const profile = view().profile;
+        const ids = all[profile as keyof typeof all];
+        switch (pick(10)) {
+          case 0:
+            // A room picked: one listed, or one of the other profile's still on screen.
+            session.open(pick(3) === 0 ? (Object.values(all).flat()[pick(6)] ?? "") : (ids[pick(3)] ?? ""));
+            break;
+          case 1:
+            void session.choose(pick(2) === 0 ? "Home" : "Work");
+            break;
+          case 2:
+            session.back();
+            break;
+          case 3:
+            session.forward();
+            break;
+          case 4: {
+            const query = ["hello", "bye", "from"][pick(3)] ?? "";
+            const scope = (["room", "row", "all"] as const)[pick(3)] ?? "all";
+            asked = `${query} ${scope}`;
+            session.search(query, scope);
+            drawn.push(...(view().search?.hits ?? []));
+            break;
+          }
+          case 5: {
+            // A hit clicked: one shown now, or one drawn before (another profile's, a search ago).
+            const hit = pick(2) === 0 ? view().search?.hits[pick(4)] : drawn[pick(drawn.length + 1)];
+            if (hit !== undefined) {
+              session.jump(hit.roomId, hit.eventId);
+            }
+            break;
+          }
+          case 6: {
+            // A room leaves the profile, or comes back; the window is told.
+            const p = pick(2) === 0 ? "Home" : "Work";
+            const id = all[p][pick(3)] ?? "";
+            const rooms = kithd.of(p).rooms;
+            const open = view().profile === p && view().open === id;
+            kithd.of(p).rooms = rooms.some((r) => r.id === id)
+              ? open
+                ? rooms // the open room stays: leaving it is not this test's
+                : rooms.filter((r) => r.id !== id)
+              : [...rooms, room(id)];
+            kithd.send(backend.changed, p, { change: Change.ROOMS });
+            await settled();
+            break;
+          }
+          case 7:
+            kithd.holding.add("SearchMessages");
+            break;
+          case 8:
+            kithd.releaseAt(pick(4));
+            break;
+          default:
+            kithd.holding.clear();
+            kithd.release(pick(2) === 0);
+            await settled();
+            drawn.push(...(view().search?.hits ?? []));
+            check(`seed ${String(seed)}, step ${String(s)}`);
+        }
+      }
+      kithd.holding.clear();
+      kithd.release();
+      await settled();
+      check(`seed ${String(seed)}, at the end`);
+    },
+  );
+});
+
 describe("an attachment", () => {
   it("is saved through main, by its room, event and name", async () => {
     kithd.of("Home").rooms = [room("!r")];

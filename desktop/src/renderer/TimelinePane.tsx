@@ -1,8 +1,8 @@
 // The open room's timeline, drawn: the main timeline's messages (a thread's replies are
 // the thread pane's), oldest at the top, scrolled back a page at a time.
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { useEffect, useState } from "react";
-import { Virtuoso } from "react-virtuoso";
+import { useEffect, useRef, useState } from "react";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 import type { Message, Reaction } from "../gen/backend/v1/types_pb";
 import type { ComposerView } from "./compose";
@@ -48,11 +48,24 @@ export function TimelinePane({
     [session],
   );
 
+  // A jump's message, once found, is scrolled to once; the window is then scrolled freely.
+  const list = useRef<VirtuosoHandle>(null);
+  const scrolled = useRef("");
+  const targetAt = t.target === "" ? -1 : shown.findIndex((m) => m.id === t.target);
+  useEffect(() => {
+    const jump = `${t.room} ${String(t.jumps)}`;
+    if (targetAt >= 0 && scrolled.current !== jump) {
+      scrolled.current = jump;
+      list.current?.scrollToIndex({ index: targetAt, align: "center" });
+    }
+  }, [t.room, t.jumps, targetAt]);
+
   const byId = new Map(t.rows.map((m) => [m.id, m]));
   return (
     <section className="timeline" aria-label="Messages">
       {t.loading && shown.length === 0 && <p className="detail">Loading…</p>}
       <Virtuoso
+        ref={list}
         key={t.room}
         data={shown}
         firstItemIndex={anchor.index}
@@ -71,6 +84,7 @@ export function TimelinePane({
           return (
             <Row
               m={m}
+              target={m.id === t.target}
               newSince={unreadLine && before !== undefined && before.id === t.unreadFrom}
               quoted={m.replyTo === "" ? undefined : (byId.get(m.replyTo) ?? t.quotes.get(m.replyTo))}
               reactions={t.reactions.get(m.id)}
@@ -106,6 +120,7 @@ function useWatched(): boolean {
 
 function Row({
   m,
+  target,
   newSince,
   quoted,
   reactions,
@@ -113,6 +128,8 @@ function Row({
   session,
 }: {
   m: Message;
+  /** The message a jump was to. */
+  target: boolean;
   newSince: boolean;
   quoted: Message | undefined;
   reactions: readonly Reaction[] | undefined;
@@ -120,7 +137,7 @@ function Row({
   session: Session;
 }) {
   return (
-    <article className="message">
+    <article className={target ? "message target" : "message"}>
       {newSince && (
         <div className="unread-line" role="separator">
           New

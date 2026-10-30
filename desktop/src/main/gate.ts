@@ -59,6 +59,8 @@ const calls = new Map<string, DescMethodUnary>(
     backend.selves,
     backend.drafts,
     backend.replaceDraft,
+    // Search: kithd answers it in the profile's rooms only.
+    backend.searchMessages,
     device.device,
     device.chooseProfile,
     device.deviceSettings,

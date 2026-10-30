@@ -237,3 +237,47 @@ func TestTheReadTableIsWhatGoResolves(t *testing.T) {
 		}
 	}
 }
+
+// ParseSearch over the table's queries, its times read in the zone now is in (here UTC;
+// the desktop's, its own).
+func TestTheSearchTableIsWhatGoParses(t *testing.T) {
+	t.Parallel()
+	var table struct {
+		Now   string `json:"now"`
+		Cases []struct {
+			Input       string `json:"input"`
+			Terms       string `json:"terms"`
+			Sender      string `json:"sender"`
+			SenderField string `json:"senderField"`
+			Since       string `json:"since"`
+			Until       string `json:"until"`
+			Empty       *bool  `json:"empty"`
+		} `json:"cases"`
+	}
+	readTable(t, "search.json", &table)
+	if len(table.Cases) == 0 {
+		t.Fatal("search.json has no cases")
+	}
+	const wall = "2006-01-02T15:04:05"
+	now, err := time.ParseInLocation(wall, table.Now, time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shown := func(when time.Time) string {
+		if when.IsZero() {
+			return ""
+		}
+		return when.Format(wall)
+	}
+	for _, c := range table.Cases {
+		got := ParseSearch(c.Input, now)
+		if got.Terms != c.Terms || got.Sender != c.Sender || got.SenderField != c.SenderField ||
+			shown(got.Since) != c.Since || shown(got.Until) != c.Until {
+			t.Errorf("%q: got terms %q, sender %q, field %q, since %q, until %q; the table says %+v",
+				c.Input, got.Terms, got.Sender, got.SenderField, shown(got.Since), shown(got.Until), c)
+		}
+		if c.Empty != nil && got.Empty() != *c.Empty {
+			t.Errorf("%q: empty = %v, the table says %v", c.Input, got.Empty(), *c.Empty)
+		}
+	}
+}
