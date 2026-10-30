@@ -391,12 +391,41 @@ before (no exported call without its caller).
    **This is the first usable release.**
 7. **feat: the relay dials a remote bridge.** This needs Phase 2a step 5's `daemon.Dial`.
    `DeviceService.UpdateDeviceSettings` with a revision, and a desktop settings page for
-   the shared keys.
+   the shared keys. (The relay half moved up, 2026-10-30, and landed after PR 4: #410.)
    - **Failure review** (merges writers; enforces scope):
      - the TUI's editor and the desktop writing at once;
      - a hand edit between read and write;
      - an address answering with another key;
      - a key unpaired mid-stream.
+8. **feat: the desktop's look: themes, colors, and a layout that scales.** (Asked
+   2026-10-30, not urgent.) The MVP's screens are functional, not designed; this PR
+   gives the window a design taking after Slack and Element: a dense left column
+   (profile, rail, rooms) with clear selection and unread weight, a message list with
+   avatars or initials, sender names in their colors, grouped consecutive messages,
+   hover actions, and a composer docked at the bottom.
+   - **What the MVP gets wrong** (a screenshot beside Slack's, 2026-10-30): content sits
+     in a fixed narrow column with the window's sides empty; the page scrolls as one, so
+     the room list runs past the window and the composer floats mid-page instead of
+     docked at the bottom; no header names the open room; every message repeats its
+     sender and full date (no grouping, avatars or day dividers); rooms show no unread
+     weight, network or avatar, and phone numbers raw; the rail is plain text with an
+     outline for selection; the composer is a bare textarea with browser buttons.
+   - **What to take from Slack and Element:** full-height panes, each scrolling on its
+     own; a header for the open room; day dividers, grouped messages with the time on
+     hover, avatars, reaction chips and a hover toolbar per message; a composer docked
+     at the bottom with a formatting bar; a thread pane at the side (with PR 5); a
+     search bar across the top (PR 5).
+   - **Themes:** light, dark, and following the system, plus free color choice for the
+     accent and every role a theme names (background, surface, text, muted, link,
+     selection, unread, mention), on a settings page.
+   - **Colors per account and per person**, each picked freely, with the TUI's
+     per-network colors (`[display.theme.networks]`) and its sender colors as the
+     defaults until picked. They live in the mesh, a device's own overriding it (below).
+   - **Scaling:** the layout follows the window's size (columns narrow or collapse below
+     set widths, the message list reflows, nothing clips or scrolls sideways), with zoom
+     and font size as knobs.
+   - Everything above under settings knobs: no value hard-coded that a person might
+     want to change.
 
 After the MVP, each with its own PR and review:
 
@@ -434,6 +463,13 @@ After the MVP, each with its own PR and review:
    release; the TUI keeps them.
 
 ## Left open
+
+- **Where the theme and the per-account and per-person colors live** (decided
+  2026-10-30): in both. The mesh holds the shared values, so every device agrees by
+  default (Phase 2b, a config-like register); a device's own setting overrides the
+  mesh's, key by key. This amends decision 5 for theme and colors: they leave
+  Electron's store for the device's settings beside the mesh's. Which device file holds
+  a GUI theme key the TUI does not read is PR 8's to settle.
 
 - **`kith --open` with no window running** starts a terminal TUI today. Whether it starts
   the desktop instead is a device setting, decided when the desktop ships.
