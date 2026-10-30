@@ -563,17 +563,27 @@ func (s *server) ModelTask(ctx context.Context, r *req[v1.ModelTaskRequest]) (*r
 }
 
 func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest]) (*resp[v1.ReplaceDraftResponse], error) {
-	draft := pc.ProtoToStoredDraft(r.Msg.GetDraft())
-	var saved bool
+	draft, over := pc.ProtoToStoredDraft(r.Msg.GetDraft()), pc.ProtoToStoredDraft(r.Msg.GetOver())
+	var answer v1.ReplaceDraftResponse
 	var wrote error
 	err := s.seats.write(s.requestProfile(ctx), r.Msg.GetClient(), func() error {
-		saved, wrote = s.Backend.ReplaceDraft(ctx, draft, pc.ProtoToStoredDraft(r.Msg.GetOver()))
+		if !r.Msg.GetRebase() {
+			answer.Saved, wrote = s.Backend.ReplaceDraft(ctx, draft, over)
+			return nil
+		}
+		// A window's write is rebased here, so every client keeps the assistant's words alike.
+		var stored domain.StoredDraft
+		stored, answer.Added, wrote = s.Backend.RebaseDraft(ctx, draft, over, pc.ProtoToStoredDrafts(r.Msg.GetUnanswered()))
+		answer.Saved = wrote == nil
+		if !stored.Empty() {
+			answer.Stored = pc.StoredDraftToProto(stored)
+		}
 		return nil
 	})
-	if saved {
+	if answer.GetSaved() {
 		s.Notifications.rails.bump() // a draft is a room's state
 	}
-	return reply(&v1.ReplaceDraftResponse{Saved: saved}, cmp.Or(err, wrote))
+	return reply(&answer, cmp.Or(err, wrote))
 }
 
 func (s *server) Accounts(ctx context.Context, _ *req[v1.AccountsRequest]) (*resp[v1.AccountsResponse], error) {

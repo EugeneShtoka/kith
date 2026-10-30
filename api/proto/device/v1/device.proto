@@ -9,7 +9,9 @@ option go_package = "github.com/EugeneShtoka/kith/internal/api/device/v1;devicev
 service DeviceService {
   // Device is where this device's requests go, the profiles the config defines, and
   // the one this device last ran in. Each call reads the files again, so a window asks
-  // after a config change (ConfigChanged).
+  // after a config change (ConfigChanged). On a device that joined a bridge the config
+  // is the bridge's, read through it: kithd unreachable is UNAVAILABLE, and the bridge
+  // refusing this device's key PERMISSION_DENIED.
   rpc Device(DeviceRequest) returns (DeviceResponse);
   // ChooseProfile remembers a profile as the one this device runs in (device.toml's
   // profile_in_use), refusing a name the config lacks (INVALID_ARGUMENT).
@@ -17,12 +19,34 @@ service DeviceService {
   // DeviceSettings is what the window reads of this device's settings (device.toml),
   // each key's default applied. Each call reads the file again.
   rpc DeviceSettings(DeviceSettingsRequest) returns (DeviceSettingsResponse);
+  // Outgoing readies a file on this device for sending, as the TUI readies one: where
+  // [display.media] anonymize holds, a picture is copied without its metadata
+  // (media.Strip) and the file goes under a neutral name (domain.SentName). Main asks
+  // it for each file the person offered; the window never names a path.
+  rpc Outgoing(OutgoingRequest) returns (OutgoingResponse);
+}
+
+message OutgoingRequest {
+  // path is the file the person picked, dropped or pasted, on this device.
+  string path = 1;
+}
+
+message OutgoingResponse {
+  // path is what to send: a clean copy, or the file itself when it needs none.
+  string path = 1;
+  // name is what the file is sent as; empty sends it under its own.
+  string name = 2;
+  // copied: path is a copy in a folder of its own, which main removes once sent.
+  bool copied = 3;
+  // kept: a picture whose metadata kith cannot remove (HEIC), sent as it is.
+  bool kept = 4;
 }
 
 message DeviceRequest {}
 
 message DeviceResponse {
-  // socket is the local kithd's socket, which the relay forwards BackendService to.
+  // socket is the local kithd's socket, which the relay forwards BackendService to; ""
+  // on a device that joined a bridge (bridge).
   string socket = 1;
   // profile is the [[profile]] this device last ran in, as the config spells it; ""
   // when none was ever chosen, or the config no longer has it. With one profile a
@@ -30,6 +54,10 @@ message DeviceResponse {
   string profile = 2;
   // profiles are the names of the config's [[profile]]s, in its order.
   repeated string profiles = 3;
+  // bridge is the name of the [[bridge]] this device joined (device.toml), which the relay
+  // forwards BackendService to over TLS, and whose config the profiles are; "" for the
+  // local kithd at socket.
+  string bridge = 4;
 }
 
 message ChooseProfileRequest {
@@ -54,6 +82,22 @@ message DeviceSettingsResponse {
   // [display] unread_line: a rule drawn where a room's unread messages began when it
   // was opened.
   bool unread_line = 3;
+  // [composer] markdown: a message is sent with its Markdown rendered.
+  bool markdown = 4;
+  // [composer] confirm_sms: a message or file to a chat that sends as SMS asks first.
+  bool confirm_sms = 5;
+  // [display] send_typing: rooms are told while you type.
+  bool send_typing = 6;
+  // [display] skin_tone, as the modifier that applies it; "" for none.
+  string skin_tone = 7;
+  // [display.emoji]: the set offered ("curated", "standard" or "complete"), and the
+  // shortcodes added to it.
+  string emoji_set = 8;
+  map<string, string> emoji_extra = 9;
+  // [display.reactions]: how the quick palette is ranked ("room", "space", "global" or
+  // "static"), and the emoji it starts from; none set is the built-in ones.
+  string reactions_scope = 10;
+  repeated string reactions_static = 11;
 }
 
 // ReadRule is one [[display.read_rule]], less its delay: the window reads a room by

@@ -20,6 +20,7 @@ import {
 
 import { channels, type Subscribe } from "../shared/ipc";
 import { mediaScheme } from "../shared/media";
+import { Attachments } from "./attach";
 import { appURL, fromTheWindow, Gate } from "./gate";
 import { Media } from "./media";
 import { startRelay } from "./relay";
@@ -37,6 +38,9 @@ protocol.registerSchemesAsPrivileged([
 app.setPath("userData", path.join(app.getPath("appData"), "kith-desktop"));
 
 let window: BrowserWindow | undefined;
+
+/** How long a closing window has to write its drafts (they wait two seconds at most). */
+const closeWait = 2500;
 
 // One window: a second start shows the first.
 if (!app.requestSingleInstanceLock()) {
@@ -86,6 +90,45 @@ async function start(): Promise<void> {
       ? save(gate, room, id, name)
       : false,
   );
+  // Files to send: main reads them where the person picked or dropped them, or keeps
+  // what was pasted, and the window holds only a token for each (attach.ts).
+  const attachments = new Attachments((method, input, signal) => gate.own(method, input, signal));
+  const fromWindow = (event: Electron.IpcMainInvokeEvent) => {
+    if (!fromTheWindow(event.senderFrame)) {
+      throw new Error(`kith: a request from ${event.senderFrame?.url ?? "a closed frame"}, not the window`);
+    }
+  };
+  ipcMain.handle(channels.pick, async (event) => {
+    fromWindow(event);
+    const options: Electron.OpenDialogOptions = { properties: ["openFile", "multiSelections"] };
+    const chosen = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
+    return chosen.canceled ? [] : Promise.all(chosen.filePaths.map((p) => attachments.fromPath(p)));
+  });
+  ipcMain.handle(channels.offerPath, (event, file: unknown) => {
+    fromWindow(event);
+    if (typeof file !== "string" || !path.isAbsolute(file)) {
+      throw new Error("kith: a dropped file comes with the path the system gave it");
+    }
+    return attachments.fromPath(file);
+  });
+  ipcMain.handle(channels.offerBytes, (event, name: unknown, bytes: unknown) => {
+    fromWindow(event);
+    if (typeof name !== "string" || !(bytes instanceof Uint8Array)) {
+      throw new Error("kith: pasted bytes come with a name");
+    }
+    return attachments.fromBytes(name, bytes);
+  });
+  ipcMain.handle(channels.discard, (event, token: unknown) => {
+    fromWindow(event);
+    return typeof token === "string" ? attachments.discard(token) : undefined;
+  });
+  ipcMain.handle(channels.attach, (event, token: unknown, room: unknown, caption: unknown) => {
+    fromWindow(event);
+    if (typeof token !== "string" || typeof room !== "string" || typeof caption !== "string") {
+      throw new Error("kith: an attachment is sent by its token, to a room");
+    }
+    return attachments.send(token, room, caption);
+  });
   ipcMain.handle(channels.call, (event, name: unknown, request: unknown) =>
     gate.call(event.senderFrame, name, request),
   );
@@ -138,6 +181,32 @@ async function start(): Promise<void> {
   });
   window.webContents.on("did-start-loading", () => {
     gate.restart();
+    void attachments.abandon(); // nobody waits for those sends any more
+  });
+  window.on("closed", () => {
+    void attachments.abandon();
+  });
+  // Closing, the window first writes what it holds unsaved (its drafts), as the TUI does
+  // at quit; one that does not answer is closed anyway.
+  let closing = false;
+  const close = () => {
+    if (window !== undefined && !window.isDestroyed()) {
+      window.destroy();
+    }
+  };
+  window.on("close", (event) => {
+    if (closing) {
+      return;
+    }
+    closing = true;
+    event.preventDefault();
+    window?.webContents.send(channels.closing);
+    setTimeout(close, closeWait);
+  });
+  ipcMain.on(channels.closed, (event) => {
+    if (fromTheWindow(event.senderFrame)) {
+      close();
+    }
   });
   await window.loadURL(appURL + "index.html");
 }

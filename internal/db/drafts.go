@@ -19,22 +19,16 @@ func (c *Cache) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft
 		return false, nil
 	}
 	err = c.inTx(ctx, func(tx *sql.Tx) error {
-		var body, replyTo, editing, editSaved, thread string
-		var updated int64
-		found, qerr := optional(tx.QueryRowContext(ctx, `
-			SELECT d.body, d.reply_to, d.editing, d.edit_saved, d.updated_ms, coalesce(t.thread_root, '')
-			  FROM drafts d LEFT JOIN draft_threads t ON t.room_id = d.room_id
-			 WHERE d.room_id = ?`,
-			string(draft.RoomID)).Scan(&body, &replyTo, &editing, &editSaved, &updated, &thread))
+		current, found, qerr := readDraft(ctx, tx, draft.RoomID)
 		if qerr != nil {
-			return fmt.Errorf("db: read draft for %s: %w", draft.RoomID, qerr)
+			return qerr
 		}
 		// Absent matches only a writer that read none, or a deleted draft comes back.
 		unchanged := !found && over.Body == "" && over.Updated.IsZero()
 		if found {
-			unchanged = body == over.Body && replyTo == string(over.ReplyTo) && editing == string(over.Editing) &&
-				editSaved == over.EditSaved && thread == string(over.ThreadRoot) &&
-				updated == unixMillisOrZero(over.Updated)
+			unchanged = current.Body == over.Body && current.ReplyTo == over.ReplyTo && current.Editing == over.Editing &&
+				current.EditSaved == over.EditSaved && current.ThreadRoot == over.ThreadRoot &&
+				unixMillisOrZero(current.Updated) == unixMillisOrZero(over.Updated)
 		}
 		if !unchanged {
 			return nil
@@ -43,6 +37,56 @@ func (c *Cache) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft
 		return writeDraft(ctx, tx, draft)
 	})
 	return saved, err
+}
+
+// RebaseDraft stores a window's draft, written over base (the version it last read;
+// zero: none), in one step with reading what is stored: words another writer added
+// since go after the window's (domain.RebaseDraft), and unanswered are the window's
+// writes it never heard back about. stored is the draft now stored (empty: none), added
+// the words of another writer's it took in.
+func (c *Cache) RebaseDraft(ctx context.Context, draft, base domain.StoredDraft, unanswered []domain.StoredDraft) (stored domain.StoredDraft, added string, err error) {
+	if draft.RoomID == "" {
+		return domain.StoredDraft{}, "", nil
+	}
+	if draft.Updated.IsZero() {
+		draft.Updated = time.Now()
+	}
+	err = c.inTx(ctx, func(tx *sql.Tx) error {
+		current, _, qerr := readDraft(ctx, tx, draft.RoomID)
+		if qerr != nil {
+			return qerr
+		}
+		stored, added = domain.RebaseDraft(draft, base, current, unanswered)
+		return writeDraft(ctx, tx, stored)
+	})
+	if err != nil {
+		return domain.StoredDraft{}, "", err
+	}
+	return stored, added, nil
+}
+
+// readDraft is room's stored draft, its composition and time, inside the caller's
+// transaction; found is false when there is none.
+func readDraft(ctx context.Context, tx *sql.Tx, room domain.RoomID) (draft domain.StoredDraft, found bool, err error) {
+	var replyTo, editing, thread string
+	var updated int64
+	found, err = optional(tx.QueryRowContext(ctx, `
+		SELECT d.body, d.reply_to, d.editing, d.edit_saved, d.updated_ms, coalesce(t.thread_root, '')
+		  FROM drafts d LEFT JOIN draft_threads t ON t.room_id = d.room_id
+		 WHERE d.room_id = ?`,
+		string(room)).Scan(&draft.Body, &replyTo, &editing, &draft.EditSaved, &updated, &thread))
+	if err != nil {
+		return domain.StoredDraft{}, false, fmt.Errorf("db: read draft for %s: %w", room, err)
+	}
+	if !found {
+		return domain.StoredDraft{}, false, nil
+	}
+	draft.RoomID = room
+	draft.ReplyTo, draft.Editing, draft.ThreadRoot = domain.EventID(replyTo), domain.EventID(editing), domain.EventID(thread)
+	if updated != 0 {
+		draft.Updated = time.UnixMilli(updated)
+	}
+	return draft, true, nil
 }
 
 // unixMillisOrZero is t in milliseconds, 0 for the zero time.

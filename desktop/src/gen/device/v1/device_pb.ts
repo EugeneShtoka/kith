@@ -10,7 +10,66 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file device/v1/device.proto.
  */
 export const file_device_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiDwoNRGV2aWNlUmVxdWVzdCJDCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCSIkChRDaG9vc2VQcm9maWxlUmVxdWVzdBIMCgRuYW1lGAEgASgJIigKFUNob29zZVByb2ZpbGVSZXNwb25zZRIPCgdwcm9maWxlGAEgASgJIhcKFURldmljZVNldHRpbmdzUmVxdWVzdCJtChZEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEhUKDXNlbmRfcmVjZWlwdHMYASABKAgSJwoKcmVhZF9ydWxlcxgCIAMoCzITLmRldmljZS52MS5SZWFkUnVsZRITCgt1bnJlYWRfbGluZRgDIAEoCCJFCghSZWFkUnVsZRINCgVtYXRjaBgBIAEoCRIOCgZzZW5kZXIYAiABKAkSEQoEc2VuZBgDIAEoCEgAiAEBQgcKBV9zZW5kMvkBCg1EZXZpY2VTZXJ2aWNlEj0KBkRldmljZRIYLmRldmljZS52MS5EZXZpY2VSZXF1ZXN0GhkuZGV2aWNlLnYxLkRldmljZVJlc3BvbnNlElIKDUNob29zZVByb2ZpbGUSHy5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlcXVlc3QaIC5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlc3BvbnNlElUKDkRldmljZVNldHRpbmdzEiAuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzUmVxdWVzdBohLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1Jlc3BvbnNlQj5aPGdpdGh1Yi5jb20vRXVnZW5lU2h0b2thL2tpdGgvaW50ZXJuYWwvYXBpL2RldmljZS92MTtkZXZpY2V2MWIGcHJvdG8z");
+  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiHwoPT3V0Z29pbmdSZXF1ZXN0EgwKBHBhdGgYASABKAkiTAoQT3V0Z29pbmdSZXNwb25zZRIMCgRwYXRoGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGY29waWVkGAMgASgIEgwKBGtlcHQYBCABKAgiDwoNRGV2aWNlUmVxdWVzdCJTCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCRIOCgZicmlkZ2UYBCABKAkiJAoUQ2hvb3NlUHJvZmlsZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSIoChVDaG9vc2VQcm9maWxlUmVzcG9uc2USDwoHcHJvZmlsZRgBIAEoCSIXChVEZXZpY2VTZXR0aW5nc1JlcXVlc3Qi/QIKFkRldmljZVNldHRpbmdzUmVzcG9uc2USFQoNc2VuZF9yZWNlaXB0cxgBIAEoCBInCgpyZWFkX3J1bGVzGAIgAygLMhMuZGV2aWNlLnYxLlJlYWRSdWxlEhMKC3VucmVhZF9saW5lGAMgASgIEhAKCG1hcmtkb3duGAQgASgIEhMKC2NvbmZpcm1fc21zGAUgASgIEhMKC3NlbmRfdHlwaW5nGAYgASgIEhEKCXNraW5fdG9uZRgHIAEoCRIRCgllbW9qaV9zZXQYCCABKAkSRgoLZW1vamlfZXh0cmEYCSADKAsyMS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXNwb25zZS5FbW9qaUV4dHJhRW50cnkSFwoPcmVhY3Rpb25zX3Njb3BlGAogASgJEhgKEHJlYWN0aW9uc19zdGF0aWMYCyADKAkaMQoPRW1vamlFeHRyYUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiRQoIUmVhZFJ1bGUSDQoFbWF0Y2gYASABKAkSDgoGc2VuZGVyGAIgASgJEhEKBHNlbmQYAyABKAhIAIgBAUIHCgVfc2VuZDK+AgoNRGV2aWNlU2VydmljZRI9CgZEZXZpY2USGC5kZXZpY2UudjEuRGV2aWNlUmVxdWVzdBoZLmRldmljZS52MS5EZXZpY2VSZXNwb25zZRJSCg1DaG9vc2VQcm9maWxlEh8uZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXF1ZXN0GiAuZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXNwb25zZRJVCg5EZXZpY2VTZXR0aW5ncxIgLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1JlcXVlc3QaIS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXNwb25zZRJDCghPdXRnb2luZxIaLmRldmljZS52MS5PdXRnb2luZ1JlcXVlc3QaGy5kZXZpY2UudjEuT3V0Z29pbmdSZXNwb25zZUI+WjxnaXRodWIuY29tL0V1Z2VuZVNodG9rYS9raXRoL2ludGVybmFsL2FwaS9kZXZpY2UvdjE7ZGV2aWNldjFiBnByb3RvMw");
+
+/**
+ * @generated from message device.v1.OutgoingRequest
+ */
+export type OutgoingRequest = Message<"device.v1.OutgoingRequest"> & {
+  /**
+   * path is the file the person picked, dropped or pasted, on this device.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message device.v1.OutgoingRequest.
+ * Use `create(OutgoingRequestSchema)` to create a new message.
+ */
+export const OutgoingRequestSchema: GenMessage<OutgoingRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 0);
+
+/**
+ * @generated from message device.v1.OutgoingResponse
+ */
+export type OutgoingResponse = Message<"device.v1.OutgoingResponse"> & {
+  /**
+   * path is what to send: a clean copy, or the file itself when it needs none.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * name is what the file is sent as; empty sends it under its own.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * copied: path is a copy in a folder of its own, which main removes once sent.
+   *
+   * @generated from field: bool copied = 3;
+   */
+  copied: boolean;
+
+  /**
+   * kept: a picture whose metadata kith cannot remove (HEIC), sent as it is.
+   *
+   * @generated from field: bool kept = 4;
+   */
+  kept: boolean;
+};
+
+/**
+ * Describes the message device.v1.OutgoingResponse.
+ * Use `create(OutgoingResponseSchema)` to create a new message.
+ */
+export const OutgoingResponseSchema: GenMessage<OutgoingResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 1);
 
 /**
  * @generated from message device.v1.DeviceRequest
@@ -23,14 +82,15 @@ export type DeviceRequest = Message<"device.v1.DeviceRequest"> & {
  * Use `create(DeviceRequestSchema)` to create a new message.
  */
 export const DeviceRequestSchema: GenMessage<DeviceRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 0);
+  messageDesc(file_device_v1_device, 2);
 
 /**
  * @generated from message device.v1.DeviceResponse
  */
 export type DeviceResponse = Message<"device.v1.DeviceResponse"> & {
   /**
-   * socket is the local kithd's socket, which the relay forwards BackendService to.
+   * socket is the local kithd's socket, which the relay forwards BackendService to; ""
+   * on a device that joined a bridge (bridge).
    *
    * @generated from field: string socket = 1;
    */
@@ -51,6 +111,15 @@ export type DeviceResponse = Message<"device.v1.DeviceResponse"> & {
    * @generated from field: repeated string profiles = 3;
    */
   profiles: string[];
+
+  /**
+   * bridge is the name of the [[bridge]] this device joined (device.toml), which the relay
+   * forwards BackendService to over TLS, and whose config the profiles are; "" for the
+   * local kithd at socket.
+   *
+   * @generated from field: string bridge = 4;
+   */
+  bridge: string;
 };
 
 /**
@@ -58,7 +127,7 @@ export type DeviceResponse = Message<"device.v1.DeviceResponse"> & {
  * Use `create(DeviceResponseSchema)` to create a new message.
  */
 export const DeviceResponseSchema: GenMessage<DeviceResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 1);
+  messageDesc(file_device_v1_device, 3);
 
 /**
  * @generated from message device.v1.ChooseProfileRequest
@@ -77,7 +146,7 @@ export type ChooseProfileRequest = Message<"device.v1.ChooseProfileRequest"> & {
  * Use `create(ChooseProfileRequestSchema)` to create a new message.
  */
 export const ChooseProfileRequestSchema: GenMessage<ChooseProfileRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 2);
+  messageDesc(file_device_v1_device, 4);
 
 /**
  * @generated from message device.v1.ChooseProfileResponse
@@ -96,7 +165,7 @@ export type ChooseProfileResponse = Message<"device.v1.ChooseProfileResponse"> &
  * Use `create(ChooseProfileResponseSchema)` to create a new message.
  */
 export const ChooseProfileResponseSchema: GenMessage<ChooseProfileResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 3);
+  messageDesc(file_device_v1_device, 5);
 
 /**
  * @generated from message device.v1.DeviceSettingsRequest
@@ -109,7 +178,7 @@ export type DeviceSettingsRequest = Message<"device.v1.DeviceSettingsRequest"> &
  * Use `create(DeviceSettingsRequestSchema)` to create a new message.
  */
 export const DeviceSettingsRequestSchema: GenMessage<DeviceSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 4);
+  messageDesc(file_device_v1_device, 6);
 
 /**
  * @generated from message device.v1.DeviceSettingsResponse
@@ -138,6 +207,60 @@ export type DeviceSettingsResponse = Message<"device.v1.DeviceSettingsResponse">
    * @generated from field: bool unread_line = 3;
    */
   unreadLine: boolean;
+
+  /**
+   * [composer] markdown: a message is sent with its Markdown rendered.
+   *
+   * @generated from field: bool markdown = 4;
+   */
+  markdown: boolean;
+
+  /**
+   * [composer] confirm_sms: a message or file to a chat that sends as SMS asks first.
+   *
+   * @generated from field: bool confirm_sms = 5;
+   */
+  confirmSms: boolean;
+
+  /**
+   * [display] send_typing: rooms are told while you type.
+   *
+   * @generated from field: bool send_typing = 6;
+   */
+  sendTyping: boolean;
+
+  /**
+   * [display] skin_tone, as the modifier that applies it; "" for none.
+   *
+   * @generated from field: string skin_tone = 7;
+   */
+  skinTone: string;
+
+  /**
+   * [display.emoji]: the set offered ("curated", "standard" or "complete"), and the
+   * shortcodes added to it.
+   *
+   * @generated from field: string emoji_set = 8;
+   */
+  emojiSet: string;
+
+  /**
+   * @generated from field: map<string, string> emoji_extra = 9;
+   */
+  emojiExtra: { [key: string]: string };
+
+  /**
+   * [display.reactions]: how the quick palette is ranked ("room", "space", "global" or
+   * "static"), and the emoji it starts from; none set is the built-in ones.
+   *
+   * @generated from field: string reactions_scope = 10;
+   */
+  reactionsScope: string;
+
+  /**
+   * @generated from field: repeated string reactions_static = 11;
+   */
+  reactionsStatic: string[];
 };
 
 /**
@@ -145,7 +268,7 @@ export type DeviceSettingsResponse = Message<"device.v1.DeviceSettingsResponse">
  * Use `create(DeviceSettingsResponseSchema)` to create a new message.
  */
 export const DeviceSettingsResponseSchema: GenMessage<DeviceSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 5);
+  messageDesc(file_device_v1_device, 7);
 
 /**
  * ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
@@ -181,7 +304,7 @@ export type ReadRule = Message<"device.v1.ReadRule"> & {
  * Use `create(ReadRuleSchema)` to create a new message.
  */
 export const ReadRuleSchema: GenMessage<ReadRule> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 6);
+  messageDesc(file_device_v1_device, 8);
 
 /**
  * DeviceService is served by kith-relay, the desktop window's link to kithd, beside the
@@ -193,7 +316,9 @@ export const DeviceService: GenService<{
   /**
    * Device is where this device's requests go, the profiles the config defines, and
    * the one this device last ran in. Each call reads the files again, so a window asks
-   * after a config change (ConfigChanged).
+   * after a config change (ConfigChanged). On a device that joined a bridge the config
+   * is the bridge's, read through it: kithd unreachable is UNAVAILABLE, and the bridge
+   * refusing this device's key PERMISSION_DENIED.
    *
    * @generated from rpc device.v1.DeviceService.Device
    */
@@ -223,6 +348,19 @@ export const DeviceService: GenService<{
     methodKind: "unary";
     input: typeof DeviceSettingsRequestSchema;
     output: typeof DeviceSettingsResponseSchema;
+  },
+  /**
+   * Outgoing readies a file on this device for sending, as the TUI readies one: where
+   * [display.media] anonymize holds, a picture is copied without its metadata
+   * (media.Strip) and the file goes under a neutral name (domain.SentName). Main asks
+   * it for each file the person offered; the window never names a path.
+   *
+   * @generated from rpc device.v1.DeviceService.Outgoing
+   */
+  outgoing: {
+    methodKind: "unary";
+    input: typeof OutgoingRequestSchema;
+    output: typeof OutgoingResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_device_v1_device, 0);

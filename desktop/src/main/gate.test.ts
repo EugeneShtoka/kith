@@ -1,6 +1,6 @@
 import { hostname } from "node:os";
 
-import { create, type DescMessage, type MessageInitShape, toBinary } from "@bufbuild/protobuf";
+import { create, type DescMessage, type MessageInitShape, type MessageShape, toBinary } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { BackendService, type SeatRequest } from "../gen/backend/v1/services_pb";
@@ -76,6 +76,7 @@ async function device(): Promise<void> {
 // The window's whole scope: a call or stream joins the list only with the PR that needs it.
 const allowedCalls = [
   "Status",
+  "Rail",
   "Rooms",
   "LastMessages",
   "CachedUnread",
@@ -88,6 +89,16 @@ const allowedCalls = [
   "FetchEvent",
   "CachedReactions",
   "MarkRead",
+  "Send",
+  "Redact",
+  "SendReaction",
+  "SendTyping",
+  "MentionCandidates",
+  "EmojiScores",
+  "RecordEmoji",
+  "Selves",
+  "Drafts",
+  "ReplaceDraft",
   "Device",
   "ChooseProfile",
   "DeviceSettings",
@@ -126,13 +137,46 @@ const names: unknown[] = [
 describe("the gate", () => {
   it("answers only the calls on the list, and refuses every other name before kithd", async () => {
     await device();
+    const seat = listen("Seat", bytes(backend.seat.input, { client: "w" })); // drafts are the seat's
     for (const name of names) {
       const want = typeof name === "string" && allowedCalls.includes(name) ? "answered" : "refused";
       const request = typeof name === "string" ? (requests[name] ?? empty) : empty;
       expect(await outcome(window, name, request), String(name)).toBe(want);
     }
     const reached = new Set(kithd.reached.map((r) => r.split(":")[0]));
+    reached.delete("Seat");
+    seat.stop();
     expect([...reached].sort()).toEqual([...allowedCalls].sort());
+  });
+
+  it("writes a draft as the window's seat in its profile, whatever the window names, and none without one", async () => {
+    await device();
+    const draft = (client: string) =>
+      outcome(
+        window,
+        "ReplaceDraft",
+        bytes(backend.replaceDraft.input, { client, draft: { roomId: "!r:x", body: "hi" } }),
+      );
+    const written = () =>
+      kithd.received
+        .filter((r) => r.method === "ReplaceDraft")
+        .map((r) => (r.message as MessageShape<typeof backend.replaceDraft.input>).client);
+
+    expect(await draft("")).toBe("refused");
+    expect(await draft("someone-else")).toBe("refused");
+    const seat = listen("Seat", bytes(backend.seat.input, { client: "w" }));
+    expect(await draft("")).toBe("answered");
+    expect(await draft("someone-else")).toBe("answered");
+    expect(written()).toEqual(["w", "w"]);
+    // Stepped aside (the stream closed), it writes no more.
+    seat.stop();
+    expect(await draft("w")).toBe("refused");
+    // A seat in another profile is not this one's.
+    const other = listen("Seat", bytes(backend.seat.input, { client: "w" }));
+    await gate.call(window, "ChooseProfile", bytes(DeviceService.method.chooseProfile.input, { name: "Home" }));
+    expect(await draft("w")).toBe("refused");
+    other.stop();
+    expect(written()).toEqual(["w", "w"]);
   });
 
   it("opens only the streams on the list, and refuses every other name before kithd", async () => {

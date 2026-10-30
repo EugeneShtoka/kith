@@ -317,9 +317,9 @@ type draftBackend struct {
 	load   []domain.StoredDraft
 }
 
-func (b *draftBackend) ReplaceDraft(_ context.Context, draft, _ domain.StoredDraft) (bool, error) {
+func (b *draftBackend) RebaseDraft(_ context.Context, draft, _ domain.StoredDraft, _ []domain.StoredDraft) (domain.StoredDraft, string, error) {
 	b.stored = append(b.stored, draft)
-	return true, nil
+	return draft, "", nil
 }
 
 func (b *draftBackend) Drafts(context.Context) ([]domain.StoredDraft, error) { return b.load, nil }
@@ -561,8 +561,8 @@ func TestAClearedDraftStaysCleared(t *testing.T) {
 // draftFailer refuses every draft write.
 type draftFailer struct{ apitest.Nop }
 
-func (draftFailer) ReplaceDraft(context.Context, domain.StoredDraft, domain.StoredDraft) (bool, error) {
-	return false, errors.New("disk full")
+func (draftFailer) RebaseDraft(context.Context, domain.StoredDraft, domain.StoredDraft, []domain.StoredDraft) (domain.StoredDraft, string, error) {
+	return domain.StoredDraft{}, "", errors.New("disk full")
 }
 
 // A failing draft store is reported once, not on every retry, and recovery is reported.

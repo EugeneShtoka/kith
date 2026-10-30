@@ -1,5 +1,5 @@
-// The room list until the rail lands: the profile's joined rooms, unread first, then by
-// their last message, newest first.
+// The room list: the profile's joined rooms (those of the rail row the window is on,
+// rail.ts), unread first, then by their last message, newest first.
 import type { Room, Unread } from "../gen/backend/v1/types_pb";
 
 /**

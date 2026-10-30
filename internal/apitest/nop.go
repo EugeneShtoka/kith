@@ -150,6 +150,9 @@ func (Nop) CompleteWord(context.Context, domain.CompleteRequest) ([]domain.WordC
 func (Nop) ReplaceDraft(context.Context, domain.StoredDraft, domain.StoredDraft) (bool, error) {
 	return true, nil
 }
+func (Nop) RebaseDraft(_ context.Context, draft, _ domain.StoredDraft, _ []domain.StoredDraft) (domain.StoredDraft, string, error) {
+	return draft, "", nil
+}
 func (Nop) Drafts(context.Context) ([]domain.StoredDraft, error) { return nil, nil }
 func (Nop) RoomEncryption(_ context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error) {
 	out := make(map[domain.RoomID]bool, len(roomIDs))

@@ -50,6 +50,20 @@ func (s *sharedDrafts) ReplaceDraft(_ context.Context, draft, over domain.Stored
 	return true, nil
 }
 
+// RebaseDraft is kithd's rebase (domain.RebaseDraft), read and written in one step.
+func (s *sharedDrafts) RebaseDraft(_ context.Context, draft, base domain.StoredDraft, unanswered []domain.StoredDraft) (domain.StoredDraft, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stored, added := domain.RebaseDraft(draft, base, s.drafts[draft.RoomID], unanswered)
+	if stored.Empty() {
+		delete(s.drafts, draft.RoomID)
+	} else {
+		stored.Updated = time.UnixMilli(stored.Updated.UnixMilli())
+		s.drafts[draft.RoomID] = stored
+	}
+	return stored, added, nil
+}
+
 // assistantWrites is kith-mcp appending to a room's stored draft.
 func (s *sharedDrafts) assistantWrites(room domain.RoomID, body string, at time.Time) {
 	s.mu.Lock()

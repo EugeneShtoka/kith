@@ -4,8 +4,8 @@ kithd can serve clients on other machines as well as the socket on its own: it
 listens on the addresses you name, over TLS 1.3, and serves only the devices paired
 with it. It is off by default.
 
-Once a machine has joined a bridge (`kith join`, below), `kith`, `kith-notify` and
-`kith-mcp` there dial it instead of a kithd of their own.
+Once a machine has joined a bridge (`kith join`, below), `kith`, `kith-notify`,
+`kith-mcp` and the desktop window there dial it instead of a kithd of their own.
 
 ## Device IDs
 
@@ -196,8 +196,9 @@ kith mesh   # the other bridges: where each is dialed, the accounts it runs, las
 
 ## Using a bridge
 
-A machine whose `device.toml` names a `[[bridge]]` dials it: `kith`, `kith-notify` and
-`kith-mcp` all reach kithd there over TLS and never start one here. The config is the
+A machine whose `device.toml` names a `[[bridge]]` dials it: `kith`, `kith-notify`,
+`kith-mcp` and the desktop window all reach kithd there over TLS and never start one
+here. The config is the
 bridge's, read and changed through it (`:set`, the settings screen); `device.toml` is
 this machine's, and so are the media cache, the log and the scripts in `commands/`
 beside it. With several `[[bridge]]` entries the first is dialed.
@@ -214,6 +215,11 @@ beside it. With several `[[bridge]]` entries the first is dialed.
 - **What stays on the bridge's machine.** Restarting kithd (`:login` turning a
   network on), the phonebook folder (`[phonebook] dir`), a `[commands] dir` the
   config sets, and `kith --add-dictionary` are the bridge machine's; do them there.
+- **The desktop window.** Its `kith-relay` dials the bridge the same way, with this
+  machine's device key, which the window never sees. The profiles it offers are the
+  bridge's config's; the one in use is this machine's (`device.toml`). The window
+  says which bridge it is connected to, and, if the bridge no longer has this device
+  paired, says the bridge refused it until it is paired again.
 
 ## What an attacker on the network sees
 

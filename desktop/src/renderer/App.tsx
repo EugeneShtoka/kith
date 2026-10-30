@@ -3,6 +3,8 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse } from "../gen/backend/v1/services_pb";
 import type { Room, Unread } from "../gen/backend/v1/types_pb";
+import { ComposerPane } from "./ComposerPane";
+import { rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
 import { type Link, type Seat, Session, type View } from "./session";
 import { TimelinePane } from "./TimelinePane";
@@ -53,9 +55,18 @@ export function App() {
       </header>
       {view.problem && <p className="problem">{view.problem}</p>}
       <Body view={view} session={session} />
-      {view.socket && (
+      {(view.socket || view.bridge) && (
         <footer>
-          kithd at <code>{view.socket}</code>, through kith-relay
+          {view.bridge ? (
+            <>
+              kithd on bridge <code>{view.bridge}</code>
+            </>
+          ) : (
+            <>
+              kithd at <code>{view.socket}</code>
+            </>
+          )}
+          , through kith-relay
         </footer>
       )}
     </main>
@@ -71,12 +82,9 @@ function Body({ view, session }: { view: View; session: Session }) {
   }
   return (
     <>
-      <Banner link={view.link} status={view.status} />
+      <Banner link={view.link} status={view.status} bridge={view.bridge} />
       <div className="columns">
-        {/* The rail (places, tags, spaces) comes with kithd's Rail. */}
-        <nav className="rail" aria-label="Places">
-          <span className="place">All rooms</span>
-        </nav>
+        <Rail view={view} session={session} />
         <section className="rooms" aria-label="Rooms">
           {view.invites.length > 0 && <Invites invites={view.invites} session={session} />}
           <ul>
@@ -85,7 +93,14 @@ function Body({ view, session }: { view: View; session: Session }) {
             ))}
           </ul>
         </section>
-        {view.timeline && <TimelinePane t={view.timeline} unreadLine={view.unreadLine} session={session} />}
+        {view.timeline && (
+          <div className="open-room">
+            <TimelinePane t={view.timeline} unreadLine={view.unreadLine} composer={view.composer} session={session} />
+            {view.composer && (
+              <ComposerPane c={view.composer} room={view.rooms.find((r) => r.id === view.open)} session={session} />
+            )}
+          </div>
+        )}
       </div>
       {view.status && (
         <details>
@@ -166,6 +181,34 @@ function holderText(h: SeatHolder): string {
   return text;
 }
 
+/** Rail draws kithd's rail: its rows in order, the one the window is on marked. */
+function Rail({ view, session }: { view: View; session: Session }) {
+  return (
+    <nav className="rail" aria-label="Places">
+      <ul>
+        {view.rail.map((row, i) => {
+          const { count, mentions } = rowUnread(row, view.unread);
+          return (
+            <li key={`${row.key}\u0000${row.space}`} className={row.sepAfter ? "place separated" : "place"}>
+              <button
+                type="button"
+                aria-current={i === view.row}
+                onClick={() => {
+                  session.selectRow(i);
+                }}
+              >
+                <span dir="auto">{row.label}</span>
+                {row.countInLabel && <span className="detail"> {new Set(row.rooms).size}</span>}
+                {count > 0 && <span className={mentions > 0 ? "badge mention" : "badge"}>{count}</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
 function Invites({ invites, session }: { invites: readonly Room[]; session: Session }) {
   return (
     <section className="invites" aria-label="Invitations">
@@ -231,15 +274,20 @@ function RoomRow({
   );
 }
 
-function Banner({ link, status }: { link: Link; status: StatusResponse | undefined }) {
+function Banner({ link, status, bridge }: { link: Link; status: StatusResponse | undefined; bridge: string }) {
   if (status?.waiting) {
     return <p className="banner waiting">kithd is waiting: {status.waiting}</p>;
   }
+  const kithd = bridge === "" ? "kithd" : `kithd on bridge ${bridge}`;
   switch (link.state) {
     case "connecting":
-      return <p className="banner">Connecting to kithd…</p>;
+      return <p className="banner">Connecting to {kithd}…</p>;
     case "detached":
-      return <p className="banner lost">kithd is not reachable ({link.error}). Trying again.</p>;
+      return (
+        <p className="banner lost">
+          {kithd} is not reachable ({link.error}). Trying again.
+        </p>
+      );
     case "attached":
       return null;
   }

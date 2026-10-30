@@ -120,6 +120,28 @@ footer {
   font-weight: 600;
 }
 
+.place.separated {
+  border-bottom: 1px solid var(--line);
+}
+
+.place button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.place button[aria-current="true"] {
+  text-decoration: underline;
+}
+
 ul {
   list-style: none;
   margin: 0;
@@ -276,4 +298,97 @@ h2 {
 
 .body .spoiler:hover {
   background: none;
+}
+
+.open-room {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.open-room .timeline {
+  height: 62vh;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  visibility: hidden;
+}
+
+.message:hover .actions,
+.message:focus-within .actions {
+  visibility: visible;
+}
+
+.reactions button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.palette button,
+.emoji-grid button {
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.composer {
+  border-top: 1px solid var(--line);
+  padding-top: 0.5rem;
+}
+
+.compose-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.compose-row textarea {
+  flex: 1;
+  resize: vertical;
+  font: inherit;
+  unicode-bidi: plaintext;
+}
+
+.completions,
+.offered {
+  margin-bottom: 0.25rem;
+}
+
+.completions button {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.completions [aria-selected="true"] {
+  background: var(--line);
+}
+
+.emoji-picker {
+  border: 1px solid var(--line);
+  padding: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.emoji-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  font-size: 1.25rem;
 }

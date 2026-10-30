@@ -12,8 +12,18 @@ import {
   toBinary,
 } from "@bufbuild/protobuf";
 
-import { BackendService, type SeatRequest } from "../../gen/backend/v1/services_pb";
 import {
+  BackendService,
+  type RailResponse,
+  RailResponseSchema,
+  RailRowKind,
+  type SeatRequest,
+  type StoredDraft,
+  StoredDraftSchema,
+} from "../../gen/backend/v1/services_pb";
+import {
+  type Draft,
+  type Member,
   type Message,
   type Reaction,
   type Room,
@@ -27,7 +37,7 @@ import {
   DeviceService,
 } from "../../gen/device/v1/device_pb";
 import { compare } from "../merge";
-import type { KithBridge, StreamEvent } from "../../shared/ipc";
+import type { KithBridge, Offered, StreamEvent } from "../../shared/ipc";
 import { runIn } from "../../shared/profile";
 
 const backend = BackendService.method;
@@ -76,6 +86,8 @@ export class Kithd {
   readonly refused: string[] = [];
   /** What the window told main to count in the tray, in order. */
   readonly told: number[] = [];
+  /** The bridge the device joined, "" for a kithd of its own: the relay reads the profiles through it. */
+  joined = "";
   /** The relay's device settings, or "fail" for a device file that does not load. */
   settings: DeviceSettingsResponse | "fail" = create(DeviceSettingsResponseSchema, {
     sendReceipts: true,
@@ -87,6 +99,31 @@ export class Kithd {
   readonly saved: string[] = [];
   /** Answers held back until release, by method name. */
   readonly holding = new Set<string>();
+  /** The stored drafts, by room: kithd keeps them for every profile alike. */
+  readonly drafts = new Map<string, StoredDraft>();
+  /**
+   * Each profile's rail, as Rail serves it; "gone" refuses it (the profile is no longer
+   * in the config). Unset, one row holds every room, as a rail with no spaces or tags.
+   */
+  readonly rails = new Map<string, RailResponse | "gone">();
+  /** What the next draft writes meet: a failure before the write, or after it (its answer lost). */
+  readonly draftFaults: ("before" | "after")[] = [];
+  /** Runs as the next draft write reaches kithd, before it is written: another writer first. */
+  beforeDraft: (() => void) | undefined;
+  /** Every message sent, as kithd took it; a send again under a txn ID it has is the same one. */
+  readonly sent: { room: string; draft: Draft }[] = [];
+  /** Sends still to answer with an error after they went out (the answer lost). */
+  loseSends = 0;
+  /** Every other write the window made, as "Method room target key". */
+  readonly writes: string[] = [];
+  /** The mention candidates, by room, and the emoji ranking, by kind; and who is me. */
+  readonly members = new Map<string, Member[]>();
+  readonly scores = new Map<string, Record<string, number>>();
+  selves: string[] = ["@me:x"];
+  /** Files offered to main and sent through it, as "room name caption". */
+  readonly attached: string[] = [];
+  /** Sends of files still to fail. */
+  failAttach = 0;
   private held: (() => void)[] = [];
   private up = true;
   /** main's profile, as the gate keeps it. */
@@ -118,7 +155,52 @@ export class Kithd {
         this.saved.push(`${room} ${event} ${name}`);
         return Promise.resolve(true);
       },
+      pick: () => Promise.resolve([this.offer("report.pdf")]),
+      offer: (file) => Promise.resolve(this.offer(file.name)),
+      closing: () => undefined,
+      discard: (token) => {
+        this.offers.delete(token);
+        return Promise.resolve();
+      },
+      attach: async (token, room, caption) => {
+        await later();
+        const name = this.offers.get(token);
+        this.offers.delete(token);
+        if (name === undefined || this.failAttach-- > 0) {
+          throw new Error("the upload failed");
+        }
+        this.attached.push(`${room} ${name} ${caption}`);
+        return { kept: false };
+      },
     };
+  }
+
+  private readonly offers = new Map<string, string>();
+
+  private offer(name: string): Offered {
+    const token = `t${String(this.offers.size + this.attached.length + 1)}`;
+    this.offers.set(token, name);
+    return { token, name, size: 1 };
+  }
+
+  /** append is kith-mcp appending words to room's draft over what it read, as send.go does. */
+  append(room: string, words: string): boolean {
+    const held = this.drafts.get(room);
+    if (held !== undefined && (held.editing !== "" || held.editSaved !== "")) {
+      return false; // refused mid-edit
+    }
+    this.drafts.set(
+      room,
+      create(StoredDraftSchema, {
+        roomId: room,
+        body: held?.body ? `${held.body}\n\n${words}` : words,
+        replyTo: held?.replyTo ?? "",
+        threadRoot: held?.threadRoot ?? "",
+        author: "agent",
+        updatedUnixMs: (held?.updatedUnixMs ?? 0n) + 1n,
+      }),
+    );
+    return true;
   }
 
   /** write is the cache writing m in profile: kept, and sent as a Messages frame once up. */
@@ -176,10 +258,17 @@ export class Kithd {
   otherTakesOver(profile: string): void {
     const holder = this.seats.get(profile);
     if (holder !== undefined && holder !== "other") {
+      // As kithd: the window is told to step aside, and keeps the seat (its last draft
+      // writes taken) until it closes the seat's stream.
+      this.taking.add(profile);
       this.send1(holder, backend.seat, { event: { case: "stepAside", value: true } });
+      return;
     }
     this.seats.set(profile, "other");
   }
+
+  /** Profiles whose seat goes to another window once the one holding it lets go. */
+  private readonly taking = new Set<string>();
 
   /** down is kithd stopping: every stream ends, and the seats are forgotten. */
   down(): void {
@@ -198,6 +287,18 @@ export class Kithd {
         (s.request as SeatRequest).force = false;
       }
       this.attach(s);
+    }
+  }
+
+  /** heldCalls is how many answers are held back now. */
+  get heldCalls(): number {
+    return this.held.length;
+  }
+
+  /** releaseAt answers one call held back, the i-th of those held (wrapping). */
+  releaseAt(i: number): void {
+    if (this.held.length > 0) {
+      this.held.splice(i % this.held.length, 1)[0]?.();
     }
   }
 
@@ -224,7 +325,7 @@ export class Kithd {
     this.calls.push(`${name}:${device ? "" : profile}`);
     const request = fromBinary(method.input, bytes);
     await later();
-    if (!this.up && !device) {
+    if (!this.up && (!device || this.joined !== "")) {
       throw new Error("kithd is not reachable");
     }
     // Read as kithd reads it, now; held back, the answer is on its way meanwhile.
@@ -261,7 +362,12 @@ export class Kithd {
   private close(sub: Sub): void {
     sub.closed = true;
     if (this.seats.get(sub.profile) === sub) {
-      this.seats.delete(sub.profile); // closing the seat's stream frees it
+      // Closing the seat's stream frees it, or hands it to the window taking it over.
+      if (this.taking.delete(sub.profile)) {
+        this.seats.set(sub.profile, "other");
+      } else {
+        this.seats.delete(sub.profile);
+      }
     }
   }
 
@@ -271,7 +377,8 @@ export class Kithd {
     switch (name) {
       case "Device":
         return reply(DeviceService.method.device, {
-          socket: "/run/kithd.sock",
+          socket: this.joined === "" ? "/run/kithd.sock" : "",
+          bridge: this.joined,
           profile: this.profiles.includes(this.remembered) ? this.remembered : "",
           profiles: this.profiles,
         });
@@ -288,6 +395,20 @@ export class Kithd {
         return reply(backend.status, { ready: true });
       case "Rooms":
         return reply(backend.rooms, { rooms: p.rooms });
+      case "Rail": {
+        const rail = this.rails.get(profile);
+        if (rail === "gone") {
+          throw new Error(`daemon: rail: unknown profile ${profile}`);
+        }
+        return (
+          rail ??
+          create(RailResponseSchema, {
+            revision: 1n,
+            rows: [{ key: "all", label: "All", kind: RailRowKind.ALL, rooms: p.rooms.map((r) => r.id) }],
+            rooms: p.rooms.map((r) => ({ facts: { id: r.id, name: r.name } })),
+          })
+        );
+      }
       case "LastMessages":
         return reply(backend.lastMessages, {});
       case "CachedUnread":
@@ -326,6 +447,77 @@ export class Kithd {
         const room = (request as MessageShape<typeof backend.cachedReactions.input>).roomId;
         return reply(backend.cachedReactions, { reactions: p.reactions.filter((r) => r.roomId === room) });
       }
+      case "Drafts":
+        return reply(backend.drafts, { drafts: [...this.drafts.values()] });
+      case "ReplaceDraft": {
+        const r = request as MessageShape<typeof backend.replaceDraft.input>;
+        if (this.seats.get(profile) === "other") {
+          throw new Error("daemon: kith is open in another window"); // seats.write
+        }
+        const hook = this.beforeDraft;
+        this.beforeDraft = undefined;
+        hook?.();
+        if (this.draftFaults[0] === "before") {
+          this.draftFaults.shift();
+          throw new Error("unavailable: connection reset");
+        }
+        const draft = r.draft;
+        if (draft === undefined || !r.rebase) {
+          throw new Error("the fake takes a window's rebased writes only");
+        }
+        const [stored, added] = rebased(draft, r.over, this.drafts.get(draft.roomId), r.unanswered);
+        if (blank(stored)) {
+          this.drafts.delete(draft.roomId);
+        } else {
+          this.drafts.set(draft.roomId, stored);
+        }
+        if (this.draftFaults[0] === "after") {
+          this.draftFaults.shift();
+          throw new Error("unavailable: connection reset");
+        }
+        return reply(backend.replaceDraft, { saved: true, stored: blank(stored) ? undefined : stored, added });
+      }
+      case "Send": {
+        const r = request as MessageShape<typeof backend.send.input>;
+        if (r.draft !== undefined && !this.sent.some((s) => s.draft.txnId !== "" && s.draft.txnId === r.draft?.txnId)) {
+          this.sent.push({ room: r.roomId, draft: r.draft });
+        }
+        if (this.loseSends > 0) {
+          this.loseSends--;
+          throw new Error("unavailable: connection reset");
+        }
+        return reply(backend.send, {});
+      }
+      case "Redact": {
+        const r = request as MessageShape<typeof backend.redact.input>;
+        this.writes.push(`Redact ${r.roomId} ${r.eventId}`);
+        return reply(backend.redact, {});
+      }
+      case "SendReaction": {
+        const r = request as MessageShape<typeof backend.sendReaction.input>;
+        this.writes.push(`SendReaction ${r.roomId} ${r.target} ${r.key}`);
+        return reply(backend.sendReaction, {});
+      }
+      case "SendTyping": {
+        const r = request as MessageShape<typeof backend.sendTyping.input>;
+        this.writes.push(`SendTyping ${r.roomId} ${String(r.typing)}`);
+        return reply(backend.sendTyping, {});
+      }
+      case "RecordEmoji": {
+        const r = request as MessageShape<typeof backend.recordEmoji.input>;
+        this.writes.push(`RecordEmoji ${r.roomId} ${r.kind} ${r.emoji}`);
+        return reply(backend.recordEmoji, {});
+      }
+      case "MentionCandidates": {
+        const r = request as MessageShape<typeof backend.mentionCandidates.input>;
+        return reply(backend.mentionCandidates, { members: this.members.get(r.roomId) ?? [] });
+      }
+      case "EmojiScores": {
+        const r = request as MessageShape<typeof backend.emojiScores.input>;
+        return reply(backend.emojiScores, { scores: this.scores.get(r.kind) ?? {} });
+      }
+      case "Selves":
+        return reply(backend.selves, { ids: this.selves });
       case "MarkRead": {
         const r = request as MessageShape<typeof backend.markRead.input>;
         this.receipts.push(`${r.roomId} ${r.eventId} ${r.private ? "private" : "public"}`);
@@ -398,6 +590,59 @@ export class Kithd {
       }
     });
   }
+}
+
+/** blank: a stored draft with nothing worth keeping. */
+function blank(d: StoredDraft): boolean {
+  return d.body === "" && d.replyTo === "" && d.editing === "" && d.editSaved === "";
+}
+
+/**
+ * rebased is kithd's rebase of a window's write (domain.RebaseDraft, in Go): what to
+ * store when the window wrote draft over base and current is stored, and the words
+ * another writer added since. The Go rule's own tests are its tables; this is the fake's.
+ */
+function rebased(
+  draft: StoredDraft,
+  base: StoredDraft | undefined,
+  current: StoredDraft | undefined,
+  own: readonly StoredDraft[],
+): [StoredDraft, string] {
+  const none = create(StoredDraftSchema);
+  const now = current ?? none;
+  const words = (d: StoredDraft) => (d.editing !== "" ? d.editSaved : d.body);
+  const targets = (a: StoredDraft, b: StoredDraft) =>
+    a.replyTo === b.replyTo &&
+    a.threadRoot === b.threadRoot &&
+    a.editing === b.editing &&
+    (a.editing === "" || a.body === b.body);
+  const same = (a: StoredDraft, b: StoredDraft) =>
+    targets(a, b) && a.body === b.body && a.editSaved === b.editSaved && a.updatedUnixMs === b.updatedUnixMs;
+  const extends_ = (text: string, from: string) =>
+    text.startsWith(from) &&
+    (text.length === from.length || from === "" || /^[ \n]/.test(text.slice(from.length)) || /[ \n]$/.test(from));
+  let over = own.find((o) => same(o, now));
+  if (over === undefined) {
+    const under = (v: StoredDraft) => targets(v, now) && extends_(words(now), words(v));
+    over = base ?? none;
+    let longest = under(over) ? words(over).length : -1;
+    for (const o of own) {
+      if (words(o) !== "" && under(o) && words(o).length >= longest) {
+        over = o;
+        longest = words(o).length;
+      }
+    }
+  }
+  const mine = words(draft);
+  const stored = words(now);
+  const theirs =
+    stored === mine
+      ? ""
+      : words(over) !== "" && extends_(stored, words(over))
+        ? stored.slice(words(over).length).replace(/^[ \n]+/, "")
+        : stored;
+  const all = theirs === "" ? mine : mine === "" ? theirs : `${mine}\n\n${theirs}`;
+  return [draft.editing !== "" ? { ...draft, editSaved: all } : { ...draft, body: all }, theirs];
 }
 
 /** later is a turn of the event loop: answers and events arrive after the call returns. */

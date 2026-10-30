@@ -6,14 +6,18 @@ import type { DescMessage, DescMethodServerStreaming, MessageInitShape, MessageS
 import {
   BackendService,
   Change,
+  type RailResponse,
+  type RailRow,
   type ReactionsResponse,
   type SeatHolder,
   type SeatResponse,
   type StatusResponse,
 } from "../gen/backend/v1/services_pb";
-import type { Message, Reaction, Room, Unread } from "../gen/backend/v1/types_pb";
+import type { Member, Message, Reaction, Room, Unread } from "../gen/backend/v1/types_pb";
 import { type DeviceSettingsResponse, DeviceService } from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
+import { later, listed, placed, refOf, type RowRef } from "./rail";
+import { Composer, type ComposerView, type Unsent } from "./compose";
 import { call, subscribe } from "./kith";
 import { announces } from "./read";
 import { ordered, total } from "./rooms";
@@ -26,6 +30,12 @@ const networkPage = 50n;
 const cachedPage = 2000n;
 /** How many reply targets are fetched at once. */
 const quoteFetches = 6;
+/**
+ * How long the window waits to read the device again after it could not: on a device
+ * that joined a bridge, the profiles are the bridge's, read through it, and a window
+ * may start before the bridge answers.
+ */
+export const deviceAgain = 1000;
 
 /** The window's seat in its profile: one window per profile is served (kithd's Seat). */
 export type Seat =
@@ -47,11 +57,16 @@ export interface View {
   /** The config's profiles, in order, and the one the window runs in: "" asks which. */
   profiles: readonly string[];
   profile: string;
+  /** Where kithd is: the local one's socket, or the bridge this device joined (one is ""). */
   socket: string;
+  bridge: string;
   seat: Seat;
   link: Link;
   status: StatusResponse | undefined;
-  /** The profile's joined rooms, in list order, and its invitations. */
+  /** The rail's rows (Rail), and the one the window is on (-1: none, no rail yet). */
+  rail: readonly RailRow[];
+  row: number;
+  /** The joined rooms the row lists, in list order (every one before a rail), and the invitations. */
   rooms: readonly Room[];
   invites: readonly Room[];
   unread: ReadonlyMap<string, Unread>;
@@ -62,6 +77,8 @@ export interface View {
   timeline: TimelineView | undefined;
   /** Whether the unread line is drawn ([display] unread_line). */
   unreadLine: boolean;
+  /** The open room's composer. */
+  composer: ComposerView | undefined;
   problem: string | undefined;
 }
 
@@ -69,6 +86,8 @@ const nothingShown = {
   seat: { state: "none" },
   link: { state: "connecting" },
   status: undefined,
+  rail: [],
+  row: -1,
   rooms: [],
   invites: [],
   unread: new Map(),
@@ -76,6 +95,7 @@ const nothingShown = {
   open: "",
   timeline: undefined,
   unreadLine: true,
+  composer: undefined,
 } satisfies Partial<View>;
 
 /** Run is one stay in one profile's seat: what it opened, closed together when it ends. */
@@ -90,6 +110,10 @@ interface Run {
   at: Readonly<Record<string, bigint>>;
   /** Counts the room reads, so an older answer arriving last is dropped. */
   roomReads: number;
+  /** The rail served last (the highest revision), and the row the window is on. */
+  rail: RailResponse | undefined;
+  row: RowRef | undefined;
+  rowAt: number;
   /** The Messages stream has said where it starts: a page read from now misses no change. */
   positioned: boolean;
   /** The open room's timeline, and the device settings it follows: undefined while read. */
@@ -98,10 +122,12 @@ interface Run {
   /** Counts the reactions reads; the Reactions frames held while one is answered. */
   reactionReads: number;
   reactionsHeld: ReactionsResponse[] | undefined;
+  /** The composer: drafts, files, failed sends. */
+  composer: Composer;
 }
 
 export class Session {
-  private view: View = { profiles: [], profile: "", socket: "", problem: undefined, ...nothingShown };
+  private view: View = { profiles: [], profile: "", socket: "", bridge: "", problem: undefined, ...nothingShown };
   private readonly listeners = new Set<() => void>();
   private run: Run | undefined;
   /** This window, to kithd's seats; and since when it runs, for one it refuses. */
@@ -112,6 +138,9 @@ export class Session {
    * leaves it in (runIn), and so does the window, so both read them in one order.
    */
   private device: Promise<void> = Promise.resolve();
+  /** The device read again after one failed, while it waits; none once stopped. */
+  private deviceLater: ReturnType<typeof setTimeout> | undefined;
+  private stopped = false;
   private told = 0;
   /** The open room is watched: shown at its newest, the window focused. */
   private watching = false;
@@ -119,10 +148,14 @@ export class Session {
   /** start reads the device, which runs the window in a profile or has it ask. */
   start(): void {
     this.readDevice();
+    // Closing, the window writes its drafts first (main waits a little for it).
+    window.kith.closing(() => this.run?.composer.drafts.flush() ?? Promise.resolve());
   }
 
   /** stop closes every stream: the window is going. */
   stop(): void {
+    this.stopped = true;
+    clearTimeout(this.deviceLater);
     this.leave();
   }
 
@@ -178,6 +211,7 @@ export class Session {
     }
     run.timeline = new Timeline(room, this.view.unread.get(room)?.readEvent ?? "");
     run.settings = undefined;
+    run.composer.opened(room);
     this.set({ open: room, unreadLine: true });
     this.readSettings(run, run.timeline);
     this.readReactions(run);
@@ -195,10 +229,97 @@ export class Session {
 
   /** watch says whether the open room is watched (at its newest, the window focused): what arrives meanwhile is read. */
   watch(watching: boolean): void {
+    const was = this.watching;
     this.watching = watching;
     if (this.run !== undefined) {
       this.markRead(this.run);
+      if (was && !watching) {
+        void this.run.composer.drafts.flush(0); // out of sight: the drafts are written now
+      }
     }
+  }
+
+  /** type is the person typing in the open room's composer; it answers where the caret goes. */
+  type(text: string, caret: number): number {
+    return this.run === undefined || this.view.open === ""
+      ? caret
+      : this.run.composer.type(this.view.open, text, caret);
+  }
+
+  /** mention puts m in place of the open composer's text[start, end); it answers the caret. */
+  mention(m: Member, start: number, end: number): number {
+    return this.run === undefined ? end : this.run.composer.mention(this.view.open, m, start, end);
+  }
+
+  /** emoji records an emoji put in the open composer. */
+  emoji(emoji: string): void {
+    this.run?.composer.emoji(this.view.open, emoji);
+  }
+
+  /** wantMembers reads the open room's people for mentions. */
+  wantMembers(): void {
+    this.run?.composer.wantMembers(this.view.open);
+  }
+
+  reply(m: Message): void {
+    this.run?.composer.reply(m);
+  }
+
+  edit(m: Message): void {
+    this.run?.composer.edit(m);
+  }
+
+  /** cancel ends the open composer's correction, or its reply. */
+  cancel(): void {
+    this.run?.composer.cancel(this.view.open);
+  }
+
+  remove(m: Message): Promise<void> {
+    return this.inRun((run) => run.composer.remove(m));
+  }
+
+  /** react toggles key on m. */
+  react(m: Message, key: string): Promise<void> {
+    return this.inRun((run) => run.composer.react(m, key, run.timeline?.view().reactions.get(m.id) ?? []));
+  }
+
+  /** pick offers files picked in the open dialog to the open room's next message. */
+  pick(): Promise<void> {
+    const room = this.view.open;
+    return this.inRun(async (run) => {
+      run.composer.offer(room, await window.kith.pick());
+    });
+  }
+
+  /** offer offers files dropped or pasted. */
+  offer(files: readonly File[]): Promise<void> {
+    const room = this.view.open;
+    return this.inRun(async (run) => {
+      run.composer.offer(room, await Promise.all(files.map((f) => window.kith.offer(f))));
+    });
+  }
+
+  discard(token: string): Promise<void> {
+    return this.inRun((run) => run.composer.discard(this.view.open, token));
+  }
+
+  /** send sends the open composer. */
+  send(): Promise<void> {
+    const room = this.view.open;
+    return this.inRun((run) => run.composer.send(room));
+  }
+
+  /** answer replies to the question before sending as SMS. */
+  answer(yes: boolean): Promise<void> {
+    return this.inRun((run) => run.composer.answer(yes));
+  }
+
+  retry(u: Unsent): Promise<void> {
+    return this.inRun((run) => run.composer.retry(u));
+  }
+
+  dismiss(u: Unsent): void {
+    this.run?.composer.dismiss(u);
   }
 
   /** save saves m's attachment where the person picks. */
@@ -208,11 +329,22 @@ export class Session {
     });
   }
 
-  /** readDevice reads the profiles again and moves the window where the answer leaves it. */
+  /**
+   * readDevice reads the profiles again and moves the window where the answer leaves it.
+   * One that fails is tried again a little later, until one is read.
+   */
   private readDevice(): void {
     void this.inTurn(async () => {
-      const d = await call(DeviceService.method.device, {});
-      this.set({ profiles: d.profiles, socket: d.socket, problem: undefined });
+      const d = await call(DeviceService.method.device, {}).catch((err: unknown) => {
+        if (!this.stopped) {
+          this.deviceLater ??= setTimeout(() => {
+            this.deviceLater = undefined;
+            this.readDevice();
+          }, deviceAgain);
+        }
+        throw err;
+      });
+      this.set({ profiles: d.profiles, socket: d.socket, bridge: d.bridge, problem: undefined });
       this.enter(runIn(this.view.profile, d.profile, d.profiles));
     });
   }
@@ -241,7 +373,7 @@ export class Session {
   }
 
   private begin(profile: string): Run {
-    this.run = {
+    const run: Run = {
       profile,
       closed: false,
       seat: undefined,
@@ -249,13 +381,32 @@ export class Session {
       joined: [],
       at: {},
       roomReads: 0,
+      rail: undefined,
+      row: undefined,
+      rowAt: 0,
       positioned: false,
       timeline: undefined,
       settings: undefined,
       reactionReads: 0,
       reactionsHeld: undefined,
+      composer: new Composer({
+        changed: () => {
+          if (this.live(run)) {
+            this.set({});
+          }
+        },
+        failed: (err) => {
+          if (this.live(run)) {
+            this.fail(err);
+          }
+        },
+        room: (id) => run.joined.find((r) => r.id === id),
+        settings: () => (typeof run.settings === "object" ? run.settings : undefined),
+        speakers: (room) => speakers(run.timeline?.room === room ? run.timeline.view().rows : []),
+      }),
     };
-    return this.run;
+    this.run = run;
+    return run;
   }
 
   /** leave closes everything the run opened; its late answers are dropped. */
@@ -266,6 +417,7 @@ export class Session {
       return;
     }
     run.closed = true;
+    run.composer.stop();
     run.seat?.();
     for (const stop of run.streams) {
       stop();
@@ -306,14 +458,20 @@ export class Session {
         if (this.view.seat.state !== "seated") {
           this.set({ seat: { state: "seated" } });
           this.follow(run);
+          run.composer.start();
         }
         break;
       case "taken":
         this.lose({ state: "taken", holder: frame.event.value });
         break;
       case "stepAside":
-        // Closing the seat's stream is what lets the other window in.
-        this.lose({ state: "steppedAside" });
+        // The drafts are written first, from the seat (kithd refuses them once the other
+        // window has it); closing the seat's stream is what lets the other window in.
+        void run.composer.drafts.flush().finally(() => {
+          if (this.live(run)) {
+            this.lose({ state: "steppedAside" });
+          }
+        });
         break;
       case undefined:
         break;
@@ -339,10 +497,14 @@ export class Session {
             this.set({ link: { state: "attached" } });
             this.readStatus(run);
             this.readRooms(run);
+            this.readRail(run);
             break;
           case "frames":
             if (e.frames.some((f) => f.change === Change.ROOMS)) {
               this.readRooms(run);
+            }
+            if (e.frames.some((f) => f.change === Change.RAIL)) {
+              this.readRail(run);
             }
             if (e.frames.some((f) => f.change === Change.ACCOUNTS)) {
               this.readStatus(run);
@@ -676,6 +838,44 @@ export class Session {
     );
   }
 
+  /**
+   * readRail reads the profile's rail and stays on the row the window was on, or on the
+   * row now in its place. An answer for a run that ended (another profile) is dropped, as
+   * is one older than the rail held. Refused, the device is read again: a profile gone
+   * from the config leaves it, its rail and its rooms, and the window asks for one.
+   */
+  private readRail(run: Run): void {
+    call(backend.rail, {}).then(
+      (rail) => {
+        if (!this.live(run) || !later(run.rail, rail)) {
+          return;
+        }
+        run.rail = rail;
+        run.rowAt = placed(rail.rows, run.row, run.rowAt);
+        run.row = refOf(rail.rows[run.rowAt]);
+        this.set({});
+      },
+      (err: unknown) => {
+        if (this.live(run)) {
+          this.fail(err);
+          this.readDevice();
+        }
+      },
+    );
+  }
+
+  /** selectRow puts the window on the rail's ith row: the room list is its rooms. */
+  selectRow(i: number): void {
+    const run = this.run;
+    const row = run?.rail?.rows[i];
+    if (run === undefined || row === undefined) {
+      return;
+    }
+    run.rowAt = i;
+    run.row = refOf(row);
+    this.set({});
+  }
+
   private readStatus(run: Run): void {
     call(backend.status, {}).then(
       (status) => {
@@ -699,9 +899,13 @@ export class Session {
   private set(change: Partial<View>): void {
     const next = { ...this.view, ...change };
     const run = this.run;
-    next.rooms = run === undefined ? [] : ordered(run.joined, next.unread, run.at);
-    next.unreadTotal = total(next.rooms, next.unread);
+    const joined = run === undefined ? [] : ordered(run.joined, next.unread, run.at);
+    next.rail = run?.rail?.rows ?? [];
+    next.row = run?.rail === undefined ? -1 : placed(next.rail, run.row, run.rowAt);
+    next.rooms = listed(joined, run?.rail, next.row, next.open);
+    next.unreadTotal = total(joined, next.unread);
     next.timeline = run?.timeline?.view();
+    next.composer = run === undefined || next.open === "" ? undefined : run.composer.view(next.open);
     this.view = next;
     if (next.unreadTotal !== this.told) {
       this.told = next.unreadTotal;
@@ -723,6 +927,11 @@ export class Session {
       }
     });
   }
+}
+
+/** speakers are who wrote rows, newest first, each once: the first people a mention offers. */
+function speakers(rows: readonly Message[]): string[] {
+  return [...new Set(rows.toReversed().map((m) => m.sender))];
 }
 
 /** page reads what ask is for in room: its messages, and a network page's token and reactions. */
