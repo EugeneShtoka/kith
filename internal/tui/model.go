@@ -3244,7 +3244,7 @@ func (m Model) handleVerifyKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 func (m Model) handleIncoming(msg incomingMsg) (Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	// Every room's messages arrive here, which keeps activity ordering current.
-	m = m.noteActivity(msg.message)
+	m = m.noteActivity(msg.message).followQuote(msg.message)
 	if room, ok := m.currentRoom(); ok && msg.message.RoomID == room.ID {
 		scrolled := m.timeline.scroll > 0
 		m = m.keepAnchored(func(m Model) Model { return m.applyFrame(msg.message) })

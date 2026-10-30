@@ -380,6 +380,9 @@ type rowInputs struct {
 	revealed bool
 	// quoted: the reply target is known (loaded or fetched).
 	quoted bool
+	// quotes is the fetched quotes' revision: a fetched target changes with no message
+	// changing (a frame edits or deletes it).
+	quotes uint64
 	// pictures: pictures are drawn now (showsPictures, which reads the focus).
 	pictures bool
 }
@@ -452,6 +455,7 @@ func (m Model) entryInputs(w walk, i int) rowInputs {
 	}
 	if msg.ReplyTo != "" {
 		_, in.quoted = m.quotedTarget(w.derived, msg.ReplyTo)
+		in.quotes = m.quotes.rev
 	}
 	return in
 }

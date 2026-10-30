@@ -20,6 +20,8 @@ type quoteState struct {
 	// asked holds IDs already requested, answered or not, so an unobtainable target is not
 	// re-requested every frame.
 	asked map[domain.EventID]bool
+	// rev moves with every change to known, keying the rows that draw a quote (rowInputs).
+	rev uint64
 }
 
 // quotedTarget is the message a reply answers, if known: a loaded message (shown or folded
@@ -78,9 +80,10 @@ func (m Model) markQuoteAsked(id domain.EventID) Model {
 	return m
 }
 
-// rememberQuote files a fetched reply target, copy-on-write.
+// rememberQuote files a reply target, fetched or from a frame, copy-on-write.
 func (m Model) rememberQuote(msg domain.Message) Model {
 	m.quotes.known = withEntry(m.quotes.known, msg.ID, msg)
+	m.quotes.rev++
 	return m
 }
 
@@ -91,7 +94,19 @@ func (m Model) handleFetchedQuote(msg fetchedQuoteMsg) (Model, tea.Cmd) {
 	if msg.err != nil || msg.message.ID == "" {
 		return m, nil
 	}
+	if _, framed := m.quotes.known[msg.message.ID]; framed {
+		return m, nil // a frame since the ask brought it as it is now; the fetch may have read it before
+	}
 	return m.rememberQuote(msg.message), nil
+}
+
+// followQuote updates a quote from a frame for its message, loaded or not, and also one
+// whose fetch is still in flight (handleFetchedQuote then keeps it).
+func (m Model) followQuote(frame domain.Message) Model {
+	if !m.quotes.asked[frame.ID] {
+		return m
+	}
+	return m.rememberQuote(frame)
 }
 
 // goToReplied moves the cursor to the message the selected one answers: revealed if
