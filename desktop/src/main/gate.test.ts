@@ -108,6 +108,7 @@ const allowedCalls = [
   "Selves",
   "Drafts",
   "ReplaceDraft",
+  "SearchMessages",
   "Device",
   "ChooseProfile",
   "DeviceSettings",

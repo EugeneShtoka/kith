@@ -50,6 +50,9 @@ export interface TimelineView {
   quotes: ReadonlyMap<string, Message | undefined>;
   /** The last message read when the room was opened: the unread line follows it. */
   unreadFrom: string;
+  /** The row a jump found, to show and mark ("" none), and how many jumps there were: each is shown once. */
+  target: string;
+  jumps: number;
 }
 
 /** inside: m belongs to the stretch, at or after its floor. */
@@ -101,6 +104,16 @@ export class Timeline {
   private reloading: { into: Stretch; to: Floor } | undefined;
   private reactions = new Map<string, readonly Reaction[]>();
   private quotes = new Map<string, Message | undefined>();
+  /**
+   * The message a jump is to, while older pages are read until it is a row; and whether
+   * none is left to read, so only a frame can bring it (one written after the page).
+   */
+  private seeking: string | undefined;
+  private readAll = false;
+  private target = "";
+  private jumps = 0;
+  /** A jump that found nothing: the message is not in the cache. */
+  private missed = false;
   private snapshot: TimelineView | undefined;
   /** The newest message a receipt landed for, and the one in flight. */
   marked = "";
@@ -121,6 +134,8 @@ export class Timeline {
       reactions: this.reactions,
       quotes: this.quotes,
       unreadFrom: this.unreadFrom,
+      target: this.target,
+      jumps: this.jumps,
     };
     return this.snapshot;
   }
@@ -157,6 +172,12 @@ export class Timeline {
     if (this.shown.floor === undefined) {
       return { kind: "latest" };
     }
+    const first = this.shown.rows[0];
+    if (this.seeking !== undefined && !this.readAll && first !== undefined) {
+      // A jump reads the cache back to its message: it is a cached message (a search
+      // hit), and the network's pages would reach it fifty at a time.
+      return { kind: "cached", before: first.id };
+    }
     if (this.token === undefined && !this.cached) {
       return { kind: "network", from: "" };
     }
@@ -166,7 +187,6 @@ export class Timeline {
     if (!this.cached) {
       return { kind: "network", from: this.token ?? "" };
     }
-    const first = this.shown.rows[0];
     return first === undefined ? undefined : { kind: "cached", before: first.id };
   }
 
@@ -191,6 +211,9 @@ export class Timeline {
       this.quotes = new Map(this.quotes).set(m.id, m); // a quote changes as its message does
     }
     this.shown = { ...this.shown, rows: apply(this.shown, m) };
+    if (m.id === this.seeking) {
+      this.sought();
+    }
     this.changed();
   }
 
@@ -237,6 +260,7 @@ export class Timeline {
       this.reloading = undefined;
     }
     this.shown = this.replayed(s);
+    this.sought();
     this.changed();
   }
 
@@ -266,7 +290,56 @@ export class Timeline {
     if (this.reloading === undefined) {
       this.since = undefined; // every frame meanwhile is already shown
     }
+    this.sought();
     this.changed();
+  }
+
+  /**
+   * seek is a jump to the message id: once it is a row it is the target, shown and
+   * marked; until then older cached pages are read, back to the room's start.
+   */
+  seek(id: string): void {
+    this.seeking = id;
+    this.readAll = false;
+    this.jumps++;
+    this.target = "";
+    this.missed = false;
+    this.stalled = false;
+    this.sought();
+    this.changed();
+  }
+
+  /** jumpMissed: the last jump found nothing, said once. */
+  jumpMissed(): boolean {
+    const missed = this.missed;
+    this.missed = false;
+    return missed;
+  }
+
+  /**
+   * sought ends the jump once its message is a row (a reply in a thread shows its root),
+   * or once nothing older is left to read for it.
+   */
+  private sought(): void {
+    const id = this.seeking;
+    if (id === undefined || this.shown.floor === undefined || this.reloading !== undefined) {
+      return;
+    }
+    const found = this.shown.rows.find((m) => m.id === id);
+    if (found !== undefined && found.threadRoot !== "" && found.threadRoot !== id) {
+      this.seeking = found.threadRoot;
+      this.readAll = false;
+      this.sought();
+      return;
+    }
+    if (found !== undefined) {
+      this.seeking = undefined;
+      this.target = id;
+    } else if (!this.readAll && (this.shown.start || this.shown.floor === "all" || this.stalled)) {
+      // Said once; a frame may still bring it, written after the page that ran out.
+      this.readAll = true;
+      this.missed = !this.stalled; // a page that failed says so itself
+    }
   }
 
   /**

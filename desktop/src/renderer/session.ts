@@ -13,14 +13,16 @@ import {
   type SeatResponse,
   type StatusResponse,
 } from "../gen/backend/v1/services_pb";
-import type { Member, Message, Reaction, Room, Unread } from "../gen/backend/v1/types_pb";
+import type { Member, Message, Reaction, Room, SearchHit, Unread } from "../gen/backend/v1/types_pb";
 import { type DeviceSettingsResponse, DeviceService } from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
 import { later, listed, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unsent } from "./compose";
+import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { call, subscribe } from "./kith";
 import { announces } from "./read";
 import { ordered, total } from "./rooms";
+import { emptyFilter, parseSearch } from "./search";
 import { type Ask, newest, Timeline, type TimelineView } from "./timeline";
 
 const backend = BackendService.method;
@@ -30,6 +32,8 @@ const networkPage = 50n;
 const cachedPage = 2000n;
 /** How many reply targets are fetched at once. */
 const quoteFetches = 6;
+/** How many hits a search lists, newest first (as the TUI's). */
+const searchLimit = 200n;
 /**
  * How long the window waits to read the device again after it could not: on a device
  * that joined a bridge, the profiles are the bridge's, read through it, and a window
@@ -52,6 +56,20 @@ export type Seat =
 /** The window's link to kithd: its Changed stream, held open by main. */
 export type Link = { state: "connecting" } | { state: "attached" } | { state: "detached"; error: string };
 
+/** Where a search looks: the open room, the rooms the rail row lists, or every room of the profile. */
+export type SearchScope = "room" | "row" | "all";
+
+/** A search and its hits, newest first. */
+export interface Search {
+  query: string;
+  scope: SearchScope;
+  hits: readonly SearchHit[];
+  /** Asked for, not answered yet. */
+  busy: boolean;
+  /** Why the query asks nothing of kithd ("" it does). */
+  note: string;
+}
+
 /** View is everything the window draws. */
 export interface View {
   /** The config's profiles, in order, and the one the window runs in: "" asks which. */
@@ -68,6 +86,8 @@ export interface View {
   row: number;
   /** The joined rooms the row lists, in list order (every one before a rail), and the invitations. */
   rooms: readonly Room[];
+  /** Every joined room of the profile, in list order: what the switcher offers. */
+  joined: readonly Room[];
   invites: readonly Room[];
   unread: ReadonlyMap<string, Unread>;
   /** What the tray counts. */
@@ -79,6 +99,11 @@ export interface View {
   unreadLine: boolean;
   /** The open room's composer. */
   composer: ComposerView | undefined;
+  /** The search shown, its hits only in the profile's rooms. */
+  search: Search | undefined;
+  /** Whether there is a room to go back, or forward, to. */
+  back: boolean;
+  forward: boolean;
   problem: string | undefined;
 }
 
@@ -89,6 +114,10 @@ const nothingShown = {
   rail: [],
   row: -1,
   rooms: [],
+  joined: [],
+  search: undefined,
+  back: false,
+  forward: false,
   invites: [],
   unread: new Map(),
   unreadTotal: 0,
@@ -108,8 +137,11 @@ interface Run {
   /** Rooms as Rooms last read them, and when each last had a message. */
   joined: readonly Room[];
   at: Readonly<Record<string, bigint>>;
-  /** Counts the room reads, so an older answer arriving last is dropped. */
+  /** Counts the room reads, so an older answer arriving last is dropped; and whether one has answered. */
   roomReads: number;
+  listed: boolean;
+  /** A room asked to open before the rooms were read: opened once they are, if held. */
+  opening: string | undefined;
   /** The rail served last (the highest revision), and the row the window is on. */
   rail: RailResponse | undefined;
   row: RowRef | undefined;
@@ -124,6 +156,9 @@ interface Run {
   reactionsHeld: ReactionsResponse[] | undefined;
   /** The composer: drafts, files, failed sends. */
   composer: Composer;
+  /** The search shown, and how many were asked for: only the last one's answer is shown. */
+  search: Search | undefined;
+  searches: number;
 }
 
 export class Session {
@@ -144,6 +179,11 @@ export class Session {
   private told = 0;
   /** The open room is watched: shown at its newest, the window focused. */
   private watching = false;
+  /**
+   * Where the window has been, per profile: back and forward stay in the profile the
+   * window runs in, and find their way again when it comes back to one.
+   */
+  private readonly places = new Map<string, Jumplist>();
 
   /** start reads the device, which runs the window in a profile or has it ask. */
   start(): void {
@@ -200,13 +240,146 @@ export class Session {
   }
 
   /**
-   * open shows a room: its newest cached messages, then older ones as the window scrolls
-   * back, kept by the Messages stream. The unread line follows the last message read as
-   * it opened, and stays there while it is open.
+   * open shows a room of the profile, picked (the room list, the switcher): back returns
+   * to where the window was.
    */
   open(room: string): void {
     const run = this.run;
-    if (run === undefined || room === this.view.open) {
+    if (run !== undefined && !run.listed) {
+      run.opening = room; // opened once the rooms are read, if the profile holds it
+      return;
+    }
+    if (run === undefined || !this.holds(run, room)) {
+      return;
+    }
+    this.places.set(run.profile, arrived(this.places.get(run.profile) ?? nowhere, room));
+    this.show(run, room);
+  }
+
+  /** back opens the room the window was in before, of those still in the profile. */
+  back(): void {
+    this.step(true);
+  }
+
+  /** forward opens the room back left. */
+  forward(): void {
+    this.step(false);
+  }
+
+  /**
+   * search asks for the messages query finds in scope, in the profile's rooms; only the
+   * last search asked is shown. The query's filters are read as the TUI reads them.
+   */
+  search(query: string, scope: SearchScope): void {
+    const run = this.run;
+    if (run === undefined) {
+      return;
+    }
+    const mine = ++run.searches;
+    const filter = parseSearch(query, new Date());
+    const shown = (s: Omit<Search, "query" | "scope">) => {
+      run.search = { query, scope, ...s };
+      this.set({});
+    };
+    if (filter.senderField !== "") {
+      shown({
+        hits: [],
+        busy: false,
+        note: `from:${filter.senderField} names a phonebook field: search it in the TUI`,
+      });
+      return;
+    }
+    if (emptyFilter(filter) || (scope === "room" && this.view.open === "")) {
+      shown({ hits: [], busy: false, note: emptyFilter(filter) ? "Nothing to search for" : "No room is open" });
+      return;
+    }
+    shown({ hits: [], busy: true, note: "" });
+    const ms = (at: Date | undefined) => BigInt(at?.getTime() ?? 0);
+    call(backend.searchMessages, {
+      query: filter.terms,
+      sender: filter.sender,
+      since: ms(filter.since),
+      until: ms(filter.until),
+      limit: searchLimit,
+      roomIds: scope === "room" ? [this.view.open] : scope === "row" ? this.view.rooms.map((r) => r.id) : [],
+      allRooms: scope === "all",
+    }).then(
+      (r) => {
+        if (this.live(run) && mine === run.searches) {
+          shown({ hits: r.hits, busy: false, note: "" });
+        }
+      },
+      (err: unknown) => {
+        if (this.live(run) && mine === run.searches) {
+          shown({ hits: [], busy: false, note: "" });
+          this.fail(err);
+        }
+      },
+    );
+  }
+
+  /** closeSearch puts the search away; an answer still on its way is dropped. */
+  closeSearch(): void {
+    if (this.run !== undefined) {
+      this.run.searches++;
+      this.run.search = undefined;
+      this.set({});
+    }
+  }
+
+  /**
+   * jump opens the room a message is in and reads back to the message, shown and marked
+   * once found; a room the profile no longer holds is not opened.
+   */
+  jump(room: string, event: string): void {
+    const run = this.run;
+    if (run === undefined) {
+      return;
+    }
+    if (!this.holds(run, room)) {
+      this.fail("That room is no longer in this profile");
+      return;
+    }
+    this.open(room);
+    run.timeline?.seek(event);
+    this.missed(run);
+    this.pump(run);
+    this.set({});
+  }
+
+  /** missed says so when the open room's jump found nothing. */
+  private missed(run: Run): void {
+    if (run.timeline?.jumpMissed() === true) {
+      this.fail("That message is no longer cached");
+    }
+  }
+
+  /** holds: the profile's joined rooms, as last read, have room. */
+  private holds(run: Run, room: string): boolean {
+    return run.joined.some((r) => r.id === room && r.membership !== "invite");
+  }
+
+  private step(back: boolean): void {
+    const run = this.run;
+    if (run === undefined || !run.listed) {
+      return; // until the rooms are read, every place would look gone
+    }
+    const { j, to } = step(this.places.get(run.profile) ?? nowhere, back, (room) => this.holds(run, room));
+    this.places.set(run.profile, j);
+    if (to === "") {
+      this.set({});
+    } else {
+      this.show(run, to);
+    }
+  }
+
+  /**
+   * show shows a room: its newest cached messages, then older ones as the window scrolls
+   * back, kept by the Messages stream. The unread line follows the last message read as
+   * it opened, and stays there while it is open.
+   */
+  private show(run: Run, room: string): void {
+    if (room === this.view.open) {
       return;
     }
     run.timeline = new Timeline(room, this.view.unread.get(room)?.readEvent ?? "");
@@ -381,6 +554,10 @@ export class Session {
       joined: [],
       at: {},
       roomReads: 0,
+      listed: false,
+      opening: undefined,
+      search: undefined,
+      searches: 0,
       rail: undefined,
       row: undefined,
       rowAt: 0,
@@ -706,6 +883,7 @@ export class Session {
       (p) => {
         if (this.live(run) && run.timeline === t) {
           t.land(ticket, p.messages, p.next, p.reactions);
+          this.missed(run);
           this.pump(run);
           this.markRead(run);
           this.set({});
@@ -826,7 +1004,13 @@ export class Session {
       ([rooms, last]) => {
         if (this.live(run) && mine === run.roomReads) {
           run.joined = rooms.rooms;
+          run.listed = true;
           run.at = last.at;
+          const opening = run.opening;
+          run.opening = undefined;
+          if (opening !== undefined) {
+            this.open(opening);
+          }
           this.set({});
         }
       },
@@ -903,7 +1087,16 @@ export class Session {
     next.rail = run?.rail?.rows ?? [];
     next.row = run?.rail === undefined ? -1 : placed(next.rail, run.row, run.rowAt);
     next.rooms = listed(joined, run?.rail, next.row, next.open);
+    next.joined = joined;
     next.unreadTotal = total(joined, next.unread);
+    // A hit is listed only while its room is in the profile: one that left since it was
+    // found shows nothing of it.
+    const search = run?.search;
+    const ids = new Set(joined.map((r) => r.id));
+    next.search = search && { ...search, hits: search.hits.filter((h) => ids.has(h.roomId)) };
+    const places = run === undefined ? nowhere : (this.places.get(run.profile) ?? nowhere);
+    next.back = places.back.length > 0;
+    next.forward = places.forward.length > 0;
     next.timeline = run?.timeline?.view();
     next.composer = run === undefined || next.open === "" ? undefined : run.composer.view(next.open);
     this.view = next;
