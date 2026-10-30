@@ -25,6 +25,10 @@ type derivedKey struct {
 	room   domain.RoomID
 	thread domain.EventID
 	rev    uint64
+	// floor and atStart are where the room's shown stretch begins (roomStretch); a new
+	// floor is a new pointer.
+	floor   *domain.Message
+	atStart bool
 	// cfg covers theme and identity settings, which a config reload can change.
 	cfg uint64
 	// unread fingerprints the room's unread state, which thread summary rows draw and
@@ -116,6 +120,8 @@ func (m Model) keyFor() derivedKey {
 		room:    m.openRoom,
 		thread:  m.thread.root,
 		rev:     m.timeline.rev,
+		floor:   m.timeline.hist.floor,
+		atStart: m.timeline.hist.atStart,
 		cfg:     m.conf.rev,
 		unread:  unreadFingerprint(m.unread[m.openRoom]),
 		rtl:     m.mirrored(),
@@ -380,6 +386,9 @@ type rowInputs struct {
 	revealed bool
 	// quoted: the reply target is known (loaded or fetched).
 	quoted bool
+	// quotes is the fetched quotes' revision: a fetched target changes with no message
+	// changing (a frame edits or deletes it).
+	quotes uint64
 	// pictures: pictures are drawn now (showsPictures, which reads the focus).
 	pictures bool
 }
@@ -452,6 +461,7 @@ func (m Model) entryInputs(w walk, i int) rowInputs {
 	}
 	if msg.ReplyTo != "" {
 		_, in.quoted = m.quotedTarget(w.derived, msg.ReplyTo)
+		in.quotes = m.quotes.rev
 	}
 	return in
 }
@@ -493,7 +503,7 @@ func (d *derivedCache) at(id domain.EventID) (domain.Message, bool) {
 // collapse is the loaded messages' thread structure with the daemon's unread counts
 // folded in.
 func (m Model) collapse() ([]domain.Message, []domain.Thread) {
-	main, threads := domain.CollapseThreads(m.timeline.messages)
+	main, threads := domain.CollapseThreads(m.roomStretch())
 	room, ok := m.currentRoom()
 	if !ok {
 		return main, threads

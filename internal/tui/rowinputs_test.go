@@ -22,7 +22,8 @@ var rowReads = map[string]string{
 	"pics.rowsFor":       "rowInputs.images (the rows slice, replaced whole)",
 	"timeline.starred":   "rowInputs.starred",
 	"timeline.revealed":  "rowInputs.revealed",
-	"quotes.known":       "rowInputs.quoted",
+	"quotes.known":       "rowInputs.quoted and rowInputs.quotes (quotes.rev, moved with every change to known)",
+	"quotes.rev":         "rowInputs.quotes",
 	"focus":              "rowInputs.pictures (showsPictures)",
 	"pics.graphics":      "rowInputs.pictures (showsPictures); set with the config (apply.go), which bumps conf.rev",
 	"timeline.members":   "derivedKey.members (timeline.membersRev, moved wherever members is replaced)",
@@ -204,6 +205,10 @@ var derivedReads = map[string]string{
 	"conf.base":         "derivedKey.cfg (conf.rev moves with every config applied)",
 	"profiles.current":  "derivedKey.profile",
 	"cards.index":       "derivedKey.cards (cards.read moves with every index read)",
+
+	// Where the room's shown stretch begins (roomStretch).
+	"timeline.hist.floor":   "derivedKey.floor",
+	"timeline.hist.atStart": "derivedKey.atStart",
 }
 
 // TestTheDerivedCacheReadsOnlyKeyedState walks computeDerived's calls and reads.

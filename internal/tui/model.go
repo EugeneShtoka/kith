@@ -194,6 +194,13 @@ type roomScrollback struct {
 	// below the oldest loaded message: it may hold more than the network serves (a
 	// cache-only network serves none).
 	cached bool
+	// held are the frames that stayed out of the rows (admits), latest per message, put
+	// back over each page that lands (replayHeld).
+	held []domain.Message
+	// floor is the oldest message a room page brought, nil until one lands: the room
+	// shows nothing older (roomStretch), so a thread's root or replies fetched from further
+	// back show only in the thread.
+	floor *domain.Message
 }
 
 // overlayTarget is what an open overlay aims at, captured by ID on open: the room list
@@ -2553,6 +2560,11 @@ func (m Model) loadOlder() (Model, tea.Cmd) {
 	if m.thread.open() {
 		return m.loadOlderInThread()
 	}
+	return m.loadOlderInRoom()
+}
+
+// loadOlderInRoom is loadOlder for the room's history, even while a thread is open.
+func (m Model) loadOlderInRoom() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if m.timeline.hist.loading || m.timeline.hist.atStart || !m.timeline.hist.ready || !ok {
 		return m, nil
@@ -2569,8 +2581,8 @@ func (m Model) olderPageCmd(roomID domain.RoomID) tea.Cmd {
 		return m.loadTimelineCmd(roomID, m.timeline.hist.token)
 	}
 	var oldest domain.EventID
-	if len(m.timeline.messages) > 0 {
-		oldest = m.timeline.messages[0].ID
+	if rows := m.roomStretch(); len(rows) > 0 {
+		oldest = rows[0].ID
 	}
 	return m.cachedOlderCmd(roomID, oldest)
 }
@@ -3079,7 +3091,7 @@ func (m Model) handleCachedTimeline(msg cachedTimelineMsg) (Model, tea.Cmd) {
 	if !ok || msg.roomID != room.ID {
 		return m, nil
 	}
-	m = m.setMessages(domain.MergeMessages(m.timeline.messages, msg.messages))
+	m = m.setMessages(domain.MergeMessages(m.timeline.messages, msg.messages)).lowerFloor(msg.messages).replayHeld()
 	m, jump := m.resolveJump(false)
 	m, opening := m.resolveThread(false)
 	m, naming := m.nameOpenRoomThreads()
@@ -3103,18 +3115,19 @@ func (m Model) handleTimeline(msg timelineMsg) (Model, tea.Cmd) {
 		m = m.sayErr("history error", msg.err)
 		return m, nil
 	}
-	loaded := len(m.timeline.messages)
-	m = m.setMessages(domain.MergeMessages(m.timeline.messages, msg.page.Messages))
+	floor := m.timeline.hist.floor
+	m = m.setMessages(domain.MergeMessages(m.timeline.messages, msg.page.Messages)).lowerFloor(msg.page.Messages)
 	m = m.withReactions(msg.page.Reactions...)
 	m.timeline.hist.ready = true
-	// The network's last page hands over to the cache; a cache page that adds nothing is
-	// the room's start.
+	// The network's last page hands over to the cache; a cache page that reaches no
+	// further back is the room's start.
 	if msg.fromCache {
-		m.timeline.hist.atStart = len(m.timeline.messages) == loaded
+		m.timeline.hist.atStart = m.timeline.hist.floor == floor
 	} else {
 		m.timeline.hist.token = msg.page.Next
 		m.timeline.hist.cached = m.timeline.hist.cached || msg.page.Next == ""
 	}
+	m = m.replayHeld()
 	// During a backfill, keep pulling older pages until the start, asking the network
 	// only up to the cap.
 	if m.timeline.hist.backfilling && !m.timeline.hist.atStart &&
@@ -3229,17 +3242,10 @@ func (m Model) handleVerifyKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 func (m Model) handleIncoming(msg incomingMsg) (Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	// Every room's messages arrive here, which keeps activity ordering current.
-	m = m.noteActivity(msg.message)
+	m = m.noteActivity(msg.message).followQuote(msg.message)
 	if room, ok := m.currentRoom(); ok && msg.message.RoomID == room.ID {
 		scrolled := m.timeline.scroll > 0
-		// Each is the message as the cache now holds it, so it replaces the row shown
-		// rather than folding onto it: a deleted edit takes its words back.
-		m = m.keepAnchored(func(m Model) Model {
-			others := slices.DeleteFunc(slices.Clone(m.timeline.messages), func(shown domain.Message) bool {
-				return shown.ID == msg.message.ID
-			})
-			return m.setMessages(domain.MergeMessages(others, []domain.Message{msg.message}))
-		})
+		m = m.keepAnchored(func(m Model) Model { return m.applyFrame(msg.message) })
 		if !scrolled && m.focus == paneTimeline {
 			// Watching live at the bottom: keep it marked read.
 			var readCmd tea.Cmd
@@ -3249,6 +3255,80 @@ func (m Model) handleIncoming(msg incomingMsg) (Model, tea.Cmd) {
 	}
 	cmds = append(cmds, m.listenCmd())
 	return m, tea.Batch(cmds...)
+}
+
+// applyFrame puts a frame into the open room's rows. Each is the message as the cache now
+// holds it, so it replaces the row shown rather than folding onto it: a deleted edit takes
+// its words back. A message not loaded joins only where admits says; otherwise it is held
+// until a page reaches it.
+func (m Model) applyFrame(frame domain.Message) Model {
+	if indexOfMessage(m.timeline.messages, frame.ID) < 0 && !m.admits(frame) {
+		m.timeline.hist.held = append(slices.DeleteFunc(slices.Clone(m.timeline.hist.held), func(held domain.Message) bool {
+			return held.ID == frame.ID
+		}), frame)
+		return m
+	}
+	others := slices.DeleteFunc(slices.Clone(m.timeline.messages), func(shown domain.Message) bool {
+		return shown.ID == frame.ID
+	})
+	return m.setMessages(domain.MergeMessages(others, []domain.Message{frame}))
+}
+
+// admits says whether a frame for a message not loaded joins the rows: at or after the
+// oldest loaded row, or anywhere once the room's start is loaded. One older than every row
+// stays out, since alone at the top it would hide the unloaded history between; with no
+// row loaded, a frame waits for the first page, which may reach below it.
+func (m Model) admits(frame domain.Message) bool {
+	switch {
+	case m.timeline.hist.atStart:
+		return true
+	case len(m.timeline.messages) == 0:
+		return !m.timeline.hist.loading
+	}
+	return domain.CompareMessages(frame, m.timeline.messages[0]) >= 0
+}
+
+// lowerFloor moves the floor down to the oldest message of page, a room page that landed.
+func (m Model) lowerFloor(page []domain.Message) Model {
+	for i := range page {
+		if floor := m.timeline.hist.floor; floor == nil || domain.CompareMessages(page[i], *floor) < 0 {
+			oldest := page[i]
+			m.timeline.hist.floor = &oldest
+		}
+	}
+	return m
+}
+
+// roomStretch is the loaded messages the room shows: those from the floor on, or all once
+// its start is loaded or before any page landed.
+func (m Model) roomStretch() []domain.Message {
+	msgs, floor := m.timeline.messages, m.timeline.hist.floor
+	if floor == nil || m.timeline.hist.atStart {
+		return msgs
+	}
+	i, _ := slices.BinarySearchFunc(msgs, *floor, domain.CompareMessages)
+	return msgs[i:]
+}
+
+// inView says whether revealMessage shows id: in the room's stretch, or in the thread it
+// opens, which keeps replies from before the floor.
+func (m Model) inView(id domain.EventID) bool {
+	if indexOfMessage(m.roomStretch(), id) >= 0 {
+		return true
+	}
+	root := domain.ThreadRootOf(m.timeline.messages, id)
+	return root != "" && root != id
+}
+
+// replayHeld puts the held frames back after a page landed: one it reached replaces the
+// page's copy, which may have been read before the frame was sent; the rest stay held.
+func (m Model) replayHeld() Model {
+	held := m.timeline.hist.held
+	m.timeline.hist.held = nil
+	for i := range held {
+		m = m.applyFrame(held[i])
+	}
+	return m
 }
 
 // handleSent reports a failed send; on success it marks the conversation read (replying implies

@@ -18,8 +18,8 @@ import (
 // Every cached row must be keyed by everything its render reads. Named cases (rowcache_test.go)
 // miss inputs nobody thought of, so this walks random sequences of every row input: focus,
 // insert mode, width, stars, reveals, reactions (including swaps at the same count), pictures,
-// fetched quotes, the cursor, the room's spaces and name. A frame is drawn between steps and
-// asModel's staleRow check fails the first Update leaving a stale row.
+// fetched quotes and frames that change them, the cursor, the room's spaces and name. A frame
+// is drawn between steps and asModel's staleRow check fails the first Update leaving a stale row.
 func TestTheRowCacheHoldsOverAnyUpdateSequence(t *testing.T) {
 	t.Parallel()
 	seeds, steps := 120, 40
@@ -73,7 +73,7 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 
 	for range steps {
 		var msg tea.Msg = settleMsg{}
-		switch r := rng.IntN(15); r {
+		switch r := rng.IntN(16); r {
 		case 0:
 			m.focus = []pane{paneTimeline, paneRooms}[rng.IntN(2)]
 			log = append(log, fmt.Sprintf("focus %v", m.focus))
@@ -145,6 +145,16 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 			msg = fetchedQuoteMsg{roomID: mx + "!a:x", message: domain.Message{
 				ID: mx + "$old", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", SenderName: "Dana", Body: "the message being answered"}}
 			log = append(log, "the quoted $old arrives")
+		case 15:
+			// A frame for the quoted $old, which is no row: edited, or deleted.
+			old := domain.Message{ID: mx + "$old", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", SenderName: "Dana",
+				Body: fmt.Sprintf("the message being answered, edit %d", reaction), Edited: true}
+			reaction++
+			if rng.IntN(2) == 0 {
+				old.Body, old.Edited, old.Redacted = "", false, true
+			}
+			msg = incomingMsg{message: old}
+			log = append(log, fmt.Sprintf("a frame for the quoted $old: %q, deleted %v", old.Body, old.Redacted))
 		case 9:
 			m.timeline.selected = pick()
 			log = append(log, fmt.Sprintf("cursor to %s", m.timeline.selected))

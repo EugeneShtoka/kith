@@ -71,6 +71,56 @@ func TestAQuoteIsFetchedWhenItsTargetIsNotLoaded(t *testing.T) {
 	}
 }
 
+// A fetched quote changes as its message does: a frame that edits or deletes it reaches the
+// quote, though the message itself is no row.
+func TestAFetchedQuoteFollowsItsMessage(t *testing.T) {
+	t.Parallel()
+
+	old := domain.Message{ID: mx + "$old", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", SenderName: "Dana",
+		Body: "the message being answered", Timestamp: at(1)}
+	m := quoting(t, &quoteBackend{msg: old})
+	m, cmd := routed(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$reply", RoomID: mx + "!a:x", Sender: "matrix:@me:x", Body: "test", ReplyTo: mx + "$old", Timestamp: at(10)},
+	}}})
+	m = settle(t, m, cmd)
+
+	edited := old
+	edited.Body, edited.Edited, edited.EditedAt, edited.RevisionID = "reworded since", true, at(20), mx+"$e"
+	m = update(t, m, incomingMsg{message: edited})
+	if frame := stripStyles(m.View().Content); !strings.Contains(frame, "reworded since") {
+		t.Errorf("the quote does not show the edit:\n%s", frame)
+	}
+	deleted := old
+	deleted.Body, deleted.Redacted = "", true
+	m = update(t, m, incomingMsg{message: deleted})
+	if frame := stripStyles(m.View().Content); !strings.Contains(frame, redactedBody) || strings.Contains(frame, "reworded") {
+		t.Errorf("the quote does not show the deletion:\n%s", frame)
+	}
+}
+
+// A frame that lands while the quote's fetch is in flight is newer than what the fetch
+// read, so the fetch's answer does not undo it.
+func TestAFrameOutlivesTheQuoteFetchInFlight(t *testing.T) {
+	t.Parallel()
+
+	old := domain.Message{ID: mx + "$old", RoomID: mx + "!a:x", Sender: "matrix:@dana:x", SenderName: "Dana",
+		Body: "the message being answered", Timestamp: at(1)}
+	m := quoting(t, &quoteBackend{})
+	m, _ = routed(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$reply", RoomID: mx + "!a:x", Sender: "matrix:@me:x", Body: "test", ReplyTo: mx + "$old", Timestamp: at(10)},
+	}}})
+	if !m.quotes.asked[mx+"$old"] {
+		t.Fatal("the quote was not asked for")
+	}
+	deleted := old
+	deleted.Body, deleted.Redacted = "", true
+	m = update(t, m, incomingMsg{message: deleted})
+	m = update(t, m, fetchedQuoteMsg{roomID: mx + "!a:x", message: old}) // read before the deletion
+	if frame := stripStyles(m.View().Content); !strings.Contains(frame, redactedBody) || strings.Contains(frame, "being answered") {
+		t.Errorf("the fetch undid the deletion:\n%s", frame)
+	}
+}
+
 // An unobtainable target is asked for once, not every frame.
 func TestAnUnfetchableQuoteIsAskedForOnce(t *testing.T) {
 	t.Parallel()

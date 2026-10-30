@@ -180,8 +180,9 @@ func (m Model) handleThreadPage(msg threadPageMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.sayErr("could not load older replies", msg.err), nil
 	}
+	// The frames held meanwhile are newer than what the page read.
 	m = m.keepAnchored(func(m Model) Model {
-		m = m.setMessages(domain.MergeMessages(m.timeline.messages, msg.page.Messages))
+		m = m.setMessages(domain.MergeMessages(m.timeline.messages, msg.page.Messages)).replayHeld()
 		return m.withReactions(msg.page.Reactions...)
 	})
 	m.thread.token = msg.page.Next
@@ -204,7 +205,7 @@ func (m Model) closeThread() (Model, tea.Cmd) {
 	m.compose.replyTo = ""
 	m.timeline.scroll = scroll
 	m.timeline.selected = back
-	if indexOfMessage(m.timeline.messages, root) >= 0 {
+	if indexOfMessage(m.roomStretch(), root) >= 0 {
 		m.timeline.selected = root
 	}
 	// The room's receipt was suppressed while the thread was open.
@@ -264,7 +265,7 @@ func (m Model) handleFetchedEvent(msg fetchedEventMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.sayErr("could not fetch the start of this thread", msg.err), nil
 	}
-	m = m.setMessages(domain.MergeMessages(m.timeline.messages, []domain.Message{msg.message}))
+	m = m.setMessages(domain.MergeMessages(m.timeline.messages, []domain.Message{msg.message})).replayHeld()
 	return m.clearStatus(), nil
 }
 

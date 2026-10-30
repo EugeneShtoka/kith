@@ -305,7 +305,7 @@ func (m Model) resolveJump(settled bool) (Model, tea.Cmd) {
 	if m.jump.to == "" {
 		return m, nil
 	}
-	if indexOfMessage(m.timeline.messages, m.jump.to) >= 0 {
+	if m.inView(m.jump.to) {
 		next, cmd := m.revealMessage(m.jump.to)
 		m = next
 		said := m.jump.why
@@ -315,6 +315,13 @@ func (m Model) resolveJump(settled bool) (Model, tea.Cmd) {
 		m.jump.to, m.jump.why = "", ""
 		m = m.say("jumped to the " + said)
 		return m, cmd
+	}
+	if indexOfMessage(m.timeline.messages, m.jump.to) >= 0 {
+		// Loaded from before the room's floor (a thread's root): page the room down to it.
+		if settled {
+			return m.loadOlderInRoom()
+		}
+		return m, nil
 	}
 	if settled {
 		m.jump.to, m.jump.why = "", ""
