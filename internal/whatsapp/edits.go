@@ -61,7 +61,7 @@ func (a *Adapter) onChange(ctx context.Context, account Account, client *whatsme
 
 // change resolves a change's room, sender and target message.
 func (a *Adapter) change(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message, target string) (domain.RoomID, string, domain.EventID) {
-	lookup := a.pnLookup(client)
+	lookup := a.pnLookup(account, client)
 	room := roomID(account.Digits, chatOf(ctx, &e.Info, lookup))
 	from := selfOf(client).pn
 	if !e.Info.IsFromMe {

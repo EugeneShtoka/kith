@@ -30,6 +30,7 @@ func RoomToProto(r domain.Room) *v1.Room {
 		Sms:         r.SMS,
 		ReadOnly:    r.ReadOnly,
 		Handle:      r.Handle,
+		Merged:      RoomIDsToStrings(r.Merged),
 	}
 }
 
@@ -239,6 +240,7 @@ func ProtoToRoom(pb *v1.Room) domain.Room {
 		SMS:         pb.GetSms(),
 		ReadOnly:    pb.GetReadOnly(),
 		Handle:      pb.GetHandle(),
+		Merged:      StringsToRoomIDs(pb.GetMerged()),
 	}
 }
 

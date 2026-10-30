@@ -45,6 +45,19 @@ func (inv inventory) keepingFresh(keep domain.RoomID) inventory {
 	return inv.recombined()
 }
 
+// mergedInto is the listed room id was merged into (domain.Room.Merged), once id is no
+// longer listed itself.
+func (inv inventory) mergedInto(id domain.RoomID) (domain.Room, bool) {
+	if _, listed := inv.byID(id); listed || id == "" {
+		return domain.Room{}, false
+	}
+	i := slices.IndexFunc(inv.all, func(r domain.Room) bool { return slices.Contains(r.Merged, id) })
+	if i < 0 {
+		return domain.Room{}, false
+	}
+	return inv.all[i], true
+}
+
 // withInvites replaces the invitation set (authoritative).
 func (inv inventory) withInvites(invites []domain.Room) inventory {
 	inv.invites = invites

@@ -116,6 +116,7 @@ the map.
 | `rooms` | one row per room: name, `is_direct`, `membership`, who invited us, and the heroes (JSON). The **root** every per-room table hangs off. |
 | `room_topics` | a room's `m.room.topic`, only for rooms that have one |
 | `room_upgrades` | the tombstone link in both directions (`replacement`, `predecessor`) and when it was last checked |
+| `room_aliases` | a room merged into another (`MergeRoom`: a WhatsApp chat known by the person's LID, then by their number), and the room it joined; a write naming it is filed under that room |
 | `room_parents` | a room's canonical parent space; `''` is a recorded "no parent", not a missing answer |
 | `spaces` | one row per space: name, the bridge that owns it, who keeps it |
 | `space_children` | each space's children in hierarchy order |
@@ -419,8 +420,13 @@ Since then:
   deletion, a tombstone or a deleted copy, so a message read from the cache (the
   message stream sends no other kind) carries `RedactedAt`. Messages deleted before it
   have none.
+- v31 (`room_aliases`): the rooms merged into another and the room each joined (a
+  WhatsApp direct chat kept by the person's LID until their number was learned). Not a
+  foreign key, so `Clear` names it. The chats already merged are found by the WhatsApp
+  adapter, not the migration: the LID-to-number map is in WhatsApp's own store, and
+  each account merges every chat whose number it knows when it connects.
 
-so a current cache is at version 30.
+so a current cache is at version 31.
 
 ### Indexes need no migration
 

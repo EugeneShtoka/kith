@@ -163,13 +163,14 @@ func (c *Cache) Close() error {
 // changes starts a new epoch, and OnChanged hears: what a reader holds was emptied.
 func (c *Cache) Clear(ctx context.Context) error {
 	err := c.inTx(ctx, func(tx *sql.Tx) error {
-		// Everything else cascades from rooms or spaces except reaction_refusals and
-		// person_verdicts.
+		// Everything else cascades from rooms or spaces except reaction_refusals,
+		// person_verdicts and room_aliases.
 		for _, stmt := range []string{
 			"DELETE FROM rooms",
 			"DELETE FROM spaces",
 			"DELETE FROM reaction_refusals",
 			"DELETE FROM person_verdicts",
+			"DELETE FROM room_aliases",
 			"UPDATE change_counter SET epoch = lower(hex(randomblob(16)))",
 		} {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {

@@ -96,6 +96,13 @@ A chat with disappearing messages works as on the phone: what you send carries t
 chat's timer, and each message is deleted from kith once its timer has run from when it
 was sent, as a deletion is (`[display.deleted] keep` keeps what it said, under `H`).
 
+A direct chat is kept under the person's phone number. WhatsApp sometimes addresses
+someone by an opaque ID instead (a LID) before your phone has told kith their number;
+such a chat is kept apart until the number is known, then joins the number's chat:
+its messages, draft, read position and tags, and the entries in your config and the
+messages you scheduled that named it. A window open on it goes on in the number's
+chat. Someone who never shows a number (a hidden one, a username) stays on their LID.
+
 A poll shows its answers and how the votes stand as they arrive, your own marked; `P`
 votes, or takes the vote back, and lists who chose each answer.
 

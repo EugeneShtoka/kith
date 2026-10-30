@@ -24,7 +24,7 @@ func (a *Adapter) listOldMentions(ctx context.Context, account Account, client *
 		a.log.Warn("read the messages with unlisted mentions failed", "account", account.Name, "err", err)
 		return
 	}
-	lookup := a.pnLookup(client)
+	lookup := a.pnLookup(account, client)
 	members := map[domain.RoomID]map[string]bool{}
 	memberOf := func(room domain.RoomID, user string) bool {
 		if members[room] == nil {

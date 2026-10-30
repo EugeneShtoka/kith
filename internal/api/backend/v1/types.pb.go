@@ -332,7 +332,10 @@ type Room struct {
 	// The public @username that names this room on its network (domain.Room.Handle),
 	// lowercase and without "@"; empty for a private chat. Used to resolve tg:// links
 	// and the like.
-	Handle        string `protobuf:"bytes,16,opt,name=handle,proto3" json:"handle,omitempty"`
+	Handle string `protobuf:"bytes,16,opt,name=handle,proto3" json:"handle,omitempty"`
+	// The rooms merged into this one, found to be the same chat (domain.Room.Merged): a
+	// WhatsApp chat kept by the person's LID until their number was learned.
+	Merged        []string `protobuf:"bytes,17,rep,name=merged,proto3" json:"merged,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -477,6 +480,13 @@ func (x *Room) GetHandle() string {
 		return x.Handle
 	}
 	return ""
+}
+
+func (x *Room) GetMerged() []string {
+	if x != nil {
+		return x.Merged
+	}
+	return nil
 }
 
 // Mention is one @-mention within a message (domain.Mention).
@@ -2886,7 +2896,7 @@ var File_backend_v1_types_proto protoreflect.FileDescriptor
 const file_backend_v1_types_proto_rawDesc = "" +
 	"\n" +
 	"\x16backend/v1/types.proto\x12\n" +
-	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc1\x03\n" +
+	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd9\x03\n" +
 	"\x04Room\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1b\n" +
@@ -2909,7 +2919,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"broadcasts\x12\x10\n" +
 	"\x03sms\x18\x0e \x01(\bR\x03sms\x12\x1b\n" +
 	"\tread_only\x18\x0f \x01(\bR\breadOnly\x12\x16\n" +
-	"\x06handle\x18\x10 \x01(\tR\x06handle\"e\n" +
+	"\x06handle\x18\x10 \x01(\tR\x06handle\x12\x16\n" +
+	"\x06merged\x18\x11 \x03(\tR\x06merged\"e\n" +
 	"\aMention\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x17\n" +

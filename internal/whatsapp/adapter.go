@@ -55,6 +55,11 @@ type Adapter struct {
 	onCached  func(domain.Message)
 	onChanged func(domain.RoomID)
 
+	// filing is held while an event is filed (read), and while chats known by their
+	// LIDs merge into their numbers' (write), so no event is filed under a room that
+	// merge is taking away (lidchats.go).
+	filing sync.RWMutex
+
 	// reads is the read receipts WhatsApp has not taken yet (unread.go).
 	reads *readstate.Owed[receipt]
 
@@ -77,6 +82,9 @@ type Adapter struct {
 	heard map[domain.RoomID]time.Time
 	// positions are read positions by time; nil until first needed.
 	positions map[domain.RoomID]time.Time
+	// aliases are the chats merged into another, and the room each joined (the cache's
+	// room_aliases); nil until first needed.
+	aliases map[domain.RoomID]domain.RoomID
 	// typing is who is typing in each room.
 	typing map[domain.RoomID][]string
 	// channels is the followed channels from each account's last listing.
@@ -258,6 +266,12 @@ func (a *Adapter) connect(account Account, client *whatsmeow.Client) {
 }
 
 func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
+	if _, ok := evt.(*events.Connected); ok {
+		// Chats whose numbers were learned while kith was away, or before it merged them.
+		a.mergeKnown(a.lifetime(), account, client)
+	}
+	a.filing.RLock()
+	defer a.filing.RUnlock()
 	switch e := evt.(type) {
 	case *events.Connected:
 		a.link(account, Connected, "")

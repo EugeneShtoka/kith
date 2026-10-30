@@ -37,6 +37,15 @@ CREATE TABLE rooms (
 ) STRICT;
 CREATE INDEX rooms_by_membership ON rooms(membership);
 
+-- Rooms merged into another (MergeRoom): a WhatsApp direct chat known by the person's
+-- LID until its number was learned, and the number's room it joined. Not a foreign key:
+-- the merged room is gone, and a later write naming it is filed under the other.
+CREATE TABLE room_aliases (
+	room_id TEXT NOT NULL PRIMARY KEY,
+	into_id TEXT NOT NULL
+) STRICT, WITHOUT ROWID;
+CREATE INDEX room_aliases_by_into ON room_aliases(into_id);
+
 -- Side tables for optional per-row facts: a later migration can CREATE one safely,
 -- but ALTER TABLE ADD COLUMN has no IF NOT EXISTS.
 CREATE TABLE room_topics (
@@ -724,6 +733,11 @@ INSERT INTO change_counter(epoch, last) SELECT lower(hex(randomblob(16))), 0
  WHERE NOT EXISTS (SELECT 1 FROM change_counter);`,
 	// v30: when a cached message was deleted.
 	messageRedactionTimes,
+	// v31: rooms merged into another, and the room each joined.
+	`CREATE TABLE IF NOT EXISTS room_aliases (
+	room_id TEXT NOT NULL PRIMARY KEY,
+	into_id TEXT NOT NULL
+) STRICT, WITHOUT ROWID;`,
 }
 
 // messageRedactionTimes is when each deleted message was deleted, the first time heard
