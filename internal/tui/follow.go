@@ -339,7 +339,8 @@ type changedMsg struct{ change domain.Change }
 func (m Model) handleChanged(msg changedMsg) (Model, tea.Cmd) {
 	switch msg.change {
 	case domain.ChangeRooms:
-		return m, tea.Batch(m.loadRoomsCmd(), m.listenChangesCmd())
+		// An account's space holds all its rooms, so a new room changes the spaces too.
+		return m, tea.Batch(m.loadRoomsCmd(), m.loadSpacesCmd(), m.listenChangesCmd())
 	case domain.ChangeAccounts:
 		return m, tea.Batch(m.loadAccountStatesCmd(), m.listenChangesCmd())
 	case domain.ChangeMessages:

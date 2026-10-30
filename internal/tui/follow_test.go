@@ -739,3 +739,40 @@ func TestAHandedOverSignalLinkOpensWhatSignalFound(t *testing.T) {
 		t.Errorf("current room = (%+v, %v), want a fresh chat to write in", room, ok)
 	}
 }
+
+// changingBackend lists whatever rooms and spaces the daemon holds now.
+type changingBackend struct {
+	apitest.Nop
+	rooms  *[]domain.Room
+	spaces *[]domain.Space
+}
+
+func (b changingBackend) Rooms(context.Context) ([]domain.Room, error)   { return *b.rooms, nil }
+func (b changingBackend) Spaces(context.Context) ([]domain.Space, error) { return *b.spaces, nil }
+
+// A chat new on an account shows in the account's row once its network says its rooms
+// changed: the account's space holds every room it has, so it changed too.
+func TestANewChatShowsInItsAccountRow(t *testing.T) {
+	t.Parallel()
+	const dm = domain.RoomID("whatsapp:359000000001/359000000002@s.whatsapp.net")
+	account := domain.Space{ID: "whatsapp:359000000001/359000000001", Name: "WhatsApp bg",
+		Bridge: domain.ProtocolWhatsApp, Original: true, Leaving: domain.LeftBySigningOut}
+	old := domain.Room{ID: "whatsapp:359000000001/359000000003@s.whatsapp.net", Name: "Dana", IsDirect: true}
+	account.Children = []domain.RoomID{old.ID}
+	rooms, spaces := []domain.Room{old}, []domain.Space{account}
+	m := New(context.Background(), changingBackend{rooms: &rooms, spaces: &spaces}, config.Display{}, config.DeviceDisplay{})
+	m = sized(t, update(t, update(t, m, roomsMsg{rooms: rooms}), spacesMsg{spaces: spaces}))
+
+	account.Children = []domain.RoomID{old.ID, dm}
+	rooms, spaces = []domain.Room{old, {ID: dm, Name: "Vlad", IsDirect: true}}, []domain.Space{account}
+	_, cmd := m.Update(changedMsg{change: domain.ChangeRooms})
+	m = settle(t, m, cmd)
+
+	m.rail.cursor = indexOfGroup(m.rail.groups, account.Name)
+	if g, _ := m.rail.at(); g.key != account.Name {
+		t.Fatalf("on rail row %q, want %q", g.key, account.Name)
+	}
+	if indexOfRoom(m.filteredRooms(), dm) < 0 {
+		t.Errorf("the new chat is not in its account's row: %v", m.filteredRooms())
+	}
+}
