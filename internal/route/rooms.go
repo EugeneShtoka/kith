@@ -29,6 +29,11 @@ func (r *Router) SetRoomArchived(ctx context.Context, roomID domain.RoomID, arch
 	return doOnRoom(r, roomID, "archive", func(c Archiver) error { return c.SetArchived(ctx, roomID, archived) })
 }
 
+// MergeRoom merges from into into on from's network, as another bridge did.
+func (r *Router) MergeRoom(ctx context.Context, from, into domain.RoomID) error {
+	return doOnRoom(r, from, "merging chats", func(c Merger) error { return c.MergeRoom(ctx, from, into) })
+}
+
 // StarMessage adds or removes a bookmark.
 func (r *Router) StarMessage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, starred bool) error {
 	return doOnRoom(r, roomID, "bookmarks", func(c Stars) error { return c.StarMessage(ctx, roomID, eventID, starred) })

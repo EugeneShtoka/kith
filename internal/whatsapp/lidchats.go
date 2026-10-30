@@ -2,6 +2,7 @@ package whatsapp
 
 import (
 	"context"
+	"slices"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
@@ -106,6 +107,28 @@ func (a *Adapter) mergeKnown(ctx context.Context, account Account, client *whats
 			a.mergeLID(ctx, account, lid, number)
 		}
 	}
+}
+
+// MergeRoom merges from, a chat kept by a LID, into into, its number's chat, as another
+// bridge did (the mesh's alias): without waiting to learn the number here. One of an
+// account this bridge does not run is left alone, as is one that names no LID and number
+// of one account; the mesh keeps it.
+func (a *Adapter) MergeRoom(ctx context.Context, from, into domain.RoomID) error {
+	f, i := domain.ParseID(string(from)), domain.ParseID(string(into))
+	lid, lerr := types.ParseJID(f.Native)
+	number, nerr := types.ParseJID(i.Native)
+	if lerr != nil || nerr != nil || f.Account != i.Account || lid.Server != types.HiddenUserServer {
+		return nil
+	}
+	accounts := a.accountsNow()
+	n := slices.IndexFunc(accounts, func(acc Account) bool { return acc.Digits == f.Account })
+	if n < 0 {
+		return nil
+	}
+	a.filing.Lock()
+	defer a.filing.Unlock()
+	a.mergeLID(ctx, accounts[n], lid, number)
+	return nil
 }
 
 // aliasOf is the room room was merged into, loading the merges on first use.

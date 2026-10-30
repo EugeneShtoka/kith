@@ -187,7 +187,10 @@ machine's key anyway: pair each one again.
 Two or more kithd (a home server and a laptop, say) can pair with each other as a
 **mesh**. For now the mesh carries the device list: a device paired with any bridge is
 admitted by every bridge, and one unpaired on any bridge is cut off by every bridge.
-Each bridge still runs its own network accounts and its own config.
+Each bridge still runs its own network accounts and its own config. Two bridges on one
+WhatsApp account keep a chat under the person's number as soon as either learns it: a
+chat known by the person's LID merges into the number's on every bridge running that
+account ([whatsapp.md](whatsapp.md#what-works)).
 
 On a device the mesh trusts, run `kith pair` as for a device. On the new bridge's
 machine, with its kithd set up (its own `config.toml`), run

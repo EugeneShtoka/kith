@@ -80,6 +80,11 @@ type (
 	Archiver interface {
 		SetArchived(ctx context.Context, roomID domain.RoomID, archived bool) error
 	}
+	// Merger is a network whose rooms can be found to be one chat (WhatsApp's by a LID,
+	// then by the number): it merges a room another bridge merged (domain.RoomMerge).
+	Merger interface {
+		MergeRoom(ctx context.Context, from, into domain.RoomID) error
+	}
 	// Groupings is a network whose people group their chats themselves (Telegram's
 	// folders), copied into tags when asked.
 	Groupings interface {

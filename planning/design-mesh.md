@@ -616,12 +616,15 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
    window follows the new ID on `Changed`).
 4. **feat: read positions cross bridges.** `read/`, `thread/`, `marked/`; the cache's
    unread rewritten from the mesh; the receipt sent by the bridge where the read was
-   made; reads the network reports kept out of the mesh (decisions 13, 14). **Failure
-   review**
+   made; reads the network reports kept out of the mesh (decisions 13, 14). Step 3's
+   merge op (today `alias/` alone, written for every LID→number pair a bridge sees)
+   gains these keys of the LID room, and the re-issue of a LID-key op that raced it.
+   **Failure review**
    (merges writers, caches a derived result): the generator of step 2 with reads on
    every replica asserts that a position never moves back on any replica, that
    `room_unread` equals what the mesh holds after every step, and that each read is
-   receipted by one bridge; a network echoing an older receipt, a mark unread
+   receipted by one bridge; a read on the LID key racing the merge, in both orders,
+   on both bridges; a network echoing an older receipt, a mark unread
    concurrent with a read, a room a bridge does not run, a cache rebuilt under a mesh
    that holds positions, a removed replica's reads (kept).
 5. **feat: the shared config crosses bridges.** `config.Local`, per-key registers,

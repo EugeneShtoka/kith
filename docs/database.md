@@ -80,8 +80,9 @@ with this table as its mirror (see [Account-data mirrors](#account-data-mirrors)
 The mesh store, `$XDG_DATA_HOME/kith/mesh-<hash>.db` (`internal/mesh`), is not a cache:
 it holds writes nothing else has, so none of the rules below apply to it. The design is
 [planning/design-mesh.md](../planning/design-mesh.md). For now it holds the roster of
-paired devices (`devices-<hash>.toml` is written out from it) and the accounts each
-bridge runs, which every bridge of the mesh syncs.
+paired devices (`devices-<hash>.toml` is written out from it), the accounts each
+bridge runs, and the chats any bridge merged into another (`alias/<room>`: a WhatsApp
+chat known by a LID, then by the number), which every bridge of the mesh syncs.
 
 - Sealed like the cache (`internal/sealeddb`), under the cache's key, but a file of
   its own: a cache rebuild never touches it. Only kithd opens it; `scripts/deps-check.sh`

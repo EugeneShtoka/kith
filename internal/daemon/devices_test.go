@@ -22,6 +22,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
 	pc "github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
@@ -163,6 +164,8 @@ type bridgeOpts struct {
 	listen   []string
 	dir      string
 	meshKey  []byte
+	// backend serves the bridge's rooms; a fixed list of one when nil.
+	backend api.Backend
 }
 
 func serveBridge(t *testing.T, opts bridgeOpts) *bridge {
@@ -203,10 +206,11 @@ func serveBridge(t *testing.T, opts bridgeOpts) *bridge {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan error, 1)
-	rooms := []domain.Room{{ID: "matrix:0123456789abcdef/!a:x", Name: "A"}}
-	d := complete(t, &daemon.Daemon{
-		Backend: &fakeBackend{Nop: nopWithChannels(), rooms: rooms}, Streams: b.streams, Paired: b.paired, Log: log,
-	})
+	backend := opts.backend
+	if backend == nil {
+		backend = &fakeBackend{Nop: nopWithChannels(), rooms: []domain.Room{{ID: "matrix:0123456789abcdef/!a:x", Name: "A"}}}
+	}
+	d := complete(t, &daemon.Daemon{Backend: backend, Streams: b.streams, Paired: b.paired, Log: log})
 	go func() { served <- daemon.Serve(ctx, ln, d) }()
 	t.Cleanup(func() {
 		cancel()

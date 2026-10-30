@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -22,11 +23,13 @@ const (
 	mergedNumber = domain.RoomID("whatsapp:15550100/15550199@s.whatsapp.net")
 )
 
-// mergingBackend lists rooms that change while the daemon runs.
+// mergingBackend lists rooms that change while the daemon runs, and merges a room
+// another bridge merged.
 type mergingBackend struct {
 	apitest.Nop
-	mu    sync.Mutex
-	rooms []domain.Room
+	mu     sync.Mutex
+	rooms  []domain.Room
+	merges [][2]domain.RoomID
 }
 
 func (b *mergingBackend) Rooms(context.Context) ([]domain.Room, error) {
@@ -39,6 +42,59 @@ func (b *mergingBackend) set(rooms []domain.Room) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.rooms = rooms
+}
+
+// MergeRoom merges as a network would: the merged room goes, and the one it joined
+// lists it.
+func (b *mergingBackend) MergeRoom(_ context.Context, from, into domain.RoomID) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.merges = append(b.merges, [2]domain.RoomID{from, into})
+	b.rooms = []domain.Room{{ID: into, Merged: []domain.RoomID{from}}}
+	return nil
+}
+
+// merged is the merges another bridge's alias brought here.
+func (b *mergingBackend) merged() [][2]domain.RoomID {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return slices.Clone(b.merges)
+}
+
+// A chat one bridge merged (it learned the number) is merged on the other bridge too,
+// which has not: the alias crosses the mesh, and the other bridge merges once. A bridge
+// that merged the chat itself as well takes the alias as its own and writes none again.
+func TestAChatMergedOnOneBridgeMergesOnTheOther(t *testing.T) {
+	t.Parallel()
+	for _, both := range []bool{false, true} {
+		t.Run(map[bool]string{false: "one learned it", true: "both learned it"}[both], func(t *testing.T) {
+			t.Parallel()
+			merged := []domain.Room{{ID: mergedNumber, Merged: []domain.RoomID{mergedLID}}}
+			homelab := &mergingBackend{Nop: nopWithChannels(), rooms: merged}
+			laptop := &mergingBackend{Nop: nopWithChannels(), rooms: []domain.Room{{ID: mergedLID}}}
+			if both {
+				laptop.set(merged)
+			}
+			a := serveBridge(t, bridgeOpts{backend: homelab})
+			b := serveBridge(t, bridgeOpts{backend: laptop})
+			join(t, a, b)
+			if both {
+				time.Sleep(2 * settle / 5) // the aliases cross, if any is to be merged
+				if got := laptop.merged(); len(got) > 0 {
+					t.Fatalf("the laptop merged %v again", got)
+				}
+				return
+			}
+			eventually(t, "the laptop merges the chat the homelab merged", func() bool {
+				got := laptop.merged()
+				return len(got) == 1 && got[0] == [2]domain.RoomID{mergedLID, mergedNumber}
+			})
+			time.Sleep(2 * settle / 5) // nothing merges it twice
+			if got := laptop.merged(); len(got) != 1 {
+				t.Errorf("the laptop merged %v", got)
+			}
+		})
+	}
 }
 
 // A chat merged into another, whether before kithd started (a follow-up cut off) or

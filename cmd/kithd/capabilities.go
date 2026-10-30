@@ -74,6 +74,7 @@ var (
 		route.SignOuter
 		configChecker
 		route.LinkFollower
+		route.Merger
 	} = (*whatsapp.Adapter)(nil)
 
 	_ interface {
