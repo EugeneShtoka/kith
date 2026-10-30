@@ -43,7 +43,8 @@ const (
 // an origin that signs two ops under one dot. Once the partition heals and the clocks
 // are set right (and the fork's two keys are written again, by hand as it were), every
 // bridge still in the mesh holds the same entries; and no replica ever syncs directly
-// with a bridge every member holds removed.
+// with a bridge every member holds removed. Every replica keeps a cache following its
+// store, and reads are made, reported and kept throughout (reads_internal_test.go).
 func TestEveryReplicaConvergesOverAnyInterleaving(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(modelSeeds) {
@@ -91,6 +92,7 @@ type modelReplica struct {
 	dbKey []byte
 	store *Store
 	skew  time.Duration // its clock less the model's
+	reads replicaReads  // its cache, and what the model knows of it
 }
 
 type model struct {
@@ -114,6 +116,8 @@ type model struct {
 	forger   int
 	forkSeq  uint64
 	dormant  int
+	// rd is what the model knows of reads (reads_internal_test.go).
+	rd modelReads
 }
 
 // skews are the clock offsets a replica may run at: within the bound of every other,
@@ -161,6 +165,7 @@ func newModel(t *testing.T, seed uint64) *model {
 			t.Fatalf("replica %d joins: %v", i+1, err)
 		}
 	}
+	m.openCaches()
 	return m
 }
 
@@ -186,7 +191,8 @@ func (m *model) at(i int) time.Time { return m.now.Add(m.r[i].skew) }
 // step is one step of the generator.
 func (m *model) step() {
 	m.now = m.now.Add(time.Duration(m.rng.IntN(15)) * time.Second)
-	switch n := m.rng.IntN(100); {
+	m.rd.step++
+	switch n := m.rng.IntN(130); {
 	case n < 30:
 		m.write(m.rng.IntN(len(m.r)))
 	case n < 70:
@@ -205,9 +211,20 @@ func (m *model) step() {
 		m.equivocate()
 	case n < 97:
 		m.sleepPastTheHorizon()
-	default:
+	case n < 100:
 		m.removeEachOther()
+	case n < 108:
+		m.networkReport(m.rng.IntN(len(m.r)))
+	case n < 110:
+		m.openCache(m.rng.IntN(len(m.r))) // rebuilt under a mesh that holds positions
+	default:
+		// A read, more often than the other writes: one while the follower lags is the one
+		// that must not write a position back.
+		if i := m.rng.IntN(len(m.r)); m.member(i) && i != m.forger {
+			m.read(i, m.rng.IntN(4) == 0)
+		}
 	}
+	m.checkReads(m.followSome())
 	m.checkRemovedAreRefused()
 }
 
@@ -277,7 +294,7 @@ func (m *model) write(i int) {
 	}
 	// A forger writes only device pairings after its fork: what it wrote there differs
 	// between replicas, and only a key someone else may write again converges.
-	n := m.rng.IntN(13)
+	n := m.rng.IntN(18)
 	if i == m.forger {
 		n = 0
 	}
@@ -317,8 +334,13 @@ func (m *model) write(i int) {
 		for range 1 + m.rng.IntN(2) {
 			from := domain.RoomID(fmt.Sprintf("whatsapp:15550100/8800%d@lid", m.rng.IntN(3)))
 			aliases[from] = domain.RoomID(fmt.Sprintf("whatsapp:15550100/1555%d@s.whatsapp.net", m.rng.IntN(2)))
+			m.rd.named[from] = append(m.rd.named[from], aliases[from])
 		}
 		m.must(r.store.PublishAliases(m.ctx, r.key, aliases))
+	case n > 12 && n < 16:
+		m.read(i, n == 15)
+	case n > 15:
+		m.mark(i)
 	default:
 		target := m.rng.IntN(len(m.r))
 		if target == 0 || m.removals >= 2 || !slices.ContainsFunc(members, func(d domain.Device) bool { return d.ID == m.r[target].id.String() }) {
@@ -402,6 +424,7 @@ func (m *model) sleepPastTheHorizon() {
 func (m *model) restart(i int) {
 	m.must(m.r[i].store.Close())
 	m.r[i].store = m.open(m.r[i])
+	m.reopened(i)
 }
 
 // exchange is one sync session between i and j, as Sync runs it: refused as either
@@ -584,6 +607,7 @@ func (m *model) checkRemovedAreRefused() {
 // and holds every bridge still in the mesh to the same entries.
 func (m *model) settle() {
 	clear(m.cut)
+	m.rd.settling = true
 	m.dormant = -1
 	for _, r := range m.r {
 		r.skew = 0
@@ -641,6 +665,7 @@ func (m *model) settle() {
 			m.t.Fatalf("replica %d and replica 0 differ:\n%s", i, diffLines(got, want))
 		}
 	}
+	m.checkReadsSettled(members)
 }
 
 // forked reports whether a bridge of the mesh found the forger out (one removed itself
@@ -663,6 +688,8 @@ func (m *model) forked() bool {
 // quiesce syncs every pair of members, without faults, until a round changes nothing.
 func (m *model) quiesce() {
 	for round := range 2 * len(m.r) {
+		m.followAll()
+		m.checkReads(nil)
 		before := m.texts()
 		for i := range m.r {
 			for j := i + 1; j < len(m.r); j++ {

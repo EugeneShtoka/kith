@@ -87,7 +87,12 @@ func (s *server) SetRoomArchived(ctx context.Context, r *req[v1.SetRoomArchivedR
 }
 
 func (s *server) MarkRoomUnread(ctx context.Context, r *req[v1.MarkRoomUnreadRequest]) (*resp[v1.MarkRoomUnreadResponse], error) {
-	return reply(&v1.MarkRoomUnreadResponse{}, s.Backend.MarkRoomUnread(ctx, roomID(r.Msg.GetRoomId()), r.Msg.GetUnread()))
+	room := roomID(r.Msg.GetRoomId())
+	err := s.Backend.MarkRoomUnread(ctx, room, r.Msg.GetUnread())
+	if err == nil {
+		s.markInMesh(ctx, room, r.Msg.GetUnread())
+	}
+	return reply(&v1.MarkRoomUnreadResponse{}, err)
 }
 
 func (s *server) StarMessage(ctx context.Context, r *req[v1.StarMessageRequest]) (*resp[v1.StarMessageResponse], error) {
@@ -145,7 +150,11 @@ func (s *server) RetagVerdicts(ctx context.Context, r *req[v1.RetagVerdictsReque
 }
 
 func (s *server) MarkRead(ctx context.Context, r *req[v1.MarkReadRequest]) (*resp[v1.MarkReadResponse], error) {
-	err := s.Backend.MarkRead(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()), r.Msg.GetPrivate())
+	room := roomID(r.Msg.GetRoomId())
+	err := s.Backend.MarkRead(ctx, room, eventID(r.Msg.GetEventId()), r.Msg.GetPrivate())
+	if err == nil {
+		s.readInMesh(ctx, []domain.ReadPosition{{Room: room}})
+	}
 	return reply(&v1.MarkReadResponse{}, err)
 }
 
@@ -155,7 +164,15 @@ func (s *server) MarkRoomsRead(ctx context.Context, r *req[v1.MarkRoomsReadReque
 	if s.lifetime != nil {
 		ctx = s.lifetime
 	}
-	res, err := s.Backend.MarkRoomsRead(ctx, pc.StringsToRoomIDs(r.Msg.GetRoomIds()), r.Msg.GetPrivate())
+	rooms := pc.StringsToRoomIDs(r.Msg.GetRoomIds())
+	res, err := s.Backend.MarkRoomsRead(ctx, rooms, r.Msg.GetPrivate())
+	if err == nil {
+		of := make([]domain.ReadPosition, 0, len(rooms))
+		for _, room := range rooms {
+			of = append(of, domain.ReadPosition{Room: room})
+		}
+		s.readInMesh(ctx, of)
+	}
 	return reply(&v1.MarkRoomsReadResponse{
 		Marked:     pc.ClampInt32(res.Marked),
 		Skipped:    pc.ClampInt32(res.Skipped),
@@ -322,8 +339,11 @@ func (s *server) ThreadPage(ctx context.Context, r *req[v1.ThreadPageRequest]) (
 }
 
 func (s *server) MarkThreadRead(ctx context.Context, r *req[v1.MarkThreadReadRequest]) (*resp[v1.MarkThreadReadResponse], error) {
-	err := s.Backend.MarkThreadRead(ctx, roomID(r.Msg.GetRoomId()),
-		eventID(r.Msg.GetRoot()), eventID(r.Msg.GetEventId()), r.Msg.GetPrivate())
+	room, root := roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetRoot())
+	err := s.Backend.MarkThreadRead(ctx, room, root, eventID(r.Msg.GetEventId()), r.Msg.GetPrivate())
+	if err == nil {
+		s.readInMesh(ctx, []domain.ReadPosition{{Room: room, Root: root}})
+	}
 	return reply(&v1.MarkThreadReadResponse{}, err)
 }
 

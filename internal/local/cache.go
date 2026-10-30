@@ -30,6 +30,30 @@ func (s *Service) RebaseDraft(ctx context.Context, draft, base domain.StoredDraf
 	return stored, added, nil
 }
 
+// HeldReads is how far each room or thread of of is read here (db.Cache.HeldReads).
+func (s *Service) HeldReads(ctx context.Context, of []domain.ReadPosition) ([]domain.ReadPosition, error) {
+	return fromCache(s, "read positions", func(c *db.Cache) ([]domain.ReadPosition, error) {
+		return c.HeldReads(ctx, of)
+	})
+}
+
+// KeepReads keeps the read positions and unread marks made on other bridges
+// (db.Cache.KeepReads) and has the rooms they moved counted again. No network hears
+// of them: the bridge where each was made sends its receipt.
+func (s *Service) KeepReads(ctx context.Context, reads []domain.ReadPosition, marks map[domain.RoomID]bool) error {
+	if s.cache == nil {
+		return nil
+	}
+	moved, err := s.cache.KeepReads(ctx, reads, marks)
+	if err != nil {
+		return fmt.Errorf("local: keep reads made elsewhere: %w", err)
+	}
+	if len(moved) > 0 {
+		s.net.RecountUnread(ctx, moved)
+	}
+	return nil
+}
+
 // Drafts returns every stored draft.
 func (s *Service) Drafts(ctx context.Context) ([]domain.StoredDraft, error) {
 	return fromCache(s, "read drafts", func(c *db.Cache) ([]domain.StoredDraft, error) {

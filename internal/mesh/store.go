@@ -107,6 +107,9 @@ type Store struct {
 	// sessions are the open sync streams, one per peer.
 	sessions  map[devicekey.ID]*session
 	compacted time.Time
+	// marks are the write of each room's unread mark handed out (TakeMarks), or held
+	// when the store was opened.
+	marks map[string]crdt.Dot
 }
 
 // peer is what a replica last said of itself.
@@ -235,8 +238,17 @@ func (s *Store) load(ctx context.Context) error {
 		Scan(&s.clock); err != nil {
 		return fmt.Errorf("read the clock: %w", err)
 	}
-	s.state = state
+	s.state, s.marks = state, markDots(state)
 	return nil
+}
+
+// markDots is the write of each room's unread mark state holds.
+func markDots(state crdt.State) map[string]crdt.Dot {
+	out := map[string]crdt.Dot{}
+	for room, m := range state.Marks() {
+		out[room] = m.Dot
+	}
+	return out
 }
 
 // loadEntries reads every key's entries into entries.
@@ -386,7 +398,7 @@ func (s *Store) create(ctx context.Context) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("lay out the store: %w", err)
 	}
-	s.state = crdt.State{}
+	s.state, s.marks = crdt.State{}, map[string]crdt.Dot{}
 	return nil
 }
 
@@ -467,6 +479,35 @@ func (s *Store) writeLocked(ctx context.Context, signer crypto.Signer, origin de
 	}
 	s.state, s.clock = next, op.Clock
 	s.notifyLocked()
+	return nil
+}
+
+// opBudget bounds the keys and values of one op this replica writes, well under
+// crdt.MaxOpSize: writes past it go in further ops.
+const opBudget = crdt.MaxOpSize / 2
+
+// batches is writes split into ops' worth (opBudget).
+func batches(writes []crdt.Write) [][]crdt.Write {
+	var out [][]crdt.Write
+	size := 0
+	for _, w := range writes {
+		n := len(w.Key) + len(w.Value)
+		if len(out) == 0 || size+n > opBudget {
+			out, size = append(out, nil), 0
+		}
+		out[len(out)-1] = append(out[len(out)-1], w)
+		size += n
+	}
+	return out
+}
+
+// writeAllLocked writes writes as this replica's next ops, as few as opBudget lets.
+func (s *Store) writeAllLocked(ctx context.Context, signer crypto.Signer, origin devicekey.ID, writes []crdt.Write) error {
+	for _, batch := range batches(writes) {
+		if err := s.writeLocked(ctx, signer, origin, batch); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -575,8 +616,10 @@ func (s *Store) PublishAccounts(ctx context.Context, signer crypto.Signer, accou
 	return s.writeLocked(ctx, signer, origin, []crdt.Write{{Key: key, Value: value}})
 }
 
-// PublishAliases writes each room of aliases as merged into the room it names (crdt.AliasKey),
-// as one op signed by signer, unless the mesh holds it so already.
+// PublishAliases writes each room of aliases as merged into the room it names
+// (crdt.AliasKey), unless the mesh holds it so already, and moves what the mesh holds
+// of the reads of every room merged, these and those it held, under the room it joined
+// (crdt.State.FoldWrites): one op signed by signer, none with nothing to write.
 func (s *Store) PublishAliases(ctx context.Context, signer crypto.Signer, aliases map[domain.RoomID]domain.RoomID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -593,10 +636,79 @@ func (s *Store) PublishAliases(ctx context.Context, signer crypto.Signer, aliase
 		}
 		writes = append(writes, crdt.Write{Key: key, Value: value})
 	}
-	if len(writes) == 0 {
+	merged := s.state.Aliases()
+	for from, into := range aliases {
+		merged[string(from)] = string(into)
+	}
+	folds, err := s.state.FoldWrites(merged)
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	return s.writeAllLocked(ctx, signer, origin, append(writes, folds...))
+}
+
+// Read writes how far each of reads is read, unless the mesh holds it at least as far,
+// and clears the unread mark of each room read that it holds marked, signed by signer:
+// a read made here, whose receipt this bridge sends (planning/design-mesh.md, decision
+// 13).
+func (s *Store) Read(ctx context.Context, signer crypto.Signer, reads []domain.ReadPosition) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	origin, err := devicekey.IDOf(signer.Public())
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	list := make([]crdt.Read, 0, len(reads))
+	for _, r := range reads {
+		list = append(list, crdt.Read{Room: string(r.Room), Root: string(r.Root), Event: string(r.Event), At: r.At})
+	}
+	writes, err := s.state.ReadWrites(list)
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	return s.writeAllLocked(ctx, signer, origin, writes)
+}
+
+// MarkUnread writes room's unread mark, signed by signer, unless the mesh holds it so.
+func (s *Store) MarkUnread(ctx context.Context, signer crypto.Signer, room domain.RoomID, marked bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	origin, err := devicekey.IDOf(signer.Public())
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	w, ok := s.state.MarkWrite(string(room), marked)
+	if !ok {
 		return nil
 	}
-	return s.writeLocked(ctx, signer, origin, writes)
+	return s.writeLocked(ctx, signer, origin, []crdt.Write{w})
+}
+
+// Reads is every read position the mesh holds, of rooms and of threads.
+func (s *Store) Reads() []domain.ReadPosition {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	reads := s.state.Reads()
+	out := make([]domain.ReadPosition, 0, len(reads))
+	for _, r := range reads {
+		out = append(out, domain.ReadPosition{Room: domain.RoomID(r.Room), Root: domain.EventID(r.Root), Event: domain.EventID(r.Event), At: r.At})
+	}
+	return out
+}
+
+// TakeMarks is each room's unread mark written since the last TakeMarks, or since the
+// store was opened: a mark arriving is set here once, so a mark the network changed
+// since (the room read on the phone) is not set back by the mesh's older one.
+func (s *Store) TakeMarks() map[domain.RoomID]bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[domain.RoomID]bool{}
+	for room, m := range s.state.Marks() {
+		if s.marks[room] != m.Dot {
+			out[domain.RoomID(room)], s.marks[room] = m.Marked, m.Dot
+		}
+	}
+	return out
 }
 
 // Aliases is every room the mesh holds as merged into another, and the room it joined.

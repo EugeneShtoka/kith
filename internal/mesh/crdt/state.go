@@ -97,14 +97,21 @@ func (s State) take(op Op) (State, error) {
 	}
 	dot := Dot{Origin: op.Origin, Seq: op.Seq}
 	for _, w := range op.Writes {
-		live := []Entry{{Value: w.Value, Dot: dot, Clock: op.Clock}}
+		var live []Entry
+		if len(w.Value) > 0 { // an empty value deletes what the op had seen
+			live = append(live, Entry{Value: w.Value, Dot: dot, Clock: op.Clock})
+		}
 		for _, e := range next.Entries[w.Key] {
 			if !covers(op, e.Dot) {
 				live = append(live, e)
 			}
 		}
 		slices.SortFunc(live, func(a, b Entry) int { return compareDots(a.Dot, b.Dot) })
-		next.Entries[w.Key] = live
+		if len(live) > 0 {
+			next.Entries[w.Key] = live
+		} else {
+			delete(next.Entries, w.Key)
+		}
 	}
 	if len(writes) > 0 {
 		next.RosterOps = append(slices.Clip(s.RosterOps), op)

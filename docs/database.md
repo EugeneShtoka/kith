@@ -81,8 +81,12 @@ The mesh store, `$XDG_DATA_HOME/kith/mesh-<hash>.db` (`internal/mesh`), is not a
 it holds writes nothing else has, so none of the rules below apply to it. The design is
 [planning/design-mesh.md](../planning/design-mesh.md). For now it holds the roster of
 paired devices (`devices-<hash>.toml` is written out from it), the accounts each
-bridge runs, and the chats any bridge merged into another (`alias/<room>`: a WhatsApp
-chat known by a LID, then by the number), which every bridge of the mesh syncs.
+bridge runs, the chats any bridge merged into another (`alias/<room>`: a WhatsApp
+chat known by a LID, then by the number), and the reads made in kith (`read/<room>`,
+`thread/<room>/<root>`, `marked/<room>`), which every bridge of the mesh syncs. The
+cache's `room_unread` and `thread_read` follow the mesh's reads (moved forward only, for
+the rooms the cache holds), so a rebuilt cache takes them back; a read a network
+reports stays in the cache alone.
 
 - Sealed like the cache (`internal/sealeddb`), under the cache's key, but a file of
   its own: a cache rebuild never touches it. Only kithd opens it; `scripts/deps-check.sh`

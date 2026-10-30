@@ -21,10 +21,12 @@ func testCache(t *testing.T) *db.Cache {
 	return cache
 }
 
-// fakeNetwork is one person with IDs me, nothing encrypted, counting rewinds.
+// fakeNetwork is one person with IDs me, nothing encrypted, counting rewinds and
+// keeping the rooms it was asked to count again.
 type fakeNetwork struct {
-	me      []string
-	rewinds int
+	me        []string
+	rewinds   int
+	recounted []domain.RoomID
 }
 
 func (n *fakeNetwork) Me() []string { return n.me }
@@ -36,6 +38,9 @@ func (n *fakeNetwork) RoomEncryption(_ context.Context, rooms []domain.RoomID) (
 	return out, nil
 }
 func (n *fakeNetwork) RewindSync(context.Context) error { n.rewinds++; return nil }
+func (n *fakeNetwork) RecountUnread(_ context.Context, rooms []domain.RoomID) {
+	n.recounted = append(n.recounted, rooms...)
+}
 
 // backendWithCache is a service over a fresh cache for account me ("" for none).
 func backendWithCache(t *testing.T, me string) *Service {

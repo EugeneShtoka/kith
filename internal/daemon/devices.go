@@ -95,10 +95,22 @@ type RosterStore interface {
 	// signed by signer, when they changed.
 	PublishAccounts(ctx context.Context, signer crypto.Signer, accounts []domain.MeshAccount) error
 	// PublishAliases writes each room merged here into another (alias/<room>), signed
-	// by signer, unless the mesh holds it so already.
+	// by signer, unless the mesh holds it so already, and moves the reads the mesh holds
+	// of every merged room under the room it joined.
 	PublishAliases(ctx context.Context, signer crypto.Signer, aliases map[domain.RoomID]domain.RoomID) error
 	// Aliases is every room the mesh holds as merged into another.
 	Aliases() map[domain.RoomID]domain.RoomID
+	// Read writes how far each of reads is read (read/<room>, thread/<room>/<root>)
+	// unless the mesh holds it as far, and clears the mark of each room read, signed by
+	// signer: a read made here.
+	Read(ctx context.Context, signer crypto.Signer, reads []domain.ReadPosition) error
+	// MarkUnread writes room's unread mark (marked/<room>), signed by signer.
+	MarkUnread(ctx context.Context, signer crypto.Signer, room domain.RoomID, marked bool) error
+	// Reads is every read position the mesh holds.
+	Reads() []domain.ReadPosition
+	// TakeMarks is each room's unread mark written since it was last asked, or since
+	// the store was opened.
+	TakeMarks() map[domain.RoomID]bool
 	// Sync runs one sync session of this bridge (signer, its device key) with the
 	// bridge peer over frames until either ends it; dialed is whether this side dialed.
 	Sync(ctx context.Context, signer crypto.Signer, peer devicekey.ID, dialed bool, frames MeshFrames, log *slog.Logger) error
