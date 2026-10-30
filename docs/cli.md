@@ -111,8 +111,8 @@ there is a key, kithd also backs up on its own, as `[backup]` says (by default e
 kith restore [--config path] [--replace] [--key-file path] file
 ```
 
-Puts a `kith backup` back: the config, then the cache, records and pictures where that
-config keeps them on this machine, and the backup key's public half, so this machine's
+Puts a `kith backup` back: the config, then the cache, the paired devices (the mesh
+store), records and pictures where that config keeps them on this machine, and the backup key's public half, so this machine's
 backups go on to the same key. It asks for the backup key without echo. Stop kithd
 first; it refuses while kithd runs on that config. It ends by listing a `kith login`
 line for each account, since a backup holds no sessions. Nothing is changed until the

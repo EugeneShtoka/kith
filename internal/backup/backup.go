@@ -1,15 +1,16 @@
 // Package backup writes kith's history to one encrypted file and puts it back, on this
 // machine or a new one. A backup holds the cache, the config and its commands, the
-// local records nothing re-fetches (what an assistant sent, the send-later queue) and
-// the picture cache (WhatsApp and Signal pictures cannot be fetched again). It never
-// holds a network session or a keyring key: a restored machine logs in afresh.
+// local records nothing re-fetches (what an assistant sent, the send-later queue, the
+// mesh store with the paired devices) and the picture cache (WhatsApp and Signal
+// pictures cannot be fetched again). It never holds a network session or a keyring
+// key: a restored machine logs in afresh.
 //
 // The file is an age file around a tar, encrypted to the user's backup key (key.go),
-// so `age -d -i key` and `tar` read it without kith. The cache in it is a SQLite copy
-// encrypted as the cache is (internal/sealeddb), under a key made for this backup
-// alone and kept in its manifest, so the history is never written to disk in the
-// clear, not even while the backup is made; a restore writes it under the restored
-// machine's own key.
+// so `age -d -i key` and `tar` read it without kith. The cache and the mesh store in it
+// are SQLite copies encrypted as they are on disk (internal/sealeddb), under a key made
+// for this backup alone and kept in its manifest, so neither is ever written to disk in
+// the clear, not even while the backup is made; a restore writes them under the
+// restored machine's own key.
 package backup
 
 import (
@@ -34,6 +35,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/mesh"
 )
 
 // The names inside a backup. They carry no instance: a restore writes each where the
@@ -46,20 +48,29 @@ const (
 	ledgerName   = "state/agent-sends.jsonl"
 	scheduleName = "state/scheduled.toml"
 	mediaPrefix  = "media/"
+	meshName     = "mesh.db"
 	cacheName    = "cache.db"
 )
 
-// snapshotPattern names the cache's copy a backup makes beside the cache while it
-// runs.
-const snapshotPattern = ".backup-cache-*.db"
+// snapshotPattern and meshPattern name the copies of the cache and the mesh store a
+// backup makes beside them while it runs.
+const (
+	snapshotPattern = ".backup-cache-*.db"
+	meshPattern     = ".backup-mesh-*.db"
+)
 
-// format is the layout this kith writes and reads: encrypted to a backup key, the
-// cache in it encrypted under the manifest's CacheKey.
-const format = 3
+// format is the layout this kith writes: encrypted to a backup key, the cache and the
+// mesh store in it encrypted under the manifest's CacheKey. It reads oldestFormat on,
+// a backup before 4 holding no mesh store.
+const (
+	format       = 4
+	oldestFormat = 3
+)
 
 // manifest is a backup's first entry: its layout, when and by what it was made, every
 // file after it, so a restore can tell a whole backup from a cut one, the key (hex)
-// the cache in it is encrypted under, and the public backup key it was made to.
+// the cache and the mesh store in it are encrypted under, and the public backup key it
+// was made to.
 type manifest struct {
 	Format    int       `json:"format"`
 	Created   time.Time `json:"created"`
@@ -114,15 +125,23 @@ func Create(ctx context.Context, src Source, out string, to *PublicKey) (Made, e
 	if err != nil {
 		return Made{}, err
 	}
+	key := make([]byte, db.KeyLen)
+	if _, randErr := rand.Read(key); randErr != nil {
+		return Made{}, fmt.Errorf("backup: %w", randErr)
+	}
+	meshCopy, err := snapshotMesh(ctx, src.Storage, src.CacheKey, key)
+	if err != nil {
+		return Made{}, err
+	}
+	if meshCopy != "" {
+		defer func() { _ = os.Remove(meshCopy) }()
+		files = append(files, file{name: meshName, path: meshCopy})
+	}
 	media, err := mediaFiles(src.MediaDir)
 	if err != nil {
 		return Made{}, err
 	}
 	files = append(files, media...)
-	key := make([]byte, db.KeyLen)
-	if _, randErr := rand.Read(key); randErr != nil {
-		return Made{}, fmt.Errorf("backup: %w", randErr)
-	}
 	snapshot, err := snapshotCache(ctx, src.Storage, src.CacheKey, key)
 	if err != nil {
 		return Made{}, err
@@ -239,6 +258,29 @@ func snapshotCache(ctx context.Context, storage domain.Storage, cacheKey, key []
 	if err := db.Snapshot(ctx, storage.CachePath(), cacheKey, path, key); err != nil {
 		_ = os.Remove(path)
 		return "", fmt.Errorf("backup: copy the cache: %w", err)
+	}
+	return path, nil
+}
+
+// snapshotMesh copies the mesh store (under the cache's key) beside it, encrypted under
+// key, returning the copy's path; "" when there is no store (kithd has not read its
+// roster yet).
+func snapshotMesh(ctx context.Context, storage domain.Storage, cacheKey, key []byte) (string, error) {
+	if _, err := os.Stat(storage.MeshPath()); errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	tmp, err := os.CreateTemp(storage.DataDir, meshPattern)
+	if err != nil {
+		return "", fmt.Errorf("backup: %w", err)
+	}
+	path := tmp.Name()
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(path)
+		return "", fmt.Errorf("backup: %w", err)
+	}
+	if err := mesh.Copy(ctx, storage.MeshPath(), cacheKey, path, key); err != nil {
+		_ = os.Remove(path)
+		return "", fmt.Errorf("backup: copy the mesh store: %w", err)
 	}
 	return path, nil
 }

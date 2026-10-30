@@ -74,7 +74,7 @@ func opsIn(t *testing.T, path string, key []byte) int {
 }
 
 // rosterStep is one thing done to the roster: over the socket (add, readd, remove), in
-// an editor (open, drop, put, rename, save), or a listing; pick chooses among what is
+// an editor (open, drop, put, rename, save), the file deleted, or a listing; pick chooses among what is
 // there to choose.
 type rosterStep struct {
 	kind string
@@ -110,6 +110,7 @@ type rosterRun struct {
 	path   string
 	model  rosterModel
 	buffer map[string]string // an editor's copy of the file; nil while none is open
+	saved  map[string]string // a save kithd has not read yet; nil when none
 	names  int
 }
 
@@ -130,8 +131,16 @@ func nth[V any](m map[string]V, pick int) (string, bool) {
 }
 
 // do takes one step and, after each that reads the roster, checks it against the model.
+// A step that reads the roster reads a save first, as kithd does.
 func (r *rosterRun) do(s rosterStep) {
 	r.t.Helper()
+	switch s.kind {
+	case "add", "readd", "remove", "open", "list":
+		if r.saved != nil {
+			r.model.save(r.saved)
+			r.saved = nil
+		}
+	}
 	switch s.kind {
 	case "add":
 		id, name := r.freshID(), r.freshName()
@@ -169,12 +178,19 @@ func (r *rosterRun) do(s rosterStep) {
 			r.buffer[id] = r.freshName()
 		}
 		return
+	case "delete":
+		// The file deleted is no edit (nor is a save it took with it): the next read
+		// writes it again.
+		if err := os.Remove(r.path); err != nil && !os.IsNotExist(err) {
+			r.t.Fatal(err)
+		}
+		r.saved = nil
+		return
 	case "save":
 		// Read by the next step that reads the roster, whichever it is.
 		if r.buffer != nil {
 			writeRosterFile(r.t, r.path, r.buffer)
-			r.model.save(r.buffer)
-			r.buffer = nil
+			r.saved, r.buffer = r.buffer, nil
 		}
 		return
 	}
@@ -233,8 +249,9 @@ func TestHandEditsInterleavedWithChangesKeepTheRosterSafe(t *testing.T) {
 			{"add", 0}, {"open", 0}, {"remove", 0}, {"save", 0}, {"list", 0}, {"readd", 0}, {"open", 0}, {"save", 0}, {"list", 0},
 		},
 		"the last entry taken out by hand": {{"add", 0}, {"open", 0}, {"drop", 0}, {"save", 0}, {"list", 0}},
+		"the file deleted":                 {{"add", 0}, {"add", 0}, {"delete", 0}, {"list", 0}, {"delete", 0}, {"add", 0}},
 	}
-	kinds := []string{"add", "add", "readd", "remove", "open", "drop", "put", "rename", "save", "save", "list"}
+	kinds := []string{"add", "add", "readd", "remove", "open", "drop", "put", "rename", "save", "save", "delete", "list"}
 	for seed := range uint64(24) {
 		rng := rand.New(rand.NewPCG(seed, seed))
 		var steps []rosterStep

@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"sync"
 	"time"
@@ -81,6 +82,67 @@ func Open(ctx context.Context, path string, key []byte) (*Store, error) {
 		return nil, fmt.Errorf("mesh: open %s: %w", path, err)
 	}
 	return s, nil
+}
+
+// Copy writes a consistent copy of the store at src (under srcKey) to dst under dstKey,
+// a file that must not exist or be empty, as a backup takes the cache: one read
+// transaction (VACUUM INTO), so kithd may go on writing src. src is checked first and
+// the copy after: whole, and a store this kith reads; a newer kith's is ErrNewer. Used
+// to take the store into a backup and to put it back from one.
+func Copy(ctx context.Context, src string, srcKey []byte, dst string, dstKey []byte) error {
+	if err := check(ctx, src, srcKey); err != nil {
+		return err
+	}
+	db, err := sealeddb.OpenWith(ctx, src, srcKey, sealeddb.Setup{ReadOnly: true})
+	if err != nil {
+		return fmt.Errorf("mesh: copy %s: %w", src, err)
+	}
+	_, err = db.ExecContext(ctx, "VACUUM INTO ?", sealeddb.Target(dst, dstKey))
+	if cerr := db.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return fmt.Errorf("mesh: copy %s: %w", src, err)
+	}
+	f, err := os.OpenFile(dst, os.O_RDWR, 0) // #nosec G304 -- the copy's path, the caller's
+	if err == nil {
+		err = f.Sync()
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("mesh: copy %s: %w", src, err)
+	}
+	return check(ctx, dst, dstKey)
+}
+
+// check reports why the store at path, under key, is not one this kith reads: damaged,
+// a newer kith's, or holding what does not read. It only reads.
+func check(ctx context.Context, path string, key []byte) error {
+	db, err := sealeddb.OpenWith(ctx, path, key, sealeddb.Setup{ReadOnly: true})
+	if err != nil {
+		return fmt.Errorf("mesh: %s: %w", path, err)
+	}
+	defer func() { _ = db.Close() }()
+	var verdict string
+	var version int
+	if err := db.QueryRowContext(ctx, "PRAGMA integrity_check(1)").Scan(&verdict); err != nil {
+		return fmt.Errorf("mesh: %s: %w", path, err)
+	}
+	if verdict != "ok" {
+		return fmt.Errorf("mesh: %s is damaged: %s", path, verdict)
+	}
+	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
+		return fmt.Errorf("mesh: %s: %w", path, err)
+	}
+	if version == 0 {
+		return nil // laid out by nobody yet: nothing to read
+	}
+	if err := (&Store{db: db}).load(ctx); err != nil {
+		return fmt.Errorf("mesh: %s: %w", path, err)
+	}
+	return nil
 }
 
 // Close closes the store.

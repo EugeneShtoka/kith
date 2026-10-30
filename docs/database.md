@@ -90,6 +90,9 @@ paired devices (`devices-<hash>.toml` is written out from it).
   `entries` (each key's current value and the op that wrote it) and `vv` (the version
   vector: per origin, the last op held and its hash). An op, its entries and its vector
   row are written in one transaction.
+- A backup takes it as it takes the cache: a copy made in one read transaction
+  (`VACUUM INTO`, `mesh.Copy`) while kithd writes, encrypted under the backup's own key,
+  checked, and written back under the restoring machine's cache key.
 - `PRAGMA user_version` is the layout, 1. A store of a later one was written by a newer
   kith and is refused, never read or rebuilt: kithd does not listen for paired devices
   until that kith runs again. A later layout is reached by migrations in place, never by

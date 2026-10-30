@@ -231,7 +231,13 @@ func (d *Devices) refreshLocked() (rosterRead, error) {
 	if !slices.ContainsFunc(members, func(m domain.Device) bool { return m.ID == self.String() && m.Role == domain.RoleBridge }) {
 		return rosterRead{}, fmt.Errorf("daemon: %w; move the mesh store (mesh-*.db beside %s) aside to make it again from that file", errNotInMesh, d.path)
 	}
-	set, remove := d.handEdits(file, members, removed)
+	// A file that is not there (deleted, or a store restored without it) is no edit: it
+	// is written again from the store.
+	var set []domain.Device
+	var remove []string
+	if body != nil {
+		set, remove = d.handEdits(file, members, removed)
+	}
 	if len(set)+len(remove) > 0 {
 		if err = store.ChangeRoster(context.Background(), signer, set, remove); err != nil {
 			return rosterRead{}, fmt.Errorf("daemon: read a hand edit of the device roster %s: %w", d.path, err)
