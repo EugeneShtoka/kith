@@ -33,6 +33,29 @@ SubjectPublicKeyInfo, shown as groups of base32. The TLS certificate is self-sig
 long-lived; the key, not the certificate, is what is pinned, so a certificate may be
 reissued freely.
 
+**kithd's recovery key** (decided 2026-10-28) is its device key written down: the
+P-256 private scalar and its CRC-24 (OpenPGP's), 56 base32 characters in groups of
+four. A CRC, not a truncated hash, so any one character mistyped or two neighbors
+swapped is always refused as a typo, never read as another key (another device). A
+backup holds no device key, and that stays so: a kithd restored elsewhere is a new
+device unless its key comes back this way.
+
+- **kithd never asks.** It makes its key on first use, unattended, as before.
+- **`kith` asks when kithd's key is first made on its machine**: at a terminal, before
+  it starts kithd (its first run, `kith pair`, any command that starts kithd), and
+  after `kith restore`. It holds kithd's lock meanwhile, so a kithd starting under the
+  question cannot make a key of its own; with kithd running, or stdin not a terminal,
+  nothing is asked. A recovery key typed becomes kithd's key: its device ID is shown,
+  and a restored roster that names it works. Enter makes a new key and prints its
+  recovery key once.
+- **After a restore, a key kithd already has may be replaced** (a packaged unit
+  started kithd before the restore): the question names the ID it has, and Enter keeps
+  it. Nowhere else is a key replaced.
+- **`kith devices recovery-key`** prints it again, read from the keyring on kithd's own
+  machine. No call carries it, so no device, remote or not, can ask kithd for it.
+
+A client's own key (`client-device`) has none: a lost client is paired again.
+
 **Device settings** live in `device.toml` beside each client, never on the bridge:
 
 - which bridges this device dials (`[[bridge]]`: name, addresses, pinned ID) and which

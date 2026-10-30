@@ -1,12 +1,14 @@
 package keystore
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"os"
 	"testing"
 
 	"github.com/zalando/go-keyring"
 
+	"github.com/EugeneShtoka/kith/internal/devicekey"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -92,5 +94,71 @@ func TestACorruptDeviceKeyIsKeptAndReported(t *testing.T) {
 	}
 	if kept, _ := keyring.Get(st.Service, st.Account); kept != "garbage" {
 		t.Fatalf("the corrupt key was replaced by %q", kept)
+	}
+}
+
+// A key kept by KeepDeviceKey (a recovery key typed in) is the one every later load
+// takes, in the keyring or, with no keyring, in the file; FindDeviceKey reads what is
+// kept and makes nothing.
+func TestAKeptDeviceKeyIsTheOneLoaded(t *testing.T) {
+	for _, keyringUp := range []bool{true, false} {
+		if keyringUp {
+			keyring.MockInit()
+		} else {
+			keyring.MockInitWithError(errors.New("no secret store"))
+		}
+		st := deviceStoreIn(t)
+		for range 2 { // looking twice: the first look made nothing
+			if found, err := FindDeviceKey(st, true); found != nil || err != nil {
+				t.Fatalf("keyring %v: found %v, %v in an empty store", keyringUp, found != nil, err)
+			}
+		}
+		made, err := LoadOrCreateDeviceKey(st, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if found, ferr := FindDeviceKey(st, true); ferr != nil || !found.Equal(made) {
+			t.Fatalf("keyring %v: found another key than the one made: %v", keyringUp, ferr)
+		}
+		kept, err := devicekey.Generate()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := KeepDeviceKey(st, true, kept); err != nil {
+			t.Fatal(err)
+		}
+		for name, load := range map[string]func() (*ecdsa.PrivateKey, error){
+			"find": func() (*ecdsa.PrivateKey, error) { return FindDeviceKey(st, true) },
+			"load": func() (*ecdsa.PrivateKey, error) { return LoadOrCreateDeviceKey(st, true) },
+		} {
+			if got, err := load(); err != nil || !got.Equal(kept) {
+				t.Fatalf("keyring %v: %s after KeepDeviceKey took another key: %v", keyringUp, name, err)
+			}
+		}
+	}
+
+	// Kept while there was no keyring, then into the keyring: the file is gone, so a
+	// keyring down later does not bring the older key back.
+	keyring.MockInitWithError(errors.New("no secret store"))
+	st := deviceStoreIn(t)
+	if _, err := LoadOrCreateDeviceKey(st, true); err != nil {
+		t.Fatal(err)
+	}
+	keyring.MockInit()
+	kept, err := devicekey.Generate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := KeepDeviceKey(st, true, kept); err != nil {
+		t.Fatal(err)
+	}
+	keyring.MockInitWithError(errors.New("no secret store"))
+	if got, _ := FindDeviceKey(st, true); got != nil {
+		t.Fatal("the key kept before the keyring answered came back once it stopped")
+	}
+
+	// Without the opt-in and no keyring, nothing is kept.
+	if err := KeepDeviceKey(deviceStoreIn(t), false, kept); !errors.Is(err, ErrNoSecretStore) {
+		t.Fatalf("no keyring, no opt-in: %v, want ErrNoSecretStore", err)
 	}
 }

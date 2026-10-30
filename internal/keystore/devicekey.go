@@ -108,6 +108,49 @@ func createDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) {
 	return parseDeviceKey([]byte(kept), "keyring account "+st.Account)
 }
 
+// FindDeviceKey is the device key st keeps, as LoadOrCreateDeviceKey would read it,
+// or nil when none is kept yet; it makes none.
+func FindDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) {
+	existing, err := Get(st.Service, st.Account)
+	switch {
+	case err == nil:
+		return parseDeviceKey([]byte(existing), "keyring account "+st.Account)
+	case errors.Is(err, ErrKeyringNotAnswering):
+		return nil, err
+	case !allowFile && errors.Is(err, keyring.ErrNotFound):
+		return nil, nil
+	case !allowFile:
+		return nil, ErrNoSecretStore
+	}
+	blob, found, err := ReadOwnerOnly(st.File, "a device key")
+	if err != nil || !found {
+		return nil, err
+	}
+	return parseDeviceKey(blob, st.File)
+}
+
+// KeepDeviceKey keeps key as st's device key, in place of any kept: in the keyring, or
+// with allowFile in st.File when there is no keyring.
+func KeepDeviceKey(st Store, allowFile bool, key *ecdsa.PrivateKey) error {
+	text, err := devicekey.Marshal(key)
+	if err != nil {
+		return fmt.Errorf("keystore: %w", err)
+	}
+	_, err = Set(st.Service, st.Account, string(text))
+	switch {
+	case err == nil && allowFile:
+		// A file kept while there was no keyring is read whenever there is none again.
+		return RemoveFile(st.File)
+	case err == nil:
+		return nil
+	case errors.Is(err, ErrKeyringNotAnswering):
+		return err
+	case !allowFile:
+		return ErrNoSecretStore
+	}
+	return SaveFile(st.File, text)
+}
+
 func newDeviceKey() (*ecdsa.PrivateKey, []byte, error) {
 	key, err := devicekey.Generate()
 	if err != nil {

@@ -21,6 +21,38 @@ C523-XW2U-B4T2-RKIG-PNZM-42UB-FX3Z-OLGG-UHU5-KVZ4-3YQV-KQR7-KXKA
 Case, dashes and spaces do not matter when you paste one. Pairing pins the key, not a
 certificate: a device and kithd each check the other's ID on every connection.
 
+## kithd's recovery key
+
+A backup holds no device key, so a kithd restored on a new machine, or after its
+keyring is reset, would be a new device that every device and bridge must pair again.
+Its **recovery key** brings the key back: kithd's device key written out as 56 letters
+and digits in groups of four, such as
+
+```text
+MZXW-6YTB-OI2D-…-K3QA
+```
+
+Write it down, or keep it in a password manager, away from the machine. Anyone who
+has it can pose as this bridge, so keep it like a password.
+
+- **When kithd's key is first made**, kith asks for it, at a terminal, before it
+  starts kithd: on kith's first run on a machine, or `kith pair`, `kith login` or any
+  command that starts kithd there. `Recovery key (Enter for a new key)`: type the old
+  kithd's recovery key and kith shows the device ID it gives, the old one, so the
+  devices a restored backup lists stay paired. Press Enter for a new key, and kith
+  prints its recovery key once.
+- **After `kith restore`** it asks too. If kithd made a key already (an install that
+  started kithd before the restore), it names that key's ID, and a recovery key typed
+  replaces it; Enter keeps it.
+- **`kith devices recovery-key`** prints it again, with the ID. It works only on
+  kithd's own machine, where it reads the keyring; no device can ask kithd for it,
+  over the network or the socket.
+
+kithd itself never asks. Without a terminal (a script, a unit), or with kithd already
+running, kith asks nothing and kithd makes a new key when it first needs one, as
+before. A recovery key with a character mistyped is refused as a typo, and kith asks
+again; case, dashes, spaces and line breaks do not matter.
+
 ## Listening
 
 In the bridge's `config.toml`:
@@ -142,11 +174,13 @@ written by a newer kith), keeps kithd from listening until it is fixed, and noth
 written meanwhile. The first kithd of this release reads the file into a new store once,
 keeping the file as it was in `devices-<hash>.toml.pre-mesh`, which nothing reads after.
 A backup (`kith backup`) holds the store; restored where kithd keeps the same device
-key, the same devices are paired. If kithd's device key changes (a keyring reset, or a
-restore onto a new machine), the store no longer lists it, and kithd does not listen.
-Move `mesh-<hash>.db` aside, and the next start makes the store again from
-`devices-<hash>.toml`. After a restore onto a new machine there is no such file, and
-the devices pin the old machine's key anyway: pair each one again.
+key, the same devices are paired. Onto a new machine, give `kith restore` the old
+kithd's [recovery key](#kithds-recovery-key) when it asks, and kithd keeps that key.
+If kithd's device key changes (a keyring reset, or a restore without the recovery
+key), the store no longer lists it, and kithd does not listen. Move `mesh-<hash>.db`
+aside, and the next start makes the store again from `devices-<hash>.toml`. After a
+restore onto a new machine there is no such file, and the devices pin the old
+machine's key anyway: pair each one again.
 
 ## Bridges in a mesh
 

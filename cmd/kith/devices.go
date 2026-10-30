@@ -16,11 +16,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-const devicesUsage = "usage: kith devices [add <id> [name] | remove <id|name> | id]"
+const devicesUsage = "usage: kith devices [add <id> [name] | remove <id|name> | id | recovery-key]"
 
 // runDevices is `kith devices`: the devices paired with this bridge, and this bridge's
-// own ID (list), pairing one by its pasted ID (add), unpairing one (remove), or this
-// machine's own ID as a client, to pair with another bridge (id).
+// own ID (list), pairing one by its pasted ID (add), unpairing one (remove), this
+// machine's own ID as a client, to pair with another bridge (id), or the recovery key
+// of this machine's kithd (recovery-key).
 func runDevices(args []string) error {
 	fs := flag.NewFlagSet("devices", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
@@ -34,6 +35,8 @@ func runDevices(args []string) error {
 	switch {
 	case verb == "id" && len(rest) == 0:
 		return printClientID(*configPath)
+	case verb == "recovery-key" && len(rest) == 0:
+		return printBridgeRecoveryKey(*configPath, os.Stdout)
 	case verb == "" || verb == "list" && len(rest) == 0:
 		return withDevices(*configPath, listDevices)
 	case verb == "add" && len(rest) >= 1:

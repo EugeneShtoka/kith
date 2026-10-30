@@ -33,8 +33,10 @@ var encoding = base32.StdEncoding.WithPadding(base32.NoPadding)
 const groupLen = 4
 
 // String writes the ID in groups of four, joined by dashes.
-func (id ID) String() string {
-	plain := encoding.EncodeToString(id[:])
+func (id ID) String() string { return grouped(encoding.EncodeToString(id[:])) }
+
+// grouped writes plain in groups of four, joined by dashes.
+func grouped(plain string) string {
 	var b strings.Builder
 	for i := 0; i < len(plain); i += groupLen {
 		if i > 0 {

@@ -137,7 +137,10 @@ threat model:
   `<instance>|device` for kithd, `<instance>|client-device` for a client machine),
   or, only with `allow_token_file` and no keyring, in a `0600` file in the state
   directory. A corrupt key is reported, never silently replaced: a new key is a new
-  device that every peer must pair again. The device list holds no secrets, but it
+  device that every peer must pair again. kithd's key can be written out as a recovery
+  key ([docs/remote.md](docs/remote.md#kithds-recovery-key)): only by `kith devices recovery-key` on kithd's own machine,
+  reading the keyring there; no RPC carries it, over the socket or the network. A
+  backup holds no device key. The device list holds no secrets, but it
   is the authorization: it is written `0600`, atomically, and a list that does not
   read keeps kithd from listening at all.
 
