@@ -8,6 +8,7 @@ import (
 
 	slackgo "github.com/slack-go/slack"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -134,5 +135,5 @@ func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID 
 			return msg, nil
 		}
 	}
-	return domain.Message{}, fmt.Errorf("slack: %s is not in %s's history (a thread reply, or deleted)", eventID, roomID)
+	return domain.Message{}, fmt.Errorf("slack: %s is not in %s's history (a thread reply, or deleted): %w", eventID, roomID, api.ErrNoSuchMessage)
 }

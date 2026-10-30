@@ -10,7 +10,7 @@ import {
   type MessageShape,
   toBinary,
 } from "@bufbuild/protobuf";
-import type { Transport } from "@connectrpc/connect";
+import { Code, ConnectError, type Transport } from "@connectrpc/connect";
 
 import {
   BackendService,
@@ -127,7 +127,18 @@ export class Gate {
     if (method.name === backend.replaceDraft.name) {
       this.asTheSeat(input as MessageShape<typeof backend.replaceDraft.input>);
     }
-    const response = await this.transport.unary(method, undefined, undefined, header, input);
+    const response = await this.transport.unary(method, undefined, undefined, header, input).catch((err: unknown) => {
+      // A message gone from its network, or one kithd holds no copy of, is an answer: the
+      // window is answered no message, and its quote shows as not loaded. A rejection
+      // here is logged by Electron as an error.
+      if (method.name === backend.fetchEvent.name && ConnectError.from(err).code === Code.NotFound) {
+        return undefined;
+      }
+      throw err;
+    });
+    if (response === undefined) {
+      return toBinary(method.output, create(method.output));
+    }
     this.follow(method, response.message);
     return toBinary(method.output, response.message);
   }

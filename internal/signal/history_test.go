@@ -2,10 +2,12 @@ package signal_test
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"strings"
 	"testing"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	signalv1 "github.com/EugeneShtoka/kith/internal/api/signal/v1"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -130,5 +132,14 @@ func TestArchivedReactionsNeverUndoLiveOnes(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// A message the cache does not hold is no such message: Signal has no history to ask.
+func TestAMessageNotCachedIsNoSuchMessage(t *testing.T) {
+	r := connected(t, msg(me, me, 1700000000100, "buy milk"))
+	missing := domain.EventID(string(direct(me)) + "/" + me + ".1700000000999")
+	if _, err := r.a.FetchEvent(context.Background(), direct(me), missing); !errors.Is(err, api.ErrNoSuchMessage) {
+		t.Errorf("FetchEvent() = %v, want ErrNoSuchMessage", err)
 	}
 }

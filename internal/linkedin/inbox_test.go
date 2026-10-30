@@ -851,8 +851,8 @@ func TestSpacesAndSigningOut(t *testing.T) {
 	if m, ferr := a.FetchEvent(ctx, roomID(me, group), msgID(group, "m1")); ferr != nil || m.Body != "hi" {
 		t.Errorf("fetch = %+v, %v", m, ferr)
 	}
-	if _, ferr := a.FetchEvent(ctx, roomID(me, group), msgID(group, "nope")); ferr == nil {
-		t.Error("an uncached message was fetched")
+	if _, ferr := a.FetchEvent(ctx, roomID(me, group), msgID(group, "nope")); !errors.Is(ferr, api.ErrNoSuchMessage) {
+		t.Errorf("fetching an uncached message = %v, want ErrNoSuchMessage", ferr)
 	}
 	if enc, _ := a.RoomEncryption(ctx, []domain.RoomID{roomID(me, group)}); enc[roomID(me, group)] {
 		t.Error("a LinkedIn room is encrypted")

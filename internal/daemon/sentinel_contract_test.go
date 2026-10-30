@@ -40,6 +40,7 @@ func TestEverySentinelInTheContractCrossesTheWire(t *testing.T) {
 		"ErrNotOnNetwork":     api.ErrNotOnNetwork,
 		"ErrConfigMoved":      api.ErrConfigMoved,
 		"ErrRefused":          api.ErrRefused,
+		"ErrNoSuchMessage":    api.ErrNoSuchMessage,
 		"ErrUnknownProfile":   api.ErrUnknownProfile,
 		"ErrDaemonWaiting":    api.ErrDaemonWaiting,
 	}

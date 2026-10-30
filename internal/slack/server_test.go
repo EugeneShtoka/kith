@@ -3,6 +3,7 @@ package slack
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 
 	slackgo "github.com/slack-go/slack"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/readstate"
 )
@@ -636,5 +638,19 @@ func TestOwedReadMarks(t *testing.T) {
 	}
 	if got := o.Take("T"); len(got) != 0 {
 		t.Errorf("owed after taking = %v", got)
+	}
+}
+
+// A message neither cached nor in Slack's history (deleted, or a thread reply) is no
+// such message.
+func TestAMessageSlackDoesNotHaveIsNoSuchMessage(t *testing.T) {
+	t.Parallel()
+	f, client := newFakeSlack(t)
+	f.on("conversations.history", func(map[string]string) any {
+		return map[string]any{"ok": true, "messages": []any{}}
+	})
+	a, _ := connectedTo(t, client)
+	if _, err := a.FetchEvent(context.Background(), roomID("T1", "C1"), "slack:T1/C1/9.0"); !errors.Is(err, api.ErrNoSuchMessage) {
+		t.Errorf("FetchEvent() = %v, want ErrNoSuchMessage", err)
 	}
 }

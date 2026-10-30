@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/readstate"
 )
@@ -180,7 +181,7 @@ func (a *Adapter) FetchEvent(ctx context.Context, room domain.RoomID, event doma
 		return domain.Message{}, fmt.Errorf("signal: read %s: %w", event, err)
 	}
 	if !ok {
-		return domain.Message{}, fmt.Errorf("%w (%s)", errNotCached, event)
+		return domain.Message{}, fmt.Errorf("%w (%s): %w", errNotCached, event, api.ErrNoSuchMessage)
 	}
 	return msg, nil
 }

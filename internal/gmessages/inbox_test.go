@@ -2,6 +2,7 @@ package gmessages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"go.mau.fi/mautrix-gmessages/pkg/libgm"
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/sealeddb"
@@ -498,6 +500,9 @@ func TestSpacesAndSigningOut(t *testing.T) {
 	}
 	if m, ferr := a.FetchEvent(ctx, roomID(self, group), eventID(self, group, "m1")); ferr != nil || m.Body != "hi" {
 		t.Errorf("fetch = %+v, %v", m, ferr)
+	}
+	if _, ferr := a.FetchEvent(ctx, roomID(self, group), eventID(self, group, "nope")); !errors.Is(ferr, api.ErrNoSuchMessage) {
+		t.Errorf("fetching an uncached message = %v, want ErrNoSuchMessage", ferr)
 	}
 	if unread, uerr := a.CachedUnread(ctx); uerr != nil || len(unread) != 1 || !unread[0].Counted {
 		t.Errorf("cached unread = %+v, %v", unread, uerr)

@@ -231,10 +231,10 @@ func (f failureLog) report(ctx context.Context, procedure string, err error) {
 	}
 	// The client leaving, or our own shutdown, is not a failure of the call; nor is a
 	// network saying it cannot do what was asked (a client may ask every network, as the
-	// folder offer after a login does).
+	// folder offer after a login does), or that a message asked for is not there.
 	level := slog.LevelWarn
 	if ctx.Err() != nil || errors.Is(err, context.Canceled) || connect.CodeOf(err) == connect.CodeCanceled ||
-		errors.Is(err, api.ErrNotOnNetwork) {
+		errors.Is(err, api.ErrNotOnNetwork) || errors.Is(err, api.ErrNoSuchMessage) {
 		level = slog.LevelDebug
 	}
 	f.log.Log(ctx, level, "call failed", "op", path.Base(procedure), "err", err)
@@ -273,6 +273,9 @@ func rpcErr(err error) error {
 		code = connect.CodeCanceled
 	case errors.Is(err, context.DeadlineExceeded):
 		code = connect.CodeDeadlineExceeded
+	case errors.Is(err, api.ErrNoSuchMessage):
+		// Gone or never held: an answer a client acts on (the desktop by this code).
+		code = connect.CodeNotFound
 	}
 	cerr := connect.NewError(code, err)
 	if name, ok := sentinelName(err); ok {

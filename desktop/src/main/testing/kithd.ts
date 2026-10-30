@@ -54,6 +54,10 @@ export class FakeKithd {
   remembered = "";
   /** The rooms CachedInvites answers with, by ID. */
   invited: string[] = [];
+  /** Rooms JoinRoom answers not found for: gone since the invitation. */
+  readonly gone = new Set<string>();
+  /** What FetchEvent answers, by event: the message, or kithd's error; else not found. */
+  readonly fetched = new Map<string, Row | ConnectError>();
   /**
    * The cache's numbering (its epoch) and every change in it, the message each wrote:
    * change n is changes[n-1]. A Messages stream starts after the change it asks for, in
@@ -131,7 +135,22 @@ export class FakeKithd {
           return { ready: true };
         },
         cachedInvites: () => ({ invites: this.invited.map((id) => create(RoomSchema, { id, membership: "invite" })) }),
-        joinRoom: (req) => ({ roomId: req.roomIdOrAlias }),
+        joinRoom: (req) => {
+          if (this.gone.has(req.roomIdOrAlias)) {
+            throw new ConnectError(`no room ${req.roomIdOrAlias}`, Code.NotFound);
+          }
+          return { roomId: req.roomIdOrAlias };
+        },
+        fetchEvent: (req) => {
+          const found = this.fetched.get(req.eventId);
+          if (found === undefined) {
+            throw new ConnectError(`no such message ${req.eventId}`, Code.NotFound);
+          }
+          if (found instanceof ConnectError) {
+            throw found;
+          }
+          return { message: found };
+        },
         replaceDraft: (req, ctx) => {
           this.received.push({ method: "ReplaceDraft", profile: ctx.requestHeader.get("Kith-Profile"), message: req });
           return { saved: true, stored: req.draft };
