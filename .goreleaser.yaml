@@ -94,6 +94,25 @@ builds:
     goos: [linux, darwin, freebsd] # windows: see the WINDOWS slot at the end of builds
     goarch: [amd64, arm64]
 
+  # The desktop window's link to kithd. In no archive or package of its own: the
+  # release's desktop job (release.yml) bundles this build into the desktop's deb, rpm
+  # and zip, so the relay a window runs is the one built from its tag.
+  - id: kith-relay
+    main: ./cmd/kith-relay
+    binary: kith-relay
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -tags=goolm
+    ldflags:
+      - -s -w
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Version={{.Version}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Commit={{.ShortCommit}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Date={{.Date}}
+    goos: [linux] # the desktop is packaged for Linux alone
+    goarch: [amd64, arm64]
+
   # ── WINDOWS slot ────────────────────────────────────────────────────────────
   # A Windows port is being assessed separately. Do not add `windows` to the goos
   # lists above until it lands; when it does, the release also needs, here and below:

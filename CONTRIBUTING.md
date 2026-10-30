@@ -153,7 +153,7 @@ calls a tool directly instead of through its target. In order:
 | `release-check` | `goreleaser check` over `.goreleaser.yaml` |
 | `proto-check` | `buf lint`, then both templates (`buf.gen.yaml`, Go; `buf.gen.ts.yaml`, the desktop's TypeScript) generate into a scratch dir that matches `internal/api` and `desktop/src/gen` file for file; protoc-gen-es and the desktop's `@bufbuild/protobuf` are one version |
 | `docs-check` | markdownlint over `*.md`, `docs/**/*.md` and `.github/**/*.md` |
-| `desktop-check` | `desktop/`, from its lock with no install scripts: `tsc` (strict), ESLint (with the layer rules), Prettier, vitest, `electron-forge package`, and `npm audit` of the runtime tree (`scripts/desktop-check.sh`) |
+| `desktop-check` | `desktop/`, from its lock with no install scripts: `tsc` (strict), ESLint (with the layer rules), Prettier, vitest, `electron-forge package` with the `kith-relay` it bundles and a check of what the package holds (`scripts/desktop-package-check.sh`: the relay, the fuses, the modes), and `npm audit` of the runtime tree (`scripts/desktop-check.sh`) |
 
 Nothing is skipped for want of a tool. The one gate that can be skipped is the history
 secret scan, when the tree is not the root of its own git repository; `CHECK_STRICT=1`
