@@ -44,8 +44,8 @@ func TestAWindowSteppingAsideSavesItsDraftFirst(t *testing.T) {
 // seatlessDrafts refuses every write: another window has the seat.
 type seatlessDrafts struct{ *sharedDrafts }
 
-func (seatlessDrafts) ReplaceDraft(context.Context, domain.StoredDraft, domain.StoredDraft) (bool, error) {
-	return false, api.ErrSeatTaken
+func (seatlessDrafts) RebaseDraft(context.Context, domain.StoredDraft, domain.StoredDraft, []domain.StoredDraft) (domain.StoredDraft, string, error) {
+	return domain.StoredDraft{}, "", api.ErrSeatTaken
 }
 
 // A save refused for the seat is not "maybe written"; the window steps aside.

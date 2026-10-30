@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 
 import type { Message, Reaction } from "../gen/backend/v1/types_pb";
+import type { ComposerView } from "./compose";
+import { EmojiPicker } from "./EmojiPicker";
 import { attachmentURL } from "./media";
 import type { Session } from "./session";
 import { FormattedText } from "./spans";
@@ -15,7 +17,17 @@ const firstIndex = 1_000_000;
 
 const clock = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
-export function TimelinePane({ t, unreadLine, session }: { t: TimelineView; unreadLine: boolean; session: Session }) {
+export function TimelinePane({
+  t,
+  unreadLine,
+  composer,
+  session,
+}: {
+  t: TimelineView;
+  unreadLine: boolean;
+  composer: ComposerView | undefined;
+  session: Session;
+}) {
   const shown = t.rows.filter((m) => m.threadRoot === "");
   // The index of the first row: lowered by as many rows as a page put above it.
   const [anchor, setAnchor] = useState({ room: t.room, id: shown[0]?.id ?? "", index: firstIndex });
@@ -62,6 +74,7 @@ export function TimelinePane({ t, unreadLine, session }: { t: TimelineView; unre
               newSince={unreadLine && before !== undefined && before.id === t.unreadFrom}
               quoted={m.replyTo === "" ? undefined : (byId.get(m.replyTo) ?? t.quotes.get(m.replyTo))}
               reactions={t.reactions.get(m.id)}
+              composer={composer}
               session={session}
             />
           );
@@ -96,12 +109,14 @@ function Row({
   newSince,
   quoted,
   reactions,
+  composer,
   session,
 }: {
   m: Message;
   newSince: boolean;
   quoted: Message | undefined;
   reactions: readonly Reaction[] | undefined;
+  composer: ComposerView | undefined;
   session: Session;
 }) {
   return (
@@ -124,12 +139,122 @@ function Row({
         <ul className="reactions" aria-label="Reactions">
           {tally(reactions).map((r) => (
             <li key={r.key}>
-              {r.key} {r.count}
+              {/* Pressed: added, or taken back where it is yours. */}
+              <button type="button" onClick={() => void session.react(m, r.key)}>
+                {r.key} {r.count}
+              </button>
             </li>
           ))}
         </ul>
       )}
+      {composer !== undefined && !m.redacted && <Actions m={m} c={composer} session={session} />}
     </article>
+  );
+}
+
+/** Actions are what the person can do with a message: answer it, react, correct or delete their own. */
+function Actions({ m, c, session }: { m: Message; c: ComposerView; session: Session }) {
+  const [open, setOpen] = useState<"palette" | "picker" | "delete" | undefined>(undefined);
+  const mine = c.selves.has(m.sender);
+  const react = (key: string) => {
+    setOpen(undefined);
+    void session.react(m, key);
+  };
+  return (
+    <div className="actions">
+      <button
+        type="button"
+        onClick={() => {
+          session.reply(m);
+        }}
+      >
+        Reply
+      </button>
+      <button
+        type="button"
+        aria-expanded={open === "palette"}
+        onClick={() => {
+          setOpen(open === "palette" ? undefined : "palette");
+        }}
+      >
+        React
+      </button>
+      {mine && (
+        <button
+          type="button"
+          onClick={() => {
+            session.edit(m);
+          }}
+        >
+          Edit
+        </button>
+      )}
+      {mine && (
+        <button
+          type="button"
+          onClick={() => {
+            setOpen("delete");
+          }}
+        >
+          Delete
+        </button>
+      )}
+      {open === "palette" && (
+        <span className="palette" role="group" aria-label="Quick reactions">
+          {c.emoji.palette.map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => {
+                react(e);
+              }}
+            >
+              {e}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setOpen("picker");
+            }}
+          >
+            More
+          </button>
+        </span>
+      )}
+      {open === "picker" && (
+        <EmojiPicker
+          emoji={c.emoji}
+          kind="reaction"
+          onPick={react}
+          onClose={() => {
+            setOpen(undefined);
+          }}
+        />
+      )}
+      {open === "delete" && (
+        <span className="banner waiting">
+          Delete this message for everyone?{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(undefined);
+              void session.remove(m);
+            }}
+          >
+            Delete
+          </button>{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(undefined);
+            }}
+          >
+            Keep
+          </button>
+        </span>
+      )}
+    </div>
   );
 }
 

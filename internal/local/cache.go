@@ -17,6 +17,19 @@ func (s *Service) ReplaceDraft(ctx context.Context, draft, over domain.StoredDra
 	})
 }
 
+// RebaseDraft stores a window's draft over the version it read, with what another
+// writer added since put after it (db.RebaseDraft).
+func (s *Service) RebaseDraft(ctx context.Context, draft, base domain.StoredDraft, unanswered []domain.StoredDraft) (domain.StoredDraft, string, error) {
+	if s.cache == nil {
+		return domain.StoredDraft{}, "", nil
+	}
+	stored, added, err := s.cache.RebaseDraft(ctx, draft, base, unanswered)
+	if err != nil {
+		return domain.StoredDraft{}, "", fmt.Errorf("local: rebase draft: %w", err)
+	}
+	return stored, added, nil
+}
+
 // Drafts returns every stored draft.
 func (s *Service) Drafts(ctx context.Context) ([]domain.StoredDraft, error) {
 	return fromCache(s, "read drafts", func(c *db.Cache) ([]domain.StoredDraft, error) {

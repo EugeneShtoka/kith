@@ -412,7 +412,7 @@ func (w *draftWorld) assistantAppends(room domain.RoomID) {
 	w.note("assistant appends %q to %s (thread %q)", word, room, thread)
 	w.added = append(w.added, word)
 	w.clock++
-	cur.RoomID, cur.Body, cur.Author = room, joinDraft(cur.Body, word), "claude-code"
+	cur.RoomID, cur.Body, cur.Author = room, domain.JoinDraft(cur.Body, word), "claude-code"
 	cur.Updated = time.UnixMilli(w.clock)
 	s.drafts[room] = cur
 }
@@ -745,19 +745,20 @@ func (r *racyDrafts) Drafts(ctx context.Context) ([]domain.StoredDraft, error) {
 	return r.sharedDrafts.Drafts(ctx)
 }
 
-func (r *racyDrafts) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (bool, error) {
+func (r *racyDrafts) RebaseDraft(ctx context.Context, draft, base domain.StoredDraft, unanswered []domain.StoredDraft) (domain.StoredDraft, string, error) {
 	r.meddle()
 	if r.fails() {
 		r.world.note("    the write fails before it commits")
-		return false, errDaemonGone
+		return domain.StoredDraft{}, "", errDaemonGone
 	}
-	ok, err := r.sharedDrafts.ReplaceDraft(ctx, draft, over)
+	stored, added, err := r.sharedDrafts.RebaseDraft(ctx, draft, base, unanswered)
 	if r.world.trace {
-		r.world.note("    %s writes %s {%q editing=%q returns to %q reply=%q} over %q: %v", r.who, draft.RoomID, draft.Body, draft.Editing, draft.EditSaved, draft.ReplyTo, over.Body, ok)
+		r.world.note("    %s writes %s {%q editing=%q returns to %q reply=%q} over %q: stored %q, added %q",
+			r.who, draft.RoomID, draft.Body, draft.Editing, draft.EditSaved, draft.ReplyTo, base.Body, stored.Body, added)
 	}
-	if ok && r.fails() {
+	if r.fails() {
 		r.world.note("    the write commits, and its reply is lost")
-		return false, errDaemonGone
+		return domain.StoredDraft{}, "", errDaemonGone
 	}
-	return ok, err
+	return stored, added, err
 }

@@ -1,11 +1,15 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -16,6 +20,8 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api/device/v1/devicev1connect"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
+	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/media"
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
@@ -118,10 +124,57 @@ func (d device) DeviceSettings(context.Context, *connect.Request[devicev1.Device
 	for i, r := range dev.Display.ReadRules {
 		rules[i] = &devicev1.ReadRule{Match: r.Match, Sender: r.Sender, Send: r.Send}
 	}
+	// Checked as the device file loaded (setup.ValidateDevice): a name here is one of them.
+	tone, _ := setup.SkinTone(dev.Display.SkinTone)
+	set, _ := setup.EmojiTier(dev.Display.Emoji.Set)
 	return connect.NewResponse(&devicev1.DeviceSettingsResponse{
-		SendReceipts: dev.Display.SendsReceipts(),
-		ReadRules:    rules,
-		UnreadLine:   dev.Display.ShowUnreadLine(),
+		SendReceipts:    dev.Display.SendsReceipts(),
+		ReadRules:       rules,
+		UnreadLine:      dev.Display.ShowUnreadLine(),
+		Markdown:        dev.Composer.MarkdownEnabled(),
+		ConfirmSms:      dev.Composer.ConfirmsSMS(),
+		SendTyping:      dev.Display.SendsTyping(),
+		SkinTone:        tone,
+		EmojiSet:        set,
+		EmojiExtra:      dev.Display.Emoji.Extra,
+		ReactionsScope:  cmp.Or(dev.Display.Reactions.Scope, "room"), // as the TUI reads it unset
+		ReactionsStatic: dev.Display.Reactions.Static,
+	}), nil
+}
+
+// Outgoing readies a file for sending as the TUI's sendFileCmd does, where [display.media]
+// anonymize holds: a picture copied without its metadata, the file under a neutral name.
+// A rule is a place's, which the relay cannot place a room in yet, so one that
+// anonymizes anywhere counts everywhere: a file goes anonymized wherever it may have to.
+func (d device) Outgoing(_ context.Context, req *connect.Request[devicev1.OutgoingRequest]) (*connect.Response[devicev1.OutgoingResponse], error) {
+	dev, err := loadDevice(d.configPath)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	path := req.Msg.GetPath()
+	anonymize := dev.Display.Media.Anonymizes() || slices.ContainsFunc(dev.Display.Media.Rules,
+		func(r config.MediaRule) bool { return r.Anonymize != nil && *r.Anonymize })
+	if !anonymize {
+		return connect.NewResponse(&devicev1.OutgoingResponse{Path: path}), nil
+	}
+	// The clean copy goes where the TUI's does: the media cache's outgoing folder.
+	outgoing := dev.Display.Media.CacheDir
+	if rest, ok := strings.CutPrefix(outgoing, "~/"); ok {
+		home, herr := os.UserHomeDir()
+		if herr != nil {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, herr)
+		}
+		outgoing = filepath.Join(home, rest)
+	}
+	if outgoing != "" {
+		outgoing = filepath.Join(outgoing, "outgoing")
+	}
+	clean, what, err := media.Strip(path, outgoing)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	return connect.NewResponse(&devicev1.OutgoingResponse{
+		Path: clean, Name: domain.SentName(filepath.Base(path)), Copied: clean != path, Kept: what == media.Kept,
 	}), nil
 }
 

@@ -11,7 +11,32 @@ export const channels = {
   unread: "kith:unread",
   /** Saving an attachment: (room, event, name), answered with whether it was saved. */
   save: "kith:save",
+  /** Files to send, picked in the open dialog: answered with what was offered. */
+  pick: "kith:pick",
+  /** A file dropped or pasted, by the path the system gave it (the preload's): an Offered. */
+  offerPath: "kith:offer-path",
+  /** Bytes pasted with no file behind them: (name, bytes), answered with an Offered. */
+  offerBytes: "kith:offer-bytes",
+  /** Taking an offered file back: (token). */
+  discard: "kith:discard",
+  /** Sending an offered file: (token, room, caption), answered with a Sent. */
+  attach: "kith:attach",
+  /** Main to the window: it is closing, write what is unsaved; the window answers closed. */
+  closing: "kith:closing",
+  closed: "kith:closed",
 } as const;
+
+/** A file offered for sending: main holds it, the window holds the token. */
+export interface Offered {
+  token: string;
+  name: string;
+  size: number;
+}
+
+/** A file sent; kept: with metadata kith cannot remove from it (HEIC). */
+export interface Sent {
+  kept: boolean;
+}
 
 /** What a stream's port carries, in order. */
 export type StreamEvent =
@@ -49,4 +74,17 @@ export interface KithBridge {
    * whether it was saved.
    */
   save(room: string, event: string, name: string): Promise<boolean>;
+  /** Asks for files to send in the open dialog; resolves to those picked. */
+  pick(): Promise<Offered[]>;
+  /**
+   * Offers a file dropped or pasted: main reads it where the system says it is, or takes
+   * its bytes when it is no file on disk (a picture pasted). The window names no path.
+   */
+  offer(file: File): Promise<Offered>;
+  /** Takes an offered file back. */
+  discard(token: string): Promise<void>;
+  /** Sends an offered file to room, caption with it. */
+  attach(token: string, room: string, caption: string): Promise<Sent>;
+  /** Says what to do as the window closes (write its drafts); main waits a little for it. */
+  closing(write: () => Promise<void>): void;
 }

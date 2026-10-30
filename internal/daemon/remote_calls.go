@@ -598,6 +598,27 @@ func (r *Remote) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraf
 	return resp.GetSaved(), err
 }
 
+// RebaseDraft is ReplaceDraft with kithd rebasing the write (rebase), the window named
+// as ReplaceDraft names it.
+func (r *Remote) RebaseDraft(ctx context.Context, draft, base domain.StoredDraft, unanswered []domain.StoredDraft) (domain.StoredDraft, string, error) {
+	request := &v1.ReplaceDraftRequest{
+		Draft: pc.StoredDraftToProto(draft), Over: pc.StoredDraftToProto(base), Rebase: true,
+		Unanswered: pc.StoredDraftsToProto(unanswered),
+	}
+	if r.seated.Load() {
+		request.Client = r.client
+	}
+	resp, err := call(ctx, "replace draft", r.c.ReplaceDraft, request)
+	if err != nil {
+		return domain.StoredDraft{}, "", err
+	}
+	stored := domain.StoredDraft{RoomID: draft.RoomID}
+	if resp.GetStored() != nil {
+		stored = pc.ProtoToStoredDraft(resp.GetStored())
+	}
+	return stored, resp.GetAdded(), nil
+}
+
 func (r *Remote) Drafts(ctx context.Context) ([]domain.StoredDraft, error) {
 	resp, err := call(ctx, "drafts", r.c.Drafts, &v1.DraftsRequest{})
 	return pc.ProtoToStoredDrafts(resp.GetDrafts()), err

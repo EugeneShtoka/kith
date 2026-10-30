@@ -629,7 +629,8 @@ type BackendServiceClient interface {
 	ModelTask(context.Context, *connect.Request[v1.ModelTaskRequest]) (*connect.Response[v1.ModelTaskResponse], error)
 	// ReplaceDraft stores one room's half-written message (or removes it when there is
 	// nothing left worth keeping), only while the stored draft is still the one the
-	// writer read, so neither writer (TUI, kith-mcp) drops the other's words.
+	// writer read, so neither writer (TUI, kith-mcp) drops the other's words; or, for a
+	// window (rebase), with the other writer's words since put after its own.
 	ReplaceDraft(context.Context, *connect.Request[v1.ReplaceDraftRequest]) (*connect.Response[v1.ReplaceDraftResponse], error)
 	Drafts(context.Context, *connect.Request[v1.DraftsRequest]) (*connect.Response[v1.DraftsResponse], error)
 	// Seat is the one window the daemon serves in a [[profile]], the one the request
@@ -2742,7 +2743,8 @@ type BackendServiceHandler interface {
 	ModelTask(context.Context, *connect.Request[v1.ModelTaskRequest]) (*connect.Response[v1.ModelTaskResponse], error)
 	// ReplaceDraft stores one room's half-written message (or removes it when there is
 	// nothing left worth keeping), only while the stored draft is still the one the
-	// writer read, so neither writer (TUI, kith-mcp) drops the other's words.
+	// writer read, so neither writer (TUI, kith-mcp) drops the other's words; or, for a
+	// window (rebase), with the other writer's words since put after its own.
 	ReplaceDraft(context.Context, *connect.Request[v1.ReplaceDraftRequest]) (*connect.Response[v1.ReplaceDraftResponse], error)
 	Drafts(context.Context, *connect.Request[v1.DraftsRequest]) (*connect.Response[v1.DraftsResponse], error)
 	// Seat is the one window the daemon serves in a [[profile]], the one the request

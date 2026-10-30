@@ -1043,10 +1043,22 @@ message ReplaceDraftRequest {
   // longer has it is refused. Unset for a writer that is not a window (kith-mcp), which
   // only appends, and the compare-and-set keeps safe.
   string client = 3;
+  // rebase: the draft is a window's, written over over, the version it last read. In
+  // place of a compare-and-set, kithd puts the words another writer (kith-mcp) added
+  // since after the window's (domain.RebaseDraft) and always writes, so every client
+  // keeps them alike.
+  bool rebase = 4;
+  // unanswered: with rebase, the window's earlier writes it never heard back about. One
+  // may be stored, and its words are the window's own, not another writer's.
+  repeated StoredDraft unanswered = 5;
 }
 
 message ReplaceDraftResponse {
   bool saved = 1;
+  // With rebase: the draft now stored (unset: none), and the words another writer
+  // added that it took in, which the window has yet to see.
+  StoredDraft stored = 2;
+  string added = 3;
 }
 
 message DraftsRequest {}
@@ -2100,7 +2112,8 @@ service BackendService {
   rpc ModelTask(ModelTaskRequest) returns (ModelTaskResponse);
   // ReplaceDraft stores one room's half-written message (or removes it when there is
   // nothing left worth keeping), only while the stored draft is still the one the
-  // writer read, so neither writer (TUI, kith-mcp) drops the other's words.
+  // writer read, so neither writer (TUI, kith-mcp) drops the other's words; or, for a
+  // window (rebase), with the other writer's words since put after its own.
   rpc ReplaceDraft(ReplaceDraftRequest) returns (ReplaceDraftResponse);
   rpc Drafts(DraftsRequest) returns (DraftsResponse);
   // Seat is the one window the daemon serves in a [[profile]], the one the request

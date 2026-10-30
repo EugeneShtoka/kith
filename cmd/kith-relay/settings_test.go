@@ -29,7 +29,7 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 		file string
 		want *devicev1.DeviceSettingsResponse
 	}{
-		{"nothing set", "", &devicev1.DeviceSettingsResponse{SendReceipts: true, UnreadLine: true}},
+		{"nothing set", "", &devicev1.DeviceSettingsResponse{SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room"}},
 		{
 			"keys and rules set",
 			"[display]\nsend_receipts = false\nunread_line = false\n\n" +
@@ -40,13 +40,25 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 					{Match: "space:Work", Send: &yes},
 					{Sender: "matrix:@alice:example.org"},
 				},
+				Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
+			},
+		},
+		{
+			"the composer's keys set",
+			"[composer]\nmarkdown = false\nconfirm_sms = false\n\n" +
+				"[display]\nsend_typing = false\nskin_tone = \"medium\"\n\n" +
+				"[display.emoji]\nset = \"standard\"\nextra = { shipit = \"🐿️\" }\n\n" +
+				"[display.reactions]\nscope = \"static\"\nstatic = [\"👍\", \"🎉\"]\n",
+			&devicev1.DeviceSettingsResponse{
+				SendReceipts: true, UnreadLine: true, SkinTone: "\U0001F3FD", EmojiSet: "standard",
+				EmojiExtra: map[string]string{"shipit": "🐿️"}, ReactionsScope: "static", ReactionsStatic: []string{"👍", "🎉"},
 			},
 		},
 		{
 			"changed by hand meanwhile",
 			"[display]\n[[display.read_rule]]\nmatch = \"matrix:fedcba9876543210/!room:example.org\"\nsend = false\n",
 			&devicev1.DeviceSettingsResponse{
-				SendReceipts: true, UnreadLine: true,
+				SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
 				ReadRules: []*devicev1.ReadRule{{Match: "matrix:fedcba9876543210/!room:example.org", Send: &no}},
 			},
 		},
@@ -69,7 +81,9 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 
 // settingsText spells s for comparing: each key, and each rule with send unset told apart.
 func settingsText(s *devicev1.DeviceSettingsResponse) string {
-	text := fmt.Sprintf("send_receipts=%v unread_line=%v rules:", s.GetSendReceipts(), s.GetUnreadLine())
+	text := fmt.Sprintf("send_receipts=%v unread_line=%v markdown=%v confirm_sms=%v send_typing=%v tone=%q set=%q extra=%v scope=%q static=%q rules:",
+		s.GetSendReceipts(), s.GetUnreadLine(), s.GetMarkdown(), s.GetConfirmSms(), s.GetSendTyping(), s.GetSkinTone(),
+		s.GetEmojiSet(), s.GetEmojiExtra(), s.GetReactionsScope(), s.GetReactionsStatic())
 	for _, r := range s.GetReadRules() {
 		send := "unset"
 		if r.Send != nil {

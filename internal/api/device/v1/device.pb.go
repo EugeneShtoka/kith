@@ -21,6 +21,123 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type OutgoingRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// path is the file the person picked, dropped or pasted, on this device.
+	Path          string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OutgoingRequest) Reset() {
+	*x = OutgoingRequest{}
+	mi := &file_device_v1_device_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OutgoingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OutgoingRequest) ProtoMessage() {}
+
+func (x *OutgoingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OutgoingRequest.ProtoReflect.Descriptor instead.
+func (*OutgoingRequest) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *OutgoingRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type OutgoingResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// path is what to send: a clean copy, or the file itself when it needs none.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// name is what the file is sent as; empty sends it under its own.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// copied: path is a copy in a folder of its own, which main removes once sent.
+	Copied bool `protobuf:"varint,3,opt,name=copied,proto3" json:"copied,omitempty"`
+	// kept: a picture whose metadata kith cannot remove (HEIC), sent as it is.
+	Kept          bool `protobuf:"varint,4,opt,name=kept,proto3" json:"kept,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OutgoingResponse) Reset() {
+	*x = OutgoingResponse{}
+	mi := &file_device_v1_device_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OutgoingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OutgoingResponse) ProtoMessage() {}
+
+func (x *OutgoingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OutgoingResponse.ProtoReflect.Descriptor instead.
+func (*OutgoingResponse) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *OutgoingResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *OutgoingResponse) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *OutgoingResponse) GetCopied() bool {
+	if x != nil {
+		return x.Copied
+	}
+	return false
+}
+
+func (x *OutgoingResponse) GetKept() bool {
+	if x != nil {
+		return x.Kept
+	}
+	return false
+}
+
 type DeviceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -29,7 +146,7 @@ type DeviceRequest struct {
 
 func (x *DeviceRequest) Reset() {
 	*x = DeviceRequest{}
-	mi := &file_device_v1_device_proto_msgTypes[0]
+	mi := &file_device_v1_device_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41,7 +158,7 @@ func (x *DeviceRequest) String() string {
 func (*DeviceRequest) ProtoMessage() {}
 
 func (x *DeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[0]
+	mi := &file_device_v1_device_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54,7 +171,7 @@ func (x *DeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceRequest.ProtoReflect.Descriptor instead.
 func (*DeviceRequest) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{0}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{2}
 }
 
 type DeviceResponse struct {
@@ -73,7 +190,7 @@ type DeviceResponse struct {
 
 func (x *DeviceResponse) Reset() {
 	*x = DeviceResponse{}
-	mi := &file_device_v1_device_proto_msgTypes[1]
+	mi := &file_device_v1_device_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -85,7 +202,7 @@ func (x *DeviceResponse) String() string {
 func (*DeviceResponse) ProtoMessage() {}
 
 func (x *DeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[1]
+	mi := &file_device_v1_device_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -98,7 +215,7 @@ func (x *DeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceResponse.ProtoReflect.Descriptor instead.
 func (*DeviceResponse) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{1}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *DeviceResponse) GetSocket() string {
@@ -132,7 +249,7 @@ type ChooseProfileRequest struct {
 
 func (x *ChooseProfileRequest) Reset() {
 	*x = ChooseProfileRequest{}
-	mi := &file_device_v1_device_proto_msgTypes[2]
+	mi := &file_device_v1_device_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -144,7 +261,7 @@ func (x *ChooseProfileRequest) String() string {
 func (*ChooseProfileRequest) ProtoMessage() {}
 
 func (x *ChooseProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[2]
+	mi := &file_device_v1_device_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -157,7 +274,7 @@ func (x *ChooseProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChooseProfileRequest.ProtoReflect.Descriptor instead.
 func (*ChooseProfileRequest) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{2}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ChooseProfileRequest) GetName() string {
@@ -177,7 +294,7 @@ type ChooseProfileResponse struct {
 
 func (x *ChooseProfileResponse) Reset() {
 	*x = ChooseProfileResponse{}
-	mi := &file_device_v1_device_proto_msgTypes[3]
+	mi := &file_device_v1_device_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -189,7 +306,7 @@ func (x *ChooseProfileResponse) String() string {
 func (*ChooseProfileResponse) ProtoMessage() {}
 
 func (x *ChooseProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[3]
+	mi := &file_device_v1_device_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -202,7 +319,7 @@ func (x *ChooseProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChooseProfileResponse.ProtoReflect.Descriptor instead.
 func (*ChooseProfileResponse) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{3}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ChooseProfileResponse) GetProfile() string {
@@ -220,7 +337,7 @@ type DeviceSettingsRequest struct {
 
 func (x *DeviceSettingsRequest) Reset() {
 	*x = DeviceSettingsRequest{}
-	mi := &file_device_v1_device_proto_msgTypes[4]
+	mi := &file_device_v1_device_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -232,7 +349,7 @@ func (x *DeviceSettingsRequest) String() string {
 func (*DeviceSettingsRequest) ProtoMessage() {}
 
 func (x *DeviceSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[4]
+	mi := &file_device_v1_device_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -245,7 +362,7 @@ func (x *DeviceSettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceSettingsRequest.ProtoReflect.Descriptor instead.
 func (*DeviceSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{4}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{6}
 }
 
 type DeviceSettingsResponse struct {
@@ -258,14 +375,30 @@ type DeviceSettingsResponse struct {
 	ReadRules []*ReadRule `protobuf:"bytes,2,rep,name=read_rules,json=readRules,proto3" json:"read_rules,omitempty"`
 	// [display] unread_line: a rule drawn where a room's unread messages began when it
 	// was opened.
-	UnreadLine    bool `protobuf:"varint,3,opt,name=unread_line,json=unreadLine,proto3" json:"unread_line,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	UnreadLine bool `protobuf:"varint,3,opt,name=unread_line,json=unreadLine,proto3" json:"unread_line,omitempty"`
+	// [composer] markdown: a message is sent with its Markdown rendered.
+	Markdown bool `protobuf:"varint,4,opt,name=markdown,proto3" json:"markdown,omitempty"`
+	// [composer] confirm_sms: a message or file to a chat that sends as SMS asks first.
+	ConfirmSms bool `protobuf:"varint,5,opt,name=confirm_sms,json=confirmSms,proto3" json:"confirm_sms,omitempty"`
+	// [display] send_typing: rooms are told while you type.
+	SendTyping bool `protobuf:"varint,6,opt,name=send_typing,json=sendTyping,proto3" json:"send_typing,omitempty"`
+	// [display] skin_tone, as the modifier that applies it; "" for none.
+	SkinTone string `protobuf:"bytes,7,opt,name=skin_tone,json=skinTone,proto3" json:"skin_tone,omitempty"`
+	// [display.emoji]: the set offered ("curated", "standard" or "complete"), and the
+	// shortcodes added to it.
+	EmojiSet   string            `protobuf:"bytes,8,opt,name=emoji_set,json=emojiSet,proto3" json:"emoji_set,omitempty"`
+	EmojiExtra map[string]string `protobuf:"bytes,9,rep,name=emoji_extra,json=emojiExtra,proto3" json:"emoji_extra,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// [display.reactions]: how the quick palette is ranked ("room", "space", "global" or
+	// "static"), and the emoji it starts from; none set is the built-in ones.
+	ReactionsScope  string   `protobuf:"bytes,10,opt,name=reactions_scope,json=reactionsScope,proto3" json:"reactions_scope,omitempty"`
+	ReactionsStatic []string `protobuf:"bytes,11,rep,name=reactions_static,json=reactionsStatic,proto3" json:"reactions_static,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DeviceSettingsResponse) Reset() {
 	*x = DeviceSettingsResponse{}
-	mi := &file_device_v1_device_proto_msgTypes[5]
+	mi := &file_device_v1_device_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -277,7 +410,7 @@ func (x *DeviceSettingsResponse) String() string {
 func (*DeviceSettingsResponse) ProtoMessage() {}
 
 func (x *DeviceSettingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[5]
+	mi := &file_device_v1_device_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -290,7 +423,7 @@ func (x *DeviceSettingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceSettingsResponse.ProtoReflect.Descriptor instead.
 func (*DeviceSettingsResponse) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{5}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *DeviceSettingsResponse) GetSendReceipts() bool {
@@ -314,6 +447,62 @@ func (x *DeviceSettingsResponse) GetUnreadLine() bool {
 	return false
 }
 
+func (x *DeviceSettingsResponse) GetMarkdown() bool {
+	if x != nil {
+		return x.Markdown
+	}
+	return false
+}
+
+func (x *DeviceSettingsResponse) GetConfirmSms() bool {
+	if x != nil {
+		return x.ConfirmSms
+	}
+	return false
+}
+
+func (x *DeviceSettingsResponse) GetSendTyping() bool {
+	if x != nil {
+		return x.SendTyping
+	}
+	return false
+}
+
+func (x *DeviceSettingsResponse) GetSkinTone() string {
+	if x != nil {
+		return x.SkinTone
+	}
+	return ""
+}
+
+func (x *DeviceSettingsResponse) GetEmojiSet() string {
+	if x != nil {
+		return x.EmojiSet
+	}
+	return ""
+}
+
+func (x *DeviceSettingsResponse) GetEmojiExtra() map[string]string {
+	if x != nil {
+		return x.EmojiExtra
+	}
+	return nil
+}
+
+func (x *DeviceSettingsResponse) GetReactionsScope() string {
+	if x != nil {
+		return x.ReactionsScope
+	}
+	return ""
+}
+
+func (x *DeviceSettingsResponse) GetReactionsStatic() []string {
+	if x != nil {
+		return x.ReactionsStatic
+	}
+	return nil
+}
+
 // ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
 // opening it, so how long a cursor rests on one is the TUI's.
 type ReadRule struct {
@@ -330,7 +519,7 @@ type ReadRule struct {
 
 func (x *ReadRule) Reset() {
 	*x = ReadRule{}
-	mi := &file_device_v1_device_proto_msgTypes[6]
+	mi := &file_device_v1_device_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -342,7 +531,7 @@ func (x *ReadRule) String() string {
 func (*ReadRule) ProtoMessage() {}
 
 func (x *ReadRule) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[6]
+	mi := &file_device_v1_device_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -355,7 +544,7 @@ func (x *ReadRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadRule.ProtoReflect.Descriptor instead.
 func (*ReadRule) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{6}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ReadRule) GetMatch() string {
@@ -383,7 +572,14 @@ var File_device_v1_device_proto protoreflect.FileDescriptor
 
 const file_device_v1_device_proto_rawDesc = "" +
 	"\n" +
-	"\x16device/v1/device.proto\x12\tdevice.v1\"\x0f\n" +
+	"\x16device/v1/device.proto\x12\tdevice.v1\"%\n" +
+	"\x0fOutgoingRequest\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\"f\n" +
+	"\x10OutgoingResponse\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
+	"\x06copied\x18\x03 \x01(\bR\x06copied\x12\x12\n" +
+	"\x04kept\x18\x04 \x01(\bR\x04kept\"\x0f\n" +
 	"\rDeviceRequest\"^\n" +
 	"\x0eDeviceResponse\x12\x16\n" +
 	"\x06socket\x18\x01 \x01(\tR\x06socket\x12\x18\n" +
@@ -393,22 +589,38 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"1\n" +
 	"\x15ChooseProfileResponse\x12\x18\n" +
 	"\aprofile\x18\x01 \x01(\tR\aprofile\"\x17\n" +
-	"\x15DeviceSettingsRequest\"\x92\x01\n" +
+	"\x15DeviceSettingsRequest\"\x91\x04\n" +
 	"\x16DeviceSettingsResponse\x12#\n" +
 	"\rsend_receipts\x18\x01 \x01(\bR\fsendReceipts\x122\n" +
 	"\n" +
 	"read_rules\x18\x02 \x03(\v2\x13.device.v1.ReadRuleR\treadRules\x12\x1f\n" +
 	"\vunread_line\x18\x03 \x01(\bR\n" +
-	"unreadLine\"Z\n" +
+	"unreadLine\x12\x1a\n" +
+	"\bmarkdown\x18\x04 \x01(\bR\bmarkdown\x12\x1f\n" +
+	"\vconfirm_sms\x18\x05 \x01(\bR\n" +
+	"confirmSms\x12\x1f\n" +
+	"\vsend_typing\x18\x06 \x01(\bR\n" +
+	"sendTyping\x12\x1b\n" +
+	"\tskin_tone\x18\a \x01(\tR\bskinTone\x12\x1b\n" +
+	"\temoji_set\x18\b \x01(\tR\bemojiSet\x12R\n" +
+	"\vemoji_extra\x18\t \x03(\v21.device.v1.DeviceSettingsResponse.EmojiExtraEntryR\n" +
+	"emojiExtra\x12'\n" +
+	"\x0freactions_scope\x18\n" +
+	" \x01(\tR\x0ereactionsScope\x12)\n" +
+	"\x10reactions_static\x18\v \x03(\tR\x0freactionsStatic\x1a=\n" +
+	"\x0fEmojiExtraEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Z\n" +
 	"\bReadRule\x12\x14\n" +
 	"\x05match\x18\x01 \x01(\tR\x05match\x12\x16\n" +
 	"\x06sender\x18\x02 \x01(\tR\x06sender\x12\x17\n" +
 	"\x04send\x18\x03 \x01(\bH\x00R\x04send\x88\x01\x01B\a\n" +
-	"\x05_send2\xf9\x01\n" +
+	"\x05_send2\xbe\x02\n" +
 	"\rDeviceService\x12=\n" +
 	"\x06Device\x12\x18.device.v1.DeviceRequest\x1a\x19.device.v1.DeviceResponse\x12R\n" +
 	"\rChooseProfile\x12\x1f.device.v1.ChooseProfileRequest\x1a .device.v1.ChooseProfileResponse\x12U\n" +
-	"\x0eDeviceSettings\x12 .device.v1.DeviceSettingsRequest\x1a!.device.v1.DeviceSettingsResponseB>Z<github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1b\x06proto3"
+	"\x0eDeviceSettings\x12 .device.v1.DeviceSettingsRequest\x1a!.device.v1.DeviceSettingsResponse\x12C\n" +
+	"\bOutgoing\x12\x1a.device.v1.OutgoingRequest\x1a\x1b.device.v1.OutgoingResponseB>Z<github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1b\x06proto3"
 
 var (
 	file_device_v1_device_proto_rawDescOnce sync.Once
@@ -422,29 +634,35 @@ func file_device_v1_device_proto_rawDescGZIP() []byte {
 	return file_device_v1_device_proto_rawDescData
 }
 
-var file_device_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_device_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_device_v1_device_proto_goTypes = []any{
-	(*DeviceRequest)(nil),          // 0: device.v1.DeviceRequest
-	(*DeviceResponse)(nil),         // 1: device.v1.DeviceResponse
-	(*ChooseProfileRequest)(nil),   // 2: device.v1.ChooseProfileRequest
-	(*ChooseProfileResponse)(nil),  // 3: device.v1.ChooseProfileResponse
-	(*DeviceSettingsRequest)(nil),  // 4: device.v1.DeviceSettingsRequest
-	(*DeviceSettingsResponse)(nil), // 5: device.v1.DeviceSettingsResponse
-	(*ReadRule)(nil),               // 6: device.v1.ReadRule
+	(*OutgoingRequest)(nil),        // 0: device.v1.OutgoingRequest
+	(*OutgoingResponse)(nil),       // 1: device.v1.OutgoingResponse
+	(*DeviceRequest)(nil),          // 2: device.v1.DeviceRequest
+	(*DeviceResponse)(nil),         // 3: device.v1.DeviceResponse
+	(*ChooseProfileRequest)(nil),   // 4: device.v1.ChooseProfileRequest
+	(*ChooseProfileResponse)(nil),  // 5: device.v1.ChooseProfileResponse
+	(*DeviceSettingsRequest)(nil),  // 6: device.v1.DeviceSettingsRequest
+	(*DeviceSettingsResponse)(nil), // 7: device.v1.DeviceSettingsResponse
+	(*ReadRule)(nil),               // 8: device.v1.ReadRule
+	nil,                            // 9: device.v1.DeviceSettingsResponse.EmojiExtraEntry
 }
 var file_device_v1_device_proto_depIdxs = []int32{
-	6, // 0: device.v1.DeviceSettingsResponse.read_rules:type_name -> device.v1.ReadRule
-	0, // 1: device.v1.DeviceService.Device:input_type -> device.v1.DeviceRequest
-	2, // 2: device.v1.DeviceService.ChooseProfile:input_type -> device.v1.ChooseProfileRequest
-	4, // 3: device.v1.DeviceService.DeviceSettings:input_type -> device.v1.DeviceSettingsRequest
-	1, // 4: device.v1.DeviceService.Device:output_type -> device.v1.DeviceResponse
-	3, // 5: device.v1.DeviceService.ChooseProfile:output_type -> device.v1.ChooseProfileResponse
-	5, // 6: device.v1.DeviceService.DeviceSettings:output_type -> device.v1.DeviceSettingsResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	8, // 0: device.v1.DeviceSettingsResponse.read_rules:type_name -> device.v1.ReadRule
+	9, // 1: device.v1.DeviceSettingsResponse.emoji_extra:type_name -> device.v1.DeviceSettingsResponse.EmojiExtraEntry
+	2, // 2: device.v1.DeviceService.Device:input_type -> device.v1.DeviceRequest
+	4, // 3: device.v1.DeviceService.ChooseProfile:input_type -> device.v1.ChooseProfileRequest
+	6, // 4: device.v1.DeviceService.DeviceSettings:input_type -> device.v1.DeviceSettingsRequest
+	0, // 5: device.v1.DeviceService.Outgoing:input_type -> device.v1.OutgoingRequest
+	3, // 6: device.v1.DeviceService.Device:output_type -> device.v1.DeviceResponse
+	5, // 7: device.v1.DeviceService.ChooseProfile:output_type -> device.v1.ChooseProfileResponse
+	7, // 8: device.v1.DeviceService.DeviceSettings:output_type -> device.v1.DeviceSettingsResponse
+	1, // 9: device.v1.DeviceService.Outgoing:output_type -> device.v1.OutgoingResponse
+	6, // [6:10] is the sub-list for method output_type
+	2, // [2:6] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_device_v1_device_proto_init() }
@@ -452,14 +670,14 @@ func file_device_v1_device_proto_init() {
 	if File_device_v1_device_proto != nil {
 		return
 	}
-	file_device_v1_device_proto_msgTypes[6].OneofWrappers = []any{}
+	file_device_v1_device_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_device_v1_device_proto_rawDesc), len(file_device_v1_device_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

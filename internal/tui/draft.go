@@ -1,13 +1,11 @@
 package tui
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
 	"slices"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -68,13 +66,13 @@ type draftSaver struct {
 	// that already answered.
 	epoch   int
 	touched map[domain.RoomID]int
-	// retry are rooms whose last save failed (no answer, or the store kept changing). The
-	// next successful poll writes them again.
+	// retry are rooms whose last save failed. The next successful poll writes them again.
 	retry map[domain.RoomID]bool
 	// unsure are this client's writes whose outcome it never heard, per room, oldest
-	// first: a write can land and its reply be lost. A stored draft equal to or extending
-	// one descends from this client's own write, so none of it is another writer's (see
-	// descentOf). Cleared when a save of the room answers.
+	// first: a write can land and its reply be lost. Each save hands them to kithd, which
+	// reads a stored draft equal to or extending one as descending from this client's own
+	// write, so none of it is another writer's (domain.RebaseDraft). Cleared when a save
+	// of the room answers.
 	unsure map[domain.RoomID][]ownWrite
 	// lastMs is the newest stamp this client gave a write. Stamps only increase, so a
 	// write turned down is never mistaken for one that landed.
@@ -85,11 +83,9 @@ type draftSaver struct {
 	quitRetries int
 }
 
-// ownWrite is a version this client wrote without hearing back, and the assistant's
-// words that write folded in, which the local copy never learned.
+// ownWrite is a version this client wrote without hearing back.
 type ownWrite struct {
-	v     draftStamp
-	added string
+	v draftStamp
 }
 
 // composerKey is what the debounce watches in the open room's composer.
@@ -125,15 +121,6 @@ type draftStamp struct {
 	reply   domain.EventID
 	thread  domain.EventID
 	ms      int64
-}
-
-// words is the stamp's draft words: the body, or while a message is being corrected,
-// the draft the edit returns to (the body is then the correction).
-func (st draftStamp) words() string {
-	if st.editing != "" {
-		return st.saved
-	}
-	return st.body
 }
 
 func stampOf(s domain.StoredDraft) draftStamp {
@@ -602,7 +589,7 @@ func (m Model) composerDraft() draft {
 }
 
 // draftSavedMsg is a draft write's outcome: the version now stored, and the
-// assistant's words the write folded in, for the room's local copy.
+// assistant's words kithd folded in, for the room's local copy.
 type draftSavedMsg struct {
 	err  error
 	room domain.RoomID
@@ -615,176 +602,40 @@ type draftSavedMsg struct {
 	refused []draftStamp
 }
 
-// draftAttempts bounds how often a save folds in the assistant's words and retries.
-const draftAttempts = 3
-
-// errDraftContended is a save that lost to other writers every time.
-var errDraftContended = errors.New("the stored draft kept changing under this write")
-
 // saveDraftCmd writes or clears one room's draft over the version this client holds.
-// If the assistant (kith-mcp) appended since, its words go after these and the write
-// is retried, so neither side loses words. A stored version this client wrote without
-// hearing back is its own, not the assistant's (descentOf).
+// kithd rebases it (api.Drafts.RebaseDraft): if the assistant (kith-mcp) appended
+// since, its words go after these, so neither side loses words, and come back to be
+// folded into the local copy. This client's writes it never heard back about go along,
+// so a stored version it wrote is read as its own, not the assistant's.
 func (m Model) saveDraftCmd(room domain.RoomID, stored domain.StoredDraft) tea.Cmd {
-	base := m.draftSync.bases[room]
-	own := slices.Clone(m.draftSync.unsure[room])
+	base := m.draftSync.bases[room].over(room)
+	var unanswered []domain.StoredDraft
+	for _, w := range m.draftSync.unsure[room] {
+		if w.v != stampOf(stored) { // this write itself is not stored yet
+			unanswered = append(unanswered, w.v.over(room))
+		}
+	}
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
-		var added string
-		var refused []draftStamp
-		for range draftAttempts {
-			saved, err := backend.ReplaceDraft(ctx, stored, base.over(room))
-			if ctx.Err() != nil {
-				return nil // the program ended (tui.Run cancels its commands); its last write redoes this
-			}
-			if err != nil {
-				return failedSave(err, room, ownWrite{v: stampOf(stored), added: added}, refused)
-			}
-			if saved {
-				return draftSavedMsg{room: room, wrote: stored, added: added}
-			}
-			// Turned down: this version is not stored, so not this client's to claim.
-			refused = append(refused, stampOf(stored))
-			own = slices.DeleteFunc(own, func(w ownWrite) bool { return w.v == stampOf(stored) })
-			current, err := storedDraftOf(ctx, backend, room)
-			if err != nil {
-				return draftSavedMsg{err: err, room: room, refused: refused}
-			}
-			over, mine := descentOf(current, base, own)
-			own = slices.DeleteFunc(own, func(w ownWrite) bool { return w.v == mine.v })
-			// A write of this client's that landed unheard already folded these in.
-			stored = withWords(stored, joinDraft(words(stored), mine.added))
-			var theirs string
-			stored, theirs = rebaseOnto(stored, over, current)
-			added = joinDraft(joinDraft(added, mine.added), theirs)
-			base = stampOf(current) // the compare-and-set is against what is stored
+		wrote, added, err := backend.RebaseDraft(ctx, stored, base, unanswered)
+		if ctx.Err() != nil {
+			return nil // the program ended (tui.Run cancels its commands); its last write redoes this
 		}
-		return draftSavedMsg{err: errDraftContended, room: room, refused: refused}
+		if err != nil {
+			return failedSave(err, room, ownWrite{v: stampOf(stored)})
+		}
+		return draftSavedMsg{room: room, wrote: wrote, added: added}
 	}
 }
 
 // failedSave is a save's answer when its write failed. A write the seat refused is
 // known not stored (another window has it); any other failure may have landed with
 // its answer lost, so mine may be stored.
-func failedSave(err error, room domain.RoomID, mine ownWrite, refused []draftStamp) draftSavedMsg {
+func failedSave(err error, room domain.RoomID, mine ownWrite) draftSavedMsg {
 	if errors.Is(err, api.ErrSeatTaken) {
-		return draftSavedMsg{err: err, room: room, refused: append(refused, mine.v)}
+		return draftSavedMsg{err: err, room: room, refused: []draftStamp{mine.v}}
 	}
-	return draftSavedMsg{err: err, room: room, unsure: []ownWrite{mine}, refused: refused}
-}
-
-// descentOf is the version current was written over, as far as this client can tell:
-// one of its own unanswered writes when current is that write or that write plus the
-// assistant's words (the longest such), else base. The assistant only appends words
-// and never changes the reply target, and only this window sets targets (api.Seat), so
-// a version current does not extend, or whose targets differ, is not its parent.
-// Without this, a write that landed with its reply lost would read on retry as the
-// assistant's addition, doubling this client's words.
-func descentOf(current domain.StoredDraft, base draftStamp, own []ownWrite) (draftStamp, ownWrite) {
-	now := stampOf(current)
-	if i := slices.IndexFunc(own, func(w ownWrite) bool { return w.v == now }); i >= 0 {
-		return now, own[i]
-	}
-	under := func(v draftStamp) bool {
-		return sameTargets(v, now) && extends(words(current), v.words())
-	}
-	// The longest words; on a tie this client's write, which came after the base.
-	best, mine, longest := base, ownWrite{}, -1
-	if under(base) {
-		longest = len(base.words())
-	}
-	for i := range own {
-		if v := own[i].v; v.words() != "" && under(v) && len(v.words()) >= longest {
-			best, mine, longest = v, own[i], len(v.words())
-		}
-	}
-	return best, mine
-}
-
-// sameTargets reports whether two versions agree on everything but words: reply
-// target, thread, and the message being corrected with its correction.
-func sameTargets(a, b draftStamp) bool {
-	return a.reply == b.reply && a.thread == b.thread && a.editing == b.editing && (a.editing == "" || a.body == b.body)
-}
-
-// words is a stored draft's draft words: the body, or while a message is corrected,
-// the draft the edit returns to. withWords sets them.
-func words(d domain.StoredDraft) string {
-	if d.Editing != "" {
-		return d.EditSaved
-	}
-	return d.Body
-}
-
-func withWords(d domain.StoredDraft, text string) domain.StoredDraft {
-	if d.Editing != "" {
-		d.EditSaved = text
-	} else {
-		d.Body = text
-	}
-	return d
-}
-
-// rebaseOnto is what to write when the stored draft moved from base to current, and
-// the words the assistant added. Its words go after this client's: in the words, or
-// while a message is corrected, in the draft the edit returns to (the correction is
-// kept). A stored draft that no longer holds base (its room was left elsewhere) is
-// kept whole beside this client's words, so neither is lost.
-func rebaseOnto(stored domain.StoredDraft, base draftStamp, current domain.StoredDraft) (domain.StoredDraft, string) {
-	mine := words(stored)
-	theirs := addedOver(words(current), base.words(), mine)
-	return withWords(stored, joinDraft(mine, theirs)), theirs
-}
-
-// storedDraftOf is the room's stored draft, or the empty one.
-func storedDraftOf(ctx context.Context, backend api.Drafts, room domain.RoomID) (domain.StoredDraft, error) {
-	drafts, err := backend.Drafts(ctx)
-	if err != nil {
-		return domain.StoredDraft{}, fmt.Errorf("read the stored draft: %w", err)
-	}
-	for i := range drafts {
-		if drafts[i].RoomID == room {
-			return drafts[i], nil
-		}
-	}
-	return domain.StoredDraft{}, nil
-}
-
-// addedOver is what another writer appended to a stored draft after this client's
-// version (kith-mcp only appends). A draft rewritten otherwise, or written where this
-// client had none, is kept whole; one equal to what this client is writing adds nothing.
-func addedOver(stored, base, writing string) string {
-	switch {
-	case stored == writing:
-		return ""
-	case base != "" && extends(stored, base):
-		return strings.TrimLeft(stored[len(base):], " \n")
-	default:
-		return stored
-	}
-}
-
-// extends reports whether text is base, or base followed by more after a space or
-// line break: "a10" does not extend "a1".
-func extends(text, base string) bool {
-	if !strings.HasPrefix(text, base) {
-		return false
-	}
-	rest := text[len(base):]
-	return rest == "" || base == "" || rest[0] == ' ' || rest[0] == '\n' ||
-		strings.HasSuffix(base, " ") || strings.HasSuffix(base, "\n")
-}
-
-// joinDraft puts more after text, a blank line between, as kith-mcp appends.
-func joinDraft(text, more string) string {
-	switch {
-	case more == "":
-		return text
-	case text == "":
-		return more
-	default:
-		return text + "\n\n" + more
-	}
+	return draftSavedMsg{err: err, room: room, unsure: []ownWrite{mine}}
 }
 
 // handleDraftSaved ends a save: the room's base moves to what was stored, the
@@ -868,22 +719,22 @@ func (m Model) foldInDraft(room domain.RoomID, added string) Model {
 	if room != m.openRoom {
 		held := m.drafts[room]
 		if held.editing != "" {
-			held.editSaved = joinDraft(held.editSaved, added)
+			held.editSaved = domain.JoinDraft(held.editSaved, added)
 		} else {
-			held.input = joinDraft(held.input, added)
+			held.input = domain.JoinDraft(held.input, added)
 		}
 		m.drafts = setDraft(m.drafts, room, held)
 		return m.rebuiltRail()
 	}
 	if m.compose.isEditing() {
-		m.compose.editSaved = joinDraft(m.compose.editSaved, added)
+		m.compose.editSaved = domain.JoinDraft(m.compose.editSaved, added)
 		return m.say("the assistant added to this draft; it is back when the edit ends")
 	}
 	if m.compose.input == "" {
 		// Nothing of this client's to continue from: continue after theirs.
 		m = m.store(fieldComposer, newEditor(added).end())
 	} else {
-		m.compose.input = joinDraft(m.compose.input, added)
+		m.compose.input = domain.JoinDraft(m.compose.input, added)
 	}
 	m = m.trackComposerDraft()
 	return m.say("the assistant added to this draft")

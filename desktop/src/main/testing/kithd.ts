@@ -63,6 +63,24 @@ export class FakeKithd {
   readonly changes: Row[] = [];
   /** What LoadImage answers, by event. */
   readonly pictures = new Map<string, Uint8Array>();
+  /** Uploads staged (StartUpload), by ID: the name, the bytes, which bytes chunks covered. */
+  readonly uploads = new Map<string, { name: string; data: Uint8Array; covered: Uint8Array }>();
+  /** Files posted (SendFile), each using its upload up, posted or not. */
+  readonly posted: { room: string; name: string; caption: string; data: Uint8Array }[] = [];
+  /** PutUploads still to cut off: the chunk written, the answer lost on the way. */
+  cutPuts = 0;
+  /** SendFile posts, and its answer is lost. */
+  loseSendFile = false;
+  /** Holds PutUpload answers until released (each call waits on its own release). */
+  readonly heldPuts: (() => void)[] = [];
+  holdPuts = false;
+  /** What the relay's Outgoing answers for a path: by default the file, as it is. */
+  outgoing: (path: string) => { path: string; name: string; copied: boolean; kept: boolean } = (path) => ({
+    path,
+    name: "",
+    copied: false,
+    kept: false,
+  });
   private server: Server | undefined;
   private readonly sockets = new Set<Socket>();
   private readonly dir: string;
@@ -114,6 +132,51 @@ export class FakeKithd {
         },
         cachedInvites: () => ({ invites: this.invited.map((id) => create(RoomSchema, { id, membership: "invite" })) }),
         joinRoom: (req) => ({ roomId: req.roomIdOrAlias }),
+        replaceDraft: (req, ctx) => {
+          this.received.push({ method: "ReplaceDraft", profile: ctx.requestHeader.get("Kith-Profile"), message: req });
+          return { saved: true, stored: req.draft };
+        },
+        startUpload: (req) => {
+          const id = `up${String(this.uploads.size + this.posted.length + 1)}`;
+          const size = Number(req.size);
+          this.uploads.set(id, { name: req.name, data: new Uint8Array(size), covered: new Uint8Array(size) });
+          return { uploadId: id };
+        },
+        putUpload: async (req) => {
+          if (this.holdPuts) {
+            await new Promise<void>((resolve) => this.heldPuts.push(resolve));
+          }
+          const up = this.uploads.get(req.uploadId);
+          const at = Number(req.offset);
+          if (up === undefined) {
+            throw new ConnectError("no such upload", Code.NotFound);
+          }
+          if (at + req.data.length > up.data.length) {
+            throw new ConnectError("past the upload's size", Code.InvalidArgument);
+          }
+          up.data.set(req.data, at);
+          up.covered.fill(1, at, at + req.data.length);
+          if (this.cutPuts > 0) {
+            this.cutPuts--;
+            throw new ConnectError("connection reset", Code.Unavailable);
+          }
+          return {};
+        },
+        sendFile: (req) => {
+          const up = this.uploads.get(req.uploadId);
+          if (up === undefined) {
+            throw new ConnectError("no such upload", Code.NotFound);
+          }
+          if (up.covered.includes(0)) {
+            throw new ConnectError("the upload is not complete", Code.FailedPrecondition);
+          }
+          this.uploads.delete(req.uploadId); // used up, sent or not
+          this.posted.push({ room: req.roomId, name: req.name || up.name, caption: req.caption, data: up.data });
+          if (this.loseSendFile) {
+            throw new ConnectError("connection reset", Code.Unavailable);
+          }
+          return {};
+        },
         leaveRoom: () => ({}),
         loadImage: (req) => {
           const data = this.pictures.get(req.eventId);
@@ -130,6 +193,7 @@ export class FakeKithd {
           const profile = this.profiles.includes(this.remembered) ? this.remembered : "";
           return { socket: this.socket, profile, profiles: this.profiles };
         },
+        outgoing: (req) => this.outgoing(req.path),
         chooseProfile: (req) => {
           const name = this.profiles.find((p) => p.toLowerCase() === req.name.toLowerCase());
           if (name === undefined) {

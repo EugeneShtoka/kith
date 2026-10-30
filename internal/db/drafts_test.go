@@ -2,6 +2,9 @@ package db
 
 import (
 	"context"
+	"fmt"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -332,4 +335,115 @@ func onlyDraft(t *testing.T, cache *Cache) domain.StoredDraft {
 		t.Fatalf("Drafts = %+v, %v; want one", got, err)
 	}
 	return got[0]
+}
+
+// RebaseDraft writes a window's draft over the version it read and keeps what another
+// writer appended since, after the window's words, saying which words those were.
+func TestRebaseDraftKeepsWhatWasAddedSinceTheRead(t *testing.T) {
+	t.Parallel()
+	cache, ctx := openTemp(t), context.Background()
+	const room = domain.RoomID(mx + "!r:x")
+	first := domain.StoredDraft{RoomID: room, Body: "hi", ReplyTo: mx + "$q", Updated: time.UnixMilli(1000)}
+	if stored, added, err := cache.RebaseDraft(ctx, first, domain.StoredDraft{}, nil); err != nil || added != "" || stored.Body != "hi" {
+		t.Fatalf("RebaseDraft over none = %+v, %q, %v; want it stored as written", stored, added, err)
+	}
+	// The assistant appends to what it read.
+	theirs := first
+	theirs.Body, theirs.Author, theirs.Updated = "hi\n\nthe report", "agent", time.UnixMilli(2000)
+	if saved, err := cache.ReplaceDraft(ctx, theirs, first); err != nil || !saved {
+		t.Fatalf("the assistant's append = %v, %v", saved, err)
+	}
+	mine := first
+	mine.Body, mine.Updated = "hi there", time.UnixMilli(3000)
+	stored, added, err := cache.RebaseDraft(ctx, mine, first, nil)
+	if err != nil || added != "the report" || stored.Body != "hi there\n\nthe report" || stored.ReplyTo != mx+"$q" {
+		t.Fatalf("RebaseDraft over a stale read = %+v, %q, %v; want the addition after the window's words", stored, added, err)
+	}
+	if got := onlyDraft(t, cache); got.Body != stored.Body || !got.Updated.Equal(stored.Updated) {
+		t.Fatalf("stored %+v; want what RebaseDraft answered, %+v", got, stored)
+	}
+	// A write that landed with its answer lost, then more typing: its words are the
+	// window's own, written once.
+	lost := stored
+	lost.Body, lost.Updated = "hi there you\n\nthe report", time.UnixMilli(4000)
+	if _, _, err := cache.RebaseDraft(ctx, lost, stored, nil); err != nil {
+		t.Fatal(err)
+	}
+	again := lost
+	again.Body, again.Updated = "hi there you all\n\nthe report", time.UnixMilli(5000)
+	if retried, added, err := cache.RebaseDraft(ctx, again, stored, []domain.StoredDraft{lost}); err != nil || added != "" ||
+		retried.Body != again.Body {
+		t.Fatalf("RebaseDraft after a lost answer = %+v, %q, %v; want %q once", retried, added, err, again.Body)
+	}
+	// Emptied (sent), the draft goes.
+	if emptied, _, err := cache.RebaseDraft(ctx, domain.StoredDraft{RoomID: room}, again, nil); err != nil || !emptied.Empty() {
+		t.Fatalf("an emptied draft = %+v, %v; want none stored", emptied, err)
+	}
+	if drafts, _ := cache.Drafts(ctx); len(drafts) != 0 {
+		t.Fatalf("Drafts() after emptying = %+v, want none", drafts)
+	}
+}
+
+// A window rebasing its typing and the assistant appending (compare-and-set, as
+// kith-mcp does) at once, on goroutines: every word is stored exactly once.
+func TestRebaseAndAppendsRacingKeepEveryWord(t *testing.T) {
+	t.Parallel()
+	cache, ctx := openTemp(t), context.Background()
+	const room = domain.RoomID(mx + "!r:x")
+	const rounds = 40
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		local, base := "", domain.StoredDraft{}
+		for i := range rounds {
+			local = strings.TrimSpace(local + fmt.Sprintf(" w%d", i))
+			stored, added, err := cache.RebaseDraft(ctx,
+				domain.StoredDraft{RoomID: room, Body: local, Updated: time.UnixMilli(int64(1000 + i))}, base, nil)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			local, base = domain.JoinDraft(local, added), stored
+		}
+	})
+	wg.Go(func() {
+		for i := range rounds {
+			if err := appendDraft(ctx, cache, room, fmt.Sprintf("a%d", i)); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	})
+	wg.Wait()
+	count := map[string]int{}
+	body := onlyDraft(t, cache).Body
+	for f := range strings.FieldsSeq(body) {
+		count[f]++
+	}
+	for i := range rounds {
+		for _, word := range []string{fmt.Sprintf("w%d", i), fmt.Sprintf("a%d", i)} {
+			if count[word] != 1 {
+				t.Errorf("%q is stored %d times in %q", word, count[word], body)
+			}
+		}
+	}
+}
+
+// appendDraft is kith-mcp's append: over the draft it read, read again when it moved.
+func appendDraft(ctx context.Context, c *Cache, room domain.RoomID, word string) error {
+	for {
+		drafts, err := c.Drafts(ctx)
+		if err != nil {
+			return err
+		}
+		var over domain.StoredDraft
+		if len(drafts) > 0 {
+			over = drafts[0]
+		}
+		next := over
+		next.RoomID, next.Body, next.Author = room, domain.JoinDraft(over.Body, word), "agent"
+		next.Updated = time.UnixMilli(over.Updated.UnixMilli() + 1)
+		if saved, err := c.ReplaceDraft(ctx, next, over); err != nil || saved {
+			return err
+		}
+	}
 }

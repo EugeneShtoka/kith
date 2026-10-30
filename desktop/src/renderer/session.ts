@@ -11,9 +11,10 @@ import {
   type SeatResponse,
   type StatusResponse,
 } from "../gen/backend/v1/services_pb";
-import type { Message, Reaction, Room, Unread } from "../gen/backend/v1/types_pb";
+import type { Member, Message, Reaction, Room, Unread } from "../gen/backend/v1/types_pb";
 import { type DeviceSettingsResponse, DeviceService } from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
+import { Composer, type ComposerView, type Unsent } from "./compose";
 import { call, subscribe } from "./kith";
 import { announces } from "./read";
 import { ordered, total } from "./rooms";
@@ -62,6 +63,8 @@ export interface View {
   timeline: TimelineView | undefined;
   /** Whether the unread line is drawn ([display] unread_line). */
   unreadLine: boolean;
+  /** The open room's composer. */
+  composer: ComposerView | undefined;
   problem: string | undefined;
 }
 
@@ -76,6 +79,7 @@ const nothingShown = {
   open: "",
   timeline: undefined,
   unreadLine: true,
+  composer: undefined,
 } satisfies Partial<View>;
 
 /** Run is one stay in one profile's seat: what it opened, closed together when it ends. */
@@ -98,6 +102,8 @@ interface Run {
   /** Counts the reactions reads; the Reactions frames held while one is answered. */
   reactionReads: number;
   reactionsHeld: ReactionsResponse[] | undefined;
+  /** The composer: drafts, files, failed sends. */
+  composer: Composer;
 }
 
 export class Session {
@@ -119,6 +125,8 @@ export class Session {
   /** start reads the device, which runs the window in a profile or has it ask. */
   start(): void {
     this.readDevice();
+    // Closing, the window writes its drafts first (main waits a little for it).
+    window.kith.closing(() => this.run?.composer.drafts.flush() ?? Promise.resolve());
   }
 
   /** stop closes every stream: the window is going. */
@@ -178,6 +186,7 @@ export class Session {
     }
     run.timeline = new Timeline(room, this.view.unread.get(room)?.readEvent ?? "");
     run.settings = undefined;
+    run.composer.opened(room);
     this.set({ open: room, unreadLine: true });
     this.readSettings(run, run.timeline);
     this.readReactions(run);
@@ -195,10 +204,97 @@ export class Session {
 
   /** watch says whether the open room is watched (at its newest, the window focused): what arrives meanwhile is read. */
   watch(watching: boolean): void {
+    const was = this.watching;
     this.watching = watching;
     if (this.run !== undefined) {
       this.markRead(this.run);
+      if (was && !watching) {
+        void this.run.composer.drafts.flush(0); // out of sight: the drafts are written now
+      }
     }
+  }
+
+  /** type is the person typing in the open room's composer; it answers where the caret goes. */
+  type(text: string, caret: number): number {
+    return this.run === undefined || this.view.open === ""
+      ? caret
+      : this.run.composer.type(this.view.open, text, caret);
+  }
+
+  /** mention puts m in place of the open composer's text[start, end); it answers the caret. */
+  mention(m: Member, start: number, end: number): number {
+    return this.run === undefined ? end : this.run.composer.mention(this.view.open, m, start, end);
+  }
+
+  /** emoji records an emoji put in the open composer. */
+  emoji(emoji: string): void {
+    this.run?.composer.emoji(this.view.open, emoji);
+  }
+
+  /** wantMembers reads the open room's people for mentions. */
+  wantMembers(): void {
+    this.run?.composer.wantMembers(this.view.open);
+  }
+
+  reply(m: Message): void {
+    this.run?.composer.reply(m);
+  }
+
+  edit(m: Message): void {
+    this.run?.composer.edit(m);
+  }
+
+  /** cancel ends the open composer's correction, or its reply. */
+  cancel(): void {
+    this.run?.composer.cancel(this.view.open);
+  }
+
+  remove(m: Message): Promise<void> {
+    return this.inRun((run) => run.composer.remove(m));
+  }
+
+  /** react toggles key on m. */
+  react(m: Message, key: string): Promise<void> {
+    return this.inRun((run) => run.composer.react(m, key, run.timeline?.view().reactions.get(m.id) ?? []));
+  }
+
+  /** pick offers files picked in the open dialog to the open room's next message. */
+  pick(): Promise<void> {
+    const room = this.view.open;
+    return this.inRun(async (run) => {
+      run.composer.offer(room, await window.kith.pick());
+    });
+  }
+
+  /** offer offers files dropped or pasted. */
+  offer(files: readonly File[]): Promise<void> {
+    const room = this.view.open;
+    return this.inRun(async (run) => {
+      run.composer.offer(room, await Promise.all(files.map((f) => window.kith.offer(f))));
+    });
+  }
+
+  discard(token: string): Promise<void> {
+    return this.inRun((run) => run.composer.discard(this.view.open, token));
+  }
+
+  /** send sends the open composer. */
+  send(): Promise<void> {
+    const room = this.view.open;
+    return this.inRun((run) => run.composer.send(room));
+  }
+
+  /** answer replies to the question before sending as SMS. */
+  answer(yes: boolean): Promise<void> {
+    return this.inRun((run) => run.composer.answer(yes));
+  }
+
+  retry(u: Unsent): Promise<void> {
+    return this.inRun((run) => run.composer.retry(u));
+  }
+
+  dismiss(u: Unsent): void {
+    this.run?.composer.dismiss(u);
   }
 
   /** save saves m's attachment where the person picks. */
@@ -241,7 +337,7 @@ export class Session {
   }
 
   private begin(profile: string): Run {
-    this.run = {
+    const run: Run = {
       profile,
       closed: false,
       seat: undefined,
@@ -254,8 +350,24 @@ export class Session {
       settings: undefined,
       reactionReads: 0,
       reactionsHeld: undefined,
+      composer: new Composer({
+        changed: () => {
+          if (this.live(run)) {
+            this.set({});
+          }
+        },
+        failed: (err) => {
+          if (this.live(run)) {
+            this.fail(err);
+          }
+        },
+        room: (id) => run.joined.find((r) => r.id === id),
+        settings: () => (typeof run.settings === "object" ? run.settings : undefined),
+        speakers: (room) => speakers(run.timeline?.room === room ? run.timeline.view().rows : []),
+      }),
     };
-    return this.run;
+    this.run = run;
+    return run;
   }
 
   /** leave closes everything the run opened; its late answers are dropped. */
@@ -266,6 +378,7 @@ export class Session {
       return;
     }
     run.closed = true;
+    run.composer.stop();
     run.seat?.();
     for (const stop of run.streams) {
       stop();
@@ -306,14 +419,20 @@ export class Session {
         if (this.view.seat.state !== "seated") {
           this.set({ seat: { state: "seated" } });
           this.follow(run);
+          run.composer.start();
         }
         break;
       case "taken":
         this.lose({ state: "taken", holder: frame.event.value });
         break;
       case "stepAside":
-        // Closing the seat's stream is what lets the other window in.
-        this.lose({ state: "steppedAside" });
+        // The drafts are written first, from the seat (kithd refuses them once the other
+        // window has it); closing the seat's stream is what lets the other window in.
+        void run.composer.drafts.flush().finally(() => {
+          if (this.live(run)) {
+            this.lose({ state: "steppedAside" });
+          }
+        });
         break;
       case undefined:
         break;
@@ -702,6 +821,7 @@ export class Session {
     next.rooms = run === undefined ? [] : ordered(run.joined, next.unread, run.at);
     next.unreadTotal = total(next.rooms, next.unread);
     next.timeline = run?.timeline?.view();
+    next.composer = run === undefined || next.open === "" ? undefined : run.composer.view(next.open);
     this.view = next;
     if (next.unreadTotal !== this.told) {
       this.told = next.unreadTotal;
@@ -723,6 +843,11 @@ export class Session {
       }
     });
   }
+}
+
+/** speakers are who wrote rows, newest first, each once: the first people a mention offers. */
+function speakers(rows: readonly Message[]): string[] {
+  return [...new Set(rows.toReversed().map((m) => m.sender))];
 }
 
 /** page reads what ask is for in room: its messages, and a network page's token and reactions. */
