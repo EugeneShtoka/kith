@@ -278,8 +278,8 @@ docs-check:
 
 # The desktop: install from the lock (no install scripts, no Electron binary), then
 # typecheck, lint, format, unit tests, an `electron-forge package` and the audit of
-# what it ships. scripts/desktop-check.sh says how.
-desktop-check:
+# what it ships. scripts/desktop-check.sh says how. The package holds ./kith-relay.
+desktop-check: build-relay
 	bash scripts/desktop-check.sh
 
 # go.mod/go.sum are tidy and every module matches its checksum. Also in GoReleaser's

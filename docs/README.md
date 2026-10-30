@@ -17,6 +17,7 @@ New here? Start with [Getting started](getting-started.md), then take the
 | [Using the client](usage.md) | The three panes, the rail and room list, the timeline, messages, threads, media, people and rooms |
 | [Keybindings](keybindings.md) | Every default key by mode, and how to rebind them |
 | [Search](search.md) | Offline full-text search, scopes and filters, the mentions, files, starred and tracked lists |
+| [The desktop window](desktop.md) | Installing `kith-desktop`, the first run, how it reaches kithd through `kith-relay`, where its settings live, troubleshooting |
 | [Backups and moving](usage.md#backing-up-and-moving-to-a-new-machine) | Export (Markdown, for reading) against backup (encrypted, restorable); your backup key and why to keep it off the machine; daily backups; restoring on a new machine |
 
 ## Features in depth

@@ -297,8 +297,9 @@ jobs:
 
   # The desktop (scripts/desktop-check.sh): installed from its lock with no install
   # scripts and no Electron binary, then typecheck, lint, format, unit tests, an
-  # electron-forge package and the audit of what it ships. npm's store and the Electron
-  # zip the package step fetches (checked against its SHASUMS256) are cached on the lock.
+  # electron-forge package with the kith-relay it bundles, a check of what the package
+  # holds, and the audit of what it ships. npm's store and the Electron zip the package
+  # step fetches (checked against its SHASUMS256) are cached on the lock.
   desktop:
     needs: [changes]
     if: needs.changes.outputs.docs_only != 'true'
@@ -308,6 +309,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: desktop/.nvmrc

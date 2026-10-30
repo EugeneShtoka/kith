@@ -59,6 +59,10 @@ security-relevant — please flag anything in these areas:
 - **Secrets in logs.** Report any case where tokens, keys, or decrypted message
   content end up on stderr or in the daemon's journal
   (`journalctl --user -u kithd.service`).
+- **The desktop window** (`kith-desktop`): see [below](#the-desktop-window). Report
+  any way content from a message, a name or a picture runs script in the window,
+  navigates it, or reaches a call, a file or a stream the window's allowlist does not
+  name; and any way to reach `kith-relay`'s socket from another user.
 
 ## A listening kithd
 
@@ -143,6 +147,54 @@ threat model:
   backup holds no device key. The device list holds no secrets, but it
   is the authorization: it is written `0600`, atomically, and a list that does not
   read keeps kithd from listening at all.
+
+## The desktop window
+
+The desktop window ([docs/desktop.md](docs/desktop.md)) draws what other people wrote,
+in Electron. Its renderer, the page, is treated as the part an attacker reaches first,
+and holds the least:
+
+- **The renderer is sandboxed.** `sandbox`, `contextIsolation` and no
+  `nodeIntegration`, set explicitly although they are Electron's defaults. It has no
+  Node, no file system and no network: the page is served from `app://kith`, not
+  `file://`, under the policy `default-src 'none'; script-src 'self'; style-src 'self';
+  img-src 'self' blob: kith-media:; media-src kith-media:; connect-src 'none'`. Every
+  browser permission (camera, notifications, clipboard reads) is refused.
+- **No HTML, ever.** Message bodies arrive from kithd already parsed and sanitized
+  into text and spans; the page builds React elements from them, and a lint rule bans
+  `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML` and `insertAdjacentHTML`. Names
+  are text.
+- **No remote pictures.** A picture is `kith-media://<room>/<event>`, which main
+  answers from kithd (`LoadImage`), so drawing one never fetches a URL a sender chose.
+- **The window does not leave its page.** Navigation is refused and every
+  `window.open` denied. Links show their target and open nothing yet.
+- **The preload is the whole reach.** The page may call kithd's RPCs by name, in
+  protobuf binary, and main serves only the names on an allowlist of what reading
+  and writing messages needs. Calls beyond that (config edits, sign-out, key export,
+  pairing) are left off until a feature needs one and its review adds it. Main checks
+  that each request comes from the window's own `app://kith` frame, decodes it against
+  the method's schema, and refuses anything else. Files go through main too: a file
+  is read where the system's dialog, a drop or a paste put it, and the page holds only
+  a token for it; an attachment is saved where the person picks in a save dialog.
+- **kith-relay.** The window reaches kithd only through `kith-relay`, a Go child
+  process bundled with it. It listens on a socket in a new `0700` directory under
+  `$XDG_RUNTIME_DIR/kith`, so only the same user can reach it, and exits when the
+  window's end of its stdin closes, so it never outlives the window. On a machine that
+  joined a bridge it holds the device key and pins the bridge's
+  ([above](#a-listening-kithd)); the window's code never sees the key.
+- **Fuses.** The packaged Electron binary has `RunAsNode`, `NODE_OPTIONS` and
+  `--inspect` turned off, and loads its code only from its ASAR. The fuse that checks
+  the ASAR against a hash embedded in the binary is on, but Electron enforces it on
+  macOS and Windows only. On Linux the app's integrity is its files': the deb and rpm
+  install them owned by root and writable by no one else, and the zip unpacks as the
+  user who owns it.
+- **What a release checks.** `scripts/desktop-package-check.sh` unpacks each deb, rpm
+  and zip the release makes and refuses it unless its `kith-relay` is, byte for byte,
+  the one GoReleaser built from the tag (and which says it was built from the tag's
+  commit), the fuses read as above, the app is its ASAR alone, and no file in it is
+  writable by group or others. The desktop's checksums are signed keyless, as kith's
+  are, and each package has a build attestation. There is no auto-update: the window
+  never calls home.
 
 ## Supported versions
 

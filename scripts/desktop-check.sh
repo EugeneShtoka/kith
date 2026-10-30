@@ -7,7 +7,9 @@
 #      not fetched (ELECTRON_SKIP_BINARY_DOWNLOAD), since no gate here runs Electron;
 #   2. typecheck (tsc, strict, the main and window halves apart), lint (ESLint, with the
 #      layer rules), format (Prettier), unit tests (vitest);
-#   3. electron-forge package: the bundles build and package, fuses set;
+#   3. electron-forge package: the bundles build and package with ./kith-relay (make
+#      builds it first), fuses set; then, on Linux, what the package holds
+#      (scripts/desktop-package-check.sh: the relay, the ASAR, the fuses, the modes);
 #   4. npm audit of the runtime tree, what the package ships (scripts/npm-audit.sh).
 
 set -euo pipefail
@@ -37,5 +39,8 @@ npm run --silent lint
 npm run --silent format:check
 npm run --silent test
 npm run --silent package
+if [[ "$(uname -s)" == Linux ]]; then
+	bash "$ROOT/scripts/desktop-package-check.sh" "out/kith-linux-$(node -p process.arch)" "$ROOT/kith-relay"
+fi
 bash "$ROOT/scripts/npm-audit.sh" "$ROOT/desktop"
 echo "desktop-check: typecheck, lint, format, tests, package and the runtime audit pass ✓"
