@@ -30,6 +30,12 @@ const networkPage = 50n;
 const cachedPage = 2000n;
 /** How many reply targets are fetched at once. */
 const quoteFetches = 6;
+/**
+ * How long the window waits to read the device again after it could not: on a device
+ * that joined a bridge, the profiles are the bridge's, read through it, and a window
+ * may start before the bridge answers.
+ */
+export const deviceAgain = 1000;
 
 /** The window's seat in its profile: one window per profile is served (kithd's Seat). */
 export type Seat =
@@ -51,7 +57,9 @@ export interface View {
   /** The config's profiles, in order, and the one the window runs in: "" asks which. */
   profiles: readonly string[];
   profile: string;
+  /** Where kithd is: the local one's socket, or the bridge this device joined (one is ""). */
   socket: string;
+  bridge: string;
   seat: Seat;
   link: Link;
   status: StatusResponse | undefined;
@@ -119,7 +127,7 @@ interface Run {
 }
 
 export class Session {
-  private view: View = { profiles: [], profile: "", socket: "", problem: undefined, ...nothingShown };
+  private view: View = { profiles: [], profile: "", socket: "", bridge: "", problem: undefined, ...nothingShown };
   private readonly listeners = new Set<() => void>();
   private run: Run | undefined;
   /** This window, to kithd's seats; and since when it runs, for one it refuses. */
@@ -130,6 +138,9 @@ export class Session {
    * leaves it in (runIn), and so does the window, so both read them in one order.
    */
   private device: Promise<void> = Promise.resolve();
+  /** The device read again after one failed, while it waits; none once stopped. */
+  private deviceLater: ReturnType<typeof setTimeout> | undefined;
+  private stopped = false;
   private told = 0;
   /** The open room is watched: shown at its newest, the window focused. */
   private watching = false;
@@ -143,6 +154,8 @@ export class Session {
 
   /** stop closes every stream: the window is going. */
   stop(): void {
+    this.stopped = true;
+    clearTimeout(this.deviceLater);
     this.leave();
   }
 
@@ -316,11 +329,22 @@ export class Session {
     });
   }
 
-  /** readDevice reads the profiles again and moves the window where the answer leaves it. */
+  /**
+   * readDevice reads the profiles again and moves the window where the answer leaves it.
+   * One that fails is tried again a little later, until one is read.
+   */
   private readDevice(): void {
     void this.inTurn(async () => {
-      const d = await call(DeviceService.method.device, {});
-      this.set({ profiles: d.profiles, socket: d.socket, problem: undefined });
+      const d = await call(DeviceService.method.device, {}).catch((err: unknown) => {
+        if (!this.stopped) {
+          this.deviceLater ??= setTimeout(() => {
+            this.deviceLater = undefined;
+            this.readDevice();
+          }, deviceAgain);
+        }
+        throw err;
+      });
+      this.set({ profiles: d.profiles, socket: d.socket, bridge: d.bridge, problem: undefined });
       this.enter(runIn(this.view.profile, d.profile, d.profiles));
     });
   }

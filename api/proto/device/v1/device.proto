@@ -9,7 +9,9 @@ option go_package = "github.com/EugeneShtoka/kith/internal/api/device/v1;devicev
 service DeviceService {
   // Device is where this device's requests go, the profiles the config defines, and
   // the one this device last ran in. Each call reads the files again, so a window asks
-  // after a config change (ConfigChanged).
+  // after a config change (ConfigChanged). On a device that joined a bridge the config
+  // is the bridge's, read through it: kithd unreachable is UNAVAILABLE, and the bridge
+  // refusing this device's key PERMISSION_DENIED.
   rpc Device(DeviceRequest) returns (DeviceResponse);
   // ChooseProfile remembers a profile as the one this device runs in (device.toml's
   // profile_in_use), refusing a name the config lacks (INVALID_ARGUMENT).
@@ -43,7 +45,8 @@ message OutgoingResponse {
 message DeviceRequest {}
 
 message DeviceResponse {
-  // socket is the local kithd's socket, which the relay forwards BackendService to.
+  // socket is the local kithd's socket, which the relay forwards BackendService to; ""
+  // on a device that joined a bridge (bridge).
   string socket = 1;
   // profile is the [[profile]] this device last ran in, as the config spells it; ""
   // when none was ever chosen, or the config no longer has it. With one profile a
@@ -51,6 +54,10 @@ message DeviceResponse {
   string profile = 2;
   // profiles are the names of the config's [[profile]]s, in its order.
   repeated string profiles = 3;
+  // bridge is the name of the [[bridge]] this device joined (device.toml), which the relay
+  // forwards BackendService to over TLS, and whose config the profiles are; "" for the
+  // local kithd at socket.
+  string bridge = 4;
 }
 
 message ChooseProfileRequest {

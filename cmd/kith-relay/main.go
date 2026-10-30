@@ -1,8 +1,9 @@
 // Command kith-relay is the desktop window's link to kithd. The window starts it as a
 // child and reaches kithd only through it: it forwards BackendService to the local
-// kithd's socket and answers DeviceService itself, on a socket of its own that only this
-// user can open. It prints that socket's path once listening, and exits when its stdin
-// closes, so it never outlives the window.
+// kithd's socket, or on a device that joined a bridge to that bridge over pinned mutual
+// TLS with this device's key, and answers DeviceService itself, on a socket of its own
+// that only this user can open. It prints that socket's path once listening, and exits
+// when its stdin closes, so it never outlives the window.
 package main
 
 import (
@@ -22,7 +23,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/buildinfo"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
-	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/keystore"
 	"github.com/EugeneShtoka/kith/internal/logging"
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
@@ -55,15 +56,11 @@ func start() int {
 // run serves the window until ctx ends or stdin closes, having printed the socket's
 // path to stdout.
 func run(ctx context.Context, log *slog.Logger, configPath string, stdin io.Reader, stdout io.Writer) error {
-	storage, configPath, err := loadAccount(log, configPath)
+	at, runtimeDir, configPath, err := loadAccount(log, configPath)
 	if err != nil {
 		return err
 	}
-	socket, err := daemon.SocketPath(storage)
-	if err != nil {
-		return fmt.Errorf("finding the daemon's socket: %w", err)
-	}
-	ln, dir, err := listen(ctx, storage.RuntimeDir)
+	ln, dir, err := listen(ctx, runtimeDir)
 	if err != nil {
 		return err
 	}
@@ -79,7 +76,7 @@ func run(ctx context.Context, log *slog.Logger, configPath string, stdin io.Read
 		_, _ = io.Copy(io.Discard, stdin) // its error ends it as EOF does
 		cancel()
 	}()
-	srv := &http.Server{Handler: newHandler(socket, configPath, log), ReadHeaderTimeout: readHeaderTimeout}
+	srv := &http.Server{Handler: newHandler(at, configPath, log), ReadHeaderTimeout: readHeaderTimeout}
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(ln) }()
 	if _, err := fmt.Fprintln(stdout, ln.Addr().String()); err != nil {
@@ -118,33 +115,66 @@ func listen(ctx context.Context, runtimeDir string) (net.Listener, string, error
 }
 
 // loadAccount reads the config for where kithd's socket is, as kith-notify does, after
-// moving its device settings out (config.SplitDevice), and returns it with the config's
-// path. Which profile the window runs in is DeviceService's, read on each call.
-func loadAccount(log *slog.Logger, configPath string) (storage domain.Storage, configFile string, err error) {
+// moving its device settings out (config.SplitDevice), and returns where kithd is, the
+// runtime dir the relay's socket goes in, and the config's path. On a device that joined
+// a bridge elsewhere kithd is that bridge, and no config here is read. Which profile the
+// window runs in is DeviceService's, read on each call.
+func loadAccount(log *slog.Logger, configPath string) (at kithdAt, runtimeDir, configFile string, err error) {
 	path := configPath
 	if path == "" {
 		resolved, perr := config.Path()
 		if perr != nil {
-			return domain.Storage{}, "", fmt.Errorf("finding the config: %w", perr)
+			return kithdAt{}, "", "", fmt.Errorf("finding the config: %w", perr)
 		}
 		path = resolved
 	}
+	b, joined, err := setup.JoinedBridge(path)
+	if err != nil {
+		return kithdAt{}, "", "", err
+	}
+	if joined {
+		return loadBridged(path, b)
+	}
 	if _, serr := config.SplitDevice(path, config.DevicePath(path)); serr != nil {
-		return domain.Storage{}, "", fmt.Errorf("reading %s: %w", path, serr)
+		return kithdAt{}, "", "", fmt.Errorf("reading %s: %w", path, serr)
 	}
 	cfg, err := config.Load(path)
 	if err != nil {
-		return domain.Storage{}, "", fmt.Errorf("reading %s: %w", path, err)
+		return kithdAt{}, "", "", fmt.Errorf("reading %s: %w", path, err)
 	}
 	if warning := config.ModeWarning(path); warning != "" {
 		log.Warn(warning)
 	}
 	if err = setup.Validate(cfg); err != nil {
-		return domain.Storage{}, "", fmt.Errorf("reading %s: %w", path, err)
+		return kithdAt{}, "", "", fmt.Errorf("reading %s: %w", path, err)
 	}
-	storage, err = setup.StorageFor(cfg, path)
+	storage, err := setup.StorageFor(cfg, path)
 	if err != nil {
-		return domain.Storage{}, "", err
+		return kithdAt{}, "", "", err
 	}
-	return storage, path, nil
+	socket, err := daemon.SocketPath(storage)
+	if err != nil {
+		return kithdAt{}, "", "", fmt.Errorf("finding the daemon's socket: %w", err)
+	}
+	return local(socket), storage.RuntimeDir, path, nil
+}
+
+// loadBridged is loadAccount for a device that joined the bridge b: this machine's
+// storage and device key, as every client of b here finds them (setup.ClientStorage).
+// The bridge is not asked for anything yet: until it answers, the window's calls are
+// unavailable, and it tries again.
+func loadBridged(path string, b config.Bridge) (at kithdAt, runtimeDir, configFile string, err error) {
+	storage, allowFile, err := setup.ClientStorage(path)
+	if err != nil {
+		return kithdAt{}, "", "", err
+	}
+	cert, err := keystore.ClientCertificate(storage, allowFile)
+	if err != nil {
+		return kithdAt{}, "", "", fmt.Errorf("dialing bridge %s: %w", b.Name, err)
+	}
+	at, err = bridged(cert, b)
+	if err != nil {
+		return kithdAt{}, "", "", err
+	}
+	return at, storage.RuntimeDir, path, nil
 }

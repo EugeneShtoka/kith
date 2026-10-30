@@ -49,7 +49,9 @@ const (
 type DeviceServiceClient interface {
 	// Device is where this device's requests go, the profiles the config defines, and
 	// the one this device last ran in. Each call reads the files again, so a window asks
-	// after a config change (ConfigChanged).
+	// after a config change (ConfigChanged). On a device that joined a bridge the config
+	// is the bridge's, read through it: kithd unreachable is UNAVAILABLE, and the bridge
+	// refusing this device's key PERMISSION_DENIED.
 	Device(context.Context, *connect.Request[v1.DeviceRequest]) (*connect.Response[v1.DeviceResponse], error)
 	// ChooseProfile remembers a profile as the one this device runs in (device.toml's
 	// profile_in_use), refusing a name the config lacks (INVALID_ARGUMENT).
@@ -134,7 +136,9 @@ func (c *deviceServiceClient) Outgoing(ctx context.Context, req *connect.Request
 type DeviceServiceHandler interface {
 	// Device is where this device's requests go, the profiles the config defines, and
 	// the one this device last ran in. Each call reads the files again, so a window asks
-	// after a config change (ConfigChanged).
+	// after a config change (ConfigChanged). On a device that joined a bridge the config
+	// is the bridge's, read through it: kithd unreachable is UNAVAILABLE, and the bridge
+	// refusing this device's key PERMISSION_DENIED.
 	Device(context.Context, *connect.Request[v1.DeviceRequest]) (*connect.Response[v1.DeviceResponse], error)
 	// ChooseProfile remembers a profile as the one this device runs in (device.toml's
 	// profile_in_use), refusing a name the config lacks (INVALID_ARGUMENT).

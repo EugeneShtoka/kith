@@ -55,9 +55,18 @@ export function App() {
       </header>
       {view.problem && <p className="problem">{view.problem}</p>}
       <Body view={view} session={session} />
-      {view.socket && (
+      {(view.socket || view.bridge) && (
         <footer>
-          kithd at <code>{view.socket}</code>, through kith-relay
+          {view.bridge ? (
+            <>
+              kithd on bridge <code>{view.bridge}</code>
+            </>
+          ) : (
+            <>
+              kithd at <code>{view.socket}</code>
+            </>
+          )}
+          , through kith-relay
         </footer>
       )}
     </main>
@@ -73,7 +82,7 @@ function Body({ view, session }: { view: View; session: Session }) {
   }
   return (
     <>
-      <Banner link={view.link} status={view.status} />
+      <Banner link={view.link} status={view.status} bridge={view.bridge} />
       <div className="columns">
         <Rail view={view} session={session} />
         <section className="rooms" aria-label="Rooms">
@@ -265,15 +274,20 @@ function RoomRow({
   );
 }
 
-function Banner({ link, status }: { link: Link; status: StatusResponse | undefined }) {
+function Banner({ link, status, bridge }: { link: Link; status: StatusResponse | undefined; bridge: string }) {
   if (status?.waiting) {
     return <p className="banner waiting">kithd is waiting: {status.waiting}</p>;
   }
+  const kithd = bridge === "" ? "kithd" : `kithd on bridge ${bridge}`;
   switch (link.state) {
     case "connecting":
-      return <p className="banner">Connecting to kithd…</p>;
+      return <p className="banner">Connecting to {kithd}…</p>;
     case "detached":
-      return <p className="banner lost">kithd is not reachable ({link.error}). Trying again.</p>;
+      return (
+        <p className="banner lost">
+          {kithd} is not reachable ({link.error}). Trying again.
+        </p>
+      );
     case "attached":
       return null;
   }

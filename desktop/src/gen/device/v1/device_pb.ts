@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file device/v1/device.proto.
  */
 export const file_device_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiHwoPT3V0Z29pbmdSZXF1ZXN0EgwKBHBhdGgYASABKAkiTAoQT3V0Z29pbmdSZXNwb25zZRIMCgRwYXRoGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGY29waWVkGAMgASgIEgwKBGtlcHQYBCABKAgiDwoNRGV2aWNlUmVxdWVzdCJDCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCSIkChRDaG9vc2VQcm9maWxlUmVxdWVzdBIMCgRuYW1lGAEgASgJIigKFUNob29zZVByb2ZpbGVSZXNwb25zZRIPCgdwcm9maWxlGAEgASgJIhcKFURldmljZVNldHRpbmdzUmVxdWVzdCL9AgoWRGV2aWNlU2V0dGluZ3NSZXNwb25zZRIVCg1zZW5kX3JlY2VpcHRzGAEgASgIEicKCnJlYWRfcnVsZXMYAiADKAsyEy5kZXZpY2UudjEuUmVhZFJ1bGUSEwoLdW5yZWFkX2xpbmUYAyABKAgSEAoIbWFya2Rvd24YBCABKAgSEwoLY29uZmlybV9zbXMYBSABKAgSEwoLc2VuZF90eXBpbmcYBiABKAgSEQoJc2tpbl90b25lGAcgASgJEhEKCWVtb2ppX3NldBgIIAEoCRJGCgtlbW9qaV9leHRyYRgJIAMoCzIxLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1Jlc3BvbnNlLkVtb2ppRXh0cmFFbnRyeRIXCg9yZWFjdGlvbnNfc2NvcGUYCiABKAkSGAoQcmVhY3Rpb25zX3N0YXRpYxgLIAMoCRoxCg9FbW9qaUV4dHJhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJFCghSZWFkUnVsZRINCgVtYXRjaBgBIAEoCRIOCgZzZW5kZXIYAiABKAkSEQoEc2VuZBgDIAEoCEgAiAEBQgcKBV9zZW5kMr4CCg1EZXZpY2VTZXJ2aWNlEj0KBkRldmljZRIYLmRldmljZS52MS5EZXZpY2VSZXF1ZXN0GhkuZGV2aWNlLnYxLkRldmljZVJlc3BvbnNlElIKDUNob29zZVByb2ZpbGUSHy5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlcXVlc3QaIC5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlc3BvbnNlElUKDkRldmljZVNldHRpbmdzEiAuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzUmVxdWVzdBohLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEkMKCE91dGdvaW5nEhouZGV2aWNlLnYxLk91dGdvaW5nUmVxdWVzdBobLmRldmljZS52MS5PdXRnb2luZ1Jlc3BvbnNlQj5aPGdpdGh1Yi5jb20vRXVnZW5lU2h0b2thL2tpdGgvaW50ZXJuYWwvYXBpL2RldmljZS92MTtkZXZpY2V2MWIGcHJvdG8z");
+  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiHwoPT3V0Z29pbmdSZXF1ZXN0EgwKBHBhdGgYASABKAkiTAoQT3V0Z29pbmdSZXNwb25zZRIMCgRwYXRoGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGY29waWVkGAMgASgIEgwKBGtlcHQYBCABKAgiDwoNRGV2aWNlUmVxdWVzdCJTCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCRIOCgZicmlkZ2UYBCABKAkiJAoUQ2hvb3NlUHJvZmlsZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSIoChVDaG9vc2VQcm9maWxlUmVzcG9uc2USDwoHcHJvZmlsZRgBIAEoCSIXChVEZXZpY2VTZXR0aW5nc1JlcXVlc3Qi/QIKFkRldmljZVNldHRpbmdzUmVzcG9uc2USFQoNc2VuZF9yZWNlaXB0cxgBIAEoCBInCgpyZWFkX3J1bGVzGAIgAygLMhMuZGV2aWNlLnYxLlJlYWRSdWxlEhMKC3VucmVhZF9saW5lGAMgASgIEhAKCG1hcmtkb3duGAQgASgIEhMKC2NvbmZpcm1fc21zGAUgASgIEhMKC3NlbmRfdHlwaW5nGAYgASgIEhEKCXNraW5fdG9uZRgHIAEoCRIRCgllbW9qaV9zZXQYCCABKAkSRgoLZW1vamlfZXh0cmEYCSADKAsyMS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXNwb25zZS5FbW9qaUV4dHJhRW50cnkSFwoPcmVhY3Rpb25zX3Njb3BlGAogASgJEhgKEHJlYWN0aW9uc19zdGF0aWMYCyADKAkaMQoPRW1vamlFeHRyYUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiRQoIUmVhZFJ1bGUSDQoFbWF0Y2gYASABKAkSDgoGc2VuZGVyGAIgASgJEhEKBHNlbmQYAyABKAhIAIgBAUIHCgVfc2VuZDK+AgoNRGV2aWNlU2VydmljZRI9CgZEZXZpY2USGC5kZXZpY2UudjEuRGV2aWNlUmVxdWVzdBoZLmRldmljZS52MS5EZXZpY2VSZXNwb25zZRJSCg1DaG9vc2VQcm9maWxlEh8uZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXF1ZXN0GiAuZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXNwb25zZRJVCg5EZXZpY2VTZXR0aW5ncxIgLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1JlcXVlc3QaIS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXNwb25zZRJDCghPdXRnb2luZxIaLmRldmljZS52MS5PdXRnb2luZ1JlcXVlc3QaGy5kZXZpY2UudjEuT3V0Z29pbmdSZXNwb25zZUI+WjxnaXRodWIuY29tL0V1Z2VuZVNodG9rYS9raXRoL2ludGVybmFsL2FwaS9kZXZpY2UvdjE7ZGV2aWNldjFiBnByb3RvMw");
 
 /**
  * @generated from message device.v1.OutgoingRequest
@@ -89,7 +89,8 @@ export const DeviceRequestSchema: GenMessage<DeviceRequest> = /*@__PURE__*/
  */
 export type DeviceResponse = Message<"device.v1.DeviceResponse"> & {
   /**
-   * socket is the local kithd's socket, which the relay forwards BackendService to.
+   * socket is the local kithd's socket, which the relay forwards BackendService to; ""
+   * on a device that joined a bridge (bridge).
    *
    * @generated from field: string socket = 1;
    */
@@ -110,6 +111,15 @@ export type DeviceResponse = Message<"device.v1.DeviceResponse"> & {
    * @generated from field: repeated string profiles = 3;
    */
   profiles: string[];
+
+  /**
+   * bridge is the name of the [[bridge]] this device joined (device.toml), which the relay
+   * forwards BackendService to over TLS, and whose config the profiles are; "" for the
+   * local kithd at socket.
+   *
+   * @generated from field: string bridge = 4;
+   */
+  bridge: string;
 };
 
 /**
@@ -306,7 +316,9 @@ export const DeviceService: GenService<{
   /**
    * Device is where this device's requests go, the profiles the config defines, and
    * the one this device last ran in. Each call reads the files again, so a window asks
-   * after a config change (ConfigChanged).
+   * after a config change (ConfigChanged). On a device that joined a bridge the config
+   * is the bridge's, read through it: kithd unreachable is UNAVAILABLE, and the bridge
+   * refusing this device's key PERMISSION_DENIED.
    *
    * @generated from rpc device.v1.DeviceService.Device
    */

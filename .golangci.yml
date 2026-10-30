@@ -898,6 +898,9 @@ linters:
         relay-main-wiring:
           files:
             - "**/cmd/kith-relay/**"
+            # Tests serve a bridge of their own (a daemon over TLS) and stub the keyring
+            # (go-keyring's mock), as kithd's do.
+            - "!$test"
           allow:
             - "$gostd"
             - "connectrpc.com/connect"
@@ -907,6 +910,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            # This machine's device key, to dial a bridge elsewhere.
+            - "github.com/EugeneShtoka/kith/internal/keystore"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/media"
             - "github.com/EugeneShtoka/kith/internal/setup"

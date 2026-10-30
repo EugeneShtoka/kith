@@ -176,14 +176,19 @@ func (*DeviceRequest) Descriptor() ([]byte, []int) {
 
 type DeviceResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// socket is the local kithd's socket, which the relay forwards BackendService to.
+	// socket is the local kithd's socket, which the relay forwards BackendService to; ""
+	// on a device that joined a bridge (bridge).
 	Socket string `protobuf:"bytes,1,opt,name=socket,proto3" json:"socket,omitempty"`
 	// profile is the [[profile]] this device last ran in, as the config spells it; ""
 	// when none was ever chosen, or the config no longer has it. With one profile a
 	// window runs in it unasked; with several and none here, it asks.
 	Profile string `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
 	// profiles are the names of the config's [[profile]]s, in its order.
-	Profiles      []string `protobuf:"bytes,3,rep,name=profiles,proto3" json:"profiles,omitempty"`
+	Profiles []string `protobuf:"bytes,3,rep,name=profiles,proto3" json:"profiles,omitempty"`
+	// bridge is the name of the [[bridge]] this device joined (device.toml), which the relay
+	// forwards BackendService to over TLS, and whose config the profiles are; "" for the
+	// local kithd at socket.
+	Bridge        string `protobuf:"bytes,4,opt,name=bridge,proto3" json:"bridge,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -237,6 +242,13 @@ func (x *DeviceResponse) GetProfiles() []string {
 		return x.Profiles
 	}
 	return nil
+}
+
+func (x *DeviceResponse) GetBridge() string {
+	if x != nil {
+		return x.Bridge
+	}
+	return ""
 }
 
 type ChooseProfileRequest struct {
@@ -580,11 +592,12 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06copied\x18\x03 \x01(\bR\x06copied\x12\x12\n" +
 	"\x04kept\x18\x04 \x01(\bR\x04kept\"\x0f\n" +
-	"\rDeviceRequest\"^\n" +
+	"\rDeviceRequest\"v\n" +
 	"\x0eDeviceResponse\x12\x16\n" +
 	"\x06socket\x18\x01 \x01(\tR\x06socket\x12\x18\n" +
 	"\aprofile\x18\x02 \x01(\tR\aprofile\x12\x1a\n" +
-	"\bprofiles\x18\x03 \x03(\tR\bprofiles\"*\n" +
+	"\bprofiles\x18\x03 \x03(\tR\bprofiles\x12\x16\n" +
+	"\x06bridge\x18\x04 \x01(\tR\x06bridge\"*\n" +
 	"\x14ChooseProfileRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"1\n" +
 	"\x15ChooseProfileResponse\x12\x18\n" +

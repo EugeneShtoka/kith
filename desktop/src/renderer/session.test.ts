@@ -5,7 +5,7 @@ import { BackendService, Change, type SeatRequest } from "../gen/backend/v1/serv
 import { ReactionSchema } from "../gen/backend/v1/types_pb";
 import { DeviceSettingsResponseSchema } from "../gen/device/v1/device_pb";
 import { unreadOf } from "./rooms";
-import { Session } from "./session";
+import { deviceAgain, Session } from "./session";
 import { Kithd, room, settled, unread } from "./testing/kithd";
 import { message } from "./testing/rows";
 
@@ -126,6 +126,33 @@ describe("the window's profile", () => {
     await settled();
     expect(view().profile).toBe("Solo");
     expect(view().seat.state).toBe("seated");
+  });
+
+  it("is the bridge's on a device that joined one, and the window says it is connected there", async () => {
+    kithd.joined = "home";
+    kithd.profiles = ["Solo"];
+    await started();
+    expect(view().bridge).toBe("home");
+    expect(view().socket).toBe("");
+    expect(view().profile).toBe("Solo");
+    expect(view().seat.state).toBe("seated");
+  });
+
+  it("is read again until a bridge that did not answer at start does", async () => {
+    kithd.joined = "home";
+    kithd.profiles = ["Solo"];
+    kithd.down();
+    await started();
+    expect(view().profile).toBe("");
+    expect(view().problem).toContain("not reachable");
+
+    kithd.again();
+    await new Promise((resolve) => setTimeout(resolve, deviceAgain));
+    await settled();
+    expect(view().profile).toBe("Solo");
+    expect(view().seat.state).toBe("seated");
+    expect(view().problem).toBeUndefined();
+    expect(kithd.calls.filter((c) => c === "Device:").length).toBe(2);
   });
 
   it("removed while kithd was away: the window asks once kithd is back", async () => {
