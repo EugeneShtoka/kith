@@ -71,14 +71,22 @@ func AnnotatedDevice() string { return defaultDeviceTOML }
 // LoadDevice reads the device file at path, refusing unknown keys as Load does; a
 // missing file is every default.
 func LoadDevice(path string) (Device, error) {
+	dev, _, err := ReadDevice(path)
+	return dev, err
+}
+
+// ReadDevice is LoadDevice, and the revision of the bytes it decoded ("" for no file).
+func ReadDevice(path string) (Device, string, error) {
 	body, err := os.ReadFile(filepath.Clean(path))
 	if errors.Is(err, os.ErrNotExist) {
-		return decodeDevice(path, "")
+		dev, derr := decodeDevice(path, "")
+		return dev, "", derr
 	}
 	if err != nil {
-		return Device{}, fmt.Errorf("config: read %s: %w", path, err)
+		return Device{}, "", fmt.Errorf("config: read %s: %w", path, err)
 	}
-	return decodeDevice(path, string(body))
+	dev, err := decodeDevice(path, string(body))
+	return dev, Revision(body), err
 }
 
 // decodeDevice is LoadDevice's reading; source names the text in errors.
@@ -181,6 +189,40 @@ func UpdateDevice(path string, was, now Device) (Device, error) {
 		return Device{}, err
 	}
 	return next, nil
+}
+
+// ErrDeviceChanged is a device file changed since the revision a change was made at.
+var ErrDeviceChanged = errors.New("device.toml changed since it was read")
+
+// UpdateDeviceAt writes change of the device file to it if the file is still at
+// revision, under the lock UpdateDevice takes: changed since (by hand, or by another
+// writer), it is ErrDeviceChanged and nothing is written. A file that does not load, or
+// change's error, is returned as it is. It returns what the file then holds, and its
+// revision.
+func UpdateDeviceAt(path, revision string, change func(Device) (Device, error)) (Device, string, error) {
+	unlock, err := lockDevice(path)
+	if err != nil {
+		return Device{}, "", err
+	}
+	defer unlock()
+	current, at, err := ReadDevice(path)
+	if err != nil {
+		return Device{}, "", err
+	}
+	if at != revision {
+		return Device{}, "", ErrDeviceChanged
+	}
+	next, err := change(current.Clone())
+	if err != nil {
+		return Device{}, "", err
+	}
+	if reflect.DeepEqual(next, current) {
+		return current, at, nil
+	}
+	if err := saveDevice(path, next); err != nil {
+		return Device{}, "", err
+	}
+	return next, Revision([]byte(encodeDevice(next))), nil
 }
 
 // overlay writes into dst each setting of now that differs from was, entry by entry in

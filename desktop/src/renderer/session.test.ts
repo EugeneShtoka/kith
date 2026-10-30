@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BackendService, Change, type SeatRequest } from "../gen/backend/v1/services_pb";
 import { ReactionSchema } from "../gen/backend/v1/types_pb";
-import { DeviceSettingsResponseSchema } from "../gen/device/v1/device_pb";
+import { type DeviceSettings, DeviceSettingsSchema } from "../gen/device/v1/device_pb";
 import { unreadOf } from "./rooms";
 import { deviceAgain, Session } from "./session";
+import { type Key, withKey } from "./settings";
 import { Kithd, room, settled, unread } from "./testing/kithd";
 import { message, row } from "./testing/rows";
 
@@ -499,7 +500,7 @@ describe("read receipts", () => {
   });
 
   it("are private where send_receipts or a rule says so", async () => {
-    kithd.settings = create(DeviceSettingsResponseSchema, {
+    kithd.settings = create(DeviceSettingsSchema, {
       sendReceipts: true,
       unreadLine: true,
       readRules: [{ match: "", sender: "@alice", send: false }],
@@ -511,7 +512,7 @@ describe("read receipts", () => {
   });
 
   it("are private when a rule naming a home might name this room: the window does not know its homes", async () => {
-    kithd.settings = create(DeviceSettingsResponseSchema, {
+    kithd.settings = create(DeviceSettingsSchema, {
       sendReceipts: true,
       readRules: [{ match: "space:Work", send: false }],
     });
@@ -540,6 +541,73 @@ describe("read receipts", () => {
     kithd.release();
     await settled();
     expect(kithd.receipts).toEqual([`${r} $1 public`]);
+  });
+});
+
+describe("the settings page", () => {
+  const r = "!r";
+  const page = () => view().settingsPage;
+  /** opened is the window seated with r open and watched, and the settings page open. */
+  const opened = async () => {
+    kithd.of("Home").rooms = [room(r)];
+    kithd.write("Home", message({ id: "$1", ts: 10, sender: "@alice" }, r));
+    await started();
+    session.open(r);
+    session.watch(true);
+    session.openSettings();
+    await settled();
+  };
+  /** elsewhere is another writer of device.toml (the TUI's editor, a hand edit). */
+  const elsewhere = <K extends Key>(key: K, value: DeviceSettings[K]) => {
+    if (kithd.settings !== "fail") {
+      kithd.settings = withKey(kithd.settings, key, value);
+      kithd.settingsRevision++;
+    }
+  };
+
+  it("writes each change at once, and the open room follows it", async () => {
+    await opened();
+    expect(page()?.read?.settings.sendReceipts).toBe(true);
+    await session.changeSetting("sendReceipts", false);
+    await session.changeSetting("unreadLine", false);
+    await settled();
+    expect(kithd.settings).toMatchObject({ sendReceipts: false, unreadLine: false });
+    expect(page()).toMatchObject({ busy: false, note: "" });
+    expect(view().unreadLine).toBe(false);
+    kithd.write("Home", message({ id: "$2", ts: 20, sender: "@alice" }, r));
+    await settled();
+    expect(kithd.receipts).toEqual([`${r} $1 public`, `${r} $2 private`]);
+  });
+
+  it("writes a change onto another writer's of a different setting, both kept", async () => {
+    await opened();
+    kithd.beforeSettingsWrite = () => {
+      elsewhere("markdown", false);
+    };
+    await session.changeSetting("sendTyping", false);
+    expect(kithd.settings).toMatchObject({ markdown: false, sendTyping: false });
+    expect(page()?.read?.settings).toMatchObject({ markdown: false, sendTyping: false });
+    expect(page()?.note).toBe("");
+  });
+
+  it("keeps another writer's change of the same setting, and says so", async () => {
+    await opened();
+    kithd.beforeSettingsWrite = () => {
+      elsewhere("reactionsStatic", ["🎉"]);
+    };
+    await session.changeSetting("reactionsStatic", ["👍"]);
+    expect(kithd.settings).toMatchObject({ reactionsStatic: ["🎉"] });
+    expect(page()?.read?.settings.reactionsStatic).toEqual(["🎉"]);
+    expect(page()?.note).toMatch(/changed elsewhere/);
+  });
+
+  it("says a change was not saved, and the open room keeps its settings", async () => {
+    await opened();
+    kithd.settings = "fail";
+    await session.changeSetting("unreadLine", false);
+    expect(page()?.note).toMatch(/not saved.*does not load/);
+    expect(page()?.read?.settings.unreadLine).toBe(true);
+    expect(view().unreadLine).toBe(true);
   });
 });
 

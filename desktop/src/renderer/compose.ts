@@ -14,7 +14,7 @@ import {
   type Reaction,
   type Room,
 } from "../gen/backend/v1/types_pb";
-import type { DeviceSettingsResponse } from "../gen/device/v1/device_pb";
+import type { DeviceSettings } from "../gen/device/v1/device_pb";
 import type { Offered } from "../shared/ipc";
 import { blank, type Composition, Drafts } from "./drafts";
 import { emojiSet, type EmojiKind, type EmojiSet, finished, fold, noScores, palette, type Scores } from "./emoji";
@@ -62,7 +62,7 @@ export interface Surroundings {
   failed(err: unknown): void;
   room(id: string): Room | undefined;
   /** The device settings the open room was opened with; undefined until read. */
-  settings(): DeviceSettingsResponse | undefined;
+  settings(): DeviceSettings | undefined;
   /** Who spoke in room lately, newest first: the first people a mention offers. */
   speakers(room: string): string[];
   /** The thread open beside room ("" none): a message answering nothing goes into it. */
@@ -80,7 +80,7 @@ export class Composer {
   private selves: ReadonlySet<string> = new Set();
   private typing = { room: "", at: 0 };
   private readonly poll: ReturnType<typeof setInterval>;
-  private emojiFor: { settings: DeviceSettingsResponse | undefined; set: EmojiSet } | undefined;
+  private emojiFor: { settings: DeviceSettings | undefined; set: EmojiSet } | undefined;
 
   constructor(private readonly around: Surroundings) {
     this.drafts = new Drafts(

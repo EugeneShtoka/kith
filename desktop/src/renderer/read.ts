@@ -1,7 +1,7 @@
 // Whether a read receipt is announced to the people in a room or kept private: send_receipts
 // and [[display.read_rule]] (domain.ResolveRead), held to Go by the conformance table
 // internal/domain/testdata/read.json.
-import type { DeviceSettingsResponse, ReadRule } from "../gen/device/v1/device_pb";
+import type { DeviceSettings, ReadRule } from "../gen/device/v1/device_pb";
 
 // The rungs a rule names a place on (domain.Rank), widest first; the narrowest wins.
 const rankSpace = 1;
@@ -46,7 +46,7 @@ function rank(rule: ReadRule, room: string, sender: string): { rank: number; may
  * (none read yet, or the read failed) is private: a receipt never tells people what
  * the settings might forbid.
  */
-export function announces(settings: DeviceSettingsResponse | undefined, room: string, sender: string): boolean {
+export function announces(settings: DeviceSettings | undefined, room: string, sender: string): boolean {
   if (settings === undefined) {
     return false;
   }

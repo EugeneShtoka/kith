@@ -391,7 +391,8 @@ before (no exported call without its caller).
    **This is the first usable release.**
 7. **feat: the relay dials a remote bridge.** This needs Phase 2a step 5's `daemon.Dial`.
    `DeviceService.UpdateDeviceSettings` with a revision, and a desktop settings page for
-   the shared keys. (The relay half moved up, 2026-10-30, and landed after PR 4: #410.)
+   the shared keys. (The relay half moved up, 2026-10-30, and landed after PR 4: #410.
+   `UpdateDeviceSettings` and the settings page landed 2026-10-31.)
    - **Failure review** (merges writers; enforces scope):
      - the TUI's editor and the desktop writing at once;
      - a hand edit between read and write;

@@ -58,46 +58,141 @@ func valueOf(dev Device, path string) string {
 	return deviceValue(dev, path)
 }
 
+// How a generated window saves the device file.
+const (
+	// merged: a window's settings editor (UpdateDevice), its change put onto the file as
+	// it is then.
+	merged = iota
+	// atRevision: the desktop's settings page (UpdateDeviceAt), written only over the
+	// file it read; told it changed, it reads it again and writes again those of its
+	// changes no one else made meanwhile, conceding the others.
+	atRevision
+	// byHand: an editor, writing the file whole with no lock, a comment added: its bytes
+	// change even where its settings do not.
+	byHand
+)
+
+// casTries bounds an atRevision window's rewrites: each other window changes the file
+// once, so it is told so at most once each.
+const casTries = 5
+
+// setPath sets a changed path of dev to value, as valueOf spells it.
+func setPath(t *testing.T, dev *Device, path, value string) {
+	t.Helper()
+	if binding, ok := strings.CutPrefix(path, "keys."); ok {
+		dev.Keys.Bindings[binding] = value
+		return
+	}
+	s := Settings{Device: *dev}
+	if err := s.SetValue(path, value); err != nil {
+		t.Fatal(err)
+	}
+	*dev = s.Device
+}
+
+// saveAtRevision is an atRevision window's save of now, changed from base read at
+// revision: it returns the paths it conceded to another writer.
+func saveAtRevision(t *testing.T, path, revision string, base, now Device, changed []string) ([]string, error) {
+	want := map[string]string{}
+	for _, p := range changed {
+		if valueOf(now, p) != valueOf(base, p) {
+			want[p] = valueOf(now, p)
+		}
+	}
+	var conceded []string
+	for range casTries {
+		_, _, err := UpdateDeviceAt(path, revision, func(file Device) (Device, error) {
+			if !reflect.DeepEqual(file, base) {
+				t.Errorf("a change made at revision %s was handed a file changed since", revision)
+			}
+			for p, v := range want {
+				setPath(t, &file, p, v)
+			}
+			return file, nil
+		})
+		if !errors.Is(err, ErrDeviceChanged) {
+			return conceded, err
+		}
+		fresh, at, err := ReadDevice(path)
+		if err != nil {
+			return conceded, err
+		}
+		for p := range want {
+			if valueOf(fresh, p) != valueOf(base, p) {
+				delete(want, p)
+				conceded = append(conceded, p)
+			}
+		}
+		base, revision = fresh, at
+	}
+	return conceded, errors.New("the file kept changing")
+}
+
+// saveByHand is a byHand window's save: its change put onto the file as it is now,
+// written whole with a comment, no lock taken.
+func saveByHand(t *testing.T, path string, was, now Device) {
+	current, err := LoadDevice(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	overlay(reflect.ValueOf(&current).Elem(), reflect.ValueOf(now), reflect.ValueOf(was))
+	writeFile(t, path, encodeDevice(current)+"# edited by hand\n")
+}
+
 // Over generated windows each changing some settings of the device file it read, saved
-// in any order or all at once: every setting one window changed is the file's after,
-// one changed by several is one of theirs (in order, the last one's), and every other
-// keeps the file's.
+// in any order or all at once, by a settings editor, the desktop's settings page or by
+// hand: every setting one window changed is the file's after, one changed by several is
+// one of theirs (in order, the last one's), and every other keeps the file's. The
+// desktop's page concedes a setting exactly when another window changed it after the
+// page read the file (in order, one saved before it), and writes every other.
 func TestWindowsEditingTheDeviceAtOnceKeepEachOthersChanges(t *testing.T) {
 	t.Parallel()
-	for seed := range uint64(200) {
+	for seed := range uint64(300) {
 		rng := rand.New(rand.NewPCG(seed, 0xde71)) // #nosec G404 -- reproducible
 		path := filepath.Join(t.TempDir(), DeviceFile)
 		writeFile(t, path, tomlText(settingsIn(rng, DeviceFile, 6)))
-		base, err := LoadDevice(path)
+		base, revision, err := ReadDevice(path)
 		if err != nil {
 			t.Fatal(err)
 		}
+		atOnce := seed%2 == 1
 		windows := 2 + rng.IntN(2)
 		was, now := make([]Device, windows), make([]Device, windows)
-		changed := make([][]string, windows)
+		changed, kind := make([][]string, windows), make([]int, windows)
 		for w := range windows {
 			was[w], now[w] = base.Clone(), base.Clone()
 			changed[w] = changeSome(t, rng, &now[w])
+			kind[w] = rng.IntN(3)
+			if atOnce && kind[w] == byHand { // a hand edit takes no lock: it races every writer
+				kind[w] = merged
+			}
 		}
 		order := rng.Perm(windows)
-		atOnce := seed%2 == 1
+		conceded := make([][]string, windows)
+		save := func(w int) (written Device, merge bool) {
+			var serr error
+			switch kind[w] {
+			case merged:
+				written, serr = UpdateDevice(path, was[w], now[w])
+			case atRevision:
+				conceded[w], serr = saveAtRevision(t, path, revision, was[w], now[w], changed[w])
+			case byHand:
+				saveByHand(t, path, was[w], now[w])
+			}
+			if serr != nil {
+				t.Errorf("seed %d: window %d: %v", seed, w, serr)
+			}
+			return written, kind[w] == merged
+		}
 		if atOnce {
 			var wg sync.WaitGroup
 			for _, w := range order {
-				wg.Go(func() {
-					if _, uerr := UpdateDevice(path, was[w], now[w]); uerr != nil {
-						t.Errorf("seed %d: %v", seed, uerr)
-					}
-				})
+				wg.Go(func() { save(w) })
 			}
 			wg.Wait()
 		} else {
 			for _, w := range order {
-				written, uerr := UpdateDevice(path, was[w], now[w])
-				if uerr != nil {
-					t.Fatal(uerr)
-				}
-				if onDisk, _ := LoadDevice(path); !reflect.DeepEqual(onDisk, written) {
+				if written, merge := save(w); merge && !reflect.DeepEqual(mustLoad(t, path), written) {
 					t.Fatalf("seed %d: UpdateDevice returned what the file does not hold", seed)
 				}
 			}
@@ -106,12 +201,22 @@ func TestWindowsEditingTheDeviceAtOnceKeepEachOthersChanges(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		checkMerged(t, seed, atOnce, base, final, now, changed, order)
+		checkMerged(t, seed, atOnce, base, final, now, changed, order, kind, conceded)
 	}
 }
 
+// mustLoad is the device file at path.
+func mustLoad(t *testing.T, path string) Device {
+	t.Helper()
+	dev, err := LoadDevice(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dev
+}
+
 // checkMerged holds TestWindowsEditingTheDeviceAtOnceKeepEachOthersChanges's property.
-func checkMerged(t *testing.T, seed uint64, atOnce bool, base, final Device, now []Device, changed [][]string, order []int) {
+func checkMerged(t *testing.T, seed uint64, atOnce bool, base, final Device, now []Device, changed [][]string, order, kind []int, conceded [][]string) {
 	t.Helper()
 	by := map[string][]int{} // path → the windows that changed it, in save order
 	for _, w := range order {
@@ -121,9 +226,29 @@ func checkMerged(t *testing.T, seed uint64, atOnce bool, base, final Device, now
 			}
 		}
 	}
+	// Each page's concessions: in order, the paths a window saved before it changed; at
+	// once, only paths another window changed.
+	for _, w := range order {
+		if kind[w] != atRevision {
+			continue
+		}
+		for p, ws := range by {
+			if !slices.Contains(ws, w) {
+				continue
+			}
+			before := slices.Index(ws, w) > 0
+			other := len(ws) > 1
+			if got := slices.Contains(conceded[w], p); (!atOnce && got != before) || (atOnce && got && !other) {
+				t.Fatalf("seed %d: window %d conceded %s: %v; another window changed it before: %v", seed, w, p, got, before)
+			}
+		}
+	}
 	for p, ws := range by {
+		ws = slices.DeleteFunc(slices.Clone(ws), func(w int) bool { return slices.Contains(conceded[w], p) })
 		got := valueOf(final, p)
 		switch {
+		case len(ws) == 0:
+			t.Fatalf("seed %d: every window that changed %s conceded it", seed, p)
 		case !atOnce && got != valueOf(now[ws[len(ws)-1]], p):
 			t.Fatalf("seed %d: %s = %q, want the last save's %q", seed, p, got, valueOf(now[ws[len(ws)-1]], p))
 		case atOnce && !slicesHasValue(now, ws, p, got):
@@ -136,7 +261,6 @@ func checkMerged(t *testing.T, seed uint64, atOnce bool, base, final Device, now
 		}
 	}
 }
-
 func slicesHasValue(now []Device, ws []int, path, value string) bool {
 	for _, w := range ws {
 		if valueOf(now[w], path) == value {
@@ -186,15 +310,47 @@ func TestASplitAndAWindowsChangeAtOnceKeepTheChange(t *testing.T) {
 	}
 }
 
-// A save to a device file that will not load changes nothing, and says why.
+// A save at the file's revision answers what it wrote and the revision of those bytes,
+// which the next save is made at, even one that changes nothing.
+func TestUpdateDeviceAtAnswersTheRevisionItWrote(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), DeviceFile)
+	writeFile(t, path, "# by hand\n[display]\nfps = 20\n")
+	_, at, err := ReadDevice(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fps := range []int{30, 30} {
+		written, next, err := UpdateDeviceAt(path, at, func(dev Device) (Device, error) { dev.Display.FPS = fps; return dev, nil })
+		if err != nil {
+			t.Fatal(err)
+		}
+		onDisk, want, err := ReadDevice(path)
+		if err != nil || next != want || !reflect.DeepEqual(written, onDisk) || onDisk.Display.FPS != fps {
+			t.Fatalf("UpdateDeviceAt answered revision %q and fps %d; the file holds %q and fps %d (%v)", next, written.Display.FPS, want, onDisk.Display.FPS, err)
+		}
+		at = next
+	}
+}
+
+// A save to a device file that will not load changes nothing, and says why: one made
+// at the revision read before a hand edit broke it, too.
 func TestUpdateDeviceRefusesAFileThatWillNotLoad(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), DeviceFile)
+	_, before, err := ReadDevice(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	writeFile(t, path, "[display]\nfsp = 3\n")
 	now := deviceBaseline()
 	now.Display.FPS = 10
 	if _, err := UpdateDevice(path, deviceBaseline(), now); err == nil || !strings.Contains(err.Error(), "display.fsp") {
 		t.Errorf("UpdateDevice = %v, want the unknown key named", err)
+	}
+	set := func(dev Device) (Device, error) { dev.Display.FPS = 10; return dev, nil }
+	if _, _, err := UpdateDeviceAt(path, before, set); err == nil || !strings.Contains(err.Error(), "display.fsp") {
+		t.Errorf("UpdateDeviceAt = %v, want the unknown key named", err)
 	}
 	if got, _ := os.ReadFile(path); string(got) != "[display]\nfsp = 3\n" {
 		t.Errorf("the file was rewritten:\n%s", got)

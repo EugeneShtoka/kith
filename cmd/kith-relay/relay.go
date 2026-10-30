@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -256,12 +257,132 @@ func (d device) ChooseProfile(ctx context.Context, req *connect.Request[devicev1
 }
 
 // DeviceSettings answers what the window reads of the device file, resolved as the TUI
-// resolves it: an unset key is its default.
+// resolves it (an unset key is its default), and the revision of the bytes read.
 func (d device) DeviceSettings(context.Context, *connect.Request[devicev1.DeviceSettingsRequest]) (*connect.Response[devicev1.DeviceSettingsResponse], error) {
-	dev, err := loadDevice(d.configPath)
+	dev, revision, err := readDevice(d.configPath)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
 	}
+	return connect.NewResponse(&devicev1.DeviceSettingsResponse{Settings: resolved(dev), Revision: revision}), nil
+}
+
+// UpdateDeviceSettings writes the window's settings to the device file if it is still at
+// the revision they were read at (config.UpdateDeviceAt, under the lock every writer of
+// it takes). The window's change is measured from the file it read, so one made since
+// (by hand, by the TUI's editor) would be undone by it: the window is told, and reads
+// the file again. Each key the window holds otherwise than the file resolves it is
+// written, checked as the TUI checks the file; every other is left as the file has it.
+func (d device) UpdateDeviceSettings(_ context.Context, req *connect.Request[devicev1.UpdateDeviceSettingsRequest]) (*connect.Response[devicev1.UpdateDeviceSettingsResponse], error) {
+	want := req.Msg.GetSettings()
+	if want == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("no settings to write"))
+	}
+	path := config.DevicePath(d.configPath)
+	dev, revision, err := config.UpdateDeviceAt(path, req.Msg.GetBaseRevision(), func(file config.Device) (config.Device, error) {
+		if verr := setup.ValidateDevice(file); verr != nil {
+			return config.Device{}, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("reading %s: %w", path, verr))
+		}
+		next, aerr := applySettings(file, want)
+		if aerr == nil {
+			aerr = setup.ValidateDevice(next)
+		}
+		if aerr != nil {
+			return config.Device{}, connect.NewError(connect.CodeInvalidArgument, aerr)
+		}
+		return next, nil
+	})
+	if ce := new(connect.Error); errors.As(err, &ce) {
+		return nil, ce
+	}
+	switch {
+	case errors.Is(err, config.ErrDeviceChanged):
+		return nil, connect.NewError(connect.CodeAborted, err)
+	case err != nil:
+		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("reading %s: %w", path, err))
+	}
+	return connect.NewResponse(&devicev1.UpdateDeviceSettingsResponse{Settings: resolved(dev), Revision: revision}), nil
+}
+
+// reactionScopes are the rankings [display.reactions] scope takes, as the TUI offers them.
+var reactionScopes = []string{"room", "space", "global", "static"}
+
+// applySettings is file with each of want's keys that file resolves otherwise set, as the
+// file spells it; every other key is file's own, so an unset one stays unset. A skin
+// tone or a ranking the TUI does not know is refused (an emoji set, by ValidateDevice).
+func applySettings(file config.Device, want *devicev1.DeviceSettings) (config.Device, error) {
+	has := resolved(file)
+	flag := func(dst **bool, got, had bool) {
+		if got != had {
+			*dst = &got
+		}
+	}
+	flag(&file.Display.SendReceipts, want.GetSendReceipts(), has.GetSendReceipts())
+	flag(&file.Display.UnreadLine, want.GetUnreadLine(), has.GetUnreadLine())
+	flag(&file.Composer.Markdown, want.GetMarkdown(), has.GetMarkdown())
+	flag(&file.Composer.ConfirmSMS, want.GetConfirmSms(), has.GetConfirmSms())
+	flag(&file.Display.SendTyping, want.GetSendTyping(), has.GetSendTyping())
+	if want.GetSkinTone() != has.GetSkinTone() {
+		names := config.SkinToneNames()
+		i := slices.IndexFunc(names, func(name string) bool {
+			modifier, _ := config.SkinToneModifier(name)
+			return modifier == want.GetSkinTone()
+		})
+		if i < 0 {
+			return config.Device{}, fmt.Errorf("display.skin_tone: %q is no skin tone's modifier", want.GetSkinTone())
+		}
+		file.Display.SkinTone = names[i]
+	}
+	if want.GetEmojiSet() != has.GetEmojiSet() {
+		file.Display.Emoji.Set = want.GetEmojiSet()
+	}
+	if !maps.Equal(want.GetEmojiExtra(), has.GetEmojiExtra()) {
+		file.Display.Emoji.Extra = want.GetEmojiExtra()
+	}
+	if want.GetReactionsScope() != has.GetReactionsScope() {
+		if !slices.Contains(reactionScopes, want.GetReactionsScope()) {
+			return config.Device{}, fmt.Errorf("display.reactions.scope: unknown ranking %q (want %s)",
+				want.GetReactionsScope(), strings.Join(reactionScopes, ", "))
+		}
+		file.Display.Reactions.Scope = want.GetReactionsScope()
+	}
+	if !slices.Equal(want.GetReactionsStatic(), has.GetReactionsStatic()) {
+		file.Display.Reactions.Static = want.GetReactionsStatic()
+	}
+	if !slices.EqualFunc(want.GetReadRules(), has.GetReadRules(), sameRule) {
+		file.Display.ReadRules = readRules(want.GetReadRules(), file.Display.ReadRules)
+	}
+	return file, nil
+}
+
+// sameRule is whether two rules say the same, as the window reads them.
+func sameRule(a, b *devicev1.ReadRule) bool {
+	return a.GetMatch() == b.GetMatch() && a.GetSender() == b.GetSender() &&
+		(a.Send == nil) == (b.Send == nil) && a.GetSend() == b.GetSend()
+}
+
+// readRules is the window's rules as the file spells them. The window is not told a
+// rule's delay (the TUI's), so each keeps the delay of the file's rule for the same match
+// and sender: of several, the n-th the n-th's.
+func readRules(want []*devicev1.ReadRule, had []config.ReadRule) []config.ReadRule {
+	type place struct{ match, sender string }
+	delays := map[place][]*int{}
+	for _, r := range had {
+		at := place{r.Match, r.Sender}
+		delays[at] = append(delays[at], r.Delay)
+	}
+	out := make([]config.ReadRule, len(want))
+	for i, r := range want {
+		at := place{r.GetMatch(), r.GetSender()}
+		out[i] = config.ReadRule{Match: at.match, Sender: at.sender, Send: r.Send}
+		if left := delays[at]; len(left) > 0 {
+			out[i].Delay, delays[at] = left[0], left[1:]
+		}
+	}
+	return out
+}
+
+// resolved is what the window reads of dev: each key as the TUI resolves it.
+func resolved(dev config.Device) *devicev1.DeviceSettings {
 	rules := make([]*devicev1.ReadRule, len(dev.Display.ReadRules))
 	for i, r := range dev.Display.ReadRules {
 		rules[i] = &devicev1.ReadRule{Match: r.Match, Sender: r.Sender, Send: r.Send}
@@ -269,7 +390,7 @@ func (d device) DeviceSettings(context.Context, *connect.Request[devicev1.Device
 	// Checked as the device file loaded (setup.ValidateDevice): a name here is one of them.
 	tone, _ := setup.SkinTone(dev.Display.SkinTone)
 	set, _ := setup.EmojiTier(dev.Display.Emoji.Set)
-	return connect.NewResponse(&devicev1.DeviceSettingsResponse{
+	return &devicev1.DeviceSettings{
 		SendReceipts:    dev.Display.SendsReceipts(),
 		ReadRules:       rules,
 		UnreadLine:      dev.Display.ShowUnreadLine(),
@@ -281,7 +402,7 @@ func (d device) DeviceSettings(context.Context, *connect.Request[devicev1.Device
 		EmojiExtra:      dev.Display.Emoji.Extra,
 		ReactionsScope:  cmp.Or(dev.Display.Reactions.Scope, "room"), // as the TUI reads it unset
 		ReactionsStatic: dev.Display.Reactions.Static,
-	}), nil
+	}
 }
 
 // Outgoing readies a file for sending as the TUI's sendFileCmd does, where [display.media]
@@ -366,15 +487,21 @@ func (d device) config(ctx context.Context) (config.Config, error) {
 
 // loadDevice is the device file beside the config, checked as every client checks it.
 func loadDevice(configPath string) (config.Device, error) {
+	dev, _, err := readDevice(configPath)
+	return dev, err
+}
+
+// readDevice is loadDevice, and the revision of the bytes it read.
+func readDevice(configPath string) (config.Device, string, error) {
 	path := config.DevicePath(configPath)
-	dev, err := config.LoadDevice(path)
+	dev, revision, err := config.ReadDevice(path)
 	if err == nil {
 		err = setup.ValidateDevice(dev)
 	}
 	if err != nil {
-		return config.Device{}, fmt.Errorf("reading %s: %w", path, err)
+		return config.Device{}, "", fmt.Errorf("reading %s: %w", path, err)
 	}
-	return dev, nil
+	return dev, revision, nil
 }
 
 // spelled is the profile name names as the config spells it (names are unique in any

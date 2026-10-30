@@ -8,6 +8,7 @@ import { rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
 import { type Link, type Seat, Session, type View } from "./session";
 import { SearchBar, SearchResults, Switcher } from "./Find";
+import { SettingsPage } from "./SettingsPage";
 import { ThreadPane } from "./ThreadPane";
 import { TimelinePane } from "./TimelinePane";
 
@@ -54,9 +55,26 @@ export function App() {
             ))}
           </select>
         )}
+        <button
+          type="button"
+          aria-pressed={view.settingsPage !== undefined}
+          onClick={() => {
+            if (view.settingsPage) {
+              session.closeSettings();
+            } else {
+              session.openSettings();
+            }
+          }}
+        >
+          Settings
+        </button>
       </header>
       {view.problem && <p className="problem">{view.problem}</p>}
-      <Body view={view} session={session} />
+      {view.settingsPage ? (
+        <SettingsPage page={view.settingsPage} session={session} />
+      ) : (
+        <Body view={view} session={session} />
+      )}
       {(view.socket || view.bridge) && (
         <footer>
           {view.bridge ? (

@@ -32,11 +32,7 @@ import {
   type Unread,
   UnreadSchema,
 } from "../../gen/backend/v1/types_pb";
-import {
-  type DeviceSettingsResponse,
-  DeviceSettingsResponseSchema,
-  DeviceService,
-} from "../../gen/device/v1/device_pb";
+import { type DeviceSettings, DeviceSettingsSchema, DeviceService } from "../../gen/device/v1/device_pb";
 import { compare } from "../merge";
 import type { KithBridge, Offered, StreamEvent } from "../../shared/ipc";
 import { runIn } from "../../shared/profile";
@@ -92,10 +88,14 @@ export class Kithd {
   /** The bridge the device joined, "" for a kithd of its own: the relay reads the profiles through it. */
   joined = "";
   /** The relay's device settings, or "fail" for a device file that does not load. */
-  settings: DeviceSettingsResponse | "fail" = create(DeviceSettingsResponseSchema, {
+  settings: DeviceSettings | "fail" = create(DeviceSettingsSchema, {
     sendReceipts: true,
     unreadLine: true,
   });
+  /** device.toml's revision: each write makes a new one. */
+  settingsRevision = 1;
+  /** Runs as the next settings write reaches the relay: another writer of device.toml first. */
+  beforeSettingsWrite: (() => void) | undefined;
   /** Every receipt sent, as "room event public|private". */
   readonly receipts: string[] = [];
   /** Every attachment the window asked main to save, as "room event name". */
@@ -432,7 +432,29 @@ export class Kithd {
         if (this.settings === "fail") {
           throw new Error("reading device.toml: it does not load");
         }
-        return this.settings;
+        return reply(DeviceService.method.deviceSettings, {
+          settings: this.settings,
+          revision: String(this.settingsRevision),
+        });
+      case "UpdateDeviceSettings": {
+        // As the relay: written only over the file at the revision read.
+        const r = request as MessageShape<typeof DeviceService.method.updateDeviceSettings.input>;
+        const before = this.beforeSettingsWrite;
+        this.beforeSettingsWrite = undefined;
+        before?.();
+        if (this.settings === "fail") {
+          throw new Error("reading device.toml: it does not load");
+        }
+        if (r.baseRevision !== String(this.settingsRevision)) {
+          throw new Error("ConnectError: [aborted] device.toml changed since it was read");
+        }
+        this.settings = r.settings ?? this.settings;
+        this.settingsRevision++;
+        return reply(DeviceService.method.updateDeviceSettings, {
+          settings: this.settings,
+          revision: String(this.settingsRevision),
+        });
+      }
       case "CachedTimeline": {
         const room = (request as MessageShape<typeof backend.cachedTimeline.input>).roomId;
         return reply(backend.cachedTimeline, { messages: (p.messages.get(room) ?? []).slice(-4) });

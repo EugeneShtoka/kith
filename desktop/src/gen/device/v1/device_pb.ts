@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file device/v1/device.proto.
  */
 export const file_device_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiHwoPT3V0Z29pbmdSZXF1ZXN0EgwKBHBhdGgYASABKAkiTAoQT3V0Z29pbmdSZXNwb25zZRIMCgRwYXRoGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGY29waWVkGAMgASgIEgwKBGtlcHQYBCABKAgiDwoNRGV2aWNlUmVxdWVzdCJTCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCRIOCgZicmlkZ2UYBCABKAkiJAoUQ2hvb3NlUHJvZmlsZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSIoChVDaG9vc2VQcm9maWxlUmVzcG9uc2USDwoHcHJvZmlsZRgBIAEoCSIXChVEZXZpY2VTZXR0aW5nc1JlcXVlc3Qi/QIKFkRldmljZVNldHRpbmdzUmVzcG9uc2USFQoNc2VuZF9yZWNlaXB0cxgBIAEoCBInCgpyZWFkX3J1bGVzGAIgAygLMhMuZGV2aWNlLnYxLlJlYWRSdWxlEhMKC3VucmVhZF9saW5lGAMgASgIEhAKCG1hcmtkb3duGAQgASgIEhMKC2NvbmZpcm1fc21zGAUgASgIEhMKC3NlbmRfdHlwaW5nGAYgASgIEhEKCXNraW5fdG9uZRgHIAEoCRIRCgllbW9qaV9zZXQYCCABKAkSRgoLZW1vamlfZXh0cmEYCSADKAsyMS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXNwb25zZS5FbW9qaUV4dHJhRW50cnkSFwoPcmVhY3Rpb25zX3Njb3BlGAogASgJEhgKEHJlYWN0aW9uc19zdGF0aWMYCyADKAkaMQoPRW1vamlFeHRyYUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiRQoIUmVhZFJ1bGUSDQoFbWF0Y2gYASABKAkSDgoGc2VuZGVyGAIgASgJEhEKBHNlbmQYAyABKAhIAIgBAUIHCgVfc2VuZDK+AgoNRGV2aWNlU2VydmljZRI9CgZEZXZpY2USGC5kZXZpY2UudjEuRGV2aWNlUmVxdWVzdBoZLmRldmljZS52MS5EZXZpY2VSZXNwb25zZRJSCg1DaG9vc2VQcm9maWxlEh8uZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXF1ZXN0GiAuZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXNwb25zZRJVCg5EZXZpY2VTZXR0aW5ncxIgLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1JlcXVlc3QaIS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXNwb25zZRJDCghPdXRnb2luZxIaLmRldmljZS52MS5PdXRnb2luZ1JlcXVlc3QaGy5kZXZpY2UudjEuT3V0Z29pbmdSZXNwb25zZUI+WjxnaXRodWIuY29tL0V1Z2VuZVNodG9rYS9raXRoL2ludGVybmFsL2FwaS9kZXZpY2UvdjE7ZGV2aWNldjFiBnByb3RvMw");
+  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiHwoPT3V0Z29pbmdSZXF1ZXN0EgwKBHBhdGgYASABKAkiTAoQT3V0Z29pbmdSZXNwb25zZRIMCgRwYXRoGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGY29waWVkGAMgASgIEgwKBGtlcHQYBCABKAgiDwoNRGV2aWNlUmVxdWVzdCJTCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCRIOCgZicmlkZ2UYBCABKAkiJAoUQ2hvb3NlUHJvZmlsZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSIoChVDaG9vc2VQcm9maWxlUmVzcG9uc2USDwoHcHJvZmlsZRgBIAEoCSIXChVEZXZpY2VTZXR0aW5nc1JlcXVlc3QiVwoWRGV2aWNlU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncxIQCghyZXZpc2lvbhgCIAEoCSJhChtVcGRhdGVEZXZpY2VTZXR0aW5nc1JlcXVlc3QSFQoNYmFzZV9yZXZpc2lvbhgBIAEoCRIrCghzZXR0aW5ncxgCIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncyJdChxVcGRhdGVEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzEhAKCHJldmlzaW9uGAIgASgJIu0CCg5EZXZpY2VTZXR0aW5ncxIVCg1zZW5kX3JlY2VpcHRzGAEgASgIEicKCnJlYWRfcnVsZXMYAiADKAsyEy5kZXZpY2UudjEuUmVhZFJ1bGUSEwoLdW5yZWFkX2xpbmUYAyABKAgSEAoIbWFya2Rvd24YBCABKAgSEwoLY29uZmlybV9zbXMYBSABKAgSEwoLc2VuZF90eXBpbmcYBiABKAgSEQoJc2tpbl90b25lGAcgASgJEhEKCWVtb2ppX3NldBgIIAEoCRI+CgtlbW9qaV9leHRyYRgJIAMoCzIpLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncy5FbW9qaUV4dHJhRW50cnkSFwoPcmVhY3Rpb25zX3Njb3BlGAogASgJEhgKEHJlYWN0aW9uc19zdGF0aWMYCyADKAkaMQoPRW1vamlFeHRyYUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiRQoIUmVhZFJ1bGUSDQoFbWF0Y2gYASABKAkSDgoGc2VuZGVyGAIgASgJEhEKBHNlbmQYAyABKAhIAIgBAUIHCgVfc2VuZDKnAwoNRGV2aWNlU2VydmljZRI9CgZEZXZpY2USGC5kZXZpY2UudjEuRGV2aWNlUmVxdWVzdBoZLmRldmljZS52MS5EZXZpY2VSZXNwb25zZRJSCg1DaG9vc2VQcm9maWxlEh8uZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXF1ZXN0GiAuZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXNwb25zZRJVCg5EZXZpY2VTZXR0aW5ncxIgLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1JlcXVlc3QaIS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXNwb25zZRJnChRVcGRhdGVEZXZpY2VTZXR0aW5ncxImLmRldmljZS52MS5VcGRhdGVEZXZpY2VTZXR0aW5nc1JlcXVlc3QaJy5kZXZpY2UudjEuVXBkYXRlRGV2aWNlU2V0dGluZ3NSZXNwb25zZRJDCghPdXRnb2luZxIaLmRldmljZS52MS5PdXRnb2luZ1JlcXVlc3QaGy5kZXZpY2UudjEuT3V0Z29pbmdSZXNwb25zZUI+WjxnaXRodWIuY29tL0V1Z2VuZVNodG9rYS9raXRoL2ludGVybmFsL2FwaS9kZXZpY2UvdjE7ZGV2aWNldjFiBnByb3RvMw");
 
 /**
  * @generated from message device.v1.OutgoingRequest
@@ -185,6 +185,82 @@ export const DeviceSettingsRequestSchema: GenMessage<DeviceSettingsRequest> = /*
  */
 export type DeviceSettingsResponse = Message<"device.v1.DeviceSettingsResponse"> & {
   /**
+   * @generated from field: device.v1.DeviceSettings settings = 1;
+   */
+  settings?: DeviceSettings | undefined;
+
+  /**
+   * revision is the device file's as settings were read from it: a hash of its bytes,
+   * "" for no file.
+   *
+   * @generated from field: string revision = 2;
+   */
+  revision: string;
+};
+
+/**
+ * Describes the message device.v1.DeviceSettingsResponse.
+ * Use `create(DeviceSettingsResponseSchema)` to create a new message.
+ */
+export const DeviceSettingsResponseSchema: GenMessage<DeviceSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 7);
+
+/**
+ * @generated from message device.v1.UpdateDeviceSettingsRequest
+ */
+export type UpdateDeviceSettingsRequest = Message<"device.v1.UpdateDeviceSettingsRequest"> & {
+  /**
+   * base_revision is the revision the settings changed were read at.
+   *
+   * @generated from field: string base_revision = 1;
+   */
+  baseRevision: string;
+
+  /**
+   * @generated from field: device.v1.DeviceSettings settings = 2;
+   */
+  settings?: DeviceSettings | undefined;
+};
+
+/**
+ * Describes the message device.v1.UpdateDeviceSettingsRequest.
+ * Use `create(UpdateDeviceSettingsRequestSchema)` to create a new message.
+ */
+export const UpdateDeviceSettingsRequestSchema: GenMessage<UpdateDeviceSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 8);
+
+/**
+ * @generated from message device.v1.UpdateDeviceSettingsResponse
+ */
+export type UpdateDeviceSettingsResponse = Message<"device.v1.UpdateDeviceSettingsResponse"> & {
+  /**
+   * @generated from field: device.v1.DeviceSettings settings = 1;
+   */
+  settings?: DeviceSettings | undefined;
+
+  /**
+   * revision is the device file's as now written.
+   *
+   * @generated from field: string revision = 2;
+   */
+  revision: string;
+};
+
+/**
+ * Describes the message device.v1.UpdateDeviceSettingsResponse.
+ * Use `create(UpdateDeviceSettingsResponseSchema)` to create a new message.
+ */
+export const UpdateDeviceSettingsResponseSchema: GenMessage<UpdateDeviceSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 9);
+
+/**
+ * DeviceSettings is what the window reads of this device's settings (device.toml), each
+ * key's default applied.
+ *
+ * @generated from message device.v1.DeviceSettings
+ */
+export type DeviceSettings = Message<"device.v1.DeviceSettings"> & {
+  /**
    * [display] send_receipts: whether the people in a room are told how far you have
    * read; without, the receipt is private and only your own clients see it.
    *
@@ -264,11 +340,11 @@ export type DeviceSettingsResponse = Message<"device.v1.DeviceSettingsResponse">
 };
 
 /**
- * Describes the message device.v1.DeviceSettingsResponse.
- * Use `create(DeviceSettingsResponseSchema)` to create a new message.
+ * Describes the message device.v1.DeviceSettings.
+ * Use `create(DeviceSettingsSchema)` to create a new message.
  */
-export const DeviceSettingsResponseSchema: GenMessage<DeviceSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 7);
+export const DeviceSettingsSchema: GenMessage<DeviceSettings> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 10);
 
 /**
  * ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
@@ -304,7 +380,7 @@ export type ReadRule = Message<"device.v1.ReadRule"> & {
  * Use `create(ReadRuleSchema)` to create a new message.
  */
 export const ReadRuleSchema: GenMessage<ReadRule> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 8);
+  messageDesc(file_device_v1_device, 11);
 
 /**
  * DeviceService is served by kith-relay, the desktop window's link to kithd, beside the
@@ -348,6 +424,22 @@ export const DeviceService: GenService<{
     methodKind: "unary";
     input: typeof DeviceSettingsRequestSchema;
     output: typeof DeviceSettingsResponseSchema;
+  },
+  /**
+   * UpdateDeviceSettings writes the window's settings to the device file if the file is
+   * still the one read at base_revision (DeviceSettings' revision). Changed since, by
+   * hand or by another window, it is ABORTED and nothing is written: the window reads it
+   * again. Each key whose value differs from the file's (resolved) is written, by the
+   * writer the TUI's settings editor uses; every other is left as the file has it. A
+   * value the TUI would refuse is INVALID_ARGUMENT, a file that does not load
+   * FAILED_PRECONDITION. It answers the settings as now resolved, and their revision.
+   *
+   * @generated from rpc device.v1.DeviceService.UpdateDeviceSettings
+   */
+  updateDeviceSettings: {
+    methodKind: "unary";
+    input: typeof UpdateDeviceSettingsRequestSchema;
+    output: typeof UpdateDeviceSettingsResponseSchema;
   },
   /**
    * Outgoing readies a file on this device for sending, as the TUI readies one: where
