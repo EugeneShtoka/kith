@@ -58,7 +58,8 @@ func writeRosterFile(t *testing.T, path string, names map[string]string) {
 	}
 }
 
-// opsIn counts the ops the mesh store at path holds.
+// opsIn counts the roster ops the mesh store at path holds; the accounts the bridge
+// publishes in the background (bridge/<ID>/accounts) are not the roster's.
 func opsIn(t *testing.T, path string, key []byte) int {
 	t.Helper()
 	db, err := sealeddb.Open(t.Context(), path, key)
@@ -67,7 +68,7 @@ func opsIn(t *testing.T, path string, key []byte) int {
 	}
 	defer func() { _ = db.Close() }()
 	var n int
-	if err := db.QueryRowContext(t.Context(), "SELECT count(*) FROM ops").Scan(&n); err != nil {
+	if err := db.QueryRowContext(t.Context(), "SELECT count(*) FROM ops WHERE roster = 1").Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	return n
