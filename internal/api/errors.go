@@ -50,6 +50,10 @@ var (
 	// ErrRefused: the network refused a message for good (no access, too large, the room
 	// gone): sending it again cannot help, so a queued one fails at once.
 	ErrRefused = errors.New("the network refused this message")
+	// ErrNoSuchMessage: the message asked for is not there to read: deleted on its
+	// network, or one the adapter holds no copy of and cannot ask for. An answer, not a
+	// fault: a reply quoting it shows the quote as not loaded. It crosses as not_found.
+	ErrNoSuchMessage = errors.New("no such message")
 	// ErrUnknownProfile: the config has no [[profile]] of the name a client gave.
 	ErrUnknownProfile = errors.New("daemon: no such profile")
 	// ErrConfigMoved: a config change was based on a revision no longer on disk;

@@ -190,7 +190,7 @@ func TestChangesNeedAConnection(t *testing.T) {
 			t.Errorf("%s with nothing connected = %v", name, err)
 		}
 	}
-	if _, err := a.FetchEvent(ctx, danaChat, msg); !errors.Is(err, api.ErrNotOnNetwork) {
+	if _, err := a.FetchEvent(ctx, danaChat, msg); !errors.Is(err, api.ErrNoSuchMessage) {
 		t.Errorf("fetching what was never cached = %v", err)
 	}
 	if err := cache.SaveMessages(ctx, danaChat, []domain.Message{{ID: msg, RoomID: danaChat, Body: "here"}}); err != nil {

@@ -37,6 +37,7 @@ var sentinels = map[string]error{
 	"not-on-network":    api.ErrNotOnNetwork,
 	"config-moved":      api.ErrConfigMoved,
 	"refused":           api.ErrRefused,
+	"no-such-message":   api.ErrNoSuchMessage,
 	"unknown-profile":   api.ErrUnknownProfile,
 	"daemon-waiting":    api.ErrDaemonWaiting,
 }

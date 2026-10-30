@@ -178,7 +178,7 @@ func (a *Adapter) FetchEvent(ctx context.Context, room domain.RoomID, event doma
 			return msg, nil
 		}
 	}
-	return domain.Message{}, fmt.Errorf("%w (%s)", errNotCached, event)
+	return domain.Message{}, fmt.Errorf("%w (%s): %w", errNotCached, event, api.ErrNoSuchMessage)
 }
 
 // MessageHistory returns a message's cached versions.

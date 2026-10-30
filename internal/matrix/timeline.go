@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -307,6 +309,9 @@ func mergeRevisions(kept, fetched []domain.Revision) []domain.Revision {
 // cached window) and caches it, best-effort.
 func (b *InProc) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, error) {
 	evt, err := b.client.GetEvent(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID))
+	if errors.Is(err, mautrix.MNotFound) {
+		err = fmt.Errorf("%w: %w", err, api.ErrNoSuchMessage) // not there, or not to this account
+	}
 	if err != nil {
 		return domain.Message{}, fmt.Errorf("matrix: fetch event %s: %w", eventID, err)
 	}

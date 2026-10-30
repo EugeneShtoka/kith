@@ -719,5 +719,5 @@ func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID 
 	if msg, ok := a.quotedMessage(ctx, roomID, eventID); ok {
 		return msg, nil
 	}
-	return domain.Message{}, fmt.Errorf("whatsapp: %s is not in the cache, and WhatsApp keeps no copy to ask for: %w", eventID, errNotOnWhatsApp)
+	return domain.Message{}, fmt.Errorf("whatsapp: %s is not in the cache, and WhatsApp keeps no copy to ask for: %w", eventID, api.ErrNoSuchMessage)
 }

@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -149,5 +151,23 @@ func TestFetchEventDoesNotCacheTheUndecryptablePlaceholder(t *testing.T) {
 	}
 	if len(cached) != 0 {
 		t.Errorf("cached %d messages, want 0: %+v", len(cached), cached)
+	}
+}
+
+// An event the homeserver does not have (or will not show) is no such message.
+func TestFetchEventOfAnEventNotFoundIsNoSuchMessage(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"errcode": "M_NOT_FOUND", "error": "Event not found."}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	b := backendOn(t, srv)
+	_, err := b.FetchEvent(context.Background(), domain.RoomID(mx+"!r:x"), domain.EventID(mx+"$gone:x"))
+	if !errors.Is(err, api.ErrNoSuchMessage) {
+		t.Errorf("FetchEvent() = %v, want ErrNoSuchMessage", err)
 	}
 }

@@ -1,9 +1,18 @@
 import { hostname } from "node:os";
 
-import { create, type DescMessage, type MessageInitShape, type MessageShape, toBinary } from "@bufbuild/protobuf";
+import {
+  create,
+  type DescMessage,
+  fromBinary,
+  type MessageInitShape,
+  type MessageShape,
+  toBinary,
+} from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { BackendService, type SeatRequest } from "../gen/backend/v1/services_pb";
+import { MessageSchema } from "../gen/backend/v1/types_pb";
 import { DeviceService } from "../gen/device/v1/device_pb";
 import type { StreamEvent } from "../shared/ipc";
 import { type Frame, Gate, Refused } from "./gate";
@@ -352,5 +361,26 @@ describe("the gate", () => {
       "LeaveRoom:Work",
       "JoinRoom:Work",
     ]);
+  });
+
+  it("answers a FetchEvent of a message kithd has not got with no message, and every other failure as one", async () => {
+    await device();
+    kithd.fetched.set("$here", create(MessageSchema, { id: "$here", body: "the question" }));
+    kithd.fetched.set("$broken", new ConnectError("cache is locked", Code.Internal));
+    const fetch = async (eventId: string) =>
+      fromBinary(
+        backend.fetchEvent.output,
+        await gate.call(window, "FetchEvent", bytes(backend.fetchEvent.input, { roomId: "!r:x", eventId })),
+      );
+    expect((await fetch("$here")).message?.body).toBe("the question");
+    // Gone from its network, or never held: an answer, so main's handler has nothing to log.
+    expect((await fetch("$gone")).message).toBeUndefined();
+    await expect(fetch("$broken")).rejects.toThrow("cache is locked");
+    // Not found from any other call is still a failure: a room gone is no room joined.
+    kithd.invited.push("!gone:x");
+    kithd.gone.add("!gone:x");
+    await expect(
+      gate.call(window, "JoinRoom", bytes(backend.joinRoom.input, { roomIdOrAlias: "!gone:x" })),
+    ).rejects.toThrow("no room !gone:x");
   });
 });

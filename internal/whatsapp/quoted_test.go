@@ -2,11 +2,13 @@ package whatsapp
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types/events"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -51,7 +53,7 @@ func TestAReplyKeepsWhatItQuotes(t *testing.T) {
 	if got, _ := a.FetchEvent(ctx, danaChat, old); got.Body != original.Body {
 		t.Errorf("FetchEvent with the original cached = %q, want the original", got.Body)
 	}
-	if _, err := a.FetchEvent(ctx, danaChat, "whatsapp:"+ownDigits+"/NEVER"); err == nil {
-		t.Error("a message neither cached nor quoted was found")
+	if _, err := a.FetchEvent(ctx, danaChat, "whatsapp:"+ownDigits+"/NEVER"); !errors.Is(err, api.ErrNoSuchMessage) {
+		t.Errorf("fetching a message neither cached nor quoted = %v, want ErrNoSuchMessage", err)
 	}
 }

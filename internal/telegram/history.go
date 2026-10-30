@@ -172,6 +172,9 @@ func (a *Adapter) FetchEvent(ctx context.Context, roomID domain.RoomID, eventID 
 		return domain.Message{}, fmt.Errorf("telegram: %s is no message of %s", eventID, roomID)
 	}
 	m, ent, err := a.fetchRaw(ctx, ch, id)
+	if errors.Is(err, errGone) {
+		err = fmt.Errorf("%w: %w", err, api.ErrNoSuchMessage) // an answer, not a fault
+	}
 	if err != nil {
 		return domain.Message{}, fmt.Errorf("telegram: fetch %s: %w", eventID, err)
 	}

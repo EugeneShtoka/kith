@@ -2,6 +2,7 @@ package meta
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"go.mau.fi/mautrix-meta/pkg/messagix/table"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/sealeddb"
@@ -334,5 +336,16 @@ func TestOnlyLiveMessagesAreAnnounced(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Error("the live message was not streamed")
+	}
+}
+
+// A message the cache does not hold is no such message, in Meta's words: Meta has no
+// copy kith can ask for.
+func TestAMessageNotCachedIsNoSuchMessage(t *testing.T) {
+	t.Parallel()
+	a, _, _, _ := cachedAdapter(t)
+	_, err := a.FetchEvent(context.Background(), roomID(me, dana), eventID(me, dana, "NOPE"))
+	if !errors.Is(err, api.ErrNoSuchMessage) || !strings.Contains(err.Error(), "meta: that message is not in the cache") {
+		t.Errorf("FetchEvent() = %v, want ErrNoSuchMessage in Meta's words", err)
 	}
 }

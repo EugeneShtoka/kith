@@ -2,6 +2,7 @@ package instagram
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"go.mau.fi/mautrix-meta/pkg/instameow/slidetypes"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/sealeddb"
@@ -411,8 +413,8 @@ func TestSignedInAccountsAreSpaces(t *testing.T) {
 	if err != nil || msg.Body != "hi" {
 		t.Errorf("fetch = %+v, %v", msg, err)
 	}
-	if _, err := r.a.FetchEvent(ctx, room, eventID(self, danaChat, "nope")); err == nil {
-		t.Error("an uncached message was found")
+	if _, err := r.a.FetchEvent(ctx, room, eventID(self, danaChat, "nope")); !errors.Is(err, api.ErrNoSuchMessage) {
+		t.Errorf("fetching an uncached message = %v, want ErrNoSuchMessage", err)
 	}
 	if _, _, err := r.a.MessageHistory(ctx, room, msg.ID); err != nil {
 		t.Error(err)
