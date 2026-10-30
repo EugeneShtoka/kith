@@ -1,0 +1,36 @@
+{
+  "about": "How a message's reactions are tallied under it (domain.AggregateReactions, with no one counted as me, as the timelines draw them): by key, in the order each key first appears, each reaction once by its ID, a keyless one not at all. Read by internal/domain's conformance test and the desktop's timeline tests.",
+  "cases": [
+    { "name": "none", "reactions": [], "want": [] },
+    {
+      "name": "keys in the order they first appear",
+      "reactions": [
+        { "id": "$1", "key": "🎉" },
+        { "id": "$2", "key": "👍" },
+        { "id": "$3", "key": "🎉" }
+      ],
+      "want": [
+        { "key": "🎉", "count": 2 },
+        { "key": "👍", "count": 1 }
+      ]
+    },
+    {
+      "name": "a reaction delivered twice counts once",
+      "reactions": [
+        { "id": "$1", "key": "👍" },
+        { "id": "$1", "key": "👍" },
+        { "id": "", "key": "👍" },
+        { "id": "", "key": "👍" }
+      ],
+      "want": [{ "key": "👍", "count": 3 }]
+    },
+    {
+      "name": "a reaction with no key is not drawn",
+      "reactions": [
+        { "id": "$1", "key": "" },
+        { "id": "$2", "key": "👍🏽" }
+      ],
+      "want": [{ "key": "👍🏽", "count": 1 }]
+    }
+  ]
+}

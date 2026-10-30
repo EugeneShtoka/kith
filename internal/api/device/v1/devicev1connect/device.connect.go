@@ -38,6 +38,9 @@ const (
 	// DeviceServiceChooseProfileProcedure is the fully-qualified name of the DeviceService's
 	// ChooseProfile RPC.
 	DeviceServiceChooseProfileProcedure = "/device.v1.DeviceService/ChooseProfile"
+	// DeviceServiceDeviceSettingsProcedure is the fully-qualified name of the DeviceService's
+	// DeviceSettings RPC.
+	DeviceServiceDeviceSettingsProcedure = "/device.v1.DeviceService/DeviceSettings"
 )
 
 // DeviceServiceClient is a client for the device.v1.DeviceService service.
@@ -49,6 +52,9 @@ type DeviceServiceClient interface {
 	// ChooseProfile remembers a profile as the one this device runs in (device.toml's
 	// profile_in_use), refusing a name the config lacks (INVALID_ARGUMENT).
 	ChooseProfile(context.Context, *connect.Request[v1.ChooseProfileRequest]) (*connect.Response[v1.ChooseProfileResponse], error)
+	// DeviceSettings is what the window reads of this device's settings (device.toml),
+	// each key's default applied. Each call reads the file again.
+	DeviceSettings(context.Context, *connect.Request[v1.DeviceSettingsRequest]) (*connect.Response[v1.DeviceSettingsResponse], error)
 }
 
 // NewDeviceServiceClient constructs a client for the device.v1.DeviceService service. By default,
@@ -74,13 +80,20 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("ChooseProfile")),
 			connect.WithClientOptions(opts...),
 		),
+		deviceSettings: connect.NewClient[v1.DeviceSettingsRequest, v1.DeviceSettingsResponse](
+			httpClient,
+			baseURL+DeviceServiceDeviceSettingsProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("DeviceSettings")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // deviceServiceClient implements DeviceServiceClient.
 type deviceServiceClient struct {
-	device        *connect.Client[v1.DeviceRequest, v1.DeviceResponse]
-	chooseProfile *connect.Client[v1.ChooseProfileRequest, v1.ChooseProfileResponse]
+	device         *connect.Client[v1.DeviceRequest, v1.DeviceResponse]
+	chooseProfile  *connect.Client[v1.ChooseProfileRequest, v1.ChooseProfileResponse]
+	deviceSettings *connect.Client[v1.DeviceSettingsRequest, v1.DeviceSettingsResponse]
 }
 
 // Device calls device.v1.DeviceService.Device.
@@ -93,6 +106,11 @@ func (c *deviceServiceClient) ChooseProfile(ctx context.Context, req *connect.Re
 	return c.chooseProfile.CallUnary(ctx, req)
 }
 
+// DeviceSettings calls device.v1.DeviceService.DeviceSettings.
+func (c *deviceServiceClient) DeviceSettings(ctx context.Context, req *connect.Request[v1.DeviceSettingsRequest]) (*connect.Response[v1.DeviceSettingsResponse], error) {
+	return c.deviceSettings.CallUnary(ctx, req)
+}
+
 // DeviceServiceHandler is an implementation of the device.v1.DeviceService service.
 type DeviceServiceHandler interface {
 	// Device is where this device's requests go, the profiles the config defines, and
@@ -102,6 +120,9 @@ type DeviceServiceHandler interface {
 	// ChooseProfile remembers a profile as the one this device runs in (device.toml's
 	// profile_in_use), refusing a name the config lacks (INVALID_ARGUMENT).
 	ChooseProfile(context.Context, *connect.Request[v1.ChooseProfileRequest]) (*connect.Response[v1.ChooseProfileResponse], error)
+	// DeviceSettings is what the window reads of this device's settings (device.toml),
+	// each key's default applied. Each call reads the file again.
+	DeviceSettings(context.Context, *connect.Request[v1.DeviceSettingsRequest]) (*connect.Response[v1.DeviceSettingsResponse], error)
 }
 
 // NewDeviceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -123,12 +144,20 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("ChooseProfile")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServiceDeviceSettingsHandler := connect.NewUnaryHandler(
+		DeviceServiceDeviceSettingsProcedure,
+		svc.DeviceSettings,
+		connect.WithSchema(deviceServiceMethods.ByName("DeviceSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/device.v1.DeviceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceServiceDeviceProcedure:
 			deviceServiceDeviceHandler.ServeHTTP(w, r)
 		case DeviceServiceChooseProfileProcedure:
 			deviceServiceChooseProfileHandler.ServeHTTP(w, r)
+		case DeviceServiceDeviceSettingsProcedure:
+			deviceServiceDeviceSettingsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -144,4 +173,8 @@ func (UnimplementedDeviceServiceHandler) Device(context.Context, *connect.Reques
 
 func (UnimplementedDeviceServiceHandler) ChooseProfile(context.Context, *connect.Request[v1.ChooseProfileRequest]) (*connect.Response[v1.ChooseProfileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.ChooseProfile is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) DeviceSettings(context.Context, *connect.Request[v1.DeviceSettingsRequest]) (*connect.Response[v1.DeviceSettingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.DeviceSettings is not implemented"))
 }

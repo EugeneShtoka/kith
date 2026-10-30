@@ -6,17 +6,26 @@ import type { DescMessage, DescMethodServerStreaming, MessageInitShape, MessageS
 import {
   BackendService,
   Change,
+  type ReactionsResponse,
   type SeatHolder,
   type SeatResponse,
   type StatusResponse,
 } from "../gen/backend/v1/services_pb";
-import type { Room, Unread } from "../gen/backend/v1/types_pb";
-import { DeviceService } from "../gen/device/v1/device_pb";
+import type { Message, Reaction, Room, Unread } from "../gen/backend/v1/types_pb";
+import { type DeviceSettingsResponse, DeviceService } from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
 import { call, subscribe } from "./kith";
+import { announces } from "./read";
 import { ordered, total } from "./rooms";
+import { type Ask, newest, Timeline, type TimelineView } from "./timeline";
 
 const backend = BackendService.method;
+
+/** How many messages a network page asks for, and a cached page holds (as the TUI's). */
+const networkPage = 50n;
+const cachedPage = 2000n;
+/** How many reply targets are fetched at once. */
+const quoteFetches = 6;
 
 /** The window's seat in its profile: one window per profile is served (kithd's Seat). */
 export type Seat =
@@ -48,6 +57,11 @@ export interface View {
   unread: ReadonlyMap<string, Unread>;
   /** What the tray counts. */
   unreadTotal: number;
+  /** The room open ("" none), and its timeline. */
+  open: string;
+  timeline: TimelineView | undefined;
+  /** Whether the unread line is drawn ([display] unread_line). */
+  unreadLine: boolean;
   problem: string | undefined;
 }
 
@@ -59,6 +73,9 @@ const nothingShown = {
   invites: [],
   unread: new Map(),
   unreadTotal: 0,
+  open: "",
+  timeline: undefined,
+  unreadLine: true,
 } satisfies Partial<View>;
 
 /** Run is one stay in one profile's seat: what it opened, closed together when it ends. */
@@ -73,6 +90,14 @@ interface Run {
   at: Readonly<Record<string, bigint>>;
   /** Counts the room reads, so an older answer arriving last is dropped. */
   roomReads: number;
+  /** The Messages stream has said where it starts: a page read from now misses no change. */
+  positioned: boolean;
+  /** The open room's timeline, and the device settings it follows: undefined while read. */
+  timeline: Timeline | undefined;
+  settings: DeviceSettingsResponse | "failed" | undefined;
+  /** Counts the reactions reads; the Reactions frames held while one is answered. */
+  reactionReads: number;
+  reactionsHeld: ReactionsResponse[] | undefined;
 }
 
 export class Session {
@@ -88,6 +113,8 @@ export class Session {
    */
   private device: Promise<void> = Promise.resolve();
   private told = 0;
+  /** The open room is watched: shown at its newest, the window focused. */
+  private watching = false;
 
   /** start reads the device, which runs the window in a profile or has it ask. */
   start(): void {
@@ -139,6 +166,48 @@ export class Session {
     });
   }
 
+  /**
+   * open shows a room: its newest cached messages, then older ones as the window scrolls
+   * back, kept by the Messages stream. The unread line follows the last message read as
+   * it opened, and stays there while it is open.
+   */
+  open(room: string): void {
+    const run = this.run;
+    if (run === undefined || room === this.view.open) {
+      return;
+    }
+    run.timeline = new Timeline(room, this.view.unread.get(room)?.readEvent ?? "");
+    run.settings = undefined;
+    this.set({ open: room, unreadLine: true });
+    this.readSettings(run, run.timeline);
+    this.readReactions(run);
+    this.pump(run);
+  }
+
+  /** older asks for the open room's page before what is shown. */
+  older(): void {
+    const run = this.run;
+    if (run?.timeline !== undefined) {
+      run.timeline.older();
+      this.pump(run);
+    }
+  }
+
+  /** watch says whether the open room is watched (at its newest, the window focused): what arrives meanwhile is read. */
+  watch(watching: boolean): void {
+    this.watching = watching;
+    if (this.run !== undefined) {
+      this.markRead(this.run);
+    }
+  }
+
+  /** save saves m's attachment where the person picks. */
+  save(m: Message): Promise<void> {
+    return this.inRun(async () => {
+      await window.kith.save(m.roomId, m.id, m.media?.name ?? "");
+    });
+  }
+
   /** readDevice reads the profiles again and moves the window where the answer leaves it. */
   private readDevice(): void {
     void this.inTurn(async () => {
@@ -172,7 +241,20 @@ export class Session {
   }
 
   private begin(profile: string): Run {
-    this.run = { profile, closed: false, seat: undefined, streams: [], joined: [], at: {}, roomReads: 0 };
+    this.run = {
+      profile,
+      closed: false,
+      seat: undefined,
+      streams: [],
+      joined: [],
+      at: {},
+      roomReads: 0,
+      positioned: false,
+      timeline: undefined,
+      settings: undefined,
+      reactionReads: 0,
+      reactionsHeld: undefined,
+    };
     return this.run;
   }
 
@@ -288,6 +370,60 @@ export class Session {
         reopened ||= e.kind === "attached";
       }),
     );
+    run.streams.push(
+      subscribe(backend.messages, {}, (e) => {
+        if (!this.live(run)) {
+          return;
+        }
+        switch (e.kind) {
+          case "frames":
+            for (const f of e.frames) {
+              if (f.message !== undefined) {
+                run.timeline?.frame(f.message);
+              }
+            }
+            // The first frame says where the stream starts: a page read after it misses
+            // nothing, each change after it coming as a frame.
+            run.positioned = true;
+            this.pump(run);
+            this.markRead(run);
+            this.set({});
+            break;
+          case "reload":
+            // kithd could not resume where main left off: frames were lost, so what is
+            // shown is read again, and so are the rooms' last messages.
+            run.positioned = true;
+            run.timeline?.reload();
+            this.readRooms(run);
+            this.pump(run);
+            this.set({});
+            break;
+          case "refused":
+            this.fail(e.error);
+            break;
+          case "attached":
+          case "detached":
+            break; // main resumes it where it left off
+        }
+      }),
+      // Reactions do not resume: read whole again as the stream opens, frames meanwhile held.
+      subscribe(backend.reactions, {}, (e) => {
+        if (!this.live(run)) {
+          return;
+        }
+        if (e.kind === "attached") {
+          this.readReactions(run);
+        } else if (e.kind === "frames") {
+          if (run.reactionsHeld !== undefined) {
+            run.reactionsHeld.push(...e.frames);
+          } else {
+            this.reacted(run, e.frames);
+          }
+        } else if (e.kind === "refused") {
+          this.fail(e.error);
+        }
+      }),
+    );
     this.keep(
       run,
       backend.unreadStream,
@@ -380,6 +516,147 @@ export class Session {
     );
   }
 
+  /**
+   * pump asks for the open room's next page, one at a time, once the Messages stream has
+   * said where it starts; and for the reply targets neither shown nor asked for.
+   */
+  private pump(run: Run): void {
+    const t = run.timeline;
+    if (t === undefined || !run.positioned || !this.live(run)) {
+      return;
+    }
+    for (const id of t.unquoted(quoteFetches)) {
+      call(backend.fetchEvent, { roomId: t.room, eventId: id }).then(
+        (r) => {
+          if (r.message !== undefined && this.live(run) && run.timeline === t) {
+            t.fetchedQuote(r.message);
+            this.set({});
+          }
+        },
+        () => undefined, // the reply keeps its placeholder
+      );
+    }
+    const ticket = t.ask();
+    if (ticket === undefined) {
+      return;
+    }
+    page(t.room, ticket.ask).then(
+      (p) => {
+        if (this.live(run) && run.timeline === t) {
+          t.land(ticket, p.messages, p.next, p.reactions);
+          this.pump(run);
+          this.markRead(run);
+          this.set({});
+        }
+      },
+      (err: unknown) => {
+        if (this.live(run) && run.timeline === t) {
+          t.failed(ticket);
+          if (ticket.ask.kind !== "network") {
+            this.fail(err); // a network's page hands over to the cache's, unsaid
+          }
+          this.pump(run);
+          this.set({});
+        }
+      },
+    );
+  }
+
+  /** readSettings reads the device settings the open room's receipts and unread line follow. */
+  private readSettings(run: Run, t: Timeline): void {
+    call(DeviceService.method.deviceSettings, {}).then(
+      (settings) => {
+        if (this.live(run) && run.timeline === t) {
+          run.settings = settings;
+          this.set({ unreadLine: settings.unreadLine });
+          this.markRead(run);
+        }
+      },
+      (err: unknown) => {
+        if (this.live(run) && run.timeline === t) {
+          run.settings = "failed"; // its receipts are private: nothing says they may be announced
+          this.fail(err);
+          this.markRead(run);
+        }
+      },
+    );
+  }
+
+  /**
+   * markRead sends a receipt for the open room's newest message while it is watched,
+   * once its settings are read: announced where they say so, else private, which still
+   * clears its badge everywhere. Each message is marked once; a failed receipt is sent
+   * again with the next.
+   */
+  private markRead(run: Run): void {
+    const t = run.timeline;
+    if (t === undefined || !t.loaded || !this.watching || run.settings === undefined) {
+      return;
+    }
+    const last = newest(t.view().rows);
+    if (last === undefined || last.id === t.marked || last.id === t.sending) {
+      return;
+    }
+    const settings = run.settings === "failed" ? undefined : run.settings;
+    const quiet = !announces(settings, t.room, last.sender);
+    t.sending = last.id;
+    call(backend.markRead, { roomId: t.room, eventId: last.id, private: quiet }).then(
+      () => {
+        if (t.sending === last.id) {
+          t.sending = "";
+          t.marked = last.id;
+        }
+      },
+      (err: unknown) => {
+        if (t.sending === last.id) {
+          t.sending = "";
+        }
+        if (this.live(run)) {
+          this.fail(err);
+        }
+      },
+    );
+  }
+
+  /** readReactions reads the open room's reactions whole, the stream's frames meanwhile held. */
+  private readReactions(run: Run): void {
+    const t = run.timeline;
+    if (t === undefined) {
+      return;
+    }
+    const mine = ++run.reactionReads;
+    run.reactionsHeld ??= [];
+    const settle = (all: Reaction[] | undefined) => {
+      if (!this.live(run) || mine !== run.reactionReads) {
+        return; // a newer read covers it
+      }
+      if (all !== undefined && run.timeline === t) {
+        t.reactionsRead(all);
+      }
+      const held = run.reactionsHeld ?? [];
+      run.reactionsHeld = undefined;
+      this.reacted(run, held);
+    };
+    call(backend.cachedReactions, { roomId: t.room }).then(
+      (r) => {
+        settle(r.reactions);
+      },
+      (err: unknown) => {
+        this.fail(err);
+        settle(undefined);
+      },
+    );
+  }
+
+  private reacted(run: Run, frames: readonly ReactionsResponse[]): void {
+    for (const f of frames) {
+      if (f.update !== undefined) {
+        run.timeline?.reacted(f.update);
+      }
+    }
+    this.set({});
+  }
+
   /** readRooms reads the profile's rooms and when each last had a message; the newest read wins. */
   private readRooms(run: Run): void {
     const mine = ++run.roomReads;
@@ -424,6 +701,7 @@ export class Session {
     const run = this.run;
     next.rooms = run === undefined ? [] : ordered(run.joined, next.unread, run.at);
     next.unreadTotal = total(next.rooms, next.unread);
+    next.timeline = run?.timeline?.view();
     this.view = next;
     if (next.unreadTotal !== this.told) {
       this.told = next.unreadTotal;
@@ -444,5 +722,23 @@ export class Session {
         this.fail(err);
       }
     });
+  }
+}
+
+/** page reads what ask is for in room: its messages, and a network page's token and reactions. */
+async function page(room: string, ask: Ask): Promise<{ messages: Message[]; next: string; reactions: Reaction[] }> {
+  switch (ask.kind) {
+    case "latest": {
+      const r = await call(backend.cachedTimeline, { roomId: room });
+      return { messages: r.messages, next: "", reactions: [] };
+    }
+    case "network": {
+      const r = await call(backend.timeline, { roomId: room, from: ask.from, limit: networkPage });
+      return { messages: r.page?.messages ?? [], next: r.page?.next ?? "", reactions: r.page?.reactions ?? [] };
+    }
+    case "cached": {
+      const r = await call(backend.messagesAround, { roomId: room, eventId: ask.before, before: cachedPage });
+      return { messages: r.messages, next: "", reactions: [] };
+    }
   }
 }

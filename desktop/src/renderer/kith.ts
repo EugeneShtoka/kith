@@ -21,6 +21,7 @@ declare global {
 export type StreamEvent<O> =
   | { kind: "attached" }
   | { kind: "frames"; frames: O[] }
+  | { kind: "reload" }
   | { kind: "detached"; error: string }
   | { kind: "refused"; error: string };
 

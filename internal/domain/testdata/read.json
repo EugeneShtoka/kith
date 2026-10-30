@@ -1,0 +1,209 @@
+{
+  "about": "Whether a receipt for a room's newest message, written by sender, is announced (send) or private, under send_receipts (send) and [[display.read_rule]] (rules), the room's homes unknown: announced only when every home it might have says so. homes lists the ones worth trying, a home each home rule names and one none names (\"\"). Read by internal/domain's conformance test and the desktop's read tests.",
+  "cases": [
+    { "name": "no rules: send_receipts", "send": true, "rules": [], "room": "matrix:a/!r:x", "sender": "@b", "want": true },
+    {
+      "name": "no rules, send_receipts off",
+      "send": false,
+      "rules": [],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "want": false
+    },
+    {
+      "name": "a rule for this room",
+      "send": true,
+      "rules": [{ "match": "matrix:a/!r:x", "send": false }],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "want": false
+    },
+    {
+      "name": "a rule for this room over send_receipts off",
+      "send": false,
+      "rules": [{ "match": " matrix:a/!r:x ", "send": true }],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "want": true
+    },
+    {
+      "name": "a rule for another room",
+      "send": true,
+      "rules": [{ "match": "matrix:a/!other:x", "send": false }],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "want": true
+    },
+    {
+      "name": "a rule for this sender",
+      "send": true,
+      "rules": [{ "sender": "@alice", "send": false }],
+      "room": "matrix:a/!r:x",
+      "sender": "@alice",
+      "want": false
+    },
+    {
+      "name": "a rule for another sender",
+      "send": true,
+      "rules": [{ "sender": "@alice", "send": false }],
+      "room": "matrix:a/!r:x",
+      "sender": "@bob",
+      "want": true
+    },
+    {
+      "name": "a rule for a space the room may be in",
+      "send": true,
+      "rules": [{ "match": "space:Work", "send": false }],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "homes": ["", "Work"],
+      "want": false
+    },
+    {
+      "name": "a rule announcing in a space the room may be in, send_receipts off",
+      "send": false,
+      "rules": [{ "match": "space:Work", "send": true }],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "homes": ["", "Work"],
+      "want": false
+    },
+    {
+      "name": "a space's rule agreeing with send_receipts",
+      "send": true,
+      "rules": [{ "match": "space:Work", "send": true }],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "homes": ["", "Work"],
+      "want": true
+    },
+    {
+      "name": "a tag the room may be in",
+      "send": true,
+      "rules": [{ "match": "tag:Pinned", "send": false }],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "homes": ["", "tag:Pinned"],
+      "want": false
+    },
+    {
+      "name": "a place the room may be in",
+      "send": true,
+      "rules": [{ "match": "place:Family", "send": false }],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "homes": ["", "Family"],
+      "want": false
+    },
+    {
+      "name": "the room's rule is narrower than a space's",
+      "send": true,
+      "rules": [
+        { "match": "matrix:a/!r:x", "send": true },
+        { "match": "space:Work", "send": false }
+      ],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "homes": ["", "Work"],
+      "want": true
+    },
+    {
+      "name": "a space and sender's rule is narrower than the room's",
+      "send": true,
+      "rules": [
+        { "match": "matrix:a/!r:x", "send": true },
+        { "match": "space:Work", "sender": "@alice", "send": false }
+      ],
+      "room": "matrix:a/!r:x",
+      "sender": "@alice",
+      "homes": ["", "Work"],
+      "want": false
+    },
+    {
+      "name": "a space and sender's rule for someone else",
+      "send": true,
+      "rules": [
+        { "match": "matrix:a/!r:x", "send": true },
+        { "match": "space:Work", "sender": "@alice", "send": false }
+      ],
+      "room": "matrix:a/!r:x",
+      "sender": "@bob",
+      "homes": ["", "Work"],
+      "want": true
+    },
+    {
+      "name": "the room and sender's rule beats every other",
+      "send": true,
+      "rules": [
+        { "match": "space:Work", "sender": "@alice", "send": false },
+        { "match": "matrix:a/!r:x", "sender": "@alice", "send": true }
+      ],
+      "room": "matrix:a/!r:x",
+      "sender": "@alice",
+      "homes": ["", "Work"],
+      "want": true
+    },
+    {
+      "name": "a sender's rule is narrower than a space's",
+      "send": false,
+      "rules": [
+        { "match": "space:Work", "send": false },
+        { "sender": "@alice", "send": true }
+      ],
+      "room": "matrix:a/!r:x",
+      "sender": "@alice",
+      "homes": ["", "Work"],
+      "want": true
+    },
+    {
+      "name": "of two rules as narrow, the later",
+      "send": true,
+      "rules": [
+        { "match": "matrix:a/!r:x", "send": false },
+        { "match": "matrix:a/!r:x", "send": true }
+      ],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "want": true
+    },
+    {
+      "name": "of two spaces' rules as narrow, the later, when the room is in both",
+      "send": true,
+      "rules": [
+        { "match": "space:Work", "send": false },
+        { "match": "space:Home", "send": true }
+      ],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "homes": ["", "Work", "Home"],
+      "want": false
+    },
+    {
+      "name": "a rule with a delay alone inherits send",
+      "send": false,
+      "rules": [{ "match": "matrix:a/!r:x", "delay": 3 }],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "want": false
+    },
+    {
+      "name": "the narrowest rule without send inherits it, over a wider one with",
+      "send": true,
+      "rules": [
+        { "sender": "@alice", "send": false },
+        { "match": "matrix:a/!r:x", "delay": 3 }
+      ],
+      "room": "matrix:a/!r:x",
+      "sender": "@alice",
+      "want": true
+    },
+    {
+      "name": "a rule naming neither place nor person names nothing",
+      "send": true,
+      "rules": [{ "match": "", "send": false }],
+      "room": "matrix:a/!r:x",
+      "sender": "@b",
+      "want": true
+    }
+  ]
+}

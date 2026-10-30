@@ -14,6 +14,9 @@ service DeviceService {
   // ChooseProfile remembers a profile as the one this device runs in (device.toml's
   // profile_in_use), refusing a name the config lacks (INVALID_ARGUMENT).
   rpc ChooseProfile(ChooseProfileRequest) returns (ChooseProfileResponse);
+  // DeviceSettings is what the window reads of this device's settings (device.toml),
+  // each key's default applied. Each call reads the file again.
+  rpc DeviceSettings(DeviceSettingsRequest) returns (DeviceSettingsResponse);
 }
 
 message DeviceRequest {}
@@ -37,4 +40,29 @@ message ChooseProfileRequest {
 message ChooseProfileResponse {
   // profile is the profile now remembered, as the config spells it.
   string profile = 1;
+}
+
+message DeviceSettingsRequest {}
+
+message DeviceSettingsResponse {
+  // [display] send_receipts: whether the people in a room are told how far you have
+  // read; without, the receipt is private and only your own clients see it.
+  bool send_receipts = 1;
+  // [[display.read_rule]], in the file's order: the narrowest naming a room or a
+  // message's sender says otherwise there (ties: the later).
+  repeated ReadRule read_rules = 2;
+  // [display] unread_line: a rule drawn where a room's unread messages began when it
+  // was opened.
+  bool unread_line = 3;
+}
+
+// ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
+// opening it, so how long a cursor rests on one is the TUI's.
+message ReadRule {
+  // A room ID, or a home entry (space:, tag:, place:); empty with a sender.
+  string match = 1;
+  // A message author's ID; empty is anyone.
+  string sender = 2;
+  // Whether receipts are announced there; unset inherits.
+  optional bool send = 3;
 }

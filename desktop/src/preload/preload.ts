@@ -22,6 +22,7 @@ const kith: KithBridge = {
   unread(count) {
     ipcRenderer.send(channels.unread, count);
   },
+  save: (room, event, name) => ipcRenderer.invoke(channels.save, room, event, name) as Promise<boolean>,
 };
 
 contextBridge.exposeInMainWorld("kith", kith);

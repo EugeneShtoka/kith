@@ -5,6 +5,7 @@
     "module": "preserve",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
+    "resolveJsonModule": true,
     "types": ["vite/client"],
     "strict": true,
     "noUncheckedIndexedAccess": true,

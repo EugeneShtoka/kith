@@ -10,7 +10,12 @@ import {
 } from "@bufbuild/protobuf";
 import type { Transport } from "@connectrpc/connect";
 
-import { BackendService, SeatHolderSchema, type SeatRequestSchema } from "../gen/backend/v1/services_pb";
+import {
+  BackendService,
+  MessagesResponseSchema,
+  SeatHolderSchema,
+  type SeatRequestSchema,
+} from "../gen/backend/v1/services_pb";
 import { DeviceService } from "../gen/device/v1/device_pb";
 import type { StreamEvent } from "../shared/ipc";
 import { runIn } from "../shared/profile";
@@ -33,12 +38,27 @@ const calls = new Map<string, DescMethodUnary>(
     backend.cachedInvites,
     backend.joinRoom,
     backend.leaveRoom,
+    backend.cachedTimeline,
+    backend.timeline,
+    backend.messagesAround,
+    backend.fetchEvent,
+    backend.cachedReactions,
+    backend.markRead,
     device.device,
     device.chooseProfile,
+    device.deviceSettings,
   ].map((m) => [m.name, m]),
 );
 const streams = new Map<string, DescMethodServerStreaming>(
-  [backend.changed, backend.configChanged, backend.seat, backend.unreadStream, backend.invites].map((m) => [m.name, m]),
+  [
+    backend.changed,
+    backend.configChanged,
+    backend.seat,
+    backend.unreadStream,
+    backend.invites,
+    backend.messages,
+    backend.reactions,
+  ].map((m) => [m.name, m]),
 );
 
 /**
@@ -97,7 +117,7 @@ export class Gate {
     const method = admit(frame, streams, name);
     const input = decode(method, request);
     const header = this.header(method);
-    let again: typeof input = input;
+    let again = () => input;
     if (method.name === backend.seat.name) {
       // The seat is asked for from this machine, whatever the window says; and a take by
       // force is forced once: opened again (kithd restarted), it is asked for, so a
@@ -109,7 +129,17 @@ export class Gate {
         sinceUnixMs: seat.where?.sinceUnixMs ?? 0n,
       });
       const asked: MessageShape<typeof SeatRequestSchema> = { ...seat, force: false };
-      again = asked;
+      again = () => asked;
+    }
+    if (method.name === backend.messages.name) {
+      // Opened again (kithd restarted, the relay failed), the stream resumes after the
+      // last change posted to the window, so it is sent what it missed meanwhile, once
+      // (design-replay.md). A window loading afresh subscribes afresh, from the newest.
+      let at: MessageShape<typeof backend.messages.input> | undefined;
+      again = () => at ?? input;
+      post = resuming(post, (epoch, change) => {
+        at = create(backend.messages.input, { sinceEpoch: epoch, sinceChange: change });
+      });
     }
     const stop = keepOpen(this.transport, method, input, header, post, again);
     const held = { profile: this.profile, stop, post };
@@ -118,6 +148,18 @@ export class Gate {
       this.open.delete(held);
       stop();
     };
+  }
+
+  /**
+   * media is the bytes of a message's attachment, in the window's profile (LoadImage):
+   * what kith-media:// pictures and saved files are. The window does not call LoadImage
+   * itself; main does, for it.
+   */
+  async media(room: string, event: string): Promise<Uint8Array> {
+    const method = backend.loadImage;
+    const request = create(method.input, { roomId: room, eventId: event });
+    const response = await this.transport.unary(method, undefined, undefined, this.header(method), request);
+    return response.message.data;
   }
 
   /**
@@ -172,6 +214,37 @@ export class Gate {
       throw new Refused(`kith: the window may join or leave only a room it is invited to, not ${room}`);
     }
   }
+}
+
+/**
+ * resuming posts a Messages stream's frames, telling held each one's position as it is
+ * posted (the window holds it from then on). A frame saying to read again is posted as a
+ * reload, in its place among the frames.
+ */
+function resuming(post: (event: StreamEvent) => void, held: (epoch: string, change: bigint) => void) {
+  return (event: StreamEvent) => {
+    if (event.kind !== "frames") {
+      post(event);
+      return;
+    }
+    let run: Uint8Array[] = [];
+    for (const bytes of event.frames) {
+      const frame = fromBinary(MessagesResponseSchema, bytes);
+      if (frame.readAgain) {
+        if (run.length > 0) {
+          post({ kind: "frames", frames: run });
+          run = [];
+        }
+        post({ kind: "reload" });
+      } else {
+        run.push(bytes);
+      }
+      held(frame.epoch, frame.change);
+    }
+    if (run.length > 0) {
+      post({ kind: "frames", frames: run });
+    }
+  };
 }
 
 /** admit is the method named, if the window may use it from frame. */
