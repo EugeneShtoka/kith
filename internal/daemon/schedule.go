@@ -169,6 +169,30 @@ func (s *Scheduler) Cancel(id string) error {
 	return nil
 }
 
+// MoveRooms sends each queued message to a room of moved where it moved to (a chat
+// merged into another, domain.RoomMerge).
+func (s *Scheduler) MoveRooms(moved map[domain.RoomID]domain.RoomID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	queue := slices.Clone(s.queue)
+	changed := false
+	for i := range queue {
+		if into, ok := moved[queue[i].RoomID]; ok {
+			queue[i].RoomID, changed = into, true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	was := s.queue
+	s.queue = queue
+	if err := s.saveLocked(); err != nil {
+		s.queue = was
+		return fmt.Errorf("daemon: save schedule: %w", err)
+	}
+	return nil
+}
+
 func withoutID(queue []domain.ScheduledMessage, id string) []domain.ScheduledMessage {
 	return withoutIDs(queue, map[string]bool{id: true})
 }

@@ -41,6 +41,9 @@ message Room {
   // lowercase and without "@"; empty for a private chat. Used to resolve tg:// links
   // and the like.
   string handle = 16;
+  // The rooms merged into this one, found to be the same chat (domain.Room.Merged): a
+  // WhatsApp chat kept by the person's LID until their number was learned.
+  repeated string merged = 17;
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted (domain.ChatDeleting).

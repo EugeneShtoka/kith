@@ -41,7 +41,8 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 		`SELECT r.id, r.name, r.is_direct, r.invited_by, r.heroes,
 		        COALESCE(t.topic, ''), COALESCE(u.replacement, ''), a.room_id IS NOT NULL,
 		        f.room_id IS NOT NULL, COALESCE(n.network, ''), m.room_id IS NOT NULL,
-		        o.room_id IS NOT NULL, COALESCE(h.handle, '')
+		        o.room_id IS NOT NULL, COALESCE(h.handle, ''),
+		        (SELECT json_group_array(room_id ORDER BY room_id) FROM room_aliases WHERE into_id = r.id)
 		   FROM rooms r
 		   LEFT JOIN room_topics   t ON t.room_id = r.id
 		   LEFT JOIN room_upgrades u ON u.room_id = r.id
@@ -54,11 +55,11 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 		  WHERE r.membership = ?`,
 		func(rows *sql.Rows) (domain.Room, error) {
 			var (
-				id, name, invitedBy, heroes, topic, replacement, network, handle string
-				isDirect                                                         int
-				archived, forum, sms, readOnly                                   bool
+				id, name, invitedBy, heroes, topic, replacement, network, handle, merged string
+				isDirect                                                                 int
+				archived, forum, sms, readOnly                                           bool
 			)
-			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement, &archived, &forum, &network, &sms, &readOnly, &handle); err != nil {
+			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement, &archived, &forum, &network, &sms, &readOnly, &handle, &merged); err != nil {
 				return domain.Room{}, err
 			}
 			room := domain.Room{
@@ -80,6 +81,12 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 				if err := json.Unmarshal([]byte(heroes), &room.Members); err != nil {
 					return domain.Room{}, fmt.Errorf("decode heroes for %s: %w", id, err)
 				}
+			}
+			if err := json.Unmarshal([]byte(merged), &room.Merged); err != nil {
+				return domain.Room{}, fmt.Errorf("decode the rooms merged into %s: %w", id, err)
+			}
+			if len(room.Merged) == 0 {
+				room.Merged = nil
 			}
 			return room, nil
 		}, membership)

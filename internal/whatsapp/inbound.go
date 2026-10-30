@@ -26,9 +26,13 @@ type arrived struct {
 
 // convert converts a live or history WhatsApp message.
 func (a *Adapter) convert(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Message) (arrived, bool) {
-	lookup := a.pnLookup(client)
+	lookup := a.pnLookup(account, client)
 	own := selfOf(client)
 	chat := chatOf(ctx, &e.Info, lookup)
+	if lid := lidOf(&e.Info); !lid.IsEmpty() && lid != chat {
+		// The chat's number is known: what was kept under its LID joins it.
+		a.mergeLID(ctx, account, lid, chat)
+	}
 	room := roomID(account.Digits, chat)
 	from := own.pn
 	if !e.Info.IsFromMe {
@@ -176,14 +180,24 @@ func (a *Adapter) nameDirectChat(ctx context.Context, account Account, room doma
 	}
 }
 
-// pnLookup maps a LID to its phone number via the account's store.
-func (a *Adapter) pnLookup(client *whatsmeow.Client) pnOf {
+// pnLookup maps a LID to its phone number via the account's store, else the merge of
+// its chat into its number's: a number another bridge learned, or this device's store
+// no longer holds.
+func (a *Adapter) pnLookup(account Account, client *whatsmeow.Client) pnOf {
 	return func(ctx context.Context, lid types.JID) types.JID {
 		pn, err := client.Store.LIDs.GetPNForLID(ctx, lid)
 		if err != nil {
 			a.log.Debug("look up a LID's phone number failed", "err", err)
-			return types.EmptyJID
 		}
-		return pn
+		if !pn.IsEmpty() {
+			return pn
+		}
+		chat := roomID(account.Digits, lid)
+		if into := a.filedUnder(ctx, chat); into != chat {
+			if number, err := types.ParseJID(domain.ParseID(string(into)).Native); err == nil {
+				return number
+			}
+		}
+		return types.EmptyJID
 	}
 }

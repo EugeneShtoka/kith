@@ -94,6 +94,7 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 	mux := served.handlers()
 	defer served.startRails(ctx)() // ended with the handlers, before the stores close
 	defer served.startMesh(ctx)()
+	defer served.startMerges(ctx)()
 	// Every handler is counted so none runs after Serve returns and the caller closes
 	// the stores, and none starts once Serve is ending.
 	var inflight handlerGate

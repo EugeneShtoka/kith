@@ -117,7 +117,9 @@ func TestADisappearingMessageIsDeletedWhenItsTimeRuns(t *testing.T) {
 		msg, ok, err := a.cache.MessageByID(ctx, room, domain.EventID(domain.NativeID(domain.ProtocolWhatsApp, ownDigits, id)))
 		return err == nil && ok && msg.Redacted
 	}
-	history := roomID(ownDigits, lid(danaLID))
+	// The live messages named Dana's number beside her LID: the history, by her LID
+	// alone, is filed under it too.
+	history := danaChat
 	deadline := time.Now().Add(10 * time.Second)
 	for (!deleted(danaChat, "3EB0E1") || !deleted(history, "3EB0E3")) && time.Now().Before(deadline) {
 		time.Sleep(100 * time.Millisecond)

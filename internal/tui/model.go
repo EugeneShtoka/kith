@@ -2610,6 +2610,11 @@ func (m Model) handleRooms(msg roomsMsg) (Model, tea.Cmd) {
 	if mdl, cmd, followed := m.followPendingLink(); followed {
 		return mdl, cmd
 	}
+	// The open room merged into another (a WhatsApp chat known by the person's LID,
+	// now by their number): the window goes on there.
+	if into, merged := m.rooms.mergedInto(m.openRoom); merged {
+		return m.selectRoom(into)
+	}
 	// With a room open, the cursor rule decides (see keepCursorNearby).
 	if m.openRoom != "" {
 		return m.keepCursorNearby(was)

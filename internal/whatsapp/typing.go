@@ -19,7 +19,7 @@ func (a *Adapter) onTyping(ctx context.Context, account Account, client *whatsme
 	if selfOf(client).is(e.Sender) {
 		return
 	}
-	lookup := a.pnLookup(client)
+	lookup := a.pnLookup(account, client)
 	info := types.MessageInfo{MessageSource: e.MessageSource}
 	room := roomID(account.Digits, chatOf(ctx, &info, lookup))
 	who := domain.NativePerson(domain.ProtocolWhatsApp, person(ctx, e.Sender, e.SenderAlt, lookup).String())

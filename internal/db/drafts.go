@@ -19,6 +19,11 @@ func (c *Cache) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft
 		return false, nil
 	}
 	err = c.inTx(ctx, func(tx *sql.Tx) error {
+		var qerr error
+		// A window still on a room since merged writes the room it joined.
+		if draft.RoomID, qerr = filedUnder(ctx, tx, draft.RoomID); qerr != nil {
+			return qerr
+		}
 		current, found, qerr := readDraft(ctx, tx, draft.RoomID)
 		if qerr != nil {
 			return qerr
@@ -52,6 +57,11 @@ func (c *Cache) RebaseDraft(ctx context.Context, draft, base domain.StoredDraft,
 		draft.Updated = time.Now()
 	}
 	err = c.inTx(ctx, func(tx *sql.Tx) error {
+		var qerr error
+		// A window still on a room since merged writes the room it joined.
+		if draft.RoomID, qerr = filedUnder(ctx, tx, draft.RoomID); qerr != nil {
+			return qerr
+		}
 		current, _, qerr := readDraft(ctx, tx, draft.RoomID)
 		if qerr != nil {
 			return qerr
@@ -146,33 +156,60 @@ func writeDraft(ctx context.Context, tx *sql.Tx, draft domain.StoredDraft) error
 
 // Drafts is every stored draft, newest first.
 func (c *Cache) Drafts(ctx context.Context) ([]domain.StoredDraft, error) {
-	return collect(ctx, c.db, "drafts", `
-		SELECT d.room_id, d.body, d.caret, d.mentions, d.reply_to, d.editing, d.edit_saved, d.author,
-		       d.updated_ms, coalesce(t.thread_root, '')
-		  FROM drafts d LEFT JOIN draft_threads t ON t.room_id = d.room_id
-		 ORDER BY d.updated_ms DESC`,
+	return collect(ctx, c.db, "drafts", draftRows+` ORDER BY d.updated_ms DESC`,
 		func(rows *sql.Rows) (domain.StoredDraft, error) {
-			var draft domain.StoredDraft
-			var room, mentions, replyTo, editing, thread string
-			var updated int64
-			if err := rows.Scan(&room, &draft.Body, &draft.Caret, &mentions,
-				&replyTo, &editing, &draft.EditSaved, &draft.Author, &updated, &thread); err != nil {
+			draft, mentions, err := scanDraft(rows)
+			if err != nil {
 				return domain.StoredDraft{}, err
-			}
-			draft.RoomID = domain.RoomID(room)
-			draft.ReplyTo, draft.Editing = domain.EventID(replyTo), domain.EventID(editing)
-			draft.ThreadRoot = domain.EventID(thread)
-			if updated != 0 {
-				draft.Updated = time.UnixMilli(updated)
 			}
 			// Unreadable mentions are dropped, keeping the draft; logged, as it would
 			// then send without notifying them.
 			if mentions != "" {
 				if jerr := json.Unmarshal([]byte(mentions), &draft.Mentions); jerr != nil {
 					draft.Mentions = nil
-					c.warn(ctx, "draft mentions unreadable; dropped, the draft is kept", jerr, "room", room)
+					c.warn(ctx, "draft mentions unreadable; dropped, the draft is kept", jerr, "room", string(draft.RoomID))
 				}
 			}
 			return draft, nil
 		})
+}
+
+// wholeDraft is room's stored draft with its mentions, inside the caller's
+// transaction; found is false when there is none. Unreadable mentions are dropped.
+func wholeDraft(ctx context.Context, tx *sql.Tx, room domain.RoomID) (draft domain.StoredDraft, found bool, err error) {
+	drafts, err := collect(ctx, tx, "a draft", draftRows+` WHERE d.room_id = ?`,
+		func(rows *sql.Rows) (domain.StoredDraft, error) {
+			read, mentions, serr := scanDraft(rows)
+			if serr == nil && mentions != "" && json.Unmarshal([]byte(mentions), &read.Mentions) != nil {
+				read.Mentions = nil
+			}
+			return read, serr
+		}, string(room))
+	if err != nil || len(drafts) == 0 {
+		return domain.StoredDraft{}, false, err
+	}
+	return drafts[0], true, nil
+}
+
+// draftRows reads whole drafts, as scanDraft takes them.
+const draftRows = `
+		SELECT d.room_id, d.body, d.caret, d.mentions, d.reply_to, d.editing, d.edit_saved, d.author,
+		       d.updated_ms, coalesce(t.thread_root, '')
+		  FROM drafts d LEFT JOIN draft_threads t ON t.room_id = d.room_id`
+
+// scanDraft reads a row of draftRows: the draft, and its mentions as stored.
+func scanDraft(rows *sql.Rows) (draft domain.StoredDraft, mentions string, err error) {
+	var room, replyTo, editing, thread string
+	var updated int64
+	if err := rows.Scan(&room, &draft.Body, &draft.Caret, &mentions,
+		&replyTo, &editing, &draft.EditSaved, &draft.Author, &updated, &thread); err != nil {
+		return domain.StoredDraft{}, "", err
+	}
+	draft.RoomID = domain.RoomID(room)
+	draft.ReplyTo, draft.Editing = domain.EventID(replyTo), domain.EventID(editing)
+	draft.ThreadRoot = domain.EventID(thread)
+	if updated != 0 {
+		draft.Updated = time.UnixMilli(updated)
+	}
+	return draft, mentions, nil
 }

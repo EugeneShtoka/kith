@@ -57,6 +57,9 @@ type Room struct {
 	// network has one (Telegram public chats, channels). Lowercase, without "@". Empty
 	// for a private chat.
 	Handle string
+	// Merged are the rooms merged into this one, found to be the same chat (RoomMerge):
+	// a window on one of them goes on in this one.
+	Merged []RoomID
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted instead.

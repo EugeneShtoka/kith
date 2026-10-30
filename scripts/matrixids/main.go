@@ -218,6 +218,7 @@ var idColumns = map[string][]string{
 	"person_verdicts":      {"person"},
 	"quoted_messages":      {"room_id", "event_id", "sender"},
 	"reactions":            {"event_id", "room_id", "target_event", "sender"},
+	"room_aliases":         {"room_id", "into_id"},
 	"room_archived":        {"room_id"},
 	"room_forums":          {"room_id"},
 	"room_gaps":            {"room_id", "boundary"},

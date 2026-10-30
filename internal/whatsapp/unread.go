@@ -142,7 +142,7 @@ func (a *Adapter) onReceipt(ctx context.Context, account Account, e *events.Rece
 // lookupFor is an account's LID lookup, nil when not connected.
 func (a *Adapter) lookupFor(account Account) pnOf {
 	if _, client, ok := a.clientFor(account.Digits); ok {
-		return a.pnLookup(client)
+		return a.pnLookup(account, client)
 	}
 	return nil
 }
@@ -153,6 +153,7 @@ func (a *Adapter) lookupFor(account Account) pnOf {
 // the account connects. The read position only moves forward. A read that cannot be
 // kept here is an error, and WhatsApp is not told.
 func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, private bool) error {
+	roomID = a.filedUnder(ctx, roomID) // a window still on a chat since merged
 	room := domain.ParseID(string(roomID))
 	chat, err := types.ParseJID(room.Native)
 	if err != nil {
