@@ -123,7 +123,7 @@ func (d *Devices) runMesh(ctx context.Context) {
 // bridge removed from its mesh stops listening, and dials on only to pass the news on:
 // each bridge refuses it once it holds the removal.
 func (d *Devices) synced(ctx context.Context) (<-chan struct{}, map[devicekey.ID][]string) {
-	addrs, _ := d.dialable() // none: this bridge only dials
+	addrs, derr := d.dialable() // none: this bridge only dials
 	store, _, self, signer, err := d.meshParts()
 	if err != nil {
 		d.log.Debug("the mesh waits for its store and kithd's key", "err", err)
@@ -150,7 +150,12 @@ func (d *Devices) synced(ctx context.Context) (<-chan struct{}, map[devicekey.ID
 		d.log.Error("not listening; syncing only to pass the removal on", "err", errOutOfMesh)
 		d.relisten() // the roster no longer reads as this bridge's: the listeners stop
 	}
-	if !st.Removed && !slices.Equal(st.Addresses, addrs) {
+	// A listener the config names but that is down for now (a roster that does not read,
+	// an address not bound yet) keeps the addresses published: the other bridges go on
+	// dialing it, and it answers once it listens again. Only a config naming no address
+	// takes them back.
+	down := derr != nil && d.wantsListening()
+	if !st.Removed && !down && !slices.Equal(st.Addresses, addrs) {
 		d.publishAddresses(ctx, store, signer, addrs)
 	}
 	want := map[devicekey.ID][]string{}
@@ -161,6 +166,13 @@ func (d *Devices) synced(ctx context.Context) (<-chan struct{}, map[devicekey.ID
 		}
 	}
 	return changed, want
+}
+
+// wantsListening reports whether the config names addresses to listen on.
+func (d *Devices) wantsListening() bool {
+	d.lmu.Lock()
+	defer d.lmu.Unlock()
+	return len(d.want) > 0
 }
 
 // publishAddresses writes the addresses this bridge is dialed at into its own entry.
