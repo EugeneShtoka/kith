@@ -69,6 +69,8 @@ const calls = new Map<string, DescMethodUnary>(
     device.device,
     device.chooseProfile,
     device.deviceSettings,
+    // The settings page: device.toml written only over the file it read.
+    device.updateDeviceSettings,
   ].map((m) => [m.name, m]),
 );
 const streams = new Map<string, DescMethodServerStreaming>(

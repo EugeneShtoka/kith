@@ -221,6 +221,14 @@ export class FakeKithd {
           this.remembered = name;
           return { profile: name };
         },
+        updateDeviceSettings: (req, ctx) => {
+          this.received.push({
+            method: "UpdateDeviceSettings",
+            profile: ctx.requestHeader.get("Kith-Profile"),
+            message: req,
+          });
+          return { settings: req.settings, revision: `${req.baseRevision}+1` };
+        },
       });
     };
     const adapter = connectNodeAdapter({ routes });

@@ -534,3 +534,31 @@ mark {
 .switcher [aria-selected="true"] {
   background: var(--line);
 }
+
+.settings {
+  max-width: 48rem;
+}
+
+.settings fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.settings h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+.setting {
+  display: block;
+  padding: 0.35rem 0;
+}
+
+.setting-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}

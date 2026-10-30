@@ -10,9 +10,11 @@ This first release reads and writes messages:
 - the rail and room list, with unread counts, and invites;
 - the timeline, with replies, edits, reactions, pictures and files;
 - the composer, with markdown, mentions, emoji, attachments and drafts;
-- search, the ctrl+K switcher, and threads beside the room.
+- search, the ctrl+K switcher, and threads beside the room;
+- a settings page for the settings it shares with the terminal client
+  ([where settings live](#where-settings-live)).
 
-Logins, verification, the settings editor, tags and filing stay in the terminal client
+Logins, verification, the full settings editor, tags and filing stay in the terminal client
 and the command line for now. Links in messages show where they go, but the window does
 not open them yet.
 
@@ -116,8 +118,19 @@ starts the terminal client.
 | Pictures the window has shown | the media cache, `[display.media] cache_dir` in `device.toml` |
 | Electron's own store (its caches and the single-window lock) | `~/.config/kith-desktop/` |
 
-The window has no settings page yet. Change shared settings with kith's settings screen,
-or in `device.toml`.
+**Settings**, in the window's header, opens a page for the shared settings the window
+follows: read receipts and the read receipt rules, the unread line, Markdown, asking
+before an SMS, sending typing, the emoji skin tone, the emoji set and your own
+shortcodes, and how the reaction palette is ranked and the emoji it starts from. There
+is no Save button: each change is written to `device.toml` at once, and the open room
+follows it. A rule's `delay` is the terminal client's, so the page does not show it, and
+a rule you change keeps it.
+
+The terminal client's settings screen, or an editor, may change `device.toml` while the
+page is open. The window then reads the file again and writes your change onto it, so
+both are kept. If the same setting was changed there, the window keeps that value, and
+the page says so and shows it. Every other setting is changed with kith's settings
+screen, or in `device.toml`.
 
 ## Troubleshooting
 

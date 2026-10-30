@@ -41,6 +41,9 @@ const (
 	// DeviceServiceDeviceSettingsProcedure is the fully-qualified name of the DeviceService's
 	// DeviceSettings RPC.
 	DeviceServiceDeviceSettingsProcedure = "/device.v1.DeviceService/DeviceSettings"
+	// DeviceServiceUpdateDeviceSettingsProcedure is the fully-qualified name of the DeviceService's
+	// UpdateDeviceSettings RPC.
+	DeviceServiceUpdateDeviceSettingsProcedure = "/device.v1.DeviceService/UpdateDeviceSettings"
 	// DeviceServiceOutgoingProcedure is the fully-qualified name of the DeviceService's Outgoing RPC.
 	DeviceServiceOutgoingProcedure = "/device.v1.DeviceService/Outgoing"
 )
@@ -59,6 +62,14 @@ type DeviceServiceClient interface {
 	// DeviceSettings is what the window reads of this device's settings (device.toml),
 	// each key's default applied. Each call reads the file again.
 	DeviceSettings(context.Context, *connect.Request[v1.DeviceSettingsRequest]) (*connect.Response[v1.DeviceSettingsResponse], error)
+	// UpdateDeviceSettings writes the window's settings to the device file if the file is
+	// still the one read at base_revision (DeviceSettings' revision). Changed since, by
+	// hand or by another window, it is ABORTED and nothing is written: the window reads it
+	// again. Each key whose value differs from the file's (resolved) is written, by the
+	// writer the TUI's settings editor uses; every other is left as the file has it. A
+	// value the TUI would refuse is INVALID_ARGUMENT, a file that does not load
+	// FAILED_PRECONDITION. It answers the settings as now resolved, and their revision.
+	UpdateDeviceSettings(context.Context, *connect.Request[v1.UpdateDeviceSettingsRequest]) (*connect.Response[v1.UpdateDeviceSettingsResponse], error)
 	// Outgoing readies a file on this device for sending, as the TUI readies one: where
 	// [display.media] anonymize holds, a picture is copied without its metadata
 	// (media.Strip) and the file goes under a neutral name (domain.SentName). Main asks
@@ -95,6 +106,12 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("DeviceSettings")),
 			connect.WithClientOptions(opts...),
 		),
+		updateDeviceSettings: connect.NewClient[v1.UpdateDeviceSettingsRequest, v1.UpdateDeviceSettingsResponse](
+			httpClient,
+			baseURL+DeviceServiceUpdateDeviceSettingsProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("UpdateDeviceSettings")),
+			connect.WithClientOptions(opts...),
+		),
 		outgoing: connect.NewClient[v1.OutgoingRequest, v1.OutgoingResponse](
 			httpClient,
 			baseURL+DeviceServiceOutgoingProcedure,
@@ -106,10 +123,11 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // deviceServiceClient implements DeviceServiceClient.
 type deviceServiceClient struct {
-	device         *connect.Client[v1.DeviceRequest, v1.DeviceResponse]
-	chooseProfile  *connect.Client[v1.ChooseProfileRequest, v1.ChooseProfileResponse]
-	deviceSettings *connect.Client[v1.DeviceSettingsRequest, v1.DeviceSettingsResponse]
-	outgoing       *connect.Client[v1.OutgoingRequest, v1.OutgoingResponse]
+	device               *connect.Client[v1.DeviceRequest, v1.DeviceResponse]
+	chooseProfile        *connect.Client[v1.ChooseProfileRequest, v1.ChooseProfileResponse]
+	deviceSettings       *connect.Client[v1.DeviceSettingsRequest, v1.DeviceSettingsResponse]
+	updateDeviceSettings *connect.Client[v1.UpdateDeviceSettingsRequest, v1.UpdateDeviceSettingsResponse]
+	outgoing             *connect.Client[v1.OutgoingRequest, v1.OutgoingResponse]
 }
 
 // Device calls device.v1.DeviceService.Device.
@@ -125,6 +143,11 @@ func (c *deviceServiceClient) ChooseProfile(ctx context.Context, req *connect.Re
 // DeviceSettings calls device.v1.DeviceService.DeviceSettings.
 func (c *deviceServiceClient) DeviceSettings(ctx context.Context, req *connect.Request[v1.DeviceSettingsRequest]) (*connect.Response[v1.DeviceSettingsResponse], error) {
 	return c.deviceSettings.CallUnary(ctx, req)
+}
+
+// UpdateDeviceSettings calls device.v1.DeviceService.UpdateDeviceSettings.
+func (c *deviceServiceClient) UpdateDeviceSettings(ctx context.Context, req *connect.Request[v1.UpdateDeviceSettingsRequest]) (*connect.Response[v1.UpdateDeviceSettingsResponse], error) {
+	return c.updateDeviceSettings.CallUnary(ctx, req)
 }
 
 // Outgoing calls device.v1.DeviceService.Outgoing.
@@ -146,6 +169,14 @@ type DeviceServiceHandler interface {
 	// DeviceSettings is what the window reads of this device's settings (device.toml),
 	// each key's default applied. Each call reads the file again.
 	DeviceSettings(context.Context, *connect.Request[v1.DeviceSettingsRequest]) (*connect.Response[v1.DeviceSettingsResponse], error)
+	// UpdateDeviceSettings writes the window's settings to the device file if the file is
+	// still the one read at base_revision (DeviceSettings' revision). Changed since, by
+	// hand or by another window, it is ABORTED and nothing is written: the window reads it
+	// again. Each key whose value differs from the file's (resolved) is written, by the
+	// writer the TUI's settings editor uses; every other is left as the file has it. A
+	// value the TUI would refuse is INVALID_ARGUMENT, a file that does not load
+	// FAILED_PRECONDITION. It answers the settings as now resolved, and their revision.
+	UpdateDeviceSettings(context.Context, *connect.Request[v1.UpdateDeviceSettingsRequest]) (*connect.Response[v1.UpdateDeviceSettingsResponse], error)
 	// Outgoing readies a file on this device for sending, as the TUI readies one: where
 	// [display.media] anonymize holds, a picture is copied without its metadata
 	// (media.Strip) and the file goes under a neutral name (domain.SentName). Main asks
@@ -178,6 +209,12 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("DeviceSettings")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServiceUpdateDeviceSettingsHandler := connect.NewUnaryHandler(
+		DeviceServiceUpdateDeviceSettingsProcedure,
+		svc.UpdateDeviceSettings,
+		connect.WithSchema(deviceServiceMethods.ByName("UpdateDeviceSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
 	deviceServiceOutgoingHandler := connect.NewUnaryHandler(
 		DeviceServiceOutgoingProcedure,
 		svc.Outgoing,
@@ -192,6 +229,8 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 			deviceServiceChooseProfileHandler.ServeHTTP(w, r)
 		case DeviceServiceDeviceSettingsProcedure:
 			deviceServiceDeviceSettingsHandler.ServeHTTP(w, r)
+		case DeviceServiceUpdateDeviceSettingsProcedure:
+			deviceServiceUpdateDeviceSettingsHandler.ServeHTTP(w, r)
 		case DeviceServiceOutgoingProcedure:
 			deviceServiceOutgoingHandler.ServeHTTP(w, r)
 		default:
@@ -213,6 +252,10 @@ func (UnimplementedDeviceServiceHandler) ChooseProfile(context.Context, *connect
 
 func (UnimplementedDeviceServiceHandler) DeviceSettings(context.Context, *connect.Request[v1.DeviceSettingsRequest]) (*connect.Response[v1.DeviceSettingsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.DeviceSettings is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) UpdateDeviceSettings(context.Context, *connect.Request[v1.UpdateDeviceSettingsRequest]) (*connect.Response[v1.UpdateDeviceSettingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.UpdateDeviceSettings is not implemented"))
 }
 
 func (UnimplementedDeviceServiceHandler) Outgoing(context.Context, *connect.Request[v1.OutgoingRequest]) (*connect.Response[v1.OutgoingResponse], error) {

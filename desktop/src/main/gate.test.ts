@@ -115,6 +115,7 @@ const allowedCalls = [
   "Device",
   "ChooseProfile",
   "DeviceSettings",
+  "UpdateDeviceSettings",
 ];
 const allowedStreams = [
   "Changed",

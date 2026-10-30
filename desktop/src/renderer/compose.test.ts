@@ -2,7 +2,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReactionSchema } from "../gen/backend/v1/types_pb";
-import { DeviceSettingsResponseSchema } from "../gen/device/v1/device_pb";
+import { DeviceSettingsSchema } from "../gen/device/v1/device_pb";
 import { typingRefresh } from "./compose";
 import { Session } from "./session";
 import { Kithd, room, settled } from "./testing/kithd";
@@ -34,8 +34,8 @@ const composer = () => {
 
 /** opened is the window seated in Home with !a open, the device settings as given. */
 /** settings are the device's, each key its default but those given. */
-function settings(init: MessageInitShape<typeof DeviceSettingsResponseSchema>) {
-  return create(DeviceSettingsResponseSchema, {
+function settings(init: MessageInitShape<typeof DeviceSettingsSchema>) {
+  return create(DeviceSettingsSchema, {
     sendReceipts: true,
     unreadLine: true,
     markdown: true,
@@ -47,7 +47,7 @@ function settings(init: MessageInitShape<typeof DeviceSettingsResponseSchema>) {
   });
 }
 
-async function opened(init: MessageInitShape<typeof DeviceSettingsResponseSchema> = {}, open = "!a"): Promise<void> {
+async function opened(init: MessageInitShape<typeof DeviceSettingsSchema> = {}, open = "!a"): Promise<void> {
   kithd.of("Home").rooms = [room("!a"), room("!sms", { sms: true })];
   kithd.settings = settings(init);
   session.start();

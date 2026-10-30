@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"connectrpc.com/connect"
 
 	devicev1 "github.com/EugeneShtoka/kith/internal/api/device/v1"
+	"github.com/EugeneShtoka/kith/internal/config"
 )
 
 // DeviceSettings reads the device file again on each call, an unset key its default,
@@ -27,15 +29,15 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 	for _, step := range []struct {
 		what string
 		file string
-		want *devicev1.DeviceSettingsResponse
+		want *devicev1.DeviceSettings
 	}{
-		{"nothing set", "", &devicev1.DeviceSettingsResponse{SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room"}},
+		{"nothing set", "", &devicev1.DeviceSettings{SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room"}},
 		{
 			"keys and rules set",
 			"[display]\nsend_receipts = false\nunread_line = false\n\n" +
 				"[[display.read_rule]]\nmatch = \"space:Work\"\nsend = true\n\n" +
 				"[[display.read_rule]]\nsender = \"matrix:@alice:example.org\"\ndelay = 5\n",
-			&devicev1.DeviceSettingsResponse{
+			&devicev1.DeviceSettings{
 				ReadRules: []*devicev1.ReadRule{
 					{Match: "space:Work", Send: &yes},
 					{Sender: "matrix:@alice:example.org"},
@@ -49,7 +51,7 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 				"[display]\nsend_typing = false\nskin_tone = \"medium\"\n\n" +
 				"[display.emoji]\nset = \"standard\"\nextra = { shipit = \"🐿️\" }\n\n" +
 				"[display.reactions]\nscope = \"static\"\nstatic = [\"👍\", \"🎉\"]\n",
-			&devicev1.DeviceSettingsResponse{
+			&devicev1.DeviceSettings{
 				SendReceipts: true, UnreadLine: true, SkinTone: "\U0001F3FD", EmojiSet: "standard",
 				EmojiExtra: map[string]string{"shipit": "🐿️"}, ReactionsScope: "static", ReactionsStatic: []string{"👍", "🎉"},
 			},
@@ -57,7 +59,7 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 		{
 			"changed by hand meanwhile",
 			"[display]\n[[display.read_rule]]\nmatch = \"matrix:fedcba9876543210/!room:example.org\"\nsend = false\n",
-			&devicev1.DeviceSettingsResponse{
+			&devicev1.DeviceSettings{
 				SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
 				ReadRules: []*devicev1.ReadRule{{Match: "matrix:fedcba9876543210/!room:example.org", Send: &no}},
 			},
@@ -68,9 +70,18 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", step.what, err)
 		}
-		if settingsText(got) != settingsText(step.want) {
-			t.Errorf("%s: DeviceSettings = %s, want %s", step.what, settingsText(got), settingsText(step.want))
+		if settingsText(got.GetSettings()) != settingsText(step.want) {
+			t.Errorf("%s: DeviceSettings = %s, want %s", step.what, settingsText(got.GetSettings()), settingsText(step.want))
 		}
+		if want := config.Revision([]byte(step.file)); got.GetRevision() != want {
+			t.Errorf("%s: revision %q, want the file's %q", step.what, got.GetRevision(), want)
+		}
+	}
+	if err := os.Remove(config.DevicePath(path)); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := read(); err != nil || got.GetRevision() != "" {
+		t.Errorf("DeviceSettings with no device file: revision %q (%v), want none", got.GetRevision(), err)
 	}
 
 	handWrite(t, path, "[display]\nsend_receipts = \"no\"\n")
@@ -80,7 +91,7 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 }
 
 // settingsText spells s for comparing: each key, and each rule with send unset told apart.
-func settingsText(s *devicev1.DeviceSettingsResponse) string {
+func settingsText(s *devicev1.DeviceSettings) string {
 	text := fmt.Sprintf("send_receipts=%v unread_line=%v markdown=%v confirm_sms=%v send_typing=%v tone=%q set=%q extra=%v scope=%q static=%q rules:",
 		s.GetSendReceipts(), s.GetUnreadLine(), s.GetMarkdown(), s.GetConfirmSms(), s.GetSendTyping(), s.GetSkinTone(),
 		s.GetEmojiSet(), s.GetEmojiExtra(), s.GetReactionsScope(), s.GetReactionsStatic())

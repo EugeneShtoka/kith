@@ -15,7 +15,7 @@ import {
   type StatusResponse,
 } from "../gen/backend/v1/services_pb";
 import type { Member, Message, Reaction, Room, SearchHit, Unread } from "../gen/backend/v1/types_pb";
-import { type DeviceSettingsResponse, DeviceService } from "../gen/device/v1/device_pb";
+import { type DeviceSettings, DeviceService } from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
 import { later, listed, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unsent } from "./compose";
@@ -24,6 +24,7 @@ import { call, subscribe } from "./kith";
 import { announces } from "./read";
 import { ordered, total } from "./rooms";
 import { emptyFilter, parseSearch } from "./search";
+import { change, type Device, type Key, labels, type Read, withKey } from "./settings";
 import { OpenThread, type ThreadView } from "./threads";
 import { type Ask, newest, Timeline, type TimelineView } from "./timeline";
 
@@ -111,7 +112,39 @@ export interface View {
   /** Whether there is a room to go back, or forward, to. */
   back: boolean;
   forward: boolean;
+  /** The settings page, shown in place of the rest; undefined closed. */
+  settingsPage: SettingsPage | undefined;
   problem: string | undefined;
+}
+
+/** The settings page: the device's settings, each change written to device.toml at once. */
+export interface SettingsPage {
+  /** The settings as last read or written; undefined while read, or when they could not be. */
+  read: Read | undefined;
+  /** A change being written: the page takes no other meanwhile. */
+  busy: boolean;
+  /** What the page says: a change that gave way to another writer's, or a failure. */
+  note: string;
+}
+
+/** relay is device.toml's settings through the relay, as the settings page changes them. */
+const relay: Device = {
+  read: () => call(DeviceService.method.deviceSettings, {}).then(answered),
+  write: (base, settings) =>
+    call(DeviceService.method.updateDeviceSettings, { baseRevision: base, settings }).then(answered),
+};
+
+/** errorText is what the settings page says of a failure. */
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** answered is a DeviceSettings or UpdateDeviceSettings answer, read. */
+function answered(r: { settings?: DeviceSettings; revision: string }): Read {
+  if (r.settings === undefined) {
+    throw new Error("the relay answered no settings");
+  }
+  return { settings: r.settings, revision: r.revision };
 }
 
 const nothingShown = {
@@ -158,7 +191,7 @@ interface Run {
   positioned: boolean;
   /** The open room's timeline, and the device settings it follows: undefined while read. */
   timeline: Timeline | undefined;
-  settings: DeviceSettingsResponse | "failed" | undefined;
+  settings: DeviceSettings | "failed" | undefined;
   /** Counts the reactions reads; the Reactions frames held while one is answered. */
   reactionReads: number;
   reactionsHeld: ReactionsResponse[] | undefined;
@@ -174,7 +207,15 @@ interface Run {
 }
 
 export class Session {
-  private view: View = { profiles: [], profile: "", socket: "", bridge: "", problem: undefined, ...nothingShown };
+  private view: View = {
+    profiles: [],
+    profile: "",
+    socket: "",
+    bridge: "",
+    settingsPage: undefined,
+    problem: undefined,
+    ...nothingShown,
+  };
   private readonly listeners = new Set<() => void>();
   private run: Run | undefined;
   /** This window, to kithd's seats; and since when it runs, for one it refuses. */
@@ -207,6 +248,8 @@ export class Session {
   private switching = 0;
   /** The open thread is watched: its pane shown, the window focused. */
   private watchingThread = false;
+  /** Counts the settings page's reads and writes: only the last one's answer is shown. */
+  private settingsReads = 0;
   /** What the window last told kithd it has open, and when. */
   private presented = { room: "", at: 0 };
 
@@ -247,6 +290,67 @@ export class Session {
         this.followLink();
       }
     });
+  }
+
+  /** openSettings shows the settings page, the settings read afresh. */
+  openSettings(): void {
+    const mine = ++this.settingsReads;
+    this.set({ settingsPage: { read: undefined, busy: false, note: "" } });
+    relay.read().then(
+      (read) => {
+        if (mine === this.settingsReads) {
+          this.set({ settingsPage: { read, busy: false, note: "" } });
+        }
+      },
+      (err: unknown) => {
+        if (mine === this.settingsReads) {
+          this.set({ settingsPage: { read: undefined, busy: false, note: errorText(err) } });
+        }
+      },
+    );
+  }
+
+  /** closeSettings goes back from the settings page; an answer still on its way is dropped. */
+  closeSettings(): void {
+    this.settingsReads++;
+    this.set({ settingsPage: undefined });
+  }
+
+  /**
+   * changeSetting writes one setting of the page's to device.toml at once, onto the file
+   * as another writer may have left it meanwhile (settings.change). The page shows the
+   * file as it then is, and the open room follows it: its receipts, unread line and
+   * composer.
+   */
+  async changeSetting<K extends Key>(key: K, value: DeviceSettings[K]): Promise<void> {
+    const page = this.view.settingsPage;
+    if (page?.read === undefined || page.busy) {
+      return;
+    }
+    const shown = page.read;
+    const mine = ++this.settingsReads;
+    this.set({
+      settingsPage: { read: { ...shown, settings: withKey(shown.settings, key, value) }, busy: true, note: "" },
+    });
+    let read = shown;
+    let note = "";
+    try {
+      const got = await change(relay, shown, key, value);
+      read = got;
+      if (got.kept) {
+        note = `${labels[key]} was changed elsewhere meanwhile: the page shows it as it is now.`;
+      }
+      const run = this.run;
+      if (run?.timeline !== undefined) {
+        run.settings = got.settings;
+        this.set({ unreadLine: got.settings.unreadLine });
+      }
+    } catch (err) {
+      note = `${labels[key]} was not saved: ${errorText(err)}`;
+    }
+    if (mine === this.settingsReads) {
+      this.set({ settingsPage: { read, busy: false, note } });
+    }
   }
 
   /** takeOver asks for the profile's seat by force: the window that has it steps aside. */
@@ -1147,8 +1251,8 @@ export class Session {
 
   /** readSettings reads the device settings the open room's receipts and unread line follow. */
   private readSettings(run: Run, t: Timeline): void {
-    call(DeviceService.method.deviceSettings, {}).then(
-      (settings) => {
+    relay.read().then(
+      ({ settings }) => {
         if (this.live(run) && run.timeline === t) {
           run.settings = settings;
           this.set({ unreadLine: settings.unreadLine });

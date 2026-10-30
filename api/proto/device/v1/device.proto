@@ -19,6 +19,14 @@ service DeviceService {
   // DeviceSettings is what the window reads of this device's settings (device.toml),
   // each key's default applied. Each call reads the file again.
   rpc DeviceSettings(DeviceSettingsRequest) returns (DeviceSettingsResponse);
+  // UpdateDeviceSettings writes the window's settings to the device file if the file is
+  // still the one read at base_revision (DeviceSettings' revision). Changed since, by
+  // hand or by another window, it is ABORTED and nothing is written: the window reads it
+  // again. Each key whose value differs from the file's (resolved) is written, by the
+  // writer the TUI's settings editor uses; every other is left as the file has it. A
+  // value the TUI would refuse is INVALID_ARGUMENT, a file that does not load
+  // FAILED_PRECONDITION. It answers the settings as now resolved, and their revision.
+  rpc UpdateDeviceSettings(UpdateDeviceSettingsRequest) returns (UpdateDeviceSettingsResponse);
   // Outgoing readies a file on this device for sending, as the TUI readies one: where
   // [display.media] anonymize holds, a picture is copied without its metadata
   // (media.Strip) and the file goes under a neutral name (domain.SentName). Main asks
@@ -73,6 +81,27 @@ message ChooseProfileResponse {
 message DeviceSettingsRequest {}
 
 message DeviceSettingsResponse {
+  DeviceSettings settings = 1;
+  // revision is the device file's as settings were read from it: a hash of its bytes,
+  // "" for no file.
+  string revision = 2;
+}
+
+message UpdateDeviceSettingsRequest {
+  // base_revision is the revision the settings changed were read at.
+  string base_revision = 1;
+  DeviceSettings settings = 2;
+}
+
+message UpdateDeviceSettingsResponse {
+  DeviceSettings settings = 1;
+  // revision is the device file's as now written.
+  string revision = 2;
+}
+
+// DeviceSettings is what the window reads of this device's settings (device.toml), each
+// key's default applied.
+message DeviceSettings {
   // [display] send_receipts: whether the people in a room are told how far you have
   // read; without, the receipt is private and only your own clients see it.
   bool send_receipts = 1;
