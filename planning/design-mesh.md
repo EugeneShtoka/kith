@@ -106,7 +106,8 @@ session over any pair of frame streams). Each needs a depguard rule;
   holding different ops under one dot see it in the first exchange (Equivocation).
 - **Keys** are strings by kind: `config/<toml path>`, `read/<room>`,
   `thread/<room>/<root>`, `marked/<room>`, `draft/<room>`, `tag/<room>/<tag>`,
-  `person/<person>/<tag>`, `roster/<device ID>`, `bridge/<device ID>/accounts`.
+  `person/<person>/<tag>`, `roster/<device ID>`, `bridge/<device ID>/accounts`,
+  `alias/<room>` (a room merged into another, step 3).
 
 ### An op
 
@@ -436,7 +437,7 @@ includes everything.
   | Telegram | `telegram:<user ID>/<marked peer ID>` (`internal/telegram/rooms.go`); a message's ID is per chat and per account, shared by the account's sessions | yes |
   | Slack | `slack:<team>/<channel>`, messages by `ts` | yes |
   | Signal, Messenger, Instagram, LinkedIn | the server's chat or thread ID | yes |
-  | WhatsApp | groups by group JID: yes. A DM is keyed today by the person's phone-number JID when this linked device's store maps the chat's LID to one, else by the LID (`chatOf`, `internal/whatsapp/messages.go`) | **not today**: one bridge may know a mapping the other does not yet, and key one DM two ways. Step 3 keys every DM by its LID (decision 17) |
+  | WhatsApp | groups by group JID: yes. A DM is keyed today by the person's phone-number JID when this linked device's store maps the chat's LID to one, else by the LID (`chatOf`, `internal/whatsapp/messages.go`) | **not today**: one bridge may know a number the other does not yet, and key one DM two ways. Step 3 merges a LID's room into its number's once the number is known, and the mapping crosses the mesh (decision 17) |
   | Google Messages | one pairing only (design-clients.md) | cannot run on two bridges |
 
 - **Read receipts are sent once.** The bridge where the read was made sends it; it
@@ -476,7 +477,7 @@ no Slack rooms.
 This phase must not preclude the merge:
 
 - **One room, one ID on every bridge**, so a merging client dedupes by room ID (step 3
-  closes the WhatsApp gap).
+  closes the WhatsApp gap for every contact whose number is known).
 - **Mesh state is keyed by room, never by bridge**: the draft and read position of a
   room are the same whichever bridge a client asks.
 - **A bridge's answer is about its own rooms only**, with no synthetic rows standing for
@@ -530,29 +531,47 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
    removed replica is taken directly. Plus: both bridges dialing at
    once, an unpaired or device-role key calling `Sync`, the socket calling it, a peer
    unpaired mid-stream, a join whose confirmation never comes.
-3. **fix: a WhatsApp DM is keyed by its LID.** `chatOf` and `person`
-   (`internal/whatsapp/messages.go`) key a DM by the person's LID whenever the account's
-   store knows one, by the phone-number JID only while it does not. A cache migration
-   (`internal/db`, a guarded migration with its fingerprint row, `docs/database.md`)
-   merges every DM room keyed by a phone number whose LID is known into the LID's room:
-   messages, side rows and change numbers, drafts, read positions, unread, verdicts;
-   the config's `room:` place lists and `picked` rooms naming the old ID are rewritten
-   through `UpdateConfig`, and queued scheduled messages re-pointed. A LID learned later
-   (a contact whose LID was unknown) merges that room the same way when the mapping
-   arrives; from step 4 on, the merge also writes the room's mesh entries under the new
-   key and deletes the old, which two bridges doing at once converge on (positions by
-   max, equal drafts adding nothing). Group chats are untouched; event IDs carry no chat
-   and do not change. Lands before any room's state crosses the mesh. **Failure review**
-   (merges writers, caches a derived result): a DM known by phone JID and by LID, both
-   rooms holding messages, merging into one room with none lost or doubled (a message
-   in both keeps one row, at a new change number, so a resuming client gets it); a
-   draft in each (joined, as `rebaseOnto` keeps a draft it does not extend); read
-   positions in each (the later wins); tag and person verdicts in each; the old ID in a
-   profile's place list and in a tag's `picked`; a scheduled message to the old room; a
-   contact whose LID is unknown yet (stays on its phone JID, merged once learned); a
-   message arriving under the phone JID during the migration; the migration cut off and
-   run again; the room open in a window when it merges (the window follows the new ID
-   on `Changed`).
+3. **fix: a WhatsApp DM known by its LID joins its number's room.** The phone-number
+   JID stays the canonical DM key, as `person` (`internal/whatsapp/messages.go`) has it
+   today: the number is kith's identity for a person across networks (the phonebook's
+   `phone:`, Signal and SMS by digits, starting a chat from a number), and `lidLinks`
+   already links a LID to it. A DM known only by its LID is keyed by the LID meanwhile.
+   Once the bridge learns that LID's number, the LID room is merged into the number's
+   room: messages, side rows and change numbers, drafts, read positions, unread,
+   verdicts; the config's `room:` place lists and tags' `picked` naming the LID room are
+   rewritten through `UpdateConfig`, queued scheduled messages re-pointed. The cache
+   keeps the merge (`room_aliases`, LID room → number room, a guarded migration with its
+   fingerprint row, `docs/database.md`), so a message arriving later under the LID is
+   filed under the number. A one-time pass at upgrade merges every LID room whose number
+   is already known. A contact who never exposes a number (a hidden number, a WhatsApp
+   username) stays keyed by the LID on every bridge alike. Group chats are untouched;
+   event IDs carry no chat and do not change.
+   **Across bridges** (from step 4 on, when a room's state first crosses): the merge is
+   one op that writes `alias/<LID room>` = the number's room, writes the LID room's
+   entries under the number's keys (positions by max, drafts as a write over both, verdicts
+   as writes) and deletes the LID keys. A bridge applying an alias for an account it
+   runs merges its own LID room the same way, without waiting to learn the number
+   itself, so two bridges converge on the number key as soon as either learns it; two
+   bridges merging at once write equal values (positions by max, equal drafts adding
+   nothing, equal verdicts no conflict). **An op for the LID key that raced the merge**
+   (written by a bridge that had not yet seen the alias) is applied as signed, under
+   the LID key, so every replica holds the same op; each bridge that holds the alias
+   then re-issues its write under the number's key as its own op and deletes the LID
+   key. Ops are never rewritten in flight: they are signed, and a relay's copy must
+   equal the origin's. **Failure review** (merges writers, caches a derived result): a
+   DM known by its LID and by its number, both rooms holding messages, merging LID →
+   number with none lost or doubled (a message in both keeps one row, at a new change
+   number, so a resuming client gets it); a draft in each (joined, as `rebaseOnto` keeps
+   a draft it does not extend); read positions in each (the later wins); tag and person
+   verdicts in each; the LID room in a profile's place list and a tag's `picked`; a
+   scheduled message to the LID room; the number learned mid-migration, and a message
+   arriving under the LID during it; the migration cut off and run again; a contact
+   who never exposes a number (stays on its LID, on every bridge); the number learned
+   on one bridge before the other (the other merges on the alias, and again harmlessly
+   when it learns the number itself); both bridges learning it at once; an op for the
+   LID key racing the merge, in both orders, on both bridges; an alias for an account a
+   bridge does not run (kept, inert); the room open in a window when it merges (the
+   window follows the new ID on `Changed`).
 4. **feat: read positions cross bridges.** `read/`, `thread/`, `marked/`; the cache's
    unread rewritten from the mesh; the receipt sent by the bridge where the read was
    made; reads the network reports kept out of the mesh (decisions 13, 14). **Failure
@@ -660,6 +679,12 @@ Decided by the user on 2026-10-30.
     account, all Phase 3's. Until then a client with one bridge shows what that bridge
     holds, nothing synthetic, and 2b keeps the merge possible (A profile across
     bridges).
-17. **Every WhatsApp DM is keyed by its LID now** (step 3), merging rooms known by
-    phone number into their LID's. Rejected: checking two bridges live first and fixing
+17. **The phone-number JID stays the canonical WhatsApp DM key** (step 3): a DM known
+    only by its LID is keyed by the LID until a bridge learns its number, then merged
+    into the number's room, the mapping crossing the mesh so every bridge converges on
+    the number key; a contact who never exposes a number stays LID-keyed everywhere.
+    Rejected: the LID as the canonical key (decided first, then reversed the same day):
+    it makes an opaque alias the person's identity, so every cross-network match (the
+    phonebook's `phone:`, Signal and SMS by digits, a chat started from a number) would
+    depend on the mapping. Also rejected: checking two bridges live first and fixing
     only on a difference.
