@@ -104,16 +104,7 @@ func relayOn(t *testing.T, kithdSocket string) string {
 // relayFor is relayOn for the config at configPath.
 func relayFor(t *testing.T, kithdSocket, configPath string) string {
 	t.Helper()
-	socket := filepath.Join(t.TempDir(), "relay.sock")
-	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", socket)
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv := &http.Server{Handler: newHandler(kithdSocket, configPath, slog.New(slog.DiscardHandler)), ReadHeaderTimeout: time.Second}
-	served := make(chan struct{})
-	go func() { defer close(served); _ = srv.Serve(ln) }()
-	t.Cleanup(func() { _ = srv.Close(); <-served })
-	return socket
+	return relayTo(t, local(kithdSocket), configPath)
 }
 
 func backendVia(socket string) backendv1connect.BackendServiceClient {

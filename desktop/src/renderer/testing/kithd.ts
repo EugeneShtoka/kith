@@ -86,6 +86,8 @@ export class Kithd {
   readonly refused: string[] = [];
   /** What the window told main to count in the tray, in order. */
   readonly told: number[] = [];
+  /** The bridge the device joined, "" for a kithd of its own: the relay reads the profiles through it. */
+  joined = "";
   /** The relay's device settings, or "fail" for a device file that does not load. */
   settings: DeviceSettingsResponse | "fail" = create(DeviceSettingsResponseSchema, {
     sendReceipts: true,
@@ -323,7 +325,7 @@ export class Kithd {
     this.calls.push(`${name}:${device ? "" : profile}`);
     const request = fromBinary(method.input, bytes);
     await later();
-    if (!this.up && !device) {
+    if (!this.up && (!device || this.joined !== "")) {
       throw new Error("kithd is not reachable");
     }
     // Read as kithd reads it, now; held back, the answer is on its way meanwhile.
@@ -375,7 +377,8 @@ export class Kithd {
     switch (name) {
       case "Device":
         return reply(DeviceService.method.device, {
-          socket: "/run/kithd.sock",
+          socket: this.joined === "" ? "/run/kithd.sock" : "",
+          bridge: this.joined,
           profile: this.profiles.includes(this.remembered) ? this.remembered : "",
           profiles: this.profiles,
         });

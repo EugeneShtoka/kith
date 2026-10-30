@@ -106,9 +106,30 @@ func AttachBridge(ctx context.Context, cert tls.Certificate, b config.Bridge, ti
 // BridgeDialer makes Remotes for the bridge b ([[bridge]]) as the device whose certificate
 // is cert, each new one as NewBridgeRemote makes it; an error when b's ID is not one.
 func BridgeDialer(cert tls.Certificate, b config.Bridge) (func() *Remote, error) {
-	pin, err := devicekey.ParseID(b.ID)
+	pin, err := bridgePin(b)
 	if err != nil {
-		return nil, fmt.Errorf("daemon: bridge %s: %w", b.Name, err)
+		return nil, err
 	}
 	return func() *Remote { return NewBridgeRemote(cert, pin, b.Addresses) }, nil
+}
+
+// DialBridge returns an HTTP client that reaches the bridge b ([[bridge]]) as the device
+// whose certificate is cert, as a Remote for it does: b's addresses in order, the first
+// answering with b's key, over HTTP/2 with an idle connection pinged. Requests go over
+// TLS whatever host they name; an error when b's ID is not one. It performs no I/O.
+func DialBridge(cert tls.Certificate, b config.Bridge) (*http.Client, error) {
+	pin, err := bridgePin(b)
+	if err != nil {
+		return nil, err
+	}
+	return dialBridge(cert, pin, b.Addresses), nil
+}
+
+// bridgePin is the ID of b's key, which every connection to b is pinned to.
+func bridgePin(b config.Bridge) (devicekey.ID, error) {
+	pin, err := devicekey.ParseID(b.ID)
+	if err != nil {
+		return devicekey.ID{}, fmt.Errorf("daemon: bridge %s: %w", b.Name, err)
+	}
+	return pin, nil
 }
