@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file device/v1/device.proto.
  */
 export const file_device_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiDwoNRGV2aWNlUmVxdWVzdCJDCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCSIkChRDaG9vc2VQcm9maWxlUmVxdWVzdBIMCgRuYW1lGAEgASgJIigKFUNob29zZVByb2ZpbGVSZXNwb25zZRIPCgdwcm9maWxlGAEgASgJMqIBCg1EZXZpY2VTZXJ2aWNlEj0KBkRldmljZRIYLmRldmljZS52MS5EZXZpY2VSZXF1ZXN0GhkuZGV2aWNlLnYxLkRldmljZVJlc3BvbnNlElIKDUNob29zZVByb2ZpbGUSHy5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlcXVlc3QaIC5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlc3BvbnNlQj5aPGdpdGh1Yi5jb20vRXVnZW5lU2h0b2thL2tpdGgvaW50ZXJuYWwvYXBpL2RldmljZS92MTtkZXZpY2V2MWIGcHJvdG8z");
+  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiDwoNRGV2aWNlUmVxdWVzdCJDCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCSIkChRDaG9vc2VQcm9maWxlUmVxdWVzdBIMCgRuYW1lGAEgASgJIigKFUNob29zZVByb2ZpbGVSZXNwb25zZRIPCgdwcm9maWxlGAEgASgJIhcKFURldmljZVNldHRpbmdzUmVxdWVzdCJtChZEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEhUKDXNlbmRfcmVjZWlwdHMYASABKAgSJwoKcmVhZF9ydWxlcxgCIAMoCzITLmRldmljZS52MS5SZWFkUnVsZRITCgt1bnJlYWRfbGluZRgDIAEoCCJFCghSZWFkUnVsZRINCgVtYXRjaBgBIAEoCRIOCgZzZW5kZXIYAiABKAkSEQoEc2VuZBgDIAEoCEgAiAEBQgcKBV9zZW5kMvkBCg1EZXZpY2VTZXJ2aWNlEj0KBkRldmljZRIYLmRldmljZS52MS5EZXZpY2VSZXF1ZXN0GhkuZGV2aWNlLnYxLkRldmljZVJlc3BvbnNlElIKDUNob29zZVByb2ZpbGUSHy5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlcXVlc3QaIC5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlc3BvbnNlElUKDkRldmljZVNldHRpbmdzEiAuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzUmVxdWVzdBohLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1Jlc3BvbnNlQj5aPGdpdGh1Yi5jb20vRXVnZW5lU2h0b2thL2tpdGgvaW50ZXJuYWwvYXBpL2RldmljZS92MTtkZXZpY2V2MWIGcHJvdG8z");
 
 /**
  * @generated from message device.v1.DeviceRequest
@@ -99,6 +99,91 @@ export const ChooseProfileResponseSchema: GenMessage<ChooseProfileResponse> = /*
   messageDesc(file_device_v1_device, 3);
 
 /**
+ * @generated from message device.v1.DeviceSettingsRequest
+ */
+export type DeviceSettingsRequest = Message<"device.v1.DeviceSettingsRequest"> & {
+};
+
+/**
+ * Describes the message device.v1.DeviceSettingsRequest.
+ * Use `create(DeviceSettingsRequestSchema)` to create a new message.
+ */
+export const DeviceSettingsRequestSchema: GenMessage<DeviceSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 4);
+
+/**
+ * @generated from message device.v1.DeviceSettingsResponse
+ */
+export type DeviceSettingsResponse = Message<"device.v1.DeviceSettingsResponse"> & {
+  /**
+   * [display] send_receipts: whether the people in a room are told how far you have
+   * read; without, the receipt is private and only your own clients see it.
+   *
+   * @generated from field: bool send_receipts = 1;
+   */
+  sendReceipts: boolean;
+
+  /**
+   * [[display.read_rule]], in the file's order: the narrowest naming a room or a
+   * message's sender says otherwise there (ties: the later).
+   *
+   * @generated from field: repeated device.v1.ReadRule read_rules = 2;
+   */
+  readRules: ReadRule[];
+
+  /**
+   * [display] unread_line: a rule drawn where a room's unread messages began when it
+   * was opened.
+   *
+   * @generated from field: bool unread_line = 3;
+   */
+  unreadLine: boolean;
+};
+
+/**
+ * Describes the message device.v1.DeviceSettingsResponse.
+ * Use `create(DeviceSettingsResponseSchema)` to create a new message.
+ */
+export const DeviceSettingsResponseSchema: GenMessage<DeviceSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 5);
+
+/**
+ * ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
+ * opening it, so how long a cursor rests on one is the TUI's.
+ *
+ * @generated from message device.v1.ReadRule
+ */
+export type ReadRule = Message<"device.v1.ReadRule"> & {
+  /**
+   * A room ID, or a home entry (space:, tag:, place:); empty with a sender.
+   *
+   * @generated from field: string match = 1;
+   */
+  match: string;
+
+  /**
+   * A message author's ID; empty is anyone.
+   *
+   * @generated from field: string sender = 2;
+   */
+  sender: string;
+
+  /**
+   * Whether receipts are announced there; unset inherits.
+   *
+   * @generated from field: optional bool send = 3;
+   */
+  send?: boolean | undefined;
+};
+
+/**
+ * Describes the message device.v1.ReadRule.
+ * Use `create(ReadRuleSchema)` to create a new message.
+ */
+export const ReadRuleSchema: GenMessage<ReadRule> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 6);
+
+/**
  * DeviceService is served by kith-relay, the desktop window's link to kithd, beside the
  * BackendService it forwards: what this device is, which only the relay knows.
  *
@@ -127,6 +212,17 @@ export const DeviceService: GenService<{
     methodKind: "unary";
     input: typeof ChooseProfileRequestSchema;
     output: typeof ChooseProfileResponseSchema;
+  },
+  /**
+   * DeviceSettings is what the window reads of this device's settings (device.toml),
+   * each key's default applied. Each call reads the file again.
+   *
+   * @generated from rpc device.v1.DeviceService.DeviceSettings
+   */
+  deviceSettings: {
+    methodKind: "unary";
+    input: typeof DeviceSettingsRequestSchema;
+    output: typeof DeviceSettingsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_device_v1_device, 0);

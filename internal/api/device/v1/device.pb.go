@@ -212,6 +212,173 @@ func (x *ChooseProfileResponse) GetProfile() string {
 	return ""
 }
 
+type DeviceSettingsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeviceSettingsRequest) Reset() {
+	*x = DeviceSettingsRequest{}
+	mi := &file_device_v1_device_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeviceSettingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeviceSettingsRequest) ProtoMessage() {}
+
+func (x *DeviceSettingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeviceSettingsRequest.ProtoReflect.Descriptor instead.
+func (*DeviceSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{4}
+}
+
+type DeviceSettingsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// [display] send_receipts: whether the people in a room are told how far you have
+	// read; without, the receipt is private and only your own clients see it.
+	SendReceipts bool `protobuf:"varint,1,opt,name=send_receipts,json=sendReceipts,proto3" json:"send_receipts,omitempty"`
+	// [[display.read_rule]], in the file's order: the narrowest naming a room or a
+	// message's sender says otherwise there (ties: the later).
+	ReadRules []*ReadRule `protobuf:"bytes,2,rep,name=read_rules,json=readRules,proto3" json:"read_rules,omitempty"`
+	// [display] unread_line: a rule drawn where a room's unread messages began when it
+	// was opened.
+	UnreadLine    bool `protobuf:"varint,3,opt,name=unread_line,json=unreadLine,proto3" json:"unread_line,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeviceSettingsResponse) Reset() {
+	*x = DeviceSettingsResponse{}
+	mi := &file_device_v1_device_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeviceSettingsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeviceSettingsResponse) ProtoMessage() {}
+
+func (x *DeviceSettingsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeviceSettingsResponse.ProtoReflect.Descriptor instead.
+func (*DeviceSettingsResponse) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *DeviceSettingsResponse) GetSendReceipts() bool {
+	if x != nil {
+		return x.SendReceipts
+	}
+	return false
+}
+
+func (x *DeviceSettingsResponse) GetReadRules() []*ReadRule {
+	if x != nil {
+		return x.ReadRules
+	}
+	return nil
+}
+
+func (x *DeviceSettingsResponse) GetUnreadLine() bool {
+	if x != nil {
+		return x.UnreadLine
+	}
+	return false
+}
+
+// ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
+// opening it, so how long a cursor rests on one is the TUI's.
+type ReadRule struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A room ID, or a home entry (space:, tag:, place:); empty with a sender.
+	Match string `protobuf:"bytes,1,opt,name=match,proto3" json:"match,omitempty"`
+	// A message author's ID; empty is anyone.
+	Sender string `protobuf:"bytes,2,opt,name=sender,proto3" json:"sender,omitempty"`
+	// Whether receipts are announced there; unset inherits.
+	Send          *bool `protobuf:"varint,3,opt,name=send,proto3,oneof" json:"send,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReadRule) Reset() {
+	*x = ReadRule{}
+	mi := &file_device_v1_device_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadRule) ProtoMessage() {}
+
+func (x *ReadRule) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadRule.ProtoReflect.Descriptor instead.
+func (*ReadRule) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ReadRule) GetMatch() string {
+	if x != nil {
+		return x.Match
+	}
+	return ""
+}
+
+func (x *ReadRule) GetSender() string {
+	if x != nil {
+		return x.Sender
+	}
+	return ""
+}
+
+func (x *ReadRule) GetSend() bool {
+	if x != nil && x.Send != nil {
+		return *x.Send
+	}
+	return false
+}
+
 var File_device_v1_device_proto protoreflect.FileDescriptor
 
 const file_device_v1_device_proto_rawDesc = "" +
@@ -225,10 +392,23 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\x14ChooseProfileRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"1\n" +
 	"\x15ChooseProfileResponse\x12\x18\n" +
-	"\aprofile\x18\x01 \x01(\tR\aprofile2\xa2\x01\n" +
+	"\aprofile\x18\x01 \x01(\tR\aprofile\"\x17\n" +
+	"\x15DeviceSettingsRequest\"\x92\x01\n" +
+	"\x16DeviceSettingsResponse\x12#\n" +
+	"\rsend_receipts\x18\x01 \x01(\bR\fsendReceipts\x122\n" +
+	"\n" +
+	"read_rules\x18\x02 \x03(\v2\x13.device.v1.ReadRuleR\treadRules\x12\x1f\n" +
+	"\vunread_line\x18\x03 \x01(\bR\n" +
+	"unreadLine\"Z\n" +
+	"\bReadRule\x12\x14\n" +
+	"\x05match\x18\x01 \x01(\tR\x05match\x12\x16\n" +
+	"\x06sender\x18\x02 \x01(\tR\x06sender\x12\x17\n" +
+	"\x04send\x18\x03 \x01(\bH\x00R\x04send\x88\x01\x01B\a\n" +
+	"\x05_send2\xf9\x01\n" +
 	"\rDeviceService\x12=\n" +
 	"\x06Device\x12\x18.device.v1.DeviceRequest\x1a\x19.device.v1.DeviceResponse\x12R\n" +
-	"\rChooseProfile\x12\x1f.device.v1.ChooseProfileRequest\x1a .device.v1.ChooseProfileResponseB>Z<github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1b\x06proto3"
+	"\rChooseProfile\x12\x1f.device.v1.ChooseProfileRequest\x1a .device.v1.ChooseProfileResponse\x12U\n" +
+	"\x0eDeviceSettings\x12 .device.v1.DeviceSettingsRequest\x1a!.device.v1.DeviceSettingsResponseB>Z<github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1b\x06proto3"
 
 var (
 	file_device_v1_device_proto_rawDescOnce sync.Once
@@ -242,23 +422,29 @@ func file_device_v1_device_proto_rawDescGZIP() []byte {
 	return file_device_v1_device_proto_rawDescData
 }
 
-var file_device_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_device_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_device_v1_device_proto_goTypes = []any{
-	(*DeviceRequest)(nil),         // 0: device.v1.DeviceRequest
-	(*DeviceResponse)(nil),        // 1: device.v1.DeviceResponse
-	(*ChooseProfileRequest)(nil),  // 2: device.v1.ChooseProfileRequest
-	(*ChooseProfileResponse)(nil), // 3: device.v1.ChooseProfileResponse
+	(*DeviceRequest)(nil),          // 0: device.v1.DeviceRequest
+	(*DeviceResponse)(nil),         // 1: device.v1.DeviceResponse
+	(*ChooseProfileRequest)(nil),   // 2: device.v1.ChooseProfileRequest
+	(*ChooseProfileResponse)(nil),  // 3: device.v1.ChooseProfileResponse
+	(*DeviceSettingsRequest)(nil),  // 4: device.v1.DeviceSettingsRequest
+	(*DeviceSettingsResponse)(nil), // 5: device.v1.DeviceSettingsResponse
+	(*ReadRule)(nil),               // 6: device.v1.ReadRule
 }
 var file_device_v1_device_proto_depIdxs = []int32{
-	0, // 0: device.v1.DeviceService.Device:input_type -> device.v1.DeviceRequest
-	2, // 1: device.v1.DeviceService.ChooseProfile:input_type -> device.v1.ChooseProfileRequest
-	1, // 2: device.v1.DeviceService.Device:output_type -> device.v1.DeviceResponse
-	3, // 3: device.v1.DeviceService.ChooseProfile:output_type -> device.v1.ChooseProfileResponse
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	6, // 0: device.v1.DeviceSettingsResponse.read_rules:type_name -> device.v1.ReadRule
+	0, // 1: device.v1.DeviceService.Device:input_type -> device.v1.DeviceRequest
+	2, // 2: device.v1.DeviceService.ChooseProfile:input_type -> device.v1.ChooseProfileRequest
+	4, // 3: device.v1.DeviceService.DeviceSettings:input_type -> device.v1.DeviceSettingsRequest
+	1, // 4: device.v1.DeviceService.Device:output_type -> device.v1.DeviceResponse
+	3, // 5: device.v1.DeviceService.ChooseProfile:output_type -> device.v1.ChooseProfileResponse
+	5, // 6: device.v1.DeviceService.DeviceSettings:output_type -> device.v1.DeviceSettingsResponse
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_device_v1_device_proto_init() }
@@ -266,13 +452,14 @@ func file_device_v1_device_proto_init() {
 	if File_device_v1_device_proto != nil {
 		return
 	}
+	file_device_v1_device_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_device_v1_device_proto_rawDesc), len(file_device_v1_device_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

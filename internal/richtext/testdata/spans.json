@@ -1,0 +1,157 @@
+{
+  "about": "What kithd sends for each markup: the text drawn and its spans, in UTF-8 byte offsets (richtext.Parse), and the text each span covers. Read by internal/richtext's conformance test and the desktop's spans tests, which turn the offsets into UTF-16 indices.",
+  "cases": [
+    {
+      "name": "plain ASCII emphasis",
+      "markup": "<strong>bold</strong> and <em>italic</em>",
+      "text": "bold and italic",
+      "spans": [
+        {
+          "start": 0,
+          "end": 4,
+          "bold": true
+        },
+        {
+          "start": 9,
+          "end": 15,
+          "italic": true
+        }
+      ],
+      "pieces": [
+        "bold",
+        "italic"
+      ]
+    },
+    {
+      "name": "an emoji before the span: four bytes, two UTF-16 units",
+      "markup": "😀 <strong>after</strong>",
+      "text": "😀 after",
+      "spans": [
+        {
+          "start": 5,
+          "end": 10,
+          "bold": true
+        }
+      ],
+      "pieces": [
+        "after"
+      ]
+    },
+    {
+      "name": "a ZWJ family inside the span",
+      "markup": "<em>👨‍👩‍👧 family</em> done",
+      "text": "👨‍👩‍👧 family done",
+      "spans": [
+        {
+          "start": 0,
+          "end": 25,
+          "italic": true
+        }
+      ],
+      "pieces": [
+        "👨‍👩‍👧 family"
+      ]
+    },
+    {
+      "name": "right-to-left text",
+      "markup": "שלום <strong>עולם</strong> and <code>ok</code>",
+      "text": "שלום עולם and ok",
+      "spans": [
+        {
+          "start": 9,
+          "end": 17,
+          "bold": true
+        },
+        {
+          "start": 22,
+          "end": 24,
+          "code": true
+        }
+      ],
+      "pieces": [
+        "עולם",
+        "ok"
+      ]
+    },
+    {
+      "name": "Arabic with an emoji in a link",
+      "markup": "مرحبا <a href=\"https://example.org/a?b=c\">رابط 🔗</a>",
+      "text": "مرحبا رابط 🔗",
+      "spans": [
+        {
+          "start": 11,
+          "end": 24,
+          "link": true,
+          "href": "https://example.org/a?b=c"
+        }
+      ],
+      "pieces": [
+        "رابط 🔗"
+      ]
+    },
+    {
+      "name": "nested marks",
+      "markup": "<strong>bold <em>both é</em></strong><del>gone</del>",
+      "text": "bold both égone",
+      "spans": [
+        {
+          "start": 5,
+          "end": 12,
+          "italic": true
+        },
+        {
+          "start": 0,
+          "end": 12,
+          "bold": true
+        },
+        {
+          "start": 12,
+          "end": 16,
+          "strike": true
+        }
+      ],
+      "pieces": [
+        "both é",
+        "bold both é",
+        "gone"
+      ]
+    },
+    {
+      "name": "a combining mark and a flag",
+      "markup": "é <u>🇮🇱 flag</u>",
+      "text": "é 🇮🇱 flag",
+      "spans": [
+        {
+          "start": 4,
+          "end": 17,
+          "underline": true
+        }
+      ],
+      "pieces": [
+        "🇮🇱 flag"
+      ]
+    },
+    {
+      "name": "a quote and a spoiler",
+      "markup": "<blockquote>quoted ✓</blockquote><span data-mx-spoiler=\"plot\">secret 🤫</span>",
+      "text": "quoted ✓\nsecret 🤫",
+      "spans": [
+        {
+          "start": 0,
+          "end": 10,
+          "quote": true
+        },
+        {
+          "start": 11,
+          "end": 22,
+          "spoiler": true,
+          "reason": "plot"
+        }
+      ],
+      "pieces": [
+        "quoted ✓",
+        "secret 🤫"
+      ]
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse 
 import type { Room, Unread } from "../gen/backend/v1/types_pb";
 import { unreadOf } from "./rooms";
 import { type Link, type Seat, Session, type View } from "./session";
+import { TimelinePane } from "./TimelinePane";
 
 const phases: Record<NetworkPhase, string> = {
   [NetworkPhase.UNSPECIFIED]: "unknown",
@@ -80,10 +81,11 @@ function Body({ view, session }: { view: View; session: Session }) {
           {view.invites.length > 0 && <Invites invites={view.invites} session={session} />}
           <ul>
             {view.rooms.map((r) => (
-              <RoomRow key={r.id} room={r} unread={view.unread.get(r.id)} />
+              <RoomRow key={r.id} room={r} unread={view.unread.get(r.id)} open={r.id === view.open} session={session} />
             ))}
           </ul>
         </section>
+        {view.timeline && <TimelinePane t={view.timeline} unreadLine={view.unreadLine} session={session} />}
       </div>
       {view.status && (
         <details>
@@ -201,12 +203,30 @@ function Invites({ invites, session }: { invites: readonly Room[]; session: Sess
   );
 }
 
-function RoomRow({ room, unread }: { room: Room; unread: Unread | undefined }) {
+function RoomRow({
+  room,
+  unread,
+  open,
+  session,
+}: {
+  room: Room;
+  unread: Unread | undefined;
+  open: boolean;
+  session: Session;
+}) {
   const { count, mentions } = unreadOf(unread);
   return (
     <li className={count > 0 || unread?.marked ? "room unread" : "room"}>
-      <span dir="auto">{room.name || room.id}</span>
-      {count > 0 && <span className={mentions > 0 ? "badge mention" : "badge"}>{count}</span>}
+      <button
+        type="button"
+        aria-current={open}
+        onClick={() => {
+          session.open(room.id);
+        }}
+      >
+        <span dir="auto">{room.name || room.id}</span>
+        {count > 0 && <span className={mentions > 0 ? "badge mention" : "badge"}>{count}</span>}
+      </button>
     </li>
   );
 }

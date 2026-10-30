@@ -82,10 +82,17 @@ const allowedCalls = [
   "CachedInvites",
   "JoinRoom",
   "LeaveRoom",
+  "CachedTimeline",
+  "Timeline",
+  "MessagesAround",
+  "FetchEvent",
+  "CachedReactions",
+  "MarkRead",
   "Device",
   "ChooseProfile",
+  "DeviceSettings",
 ];
-const allowedStreams = ["Changed", "ConfigChanged", "Seat", "UnreadStream", "Invites"];
+const allowedStreams = ["Changed", "ConfigChanged", "Seat", "UnreadStream", "Invites", "Messages", "Reactions"];
 
 // A request each listed call is answered for: an invitation's room, a profile the config has.
 const requests: Record<string, Uint8Array> = {

@@ -1,0 +1,274 @@
+{
+  "about": "How a client orders a room's messages and puts a newer copy of one in place: domain.MergeMessages for a page (rows already shown, the page's rows), and for a stream frame the row shown with its ID taken out and the frame merged in (tui handleIncoming). Read by internal/domain's conformance test and the desktop's timeline tests. Times are Unix milliseconds; an absent field is its zero.",
+  "cases": [
+    {
+      "name": "time orders, oldest first",
+      "kind": "merge",
+      "shown": [],
+      "rows": [
+        { "id": "$b", "ts": 2000, "body": "second" },
+        { "id": "$a", "ts": 1000, "body": "first" }
+      ],
+      "want": [
+        { "id": "$a", "ts": 1000, "body": "first" },
+        { "id": "$b", "ts": 2000, "body": "second" }
+      ]
+    },
+    {
+      "name": "seq orders messages sharing a time",
+      "kind": "merge",
+      "shown": [],
+      "rows": [
+        { "id": "$a", "ts": 1000, "seq": 2, "body": "later" },
+        { "id": "$b", "ts": 1000, "seq": 1, "body": "earlier" }
+      ],
+      "want": [
+        { "id": "$b", "ts": 1000, "seq": 1, "body": "earlier" },
+        { "id": "$a", "ts": 1000, "seq": 2, "body": "later" }
+      ]
+    },
+    {
+      "name": "a shorter ID first, so message 99 precedes 100",
+      "kind": "merge",
+      "shown": [],
+      "rows": [
+        { "id": "telegram:1/100", "ts": 1000 },
+        { "id": "telegram:1/99", "ts": 1000 },
+        { "id": "telegram:1/98", "ts": 1000 }
+      ],
+      "want": [
+        { "id": "telegram:1/98", "ts": 1000 },
+        { "id": "telegram:1/99", "ts": 1000 },
+        { "id": "telegram:1/100", "ts": 1000 }
+      ]
+    },
+    {
+      "name": "ID length is counted in UTF-8 bytes and IDs compared byte by byte",
+      "kind": "merge",
+      "shown": [],
+      "rows": [
+        { "id": "$é", "ts": 1000 },
+        { "id": "$ab", "ts": 1000 },
+        { "id": "$￿", "ts": 1000 },
+        { "id": "$😀", "ts": 1000 }
+      ],
+      "want": [
+        { "id": "$ab", "ts": 1000 },
+        { "id": "$é", "ts": 1000 },
+        { "id": "$￿", "ts": 1000 },
+        { "id": "$😀", "ts": 1000 }
+      ]
+    },
+    {
+      "name": "a page's older copy does not take back an edit",
+      "kind": "merge",
+      "shown": [
+        { "id": "$a", "ts": 1000, "body": "v2", "edited": true, "editedAt": 5000, "revisionId": "$e1" }
+      ],
+      "rows": [{ "id": "$a", "ts": 1000, "body": "v1" }],
+      "want": [{ "id": "$a", "ts": 1000, "body": "v2", "edited": true, "editedAt": 5000, "revisionId": "$e1" }]
+    },
+    {
+      "name": "a newer edit replaces the shown one",
+      "kind": "merge",
+      "shown": [
+        { "id": "$a", "ts": 1000, "body": "v2", "format": "v2", "edited": true, "editedAt": 5000, "revisionId": "$e1" }
+      ],
+      "rows": [{ "id": "$a", "ts": 1000, "body": "v3", "edited": true, "editedAt": 6000, "revisionId": "$e2" }],
+      "want": [{ "id": "$a", "ts": 1000, "body": "v3", "edited": true, "editedAt": 6000, "revisionId": "$e2" }]
+    },
+    {
+      "name": "an older edit does not replace a newer one",
+      "kind": "merge",
+      "shown": [{ "id": "$a", "ts": 1000, "body": "v3", "edited": true, "editedAt": 6000, "revisionId": "$e2" }],
+      "rows": [{ "id": "$a", "ts": 1000, "body": "v2", "edited": true, "editedAt": 5000, "revisionId": "$e1" }],
+      "want": [{ "id": "$a", "ts": 1000, "body": "v3", "edited": true, "editedAt": 6000, "revisionId": "$e2" }]
+    },
+    {
+      "name": "edits sent in the same millisecond: the larger revision wins",
+      "kind": "merge",
+      "shown": [{ "id": "$a", "ts": 1000, "body": "x", "edited": true, "editedAt": 5000, "revisionId": "$e1" }],
+      "rows": [{ "id": "$a", "ts": 1000, "body": "y", "edited": true, "editedAt": 5000, "revisionId": "$e2" }],
+      "want": [{ "id": "$a", "ts": 1000, "body": "y", "edited": true, "editedAt": 5000, "revisionId": "$e2" }]
+    },
+    {
+      "name": "a deletion empties the body and forgets which edit it showed",
+      "kind": "merge",
+      "shown": [{ "id": "$a", "ts": 1000, "body": "v2", "edited": true, "editedAt": 5000, "revisionId": "$e1" }],
+      "rows": [
+        { "id": "$a", "ts": 1000, "redacted": true, "redactedBy": "@mod", "redactedReason": "spam", "redactedAt": 7000 }
+      ],
+      "want": [
+        {
+          "id": "$a",
+          "ts": 1000,
+          "edited": true,
+          "redacted": true,
+          "redactedBy": "@mod",
+          "redactedReason": "spam",
+          "redactedAt": 7000
+        }
+      ]
+    },
+    {
+      "name": "a deleted message never regains a body, not even from an edit",
+      "kind": "merge",
+      "shown": [{ "id": "$a", "ts": 1000, "redacted": true, "redactedBy": "@mod" }],
+      "rows": [{ "id": "$a", "ts": 1000, "body": "back", "edited": true, "editedAt": 9000, "revisionId": "$e9" }],
+      "want": [{ "id": "$a", "ts": 1000, "edited": true, "redacted": true, "redactedBy": "@mod" }]
+    },
+    {
+      "name": "the decrypted copy replaces its undecrypted stand-in",
+      "kind": "merge",
+      "shown": [{ "id": "$a", "ts": 1000, "body": "unable to decrypt", "undecrypted": true }],
+      "rows": [{ "id": "$a", "ts": 1000, "body": "hello" }],
+      "want": [{ "id": "$a", "ts": 1000, "body": "hello" }]
+    },
+    {
+      "name": "a copy sent because the shown edit was deleted takes its words back",
+      "kind": "merge",
+      "shown": [{ "id": "$a", "ts": 1000, "body": "v2", "edited": true, "editedAt": 5000, "revisionId": "$e1" }],
+      "rows": [{ "id": "$a", "ts": 1000, "body": "v1", "reverted": true }],
+      "want": [{ "id": "$a", "ts": 1000, "body": "v1" }]
+    },
+    {
+      "name": "a missing body is filled; fields first seen stick",
+      "kind": "merge",
+      "shown": [{ "id": "$a", "ts": 1000, "sender": "@a", "seq": 3, "replyTo": "$r", "threadRoot": "$t" }],
+      "rows": [
+        {
+          "id": "$a",
+          "ts": 1000,
+          "sender": "@b",
+          "senderName": "Alice",
+          "seq": 4,
+          "body": "hi",
+          "format": "hi",
+          "mentioned": true
+        }
+      ],
+      "want": [
+        {
+          "id": "$a",
+          "ts": 1000,
+          "sender": "@a",
+          "senderName": "Alice",
+          "seq": 3,
+          "body": "hi",
+          "format": "hi",
+          "replyTo": "$r",
+          "threadRoot": "$t",
+          "mentioned": true
+        }
+      ]
+    },
+    {
+      "name": "the earliest time wins, and the order follows it",
+      "kind": "merge",
+      "shown": [
+        { "id": "$a", "ts": 3000, "body": "a" },
+        { "id": "$b", "ts": 4000, "body": "b" }
+      ],
+      "rows": [{ "id": "$b", "ts": 2000, "body": "b" }],
+      "want": [
+        { "id": "$b", "ts": 2000, "body": "b" },
+        { "id": "$a", "ts": 3000, "body": "a" }
+      ]
+    },
+    {
+      "name": "a bridge's edit replacing its placeholder brings the attachment",
+      "kind": "merge",
+      "shown": [{ "id": "$a", "ts": 1000, "body": "waiting for message", "placeholder": true }],
+      "rows": [
+        {
+          "id": "$a",
+          "ts": 1000,
+          "body": "cat.png",
+          "media": "cat.png",
+          "edited": true,
+          "editedAt": 2000,
+          "revisionId": "$e1"
+        }
+      ],
+      "want": [
+        {
+          "id": "$a",
+          "ts": 1000,
+          "body": "cat.png",
+          "media": "cat.png",
+          "edited": true,
+          "editedAt": 2000,
+          "revisionId": "$e1"
+        }
+      ]
+    },
+    {
+      "name": "a poll's later copy has the votes",
+      "kind": "merge",
+      "shown": [{ "id": "$a", "ts": 1000, "body": "lunch?", "poll": "lunch? (1 vote)" }],
+      "rows": [{ "id": "$a", "ts": 1000, "body": "lunch?", "poll": "lunch? (2 votes)" }],
+      "want": [{ "id": "$a", "ts": 1000, "body": "lunch?", "poll": "lunch? (2 votes)" }]
+    },
+    {
+      "name": "a frame is the row as the cache holds it: a deleted edit's words come back",
+      "kind": "frame",
+      "shown": [
+        { "id": "$a", "ts": 1000, "body": "v2", "edited": true, "editedAt": 5000, "revisionId": "$e1" },
+        { "id": "$b", "ts": 2000, "body": "b" }
+      ],
+      "rows": [{ "id": "$a", "ts": 1000, "body": "v1" }],
+      "want": [
+        { "id": "$a", "ts": 1000, "body": "v1" },
+        { "id": "$b", "ts": 2000, "body": "b" }
+      ]
+    },
+    {
+      "name": "a frame carrying a poll's fewer votes replaces the row",
+      "kind": "frame",
+      "shown": [{ "id": "$a", "ts": 1000, "body": "lunch?", "poll": "lunch? (2 votes)" }],
+      "rows": [{ "id": "$a", "ts": 1000, "body": "lunch?", "poll": "lunch? (1 vote)" }],
+      "want": [{ "id": "$a", "ts": 1000, "body": "lunch?", "poll": "lunch? (1 vote)" }]
+    },
+    {
+      "name": "a frame deleting a message",
+      "kind": "frame",
+      "shown": [{ "id": "$a", "ts": 1000, "body": "oops" }],
+      "rows": [{ "id": "$a", "ts": 1000, "redacted": true, "redactedBy": "@a", "redactedAt": 3000 }],
+      "want": [{ "id": "$a", "ts": 1000, "redacted": true, "redactedBy": "@a", "redactedAt": 3000 }]
+    },
+    {
+      "name": "a new message's frame takes its place in time",
+      "kind": "frame",
+      "shown": [
+        { "id": "$a", "ts": 1000 },
+        { "id": "$c", "ts": 3000 }
+      ],
+      "rows": [{ "id": "$b", "ts": 2000 }],
+      "want": [
+        { "id": "$a", "ts": 1000 },
+        { "id": "$b", "ts": 2000 },
+        { "id": "$c", "ts": 3000 }
+      ]
+    },
+    {
+      "name": "a frame keeps no instruction to combine",
+      "kind": "frame",
+      "shown": [],
+      "rows": [{ "id": "$a", "ts": 1000, "body": "v1", "reverted": true }],
+      "want": [{ "id": "$a", "ts": 1000, "body": "v1" }]
+    },
+    {
+      "name": "a frame moving a row in time moves it",
+      "kind": "frame",
+      "shown": [
+        { "id": "$a", "ts": 1000 },
+        { "id": "$b", "ts": 2000 }
+      ],
+      "rows": [{ "id": "$a", "ts": 3000 }],
+      "want": [
+        { "id": "$b", "ts": 2000 },
+        { "id": "$a", "ts": 3000 }
+      ]
+    }
+  ]
+}

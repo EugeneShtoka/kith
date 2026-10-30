@@ -1,10 +1,13 @@
 import path from "node:path";
 
 /**
- * The window's Content-Security-Policy: its own scripts and styles, pictures from itself
- * or a blob, and no network at all; kithd is reached through main, never by the page.
+ * The window's Content-Security-Policy: its own scripts and styles, pictures from itself,
+ * a blob or main (kith-media:, the attachments), and no network at all; kithd is reached
+ * through main, never by the page.
  */
-export const csp = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'none'";
+export const csp =
+  "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: kith-media:; " +
+  "media-src kith-media:; connect-src 'none'";
 
 /**
  * The policy under `npm start`, where Vite's dev server injects each stylesheet as a

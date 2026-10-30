@@ -1,5 +1,6 @@
 // The desktop's main process: it starts kith-relay, holds the Connect client and serves
 // the window, which reaches kithd only through the gate. See planning/design-electron.md.
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -18,12 +19,18 @@ import {
 } from "electron";
 
 import { channels, type Subscribe } from "../shared/ipc";
+import { mediaScheme } from "../shared/media";
 import { appURL, fromTheWindow, Gate } from "./gate";
+import { Media } from "./media";
 import { startRelay } from "./relay";
 import { appFile, csp, devCSP } from "./serve";
 
-// Standard and secure, so the window is an origin of its own and loads modules.
-protocol.registerSchemesAsPrivileged([{ scheme: "app", privileges: { standard: true, secure: true } }]);
+// Standard and secure, so the window is an origin of its own and loads modules; and the
+// window's pictures, which main answers from kithd (kith-media:).
+protocol.registerSchemesAsPrivileged([
+  { scheme: "app", privileges: { standard: true, secure: true } },
+  { scheme: mediaScheme, privileges: { standard: true, secure: true } },
+]);
 
 // Electron's own store (caches, storage, the instance lock) is named for the app, which
 // would make it the config's directory, ~/.config/kith: it gets one of its own.
@@ -72,6 +79,13 @@ async function start(): Promise<void> {
   const gate = new Gate(transport);
 
   serveApp();
+  const media = new Media((room, event) => gate.media(room, event));
+  protocol.handle(mediaScheme, (request) => media.answer(request.url));
+  ipcMain.handle(channels.save, (event, room: unknown, id: unknown, name: unknown) =>
+    fromTheWindow(event.senderFrame) && typeof room === "string" && typeof id === "string" && typeof name === "string"
+      ? save(gate, room, id, name)
+      : false,
+  );
   ipcMain.handle(channels.call, (event, name: unknown, request: unknown) =>
     gate.call(event.senderFrame, name, request),
   );
@@ -165,6 +179,23 @@ function trayIcon(unread: boolean): NativeImage {
     }
   }
   return nativeImage.createFromBitmap(pixels, { width: size, height: size });
+}
+
+/**
+ * save writes a message's attachment where the person picks in a save dialog, offered
+ * under its own name (its last element only: the name is the sender's). The dialog is
+ * the consent: the window names no path.
+ */
+async function save(gate: Gate, room: string, event: string, name: string): Promise<boolean> {
+  const last = path.basename(name.replaceAll("\\", "/"));
+  const offered = last === "" || last === "." || last === ".." ? "attachment" : last;
+  const options = { defaultPath: path.join(app.getPath("downloads"), offered) };
+  const chosen = window ? await dialog.showSaveDialog(window, options) : await dialog.showSaveDialog(options);
+  if (chosen.canceled || chosen.filePath === "") {
+    return false;
+  }
+  await writeFile(chosen.filePath, await gate.media(room, event));
+  return true;
 }
 
 /** relayFile is the kith-relay beside the packaged app, or the repo's (make build-relay). */

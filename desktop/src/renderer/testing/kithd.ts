@@ -13,8 +13,20 @@ import {
 } from "@bufbuild/protobuf";
 
 import { BackendService, type SeatRequest } from "../../gen/backend/v1/services_pb";
-import { type Room, RoomSchema, type Unread, UnreadSchema } from "../../gen/backend/v1/types_pb";
-import { DeviceService } from "../../gen/device/v1/device_pb";
+import {
+  type Message,
+  type Reaction,
+  type Room,
+  RoomSchema,
+  type Unread,
+  UnreadSchema,
+} from "../../gen/backend/v1/types_pb";
+import {
+  type DeviceSettingsResponse,
+  DeviceSettingsResponseSchema,
+  DeviceService,
+} from "../../gen/device/v1/device_pb";
+import { compare } from "../merge";
 import type { KithBridge, StreamEvent } from "../../shared/ipc";
 import { runIn } from "../../shared/profile";
 
@@ -37,6 +49,9 @@ interface Profile {
   rooms: Room[];
   unread: Map<string, Unread>;
   invites: Room[];
+  /** The cache's messages, by room, and its reactions. */
+  messages: Map<string, Message[]>;
+  reactions: Reaction[];
 }
 
 export function room(id: string, init: MessageInitShape<typeof RoomSchema> = {}): Room {
@@ -61,6 +76,15 @@ export class Kithd {
   readonly refused: string[] = [];
   /** What the window told main to count in the tray, in order. */
   readonly told: number[] = [];
+  /** The relay's device settings, or "fail" for a device file that does not load. */
+  settings: DeviceSettingsResponse | "fail" = create(DeviceSettingsResponseSchema, {
+    sendReceipts: true,
+    unreadLine: true,
+  });
+  /** Every receipt sent, as "room event public|private". */
+  readonly receipts: string[] = [];
+  /** Every attachment the window asked main to save, as "room event name". */
+  readonly saved: string[] = [];
   /** Answers held back until release, by method name. */
   readonly holding = new Set<string>();
   private held: (() => void)[] = [];
@@ -71,7 +95,7 @@ export class Kithd {
   of(profile: string): Profile {
     let p = this.data.get(profile);
     if (p === undefined) {
-      p = { rooms: [], unread: new Map(), invites: [] };
+      p = { rooms: [], unread: new Map(), invites: [], messages: new Map(), reactions: [] };
       this.data.set(profile, p);
     }
     return p;
@@ -90,7 +114,30 @@ export class Kithd {
       unread: (count) => {
         this.told.push(count);
       },
+      save: (room, event, name) => {
+        this.saved.push(`${room} ${event} ${name}`);
+        return Promise.resolve(true);
+      },
     };
+  }
+
+  /** write is the cache writing m in profile: kept, and sent as a Messages frame once up. */
+  write(profile: string, m: Message): void {
+    const p = this.of(profile);
+    const room = (p.messages.get(m.roomId) ?? []).filter((x) => x.id !== m.id);
+    p.messages.set(m.roomId, [...room, m].sort(compare));
+    if (this.up) {
+      this.send(backend.messages, profile, { message: m, epoch: "e", change: 1n });
+    }
+  }
+
+  /** readAgain is main telling the window kithd could not resume its Messages stream. */
+  readAgain(profile: string): void {
+    for (const s of this.open(backend.messages.name)) {
+      if (s.profile === profile) {
+        this.post(s, { kind: "reload" });
+      }
+    }
   }
 
   /** send sends a frame on every open stream of method in profile. */
@@ -250,6 +297,40 @@ export class Kithd {
       case "JoinRoom":
       case "LeaveRoom":
         return reply(backend.leaveRoom, {});
+      case "DeviceSettings":
+        if (this.settings === "fail") {
+          throw new Error("reading device.toml: it does not load");
+        }
+        return this.settings;
+      case "CachedTimeline": {
+        const room = (request as MessageShape<typeof backend.cachedTimeline.input>).roomId;
+        return reply(backend.cachedTimeline, { messages: (p.messages.get(room) ?? []).slice(-4) });
+      }
+      case "Timeline":
+        throw new Error("the network is off"); // its pages hand over to the cache's
+      case "MessagesAround": {
+        const r = request as MessageShape<typeof backend.messagesAround.input>;
+        const all = p.messages.get(r.roomId) ?? [];
+        const at = all.findIndex((m) => m.id === r.eventId);
+        return reply(backend.messagesAround, { messages: all.slice(Math.max(0, at - Number(r.before)), at + 1) });
+      }
+      case "FetchEvent": {
+        const r = request as MessageShape<typeof backend.fetchEvent.input>;
+        const found = (p.messages.get(r.roomId) ?? []).find((m) => m.id === r.eventId);
+        if (found === undefined) {
+          throw new Error(`no event ${r.eventId}`);
+        }
+        return reply(backend.fetchEvent, { message: found });
+      }
+      case "CachedReactions": {
+        const room = (request as MessageShape<typeof backend.cachedReactions.input>).roomId;
+        return reply(backend.cachedReactions, { reactions: p.reactions.filter((r) => r.roomId === room) });
+      }
+      case "MarkRead": {
+        const r = request as MessageShape<typeof backend.markRead.input>;
+        this.receipts.push(`${r.roomId} ${r.eventId} ${r.private ? "private" : "public"}`);
+        return reply(backend.markRead, {});
+      }
       default:
         throw new Error(`the fake does not answer ${name}`);
     }
@@ -284,6 +365,10 @@ export class Kithd {
   /** attach opens sub at kithd: attached, then what a Seat answers. */
   private attach(sub: Sub): void {
     this.post(sub, { kind: "attached" });
+    if (sub.method === backend.messages.name) {
+      // The first frame says where the stream starts (main resumes it from the last).
+      this.send1(sub, backend.messages, { epoch: "e", change: 0n });
+    }
     if (sub.method !== backend.seat.name) {
       return;
     }

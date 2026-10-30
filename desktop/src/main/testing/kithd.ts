@@ -19,8 +19,8 @@ import { connectNodeAdapter, createConnectTransport } from "@connectrpc/connect-
 import { encodeEnvelope } from "@connectrpc/connect/protocol";
 import { endStreamFlag } from "@connectrpc/connect/protocol-connect";
 
-import { BackendService, type Change } from "../../gen/backend/v1/services_pb";
-import { RoomSchema } from "../../gen/backend/v1/types_pb";
+import { BackendService, type Change, type MessagesRequest } from "../../gen/backend/v1/services_pb";
+import { type Message as Row, RoomSchema } from "../../gen/backend/v1/types_pb";
 import { DeviceService } from "../../gen/device/v1/device_pb";
 
 /** One request kithd received: its method, profile and message. */
@@ -54,6 +54,15 @@ export class FakeKithd {
   remembered = "";
   /** The rooms CachedInvites answers with, by ID. */
   invited: string[] = [];
+  /**
+   * The cache's numbering (its epoch) and every change in it, the message each wrote:
+   * change n is changes[n-1]. A Messages stream starts after the change it asks for, in
+   * this epoch, and says to read again for any other.
+   */
+  epoch = "e1";
+  readonly changes: Row[] = [];
+  /** What LoadImage answers, by event. */
+  readonly pictures = new Map<string, Uint8Array>();
   private server: Server | undefined;
   private readonly sockets = new Set<Socket>();
   private readonly dir: string;
@@ -78,6 +87,12 @@ export class FakeKithd {
     this.sendOn(BackendService.method.changed, { change: c });
   }
 
+  /** commit is the cache writing m: a change, sent on every open Messages stream. */
+  commit(m: Row): void {
+    this.changes.push(m);
+    this.sendOn(BackendService.method.messages, { message: m, epoch: this.epoch, change: BigInt(this.changes.length) });
+  }
+
   /** sendOn sends message on every open stream of method. */
   sendOn<M extends DescMethodServerStreaming>(method: M, message: MessageInitShape<M["output"]>): void {
     for (const res of this.open.get(method.name) ?? []) {
@@ -100,6 +115,13 @@ export class FakeKithd {
         cachedInvites: () => ({ invites: this.invited.map((id) => create(RoomSchema, { id, membership: "invite" })) }),
         joinRoom: (req) => ({ roomId: req.roomIdOrAlias }),
         leaveRoom: () => ({}),
+        loadImage: (req) => {
+          const data = this.pictures.get(req.eventId);
+          if (data === undefined) {
+            throw new ConnectError(`no picture ${req.eventId}`, Code.NotFound);
+          }
+          return { data };
+        },
       });
       router.service(DeviceService, {
         device: (req, ctx) => {
@@ -184,6 +206,9 @@ export class FakeKithd {
         res.write(frame(BackendService.method.changed, { change: c }));
       }
     }
+    if (method.name === BackendService.method.messages.name) {
+      replay(res, message as MessagesRequest, this.epoch, this.changes);
+    }
     const open = this.open.get(method.name) ?? new Set();
     this.open.set(method.name, open);
     res.on("close", () => {
@@ -197,6 +222,23 @@ export class FakeKithd {
       return;
     }
     open.add(res);
+  }
+}
+
+/**
+ * replay starts a Messages stream as kithd does: a frame saying where it starts, the
+ * changes after since sent again; or, since being another epoch's or a number never
+ * given, a frame saying to read again, then from the newest.
+ */
+function replay(res: ServerResponse, since: MessagesRequest, epoch: string, changes: readonly Row[]): void {
+  const method = BackendService.method.messages;
+  const newest = BigInt(changes.length);
+  const resumes = since.sinceEpoch === epoch && since.sinceChange <= newest;
+  const start = resumes ? since.sinceChange : newest;
+  const readAgain = since.sinceEpoch !== "" && !resumes;
+  res.write(frame(method, { epoch, change: start, readAgain }));
+  for (let n = start; n < newest; n++) {
+    res.write(frame(method, { message: changes[Number(n)], epoch, change: n + 1n }));
   }
 }
 

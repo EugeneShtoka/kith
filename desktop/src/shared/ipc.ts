@@ -9,6 +9,8 @@ export const channels = {
   subscribe: "kith:subscribe",
   /** The profile's unread count, for the tray and the dock badge. */
   unread: "kith:unread",
+  /** Saving an attachment: (room, event, name), answered with whether it was saved. */
+  save: "kith:save",
 } as const;
 
 /** What a stream's port carries, in order. */
@@ -17,6 +19,12 @@ export type StreamEvent =
   | { kind: "attached" }
   /** Frames in protobuf binary, batched: a burst is one message. */
   | { kind: "frames"; frames: Uint8Array[] }
+  /**
+   * Messages only: kithd could not resume where the window left off, or its cache was
+   * cleared. What the window holds may be stale: it reads it again, and the frames
+   * after this continue from there.
+   */
+  | { kind: "reload" }
   /** The stream ended or could not open; main opens it again, after a wait. */
   | { kind: "detached"; error: string }
   /** The window may not open this stream; the port closes after this. */
@@ -36,4 +44,9 @@ export interface KithBridge {
   subscribe(method: string, request: Uint8Array, listener: (event: StreamEvent) => void): () => void;
   /** Says how many unread the profile's rooms hold, for the tray and the dock badge. */
   unread(count: number): void;
+  /**
+   * Saves a message's attachment where the person picks, name offered; resolves to
+   * whether it was saved.
+   */
+  save(room: string, event: string, name: string): Promise<boolean>;
 }

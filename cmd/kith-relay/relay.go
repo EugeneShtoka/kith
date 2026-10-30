@@ -107,6 +107,24 @@ func (d device) ChooseProfile(_ context.Context, req *connect.Request[devicev1.C
 	return connect.NewResponse(&devicev1.ChooseProfileResponse{Profile: name}), nil
 }
 
+// DeviceSettings answers what the window reads of the device file, resolved as the TUI
+// resolves it: an unset key is its default.
+func (d device) DeviceSettings(context.Context, *connect.Request[devicev1.DeviceSettingsRequest]) (*connect.Response[devicev1.DeviceSettingsResponse], error) {
+	dev, err := loadDevice(d.configPath)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	rules := make([]*devicev1.ReadRule, len(dev.Display.ReadRules))
+	for i, r := range dev.Display.ReadRules {
+		rules[i] = &devicev1.ReadRule{Match: r.Match, Sender: r.Sender, Send: r.Send}
+	}
+	return connect.NewResponse(&devicev1.DeviceSettingsResponse{
+		SendReceipts: dev.Display.SendsReceipts(),
+		ReadRules:    rules,
+		UnreadLine:   dev.Display.ShowUnreadLine(),
+	}), nil
+}
+
 // profileNames are the names of the config's profiles, in its order.
 func profileNames(configPath string) ([]string, error) {
 	cfg, err := config.Load(configPath)

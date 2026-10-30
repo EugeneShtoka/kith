@@ -1,9 +1,13 @@
+import { create } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BackendService, Change, type SeatRequest } from "../gen/backend/v1/services_pb";
+import { ReactionSchema } from "../gen/backend/v1/types_pb";
+import { DeviceSettingsResponseSchema } from "../gen/device/v1/device_pb";
 import { unreadOf } from "./rooms";
 import { Session } from "./session";
 import { Kithd, room, settled, unread } from "./testing/kithd";
+import { message } from "./testing/rows";
 
 const backend = BackendService.method;
 
@@ -29,9 +33,14 @@ async function started(): Promise<void> {
 const view = () => session.snapshot();
 
 /** The streams a seated window holds in its profile, besides its seat's. */
-const profileStreams = [backend.changed, backend.configChanged, backend.unreadStream, backend.invites].map(
-  (m) => m.name,
-);
+const profileStreams = [
+  backend.changed,
+  backend.configChanged,
+  backend.messages,
+  backend.reactions,
+  backend.unreadStream,
+  backend.invites,
+].map((m) => m.name);
 
 describe("the window's profile", () => {
   it("is the only one there is, unasked and not written down", async () => {
@@ -61,7 +70,7 @@ describe("the window's profile", () => {
     for (const c of kithd.calls.slice(2)) {
       expect(c).toMatch(/:Work$/);
     }
-    expect(kithd.open().map((s) => s.profile)).toEqual(Array(5).fill("Work"));
+    expect(kithd.open().map((s) => s.profile)).toEqual(Array(7).fill("Work"));
   });
 
   it("is the one remembered, when the config still has it", async () => {
@@ -316,5 +325,200 @@ describe("the rooms, the unread and the invitations", () => {
     kithd.release(true);
     await settled();
     check(`seed ${String(seed)}, at the end`);
+  });
+});
+
+describe("the open room", () => {
+  const r = "!r";
+  const ids = () => view().timeline?.rows.map((m) => m.id) ?? [];
+  const seed = (n: number, sender = "@alice") => {
+    for (let i = 1; i <= n; i++) {
+      kithd.write("Home", message({ id: `$${String(i)}`, ts: i * 10, body: `m${String(i)}`, sender }, r));
+    }
+  };
+
+  beforeEach(() => {
+    kithd.of("Home").rooms = [room(r), room("!other")];
+  });
+
+  it("shows the room's newest messages, then older ones as it scrolls back, kept by the stream", async () => {
+    seed(6);
+    kithd.of("Home").unread.set(r, { ...unread(r, 2), readEvent: "$4" });
+    await started();
+    session.open(r);
+    await settled();
+    expect(ids()).toEqual(["$3", "$4", "$5", "$6"]);
+    expect(view().timeline?.unreadFrom).toBe("$4");
+
+    kithd.write("Home", message({ id: "$5", ts: 50, body: "edited", edited: true, editedAt: 900 }, r));
+    kithd.write("Home", message({ id: "$7", ts: 70 }, r));
+    kithd.write("Home", message({ id: "$x", ts: 75 }, "!other"));
+    kithd.write("Home", message({ id: "$1", ts: 10, redacted: true }, r)); // outside what is shown
+    await settled();
+    expect(ids()).toEqual(["$3", "$4", "$5", "$6", "$7"]);
+    expect(view().timeline?.rows.find((m) => m.id === "$5")?.body).toBe("edited");
+
+    session.older();
+    await settled();
+    expect(ids()).toEqual(["$1", "$2", "$3", "$4", "$5", "$6", "$7"]);
+    expect(view().timeline?.rows[0]?.redacted).toBe(true);
+    session.older();
+    await settled();
+    expect(view().timeline?.start).toBe(true);
+    expect(view().problem).toBeUndefined(); // the network being off is not one
+  });
+
+  it("reads nothing of it before the Messages stream says where it starts", async () => {
+    seed(2);
+    kithd.down();
+    await started();
+    session.open(r);
+    await settled();
+    expect(kithd.calls.filter((c) => c.startsWith("CachedTimeline"))).toEqual([]);
+    kithd.again();
+    await settled();
+    expect(ids()).toEqual(["$1", "$2"]);
+  });
+
+  it("is not read again when kithd comes back: main resumes the stream where it left off", async () => {
+    seed(3);
+    await started();
+    session.open(r);
+    await settled();
+    kithd.down();
+    kithd.again();
+    await settled();
+    expect(kithd.calls.filter((c) => c.startsWith("CachedTimeline"))).toHaveLength(1);
+  });
+
+  it("is read again, with the rooms, when kithd could not resume", async () => {
+    seed(3);
+    await started();
+    session.open(r);
+    await settled();
+    // A change the stream lost: the cache holds it, no frame says so.
+    kithd.down();
+    kithd
+      .of("Home")
+      .messages.set(r, [
+        ...(kithd.of("Home").messages.get(r) ?? []).slice(0, 2),
+        message({ id: "$3", ts: 30, redacted: true }, r),
+      ]);
+    kithd.again();
+    kithd.readAgain("Home");
+    await settled();
+    expect(view().timeline?.rows.at(-1)?.redacted).toBe(true);
+    expect(kithd.calls.filter((c) => c.startsWith("CachedTimeline"))).toHaveLength(2);
+    expect(kithd.calls.filter((c) => c.startsWith("Rooms")).length).toBeGreaterThan(1);
+  });
+
+  it("has its reactions read as it opens, and a reaction taken back while they are read stays gone", async () => {
+    seed(1);
+    const reaction = create(ReactionSchema, { id: "$re", roomId: r, target: "$1", key: "👍" });
+    kithd.of("Home").reactions = [reaction];
+    await started();
+    kithd.holding.add("CachedReactions");
+    session.open(r);
+    await settled();
+    kithd.send(backend.reactions, "Home", { update: { reaction, removed: true } });
+    kithd.send(backend.reactions, "Home", { update: { reaction: { ...reaction, id: "$re2", key: "🎉" } } });
+    await settled();
+    kithd.release();
+    await settled();
+    expect(
+      view()
+        .timeline?.reactions.get("$1")
+        ?.map((x) => x.key),
+    ).toEqual(["🎉"]);
+  });
+
+  it("fetches a reply's target that is not shown", async () => {
+    seed(6);
+    kithd.write("Home", message({ id: "$9", ts: 90, replyTo: "$1" }, r));
+    await started();
+    session.open(r);
+    await settled();
+    expect(view().timeline?.quotes.get("$1")?.body).toBe("m1");
+  });
+});
+
+describe("read receipts", () => {
+  const r = "!r";
+  const open = async () => {
+    kithd.of("Home").rooms = [room(r)];
+    kithd.write("Home", message({ id: "$1", ts: 10, sender: "@alice" }, r));
+    await started();
+    session.open(r);
+    await settled();
+  };
+
+  it("are sent while the room is watched, once a message, for its newest", async () => {
+    await open();
+    expect(kithd.receipts).toEqual([]); // not watched
+    session.watch(true);
+    await settled();
+    kithd.write("Home", message({ id: "$2", ts: 20, sender: "@alice" }, r));
+    kithd.write("Home", message({ id: "$t", ts: 30, sender: "@alice", threadRoot: "$1" }, r));
+    await settled();
+    session.watch(false);
+    kithd.write("Home", message({ id: "$3", ts: 40, sender: "@alice" }, r));
+    await settled();
+    session.watch(true);
+    session.watch(true);
+    await settled();
+    expect(kithd.receipts).toEqual([`${r} $1 public`, `${r} $2 public`, `${r} $3 public`]);
+  });
+
+  it("are private where send_receipts or a rule says so", async () => {
+    kithd.settings = create(DeviceSettingsResponseSchema, {
+      sendReceipts: true,
+      unreadLine: true,
+      readRules: [{ match: "", sender: "@alice", send: false }],
+    });
+    await open();
+    session.watch(true);
+    await settled();
+    expect(kithd.receipts).toEqual([`${r} $1 private`]);
+  });
+
+  it("are private when a rule naming a home might name this room: the window does not know its homes", async () => {
+    kithd.settings = create(DeviceSettingsResponseSchema, {
+      sendReceipts: true,
+      readRules: [{ match: "space:Work", send: false }],
+    });
+    await open();
+    session.watch(true);
+    await settled();
+    expect(kithd.receipts).toEqual([`${r} $1 private`]);
+    expect(view().unreadLine).toBe(false);
+  });
+
+  it("are private when the device settings cannot be read", async () => {
+    kithd.settings = "fail";
+    await open();
+    session.watch(true);
+    await settled();
+    expect(kithd.receipts).toEqual([`${r} $1 private`]);
+    expect(view().problem).toMatch(/does not load/);
+  });
+
+  it("wait for the settings: none is sent before they are read", async () => {
+    kithd.holding.add("DeviceSettings");
+    await open();
+    session.watch(true);
+    await settled();
+    expect(kithd.receipts).toEqual([]);
+    kithd.release();
+    await settled();
+    expect(kithd.receipts).toEqual([`${r} $1 public`]);
+  });
+});
+
+describe("an attachment", () => {
+  it("is saved through main, by its room, event and name", async () => {
+    kithd.of("Home").rooms = [room("!r")];
+    await started();
+    await session.save(message({ id: "$1", media: "cat.png" }, "!r"));
+    expect(kithd.saved).toEqual(["!r $1 cat.png"]);
   });
 });
