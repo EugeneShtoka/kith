@@ -490,7 +490,8 @@ digits confirmed on a trusted device; the TUI, `kith-notify` and `kith-mcp` dial
 remote bridge. A paired device may do everything the socket allows. (Split 2026-10-28:
 2a is useful with one bridge, 2b only once a second exists.)
 
-**Phase 2b — bridges pair, and the mesh CRDT.**
+**Phase 2b — bridges pair, and the mesh CRDT.** Planned in
+[design-mesh.md](design-mesh.md).
 - Pairing bridge↔bridge (and device↔device for store-holding clients), the same flow.
 - HTTP/2 on the socket too (h2c): the CRDT's sync is the first bidirectional call.
 - Mesh CRDT in `internal/mesh/crdt`, rolled in kith (spike 2026-10-28: no pure-Go
