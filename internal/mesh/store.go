@@ -14,6 +14,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"sync"
@@ -572,6 +573,41 @@ func (s *Store) PublishAccounts(ctx context.Context, signer crypto.Signer, accou
 		return nil
 	}
 	return s.writeLocked(ctx, signer, origin, []crdt.Write{{Key: key, Value: value}})
+}
+
+// PublishAliases writes each room of aliases as merged into the room it names (crdt.AliasKey),
+// as one op signed by signer, unless the mesh holds it so already.
+func (s *Store) PublishAliases(ctx context.Context, signer crypto.Signer, aliases map[domain.RoomID]domain.RoomID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	origin, err := devicekey.IDOf(signer.Public())
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	var writes []crdt.Write
+	for _, from := range slices.Sorted(maps.Keys(aliases)) {
+		key, value := crdt.AliasKey(string(from)), []byte(aliases[from])
+		held := s.state.Entries[key]
+		if len(held) > 0 && !slices.ContainsFunc(held, func(e crdt.Entry) bool { return !bytes.Equal(e.Value, value) }) {
+			continue
+		}
+		writes = append(writes, crdt.Write{Key: key, Value: value})
+	}
+	if len(writes) == 0 {
+		return nil
+	}
+	return s.writeLocked(ctx, signer, origin, writes)
+}
+
+// Aliases is every room the mesh holds as merged into another, and the room it joined.
+func (s *Store) Aliases() map[domain.RoomID]domain.RoomID {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[domain.RoomID]domain.RoomID{}
+	for from, into := range s.state.Aliases() {
+		out[domain.RoomID(from)] = domain.RoomID(into)
+	}
+	return out
 }
 
 // fork is an origin found to have signed two ops under one dot: the one this replica

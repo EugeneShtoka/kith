@@ -136,7 +136,7 @@ func readWrites(op Op) (map[devicekey.ID]Member, error) {
 			roster[id] = m
 			continue
 		}
-		if err := readAccountsWrite(op.Origin, w); err != nil {
+		if err := readWrite(op.Origin, w); err != nil {
 			return nil, err
 		}
 	}
@@ -314,7 +314,7 @@ func (snap Snapshot) check() error {
 			if !snap.Vector.Covers(e.Dot) {
 				return fmt.Errorf("%w: %s at %d is past its vector", ErrBadSnapshot, key, e.Dot.Seq)
 			}
-			if err := readAccountsWrite(e.Dot.Origin, Write{Key: key, Value: e.Value}); err != nil {
+			if err := readWrite(e.Dot.Origin, Write{Key: key, Value: e.Value}); err != nil {
 				return fmt.Errorf("%w: %w", ErrBadSnapshot, err)
 			}
 		}

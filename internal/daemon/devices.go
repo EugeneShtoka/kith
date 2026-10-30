@@ -94,6 +94,11 @@ type RosterStore interface {
 	// PublishAccounts writes the accounts this bridge runs (bridge/<ID>/accounts),
 	// signed by signer, when they changed.
 	PublishAccounts(ctx context.Context, signer crypto.Signer, accounts []domain.MeshAccount) error
+	// PublishAliases writes each room merged here into another (alias/<room>), signed
+	// by signer, unless the mesh holds it so already.
+	PublishAliases(ctx context.Context, signer crypto.Signer, aliases map[domain.RoomID]domain.RoomID) error
+	// Aliases is every room the mesh holds as merged into another.
+	Aliases() map[domain.RoomID]domain.RoomID
 	// Sync runs one sync session of this bridge (signer, its device key) with the
 	// bridge peer over frames until either ends it; dialed is whether this side dialed.
 	Sync(ctx context.Context, signer crypto.Signer, peer devicekey.ID, dialed bool, frames MeshFrames, log *slog.Logger) error

@@ -40,6 +40,8 @@ const (
 	opens                     // a window opens the chat Dana's last message is in
 	listed                    // a listing of the account's groups lands, racing the next steps
 	stranger                  // Ruth writes, by LID
+	aliased                   // another bridge learned Dana's number first: the mesh's alias arrives
+	elsewhere                 // an alias arrives for an account this bridge does not run
 	lidSteps
 )
 
@@ -61,10 +63,12 @@ func lidMessage(id string, chat, sender, alt types.JID, mine bool) *events.Messa
 // TestAChatKnownByItsLIDJoinsItsNumbers delivers Dana's chat in every order: by LID
 // before her number is known, by number, both at once, from history; the number learned
 // with a message or silently, then a reconnect; a window still on the LID's chat
-// marking it read; listings racing it all; and Ruth, whose number never shows. After
-// every step each of Dana's messages is held once; once her number is known and the
-// account has heard it named beside her LID (or reconnected), her LID's chat is gone,
-// everything in her number's, and nothing writes the LID's chat back.
+// marking it read; listings racing it all; another bridge's alias arriving before this
+// bridge learns the number, or after, and one for an account it does not run; and Ruth,
+// whose number never shows. After every step each of Dana's messages is held once; once
+// her number is known and the account has heard it named beside her LID (or
+// reconnected), or the alias has arrived, her LID's chat is gone, everything in her
+// number's, and nothing writes the LID's chat back.
 func TestAChatKnownByItsLIDJoinsItsNumbers(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(40) {
@@ -129,6 +133,19 @@ func TestAChatKnownByItsLIDJoinsItsNumbers(t *testing.T) {
 				case stranger:
 					a.handle(account, client, lidMessage(id, lid(ruthLID), lid(ruthLID), types.EmptyJID, false))
 					ruth++
+				case aliased:
+					if err := a.MergeRoom(ctx, danaLIDChat, danaChat); err != nil {
+						t.Fatal(err)
+					}
+				case elsewhere:
+					other := domain.RoomID("whatsapp:15550999/" + danaLID + "@lid")
+					if err := a.MergeRoom(ctx, other, "whatsapp:15550999/"+danaPhone+"@s.whatsapp.net"); err != nil {
+						t.Fatal(err)
+					}
+					// Kept in the mesh, inert here.
+					if aliases, err := cache.RoomAliases(ctx); err != nil || aliases[other] != "" {
+						t.Fatalf("an account this bridge does not run merged here: %v, %v", aliases, err)
+					}
 				case lidSteps:
 				}
 				// The account hears the LID named with the number known: by a message, or
@@ -139,9 +156,11 @@ func TestAChatKnownByItsLIDJoinsItsNumbers(t *testing.T) {
 					filedByLID = filedByLID || !known
 				case reconnect:
 					merged = merged || (known && filedByLID)
-				case byNumber, learned, readOpen, opens, listed, stranger, lidSteps:
+				case aliased:
+					merged = true
+				case byNumber, learned, readOpen, opens, listed, stranger, elsewhere, lidSteps:
 				}
-				if step != learned && step != reconnect && step != readOpen && step != opens && step != listed && step != stranger {
+				if step == underLID || step == withNumber || step == byNumber || step == fromMe || step == historyLID {
 					sent = append(sent, domain.EventID("whatsapp:"+ownDigits+"/"+id))
 				}
 				if step == listed {

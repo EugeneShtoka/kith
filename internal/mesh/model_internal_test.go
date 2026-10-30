@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	mrand "math/rand/v2"
 	"path/filepath"
 	"slices"
@@ -276,7 +277,7 @@ func (m *model) write(i int) {
 	}
 	// A forger writes only device pairings after its fork: what it wrote there differs
 	// between replicas, and only a key someone else may write again converges.
-	n := m.rng.IntN(12)
+	n := m.rng.IntN(13)
 	if i == m.forger {
 		n = 0
 	}
@@ -309,6 +310,15 @@ func (m *model) write(i int) {
 		b := bridges[m.rng.IntN(len(bridges))]
 		b.Name = fmt.Sprint("renamed", m.rng.IntN(100))
 		m.must(r.store.ChangeRoster(m.ctx, r.key, []domain.Device{b}, nil))
+	case n == 12:
+		// A chat merged here: bridges merging the same chat at once, and (as no bridge
+		// would, but the mesh must still agree) naming different rooms.
+		aliases := map[domain.RoomID]domain.RoomID{}
+		for range 1 + m.rng.IntN(2) {
+			from := domain.RoomID(fmt.Sprintf("whatsapp:15550100/8800%d@lid", m.rng.IntN(3)))
+			aliases[from] = domain.RoomID(fmt.Sprintf("whatsapp:15550100/1555%d@s.whatsapp.net", m.rng.IntN(2)))
+		}
+		m.must(r.store.PublishAliases(m.ctx, r.key, aliases))
 	default:
 		target := m.rng.IntN(len(m.r))
 		if target == 0 || m.removals >= 2 || !slices.ContainsFunc(members, func(d domain.Device) bool { return d.ID == m.r[target].id.String() }) {
@@ -691,6 +701,11 @@ func (m *model) text(i int) string {
 		for _, e := range s.state.Entries[key] {
 			fmt.Fprintf(&b, "%s %s@%d %d %s\n", key, e.Dot.Origin, e.Dot.Seq, e.Clock, e.Value)
 		}
+	}
+	// The merged chats as each reads them, not only the writes it holds.
+	aliases := s.state.Aliases()
+	for _, from := range slices.Sorted(maps.Keys(aliases)) {
+		fmt.Fprintf(&b, "merged %s into %s\n", from, aliases[from])
 	}
 	origins := make([]devicekey.ID, 0, len(s.state.Vector))
 	for o := range s.state.Vector {
