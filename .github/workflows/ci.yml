@@ -25,7 +25,36 @@ jobs:
   # (go.mod's `toolchain`, which the Makefile pins) are the same here and in `make
   # check`. scripts/ci-parity-check.sh (the ci-parity gate) holds the two lists equal.
 
+  # Whether a pull request changes docs alone (scripts/docs-only.sh). Then the docs and
+  # secrets gates run and the others skip themselves, which ci-ok accepts for such a PR
+  # only. Pushes to main and the release's run (workflow_call) run every gate.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.diff.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: A pull request of docs alone?
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          docs_only=false
+          if [ "$EVENT" = pull_request ] && git diff --name-only "$BASE...$HEAD" | bash scripts/docs-only.sh; then
+            docs_only=true
+          fi
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+
   build-and-test:
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -45,6 +74,8 @@ jobs:
   # (TEST_GROUP in the Makefile): the two slowest packages on their own, the network
   # adapters together, and the rest. One job's 15 minutes held them all before, and no longer did.
   test:
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -73,7 +104,8 @@ jobs:
 
   # The coverage floors over the groups' profiles, merged (with a summary).
   coverage:
-    needs: [test]
+    needs: [changes, test]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -123,6 +155,8 @@ jobs:
 
   # Repo guards: pins, unit parity, the layer map, and this file against `make check`.
   repo-checks:
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -139,6 +173,8 @@ jobs:
 
   # Validates .goreleaser.yaml without building, with the release's goreleaser.
   release-config:
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -155,6 +191,8 @@ jobs:
 
   # golangci-lint is pinned by the go.mod tool directive.
   lint:
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -172,6 +210,8 @@ jobs:
   # govulncheck is a go.mod tool; npm audit covers markdownlint's lock and the desktop's
   # runtime tree.
   vuln:
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -213,6 +253,8 @@ jobs:
   # Generated wire types must match api/proto (buf at tools/versions.env's version; the
   # desktop's TypeScript by protoc-gen-es from tools/protoc-gen-es's lock).
   proto:
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -258,6 +300,8 @@ jobs:
   # electron-forge package and the audit of what it ships. npm's store and the Electron
   # zip the package step fetches (checked against its SHASUMS256) are cached on the lock.
   desktop:
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -282,18 +326,23 @@ jobs:
     # always(): a skipped required check counts as passed on GitHub. release-builds is
     # not here: it runs on tags alone, and a release needs this whole workflow to pass.
     if: always()
-    needs: [build-and-test, test, coverage, repo-checks, release-config, lint, vuln, secrets, proto, docs, desktop]
+    needs: [changes, build-and-test, test, coverage, repo-checks, release-config, lint, vuln, secrets, proto, docs, desktop]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Every gate passed
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
         run: |
           set -euo pipefail
           results="$RESULTS"
-          echo "gate results: $results"
+          echo "gate results: $results (docs only: $DOCS_ONLY)"
           for r in $results; do
+            # A gate skips itself only for a pull request of docs alone (changes).
+            if [ "$r" = "skipped" ] && [ "$DOCS_ONLY" = "true" ]; then
+              continue
+            fi
             if [ "$r" != "success" ]; then
               echo "::error::a required gate did not pass ($results)"
               exit 1

@@ -268,9 +268,13 @@ release-check:
 	@$(ENSURE) goreleaser
 	goreleaser check
 
+# The Markdown, and the tests that read docs/ (a change of docs alone runs this gate and
+# no other: scripts/docs-only.sh). A new test that reads docs/ goes in one of these
+# packages with Doc in its name, or this line names its package.
 docs-check:
 	@$(ENSURE) markdownlint
 	markdownlint-cli2 "*.md" "docs/**/*.md" ".github/**/*.md"
+	$(TEST_ENV) go test -count=1 -run 'Doc' ./internal/config/ ./internal/db/
 
 # The desktop: install from the lock (no install scripts, no Electron binary), then
 # typecheck, lint, format, unit tests, an `electron-forge package` and the audit of
