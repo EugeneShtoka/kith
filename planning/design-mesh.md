@@ -380,7 +380,9 @@ sends the receipt**, retried as today (decision 13). A read the network reports 
 on the phone's own app, or echoed from another bridge's receipt) is merged locally by
 max and not written to the mesh: every bridge on that account hears it from the
 network itself (decision 14). `MarkRoomUnread` writes `marked/<room>`; a later read
-writes it false.
+writes it false. A mark is set in the cache once, as its write arrives (step 4): every
+network that marks rooms carries the mark itself, and setting the mesh's again at each
+start would bring back a mark cleared since by a read on the phone.
 
 ## Sync
 

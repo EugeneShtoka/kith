@@ -123,3 +123,27 @@ func TestClearingWithNoCacheIsAnError(t *testing.T) {
 		t.Fatalf("ClearCache() with no cache = %v, want errNoCache", err)
 	}
 }
+
+// A read another bridge made is kept in the cache and the room counted again, so its
+// badge clears; nothing reaches a network. One the cache holds as far moves nothing.
+func TestAReadMadeElsewhereIsKeptAndCounted(t *testing.T) {
+	t.Parallel()
+	net := &fakeNetwork{}
+	cache := testCache(t)
+	s := New(cache, net)
+	const room = domain.RoomID("matrix:0123456789abcdef/!kept:example.org")
+	seedRoom(t, cache, room)
+	read := domain.ReadPosition{Room: room, Event: "$e5", At: 5000}
+	for range 2 {
+		if err := s.KeepReads(t.Context(), []domain.ReadPosition{read}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	held, err := s.HeldReads(t.Context(), []domain.ReadPosition{{Room: room}})
+	if err != nil || len(held) != 1 || held[0] != read {
+		t.Errorf("HeldReads = %+v, %v; want %+v", held, err, read)
+	}
+	if len(net.recounted) != 1 || net.recounted[0] != room {
+		t.Errorf("counted again %v, want the room once", net.recounted)
+	}
+}

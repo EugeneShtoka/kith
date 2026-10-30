@@ -185,10 +185,13 @@ machine's key anyway: pair each one again.
 ## Bridges in a mesh
 
 Two or more kithd (a home server and a laptop, say) can pair with each other as a
-**mesh**. For now the mesh carries the device list: a device paired with any bridge is
-admitted by every bridge, and one unpaired on any bridge is cut off by every bridge.
-Each bridge still runs its own network accounts and its own config. Two bridges on one
-WhatsApp account keep a chat under the person's number as soon as either learns it: a
+**mesh**. For now the mesh carries the device list and what you read: a device paired
+with any bridge is admitted by every bridge, and one unpaired on any bridge is cut off by
+every bridge; a room read in kith on one bridge, or marked unread, is so on every bridge,
+and only the bridge where you read it sends the network a receipt. A read the network
+reports (made on the phone) reaches each bridge from the network itself. Each bridge
+still runs its own network accounts and its own config. Two bridges on one WhatsApp
+account keep a chat under the person's number as soon as either learns it: a
 chat known by the person's LID merges into the number's on every bridge running that
 account ([whatsapp.md](whatsapp.md#what-works)).
 

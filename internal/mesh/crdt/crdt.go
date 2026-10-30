@@ -68,7 +68,8 @@ func (v Vector) Context() []Dot {
 	return out
 }
 
-// Write is one key an op writes, and its value.
+// Write is one key an op writes, and its value; an empty one deletes the key (of the
+// kinds that may be deleted: a read position, a mark).
 type Write struct {
 	Key   string
 	Value []byte

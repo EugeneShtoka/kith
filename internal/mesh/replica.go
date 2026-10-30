@@ -341,9 +341,10 @@ func ahead(snap crdt.Snapshot, now time.Time) bool {
 	return false
 }
 
-// replace keeps next whole: every entry and head, and every roster op; afresh drops
-// all the store held first (the ops, the peers and the forks too).
-func (s *Store) replace(ctx context.Context, next crdt.State, forks []fork, afresh bool) error {
+// replace keeps next whole: every entry and head, every roster op, and ops (this
+// replica's own, written over it); afresh drops all the store held first (the ops, the
+// peers and the forks too).
+func (s *Store) replace(ctx context.Context, next crdt.State, forks []fork, afresh bool, ops ...crdt.Op) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("mesh: keep a snapshot: %w", err)
@@ -361,7 +362,7 @@ func (s *Store) replace(ctx context.Context, next crdt.State, forks []fork, afre
 			return err
 		}
 	}
-	for _, op := range next.RosterOps {
+	for _, op := range slices.Concat(next.RosterOps, ops) {
 		if err := insertOp(ctx, tx, op); err != nil {
 			return err
 		}
@@ -388,8 +389,10 @@ var errNotJoined = errors.New("mesh: the mesh does not list this bridge as one o
 // it (self, signing with signer): its own genesis and everything it held are dropped,
 // and the devices paired with it written again as its own ops, so they chain from its
 // add and every bridge admits them. A device whose name the mesh has taken keeps it
-// with its ID's first group added. One transaction: a join cut off leaves the store
-// as it was. It returns the mesh's members as this bridge admits them now.
+// with its ID's first group added. Its read positions are written again too, each
+// further than the mesh's, and its unread marks of rooms the mesh holds none of. One
+// transaction: a join cut off leaves the store as it was. It returns the mesh's
+// members as this bridge admits them now.
 func (s *Store) adopt(ctx context.Context, snap crdt.Snapshot, signer crypto.Signer, self devicekey.ID) ([]domain.Device, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -412,24 +415,18 @@ func (s *Store) adopt(ctx context.Context, snap crdt.Snapshot, signer crypto.Sig
 	if err != nil {
 		return nil, err
 	}
-	clock := max(s.clock, snap.Clock)
-	if len(writes) > 0 {
-		op := crdt.Op{
-			Origin: self, Seq: next.Vector[self].Seq + 1, Clock: clock.Next(time.Now()),
-			Context: next.Vector.Context(), Writes: writes,
-		}
-		if err = op.Sign(signer); err != nil {
-			return nil, fmt.Errorf("mesh: %w", err)
-		}
-		if next, err = next.Apply(op); err != nil {
-			return nil, fmt.Errorf("mesh: %w", err)
-		}
-		clock = op.Clock
+	reads, err := next.AdoptWrites(s.state)
+	if err != nil {
+		return nil, fmt.Errorf("mesh: %w", err)
 	}
-	if kerr := s.replace(ctx, next, nil, true); kerr != nil {
+	next, clock, ops, err := writeOver(next, max(s.clock, snap.Clock), self, signer, append([][]crdt.Write{writes}, batches(reads)...))
+	if err != nil {
+		return nil, err
+	}
+	if kerr := s.replace(ctx, next, nil, true, ops...); kerr != nil {
 		return nil, kerr
 	}
-	s.state, s.clock = next, clock
+	s.state, s.clock, s.marks = next, clock, markDots(next)
 	s.peers, s.forked, s.held = map[devicekey.ID]peer{}, map[devicekey.ID]bool{}, nil
 	s.notifyLocked()
 	roster, err := next.Roster()
@@ -444,6 +441,30 @@ func (s *Store) adopt(ctx context.Context, snap crdt.Snapshot, signer crypto.Sig
 	}
 	slices.SortFunc(out, func(a, b domain.Device) int { return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID)) })
 	return out, nil
+}
+
+// writeOver is next with each batch of writes written over it as an op of self's,
+// signed by signer, clocked past clock: the state, the last op's clock, and the ops.
+func writeOver(next crdt.State, clock crdt.Clock, self devicekey.ID, signer crypto.Signer, writes [][]crdt.Write) (crdt.State, crdt.Clock, []crdt.Op, error) {
+	var ops []crdt.Op
+	for _, batch := range writes {
+		if len(batch) == 0 {
+			continue
+		}
+		op := crdt.Op{
+			Origin: self, Seq: next.Vector[self].Seq + 1, Clock: clock.Next(time.Now()),
+			Context: next.Vector.Context(), Writes: batch,
+		}
+		if err := op.Sign(signer); err != nil {
+			return next, clock, nil, fmt.Errorf("mesh: %w", err)
+		}
+		var err error
+		if next, err = next.Apply(op); err != nil {
+			return next, clock, nil, fmt.Errorf("mesh: %w", err)
+		}
+		clock, ops = op.Clock, append(ops, op)
+	}
+	return next, clock, ops, nil
 }
 
 // readds are the writes that pair again in the mesh (theirs) each device paired with a

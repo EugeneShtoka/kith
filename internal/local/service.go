@@ -27,6 +27,8 @@ type Network interface {
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
 	// RewindSync makes the networks refill an emptied cache from the start.
 	RewindSync(ctx context.Context) error
+	// RecountUnread has rooms' networks count their unread again from the cache.
+	RecountUnread(ctx context.Context, rooms []domain.RoomID)
 }
 
 // Service answers from the cache and the local engines; zero engines answer as
