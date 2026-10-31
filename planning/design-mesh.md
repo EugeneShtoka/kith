@@ -667,6 +667,9 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
 - **Store-holding clients** (Electron's partial cache, Android): they pair with a
   replica role and sync through their bridge; syncing device to device directly waits
   for them.
+- **Bridges that are never online at the same time**: a mailbox, a mesh peer that holds
+  sealed ops it cannot read, and the envelopes every op would need first
+  ([design-mailbox.md](design-mailbox.md), proposed, undecided).
 - **A text CRDT for drafts**: only if keeping every sibling repeats text in practice.
 - **WAN reach between bridges**: as for devices, addresses or a tailnet (design-remote).
 - **Scheduled sends and rankings** stay on each bridge (decisions 4 and 5).
