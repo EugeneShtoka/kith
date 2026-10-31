@@ -53,7 +53,7 @@ const rooms = ["!a:x", "!b:x"] as const;
 /** A step of the walk: the person, the assistant, kithd's answers and faults, a takeover. */
 type Step =
   | { kind: "type" | "send" | "edit" | "assistant" | "between"; room: number }
-  | { kind: "pause" | "poll" | "takeover" | "close" }
+  | { kind: "pause" | "spell" | "poll" | "takeover" | "close" }
   | { kind: "hold"; what: "ReplaceDraft" | "Drafts" | "CheckSpelling" }
   | { kind: "deliver"; i: number }
   | { kind: "fault"; when: "before" | "after" };
@@ -65,6 +65,8 @@ const step: fc.Arbitrary<Step> = fc.oneof(
   { weight: 3, arbitrary: fc.record({ kind: fc.constant("assistant" as const), room: fc.nat(1) }) },
   { weight: 2, arbitrary: fc.record({ kind: fc.constant("between" as const), room: fc.nat(1) }) },
   { weight: 4, arbitrary: fc.constant({ kind: "pause" as const }) },
+  // A pause long enough for a spelling check, not for a draft's write.
+  { weight: 3, arbitrary: fc.constant({ kind: "spell" as const }) },
   { weight: 3, arbitrary: fc.constant({ kind: "poll" as const }) },
   {
     weight: 3,
@@ -191,6 +193,10 @@ describe("drafts", () => {
             case "pause":
               await vi.advanceTimersByTimeAsync(saveDelay);
               break;
+            case "spell":
+              await vi.advanceTimersByTimeAsync(spellDebounce);
+              await settle(); // and the answers not held come
+              break;
             case "poll":
               void drafts.load();
               break;
@@ -247,7 +253,6 @@ describe("drafts", () => {
             }
           }
           spelled();
-          await vi.advanceTimersByTimeAsync(spellDebounce);
           const body = drafts.get(rooms[0]).body;
           for (const m of speller.shown) {
             const whole =
