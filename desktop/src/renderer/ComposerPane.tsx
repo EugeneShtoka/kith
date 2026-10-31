@@ -237,9 +237,20 @@ export function ComposerPane({
       {c.choosing && <Choosing choosing={c.choosing} session={session} />}
       {walk && <Walk walk={walk} session={session} took={took} />}
       {choices.length > 0 && (
-        <ul className="completions" role="listbox">
+        <ul className={slash === undefined ? "completions" : "completions commands"} role="listbox">
           {choices.map((choice, i) => (
-            <li key={choice.key} role="option" aria-selected={i === pick}>
+            <li
+              key={choice.key}
+              role="option"
+              aria-selected={i === pick}
+              ref={
+                i === pick && slash !== undefined
+                  ? (el) => {
+                      el?.scrollIntoView({ block: "nearest" }); // the long `/` list scrolls to the one chosen
+                    }
+                  : undefined
+              }
+            >
               <button
                 type="button"
                 onMouseDown={(e) => {

@@ -1458,6 +1458,12 @@ td {
   background: var(--accent-soft);
 }
 
+/* The `/` list holds every command: it scrolls rather than push the composer away. */
+.completions.commands {
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
 .offered {
   display: flex;
   flex-wrap: wrap;
