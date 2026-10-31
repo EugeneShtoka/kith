@@ -48,6 +48,35 @@ service DeviceService {
   // the theme again. An unknown key, a color that is not #rrggbb or a mode not known is
   // INVALID_ARGUMENT, nothing written. It answers the theme as now resolved.
   rpc UpdateTheme(UpdateThemeRequest) returns (UpdateThemeResponse);
+  // WriteAccount writes the new account a login's configure step hands out
+  // (BackendService.LoginStep.configure) into the bridge's config, as the TUI's login
+  // writes it (config.Config.Write): through kithd (GetConfig, UpdateConfig on the
+  // revision just read, which kithd applies), read again and written again when another
+  // writer changed the config between, so neither writer's change is lost. A record the
+  // config refuses is INVALID_ARGUMENT; kithd unreachable is UNAVAILABLE.
+  rpc WriteAccount(WriteAccountRequest) returns (WriteAccountResponse);
+  // QRCode is data as a QR code's modules, encoded as the TUI encodes a login's QR step
+  // (rsc.io/qr, level L), for the window to draw: no picture is made here. Empty data,
+  // or more than a QR code holds, is INVALID_ARGUMENT.
+  rpc QRCode(QRCodeRequest) returns (QRCodeResponse);
+}
+
+message WriteAccountRequest {
+  // table and values are the configure step's record (BackendService.LoginRecord).
+  string table = 1;
+  map<string, string> values = 2;
+}
+
+message WriteAccountResponse {}
+
+message QRCodeRequest {
+  string data = 1;
+}
+
+message QRCodeResponse {
+  // dark holds a byte per module of the square code, its quiet zone not counted, row by
+  // row from the top left: 1 dark, 0 light. Its side is the square root of its length.
+  bytes dark = 1;
 }
 
 message ThemeRequest {}

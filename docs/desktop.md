@@ -12,10 +12,12 @@ This first release reads and writes messages:
 - the composer, with markdown, mentions, emoji, attachments and drafts;
 - search, the ctrl+K switcher, and threads beside the room;
 - a settings page for the settings it shares with the terminal client
-  ([where settings live](#where-settings-live)).
+  ([where settings live](#where-settings-live));
+- [accounts](#accounts): logging a network account in, setting a new one up, and
+  signing one out.
 
-Logins, verification, the full settings editor, tags and filing stay in the terminal client
-and the command line for now. Links in messages show where they go, but the window does
+Verification, the full settings editor, tags and filing stay in the terminal client and
+the command line for now. Links in messages show where they go, but the window does
 not open them yet.
 
 ## Install
@@ -153,6 +155,32 @@ change onto it. If the same color was changed there, the window keeps that one a
 so. A `[gui.theme]` edited by hand into one that does not check (a color that is not
 `#rrggbb`) is refused, as `kithd` refuses any bad config: the window keeps drawing the
 theme it had.
+
+## Accounts
+
+**Settings → Accounts** lists every network `kithd` can log in to, with its accounts.
+**Sign in** logs an account in again; **New account** sets one up. As with the terminal
+client's `:login`, the network leads the way a step at a time: it asks for what it needs
+(a phone number, a code it sent, a password), shows a code to type on your phone, or
+draws a QR code for your phone to scan, with another way to link when it offers one
+(**Link with a code typed on the phone instead**, say). A new account is written into
+the bridge's `config.toml` through `kithd`, as the terminal client writes it, and `kithd`
+starts it. **Cancel** ends the login.
+
+What you type goes straight to `kithd` and is not kept: a password shows as dots once
+sent, and its field is emptied. A login waits 15 minutes at most. Reloading or
+closing the window ends a login it was leading, so none is left waiting on a phone.
+Beginning a login of an account the terminal client (or another window) is logging in
+ends that one, as `kithd` allows one login per account at a time; the other says so.
+
+A login that needs `kithd` restarted first (Matrix, the first time) says so: restart
+`kithd`, then sign in again. The window does not restart it, as a terminal client attached
+to a [bridge](remote.md) does not.
+
+**Signed in** lists each account whose own space is on the rail. **Sign out** asks first,
+and whether to forget its rooms and their history here too: its session ends on the
+network, and **Sign in** brings it back. This is the terminal client's leaving an
+account's space from the rail.
 
 ## How it finds kithd
 

@@ -19,7 +19,14 @@ import { connectNodeAdapter, createConnectTransport } from "@connectrpc/connect-
 import { encodeEnvelope } from "@connectrpc/connect/protocol";
 import { endStreamFlag } from "@connectrpc/connect/protocol-connect";
 
-import { BackendService, type Change, type MessagesRequest } from "../../gen/backend/v1/services_pb";
+import {
+  BackendService,
+  type Change,
+  type LoginStep,
+  LoginStepSchema,
+  type MessagesRequest,
+  RailRowSchema,
+} from "../../gen/backend/v1/services_pb";
 import { type Message as Row, RoomSchema } from "../../gen/backend/v1/types_pb";
 import { DeviceService } from "../../gen/device/v1/device_pb";
 
@@ -85,6 +92,21 @@ export class FakeKithd {
     copied: false,
     kept: false,
   });
+  /**
+   * Logins, as kithd runs them: each begun is named l1, l2… and answered with the next of
+   * beginWith (else a QR step); an answer is the next of answerWith (else done). Those
+   * canceled, by name; a BeginLogin answered only once releaseBegins is called, while
+   * holdBegins is set.
+   */
+  beginWith: ((login: string) => LoginStep)[] = [];
+  answerWith: ((login: string) => LoginStep)[] = [];
+  readonly canceled: { login: string; profile: string }[] = [];
+  holdBegins = false;
+  private readonly heldBegins: (() => void)[] = [];
+  private logins = 0;
+  /** The spaces the rail's account rows are, and the spaces signed out of. */
+  accountSpaces: string[] = [];
+  readonly signedOut: string[] = [];
   private server: Server | undefined;
   private readonly sockets = new Set<Socket>();
   private readonly dir: string;
@@ -119,6 +141,13 @@ export class FakeKithd {
   sendOn<M extends DescMethodServerStreaming>(method: M, message: MessageInitShape<M["output"]>): void {
     for (const res of this.open.get(method.name) ?? []) {
       res.write(frame(method, message));
+    }
+  }
+
+  /** releaseBegins answers every BeginLogin held. */
+  releaseBegins(): void {
+    for (const release of this.heldBegins.splice(0)) {
+      release();
     }
   }
 
@@ -197,6 +226,36 @@ export class FakeKithd {
           return {};
         },
         leaveRoom: () => ({}),
+        rail: () => ({
+          rows: [
+            create(RailRowSchema, { key: "Friends", label: "Friends", space: "!friends:x" }),
+            ...this.accountSpaces.map((space) =>
+              create(RailRowSchema, { key: space, label: space, space, home: "telegram", owner: space }),
+            ),
+          ],
+        }),
+        signOut: (req) => {
+          this.signedOut.push(req.spaceId);
+          return {};
+        },
+        loginNetworks: () => ({ networks: [{ network: "whatsapp", label: "WhatsApp" }] }),
+        beginLogin: async () => {
+          if (this.holdBegins) {
+            await new Promise<void>((resolve) => this.heldBegins.push(resolve));
+          }
+          const login = "l" + String(++this.logins);
+          const step = this.beginWith.shift()?.(login) ?? create(LoginStepSchema, { login, qr: "2@x" });
+          return { step };
+        },
+        answerLogin: (req) => ({
+          step:
+            this.answerWith.shift()?.(req.login) ?? create(LoginStepSchema, { login: req.login, done: "logged in" }),
+        }),
+        cancelLogin: (req, ctx) => {
+          this.canceled.push({ login: req.login, profile: ctx.requestHeader.get("Kith-Profile") ?? "" });
+          return {};
+        },
+        insteadLogin: () => ({}),
         loadImage: (req) => {
           const data = this.pictures.get(req.eventId);
           if (data === undefined) {
@@ -213,6 +272,8 @@ export class FakeKithd {
           return { socket: this.socket, profile, profiles: this.profiles };
         },
         outgoing: (req) => this.outgoing(req.path),
+        writeAccount: () => ({}),
+        qRCode: () => ({ dark: new Uint8Array([1, 0, 0, 1]) }),
         chooseProfile: (req) => {
           const name = this.profiles.find((p) => p.toLowerCase() === req.name.toLowerCase());
           if (name === undefined) {

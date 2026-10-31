@@ -240,10 +240,15 @@ async function start(): Promise<void> {
   // Closing, the window first writes what it holds unsaved (its drafts), as the TUI does
   // at quit; one that does not answer is closed anyway.
   let closing = false;
+  // A login the window leads is ended in kithd first, not left waiting on a phone until
+  // its deadline (each cancel waits a few seconds at most).
+  let ending: Promise<void> = Promise.resolve();
   const close = () => {
-    if (window !== undefined && !window.isDestroyed()) {
-      window.destroy();
-    }
+    void ending.finally(() => {
+      if (window !== undefined && !window.isDestroyed()) {
+        window.destroy();
+      }
+    });
   };
   window.on("close", (event) => {
     if (closing) {
@@ -251,6 +256,7 @@ async function start(): Promise<void> {
     }
     closing = true;
     event.preventDefault();
+    ending = gate.endLogins();
     window?.webContents.send(channels.closing);
     setTimeout(close, closeWait);
   });

@@ -51,6 +51,11 @@ const (
 	// DeviceServiceUpdateThemeProcedure is the fully-qualified name of the DeviceService's UpdateTheme
 	// RPC.
 	DeviceServiceUpdateThemeProcedure = "/device.v1.DeviceService/UpdateTheme"
+	// DeviceServiceWriteAccountProcedure is the fully-qualified name of the DeviceService's
+	// WriteAccount RPC.
+	DeviceServiceWriteAccountProcedure = "/device.v1.DeviceService/WriteAccount"
+	// DeviceServiceQRCodeProcedure is the fully-qualified name of the DeviceService's QRCode RPC.
+	DeviceServiceQRCodeProcedure = "/device.v1.DeviceService/QRCode"
 )
 
 // DeviceServiceClient is a client for the device.v1.DeviceService service.
@@ -96,6 +101,17 @@ type DeviceServiceClient interface {
 	// the theme again. An unknown key, a color that is not #rrggbb or a mode not known is
 	// INVALID_ARGUMENT, nothing written. It answers the theme as now resolved.
 	UpdateTheme(context.Context, *connect.Request[v1.UpdateThemeRequest]) (*connect.Response[v1.UpdateThemeResponse], error)
+	// WriteAccount writes the new account a login's configure step hands out
+	// (BackendService.LoginStep.configure) into the bridge's config, as the TUI's login
+	// writes it (config.Config.Write): through kithd (GetConfig, UpdateConfig on the
+	// revision just read, which kithd applies), read again and written again when another
+	// writer changed the config between, so neither writer's change is lost. A record the
+	// config refuses is INVALID_ARGUMENT; kithd unreachable is UNAVAILABLE.
+	WriteAccount(context.Context, *connect.Request[v1.WriteAccountRequest]) (*connect.Response[v1.WriteAccountResponse], error)
+	// QRCode is data as a QR code's modules, encoded as the TUI encodes a login's QR step
+	// (rsc.io/qr, level L), for the window to draw: no picture is made here. Empty data,
+	// or more than a QR code holds, is INVALID_ARGUMENT.
+	QRCode(context.Context, *connect.Request[v1.QRCodeRequest]) (*connect.Response[v1.QRCodeResponse], error)
 }
 
 // NewDeviceServiceClient constructs a client for the device.v1.DeviceService service. By default,
@@ -151,6 +167,18 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("UpdateTheme")),
 			connect.WithClientOptions(opts...),
 		),
+		writeAccount: connect.NewClient[v1.WriteAccountRequest, v1.WriteAccountResponse](
+			httpClient,
+			baseURL+DeviceServiceWriteAccountProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("WriteAccount")),
+			connect.WithClientOptions(opts...),
+		),
+		qRCode: connect.NewClient[v1.QRCodeRequest, v1.QRCodeResponse](
+			httpClient,
+			baseURL+DeviceServiceQRCodeProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("QRCode")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -163,6 +191,8 @@ type deviceServiceClient struct {
 	outgoing             *connect.Client[v1.OutgoingRequest, v1.OutgoingResponse]
 	theme                *connect.Client[v1.ThemeRequest, v1.ThemeResponse]
 	updateTheme          *connect.Client[v1.UpdateThemeRequest, v1.UpdateThemeResponse]
+	writeAccount         *connect.Client[v1.WriteAccountRequest, v1.WriteAccountResponse]
+	qRCode               *connect.Client[v1.QRCodeRequest, v1.QRCodeResponse]
 }
 
 // Device calls device.v1.DeviceService.Device.
@@ -198,6 +228,16 @@ func (c *deviceServiceClient) Theme(ctx context.Context, req *connect.Request[v1
 // UpdateTheme calls device.v1.DeviceService.UpdateTheme.
 func (c *deviceServiceClient) UpdateTheme(ctx context.Context, req *connect.Request[v1.UpdateThemeRequest]) (*connect.Response[v1.UpdateThemeResponse], error) {
 	return c.updateTheme.CallUnary(ctx, req)
+}
+
+// WriteAccount calls device.v1.DeviceService.WriteAccount.
+func (c *deviceServiceClient) WriteAccount(ctx context.Context, req *connect.Request[v1.WriteAccountRequest]) (*connect.Response[v1.WriteAccountResponse], error) {
+	return c.writeAccount.CallUnary(ctx, req)
+}
+
+// QRCode calls device.v1.DeviceService.QRCode.
+func (c *deviceServiceClient) QRCode(ctx context.Context, req *connect.Request[v1.QRCodeRequest]) (*connect.Response[v1.QRCodeResponse], error) {
+	return c.qRCode.CallUnary(ctx, req)
 }
 
 // DeviceServiceHandler is an implementation of the device.v1.DeviceService service.
@@ -243,6 +283,17 @@ type DeviceServiceHandler interface {
 	// the theme again. An unknown key, a color that is not #rrggbb or a mode not known is
 	// INVALID_ARGUMENT, nothing written. It answers the theme as now resolved.
 	UpdateTheme(context.Context, *connect.Request[v1.UpdateThemeRequest]) (*connect.Response[v1.UpdateThemeResponse], error)
+	// WriteAccount writes the new account a login's configure step hands out
+	// (BackendService.LoginStep.configure) into the bridge's config, as the TUI's login
+	// writes it (config.Config.Write): through kithd (GetConfig, UpdateConfig on the
+	// revision just read, which kithd applies), read again and written again when another
+	// writer changed the config between, so neither writer's change is lost. A record the
+	// config refuses is INVALID_ARGUMENT; kithd unreachable is UNAVAILABLE.
+	WriteAccount(context.Context, *connect.Request[v1.WriteAccountRequest]) (*connect.Response[v1.WriteAccountResponse], error)
+	// QRCode is data as a QR code's modules, encoded as the TUI encodes a login's QR step
+	// (rsc.io/qr, level L), for the window to draw: no picture is made here. Empty data,
+	// or more than a QR code holds, is INVALID_ARGUMENT.
+	QRCode(context.Context, *connect.Request[v1.QRCodeRequest]) (*connect.Response[v1.QRCodeResponse], error)
 }
 
 // NewDeviceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -294,6 +345,18 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("UpdateTheme")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServiceWriteAccountHandler := connect.NewUnaryHandler(
+		DeviceServiceWriteAccountProcedure,
+		svc.WriteAccount,
+		connect.WithSchema(deviceServiceMethods.ByName("WriteAccount")),
+		connect.WithHandlerOptions(opts...),
+	)
+	deviceServiceQRCodeHandler := connect.NewUnaryHandler(
+		DeviceServiceQRCodeProcedure,
+		svc.QRCode,
+		connect.WithSchema(deviceServiceMethods.ByName("QRCode")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/device.v1.DeviceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceServiceDeviceProcedure:
@@ -310,6 +373,10 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 			deviceServiceThemeHandler.ServeHTTP(w, r)
 		case DeviceServiceUpdateThemeProcedure:
 			deviceServiceUpdateThemeHandler.ServeHTTP(w, r)
+		case DeviceServiceWriteAccountProcedure:
+			deviceServiceWriteAccountHandler.ServeHTTP(w, r)
+		case DeviceServiceQRCodeProcedure:
+			deviceServiceQRCodeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -345,4 +412,12 @@ func (UnimplementedDeviceServiceHandler) Theme(context.Context, *connect.Request
 
 func (UnimplementedDeviceServiceHandler) UpdateTheme(context.Context, *connect.Request[v1.UpdateThemeRequest]) (*connect.Response[v1.UpdateThemeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.UpdateTheme is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) WriteAccount(context.Context, *connect.Request[v1.WriteAccountRequest]) (*connect.Response[v1.WriteAccountResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.WriteAccount is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) QRCode(context.Context, *connect.Request[v1.QRCodeRequest]) (*connect.Response[v1.QRCodeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.QRCode is not implemented"))
 }

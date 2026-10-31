@@ -449,7 +449,7 @@ After the MVP, each with its own PR and review:
   the composer);
 - spell and completion;
 - scheduled send and slash commands;
-- network logins (QR);
+- network logins (QR) (landed 2026-10-31: Settings → Accounts, and signing out);
 - SAS verification;
 - the settings editor (it needs a structured config call; `GetConfig` is TOML text);
 - people and phonebook (needs an RPC);

@@ -11,7 +11,7 @@ import {
 import { Code, ConnectError } from "@connectrpc/connect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { BackendService, type SeatRequest } from "../gen/backend/v1/services_pb";
+import { BackendService, type LoginStep, LoginStepSchema, type SeatRequest } from "../gen/backend/v1/services_pb";
 import { MessageSchema } from "../gen/backend/v1/types_pb";
 import { DeviceService } from "../gen/device/v1/device_pb";
 import type { StreamEvent } from "../shared/ipc";
@@ -122,6 +122,14 @@ const allowedCalls = [
   "Theme",
   "UpdateTheme",
   "SenderSlots",
+  "LoginNetworks",
+  "BeginLogin",
+  "AnswerLogin",
+  "CancelLogin",
+  "InsteadLogin",
+  "WriteAccount",
+  "QRCode",
+  "SignOut",
 ];
 const allowedStreams = [
   "Changed",
@@ -139,7 +147,29 @@ const requests: Record<string, Uint8Array> = {
   JoinRoom: bytes(backend.joinRoom.input, { roomIdOrAlias: "!in:x" }),
   LeaveRoom: bytes(backend.leaveRoom.input, { roomId: "!in:x" }),
   ChooseProfile: bytes(DeviceService.method.chooseProfile.input, { name: "Work" }),
+  // Of the logins begun first (leading), each at a step that allows the call.
+  AnswerLogin: bytes(backend.answerLogin.input, { login: "l1" }),
+  CancelLogin: bytes(backend.cancelLogin.input, { login: "l2" }),
+  InsteadLogin: bytes(backend.insteadLogin.input, { login: "l3" }),
+  WriteAccount: bytes(DeviceService.method.writeAccount.input, { table: "whatsapp.account", values: { name: "l4" } }),
+  SignOut: bytes(backend.signOut.input, { spaceId: "telegram:1/account" }),
 };
+
+/** step is a login's step: a QR code offering another way, or a new account to write. */
+function qrStep(login: string): LoginStep {
+  return create(LoginStepSchema, { login, qr: "2@x", instead: "with a code instead" });
+}
+function configureStep(login: string): LoginStep {
+  return create(LoginStepSchema, { login, configure: { table: "whatsapp.account", values: { name: login } } });
+}
+
+/** leading begins logins l1 to l4 through the gate: the window leads them. */
+async function leading(): Promise<void> {
+  kithd.beginWith = [qrStep, qrStep, qrStep, configureStep];
+  for (let i = 0; i < 4; i++) {
+    await gate.call(window, "BeginLogin", bytes(backend.beginLogin.input, { network: "whatsapp" }));
+  }
+}
 
 // Every name the window could send: each method of both services by its name and in
 // other spellings, and names an object map would answer for itself.
@@ -166,6 +196,8 @@ const names: unknown[] = [
 describe("the gate", () => {
   it("answers only the calls on the list, and refuses every other name before kithd", async () => {
     await device();
+    await leading();
+    kithd.accountSpaces = ["telegram:1/account"];
     const seat = listen("Seat", bytes(backend.seat.input, { client: "w" })); // drafts are the seat's
     for (const name of names) {
       const want = typeof name === "string" && allowedCalls.includes(name) ? "answered" : "refused";
@@ -426,6 +458,74 @@ describe("the gate", () => {
       "refused",
     );
     expect(kithd.reached).toHaveLength(5);
+  });
+
+  it("signs out only an account whose own space is on the profile's rail", async () => {
+    await device();
+    kithd.accountSpaces = ["telegram:1/account"];
+    const signOut = (spaceId: string) =>
+      outcome(window, "SignOut", bytes(backend.signOut.input, { spaceId, forget: true }));
+    expect(await signOut("!friends:x")).toBe("refused"); // a space, not an account's
+    expect(await signOut("telegram:2/account")).toBe("refused"); // not on this profile's rail
+    expect(await signOut("")).toBe("refused");
+    expect(await signOut("telegram:1/account")).toBe("answered");
+    expect(kithd.signedOut).toEqual(["telegram:1/account"]);
+  });
+
+  it("acts only on a login the window leads, as its step allows, one answer at a time", async () => {
+    await device();
+    await leading();
+    const answer = (login: string, values: Record<string, string> = {}) =>
+      outcome(window, "AnswerLogin", bytes(backend.answerLogin.input, { login, values }));
+    // Not begun here (the TUI's, or made up), or a value its step does not ask.
+    expect(await answer("l9")).toBe("refused");
+    expect(await answer("l1", { password: "x" })).toBe("refused");
+    // The other way of a step that offers it; the account a step hands out, once.
+    expect(await outcome(window, "InsteadLogin", bytes(backend.insteadLogin.input, { login: "l4" }))).toBe("refused");
+    const write = () =>
+      outcome(
+        window,
+        "WriteAccount",
+        bytes(DeviceService.method.writeAccount.input, { table: "whatsapp.account", values: { name: "l4" } }),
+      );
+    expect(await write()).toBe("answered");
+    expect(await write()).toBe("refused");
+    expect(
+      await outcome(
+        window,
+        "WriteAccount",
+        bytes(DeviceService.method.writeAccount.input, { table: "whatsapp.account", values: { name: "other" } }),
+      ),
+    ).toBe("refused");
+    // Answered to its end (done), or canceled: the window leads it no more.
+    expect(await answer("l1")).toBe("answered");
+    expect(await answer("l1")).toBe("refused");
+    expect(await outcome(window, "CancelLogin", bytes(backend.cancelLogin.input, { login: "l2" }))).toBe("answered");
+    expect(await answer("l2")).toBe("refused");
+    expect(await outcome(window, "CancelLogin", bytes(backend.cancelLogin.input, { login: "l2" }))).toBe("refused");
+  });
+
+  it("has kithd end the logins the window led when it reloads or closes, in the profile each began in", async () => {
+    await device();
+    await leading();
+    await gate.call(window, "CancelLogin", bytes(backend.cancelLogin.input, { login: "l1" }));
+    // A login begun before the reload, answered after it, is nobody's: ended as it arrives.
+    kithd.holdBegins = true;
+    const late = gate.call(window, "BeginLogin", bytes(backend.beginLogin.input, { network: "whatsapp" }));
+    await until(() => kithd.reached.filter((r) => r.startsWith("BeginLogin")).length === 5, "the begin to reach kithd");
+    gate.restart();
+    kithd.releaseBegins();
+    await late;
+    await until(() => kithd.canceled.length === 5, "the logins ended");
+    expect(kithd.canceled.map((c) => c.login).sort()).toEqual(["l1", "l2", "l3", "l4", "l5"]);
+    expect(kithd.canceled.every((c) => c.profile === "Work")).toBe(true);
+    // Closing: the logins led since are ended, and none twice.
+    kithd.holdBegins = false;
+    await device();
+    await gate.call(window, "BeginLogin", bytes(backend.beginLogin.input, { network: "whatsapp" }));
+    await gate.endLogins();
+    await gate.endLogins();
+    expect(kithd.canceled.map((c) => c.login)).toEqual([...kithd.canceled.slice(0, 5).map((c) => c.login), "l6"]);
   });
 
   it("answers a FetchEvent of a message kithd has not got with no message, and every other failure as one", async () => {

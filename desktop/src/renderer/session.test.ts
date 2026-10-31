@@ -1170,3 +1170,44 @@ describe("an attachment", () => {
     expect(kithd.saved).toEqual(["!r $1 cat.png"]);
   });
 });
+
+describe("the settings page's accounts", () => {
+  const opened = async () => {
+    kithd.loginNetworks = { networks: [{ network: "whatsapp", label: "WhatsApp", accounts: [{ name: "main" }] }] };
+    await started();
+    session.openSettings();
+    await settled();
+  };
+
+  it("leads a login through its steps, its account written, then reads the rail and rooms again", async () => {
+    await opened();
+    const network = view().login.networks?.[0];
+    expect(network?.accounts.map((a) => a.name)).toEqual(["main"]);
+    kithd.loginSteps.push(
+      { login: "l1", ask: [{ key: "phone", label: "Phone" }] },
+      { login: "l1", configure: { table: "whatsapp.account", values: { name: "work" } } },
+      { login: "l1", qr: "2@x" },
+      { login: "l1", done: "logged in to WhatsApp as work" },
+    );
+    if (network === undefined) {
+      throw new Error("no network");
+    }
+    session.beginLogin(network, "");
+    await settled();
+    expect(view().login.run?.ask.map((f) => f.key)).toEqual(["phone"]);
+    const before = kithd.calls.filter((c) => c.startsWith("Rail")).length;
+    session.answerLogin({ phone: "+1555" });
+    await settled();
+    expect(kithd.accountsWritten).toEqual(["whatsapp.account work"]);
+    expect(view().login.run).toBeUndefined();
+    expect(view().login.note).toBe("logged in to WhatsApp as work");
+    expect(kithd.calls.filter((c) => c.startsWith("Rail")).length).toBeGreaterThan(before);
+  });
+
+  it("signs out of an account, its rooms forgotten when asked", async () => {
+    await opened();
+    await session.signOut("telegram:1/account", "Telegram", true);
+    expect(kithd.signedOut).toEqual(["telegram:1/account forget"]);
+    expect(view().login.note).toBe("Signed out of Telegram.");
+  });
+});
