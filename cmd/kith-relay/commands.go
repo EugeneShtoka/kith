@@ -26,7 +26,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/human"
-	"github.com/EugeneShtoka/kith/internal/session"
+	"github.com/EugeneShtoka/kith/internal/keystore"
 )
 
 // User commands, as the TUI runs them (internal/tui/runcmd.go, script.go): `/zoom` runs
@@ -515,7 +515,7 @@ func (c *commandRun) execute(ctx context.Context) (body, why string) {
 func (c *commandRun) secrets() ([]string, error) {
 	env := make([]string, 0, len(c.block.Secrets))
 	for _, name := range c.block.Secrets {
-		value, err := session.Secret(c.keyring, config.SecretRef(c.block.Name, name))
+		value, err := keystore.Secret(c.keyring, config.SecretRef(c.block.Name, name))
 		if err != nil {
 			return nil, fmt.Errorf("could not read its secret %s: %w", name, err)
 		}

@@ -162,23 +162,11 @@ func loadOrCreateKey(service, acct string, corrupt error, advice string) ([]byte
 // Secret reads a named secret (e.g. an API key) under service, falling back to the
 // default service; not scoped to an instance. A missing entry is "" and no error.
 func Secret(service, ref string) (string, error) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" {
-		return "", nil
+	value, err := keystore.Secret(service, ref)
+	if err != nil {
+		return "", fmt.Errorf("session: %w", err)
 	}
-	for _, svc := range []string{service, legacyService} {
-		value, err := keystore.Get(svc, secretAccount(ref))
-		switch {
-		case err == nil:
-			return value, nil
-		case errors.Is(err, keyring.ErrNotFound):
-		case errors.Is(err, ErrKeyringNotAnswering):
-			return "", err
-		default:
-			return "", ErrNoSecretStore
-		}
-	}
-	return "", nil
+	return value, nil
 }
 
 // StoreSecret writes a named secret under service; an empty value is refused.
@@ -201,7 +189,7 @@ func DeleteSecret(service, ref string) error {
 	return nil
 }
 
-func secretAccount(ref string) string { return "secret|" + ref }
+func secretAccount(ref string) string { return keystore.SecretAccount(ref) }
 
 func decode(blob []byte) (domain.Session, bool, error) {
 	var s domain.Session
