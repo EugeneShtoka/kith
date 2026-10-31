@@ -275,16 +275,13 @@ func (m Model) saidTop(bottom, width, rows int) int {
 }
 
 // saidMessageRows is one message as drawn here: the room's rule above the first of a run
-// (and a day's above the first of a day), then the message as the timeline draws it.
+// and the first of a day, then the message as the timeline draws it.
 func (m Model) saidMessageRows(i, width int) []string {
 	msgs := m.said.msgs
 	msg := msgs[i]
 	var rows []string
-	switch {
-	case i == 0 || msgs[i-1].RoomID != msg.RoomID:
+	if i == 0 || msgs[i-1].RoomID != msg.RoomID || !sameDay(msgs[i-1].Timestamp, msg.Timestamp) {
 		rows = append(rows, m.saidRoomRow(msg, width))
-	case !sameDay(msgs[i-1].Timestamp, msg.Timestamp):
-		rows = append(rows, m.dividerRow(msg.Timestamp, width))
 	}
 	colors := m.saidColors()
 	nameW := m.saidNameWidth()
@@ -296,13 +293,14 @@ func (m Model) saidMessageRows(i, width int) []string {
 	return append(rows, m.messageRows(msg, width, nameW, colors, i == m.said.cursor, preview)...)
 }
 
-// saidRoomRow names the room a run of messages is in, with the day.
+// saidRoomRow names the room a run of messages is in, its network and the day. A room
+// no longer listed goes by its ID and the network of the ID that wrote there.
 func (m Model) saidRoomRow(msg domain.Message, width int) string {
-	label := string(msg.RoomID)
+	label, network := string(msg.RoomID), domain.ProtocolOf(msg.Sender)
 	if room, ok := m.roomByID(msg.RoomID); ok {
-		label = m.roomName(room)
+		label, network = m.roomName(room), m.factsFor(room).Protocol
 	}
-	return m.ruleRow(isolate(label)+" · "+dayLabel(msg.Timestamp, m.prefs.clock), width, m.theme.Muted)
+	return m.ruleRow(isolate(label)+" · "+network.String()+" · "+dayLabel(msg.Timestamp, m.prefs.clock), width, m.theme.Muted)
 }
 
 // saidColors paints each of their IDs in its network's color: a person on three networks

@@ -302,3 +302,31 @@ func TestSearchFromAnIDIsThePerson(t *testing.T) {
 		t.Errorf("searched %+v, want both of her accounts", f)
 	}
 }
+
+// Every rule names the room, its network and the day — a new day in the same room too,
+// and a room no longer listed by its ID and the network of the ID that wrote there.
+func TestEverythingSomeoneSaidNamesTheRoomAndNetworkOnEveryRule(t *testing.T) {
+	t.Parallel()
+
+	const day = 24 * 60 * 60
+	gone := domain.RoomID(mx + "!gone:x")
+	b := &saidBackend{msgs: []domain.Message{
+		{ID: mx + "$c1", RoomID: mx + "!c:x", Sender: danaWhatsApp, Body: "first day", Timestamp: at(day)},
+		{ID: mx + "$c2", RoomID: mx + "!c:x", Sender: danaWhatsApp, Body: "next day", Timestamp: at(3 * day)},
+		{ID: mx + "$g1", RoomID: gone, Sender: danaWhatsApp, Body: "elsewhere", Timestamp: at(5 * day)},
+	}}
+	m := saidModel(t, b, config.Config{})
+	m = update(t, m, roomsMsg{rooms: []domain.Room{
+		{ID: mx + "!a:x", Name: "Alpha"},
+		{ID: mx + "!c:x", Name: "Charlie", Network: domain.ProtocolWhatsApp},
+	}})
+	m, cmd := chord(t, m, "g", "I")
+	m = deliver(t, m, cmd)
+	pane := stripStyles(strings.Join(m.saidLines(120, 28), "\n"))
+	if n := strings.Count(pane, "Charlie · WhatsApp · "); n != 2 {
+		t.Errorf("%d rules name Charlie and its network, want one for each day:\n%s", n, pane)
+	}
+	if !strings.Contains(pane, string(gone)+" · WhatsApp · ") {
+		t.Errorf("the unlisted room's rule lacks its ID and network:\n%s", pane)
+	}
+}
