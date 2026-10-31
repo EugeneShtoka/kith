@@ -400,12 +400,20 @@ func TestARunEndsWithItsRequestAndOneRunsAtATime(t *testing.T) {
 	if err := within(t, 3*time.Second, "the canceled run ending", func() error { return <-first }); err == nil {
 		t.Error("the canceled run answered")
 	}
-	if err := os.WriteFile(filepath.Join(w.commands, "zoom"), []byte("#!/bin/sh\necho again\n"), 0o700); err != nil {
+	// Another file: a shell reads its script as it runs, so rewriting zoom would end it too.
+	if err := os.WriteFile(filepath.Join(w.commands, "next"), []byte("#!/bin/sh\necho again\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
+	// The canceled run holds its turn until its program is gone (killed, its output's
+	// writers waited out), which may be after the window was told it ended.
 	if res, err := within(t, 3*time.Second, "the next run", func() result {
-		res, err := w.run(t.Context(), "Home", "zoom", "!a:x", "")
-		return result{res, err}
+		for {
+			res, err := w.run(t.Context(), "Home", "next", "!a:x", "")
+			if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+				return result{res, err}
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
 	}).unpack(); err != nil || res.GetBody() != "again" {
 		t.Errorf("the next run: %v %v, want it run", res, err)
 	}
