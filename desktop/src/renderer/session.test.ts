@@ -712,6 +712,14 @@ describe("the theme", () => {
     expect(value("dark.accent")).toBe("#222222");
   });
 
+  it("is read by a window started again after a stop, as React's StrictMode starts it", async () => {
+    kithd.themeShared.set("mode", "dark");
+    session.start();
+    session.stop();
+    await started();
+    expect(value("mode")).toBe("dark");
+  });
+
   it("writes a key everywhere, this device's over it, and its reset shows every device's again", async () => {
     await started();
     await session.changeTheme("light.accent", ThemeScope.SHARED, "#123456");
