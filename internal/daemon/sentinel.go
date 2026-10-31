@@ -40,6 +40,7 @@ var sentinels = map[string]error{
 	"no-such-message":   api.ErrNoSuchMessage,
 	"unknown-profile":   api.ErrUnknownProfile,
 	"daemon-waiting":    api.ErrDaemonWaiting,
+	"answered":          api.ErrAnswered,
 }
 
 // sentinelOrder fixes the order sentinels are tried in, so an error wrapping two is

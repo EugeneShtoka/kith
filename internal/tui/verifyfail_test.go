@@ -193,3 +193,57 @@ func TestStartingWithoutEncryptionSaysSo(t *testing.T) {
 		t.Errorf("status = %q, want it to name what is missing", m.status())
 	}
 }
+
+// A step answered in another window (or another TUI) waits here too, so the overlay
+// does not offer an answer kithd would refuse; an acceptance arriving after the emoji
+// leaves them to answer, and a step of another verification changes nothing.
+func TestAStepAnsweredElsewhereWaitsHere(t *testing.T) {
+	t.Parallel()
+
+	request := domain.Verification{Kind: domain.VerificationRequested, TxnID: "t1", From: "matrix:@me:x", Device: "DEV"}
+	sas := domain.Verification{Kind: domain.VerificationSAS, TxnID: "t1", Emojis: []domain.SASEmoji{{Glyph: "🐶", Name: "Dog"}}}
+	tests := map[string]struct {
+		steps   []domain.Verification
+		waiting bool
+	}{
+		"accepted elsewhere": {
+			steps:   []domain.Verification{request, {Kind: domain.VerificationAccepted, TxnID: "t1"}},
+			waiting: true,
+		},
+		"confirmed elsewhere": {
+			steps:   []domain.Verification{request, sas, {Kind: domain.VerificationConfirmed, TxnID: "t1"}},
+			waiting: true,
+		},
+		"the acceptance arrives after the emoji": {
+			steps: []domain.Verification{request, sas, {Kind: domain.VerificationAccepted, TxnID: "t1"}},
+		},
+		"another verification's answer": {
+			steps: []domain.Verification{request, {Kind: domain.VerificationAccepted, TxnID: "t2"}},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			b := &verifyBackend{}
+			m := sized(t, withRooms(t, newModel()))
+			m.backend = b
+			for _, v := range tc.steps {
+				m, _ = m.handleVerify(verifyMsg{v: v})
+			}
+			if m.verify.waiting != tc.waiting {
+				t.Fatalf("waiting = %t, want %t: %+v", m.verify.waiting, tc.waiting, m.verify)
+			}
+			m, cmd := m.handleVerifyKey(keyOf('y'))
+			if cmd != nil {
+				cmd()
+			}
+			if got := b.accepted(); tc.waiting && len(got) != 0 {
+				t.Errorf("a step answered elsewhere was answered again: %v", got)
+			}
+			if !m.verify.active {
+				t.Error("the overlay was dismissed")
+			}
+		})
+	}
+}

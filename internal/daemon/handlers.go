@@ -31,6 +31,8 @@ type server struct {
 	lifetime context.Context //nolint:containedctx // the process's lifetime, deliberately held
 	// seats are the windows: who sits in each profile, and who listens for links.
 	seats *seats
+	// answers is which verification steps a client has answered.
+	answers answers
 }
 
 var _ backendv1connect.BackendServiceHandler = (*server)(nil)
@@ -847,11 +849,35 @@ func (s *server) StartVerification(ctx context.Context, r *req[v1.StartVerificat
 }
 
 func (s *server) AcceptVerification(ctx context.Context, r *req[v1.AcceptVerificationRequest]) (*resp[v1.AcceptVerificationResponse], error) {
-	return reply(&v1.AcceptVerificationResponse{}, s.Backend.AcceptVerification(ctx, r.Msg.GetTxnId()))
+	txn := r.Msg.GetTxnId()
+	return reply(&v1.AcceptVerificationResponse{}, s.answer(txn, domain.VerificationAccepted, func() error {
+		return s.Backend.AcceptVerification(ctx, txn)
+	}))
 }
 
 func (s *server) ConfirmSAS(ctx context.Context, r *req[v1.ConfirmSASRequest]) (*resp[v1.ConfirmSASResponse], error) {
-	return reply(&v1.ConfirmSASResponse{}, s.Backend.ConfirmSAS(ctx, r.Msg.GetTxnId()))
+	txn := r.Msg.GetTxnId()
+	return reply(&v1.ConfirmSASResponse{}, s.answer(txn, domain.VerificationConfirmed, func() error {
+		return s.Backend.ConfirmSAS(ctx, txn)
+	}))
+}
+
+// answer sends one client's answer to a step of verification txn (step names it:
+// accepted or confirmed), unless a client's answer to it came first; given, every
+// client is told, so none offers to answer it again. Every client is shown each
+// request and its emoji, so a TUI and a desktop window can both answer one, and a
+// second answer would be sent too: a second confirm sends a second MAC, which the
+// other device cancels the verification on.
+func (s *server) answer(txn string, step domain.VerificationKind, send func() error) error {
+	if !s.answers.claim(txn, step) {
+		return fmt.Errorf("daemon: verification %s: %w", txn, api.ErrAnswered)
+	}
+	if err := send(); err != nil {
+		s.answers.release(txn, step) // not given: it may be sent again
+		return err
+	}
+	s.Streams.verifications.broadcast(domain.Verification{Kind: step, TxnID: txn})
+	return nil
 }
 
 func (s *server) CancelVerification(ctx context.Context, r *req[v1.CancelVerificationRequest]) (*resp[v1.CancelVerificationResponse], error) {

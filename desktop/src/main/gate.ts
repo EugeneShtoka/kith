@@ -23,6 +23,7 @@ import type { StreamEvent } from "../shared/ipc";
 import { runIn } from "../shared/profile";
 import { LoginRefused, loginCalls, Logins, type Ticket } from "./logins";
 import { keepOpen } from "./streams";
+import { answerCalls, VerifyRefused, Verifying } from "./verifications";
 
 const backend = BackendService.method;
 const device = DeviceService.method;
@@ -92,6 +93,13 @@ const calls = new Map<string, DescMethodUnary>(
     device.writeAccount,
     device.qRCode,
     backend.signOut,
+    // Verifying this session (verifications.ts: only one the window was shown or asked
+    // for), from one of the accounts it reads.
+    backend.accounts,
+    backend.startVerification,
+    backend.acceptVerification,
+    backend.confirmSAS,
+    backend.cancelVerification,
   ].map((m) => [m.name, m]),
 );
 const streams = new Map<string, DescMethodServerStreaming>(
@@ -104,6 +112,7 @@ const streams = new Map<string, DescMethodServerStreaming>(
     backend.messages,
     backend.reactions,
     backend.followStream,
+    backend.verifications,
   ].map((m) => [m.name, m]),
 );
 
@@ -159,6 +168,19 @@ export class Gate {
       .then(() => undefined),
   );
 
+  /** The verifications the window may answer. */
+  private readonly verifying = new Verifying(async (profile) => {
+    const method = backend.selves;
+    const r = await this.transport.unary(
+      method,
+      undefined,
+      undefined,
+      { "Kith-Profile": profile },
+      create(method.input),
+    );
+    return r.message.ids;
+  });
+
   constructor(private readonly transport: Transport) {}
 
   /** call makes the call named and answers the response's bytes. */
@@ -166,6 +188,7 @@ export class Gate {
     const method = admit(frame, calls, name);
     const input = decode(method, request);
     const header = this.header(method);
+    const profile = this.profile;
     const invited = invitedOnly.get(method.name);
     if (invited !== undefined) {
       await this.mustBeInvited(invited(input), header);
@@ -175,6 +198,9 @@ export class Gate {
     }
     if (method.name === backend.signOut.name) {
       await this.mustBeAnAccount((input as MessageShape<typeof backend.signOut.input>).spaceId, header);
+    }
+    if (answerCalls.has(method.name)) {
+      this.admitAnswer((input as MessageShape<typeof backend.confirmSAS.input>).txnId);
     }
     const ticket = loginCalls.has(method.name) ? this.admitLogin(method.name, input, header) : undefined;
     const response = await this.transport.unary(method, undefined, undefined, header, input).catch((err: unknown) => {
@@ -194,6 +220,9 @@ export class Gate {
     }
     if (ticket !== undefined) {
       this.logins.heard(ticket, response.message);
+    }
+    if (method.name === backend.startVerification.name) {
+      this.verifying.asked((response.message as MessageShape<typeof backend.startVerification.output>).txnId, profile);
     }
     this.follow(method, response.message);
     return toBinary(method.output, response.message);
@@ -237,6 +266,9 @@ export class Gate {
       post = resuming(post, (epoch, change) => {
         at = create(backend.messages.input, { sinceEpoch: epoch, sinceChange: change });
       });
+    }
+    if (method.name === backend.verifications.name) {
+      post = this.verifying.stream(this.profile, post);
     }
     const stop = keepOpen(this.transport, method, input, header, post, again);
     const held = {
@@ -323,6 +355,7 @@ export class Gate {
       return;
     }
     this.profile = profile;
+    this.verifying.runIn(profile);
     for (const held of this.open) {
       if (held.profile !== profile) {
         this.open.delete(held);
@@ -345,6 +378,15 @@ export class Gate {
       throw new Refused(`kith: the window speaks only as its seat in ${this.profile}`);
     }
     request.client = seat.client;
+  }
+
+  /** admitAnswer refuses an answer to a verification the window may not answer here. */
+  private admitAnswer(txn: string): void {
+    try {
+      this.verifying.admit(txn);
+    } catch (err) {
+      throw err instanceof VerifyRefused ? new Refused(err.message) : err;
+    }
   }
 
   /** admitLogin is the ticket for a call of a login, refused unless the window leads it and its step allows the call. */

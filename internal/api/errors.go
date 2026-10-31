@@ -63,4 +63,7 @@ var (
 	// only Status meanwhile; the message says what it waits for. Waiting does not pass
 	// it: someone has to act, such as unlocking the keyring.
 	ErrDaemonWaiting = errors.New("kithd is waiting")
+	// ErrAnswered: that step of a verification was answered already, from this client or
+	// another: kithd takes one answer to each step.
+	ErrAnswered = errors.New("daemon: that verification step was answered already")
 )

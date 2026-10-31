@@ -6,6 +6,7 @@ import type { DescMessage, DescMethodServerStreaming, MessageInitShape, MessageS
 import {
   BackendService,
   Change,
+  type Account,
   type FollowStreamResponse,
   type LoginNetwork,
   type RailResponse,
@@ -30,6 +31,20 @@ import { ordered, total } from "./rooms";
 import { emptyFilter, parseSearch } from "./search";
 import { change, type Device, type Key, labels, type Read, withKey } from "./settings";
 import { OpenThread, type ThreadView } from "./threads";
+import {
+  answerable,
+  heard,
+  answering,
+  askFailed,
+  asked,
+  asking,
+  canceled,
+  dismissed,
+  lost,
+  noVerify,
+  stepped,
+  type Verify,
+} from "./verify";
 import { type Ask, newest, Timeline, type TimelineView } from "./timeline";
 
 const backend = BackendService.method;
@@ -126,6 +141,9 @@ export interface View {
   slots: Slots;
   /** The settings page's accounts: the networks to log in to, and a login under way. */
   login: LoginView;
+  /** Verifying this session (verify.ts), and the accounts it is asked for from (Accounts). */
+  verify: Verify;
+  accounts: readonly Account[];
   problem: string | undefined;
 }
 
@@ -207,6 +225,8 @@ const nothingShown = {
   unreadLine: true,
   composer: undefined,
   slots: new Map(),
+  verify: noVerify,
+  accounts: [],
 } satisfies Partial<View>;
 
 /** Run is one stay in one profile's seat: what it opened, closed together when it ends. */
@@ -1085,6 +1105,7 @@ export class Session {
           case "attached":
             this.set({ link: { state: "attached" } });
             this.readStatus(run);
+            this.readAccounts(run);
             this.readRooms(run);
             this.readRail(run);
             break;
@@ -1097,6 +1118,7 @@ export class Session {
             }
             if (e.frames.some((f) => f.change === Change.ACCOUNTS)) {
               this.readStatus(run);
+              this.readAccounts(run);
             }
             break;
           case "detached":
@@ -1163,6 +1185,26 @@ export class Session {
           case "attached":
           case "detached":
             break; // main resumes it where it left off
+        }
+      }),
+      // Verifications: none is read whole (kithd has no read of them), and one the window
+      // showed ends with the link: a step sent meanwhile is not sent again.
+      subscribe(backend.verifications, {}, (e) => {
+        if (!this.live(run)) {
+          return;
+        }
+        if (e.kind === "frames") {
+          let verify = this.view.verify;
+          for (const f of e.frames) {
+            if (f.verification !== undefined) {
+              verify = stepped(verify, f.verification);
+            }
+          }
+          this.set({ verify });
+        } else if (e.kind === "detached") {
+          this.set({ verify: lost(this.view.verify) });
+        } else if (e.kind === "refused") {
+          this.fail(e.error);
         }
       }),
       // Reactions do not resume: read whole again as the stream opens, frames meanwhile held.
@@ -1584,6 +1626,92 @@ export class Session {
     run.rowAt = i;
     run.row = refOf(row);
     this.set({});
+  }
+
+  /** readAccounts reads the accounts a verification may be asked for from. */
+  private readAccounts(run: Run): void {
+    call(backend.accounts, {}).then(
+      (r) => {
+        if (this.live(run)) {
+          this.set({ accounts: r.accounts });
+        }
+      },
+      (err: unknown) => {
+        if (this.live(run)) {
+          this.fail(err);
+        }
+      },
+    );
+  }
+
+  /**
+   * verify asks this session's other sessions on account on to verify it, as the TUI's
+   * :verify does: one of them accepts, then both show the emoji to compare.
+   */
+  verify(on: string): void {
+    const run = this.run;
+    if (run === undefined || this.view.verify.asking || this.view.verify.flow !== undefined) {
+      return;
+    }
+    this.set({ verify: asking(this.view.verify) });
+    call(backend.startVerification, { on }).then(
+      (r) => {
+        if (this.live(run)) {
+          this.set({ verify: asked(this.view.verify, r.txnId) });
+        }
+      },
+      (err: unknown) => {
+        if (this.live(run)) {
+          this.set({ verify: askFailed(this.view.verify, errorText(err)) });
+        }
+      },
+    );
+  }
+
+  /** answerVerify accepts the request shown, or confirms the emoji shown match. */
+  answerVerify(): void {
+    const run = this.run;
+    const f = this.view.verify.flow;
+    if (run === undefined || !answerable(f)) {
+      return;
+    }
+    const { txn, stage } = f;
+    this.set({ verify: answering(this.view.verify) });
+    const sent =
+      stage === "requested"
+        ? call(backend.acceptVerification, { txnId: txn })
+        : call(backend.confirmSAS, { txnId: txn });
+    const back = (error: string) => {
+      if (this.live(run)) {
+        this.set({ verify: heard(this.view.verify, txn, stage, error) });
+      }
+    };
+    sent.then(
+      () => {
+        back("");
+      },
+      (err: unknown) => {
+        back(errorText(err));
+      },
+    );
+  }
+
+  /**
+   * cancelVerify declines the request shown, says the emoji do not match, or calls off
+   * this window's own: shown as ended at once, as the TUI does, whatever kithd answers.
+   */
+  cancelVerify(): void {
+    const f = this.view.verify.flow;
+    if (this.run === undefined || f === undefined) {
+      return;
+    }
+    this.set({ verify: canceled(this.view.verify) });
+    call(backend.cancelVerification, { txnId: f.txn }).catch(() => undefined);
+  }
+
+  /** dismissVerify puts away what the last verification came to. */
+  dismissVerify(): void {
+    this.set({ verify: dismissed(this.view.verify) });
   }
 
   private readStatus(run: Run): void {

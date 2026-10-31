@@ -3180,8 +3180,22 @@ func (m Model) handleVerify(msg verifyMsg) (Model, tea.Cmd) {
 	case domain.VerificationRestored:
 		// Arrives after Done dismissed the overlay; just report the import.
 		m = m.say("✓ " + v.Reason)
+	case domain.VerificationAccepted, domain.VerificationConfirmed:
+		// Answered, here or in another window: wait for the next step, as after [y].
+		if m.verify.active && m.verify.txnID == v.TxnID && m.verify.stage == answeredStage(v.Kind) {
+			m.verify.waiting = true
+		}
 	}
 	return m, m.listenVerifyCmd()
+}
+
+// answeredStage is the stage an answer step answers: an acceptance the request, a
+// confirmation the SAS.
+func answeredStage(answer domain.VerificationKind) domain.VerificationKind {
+	if answer == domain.VerificationAccepted {
+		return domain.VerificationRequested
+	}
+	return domain.VerificationSAS
 }
 
 // handleVerifyStarted raises the overlay for our own request, or says why it could not be made.
@@ -3215,7 +3229,8 @@ func (m Model) handleVerifyKey(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch m.keys.lookup(key.String(), scopeVerify) {
 	case actConfirm:
 		switch m.verify.stage {
-		case domain.VerificationDone, domain.VerificationCanceled, domain.VerificationRestored:
+		case domain.VerificationDone, domain.VerificationCanceled, domain.VerificationRestored,
+			domain.VerificationAccepted, domain.VerificationConfirmed:
 			// Nothing left to confirm.
 		case domain.VerificationRequested:
 			if m.verify.ours {

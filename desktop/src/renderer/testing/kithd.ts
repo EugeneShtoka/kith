@@ -153,6 +153,11 @@ export class Kithd {
   readonly members = new Map<string, Member[]>();
   readonly scores = new Map<string, Record<string, number>>();
   selves: string[] = ["@me:x"];
+  /** The accounts kithd has (Accounts), and what each verification answer met: kithd's error, or none. */
+  accounts: MessageInitShape<typeof backend.accounts.output>["accounts"] = [
+    { network: "Matrix", on: "matrix:1/", name: "@me:x" },
+  ];
+  readonly verifyFails = new Map<string, string>();
   /** Files offered to main and sent through it, as "room name caption". */
   readonly attached: string[] = [];
   /** Sends of files still to fail. */
@@ -661,6 +666,24 @@ export class Kithd {
       case "EmojiScores": {
         const r = request as MessageShape<typeof backend.emojiScores.input>;
         return reply(backend.emojiScores, { scores: this.scores.get(r.kind) ?? {} });
+      }
+      case "Accounts":
+        return reply(backend.accounts, { accounts: this.accounts });
+      case "StartVerification": {
+        const r = request as MessageShape<typeof backend.startVerification.input>;
+        this.writes.push(`StartVerification ${r.on}`);
+        return reply(backend.startVerification, { txnId: "ours" });
+      }
+      case "AcceptVerification":
+      case "ConfirmSAS":
+      case "CancelVerification": {
+        const r = request as MessageShape<typeof backend.confirmSAS.input>;
+        this.writes.push(`${name} ${r.txnId}`);
+        const fails = this.verifyFails.get(name);
+        if (fails !== undefined) {
+          throw new Error(fails);
+        }
+        return reply(backend.confirmSAS, {});
       }
       case "Selves":
         return reply(backend.selves, { ids: this.selves });

@@ -12,7 +12,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { BackendService, type LoginStep, LoginStepSchema, type SeatRequest } from "../gen/backend/v1/services_pb";
-import { MessageSchema } from "../gen/backend/v1/types_pb";
+import { MessageSchema, VerificationKind } from "../gen/backend/v1/types_pb";
 import { DeviceService } from "../gen/device/v1/device_pb";
 import type { StreamEvent } from "../shared/ipc";
 import { type Frame, Gate, Refused } from "./gate";
@@ -130,6 +130,11 @@ const allowedCalls = [
   "WriteAccount",
   "QRCode",
   "SignOut",
+  "Accounts",
+  "StartVerification",
+  "AcceptVerification",
+  "ConfirmSAS",
+  "CancelVerification",
 ];
 const allowedStreams = [
   "Changed",
@@ -140,6 +145,7 @@ const allowedStreams = [
   "Messages",
   "Reactions",
   "FollowStream",
+  "Verifications",
 ];
 
 // A request each listed call is answered for: an invitation's room, a profile the config has.
@@ -153,6 +159,10 @@ const requests: Record<string, Uint8Array> = {
   InsteadLogin: bytes(backend.insteadLogin.input, { login: "l3" }),
   WriteAccount: bytes(DeviceService.method.writeAccount.input, { table: "whatsapp.account", values: { name: "l4" } }),
   SignOut: bytes(backend.signOut.input, { spaceId: "telegram:1/account" }),
+  // Of the verification asked for first (asking).
+  AcceptVerification: bytes(backend.acceptVerification.input, { txnId: "v1" }),
+  ConfirmSAS: bytes(backend.confirmSAS.input, { txnId: "v1" }),
+  CancelVerification: bytes(backend.cancelVerification.input, { txnId: "v1" }),
 };
 
 /** step is a login's step: a QR code offering another way, or a new account to write. */
@@ -197,6 +207,7 @@ describe("the gate", () => {
   it("answers only the calls on the list, and refuses every other name before kithd", async () => {
     await device();
     await leading();
+    await gate.call(window, "StartVerification", bytes(backend.startVerification.input, { on: "matrix:1/" }));
     kithd.accountSpaces = ["telegram:1/account"];
     const seat = listen("Seat", bytes(backend.seat.input, { client: "w" })); // drafts are the seat's
     for (const name of names) {
@@ -547,5 +558,90 @@ describe("the gate", () => {
     await expect(
       gate.call(window, "JoinRoom", bytes(backend.joinRoom.input, { roomIdOrAlias: "!gone:x" })),
     ).rejects.toThrow("no room !gone:x");
+  });
+
+  it("answers only a verification of this session the window was shown or asked for, in its profile, while it lasts", async () => {
+    await device(); // Work
+    const shown = listen("Verifications");
+    await until(() => kithd.streams(backend.verifications) === 1, "Verifications open");
+    const request = (txnId: string, from = "matrix:@me:x") => {
+      kithd.sendOn(backend.verifications, { verification: { kind: VerificationKind.REQUESTED, txnId, from } });
+    };
+    const answer = (name: string, txnId: string) => outcome(window, name, bytes(backend.confirmSAS.input, { txnId }));
+    const txns = () =>
+      shown.events.flatMap((e) =>
+        e.kind === "frames"
+          ? e.frames.map((f) => fromBinary(backend.verifications.output, f).verification?.txnId ?? "")
+          : [],
+      );
+
+    // Your own session's request is shown and answered; someone else's is neither, nor one never shown.
+    request("mine");
+    request("eve", "matrix:@eve:x");
+    request("mine2");
+    await until(() => txns().includes("mine2"), "the requests shown");
+    expect(txns()).toEqual(["mine", "mine2"]);
+    expect(await answer("AcceptVerification", "mine")).toBe("answered");
+    expect(await answer("ConfirmSAS", "mine")).toBe("answered");
+    expect(await answer("AcceptVerification", "eve")).toBe("refused");
+    expect(await answer("CancelVerification", "never")).toBe("refused");
+    expect(await answer("ConfirmSAS", "")).toBe("refused");
+
+    // Who you are cannot be read: a request is not shown, rather than shown to anyone.
+    kithd.selves = [];
+    request("unsure");
+    kithd.sendOn(backend.verifications, { verification: { kind: VerificationKind.SAS, txnId: "mine2" } });
+    await until(() => txns().length === 3, "the emoji shown");
+    expect(txns()).toEqual(["mine", "mine2", "mine2"]);
+    expect(await answer("AcceptVerification", "unsure")).toBe("refused");
+    kithd.selves = ["matrix:@me:x"];
+
+    // Canceled by the other device (or timed out): a confirm after it is refused.
+    kithd.sendOn(backend.verifications, { verification: { kind: VerificationKind.CANCELED, txnId: "mine" } });
+    await until(() => txns().length === 4, "the cancel shown");
+    expect(await answer("ConfirmSAS", "mine")).toBe("refused");
+
+    // The window's own ask: answered by its transaction.
+    await gate.call(window, "StartVerification", bytes(backend.startVerification.input, { on: "matrix:1/" }));
+    expect(await answer("CancelVerification", "v1")).toBe("answered");
+
+    // kithd restarting: what it held is forgotten, and so is what the window may answer.
+    await kithd.stop();
+    await until(() => shown.events.at(-1)?.kind === "detached", "the stream detached");
+    await kithd.start();
+    await until(() => kithd.streams(backend.verifications) === 1, "Verifications open again");
+    expect(await answer("ConfirmSAS", "mine2")).toBe("refused");
+    expect(await answer("CancelVerification", "v1")).toBe("refused");
+
+    // Another profile: what was shown or asked for in Work is not answered from Home, an ask
+    // that kithd answers only after the window moved included.
+    request("work");
+    await until(() => txns().includes("work"), "Work's request shown");
+    let answerAsk: () => void = () => undefined;
+    kithd.verifyHeld = new Promise<void>((resolve) => (answerAsk = resolve));
+    const ask = gate.call(window, "StartVerification", bytes(backend.startVerification.input, { on: "matrix:1/" }));
+    await gate.call(window, "ChooseProfile", bytes(DeviceService.method.chooseProfile.input, { name: "Home" }));
+    answerAsk();
+    await ask;
+    expect(await answer("AcceptVerification", "work")).toBe("refused");
+    expect(await answer("CancelVerification", "v2")).toBe("refused");
+    await until(() => kithd.streams(backend.verifications) === 0, "Work's Verifications ended at kithd");
+
+    // A reload: the window loading afresh answers nothing it was shown before.
+    const home = listen("Verifications");
+    await until(() => kithd.streams(backend.verifications) === 1, "Home's Verifications open");
+    request("home");
+    await until(() => home.events.some((e) => e.kind === "frames"), "Home's request shown");
+    gate.restart();
+    await device(); // runs in Home again
+    expect(await answer("AcceptVerification", "home")).toBe("refused");
+
+    expect(kithd.verifyAnswers).toEqual([
+      "AcceptVerification mine:Work",
+      "ConfirmSAS mine:Work",
+      "CancelVerification v1:Work",
+    ]);
+    shown.stop();
+    home.stop();
   });
 });

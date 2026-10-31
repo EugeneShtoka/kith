@@ -59,6 +59,10 @@ The keys are configurable in `[keys.verify]` (see [keybindings](keybindings.md))
 
 **Compare the emoji on both screens before pressing `y`.** Only confirm if they match exactly.
 
+Every kith window open on the daemon (another terminal, [the desktop
+window](desktop.md#verifying-this-session)) is shown the same request. The daemon takes
+the first answer to each step; the others then wait for the next one, as after `y`.
+
 ### After verification
 
 Once verification succeeds, kith asks the verified device for the **key backup secret** (secret gossip). If it arrives within 30 seconds, the daemon imports the whole server-side backup, and the status line says "restored N room keys from backup — reopen rooms to see history". If no answer comes, or the account has no backup, the device is still verified, and you can use `--restore-keys` instead.

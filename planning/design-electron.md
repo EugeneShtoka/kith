@@ -450,7 +450,8 @@ After the MVP, each with its own PR and review:
 - spell and completion;
 - scheduled send and slash commands;
 - network logins (QR) (landed 2026-10-31: Settings → Accounts, and signing out);
-- SAS verification;
+- SAS verification (landed 2026-10-31: your own sessions, as the TUI's `:verify`;
+  kithd takes one answer to each step and tells every client);
 - the settings editor (it needs a structured config call; `GetConfig` is TOML text);
 - people and phonebook (needs an RPC);
 - tags and filing;

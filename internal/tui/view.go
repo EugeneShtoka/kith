@@ -110,8 +110,9 @@ func (m Model) verifyView() string {
 	b.WriteString(m.theme.TitleActive.Render("Device verification") + "\n\n")
 
 	switch m.verify.stage {
-	case domain.VerificationDone, domain.VerificationCanceled, domain.VerificationRestored:
-		// Terminal stages: the overlay is dismissed on arrival.
+	case domain.VerificationDone, domain.VerificationCanceled, domain.VerificationRestored,
+		domain.VerificationAccepted, domain.VerificationConfirmed:
+		// Terminal stages: the overlay is dismissed on arrival. Answers are no stage.
 	case domain.VerificationSAS:
 		b.WriteString("Compare these emoji with the other device:\n\n")
 		b.WriteString(sasGrid(m.verify.emojis))

@@ -43,6 +43,7 @@ func TestEverySentinelInTheContractCrossesTheWire(t *testing.T) {
 		"ErrNoSuchMessage":    api.ErrNoSuchMessage,
 		"ErrUnknownProfile":   api.ErrUnknownProfile,
 		"ErrDaemonWaiting":    api.ErrDaemonWaiting,
+		"ErrAnswered":         api.ErrAnswered,
 	}
 
 	for _, name := range declared {
