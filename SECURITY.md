@@ -181,6 +181,20 @@ and holds the least:
   the method's schema, and refuses anything else. Files go through main too: a file
   is read where the system's dialog, a drop or a paste put it, and the page holds only
   a token for it; an attachment is saved where the person picks in a save dialog.
+  A queued message is canceled or retried only by an ID kithd showed the window, or
+  queued for it, in the profile it runs in.
+- **Your own commands run on this machine, named only.** `kith-relay`, not the page,
+  runs the commands of the device's commands folder (the terminal client runs the same
+  ones). The page names a command, a room and a message, and nothing else: the relay
+  refuses a name that is not one executable file in that folder (no `/`, no `..`), a
+  room outside the window's profile (main names the profile, the page cannot), and a
+  room outside the command's `in` places. The program is given only what the relay
+  looks up itself from kithd (the message, its link, the room's history) and its
+  declared secrets from the keyring: no argument, text, path or variable of the page's,
+  and no secret ever reaches the page. Output marked `send` is sent by the relay into
+  the room it ran in, and `clipboard` is copied by main; the rest comes back to the
+  page as text. One runs at a time, `[commands] timeout` bounds it, and it is killed
+  when the window reloads, closes or the relay exits.
 - **kith-relay.** The window reaches kithd only through `kith-relay`, a Go child
   process bundled with it. It listens on a socket in a new `0700` directory under
   `$XDG_RUNTIME_DIR/kith`, so only the same user can reach it, and exits when the

@@ -1637,6 +1637,314 @@ func (x *ReadRule) GetSend() bool {
 	return false
 }
 
+type CommandsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// room_id is the room the commands are for: each says whether it runs there.
+	RoomId        string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommandsRequest) Reset() {
+	*x = CommandsRequest{}
+	mi := &file_device_v1_device_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommandsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommandsRequest) ProtoMessage() {}
+
+func (x *CommandsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommandsRequest.ProtoReflect.Descriptor instead.
+func (*CommandsRequest) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *CommandsRequest) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+type CommandsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Commands      []*Command             `protobuf:"bytes,1,rep,name=commands,proto3" json:"commands,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommandsResponse) Reset() {
+	*x = CommandsResponse{}
+	mi := &file_device_v1_device_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommandsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommandsResponse) ProtoMessage() {}
+
+func (x *CommandsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommandsResponse.ProtoReflect.Descriptor instead.
+func (*CommandsResponse) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *CommandsResponse) GetCommands() []*Command {
+	if x != nil {
+		return x.Commands
+	}
+	return nil
+}
+
+// Command is one command of the commands directory.
+type Command struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name is the file's, without the slash.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// applies is whether it runs in the room asked about: its `in` places hold it, or it
+	// has none; places are those, for saying where it does.
+	Applies       bool     `protobuf:"varint,2,opt,name=applies,proto3" json:"applies,omitempty"`
+	Places        []string `protobuf:"bytes,3,rep,name=places,proto3" json:"places,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Command) Reset() {
+	*x = Command{}
+	mi := &file_device_v1_device_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Command) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Command) ProtoMessage() {}
+
+func (x *Command) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Command.ProtoReflect.Descriptor instead.
+func (*Command) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *Command) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Command) GetApplies() bool {
+	if x != nil {
+		return x.Applies
+	}
+	return false
+}
+
+func (x *Command) GetPlaces() []string {
+	if x != nil {
+		return x.Places
+	}
+	return nil
+}
+
+type RunCommandRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name is the command's file name, without the slash.
+	Name   string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	RoomId string `protobuf:"bytes,2,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	// event_id is the message a command needing one is given; "" is the room's newest.
+	EventId string `protobuf:"bytes,3,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	// link picks, for a command needing a url, which of the message's links it is given:
+	// 1 is the first. 0 takes the only one, and asks (links) when there are several.
+	Link          uint32 `protobuf:"varint,4,opt,name=link,proto3" json:"link,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunCommandRequest) Reset() {
+	*x = RunCommandRequest{}
+	mi := &file_device_v1_device_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunCommandRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunCommandRequest) ProtoMessage() {}
+
+func (x *RunCommandRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunCommandRequest.ProtoReflect.Descriptor instead.
+func (*RunCommandRequest) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *RunCommandRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RunCommandRequest) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+func (x *RunCommandRequest) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *RunCommandRequest) GetLink() uint32 {
+	if x != nil {
+		return x.Link
+	}
+	return 0
+}
+
+type RunCommandResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// output is where the program's output went or goes, as its block's `output` says:
+	// compose, status, pager and clipboard bring it back (body); send was sent; none.
+	Output string `protobuf:"bytes,1,opt,name=output,proto3" json:"output,omitempty"`
+	Body   string `protobuf:"bytes,2,opt,name=body,proto3" json:"body,omitempty"`
+	// truncated: the output was cut at what a composer holds; it comes back to compose.
+	Truncated bool `protobuf:"varint,3,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	// why is what the command produced instead of output, when nothing usable: it failed,
+	// timed out, printed nothing, or its message could not be found.
+	Why string `protobuf:"bytes,4,opt,name=why,proto3" json:"why,omitempty"`
+	// links are the message's links, when there are several and none was picked: the
+	// window asks which and runs it again with link set.
+	Links         []string `protobuf:"bytes,5,rep,name=links,proto3" json:"links,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunCommandResponse) Reset() {
+	*x = RunCommandResponse{}
+	mi := &file_device_v1_device_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunCommandResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunCommandResponse) ProtoMessage() {}
+
+func (x *RunCommandResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunCommandResponse.ProtoReflect.Descriptor instead.
+func (*RunCommandResponse) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *RunCommandResponse) GetOutput() string {
+	if x != nil {
+		return x.Output
+	}
+	return ""
+}
+
+func (x *RunCommandResponse) GetBody() string {
+	if x != nil {
+		return x.Body
+	}
+	return ""
+}
+
+func (x *RunCommandResponse) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+func (x *RunCommandResponse) GetWhy() string {
+	if x != nil {
+		return x.Why
+	}
+	return ""
+}
+
+func (x *RunCommandResponse) GetLinks() []string {
+	if x != nil {
+		return x.Links
+	}
+	return nil
+}
+
 var File_device_v1_device_proto protoreflect.FileDescriptor
 
 const file_device_v1_device_proto_rawDesc = "" +
@@ -1762,7 +2070,26 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\x05match\x18\x01 \x01(\tR\x05match\x12\x16\n" +
 	"\x06sender\x18\x02 \x01(\tR\x06sender\x12\x17\n" +
 	"\x04send\x18\x03 \x01(\bH\x00R\x04send\x88\x01\x01B\a\n" +
-	"\x05_send*]\n" +
+	"\x05_send\"*\n" +
+	"\x0fCommandsRequest\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"B\n" +
+	"\x10CommandsResponse\x12.\n" +
+	"\bcommands\x18\x01 \x03(\v2\x12.device.v1.CommandR\bcommands\"O\n" +
+	"\aCommand\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
+	"\aapplies\x18\x02 \x01(\bR\aapplies\x12\x16\n" +
+	"\x06places\x18\x03 \x03(\tR\x06places\"o\n" +
+	"\x11RunCommandRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x17\n" +
+	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x19\n" +
+	"\bevent_id\x18\x03 \x01(\tR\aeventId\x12\x12\n" +
+	"\x04link\x18\x04 \x01(\rR\x04link\"\x86\x01\n" +
+	"\x12RunCommandResponse\x12\x16\n" +
+	"\x06output\x18\x01 \x01(\tR\x06output\x12\x12\n" +
+	"\x04body\x18\x02 \x01(\tR\x04body\x12\x1c\n" +
+	"\ttruncated\x18\x03 \x01(\bR\ttruncated\x12\x10\n" +
+	"\x03why\x18\x04 \x01(\tR\x03why\x12\x14\n" +
+	"\x05links\x18\x05 \x03(\tR\x05links*]\n" +
 	"\vThemeSource\x12\x1c\n" +
 	"\x18THEME_SOURCE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13THEME_SOURCE_SHARED\x10\x01\x12\x17\n" +
@@ -1771,7 +2098,7 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"ThemeScope\x12\x1b\n" +
 	"\x17THEME_SCOPE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12THEME_SCOPE_SHARED\x10\x01\x12\x16\n" +
-	"\x12THEME_SCOPE_DEVICE\x10\x022\xc1\x05\n" +
+	"\x12THEME_SCOPE_DEVICE\x10\x022\xd1\x06\n" +
 	"\rDeviceService\x12=\n" +
 	"\x06Device\x12\x18.device.v1.DeviceRequest\x1a\x19.device.v1.DeviceResponse\x12R\n" +
 	"\rChooseProfile\x12\x1f.device.v1.ChooseProfileRequest\x1a .device.v1.ChooseProfileResponse\x12U\n" +
@@ -1781,7 +2108,10 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\x05Theme\x12\x17.device.v1.ThemeRequest\x1a\x18.device.v1.ThemeResponse\x12L\n" +
 	"\vUpdateTheme\x12\x1d.device.v1.UpdateThemeRequest\x1a\x1e.device.v1.UpdateThemeResponse\x12O\n" +
 	"\fWriteAccount\x12\x1e.device.v1.WriteAccountRequest\x1a\x1f.device.v1.WriteAccountResponse\x12=\n" +
-	"\x06QRCode\x12\x18.device.v1.QRCodeRequest\x1a\x19.device.v1.QRCodeResponseB>Z<github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1b\x06proto3"
+	"\x06QRCode\x12\x18.device.v1.QRCodeRequest\x1a\x19.device.v1.QRCodeResponse\x12C\n" +
+	"\bCommands\x12\x1a.device.v1.CommandsRequest\x1a\x1b.device.v1.CommandsResponse\x12I\n" +
+	"\n" +
+	"RunCommand\x12\x1c.device.v1.RunCommandRequest\x1a\x1d.device.v1.RunCommandResponseB>Z<github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1b\x06proto3"
 
 var (
 	file_device_v1_device_proto_rawDescOnce sync.Once
@@ -1796,7 +2126,7 @@ func file_device_v1_device_proto_rawDescGZIP() []byte {
 }
 
 var file_device_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_device_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_device_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_device_v1_device_proto_goTypes = []any{
 	(ThemeSource)(0),                     // 0: device.v1.ThemeSource
 	(ThemeScope)(0),                      // 1: device.v1.ThemeScope
@@ -1824,18 +2154,23 @@ var file_device_v1_device_proto_goTypes = []any{
 	(*UpdateDeviceSettingsResponse)(nil), // 23: device.v1.UpdateDeviceSettingsResponse
 	(*DeviceSettings)(nil),               // 24: device.v1.DeviceSettings
 	(*ReadRule)(nil),                     // 25: device.v1.ReadRule
-	nil,                                  // 26: device.v1.WriteAccountRequest.ValuesEntry
-	nil,                                  // 27: device.v1.ThemeResponse.ValuesEntry
-	nil,                                  // 28: device.v1.ThemeResponse.NetworkColorsEntry
-	nil,                                  // 29: device.v1.ThemeResponse.IdentitiesEntry
-	nil,                                  // 30: device.v1.DeviceSettings.EmojiExtraEntry
+	(*CommandsRequest)(nil),              // 26: device.v1.CommandsRequest
+	(*CommandsResponse)(nil),             // 27: device.v1.CommandsResponse
+	(*Command)(nil),                      // 28: device.v1.Command
+	(*RunCommandRequest)(nil),            // 29: device.v1.RunCommandRequest
+	(*RunCommandResponse)(nil),           // 30: device.v1.RunCommandResponse
+	nil,                                  // 31: device.v1.WriteAccountRequest.ValuesEntry
+	nil,                                  // 32: device.v1.ThemeResponse.ValuesEntry
+	nil,                                  // 33: device.v1.ThemeResponse.NetworkColorsEntry
+	nil,                                  // 34: device.v1.ThemeResponse.IdentitiesEntry
+	nil,                                  // 35: device.v1.DeviceSettings.EmojiExtraEntry
 }
 var file_device_v1_device_proto_depIdxs = []int32{
-	26, // 0: device.v1.WriteAccountRequest.values:type_name -> device.v1.WriteAccountRequest.ValuesEntry
-	27, // 1: device.v1.ThemeResponse.values:type_name -> device.v1.ThemeResponse.ValuesEntry
+	31, // 0: device.v1.WriteAccountRequest.values:type_name -> device.v1.WriteAccountRequest.ValuesEntry
+	32, // 1: device.v1.ThemeResponse.values:type_name -> device.v1.ThemeResponse.ValuesEntry
 	9,  // 2: device.v1.ThemeResponse.accounts:type_name -> device.v1.ThemeAccount
-	28, // 3: device.v1.ThemeResponse.network_colors:type_name -> device.v1.ThemeResponse.NetworkColorsEntry
-	29, // 4: device.v1.ThemeResponse.identities:type_name -> device.v1.ThemeResponse.IdentitiesEntry
+	33, // 3: device.v1.ThemeResponse.network_colors:type_name -> device.v1.ThemeResponse.NetworkColorsEntry
+	34, // 4: device.v1.ThemeResponse.identities:type_name -> device.v1.ThemeResponse.IdentitiesEntry
 	0,  // 5: device.v1.ThemeValue.source:type_name -> device.v1.ThemeSource
 	1,  // 6: device.v1.ThemeWrite.scope:type_name -> device.v1.ThemeScope
 	11, // 7: device.v1.UpdateThemeRequest.writes:type_name -> device.v1.ThemeWrite
@@ -1844,32 +2179,37 @@ var file_device_v1_device_proto_depIdxs = []int32{
 	24, // 10: device.v1.UpdateDeviceSettingsRequest.settings:type_name -> device.v1.DeviceSettings
 	24, // 11: device.v1.UpdateDeviceSettingsResponse.settings:type_name -> device.v1.DeviceSettings
 	25, // 12: device.v1.DeviceSettings.read_rules:type_name -> device.v1.ReadRule
-	30, // 13: device.v1.DeviceSettings.emoji_extra:type_name -> device.v1.DeviceSettings.EmojiExtraEntry
-	8,  // 14: device.v1.ThemeResponse.ValuesEntry.value:type_name -> device.v1.ThemeValue
-	10, // 15: device.v1.ThemeResponse.IdentitiesEntry.value:type_name -> device.v1.ThemeIdentity
-	16, // 16: device.v1.DeviceService.Device:input_type -> device.v1.DeviceRequest
-	18, // 17: device.v1.DeviceService.ChooseProfile:input_type -> device.v1.ChooseProfileRequest
-	20, // 18: device.v1.DeviceService.DeviceSettings:input_type -> device.v1.DeviceSettingsRequest
-	22, // 19: device.v1.DeviceService.UpdateDeviceSettings:input_type -> device.v1.UpdateDeviceSettingsRequest
-	14, // 20: device.v1.DeviceService.Outgoing:input_type -> device.v1.OutgoingRequest
-	6,  // 21: device.v1.DeviceService.Theme:input_type -> device.v1.ThemeRequest
-	12, // 22: device.v1.DeviceService.UpdateTheme:input_type -> device.v1.UpdateThemeRequest
-	2,  // 23: device.v1.DeviceService.WriteAccount:input_type -> device.v1.WriteAccountRequest
-	4,  // 24: device.v1.DeviceService.QRCode:input_type -> device.v1.QRCodeRequest
-	17, // 25: device.v1.DeviceService.Device:output_type -> device.v1.DeviceResponse
-	19, // 26: device.v1.DeviceService.ChooseProfile:output_type -> device.v1.ChooseProfileResponse
-	21, // 27: device.v1.DeviceService.DeviceSettings:output_type -> device.v1.DeviceSettingsResponse
-	23, // 28: device.v1.DeviceService.UpdateDeviceSettings:output_type -> device.v1.UpdateDeviceSettingsResponse
-	15, // 29: device.v1.DeviceService.Outgoing:output_type -> device.v1.OutgoingResponse
-	7,  // 30: device.v1.DeviceService.Theme:output_type -> device.v1.ThemeResponse
-	13, // 31: device.v1.DeviceService.UpdateTheme:output_type -> device.v1.UpdateThemeResponse
-	3,  // 32: device.v1.DeviceService.WriteAccount:output_type -> device.v1.WriteAccountResponse
-	5,  // 33: device.v1.DeviceService.QRCode:output_type -> device.v1.QRCodeResponse
-	25, // [25:34] is the sub-list for method output_type
-	16, // [16:25] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	35, // 13: device.v1.DeviceSettings.emoji_extra:type_name -> device.v1.DeviceSettings.EmojiExtraEntry
+	28, // 14: device.v1.CommandsResponse.commands:type_name -> device.v1.Command
+	8,  // 15: device.v1.ThemeResponse.ValuesEntry.value:type_name -> device.v1.ThemeValue
+	10, // 16: device.v1.ThemeResponse.IdentitiesEntry.value:type_name -> device.v1.ThemeIdentity
+	16, // 17: device.v1.DeviceService.Device:input_type -> device.v1.DeviceRequest
+	18, // 18: device.v1.DeviceService.ChooseProfile:input_type -> device.v1.ChooseProfileRequest
+	20, // 19: device.v1.DeviceService.DeviceSettings:input_type -> device.v1.DeviceSettingsRequest
+	22, // 20: device.v1.DeviceService.UpdateDeviceSettings:input_type -> device.v1.UpdateDeviceSettingsRequest
+	14, // 21: device.v1.DeviceService.Outgoing:input_type -> device.v1.OutgoingRequest
+	6,  // 22: device.v1.DeviceService.Theme:input_type -> device.v1.ThemeRequest
+	12, // 23: device.v1.DeviceService.UpdateTheme:input_type -> device.v1.UpdateThemeRequest
+	2,  // 24: device.v1.DeviceService.WriteAccount:input_type -> device.v1.WriteAccountRequest
+	4,  // 25: device.v1.DeviceService.QRCode:input_type -> device.v1.QRCodeRequest
+	26, // 26: device.v1.DeviceService.Commands:input_type -> device.v1.CommandsRequest
+	29, // 27: device.v1.DeviceService.RunCommand:input_type -> device.v1.RunCommandRequest
+	17, // 28: device.v1.DeviceService.Device:output_type -> device.v1.DeviceResponse
+	19, // 29: device.v1.DeviceService.ChooseProfile:output_type -> device.v1.ChooseProfileResponse
+	21, // 30: device.v1.DeviceService.DeviceSettings:output_type -> device.v1.DeviceSettingsResponse
+	23, // 31: device.v1.DeviceService.UpdateDeviceSettings:output_type -> device.v1.UpdateDeviceSettingsResponse
+	15, // 32: device.v1.DeviceService.Outgoing:output_type -> device.v1.OutgoingResponse
+	7,  // 33: device.v1.DeviceService.Theme:output_type -> device.v1.ThemeResponse
+	13, // 34: device.v1.DeviceService.UpdateTheme:output_type -> device.v1.UpdateThemeResponse
+	3,  // 35: device.v1.DeviceService.WriteAccount:output_type -> device.v1.WriteAccountResponse
+	5,  // 36: device.v1.DeviceService.QRCode:output_type -> device.v1.QRCodeResponse
+	27, // 37: device.v1.DeviceService.Commands:output_type -> device.v1.CommandsResponse
+	30, // 38: device.v1.DeviceService.RunCommand:output_type -> device.v1.RunCommandResponse
+	28, // [28:39] is the sub-list for method output_type
+	17, // [17:28] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_device_v1_device_proto_init() }
@@ -1884,7 +2224,7 @@ func file_device_v1_device_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_device_v1_device_proto_rawDesc), len(file_device_v1_device_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   29,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -4,7 +4,7 @@
 // goes out as SMS. What is written is a draft (drafts.ts), kept in kithd.
 import { create } from "@bufbuild/protobuf";
 
-import { BackendService } from "../gen/backend/v1/services_pb";
+import { BackendService, type ScheduledMessage, ScheduledMessageSchema } from "../gen/backend/v1/services_pb";
 import {
   type Draft,
   DraftSchema,
@@ -14,7 +14,7 @@ import {
   type Reaction,
   type Room,
 } from "../gen/backend/v1/types_pb";
-import type { DeviceSettings } from "../gen/device/v1/device_pb";
+import { type DeviceSettings, DeviceService } from "../gen/device/v1/device_pb";
 import type { Offered } from "../shared/ipc";
 import { asked, Assist, type CompleteSettings, firstWord, type Offer, Phrases, takePhrase, takeWord } from "./complete";
 import { blank, type Composition, Drafts } from "./drafts";
@@ -32,6 +32,8 @@ import {
 import { call } from "./kith";
 import { mentionAt, rankMembers } from "./mentions";
 import type { Asked, VotersRead } from "./polls";
+import { queued, type Row, rows, whenOf, type When, parseSchedule } from "./schedule";
+import { firstLine, pollOf, typed, type Typed, unescaped, type UserCommand } from "./slash";
 import {
   corrects,
   endsWord,
@@ -45,6 +47,7 @@ import {
 } from "./spell";
 
 const backend = BackendService.method;
+const device = DeviceService.method;
 
 /** How often stored drafts are read again (the TUI's poll), and when the window is shown. */
 export const draftPoll = 60_000;
@@ -59,11 +62,49 @@ export interface Unsent {
   error: string;
 }
 
-/** The question before a send to a chat that sends as SMS: what is waiting for the answer. */
+/** A message whose Schedule failed: queued again as it was, its transaction ID kept, so once. */
+export interface Unscheduled {
+  room: string;
+  message: ScheduledMessage;
+  error: string;
+}
+
+/** What a command sends instead of the composer's words: /me's, /plain's. */
+interface Out {
+  body: string;
+  emote: boolean;
+  plain: boolean;
+}
+
+/** A message to send later: when (as typed, read again when it is queued) and what. */
+interface Later {
+  when: When;
+  text: string;
+  body: string;
+}
+
+/**
+ * The question before a send to a chat that sends as SMS: what is waiting for the
+ * answer, the composer's words, a command's (out) or a message to send later.
+ */
 export interface Asking {
   room: string;
   files: number;
+  out?: Out;
+  later?: Later;
 }
+
+/** The send queue as shown: one room's ("" every room's), each row with where it goes. */
+export interface QueueView {
+  room: string;
+  rows: readonly (Row & { where: string })[];
+  /** Read at least once since shown. */
+  read: boolean;
+}
+
+/** How often the queue shown is read again, and how long past a message's time to read it. */
+export const queueRefresh = 15_000;
+export const queueAfterDue = 1000;
 
 /** What the window draws of the open room's composer. */
 export interface ComposerView {
@@ -87,6 +128,16 @@ export interface ComposerView {
   assist: Offer;
   /** What the composer says of itself (a check before a send, a word not added); "" nothing. */
   note: string;
+  /** Messages whose Schedule failed, to queue again or dismiss. */
+  unscheduled: readonly Unscheduled[];
+  /** The send queue shown, if it is. */
+  queue: QueueView | undefined;
+  /** The commands folder's commands, for the `/` list; empty until read. */
+  commands: readonly UserCommand[];
+  /** The command running ("" none); the links one asks to be given one of; output to read. */
+  running: string;
+  choosing: { name: string; links: readonly string[] } | undefined;
+  reading: { title: string; body: string; truncated: boolean } | undefined;
 }
 
 /** spellSettings is [spell] as the device's settings hold it, the TUI's defaults before they are read. */
@@ -125,6 +176,11 @@ export interface Surroundings {
   messages(room: string): readonly Message[];
   /** The rooms of room's place on the rail, room among them: where its words weigh more. */
   spaceRooms(room: string): string[];
+  /** The commands' own doings in the window: a search of the open room, the file dialog, a room opened. */
+  search(terms: string): void;
+  pick(): void;
+  /** go opens room if the profile has it joined, answering whether it did. */
+  go(room: string): boolean;
 }
 
 /** One run's composer: its drafts, files, failed sends and what it read for them. */
@@ -148,6 +204,16 @@ export class Composer {
   private walk: Walk | undefined;
   private phrases: { rows: readonly Message[]; selves: ReadonlySet<string>; index: Phrases } | undefined;
   private note = "";
+  /** Messages whose Schedule failed; the send queue shown, its reads counted, its next read. */
+  private unscheduled: Unscheduled[] = [];
+  private queue: { room: string; entries: readonly ScheduledMessage[]; read: boolean } | undefined;
+  private queueReads = 0;
+  private queueAgain: ReturnType<typeof setTimeout> | undefined;
+  /** The commands folder's commands by room; the one running; a link asked for; output to read. */
+  private readonly commands = new Map<string, UserCommand[]>();
+  private running = "";
+  private choosing: { room: string; name: string; event: string; links: readonly string[] } | undefined;
+  private reading: { title: string; body: string; truncated: boolean } | undefined;
 
   constructor(private readonly around: Surroundings) {
     this.speller = new Speller(
@@ -224,6 +290,8 @@ export class Composer {
     this.stopTyping();
     this.speller.stop();
     this.assist.stop();
+    clearTimeout(this.queueAgain);
+    this.queue = undefined;
   }
 
   /**
@@ -291,6 +359,22 @@ export class Composer {
           ? this.assist.offer(this.drafts.get(room).body, completeSettings(settings), () => this.phrasesOf(room))
           : { ghost: "", from: "", lead: "", words: [], options: [], marker: "" },
       note: room === this.open ? this.note : "",
+      unscheduled: this.unscheduled.filter((u) => u.room === room),
+      queue:
+        this.queue === undefined
+          ? undefined
+          : {
+              room: this.queue.room,
+              read: this.queue.read,
+              rows: rows(this.queue.entries, this.queue.room, new Date()).map((r) => ({
+                ...r,
+                where: this.around.room(r.room)?.name ?? r.room,
+              })),
+            },
+      commands: this.commands.get(room) ?? [],
+      running: this.running,
+      choosing: this.choosing?.room === room ? this.choosing : undefined,
+      reading: this.reading,
     };
   }
 
@@ -725,7 +809,9 @@ export class Composer {
   /**
    * send sends room's composer: the files offered, the words as their caption, or the
    * words alone; a correction replaces its message. To a chat that sends as SMS it asks
-   * first ([composer] confirm_sms), the composer kept meanwhile.
+   * first ([composer] confirm_sms), the composer kept meanwhile. Words that are a command
+   * (slash.ts) are done instead, as the TUI's submit does: before the spelling check, and
+   * never while correcting a message (its words are the message).
    */
   async send(room: string): Promise<void> {
     const c = this.drafts.get(room);
@@ -733,9 +819,18 @@ export class Composer {
     if (c.body.trim() === "" && files.length === 0 && c.editing === "") {
       return;
     }
+    const t = c.editing === "" ? typed(c.body) : undefined;
+    if (t !== undefined && t.kind !== "message" && !(await this.command(room, t))) {
+      return;
+    }
     if (!(await this.spellGate(room))) {
       return;
     }
+    await this.sendOut(room, files.length);
+  }
+
+  /** sendOut sends the composer's words, or a command's (out), once nothing stands in the way. */
+  private async sendOut(room: string, files: number, out?: Out): Promise<void> {
     const where = this.around.room(room);
     if (where?.replacement) {
       throw new Error("this room was replaced; the room that continues it takes messages");
@@ -744,11 +839,11 @@ export class Composer {
       throw new Error("this room takes no messages from you");
     }
     if (where?.sms && (this.around.settings()?.confirmSms ?? true)) {
-      this.asking = { room, files: files.length };
+      this.asking = { room, files, out };
       this.around.changed();
       return;
     }
-    await this.sendNow(room);
+    await this.sendNow(room, out);
   }
 
   /** answer is the reply to the SMS question: yes sends, no keeps the composer as it is. */
@@ -756,8 +851,13 @@ export class Composer {
     const asking = this.asking;
     this.asking = undefined;
     this.around.changed();
-    if (yes && asking !== undefined) {
-      await this.sendNow(asking.room);
+    if (!yes || asking === undefined) {
+      return;
+    }
+    if (asking.later !== undefined) {
+      await this.scheduleNow(asking.room, asking.later);
+    } else {
+      await this.sendNow(asking.room, asking.out);
     }
   }
 
@@ -774,14 +874,27 @@ export class Composer {
     this.around.changed();
   }
 
-  /** sendNow sends with nothing left to ask. The composer empties at once (written at once). */
-  private async sendNow(room: string): Promise<void> {
-    const c = this.drafts.get(room);
-    const files = this.offered.get(room) ?? [];
-    this.offered.delete(room);
+  /**
+   * sent empties room's composer as a message leaves it, sent or queued (c is it as it
+   * was): a correction's earlier words come back.
+   */
+  private sent(room: string, c: Composition): void {
     this.drafts.set(room, c.editing !== "" ? { ...blank, body: c.editSaved, replyTo: c.replyTo } : blank);
     this.stopTyping();
-    const body = c.body.trim();
+  }
+
+  /**
+   * sendNow sends with nothing left to ask: the composer's words and files, or a command's
+   * words (out). The composer empties at once (written at once).
+   */
+  private async sendNow(room: string, out?: Out): Promise<void> {
+    const c = this.drafts.get(room);
+    const files = out === undefined ? (this.offered.get(room) ?? []) : [];
+    if (out === undefined) {
+      this.offered.delete(room);
+    }
+    this.sent(room, c);
+    const body = out?.body ?? (c.editing === "" ? unescaped(c.body.trim()) : c.body.trim());
     if (files.length > 0 && c.editing === "") {
       await this.sendFiles(room, files, body);
       return;
@@ -790,10 +903,11 @@ export class Composer {
       body,
       mentions: [...c.mentions],
       replyTo: c.editing === "" ? c.replyTo : "",
+      emote: out?.emote ?? false,
       // A reply goes where its message is; anything else into the thread open, if any.
       threadRoot: c.replyTo === "" && c.editing === "" ? this.around.thread(room) || c.threadRoot : c.threadRoot,
       edits: c.editing,
-      plain: !(this.around.settings()?.markdown ?? true),
+      plain: (out?.plain ?? false) || !(this.around.settings()?.markdown ?? true),
       // One ID per message: sent again, it is the same message (domain.Draft.TxnID).
       txnId: `kith-${crypto.randomUUID()}`,
     });
@@ -803,6 +917,378 @@ export class Composer {
       this.unsent = [...this.unsent, { room, draft, error: err instanceof Error ? err.message : String(err) }];
       this.around.changed();
     }
+  }
+
+  /**
+   * later queues room's words to send at a time given as kind says (the Later form): the
+   * TUI's /at and /in rules. Not while correcting a message: a correction is not queued.
+   */
+  async later(room: string, kind: When, text: string): Promise<void> {
+    const c = this.drafts.get(room);
+    if (c.editing !== "") {
+      return;
+    }
+    const body = unescaped(c.body.trim());
+    if (body === "") {
+      this.say("nothing written to send later");
+      return;
+    }
+    await this.scheduleOut(room, { when: kind, text: text.trim(), body });
+  }
+
+  /** scheduleOut queues a message once its time reads and nothing else stands in the way (the TUI's scheduleComposed). */
+  private async scheduleOut(room: string, later: Later): Promise<void> {
+    const at = whenOf(later.when, later.text, new Date());
+    if (!(at instanceof Date)) {
+      this.say(`/${later.when} ${at.error}`);
+      return;
+    }
+    const where = this.around.room(room);
+    if (where?.readOnly) {
+      throw new Error("this room takes no messages from you");
+    }
+    if (where?.sms && (this.around.settings()?.confirmSms ?? true)) {
+      this.asking = { room, files: 0, later };
+      this.around.changed();
+      return;
+    }
+    await this.scheduleNow(room, later);
+  }
+
+  /**
+   * scheduleNow queues the message in kithd, its time read now, with the reply, thread and
+   * mentions the composer holds, and empties the composer as a send does. One that is not
+   * queued waits to be queued again under its transaction ID: kithd queues it once.
+   */
+  private async scheduleNow(room: string, later: Later): Promise<void> {
+    const at = whenOf(later.when, later.text, new Date());
+    if (!(at instanceof Date)) {
+      this.say(`/${later.when} ${at.error}`);
+      return;
+    }
+    const c = this.drafts.get(room);
+    const message = create(ScheduledMessageSchema, {
+      roomId: room,
+      body: later.body,
+      // A reply goes where its message is; anything else into the thread open, if any.
+      threadRoot: c.replyTo === "" ? this.around.thread(room) || c.threadRoot : c.threadRoot,
+      replyTo: c.replyTo,
+      mentions: [...c.mentions],
+      atMs: BigInt(at.getTime()),
+      writtenMs: BigInt(Date.now()),
+      txnId: `kith-${crypto.randomUUID()}`,
+    });
+    this.sent(room, c);
+    await this.queueIt({ room, message, error: "" });
+  }
+
+  /** queueIt asks kithd to queue u's message, saying where it went or keeping it to ask again. */
+  private async queueIt(u: Unscheduled): Promise<void> {
+    try {
+      await call(backend.schedule, { message: u.message });
+      this.unscheduled = this.unscheduled.filter((x) => x.message.txnId !== u.message.txnId);
+      const where = this.around.room(u.room)?.name ?? u.room;
+      const at = new Date(Number(u.message.atMs));
+      this.say(queued(at, where, u.message.threadRoot !== "", u.message.replyTo !== ""));
+      if (this.queue !== undefined) {
+        this.readQueue();
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      const others = this.unscheduled.filter((x) => x.message.txnId !== u.message.txnId);
+      this.unscheduled = [...others, { ...u, error }];
+      this.around.changed();
+    }
+  }
+
+  /** scheduleAgain queues a message whose Schedule failed, as it was: once, its answer lost or not. */
+  async scheduleAgain(u: Unscheduled): Promise<void> {
+    await this.queueIt(u);
+  }
+
+  /** dismissUnscheduled forgets a message whose Schedule failed. */
+  dismissUnscheduled(u: Unscheduled): void {
+    this.unscheduled = this.unscheduled.filter((x) => x.message.txnId !== u.message.txnId);
+    this.around.changed();
+  }
+
+  /** showQueue shows the send queue, room's ("" every room's), read again while it is shown. */
+  showQueue(room: string): void {
+    this.queue = { room, entries: this.queue?.entries ?? [], read: false };
+    this.around.changed();
+    this.readQueue();
+  }
+
+  /** closeQueue puts the queue away; a read on its way is dropped. */
+  closeQueue(): void {
+    this.queueReads++;
+    clearTimeout(this.queueAgain);
+    this.queue = undefined;
+    this.around.changed();
+  }
+
+  /**
+   * readQueue reads the queue as kithd holds it: only the newest read is shown. While
+   * shown, it is read again a little after its soonest message is due, and every
+   * queueRefresh, so one sent, failing or refused meanwhile shows as it is.
+   */
+  private readQueue(): void {
+    const mine = ++this.queueReads;
+    clearTimeout(this.queueAgain);
+    const again = (entries: readonly ScheduledMessage[]) => {
+      const now = Date.now();
+      const due = entries.map((m) => Number(m.atMs) + queueAfterDue).filter((at) => at > now);
+      const next = Math.min(now + queueRefresh, ...due);
+      this.queueAgain = setTimeout(() => {
+        this.readQueue();
+      }, next - now);
+    };
+    call(backend.scheduledMessages, {}).then(
+      (r) => {
+        if (mine === this.queueReads && this.queue !== undefined) {
+          this.queue = { ...this.queue, entries: r.messages, read: true };
+          again(r.messages);
+          this.around.changed();
+        }
+      },
+      (err: unknown) => {
+        if (mine === this.queueReads && this.queue !== undefined) {
+          this.queue = { ...this.queue, read: true };
+          again(this.queue.entries);
+          this.around.failed(err);
+        }
+      },
+    );
+  }
+
+  /**
+   * cancelQueued cancels a queued message. kithd says whether it was still waiting: one
+   * whose time came first (or canceled elsewhere) is not said to be canceled.
+   */
+  async cancelQueued(id: string): Promise<void> {
+    try {
+      const r = await call(backend.cancelScheduled, { id });
+      this.say(r.canceled ? "canceled" : "it was no longer waiting: it went out, or was canceled elsewhere");
+    } finally {
+      this.readQueue();
+    }
+  }
+
+  /** retryQueued sends a refused or failing queued message now. */
+  async retryQueued(id: string): Promise<void> {
+    try {
+      await call(backend.retryScheduled, { id });
+      this.say("trying again");
+    } finally {
+      this.readQueue();
+    }
+  }
+
+  /** wantCommands reads the commands folder's commands for room's `/` list, as the TUI scans it as the list opens. */
+  wantCommands(room: string): void {
+    void this.readCommands(room);
+  }
+
+  private async readCommands(room: string): Promise<UserCommand[] | undefined> {
+    try {
+      const r = await call(device.commands, { roomId: room });
+      const listed = r.commands.map((c) => ({ name: c.name, applies: c.applies, places: c.places }));
+      this.commands.set(room, listed);
+      this.around.changed();
+      return listed;
+    } catch (err) {
+      this.around.failed(err);
+      return undefined;
+    }
+  }
+
+  /**
+   * command does a command typed into room's composer, answering whether its words are a
+   * message after all (a slash word no command has). A command the window has not got,
+   * or one missing its argument, says so and keeps the words.
+   */
+  private async command(room: string, t: Exclude<Typed, { kind: "message" }>): Promise<boolean> {
+    if (t.kind === "user") {
+      return this.userCommand(room, t.name, t.arg);
+    }
+    const { command, arg } = t;
+    if (!command.window) {
+      this.say(`${command.name} is in the TUI; it is not in the window yet`);
+      return false;
+    }
+    if (command.arg !== "" && !command.argOptional && arg === "") {
+      this.say(`${command.name} ${command.arg}`);
+      return false;
+    }
+    const where = this.around.room(room);
+    switch (command.name) {
+      case "/me":
+      case "/plain":
+        await this.sendOut(room, 0, { body: arg, emote: command.name === "/me", plain: command.name === "/plain" });
+        return false;
+      case "/at":
+      case "/in": {
+        const kind = command.name === "/at" ? "at" : "in";
+        const parsed = parseSchedule(kind, arg, new Date());
+        if ("error" in parsed) {
+          this.say(`/${kind} ${parsed.error}`);
+          return false;
+        }
+        await this.scheduleOut(room, { when: kind, text: arg.trim().split(" ", 1)[0] ?? "", body: parsed.body });
+        return false;
+      }
+      case "/poll": {
+        const poll = pollOf(arg);
+        if (poll === undefined) {
+          this.say("/poll <question> | <answer1> | <answer2> [| …] [| any]");
+          return false;
+        }
+        this.done(room);
+        await this.ask(room, poll);
+        return false;
+      }
+    }
+    // The rest act on the room and leave nothing to send: the command's words go.
+    this.done(room);
+    switch (command.name) {
+      case "/scheduled":
+        this.showQueue(room);
+        break;
+      case "/search":
+        this.around.search(arg);
+        break;
+      case "/upload":
+        this.around.pick();
+        break;
+      case "/topic":
+        if (where?.topic) {
+          this.reading = { title: where.name || room, body: where.topic, truncated: false };
+          this.around.changed();
+        } else {
+          this.say("this room has no topic");
+        }
+        break;
+      case "/replacement":
+        if (!where?.replacement) {
+          this.say("this room has not been replaced");
+        } else if (!this.around.go(where.replacement)) {
+          this.say("the room that replaced this one is not joined here: the TUI joins it");
+        }
+        break;
+    }
+    return false;
+  }
+
+  /** done empties room's composer of a command's words, as the TUI's doneWithCommand does. */
+  private done(room: string): void {
+    this.drafts.set(room, { ...this.drafts.get(room), body: "", mentions: [] });
+  }
+
+  /**
+   * userCommand runs a command of the commands folder (kith-relay runs it), or answers
+   * that the words are a message: no command has that name. Outside its places it is
+   * refused, never sent as words; and the window gives it no words of its own.
+   */
+  private async userCommand(room: string, name: string, arg: string): Promise<boolean> {
+    const listed = await this.readCommands(room);
+    if (listed === undefined) {
+      return false; // the list could not be read: nothing is sent unsure
+    }
+    const found = listed.find((c) => c.name === name);
+    if (found === undefined) {
+      return true;
+    }
+    if (!found.applies) {
+      this.say(`/${name} is only for ${found.places.join(", ")}`);
+    } else if (arg !== "") {
+      this.say(`/${name}: the window runs your commands with no words after them`);
+    } else if (this.running !== "") {
+      this.say(`/${this.running} is still running`);
+    } else {
+      await this.runCommand(room, name, this.drafts.get(room).replyTo, 0);
+    }
+    return false;
+  }
+
+  /** runCommand has the relay run name in room, on event ("" the room's newest), given its link-th link. */
+  private async runCommand(room: string, name: string, event: string, link: number): Promise<void> {
+    this.running = name;
+    this.choosing = undefined;
+    this.say(`/${name} …`);
+    try {
+      const r = await call(device.runCommand, { name, roomId: room, eventId: event, link });
+      this.ran(room, name, event, r);
+    } catch (err) {
+      this.say(`/${name}: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      this.running = "";
+      this.around.changed();
+    }
+  }
+
+  /** ran puts a command's output where its block says, as the TUI's handleCommandRan does. */
+  private ran(
+    room: string,
+    name: string,
+    event: string,
+    r: { output: string; body: string; truncated: boolean; why: string; links: readonly string[] },
+  ): void {
+    const said = `/${name}`;
+    if (r.links.length > 0) {
+      this.choosing = { room, name, event, links: r.links };
+      this.say(`${said} — which link?`);
+      return;
+    }
+    if (r.why !== "") {
+      this.say(`${said}: ${r.why}`);
+      return;
+    }
+    switch (r.output) {
+      case "send":
+        // Sent into the room by the relay: no reply or mentions went with it (the TUI's).
+        this.drafts.set(room, { ...this.drafts.get(room), body: "", mentions: [], replyTo: "" });
+        this.say(`${said}: sent`);
+        return;
+      case "status":
+        this.done(room);
+        this.say(`${said}: ${firstLine(r.body)}`);
+        return;
+      case "pager":
+        this.done(room);
+        this.reading = { title: said, body: r.body, truncated: r.truncated };
+        this.say("");
+        return;
+      case "clipboard":
+        this.done(room);
+        this.say(`${said}'s output is copied`);
+        return;
+      case "none":
+        this.done(room);
+        this.say(`${said} ran`);
+        return;
+    }
+    this.drafts.set(room, { ...this.drafts.get(room), body: r.body });
+    this.say(`${said}${r.truncated ? " printed more than fits;" : ""} — enter to send`);
+  }
+
+  /** chooseLink runs the command that asked which link again, given the i-th (from 0). */
+  async chooseLink(i: number): Promise<void> {
+    const c = this.choosing;
+    if (c !== undefined) {
+      await this.runCommand(c.room, c.name, c.event, i + 1);
+    }
+  }
+
+  /** closeChoosing drops the question which link, the command not run. */
+  closeChoosing(): void {
+    this.choosing = undefined;
+    this.around.changed();
+  }
+
+  /** closeReading puts a command's output, or a topic, away. */
+  closeReading(): void {
+    this.reading = undefined;
+    this.around.changed();
   }
 
   /** sendFiles sends each file, the words as the first one's caption. */

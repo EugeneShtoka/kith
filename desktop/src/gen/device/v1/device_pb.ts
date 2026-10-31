@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file device/v1/device.proto.
  */
 export const file_device_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEijwEKE1dyaXRlQWNjb3VudFJlcXVlc3QSDQoFdGFibGUYASABKAkSOgoGdmFsdWVzGAIgAygLMiouZGV2aWNlLnYxLldyaXRlQWNjb3VudFJlcXVlc3QuVmFsdWVzRW50cnkaLQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASIWChRXcml0ZUFjY291bnRSZXNwb25zZSIdCg1RUkNvZGVSZXF1ZXN0EgwKBGRhdGEYASABKAkiHgoOUVJDb2RlUmVzcG9uc2USDAoEZGFyaxgBIAEoDCIOCgxUaGVtZVJlcXVlc3QihgQKDVRoZW1lUmVzcG9uc2USNAoGdmFsdWVzGAEgAygLMiQuZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2UuVmFsdWVzRW50cnkSFwoPY29uZmlnX3JldmlzaW9uGAIgASgJEhcKD2RldmljZV9yZXZpc2lvbhgDIAEoCRIpCghhY2NvdW50cxgEIAMoCzIXLmRldmljZS52MS5UaGVtZUFjY291bnQSFgoOc2VuZGVyX3BhbGV0dGUYBSADKAkSQwoObmV0d29ya19jb2xvcnMYBiADKAsyKy5kZXZpY2UudjEuVGhlbWVSZXNwb25zZS5OZXR3b3JrQ29sb3JzRW50cnkSPAoKaWRlbnRpdGllcxgHIAMoCzIoLmRldmljZS52MS5UaGVtZVJlc3BvbnNlLklkZW50aXRpZXNFbnRyeRpECgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5kZXZpY2UudjEuVGhlbWVWYWx1ZToCOAEaNAoSTmV0d29ya0NvbG9yc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaSwoPSWRlbnRpdGllc0VudHJ5EgsKA2tleRgBIAEoCRInCgV2YWx1ZRgCIAEoCzIYLmRldmljZS52MS5UaGVtZUlkZW50aXR5OgI4ASJjCgpUaGVtZVZhbHVlEg0KBXZhbHVlGAEgASgJEiYKBnNvdXJjZRgCIAEoDjIWLmRldmljZS52MS5UaGVtZVNvdXJjZRIOCgZzaGFyZWQYAyABKAkSDgoGZGV2aWNlGAQgASgJIjkKDFRoZW1lQWNjb3VudBIKCgJvbhgBIAEoCRIPCgduZXR3b3JrGAIgASgJEgwKBG5hbWUYAyABKAkiKwoNVGhlbWVJZGVudGl0eRILCgNrZXkYASABKAkSDQoFY29sb3IYAiABKAkiTgoKVGhlbWVXcml0ZRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAkSJAoFc2NvcGUYAyABKA4yFS5kZXZpY2UudjEuVGhlbWVTY29wZSJtChJVcGRhdGVUaGVtZVJlcXVlc3QSFwoPY29uZmlnX3JldmlzaW9uGAEgASgJEhcKD2RldmljZV9yZXZpc2lvbhgCIAEoCRIlCgZ3cml0ZXMYAyADKAsyFS5kZXZpY2UudjEuVGhlbWVXcml0ZSI+ChNVcGRhdGVUaGVtZVJlc3BvbnNlEicKBXRoZW1lGAEgASgLMhguZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2UiHwoPT3V0Z29pbmdSZXF1ZXN0EgwKBHBhdGgYASABKAkiTAoQT3V0Z29pbmdSZXNwb25zZRIMCgRwYXRoGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGY29waWVkGAMgASgIEgwKBGtlcHQYBCABKAgiDwoNRGV2aWNlUmVxdWVzdCJTCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCRIOCgZicmlkZ2UYBCABKAkiJAoUQ2hvb3NlUHJvZmlsZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSIoChVDaG9vc2VQcm9maWxlUmVzcG9uc2USDwoHcHJvZmlsZRgBIAEoCSIXChVEZXZpY2VTZXR0aW5nc1JlcXVlc3QiVwoWRGV2aWNlU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncxIQCghyZXZpc2lvbhgCIAEoCSJhChtVcGRhdGVEZXZpY2VTZXR0aW5nc1JlcXVlc3QSFQoNYmFzZV9yZXZpc2lvbhgBIAEoCRIrCghzZXR0aW5ncxgCIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncyJdChxVcGRhdGVEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzEhAKCHJldmlzaW9uGAIgASgJIqoFCg5EZXZpY2VTZXR0aW5ncxIVCg1zZW5kX3JlY2VpcHRzGAEgASgIEicKCnJlYWRfcnVsZXMYAiADKAsyEy5kZXZpY2UudjEuUmVhZFJ1bGUSEwoLdW5yZWFkX2xpbmUYAyABKAgSEAoIbWFya2Rvd24YBCABKAgSEwoLY29uZmlybV9zbXMYBSABKAgSEwoLc2VuZF90eXBpbmcYBiABKAgSEQoJc2tpbl90b25lGAcgASgJEhEKCWVtb2ppX3NldBgIIAEoCRI+CgtlbW9qaV9leHRyYRgJIAMoCzIpLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncy5FbW9qaUV4dHJhRW50cnkSFwoPcmVhY3Rpb25zX3Njb3BlGAogASgJEhgKEHJlYWN0aW9uc19zdGF0aWMYCyADKAkSFwoPc3BlbGxfdW5kZXJsaW5lGAwgASgJEhYKDnJhcmVfdW5kZXJsaW5lGA0gASgJEhkKEWNoZWNrX2JlZm9yZV9zZW5kGA4gASgIEhgKEHJhcmVfYmVmb3JlX3NlbmQYDyABKAgSEwoLYXV0b2NvcnJlY3QYECABKAkSFgoOc3BlbGxfZGVjbGluZWQYESADKAkSHAoUZnJlcXVlbmNpZXNfZGVjbGluZWQYEiADKAkSEAoIY29tcGxldGUYEyABKAgSFgoOY29tcGxldGVfZ2hvc3QYFCABKAgSFgoOY29tcGxldGVfcmF0aW8YFSABKAMSFgoOY29tcGxldGVfc2NvcGUYFiABKAkSGAoQY29tcGxldGVfc291cmNlcxgXIAMoCRIWCg5tb2RlbF9kZWNsaW5lZBgYIAEoCBoxCg9FbW9qaUV4dHJhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJFCghSZWFkUnVsZRINCgVtYXRjaBgBIAEoCRIOCgZzZW5kZXIYAiABKAkSEQoEc2VuZBgDIAEoCEgAiAEBQgcKBV9zZW5kKl0KC1RoZW1lU291cmNlEhwKGFRIRU1FX1NPVVJDRV9VTlNQRUNJRklFRBAAEhcKE1RIRU1FX1NPVVJDRV9TSEFSRUQQARIXChNUSEVNRV9TT1VSQ0VfREVWSUNFEAIqWQoKVGhlbWVTY29wZRIbChdUSEVNRV9TQ09QRV9VTlNQRUNJRklFRBAAEhYKElRIRU1FX1NDT1BFX1NIQVJFRBABEhYKElRIRU1FX1NDT1BFX0RFVklDRRACMsEFCg1EZXZpY2VTZXJ2aWNlEj0KBkRldmljZRIYLmRldmljZS52MS5EZXZpY2VSZXF1ZXN0GhkuZGV2aWNlLnYxLkRldmljZVJlc3BvbnNlElIKDUNob29zZVByb2ZpbGUSHy5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlcXVlc3QaIC5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlc3BvbnNlElUKDkRldmljZVNldHRpbmdzEiAuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzUmVxdWVzdBohLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEmcKFFVwZGF0ZURldmljZVNldHRpbmdzEiYuZGV2aWNlLnYxLlVwZGF0ZURldmljZVNldHRpbmdzUmVxdWVzdBonLmRldmljZS52MS5VcGRhdGVEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEkMKCE91dGdvaW5nEhouZGV2aWNlLnYxLk91dGdvaW5nUmVxdWVzdBobLmRldmljZS52MS5PdXRnb2luZ1Jlc3BvbnNlEjoKBVRoZW1lEhcuZGV2aWNlLnYxLlRoZW1lUmVxdWVzdBoYLmRldmljZS52MS5UaGVtZVJlc3BvbnNlEkwKC1VwZGF0ZVRoZW1lEh0uZGV2aWNlLnYxLlVwZGF0ZVRoZW1lUmVxdWVzdBoeLmRldmljZS52MS5VcGRhdGVUaGVtZVJlc3BvbnNlEk8KDFdyaXRlQWNjb3VudBIeLmRldmljZS52MS5Xcml0ZUFjY291bnRSZXF1ZXN0Gh8uZGV2aWNlLnYxLldyaXRlQWNjb3VudFJlc3BvbnNlEj0KBlFSQ29kZRIYLmRldmljZS52MS5RUkNvZGVSZXF1ZXN0GhkuZGV2aWNlLnYxLlFSQ29kZVJlc3BvbnNlQj5aPGdpdGh1Yi5jb20vRXVnZW5lU2h0b2thL2tpdGgvaW50ZXJuYWwvYXBpL2RldmljZS92MTtkZXZpY2V2MWIGcHJvdG8z");
+  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEijwEKE1dyaXRlQWNjb3VudFJlcXVlc3QSDQoFdGFibGUYASABKAkSOgoGdmFsdWVzGAIgAygLMiouZGV2aWNlLnYxLldyaXRlQWNjb3VudFJlcXVlc3QuVmFsdWVzRW50cnkaLQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASIWChRXcml0ZUFjY291bnRSZXNwb25zZSIdCg1RUkNvZGVSZXF1ZXN0EgwKBGRhdGEYASABKAkiHgoOUVJDb2RlUmVzcG9uc2USDAoEZGFyaxgBIAEoDCIOCgxUaGVtZVJlcXVlc3QihgQKDVRoZW1lUmVzcG9uc2USNAoGdmFsdWVzGAEgAygLMiQuZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2UuVmFsdWVzRW50cnkSFwoPY29uZmlnX3JldmlzaW9uGAIgASgJEhcKD2RldmljZV9yZXZpc2lvbhgDIAEoCRIpCghhY2NvdW50cxgEIAMoCzIXLmRldmljZS52MS5UaGVtZUFjY291bnQSFgoOc2VuZGVyX3BhbGV0dGUYBSADKAkSQwoObmV0d29ya19jb2xvcnMYBiADKAsyKy5kZXZpY2UudjEuVGhlbWVSZXNwb25zZS5OZXR3b3JrQ29sb3JzRW50cnkSPAoKaWRlbnRpdGllcxgHIAMoCzIoLmRldmljZS52MS5UaGVtZVJlc3BvbnNlLklkZW50aXRpZXNFbnRyeRpECgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5kZXZpY2UudjEuVGhlbWVWYWx1ZToCOAEaNAoSTmV0d29ya0NvbG9yc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaSwoPSWRlbnRpdGllc0VudHJ5EgsKA2tleRgBIAEoCRInCgV2YWx1ZRgCIAEoCzIYLmRldmljZS52MS5UaGVtZUlkZW50aXR5OgI4ASJjCgpUaGVtZVZhbHVlEg0KBXZhbHVlGAEgASgJEiYKBnNvdXJjZRgCIAEoDjIWLmRldmljZS52MS5UaGVtZVNvdXJjZRIOCgZzaGFyZWQYAyABKAkSDgoGZGV2aWNlGAQgASgJIjkKDFRoZW1lQWNjb3VudBIKCgJvbhgBIAEoCRIPCgduZXR3b3JrGAIgASgJEgwKBG5hbWUYAyABKAkiKwoNVGhlbWVJZGVudGl0eRILCgNrZXkYASABKAkSDQoFY29sb3IYAiABKAkiTgoKVGhlbWVXcml0ZRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAkSJAoFc2NvcGUYAyABKA4yFS5kZXZpY2UudjEuVGhlbWVTY29wZSJtChJVcGRhdGVUaGVtZVJlcXVlc3QSFwoPY29uZmlnX3JldmlzaW9uGAEgASgJEhcKD2RldmljZV9yZXZpc2lvbhgCIAEoCRIlCgZ3cml0ZXMYAyADKAsyFS5kZXZpY2UudjEuVGhlbWVXcml0ZSI+ChNVcGRhdGVUaGVtZVJlc3BvbnNlEicKBXRoZW1lGAEgASgLMhguZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2UiHwoPT3V0Z29pbmdSZXF1ZXN0EgwKBHBhdGgYASABKAkiTAoQT3V0Z29pbmdSZXNwb25zZRIMCgRwYXRoGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGY29waWVkGAMgASgIEgwKBGtlcHQYBCABKAgiDwoNRGV2aWNlUmVxdWVzdCJTCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCRIOCgZicmlkZ2UYBCABKAkiJAoUQ2hvb3NlUHJvZmlsZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSIoChVDaG9vc2VQcm9maWxlUmVzcG9uc2USDwoHcHJvZmlsZRgBIAEoCSIXChVEZXZpY2VTZXR0aW5nc1JlcXVlc3QiVwoWRGV2aWNlU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncxIQCghyZXZpc2lvbhgCIAEoCSJhChtVcGRhdGVEZXZpY2VTZXR0aW5nc1JlcXVlc3QSFQoNYmFzZV9yZXZpc2lvbhgBIAEoCRIrCghzZXR0aW5ncxgCIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncyJdChxVcGRhdGVEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzEhAKCHJldmlzaW9uGAIgASgJIqoFCg5EZXZpY2VTZXR0aW5ncxIVCg1zZW5kX3JlY2VpcHRzGAEgASgIEicKCnJlYWRfcnVsZXMYAiADKAsyEy5kZXZpY2UudjEuUmVhZFJ1bGUSEwoLdW5yZWFkX2xpbmUYAyABKAgSEAoIbWFya2Rvd24YBCABKAgSEwoLY29uZmlybV9zbXMYBSABKAgSEwoLc2VuZF90eXBpbmcYBiABKAgSEQoJc2tpbl90b25lGAcgASgJEhEKCWVtb2ppX3NldBgIIAEoCRI+CgtlbW9qaV9leHRyYRgJIAMoCzIpLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncy5FbW9qaUV4dHJhRW50cnkSFwoPcmVhY3Rpb25zX3Njb3BlGAogASgJEhgKEHJlYWN0aW9uc19zdGF0aWMYCyADKAkSFwoPc3BlbGxfdW5kZXJsaW5lGAwgASgJEhYKDnJhcmVfdW5kZXJsaW5lGA0gASgJEhkKEWNoZWNrX2JlZm9yZV9zZW5kGA4gASgIEhgKEHJhcmVfYmVmb3JlX3NlbmQYDyABKAgSEwoLYXV0b2NvcnJlY3QYECABKAkSFgoOc3BlbGxfZGVjbGluZWQYESADKAkSHAoUZnJlcXVlbmNpZXNfZGVjbGluZWQYEiADKAkSEAoIY29tcGxldGUYEyABKAgSFgoOY29tcGxldGVfZ2hvc3QYFCABKAgSFgoOY29tcGxldGVfcmF0aW8YFSABKAMSFgoOY29tcGxldGVfc2NvcGUYFiABKAkSGAoQY29tcGxldGVfc291cmNlcxgXIAMoCRIWCg5tb2RlbF9kZWNsaW5lZBgYIAEoCBoxCg9FbW9qaUV4dHJhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJFCghSZWFkUnVsZRINCgVtYXRjaBgBIAEoCRIOCgZzZW5kZXIYAiABKAkSEQoEc2VuZBgDIAEoCEgAiAEBQgcKBV9zZW5kIiIKD0NvbW1hbmRzUmVxdWVzdBIPCgdyb29tX2lkGAEgASgJIjgKEENvbW1hbmRzUmVzcG9uc2USJAoIY29tbWFuZHMYASADKAsyEi5kZXZpY2UudjEuQ29tbWFuZCI4CgdDb21tYW5kEgwKBG5hbWUYASABKAkSDwoHYXBwbGllcxgCIAEoCBIOCgZwbGFjZXMYAyADKAkiUgoRUnVuQ29tbWFuZFJlcXVlc3QSDAoEbmFtZRgBIAEoCRIPCgdyb29tX2lkGAIgASgJEhAKCGV2ZW50X2lkGAMgASgJEgwKBGxpbmsYBCABKA0iYQoSUnVuQ29tbWFuZFJlc3BvbnNlEg4KBm91dHB1dBgBIAEoCRIMCgRib2R5GAIgASgJEhEKCXRydW5jYXRlZBgDIAEoCBILCgN3aHkYBCABKAkSDQoFbGlua3MYBSADKAkqXQoLVGhlbWVTb3VyY2USHAoYVEhFTUVfU09VUkNFX1VOU1BFQ0lGSUVEEAASFwoTVEhFTUVfU09VUkNFX1NIQVJFRBABEhcKE1RIRU1FX1NPVVJDRV9ERVZJQ0UQAipZCgpUaGVtZVNjb3BlEhsKF1RIRU1FX1NDT1BFX1VOU1BFQ0lGSUVEEAASFgoSVEhFTUVfU0NPUEVfU0hBUkVEEAESFgoSVEhFTUVfU0NPUEVfREVWSUNFEAIy0QYKDURldmljZVNlcnZpY2USPQoGRGV2aWNlEhguZGV2aWNlLnYxLkRldmljZVJlcXVlc3QaGS5kZXZpY2UudjEuRGV2aWNlUmVzcG9uc2USUgoNQ2hvb3NlUHJvZmlsZRIfLmRldmljZS52MS5DaG9vc2VQcm9maWxlUmVxdWVzdBogLmRldmljZS52MS5DaG9vc2VQcm9maWxlUmVzcG9uc2USVQoORGV2aWNlU2V0dGluZ3MSIC5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXF1ZXN0GiEuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzUmVzcG9uc2USZwoUVXBkYXRlRGV2aWNlU2V0dGluZ3MSJi5kZXZpY2UudjEuVXBkYXRlRGV2aWNlU2V0dGluZ3NSZXF1ZXN0GicuZGV2aWNlLnYxLlVwZGF0ZURldmljZVNldHRpbmdzUmVzcG9uc2USQwoIT3V0Z29pbmcSGi5kZXZpY2UudjEuT3V0Z29pbmdSZXF1ZXN0GhsuZGV2aWNlLnYxLk91dGdvaW5nUmVzcG9uc2USOgoFVGhlbWUSFy5kZXZpY2UudjEuVGhlbWVSZXF1ZXN0GhguZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2USTAoLVXBkYXRlVGhlbWUSHS5kZXZpY2UudjEuVXBkYXRlVGhlbWVSZXF1ZXN0Gh4uZGV2aWNlLnYxLlVwZGF0ZVRoZW1lUmVzcG9uc2USTwoMV3JpdGVBY2NvdW50Eh4uZGV2aWNlLnYxLldyaXRlQWNjb3VudFJlcXVlc3QaHy5kZXZpY2UudjEuV3JpdGVBY2NvdW50UmVzcG9uc2USPQoGUVJDb2RlEhguZGV2aWNlLnYxLlFSQ29kZVJlcXVlc3QaGS5kZXZpY2UudjEuUVJDb2RlUmVzcG9uc2USQwoIQ29tbWFuZHMSGi5kZXZpY2UudjEuQ29tbWFuZHNSZXF1ZXN0GhsuZGV2aWNlLnYxLkNvbW1hbmRzUmVzcG9uc2USSQoKUnVuQ29tbWFuZBIcLmRldmljZS52MS5SdW5Db21tYW5kUmVxdWVzdBodLmRldmljZS52MS5SdW5Db21tYW5kUmVzcG9uc2VCPlo8Z2l0aHViLmNvbS9FdWdlbmVTaHRva2Eva2l0aC9pbnRlcm5hbC9hcGkvZGV2aWNlL3YxO2RldmljZXYxYgZwcm90bzM");
 
 /**
  * @generated from message device.v1.WriteAccountRequest
@@ -794,6 +794,163 @@ export const ReadRuleSchema: GenMessage<ReadRule> = /*@__PURE__*/
   messageDesc(file_device_v1_device, 23);
 
 /**
+ * @generated from message device.v1.CommandsRequest
+ */
+export type CommandsRequest = Message<"device.v1.CommandsRequest"> & {
+  /**
+   * room_id is the room the commands are for: each says whether it runs there.
+   *
+   * @generated from field: string room_id = 1;
+   */
+  roomId: string;
+};
+
+/**
+ * Describes the message device.v1.CommandsRequest.
+ * Use `create(CommandsRequestSchema)` to create a new message.
+ */
+export const CommandsRequestSchema: GenMessage<CommandsRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 24);
+
+/**
+ * @generated from message device.v1.CommandsResponse
+ */
+export type CommandsResponse = Message<"device.v1.CommandsResponse"> & {
+  /**
+   * @generated from field: repeated device.v1.Command commands = 1;
+   */
+  commands: Command[];
+};
+
+/**
+ * Describes the message device.v1.CommandsResponse.
+ * Use `create(CommandsResponseSchema)` to create a new message.
+ */
+export const CommandsResponseSchema: GenMessage<CommandsResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 25);
+
+/**
+ * Command is one command of the commands directory.
+ *
+ * @generated from message device.v1.Command
+ */
+export type Command = Message<"device.v1.Command"> & {
+  /**
+   * name is the file's, without the slash.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * applies is whether it runs in the room asked about: its `in` places hold it, or it
+   * has none; places are those, for saying where it does.
+   *
+   * @generated from field: bool applies = 2;
+   */
+  applies: boolean;
+
+  /**
+   * @generated from field: repeated string places = 3;
+   */
+  places: string[];
+};
+
+/**
+ * Describes the message device.v1.Command.
+ * Use `create(CommandSchema)` to create a new message.
+ */
+export const CommandSchema: GenMessage<Command> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 26);
+
+/**
+ * @generated from message device.v1.RunCommandRequest
+ */
+export type RunCommandRequest = Message<"device.v1.RunCommandRequest"> & {
+  /**
+   * name is the command's file name, without the slash.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string room_id = 2;
+   */
+  roomId: string;
+
+  /**
+   * event_id is the message a command needing one is given; "" is the room's newest.
+   *
+   * @generated from field: string event_id = 3;
+   */
+  eventId: string;
+
+  /**
+   * link picks, for a command needing a url, which of the message's links it is given:
+   * 1 is the first. 0 takes the only one, and asks (links) when there are several.
+   *
+   * @generated from field: uint32 link = 4;
+   */
+  link: number;
+};
+
+/**
+ * Describes the message device.v1.RunCommandRequest.
+ * Use `create(RunCommandRequestSchema)` to create a new message.
+ */
+export const RunCommandRequestSchema: GenMessage<RunCommandRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 27);
+
+/**
+ * @generated from message device.v1.RunCommandResponse
+ */
+export type RunCommandResponse = Message<"device.v1.RunCommandResponse"> & {
+  /**
+   * output is where the program's output went or goes, as its block's `output` says:
+   * compose, status, pager and clipboard bring it back (body); send was sent; none.
+   *
+   * @generated from field: string output = 1;
+   */
+  output: string;
+
+  /**
+   * @generated from field: string body = 2;
+   */
+  body: string;
+
+  /**
+   * truncated: the output was cut at what a composer holds; it comes back to compose.
+   *
+   * @generated from field: bool truncated = 3;
+   */
+  truncated: boolean;
+
+  /**
+   * why is what the command produced instead of output, when nothing usable: it failed,
+   * timed out, printed nothing, or its message could not be found.
+   *
+   * @generated from field: string why = 4;
+   */
+  why: string;
+
+  /**
+   * links are the message's links, when there are several and none was picked: the
+   * window asks which and runs it again with link set.
+   *
+   * @generated from field: repeated string links = 5;
+   */
+  links: string[];
+};
+
+/**
+ * Describes the message device.v1.RunCommandResponse.
+ * Use `create(RunCommandResponseSchema)` to create a new message.
+ */
+export const RunCommandResponseSchema: GenMessage<RunCommandResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 28);
+
+/**
  * ThemeSource is where a key's value comes from.
  *
  * @generated from enum device.v1.ThemeSource
@@ -991,6 +1148,37 @@ export const DeviceService: GenService<{
     methodKind: "unary";
     input: typeof QRCodeRequestSchema;
     output: typeof QRCodeResponseSchema;
+  },
+  /**
+   * Commands are the commands this device's commands directory holds (the TUI's: the
+   * bridge config's [commands] dir, else `commands` beside the device file), each an
+   * executable file there, with its [[command]] block's settings. Run in a profile (the
+   * Kith-Profile header): a room outside it is PERMISSION_DENIED.
+   *
+   * @generated from rpc device.v1.DeviceService.Commands
+   */
+  commands: {
+    methodKind: "unary";
+    input: typeof CommandsRequestSchema;
+    output: typeof CommandsResponseSchema;
+  },
+  /**
+   * RunCommand runs one of them in a room, as the TUI's /name does, here: by name only.
+   * Nothing the window sends reaches the program but what the relay itself looks up by
+   * the IDs given (the message, its link, the room's history, from kithd), and its
+   * secrets come from this machine's keyring. A name that is no executable file in the
+   * directory is NOT_FOUND; a room outside the profile PERMISSION_DENIED; outside the
+   * command's `in` places, or with another command running, FAILED_PRECONDITION. Its
+   * output goes where its block says: `send` is sent here, into the room, and comes
+   * back done; the rest come back to the window. A request canceled (the window closed
+   * or reloaded) kills the program.
+   *
+   * @generated from rpc device.v1.DeviceService.RunCommand
+   */
+  runCommand: {
+    methodKind: "unary";
+    input: typeof RunCommandRequestSchema;
+    output: typeof RunCommandResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_device_v1_device, 0);

@@ -76,7 +76,10 @@ func run(ctx context.Context, log *slog.Logger, configPath string, stdin io.Read
 		_, _ = io.Copy(io.Discard, stdin) // its error ends it as EOF does
 		cancel()
 	}()
-	srv := &http.Server{Handler: newHandler(at, configPath, log), ReadHeaderTimeout: readHeaderTimeout}
+	// Every way out kills a command still running, and waits for it: none outlives the window.
+	runs := &commandRuns{}
+	defer runs.stop()
+	srv := &http.Server{Handler: newHandler(at, configPath, runs, log), ReadHeaderTimeout: readHeaderTimeout}
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(ln) }()
 	if _, err := fmt.Fprintln(stdout, ln.Addr().String()); err != nil {
@@ -156,7 +159,9 @@ func loadAccount(log *slog.Logger, configPath string) (at kithdAt, runtimeDir, c
 	if err != nil {
 		return kithdAt{}, "", "", fmt.Errorf("finding the daemon's socket: %w", err)
 	}
-	return local(socket), storage.RuntimeDir, path, nil
+	at = local(socket)
+	at.keyring = storage.KeyringService
+	return at, storage.RuntimeDir, path, nil
 }
 
 // loadBridged is loadAccount for a device that joined the bridge b: this machine's
@@ -176,5 +181,6 @@ func loadBridged(path string, b config.Bridge) (at kithdAt, runtimeDir, configFi
 	if err != nil {
 		return kithdAt{}, "", "", err
 	}
+	at.keyring = storage.KeyringService
 	return at, storage.RuntimeDir, path, nil
 }

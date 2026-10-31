@@ -56,6 +56,11 @@ const (
 	DeviceServiceWriteAccountProcedure = "/device.v1.DeviceService/WriteAccount"
 	// DeviceServiceQRCodeProcedure is the fully-qualified name of the DeviceService's QRCode RPC.
 	DeviceServiceQRCodeProcedure = "/device.v1.DeviceService/QRCode"
+	// DeviceServiceCommandsProcedure is the fully-qualified name of the DeviceService's Commands RPC.
+	DeviceServiceCommandsProcedure = "/device.v1.DeviceService/Commands"
+	// DeviceServiceRunCommandProcedure is the fully-qualified name of the DeviceService's RunCommand
+	// RPC.
+	DeviceServiceRunCommandProcedure = "/device.v1.DeviceService/RunCommand"
 )
 
 // DeviceServiceClient is a client for the device.v1.DeviceService service.
@@ -112,6 +117,21 @@ type DeviceServiceClient interface {
 	// (rsc.io/qr, level L), for the window to draw: no picture is made here. Empty data,
 	// or more than a QR code holds, is INVALID_ARGUMENT.
 	QRCode(context.Context, *connect.Request[v1.QRCodeRequest]) (*connect.Response[v1.QRCodeResponse], error)
+	// Commands are the commands this device's commands directory holds (the TUI's: the
+	// bridge config's [commands] dir, else `commands` beside the device file), each an
+	// executable file there, with its [[command]] block's settings. Run in a profile (the
+	// Kith-Profile header): a room outside it is PERMISSION_DENIED.
+	Commands(context.Context, *connect.Request[v1.CommandsRequest]) (*connect.Response[v1.CommandsResponse], error)
+	// RunCommand runs one of them in a room, as the TUI's /name does, here: by name only.
+	// Nothing the window sends reaches the program but what the relay itself looks up by
+	// the IDs given (the message, its link, the room's history, from kithd), and its
+	// secrets come from this machine's keyring. A name that is no executable file in the
+	// directory is NOT_FOUND; a room outside the profile PERMISSION_DENIED; outside the
+	// command's `in` places, or with another command running, FAILED_PRECONDITION. Its
+	// output goes where its block says: `send` is sent here, into the room, and comes
+	// back done; the rest come back to the window. A request canceled (the window closed
+	// or reloaded) kills the program.
+	RunCommand(context.Context, *connect.Request[v1.RunCommandRequest]) (*connect.Response[v1.RunCommandResponse], error)
 }
 
 // NewDeviceServiceClient constructs a client for the device.v1.DeviceService service. By default,
@@ -179,6 +199,18 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("QRCode")),
 			connect.WithClientOptions(opts...),
 		),
+		commands: connect.NewClient[v1.CommandsRequest, v1.CommandsResponse](
+			httpClient,
+			baseURL+DeviceServiceCommandsProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("Commands")),
+			connect.WithClientOptions(opts...),
+		),
+		runCommand: connect.NewClient[v1.RunCommandRequest, v1.RunCommandResponse](
+			httpClient,
+			baseURL+DeviceServiceRunCommandProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("RunCommand")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -193,6 +225,8 @@ type deviceServiceClient struct {
 	updateTheme          *connect.Client[v1.UpdateThemeRequest, v1.UpdateThemeResponse]
 	writeAccount         *connect.Client[v1.WriteAccountRequest, v1.WriteAccountResponse]
 	qRCode               *connect.Client[v1.QRCodeRequest, v1.QRCodeResponse]
+	commands             *connect.Client[v1.CommandsRequest, v1.CommandsResponse]
+	runCommand           *connect.Client[v1.RunCommandRequest, v1.RunCommandResponse]
 }
 
 // Device calls device.v1.DeviceService.Device.
@@ -238,6 +272,16 @@ func (c *deviceServiceClient) WriteAccount(ctx context.Context, req *connect.Req
 // QRCode calls device.v1.DeviceService.QRCode.
 func (c *deviceServiceClient) QRCode(ctx context.Context, req *connect.Request[v1.QRCodeRequest]) (*connect.Response[v1.QRCodeResponse], error) {
 	return c.qRCode.CallUnary(ctx, req)
+}
+
+// Commands calls device.v1.DeviceService.Commands.
+func (c *deviceServiceClient) Commands(ctx context.Context, req *connect.Request[v1.CommandsRequest]) (*connect.Response[v1.CommandsResponse], error) {
+	return c.commands.CallUnary(ctx, req)
+}
+
+// RunCommand calls device.v1.DeviceService.RunCommand.
+func (c *deviceServiceClient) RunCommand(ctx context.Context, req *connect.Request[v1.RunCommandRequest]) (*connect.Response[v1.RunCommandResponse], error) {
+	return c.runCommand.CallUnary(ctx, req)
 }
 
 // DeviceServiceHandler is an implementation of the device.v1.DeviceService service.
@@ -294,6 +338,21 @@ type DeviceServiceHandler interface {
 	// (rsc.io/qr, level L), for the window to draw: no picture is made here. Empty data,
 	// or more than a QR code holds, is INVALID_ARGUMENT.
 	QRCode(context.Context, *connect.Request[v1.QRCodeRequest]) (*connect.Response[v1.QRCodeResponse], error)
+	// Commands are the commands this device's commands directory holds (the TUI's: the
+	// bridge config's [commands] dir, else `commands` beside the device file), each an
+	// executable file there, with its [[command]] block's settings. Run in a profile (the
+	// Kith-Profile header): a room outside it is PERMISSION_DENIED.
+	Commands(context.Context, *connect.Request[v1.CommandsRequest]) (*connect.Response[v1.CommandsResponse], error)
+	// RunCommand runs one of them in a room, as the TUI's /name does, here: by name only.
+	// Nothing the window sends reaches the program but what the relay itself looks up by
+	// the IDs given (the message, its link, the room's history, from kithd), and its
+	// secrets come from this machine's keyring. A name that is no executable file in the
+	// directory is NOT_FOUND; a room outside the profile PERMISSION_DENIED; outside the
+	// command's `in` places, or with another command running, FAILED_PRECONDITION. Its
+	// output goes where its block says: `send` is sent here, into the room, and comes
+	// back done; the rest come back to the window. A request canceled (the window closed
+	// or reloaded) kills the program.
+	RunCommand(context.Context, *connect.Request[v1.RunCommandRequest]) (*connect.Response[v1.RunCommandResponse], error)
 }
 
 // NewDeviceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -357,6 +416,18 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("QRCode")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServiceCommandsHandler := connect.NewUnaryHandler(
+		DeviceServiceCommandsProcedure,
+		svc.Commands,
+		connect.WithSchema(deviceServiceMethods.ByName("Commands")),
+		connect.WithHandlerOptions(opts...),
+	)
+	deviceServiceRunCommandHandler := connect.NewUnaryHandler(
+		DeviceServiceRunCommandProcedure,
+		svc.RunCommand,
+		connect.WithSchema(deviceServiceMethods.ByName("RunCommand")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/device.v1.DeviceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceServiceDeviceProcedure:
@@ -377,6 +448,10 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 			deviceServiceWriteAccountHandler.ServeHTTP(w, r)
 		case DeviceServiceQRCodeProcedure:
 			deviceServiceQRCodeHandler.ServeHTTP(w, r)
+		case DeviceServiceCommandsProcedure:
+			deviceServiceCommandsHandler.ServeHTTP(w, r)
+		case DeviceServiceRunCommandProcedure:
+			deviceServiceRunCommandHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -420,4 +495,12 @@ func (UnimplementedDeviceServiceHandler) WriteAccount(context.Context, *connect.
 
 func (UnimplementedDeviceServiceHandler) QRCode(context.Context, *connect.Request[v1.QRCodeRequest]) (*connect.Response[v1.QRCodeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.QRCode is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) Commands(context.Context, *connect.Request[v1.CommandsRequest]) (*connect.Response[v1.CommandsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.Commands is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) RunCommand(context.Context, *connect.Request[v1.RunCommandRequest]) (*connect.Response[v1.RunCommandResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.RunCommand is not implemented"))
 }

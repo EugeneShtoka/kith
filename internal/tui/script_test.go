@@ -52,7 +52,7 @@ func TestAScriptGetsTheHistoryItAskedFor(t *testing.T) {
 
 	m = runTyped(t, m, "/sum")
 
-	var got scriptContextJSON
+	var got domain.ScriptContext
 	if err := json.Unmarshal([]byte(m.editorFor(fieldComposer).text), &got); err != nil {
 		t.Fatalf("the script did not receive JSON: %v — got %q", err, m.editorFor(fieldComposer).text)
 	}

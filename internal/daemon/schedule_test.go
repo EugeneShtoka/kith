@@ -159,7 +159,7 @@ func TestAScheduledThreadReplyKeepsItsRoot(t *testing.T) {
 	now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 	s, sender, _ := newScheduler(t, now, 24*time.Hour)
 
-	if err := s.Add(domain.ScheduledMessage{
+	if _, err := s.Add(domain.ScheduledMessage{
 		ID: "t1", RoomID: mx + "!a:x", Body: "in the thread", ThreadRoot: mx + "$root",
 		Emote: true, At: now.Add(-time.Second),
 	}); err != nil {
@@ -182,12 +182,12 @@ func TestCancelRemovesFromTheQueueAndTheFile(t *testing.T) {
 
 	now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 	s, sender, store := newScheduler(t, now, 24*time.Hour)
-	if err := s.Add(domain.ScheduledMessage{
+	if _, err := s.Add(domain.ScheduledMessage{
 		ID: "x1", RoomID: mx + "!a:x", Body: "never mind", At: now.Add(time.Hour),
 	}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if err := s.Cancel("x1"); err != nil {
+	if _, err := s.Cancel("x1"); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
 	if len(s.List()) != 0 {
@@ -201,7 +201,7 @@ func TestCancelRemovesFromTheQueueAndTheFile(t *testing.T) {
 		t.Error("the message is still on disk, so a restart would send it")
 	}
 	// Canceling what is already gone is not an error.
-	if err := s.Cancel("x1"); err != nil {
+	if _, err := s.Cancel("x1"); err != nil {
 		t.Errorf("canceling an unknown id: %v", err)
 	}
 	if sender.count() != 0 {
@@ -251,7 +251,7 @@ func TestAMessageThatCouldNotBeSavedIsNotQueued(t *testing.T) {
 	s.now = func() time.Time { return now }
 	t.Cleanup(s.Stop)
 
-	err := s.Add(domain.ScheduledMessage{
+	_, err := s.Add(domain.ScheduledMessage{
 		ID: "doomed", RoomID: mx + "!a:x", Body: "never lands", At: now.Add(time.Hour),
 	})
 	if err == nil {
@@ -422,7 +422,7 @@ func TestAMessageAddedByAnRPCStillSendsAfterThatRPCReturns(t *testing.T) {
 
 	// As the handler does: its own request context, canceled on return.
 	_, done := context.WithCancel(daemonCtx)
-	if err := s.Add(domain.ScheduledMessage{
+	if _, err := s.Add(domain.ScheduledMessage{
 		ID: "soon", RoomID: mx + "!a:x", Body: "after the handler is gone",
 		At: time.Now().Add(40 * time.Millisecond), Written: time.Now(),
 	}); err != nil {
@@ -453,10 +453,11 @@ func TestStopWaitsForAPassThatIsAlreadySending(t *testing.T) {
 	// Add runs the pass inline and it parks inside Send, so Add blocks until release.
 	added := make(chan error, 1)
 	go func() {
-		added <- s.Add(domain.ScheduledMessage{
+		_, err := s.Add(domain.ScheduledMessage{
 			ID: "due", RoomID: mx + "!a:x", Body: "going out now",
 			At: time.Now().Add(-time.Minute), Written: time.Now().Add(-2 * time.Minute),
 		})
+		added <- err
 	}()
 
 	// Stop from another goroutine so the test can tell whether it waits.
@@ -552,10 +553,11 @@ func TestASentMessageDoesNotComeBackFromAWriteStillInFlight(t *testing.T) {
 	// Writer one adds a future message; its Save is gated.
 	addDone := make(chan error, 1)
 	go func() {
-		addDone <- s.Add(domain.ScheduledMessage{
+		_, err := s.Add(domain.ScheduledMessage{
 			ID: "later", RoomID: mx + "!a:x", Body: "not yet",
 			At: time.Now().Add(time.Hour), Written: time.Now(),
 		})
+		addDone <- err
 	}()
 	<-store.entered
 

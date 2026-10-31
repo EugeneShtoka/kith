@@ -949,11 +949,14 @@ linters:
             - "connectrpc.com/connect"
             - "github.com/EugeneShtoka/kith/internal/api/backend/v1"
             - "github.com/EugeneShtoka/kith/internal/api/device/v1"
+            # The rail's room facts and the messages a user command is given, as domain values.
+            - "github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
             - "github.com/EugeneShtoka/kith/internal/buildinfo"
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/domain"
-            # This machine's device key, to dial a bridge elsewhere.
+            - "github.com/EugeneShtoka/kith/internal/human"
+            # This machine's device key, to dial a bridge elsewhere; user commands' secrets.
             - "github.com/EugeneShtoka/kith/internal/keystore"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/media"

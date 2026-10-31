@@ -145,6 +145,12 @@ const allowedCalls = [
   "InstallDictionary",
   "InstallFrequencies",
   "InstallModel",
+  "Schedule",
+  "ScheduledMessages",
+  "CancelScheduled",
+  "RetryScheduled",
+  "Commands",
+  "RunCommand",
 ];
 const allowedStreams = [
   "Changed",
@@ -178,6 +184,9 @@ const requests: Record<string, Uint8Array> = {
   InstallDictionary: bytes(backend.installDictionary.input, { tag: "he_IL" }),
   InstallFrequencies: bytes(backend.installFrequencies.input, { tag: "he_IL" }),
   InstallModel: bytes(backend.installModel.input, { tag: "model-1" }),
+  // A message the queue showed the window (asked first: ScheduledMessages).
+  CancelScheduled: bytes(backend.cancelScheduled.input, { id: "q1" }),
+  RetryScheduled: bytes(backend.retryScheduled.input, { id: "q1" }),
 };
 
 /** offered asks kithd what may be installed, through the gate. */
@@ -230,6 +239,8 @@ describe("the gate", () => {
     await leading();
     await gate.call(window, "StartVerification", bytes(backend.startVerification.input, { on: "matrix:1/" }));
     await offered();
+    kithd.queue.push("q1");
+    await gate.call(window, "ScheduledMessages", empty);
     kithd.accountSpaces = ["telegram:1/account"];
     const seat = listen("Seat", bytes(backend.seat.input, { client: "w" })); // drafts are the seat's
     for (const name of names) {
@@ -692,5 +703,92 @@ describe("the gate", () => {
     ]);
     shown.stop();
     home.stop();
+  });
+
+  it("cancels or retries only a queued message it was shown or queued, in the profile it runs in", async () => {
+    await device(); // Work
+    const on = (name: string, id: string) => outcome(window, name, bytes(backend.cancelScheduled.input, { id }));
+    kithd.queue.push("q1");
+    // Not shown yet: an ID guessed, or another profile's, never reaches kithd.
+    expect(await on("CancelScheduled", "q1")).toBe("refused");
+    await gate.call(window, "ScheduledMessages", empty);
+    expect(await on("CancelScheduled", "q1")).toBe("answered");
+    expect(await on("RetryScheduled", "q1")).toBe("answered");
+    expect(await on("RetryScheduled", "q9")).toBe("refused");
+    // One it queued itself.
+    const queued = fromBinary(
+      backend.schedule.output,
+      await gate.call(
+        window,
+        "Schedule",
+        bytes(backend.schedule.input, { message: { roomId: "!r:x", body: "later" } }),
+      ),
+    );
+    expect(await on("CancelScheduled", queued.id)).toBe("answered");
+    // Left for another profile, or loaded afresh: what it was shown is not its any more,
+    // nor what Work's queue answers once the window has left it.
+    kithd.queue.push("q7");
+    let answer: () => void = () => undefined;
+    kithd.queueHeld = new Promise<void>((resolve) => (answer = resolve));
+    const late = gate.call(window, "ScheduledMessages", empty);
+    await until(() => kithd.reached.filter((r) => r.startsWith("ScheduledMessages")).length === 2, "the read at kithd");
+    await gate.call(window, "ChooseProfile", bytes(DeviceService.method.chooseProfile.input, { name: "Home" }));
+    answer();
+    await late;
+    kithd.queueHeld = Promise.resolve();
+    expect(await on("CancelScheduled", "q1")).toBe("refused");
+    expect(await on("CancelScheduled", "q7")).toBe("refused");
+    await gate.call(window, "ScheduledMessages", empty);
+    gate.restart();
+    await device();
+    expect(await on("CancelScheduled", "q1")).toBe("refused");
+    expect(kithd.onQueued).toEqual([
+      "CancelScheduled q1:Work",
+      "RetryScheduled q1:Work",
+      `CancelScheduled ${queued.id}:Work`,
+    ]);
+  });
+
+  it("runs a command in the window's profile, named by main, and ends it when the window reloads", async () => {
+    const run = () =>
+      gate.call(window, "RunCommand", bytes(DeviceService.method.runCommand.input, { name: "zoom", roomId: "!r:x" }));
+    // Before a profile is chosen it would run in none: refused before the relay.
+    expect(await outcome(window, "RunCommand", empty)).toBe("refused");
+    expect(await outcome(window, "Commands", empty)).toBe("refused");
+    await device();
+    await gate.call(window, "Commands", bytes(DeviceService.method.commands.input, { roomId: "!r:x" }));
+    expect(kithd.reached.filter((r) => r.startsWith("Commands"))).toEqual(["Commands:Work"]);
+
+    let answer: () => void = () => undefined;
+    kithd.ranHeld = new Promise<void>((resolve) => (answer = resolve));
+    const running = run();
+    await until(() => kithd.runs.length === 1, "the run reaching the relay");
+    gate.restart(); // the window loads afresh
+    await expect(running).rejects.toThrow();
+    await until(() => kithd.killed.length === 1, "the relay told the run ended");
+    answer();
+    expect(kithd.runs).toEqual(["zoom !r:x:Work"]);
+  });
+
+  it("copies a command's output for the clipboard in main, and tells the window only that it did", async () => {
+    const copied: string[] = [];
+    gate = new Gate(kithd.transport(), (text) => copied.push(text));
+    await device();
+    const run = async () =>
+      fromBinary(
+        DeviceService.method.runCommand.output,
+        await gate.call(
+          window,
+          "RunCommand",
+          bytes(DeviceService.method.runCommand.input, { name: "zoom", roomId: "!r:x" }),
+        ),
+      );
+    kithd.ran = { output: "clipboard", body: "https://meet.example/abc" };
+    const got = await run();
+    expect(copied).toEqual(["https://meet.example/abc"]);
+    expect([got.output, got.body]).toEqual(["clipboard", ""]);
+    kithd.ran = { output: "compose", body: "hello" };
+    expect((await run()).body).toBe("hello");
+    expect(copied).toHaveLength(1);
   });
 });

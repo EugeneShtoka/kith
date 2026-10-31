@@ -46,7 +46,10 @@ type Scheduler struct {
 	// wg counts passes in flight; the caller closes the client and cache after Stop.
 	wg    sync.WaitGroup
 	queue []domain.ScheduledMessage
-	timer *time.Timer
+	// sending is what a pass claimed and is sending, by transaction ID to queue ID: out
+	// of the queue, and still the message a repeated Add asks for.
+	sending map[string]string
+	timer   *time.Timer
 	// held are messages already reported as too late, each reported once.
 	held map[string]bool
 	// failed is the last error reported per message: one line per outage, but a changed
@@ -128,15 +131,31 @@ func (s *Scheduler) List() []domain.ScheduledMessage {
 }
 
 // Add queues a message; a past time means "send now". No context on purpose: the
-// caller's request context dies before the message is due.
-func (s *Scheduler) Add(msg domain.ScheduledMessage) error {
+// caller's request context dies before the message is due. It answers the ID the
+// message waits under: one queued already under its transaction ID is the same message
+// asked for again (the first answer lost), so it is not queued twice; nor is one a pass
+// is sending. One with no
+// transaction ID is given one, so a send retried after its answer was lost arrives once.
+func (s *Scheduler) Add(msg domain.ScheduledMessage) (string, error) {
 	if msg.RoomID == "" {
-		return fmt.Errorf("daemon: a scheduled message needs a room")
+		return "", fmt.Errorf("daemon: a scheduled message needs a room")
 	}
 	if msg.ID == "" {
-		return fmt.Errorf("daemon: a scheduled message needs an id")
+		return "", fmt.Errorf("daemon: a scheduled message needs an id")
+	}
+	if msg.TxnID == "" {
+		msg.TxnID = domain.NewTxnID()
 	}
 	s.mu.Lock()
+	if id, ok := s.sending[msg.TxnID]; ok {
+		s.mu.Unlock()
+		return id, nil
+	}
+	if i := slices.IndexFunc(s.queue, func(q domain.ScheduledMessage) bool { return q.TxnID == msg.TxnID }); i >= 0 {
+		id := s.queue[i].ID
+		s.mu.Unlock()
+		return id, nil
+	}
 	s.queue = append(s.queue, msg)
 	err := s.saveLocked()
 	if err != nil {
@@ -147,15 +166,17 @@ func (s *Scheduler) Add(msg domain.ScheduledMessage) error {
 	s.mu.Unlock()
 
 	if err != nil {
-		return fmt.Errorf("daemon: save schedule: %w", err)
+		return "", fmt.Errorf("daemon: save schedule: %w", err)
 	}
 	s.pass(base)
-	return nil
+	return msg.ID, nil
 }
 
-// Cancel drops one pending message; canceling one already gone is not an error.
-func (s *Scheduler) Cancel(id string) error {
+// Cancel drops one pending message, answering whether it was still waiting. One already
+// gone (sent, being sent, or canceled elsewhere) is not an error.
+func (s *Scheduler) Cancel(id string) (bool, error) {
 	s.mu.Lock()
+	waiting := slices.ContainsFunc(s.queue, func(q domain.ScheduledMessage) bool { return q.ID == id })
 	s.queue = withoutID(s.queue, id)
 	delete(s.held, id)
 	delete(s.failed, id)
@@ -163,10 +184,10 @@ func (s *Scheduler) Cancel(id string) error {
 	s.mu.Unlock()
 
 	if err != nil {
-		return fmt.Errorf("daemon: save schedule: %w", err)
+		return false, fmt.Errorf("daemon: save schedule: %w", err)
 	}
 	s.rearm()
-	return nil
+	return waiting, nil
 }
 
 // MoveRooms sends each queued message to a room of moved where it moved to (a chat
@@ -243,9 +264,7 @@ func (s *Scheduler) pass(ctx context.Context) {
 	}
 
 	unsent, refused := s.sendAll(ctx, sending)
-	if len(unsent)+len(refused) > 0 {
-		s.restore(append(unsent, refused...))
-	}
+	s.restore(sending, append(unsent, refused...))
 	// A refused message waits for its author, not the retry clock.
 	s.setBackoff(len(unsent) > 0)
 	s.rearm()
@@ -431,6 +450,15 @@ func (s *Scheduler) claim(sending []domain.ScheduledMessage) ([]domain.Scheduled
 	if err != nil {
 		// Nothing sent yet; append back so a message added meanwhile survives.
 		s.queue = append(s.queue, mine...)
+	} else {
+		if s.sending == nil {
+			s.sending = map[string]string{}
+		}
+		for i := range mine {
+			if mine[i].TxnID != "" {
+				s.sending[mine[i].TxnID] = mine[i].ID
+			}
+		}
 	}
 	s.mu.Unlock()
 
@@ -441,10 +469,18 @@ func (s *Scheduler) claim(sending []domain.ScheduledMessage) ([]domain.Scheduled
 	return mine, true
 }
 
-// restore requeues claimed messages that were not sent; a failed save means late,
-// not twice.
-func (s *Scheduler) restore(msgs []domain.ScheduledMessage) {
+// restore ends a pass's sending: what was claimed is no longer in flight, and of it
+// msgs, not sent, go back in the queue (in the same step, so a repeated Add finds the
+// message in one or the other); a failed save means late, not twice.
+func (s *Scheduler) restore(claimed, msgs []domain.ScheduledMessage) {
 	s.mu.Lock()
+	for i := range claimed {
+		delete(s.sending, claimed[i].TxnID)
+	}
+	if len(msgs) == 0 {
+		s.mu.Unlock()
+		return
+	}
 	s.queue = append(s.queue, msgs...)
 	err := s.saveLocked()
 	s.mu.Unlock()

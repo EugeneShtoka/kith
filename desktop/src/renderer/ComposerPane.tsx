@@ -1,6 +1,7 @@
 // The open room's composer, drawn: the words (enter sends, shift+enter breaks the line),
 // what they reply to or correct, files offered, `@` mentions and `:shortcode:` emoji as
-// they are typed, the emoji picker, a poll asked, the SMS question and sends that failed.
+// they are typed, the emoji picker, a poll asked, the SMS question and sends that failed;
+// the `/` commands as they are typed, sending later and the queue (Later.tsx).
 // Under the words, a copy of them is drawn with the spelling marks and the completion's
 // ghost text (Spelling.tsx): a textarea draws neither itself.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -10,10 +11,12 @@ import { caretInRTL, wordBeingTyped } from "./complete";
 import type { ComposerView } from "./compose";
 import { completions, shortcodeAt, shortcodeOf, toned } from "./emoji";
 import { EmojiPicker } from "./EmojiPicker";
+import { Choosing, LaterForm, Queue, Reading, Unscheduled } from "./Later";
 import { type Markup, marked } from "./markup";
 import { matching, mentionAt, nameOf } from "./mentions";
 import { AskPoll } from "./Poll";
 import type { Session } from "./session";
+import { offered as commandsFor } from "./slash";
 import { carried } from "./spell";
 import { Underlay, Walk, walkKey } from "./Spelling";
 
@@ -54,6 +57,7 @@ export function ComposerPane({
   const [chosen, setChosen] = useState(0);
   const [picker, setPicker] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [later, setLater] = useState(false);
   /** The finished words are listed (Tab with none clearly leading). */
   const [listing, setListing] = useState(false);
   const moveTo = useRef<number | undefined>(undefined);
@@ -80,12 +84,20 @@ export function ComposerPane({
   const walk = c.spell.walk;
   const mention = mentionAt(text, at);
   const code = mention === undefined ? shortcodeAt(text, at) : undefined;
+  const slash = mention === undefined && code === undefined ? commandsFor(text, at, c.commands) : undefined;
   const wantsMembers = mention !== undefined;
   useEffect(() => {
     if (wantsMembers) {
       session.wantMembers();
     }
   }, [wantsMembers, session]);
+  // The commands folder is read as the `/` list opens, as the TUI scans it.
+  const wantsCommands = slash !== undefined;
+  useEffect(() => {
+    if (wantsCommands) {
+      session.wantCommands();
+    }
+  }, [wantsCommands, session]);
 
   /** put replaces text[start, end) with what, the caret after it. */
   const put = (start: number, end: number, what: string) =>
@@ -112,16 +124,25 @@ export function ComposerPane({
                 return put(code.start, at, toned(e, c.emoji.tone));
               },
             }))
-        : words.map((w, i) => ({
-            key: w.word,
-            label: w.word,
-            detail: `alt+${String(i + 1)}`,
-            take: () => {
-              setListing(false);
-              return session.chooseCompletion(i) ?? at;
-            },
-          }));
+        : slash !== undefined
+          ? slash.map((s) => ({
+              key: s.name,
+              label: s.label,
+              detail: s.detail,
+              take: () => put(0, at, s.insert),
+            }))
+          : words.map((w, i) => ({
+              key: w.word,
+              label: w.word,
+              detail: `alt+${String(i + 1)}`,
+              take: () => {
+                setListing(false);
+                return session.chooseCompletion(i) ?? at;
+              },
+            }));
   const pick = Math.min(chosen, Math.max(0, choices.length - 1));
+  // A command typed whole is done by enter, not completed again.
+  const typedWhole = slash?.some((s) => s.name === text) ?? false;
   // The ghost and the next words, only at the draft's end with no other list open.
   const offer = atEnd && choices.length === 0 ? c.assist : undefined;
 
@@ -170,6 +191,7 @@ export function ComposerPane({
           </button>
         </p>
       ))}
+      <Unscheduled c={c} session={session} />
       {c.asking && (
         <p className="banner waiting">
           Send this to <span dir="auto">{room?.name ?? c.asking.room}</span> as {c.asking.files > 0 ? "MMS" : "SMS"}? It
@@ -210,11 +232,25 @@ export function ComposerPane({
           ))}
         </ul>
       )}
+      {c.queue && <Queue queue={c.queue} session={session} />}
+      {c.reading && <Reading reading={c.reading} session={session} />}
+      {c.choosing && <Choosing choosing={c.choosing} session={session} />}
       {walk && <Walk walk={walk} session={session} took={took} />}
       {choices.length > 0 && (
-        <ul className="completions" role="listbox">
+        <ul className={slash === undefined ? "completions" : "completions commands"} role="listbox">
           {choices.map((choice, i) => (
-            <li key={choice.key} role="option" aria-selected={i === pick}>
+            <li
+              key={choice.key}
+              role="option"
+              aria-selected={i === pick}
+              ref={
+                i === pick && slash !== undefined
+                  ? (el) => {
+                      el?.scrollIntoView({ block: "nearest" }); // the long `/` list scrolls to the one chosen
+                    }
+                  : undefined
+              }
+            >
               <button
                 type="button"
                 onMouseDown={(e) => {
@@ -255,6 +291,14 @@ export function ComposerPane({
           }}
           onClose={() => {
             setPicker(false);
+          }}
+        />
+      )}
+      {later && (
+        <LaterForm
+          session={session}
+          onClose={() => {
+            setLater(false);
           }}
         />
       )}
@@ -368,7 +412,7 @@ export function ComposerPane({
               } else if (choice !== undefined && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
                 e.preventDefault();
                 setChosen((pick + (e.key === "ArrowDown" ? 1 : choices.length - 1)) % choices.length);
-              } else if (choice !== undefined && (e.key === "Enter" || e.key === "Tab")) {
+              } else if (choice !== undefined && (e.key === "Tab" || (e.key === "Enter" && !typedWhole))) {
                 e.preventDefault();
                 moved(choice.take());
               } else if (offer !== undefined && e.key === "Tab" && !e.shiftKey) {
@@ -417,6 +461,18 @@ export function ComposerPane({
           >
             Poll
           </button>
+          {c.draft.editing === "" && (
+            <button
+              type="button"
+              aria-expanded={later}
+              title="Send the words later: at a time, or after a delay"
+              onClick={() => {
+                setLater(!later);
+              }}
+            >
+              Later
+            </button>
+          )}
           {c.assist.marker && (
             <span className="detail model-marker" title="The completion model on this machine">
               ⌂ {c.assist.marker}

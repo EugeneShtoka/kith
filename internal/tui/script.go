@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -166,29 +165,8 @@ func (m Model) scriptMessage() (domain.Message, bool) {
 	return shown[len(shown)-1], true
 }
 
-// scriptMessageJSON is one message as a script reads it, named like mxctl's event
-// JSON. Body is the resolved text (the edit, or the redaction placeholder).
-type scriptMessageJSON struct {
-	EventID    string `json:"event_id"`
-	RoomID     string `json:"room_id"`
-	Sender     string `json:"sender"`
-	SenderName string `json:"sender_name,omitempty"`
-	Body       string `json:"body"`
-	Timestamp  string `json:"timestamp"`
-	Edited     bool   `json:"edited,omitempty"`
-	Deleted    bool   `json:"deleted,omitempty"`
-	Mine       bool   `json:"mine,omitempty"`
-}
-
-// scriptContextJSON is a script's stdin; undeclared keys are absent rather than null.
-type scriptContextJSON struct {
-	Message *scriptMessageJSON  `json:"message,omitempty"`
-	History []scriptMessageJSON `json:"history,omitempty"`
-	URL     string              `json:"url,omitempty"`
-}
-
 func (m Model) scriptJSON() ([]byte, error) {
-	var out scriptContextJSON
+	var out domain.ScriptContext
 	for _, need := range m.script.needs {
 		switch need.Kind {
 		case domain.NeedMessage:
@@ -210,28 +188,18 @@ func (m Model) scriptJSON() ([]byte, error) {
 	return data, nil
 }
 
-// scriptMessageRow uses Summary, so spoilers stay covered and redactions placeholders.
-func (m Model) scriptMessageRow(msg domain.Message) scriptMessageJSON {
-	return scriptMessageJSON{
-		EventID:    string(msg.ID),
-		RoomID:     string(msg.RoomID),
-		Sender:     msg.Sender,
-		SenderName: msg.SenderName,
-		Body:       msg.Summary(),
-		Timestamp:  msg.Timestamp.Format(time.RFC3339),
-		Edited:     msg.Edited,
-		Deleted:    msg.Redacted,
-		Mine:       m.isMe(msg.Sender),
-	}
+// scriptMessageRow is msg as a script reads it (domain.ScriptRow).
+func (m Model) scriptMessageRow(msg domain.Message) domain.ScriptMessage {
+	return domain.ScriptRow(msg, m.isMe(msg.Sender))
 }
 
 // scriptHistory is the room's last count messages, oldest first.
-func (m Model) scriptHistory(count int) []scriptMessageJSON {
+func (m Model) scriptHistory(count int) []domain.ScriptMessage {
 	shown := m.shownMessages()
 	if len(shown) > count {
 		shown = shown[len(shown)-count:]
 	}
-	rows := make([]scriptMessageJSON, 0, len(shown))
+	rows := make([]domain.ScriptMessage, 0, len(shown))
 	for i := range shown {
 		rows = append(rows, m.scriptMessageRow(shown[i]))
 	}

@@ -281,7 +281,7 @@ func relayTo(t *testing.T, at kithdAt, configPath string) string {
 		t.Fatal(err)
 	}
 	srv := &http.Server{
-		Handler:           newHandler(at, configPath, slog.New(slog.DiscardHandler)),
+		Handler:           newHandler(at, configPath, &commandRuns{}, slog.New(slog.DiscardHandler)),
 		ReadHeaderTimeout: time.Second, ErrorLog: log.New(panics{t}, "", 0),
 	}
 	served := make(chan struct{})

@@ -15876,7 +15876,10 @@ func (x *CancelScheduledRequest) GetId() string {
 }
 
 type CancelScheduledResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// canceled is false when the message was no longer waiting: it went out (or is going
+	// out), or was canceled elsewhere. A cancel that races the send time says which won.
+	Canceled      bool `protobuf:"varint,1,opt,name=canceled,proto3" json:"canceled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -15909,6 +15912,13 @@ func (x *CancelScheduledResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CancelScheduledResponse.ProtoReflect.Descriptor instead.
 func (*CancelScheduledResponse) Descriptor() ([]byte, []int) {
 	return file_backend_v1_services_proto_rawDescGZIP(), []int{302}
+}
+
+func (x *CancelScheduledResponse) GetCanceled() bool {
+	if x != nil {
+		return x.Canceled
+	}
+	return false
 }
 
 type RetryScheduledRequest struct {
@@ -18283,8 +18293,9 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x19ScheduledMessagesResponse\x128\n" +
 	"\bmessages\x18\x01 \x03(\v2\x1c.backend.v1.ScheduledMessageR\bmessages\"(\n" +
 	"\x16CancelScheduledRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x19\n" +
-	"\x17CancelScheduledResponse\"'\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"5\n" +
+	"\x17CancelScheduledResponse\x12\x1a\n" +
+	"\bcanceled\x18\x01 \x01(\bR\bcanceled\"'\n" +
 	"\x15RetryScheduledRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x18\n" +
 	"\x16RetryScheduledResponse\"\x92\x01\n" +

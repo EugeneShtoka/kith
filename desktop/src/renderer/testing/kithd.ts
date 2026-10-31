@@ -21,12 +21,15 @@ import {
   type RailResponse,
   RailResponseSchema,
   RailRowKind,
+  type ScheduledMessage,
+  ScheduledMessageSchema,
   type SeatRequest,
   type StoredDraft,
   StoredDraftSchema,
 } from "../../gen/backend/v1/services_pb";
 import {
   type Draft,
+  DraftSchema,
   type Member,
   type Message,
   type Reaction,
@@ -142,9 +145,21 @@ export class Kithd {
   /** Runs as the next draft write reaches kithd, before it is written: another writer first. */
   beforeDraft: (() => void) | undefined;
   /** Every message sent, as kithd took it; a send again under a txn ID it has is the same one. */
-  readonly sent: { room: string; draft: Draft }[] = [];
+  readonly sent: { room: string; draft: Draft; queued?: ScheduledMessage }[] = [];
   /** Sends still to answer with an error after they went out (the answer lost). */
   loseSends = 0;
+  /**
+   * The send queue as kithd's scheduler keeps it: one entry per transaction ID (a Schedule
+   * asked again under one is answered with the entry it has, or the one it sent). What the
+   * next Schedules meet: a failure before kithd queues it, or after (the answer lost).
+   */
+  readonly queue: ScheduledMessage[] = [];
+  readonly scheduleFaults: ("before" | "after")[] = [];
+  private queued = 0;
+  /** The commands folder's commands, what each run answers, and each run, as "name room event link:profile". */
+  userCommands: { name: string; applies: boolean; places?: string[] }[] = [];
+  readonly ranWith = new Map<string, MessageInitShape<typeof DeviceService.method.runCommand.output>>();
+  readonly runs: string[] = [];
   /** Every other write the window made, as "Method room target key". */
   readonly writes: string[] = [];
   /** Who chose what in each poll, by its message's ID (PollVoters); a message not here asks none. */
@@ -255,6 +270,23 @@ export class Kithd {
     const token = `t${String(this.offers.size + this.attached.length + 1)}`;
     this.offers.set(token, name);
     return { token, name, size: 1 };
+  }
+
+  /**
+   * fire is kithd's scheduler sending the queued message id, its time come: out of the
+   * queue, and sent under its transaction ID (a send again under it is the same message).
+   */
+  fire(id: string): void {
+    const at = this.queue.findIndex((q) => q.id === id);
+    const q = this.queue[at];
+    if (q === undefined) {
+      return;
+    }
+    this.queue.splice(at, 1);
+    if (!this.sent.some((s) => s.draft.txnId === q.txnId)) {
+      const draft = create(DraftSchema, { body: q.body, replyTo: q.replyTo, threadRoot: q.threadRoot, txnId: q.txnId });
+      this.sent.push({ room: q.roomId, draft, queued: q });
+    }
   }
 
   /** append is kith-mcp appending words to room's draft over what it read, as send.go does. */
@@ -390,7 +422,11 @@ export class Kithd {
     if (method?.methodKind !== "unary") {
       throw new Error(`no call ${name}`);
     }
-    const device = method.parent.typeName === DeviceService.typeName;
+    // The relay's calls in a profile carry it as kithd's do (the gate's profiledDevice).
+    const device =
+      method.parent.typeName === DeviceService.typeName &&
+      name !== DeviceService.method.commands.name &&
+      name !== DeviceService.method.runCommand.name;
     const profile = this.profile;
     if (!device && profile === "") {
       this.refused.push(name);
@@ -623,6 +659,58 @@ export class Kithd {
           throw new Error("unavailable: connection reset");
         }
         return reply(backend.replaceDraft, { saved: true, stored: blank(stored) ? undefined : stored, added });
+      }
+      case "Schedule": {
+        const m = (request as MessageShape<typeof backend.schedule.input>).message;
+        if (m === undefined) {
+          throw new Error("no message");
+        }
+        if (this.scheduleFaults[0] === "before") {
+          this.scheduleFaults.shift();
+          throw new Error("unavailable: connection reset");
+        }
+        const known =
+          this.queue.find((q) => q.txnId === m.txnId) ??
+          this.sent.find((s) => s.draft.txnId === m.txnId && s.queued !== undefined)?.queued;
+        const id = known?.id ?? `q${String(++this.queued)}`;
+        if (known === undefined) {
+          this.queue.push(create(ScheduledMessageSchema, { ...m, id }));
+        }
+        if (this.scheduleFaults[0] === "after") {
+          this.scheduleFaults.shift();
+          throw new Error("unavailable: connection reset");
+        }
+        return reply(backend.schedule, { id });
+      }
+      case "ScheduledMessages":
+        return reply(backend.scheduledMessages, { messages: [...this.queue] });
+      case "CancelScheduled": {
+        const id = (request as MessageShape<typeof backend.cancelScheduled.input>).id;
+        const at = this.queue.findIndex((q) => q.id === id);
+        if (at >= 0) {
+          this.queue.splice(at, 1);
+        }
+        this.writes.push(`CancelScheduled ${id}`);
+        return reply(backend.cancelScheduled, { canceled: at >= 0 });
+      }
+      case "RetryScheduled": {
+        const id = (request as MessageShape<typeof backend.retryScheduled.input>).id;
+        this.writes.push(`RetryScheduled ${id}`);
+        const q = this.queue.find((x) => x.id === id);
+        if (q !== undefined) {
+          this.fire(q.id);
+        }
+        return reply(backend.retryScheduled, {});
+      }
+      case "Commands":
+        return reply(DeviceService.method.commands, { commands: this.userCommands });
+      case "RunCommand": {
+        const r = request as MessageShape<typeof DeviceService.method.runCommand.input>;
+        if (!this.userCommands.some((c) => c.name === r.name)) {
+          throw new Error(`[not_found] /${r.name}: no command of that name`);
+        }
+        this.runs.push(`${r.name} ${r.roomId} ${r.eventId} ${String(r.link)}:${profile}`);
+        return reply(DeviceService.method.runCommand, this.ranWith.get(r.name) ?? { output: "compose" });
       }
       case "Send": {
         const r = request as MessageShape<typeof backend.send.input>;

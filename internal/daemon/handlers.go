@@ -1133,7 +1133,8 @@ func (s *server) Schedule(_ context.Context, r *req[v1.ScheduleRequest]) (*resp[
 	if msg.Written.IsZero() {
 		msg.Written = time.Now().UTC()
 	}
-	return reply(&v1.ScheduleResponse{Id: msg.ID}, s.Scheduler.Add(msg))
+	id, err := s.Scheduler.Add(msg)
+	return reply(&v1.ScheduleResponse{Id: id}, err)
 }
 
 func (s *server) ScheduledMessages(ctx context.Context, _ *req[v1.ScheduledMessagesRequest]) (*resp[v1.ScheduledMessagesResponse], error) {
@@ -1142,7 +1143,8 @@ func (s *server) ScheduledMessages(ctx context.Context, _ *req[v1.ScheduledMessa
 }
 
 func (s *server) CancelScheduled(_ context.Context, r *req[v1.CancelScheduledRequest]) (*resp[v1.CancelScheduledResponse], error) {
-	return reply(&v1.CancelScheduledResponse{}, s.Scheduler.Cancel(r.Msg.GetId()))
+	canceled, err := s.Scheduler.Cancel(r.Msg.GetId())
+	return reply(&v1.CancelScheduledResponse{Canceled: canceled}, err)
 }
 
 func (s *server) RetryScheduled(_ context.Context, r *req[v1.RetryScheduledRequest]) (*resp[v1.RetryScheduledResponse], error) {
