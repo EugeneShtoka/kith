@@ -162,6 +162,7 @@ type Step =
   | { kind: "read" }
   | { kind: "land" }
   | { kind: "fail" }
+  | { kind: "again" }
   | { kind: "older" }
   | { kind: "readAgain" }
   | { kind: "seek"; i: number; cached: boolean };
@@ -173,6 +174,7 @@ const step: fc.Arbitrary<Step> = fc.oneof(
   { weight: 3, arbitrary: fc.constant({ kind: "read" }) },
   { weight: 3, arbitrary: fc.constant({ kind: "land" }) },
   { weight: 1, arbitrary: fc.constant({ kind: "fail" }) },
+  { weight: 1, arbitrary: fc.constant({ kind: "again" }) },
   { weight: 2, arbitrary: fc.constant({ kind: "older" }) },
   { weight: 1, arbitrary: fc.constant({ kind: "readAgain" }) },
   {
@@ -183,9 +185,8 @@ const step: fc.Arbitrary<Step> = fc.oneof(
 
 /**
  * pollStep is a step in a room already shown: votes, a poll ended or edited, among new
- * messages, edits and deletions, against pages and frames, lost frames included. No
- * page fails: a failed page stops the reading until the window asks again, whatever
- * the rows hold.
+ * messages, edits and deletions, against pages and frames, lost frames and failed pages
+ * included.
  */
 const pollStep: fc.Arbitrary<Step> = fc.oneof(
   {
@@ -196,6 +197,8 @@ const pollStep: fc.Arbitrary<Step> = fc.oneof(
   { weight: 3, arbitrary: fc.constant({ kind: "ask" }) },
   { weight: 3, arbitrary: fc.constant({ kind: "read" }) },
   { weight: 3, arbitrary: fc.constant({ kind: "land" }) },
+  { weight: 1, arbitrary: fc.constant({ kind: "fail" }) },
+  { weight: 1, arbitrary: fc.constant({ kind: "again" }) },
   { weight: 2, arbitrary: fc.constant({ kind: "older" }) },
   { weight: 1, arbitrary: fc.constant({ kind: "readAgain" }) },
 );
@@ -209,6 +212,8 @@ class Run {
   private stale: { ticket: Ticket; read: { rows: Message[]; next: string } }[] = [];
   /** The message the last jump was to. */
   sought: string | undefined;
+  /** A failed page is to be asked again after a wait, not over yet (the window's timer). */
+  private later = false;
 
   constructor(initial: number) {
     this.cache = new Cache(initial);
@@ -249,10 +254,19 @@ class Run {
         }
         break;
       }
-      case "fail":
-        if (this.inFlight !== undefined) {
-          this.t.failed(this.inFlight.ticket);
-          this.inFlight = undefined;
+      case "fail": {
+        // The page in flight refused, or else an answer from before a reload, refused now.
+        const ticket = this.inFlight?.ticket ?? this.stale.shift()?.ticket;
+        this.inFlight = undefined;
+        if (ticket !== undefined && this.t.failed(ticket)) {
+          this.later = true;
+        }
+        break;
+      }
+      case "again": // the wait after a failed page is over
+        if (this.later) {
+          this.later = false;
+          this.t.again();
         }
         break;
       case "older":
@@ -285,18 +299,26 @@ class Run {
     return this.inFlight !== undefined;
   }
 
-  /** settle delivers every frame and answers every page due, asking for no older one. */
-  settle(): void {
-    if (!this.t.loaded) {
-      this.t.older(); // a first page that failed is asked again when the window asks
-    }
+  /**
+   * settle delivers every frame and answers every page due, asking for no older one, and
+   * waits out every wait: the i-th page it answers fails where fails[i] says so.
+   */
+  settle(fails: readonly boolean[] = []): void {
     for (let i = 0; i < 1000; i++) {
+      if (!this.t.loaded) {
+        this.t.older(); // a first page that failed is asked again when the window asks
+      }
       this.do({ kind: "deliver", n: this.cache.queue.length });
       if (!this.waiting()) {
+        this.do({ kind: "again" });
         this.do({ kind: "ask" });
         if (!this.waiting()) {
           return;
         }
+      }
+      if (fails[i] === true) {
+        this.do({ kind: "fail" });
+        continue;
       }
       this.do({ kind: "read" });
       this.do({ kind: "land" });
@@ -321,14 +343,19 @@ function shownMatchesCache(run: Run): void {
 describe("the timeline over any interleaving of pages and frames", () => {
   it("shows the cache's newest messages in its order, each as the cache holds it", () => {
     fc.assert(
-      fc.property(fc.nat(12), fc.array(step, { maxLength: 80 }), (initial, steps) => {
-        const run = new Run(initial);
-        for (const s of steps) {
-          run.do(s);
-        }
-        run.settle();
-        shownMatchesCache(run);
-      }),
+      fc.property(
+        fc.nat(12),
+        fc.array(step, { maxLength: 80 }),
+        fc.array(fc.boolean(), { maxLength: 4 }),
+        (initial, steps, fails) => {
+          const run = new Run(initial);
+          for (const s of steps) {
+            run.do(s);
+          }
+          run.settle(fails);
+          shownMatchesCache(run);
+        },
+      ),
       { numRuns: 400 },
     );
   });
@@ -364,16 +391,47 @@ describe("the timeline over any interleaving of pages and frames", () => {
 
   it("keeps each poll shown as the cache holds it, its votes, end and edits coming before and after pages", () => {
     fc.assert(
-      fc.property(fc.nat(12), fc.array(pollStep, { maxLength: 80 }), (initial, steps) => {
-        const run = new Run(initial + 1);
-        run.settle(); // shown: what changes now changes rows on screen
-        for (const s of steps) {
-          run.do(s);
-        }
-        run.settle();
-        shownMatchesCache(run);
-      }),
+      fc.property(
+        fc.nat(12),
+        fc.array(pollStep, { maxLength: 80 }),
+        fc.array(fc.boolean(), { maxLength: 4 }),
+        (initial, steps, fails) => {
+          const run = new Run(initial + 1);
+          run.settle(); // shown: what changes now changes rows on screen
+          for (const s of steps) {
+            run.do(s);
+          }
+          run.settle(fails);
+          shownMatchesCache(run);
+        },
+      ),
       { numRuns: 400 },
+    );
+  });
+
+  it("reads again to the cache when told, the changes lost and whichever of its pages fail", () => {
+    const lost = fc.record({ kind: fc.constant("write"), what: fc.constantFrom(0, 3, 5, 6, 7), i: fc.nat(10_000) });
+    const fails = fc.array(fc.boolean(), { maxLength: 6 });
+    fc.assert(
+      fc.property(
+        fc.nat(12),
+        fc.array(pollStep, { maxLength: 40 }),
+        fc.array(lost, { minLength: 1, maxLength: 4 }),
+        fc.array(pollStep, { maxLength: 20 }),
+        fails,
+        (initial, before, writes, after, fails) => {
+          const run = new Run(initial + 1);
+          run.settle();
+          // Scrolled back or not, then changes the stream loses, so the rows shown are
+          // stale until the reload is read; and anything after, more reloads included.
+          for (const s of [...before, ...writes, { kind: "readAgain" } as const, ...after]) {
+            run.do(s);
+          }
+          run.settle(fails);
+          shownMatchesCache(run);
+        },
+      ),
+      { numRuns: 1000 },
     );
   });
 

@@ -66,7 +66,7 @@ const presentEvery = 2000;
 /**
  * How long the window waits to read the device again after it could not: on a device
  * that joined a bridge, the profiles are the bridge's, read through it, and a window
- * may start before the bridge answers.
+ * may start before the bridge answers. A reload's page that failed waits as long.
  */
 export const deviceAgain = 1000;
 
@@ -289,6 +289,8 @@ interface Run {
   positioned: boolean;
   /** The open room's timeline, and the device settings it follows: undefined while read. */
   timeline: Timeline | undefined;
+  /** The wait before a reload's failed page is asked again. */
+  reloadLater: ReturnType<typeof setTimeout> | undefined;
   settings: DeviceSettings | "failed" | undefined;
   /** Counts the reactions reads; the Reactions frames held while one is answered. */
   reactionReads: number;
@@ -1122,6 +1124,7 @@ export class Session {
       rowAt: 0,
       positioned: false,
       timeline: undefined,
+      reloadLater: undefined,
       settings: undefined,
       reactionReads: 0,
       reactionsHeld: undefined,
@@ -1519,9 +1522,19 @@ export class Session {
       },
       (err: unknown) => {
         if (this.live(run) && run.timeline === t) {
-          t.failed(ticket);
+          const again = t.failed(ticket);
           if (ticket.ask.kind !== "network") {
             this.fail(err); // a network's page hands over to the cache's, unsaid
+          }
+          if (again) {
+            // A reload's page: asked again after a wait, one at a time, for the room open
+            // then (pump asks nothing for a profile the window has left).
+            run.reloadLater ??= setTimeout(() => {
+              run.reloadLater = undefined;
+              run.timeline?.again();
+              this.pump(run);
+              this.set({});
+            }, deviceAgain);
           }
           this.pump(run);
           this.set({});
