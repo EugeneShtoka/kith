@@ -43,9 +43,9 @@ const (
 	narrowed
 )
 
-// namedFields classifies every string field of every request message, by full name; a
-// nested message's fields count wherever it is used. TestEveryRequestFieldIsClassified
-// holds it complete.
+// namedFields classifies every string and map field of every request message but the
+// roomless ones, by full name; a nested message's fields count wherever it is used.
+// TestEveryRequestFieldIsClassified holds it complete.
 var namedFields = map[protoreflect.FullName]nameKind{
 	// Rooms and spaces.
 	"backend.v1.MarkReadRequest.room_id": aRoom, "backend.v1.MarkRoomsReadRequest.room_ids": aRoom,
@@ -158,15 +158,11 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	// An account (domain.RoomOwner), a network: every profile's.
 	"backend.v1.PublicRoomsRequest.on": notARoom, "backend.v1.CreateRoomRequest.on": notARoom,
 	"backend.v1.ResolveLinkRequest.on": notARoom, "backend.v1.JoinLinkRequest.on": notARoom,
-	"backend.v1.StartVerificationRequest.on": notARoom, "backend.v1.RestoreKeyBackupRequest.on": notARoom,
-	"backend.v1.ExportRoomKeysRequest.on": notARoom, "backend.v1.ImportRoomKeysRequest.on": notARoom,
-	"backend.v1.BootstrapKeyBackupRequest.on": notARoom, "backend.v1.BeginLoginRequest.network": notARoom,
+	"backend.v1.StartVerificationRequest.on": notARoom, "backend.v1.BeginLoginRequest.network": notARoom,
 	"backend.v1.BeginLoginRequest.account": notARoom, "backend.v1.PreviewGroupingsRequest.network": notARoom,
 	"backend.v1.PreviewGroupingsRequest.account": notARoom, "backend.v1.ApplyGroupingsRequest.network": notARoom,
 	"backend.v1.ApplyGroupingsRequest.account": notARoom,
-	// Secrets, logins, verifications, devices, the config, the dictionaries and DND.
-	"backend.v1.RestoreKeyBackupRequest.secret": notARoom, "backend.v1.ExportRoomKeysRequest.passphrase": notARoom,
-	"backend.v1.ImportRoomKeysRequest.passphrase": notARoom, "backend.v1.BootstrapKeyBackupRequest.password": notARoom,
+	// Logins, verifications, devices, the config, the dictionaries and DND.
 	"backend.v1.AnswerLoginRequest.login": notARoom, "backend.v1.CancelLoginRequest.login": notARoom,
 	"backend.v1.InsteadLoginRequest.login": notARoom, "backend.v1.AcceptVerificationRequest.txn_id": notARoom,
 	// A login's answers by field key, and a grouping's choice by its name (maps).
@@ -190,6 +186,21 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	"backend.v1.JoinMeshRequest.uri": notARoom, "backend.v1.JoinMeshRequest.name": notARoom,
 }
 
+// roomless are requests no field of which names a room, classified whole: an account's
+// keys and their backup, by the account and what unlocks them.
+var roomless = []protoreflect.FullName{
+	"backend.v1.RestoreKeyBackupRequest", "backend.v1.ExportRoomKeysRequest",
+	"backend.v1.ImportRoomKeysRequest", "backend.v1.BootstrapKeyBackupRequest",
+}
+
+// kindOf is what field f names.
+func kindOf(f protoreflect.FieldDescriptor) nameKind {
+	if slices.Contains(roomless, f.ContainingMessage().FullName()) {
+		return notARoom
+	}
+	return namedFields[f.FullName()]
+}
+
 // naming is one value a request names, and what it is.
 type naming struct {
 	kind nameKind
@@ -204,11 +215,11 @@ func namesIn(m protoreflect.Message) ([]naming, error) {
 	m.Range(func(f protoreflect.FieldDescriptor, v protoreflect.Value) bool {
 		switch {
 		case f.IsMap():
-			if namedFields[f.FullName()] != notARoom {
+			if kindOf(f) != notARoom {
 				err = fmt.Errorf("daemon: %s is a map, which no profile check reads", f.FullName())
 			}
 		case f.Kind() == protoreflect.StringKind:
-			kind := namedFields[f.FullName()]
+			kind := kindOf(f)
 			switch kind {
 			case 0:
 				err = fmt.Errorf("daemon: %s is not classified for profiles", f.FullName())

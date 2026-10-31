@@ -29,12 +29,12 @@ func TestEveryRequestFieldIsClassified(t *testing.T) {
 				switch {
 				case f.IsMap():
 					seen[f.FullName()] = true
-					if namedFields[f.FullName()] != notARoom {
+					if kindOf(f) != notARoom {
 						t.Errorf("%s: %s is a map, which namesIn does not read: it may name no room", m.Name(), f.FullName())
 					}
 				case f.Kind() == protoreflect.StringKind:
 					seen[f.FullName()] = true
-					kind := namedFields[f.FullName()]
+					kind := kindOf(f)
 					switch {
 					case kind == 0:
 						t.Errorf("%s: %s is not in namedFields: decide what it names", m.Name(), f.FullName())
