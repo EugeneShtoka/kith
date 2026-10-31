@@ -1123,8 +1123,16 @@ func (m Model) handleRoomListMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 }
 
 // handleRoomsThenOffer handles the room list and, on the first one, starts the one-time offers.
+// A list asked before the last profile switch landed is not its rooms.
 func (m Model) handleRoomsThenOffer(msg roomsMsg) (Model, tea.Cmd) {
+	if msg.switches != m.profiles.switches {
+		return m, nil
+	}
+	was, name := m.openRoom, m.namedRoom(m.openRoom)
 	next, cmd := m.handleRooms(msg)
+	if msg.err == nil {
+		next = next.profileListRead(was, name, true, false)
+	}
 	next, offer := next.maybeOfferDictionaries()
 	next, selves := next.selvesAfterRooms(msg.rooms)
 	next, peers := next.refreshPeers()
@@ -2593,7 +2601,11 @@ func (m Model) handleRooms(msg roomsMsg) (Model, tea.Cmd) {
 	// The cursor before the change, so a removed room hands selection to a neighbor.
 	was := m.roomCursor()
 	// A chat a link opened stays while open; once listed, the listing's copy replaces it.
-	m.rooms = m.rooms.withJoined(msg.rooms).keepingFresh(m.openRoom)
+	keep := m.openRoom
+	if a := m.profiles.arrival; a.due && !a.rooms && keep == a.room {
+		keep = "" // one opened in the profile the window switched from is not this one's
+	}
+	m.rooms = m.rooms.withJoined(msg.rooms).keepingFresh(keep)
 	// The rooms' facts follow the rooms; the rail follows when kithd serves it.
 	m = m.refreshPlaces().rebuiltRail()
 	if mdl, cmd, entered := m.enterPending(); entered {

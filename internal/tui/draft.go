@@ -688,7 +688,8 @@ func (m Model) handleDraftSaved(msg draftSavedMsg) (Model, tea.Cmd) {
 		m, next = m.requestSave(room)
 	}
 	m = m.reportDraftSave(msg.err)
-	return m, batched([]tea.Cmd{next, m.quitWhenDrafted()})
+	m, switching := m.switchWhenDrafted()
+	return m, batched([]tea.Cmd{next, m.quitWhenDrafted(), switching})
 }
 
 // reportDraftSave says when drafts stop and start being kept.
