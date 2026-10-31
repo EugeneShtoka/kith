@@ -29,6 +29,7 @@ type Device struct {
 	Complete      DeviceComplete      `toml:"complete"`
 	Assist        DeviceAssist        `toml:"assist"`
 	Commands      DeviceCommands      `toml:"commands"`
+	GUI           GUI                 `toml:"gui"` // graphical clients' on this device, over the bridge's key by key
 	UserCommands  []Command           `toml:"command"`
 	Bridges       []Bridge            `toml:"bridge"`
 	// ProfileInUse is the [[profile]] a window (the TUI, the desktop) runs in, as it was
@@ -238,16 +239,8 @@ func overlay(dst, now, was reflect.Value) {
 	case reflect.Map:
 		for _, key := range append(now.MapKeys(), was.MapKeys()...) {
 			got, had := now.MapIndex(key), was.MapIndex(key)
-			if got.IsValid() == had.IsValid() && (!got.IsValid() || reflect.DeepEqual(got.Interface(), had.Interface())) {
-				continue
-			}
-			if dst.IsNil() {
-				dst.Set(reflect.MakeMap(dst.Type()))
-			}
-			if got.IsValid() {
-				dst.SetMapIndex(key, deepCopy(got))
-			} else {
-				dst.SetMapIndex(key, reflect.Value{})
+			if got.IsValid() != had.IsValid() || (got.IsValid() && !reflect.DeepEqual(got.Interface(), had.Interface())) {
+				overlayEntry(dst, key, got)
 			}
 		}
 	case reflect.Slice:
@@ -259,4 +252,19 @@ func overlay(dst, now, was reflect.Value) {
 			dst.Set(deepCopy(now))
 		}
 	}
+}
+
+// overlayEntry sets the map dst's key to got, or removes it for no got. An emptied map is
+// none, as the file then reads (a theme's last person unset).
+func overlayEntry(dst, key, got reflect.Value) {
+	if !got.IsValid() {
+		if dst.SetMapIndex(key, reflect.Value{}); dst.Len() == 0 {
+			dst.SetZero()
+		}
+		return
+	}
+	if dst.IsNil() {
+		dst.Set(reflect.MakeMap(dst.Type()))
+	}
+	dst.SetMapIndex(key, deepCopy(got))
 }

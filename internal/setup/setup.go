@@ -49,6 +49,7 @@ func Validate(cfg config.Config) error {
 		RemoteListen(cfg.Remote),
 		BridgeContacts(cfg.BridgeContacts),
 		DefaultAccounts(cfg),
+		GUITheme(cfg.GUI.Theme),
 	} {
 		if err != nil {
 			return err
@@ -80,6 +81,7 @@ func ValidateDevice(dev config.Device) error {
 		Completion(dev.Complete),
 		Bridges(dev.Bridges),
 		ProfileInUse(dev.ProfileInUse),
+		GUITheme(dev.GUI.Theme),
 	} {
 		if err != nil {
 			return err

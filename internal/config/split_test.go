@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -96,6 +97,9 @@ type splitCase struct {
 	bridge, inConfig, inDevice []written
 	reply                      string     // [keys] timeline.reply in the config, if any
 	rules                      []ruleCase // [[notifications.rule]] in the config
+	// [gui.theme] in the config, the shared one, and in the device file, its override: the
+	// same keys in both, so a split must tell them apart.
+	sharedTheme, deviceTheme GUITheme
 }
 
 // ruleCase is a rule as a config from before device sounds wrote it.
@@ -111,6 +115,10 @@ func genSplitCase(rng *rand.Rand) splitCase {
 	}
 	if rng.IntN(3) == 0 {
 		c.reply = "R"
+	}
+	c.sharedTheme = genTheme(rng)
+	if c.inDevice != nil {
+		c.deviceTheme = genTheme(rng)
 	}
 	// Names and matches from small sets, so names repeat, an unnamed rule's derived name
 	// is another's, and rules sharing a name differ in sound or have none.
@@ -175,9 +183,9 @@ func (c splitCase) files(t *testing.T, dir string) (configPath, devicePath strin
 	if c.reply != "" {
 		text += "\n[keys.timeline]\nreply = \"" + c.reply + "\"\n"
 	}
-	writeFile(t, configPath, text+c.rulesText())
+	writeFile(t, configPath, text+c.rulesText()+themeText(c.sharedTheme))
 	if c.inDevice != nil {
-		writeFile(t, devicePath, tomlText(c.inDevice))
+		writeFile(t, devicePath, tomlText(c.inDevice)+themeText(c.deviceTheme))
 	}
 	return configPath, devicePath
 }
@@ -250,6 +258,10 @@ func (c splitCase) check(t *testing.T, seed uint64, configPath, devicePath strin
 		t.Fatalf("seed %d: reply bound to %q, want %q", seed, got, want.Keys.Bindings["timeline.reply"])
 	}
 	c.checkRuleSounds(t, seed, cfg, dev)
+	if !reflect.DeepEqual(cfg.GUI.Theme, c.sharedTheme) || !reflect.DeepEqual(dev.GUI.Theme, c.deviceTheme) {
+		t.Fatalf("seed %d: after the split the shared theme is %+v and the device's %+v, want %+v and %+v",
+			seed, cfg.GUI.Theme, dev.GUI.Theme, c.sharedTheme, c.deviceTheme)
+	}
 	before := snapshot(t, configPath, devicePath)
 	if moved, err := SplitDevice(configPath, devicePath); moved || err != nil {
 		t.Fatalf("seed %d: a second split = %v, %v; want nothing to move", seed, moved, err)

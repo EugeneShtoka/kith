@@ -638,14 +638,7 @@ func startupMediaMode(device config.DeviceDisplay) string {
 func buildIdentities(ids []config.Identity) map[string]resolvedIdentity {
 	out := make(map[string]resolvedIdentity)
 	for i, id := range ids {
-		key := id.Alias
-		if key == "" && len(id.IDs) > 0 {
-			key = id.IDs[0]
-		}
-		if key == "" {
-			key = fmt.Sprintf("identity-%d", i)
-		}
-		ri := resolvedIdentity{key: "id:" + key, alias: id.Alias}
+		ri := resolvedIdentity{key: setup.SenderKey(i, id), alias: id.Alias}
 		if c, ok := theme.ParseColor(id.Color); ok {
 			ri.color, ri.pinned = c, true
 		}

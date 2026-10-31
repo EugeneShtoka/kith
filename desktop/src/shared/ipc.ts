@@ -27,10 +27,16 @@ export const channels = {
   /** The window's text size in pixels (Electron's own store, not device.toml): asked, or set to (px). */
   fontSize: "kith:font-size",
   setFontSize: "kith:set-font-size",
+  /** The theme's mode ([gui.theme] mode), which main gives the window's light or dark: (mode). */
+  themeMode: "kith:theme-mode",
 } as const;
 
 /** The text sizes the window offers, in pixels; the default is 15. */
 export const fontSizes = [12, 13, 14, 15, 16, 17, 18, 20] as const;
+
+/** The modes the theme takes: following the system's light or dark, or one of them. */
+export const themeModes = ["system", "light", "dark"] as const;
+export type ThemeMode = (typeof themeModes)[number];
 
 /** A file offered for sending: main holds it, the window holds the token. */
 export interface Offered {
@@ -97,4 +103,6 @@ export interface KithBridge {
   fontSize(): Promise<number>;
   /** Sets the window's text size (one of fontSizes); resolves to the size now in use. */
   setFontSize(px: number): Promise<number>;
+  /** Draws the window light, dark, or as the system is (the theme's mode). */
+  themeMode(mode: ThemeMode): void;
 }

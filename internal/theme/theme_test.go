@@ -2,156 +2,28 @@ package theme
 
 import (
 	"image/color"
-	"math"
 	"testing"
 
 	"charm.land/lipgloss/v2"
+
+	"github.com/EugeneShtoka/kith/internal/themespec"
 )
 
-// Generated colors keep clear of colors already pinned to identities, by how they
-// look rather than by hue alone.
-func TestSpreadColorsAvoidsPinnedColors(t *testing.T) {
+// The TUI's sender colors are themespec's, the ones the desktop's relay hands its
+// window, pinned colors avoided alike.
+func TestSpreadColorsAreThemespecs(t *testing.T) {
 	t.Parallel()
 
 	pinned := []color.Color{lipgloss.Color("#3ad900"), lipgloss.Color("#00aaff")}
 	got := New(Default()).SpreadColors(40, pinned)
-
-	if len(got) != 40 {
+	want := themespec.SenderColors(40, []string{"#3ad900", "#00aaff"})
+	if len(got) != 40 || len(got) != len(want) {
 		t.Fatalf("got %d colors, want 40", len(got))
 	}
-	for i, c := range got {
-		for j, p := range pinned {
-			if d := colorDistance(oklab(c), oklab(p)); d < minColorGap {
-				t.Errorf("color %d is %.3f from pinned color %d, want at least %.3f",
-					i, d, j, minColorGap)
-			}
+	for i := range want {
+		if got[i] != lipgloss.Color(want[i]) {
+			t.Errorf("color %d = %v, want %s", i, got[i], want[i])
 		}
-	}
-}
-
-// A room of three with "me" pinned light green: the slots numbered past it never land
-// on a yellow or teal that reads as the same green, as slot 4's yellow did when only
-// the hue was kept 25° away.
-func TestSpreadColorsKeepYellowsAwayFromALightGreen(t *testing.T) {
-	t.Parallel()
-
-	me := lipgloss.Color("#8ff586")
-	for i, c := range New(Default()).SpreadColors(12, []color.Color{me}) {
-		if d := colorDistance(oklab(c), oklab(me)); d < 0.1 {
-			t.Errorf("slot %d (%v) is %.3f from %v: it reads as the same color", i, c, d, me)
-		}
-	}
-}
-
-// Consecutive senders get colors that look different.
-func TestSpreadColorsSeparatesNeighbours(t *testing.T) {
-	t.Parallel()
-
-	got := New(Default()).SpreadColors(12, nil)
-	for i := 1; i < len(got); i++ {
-		if d := colorDistance(oklab(got[i]), oklab(got[i-1])); d < 0.2 {
-			t.Errorf("colors %d and %d are %.3f apart; they will read as the same", i-1, i, d)
-		}
-	}
-}
-
-// All generated colors are distinct, not just neighbors.
-func TestSpreadColorsAreAllDifferent(t *testing.T) {
-	t.Parallel()
-
-	seen := map[color.Color]bool{}
-	for _, c := range New(Default()).SpreadColors(64, nil) {
-		if seen[c] {
-			t.Fatalf("%v was handed out twice", c)
-		}
-		seen[c] = true
-	}
-}
-
-// n == 0 and an empty avoid list are handled.
-func TestSpreadColorsDegenerateInputs(t *testing.T) {
-	t.Parallel()
-
-	if got := New(Default()).SpreadColors(0, nil); len(got) != 0 {
-		t.Errorf("SpreadColors(0) = %v, want none", got)
-	}
-	if got := New(Default()).SpreadColors(1, nil); len(got) != 1 {
-		t.Errorf("SpreadColors(1) returned %d colors", len(got))
-	}
-}
-
-// An avoid list covering the wheel returns fewer colors instead of looping.
-func TestSpreadColorsGivesUpRatherThanSpinning(t *testing.T) {
-	t.Parallel()
-
-	var everywhere []color.Color
-	for h := 0.0; h < 1; h += 0.01 {
-		everywhere = append(everywhere, hslColor(h*360, senderSaturation, senderLightness))
-	}
-	got := New(Default()).SpreadColors(8, everywhere)
-	if len(got) != 0 {
-		t.Errorf("got %d colors despite every hue being taken", len(got))
-	}
-}
-
-// hslColor on the primaries, a mid-hue and wraparound.
-func TestHSLConversion(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name    string
-		h, s, l float64
-		want    string
-	}{
-		{"red", 0, 1, 0.5, "#ff0000"},
-		{"green", 120, 1, 0.5, "#00ff00"},
-		{"blue", 240, 1, 0.5, "#0000ff"},
-		{"cyan", 180, 1, 0.5, "#00ffff"},
-		{"yellow", 60, 1, 0.5, "#ffff00"},
-		{"magenta", 300, 1, 0.5, "#ff00ff"},
-		{"black", 0, 0, 0, "#000000"},
-		{"white", 0, 0, 1, "#ffffff"},
-		{"mid grey", 210, 0, 0.5, "#808080"},
-		// 480° wraps to 120°.
-		{"wraps past 360", 480, 1, 0.5, "#00ff00"},
-	} {
-		if got := hslColor(tc.h, tc.s, tc.l); got != lipgloss.Color(tc.want) {
-			t.Errorf("%s: hslColor(%g, %g, %g) = %v, want %s", tc.name, tc.h, tc.s, tc.l, got, tc.want)
-		}
-	}
-}
-
-// OKLab puts black, white and grey on the lightness axis, and measures a color as
-// nothing from itself.
-func TestOKLab(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		hex  string
-		l    float64
-		grey bool
-	}{
-		{"#000000", 0, true}, {"#ffffff", 1, true}, {"#808080", 0.6, true}, {"#ff0000", 0.628, false},
-	} {
-		lab := oklab(lipgloss.Color(tc.hex))
-		if math.Abs(lab[0]-tc.l) > 0.01 {
-			t.Errorf("%s: L = %.3f, want %.3f", tc.hex, lab[0], tc.l)
-		}
-		if chroma := math.Hypot(lab[1], lab[2]); tc.grey && chroma > 0.001 {
-			t.Errorf("%s: a grey has chroma %.4f", tc.hex, chroma)
-		}
-		if d := colorDistance(lab, lab); d != 0 {
-			t.Errorf("%s: %.4f from itself", tc.hex, d)
-		}
-	}
-	if !nearAny(oklab(lipgloss.Color("#8ff586")), [][3]float64{oklab(lipgloss.Color("#88f080"))}) {
-		t.Error("two near-identical greens are not near")
-	}
-	if nearAny(oklab(lipgloss.Color("#8ff586")), [][3]float64{oklab(lipgloss.Color("#a07ff0"))}) {
-		t.Error("a green and a violet are near")
-	}
-	if nearAny(oklab(lipgloss.Color("#8ff586")), nil) {
-		t.Error("nothing to avoid, yet near")
 	}
 }
 

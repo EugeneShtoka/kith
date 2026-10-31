@@ -437,7 +437,11 @@ before (no exported call without its caller).
      and per person, and their settings page. 8b's storage: the shared look in
      `config.toml`, and a `device.toml` table of the same keys overriding it key by
      key; the TUI keeps its own `[display.theme]`. Avatars are colored initials for
-     now; pictures are a later PR of their own.
+     now; pictures are a later PR of their own. (8b landed 2026-10-31: `[gui.theme]`, for
+     graphical clients, holds `mode`, `[gui.theme.light]` and `[gui.theme.dark]` (accent,
+     background, surface, text, muted, link, selection, unread, mention),
+     `[gui.theme.accounts]` by `domain.AccountRooms` and `[gui.theme.people]` by ID, in
+     both files; `Theme`/`UpdateTheme` on `DeviceService`.)
 
 After the MVP, each with its own PR and review:
 

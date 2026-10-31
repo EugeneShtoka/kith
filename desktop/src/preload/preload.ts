@@ -48,6 +48,9 @@ const kith: KithBridge = {
   attach: (token, room, caption) => ipcRenderer.invoke(channels.attach, token, room, caption) as Promise<Sent>,
   fontSize: () => ipcRenderer.invoke(channels.fontSize) as Promise<number>,
   setFontSize: (px) => ipcRenderer.invoke(channels.setFontSize, px) as Promise<number>,
+  themeMode(mode) {
+    ipcRenderer.send(channels.themeMode, mode);
+  },
 };
 
 contextBridge.exposeInMainWorld("kith", kith);

@@ -536,6 +536,29 @@ timeout = 15
 #   output = "none"
 #   keys   = "gX"
 
+# The graphical clients' theme on this device alone: the keys of [gui.theme] in
+# config.toml (mode, accounts, people, and each mode's roles), each one set here taking
+# the place of the shared one. The window's Settings → Theme writes it for a row whose
+# "only this device" is on; turning it off removes the key here.
+#
+# [gui.theme]
+# mode = "light"
+#
+# Roles: accent, background, surface, text, muted, link, selection, unread, mention.
+# [gui.theme.dark]
+# accent = "#4c8dff"
+#
+# Roles: accent, background, surface, text, muted, link, selection, unread, mention.
+# [gui.theme.light]
+# accent = "#1f6feb"
+#
+# A network account's color (accounts), and a person's (people).
+# [gui.theme.accounts]
+# "whatsapp:main/" = "#25d366"
+#
+# [gui.theme.people]
+# "matrix:@ada:example.org" = "#d97706"
+
 # `!` puts the room under the cursor in Spam, or takes it out, and in the timeline the
 # selected message's sender: a key bound to a tag by its chord. See [keys] for more.
 [[keys.tag]]

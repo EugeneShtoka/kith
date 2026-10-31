@@ -47,8 +47,9 @@ type Property struct {
 	Example      bool
 }
 
-// notProperties are the top-level tables that hold no properties.
-var notProperties = []string{"keys", "storage"}
+// notProperties are the top-level tables that hold no properties. [gui] is graphical
+// clients', in both files under one path, which the TUI's screen does not read.
+var notProperties = []string{"keys", "storage", "gui"}
 
 // settingsFile is one file settings live in: its name, annotated default and type.
 type settingsFile struct {

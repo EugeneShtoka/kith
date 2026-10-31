@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import type { ComposerView } from "./compose";
+import type { Faces } from "./theme";
 import type { Session } from "./session";
 import type { ThreadView } from "./threads";
 import type { TimelineView } from "./timeline";
@@ -12,11 +13,13 @@ export function ThreadPane({
   thread,
   t,
   composer,
+  faces,
   session,
 }: {
   thread: ThreadView;
   t: TimelineView;
   composer: ComposerView | undefined;
+  faces: Faces;
   session: Session;
 }) {
   const watched = useWatched();
@@ -68,6 +71,7 @@ export function ThreadPane({
             reactions={t.reactions.get(m.id)}
             threads={undefined}
             composer={composer}
+            faces={faces}
             session={session}
           />
         ))}

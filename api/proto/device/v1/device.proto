@@ -32,6 +32,113 @@ service DeviceService {
   // (media.Strip) and the file goes under a neutral name (domain.SentName). Main asks
   // it for each file the person offered; the window never names a path.
   rpc Outgoing(OutgoingRequest) returns (OutgoingResponse);
+  // Theme is the graphical clients' theme ([gui.theme]) as it now resolves: each key from
+  // this device's file (device.toml) where it sets one, else from the bridge's config
+  // (config.toml, read through kithd's GetConfig on any device), else its default; and
+  // what the defaults come from, so the window draws as the TUI does until a color is
+  // picked. Each call reads both again: a window asks after a config change
+  // (ConfigChanged). kithd unreachable is UNAVAILABLE; a [gui.theme] that does not check,
+  // in either file, FAILED_PRECONDITION.
+  rpc Theme(ThemeRequest) returns (ThemeResponse);
+  // UpdateTheme writes theme keys, each to the scope it names: SHARED into the bridge's
+  // config, written whole through kithd (UpdateConfig) on config_revision, never into a
+  // file here; DEVICE into device.toml on device_revision, as UpdateDeviceSettings
+  // writes it. An empty value removes the key from that scope's file. A file changed
+  // since its revision is ABORTED with nothing of that scope written: the window reads
+  // the theme again. An unknown key, a color that is not #rrggbb or a mode not known is
+  // INVALID_ARGUMENT, nothing written. It answers the theme as now resolved.
+  rpc UpdateTheme(UpdateThemeRequest) returns (UpdateThemeResponse);
+}
+
+message ThemeRequest {}
+
+message ThemeResponse {
+  // values holds each key by its path in [gui.theme]: "mode"; "light.<role>" and
+  // "dark.<role>" for each role (accent, background, surface, text, muted, link,
+  // selection, unread, mention); "accounts.<account>" for each account kithd serves or
+  // either file names; "people.<person>" for each person either file names.
+  map<string, ThemeValue> values = 1;
+  // config_revision is config.toml's as GetConfig read it, device_revision device.toml's
+  // ("" for no file): what UpdateTheme's writes are made on.
+  string config_revision = 2;
+  string device_revision = 3;
+  // accounts are the network accounts kithd serves, as Accounts lists them: the key
+  // ("accounts." + on) each color is kept under, and what to call it.
+  repeated ThemeAccount accounts = 4;
+  // sender_palette is the TUI's sender colors ("#rrggbb"), a room's color slot i being
+  // its i-th (SenderSlots); the colors pinned to [[display.identity]] are avoided.
+  repeated string sender_palette = 5;
+  // network_colors is each network's color as the TUI names its rooms in it
+  // ([display.theme.networks], its default where unset), by the network as a Room
+  // names it ("WhatsApp"); a network with no color is absent.
+  map<string, string> network_colors = 6;
+  // identities is each person a [[display.identity]] names, by ID: the key a room's
+  // color slots remember them by, and the color pinned to them, if any.
+  map<string, ThemeIdentity> identities = 7;
+}
+
+// ThemeSource is where a key's value comes from.
+enum ThemeSource {
+  THEME_SOURCE_UNSPECIFIED = 0; // its default: no file sets it
+  THEME_SOURCE_SHARED = 1; // the bridge's config.toml
+  THEME_SOURCE_DEVICE = 2; // this device's device.toml, over the shared one
+}
+
+// ThemeValue is one key: what it is, from where, and what each file holds of it.
+message ThemeValue {
+  // value is the effective one: device's, else shared's, else the default ("" for a
+  // role, the built-in token; for a person, their slot's color; for an account, its
+  // network's color, if any).
+  string value = 1;
+  ThemeSource source = 2;
+  // shared and device are what each file holds of the key, "" where it is unset.
+  string shared = 3;
+  string device = 4;
+}
+
+// ThemeAccount is one network account kithd serves.
+message ThemeAccount {
+  // on is its rooms' owner, as domain.AccountRooms writes it: a room is the account's
+  // when its ID starts with it.
+  string on = 1;
+  string network = 2;
+  // name is what the config calls it (Matrix: the MXID).
+  string name = 3;
+}
+
+// ThemeIdentity is a person as their [[display.identity]] colors them.
+message ThemeIdentity {
+  // key is what a room's color slots (SenderSlots) remember them by.
+  string key = 1;
+  // color is the identity's pinned color ("#rrggbb"), "" for none.
+  string color = 2;
+}
+
+// ThemeScope is where a write goes.
+enum ThemeScope {
+  THEME_SCOPE_UNSPECIFIED = 0; // refused
+  THEME_SCOPE_SHARED = 1; // the bridge's config.toml, every device
+  THEME_SCOPE_DEVICE = 2; // this device's device.toml
+}
+
+message ThemeWrite {
+  // key is a path in [gui.theme], as ThemeResponse.values names it.
+  string key = 1;
+  // value is the key's new value; "" removes it from scope's file.
+  string value = 2;
+  ThemeScope scope = 3;
+}
+
+message UpdateThemeRequest {
+  // config_revision and device_revision are the theme's (ThemeResponse) the writes were
+  // made on.
+  string config_revision = 1;
+  string device_revision = 2;
+  repeated ThemeWrite writes = 3;
+}
+
+message UpdateThemeResponse {
+  ThemeResponse theme = 1;
 }
 
 message OutgoingRequest {

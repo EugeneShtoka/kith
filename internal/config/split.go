@@ -63,6 +63,9 @@ func splitOnce(configPath, devicePath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	// [gui] has the same keys in both files: the config's is the shared one and stays,
+	// never made this device's override.
+	fromConfig.GUI = GUI{}
 	if merr := moveRuleSounds(configPath, string(body), &cfg, &fromConfig); merr != nil {
 		return false, merr
 	}

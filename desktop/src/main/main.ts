@@ -12,6 +12,7 @@ import {
   ipcMain,
   type NativeImage,
   nativeImage,
+  nativeTheme,
   net,
   protocol,
   session,
@@ -19,7 +20,7 @@ import {
 } from "electron";
 
 import { BackendService } from "../gen/backend/v1/services_pb";
-import { channels, fontSizes, type Subscribe } from "../shared/ipc";
+import { channels, fontSizes, type ThemeMode, themeModes, type Subscribe } from "../shared/ipc";
 import { mediaScheme } from "../shared/media";
 import { Attachments } from "./attach";
 import { appURL, fromTheWindow, Gate } from "./gate";
@@ -168,6 +169,12 @@ async function start(): Promise<void> {
     app.setBadgeCount(n);
     tray.setImage(trayIcon(n > 0));
     tray.setToolTip(n > 0 ? `kith: ${String(n)} unread` : "kith");
+  });
+  // The theme's mode: the window's light and dark follow what the system is told here.
+  ipcMain.on(channels.themeMode, (event, mode: unknown) => {
+    if (fromTheWindow(event.senderFrame) && (themeModes as readonly unknown[]).includes(mode)) {
+      nativeTheme.themeSource = mode as ThemeMode;
+    }
   });
 
   window = new BrowserWindow({

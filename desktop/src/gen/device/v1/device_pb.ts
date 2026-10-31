@@ -2,15 +2,276 @@
 // @generated from file device/v1/device.proto (package device.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file device/v1/device.proto.
  */
 export const file_device_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiHwoPT3V0Z29pbmdSZXF1ZXN0EgwKBHBhdGgYASABKAkiTAoQT3V0Z29pbmdSZXNwb25zZRIMCgRwYXRoGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGY29waWVkGAMgASgIEgwKBGtlcHQYBCABKAgiDwoNRGV2aWNlUmVxdWVzdCJTCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCRIOCgZicmlkZ2UYBCABKAkiJAoUQ2hvb3NlUHJvZmlsZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSIoChVDaG9vc2VQcm9maWxlUmVzcG9uc2USDwoHcHJvZmlsZRgBIAEoCSIXChVEZXZpY2VTZXR0aW5nc1JlcXVlc3QiVwoWRGV2aWNlU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncxIQCghyZXZpc2lvbhgCIAEoCSJhChtVcGRhdGVEZXZpY2VTZXR0aW5nc1JlcXVlc3QSFQoNYmFzZV9yZXZpc2lvbhgBIAEoCRIrCghzZXR0aW5ncxgCIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncyJdChxVcGRhdGVEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzEhAKCHJldmlzaW9uGAIgASgJIu0CCg5EZXZpY2VTZXR0aW5ncxIVCg1zZW5kX3JlY2VpcHRzGAEgASgIEicKCnJlYWRfcnVsZXMYAiADKAsyEy5kZXZpY2UudjEuUmVhZFJ1bGUSEwoLdW5yZWFkX2xpbmUYAyABKAgSEAoIbWFya2Rvd24YBCABKAgSEwoLY29uZmlybV9zbXMYBSABKAgSEwoLc2VuZF90eXBpbmcYBiABKAgSEQoJc2tpbl90b25lGAcgASgJEhEKCWVtb2ppX3NldBgIIAEoCRI+CgtlbW9qaV9leHRyYRgJIAMoCzIpLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncy5FbW9qaUV4dHJhRW50cnkSFwoPcmVhY3Rpb25zX3Njb3BlGAogASgJEhgKEHJlYWN0aW9uc19zdGF0aWMYCyADKAkaMQoPRW1vamlFeHRyYUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiRQoIUmVhZFJ1bGUSDQoFbWF0Y2gYASABKAkSDgoGc2VuZGVyGAIgASgJEhEKBHNlbmQYAyABKAhIAIgBAUIHCgVfc2VuZDKnAwoNRGV2aWNlU2VydmljZRI9CgZEZXZpY2USGC5kZXZpY2UudjEuRGV2aWNlUmVxdWVzdBoZLmRldmljZS52MS5EZXZpY2VSZXNwb25zZRJSCg1DaG9vc2VQcm9maWxlEh8uZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXF1ZXN0GiAuZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXNwb25zZRJVCg5EZXZpY2VTZXR0aW5ncxIgLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1JlcXVlc3QaIS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXNwb25zZRJnChRVcGRhdGVEZXZpY2VTZXR0aW5ncxImLmRldmljZS52MS5VcGRhdGVEZXZpY2VTZXR0aW5nc1JlcXVlc3QaJy5kZXZpY2UudjEuVXBkYXRlRGV2aWNlU2V0dGluZ3NSZXNwb25zZRJDCghPdXRnb2luZxIaLmRldmljZS52MS5PdXRnb2luZ1JlcXVlc3QaGy5kZXZpY2UudjEuT3V0Z29pbmdSZXNwb25zZUI+WjxnaXRodWIuY29tL0V1Z2VuZVNodG9rYS9raXRoL2ludGVybmFsL2FwaS9kZXZpY2UvdjE7ZGV2aWNldjFiBnByb3RvMw");
+  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEiDgoMVGhlbWVSZXF1ZXN0IoYECg1UaGVtZVJlc3BvbnNlEjQKBnZhbHVlcxgBIAMoCzIkLmRldmljZS52MS5UaGVtZVJlc3BvbnNlLlZhbHVlc0VudHJ5EhcKD2NvbmZpZ19yZXZpc2lvbhgCIAEoCRIXCg9kZXZpY2VfcmV2aXNpb24YAyABKAkSKQoIYWNjb3VudHMYBCADKAsyFy5kZXZpY2UudjEuVGhlbWVBY2NvdW50EhYKDnNlbmRlcl9wYWxldHRlGAUgAygJEkMKDm5ldHdvcmtfY29sb3JzGAYgAygLMisuZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2UuTmV0d29ya0NvbG9yc0VudHJ5EjwKCmlkZW50aXRpZXMYByADKAsyKC5kZXZpY2UudjEuVGhlbWVSZXNwb25zZS5JZGVudGl0aWVzRW50cnkaRAoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUuZGV2aWNlLnYxLlRoZW1lVmFsdWU6AjgBGjQKEk5ldHdvcmtDb2xvcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGksKD0lkZW50aXRpZXNFbnRyeRILCgNrZXkYASABKAkSJwoFdmFsdWUYAiABKAsyGC5kZXZpY2UudjEuVGhlbWVJZGVudGl0eToCOAEiYwoKVGhlbWVWYWx1ZRINCgV2YWx1ZRgBIAEoCRImCgZzb3VyY2UYAiABKA4yFi5kZXZpY2UudjEuVGhlbWVTb3VyY2USDgoGc2hhcmVkGAMgASgJEg4KBmRldmljZRgEIAEoCSI5CgxUaGVtZUFjY291bnQSCgoCb24YASABKAkSDwoHbmV0d29yaxgCIAEoCRIMCgRuYW1lGAMgASgJIisKDVRoZW1lSWRlbnRpdHkSCwoDa2V5GAEgASgJEg0KBWNvbG9yGAIgASgJIk4KClRoZW1lV3JpdGUSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJEiQKBXNjb3BlGAMgASgOMhUuZGV2aWNlLnYxLlRoZW1lU2NvcGUibQoSVXBkYXRlVGhlbWVSZXF1ZXN0EhcKD2NvbmZpZ19yZXZpc2lvbhgBIAEoCRIXCg9kZXZpY2VfcmV2aXNpb24YAiABKAkSJQoGd3JpdGVzGAMgAygLMhUuZGV2aWNlLnYxLlRoZW1lV3JpdGUiPgoTVXBkYXRlVGhlbWVSZXNwb25zZRInCgV0aGVtZRgBIAEoCzIYLmRldmljZS52MS5UaGVtZVJlc3BvbnNlIh8KD091dGdvaW5nUmVxdWVzdBIMCgRwYXRoGAEgASgJIkwKEE91dGdvaW5nUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBmNvcGllZBgDIAEoCBIMCgRrZXB0GAQgASgIIg8KDURldmljZVJlcXVlc3QiUwoORGV2aWNlUmVzcG9uc2USDgoGc29ja2V0GAEgASgJEg8KB3Byb2ZpbGUYAiABKAkSEAoIcHJvZmlsZXMYAyADKAkSDgoGYnJpZGdlGAQgASgJIiQKFENob29zZVByb2ZpbGVSZXF1ZXN0EgwKBG5hbWUYASABKAkiKAoVQ2hvb3NlUHJvZmlsZVJlc3BvbnNlEg8KB3Byb2ZpbGUYASABKAkiFwoVRGV2aWNlU2V0dGluZ3NSZXF1ZXN0IlcKFkRldmljZVNldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3MSEAoIcmV2aXNpb24YAiABKAkiYQobVXBkYXRlRGV2aWNlU2V0dGluZ3NSZXF1ZXN0EhUKDWJhc2VfcmV2aXNpb24YASABKAkSKwoIc2V0dGluZ3MYAiABKAsyGS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3MiXQocVXBkYXRlRGV2aWNlU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncxIQCghyZXZpc2lvbhgCIAEoCSLtAgoORGV2aWNlU2V0dGluZ3MSFQoNc2VuZF9yZWNlaXB0cxgBIAEoCBInCgpyZWFkX3J1bGVzGAIgAygLMhMuZGV2aWNlLnYxLlJlYWRSdWxlEhMKC3VucmVhZF9saW5lGAMgASgIEhAKCG1hcmtkb3duGAQgASgIEhMKC2NvbmZpcm1fc21zGAUgASgIEhMKC3NlbmRfdHlwaW5nGAYgASgIEhEKCXNraW5fdG9uZRgHIAEoCRIRCgllbW9qaV9zZXQYCCABKAkSPgoLZW1vamlfZXh0cmEYCSADKAsyKS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3MuRW1vamlFeHRyYUVudHJ5EhcKD3JlYWN0aW9uc19zY29wZRgKIAEoCRIYChByZWFjdGlvbnNfc3RhdGljGAsgAygJGjEKD0Vtb2ppRXh0cmFFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkUKCFJlYWRSdWxlEg0KBW1hdGNoGAEgASgJEg4KBnNlbmRlchgCIAEoCRIRCgRzZW5kGAMgASgISACIAQFCBwoFX3NlbmQqXQoLVGhlbWVTb3VyY2USHAoYVEhFTUVfU09VUkNFX1VOU1BFQ0lGSUVEEAASFwoTVEhFTUVfU09VUkNFX1NIQVJFRBABEhcKE1RIRU1FX1NPVVJDRV9ERVZJQ0UQAipZCgpUaGVtZVNjb3BlEhsKF1RIRU1FX1NDT1BFX1VOU1BFQ0lGSUVEEAASFgoSVEhFTUVfU0NPUEVfU0hBUkVEEAESFgoSVEhFTUVfU0NPUEVfREVWSUNFEAIysQQKDURldmljZVNlcnZpY2USPQoGRGV2aWNlEhguZGV2aWNlLnYxLkRldmljZVJlcXVlc3QaGS5kZXZpY2UudjEuRGV2aWNlUmVzcG9uc2USUgoNQ2hvb3NlUHJvZmlsZRIfLmRldmljZS52MS5DaG9vc2VQcm9maWxlUmVxdWVzdBogLmRldmljZS52MS5DaG9vc2VQcm9maWxlUmVzcG9uc2USVQoORGV2aWNlU2V0dGluZ3MSIC5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXF1ZXN0GiEuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzUmVzcG9uc2USZwoUVXBkYXRlRGV2aWNlU2V0dGluZ3MSJi5kZXZpY2UudjEuVXBkYXRlRGV2aWNlU2V0dGluZ3NSZXF1ZXN0GicuZGV2aWNlLnYxLlVwZGF0ZURldmljZVNldHRpbmdzUmVzcG9uc2USQwoIT3V0Z29pbmcSGi5kZXZpY2UudjEuT3V0Z29pbmdSZXF1ZXN0GhsuZGV2aWNlLnYxLk91dGdvaW5nUmVzcG9uc2USOgoFVGhlbWUSFy5kZXZpY2UudjEuVGhlbWVSZXF1ZXN0GhguZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2USTAoLVXBkYXRlVGhlbWUSHS5kZXZpY2UudjEuVXBkYXRlVGhlbWVSZXF1ZXN0Gh4uZGV2aWNlLnYxLlVwZGF0ZVRoZW1lUmVzcG9uc2VCPlo8Z2l0aHViLmNvbS9FdWdlbmVTaHRva2Eva2l0aC9pbnRlcm5hbC9hcGkvZGV2aWNlL3YxO2RldmljZXYxYgZwcm90bzM");
+
+/**
+ * @generated from message device.v1.ThemeRequest
+ */
+export type ThemeRequest = Message<"device.v1.ThemeRequest"> & {
+};
+
+/**
+ * Describes the message device.v1.ThemeRequest.
+ * Use `create(ThemeRequestSchema)` to create a new message.
+ */
+export const ThemeRequestSchema: GenMessage<ThemeRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 0);
+
+/**
+ * @generated from message device.v1.ThemeResponse
+ */
+export type ThemeResponse = Message<"device.v1.ThemeResponse"> & {
+  /**
+   * values holds each key by its path in [gui.theme]: "mode"; "light.<role>" and
+   * "dark.<role>" for each role (accent, background, surface, text, muted, link,
+   * selection, unread, mention); "accounts.<account>" for each account kithd serves or
+   * either file names; "people.<person>" for each person either file names.
+   *
+   * @generated from field: map<string, device.v1.ThemeValue> values = 1;
+   */
+  values: { [key: string]: ThemeValue };
+
+  /**
+   * config_revision is config.toml's as GetConfig read it, device_revision device.toml's
+   * ("" for no file): what UpdateTheme's writes are made on.
+   *
+   * @generated from field: string config_revision = 2;
+   */
+  configRevision: string;
+
+  /**
+   * @generated from field: string device_revision = 3;
+   */
+  deviceRevision: string;
+
+  /**
+   * accounts are the network accounts kithd serves, as Accounts lists them: the key
+   * ("accounts." + on) each color is kept under, and what to call it.
+   *
+   * @generated from field: repeated device.v1.ThemeAccount accounts = 4;
+   */
+  accounts: ThemeAccount[];
+
+  /**
+   * sender_palette is the TUI's sender colors ("#rrggbb"), a room's color slot i being
+   * its i-th (SenderSlots); the colors pinned to [[display.identity]] are avoided.
+   *
+   * @generated from field: repeated string sender_palette = 5;
+   */
+  senderPalette: string[];
+
+  /**
+   * network_colors is each network's color as the TUI names its rooms in it
+   * ([display.theme.networks], its default where unset), by the network as a Room
+   * names it ("WhatsApp"); a network with no color is absent.
+   *
+   * @generated from field: map<string, string> network_colors = 6;
+   */
+  networkColors: { [key: string]: string };
+
+  /**
+   * identities is each person a [[display.identity]] names, by ID: the key a room's
+   * color slots remember them by, and the color pinned to them, if any.
+   *
+   * @generated from field: map<string, device.v1.ThemeIdentity> identities = 7;
+   */
+  identities: { [key: string]: ThemeIdentity };
+};
+
+/**
+ * Describes the message device.v1.ThemeResponse.
+ * Use `create(ThemeResponseSchema)` to create a new message.
+ */
+export const ThemeResponseSchema: GenMessage<ThemeResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 1);
+
+/**
+ * ThemeValue is one key: what it is, from where, and what each file holds of it.
+ *
+ * @generated from message device.v1.ThemeValue
+ */
+export type ThemeValue = Message<"device.v1.ThemeValue"> & {
+  /**
+   * value is the effective one: device's, else shared's, else the default ("" for a
+   * role, the built-in token; for a person, their slot's color; for an account, its
+   * network's color, if any).
+   *
+   * @generated from field: string value = 1;
+   */
+  value: string;
+
+  /**
+   * @generated from field: device.v1.ThemeSource source = 2;
+   */
+  source: ThemeSource;
+
+  /**
+   * shared and device are what each file holds of the key, "" where it is unset.
+   *
+   * @generated from field: string shared = 3;
+   */
+  shared: string;
+
+  /**
+   * @generated from field: string device = 4;
+   */
+  device: string;
+};
+
+/**
+ * Describes the message device.v1.ThemeValue.
+ * Use `create(ThemeValueSchema)` to create a new message.
+ */
+export const ThemeValueSchema: GenMessage<ThemeValue> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 2);
+
+/**
+ * ThemeAccount is one network account kithd serves.
+ *
+ * @generated from message device.v1.ThemeAccount
+ */
+export type ThemeAccount = Message<"device.v1.ThemeAccount"> & {
+  /**
+   * on is its rooms' owner, as domain.AccountRooms writes it: a room is the account's
+   * when its ID starts with it.
+   *
+   * @generated from field: string on = 1;
+   */
+  on: string;
+
+  /**
+   * @generated from field: string network = 2;
+   */
+  network: string;
+
+  /**
+   * name is what the config calls it (Matrix: the MXID).
+   *
+   * @generated from field: string name = 3;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message device.v1.ThemeAccount.
+ * Use `create(ThemeAccountSchema)` to create a new message.
+ */
+export const ThemeAccountSchema: GenMessage<ThemeAccount> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 3);
+
+/**
+ * ThemeIdentity is a person as their [[display.identity]] colors them.
+ *
+ * @generated from message device.v1.ThemeIdentity
+ */
+export type ThemeIdentity = Message<"device.v1.ThemeIdentity"> & {
+  /**
+   * key is what a room's color slots (SenderSlots) remember them by.
+   *
+   * @generated from field: string key = 1;
+   */
+  key: string;
+
+  /**
+   * color is the identity's pinned color ("#rrggbb"), "" for none.
+   *
+   * @generated from field: string color = 2;
+   */
+  color: string;
+};
+
+/**
+ * Describes the message device.v1.ThemeIdentity.
+ * Use `create(ThemeIdentitySchema)` to create a new message.
+ */
+export const ThemeIdentitySchema: GenMessage<ThemeIdentity> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 4);
+
+/**
+ * @generated from message device.v1.ThemeWrite
+ */
+export type ThemeWrite = Message<"device.v1.ThemeWrite"> & {
+  /**
+   * key is a path in [gui.theme], as ThemeResponse.values names it.
+   *
+   * @generated from field: string key = 1;
+   */
+  key: string;
+
+  /**
+   * value is the key's new value; "" removes it from scope's file.
+   *
+   * @generated from field: string value = 2;
+   */
+  value: string;
+
+  /**
+   * @generated from field: device.v1.ThemeScope scope = 3;
+   */
+  scope: ThemeScope;
+};
+
+/**
+ * Describes the message device.v1.ThemeWrite.
+ * Use `create(ThemeWriteSchema)` to create a new message.
+ */
+export const ThemeWriteSchema: GenMessage<ThemeWrite> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 5);
+
+/**
+ * @generated from message device.v1.UpdateThemeRequest
+ */
+export type UpdateThemeRequest = Message<"device.v1.UpdateThemeRequest"> & {
+  /**
+   * config_revision and device_revision are the theme's (ThemeResponse) the writes were
+   * made on.
+   *
+   * @generated from field: string config_revision = 1;
+   */
+  configRevision: string;
+
+  /**
+   * @generated from field: string device_revision = 2;
+   */
+  deviceRevision: string;
+
+  /**
+   * @generated from field: repeated device.v1.ThemeWrite writes = 3;
+   */
+  writes: ThemeWrite[];
+};
+
+/**
+ * Describes the message device.v1.UpdateThemeRequest.
+ * Use `create(UpdateThemeRequestSchema)` to create a new message.
+ */
+export const UpdateThemeRequestSchema: GenMessage<UpdateThemeRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 6);
+
+/**
+ * @generated from message device.v1.UpdateThemeResponse
+ */
+export type UpdateThemeResponse = Message<"device.v1.UpdateThemeResponse"> & {
+  /**
+   * @generated from field: device.v1.ThemeResponse theme = 1;
+   */
+  theme?: ThemeResponse | undefined;
+};
+
+/**
+ * Describes the message device.v1.UpdateThemeResponse.
+ * Use `create(UpdateThemeResponseSchema)` to create a new message.
+ */
+export const UpdateThemeResponseSchema: GenMessage<UpdateThemeResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 7);
 
 /**
  * @generated from message device.v1.OutgoingRequest
@@ -29,7 +290,7 @@ export type OutgoingRequest = Message<"device.v1.OutgoingRequest"> & {
  * Use `create(OutgoingRequestSchema)` to create a new message.
  */
 export const OutgoingRequestSchema: GenMessage<OutgoingRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 0);
+  messageDesc(file_device_v1_device, 8);
 
 /**
  * @generated from message device.v1.OutgoingResponse
@@ -69,7 +330,7 @@ export type OutgoingResponse = Message<"device.v1.OutgoingResponse"> & {
  * Use `create(OutgoingResponseSchema)` to create a new message.
  */
 export const OutgoingResponseSchema: GenMessage<OutgoingResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 1);
+  messageDesc(file_device_v1_device, 9);
 
 /**
  * @generated from message device.v1.DeviceRequest
@@ -82,7 +343,7 @@ export type DeviceRequest = Message<"device.v1.DeviceRequest"> & {
  * Use `create(DeviceRequestSchema)` to create a new message.
  */
 export const DeviceRequestSchema: GenMessage<DeviceRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 2);
+  messageDesc(file_device_v1_device, 10);
 
 /**
  * @generated from message device.v1.DeviceResponse
@@ -127,7 +388,7 @@ export type DeviceResponse = Message<"device.v1.DeviceResponse"> & {
  * Use `create(DeviceResponseSchema)` to create a new message.
  */
 export const DeviceResponseSchema: GenMessage<DeviceResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 3);
+  messageDesc(file_device_v1_device, 11);
 
 /**
  * @generated from message device.v1.ChooseProfileRequest
@@ -146,7 +407,7 @@ export type ChooseProfileRequest = Message<"device.v1.ChooseProfileRequest"> & {
  * Use `create(ChooseProfileRequestSchema)` to create a new message.
  */
 export const ChooseProfileRequestSchema: GenMessage<ChooseProfileRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 4);
+  messageDesc(file_device_v1_device, 12);
 
 /**
  * @generated from message device.v1.ChooseProfileResponse
@@ -165,7 +426,7 @@ export type ChooseProfileResponse = Message<"device.v1.ChooseProfileResponse"> &
  * Use `create(ChooseProfileResponseSchema)` to create a new message.
  */
 export const ChooseProfileResponseSchema: GenMessage<ChooseProfileResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 5);
+  messageDesc(file_device_v1_device, 13);
 
 /**
  * @generated from message device.v1.DeviceSettingsRequest
@@ -178,7 +439,7 @@ export type DeviceSettingsRequest = Message<"device.v1.DeviceSettingsRequest"> &
  * Use `create(DeviceSettingsRequestSchema)` to create a new message.
  */
 export const DeviceSettingsRequestSchema: GenMessage<DeviceSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 6);
+  messageDesc(file_device_v1_device, 14);
 
 /**
  * @generated from message device.v1.DeviceSettingsResponse
@@ -203,7 +464,7 @@ export type DeviceSettingsResponse = Message<"device.v1.DeviceSettingsResponse">
  * Use `create(DeviceSettingsResponseSchema)` to create a new message.
  */
 export const DeviceSettingsResponseSchema: GenMessage<DeviceSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 7);
+  messageDesc(file_device_v1_device, 15);
 
 /**
  * @generated from message device.v1.UpdateDeviceSettingsRequest
@@ -227,7 +488,7 @@ export type UpdateDeviceSettingsRequest = Message<"device.v1.UpdateDeviceSetting
  * Use `create(UpdateDeviceSettingsRequestSchema)` to create a new message.
  */
 export const UpdateDeviceSettingsRequestSchema: GenMessage<UpdateDeviceSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 8);
+  messageDesc(file_device_v1_device, 16);
 
 /**
  * @generated from message device.v1.UpdateDeviceSettingsResponse
@@ -251,7 +512,7 @@ export type UpdateDeviceSettingsResponse = Message<"device.v1.UpdateDeviceSettin
  * Use `create(UpdateDeviceSettingsResponseSchema)` to create a new message.
  */
 export const UpdateDeviceSettingsResponseSchema: GenMessage<UpdateDeviceSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 9);
+  messageDesc(file_device_v1_device, 17);
 
 /**
  * DeviceSettings is what the window reads of this device's settings (device.toml), each
@@ -344,7 +605,7 @@ export type DeviceSettings = Message<"device.v1.DeviceSettings"> & {
  * Use `create(DeviceSettingsSchema)` to create a new message.
  */
 export const DeviceSettingsSchema: GenMessage<DeviceSettings> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 10);
+  messageDesc(file_device_v1_device, 18);
 
 /**
  * ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
@@ -380,7 +641,75 @@ export type ReadRule = Message<"device.v1.ReadRule"> & {
  * Use `create(ReadRuleSchema)` to create a new message.
  */
 export const ReadRuleSchema: GenMessage<ReadRule> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 11);
+  messageDesc(file_device_v1_device, 19);
+
+/**
+ * ThemeSource is where a key's value comes from.
+ *
+ * @generated from enum device.v1.ThemeSource
+ */
+export enum ThemeSource {
+  /**
+   * its default: no file sets it
+   *
+   * @generated from enum value: THEME_SOURCE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * the bridge's config.toml
+   *
+   * @generated from enum value: THEME_SOURCE_SHARED = 1;
+   */
+  SHARED = 1,
+
+  /**
+   * this device's device.toml, over the shared one
+   *
+   * @generated from enum value: THEME_SOURCE_DEVICE = 2;
+   */
+  DEVICE = 2,
+}
+
+/**
+ * Describes the enum device.v1.ThemeSource.
+ */
+export const ThemeSourceSchema: GenEnum<ThemeSource> = /*@__PURE__*/
+  enumDesc(file_device_v1_device, 0);
+
+/**
+ * ThemeScope is where a write goes.
+ *
+ * @generated from enum device.v1.ThemeScope
+ */
+export enum ThemeScope {
+  /**
+   * refused
+   *
+   * @generated from enum value: THEME_SCOPE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * the bridge's config.toml, every device
+   *
+   * @generated from enum value: THEME_SCOPE_SHARED = 1;
+   */
+  SHARED = 1,
+
+  /**
+   * this device's device.toml
+   *
+   * @generated from enum value: THEME_SCOPE_DEVICE = 2;
+   */
+  DEVICE = 2,
+}
+
+/**
+ * Describes the enum device.v1.ThemeScope.
+ */
+export const ThemeScopeSchema: GenEnum<ThemeScope> = /*@__PURE__*/
+  enumDesc(file_device_v1_device, 1);
 
 /**
  * DeviceService is served by kith-relay, the desktop window's link to kithd, beside the
@@ -453,6 +782,38 @@ export const DeviceService: GenService<{
     methodKind: "unary";
     input: typeof OutgoingRequestSchema;
     output: typeof OutgoingResponseSchema;
+  },
+  /**
+   * Theme is the graphical clients' theme ([gui.theme]) as it now resolves: each key from
+   * this device's file (device.toml) where it sets one, else from the bridge's config
+   * (config.toml, read through kithd's GetConfig on any device), else its default; and
+   * what the defaults come from, so the window draws as the TUI does until a color is
+   * picked. Each call reads both again: a window asks after a config change
+   * (ConfigChanged). kithd unreachable is UNAVAILABLE; a [gui.theme] that does not check,
+   * in either file, FAILED_PRECONDITION.
+   *
+   * @generated from rpc device.v1.DeviceService.Theme
+   */
+  theme: {
+    methodKind: "unary";
+    input: typeof ThemeRequestSchema;
+    output: typeof ThemeResponseSchema;
+  },
+  /**
+   * UpdateTheme writes theme keys, each to the scope it names: SHARED into the bridge's
+   * config, written whole through kithd (UpdateConfig) on config_revision, never into a
+   * file here; DEVICE into device.toml on device_revision, as UpdateDeviceSettings
+   * writes it. An empty value removes the key from that scope's file. A file changed
+   * since its revision is ABORTED with nothing of that scope written: the window reads
+   * the theme again. An unknown key, a color that is not #rrggbb or a mode not known is
+   * INVALID_ARGUMENT, nothing written. It answers the theme as now resolved.
+   *
+   * @generated from rpc device.v1.DeviceService.UpdateTheme
+   */
+  updateTheme: {
+    methodKind: "unary";
+    input: typeof UpdateThemeRequestSchema;
+    output: typeof UpdateThemeResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_device_v1_device, 0);

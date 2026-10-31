@@ -5,7 +5,6 @@ package theme
 import (
 	"fmt"
 	"image/color"
-	"math"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -119,70 +118,21 @@ func (t Theme) Badge(highlight bool) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(c).Bold(true)
 }
 
-// Golden-ratio hue steps keep consecutive sender colors maximally distinct.
-const goldenRatioConjugate = 0.618033988749895
-
-const (
-	senderSaturation = 0.68
-	senderLightness  = 0.66
-	// minColorGap is how far, in OKLab, a sender color keeps from an avoided one. Hue
-	// alone is not enough: at this lightness a yellow 47° from a green still reads as it.
-	minColorGap = 0.12
-)
-
 // SpreadColors returns n sender colors stepped around the hue wheel by the golden
-// ratio, skipping those that look close to any avoid color (e.g. pinned identities).
+// ratio, skipping those that look close to any avoid color (e.g. pinned identities):
+// themespec.SenderColors, which the desktop's relay hands its window too.
 func (t Theme) SpreadColors(n int, avoid []color.Color) []color.Color {
-	avoidLab := make([][3]float64, len(avoid))
+	hexes := make([]string, len(avoid))
 	for i, c := range avoid {
-		avoidLab[i] = oklab(c)
+		r, g, b, _ := c.RGBA()
+		hexes[i] = fmt.Sprintf("#%02x%02x%02x", r>>8, g>>8, b>>8)
 	}
-	out := make([]color.Color, 0, n)
-	for k := 0; len(out) < n && k < 4096; k++ {
-		hue := math.Mod(0.1+float64(k)*goldenRatioConjugate, 1)
-		c := hslColor(hue*360, senderSaturation, senderLightness)
-		if !nearAny(oklab(c), avoidLab) {
-			out = append(out, c)
-		}
+	spread := themespec.SenderColors(n, hexes)
+	out := make([]color.Color, len(spread))
+	for i, hex := range spread {
+		out[i] = lipgloss.Color(hex)
 	}
 	return out
-}
-
-// nearAny reports whether an OKLab color is within minColorGap of any avoided one.
-func nearAny(lab [3]float64, avoid [][3]float64) bool {
-	for _, a := range avoid {
-		if colorDistance(lab, a) < minColorGap {
-			return true
-		}
-	}
-	return false
-}
-
-// colorDistance is the distance between two OKLab colors, which tracks how different
-// they look.
-func colorDistance(a, b [3]float64) float64 {
-	return math.Sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) + (a[2]-b[2])*(a[2]-b[2]))
-}
-
-// oklab is c in OKLab (L, a, b), from sRGB.
-func oklab(c color.Color) [3]float64 {
-	r16, g16, b16, _ := c.RGBA()
-	linear := func(v uint32) float64 {
-		x := float64(v) / 0xffff
-		if x <= 0.04045 {
-			return x / 12.92
-		}
-		return math.Pow((x+0.055)/1.055, 2.4)
-	}
-	r, g, b := linear(r16), linear(g16), linear(b16)
-	l := math.Cbrt(0.4122214708*r + 0.5363325363*g + 0.0514459929*b)
-	m := math.Cbrt(0.2119034982*r + 0.6806995451*g + 0.1073969566*b)
-	s := math.Cbrt(0.0883024619*r + 0.2817188376*g + 0.6299787005*b)
-	return [3]float64{
-		0.2104542553*l + 0.7936177850*m - 0.0040720468*s,
-		1.9779984951*l - 2.4285922050*m + 0.4505937099*s,
-		0.0259040371*l + 0.7827717662*m - 0.8086757660*s,
-	}
 }
 
 // ParseColor reads a color from a config string: a "#rrggbb" hex value or one of
@@ -193,31 +143,6 @@ func ParseColor(s string) (color.Color, bool) {
 		return nil, false
 	}
 	return lipgloss.Color(hex), true
-}
-
-// hslColor converts HSL (h in degrees, s/l in [0,1]) to a hex color.
-func hslColor(h, s, l float64) color.Color {
-	c := (1 - math.Abs(2*l-1)) * s
-	hp := math.Mod(h, 360) / 60
-	x := c * (1 - math.Abs(math.Mod(hp, 2)-1))
-	var r, g, b float64
-	switch {
-	case hp < 1:
-		r, g, b = c, x, 0
-	case hp < 2:
-		r, g, b = x, c, 0
-	case hp < 3:
-		r, g, b = 0, c, x
-	case hp < 4:
-		r, g, b = 0, x, c
-	case hp < 5:
-		r, g, b = x, 0, c
-	default:
-		r, g, b = c, 0, x
-	}
-	m := l - c/2
-	to8 := func(v float64) int { return int(math.Round((v + m) * 255)) }
-	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", to8(r), to8(g), to8(b)))
 }
 
 // Swatch renders in color c, for a color picker.
