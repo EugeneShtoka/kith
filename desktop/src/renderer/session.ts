@@ -377,6 +377,7 @@ export class Session {
 
   /** start reads the device, which runs the window in a profile or has it ask. */
   start(): void {
+    this.stopped = false; // StrictMode starts a window again after stopping it
     this.readDevice();
     // Closing, the window writes its drafts first (main waits a little for it).
     window.kith.closing(() => this.run?.composer.drafts.flush() ?? Promise.resolve());
