@@ -24,8 +24,9 @@ type profileKey struct{}
 type profileReach int
 
 const (
-	// passes: the call names its room, which is answered in any profile (a link, a
-	// jump), streams every room, or is about no room at all.
+	// passes: the call answers about what it names, each room, space and message of
+	// which a client naming a profile must hold (admitNamed); streams every room, of
+	// which such a client is sent its profile's; or is about no room at all.
 	passes profileReach = iota + 1
 	// narrows: the call answers about many rooms; only the profile's reach the client.
 	narrows
@@ -41,7 +42,8 @@ var reaches = map[string]profileReach{
 	"RoomsWith": narrows, "MessagesFrom": narrows, "Drafts": narrows, "ScheduledMessages": narrows,
 	"NotificationStream": narrows,
 
-	// One room, named by the caller.
+	// One room, space or message, named by the caller: a client naming a profile is
+	// refused one the profile does not hold (admitNamed).
 	"Present": passes, "MarkRead": passes, "MarkRoomsRead": passes, "MarkRoomUnread": passes, "SetRoomArchived": passes,
 	"StarMessage": passes, "StarredIn": passes, "CanonicalParent": passes, "MarkTag": passes,
 	"AddToSpace": passes, "RemoveFromSpace": passes, "FilingPlaces": passes, "FileRoom": passes, "CachedTimeline": passes, "Timeline": passes,
@@ -57,7 +59,7 @@ var reaches = map[string]profileReach{
 	"Follow": passes, "CreateRoom": passes, "Schedule": passes, "CancelScheduled": passes,
 	"RetryScheduled": passes,
 
-	// Streams of every room: a client may have a room open from outside its profile.
+	// Streams of every room: a client naming a profile is sent its profile's rooms'.
 	"Messages": passes, "Reactions": passes, "ActivityStream": passes,
 
 	// About people, accounts, the daemon or the config, not rooms.
@@ -83,15 +85,16 @@ var reaches = map[string]profileReach{
 }
 
 // profileGate is the server's interceptor: it refuses a profile the config does not
-// have and a call reaches does not classify, and carries the name to the handler.
-type profileGate struct{ profiles *Notifications }
+// have, a call reaches does not classify, and a room, space or message a call names
+// that the profile named does not hold; and carries the name to the handler.
+type profileGate struct{ server *server }
 
 func (g profileGate) admit(ctx context.Context, procedure string, header string) (context.Context, error) {
 	if reaches[path.Base(procedure)] == 0 {
 		return ctx, connect.NewError(connect.CodeUnimplemented,
 			fmt.Errorf("daemon: %s is not classified for profiles", path.Base(procedure)))
 	}
-	p, err := g.profiles.Profile(header)
+	p, err := g.server.Notifications.Profile(header)
 	if err != nil {
 		return ctx, rpcErr(err)
 	}
@@ -103,6 +106,9 @@ func (g profileGate) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 		ctx, err := g.admit(ctx, req.Spec().Procedure, req.Header().Get(profileHeader))
 		if err != nil {
+			return nil, err
+		}
+		if err := g.server.admitNamed(ctx, req.Any()); err != nil {
 			return nil, err
 		}
 		return next(ctx, req)

@@ -27,6 +27,8 @@ import (
 // one item per room it holds, and every query records the rooms it was asked to read.
 type profileWorld struct {
 	apitest.Nop
+	// unnamed is a client of the daemon serving the world that names no profile.
+	unnamed *daemon.Remote
 
 	mu      sync.Mutex
 	rooms   []domain.Room
@@ -177,6 +179,12 @@ func generate(rng *rand.Rand) generated {
 			g.spaces[i].Children = append(g.spaces[i].Children, domain.RoomID(g.spaces[rng.IntN(nSpaces)].ID))
 		}
 	}
+	return g.withProfile(rng)
+}
+
+// withProfile is g's world with a profile drawn anew from entries naming it, and what
+// that profile holds.
+func (g generated) withProfile(rng *rand.Rand) generated {
 	pool := []string{"dm", "group", "space:S0", "space:S1", "space:S2", "place:S1", "protocol:telegram", "protocol:matrix", "tag:T", "place:T"}
 	named := slices.Concat(g.rooms, g.invites)
 	for i := range named {
@@ -193,7 +201,12 @@ func generate(rng *rand.Rand) generated {
 	if len(include) == 0 || rng.IntN(4) == 0 {
 		include = append(include, "*")
 	}
-	g.profile = config.Profile{Name: "p", Include: include, Exclude: pick()}
+	return g.judgedBy(config.Profile{Name: "p", Include: include, Exclude: pick()})
+}
+
+// judgedBy is g's world with p for its profile, and what p holds.
+func (g generated) judgedBy(p config.Profile) generated {
+	g.profile = p
 	g.in, g.spacesIn = map[domain.RoomID]bool{}, map[domain.RoomID]bool{}
 	for i := range g.rooms {
 		g.in[g.rooms[i].ID] = g.holds(&g.rooms[i], true)
@@ -329,8 +342,10 @@ var narrowingProbes = map[string]func(ctx context.Context, r *daemon.Remote, w *
 				return nil, err
 			}
 		}
+		// Queued in every room by a client naming no profile: this one may queue only in
+		// its profile's.
 		for _, room := range w.held() {
-			if _, err := r.Schedule(ctx, domain.ScheduledMessage{RoomID: room.ID, Body: "later", At: time.Now().Add(time.Hour)}); err != nil {
+			if _, err := w.unnamed.Schedule(ctx, domain.ScheduledMessage{RoomID: room.ID, Body: "later", At: time.Now().Add(time.Hour)}); err != nil {
 				return nil, err
 			}
 		}
@@ -428,6 +443,7 @@ func TestAProfileSeesOnlyItsRooms(t *testing.T) {
 	}
 	w := &profileWorld{Nop: nopWithChannels()}
 	h, n := profileServer(t, w)
+	w.unnamed = h.client()
 	ctx := t.Context()
 	if err := n.Reload(config.Config{Profiles: []config.Profile{{Name: "first", Include: []string{"*"}}, {Name: "p", Include: []string{"*"}}}}); err != nil {
 		t.Fatal(err)
@@ -596,7 +612,7 @@ func checkInviteStream(t *testing.T, what string, client *daemon.Remote, w *prof
 
 // A client naming no profile runs in the first, one naming a profile finds it in any
 // case, and one naming a profile the config lacks is refused on every call, narrowing or
-// not. A room named directly is answered outside the profile.
+// not. A room named directly by a client naming no profile is answered outside the first.
 func TestAProfileIsTheFirstOrOneTheConfigHas(t *testing.T) {
 	t.Parallel()
 	w := &profileWorld{Nop: nopWithChannels()}
@@ -840,7 +856,7 @@ func TestEachProfileHasItsOwnWindow(t *testing.T) {
 // count in the profile it runs in.
 func TestASwitchMovesTheSeatOrIsRefused(t *testing.T) {
 	t.Parallel()
-	drafts := &draftStore{}
+	drafts := &draftStore{rooms: []domain.Room{{ID: mx + "!a:x"}}}
 	h := profiledServe(t, drafts, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}}, config.Profile{Name: "spare", Include: []string{"*"}})
 	a, err := windowIn(t, h, "work", 101)
 	if err != nil {
@@ -886,6 +902,7 @@ func TestFollowHandsALinkToTheWindowPlacedForIt(t *testing.T) {
 		return r
 	}
 	direct, groups := open("direct"), open("groups")
+	windows := []*daemon.Remote{direct, groups}
 	h.waitAttached(2)
 	// A switch to the profile it runs in returns once every stream is subscribed.
 	for profile, r := range map[string]*daemon.Remote{"direct": direct, "groups": groups} {
@@ -899,7 +916,7 @@ func TestFollowHandsALinkToTheWindowPlacedForIt(t *testing.T) {
 	follow := func(uri string, want *daemon.Remote) {
 		t.Helper()
 		waitFor(t, func() bool { delivered, err := groups.Follow(ctx, uri); return err == nil && delivered })
-		for _, r := range []*daemon.Remote{direct, groups} {
+		for _, r := range windows {
 			select {
 			case got := <-r.Follows():
 				if r != want {
@@ -912,12 +929,22 @@ func TestFollowHandsALinkToTheWindowPlacedForIt(t *testing.T) {
 			}
 		}
 	}
-	follow("matrix:roomid/dm:x", direct)               // its profile holds it
-	follow("matrix:r/somewhere:x", groups)             // nothing cached: used last
-	if err := direct.Present(ctx, group); err != nil { // direct has group open, and is used last
+	follow("matrix:roomid/dm:x", direct)   // its profile holds it
+	follow("matrix:r/somewhere:x", groups) // nothing cached: used last
+	if err := direct.Present(ctx, group); err == nil {
+		t.Error("a window in direct said it has a room of groups open")
+	}
+	// A window naming no profile (it runs in the first, direct) may have any room open.
+	unnamed := open("")
+	windows = append(windows, unnamed)
+	h.waitAttached(3)
+	if err := unnamed.SwitchProfile(""); err != nil {
 		t.Fatal(err)
 	}
-	follow("matrix:roomid/group:x", direct) // open beats the profile
+	if err := unnamed.Present(ctx, group); err != nil { // it has group open, and is used last
+		t.Fatal(err)
+	}
+	follow("matrix:roomid/group:x", unnamed) // open beats the profile
 }
 
 // A link reaches a window with the chats it names in that window's profile, and only

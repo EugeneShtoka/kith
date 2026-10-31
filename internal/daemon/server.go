@@ -163,7 +163,7 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 func (s *server) handlers() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle(backendv1connect.NewBackendServiceHandler(s,
-		connect.WithInterceptors(failureLog{log: s.Log}, pairingGate{devices: s.Paired}, profileGate{profiles: s.Notifications})))
+		connect.WithInterceptors(failureLog{log: s.Log}, pairingGate{devices: s.Paired}, profileGate{server: s})))
 	mux.Handle(meshv1connect.NewMeshServiceHandler(meshService{devices: s.Paired, log: s.Log}, connect.WithInterceptors(failureLog{log: s.Log})))
 	return mux
 }

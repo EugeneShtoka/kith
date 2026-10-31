@@ -90,9 +90,13 @@ A `default` that names no account of the network is refused at startup.
 
 A profile is a named setup with its own rooms. `kith --profile <name>` runs in one:
 the room list, the spaces, unread counts, invitations, drafts, scheduled messages and
-search hold only its rooms, and a space holding none of them is left out. A room you
-name directly (a link, a jump) still opens. Without `--profile`, kith runs in the one
-`profile_in_use` remembers (below). `gP` or `:profile <name>` switches the window to
+search hold only its rooms, and a space holding none of them is left out. Its window
+reaches only its own rooms: a room, space or message of another profile, named
+directly (a link, a jump, an ID), is refused (`the profile work holds no room …`),
+and so is a room kithd does not hold, but for joining one (a public room, an alias,
+an invitation of the profile). Without `--profile`, kith runs in the one
+`profile_in_use` remembers (below); with neither, it runs in the first without naming
+it, and a room named directly opens whatever profile holds it. `gP` or `:profile <name>` switches the window to
 another; the status line names the profile once there is more than one. kithd builds
 each profile's rail (its rows and the rooms each holds), so every window of a profile
 draws the same one.

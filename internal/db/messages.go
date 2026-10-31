@@ -857,6 +857,18 @@ func (c *Cache) SenderOf(ctx context.Context, roomID domain.RoomID, eventID doma
 	return sender, nil
 }
 
+// RoomsOf is every room the cache holds a message with this ID in: none when it holds
+// no such message, and one for an ID its network gave (every network's names its chat,
+// or is unique).
+func (c *Cache) RoomsOf(ctx context.Context, eventID domain.EventID) ([]domain.RoomID, error) {
+	return collect(ctx, c.db, "the rooms of a message", "SELECT room_id FROM messages WHERE event_id = ?",
+		func(rows *sql.Rows) (domain.RoomID, error) {
+			var room string
+			err := rows.Scan(&room)
+			return domain.RoomID(room), err
+		}, string(eventID))
+}
+
 // Message returns a cached message's body and formatting, and whether it is cached.
 func (c *Cache) Message(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.Message, bool, error) {
 	var body, html string

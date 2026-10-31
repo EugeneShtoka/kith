@@ -110,6 +110,18 @@ func (l *messageLog) ChangesAfter(_ context.Context, after int64, limit int) (st
 	return "one", slices.Clone(l.changes[after:end]), nil
 }
 
+func (l *messageLog) RoomsOf(_ context.Context, event domain.EventID) ([]domain.RoomID, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var rooms []domain.RoomID
+	for i := range l.changes {
+		if l.changes[i].Message.ID == event {
+			rooms = append(rooms, l.changes[i].Message.RoomID)
+		}
+	}
+	return rooms, nil
+}
+
 // says commits one message for each of bodies, in order, and returns them.
 func (l *messageLog) says(prefix string, n int) []string {
 	var bodies []string

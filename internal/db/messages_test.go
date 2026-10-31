@@ -47,6 +47,29 @@ func TestLatestEventsPicksTheNewestPerRoom(t *testing.T) {
 	}
 }
 
+// A message's rooms are every room the cache holds a message with its ID in, and none
+// for one it does not hold.
+func TestRoomsOfIsWhereTheCacheHoldsTheMessage(t *testing.T) {
+	t.Parallel()
+
+	cache, ctx := openTemp(t), context.Background()
+	mustSave(t, cache, mx+"!a:x", domain.Message{ID: mx + "$1", Body: "one"})
+	mustSave(t, cache, mx+"!b:x", domain.Message{ID: mx + "$2", Body: "two"})
+	mustSave(t, cache, mx+"!c:x", domain.Message{ID: mx + "$2", Body: "the same ID elsewhere"})
+
+	for event, want := range map[domain.EventID][]domain.RoomID{
+		mx + "$1": {mx + "!a:x"},
+		mx + "$2": {mx + "!b:x", mx + "!c:x"},
+		mx + "$3": nil,
+	} {
+		got, err := cache.RoomsOf(ctx, event)
+		slices.Sort(got)
+		if err != nil || !slices.Equal(got, want) {
+			t.Errorf("RoomsOf(%s) = %v, %v; want %v", event, got, err, want)
+		}
+	}
+}
+
 // A room with nothing cached is absent, not zero, which would sort as silent since
 // 1970.
 func TestLastMessages(t *testing.T) {

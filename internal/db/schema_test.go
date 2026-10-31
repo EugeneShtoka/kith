@@ -198,6 +198,8 @@ func TestTheHotQueriesUseTheirIndices(t *testing.T) {
 			"WHERE display_name != '' AND user_id IN (?, ?)", "room_members_by_user", false},
 		{"recent speakers", "SELECT sender, max(ts_ms) AS recent FROM messages " +
 			"WHERE room_id = ? AND sender != '' GROUP BY sender ORDER BY recent DESC LIMIT ?", "messages_by_room_sender", false},
+		// The rooms holding a message, on every call a profiled client names one in (RoomsOf).
+		{"rooms of a message", "SELECT room_id FROM messages WHERE event_id = ?", "messages_by_event", false},
 		// Which message a redacted edit shows on (EditShownBy, revertShownEdit).
 		{"edit a redaction names", "SELECT event_id FROM message_edit WHERE room_id = ? AND revision_id = ?",
 			"message_edit_by_revision", false},

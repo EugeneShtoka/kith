@@ -265,9 +265,15 @@ and unpairing a device closes its connections ([SECURITY.md](SECURITY.md#a-liste
 A client names the `[[profile]]` it runs in with a `Kith-Profile` header on every
 request (none is the first; an unknown one is refused). The daemon narrows every call
 about many rooms (lists, counts, search, the unread and invite streams) to the
-profile's rooms, and answers any room a call names. Which calls narrow is one table in
-`internal/daemon/profiles.go`; a call missing from it is refused, so a new call cannot
-reach a client undecided. Nothing about the client is kept beyond its request.
+profile's rooms. Which calls narrow is one table in `internal/daemon/profiles.go`; a
+call missing from it is refused, so a new call cannot reach a client undecided. A
+client that names a profile is also answered about a room, space or message only when
+the profile holds it, as its rail does, and sent only its rooms' values on the streams
+of every room (messages, reactions, typing). What each request names is a second
+table, of request fields, in `internal/daemon/named.go`, read by the same interceptor
+before any handler runs; a field missing from it refuses the call. A client naming no
+profile is answered about any room. Nothing about the client is kept beyond its
+request.
 
 ## The `api.Backend` interface
 

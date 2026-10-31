@@ -286,6 +286,7 @@ CREATE TABLE messages (
 CREATE INDEX messages_by_time   ON messages(room_id, ts_ms, event_id);
 CREATE INDEX messages_in_thread ON messages(room_id, thread_root, ts_ms, event_id);
 CREATE INDEX messages_by_sender ON messages(sender, ts_ms);
+CREATE INDEX messages_by_event ON messages(event_id);
 CREATE INDEX messages_by_room_sender ON messages(room_id, sender, thread_root, ts_ms);
 CREATE INDEX messages_naming_me ON messages(ts_ms DESC) WHERE mentioned = 1;
 CREATE INDEX messages_recent   ON messages(ts_ms DESC);
