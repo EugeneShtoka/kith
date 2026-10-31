@@ -48,7 +48,7 @@ skin_tone = "none"
 # Tint each message body in its sender's color (not just the name).
 color_messages = false
 
-# Name each room in every room list in its network's color ([display.theme.networks]):
+# Name each room in every room list in its network's color ([tui.theme.networks]):
 # a bridged room in its bridge's network's. A place's [[display.space_rule]]
 # network_colors (config.toml) says otherwise for its own room list.
 network_colors = false
@@ -131,43 +131,6 @@ read_delay    = -1
 set = "curated"
 # Your own shortcodes; they win over (and can redefine) built-in names.
 # extra = { shrug = "🤷", table_flip = "(╯°□°）╯︵ ┻━┻" }
-
-# Colors: a preset — cobalt2 (default), gruvbox, nord, or terminal (the terminal's own
-# ANSI 0-15) — plus any of these roles overridden as #rgb/#rrggbb. A bad preset or
-# color stops startup.
-[display.theme]
-preset = "cobalt2"
-# accent          = "#00aaff"  # focused frame, titles
-# border          = "#0050a4"  # unfocused frame
-# text            = "#8ff586"  # message bodies
-# muted           = "#668799"  # timestamps, hints, dividers
-# cursor          = "#ffc600"  # the ▸ marker and the composer prompt
-# badge           = "#ffc600"  # unread counts
-# badge_alert     = "#ff628c"  # unread counts that mention you
-# selected_bg     = "#185294"  # the row under the cursor, focused pane
-# selected_dim_bg = "#0d3a58"  # the same row when the pane is not focused
-
-# The color each network's rooms are named in, where the room lists ask for it
-# ([display] network_colors, [[display.space_rule]] network_colors) or the rail does
-# ([display.rail] network_colors, in config.toml): #rrggbb or a named color (red,
-# green, teal, yellow, blue, magenta, orchid, periwinkle, coral, ultramarine, cyan,
-# orange, white), or "none".
-# Unset: each its own, apart from the theme's text, accent, badge and alert, as below;
-# the rest none. A bad color stops startup.
-[display.theme.networks]
-# whatsapp        = "teal"
-# telegram        = "blue"
-# slack           = "magenta"
-# signal          = "ultramarine"
-# discord         = ""
-# messenger       = "orchid"      # Meta's two share one
-# instagram       = "orchid"
-# linkedin        = "periwinkle"
-# google_messages = "coral"       # SMS
-# google_chat     = ""
-# imessage        = ""
-# twitter         = ""
-# matrix          = ""
 
 # Room list order: a chain of comparators applied in order until one decides; `~`
 # reverses a key.
@@ -312,6 +275,43 @@ speed        = 1.0     # 0.25 - 4.0
 skip         = 10      # seconds
 close_after  = 15      # seconds
 # player = "mpv"          # or "vlc"
+
+# The terminal client's colors (graphical clients' are [gui.theme]): a preset —
+# cobalt2 (default), gruvbox, nord, or terminal (the terminal's own ANSI 0-15) — plus
+# any of these roles overridden as #rgb/#rrggbb. A bad preset or color stops startup.
+[tui.theme]
+preset = "cobalt2"
+# accent          = "#00aaff"  # focused frame, titles
+# border          = "#0050a4"  # unfocused frame
+# text            = "#8ff586"  # message bodies
+# muted           = "#668799"  # timestamps, hints, dividers
+# cursor          = "#ffc600"  # the ▸ marker and the composer prompt
+# badge           = "#ffc600"  # unread counts
+# badge_alert     = "#ff628c"  # unread counts that mention you
+# selected_bg     = "#185294"  # the row under the cursor, focused pane
+# selected_dim_bg = "#0d3a58"  # the same row when the pane is not focused
+
+# The color each network's rooms are named in, where the room lists ask for it
+# ([display] network_colors, [[display.space_rule]] network_colors) or the rail does
+# ([display.rail] network_colors, in config.toml): #rrggbb or a named color (red,
+# green, teal, yellow, blue, magenta, orchid, periwinkle, coral, ultramarine, cyan,
+# orange, white), or "none".
+# Unset: each its own, apart from the theme's text, accent, badge and alert, as below;
+# the rest none. A bad color stops startup.
+[tui.theme.networks]
+# whatsapp        = "teal"
+# telegram        = "blue"
+# slack           = "magenta"
+# signal          = "ultramarine"
+# discord         = ""
+# messenger       = "orchid"      # Meta's two share one
+# instagram       = "orchid"
+# linkedin        = "periwinkle"
+# google_messages = "coral"       # SMS
+# google_chat     = ""
+# imessage        = ""
+# twitter         = ""
+# matrix          = ""
 
 # Desktop notifications on this device. This section is the switch and the delivery;
 # what notifies is decided by [[notifications.rule]] in config.toml.

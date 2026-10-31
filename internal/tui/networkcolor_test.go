@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"image/color"
 	"math/rand/v2"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -67,8 +69,8 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 		SpaceRules: []config.SpaceRule{{Space: "space:Mixed", NetworkColors: new(true)}, {Space: "space:Only WhatsApp", NetworkColors: new(false)}},
 		Rail:       config.Rail{NetworkColors: true},
 	}
-	device := config.DeviceDisplay{Theme: config.Theme{Networks: config.NetworkColors{Telegram: "orange", Matrix: "none"}}}
-	m := update(t, New(context.Background(), apitest.Nop{}, display, device), roomsMsg{rooms: rooms})
+	dev := config.Device{Keys: config.DefaultKeys(), TUI: config.DeviceTUI{Theme: config.Theme{Networks: config.NetworkColors{Telegram: "orange", Matrix: "none"}}}}
+	m := update(t, New(context.Background(), apitest.Nop{}, display, dev.Display).WithDevice("", dev), roomsMsg{rooms: rooms})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: mx + "!mixed:x", Name: "Mixed", Children: []domain.RoomID{"whatsapp:1/g@g.us", "telegram:1/-11", mx + "!bridged:x", mx + "!plain:x"}},
 		{ID: mx + "!quiet:x", Name: "Quiet", Children: []domain.RoomID{"whatsapp:1/g@g.us", "telegram:1/-11"}},
@@ -168,11 +170,12 @@ func TestAPlacesSwitchesKeepEachOther(t *testing.T) {
 func TestAThreadRowTakesItsRoomsColor(t *testing.T) {
 	t.Parallel()
 	room := domain.Room{ID: "telegram:1/-11", Name: "Book club"}
-	device := config.DeviceDisplay{
-		NetworkColors: true,
-		Theme:         config.Theme{Networks: config.NetworkColors{Telegram: "orange"}},
+	dev := config.Device{
+		Keys:    config.DefaultKeys(),
+		Display: config.DeviceDisplay{NetworkColors: true},
+		TUI:     config.DeviceTUI{Theme: config.Theme{Networks: config.NetworkColors{Telegram: "orange"}}},
 	}
-	m := update(t, New(context.Background(), apitest.Nop{}, config.Display{}, device), roomsMsg{rooms: []domain.Room{room}})
+	m := update(t, New(context.Background(), apitest.Nop{}, config.Display{}, dev.Display).WithDevice("", dev), roomsMsg{rooms: []domain.Room{room}})
 	m = sized(t, m)
 	orange := sgrOf(t, m.roomNameColor(room))
 	rows := []roomRow{
@@ -204,6 +207,43 @@ func sgrOf(t *testing.T, c color.Color) string {
 	return fmt.Sprintf("38;2;%d;%d;%d", r>>8, g>>8, b>>8)
 }
 
+// A device file's [tui.theme] is the window's palette and [tui.theme.networks] its
+// network colors, at start and when the device's settings change.
+func TestTheWindowDrawsWithTheDeviceFilesTUITheme(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), config.DeviceFile)
+	text := "[tui.theme]\npreset = \"gruvbox\"\naccent = \"#ff8800\"\n\n[tui.theme.networks]\ntelegram = \"#123456\"\n"
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dev, err := config.LoadDevice(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := starterNew(apitest.Nop{}, config.Display{}, dev.Display).WithDevice(path, dev)
+	accent, _ := theme.ParseColor("#ff8800")
+	if sgrOf(t, m.theme.Palette.Accent) != sgrOf(t, accent) {
+		t.Errorf("accent %v, want the device file's #ff8800", m.theme.Palette.Accent)
+	}
+	gruvbox, _ := theme.Resolve("gruvbox", nil)
+	if sgrOf(t, m.theme.Palette.Border) != sgrOf(t, gruvbox.Border) {
+		t.Errorf("border %v, want gruvbox's %v", m.theme.Palette.Border, gruvbox.Border)
+	}
+	telegram, _ := theme.ParseColor("#123456")
+	if sgrOf(t, m.networkColor(domain.ProtocolTelegram)) != sgrOf(t, telegram) {
+		t.Errorf("Telegram's color %v, want the device file's #123456", m.networkColor(domain.ProtocolTelegram))
+	}
+
+	changed := dev.Clone()
+	changed.TUI.Theme.Accent = "#00ff00"
+	changed.TUI.Theme.Networks.Telegram = "none"
+	m, _ = m.applyDevice(changed, "")
+	green, _ := theme.ParseColor("#00ff00")
+	if sgrOf(t, m.theme.Palette.Accent) != sgrOf(t, green) || m.networkColor(domain.ProtocolTelegram) != nil {
+		t.Errorf("after the change: accent %v, Telegram %v; want #00ff00 and none", m.theme.Palette.Accent, m.networkColor(domain.ProtocolTelegram))
+	}
+}
+
 // A config applied from the app rebuilds the rail with its networks, keeping a one-network
 // space's color.
 func TestTheRailKeepsItsColorsWhenTheConfigIsApplied(t *testing.T) {
@@ -233,9 +273,9 @@ func TestTheRailKeepsItsColorsWhenTheConfigIsApplied(t *testing.T) {
 func TestANetworksOwnSpaceTakesItsColor(t *testing.T) {
 	t.Parallel()
 	display := config.Display{Rail: config.Rail{NetworkColors: true}}
-	device := config.DeviceDisplay{Theme: config.Theme{Networks: config.NetworkColors{GoogleMessages: "coral", LinkedIn: "none"}}}
+	dev := config.Device{Keys: config.DefaultKeys(), TUI: config.DeviceTUI{Theme: config.Theme{Networks: config.NetworkColors{GoogleMessages: "coral", LinkedIn: "none"}}}}
 	rooms := []domain.Room{{ID: "whatsapp:1/g@g.us", Name: "Family"}}
-	m := update(t, New(context.Background(), apitest.Nop{}, display, device), roomsMsg{rooms: rooms})
+	m := update(t, New(context.Background(), apitest.Nop{}, display, dev.Display).WithDevice("", dev), roomsMsg{rooms: rooms})
 	m = sized(t, update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: "gmessages:a/account", Name: "SMS", Bridge: domain.ProtocolGMessages, Original: true},
 		{ID: "gmessages:b/account", Name: "SMS mixed", Bridge: domain.ProtocolGMessages, Original: true,

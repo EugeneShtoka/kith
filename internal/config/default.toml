@@ -88,7 +88,7 @@ unread = "messages"
 # first_name_only shows just the first token of a sender's name. A room in two places
 # follows the one selected in the rail in the room list, else its home (see priority).
 # network_colors names each room in this place's room list in its network's color
-# ([display.theme.networks]), true or false whatever [display] network_colors (in
+# ([tui.theme.networks]), true or false whatever [display] network_colors (in
 # device.toml) says.
 # show_archived lists archived rooms in this place's room list, true or false whatever
 # [display] show_archived (in device.toml) says.
@@ -281,7 +281,7 @@ hide_when_empty = []
 # Rows never shown (as order names them); a tag can say so itself (hidden).
 hidden = []
 # Name a space or tag whose rooms are all on one network in that network's color
-# ([display.theme.networks], in device.toml).
+# ([tui.theme.networks], in device.toml).
 network_colors = false
 
 # Profiles: named setups, each with its own rooms. `kith --profile <name>` runs in
@@ -1065,7 +1065,7 @@ listen = []
 
 # The graphical clients' theme (the desktop window), the same on every device; a
 # device's own [gui.theme] (in device.toml, the same keys) overrides it key by key. The
-# terminal client draws with [display.theme] and reads none of this. Every color is
+# terminal client draws with [tui.theme] and reads none of this. Every color is
 # "#rrggbb"; a key left out is the window's default. The window's Settings → Theme
 # writes these for you.
 #
@@ -1073,7 +1073,7 @@ listen = []
 #             "dark" keep to one.
 #   accounts  a network account's color, by its rooms' owner as kith names it
 #             ("whatsapp:main/"): its rooms' mark. Unset, its network's color
-#             ([display.theme.networks] in device.toml).
+#             ([tui.theme.networks] in device.toml).
 #   people    a person's color, by their ID: their name and face. Unset, the color the
 #             terminal client gives them in that room.
 #

@@ -204,7 +204,7 @@ config; a config elsewhere keeps its own beside it). kith writes its annotated d
 there on first run. Each key is in the file of whoever reads it: if `kithd` reads a
 key, it is in `config.toml`; if only a client reads it, it is in `device.toml`. A
 table whose keys are split keeps its name in both, so `[display] time_format` is in
-`config.toml` and `[display] theme` in `device.toml`. The [sections](#sections) table
+`config.toml` and `[display] fps` in `device.toml`. The [sections](#sections) table
 says which file each is in; `kith --print-device-config` lists every device key.
 
 `kithd` never reads `device.toml`, and a device key written into `config.toml` is
@@ -318,8 +318,6 @@ key.
 | *(top level)* | config, but `terminal` and `profile_in_use` device | `allow_token_file`, `terminal`, `bridge_contacts`, and `profile_in_use`, the profile a window runs in. | [getting-started.md](getting-started.md), [Profiles](#profiles) |
 | `[matrix]` | config | The Matrix accounts (`[[matrix.account]]`) and which is the default. | [Matrix accounts](#matrix-accounts) |
 | `[display]` | config: `time_format`, `long_date_format`, `short_date_format`, `priority`, `room_name_rules`, `unread`, `[[display.space_rule]]`, `[[display.identity]]`, `[[display.name]]`; device: the rest, `[[display.read_rule]]` included | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, how times and dates are written (`time_format`, `long_date_format`, `short_date_format`), and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
-| `[display.theme]` | device | The color palette: a preset plus per-role overrides. | [Themes](#themes) |
-| `[display.theme.networks]` | device | The color each network's rooms are named in, where the room lists or the rail ask for it. | [usage.md](usage.md) |
 | `[display.emoji]` | device | Emoji set size (`curated`, `standard`, `complete`) and your own shortcodes. | [composer.md](composer.md) |
 | `[display.tracked]` | config | Words highlighted wherever they are said and listed by `/tracked`, optionally with notifications. | [search.md](search.md) |
 | `[display.rail]` | config | Order, dividers and visibility of the spaces rail. | [usage.md](usage.md) |
@@ -348,6 +346,8 @@ key.
 | `[[bridge]]` | device | A kithd on another machine this device dials: `name`, `addresses` (`host:port`, tried in order) and `id`, the device ID its key must have. `kith join` writes one when it pairs. | [remote.md](remote.md#pairing-by-qr-code) |
 | `[log]` | config | `level`: how much the daemon, the client and `kith-mcp` log (`debug`, `info`, `warn`, `error`; default `info`). `--log-level` and `KITH_LOG_LEVEL` override it. `target`: where the client and a daemon it started log (`auto`, `journal`, `file`; default `auto`, the journal when there is one). `--log-target` and `KITH_LOG_TARGET` override it. | [troubleshooting.md](troubleshooting.md#where-the-log-goes) |
 | `[keys]` and `[keys.*]` | device | Every keybinding, one table per mode. | [keybindings.md](keybindings.md) |
+| `[tui.theme]` | device | The terminal client's color palette: a preset plus per-role overrides. | [Themes](#themes) |
+| `[tui.theme.networks]` | device | The color each network's rooms are named in, where the room lists or the rail ask for it. | [usage.md](usage.md) |
 | `[gui.theme]` | both: config for every device, device for this one, key by key over it | The graphical clients' theme (the desktop window): its mode, each mode's colors, and colors per account and per person. The terminal client reads none of it. | [The graphical clients' theme](#the-graphical-clients-theme) |
 
 Settings that name a place say which kind with a prefix:
@@ -404,7 +404,8 @@ which beats the person anywhere, which beats a space.
 
 ## Themes
 
-`[display.theme]`, in `device.toml`, has one `preset` and nine optional color roles.
+`[tui.theme]`, in `device.toml`, is the terminal client's palette: one `preset` and nine
+optional color roles.
 
 | Preset | Look |
 | --- | --- |
@@ -431,7 +432,7 @@ Nine roles cover every surface, and there is no per-widget styling.
 `[display] color_messages = true` also tints each message body in its sender's color.
 
 ```toml
-[display.theme]
+[tui.theme]
 preset = "terminal"
 accent = "#ff8800"
 ```
@@ -448,7 +449,7 @@ is the window's default.
 | --- | --- |
 | `mode` | `system` (the default) follows the system's light or dark; `light` and `dark` keep to one. |
 | `[gui.theme.light]`, `[gui.theme.dark]` | Each mode's colors, by role: `accent`, `background`, `surface` (the side columns), `text`, `muted` (times, hints), `link`, `selection` (the row you are on), `unread` and `mention`. |
-| `[gui.theme.accounts]` | A network account's color, by its rooms' owner as kith names it (`whatsapp:main/`, or `matrix:<account>/`): its rooms' mark and the open room's network. Unset, its network's `[display.theme.networks]` color. |
+| `[gui.theme.accounts]` | A network account's color, by its rooms' owner as kith names it (`whatsapp:main/`, or `matrix:<account>/`): its rooms' mark and the open room's network. Unset, its network's `[tui.theme.networks]` color. |
 | `[gui.theme.people]` | A person's color, by their ID: their name and face. Unset, the color the terminal client gives them in that room; one it has not given a color yet is drawn in the window's own. |
 
 ```toml

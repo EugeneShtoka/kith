@@ -39,9 +39,8 @@ type DeviceDisplay struct {
 	Mouse         *bool  `toml:"mouse"`
 	UnreadLine    *bool  `toml:"unread_line"`
 	Hyperlinks    *bool  `toml:"hyperlinks"` // OSC 8
-	Theme         Theme  `toml:"theme"`
 	// NetworkColors names each room in every room list in its network's color
-	// (Theme.Networks); a place's [[display.space_rule]] can say otherwise.
+	// ([tui.theme.networks]); a place's [[display.space_rule]] can say otherwise.
 	NetworkColors bool `toml:"network_colors"`
 	// ShowArchived lists the rooms the archive tag holds in every room list but the
 	// archive's own (which always does); nil is true. A place's rule can say otherwise.
@@ -127,7 +126,7 @@ type Emoji struct {
 	Extra map[string]string `toml:"extra"` // shortcode → emoji
 }
 
-// Theme is [display.theme]: a preset plus per-role color overrides.
+// Theme is [tui.theme]: a preset plus per-role color overrides.
 type Theme struct {
 	Preset        string `toml:"preset"`
 	Accent        string `toml:"accent"`
@@ -139,7 +138,7 @@ type Theme struct {
 	BadgeAlert    string `toml:"badge_alert"`
 	SelectedBG    string `toml:"selected_bg"`
 	SelectedDimBG string `toml:"selected_dim_bg"`
-	// Networks is [display.theme.networks], each network's color.
+	// Networks is [tui.theme.networks], each network's color.
 	Networks NetworkColors `toml:"networks"`
 }
 
@@ -246,7 +245,7 @@ func (d Display) ShowsArchivedIn(device DeviceDisplay, names func(entry string) 
 	return device.ShowsArchived()
 }
 
-// NetworkColors is [display.theme.networks]: each network's room-name color, #rrggbb or
+// NetworkColors is [tui.theme.networks]: each network's room-name color, #rrggbb or
 // a named color; "" is the default, "none" no color.
 type NetworkColors struct {
 	WhatsApp       string `toml:"whatsapp"`
@@ -400,7 +399,7 @@ type Rail struct {
 	Hidden        []string `toml:"hidden"`
 	HideWhenEmpty []string `toml:"hide_when_empty"`
 	// NetworkColors names a space or tag whose rooms are all on one network in that
-	// network's color ([display.theme.networks]).
+	// network's color ([tui.theme.networks]).
 	NetworkColors bool `toml:"network_colors"`
 }
 

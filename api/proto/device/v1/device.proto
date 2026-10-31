@@ -69,7 +69,7 @@ message ThemeResponse {
   // its i-th (SenderSlots); the colors pinned to [[display.identity]] are avoided.
   repeated string sender_palette = 5;
   // network_colors is each network's color as the TUI names its rooms in it
-  // ([display.theme.networks], its default where unset), by the network as a Room
+  // ([tui.theme.networks], its default where unset), by the network as a Room
   // names it ("WhatsApp"); a network with no color is absent.
   map<string, string> network_colors = 6;
   // identities is each person a [[display.identity]] names, by ID: the key a room's

@@ -21,6 +21,7 @@ var defaultDeviceTOML string
 type Device struct {
 	Terminal      string              `toml:"terminal"` // what `kith --open` starts; empty detects one
 	Display       DeviceDisplay       `toml:"display"`
+	TUI           DeviceTUI           `toml:"tui"`
 	Notifications DeviceNotifications `toml:"notifications"`
 	Keys          Keys                `toml:"keys"`
 	Clipboard     DeviceClipboard     `toml:"clipboard"`
@@ -36,6 +37,11 @@ type Device struct {
 	// last picked there; "" when none was. A name the config no longer has is as good as
 	// none.
 	ProfileInUse string `toml:"profile_in_use"`
+}
+
+// DeviceTUI is [tui] in device.toml: what only the terminal client reads.
+type DeviceTUI struct {
+	Theme Theme `toml:"theme"` // the terminal palette; graphical clients' is [gui.theme]
 }
 
 // Bridge is a kithd this device dials over its [remote] listen ([[bridge]]), written by

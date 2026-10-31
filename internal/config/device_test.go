@@ -28,6 +28,36 @@ func TestLoadDeviceIsStrictAndAMissingFileIsTheDefaults(t *testing.T) {
 	}
 }
 
+// The terminal's palette is [tui.theme] in the device file, its network colors
+// [tui.theme.networks], and a config holding it moves it there; [display.theme] is a key
+// neither file reads, refused by name.
+func TestTheTerminalThemeIsTUITheme(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	configPath, devicePath := filepath.Join(dir, BridgeFile), filepath.Join(dir, DeviceFile)
+	writeFile(t, configPath, "[tui.theme]\npreset = \"gruvbox\"\naccent = \"#ff8800\"\n\n[tui.theme.networks]\nwhatsapp = \"#25d366\"\n")
+	if moved, err := SplitDevice(configPath, devicePath); !moved || err != nil {
+		t.Fatalf("a config holding [tui.theme]: moved %v, %v", moved, err)
+	}
+	dev, err := LoadDevice(devicePath)
+	if err != nil || dev.TUI.Theme.Preset != "gruvbox" || dev.TUI.Theme.Accent != "#ff8800" || dev.TUI.Theme.Networks.WhatsApp != "#25d366" {
+		t.Errorf("the device's [tui.theme] = %+v, %v", dev.TUI.Theme, err)
+	}
+	if _, err := Load(configPath); err != nil {
+		t.Errorf("the config after the split = %v", err)
+	}
+
+	old := filepath.Join(dir, "old.toml")
+	writeFile(t, old, "[display.theme]\naccent = \"#ff8800\"\n\n[display.theme.networks]\nwhatsapp = \"#25d366\"\n")
+	want := ": unknown keys: display.theme, display.theme.accent, display.theme.networks, display.theme.networks.whatsapp"
+	if _, err := LoadDevice(old); err == nil || err.Error() != "config: "+old+want {
+		t.Errorf("[display.theme] in the device file = %v, want it refused as unknown", err)
+	}
+	if _, err := SplitDevice(old, filepath.Join(dir, "old-device.toml")); err == nil || !strings.HasSuffix(err.Error(), want) {
+		t.Errorf("[display.theme] in the config = %v, want it refused as unknown", err)
+	}
+}
+
 // changeSome changes some of dev's settings to random values, returning the paths.
 func changeSome(t *testing.T, rng *rand.Rand, dev *Device) []string {
 	t.Helper()
@@ -385,7 +415,8 @@ func TestTheDeviceHoldsTheDesignsKeys(t *testing.T) {
 	t.Parallel()
 	want := map[string]string{
 		"":              "profile_in_use terminal",
-		"display":       "color_messages direction emoji filing_spaces fps hyperlinks max_name_length media mouse network_colors open_in_insert_mode reactions read_delay read_rule rooms row_numbers send_receipts send_typing show_archived skin_tone theme threads typing unread_line",
+		"display":       "color_messages direction emoji filing_spaces fps hyperlinks max_name_length media mouse network_colors open_in_insert_mode reactions read_delay read_rule rooms row_numbers send_receipts send_typing show_archived skin_tone threads typing unread_line",
+		"tui":           "theme",
 		"notifications": "body command desktop enabled sound sound_command sounds timeout title",
 		"clipboard":     "command copy_downloads focus_command open_command raise_command",
 		"commands":      "timeout",

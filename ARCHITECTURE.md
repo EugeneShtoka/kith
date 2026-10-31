@@ -537,7 +537,7 @@ quietly ignored setting looks exactly like a working one. The user-facing refere
 [docs/configuration.md](docs/configuration.md); `kith --print-config` and
 `kith --print-device-config` print the annotated default files.
 
-- **Theme.** `[display.theme]` picks one of four palettes (`cobalt2`, `gruvbox`,
+- **Theme.** `[tui.theme]` picks one of four palettes (`cobalt2`, `gruvbox`,
   `nord`, and `terminal`, which uses the ANSI colours so the client wears the
   terminal's own scheme) and overrides any of nine roles. Nine colours with nine
   jobs is the whole model; there is no per-widget styling.

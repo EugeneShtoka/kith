@@ -20,7 +20,7 @@ type propertyGroup struct{ prefix, group, base string }
 var propertyGroups = append([]propertyGroup{
 	{"notifications.", "notifications", "notifications."},
 	{"display.media.", "media", "display.media."},
-	{"display.theme.", "look", "display.theme."},
+	{"tui.theme.", "look", "tui.theme."},
 	{"display.fps", "look", "display."},
 	{"display.network_colors", "look", "display."},
 	{"display.mouse", "look", "display."},

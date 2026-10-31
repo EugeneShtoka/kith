@@ -132,9 +132,9 @@ bridge's. Turn on a row's **only this device** and its color is kept in this mac
 device's shows. **Reset** takes a color out of the file it is in.
 
 Until you pick them, an account is drawn in its network's color and a person in their
-color in the terminal client's room (its `[display.theme.networks]` and sender colors);
+color in the terminal client's room (its `[tui.theme.networks]` and sender colors);
 someone the terminal client has not colored yet is drawn in the window's own color for
-them. The terminal client keeps its own palette, `[display.theme]`, and reads none of
+them. The terminal client keeps its own palette, `[tui.theme]`, and reads none of
 this. The keys are in [configuration.md](configuration.md#the-graphical-clients-theme).
 
 The terminal client's settings screen, another window, or an editor may change either
