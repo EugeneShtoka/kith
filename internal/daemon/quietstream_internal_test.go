@@ -85,3 +85,5 @@ func (noMessages) LastChange(context.Context) (string, int64, error) { return "t
 func (noMessages) ChangesAfter(context.Context, int64, int) (string, []domain.MessageChange, error) {
 	return "test", nil, nil
 }
+
+func (noMessages) RoomsOf(context.Context, domain.EventID) ([]domain.RoomID, error) { return nil, nil }

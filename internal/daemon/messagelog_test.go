@@ -116,6 +116,12 @@ func (c *numberedCache) ChangesAfter(_ context.Context, after int64, limit int) 
 	return epoch, out, nil
 }
 
+func (c *numberedCache) RoomsOf(_ context.Context, event domain.EventID) ([]domain.RoomID, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return roomsHolding(c.changes, event), nil
+}
+
 // serveNumbered serves a daemon over a numbered cache.
 func serveNumbered(t *testing.T) (*harness, *numberedCache) {
 	t.Helper()
@@ -136,8 +142,18 @@ type frame struct {
 // test ends, but the first, which says where it starts and is returned.
 func openMessages(t *testing.T, h *harness, epoch string, change int64) (<-chan frame, frame) {
 	t.Helper()
+	return openMessagesIn(t, h, "", epoch, change)
+}
+
+// openMessagesIn is openMessages for a client naming profile ("" none).
+func openMessagesIn(t *testing.T, h *harness, profile, epoch string, change int64) (<-chan frame, frame) {
+	t.Helper()
 	c := backendv1connect.NewBackendServiceClient(daemon.Dial(h.path), "http://kithd")
-	st, err := c.Messages(t.Context(), connect.NewRequest(&v1.MessagesRequest{SinceEpoch: epoch, SinceChange: change}))
+	req := connect.NewRequest(&v1.MessagesRequest{SinceEpoch: epoch, SinceChange: change})
+	if profile != "" {
+		req.Header().Set("Kith-Profile", profile)
+	}
+	st, err := c.Messages(t.Context(), req)
 	if err != nil {
 		t.Fatalf("open the message stream: %v", err)
 	}

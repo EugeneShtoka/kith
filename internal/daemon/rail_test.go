@@ -391,7 +391,8 @@ func walkRail(t *testing.T, seed uint64, steps int) {
 			if rng.IntN(2) == 0 {
 				v = domain.TagVerdict{Room: r.ID, Tag: "spam", Released: true, At: time.Now()}
 			}
-			if err := client.MarkTag(ctx, v); err != nil && !errors.Is(err, domain.ErrReleased) {
+			// As a filter marks it: kithd's own, in any room, not the profile's client's.
+			if err := h.client().MarkTag(ctx, v); err != nil && !errors.Is(err, domain.ErrReleased) {
 				t.Fatal(err)
 			}
 			log = append(log, fmt.Sprintf("%s in Spam: released %v", r.ID, v.Released))
@@ -417,7 +418,8 @@ func walkRail(t *testing.T, seed uint64, steps int) {
 		case 9:
 			r := room()
 			body := []string{"", "x"}[rng.IntN(2)]
-			if _, err := client.ReplaceDraft(ctx, domain.StoredDraft{RoomID: r.ID, Body: body}, domain.StoredDraft{}); err != nil {
+			// Written by a window naming no profile: in any room, the profile's or not.
+			if _, err := h.client().ReplaceDraft(ctx, domain.StoredDraft{RoomID: r.ID, Body: body}, domain.StoredDraft{}); err != nil {
 				t.Fatal(err)
 			}
 			log = append(log, fmt.Sprintf("draft in %s: %q", r.ID, body))

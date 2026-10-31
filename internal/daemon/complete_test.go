@@ -124,6 +124,23 @@ func (c *messageCache) LastChange(context.Context) (string, int64, error) {
 	return "test", c.last, nil
 }
 
+func (c *messageCache) RoomsOf(_ context.Context, event domain.EventID) ([]domain.RoomID, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return roomsHolding(c.changes, event), nil
+}
+
+// roomsHolding is the rooms of the changes whose message is event.
+func roomsHolding(changes []domain.MessageChange, event domain.EventID) []domain.RoomID {
+	var rooms []domain.RoomID
+	for i := range changes {
+		if changes[i].Message.ID == event {
+			rooms = append(rooms, changes[i].Message.RoomID)
+		}
+	}
+	return rooms
+}
+
 func (c *messageCache) ChangesAfter(_ context.Context, after int64, limit int) (string, []domain.MessageChange, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

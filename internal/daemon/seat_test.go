@@ -16,12 +16,15 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// draftStore is a backend that keeps drafts and takes every write.
+// draftStore is a backend that keeps drafts and takes every write, in rooms it holds.
 type draftStore struct {
 	apitest.Nop
+	rooms  []domain.Room
 	mu     sync.Mutex
 	drafts map[domain.RoomID]domain.StoredDraft
 }
+
+func (s *draftStore) Rooms(context.Context) ([]domain.Room, error) { return s.rooms, nil }
 
 func (s *draftStore) ReplaceDraft(_ context.Context, draft, _ domain.StoredDraft) (bool, error) {
 	s.mu.Lock()

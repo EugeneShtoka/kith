@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -97,12 +98,12 @@ func TestAClientThatCannotResumeIsToldToReadAgain(t *testing.T) {
 }
 
 // Switching profile reopens every stream; the message stream resumes, so a burst
-// committed across switches arrives once and in order.
+// committed across switches, in a room both profiles hold, arrives once and in order.
 func TestSwitchingProfileLosesNoMessage(t *testing.T) {
 	t.Parallel()
 	h, cache := serveNumbered(t)
 	if err := h.notifications.Reload(config.Config{Profiles: []config.Profile{
-		{Name: "home", Include: []string{"*"}}, {Name: "work", Include: []string{"dm"}},
+		{Name: "home", Include: []string{"*"}}, {Name: "work", Include: []string{"protocol:matrix"}},
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -121,4 +122,54 @@ func TestSwitchingProfileLosesNoMessage(t *testing.T) {
 	}
 	committed.Wait()
 	readBodies(t, client, want)
+}
+
+// A client naming a profile is sent its profile's rooms' messages alone, and where the
+// rest leave it: a run of another profile's messages ends with a frame carrying no
+// message and the last number, so the client resumes past them rather than from before
+// (and, that far behind, being told to read everything again).
+func TestAProfiledMessageStreamCarriesItsPositionPastTheRest(t *testing.T) {
+	t.Parallel()
+	h, cache := serveNumbered(t)
+	if err := h.notifications.Reload(config.Config{Profiles: []config.Profile{
+		{Name: "home", Include: []string{"*"}}, {Name: "work", Include: []string{"protocol:telegram"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	frames, _ := openMessagesIn(t, h, "work", "", 0)
+	ours := func(body string) domain.Message {
+		return domain.Message{ID: domain.EventID("telegram:1/-1001/" + body), RoomID: "telegram:1/-1001", Body: body}
+	}
+	var msgs []domain.Message
+	msgs = append(msgs, ours("1"))
+	for i := range 300 { // past one read of the cache
+		msgs = append(msgs, message(fmt.Sprintf("home%d", i)))
+	}
+	msgs = append(msgs, ours("2"))
+	for i := range 10 {
+		msgs = append(msgs, message(fmt.Sprintf("after%d", i)))
+	}
+	cache.commit(msgs...)
+	_, last := cache.at()
+
+	var got []string
+	var at int64
+	for at < last {
+		f := nextFrame(t, frames)
+		if f.change < at {
+			t.Fatalf("the position went back from %d to %d", at, f.change)
+		}
+		at = f.change
+		if f.msg != nil {
+			got = append(got, f.msg.Body)
+		}
+	}
+	if want := []string{"1", "2"}; !slices.Equal(got, want) {
+		t.Errorf("work was sent %v, want %v", got, want)
+	}
+	select {
+	case f := <-frames:
+		t.Errorf("after the last number, work was sent %+v", f)
+	case <-time.After(30 * time.Millisecond):
+	}
 }

@@ -78,9 +78,9 @@ sha256sum --check --ignore-missing kith-desktop_SHA256SUMS
 1. Set kith up as the [getting started](getting-started.md) guide says: log in to an
    account and run `kithd` (the systemd unit, or `kith` starts it).
 2. Open **kith** from the application menu, or run `kith-desktop`.
-3. Pick a [profile](configuration.md#profiles). A profile has one window at a time: if
-   a terminal client holds it, the window offers to take it over, and that client steps
-   aside.
+3. Pick a [profile](configuration.md#profiles). The window reaches that profile's rooms
+   alone. A profile has one window at a time: if a terminal client holds it, the window
+   offers to take it over, and that client steps aside.
 
 A second start brings the first window forward rather than opening another.
 Closing the window ends it; there is no background process to quit.

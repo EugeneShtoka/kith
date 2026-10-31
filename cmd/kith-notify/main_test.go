@@ -108,6 +108,8 @@ func (noMessages) ChangesAfter(context.Context, int64, int) (string, []domain.Me
 	return "test", nil, nil
 }
 
+func (noMessages) RoomsOf(context.Context, domain.EventID) ([]domain.RoomID, error) { return nil, nil }
+
 // says has kithd notify about a message in room whose body is body.
 func (k kithd) says(room domain.RoomID, body string) {
 	owner := domain.OwnerOf(room)

@@ -11,11 +11,13 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// MessageLog is the cache's numbering of message changes (db.Cache): where it stands,
-// and each message changed after a number, as the cache holds it now.
+// MessageLog is the cache's messages as clients read them (db.Cache): its numbering of
+// their changes, where it stands and each message changed after a number, as the cache
+// holds it now; and the rooms it holds a message in.
 type MessageLog interface {
 	LastChange(ctx context.Context) (epoch string, last int64, err error)
 	ChangesAfter(ctx context.Context, after int64, limit int) (epoch string, changes []domain.MessageChange, err error)
+	RoomsOf(ctx context.Context, event domain.EventID) ([]domain.RoomID, error)
 }
 
 const (
@@ -27,9 +29,9 @@ const (
 )
 
 // Messages streams the cache's changes from since, or from the newest, and then each
-// change as it is committed: every room, as the live stream always has (a client may
-// have a room open from outside its profile). A reader that falls behind lags and
-// catches up; nothing is dropped.
+// change as it is committed: every room's, or, to a client naming a profile, its
+// profile's rooms' (a frame with no message then carries the position past the rest). A
+// reader that falls behind lags and catches up; nothing is dropped.
 func (s *server) Messages(ctx context.Context, r *req[v1.MessagesRequest], st *connect.ServerStream[v1.MessagesResponse]) error {
 	// Where it reads from is taken before the headers go: they tell the client the
 	// stream is open, and it reads anything older itself.
@@ -65,13 +67,11 @@ func (s *server) Messages(ctx context.Context, r *req[v1.MessagesRequest], st *c
 				return err
 			}
 		}
-		for i := range changes {
-			c := &changes[i]
-			if err := send(st, &v1.MessagesResponse{Message: pc.MessageToProto(c.Message), Epoch: epoch, Change: c.Number}); err != nil {
-				return err
-			}
-			at = c.Number
+		past, sent := sendChanges(st, epoch, at, changes, s.streamHolds(ctx))
+		if sent != nil {
+			return sent
 		}
+		at = past
 		if len(changes) == tailBatch {
 			continue // more already numbered
 		}
@@ -99,6 +99,29 @@ func (s *server) resumeAt(ctx context.Context, since *v1.MessagesRequest) (epoch
 		return epoch, from, false, nil
 	}
 	return epoch, last, true, nil
+}
+
+// sendChanges sends the changes whose room holds keeps (nil keeps every room's) and
+// answers the position past them; a run it left out at the end is sent as a frame with
+// no message, as the client resumes from the last position it was sent.
+func sendChanges(st *connect.ServerStream[v1.MessagesResponse], epoch string, at int64, changes []domain.MessageChange, holds func(domain.RoomID) bool) (int64, error) {
+	leftOut := false
+	for i := range changes {
+		c := &changes[i]
+		at = c.Number
+		if leftOut = holds != nil && !holds(c.Message.RoomID); leftOut {
+			continue
+		}
+		if err := send(st, &v1.MessagesResponse{Message: pc.MessageToProto(c.Message), Epoch: epoch, Change: c.Number}); err != nil {
+			return at, err
+		}
+	}
+	if leftOut {
+		if err := send(st, &v1.MessagesResponse{Epoch: epoch, Change: at}); err != nil {
+			return at, err
+		}
+	}
+	return at, nil
 }
 
 func send(st *connect.ServerStream[v1.MessagesResponse], frame *v1.MessagesResponse) error {

@@ -183,6 +183,20 @@ and holds the least:
   a token for it; an attachment is saved where the person picks in a save dialog.
   A queued message is canceled or retried only by an ID kithd showed the window, or
   queued for it, in the profile it runs in.
+- **The window reaches its profile's rooms only.** Main names the window's profile on
+  every call (the page cannot), and kithd answers a call that names a room, a space or a
+  message only when that profile holds it, as its rail does: a room or an invitation on
+  the rail, a space the rail reaches, a message the cache holds in such rooms alone (one
+  it holds nowhere is looked for in the room named, where alone the network answers
+  it), a queued message in a room its queue lists. A room kithd does not hold is
+  refused, but for joining: an address kithd holds nothing of (a public room, an alias)
+  is no profile's yet. What each call names is read off its request, field by field,
+  before any handler runs, and a field kithd has not classified refuses the call. The
+  streams of every room (messages, reactions, typing) carry only the profile's rooms',
+  and lists, counts and search are narrowed to them. Not narrowed yet: the word and
+  emoji rankings asked for everywhere (`global`) draw on every room's. A client that
+  names no profile (the terminal client run without one, the CLI, `kith-mcp`) is not
+  limited by this: on the socket, a profile is a view a client chooses, not a boundary.
 - **Filing a room never hands the page the config.** The page files a room into tags
   and spaces with two calls, `FilingPlaces` and `FileRoom`, and has neither
   `GetConfig` nor `UpdateConfig`: kithd writes the tags into `config.toml` itself, on

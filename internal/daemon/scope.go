@@ -155,6 +155,16 @@ func (x *scopeIndex) FactsOf(ctx context.Context, room domain.Room) domain.RoomF
 	return x.factsFrom(room.ID, facts)
 }
 
+// Placed is the room as indexed, with current tags, and whether the index holds it;
+// a stale index, or one without it, is rebuilt first, as for Facts.
+func (x *scopeIndex) Placed(ctx context.Context, roomID domain.RoomID) (domain.RoomFacts, bool) {
+	facts, ok := x.lookup(ctx, roomID)
+	if !ok {
+		return domain.RoomFacts{}, false
+	}
+	return x.factsFrom(roomID, facts), true
+}
+
 // Known is the room as indexed now, with current tags, never rebuilding; an unknown
 // room is its ID and network alone.
 func (x *scopeIndex) Known(roomID domain.RoomID) domain.RoomFacts {

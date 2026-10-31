@@ -356,8 +356,13 @@ func (s *server) CachedReactions(ctx context.Context, r *req[v1.CachedReactionsR
 	return reply(&v1.CachedReactionsResponse{Reactions: pc.ReactionsToProto(rs)}, err)
 }
 
+// Reactions streams every room's reactions, or, to a client naming a profile, its
+// profile's rooms'.
 func (s *server) Reactions(ctx context.Context, _ *req[v1.ReactionsRequest], st *connect.ServerStream[v1.ReactionsResponse]) error {
 	return serveStream(ctx, s.Streams.reactions, st, func(u domain.ReactionUpdate) *v1.ReactionsResponse {
+		if holds := s.streamHolds(ctx); holds != nil && !holds(u.Reaction.RoomID) {
+			return nil
+		}
 		return &v1.ReactionsResponse{Update: pc.ReactionUpdateToProto(u)}
 	})
 }
@@ -618,9 +623,19 @@ func (s *server) ChatOffers(ctx context.Context, _ *req[v1.ChatOffersRequest]) (
 	return reply(&v1.ChatOffersResponse{Offers: pc.ChatOffersToProto(offers)}, err)
 }
 
+// ResolveLink answers the chat a link names; to a client naming a profile, only a chat
+// the profile holds or one kithd does not (the account is not in it yet).
 func (s *server) ResolveLink(ctx context.Context, r *req[v1.ResolveLinkRequest]) (*resp[v1.ResolveLinkResponse], error) {
 	target, err := s.Backend.ResolveLink(ctx, r.Msg.GetUri(), domain.RoomOwner(r.Msg.GetOn()))
-	return reply(pc.LinkTargetToProto(target), err)
+	if err != nil {
+		return nil, rpcErr(err)
+	}
+	if room := target.Room.ID; room != "" && namedProfile(ctx) {
+		if err := s.reachOf(ctx).admit(ctx, naming{aJoin, string(room)}); err != nil {
+			return nil, err
+		}
+	}
+	return reply(pc.LinkTargetToProto(target), nil)
 }
 
 func (s *server) JoinLink(ctx context.Context, r *req[v1.JoinLinkRequest]) (*resp[v1.JoinLinkResponse], error) {
@@ -829,8 +844,13 @@ func (s *server) linkedChats(ctx context.Context, uri string) []*v1.LinkedChat {
 	return chats
 }
 
+// ActivityStream streams every room's typing, or, to a client naming a profile, its
+// profile's rooms'.
 func (s *server) ActivityStream(ctx context.Context, _ *req[v1.ActivityStreamRequest], st *connect.ServerStream[v1.ActivityStreamResponse]) error {
 	return serveStream(ctx, s.Streams.activity, st, func(a domain.Activity) *v1.ActivityStreamResponse {
+		if holds := s.streamHolds(ctx); holds != nil && !holds(a.RoomID) {
+			return nil
+		}
 		return &v1.ActivityStreamResponse{Activity: pc.ActivityToProto(a)}
 	})
 }
