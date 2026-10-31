@@ -46,14 +46,23 @@ func changeSome(t *testing.T, rng *rand.Rand, dev *Device) []string {
 		s.Device.Keys.Bindings[binding] = string(rune('A' + rng.IntN(26)))
 		changed = append(changed, "keys."+binding)
 	}
+	for range rng.IntN(3) { // the graphical clients' theme: a key of [gui.theme], an entry of its tables
+		path := themePaths[rng.IntN(len(themePaths))]
+		s.Device.GUI.Theme.Set(path, themeValueOf(rng, path))
+		changed = append(changed, "gui.theme."+path)
+	}
 	*dev = s.Device
 	return changed
 }
 
-// valueOf is a changed path's value in dev: a property, or a binding.
+// valueOf is a changed path's value in dev: a property, a binding or a theme key.
 func valueOf(dev Device, path string) string {
 	if binding, ok := strings.CutPrefix(path, "keys."); ok {
 		return dev.Keys.Bindings[binding]
+	}
+	if key, ok := strings.CutPrefix(path, "gui.theme."); ok {
+		value, _ := dev.GUI.Theme.Get(key)
+		return value
 	}
 	return deviceValue(dev, path)
 }
@@ -81,6 +90,10 @@ func setPath(t *testing.T, dev *Device, path, value string) {
 	t.Helper()
 	if binding, ok := strings.CutPrefix(path, "keys."); ok {
 		dev.Keys.Bindings[binding] = value
+		return
+	}
+	if key, ok := strings.CutPrefix(path, "gui.theme."); ok {
+		dev.GUI.Theme.Set(key, value)
 		return
 	}
 	s := Settings{Device: *dev}
@@ -150,7 +163,7 @@ func TestWindowsEditingTheDeviceAtOnceKeepEachOthersChanges(t *testing.T) {
 	for seed := range uint64(300) {
 		rng := rand.New(rand.NewPCG(seed, 0xde71)) // #nosec G404 -- reproducible
 		path := filepath.Join(t.TempDir(), DeviceFile)
-		writeFile(t, path, tomlText(settingsIn(rng, DeviceFile, 6)))
+		writeFile(t, path, tomlText(settingsIn(rng, DeviceFile, 6))+themeText(genTheme(rng)))
 		base, revision, err := ReadDevice(path)
 		if err != nil {
 			t.Fatal(err)
@@ -258,6 +271,12 @@ func checkMerged(t *testing.T, seed uint64, atOnce bool, base, final Device, now
 	for _, p := range Properties() {
 		if _, touched := by[p.Path]; p.File == DeviceFile && !touched && deviceValue(final, p.Path) != deviceValue(base, p.Path) {
 			t.Fatalf("seed %d: %s = %q, which no window changed (was %q)", seed, p.Path, deviceValue(final, p.Path), deviceValue(base, p.Path))
+		}
+	}
+	for _, key := range themePaths {
+		p := "gui.theme." + key
+		if _, touched := by[p]; !touched && valueOf(final, p) != valueOf(base, p) {
+			t.Fatalf("seed %d: %s = %q, which no window changed (was %q)", seed, p, valueOf(final, p), valueOf(base, p))
 		}
 	}
 }

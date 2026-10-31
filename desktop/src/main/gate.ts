@@ -71,6 +71,11 @@ const calls = new Map<string, DescMethodUnary>(
     device.deviceSettings,
     // The settings page: device.toml written only over the file it read.
     device.updateDeviceSettings,
+    // The theme: read, and its keys written over the files the window read; a room's
+    // remembered sender colors, which it draws people in by default.
+    device.theme,
+    device.updateTheme,
+    backend.senderSlots,
   ].map((m) => [m.name, m]),
 );
 const streams = new Map<string, DescMethodServerStreaming>(

@@ -10,6 +10,8 @@ import { Avatar } from "./Avatar";
 import type { ComposerView } from "./compose";
 import { EmojiPicker } from "./EmojiPicker";
 import { hueOf } from "./faces";
+import { type Faces, faceClass, senderColor } from "./theme";
+import { builtIn, ColorRow } from "./ThemeRow";
 import { continues, dayLabel, newDay } from "./groups";
 import { attachmentURL } from "./media";
 import type { Session } from "./session";
@@ -27,11 +29,13 @@ export function TimelinePane({
   t,
   unreadLine,
   composer,
+  faces,
   session,
 }: {
   t: TimelineView;
   unreadLine: boolean;
   composer: ComposerView | undefined;
+  faces: Faces;
   session: Session;
 }) {
   const { main: shown, threads } = collapse(t.rows);
@@ -97,6 +101,7 @@ export function TimelinePane({
               reactions={t.reactions.get(m.id)}
               threads={threads.filter((th) => th.anchor === m.id || (th.anchor === "" && before === undefined))}
               composer={composer}
+              faces={faces}
               session={session}
             />
           );
@@ -136,6 +141,7 @@ export function Row({
   reactions,
   threads,
   composer,
+  faces,
   session,
 }: {
   m: Message;
@@ -149,6 +155,8 @@ export function Row({
   /** The threads drawn under it; undefined in a thread's pane, where none starts. */
   threads: readonly ThreadSummary[] | undefined;
   composer: ComposerView | undefined;
+  /** Whose colors people are drawn in. */
+  faces: Faces;
   session: Session;
 }) {
   const at = m.timestamp ? timestampDate(m.timestamp) : undefined;
@@ -181,13 +189,13 @@ export function Row({
               </time>
             )
           ) : (
-            <Avatar id={m.sender} name={m.senderName || m.sender} />
+            <Avatar id={m.sender} name={m.senderName || m.sender} hue={faceClass(faces, m.sender)} />
           )}
         </div>
         <div className="content">
           {!grouped && (
             <header>
-              <span className={`sender hue-${String(hueOf(m.sender))}`} dir="auto">
+              <span className={`sender ${faceClass(faces, m.sender)}`} dir="auto">
                 {m.senderName || m.sender}
               </span>{" "}
               {at && (
@@ -198,7 +206,7 @@ export function Row({
               {m.edited && !m.redacted && <span className="detail"> (edited)</span>}
             </header>
           )}
-          {m.replyTo !== "" && <Quote quoted={quoted} />}
+          {m.replyTo !== "" && <Quote quoted={quoted} faces={faces} />}
           <Body m={m} session={session} />
           {grouped && m.edited && !m.redacted && <span className="detail edited">(edited)</span>}
           {reactions !== undefined && reactions.length > 0 && (
@@ -231,7 +239,7 @@ export function Row({
             </button>
           ))}
           {composer !== undefined && !m.redacted && (
-            <Actions m={m} c={composer} startsThread={threads !== undefined} session={session} />
+            <Actions m={m} c={composer} startsThread={threads !== undefined} faces={faces} session={session} />
           )}
         </div>
       </article>
@@ -244,14 +252,16 @@ function Actions({
   m,
   c,
   startsThread,
+  faces,
   session,
 }: {
   m: Message;
   c: ComposerView;
   startsThread: boolean;
+  faces: Faces;
   session: Session;
 }) {
-  const [open, setOpen] = useState<"palette" | "picker" | "delete" | undefined>(undefined);
+  const [open, setOpen] = useState<"palette" | "picker" | "delete" | "color" | undefined>(undefined);
   const mine = c.selves.has(m.sender);
   const react = (key: string) => {
     setOpen(undefined);
@@ -292,6 +302,19 @@ function Actions({
             }}
           >
             ⤷
+          </button>
+        )}
+        {faces.theme !== undefined && (
+          <button
+            type="button"
+            aria-label="Color"
+            title="Their color"
+            aria-expanded={open === "color"}
+            onClick={() => {
+              setOpen(open === "color" ? undefined : "color");
+            }}
+          >
+            ◐
           </button>
         )}
         {mine && (
@@ -352,6 +375,20 @@ function Actions({
           }}
         />
       )}
+      {open === "color" && faces.theme !== undefined && (
+        <span className="palette" role="group" aria-label="Their color">
+          <ColorRow
+            label={m.senderName || m.sender}
+            k={`people.${m.sender}`}
+            theme={faces.theme}
+            fallback={
+              senderColor(faces.theme, faces.slots, m.sender) ??
+              builtIn(`--hue-${String(hueOf(m.sender))}`, window.matchMedia("(prefers-color-scheme: dark)").matches)
+            }
+            session={session}
+          />
+        </span>
+      )}
       {open === "delete" && (
         <span className="banner waiting">
           Delete this message for everyone?{" "}
@@ -378,14 +415,14 @@ function Actions({
   );
 }
 
-function Quote({ quoted }: { quoted: Message | undefined }) {
+function Quote({ quoted, faces }: { quoted: Message | undefined; faces: Faces }) {
   if (quoted === undefined) {
     return <blockquote className="reply detail">In reply to a message not loaded</blockquote>;
   }
   const words = quoted.redacted ? "Message deleted" : (quoted.format?.text ?? quoted.body);
   return (
     <blockquote className="reply" dir="auto">
-      <span className={`sender hue-${String(hueOf(quoted.sender))}`}>{quoted.senderName || quoted.sender}</span>{" "}
+      <span className={`sender ${faceClass(faces, quoted.sender)}`}>{quoted.senderName || quoted.sender}</span>{" "}
       <span className={quoted.redacted ? "deleted" : undefined}>{words.split("\n")[0]}</span>
     </blockquote>
   );

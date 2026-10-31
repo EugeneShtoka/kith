@@ -15,12 +15,13 @@ import {
   type StatusResponse,
 } from "../gen/backend/v1/services_pb";
 import type { Member, Message, Reaction, Room, SearchHit, Unread } from "../gen/backend/v1/types_pb";
-import { type DeviceSettings, DeviceService } from "../gen/device/v1/device_pb";
+import { type DeviceSettings, DeviceService, type ThemeResponse } from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
 import { later, listed, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unsent } from "./compose";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { call, subscribe } from "./kith";
+import { changeTheme, type ThemeRelay, themeLabel, type Scope, type Slots } from "./theme";
 import { announces } from "./read";
 import { ordered, total } from "./rooms";
 import { emptyFilter, parseSearch } from "./search";
@@ -114,6 +115,12 @@ export interface View {
   forward: boolean;
   /** The settings page, shown in place of the rest; undefined closed. */
   settingsPage: SettingsPage | undefined;
+  /** The theme as last read (Theme); undefined until one is: the built-in palette. */
+  theme: ThemeResponse | undefined;
+  /** A change of the theme being written, and what the last one says (gave way, or failed). */
+  themeChange: { busy: boolean; note: string };
+  /** The open room's remembered sender colors (SenderSlots). */
+  slots: Slots;
   problem: string | undefined;
 }
 
@@ -132,6 +139,22 @@ const relay: Device = {
   read: () => call(DeviceService.method.deviceSettings, {}).then(answered),
   write: (base, settings) =>
     call(DeviceService.method.updateDeviceSettings, { baseRevision: base, settings }).then(answered),
+};
+
+/** themeRelay is the theme through the relay, as the settings page changes it. */
+const themeRelay: ThemeRelay = {
+  read: () => call(DeviceService.method.theme, {}),
+  write: async (base, key, scope, value) => {
+    const r = await call(DeviceService.method.updateTheme, {
+      configRevision: base.configRevision,
+      deviceRevision: base.deviceRevision,
+      writes: [{ key, value, scope }],
+    });
+    if (r.theme === undefined) {
+      throw new Error("the relay answered no theme");
+    }
+    return r.theme;
+  },
 };
 
 /** errorText is what the settings page says of a failure. */
@@ -166,6 +189,7 @@ const nothingShown = {
   timeline: undefined,
   unreadLine: true,
   composer: undefined,
+  slots: new Map(),
 } satisfies Partial<View>;
 
 /** Run is one stay in one profile's seat: what it opened, closed together when it ends. */
@@ -213,6 +237,8 @@ export class Session {
     socket: "",
     bridge: "",
     settingsPage: undefined,
+    theme: undefined,
+    themeChange: { busy: false, note: "" },
     problem: undefined,
     ...nothingShown,
   };
@@ -250,6 +276,8 @@ export class Session {
   private watchingThread = false;
   /** Counts the settings page's reads and writes: only the last one's answer is shown. */
   private settingsReads = 0;
+  /** Counts the theme's reads and writes, likewise. */
+  private themeReads = 0;
   /** What the window last told kithd it has open, and when. */
   private presented = { room: "", at: 0 };
 
@@ -295,7 +323,8 @@ export class Session {
   /** openSettings shows the settings page, the settings read afresh. */
   openSettings(): void {
     const mine = ++this.settingsReads;
-    this.set({ settingsPage: { read: undefined, busy: false, note: "" } });
+    this.set({ settingsPage: { read: undefined, busy: false, note: "" }, themeChange: { busy: false, note: "" } });
+    this.readTheme(); // device.toml may have been changed since, by the TUI or by hand
     relay.read().then(
       (read) => {
         if (mine === this.settingsReads) {
@@ -351,6 +380,58 @@ export class Session {
     if (mine === this.settingsReads) {
       this.set({ settingsPage: { read, busy: false, note } });
     }
+  }
+
+  /**
+   * changeTheme writes one key of the theme to scope's file (the shared config, or
+   * device.toml), onto the files as another writer may have left them meanwhile
+   * (theme.changeTheme). The window then draws the theme as it is.
+   */
+  async changeTheme(key: string, scope: Scope, value: string): Promise<void> {
+    const shown = this.view.theme;
+    if (shown === undefined || this.view.themeChange.busy) {
+      return;
+    }
+    const mine = ++this.themeReads;
+    this.set({ themeChange: { busy: true, note: "" } });
+    let note = "";
+    try {
+      const got = await changeTheme(themeRelay, shown, key, scope, value);
+      if (mine === this.themeReads) {
+        this.set({ theme: got.theme });
+      }
+      if (got.kept) {
+        note = `${themeLabel(key)} was changed elsewhere meanwhile: it shows as it is now.`;
+      }
+    } catch (err) {
+      note = `${themeLabel(key)} was not saved: ${errorText(err)}`;
+    }
+    this.set({ themeChange: { busy: false, note } });
+  }
+
+  /** readTheme reads the theme again; one that cannot be read leaves the last one drawn. */
+  private readTheme(): void {
+    const mine = ++this.themeReads;
+    themeRelay.read().then(
+      (theme) => {
+        if (mine === this.themeReads && !this.stopped) {
+          this.set({ theme });
+        }
+      },
+      () => undefined, // kithd away, or a [gui.theme] that does not check: the last theme stays
+    );
+  }
+
+  /** readSlots reads the room's remembered sender colors, which its people are drawn in until picked. */
+  private readSlots(run: Run, room: string): void {
+    call(backend.senderSlots, { roomId: room }).then(
+      (r) => {
+        if (this.live(run) && this.view.open === room) {
+          this.set({ slots: new Map(r.slots.map((s) => [s.key, s.slot])) });
+        }
+      },
+      () => undefined, // drawn in the window's own hues
+    );
   }
 
   /** takeOver asks for the profile's seat by force: the window that has it steps aside. */
@@ -571,8 +652,9 @@ export class Session {
     run.timeline = new Timeline(room, this.view.unread.get(room)?.readEvent ?? "");
     run.settings = undefined;
     run.composer.opened(room);
-    this.set({ open: room, unreadLine: true });
+    this.set({ open: room, unreadLine: true, slots: new Map() });
     this.readSettings(run, run.timeline);
+    this.readSlots(run, room);
     this.readReactions(run);
     this.pump(run);
     this.present(run);
@@ -726,6 +808,7 @@ export class Session {
         throw err;
       });
       this.set({ profiles: d.profiles, socket: d.socket, bridge: d.bridge, problem: undefined });
+      this.readTheme(); // read as the profiles are: at the start, and after each config change
       this.enter(runIn(this.view.profile, d.profile, d.profiles));
     });
   }
@@ -941,6 +1024,8 @@ export class Session {
         if (e.kind === "frames" || (e.kind === "attached" && reopened)) {
           this.readDevice();
           this.readRooms(run);
+        } else if (e.kind === "attached") {
+          this.readTheme(); // kithd may have been away when the window started
         }
         reopened ||= e.kind === "attached";
       }),

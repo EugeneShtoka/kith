@@ -53,6 +53,7 @@ type Config struct {
 	Storage        Storage       `toml:"storage"`
 	Backup         Backup        `toml:"backup"`
 	Remote         Remote        `toml:"remote"`
+	GUI            GUI           `toml:"gui"` // graphical clients', every device's; a device's own overrides it
 	Tags           []Tag         `toml:"tag"`
 	Profiles       []Profile     `toml:"profile"`
 	Filters        []Filter      `toml:"filter"`

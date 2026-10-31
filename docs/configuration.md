@@ -348,6 +348,7 @@ key.
 | `[[bridge]]` | device | A kithd on another machine this device dials: `name`, `addresses` (`host:port`, tried in order) and `id`, the device ID its key must have. `kith join` writes one when it pairs. | [remote.md](remote.md#pairing-by-qr-code) |
 | `[log]` | config | `level`: how much the daemon, the client and `kith-mcp` log (`debug`, `info`, `warn`, `error`; default `info`). `--log-level` and `KITH_LOG_LEVEL` override it. `target`: where the client and a daemon it started log (`auto`, `journal`, `file`; default `auto`, the journal when there is one). `--log-target` and `KITH_LOG_TARGET` override it. | [troubleshooting.md](troubleshooting.md#where-the-log-goes) |
 | `[keys]` and `[keys.*]` | device | Every keybinding, one table per mode. | [keybindings.md](keybindings.md) |
+| `[gui.theme]` | both: config for every device, device for this one, key by key over it | The graphical clients' theme (the desktop window): its mode, each mode's colors, and colors per account and per person. The terminal client reads none of it. | [The graphical clients' theme](#the-graphical-clients-theme) |
 
 Settings that name a place say which kind with a prefix:
 
@@ -434,6 +435,38 @@ Nine roles cover every surface, and there is no per-widget styling.
 preset = "terminal"
 accent = "#ff8800"
 ```
+
+### The graphical clients' theme
+
+`[gui.theme]` is the graphical clients' (the [desktop window](desktop.md)), and the
+terminal client reads none of it. In `config.toml` it is every device's; `device.toml`
+takes the same keys, and each one set there is this device's instead. The window's
+**Settings → Theme** writes both for you. Every color is `#rrggbb`, and a key left out
+is the window's default.
+
+| Key | What |
+| --- | --- |
+| `mode` | `system` (the default) follows the system's light or dark; `light` and `dark` keep to one. |
+| `[gui.theme.light]`, `[gui.theme.dark]` | Each mode's colors, by role: `accent`, `background`, `surface` (the side columns), `text`, `muted` (times, hints), `link`, `selection` (the row you are on), `unread` and `mention`. |
+| `[gui.theme.accounts]` | A network account's color, by its rooms' owner as kith names it (`whatsapp:main/`, or `matrix:<account>/`): its rooms' mark and the open room's network. Unset, its network's `[display.theme.networks]` color. |
+| `[gui.theme.people]` | A person's color, by their ID: their name and face. Unset, the color the terminal client gives them in that room; one it has not given a color yet is drawn in the window's own. |
+
+```toml
+[gui.theme]
+mode = "dark"
+
+[gui.theme.dark]
+accent = "#4c8dff"
+
+[gui.theme.accounts]
+"whatsapp:main/" = "#25d366"
+
+[gui.theme.people]
+"matrix:@ada:example.org" = "#d97706"
+```
+
+When kith writes the file it puts `accounts` and `people` as inline tables under
+`[gui.theme]` (`accounts = { "whatsapp:main/" = "#25d366" }`), which reads the same.
 
 ## Examples
 

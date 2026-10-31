@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BackendService, Change, type SeatRequest } from "../gen/backend/v1/services_pb";
 import { ReactionSchema } from "../gen/backend/v1/types_pb";
-import { type DeviceSettings, DeviceSettingsSchema } from "../gen/device/v1/device_pb";
+import { type DeviceSettings, DeviceSettingsSchema, ThemeScope } from "../gen/device/v1/device_pb";
 import { unreadOf } from "./rooms";
 import { deviceAgain, Session } from "./session";
 import { type Key, withKey } from "./settings";
@@ -60,7 +60,7 @@ describe("the window's profile", () => {
     expect(view().profile).toBe("");
     expect(view().profiles).toEqual(["Home", "Work"]);
     expect(view().seat.state).toBe("none");
-    expect(kithd.calls).toEqual(["Device:"]);
+    expect(kithd.calls).toEqual(["Device:", "Theme:"]); // the relay's, which no profile scopes
     expect(kithd.refused).toEqual([]);
 
     await session.choose("Work");
@@ -69,7 +69,7 @@ describe("the window's profile", () => {
     expect(view().seat.state).toBe("seated");
     expect(kithd.remembered).toBe("Work");
     expect(kithd.refused).toEqual([]);
-    for (const c of kithd.calls.slice(2)) {
+    for (const c of kithd.calls.slice(3).filter((c) => c !== "Theme:")) {
       expect(c).toMatch(/:Work$/);
     }
     expect(kithd.open().map((s) => s.profile)).toEqual(Array(8).fill("Work"));
@@ -177,7 +177,7 @@ describe("the window's seat", () => {
     await started();
     expect(view().seat).toMatchObject({ state: "taken", holder: { pid: 4312n, host: "elsewhere" } });
     expect(kithd.open()).toEqual([]);
-    expect(kithd.calls.filter((c) => !c.startsWith("Device"))).toEqual([]);
+    expect(kithd.calls.filter((c) => !c.startsWith("Device") && !c.startsWith("Theme"))).toEqual([]);
 
     session.takeOver();
     await settled();
@@ -608,6 +608,60 @@ describe("the settings page", () => {
     expect(page()?.note).toMatch(/not saved.*does not load/);
     expect(page()?.read?.settings.unreadLine).toBe(true);
     expect(view().unreadLine).toBe(true);
+  });
+});
+
+describe("the theme", () => {
+  const value = (key: string) => view().theme?.values[key]?.value;
+
+  it("is read at the start and after each config change; one that cannot be read leaves the last", async () => {
+    kithd.themeShared.set("dark.accent", "#111111");
+    await started();
+    expect(value("dark.accent")).toBe("#111111");
+
+    kithd.themeShared.set("dark.accent", "#222222"); // the TUI's editor, through kithd
+    kithd.configRevision++;
+    kithd.send(backend.configChanged, "Home", { config: "" });
+    await settled();
+    expect(value("dark.accent")).toBe("#222222");
+
+    kithd.themeFails = true; // then edited by hand into one that does not check
+    kithd.send(backend.configChanged, "Home", { config: "" });
+    await settled();
+    expect(value("dark.accent")).toBe("#222222");
+  });
+
+  it("writes a key everywhere, this device's over it, and its reset shows every device's again", async () => {
+    await started();
+    await session.changeTheme("light.accent", ThemeScope.SHARED, "#123456");
+    await session.changeTheme("light.accent", ThemeScope.DEVICE, "#654321");
+    expect([kithd.themeShared.get("light.accent"), kithd.themeDevice.get("light.accent")]).toEqual([
+      "#123456",
+      "#654321",
+    ]);
+    expect(value("light.accent")).toBe("#654321");
+    await session.changeTheme("light.accent", ThemeScope.DEVICE, "");
+    expect(value("light.accent")).toBe("#123456");
+    expect(view().themeChange).toEqual({ busy: false, note: "" });
+  });
+
+  it("keeps another writer's change of the same key, and says so", async () => {
+    await started();
+    kithd.themeShared.set("mode", "light"); // another window, after this one read the theme
+    kithd.configRevision++;
+    await session.changeTheme("mode", ThemeScope.SHARED, "dark");
+    expect(kithd.themeShared.get("mode")).toBe("light");
+    expect(value("mode")).toBe("light");
+    expect(view().themeChange.note).toMatch(/changed elsewhere/);
+  });
+
+  it("reads the open room's sender colors", async () => {
+    kithd.of("Home").rooms = [room("!a")];
+    kithd.slots.set("!a", new Map([["@ann:x", 3]]));
+    await started();
+    session.open("!a");
+    await settled();
+    expect(view().slots.get("@ann:x")).toBe(3);
   });
 });
 

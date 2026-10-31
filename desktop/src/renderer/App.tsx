@@ -3,9 +3,11 @@ import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react
 
 import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse } from "../gen/backend/v1/services_pb";
 import type { Room, Unread } from "../gen/backend/v1/types_pb";
+import type { ThemeResponse } from "../gen/device/v1/device_pb";
 import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
+import { colorClass, themeCSS, modeOf, roomColor } from "./theme";
 import { rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
 import { type Link, type Seat, Session, type View } from "./session";
@@ -37,6 +39,9 @@ export function App() {
   useEffect(() => {
     document.title = view.unreadTotal > 0 ? `kith (${String(view.unreadTotal)})` : "kith";
   }, [view.unreadTotal]);
+  useEffect(() => {
+    paint(view.theme);
+  }, [view.theme]);
 
   const seated = view.profile !== "" && view.seat.state === "seated" && view.settingsPage === undefined;
   return (
@@ -51,7 +56,7 @@ export function App() {
           {view.problem && <p className="problem">{view.problem}</p>}
           <div className="page">
             {view.settingsPage ? (
-              <SettingsPage page={view.settingsPage} session={session} />
+              <SettingsPage page={view.settingsPage} view={view} session={session} />
             ) : (
               <Body view={view} session={session} />
             )}
@@ -262,6 +267,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
                       room={r}
                       unread={view.unread.get(r.id)}
                       open={r.id === view.open}
+                      theme={view.theme}
                       session={session}
                     />
                   ))}
@@ -282,10 +288,17 @@ function Seated({ view, session }: { view: View; session: Session }) {
         {view.timeline ? (
           <div className="open-room">
             <RoomHeader
+              theme={view.theme}
               id={view.open}
               room={view.joined.find((r) => r.id === view.open) ?? view.rooms.find((r) => r.id === view.open)}
             />
-            <TimelinePane t={view.timeline} unreadLine={view.unreadLine} composer={view.composer} session={session} />
+            <TimelinePane
+              t={view.timeline}
+              unreadLine={view.unreadLine}
+              composer={view.composer}
+              faces={{ theme: view.theme, slots: view.slots }}
+              session={session}
+            />
             {view.composer && (
               <ComposerPane
                 c={view.composer}
@@ -301,7 +314,13 @@ function Seated({ view, session }: { view: View; session: Session }) {
           </div>
         )}
         {view.thread && view.timeline && (
-          <ThreadPane thread={view.thread} t={view.timeline} composer={view.composer} session={session} />
+          <ThreadPane
+            thread={view.thread}
+            t={view.timeline}
+            composer={view.composer}
+            faces={{ theme: view.theme, slots: view.slots }}
+            session={session}
+          />
         )}
       </div>
     </>
@@ -309,14 +328,15 @@ function Seated({ view, session }: { view: View; session: Session }) {
 }
 
 /** RoomHeader names the open room above its messages: its face, name, network and topic. */
-function RoomHeader({ id, room }: { id: string; room: Room | undefined }) {
+function RoomHeader({ theme, id, room }: { theme: ThemeResponse | undefined; id: string; room: Room | undefined }) {
   const name = room?.name || id;
   const mark = networkMark(room?.network ?? "");
+  const color = room && roomColor(theme, room);
   return (
     <header className="room-header">
       <Avatar id={id} name={name} />
       <h2 dir="auto">{name}</h2>
-      {mark && <span className={`net net-${mark.slug}`}>{room?.network}</span>}
+      {mark && <span className={`net ${color ? colorClass(color) : `net-${mark.slug}`}`}>{room?.network}</span>}
       {room?.topic && (
         <span className="topic detail" dir="auto" title={room.topic}>
           {room.topic}
@@ -466,16 +486,19 @@ function RoomRow({
   room,
   unread,
   open,
+  theme,
   session,
 }: {
   room: Room;
   unread: Unread | undefined;
   open: boolean;
+  theme: ThemeResponse | undefined;
   session: Session;
 }) {
   const { count, mentions } = unreadOf(unread);
   const name = room.name || room.id;
   const mark = networkMark(room.network);
+  const color = roomColor(theme, room);
   return (
     <li className={count > 0 || unread?.marked ? "room unread" : "room"}>
       <button
@@ -490,7 +513,7 @@ function RoomRow({
           {name}
         </span>
         {mark && (
-          <span className={`net net-${mark.slug}`} title={room.network}>
+          <span className={`net ${color ? colorClass(color) : `net-${mark.slug}`}`} title={room.network}>
             {mark.abbr}
           </span>
         )}
@@ -576,4 +599,20 @@ function Network({ network }: { network: NetworkStatus }) {
       </td>
     </tr>
   );
+}
+
+/** The theme's stylesheet, beside styles.css (a constructed sheet: the window's policy allows no <style>). */
+let sheet: CSSStyleSheet | undefined;
+
+/** paint draws the window in theme, and has main draw it light, dark or as the system is; none read yet leaves the built-in one. */
+function paint(theme: ThemeResponse | undefined): void {
+  if (theme === undefined) {
+    return;
+  }
+  if (sheet === undefined) {
+    sheet = new CSSStyleSheet();
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  }
+  sheet.replaceSync(themeCSS(theme));
+  window.kith.themeMode(modeOf(theme));
 }

@@ -46,6 +46,11 @@ const (
 	DeviceServiceUpdateDeviceSettingsProcedure = "/device.v1.DeviceService/UpdateDeviceSettings"
 	// DeviceServiceOutgoingProcedure is the fully-qualified name of the DeviceService's Outgoing RPC.
 	DeviceServiceOutgoingProcedure = "/device.v1.DeviceService/Outgoing"
+	// DeviceServiceThemeProcedure is the fully-qualified name of the DeviceService's Theme RPC.
+	DeviceServiceThemeProcedure = "/device.v1.DeviceService/Theme"
+	// DeviceServiceUpdateThemeProcedure is the fully-qualified name of the DeviceService's UpdateTheme
+	// RPC.
+	DeviceServiceUpdateThemeProcedure = "/device.v1.DeviceService/UpdateTheme"
 )
 
 // DeviceServiceClient is a client for the device.v1.DeviceService service.
@@ -75,6 +80,22 @@ type DeviceServiceClient interface {
 	// (media.Strip) and the file goes under a neutral name (domain.SentName). Main asks
 	// it for each file the person offered; the window never names a path.
 	Outgoing(context.Context, *connect.Request[v1.OutgoingRequest]) (*connect.Response[v1.OutgoingResponse], error)
+	// Theme is the graphical clients' theme ([gui.theme]) as it now resolves: each key from
+	// this device's file (device.toml) where it sets one, else from the bridge's config
+	// (config.toml, read through kithd's GetConfig on any device), else its default; and
+	// what the defaults come from, so the window draws as the TUI does until a color is
+	// picked. Each call reads both again: a window asks after a config change
+	// (ConfigChanged). kithd unreachable is UNAVAILABLE; a [gui.theme] that does not check,
+	// in either file, FAILED_PRECONDITION.
+	Theme(context.Context, *connect.Request[v1.ThemeRequest]) (*connect.Response[v1.ThemeResponse], error)
+	// UpdateTheme writes theme keys, each to the scope it names: SHARED into the bridge's
+	// config, written whole through kithd (UpdateConfig) on config_revision, never into a
+	// file here; DEVICE into device.toml on device_revision, as UpdateDeviceSettings
+	// writes it. An empty value removes the key from that scope's file. A file changed
+	// since its revision is ABORTED with nothing of that scope written: the window reads
+	// the theme again. An unknown key, a color that is not #rrggbb or a mode not known is
+	// INVALID_ARGUMENT, nothing written. It answers the theme as now resolved.
+	UpdateTheme(context.Context, *connect.Request[v1.UpdateThemeRequest]) (*connect.Response[v1.UpdateThemeResponse], error)
 }
 
 // NewDeviceServiceClient constructs a client for the device.v1.DeviceService service. By default,
@@ -118,6 +139,18 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("Outgoing")),
 			connect.WithClientOptions(opts...),
 		),
+		theme: connect.NewClient[v1.ThemeRequest, v1.ThemeResponse](
+			httpClient,
+			baseURL+DeviceServiceThemeProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("Theme")),
+			connect.WithClientOptions(opts...),
+		),
+		updateTheme: connect.NewClient[v1.UpdateThemeRequest, v1.UpdateThemeResponse](
+			httpClient,
+			baseURL+DeviceServiceUpdateThemeProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("UpdateTheme")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -128,6 +161,8 @@ type deviceServiceClient struct {
 	deviceSettings       *connect.Client[v1.DeviceSettingsRequest, v1.DeviceSettingsResponse]
 	updateDeviceSettings *connect.Client[v1.UpdateDeviceSettingsRequest, v1.UpdateDeviceSettingsResponse]
 	outgoing             *connect.Client[v1.OutgoingRequest, v1.OutgoingResponse]
+	theme                *connect.Client[v1.ThemeRequest, v1.ThemeResponse]
+	updateTheme          *connect.Client[v1.UpdateThemeRequest, v1.UpdateThemeResponse]
 }
 
 // Device calls device.v1.DeviceService.Device.
@@ -153,6 +188,16 @@ func (c *deviceServiceClient) UpdateDeviceSettings(ctx context.Context, req *con
 // Outgoing calls device.v1.DeviceService.Outgoing.
 func (c *deviceServiceClient) Outgoing(ctx context.Context, req *connect.Request[v1.OutgoingRequest]) (*connect.Response[v1.OutgoingResponse], error) {
 	return c.outgoing.CallUnary(ctx, req)
+}
+
+// Theme calls device.v1.DeviceService.Theme.
+func (c *deviceServiceClient) Theme(ctx context.Context, req *connect.Request[v1.ThemeRequest]) (*connect.Response[v1.ThemeResponse], error) {
+	return c.theme.CallUnary(ctx, req)
+}
+
+// UpdateTheme calls device.v1.DeviceService.UpdateTheme.
+func (c *deviceServiceClient) UpdateTheme(ctx context.Context, req *connect.Request[v1.UpdateThemeRequest]) (*connect.Response[v1.UpdateThemeResponse], error) {
+	return c.updateTheme.CallUnary(ctx, req)
 }
 
 // DeviceServiceHandler is an implementation of the device.v1.DeviceService service.
@@ -182,6 +227,22 @@ type DeviceServiceHandler interface {
 	// (media.Strip) and the file goes under a neutral name (domain.SentName). Main asks
 	// it for each file the person offered; the window never names a path.
 	Outgoing(context.Context, *connect.Request[v1.OutgoingRequest]) (*connect.Response[v1.OutgoingResponse], error)
+	// Theme is the graphical clients' theme ([gui.theme]) as it now resolves: each key from
+	// this device's file (device.toml) where it sets one, else from the bridge's config
+	// (config.toml, read through kithd's GetConfig on any device), else its default; and
+	// what the defaults come from, so the window draws as the TUI does until a color is
+	// picked. Each call reads both again: a window asks after a config change
+	// (ConfigChanged). kithd unreachable is UNAVAILABLE; a [gui.theme] that does not check,
+	// in either file, FAILED_PRECONDITION.
+	Theme(context.Context, *connect.Request[v1.ThemeRequest]) (*connect.Response[v1.ThemeResponse], error)
+	// UpdateTheme writes theme keys, each to the scope it names: SHARED into the bridge's
+	// config, written whole through kithd (UpdateConfig) on config_revision, never into a
+	// file here; DEVICE into device.toml on device_revision, as UpdateDeviceSettings
+	// writes it. An empty value removes the key from that scope's file. A file changed
+	// since its revision is ABORTED with nothing of that scope written: the window reads
+	// the theme again. An unknown key, a color that is not #rrggbb or a mode not known is
+	// INVALID_ARGUMENT, nothing written. It answers the theme as now resolved.
+	UpdateTheme(context.Context, *connect.Request[v1.UpdateThemeRequest]) (*connect.Response[v1.UpdateThemeResponse], error)
 }
 
 // NewDeviceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -221,6 +282,18 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("Outgoing")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServiceThemeHandler := connect.NewUnaryHandler(
+		DeviceServiceThemeProcedure,
+		svc.Theme,
+		connect.WithSchema(deviceServiceMethods.ByName("Theme")),
+		connect.WithHandlerOptions(opts...),
+	)
+	deviceServiceUpdateThemeHandler := connect.NewUnaryHandler(
+		DeviceServiceUpdateThemeProcedure,
+		svc.UpdateTheme,
+		connect.WithSchema(deviceServiceMethods.ByName("UpdateTheme")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/device.v1.DeviceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceServiceDeviceProcedure:
@@ -233,6 +306,10 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 			deviceServiceUpdateDeviceSettingsHandler.ServeHTTP(w, r)
 		case DeviceServiceOutgoingProcedure:
 			deviceServiceOutgoingHandler.ServeHTTP(w, r)
+		case DeviceServiceThemeProcedure:
+			deviceServiceThemeHandler.ServeHTTP(w, r)
+		case DeviceServiceUpdateThemeProcedure:
+			deviceServiceUpdateThemeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -260,4 +337,12 @@ func (UnimplementedDeviceServiceHandler) UpdateDeviceSettings(context.Context, *
 
 func (UnimplementedDeviceServiceHandler) Outgoing(context.Context, *connect.Request[v1.OutgoingRequest]) (*connect.Response[v1.OutgoingResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.Outgoing is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) Theme(context.Context, *connect.Request[v1.ThemeRequest]) (*connect.Response[v1.ThemeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.Theme is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) UpdateTheme(context.Context, *connect.Request[v1.UpdateThemeRequest]) (*connect.Response[v1.UpdateThemeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.UpdateTheme is not implemented"))
 }

@@ -103,7 +103,8 @@ The window fills its height, and each part scrolls on its own:
 - **On the right**, a thread, when one is open.
 
 People and rooms are drawn as their initials, each in a color of their own that stays
-the same everywhere. Phone numbers are shown as the network gives them.
+the same everywhere: a person in the color the terminal client gives them in that room,
+until you pick one ([Theme](#theme)). Phone numbers are shown as the network gives them.
 
 As the window narrows, the columns narrow with it. Under about 960 pixels the rail
 folds away behind the **☰** button in the top bar, and a thread opens over the room
@@ -114,7 +115,34 @@ picking a room or a place folds it again.
 settings page, under **This window**. Both are kept by the window for the next start,
 not in `device.toml`, so the terminal client is not affected.
 
-The colors follow the system's light or dark setting.
+The colors follow the system's light or dark setting, unless the [theme](#theme) says
+otherwise.
+
+## Theme
+
+**Settings → Theme** sets how the window looks: its mode (as the system is, light or
+dark), each mode's colors (accent, background, surface, text, muted, link, selection,
+unread and mention), each account's color, and the colors you picked for people. To
+pick someone's color, point at a message of theirs and press **◐** in its actions.
+
+Each row is written for every device at once: it goes into the bridge's `config.toml`
+(`[gui.theme]`), through `kithd`, so a machine that [joined a bridge](remote.md) writes the
+bridge's. Turn on a row's **only this device** and its color is kept in this machine's
+`device.toml` instead, over every device's; turning it off takes it out again, and every
+device's shows. **Reset** takes a color out of the file it is in.
+
+Until you pick them, an account is drawn in its network's color and a person in their
+color in the terminal client's room (its `[display.theme.networks]` and sender colors);
+someone the terminal client has not colored yet is drawn in the window's own color for
+them. The terminal client keeps its own palette, `[display.theme]`, and reads none of
+this. The keys are in [configuration.md](configuration.md#the-graphical-clients-theme).
+
+The terminal client's settings screen, another window, or an editor may change either
+file while the page is open. The window then reads the theme again and writes your
+change onto it. If the same color was changed there, the window keeps that one and says
+so. A `[gui.theme]` edited by hand into one that does not check (a color that is not
+`#rrggbb`) is refused, as `kithd` refuses any bad config: the window keeps drawing the
+theme it had.
 
 ## How it finds kithd
 
@@ -150,6 +178,7 @@ starts the terminal client.
 | Accounts, rooms, rules: the bridge's config | `~/.config/kith/config.toml`, read by `kithd` |
 | This machine's settings, shared with the terminal client (the profile in use, read receipts, typing, emoji, media) | `~/.config/kith/device.toml` |
 | Pictures the window has shown | the media cache, `[display.media] cache_dir` in `device.toml` |
+| The window's theme: every device's, and this device's over it | `[gui.theme]` in `config.toml`, and in `device.toml` ([Theme](#theme)) |
 | The window's zoom and text size | `~/.config/kith-desktop/scale.json` |
 | Electron's own store (its caches and the single-window lock) | `~/.config/kith-desktop/` |
 

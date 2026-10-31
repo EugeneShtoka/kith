@@ -1063,6 +1063,40 @@ keep = 7
 [remote]
 listen = []
 
+# The graphical clients' theme (the desktop window), the same on every device; a
+# device's own [gui.theme] (in device.toml, the same keys) overrides it key by key. The
+# terminal client draws with [display.theme] and reads none of this. Every color is
+# "#rrggbb"; a key left out is the window's default. The window's Settings → Theme
+# writes these for you.
+#
+#   mode      "system" (the default) follows the system's light or dark; "light" and
+#             "dark" keep to one.
+#   accounts  a network account's color, by its rooms' owner as kith names it
+#             ("whatsapp:main/"): its rooms' mark. Unset, its network's color
+#             ([display.theme.networks] in device.toml).
+#   people    a person's color, by their ID: their name and face. Unset, the color the
+#             terminal client gives them in that room.
+#
+# [gui.theme]
+# mode = "dark"
+#
+# Each mode's colors, one per role: accent, background, surface (the side columns),
+# text, muted (times, hints), link, selection (the row you are on), unread and mention.
+# [gui.theme.dark]
+# accent = "#4c8dff"
+# background = "#1e1f22"
+#
+# The same roles for light: accent, background, surface, text, muted, link, selection,
+# unread and mention.
+# [gui.theme.light]
+# accent = "#1f6feb"
+#
+# Colors per account (accounts) and per person (people), as above.
+# [gui.theme.accounts]
+# "whatsapp:main/" = "#25d366"
+#
+# [gui.theme.people]
+# "matrix:@ada:example.org" = "#d97706"
 # Your own commands: `/zoom` runs the executable `zoom` in `dir`, and its stdout lands
 # in the composer for you to send or not. A non-zero exit, timeout or empty output
 # leaves the composer untouched and says why. Built-ins of the same name win.

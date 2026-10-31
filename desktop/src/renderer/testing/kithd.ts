@@ -4,6 +4,7 @@
 // the gate decides it; streams opened again after kithd restarts, a forced seat asked
 // for again unforced). Answers and events arrive later, as over IPC.
 import {
+  clone,
   create,
   type DescMethod,
   fromBinary,
@@ -32,9 +33,18 @@ import {
   type Unread,
   UnreadSchema,
 } from "../../gen/backend/v1/types_pb";
-import { type DeviceSettings, DeviceSettingsSchema, DeviceService } from "../../gen/device/v1/device_pb";
+import {
+  type DeviceSettings,
+  DeviceSettingsSchema,
+  DeviceService,
+  type ThemeResponse,
+  ThemeResponseSchema,
+  ThemeScope,
+  ThemeSource,
+  ThemeValueSchema,
+} from "../../gen/device/v1/device_pb";
 import { compare } from "../merge";
-import type { KithBridge, Offered, StreamEvent } from "../../shared/ipc";
+import type { KithBridge, ThemeMode, Offered, StreamEvent } from "../../shared/ipc";
 import { runIn } from "../../shared/profile";
 
 const backend = BackendService.method;
@@ -85,6 +95,20 @@ export class Kithd {
   readonly refused: string[] = [];
   /** The window's text size, as main keeps it. */
   fontSize = 15;
+  /** The theme's mode the window last told main. */
+  themeMode: ThemeMode | undefined;
+  /**
+   * The relay's theme: config.toml's [gui.theme] (through kithd) and device.toml's, by key,
+   * and config.toml's revision (device.toml's is settingsRevision); the defaults' sources.
+   */
+  readonly themeShared = new Map<string, string>();
+  readonly themeDevice = new Map<string, string>();
+  configRevision = 1;
+  /** A [gui.theme] edited by hand into one that does not check: the relay refuses to read it. */
+  themeFails = false;
+  themeDefaults: ThemeResponse = create(ThemeResponseSchema);
+  /** Each room's remembered sender colors (SenderSlots). */
+  readonly slots = new Map<string, Map<string, number>>();
   /** What the window told main to count in the tray, in order. */
   readonly told: number[] = [];
   /** The bridge the device joined, "" for a kithd of its own: the relay reads the profiles through it. */
@@ -185,6 +209,9 @@ export class Kithd {
       setFontSize: (px) => {
         this.fontSize = px;
         return Promise.resolve(px);
+      },
+      themeMode: (mode) => {
+        this.themeMode = mode;
       },
     };
   }
@@ -462,6 +489,40 @@ export class Kithd {
           revision: String(this.settingsRevision),
         });
       }
+      case "Theme":
+        if (this.themeFails) {
+          throw new Error('ConnectError: [failed_precondition] config.toml: theme.dark.accent: "blue" is no color');
+        }
+        return reply(DeviceService.method.theme, this.theme());
+      case "UpdateTheme": {
+        // As the relay: each file written only at the revision read.
+        const r = request as MessageShape<typeof DeviceService.method.updateTheme.input>;
+        for (const w of r.writes) {
+          const device = w.scope === ThemeScope.DEVICE;
+          const at = device ? this.settingsRevision : this.configRevision;
+          if ((device ? r.deviceRevision : r.configRevision) !== String(at)) {
+            throw new Error("ConnectError: [aborted] the file changed since it was read");
+          }
+          const file = device ? this.themeDevice : this.themeShared;
+          if (w.value === "") {
+            file.delete(w.key);
+          } else {
+            file.set(w.key, w.value);
+          }
+          if (device) {
+            this.settingsRevision++;
+          } else {
+            this.configRevision++;
+          }
+        }
+        return reply(DeviceService.method.updateTheme, { theme: this.theme() });
+      }
+      case "SenderSlots": {
+        const room = (request as MessageShape<typeof backend.senderSlots.input>).roomId;
+        return reply(backend.senderSlots, {
+          slots: [...(this.slots.get(room) ?? new Map<string, number>())].map(([key, slot]) => ({ key, slot })),
+        });
+      }
       case "CachedTimeline": {
         const room = (request as MessageShape<typeof backend.cachedTimeline.input>).roomId;
         return reply(backend.cachedTimeline, { messages: (p.messages.get(room) ?? []).slice(-4) });
@@ -598,6 +659,24 @@ export class Kithd {
       default:
         throw new Error(`the fake does not answer ${name}`);
     }
+  }
+
+  /** theme is the theme as the relay resolves it: this device's value over the shared one. */
+  theme(): ThemeResponse {
+    const theme = clone(ThemeResponseSchema, this.themeDefaults);
+    for (const key of new Set([...this.themeShared.keys(), ...this.themeDevice.keys()])) {
+      const shared = this.themeShared.get(key) ?? "";
+      const device = this.themeDevice.get(key) ?? "";
+      theme.values[key] = create(ThemeValueSchema, {
+        value: device || shared,
+        source: device ? ThemeSource.DEVICE : shared ? ThemeSource.SHARED : ThemeSource.UNSPECIFIED,
+        shared,
+        device,
+      });
+    }
+    theme.configRevision = String(this.configRevision);
+    theme.deviceRevision = String(this.settingsRevision);
+    return theme;
   }
 
   private subscribe(name: string, bytes: Uint8Array, listener: (event: StreamEvent) => void): () => void {

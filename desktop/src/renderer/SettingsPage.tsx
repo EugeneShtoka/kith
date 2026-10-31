@@ -1,10 +1,13 @@
-// The settings page: this device's settings shared with the TUI (device.toml), each
-// change written at once (Session.changeSetting); no Save button.
+// The settings page: this device's settings shared with the TUI (device.toml), and the
+// window's theme (Session.changeTheme), each change written at once; no Save button.
 import { useEffect, useState } from "react";
 
-import type { DeviceSettings, ReadRule } from "../gen/device/v1/device_pb";
+import type { DeviceSettings, ThemeResponse, ReadRule } from "../gen/device/v1/device_pb";
 import { fontSizes } from "../shared/ipc";
-import type { Session, SettingsPage as Page } from "./session";
+import { networkMark } from "./faces";
+import { picked, roles, valueOf } from "./theme";
+import { builtIn, ColorRow, ModeRow } from "./ThemeRow";
+import type { Session, SettingsPage as Page, View } from "./session";
 import { type Key, labels } from "./settings";
 
 /** The skin tones, as their modifiers ("" none), named as device.toml names them. */
@@ -38,7 +41,7 @@ function sendFrom(send: Send): boolean | undefined {
   return send === "inherit" ? undefined : send === "announce";
 }
 
-export function SettingsPage({ page, session }: { page: Page; session: Session }) {
+export function SettingsPage({ page, view, session }: { page: Page; view: View; session: Session }) {
   const s = page.read?.settings;
   return (
     <section className="settings" aria-label="Settings">
@@ -62,8 +65,95 @@ export function SettingsPage({ page, session }: { page: Page; session: Session }
       ) : (
         <Fields s={s} busy={page.busy} session={session} />
       )}
+      <Theme theme={view.theme} change={view.themeChange} session={session} />
       <WindowScale />
     </section>
+  );
+}
+
+/**
+ * Theme is the window's theme: its mode, each mode's colors, each account's and each
+ * picked person's. A row writes every device's (the bridge's config) unless its "only
+ * this device" is on.
+ */
+function Theme({
+  theme,
+  change,
+  session,
+}: {
+  theme: ThemeResponse | undefined;
+  change: View["themeChange"];
+  session: Session;
+}) {
+  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const accounts = new Map<string, string>();
+  for (const a of theme?.accounts ?? []) {
+    accounts.set(`accounts.${a.on}`, `${a.network} ${a.name}`);
+  }
+  const keys = Object.keys(theme?.values ?? {});
+  for (const k of keys) {
+    if (theme !== undefined && k.startsWith("accounts.") && !accounts.has(k) && picked(theme, k)) {
+      accounts.set(k, k.slice("accounts.".length)); // an account kithd no longer serves
+    }
+  }
+  const people = keys.filter((k) => theme !== undefined && k.startsWith("people.") && picked(theme, k)).sort();
+  return (
+    <>
+      <h3>Theme</h3>
+      <p className="detail">
+        Every device's, kept in the bridge's config. A row with "only this device" on is kept in this device's
+        device.toml instead, over every device's.
+      </p>
+      {change.note && <p className="problem">{change.note}</p>}
+      {theme === undefined ? (
+        <p className="banner">Reading the theme…</p>
+      ) : (
+        <fieldset disabled={change.busy} className="theme">
+          <ModeRow theme={theme} session={session} />
+          {(["light", "dark"] as const).map((mode) => (
+            <div key={mode}>
+              <h4>{mode === "light" ? "Light" : "Dark"}</h4>
+              {Object.entries(roles).map(([role, token]) => (
+                <ColorRow
+                  key={role}
+                  label={role}
+                  k={`${mode}.${role}`}
+                  theme={theme}
+                  fallback={builtIn(token, mode === "dark")}
+                  session={session}
+                />
+              ))}
+            </div>
+          ))}
+          <h4>Accounts</h4>
+          {[...accounts].map(([k, label]) => {
+            const network = theme.accounts.find((a) => `accounts.${a.on}` === k)?.network ?? "";
+            return (
+              <ColorRow
+                key={k}
+                label={label}
+                k={k}
+                theme={theme}
+                fallback={builtIn(`--net-${networkMark(network)?.slug ?? "other"}`, dark)}
+                session={session}
+              />
+            );
+          })}
+          <h4>People</h4>
+          {people.length === 0 && <p className="detail">None picked: pick one from a message of theirs (Color).</p>}
+          {people.map((k) => (
+            <ColorRow
+              key={k}
+              label={k.slice("people.".length)}
+              k={k}
+              theme={theme}
+              fallback={valueOf(theme, k)}
+              session={session}
+            />
+          ))}
+        </fieldset>
+      )}
+    </>
   );
 }
 
