@@ -169,6 +169,9 @@ export class FakeKithd {
           this.received.push({ method: "Status", profile: ctx.requestHeader.get("Kith-Profile"), message: req });
           return { ready: true };
         },
+        // What may be installed: a dictionary and its word counts, and the completion model.
+        detectLanguages: () => ({ candidates: [{ tag: "he_IL" }], frequencies: [{ tag: "he_IL" }] }),
+        detectModel: () => ({ offer: true, candidate: { tag: "model-1" } }),
         cachedInvites: () => ({ invites: this.invited.map((id) => create(RoomSchema, { id, membership: "invite" })) }),
         joinRoom: (req) => {
           if (this.gone.has(req.roomIdOrAlias)) {

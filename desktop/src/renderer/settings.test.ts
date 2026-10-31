@@ -146,6 +146,20 @@ const values: { [K in Key]: fc.Arbitrary<DeviceSettings[K]> } = {
     }),
     { maxLength: 2 },
   ),
+  // [spell] and [complete]: the declined lists are what the one-time offers write.
+  spellUnderline: fc.constantFrom("curly", "line", "none"),
+  rareUnderline: fc.constantFrom("dotted", "line", "none"),
+  checkBeforeSend: fc.boolean(),
+  rareBeforeSend: fc.boolean(),
+  autocorrect: fc.constantFrom("off", "misspellings", "rare", "all"),
+  spellDeclined: fc.array(fc.constantFrom("de_DE", "he_IL"), { maxLength: 2 }),
+  frequenciesDeclined: fc.array(fc.constantFrom("de_DE", "he_IL"), { maxLength: 2 }),
+  complete: fc.boolean(),
+  completeGhost: fc.boolean(),
+  completeRatio: fc.constantFrom(1n, 3n, 5n),
+  completeScope: fc.constantFrom("room", "space", "global"),
+  completeSources: fc.array(fc.constantFrom("history", "frequency"), { maxLength: 2 }),
+  modelDeclined: fc.boolean(),
 };
 const keys = Object.keys(values) as Key[];
 

@@ -30,6 +30,29 @@ const scopes: [string, string][] = [
   ["static", "no ranking: the list below"],
 ];
 
+/** The words [spell] and [complete] take, each with what it means. */
+const spellUnderlines: [string, string][] = [
+  ["curly", ""],
+  ["line", ""],
+  ["none", "still checked, for alt+S"],
+];
+const rareUnderlines: [string, string][] = [
+  ["dotted", ""],
+  ["line", ""],
+  ["none", ""],
+];
+const autocorrects: [string, string][] = [
+  ["off", ""],
+  ["misspellings", "a word with one certain fix"],
+  ["rare", "a rare word kithd is sure of"],
+  ["all", "both"],
+];
+const completeScopes: [string, string][] = [
+  ["room", "this conversation first"],
+  ["space", "its space first"],
+  ["global", "everywhere alike"],
+];
+
 /** A read rule's send, as the page offers it. */
 type Send = "inherit" | "announce" | "private";
 
@@ -219,7 +242,18 @@ function Fields({ s, busy, session }: { s: DeviceSettings; busy: boolean; sessio
   const set = <K extends Key>(key: K, value: DeviceSettings[K]) => {
     void session.changeSetting(key, value);
   };
-  const flag = (key: "sendReceipts" | "unreadLine" | "markdown" | "confirmSms" | "sendTyping") => (
+  const flag = (
+    key:
+      | "sendReceipts"
+      | "unreadLine"
+      | "markdown"
+      | "confirmSms"
+      | "sendTyping"
+      | "checkBeforeSend"
+      | "rareBeforeSend"
+      | "complete"
+      | "completeGhost",
+  ) => (
     <label className="setting">
       <input
         type="checkbox"
@@ -229,6 +263,26 @@ function Fields({ s, busy, session }: { s: DeviceSettings; busy: boolean; sessio
         }}
       />{" "}
       {labels[key]}
+    </label>
+  );
+  const word = (
+    key: "spellUnderline" | "rareUnderline" | "autocorrect" | "completeScope",
+    among: [string, string][],
+  ) => (
+    <label className="setting">
+      {labels[key]}{" "}
+      <select
+        value={s[key]}
+        onChange={(e) => {
+          set(key, e.target.value);
+        }}
+      >
+        {among.map(([value, what]) => (
+          <option key={value} value={value}>
+            {what ? `${value}: ${what}` : value}
+          </option>
+        ))}
+      </select>
     </label>
   );
   return (
@@ -302,6 +356,20 @@ function Fields({ s, busy, session }: { s: DeviceSettings; busy: boolean; sessio
           set("reactionsStatic", list);
         }}
       />
+      <h3>Spelling</h3>
+      <p className="detail">
+        Checked by kithd, with the dictionaries and your own words the terminal client uses. Right-click a marked word,
+        or press alt+S, to correct it.
+      </p>
+      {word("spellUnderline", spellUnderlines)}
+      {word("rareUnderline", rareUnderlines)}
+      {word("autocorrect", autocorrects)}
+      {flag("checkBeforeSend")}
+      {flag("rareBeforeSend")}
+      <h3>Completion</h3>
+      {flag("complete")}
+      {flag("completeGhost")}
+      {word("completeScope", completeScopes)}
     </fieldset>
   );
 }

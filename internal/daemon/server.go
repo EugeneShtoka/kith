@@ -277,6 +277,9 @@ func rpcErr(err error) error {
 	case errors.Is(err, api.ErrNoSuchMessage):
 		// Gone or never held: an answer a client acts on (the desktop by this code).
 		code = connect.CodeNotFound
+	case errors.Is(err, api.ErrSpellUnavailable):
+		// Nothing to check spelling with: the desktop stops asking, by this code.
+		code = connect.CodeFailedPrecondition
 	}
 	cerr := connect.NewError(code, err)
 	if name, ok := sentinelName(err); ok {

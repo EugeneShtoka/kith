@@ -44,6 +44,19 @@ export const labels: Record<Key, string> = {
   emojiExtra: "Extra emoji shortcodes",
   reactionsScope: "Reaction palette ranking",
   reactionsStatic: "Reaction palette",
+  spellUnderline: "Misspellings marked",
+  rareUnderline: "Rare words marked",
+  checkBeforeSend: "Check spelling before sending",
+  rareBeforeSend: "Rare words hold up a send",
+  autocorrect: "Autocorrect",
+  spellDeclined: "Dictionaries turned down",
+  frequenciesDeclined: "Word counts turned down",
+  complete: "Word completion",
+  completeGhost: "Suggestions drawn after the caret",
+  completeRatio: "How far a suggestion must lead",
+  completeScope: "Words weighed from",
+  completeSources: "Words from",
+  modelDeclined: "Completion model turned down",
 };
 
 /** withKey is settings with key set to value. */

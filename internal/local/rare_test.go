@@ -283,6 +283,23 @@ func TestDetectLanguagesSkipsAnInstalledList(t *testing.T) {
 	}
 }
 
+// With spelling off nothing is offered, not even the engine's install line: the desktop,
+// which cannot read [spell] enabled, asks all the same.
+func TestDetectLanguagesOffersNothingWithSpellingOff(t *testing.T) {
+	t.Setenv("PATH", t.TempDir()) // no engine: on, the answer says what to install
+	for _, on := range []bool{true, false} {
+		b := New(nil, nil)
+		b.UseSpell(SpellSettings{Enabled: on})
+		got, err := b.DetectLanguages(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if offered := got.Why != "" || len(got.Candidates) > 0; offered != on {
+			t.Errorf("enabled %v: offered %+v", on, got)
+		}
+	}
+}
+
 // Installed counts take effect without a restart.
 func TestInstallFrequenciesReloadsWithoutARestart(t *testing.T) {
 	t.Parallel()

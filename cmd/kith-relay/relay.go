@@ -351,7 +351,50 @@ func applySettings(file config.Device, want *devicev1.DeviceSettings) (config.De
 	if !slices.EqualFunc(want.GetReadRules(), has.GetReadRules(), sameRule) {
 		file.Display.ReadRules = readRules(want.GetReadRules(), file.Display.ReadRules)
 	}
+	applySpelling(&file, want, has)
 	return file, nil
+}
+
+// applySpelling is applySettings for [spell] and [complete]: a word the TUI does not know
+// (an underline, a mode, a scope or a source) is refused by ValidateDevice.
+func applySpelling(file *config.Device, want, has *devicev1.DeviceSettings) {
+	word := func(dst *string, got, had string) {
+		if got != had {
+			*dst = got
+		}
+	}
+	list := func(dst *[]string, got, had []string) {
+		if !slices.Equal(got, had) {
+			*dst = got
+		}
+	}
+	word(&file.Spell.Underline, want.GetSpellUnderline(), has.GetSpellUnderline())
+	word(&file.Spell.RareUnderline, want.GetRareUnderline(), has.GetRareUnderline())
+	if want.GetCheckBeforeSend() != has.GetCheckBeforeSend() {
+		file.Spell.CheckBeforeSend = want.GetCheckBeforeSend()
+	}
+	if want.GetRareBeforeSend() != has.GetRareBeforeSend() {
+		file.Spell.RareBeforeSend = want.GetRareBeforeSend()
+	}
+	if want.GetAutocorrect() != has.GetAutocorrect() {
+		file.Spell.Autocorrect = config.Autocorrect(want.GetAutocorrect())
+	}
+	list(&file.Spell.Declined, want.GetSpellDeclined(), has.GetSpellDeclined())
+	list(&file.Spell.FrequenciesDeclined, want.GetFrequenciesDeclined(), has.GetFrequenciesDeclined())
+	if got := want.GetComplete(); got != has.GetComplete() {
+		file.Complete.Enabled = &got
+	}
+	if got := want.GetCompleteGhost(); got != has.GetCompleteGhost() {
+		file.Complete.Ghost = &got
+	}
+	if want.GetCompleteRatio() != has.GetCompleteRatio() {
+		file.Complete.Ratio = int(want.GetCompleteRatio())
+	}
+	word(&file.Complete.Scope, want.GetCompleteScope(), has.GetCompleteScope())
+	list(&file.Complete.Sources, want.GetCompleteSources(), has.GetCompleteSources())
+	if want.GetModelDeclined() != has.GetModelDeclined() {
+		file.Complete.Model.Declined = want.GetModelDeclined()
+	}
 }
 
 // sameRule is whether two rules say the same, as the window reads them.
@@ -390,6 +433,9 @@ func resolved(dev config.Device) *devicev1.DeviceSettings {
 	// Checked as the device file loaded (setup.ValidateDevice): a name here is one of them.
 	tone, _ := setup.SkinTone(dev.Display.SkinTone)
 	set, _ := setup.EmojiTier(dev.Display.Emoji.Set)
+	underline, _ := setup.SpellUnderline(dev.Spell.Underline)
+	rare, _ := setup.RareUnderline(dev.Spell.RareUnderline)
+	autocorrect, _ := setup.AutocorrectMode(dev.Spell.Autocorrect)
 	return &devicev1.DeviceSettings{
 		SendReceipts:    dev.Display.SendsReceipts(),
 		ReadRules:       rules,
@@ -402,6 +448,20 @@ func resolved(dev config.Device) *devicev1.DeviceSettings {
 		EmojiExtra:      dev.Display.Emoji.Extra,
 		ReactionsScope:  cmp.Or(dev.Display.Reactions.Scope, "room"), // as the TUI reads it unset
 		ReactionsStatic: dev.Display.Reactions.Static,
+
+		SpellUnderline:      underline,
+		RareUnderline:       rare,
+		CheckBeforeSend:     dev.Spell.CheckBeforeSend,
+		RareBeforeSend:      dev.Spell.RareBeforeSend,
+		Autocorrect:         autocorrect,
+		SpellDeclined:       dev.Spell.Declined,
+		FrequenciesDeclined: dev.Spell.FrequenciesDeclined,
+		Complete:            dev.Complete.CompleteEnabled(),
+		CompleteGhost:       dev.Complete.GhostEnabled(),
+		CompleteRatio:       int64(dev.Complete.RatioOrDefault()),
+		CompleteScope:       dev.Complete.ScopeOrDefault(),
+		CompleteSources:     dev.Complete.Sources,
+		ModelDeclined:       dev.Complete.Model.Declined,
 	}
 }
 

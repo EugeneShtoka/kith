@@ -148,10 +148,36 @@ func TestTheDesktopsChangeIsWrittenOntoTheDeviceFile(t *testing.T) {
 		t.Errorf("read rules written %+v with delays %v; want space:Work private, delays kept (5 -1 none)", d.ReadRules, delays)
 	}
 
+	// Spelling and completion: what the offers write (declined), and a key or two the page
+	// changes; the rest stays unset.
+	shown, err = write(shown, func(s *devicev1.DeviceSettings) {
+		s.SpellDeclined = []string{"de_DE"}
+		s.ModelDeclined = true
+		s.Autocorrect = "misspellings"
+		s.CompleteGhost = false
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dev, body = onDisk()
+	sp, co := dev.Spell, dev.Complete
+	if !slices.Equal(sp.Declined, []string{"de_DE"}) || !co.Model.Declined || sp.Autocorrect != "misspellings" ||
+		co.Ghost == nil || *co.Ghost {
+		t.Errorf("spell %+v, complete %+v; want de_DE declined, the model declined, misspellings corrected, no ghost", sp, co)
+	}
+	if sp.Underline != "" || sp.RareUnderline != "" || co.Enabled != nil || co.Ratio != 0 || co.Scope != "" ||
+		sp.FrequenciesDeclined != nil || co.Sources != nil {
+		t.Errorf("a [spell] or [complete] key the window did not change was written out:\n%s", body)
+	}
+
 	for what, set := range map[string]func(*devicev1.DeviceSettings){
 		"a skin tone no tone has":  func(s *devicev1.DeviceSettings) { s.SkinTone = "x" },
 		"an emoji set there isn't": func(s *devicev1.DeviceSettings) { s.EmojiSet = "huge" },
 		"a ranking there isn't":    func(s *devicev1.DeviceSettings) { s.ReactionsScope = "everywhere" },
+		"an underline there isn't": func(s *devicev1.DeviceSettings) { s.SpellUnderline = "wavy" },
+		"an autocorrect mode":      func(s *devicev1.DeviceSettings) { s.Autocorrect = "always" },
+		"a completion scope":       func(s *devicev1.DeviceSettings) { s.CompleteScope = "everywhere" },
+		"a completion source":      func(s *devicev1.DeviceSettings) { s.CompleteSources = []string{"model"} },
 		"a read rule's bad place": func(s *devicev1.DeviceSettings) {
 			s.ReadRules = append(s.ReadRules, &devicev1.ReadRule{Match: "space:"})
 		},

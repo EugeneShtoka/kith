@@ -1179,14 +1179,70 @@ td {
   font-size: var(--text-sm);
 }
 
-.compose-box textarea {
-  min-height: 2.6rem;
-  max-height: 40vh;
+/*
+ * The words, and under them a copy laid out alike (Spelling.tsx): its text transparent,
+ * its marks underlined and the ghost text drawn where the textarea draws nothing.
+ */
+.compose-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.compose-box textarea,
+.compose-under {
   padding: var(--space-2) var(--space-3);
   border: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  unicode-bidi: plaintext;
+  scrollbar-gutter: stable;
+}
+
+.compose-box textarea {
+  position: relative;
+  min-height: 2.6rem;
+  max-height: 40vh;
   background: none;
   resize: none;
-  unicode-bidi: plaintext;
+}
+
+.compose-under {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: transparent;
+  pointer-events: none;
+}
+
+.compose-under .spell {
+  background: none;
+  color: transparent;
+  text-decoration-line: underline;
+  text-decoration-color: var(--mention);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 0.2em;
+}
+
+.compose-under .spell-rare {
+  text-decoration-color: var(--waiting);
+}
+
+.compose-under .spell-curly {
+  text-decoration-style: wavy;
+}
+
+.compose-under .spell-line {
+  text-decoration-style: solid;
+}
+
+.compose-under .spell-dotted {
+  text-decoration-style: dotted;
+  text-decoration-thickness: 2px;
+}
+
+.compose-under .ghost {
+  color: var(--muted);
 }
 
 .compose-box textarea:focus-visible {
@@ -1238,8 +1294,61 @@ td {
 }
 
 .completions,
-.offered {
+.offered,
+.spell-walk,
+.next-words {
   margin-bottom: var(--space-1);
+}
+
+/* The correction walk: the word, its suggestions, and what else to do with it. */
+.spell-walk {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--raised);
+  box-shadow: var(--shadow);
+}
+
+.spell-walk p {
+  margin: 0 0 var(--space-1);
+}
+
+.spell-suggestions {
+  margin: 0 0 var(--space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.spell-suggestions button {
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: start;
+  white-space: pre;
+}
+
+.spell-walk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* The next words at a word's end, numbered as alt+N takes them. */
+.next-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.next-words button {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+}
+
+.model-marker {
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
 }
 
 .completions {
@@ -1547,7 +1656,8 @@ mark {
 }
 
 /* Verifying this session: the request, then the emoji to compare, over the window. */
-.verify-backdrop {
+.verify-backdrop,
+.offer-backdrop {
   position: fixed;
   inset: 0;
   z-index: 20;
@@ -1558,7 +1668,8 @@ mark {
   background: var(--backdrop);
 }
 
-.verify {
+.verify,
+.offer {
   width: min(34rem, calc(100vw - 2rem));
   padding: var(--space-4) var(--space-5);
   border: 1px solid var(--line);
@@ -1567,12 +1678,14 @@ mark {
   box-shadow: var(--shadow);
 }
 
-.verify h2 {
+.verify h2,
+.offer h2 {
   margin: 0 0 var(--space-3);
   font-size: var(--text-lg);
 }
 
-.verify-actions {
+.verify-actions,
+.offer-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -1580,13 +1693,15 @@ mark {
   margin-bottom: 0;
 }
 
-.verify .primary {
+.verify .primary,
+.offer .primary {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--accent-fg);
 }
 
-.verify .primary:hover:not(:disabled) {
+.verify .primary:hover:not(:disabled),
+.offer .primary:hover:not(:disabled) {
   background: var(--accent);
 }
 
@@ -1711,4 +1826,15 @@ mark {
   .rooms {
     width: min(18rem, 70vw);
   }
+}
+
+/* The one-time offers' rows: a download each, ticked to install. */
+.offer-rows {
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.offer-rows li {
+  padding: var(--space-1) 0;
 }

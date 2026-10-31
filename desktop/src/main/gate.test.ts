@@ -135,6 +135,16 @@ const allowedCalls = [
   "AcceptVerification",
   "ConfirmSAS",
   "CancelVerification",
+  "CheckSpelling",
+  "LearnWord",
+  "AllowRareWord",
+  "CompleteWord",
+  "ModelTask",
+  "DetectLanguages",
+  "DetectModel",
+  "InstallDictionary",
+  "InstallFrequencies",
+  "InstallModel",
 ];
 const allowedStreams = [
   "Changed",
@@ -163,7 +173,18 @@ const requests: Record<string, Uint8Array> = {
   AcceptVerification: bytes(backend.acceptVerification.input, { txnId: "v1" }),
   ConfirmSAS: bytes(backend.confirmSAS.input, { txnId: "v1" }),
   CancelVerification: bytes(backend.cancelVerification.input, { txnId: "v1" }),
+  // The next word alone, and only what kithd offered (asked first: offered).
+  ModelTask: bytes(backend.modelTask.input, { task: "complete", roomId: "!r:x", draft: "one two three " }),
+  InstallDictionary: bytes(backend.installDictionary.input, { tag: "he_IL" }),
+  InstallFrequencies: bytes(backend.installFrequencies.input, { tag: "he_IL" }),
+  InstallModel: bytes(backend.installModel.input, { tag: "model-1" }),
 };
+
+/** offered asks kithd what may be installed, through the gate. */
+async function offered(): Promise<void> {
+  await gate.call(window, "DetectLanguages", empty);
+  await gate.call(window, "DetectModel", empty);
+}
 
 /** step is a login's step: a QR code offering another way, or a new account to write. */
 function qrStep(login: string): LoginStep {
@@ -208,6 +229,7 @@ describe("the gate", () => {
     await device();
     await leading();
     await gate.call(window, "StartVerification", bytes(backend.startVerification.input, { on: "matrix:1/" }));
+    await offered();
     kithd.accountSpaces = ["telegram:1/account"];
     const seat = listen("Seat", bytes(backend.seat.input, { client: "w" })); // drafts are the seat's
     for (const name of names) {
@@ -219,6 +241,33 @@ describe("the gate", () => {
     reached.delete("Seat");
     seat.stop();
     expect([...reached].sort()).toEqual([...allowedCalls].sort());
+  });
+
+  it("installs only what kithd offered, and asks the model only for the next word", async () => {
+    await device();
+    const install = (name: string, tag: string) =>
+      outcome(window, name, bytes(backend.installDictionary.input, { tag }));
+    const model = (task: string, dryRun = false) =>
+      outcome(window, "ModelTask", bytes(backend.modelTask.input, { task, roomId: "!r:x", dryRun }));
+
+    // Before an offer, nothing; after it, what it named, each by the call that installs its kind.
+    expect(await install("InstallDictionary", "he_IL")).toBe("refused");
+    expect(await install("InstallModel", "model-1")).toBe("refused");
+    await offered();
+    expect(await install("InstallDictionary", "he_IL")).toBe("answered");
+    expect(await install("InstallFrequencies", "he_IL")).toBe("answered");
+    expect(await install("InstallModel", "model-1")).toBe("answered");
+    expect(await install("InstallDictionary", "de_DE")).toBe("refused");
+    expect(await install("InstallDictionary", "model-1")).toBe("refused");
+    expect(await install("InstallModel", "he_IL")).toBe("refused");
+
+    // A task that sends a conversation to [assist]'s endpoint, or a dry run showing one, never.
+    expect(await model("complete")).toBe("answered");
+    for (const task of ["summary", "todo", "rewrite", ""]) {
+      expect(await model(task), task).toBe("refused");
+    }
+    expect(await model("complete", true)).toBe("refused");
+    expect(kithd.reached.filter((r) => r.startsWith("ModelTask"))).toHaveLength(1);
   });
 
   it("writes a draft as the window's seat in its profile, whatever the window names, and none without one", async () => {

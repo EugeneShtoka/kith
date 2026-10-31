@@ -7,6 +7,7 @@ import type { ThemeResponse } from "../gen/device/v1/device_pb";
 import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
+import { OfferDialog } from "./Offer";
 import { colorClass, themeCSS, modeOf, roomColor } from "./theme";
 import { rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
@@ -48,6 +49,9 @@ export function App() {
   return (
     <main className="app">
       <VerifyDialog verify={view.verify} session={session} />
+      {view.offers.prompt && (
+        <OfferDialog key={view.offers.prompt.kind} prompt={view.offers.prompt} session={session} />
+      )}
       {seated ? (
         <Seated view={view} session={session} />
       ) : (
@@ -238,6 +242,20 @@ function Seated({ view, session }: { view: View; session: Session }) {
         </nav>
       </TopBar>
       {view.problem && <p className="problem">{view.problem}</p>}
+      {view.offers.note && (
+        <p className="banner" role="status">
+          {view.offers.note}{" "}
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => {
+              session.forgetOfferNote();
+            }}
+          >
+            ×
+          </button>
+        </p>
+      )}
       <Banner link={view.link} status={view.status} bridge={view.bridge} />
       {switching && (
         <Switcher

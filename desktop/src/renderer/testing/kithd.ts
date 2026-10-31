@@ -16,6 +16,8 @@ import {
 import {
   BackendService,
   type FollowStreamResponse,
+  type Misspelling,
+  MisspellingSchema,
   type RailResponse,
   RailResponseSchema,
   RailRowKind,
@@ -173,6 +175,21 @@ export class Kithd {
   /** The accounts written into the config (WriteAccount), and the spaces signed out of. */
   readonly accountsWritten: string[] = [];
   readonly signedOut: string[] = [];
+  /**
+   * Spelling, as kithd's engine answers it: the words it rejects, with what it offers
+   * instead (none listed: it accepts the word); the words it was taught, for good or for
+   * the session; and spellOff, nothing to check with (FAILED_PRECONDITION).
+   */
+  readonly misspelled = new Map<string, string[]>();
+  readonly learned: string[] = [];
+  spellOff = false;
+  /** The words CompleteWord knows, with their weight; and the model's answer to ModelTask. */
+  readonly vocabulary = new Map<string, number>();
+  model: MessageInitShape<typeof backend.modelTask.output> = { refusal: "no model is installed" };
+  /** What DetectLanguages and DetectModel offer, and what was installed, as "Method tag". */
+  languages: MessageInitShape<typeof backend.detectLanguages.output> = {};
+  modelOffer: MessageInitShape<typeof backend.detectModel.output> = {};
+  readonly installed: string[] = [];
   private held: (() => void)[] = [];
   private up = true;
   /** main's profile, as the gate keeps it. */
@@ -732,6 +749,41 @@ export class Kithd {
         this.signedOut.push(`${r.spaceId}${r.forget ? " forget" : ""}`);
         return reply(backend.signOut, {});
       }
+      case "CheckSpelling": {
+        if (this.spellOff) {
+          throw new Error("[failed_precondition] matrix: nothing to check spelling with");
+        }
+        return reply(backend.checkSpelling, {
+          misspellings: checked((request as MessageShape<typeof backend.checkSpelling.input>).text, this.misspelled),
+        });
+      }
+      case "LearnWord":
+      case "AllowRareWord": {
+        const r = request as MessageShape<typeof backend.learnWord.input>;
+        this.learned.push(`${name} ${r.word}${r.forever ? " forever" : ""}`);
+        this.misspelled.delete(r.word);
+        return reply(backend.learnWord, {});
+      }
+      case "CompleteWord": {
+        const r = request as MessageShape<typeof backend.completeWord.input>;
+        const candidates = [...this.vocabulary]
+          .filter(([word]) => word.startsWith(r.prefix))
+          .sort(([a, x], [b, y]) => y - x || (a < b ? -1 : 1))
+          .slice(0, Number(r.limit))
+          .map(([word, score]) => ({ word, score: BigInt(score) }));
+        return reply(backend.completeWord, { candidates });
+      }
+      case "ModelTask":
+        return reply(backend.modelTask, this.model);
+      case "DetectLanguages":
+        return reply(backend.detectLanguages, this.languages);
+      case "DetectModel":
+        return reply(backend.detectModel, this.modelOffer);
+      case "InstallDictionary":
+      case "InstallFrequencies":
+      case "InstallModel":
+        this.installed.push(`${name} ${(request as MessageShape<typeof backend.installModel.input>).tag}`);
+        return reply(backend.installModel, {});
       default:
         throw new Error(`the fake does not answer ${name}`);
     }
@@ -911,4 +963,30 @@ export async function settled(): Promise<void> {
   for (let i = 0; i < 20; i++) {
     await later();
   }
+}
+
+/**
+ * checked is text checked as kithd's engine checks it: each run of letters (apostrophes
+ * inside) it rejects, in UTF-8 byte offsets, with its suggestions. Unlike kithd it checks
+ * a word with digits too, so a test's numbered words can be marked.
+ */
+export function checked(text: string, misspelled: ReadonlyMap<string, readonly string[]>) {
+  const bytes = new TextEncoder();
+  const out: Misspelling[] = [];
+  for (const m of text.matchAll(/[\p{L}\p{N}]+(?:'\p{L}+)*/gu)) {
+    const suggestions = misspelled.get(m[0]);
+    if (suggestions !== undefined) {
+      const start = bytes.encode(text.slice(0, m.index)).length;
+      const end = start + bytes.encode(m[0]).length;
+      out.push(
+        create(MisspellingSchema, {
+          word: m[0],
+          start: BigInt(start),
+          end: BigInt(end),
+          suggestions: [...suggestions],
+        }),
+      );
+    }
+  }
+  return out;
 }

@@ -1,9 +1,12 @@
 // The open room's composer, drawn: the words (enter sends, shift+enter breaks the line),
 // what they reply to or correct, files offered, `@` mentions and `:shortcode:` emoji as
 // they are typed, the emoji picker, a poll asked, the SMS question and sends that failed.
+// Under the words, a copy of them is drawn with the spelling marks and the completion's
+// ghost text (Spelling.tsx): a textarea draws neither itself.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { Room } from "../gen/backend/v1/types_pb";
+import { caretInRTL, wordBeingTyped } from "./complete";
 import type { ComposerView } from "./compose";
 import { completions, shortcodeAt, shortcodeOf, toned } from "./emoji";
 import { EmojiPicker } from "./EmojiPicker";
@@ -11,6 +14,8 @@ import { type Markup, marked } from "./markup";
 import { matching, mentionAt, nameOf } from "./mentions";
 import { AskPoll } from "./Poll";
 import type { Session } from "./session";
+import { carried } from "./spell";
+import { Underlay, Walk, walkKey } from "./Spelling";
 
 /** How many completions the popup offers. */
 const offered = 8;
@@ -44,20 +49,35 @@ export function ComposerPane({
   session: Session;
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
+  const under = useRef<HTMLDivElement>(null);
   const [caret, setCaret] = useState(0);
   const [chosen, setChosen] = useState(0);
   const [picker, setPicker] = useState(false);
   const [asking, setAsking] = useState(false);
+  /** The finished words are listed (Tab with none clearly leading). */
+  const [listing, setListing] = useState(false);
   const moveTo = useRef<number | undefined>(undefined);
+  /** The words as last drawn, and whether the last change of them was typed here. */
+  const last = useRef(c.draft.body);
+  const typed = useRef(false);
   useLayoutEffect(() => {
+    const text = c.draft.body;
     if (moveTo.current !== undefined) {
       area.current?.setSelectionRange(moveTo.current, moveTo.current);
       moveTo.current = undefined;
+    } else if (text !== last.current && !typed.current && document.activeElement === area.current) {
+      // Changed by another writer (autocorrect, kithd folding in the assistant's words):
+      // the caret stays where it was in the words, not at their end.
+      const to = carried(last.current, text, caret);
+      area.current?.setSelectionRange(to, to);
     }
+    last.current = text;
+    typed.current = false;
   });
 
   const text = c.draft.body;
   const at = Math.min(caret, text.length);
+  const walk = c.spell.walk;
   const mention = mentionAt(text, at);
   const code = mention === undefined ? shortcodeAt(text, at) : undefined;
   const wantsMembers = mention !== undefined;
@@ -70,6 +90,8 @@ export function ComposerPane({
   /** put replaces text[start, end) with what, the caret after it. */
   const put = (start: number, end: number, what: string) =>
     session.type(text.slice(0, start) + what + text.slice(end), start + what.length);
+  const atEnd = at === text.length && walk === undefined;
+  const words = atEnd && listing ? c.assist.words : [];
   const choices: Choice[] =
     mention !== undefined
       ? matching(c.members, mention.query).map((m) => ({
@@ -90,15 +112,34 @@ export function ComposerPane({
                 return put(code.start, at, toned(e, c.emoji.tone));
               },
             }))
-        : [];
+        : words.map((w, i) => ({
+            key: w.word,
+            label: w.word,
+            detail: `alt+${String(i + 1)}`,
+            take: () => {
+              setListing(false);
+              return session.chooseCompletion(i) ?? at;
+            },
+          }));
   const pick = Math.min(chosen, Math.max(0, choices.length - 1));
+  // The ghost and the next words, only at the draft's end with no other list open.
+  const offer = atEnd && choices.length === 0 ? c.assist : undefined;
 
   /** moved puts the caret at to, now and in the textarea once drawn. */
   const moved = (to: number) => {
     moveTo.current = to;
     setCaret(to);
     setChosen(0);
+    session.moved(to);
     area.current?.focus();
+  };
+  /** took moves the caret where a completion or a correction taken left it, if anything was. */
+  const took = (to: number | undefined) => {
+    if (to === undefined) {
+      return false;
+    }
+    moved(to);
+    return true;
   };
 
   return (
@@ -141,6 +182,7 @@ export function ComposerPane({
           </button>
         </p>
       )}
+      {c.note && <p className="detail">{c.note}</p>}
       {inThread && c.draft.editing === "" && c.draft.replyTo === "" && <p className="detail">Writing in the thread</p>}
       {(c.draft.editing !== "" || c.draft.replyTo !== "") && (
         <p className="detail">
@@ -168,6 +210,7 @@ export function ComposerPane({
           ))}
         </ul>
       )}
+      {walk && <Walk walk={walk} session={session} took={took} />}
       {choices.length > 0 && (
         <ul className="completions" role="listbox">
           {choices.map((choice, i) => (
@@ -184,6 +227,22 @@ export function ComposerPane({
             </li>
           ))}
         </ul>
+      )}
+      {offer && offer.options.length >= 2 && (
+        <div className="next-words" role="toolbar" aria-label="Next words">
+          {offer.options.map((o, i) => (
+            <button
+              key={o}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault(); // the textarea keeps the focus
+                took(session.chooseCompletion(i));
+              }}
+            >
+              <span className="detail">{i + 1}</span> <span dir="auto">{o}</span>
+            </button>
+          ))}
+        </div>
       )}
       {picker && (
         <EmojiPicker
@@ -233,48 +292,109 @@ export function ComposerPane({
             ))}
           </div>
         )}
-        <textarea
-          ref={area}
-          dir="auto"
-          rows={2}
-          aria-label="Message"
-          placeholder={c.draft.editing !== "" ? "The message, corrected" : "A message"}
-          value={text}
-          onChange={(e) => {
-            const typedTo = e.target.selectionStart;
-            const to = session.type(e.target.value, typedTo);
-            if (to !== typedTo) {
-              moveTo.current = to;
-            }
-            setCaret(to);
-            setChosen(0);
-          }}
-          onSelect={(e) => {
-            setCaret(e.currentTarget.selectionStart);
-          }}
-          onPaste={(e) => {
-            const files = [...e.clipboardData.files];
-            if (files.length > 0) {
-              e.preventDefault();
-              void session.offer(files);
-            }
-          }}
-          onKeyDown={(e) => {
-            const choice = choices[pick];
-            if (choice !== undefined && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-              e.preventDefault();
-              setChosen((pick + (e.key === "ArrowDown" ? 1 : choices.length - 1)) % choices.length);
-            } else if (choice !== undefined && (e.key === "Enter" || e.key === "Tab")) {
-              e.preventDefault();
-              moved(choice.take());
-            } else if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void session.send();
-            } else if (e.key === "Escape") {
-              session.cancel();
-            }
-          }}
-        />
+        <div className="compose-field">
+          <Underlay
+            ref={under}
+            text={text}
+            marks={c.spell.marks}
+            settings={c.spell.settings}
+            caret={walk === undefined ? at : -1}
+            ghost={offer?.ghost ?? ""}
+          />
+          <textarea
+            ref={area}
+            dir="auto"
+            rows={2}
+            aria-label="Message"
+            placeholder={c.draft.editing !== "" ? "The message, corrected" : "A message"}
+            value={text}
+            onScroll={(e) => {
+              if (under.current !== null) {
+                under.current.scrollTop = e.currentTarget.scrollTop;
+              }
+            }}
+            onChange={(e) => {
+              typed.current = true;
+              const typedTo = e.target.selectionStart;
+              const to = session.type(e.target.value, typedTo);
+              if (to !== typedTo) {
+                moveTo.current = to;
+              }
+              setCaret(to);
+              setChosen(0);
+              if (wordBeingTyped(e.target.value, to) === undefined) {
+                setListing(false);
+              }
+            }}
+            onSelect={(e) => {
+              setCaret(e.currentTarget.selectionStart);
+              session.moved(e.currentTarget.selectionStart);
+            }}
+            onPaste={(e) => {
+              const files = [...e.clipboardData.files];
+              if (files.length > 0) {
+                e.preventDefault();
+                void session.offer(files);
+              }
+            }}
+            onContextMenu={(e) => {
+              // A marked word opens the correction walk at it; anything else keeps the menu.
+              const hit = [...(under.current?.querySelectorAll("mark") ?? [])].find((m) =>
+                [...m.getClientRects()].some(
+                  (r) => e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom,
+                ),
+              );
+              const i = Number(hit?.dataset.mark ?? "-1");
+              if (i >= 0) {
+                e.preventDefault();
+                session.openWalk(i);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (walk !== undefined) {
+                // The walk takes the keys while it is open, as the TUI's does.
+                walkKey(e, session, took);
+                return;
+              }
+              const choice = choices[pick];
+              const into = caretInRTL(text, at) ? "ArrowLeft" : "ArrowRight";
+              if (e.altKey && e.key === "s") {
+                e.preventDefault();
+                session.openWalk();
+              } else if (e.altKey && /^[1-5]$/.test(e.key)) {
+                if (took(session.chooseCompletion(Number(e.key) - 1))) {
+                  e.preventDefault();
+                }
+              } else if (choice !== undefined && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                e.preventDefault();
+                setChosen((pick + (e.key === "ArrowDown" ? 1 : choices.length - 1)) % choices.length);
+              } else if (choice !== undefined && (e.key === "Enter" || e.key === "Tab")) {
+                e.preventDefault();
+                moved(choice.take());
+              } else if (offer !== undefined && e.key === "Tab" && !e.shiftKey) {
+                if (took(session.complete(true))) {
+                  e.preventDefault();
+                } else if (offer.words.length > 0) {
+                  // Nothing clearly leads: list the words instead.
+                  e.preventDefault();
+                  setListing(true);
+                  setChosen(0);
+                }
+              } else if (offer !== undefined && e.key === into && !e.shiftKey && took(session.complete(false))) {
+                e.preventDefault();
+              } else if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void session.send();
+              } else if (e.key === "Escape") {
+                if (listing) {
+                  setListing(false);
+                } else {
+                  session.cancel();
+                }
+              }
+            }}
+          />
+        </div>
         <div className="compose-actions">
           <button type="button" onClick={() => void session.pick()}>
             Attach
@@ -297,6 +417,11 @@ export function ComposerPane({
           >
             Poll
           </button>
+          {c.assist.marker && (
+            <span className="detail model-marker" title="The completion model on this machine">
+              ⌂ {c.assist.marker}
+            </span>
+          )}
           <button type="button" className="send" onClick={() => void session.send()}>
             Send
           </button>

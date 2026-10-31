@@ -1,7 +1,10 @@
 import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BackendService } from "../gen/backend/v1/services_pb";
 import { blank, type Composition, Drafts, saveDelay } from "./drafts";
+import { call } from "./kith";
+import { endsWord, type Speller as SpellerType, Speller, spellDebounce } from "./spell";
 import { Kithd } from "./testing/kithd";
 
 let kithd: Kithd;
@@ -38,14 +41,11 @@ async function drive<T>(p: Promise<T>): Promise<T> {
 }
 
 /** A window's drafts, with the profile chosen as main would have it (Device answered). */
-async function window(): Promise<Drafts> {
+async function window(changed: () => void = () => undefined): Promise<Drafts> {
   await drive(kithd.bridge().call("Device", new Uint8Array()));
-  return new Drafts(
-    () => undefined,
-    (err) => {
-      if (err !== undefined) console.log("FAILED", err);
-    },
-  );
+  return new Drafts(changed, (err) => {
+    if (err !== undefined) console.log("FAILED", err);
+  });
 }
 
 const rooms = ["!a:x", "!b:x"] as const;
@@ -54,7 +54,7 @@ const rooms = ["!a:x", "!b:x"] as const;
 type Step =
   | { kind: "type" | "send" | "edit" | "assistant" | "between"; room: number }
   | { kind: "pause" | "poll" | "takeover" | "close" }
-  | { kind: "hold"; what: "ReplaceDraft" | "Drafts" }
+  | { kind: "hold"; what: "ReplaceDraft" | "Drafts" | "CheckSpelling" }
   | { kind: "deliver"; i: number }
   | { kind: "fault"; when: "before" | "after" };
 
@@ -68,7 +68,10 @@ const step: fc.Arbitrary<Step> = fc.oneof(
   { weight: 3, arbitrary: fc.constant({ kind: "poll" as const }) },
   {
     weight: 3,
-    arbitrary: fc.record({ kind: fc.constant("hold" as const), what: fc.constantFrom("ReplaceDraft", "Drafts") }),
+    arbitrary: fc.record({
+      kind: fc.constant("hold" as const),
+      what: fc.constantFrom("ReplaceDraft", "Drafts", "CheckSpelling"),
+    }),
   },
   { weight: 5, arbitrary: fc.record({ kind: fc.constant("deliver" as const), i: fc.nat(5) }) },
   {
@@ -109,7 +112,23 @@ describe("drafts", () => {
         kithd = new Kithd();
         kithd.profiles = ["Solo"];
         vi.stubGlobal("window", { kith: kithd.bridge() });
-        let drafts = await window();
+        // The first room's draft is spell-checked as the composer checks it (spell.ts): its
+        // marks follow every change, the assistant's words folded in among them, while
+        // checks are held and answered late. Every other word kithd rejects.
+        for (let i = 0; i < 200; i += 2) {
+          kithd.misspelled.set(`w${String(i)}`, []);
+          kithd.misspelled.set(`a${String(i)}`, []);
+        }
+        const speller: SpellerType = new Speller(
+          async (text) => (await call(BackendService.method.checkSpelling, { text })).misspellings,
+          () => undefined,
+          () => undefined,
+          () => "off",
+        );
+        const spelled = () => {
+          speller.follow(drafts.get(rooms[0]).body);
+        };
+        let drafts = await window(spelled);
         const typed: string[] = [];
         const added: string[] = [];
         const sent: string[] = [];
@@ -197,7 +216,7 @@ describe("drafts", () => {
               await drive(drafts.flush());
               drafts.stop();
               await settle();
-              drafts = await window();
+              drafts = await window(spelled);
               await drive(drafts.load());
               break;
             case "close": {
@@ -222,10 +241,21 @@ describe("drafts", () => {
                   }
                 }
               }
-              drafts = await window();
+              drafts = await window(spelled);
               await drive(drafts.load());
               break;
             }
+          }
+          spelled();
+          await vi.advanceTimersByTimeAsync(spellDebounce);
+          const body = drafts.get(rooms[0]).body;
+          for (const m of speller.shown) {
+            const whole =
+              (m.start === 0 || endsWord(body.slice(m.start - 1, m.start))) &&
+              (m.end === body.length || endsWord(body.slice(m.end, m.end + 1)));
+            expect(body.slice(m.start, m.end) === m.word && whole, `${m.word} marked in ${JSON.stringify(body)}`).toBe(
+              true,
+            );
           }
           for (const r of rooms) {
             const here = `${drafts.get(r).body} ${drafts.get(r).editSaved}`.split(/\s+/);
@@ -253,6 +283,17 @@ describe("drafts", () => {
           before = now;
         }
         drafts.stop();
+        // And the marks are kithd's for the draft as it ends.
+        for (let round = 0; round < 3; round++) {
+          spelled();
+          await vi.advanceTimersByTimeAsync(spellDebounce);
+          await settle();
+        }
+        const end = drafts.get(rooms[0]).body;
+        expect(
+          speller.shown.map((m) => m.word),
+          JSON.stringify(end),
+        ).toEqual(end.match(/\b[wa][0-9]*[02468]\b/g) ?? []);
 
         for (const r of rooms) {
           expect(shown(drafts.get(r)), `${r}: the window and kithd agree`).toBe(shown(stored(r)));

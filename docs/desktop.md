@@ -9,7 +9,8 @@ This first release reads and writes messages:
 
 - the rail and room list, with unread counts, and invites;
 - the timeline, with replies, edits, reactions, polls, pictures and files;
-- the composer, with markdown, mentions, emoji, attachments and drafts;
+- the composer, with markdown, mentions, emoji, attachments and drafts, and
+  [spelling and word completion](#spelling-and-completion);
 - search, the ctrl+K switcher, and threads beside the room;
 - a settings page for the settings it shares with the terminal client
   ([where settings live](#where-settings-live));
@@ -203,6 +204,40 @@ shown or asked for. If the window loses `kithd` mid-verification (a restart forg
 it), reloads, or switches profile, the verification ends there: start it again. One
 the other session cancels, or that times out after ten minutes, says so.
 
+## Spelling and completion
+
+The composer checks your spelling and finishes your words as the terminal client does,
+with the same settings (`[spell]` and `[complete]` in `device.toml`,
+[composer.md](composer.md#spell-checking)).
+
+- **Spelling** is checked by `kithd`, after a pause in typing, with the dictionaries
+  and your own words the terminal client uses: a word you add in one is known in the
+  other. A misspelling is underlined (`underline`: curly, line or none), a rare word
+  more quietly (`rare_underline`), and never the word you are still typing. The
+  window's own browser spellchecker is off, so a word is marked once and no word leaves
+  for a spelling service.
+- **Right-click** a marked word, or press **alt+S**, for the correction walk: its
+  suggestions (**1**–**9**), **Add to dictionary** (**a**; for a rare word, **It's
+  fine**), **Ignore** for this session (**i**), **Skip** (**s**), **Ignore all** (**I**),
+  **Skip all** (**S**) and **Stop** (**esc**). A suggestion taken puts right the word and
+  its later copies.
+- With `check_before_send`, a send with a word marked opens the walk first, and the
+  message goes once you are through it (`rare_before_send`: rare words too).
+  `autocorrect` puts right a word as you finish it, only when the fix is certain.
+- **Completion** draws the word you are typing, dimmed after the caret, when one
+  clearly leads; **Tab** takes it, **→** takes it too (**←** in a right-to-left word),
+  and Tab with nothing clearly leading lists the candidates. At a word's end the next
+  words are offered, from the completion model on the `kithd` machine and from what
+  the room said before: drawn as ghost text, numbered above the composer when there
+  are several, taken with **alt+1**…**alt+5**. While the model answers, the composer
+  shows ⌂ and its name.
+
+The first time the window has rooms, it offers the dictionaries, word counts and
+completion model your own writing calls for, as the terminal client does. Ticked rows
+are installed (each checked against its pinned hash); an unticked row is written to
+`declined`, `frequencies_declined` or `[complete.model] declined` and not offered
+again; **Not now** asks again next time the window starts.
+
 ## How it finds kithd
 
 The window never talks to `kithd` itself. It starts `kith-relay`, a small Go program
@@ -244,7 +279,8 @@ starts the terminal client.
 **Settings**, in the window's header, opens a page for the shared settings the window
 follows: read receipts and the read receipt rules, the unread line, Markdown, asking
 before an SMS, sending typing, the emoji skin tone, the emoji set and your own
-shortcodes, and how the reaction palette is ranked and the emoji it starts from. There
+shortcodes, how the reaction palette is ranked and the emoji it starts from, how
+misspellings and rare words are marked and corrected, and word completion. There
 is no Save button: each change is written to `device.toml` at once, and the open room
 follows it. A rule's `delay` is the terminal client's, so the page does not show it, and
 a rule you change keeps it. **This window**, at the end of the page, holds the text

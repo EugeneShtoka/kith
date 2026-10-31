@@ -100,8 +100,32 @@ const calls = new Map<string, DescMethodUnary>(
     backend.acceptVerification,
     backend.confirmSAS,
     backend.cancelVerification,
+    // Spelling and completion: the draft checked, a word taught to the dictionary, the
+    // word being typed finished, and the next word asked of the completion model alone
+    // (ModelTask "complete", never a task that sends a conversation to [assist]'s
+    // endpoint). What is installed is only what kithd offered the window (installs).
+    backend.checkSpelling,
+    backend.learnWord,
+    backend.allowRareWord,
+    backend.completeWord,
+    backend.modelTask,
+    backend.detectLanguages,
+    backend.detectModel,
+    backend.installDictionary,
+    backend.installFrequencies,
+    backend.installModel,
   ].map((m) => [m.name, m]),
 );
+
+/** The calls that install a download, by the offer that names what they may install. */
+const installs = new Map<string, string>([
+  [backend.installDictionary.name, backend.detectLanguages.name],
+  [backend.installFrequencies.name, backend.detectLanguages.name],
+  [backend.installModel.name, backend.detectModel.name],
+]);
+
+/** modelComplete is the one ModelTask the window may ask: the next word (domain.ModelComplete). */
+const modelComplete = "complete";
 const streams = new Map<string, DescMethodServerStreaming>(
   [
     backend.changed,
@@ -168,6 +192,8 @@ export class Gate {
       .then(() => undefined),
   );
 
+  /** What kithd last offered the window to install, by the call installing it. */
+  private readonly offered = new Map<string, Set<string>>();
   /** The verifications the window may answer. */
   private readonly verifying = new Verifying(async (profile) => {
     const method = backend.selves;
@@ -202,6 +228,15 @@ export class Gate {
     if (answerCalls.has(method.name)) {
       this.admitAnswer((input as MessageShape<typeof backend.confirmSAS.input>).txnId);
     }
+    if (installs.has(method.name)) {
+      this.mustBeOffered(method.name, (input as MessageShape<typeof backend.installDictionary.input>).tag);
+    }
+    if (method.name === backend.modelTask.name) {
+      const task = input as MessageShape<typeof backend.modelTask.input>;
+      if (task.task !== modelComplete || task.dryRun) {
+        throw new Refused(`kith: the window asks the model only for the next word, not ${task.task}`);
+      }
+    }
     const ticket = loginCalls.has(method.name) ? this.admitLogin(method.name, input, header) : undefined;
     const response = await this.transport.unary(method, undefined, undefined, header, input).catch((err: unknown) => {
       if (ticket !== undefined) {
@@ -224,6 +259,7 @@ export class Gate {
     if (method.name === backend.startVerification.name) {
       this.verifying.asked((response.message as MessageShape<typeof backend.startVerification.output>).txnId, profile);
     }
+    this.offer(method, response.message);
     this.follow(method, response.message);
     return toBinary(method.output, response.message);
   }
@@ -378,6 +414,27 @@ export class Gate {
       throw new Refused(`kith: the window speaks only as its seat in ${this.profile}`);
     }
     request.client = seat.client;
+  }
+
+  /** offer keeps what kithd's last offer of each kind names, which the window may install. */
+  private offer(method: DescMethodUnary, message: unknown): void {
+    if (method.name === backend.detectLanguages.name) {
+      const r = message as MessageShape<typeof backend.detectLanguages.output>;
+      this.offered.set(backend.installDictionary.name, new Set(r.candidates.map((c) => c.tag)));
+      this.offered.set(backend.installFrequencies.name, new Set(r.frequencies.map((c) => c.tag)));
+    } else if (method.name === backend.detectModel.name) {
+      const r = message as MessageShape<typeof backend.detectModel.output>;
+      this.offered.set(backend.installModel.name, new Set(r.offer && r.candidate ? [r.candidate.tag] : []));
+    }
+  }
+
+  /** mustBeOffered refuses to install a tag kithd's last offer did not name: a download is the person's choice. */
+  private mustBeOffered(install: string, tag: string): void {
+    if (!(this.offered.get(install)?.has(tag) ?? false)) {
+      throw new Refused(
+        `kith: the window installs only what kithd offered it (${installs.get(install) ?? ""}), not ${tag}`,
+      );
+    }
   }
 
   /** admitAnswer refuses an answer to a verification the window may not answer here. */
