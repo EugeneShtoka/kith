@@ -26,7 +26,8 @@ import { mediaScheme } from "../shared/media";
 import { Attachments } from "./attach";
 import { appURL, fromTheWindow, Gate } from "./gate";
 import { Media } from "./media";
-import { startRelay } from "./relay";
+import type { Asks } from "./pairings";
+import { type Relay, startRelay } from "./relay";
 import { fontSizeCSS, ScaleStore, zoomed, zoomKey } from "./scale";
 import { appFile, csp, devCSP } from "./serve";
 
@@ -73,18 +74,39 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 async function start(): Promise<void> {
-  const relay = await startRelay(relayFile());
-  const transport = createConnectTransport({
-    httpVersion: "1.1",
-    baseUrl: "http://kithd",
-    nodeOptions: { socketPath: relay.socket },
-  });
-  // A command's output for the clipboard is copied here: the window holds no clipboard.
-  const gate = new Gate(transport, (text) => {
-    clipboard.writeText(text).catch((err: unknown) => {
-      console.error("kith: a command's output was not copied:", err);
+  let relay = await startRelay(relayFile());
+  const through = (r: Relay) =>
+    createConnectTransport({
+      httpVersion: "1.1",
+      baseUrl: "http://kithd",
+      nodeOptions: { socketPath: r.socket },
     });
-  });
+  // A join may have named a bridge in device.toml: a relay started again dials where it
+  // says, and the window loads afresh through it. One at a time.
+  let rejoining = Promise.resolve();
+  const rejoin = () => {
+    rejoining = rejoining
+      .then(async () => {
+        const next = await startRelay(relayFile());
+        const was = relay;
+        relay = next;
+        gate.retarget(through(next));
+        was.process.stdin?.end(); // the old relay leaves with its stdin
+        window?.webContents.reload();
+      })
+      .catch(fail);
+  };
+  // A command's output for the clipboard is copied here: the window holds no clipboard.
+  const gate = new Gate(
+    through(relay),
+    (text) => {
+      clipboard.writeText(text).catch((err: unknown) => {
+        console.error("kith: a command's output was not copied:", err);
+      });
+    },
+    asks,
+    rejoin,
+  );
 
   serveApp();
   const media = new Media((room, event) => gate.media(room, event));
@@ -147,8 +169,8 @@ async function start(): Promise<void> {
         if (e.kind === "frames" && message?.method === BackendService.method.followStream.name) {
           raise(); // a link clicked elsewhere (kith --open): the window comes forward to follow it
         }
-        if (e.kind === "refused") {
-          port.close(); // the gate ended it: the window left its profile
+        if (e.kind === "refused" || e.kind === "ended") {
+          port.close(); // the gate ended it (the window left its profile), or it ended for good
         }
       });
       port.on("close", stop);
@@ -282,6 +304,75 @@ async function start(): Promise<void> {
 function keepFailed(err: unknown): void {
   console.error("kith: the window's zoom or text size was not saved:", err);
 }
+
+/**
+ * ask shows a question in a dialog of main's own over the window, the safe answer first
+ * and taken on Escape; it resolves to whether the person picked the other. With no
+ * window, nobody is asked, and the answer is no.
+ */
+async function ask(options: { message: string; detail: string; no: string; yes: string }): Promise<boolean> {
+  if (window === undefined || window.isDestroyed()) {
+    return false;
+  }
+  const { response } = await dialog.showMessageBox(window, {
+    type: "warning",
+    title: "kith",
+    message: options.message,
+    detail: options.detail,
+    buttons: [options.no, options.yes],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  });
+  return response === 1;
+}
+
+/**
+ * asks are the questions the gate has main ask before a device is paired, unpaired or a
+ * bridge joined (pairings.ts): what is shown is what main read, never the window's words
+ * but for names kithd holds.
+ */
+const asks: Asks = {
+  pair: (p) =>
+    ask({
+      message: `Pair ${p.name === "" ? "this device" : `"${p.name}"`}?`,
+      detail:
+        `It shows ${p.digits}. Pair it only if the device asking shows the same six digits.\n\n` +
+        `Device ID: ${p.id}\n\n` +
+        (p.role === "bridge"
+          ? "It joins as a bridge: it syncs with this one, and every bridge admits its devices and it theirs. "
+          : "") +
+        "Once paired, it may do everything this machine may: read and send on every account, " +
+        "change the config, pair and unpair devices.",
+      no: "Refuse",
+      yes: "Pair",
+    }),
+  unpair: (d, own) =>
+    ask({
+      message: `Unpair "${d.name === "" ? d.id : d.name}"?`,
+      detail:
+        `Device ID: ${d.id}\n\n` +
+        "Its connections are cut at once, and it cannot connect again until it is paired anew." +
+        (own === true
+          ? "\n\nThis is the device this window runs on: unpairing it cuts this window off from the bridge."
+          : own === undefined
+            ? "\n\nkith could not tell whether this is the device this window runs on; if it is, this window is cut off too."
+            : ""),
+      no: "Keep it",
+      yes: "Unpair",
+    }),
+  join: (i) =>
+    ask({
+      message: `Join the bridge at ${i.addresses[0] ?? "no address"}?`,
+      detail:
+        `Bridge ID: ${i.id}\nAddresses: ${i.addresses.join(", ")}\n\n` +
+        "Compare the six digits this window then shows with the other device's, and confirm there. " +
+        "Once confirmed, this machine's device.toml names the bridge, and this window, " +
+        "the terminal client and kith-notify here reach kithd there.",
+      no: "Cancel",
+      yes: "Join",
+    }),
+};
 
 /** raise brings the window forward: a second start, or a link to follow. */
 function raise(): void {

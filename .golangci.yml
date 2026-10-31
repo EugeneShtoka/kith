@@ -958,6 +958,10 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/human"
             # This machine's device key, to dial a bridge elsewhere; user commands' secrets.
             - "github.com/EugeneShtoka/kith/internal/keystore"
+            # Joining a bridge as kith join does: the pairing URI, the device IDs.
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
+            - "github.com/EugeneShtoka/kith/internal/pairing"
+            - "google.golang.org/protobuf/types/known/timestamppb"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/media"
             - "github.com/EugeneShtoka/kith/internal/setup"

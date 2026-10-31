@@ -48,6 +48,9 @@ type kithdAt struct {
 	// start, dropping the rest before it reads the key. Neither says anything of the key,
 	// so the window is told the last verdict. Nil for the local kithd.
 	refused *atomic.Bool
+	// id is the ID of the key a bridge is dialed with, as it pins this device; "" for
+	// the local kithd.
+	id string
 	// keyring is this machine's keyring service (domain.Storage), where user commands'
 	// secrets are kept.
 	keyring string
@@ -64,9 +67,13 @@ func bridged(cert tls.Certificate, b config.Bridge) (kithdAt, error) {
 	if err != nil {
 		return kithdAt{}, fmt.Errorf("dialing bridge %s: %w", b.Name, err)
 	}
+	id, err := certID(cert)
+	if err != nil {
+		return kithdAt{}, fmt.Errorf("dialing bridge %s: %w", b.Name, err)
+	}
 	refused := new(atomic.Bool)
 	client.Transport = heard{RoundTripper: client.Transport, refused: refused}
-	return kithdAt{client: client, scheme: "https", bridge: b.Name, refused: refused}, nil
+	return kithdAt{client: client, scheme: "https", bridge: b.Name, refused: refused, id: id.String()}, nil
 }
 
 // heard forgets a bridge's refusal once it answers: an answer comes only through a

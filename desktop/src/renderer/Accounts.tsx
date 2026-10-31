@@ -174,7 +174,7 @@ function Ask({ run, session, cancel }: { run: LoginRun; session: Session; cancel
 }
 
 /** QRCode draws a QR step's code for a phone to scan: dark on light whatever the theme, inside its quiet zone. */
-function QRCode({ qr }: { qr: QR }) {
+export function QRCode({ qr }: { qr: QR }) {
   const side = qr.side + 2 * quiet;
   return (
     <svg className="qr" viewBox={`0 0 ${String(side)} ${String(side)}`} role="img" aria-label="A QR code to scan">

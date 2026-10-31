@@ -61,6 +61,17 @@ const (
 	// DeviceServiceRunCommandProcedure is the fully-qualified name of the DeviceService's RunCommand
 	// RPC.
 	DeviceServiceRunCommandProcedure = "/device.v1.DeviceService/RunCommand"
+	// DeviceServicePairingURIProcedure is the fully-qualified name of the DeviceService's PairingURI
+	// RPC.
+	DeviceServicePairingURIProcedure = "/device.v1.DeviceService/PairingURI"
+	// DeviceServiceInviteProcedure is the fully-qualified name of the DeviceService's Invite RPC.
+	DeviceServiceInviteProcedure = "/device.v1.DeviceService/Invite"
+	// DeviceServiceJoinBridgeProcedure is the fully-qualified name of the DeviceService's JoinBridge
+	// RPC.
+	DeviceServiceJoinBridgeProcedure = "/device.v1.DeviceService/JoinBridge"
+	// DeviceServiceThisDeviceProcedure is the fully-qualified name of the DeviceService's ThisDevice
+	// RPC.
+	DeviceServiceThisDeviceProcedure = "/device.v1.DeviceService/ThisDevice"
 )
 
 // DeviceServiceClient is a client for the device.v1.DeviceService service.
@@ -132,6 +143,34 @@ type DeviceServiceClient interface {
 	// back done; the rest come back to the window. A request canceled (the window closed
 	// or reloaded) kills the program.
 	RunCommand(context.Context, *connect.Request[v1.RunCommandRequest]) (*connect.Response[v1.RunCommandResponse], error)
+	// PairingURI is a pairing's ticket (BackendService.StartPairing's) as the kith://pair
+	// URI a new device joins with, written as `kith pair` writes it, for the window to show
+	// as text and as a QR code (QRCode). A ticket whose ID or token does not read is
+	// INVALID_ARGUMENT.
+	PairingURI(context.Context, *connect.Request[v1.PairingURIRequest]) (*connect.Response[v1.PairingURIResponse], error)
+	// Invite reads a kith://pair URI as `kith join` reads it: the bridge's addresses, in the
+	// order they are dialed, its device ID, and when the pairing expires. A URI that does
+	// not read is INVALID_ARGUMENT. Main shows the person what a join would dial before it
+	// opens JoinBridge.
+	Invite(context.Context, *connect.Request[v1.InviteRequest]) (*connect.Response[v1.InviteResponse], error)
+	// JoinBridge is `kith join` on this device: the pairing the uri carries is answered
+	// over pinned TLS with this machine's device key ("client-device", made on first use),
+	// listed as name ("" is this machine's hostname); the six digits come once the bridge
+	// shows the ones this device works out; and once the trusted device confirms, the
+	// bridge is written into device.toml (an entry with its ID updated, keeping its name),
+	// which ends the stream (joined). Anything else ends it with an error and device.toml
+	// untouched: a URI that does not read (INVALID_ARGUMENT), no address answering with
+	// the bridge's key (UNAVAILABLE), the bridge refusing the answer as it refuses `kith
+	// join`'s (this device paired there already: ALREADY_EXISTS; no such pairing:
+	// NOT_FOUND), other digits, or the pairing refused, expired or abandoned
+	// (FAILED_PRECONDITION). The request canceled before the confirmation ends the pairing
+	// unconfirmed; a confirmation that came is written even so, as `kith join` writes it.
+	// The relay goes on dialing where it did: the window starts another to dial the bridge.
+	JoinBridge(context.Context, *connect.Request[v1.JoinBridgeRequest]) (*connect.ServerStreamForClient[v1.JoinBridgeResponse], error)
+	// ThisDevice is this device's ID as the bridge it dials pins it, "" where the relay
+	// reaches a kithd of this machine over its socket. Main asks it, to say so before it
+	// unpairs the window's own device.
+	ThisDevice(context.Context, *connect.Request[v1.ThisDeviceRequest]) (*connect.Response[v1.ThisDeviceResponse], error)
 }
 
 // NewDeviceServiceClient constructs a client for the device.v1.DeviceService service. By default,
@@ -211,6 +250,30 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("RunCommand")),
 			connect.WithClientOptions(opts...),
 		),
+		pairingURI: connect.NewClient[v1.PairingURIRequest, v1.PairingURIResponse](
+			httpClient,
+			baseURL+DeviceServicePairingURIProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("PairingURI")),
+			connect.WithClientOptions(opts...),
+		),
+		invite: connect.NewClient[v1.InviteRequest, v1.InviteResponse](
+			httpClient,
+			baseURL+DeviceServiceInviteProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("Invite")),
+			connect.WithClientOptions(opts...),
+		),
+		joinBridge: connect.NewClient[v1.JoinBridgeRequest, v1.JoinBridgeResponse](
+			httpClient,
+			baseURL+DeviceServiceJoinBridgeProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("JoinBridge")),
+			connect.WithClientOptions(opts...),
+		),
+		thisDevice: connect.NewClient[v1.ThisDeviceRequest, v1.ThisDeviceResponse](
+			httpClient,
+			baseURL+DeviceServiceThisDeviceProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("ThisDevice")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -227,6 +290,10 @@ type deviceServiceClient struct {
 	qRCode               *connect.Client[v1.QRCodeRequest, v1.QRCodeResponse]
 	commands             *connect.Client[v1.CommandsRequest, v1.CommandsResponse]
 	runCommand           *connect.Client[v1.RunCommandRequest, v1.RunCommandResponse]
+	pairingURI           *connect.Client[v1.PairingURIRequest, v1.PairingURIResponse]
+	invite               *connect.Client[v1.InviteRequest, v1.InviteResponse]
+	joinBridge           *connect.Client[v1.JoinBridgeRequest, v1.JoinBridgeResponse]
+	thisDevice           *connect.Client[v1.ThisDeviceRequest, v1.ThisDeviceResponse]
 }
 
 // Device calls device.v1.DeviceService.Device.
@@ -282,6 +349,26 @@ func (c *deviceServiceClient) Commands(ctx context.Context, req *connect.Request
 // RunCommand calls device.v1.DeviceService.RunCommand.
 func (c *deviceServiceClient) RunCommand(ctx context.Context, req *connect.Request[v1.RunCommandRequest]) (*connect.Response[v1.RunCommandResponse], error) {
 	return c.runCommand.CallUnary(ctx, req)
+}
+
+// PairingURI calls device.v1.DeviceService.PairingURI.
+func (c *deviceServiceClient) PairingURI(ctx context.Context, req *connect.Request[v1.PairingURIRequest]) (*connect.Response[v1.PairingURIResponse], error) {
+	return c.pairingURI.CallUnary(ctx, req)
+}
+
+// Invite calls device.v1.DeviceService.Invite.
+func (c *deviceServiceClient) Invite(ctx context.Context, req *connect.Request[v1.InviteRequest]) (*connect.Response[v1.InviteResponse], error) {
+	return c.invite.CallUnary(ctx, req)
+}
+
+// JoinBridge calls device.v1.DeviceService.JoinBridge.
+func (c *deviceServiceClient) JoinBridge(ctx context.Context, req *connect.Request[v1.JoinBridgeRequest]) (*connect.ServerStreamForClient[v1.JoinBridgeResponse], error) {
+	return c.joinBridge.CallServerStream(ctx, req)
+}
+
+// ThisDevice calls device.v1.DeviceService.ThisDevice.
+func (c *deviceServiceClient) ThisDevice(ctx context.Context, req *connect.Request[v1.ThisDeviceRequest]) (*connect.Response[v1.ThisDeviceResponse], error) {
+	return c.thisDevice.CallUnary(ctx, req)
 }
 
 // DeviceServiceHandler is an implementation of the device.v1.DeviceService service.
@@ -353,6 +440,34 @@ type DeviceServiceHandler interface {
 	// back done; the rest come back to the window. A request canceled (the window closed
 	// or reloaded) kills the program.
 	RunCommand(context.Context, *connect.Request[v1.RunCommandRequest]) (*connect.Response[v1.RunCommandResponse], error)
+	// PairingURI is a pairing's ticket (BackendService.StartPairing's) as the kith://pair
+	// URI a new device joins with, written as `kith pair` writes it, for the window to show
+	// as text and as a QR code (QRCode). A ticket whose ID or token does not read is
+	// INVALID_ARGUMENT.
+	PairingURI(context.Context, *connect.Request[v1.PairingURIRequest]) (*connect.Response[v1.PairingURIResponse], error)
+	// Invite reads a kith://pair URI as `kith join` reads it: the bridge's addresses, in the
+	// order they are dialed, its device ID, and when the pairing expires. A URI that does
+	// not read is INVALID_ARGUMENT. Main shows the person what a join would dial before it
+	// opens JoinBridge.
+	Invite(context.Context, *connect.Request[v1.InviteRequest]) (*connect.Response[v1.InviteResponse], error)
+	// JoinBridge is `kith join` on this device: the pairing the uri carries is answered
+	// over pinned TLS with this machine's device key ("client-device", made on first use),
+	// listed as name ("" is this machine's hostname); the six digits come once the bridge
+	// shows the ones this device works out; and once the trusted device confirms, the
+	// bridge is written into device.toml (an entry with its ID updated, keeping its name),
+	// which ends the stream (joined). Anything else ends it with an error and device.toml
+	// untouched: a URI that does not read (INVALID_ARGUMENT), no address answering with
+	// the bridge's key (UNAVAILABLE), the bridge refusing the answer as it refuses `kith
+	// join`'s (this device paired there already: ALREADY_EXISTS; no such pairing:
+	// NOT_FOUND), other digits, or the pairing refused, expired or abandoned
+	// (FAILED_PRECONDITION). The request canceled before the confirmation ends the pairing
+	// unconfirmed; a confirmation that came is written even so, as `kith join` writes it.
+	// The relay goes on dialing where it did: the window starts another to dial the bridge.
+	JoinBridge(context.Context, *connect.Request[v1.JoinBridgeRequest], *connect.ServerStream[v1.JoinBridgeResponse]) error
+	// ThisDevice is this device's ID as the bridge it dials pins it, "" where the relay
+	// reaches a kithd of this machine over its socket. Main asks it, to say so before it
+	// unpairs the window's own device.
+	ThisDevice(context.Context, *connect.Request[v1.ThisDeviceRequest]) (*connect.Response[v1.ThisDeviceResponse], error)
 }
 
 // NewDeviceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -428,6 +543,30 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("RunCommand")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServicePairingURIHandler := connect.NewUnaryHandler(
+		DeviceServicePairingURIProcedure,
+		svc.PairingURI,
+		connect.WithSchema(deviceServiceMethods.ByName("PairingURI")),
+		connect.WithHandlerOptions(opts...),
+	)
+	deviceServiceInviteHandler := connect.NewUnaryHandler(
+		DeviceServiceInviteProcedure,
+		svc.Invite,
+		connect.WithSchema(deviceServiceMethods.ByName("Invite")),
+		connect.WithHandlerOptions(opts...),
+	)
+	deviceServiceJoinBridgeHandler := connect.NewServerStreamHandler(
+		DeviceServiceJoinBridgeProcedure,
+		svc.JoinBridge,
+		connect.WithSchema(deviceServiceMethods.ByName("JoinBridge")),
+		connect.WithHandlerOptions(opts...),
+	)
+	deviceServiceThisDeviceHandler := connect.NewUnaryHandler(
+		DeviceServiceThisDeviceProcedure,
+		svc.ThisDevice,
+		connect.WithSchema(deviceServiceMethods.ByName("ThisDevice")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/device.v1.DeviceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceServiceDeviceProcedure:
@@ -452,6 +591,14 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 			deviceServiceCommandsHandler.ServeHTTP(w, r)
 		case DeviceServiceRunCommandProcedure:
 			deviceServiceRunCommandHandler.ServeHTTP(w, r)
+		case DeviceServicePairingURIProcedure:
+			deviceServicePairingURIHandler.ServeHTTP(w, r)
+		case DeviceServiceInviteProcedure:
+			deviceServiceInviteHandler.ServeHTTP(w, r)
+		case DeviceServiceJoinBridgeProcedure:
+			deviceServiceJoinBridgeHandler.ServeHTTP(w, r)
+		case DeviceServiceThisDeviceProcedure:
+			deviceServiceThisDeviceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -503,4 +650,20 @@ func (UnimplementedDeviceServiceHandler) Commands(context.Context, *connect.Requ
 
 func (UnimplementedDeviceServiceHandler) RunCommand(context.Context, *connect.Request[v1.RunCommandRequest]) (*connect.Response[v1.RunCommandResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.RunCommand is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) PairingURI(context.Context, *connect.Request[v1.PairingURIRequest]) (*connect.Response[v1.PairingURIResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.PairingURI is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) Invite(context.Context, *connect.Request[v1.InviteRequest]) (*connect.Response[v1.InviteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.Invite is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) JoinBridge(context.Context, *connect.Request[v1.JoinBridgeRequest], *connect.ServerStream[v1.JoinBridgeResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.JoinBridge is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) ThisDevice(context.Context, *connect.Request[v1.ThisDeviceRequest]) (*connect.Response[v1.ThisDeviceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("device.v1.DeviceService.ThisDevice is not implemented"))
 }

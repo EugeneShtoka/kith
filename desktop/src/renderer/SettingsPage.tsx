@@ -1,11 +1,12 @@
 // The settings page: this device's settings shared with the TUI (device.toml), and the
 // window's theme (Session.changeTheme), each change written at once (no Save button); and the
-// network accounts kithd logs in (Accounts.tsx).
+// network accounts kithd logs in (Accounts.tsx); and the devices paired with it (Devices.tsx).
 import { useEffect, useState } from "react";
 
 import type { DeviceSettings, ThemeResponse, ReadRule } from "../gen/device/v1/device_pb";
 import { fontSizes } from "../shared/ipc";
 import { Accounts } from "./Accounts";
+import { Devices } from "./Devices";
 import { VerifyStart } from "./Verification";
 import { networkMark } from "./faces";
 import { picked, roles, valueOf } from "./theme";
@@ -94,6 +95,7 @@ export function SettingsPage({ page, view, session }: { page: Page; view: View; 
       <Theme theme={view.theme} change={view.themeChange} session={session} />
       <WindowScale />
       <Accounts login={view.login} rail={view.rail} session={session} />
+      <Devices devices={view.devices} bridge={view.bridge} session={session} />
       {view.seat.state === "seated" && <VerifyStart accounts={view.accounts} verify={view.verify} session={session} />}
     </section>
   );

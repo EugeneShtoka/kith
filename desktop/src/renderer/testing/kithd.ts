@@ -218,6 +218,20 @@ export class Kithd {
   languages: MessageInitShape<typeof backend.detectLanguages.output> = {};
   modelOffer: MessageInitShape<typeof backend.detectModel.output> = {};
   readonly installed: string[] = [];
+  /**
+   * Pairing, as kithd and main answer it: kithd's own ID and the devices paired; the QR
+   * code's modules the relay draws; what a pairing's stream sends as it opens (the ticket,
+   * then the device that answered, if any); what main's dialog answers (pairSays: the
+   * person's yes); and every answer and unpairing that reached kithd, as "Method arg".
+   */
+  self = "";
+  paired: MessageInitShape<typeof backend.devices.output>["devices"] = [];
+  qr = new Uint8Array([1, 0, 0, 1]);
+  pairing: MessageInitShape<typeof backend.startPairing.output>[] = [];
+  pairSays = true;
+  readonly pairingCalls: string[] = [];
+  /** What a join's stream sends as it opens: the digits, then the bridge joined, if any. */
+  joining: MessageInitShape<typeof DeviceService.method.joinBridge.output>[] = [];
   private held: (() => void)[] = [];
   private up = true;
   /** main's profile, as the gate keeps it. */
@@ -847,7 +861,29 @@ export class Kithd {
         return reply(DeviceService.method.writeAccount, {});
       }
       case "QRCode":
-        return reply(DeviceService.method.qRCode, { dark: new Uint8Array([1, 0, 0, 1]) });
+        return reply(DeviceService.method.qRCode, { dark: this.qr });
+      case "Devices":
+        return reply(backend.devices, { self: this.self, devices: this.paired });
+      case "PairingURI": {
+        const t = request as MessageShape<typeof DeviceService.method.pairingURI.input>;
+        const q = new URLSearchParams([...t.addresses.map((a) => ["addr", a]), ["id", t.id], ["token", t.token]]);
+        return reply(DeviceService.method.pairingURI, { uri: `kith://pair?${q.toString()}` });
+      }
+      case "ConfirmPairing": {
+        // Main's dialog asks the person; their no refuses it.
+        const r = request as MessageShape<typeof backend.confirmPairing.input>;
+        this.pairingCalls.push(`ConfirmPairing ${String(r.accept && this.pairSays)}`);
+        return reply(backend.confirmPairing, {});
+      }
+      case "RemoveDevice": {
+        const r = request as MessageShape<typeof backend.removeDevice.input>;
+        if (!this.pairSays) {
+          throw new Error(`kith: ${r.id} stays paired`);
+        }
+        this.pairingCalls.push(`RemoveDevice ${r.id}`);
+        this.paired = this.paired?.filter((d) => d.id !== r.id);
+        return reply(backend.removeDevice, {});
+      }
       case "SignOut": {
         const r = request as MessageShape<typeof backend.signOut.input>;
         this.signedOut.push(`${r.spaceId}${r.forget ? " forget" : ""}`);
@@ -966,6 +1002,16 @@ export class Kithd {
   /** attach opens sub at kithd: attached, then what a Seat answers. */
   private attach(sub: Sub): void {
     this.post(sub, { kind: "attached" });
+    if (sub.method === backend.startPairing.name) {
+      for (const frame of this.pairing) {
+        this.send1(sub, backend.startPairing, frame);
+      }
+    }
+    if (sub.method === DeviceService.method.joinBridge.name) {
+      for (const frame of this.joining) {
+        this.send1(sub, DeviceService.method.joinBridge, frame);
+      }
+    }
     if (sub.method === backend.messages.name) {
       // The first frame says where the stream starts (main resumes it from the last).
       this.send1(sub, backend.messages, { epoch: "e", change: 0n });

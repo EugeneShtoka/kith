@@ -126,6 +126,10 @@ or if either side goes away first (`kith pair` interrupted, `kith join` closed):
 token is spent either way, the waiting device is cut off, and `kith pair` makes a new
 one. Only one device may answer a token; a second is refused.
 
+The desktop window does both from **Settings → Devices**: **Pair a device** is `kith
+pair`, **Join a bridge** is `kith join`, and each confirmation is asked again in a dialog
+of the window's own ([desktop.md](desktop.md#devices)).
+
 ## Pairing by pasted ID
 
 On the device, print its ID:

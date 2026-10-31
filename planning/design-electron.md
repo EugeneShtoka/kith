@@ -89,7 +89,11 @@ is where they are drawn, so it gets the least:
   calls). It decodes with `fromBinary` and checks `event.senderFrame` is `app://`.
 - Calls that reach beyond reading and writing messages are left off the list until a
   feature needs them and its PR reviews them. Examples are `UpdateConfig`, `SignOut`,
-  `DeleteChat`, `ExportRoomKeys`, `ClearCache` and the pairing calls.
+  `DeleteChat`, `ExportRoomKeys`, `ClearCache` and the pairing calls. (The pairing calls
+  joined with the pairing UI, 2026-11-01: `Devices`, `StartPairing`, `ConfirmPairing`,
+  `RemoveDevice` and the relay's `PairingURI` and `JoinBridge`, each change of who is
+  paired or which bridge is dialed sent only on the person's yes in a dialog of main's
+  own (`main/pairings.ts`, SECURITY.md). `AddDevice` stays off: no digits to compare.)
 - `kith.subscribe(stream)` returns a `MessagePort`.
 - `kith.files` covers the open dialog, a dropped file (`webUtils.getPathForFile` in the
   preload), and saving an attachment.
@@ -462,7 +466,10 @@ After the MVP, each with its own PR and review:
   row; kithd's `FilingPlaces` offers the places and `FileRoom` files them on the config
   as it is when it writes, with the archive and the release, so the window has no
   config call; the tag editor and Places settings stay later);
-- pairing UI;
+- pairing UI (landed 2026-11-01: Settings → Devices lists the devices, pairs one by QR
+  code and unpairs one, and joins a bridge through the relay's `JoinBridge`, which runs
+  `kith join`'s code; confirming, unpairing and joining are each asked again in a dialog
+  of main's own);
 - a local partial cache for offline reading. That makes the desktop a replica in the mesh
   CRDT (design-clients.md decision 12), so it waits for Phase 2b;
 - macOS and Windows.

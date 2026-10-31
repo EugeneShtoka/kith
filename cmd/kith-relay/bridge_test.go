@@ -148,8 +148,10 @@ func (world) ThreadParticipant(context.Context, domain.RoomID, domain.EventID) b
 // bridgeKithd is a kithd elsewhere, serving the devices its roster pairs over TLS at
 // addr, with its own key.
 type bridgeKithd struct {
-	addr     string
-	id       devicekey.ID
+	addr string
+	id   devicekey.ID
+	// socket is the bridge's own socket: a device it trusts, where a pairing is started.
+	socket   string
 	paired   *daemon.Devices
 	messages *messageLog
 	// stop is kithd exiting; idempotent.
@@ -184,11 +186,12 @@ func serveBridge(t *testing.T, paired ...*ecdsa.PrivateKey) *bridgeKithd {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ln, err := daemon.Listen(t.Context(), filepath.Join(dir, "kithd.sock"))
+	socket := filepath.Join(dir, "kithd.sock")
+	ln, err := daemon.Listen(t.Context(), socket)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := &bridgeKithd{addr: freeAddr(t), id: idOf(t, key), messages: &messageLog{streams: daemon.NewStreams()}}
+	b := &bridgeKithd{addr: freeAddr(t), id: idOf(t, key), socket: socket, messages: &messageLog{streams: daemon.NewStreams()}}
 	b.paired = daemon.NewDevices(filepath.Join(dir, "devices.toml"), meshAt(t, filepath.Join(dir, "mesh.db")),
 		func() (tls.Certificate, error) { return cert, nil }, logging.Discard())
 	b.paired.Listen([]string{b.addr})
@@ -313,6 +316,9 @@ func viaBridge(t *testing.T, key *ecdsa.PrivateKey, pin devicekey.ID, addrs ...s
 	return relayTo(t, at, filepath.Join(t.TempDir(), "config.toml"))
 }
 
+// clientDevices numbers the machines clientDevice makes.
+var clientDevices atomic.Int64
+
 // clientDevice is a machine that runs no kithd: a config holding only where it keeps its
 // own files (no profile, no account), and its device key, as every client here makes it.
 // It returns the config's path and the key.
@@ -321,7 +327,8 @@ func clientDevice(t *testing.T) (string, *ecdsa.PrivateKey) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
 	if err := config.Save(path, config.Config{Storage: config.Storage{
-		Instance: "laptop", DataDir: filepath.Join(dir, "data"), StateDir: filepath.Join(dir, "state"),
+		// The mock keyring is the test binary's: each device keeps a key of its own.
+		Instance: fmt.Sprintf("laptop%d", clientDevices.Add(1)), DataDir: filepath.Join(dir, "data"), StateDir: filepath.Join(dir, "state"),
 		CacheDir: filepath.Join(dir, "cache"), RuntimeDir: filepath.Join(dir, "run"),
 	}}); err != nil {
 		t.Fatal(err)

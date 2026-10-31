@@ -81,6 +81,44 @@ export function keepOpen<I extends DescMessage, O extends DescMessage>(
   };
 }
 
+/**
+ * openOnce opens a server stream for the window once, posting each frame as it comes and
+ * then how it ended, never opening it again; the returned stop cuts it, after which
+ * nothing more is posted.
+ */
+export function openOnce<I extends DescMessage, O extends DescMessage>(
+  transport: Transport,
+  method: DescMethodServerStreaming<I, O>,
+  input: MessageShape<I>,
+  header: HeadersInit,
+  post: (event: StreamEvent) => void,
+): () => void {
+  const stopped = new AbortController();
+  void (async () => {
+    let error = "";
+    try {
+      const response = await transport.stream(method, stopped.signal, undefined, header, once(input));
+      if (!stopped.signal.aborted) {
+        post({ kind: "attached" });
+      }
+      for await (const message of response.message) {
+        if (stopped.signal.aborted) {
+          return;
+        }
+        post({ kind: "frames", frames: [toBinary(method.output, message)] });
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+    if (!stopped.signal.aborted) {
+      post({ kind: "ended", error });
+    }
+  })();
+  return () => {
+    stopped.abort();
+  };
+}
+
 async function* once<T>(value: T): AsyncIterable<T> {
   yield await Promise.resolve(value);
 }

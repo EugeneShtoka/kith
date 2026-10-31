@@ -18,6 +18,8 @@ This first release reads and writes messages:
 - [accounts](#accounts): logging a network account in, setting a new one up, and
   signing one out;
 - [verifying this session](#verifying-this-session) against another of your own;
+- [devices](#devices): pairing another device by QR code, unpairing one, and joining a
+  bridge from here;
 - [filing a room](#filing-a-room) into tags and spaces.
 
 The full settings editor and the tag editor stay in the terminal client and
@@ -205,6 +207,36 @@ The window verifies your own sessions only. A request from someone else is not s
 shown or asked for. If the window loses `kithd` mid-verification (a restart forgets
 it), reloads, or switches profile, the verification ends there: start it again. One
 the other session cancels, or that times out after ten minutes, says so.
+
+## Devices
+
+**Settings → Devices** lists the devices paired with `kithd`, with its own device ID,
+as `kith devices` does ([clients on other machines](remote.md)). A paired device may do
+everything the window may, so the three things that change who may are each asked
+again by the window itself, in a dialog of the system's own over the page: the page's
+buttons only ask for it.
+
+- **Pair a device** is `kith pair`: it shows the pairing as a QR code and as a line to
+  copy, good once for ten minutes. On the new device, scan it, or paste the line into
+  `kith join` or another window's **Join a bridge**. When the device answers, the page
+  shows its name, its ID and six digits. **Confirm** if the device shows the same
+  digits; the window then asks once more, showing the device and its digits, and only
+  **Pair** there pairs it. **Refuse**, **Cancel**, closing the page, reloading the window
+  or switching profile ends the pairing with nothing paired. With `[remote] listen`
+  unset, `kithd` listens nowhere a device could dial, and the page says to set it.
+- **Unpair** cuts a device off at once. The window's dialog names the device, and says
+  so when it is the device this window runs on: unpairing that cuts this window off
+  from the bridge until it joins again.
+- **Join a bridge** is `kith join` on this machine: paste the line a trusted device
+  shows. The window first shows the bridge's addresses and ID; **Join** there answers
+  the pairing with this machine's device key. Both screens then show six digits:
+  confirm on the other device. Once confirmed, the bridge is written into
+  `device.toml` as `kith join` writes it, and the window reconnects through it (as do the
+  terminal client and `kith-notify` on this machine from their next start). Cancelling,
+  or the other side refusing, leaves `device.toml` as it was.
+
+Pairing by a pasted device ID (`kith devices add`) stays in the terminal client: it has
+no digits to compare.
 
 ## Spelling and completion
 
