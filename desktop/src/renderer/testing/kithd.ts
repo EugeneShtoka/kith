@@ -198,6 +198,17 @@ export class Kithd {
   readonly misspelled = new Map<string, string[]>();
   readonly learned: string[] = [];
   spellOff = false;
+  /**
+   * Filing: the places kithd offers each room (FilingPlaces, for a room of the profile
+   * only, as kithd checks it), and a [display] filing_spaces naming none; every filing
+   * asked, as "room tag+|tag-|space+|space-…:profile", and what FileRoom answers or the
+   * error it refuses with.
+   */
+  readonly places = new Map<string, MessageInitShape<typeof backend.filingPlaces.output>["places"]>();
+  readonly filingSpacesAsked: string[][] = [];
+  readonly filed: string[] = [];
+  fileAnswer: MessageInitShape<typeof backend.fileRoom.output> = {};
+  fileRefusal = "";
   /** The words CompleteWord knows, with their weight; and the model's answer to ModelTask. */
   readonly vocabulary = new Map<string, number>();
   model: MessageInitShape<typeof backend.modelTask.output> = { refusal: "no model is installed" };
@@ -872,6 +883,30 @@ export class Kithd {
       case "InstallModel":
         this.installed.push(`${name} ${(request as MessageShape<typeof backend.installModel.input>).tag}`);
         return reply(backend.installModel, {});
+      case "FilingPlaces": {
+        const r = request as MessageShape<typeof backend.filingPlaces.input>;
+        if (!p.rooms.some((x) => x.id === r.roomId)) {
+          throw new Error(`[not_found] daemon: the profile ${profile} holds no room ${r.roomId}`);
+        }
+        this.filingSpacesAsked.push(r.filingSpaces);
+        const unmatched = r.filingSpaces.includes("space:Gone");
+        return reply(backend.filingPlaces, { places: unmatched ? [] : (this.places.get(r.roomId) ?? []), unmatched });
+      }
+      case "FileRoom": {
+        const r = request as MessageShape<typeof backend.fileRoom.input>;
+        if (!p.rooms.some((x) => x.id === r.roomId)) {
+          throw new Error(`[not_found] daemon: the profile ${profile} holds no room ${r.roomId}`);
+        }
+        const asked = [
+          ...r.tags.map((t) => `${t.tag}${t.in ? "+" : "-"}`),
+          ...r.spaces.map((sp) => `${sp.spaceId}${sp.in ? "+" : "-"}`),
+        ];
+        this.filed.push(`${r.roomId} ${asked.join(" ")}:${profile}`);
+        if (this.fileRefusal !== "") {
+          throw new Error(this.fileRefusal);
+        }
+        return reply(backend.fileRoom, this.fileAnswer);
+      }
       default:
         throw new Error(`the fake does not answer ${name}`);
     }

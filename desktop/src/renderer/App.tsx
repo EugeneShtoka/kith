@@ -7,6 +7,7 @@ import type { ThemeResponse } from "../gen/device/v1/device_pb";
 import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
+import { FilingDialog } from "./Filing";
 import { OfferDialog } from "./Offer";
 import { colorClass, themeCSS, modeOf, roomColor } from "./theme";
 import { rowUnread } from "./rail";
@@ -52,6 +53,7 @@ export function App() {
       {view.offers.prompt && (
         <OfferDialog key={view.offers.prompt.kind} prompt={view.offers.prompt} session={session} />
       )}
+      {seated && view.filing && <FilingDialog filing={view.filing} session={session} />}
       {seated ? (
         <Seated view={view} session={session} />
       ) : (
@@ -256,6 +258,20 @@ function Seated({ view, session }: { view: View; session: Session }) {
           </button>
         </p>
       )}
+      {view.filingNote && (
+        <p className="banner" role="status">
+          <span dir="auto">{view.filingNote}</span>{" "}
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => {
+              session.forgetFilingNote();
+            }}
+          >
+            ×
+          </button>
+        </p>
+      )}
       <Banner link={view.link} status={view.status} bridge={view.bridge} />
       {switching && (
         <Switcher
@@ -311,6 +327,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
               theme={view.theme}
               id={view.open}
               room={view.joined.find((r) => r.id === view.open) ?? view.rooms.find((r) => r.id === view.open)}
+              session={session}
             />
             <TimelinePane
               t={view.timeline}
@@ -347,8 +364,21 @@ function Seated({ view, session }: { view: View; session: Session }) {
   );
 }
 
-/** RoomHeader names the open room above its messages: its face, name, network and topic. */
-function RoomHeader({ theme, id, room }: { theme: ThemeResponse | undefined; id: string; room: Room | undefined }) {
+/**
+ * RoomHeader names the open room above its messages: its face, name, network and topic,
+ * and files it into tags and spaces.
+ */
+function RoomHeader({
+  theme,
+  id,
+  room,
+  session,
+}: {
+  theme: ThemeResponse | undefined;
+  id: string;
+  room: Room | undefined;
+  session: Session;
+}) {
   const name = room?.name || id;
   const mark = networkMark(room?.network ?? "");
   const color = room && roomColor(theme, room);
@@ -357,10 +387,24 @@ function RoomHeader({ theme, id, room }: { theme: ThemeResponse | undefined; id:
       <Avatar id={id} name={name} />
       <h2 dir="auto">{name}</h2>
       {mark && <span className={`net ${color ? colorClass(color) : `net-${mark.slug}`}`}>{room?.network}</span>}
-      {room?.topic && (
+      {room?.topic ? (
         <span className="topic detail" dir="auto" title={room.topic}>
           {room.topic}
         </span>
+      ) : (
+        <span className="topic" />
+      )}
+      {room && room.membership !== "invite" && (
+        <button
+          type="button"
+          className="file-room"
+          title="File this room into tags and spaces"
+          onClick={() => {
+            session.openFiling(id);
+          }}
+        >
+          Tags and spaces
+        </button>
       )}
     </header>
   );
@@ -528,8 +572,13 @@ function RoomRow({
       <button
         type="button"
         aria-current={open}
+        title="Right-click to file it into tags and spaces"
         onClick={() => {
           session.open(room.id);
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          session.openFiling(room.id);
         }}
       >
         <Avatar id={room.id} name={name} small />

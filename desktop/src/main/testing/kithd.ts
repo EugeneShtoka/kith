@@ -119,6 +119,14 @@ export class FakeKithd {
   /** ScheduledMessages answers once this settles. */
   queueHeld: Promise<void> = Promise.resolve();
   /**
+   * Filings that reached kithd, as "Method room:profile"; the rooms it holds in no
+   * profile (refused, as kithd refuses a room outside the request's); FileRoom answers
+   * once fileHeld settles.
+   */
+  readonly filings: string[] = [];
+  readonly notHeld = new Set<string>();
+  fileHeld: Promise<void> = Promise.resolve();
+  /**
    * What RunCommand answers, once ranHeld settles; each run as "name room:profile", and
    * each run whose request ended before its answer (the relay killing its program).
    */
@@ -312,6 +320,21 @@ export class FakeKithd {
         },
         retryScheduled: (req, ctx) => {
           this.onQueued.push(`RetryScheduled ${req.id}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
+          return {};
+        },
+        filingPlaces: (req, ctx) => {
+          this.filings.push(`FilingPlaces ${req.roomId}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
+          if (this.notHeld.has(req.roomId)) {
+            throw new ConnectError(`daemon: the profile holds no room ${req.roomId}`, Code.NotFound);
+          }
+          return { places: [{ tag: "Work", label: "Work", in: true }] };
+        },
+        fileRoom: async (req, ctx) => {
+          this.filings.push(`FileRoom ${req.roomId}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
+          await this.fileHeld;
+          if (this.notHeld.has(req.roomId)) {
+            throw new ConnectError(`daemon: the profile holds no room ${req.roomId}`, Code.NotFound);
+          }
           return {};
         },
         loadImage: (req) => {

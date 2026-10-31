@@ -22,6 +22,7 @@ import { type DeviceSettings, DeviceService, type ThemeResponse } from "../gen/d
 import { runIn } from "../shared/profile";
 import { later, listed, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unscheduled, type Unsent } from "./compose";
+import { asked as filingAsked, type Filing, offered, opened, toggled, told } from "./filing";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { call, subscribe } from "./kith";
 import { Login, type LoginCalls, type LoginView } from "./login";
@@ -149,6 +150,9 @@ export interface View {
   accounts: readonly Account[];
   /** The one-time offers (offers.ts): the one shown, and what the last download came to. */
   offers: { prompt: Prompt | undefined; note: string };
+  /** The filing picker open on a room (filing.ts), and what the last filing came to. */
+  filing: Filing | undefined;
+  filingNote: string;
   problem: string | undefined;
 }
 
@@ -258,6 +262,8 @@ const nothingShown = {
   slots: new Map(),
   verify: noVerify,
   accounts: [],
+  filing: undefined,
+  filingNote: "",
 } satisfies Partial<View>;
 
 /** Run is one stay in one profile's seat: what it opened, closed together when it ends. */
@@ -354,6 +360,8 @@ export class Session {
   private themeReads = 0;
   /** What the window last told kithd it has open, and when. */
   private presented = { room: "", at: 0 };
+  /** Counts the filing pickers opened: only the last one's places are shown. */
+  private filings = 0;
   /** A login the window leads; one that logged in has the rail and rooms read again. */
   private readonly login = new Login(
     loginCalls,
@@ -1786,6 +1794,98 @@ export class Session {
     run.rowAt = i;
     run.row = refOf(row);
     this.set({});
+  }
+
+  /**
+   * openFiling opens the filing picker on room, one of the profile's: the places kithd
+   * offers it (FilingPlaces, with this device's [display] filing_spaces), ticked where they
+   * hold it. An answer for a picker since closed, or for another profile, is dropped.
+   */
+  openFiling(room: string): void {
+    const run = this.run;
+    if (run === undefined || !this.holds(run, room) || this.view.filing?.busy === true) {
+      return;
+    }
+    const mine = ++this.filings;
+    const name = run.joined.find((r) => r.id === room)?.name ?? "";
+    this.set({ filing: opened(room, name || room), filingNote: "" });
+    const shown = () => this.live(run) && this.filings === mine && this.view.filing?.room === room;
+    relay
+      .read()
+      .then(({ settings }) => call(backend.filingPlaces, { roomId: room, filingSpaces: settings.filingSpaces }))
+      .then(
+        (r) => {
+          const f = this.view.filing;
+          if (shown() && f !== undefined) {
+            this.set({ filing: offered(f, r.places, r.unmatched) });
+          }
+        },
+        (err: unknown) => {
+          const f = this.view.filing;
+          if (shown() && f !== undefined) {
+            this.set({ filing: { ...f, note: errorText(err) } });
+          }
+        },
+      );
+  }
+
+  /** tickFiling ticks a place of the open filing picker, or clears it. */
+  tickFiling(key: string): void {
+    const f = this.view.filing;
+    if (f !== undefined) {
+      this.set({ filing: toggled(f, key) });
+    }
+  }
+
+  /** closeFiling puts the filing picker away; a filing already with kithd still says what it came to. */
+  closeFiling(): void {
+    this.filings++;
+    this.set({ filing: undefined });
+  }
+
+  /** forgetFilingNote clears what the last filing came to. */
+  forgetFilingNote(): void {
+    this.set({ filingNote: "" });
+  }
+
+  /**
+   * applyFiling files the room as the picker's ticks say, asking kithd only for the
+   * places ticked otherwise than they hold it: kithd writes the tags, archives on the
+   * network and records releases; the rail follows when kithd says it changed. Refused,
+   * the picker stays open with the ticks as they were, saying why.
+   */
+  applyFiling(): void {
+    const run = this.run;
+    const f = this.view.filing;
+    if (run === undefined || f === undefined || f.busy || f.places === undefined) {
+      return;
+    }
+    const ask = filingAsked(f);
+    if (ask.tags.length === 0 && ask.spaces.length === 0) {
+      this.closeFiling();
+      this.set({ filingNote: "No change." });
+      return;
+    }
+    const mine = this.filings;
+    this.set({ filing: { ...f, busy: true, note: "" } });
+    const still = () => this.filings === mine && this.view.filing?.busy === true;
+    call(backend.fileRoom, { roomId: f.room, tags: ask.tags, spaces: ask.spaces }).then(
+      (r) => {
+        if (this.live(run)) {
+          this.set({ filing: still() ? undefined : this.view.filing, filingNote: told(f, ask, r) });
+        }
+      },
+      (err: unknown) => {
+        if (!this.live(run)) {
+          return;
+        }
+        if (still()) {
+          this.set({ filing: { ...f, busy: false, note: errorText(err) } });
+        } else {
+          this.set({ filingNote: `${f.name} was not filed: ${errorText(err)}` });
+        }
+      },
+    );
   }
 
   /** readAccounts reads the accounts a verification may be asked for from. */

@@ -183,6 +183,14 @@ and holds the least:
   a token for it; an attachment is saved where the person picks in a save dialog.
   A queued message is canceled or retried only by an ID kithd showed the window, or
   queued for it, in the profile it runs in.
+- **Filing a room never hands the page the config.** The page files a room into tags
+  and spaces with two calls, `FilingPlaces` and `FileRoom`, and has neither
+  `GetConfig` nor `UpdateConfig`: kithd writes the tags into `config.toml` itself, on
+  the file as it is when it writes, so a page can change no other key. kithd refuses a
+  room, tag or space that the profile main names does not hold, before anything is
+  written or asked of a network, and makes the calls a filing needs (`AddToSpace`,
+  `RemoveFromSpace`, `SetRoomArchived`, `MarkTag`) itself; none of those is on the
+  page's list.
 - **Your own commands run on this machine, named only.** `kith-relay`, not the page,
   runs the commands of the device's commands folder (the terminal client runs the same
   ones). The page names a command, a room and a message, and nothing else: the relay
