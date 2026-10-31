@@ -132,6 +132,8 @@ const vocabulary: Candidate[] = [
   { word: "meet", score: 2 },
   { word: "meetings", score: 5 },
 ];
+/** The question a draft asks the model: trailing blanks aside, as a held space asks once. */
+const asked = (draft: string) => draft.replace(/[ \t]+$/, "").length;
 /** kithd's answer: the two best words going on from prefix (an earlier prefix's may miss one). */
 const answer = (prefix: string) => vocabulary.filter((c) => c.word.startsWith(prefix)).slice(0, 2);
 
@@ -164,7 +166,7 @@ describe("the assist", () => {
         };
         const model = (i: number) => {
           const m = models.splice(i % Math.max(models.length, 1), 1)[0];
-          m?.resolve({ suggestion: `after${String(m.draft.length)}`, options: [], refusal: "", model: "m" });
+          m?.resolve({ suggestion: `after${String(asked(m.draft))}`, options: [], refusal: "", model: "m" });
         };
         for (const st of steps) {
           if (st.kind === "type") {
@@ -191,7 +193,7 @@ describe("the assist", () => {
             );
           }
           if (o.from === "model") {
-            expect(o.ghost).toBe(`after${String(text.length)}`); // the model's answer for this draft
+            expect(o.ghost).toBe(`after${String(asked(text))}`); // the model's answer for this draft
           }
         }
         // At rest every answer comes, the oldest last.
@@ -209,7 +211,7 @@ describe("the assist", () => {
         expect(o.words, JSON.stringify(text)).toEqual(want);
         expect(o.lead).toBe(dominant(want, on.ratio)?.word ?? "");
         if (o.from === "model") {
-          expect(o.ghost).toBe(`after${String(text.length)}`);
+          expect(o.ghost).toBe(`after${String(asked(text))}`);
         }
       }),
       { numRuns: 400 },
