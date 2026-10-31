@@ -8,6 +8,7 @@ import { createConnectTransport } from "@connectrpc/connect-node";
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   type NativeImage,
@@ -78,7 +79,12 @@ async function start(): Promise<void> {
     baseUrl: "http://kithd",
     nodeOptions: { socketPath: relay.socket },
   });
-  const gate = new Gate(transport);
+  // A command's output for the clipboard is copied here: the window holds no clipboard.
+  const gate = new Gate(transport, (text) => {
+    clipboard.writeText(text).catch((err: unknown) => {
+      console.error("kith: a command's output was not copied:", err);
+    });
+  });
 
   serveApp();
   const media = new Media((room, event) => gate.media(room, event));
@@ -239,6 +245,7 @@ async function start(): Promise<void> {
   });
   window.on("closed", () => {
     void attachments.abandon();
+    gate.endCommands(); // the relay kills a command still running
   });
   // Closing, the window first writes what it holds unsaved (its drafts), as the TUI does
   // at quit; one that does not answer is closed anyway.

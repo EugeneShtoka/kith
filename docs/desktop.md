@@ -10,7 +10,8 @@ This first release reads and writes messages:
 - the rail and room list, with unread counts, and invites;
 - the timeline, with replies, edits, reactions, polls, pictures and files;
 - the composer, with markdown, mentions, emoji, attachments and drafts, and
-  [spelling and word completion](#spelling-and-completion);
+  [spelling and word completion](#spelling-and-completion), and
+  [sending later and commands](#sending-later-and-commands);
 - search, the ctrl+K switcher, and threads beside the room;
 - a settings page for the settings it shares with the terminal client
   ([where settings live](#where-settings-live));
@@ -237,6 +238,44 @@ completion model your own writing calls for, as the terminal client does. Ticked
 are installed (each checked against its pinned hash); an unticked row is written to
 `declined`, `frequencies_declined` or `[complete.model] declined` and not offered
 again; **Not now** asks again next time the window starts.
+
+## Sending later and commands
+
+A message can go later, as the terminal client's `/at` and `/in` send it
+([scheduled messages](composer.md#scheduled-messages)). `kithd` keeps the queue and
+sends from it, so it goes on time whether the window is open or not.
+
+- **Later**, beside **Send**, asks when: **At** a clock time (`09:00`, `1504`, `9pm`,
+  `3:45pm`; one already past today means tomorrow) or **In** a delay (`30m`, `2h`,
+  `1h30m`). The words in the composer go then, with the message they reply to, the
+  thread open and their mentions, and the composer empties as a send empties it.
+  `/at 09:00 good morning` and `/in 2h see you then` do the same from the composer.
+- **Queued here** (in the Later form), or `/scheduled`, lists what waits to go out in
+  this room; **Every room** lists the whole queue. Each row has **Cancel**, and a message
+  that failed or was refused has **Try again** and says why. The list is read again
+  while it is open, so a message that goes out meanwhile leaves it. Canceling one whose
+  time came first says it was no longer waiting, rather than that it was canceled.
+- A message `kithd` did not take (it was not reachable) stays above the composer,
+  **Not queued**, with **Queue again**: it is asked for under the same transaction ID,
+  so it is queued once even when the first answer was lost.
+
+A `/` at the start of the composer lists the commands, as the terminal client's does
+([commands](commands.md#composer-commands-)): `/me`, `/plain`, `/at`, `/in`,
+`/scheduled`, `/search`, `/upload` (it opens the file dialog), `/poll`, `/topic` (shown in
+full) and `/replacement` work in the window; the rest say they are in the terminal
+client and keep your words. `//` starts a message with one slash.
+
+Your own commands ([your own commands](commands.md#your-own-commands): the executables
+of the commands folder, with their `[[command]]` settings) are listed after them, those
+whose `in` places hold the open room. `kith-relay` runs them on this machine, as the
+terminal client does: by name only, in a room of the window's profile, given the
+message (the one you reply to, else the room's newest), its link and the room's history
+as `kithd` holds them, and their secrets from the keyring. The window passes the
+command no words of its own: `/zoom tomorrow` is refused, and `/zoom` runs it. Its
+output goes where `output` says: into the composer, sent to the room, a status line,
+a panel to read, or the clipboard (main copies it). `[commands] timeout` bounds a run,
+one runs at a time, and closing or reloading the window stops it. Key bindings
+(`keys`) and setting up a command's secrets stay in the terminal client.
 
 ## How it finds kithd
 

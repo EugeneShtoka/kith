@@ -12,8 +12,8 @@ export type Parsed = { at: Date; body: string } | { error: string };
 const nanos: Record<string, number> = {
   ns: 1,
   us: 1e3,
-  "µs": 1e3, // micro sign
-  "μs": 1e3, // Greek mu
+  µs: 1e3, // micro sign
+  μs: 1e3, // Greek mu
   ms: 1e6,
   s: 1e9,
   m: 60e9,
@@ -73,7 +73,7 @@ export function duration(text: string): number | undefined {
     }
     s = s.slice(u);
     total += Number(`${whole || "0"}.${fraction || "0"}`) * unit;
-    if (total > 9223372036854775807) {
+    if (total >= 2 ** 63) {
       return undefined; // past what a Go duration holds
     }
   }

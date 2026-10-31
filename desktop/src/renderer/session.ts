@@ -21,7 +21,7 @@ import type { Member, Message, Reaction, Room, SearchHit, Unread } from "../gen/
 import { type DeviceSettings, DeviceService, type ThemeResponse } from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
 import { later, listed, placed, refOf, type RowRef } from "./rail";
-import { Composer, type ComposerView, type Unsent } from "./compose";
+import { Composer, type ComposerView, type Unscheduled, type Unsent } from "./compose";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { call, subscribe } from "./kith";
 import { Login, type LoginCalls, type LoginView } from "./login";
@@ -30,6 +30,7 @@ import type { Asked } from "./polls";
 import { changeTheme, type ThemeRelay, themeLabel, type Scope, type Slots } from "./theme";
 import { announces } from "./read";
 import { ordered, total } from "./rooms";
+import type { When } from "./schedule";
 import { emptyFilter, parseSearch } from "./search";
 import { change, type Device, type Key, labels, type Read, withKey } from "./settings";
 import { OpenThread, type ThreadView } from "./threads";
@@ -993,6 +994,54 @@ export class Session {
     this.run?.composer.dismiss(u);
   }
 
+  /** later queues the open composer's words to send at a time given as kind says. */
+  later(kind: When, text: string): Promise<void> {
+    const room = this.view.open;
+    return this.inRun((run) => run.composer.later(room, kind, text));
+  }
+
+  scheduleAgain(u: Unscheduled): Promise<void> {
+    return this.inRun((run) => run.composer.scheduleAgain(u));
+  }
+
+  dismissUnscheduled(u: Unscheduled): void {
+    this.run?.composer.dismissUnscheduled(u);
+  }
+
+  /** showQueue shows the send queue: the open room's, or every room's. */
+  showQueue(everyRoom: boolean): void {
+    this.run?.composer.showQueue(everyRoom ? "" : this.view.open);
+  }
+
+  closeQueue(): void {
+    this.run?.composer.closeQueue();
+  }
+
+  cancelQueued(id: string): Promise<void> {
+    return this.inRun((run) => run.composer.cancelQueued(id));
+  }
+
+  retryQueued(id: string): Promise<void> {
+    return this.inRun((run) => run.composer.retryQueued(id));
+  }
+
+  /** wantCommands reads the commands folder's commands for the open room's `/` list. */
+  wantCommands(): void {
+    this.run?.composer.wantCommands(this.view.open);
+  }
+
+  chooseLink(i: number): Promise<void> {
+    return this.inRun((run) => run.composer.chooseLink(i));
+  }
+
+  closeChoosing(): void {
+    this.run?.composer.closeChoosing();
+  }
+
+  closeReading(): void {
+    this.run?.composer.closeReading();
+  }
+
   /** save saves m's attachment where the person picks. */
   save(m: Message): Promise<void> {
     return this.inRun(async () => {
@@ -1085,6 +1134,17 @@ export class Session {
         thread: (room) => (run.thread?.room === room ? run.thread.root : ""),
         messages: (room) => (run.timeline?.room === room ? run.timeline.view().rows : []),
         spaceRooms: (room) => spaceRooms(run.rail?.rows ?? [], room),
+        search: (terms) => {
+          this.search(terms, "room");
+        },
+        pick: () => void this.pick(),
+        go: (room) => {
+          if (!this.holds(run, room)) {
+            return false;
+          }
+          this.open(room);
+          return true;
+        },
       }),
     };
     this.run = run;

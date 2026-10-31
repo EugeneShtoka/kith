@@ -37,7 +37,13 @@ export const builtins: readonly Builtin[] = [
   },
   tuiOnly("/summary", "what this room has been saying, by the completion model", "[2h | 7d | yesterday | 50]"),
   tuiOnly("/export", "write this room to a Markdown file", "[span] [~/folder]"),
-  { name: "/plain", arg: "<message>", argOptional: false, summary: "send it exactly as typed — no Markdown", window: true },
+  {
+    name: "/plain",
+    arg: "<message>",
+    argOptional: false,
+    summary: "send it exactly as typed — no Markdown",
+    window: true,
+  },
   {
     name: "/upload",
     arg: "",
@@ -45,8 +51,20 @@ export const builtins: readonly Builtin[] = [
     summary: "send a file — the window picks it in the open dialog",
     window: true,
   },
-  { name: "/at", arg: "<time> <message>", argOptional: false, summary: "send it later — /at 09:00 good morning", window: true },
-  { name: "/in", arg: "<delay> <message>", argOptional: false, summary: "send it after a delay — /in 2h see you then", window: true },
+  {
+    name: "/at",
+    arg: "<time> <message>",
+    argOptional: false,
+    summary: "send it later — /at 09:00 good morning",
+    window: true,
+  },
+  {
+    name: "/in",
+    arg: "<delay> <message>",
+    argOptional: false,
+    summary: "send it after a delay — /in 2h see you then",
+    window: true,
+  },
   tuiOnly("/tracked", "where your tracked words came up here", "[word]"),
   tuiOnly("/files", "every message with a file in this room"),
   tuiOnly("/mentions", "where you were named in this room"),
@@ -100,11 +118,21 @@ function argOf(body: string, name: string): string | undefined {
   return undefined;
 }
 
+/** unescaped is a message's words as they go out: `//` loses one slash (Element's convention). */
+export function unescaped(body: string): string {
+  return body.startsWith("//") ? body.slice(1) : body;
+}
+
+/** firstLine is text's first line, as a status says a command's output. */
+export function firstLine(text: string): string {
+  return text.split("\n", 1)[0] ?? "";
+}
+
 /** typed reads words as the TUI's submit does: a command, or a message. */
 export function typed(words: string): Typed {
   const body = words.trim();
   if (body.startsWith("//")) {
-    return { kind: "message", body: body.slice(1) };
+    return { kind: "message", body: unescaped(body) };
   }
   if (!body.startsWith("/") || body.length === 1 || body.includes("\n")) {
     return { kind: "message", body };

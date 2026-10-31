@@ -114,8 +114,25 @@ const calls = new Map<string, DescMethodUnary>(
     backend.installDictionary,
     backend.installFrequencies,
     backend.installModel,
+    // Sending later: a message queued, the queue (kithd answers the profile's rooms only),
+    // and one canceled or tried again (only one the window was shown or queued, here).
+    backend.schedule,
+    backend.scheduledMessages,
+    backend.cancelScheduled,
+    backend.retryScheduled,
+    // The commands of the device's commands directory, listed and run by the relay: by
+    // name, in a room of the window's profile, the program given only what the relay
+    // looks up (kith-relay's RunCommand). Output for the clipboard main copies itself.
+    device.commands,
+    device.runCommand,
   ].map((m) => [m.name, m]),
 );
+
+/** The calls on one queued message, by its ID: only one the window was shown or queued. */
+const onQueued = new Set<string>([backend.cancelScheduled.name, backend.retryScheduled.name]);
+
+/** The relay's calls that run in the window's profile, which main names on them as on kithd's. */
+const profiledDevice = new Set<string>([device.commands.name, device.runCommand.name]);
 
 /** The calls that install a download, by the offer that names what they may install. */
 const installs = new Map<string, string>([
@@ -207,7 +224,16 @@ export class Gate {
     return r.message.ids;
   });
 
-  constructor(private readonly transport: Transport) {}
+  /** The queued messages' IDs the window was shown or queued, in the profile it runs in. */
+  private queued = new Set<string>();
+  /** The commands running, ended when the window loads afresh or closes. */
+  private readonly running = new Set<AbortController>();
+
+  /** copy puts a command's output on the clipboard: its block's `output = "clipboard"`. */
+  constructor(
+    private readonly transport: Transport,
+    private readonly copy: (text: string) => void = () => undefined,
+  ) {}
 
   /** call makes the call named and answers the response's bytes. */
   async call(frame: Frame | null, name: unknown, request: unknown): Promise<Uint8Array> {
@@ -237,10 +263,20 @@ export class Gate {
         throw new Refused(`kith: the window asks the model only for the next word, not ${task.task}`);
       }
     }
+    if (onQueued.has(method.name)) {
+      this.mustBeQueued((input as MessageShape<typeof backend.cancelScheduled.input>).id);
+    }
     const ticket = loginCalls.has(method.name) ? this.admitLogin(method.name, input, header) : undefined;
-    const response = await this.transport.unary(method, undefined, undefined, header, input).catch((err: unknown) => {
+    const run = method.name === device.runCommand.name ? new AbortController() : undefined;
+    if (run !== undefined) {
+      this.running.add(run);
+    }
+    const response = await this.transport.unary(method, run?.signal, undefined, header, input).catch((err: unknown) => {
       if (ticket !== undefined) {
         this.logins.heard(ticket, undefined, err);
+      }
+      if (run !== undefined) {
+        this.running.delete(run);
       }
       // A message gone from its network, or one kithd holds no copy of, is an answer: the
       // window is answered no message, and its quote shows as not loaded. A rejection
@@ -261,6 +297,15 @@ export class Gate {
     }
     this.offer(method, response.message);
     this.follow(method, response.message);
+    this.shown(method, response.message, profile);
+    if (run !== undefined) {
+      this.running.delete(run);
+      const ran = response.message as MessageShape<typeof device.runCommand.output>;
+      if (ran.output === "clipboard" && ran.body !== "") {
+        this.copy(ran.body);
+        ran.body = ""; // copied here: the window is told it was, not given it
+      }
+    }
     return toBinary(method.output, response.message);
   }
 
@@ -357,6 +402,15 @@ export class Gate {
   restart(): void {
     this.use("");
     void this.logins.restart();
+    this.endCommands();
+  }
+
+  /** endCommands ends every command the window runs: the relay kills its program. */
+  endCommands(): void {
+    for (const run of this.running) {
+      run.abort();
+    }
+    this.running.clear();
   }
 
   /** endLogins has kithd end every login the window leads: it is closing. */
@@ -366,7 +420,7 @@ export class Gate {
 
   /** header is what a request for method carries: kithd's the window's profile, refused without one. */
   private header(method: DescMethodUnary | DescMethodServerStreaming): HeadersInit {
-    if (method.parent.typeName === DeviceService.typeName) {
+    if (method.parent.typeName === DeviceService.typeName && !profiledDevice.has(method.name)) {
       return {}; // the relay's own, in no profile
     }
     if (this.profile === "") {
@@ -392,6 +446,7 @@ export class Gate {
     }
     this.profile = profile;
     this.verifying.runIn(profile);
+    this.queued = new Set();
     for (const held of this.open) {
       if (held.profile !== profile) {
         this.open.delete(held);
@@ -414,6 +469,30 @@ export class Gate {
       throw new Refused(`kith: the window speaks only as its seat in ${this.profile}`);
     }
     request.client = seat.client;
+  }
+
+  /**
+   * shown keeps the IDs of the queued messages kithd showed the window, or queued for it,
+   * in profile: the ones it may cancel or try again while it still runs there.
+   */
+  private shown(method: DescMethodUnary, message: unknown, profile: string): void {
+    if (profile !== this.profile) {
+      return; // answered after the window left the profile it asked in
+    }
+    if (method.name === backend.scheduledMessages.name) {
+      for (const m of (message as MessageShape<typeof backend.scheduledMessages.output>).messages) {
+        this.queued.add(m.id);
+      }
+    } else if (method.name === backend.schedule.name) {
+      this.queued.add((message as MessageShape<typeof backend.schedule.output>).id);
+    }
+  }
+
+  /** mustBeQueued refuses a call on a queued message the window was not shown, or queued, here. */
+  private mustBeQueued(id: string): void {
+    if (!this.queued.has(id)) {
+      throw new Refused(`kith: the window cancels or retries only a queued message it was shown here, not ${id}`);
+    }
   }
 
   /** offer keeps what kithd's last offer of each kind names, which the window may install. */

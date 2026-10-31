@@ -67,7 +67,11 @@ describe("the / list", () => {
 
 describe("a poll asked by /poll", () => {
   it("reads as the TUI's parsePollArg", () => {
-    expect(pollOf("Lunch? | pizza | sushi")).toEqual({ question: "Lunch?", options: ["pizza", "sushi"], multiple: false });
+    expect(pollOf("Lunch? | pizza | sushi")).toEqual({
+      question: "Lunch?",
+      options: ["pizza", "sushi"],
+      multiple: false,
+    });
     expect(pollOf("Lunch? | pizza | sushi | ANY")).toEqual({
       question: "Lunch?",
       options: ["pizza", "sushi"],

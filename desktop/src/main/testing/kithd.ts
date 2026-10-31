@@ -113,6 +113,19 @@ export class FakeKithd {
   private verifications = 0;
   /** StartVerification answers once this settles. */
   verifyHeld: Promise<void> = Promise.resolve();
+  /** The send queue's IDs (ScheduledMessages answers these; Schedule adds q1, q2…), and the calls on one. */
+  readonly queue: string[] = [];
+  readonly onQueued: string[] = [];
+  /** ScheduledMessages answers once this settles. */
+  queueHeld: Promise<void> = Promise.resolve();
+  /**
+   * What RunCommand answers, once ranHeld settles; each run as "name room:profile", and
+   * each run whose request ended before its answer (the relay killing its program).
+   */
+  ran: { output: string; body: string } = { output: "compose", body: "" };
+  ranHeld: Promise<void> = Promise.resolve();
+  readonly runs: string[] = [];
+  readonly killed: string[] = [];
   private server: Server | undefined;
   private readonly sockets = new Set<Socket>();
   private readonly dir: string;
@@ -283,6 +296,24 @@ export class FakeKithd {
           return {};
         },
         insteadLogin: () => ({}),
+        schedule: () => {
+          const id = "q" + String(this.queue.length + 1);
+          this.queue.push(id);
+          return { id };
+        },
+        scheduledMessages: async () => {
+          const messages = this.queue.map((id) => ({ id, roomId: "!r:x" }));
+          await this.queueHeld;
+          return { messages };
+        },
+        cancelScheduled: (req, ctx) => {
+          this.onQueued.push(`CancelScheduled ${req.id}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
+          return { canceled: true };
+        },
+        retryScheduled: (req, ctx) => {
+          this.onQueued.push(`RetryScheduled ${req.id}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
+          return {};
+        },
         loadImage: (req) => {
           const data = this.pictures.get(req.eventId);
           if (data === undefined) {
@@ -300,6 +331,14 @@ export class FakeKithd {
         },
         outgoing: (req) => this.outgoing(req.path),
         writeAccount: () => ({}),
+        commands: () => ({ commands: [{ name: "zoom", applies: true }] }),
+        runCommand: async (req, ctx) => {
+          const run = `${req.name} ${req.roomId}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`;
+          this.runs.push(run);
+          ctx.signal.addEventListener("abort", () => this.killed.push(run));
+          await this.ranHeld;
+          return this.ran;
+        },
         qRCode: () => ({ dark: new Uint8Array([1, 0, 0, 1]) }),
         chooseProfile: (req) => {
           const name = this.profiles.find((p) => p.toLowerCase() === req.name.toLowerCase());

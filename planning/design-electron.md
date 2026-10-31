@@ -449,7 +449,10 @@ After the MVP, each with its own PR and review:
   the composer);
 - spell and completion (landed 2026-10-31: kithd's checker with Chromium's off, marks
   over the textarea, the walk, autocorrect, word and next-word completion, the offers);
-- scheduled send and slash commands;
+- scheduled send and slash commands (landed 2026-10-31: Later, /at, /in and the queue;
+  the TUI's `/` table, the window's doing what it can; `[[command]]` scripts run by
+  kith-relay by name, given only what it looks up; their key bindings and secret setup
+  stay in the TUI);
 - network logins (QR) (landed 2026-10-31: Settings → Accounts, and signing out);
 - SAS verification (landed 2026-10-31: your own sessions, as the TUI's `:verify`;
   kithd takes one answer to each step and tells every client);
