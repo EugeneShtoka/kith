@@ -59,6 +59,21 @@ service DeviceService {
   // (rsc.io/qr, level L), for the window to draw: no picture is made here. Empty data,
   // or more than a QR code holds, is INVALID_ARGUMENT.
   rpc QRCode(QRCodeRequest) returns (QRCodeResponse);
+  // Commands are the commands this device's commands directory holds (the TUI's: the
+  // bridge config's [commands] dir, else `commands` beside the device file), each an
+  // executable file there, with its [[command]] block's settings. Run in a profile (the
+  // Kith-Profile header): a room outside it is PERMISSION_DENIED.
+  rpc Commands(CommandsRequest) returns (CommandsResponse);
+  // RunCommand runs one of them in a room, as the TUI's /name does, here: by name only.
+  // Nothing the window sends reaches the program but what the relay itself looks up by
+  // the IDs given (the message, its link, the room's history, from kithd), and its
+  // secrets come from this machine's keyring. A name that is no executable file in the
+  // directory is NOT_FOUND; a room outside the profile PERMISSION_DENIED; outside the
+  // command's `in` places, or with another command running, FAILED_PRECONDITION. Its
+  // output goes where its block says: `send` is sent here, into the room, and comes
+  // back done; the rest come back to the window. A request canceled (the window closed
+  // or reloaded) kills the program.
+  rpc RunCommand(RunCommandRequest) returns (RunCommandResponse);
 }
 
 message WriteAccountRequest {
@@ -296,4 +311,49 @@ message ReadRule {
   string sender = 2;
   // Whether receipts are announced there; unset inherits.
   optional bool send = 3;
+}
+
+message CommandsRequest {
+  // room_id is the room the commands are for: each says whether it runs there.
+  string room_id = 1;
+}
+
+message CommandsResponse {
+  repeated Command commands = 1;
+}
+
+// Command is one command of the commands directory.
+message Command {
+  // name is the file's, without the slash.
+  string name = 1;
+  // applies is whether it runs in the room asked about: its `in` places hold it, or it
+  // has none; places are those, for saying where it does.
+  bool applies = 2;
+  repeated string places = 3;
+}
+
+message RunCommandRequest {
+  // name is the command's file name, without the slash.
+  string name = 1;
+  string room_id = 2;
+  // event_id is the message a command needing one is given; "" is the room's newest.
+  string event_id = 3;
+  // link picks, for a command needing a url, which of the message's links it is given:
+  // 1 is the first. 0 takes the only one, and asks (links) when there are several.
+  uint32 link = 4;
+}
+
+message RunCommandResponse {
+  // output is where the program's output went or goes, as its block's `output` says:
+  // compose, status, pager and clipboard bring it back (body); send was sent; none.
+  string output = 1;
+  string body = 2;
+  // truncated: the output was cut at what a composer holds; it comes back to compose.
+  bool truncated = 3;
+  // why is what the command produced instead of output, when nothing usable: it failed,
+  // timed out, printed nothing, or its message could not be found.
+  string why = 4;
+  // links are the message's links, when there are several and none was picked: the
+  // window asks which and runs it again with link set.
+  repeated string links = 5;
 }

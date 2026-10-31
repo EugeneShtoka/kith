@@ -1799,7 +1799,11 @@ message CancelScheduledRequest {
   string id = 1;
 }
 
-message CancelScheduledResponse {}
+message CancelScheduledResponse {
+  // canceled is false when the message was no longer waiting: it went out (or is going
+  // out), or was canceled elsewhere. A cancel that races the send time says which won.
+  bool canceled = 1;
+}
 
 message RetryScheduledRequest {
   string id = 1;

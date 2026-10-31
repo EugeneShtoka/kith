@@ -48,6 +48,9 @@ type kithdAt struct {
 	// start, dropping the rest before it reads the key. Neither says anything of the key,
 	// so the window is told the last verdict. Nil for the local kithd.
 	refused *atomic.Bool
+	// keyring is this machine's keyring service (domain.Storage), where user commands'
+	// secrets are kept.
+	keyring string
 }
 
 // local is the kithd whose socket is socket.
@@ -103,14 +106,14 @@ func (at kithdAt) failure(err error) *connect.Error {
 // and DeviceService, answered here. Each of BackendService's methods is a path of its
 // own, so anything else (another service, a path that cleans to one) is refused and the
 // relay lends its reach to nothing else of kithd's.
-func newHandler(at kithdAt, configPath string, log *slog.Logger) http.Handler {
+func newHandler(at kithdAt, configPath string, runs *commandRuns, log *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	proxy := forward(at, log)
 	methods := backendv1.File_backend_v1_services_proto.Services().ByName("BackendService").Methods()
 	for i := range methods.Len() {
 		mux.Handle("POST /"+backendv1connect.BackendServiceName+"/"+string(methods.Get(i).Name()), proxy)
 	}
-	mux.Handle(devicev1connect.NewDeviceServiceHandler(device{at: at, configPath: configPath}))
+	mux.Handle(devicev1connect.NewDeviceServiceHandler(device{at: at, configPath: configPath, runs: runs}))
 	return mux
 }
 
@@ -215,6 +218,8 @@ type device struct {
 	at kithdAt
 	// configPath is kithd's config, unless at is a bridge; the device file is beside it.
 	configPath string
+	// runs is the user command running, if one is (commands.go).
+	runs *commandRuns
 }
 
 func (d device) Device(ctx context.Context, _ *connect.Request[devicev1.DeviceRequest]) (*connect.Response[devicev1.DeviceResponse], error) {

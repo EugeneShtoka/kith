@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Script needs (context it asks for) and outputs (where its stdout goes).
@@ -126,6 +127,44 @@ func ParseScriptOutput(value string) (ScriptOutput, bool) {
 	}
 	out, known := outputNames[value]
 	return out, known
+}
+
+// ScriptMessage is one message as a script reads it on stdin, named like mxctl's event
+// JSON. Body is the resolved text (the edit, or the redaction placeholder). Every client
+// that runs scripts (the TUI, the desktop's relay) writes it alike.
+type ScriptMessage struct {
+	EventID    string `json:"event_id"`
+	RoomID     string `json:"room_id"`
+	Sender     string `json:"sender"`
+	SenderName string `json:"sender_name,omitempty"`
+	Body       string `json:"body"`
+	Timestamp  string `json:"timestamp"`
+	Edited     bool   `json:"edited,omitempty"`
+	Deleted    bool   `json:"deleted,omitempty"`
+	Mine       bool   `json:"mine,omitempty"`
+}
+
+// ScriptContext is a script's stdin; undeclared keys are absent rather than null.
+type ScriptContext struct {
+	Message *ScriptMessage  `json:"message,omitempty"`
+	History []ScriptMessage `json:"history,omitempty"`
+	URL     string          `json:"url,omitempty"`
+}
+
+// ScriptRow is msg as a script reads it. It uses Summary, so spoilers stay covered and
+// redactions placeholders; mine says this person sent it.
+func ScriptRow(msg Message, mine bool) ScriptMessage {
+	return ScriptMessage{
+		EventID:    string(msg.ID),
+		RoomID:     string(msg.RoomID),
+		Sender:     msg.Sender,
+		SenderName: msg.SenderName,
+		Body:       msg.Summary(),
+		Timestamp:  msg.Timestamp.Format(time.RFC3339),
+		Edited:     msg.Edited,
+		Deleted:    msg.Redacted,
+		Mine:       mine,
+	}
 }
 
 // OutputVocabulary is every output, sorted, for error messages.

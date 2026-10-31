@@ -120,7 +120,7 @@ func TestWhatNamesAMergedChatNamesTheOneItJoined(t *testing.T) {
 			}
 			scheduler := daemon.NewScheduler(schedule.New(filepath.Join(dir, "scheduled.toml")), backend,
 				func() time.Duration { return time.Hour }, nil)
-			if err := scheduler.Add(domain.ScheduledMessage{ID: "s1", RoomID: mergedLID, Body: "later", At: time.Now().Add(time.Hour)}); err != nil {
+			if _, err := scheduler.Add(domain.ScheduledMessage{ID: "s1", RoomID: mergedLID, Body: "later", At: time.Now().Add(time.Hour)}); err != nil {
 				t.Fatal(err)
 			}
 			streams := daemon.NewStreams()
