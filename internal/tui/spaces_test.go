@@ -298,7 +298,11 @@ func TestTheFilingListFollowsThePriority(t *testing.T) {
 	m, _ = press(t, m, keyText("S"))
 	var got []string
 	for _, item := range m.picker.all {
-		got = append(got, m.filingKey(item))
+		key := item.value // a tag's row is keyed as priority names it, a space's by its ID
+		if space, ok := m.spaceByID(domain.SpaceID(item.value)); ok {
+			key = space.DisplayName()
+		}
+		got = append(got, key)
 	}
 	// All, DMs, Unread and Drafts are filled by their rules, so not offered.
 	want := []string{"tag:Pinned", "Friends", "Work", "tag:Archived"}

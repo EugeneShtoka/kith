@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
 // Filing a room into or out of a tag, from the filing picker (spaces.go) or /tag. A tag
@@ -21,95 +22,43 @@ type tagFiling struct {
 }
 
 // filingRows is the filing picker's rows, spaces and tags, ticked where they hold the
-// room, in [display] priority then rail order (unshown tags last). A [display]
-// filing_spaces list keeps its spaces in written order before the tags; false when it
-// names no space.
+// room, in the order every client offers them (domain.FilingPlaces); false when
+// [display] filing_spaces names no space.
 func (m Model) filingRows(room domain.Room) ([]pickerItem, map[string]bool, bool) {
-	spaces, checked := m.fileableSpaces(room.ID)
-	tags := m.tagRows(checked, room)
-	if len(m.prefs.device.FilingSpaces) > 0 {
-		if len(spaces) == 0 {
-			return nil, nil, false
-		}
-		return append(spaces, m.byPriority(tags)...), checked, true
-	}
-	rows := slices.Concat(spaces, tags)
-	position := func(item pickerItem) int {
-		key := m.filingKey(item)
-		if at := slices.IndexFunc(m.rail.groups, func(g group) bool { return g.key == key }); at >= 0 {
-			return at
-		}
-		return len(m.rail.groups)
-	}
-	slices.SortStableFunc(rows, func(a, b pickerItem) int { return position(a) - position(b) })
-	return m.byPriority(rows), checked, true
-}
-
-// filingKey names a filing row as [display] priority does: a space by name, a tag as tag:<name>.
-func (m Model) filingKey(item pickerItem) string {
-	if isTagGroup(item.value) {
-		return item.value
-	}
-	if space, ok := m.spaceByID(domain.SpaceID(item.value)); ok {
-		return space.DisplayName()
-	}
-	return item.value
-}
-
-// byPriority puts rows named in [display] priority first, keeping the rest in order.
-func (m Model) byPriority(rows []pickerItem) []pickerItem {
-	keys := make([]string, len(rows))
-	for i := range rows {
-		keys[i] = m.filingKey(rows[i])
-	}
-	out := make([]pickerItem, 0, len(rows))
-	used := make([]bool, len(rows))
-	for _, key := range domain.NewHomeOrder(m.prefs.display.Priority, nil, domain.TagSet{}, nil, m.prefs.display.SpaceLabels()).ByPriority(keys) {
-		for i := range rows {
-			if !used[i] && keys[i] == key {
-				used[i] = true
-				out = append(out, rows[i])
-				break
-			}
-		}
-	}
-	return out
-}
-
-// tagRows is a row per tag filed by hand (not rule-filled, see TagSet.Automatic): the
-// rail's tags in its order and names, then unshown ones, ticked where the tag holds the room.
-func (m Model) tagRows(checked map[string]bool, room domain.Room) []pickerItem {
 	view := m.unreadView()
-	var items []pickerItem
-	if view.tags.Len() == 0 {
-		return items
+	rows := make([]domain.RailRow, len(m.rail.groups))
+	for i, g := range m.rail.groups {
+		rows[i] = domain.RailRow{Key: g.key, Label: g.label}
 	}
-	held := view.tagsOf(room).In
-	listed := make(map[int]bool, view.tags.Len())
-	add := func(i int, label string) {
-		listed[i] = true
-		if view.tags.Automatic(i) {
-			return // filled by its rule (Unread, DMs, All…): not a place to file a room
-		}
-		key := tagGroupKey(view.tags.At(i).Name)
-		if held[i] {
-			checked[key] = true
-		}
-		items = append(items, pickerItem{label: isolate(label), detail: "tag", value: key, match: label + " " + key})
+	var held []bool
+	if view.tags.Len() > 0 {
+		held = view.tagsOf(room).In
 	}
-	for _, g := range m.rail.groups {
-		if name, ok := domain.TagOf(g.key); ok {
-			if i, ok := view.tags.Index(name); ok && !listed[i] {
-				add(i, g.label)
+	places, ok := domain.FilingPlaces(room.ID, domain.FilingRail{
+		Rows: rows, Spaces: m.rooms.spaces, Tags: view.tags, Held: held, Homes: m.rail.homes,
+		Priority: m.prefs.display.Priority, SpaceLabels: m.prefs.display.SpaceLabels(), Named: m.prefs.device.FilingSpaces,
+	})
+	if !ok {
+		return nil, nil, false
+	}
+	items := make([]pickerItem, 0, len(places))
+	checked := make(map[string]bool, len(places))
+	for _, p := range places {
+		item := pickerItem{label: isolate(p.Label), value: tagGroupKey(p.Tag), detail: "tag"}
+		item.match = p.Label + " " + item.value
+		if p.Space != "" {
+			name := string(p.Space)
+			if space, ok := m.spaceByID(p.Space); ok {
+				name = space.DisplayName()
 			}
+			item = pickerItem{label: isolate(p.Label), value: string(p.Space), match: p.Label + " " + name + " " + string(p.Space)}
 		}
-	}
-	for i := range view.tags.Len() {
-		if !listed[i] {
-			add(i, view.tags.At(i).Name)
+		if p.In {
+			checked[item.value] = true
 		}
+		items = append(items, item)
 	}
-	return items
+	return items, checked, true
 }
 
 // fileInTags applies the tag rows whose tick differs from the current state, reporting
@@ -175,20 +124,15 @@ func (m Model) fileTags(room domain.Room, filings []tagFiling) (Model, tea.Cmd) 
 	for i := range m.rooms.all {
 		others = append(others, view.factsOf(m.rooms.all[i]))
 	}
-	cfg := m.conf.base.Clone()
+	cfg := setup.FileTags(m.conf.base, view.tags, facts, func(tag int) domain.RoomState { return view.tagState(tag, room) },
+		plainFilings(filings), others)
 	var into, outOf, leaving []string
 	for _, f := range filings {
-		tag := view.tags.At(f.tag)
-		for j := range cfg.Tags {
-			if strings.EqualFold(strings.TrimSpace(cfg.Tags[j].Name), tag.Name) {
-				cfg.Tags[j].Picked, cfg.Tags[j].Excluded = view.tags.Filed(f.tag, facts, view.tagState(f.tag, room), f.in, others)
-			}
-		}
 		if f.in {
 			into = append(into, f.label)
 		} else {
 			outOf = append(outOf, f.label)
-			leaving = append(leaving, tag.Name)
+			leaving = append(leaving, view.tags.At(f.tag).Name)
 		}
 	}
 	var said []string
@@ -217,18 +161,24 @@ func (m Model) fileArchive(room domain.Room, filings []tagFiling) (Model, domain
 	if current, ok := m.roomByID(room.ID); ok {
 		room = current // as the list holds it now: an earlier filing may have moved it
 	}
-	view := m.unreadView()
-	for _, f := range filings {
-		if !strings.EqualFold(view.tags.At(f.tag).Name, mirrored) {
-			continue
-		}
-		if strings.EqualFold(m.rail.archives[network], mirrored) && room.Archived != f.in {
-			room.Archived = f.in
-			m = m.withArchived(room.ID, f.in)
-		}
-		return m, room, m.setArchivedCmd(room.ID, f.in, m.roomName(room))
+	f, followed, ok := domain.ArchiveFiling(m.unreadView().tags, m.rail.mirrored, m.rail.archives, network, plainFilings(filings))
+	if !ok {
+		return m, room, nil
 	}
-	return m, room, nil
+	if followed && room.Archived != f.In {
+		room.Archived = f.In
+		m = m.withArchived(room.ID, f.In)
+	}
+	return m, room, m.setArchivedCmd(room.ID, f.In, m.roomName(room))
+}
+
+// plainFilings is filings without their labels.
+func plainFilings(filings []tagFiling) []domain.TagFiling {
+	out := make([]domain.TagFiling, len(filings))
+	for i, f := range filings {
+		out[i] = domain.TagFiling{Tag: f.tag, In: f.in}
+	}
+	return out
 }
 
 // withArchived marks the joined room id as archived by its network, or not.

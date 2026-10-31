@@ -2,7 +2,6 @@ package tui
 
 import (
 	"slices"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -36,49 +35,6 @@ func (m Model) openSpacePicker() (Model, tea.Cmd) {
 
 // spaceNew is the space picker's "New space" row; no space ID is spelled so.
 const spaceNew = "\x00new space"
-
-// fileableSpaces is the picker's space rows, in the rail's order and names. Managed
-// spaces (a bridge's, or an origin) are left out: filing into them is meaningless.
-// Hidden spaces are absent and untouched, since the diff covers shown rows only.
-func (m Model) fileableSpaces(room domain.RoomID) ([]pickerItem, map[string]bool) {
-	if named := m.prefs.device.FilingSpaces; len(named) > 0 {
-		return m.namedSpaces(named, room)
-	}
-	items := make([]pickerItem, 0, len(m.rail.groups))
-	checked := make(map[string]bool, len(m.rail.groups))
-	for _, g := range m.rail.groups {
-		space, ok := m.spaceForGroup(g)
-		if !ok || space.Managed() {
-			continue
-		}
-		items = appendSpaceRow(items, checked, space, g.label, room)
-	}
-	return items, checked
-}
-
-func appendSpaceRow(items []pickerItem, checked map[string]bool, space domain.Space, label string, room domain.RoomID) []pickerItem {
-	if spaceHolds(space, room) {
-		checked[string(space.ID)] = true
-	}
-	return append(items, pickerItem{
-		label: isolate(label),
-		value: string(space.ID),
-		match: label + " " + space.DisplayName() + " " + string(space.ID),
-	})
-}
-
-// spaceForGroup resolves a rail entry (keyed by display name) to its space; false for
-// a synthetic group or a name two spaces share, since filing into a guess is worse.
-func (m Model) spaceForGroup(g group) (domain.Space, bool) {
-	var found domain.Space
-	hits := 0
-	for i := range m.rooms.spaces {
-		if m.rooms.spaces[i].DisplayName() == g.key {
-			found, hits = m.rooms.spaces[i], hits+1
-		}
-	}
-	return found, hits == 1
-}
 
 // applyRoomSpaces writes only the difference between the shown ticks and the current
 // ones; a space not shown was never asked about and must not be unfiled.
@@ -183,47 +139,4 @@ func (m Model) spaceByID(id domain.SpaceID) (domain.Space, bool) {
 		}
 	}
 	return domain.Space{}, false
-}
-
-// namedSpaces is the picker's rows when [display] filing_spaces names them: in written
-// order, with no managed-space inference. Unmatched entries are skipped.
-func (m Model) namedSpaces(named []string, room domain.RoomID) ([]pickerItem, map[string]bool) {
-	items := make([]pickerItem, 0, len(named))
-	checked := make(map[string]bool, len(named))
-	seen := make(map[domain.SpaceID]bool, len(named))
-	for _, entry := range named {
-		for _, space := range m.spacesByEntry(entry) {
-			if !seen[space.ID] {
-				seen[space.ID] = true
-				items = appendSpaceRow(items, checked, space, m.spaceLabel(space), room)
-			}
-		}
-	}
-	return items, checked
-}
-
-// spacesByEntry resolves a filing_spaces entry: a space ID, or every space a space: or
-// place: entry names.
-func (m Model) spacesByEntry(entry string) []domain.Space {
-	entry = strings.TrimSpace(entry)
-	if space, ok := m.spaceByID(domain.SpaceID(entry)); ok {
-		return []domain.Space{space}
-	}
-	var found []domain.Space
-	for i := range m.rooms.spaces {
-		if name := m.rooms.spaces[i].DisplayName(); domain.NamesHome(entry, name, m.rail.homes.Label(name)) {
-			found = append(found, m.rooms.spaces[i])
-		}
-	}
-	return found
-}
-
-// spaceLabel is what the rail calls a space (its rename, if any).
-func (m Model) spaceLabel(space domain.Space) string {
-	for _, g := range m.rail.groups {
-		if g.key == space.DisplayName() {
-			return g.label
-		}
-	}
-	return space.DisplayName()
 }
