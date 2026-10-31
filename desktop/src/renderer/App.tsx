@@ -452,29 +452,33 @@ function Invites({ invites, session }: { invites: readonly Room[]; session: Sess
       <ul>
         {invites.map((r) => (
           <li key={r.id}>
-            <span dir="auto">{r.name || r.id}</span>
-            {r.invitedBy && (
-              <span className="detail" dir="auto">
-                {" "}
-                from {r.invitedBy}
-              </span>
-            )}{" "}
-            <button
-              type="button"
-              onClick={() => {
-                void session.accept(r.id);
-              }}
-            >
-              Accept
-            </button>{" "}
-            <button
-              type="button"
-              onClick={() => {
-                void session.decline(r.id);
-              }}
-            >
-              Decline
-            </button>
+            <span className="invite-room">
+              <span dir="auto">{r.name || r.id}</span>
+              {r.invitedBy && (
+                <span className="detail" dir="auto">
+                  {" "}
+                  from {r.invitedBy}
+                </span>
+              )}
+            </span>
+            <span className="invite-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  void session.accept(r.id);
+                }}
+              >
+                Accept
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void session.decline(r.id);
+                }}
+              >
+                Decline
+              </button>
+            </span>
           </li>
         ))}
       </ul>

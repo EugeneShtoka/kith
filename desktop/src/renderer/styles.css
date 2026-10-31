@@ -207,6 +207,31 @@ select {
   padding: var(--space-1) var(--space-2);
 }
 
+/* A menu draws its own arrow (two gradient halves: the CSP allows no data: picture). */
+select {
+  appearance: none;
+  padding-right: 1.75rem;
+  background-color: var(--raised);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    right 0.95rem center,
+    right 0.65rem center;
+  background-size: 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+select:hover:not(:disabled) {
+  background-color: var(--surface);
+}
+
+select option {
+  background: var(--raised);
+  color: var(--text);
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -584,12 +609,31 @@ select {
   font-size: var(--text-sm);
 }
 
+/* An invitation: the room, then its two buttons, which move to their own line together. */
 .invites li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
   padding: var(--space-1) var(--space-2) var(--space-2);
 }
 
+.invite-room {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invite-actions {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
 .invites button {
-  margin-top: var(--space-1);
   padding: 0 var(--space-2);
   font-size: var(--text-sm);
 }
