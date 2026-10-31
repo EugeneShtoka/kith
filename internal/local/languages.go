@@ -20,6 +20,14 @@ func (s *Service) dictionaryDir() string { return filepath.Join(s.spell.home(), 
 // DetectLanguages counts the cached corpus and returns installable dictionaries not
 // yet installed.
 func (s *Service) DetectLanguages(ctx context.Context) (domain.SpellSuggestion, error) {
+	s.spell.mu.Lock()
+	on := s.spell.settings.Enabled
+	s.spell.mu.Unlock()
+	if !on {
+		// [spell] enabled = false: nothing is worth installing, and a client that cannot
+		// read the config (the desktop) asks anyway.
+		return domain.SpellSuggestion{}, nil
+	}
 	avail, _ := spell.Look("", nil, spell.SearchPaths(s.spell.home()))
 	if avail.Engine.Path == "" {
 		// No engine: the fix is a package manager, so explain and offer nothing.

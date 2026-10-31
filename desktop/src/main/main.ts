@@ -187,6 +187,9 @@ async function start(): Promise<void> {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      // kithd checks spelling (the TUI's dictionaries and personal words); Chromium's own
+      // checker would mark a word twice, and can send words to a remote service.
+      spellcheck: false,
     },
   });
   // The page's text size, put in afresh on each load, the one before taken out; and its zoom.

@@ -263,6 +263,28 @@ message DeviceSettings {
   // "static"), and the emoji it starts from; none set is the built-in ones.
   string reactions_scope = 10;
   repeated string reactions_static = 11;
+  // [spell]: how a misspelling is marked ("curly", "line" or "none", which still checks)
+  // and a rare word ("dotted", "line" or "none"); whether a send with one asks first
+  // (check_before_send, and rare_before_send for rare words too); what autocorrect may
+  // rewrite ("off", "misspellings", "rare" or "all"); and the dictionaries and word
+  // counts offered and turned down.
+  string spell_underline = 12;
+  string rare_underline = 13;
+  bool check_before_send = 14;
+  bool rare_before_send = 15;
+  string autocorrect = 16;
+  repeated string spell_declined = 17;
+  repeated string frequencies_declined = 18;
+  // [complete]: word completion on, its ghost text, how far the leader must outweigh
+  // the runner-up to be drawn (ratio), how wide words are weighed ("room", "space" or
+  // "global"), the corpora asked (none is both), and the completion model turned down
+  // ([complete.model] declined).
+  bool complete = 19;
+  bool complete_ghost = 20;
+  int64 complete_ratio = 21;
+  string complete_scope = 22;
+  repeated string complete_sources = 23;
+  bool model_declined = 24;
 }
 
 // ReadRule is one [[display.read_rule]], less its delay: the window reads a room by

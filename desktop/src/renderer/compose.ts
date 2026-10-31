@@ -16,11 +16,33 @@ import {
 } from "../gen/backend/v1/types_pb";
 import type { DeviceSettings } from "../gen/device/v1/device_pb";
 import type { Offered } from "../shared/ipc";
+import { asked, Assist, type CompleteSettings, firstWord, type Offer, Phrases, takePhrase, takeWord } from "./complete";
 import { blank, type Composition, Drafts } from "./drafts";
-import { emojiSet, type EmojiKind, type EmojiSet, finished, fold, noScores, palette, type Scores } from "./emoji";
+import {
+  emojiSet,
+  type EmojiKind,
+  type EmojiSet,
+  finished,
+  fold,
+  noScores,
+  palette,
+  type Scores,
+  shortcodeAt,
+} from "./emoji";
 import { call } from "./kith";
-import { rankMembers } from "./mentions";
+import { mentionAt, rankMembers } from "./mentions";
 import type { Asked, VotersRead } from "./polls";
+import {
+  corrects,
+  endsWord,
+  type Mark,
+  replaced,
+  type SpellSettings,
+  Speller,
+  type Walk,
+  walkRows,
+  withoutLaterCopies,
+} from "./spell";
 
 const backend = BackendService.method;
 
@@ -59,6 +81,33 @@ export interface ComposerView {
   markdown: boolean;
   /** Who chose what in the poll whose voters are shown, if one's are. */
   voters: VotersRead | undefined;
+  /** The draft's spelling: its marks as it now is, how they are drawn, and the correction walk if open. */
+  spell: { marks: readonly Mark[]; settings: SpellSettings; walk: Walk | undefined };
+  /** What completion offers for the draft, the caret at its end. */
+  assist: Offer;
+  /** What the composer says of itself (a check before a send, a word not added); "" nothing. */
+  note: string;
+}
+
+/** spellSettings is [spell] as the device's settings hold it, the TUI's defaults before they are read. */
+function spellSettings(s: DeviceSettings | undefined): SpellSettings {
+  return {
+    underline: s?.spellUnderline ?? "curly",
+    rareUnderline: s?.rareUnderline ?? "dotted",
+    autocorrect: s?.autocorrect ?? "off",
+    checkBeforeSend: s?.checkBeforeSend ?? false,
+    rareBeforeSend: s?.rareBeforeSend ?? false,
+  };
+}
+
+/** completeSettings is [complete] as the device's settings hold it. */
+function completeSettings(s: DeviceSettings | undefined): CompleteSettings {
+  return {
+    complete: s?.complete ?? true,
+    ghost: s?.completeGhost ?? true,
+    ratio: Number(s?.completeRatio ?? 3),
+    model: !(s?.modelDeclined ?? false),
+  };
 }
 
 /** What the composer reads of the window around it. */
@@ -72,6 +121,10 @@ export interface Surroundings {
   speakers(room: string): string[];
   /** The thread open beside room ("" none): a message answering nothing goes into it. */
   thread(room: string): string;
+  /** The open room's messages as shown: what the room says next after two words. */
+  messages(room: string): readonly Message[];
+  /** The rooms of room's place on the rail, room among them: where its words weigh more. */
+  spaceRooms(room: string): string[];
 }
 
 /** One run's composer: its drafts, files, failed sends and what it read for them. */
@@ -87,10 +140,58 @@ export class Composer {
   private readonly poll: ReturnType<typeof setInterval>;
   private emojiFor: { settings: DeviceSettings | undefined; set: EmojiSet } | undefined;
   private voters: VotersRead | undefined;
+  /** The open room's draft's spelling and completions, and the caret in it as last told. */
+  private open = "";
+  private caret = 0;
+  private readonly speller: Speller;
+  private readonly assist: Assist;
+  private walk: Walk | undefined;
+  private phrases: { rows: readonly Message[]; selves: ReadonlySet<string>; index: Phrases } | undefined;
+  private note = "";
 
   constructor(private readonly around: Surroundings) {
+    this.speller = new Speller(
+      async (text) => (await call(backend.checkSpelling, { text })).misspellings,
+      () => {
+        around.changed();
+      },
+      (m, put) => {
+        this.fix(m, put);
+      },
+      () => spellSettings(around.settings()).autocorrect,
+    );
+    this.assist = new Assist(
+      {
+        complete: async (prefix) => {
+          const s = around.settings();
+          const r = await call(backend.completeWord, {
+            prefix,
+            roomIds: [this.open],
+            spaceRoomIds: around.spaceRooms(this.open),
+            scope: s?.completeScope ?? "room",
+            sources: [...(s?.completeSources ?? [])],
+            limit: BigInt(asked),
+          });
+          return r.candidates.map((c) => ({ word: c.word, score: Number(c.score) }));
+        },
+        model: async (draft) => {
+          const c = this.drafts.get(this.open);
+          const r = await call(backend.modelTask, {
+            task: "complete",
+            roomId: this.open,
+            draft,
+            replyTo: c.replyTo || around.thread(this.open), // what the draft answers
+          });
+          return { suggestion: r.text.trim(), options: r.options, refusal: r.refusal, model: r.model };
+        },
+      },
+      () => {
+        around.changed();
+      },
+    );
     this.drafts = new Drafts(
       () => {
+        this.follow();
         around.changed();
       },
       (err) => {
@@ -121,12 +222,26 @@ export class Composer {
     clearInterval(this.poll);
     this.drafts.stop();
     this.stopTyping();
+    this.speller.stop();
+    this.assist.stop();
   }
 
-  /** opened is a room being opened: its emoji ranking is read, and typing elsewhere ends. */
+  /**
+   * opened is a room being opened: its emoji ranking is read, typing elsewhere ends, and
+   * its draft is checked and completed from now (what was asked about another's is dropped).
+   */
   opened(room: string): void {
     if (this.typing.room !== room) {
       this.stopTyping();
+    }
+    if (room !== this.open) {
+      this.open = room;
+      this.caret = this.drafts.get(room).body.length;
+      this.walk = undefined;
+      this.note = "";
+      this.speller.reset();
+      this.assist.reset();
+      this.follow();
     }
     const scope = this.around.settings()?.reactionsScope ?? "room";
     if (scope === "static" || this.scores.has(room)) {
@@ -166,6 +281,16 @@ export class Composer {
       selves: this.selves,
       markdown: settings?.markdown ?? true,
       voters: this.voters?.room === room ? this.voters : undefined,
+      spell: {
+        marks: room === this.open ? this.speller.shown : [],
+        settings: spellSettings(settings),
+        walk: room === this.open ? this.walk : undefined,
+      },
+      assist:
+        room === this.open && this.walk === undefined
+          ? this.assist.offer(this.drafts.get(room).body, completeSettings(settings), () => this.phrasesOf(room))
+          : { ghost: "", from: "", lead: "", words: [], options: [], marker: "" },
+      note: room === this.open ? this.note : "",
     };
   }
 
@@ -180,9 +305,271 @@ export class Composer {
     if (done !== undefined) {
       this.record(room, "composed", done.emoji);
     }
+    if (room === this.open) {
+      this.caret = done?.caret ?? caret;
+      this.note = "";
+      this.wordEnded(c.body, text, caret);
+    }
     this.drafts.set(room, { ...c, body: done?.text ?? text });
     this.noteTyping(room, done?.text ?? text);
     return done?.caret ?? caret;
+  }
+
+  /** moved is the caret moved in the open room's words, nothing typed. */
+  moved(caret: number): void {
+    if (caret !== this.caret) {
+      this.caret = caret;
+      this.follow();
+    }
+  }
+
+  /**
+   * wordEnded tells the speller a keystroke (one character, not a paste: never corrected
+   * silently) just finished a word, when autocorrect may correct it.
+   */
+  private wordEnded(was: string, text: string, caret: number): void {
+    const ch = Array.from(text.slice(Math.max(0, caret - 2), caret)).at(-1) ?? "";
+    const at = caret - ch.length;
+    const autocorrect = spellSettings(this.around.settings()).autocorrect;
+    const one = ch !== "" && text.length === was.length + ch.length && text.slice(0, at) + text.slice(caret) === was;
+    if (one && at > 0 && endsWord(ch) && (corrects(autocorrect, "misspellings") || corrects(autocorrect, "rare"))) {
+      this.speller.wordEnded(at);
+    }
+  }
+
+  /**
+   * follow keeps the open draft's spelling and completions with it, after any change:
+   * typed here, a correction or a completion taken, kithd folding in the assistant's words.
+   */
+  private follow(): void {
+    if (this.open === "") {
+      return;
+    }
+    const text = this.drafts.get(this.open).body;
+    this.caret = Math.min(this.caret, text.length);
+    this.speller.follow(text);
+    const quiet =
+      this.walk !== undefined ||
+      mentionAt(text, this.caret) !== undefined ||
+      shortcodeAt(text, this.caret) !== undefined;
+    this.assist.follow(text, this.caret, completeSettings(this.around.settings()), quiet);
+  }
+
+  /** phrasesOf is room's next-word index, built again only when its messages or who is me changed. */
+  private phrasesOf(room: string): Phrases {
+    const rows = this.around.messages(room);
+    if (this.phrases?.rows !== rows || this.phrases.selves !== this.selves) {
+      this.phrases = { rows, selves: this.selves, index: Phrases.of(rows, this.selves) };
+    }
+    return this.phrases.index;
+  }
+
+  /** fix puts right what autocorrect may change: one edit, the caret moving with it. */
+  private fix(m: Mark, put: string): void {
+    const c = this.drafts.get(this.open);
+    if (c.body.slice(m.start, m.end) !== m.word) {
+      return; // edited meanwhile
+    }
+    this.drafts.set(this.open, { ...c, body: c.body.slice(0, m.start) + put + c.body.slice(m.end) });
+  }
+
+  /**
+   * complete takes what completion offers: right takes the word being finished or a word
+   * of the next ones, Tab all of it. It answers the caret, or undefined when nothing was
+   * on offer, so the key keeps its usual meaning.
+   */
+  complete(room: string, all: boolean): number | undefined {
+    const text = this.drafts.get(room).body;
+    const offer = this.view(room).assist;
+    switch (offer.from) {
+      case "word":
+        return this.put(room, takeWord(text, offer.lead));
+      case "model":
+        return this.put(room, takePhrase(text, all ? offer.ghost : firstWord(offer.ghost)));
+      case "phrase":
+        return this.put(room, takePhrase(text, offer.ghost));
+      case "":
+        return undefined;
+    }
+  }
+
+  /** choose takes the n-th (from 0) on offer: the finished words mid-word, the next words at its end. */
+  choose(room: string, n: number): number | undefined {
+    const text = this.drafts.get(room).body;
+    const offer = this.view(room).assist;
+    if (offer.words.length > 0) {
+      const w = offer.words[n];
+      return w === undefined ? undefined : this.put(room, takeWord(text, w.word));
+    }
+    const option = offer.options[n];
+    return option === undefined ? undefined : this.put(room, takePhrase(text, option));
+  }
+
+  private put(room: string, taken: { text: string; caret: number } | undefined): number | undefined {
+    if (taken === undefined) {
+      return undefined;
+    }
+    this.caret = taken.caret;
+    this.drafts.set(room, { ...this.drafts.get(room), body: taken.text });
+    return taken.caret;
+  }
+
+  /**
+   * openWalk starts the correction walk over the open draft's marks, at the mark at (the
+   * one clicked), or the first. It says why when there is nothing to walk.
+   */
+  openWalk(at = 0): void {
+    const marks = this.speller.shown;
+    if (this.speller.off) {
+      this.say("nothing to check spelling with");
+    } else if (this.drafts.get(this.open).body.trim() === "") {
+      this.say("nothing written to check");
+    } else if (marks.length === 0) {
+      this.say("nothing misspelled");
+    } else {
+      this.walk = { items: [...marks], at: Math.min(Math.max(at, 0), marks.length - 1), sendWhenDone: false };
+      this.around.changed();
+    }
+  }
+
+  /** walkTake takes the current word's n-th suggestion (from 0), for it and its later copies. */
+  walkTake(n: number): number | undefined {
+    const w = this.walk;
+    const m = w?.items[w.at];
+    const put = n < walkRows ? m?.suggestions[n] : undefined;
+    if (w === undefined || put === undefined) {
+      return undefined;
+    }
+    const c = this.drafts.get(this.open);
+    const r = replaced(c.body, w, put);
+    this.walk = { ...w, items: r.items };
+    if (r.caret >= 0) {
+      this.caret = r.caret;
+      this.drafts.set(this.open, { ...c, body: r.text });
+    }
+    void this.walkNext();
+    return r.caret >= 0 ? r.caret : undefined;
+  }
+
+  /**
+   * walkLearn teaches kithd the current word: for good into the personal dictionary
+   * (a rare word, past the frequency rule instead), or for this session (ignore). Its
+   * marks go at once: the draft did not change, so no check would take them away.
+   */
+  walkLearn(forever: boolean): void {
+    const w = this.walk;
+    const m = w?.items[w.at];
+    if (w === undefined || m === undefined) {
+      return;
+    }
+    this.speller.forget(m.word);
+    this.walk = { ...w, items: withoutLaterCopies(w.items, w.at, m.word) };
+    this.learn(m.word, forever, m.rare);
+    void this.walkNext();
+  }
+
+  /** walkSkip leaves the current word and its later copies as written, still marked. */
+  walkSkip(): void {
+    const w = this.walk;
+    const m = w?.items[w.at];
+    if (w !== undefined && m !== undefined) {
+      this.walk = { ...w, items: withoutLaterCopies(w.items, w.at, m.word) };
+    }
+    void this.walkNext();
+  }
+
+  /** walkIgnoreAll accepts every word not yet answered, for this session, and ends the walk. */
+  walkIgnoreAll(): void {
+    const w = this.walk;
+    if (w === undefined) {
+      return;
+    }
+    for (const word of new Set(w.items.slice(w.at).map((m) => m.word))) {
+      this.speller.forget(word);
+      this.learn(word, false, false);
+    }
+    void this.walkEnd();
+  }
+
+  /** walkEnd ends the walk as answered: one a send opened sends, the rest still marked. */
+  async walkEnd(): Promise<void> {
+    const sending = this.walk?.sendWhenDone ?? false;
+    this.walk = undefined;
+    this.around.changed();
+    if (sending) {
+      this.speller.passed = true; // a word skipped, still marked, opens no walk again
+      await this.send(this.open);
+    }
+  }
+
+  /** walkStop ends the walk, a send it holds up with it, leaving what it did not reach marked. */
+  walkStop(): void {
+    this.walk = undefined;
+    this.around.changed();
+  }
+
+  private walkNext(): Promise<void> {
+    const w = this.walk;
+    if (w !== undefined && w.at + 1 < w.items.length) {
+      this.walk = { ...w, at: w.at + 1 };
+      this.around.changed();
+      return Promise.resolve();
+    }
+    return this.walkEnd();
+  }
+
+  private learn(word: string, forever: boolean, rare: boolean): void {
+    const asked = rare && forever ? call(backend.allowRareWord, { word }) : call(backend.learnWord, { word, forever });
+    asked.catch(() => {
+      this.say(`"${word}" could not be added to the dictionary`);
+    });
+  }
+
+  private say(note: string): void {
+    this.note = note;
+    this.around.changed();
+  }
+
+  /**
+   * spellGate is [spell] check_before_send: with a word marked, the walk opens instead,
+   * and the send goes on at its end. A draft changed since its last check is checked
+   * first; one changed while it was, waits to be sent again. It answers whether to send now.
+   */
+  private async spellGate(room: string): Promise<boolean> {
+    const s = spellSettings(this.around.settings());
+    if (
+      !s.checkBeforeSend ||
+      room !== this.open ||
+      this.speller.off ||
+      this.speller.passed ||
+      this.walk !== undefined
+    ) {
+      return true;
+    }
+    const text = this.drafts.get(room).body;
+    let marks = this.speller.shown;
+    if (!this.speller.answered) {
+      this.say("checking spelling…");
+      const checked = await this.speller.checkNow();
+      if (this.drafts.get(room).body !== text || this.open !== room) {
+        this.say("the draft changed while it was being checked — send again");
+        return false;
+      }
+      this.note = "";
+      if (checked === "off" || checked === "failed") {
+        return true; // nothing to check with, or no answer: the send goes
+      }
+      marks = this.speller.shown;
+    }
+    if (!s.rareBeforeSend) {
+      marks = marks.filter((m) => !m.rare); // a hint holds up no send unless asked to
+    }
+    if (marks.length === 0) {
+      return true;
+    }
+    this.walk = { items: [...marks], at: 0, sendWhenDone: true };
+    this.around.changed();
+    return false;
   }
 
   /** mention puts m's name in place of text[start, end) and the mention with the draft. */
@@ -344,6 +731,9 @@ export class Composer {
     const c = this.drafts.get(room);
     const files = this.offered.get(room) ?? [];
     if (c.body.trim() === "" && files.length === 0 && c.editing === "") {
+      return;
+    }
+    if (!(await this.spellGate(room))) {
       return;
     }
     const where = this.around.room(room);

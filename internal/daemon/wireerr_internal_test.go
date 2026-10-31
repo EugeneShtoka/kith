@@ -23,6 +23,7 @@ func TestContextErrorsCrossTheWireAsThemselves(t *testing.T) {
 		{fmt.Errorf("matrix: send: %w", context.Canceled), connect.CodeCanceled},
 		{fmt.Errorf("matrix: send: %w", context.DeadlineExceeded), connect.CodeDeadlineExceeded},
 		{errors.New("M_FORBIDDEN"), connect.CodeInternal},
+		{fmt.Errorf("local: %w", api.ErrSpellUnavailable), connect.CodeFailedPrecondition},
 	}
 	for _, c := range cases {
 		sent := rpcErr(c.err)

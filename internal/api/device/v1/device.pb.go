@@ -1348,6 +1348,28 @@ type DeviceSettings struct {
 	// "static"), and the emoji it starts from; none set is the built-in ones.
 	ReactionsScope  string   `protobuf:"bytes,10,opt,name=reactions_scope,json=reactionsScope,proto3" json:"reactions_scope,omitempty"`
 	ReactionsStatic []string `protobuf:"bytes,11,rep,name=reactions_static,json=reactionsStatic,proto3" json:"reactions_static,omitempty"`
+	// [spell]: how a misspelling is marked ("curly", "line" or "none", which still checks)
+	// and a rare word ("dotted", "line" or "none"); whether a send with one asks first
+	// (check_before_send, and rare_before_send for rare words too); what autocorrect may
+	// rewrite ("off", "misspellings", "rare" or "all"); and the dictionaries and word
+	// counts offered and turned down.
+	SpellUnderline      string   `protobuf:"bytes,12,opt,name=spell_underline,json=spellUnderline,proto3" json:"spell_underline,omitempty"`
+	RareUnderline       string   `protobuf:"bytes,13,opt,name=rare_underline,json=rareUnderline,proto3" json:"rare_underline,omitempty"`
+	CheckBeforeSend     bool     `protobuf:"varint,14,opt,name=check_before_send,json=checkBeforeSend,proto3" json:"check_before_send,omitempty"`
+	RareBeforeSend      bool     `protobuf:"varint,15,opt,name=rare_before_send,json=rareBeforeSend,proto3" json:"rare_before_send,omitempty"`
+	Autocorrect         string   `protobuf:"bytes,16,opt,name=autocorrect,proto3" json:"autocorrect,omitempty"`
+	SpellDeclined       []string `protobuf:"bytes,17,rep,name=spell_declined,json=spellDeclined,proto3" json:"spell_declined,omitempty"`
+	FrequenciesDeclined []string `protobuf:"bytes,18,rep,name=frequencies_declined,json=frequenciesDeclined,proto3" json:"frequencies_declined,omitempty"`
+	// [complete]: word completion on, its ghost text, how far the leader must outweigh
+	// the runner-up to be drawn (ratio), how wide words are weighed ("room", "space" or
+	// "global"), the corpora asked (none is both), and the completion model turned down
+	// ([complete.model] declined).
+	Complete        bool     `protobuf:"varint,19,opt,name=complete,proto3" json:"complete,omitempty"`
+	CompleteGhost   bool     `protobuf:"varint,20,opt,name=complete_ghost,json=completeGhost,proto3" json:"complete_ghost,omitempty"`
+	CompleteRatio   int64    `protobuf:"varint,21,opt,name=complete_ratio,json=completeRatio,proto3" json:"complete_ratio,omitempty"`
+	CompleteScope   string   `protobuf:"bytes,22,opt,name=complete_scope,json=completeScope,proto3" json:"complete_scope,omitempty"`
+	CompleteSources []string `protobuf:"bytes,23,rep,name=complete_sources,json=completeSources,proto3" json:"complete_sources,omitempty"`
+	ModelDeclined   bool     `protobuf:"varint,24,opt,name=model_declined,json=modelDeclined,proto3" json:"model_declined,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1457,6 +1479,97 @@ func (x *DeviceSettings) GetReactionsStatic() []string {
 		return x.ReactionsStatic
 	}
 	return nil
+}
+
+func (x *DeviceSettings) GetSpellUnderline() string {
+	if x != nil {
+		return x.SpellUnderline
+	}
+	return ""
+}
+
+func (x *DeviceSettings) GetRareUnderline() string {
+	if x != nil {
+		return x.RareUnderline
+	}
+	return ""
+}
+
+func (x *DeviceSettings) GetCheckBeforeSend() bool {
+	if x != nil {
+		return x.CheckBeforeSend
+	}
+	return false
+}
+
+func (x *DeviceSettings) GetRareBeforeSend() bool {
+	if x != nil {
+		return x.RareBeforeSend
+	}
+	return false
+}
+
+func (x *DeviceSettings) GetAutocorrect() string {
+	if x != nil {
+		return x.Autocorrect
+	}
+	return ""
+}
+
+func (x *DeviceSettings) GetSpellDeclined() []string {
+	if x != nil {
+		return x.SpellDeclined
+	}
+	return nil
+}
+
+func (x *DeviceSettings) GetFrequenciesDeclined() []string {
+	if x != nil {
+		return x.FrequenciesDeclined
+	}
+	return nil
+}
+
+func (x *DeviceSettings) GetComplete() bool {
+	if x != nil {
+		return x.Complete
+	}
+	return false
+}
+
+func (x *DeviceSettings) GetCompleteGhost() bool {
+	if x != nil {
+		return x.CompleteGhost
+	}
+	return false
+}
+
+func (x *DeviceSettings) GetCompleteRatio() int64 {
+	if x != nil {
+		return x.CompleteRatio
+	}
+	return 0
+}
+
+func (x *DeviceSettings) GetCompleteScope() string {
+	if x != nil {
+		return x.CompleteScope
+	}
+	return ""
+}
+
+func (x *DeviceSettings) GetCompleteSources() []string {
+	if x != nil {
+		return x.CompleteSources
+	}
+	return nil
+}
+
+func (x *DeviceSettings) GetModelDeclined() bool {
+	if x != nil {
+		return x.ModelDeclined
+	}
+	return false
 }
 
 // ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
@@ -1610,7 +1723,7 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\bsettings\x18\x02 \x01(\v2\x19.device.v1.DeviceSettingsR\bsettings\"q\n" +
 	"\x1cUpdateDeviceSettingsResponse\x125\n" +
 	"\bsettings\x18\x01 \x01(\v2\x19.device.v1.DeviceSettingsR\bsettings\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\tR\brevision\"\x81\x04\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\"\x86\b\n" +
 	"\x0eDeviceSettings\x12#\n" +
 	"\rsend_receipts\x18\x01 \x01(\bR\fsendReceipts\x122\n" +
 	"\n" +
@@ -1628,7 +1741,20 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"emojiExtra\x12'\n" +
 	"\x0freactions_scope\x18\n" +
 	" \x01(\tR\x0ereactionsScope\x12)\n" +
-	"\x10reactions_static\x18\v \x03(\tR\x0freactionsStatic\x1a=\n" +
+	"\x10reactions_static\x18\v \x03(\tR\x0freactionsStatic\x12'\n" +
+	"\x0fspell_underline\x18\f \x01(\tR\x0espellUnderline\x12%\n" +
+	"\x0erare_underline\x18\r \x01(\tR\rrareUnderline\x12*\n" +
+	"\x11check_before_send\x18\x0e \x01(\bR\x0fcheckBeforeSend\x12(\n" +
+	"\x10rare_before_send\x18\x0f \x01(\bR\x0erareBeforeSend\x12 \n" +
+	"\vautocorrect\x18\x10 \x01(\tR\vautocorrect\x12%\n" +
+	"\x0espell_declined\x18\x11 \x03(\tR\rspellDeclined\x121\n" +
+	"\x14frequencies_declined\x18\x12 \x03(\tR\x13frequenciesDeclined\x12\x1a\n" +
+	"\bcomplete\x18\x13 \x01(\bR\bcomplete\x12%\n" +
+	"\x0ecomplete_ghost\x18\x14 \x01(\bR\rcompleteGhost\x12%\n" +
+	"\x0ecomplete_ratio\x18\x15 \x01(\x03R\rcompleteRatio\x12%\n" +
+	"\x0ecomplete_scope\x18\x16 \x01(\tR\rcompleteScope\x12)\n" +
+	"\x10complete_sources\x18\x17 \x03(\tR\x0fcompleteSources\x12%\n" +
+	"\x0emodel_declined\x18\x18 \x01(\bR\rmodelDeclined\x1a=\n" +
 	"\x0fEmojiExtraEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Z\n" +

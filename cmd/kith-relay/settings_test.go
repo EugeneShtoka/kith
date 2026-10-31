@@ -31,19 +31,19 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 		file string
 		want *devicev1.DeviceSettings
 	}{
-		{"nothing set", "", &devicev1.DeviceSettings{SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room"}},
+		{"nothing set", "", spelling(&devicev1.DeviceSettings{SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room"})},
 		{
 			"keys and rules set",
 			"[display]\nsend_receipts = false\nunread_line = false\n\n" +
 				"[[display.read_rule]]\nmatch = \"space:Work\"\nsend = true\n\n" +
 				"[[display.read_rule]]\nsender = \"matrix:@alice:example.org\"\ndelay = 5\n",
-			&devicev1.DeviceSettings{
+			spelling(&devicev1.DeviceSettings{
 				ReadRules: []*devicev1.ReadRule{
 					{Match: "space:Work", Send: &yes},
 					{Sender: "matrix:@alice:example.org"},
 				},
 				Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
-			},
+			}),
 		},
 		{
 			"the composer's keys set",
@@ -51,18 +51,31 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 				"[display]\nsend_typing = false\nskin_tone = \"medium\"\n\n" +
 				"[display.emoji]\nset = \"standard\"\nextra = { shipit = \"🐿️\" }\n\n" +
 				"[display.reactions]\nscope = \"static\"\nstatic = [\"👍\", \"🎉\"]\n",
-			&devicev1.DeviceSettings{
+			spelling(&devicev1.DeviceSettings{
 				SendReceipts: true, UnreadLine: true, SkinTone: "\U0001F3FD", EmojiSet: "standard",
 				EmojiExtra: map[string]string{"shipit": "🐿️"}, ReactionsScope: "static", ReactionsStatic: []string{"👍", "🎉"},
+			}),
+		},
+		{
+			"spelling and completion set",
+			"[spell]\nunderline = \"line\"\nrare_underline = \"none\"\ncheck_before_send = true\n" +
+				"rare_before_send = true\nautocorrect = \"all\"\ndeclined = [\"de_DE\"]\nfrequencies_declined = [\"he_IL\"]\n\n" +
+				"[complete]\nenabled = false\nghost = false\nratio = 5\nscope = \"global\"\nsources = [\"history\"]\n\n" +
+				"[complete.model]\ndeclined = true\n",
+			&devicev1.DeviceSettings{
+				SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
+				SpellUnderline: "line", RareUnderline: "none", CheckBeforeSend: true, RareBeforeSend: true, Autocorrect: "all",
+				SpellDeclined: []string{"de_DE"}, FrequenciesDeclined: []string{"he_IL"},
+				CompleteRatio: 5, CompleteScope: "global", CompleteSources: []string{"history"}, ModelDeclined: true,
 			},
 		},
 		{
 			"changed by hand meanwhile",
 			"[display]\n[[display.read_rule]]\nmatch = \"matrix:fedcba9876543210/!room:example.org\"\nsend = false\n",
-			&devicev1.DeviceSettings{
+			spelling(&devicev1.DeviceSettings{
 				SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
 				ReadRules: []*devicev1.ReadRule{{Match: "matrix:fedcba9876543210/!room:example.org", Send: &no}},
-			},
+			}),
 		},
 	} {
 		handWrite(t, path, step.file)
@@ -90,11 +103,22 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 	}
 }
 
+// spelling is s with [spell] and [complete] as the TUI reads them unset.
+func spelling(s *devicev1.DeviceSettings) *devicev1.DeviceSettings {
+	s.SpellUnderline, s.RareUnderline, s.Autocorrect = "curly", "dotted", "off"
+	s.Complete, s.CompleteGhost, s.CompleteRatio, s.CompleteScope = true, true, 3, "room"
+	return s
+}
+
 // settingsText spells s for comparing: each key, and each rule with send unset told apart.
 func settingsText(s *devicev1.DeviceSettings) string {
 	text := fmt.Sprintf("send_receipts=%v unread_line=%v markdown=%v confirm_sms=%v send_typing=%v tone=%q set=%q extra=%v scope=%q static=%q rules:",
 		s.GetSendReceipts(), s.GetUnreadLine(), s.GetMarkdown(), s.GetConfirmSms(), s.GetSendTyping(), s.GetSkinTone(),
 		s.GetEmojiSet(), s.GetEmojiExtra(), s.GetReactionsScope(), s.GetReactionsStatic())
+	text += fmt.Sprintf(" underline=%q rare=%q before_send=%v/%v autocorrect=%q declined=%q/%q complete=%v ghost=%v ratio=%d scope=%q sources=%q model_declined=%v",
+		s.GetSpellUnderline(), s.GetRareUnderline(), s.GetCheckBeforeSend(), s.GetRareBeforeSend(), s.GetAutocorrect(),
+		s.GetSpellDeclined(), s.GetFrequenciesDeclined(), s.GetComplete(), s.GetCompleteGhost(), s.GetCompleteRatio(),
+		s.GetCompleteScope(), s.GetCompleteSources(), s.GetModelDeclined())
 	for _, r := range s.GetReadRules() {
 		send := "unset"
 		if r.Send != nil {

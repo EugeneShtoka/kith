@@ -447,7 +447,8 @@ After the MVP, each with its own PR and review:
 
 - polls (landed 2026-10-31: drawn with their tallies, voted in, who voted, asked from
   the composer);
-- spell and completion;
+- spell and completion (landed 2026-10-31: kithd's checker with Chromium's off, marks
+  over the textarea, the walk, autocorrect, word and next-word completion, the offers);
 - scheduled send and slash commands;
 - network logins (QR) (landed 2026-10-31: Settings → Accounts, and signing out);
 - SAS verification (landed 2026-10-31: your own sessions, as the TUI's `:verify`;

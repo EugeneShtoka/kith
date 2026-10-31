@@ -11,6 +11,7 @@ import {
   type LoginNetwork,
   type RailResponse,
   type RailRow,
+  RailRowKind,
   type ReactionsResponse,
   type SeatHolder,
   type SeatResponse,
@@ -24,6 +25,7 @@ import { Composer, type ComposerView, type Unsent } from "./compose";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { call, subscribe } from "./kith";
 import { Login, type LoginCalls, type LoginView } from "./login";
+import { type OfferCalls, Offers, type Prompt } from "./offers";
 import type { Asked } from "./polls";
 import { changeTheme, type ThemeRelay, themeLabel, type Scope, type Slots } from "./theme";
 import { announces } from "./read";
@@ -144,6 +146,8 @@ export interface View {
   /** Verifying this session (verify.ts), and the accounts it is asked for from (Accounts). */
   verify: Verify;
   accounts: readonly Account[];
+  /** The one-time offers (offers.ts): the one shown, and what the last download came to. */
+  offers: { prompt: Prompt | undefined; note: string };
   problem: string | undefined;
 }
 
@@ -190,6 +194,32 @@ const loginCalls: LoginCalls = {
   writeAccount: (record) =>
     call(DeviceService.method.writeAccount, { table: record.table, values: record.values }).then(() => undefined),
   qr: (data) => call(DeviceService.method.qRCode, { data }).then((r) => r.dark),
+};
+
+/** offerCalls is the one-time offers' calls: kithd's, through main, and device.toml's through the relay. */
+const offerCalls: OfferCalls = {
+  settings: () => relay.read().then((r) => r.settings),
+  detectLanguages: () => call(backend.detectLanguages, {}),
+  detectModel: () => call(backend.detectModel, {}),
+  install: async (kind, tag) => {
+    if (kind === "dictionaries") {
+      await call(backend.installDictionary, { tag });
+    } else if (kind === "frequencies") {
+      await call(backend.installFrequencies, { tag });
+    } else {
+      await call(backend.installModel, { tag });
+    }
+  },
+  decline: async (kind, tags) => {
+    // Added to what the file holds now, written over the file as read (settings.change).
+    const shown = await relay.read();
+    if (kind === "model") {
+      await change(relay, shown, "modelDeclined", true);
+    } else {
+      const key = kind === "dictionaries" ? "spellDeclined" : "frequenciesDeclined";
+      await change(relay, shown, key, [...shown.settings[key], ...tags]);
+    }
+  },
 };
 
 /** errorText is what the settings page says of a failure. */
@@ -277,9 +307,14 @@ export class Session {
     theme: undefined,
     themeChange: { busy: false, note: "" },
     login: { networks: undefined, run: undefined, note: "" },
+    offers: { prompt: undefined, note: "" },
     problem: undefined,
     ...nothingShown,
   };
+  /** The one-time offers of dictionaries, word counts and the completion model: once a window. */
+  private readonly offers = new Offers(offerCalls, () => {
+    this.set({ offers: { prompt: this.offers.prompt, note: this.offers.note } });
+  });
   private readonly listeners = new Set<() => void>();
   private run: Run | undefined;
   /** This window, to kithd's seats; and since when it runs, for one it refuses. */
@@ -813,6 +848,66 @@ export class Session {
     this.run?.composer.emoji(this.view.open, emoji);
   }
 
+  /** moved is the caret moved in the open composer, nothing typed. */
+  moved(caret: number): void {
+    this.run?.composer.moved(caret);
+  }
+
+  /** complete takes what completion offers (all: Tab, else right); undefined: nothing was. */
+  complete(all: boolean): number | undefined {
+    return this.run?.composer.complete(this.view.open, all);
+  }
+
+  /** chooseCompletion takes the n-th completion on offer (alt+1…); undefined: there is none. */
+  chooseCompletion(n: number): number | undefined {
+    return this.run?.composer.choose(this.view.open, n);
+  }
+
+  /** openWalk opens the correction walk, at the at-th mark. */
+  openWalk(at?: number): void {
+    this.run?.composer.openWalk(at);
+  }
+
+  /** walkTake takes the walk's n-th suggestion; it answers the caret, if the draft changed. */
+  walkTake(n: number): number | undefined {
+    return this.run?.composer.walkTake(n);
+  }
+
+  /** walkLearn adds the walk's word to the dictionary (forever), or ignores it this session. */
+  walkLearn(forever: boolean): void {
+    this.run?.composer.walkLearn(forever);
+  }
+
+  walkSkip(): void {
+    this.run?.composer.walkSkip();
+  }
+
+  walkIgnoreAll(): void {
+    this.run?.composer.walkIgnoreAll();
+  }
+
+  /** walkSkipAll leaves every word left and finishes: a send that opened it goes. */
+  walkSkipAll(): Promise<void> {
+    return this.inRun((run) => run.composer.walkEnd());
+  }
+
+  walkStop(): void {
+    this.run?.composer.walkStop();
+  }
+
+  /** acceptOffer installs the offer's rows ticked and turns down the rest. */
+  acceptOffer(ticked: readonly string[]): void {
+    void this.offers.accept(ticked);
+  }
+
+  dismissOffer(): void {
+    this.offers.dismiss();
+  }
+
+  forgetOfferNote(): void {
+    this.offers.forget();
+  }
+
   /** wantMembers reads the open room's people for mentions. */
   wantMembers(): void {
     this.run?.composer.wantMembers(this.view.open);
@@ -988,6 +1083,8 @@ export class Session {
         settings: () => (typeof run.settings === "object" ? run.settings : undefined),
         speakers: (room) => speakers(run.timeline?.room === room ? run.timeline.view().rows : []),
         thread: (room) => (run.thread?.room === room ? run.thread.root : ""),
+        messages: (room) => (run.timeline?.room === room ? run.timeline.view().rows : []),
+        spaceRooms: (room) => spaceRooms(run.rail?.rows ?? [], room),
       }),
     };
     this.run = run;
@@ -1573,6 +1670,9 @@ export class Session {
           run.joined = rooms.rooms;
           run.listed = true;
           run.at = last.at;
+          if (rooms.rooms.length > 0) {
+            void this.offers.start(); // once: the cache has words to count
+          }
           const opening = run.opening;
           run.opening = undefined;
           if (opening !== undefined) {
@@ -1775,6 +1875,15 @@ export class Session {
       }
     });
   }
+}
+
+/**
+ * spaceRooms is the rooms of room's home, as completion weighs them (tui spaceRoomsFor):
+ * the first place on the rail holding it, a space or a tag; none, when it has none.
+ */
+function spaceRooms(rows: readonly RailRow[], room: string): string[] {
+  const home = rows.find((r) => r.kind !== RailRowKind.ALL && r.rooms.includes(room));
+  return home === undefined ? [] : [...home.rooms];
 }
 
 /** speakers are who wrote rows, newest first, each once: the first people a mention offers. */
