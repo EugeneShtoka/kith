@@ -12,6 +12,8 @@ var verificationKinds = map[domain.VerificationKind]v1.VerificationKind{
 	domain.VerificationDone:      v1.VerificationKind_VERIFICATION_KIND_DONE,
 	domain.VerificationCanceled:  v1.VerificationKind_VERIFICATION_KIND_CANCELED,
 	domain.VerificationRestored:  v1.VerificationKind_VERIFICATION_KIND_RESTORED,
+	domain.VerificationAccepted:  v1.VerificationKind_VERIFICATION_KIND_ACCEPTED,
+	domain.VerificationConfirmed: v1.VerificationKind_VERIFICATION_KIND_CONFIRMED,
 }
 
 // VerificationKindToProto converts a flow stage; unknown kinds become UNSPECIFIED.

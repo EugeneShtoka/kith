@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BackendService, Change, type SeatRequest } from "../gen/backend/v1/services_pb";
-import { ReactionSchema } from "../gen/backend/v1/types_pb";
+import { ReactionSchema, VerificationKind } from "../gen/backend/v1/types_pb";
 import { type DeviceSettings, DeviceSettingsSchema, ThemeScope } from "../gen/device/v1/device_pb";
 import { unreadOf } from "./rooms";
 import { deviceAgain, Session } from "./session";
@@ -39,6 +39,7 @@ const profileStreams = [
   backend.changed,
   backend.configChanged,
   backend.messages,
+  backend.verifications,
   backend.reactions,
   backend.unreadStream,
   backend.invites,
@@ -72,7 +73,7 @@ describe("the window's profile", () => {
     for (const c of kithd.calls.slice(3).filter((c) => c !== "Theme:")) {
       expect(c).toMatch(/:Work$/);
     }
-    expect(kithd.open().map((s) => s.profile)).toEqual(Array(8).fill("Work"));
+    expect(kithd.open().map((s) => s.profile)).toEqual(Array(9).fill("Work"));
   });
 
   it("is the one remembered, when the config still has it", async () => {
@@ -1209,5 +1210,122 @@ describe("the settings page's accounts", () => {
     await session.signOut("telegram:1/account", "Telegram", true);
     expect(kithd.signedOut).toEqual(["telegram:1/account forget"]);
     expect(view().login.note).toBe("Signed out of Telegram.");
+  });
+});
+
+describe("verifying this session", () => {
+  const step = (kind: VerificationKind, txnId: string, reason = "") => {
+    kithd.send(backend.verifications, "Home", {
+      verification: {
+        kind,
+        txnId,
+        from: "@me:x",
+        device: "PHONE",
+        reason,
+        emojis: kind === VerificationKind.SAS ? [{ glyph: "🐶", name: "Dog" }] : [],
+      },
+    });
+  };
+  const answers = () => kithd.writes.filter((w) => /Verification|ConfirmSAS/.test(w));
+
+  it("answers a request from another session: accepted, the emoji confirmed, verified", async () => {
+    await started();
+    step(VerificationKind.REQUESTED, "t1");
+    await settled();
+    expect(view().verify.flow).toMatchObject({ txn: "t1", from: "@me:x", device: "PHONE", stage: "requested" });
+    session.answerVerify();
+    await settled();
+    step(VerificationKind.ACCEPTED, "t1");
+    step(VerificationKind.SAS, "t1");
+    await settled();
+    expect(view().verify.flow?.emojis.map((e) => e.name)).toEqual(["Dog"]);
+    session.answerVerify();
+    await settled();
+    step(VerificationKind.DONE, "t1");
+    await settled();
+    expect(view().verify).toMatchObject({ flow: undefined, said: ["This session is verified."] });
+    expect(answers()).toEqual(["AcceptVerification t1", "ConfirmSAS t1"]);
+  });
+
+  it("asks its other sessions from the account picked, and can only call that off until one accepts", async () => {
+    await started();
+    expect(view().accounts.map((a) => a.on)).toEqual(["matrix:1/"]);
+    session.verify("matrix:1/");
+    await settled();
+    expect(view().verify.flow).toMatchObject({ txn: "ours", ours: true });
+    session.answerVerify(); // nothing to accept: the other session does
+    step(VerificationKind.SAS, "ours");
+    await settled();
+    session.answerVerify();
+    await settled();
+    expect(answers()).toEqual(["StartVerification matrix:1/", "ConfirmSAS ours"]);
+  });
+
+  it("does not answer what another window answered first", async () => {
+    await started();
+    step(VerificationKind.REQUESTED, "t1");
+    step(VerificationKind.ACCEPTED, "t1");
+    await settled();
+    session.answerVerify();
+    await settled();
+    expect(answers()).toEqual([]);
+    expect(view().verify.flow).toMatchObject({ answered: true, mine: false });
+  });
+
+  it("ends when the other session cancels mid-compare, and a confirm failing after changes nothing", async () => {
+    await started();
+    step(VerificationKind.REQUESTED, "t1");
+    step(VerificationKind.SAS, "t1");
+    await settled();
+    kithd.verifyFails.set("ConfirmSAS", "unknown transaction ID");
+    kithd.holding.add("ConfirmSAS");
+    session.answerVerify();
+    await settled();
+    step(VerificationKind.CANCELED, "t1", "verification timed out");
+    await settled();
+    kithd.release();
+    await settled();
+    expect(view().verify).toMatchObject({ flow: undefined, said: ["Verification canceled: verification timed out"] });
+  });
+
+  it("ends when kithd restarts mid-verification, and answers nothing after", async () => {
+    await started();
+    step(VerificationKind.REQUESTED, "t1");
+    step(VerificationKind.SAS, "t1");
+    await settled();
+    kithd.down();
+    await settled();
+    kithd.again();
+    await settled();
+    expect(view().verify.flow).toBeUndefined();
+    expect(view().verify.said[0]).toMatch(/lost mid-verification/);
+    session.answerVerify();
+    await settled();
+    expect(answers()).toEqual([]);
+  });
+
+  it("shows nothing of a verification after the window reloads", async () => {
+    await started();
+    step(VerificationKind.REQUESTED, "t1");
+    await settled();
+    session.stop();
+    session = new Session();
+    await started();
+    expect(view().verify.flow).toBeUndefined();
+    session.answerVerify();
+    await settled();
+    expect(answers()).toEqual([]);
+  });
+
+  it("declines at once, whatever kithd answers", async () => {
+    await started();
+    step(VerificationKind.REQUESTED, "t1");
+    await settled();
+    kithd.verifyFails.set("CancelVerification", "kithd is not reachable");
+    session.cancelVerify();
+    expect(view().verify).toMatchObject({ flow: undefined, said: ["Verification canceled."] });
+    await settled();
+    expect(view().problem).toBeUndefined();
+    expect(answers()).toEqual(["CancelVerification t1"]);
   });
 });

@@ -107,6 +107,12 @@ export class FakeKithd {
   /** The spaces the rail's account rows are, and the spaces signed out of. */
   accountSpaces: string[] = [];
   readonly signedOut: string[] = [];
+  /** Who you are (Selves), and the verification answers that reached kithd, as "Method txn:profile". */
+  selves = ["matrix:@me:x"];
+  readonly verifyAnswers: string[] = [];
+  private verifications = 0;
+  /** StartVerification answers once this settles. */
+  verifyHeld: Promise<void> = Promise.resolve();
   private server: Server | undefined;
   private readonly sockets = new Set<Socket>();
   private readonly dir: string;
@@ -236,6 +242,24 @@ export class FakeKithd {
         }),
         signOut: (req) => {
           this.signedOut.push(req.spaceId);
+          return {};
+        },
+        selves: () => ({ ids: this.selves }),
+        accounts: () => ({ accounts: [{ network: "Matrix", on: "matrix:1/", name: "@me:x" }] }),
+        startVerification: async () => {
+          await this.verifyHeld;
+          return { txnId: "v" + String(++this.verifications) };
+        },
+        acceptVerification: (req, ctx) => {
+          this.verifyAnswers.push(`AcceptVerification ${req.txnId}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
+          return {};
+        },
+        confirmSAS: (req, ctx) => {
+          this.verifyAnswers.push(`ConfirmSAS ${req.txnId}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
+          return {};
+        },
+        cancelVerification: (req, ctx) => {
+          this.verifyAnswers.push(`CancelVerification ${req.txnId}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
           return {};
         },
         loginNetworks: () => ({ networks: [{ network: "whatsapp", label: "WhatsApp" }] }),

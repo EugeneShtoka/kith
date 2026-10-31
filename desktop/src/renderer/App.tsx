@@ -15,6 +15,7 @@ import { SearchBar, SearchResults, Switcher } from "./Find";
 import { SettingsPage } from "./SettingsPage";
 import { ThreadPane } from "./ThreadPane";
 import { TimelinePane } from "./TimelinePane";
+import { VerifyDialog } from "./Verification";
 
 const phases: Record<NetworkPhase, string> = {
   [NetworkPhase.UNSPECIFIED]: "unknown",
@@ -46,6 +47,7 @@ export function App() {
   const seated = view.profile !== "" && view.seat.state === "seated" && view.settingsPage === undefined;
   return (
     <main className="app">
+      <VerifyDialog verify={view.verify} session={session} />
       {seated ? (
         <Seated view={view} session={session} />
       ) : (

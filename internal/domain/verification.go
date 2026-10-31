@@ -17,6 +17,11 @@ const (
 	// VerificationRestored: room keys gossiped from a verified device were imported
 	// (Reason summarizes).
 	VerificationRestored
+	// VerificationAccepted and VerificationConfirmed: a client accepted the request,
+	// or confirmed the SAS. kithd takes one answer to each step, and tells every
+	// client it was given.
+	VerificationAccepted
+	VerificationConfirmed
 )
 
 // kindNames is each kind's name, for a message that shows one.

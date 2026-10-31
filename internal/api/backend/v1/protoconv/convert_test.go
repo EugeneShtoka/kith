@@ -108,7 +108,8 @@ func TestVerificationKinds(t *testing.T) {
 	seen := map[v1.VerificationKind]bool{}
 	for _, kind := range []domain.VerificationKind{
 		domain.VerificationRequested, domain.VerificationSAS, domain.VerificationDone,
-		domain.VerificationCanceled, domain.VerificationRestored,
+		domain.VerificationCanceled, domain.VerificationRestored, domain.VerificationAccepted,
+		domain.VerificationConfirmed,
 	} {
 		wire := protoconv.VerificationKindToProto(kind)
 		if wire == v1.VerificationKind_VERIFICATION_KIND_UNSPECIFIED || seen[wire] {

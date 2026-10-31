@@ -192,6 +192,10 @@ const (
 	VerificationKind_VERIFICATION_KIND_DONE        VerificationKind = 3
 	VerificationKind_VERIFICATION_KIND_CANCELED    VerificationKind = 4
 	VerificationKind_VERIFICATION_KIND_RESTORED    VerificationKind = 5
+	// A client accepted the request, or confirmed the emoji: every other client stops
+	// offering to answer that step (kithd takes one answer to each).
+	VerificationKind_VERIFICATION_KIND_ACCEPTED  VerificationKind = 6
+	VerificationKind_VERIFICATION_KIND_CONFIRMED VerificationKind = 7
 )
 
 // Enum value maps for VerificationKind.
@@ -203,6 +207,8 @@ var (
 		3: "VERIFICATION_KIND_DONE",
 		4: "VERIFICATION_KIND_CANCELED",
 		5: "VERIFICATION_KIND_RESTORED",
+		6: "VERIFICATION_KIND_ACCEPTED",
+		7: "VERIFICATION_KIND_CONFIRMED",
 	}
 	VerificationKind_value = map[string]int32{
 		"VERIFICATION_KIND_UNSPECIFIED": 0,
@@ -211,6 +217,8 @@ var (
 		"VERIFICATION_KIND_DONE":        3,
 		"VERIFICATION_KIND_CANCELED":    4,
 		"VERIFICATION_KIND_RESTORED":    5,
+		"VERIFICATION_KIND_ACCEPTED":    6,
+		"VERIFICATION_KIND_CONFIRMED":   7,
 	}
 )
 
@@ -3148,14 +3156,16 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x18SPACE_LEAVING_WITH_ROOMS\x10\x02\x12\x17\n" +
 	"\x13SPACE_LEAVING_ALONE\x10\x03\x12 \n" +
 	"\x1cSPACE_LEAVING_BY_SIGNING_OUT\x10\x04\x12\x17\n" +
-	"\x13SPACE_LEAVING_WHOLE\x10\x05*\xcd\x01\n" +
+	"\x13SPACE_LEAVING_WHOLE\x10\x05*\x8e\x02\n" +
 	"\x10VerificationKind\x12!\n" +
 	"\x1dVERIFICATION_KIND_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bVERIFICATION_KIND_REQUESTED\x10\x01\x12\x19\n" +
 	"\x15VERIFICATION_KIND_SAS\x10\x02\x12\x1a\n" +
 	"\x16VERIFICATION_KIND_DONE\x10\x03\x12\x1e\n" +
 	"\x1aVERIFICATION_KIND_CANCELED\x10\x04\x12\x1e\n" +
-	"\x1aVERIFICATION_KIND_RESTORED\x10\x05*^\n" +
+	"\x1aVERIFICATION_KIND_RESTORED\x10\x05\x12\x1e\n" +
+	"\x1aVERIFICATION_KIND_ACCEPTED\x10\x06\x12\x1f\n" +
+	"\x1bVERIFICATION_KIND_CONFIRMED\x10\a*^\n" +
 	"\x05Level\x12\x15\n" +
 	"\x11LEVEL_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +

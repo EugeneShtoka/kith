@@ -374,6 +374,10 @@ enum VerificationKind {
   VERIFICATION_KIND_DONE = 3;
   VERIFICATION_KIND_CANCELED = 4;
   VERIFICATION_KIND_RESTORED = 5;
+  // A client accepted the request, or confirmed the emoji: every other client stops
+  // offering to answer that step (kithd takes one answer to each).
+  VERIFICATION_KIND_ACCEPTED = 6;
+  VERIFICATION_KIND_CONFIRMED = 7;
 }
 
 // Verification is one step of an interactive SAS device-verification flow

@@ -14,9 +14,10 @@ This first release reads and writes messages:
 - a settings page for the settings it shares with the terminal client
   ([where settings live](#where-settings-live));
 - [accounts](#accounts): logging a network account in, setting a new one up, and
-  signing one out.
+  signing one out;
+- [verifying this session](#verifying-this-session) against another of your own.
 
-Verification, the full settings editor, tags and filing stay in the terminal client and
+The full settings editor, tags and filing stay in the terminal client and
 the command line for now. Links in messages show where they go, but the window does
 not open them yet.
 
@@ -181,6 +182,26 @@ to a [bridge](remote.md) does not.
 and whether to forget its rooms and their history here too: its session ends on the
 network, and **Sign in** brings it back. This is the terminal client's leaving an
 account's space from the rail.
+
+## Verifying this session
+
+A new session reads your encrypted history once another of your sessions (Element, a
+phone) vouches for it. **Settings → Verify this session** asks your other sessions, as
+the terminal client's `:verify` does; with several Matrix accounts and none the
+default, each has its own **Verify**. Accept on the other session, and both show seven
+emoji, each with its name: **They match** if they are the same in the same order, **They
+don't match** if not. A request from another of your sessions opens over the window at
+any time, with **Accept** and **Decline**; **Cancel** calls off your own.
+
+Every client of `kithd` is shown each request and its emoji, so the terminal client and
+the window can both answer one. `kithd` takes the first answer to each step and refuses
+the other, and the other client says the step was answered elsewhere and waits.
+
+The window verifies your own sessions only. A request from someone else is not shown
+(the terminal client shows it), and the window answers only a verification it was
+shown or asked for. If the window loses `kithd` mid-verification (a restart forgets
+it), reloads, or switches profile, the verification ends there: start it again. One
+the other session cancels, or that times out after ten minutes, says so.
 
 ## How it finds kithd
 
