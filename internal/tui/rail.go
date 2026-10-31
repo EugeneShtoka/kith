@@ -215,9 +215,13 @@ func (m Model) handleRail(msg railMsg) (Model, tea.Cmd) {
 		return m.keepCursorNearby(was)
 	}
 	// Nothing open yet (the rooms were listed before their rail): the top of the list, as
-	// handleRooms lands there.
+	// handleRooms lands there. What was said stays over the room's "loading…" (why the
+	// room before it went: a profile switched to without it).
 	if fr := m.filteredRooms(); len(fr) > 0 {
-		return m.selectRoom(fr[0])
+		said, until := m.st.event, m.st.until
+		next, cmd := m.selectRoom(fr[0])
+		next.st.event, next.st.until = said, until
+		return next, cmd
 	}
 	return m, nil
 }

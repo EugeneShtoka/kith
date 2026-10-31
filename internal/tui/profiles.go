@@ -42,6 +42,26 @@ const presenceEvery = 2 * time.Second
 type profileState struct {
 	switcher Profiles // nil: this window cannot switch
 	current  string   // as the config spells it; "" is the first
+	// switches counts the switches landed: a room or invitation list asked before the
+	// last one is another profile's (a switch and back makes the name the same again).
+	switches int
+	// to is the profile a switch is under way to, until it lands; sent once it has gone
+	// to the daemon, which waits for the drafts' writes (switchWhenDrafted).
+	to   string
+	sent bool
+	// arrival is what the window has read of the profile it switched to, until it has
+	// read both its rooms and its invitations.
+	arrival profileArrival
+}
+
+// profileArrival is a switch's landing until the new profile's lists are read: which
+// have been, and the room open as it landed (a chat a link opened then is the profile
+// left's). kithd refuses every call naming a room outside the profile, so a room the
+// lists read do not hold goes, as a room that is gone does.
+type profileArrival struct {
+	due            bool
+	room           domain.RoomID
+	rooms, invites bool
 }
 
 // profileSwitchedMsg says the window now runs in name, or why it does not.
@@ -158,24 +178,88 @@ func (m Model) switchProfile(name string) (Model, tea.Cmd) {
 		return m.say("already in " + names[i]).rememberProfile(names[i])
 	case m.profiles.switcher == nil:
 		return m.say("this window cannot switch profiles"), nil
+	case m.profiles.to != "":
+		// One at a time: two under way could land in either order, the window
+		// believing one profile while the daemon runs it in the other.
+		return m.say("still switching to " + m.profiles.to), nil
 	}
-	to, switcher := names[i], m.profiles.switcher
-	return m.doing("switching to " + to + "…"), func() tea.Msg {
+	m.profiles.to = names[i]
+	m = m.doing("switching to " + names[i] + "…")
+	// The writes that failed go once more, while the profile still holds their rooms.
+	m, retries := m.saveRetries()
+	m, send := m.switchWhenDrafted()
+	return m, batched(append(retries, send))
+}
+
+// switchWhenDrafted sends the switch under way once no draft is being written: kithd
+// takes a room's draft only in a profile holding the room, so what this window holds is
+// written before it leaves the profile: the open room's composer here, the rooms left
+// already on the wire (every Update writes them, armDraftSave). A write that failed is
+// not asked again here (it is retried as any failed write is), or a daemon that is down
+// would hold the switch.
+func (m Model) switchWhenDrafted() (Model, tea.Cmd) {
+	if m.profiles.to == "" || m.profiles.sent {
+		return m, nil
+	}
+	// One on the wire is waited for: asking again would mark it owed, and a write kithd
+	// refuses (a room the window still shows after landing) would go round for ever.
+	room := m.openRoom
+	if room != "" && !m.draftSync.inflight[room] && !m.draftSync.retry[room] &&
+		m.draftSync.differs(room, m.composerDraft()) {
+		var write tea.Cmd
+		m, write = m.requestSave(room)
+		return m, write
+	}
+	if len(m.draftSync.inflight) > 0 {
+		return m, nil
+	}
+	to, switcher := m.profiles.to, m.profiles.switcher
+	m.profiles.sent = true
+	return m, func() tea.Msg {
 		return profileSwitchedMsg{name: to, err: switcher.SwitchProfile(to)}
 	}
 }
 
-// handleProfileSwitched reads the new profile's rooms; the open room stays open. A
+// handleProfileSwitched reads the new profile's rooms; the open room stays open until
+// they are read, and goes then if the profile does not hold it (profileListRead). A
 // switch refused leaves the window where it was.
 func (m Model) handleProfileSwitched(msg profileSwitchedMsg) (Model, tea.Cmd) {
+	m.profiles.to, m.profiles.sent = "", false
 	if msg.err != nil {
 		return m.doing("").sayErr("cannot switch to "+msg.name, msg.err), nil
 	}
 	m.profiles.current = msg.name
+	m.profiles.switches++
+	m.profiles.arrival = profileArrival{due: true, room: m.openRoom}
+	// Chats links opened were the profile left's: gone now, the open one with the list.
+	m.rooms = m.rooms.keepingFresh(m.openRoom)
 	m = m.runProfile().doing("").say("profile " + msg.name)
 	m, remember := m.rememberProfile(msg.name)
 	return m, tea.Batch(m.loadRoomsCmd(), m.loadSpacesCmd(), m.loadUnreadCmd(),
 		m.loadInvitesCmd(), m.lastMessagesCmd(), m.loadRailCmd(), remember)
+}
+
+// profileListRead notes one of the new profile's lists read (rooms or invitations): was,
+// named name, is the room open before it. Left then (keepCursorNearby, handleInvites)
+// because no list read holds it, it is said to be out of the profile; the invitations
+// from before the switch count only once the new profile's are read.
+func (m Model) profileListRead(was domain.RoomID, name string, rooms, invites bool) Model {
+	a := m.profiles.arrival
+	if !a.due {
+		return m
+	}
+	a.rooms, a.invites = a.rooms || rooms, a.invites || invites
+	is := func(r domain.Room) bool { return r.ID == was }
+	held := (a.rooms && slices.ContainsFunc(m.rooms.joined, is)) ||
+		(a.invites && slices.ContainsFunc(m.rooms.invites, is))
+	if was != "" && m.openRoom != was && !held {
+		m = m.say("profile " + m.currentProfile() + " — " + name + " is not in it")
+	}
+	if a.rooms && a.invites {
+		a = profileArrival{}
+	}
+	m.profiles.arrival = a
+	return m
 }
 
 // rememberProfile keeps name as the profile this device runs in (device.toml's

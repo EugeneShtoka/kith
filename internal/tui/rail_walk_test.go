@@ -188,7 +188,7 @@ func walkRailInputs(t *testing.T, seed uint64, steps int) {
 			archived = !archived
 			tele := walkTele
 			tele.Archived = archived
-			msg = roomsMsg{rooms: []domain.Room{walkAlpha, walkBravo, tele, walkShared}}
+			msg = roomsMsg{switches: m.profiles.switches, rooms: []domain.Room{walkAlpha, walkBravo, tele, walkShared}}
 			log = append(log, fmt.Sprintf("telegram archived %v", archived))
 		case 8:
 			m, _ = m.toggleArchived()
@@ -215,7 +215,7 @@ func walkRailInputs(t *testing.T, seed uint64, steps int) {
 			msg = tea.KeyPressMsg{Code: key, Text: string(key)}
 			log = append(log, fmt.Sprintf("%c in %v", key, m.focus))
 		case 13:
-			msg = roomsMsg{rooms: rooms}
+			msg = roomsMsg{switches: m.profiles.switches, rooms: rooms}
 			log = append(log, "the rooms are listed again")
 		default:
 			log = append(log, "draw")

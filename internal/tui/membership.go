@@ -367,13 +367,16 @@ func (m Model) handleLeft(msg leftMsg) (Model, tea.Cmd) {
 }
 
 // handleCachedInvites seeds invitations from the cache at startup; a read error is not
-// evidence they are gone.
+// evidence they are gone, and invitations asked before the last profile switch landed
+// are not its own.
 func (m Model) handleCachedInvites(msg invitesMsg) (Model, tea.Cmd) {
 	m.logErr(slog.LevelWarn, "load cached invites", msg.err)
-	if msg.err != nil {
+	if msg.err != nil || msg.switches != m.profiles.switches {
 		return m, nil
 	}
-	return m.handleInvites(msg.invites)
+	was, name := m.openRoom, m.namedRoom(m.openRoom)
+	next, cmd := m.handleInvites(msg.invites)
+	return next.profileListRead(was, name, false, true), cmd
 }
 
 // handleInviteUpdate applies a streamed invitation set and keeps listening.
