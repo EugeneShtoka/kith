@@ -186,7 +186,7 @@ func TestTheScheduleTableIsWhatTheTUIReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := json.Unmarshal(data, &table); err != nil {
+	if err = json.Unmarshal(data, &table); err != nil {
 		t.Fatal(err)
 	}
 	const wall = "2006-01-02T15:04:05"

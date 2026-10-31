@@ -299,72 +299,103 @@ func (c *commandRun) prepare(ctx context.Context, event string, link int) (*devi
 	if err != nil {
 		return nil, c.kithd.at.failure(err)
 	}
-	mine := func(sender string) bool { return slices.Contains(selves.Msg.GetIds(), sender) }
-	var shown []domain.Message
-	var msg *domain.Message
-	var stdin domain.ScriptContext
-	room := domain.RoomID(c.room.Facts.ID)
+	ctxOf := scriptContext{run: c, event: event, link: link, selves: selves.Msg.GetIds()}
 	for _, need := range needs {
-		if shown == nil && (need.Kind == domain.NeedHistory || (event == "" && need.Kind != domain.NeedNone)) {
-			res, rerr := c.kithd.client.CachedTimeline(ctx, request(c.kithd, &backendv1.CachedTimelineRequest{RoomId: string(room)}))
-			if rerr != nil {
-				return nil, c.kithd.at.failure(rerr)
-			}
-			for _, m := range protoconv.ProtoToMessages(res.Msg.GetMessages()) {
-				if m.ThreadRoot == "" || m.ThreadRoot == m.ID {
-					shown = append(shown, m)
-				}
-			}
-		}
-		if msg == nil && (need.Kind == domain.NeedMessage || need.Kind == domain.NeedURL) {
-			found, ferr := c.message(ctx, room, event, shown)
-			if ferr != nil {
-				return nil, ferr
-			}
-			if found == nil {
-				return &devicev1.RunCommandResponse{Why: "needs a message and there is none here"}, nil
-			}
-			msg = found
-		}
-		switch need.Kind {
-		case domain.NeedMessage:
-			row := domain.ScriptRow(*msg, mine(msg.Sender))
-			stdin.Message = &row
-			c.env = append(c.env, "KITH_MESSAGE_ID="+string(msg.ID), "KITH_SENDER="+msg.Sender, "KITH_SENDER_NAME="+msg.SenderName)
-		case domain.NeedURL:
-			links := domain.MessageLinks(msg.Body, hrefs(*msg))
-			switch {
-			case len(links) == 0:
-				return &devicev1.RunCommandResponse{Why: "no link in that message"}, nil
-			case link == 0 && len(links) > 1:
-				return &devicev1.RunCommandResponse{Links: links}, nil
-			case link > len(links):
-				return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("that message has %d links, not %d", len(links), link))
-			}
-			stdin.URL = links[max(link, 1)-1]
-			c.env = append(c.env, "KITH_URL="+stdin.URL)
-		case domain.NeedHistory:
-			last := shown[max(0, len(shown)-need.Count):]
-			stdin.History = make([]domain.ScriptMessage, 0, len(last))
-			for i := range last {
-				stdin.History = append(stdin.History, domain.ScriptRow(last[i], mine(last[i].Sender)))
-			}
-		case domain.NeedNone:
+		if answer, aerr := ctxOf.add(ctx, need); answer != nil || aerr != nil {
+			return answer, aerr
 		}
 	}
-	if c.stdin, err = json.Marshal(stdin); err != nil {
+	if c.stdin, err = json.Marshal(ctxOf.stdin); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("could not assemble its context: %w", err))
 	}
+	room := c.room.Facts.ID
 	self := ""
-	for _, id := range selves.Msg.GetIds() {
-		if domain.NetworkOf(id) == domain.NetworkOf(string(room)) {
+	for _, id := range ctxOf.selves {
+		if domain.NetworkOf(id) == domain.NetworkOf(room) {
 			self = id
 			break
 		}
 	}
 	// No KITH_ARG of the window's: what follows the name stays in the window.
-	c.env = append(c.env, "KITH_ARG=", "KITH_ROOM_ID="+string(room), "KITH_ROOM="+c.room.Facts.Name, "KITH_USER="+self)
+	c.env = append(c.env, "KITH_ARG=", "KITH_ROOM_ID="+room, "KITH_ROOM="+c.room.Facts.Name, "KITH_USER="+self)
 	return nil, nil
+}
+
+// scriptContext is a command's context as prepare gathers it, need by need.
+type scriptContext struct {
+	run    *commandRun
+	event  string
+	link   int
+	selves []string
+	shown  []domain.Message // the room's main timeline, once read
+	read   bool
+	msg    *domain.Message
+	stdin  domain.ScriptContext
+}
+
+func (s *scriptContext) mine(sender string) bool { return slices.Contains(s.selves, sender) }
+
+// add looks up one need's context; a non-nil answer ends the run there.
+func (s *scriptContext) add(ctx context.Context, need domain.Need) (*devicev1.RunCommandResponse, error) {
+	c := s.run
+	if !s.read && (need.Kind == domain.NeedHistory || (s.event == "" && need.Kind != domain.NeedNone)) {
+		if err := s.readShown(ctx); err != nil {
+			return nil, err
+		}
+	}
+	if s.msg == nil && (need.Kind == domain.NeedMessage || need.Kind == domain.NeedURL) {
+		found, err := c.message(ctx, domain.RoomID(c.room.Facts.ID), s.event, s.shown)
+		if err != nil {
+			return nil, err
+		}
+		if found == nil {
+			return &devicev1.RunCommandResponse{Why: "needs a message and there is none here"}, nil
+		}
+		s.msg = found
+	}
+	switch need.Kind {
+	case domain.NeedMessage:
+		row := domain.ScriptRow(*s.msg, s.mine(s.msg.Sender))
+		s.stdin.Message = &row
+		c.env = append(c.env, "KITH_MESSAGE_ID="+string(s.msg.ID), "KITH_SENDER="+s.msg.Sender, "KITH_SENDER_NAME="+s.msg.SenderName)
+	case domain.NeedURL:
+		links := domain.MessageLinks(s.msg.Body, hrefs(*s.msg))
+		switch {
+		case len(links) == 0:
+			return &devicev1.RunCommandResponse{Why: "no link in that message"}, nil
+		case s.link == 0 && len(links) > 1:
+			return &devicev1.RunCommandResponse{Links: links}, nil
+		case s.link > len(links):
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("that message has %d links, not %d", len(links), s.link))
+		}
+		s.stdin.URL = links[max(s.link, 1)-1]
+		c.env = append(c.env, "KITH_URL="+s.stdin.URL)
+	case domain.NeedHistory:
+		last := s.shown[max(0, len(s.shown)-need.Count):]
+		s.stdin.History = make([]domain.ScriptMessage, 0, len(last))
+		for i := range last {
+			s.stdin.History = append(s.stdin.History, domain.ScriptRow(last[i], s.mine(last[i].Sender)))
+		}
+	case domain.NeedNone:
+	}
+	return nil, nil
+}
+
+// readShown reads the room's main timeline as kithd's cache holds it.
+func (s *scriptContext) readShown(ctx context.Context) error {
+	c := s.run
+	res, err := c.kithd.client.CachedTimeline(ctx, request(c.kithd, &backendv1.CachedTimelineRequest{RoomId: c.room.Facts.ID}))
+	if err != nil {
+		return c.kithd.at.failure(err)
+	}
+	all := protoconv.ProtoToMessages(res.Msg.GetMessages())
+	for i := range all {
+		if all[i].ThreadRoot == "" || all[i].ThreadRoot == all[i].ID {
+			s.shown = append(s.shown, all[i])
+		}
+	}
+	s.read = true
+	return nil
 }
 
 // message is the message the command is run on: event in room, else the newest shown;
@@ -407,11 +438,48 @@ func hrefs(msg domain.Message) []string {
 // run runs the program and routes what it printed, as the TUI's userCommandCmd and
 // handleCommandRan do.
 func (c *commandRun) run(ctx context.Context) *devicev1.RunCommandResponse {
+	out, _ := domain.ParseScriptOutput(c.block.Output) // checked as the device file loaded
+	body, why := c.execute(ctx)
+	if why != "" {
+		return &devicev1.RunCommandResponse{Why: why}
+	}
+	output := outputName(out)
+	truncated := len(body) > commandOutputLimit
+	if truncated {
+		body = body[:commandOutputLimit]
+	}
+	if strings.TrimSpace(body) == "" {
+		if out != domain.OutputNone {
+			why = "printed nothing"
+		}
+		return &devicev1.RunCommandResponse{Output: output, Truncated: truncated, Why: why}
+	}
+	// Truncated output is never sent, copied or dropped unreviewed: it goes to be read.
+	if truncated && out != domain.OutputPager {
+		out = domain.OutputCompose
+	}
+	switch out {
+	case domain.OutputSend:
+		// Into the room it was run in, as the TUI's sendCommandOutput sends it.
+		draft := protoconv.DraftToProto(domain.Draft{Body: body, TxnID: domain.NewTxnID()})
+		if _, err := c.kithd.client.Send(ctx, request(c.kithd, &backendv1.SendRequest{RoomId: c.room.Facts.ID, Draft: draft})); err != nil {
+			return &devicev1.RunCommandResponse{Why: "could not send its output: " + err.Error()}
+		}
+		body = ""
+	case domain.OutputNone:
+		body = ""
+	case domain.OutputCompose, domain.OutputStatus, domain.OutputPager, domain.OutputClipboard:
+	}
+	return &devicev1.RunCommandResponse{Output: outputName(out), Body: body, Truncated: truncated}
+}
+
+// execute runs the program with its context and secrets, under the timeout: what it
+// printed, or why there is nothing.
+func (c *commandRun) execute(ctx context.Context) (body, why string) {
 	secrets, err := c.secrets()
 	if err != nil {
-		return &devicev1.RunCommandResponse{Why: err.Error()}
+		return "", err.Error()
 	}
-	out, _ := domain.ParseScriptOutput(c.block.Output) // checked as the device file loaded
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, c.path) // #nosec G204 -- a file the user made executable in their own commands directory, by name
@@ -420,50 +488,25 @@ func (c *commandRun) run(ctx context.Context) *devicev1.RunCommandResponse {
 	cmd.WaitDelay = commandWaitDelay
 	stdout, cleanOut, err := captureFile()
 	if err != nil {
-		return &devicev1.RunCommandResponse{Why: err.Error()}
+		return "", err.Error()
 	}
 	defer cleanOut()
 	stderr, cleanErr, err := captureFile()
 	if err != nil {
-		return &devicev1.RunCommandResponse{Why: err.Error()}
+		return "", err.Error()
 	}
 	defer cleanErr()
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	runErr := cmd.Run()
 	switch {
 	case ctx.Err() != nil && errors.Is(context.Cause(ctx), context.DeadlineExceeded):
-		return &devicev1.RunCommandResponse{Why: "gave up after " + human.Duration(c.timeout)}
+		return "", "gave up after " + human.Duration(c.timeout)
 	case ctx.Err() != nil:
-		return &devicev1.RunCommandResponse{Why: "stopped: the window went"}
+		return "", "stopped: the window went"
 	case runErr != nil:
-		return &devicev1.RunCommandResponse{Why: commandFailure(runErr, readCapture(stderr))}
+		return "", commandFailure(runErr, readCapture(stderr))
 	}
-	body := strings.TrimRight(readCapture(stdout), "\n")
-	answer := &devicev1.RunCommandResponse{Output: outputName(out)}
-	if len(body) > commandOutputLimit {
-		body, answer.Truncated = body[:commandOutputLimit], true
-	}
-	if strings.TrimSpace(body) == "" {
-		if out != domain.OutputNone {
-			answer.Why = "printed nothing"
-		}
-		return answer
-	}
-	// Truncated output is never sent, copied or dropped unreviewed: it goes to be read.
-	if answer.Truncated && out != domain.OutputPager {
-		answer.Output = outputName(domain.OutputCompose)
-	}
-	switch {
-	case answer.Output == outputName(domain.OutputSend):
-		// Into the room it was run in, as the TUI's sendCommandOutput sends it.
-		draft := protoconv.DraftToProto(domain.Draft{Body: body, TxnID: domain.NewTxnID()})
-		if _, serr := c.kithd.client.Send(ctx, request(c.kithd, &backendv1.SendRequest{RoomId: c.room.Facts.ID, Draft: draft})); serr != nil {
-			return &devicev1.RunCommandResponse{Why: "could not send its output: " + serr.Error()}
-		}
-	case answer.Output != outputName(domain.OutputNone):
-		answer.Body = body
-	}
-	return answer
+	return strings.TrimRight(readCapture(stdout), "\n"), ""
 }
 
 // secrets are the command's declared secrets as its environment, from this machine's
