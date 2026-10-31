@@ -21,6 +21,7 @@ import { later, listed, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unsent } from "./compose";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { call, subscribe } from "./kith";
+import type { Asked } from "./polls";
 import { changeTheme, type ThemeRelay, themeLabel, type Scope, type Slots } from "./theme";
 import { announces } from "./read";
 import { ordered, total } from "./rooms";
@@ -744,6 +745,25 @@ export class Session {
   /** react toggles key on m. */
   react(m: Message, key: string): Promise<void> {
     return this.inRun((run) => run.composer.react(m, key, run.timeline?.view().reactions.get(m.id) ?? []));
+  }
+
+  /** vote votes in m's poll by answer IDs; none takes the vote back. */
+  vote(m: Message, options: readonly string[]): Promise<void> {
+    return this.inRun((run) => run.composer.vote(m, options));
+  }
+
+  /** showVoters reads who chose what in m's poll, and shows it. */
+  showVoters(m: Message): void {
+    this.run?.composer.showVoters(m);
+  }
+
+  closeVoters(): void {
+    this.run?.composer.closeVoters();
+  }
+
+  /** askPoll asks a poll in the open room; it answers whether it was asked. */
+  askPoll(poll: Asked): Promise<boolean> {
+    return this.run?.composer.ask(this.view.open, poll) ?? Promise.resolve(false);
   }
 
   /** pick offers files picked in the open dialog to the open room's next message. */

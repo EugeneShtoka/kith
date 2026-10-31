@@ -108,6 +108,9 @@ const allowedCalls = [
   "Selves",
   "Drafts",
   "ReplaceDraft",
+  "VotePoll",
+  "PollVoters",
+  "CreatePoll",
   "SearchMessages",
   "ThreadPage",
   "MarkThreadRead",
@@ -397,6 +400,32 @@ describe("the gate", () => {
       "LeaveRoom:Work",
       "JoinRoom:Work",
     ]);
+  });
+
+  it("votes, reads who voted and asks a poll only in the window's profile, as every room call", async () => {
+    kithd.remembered = "";
+    const polls = () =>
+      Promise.all([
+        outcome(window, "VotePoll", bytes(backend.votePoll.input, { roomId: "!r:x", eventId: "$p", options: ["0"] })),
+        outcome(window, "PollVoters", bytes(backend.pollVoters.input, { roomId: "!r:x", eventId: "$p" })),
+        outcome(
+          window,
+          "CreatePoll",
+          bytes(backend.createPoll.input, { roomId: "!r:x", question: "Lunch?", options: ["Soup", "Salad"] }),
+        ),
+      ]);
+    await device();
+    expect(await polls()).toEqual(["refused", "refused", "refused"]);
+    expect(kithd.reached).toEqual(["Device:"]);
+    await gate.call(window, "ChooseProfile", bytes(DeviceService.method.chooseProfile.input, { name: "Home" }));
+    expect(await polls()).toEqual(["answered", "answered", "answered"]);
+    expect(kithd.reached.slice(2).sort()).toEqual(["CreatePoll:Home", "PollVoters:Home", "VotePoll:Home"]);
+    // Not from another frame either.
+    const frame: Frame = { url: "https://example.com/", parent: null };
+    expect(await outcome(frame, "VotePoll", bytes(backend.votePoll.input, { roomId: "!r:x", eventId: "$p" }))).toBe(
+      "refused",
+    );
+    expect(kithd.reached).toHaveLength(5);
   });
 
   it("answers a FetchEvent of a message kithd has not got with no message, and every other failure as one", async () => {

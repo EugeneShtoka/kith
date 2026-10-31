@@ -1,6 +1,6 @@
 // The open room's composer, drawn: the words (enter sends, shift+enter breaks the line),
 // what they reply to or correct, files offered, `@` mentions and `:shortcode:` emoji as
-// they are typed, the emoji picker, the SMS question and sends that failed.
+// they are typed, the emoji picker, a poll asked, the SMS question and sends that failed.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { Room } from "../gen/backend/v1/types_pb";
@@ -9,6 +9,7 @@ import { completions, shortcodeAt, shortcodeOf, toned } from "./emoji";
 import { EmojiPicker } from "./EmojiPicker";
 import { type Markup, marked } from "./markup";
 import { matching, mentionAt, nameOf } from "./mentions";
+import { AskPoll } from "./Poll";
 import type { Session } from "./session";
 
 /** How many completions the popup offers. */
@@ -46,6 +47,7 @@ export function ComposerPane({
   const [caret, setCaret] = useState(0);
   const [chosen, setChosen] = useState(0);
   const [picker, setPicker] = useState(false);
+  const [asking, setAsking] = useState(false);
   const moveTo = useRef<number | undefined>(undefined);
   useLayoutEffect(() => {
     if (moveTo.current !== undefined) {
@@ -197,6 +199,14 @@ export function ComposerPane({
           }}
         />
       )}
+      {asking && (
+        <AskPoll
+          session={session}
+          onClose={() => {
+            setAsking(false);
+          }}
+        />
+      )}
       <div className="compose-box">
         {c.markdown && (
           <div className="format-bar" role="toolbar" aria-label="Formatting">
@@ -277,6 +287,15 @@ export function ComposerPane({
             }}
           >
             Emoji
+          </button>
+          <button
+            type="button"
+            aria-expanded={asking}
+            onClick={() => {
+              setAsking(!asking);
+            }}
+          >
+            Poll
           </button>
           <button type="button" className="send" onClick={() => void session.send()}>
             Send

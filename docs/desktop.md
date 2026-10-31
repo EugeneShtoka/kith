@@ -8,7 +8,7 @@ accounts, the cache, the keys, the drafts) is the same in both, and you can use 
 This first release reads and writes messages:
 
 - the rail and room list, with unread counts, and invites;
-- the timeline, with replies, edits, reactions, pictures and files;
+- the timeline, with replies, edits, reactions, polls, pictures and files;
 - the composer, with markdown, mentions, emoji, attachments and drafts;
 - search, the ctrl+K switcher, and threads beside the room;
 - a settings page for the settings it shares with the terminal client
@@ -101,6 +101,16 @@ The window fills its height, and each part scrolls on its own:
   selected (bold, italic, code, a link); it is there only while **Send Markdown
   rendered** is on.
 - **On the right**, a thread, when one is open.
+
+A **poll** shows its question and each answer with its votes and share, your own
+answer marked. Press an answer to vote for it, or, where the poll takes several, tick
+them and press **Vote**; **Take my vote back** takes it back, and an ended poll takes no
+more votes. **Who voted** lists who chose each answer, as far as the network names them
+(Telegram may name them only once you have voted). **Poll**, under the composer, asks
+one in the open room: a question, two answers or more, and whether voters may choose
+several. You vote wherever the terminal client's `P` does (Matrix, WhatsApp, Telegram
+and Signal); asking a poll works in Matrix rooms, as the terminal's `/poll` does, and
+elsewhere the window says the network cannot.
 
 People and rooms are drawn as their initials, each in a color of their own that stays
 the same everywhere: a person in the color the terminal client gives them in that room,

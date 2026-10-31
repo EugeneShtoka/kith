@@ -1,7 +1,7 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ReactionSchema } from "../gen/backend/v1/types_pb";
+import { type Message, PollSchema, ReactionSchema } from "../gen/backend/v1/types_pb";
 import { DeviceSettingsSchema } from "../gen/device/v1/device_pb";
 import { typingRefresh } from "./compose";
 import { Session } from "./session";
@@ -221,5 +221,94 @@ describe("the composer", () => {
     expect(view().seat.state).toBe("steppedAside");
     expect(kithd.seats.get("Home")).toBe("other");
     expect(kithd.drafts.get("!a")?.body).toBe("unsaved words");
+  });
+});
+
+describe("a poll", () => {
+  /** asking is a message of Bob's in !a asking a poll, this person's answers mine. */
+  const asking = (mine: string[] = [], init: { multiple?: boolean; closed?: boolean } = {}): Message => {
+    const m = message({ id: "$p", sender: "@bob:x", body: "📊 Lunch? (Soup / Tacos)" }, "!a");
+    m.poll = create(PollSchema, {
+      question: "Lunch?",
+      ...init,
+      options: [
+        { id: "s", text: "Soup", votes: 1n, mine: mine.includes("s") },
+        { id: "t", text: "Tacos", votes: 0n, mine: mine.includes("t") },
+      ],
+    });
+    return m;
+  };
+  const votes = () => kithd.writes.filter((w) => w.startsWith("VotePoll"));
+
+  it("is voted in, by one answer or several, and the vote taken back by none", async () => {
+    await opened();
+    await session.vote(asking(), ["t"]);
+    await session.vote(asking([], { multiple: true }), ["s", "t"]);
+    await session.vote(asking(["s"]), []);
+    expect(votes()).toEqual(["VotePoll !a $p t", "VotePoll !a $p s,t", "VotePoll !a $p "]);
+    expect(view().problem).toBeUndefined();
+  });
+
+  it("closed, takes no vote, and says so", async () => {
+    await opened();
+    await session.vote(asking([], { closed: true }), ["s"]);
+    expect(votes()).toEqual([]);
+    expect(view().problem).toBe("this poll is closed");
+  });
+
+  it("shows who voted once asked, and a vote puts it away", async () => {
+    kithd.pollVoters.set("$p", { voters: [{ id: "@me:x", options: ["s"] }] });
+    await opened();
+    const m = asking(["s"]);
+    session.showVoters(m);
+    expect(composer().voters).toMatchObject({ event: "$p", read: false });
+    await settled();
+    expect(composer().voters?.answer?.voters.map((v) => v.id)).toEqual(["@me:x"]);
+    await session.vote(m, ["t"]);
+    expect(composer().voters).toBeUndefined();
+  });
+
+  it("drops who voted read for a poll put away, or shown again since", async () => {
+    kithd.pollVoters.set("$p", { voters: [{ id: "@bob:x", options: ["s"] }] });
+    await opened();
+    const m = asking();
+    kithd.holding.add("PollVoters");
+    session.showVoters(m);
+    await settled();
+    session.closeVoters();
+    kithd.release();
+    await settled();
+    expect(composer().voters).toBeUndefined();
+
+    session.showVoters(m); // held: the first answer
+    await settled();
+    kithd.holding.delete("PollVoters");
+    kithd.pollVoters.set("$p", { voters: [] });
+    session.showVoters(m); // shown again: its own answer only
+    await settled();
+    expect(composer().voters?.answer?.voters).toEqual([]);
+    kithd.release();
+    await settled();
+    expect(composer().voters?.answer?.voters).toEqual([]);
+  });
+
+  it("says why who voted could not be read", async () => {
+    await opened();
+    session.showVoters(asking());
+    await settled();
+    expect(composer().voters).toMatchObject({ read: true, error: "matrix: $p asks no poll" });
+  });
+
+  it("is asked in the open room, and where its network asks none it says so", async () => {
+    kithd.noPolls.add("!sms");
+    await opened();
+    expect(await session.askPoll({ question: "Lunch?", options: ["Soup", "Tacos"], multiple: true })).toBe(true);
+    expect(kithd.writes.filter((w) => w.startsWith("CreatePoll"))).toEqual(["CreatePoll !a Lunch? Soup|Tacos true"]);
+    session.open("!sms");
+    await settled();
+    expect(await session.askPoll({ question: "Lunch?", options: ["Soup", "Tacos"], multiple: false })).toBe(false);
+    expect(view().problem).toBe(
+      "could not create the poll: daemon: that room's network cannot do this: creating polls in whatsapp rooms",
+    );
   });
 });

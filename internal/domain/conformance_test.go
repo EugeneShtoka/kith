@@ -189,6 +189,35 @@ func TestTheReactionsTableIsWhatGoTallies(t *testing.T) {
 	}
 }
 
+// Poll.Tally of each answer, as both timelines draw it under the answer.
+func TestThePollsTableIsWhatGoTallies(t *testing.T) {
+	t.Parallel()
+	var table struct {
+		Cases []struct {
+			Name  string   `json:"name"`
+			Votes []int    `json:"votes"`
+			Want  []string `json:"want"`
+		} `json:"cases"`
+	}
+	readTable(t, "polls.json", &table)
+	if len(table.Cases) == 0 {
+		t.Fatal("polls.json has no cases")
+	}
+	for _, c := range table.Cases {
+		p := &Poll{}
+		for _, n := range c.Votes {
+			p.Options = append(p.Options, PollOption{Votes: n})
+		}
+		got := make([]string, len(p.Options))
+		for i, o := range p.Options {
+			got[i] = p.Tally(o)
+		}
+		if !reflect.DeepEqual(got, c.Want) {
+			t.Errorf("%s: got %q, the table says %q", c.Name, got, c.Want)
+		}
+	}
+}
+
 // ResolveRead with the room's homes unknown, as the desktop resolves it until it is told
 // them: a receipt is announced only when every home the room might have says so. Each
 // case lists the homes worth trying (one matching each home rule, and none).
