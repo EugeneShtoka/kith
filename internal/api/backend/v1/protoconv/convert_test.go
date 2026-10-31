@@ -10,6 +10,18 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
+// A filing place reaches the wire whole: a field added to it is mapped or this fails.
+func TestAFilingPlaceCarriesEveryField(t *testing.T) {
+	t.Parallel()
+	if n := reflect.TypeFor[domain.FilingPlace]().NumField(); n != 4 {
+		t.Fatalf("domain.FilingPlace has %d fields: map the new ones in FilingPlacesToProto", n)
+	}
+	got := protoconv.FilingPlacesToProto([]domain.FilingPlace{{Space: "!s", Tag: "Work", Label: "Job", In: true}})
+	if len(got) != 1 || got[0].GetSpace() != "!s" || got[0].GetTag() != "Work" || got[0].GetLabel() != "Job" || !got[0].GetIn() {
+		t.Errorf("FilingPlacesToProto = %v", got)
+	}
+}
+
 // A zero time must stay zero, not become the epoch: the UI tests IsZero.
 func TestZeroTimestampStaysZero(t *testing.T) {
 	t.Parallel()

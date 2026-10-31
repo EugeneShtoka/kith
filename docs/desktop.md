@@ -17,9 +17,10 @@ This first release reads and writes messages:
   ([where settings live](#where-settings-live));
 - [accounts](#accounts): logging a network account in, setting a new one up, and
   signing one out;
-- [verifying this session](#verifying-this-session) against another of your own.
+- [verifying this session](#verifying-this-session) against another of your own;
+- [filing a room](#filing-a-room) into tags and spaces.
 
-The full settings editor, tags and filing stay in the terminal client and
+The full settings editor and the tag editor stay in the terminal client and
 the command line for now. Links in messages show where they go, but the window does
 not open them yet.
 
@@ -276,6 +277,28 @@ output goes where `output` says: into the composer, sent to the room, a status l
 a panel to read, or the clipboard (main copies it). `[commands] timeout` bounds a run,
 one runs at a time, and closing or reloading the window stops it. Key bindings
 (`keys`) and setting up a command's secrets stay in the terminal client.
+
+## Filing a room
+
+**Tags and spaces**, in the open room's header, or a right-click on a room in the list,
+opens the filing picker, as the terminal client's `S` does
+([putting a room in a tag by hand](filters.md#putting-a-room-in-a-tag-by-hand)): the
+spaces you made, then the tags you file rooms into by hand, in the same order, the
+ones holding the room ticked. `[display] filing_spaces` in `device.toml` names the
+spaces offered here as it does there. Tags their rule fills (Unread, DMs, All) are not
+offered, nor a bridge's own space.
+
+Tick or untick, then **Apply**: only what you changed is filed. `kithd` writes the
+tags into `config.toml` itself, on the file as it is when it writes, so another window,
+the terminal client or a hand edit landing at the same moment is kept, not overwritten.
+As in the terminal client, taking a room out of a tag a filter moved it into records a
+release so no filter moves it back, and filing a chat into or out of a network's
+[mirrored archive](configuration.md#follow-a-networks-own-archive) archives or
+unarchives it on the network. One line above the window says where the room went, and
+what a network or a space refused. The rail follows when `kithd` says it changed.
+
+A room of another profile cannot be filed from this one. Making a new tag or space,
+the tag editor and the Places settings stay in the terminal client.
 
 ## How it finds kithd
 

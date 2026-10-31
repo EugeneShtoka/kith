@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BackendService, Change, type SeatRequest } from "../gen/backend/v1/services_pb";
+import { BackendService, Change, type SeatRequest, SpaceFiledOutcome } from "../gen/backend/v1/services_pb";
 import { ReactionSchema, VerificationKind } from "../gen/backend/v1/types_pb";
 import { type DeviceSettings, DeviceSettingsSchema, ThemeScope } from "../gen/device/v1/device_pb";
 import { unreadOf } from "./rooms";
@@ -1327,5 +1327,148 @@ describe("verifying this session", () => {
     await settled();
     expect(view().problem).toBeUndefined();
     expect(answers()).toEqual(["CancelVerification t1"]);
+  });
+});
+
+describe("filing a room", () => {
+  const alpha = () => room("!a", { name: "Alpha" });
+  beforeEach(() => {
+    kithd.profiles = ["Home", "Work"];
+    kithd.remembered = "Home";
+    kithd.of("Home").rooms = [alpha()];
+    kithd.of("Work").rooms = [room("!w", { name: "Desk" })];
+    kithd.places.set("!a", [
+      { tag: "Pinned", label: "Pinned", in: true },
+      { tag: "Later", label: "Later" },
+      { space: "!work", label: "Job", in: true },
+    ]);
+  });
+
+  it("offers kithd's places ticked, with this device's filing_spaces, and files only what changed", async () => {
+    kithd.settings = create(DeviceSettingsSchema, { sendReceipts: true, filingSpaces: ["space:Work"] });
+    kithd.fileAnswer = { spaces: [{ spaceId: "!work", outcome: SpaceFiledOutcome.FILED }] };
+    await started();
+    session.openFiling("!a");
+    await settled();
+    expect(kithd.filingSpacesAsked).toEqual([["space:Work"]]);
+    expect(view().filing?.places?.map((p) => `${p.label} ${String(p.in)}`)).toEqual([
+      "Pinned true",
+      "Later false",
+      "Job true",
+    ]);
+    expect([...(view().filing?.ticked ?? [])].sort()).toEqual(["space !work", "tag Pinned"]);
+    session.tickFiling("tag Later");
+    session.tickFiling("space !work");
+    session.tickFiling("tag Pinned");
+    session.tickFiling("tag Pinned"); // and back: nobody's change
+    session.applyFiling();
+    expect(view().filing?.busy).toBe(true);
+    await settled();
+    expect(kithd.filed).toEqual(["!a Later+ !work-:Home"]);
+    expect(view().filing).toBeUndefined();
+    expect(view().filingNote).toBe("Alpha is in Later · taken out of Job");
+  });
+
+  it("asks kithd nothing when no tick changed, and nothing for a room the profile does not hold", async () => {
+    await started();
+    session.openFiling("!w"); // Work's
+    await settled();
+    expect(view().filing).toBeUndefined();
+    session.openFiling("!a");
+    await settled();
+    session.applyFiling();
+    await settled();
+    expect(kithd.filed).toEqual([]);
+    expect(kithd.calls.filter((c) => c.startsWith("FileRoom") || c.startsWith("FilingPlaces"))).toEqual([
+      "FilingPlaces:Home",
+    ]);
+    expect(view().filing).toBeUndefined();
+    expect(view().filingNote).toBe("No change.");
+  });
+
+  it("refused, keeps the picker open with its ticks and says why; refused by the network, says so", async () => {
+    await started();
+    session.openFiling("!a");
+    await settled();
+    session.tickFiling("tag Later");
+    kithd.fileRefusal = "[not_found] daemon: the profile Home holds no tag Later";
+    session.applyFiling();
+    await settled();
+    expect(view().filing?.busy).toBe(false);
+    expect(view().filing?.note).toMatch(/holds no tag Later/);
+    expect(view().filing?.ticked.has("tag Later")).toBe(true);
+    kithd.fileRefusal = "";
+    kithd.fileAnswer = { archiveFailed: "telegram: not now" };
+    session.applyFiling();
+    await settled();
+    expect(view().filing).toBeUndefined();
+    expect(view().filingNote).toBe(
+      "Alpha is in Later · its network did not archive or unarchive it: telegram: not now",
+    );
+  });
+
+  it("left for another profile while it is read or filed, shows nothing of it there", async () => {
+    await started();
+    kithd.holding.add("FilingPlaces");
+    session.openFiling("!a");
+    await settled();
+    await session.choose("Work");
+    await settled();
+    expect(view().filing).toBeUndefined();
+    kithd.places.set("!w", [{ tag: "Desk", label: "Desk" }]);
+    session.openFiling("!w"); // Work's own, asked before Home's answer lands
+    await settled();
+    kithd.release(true);
+    await settled();
+    expect(view().profile).toBe("Work");
+    expect(view().filing?.places?.map((p) => p.label)).toEqual(["Desk"]);
+    session.closeFiling();
+
+    kithd.holding.delete("FilingPlaces");
+    await session.choose("Home");
+    await settled();
+    session.openFiling("!a");
+    await settled();
+    session.tickFiling("tag Later");
+    kithd.holding.add("FileRoom");
+    session.applyFiling();
+    await settled();
+    await session.choose("Work");
+    await settled();
+    kithd.release();
+    await settled();
+    expect(kithd.filed).toEqual(["!a Later+:Home"]); // filed where it was asked
+    expect(view().filing).toBeUndefined();
+    expect(view().filingNote).toBe("");
+    expect(view().problem).toBeUndefined();
+  });
+
+  it("shows nothing of a filing after the window reloads, which kithd finishes all the same", async () => {
+    await started();
+    session.openFiling("!a");
+    await settled();
+    session.tickFiling("tag Later");
+    kithd.holding.add("FileRoom");
+    session.applyFiling();
+    await settled();
+    session.stop();
+    session = new Session();
+    await started();
+    kithd.release();
+    await settled();
+    expect(kithd.filed).toEqual(["!a Later+:Home"]);
+    expect(view().filing).toBeUndefined();
+    expect(view().filingNote).toBe("");
+  });
+
+  it("closed while kithd answers its places, stays closed", async () => {
+    await started();
+    kithd.holding.add("FilingPlaces");
+    session.openFiling("!a");
+    await settled();
+    session.closeFiling();
+    kithd.release();
+    await settled();
+    expect(view().filing).toBeUndefined();
   });
 });

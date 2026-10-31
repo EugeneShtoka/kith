@@ -151,6 +151,8 @@ const allowedCalls = [
   "RetryScheduled",
   "Commands",
   "RunCommand",
+  "FilingPlaces",
+  "FileRoom",
 ];
 const allowedStreams = [
   "Changed",
@@ -747,6 +749,37 @@ describe("the gate", () => {
       "RetryScheduled q1:Work",
       `CancelScheduled ${queued.id}:Work`,
     ]);
+  });
+
+  it("files a room only through kithd's judgment, in the profile the window ran in when it asked", async () => {
+    kithd.profiles = ["Home", "Work"];
+    kithd.remembered = "";
+    const places = (roomId: string) => outcome(window, "FilingPlaces", bytes(backend.filingPlaces.input, { roomId }));
+    const file = (roomId: string) =>
+      gate.call(window, "FileRoom", bytes(backend.fileRoom.input, { roomId, tags: [{ tag: "Work", in: true }] }));
+    await device();
+    expect(await places("!r:x")).toBe("refused"); // no profile yet
+    expect(kithd.filings).toEqual([]);
+    await gate.call(window, "ChooseProfile", bytes(DeviceService.method.chooseProfile.input, { name: "Home" }));
+    expect(await places("!r:x")).toBe("answered");
+    // kithd refuses a room the profile does not hold, and the window hears it as kithd's.
+    kithd.notHeld.add("!elsewhere:x");
+    await expect(file("!elsewhere:x")).rejects.toThrow(/holds no room/);
+    // A filing asked in Home stays Home's, the window leaving for Work meanwhile.
+    let release: () => void = () => undefined;
+    kithd.fileHeld = new Promise((resolve) => {
+      release = resolve;
+    });
+    const filing = file("!r:x");
+    await until(() => kithd.filings.includes("FileRoom !r:x:Home"), "the filing to reach kithd");
+    await gate.call(window, "ChooseProfile", bytes(DeviceService.method.chooseProfile.input, { name: "Work" }));
+    release();
+    await filing;
+    expect(kithd.filings).toEqual(["FilingPlaces !r:x:Home", "FileRoom !elsewhere:x:Home", "FileRoom !r:x:Home"]);
+    // What a filing makes, and the whole config, stay out of the window's reach.
+    for (const name of ["AddToSpace", "RemoveFromSpace", "SetRoomArchived", "MarkTag", "UpdateConfig", "GetConfig"]) {
+      expect(await outcome(window, name, empty), name).toBe("refused");
+    }
   });
 
   it("runs a command in the window's profile, named by main, and ends it when the window reloads", async () => {

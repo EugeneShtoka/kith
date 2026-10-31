@@ -1370,8 +1370,11 @@ type DeviceSettings struct {
 	CompleteScope   string   `protobuf:"bytes,22,opt,name=complete_scope,json=completeScope,proto3" json:"complete_scope,omitempty"`
 	CompleteSources []string `protobuf:"bytes,23,rep,name=complete_sources,json=completeSources,proto3" json:"complete_sources,omitempty"`
 	ModelDeclined   bool     `protobuf:"varint,24,opt,name=model_declined,json=modelDeclined,proto3" json:"model_declined,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// [display] filing_spaces: the spaces a room is filed into, by space:, place: or ID;
+	// none is every space you made (kithd's FilingPlaces). The window keeps it as read.
+	FilingSpaces  []string `protobuf:"bytes,25,rep,name=filing_spaces,json=filingSpaces,proto3" json:"filing_spaces,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeviceSettings) Reset() {
@@ -1570,6 +1573,13 @@ func (x *DeviceSettings) GetModelDeclined() bool {
 		return x.ModelDeclined
 	}
 	return false
+}
+
+func (x *DeviceSettings) GetFilingSpaces() []string {
+	if x != nil {
+		return x.FilingSpaces
+	}
+	return nil
 }
 
 // ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
@@ -2031,7 +2041,7 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\bsettings\x18\x02 \x01(\v2\x19.device.v1.DeviceSettingsR\bsettings\"q\n" +
 	"\x1cUpdateDeviceSettingsResponse\x125\n" +
 	"\bsettings\x18\x01 \x01(\v2\x19.device.v1.DeviceSettingsR\bsettings\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\tR\brevision\"\x86\b\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\"\xab\b\n" +
 	"\x0eDeviceSettings\x12#\n" +
 	"\rsend_receipts\x18\x01 \x01(\bR\fsendReceipts\x122\n" +
 	"\n" +
@@ -2062,7 +2072,8 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\x0ecomplete_ratio\x18\x15 \x01(\x03R\rcompleteRatio\x12%\n" +
 	"\x0ecomplete_scope\x18\x16 \x01(\tR\rcompleteScope\x12)\n" +
 	"\x10complete_sources\x18\x17 \x03(\tR\x0fcompleteSources\x12%\n" +
-	"\x0emodel_declined\x18\x18 \x01(\bR\rmodelDeclined\x1a=\n" +
+	"\x0emodel_declined\x18\x18 \x01(\bR\rmodelDeclined\x12#\n" +
+	"\rfiling_spaces\x18\x19 \x03(\tR\ffilingSpaces\x1a=\n" +
 	"\x0fEmojiExtraEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Z\n" +

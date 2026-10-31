@@ -44,7 +44,7 @@ var reaches = map[string]profileReach{
 	// One room, named by the caller.
 	"Present": passes, "MarkRead": passes, "MarkRoomsRead": passes, "MarkRoomUnread": passes, "SetRoomArchived": passes,
 	"StarMessage": passes, "StarredIn": passes, "CanonicalParent": passes, "MarkTag": passes,
-	"AddToSpace": passes, "RemoveFromSpace": passes, "CachedTimeline": passes, "Timeline": passes,
+	"AddToSpace": passes, "RemoveFromSpace": passes, "FilingPlaces": passes, "FileRoom": passes, "CachedTimeline": passes, "Timeline": passes,
 	"MessageHistory": passes, "FetchEvent": passes, "FetchEventSource": passes, "Send": passes,
 	"Redact": passes, "SendFile": passes, "SendTyping": passes, "ListThreads": passes,
 	"ThreadPage": passes, "MarkThreadRead": passes, "CachedReactions": passes, "SendReaction": passes,

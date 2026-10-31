@@ -125,6 +125,13 @@ const calls = new Map<string, DescMethodUnary>(
     // looks up (kith-relay's RunCommand). Output for the clipboard main copies itself.
     device.commands,
     device.runCommand,
+    // Filing a room into tags and spaces: where it can go, and filing it, kithd judging
+    // each room, tag and space named against the profile the gate names and writing the
+    // tags into the config itself, so the window is given no config to read or write.
+    // AddToSpace, RemoveFromSpace, SetRoomArchived and MarkTag stay off the list: kithd
+    // makes them for a filing it judged.
+    backend.filingPlaces,
+    backend.fileRoom,
   ].map((m) => [m.name, m]),
 );
 

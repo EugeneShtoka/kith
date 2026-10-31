@@ -458,7 +458,10 @@ After the MVP, each with its own PR and review:
   kithd takes one answer to each step and tells every client);
 - the settings editor (it needs a structured config call; `GetConfig` is TOML text);
 - people and phonebook (needs an RPC);
-- tags and filing;
+- tags and filing (landed 2026-10-31: the TUI's filing picker from a room's header or
+  row; kithd's `FilingPlaces` offers the places and `FileRoom` files them on the config
+  as it is when it writes, with the archive and the release, so the window has no
+  config call; the tag editor and Places settings stay later);
 - pairing UI;
 - a local partial cache for offline reading. That makes the desktop a replica in the mesh
   CRDT (design-clients.md decision 12), so it waits for Phase 2b;

@@ -299,6 +299,83 @@ message RemoveFromSpaceRequest {
 
 message RemoveFromSpaceResponse {}
 
+// ── Filing ──
+
+message FilingPlacesRequest {
+  string room_id = 1;
+  // filing_spaces is the device's [display] filing_spaces: when it names any, the spaces
+  // it names, in its order, are the only spaces offered.
+  repeated string filing_spaces = 2;
+}
+
+message FilingPlacesResponse {
+  // places are the spaces, then the tags, in the order offered.
+  repeated FilingPlace places = 1;
+  // unmatched says filing_spaces names no space the profile has: nothing is offered.
+  bool unmatched = 2;
+}
+
+// FilingPlace is one place a room can be filed into (domain.FilingPlace): a space or a
+// tag.
+message FilingPlace {
+  // space is the space's ID, for a space; tag is the tag's name as configured, for a tag.
+  string space = 1;
+  string tag = 2;
+  // label is what the rail calls it.
+  string label = 3;
+  // in says it holds the room now.
+  bool in = 4;
+}
+
+message FileRoomRequest {
+  string room_id = 1;
+  repeated TagFiling tags = 2;
+  repeated SpaceFiling spaces = 3;
+}
+
+// TagFiling files the room into a tag (in), or out of it; a tag already as asked is
+// left alone.
+message TagFiling {
+  string tag = 1;
+  bool in = 2;
+}
+
+// SpaceFiling files the room into a space (in), or out of it.
+message SpaceFiling {
+  string space_id = 1;
+  bool in = 2;
+}
+
+message FileRoomResponse {
+  // spaces is what came of each space filing, in the request's order.
+  repeated SpaceFiled spaces = 1;
+  // archive_failed is the network's refusal to archive or unarchive the room as its
+  // mirrored archive tag was crossed; the tags are filed all the same, and the room shows
+  // where its network holds it. Empty when nothing was asked of the network, or it did it.
+  string archive_failed = 2;
+  // release_failed is why the release of a tag a filter moved the room into was not
+  // recorded: the tag holds it out here, but a filter may move it back elsewhere.
+  string release_failed = 3;
+}
+
+// SpaceFiledOutcome is what came of one space filing.
+enum SpaceFiledOutcome {
+  SPACE_FILED_OUTCOME_UNSPECIFIED = 0;
+  // The space and the room both say so now.
+  SPACE_FILED_OUTCOME_FILED = 1;
+  // The space took the change, but the room's own record of where it lives was refused
+  // (no power there).
+  SPACE_FILED_OUTCOME_PARENT_KEPT = 2;
+  SPACE_FILED_OUTCOME_REFUSED = 3;
+}
+
+message SpaceFiled {
+  string space_id = 1;
+  SpaceFiledOutcome outcome = 2;
+  // error is the refusal's words.
+  string error = 3;
+}
+
 // ── Timeline ──
 
 message CachedTimelineRequest {
@@ -2062,6 +2139,20 @@ service BackendService {
   rpc AddToSpace(AddToSpaceRequest) returns (AddToSpaceResponse);
   // RemoveFromSpace takes a room back out, emptying both events AddToSpace wrote.
   rpc RemoveFromSpace(RemoveFromSpaceRequest) returns (RemoveFromSpaceResponse);
+  // Filing
+  // FilingPlaces is where a room of the request's profile can be filed, as the TUI's
+  // filing picker offers it: its spaces, then the tags filed by hand, in [display]
+  // filing_spaces, priority and rail order, each saying whether it holds the room now.
+  // A room the profile does not hold, or an invitation, is refused.
+  rpc FilingPlaces(FilingPlacesRequest) returns (FilingPlacesResponse);
+  // FileRoom files a room of the request's profile into or out of tags and spaces. The
+  // tags are judged on the config as it is when kithd writes it, as UpdateConfig writes
+  // (one writer, revision-checked, ConfigChanged told), so two clients filing at once
+  // both stick and a hand edit made meanwhile is kept. Crossing a network's mirrored
+  // archive tag archives or unarchives the room there; leaving a tag a filter moved it
+  // into records the release, so no filter moves it back. A room, tag or space the
+  // profile does not hold is refused, and nothing is filed.
+  rpc FileRoom(FileRoomRequest) returns (FileRoomResponse);
   // Timeline
   // CachedTimeline returns a room's most recent cached messages for instant display on
   // entry.

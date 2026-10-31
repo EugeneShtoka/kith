@@ -270,27 +270,10 @@ func (s *server) buildRail(ctx context.Context, name string) (rail domain.Served
 	if err != nil {
 		return domain.ServedRail{}, nil, err
 	}
-	places := cfg.places
-	places.Order = places.Order.WithManaged(in.spaces)
-	places.Caught = map[domain.RoomID][]string{}
 	parents := s.Notifications.rails.knownParents()
-	rooms := make([]domain.RailRoom, 0, len(in.rooms))
-	for i := range in.rooms {
-		room := &in.rooms[i]
-		if caught := s.Notifications.caught(room.ID); len(caught) > 0 {
-			places.Caught[room.ID] = caught
-		}
-		count := in.unread[room.ID]
-		_, highlights := count.Count(cfg.local)
-		rooms = append(rooms, domain.RailRoom{
-			ID:    room.ID,
-			Facts: places.Facts(*room, domain.HoldersOf(room.ID, in.spaces)),
-			State: domain.RoomState{
-				Unread: count.HasUnread(cfg.local), Mention: highlights > 0,
-				Draft: in.drafts[room.ID], Invite: room.IsInvite(),
-			},
-			Parent: parents[room.ID],
-		})
+	_, rooms := s.railRooms(cfg.places, cfg.local, in)
+	for i := range rooms {
+		rooms[i].Parent = parents[rooms[i].ID]
 	}
 	built := domain.BuildRail(cfg.spec, in.spaces, rooms)
 	for i := range rooms {
@@ -299,6 +282,32 @@ func (s *server) buildRail(ctx context.Context, name string) (rail domain.Served
 		}
 	}
 	return built.Served(cfg.spec, rooms), wanted, nil
+}
+
+// railRooms is each room of in as places judge it, its facts and its state (local: a
+// badge counts messages), and places as they judged them: knowing in's managed spaces
+// and the filters' moves.
+func (s *server) railRooms(places domain.Places, local bool, in railRead) (domain.Places, []domain.RailRoom) {
+	places.Order = places.Order.WithManaged(in.spaces)
+	places.Caught = map[domain.RoomID][]string{}
+	rooms := make([]domain.RailRoom, 0, len(in.rooms))
+	for i := range in.rooms {
+		room := &in.rooms[i]
+		if caught := s.Notifications.caught(room.ID); len(caught) > 0 {
+			places.Caught[room.ID] = caught
+		}
+		count := in.unread[room.ID]
+		_, highlights := count.Count(local)
+		rooms = append(rooms, domain.RailRoom{
+			ID:    room.ID,
+			Facts: places.Facts(*room, domain.HoldersOf(room.ID, in.spaces)),
+			State: domain.RoomState{
+				Unread: count.HasUnread(local), Mention: highlights > 0,
+				Draft: in.drafts[room.ID], Invite: room.IsInvite(),
+			},
+		})
+	}
+	return places, rooms
 }
 
 // railRead is what a rail is built from that the backend holds, as the request's

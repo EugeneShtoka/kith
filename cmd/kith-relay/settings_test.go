@@ -34,7 +34,7 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 		{"nothing set", "", spelling(&devicev1.DeviceSettings{SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room"})},
 		{
 			"keys and rules set",
-			"[display]\nsend_receipts = false\nunread_line = false\n\n" +
+			"[display]\nsend_receipts = false\nunread_line = false\nfiling_spaces = [\"space:Work\", \"place:Home\"]\n\n" +
 				"[[display.read_rule]]\nmatch = \"space:Work\"\nsend = true\n\n" +
 				"[[display.read_rule]]\nsender = \"matrix:@alice:example.org\"\ndelay = 5\n",
 			spelling(&devicev1.DeviceSettings{
@@ -43,6 +43,7 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 					{Sender: "matrix:@alice:example.org"},
 				},
 				Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
+				FilingSpaces: []string{"space:Work", "place:Home"},
 			}),
 		},
 		{
@@ -119,6 +120,7 @@ func settingsText(s *devicev1.DeviceSettings) string {
 		s.GetSpellUnderline(), s.GetRareUnderline(), s.GetCheckBeforeSend(), s.GetRareBeforeSend(), s.GetAutocorrect(),
 		s.GetSpellDeclined(), s.GetFrequenciesDeclined(), s.GetComplete(), s.GetCompleteGhost(), s.GetCompleteRatio(),
 		s.GetCompleteScope(), s.GetCompleteSources(), s.GetModelDeclined())
+	text += fmt.Sprintf(" filing_spaces=%q", s.GetFilingSpaces())
 	for _, r := range s.GetReadRules() {
 		send := "unset"
 		if r.Send != nil {

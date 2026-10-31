@@ -467,6 +467,7 @@ func resolved(dev config.Device) *devicev1.DeviceSettings {
 		CompleteScope:       dev.Complete.ScopeOrDefault(),
 		CompleteSources:     dev.Complete.Sources,
 		ModelDeclined:       dev.Complete.Model.Declined,
+		FilingSpaces:        dev.Display.FilingSpaces,
 	}
 }
 

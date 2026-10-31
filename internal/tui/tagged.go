@@ -34,11 +34,7 @@ func (v unreadView) factsOf(room domain.Room) domain.RoomFacts {
 // tagState is the state tag i judges room in: the room's own for a silent tag, read
 // for any other while a silent tag holds the room.
 func (v unreadView) tagState(i int, room domain.Room) domain.RoomState {
-	state := v.rawState(room)
-	if !v.tags.At(i).Silent && v.silenced(room) {
-		state.Unread, state.Mention = false, false
-	}
-	return state
+	return v.tags.StateIn(i, v.rawState(room), v.silenced(room))
 }
 
 // rawState is the room's state before any tag silences it.
