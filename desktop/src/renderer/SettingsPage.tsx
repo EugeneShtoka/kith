@@ -1,9 +1,11 @@
 // The settings page: this device's settings shared with the TUI (device.toml), and the
-// window's theme (Session.changeTheme), each change written at once; no Save button.
+// window's theme (Session.changeTheme), each change written at once (no Save button); and the
+// network accounts kithd logs in (Accounts.tsx).
 import { useEffect, useState } from "react";
 
 import type { DeviceSettings, ThemeResponse, ReadRule } from "../gen/device/v1/device_pb";
 import { fontSizes } from "../shared/ipc";
+import { Accounts } from "./Accounts";
 import { networkMark } from "./faces";
 import { picked, roles, valueOf } from "./theme";
 import { builtIn, ColorRow, ModeRow } from "./ThemeRow";
@@ -67,6 +69,7 @@ export function SettingsPage({ page, view, session }: { page: Page; view: View; 
       )}
       <Theme theme={view.theme} change={view.themeChange} session={session} />
       <WindowScale />
+      <Accounts login={view.login} rail={view.rail} session={session} />
     </section>
   );
 }

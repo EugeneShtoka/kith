@@ -170,8 +170,13 @@ and holds the least:
   `window.open` denied. Links show their target and open nothing yet.
 - **The preload is the whole reach.** The page may call kithd's RPCs by name, in
   protobuf binary, and main serves only the names on an allowlist of what reading
-  and writing messages needs. Calls beyond that (config edits, sign-out, key export,
-  pairing) are left off until a feature needs one and its review adds it. Main checks
+  and writing messages needs, with the settings page and logging accounts in and out.
+  Calls beyond that (config edits, key export, pairing) are left off until a feature
+  needs one and its review adds it. A login's calls reach only a login the window
+  began itself, as its current step allows (one answer at a time, its new account
+  written once, through the relay); a login the window stops leading (it reloads or
+  closes) is ended in kithd; and sign-out reaches only an account whose own space is
+  on the profile's rail. What is typed into a login is not logged. Main checks
   that each request comes from the window's own `app://kith` frame, decodes it against
   the method's schema, and refuses anything else. Files go through main too: a file
   is read where the system's dialog, a drop or a paste put it, and the page holds only

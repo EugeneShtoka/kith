@@ -121,6 +121,185 @@ func (ThemeScope) EnumDescriptor() ([]byte, []int) {
 	return file_device_v1_device_proto_rawDescGZIP(), []int{1}
 }
 
+type WriteAccountRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// table and values are the configure step's record (BackendService.LoginRecord).
+	Table         string            `protobuf:"bytes,1,opt,name=table,proto3" json:"table,omitempty"`
+	Values        map[string]string `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WriteAccountRequest) Reset() {
+	*x = WriteAccountRequest{}
+	mi := &file_device_v1_device_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WriteAccountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WriteAccountRequest) ProtoMessage() {}
+
+func (x *WriteAccountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WriteAccountRequest.ProtoReflect.Descriptor instead.
+func (*WriteAccountRequest) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *WriteAccountRequest) GetTable() string {
+	if x != nil {
+		return x.Table
+	}
+	return ""
+}
+
+func (x *WriteAccountRequest) GetValues() map[string]string {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type WriteAccountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WriteAccountResponse) Reset() {
+	*x = WriteAccountResponse{}
+	mi := &file_device_v1_device_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WriteAccountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WriteAccountResponse) ProtoMessage() {}
+
+func (x *WriteAccountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WriteAccountResponse.ProtoReflect.Descriptor instead.
+func (*WriteAccountResponse) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{1}
+}
+
+type QRCodeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          string                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QRCodeRequest) Reset() {
+	*x = QRCodeRequest{}
+	mi := &file_device_v1_device_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QRCodeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QRCodeRequest) ProtoMessage() {}
+
+func (x *QRCodeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QRCodeRequest.ProtoReflect.Descriptor instead.
+func (*QRCodeRequest) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *QRCodeRequest) GetData() string {
+	if x != nil {
+		return x.Data
+	}
+	return ""
+}
+
+type QRCodeResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// dark holds a byte per module of the square code, its quiet zone not counted, row by
+	// row from the top left: 1 dark, 0 light. Its side is the square root of its length.
+	Dark          []byte `protobuf:"bytes,1,opt,name=dark,proto3" json:"dark,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QRCodeResponse) Reset() {
+	*x = QRCodeResponse{}
+	mi := &file_device_v1_device_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QRCodeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QRCodeResponse) ProtoMessage() {}
+
+func (x *QRCodeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_device_v1_device_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QRCodeResponse.ProtoReflect.Descriptor instead.
+func (*QRCodeResponse) Descriptor() ([]byte, []int) {
+	return file_device_v1_device_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *QRCodeResponse) GetDark() []byte {
+	if x != nil {
+		return x.Dark
+	}
+	return nil
+}
+
 type ThemeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -129,7 +308,7 @@ type ThemeRequest struct {
 
 func (x *ThemeRequest) Reset() {
 	*x = ThemeRequest{}
-	mi := &file_device_v1_device_proto_msgTypes[0]
+	mi := &file_device_v1_device_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -141,7 +320,7 @@ func (x *ThemeRequest) String() string {
 func (*ThemeRequest) ProtoMessage() {}
 
 func (x *ThemeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[0]
+	mi := &file_device_v1_device_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -154,7 +333,7 @@ func (x *ThemeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThemeRequest.ProtoReflect.Descriptor instead.
 func (*ThemeRequest) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{0}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{4}
 }
 
 type ThemeResponse struct {
@@ -187,7 +366,7 @@ type ThemeResponse struct {
 
 func (x *ThemeResponse) Reset() {
 	*x = ThemeResponse{}
-	mi := &file_device_v1_device_proto_msgTypes[1]
+	mi := &file_device_v1_device_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -199,7 +378,7 @@ func (x *ThemeResponse) String() string {
 func (*ThemeResponse) ProtoMessage() {}
 
 func (x *ThemeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[1]
+	mi := &file_device_v1_device_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -212,7 +391,7 @@ func (x *ThemeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThemeResponse.ProtoReflect.Descriptor instead.
 func (*ThemeResponse) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{1}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ThemeResponse) GetValues() map[string]*ThemeValue {
@@ -281,7 +460,7 @@ type ThemeValue struct {
 
 func (x *ThemeValue) Reset() {
 	*x = ThemeValue{}
-	mi := &file_device_v1_device_proto_msgTypes[2]
+	mi := &file_device_v1_device_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -293,7 +472,7 @@ func (x *ThemeValue) String() string {
 func (*ThemeValue) ProtoMessage() {}
 
 func (x *ThemeValue) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[2]
+	mi := &file_device_v1_device_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -306,7 +485,7 @@ func (x *ThemeValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThemeValue.ProtoReflect.Descriptor instead.
 func (*ThemeValue) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{2}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ThemeValue) GetValue() string {
@@ -352,7 +531,7 @@ type ThemeAccount struct {
 
 func (x *ThemeAccount) Reset() {
 	*x = ThemeAccount{}
-	mi := &file_device_v1_device_proto_msgTypes[3]
+	mi := &file_device_v1_device_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -364,7 +543,7 @@ func (x *ThemeAccount) String() string {
 func (*ThemeAccount) ProtoMessage() {}
 
 func (x *ThemeAccount) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[3]
+	mi := &file_device_v1_device_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -377,7 +556,7 @@ func (x *ThemeAccount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThemeAccount.ProtoReflect.Descriptor instead.
 func (*ThemeAccount) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{3}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ThemeAccount) GetOn() string {
@@ -414,7 +593,7 @@ type ThemeIdentity struct {
 
 func (x *ThemeIdentity) Reset() {
 	*x = ThemeIdentity{}
-	mi := &file_device_v1_device_proto_msgTypes[4]
+	mi := &file_device_v1_device_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -426,7 +605,7 @@ func (x *ThemeIdentity) String() string {
 func (*ThemeIdentity) ProtoMessage() {}
 
 func (x *ThemeIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[4]
+	mi := &file_device_v1_device_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -439,7 +618,7 @@ func (x *ThemeIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThemeIdentity.ProtoReflect.Descriptor instead.
 func (*ThemeIdentity) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{4}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ThemeIdentity) GetKey() string {
@@ -469,7 +648,7 @@ type ThemeWrite struct {
 
 func (x *ThemeWrite) Reset() {
 	*x = ThemeWrite{}
-	mi := &file_device_v1_device_proto_msgTypes[5]
+	mi := &file_device_v1_device_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -481,7 +660,7 @@ func (x *ThemeWrite) String() string {
 func (*ThemeWrite) ProtoMessage() {}
 
 func (x *ThemeWrite) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[5]
+	mi := &file_device_v1_device_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -494,7 +673,7 @@ func (x *ThemeWrite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThemeWrite.ProtoReflect.Descriptor instead.
 func (*ThemeWrite) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{5}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ThemeWrite) GetKey() string {
@@ -531,7 +710,7 @@ type UpdateThemeRequest struct {
 
 func (x *UpdateThemeRequest) Reset() {
 	*x = UpdateThemeRequest{}
-	mi := &file_device_v1_device_proto_msgTypes[6]
+	mi := &file_device_v1_device_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -543,7 +722,7 @@ func (x *UpdateThemeRequest) String() string {
 func (*UpdateThemeRequest) ProtoMessage() {}
 
 func (x *UpdateThemeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[6]
+	mi := &file_device_v1_device_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -556,7 +735,7 @@ func (x *UpdateThemeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateThemeRequest.ProtoReflect.Descriptor instead.
 func (*UpdateThemeRequest) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{6}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UpdateThemeRequest) GetConfigRevision() string {
@@ -589,7 +768,7 @@ type UpdateThemeResponse struct {
 
 func (x *UpdateThemeResponse) Reset() {
 	*x = UpdateThemeResponse{}
-	mi := &file_device_v1_device_proto_msgTypes[7]
+	mi := &file_device_v1_device_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +780,7 @@ func (x *UpdateThemeResponse) String() string {
 func (*UpdateThemeResponse) ProtoMessage() {}
 
 func (x *UpdateThemeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[7]
+	mi := &file_device_v1_device_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -614,7 +793,7 @@ func (x *UpdateThemeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateThemeResponse.ProtoReflect.Descriptor instead.
 func (*UpdateThemeResponse) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{7}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UpdateThemeResponse) GetTheme() *ThemeResponse {
@@ -634,7 +813,7 @@ type OutgoingRequest struct {
 
 func (x *OutgoingRequest) Reset() {
 	*x = OutgoingRequest{}
-	mi := &file_device_v1_device_proto_msgTypes[8]
+	mi := &file_device_v1_device_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -646,7 +825,7 @@ func (x *OutgoingRequest) String() string {
 func (*OutgoingRequest) ProtoMessage() {}
 
 func (x *OutgoingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[8]
+	mi := &file_device_v1_device_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -659,7 +838,7 @@ func (x *OutgoingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OutgoingRequest.ProtoReflect.Descriptor instead.
 func (*OutgoingRequest) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{8}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *OutgoingRequest) GetPath() string {
@@ -685,7 +864,7 @@ type OutgoingResponse struct {
 
 func (x *OutgoingResponse) Reset() {
 	*x = OutgoingResponse{}
-	mi := &file_device_v1_device_proto_msgTypes[9]
+	mi := &file_device_v1_device_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -697,7 +876,7 @@ func (x *OutgoingResponse) String() string {
 func (*OutgoingResponse) ProtoMessage() {}
 
 func (x *OutgoingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[9]
+	mi := &file_device_v1_device_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -710,7 +889,7 @@ func (x *OutgoingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OutgoingResponse.ProtoReflect.Descriptor instead.
 func (*OutgoingResponse) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{9}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *OutgoingResponse) GetPath() string {
@@ -749,7 +928,7 @@ type DeviceRequest struct {
 
 func (x *DeviceRequest) Reset() {
 	*x = DeviceRequest{}
-	mi := &file_device_v1_device_proto_msgTypes[10]
+	mi := &file_device_v1_device_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -761,7 +940,7 @@ func (x *DeviceRequest) String() string {
 func (*DeviceRequest) ProtoMessage() {}
 
 func (x *DeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[10]
+	mi := &file_device_v1_device_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -774,7 +953,7 @@ func (x *DeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceRequest.ProtoReflect.Descriptor instead.
 func (*DeviceRequest) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{10}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{14}
 }
 
 type DeviceResponse struct {
@@ -798,7 +977,7 @@ type DeviceResponse struct {
 
 func (x *DeviceResponse) Reset() {
 	*x = DeviceResponse{}
-	mi := &file_device_v1_device_proto_msgTypes[11]
+	mi := &file_device_v1_device_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -810,7 +989,7 @@ func (x *DeviceResponse) String() string {
 func (*DeviceResponse) ProtoMessage() {}
 
 func (x *DeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[11]
+	mi := &file_device_v1_device_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -823,7 +1002,7 @@ func (x *DeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceResponse.ProtoReflect.Descriptor instead.
 func (*DeviceResponse) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{11}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DeviceResponse) GetSocket() string {
@@ -864,7 +1043,7 @@ type ChooseProfileRequest struct {
 
 func (x *ChooseProfileRequest) Reset() {
 	*x = ChooseProfileRequest{}
-	mi := &file_device_v1_device_proto_msgTypes[12]
+	mi := &file_device_v1_device_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -876,7 +1055,7 @@ func (x *ChooseProfileRequest) String() string {
 func (*ChooseProfileRequest) ProtoMessage() {}
 
 func (x *ChooseProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[12]
+	mi := &file_device_v1_device_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -889,7 +1068,7 @@ func (x *ChooseProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChooseProfileRequest.ProtoReflect.Descriptor instead.
 func (*ChooseProfileRequest) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{12}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ChooseProfileRequest) GetName() string {
@@ -909,7 +1088,7 @@ type ChooseProfileResponse struct {
 
 func (x *ChooseProfileResponse) Reset() {
 	*x = ChooseProfileResponse{}
-	mi := &file_device_v1_device_proto_msgTypes[13]
+	mi := &file_device_v1_device_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -921,7 +1100,7 @@ func (x *ChooseProfileResponse) String() string {
 func (*ChooseProfileResponse) ProtoMessage() {}
 
 func (x *ChooseProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[13]
+	mi := &file_device_v1_device_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -934,7 +1113,7 @@ func (x *ChooseProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChooseProfileResponse.ProtoReflect.Descriptor instead.
 func (*ChooseProfileResponse) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{13}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ChooseProfileResponse) GetProfile() string {
@@ -952,7 +1131,7 @@ type DeviceSettingsRequest struct {
 
 func (x *DeviceSettingsRequest) Reset() {
 	*x = DeviceSettingsRequest{}
-	mi := &file_device_v1_device_proto_msgTypes[14]
+	mi := &file_device_v1_device_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -964,7 +1143,7 @@ func (x *DeviceSettingsRequest) String() string {
 func (*DeviceSettingsRequest) ProtoMessage() {}
 
 func (x *DeviceSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[14]
+	mi := &file_device_v1_device_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -977,7 +1156,7 @@ func (x *DeviceSettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceSettingsRequest.ProtoReflect.Descriptor instead.
 func (*DeviceSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{14}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{18}
 }
 
 type DeviceSettingsResponse struct {
@@ -992,7 +1171,7 @@ type DeviceSettingsResponse struct {
 
 func (x *DeviceSettingsResponse) Reset() {
 	*x = DeviceSettingsResponse{}
-	mi := &file_device_v1_device_proto_msgTypes[15]
+	mi := &file_device_v1_device_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1004,7 +1183,7 @@ func (x *DeviceSettingsResponse) String() string {
 func (*DeviceSettingsResponse) ProtoMessage() {}
 
 func (x *DeviceSettingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[15]
+	mi := &file_device_v1_device_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1017,7 +1196,7 @@ func (x *DeviceSettingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceSettingsResponse.ProtoReflect.Descriptor instead.
 func (*DeviceSettingsResponse) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{15}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *DeviceSettingsResponse) GetSettings() *DeviceSettings {
@@ -1045,7 +1224,7 @@ type UpdateDeviceSettingsRequest struct {
 
 func (x *UpdateDeviceSettingsRequest) Reset() {
 	*x = UpdateDeviceSettingsRequest{}
-	mi := &file_device_v1_device_proto_msgTypes[16]
+	mi := &file_device_v1_device_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1057,7 +1236,7 @@ func (x *UpdateDeviceSettingsRequest) String() string {
 func (*UpdateDeviceSettingsRequest) ProtoMessage() {}
 
 func (x *UpdateDeviceSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[16]
+	mi := &file_device_v1_device_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1070,7 +1249,7 @@ func (x *UpdateDeviceSettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDeviceSettingsRequest.ProtoReflect.Descriptor instead.
 func (*UpdateDeviceSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{16}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *UpdateDeviceSettingsRequest) GetBaseRevision() string {
@@ -1098,7 +1277,7 @@ type UpdateDeviceSettingsResponse struct {
 
 func (x *UpdateDeviceSettingsResponse) Reset() {
 	*x = UpdateDeviceSettingsResponse{}
-	mi := &file_device_v1_device_proto_msgTypes[17]
+	mi := &file_device_v1_device_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1110,7 +1289,7 @@ func (x *UpdateDeviceSettingsResponse) String() string {
 func (*UpdateDeviceSettingsResponse) ProtoMessage() {}
 
 func (x *UpdateDeviceSettingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[17]
+	mi := &file_device_v1_device_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1123,7 +1302,7 @@ func (x *UpdateDeviceSettingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDeviceSettingsResponse.ProtoReflect.Descriptor instead.
 func (*UpdateDeviceSettingsResponse) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{17}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *UpdateDeviceSettingsResponse) GetSettings() *DeviceSettings {
@@ -1175,7 +1354,7 @@ type DeviceSettings struct {
 
 func (x *DeviceSettings) Reset() {
 	*x = DeviceSettings{}
-	mi := &file_device_v1_device_proto_msgTypes[18]
+	mi := &file_device_v1_device_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1187,7 +1366,7 @@ func (x *DeviceSettings) String() string {
 func (*DeviceSettings) ProtoMessage() {}
 
 func (x *DeviceSettings) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[18]
+	mi := &file_device_v1_device_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1200,7 +1379,7 @@ func (x *DeviceSettings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceSettings.ProtoReflect.Descriptor instead.
 func (*DeviceSettings) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{18}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *DeviceSettings) GetSendReceipts() bool {
@@ -1296,7 +1475,7 @@ type ReadRule struct {
 
 func (x *ReadRule) Reset() {
 	*x = ReadRule{}
-	mi := &file_device_v1_device_proto_msgTypes[19]
+	mi := &file_device_v1_device_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1308,7 +1487,7 @@ func (x *ReadRule) String() string {
 func (*ReadRule) ProtoMessage() {}
 
 func (x *ReadRule) ProtoReflect() protoreflect.Message {
-	mi := &file_device_v1_device_proto_msgTypes[19]
+	mi := &file_device_v1_device_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1321,7 +1500,7 @@ func (x *ReadRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadRule.ProtoReflect.Descriptor instead.
 func (*ReadRule) Descriptor() ([]byte, []int) {
-	return file_device_v1_device_proto_rawDescGZIP(), []int{19}
+	return file_device_v1_device_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ReadRule) GetMatch() string {
@@ -1349,7 +1528,18 @@ var File_device_v1_device_proto protoreflect.FileDescriptor
 
 const file_device_v1_device_proto_rawDesc = "" +
 	"\n" +
-	"\x16device/v1/device.proto\x12\tdevice.v1\"\x0e\n" +
+	"\x16device/v1/device.proto\x12\tdevice.v1\"\xaa\x01\n" +
+	"\x13WriteAccountRequest\x12\x14\n" +
+	"\x05table\x18\x01 \x01(\tR\x05table\x12B\n" +
+	"\x06values\x18\x02 \x03(\v2*.device.v1.WriteAccountRequest.ValuesEntryR\x06values\x1a9\n" +
+	"\vValuesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x16\n" +
+	"\x14WriteAccountResponse\"#\n" +
+	"\rQRCodeRequest\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\tR\x04data\"$\n" +
+	"\x0eQRCodeResponse\x12\x12\n" +
+	"\x04dark\x18\x01 \x01(\fR\x04dark\"\x0e\n" +
 	"\fThemeRequest\"\x86\x05\n" +
 	"\rThemeResponse\x12<\n" +
 	"\x06values\x18\x01 \x03(\v2$.device.v1.ThemeResponse.ValuesEntryR\x06values\x12'\n" +
@@ -1455,7 +1645,7 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"ThemeScope\x12\x1b\n" +
 	"\x17THEME_SCOPE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12THEME_SCOPE_SHARED\x10\x01\x12\x16\n" +
-	"\x12THEME_SCOPE_DEVICE\x10\x022\xb1\x04\n" +
+	"\x12THEME_SCOPE_DEVICE\x10\x022\xc1\x05\n" +
 	"\rDeviceService\x12=\n" +
 	"\x06Device\x12\x18.device.v1.DeviceRequest\x1a\x19.device.v1.DeviceResponse\x12R\n" +
 	"\rChooseProfile\x12\x1f.device.v1.ChooseProfileRequest\x1a .device.v1.ChooseProfileResponse\x12U\n" +
@@ -1463,7 +1653,9 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\x14UpdateDeviceSettings\x12&.device.v1.UpdateDeviceSettingsRequest\x1a'.device.v1.UpdateDeviceSettingsResponse\x12C\n" +
 	"\bOutgoing\x12\x1a.device.v1.OutgoingRequest\x1a\x1b.device.v1.OutgoingResponse\x12:\n" +
 	"\x05Theme\x12\x17.device.v1.ThemeRequest\x1a\x18.device.v1.ThemeResponse\x12L\n" +
-	"\vUpdateTheme\x12\x1d.device.v1.UpdateThemeRequest\x1a\x1e.device.v1.UpdateThemeResponseB>Z<github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1b\x06proto3"
+	"\vUpdateTheme\x12\x1d.device.v1.UpdateThemeRequest\x1a\x1e.device.v1.UpdateThemeResponse\x12O\n" +
+	"\fWriteAccount\x12\x1e.device.v1.WriteAccountRequest\x1a\x1f.device.v1.WriteAccountResponse\x12=\n" +
+	"\x06QRCode\x12\x18.device.v1.QRCodeRequest\x1a\x19.device.v1.QRCodeResponseB>Z<github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1b\x06proto3"
 
 var (
 	file_device_v1_device_proto_rawDescOnce sync.Once
@@ -1478,70 +1670,80 @@ func file_device_v1_device_proto_rawDescGZIP() []byte {
 }
 
 var file_device_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_device_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_device_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_device_v1_device_proto_goTypes = []any{
 	(ThemeSource)(0),                     // 0: device.v1.ThemeSource
 	(ThemeScope)(0),                      // 1: device.v1.ThemeScope
-	(*ThemeRequest)(nil),                 // 2: device.v1.ThemeRequest
-	(*ThemeResponse)(nil),                // 3: device.v1.ThemeResponse
-	(*ThemeValue)(nil),                   // 4: device.v1.ThemeValue
-	(*ThemeAccount)(nil),                 // 5: device.v1.ThemeAccount
-	(*ThemeIdentity)(nil),                // 6: device.v1.ThemeIdentity
-	(*ThemeWrite)(nil),                   // 7: device.v1.ThemeWrite
-	(*UpdateThemeRequest)(nil),           // 8: device.v1.UpdateThemeRequest
-	(*UpdateThemeResponse)(nil),          // 9: device.v1.UpdateThemeResponse
-	(*OutgoingRequest)(nil),              // 10: device.v1.OutgoingRequest
-	(*OutgoingResponse)(nil),             // 11: device.v1.OutgoingResponse
-	(*DeviceRequest)(nil),                // 12: device.v1.DeviceRequest
-	(*DeviceResponse)(nil),               // 13: device.v1.DeviceResponse
-	(*ChooseProfileRequest)(nil),         // 14: device.v1.ChooseProfileRequest
-	(*ChooseProfileResponse)(nil),        // 15: device.v1.ChooseProfileResponse
-	(*DeviceSettingsRequest)(nil),        // 16: device.v1.DeviceSettingsRequest
-	(*DeviceSettingsResponse)(nil),       // 17: device.v1.DeviceSettingsResponse
-	(*UpdateDeviceSettingsRequest)(nil),  // 18: device.v1.UpdateDeviceSettingsRequest
-	(*UpdateDeviceSettingsResponse)(nil), // 19: device.v1.UpdateDeviceSettingsResponse
-	(*DeviceSettings)(nil),               // 20: device.v1.DeviceSettings
-	(*ReadRule)(nil),                     // 21: device.v1.ReadRule
-	nil,                                  // 22: device.v1.ThemeResponse.ValuesEntry
-	nil,                                  // 23: device.v1.ThemeResponse.NetworkColorsEntry
-	nil,                                  // 24: device.v1.ThemeResponse.IdentitiesEntry
-	nil,                                  // 25: device.v1.DeviceSettings.EmojiExtraEntry
+	(*WriteAccountRequest)(nil),          // 2: device.v1.WriteAccountRequest
+	(*WriteAccountResponse)(nil),         // 3: device.v1.WriteAccountResponse
+	(*QRCodeRequest)(nil),                // 4: device.v1.QRCodeRequest
+	(*QRCodeResponse)(nil),               // 5: device.v1.QRCodeResponse
+	(*ThemeRequest)(nil),                 // 6: device.v1.ThemeRequest
+	(*ThemeResponse)(nil),                // 7: device.v1.ThemeResponse
+	(*ThemeValue)(nil),                   // 8: device.v1.ThemeValue
+	(*ThemeAccount)(nil),                 // 9: device.v1.ThemeAccount
+	(*ThemeIdentity)(nil),                // 10: device.v1.ThemeIdentity
+	(*ThemeWrite)(nil),                   // 11: device.v1.ThemeWrite
+	(*UpdateThemeRequest)(nil),           // 12: device.v1.UpdateThemeRequest
+	(*UpdateThemeResponse)(nil),          // 13: device.v1.UpdateThemeResponse
+	(*OutgoingRequest)(nil),              // 14: device.v1.OutgoingRequest
+	(*OutgoingResponse)(nil),             // 15: device.v1.OutgoingResponse
+	(*DeviceRequest)(nil),                // 16: device.v1.DeviceRequest
+	(*DeviceResponse)(nil),               // 17: device.v1.DeviceResponse
+	(*ChooseProfileRequest)(nil),         // 18: device.v1.ChooseProfileRequest
+	(*ChooseProfileResponse)(nil),        // 19: device.v1.ChooseProfileResponse
+	(*DeviceSettingsRequest)(nil),        // 20: device.v1.DeviceSettingsRequest
+	(*DeviceSettingsResponse)(nil),       // 21: device.v1.DeviceSettingsResponse
+	(*UpdateDeviceSettingsRequest)(nil),  // 22: device.v1.UpdateDeviceSettingsRequest
+	(*UpdateDeviceSettingsResponse)(nil), // 23: device.v1.UpdateDeviceSettingsResponse
+	(*DeviceSettings)(nil),               // 24: device.v1.DeviceSettings
+	(*ReadRule)(nil),                     // 25: device.v1.ReadRule
+	nil,                                  // 26: device.v1.WriteAccountRequest.ValuesEntry
+	nil,                                  // 27: device.v1.ThemeResponse.ValuesEntry
+	nil,                                  // 28: device.v1.ThemeResponse.NetworkColorsEntry
+	nil,                                  // 29: device.v1.ThemeResponse.IdentitiesEntry
+	nil,                                  // 30: device.v1.DeviceSettings.EmojiExtraEntry
 }
 var file_device_v1_device_proto_depIdxs = []int32{
-	22, // 0: device.v1.ThemeResponse.values:type_name -> device.v1.ThemeResponse.ValuesEntry
-	5,  // 1: device.v1.ThemeResponse.accounts:type_name -> device.v1.ThemeAccount
-	23, // 2: device.v1.ThemeResponse.network_colors:type_name -> device.v1.ThemeResponse.NetworkColorsEntry
-	24, // 3: device.v1.ThemeResponse.identities:type_name -> device.v1.ThemeResponse.IdentitiesEntry
-	0,  // 4: device.v1.ThemeValue.source:type_name -> device.v1.ThemeSource
-	1,  // 5: device.v1.ThemeWrite.scope:type_name -> device.v1.ThemeScope
-	7,  // 6: device.v1.UpdateThemeRequest.writes:type_name -> device.v1.ThemeWrite
-	3,  // 7: device.v1.UpdateThemeResponse.theme:type_name -> device.v1.ThemeResponse
-	20, // 8: device.v1.DeviceSettingsResponse.settings:type_name -> device.v1.DeviceSettings
-	20, // 9: device.v1.UpdateDeviceSettingsRequest.settings:type_name -> device.v1.DeviceSettings
-	20, // 10: device.v1.UpdateDeviceSettingsResponse.settings:type_name -> device.v1.DeviceSettings
-	21, // 11: device.v1.DeviceSettings.read_rules:type_name -> device.v1.ReadRule
-	25, // 12: device.v1.DeviceSettings.emoji_extra:type_name -> device.v1.DeviceSettings.EmojiExtraEntry
-	4,  // 13: device.v1.ThemeResponse.ValuesEntry.value:type_name -> device.v1.ThemeValue
-	6,  // 14: device.v1.ThemeResponse.IdentitiesEntry.value:type_name -> device.v1.ThemeIdentity
-	12, // 15: device.v1.DeviceService.Device:input_type -> device.v1.DeviceRequest
-	14, // 16: device.v1.DeviceService.ChooseProfile:input_type -> device.v1.ChooseProfileRequest
-	16, // 17: device.v1.DeviceService.DeviceSettings:input_type -> device.v1.DeviceSettingsRequest
-	18, // 18: device.v1.DeviceService.UpdateDeviceSettings:input_type -> device.v1.UpdateDeviceSettingsRequest
-	10, // 19: device.v1.DeviceService.Outgoing:input_type -> device.v1.OutgoingRequest
-	2,  // 20: device.v1.DeviceService.Theme:input_type -> device.v1.ThemeRequest
-	8,  // 21: device.v1.DeviceService.UpdateTheme:input_type -> device.v1.UpdateThemeRequest
-	13, // 22: device.v1.DeviceService.Device:output_type -> device.v1.DeviceResponse
-	15, // 23: device.v1.DeviceService.ChooseProfile:output_type -> device.v1.ChooseProfileResponse
-	17, // 24: device.v1.DeviceService.DeviceSettings:output_type -> device.v1.DeviceSettingsResponse
-	19, // 25: device.v1.DeviceService.UpdateDeviceSettings:output_type -> device.v1.UpdateDeviceSettingsResponse
-	11, // 26: device.v1.DeviceService.Outgoing:output_type -> device.v1.OutgoingResponse
-	3,  // 27: device.v1.DeviceService.Theme:output_type -> device.v1.ThemeResponse
-	9,  // 28: device.v1.DeviceService.UpdateTheme:output_type -> device.v1.UpdateThemeResponse
-	22, // [22:29] is the sub-list for method output_type
-	15, // [15:22] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	26, // 0: device.v1.WriteAccountRequest.values:type_name -> device.v1.WriteAccountRequest.ValuesEntry
+	27, // 1: device.v1.ThemeResponse.values:type_name -> device.v1.ThemeResponse.ValuesEntry
+	9,  // 2: device.v1.ThemeResponse.accounts:type_name -> device.v1.ThemeAccount
+	28, // 3: device.v1.ThemeResponse.network_colors:type_name -> device.v1.ThemeResponse.NetworkColorsEntry
+	29, // 4: device.v1.ThemeResponse.identities:type_name -> device.v1.ThemeResponse.IdentitiesEntry
+	0,  // 5: device.v1.ThemeValue.source:type_name -> device.v1.ThemeSource
+	1,  // 6: device.v1.ThemeWrite.scope:type_name -> device.v1.ThemeScope
+	11, // 7: device.v1.UpdateThemeRequest.writes:type_name -> device.v1.ThemeWrite
+	7,  // 8: device.v1.UpdateThemeResponse.theme:type_name -> device.v1.ThemeResponse
+	24, // 9: device.v1.DeviceSettingsResponse.settings:type_name -> device.v1.DeviceSettings
+	24, // 10: device.v1.UpdateDeviceSettingsRequest.settings:type_name -> device.v1.DeviceSettings
+	24, // 11: device.v1.UpdateDeviceSettingsResponse.settings:type_name -> device.v1.DeviceSettings
+	25, // 12: device.v1.DeviceSettings.read_rules:type_name -> device.v1.ReadRule
+	30, // 13: device.v1.DeviceSettings.emoji_extra:type_name -> device.v1.DeviceSettings.EmojiExtraEntry
+	8,  // 14: device.v1.ThemeResponse.ValuesEntry.value:type_name -> device.v1.ThemeValue
+	10, // 15: device.v1.ThemeResponse.IdentitiesEntry.value:type_name -> device.v1.ThemeIdentity
+	16, // 16: device.v1.DeviceService.Device:input_type -> device.v1.DeviceRequest
+	18, // 17: device.v1.DeviceService.ChooseProfile:input_type -> device.v1.ChooseProfileRequest
+	20, // 18: device.v1.DeviceService.DeviceSettings:input_type -> device.v1.DeviceSettingsRequest
+	22, // 19: device.v1.DeviceService.UpdateDeviceSettings:input_type -> device.v1.UpdateDeviceSettingsRequest
+	14, // 20: device.v1.DeviceService.Outgoing:input_type -> device.v1.OutgoingRequest
+	6,  // 21: device.v1.DeviceService.Theme:input_type -> device.v1.ThemeRequest
+	12, // 22: device.v1.DeviceService.UpdateTheme:input_type -> device.v1.UpdateThemeRequest
+	2,  // 23: device.v1.DeviceService.WriteAccount:input_type -> device.v1.WriteAccountRequest
+	4,  // 24: device.v1.DeviceService.QRCode:input_type -> device.v1.QRCodeRequest
+	17, // 25: device.v1.DeviceService.Device:output_type -> device.v1.DeviceResponse
+	19, // 26: device.v1.DeviceService.ChooseProfile:output_type -> device.v1.ChooseProfileResponse
+	21, // 27: device.v1.DeviceService.DeviceSettings:output_type -> device.v1.DeviceSettingsResponse
+	23, // 28: device.v1.DeviceService.UpdateDeviceSettings:output_type -> device.v1.UpdateDeviceSettingsResponse
+	15, // 29: device.v1.DeviceService.Outgoing:output_type -> device.v1.OutgoingResponse
+	7,  // 30: device.v1.DeviceService.Theme:output_type -> device.v1.ThemeResponse
+	13, // 31: device.v1.DeviceService.UpdateTheme:output_type -> device.v1.UpdateThemeResponse
+	3,  // 32: device.v1.DeviceService.WriteAccount:output_type -> device.v1.WriteAccountResponse
+	5,  // 33: device.v1.DeviceService.QRCode:output_type -> device.v1.QRCodeResponse
+	25, // [25:34] is the sub-list for method output_type
+	16, // [16:25] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_device_v1_device_proto_init() }
@@ -1549,14 +1751,14 @@ func file_device_v1_device_proto_init() {
 	if File_device_v1_device_proto != nil {
 		return
 	}
-	file_device_v1_device_proto_msgTypes[19].OneofWrappers = []any{}
+	file_device_v1_device_proto_msgTypes[23].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_device_v1_device_proto_rawDesc), len(file_device_v1_device_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   24,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

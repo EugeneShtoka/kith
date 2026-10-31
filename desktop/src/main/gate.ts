@@ -21,6 +21,7 @@ import {
 import { DeviceService } from "../gen/device/v1/device_pb";
 import type { StreamEvent } from "../shared/ipc";
 import { runIn } from "../shared/profile";
+import { LoginRefused, loginCalls, Logins, type Ticket } from "./logins";
 import { keepOpen } from "./streams";
 
 const backend = BackendService.method;
@@ -80,6 +81,17 @@ const calls = new Map<string, DescMethodUnary>(
     device.theme,
     device.updateTheme,
     backend.senderSlots,
+    // Accounts: the networks to log in to, and a login the window leads (logins.ts: only
+    // its own, as its step allows), its new account written and its QR code encoded by
+    // the relay; and signing out an account whose own space is on the profile's rail.
+    backend.loginNetworks,
+    backend.beginLogin,
+    backend.answerLogin,
+    backend.cancelLogin,
+    backend.insteadLogin,
+    device.writeAccount,
+    device.qRCode,
+    backend.signOut,
   ].map((m) => [m.name, m]),
 );
 const streams = new Map<string, DescMethodServerStreaming>(
@@ -106,6 +118,9 @@ const invitedOnly = new Map<string, (request: unknown) => string>([
   [backend.leaveRoom.name, (r) => (r as MessageShape<typeof backend.leaveRoom.input>).roomId],
 ]);
 
+/** How long a login the window no longer leads is given to end in kithd (the TUI's wait). */
+const cancelWait = 5000;
+
 /** The window's origin: the app:// protocol main serves it from. */
 export const appURL = "app://kith/";
 
@@ -131,6 +146,18 @@ export class Gate {
   private readonly open = new Set<{ profile: string; stop: () => void; post: (event: StreamEvent) => void }>();
   /** The client each Seat stream open asks the seat for, in its profile. */
   private readonly seats = new Map<object, { profile: string; client: string }>();
+  /** The logins the window leads; kithd ends one the window no longer does. */
+  private readonly logins = new Logins((login, header) =>
+    this.transport
+      .unary(
+        backend.cancelLogin,
+        AbortSignal.timeout(cancelWait),
+        undefined,
+        header,
+        create(backend.cancelLogin.input, { login }),
+      )
+      .then(() => undefined),
+  );
 
   constructor(private readonly transport: Transport) {}
 
@@ -146,7 +173,14 @@ export class Gate {
     if (method.name === backend.replaceDraft.name || method.name === backend.present.name) {
       this.asTheSeat(input as MessageShape<typeof backend.replaceDraft.input | typeof backend.present.input>);
     }
+    if (method.name === backend.signOut.name) {
+      await this.mustBeAnAccount((input as MessageShape<typeof backend.signOut.input>).spaceId, header);
+    }
+    const ticket = loginCalls.has(method.name) ? this.admitLogin(method.name, input, header) : undefined;
     const response = await this.transport.unary(method, undefined, undefined, header, input).catch((err: unknown) => {
+      if (ticket !== undefined) {
+        this.logins.heard(ticket, undefined, err);
+      }
       // A message gone from its network, or one kithd holds no copy of, is an answer: the
       // window is answered no message, and its quote shows as not loaded. A rejection
       // here is logged by Electron as an error.
@@ -157,6 +191,9 @@ export class Gate {
     });
     if (response === undefined) {
       return toBinary(method.output, create(method.output));
+    }
+    if (ticket !== undefined) {
+      this.logins.heard(ticket, response.message);
     }
     this.follow(method, response.message);
     return toBinary(method.output, response.message);
@@ -251,6 +288,12 @@ export class Gate {
    */
   restart(): void {
     this.use("");
+    void this.logins.restart();
+  }
+
+  /** endLogins has kithd end every login the window leads: it is closing. */
+  endLogins(): Promise<void> {
+    return this.logins.end();
   }
 
   /** header is what a request for method carries: kithd's the window's profile, refused without one. */
@@ -302,6 +345,27 @@ export class Gate {
       throw new Refused(`kith: the window speaks only as its seat in ${this.profile}`);
     }
     request.client = seat.client;
+  }
+
+  /** admitLogin is the ticket for a call of a login, refused unless the window leads it and its step allows the call. */
+  private admitLogin(name: string, input: unknown, header: HeadersInit): Ticket {
+    try {
+      return this.logins.admit(name, input, header);
+    } catch (err) {
+      throw err instanceof LoginRefused ? new Refused(err.message) : err;
+    }
+  }
+
+  /**
+   * mustBeAnAccount refuses unless space is an account's own space on the profile's rail
+   * (one the TUI signs out of by leaving it): kithd signs out whatever account space it is
+   * named, in any profile.
+   */
+  private async mustBeAnAccount(space: string, header: HeadersInit): Promise<void> {
+    const rail = await this.transport.unary(backend.rail, undefined, undefined, header, create(backend.rail.input));
+    if (space === "" || !rail.message.rows.some((r) => r.space === space && r.owner !== "")) {
+      throw new Refused(`kith: the window signs out only an account on its rail, not ${space}`);
+    }
   }
 
   /** mustBeInvited refuses unless the profile has an invitation to room now. */

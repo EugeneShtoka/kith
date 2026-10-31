@@ -960,6 +960,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/setup"
             # The TUI's sender colors as data, which the window draws by (no lipgloss).
             - "github.com/EugeneShtoka/kith/internal/themespec"
+            # A login's QR step encoded as the TUI's qrtext encodes it, for the window to draw.
+            - "rsc.io/qr"
 
         # The Signal helper's main: the helper and, built with the signal tag, Signal.
         signal-main-wiring:

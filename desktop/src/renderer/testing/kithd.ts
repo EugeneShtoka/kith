@@ -161,6 +161,13 @@ export class Kithd {
   readonly linksArrived: FollowStreamResponse[] = [];
   /** What each window last told kithd it has open (Present), by client. */
   readonly presented = new Map<string, string>();
+  /** The networks to log in to; the steps a login goes through, in order; the logins canceled. */
+  loginNetworks: MessageInitShape<typeof backend.loginNetworks.output> = {};
+  readonly loginSteps: MessageInitShape<typeof backend.beginLogin.output>["step"][] = [];
+  readonly loginsCanceled: string[] = [];
+  /** The accounts written into the config (WriteAccount), and the spaces signed out of. */
+  readonly accountsWritten: string[] = [];
+  readonly signedOut: string[] = [];
   private held: (() => void)[] = [];
   private up = true;
   /** main's profile, as the gate keeps it. */
@@ -680,6 +687,27 @@ export class Kithd {
         const from = Math.max(0, before - 2);
         const next = from > 0 ? (replies[from]?.id ?? "") : "";
         return reply(backend.threadPage, { page: { messages: replies.slice(from, before), next } });
+      }
+      case "LoginNetworks":
+        return reply(backend.loginNetworks, this.loginNetworks);
+      case "BeginLogin":
+        return reply(backend.beginLogin, { step: this.loginSteps.shift() });
+      case "AnswerLogin":
+        return reply(backend.answerLogin, { step: this.loginSteps.shift() });
+      case "CancelLogin":
+        this.loginsCanceled.push((request as MessageShape<typeof backend.cancelLogin.input>).login);
+        return reply(backend.cancelLogin, {});
+      case "WriteAccount": {
+        const r = request as MessageShape<typeof DeviceService.method.writeAccount.input>;
+        this.accountsWritten.push(`${r.table} ${r.values.name ?? ""}`);
+        return reply(DeviceService.method.writeAccount, {});
+      }
+      case "QRCode":
+        return reply(DeviceService.method.qRCode, { dark: new Uint8Array([1, 0, 0, 1]) });
+      case "SignOut": {
+        const r = request as MessageShape<typeof backend.signOut.input>;
+        this.signedOut.push(`${r.spaceId}${r.forget ? " forget" : ""}`);
+        return reply(backend.signOut, {});
       }
       default:
         throw new Error(`the fake does not answer ${name}`);

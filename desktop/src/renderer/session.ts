@@ -7,6 +7,7 @@ import {
   BackendService,
   Change,
   type FollowStreamResponse,
+  type LoginNetwork,
   type RailResponse,
   type RailRow,
   type ReactionsResponse,
@@ -21,6 +22,7 @@ import { later, listed, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unsent } from "./compose";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { call, subscribe } from "./kith";
+import { Login, type LoginCalls, type LoginView } from "./login";
 import type { Asked } from "./polls";
 import { changeTheme, type ThemeRelay, themeLabel, type Scope, type Slots } from "./theme";
 import { announces } from "./read";
@@ -122,6 +124,8 @@ export interface View {
   themeChange: { busy: boolean; note: string };
   /** The open room's remembered sender colors (SenderSlots). */
   slots: Slots;
+  /** The settings page's accounts: the networks to log in to, and a login under way. */
+  login: LoginView;
   problem: string | undefined;
 }
 
@@ -156,6 +160,18 @@ const themeRelay: ThemeRelay = {
     }
     return r.theme;
   },
+};
+
+/** loginCalls is a login's calls: kithd's, through main, and the relay's. */
+const loginCalls: LoginCalls = {
+  networks: () => call(backend.loginNetworks, {}).then((r) => r.networks),
+  begin: (network, account) => call(backend.beginLogin, { network, account }).then((r) => r.step),
+  answer: (login, values) => call(backend.answerLogin, { login, values }).then((r) => r.step),
+  cancel: (login) => call(backend.cancelLogin, { login }).then(() => undefined),
+  instead: (login) => call(backend.insteadLogin, { login }).then(() => undefined),
+  writeAccount: (record) =>
+    call(DeviceService.method.writeAccount, { table: record.table, values: record.values }).then(() => undefined),
+  qr: (data) => call(DeviceService.method.qRCode, { data }).then((r) => r.dark),
 };
 
 /** errorText is what the settings page says of a failure. */
@@ -240,6 +256,7 @@ export class Session {
     settingsPage: undefined,
     theme: undefined,
     themeChange: { busy: false, note: "" },
+    login: { networks: undefined, run: undefined, note: "" },
     problem: undefined,
     ...nothingShown,
   };
@@ -281,6 +298,16 @@ export class Session {
   private themeReads = 0;
   /** What the window last told kithd it has open, and when. */
   private presented = { room: "", at: 0 };
+  /** A login the window leads; one that logged in has the rail and rooms read again. */
+  private readonly login = new Login(
+    loginCalls,
+    (login) => {
+      this.set({ login });
+    },
+    () => {
+      this.reread();
+    },
+  );
 
   /** start reads the device, which runs the window in a profile or has it ask. */
   start(): void {
@@ -292,6 +319,7 @@ export class Session {
   /** stop closes every stream: the window is going. */
   stop(): void {
     this.stopped = true;
+    this.login.stop();
     clearTimeout(this.deviceLater);
     this.leave();
     for (const stop of this.lingering) {
@@ -326,6 +354,7 @@ export class Session {
     const mine = ++this.settingsReads;
     this.set({ settingsPage: { read: undefined, busy: false, note: "" }, themeChange: { busy: false, note: "" } });
     this.readTheme(); // device.toml may have been changed since, by the TUI or by hand
+    this.login.read();
     relay.read().then(
       (read) => {
         if (mine === this.settingsReads) {
@@ -408,6 +437,50 @@ export class Session {
       note = `${themeLabel(key)} was not saved: ${errorText(err)}`;
     }
     this.set({ themeChange: { busy: false, note } });
+  }
+
+  /** beginLogin has kithd log a network's account in ("" sets a new one up). */
+  beginLogin(network: LoginNetwork, account: string): void {
+    this.login.begin(network, account);
+  }
+
+  /** answerLogin answers the login's step: the values go to kithd, and are not kept. */
+  answerLogin(values: Readonly<Record<string, string>>): void {
+    this.login.submit(values);
+  }
+
+  /** cancelLogin abandons the login under way. */
+  cancelLogin(): void {
+    this.login.cancel();
+  }
+
+  /** takeInstead takes the other way the login's QR step offers. */
+  takeInstead(): void {
+    this.login.instead();
+  }
+
+  /**
+   * signOut signs out the account whose own space space is, as the TUI's rail does:
+   * forget drops its rooms and their history from the cache too.
+   */
+  async signOut(space: string, label: string, forget: boolean): Promise<void> {
+    this.login.say(`Signing out of ${label}…`);
+    try {
+      await call(backend.signOut, { spaceId: space, forget });
+      this.login.say(`Signed out of ${label}.`);
+      this.reread();
+    } catch (err) {
+      this.login.say(`Could not sign out of ${label}: ${errorText(err)}`);
+    }
+  }
+
+  /** reread reads the rail and the rooms again: an account came or went. */
+  private reread(): void {
+    const run = this.run;
+    if (run !== undefined && this.live(run)) {
+      this.readRail(run);
+      this.readRooms(run);
+    }
   }
 
   /** readTheme reads the theme again; one that cannot be read leaves the last one drawn. */
