@@ -172,7 +172,7 @@ func (d device) theme(ctx context.Context) (*devicev1.ThemeResponse, error) {
 func resolveTheme(cfg config.Config, dev config.Device, accounts []*backendv1.Account) *devicev1.ThemeResponse {
 	out := &devicev1.ThemeResponse{
 		Values:        map[string]*devicev1.ThemeValue{},
-		NetworkColors: networkColors(dev.Display.Theme.Networks),
+		NetworkColors: networkColors(dev.TUI.Theme.Networks),
 		Identities:    map[string]*devicev1.ThemeIdentity{},
 	}
 	defaults := map[string]string{}

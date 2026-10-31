@@ -65,7 +65,7 @@
   --hue-6: #4d7c0f;
   --hue-7: #a21caf;
 
-  /* Networks (faces.ts networkMark), after the TUI's [display.theme.networks]. */
+  /* Networks (faces.ts networkMark), after the TUI's [tui.theme.networks]. */
   --net-whatsapp: #128c7e;
   --net-telegram: #2a8bd0;
   --net-signal: #3a5fd9;

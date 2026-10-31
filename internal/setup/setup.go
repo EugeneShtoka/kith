@@ -72,8 +72,8 @@ func ValidateDevice(dev config.Device) error {
 		errOf(MediaDetail(d.Media.Detail)),
 		AudioPlayback(d.Media),
 		RoomList(d.Rooms),
-		themeCheck(d.Theme),
-		NetworkColors(d.Theme.Networks),
+		themeCheck(dev.TUI.Theme),
+		NetworkColors(dev.TUI.Theme.Networks),
 		errOf(ThreadListing(d.Threads.InRoomList)),
 		errOf(RareUnderline(dev.Spell.RareUnderline)),
 		errOf(AutocorrectMode(dev.Spell.Autocorrect)),
@@ -113,7 +113,7 @@ func BridgeContacts(bases []string) error {
 
 func themeCheck(t config.Theme) error {
 	if _, err := themespec.Resolve(t.Preset, t.Overrides()); err != nil {
-		return fmt.Errorf("display.theme: %w", err)
+		return fmt.Errorf("tui.theme: %w", err)
 	}
 	return nil
 }
@@ -127,7 +127,7 @@ func NetworkColors(n config.NetworkColors) error {
 		if _, ok := themespec.Color(value); ok || value == "" || strings.EqualFold(strings.TrimSpace(value), "none") {
 			continue
 		}
-		return fmt.Errorf("display.theme.networks.%s: %q is no color (write #rrggbb, one of %s, or \"none\")",
+		return fmt.Errorf("tui.theme.networks.%s: %q is no color (write #rrggbb, one of %s, or \"none\")",
 			key, value, strings.Join(themespec.ColorNames(), ", "))
 	}
 	return nil

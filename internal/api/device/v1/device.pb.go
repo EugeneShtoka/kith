@@ -175,7 +175,7 @@ type ThemeResponse struct {
 	// its i-th (SenderSlots); the colors pinned to [[display.identity]] are avoided.
 	SenderPalette []string `protobuf:"bytes,5,rep,name=sender_palette,json=senderPalette,proto3" json:"sender_palette,omitempty"`
 	// network_colors is each network's color as the TUI names its rooms in it
-	// ([display.theme.networks], its default where unset), by the network as a Room
+	// ([tui.theme.networks], its default where unset), by the network as a Room
 	// names it ("WhatsApp"); a network with no color is absent.
 	NetworkColors map[string]string `protobuf:"bytes,6,rep,name=network_colors,json=networkColors,proto3" json:"network_colors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// identities is each person a [[display.identity]] names, by ID: the key a room's

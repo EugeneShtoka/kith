@@ -384,7 +384,7 @@ func colorRow(place, group string) setting {
 	return setting{
 		key: colorsPrefix + place, group: group, kind: settingChoice,
 		label:   "Network colors",
-		doc:     "Rooms in this " + placeWord(place) + "'s room list are named in their network's color, as [display.theme.networks] sets: a bridged room in its bridge's network's. As everywhere follows [display] network_colors.",
+		doc:     "Rooms in this " + placeWord(place) + "'s room list are named in their network's color, as [tui.theme.networks] sets: a bridged room in its bridge's network's. As everywhere follows [display] network_colors.",
 		choices: placeColorChoices,
 		show:    func(c config.Settings) string { return placeColorsShown(c, place) },
 		set: func(c *config.Settings, value string) error {

@@ -202,7 +202,7 @@ func TestTheThemeIsTheDevicesOverTheSharedOverTheDefault(t *testing.T) {
 	shared.Set("dark.text", "#222222")
 	shared.Set("people.matrix:@ada:x", "#333333")
 	themeConfig(t, cfgPath, shared)
-	handWrite(t, cfgPath, "[display.theme.networks]\nwhatsapp = \"#25d366\"\n\n[gui.theme.accounts]\n\"matrix:"+domain.AccountKey("@me:x")+"/\" = \"#bbbbbb\"\n\n[gui.theme.light]\naccent = \"#aaaaaa\"\n")
+	handWrite(t, cfgPath, "[tui.theme.networks]\nwhatsapp = \"#25d366\"\n\n[gui.theme.accounts]\n\"matrix:"+domain.AccountKey("@me:x")+"/\" = \"#bbbbbb\"\n\n[gui.theme.light]\naccent = \"#aaaaaa\"\n")
 	relay := deviceClient(relayFor(t, serveThemeKithd(t, cfgPath).socket, cfgPath))
 
 	theme := themeOf(t, relay)

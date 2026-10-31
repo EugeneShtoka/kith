@@ -13,7 +13,7 @@ type GUI struct {
 }
 
 // GUITheme is [gui.theme]: the graphical clients' theme. The TUI draws with its own
-// [display.theme] and reads none of it. A color is "#rrggbb"; an empty value is unset.
+// [tui.theme] and reads none of it. A color is "#rrggbb"; an empty value is unset.
 type GUITheme struct {
 	Mode  string   `toml:"mode"` // GUIThemeModes; empty is "system"
 	Light GUIRoles `toml:"light"`

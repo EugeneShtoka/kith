@@ -578,7 +578,7 @@ func New(ctx context.Context, backend api.Backend, display config.Display, devic
 		backend:      backend,
 		log:          logging.Discard(),
 		ctx:          ctx,
-		theme:        theme.New(paletteOf(device)),
+		theme:        theme.New(theme.Default()),
 		prefs:        startupPrefs(display, device, unreadLocal),
 		unread:       unread,
 		live:         newLiveActivity(),
@@ -2774,10 +2774,11 @@ func (m Model) WithKeys(keys config.Keys) Model {
 }
 
 // WithDevice applies this device's settings, read from path at start (New took their
-// [display]): its keys, commands and clipboard. Changes are saved to path; empty is
-// not saved.
+// [display]): its keys, commands, clipboard and [tui.theme]. Changes are saved to path;
+// empty is not saved.
 func (m Model) WithDevice(path string, dev config.Device) Model {
 	m.conf.device = dev
+	m.theme = theme.New(paletteOf(dev.TUI.Theme))
 	if path != "" {
 		m.conf.deviceFile = &deviceWriter{path: path, base: dev}
 	}

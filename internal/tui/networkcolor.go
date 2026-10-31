@@ -7,7 +7,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/theme"
 )
 
-// A room's name can be drawn in its network's color ([display.theme.networks]): in room lists
+// A room's name can be drawn in its network's color ([tui.theme.networks]): in room lists
 // per [display] network_colors (a space_rule may override), and on the rail for a network's own
 // space (an account's, a bridge's) when that network has a color, empty or not, and else for a
 // space or tag whose rooms are all on one network. A bridged room's network is its bridge's.
@@ -17,7 +17,7 @@ func (m Model) networkColor(network domain.Protocol) color.Color {
 	if network == "" {
 		return nil
 	}
-	c, ok := theme.ParseColor(m.prefs.device.Theme.Networks.For(network.String()))
+	c, ok := theme.ParseColor(m.conf.device.TUI.Theme.Networks.For(network.String()))
 	if !ok {
 		return nil
 	}

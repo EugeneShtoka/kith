@@ -311,9 +311,9 @@ func derive(s config.Settings, profile string) (derivations, error) {
 	if err != nil {
 		return derivations{}, err
 	}
-	palette, err := theme.Resolve(dev.Display.Theme.Preset, dev.Display.Theme.Overrides())
+	palette, err := theme.Resolve(dev.TUI.Theme.Preset, dev.TUI.Theme.Overrides())
 	if err != nil {
-		return derivations{}, fmt.Errorf("display.theme: %w", err)
+		return derivations{}, fmt.Errorf("tui.theme: %w", err)
 	}
 	out, err := placesIn(setup.ProfileConfig(cfg, profile))
 	if err != nil {
@@ -405,8 +405,8 @@ func (m Model) applyNotifications(notifs config.Notifications, done string) (Mod
 
 // paletteOf resolves a device's colors, falling back to the default palette (a bad
 // preset was refused at startup; derive is the erroring version).
-func paletteOf(display config.DeviceDisplay) theme.Palette {
-	palette, err := theme.Resolve(display.Theme.Preset, display.Theme.Overrides())
+func paletteOf(t config.Theme) theme.Palette {
+	palette, err := theme.Resolve(t.Preset, t.Overrides())
 	if err != nil {
 		return theme.Default()
 	}

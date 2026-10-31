@@ -77,14 +77,14 @@ func TestGeneratedRowsSetTheirProperty(t *testing.T) {
 	if m.conf.device.Display.Media.Audio.Speed != 1.5 {
 		t.Errorf("audio speed = %v, want 1.5", m.conf.device.Display.Media.Audio.Speed)
 	}
-	m = m.settingsIn("look", "display.theme.accent")
+	m = m.settingsIn("look", "tui.theme.accent")
 	m, _ = press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = typeIn(t, m, "#ff8800")
 	dev := savedDevice(t, path)
-	if dev.Display.FPS != 3 || dev.Display.Media.Audio.Speed != 1.5 || dev.Display.Theme.Accent != "#ff8800" {
-		t.Errorf("saved fps %d speed %v accent %q", dev.Display.FPS, dev.Display.Media.Audio.Speed, dev.Display.Theme.Accent)
+	if dev.Display.FPS != 3 || dev.Display.Media.Audio.Speed != 1.5 || dev.TUI.Theme.Accent != "#ff8800" {
+		t.Errorf("saved fps %d speed %v accent %q", dev.Display.FPS, dev.Display.Media.Audio.Speed, dev.TUI.Theme.Accent)
 	}
-	if item, _ := m.picker.selected(); m.picker.kind != pickerSetting || item.value != "display.theme.accent" {
+	if item, _ := m.picker.selected(); m.picker.kind != pickerSetting || item.value != "tui.theme.accent" {
 		t.Errorf("after saving: picker %v on %q, want the group on the row", m.picker.kind, item.value)
 	}
 }

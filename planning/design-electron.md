@@ -242,7 +242,7 @@ The rule from design-remote.md holds: if only a client reads a key, it goes in
 - **TUI-shaped, ignored by the GUI:**
   - `terminal`, `[keys]` and its tables, `fps`, `mouse`, `hyperlinks`, `row_numbers`,
     `open_in_insert_mode`;
-  - `[display.theme]` (a terminal palette);
+  - `[tui.theme]` (a terminal palette);
   - media `mode`, `detail`, `max_*`, `viewer`, `video_player`, `opener`;
   - `[composer] editor`;
   - `[clipboard]` (OSC 52, focus and raise commands).
@@ -420,7 +420,7 @@ before (no exported call without its caller).
      accent and every role a theme names (background, surface, text, muted, link,
      selection, unread, mention), on a settings page.
    - **Colors per account and per person**, each picked freely, with the TUI's
-     per-network colors (`[display.theme.networks]`) and its sender colors as the
+     per-network colors (`[tui.theme.networks]`) and its sender colors as the
      defaults until picked. They live in the mesh, a device's own overriding it (below).
    - **Scaling:** the layout follows the window's size (columns narrow or collapse below
      set widths, the message list reflows, nothing clips or scrolls sideways), with zoom

@@ -70,7 +70,7 @@ export type ThemeResponse = Message<"device.v1.ThemeResponse"> & {
 
   /**
    * network_colors is each network's color as the TUI names its rooms in it
-   * ([display.theme.networks], its default where unset), by the network as a Room
+   * ([tui.theme.networks], its default where unset), by the network as a Room
    * names it ("WhatsApp"); a network with no color is absent.
    *
    * @generated from field: map<string, string> network_colors = 6;

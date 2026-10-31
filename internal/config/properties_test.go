@@ -63,7 +63,7 @@ func TestPropertiesAreSetAndReadBack(t *testing.T) {
 		{"display.fps", "60", "60"},
 		{"display.read_delay", "15", "15"},
 		{"display.media.audio.speed", "1.5", "1.5"},
-		{"display.theme.accent", "#ff8800", "#ff8800"},
+		{"tui.theme.accent", "#ff8800", "#ff8800"},
 		{"display.priority", "tag:Work, Friends", "tag:Work, Friends"},
 	} {
 		if err := cfg.SetValue(tc.path, tc.text); err != nil {

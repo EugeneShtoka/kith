@@ -1,6 +1,6 @@
 // Package themespec validates theme config as color strings ("#00aaff" or an ANSI slot
 // like "12"): built-in presets plus per-role overrides. It imports nothing, so headless
-// binaries can check [display.theme] without linking a renderer.
+// binaries can check [tui.theme] without linking a renderer.
 package themespec
 
 import (
