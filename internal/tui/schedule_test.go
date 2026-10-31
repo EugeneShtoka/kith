@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -163,5 +165,47 @@ func TestScheduledInThisRoomWhenEmpty(t *testing.T) {
 	}
 	if scoped.picker.active() {
 		t.Error("an empty room-scoped list opened a chooser anyway")
+	}
+}
+
+// testdata/schedule.json says what /at and /in read, for the desktop's port too
+// (desktop/src/renderer/schedule.ts); this holds the table to parseScheduleTime.
+func TestTheScheduleTableIsWhatTheTUIReads(t *testing.T) {
+	t.Parallel()
+	var table struct {
+		Now   string `json:"now"`
+		Cases []struct {
+			Kind  string `json:"kind"`
+			Arg   string `json:"arg"`
+			At    string `json:"at"`
+			Body  string `json:"body"`
+			Error string `json:"error"`
+		} `json:"cases"`
+	}
+	data, err := os.ReadFile("testdata/schedule.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &table); err != nil {
+		t.Fatal(err)
+	}
+	const wall = "2006-01-02T15:04:05"
+	now, err := time.ParseInLocation(wall, table.Now, time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range table.Cases {
+		at, body, err := parseScheduleTime(c.Kind, c.Arg, now)
+		got := ""
+		if err != nil {
+			got = err.Error()
+		}
+		if got != c.Error {
+			t.Errorf("/%s %q: error %q, the table says %q", c.Kind, c.Arg, got, c.Error)
+			continue
+		}
+		if err == nil && (at.Format(wall) != c.At || body != c.Body) {
+			t.Errorf("/%s %q: %s %q, the table says %s %q", c.Kind, c.Arg, at.Format(wall), body, c.At, c.Body)
+		}
 	}
 }

@@ -1,0 +1,28 @@
+{
+  "about": "The composer's built-in / commands (slashCommands), in order, and what words sent read as (composerCommand, submit): a built-in and its argument, another slash word (a user command, if the commands directory holds one), or a message as it goes out. Read by internal/tui's conformance test and the desktop's slash tests.",
+  "names": [
+    "/me", "/summary", "/export", "/plain", "/upload", "/at", "/in", "/tracked", "/files",
+    "/mentions", "/search", "/hidden", "/threads", "/starred", "/scheduled", "/ignored",
+    "/discover", "/knock", "/poll", "/topic", "/why", "/unread", "/tag", "/caught",
+    "/direction", "/shortcut", "/replacement", "/invite", "/unban", "/leave"
+  ],
+  "cases": [
+    { "input": "hello", "message": "hello" },
+    { "input": "  hello  ", "message": "hello" },
+    { "input": "/me waves", "builtin": "/me", "arg": "waves" },
+    { "input": "/me:waves", "builtin": "/me", "arg": "waves" },
+    { "input": "/me", "builtin": "/me", "arg": "" },
+    { "input": "/meet at noon", "user": "meet", "arg": "at noon" },
+    { "input": "/in 2h see you", "builtin": "/in", "arg": "2h see you" },
+    { "input": "/invite @a:x", "builtin": "/invite", "arg": "@a:x" },
+    { "input": "/at  09:00   hi ", "builtin": "/at", "arg": "09:00   hi" },
+    { "input": "/scheduled", "builtin": "/scheduled", "arg": "" },
+    { "input": "/zoom", "user": "zoom", "arg": "" },
+    { "input": "/zoom tomorrow 10am", "user": "zoom", "arg": "tomorrow 10am" },
+    { "input": "//me waves", "message": "/me waves" },
+    { "input": "//", "message": "/" },
+    { "input": "/", "message": "/" },
+    { "input": "/me waves\nand more", "message": "/me waves\nand more" },
+    { "input": "/ME waves", "user": "ME", "arg": "waves" }
+  ]
+}

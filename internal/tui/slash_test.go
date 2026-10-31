@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"encoding/json"
+	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -123,5 +126,68 @@ func TestSlashCompletesCommands(t *testing.T) {
 	mid = typeInto(t, mid, "and/or")
 	if mid.completion.active {
 		t.Error("a slash inside a word opened the command list")
+	}
+}
+
+// testdata/commands.json says which commands the composer knows and what words read as,
+// for the desktop's port too (desktop/src/renderer/slash.ts); this holds the table to
+// slashCommands and to the order submit and composerCommand read words in.
+func TestTheCommandTableIsWhatTheTUIReads(t *testing.T) {
+	t.Parallel()
+	var table struct {
+		Names []string `json:"names"`
+		Cases []struct {
+			Input   string  `json:"input"`
+			Message *string `json:"message"`
+			Builtin string  `json:"builtin"`
+			User    string  `json:"user"`
+			Arg     string  `json:"arg"`
+		} `json:"cases"`
+	}
+	data, err := os.ReadFile("testdata/commands.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &table); err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, len(slashCommands))
+	for i, c := range slashCommands {
+		names[i] = c.name
+	}
+	if !slices.Equal(names, table.Names) {
+		t.Errorf("slashCommands are %v, the table says %v", names, table.Names)
+	}
+	for _, c := range table.Cases {
+		body := strings.TrimSpace(c.Input)
+		var got string
+		switch {
+		case strings.HasPrefix(body, "//"):
+			got = "message " + body[1:]
+		case strings.ContainsRune(body, '\n'):
+			got = "message " + body
+		default:
+			for _, cmd := range slashCommands {
+				if arg, ok := commandArg(body, cmd.name); ok {
+					got = "builtin " + cmd.name + " " + arg
+					break
+				}
+			}
+			if name, arg, ok := commandWord(body); got == "" && ok {
+				got = "user " + strings.TrimPrefix(name, "/") + " " + arg
+			} else if got == "" {
+				got = "message " + body
+			}
+		}
+		want := "builtin " + c.Builtin + " " + c.Arg
+		switch {
+		case c.Message != nil:
+			want = "message " + *c.Message
+		case c.User != "":
+			want = "user " + c.User + " " + c.Arg
+		}
+		if got != want {
+			t.Errorf("%q reads as %q, the table says %q", c.Input, got, want)
+		}
 	}
 }
