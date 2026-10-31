@@ -29,10 +29,12 @@ import (
 // errNoDaemon is returned for daemon-only work on a model without one (most tests).
 var errNoDaemon = errors.New("not attached to kithd")
 
-// roomsMsg carries the result of loading the joined room list.
+// roomsMsg carries the result of loading the joined room list, and how many profile
+// switches had landed when it was asked (profileState.switches).
 type roomsMsg struct {
-	rooms []domain.Room
-	err   error
+	switches int
+	rooms    []domain.Room
+	err      error
 }
 
 // spacesMsg carries the result of loading the joined space hierarchy.
@@ -70,11 +72,13 @@ type unreadMsg struct {
 // unreadUpdateMsg carries one room's unread state, streamed from the sync loop.
 type unreadUpdateMsg struct{ u domain.Unread }
 
-// invitesMsg carries the cached invitations at startup, inviteUpdateMsg one streamed
-// from sync. Both are the whole set, never a delta; only the streamed one re-subscribes.
+// invitesMsg carries the cached invitations at startup (and the switches landed when they
+// were asked), inviteUpdateMsg one streamed from sync. Both are the whole set, never a delta;
+// only the streamed one re-subscribes.
 type invitesMsg struct {
-	invites []domain.Room
-	err     error
+	switches int
+	invites  []domain.Room
+	err      error
 }
 
 type inviteUpdateMsg struct{ invites []domain.Room }
@@ -161,12 +165,18 @@ type attachedMsg struct{ attached bool }
 
 // loadRoomsCmd reads the cached room list; refreshRoomsCmd fetches it from the
 // homeserver. Both land as roomsMsg.
-func (m Model) loadRoomsCmd() tea.Cmd { return fetch(m.ctx, m.backend.Rooms, wrapRooms) }
+func (m Model) loadRoomsCmd() tea.Cmd { return fetch(m.ctx, m.backend.Rooms, m.wrapRooms()) }
 
-func (m Model) refreshRoomsCmd() tea.Cmd { return fetch(m.ctx, m.backend.RefreshRooms, wrapRooms) }
+func (m Model) refreshRoomsCmd() tea.Cmd { return fetch(m.ctx, m.backend.RefreshRooms, m.wrapRooms()) }
 
-// wrapRooms and wrapSpaces are shared by the cached and the refreshed load.
-func wrapRooms(rooms []domain.Room, err error) tea.Msg { return roomsMsg{rooms: rooms, err: err} }
+// wrapRooms and wrapSpaces are shared by the cached and the refreshed load. A room list
+// is the profile's it was asked in (kithd narrows it), so it carries when it was asked.
+func (m Model) wrapRooms() func([]domain.Room, error) tea.Msg {
+	switches := m.profiles.switches
+	return func(rooms []domain.Room, err error) tea.Msg {
+		return roomsMsg{switches: switches, rooms: rooms, err: err}
+	}
+}
 
 func (m Model) loadSpacesCmd() tea.Cmd { return fetch(m.ctx, m.backend.Spaces, wrapSpaces) }
 
@@ -281,8 +291,11 @@ func (m Model) listenUnreadCmd() tea.Cmd {
 
 // loadInvitesCmd reads the cached invitations; listenInvitesCmd follows the stream.
 func (m Model) loadInvitesCmd() tea.Cmd {
+	switches := m.profiles.switches
 	return fetch(m.ctx, m.backend.CachedInvites,
-		func(invites []domain.Room, err error) tea.Msg { return invitesMsg{invites: invites, err: err} })
+		func(invites []domain.Room, err error) tea.Msg {
+			return invitesMsg{switches: switches, invites: invites, err: err}
+		})
 }
 
 func (m Model) listenInvitesCmd() tea.Cmd {

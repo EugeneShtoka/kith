@@ -97,7 +97,9 @@ and so is a room kithd does not hold, but for joining one (a public room, an ali
 an invitation of the profile). Without `--profile`, kith runs in the one
 `profile_in_use` remembers (below); with neither, it runs in the first without naming
 it, and a room named directly opens whatever profile holds it. `gP` or `:profile <name>` switches the window to
-another; the status line names the profile once there is more than one. kithd builds
+another; the status line names the profile once there is more than one. The drafts are
+written before the window leaves, and a room open then that the new profile does not
+hold closes once its rooms are read (`profile home — Standup is not in it`). kithd builds
 each profile's rail (its rows and the rooms each holds), so every window of a profile
 draws the same one.
 
