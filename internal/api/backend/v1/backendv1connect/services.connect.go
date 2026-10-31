@@ -94,6 +94,11 @@ const (
 	// BackendServiceRemoveFromSpaceProcedure is the fully-qualified name of the BackendService's
 	// RemoveFromSpace RPC.
 	BackendServiceRemoveFromSpaceProcedure = "/backend.v1.BackendService/RemoveFromSpace"
+	// BackendServiceFilingPlacesProcedure is the fully-qualified name of the BackendService's
+	// FilingPlaces RPC.
+	BackendServiceFilingPlacesProcedure = "/backend.v1.BackendService/FilingPlaces"
+	// BackendServiceFileRoomProcedure is the fully-qualified name of the BackendService's FileRoom RPC.
+	BackendServiceFileRoomProcedure = "/backend.v1.BackendService/FileRoom"
 	// BackendServiceCachedTimelineProcedure is the fully-qualified name of the BackendService's
 	// CachedTimeline RPC.
 	BackendServiceCachedTimelineProcedure = "/backend.v1.BackendService/CachedTimeline"
@@ -500,6 +505,20 @@ type BackendServiceClient interface {
 	AddToSpace(context.Context, *connect.Request[v1.AddToSpaceRequest]) (*connect.Response[v1.AddToSpaceResponse], error)
 	// RemoveFromSpace takes a room back out, emptying both events AddToSpace wrote.
 	RemoveFromSpace(context.Context, *connect.Request[v1.RemoveFromSpaceRequest]) (*connect.Response[v1.RemoveFromSpaceResponse], error)
+	// Filing
+	// FilingPlaces is where a room of the request's profile can be filed, as the TUI's
+	// filing picker offers it: its spaces, then the tags filed by hand, in [display]
+	// filing_spaces, priority and rail order, each saying whether it holds the room now.
+	// A room the profile does not hold, or an invitation, is refused.
+	FilingPlaces(context.Context, *connect.Request[v1.FilingPlacesRequest]) (*connect.Response[v1.FilingPlacesResponse], error)
+	// FileRoom files a room of the request's profile into or out of tags and spaces. The
+	// tags are judged on the config as it is when kithd writes it, as UpdateConfig writes
+	// (one writer, revision-checked, ConfigChanged told), so two clients filing at once
+	// both stick and a hand edit made meanwhile is kept. Crossing a network's mirrored
+	// archive tag archives or unarchives the room there; leaving a tag a filter moved it
+	// into records the release, so no filter moves it back. A room, tag or space the
+	// profile does not hold is refused, and nothing is filed.
+	FileRoom(context.Context, *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error)
 	// Timeline
 	// CachedTimeline returns a room's most recent cached messages for instant display on
 	// entry.
@@ -968,6 +987,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceRemoveFromSpaceProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("RemoveFromSpace")),
+			connect.WithClientOptions(opts...),
+		),
+		filingPlaces: connect.NewClient[v1.FilingPlacesRequest, v1.FilingPlacesResponse](
+			httpClient,
+			baseURL+BackendServiceFilingPlacesProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("FilingPlaces")),
+			connect.WithClientOptions(opts...),
+		),
+		fileRoom: connect.NewClient[v1.FileRoomRequest, v1.FileRoomResponse](
+			httpClient,
+			baseURL+BackendServiceFileRoomProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("FileRoom")),
 			connect.WithClientOptions(opts...),
 		),
 		cachedTimeline: connect.NewClient[v1.CachedTimelineRequest, v1.CachedTimelineResponse](
@@ -1730,6 +1761,8 @@ type backendServiceClient struct {
 	rail                  *connect.Client[v1.RailRequest, v1.RailResponse]
 	addToSpace            *connect.Client[v1.AddToSpaceRequest, v1.AddToSpaceResponse]
 	removeFromSpace       *connect.Client[v1.RemoveFromSpaceRequest, v1.RemoveFromSpaceResponse]
+	filingPlaces          *connect.Client[v1.FilingPlacesRequest, v1.FilingPlacesResponse]
+	fileRoom              *connect.Client[v1.FileRoomRequest, v1.FileRoomResponse]
 	cachedTimeline        *connect.Client[v1.CachedTimelineRequest, v1.CachedTimelineResponse]
 	timeline              *connect.Client[v1.TimelineRequest, v1.TimelineResponse]
 	messageHistory        *connect.Client[v1.MessageHistoryRequest, v1.MessageHistoryResponse]
@@ -1967,6 +2000,16 @@ func (c *backendServiceClient) AddToSpace(ctx context.Context, req *connect.Requ
 // RemoveFromSpace calls backend.v1.BackendService.RemoveFromSpace.
 func (c *backendServiceClient) RemoveFromSpace(ctx context.Context, req *connect.Request[v1.RemoveFromSpaceRequest]) (*connect.Response[v1.RemoveFromSpaceResponse], error) {
 	return c.removeFromSpace.CallUnary(ctx, req)
+}
+
+// FilingPlaces calls backend.v1.BackendService.FilingPlaces.
+func (c *backendServiceClient) FilingPlaces(ctx context.Context, req *connect.Request[v1.FilingPlacesRequest]) (*connect.Response[v1.FilingPlacesResponse], error) {
+	return c.filingPlaces.CallUnary(ctx, req)
+}
+
+// FileRoom calls backend.v1.BackendService.FileRoom.
+func (c *backendServiceClient) FileRoom(ctx context.Context, req *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error) {
+	return c.fileRoom.CallUnary(ctx, req)
 }
 
 // CachedTimeline calls backend.v1.BackendService.CachedTimeline.
@@ -2645,6 +2688,20 @@ type BackendServiceHandler interface {
 	AddToSpace(context.Context, *connect.Request[v1.AddToSpaceRequest]) (*connect.Response[v1.AddToSpaceResponse], error)
 	// RemoveFromSpace takes a room back out, emptying both events AddToSpace wrote.
 	RemoveFromSpace(context.Context, *connect.Request[v1.RemoveFromSpaceRequest]) (*connect.Response[v1.RemoveFromSpaceResponse], error)
+	// Filing
+	// FilingPlaces is where a room of the request's profile can be filed, as the TUI's
+	// filing picker offers it: its spaces, then the tags filed by hand, in [display]
+	// filing_spaces, priority and rail order, each saying whether it holds the room now.
+	// A room the profile does not hold, or an invitation, is refused.
+	FilingPlaces(context.Context, *connect.Request[v1.FilingPlacesRequest]) (*connect.Response[v1.FilingPlacesResponse], error)
+	// FileRoom files a room of the request's profile into or out of tags and spaces. The
+	// tags are judged on the config as it is when kithd writes it, as UpdateConfig writes
+	// (one writer, revision-checked, ConfigChanged told), so two clients filing at once
+	// both stick and a hand edit made meanwhile is kept. Crossing a network's mirrored
+	// archive tag archives or unarchives the room there; leaving a tag a filter moved it
+	// into records the release, so no filter moves it back. A room, tag or space the
+	// profile does not hold is refused, and nothing is filed.
+	FileRoom(context.Context, *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error)
 	// Timeline
 	// CachedTimeline returns a room's most recent cached messages for instant display on
 	// entry.
@@ -3109,6 +3166,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceRemoveFromSpaceProcedure,
 		svc.RemoveFromSpace,
 		connect.WithSchema(backendServiceMethods.ByName("RemoveFromSpace")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceFilingPlacesHandler := connect.NewUnaryHandler(
+		BackendServiceFilingPlacesProcedure,
+		svc.FilingPlaces,
+		connect.WithSchema(backendServiceMethods.ByName("FilingPlaces")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceFileRoomHandler := connect.NewUnaryHandler(
+		BackendServiceFileRoomProcedure,
+		svc.FileRoom,
+		connect.WithSchema(backendServiceMethods.ByName("FileRoom")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceCachedTimelineHandler := connect.NewUnaryHandler(
@@ -3891,6 +3960,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceAddToSpaceHandler.ServeHTTP(w, r)
 		case BackendServiceRemoveFromSpaceProcedure:
 			backendServiceRemoveFromSpaceHandler.ServeHTTP(w, r)
+		case BackendServiceFilingPlacesProcedure:
+			backendServiceFilingPlacesHandler.ServeHTTP(w, r)
+		case BackendServiceFileRoomProcedure:
+			backendServiceFileRoomHandler.ServeHTTP(w, r)
 		case BackendServiceCachedTimelineProcedure:
 			backendServiceCachedTimelineHandler.ServeHTTP(w, r)
 		case BackendServiceTimelineProcedure:
@@ -4234,6 +4307,14 @@ func (UnimplementedBackendServiceHandler) AddToSpace(context.Context, *connect.R
 
 func (UnimplementedBackendServiceHandler) RemoveFromSpace(context.Context, *connect.Request[v1.RemoveFromSpaceRequest]) (*connect.Response[v1.RemoveFromSpaceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RemoveFromSpace is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) FilingPlaces(context.Context, *connect.Request[v1.FilingPlacesRequest]) (*connect.Response[v1.FilingPlacesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.FilingPlaces is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) FileRoom(context.Context, *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.FileRoom is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) CachedTimeline(context.Context, *connect.Request[v1.CachedTimelineRequest]) (*connect.Response[v1.CachedTimelineResponse], error) {

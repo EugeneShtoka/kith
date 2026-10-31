@@ -300,6 +300,9 @@ message DeviceSettings {
   string complete_scope = 22;
   repeated string complete_sources = 23;
   bool model_declined = 24;
+  // [display] filing_spaces: the spaces a room is filed into, by space:, place: or ID;
+  // none is every space you made (kithd's FilingPlaces). The window keeps it as read.
+  repeated string filing_spaces = 25;
 }
 
 // ReadRule is one [[display.read_rule]], less its delay: the window reads a room by

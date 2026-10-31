@@ -77,3 +77,10 @@ func protoToRoomFacts(pb *v1.RoomFacts) domain.RoomFacts {
 		ArchivedIn: pb.GetArchivedIn(), Caught: pb.GetCaught(),
 	}
 }
+
+// FilingPlacesToProto converts the filing picker's places.
+func FilingPlacesToProto(places []domain.FilingPlace) []*v1.FilingPlace {
+	return mapSlice(places, func(p domain.FilingPlace) *v1.FilingPlace {
+		return &v1.FilingPlace{Space: string(p.Space), Tag: p.Tag, Label: p.Label, In: p.In}
+	})
+}
