@@ -54,6 +54,8 @@ export interface ComposerView {
   emoji: { set: EmojiSet; tone: string; scores: Scores; statics: readonly string[]; palette: readonly string[] };
   /** Who is this person: the messages to correct or delete, the reactions to take back. */
   selves: ReadonlySet<string>;
+  /** Sends are Markdown ([composer] markdown): only then is the formatting bar offered. */
+  markdown: boolean;
 }
 
 /** What the composer reads of the window around it. */
@@ -158,6 +160,7 @@ export class Composer {
       members: this.members.get(room) ?? [],
       emoji: { set, tone, scores, statics, palette: palette(set, scores, statics, tone) },
       selves: this.selves,
+      markdown: settings?.markdown ?? true,
     };
   }
 

@@ -24,7 +24,13 @@ export const channels = {
   /** Main to the window: it is closing, write what is unsaved; the window answers closed. */
   closing: "kith:closing",
   closed: "kith:closed",
+  /** The window's text size in pixels (Electron's own store, not device.toml): asked, or set to (px). */
+  fontSize: "kith:font-size",
+  setFontSize: "kith:set-font-size",
 } as const;
+
+/** The text sizes the window offers, in pixels; the default is 15. */
+export const fontSizes = [12, 13, 14, 15, 16, 17, 18, 20] as const;
 
 /** A file offered for sending: main holds it, the window holds the token. */
 export interface Offered {
@@ -87,4 +93,8 @@ export interface KithBridge {
   attach(token: string, room: string, caption: string): Promise<Sent>;
   /** Says what to do as the window closes (write its drafts); main waits a little for it. */
   closing(write: () => Promise<void>): void;
+  /** The window's text size in pixels, which main keeps and applies. */
+  fontSize(): Promise<number>;
+  /** Sets the window's text size (one of fontSizes); resolves to the size now in use. */
+  setFontSize(px: number): Promise<number>;
 }

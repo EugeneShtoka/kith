@@ -1,8 +1,9 @@
 // The settings page: this device's settings shared with the TUI (device.toml), each
 // change written at once (Session.changeSetting); no Save button.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { DeviceSettings, ReadRule } from "../gen/device/v1/device_pb";
+import { fontSizes } from "../shared/ipc";
 import type { Session, SettingsPage as Page } from "./session";
 import { type Key, labels } from "./settings";
 
@@ -61,7 +62,61 @@ export function SettingsPage({ page, session }: { page: Page; session: Session }
       ) : (
         <Fields s={s} busy={page.busy} session={session} />
       )}
+      <WindowScale />
     </section>
+  );
+}
+
+/** WindowScale is what this window keeps alone, in Electron's store: its text size, and its zoom's keys. */
+function WindowScale() {
+  const [size, setSize] = useState<number | undefined>(undefined);
+  const [note, setNote] = useState("");
+  const failed = (err: unknown) => {
+    setNote(`The text size could not be changed: ${err instanceof Error ? err.message : String(err)}`);
+  };
+  useEffect(() => {
+    let live = true;
+    window.kith.fontSize().then(
+      (px) => {
+        if (live) {
+          setSize(px);
+        }
+      },
+      (err: unknown) => {
+        if (live) {
+          failed(err);
+        }
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  return (
+    <>
+      <h3>This window</h3>
+      <p className="detail">
+        Kept by this window alone, not in device.toml. ctrl+= and ctrl+- zoom it, ctrl+0 sets it back.
+      </p>
+      <label className="setting">
+        Text size{" "}
+        <select
+          value={size ?? ""}
+          disabled={size === undefined}
+          onChange={(e) => {
+            setNote("");
+            window.kith.setFontSize(Number(e.target.value)).then(setSize, failed);
+          }}
+        >
+          {fontSizes.map((px) => (
+            <option key={px} value={px}>
+              {`${String(px)} px${px === 15 ? " (the default)" : ""}`}
+            </option>
+          ))}
+        </select>
+      </label>
+      {note && <p className="problem">{note}</p>}
+    </>
   );
 }
 

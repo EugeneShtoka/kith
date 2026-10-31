@@ -427,6 +427,17 @@ before (no exported call without its caller).
      and font size as knobs.
    - Everything above under settings knobs: no value hard-coded that a person might
      want to change.
+   - **Split in two (2026-10-31).** **8a** is the layout and design: full-height panes,
+     the room header, day dividers, grouped messages, hover actions, reaction chips,
+     the docked composer with its formatting bar, unread weight and network marks,
+     columns that narrow and fold, zoom and text size (Electron's store, `scale.json`),
+     and every color, size and space as a CSS custom property in one place, with one
+     built-in palette following the system's light or dark. **8b** feeds those
+     properties: themes (light, dark, system), free role colors, colors per account
+     and per person, and their settings page. 8b's storage: the shared look in
+     `config.toml`, and a `device.toml` table of the same keys overriding it key by
+     key; the TUI keeps its own `[display.theme]`. Avatars are colored initials for
+     now; pictures are a later PR of their own.
 
 After the MVP, each with its own PR and review:
 
@@ -470,7 +481,8 @@ After the MVP, each with its own PR and review:
   default (Phase 2b, a config-like register); a device's own setting overrides the
   mesh's, key by key. This amends decision 5 for theme and colors: they leave
   Electron's store for the device's settings beside the mesh's. Which device file holds
-  a GUI theme key the TUI does not read is PR 8's to settle.
+  a GUI theme key the TUI does not read is PR 8's to settle (settled for 8b: a
+  `device.toml` table, under plan item 8).
 
 - **`kith --open` with no window running** starts a terminal TUI today. Whether it starts
   the desktop instead is a device setting, decided when the desktop ships.

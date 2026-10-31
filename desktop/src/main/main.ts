@@ -19,12 +19,13 @@ import {
 } from "electron";
 
 import { BackendService } from "../gen/backend/v1/services_pb";
-import { channels, type Subscribe } from "../shared/ipc";
+import { channels, fontSizes, type Subscribe } from "../shared/ipc";
 import { mediaScheme } from "../shared/media";
 import { Attachments } from "./attach";
 import { appURL, fromTheWindow, Gate } from "./gate";
 import { Media } from "./media";
 import { startRelay } from "./relay";
+import { fontSizeCSS, ScaleStore, zoomed, zoomKey } from "./scale";
 import { appFile, csp, devCSP } from "./serve";
 
 // Standard and secure, so the window is an origin of its own and loads modules; and the
@@ -150,6 +151,9 @@ async function start(): Promise<void> {
       port.close();
     }
   });
+  // The window's zoom and text size: Electron's store, not device.toml (decision 5).
+  const scale = new ScaleStore(path.join(app.getPath("userData"), "scale.json"));
+  await scale.load();
   const tray = new Tray(trayIcon(false));
   tray.setToolTip("kith");
   tray.on("click", () => {
@@ -177,6 +181,47 @@ async function start(): Promise<void> {
       sandbox: true,
       nodeIntegration: false,
     },
+  });
+  // The page's text size, put in afresh on each load, the one before taken out; and its zoom.
+  let fontSizeKey: string | undefined;
+  const applyFontSize = async (px: number) => {
+    const contents = window?.webContents;
+    if (contents === undefined || contents.isDestroyed()) {
+      return;
+    }
+    const was = fontSizeKey;
+    fontSizeKey = await contents.insertCSS(fontSizeCSS(px));
+    if (was !== undefined) {
+      await contents.removeInsertedCSS(was);
+    }
+  };
+  window.webContents.on("dom-ready", () => {
+    fontSizeKey = undefined;
+    window?.webContents.setZoomFactor(scale.get().zoom);
+    void applyFontSize(scale.get().fontSize);
+  });
+  ipcMain.handle(channels.fontSize, (event) => {
+    fromWindow(event);
+    return scale.get().fontSize;
+  });
+  ipcMain.handle(channels.setFontSize, async (event, px: unknown) => {
+    fromWindow(event);
+    if (typeof px !== "number" || !(fontSizes as readonly number[]).includes(px)) {
+      throw new Error("kith: a text size is one the window offers");
+    }
+    await Promise.all([scale.set({ fontSize: px }), applyFontSize(px)]);
+    return px;
+  });
+  // ctrl+= / ctrl+- / ctrl+0 zoom the window, kept for the next start.
+  window.webContents.on("before-input-event", (event, input) => {
+    const key = zoomKey(input);
+    if (key === undefined) {
+      return;
+    }
+    event.preventDefault();
+    const zoom = zoomed(scale.get().zoom, key);
+    window?.webContents.setZoomFactor(zoom);
+    scale.set({ zoom }).catch(keepFailed);
   });
   window.webContents.on("did-start-loading", () => {
     gate.restart();
@@ -208,6 +253,11 @@ async function start(): Promise<void> {
     }
   });
   await window.loadURL(appURL + "index.html");
+}
+
+/** keepFailed says a scale change was not saved; the window keeps it until it closes. */
+function keepFailed(err: unknown): void {
+  console.error("kith: the window's zoom or text size was not saved:", err);
 }
 
 /** raise brings the window forward: a second start, or a link to follow. */
