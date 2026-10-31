@@ -57,10 +57,11 @@ export function ThreadPane({
         </button>
       )}
       <div className="thread-rows">
-        {thread.rows.map((m) => (
+        {thread.rows.map((m, i) => (
           <Row
             key={m.id}
             m={m}
+            before={thread.rows[i - 1]}
             target={false}
             newSince={false}
             quoted={m.replyTo === "" ? undefined : (byId.get(m.replyTo) ?? t.quotes.get(m.replyTo))}

@@ -82,6 +82,40 @@ Closing the window ends it; there is no background process to quit.
 Notifications are not the window's: `kith-notify` shows them, as it does for the
 terminal client, so a message never pops up twice.
 
+## The window
+
+The window fills its height, and each part scrolls on its own:
+
+- **Across the top**, the search bar, back and forward (alt+← and alt+→), **Go to**
+  (ctrl+K) and **Settings**.
+- **On the left**, the profile menu (when the config has more than one), the rail of
+  places, and the room list beside it. A room with something unread is in bold with
+  its count; a red count with an @ means something there names you. Each room shows its
+  network's mark (WA, TG, SL, …) where the network is known. **Connection**, at the
+  bottom, shows the cache's state and each account's.
+- **In the middle**, the open room: its name, network and topic above, its messages,
+  and the composer under them. Messages are split by day, and one sender's messages a
+  few minutes apart are drawn as one group, with the time of each in the margin when
+  you point at it. Pointing at a message shows its actions: react, reply, reply in a
+  thread, and edit or delete your own. The composer's bar puts Markdown around what is
+  selected (bold, italic, code, a link); it is there only while **Send Markdown
+  rendered** is on.
+- **On the right**, a thread, when one is open.
+
+People and rooms are drawn as their initials, each in a color of their own that stays
+the same everywhere. Phone numbers are shown as the network gives them.
+
+As the window narrows, the columns narrow with it. Under about 960 pixels the rail
+folds away behind the **☰** button in the top bar, and a thread opens over the room
+instead of beside it; under about 640 pixels the whole left column folds away too, and
+picking a room or a place folds it again.
+
+**Zoom** with ctrl+= and ctrl+-, and ctrl+0 to go back to 100%. **Text size** is on the
+settings page, under **This window**. Both are kept by the window for the next start,
+not in `device.toml`, so the terminal client is not affected.
+
+The colors follow the system's light or dark setting.
+
 ## How it finds kithd
 
 The window never talks to `kithd` itself. It starts `kith-relay`, a small Go program
@@ -116,6 +150,7 @@ starts the terminal client.
 | Accounts, rooms, rules: the bridge's config | `~/.config/kith/config.toml`, read by `kithd` |
 | This machine's settings, shared with the terminal client (the profile in use, read receipts, typing, emoji, media) | `~/.config/kith/device.toml` |
 | Pictures the window has shown | the media cache, `[display.media] cache_dir` in `device.toml` |
+| The window's zoom and text size | `~/.config/kith-desktop/scale.json` |
 | Electron's own store (its caches and the single-window lock) | `~/.config/kith-desktop/` |
 
 **Settings**, in the window's header, opens a page for the shared settings the window
@@ -124,7 +159,8 @@ before an SMS, sending typing, the emoji skin tone, the emoji set and your own
 shortcodes, and how the reaction palette is ranked and the emoji it starts from. There
 is no Save button: each change is written to `device.toml` at once, and the open room
 follows it. A rule's `delay` is the terminal client's, so the page does not show it, and
-a rule you change keeps it.
+a rule you change keeps it. **This window**, at the end of the page, holds the text
+size, which the window keeps itself ([above](#the-window)).
 
 The terminal client's settings screen, or an editor, may change `device.toml` while the
 page is open. The window then reads the file again and writes your change onto it, so

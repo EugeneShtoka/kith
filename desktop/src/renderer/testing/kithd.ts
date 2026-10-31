@@ -83,6 +83,8 @@ export class Kithd {
   readonly calls: string[] = [];
   /** Calls the window made that main would have refused: none in a profile not chosen. */
   readonly refused: string[] = [];
+  /** The window's text size, as main keeps it. */
+  fontSize = 15;
   /** What the window told main to count in the tray, in order. */
   readonly told: number[] = [];
   /** The bridge the device joined, "" for a kithd of its own: the relay reads the profiles through it. */
@@ -178,6 +180,11 @@ export class Kithd {
         }
         this.attached.push(`${room} ${name} ${caption}`);
         return { kept: false };
+      },
+      fontSize: () => Promise.resolve(this.fontSize),
+      setFontSize: (px) => {
+        this.fontSize = px;
+        return Promise.resolve(px);
       },
     };
   }

@@ -6,8 +6,11 @@ import { useEffect, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 import type { Message, Reaction } from "../gen/backend/v1/types_pb";
+import { Avatar } from "./Avatar";
 import type { ComposerView } from "./compose";
 import { EmojiPicker } from "./EmojiPicker";
+import { hueOf } from "./faces";
+import { continues, dayLabel, newDay } from "./groups";
 import { attachmentURL } from "./media";
 import type { Session } from "./session";
 import { FormattedText } from "./spans";
@@ -18,6 +21,7 @@ import { tally, type TimelineView } from "./timeline";
 const firstIndex = 1_000_000;
 
 const clock = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+const hours = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
 
 export function TimelinePane({
   t,
@@ -86,6 +90,7 @@ export function TimelinePane({
           return (
             <Row
               m={m}
+              before={before}
               target={m.id === t.target}
               newSince={unreadLine && before !== undefined && before.id === t.unreadFrom}
               quoted={m.replyTo === "" ? undefined : (byId.get(m.replyTo) ?? t.quotes.get(m.replyTo))}
@@ -124,6 +129,7 @@ export function useWatched(): boolean {
 /** Row is one message, in the room's timeline or a thread's pane (threads: none). */
 export function Row({
   m,
+  before,
   target,
   newSince,
   quoted,
@@ -133,6 +139,8 @@ export function Row({
   session,
 }: {
   m: Message;
+  /** The row drawn above it: a new day, or another sender, starts a group. */
+  before: Message | undefined;
   /** The message a jump was to. */
   target: boolean;
   newSince: boolean;
@@ -143,51 +151,91 @@ export function Row({
   composer: ComposerView | undefined;
   session: Session;
 }) {
+  const at = m.timestamp ? timestampDate(m.timestamp) : undefined;
+  const grouped = continues(before, m, newSince);
+  const classes = ["message"];
+  if (target) {
+    classes.push("target");
+  }
+  if (grouped) {
+    classes.push("grouped");
+  }
   return (
-    <article className={target ? "message target" : "message"}>
+    <>
+      {at !== undefined && newDay(before, m) && (
+        <div className="day" role="separator">
+          <span>{dayLabel(at, new Date())}</span>
+        </div>
+      )}
       {newSince && (
         <div className="unread-line" role="separator">
           New
         </div>
       )}
-      <header>
-        <span className="sender" dir="auto">
-          {m.senderName || m.sender}
-        </span>{" "}
-        {m.timestamp && <time className="detail">{clock.format(timestampDate(m.timestamp))}</time>}
-        {m.edited && !m.redacted && <span className="detail"> (edited)</span>}
-      </header>
-      {m.replyTo !== "" && <Quote quoted={quoted} />}
-      <Body m={m} session={session} />
-      {reactions !== undefined && reactions.length > 0 && (
-        <ul className="reactions" aria-label="Reactions">
-          {tally(reactions).map((r) => (
-            <li key={r.key}>
-              {/* Pressed: added, or taken back where it is yours. */}
-              <button type="button" onClick={() => void session.react(m, r.key)}>
-                {r.key} {r.count}
-              </button>
-            </li>
+      <article className={classes.join(" ")}>
+        <div className="gutter">
+          {grouped ? (
+            at && (
+              <time className="detail" title={clock.format(at)}>
+                {hours.format(at)}
+              </time>
+            )
+          ) : (
+            <Avatar id={m.sender} name={m.senderName || m.sender} />
+          )}
+        </div>
+        <div className="content">
+          {!grouped && (
+            <header>
+              <span className={`sender hue-${String(hueOf(m.sender))}`} dir="auto">
+                {m.senderName || m.sender}
+              </span>{" "}
+              {at && (
+                <time className="detail" title={clock.format(at)}>
+                  {hours.format(at)}
+                </time>
+              )}
+              {m.edited && !m.redacted && <span className="detail"> (edited)</span>}
+            </header>
+          )}
+          {m.replyTo !== "" && <Quote quoted={quoted} />}
+          <Body m={m} session={session} />
+          {grouped && m.edited && !m.redacted && <span className="detail edited">(edited)</span>}
+          {reactions !== undefined && reactions.length > 0 && (
+            <ul className="reactions" aria-label="Reactions">
+              {tally(reactions).map((r) => (
+                <li key={r.key}>
+                  {/* Pressed: added, or taken back where it is yours. */}
+                  <button
+                    type="button"
+                    aria-pressed={reactions.some((x) => x.key === r.key && composer?.selves.has(x.sender) === true)}
+                    onClick={() => void session.react(m, r.key)}
+                  >
+                    {r.key} {r.count}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {threads?.map((th) => (
+            <button
+              key={th.root}
+              type="button"
+              className="thread-row"
+              onClick={() => {
+                session.openThread(th.root);
+              }}
+            >
+              {th.count === 1 ? "1 reply" : `${String(th.count)} replies`}
+              {th.rootLoaded ? "" : " in a thread"} · <span dir="auto">{th.latestSenderName || th.latestSender}</span>
+            </button>
           ))}
-        </ul>
-      )}
-      {threads?.map((th) => (
-        <button
-          key={th.root}
-          type="button"
-          className="thread-row"
-          onClick={() => {
-            session.openThread(th.root);
-          }}
-        >
-          {th.count === 1 ? "1 reply" : `${String(th.count)} replies`}
-          {th.rootLoaded ? "" : " in a thread"} · <span dir="auto">{th.latestSenderName || th.latestSender}</span>
-        </button>
-      ))}
-      {composer !== undefined && !m.redacted && (
-        <Actions m={m} c={composer} startsThread={threads !== undefined} session={session} />
-      )}
-    </article>
+          {composer !== undefined && !m.redacted && (
+            <Actions m={m} c={composer} startsThread={threads !== undefined} session={session} />
+          )}
+        </div>
+      </article>
+    </>
   );
 }
 
@@ -210,54 +258,67 @@ function Actions({
     void session.react(m, key);
   };
   return (
-    <div className="actions">
-      <button
-        type="button"
-        onClick={() => {
-          session.reply(m);
-        }}
-      >
-        Reply
-      </button>
-      {startsThread && (
+    <>
+      {/* The hover toolbar: kept up while one of its panels is open. */}
+      <div className={open === undefined ? "actions" : "actions open"} role="toolbar" aria-label="Message actions">
         <button
           type="button"
+          aria-label="React"
+          title="React"
+          aria-expanded={open === "palette"}
           onClick={() => {
-            session.openThread(m.id);
+            setOpen(open === "palette" ? undefined : "palette");
           }}
         >
-          Thread
+          ☺
         </button>
-      )}
-      <button
-        type="button"
-        aria-expanded={open === "palette"}
-        onClick={() => {
-          setOpen(open === "palette" ? undefined : "palette");
-        }}
-      >
-        React
-      </button>
-      {mine && (
         <button
           type="button"
+          aria-label="Reply"
+          title="Reply"
           onClick={() => {
-            session.edit(m);
+            session.reply(m);
           }}
         >
-          Edit
+          ↩
         </button>
-      )}
-      {mine && (
-        <button
-          type="button"
-          onClick={() => {
-            setOpen("delete");
-          }}
-        >
-          Delete
-        </button>
-      )}
+        {startsThread && (
+          <button
+            type="button"
+            aria-label="Thread"
+            title="Reply in a thread"
+            onClick={() => {
+              session.openThread(m.id);
+            }}
+          >
+            ⤷
+          </button>
+        )}
+        {mine && (
+          <button
+            type="button"
+            aria-label="Edit"
+            title="Edit"
+            onClick={() => {
+              session.edit(m);
+            }}
+          >
+            ✎
+          </button>
+        )}
+        {mine && (
+          <button
+            type="button"
+            aria-label="Delete"
+            title="Delete"
+            onClick={() => {
+              setOpen("delete");
+            }}
+          >
+            ✕
+          </button>
+        )}
+      </div>
       {open === "palette" && (
         <span className="palette" role="group" aria-label="Quick reactions">
           {c.emoji.palette.map((e) => (
@@ -313,7 +374,7 @@ function Actions({
           </button>
         </span>
       )}
-    </div>
+    </>
   );
 }
 
@@ -324,7 +385,7 @@ function Quote({ quoted }: { quoted: Message | undefined }) {
   const words = quoted.redacted ? "Message deleted" : (quoted.format?.text ?? quoted.body);
   return (
     <blockquote className="reply" dir="auto">
-      <span className="sender">{quoted.senderName || quoted.sender}</span>{" "}
+      <span className={`sender hue-${String(hueOf(quoted.sender))}`}>{quoted.senderName || quoted.sender}</span>{" "}
       <span className={quoted.redacted ? "deleted" : undefined}>{words.split("\n")[0]}</span>
     </blockquote>
   );

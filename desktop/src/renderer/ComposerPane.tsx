@@ -7,11 +7,20 @@ import type { Room } from "../gen/backend/v1/types_pb";
 import type { ComposerView } from "./compose";
 import { completions, shortcodeAt, shortcodeOf, toned } from "./emoji";
 import { EmojiPicker } from "./EmojiPicker";
+import { type Markup, marked } from "./markup";
 import { matching, mentionAt, nameOf } from "./mentions";
 import type { Session } from "./session";
 
 /** How many completions the popup offers. */
 const offered = 8;
+
+/** The formatting bar's buttons: what each puts in, its name, and its face. */
+const formats: [Markup, string, string][] = [
+  ["bold", "Bold", "B"],
+  ["italic", "Italic", "I"],
+  ["code", "Code", "</>"],
+  ["link", "Link", "🔗"],
+];
 
 /** A completion offered under the caret: what it shows, and what taking it does. */
 interface Choice {
@@ -188,7 +197,32 @@ export function ComposerPane({
           }}
         />
       )}
-      <div className="compose-row">
+      <div className="compose-box">
+        {c.markdown && (
+          <div className="format-bar" role="toolbar" aria-label="Formatting">
+            {formats.map(([markup, label, glyph]) => (
+              <button
+                key={markup}
+                type="button"
+                aria-label={label}
+                title={label}
+                className={`format-${markup}`}
+                onMouseDown={(e) => {
+                  e.preventDefault(); // the textarea keeps the focus
+                }}
+                onClick={() => {
+                  const el = area.current;
+                  if (el !== null) {
+                    const f = marked(text, el.selectionStart, el.selectionEnd, markup);
+                    moved(session.type(f.text, f.caret));
+                  }
+                }}
+              >
+                {glyph}
+              </button>
+            ))}
+          </div>
+        )}
         <textarea
           ref={area}
           dir="auto"
@@ -231,21 +265,23 @@ export function ComposerPane({
             }
           }}
         />
-        <button type="button" onClick={() => void session.pick()}>
-          Attach
-        </button>
-        <button
-          type="button"
-          aria-expanded={picker}
-          onClick={() => {
-            setPicker(!picker);
-          }}
-        >
-          Emoji
-        </button>
-        <button type="button" onClick={() => void session.send()}>
-          Send
-        </button>
+        <div className="compose-actions">
+          <button type="button" onClick={() => void session.pick()}>
+            Attach
+          </button>
+          <button
+            type="button"
+            aria-expanded={picker}
+            onClick={() => {
+              setPicker(!picker);
+            }}
+          >
+            Emoji
+          </button>
+          <button type="button" className="send" onClick={() => void session.send()}>
+            Send
+          </button>
+        </div>
       </div>
     </section>
   );

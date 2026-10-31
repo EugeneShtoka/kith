@@ -1,9 +1,11 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 
 import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse } from "../gen/backend/v1/services_pb";
 import type { Room, Unread } from "../gen/backend/v1/types_pb";
+import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
+import { networkMark } from "./faces";
 import { rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
 import { type Link, type Seat, Session, type View } from "./session";
@@ -36,76 +38,119 @@ export function App() {
     document.title = view.unreadTotal > 0 ? `kith (${String(view.unreadTotal)})` : "kith";
   }, [view.unreadTotal]);
 
+  const seated = view.profile !== "" && view.seat.state === "seated" && view.settingsPage === undefined;
   return (
-    <main>
-      <header>
-        <h1>kith</h1>
-        {view.profiles.length > 1 && view.profile !== "" && (
-          <select
-            aria-label="Profile"
-            value={view.profile}
-            onChange={(e) => {
-              void session.choose(e.target.value);
-            }}
-          >
-            {view.profiles.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        )}
-        <button
-          type="button"
-          aria-pressed={view.settingsPage !== undefined}
-          onClick={() => {
-            if (view.settingsPage) {
-              session.closeSettings();
-            } else {
-              session.openSettings();
-            }
-          }}
-        >
-          Settings
-        </button>
-      </header>
-      {view.problem && <p className="problem">{view.problem}</p>}
-      {view.settingsPage ? (
-        <SettingsPage page={view.settingsPage} session={session} />
+    <main className="app">
+      {seated ? (
+        <Seated view={view} session={session} />
       ) : (
-        <Body view={view} session={session} />
-      )}
-      {(view.socket || view.bridge) && (
-        <footer>
-          {view.bridge ? (
-            <>
-              kithd on bridge <code>{view.bridge}</code>
-            </>
-          ) : (
-            <>
-              kithd at <code>{view.socket}</code>
-            </>
-          )}
-          , through kith-relay
-        </footer>
+        <>
+          <TopBar view={view} session={session}>
+            <Profile view={view} session={session} />
+          </TopBar>
+          {view.problem && <p className="problem">{view.problem}</p>}
+          <div className="page">
+            {view.settingsPage ? (
+              <SettingsPage page={view.settingsPage} session={session} />
+            ) : (
+              <Body view={view} session={session} />
+            )}
+            <Where view={view} />
+          </div>
+        </>
       )}
     </main>
   );
 }
 
+/** TopBar runs across the window's top: kith, what the screen puts there, and Settings. */
+function TopBar({ view, session, children }: { view: View; session: Session; children?: ReactNode }) {
+  return (
+    <header className="topbar">
+      <h1>kith</h1>
+      {children}
+      <button
+        type="button"
+        className="settings-button"
+        aria-pressed={view.settingsPage !== undefined}
+        onClick={() => {
+          if (view.settingsPage) {
+            session.closeSettings();
+          } else {
+            session.openSettings();
+          }
+        }}
+      >
+        Settings
+      </button>
+    </header>
+  );
+}
+
+/** Profile is the profile menu, where the config has more than one. */
+function Profile({ view, session }: { view: View; session: Session }) {
+  if (view.profiles.length <= 1 || view.profile === "") {
+    return null;
+  }
+  return (
+    <select
+      aria-label="Profile"
+      className="profile"
+      value={view.profile}
+      onChange={(e) => {
+        void session.choose(e.target.value);
+      }}
+    >
+      {view.profiles.map((p) => (
+        <option key={p} value={p}>
+          {p}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** Where says which kithd the window reaches, and how. */
+function Where({ view }: { view: View }) {
+  if (!view.socket && !view.bridge) {
+    return null;
+  }
+  return (
+    <footer>
+      {view.bridge ? (
+        <>
+          kithd on bridge <code>{view.bridge}</code>
+        </>
+      ) : (
+        <>
+          kithd at <code>{view.socket}</code>
+        </>
+      )}
+      , through kith-relay
+    </footer>
+  );
+}
+
+/** Body is the window before it is seated: which profile, and its seat. */
 function Body({ view, session }: { view: View; session: Session }) {
   if (view.profile === "") {
     return view.profiles.length > 0 ? <Picker profiles={view.profiles} session={session} /> : null;
   }
-  if (view.seat.state !== "seated") {
-    return <SeatState seat={view.seat} profile={view.profile} session={session} />;
-  }
-  return <Seated view={view} session={session} />;
+  return <SeatState seat={view.seat} profile={view.profile} session={session} />;
 }
 
-/** Seated is the window in its profile's seat: the search bar across the top, then the columns. */
+/**
+ * Seated is the window in its profile's seat: the search bar across the top, then the
+ * columns, each scrolling on its own: the left one (profile, rail, rooms), the open room
+ * with its composer docked under it, and a thread beside it. In a narrow window the
+ * left column folds away behind a toggle.
+ */
 function Seated({ view, session }: { view: View; session: Session }) {
   const [switching, setSwitching] = useState(false);
+  // The left column unfolded over a narrow window: until a room or a place is picked.
+  const here = `${view.open}\u0000${String(view.row)}`;
+  const [unfoldedAt, setUnfoldedAt] = useState<string | undefined>(undefined);
+  const unfolded = unfoldedAt === here;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
@@ -125,43 +170,68 @@ function Seated({ view, session }: { view: View; session: Session }) {
       window.removeEventListener("keydown", key);
     };
   }, [session]);
+  const columns = ["columns"];
+  if (view.thread && view.timeline) {
+    columns.push("with-thread");
+  }
+  if (unfolded) {
+    columns.push("unfolded");
+  }
+  if (!view.timeline) {
+    columns.push("no-room");
+  }
   return (
     <>
+      <TopBar view={view} session={session}>
+        <button
+          type="button"
+          className="fold"
+          aria-label="Rooms and places"
+          aria-expanded={unfolded}
+          onClick={() => {
+            setUnfoldedAt(unfolded ? undefined : here);
+          }}
+        >
+          ☰
+        </button>
+        <nav className="find" aria-label="Find">
+          <button
+            type="button"
+            aria-label="Back"
+            title="Back (alt+←)"
+            disabled={!view.back}
+            onClick={() => {
+              session.back();
+            }}
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            aria-label="Forward"
+            title="Forward (alt+→)"
+            disabled={!view.forward}
+            onClick={() => {
+              session.forward();
+            }}
+          >
+            →
+          </button>
+          <SearchBar open={view.open !== ""} session={session} />
+          <button
+            type="button"
+            className="go-to"
+            title="ctrl+K"
+            onClick={() => {
+              setSwitching(true);
+            }}
+          >
+            Go to
+          </button>
+        </nav>
+      </TopBar>
+      {view.problem && <p className="problem">{view.problem}</p>}
       <Banner link={view.link} status={view.status} bridge={view.bridge} />
-      <nav className="find" aria-label="Find">
-        <button
-          type="button"
-          aria-label="Back"
-          title="Back (alt+←)"
-          disabled={!view.back}
-          onClick={() => {
-            session.back();
-          }}
-        >
-          ←
-        </button>
-        <button
-          type="button"
-          aria-label="Forward"
-          title="Forward (alt+→)"
-          disabled={!view.forward}
-          onClick={() => {
-            session.forward();
-          }}
-        >
-          →
-        </button>
-        <SearchBar open={view.open !== ""} session={session} />
-        <button
-          type="button"
-          title="ctrl+K"
-          onClick={() => {
-            setSwitching(true);
-          }}
-        >
-          Go to
-        </button>
-      </nav>
       {switching && (
         <Switcher
           view={view}
@@ -171,28 +241,50 @@ function Seated({ view, session }: { view: View; session: Session }) {
           }}
         />
       )}
-      <div className={view.thread ? "columns with-thread" : "columns"}>
-        <Rail view={view} session={session} />
-        {view.search ? (
-          <SearchResults search={view.search} rooms={view.joined} session={session} />
-        ) : (
-          <section className="rooms" aria-label="Rooms">
-            {view.invites.length > 0 && <Invites invites={view.invites} session={session} />}
-            <ul>
-              {view.rooms.map((r) => (
-                <RoomRow
-                  key={r.id}
-                  room={r}
-                  unread={view.unread.get(r.id)}
-                  open={r.id === view.open}
-                  session={session}
-                />
-              ))}
-            </ul>
-          </section>
-        )}
-        {view.timeline && (
+      <div className={columns.join(" ")}>
+        <div className="sidebar">
+          {view.profiles.length > 1 && (
+            <div className="sidebar-head">
+              <Profile view={view} session={session} />
+            </div>
+          )}
+          <div className="sidebar-columns">
+            <Rail view={view} session={session} />
+            {view.search ? (
+              <SearchResults search={view.search} rooms={view.joined} session={session} />
+            ) : (
+              <section className="rooms" aria-label="Rooms">
+                {view.invites.length > 0 && <Invites invites={view.invites} session={session} />}
+                <ul>
+                  {view.rooms.map((r) => (
+                    <RoomRow
+                      key={r.id}
+                      room={r}
+                      unread={view.unread.get(r.id)}
+                      open={r.id === view.open}
+                      session={session}
+                    />
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+          {view.status && (
+            <details className="connection">
+              <summary>Connection</summary>
+              <div className="connection-panel">
+                <Status status={view.status} />
+                <Where view={view} />
+              </div>
+            </details>
+          )}
+        </div>
+        {view.timeline ? (
           <div className="open-room">
+            <RoomHeader
+              id={view.open}
+              room={view.joined.find((r) => r.id === view.open) ?? view.rooms.find((r) => r.id === view.open)}
+            />
             <TimelinePane t={view.timeline} unreadLine={view.unreadLine} composer={view.composer} session={session} />
             {view.composer && (
               <ComposerPane
@@ -203,18 +295,34 @@ function Seated({ view, session }: { view: View; session: Session }) {
               />
             )}
           </div>
+        ) : (
+          <div className="open-room empty">
+            <p className="detail">Pick a room, or press ctrl+K to go to one.</p>
+          </div>
         )}
         {view.thread && view.timeline && (
           <ThreadPane thread={view.thread} t={view.timeline} composer={view.composer} session={session} />
         )}
       </div>
-      {view.status && (
-        <details>
-          <summary>Connection</summary>
-          <Status status={view.status} />
-        </details>
-      )}
     </>
+  );
+}
+
+/** RoomHeader names the open room above its messages: its face, name, network and topic. */
+function RoomHeader({ id, room }: { id: string; room: Room | undefined }) {
+  const name = room?.name || id;
+  const mark = networkMark(room?.network ?? "");
+  return (
+    <header className="room-header">
+      <Avatar id={id} name={name} />
+      <h2 dir="auto">{name}</h2>
+      {mark && <span className={`net net-${mark.slug}`}>{room?.network}</span>}
+      {room?.topic && (
+        <span className="topic detail" dir="auto" title={room.topic}>
+          {room.topic}
+        </span>
+      )}
+    </header>
   );
 }
 
@@ -303,9 +411,11 @@ function Rail({ view, session }: { view: View; session: Session }) {
                   session.selectRow(i);
                 }}
               >
-                <span dir="auto">{row.label}</span>
+                <span className="label" dir="auto">
+                  {row.label}
+                </span>
                 {row.countInLabel && <span className="detail"> {new Set(row.rooms).size}</span>}
-                {count > 0 && <span className={mentions > 0 ? "badge mention" : "badge"}>{count}</span>}
+                {count > 0 && <Badge count={count} mentions={mentions} />}
               </button>
             </li>
           );
@@ -364,6 +474,8 @@ function RoomRow({
   session: Session;
 }) {
   const { count, mentions } = unreadOf(unread);
+  const name = room.name || room.id;
+  const mark = networkMark(room.network);
   return (
     <li className={count > 0 || unread?.marked ? "room unread" : "room"}>
       <button
@@ -373,10 +485,31 @@ function RoomRow({
           session.open(room.id);
         }}
       >
-        <span dir="auto">{room.name || room.id}</span>
-        {count > 0 && <span className={mentions > 0 ? "badge mention" : "badge"}>{count}</span>}
+        <Avatar id={room.id} name={name} small />
+        <span className="label" dir="auto">
+          {name}
+        </span>
+        {mark && (
+          <span className={`net net-${mark.slug}`} title={room.network}>
+            {mark.abbr}
+          </span>
+        )}
+        {count > 0 && <Badge count={count} mentions={mentions} />}
       </button>
     </li>
+  );
+}
+
+/** Badge counts what is unread; a count that names you is set apart, by its color and an @. */
+function Badge({ count, mentions }: { count: number; mentions: number }) {
+  return mentions > 0 ? (
+    <span className="badge mention" title={`${String(count)} unread, ${String(mentions)} naming you`}>
+      @{count}
+    </span>
+  ) : (
+    <span className="badge" title={`${String(count)} unread`}>
+      {count}
+    </span>
   );
 }
 
