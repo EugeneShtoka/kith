@@ -421,5 +421,5 @@ describe("sending later, whatever the interleaving", () => {
       }),
       { numRuns: 120 },
     );
-  });
+  }, 30_000); // 120 runs take ~5 s alone, more beside the Go tests in make quick
 });
