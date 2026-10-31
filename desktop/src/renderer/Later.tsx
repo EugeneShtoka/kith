@@ -5,20 +5,22 @@
 import { useState } from "react";
 
 import type { ComposerView } from "./compose";
-import { empty, type When } from "./schedule";
+import { dayAndTime, empty, type When, whenOf } from "./schedule";
 import type { Session } from "./session";
 
 /** LaterForm asks when the composer's words go: at a clock time, or after a delay. */
 export function LaterForm({ session, onClose }: { session: Session; onClose: () => void }) {
   const [kind, setKind] = useState<When>("at");
   const [when, setWhen] = useState("");
+  // Read as it is typed, by the rules Schedule reads it by again: what it says, or what is wrong.
+  const read = when.trim() === "" ? undefined : whenOf(kind, when.trim(), new Date());
   return (
     <form
       className="later-form"
       aria-label="Send later"
       onSubmit={(e) => {
         e.preventDefault();
-        if (when.trim() !== "") {
+        if (read instanceof Date) {
           void session.later(kind, when).then(onClose);
         }
       }}
@@ -41,7 +43,7 @@ export function LaterForm({ session, onClose }: { session: Session; onClose: () 
           setWhen(e.target.value);
         }}
       />
-      <button type="submit" disabled={when.trim() === ""}>
+      <button type="submit" disabled={!(read instanceof Date)}>
         Schedule
       </button>
       <button
@@ -56,6 +58,9 @@ export function LaterForm({ session, onClose }: { session: Session; onClose: () 
       <button type="button" aria-label="Close" onClick={onClose}>
         ×
       </button>
+      {read !== undefined && (
+        <span className="detail later-when">{read instanceof Date ? dayAndTime(read) : read.error}</span>
+      )}
     </form>
   );
 }

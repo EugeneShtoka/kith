@@ -1319,6 +1319,10 @@ td {
   min-width: 8rem;
 }
 
+.later-when {
+  flex-basis: 100%;
+}
+
 .queue,
 .reading {
   margin-bottom: var(--space-1);
