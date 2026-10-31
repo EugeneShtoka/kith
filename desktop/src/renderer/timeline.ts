@@ -95,7 +95,10 @@ export class Timeline {
   private cached = false;
   /** Scrolled to the top: one older page is wanted. */
   private wantOlder = false;
-  /** A page failed: none is asked for again until the window asks (older, reload). */
+  /**
+   * A page failed: none is asked for again until the window asks (older, reload), or, a
+   * reload's, until the wait after it is over (again).
+   */
   private stalled = false;
   private asked: Ticket | undefined;
   /** The frames since the page in flight was asked, or since a reload began. */
@@ -278,10 +281,12 @@ export class Timeline {
   /**
    * failed is t's page refused. The network's hands over to the cache's (a network off
    * or unreachable has no page to give); any other stops asking until the window does.
+   * A reload's is to be asked again after a wait (again), said by the answer: nothing
+   * else asks for it, and until it is read the rows shown may be stale.
    */
-  failed(t: Ticket): void {
+  failed(t: Ticket): boolean {
     if (t !== this.asked) {
-      return;
+      return false;
     }
     this.asked = undefined;
     if (t.ask.kind === "network") {
@@ -294,6 +299,14 @@ export class Timeline {
     }
     this.sought();
     this.changed();
+    return this.stalled && this.reloading !== undefined;
+  }
+
+  /** again asks for a reload's failed page again: the wait after it is over. */
+  again(): void {
+    if (this.reloading !== undefined) {
+      this.stalled = false;
+    }
   }
 
   /**

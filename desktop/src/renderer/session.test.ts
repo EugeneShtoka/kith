@@ -443,6 +443,86 @@ describe("the open room", () => {
     expect(kithd.calls.filter((c) => c.startsWith("Rooms")).length).toBeGreaterThan(1);
   });
 
+  /** lost is a deletion of r's newest message the stream lost: the cache holds it, no frame says so. */
+  const lost = () => {
+    const all = kithd.of("Home").messages.get(r) ?? [];
+    const last = all.at(-1);
+    if (last !== undefined) {
+      kithd.of("Home").messages.set(r, [...all.slice(0, -1), message({ id: last.id, ts: 30, redacted: true }, r)]);
+    }
+  };
+  const pages = () => kithd.calls.filter((c) => c.startsWith("CachedTimeline")).length;
+  const waited = async () => {
+    await new Promise((resolve) => setTimeout(resolve, deviceAgain));
+    await settled();
+  };
+
+  it("is read again after a wait while its reload's pages fail, and says so meanwhile", async () => {
+    seed(3);
+    await started();
+    session.open(r);
+    await settled();
+    lost();
+    kithd.failPages = 2;
+    kithd.readAgain("Home");
+    await settled();
+    expect(view().problem).toContain("database is locked");
+    expect(view().timeline?.rows.at(-1)?.redacted).toBe(false); // the rows shown stay meanwhile
+    expect(pages()).toBe(2);
+    await waited();
+    expect(pages()).toBe(3); // one wait, one ask
+    expect(view().timeline?.rows.at(-1)?.redacted).toBe(false);
+    await waited();
+    expect(pages()).toBe(4);
+    expect(ids()).toEqual(["$1", "$2", "$3"]);
+    expect(view().timeline?.rows.at(-1)?.redacted).toBe(true);
+    await waited();
+    expect(pages()).toBe(4); // read, nothing is asked again
+  });
+
+  it("leaves a reload that failed in a room left behind: the room opened is read as any, the other afresh", async () => {
+    seed(3);
+    kithd.write("Home", message({ id: "$o", ts: 5 }, "!other"));
+    await started();
+    session.open(r);
+    await settled();
+    lost();
+    kithd.failPages = 1;
+    kithd.readAgain("Home");
+    await settled();
+    session.open("!other");
+    await settled();
+    await waited();
+    expect(ids()).toEqual(["$o"]);
+    expect(pages()).toBe(3); // the reload, and the room opened
+    session.open(r);
+    await settled();
+    expect(ids()).toEqual(["$1", "$2", "$3"]);
+    expect(view().timeline?.rows.at(-1)?.redacted).toBe(true);
+  });
+
+  it("asks nothing in a profile left while its reload waited", async () => {
+    kithd.profiles = ["Home", "Work"];
+    kithd.remembered = "Home";
+    kithd.of("Work").rooms = [room(r)];
+    kithd.write("Work", message({ id: "$w", ts: 5 }, r));
+    seed(3);
+    await started();
+    session.open(r);
+    await settled();
+    kithd.failPages = 1;
+    kithd.readAgain("Home");
+    await settled();
+    await session.choose("Work");
+    await settled();
+    session.open(r);
+    await settled();
+    await waited();
+    expect(ids()).toEqual(["$w"]);
+    expect(kithd.calls.filter((c) => c === "CachedTimeline:Home")).toHaveLength(2);
+    expect(kithd.calls.filter((c) => c === "CachedTimeline:Work")).toHaveLength(1);
+  });
+
   it("has its reactions read as it opens, and a reaction taken back while they are read stays gone", async () => {
     seed(1);
     const reaction = create(ReactionSchema, { id: "$re", roomId: r, target: "$1", key: "👍" });

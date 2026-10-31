@@ -179,6 +179,8 @@ export class Kithd {
   readonly attached: string[] = [];
   /** Sends of files still to fail. */
   failAttach = 0;
+  /** Cached pages (CachedTimeline, MessagesAround) still to fail. */
+  failPages = 0;
   /** The links that reached the window, in order (main posted them, the window's port took them). */
   readonly linksArrived: FollowStreamResponse[] = [];
   /** What each window last told kithd it has open (Present), by client. */
@@ -498,6 +500,9 @@ export class Kithd {
   private answer(name: string, profile: string, request: MessageShape<DescMethod["input"]>) {
     const p = this.of(profile);
     const reply = <M extends DescMethod>(m: M, init: MessageInitShape<M["output"]>) => create(m.output, init);
+    if ((name === "CachedTimeline" || name === "MessagesAround") && this.failPages-- > 0) {
+      throw new Error("cache: database is locked");
+    }
     switch (name) {
       case "Device":
         return reply(DeviceService.method.device, {
