@@ -145,6 +145,10 @@ export class Kithd {
   loseSends = 0;
   /** Every other write the window made, as "Method room target key". */
   readonly writes: string[] = [];
+  /** Who chose what in each poll, by its message's ID (PollVoters); a message not here asks none. */
+  readonly pollVoters = new Map<string, MessageInitShape<typeof backend.pollVoters.output>>();
+  /** Rooms whose network asks no polls: CreatePoll is refused there, as kithd's router refuses it. */
+  readonly noPolls = new Set<string>();
   /** The mention candidates, by room, and the emoji ranking, by kind; and who is me. */
   readonly members = new Map<string, Member[]>();
   readonly scores = new Map<string, Record<string, number>>();
@@ -611,6 +615,27 @@ export class Kithd {
         const r = request as MessageShape<typeof backend.sendReaction.input>;
         this.writes.push(`SendReaction ${r.roomId} ${r.target} ${r.key}`);
         return reply(backend.sendReaction, {});
+      }
+      case "VotePoll": {
+        const r = request as MessageShape<typeof backend.votePoll.input>;
+        this.writes.push(`VotePoll ${r.roomId} ${r.eventId} ${r.options.join(",")}`);
+        return reply(backend.votePoll, {});
+      }
+      case "PollVoters": {
+        const r = request as MessageShape<typeof backend.pollVoters.input>;
+        const voters = this.pollVoters.get(r.eventId);
+        if (voters === undefined) {
+          throw new Error(`matrix: ${r.eventId} asks no poll`);
+        }
+        return reply(backend.pollVoters, voters);
+      }
+      case "CreatePoll": {
+        const r = request as MessageShape<typeof backend.createPoll.input>;
+        if (this.noPolls.has(r.roomId)) {
+          throw new Error("daemon: that room's network cannot do this: creating polls in whatsapp rooms");
+        }
+        this.writes.push(`CreatePoll ${r.roomId} ${r.question} ${r.options.join("|")} ${String(r.multiple)}`);
+        return reply(backend.createPoll, { eventId: "$asked" });
       }
       case "SendTyping": {
         const r = request as MessageShape<typeof backend.sendTyping.input>;

@@ -63,7 +63,10 @@ class Cache {
   /** write is one write to the cache, chosen by kind and i. */
   write(kind: number, i: number): void {
     this.clock++;
-    const m = this.pick(i);
+    // A poll is voted in again and again, then ended: those writes go mostly to a message
+    // asking one already.
+    const polls = this.ordered().filter((x) => x.poll !== undefined);
+    const m = (kind === 7 || (kind === 6 && i % 3 !== 0)) && polls.length > 0 ? polls[i % polls.length] : this.pick(i);
     switch (kind) {
       case 0: // a new message, now
         this.put(this.fresh(1000 + this.clock * 10));
@@ -100,8 +103,29 @@ class Cache {
         next.editedAtUnixMs = 0n;
         next.revisionId = "";
         break;
-      case 6: // its poll's votes changed, up or down
-        next.poll = create(PollSchema, { question: `votes ${String(i % 3)}` });
+      case 6: // votes, one after another: each changes its poll's counts, up or down, and this person's answers
+        for (const k of [i, i + 1]) {
+          next.poll = create(PollSchema, {
+            question: m.poll?.question ?? "Lunch?",
+            closed: m.poll?.closed ?? false,
+            options: [
+              { id: "s", text: "Soup", votes: BigInt(k % 3), mine: k % 2 === 0 },
+              { id: "t", text: "Tacos", votes: BigInt(k % 5), mine: k % 4 === 1 },
+            ],
+          });
+          this.put(clone(MessageSchema, next));
+        }
+        return;
+      case 7: // its poll ended, or its question edited, its votes kept
+        if (next.poll === undefined || next.redacted) return;
+        if (i % 2 === 0) {
+          next.poll.closed = true;
+        } else {
+          next.poll.question = `${next.poll.question}+`;
+          next.edited = true;
+          next.editedAtUnixMs = BigInt(10_000 + this.clock);
+          next.revisionId = `$e${String(this.clock)}`;
+        }
         break;
       default: // moved in time (a network's order corrected)
         next.timestamp = timestampFromMs(1 + (i % 1200));
@@ -143,7 +167,7 @@ type Step =
   | { kind: "seek"; i: number; cached: boolean };
 
 const step: fc.Arbitrary<Step> = fc.oneof(
-  { weight: 6, arbitrary: fc.record({ kind: fc.constant("write"), what: fc.nat(7), i: fc.nat(10_000) }) },
+  { weight: 6, arbitrary: fc.record({ kind: fc.constant("write"), what: fc.nat(8), i: fc.nat(10_000) }) },
   { weight: 4, arbitrary: fc.record({ kind: fc.constant("deliver"), n: fc.integer({ min: 1, max: 4 }) }) },
   { weight: 3, arbitrary: fc.constant({ kind: "ask" }) },
   { weight: 3, arbitrary: fc.constant({ kind: "read" }) },
@@ -155,6 +179,25 @@ const step: fc.Arbitrary<Step> = fc.oneof(
     weight: 1,
     arbitrary: fc.record({ kind: fc.constant("seek"), i: fc.nat(10_000), cached: fc.boolean() }),
   },
+);
+
+/**
+ * pollStep is a step in a room already shown: votes, a poll ended or edited, among new
+ * messages, edits and deletions, against pages and frames, lost frames included. No
+ * page fails: a failed page stops the reading until the window asks again, whatever
+ * the rows hold.
+ */
+const pollStep: fc.Arbitrary<Step> = fc.oneof(
+  {
+    weight: 6,
+    arbitrary: fc.record({ kind: fc.constant("write"), what: fc.constantFrom(0, 3, 5, 6, 6, 7), i: fc.nat(10_000) }),
+  },
+  { weight: 4, arbitrary: fc.record({ kind: fc.constant("deliver"), n: fc.integer({ min: 1, max: 4 }) }) },
+  { weight: 3, arbitrary: fc.constant({ kind: "ask" }) },
+  { weight: 3, arbitrary: fc.constant({ kind: "read" }) },
+  { weight: 3, arbitrary: fc.constant({ kind: "land" }) },
+  { weight: 2, arbitrary: fc.constant({ kind: "older" }) },
+  { weight: 1, arbitrary: fc.constant({ kind: "readAgain" }) },
 );
 
 /** Run is one window over one cache: the page in flight, asked and maybe read. */
@@ -262,10 +305,13 @@ class Run {
   }
 }
 
+/** drawn is a row as the table writes it, and its poll whole: every answer's count and mark, and whether it ended. */
+const drawn = (m: Message) => ({ ...row(m), poll: m.poll });
+
 /** shownMatchesCache: what is shown is the cache's newest messages, in its order, as it holds them. */
 function shownMatchesCache(run: Run): void {
-  const shown = run.t.view().rows.map(row);
-  const cache = run.cache.ordered().map(row);
+  const shown = run.t.view().rows.map(drawn);
+  const cache = run.cache.ordered().map(drawn);
   expect(shown).toEqual(cache.slice(cache.length - shown.length));
   if (cache.length > 0) {
     expect(shown.length).toBeGreaterThan(0);
@@ -313,6 +359,21 @@ describe("the timeline over any interleaving of pages and frames", () => {
         },
       ),
       { numRuns: 2000 },
+    );
+  });
+
+  it("keeps each poll shown as the cache holds it, its votes, end and edits coming before and after pages", () => {
+    fc.assert(
+      fc.property(fc.nat(12), fc.array(pollStep, { maxLength: 80 }), (initial, steps) => {
+        const run = new Run(initial + 1);
+        run.settle(); // shown: what changes now changes rows on screen
+        for (const s of steps) {
+          run.do(s);
+        }
+        run.settle();
+        shownMatchesCache(run);
+      }),
+      { numRuns: 400 },
     );
   });
 

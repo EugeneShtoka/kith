@@ -921,6 +921,106 @@ td {
   font-size: var(--text-sm);
 }
 
+/* A poll: each answer a row with its count and a bar of its share; yours marked. */
+.poll {
+  max-width: 32rem;
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.poll-question {
+  margin: 0 0 var(--space-2);
+  font-weight: 600;
+  unicode-bidi: plaintext;
+}
+
+.poll-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.poll-option {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: var(--space-2);
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--raised);
+  text-align: start;
+}
+
+.poll-option .poll-answer {
+  grid-column: 1 / 3;
+}
+
+.poll-option input {
+  margin: 0;
+}
+
+.poll-option input + .poll-answer {
+  grid-column: 2;
+}
+
+.poll-option.mine,
+.poll-option[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+.poll-tally {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.poll-share {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 4px;
+  margin-top: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-pill);
+  appearance: none;
+  background: var(--surface-2);
+}
+
+.poll-share::-webkit-progress-bar {
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+
+.poll-share::-webkit-progress-value {
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+.poll-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.poll-actions button {
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.poll-voters {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  font-size: var(--text-sm);
+}
+
 .thread-row {
   display: block;
   margin-top: var(--space-1);
@@ -1106,6 +1206,30 @@ td {
 .send:hover:not(:disabled) {
   background: var(--accent);
   filter: brightness(1.1);
+}
+
+/* The composer's form asking a poll. */
+.ask-poll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--raised);
+}
+
+.ask-poll input:not([type="checkbox"]) {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  unicode-bidi: plaintext;
+}
+
+.ask-poll-actions {
+  display: flex;
+  gap: var(--space-1);
 }
 
 .completions,

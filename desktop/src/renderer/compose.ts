@@ -1,7 +1,7 @@
 // The open room's composer as the TUI's works it: send (Markdown rendered unless
-// [composer] markdown is off), reply, correct and delete your own, react, mention, send
-// files, tell the room you are typing, and ask before anything goes out as SMS. What is
-// written is a draft (drafts.ts), kept in kithd.
+// [composer] markdown is off), reply, correct and delete your own, react, vote in a poll
+// or ask one, mention, send files, tell the room you are typing, and ask before anything
+// goes out as SMS. What is written is a draft (drafts.ts), kept in kithd.
 import { create } from "@bufbuild/protobuf";
 
 import { BackendService } from "../gen/backend/v1/services_pb";
@@ -20,6 +20,7 @@ import { blank, type Composition, Drafts } from "./drafts";
 import { emojiSet, type EmojiKind, type EmojiSet, finished, fold, noScores, palette, type Scores } from "./emoji";
 import { call } from "./kith";
 import { rankMembers } from "./mentions";
+import type { Asked, VotersRead } from "./polls";
 
 const backend = BackendService.method;
 
@@ -56,6 +57,8 @@ export interface ComposerView {
   selves: ReadonlySet<string>;
   /** Sends are Markdown ([composer] markdown): only then is the formatting bar offered. */
   markdown: boolean;
+  /** Who chose what in the poll whose voters are shown, if one's are. */
+  voters: VotersRead | undefined;
 }
 
 /** What the composer reads of the window around it. */
@@ -83,6 +86,7 @@ export class Composer {
   private typing = { room: "", at: 0 };
   private readonly poll: ReturnType<typeof setInterval>;
   private emojiFor: { settings: DeviceSettings | undefined; set: EmojiSet } | undefined;
+  private voters: VotersRead | undefined;
 
   constructor(private readonly around: Surroundings) {
     this.drafts = new Drafts(
@@ -161,6 +165,7 @@ export class Composer {
       emoji: { set, tone, scores, statics, palette: palette(set, scores, statics, tone) },
       selves: this.selves,
       markdown: settings?.markdown ?? true,
+      voters: this.voters?.room === room ? this.voters : undefined,
     };
   }
 
@@ -253,6 +258,65 @@ export class Composer {
     }
     this.record(m.roomId, "reaction", key);
     await call(backend.sendReaction, { roomId: m.roomId, target: m.id, key });
+  }
+
+  /**
+   * vote votes in m's poll by its answers' IDs, none taking the vote back; the results
+   * come with the poll's message. Who voted, if shown, is put away (tui castVote).
+   */
+  async vote(m: Message, options: readonly string[]): Promise<void> {
+    this.closeVoters();
+    if (m.poll === undefined || m.redacted) {
+      return;
+    }
+    if (m.poll.closed) {
+      throw new Error("this poll is closed");
+    }
+    try {
+      await call(backend.votePoll, { roomId: m.roomId, eventId: m.id, options: [...options] });
+    } catch (err) {
+      throw new Error(`could not vote: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+    }
+  }
+
+  /** showVoters reads who chose what in m's poll, shown until put away: one poll's at a time. */
+  showVoters(m: Message): void {
+    const read: VotersRead = { room: m.roomId, event: m.id, read: false, answer: undefined, error: "" };
+    this.voters = read;
+    this.around.changed();
+    const land = (answered: Partial<VotersRead>) => {
+      if (this.voters === read) {
+        this.voters = { ...read, read: true, ...answered };
+        this.around.changed();
+      }
+    };
+    call(backend.pollVoters, { roomId: m.roomId, eventId: m.id }).then(
+      (answer) => {
+        land({ answer });
+      },
+      (err: unknown) => {
+        land({ error: err instanceof Error ? err.message : String(err) });
+      },
+    );
+  }
+
+  /** closeVoters puts away who voted. */
+  closeVoters(): void {
+    if (this.voters !== undefined) {
+      this.voters = undefined;
+      this.around.changed();
+    }
+  }
+
+  /** ask asks a poll in room (CreatePoll); it answers whether it was asked, saying why not. */
+  async ask(room: string, poll: Asked): Promise<boolean> {
+    try {
+      await call(backend.createPoll, { roomId: room, ...poll });
+      return true;
+    } catch (err) {
+      this.around.failed(`could not create the poll: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
   }
 
   /** offer adds files to send with room's next message. */

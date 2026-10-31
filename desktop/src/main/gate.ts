@@ -59,6 +59,10 @@ const calls = new Map<string, DescMethodUnary>(
     backend.selves,
     backend.drafts,
     backend.replaceDraft,
+    // Polls: a vote, who voted, and a poll asked.
+    backend.votePoll,
+    backend.pollVoters,
+    backend.createPoll,
     // Search: kithd answers it in the profile's rooms only.
     backend.searchMessages,
     // Threads: a thread's older replies, and its receipt.

@@ -445,7 +445,8 @@ before (no exported call without its caller).
 
 After the MVP, each with its own PR and review:
 
-- polls;
+- polls (landed 2026-10-31: drawn with their tallies, voted in, who voted, asked from
+  the composer);
 - spell and completion;
 - scheduled send and slash commands;
 - network logins (QR);

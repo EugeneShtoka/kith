@@ -1,0 +1,17 @@
+{
+  "about": "How each answer of a poll is counted under it (domain.Poll.Tally, as the timelines draw it): its votes, then its share of every answer's votes in whole percent, rounded down, 0 with no votes. Read by internal/domain's conformance test and the desktop's poll tests.",
+  "cases": [
+    { "name": "no votes", "votes": [0, 0], "want": ["0 votes · 0%", "0 votes · 0%"] },
+    { "name": "one vote is a vote", "votes": [1, 0], "want": ["1 vote · 100%", "0 votes · 0%"] },
+    {
+      "name": "shares round down",
+      "votes": [1, 2, 0],
+      "want": ["1 vote · 33%", "2 votes · 66%", "0 votes · 0%"]
+    },
+    {
+      "name": "of every answer's votes, not of the voters",
+      "votes": [5, 1, 0],
+      "want": ["5 votes · 83%", "1 vote · 16%", "0 votes · 0%"]
+    }
+  ]
+}

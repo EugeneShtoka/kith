@@ -14,6 +14,7 @@ import { type Faces, faceClass, senderColor } from "./theme";
 import { builtIn, ColorRow } from "./ThemeRow";
 import { continues, dayLabel, newDay } from "./groups";
 import { attachmentURL } from "./media";
+import { PollBlock } from "./Poll";
 import type { Session } from "./session";
 import { FormattedText } from "./spans";
 import { collapse, type ThreadSummary } from "./threads";
@@ -207,7 +208,7 @@ export function Row({
             </header>
           )}
           {m.replyTo !== "" && <Quote quoted={quoted} faces={faces} />}
-          <Body m={m} session={session} />
+          <Body m={m} composer={composer} session={session} />
           {grouped && m.edited && !m.redacted && <span className="detail edited">(edited)</span>}
           {reactions !== undefined && reactions.length > 0 && (
             <ul className="reactions" aria-label="Reactions">
@@ -428,7 +429,7 @@ function Quote({ quoted, faces }: { quoted: Message | undefined; faces: Faces })
   );
 }
 
-function Body({ m, session }: { m: Message; session: Session }) {
+function Body({ m, composer, session }: { m: Message; composer: ComposerView | undefined; session: Session }) {
   if (m.redacted) {
     return (
       <p className="body deleted">
@@ -437,6 +438,9 @@ function Body({ m, session }: { m: Message; session: Session }) {
         {m.redactedReason && <>: {m.redactedReason}</>}
       </p>
     );
+  }
+  if (m.poll !== undefined) {
+    return <PollBlock m={m} p={m.poll} composer={composer} session={session} />;
   }
   const media = m.media;
   const caption = media === undefined || m.body !== media.name;
