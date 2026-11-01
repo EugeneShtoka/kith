@@ -77,15 +77,14 @@ func TestSettingAKeyKeepsTheRest(t *testing.T) {
 	t.Parallel()
 	b := book(t, map[string]string{"Dana Levi.md": dana})
 	path := filepath.Join(b.Dir(), "Dana Levi.md")
-	if _, err := b.Set(path, "pets", []string{"Rex", "Mia"}, true); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := b.Set(path, "birthday", nil, false); err != nil {
-		t.Fatal(err)
-	}
-	card, err := b.Set(path, "origin", []string{"Haifa"}, false)
+	card, err := b.Read(path)
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, set := range []Field{{Key: "pets", Values: []string{"Rex", "Mia"}, List: true}, {Key: "birthday"}, {Key: "origin", Values: []string{"Haifa"}}} {
+		if card, err = b.Set(card, set.Key, set.Values, set.List); err != nil {
+			t.Fatal(err)
+		}
 	}
 	raw, _ := os.ReadFile(path)
 	text := string(raw)
@@ -127,7 +126,7 @@ func TestANewCardIsMadeAndItsKeysOffered(t *testing.T) {
 	if err != nil || odd.Name != "ab c" {
 		t.Errorf("odd name = %q, %v", odd.Name, err)
 	}
-	if _, err := b.Set(card.Path, "spouse", []string{"[[Eli Levi]]"}, false); err != nil {
+	if _, err := b.Set(card, "spouse", []string{"[[Eli Levi]]"}, false); err != nil {
 		t.Fatal(err)
 	}
 	keys, _ := b.Keys()

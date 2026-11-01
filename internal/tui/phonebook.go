@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"slices"
 	"strings"
 
@@ -42,6 +43,8 @@ type personCardMsg struct {
 	card     phonebook.Card
 	found    bool
 	err      error
+	// note is said once it is shown.
+	note string
 }
 
 // personKeysMsg is every key the folder's cards use, for adding a field.
@@ -78,6 +81,9 @@ func (m Model) handlePersonCard(msg personCardMsg) (Model, tea.Cmd) {
 	}
 	m = m.clearStatus()
 	m.aimedAt.person = personState{id: msg.id, name: msg.name, card: msg.card, found: msg.found}
+	if msg.note != "" {
+		m = m.say(msg.note)
+	}
 	return m.showPerson(""), nil
 }
 
@@ -232,23 +238,21 @@ func (m Model) submitPersonValue(input string) (Model, tea.Cmd) {
 	if !p.found && len(values) == 0 {
 		return m.showPerson(""), nil
 	}
-	// Several values are a list whatever list says (phonebook.Book.Set).
-	book, ids, name, path, key, list := m.book(), m.personIdentifiers(p.id), p.name, p.card.Path, p.key, p.list
+	// Several values are a list whatever list says (phonebook.Book.Set). Written over the
+	// card as it was read: one another program changed since is read again (ErrMoved).
+	book, ids, name, read, key, list := m.book(), m.personIdentifiers(p.id), p.name, p.card, p.key, p.list
 	return m.doing("writing " + isolate(name) + "'s " + key + "…"), func() tea.Msg {
-		if path == "" {
-			card, err := book.Create(name, ids)
-			if err != nil {
-				return personWrittenMsg{err: err}
-			}
-			path = card.Path
-		}
-		card, err := book.Set(path, key, values, list)
+		card, err := book.Write(read, name, ids, key, values, list)
 		return personWrittenMsg{card: card, err: err}
 	}
 }
 
-// handlePersonWritten shows the card as written, on the row written.
+// handlePersonWritten shows the card as written, on the row written; a card changed
+// since it was read is read again and shown as it is now, to write again.
 func (m Model) handlePersonWritten(msg personWrittenMsg) (Model, tea.Cmd) {
+	if errors.Is(msg.err, phonebook.ErrMoved) {
+		return m.rereadPerson(isolate(m.aimedAt.person.name) + "'s card changed since it was read: here it is now, to write again")
+	}
 	if msg.err != nil {
 		return m.sayErr("could not write the card", msg.err), nil
 	}
@@ -258,6 +262,24 @@ func (m Model) handlePersonWritten(msg personWrittenMsg) (Model, tea.Cmd) {
 	// What is drawn beside names, and searched, reads the cards held.
 	m, cards := m.showPerson(key).loadCards(false, "")
 	return m, cards
+}
+
+// rereadPerson reads the open card again, by the person's IDs (or its file, opened from
+// :people), and shows it saying note.
+func (m Model) rereadPerson(note string) (Model, tea.Cmd) {
+	p, book := m.aimedAt.person, m.book()
+	if p.id == "" {
+		path := p.card.Path
+		return m, func() tea.Msg {
+			card, err := book.Read(path)
+			return personCardMsg{name: p.name, card: card, found: err == nil, err: err, note: note}
+		}
+	}
+	ids := m.personIdentifiers(p.id)
+	return m, func() tea.Msg {
+		card, found, err := book.Find(ids)
+		return personCardMsg{id: p.id, name: p.name, card: card, found: found, err: err, note: note}
+	}
 }
 
 // cancelPerson goes back to the card from a prompt about one of its fields.
