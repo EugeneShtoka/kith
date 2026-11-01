@@ -20,6 +20,9 @@ func Client(path string) backendv1connect.BackendServiceClient {
 // MessageSubscribers counts every reader of the backend's messages, the notifier included.
 func (s *Streams) MessageSubscribers() int { return s.messages.subscribers() }
 
+// ConfigSubscribers counts the clients reading ConfigChanged.
+func (s *Streams) ConfigSubscribers() int { return s.configs.subscribers() }
+
 // MessageStreams counts the clients' message streams, which read the cache.
 func (s *Streams) MessageStreams() int { return s.tail.readers() }
 

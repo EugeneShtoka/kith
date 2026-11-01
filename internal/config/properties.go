@@ -298,6 +298,100 @@ func (s *Settings) SetList(path string, entries []string) error {
 	return nil
 }
 
+// A property of the bridge's file as one typed value: a bool, int, float64, string or
+// []string by its kind, an optional's pointee. This is how kithd's settings call reads
+// and writes config.toml one property at a time, each one register of the mesh's
+// shared config (design-mesh.md, Config).
+
+// PropertyValue is the bridge property at path as a typed value, and whether the file
+// sets it (an unset optional is nil); ok is false when path is no bridge property.
+func (c Config) PropertyValue(path string) (value any, set, ok bool) {
+	v, found := field(reflect.ValueOf(&c).Elem(), path)
+	if !found || !isProperty(BridgeFile, path) {
+		return nil, false, false
+	}
+	_, set = valueText(v)
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return nil, false, true
+		}
+		v = v.Elem()
+	}
+	if v.Kind() == reflect.Slice {
+		list := make([]string, v.Len())
+		for i := range list {
+			list[i] = v.Index(i).String()
+		}
+		return list, set, true
+	}
+	return v.Interface(), set, true
+}
+
+// SetProperty writes value into the bridge property at path: a bool, int, float64,
+// string or []string as its kind holds. nil unsets it, as do an empty text or list.
+func (c *Config) SetProperty(path string, value any) error {
+	v, found := field(reflect.ValueOf(c).Elem(), path)
+	if !found || !isProperty(BridgeFile, path) {
+		return fmt.Errorf("config: %s is not a setting", path)
+	}
+	if value == nil {
+		v.SetZero()
+		return nil
+	}
+	want := v.Type()
+	if want.Kind() == reflect.Pointer {
+		want = want.Elem()
+	}
+	x := reflect.ValueOf(value)
+	if x.Kind() != want.Kind() || (x.Kind() == reflect.Slice && x.Type().Elem().Kind() != reflect.String) {
+		return fmt.Errorf("config: %s holds a %s, not a %s", path, want.Kind(), x.Type())
+	}
+	if x.Kind() == reflect.Slice {
+		if x.Len() == 0 {
+			v.SetZero()
+			return nil
+		}
+		list := reflect.MakeSlice(want, x.Len(), x.Len())
+		for i := range x.Len() {
+			list.Index(i).SetString(x.Index(i).String())
+		}
+		v.Set(list)
+		return nil
+	}
+	setScalar(v, x.Convert(want))
+	return nil
+}
+
+// DefaultValue is the property's default as default.toml writes it, typed as
+// PropertyValue answers; false for none, or one written only as a commented example.
+func (p Property) DefaultValue() (any, bool) {
+	if p.Default == "" || p.Example {
+		return nil, false
+	}
+	switch p.Kind {
+	case PropertyBool, PropertyOptionalBool:
+		return decodeDefault[bool](p.Default)
+	case PropertyInt, PropertyOptionalInt:
+		return decodeDefault[int](p.Default)
+	case PropertyFloat, PropertyOptionalFloat:
+		return decodeDefault[float64](p.Default)
+	case PropertyText:
+		return decodeDefault[string](p.Default)
+	case PropertyList:
+		return decodeDefault[[]string](p.Default)
+	}
+	return nil, false
+}
+
+// decodeDefault reads a default's TOML as a T.
+func decodeDefault[T any](text string) (any, bool) {
+	var v struct{ V T }
+	if _, err := toml.Decode("V = "+text, &v); err != nil {
+		return nil, false
+	}
+	return v.V, true
+}
+
 // setScalar sets v, or a freshly allocated pointee so a cloned config shares nothing.
 func setScalar(v, x reflect.Value) {
 	if v.Kind() == reflect.Pointer {

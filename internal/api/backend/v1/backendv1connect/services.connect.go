@@ -416,6 +416,12 @@ const (
 	// BackendServiceConfigChangedProcedure is the fully-qualified name of the BackendService's
 	// ConfigChanged RPC.
 	BackendServiceConfigChangedProcedure = "/backend.v1.BackendService/ConfigChanged"
+	// BackendServiceConfigSettingsProcedure is the fully-qualified name of the BackendService's
+	// ConfigSettings RPC.
+	BackendServiceConfigSettingsProcedure = "/backend.v1.BackendService/ConfigSettings"
+	// BackendServiceSetConfigSettingProcedure is the fully-qualified name of the BackendService's
+	// SetConfigSetting RPC.
+	BackendServiceSetConfigSettingProcedure = "/backend.v1.BackendService/SetConfigSetting"
 	// BackendServiceScheduleProcedure is the fully-qualified name of the BackendService's Schedule RPC.
 	BackendServiceScheduleProcedure = "/backend.v1.BackendService/Schedule"
 	// BackendServiceScheduledMessagesProcedure is the fully-qualified name of the BackendService's
@@ -834,6 +840,20 @@ type BackendServiceClient interface {
 	// ConfigChanged streams the configuration each time it changes: written through
 	// UpdateConfig, or re-read after a hand edit (ReloadConfig).
 	ConfigChanged(context.Context, *connect.Request[v1.ConfigChangedRequest]) (*connect.ServerStreamForClient[v1.ConfigChangedResponse], error)
+	// ConfigSettings lists the settings of the bridge's config a client may set one at a
+	// time (SetConfigSetting): each with its kind, choices, bounds, default, value and
+	// default.toml's text, and the file's revision. Never a program, a path, an address,
+	// an account, a secret, the log, or what an assistant may reach: those stay with the
+	// TUI, the CLI and the file. The config is the bridge's: every profile is answered
+	// the same.
+	ConfigSettings(context.Context, *connect.Request[v1.ConfigSettingsRequest]) (*connect.Response[v1.ConfigSettingsResponse], error)
+	// SetConfigSetting sets or clears one setting ConfigSettings lists, on the config as
+	// it is at base_revision (ABORTED once the file changed since: read it again),
+	// checked as UpdateConfig checks a config (every network judging its section) and
+	// written as it writes one (one writer, ConfigChanged told). A setting not listed is
+	// PERMISSION_DENIED; a value of another kind, out of bounds, not among the choices, or
+	// a config kithd would not run with is INVALID_ARGUMENT, and nothing is written.
+	SetConfigSetting(context.Context, *connect.Request[v1.SetConfigSettingRequest]) (*connect.Response[v1.SetConfigSettingResponse], error)
 	// Schedule
 	// Schedule queues a message.
 	Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error)
@@ -1713,6 +1733,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("ConfigChanged")),
 			connect.WithClientOptions(opts...),
 		),
+		configSettings: connect.NewClient[v1.ConfigSettingsRequest, v1.ConfigSettingsResponse](
+			httpClient,
+			baseURL+BackendServiceConfigSettingsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("ConfigSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		setConfigSetting: connect.NewClient[v1.SetConfigSettingRequest, v1.SetConfigSettingResponse](
+			httpClient,
+			baseURL+BackendServiceSetConfigSettingProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("SetConfigSetting")),
+			connect.WithClientOptions(opts...),
+		),
 		schedule: connect.NewClient[v1.ScheduleRequest, v1.ScheduleResponse](
 			httpClient,
 			baseURL+BackendServiceScheduleProcedure,
@@ -1929,6 +1961,8 @@ type backendServiceClient struct {
 	applyGroupings        *connect.Client[v1.ApplyGroupingsRequest, v1.ApplyGroupingsResponse]
 	updateConfig          *connect.Client[v1.UpdateConfigRequest, v1.UpdateConfigResponse]
 	configChanged         *connect.Client[v1.ConfigChangedRequest, v1.ConfigChangedResponse]
+	configSettings        *connect.Client[v1.ConfigSettingsRequest, v1.ConfigSettingsResponse]
+	setConfigSetting      *connect.Client[v1.SetConfigSettingRequest, v1.SetConfigSettingResponse]
 	schedule              *connect.Client[v1.ScheduleRequest, v1.ScheduleResponse]
 	scheduledMessages     *connect.Client[v1.ScheduledMessagesRequest, v1.ScheduledMessagesResponse]
 	cancelScheduled       *connect.Client[v1.CancelScheduledRequest, v1.CancelScheduledResponse]
@@ -2638,6 +2672,16 @@ func (c *backendServiceClient) ConfigChanged(ctx context.Context, req *connect.R
 	return c.configChanged.CallServerStream(ctx, req)
 }
 
+// ConfigSettings calls backend.v1.BackendService.ConfigSettings.
+func (c *backendServiceClient) ConfigSettings(ctx context.Context, req *connect.Request[v1.ConfigSettingsRequest]) (*connect.Response[v1.ConfigSettingsResponse], error) {
+	return c.configSettings.CallUnary(ctx, req)
+}
+
+// SetConfigSetting calls backend.v1.BackendService.SetConfigSetting.
+func (c *backendServiceClient) SetConfigSetting(ctx context.Context, req *connect.Request[v1.SetConfigSettingRequest]) (*connect.Response[v1.SetConfigSettingResponse], error) {
+	return c.setConfigSetting.CallUnary(ctx, req)
+}
+
 // Schedule calls backend.v1.BackendService.Schedule.
 func (c *backendServiceClient) Schedule(ctx context.Context, req *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error) {
 	return c.schedule.CallUnary(ctx, req)
@@ -3082,6 +3126,20 @@ type BackendServiceHandler interface {
 	// ConfigChanged streams the configuration each time it changes: written through
 	// UpdateConfig, or re-read after a hand edit (ReloadConfig).
 	ConfigChanged(context.Context, *connect.Request[v1.ConfigChangedRequest], *connect.ServerStream[v1.ConfigChangedResponse]) error
+	// ConfigSettings lists the settings of the bridge's config a client may set one at a
+	// time (SetConfigSetting): each with its kind, choices, bounds, default, value and
+	// default.toml's text, and the file's revision. Never a program, a path, an address,
+	// an account, a secret, the log, or what an assistant may reach: those stay with the
+	// TUI, the CLI and the file. The config is the bridge's: every profile is answered
+	// the same.
+	ConfigSettings(context.Context, *connect.Request[v1.ConfigSettingsRequest]) (*connect.Response[v1.ConfigSettingsResponse], error)
+	// SetConfigSetting sets or clears one setting ConfigSettings lists, on the config as
+	// it is at base_revision (ABORTED once the file changed since: read it again),
+	// checked as UpdateConfig checks a config (every network judging its section) and
+	// written as it writes one (one writer, ConfigChanged told). A setting not listed is
+	// PERMISSION_DENIED; a value of another kind, out of bounds, not among the choices, or
+	// a config kithd would not run with is INVALID_ARGUMENT, and nothing is written.
+	SetConfigSetting(context.Context, *connect.Request[v1.SetConfigSettingRequest]) (*connect.Response[v1.SetConfigSettingResponse], error)
 	// Schedule
 	// Schedule queues a message.
 	Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error)
@@ -3957,6 +4015,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("ConfigChanged")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceConfigSettingsHandler := connect.NewUnaryHandler(
+		BackendServiceConfigSettingsProcedure,
+		svc.ConfigSettings,
+		connect.WithSchema(backendServiceMethods.ByName("ConfigSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceSetConfigSettingHandler := connect.NewUnaryHandler(
+		BackendServiceSetConfigSettingProcedure,
+		svc.SetConfigSetting,
+		connect.WithSchema(backendServiceMethods.ByName("SetConfigSetting")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceScheduleHandler := connect.NewUnaryHandler(
 		BackendServiceScheduleProcedure,
 		svc.Schedule,
@@ -4309,6 +4379,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceUpdateConfigHandler.ServeHTTP(w, r)
 		case BackendServiceConfigChangedProcedure:
 			backendServiceConfigChangedHandler.ServeHTTP(w, r)
+		case BackendServiceConfigSettingsProcedure:
+			backendServiceConfigSettingsHandler.ServeHTTP(w, r)
+		case BackendServiceSetConfigSettingProcedure:
+			backendServiceSetConfigSettingHandler.ServeHTTP(w, r)
 		case BackendServiceScheduleProcedure:
 			backendServiceScheduleHandler.ServeHTTP(w, r)
 		case BackendServiceScheduledMessagesProcedure:
@@ -4896,6 +4970,14 @@ func (UnimplementedBackendServiceHandler) UpdateConfig(context.Context, *connect
 
 func (UnimplementedBackendServiceHandler) ConfigChanged(context.Context, *connect.Request[v1.ConfigChangedRequest], *connect.ServerStream[v1.ConfigChangedResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ConfigChanged is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) ConfigSettings(context.Context, *connect.Request[v1.ConfigSettingsRequest]) (*connect.Response[v1.ConfigSettingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ConfigSettings is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) SetConfigSetting(context.Context, *connect.Request[v1.SetConfigSettingRequest]) (*connect.Response[v1.SetConfigSettingResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SetConfigSetting is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error) {
