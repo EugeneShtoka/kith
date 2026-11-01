@@ -38,6 +38,65 @@ changes a default goes while changing defaults is still free.
 | **4: Matrix sessions** | list an account's other sessions, rename them, sign old ones out | A lost laptop's session can only be ended from another client today. Signing out another session revokes its access token on the homeserver. |
 | **5: verifying other people** | in-room SAS verification of another person | Today kith verifies only your own sessions (`:verify`, emoji SAS). Verifying a contact is the same SAS exchange carried in the room (`m.key.verification.request` as a room message) instead of to-device. |
 
+## Follow-ups
+
+Gaps that finished work left, most found by its failure reviews. Not ordered; each is
+small and ships on its own.
+
+### Desktop client
+
+- **A loaded room that ends up empty.** If a frame moves a room's only row out of what
+  the timeline holds while its next page fails, the timeline is loaded, empty, and
+  nothing asks again. Found at 20 000 runs of the timeline property; it predates #449.
+- **A thread whose root cannot be fetched** never loads older replies: the root is
+  asked for first and not again after a failure.
+- **Banners clear only on the next connection check.** A failed page's banner comes
+  down when that page is read (#449); every other failure (reactions, receipts, sends,
+  search, links, filing) stays until a device or status read succeeds.
+- **A draft that still fails to save when the window closes is lost.** On a profile
+  switch and a reload it is kept (#450).
+- **Failed sends** go to the window's own "Not sent" list; the terminal client queues
+  them in kithd instead.
+- **The person card**:
+  - Ignore and Block, as the terminal client has them;
+  - starting a DM from a card when there is none;
+  - a member list, so a card opens from one, and **Card** on rooms other than DMs;
+  - `from:key:value` in search, resolved through the people call.
+- **Settings**:
+  - the lists of records, each written whole: notification rules (with quiet hours as
+    a time range), name rules, identities, space rules and filters;
+  - place lists, with Places settings narrowed to the profile;
+  - the tag editor;
+  - rows that pair two keys, such as a code's length as one range.
+- **The filing picker**: a filter box, and New tag and New space rows.
+- **Commands**: their key bindings and setting up their secrets, which are in the
+  terminal client only.
+- **A second bridge** joined from the window is added after the first, which stays
+  the one dialed; choosing between them waits for Phase 3.
+- **The verification dialog** is wider than a phone's screen.
+
+### Terminal client and kithd
+
+- **The terminal client onto kithd's narrow calls**:
+  - filing (`FileRoom`): it still rewrites the whole config, and so can still drop an
+    entry that also names another profile's rooms, which kithd's filing no longer does;
+  - settings (`ConfigSettings`, `SetConfigSetting`);
+  - the phonebook (`People`, `PersonCard`, `SetPersonField`), needed once the terminal
+    client dials a remote bridge.
+- **One command runner.** kith-relay runs a copy of the terminal client's code for
+  `[[command]]` scripts (capture, timeout, failure text); one package should hold it.
+- **A scheduled message asked for again after it went out** is queued again, under the
+  same transaction ID. Matrix drops the duplicate; other networks may not.
+- **Rankings across profiles.** Word completion and emoji ranking with the `global`
+  scope rank from every room, whatever profile asks; so do direct-chat candidates, the
+  directory and message counts. Room key export is not narrowed to a profile either.
+- **A profile's calls and lists judge rooms differently.** Calls follow the rail, while
+  lists, streams and the queue also hold a room kithd no longer lists. So a draft in a
+  room since left is listed but cannot be edited, and a room just created or joined
+  from a terminal client that names a profile is refused until the next sync lists it.
+- **Words typed during a profile switch**, for a room the new profile does not hold,
+  are saved only once a profile that holds it is back.
+
 ## Backlog
 
 Not ordered; taken when a reason appears.
