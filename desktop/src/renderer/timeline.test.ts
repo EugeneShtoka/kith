@@ -305,9 +305,6 @@ class Run {
    */
   settle(fails: readonly boolean[] = []): void {
     for (let i = 0; i < 1000; i++) {
-      if (!this.t.loaded) {
-        this.t.older(); // a first page that failed is asked again when the window asks
-      }
       this.do({ kind: "deliver", n: this.cache.queue.length });
       if (!this.waiting()) {
         this.do({ kind: "again" });

@@ -484,6 +484,7 @@ describe("the open room", () => {
     expect(pages()).toBe(4);
     expect(ids()).toEqual(["$1", "$2", "$3"]);
     expect(view().timeline?.rows.at(-1)?.redacted).toBe(true);
+    expect(view().problem).toBeUndefined(); // the page that failed is read
     await waited();
     expect(pages()).toBe(4); // read, nothing is asked again
   });
@@ -528,6 +529,79 @@ describe("the open room", () => {
     await waited();
     expect(ids()).toEqual(["$w"]);
     expect(kithd.calls.filter((c) => c === "CachedTimeline:Home")).toHaveLength(2);
+    expect(kithd.calls.filter((c) => c === "CachedTimeline:Work")).toHaveLength(1);
+  });
+
+  // An empty timeline may never be scrolled to its top: nothing but the wait asks again.
+  it("is read again after a wait while its first page fails, and says so until it is read", async () => {
+    seed(3);
+    await started();
+    kithd.failPages = 2;
+    session.open(r);
+    await settled();
+    expect(view().problem).toContain("database is locked");
+    expect(ids()).toEqual([]);
+    expect(pages()).toBe(1);
+    await waited();
+    expect(pages()).toBe(2); // one wait, one ask
+    expect(ids()).toEqual([]);
+    expect(view().problem).toContain("database is locked");
+    await waited();
+    expect(pages()).toBe(3);
+    expect(ids()).toEqual(["$1", "$2", "$3"]);
+    expect(view().problem).toBeUndefined(); // the page that failed is read
+    await waited();
+    expect(pages()).toBe(3); // read, nothing is asked again
+  });
+
+  it("keeps a problem said after a page failed once that page is read", async () => {
+    seed(3);
+    await started();
+    kithd.failPages = 1;
+    session.open(r);
+    await settled();
+    session.jump("!gone", "$1");
+    await waited();
+    expect(ids()).toEqual(["$1", "$2", "$3"]);
+    expect(view().problem).toBe("That room is no longer in this profile");
+  });
+
+  it("leaves a first page that failed in a room left behind: the room opened is read as any, the other afresh", async () => {
+    seed(3);
+    kithd.write("Home", message({ id: "$o", ts: 5 }, "!other"));
+    await started();
+    kithd.failPages = 2; // the room's first page, and the next room's while the wait runs
+    session.open(r);
+    await settled();
+    session.open("!other");
+    await settled();
+    expect(ids()).toEqual([]);
+    await waited();
+    expect(ids()).toEqual(["$o"]);
+    expect(pages()).toBe(3); // one wait for both, and the room left not asked again
+    expect(view().problem).toBeUndefined();
+    session.open(r);
+    await settled();
+    expect(ids()).toEqual(["$1", "$2", "$3"]);
+  });
+
+  it("asks nothing in a profile left while its first page waited", async () => {
+    kithd.profiles = ["Home", "Work"];
+    kithd.remembered = "Home";
+    kithd.of("Work").rooms = [room(r)];
+    kithd.write("Work", message({ id: "$w", ts: 5 }, r));
+    seed(3);
+    await started();
+    kithd.failPages = 1;
+    session.open(r);
+    await settled();
+    await session.choose("Work");
+    await settled();
+    session.open(r);
+    await settled();
+    await waited();
+    expect(ids()).toEqual(["$w"]);
+    expect(kithd.calls.filter((c) => c === "CachedTimeline:Home")).toHaveLength(1);
     expect(kithd.calls.filter((c) => c === "CachedTimeline:Work")).toHaveLength(1);
   });
 
@@ -1312,6 +1386,111 @@ describe("a thread", () => {
 
   beforeEach(() => {
     kithd.of("Home").rooms = [room(r)];
+  });
+
+  const shown = () => view().thread?.rows.map((m) => m.id);
+  const body = (id: string) => view().thread?.rows.find((m) => m.id === id)?.body;
+  const threadPages = () => kithd.calls.filter((c) => c === "ThreadPage:Home").length;
+  const waited = async () => {
+    await new Promise((resolve) => setTimeout(resolve, deviceAgain));
+    await settled();
+  };
+  /** opened is a thread of six replies open, its root fetched and its pages read back to the third. */
+  const opened = async () => {
+    write("$root", { ts: 10 });
+    for (let i = 1; i <= 6; i++) {
+      write(`$t${String(i)}`, { ts: 10 + i, threadRoot: "$root" });
+    }
+    write("$late", { ts: 100 });
+    await started();
+    session.open(r);
+    await settled();
+    session.openThread("$root");
+    await settled();
+    session.olderInThread();
+    await settled();
+    session.olderInThread();
+    await settled();
+    expect(shown()).toEqual(["$root", "$t3", "$t4", "$t5", "$t6"]);
+  };
+  /** lost is the oldest reply read edited, a change the stream lost: the cache holds it, no frame says so. */
+  const lost = () => {
+    const all = kithd.of("Home").messages.get(r) ?? [];
+    const edited = message({ id: "$t3", ts: 13, body: "edited", threadRoot: "$root", edited: true, editedAt: 900 }, r);
+    kithd.of("Home").messages.set(
+      r,
+      all.map((m) => (m.id === "$t3" ? edited : m)),
+    );
+  };
+
+  it("is read again after a wait while its reload's pages fail, its rows kept meanwhile and replaced once read", async () => {
+    await opened();
+    lost();
+    kithd.failThreadPages = 2;
+    kithd.readAgain("Home");
+    await settled();
+    expect(view().problem).toContain("connection refused");
+    expect(shown()).toEqual(["$root", "$t3", "$t4", "$t5", "$t6"]); // the rows shown stay meanwhile
+    expect(body("$t3")).toBe("$t3");
+    const asked = threadPages();
+    await waited();
+    expect(threadPages()).toBe(asked + 1); // one wait, one ask
+    expect(body("$t3")).toBe("$t3");
+    await waited();
+    expect(shown()).toEqual(["$root", "$t3", "$t4", "$t5", "$t6"]); // read again as far back as before
+    expect(body("$t3")).toBe("edited");
+    expect(view().problem).toBeUndefined(); // the page that failed is read
+    const read = threadPages();
+    await waited();
+    expect(threadPages()).toBe(read); // read, nothing is asked again
+  });
+
+  it("leaves up the room's failed page while the thread reads: only the room's page read takes it down", async () => {
+    await opened();
+    lost();
+    kithd.failPages = 1; // the room's reload, not the thread's
+    kithd.readAgain("Home");
+    await settled();
+    expect(body("$t3")).toBe("edited"); // the thread read again
+    expect(view().problem).toContain("database is locked");
+    await waited();
+    expect(view().problem).toBeUndefined();
+  });
+
+  it("leaves a reload that failed in a thread closed: the thread opened again is read as any", async () => {
+    await opened();
+    lost();
+    kithd.failThreadPages = 1;
+    kithd.readAgain("Home");
+    await settled();
+    session.closeThread();
+    const asked = threadPages();
+    await waited();
+    expect(threadPages()).toBe(asked);
+    session.openThread("$root");
+    await settled();
+    session.olderInThread();
+    await settled();
+    session.olderInThread();
+    await settled();
+    expect(shown()).toEqual(["$root", "$t3", "$t4", "$t5", "$t6"]);
+    expect(body("$t3")).toBe("edited");
+  });
+
+  it("asks nothing in a profile left while its reload waited", async () => {
+    kithd.profiles = ["Home", "Work"];
+    kithd.remembered = "Home";
+    kithd.of("Work").rooms = [room(r)];
+    await opened();
+    kithd.failThreadPages = 1;
+    kithd.readAgain("Home");
+    await settled();
+    await session.choose("Work");
+    await settled();
+    const asked = threadPages();
+    await waited();
+    expect(threadPages()).toBe(asked);
+    expect(kithd.calls.filter((c) => c === "ThreadPage:Work")).toEqual([]);
   });
 
   it("opens beside the room with its root and replies, older replies on asking, and the composer writes into it", async () => {

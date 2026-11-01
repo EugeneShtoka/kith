@@ -97,7 +97,7 @@ export class Timeline {
   private wantOlder = false;
   /**
    * A page failed: none is asked for again until the window asks (older, reload), or, a
-   * reload's, until the wait after it is over (again).
+   * reload's or the first, until the wait after it is over (again).
    */
   private stalled = false;
   private asked: Ticket | undefined;
@@ -281,8 +281,9 @@ export class Timeline {
   /**
    * failed is t's page refused. The network's hands over to the cache's (a network off
    * or unreachable has no page to give); any other stops asking until the window does.
-   * A reload's is to be asked again after a wait (again), said by the answer: nothing
-   * else asks for it, and until it is read the rows shown may be stale.
+   * A reload's or the first is to be asked again after a wait (again), said by the
+   * answer: nothing else asks for it (an empty timeline may never be scrolled to its
+   * top), and until it is read the rows shown are stale or none.
    */
   failed(t: Ticket): boolean {
     if (t !== this.asked) {
@@ -299,14 +300,19 @@ export class Timeline {
     }
     this.sought();
     this.changed();
-    return this.stalled && this.reloading !== undefined;
+    return this.stalled && this.unasked();
   }
 
-  /** again asks for a reload's failed page again: the wait after it is over. */
+  /** again asks for a reload's or the first failed page again: the wait after it is over. */
   again(): void {
-    if (this.reloading !== undefined) {
+    if (this.unasked()) {
       this.stalled = false;
     }
+  }
+
+  /** unasked: the page due is one the window never asks for, a reload's or the first. */
+  private unasked(): boolean {
+    return this.reloading !== undefined || this.shown.floor === undefined;
   }
 
   /**
