@@ -209,13 +209,20 @@ export class Kithd {
   readonly places = new Map<string, MessageInitShape<typeof backend.filingPlaces.output>["places"]>();
   /**
    * The phonebook, as kithd serves it from its folder: each card by name, the people it
-   * is of (the first by name holding a person is theirs), its fields and revision, and
-   * the room that is your conversation with them; every field written, as
-   * "card key=values:profile". A write over a revision gone by is ABORTED.
+   * is of (the first by name holding a person is theirs), its identifiers, fields and
+   * revision, and the room that is your conversation with them; every field written,
+   * as "card key=values:profile". A write over a revision gone by is ABORTED. People
+   * narrows by words in the name and key:value terms, as kithd does.
    */
   readonly cards = new Map<
     string,
-    { people: string[]; fields: Record<string, string[]>; revision: number; conversation: string }
+    {
+      people: string[];
+      ids?: Record<string, string[]>;
+      fields: Record<string, string[]>;
+      revision: number;
+      conversation: string;
+    }
   >();
   readonly cardWrites: string[] = [];
   readonly filingSpacesAsked: string[][] = [];
@@ -507,7 +514,8 @@ export class Kithd {
     return {
       card: c === undefined ? "" : name,
       revision: c === undefined ? "" : String(c.revision),
-      fields: Object.entries(c?.fields ?? {}).map(([key, values]) => ({ key, values })),
+      ids: Object.entries(c?.ids ?? {}).map(([key, values]) => ({ key, values, list: true })),
+      fields: Object.entries(c?.fields ?? {}).map(([key, values]) => ({ key, values, list: values.length > 1 })),
     };
   }
 
@@ -960,17 +968,39 @@ export class Kithd {
       case "InstallModel":
         this.installed.push(`${name} ${(request as MessageShape<typeof backend.installModel.input>).tag}`);
         return reply(backend.installModel, {});
-      case "People":
+      case "People": {
+        const words = (request as MessageShape<typeof backend.people.input>).query
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((w) => w !== "");
+        const people = [...this.cards.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
         return reply(backend.people, {
-          people: [...this.cards.keys()]
-            .sort()
-            .filter((card) =>
-              card.toLowerCase().includes((request as MessageShape<typeof backend.people.input>).query.toLowerCase()),
-            )
-            .map((card) => ({ card })),
+          people: people.flatMap(([card, c]) => {
+            const matched: { key: string; values: string[] }[] = [];
+            for (const w of words) {
+              const at = w.indexOf(":");
+              if (at > 0 && at < w.length - 1) {
+                const [key, part] = [w.slice(0, at), w.slice(at + 1)];
+                const values = c.fields[key] ?? [];
+                if (!values.some((v) => v.toLowerCase().includes(part))) {
+                  return [];
+                }
+                matched.push({ key, values });
+              } else if (!card.toLowerCase().includes(w)) {
+                return [];
+              }
+            }
+            return [{ card, aliases: c.fields.aliases ?? [], idKeys: Object.keys(c.ids ?? {}), matched }];
+          }),
         });
+      }
       case "PersonCard": {
         const r = request as MessageShape<typeof backend.personCard.input>;
+        // A DM's one person is the person of the card whose conversation it is.
+        const dm = [...this.cards.values()].find((c) => r.roomId !== "" && c.conversation === r.roomId);
+        if (dm !== undefined) {
+          r.person = dm.people[0] ?? "";
+        }
         const name = this.cardOf(r.person, r.card);
         return reply(backend.personCard, {
           card: this.shownCard(name),
