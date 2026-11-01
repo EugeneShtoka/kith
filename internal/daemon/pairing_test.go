@@ -517,3 +517,16 @@ func TestAJoinerPinningAnotherKeyNeverReachesPair(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 	}
 }
+
+// Every unconfirmed end is an error saying why; only confirmed is none.
+func TestEveryUnconfirmedEndIsAnError(t *testing.T) {
+	t.Parallel()
+	if err := daemon.PairingOutcomeErr(domain.PairingConfirmed); err != nil {
+		t.Errorf("confirmed: %v", err)
+	}
+	for _, o := range []domain.PairingOutcome{domain.PairingRefused, domain.PairingExpired, domain.PairingAbandoned, 0, 99} {
+		if err := daemon.PairingOutcomeErr(o); err == nil {
+			t.Errorf("outcome %d is no error", o)
+		}
+	}
+}

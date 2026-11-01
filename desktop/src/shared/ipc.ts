@@ -65,7 +65,12 @@ export type StreamEvent =
   /** The stream ended or could not open; main opens it again, after a wait. */
   | { kind: "detached"; error: string }
   /** The window may not open this stream; the port closes after this. */
-  | { kind: "refused"; error: string };
+  | { kind: "refused"; error: string }
+  /**
+   * A stream opened once (a pairing, a join) ended, and is not opened again: error says
+   * why ("" when it ended as it does). The port closes after this.
+   */
+  | { kind: "ended"; error: string };
 
 /** The subscribe message: which stream, and its request in protobuf binary. */
 export interface Subscribe {

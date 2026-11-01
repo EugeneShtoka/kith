@@ -4,13 +4,226 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file device/v1/device.proto.
  */
 export const file_device_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEijwEKE1dyaXRlQWNjb3VudFJlcXVlc3QSDQoFdGFibGUYASABKAkSOgoGdmFsdWVzGAIgAygLMiouZGV2aWNlLnYxLldyaXRlQWNjb3VudFJlcXVlc3QuVmFsdWVzRW50cnkaLQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASIWChRXcml0ZUFjY291bnRSZXNwb25zZSIdCg1RUkNvZGVSZXF1ZXN0EgwKBGRhdGEYASABKAkiHgoOUVJDb2RlUmVzcG9uc2USDAoEZGFyaxgBIAEoDCIOCgxUaGVtZVJlcXVlc3QihgQKDVRoZW1lUmVzcG9uc2USNAoGdmFsdWVzGAEgAygLMiQuZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2UuVmFsdWVzRW50cnkSFwoPY29uZmlnX3JldmlzaW9uGAIgASgJEhcKD2RldmljZV9yZXZpc2lvbhgDIAEoCRIpCghhY2NvdW50cxgEIAMoCzIXLmRldmljZS52MS5UaGVtZUFjY291bnQSFgoOc2VuZGVyX3BhbGV0dGUYBSADKAkSQwoObmV0d29ya19jb2xvcnMYBiADKAsyKy5kZXZpY2UudjEuVGhlbWVSZXNwb25zZS5OZXR3b3JrQ29sb3JzRW50cnkSPAoKaWRlbnRpdGllcxgHIAMoCzIoLmRldmljZS52MS5UaGVtZVJlc3BvbnNlLklkZW50aXRpZXNFbnRyeRpECgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5kZXZpY2UudjEuVGhlbWVWYWx1ZToCOAEaNAoSTmV0d29ya0NvbG9yc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaSwoPSWRlbnRpdGllc0VudHJ5EgsKA2tleRgBIAEoCRInCgV2YWx1ZRgCIAEoCzIYLmRldmljZS52MS5UaGVtZUlkZW50aXR5OgI4ASJjCgpUaGVtZVZhbHVlEg0KBXZhbHVlGAEgASgJEiYKBnNvdXJjZRgCIAEoDjIWLmRldmljZS52MS5UaGVtZVNvdXJjZRIOCgZzaGFyZWQYAyABKAkSDgoGZGV2aWNlGAQgASgJIjkKDFRoZW1lQWNjb3VudBIKCgJvbhgBIAEoCRIPCgduZXR3b3JrGAIgASgJEgwKBG5hbWUYAyABKAkiKwoNVGhlbWVJZGVudGl0eRILCgNrZXkYASABKAkSDQoFY29sb3IYAiABKAkiTgoKVGhlbWVXcml0ZRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAkSJAoFc2NvcGUYAyABKA4yFS5kZXZpY2UudjEuVGhlbWVTY29wZSJtChJVcGRhdGVUaGVtZVJlcXVlc3QSFwoPY29uZmlnX3JldmlzaW9uGAEgASgJEhcKD2RldmljZV9yZXZpc2lvbhgCIAEoCRIlCgZ3cml0ZXMYAyADKAsyFS5kZXZpY2UudjEuVGhlbWVXcml0ZSI+ChNVcGRhdGVUaGVtZVJlc3BvbnNlEicKBXRoZW1lGAEgASgLMhguZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2UiHwoPT3V0Z29pbmdSZXF1ZXN0EgwKBHBhdGgYASABKAkiTAoQT3V0Z29pbmdSZXNwb25zZRIMCgRwYXRoGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGY29waWVkGAMgASgIEgwKBGtlcHQYBCABKAgiDwoNRGV2aWNlUmVxdWVzdCJTCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCRIOCgZicmlkZ2UYBCABKAkiJAoUQ2hvb3NlUHJvZmlsZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSIoChVDaG9vc2VQcm9maWxlUmVzcG9uc2USDwoHcHJvZmlsZRgBIAEoCSIXChVEZXZpY2VTZXR0aW5nc1JlcXVlc3QiVwoWRGV2aWNlU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncxIQCghyZXZpc2lvbhgCIAEoCSJhChtVcGRhdGVEZXZpY2VTZXR0aW5nc1JlcXVlc3QSFQoNYmFzZV9yZXZpc2lvbhgBIAEoCRIrCghzZXR0aW5ncxgCIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncyJdChxVcGRhdGVEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzEhAKCHJldmlzaW9uGAIgASgJIsEFCg5EZXZpY2VTZXR0aW5ncxIVCg1zZW5kX3JlY2VpcHRzGAEgASgIEicKCnJlYWRfcnVsZXMYAiADKAsyEy5kZXZpY2UudjEuUmVhZFJ1bGUSEwoLdW5yZWFkX2xpbmUYAyABKAgSEAoIbWFya2Rvd24YBCABKAgSEwoLY29uZmlybV9zbXMYBSABKAgSEwoLc2VuZF90eXBpbmcYBiABKAgSEQoJc2tpbl90b25lGAcgASgJEhEKCWVtb2ppX3NldBgIIAEoCRI+CgtlbW9qaV9leHRyYRgJIAMoCzIpLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncy5FbW9qaUV4dHJhRW50cnkSFwoPcmVhY3Rpb25zX3Njb3BlGAogASgJEhgKEHJlYWN0aW9uc19zdGF0aWMYCyADKAkSFwoPc3BlbGxfdW5kZXJsaW5lGAwgASgJEhYKDnJhcmVfdW5kZXJsaW5lGA0gASgJEhkKEWNoZWNrX2JlZm9yZV9zZW5kGA4gASgIEhgKEHJhcmVfYmVmb3JlX3NlbmQYDyABKAgSEwoLYXV0b2NvcnJlY3QYECABKAkSFgoOc3BlbGxfZGVjbGluZWQYESADKAkSHAoUZnJlcXVlbmNpZXNfZGVjbGluZWQYEiADKAkSEAoIY29tcGxldGUYEyABKAgSFgoOY29tcGxldGVfZ2hvc3QYFCABKAgSFgoOY29tcGxldGVfcmF0aW8YFSABKAMSFgoOY29tcGxldGVfc2NvcGUYFiABKAkSGAoQY29tcGxldGVfc291cmNlcxgXIAMoCRIWCg5tb2RlbF9kZWNsaW5lZBgYIAEoCBIVCg1maWxpbmdfc3BhY2VzGBkgAygJGjEKD0Vtb2ppRXh0cmFFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkUKCFJlYWRSdWxlEg0KBW1hdGNoGAEgASgJEg4KBnNlbmRlchgCIAEoCRIRCgRzZW5kGAMgASgISACIAQFCBwoFX3NlbmQiIgoPQ29tbWFuZHNSZXF1ZXN0Eg8KB3Jvb21faWQYASABKAkiOAoQQ29tbWFuZHNSZXNwb25zZRIkCghjb21tYW5kcxgBIAMoCzISLmRldmljZS52MS5Db21tYW5kIjgKB0NvbW1hbmQSDAoEbmFtZRgBIAEoCRIPCgdhcHBsaWVzGAIgASgIEg4KBnBsYWNlcxgDIAMoCSJSChFSdW5Db21tYW5kUmVxdWVzdBIMCgRuYW1lGAEgASgJEg8KB3Jvb21faWQYAiABKAkSEAoIZXZlbnRfaWQYAyABKAkSDAoEbGluaxgEIAEoDSJhChJSdW5Db21tYW5kUmVzcG9uc2USDgoGb3V0cHV0GAEgASgJEgwKBGJvZHkYAiABKAkSEQoJdHJ1bmNhdGVkGAMgASgIEgsKA3doeRgEIAEoCRINCgVsaW5rcxgFIAMoCSpdCgtUaGVtZVNvdXJjZRIcChhUSEVNRV9TT1VSQ0VfVU5TUEVDSUZJRUQQABIXChNUSEVNRV9TT1VSQ0VfU0hBUkVEEAESFwoTVEhFTUVfU09VUkNFX0RFVklDRRACKlkKClRoZW1lU2NvcGUSGwoXVEhFTUVfU0NPUEVfVU5TUEVDSUZJRUQQABIWChJUSEVNRV9TQ09QRV9TSEFSRUQQARIWChJUSEVNRV9TQ09QRV9ERVZJQ0UQAjLRBgoNRGV2aWNlU2VydmljZRI9CgZEZXZpY2USGC5kZXZpY2UudjEuRGV2aWNlUmVxdWVzdBoZLmRldmljZS52MS5EZXZpY2VSZXNwb25zZRJSCg1DaG9vc2VQcm9maWxlEh8uZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXF1ZXN0GiAuZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXNwb25zZRJVCg5EZXZpY2VTZXR0aW5ncxIgLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1JlcXVlc3QaIS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXNwb25zZRJnChRVcGRhdGVEZXZpY2VTZXR0aW5ncxImLmRldmljZS52MS5VcGRhdGVEZXZpY2VTZXR0aW5nc1JlcXVlc3QaJy5kZXZpY2UudjEuVXBkYXRlRGV2aWNlU2V0dGluZ3NSZXNwb25zZRJDCghPdXRnb2luZxIaLmRldmljZS52MS5PdXRnb2luZ1JlcXVlc3QaGy5kZXZpY2UudjEuT3V0Z29pbmdSZXNwb25zZRI6CgVUaGVtZRIXLmRldmljZS52MS5UaGVtZVJlcXVlc3QaGC5kZXZpY2UudjEuVGhlbWVSZXNwb25zZRJMCgtVcGRhdGVUaGVtZRIdLmRldmljZS52MS5VcGRhdGVUaGVtZVJlcXVlc3QaHi5kZXZpY2UudjEuVXBkYXRlVGhlbWVSZXNwb25zZRJPCgxXcml0ZUFjY291bnQSHi5kZXZpY2UudjEuV3JpdGVBY2NvdW50UmVxdWVzdBofLmRldmljZS52MS5Xcml0ZUFjY291bnRSZXNwb25zZRI9CgZRUkNvZGUSGC5kZXZpY2UudjEuUVJDb2RlUmVxdWVzdBoZLmRldmljZS52MS5RUkNvZGVSZXNwb25zZRJDCghDb21tYW5kcxIaLmRldmljZS52MS5Db21tYW5kc1JlcXVlc3QaGy5kZXZpY2UudjEuQ29tbWFuZHNSZXNwb25zZRJJCgpSdW5Db21tYW5kEhwuZGV2aWNlLnYxLlJ1bkNvbW1hbmRSZXF1ZXN0Gh0uZGV2aWNlLnYxLlJ1bkNvbW1hbmRSZXNwb25zZUI+WjxnaXRodWIuY29tL0V1Z2VuZVNodG9rYS9raXRoL2ludGVybmFsL2FwaS9kZXZpY2UvdjE7ZGV2aWNldjFiBnByb3RvMw");
+  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEibgoRUGFpcmluZ1VSSVJlcXVlc3QSDQoFdG9rZW4YASABKAkSEQoJYWRkcmVzc2VzGAIgAygJEgoKAmlkGAMgASgJEisKB2V4cGlyZXMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIiEKElBhaXJpbmdVUklSZXNwb25zZRILCgN1cmkYASABKAkiHAoNSW52aXRlUmVxdWVzdBILCgN1cmkYASABKAkiXAoOSW52aXRlUmVzcG9uc2USEQoJYWRkcmVzc2VzGAEgAygJEgoKAmlkGAIgASgJEisKB2V4cGlyZXMYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIi4KEUpvaW5CcmlkZ2VSZXF1ZXN0EgsKA3VyaRgBIAEoCRIMCgRuYW1lGAIgASgJIloKEkpvaW5CcmlkZ2VSZXNwb25zZRIQCgZkaWdpdHMYASABKAlIABIpCgZqb2luZWQYAiABKAsyFy5kZXZpY2UudjEuSm9pbmVkQnJpZGdlSABCBwoFZXZlbnQiOwoMSm9pbmVkQnJpZGdlEgwKBG5hbWUYASABKAkSCgoCaWQYAiABKAkSEQoJYWRkcmVzc2VzGAMgAygJIhMKEVRoaXNEZXZpY2VSZXF1ZXN0IiAKElRoaXNEZXZpY2VSZXNwb25zZRIKCgJpZBgBIAEoCSKPAQoTV3JpdGVBY2NvdW50UmVxdWVzdBINCgV0YWJsZRgBIAEoCRI6CgZ2YWx1ZXMYAiADKAsyKi5kZXZpY2UudjEuV3JpdGVBY2NvdW50UmVxdWVzdC5WYWx1ZXNFbnRyeRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIhYKFFdyaXRlQWNjb3VudFJlc3BvbnNlIh0KDVFSQ29kZVJlcXVlc3QSDAoEZGF0YRgBIAEoCSIeCg5RUkNvZGVSZXNwb25zZRIMCgRkYXJrGAEgASgMIg4KDFRoZW1lUmVxdWVzdCKGBAoNVGhlbWVSZXNwb25zZRI0CgZ2YWx1ZXMYASADKAsyJC5kZXZpY2UudjEuVGhlbWVSZXNwb25zZS5WYWx1ZXNFbnRyeRIXCg9jb25maWdfcmV2aXNpb24YAiABKAkSFwoPZGV2aWNlX3JldmlzaW9uGAMgASgJEikKCGFjY291bnRzGAQgAygLMhcuZGV2aWNlLnYxLlRoZW1lQWNjb3VudBIWCg5zZW5kZXJfcGFsZXR0ZRgFIAMoCRJDCg5uZXR3b3JrX2NvbG9ycxgGIAMoCzIrLmRldmljZS52MS5UaGVtZVJlc3BvbnNlLk5ldHdvcmtDb2xvcnNFbnRyeRI8CgppZGVudGl0aWVzGAcgAygLMiguZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2UuSWRlbnRpdGllc0VudHJ5GkQKC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLmRldmljZS52MS5UaGVtZVZhbHVlOgI4ARo0ChJOZXR3b3JrQ29sb3JzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARpLCg9JZGVudGl0aWVzRW50cnkSCwoDa2V5GAEgASgJEicKBXZhbHVlGAIgASgLMhguZGV2aWNlLnYxLlRoZW1lSWRlbnRpdHk6AjgBImMKClRoZW1lVmFsdWUSDQoFdmFsdWUYASABKAkSJgoGc291cmNlGAIgASgOMhYuZGV2aWNlLnYxLlRoZW1lU291cmNlEg4KBnNoYXJlZBgDIAEoCRIOCgZkZXZpY2UYBCABKAkiOQoMVGhlbWVBY2NvdW50EgoKAm9uGAEgASgJEg8KB25ldHdvcmsYAiABKAkSDAoEbmFtZRgDIAEoCSIrCg1UaGVtZUlkZW50aXR5EgsKA2tleRgBIAEoCRINCgVjb2xvchgCIAEoCSJOCgpUaGVtZVdyaXRlEgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCRIkCgVzY29wZRgDIAEoDjIVLmRldmljZS52MS5UaGVtZVNjb3BlIm0KElVwZGF0ZVRoZW1lUmVxdWVzdBIXCg9jb25maWdfcmV2aXNpb24YASABKAkSFwoPZGV2aWNlX3JldmlzaW9uGAIgASgJEiUKBndyaXRlcxgDIAMoCzIVLmRldmljZS52MS5UaGVtZVdyaXRlIj4KE1VwZGF0ZVRoZW1lUmVzcG9uc2USJwoFdGhlbWUYASABKAsyGC5kZXZpY2UudjEuVGhlbWVSZXNwb25zZSIfCg9PdXRnb2luZ1JlcXVlc3QSDAoEcGF0aBgBIAEoCSJMChBPdXRnb2luZ1Jlc3BvbnNlEgwKBHBhdGgYASABKAkSDAoEbmFtZRgCIAEoCRIOCgZjb3BpZWQYAyABKAgSDAoEa2VwdBgEIAEoCCIPCg1EZXZpY2VSZXF1ZXN0IlMKDkRldmljZVJlc3BvbnNlEg4KBnNvY2tldBgBIAEoCRIPCgdwcm9maWxlGAIgASgJEhAKCHByb2ZpbGVzGAMgAygJEg4KBmJyaWRnZRgEIAEoCSIkChRDaG9vc2VQcm9maWxlUmVxdWVzdBIMCgRuYW1lGAEgASgJIigKFUNob29zZVByb2ZpbGVSZXNwb25zZRIPCgdwcm9maWxlGAEgASgJIhcKFURldmljZVNldHRpbmdzUmVxdWVzdCJXChZEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzEhAKCHJldmlzaW9uGAIgASgJImEKG1VwZGF0ZURldmljZVNldHRpbmdzUmVxdWVzdBIVCg1iYXNlX3JldmlzaW9uGAEgASgJEisKCHNldHRpbmdzGAIgASgLMhkuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzIl0KHFVwZGF0ZURldmljZVNldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3MSEAoIcmV2aXNpb24YAiABKAkiwQUKDkRldmljZVNldHRpbmdzEhUKDXNlbmRfcmVjZWlwdHMYASABKAgSJwoKcmVhZF9ydWxlcxgCIAMoCzITLmRldmljZS52MS5SZWFkUnVsZRITCgt1bnJlYWRfbGluZRgDIAEoCBIQCghtYXJrZG93bhgEIAEoCBITCgtjb25maXJtX3NtcxgFIAEoCBITCgtzZW5kX3R5cGluZxgGIAEoCBIRCglza2luX3RvbmUYByABKAkSEQoJZW1vamlfc2V0GAggASgJEj4KC2Vtb2ppX2V4dHJhGAkgAygLMikuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzLkVtb2ppRXh0cmFFbnRyeRIXCg9yZWFjdGlvbnNfc2NvcGUYCiABKAkSGAoQcmVhY3Rpb25zX3N0YXRpYxgLIAMoCRIXCg9zcGVsbF91bmRlcmxpbmUYDCABKAkSFgoOcmFyZV91bmRlcmxpbmUYDSABKAkSGQoRY2hlY2tfYmVmb3JlX3NlbmQYDiABKAgSGAoQcmFyZV9iZWZvcmVfc2VuZBgPIAEoCBITCgthdXRvY29ycmVjdBgQIAEoCRIWCg5zcGVsbF9kZWNsaW5lZBgRIAMoCRIcChRmcmVxdWVuY2llc19kZWNsaW5lZBgSIAMoCRIQCghjb21wbGV0ZRgTIAEoCBIWCg5jb21wbGV0ZV9naG9zdBgUIAEoCBIWCg5jb21wbGV0ZV9yYXRpbxgVIAEoAxIWCg5jb21wbGV0ZV9zY29wZRgWIAEoCRIYChBjb21wbGV0ZV9zb3VyY2VzGBcgAygJEhYKDm1vZGVsX2RlY2xpbmVkGBggASgIEhUKDWZpbGluZ19zcGFjZXMYGSADKAkaMQoPRW1vamlFeHRyYUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiRQoIUmVhZFJ1bGUSDQoFbWF0Y2gYASABKAkSDgoGc2VuZGVyGAIgASgJEhEKBHNlbmQYAyABKAhIAIgBAUIHCgVfc2VuZCIiCg9Db21tYW5kc1JlcXVlc3QSDwoHcm9vbV9pZBgBIAEoCSI4ChBDb21tYW5kc1Jlc3BvbnNlEiQKCGNvbW1hbmRzGAEgAygLMhIuZGV2aWNlLnYxLkNvbW1hbmQiOAoHQ29tbWFuZBIMCgRuYW1lGAEgASgJEg8KB2FwcGxpZXMYAiABKAgSDgoGcGxhY2VzGAMgAygJIlIKEVJ1bkNvbW1hbmRSZXF1ZXN0EgwKBG5hbWUYASABKAkSDwoHcm9vbV9pZBgCIAEoCRIQCghldmVudF9pZBgDIAEoCRIMCgRsaW5rGAQgASgNImEKElJ1bkNvbW1hbmRSZXNwb25zZRIOCgZvdXRwdXQYASABKAkSDAoEYm9keRgCIAEoCRIRCgl0cnVuY2F0ZWQYAyABKAgSCwoDd2h5GAQgASgJEg0KBWxpbmtzGAUgAygJKl0KC1RoZW1lU291cmNlEhwKGFRIRU1FX1NPVVJDRV9VTlNQRUNJRklFRBAAEhcKE1RIRU1FX1NPVVJDRV9TSEFSRUQQARIXChNUSEVNRV9TT1VSQ0VfREVWSUNFEAIqWQoKVGhlbWVTY29wZRIbChdUSEVNRV9TQ09QRV9VTlNQRUNJRklFRBAAEhYKElRIRU1FX1NDT1BFX1NIQVJFRBABEhYKElRIRU1FX1NDT1BFX0RFVklDRRACMvMICg1EZXZpY2VTZXJ2aWNlEj0KBkRldmljZRIYLmRldmljZS52MS5EZXZpY2VSZXF1ZXN0GhkuZGV2aWNlLnYxLkRldmljZVJlc3BvbnNlElIKDUNob29zZVByb2ZpbGUSHy5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlcXVlc3QaIC5kZXZpY2UudjEuQ2hvb3NlUHJvZmlsZVJlc3BvbnNlElUKDkRldmljZVNldHRpbmdzEiAuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzUmVxdWVzdBohLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEmcKFFVwZGF0ZURldmljZVNldHRpbmdzEiYuZGV2aWNlLnYxLlVwZGF0ZURldmljZVNldHRpbmdzUmVxdWVzdBonLmRldmljZS52MS5VcGRhdGVEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEkMKCE91dGdvaW5nEhouZGV2aWNlLnYxLk91dGdvaW5nUmVxdWVzdBobLmRldmljZS52MS5PdXRnb2luZ1Jlc3BvbnNlEjoKBVRoZW1lEhcuZGV2aWNlLnYxLlRoZW1lUmVxdWVzdBoYLmRldmljZS52MS5UaGVtZVJlc3BvbnNlEkwKC1VwZGF0ZVRoZW1lEh0uZGV2aWNlLnYxLlVwZGF0ZVRoZW1lUmVxdWVzdBoeLmRldmljZS52MS5VcGRhdGVUaGVtZVJlc3BvbnNlEk8KDFdyaXRlQWNjb3VudBIeLmRldmljZS52MS5Xcml0ZUFjY291bnRSZXF1ZXN0Gh8uZGV2aWNlLnYxLldyaXRlQWNjb3VudFJlc3BvbnNlEj0KBlFSQ29kZRIYLmRldmljZS52MS5RUkNvZGVSZXF1ZXN0GhkuZGV2aWNlLnYxLlFSQ29kZVJlc3BvbnNlEkMKCENvbW1hbmRzEhouZGV2aWNlLnYxLkNvbW1hbmRzUmVxdWVzdBobLmRldmljZS52MS5Db21tYW5kc1Jlc3BvbnNlEkkKClJ1bkNvbW1hbmQSHC5kZXZpY2UudjEuUnVuQ29tbWFuZFJlcXVlc3QaHS5kZXZpY2UudjEuUnVuQ29tbWFuZFJlc3BvbnNlEkkKClBhaXJpbmdVUkkSHC5kZXZpY2UudjEuUGFpcmluZ1VSSVJlcXVlc3QaHS5kZXZpY2UudjEuUGFpcmluZ1VSSVJlc3BvbnNlEj0KBkludml0ZRIYLmRldmljZS52MS5JbnZpdGVSZXF1ZXN0GhkuZGV2aWNlLnYxLkludml0ZVJlc3BvbnNlEksKCkpvaW5CcmlkZ2USHC5kZXZpY2UudjEuSm9pbkJyaWRnZVJlcXVlc3QaHS5kZXZpY2UudjEuSm9pbkJyaWRnZVJlc3BvbnNlMAESSQoKVGhpc0RldmljZRIcLmRldmljZS52MS5UaGlzRGV2aWNlUmVxdWVzdBodLmRldmljZS52MS5UaGlzRGV2aWNlUmVzcG9uc2VCPlo8Z2l0aHViLmNvbS9FdWdlbmVTaHRva2Eva2l0aC9pbnRlcm5hbC9hcGkvZGV2aWNlL3YxO2RldmljZXYxYgZwcm90bzM", [file_google_protobuf_timestamp]);
+
+/**
+ * @generated from message device.v1.PairingURIRequest
+ */
+export type PairingURIRequest = Message<"device.v1.PairingURIRequest"> & {
+  /**
+   * The ticket's fields, as BackendService.PairingTicket has them.
+   *
+   * @generated from field: string token = 1;
+   */
+  token: string;
+
+  /**
+   * @generated from field: repeated string addresses = 2;
+   */
+  addresses: string[];
+
+  /**
+   * @generated from field: string id = 3;
+   */
+  id: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires = 4;
+   */
+  expires?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message device.v1.PairingURIRequest.
+ * Use `create(PairingURIRequestSchema)` to create a new message.
+ */
+export const PairingURIRequestSchema: GenMessage<PairingURIRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 0);
+
+/**
+ * @generated from message device.v1.PairingURIResponse
+ */
+export type PairingURIResponse = Message<"device.v1.PairingURIResponse"> & {
+  /**
+   * @generated from field: string uri = 1;
+   */
+  uri: string;
+};
+
+/**
+ * Describes the message device.v1.PairingURIResponse.
+ * Use `create(PairingURIResponseSchema)` to create a new message.
+ */
+export const PairingURIResponseSchema: GenMessage<PairingURIResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 1);
+
+/**
+ * @generated from message device.v1.InviteRequest
+ */
+export type InviteRequest = Message<"device.v1.InviteRequest"> & {
+  /**
+   * @generated from field: string uri = 1;
+   */
+  uri: string;
+};
+
+/**
+ * Describes the message device.v1.InviteRequest.
+ * Use `create(InviteRequestSchema)` to create a new message.
+ */
+export const InviteRequestSchema: GenMessage<InviteRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 2);
+
+/**
+ * InviteResponse is the bridge a kith://pair URI names: its addresses in the order they
+ * are dialed, the ID its key must have, and when the pairing expires.
+ *
+ * @generated from message device.v1.InviteResponse
+ */
+export type InviteResponse = Message<"device.v1.InviteResponse"> & {
+  /**
+   * @generated from field: repeated string addresses = 1;
+   */
+  addresses: string[];
+
+  /**
+   * @generated from field: string id = 2;
+   */
+  id: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires = 3;
+   */
+  expires?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message device.v1.InviteResponse.
+ * Use `create(InviteResponseSchema)` to create a new message.
+ */
+export const InviteResponseSchema: GenMessage<InviteResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 3);
+
+/**
+ * @generated from message device.v1.JoinBridgeRequest
+ */
+export type JoinBridgeRequest = Message<"device.v1.JoinBridgeRequest"> & {
+  /**
+   * @generated from field: string uri = 1;
+   */
+  uri: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message device.v1.JoinBridgeRequest.
+ * Use `create(JoinBridgeRequestSchema)` to create a new message.
+ */
+export const JoinBridgeRequestSchema: GenMessage<JoinBridgeRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 4);
+
+/**
+ * JoinBridgeResponse is one frame: the six digits to compare with the trusted device's,
+ * then the bridge as device.toml now names it, which ends the stream.
+ *
+ * @generated from message device.v1.JoinBridgeResponse
+ */
+export type JoinBridgeResponse = Message<"device.v1.JoinBridgeResponse"> & {
+  /**
+   * @generated from oneof device.v1.JoinBridgeResponse.event
+   */
+  event: {
+    /**
+     * @generated from field: string digits = 1;
+     */
+    value: string;
+    case: "digits";
+  } | {
+    /**
+     * @generated from field: device.v1.JoinedBridge joined = 2;
+     */
+    value: JoinedBridge;
+    case: "joined";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message device.v1.JoinBridgeResponse.
+ * Use `create(JoinBridgeResponseSchema)` to create a new message.
+ */
+export const JoinBridgeResponseSchema: GenMessage<JoinBridgeResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 5);
+
+/**
+ * JoinedBridge is the [[bridge]] entry the join wrote.
+ *
+ * @generated from message device.v1.JoinedBridge
+ */
+export type JoinedBridge = Message<"device.v1.JoinedBridge"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string id = 2;
+   */
+  id: string;
+
+  /**
+   * @generated from field: repeated string addresses = 3;
+   */
+  addresses: string[];
+};
+
+/**
+ * Describes the message device.v1.JoinedBridge.
+ * Use `create(JoinedBridgeSchema)` to create a new message.
+ */
+export const JoinedBridgeSchema: GenMessage<JoinedBridge> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 6);
+
+/**
+ * @generated from message device.v1.ThisDeviceRequest
+ */
+export type ThisDeviceRequest = Message<"device.v1.ThisDeviceRequest"> & {
+};
+
+/**
+ * Describes the message device.v1.ThisDeviceRequest.
+ * Use `create(ThisDeviceRequestSchema)` to create a new message.
+ */
+export const ThisDeviceRequestSchema: GenMessage<ThisDeviceRequest> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 7);
+
+/**
+ * @generated from message device.v1.ThisDeviceResponse
+ */
+export type ThisDeviceResponse = Message<"device.v1.ThisDeviceResponse"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message device.v1.ThisDeviceResponse.
+ * Use `create(ThisDeviceResponseSchema)` to create a new message.
+ */
+export const ThisDeviceResponseSchema: GenMessage<ThisDeviceResponse> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 8);
 
 /**
  * @generated from message device.v1.WriteAccountRequest
@@ -34,7 +247,7 @@ export type WriteAccountRequest = Message<"device.v1.WriteAccountRequest"> & {
  * Use `create(WriteAccountRequestSchema)` to create a new message.
  */
 export const WriteAccountRequestSchema: GenMessage<WriteAccountRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 0);
+  messageDesc(file_device_v1_device, 9);
 
 /**
  * @generated from message device.v1.WriteAccountResponse
@@ -47,7 +260,7 @@ export type WriteAccountResponse = Message<"device.v1.WriteAccountResponse"> & {
  * Use `create(WriteAccountResponseSchema)` to create a new message.
  */
 export const WriteAccountResponseSchema: GenMessage<WriteAccountResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 1);
+  messageDesc(file_device_v1_device, 10);
 
 /**
  * @generated from message device.v1.QRCodeRequest
@@ -64,7 +277,7 @@ export type QRCodeRequest = Message<"device.v1.QRCodeRequest"> & {
  * Use `create(QRCodeRequestSchema)` to create a new message.
  */
 export const QRCodeRequestSchema: GenMessage<QRCodeRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 2);
+  messageDesc(file_device_v1_device, 11);
 
 /**
  * @generated from message device.v1.QRCodeResponse
@@ -84,7 +297,7 @@ export type QRCodeResponse = Message<"device.v1.QRCodeResponse"> & {
  * Use `create(QRCodeResponseSchema)` to create a new message.
  */
 export const QRCodeResponseSchema: GenMessage<QRCodeResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 3);
+  messageDesc(file_device_v1_device, 12);
 
 /**
  * @generated from message device.v1.ThemeRequest
@@ -97,7 +310,7 @@ export type ThemeRequest = Message<"device.v1.ThemeRequest"> & {
  * Use `create(ThemeRequestSchema)` to create a new message.
  */
 export const ThemeRequestSchema: GenMessage<ThemeRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 4);
+  messageDesc(file_device_v1_device, 13);
 
 /**
  * @generated from message device.v1.ThemeResponse
@@ -165,7 +378,7 @@ export type ThemeResponse = Message<"device.v1.ThemeResponse"> & {
  * Use `create(ThemeResponseSchema)` to create a new message.
  */
 export const ThemeResponseSchema: GenMessage<ThemeResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 5);
+  messageDesc(file_device_v1_device, 14);
 
 /**
  * ThemeValue is one key: what it is, from where, and what each file holds of it.
@@ -205,7 +418,7 @@ export type ThemeValue = Message<"device.v1.ThemeValue"> & {
  * Use `create(ThemeValueSchema)` to create a new message.
  */
 export const ThemeValueSchema: GenMessage<ThemeValue> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 6);
+  messageDesc(file_device_v1_device, 15);
 
 /**
  * ThemeAccount is one network account kithd serves.
@@ -239,7 +452,7 @@ export type ThemeAccount = Message<"device.v1.ThemeAccount"> & {
  * Use `create(ThemeAccountSchema)` to create a new message.
  */
 export const ThemeAccountSchema: GenMessage<ThemeAccount> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 7);
+  messageDesc(file_device_v1_device, 16);
 
 /**
  * ThemeIdentity is a person as their [[display.identity]] colors them.
@@ -267,7 +480,7 @@ export type ThemeIdentity = Message<"device.v1.ThemeIdentity"> & {
  * Use `create(ThemeIdentitySchema)` to create a new message.
  */
 export const ThemeIdentitySchema: GenMessage<ThemeIdentity> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 8);
+  messageDesc(file_device_v1_device, 17);
 
 /**
  * @generated from message device.v1.ThemeWrite
@@ -298,7 +511,7 @@ export type ThemeWrite = Message<"device.v1.ThemeWrite"> & {
  * Use `create(ThemeWriteSchema)` to create a new message.
  */
 export const ThemeWriteSchema: GenMessage<ThemeWrite> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 9);
+  messageDesc(file_device_v1_device, 18);
 
 /**
  * @generated from message device.v1.UpdateThemeRequest
@@ -328,7 +541,7 @@ export type UpdateThemeRequest = Message<"device.v1.UpdateThemeRequest"> & {
  * Use `create(UpdateThemeRequestSchema)` to create a new message.
  */
 export const UpdateThemeRequestSchema: GenMessage<UpdateThemeRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 10);
+  messageDesc(file_device_v1_device, 19);
 
 /**
  * @generated from message device.v1.UpdateThemeResponse
@@ -345,7 +558,7 @@ export type UpdateThemeResponse = Message<"device.v1.UpdateThemeResponse"> & {
  * Use `create(UpdateThemeResponseSchema)` to create a new message.
  */
 export const UpdateThemeResponseSchema: GenMessage<UpdateThemeResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 11);
+  messageDesc(file_device_v1_device, 20);
 
 /**
  * @generated from message device.v1.OutgoingRequest
@@ -364,7 +577,7 @@ export type OutgoingRequest = Message<"device.v1.OutgoingRequest"> & {
  * Use `create(OutgoingRequestSchema)` to create a new message.
  */
 export const OutgoingRequestSchema: GenMessage<OutgoingRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 12);
+  messageDesc(file_device_v1_device, 21);
 
 /**
  * @generated from message device.v1.OutgoingResponse
@@ -404,7 +617,7 @@ export type OutgoingResponse = Message<"device.v1.OutgoingResponse"> & {
  * Use `create(OutgoingResponseSchema)` to create a new message.
  */
 export const OutgoingResponseSchema: GenMessage<OutgoingResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 13);
+  messageDesc(file_device_v1_device, 22);
 
 /**
  * @generated from message device.v1.DeviceRequest
@@ -417,7 +630,7 @@ export type DeviceRequest = Message<"device.v1.DeviceRequest"> & {
  * Use `create(DeviceRequestSchema)` to create a new message.
  */
 export const DeviceRequestSchema: GenMessage<DeviceRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 14);
+  messageDesc(file_device_v1_device, 23);
 
 /**
  * @generated from message device.v1.DeviceResponse
@@ -462,7 +675,7 @@ export type DeviceResponse = Message<"device.v1.DeviceResponse"> & {
  * Use `create(DeviceResponseSchema)` to create a new message.
  */
 export const DeviceResponseSchema: GenMessage<DeviceResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 15);
+  messageDesc(file_device_v1_device, 24);
 
 /**
  * @generated from message device.v1.ChooseProfileRequest
@@ -481,7 +694,7 @@ export type ChooseProfileRequest = Message<"device.v1.ChooseProfileRequest"> & {
  * Use `create(ChooseProfileRequestSchema)` to create a new message.
  */
 export const ChooseProfileRequestSchema: GenMessage<ChooseProfileRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 16);
+  messageDesc(file_device_v1_device, 25);
 
 /**
  * @generated from message device.v1.ChooseProfileResponse
@@ -500,7 +713,7 @@ export type ChooseProfileResponse = Message<"device.v1.ChooseProfileResponse"> &
  * Use `create(ChooseProfileResponseSchema)` to create a new message.
  */
 export const ChooseProfileResponseSchema: GenMessage<ChooseProfileResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 17);
+  messageDesc(file_device_v1_device, 26);
 
 /**
  * @generated from message device.v1.DeviceSettingsRequest
@@ -513,7 +726,7 @@ export type DeviceSettingsRequest = Message<"device.v1.DeviceSettingsRequest"> &
  * Use `create(DeviceSettingsRequestSchema)` to create a new message.
  */
 export const DeviceSettingsRequestSchema: GenMessage<DeviceSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 18);
+  messageDesc(file_device_v1_device, 27);
 
 /**
  * @generated from message device.v1.DeviceSettingsResponse
@@ -538,7 +751,7 @@ export type DeviceSettingsResponse = Message<"device.v1.DeviceSettingsResponse">
  * Use `create(DeviceSettingsResponseSchema)` to create a new message.
  */
 export const DeviceSettingsResponseSchema: GenMessage<DeviceSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 19);
+  messageDesc(file_device_v1_device, 28);
 
 /**
  * @generated from message device.v1.UpdateDeviceSettingsRequest
@@ -562,7 +775,7 @@ export type UpdateDeviceSettingsRequest = Message<"device.v1.UpdateDeviceSetting
  * Use `create(UpdateDeviceSettingsRequestSchema)` to create a new message.
  */
 export const UpdateDeviceSettingsRequestSchema: GenMessage<UpdateDeviceSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 20);
+  messageDesc(file_device_v1_device, 29);
 
 /**
  * @generated from message device.v1.UpdateDeviceSettingsResponse
@@ -586,7 +799,7 @@ export type UpdateDeviceSettingsResponse = Message<"device.v1.UpdateDeviceSettin
  * Use `create(UpdateDeviceSettingsResponseSchema)` to create a new message.
  */
 export const UpdateDeviceSettingsResponseSchema: GenMessage<UpdateDeviceSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 21);
+  messageDesc(file_device_v1_device, 30);
 
 /**
  * DeviceSettings is what the window reads of this device's settings (device.toml), each
@@ -763,7 +976,7 @@ export type DeviceSettings = Message<"device.v1.DeviceSettings"> & {
  * Use `create(DeviceSettingsSchema)` to create a new message.
  */
 export const DeviceSettingsSchema: GenMessage<DeviceSettings> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 22);
+  messageDesc(file_device_v1_device, 31);
 
 /**
  * ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
@@ -799,7 +1012,7 @@ export type ReadRule = Message<"device.v1.ReadRule"> & {
  * Use `create(ReadRuleSchema)` to create a new message.
  */
 export const ReadRuleSchema: GenMessage<ReadRule> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 23);
+  messageDesc(file_device_v1_device, 32);
 
 /**
  * @generated from message device.v1.CommandsRequest
@@ -818,7 +1031,7 @@ export type CommandsRequest = Message<"device.v1.CommandsRequest"> & {
  * Use `create(CommandsRequestSchema)` to create a new message.
  */
 export const CommandsRequestSchema: GenMessage<CommandsRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 24);
+  messageDesc(file_device_v1_device, 33);
 
 /**
  * @generated from message device.v1.CommandsResponse
@@ -835,7 +1048,7 @@ export type CommandsResponse = Message<"device.v1.CommandsResponse"> & {
  * Use `create(CommandsResponseSchema)` to create a new message.
  */
 export const CommandsResponseSchema: GenMessage<CommandsResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 25);
+  messageDesc(file_device_v1_device, 34);
 
 /**
  * Command is one command of the commands directory.
@@ -869,7 +1082,7 @@ export type Command = Message<"device.v1.Command"> & {
  * Use `create(CommandSchema)` to create a new message.
  */
 export const CommandSchema: GenMessage<Command> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 26);
+  messageDesc(file_device_v1_device, 35);
 
 /**
  * @generated from message device.v1.RunCommandRequest
@@ -908,7 +1121,7 @@ export type RunCommandRequest = Message<"device.v1.RunCommandRequest"> & {
  * Use `create(RunCommandRequestSchema)` to create a new message.
  */
 export const RunCommandRequestSchema: GenMessage<RunCommandRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 27);
+  messageDesc(file_device_v1_device, 36);
 
 /**
  * @generated from message device.v1.RunCommandResponse
@@ -956,7 +1169,7 @@ export type RunCommandResponse = Message<"device.v1.RunCommandResponse"> & {
  * Use `create(RunCommandResponseSchema)` to create a new message.
  */
 export const RunCommandResponseSchema: GenMessage<RunCommandResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 28);
+  messageDesc(file_device_v1_device, 37);
 
 /**
  * ThemeSource is where a key's value comes from.
@@ -1187,6 +1400,66 @@ export const DeviceService: GenService<{
     methodKind: "unary";
     input: typeof RunCommandRequestSchema;
     output: typeof RunCommandResponseSchema;
+  },
+  /**
+   * PairingURI is a pairing's ticket (BackendService.StartPairing's) as the kith://pair
+   * URI a new device joins with, written as `kith pair` writes it, for the window to show
+   * as text and as a QR code (QRCode). A ticket whose ID or token does not read is
+   * INVALID_ARGUMENT.
+   *
+   * @generated from rpc device.v1.DeviceService.PairingURI
+   */
+  pairingURI: {
+    methodKind: "unary";
+    input: typeof PairingURIRequestSchema;
+    output: typeof PairingURIResponseSchema;
+  },
+  /**
+   * Invite reads a kith://pair URI as `kith join` reads it: the bridge's addresses, in the
+   * order they are dialed, its device ID, and when the pairing expires. A URI that does
+   * not read is INVALID_ARGUMENT. Main shows the person what a join would dial before it
+   * opens JoinBridge.
+   *
+   * @generated from rpc device.v1.DeviceService.Invite
+   */
+  invite: {
+    methodKind: "unary";
+    input: typeof InviteRequestSchema;
+    output: typeof InviteResponseSchema;
+  },
+  /**
+   * JoinBridge is `kith join` on this device: the pairing the uri carries is answered
+   * over pinned TLS with this machine's device key ("client-device", made on first use),
+   * listed as name ("" is this machine's hostname); the six digits come once the bridge
+   * shows the ones this device works out; and once the trusted device confirms, the
+   * bridge is written into device.toml (an entry with its ID updated, keeping its name),
+   * which ends the stream (joined). Anything else ends it with an error and device.toml
+   * untouched: a URI that does not read (INVALID_ARGUMENT), no address answering with
+   * the bridge's key (UNAVAILABLE), the bridge refusing the answer as it refuses `kith
+   * join`'s (this device paired there already: ALREADY_EXISTS; no such pairing:
+   * NOT_FOUND), other digits, or the pairing refused, expired or abandoned
+   * (FAILED_PRECONDITION). The request canceled before the confirmation ends the pairing
+   * unconfirmed; a confirmation that came is written even so, as `kith join` writes it.
+   * The relay goes on dialing where it did: the window starts another to dial the bridge.
+   *
+   * @generated from rpc device.v1.DeviceService.JoinBridge
+   */
+  joinBridge: {
+    methodKind: "server_streaming";
+    input: typeof JoinBridgeRequestSchema;
+    output: typeof JoinBridgeResponseSchema;
+  },
+  /**
+   * ThisDevice is this device's ID as the bridge it dials pins it, "" where the relay
+   * reaches a kithd of this machine over its socket. Main asks it, to say so before it
+   * unpairs the window's own device.
+   *
+   * @generated from rpc device.v1.DeviceService.ThisDevice
+   */
+  thisDevice: {
+    methodKind: "unary";
+    input: typeof ThisDeviceRequestSchema;
+    output: typeof ThisDeviceResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_device_v1_device, 0);

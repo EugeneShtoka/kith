@@ -23,7 +23,8 @@ export type StreamEvent<O> =
   | { kind: "frames"; frames: O[] }
   | { kind: "reload" }
   | { kind: "detached"; error: string }
-  | { kind: "refused"; error: string };
+  | { kind: "refused"; error: string }
+  | { kind: "ended"; error: string };
 
 /** call makes a call through main, typed by its method. */
 export async function call<I extends DescMessage, O extends DescMessage>(

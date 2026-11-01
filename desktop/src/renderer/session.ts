@@ -7,6 +7,7 @@ import {
   BackendService,
   Change,
   type Account,
+  type Device as PairedDevice,
   type FollowStreamResponse,
   type LoginNetwork,
   type RailResponse,
@@ -24,6 +25,7 @@ import { later, listed, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unscheduled, type Unsent } from "./compose";
 import { asked as filingAsked, type Filing, offered, opened, toggled, told } from "./filing";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
+import { Devices, type DevicesCalls, type DevicesView, noDevices } from "./devices";
 import { call, subscribe } from "./kith";
 import { Login, type LoginCalls, type LoginView } from "./login";
 import { type OfferCalls, Offers, type Prompt } from "./offers";
@@ -145,6 +147,8 @@ export interface View {
   slots: Slots;
   /** The settings page's accounts: the networks to log in to, and a login under way. */
   login: LoginView;
+  /** The settings page's devices: those paired, a pairing or a join under way (devices.ts). */
+  devices: DevicesView;
   /** Verifying this session (verify.ts), and the accounts it is asked for from (Accounts). */
   verify: Verify;
   accounts: readonly Account[];
@@ -199,6 +203,23 @@ const loginCalls: LoginCalls = {
   writeAccount: (record) =>
     call(DeviceService.method.writeAccount, { table: record.table, values: record.values }).then(() => undefined),
   qr: (data) => call(DeviceService.method.qRCode, { data }).then((r) => r.dark),
+};
+
+/** devicesCalls is the devices section's calls: kithd's, through main, and the relay's. */
+const devicesCalls: DevicesCalls = {
+  devices: () => call(backend.devices, {}),
+  remove: (id) => call(backend.removeDevice, { id }).then(() => undefined),
+  startPairing: (name, listener) => subscribe(backend.startPairing, { name }, listener),
+  confirm: (token, accept) => call(backend.confirmPairing, { token, accept }).then(() => undefined),
+  uri: (t) =>
+    call(DeviceService.method.pairingURI, {
+      token: t.token,
+      addresses: t.addresses,
+      id: t.id,
+      expires: t.expires,
+    }).then((r) => r.uri),
+  qr: (data) => call(DeviceService.method.qRCode, { data }).then((r) => r.dark),
+  join: (uri, name, listener) => subscribe(DeviceService.method.joinBridge, { uri, name }, listener),
 };
 
 /** offerCalls is the one-time offers' calls: kithd's, through main, and device.toml's through the relay. */
@@ -316,6 +337,7 @@ export class Session {
     theme: undefined,
     themeChange: { busy: false, note: "" },
     login: { networks: undefined, run: undefined, note: "" },
+    devices: noDevices,
     offers: { prompt: undefined, note: "" },
     problem: undefined,
     ...nothingShown,
@@ -375,6 +397,11 @@ export class Session {
     },
   );
 
+  /** The devices paired, and a pairing or a join the window leads. */
+  private readonly devices = new Devices(devicesCalls, (devices) => {
+    this.set({ devices });
+  });
+
   /** start reads the device, which runs the window in a profile or has it ask. */
   start(): void {
     this.stopped = false; // StrictMode starts a window again after stopping it
@@ -387,6 +414,7 @@ export class Session {
   stop(): void {
     this.stopped = true;
     this.login.stop();
+    this.devices.stop();
     clearTimeout(this.deviceLater);
     this.leave();
     for (const stop of this.lingering) {
@@ -422,6 +450,7 @@ export class Session {
     this.set({ settingsPage: { read: undefined, busy: false, note: "" }, themeChange: { busy: false, note: "" } });
     this.readTheme(); // device.toml may have been changed since, by the TUI or by hand
     this.login.read();
+    this.devices.read();
     relay.read().then(
       (read) => {
         if (mine === this.settingsReads) {
@@ -439,7 +468,44 @@ export class Session {
   /** closeSettings goes back from the settings page; an answer still on its way is dropped. */
   closeSettings(): void {
     this.settingsReads++;
+    this.devices.closePairing();
+    this.devices.dismissJoin();
     this.set({ settingsPage: undefined });
+  }
+
+  /** pairDevice opens a pairing for a new device, listed as name ("": the name it gives). */
+  pairDevice(name: string): void {
+    this.devices.pair(name);
+  }
+
+  /** confirmPairing asks main to pair the device that answered: main asks the person first. */
+  confirmPairing(): void {
+    this.devices.confirm();
+  }
+
+  /** refusePairing ends the pairing: nothing is paired. */
+  refusePairing(): void {
+    this.devices.refuse();
+  }
+
+  /** closePairing ends the pairing shown; one not confirmed pairs nothing. */
+  closePairing(): void {
+    this.devices.closePairing();
+  }
+
+  /** unpairDevice asks main to unpair device: main asks the person first. */
+  unpairDevice(device: PairedDevice): void {
+    this.devices.unpair(device);
+  }
+
+  /** joinBridge asks main to join the bridge uri names, as kith join does: main asks the person first. */
+  joinBridge(uri: string, name: string): void {
+    this.devices.join(uri, name);
+  }
+
+  /** dismissJoin drops the join shown; one under way is cut, unconfirmed. */
+  dismissJoin(): void {
+    this.devices.dismissJoin();
   }
 
   /**

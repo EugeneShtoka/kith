@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package device.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/EugeneShtoka/kith/internal/api/device/v1;devicev1";
 
 // DeviceService is served by kith-relay, the desktop window's link to kithd, beside the
@@ -74,6 +76,85 @@ service DeviceService {
   // back done; the rest come back to the window. A request canceled (the window closed
   // or reloaded) kills the program.
   rpc RunCommand(RunCommandRequest) returns (RunCommandResponse);
+  // PairingURI is a pairing's ticket (BackendService.StartPairing's) as the kith://pair
+  // URI a new device joins with, written as `kith pair` writes it, for the window to show
+  // as text and as a QR code (QRCode). A ticket whose ID or token does not read is
+  // INVALID_ARGUMENT.
+  rpc PairingURI(PairingURIRequest) returns (PairingURIResponse);
+  // Invite reads a kith://pair URI as `kith join` reads it: the bridge's addresses, in the
+  // order they are dialed, its device ID, and when the pairing expires. A URI that does
+  // not read is INVALID_ARGUMENT. Main shows the person what a join would dial before it
+  // opens JoinBridge.
+  rpc Invite(InviteRequest) returns (InviteResponse);
+  // JoinBridge is `kith join` on this device: the pairing the uri carries is answered
+  // over pinned TLS with this machine's device key ("client-device", made on first use),
+  // listed as name ("" is this machine's hostname); the six digits come once the bridge
+  // shows the ones this device works out; and once the trusted device confirms, the
+  // bridge is written into device.toml (an entry with its ID updated, keeping its name),
+  // which ends the stream (joined). Anything else ends it with an error and device.toml
+  // untouched: a URI that does not read (INVALID_ARGUMENT), no address answering with
+  // the bridge's key (UNAVAILABLE), the bridge refusing the answer as it refuses `kith
+  // join`'s (this device paired there already: ALREADY_EXISTS; no such pairing:
+  // NOT_FOUND), other digits, or the pairing refused, expired or abandoned
+  // (FAILED_PRECONDITION). The request canceled before the confirmation ends the pairing
+  // unconfirmed; a confirmation that came is written even so, as `kith join` writes it.
+  // The relay goes on dialing where it did: the window starts another to dial the bridge.
+  rpc JoinBridge(JoinBridgeRequest) returns (stream JoinBridgeResponse);
+  // ThisDevice is this device's ID as the bridge it dials pins it, "" where the relay
+  // reaches a kithd of this machine over its socket. Main asks it, to say so before it
+  // unpairs the window's own device.
+  rpc ThisDevice(ThisDeviceRequest) returns (ThisDeviceResponse);
+}
+
+message PairingURIRequest {
+  // The ticket's fields, as BackendService.PairingTicket has them.
+  string token = 1;
+  repeated string addresses = 2;
+  string id = 3;
+  google.protobuf.Timestamp expires = 4;
+}
+
+message PairingURIResponse {
+  string uri = 1;
+}
+
+message InviteRequest {
+  string uri = 1;
+}
+
+// InviteResponse is the bridge a kith://pair URI names: its addresses in the order they
+// are dialed, the ID its key must have, and when the pairing expires.
+message InviteResponse {
+  repeated string addresses = 1;
+  string id = 2;
+  google.protobuf.Timestamp expires = 3;
+}
+
+message JoinBridgeRequest {
+  string uri = 1;
+  string name = 2;
+}
+
+// JoinBridgeResponse is one frame: the six digits to compare with the trusted device's,
+// then the bridge as device.toml now names it, which ends the stream.
+message JoinBridgeResponse {
+  oneof event {
+    string digits = 1;
+    JoinedBridge joined = 2;
+  }
+}
+
+// JoinedBridge is the [[bridge]] entry the join wrote.
+message JoinedBridge {
+  string name = 1;
+  string id = 2;
+  repeated string addresses = 3;
+}
+
+message ThisDeviceRequest {}
+
+message ThisDeviceResponse {
+  string id = 1;
 }
 
 message WriteAccountRequest {

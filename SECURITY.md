@@ -170,9 +170,9 @@ and holds the least:
   `window.open` denied. Links show their target and open nothing yet.
 - **The preload is the whole reach.** The page may call kithd's RPCs by name, in
   protobuf binary, and main serves only the names on an allowlist of what reading
-  and writing messages needs, with the settings page and logging accounts in and out.
-  Calls beyond that (config edits, key export, pairing) are left off until a feature
-  needs one and its review adds it. A login's calls reach only a login the window
+  and writing messages needs, with the settings page, logging accounts in and out, and
+  pairing. Calls beyond that (config edits, key export, pairing by a pasted ID) are left
+  off until a feature needs one and its review adds it. A login's calls reach only a login the window
   began itself, as its current step allows (one answer at a time, its new account
   written once, through the relay); a login the window stops leading (it reloads or
   closes) is ended in kithd; and sign-out reaches only an account whose own space is
@@ -183,6 +183,26 @@ and holds the least:
   a token for it; an attachment is saved where the person picks in a save dialog.
   A queued message is canceled or retried only by an ID kithd showed the window, or
   queued for it, in the profile it runs in.
+- **Pairing is asked again by main.** A paired device has full authority over the
+  bridge, and joining a bridge points this machine at another kithd, so the page can
+  only ask for either: main shows the person a dialog of its own, parented to the
+  window and drawn from what main read, not from the page's words, and only their
+  answer there sends the call. **Confirming a pairing** reaches kithd only for a
+  pairing the window opened (`StartPairing`, never opened again once it ends) in the
+  window's current load and profile, still open, with the one device that answered it
+  (a second, different answer for the token leaves nothing to confirm), once; the
+  dialog shows that device's name, ID and digits, and a no there refuses it. A window
+  that reloads, closes or leaves its profile ends its pairing in kithd. **Unpairing**
+  reaches kithd only for a device the window's last `Devices` answer listed, in its
+  load and profile, one at a time; the dialog names it, and says so when it is the
+  device this window runs on (main asks the relay, `ThisDevice`; the page is never told
+  which one that is), or that main could not tell. **Joining a bridge** goes through
+  the relay (`JoinBridge`), which only main opens, after its dialog showed the bridge's
+  addresses and ID as the relay read them in the URI (`Invite`); the relay does what
+  `kith join` does with this machine's device key and writes `device.toml` only once
+  the trusted device confirmed, and the page never writes `device.toml` itself. One
+  join runs at a time, and a reload cuts it. `AddDevice` (pairing by a pasted ID, with
+  no digits to compare) is not on the page's list.
 - **The window reaches its profile's rooms only.** Main names the window's profile on
   every call (the page cannot), and kithd answers a call that names a room, a space or a
   message only when that profile holds it, as its rail does: a room or an invitation on

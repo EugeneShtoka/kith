@@ -134,6 +134,20 @@ export class FakeKithd {
   ranHeld: Promise<void> = Promise.resolve();
   readonly runs: string[] = [];
   readonly killed: string[] = [];
+  /**
+   * Pairing: the devices paired (Devices lists them), the answers to pairings and the
+   * unpairings that reached kithd (as "Method arg:profile"), and the ID this device's
+   * bridge pins it by (the relay's ThisDevice).
+   */
+  paired: string[] = [];
+  readonly pairingCalls: string[] = [];
+  thisDevice = "";
+  /**
+   * The joins that reached the relay (their URIs); a join's stream answers what joinWith
+   * says, each frame in turn, failing at an error, or held open at "hold" until cut.
+   */
+  readonly joins: string[] = [];
+  joinWith: (MessageInitShape<typeof DeviceService.method.joinBridge.output> | ConnectError | "hold")[] = [];
   private server: Server | undefined;
   private readonly sockets = new Set<Socket>();
   private readonly dir: string;
@@ -168,6 +182,13 @@ export class FakeKithd {
   sendOn<M extends DescMethodServerStreaming>(method: M, message: MessageInitShape<M["output"]>): void {
     for (const res of this.open.get(method.name) ?? []) {
       res.write(frame(method, message));
+    }
+  }
+
+  /** endOn ends every open stream of method, as kithd ends one it is done with. */
+  endOn(method: DescMethodServerStreaming): void {
+    for (const res of this.open.get(method.name) ?? []) {
+      res.end(encodeEnvelope(endStreamFlag, new TextEncoder().encode("{}")));
     }
   }
 
@@ -337,6 +358,21 @@ export class FakeKithd {
           }
           return {};
         },
+        devices: () => ({ self: "BRIDGE", devices: this.paired.map((id) => ({ id, name: id.toLowerCase() })) }),
+        confirmPairing: (req, ctx) => {
+          this.pairingCalls.push(
+            `ConfirmPairing ${req.token} ${String(req.accept)}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`,
+          );
+          return {};
+        },
+        removeDevice: (req, ctx) => {
+          this.pairingCalls.push(`RemoveDevice ${req.id}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
+          if (!this.paired.includes(req.id)) {
+            throw new ConnectError(`no device ${req.id}`, Code.NotFound);
+          }
+          this.paired = this.paired.filter((id) => id !== req.id);
+          return {};
+        },
         loadImage: (req) => {
           const data = this.pictures.get(req.eventId);
           if (data === undefined) {
@@ -363,6 +399,30 @@ export class FakeKithd {
           return this.ran;
         },
         qRCode: () => ({ dark: new Uint8Array([1, 0, 0, 1]) }),
+        pairingURI: (req) => ({ uri: `kith://pair?id=${req.id}` }),
+        thisDevice: () => ({ id: this.thisDevice }),
+        invite: (req) => {
+          if (!req.uri.startsWith("kith://pair?")) {
+            throw new ConnectError("not a kith://pair URI", Code.InvalidArgument);
+          }
+          return { id: "BRIDGE", addresses: ["192.0.2.1:7443"] };
+        },
+        joinBridge: async function* (this: FakeKithd, req: { uri: string }, ctx: { signal: AbortSignal }) {
+          this.joins.push(req.uri);
+          for (const frame of this.joinWith) {
+            if (frame === "hold") {
+              // Waits for the bridge's confirmation until the join is cut.
+              await new Promise((resolve) => {
+                ctx.signal.addEventListener("abort", resolve);
+              });
+              return;
+            }
+            if (frame instanceof ConnectError) {
+              throw frame;
+            }
+            yield frame;
+          }
+        }.bind(this),
         chooseProfile: (req) => {
           const name = this.profiles.find((p) => p.toLowerCase() === req.name.toLowerCase());
           if (name === undefined) {

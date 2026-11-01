@@ -4,10 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
+	"slices"
 
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/devicekey"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/pairing"
 )
 
 // JoinedBridge is the bridge a client of the config at configPath dials: the first
@@ -46,4 +50,35 @@ func ClientStorage(configPath string) (domain.Storage, bool, error) {
 	}
 	storage, err := StorageFor(cfg, configPath)
 	return storage, cfg.AllowTokenFile, err
+}
+
+// RememberBridge writes inv's bridge into the device file at path: over the entry with
+// its ID (paired again, keeping the name given it), else as a new one, named by its
+// first address's host. It returns the entry as written. `kith join` and the desktop's
+// join both write it so.
+func RememberBridge(path string, inv pairing.Invite) (config.Bridge, error) {
+	was, err := config.LoadDevice(path)
+	if err != nil {
+		return config.Bridge{}, fmt.Errorf("the device file: %w", err)
+	}
+	now := was.Clone()
+	host, _, _ := net.SplitHostPort(inv.Addresses[0]) // ParseURI checked it
+	entry := config.Bridge{Name: host, Addresses: inv.Addresses, ID: inv.ID.String()}
+	i := slices.IndexFunc(now.Bridges, func(b config.Bridge) bool {
+		id, perr := devicekey.ParseID(b.ID)
+		return perr == nil && id == inv.ID
+	})
+	if i >= 0 {
+		entry.Name = now.Bridges[i].Name
+		now.Bridges[i] = entry
+	} else {
+		now.Bridges = append(now.Bridges, entry)
+	}
+	if err := ValidateDevice(now); err != nil {
+		return config.Bridge{}, fmt.Errorf("the device file: %w", err)
+	}
+	if _, err := config.UpdateDevice(path, was, now); err != nil {
+		return config.Bridge{}, fmt.Errorf("write the device file: %w", err)
+	}
+	return entry, nil
 }

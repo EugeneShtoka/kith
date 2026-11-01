@@ -7,10 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/signal"
-	"slices"
 	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -73,7 +71,7 @@ func pair(ctx context.Context, b *daemon.Remote, name string, in *bufio.Reader, 
 		_, _ = fmt.Fprintln(out, "Paired. It may now do everything this machine may, over [remote] listen.")
 		return nil
 	}
-	return outcomeErr(outcome)
+	return fmt.Errorf("pair: %w", daemon.PairingOutcomeErr(outcome))
 }
 
 // showTicket prints what the new device joins with: a QR code, and the same as a URI.
@@ -116,21 +114,6 @@ func cmpLabel(name, fallback string) string {
 		return fallback
 	}
 	return fmt.Sprintf("%q", name)
-}
-
-// outcomeErr says why a pairing ended with nothing paired.
-func outcomeErr(o domain.PairingOutcome) error {
-	switch o {
-	case domain.PairingConfirmed:
-		return nil
-	case domain.PairingRefused:
-		return errors.New("the pairing was refused; nothing was paired")
-	case domain.PairingExpired:
-		return errors.New("the pairing expired unconfirmed; nothing was paired (`kith pair` makes another)")
-	case domain.PairingAbandoned:
-		return errors.New("the other side went away before it was confirmed; nothing was paired")
-	}
-	return fmt.Errorf("the pairing ended unconfirmed (%d)", o)
 }
 
 // runJoin is `kith join <uri>`: on a new machine, answer a pairing `kith pair` showed,
@@ -185,7 +168,7 @@ func runJoin(args []string) error {
 	if err := join(ctx, b, inv, self, *name, os.Stdout); err != nil {
 		return err
 	}
-	if err := rememberBridge(config.DevicePath(path), inv); err != nil {
+	if _, err := setup.RememberBridge(config.DevicePath(path), inv); err != nil {
 		return fmt.Errorf("join: paired, but %w", err)
 	}
 	fmt.Printf("Paired. The bridge is in %s.\n", config.DevicePath(path))
@@ -195,25 +178,10 @@ func runJoin(args []string) error {
 // join answers inv's pairing over b as the device self, listed as name, and returns
 // once it is confirmed, or why not.
 func join(ctx context.Context, b *daemon.Remote, inv pairing.Invite, self devicekey.ID, name string, out io.Writer) error {
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-	want := pairing.Digits(inv.ID, self, inv.Token)
-	errDigits := errors.New("the bridge shows other digits than this device worked out; nothing was paired")
-	outcome, err := b.Pair(ctx, inv.Token.String(), name, func(got string) {
-		if got != want {
-			cancel(errDigits) // ends the pairing unconfirmed
-			return
-		}
-		_, _ = fmt.Fprintf(out, "This device shows %s. Confirm on the other device that it shows the same.\n", want)
-	})
-	if cause := context.Cause(ctx); errors.Is(cause, errDigits) {
-		return fmt.Errorf("join: %w", cause)
-	}
-	if err != nil {
+	if err := b.Join(ctx, inv, self, name, func(digits string) {
+		_, _ = fmt.Fprintf(out, "This device shows %s. Confirm on the other device that it shows the same.\n", digits)
+	}); err != nil {
 		return fmt.Errorf("join: %w", err)
-	}
-	if outcome != domain.PairingConfirmed {
-		return fmt.Errorf("join: %w", outcomeErr(outcome))
 	}
 	return nil
 }
@@ -250,42 +218,12 @@ func joinMesh(ctx context.Context, b *daemon.Remote, uri, name string, out io.Wr
 		return fmt.Errorf("join: %w", err)
 	}
 	if outcome != domain.PairingConfirmed {
-		return fmt.Errorf("join: %w", outcomeErr(outcome))
+		return fmt.Errorf("join: %w", daemon.PairingOutcomeErr(outcome))
 	}
 	_, _ = fmt.Fprintf(out, "Joined. This bridge now admits the mesh's %d members:\n", len(joined))
 	for _, d := range joined {
 		_, _ = fmt.Fprintf(out, "  %s (%s), %s\n", deviceLabel(d), d.ID, d.Role)
 	}
 	_, _ = fmt.Fprintln(out, "`kith mesh` shows the bridges and how their sync stands.")
-	return nil
-}
-
-// rememberBridge writes inv's bridge into the device file at path: over the entry with
-// its ID (paired again, keeping the name given it), else as a new one, named by its
-// first address's host.
-func rememberBridge(path string, inv pairing.Invite) error {
-	was, err := config.LoadDevice(path)
-	if err != nil {
-		return fmt.Errorf("the device file: %w", err)
-	}
-	now := was.Clone()
-	host, _, _ := net.SplitHostPort(inv.Addresses[0]) // ParseURI checked it
-	entry := config.Bridge{Name: host, Addresses: inv.Addresses, ID: inv.ID.String()}
-	i := slices.IndexFunc(now.Bridges, func(b config.Bridge) bool {
-		id, perr := devicekey.ParseID(b.ID)
-		return perr == nil && id == inv.ID
-	})
-	if i >= 0 {
-		entry.Name = now.Bridges[i].Name
-		now.Bridges[i] = entry
-	} else {
-		now.Bridges = append(now.Bridges, entry)
-	}
-	if err := setup.ValidateDevice(now); err != nil {
-		return fmt.Errorf("the device file: %w", err)
-	}
-	if _, err := config.UpdateDevice(path, was, now); err != nil {
-		return fmt.Errorf("write the device file: %w", err)
-	}
 	return nil
 }

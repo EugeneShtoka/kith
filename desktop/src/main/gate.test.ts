@@ -16,6 +16,7 @@ import { MessageSchema, VerificationKind } from "../gen/backend/v1/types_pb";
 import { DeviceService } from "../gen/device/v1/device_pb";
 import type { StreamEvent } from "../shared/ipc";
 import { type Frame, Gate, Refused } from "./gate";
+import type { Asks } from "./pairings";
 import { FakeKithd, until } from "./testing/kithd";
 
 const window: Frame = { url: "app://kith/index.html", parent: null };
@@ -31,13 +32,40 @@ const empty = new Uint8Array();
 let kithd: FakeKithd;
 let gate: Gate;
 
+/** What main asked the person in its dialogs, what they say to each, and the relay's restarts. */
+let asked: string[];
+let says: boolean;
+let rejoins: number;
+const person: Asks = {
+  pair: (d) => {
+    asked.push(`pair ${d.id} ${d.digits}`);
+    return Promise.resolve(says);
+  },
+  unpair: (d, own) => {
+    asked.push(`unpair ${d.id} ${String(own)}`);
+    return Promise.resolve(says);
+  },
+  join: (i) => {
+    asked.push(`join ${i.id} ${i.addresses.join(",")}`);
+    return Promise.resolve(says);
+  },
+};
+
+/** A pairing's token, made up as the test runs. */
+const token = ["tok", "1", "x"].join("-");
+
 beforeEach(async () => {
   kithd = new FakeKithd();
   kithd.profiles = ["Home", "Work"];
   kithd.remembered = "Work";
   kithd.invited = ["!in:x"];
   await kithd.start();
-  gate = new Gate(kithd.transport());
+  asked = [];
+  says = true;
+  rejoins = 0;
+  gate = new Gate(kithd.transport(), undefined, person, () => {
+    rejoins++;
+  });
 });
 
 afterEach(async () => {
@@ -153,6 +181,10 @@ const allowedCalls = [
   "RunCommand",
   "FilingPlaces",
   "FileRoom",
+  "Devices",
+  "ConfirmPairing",
+  "RemoveDevice",
+  "PairingURI",
 ];
 const allowedStreams = [
   "Changed",
@@ -164,6 +196,8 @@ const allowedStreams = [
   "Reactions",
   "FollowStream",
   "Verifications",
+  "StartPairing",
+  "JoinBridge",
 ];
 
 // A request each listed call is answered for: an invitation's room, a profile the config has.
@@ -189,7 +223,19 @@ const requests: Record<string, Uint8Array> = {
   // A message the queue showed the window (asked first: ScheduledMessages).
   CancelScheduled: bytes(backend.cancelScheduled.input, { id: "q1" }),
   RetryScheduled: bytes(backend.retryScheduled.input, { id: "q1" }),
+  // A pairing the window opened (pairing), and a device it was shown listed.
+  ConfirmPairing: bytes(backend.confirmPairing.input, { token, accept: false }),
+  RemoveDevice: bytes(backend.removeDevice.input, { id: "D1" }),
 };
+
+/** pairing opens a pairing through the gate, kithd answering it with token's ticket. */
+async function pairing(): Promise<{ events: StreamEvent[]; stop: () => void }> {
+  const opened = listen("StartPairing");
+  await until(() => kithd.streams(backend.startPairing) === 1, "the pairing open at kithd");
+  kithd.sendOn(backend.startPairing, { event: { case: "ticket", value: { token, addresses: ["192.0.2.1:7443"] } } });
+  await until(() => opened.events.some((e) => e.kind === "frames"), "the ticket");
+  return opened;
+}
 
 /** offered asks kithd what may be installed, through the gate. */
 async function offered(): Promise<void> {
@@ -244,6 +290,9 @@ describe("the gate", () => {
     kithd.queue.push("q1");
     await gate.call(window, "ScheduledMessages", empty);
     kithd.accountSpaces = ["telegram:1/account"];
+    const pair = await pairing();
+    kithd.paired = ["D1"];
+    await gate.call(window, "Devices", empty);
     const seat = listen("Seat", bytes(backend.seat.input, { client: "w" })); // drafts are the seat's
     for (const name of names) {
       const want = typeof name === "string" && allowedCalls.includes(name) ? "answered" : "refused";
@@ -252,7 +301,10 @@ describe("the gate", () => {
     }
     const reached = new Set(kithd.reached.map((r) => r.split(":")[0]));
     reached.delete("Seat");
+    reached.delete("StartPairing");
+    reached.delete("ThisDevice"); // main's own, asked before an unpairing
     seat.stop();
+    pair.stop();
     expect([...reached].sort()).toEqual([...allowedCalls].sort());
   });
 
@@ -823,5 +875,126 @@ describe("the gate", () => {
     kithd.ran = { output: "compose", body: "hello" };
     expect((await run()).body).toBe("hello");
     expect(copied).toHaveLength(1);
+  });
+});
+
+describe("pairing through the gate", () => {
+  const confirm = (accept: boolean, t = token) =>
+    outcome(window, "ConfirmPairing", bytes(backend.confirmPairing.input, { token: t, accept }));
+  const laptop = { name: "laptop", id: "DEV1", digits: "123456", role: "device" };
+
+  // The window's Confirm only asks main: kithd is told to pair the device that answered
+  // once the person said yes in main's dialog, shown that device and its digits; their
+  // no refuses it. Nothing reaches kithd for a token the window was not given, or once
+  // its pairing was answered; and a pairing is never opened again behind the window's back.
+  it("confirms a pairing only on the person's yes in main's dialog", async () => {
+    await device();
+    const opened = await pairing();
+    expect(await confirm(true), "nothing has answered yet").toBe("refused");
+    kithd.sendOn(backend.startPairing, { event: { case: "pending", value: laptop } });
+    await until(() => opened.events.filter((e) => e.kind === "frames").length === 2, "the device that answered");
+    expect(await confirm(true, ["tok", "2", "x"].join("-")), "a token the window was not given").toBe("refused");
+    says = false;
+    expect(await confirm(true)).toBe("answered");
+    expect(asked).toEqual(["pair DEV1 123456"]);
+    expect(kithd.pairingCalls).toEqual([`ConfirmPairing ${token} false:Work`]);
+    expect(await confirm(true), "answered already").toBe("refused");
+    kithd.endOn(backend.startPairing);
+    await until(() => opened.events.some((e) => e.kind === "ended"), "the pairing's end");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(kithd.received.filter((r) => r.method === "StartPairing")).toHaveLength(1);
+    opened.stop();
+
+    const again = await pairing();
+    kithd.sendOn(backend.startPairing, { event: { case: "pending", value: laptop } });
+    await until(() => again.events.filter((e) => e.kind === "frames").length === 2, "the device that answered");
+    says = true;
+    expect(await confirm(true)).toBe("answered");
+    expect(kithd.pairingCalls.at(-1)).toBe(`ConfirmPairing ${token} true:Work`);
+    again.stop();
+  });
+
+  // A window loading afresh, or leaving its profile, ends the pairing it opened: kithd
+  // sees its stream close (the pairing abandoned), and its token is answered no more.
+  it("ends the pairing when the window reloads or leaves its profile", async () => {
+    await device();
+    await pairing();
+    gate.restart();
+    await until(() => kithd.streams(backend.startPairing) === 0, "the pairing's stream closed at kithd");
+    await device();
+    expect(await confirm(false), "a pairing of the window's last load").toBe("refused");
+
+    await pairing();
+    await gate.call(window, "ChooseProfile", bytes(DeviceService.method.chooseProfile.input, { name: "Home" }));
+    await until(() => kithd.streams(backend.startPairing) === 0, "the pairing's stream closed at kithd");
+    expect(await confirm(false), "a pairing of the profile the window left").toBe("refused");
+    expect(kithd.pairingCalls).toEqual([]);
+  });
+
+  // Unpairing goes to kithd only for a device the window's last list showed, once the
+  // person said yes, told whether it is the device this window runs on.
+  it("unpairs only a device listed, on the person's yes, saying when it is the window's own", async () => {
+    await device();
+    const remove = (id: string) => outcome(window, "RemoveDevice", bytes(backend.removeDevice.input, { id }));
+    kithd.paired = ["OWN", "D1"];
+    kithd.thisDevice = "OWN";
+    expect(await remove("D1"), "no list shown yet").toBe("refused");
+    await gate.call(window, "Devices", empty);
+    expect(await remove("D9"), "a device the list did not show").toBe("refused");
+    says = false;
+    expect(await remove("D1"), "the person kept it").toBe("refused");
+    says = true;
+    expect(await remove("OWN")).toBe("answered");
+    kithd.paired = []; // the terminal client unpaired D1 meanwhile
+    expect(await remove("D1"), "unpaired meanwhile: kithd's own answer").toBe("answered");
+    expect(asked).toEqual(["unpair D1 false", "unpair OWN true", "unpair D1 false"]);
+    expect(kithd.pairingCalls).toEqual(["RemoveDevice OWN:Work", "RemoveDevice D1:Work"]);
+  });
+
+  // A join is opened at the relay only after the person, shown the bridge the relay read
+  // in the URI, said yes; once the device file may name it, the relay is started again.
+  it("joins only the bridge shown, on the person's yes, and then starts the relay again", async () => {
+    await device();
+    const uri = "kith://pair?addr=192.0.2.1%3A7443";
+    const join = (u: string) => listen("JoinBridge", bytes(DeviceService.method.joinBridge.input, { uri: u }));
+    const bad = join("https://example.org/");
+    await until(() => bad.events.some((e) => e.kind === "refused"), "a URI that does not read refused");
+    says = false;
+    const no = join(uri);
+    await until(() => no.events.some((e) => e.kind === "refused"), "the join the person said no to refused");
+    expect(kithd.joins).toEqual([]);
+    says = true;
+    kithd.joinWith = [
+      { event: { case: "digits", value: "654321" } },
+      { event: { case: "joined", value: { name: "192.0.2.1" } } },
+    ];
+    const yes = join(uri);
+    await until(() => yes.events.some((e) => e.kind === "ended"), "the join's end");
+    expect(kithd.joins).toEqual([uri]);
+    expect(asked).toEqual(["join BRIDGE 192.0.2.1:7443", "join BRIDGE 192.0.2.1:7443"]);
+    expect(rejoins).toBe(1);
+
+    // Refused by the bridge after the digits: nothing written, the relay kept.
+    kithd.joinWith = [
+      { event: { case: "digits", value: "654321" } },
+      new ConnectError("refused", Code.FailedPrecondition),
+    ];
+    const refused = join(uri);
+    await until(() => refused.events.some((e) => e.kind === "ended"), "the join's end");
+    expect(rejoins).toBe(1);
+
+    // Cut by a reload once the digits came: the bridge may have confirmed it, so the
+    // relay starts again; cut before them, it is kept.
+    kithd.joinWith = [{ event: { case: "digits", value: "654321" } }, "hold"];
+    const cut = join(uri);
+    await until(() => cut.events.some((e) => e.kind === "frames"), "the digits");
+    gate.restart();
+    expect(rejoins).toBe(2);
+    await device();
+    kithd.joinWith = ["hold"];
+    join(uri);
+    await until(() => kithd.joins.length === 4, "the join open at the relay");
+    gate.restart();
+    expect(rejoins).toBe(2);
   });
 });

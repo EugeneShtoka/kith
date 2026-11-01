@@ -22,11 +22,19 @@ import { DeviceService } from "../gen/device/v1/device_pb";
 import type { StreamEvent } from "../shared/ipc";
 import { runIn } from "../shared/profile";
 import { LoginRefused, loginCalls, Logins, type Ticket } from "./logins";
-import { keepOpen } from "./streams";
+import { type Asks, type Join, PairingRefused, Pairings } from "./pairings";
+import { keepOpen, openOnce } from "./streams";
 import { answerCalls, VerifyRefused, Verifying } from "./verifications";
 
 const backend = BackendService.method;
 const device = DeviceService.method;
+
+/** refuseAll answers no to everything: a gate given no way to ask the person pairs, unpairs and joins nothing. */
+const refuseAll: Asks = {
+  pair: () => Promise.resolve(false),
+  unpair: () => Promise.resolve(false),
+  join: () => Promise.resolve(false),
+};
 
 /**
  * The calls and streams the window may use, by name. An XSS in the window holds whatever
@@ -132,7 +140,25 @@ const calls = new Map<string, DescMethodUnary>(
     // makes them for a filing it judged.
     backend.filingPlaces,
     backend.fileRoom,
+    // Pairing (pairings.ts): the devices paired, a pairing's ticket written as the URI a
+    // new device joins with, and the two calls that change who is paired, each sent only
+    // once the person said yes in main's own dialog: confirming a pairing the window
+    // opened (StartPairing, below) and unpairing a device it was shown listed. AddDevice
+    // (pairing by a pasted ID, with no digits to compare) stays off.
+    backend.devices,
+    backend.confirmPairing,
+    backend.removeDevice,
+    device.pairingURI,
   ].map((m) => [m.name, m]),
+);
+
+/**
+ * The streams opened once, never again after they end: a pairing (StartPairing: its
+ * token lives as long as the stream) and a join (JoinBridge, the relay's, opened by main
+ * only once the person said yes in its dialog to the bridge the URI names).
+ */
+const onceStreams = new Map<string, DescMethodServerStreaming>(
+  [backend.startPairing, device.joinBridge].map((m) => [m.name, m]),
 );
 
 /** The calls on one queued message, by its ID: only one the window was shown or queued. */
@@ -236,11 +262,31 @@ export class Gate {
   /** The commands running, ended when the window loads afresh or closes. */
   private readonly running = new Set<AbortController>();
 
-  /** copy puts a command's output on the clipboard: its block's `output = "clipboard"`. */
+  /** The pairings the window opened, the devices it was shown, and a join under way. */
+  private readonly pairings: Pairings;
+
+  /**
+   * copy puts a command's output on the clipboard: its block's `output = "clipboard"`.
+   * asks asks the person, in main's own dialogs, before a pairing is confirmed, a device
+   * unpaired or a bridge joined (none asked: each is refused). rejoined is the device
+   * file perhaps naming a bridge since a join: the relay is to be started again.
+   */
   constructor(
-    private readonly transport: Transport,
+    private transport: Transport,
     private readonly copy: (text: string) => void = () => undefined,
-  ) {}
+    asks: Asks = refuseAll,
+    private readonly rejoined: () => void = () => undefined,
+  ) {
+    this.pairings = new Pairings(asks);
+  }
+
+  /**
+   * retarget sends every call from now on through transport: a relay started again. A
+   * stream open now stays where it was, so the window is loaded afresh after it.
+   */
+  retarget(transport: Transport): void {
+    this.transport = transport;
+  }
 
   /** call makes the call named and answers the response's bytes. */
   async call(frame: Frame | null, name: unknown, request: unknown): Promise<Uint8Array> {
@@ -272,6 +318,33 @@ export class Gate {
     }
     if (onQueued.has(method.name)) {
       this.mustBeQueued((input as MessageShape<typeof backend.cancelScheduled.input>).id);
+    }
+    if (method.name === backend.confirmPairing.name) {
+      const r = input as MessageShape<typeof backend.confirmPairing.input>;
+      const m = backend.confirmPairing;
+      const answer = await this.asPairings(() =>
+        this.pairings.confirm(r.token, r.accept, (accept) =>
+          this.transport
+            .unary(m, undefined, undefined, header, create(m.input, { token: r.token, accept }))
+            .then((res) => res.message),
+        ),
+      );
+      return toBinary(m.output, answer);
+    }
+    if (method.name === backend.removeDevice.name) {
+      const r = input as MessageShape<typeof backend.removeDevice.input>;
+      const m = backend.removeDevice;
+      const answer = await this.asPairings(() =>
+        this.pairings.remove(
+          r.id,
+          () => this.thisDevice(),
+          () =>
+            this.transport
+              .unary(m, undefined, undefined, header, create(m.input, { id: r.id }))
+              .then((res) => res.message),
+        ),
+      );
+      return toBinary(m.output, answer);
     }
     const ticket = loginCalls.has(method.name) ? this.admitLogin(method.name, input, header) : undefined;
     const run = method.name === device.runCommand.name ? new AbortController() : undefined;
@@ -305,6 +378,9 @@ export class Gate {
     this.offer(method, response.message);
     this.follow(method, response.message);
     this.shown(method, response.message, profile);
+    if (method.name === backend.devices.name) {
+      this.pairings.devices((response.message as MessageShape<typeof backend.devices.output>).devices, profile);
+    }
     if (run !== undefined) {
       this.running.delete(run);
       const ran = response.message as MessageShape<typeof device.runCommand.output>;
@@ -318,6 +394,9 @@ export class Gate {
 
   /** subscribe keeps the stream named open, posting its events, until the stop it returns. */
   subscribe(frame: Frame | null, name: unknown, request: unknown, post: (event: StreamEvent) => void): () => void {
+    if (typeof name === "string" && onceStreams.has(name)) {
+      return this.subscribeOnce(frame, name, request, post);
+    }
     const method = admit(frame, streams, name);
     const input = decode(method, request);
     const header = this.header(method);
@@ -410,6 +489,127 @@ export class Gate {
     this.use("");
     void this.logins.restart();
     this.endCommands();
+    this.pairings.restart();
+  }
+
+  /**
+   * subscribeOnce opens a stream that is never opened again: a pairing, whose token lives
+   * as long as it does, or a join, opened only once the person said yes in main's dialog.
+   */
+  private subscribeOnce(frame: Frame | null, name: string, request: unknown, post: (event: StreamEvent) => void) {
+    const method = admit(frame, onceStreams, name);
+    const input = decode(method, request);
+    const header = this.header(method);
+    if (method.name === device.joinBridge.name) {
+      return this.joinBridge(input as MessageShape<typeof device.joinBridge.input>, post);
+    }
+    const m = backend.startPairing;
+    let stop: () => void = () => undefined;
+    const run = this.asPairingsNow(() =>
+      this.pairings.opened(() => {
+        stop();
+      }),
+    );
+    const held = {
+      profile: this.profile,
+      stop: () => {
+        this.pairings.end(run);
+        stop(); // answered already, it is still cut: nothing of it reaches the window after
+      },
+      post,
+    };
+    stop = openOnce(this.transport, m, input as MessageShape<typeof m.input>, header, (event) => {
+      if (event.kind === "frames") {
+        for (const bytes of event.frames) {
+          this.pairings.frame(run, fromBinary(m.output, bytes));
+        }
+      }
+      if (event.kind === "ended") {
+        this.pairings.end(run);
+        this.open.delete(held);
+      }
+      post(event);
+    });
+    this.open.add(held);
+    return () => {
+      this.open.delete(held);
+      held.stop();
+    };
+  }
+
+  /**
+   * joinBridge is a join the window asks for: main reads the URI (the relay's Invite),
+   * shows the person the bridge it names, and only on their yes opens the relay's
+   * JoinBridge. Once the device file may name the bridge (joined, or cut after the digits
+   * came), rejoined has the relay started again.
+   */
+  private joinBridge(input: MessageShape<typeof device.joinBridge.input>, post: (event: StreamEvent) => void) {
+    const m = device.joinBridge;
+    let gone = false;
+    let join: Join | undefined;
+    const read = () =>
+      this.transport
+        .unary(device.invite, undefined, undefined, {}, create(device.invite.input, { uri: input.uri }))
+        .then((r) => r.message);
+    this.pairings.join(read).then(
+      (j) => {
+        join = j;
+        if (gone) {
+          j.stop(); // the window closed it while the person was asked
+          return;
+        }
+        const stop = openOnce(this.transport, m, input, {}, (event) => {
+          if (event.kind === "frames") {
+            for (const bytes of event.frames) {
+              this.pairings.joinFrame(j, fromBinary(m.output, bytes));
+            }
+          }
+          post(event);
+          if (event.kind === "ended" && this.pairings.joinEnded(j, false)) {
+            this.rejoined();
+          }
+        });
+        j.stop = () => {
+          stop();
+          if (this.pairings.joinEnded(j, true)) {
+            this.rejoined();
+          }
+        };
+      },
+      (err: unknown) => {
+        if (!gone) {
+          post({ kind: "refused", error: err instanceof Error ? err.message : String(err) });
+        }
+      },
+    );
+    return () => {
+      gone = true;
+      join?.stop();
+    };
+  }
+
+  /** thisDevice is the ID this device's bridge pins it by ("" for kithd's own machine). */
+  private async thisDevice(): Promise<string> {
+    const m = device.thisDevice;
+    const r = await this.transport.unary(m, undefined, undefined, {}, create(m.input));
+    return r.message.id;
+  }
+
+  /** asPairings is what pairings answers, a refusal of its read as the gate's. */
+  private async asPairings<R>(f: () => Promise<R>): Promise<R> {
+    try {
+      return await f();
+    } catch (err) {
+      throw err instanceof PairingRefused ? new Refused(err.message) : err;
+    }
+  }
+
+  private asPairingsNow<R>(f: () => R): R {
+    try {
+      return f();
+    } catch (err) {
+      throw err instanceof PairingRefused ? new Refused(err.message) : err;
+    }
   }
 
   /** endCommands ends every command the window runs: the relay kills its program. */
@@ -453,6 +653,7 @@ export class Gate {
     }
     this.profile = profile;
     this.verifying.runIn(profile);
+    this.pairings.runIn(profile);
     this.queued = new Set();
     for (const held of this.open) {
       if (held.profile !== profile) {

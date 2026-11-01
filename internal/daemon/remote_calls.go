@@ -13,8 +13,10 @@ import (
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	pc "github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/devicekey"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/notify"
+	"github.com/EugeneShtoka/kith/internal/pairing"
 )
 
 // Unary api.Backend methods (plus daemon-only extras) over the socket. On error every
@@ -1100,6 +1102,50 @@ func (r *Remote) pair(ctx context.Context, req *v1.PairRequest, digits func(stri
 		}
 	}
 	return 0, callErr("pair", cmpErr(st.Err(), errPairingCut))
+}
+
+// errOtherDigits is a bridge showing other digits than the joining device works out:
+// the pairing is ended unconfirmed.
+var errOtherDigits = errors.New("the bridge shows other digits than this device worked out; nothing was paired")
+
+// Join answers inv's pairing over r (a remote dialing inv's bridge) as the device self,
+// listed as name, and returns once the trusted device confirmed it, or why not: digits is
+// called with the six to compare once the bridge shows the ones self works out, and a
+// bridge showing others ends the pairing unconfirmed (errOtherDigits). It is `kith join`
+// and the desktop's join alike.
+func (r *Remote) Join(ctx context.Context, inv pairing.Invite, self devicekey.ID, name string, digits func(string)) error {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	want := pairing.Digits(inv.ID, self, inv.Token)
+	outcome, err := r.Pair(ctx, inv.Token.String(), name, func(got string) {
+		if got != want {
+			cancel(errOtherDigits) // ends the pairing unconfirmed
+			return
+		}
+		digits(want)
+	})
+	if errors.Is(context.Cause(ctx), errOtherDigits) {
+		return errOtherDigits
+	}
+	if err != nil {
+		return err
+	}
+	return PairingOutcomeErr(outcome)
+}
+
+// PairingOutcomeErr says why a pairing ended with nothing paired; nil when confirmed.
+func PairingOutcomeErr(o domain.PairingOutcome) error {
+	switch o {
+	case domain.PairingConfirmed:
+		return nil
+	case domain.PairingRefused:
+		return errors.New("the pairing was refused; nothing was paired")
+	case domain.PairingExpired:
+		return errors.New("the pairing expired unconfirmed; nothing was paired (`kith pair` makes another)")
+	case domain.PairingAbandoned:
+		return errors.New("the other side went away before it was confirmed; nothing was paired")
+	}
+	return fmt.Errorf("the pairing ended unconfirmed (%d)", o)
 }
 
 // JoinMesh has the kithd of this machine (over its socket) join the mesh of the bridge
