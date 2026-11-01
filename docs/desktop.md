@@ -90,6 +90,11 @@ sha256sum --check --ignore-missing kith-desktop_SHA256SUMS
 A second start brings the first window forward rather than opening another.
 Closing the window ends it; there is no background process to quit.
 
+Your drafts are written before the window switches profile or closes. One that kithd
+does not take (it is down, or it refuses the write twice) stays in the window, which
+says so, and comes back in its composer when you open the room again, in whichever
+profile holds it. A reload keeps it the same way.
+
 Notifications are not the window's: `kith-notify` shows them, as it does for the
 terminal client, so a message never pops up twice.
 

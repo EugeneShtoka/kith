@@ -104,6 +104,13 @@ export interface KithBridge {
   attach(token: string, room: string, caption: string): Promise<Sent>;
   /** Says what to do as the window closes (write its drafts); main waits a little for it. */
   closing(write: () => Promise<void>): void;
+  /**
+   * Says what to keep as the window reloads, which leaves no time to write anything (its
+   * drafts not stored, as text): the window loaded again is handed it once (kept).
+   */
+  reloading(keep: () => string): void;
+  /** What the window kept as it last reloaded, once ("" nothing). */
+  kept(): string;
   /** The window's text size in pixels, which main keeps and applies. */
   fontSize(): Promise<number>;
   /** Sets the window's text size (one of fontSizes); resolves to the size now in use. */

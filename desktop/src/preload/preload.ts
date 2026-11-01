@@ -4,6 +4,9 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 import { channels, type KithBridge, type Offered, type Sent, type StreamEvent, type Subscribe } from "../shared/ipc";
 
+/** Where a reloading window keeps its drafts not stored. */
+const keptKey = "kith:kept";
+
 const kith: KithBridge = {
   call: (method, request) => ipcRenderer.invoke(channels.call, method, request) as Promise<Uint8Array>,
   subscribe(method, request, listener) {
@@ -43,6 +46,27 @@ const kith: KithBridge = {
         ipcRenderer.send(channels.closed);
       });
     });
+  },
+  reloading(keep) {
+    // A reload (the person's, or main's once a join names a bridge) starts before any
+    // write could leave: what is kept stays in the page's session storage, which a reload
+    // keeps and a closed window drops.
+    window.addEventListener("beforeunload", () => {
+      try {
+        sessionStorage.setItem(keptKey, keep());
+      } catch {
+        // no storage: nothing is kept
+      }
+    });
+  },
+  kept() {
+    try {
+      const text = sessionStorage.getItem(keptKey) ?? "";
+      sessionStorage.removeItem(keptKey);
+      return text;
+    } catch {
+      return "";
+    }
   },
   discard: (token) => ipcRenderer.invoke(channels.discard, token) as Promise<void>,
   attach: (token, room, caption) => ipcRenderer.invoke(channels.attach, token, room, caption) as Promise<Sent>,

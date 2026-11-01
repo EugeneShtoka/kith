@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Message, PollSchema, ReactionSchema } from "../gen/backend/v1/types_pb";
 import { DeviceSettingsSchema } from "../gen/device/v1/device_pb";
 import { typingRefresh } from "./compose";
+import { saveDelay } from "./drafts";
 import { Session } from "./session";
 import { Kithd, room, settled } from "./testing/kithd";
 import { message } from "./testing/rows";
@@ -310,5 +311,257 @@ describe("a poll", () => {
     expect(view().problem).toBe(
       "could not create the poll: daemon: that room's network cannot do this: creating polls in whatsapp rooms",
     );
+  });
+});
+
+// The window leaves a profile (a switch), or reloads, or closes, just after the person
+// typed: kithd takes a room's draft only in a profile holding the room (#444), and a
+// reload leaves no time to write. Home holds !h and !s, Work holds !w and !s. Time is
+// fake: the debounce before a save, and the wait for the drafts, pass as the test says.
+describe("a draft as the window leaves a profile", () => {
+  const holds = new Map<string, readonly string[]>([
+    ["Home", ["!h", "!s"]],
+    ["Work", ["!w", "!s"]],
+  ]);
+  const pass = async (ms: number) => {
+    await vi.advanceTimersByTimeAsync(ms);
+  };
+  /** drive waits for p, the time passing in steps: a switch waits for the drafts a while. */
+  const drive = async (p: Promise<void>) => {
+    const state = { done: false };
+    void p.finally(() => {
+      state.done = true;
+    });
+    for (let i = 0; i < 600 && !state.done; i++) {
+      await pass(10);
+    }
+    await p;
+  };
+  const body = () => view().composer?.draft.body ?? "";
+  const write = (word: string) => {
+    const text = `${body()} ${word}`.trim();
+    session.type(text, text.length);
+  };
+  const stored = (room: string) => kithd.drafts.get(room)?.body ?? "";
+  const start = async () => {
+    vi.useFakeTimers();
+    kithd.profiles = ["Home", "Work"];
+    kithd.remembered = "Home";
+    kithd.of("Home").rooms = [room("!h"), room("!s")];
+    kithd.of("Work").rooms = [room("!w"), room("!s")];
+    session.start();
+    await pass(100);
+  };
+  /** reload is the window loading again: the old one goes as a page does, a new one starts. */
+  const reload = async () => {
+    kithd.reloadWindow();
+    session.stop();
+    session = new Session();
+    session.start();
+    await pass(100);
+  };
+  const open = async (room: string) => {
+    session.open(room);
+    await pass(50);
+  };
+
+  it("is written before the switch, in the profile it was typed in", async () => {
+    await start();
+    await open("!h");
+    write("w1");
+    await drive(session.choose("Work"));
+    expect(view().profile).toBe("Work");
+    expect(stored("!h")).toBe("w1");
+    expect(kithd.calls).toContain("ReplaceDraft:Home");
+    expect(kithd.calls).not.toContain("ReplaceDraft:Work");
+  });
+
+  it("is written once more where its write fails, before the switch", async () => {
+    await start();
+    await open("!h");
+    write("w1");
+    kithd.draftFaults.push("before");
+    await drive(session.choose("Work"));
+    expect(stored("!h")).toBe("w1");
+    expect(view().problem).toBeUndefined();
+  });
+
+  it("failing twice, is said not saved, kept, and written once its room is open again", async () => {
+    await start();
+    await open("!h");
+    write("w1");
+    kithd.draftFaults.push("before", "before");
+    await drive(session.choose("Work"));
+    expect(view().profile).toBe("Work");
+    expect(stored("!h")).toBe("");
+    expect(view().problem).toMatch(/draft in !h is not saved/);
+    await drive(session.choose("Home"));
+    await open("!h");
+    expect(body()).toBe("w1");
+    expect(view().problem).toBeUndefined(); // back in its composer, it is written as typed
+    await pass(saveDelay + 10);
+    expect(stored("!h")).toBe("w1");
+  });
+
+  it("does not hold the switch for a write kithd does not answer, and does not write it twice", async () => {
+    await start();
+    await open("!h");
+    write("w1");
+    kithd.holding.add("ReplaceDraft");
+    await pass(saveDelay + 10); // on the wire, unanswered
+    const switched = session.choose("Work");
+    await pass(2100);
+    await drive(switched);
+    expect(view().profile).toBe("Work");
+    kithd.holding.clear();
+    kithd.release(); // it had landed: only the answer was lost
+    await pass(50);
+    await drive(session.choose("Home"));
+    await open("!h");
+    expect(body()).toBe("w1");
+    await pass(saveDelay + 10);
+    expect(stored("!h")).toBe("w1");
+  });
+
+  it("in a room both profiles hold, is kept for the next and written there", async () => {
+    await start();
+    await open("!s");
+    write("w1");
+    kithd.draftFaults.push("before", "before");
+    await drive(session.choose("Work"));
+    await open("!s");
+    expect(body()).toBe("w1");
+    await pass(saveDelay + 10);
+    expect(stored("!s")).toBe("w1");
+    expect(kithd.calls).toContain("ReplaceDraft:Work");
+  });
+
+  it("is written once by two switches in a row, there and back", async () => {
+    await start();
+    await open("!h");
+    write("w1");
+    const there = session.choose("Work");
+    const back = session.choose("Home");
+    await drive(there);
+    await drive(back);
+    expect(view().profile).toBe("Home");
+    await open("!h");
+    expect(body()).toBe("w1");
+    await pass(saveDelay + 10);
+    expect(stored("!h")).toBe("w1");
+  });
+
+  it("stepping aside for another window, failing twice, is said kept", async () => {
+    await start();
+    await open("!h");
+    write("w1");
+    kithd.draftFaults.push("before", "before");
+    kithd.otherTakesOver("Home");
+    await pass(3000);
+    expect(view().seat.state).toBe("steppedAside");
+    expect(view().problem).toMatch(/draft in !h is not saved/);
+  });
+
+  it("is kept through a reload, and written once its room is open again", async () => {
+    await start();
+    await open("!h");
+    write("w1");
+    await reload();
+    expect(stored("!h")).toBe("");
+    expect(view().problem).toMatch(/draft in !h is not saved/);
+    await open("!h");
+    expect(body()).toBe("w1");
+    await pass(saveDelay + 10);
+    expect(stored("!h")).toBe("w1");
+  });
+
+  it("is written as the window closes, a failing write once more", async () => {
+    await start();
+    await open("!h");
+    write("w1");
+    kithd.draftFaults.push("before");
+    await drive(kithd.closeWindow());
+    expect(stored("!h")).toBe("w1");
+  });
+
+  // The person types, pauses, opens rooms, switches (two at once too) and reloads, while
+  // kithd fails writes and holds their answers: at rest, with every room opened again in
+  // a profile holding it, every word typed is stored once.
+  it.each(Array.from({ length: 30 }, (_, i) => i + 1))("keeps every word over any switches (seed %i)", async (seed) => {
+    let s = seed;
+    const pick = (n: number) => {
+      s = (s * 1103515245 + 12345) % 2 ** 31;
+      return Math.floor((s / 2 ** 31) * n);
+    };
+    await start();
+    const typed = new Map<string, string[]>();
+    const switches: Promise<void>[] = [];
+    let n = 0;
+    for (let step = 0; step < 40; step++) {
+      switch (pick(10)) {
+        case 0:
+        case 1: {
+          const rooms = holds.get(view().profile) ?? [];
+          const r = rooms[pick(rooms.length)];
+          if (r !== undefined) {
+            await open(r);
+          }
+          break;
+        }
+        case 2:
+        case 3:
+          if (view().open !== "" && view().composer !== undefined) {
+            const word = `w${String(++n)}`;
+            typed.set(view().open, [...(typed.get(view().open) ?? []), word]);
+            write(word);
+          }
+          break;
+        case 4:
+          await pass(pick(2) === 0 ? 300 : saveDelay + 10);
+          break;
+        case 5:
+          if (pick(2) === 0) {
+            kithd.holding.add("ReplaceDraft");
+          } else {
+            kithd.holding.clear();
+            kithd.release();
+          }
+          break;
+        case 6:
+          kithd.draftFaults.push("before");
+          break;
+        case 7:
+        case 8:
+          switches.push(session.choose(view().profile === "Home" ? "Work" : "Home"));
+          break;
+        default:
+          await Promise.all(switches.splice(0).map(drive)); // a reload ends the page, switches with it
+          await reload();
+      }
+      await pass(1);
+    }
+    kithd.holding.clear();
+    kithd.draftFaults.length = 0;
+    kithd.release();
+    await Promise.all(switches.splice(0).map(drive));
+    for (const [profile, rooms] of holds) {
+      if (view().profile !== profile) {
+        await drive(session.choose(profile));
+      }
+      for (const r of rooms) {
+        await open(r);
+        await pass(saveDelay + 10);
+      }
+    }
+    await pass(3000);
+    for (const [r, words] of typed) {
+      const there = stored(r).split(/\s+/);
+      for (const word of words) {
+        expect(
+          there.filter((w) => w === word),
+          `${word} in ${r}: ${JSON.stringify(stored(r))}, seed ${String(seed)}`,
+        ).toHaveLength(1);
+      }
+    }
   });
 });

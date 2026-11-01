@@ -4,7 +4,7 @@
 // it. Each write is made over the version this window last read, and kithd rebases it
 // (ReplaceDraft with rebase, domain.RebaseDraft): the assistant's words added since go
 // after this window's and come back to be folded in here, so neither side loses words.
-import { create } from "@bufbuild/protobuf";
+import { create, fromJson, type JsonValue, toJson } from "@bufbuild/protobuf";
 
 import { BackendService } from "../gen/backend/v1/services_pb";
 import { type StoredDraft, StoredDraftSchema } from "../gen/backend/v1/services_pb";
@@ -27,6 +27,47 @@ export interface Composition {
 }
 
 export const blank: Composition = { body: "", replyTo: "", editing: "", editSaved: "", threadRoot: "", mentions: [] };
+
+/**
+ * Words a run of the window did not get stored: the composition, the stored version it
+ * was based on, and its writes not answered, so they are written later as that run would
+ * have written them (keep).
+ */
+export interface Kept {
+  draft: Composition;
+  base: StoredDraft | undefined;
+  unanswered: readonly StoredDraft[];
+}
+
+/** keptText is kept words by room as text, to outlive the window reloading (keptFrom). */
+export function keptText(kept: ReadonlyMap<string, Kept>): string {
+  const json = (d: StoredDraft) => toJson(StoredDraftSchema, d);
+  return JSON.stringify(
+    [...kept].map(([room, k]) => ({
+      draft: json(create(StoredDraftSchema, { ...k.draft, roomId: room, mentions: [...k.draft.mentions] })),
+      base: k.base === undefined ? null : json(k.base),
+      unanswered: k.unanswered.map(json),
+    })),
+  );
+}
+
+/** keptFrom reads keptText's text: nothing, where it does not read. */
+export function keptFrom(text: string): Map<string, Kept> {
+  const kept = new Map<string, Kept>();
+  try {
+    for (const k of JSON.parse(text) as { draft: JsonValue; base: JsonValue; unanswered: JsonValue[] }[]) {
+      const draft = fromJson(StoredDraftSchema, k.draft);
+      kept.set(draft.roomId, {
+        draft: fromStored(draft),
+        base: k.base === null ? undefined : fromJson(StoredDraftSchema, k.base),
+        unanswered: k.unanswered.map((d) => fromJson(StoredDraftSchema, d)),
+      });
+    }
+  } catch {
+    return new Map();
+  }
+  return kept;
+}
 
 /** The debounce before a write, and the longest unbroken typing goes unsaved (the TUI's). */
 export const saveDelay = 900;
@@ -194,18 +235,54 @@ export class Drafts {
   }
 
   /**
-   * flush writes every room's unsaved draft now and waits until none is on the wire, at
-   * most most ms: the window is stepping aside, or going out of sight.
+   * flush writes every room's unsaved draft now and waits until none is on the wire, a
+   * write that failed tried once more, at most most ms in all: the window is stepping
+   * aside, leaving the profile, closing, or going out of sight.
    */
   async flush(most = 2000): Promise<void> {
-    for (const room of new Set([...this.local.keys(), ...this.bases.keys(), ...this.timers.keys(), ...this.retry])) {
-      this.retry.delete(room);
-      this.save(room);
-    }
     const deadline = Date.now() + most;
-    while (this.inflight.size > 0 && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 10));
+    for (let tries = 0; tries < 2; tries++) {
+      for (const room of new Set([...this.local.keys(), ...this.bases.keys(), ...this.timers.keys(), ...this.retry])) {
+        this.retry.delete(room);
+        this.save(room);
+      }
+      while (this.inflight.size > 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      if (this.retry.size === 0) {
+        return;
+      }
     }
+  }
+
+  /**
+   * unstored is every room's words here kithd is not known to hold (a write failed, or
+   * was not answered), with the writes not answered: kept when the window leaves the
+   * profile, for when the room is open again (keep).
+   */
+  unstored(): Map<string, Kept> {
+    const kept = new Map<string, Kept>();
+    for (const [room, draft] of this.local) {
+      if (differs(draft, this.bases.get(room))) {
+        kept.set(room, { draft, base: this.bases.get(room), unanswered: this.unsure.get(room) ?? [] });
+      }
+    }
+    return kept;
+  }
+
+  /**
+   * keep puts back words another run of the window did not get stored, and writes them as
+   * that run would have: over the version they were based on, so what was stored since
+   * (the assistant's words) is rebased after them, and with its writes not answered told
+   * to kithd as this window's own, so one that landed unheard is not doubled.
+   */
+  keep(room: string, kept: Kept): void {
+    if (this.closed) {
+      return;
+    }
+    this.based(room, kept.base);
+    this.unsure.set(room, [...(this.unsure.get(room) ?? []), ...kept.unanswered].slice(-unsureKept));
+    this.set(room, kept.draft);
   }
 
   /** stop writes nothing more: the window left the profile, or lost its seat. */
