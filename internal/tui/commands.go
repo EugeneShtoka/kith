@@ -1060,7 +1060,7 @@ type configStore interface {
 // configSavedMsg reports the outcome of writing the config back.
 type configSavedMsg struct{ err error }
 
-// saveConfigFileCmd has the daemon write a whole config (assembled by applyConfig).
+// saveConfigFileCmd has the daemon write a whole config (assembled by applySettings).
 // Its place in line is taken on the event loop, so snapshots land in change order.
 func (m Model) saveConfigFileCmd(cfg config.Config) tea.Cmd {
 	ctx, writer := m.ctx, m.conf.writer

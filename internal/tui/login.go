@@ -439,13 +439,13 @@ func (m Model) handleLoginMsg(msg loginMsg) (Model, tea.Cmd) {
 }
 
 // writeLoginRecord writes a new account into the config as a setting is, returning how to save
-// it; if refused (applyConfig said why), saving fails.
+// it; if refused (applySettings said why), saving fails.
 func (m Model) writeLoginRecord(rec api.LoginRecord) (Model, tea.Cmd, func() error) {
 	cfg := m.conf.base.Clone()
 	if err := cfg.Write(rec.Table, rec.Values); err != nil {
 		return m, nil, func() error { return fmt.Errorf("set the account up: %w", err) }
 	}
-	// Not held to kithd's check (applyConfig): the record is the network's own, and kithd judges
+	// Not held to kithd's check (applySettings): the record is the network's own, and kithd judges
 	// it again on re-read.
 	running := m.settings()
 	running.Bridge = cfg

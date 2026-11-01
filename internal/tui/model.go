@@ -264,7 +264,7 @@ type timelineState struct {
 	layout roomLayout
 }
 
-// prefsState is the settings resolved from the config on each apply (applyConfig): read
+// prefsState is the settings resolved from the config on each apply (applySettings): read
 // everywhere, written nowhere else.
 type prefsState struct {
 	// display is the bridge's [display], device this device's.
@@ -310,7 +310,7 @@ type configState struct {
 	// rev counts live config reloads, which also invalidate derived answers.
 	rev uint64
 	// applied counts changes applied, so one kithd was still checking can tell whether it would
-	// land over a newer one (applyConfig).
+	// land over a newer one (applySettings).
 	applied uint64
 }
 
