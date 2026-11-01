@@ -44,7 +44,7 @@ var rowReads = map[string]string{
 	"peers.aliases":              "derivedKey.peers (peers.rev moves whenever aliases changes)",
 	"timeline.layout.room":       "derivedKey.rtl (mirrored)",
 	"timeline.layout.rtl":        "derivedKey.rtl (mirrored)",
-	// Set only by applyConfig, which bumps conf.rev (derivedKey.cfg).
+	// Set only by applySettings, which bumps conf.rev (derivedKey.cfg).
 	"theme":             "derivedKey.cfg",
 	"prefs.display":     "derivedKey.cfg",
 	"prefs.device":      "derivedKey.cfg",

@@ -66,7 +66,7 @@ type configChecker interface {
 // configCheckTimeout bounds kithd's answer: a network may ask its own servers.
 const configCheckTimeout = 15 * time.Second
 
-// configCheckedMsg is kithd's verdict on a change applyConfig held back.
+// configCheckedMsg is kithd's verdict on a change applySettings held back.
 type configCheckedMsg struct {
 	cfg     config.Settings
 	derived derivations
