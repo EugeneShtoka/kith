@@ -194,6 +194,11 @@ export class Kithd {
   readonly attached: string[] = [];
   /** Sends of files still to fail. */
   failAttach = 0;
+  /** What the window does as it closes (writes its drafts). */
+  private closeWrite: (() => Promise<void>) | undefined;
+  /** What the window keeps as it reloads, and what it kept the last time (its session storage). */
+  private keepOnReload: (() => string) | undefined;
+  private keptText = "";
   /** Cached pages (CachedTimeline, MessagesAround) still to fail, and pages of a thread (ThreadPage). */
   failPages = 0;
   failThreadPages = 0;
@@ -299,7 +304,17 @@ export class Kithd {
       },
       pick: () => Promise.resolve([this.offer("report.pdf")]),
       offer: (file) => Promise.resolve(this.offer(file.name)),
-      closing: () => undefined,
+      closing: (write) => {
+        this.closeWrite = write;
+      },
+      reloading: (keep) => {
+        this.keepOnReload = keep;
+      },
+      kept: () => {
+        const text = this.keptText;
+        this.keptText = "";
+        return text;
+      },
       discard: (token) => {
         this.offers.delete(token);
         return Promise.resolve();
@@ -378,6 +393,16 @@ export class Kithd {
     if (this.up) {
       this.send(backend.messages, profile, { message: m, epoch: "e", change: 1n });
     }
+  }
+
+  /** closeWindow is main closing the window: it waits for what the window writes first. */
+  closeWindow(): Promise<void> {
+    return this.closeWrite?.() ?? Promise.resolve();
+  }
+
+  /** reloadWindow is the window starting to reload: what it keeps outlives it, nothing else. */
+  reloadWindow(): void {
+    this.keptText = this.keepOnReload?.() ?? "";
   }
 
   /** readAgain is main telling the window kithd could not resume its Messages stream. */
@@ -778,6 +803,9 @@ export class Kithd {
         const draft = r.draft;
         if (draft === undefined || !r.rebase) {
           throw new Error("the fake takes a window's rebased writes only");
+        }
+        if (!p.rooms.some((x) => x.id === draft.roomId)) {
+          throw new Error(`[not_found] daemon: the profile ${profile} holds no room ${draft.roomId}`);
         }
         const [stored, added] = rebased(draft, r.over, this.drafts.get(draft.roomId), r.unanswered);
         if (blank(stored)) {

@@ -26,6 +26,7 @@ import { type DeviceSettings, DeviceService, type ThemeResponse } from "../gen/d
 import { runIn } from "../shared/profile";
 import { later, listed, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unscheduled, type Unsent } from "./compose";
+import { type Kept, keptFrom, keptText } from "./drafts";
 import { asked as filingAsked, type Filing, offered, opened, toggled, told } from "./filing";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { Devices, type DevicesCalls, type DevicesView, noDevices } from "./devices";
@@ -421,6 +422,12 @@ export class Session {
   private readonly lingering = new Set<() => void>();
   /** Profile switches asked for and not landed yet. */
   private switching = 0;
+  /**
+   * Words a profile left (or the window before a reload) did not get stored, by room, and
+   * the rooms' names: back in its composer once it is open again, said until then.
+   */
+  private readonly kept = new Map<string, Kept>();
+  private readonly keptNames = new Map<string, string>();
   /** The open thread is watched: its pane shown, the window focused. */
   private watchingThread = false;
   /** Counts the problems said; and the last, when a page's: taken down once its reader reads. */
@@ -462,8 +469,13 @@ export class Session {
   start(): void {
     this.stopped = false; // StrictMode starts a window again after stopping it
     this.readDevice();
-    // Closing, the window writes its drafts first (main waits a little for it).
+    // Closing, the window writes its drafts first (main waits a little for it); reloading,
+    // it has no time to, and keeps them for the window loaded again.
     window.kith.closing(() => this.run?.composer.drafts.flush() ?? Promise.resolve());
+    for (const [room, kept] of keptFrom(window.kith.kept())) {
+      this.kept.set(room, kept);
+    }
+    window.kith.reloading(() => keptText(new Map([...this.kept, ...(this.run?.composer.drafts.unstored() ?? [])])));
   }
 
   /** stop closes every stream: the window is going. */
@@ -491,6 +503,9 @@ export class Session {
     this.switching++; // a link handed meanwhile waits for the profile the window ends in
     return this.inTurn(async () => {
       try {
+        // The drafts are written first, in the profile they were typed in: once main has
+        // moved, kithd refuses a room the new profile does not hold.
+        await this.run?.composer.drafts.flush();
         const chosen = await call(DeviceService.method.chooseProfile, { name });
         this.enter(chosen.profile);
       } finally {
@@ -982,8 +997,20 @@ export class Session {
     this.closeThread();
     run.timeline = new Timeline(room, this.view.unread.get(room)?.readEvent ?? "");
     run.settings = undefined;
+    const kept = this.kept.get(room);
+    const said = this.unsaved();
+    if (kept !== undefined) {
+      this.kept.delete(room);
+      this.keptNames.delete(room);
+      run.composer.drafts.keep(room, kept);
+    }
     run.composer.opened(room);
-    this.set({ open: room, unreadLine: true, slots: new Map() });
+    this.set({
+      open: room,
+      unreadLine: true,
+      slots: new Map(),
+      ...(said !== undefined && this.view.problem === said ? { problem: this.unsaved() } : {}),
+    });
     this.readSettings(run, run.timeline);
     this.readSlots(run, room);
     this.readReactions(run);
@@ -1265,7 +1292,7 @@ export class Session {
         }
         throw err;
       });
-      this.set({ profiles: d.profiles, socket: d.socket, bridge: d.bridge, problem: undefined });
+      this.set({ profiles: d.profiles, socket: d.socket, bridge: d.bridge, problem: this.unsaved() });
       this.readTheme(); // read as the profiles are: at the start, and after each config change
       this.enter(runIn(this.view.profile, d.profile, d.profiles));
     });
@@ -1367,6 +1394,7 @@ export class Session {
     this.people.reset();
     run.closed = true;
     run.composer.stop();
+    this.keepUnstored(run);
     run.seat?.();
     for (const stop of run.streams) {
       stop();
@@ -1378,6 +1406,34 @@ export class Session {
         run.follows();
       }
     }
+  }
+
+  /**
+   * keepUnstored holds the words of run's drafts kithd is not known to have stored, and
+   * says so: they are put back in the composer when their room is open again (show).
+   */
+  private keepUnstored(run: Run): void {
+    const unstored = run.composer.drafts.unstored();
+    for (const [room, kept] of unstored) {
+      this.kept.set(room, kept);
+      this.keptNames.set(room, run.joined.find((r) => r.id === room)?.name ?? room);
+    }
+    if (unstored.size > 0) {
+      this.fail(this.unsaved());
+    }
+  }
+
+  /**
+   * unsaved says which drafts the window keeps unsaved, if any: what a read that takes
+   * the problems said down (Device, Status) says instead, until they are written.
+   */
+  private unsaved(): string | undefined {
+    if (this.kept.size === 0) {
+      return undefined;
+    }
+    const name = (room: string) => this.keptNames.get(room) ?? this.run?.joined.find((r) => r.id === room)?.name;
+    const rooms = [...this.kept.keys()].map((room) => name(room) ?? room);
+    return `The draft in ${rooms.join(", ")} is not saved: it is kept here until the room is open again`;
   }
 
   private live(run: Run): boolean {
@@ -2349,7 +2405,7 @@ export class Session {
     call(backend.status, {}).then(
       (status) => {
         if (this.live(run)) {
-          this.set({ status, problem: undefined });
+          this.set({ status, problem: this.unsaved() });
         }
       },
       (err: unknown) => {

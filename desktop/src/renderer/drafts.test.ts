@@ -5,7 +5,7 @@ import { BackendService } from "../gen/backend/v1/services_pb";
 import { blank, type Composition, Drafts, saveDelay } from "./drafts";
 import { call } from "./kith";
 import { endsWord, type Speller as SpellerType, Speller, spellDebounce } from "./spell";
-import { Kithd } from "./testing/kithd";
+import { Kithd, room } from "./testing/kithd";
 
 let kithd: Kithd;
 
@@ -40,8 +40,9 @@ async function drive<T>(p: Promise<T>): Promise<T> {
   return ended;
 }
 
-/** A window's drafts, with the profile chosen as main would have it (Device answered). */
+/** A window's drafts, with the profile chosen as main would have it (Device answered), holding the rooms. */
 async function window(changed: () => void = () => undefined): Promise<Drafts> {
+  kithd.of("Solo").rooms = rooms.map((r) => room(r));
   await drive(kithd.bridge().call("Device", new Uint8Array()));
   return new Drafts(changed, (err) => {
     if (err !== undefined) console.log("FAILED", err);
@@ -53,7 +54,7 @@ const rooms = ["!a:x", "!b:x"] as const;
 /** A step of the walk: the person, the assistant, kithd's answers and faults, a takeover. */
 type Step =
   | { kind: "type" | "send" | "edit" | "assistant" | "between"; room: number }
-  | { kind: "pause" | "spell" | "poll" | "takeover" | "close" }
+  | { kind: "pause" | "spell" | "poll" | "takeover" | "close" | "leave" }
   | { kind: "hold"; what: "ReplaceDraft" | "Drafts" | "CheckSpelling" }
   | { kind: "deliver"; i: number }
   | { kind: "fault"; when: "before" | "after" };
@@ -82,6 +83,7 @@ const step: fc.Arbitrary<Step> = fc.oneof(
   },
   { weight: 1, arbitrary: fc.constant({ kind: "takeover" as const }) },
   { weight: 1, arbitrary: fc.constant({ kind: "close" as const }) },
+  { weight: 2, arbitrary: fc.constant({ kind: "leave" as const }) },
 );
 
 /** stored is room's draft as kithd holds it, as a composition. */
@@ -225,6 +227,23 @@ describe("drafts", () => {
               drafts = await window(spelled);
               await drive(drafts.load());
               break;
+            case "leave": {
+              // The window leaves the profile, kithd failing or slow as it may be: it writes
+              // what it holds, a write that failed once more, a little while at most, then
+              // nothing more. What is not stored is kept, and put back in the next run's
+              // composer when the room is open again (the session's part, done here).
+              await drive(drafts.flush());
+              const kept = drafts.unstored();
+              drafts.stop();
+              await settle();
+              drafts = await window(spelled);
+              kithd.holding.delete("Drafts"); // the next run reads what is stored, its writes still held or failing
+              await drive(drafts.load());
+              for (const [r, k] of kept) {
+                drafts.keep(r, k);
+              }
+              break;
+            }
             case "close": {
               // The window closes at once: nothing more is written, and a write on the wire
               // lands or not. What it typed and kithd does not hold is given up.
