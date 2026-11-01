@@ -194,8 +194,9 @@ export class Kithd {
   readonly attached: string[] = [];
   /** Sends of files still to fail. */
   failAttach = 0;
-  /** Cached pages (CachedTimeline, MessagesAround) still to fail. */
+  /** Cached pages (CachedTimeline, MessagesAround) still to fail, and pages of a thread (ThreadPage). */
   failPages = 0;
+  failThreadPages = 0;
   /** The links that reached the window, in order (main posted them, the window's port took them). */
   readonly linksArrived: FollowStreamResponse[] = [];
   /** What each window last told kithd it has open (Present), by client. */
@@ -609,6 +610,9 @@ export class Kithd {
     const reply = <M extends DescMethod>(m: M, init: MessageInitShape<M["output"]>) => create(m.output, init);
     if ((name === "CachedTimeline" || name === "MessagesAround") && this.failPages-- > 0) {
       throw new Error("cache: database is locked");
+    }
+    if (name === "ThreadPage" && this.failThreadPages-- > 0) {
+      throw new Error("matrix: thread page: connection refused");
     }
     switch (name) {
       case "Device":

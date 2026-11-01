@@ -354,8 +354,8 @@ interface Run {
   positioned: boolean;
   /** The open room's timeline, and the device settings it follows: undefined while read. */
   timeline: Timeline | undefined;
-  /** The wait before a reload's failed page is asked again. */
-  reloadLater: ReturnType<typeof setTimeout> | undefined;
+  /** The wait before a failed page nothing else asks for (Timeline.again, OpenThread.again) is asked again. */
+  askLater: ReturnType<typeof setTimeout> | undefined;
   settings: DeviceSettings | "failed" | undefined;
   /** Counts the reactions reads; the Reactions frames held while one is answered. */
   reactionReads: number;
@@ -423,6 +423,9 @@ export class Session {
   private switching = 0;
   /** The open thread is watched: its pane shown, the window focused. */
   private watchingThread = false;
+  /** Counts the problems said; and the last, when a page's: taken down once its reader reads. */
+  private said = 0;
+  private pageProblem: { reader: Timeline | OpenThread; said: number } | undefined;
   /** Counts the settings page's reads and writes: only the last one's answer is shown. */
   private settingsReads = 0;
   /** Counts the theme's reads and writes, likewise. */
@@ -1312,7 +1315,7 @@ export class Session {
       rowAt: 0,
       positioned: false,
       timeline: undefined,
-      reloadLater: undefined,
+      askLater: undefined,
       settings: undefined,
       reactionReads: 0,
       reactionsHeld: undefined,
@@ -1709,24 +1712,16 @@ export class Session {
           this.pumpThread(run); // the root may be a row now
           this.pump(run);
           this.markRead(run);
-          this.set({});
+          this.set(this.pageRead(t));
         }
       },
       (err: unknown) => {
         if (this.live(run) && run.timeline === t) {
-          const again = t.failed(ticket);
-          if (ticket.ask.kind !== "network") {
-            this.fail(err); // a network's page hands over to the cache's, unsaid
+          if (t.failed(ticket)) {
+            this.askLater(run);
           }
-          if (again) {
-            // A reload's page: asked again after a wait, one at a time, for the room open
-            // then (pump asks nothing for a profile the window has left).
-            run.reloadLater ??= setTimeout(() => {
-              run.reloadLater = undefined;
-              run.timeline?.again();
-              this.pump(run);
-              this.set({});
-            }, deviceAgain);
+          if (ticket.ask.kind !== "network") {
+            this.failPage(t, err); // a network's page hands over to the cache's, unsaid
           }
           this.pump(run);
           this.set({});
@@ -1786,19 +1781,54 @@ export class Session {
           t.land(ticket, p.messages, p.next);
           this.pumpThread(run);
           this.markThreadRead(run);
-          this.set({});
+          this.set(this.pageRead(t));
         }
       },
       (err: unknown) => {
         if (this.live(run) && run.thread === t) {
-          t.failed(ticket);
+          if (t.failed(ticket)) {
+            this.askLater(run);
+          }
           if (ask.kind === "page") {
-            this.fail(err); // a root not cached is shown without it, unsaid
+            this.failPage(t, err); // a root not cached is shown without it, unsaid
           }
           this.set({});
         }
       },
     );
+  }
+
+  /**
+   * askLater asks again, after a wait, for the failed pages nothing else asks for: a
+   * reload's or a room's first (the timeline's), a reload's (the thread's). One wait at a
+   * time; it acts on the room and thread open when it is over, and asks nothing for a
+   * profile the window has left (pump and pumpThread).
+   */
+  private askLater(run: Run): void {
+    run.askLater ??= setTimeout(() => {
+      run.askLater = undefined;
+      run.timeline?.again();
+      run.thread?.again();
+      this.pump(run);
+      this.pumpThread(run);
+      this.set({});
+    }, deviceAgain);
+  }
+
+  /** failPage says a page's failure, to be taken down once reader reads (pageRead). */
+  private failPage(reader: Timeline | OpenThread, err: unknown): void {
+    this.fail(err);
+    this.pageProblem = { reader, said: this.said };
+  }
+
+  /** pageRead takes down the problem reader's failed page said, while it is the last said. */
+  private pageRead(reader: Timeline | OpenThread): Partial<View> {
+    const p = this.pageProblem;
+    if (p?.reader !== reader) {
+      return {};
+    }
+    this.pageProblem = undefined;
+    return p.said === this.said ? { problem: undefined } : {};
   }
 
   /**
@@ -2331,6 +2361,7 @@ export class Session {
   }
 
   private fail(err: unknown): void {
+    this.said++;
     this.set({ problem: err instanceof Error ? err.message : String(err) });
   }
 

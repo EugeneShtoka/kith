@@ -149,6 +149,7 @@ type Step =
   | { kind: "read" }
   | { kind: "land" }
   | { kind: "fail" }
+  | { kind: "again" }
   | { kind: "older" }
   | { kind: "readAgain" };
 
@@ -159,34 +160,48 @@ const step: fc.Arbitrary<Step> = fc.oneof(
   { weight: 3, arbitrary: fc.constant({ kind: "read" }) },
   { weight: 3, arbitrary: fc.constant({ kind: "land" }) },
   { weight: 1, arbitrary: fc.constant({ kind: "fail" }) },
+  { weight: 1, arbitrary: fc.constant({ kind: "again" }) },
   { weight: 2, arbitrary: fc.constant({ kind: "older" }) },
   { weight: 1, arbitrary: fc.constant({ kind: "readAgain" }) },
 );
 
 /**
  * Run is one thread pane over one cache. The room's timeline is the newest few messages
- * as the window last heard of them (the timeline's own tests hold it to the cache).
+ * as the window last heard of them (the timeline's own tests hold it to the cache); or,
+ * holding, every message from its first rows on, as a Timeline keeps them, read again as
+ * far back when told to.
  */
 class Run {
   readonly cache: Cache;
   readonly t = new OpenThread(room, root);
   /** The messages as the window has heard of them: what its timeline shows. */
   private readonly heard = new Map<string, Message>();
+  /** Holding, the messages before the timeline's first rows: never shown. */
+  private readonly before = new Set<string>();
   private inFlight: { ticket: ThreadTicket; read?: { rows: Message[]; next: string } } | undefined;
   private stale: { ticket: ThreadTicket; read: { rows: Message[]; next: string } }[] = [];
+  /** A failed read is to be asked again after a wait, not over yet (the window's timer). */
+  private later = false;
 
   constructor(
     replies: number,
     private readonly shown: number,
+    private readonly holds = false,
   ) {
     this.cache = new Cache(replies);
     for (const m of this.cache.ordered()) {
       this.heard.set(m.id, m);
     }
+    if (holds) {
+      for (const m of this.cache.ordered().slice(0, Math.max(0, this.heard.size - shown))) {
+        this.before.add(m.id);
+      }
+    }
   }
 
   rows(): Message[] {
-    return [...this.heard.values()].sort(compare).slice(this.heard.size - this.shown);
+    const all = [...this.heard.values()].sort(compare);
+    return this.holds ? all.filter((m) => !this.before.has(m.id)) : all.slice(this.heard.size - this.shown);
   }
 
   do(s: Step): void {
@@ -224,10 +239,19 @@ class Run {
         }
         break;
       }
-      case "fail":
-        if (this.inFlight !== undefined) {
-          this.t.failed(this.inFlight.ticket);
-          this.inFlight = undefined;
+      case "fail": {
+        // The read in flight refused, or else an answer from before a reload, refused now.
+        const ticket = this.inFlight?.ticket ?? this.stale.shift()?.ticket;
+        this.inFlight = undefined;
+        if (ticket !== undefined && this.t.failed(ticket)) {
+          this.later = true;
+        }
+        break;
+      }
+      case "again": // the wait after a failed read is over
+        if (this.later) {
+          this.later = false;
+          this.t.again();
         }
         break;
       case "older":
@@ -253,16 +277,27 @@ class Run {
     return this.inFlight !== undefined;
   }
 
-  /** settle delivers every frame and answers every read, back to the thread's first reply. */
-  settle(): void {
+  /**
+   * settle delivers every frame and answers every read, back to the thread's first reply
+   * when the window asks for older ones, and waits out every wait: the i-th read it
+   * answers fails where fails[i] says so.
+   */
+  settle(fails: readonly boolean[] = [], older = true): void {
     for (let i = 0; i < 1000; i++) {
       this.do({ kind: "deliver", n: this.cache.queue.length });
-      this.t.older();
+      if (older) {
+        this.t.older();
+      }
       if (!this.waiting()) {
+        this.do({ kind: "again" });
         this.do({ kind: "ask" });
         if (!this.waiting()) {
           return;
         }
+      }
+      if (fails[i] === true) {
+        this.do({ kind: "fail" });
+        continue;
       }
       this.do({ kind: "read" });
       this.do({ kind: "land" });
@@ -304,6 +339,59 @@ describe("the thread pane over any interleaving of reads and frames", () => {
               { kind: "deliver", n: 1 },
               { kind: "land" },
             ],
+          ],
+        ],
+      },
+    );
+  });
+
+  it("reads again what it showed when told, keeping it shown meanwhile, whichever of its reads fail", () => {
+    const lost = fc.record({ kind: fc.constant("write"), what: fc.nat(4), i: fc.nat(1000) });
+    fc.assert(
+      fc.property(
+        fc.nat(8),
+        fc.nat(6),
+        fc.array(step, { maxLength: 40 }),
+        fc.array(lost, { minLength: 1, maxLength: 4 }),
+        fc.array(step, { maxLength: 20 }),
+        fc.array(fc.boolean(), { maxLength: 6 }),
+        (replies, shown, before, writes, after, fails) => {
+          const run = new Run(replies, shown, true);
+          run.settle(); // the whole thread read, as the window asked
+          // Changes the stream loses, so what was read here is stale until read again;
+          // and anything after, more reloads included. The window asks for nothing
+          // older: what it showed is read again unasked, and stays shown meanwhile.
+          const own = () => run.t.view([]).rows.map((m) => m.id); // what it read itself
+          for (const s of [...before, ...writes, { kind: "readAgain" } as const, ...after]) {
+            const kept = s.kind === "readAgain" ? own() : [];
+            run.do(s);
+            expect(own()).toEqual(expect.arrayContaining(kept));
+          }
+          run.settle(fails, false);
+          const view = run.t.view(run.rows());
+          expect(view.rows.map(row)).toEqual(threadMessages(run.cache.ordered(), root).map(row));
+        },
+      ),
+      {
+        numRuns: 1000,
+        examples: [
+          // A reply's edit taken back while the reload's page holding the edit was read.
+          [
+            1,
+            0,
+            [],
+            [{ kind: "write", what: 2, i: 1 }],
+            [
+              { kind: "ask" },
+              { kind: "read" },
+              { kind: "land" },
+              { kind: "ask" },
+              { kind: "read" },
+              { kind: "write", what: 3, i: 1 },
+              { kind: "deliver", n: 1 },
+              { kind: "land" },
+            ],
+            [],
           ],
         ],
       },
