@@ -207,6 +207,24 @@ export class Kithd {
    * error it refuses with.
    */
   readonly places = new Map<string, MessageInitShape<typeof backend.filingPlaces.output>["places"]>();
+  /**
+   * The phonebook, as kithd serves it from its folder: each card by name, the people it
+   * is of (the first by name holding a person is theirs), its identifiers, fields and
+   * revision, and the room that is your conversation with them; every field written,
+   * as "card key=values:profile". A write over a revision gone by is ABORTED. People
+   * narrows by words in the name and key:value terms, as kithd does.
+   */
+  readonly cards = new Map<
+    string,
+    {
+      people: string[];
+      ids?: Record<string, string[]>;
+      fields: Record<string, string[]>;
+      revision: number;
+      conversation: string;
+    }
+  >();
+  readonly cardWrites: string[] = [];
   readonly filingSpacesAsked: string[][] = [];
   readonly filed: string[] = [];
   fileAnswer: MessageInitShape<typeof backend.fileRoom.output> = {};
@@ -479,6 +497,28 @@ export class Kithd {
     return toBinary(method.output, answer);
   }
 
+  /** cardOf is the card named, or the person's: the first by name holding them ("" none). */
+  private cardOf(person: string, card: string): string {
+    if (card !== "") {
+      if (!this.cards.has(card)) {
+        throw new Error(`[not_found] daemon: the phonebook has no card "${card}"`);
+      }
+      return card;
+    }
+    return [...this.cards.keys()].sort().find((n) => this.cards.get(n)?.people.includes(person)) ?? "";
+  }
+
+  /** shownCard is the card named as kithd answers it; "" a person with none. */
+  private shownCard(name: string): MessageInitShape<typeof backend.personCard.output>["card"] {
+    const c = this.cards.get(name);
+    return {
+      card: c === undefined ? "" : name,
+      revision: c === undefined ? "" : String(c.revision),
+      ids: Object.entries(c?.ids ?? {}).map(([key, values]) => ({ key, values, list: true })),
+      fields: Object.entries(c?.fields ?? {}).map(([key, values]) => ({ key, values, list: values.length > 1 })),
+    };
+  }
+
   /** use is main moving to profile: every stream opened in another ends. */
   private use(profile: string): void {
     if (profile === this.profile) {
@@ -633,7 +673,11 @@ export class Kithd {
         const hits = p.rooms
           .filter((room) => asked(room.id))
           .flatMap((room) => p.messages.get(room.id) ?? [])
-          .filter((m) => r.query !== "" && m.body.toLowerCase().includes(r.query.toLowerCase()))
+          .filter((m) =>
+            r.query !== ""
+              ? m.body.toLowerCase().includes(r.query.toLowerCase())
+              : r.senders.length > 0 && r.senders.includes(m.sender),
+          )
           .sort(compare)
           .reverse()
           .slice(0, Number(r.limit))
@@ -924,6 +968,70 @@ export class Kithd {
       case "InstallModel":
         this.installed.push(`${name} ${(request as MessageShape<typeof backend.installModel.input>).tag}`);
         return reply(backend.installModel, {});
+      case "People": {
+        const words = (request as MessageShape<typeof backend.people.input>).query
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((w) => w !== "");
+        const people = [...this.cards.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+        return reply(backend.people, {
+          people: people.flatMap(([card, c]) => {
+            const matched: { key: string; values: string[] }[] = [];
+            for (const w of words) {
+              const at = w.indexOf(":");
+              if (at > 0 && at < w.length - 1) {
+                const [key, part] = [w.slice(0, at), w.slice(at + 1)];
+                const values = c.fields[key] ?? [];
+                if (!values.some((v) => v.toLowerCase().includes(part))) {
+                  return [];
+                }
+                matched.push({ key, values });
+              } else if (!card.toLowerCase().includes(w)) {
+                return [];
+              }
+            }
+            return [{ card, aliases: c.fields.aliases ?? [], idKeys: Object.keys(c.ids ?? {}), matched }];
+          }),
+        });
+      }
+      case "PersonCard": {
+        const r = request as MessageShape<typeof backend.personCard.input>;
+        // A DM's one person is the person of the card whose conversation it is.
+        const dm = [...this.cards.values()].find((c) => r.roomId !== "" && c.conversation === r.roomId);
+        if (dm !== undefined) {
+          r.person = dm.people[0] ?? "";
+        }
+        const name = this.cardOf(r.person, r.card);
+        return reply(backend.personCard, {
+          card: this.shownCard(name),
+          person: r.person,
+          people: this.cards.get(name)?.people ?? (r.person === "" ? [] : [r.person]),
+          conversation: this.cards.get(name)?.conversation ?? "",
+        });
+      }
+      case "SetPersonField": {
+        const r = request as MessageShape<typeof backend.setPersonField.input>;
+        let name = this.cardOf(r.person, r.card);
+        const card = this.cards.get(name);
+        if ((card === undefined ? "" : String(card.revision)) !== r.revision) {
+          throw new Error("[aborted] phonebook: the card changed since it was read");
+        }
+        if (card === undefined) {
+          name = r.name;
+          this.cards.set(name, { people: [r.person], fields: {}, revision: 0, conversation: "" });
+        }
+        const now = this.cards.get(name);
+        if (now !== undefined) {
+          now.fields[r.key] = r.values;
+          now.revision++;
+        }
+        this.cardWrites.push(`${name} ${r.key}=${r.values.join(",")}:${profile}`);
+        return reply(backend.setPersonField, { card: this.shownCard(name) });
+      }
+      case "PersonKeys":
+        return reply(backend.personKeys, {
+          keys: [...new Set([...this.cards.values()].flatMap((c) => Object.keys(c.fields)))].sort(),
+        });
       case "FilingPlaces": {
         const r = request as MessageShape<typeof backend.filingPlaces.input>;
         if (!p.rooms.some((x) => x.id === r.roomId)) {

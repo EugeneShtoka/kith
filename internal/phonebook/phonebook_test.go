@@ -77,15 +77,14 @@ func TestSettingAKeyKeepsTheRest(t *testing.T) {
 	t.Parallel()
 	b := book(t, map[string]string{"Dana Levi.md": dana})
 	path := filepath.Join(b.Dir(), "Dana Levi.md")
-	if _, err := b.Set(path, "pets", []string{"Rex", "Mia"}, true); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := b.Set(path, "birthday", nil, false); err != nil {
-		t.Fatal(err)
-	}
-	card, err := b.Set(path, "origin", []string{"Haifa"}, false)
+	card, err := b.Read(path)
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, set := range []Field{{Key: "pets", Values: []string{"Rex", "Mia"}, List: true}, {Key: "birthday"}, {Key: "origin", Values: []string{"Haifa"}}} {
+		if card, err = b.set(card, set.Key, set.Values, set.List); err != nil {
+			t.Fatal(err)
+		}
 	}
 	raw, _ := os.ReadFile(path)
 	text := string(raw)
@@ -116,18 +115,18 @@ func TestSettingAKeyKeepsTheRest(t *testing.T) {
 func TestANewCardIsMadeAndItsKeysOffered(t *testing.T) {
 	t.Parallel()
 	b := book(t, map[string]string{"Dana Levi.md": dana})
-	card, err := b.Create("Dana Levi", Identifiers{"phone": {"+15550100009"}, "telegram": {"77"}})
+	card, err := b.create("Dana Levi", Identifiers{"phone": {"+15550100009"}, "telegram": {"77"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if card.Name != "Dana Levi 2" || card.IDs["telegram"][0] != "77" || card.IDs["phone"][0] != "+15550100009" {
 		t.Errorf("card = %+v", card)
 	}
-	odd, err := b.Create(" a/b: c? ", nil)
+	odd, err := b.create(" a/b: c? ", nil)
 	if err != nil || odd.Name != "ab c" {
 		t.Errorf("odd name = %q, %v", odd.Name, err)
 	}
-	if _, err := b.Set(card.Path, "spouse", []string{"[[Eli Levi]]"}, false); err != nil {
+	if _, err := b.set(card, "spouse", []string{"[[Eli Levi]]"}, false); err != nil {
 		t.Fatal(err)
 	}
 	keys, _ := b.Keys()

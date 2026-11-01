@@ -225,6 +225,15 @@ and holds the least:
   written or asked of a network, and makes the calls a filing needs (`AddToSpace`,
   `RemoveFromSpace`, `SetRoomArchived`, `MarkTag`) itself; none of those is on the
   page's list.
+- **The page reaches the phonebook only through kithd.** It reads and writes cards with
+  four calls (`People`, `PersonCard`, `SetPersonField`, `PersonKeys`) and names a
+  person by an ID, a card by the name kithd listed it under, or a DM; kithd looks a
+  card up among the folder's own, so nothing the page sends becomes a path, and no
+  answer names the folder or a file in it (a failure of the folder is in kithd's log).
+  A new card's file name is made of the name the page gives with every separator,
+  control and direction character taken out, and is never written over another file.
+  A write is one key over the card as the page read it. The people a profile's
+  `people.exclude` hides are neither listed, read nor written from that profile.
 - **Your own commands run on this machine, named only.** `kith-relay`, not the page,
   runs the commands of the device's commands folder (the terminal client runs the same
   ones). The page names a command, a room and a message, and nothing else: the relay

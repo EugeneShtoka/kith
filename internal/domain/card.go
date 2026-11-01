@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"maps"
 	"slices"
 	"strings"
 )
@@ -34,6 +35,29 @@ func CardIdentifiers(ids []string) map[string][]string {
 		default:
 			if user, ok := telegramPuppet(x); ok {
 				add("telegram", user)
+			}
+		}
+	}
+	return out
+}
+
+// CardPeople is the IDs a card's identifier keys name, in kith's form, the other way
+// from CardIdentifiers: a phone as its number's identifier (PhoneID), a Matrix,
+// Telegram, WhatsApp or Slack ID as that network's person. An email names no one.
+func CardPeople(ids map[string][]string) []string {
+	networks := map[string]Protocol{"matrix": ProtocolMatrix, "telegram": ProtocolTelegram, "whatsapp": ProtocolWhatsApp, "slack": ProtocolSlack}
+	var out []string
+	for _, key := range slices.Sorted(maps.Keys(ids)) {
+		for _, value := range ids[key] {
+			value = strings.TrimSpace(value)
+			var id string
+			if network, ok := networks[key]; ok && value != "" {
+				id = NativePerson(network, value)
+			} else if digits := PhoneDigits(value); key == "phone" && digits != "" {
+				id = PhoneID(digits)
+			}
+			if id != "" && !slices.Contains(out, id) {
+				out = append(out, id)
 			}
 		}
 	}

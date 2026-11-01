@@ -140,6 +140,14 @@ const calls = new Map<string, DescMethodUnary>(
     // makes them for a filing it judged.
     backend.filingPlaces,
     backend.fileRoom,
+    // People and their cards: kithd's phonebook folder, read and written by kithd. The
+    // window names a person by an ID, a card People listed (by its name, which kithd
+    // looks up among the folder's cards) or a DM; it never names a file nor gets a path,
+    // writes one key over the card as it read it, and sees only whom the profile shows.
+    backend.people,
+    backend.personCard,
+    backend.setPersonField,
+    backend.personKeys,
     // Pairing (pairings.ts): the devices paired, a pairing's ticket written as the URI a
     // new device joins with, and the two calls that change who is paired, each sent only
     // once the person said yes in main's own dialog: confirming a pairing the window

@@ -54,8 +54,8 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	"backend.v1.CanonicalParentRequest.room_id": aRoom, "backend.v1.TagVerdict.room_id": aRoom,
 	"backend.v1.AddToSpaceRequest.space_id": aRoom, "backend.v1.AddToSpaceRequest.room_id": aRoom,
 	"backend.v1.RemoveFromSpaceRequest.space_id": aRoom, "backend.v1.RemoveFromSpaceRequest.room_id": aRoom,
-	"backend.v1.FilingPlacesRequest.room_id": aRoom,
-	"backend.v1.FileRoomRequest.room_id":     aRoom, "backend.v1.SpaceFiling.space_id": aRoom,
+	"backend.v1.FilingPlacesRequest.room_id": aRoom, "backend.v1.PersonCardRequest.room_id": aRoom,
+	"backend.v1.FileRoomRequest.room_id": aRoom, "backend.v1.SpaceFiling.space_id": aRoom,
 	"backend.v1.CachedTimelineRequest.room_id": aRoom, "backend.v1.TimelineRequest.room_id": aRoom,
 	"backend.v1.MessageHistoryRequest.room_id": aRoom, "backend.v1.FetchEventRequest.room_id": aRoom,
 	"backend.v1.FetchEventSourceRequest.room_id": aRoom, "backend.v1.SendRequest.room_id": aRoom,
@@ -146,6 +146,13 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	"backend.v1.RescanPeopleRequest.people": notARoom, "backend.v1.IgnoreRequest.mxid": notARoom,
 	"backend.v1.UnignoreRequest.mxid": notARoom, "backend.v1.BlockPersonRequest.user_id": notARoom,
 	"backend.v1.UnblockPersonRequest.user_id": notARoom,
+	// The phonebook's: a person's ID, a card's name (looked up among the folder's cards,
+	// never a path), a new card's name, a card's revision, a key and its values, the query.
+	"backend.v1.PeopleRequest.query": notARoom, "backend.v1.PersonCardRequest.person": notARoom,
+	"backend.v1.PersonCardRequest.card": notARoom, "backend.v1.SetPersonFieldRequest.person": notARoom,
+	"backend.v1.SetPersonFieldRequest.card": notARoom, "backend.v1.SetPersonFieldRequest.name": notARoom,
+	"backend.v1.SetPersonFieldRequest.revision": notARoom, "backend.v1.SetPersonFieldRequest.key": notARoom,
+	"backend.v1.SetPersonFieldRequest.values": notARoom,
 	// A room not made yet, and whom it invites; its parent is a room (above).
 	"backend.v1.CreateRoomRequest.name": notARoom, "backend.v1.CreateRoomRequest.invite": notARoom,
 	// Servers to join through, a directory's server and page.

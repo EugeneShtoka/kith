@@ -99,6 +99,17 @@ const (
 	BackendServiceFilingPlacesProcedure = "/backend.v1.BackendService/FilingPlaces"
 	// BackendServiceFileRoomProcedure is the fully-qualified name of the BackendService's FileRoom RPC.
 	BackendServiceFileRoomProcedure = "/backend.v1.BackendService/FileRoom"
+	// BackendServicePeopleProcedure is the fully-qualified name of the BackendService's People RPC.
+	BackendServicePeopleProcedure = "/backend.v1.BackendService/People"
+	// BackendServicePersonCardProcedure is the fully-qualified name of the BackendService's PersonCard
+	// RPC.
+	BackendServicePersonCardProcedure = "/backend.v1.BackendService/PersonCard"
+	// BackendServiceSetPersonFieldProcedure is the fully-qualified name of the BackendService's
+	// SetPersonField RPC.
+	BackendServiceSetPersonFieldProcedure = "/backend.v1.BackendService/SetPersonField"
+	// BackendServicePersonKeysProcedure is the fully-qualified name of the BackendService's PersonKeys
+	// RPC.
+	BackendServicePersonKeysProcedure = "/backend.v1.BackendService/PersonKeys"
 	// BackendServiceCachedTimelineProcedure is the fully-qualified name of the BackendService's
 	// CachedTimeline RPC.
 	BackendServiceCachedTimelineProcedure = "/backend.v1.BackendService/CachedTimeline"
@@ -519,6 +530,23 @@ type BackendServiceClient interface {
 	// into records the release, so no filter moves it back. A room, tag or space the
 	// profile does not hold is refused, and nothing is filed.
 	FileRoom(context.Context, *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error)
+	// Phonebook
+	// People lists the phonebook's cards ([phonebook] dir, read by kithd from its own
+	// folder) by name, narrowed by the query as :people narrows it, leaving out everyone
+	// the request's profile hides (people.exclude); and the cards it cannot read.
+	People(context.Context, *connect.Request[v1.PeopleRequest]) (*connect.Response[v1.PeopleResponse], error)
+	// PersonCard is one person's card as the folder holds it now, by their ID, by a card
+	// People listed, or by a room's one person; with every ID kith knows them by and your
+	// conversation with them. A person the profile hides is NOT_FOUND.
+	PersonCard(context.Context, *connect.Request[v1.PersonCardRequest]) (*connect.Response[v1.PersonCardResponse], error)
+	// SetPersonField writes one key of a person's card over the card as the client read
+	// it, ABORTED when it is no longer so (read it again), keeping every other key, their
+	// order and comments, and the body byte for byte. A person with no card gets one,
+	// named and placed by kithd, holding every identifier kith knows of theirs. A person
+	// the profile hides is NOT_FOUND; a card kithd cannot read is FAILED_PRECONDITION.
+	SetPersonField(context.Context, *connect.Request[v1.SetPersonFieldRequest]) (*connect.Response[v1.SetPersonFieldResponse], error)
+	// PersonKeys is every field key the cards the profile shows use, for adding a field.
+	PersonKeys(context.Context, *connect.Request[v1.PersonKeysRequest]) (*connect.Response[v1.PersonKeysResponse], error)
 	// Timeline
 	// CachedTimeline returns a room's most recent cached messages for instant display on
 	// entry.
@@ -999,6 +1027,30 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceFileRoomProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("FileRoom")),
+			connect.WithClientOptions(opts...),
+		),
+		people: connect.NewClient[v1.PeopleRequest, v1.PeopleResponse](
+			httpClient,
+			baseURL+BackendServicePeopleProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("People")),
+			connect.WithClientOptions(opts...),
+		),
+		personCard: connect.NewClient[v1.PersonCardRequest, v1.PersonCardResponse](
+			httpClient,
+			baseURL+BackendServicePersonCardProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("PersonCard")),
+			connect.WithClientOptions(opts...),
+		),
+		setPersonField: connect.NewClient[v1.SetPersonFieldRequest, v1.SetPersonFieldResponse](
+			httpClient,
+			baseURL+BackendServiceSetPersonFieldProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("SetPersonField")),
+			connect.WithClientOptions(opts...),
+		),
+		personKeys: connect.NewClient[v1.PersonKeysRequest, v1.PersonKeysResponse](
+			httpClient,
+			baseURL+BackendServicePersonKeysProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("PersonKeys")),
 			connect.WithClientOptions(opts...),
 		),
 		cachedTimeline: connect.NewClient[v1.CachedTimelineRequest, v1.CachedTimelineResponse](
@@ -1763,6 +1815,10 @@ type backendServiceClient struct {
 	removeFromSpace       *connect.Client[v1.RemoveFromSpaceRequest, v1.RemoveFromSpaceResponse]
 	filingPlaces          *connect.Client[v1.FilingPlacesRequest, v1.FilingPlacesResponse]
 	fileRoom              *connect.Client[v1.FileRoomRequest, v1.FileRoomResponse]
+	people                *connect.Client[v1.PeopleRequest, v1.PeopleResponse]
+	personCard            *connect.Client[v1.PersonCardRequest, v1.PersonCardResponse]
+	setPersonField        *connect.Client[v1.SetPersonFieldRequest, v1.SetPersonFieldResponse]
+	personKeys            *connect.Client[v1.PersonKeysRequest, v1.PersonKeysResponse]
 	cachedTimeline        *connect.Client[v1.CachedTimelineRequest, v1.CachedTimelineResponse]
 	timeline              *connect.Client[v1.TimelineRequest, v1.TimelineResponse]
 	messageHistory        *connect.Client[v1.MessageHistoryRequest, v1.MessageHistoryResponse]
@@ -2010,6 +2066,26 @@ func (c *backendServiceClient) FilingPlaces(ctx context.Context, req *connect.Re
 // FileRoom calls backend.v1.BackendService.FileRoom.
 func (c *backendServiceClient) FileRoom(ctx context.Context, req *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error) {
 	return c.fileRoom.CallUnary(ctx, req)
+}
+
+// People calls backend.v1.BackendService.People.
+func (c *backendServiceClient) People(ctx context.Context, req *connect.Request[v1.PeopleRequest]) (*connect.Response[v1.PeopleResponse], error) {
+	return c.people.CallUnary(ctx, req)
+}
+
+// PersonCard calls backend.v1.BackendService.PersonCard.
+func (c *backendServiceClient) PersonCard(ctx context.Context, req *connect.Request[v1.PersonCardRequest]) (*connect.Response[v1.PersonCardResponse], error) {
+	return c.personCard.CallUnary(ctx, req)
+}
+
+// SetPersonField calls backend.v1.BackendService.SetPersonField.
+func (c *backendServiceClient) SetPersonField(ctx context.Context, req *connect.Request[v1.SetPersonFieldRequest]) (*connect.Response[v1.SetPersonFieldResponse], error) {
+	return c.setPersonField.CallUnary(ctx, req)
+}
+
+// PersonKeys calls backend.v1.BackendService.PersonKeys.
+func (c *backendServiceClient) PersonKeys(ctx context.Context, req *connect.Request[v1.PersonKeysRequest]) (*connect.Response[v1.PersonKeysResponse], error) {
+	return c.personKeys.CallUnary(ctx, req)
 }
 
 // CachedTimeline calls backend.v1.BackendService.CachedTimeline.
@@ -2702,6 +2778,23 @@ type BackendServiceHandler interface {
 	// into records the release, so no filter moves it back. A room, tag or space the
 	// profile does not hold is refused, and nothing is filed.
 	FileRoom(context.Context, *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error)
+	// Phonebook
+	// People lists the phonebook's cards ([phonebook] dir, read by kithd from its own
+	// folder) by name, narrowed by the query as :people narrows it, leaving out everyone
+	// the request's profile hides (people.exclude); and the cards it cannot read.
+	People(context.Context, *connect.Request[v1.PeopleRequest]) (*connect.Response[v1.PeopleResponse], error)
+	// PersonCard is one person's card as the folder holds it now, by their ID, by a card
+	// People listed, or by a room's one person; with every ID kith knows them by and your
+	// conversation with them. A person the profile hides is NOT_FOUND.
+	PersonCard(context.Context, *connect.Request[v1.PersonCardRequest]) (*connect.Response[v1.PersonCardResponse], error)
+	// SetPersonField writes one key of a person's card over the card as the client read
+	// it, ABORTED when it is no longer so (read it again), keeping every other key, their
+	// order and comments, and the body byte for byte. A person with no card gets one,
+	// named and placed by kithd, holding every identifier kith knows of theirs. A person
+	// the profile hides is NOT_FOUND; a card kithd cannot read is FAILED_PRECONDITION.
+	SetPersonField(context.Context, *connect.Request[v1.SetPersonFieldRequest]) (*connect.Response[v1.SetPersonFieldResponse], error)
+	// PersonKeys is every field key the cards the profile shows use, for adding a field.
+	PersonKeys(context.Context, *connect.Request[v1.PersonKeysRequest]) (*connect.Response[v1.PersonKeysResponse], error)
 	// Timeline
 	// CachedTimeline returns a room's most recent cached messages for instant display on
 	// entry.
@@ -3178,6 +3271,30 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceFileRoomProcedure,
 		svc.FileRoom,
 		connect.WithSchema(backendServiceMethods.ByName("FileRoom")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServicePeopleHandler := connect.NewUnaryHandler(
+		BackendServicePeopleProcedure,
+		svc.People,
+		connect.WithSchema(backendServiceMethods.ByName("People")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServicePersonCardHandler := connect.NewUnaryHandler(
+		BackendServicePersonCardProcedure,
+		svc.PersonCard,
+		connect.WithSchema(backendServiceMethods.ByName("PersonCard")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceSetPersonFieldHandler := connect.NewUnaryHandler(
+		BackendServiceSetPersonFieldProcedure,
+		svc.SetPersonField,
+		connect.WithSchema(backendServiceMethods.ByName("SetPersonField")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServicePersonKeysHandler := connect.NewUnaryHandler(
+		BackendServicePersonKeysProcedure,
+		svc.PersonKeys,
+		connect.WithSchema(backendServiceMethods.ByName("PersonKeys")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceCachedTimelineHandler := connect.NewUnaryHandler(
@@ -3964,6 +4081,14 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceFilingPlacesHandler.ServeHTTP(w, r)
 		case BackendServiceFileRoomProcedure:
 			backendServiceFileRoomHandler.ServeHTTP(w, r)
+		case BackendServicePeopleProcedure:
+			backendServicePeopleHandler.ServeHTTP(w, r)
+		case BackendServicePersonCardProcedure:
+			backendServicePersonCardHandler.ServeHTTP(w, r)
+		case BackendServiceSetPersonFieldProcedure:
+			backendServiceSetPersonFieldHandler.ServeHTTP(w, r)
+		case BackendServicePersonKeysProcedure:
+			backendServicePersonKeysHandler.ServeHTTP(w, r)
 		case BackendServiceCachedTimelineProcedure:
 			backendServiceCachedTimelineHandler.ServeHTTP(w, r)
 		case BackendServiceTimelineProcedure:
@@ -4315,6 +4440,22 @@ func (UnimplementedBackendServiceHandler) FilingPlaces(context.Context, *connect
 
 func (UnimplementedBackendServiceHandler) FileRoom(context.Context, *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.FileRoom is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) People(context.Context, *connect.Request[v1.PeopleRequest]) (*connect.Response[v1.PeopleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.People is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) PersonCard(context.Context, *connect.Request[v1.PersonCardRequest]) (*connect.Response[v1.PersonCardResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PersonCard is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) SetPersonField(context.Context, *connect.Request[v1.SetPersonFieldRequest]) (*connect.Response[v1.SetPersonFieldResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SetPersonField is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) PersonKeys(context.Context, *connect.Request[v1.PersonKeysRequest]) (*connect.Response[v1.PersonKeysResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PersonKeys is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) CachedTimeline(context.Context, *connect.Request[v1.CachedTimelineRequest]) (*connect.Response[v1.CachedTimelineResponse], error) {

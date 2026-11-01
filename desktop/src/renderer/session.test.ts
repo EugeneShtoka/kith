@@ -1560,3 +1560,91 @@ describe("filing a room", () => {
     expect(view().filing).toBeUndefined();
   });
 });
+
+describe("people and their cards", () => {
+  const dana = "whatsapp:15550100001@s.whatsapp.net";
+  beforeEach(() => {
+    kithd.profiles = ["Home", "Work"];
+    kithd.remembered = "Home";
+    kithd.of("Home").rooms = [room("!d", { name: "Dana Levi", isDirect: true }), room("!g", { name: "Hikers" })];
+    kithd
+      .of("Home")
+      .messages.set("!d", [
+        message({ id: "$1", ts: 10, sender: dana, body: "hi" }, "!d"),
+        message({ id: "$2", ts: 20, sender: "matrix:@eli:example.org", body: "hey" }, "!d"),
+      ]);
+    kithd.of("Home").messages.set("!g", [message({ id: "$3", ts: 30, sender: dana, body: "see you" }, "!g")]);
+    kithd.of("Work").rooms = [room("!w", { name: "Desk" })];
+    kithd.cards.set("Dana Levi", {
+      people: ["matrix:@dana:example.org", dana],
+      fields: { pets: ["Rex"] },
+      revision: 1,
+      conversation: "!d",
+    });
+    kithd.cards.set("Eli", { people: ["matrix:@eli:example.org"], fields: {}, revision: 1, conversation: "" });
+  });
+
+  it("opens a sender's card, writes a field there, and finds everything they said by every ID of theirs", async () => {
+    await started();
+    session.openPerson({ person: dana }, "Dana");
+    await settled();
+    expect(view().people.card?.read?.card?.card).toBe("Dana Levi");
+    session.editField("pets");
+    session.typeField("Rex, Mia");
+    session.saveField();
+    await settled();
+    expect(kithd.cardWrites).toEqual(["Dana Levi pets=Rex,Mia:Home"]);
+    expect(view().people.card?.editing).toBeUndefined();
+    session.searchSaid("Dana", view().people.card?.read?.people ?? []);
+    await settled();
+    expect(view().search?.about).toBe("Dana");
+    expect(view().search?.hits.map((h) => h.eventId)).toEqual(["$3", "$1"]);
+  });
+
+  it("goes from a card People listed to your conversation with them, else opens their card", async () => {
+    await started();
+    session.openPeople("");
+    await settled();
+    expect(view().people.list?.people?.map((p) => p.card)).toEqual(["Dana Levi", "Eli"]);
+    session.findPeople("el");
+    await settled();
+    expect(view().people.list?.people?.map((p) => p.card)).toEqual(["Eli"]);
+    session.goToPerson("Dana Levi");
+    await settled();
+    expect(view().open).toBe("!d");
+    expect(view().people.list).toBeUndefined();
+    session.goToPerson("Eli");
+    await settled();
+    expect(view().people.card?.name).toBe("Eli");
+  });
+
+  it("left for another profile while a card is read or written, shows nothing of it there", async () => {
+    await started();
+    kithd.holding.add("PersonCard");
+    session.openPerson({ person: dana }, "Dana");
+    await settled();
+    await session.choose("Work");
+    await settled();
+    kithd.release();
+    await settled();
+    expect(view().people.card).toBeUndefined();
+
+    kithd.holding.delete("PersonCard");
+    await session.choose("Home");
+    await settled();
+    session.openPerson({ person: dana }, "Dana");
+    await settled();
+    session.editField("pets");
+    session.typeField("Bo");
+    kithd.holding.add("SetPersonField");
+    session.saveField();
+    await settled();
+    await session.choose("Work");
+    await settled();
+    kithd.release();
+    await settled();
+    expect(kithd.cardWrites).toEqual(["Dana Levi pets=Bo:Home"]); // written where it was asked
+    expect(view().people.card).toBeUndefined();
+    expect(view().problem).toBeUndefined();
+  });
+});

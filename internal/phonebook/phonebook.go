@@ -6,16 +6,22 @@
 // Files are matched by identifiers, not name, and re-read on every call since other
 // programs may change them. A write changes one key, keeps other keys' order and
 // comments and the body byte for byte, and lands via rename so no reader sees half a file.
+// It is made over the file as it was read (Card.Revision): a file changed, renamed or
+// removed since is not written (ErrMoved).
 package phonebook
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 )
@@ -37,6 +43,8 @@ type Card struct {
 	IDs  Identifiers
 	// Fields are the other keys, in the file's order.
 	Fields []Field
+	// Revision is the file as read, its name and its bytes: a write is made over it alone.
+	Revision string
 }
 
 // Field is one of a person's other keys.
@@ -56,8 +64,35 @@ func New(dir string) *Book { return &Book{dir: dir} }
 // Dir is the folder.
 func (b *Book) Dir() string { return b.dir }
 
-// errNoFrontMatter is a file that does not start with a front matter block.
-var errNoFrontMatter = errors.New("no front matter")
+var (
+	// errNoFrontMatter is a file that does not start with a front matter block: no card.
+	errNoFrontMatter = errors.New("no front matter")
+	// ErrMalformed is a card whose front matter kith cannot read: it is not YAML, or not
+	// keys and values. It is never written.
+	ErrMalformed = errors.New("its front matter is not YAML keys and values")
+	// ErrMoved is a write refused because the card is no longer as it was read: another
+	// program wrote, renamed or removed it, or made the person a card, since.
+	ErrMoved = errors.New("phonebook: the card changed since it was read")
+	// ErrField is a key or a value no card may hold.
+	ErrField = errors.New("phonebook: not a field a card holds")
+)
+
+// Unreadable is a card of the folder kith cannot read (ErrMalformed).
+type Unreadable struct {
+	// Name is the file's name without .md.
+	Name string
+	Err  error
+}
+
+const (
+	// maxName bounds a new card's name, in bytes, leaving room for " 1000.md" within the
+	// 255 bytes a file name may have.
+	maxName = 200
+	// maxNumbered bounds the numbers a new card's name is tried with.
+	maxNumbered = 1000
+	// maxKey bounds a field's key, in bytes.
+	maxKey = 128
+)
 
 // Find returns the first card, by file name, sharing an identifier with ids. A missing
 // folder holds no one.
@@ -73,6 +108,10 @@ func (b *Book) Find(ids Identifiers) (Card, bool, error) {
 // Cards returns every card, by file name. A missing folder holds no one.
 func (b *Book) Cards() ([]Card, error) { return b.cards() }
 
+// Scan returns every card, by file name, and the cards whose front matter cannot be
+// read. A missing folder holds no one.
+func (b *Book) Scan() ([]Card, []Unreadable, error) { return b.scan() }
+
 // Read returns the card at path as the file has it now.
 func (b *Book) Read(path string) (Card, error) { return read(path) }
 
@@ -85,17 +124,10 @@ func (b *Book) Keys() ([]string, error) {
 	return NewIndex(cards).Keys(), nil
 }
 
-// Create writes a new card with ids and the person tag, named after name (sanitized,
-// numbered when taken).
-func (b *Book) Create(name string, ids Identifiers) (Card, error) {
-	if err := os.MkdirAll(b.dir, 0o700); err != nil {
-		return Card{}, fmt.Errorf("phonebook: make %s: %w", b.dir, err)
-	}
-	base := fileName(name)
-	path := filepath.Join(b.dir, base+".md")
-	for n := 2; exists(path); n++ {
-		path = filepath.Join(b.dir, fmt.Sprintf("%s %d.md", base, n))
-	}
+// create writes a new card with ids and the person tag, named after name (made safe,
+// numbered when taken). It never replaces a file: a name another program took meanwhile
+// is passed over for the next number.
+func (b *Book) create(name string, ids Identifiers) (Card, error) {
 	doc := &yaml.Node{Kind: yaml.MappingNode}
 	for _, key := range IdentifierKeys {
 		if values := ids[key]; len(values) > 0 {
@@ -103,68 +135,162 @@ func (b *Book) Create(name string, ids Identifiers) (Card, error) {
 		}
 	}
 	setKey(doc, "tags", []string{"person"}, true)
-	if err := write(path, doc, nil); err != nil {
+	base := fileName(name)
+	tmp, err := stage(filepath.Join(b.dir, base+".md"), doc, nil, 0o600)
+	if err != nil {
 		return Card{}, err
 	}
-	return read(path)
+	// The card is a link of its own once made; the staged name goes either way.
+	defer func() { _ = os.Remove(tmp) }()
+	for n := 1; n <= maxNumbered; n++ {
+		path := filepath.Join(b.dir, base+".md")
+		if n > 1 {
+			path = filepath.Join(b.dir, fmt.Sprintf("%s %d.md", base, n))
+		}
+		// A link is made only where nothing is: the file appears whole, never over another.
+		err := os.Link(tmp, path)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return Card{}, fmt.Errorf("phonebook: write %s: %w", path, err)
+		}
+		return read(path)
+	}
+	return Card{}, fmt.Errorf("phonebook: %d cards are named %s already", maxNumbered, base)
 }
 
-// Set writes one key of the card at path, as a list when list; no values removes it.
-// The rest of the file is kept.
-func (b *Book) Set(path, key string, values []string, list bool) (Card, error) {
-	raw, err := os.ReadFile(path) //nolint:gosec // G304: a card the folder holds
+// set writes one key of the card as it was read (its Path and Revision), as a list when
+// list; no values removes it. The rest of the file is kept. A file changed, renamed or
+// removed since it was read is not written: ErrMoved.
+func (b *Book) set(card Card, key string, values []string, list bool) (Card, error) {
+	if err := CheckField(key, values); err != nil {
+		return Card{}, err
+	}
+	raw, err := readFile(card.Path)
+	if errors.Is(err, os.ErrNotExist) {
+		return Card{}, ErrMoved
+	}
 	if err != nil {
-		return Card{}, fmt.Errorf("phonebook: read %s: %w", path, err)
+		return Card{}, err
+	}
+	if revision(card.Path, raw) != card.Revision {
+		return Card{}, ErrMoved
 	}
 	doc, body, err := parse(raw)
 	if err != nil {
-		return Card{}, fmt.Errorf("phonebook: %s: %w", path, err)
+		return Card{}, fmt.Errorf("phonebook: %s: %w", filepath.Base(card.Path), err)
 	}
 	if len(values) == 0 {
 		removeKey(doc, key)
 	} else {
 		setKey(doc, key, values, list)
 	}
-	if err := write(path, doc, body); err != nil {
+	if err := replace(card.Path, doc, body, raw); err != nil {
 		return Card{}, err
 	}
-	return read(path)
+	return read(card.Path)
+}
+
+// Write sets one key on a person's card as it was read: one changed, renamed or removed
+// since is not written (ErrMoved); no values removes the key, and the rest of the file
+// is kept. A person who had no card (read.Path "") is given one named after name (made
+// safe, numbered when taken, never over another file) with ids and the person tag,
+// unless a card holding any of ids is there now: ErrMoved. No values for a person with
+// no card writes nothing.
+// kith's writers of the folder, in any process, write one at a time (lockDir), so two
+// never both make a person's card.
+func (b *Book) Write(read Card, name string, ids Identifiers, key string, values []string, list bool) (Card, error) {
+	if err := CheckField(key, values); err != nil || (read.Path == "" && len(values) == 0) {
+		return Card{}, err
+	}
+	if err := os.MkdirAll(b.dir, 0o700); err != nil {
+		return Card{}, fmt.Errorf("phonebook: make %s: %w", b.dir, err)
+	}
+	defer lockDir(b.dir)()
+	if read.Path != "" {
+		return b.set(read, key, values, list)
+	}
+	_, found, err := b.Find(ids)
+	if err != nil {
+		return Card{}, err
+	}
+	if found {
+		return Card{}, ErrMoved
+	}
+	made, err := b.create(name, ids)
+	if err != nil {
+		return Card{}, err
+	}
+	return b.set(made, key, values, list)
+}
+
+// CheckField reports whether a card may hold key with values: a key of text with no
+// colon, #, or control character, not starting with "-" nor blank around it, at most
+// maxKey bytes; values of text with no control character (a line break among them).
+func CheckField(key string, values []string) error {
+	switch {
+	case key == "" || strings.TrimSpace(key) != key:
+		return fmt.Errorf("%w: a field needs a name with no blank around it", ErrField)
+	case len(key) > maxKey:
+		return fmt.Errorf("%w: a field's name is at most %d bytes", ErrField, maxKey)
+	case !utf8.ValidString(key) || strings.ContainsFunc(key, unicode.IsControl):
+		return fmt.Errorf("%w: a field's name is one line of text", ErrField)
+	case strings.ContainsAny(key, ":#") || strings.HasPrefix(key, "-"):
+		return fmt.Errorf("%w: a field's name cannot hold : or #, nor start with -", ErrField)
+	}
+	for _, v := range values {
+		if !utf8.ValidString(v) || strings.ContainsFunc(v, unicode.IsControl) {
+			return fmt.Errorf("%w: a value of %s is not one line of text", ErrField, key)
+		}
+	}
+	return nil
 }
 
 // cards returns every card by file name, skipping files without mapping front matter.
 func (b *Book) cards() ([]Card, error) {
+	cards, _, err := b.scan()
+	return cards, err
+}
+
+// scan returns every card by file name, and the cards that cannot be read: files whose
+// front matter is not a YAML mapping. A file with no front matter is not a card.
+func (b *Book) scan() ([]Card, []Unreadable, error) {
 	entries, err := os.ReadDir(b.dir)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("phonebook: read %s: %w", b.dir, err)
+		return nil, nil, fmt.Errorf("phonebook: read %s: %w", b.dir, err)
 	}
 	var out []Card
+	var unreadable []Unreadable
 	for _, e := range entries {
 		if e.IsDir() || !strings.EqualFold(filepath.Ext(e.Name()), ".md") {
 			continue
 		}
 		card, err := read(filepath.Join(b.dir, e.Name()))
-		if err != nil {
-			continue
+		switch {
+		case errors.Is(err, ErrMalformed):
+			unreadable = append(unreadable, Unreadable{Name: nameOf(e.Name()), Err: err})
+		case err == nil:
+			out = append(out, card)
 		}
-		out = append(out, card)
 	}
-	return out, nil
+	return out, unreadable, nil
 }
 
 // read is the card in one file.
 func read(path string) (Card, error) {
-	raw, err := os.ReadFile(path) //nolint:gosec // G304: a card the folder holds
+	raw, err := readFile(path)
 	if err != nil {
-		return Card{}, fmt.Errorf("phonebook: read %s: %w", path, err)
+		return Card{}, err
 	}
 	doc, _, err := parse(raw)
 	if err != nil {
-		return Card{}, fmt.Errorf("phonebook: %s: %w", path, err)
+		return Card{}, fmt.Errorf("phonebook: %s: %w", filepath.Base(path), err)
 	}
-	card := Card{Path: path, Name: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), IDs: Identifiers{}}
+	card := Card{Path: path, Name: nameOf(path), IDs: Identifiers{}, Revision: revision(path, raw)}
 	for i := 0; i+1 < len(doc.Content); i += 2 {
 		key, value := doc.Content[i].Value, doc.Content[i+1]
 		values, list := valuesOf(value)
@@ -175,6 +301,29 @@ func read(path string) (Card, error) {
 		card.Fields = append(card.Fields, Field{Key: key, Values: values, List: list})
 	}
 	return card, nil
+}
+
+// readFile is a card's file as it is now.
+func readFile(path string) ([]byte, error) {
+	raw, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return nil, fmt.Errorf("phonebook: read %s: %w", path, err)
+	}
+	return raw, nil
+}
+
+// nameOf is a card's name: its file's, without the extension.
+func nameOf(path string) string {
+	return strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+}
+
+// revision is a card's file as read at path: its name and its bytes.
+func revision(path string, raw []byte) string {
+	h := sha256.New()
+	h.Write([]byte(filepath.Base(path)))
+	h.Write([]byte{0})
+	h.Write(raw)
+	return hex.EncodeToString(h.Sum(nil)[:16])
 }
 
 // parse splits a file into its front matter, as a mapping node, and its body.
@@ -203,7 +352,7 @@ func parse(raw []byte) (*yaml.Node, []byte, error) {
 	}
 	var file yaml.Node
 	if err := yaml.Unmarshal(front, &file); err != nil {
-		return nil, nil, fmt.Errorf("front matter: %w", err)
+		return nil, nil, fmt.Errorf("%w (%w)", ErrMalformed, err)
 	}
 	if len(file.Content) == 0 {
 		return &yaml.Node{Kind: yaml.MappingNode}, body, nil
@@ -211,49 +360,63 @@ func parse(raw []byte) (*yaml.Node, []byte, error) {
 	if doc := file.Content[0]; doc.Kind == yaml.MappingNode {
 		return doc, body, nil
 	}
-	return nil, nil, errors.New("front matter is not a mapping")
+	return nil, nil, ErrMalformed
 }
 
-// write puts front matter and body into path through a rename.
-func write(path string, doc *yaml.Node, body []byte) error {
+// replace puts front matter and body into path through a rename, if the file still
+// holds was when it is about to: else ErrMoved.
+func replace(path string, doc *yaml.Node, body, was []byte) error {
+	mode := os.FileMode(0o600)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
+	tmp, err := stage(path, doc, body, mode)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(tmp) }() // gone once renamed
+	if now, err := readFile(path); err != nil || !bytes.Equal(now, was) {
+		return ErrMoved
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("phonebook: write %s: %w", path, err)
+	}
+	return nil
+}
+
+// stage writes front matter and body to a hidden file beside path, with mode, and
+// returns its name, for the caller to put in place and remove.
+func stage(path string, doc *yaml.Node, body []byte, mode os.FileMode) (string, error) {
 	var buf bytes.Buffer
 	buf.WriteString("---\n")
 	if len(doc.Content) > 0 {
 		enc := yaml.NewEncoder(&buf)
 		enc.SetIndent(2)
 		if err := enc.Encode(doc); err != nil {
-			return fmt.Errorf("phonebook: write %s: %w", path, err)
+			return "", fmt.Errorf("phonebook: write %s: %w", path, err)
 		}
 		if err := enc.Close(); err != nil {
-			return fmt.Errorf("phonebook: write %s: %w", path, err)
+			return "", fmt.Errorf("phonebook: write %s: %w", path, err)
 		}
 	}
 	buf.WriteString("---\n")
 	buf.Write(body)
-	mode := os.FileMode(0o600)
-	if info, err := os.Stat(path); err == nil {
-		mode = info.Mode().Perm()
-	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
 	if err != nil {
-		return fmt.Errorf("phonebook: write %s: %w", path, err)
+		return "", fmt.Errorf("phonebook: write %s: %w", path, err)
 	}
-	defer os.Remove(tmp.Name()) //nolint:errcheck // gone once renamed
-	if _, err := tmp.Write(buf.Bytes()); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("phonebook: write %s: %w", path, err)
+	_, err = tmp.Write(buf.Bytes())
+	if err == nil {
+		err = tmp.Chmod(mode)
 	}
-	if err := tmp.Chmod(mode); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("phonebook: write %s: %w", path, err)
+	if closed := tmp.Close(); err == nil {
+		err = closed
 	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("phonebook: write %s: %w", path, err)
+	if err != nil {
+		_ = os.Remove(tmp.Name())
+		return "", fmt.Errorf("phonebook: write %s: %w", path, err)
 	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
-		return fmt.Errorf("phonebook: write %s: %w", path, err)
-	}
-	return nil
+	return tmp.Name(), nil
 }
 
 // valuesOf is a value node as strings: a list's items, or the one scalar; anything
@@ -337,26 +500,28 @@ func digits(s string) string {
 	return b.String()
 }
 
-// fileName strips from name what a file system or vault would refuse.
+// fileName strips from name what a file system or vault would refuse, or would show as
+// other than it is (direction controls), and shortens it to maxName bytes; nothing left
+// is "Person". It never holds a separator, nor is "." or "..", so a card's file is
+// always one of the folder's own.
 func fileName(name string) string {
 	name = strings.Map(func(r rune) rune {
 		switch r {
-		case '/', '\\', ':', '*', '?', '"', '<', '>', '|', '#', '^', '[', ']':
+		case '/', '\\', ':', '*', '?', '"', '<', '>', '|', '#', '^', '[', ']', utf8.RuneError:
 			return -1
 		}
-		if r < ' ' {
+		if unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) {
 			return -1
 		}
 		return r
 	}, strings.TrimSpace(name))
+	for len(name) > maxName {
+		_, size := utf8.DecodeLastRuneInString(name)
+		name = name[:len(name)-size]
+	}
 	name = strings.Trim(strings.TrimSpace(name), ".")
 	if name == "" {
 		return "Person"
 	}
 	return name
-}
-
-func exists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }

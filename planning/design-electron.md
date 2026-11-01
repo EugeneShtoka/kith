@@ -461,7 +461,10 @@ After the MVP, each with its own PR and review:
 - SAS verification (landed 2026-10-31: your own sessions, as the TUI's `:verify`;
   kithd takes one answer to each step and tells every client);
 - the settings editor (it needs a structured config call; `GetConfig` is TOML text);
-- people and phonebook (needs an RPC);
+- people and phonebook (landed 2026-11-01: kithd serves its own `[phonebook] dir`
+  with `People`, `PersonCard`, `SetPersonField` and `PersonKeys`, each card written over
+  the revision the window read; the card from a sender or a DM's header, People, and
+  field terms in the switcher; the TUI keeps reading the folder beside the bridge);
 - tags and filing (landed 2026-10-31: the TUI's filing picker from a room's header or
   row; kithd's `FilingPlaces` offers the places and `FileRoom` files them on the config
   as it is when it writes, with the archive and the release, so the window has no

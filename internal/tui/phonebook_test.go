@@ -4,9 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -117,6 +120,38 @@ func TestACardIsEditedAField(t *testing.T) {
 	if !strings.Contains(text, "pets: [Rex, Mia]") || strings.Contains(text, "origin") || !strings.Contains(text, "spouse: '[[Noa Stone]]'") || !strings.HasSuffix(text, "Old friend.\n") ||
 		!strings.Contains(text, "children:\n  - Noa\n  - Tom") {
 		t.Errorf("card:\n%s", text)
+	}
+}
+
+// A card another program changed since it was opened is not written over: it is read
+// again and shown as it is now, saying so, and the other program's change stays.
+func TestACardChangedMeanwhileIsReadAgain(t *testing.T) {
+	t.Parallel()
+	m, dir := carding(t, nil)
+	m = cardOf(t, m, "eli")
+	path := filepath.Join(dir, "Eli Stone.md")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(strings.Replace(string(raw), "pets: [Rex]", "pets: [Bo]", 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m = pickLabel(t, m, "pets")
+	m.prompt.input = ""
+	for _, r := range "Rex, Mia" {
+		m, _ = press(t, m, keyText(string(r)))
+	}
+	next, cmd := press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = settle(t, next, cmd) // written, refused, read again
+	if after, _ := os.ReadFile(path); !strings.Contains(string(after), "pets: [Bo]") || strings.Contains(string(after), "Mia") {
+		t.Errorf("written over the other program's change:\n%s", after)
+	}
+	if got := rows(m); m.picker.kind != pickerPerson || !slices.Contains(got, "pets=Bo") {
+		t.Errorf("the card shown: %v %v", m.picker.kind, got)
+	}
+	if !strings.Contains(m.status(), "changed since it was read") {
+		t.Errorf("said %q", m.status())
 	}
 }
 

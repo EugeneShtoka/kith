@@ -102,10 +102,22 @@ and again when a room's members change.
 
 A change rewrites the card's front matter with the one key changed and the others kept
 in their order, with their comments; the body is kept byte for byte. The file is
-replaced through a rename, so a program reading it never sees half of it. A card is read
+replaced through a rename, so a program reading it never sees half of it. It is written
+only over the card as kith read it: if another program changed it since, renamed it or
+removed it, nothing is written, and kith shows the card as it is now to write again.
+kith's own writers (the terminal client, `kithd` for the desktop) write one at a time,
+so two never both make a person's card; kith keeps nothing of its own in the folder for
+it. A new card's file name is the person's name with what a file system or vault would
+refuse taken out, cut to 200 bytes. A card is read
 afresh each time it opens, so what another program wrote shows at once. The search and
 the field beside names read the folder when the config changes, when kith writes a card,
 when a card or `:people` opens, and when the room list refreshes.
+
+## In the desktop
+
+The [desktop](desktop.md#people-and-their-cards) has no folder of its own: `kithd`
+serves it the cards of its `[phonebook] dir` and writes them for it. The window names a
+person by an ID or a card by the name `kithd` listed it under, never a file.
 
 ## For an assistant
 

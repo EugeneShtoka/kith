@@ -196,9 +196,17 @@ export function Row({
         <div className="content">
           {!grouped && (
             <header>
-              <span className={`sender ${faceClass(faces, m.sender)}`} dir="auto">
+              <button
+                type="button"
+                className={`sender sender-card ${faceClass(faces, m.sender)}`}
+                dir="auto"
+                title="Their phonebook card"
+                onClick={() => {
+                  session.openPerson({ person: m.sender }, m.senderName || m.sender);
+                }}
+              >
                 {m.senderName || m.sender}
-              </span>{" "}
+              </button>{" "}
               {at && (
                 <time className="detail" title={clock.format(at)}>
                   {hours.format(at)}
