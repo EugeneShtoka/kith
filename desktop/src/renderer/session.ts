@@ -7,6 +7,8 @@ import {
   BackendService,
   Change,
   type Account,
+  type ConfigSettingsResponse,
+  type ConfigValue,
   type Device as PairedDevice,
   type FollowStreamResponse,
   type LoginNetwork,
@@ -32,6 +34,7 @@ import { Login, type LoginCalls, type LoginView } from "./login";
 import { type OfferCalls, Offers, type Prompt } from "./offers";
 import { noPeople, People, type PeopleCalls, type PeopleView, type Who } from "./people";
 import type { Asked } from "./polls";
+import { type Bridge, change as changeConfig } from "./config";
 import { changeTheme, type ThemeRelay, themeLabel, type Scope, type Slots } from "./theme";
 import { announces } from "./read";
 import { ordered, total } from "./rooms";
@@ -147,6 +150,8 @@ export interface View {
   theme: ThemeResponse | undefined;
   /** A change of the theme being written, and what the last one says (gave way, or failed). */
   themeChange: { busy: boolean; note: string };
+  /** The settings page's bridge settings: config.toml's, every device's (config.ts). */
+  config: ConfigView;
   /** The open room's remembered sender colors (SenderSlots). */
   slots: Slots;
   /** The settings page's accounts: the networks to log in to, and a login under way. */
@@ -175,6 +180,24 @@ export interface SettingsPage {
   /** What the page says: a change that gave way to another writer's, or a failure. */
   note: string;
 }
+
+/** The bridge's settings on the settings page, each change set at once. */
+export interface ConfigView {
+  /** The settings as last read or set; undefined while read, or when they could not be. */
+  read: ConfigSettingsResponse | undefined;
+  /** A change being set: the page takes no other meanwhile. */
+  busy: boolean;
+  /** What the page says: a change that gave way to another writer's, or a failure. */
+  note: string;
+}
+
+const noConfig: ConfigView = { read: undefined, busy: false, note: "" };
+
+/** bridgeSettings is the bridge's settings through main: kithd lists them and sets one; the window never holds the file. */
+const bridgeSettings: Bridge = {
+  read: () => call(backend.configSettings, {}),
+  write: (base, path, value) => call(backend.setConfigSetting, { baseRevision: base, path, value }),
+};
 
 /** relay is device.toml's settings through the relay, as the settings page changes them. */
 const relay: Device = {
@@ -357,6 +380,7 @@ export class Session {
     settingsPage: undefined,
     theme: undefined,
     themeChange: { busy: false, note: "" },
+    config: noConfig,
     login: { networks: undefined, run: undefined, note: "" },
     devices: noDevices,
     offers: { prompt: undefined, note: "" },
@@ -403,6 +427,9 @@ export class Session {
   private settingsReads = 0;
   /** Counts the theme's reads and writes, likewise. */
   private themeReads = 0;
+  /** Counts the bridge settings' reads and changes, likewise; and the page's openings and closings. */
+  private configReads = 0;
+  private configPage = 0;
   /** What the window last told kithd it has open, and when. */
   private presented = { room: "", at: 0 };
   /** Counts the filing pickers opened: only the last one's places are shown. */
@@ -473,8 +500,14 @@ export class Session {
   /** openSettings shows the settings page, the settings read afresh. */
   openSettings(): void {
     const mine = ++this.settingsReads;
-    this.set({ settingsPage: { read: undefined, busy: false, note: "" }, themeChange: { busy: false, note: "" } });
+    this.configPage++;
+    this.set({
+      settingsPage: { read: undefined, busy: false, note: "" },
+      themeChange: { busy: false, note: "" },
+      config: noConfig,
+    });
     this.readTheme(); // device.toml may have been changed since, by the TUI or by hand
+    this.readConfig();
     this.login.read();
     this.devices.read();
     relay.read().then(
@@ -494,9 +527,11 @@ export class Session {
   /** closeSettings goes back from the settings page; an answer still on its way is dropped. */
   closeSettings(): void {
     this.settingsReads++;
+    this.configReads++;
+    this.configPage++;
     this.devices.closePairing();
     this.devices.dismissJoin();
-    this.set({ settingsPage: undefined });
+    this.set({ settingsPage: undefined, config: noConfig });
   }
 
   /** pairDevice opens a pairing for a new device, listed as name ("": the name it gives). */
@@ -569,6 +604,66 @@ export class Session {
     if (mine === this.settingsReads) {
       this.set({ settingsPage: { read, busy: false, note } });
     }
+  }
+
+  /**
+   * changeConfig sets one of the bridge's settings at once (undefined clears it), onto the
+   * file as another writer may have left it meanwhile (config.change). The page shows the
+   * setting as kithd then holds it. The config is the bridge's, so a change asked in one
+   * profile stands whichever the window runs in by the time it is answered; one answered
+   * after the page closed is dropped.
+   */
+  async changeConfig(path: string, value: ConfigValue | undefined): Promise<void> {
+    const shown = this.view.config.read;
+    if (shown === undefined || this.view.config.busy) {
+      return;
+    }
+    const mine = ++this.configReads; // a read under way shows the file from before this change: dropped
+    const page = this.configPage;
+    const label = shown.settings.find((s) => s.path === path)?.label ?? path;
+    // Shown as asked while it is set, so a control does not spring back meanwhile.
+    const asked = { ...shown, settings: shown.settings.map((s) => (s.path === path ? { ...s, value } : s)) };
+    this.set({ config: { read: asked, busy: true, note: "" } });
+    let read = shown;
+    let note = "";
+    try {
+      const got = await changeConfig(bridgeSettings, shown, path, value);
+      read = got.read;
+      if (got.kept) {
+        note = `${label} was changed elsewhere meanwhile: the page shows it as it is now.`;
+      }
+    } catch (err) {
+      note = `${label} was not saved: ${errorText(err)}`;
+    }
+    if (page !== this.configPage) {
+      return;
+    }
+    // A read started since (a change told on ConfigChanged, this one's or another
+    // writer's) shows the file as it is, or will once answered; else this answer does.
+    this.set({ config: { read: mine === this.configReads ? read : this.view.config.read, busy: false, note } });
+  }
+
+  /**
+   * readConfig reads the bridge's settings for the settings page, keeping what it says
+   * meanwhile. Only the last read or change started is shown: a change's own write is
+   * told on ConfigChanged, so a read from before it is followed by one from after.
+   */
+  private readConfig(): void {
+    const mine = ++this.configReads;
+    bridgeSettings.read().then(
+      (read) => {
+        if (mine === this.configReads) {
+          this.set({ config: { ...this.view.config, read } });
+        }
+      },
+      (err: unknown) => {
+        if (mine === this.configReads) {
+          this.set({
+            config: { ...this.view.config, note: `The bridge's settings could not be read: ${errorText(err)}` },
+          });
+        }
+      },
+    );
   }
 
   /**
@@ -1401,6 +1496,9 @@ export class Session {
         if (e.kind === "frames" || (e.kind === "attached" && reopened)) {
           this.readDevice();
           this.readRooms(run);
+          if (this.view.settingsPage !== undefined) {
+            this.readConfig(); // another writer's change shows on the page
+          }
         } else if (e.kind === "attached") {
           this.readTheme(); // kithd may have been away when the window started
         }

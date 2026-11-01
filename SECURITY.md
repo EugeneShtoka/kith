@@ -225,6 +225,20 @@ and holds the least:
   written or asked of a network, and makes the calls a filing needs (`AddToSpace`,
   `RemoveFromSpace`, `SetRoomArchived`, `MarkTag`) itself; none of those is on the
   page's list.
+- **The page sets the bridge's settings one at a time, from kithd's list.** It has two
+  calls, `ConfigSettings` and `SetConfigSetting`, and never the config's text: kithd
+  lists the settings the page may set and sets one, by its TOML path, over the file
+  at the revision the page read, checked as `UpdateConfig` checks a config. What may be
+  set is a list in kithd (`internal/daemon/configsettings.go`), every other property
+  refused whatever the page sends, and a test holds every property of the bridge's file
+  to that list or to an exclusion with its reason. Excluded: anything naming a program,
+  a folder, an address or a port, the networks' sections, `allow_token_file`, `[log]`,
+  `[backup]`, the whole of `[assist]` (where a conversation is sent, with which key, from
+  which rooms and how much of it) and `[agent]` (what an assistant may read and write),
+  the clipboard's auto-copy of one-time codes, and the lists of places (a profile's page
+  would be shown, and could drop, another profile's rooms). `ConfigChanged` reaches the
+  page with the config's text taken out by main: the page learns that the config
+  changed, and its revision.
 - **The page reaches the phonebook only through kithd.** It reads and writes cards with
   four calls (`People`, `PersonCard`, `SetPersonField`, `PersonKeys`) and names a
   person by an ID, a card by the name kithd listed it under, or a DM; kithd looks a

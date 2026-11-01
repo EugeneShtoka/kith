@@ -629,7 +629,8 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
    on both bridges; a network echoing an older receipt, a mark unread
    concurrent with a read, a room a bridge does not run, a cache rebuilt under a mesh
    that holds positions, a removed replica's reads (kept).
-5. **feat: the shared config crosses bridges.** `config.Local`, per-key registers,
+5. **feat: the shared config crosses bridges.** `config.Local`, per-key registers (a
+   window's `SetConfigSetting` already writes one, by its path, over a revision),
    rendering, the three-way read of a hand edit, conflicts (`kith config conflicts`,
    the settings screen), a merged config that does not check, the join's
    `config.toml.pre-mesh` with its printed list, log warning and popup;

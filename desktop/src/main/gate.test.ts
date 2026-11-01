@@ -185,6 +185,8 @@ const allowedCalls = [
   "PersonCard",
   "SetPersonField",
   "PersonKeys",
+  "ConfigSettings",
+  "SetConfigSetting",
   "Devices",
   "ConfirmPairing",
   "RemoveDevice",
@@ -835,6 +837,28 @@ describe("the gate", () => {
     // What a filing makes, and the whole config, stay out of the window's reach.
     for (const name of ["AddToSpace", "RemoveFromSpace", "SetRoomArchived", "MarkTag", "UpdateConfig", "GetConfig"]) {
       expect(await outcome(window, name, empty), name).toBe("refused");
+    }
+  });
+
+  it("tells the window that the config changed and its revision, never what it holds", async () => {
+    await device();
+    const changed = listen("ConfigChanged");
+    await until(() => kithd.received.some((r) => r.method === "ConfigChanged"), "the stream to open");
+    kithd.sendOn(backend.configChanged, { config: 'assist.key_ref = "groq"\n', revision: "r2" });
+    kithd.sendOn(backend.configChanged, { config: 'backup.key = "k"\n', revision: "r3" });
+    const frames = () => changed.events.flatMap((e) => (e.kind === "frames" ? e.frames : []));
+    await until(() => frames().length === 2, "both frames");
+    expect(frames().map((f) => fromBinary(backend.configChanged.output, f))).toMatchObject([
+      { config: "", revision: "r2" },
+      { config: "", revision: "r3" },
+    ]);
+    changed.stop();
+    // The whole config stays out of reach; its settings are kithd's to list and set.
+    for (const name of ["GetConfig", "UpdateConfig", "CheckConfig", "ReloadConfig"]) {
+      expect(await outcome(window, name, empty), name).toBe("refused");
+    }
+    for (const name of ["ConfigSettings", "SetConfigSetting"]) {
+      expect(await outcome(window, name, empty), name).toBe("answered");
     }
   });
 

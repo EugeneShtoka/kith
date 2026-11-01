@@ -460,7 +460,20 @@ After the MVP, each with its own PR and review:
 - network logins (QR) (landed 2026-10-31: Settings → Accounts, and signing out);
 - SAS verification (landed 2026-10-31: your own sessions, as the TUI's `:verify`;
   kithd takes one answer to each step and tells every client);
-- the settings editor (it needs a structured config call; `GetConfig` is TOML text);
+- the settings editor (landed 2026-11-01: kithd's `ConfigSettings` lists the bridge's
+  settings a window may set, typed (kind, choices, bounds, default, value, the doc
+  text), and `SetConfigSetting` sets or clears one property over the revision the
+  window read, checked and written as `UpdateConfig` writes, a property being one
+  register of design-mesh.md's shared config; what may be set is a list in Go, every
+  other property excluded with its reason; Settings → Every device's settings shows
+  them under the TUI's groups with a reset and the doc text, rebasing one key on
+  ABORTED as the device page does; `ConfigChanged` reaches the window without the
+  config's text). Left for later: the record tables (`[[notifications.rule]]` with
+  quiet hours as a time range, `[[display.name]]`, `[[display.identity]]`,
+  `[[display.space_rule]]`, `[[filter]]`), each an array register written whole; the
+  place lists (`codes.include`/`exclude`, `display.priority`, `display.rail.*`), with
+  Places settings, narrowed per profile; the TUI's hand-written rows that pair two keys
+  (code length as one range); and the TUI moving onto the call;
 - people and phonebook (landed 2026-11-01: kithd serves its own `[phonebook] dir`
   with `People`, `PersonCard`, `SetPersonField` and `PersonKeys`, each card written over
   the revision the window read; the card from a sender or a DM's header, People, and

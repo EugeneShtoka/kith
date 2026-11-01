@@ -15,6 +15,9 @@ import {
 
 import {
   BackendService,
+  type ConfigSetting,
+  ConfigSettingSchema,
+  type ConfigValue,
   type FollowStreamResponse,
   type Misspelling,
   MisspellingSchema,
@@ -48,6 +51,7 @@ import {
   ThemeSource,
   ThemeValueSchema,
 } from "../../gen/device/v1/device_pb";
+import { same, words } from "../config";
 import { compare } from "../merge";
 import type { KithBridge, ThemeMode, Offered, StreamEvent } from "../../shared/ipc";
 import { runIn } from "../../shared/profile";
@@ -123,6 +127,17 @@ export class Kithd {
     sendReceipts: true,
     unreadLine: true,
   });
+  /**
+   * The bridge's settings as kithd lists them (ConfigSettings), config.toml's revision
+   * being configRevision (the theme's file too); every setting set, as
+   * "path=words:profile". A set over a revision gone by is ABORTED, and configRefusal
+   * refuses one as a config kithd would not run with.
+   */
+  configSettings: ConfigSetting[] = [];
+  readonly configSets: string[] = [];
+  configRefusal = "";
+  /** Runs as the next SetConfigSetting reaches kithd: another writer of config.toml first. */
+  beforeConfigWrite: (() => void) | undefined;
   /** device.toml's revision: each write makes a new one. */
   settingsRevision = 1;
   /** Runs as the next settings write reaches the relay: another writer of device.toml first. */
@@ -397,6 +412,34 @@ export class Kithd {
     }
   }
 
+  /**
+   * setsConfig is another writer of config.toml (the TUI's settings screen, a hand edit,
+   * another window) setting path: a new revision, told on every ConfigChanged stream.
+   */
+  setsConfig(path: string, value: ConfigValue | undefined): void {
+    const s = this.configSettings.find((x) => x.path === path);
+    if (s !== undefined) {
+      s.value = value;
+    }
+    this.configChanged();
+  }
+
+  /** configChanged is config.toml at a new revision, told on every ConfigChanged stream, the config's text left out. */
+  configChanged(): void {
+    this.configRevision++;
+    for (const s of this.open(backend.configChanged.name)) {
+      this.post(s, {
+        kind: "frames",
+        frames: [
+          toBinary(
+            backend.configChanged.output,
+            create(backend.configChanged.output, { revision: String(this.configRevision) }),
+          ),
+        ],
+      });
+    }
+  }
+
   /** setInvites changes profile's invitations and sends the whole set. */
   setInvites(profile: string, invites: Room[]): void {
     this.of(profile).invites = invites;
@@ -483,11 +526,21 @@ export class Kithd {
     if (!this.up && (!device || this.joined !== "")) {
       throw new Error("kithd is not reachable");
     }
-    // Read as kithd reads it, now; held back, the answer is on its way meanwhile.
-    const answer = this.answer(name, profile, request);
+    // Read as kithd reads it, now; held back, the answer (or the refusal) is on its way meanwhile.
+    const answered = (() => {
+      try {
+        return { answer: this.answer(name, profile, request) };
+      } catch (err) {
+        return { err };
+      }
+    })();
     if (this.holding.has(name)) {
       await new Promise<void>((resolve) => this.held.push(resolve));
     }
+    if ("err" in answered) {
+      throw answered.err;
+    }
+    const answer = answered.answer;
     if (name === DeviceService.method.device.name) {
       const d = answer as MessageShape<typeof DeviceService.method.device.output>;
       this.use(runIn(this.profile, d.profile, d.profiles));
@@ -1027,6 +1080,36 @@ export class Kithd {
         }
         this.cardWrites.push(`${name} ${r.key}=${r.values.join(",")}:${profile}`);
         return reply(backend.setPersonField, { card: this.shownCard(name) });
+      }
+      case "ConfigSettings":
+        return reply(backend.configSettings, {
+          revision: String(this.configRevision),
+          settings: this.configSettings.map((x) => clone(ConfigSettingSchema, x)),
+        });
+      case "SetConfigSetting": {
+        const r = request as MessageShape<typeof backend.setConfigSetting.input>;
+        const before = this.beforeConfigWrite;
+        this.beforeConfigWrite = undefined;
+        before?.();
+        const setting = this.configSettings.find((x) => x.path === r.path);
+        if (setting === undefined) {
+          throw new Error(`[permission_denied] daemon: "${r.path}" is not a setting set one at a time here`);
+        }
+        if (r.baseRevision !== String(this.configRevision)) {
+          throw new Error("[aborted] daemon: the config file changed since it was read");
+        }
+        if (this.configRefusal !== "") {
+          throw new Error(`[invalid_argument] ${this.configRefusal}`);
+        }
+        if (!same(setting.value, r.value)) {
+          setting.value = r.value;
+          this.configSets.push(`${r.path}=${words(r.value)}:${profile}`);
+          this.configChanged();
+        }
+        return reply(backend.setConfigSetting, {
+          revision: String(this.configRevision),
+          setting: clone(ConfigSettingSchema, setting),
+        });
       }
       case "PersonKeys":
         return reply(backend.personKeys, {
