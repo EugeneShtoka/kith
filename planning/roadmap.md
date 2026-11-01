@@ -13,6 +13,8 @@ that defaults to today's behaviour. For what already exists, see
   one kithd, Matrix IDs that name their account, and the old `[[profile]]` removed
 - [design-profiles.md](design-profiles.md): profiles in today's kithd (Phase 0 of
   design-clients.md), one window per profile, and the PRs that build them
+- [design-mailbox.md](design-mailbox.md): a mesh peer that holds sealed ops it cannot
+  read, for bridges that are never online at the same time (proposed, undecided)
 
 Every item below is described here in full; nothing depends on notes kept elsewhere.
 
