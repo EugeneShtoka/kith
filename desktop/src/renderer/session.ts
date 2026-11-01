@@ -10,6 +10,7 @@ import {
   type Device as PairedDevice,
   type FollowStreamResponse,
   type LoginNetwork,
+  type PersonListed,
   type RailResponse,
   type RailRow,
   RailRowKind,
@@ -29,6 +30,7 @@ import { Devices, type DevicesCalls, type DevicesView, noDevices } from "./devic
 import { call, subscribe } from "./kith";
 import { Login, type LoginCalls, type LoginView } from "./login";
 import { type OfferCalls, Offers, type Prompt } from "./offers";
+import { noPeople, People, type PeopleCalls, type PeopleView, type Who } from "./people";
 import type { Asked } from "./polls";
 import { changeTheme, type ThemeRelay, themeLabel, type Scope, type Slots } from "./theme";
 import { announces } from "./read";
@@ -99,6 +101,8 @@ export interface Search {
   busy: boolean;
   /** Why the query asks nothing of kithd ("" it does). */
   note: string;
+  /** Whose every message it is ("Everything they said"); "" a search typed. */
+  about?: string;
 }
 
 /** View is everything the window draws. */
@@ -157,6 +161,8 @@ export interface View {
   /** The filing picker open on a room (filing.ts), and what the last filing came to. */
   filing: Filing | undefined;
   filingNote: string;
+  /** The People list and a person's card (people.ts). */
+  people: PeopleView;
   problem: string | undefined;
 }
 
@@ -222,6 +228,20 @@ const devicesCalls: DevicesCalls = {
   join: (uri, name, listener) => subscribe(DeviceService.method.joinBridge, { uri, name }, listener),
 };
 
+/** peopleCalls is the phonebook's calls, kithd's through main: the window names a person, never a file. */
+const peopleCalls: PeopleCalls = {
+  list: (query) => call(backend.people, { query }),
+  card: (who) => call(backend.personCard, who),
+  set: async (who, name, revision, key, values, list) => {
+    const r = await call(backend.setPersonField, { ...who, name, revision, key, values, list });
+    if (r.card === undefined) {
+      throw new Error("kithd answered no card");
+    }
+    return r.card;
+  },
+  keys: () => call(backend.personKeys, {}).then((r) => r.keys),
+};
+
 /** offerCalls is the one-time offers' calls: kithd's, through main, and device.toml's through the relay. */
 const offerCalls: OfferCalls = {
   settings: () => relay.read().then((r) => r.settings),
@@ -285,6 +305,7 @@ const nothingShown = {
   accounts: [],
   filing: undefined,
   filingNote: "",
+  people: noPeople,
 } satisfies Partial<View>;
 
 /** Run is one stay in one profile's seat: what it opened, closed together when it ends. */
@@ -400,6 +421,11 @@ export class Session {
   /** The devices paired, and a pairing or a join the window leads. */
   private readonly devices = new Devices(devicesCalls, (devices) => {
     this.set({ devices });
+  });
+
+  /** The People list and a person's card, in the profile the window runs in. */
+  private readonly people = new People(peopleCalls, (people) => {
+    this.set({ people });
   });
 
   /** start reads the device, which runs the window in a profile or has it ask. */
@@ -1240,6 +1266,7 @@ export class Session {
     if (run === undefined) {
       return;
     }
+    this.people.reset();
     run.closed = true;
     run.composer.stop();
     run.seat?.();
@@ -1926,6 +1953,142 @@ export class Session {
   /** forgetFilingNote clears what the last filing came to. */
   forgetFilingNote(): void {
     this.set({ filingNote: "" });
+  }
+
+  /** The People list (as the TUI's :people): every card the profile shows, narrowed by query. */
+  openPeople(query = ""): void {
+    if (this.run !== undefined) {
+      this.people.openList(query);
+    }
+  }
+
+  findPeople(query: string): void {
+    this.people.find(query);
+  }
+
+  closePeople(): void {
+    this.people.closeList();
+  }
+
+  /** listPeople is the cards a query meets (the switcher's field terms), as the profile shows them. */
+  listPeople(query: string): Promise<readonly PersonListed[]> {
+    return call(backend.people, { query }).then((r) => r.people);
+  }
+
+  /**
+   * openPerson opens a person's card (as the TUI's I): a message's sender by their ID, a
+   * card People listed, or a DM's one person; name is what the window calls them.
+   */
+  openPerson(who: Who, name: string): void {
+    if (this.run !== undefined) {
+      this.people.openCard(who, name);
+    }
+  }
+
+  closePerson(): void {
+    this.people.closeCard();
+  }
+
+  /** The open card's fields: edited, added, written (people.ts). */
+  editField(key: string): void {
+    this.people.edit(key);
+  }
+
+  typeField(text: string): void {
+    this.people.typeEdit(text);
+  }
+
+  cancelField(): void {
+    this.people.cancelEdit();
+  }
+
+  saveField(): void {
+    this.people.save();
+  }
+
+  addField(): void {
+    this.people.add();
+  }
+
+  pickFieldKey(key: string): void {
+    this.people.pickKey(key);
+  }
+
+  nameFieldKey(): void {
+    this.people.nameKey();
+  }
+
+  typeFieldKey(name: string): void {
+    this.people.typeKeyName(name);
+  }
+
+  submitFieldKey(): void {
+    this.people.submitKeyName();
+  }
+
+  /**
+   * goToPerson opens your conversation with the person on a card People listed, as the
+   * TUI's switcher does: your DM with them, or a room with them alone, in the profile;
+   * else their card.
+   */
+  goToPerson(card: string): void {
+    const run = this.run;
+    if (run === undefined) {
+      return;
+    }
+    call(backend.personCard, { card }).then(
+      (r) => {
+        if (!this.live(run)) {
+          return;
+        }
+        if (r.conversation !== "" && this.holds(run, r.conversation)) {
+          this.people.closeCard();
+          this.people.closeList();
+          this.open(r.conversation);
+        } else {
+          this.people.openCard({ card }, card);
+        }
+      },
+      (err: unknown) => {
+        if (this.live(run)) {
+          this.fail(err);
+        }
+      },
+    );
+  }
+
+  /**
+   * searchSaid lists everything the person going by people said, in every room of the
+   * profile (kithd's search, by sender): the TUI's "Everything they said".
+   */
+  searchSaid(name: string, people: readonly string[]): void {
+    const run = this.run;
+    if (run === undefined) {
+      return;
+    }
+    const mine = ++run.searches;
+    const shown = (s: Omit<Search, "query" | "scope" | "about">) => {
+      run.search = { query: "", scope: "all", about: name, ...s };
+      this.set({});
+    };
+    if (people.length === 0) {
+      shown({ hits: [], busy: false, note: `kith knows no ID of ${name}'s` });
+      return;
+    }
+    shown({ hits: [], busy: true, note: "" });
+    call(backend.searchMessages, { query: "", senders: [...people], allRooms: true, limit: searchLimit }).then(
+      (r) => {
+        if (this.live(run) && mine === run.searches) {
+          shown({ hits: r.hits, busy: false, note: "" });
+        }
+      },
+      (err: unknown) => {
+        if (this.live(run) && mine === run.searches) {
+          shown({ hits: [], busy: false, note: "" });
+          this.fail(err);
+        }
+      },
+    );
   }
 
   /**

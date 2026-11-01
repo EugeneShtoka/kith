@@ -1,10 +1,10 @@
 // Finding things: the search bar and its hits, and the switcher (ctrl+K).
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import type { Room, SearchHit } from "../gen/backend/v1/types_pb";
 import type { Search, SearchScope, Session, View } from "./session";
-import { type Choice, choices, matching } from "./switcher";
+import { type Choice, choices, hasFieldTerm, matching, personChoices } from "./switcher";
 
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -62,9 +62,10 @@ export function SearchResults({
   session: Session;
 }) {
   const names = new Map(rooms.map((r) => [r.id, r.name || r.id]));
-  const said = search.busy
+  const counted = search.busy
     ? "Searching"
     : search.note || (search.hits.length === 1 ? "1 message" : `${String(search.hits.length)} messages`);
+  const said = search.about ? `Everything ${search.about} said: ${counted}` : counted;
   return (
     <section className="rooms search-results" aria-label="Search results">
       <header>
@@ -131,11 +132,37 @@ function snippet(text: string): ReactNode[] {
 export function Switcher({ view, session, close }: { view: View; session: Session; close: () => void }) {
   const [typed, setTyped] = useState("");
   const [at, setAt] = useState(0);
-  const shown = matching(choices(view.joined, view.unread, view.rail), typed).slice(0, switcherRows);
+  // The people a field term lists, for the text they were listed for.
+  const [people, setPeople] = useState<{ typed: string; rows: Choice[] }>({ typed: "", rows: [] });
+  useEffect(() => {
+    if (!hasFieldTerm(typed)) {
+      return;
+    }
+    let current = true;
+    session.listPeople(typed).then(
+      (listed) => {
+        if (current) {
+          setPeople({ typed, rows: personChoices(listed) });
+        }
+      },
+      () => {
+        if (current) {
+          setPeople({ typed, rows: [] });
+        }
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [typed, session]);
+  const listed = hasFieldTerm(typed) && people.typed === typed ? people.rows : [];
+  const shown = [...matching(choices(view.joined, view.unread, view.rail), typed), ...listed].slice(0, switcherRows);
   const go = (c: Choice | undefined) => {
     if (c !== undefined) {
       if ("room" in c.go) {
         session.open(c.go.room);
+      } else if ("person" in c.go) {
+        session.goToPerson(c.go.person);
       } else {
         session.selectRow(c.go.row);
       }
@@ -155,8 +182,8 @@ export function Switcher({ view, session, close }: { view: View; session: Sessio
       >
         <input
           autoFocus
-          aria-label="Go to a room, a person or a place"
-          placeholder="Go to a room, a person or a place"
+          aria-label="Go to a room, a person or a place; a field (role:attorney) lists people"
+          placeholder="A room, a person, a place, or role:attorney"
           value={typed}
           onChange={(e) => {
             setTyped(e.target.value);

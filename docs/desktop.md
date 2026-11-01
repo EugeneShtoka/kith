@@ -20,7 +20,8 @@ This first release reads and writes messages:
 - [verifying this session](#verifying-this-session) against another of your own;
 - [devices](#devices): pairing another device by QR code, unpairing one, and joining a
   bridge from here;
-- [filing a room](#filing-a-room) into tags and spaces.
+- [filing a room](#filing-a-room) into tags and spaces;
+- [people and their cards](#people-and-their-cards): the phonebook.
 
 The full settings editor and the tag editor stay in the terminal client and
 the command line for now. Links in messages show where they go, but the window does
@@ -331,6 +332,38 @@ what a network or a space refused. The rail follows when `kithd` says it changed
 
 A room of another profile cannot be filed from this one. Making a new tag or space,
 the tag editor and the Places settings stay in the terminal client.
+
+## People and their cards
+
+The [phonebook](phonebook.md) is `kithd`'s: the window reads and writes the cards in
+the `[phonebook] dir` of the config `kithd` runs with, through `kithd`, and never the
+folder itself. On a device that [joined a bridge](remote.md), that is the bridge's.
+
+A person's **card** opens from a sender's name on a message, or **Card** in a DM's
+header, as the terminal client's `I` does. It lists their identifiers, then their
+fields; click a value to edit it (commas make a list, nothing clears it). **Add a
+field** offers the keys the other cards use, then **New field** to name one. A person
+with no card gets one the first time a field is written, named after them, holding
+every identifier kith knows of theirs, as the terminal client makes it. **Everything
+they said** lists their messages in the profile's rooms, by every ID kith knows them
+by, in the search pane; **Your conversation** opens your DM with them.
+
+**People**, at the top, lists every card, as `:people` does: typing narrows it by name
+and aliases, and a field term (`role:attorney`) by the cards' fields. Choosing one
+opens the card. In the switcher (ctrl+K), a field term lists the people whose card
+meets it after the rooms; choosing one opens your conversation with them, else their
+card.
+
+A field is written over the card as the window read it. If anything changed the card
+since (a notes app, the terminal client, another window), the window reads it again
+and writes the field onto it, unless that field changed too, or the card is another
+now: then it keeps what is there, shows the card as it is, and says so. A card whose
+front matter cannot be read is listed by name under People and never written.
+
+A profile's [`people.exclude`](configuration.md#people-in-a-profile) reaches the
+cards: the people it hides are not listed, and their cards are neither read nor
+written from it. `from:role:attorney` in a search still asks you to use the terminal
+client.
 
 ## How it finds kithd
 

@@ -2074,3 +2074,143 @@ mark {
   flex: 1;
   min-width: 0;
 }
+
+/* People and their cards: the list, narrowed as it is typed into, and a card's fields. */
+.people input[type="search"],
+.add-field input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--space-2);
+}
+
+.people-rows,
+.key-rows {
+  max-height: 50vh;
+  margin: var(--space-2) 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.people-rows button,
+.key-rows button {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.person-name {
+  font-weight: 700;
+}
+
+.person-keys {
+  flex-basis: 100%;
+}
+
+.person h2,
+.person-file {
+  overflow-wrap: anywhere;
+}
+
+.person-file {
+  font-size: var(--text-sm);
+  font-weight: normal;
+}
+
+.card-fields {
+  max-height: 50vh;
+  margin: 0 0 var(--space-2);
+  overflow-y: auto;
+}
+
+.card-field {
+  display: grid;
+  grid-template-columns: minmax(5rem, 30%) minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.card-field dt {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.card-field dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.card-field .field-value {
+  width: 100%;
+  min-height: 1.75rem;
+  border: 1px solid transparent;
+  background: none;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.card-field .field-value:hover:not(:disabled) {
+  border-color: var(--line);
+}
+
+.card-field form,
+form.add-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.card-field form input,
+form.add-field input {
+  flex: 1 1 10rem;
+  width: auto;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+}
+
+.card-field .detail {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+}
+
+section.add-field {
+  margin-bottom: var(--space-2);
+}
+
+.add-field h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.add-field .offer-actions {
+  margin: 0;
+}
+
+.person-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* A sender's name opens their card: drawn as the name it is. */
+.sender-card {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 700;
+}
+
+.sender-card:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}

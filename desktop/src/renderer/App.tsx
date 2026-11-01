@@ -9,6 +9,7 @@ import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
 import { FilingDialog } from "./Filing";
 import { OfferDialog } from "./Offer";
+import { PeopleDialog, PersonDialog } from "./People";
 import { colorClass, themeCSS, modeOf, roomColor } from "./theme";
 import { rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
@@ -54,6 +55,10 @@ export function App() {
         <OfferDialog key={view.offers.prompt.kind} prompt={view.offers.prompt} session={session} />
       )}
       {seated && view.filing && <FilingDialog filing={view.filing} session={session} />}
+      {seated && view.people.list && (
+        <PeopleDialog list={view.people.list} covered={view.people.card !== undefined} session={session} />
+      )}
+      {seated && view.people.card && <PersonDialog card={view.people.card} session={session} />}
       {seated ? (
         <Seated view={view} session={session} />
       ) : (
@@ -241,6 +246,16 @@ function Seated({ view, session }: { view: View; session: Session }) {
           >
             Go to
           </button>
+          <button
+            type="button"
+            className="go-to"
+            title="Every card in the phonebook"
+            onClick={() => {
+              session.openPeople();
+            }}
+          >
+            People
+          </button>
         </nav>
       </TopBar>
       {view.problem && <p className="problem">{view.problem}</p>}
@@ -393,6 +408,18 @@ function RoomHeader({
         </span>
       ) : (
         <span className="topic" />
+      )}
+      {room?.isDirect === true && room.membership !== "invite" && (
+        <button
+          type="button"
+          className="file-room"
+          title="Their phonebook card"
+          onClick={() => {
+            session.openPerson({ roomId: id }, "");
+          }}
+        >
+          Card
+        </button>
       )}
       {room && room.membership !== "invite" && (
         <button

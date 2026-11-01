@@ -65,7 +65,7 @@ func (s *server) readPhonebook(ctx context.Context) (phonebookNow, error) {
 	book := phonebook.New(setup.PhonebookDir(cfg))
 	cards, unreadable, err := book.Scan()
 	if err != nil {
-		return phonebookNow{}, connect.NewError(connect.CodeFailedPrecondition, err)
+		return phonebookNow{}, s.folderErr(connect.CodeFailedPrecondition, "the phonebook folder cannot be read", err)
 	}
 	dir, err := s.Backend.Directory(ctx)
 	if err != nil {
@@ -148,7 +148,7 @@ func (p phonebookNow) named(name string) (phonebook.Card, error) {
 		return cards[at], nil
 	}
 	if at := slices.IndexFunc(p.unreadable, func(u phonebook.Unreadable) bool { return u.Name == name }); at >= 0 && p.profile.People.Empty() {
-		return phonebook.Card{}, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("daemon: %s.md: %w", name, p.unreadable[at].Err))
+		return phonebook.Card{}, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("daemon: %w", p.unreadable[at].Err))
 	}
 	return phonebook.Card{}, connect.NewError(connect.CodeNotFound, fmt.Errorf("daemon: the phonebook has no card %q", name))
 }
@@ -381,9 +381,16 @@ func (s *server) SetPersonField(ctx context.Context, r *req[v1.SetPersonFieldReq
 	case errors.Is(err, phonebook.ErrMalformed):
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
 	case err != nil:
-		return nil, rpcErr(err)
+		return nil, s.folderErr(connect.CodeInternal, "the card could not be written", err)
 	}
 	return connect.NewResponse(&v1.SetPersonFieldResponse{Card: cardToProto(written)}), nil
+}
+
+// folderErr is the folder failing, told a client without the folder's path, which only
+// kithd's log names.
+func (s *server) folderErr(code connect.Code, what string, err error) error {
+	s.Log.Warn("the phonebook failed", "what", what, "err", err)
+	return connect.NewError(code, fmt.Errorf("daemon: %s (kithd's log says why)", what))
 }
 
 // newCardName is what a person's new card is named after: the name the client shows

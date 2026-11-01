@@ -207,6 +207,17 @@ export class Kithd {
    * error it refuses with.
    */
   readonly places = new Map<string, MessageInitShape<typeof backend.filingPlaces.output>["places"]>();
+  /**
+   * The phonebook, as kithd serves it from its folder: each card by name, the people it
+   * is of (the first by name holding a person is theirs), its fields and revision, and
+   * the room that is your conversation with them; every field written, as
+   * "card key=values:profile". A write over a revision gone by is ABORTED.
+   */
+  readonly cards = new Map<
+    string,
+    { people: string[]; fields: Record<string, string[]>; revision: number; conversation: string }
+  >();
+  readonly cardWrites: string[] = [];
   readonly filingSpacesAsked: string[][] = [];
   readonly filed: string[] = [];
   fileAnswer: MessageInitShape<typeof backend.fileRoom.output> = {};
@@ -479,6 +490,27 @@ export class Kithd {
     return toBinary(method.output, answer);
   }
 
+  /** cardOf is the card named, or the person's: the first by name holding them ("" none). */
+  private cardOf(person: string, card: string): string {
+    if (card !== "") {
+      if (!this.cards.has(card)) {
+        throw new Error(`[not_found] daemon: the phonebook has no card "${card}"`);
+      }
+      return card;
+    }
+    return [...this.cards.keys()].sort().find((n) => this.cards.get(n)?.people.includes(person)) ?? "";
+  }
+
+  /** shownCard is the card named as kithd answers it; "" a person with none. */
+  private shownCard(name: string): MessageInitShape<typeof backend.personCard.output>["card"] {
+    const c = this.cards.get(name);
+    return {
+      card: c === undefined ? "" : name,
+      revision: c === undefined ? "" : String(c.revision),
+      fields: Object.entries(c?.fields ?? {}).map(([key, values]) => ({ key, values })),
+    };
+  }
+
   /** use is main moving to profile: every stream opened in another ends. */
   private use(profile: string): void {
     if (profile === this.profile) {
@@ -633,7 +665,11 @@ export class Kithd {
         const hits = p.rooms
           .filter((room) => asked(room.id))
           .flatMap((room) => p.messages.get(room.id) ?? [])
-          .filter((m) => r.query !== "" && m.body.toLowerCase().includes(r.query.toLowerCase()))
+          .filter((m) =>
+            r.query !== ""
+              ? m.body.toLowerCase().includes(r.query.toLowerCase())
+              : r.senders.length > 0 && r.senders.includes(m.sender),
+          )
           .sort(compare)
           .reverse()
           .slice(0, Number(r.limit))
@@ -924,6 +960,48 @@ export class Kithd {
       case "InstallModel":
         this.installed.push(`${name} ${(request as MessageShape<typeof backend.installModel.input>).tag}`);
         return reply(backend.installModel, {});
+      case "People":
+        return reply(backend.people, {
+          people: [...this.cards.keys()]
+            .sort()
+            .filter((card) =>
+              card.toLowerCase().includes((request as MessageShape<typeof backend.people.input>).query.toLowerCase()),
+            )
+            .map((card) => ({ card })),
+        });
+      case "PersonCard": {
+        const r = request as MessageShape<typeof backend.personCard.input>;
+        const name = this.cardOf(r.person, r.card);
+        return reply(backend.personCard, {
+          card: this.shownCard(name),
+          person: r.person,
+          people: this.cards.get(name)?.people ?? (r.person === "" ? [] : [r.person]),
+          conversation: this.cards.get(name)?.conversation ?? "",
+        });
+      }
+      case "SetPersonField": {
+        const r = request as MessageShape<typeof backend.setPersonField.input>;
+        let name = this.cardOf(r.person, r.card);
+        const card = this.cards.get(name);
+        if ((card === undefined ? "" : String(card.revision)) !== r.revision) {
+          throw new Error("[aborted] phonebook: the card changed since it was read");
+        }
+        if (card === undefined) {
+          name = r.name;
+          this.cards.set(name, { people: [r.person], fields: {}, revision: 0, conversation: "" });
+        }
+        const now = this.cards.get(name);
+        if (now !== undefined) {
+          now.fields[r.key] = r.values;
+          now.revision++;
+        }
+        this.cardWrites.push(`${name} ${r.key}=${r.values.join(",")}:${profile}`);
+        return reply(backend.setPersonField, { card: this.shownCard(name) });
+      }
+      case "PersonKeys":
+        return reply(backend.personKeys, {
+          keys: [...new Set([...this.cards.values()].flatMap((c) => Object.keys(c.fields)))].sort(),
+        });
       case "FilingPlaces": {
         const r = request as MessageShape<typeof backend.filingPlaces.input>;
         if (!p.rooms.some((x) => x.id === r.roomId)) {

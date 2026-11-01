@@ -1,7 +1,8 @@
 // The switcher (ctrl+K), as the TUI's: type part of a room's, a person's or a place's
 // name and go there. Rooms with something unread come first, then the rest, then the
-// rail's places; a DM is found by the person's name, as its room carries them.
-import type { RailRow } from "../gen/backend/v1/services_pb";
+// rail's places; a DM is found by the person's name, as its room carries them. A field
+// term (role:attorney) lists, after them, the people whose card meets it (kithd's People).
+import type { PersonListed, RailRow } from "../gen/backend/v1/services_pb";
 import type { Room, Unread } from "../gen/backend/v1/types_pb";
 import { unreadOf } from "./rooms";
 
@@ -12,7 +13,7 @@ export interface Choice {
   detail: string;
   /** What typing is matched against. */
   match: string;
-  go: { room: string } | { row: number };
+  go: { room: string } | { row: number } | { person: string };
 }
 
 /** choices is everything the switcher reaches, in the order it offers them. */
@@ -48,6 +49,28 @@ export function choices(
       go: { row: i },
     })),
   ];
+}
+
+/**
+ * hasFieldTerm is whether typed holds a field term, key:value, as phonebook.ParseQuery
+ * reads one: a word with something on both sides of its first colon.
+ */
+export function hasFieldTerm(typed: string): boolean {
+  return typed.split(/\s+/).some((w) => {
+    const at = w.indexOf(":");
+    return at > 0 && at < w.length - 1;
+  });
+}
+
+/** personChoices is a row for each card People listed, by its name, to go to the person. */
+export function personChoices(people: readonly PersonListed[]): Choice[] {
+  return people.map((p) => ({
+    key: `person ${p.card}`,
+    label: p.card,
+    detail: [...p.matched.map((m) => `${m.key}: ${m.values.join(", ")}`), "person"].join(" · "),
+    match: "",
+    go: { person: p.card },
+  }));
 }
 
 /** matching is the choices whose text has every word typed, in any case. */

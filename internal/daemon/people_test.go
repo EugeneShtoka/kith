@@ -673,3 +673,51 @@ func TestANewCardFromAWindowIsAlwaysTheFoldersOwn(t *testing.T) {
 		t.Error("Noa's card was written over")
 	}
 }
+
+// No answer names the folder or a path in it: not a list, a card, a card written or
+// made, a card that cannot be read, nor a failure of the folder itself (written
+// read-only, then not readable), which kithd's log names instead.
+func TestNoAnswerNamesTheFolder(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	cards := maps.Clone(peopleCards)
+	cards["Broken.md"] = "---\nrole: [unclosed\n---\n"
+	dir, in := phonebookServed(t, cards)
+	home := in("home")
+	var said []string
+	keep := func(msg fmt.Stringer, err error) {
+		if err != nil {
+			said = append(said, err.Error())
+		} else {
+			said = append(said, msg.String())
+		}
+	}
+	keep(home.list(ctx, ""))
+	for _, asked := range []*v1.PersonCardRequest{{Card: "Dana Levi"}, {Card: "Broken"}, {Person: danaWA}, {Person: gilTG}, {RoomId: danaDM}} {
+		keep(home.card(ctx, asked))
+	}
+	keep(home.set(ctx, &v1.SetPersonFieldRequest{Person: "telegram:4242", Name: "Zed", Key: "met", Values: []string{"at work"}}))
+	keep(home.set(ctx, &v1.SetPersonFieldRequest{Card: "Broken", Key: "met", Values: []string{"at work"}}))
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	_, err := home.set(ctx, &v1.SetPersonFieldRequest{Person: "telegram:4343", Name: "Yael", Key: "met", Values: []string{"at work"}})
+	if err == nil {
+		t.Fatal("a card was made in a folder that cannot be written")
+	}
+	keep(nil, err)
+	if err = os.Chmod(dir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	_, err = home.list(ctx, "")
+	if err == nil {
+		t.Fatal("a folder that cannot be read was listed")
+	}
+	keep(nil, err)
+	for _, s := range said {
+		if strings.Contains(s, filepath.Dir(dir)) {
+			t.Errorf("an answer names the folder: %s", s)
+		}
+	}
+}
