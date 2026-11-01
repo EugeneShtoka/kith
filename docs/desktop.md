@@ -13,8 +13,8 @@ This first release reads and writes messages:
   [spelling and word completion](#spelling-and-completion), and
   [sending later and commands](#sending-later-and-commands);
 - search, the ctrl+K switcher, and threads beside the room;
-- a settings page for the settings it shares with the terminal client
-  ([where settings live](#where-settings-live));
+- a settings page for the settings it shares with the terminal client, this device's
+  and every device's ([where settings live](#where-settings-live));
 - [accounts](#accounts): logging a network account in, setting a new one up, and
   signing one out;
 - [verifying this session](#verifying-this-session) against another of your own;
@@ -23,8 +23,10 @@ This first release reads and writes messages:
 - [filing a room](#filing-a-room) into tags and spaces;
 - [people and their cards](#people-and-their-cards): the phonebook.
 
-The full settings editor and the tag editor stay in the terminal client and
-the command line for now. Links in messages show where they go, but the window does
+What the settings page leaves out of the bridge's settings (programs, folders,
+addresses, accounts, keys, the log, what an assistant may reach), the notification
+rules, Places and the tag editor stay in the terminal client and the command line for
+now. Links in messages show where they go, but the window does
 not open them yet.
 
 ## Install
@@ -418,6 +420,22 @@ page is open. The window then reads the file again and writes your change onto i
 both are kept. If the same setting was changed there, the window keeps that value, and
 the page says so and shows it. Every other setting is changed with kith's settings
 screen, or in `device.toml`.
+
+**Every device's settings**, below them, are the bridge's own, in `config.toml`, which
+`kithd` keeps: notifications' rate limit, names, deleted messages and tracked words,
+the unread count, network colors on the rail, time and date formats, the spelling
+checker and its dictionaries, the completion model's limits, the shape of a
+verification code, and how late a scheduled message is still sent. They are listed
+under the terminal client's settings groups, each with its default, a **Reset** to it,
+and **What it does**, `default.toml`'s text. `kithd` lists them and sets one at a time
+over the file as the page read it, checked as it checks any change (every network
+judging its section), so the page never holds the file. Another writer meanwhile (the
+terminal client, an editor, another window) is handled as for `device.toml`: your
+change is set onto theirs, unless they changed the same setting, whose value is then
+kept and shown. These are the bridge's, not a profile's: a change made in one profile
+holds in every one. What names a program, a folder, an address, an account, a key or
+the log, decides what an assistant may reach, or lists places (codes' rooms, the rail's
+order, the priority) stays with the terminal client's settings screen and the file.
 
 ## Troubleshooting
 

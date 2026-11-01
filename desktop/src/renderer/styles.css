@@ -1624,9 +1624,14 @@ mark {
   background: var(--accent-soft);
 }
 
-/* The settings page. */
+/*
+ * The settings page. Nothing on it scrolls sideways: a room ID or a word with no break
+ * wraps anywhere, a fieldset narrows below its content's widest word (its default
+ * min-inline-size is min-content), and a field or menu narrows to the page.
+ */
 .settings {
   max-width: 48rem;
+  overflow-wrap: anywhere;
 }
 
 .settings > header {
@@ -1636,9 +1641,20 @@ mark {
 }
 
 .settings fieldset {
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
+}
+
+.settings input:not([type="checkbox"]),
+.settings select {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.setting-row > * {
+  min-width: 0;
 }
 
 .settings h3 {
@@ -1657,6 +1673,59 @@ mark {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) 0;
+}
+
+/* The settings page's bridge settings: a setting a row, under its group. */
+.bridge-settings h4 {
+  margin: var(--space-4) 0 0;
+}
+
+.config-setting {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.config-setting .setting,
+.config-setting .setting-row {
+  padding: 0;
+}
+
+.settings input.config-entry {
+  flex: 1 1 8rem;
+  max-width: 16rem;
+}
+
+.config-default {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.config-default button {
+  padding: 0 var(--space-2);
+}
+
+.config-setting summary {
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.config-doc {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+}
+
+.config-entry-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 /* The settings page's accounts: the networks to log in to, and a login under way. */

@@ -180,6 +180,10 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	"backend.v1.CheckConfigRequest.config": notARoom, "backend.v1.UpdateConfigRequest.base_revision": notARoom,
 	"backend.v1.UpdateConfigRequest.config": notARoom, "backend.v1.InstallDictionaryRequest.tag": notARoom,
 	"backend.v1.InstallFrequenciesRequest.tag": notARoom, "backend.v1.InstallModelRequest.tag": notARoom,
+	// One setting of the bridge's config: its path, a revision, and its value as text or a
+	// list, none a list of places (configsettings.go excludes those).
+	"backend.v1.SetConfigSettingRequest.base_revision": notARoom, "backend.v1.SetConfigSettingRequest.path": notARoom,
+	"backend.v1.ConfigValue.text": notARoom, "backend.v1.ConfigList.entries": notARoom,
 	"backend.v1.TempRule.name": notARoom, "backend.v1.TempRule.match": notARoom, "backend.v1.TempRule.sender": notARoom,
 	"backend.v1.ClearDNDRequest.match": notARoom, "backend.v1.ClearDNDRequest.sender": notARoom,
 	// The window speaking: its client ID for the seat and drafts.

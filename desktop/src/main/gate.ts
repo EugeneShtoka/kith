@@ -148,6 +148,14 @@ const calls = new Map<string, DescMethodUnary>(
     backend.personCard,
     backend.setPersonField,
     backend.personKeys,
+    // The bridge's settings, one at a time: kithd lists those the window may set and sets
+    // one over the file as the window read it (SetConfigSetting at its revision). Which
+    // ones is kithd's list (configsettings.go): never a program, a path, an address, an
+    // account, a secret, the log, or what an assistant may reach. The window is given
+    // neither the config's text (ConfigChanged's is taken out, below) nor a way to write
+    // it whole.
+    backend.configSettings,
+    backend.setConfigSetting,
     // Pairing (pairings.ts): the devices paired, a pairing's ticket written as the URI a
     // new device joins with, and the two calls that change who is paired, each sent only
     // once the person said yes in main's own dialog: confirming a pairing the window
@@ -444,6 +452,9 @@ export class Gate {
     }
     if (method.name === backend.verifications.name) {
       post = this.verifying.stream(this.profile, post);
+    }
+    if (method.name === backend.configChanged.name) {
+      post = withoutConfig(post);
     }
     const stop = keepOpen(this.transport, method, input, header, post, again);
     const held = {
@@ -800,6 +811,26 @@ function resuming(post: (event: StreamEvent) => void, held: (epoch: string, chan
     if (run.length > 0) {
       post({ kind: "frames", frames: run });
     }
+  };
+}
+
+/**
+ * withoutConfig posts ConfigChanged's frames with the config's text taken out: the
+ * window is told the config changed, and its revision, never what it holds.
+ */
+function withoutConfig(post: (event: StreamEvent) => void) {
+  return (event: StreamEvent) => {
+    if (event.kind !== "frames") {
+      post(event);
+      return;
+    }
+    const m = backend.configChanged;
+    post({
+      kind: "frames",
+      frames: event.frames.map((bytes) =>
+        toBinary(m.output, create(m.output, { revision: fromBinary(m.output, bytes).revision })),
+      ),
+    });
   };
 }
 

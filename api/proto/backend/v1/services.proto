@@ -1931,6 +1931,97 @@ message ConfigChangedResponse {
   string revision = 2;
 }
 
+// ── Config settings ──
+//
+// The bridge's config.toml one setting at a time, for a client that is given neither
+// its text nor a way to write it whole (the desktop). A setting is one property of
+// config.Properties by its TOML path, a list whole: one register of the mesh's shared
+// config (design-mesh.md). Only the properties kithd lists here can be set this way.
+
+message ConfigSettingsRequest {}
+
+message ConfigSettingsResponse {
+  // The revision of the file the settings were read from, for SetConfigSetting.
+  string revision = 1;
+  // Every setting this call sets, in the file's order.
+  repeated ConfigSetting settings = 2;
+}
+
+// ConfigSettingKind is how a setting is edited.
+enum ConfigSettingKind {
+  CONFIG_SETTING_KIND_UNSPECIFIED = 0;
+  // On or off (ConfigValue.flag).
+  CONFIG_SETTING_KIND_TOGGLE = 1;
+  // One of the setting's choices (ConfigValue.text).
+  CONFIG_SETTING_KIND_CHOICE = 2;
+  // A whole number within least and most (ConfigValue.number).
+  CONFIG_SETTING_KIND_NUMBER = 3;
+  // A length of time as Go writes one: 90s, 10m, 1h30m (ConfigValue.text).
+  CONFIG_SETTING_KIND_DURATION = 4;
+  // Free text (ConfigValue.text).
+  CONFIG_SETTING_KIND_TEXT = 5;
+  // A list of text entries, set whole (ConfigValue.list).
+  CONFIG_SETTING_KIND_LIST = 6;
+}
+
+// ConfigSetting is one setting of the bridge's config.
+message ConfigSetting {
+  // path is the key's TOML path ("notifications.max_per_room").
+  string path = 1;
+  // group is the TUI's settings group it is listed under ("notifications", "codes").
+  string group = 2;
+  string label = 3;
+  ConfigSettingKind kind = 4;
+  // choices are a CHOICE's accepted values, in order.
+  repeated ConfigChoice choices = 5;
+  // least and most bound a NUMBER; unset, it is unbounded that way.
+  optional int64 least = 6;
+  optional int64 most = 7;
+  // fallback is the value in force while the file does not set it (default.toml's);
+  // unset when the doc says what unset means instead.
+  ConfigValue fallback = 8;
+  // value is what the file sets; unset when it does not (fallback is in force).
+  ConfigValue value = 9;
+  // doc is default.toml's text for it, as the TUI's settings screen shows it.
+  string doc = 10;
+}
+
+// ConfigChoice is one value a CHOICE takes, and what it means ("" nothing more to say).
+message ConfigChoice {
+  string value = 1;
+  string detail = 2;
+}
+
+// ConfigValue is one setting's value, by its kind.
+message ConfigValue {
+  oneof value {
+    bool flag = 1;
+    int64 number = 2;
+    string text = 3;
+    ConfigList list = 4;
+  }
+}
+
+// ConfigList is a LIST's entries, in order.
+message ConfigList {
+  repeated string entries = 1;
+}
+
+message SetConfigSettingRequest {
+  // The revision the change was made on (ConfigSettingsResponse.revision): a file
+  // changed since is ABORTED, and the client reads the settings again.
+  string base_revision = 1;
+  string path = 2;
+  // value is the setting's new value; unset clears it, so its fallback is in force.
+  ConfigValue value = 3;
+}
+
+message SetConfigSettingResponse {
+  // The file's revision once written, and the setting as it now is.
+  string revision = 1;
+  ConfigSetting setting = 2;
+}
+
 // ── Schedule ──
 
 // ScheduledMessage is one pending send.
@@ -2563,6 +2654,20 @@ service BackendService {
   // ConfigChanged streams the configuration each time it changes: written through
   // UpdateConfig, or re-read after a hand edit (ReloadConfig).
   rpc ConfigChanged(ConfigChangedRequest) returns (stream ConfigChangedResponse);
+  // ConfigSettings lists the settings of the bridge's config a client may set one at a
+  // time (SetConfigSetting): each with its kind, choices, bounds, default, value and
+  // default.toml's text, and the file's revision. Never a program, a path, an address,
+  // an account, a secret, the log, or what an assistant may reach: those stay with the
+  // TUI, the CLI and the file. The config is the bridge's: every profile is answered
+  // the same.
+  rpc ConfigSettings(ConfigSettingsRequest) returns (ConfigSettingsResponse);
+  // SetConfigSetting sets or clears one setting ConfigSettings lists, on the config as
+  // it is at base_revision (ABORTED once the file changed since: read it again),
+  // checked as UpdateConfig checks a config (every network judging its section) and
+  // written as it writes one (one writer, ConfigChanged told). A setting not listed is
+  // PERMISSION_DENIED; a value of another kind, out of bounds, not among the choices, or
+  // a config kithd would not run with is INVALID_ARGUMENT, and nothing is written.
+  rpc SetConfigSetting(SetConfigSettingRequest) returns (SetConfigSettingResponse);
   // Schedule
   // Schedule queues a message.
   rpc Schedule(ScheduleRequest) returns (ScheduleResponse);

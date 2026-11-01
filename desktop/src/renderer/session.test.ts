@@ -1,9 +1,17 @@
 import { create } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BackendService, Change, type SeatRequest, SpaceFiledOutcome } from "../gen/backend/v1/services_pb";
+import {
+  BackendService,
+  Change,
+  ConfigSettingKind,
+  ConfigSettingSchema,
+  type SeatRequest,
+  SpaceFiledOutcome,
+} from "../gen/backend/v1/services_pb";
 import { ReactionSchema, VerificationKind } from "../gen/backend/v1/types_pb";
 import { type DeviceSettings, DeviceSettingsSchema, ThemeScope } from "../gen/device/v1/device_pb";
+import { list, number, text, valueAt, words } from "./config";
 import { unreadOf } from "./rooms";
 import { deviceAgain, Session } from "./session";
 import { type Key, withKey } from "./settings";
@@ -689,6 +697,170 @@ describe("the settings page", () => {
     expect(page()?.note).toMatch(/not saved.*does not load/);
     expect(page()?.read?.settings.unreadLine).toBe(true);
     expect(view().unreadLine).toBe(true);
+  });
+});
+
+describe("the bridge's settings on the settings page", () => {
+  const config = () => view().config;
+  /** shown is what the page shows path set to, in words. */
+  const shown = (path: string) => {
+    const read = config().read;
+    return read === undefined ? "unread" : words(valueAt(read, path));
+  };
+  /** opened is the window seated in Home (of Home and Work), the settings page open on kithd's settings. */
+  const opened = async () => {
+    kithd.profiles = ["Home", "Work"];
+    kithd.remembered = "Home";
+    kithd.configSettings = [
+      create(ConfigSettingSchema, {
+        path: "display.time_format",
+        group: "look",
+        label: "Time format",
+        kind: ConfigSettingKind.CHOICE,
+        choices: [{ value: "24h" }, { value: "12h" }],
+        fallback: text("24h"),
+      }),
+      create(ConfigSettingSchema, {
+        path: "notifications.max_per_room",
+        group: "notifications",
+        label: "Popups one room may raise",
+        kind: ConfigSettingKind.NUMBER,
+        least: 0n,
+        fallback: number(0n),
+      }),
+      create(ConfigSettingSchema, {
+        path: "display.tracked.words",
+        group: "display",
+        label: "Tracked words",
+        kind: ConfigSettingKind.LIST,
+        fallback: list([]),
+      }),
+    ];
+    await started();
+    session.openSettings();
+    await settled();
+  };
+
+  it("sets each change at once over the file as read, and a reset clears it", async () => {
+    await opened();
+    expect(config().read?.settings.map((s) => s.path)).toEqual([
+      "display.time_format",
+      "notifications.max_per_room",
+      "display.tracked.words",
+    ]);
+    await session.changeConfig("display.time_format", text("12h"));
+    await session.changeConfig("display.tracked.words", list(["deploy"]));
+    await settled(); // each told on ConfigChanged, and read again
+    expect(shown("display.time_format")).toBe("12h");
+    expect(config()).toMatchObject({ busy: false, note: "" });
+    await session.changeConfig("display.time_format", undefined);
+    await settled();
+    expect(shown("display.time_format")).toBe("not set");
+    expect(kithd.configSets).toEqual([
+      "display.time_format=12h:Home",
+      "display.tracked.words=deploy:Home",
+      "display.time_format=not set:Home",
+    ]);
+    expect(kithd.calls.filter((c) => c.startsWith("GetConfig") || c.startsWith("UpdateConfig"))).toEqual([]);
+  });
+
+  it("sets a change onto another writer's of another setting, and keeps theirs of the same, saying so", async () => {
+    await opened();
+    kithd.beforeConfigWrite = () => {
+      kithd.setsConfig("notifications.max_per_room", number(5n)); // the TUI's settings screen
+    };
+    await session.changeConfig("display.time_format", text("12h"));
+    await settled();
+    expect([shown("display.time_format"), shown("notifications.max_per_room")]).toEqual(["12h", "5"]);
+    expect(config().note).toBe("");
+    kithd.beforeConfigWrite = () => {
+      kithd.setsConfig("display.tracked.words", list(["release"])); // by hand
+    };
+    await session.changeConfig("display.tracked.words", list(["deploy"]));
+    await settled();
+    expect(shown("display.tracked.words")).toBe("release");
+    expect(kithd.configSets).toEqual(["display.time_format=12h:Home"]);
+    expect(config().note).toMatch(/Tracked words was changed elsewhere/);
+  });
+
+  it("never shows a read from before its change over what the change set", async () => {
+    await opened();
+    kithd.beforeConfigWrite = () => {
+      kithd.setsConfig("notifications.max_per_room", number(5n)); // told while the change is set
+    };
+    kithd.holding.add("ConfigSettings");
+    const asked = session.changeConfig("display.time_format", text("12h"));
+    await settled();
+    kithd.releaseAt(0); // the change's own read again, which it sets its value onto
+    await asked;
+    kithd.holding.delete("ConfigSettings");
+    kithd.release(); // and any read the page asked meanwhile
+    await settled();
+    expect([shown("display.time_format"), shown("notifications.max_per_room")]).toEqual(["12h", "5"]);
+  });
+
+  it("does not undo with its answer another writer's change read while it was on its way", async () => {
+    await opened();
+    kithd.holding.add("SetConfigSetting");
+    const asked = session.changeConfig("display.time_format", text("12h"));
+    await settled(); // set, its answer on its way
+    kithd.setsConfig("notifications.max_per_room", number(5n)); // another window, after it
+    await settled(); // read again by the page
+    kithd.holding.delete("SetConfigSetting");
+    kithd.release();
+    await asked;
+    expect([shown("display.time_format"), shown("notifications.max_per_room")]).toEqual(["12h", "5"]);
+    expect(config()).toMatchObject({ busy: false, note: "" });
+  });
+
+  it("shows another writer's change as kithd tells it, while the page is open", async () => {
+    await opened();
+    kithd.setsConfig("display.time_format", text("12h")); // another window
+    await settled();
+    expect(shown("display.time_format")).toBe("12h");
+  });
+
+  it("says a setting kithd refuses was not saved, and shows the file as it was", async () => {
+    await opened();
+    kithd.configRefusal = "codes: require_digit is on but digits are not allowed in a code";
+    await session.changeConfig("notifications.max_per_room", number(3n));
+    expect(config().note).toMatch(/Popups one room may raise was not saved: .*require_digit/);
+    expect(shown("notifications.max_per_room")).toBe("not set");
+    expect(config().busy).toBe(false);
+  });
+
+  it("keeps a change answered after a profile switch, and drops one answered after the page closed", async () => {
+    await opened();
+    kithd.holding.add("SetConfigSetting");
+    const asked = session.changeConfig("display.time_format", text("12h"));
+    await settled();
+    expect(shown("display.time_format")).toBe("12h"); // shown as asked meanwhile
+    await session.choose("Work");
+    kithd.holding.delete("SetConfigSetting");
+    kithd.release();
+    await asked;
+    await settled();
+    expect(view().profile).toBe("Work");
+    expect(shown("display.time_format")).toBe("12h");
+    expect(config().busy).toBe(false);
+
+    // Refused after the page closed: nothing of it shows, then or once the page opens again.
+    kithd.configRefusal = "codes: require_digit is on but digits are not allowed in a code";
+    kithd.holding.add("SetConfigSetting");
+    const closing = session.changeConfig("display.time_format", text("24h"));
+    await settled();
+    session.closeSettings();
+    kithd.holding.delete("SetConfigSetting");
+    kithd.release();
+    await closing;
+    await settled();
+    expect(config()).toEqual({ read: undefined, busy: false, note: "" });
+    kithd.configRefusal = "";
+    session.openSettings();
+    await settled();
+    expect(shown("display.time_format")).toBe("12h");
+    expect(config().note).toBe("");
+    expect(kithd.configSets).toEqual(["display.time_format=12h:Home"]);
   });
 });
 
