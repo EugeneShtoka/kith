@@ -238,7 +238,7 @@ func (m Model) submitPersonValue(input string) (Model, tea.Cmd) {
 	if !p.found && len(values) == 0 {
 		return m.showPerson(""), nil
 	}
-	// Several values are a list whatever list says (phonebook.Book.Set). Written over the
+	// Several values are a list whatever list says (phonebook.Book.Write). Written over the
 	// card as it was read: one another program changed since is read again (ErrMoved).
 	book, ids, name, read, key, list := m.book(), m.personIdentifiers(p.id), p.name, p.card, p.key, p.list
 	return m.doing("writing " + isolate(name) + "'s " + key + "…"), func() tea.Msg {

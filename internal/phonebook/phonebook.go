@@ -124,17 +124,9 @@ func (b *Book) Keys() ([]string, error) {
 	return NewIndex(cards).Keys(), nil
 }
 
-// Create writes a new card with ids and the person tag, named after name (made safe,
+// create writes a new card with ids and the person tag, named after name (made safe,
 // numbered when taken). It never replaces a file: a name another program took meanwhile
 // is passed over for the next number.
-func (b *Book) Create(name string, ids Identifiers) (Card, error) {
-	if err := os.MkdirAll(b.dir, 0o700); err != nil {
-		return Card{}, fmt.Errorf("phonebook: make %s: %w", b.dir, err)
-	}
-	defer lockDir(b.dir)()
-	return b.create(name, ids)
-}
-
 func (b *Book) create(name string, ids Identifiers) (Card, error) {
 	doc := &yaml.Node{Kind: yaml.MappingNode}
 	for _, key := range IdentifierKeys {
@@ -168,14 +160,9 @@ func (b *Book) create(name string, ids Identifiers) (Card, error) {
 	return Card{}, fmt.Errorf("phonebook: %d cards are named %s already", maxNumbered, base)
 }
 
-// Set writes one key of the card as it was read (its Path and Revision), as a list when
+// set writes one key of the card as it was read (its Path and Revision), as a list when
 // list; no values removes it. The rest of the file is kept. A file changed, renamed or
 // removed since it was read is not written: ErrMoved.
-func (b *Book) Set(card Card, key string, values []string, list bool) (Card, error) {
-	defer lockDir(b.dir)()
-	return b.set(card, key, values, list)
-}
-
 func (b *Book) set(card Card, key string, values []string, list bool) (Card, error) {
 	if err := CheckField(key, values); err != nil {
 		return Card{}, err
@@ -205,9 +192,12 @@ func (b *Book) set(card Card, key string, values []string, list bool) (Card, err
 	return read(card.Path)
 }
 
-// Write sets one key on a person's card as it was read (Set). A person who had no card
-// (read.Path "") is given one named after name with ids (Create), unless a card holding
-// any of ids is there now: ErrMoved. No values for a person with no card writes nothing.
+// Write sets one key on a person's card as it was read: one changed, renamed or removed
+// since is not written (ErrMoved); no values removes the key, and the rest of the file
+// is kept. A person who had no card (read.Path "") is given one named after name (made
+// safe, numbered when taken, never over another file) with ids and the person tag,
+// unless a card holding any of ids is there now: ErrMoved. No values for a person with
+// no card writes nothing.
 // kith's writers of the folder, in any process, write one at a time (lockDir), so two
 // never both make a person's card.
 func (b *Book) Write(read Card, name string, ids Identifiers, key string, values []string, list bool) (Card, error) {

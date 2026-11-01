@@ -330,7 +330,7 @@ func TestANewCardsNameIsAlwaysTheFoldersOwn(t *testing.T) {
 		"C:\\Windows\\x", "\u202eevil.exe", "Dana", "Dana", "dana", "x", "Person", ".hidden", "~", "nl\nname",
 		strings.Repeat("é", 400), strings.Repeat("a", 254) + "/b", "\xff\xfe", "name\u2066x\u2069",
 	} {
-		card, err := b.Create(name, Identifiers{"phone": {"+15550100009"}})
+		card, err := b.create(name, Identifiers{"phone": {"+15550100009"}})
 		if err != nil {
 			t.Fatalf("%q: %v", name, err)
 		}
@@ -379,7 +379,7 @@ func TestAFieldACardCannotHoldIsRefused(t *testing.T) {
 		{Key: strings.Repeat("k", 129)}, {Key: "\xff"}, {Key: "pets", Values: []string{"a\nb"}},
 		{Key: "pets", Values: []string{"a\x00"}}, {Key: "pets", Values: []string{"\xff"}},
 	} {
-		if _, err := b.Set(card, f.Key, f.Values, false); !errors.Is(err, ErrField) {
+		if _, err := b.set(card, f.Key, f.Values, false); !errors.Is(err, ErrField) {
 			t.Errorf("%q = %q: %v", f.Key, f.Values, err)
 		}
 		if _, err := b.Write(Card{}, "Noa", Identifiers{"telegram": {"7"}}, f.Key, append(f.Values, "x"), false); !errors.Is(err, ErrField) {

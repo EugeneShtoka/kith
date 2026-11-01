@@ -80,6 +80,9 @@ var reaches = map[string]profileReach{
 	"GetConfig": passes, "PreviewGroupings": passes, "ApplyGroupings": passes, "UpdateConfig": passes,
 	"ConfigChanged": passes, "StartUpload": passes, "PutUpload": passes,
 	"Devices": passes, "AddDevice": passes, "RemoveDevice": passes,
+	// The phonebook: people, not rooms; whom the profile hides is judged by the handlers,
+	// and PersonCard's room by admitNamed.
+	"People": passes, "PersonCard": passes, "SetPersonField": passes, "PersonKeys": passes,
 	"StartPairing": passes, "ConfirmPairing": passes, "Pair": passes,
 	"JoinMesh": passes, "MeshStatus": passes,
 }

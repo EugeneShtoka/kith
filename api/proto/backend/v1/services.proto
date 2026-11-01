@@ -376,6 +376,112 @@ message SpaceFiled {
   string error = 3;
 }
 
+// ── Phonebook ──
+// The phonebook ([phonebook] dir) as kithd reads it, from its own folder, for a client
+// that does not share the folder (the desktop). A client names a person by an ID, by a
+// card People listed, or by a room's one person, never by a file; kithd writes one key
+// of a card over the card as the client read it.
+
+// CardField is one key of a card: an identifier key or a field, its values, and whether
+// the card writes it as a list.
+message CardField {
+  string key = 1;
+  repeated string values = 2;
+  bool list = 3;
+}
+
+// PhonebookCard is a person's card as the folder holds it now.
+message PhonebookCard {
+  // card is its name, its file's without .md: what PersonCard and SetPersonField name
+  // it by. Empty for a person with no card yet.
+  string card = 1;
+  // revision is the card as read, which a write names: one made over a card changed,
+  // renamed or removed since is refused (ABORTED). Empty for a person with no card yet.
+  string revision = 2;
+  // ids are its identifier keys (phonebook.IdentifierKeys: phone, email, matrix, ...) in
+  // that order; fields are its other keys, in the file's order.
+  repeated CardField ids = 3;
+  repeated CardField fields = 4;
+}
+
+message PeopleRequest {
+  // query narrows the list as :people does: plain words by the card's name and aliases,
+  // key:value field terms by its keys (phonebook.ParseQuery).
+  string query = 1;
+}
+
+// PersonListed is one card People lists.
+message PersonListed {
+  string card = 1;
+  repeated string aliases = 2;
+  // id_keys are the identifier keys the card holds, in phonebook.IdentifierKeys order.
+  repeated string id_keys = 3;
+  // matched is each key the query's field terms named, as the card holds it.
+  repeated CardField matched = 4;
+}
+
+// UnreadableCard is a card whose front matter kithd cannot read: listed nowhere and
+// never written until it is mended.
+message UnreadableCard {
+  string card = 1;
+  string reason = 2;
+}
+
+message PeopleResponse {
+  repeated PersonListed people = 1;
+  repeated UnreadableCard unreadable = 2;
+}
+
+message PersonCardRequest {
+  // Exactly one: a person's ID (a message's sender), a card People listed, or a room
+  // whose one person besides you and bridge bots is meant (a DM's).
+  string person = 1;
+  string card = 2;
+  string room_id = 3;
+}
+
+message PersonCardResponse {
+  // card is their card; one with no name is a person with no card yet.
+  PhonebookCard card = 1;
+  // person is the person asked for, or the room's one person; empty for a card asked
+  // for by name.
+  string person = 2;
+  // name is the room's one person's name, asked for by room.
+  string name = 3;
+  // people is every ID kith knows them by: what they said is searched by them.
+  repeated string people = 4;
+  // conversation is your DM with them in the request's profile, or a room with them
+  // alone, as the TUI's switcher finds it; empty for none.
+  string conversation = 5;
+}
+
+message SetPersonFieldRequest {
+  // Whose card: a person's ID (one with no card gets one) or a card People listed.
+  string person = 1;
+  string card = 2;
+  // name is what a new card is named after; kithd makes it a safe file name of the
+  // folder's own, numbered when taken. Unread when the person has a card.
+  string name = 3;
+  // revision is the card as read (PhonebookCard.revision); empty for no card.
+  string revision = 4;
+  string key = 5;
+  // values: one is the value, several a list; none removes the key.
+  repeated string values = 6;
+  // list writes a single value as a list.
+  bool list = 7;
+}
+
+message SetPersonFieldResponse {
+  PhonebookCard card = 1;
+}
+
+message PersonKeysRequest {}
+
+message PersonKeysResponse {
+  // keys is every field key the cards the request's profile shows use, sorted.
+  repeated string keys = 1;
+}
+
 // ── Timeline ──
 
 message CachedTimelineRequest {
@@ -2153,6 +2259,23 @@ service BackendService {
   // into records the release, so no filter moves it back. A room, tag or space the
   // profile does not hold is refused, and nothing is filed.
   rpc FileRoom(FileRoomRequest) returns (FileRoomResponse);
+  // Phonebook
+  // People lists the phonebook's cards ([phonebook] dir, read by kithd from its own
+  // folder) by name, narrowed by the query as :people narrows it, leaving out everyone
+  // the request's profile hides (people.exclude); and the cards it cannot read.
+  rpc People(PeopleRequest) returns (PeopleResponse);
+  // PersonCard is one person's card as the folder holds it now, by their ID, by a card
+  // People listed, or by a room's one person; with every ID kith knows them by and your
+  // conversation with them. A person the profile hides is NOT_FOUND.
+  rpc PersonCard(PersonCardRequest) returns (PersonCardResponse);
+  // SetPersonField writes one key of a person's card over the card as the client read
+  // it, ABORTED when it is no longer so (read it again), keeping every other key, their
+  // order and comments, and the body byte for byte. A person with no card gets one,
+  // named and placed by kithd, holding every identifier kith knows of theirs. A person
+  // the profile hides is NOT_FOUND; a card kithd cannot read is FAILED_PRECONDITION.
+  rpc SetPersonField(SetPersonFieldRequest) returns (SetPersonFieldResponse);
+  // PersonKeys is every field key the cards the profile shows use, for adding a field.
+  rpc PersonKeys(PersonKeysRequest) returns (PersonKeysResponse);
   // Timeline
   // CachedTimeline returns a room's most recent cached messages for instant display on
   // entry.
