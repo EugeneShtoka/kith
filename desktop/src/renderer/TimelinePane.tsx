@@ -89,6 +89,39 @@ export function TimelinePane({
   // The cursor is the message focused last, in its room: kept across its row scrolling out of the list.
   const pane = useRef<HTMLElement>(null);
   const cursor = useRef({ room: t.room, id: "" });
+  /** select moves the cursor to at, then hands its row, drawn and focused, to then. */
+  const select = (at: number, then?: (row: HTMLElement) => void) => {
+    const id = shown[at]?.id ?? "";
+    cursor.current = { room: t.room, id };
+    list.current?.scrollIntoView({
+      index: at,
+      done: () => {
+        const row = pane.current?.querySelector<HTMLElement>(`article[data-id="${CSS.escape(id)}"]`);
+        row?.focus();
+        if (row) {
+          then?.(row);
+        }
+      },
+    });
+  };
+  // The room nav.select_oldest is loading to its start, a page at a time, as the TUI's home does;
+  // from is the oldest row when the last page was asked, so a page that brings none (a failure) ends it.
+  const toStart = useRef({ room: "", from: "" });
+  const askOlder = () => {
+    toStart.current.from = shown[0]?.id ?? "";
+    session.older();
+  };
+  useEffect(() => {
+    if (toStart.current.room !== t.room || t.loading) {
+      return;
+    }
+    if (!t.start && shown[0]?.id !== toStart.current.from) {
+      askOlder();
+      return;
+    }
+    toStart.current.room = "";
+    select(0);
+  });
   useImperativeHandle(ref, () => {
     const onScreen = () => {
       const view = pane.current?.getBoundingClientRect();
@@ -96,21 +129,6 @@ export function TimelinePane({
       return rows.filter((r) => {
         const box = r.getBoundingClientRect();
         return view !== undefined && box.bottom > view.top && box.top < view.bottom;
-      });
-    };
-    /** select moves the cursor to at, then hands its row, drawn and focused, to then. */
-    const select = (at: number, then?: (row: HTMLElement) => void) => {
-      const id = shown[at]?.id ?? "";
-      cursor.current = { room: t.room, id };
-      list.current?.scrollIntoView({
-        index: at,
-        done: () => {
-          const row = pane.current?.querySelector<HTMLElement>(`article[data-id="${CSS.escape(id)}"]`);
-          row?.focus();
-          if (row) {
-            then?.(row);
-          }
-        },
       });
     };
     const at = () => {
@@ -124,9 +142,11 @@ export function TimelinePane({
         if (to === undefined) {
           return false;
         }
-        // shortcut: the oldest pulls one page more in, where the TUI's home loads to the start; load on to t.start if that is missed
-        if (to === 0 && !t.start && (path === "nav.select_oldest" || path === "nav.scroll_oldest")) {
-          session.older();
+        // The oldest loads on to the start (the effect above), and the cursor goes there once it is in.
+        const oldest = to === 0 && (path === "nav.select_oldest" || path === "nav.scroll_oldest");
+        toStart.current.room = oldest && !t.start ? t.room : "";
+        if (toStart.current.room !== "") {
+          askOlder();
         }
         select(to);
         return true;
