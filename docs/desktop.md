@@ -165,7 +165,7 @@ It binds these so far, with their defaults:
 | `nav.back` | `h`, `left`, `esc` | Back a pane; from a message, the open thread closes first |
 | `nav.page_up`, `nav.page_down` | `pgup`, `pgdown` | The cursor a screen up or down |
 | `nav.half_page_up`, `nav.half_page_down` | `ctrl+u`, `ctrl+d` | Half a screen |
-| `nav.select_oldest`, `nav.scroll_oldest` | `gg`, `home` | The first row; in the timeline the oldest message loaded, and a page more is asked for |
+| `nav.select_oldest`, `nav.scroll_oldest` | `gg`, `home` | The first row; in the timeline the room's first message, loading back to it |
 | `nav.select_newest`, `nav.scroll_newest` | `G`, `end` | The last row, or the newest message |
 
 On a message, the cursor's, the `[keys.timeline]` keys act as they do in the terminal:
