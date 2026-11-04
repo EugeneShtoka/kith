@@ -72,16 +72,23 @@ export interface Action {
   anywhere: boolean;
 }
 
+/** countLimit bounds a count typed before a motion ("12j"), as the TUI's does. */
+const countLimit = 9999;
+
 /**
  * Keymap resolves presses to actions. A sequence is held while it can still complete
- * (pending says so); a press that continues none ends it and is judged alone. Typing
- * wins: while a field takes typing only anywhere actions are consulted, each by a single
- * press that types no text, and nothing is held.
+ * (pending says so); a press that continues none ends it and is judged alone. Digits
+ * that start no sequence are a count ("12j"), which the next action takes (count) and
+ * any other press drops; a leading 0 is not one. Typing wins: while a field takes typing
+ * only anywhere actions are consulted, each by a single press that types no text, and
+ * nothing is held.
  */
 export class Keymap {
   private readonly bound = new Map<string, Action>();
   private readonly prefixes = new Set<string>();
   private held: string[] = [];
+  private typed = 0;
+  private counted = 0;
 
   /** actions is the window's, in priority order: of two bound alike, the first acts. */
   constructor(keys: Readonly<Record<string, readonly string[]>>, actions: readonly Action[]) {
@@ -101,8 +108,10 @@ export class Keymap {
 
   /** press is one named press: the path of the action it completes, if any. */
   press(name: string, typing: boolean): string | undefined {
+    this.counted = 0;
     if (typing) {
       this.held = [];
+      this.typed = 0;
       const action = this.bound.get(name);
       return action?.anywhere && !typesText(name) ? action.path : undefined;
     }
@@ -110,21 +119,66 @@ export class Keymap {
     const action = this.bound.get(seq);
     if (action !== undefined) {
       this.held = [];
+      this.counted = this.typed;
+      this.typed = 0;
       return action.path;
     }
     if (this.prefixes.has(seq)) {
       this.held = [...this.held, name];
       return undefined;
     }
-    const wasHeld = this.held.length > 0;
-    this.held = [];
-    return wasHeld ? this.press(name, false) : undefined;
+    if (this.held.length > 0) {
+      this.held = [];
+      return this.press(name, false);
+    }
+    if (/^\d$/.test(name) && (this.typed > 0 || name !== "0")) {
+      this.typed = Math.min(this.typed * 10 + Number(name), countLimit);
+      return undefined;
+    }
+    this.typed = 0;
+    return undefined;
   }
 
-  /** pending is the sequence held so far ("g"), or "". */
+  /** pending is the count and the sequence typed so far ("12", "g"), or "". */
   get pending(): string {
-    return this.held.join(" ");
+    return [...(this.typed > 0 ? [String(this.typed)] : []), ...this.held].join(" ");
   }
+
+  /** count is the count the action press just returned was typed with, or 0 for none. */
+  get count(): number {
+    return this.counted;
+  }
+}
+
+/**
+ * moved is where a [keys.nav] motion takes a cursor at `at` among n rows, page of them
+ * on screen, count typed before it (0: none), or undefined for a path that is no motion.
+ * The ends with a count are that row ("12G"), as the TUI's are.
+ */
+export function moved(path: string, count: number, at: number, page: number, n: number): number | undefined {
+  const by = (delta: number) => Math.max(0, Math.min(n - 1, at + delta));
+  const half = Math.max(1, Math.floor(page / 2));
+  switch (path) {
+    case "nav.up":
+      return by(-Math.max(count, 1));
+    case "nav.down":
+      return by(Math.max(count, 1));
+    case "nav.page_up":
+      return by(-Math.max(page, 1));
+    case "nav.page_down":
+      return by(Math.max(page, 1));
+    case "nav.half_page_up":
+      return by(-half);
+    case "nav.half_page_down":
+      return by(half);
+    case "nav.select_oldest":
+    case "nav.scroll_oldest":
+      return count > 0 ? by(count - 1 - at) : 0;
+    case "nav.select_newest":
+    case "nav.scroll_newest":
+      return count > 0 ? by(count - 1 - at) : n - 1;
+  }
+  return undefined;
 }
 
 /** typing: el takes typing (a text field, a text area, a select, an editable element). */
