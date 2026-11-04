@@ -7,7 +7,9 @@ group by its title (or its people's names). Messages arrive as they are sent, ol
 ones are fetched as you scroll up, and when kith starts again it picks up what it
 missed. Replies, mentions of you, shared posts, reels and stories (as their text and
 address) and call notes show; an edited message shows its new text, and an unsent one
-reads `(deleted)`, as on other networks.
+reads `(deleted)`, as on other networks. A thread shows its picture in the desktop
+window: a one-to-one thread its person's, a group its own; each is downloaded once,
+and again when it changes.
 
 Photos, videos, voice messages, stickers and GIFs show as attachments, as on other
 networks: pictures inline, the rest opened or saved from the message. A message
