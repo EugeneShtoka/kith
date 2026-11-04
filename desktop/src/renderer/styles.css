@@ -1639,6 +1639,31 @@ mark {
   background: var(--accent-soft);
 }
 
+/* The help overlay (?): the switcher's frame, wider, each key beside what it does. */
+.switcher.help {
+  width: min(44rem, calc(100vw - 2rem));
+}
+
+.help-sections {
+  max-height: 60vh;
+  margin-top: var(--space-2);
+  overflow-y: auto;
+}
+
+.help-sections h3 {
+  margin: var(--space-2) 0 var(--space-1);
+}
+
+.help-sections dl > div {
+  display: grid;
+  grid-template-columns: minmax(6rem, 14rem) 1fr;
+  gap: var(--space-2);
+}
+
+.help-sections dd {
+  margin: 0;
+}
+
 /*
  * The settings page. Nothing on it scrolls sideways: a room ID or a word with no break
  * wraps anywhere, a fieldset narrows below its content's widest word (its default

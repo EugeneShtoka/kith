@@ -8,6 +8,7 @@ import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
 import { FilingDialog } from "./Filing";
+import { HelpOverlay } from "./HelpOverlay";
 import { type Action, keyName, Keymap, moved, typing } from "./keymap";
 import { OfferDialog } from "./Offer";
 import { PeopleDialog, PersonDialog } from "./People";
@@ -88,6 +89,7 @@ const seatedActions: readonly Action[] = [
   { path: "jump_back", anywhere: true },
   { path: "jump_forward", anywhere: true },
   { path: "settings", anywhere: false },
+  { path: "help", anywhere: false },
   { path: "focus_next", anywhere: true },
   { path: "focus_prev", anywhere: true },
   // The timeline's before nav's, as the TUI asks them: its enter goes to what a reply answers.
@@ -265,6 +267,7 @@ function Body({ view, session }: { view: View; session: Session }) {
  */
 function Seated({ view, session }: { view: View; session: Session }) {
   const [switching, setSwitching] = useState(false);
+  const [helping, setHelping] = useState(false);
   // The left column unfolded over a narrow window: until a room or a place is picked.
   const here = `${view.open}\u0000${String(view.row)}`;
   const [unfoldedAt, setUnfoldedAt] = useState<string | undefined>(undefined);
@@ -353,6 +356,9 @@ function Seated({ view, session }: { view: View; session: Session }) {
       },
       settings: () => {
         session.openSettings();
+      },
+      help: () => {
+        setHelping(true);
       },
     };
     const key = (e: KeyboardEvent) => {
@@ -485,6 +491,14 @@ function Seated({ view, session }: { view: View; session: Session }) {
         </p>
       )}
       <Banner link={view.link} status={view.status} bridge={view.bridge} />
+      {helping && (
+        <HelpOverlay
+          keys={view.keys}
+          close={() => {
+            setHelping(false);
+          }}
+        />
+      )}
       {switching && (
         <Switcher
           view={view}
