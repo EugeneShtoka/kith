@@ -140,6 +140,8 @@ export interface View {
   keys: Readonly<Record<string, readonly string[]>>;
   /** The device's [[keys.jump]]: each chord, and the room or rail row it goes to. */
   jumps: readonly Jump[];
+  /** [display.media.audio]: the speed a voice note starts at, and the seconds a skip moves. */
+  audio: { speed: number; skip: number };
   /** The open room's composer. */
   composer: ComposerView | undefined;
   /** The search shown, its hits only in the profile's rooms. */
@@ -329,6 +331,7 @@ const nothingShown = {
   unreadLine: true,
   keys: {},
   jumps: [],
+  audio: { speed: 1, skip: 10 },
   composer: undefined,
   slots: new Map(),
   verify: noVerify,
@@ -784,6 +787,7 @@ export class Session {
           this.set({
             keys: Object.fromEntries(Object.entries(settings.keys).map(([path, k]) => [path, k.sequences])),
             jumps: settings.jumps,
+            audio: { speed: settings.audioSpeed, skip: Number(settings.audioSkip) },
           });
         }
       },

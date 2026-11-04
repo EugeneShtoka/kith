@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -477,6 +478,8 @@ func resolved(dev config.Device) *devicev1.DeviceSettings {
 		FilingSpaces:        dev.Display.FilingSpaces,
 		Keys:                keySequences(dev.Keys),
 		Jumps:               jumps(dev.Keys.Jump),
+		AudioSpeed:          dev.Display.Media.Audio.PlaySpeed(),
+		AudioSkip:           int64(dev.Display.Media.Audio.SkipStep() / time.Second),
 	}
 }
 

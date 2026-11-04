@@ -392,6 +392,12 @@ message DeviceSettings {
   // the order the config lists them; a chord with an unknown key name, or a target
   // domain.ParseJump cannot read, is left out.
   repeated Jump jumps = 27;
+  // [display.media.audio] speed, what a voice note starts at and player.normal_speed returns to,
+  // and skip, the seconds player.back and player.forward move; defaults filled in. A
+  // place's own speed ([[display.media.rule]]) is the TUI's: the window is not told a
+  // room's places.
+  double audio_speed = 28;
+  int64 audio_skip = 29;
 }
 
 // KeySequences are one action's keys, in the order [keys] lists them.

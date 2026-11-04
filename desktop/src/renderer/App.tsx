@@ -86,6 +86,11 @@ export function App() {
 
 /** seatedActions are the [keys] actions the seated window binds, in priority order. */
 const seatedActions: readonly Action[] = [
+  // The player's ahead of the panes', as the TUI asks them: they win while something plays.
+  ...["play_pause", "back", "forward", "slower", "faster", "normal_speed", "stop"].map((action) => ({
+    path: `player.${action}`,
+    anywhere: false,
+  })),
   { path: "jump_to", anywhere: true },
   { path: "jump_back", anywhere: true },
   { path: "jump_forward", anywhere: true },
@@ -131,6 +136,11 @@ const seatedActions: readonly Action[] = [
     "scroll_newest",
   ].map((motion) => ({ path: `nav.${motion}`, anywhere: false })),
 ];
+
+/** The speeds the player keys keep to, and their step (audio.MinSpeed, MaxSpeed; the TUI's speedStep). */
+const minSpeed = 0.25;
+const maxSpeed = 4;
+const speedStep = 0.25;
 
 /** panes are the seated window's panes in focus order, each a [data-pane] element. */
 const panes = ["rail", "rooms", "timeline", "thread"];
@@ -291,6 +301,9 @@ function Seated({ view, session }: { view: View; session: Session }) {
   const [pending, setPending] = useState("");
   const timeline = useRef<TimelineNav>(null);
   const thread = useRef<TimelineNav>(null);
+  // The voice note or video played last: the player keys' while it is in the window and has not ended or stopped.
+  // shortcut: a note that ends lets go of the keys at once, where the TUI's bar keeps them close_after; read that once the window has a bar
+  const playing = useRef<HTMLMediaElement>(undefined);
   // A thread opened by a key takes the focus once its rows are drawn.
   const toThread = useRef(false);
   // A room opened from the list takes the focus to its timeline once it is drawn.
@@ -394,6 +407,55 @@ function Seated({ view, session }: { view: View; session: Session }) {
       }
       return true;
     };
+    const played = (e: Event) => {
+      if (e.target instanceof HTMLMediaElement && e.target !== playing.current) {
+        playing.current = e.target;
+        e.target.playbackRate = view.audio.speed;
+      }
+    };
+    const ended = (e: Event) => {
+      if (e.target === playing.current) {
+        playing.current = undefined;
+      }
+    };
+    const player = (path: string): boolean => {
+      const p = playing.current?.isConnected === true ? playing.current : undefined;
+      const speed = (f: number) => {
+        if (p !== undefined) {
+          p.playbackRate = Math.min(Math.max(f, minSpeed), maxSpeed);
+        }
+      };
+      switch (p === undefined ? "" : path) {
+        case "player.play_pause":
+          if (p?.paused === true) {
+            void p.play();
+          } else {
+            p?.pause();
+          }
+          return true;
+        case "player.back":
+        case "player.forward":
+          if (p !== undefined) {
+            p.currentTime = Math.max(0, p.currentTime + (path === "player.back" ? -1 : 1) * view.audio.skip);
+          }
+          return true;
+        case "player.slower":
+        case "player.faster":
+          speed((p?.playbackRate ?? 1) + (path === "player.slower" ? -speedStep : speedStep));
+          return true;
+        case "player.normal_speed":
+          speed(view.audio.speed);
+          return true;
+        case "player.stop":
+          p?.pause();
+          if (p !== undefined) {
+            p.currentTime = 0;
+          }
+          playing.current = undefined;
+          return true;
+      }
+      return false;
+    };
     // goTo goes where the ith [[keys.jump]] points: a room of the profile, or the first rail row its entry names.
     const goTo = (i: number): boolean => {
       const j = view.jumps[i];
@@ -444,9 +506,11 @@ function Seated({ view, session }: { view: View; session: Session }) {
             ((count) =>
               path.startsWith("jump.")
                 ? goTo(Number(path.slice("jump.".length)))
-                : path.startsWith("timeline.")
-                  ? message(path, count)
-                  : nav(path, count))
+                : path.startsWith("player.")
+                  ? player(path)
+                  : path.startsWith("timeline.")
+                    ? message(path, count)
+                    : nav(path, count))
           )(keymap.count) !== false,
       );
       if (done || keymap.pending !== "") {
@@ -455,11 +519,16 @@ function Seated({ view, session }: { view: View; session: Session }) {
     };
     window.addEventListener("keydown", key);
     window.addEventListener("focusin", focused);
+    // Media events do not bubble: caught on the way down.
+    document.addEventListener("play", played, true);
+    document.addEventListener("ended", ended, true);
     return () => {
       window.removeEventListener("keydown", key);
       window.removeEventListener("focusin", focused);
+      document.removeEventListener("play", played, true);
+      document.removeEventListener("ended", ended, true);
     };
-  }, [session, keymap, view.thread, view.rooms, view.jumps, view.joined, view.rail]);
+  }, [session, keymap, view.thread, view.rooms, view.jumps, view.joined, view.rail, view.audio]);
   const columns = ["columns"];
   if (view.thread && view.timeline) {
     columns.push("with-thread");
