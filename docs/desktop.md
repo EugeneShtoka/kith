@@ -129,9 +129,9 @@ and Signal); asking a poll works in Matrix rooms, as the terminal's `/poll` does
 elsewhere the window says the network cannot.
 
 A room shows its picture (a person's, in a direct chat) in the room list and above
-its timeline, where its network gives one: WhatsApp and Telegram so far. People and rooms without
-a picture are drawn as their initials, each in a color of their own that stays
-the same everywhere: a person in the color the terminal client gives them in that room,
+its timeline, where its network gives one (each network's page says which). People
+and rooms without a picture are drawn as their initials, each in a color of their own
+that stays the same everywhere: a person in the color the terminal client gives them in that room,
 until you pick one ([Theme](#theme)). Phone numbers are shown as the network gives them.
 
 As the window narrows, the columns narrow with it. Under about 960 pixels the rail

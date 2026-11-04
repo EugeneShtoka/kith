@@ -166,6 +166,7 @@ func (a *Adapter) store(ctx context.Context, c *conn, ch change) {
 		}
 		a.roomsChanged()
 	}
+	a.keepPictures(c, ch, roomsChanged)
 	counted := map[domain.RoomID]bool{}
 	for _, key := range ch.threads {
 		if t := in.threads[key]; t != nil {

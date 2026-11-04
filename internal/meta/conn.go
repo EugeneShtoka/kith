@@ -73,6 +73,10 @@ type conn struct {
 	session Session
 	saved   string
 	client  *messagix.Client
+	// sweeping marks a sweep of the inbox's pictures running, and pictureWant the
+	// latest links, for it to sweep next (picturesLater).
+	sweeping    bool
+	pictureWant map[domain.RoomID]string
 
 	// applying serializes taking tables in: the inbox, and rooms, which is the account's
 	// rooms as last written (the cached ones, then every thread heard of), so a write

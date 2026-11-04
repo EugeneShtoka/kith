@@ -47,13 +47,16 @@ type inbox struct {
 	left map[int64]int64
 	// sources are where the attachments of messages not yet cached are (media.go).
 	sources map[domain.EventID]mediaSource
+	// pictures are people's picture links by Meta ID, threadPictures threads' by room
+	// key (pictures.go).
+	pictures, threadPictures map[int64]string
 }
 
 func newInbox(self int64) *inbox {
 	return &inbox{
 		self: self, threads: map[int64]*thread{}, people: map[int64]string{},
 		members: map[int64]map[int64]bool{}, alias: map[int64]int64{}, left: map[int64]int64{},
-		sources: map[domain.EventID]mediaSource{},
+		sources: map[domain.EventID]mediaSource{}, pictures: map[int64]string{}, threadPictures: map[int64]string{},
 	}
 }
 
@@ -79,6 +82,8 @@ type change struct {
 	messages []*table.WrappedMessage
 	// left counts the threads not shown, by why.
 	left map[string]int
+	// pictures reports a picture link that changed.
+	pictures bool
 }
 
 func (c *change) touched(key int64) {
@@ -104,6 +109,7 @@ func (in *inbox) apply(tbl *table.LSTable) change {
 	c := change{read: map[int64]int64{}, left: map[string]int{}}
 	in.applyPeople(tbl, &c)
 	in.applyMapping(tbl, &c)
+	in.applyPictures(tbl, &c)
 	full := in.applyThreads(tbl, &c)
 	in.applyGone(tbl, full, &c)
 	in.applyMembers(tbl, &c)
