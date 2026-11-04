@@ -49,6 +49,10 @@ type conn struct {
 	session Session
 	saved   string
 	client  *linkedingo.Client
+	// sweeping marks a sweep of the inbox's pictures running, and pictureWant the
+	// latest ones, for it to sweep next (picturesLater).
+	sweeping    bool
+	pictureWant map[domain.RoomID]picture
 
 	// applying serializes taking conversations in: the inbox, and rooms, which is the
 	// account's rooms as last written (the cached ones, then every conversation heard
