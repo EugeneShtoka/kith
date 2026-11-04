@@ -96,6 +96,16 @@ small and ships on its own.
 - **Words typed during a profile switch**, for a room the new profile does not hold,
   are saved only once a profile that holds it is back.
 
+### Tests
+
+- **The slowest tests, made faster or removed.** Every push runs `make quick`, and the
+  desktop's tests alone take about 87 s of it. Time each suite, Go and desktop, and list
+  the slowest. Remove a test whose cases another test already covers; rewrite the rest
+  to check the same cases in less time. The desktop's remaining fast-check properties
+  (16 files) are likely candidates: they repeat random runs, and a replacement is
+  deterministic, an exhaustive search within a bound as the timeline's tests are
+  (#457). A replacement must still fail on the bugs its test was written for.
+
 ## Backlog
 
 Not ordered; taken when a reason appears.
