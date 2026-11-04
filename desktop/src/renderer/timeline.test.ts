@@ -27,6 +27,8 @@ class Cache {
   readonly rows = new Map<string, Message>();
   /** The frames written, not delivered yet, in the order the cache wrote them. */
   queue: Message[] = [];
+  /** Each network token handed out, by the message its page began at as it was then. */
+  private readonly tokens = new Map<string, Message>();
   private made = 0;
   private clock = 0;
 
@@ -76,6 +78,13 @@ class Cache {
         return;
       case 2: // a message in another room
         this.put(this.fresh(1000 + this.clock, "!other"));
+        return;
+      case 9: // the newest few moved before every message: what is shown can be left with no row
+        for (const newest of this.ordered().slice(-1 - (i % 6))) {
+          const moved = clone(MessageSchema, newest);
+          moved.timestamp = timestampFromMs(0);
+          this.put(moved);
+        }
         return;
     }
     if (m === undefined) {
@@ -140,15 +149,23 @@ class Cache {
     switch (ask.kind) {
       case "latest":
         return { rows: all.slice(-size), next: "" };
-      case "network":
-      case "cached": {
-        const before = ask.kind === "network" ? ask.from : ask.before;
-        const at = before === "" ? all.length : all.findIndex((m) => m.id === before);
+      case "network": {
+        // A network's token is a place in its history: a message moved since is not where it ends.
+        const end = this.tokens.get(ask.from);
+        const at = end === undefined ? all.length : all.filter((m) => compare(m, end) < 0).length;
         const from = Math.max(0, at - size);
+        const first = all[from];
+        if (from === 0 || first === undefined) {
+          return { rows: all.slice(from, at), next: "" };
+        }
+        const next = `t${String(this.tokens.size)}`;
+        this.tokens.set(next, clone(MessageSchema, first));
+        return { rows: all.slice(from, at), next };
+      }
+      case "cached": {
+        const at = ask.before === "" ? all.length : all.findIndex((m) => m.id === ask.before);
         // The cached page holds its anchor too, as MessagesAround does.
-        const rows = all.slice(from, ask.kind === "cached" ? at + 1 : at);
-        const next = ask.kind === "network" && from > 0 ? (all[from]?.id ?? "") : "";
-        return { rows, next };
+        return { rows: all.slice(Math.max(0, at - size), at + 1), next: "" };
       }
     }
   }
@@ -181,6 +198,18 @@ const step: fc.Arbitrary<Step> = fc.oneof(
     weight: 1,
     arbitrary: fc.record({ kind: fc.constant("seek"), i: fc.nat(10_000), cached: fc.boolean() }),
   },
+);
+
+/**
+ * farStep is a step, or the newest few messages moved before every other, so the rows
+ * shown may all go. Those are its only moves, their frames delivered at once, and it
+ * reads nothing again: a page asked before a row that has moved by the time it is read
+ * is read around where the row is now, which is not fixed yet (a reload asks before a
+ * row it read last, and other pages may land before the move's frame).
+ */
+const farStep: fc.Arbitrary<Step> = fc.oneof(
+  { weight: 3, arbitrary: step.filter((s) => s.kind !== "readAgain" && !(s.kind === "write" && s.what === 8)) },
+  { weight: 1, arbitrary: fc.record({ kind: fc.constant("write"), what: fc.constant(9), i: fc.nat(10_000) }) },
 );
 
 /**
@@ -357,6 +386,32 @@ describe("the timeline over any interleaving of pages and frames", () => {
     );
   });
 
+  it("reads the room again from its newest when its rows all move below them, whichever pages fail", () => {
+    fc.assert(
+      fc.property(
+        fc.nat(12),
+        fc.boolean(),
+        fc.array(farStep, { maxLength: 80 }),
+        fc.array(fc.boolean(), { maxLength: 4 }),
+        (initial, shown, steps, fails) => {
+          const run = new Run(initial + 1);
+          if (shown) {
+            run.settle();
+          }
+          for (const s of steps) {
+            run.do(s);
+            if (s.kind === "write" && s.what === 9) {
+              run.do({ kind: "deliver", n: run.cache.queue.length });
+            }
+          }
+          run.settle(fails);
+          shownMatchesCache(run);
+        },
+      ),
+      { numRuns: 5000 },
+    );
+  });
+
   it("finds a jump's message wherever the cache holds it, reading back to it, and says when it holds none", () => {
     fc.assert(
       fc.property(
@@ -455,6 +510,22 @@ describe("the timeline over any interleaving of pages and frames", () => {
       run.settle();
     }
     expect(run.t.view().start).toBe(true);
+    shownMatchesCache(run);
+  });
+
+  it("reads the room again from its newest when a frame moves every row shown below them", () => {
+    const run = new Run(1);
+    run.settle(); // its one message shown, and the network has no older page
+    run.do({ kind: "older" });
+    run.do({ kind: "ask" });
+    run.do({ kind: "fail" }); // the older page refused: none is asked until scrolled again
+    run.do({ kind: "write", what: 9, i: 0 }); // the message moved before the stretch shown
+    run.do({ kind: "deliver", n: 1 });
+    expect(run.t.loaded).toBe(false); // nothing shown is the opening's state again
+    run.do({ kind: "ask" });
+    run.do({ kind: "fail" }); // and the page asked for refused: asked again after a wait
+    run.settle();
+    expect(run.t.view().rows).toHaveLength(1);
     shownMatchesCache(run);
   });
 

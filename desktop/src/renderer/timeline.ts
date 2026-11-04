@@ -215,7 +215,7 @@ export class Timeline {
     if (this.quotes.has(m.id)) {
       this.quotes = new Map(this.quotes).set(m.id, m); // a quote changes as its message does
     }
-    this.shown = { ...this.shown, rows: apply(this.shown, m) };
+    this.show({ ...this.shown, rows: apply(this.shown, m) });
     if (m.id === this.seeking) {
       this.sought();
     }
@@ -264,9 +264,27 @@ export class Timeline {
       }
       this.reloading = undefined;
     }
-    this.shown = this.replayed(s);
+    this.show(this.replayed(s));
     this.sought();
     this.changed();
+  }
+
+  /**
+   * show makes s the stretch shown. One whose rows all moved below its floor reaches
+   * nothing, and has no row to read back from: the room is read again from its newest,
+   * as when it opened; a page asked before is not used, a reload's aside.
+   */
+  private show(s: Stretch): void {
+    if (s.rows.length > 0 || s.floor === undefined || s.floor === "all" || s.start) {
+      this.shown = s;
+      return;
+    }
+    this.shown = { rows: [], floor: undefined, start: false };
+    if (this.reloading === undefined) {
+      this.asked = undefined;
+      this.since = undefined;
+      this.stalled = false; // what failed was a page below what is gone
+    }
   }
 
   /** replayed is s with the frames since the ask put back over it, in order. */
