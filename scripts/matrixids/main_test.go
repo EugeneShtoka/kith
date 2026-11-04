@@ -47,6 +47,7 @@ var freeText = map[string][]string{
 	"room_handles":      {"handle"},
 	"room_members":      {"display_name"},
 	"room_networks":     {"network"},
+	"room_pictures":     {"picture_id"},
 	"room_topics":       {"topic"},
 	"rooms":             {"name", "membership", "heroes"},
 	"spaces":            {"name", "bridge"},
@@ -103,6 +104,9 @@ func TestTheCacheMigrationRewritesEveryIDColumnAndNoText(t *testing.T) {
 		for i, name := range names {
 			marks[i] = "?"
 			values[i] = 1
+			if types[i] == "BLOB" {
+				values[i] = []byte{1}
+			}
 			if types[i] == "TEXT" {
 				values[i] = "!seed:x"
 				if v, ok := seeds[table+"."+name]; ok {

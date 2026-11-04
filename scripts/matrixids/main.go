@@ -227,6 +227,7 @@ var idColumns = map[string][]string{
 	"room_members":         {"room_id", "user_id"},
 	"room_networks":        {"room_id"},
 	"room_parents":         {"room_id", "space_id"},
+	"room_pictures":        {"room_id"},
 	"room_read_only":       {"room_id"},
 	"room_sms":             {"room_id"},
 	"room_timer_versions":  {"room_id"},
