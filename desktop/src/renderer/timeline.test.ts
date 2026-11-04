@@ -1,6 +1,5 @@
 import { clone, create } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
-import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -16,6 +15,25 @@ import reactionsTable from "../../../internal/domain/testdata/reactions.json";
 import { type Ask, newest, tally, type Ticket, Timeline } from "./timeline";
 
 const room = "!r";
+
+/** A write to the cache. at picks a message by its place in the cache's order: 0 the oldest, -1 the newest. */
+type Write =
+  /** A new message, now. */
+  | { what: "new" }
+  /** History backfilled: a message from long ago. */
+  | { what: "backfill"; ts: number }
+  /** A message in another room. */
+  | { what: "elsewhere" }
+  /** Edited; its edit deleted, back to the first words; deleted. */
+  | { what: "edit" | "unedit" | "delete"; at: number }
+  /** Two votes, one after the other, each changing its poll's counts and this person's answers (a poll, if it was none). */
+  | { what: "vote"; at: number }
+  /** Its poll ended, or its question edited, its votes kept. */
+  | { what: "end" | "retitle"; at: number }
+  /** Moved in time (a network's order corrected). */
+  | { what: "move"; at: number; ts: number }
+  /** The newest n moved before every message. */
+  | { what: "far"; n: number };
 
 /**
  * A model of kithd's cache for one room (and writes to another), its Messages stream
@@ -57,63 +75,59 @@ class Cache {
     }
   }
 
-  private pick(i: number): Message | undefined {
-    const all = this.ordered();
-    return all.length === 0 ? undefined : all[i % all.length];
-  }
-
-  /** write is one write to the cache, chosen by kind and i. */
-  write(kind: number, i: number): void {
+  /** write is w written: whether it changed anything. */
+  write(w: Write): boolean {
     this.clock++;
-    // A poll is voted in again and again, then ended: those writes go mostly to a message
-    // asking one already.
-    const polls = this.ordered().filter((x) => x.poll !== undefined);
-    const m = (kind === 7 || (kind === 6 && i % 3 !== 0)) && polls.length > 0 ? polls[i % polls.length] : this.pick(i);
-    switch (kind) {
-      case 0: // a new message, now
+    switch (w.what) {
+      case "new":
         this.put(this.fresh(1000 + this.clock * 10));
-        return;
-      case 1: // history backfilled: an old message
-        this.put(this.fresh(i % 400));
-        return;
-      case 2: // a message in another room
+        return true;
+      case "backfill":
+        this.put(this.fresh(w.ts));
+        return true;
+      case "elsewhere":
         this.put(this.fresh(1000 + this.clock, "!other"));
-        return;
-      case 9: // the newest few moved before every message: what is shown can be left with no row
-        for (const newest of this.ordered().slice(-1 - (i % 6))) {
-          const moved = clone(MessageSchema, newest);
+        return true;
+      case "far": {
+        const newest = this.ordered().slice(-w.n);
+        for (const m of newest) {
+          const moved = clone(MessageSchema, m);
           moved.timestamp = timestampFromMs(0);
           this.put(moved);
         }
-        return;
+        return newest.length > 0;
+      }
     }
+    const m = this.ordered().at(w.at);
     if (m === undefined) {
-      return;
+      return false;
     }
     const next = clone(MessageSchema, m);
-    switch (kind) {
-      case 3: // edited
-        if (next.redacted) return;
+    switch (w.what) {
+      case "edit":
+        if (next.redacted) return false;
         next.edited = true;
         next.body = `${m.body}+`;
         next.editedAtUnixMs = BigInt(10_000 + this.clock);
         next.revisionId = `$e${String(this.clock)}`;
         break;
-      case 4: // its edit deleted: back to the first words
-        if (next.redacted || !next.edited) return;
+      case "unedit":
+        if (next.redacted || !next.edited) return false;
         next.edited = false;
         next.body = m.body.replace(/\++$/, "");
         next.editedAtUnixMs = 0n;
         next.revisionId = "";
         break;
-      case 5: // deleted
+      case "delete":
+        if (next.redacted) return false;
         next.redacted = true;
         next.body = "";
         next.editedAtUnixMs = 0n;
         next.revisionId = "";
         break;
-      case 6: // votes, one after another: each changes its poll's counts, up or down, and this person's answers
-        for (const k of [i, i + 1]) {
+      case "vote":
+        if (next.redacted) return false;
+        for (const k of [this.clock, this.clock + 1]) {
           next.poll = create(PollSchema, {
             question: m.poll?.question ?? "Lunch?",
             closed: m.poll?.closed ?? false,
@@ -124,22 +138,24 @@ class Cache {
           });
           this.put(clone(MessageSchema, next));
         }
-        return;
-      case 7: // its poll ended, or its question edited, its votes kept
-        if (next.poll === undefined || next.redacted) return;
-        if (i % 2 === 0) {
-          next.poll.closed = true;
-        } else {
-          next.poll.question = `${next.poll.question}+`;
-          next.edited = true;
-          next.editedAtUnixMs = BigInt(10_000 + this.clock);
-          next.revisionId = `$e${String(this.clock)}`;
-        }
+        return true;
+      case "end":
+        if (next.poll === undefined || next.poll.closed || next.redacted) return false;
+        next.poll.closed = true;
         break;
-      default: // moved in time (a network's order corrected)
-        next.timestamp = timestampFromMs(1 + (i % 1200));
+      case "retitle":
+        if (next.poll === undefined || next.redacted) return false;
+        next.poll.question = `${next.poll.question}+`;
+        next.edited = true;
+        next.editedAtUnixMs = BigInt(10_000 + this.clock);
+        next.revisionId = `$e${String(this.clock)}`;
+        break;
+      case "move":
+        next.timestamp = timestampFromMs(w.ts);
+        break;
     }
     this.put(next);
+    return true;
   }
 
   /** page is what kithd answers ask with, read now. */
@@ -173,7 +189,7 @@ class Cache {
 
 /** The steps a run interleaves. */
 type Step =
-  | { kind: "write"; what: number; i: number }
+  | { kind: "write"; write: Write }
   | { kind: "deliver"; n: number }
   | { kind: "ask" }
   | { kind: "read" }
@@ -182,55 +198,8 @@ type Step =
   | { kind: "again" }
   | { kind: "older" }
   | { kind: "readAgain" }
-  | { kind: "seek"; i: number; cached: boolean };
-
-const step: fc.Arbitrary<Step> = fc.oneof(
-  { weight: 6, arbitrary: fc.record({ kind: fc.constant("write"), what: fc.nat(8), i: fc.nat(10_000) }) },
-  { weight: 4, arbitrary: fc.record({ kind: fc.constant("deliver"), n: fc.integer({ min: 1, max: 4 }) }) },
-  { weight: 3, arbitrary: fc.constant({ kind: "ask" }) },
-  { weight: 3, arbitrary: fc.constant({ kind: "read" }) },
-  { weight: 3, arbitrary: fc.constant({ kind: "land" }) },
-  { weight: 1, arbitrary: fc.constant({ kind: "fail" }) },
-  { weight: 1, arbitrary: fc.constant({ kind: "again" }) },
-  { weight: 2, arbitrary: fc.constant({ kind: "older" }) },
-  { weight: 1, arbitrary: fc.constant({ kind: "readAgain" }) },
-  {
-    weight: 1,
-    arbitrary: fc.record({ kind: fc.constant("seek"), i: fc.nat(10_000), cached: fc.boolean() }),
-  },
-);
-
-/**
- * farStep is a step, or the newest few messages moved before every other, so the rows
- * shown may all go. Those are its only moves, their frames delivered at once, and it
- * reads nothing again: a page asked before a row that has moved by the time it is read
- * is read around where the row is now, which is not fixed yet (a reload asks before a
- * row it read last, and other pages may land before the move's frame).
- */
-const farStep: fc.Arbitrary<Step> = fc.oneof(
-  { weight: 3, arbitrary: step.filter((s) => s.kind !== "readAgain" && !(s.kind === "write" && s.what === 8)) },
-  { weight: 1, arbitrary: fc.record({ kind: fc.constant("write"), what: fc.constant(9), i: fc.nat(10_000) }) },
-);
-
-/**
- * pollStep is a step in a room already shown: votes, a poll ended or edited, among new
- * messages, edits and deletions, against pages and frames, lost frames and failed pages
- * included.
- */
-const pollStep: fc.Arbitrary<Step> = fc.oneof(
-  {
-    weight: 6,
-    arbitrary: fc.record({ kind: fc.constant("write"), what: fc.constantFrom(0, 3, 5, 6, 6, 7), i: fc.nat(10_000) }),
-  },
-  { weight: 4, arbitrary: fc.record({ kind: fc.constant("deliver"), n: fc.integer({ min: 1, max: 4 }) }) },
-  { weight: 3, arbitrary: fc.constant({ kind: "ask" }) },
-  { weight: 3, arbitrary: fc.constant({ kind: "read" }) },
-  { weight: 3, arbitrary: fc.constant({ kind: "land" }) },
-  { weight: 1, arbitrary: fc.constant({ kind: "fail" }) },
-  { weight: 1, arbitrary: fc.constant({ kind: "again" }) },
-  { weight: 2, arbitrary: fc.constant({ kind: "older" }) },
-  { weight: 1, arbitrary: fc.constant({ kind: "readAgain" }) },
-);
+  /** A jump to a message the cache holds (at, as a write's), or with none to one it does not. */
+  | { kind: "seek"; at?: number };
 
 /** Run is one window over one cache: the page in flight, asked and maybe read. */
 class Run {
@@ -239,87 +208,131 @@ class Run {
   private inFlight: { ticket: Ticket; read?: { rows: Message[]; next: string } } | undefined;
   /** Every ticket's answer, kept to land again late: one asked before a reload. */
   private stale: { ticket: Ticket; read: { rows: Message[]; next: string } }[] = [];
-  /** The message the last jump was to. */
+  /** The message the last jump was to, and whether a cached page failed since (which ends a jump, said as the failure). */
   sought: string | undefined;
+  jumpFailed = false;
   /** A failed page is to be asked again after a wait, not over yet (the window's timer). */
   private later = false;
+  /** That page waits: nothing asks for it before the wait is over but the window or kithd (a scroll, a jump, read_again). */
+  private waits = false;
 
   constructor(initial: number) {
     this.cache = new Cache(initial);
   }
 
-  do(s: Step): void {
+  /** idle: s would do nothing now, with no frame to deliver, no page to ask, read or answer, no wait to end. */
+  idle(s: Step): boolean {
+    switch (s.kind) {
+      case "deliver":
+        return this.cache.queue.length === 0;
+      case "ask":
+        return this.inFlight !== undefined;
+      case "read":
+        return this.inFlight === undefined || this.inFlight.read !== undefined;
+      case "land":
+        return this.inFlight?.read === undefined && this.stale.length === 0;
+      case "fail":
+        return this.inFlight === undefined && this.stale.length === 0;
+      case "again":
+        return !this.later;
+      default:
+        return false;
+    }
+  }
+
+  /** do takes s: whether it did anything (a page to read, a frame to deliver). */
+  do(s: Step): boolean {
     switch (s.kind) {
       case "write":
-        this.cache.write(s.what, s.i);
-        break;
-      case "deliver":
-        for (const m of this.cache.queue.splice(0, s.n)) {
+        return this.cache.write(s.write);
+      case "deliver": {
+        const frames = this.cache.queue.splice(0, s.n);
+        for (const m of frames) {
           this.t.frame(m);
         }
-        break;
-      case "ask":
-        if (this.inFlight === undefined) {
-          const ticket = this.t.ask();
-          this.inFlight = ticket && { ticket };
-        }
-        break;
-      case "read":
+        return frames.length > 0;
+      }
+      case "ask": {
         if (this.inFlight !== undefined) {
-          this.inFlight.read ??= this.cache.page(this.inFlight.ticket.ask);
+          return false;
         }
-        break;
+        const ticket = this.t.ask();
+        if (ticket !== undefined && this.waits) {
+          throw new Error("a refused page was asked again before its wait was over");
+        }
+        this.inFlight = ticket && { ticket };
+        return ticket !== undefined;
+      }
+      case "read":
+        if (this.inFlight === undefined || this.inFlight.read !== undefined) {
+          return false;
+        }
+        this.inFlight.read = this.cache.page(this.inFlight.ticket.ask);
+        return true;
       case "land": {
         const f = this.inFlight;
         if (f?.read !== undefined) {
           this.inFlight = undefined;
           this.t.land(f.ticket, f.read.rows, f.read.next);
-        } else {
-          // An answer from before a reload, arriving now.
-          const old = this.stale.shift();
-          if (old !== undefined) {
-            this.t.land(old.ticket, old.read.rows, old.read.next);
-          }
+          return true;
         }
-        break;
+        // An answer from before a reload, arriving now.
+        const old = this.stale.shift();
+        if (old === undefined) {
+          return false;
+        }
+        this.t.land(old.ticket, old.read.rows, old.read.next);
+        return true;
       }
       case "fail": {
         // The page in flight refused, or else an answer from before a reload, refused now.
         const ticket = this.inFlight?.ticket ?? this.stale.shift()?.ticket;
-        this.inFlight = undefined;
-        if (ticket !== undefined && this.t.failed(ticket)) {
-          this.later = true;
+        if (ticket === undefined) {
+          return false;
         }
-        break;
+        this.inFlight = undefined;
+        this.jumpFailed ||= this.sought !== undefined && ticket.ask.kind === "cached";
+        if (this.t.failed(ticket)) {
+          this.later = true;
+          this.waits = true;
+        }
+        return true;
       }
       case "again": // the wait after a failed page is over
-        if (this.later) {
-          this.later = false;
-          this.t.again();
+        if (!this.later) {
+          return false;
         }
-        break;
+        this.later = false;
+        this.waits = false;
+        this.t.again();
+        return true;
       case "older":
+        this.waits = false;
         this.t.older();
-        break;
+        return true;
       case "seek": {
-        // A jump to a message the cache holds (a search hit), or to one it does not.
-        const all = this.cache.ordered();
-        const to = s.cached && all.length > 0 ? all[s.i % all.length] : undefined;
-        this.sought = to?.id ?? `$gone${String(s.i)}`;
+        const to = s.at === undefined ? undefined : this.cache.ordered().at(s.at);
+        if (s.at !== undefined && to === undefined) {
+          return false;
+        }
+        this.sought = to?.id ?? "$gone";
+        this.jumpFailed = false;
+        this.waits = false;
         this.t.seek(this.sought);
-        break;
+        return true;
       }
       case "readAgain":
         // The stream could not resume: every frame not delivered is lost, and kithd
         // says to read again. An answer in flight still arrives, later.
         this.cache.queue = [];
+        this.waits = false;
         if (this.inFlight !== undefined) {
           const f = this.inFlight;
           this.stale.push({ ticket: f.ticket, read: f.read ?? this.cache.page(f.ticket.ask) });
           this.inFlight = undefined;
         }
         this.t.reload();
-        break;
+        return true;
     }
   }
 
@@ -330,21 +343,20 @@ class Run {
 
   /**
    * settle delivers every frame and answers every page due, asking for no older one, and
-   * waits out every wait: the i-th page it answers fails where fails[i] says so.
+   * waits out every wait, asking before each is over too (nothing may be asked then).
    */
-  settle(fails: readonly boolean[] = []): void {
+  settle(): void {
     for (let i = 0; i < 1000; i++) {
       this.do({ kind: "deliver", n: this.cache.queue.length });
+      if (!this.waiting()) {
+        this.do({ kind: "ask" });
+      }
       if (!this.waiting()) {
         this.do({ kind: "again" });
         this.do({ kind: "ask" });
         if (!this.waiting()) {
           return;
         }
-      }
-      if (fails[i] === true) {
-        this.do({ kind: "fail" });
-        continue;
       }
       this.do({ kind: "read" });
       this.do({ kind: "land" });
@@ -353,6 +365,218 @@ class Run {
   }
 }
 
+/** Where a search starts: a room as it opens, no page read yet. */
+const opening = (initial: number) => new Run(initial);
+
+/** shown: the room's newest page shown. */
+const shown = (initial: number) => {
+  const run = new Run(initial);
+  run.settle();
+  return run;
+};
+
+/** scrolled: the room scrolled back a page. */
+const scrolled = (initial: number) => {
+  const run = shown(initial);
+  run.do({ kind: "older" });
+  run.settle();
+  return run;
+};
+
+/** asking: the room shown, and the page before it asked for, not read yet. */
+const asking = (initial: number) => {
+  const run = shown(initial);
+  run.do({ kind: "older" });
+  run.do({ kind: "ask" });
+  return run;
+};
+
+/** offline: the room shown, its network's page refused, so older pages are the cache's. */
+const offline = (initial: number) => {
+  const run = shown(initial);
+  run.do({ kind: "older" });
+  run.do({ kind: "ask" });
+  run.do({ kind: "fail" });
+  return run;
+};
+
+/** reloading: the room shown, a new message whose frame is lost, and read_again. */
+const reloading = (initial: number) => {
+  const run = shown(initial);
+  run.do({ kind: "write", write: { what: "new" } });
+  run.do({ kind: "readAgain" });
+  return run;
+};
+
+/** frozen: v is a message, which neither the cache nor the timeline changes once made (each writes a new one). */
+const frozen = (v: object): v is Message => "$typeName" in v;
+
+/**
+ * copied is a deep copy of v, each object copied once so what was shared stays shared
+ * (the ticket the run holds and the timeline's own), class instances keeping their
+ * class; messages are shared, never changed.
+ */
+function copied<T>(v: T, seen = new Map<object, unknown>()): T {
+  if (typeof v !== "object" || v === null || frozen(v)) {
+    return v;
+  }
+  const done = seen.get(v);
+  if (done !== undefined) {
+    return done as T;
+  }
+  if (v instanceof Map) {
+    const m = new Map();
+    seen.set(v, m);
+    for (const [k, x] of v) {
+      m.set(copied(k, seen), copied(x, seen));
+    }
+    return m as T;
+  }
+  if (Array.isArray(v)) {
+    const a: unknown[] = [];
+    seen.set(v, a);
+    for (const x of v) {
+      a.push(copied(x, seen));
+    }
+    return a as T;
+  }
+  const o = Object.create(Object.getPrototypeOf(v) as object) as Record<string, unknown>;
+  seen.set(v, o);
+  for (const [k, x] of Object.entries(v)) {
+    o[k] = copied(x, seen);
+  }
+  return o as T;
+}
+
+/** written holds each message as a short name for its content, made once: messages do not change. */
+const written = new WeakMap<Message, string>();
+const contents = new Map<string, string>();
+
+/**
+ * state is v written out whole: equal for two runs that will do the same from here on.
+ * A message is its content, an object met again is the same one, and the timeline's
+ * view, made from the rest, is left out.
+ */
+function state(v: unknown, seen = new Map<object, number>()): string {
+  if (typeof v === "bigint") {
+    return `${String(v)}n`;
+  }
+  if (v === undefined) {
+    return "u";
+  }
+  if (typeof v !== "object" || v === null) {
+    return JSON.stringify(v);
+  }
+  if (frozen(v)) {
+    let w = written.get(v);
+    if (w === undefined) {
+      const content = `{${Object.entries(v)
+        .map(([k, x]) => `${k}:${state(x, new Map())}`)
+        .join(",")}}`;
+      w = contents.get(content) ?? `#${String(contents.size)}`;
+      contents.set(content, w);
+      written.set(v, w);
+    }
+    return w;
+  }
+  const at = seen.get(v);
+  if (at !== undefined) {
+    return `@${String(at)}`; // the same object again, not one equal to it
+  }
+  seen.set(v, seen.size);
+  if (v instanceof Map) {
+    return `M[${[...v].map(([k, x]) => `${state(k, seen)}:${state(x, seen)}`).join(",")}]`;
+  }
+  if (Array.isArray(v)) {
+    return `[${v.map((x) => state(x, seen)).join(",")}]`;
+  }
+  return `{${Object.entries(v)
+    .filter(([k]) => k !== "snapshot")
+    .map(([k, x]) => `${k}:${state(x, seen)}`)
+    .join(",")}}`;
+}
+
+/**
+ * explore takes every sequence of up to depth steps from start, settles each and checks
+ * it: every interleaving within the bound, the same ones on every run. A step that does
+ * nothing where it falls (no frame to deliver, no page to read) is not taken, and a
+ * state reached before, by as few steps, is not explored again.
+ */
+function explore(start: Run, steps: readonly Step[], depth: number, check: (run: Run) => void): void {
+  const reached = new Map<string, number>();
+  const walk = (run: Run, path: readonly Step[]): void => {
+    const key = state(run);
+    const before = reached.get(key);
+    if (before !== undefined && before <= path.length) {
+      return;
+    }
+    reached.set(key, path.length);
+    const settled = copied(run);
+    settled.settle();
+    try {
+      check(settled);
+    } catch (err) {
+      if (err instanceof Error) {
+        err.message = `after ${JSON.stringify(path)}: ${err.message}`;
+      }
+      throw err;
+    }
+    if (path.length < depth) {
+      for (const s of steps) {
+        if (run.idle(s)) {
+          continue;
+        }
+        const next = copied(run);
+        if (next.do(s)) {
+          walk(next, [...path, s]);
+        }
+      }
+    }
+  };
+  walk(start, []);
+}
+
+const write = (w: Write): Step => ({ kind: "write", write: w });
+
+/** pages are the window's and kithd's side: pages asked, read, landed or refused, frames delivered, a scroll. */
+const pages: readonly Step[] = [
+  { kind: "ask" },
+  { kind: "read" },
+  { kind: "land" },
+  { kind: "fail" },
+  { kind: "again" },
+  { kind: "older" },
+  { kind: "deliver", n: 1 },
+];
+
+/** moves are writes that change the cache's order: a new message, one moved back or forward, the newest moved before all. */
+const moves: readonly Step[] = [
+  write({ what: "new" }),
+  write({ what: "move", at: -1, ts: 15 }),
+  write({ what: "move", at: 0, ts: 5000 }),
+  write({ what: "far", n: 1 }),
+  write({ what: "far", n: 4 }),
+  write({ what: "far", n: 9 }),
+];
+
+/** edits change a message in place, or write one outside what is shown. */
+const edits: readonly Step[] = [
+  write({ what: "edit", at: -1 }),
+  write({ what: "edit", at: 0 }),
+  write({ what: "unedit", at: -1 }),
+  write({ what: "delete", at: -1 }),
+  write({ what: "backfill", ts: 15 }),
+  write({ what: "elsewhere" }),
+];
+
+/** polls are votes, a poll ended and its question edited. */
+const polls: readonly Step[] = [
+  write({ what: "vote", at: -1 }),
+  write({ what: "vote", at: 0 }),
+  write({ what: "end", at: -1 }),
+  write({ what: "retitle", at: -1 }),
+];
+
 /** drawn is a row as the table writes it, and its poll whole: every answer's count and mark, and whether it ended. */
 const drawn = (m: Message) => ({ ...row(m), poll: m.poll });
 
@@ -360,138 +584,110 @@ const drawn = (m: Message) => ({ ...row(m), poll: m.poll });
 function shownMatchesCache(run: Run): void {
   const shown = run.t.view().rows.map(drawn);
   const cache = run.cache.ordered().map(drawn);
-  expect(shown).toEqual(cache.slice(cache.length - shown.length));
-  if (cache.length > 0) {
+  const newest = cache.slice(cache.length - shown.length);
+  if (state(shown) !== state(newest)) {
+    expect(shown).toEqual(newest); // says how they differ
+  }
+  if (cache.length > 0 && shown.length === 0) {
     expect(shown.length).toBeGreaterThan(0);
   }
 }
 
-describe("the timeline over any interleaving of pages and frames", () => {
-  it("shows the cache's newest messages in its order, each as the cache holds it", () => {
-    fc.assert(
-      fc.property(
-        fc.nat(12),
-        fc.array(step, { maxLength: 80 }),
-        fc.array(fc.boolean(), { maxLength: 4 }),
-        (initial, steps, fails) => {
-          const run = new Run(initial);
-          for (const s of steps) {
-            run.do(s);
-          }
-          run.settle(fails);
-          shownMatchesCache(run);
-        },
-      ),
-      { numRuns: 400 },
-    );
-  });
+/** jumpFound: the last jump's message is the target and a row where the cache holds it, and said missing where not. */
+function jumpFound(run: Run): void {
+  if (run.sought === undefined) {
+    return;
+  }
+  const held = run.cache.ordered().some((m) => m.id === run.sought);
+  const v = run.t.view();
+  if (run.jumpFailed && v.target === "") {
+    expect(run.t.jumpMissed()).toBe(false); // the failed page is what is said
+    return;
+  }
+  expect(v.target).toBe(held ? run.sought : "");
+  expect(v.rows.some((m) => m.id === v.target)).toBe(held);
+  // Held, it may still have been said missing: written after the last page was read, it
+  // came as a frame once the pages ran out.
+  if (!held) {
+    expect(run.t.jumpMissed()).toBe(true);
+  }
+}
 
-  it("reads the room again from its newest when its rows all move below them, whichever pages fail", () => {
-    fc.assert(
-      fc.property(
-        fc.nat(12),
-        fc.boolean(),
-        fc.array(farStep, { maxLength: 80 }),
-        fc.array(fc.boolean(), { maxLength: 4 }),
-        (initial, shown, steps, fails) => {
-          const run = new Run(initial + 1);
-          if (shown) {
-            run.settle();
-          }
-          for (const s of steps) {
-            run.do(s);
-            if (s.kind === "write" && s.what === 9) {
-              run.do({ kind: "deliver", n: run.cache.queue.length });
-            }
-          }
-          run.settle(fails);
-          shownMatchesCache(run);
-        },
-      ),
-      { numRuns: 5000 },
-    );
-  });
+describe("the timeline over every interleaving of pages and frames, within a bound", () => {
+  // Each search is exhaustive within its bound and the same on every run; its steps are
+  // the ones its concern turns on, so the bound reaches the depth that concern needs.
+  const searched = (
+    name: string,
+    starts: readonly Run[],
+    steps: readonly Step[],
+    depth: number,
+    check: (run: Run) => void,
+  ) => {
+    it(name, { timeout: 60_000 }, () => {
+      for (const start of starts) {
+        explore(start, steps, depth, check);
+      }
+    });
+  };
 
-  it("finds a jump's message wherever the cache holds it, reading back to it, and says when it holds none", () => {
-    fc.assert(
-      fc.property(
-        fc.nat(12),
-        fc.array(step, { maxLength: 80 }),
-        fc.nat(10_000),
-        fc.boolean(),
-        (initial, steps, i, cached) => {
-          const run = new Run(initial);
-          for (const s of [...steps, { kind: "seek", i, cached } as const]) {
-            run.do(s);
-          }
-          run.settle();
-          shownMatchesCache(run);
-          const sought = run.sought ?? "";
-          const held = run.cache.ordered().some((m) => m.id === sought);
-          expect(run.t.view().target).toBe(held ? sought : "");
-          expect(run.t.view().rows.some((m) => m.id === run.t.view().target)).toBe(held);
-          // Held, it may still have been said missing: written after the last page was
-          // read, it came as a frame once the pages ran out.
-          if (!held) {
-            expect(run.t.jumpMissed()).toBe(true);
-          }
-        },
-      ),
-      { numRuns: 2000 },
-    );
-  });
+  searched(
+    "shows the cache's newest messages in its order, as pages land, fail and frames move rows",
+    [opening(0), opening(1), opening(5), shown(1), shown(5), scrolled(9), asking(5), offline(5)],
+    [...pages, ...moves],
+    4,
+    shownMatchesCache,
+  );
 
-  it("keeps each poll shown as the cache holds it, its votes, end and edits coming before and after pages", () => {
-    fc.assert(
-      fc.property(
-        fc.nat(12),
-        fc.array(pollStep, { maxLength: 80 }),
-        fc.array(fc.boolean(), { maxLength: 4 }),
-        (initial, steps, fails) => {
-          const run = new Run(initial + 1);
-          run.settle(); // shown: what changes now changes rows on screen
-          for (const s of steps) {
-            run.do(s);
-          }
-          run.settle(fails);
-          shownMatchesCache(run);
-        },
-      ),
-      { numRuns: 400 },
-    );
-  });
+  searched(
+    "shows each message as the cache holds it, edited, deleted or written outside the rows",
+    [opening(3), shown(5), scrolled(9)],
+    [...pages, ...edits],
+    3,
+    shownMatchesCache,
+  );
 
-  it("reads again to the cache when told, the changes lost and whichever of its pages fail", () => {
-    const lost = fc.record({ kind: fc.constant("write"), what: fc.constantFrom(0, 3, 5, 6, 7), i: fc.nat(10_000) });
-    const fails = fc.array(fc.boolean(), { maxLength: 6 });
-    fc.assert(
-      fc.property(
-        fc.nat(12),
-        fc.array(pollStep, { maxLength: 40 }),
-        fc.array(lost, { minLength: 1, maxLength: 4 }),
-        fc.array(pollStep, { maxLength: 20 }),
-        fails,
-        (initial, before, writes, after, fails) => {
-          const run = new Run(initial + 1);
-          run.settle();
-          // Scrolled back or not, then changes the stream loses, so the rows shown are
-          // stale until the reload is read; and anything after, more reloads included.
-          for (const s of [...before, ...writes, { kind: "readAgain" } as const, ...after]) {
-            run.do(s);
-          }
-          run.settle(fails);
-          shownMatchesCache(run);
-        },
-      ),
-      { numRuns: 1000 },
-    );
-  });
+  searched(
+    "keeps each poll shown as the cache holds it, its votes, end and edits coming before and after pages",
+    [shown(1), shown(5)],
+    [...pages, ...polls, write({ what: "new" }), write({ what: "delete", at: -1 })],
+    4,
+    shownMatchesCache,
+  );
 
+  searched(
+    "reads again to the cache when told, the changes lost, rows moved meanwhile and whichever of its pages fail",
+    [shown(5), offline(5), reloading(5)],
+    [...pages, { kind: "readAgain" }, write({ what: "edit", at: -1 }), ...moves],
+    4,
+    shownMatchesCache,
+  );
+
+  searched(
+    "finds a jump's message wherever the cache holds it, reading back to it, and says when it holds none",
+    [opening(5), shown(5), scrolled(9)],
+    [
+      ...pages,
+      { kind: "seek", at: -1 },
+      { kind: "seek", at: 0 },
+      { kind: "seek" },
+      write({ what: "new" }),
+      write({ what: "move", at: -1, ts: 15 }),
+      write({ what: "far", n: 9 }),
+    ],
+    4,
+    (run) => {
+      shownMatchesCache(run);
+      jumpFound(run);
+    },
+  );
+});
+
+describe("the timeline, case by case", () => {
   it("keeps a page read before a frame from taking the frame's change back", () => {
     const run = new Run(3);
     run.do({ kind: "ask" });
     run.do({ kind: "read" }); // the cache as it was
-    run.do({ kind: "write", what: 3, i: 2 }); // the newest edited
+    run.do({ kind: "write", write: { what: "edit", at: 2 } }); // the newest edited
     run.do({ kind: "deliver", n: 1 });
     run.do({ kind: "land" });
     shownMatchesCache(run);
@@ -501,7 +697,7 @@ describe("the timeline over any interleaving of pages and frames", () => {
     const run = new Run(12);
     run.settle();
     const before = run.t.view().rows.map((m) => m.id);
-    run.do({ kind: "write", what: 3, i: 0 }); // the oldest message edited
+    run.do({ kind: "write", write: { what: "edit", at: 0 } }); // the oldest message edited
     run.do({ kind: "deliver", n: 1 });
     expect(run.t.view().rows.map((m) => m.id)).toEqual(before);
     shownMatchesCache(run);
@@ -519,7 +715,7 @@ describe("the timeline over any interleaving of pages and frames", () => {
     run.do({ kind: "older" });
     run.do({ kind: "ask" });
     run.do({ kind: "fail" }); // the older page refused: none is asked until scrolled again
-    run.do({ kind: "write", what: 9, i: 0 }); // the message moved before the stretch shown
+    run.do({ kind: "write", write: { what: "far", n: 1 } }); // the message moved before the stretch shown
     run.do({ kind: "deliver", n: 1 });
     expect(run.t.loaded).toBe(false); // nothing shown is the opening's state again
     run.do({ kind: "ask" });
@@ -529,10 +725,24 @@ describe("the timeline over any interleaving of pages and frames", () => {
     shownMatchesCache(run);
   });
 
+  it("reads back again to a jump's message found after a failed page, once it moves out of the rows", () => {
+    const run = offline(5); // the network refused: older pages are the cache's
+    run.do({ kind: "seek", at: 0 });
+    run.do({ kind: "ask" });
+    run.do({ kind: "fail" }); // the jump's page refused: it reads no further
+    run.do({ kind: "older" });
+    run.settle(); // scrolled back, and its message is a row after all
+    expect(run.t.view().target).toBe(run.sought);
+    run.do({ kind: "write", write: { what: "move", at: 0, ts: 0 } }); // moved below the rows
+    run.settle();
+    expect(run.t.view().target).toBe(run.sought);
+    expect(run.t.view().rows.some((m) => m.id === run.sought)).toBe(true);
+  });
+
   it("ignores a frame for a room not open", () => {
     const run = new Run(3);
     run.settle();
-    run.do({ kind: "write", what: 2, i: 0 });
+    run.do({ kind: "write", write: { what: "elsewhere" } });
     run.do({ kind: "deliver", n: 1 });
     expect(run.t.view().rows).toHaveLength(3);
     shownMatchesCache(run);
@@ -549,7 +759,7 @@ describe("the timeline over any interleaving of pages and frames", () => {
     expect(reached).toBeGreaterThan(8);
     // Changes the stream loses, all through the stretch shown.
     for (let i = 0; i < reached; i += 3) {
-      run.do({ kind: "write", what: 3, i: 30 - reached + i });
+      run.do({ kind: "write", write: { what: "edit", at: 30 - reached + i } });
     }
     run.do({ kind: "readAgain" });
     run.do({ kind: "ask" });
@@ -565,7 +775,7 @@ describe("the timeline over any interleaving of pages and frames", () => {
     run.do({ kind: "older" });
     run.do({ kind: "ask" });
     run.do({ kind: "read" }); // the four before them, as they were
-    run.do({ kind: "write", what: 3, i: 3 }); // one of those edited
+    run.do({ kind: "write", write: { what: "edit", at: 3 } }); // one of those edited
     run.do({ kind: "readAgain" }); // and its frame lost
     run.do({ kind: "land" }); // the answer read before
     run.settle();
@@ -577,9 +787,9 @@ describe("the timeline over any interleaving of pages and frames", () => {
     run.settle();
     run.do({ kind: "older" });
     run.do({ kind: "ask" }); // a page in flight, the frames meanwhile held
-    run.do({ kind: "write", what: 3, i: 2 });
+    run.do({ kind: "write", write: { what: "edit", at: 2 } });
     run.do({ kind: "deliver", n: 1 });
-    run.do({ kind: "write", what: 3, i: 2 }); // edited again
+    run.do({ kind: "write", write: { what: "edit", at: 2 } }); // edited again
     run.do({ kind: "readAgain" }); // and that frame lost
     run.settle();
     shownMatchesCache(run);

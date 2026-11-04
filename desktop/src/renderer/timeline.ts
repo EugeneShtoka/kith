@@ -15,8 +15,8 @@ export type Ask =
   | { kind: "latest" }
   /** Timeline: the network's page from a token ("" its newest). */
   | { kind: "network"; from: string }
-  /** MessagesAround: the cached page before a message shown. */
-  | { kind: "cached"; before: string };
+  /** MessagesAround: the cached page before a message shown, row as it was when asked. */
+  | { kind: "cached"; before: string; row: Message };
 
 /** An ask in flight: an answer is used only while its ticket is the one in flight. */
 export interface Ticket {
@@ -77,6 +77,11 @@ function lower(floor: Floor, m: Message | undefined): Floor {
     return floor;
   }
   return floor === undefined || compare(m, floor) < 0 ? m : floor;
+}
+
+/** reaches: s holds a row, or its floor reaches none (none read yet, all of them, the start). */
+function reaches(s: Stretch): boolean {
+  return s.rows.length > 0 || s.floor === undefined || s.floor === "all" || s.start;
 }
 
 /** short: the stretch's floor is above to, so it reaches less far back. */
@@ -172,7 +177,7 @@ export class Timeline {
       if (r.into.floor === undefined) {
         return { kind: "latest" };
       }
-      return first === undefined ? undefined : { kind: "cached", before: first.id };
+      return first === undefined ? undefined : { kind: "cached", before: first.id, row: first };
     }
     if (this.shown.floor === undefined) {
       return { kind: "latest" };
@@ -181,7 +186,7 @@ export class Timeline {
     if (this.seeking !== undefined && !this.readAll && first !== undefined) {
       // A jump reads the cache back to its message: it is a cached message (a search
       // hit), and the network's pages would reach it fifty at a time.
-      return { kind: "cached", before: first.id };
+      return { kind: "cached", before: first.id, row: first };
     }
     if (this.token === undefined && !this.cached) {
       return { kind: "network", from: "" };
@@ -192,7 +197,7 @@ export class Timeline {
     if (!this.cached) {
       return { kind: "network", from: this.token ?? "" };
     }
-    return first === undefined ? undefined : { kind: "cached", before: first.id };
+    return first === undefined ? undefined : { kind: "cached", before: first.id, row: first };
   }
 
   /** older asks for the page before what is shown: the window was scrolled to its top. */
@@ -233,27 +238,38 @@ export class Timeline {
     }
     this.asked = undefined;
     const r = this.reloading;
-    const s: Stretch = { ...(r?.into ?? this.shown) };
-    const had = new Set(s.rows.map((m) => m.id));
-    s.rows = merge(s.rows, page);
-    switch (t.ask.kind) {
-      case "latest":
-        s.floor = page.length > 0 ? oldest(page) : "all";
-        break;
-      case "network":
-        s.floor = lower(s.floor, oldest(page));
-        this.token = next;
-        this.cached = next === "";
-        this.wantOlder = false;
-        break;
-      case "cached":
-        if (page.every((m) => had.has(m.id))) {
-          s.start = true; // a cached page that adds nothing: the room's start
-        } else {
+    let s: Stretch = { ...(r?.into ?? this.shown) };
+    const moved = this.moved(t.ask, page);
+    if (moved !== undefined) {
+      // The row it was asked before moved before it was read: the page is around where
+      // that row is now, not below what is held. Only the row is used, as a frame would
+      // be, and the next page is asked before the first row now.
+      s.rows = apply(s, moved);
+      if (!reaches(s)) {
+        s = { rows: [], floor: undefined, start: false };
+      }
+    } else {
+      const had = new Set(s.rows.map((m) => m.id));
+      s.rows = merge(s.rows, page);
+      switch (t.ask.kind) {
+        case "latest":
+          s.floor = page.length > 0 ? oldest(page) : "all";
+          break;
+        case "network":
           s.floor = lower(s.floor, oldest(page));
-        }
-        this.wantOlder = false;
-        break;
+          this.token = next;
+          this.cached = next === "";
+          this.wantOlder = false;
+          break;
+        case "cached":
+          if (page.every((m) => had.has(m.id))) {
+            s.start = true; // a cached page that adds nothing: the room's start
+          } else {
+            s.floor = lower(s.floor, oldest(page));
+          }
+          this.wantOlder = false;
+          break;
+      }
     }
     this.react(...reactions);
     if (r !== undefined) {
@@ -269,21 +285,35 @@ export class Timeline {
     this.changed();
   }
 
+  /** moved is the row a cached page was asked before, as the page holds it, if it has moved since. */
+  private moved(ask: Ask, page: readonly Message[]): Message | undefined {
+    if (ask.kind !== "cached") {
+      return undefined;
+    }
+    const row = page.find((m) => m.id === ask.before);
+    return row !== undefined && compare(row, ask.row) !== 0 ? row : undefined;
+  }
+
   /**
    * show makes s the stretch shown. One whose rows all moved below its floor reaches
    * nothing, and has no row to read back from: the room is read again from its newest,
-   * as when it opened; a page asked before is not used, a reload's aside.
+   * as when it opened (a page already asked lands as one would then). A jump's message
+   * no longer shown is sought again.
    */
   private show(s: Stretch): void {
-    if (s.rows.length > 0 || s.floor === undefined || s.floor === "all" || s.start) {
+    if (reaches(s)) {
       this.shown = s;
-      return;
+    } else {
+      this.shown = { rows: [], floor: undefined, start: false };
+      if (this.reloading === undefined) {
+        this.stalled = false; // what failed was a page below what is gone
+      }
     }
-    this.shown = { rows: [], floor: undefined, start: false };
-    if (this.reloading === undefined) {
-      this.asked = undefined;
-      this.since = undefined;
-      this.stalled = false; // what failed was a page below what is gone
+    if (this.target !== "" && !this.shown.rows.some((m) => m.id === this.target)) {
+      // The jump's message moved out of what is shown: the jump reads back to it again.
+      this.seeking = this.target;
+      this.target = "";
+      this.readAll = false;
     }
   }
 
