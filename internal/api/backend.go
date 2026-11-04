@@ -214,6 +214,9 @@ type Reactions interface {
 // (and decrypting) and caching.
 type Media interface {
 	LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error)
+	// LoadPicture is a room's picture as the cache keeps it, the version
+	// domain.Room.Picture names; nil when it has none.
+	LoadPicture(ctx context.Context, roomID domain.RoomID) ([]byte, error)
 }
 
 // Members is who is in a room, and the colors they are drawn in.

@@ -9,6 +9,7 @@ import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
 import { FilingDialog } from "./Filing";
 import { HelpOverlay } from "./HelpOverlay";
+import { roomPicture } from "./media";
 import { type Action, keyName, Keymap, moved, typing } from "./keymap";
 import { OfferDialog } from "./Offer";
 import { PeopleDialog, PersonDialog } from "./People";
@@ -617,7 +618,7 @@ function RoomHeader({
   const color = room && roomColor(theme, room);
   return (
     <header className="room-header">
-      <Avatar id={id} name={name} />
+      <Avatar id={id} name={name} picture={roomPicture(room)} />
       <h2 dir="auto">{name}</h2>
       {mark && <span className={`net ${color ? colorClass(color) : `net-${mark.slug}`}`}>{room?.network}</span>}
       {room?.topic ? (
@@ -826,7 +827,7 @@ function RoomRow({
           session.openFiling(room.id);
         }}
       >
-        <Avatar id={room.id} name={name} small />
+        <Avatar id={room.id} name={name} small picture={roomPicture(room)} />
         <span className="label" dir="auto">
           {name}
         </span>

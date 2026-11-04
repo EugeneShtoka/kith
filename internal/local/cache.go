@@ -172,3 +172,8 @@ func (s *Service) SearchSenders(ctx context.Context, rooms domain.RoomSet, limit
 		return c.SearchSenders(ctx, rooms, limit)
 	})
 }
+
+// LoadPicture is a room's picture as the cache keeps it; nil when it has none.
+func (s *Service) LoadPicture(ctx context.Context, roomID domain.RoomID) ([]byte, error) {
+	return fromCache(s, "load picture", func(c *db.Cache) ([]byte, error) { return c.Picture(ctx, roomID) })
+}

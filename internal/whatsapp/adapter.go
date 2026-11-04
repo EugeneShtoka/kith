@@ -93,6 +93,10 @@ type Adapter struct {
 	// a listing waiting for listingEvery to pass (see refreshLater).
 	listedAt map[string]time.Time
 	trailing map[string]bool
+	// sweeping marks accounts whose due pictures are being asked for (picturesLater);
+	// asking orders every picture's ask with its keeping (askPicture).
+	sweeping map[string]bool
+	asking   sync.Mutex
 	// renames renames direct chats when contact names arrive.
 	renames renamer
 	// keepDeleted is [display.deleted] keep.
@@ -129,6 +133,7 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 		channels:  map[domain.RoomID]channel{},
 		listedAt:  map[string]time.Time{},
 		trailing:  map[string]bool{},
+		sweeping:  map[string]bool{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
@@ -252,6 +257,7 @@ func (a *Adapter) connect(account Account, client *whatsmeow.Client) {
 	a.clients[account.Digits] = client
 	a.mu.Unlock()
 	client.AddEventHandler(func(evt any) { a.handle(account, client, evt) })
+	client.AddEventHandler(func(evt any) { a.pictureChanged(account, client, evt) })
 	if client.IsConnected() {
 		// Just paired: its Connected event came before this handler.
 		a.link(account, Connected, "")
@@ -394,6 +400,7 @@ func (a *Adapter) refreshAccount(ctx context.Context, account Account, client *w
 	a.listedAt[account.Digits] = time.Now()
 	a.mu.Unlock()
 	a.fetchChannelHistory(ctx, account, client, channelList)
+	a.picturesLater(account, client)
 	// The listing has no direct chats; the cache kept them.
 	return a.accountRooms(ctx, account, func(domain.RoomID) bool { return true })
 }

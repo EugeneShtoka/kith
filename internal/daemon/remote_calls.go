@@ -769,6 +769,12 @@ func (r *Remote) LoadImage(ctx context.Context, roomID domain.RoomID, eventID do
 	return resp.GetData(), err
 }
 
+// LoadPicture returns a room's picture as the daemon's cache keeps it.
+func (r *Remote) LoadPicture(ctx context.Context, roomID domain.RoomID) ([]byte, error) {
+	resp, err := call(ctx, "load picture", r.c.LoadPicture, &v1.LoadPictureRequest{RoomId: string(roomID)})
+	return resp.GetData(), err
+}
+
 // ── Verification ──
 
 func (r *Remote) StartVerification(ctx context.Context, on domain.RoomOwner) (string, error) {

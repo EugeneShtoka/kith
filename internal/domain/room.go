@@ -60,6 +60,10 @@ type Room struct {
 	// Merged are the rooms merged into this one, found to be the same chat (RoomMerge):
 	// a window on one of them goes on in this one.
 	Merged []RoomID
+	// Picture names the version of the room's picture the cache holds (a person's, in a
+	// direct chat): the network's ID for it, so it changes with the picture. Empty while
+	// there is none.
+	Picture string
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted instead.

@@ -420,6 +420,11 @@ func (s *server) LoadImage(ctx context.Context, r *req[v1.LoadImageRequest]) (*r
 	return reply(&v1.LoadImageResponse{Data: data}, err)
 }
 
+func (s *server) LoadPicture(ctx context.Context, r *req[v1.LoadPictureRequest]) (*resp[v1.LoadPictureResponse], error) {
+	data, err := s.Backend.LoadPicture(ctx, roomID(r.Msg.GetRoomId()))
+	return reply(&v1.LoadPictureResponse{Data: data}, err)
+}
+
 // ── Member ──
 
 func (s *server) Members(ctx context.Context, r *req[v1.MembersRequest]) (*resp[v1.MembersResponse], error) {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { mediaURL } from "../shared/media";
+import { mediaURL, pictureURL } from "../shared/media";
 import { type Frame, Gate } from "./gate";
 import { byteRange, Media } from "./media";
 import { FakeKithd } from "./testing/kithd";
@@ -17,10 +17,16 @@ beforeEach(async () => {
   await kithd.start();
   gate = new Gate(kithd.transport());
   loads = 0;
-  media = new Media((room, event) => {
-    loads++;
-    return gate.media(room, event);
-  });
+  media = new Media(
+    (room, event) => {
+      loads++;
+      return gate.media(room, event);
+    },
+    (room) => {
+      loads++;
+      return gate.picture(room);
+    },
+  );
 });
 
 afterEach(async () => {
@@ -46,6 +52,21 @@ describe("kith-media:", () => {
     expect(await bytes(mediaURL("!r:x", "$p:x", "first"))).toEqual(new Uint8Array([1]));
     kithd.pictures.set("$p:x", new Uint8Array([2])); // an edit replaced it
     expect(await bytes(mediaURL("!r:x", "$p:x", "edited"))).toEqual(new Uint8Array([2]));
+  });
+
+  it("answers a room's picture from kithd, once per version, in the window's profile", async () => {
+    await gate.call(window, "Device", new Uint8Array());
+    kithd.roomPictures.set("!r:x", new Uint8Array([7]));
+    expect(await bytes(pictureURL("!r:x", "p1"))).toEqual(new Uint8Array([7]));
+    expect(await bytes(pictureURL("!r:x", "p1"))).toEqual(new Uint8Array([7]));
+    kithd.roomPictures.set("!r:x", new Uint8Array([8])); // the picture changed, and its version
+    expect(await bytes(pictureURL("!r:x", "p2"))).toEqual(new Uint8Array([8]));
+    expect(loads).toBe(2);
+    expect(kithd.reached).toEqual(["Device:", "LoadPicture:Home", "LoadPicture:Home"]);
+    expect((await media.answer(pictureURL("!none:x", "p1"))).status).toBe(502);
+    for (const url of ["kith-media://picture/", "kith-media://picture/a/b", "kith-media://picture/%E0%A4%A"]) {
+      expect((await media.answer(url)).status, url).toBe(404);
+    }
   });
 
   it("answers nothing before a profile, for an attachment kithd lacks, or for another URL", async () => {

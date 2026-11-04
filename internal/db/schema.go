@@ -203,6 +203,17 @@ CREATE TABLE room_handles (
 	handle  TEXT NOT NULL
 ) STRICT, WITHOUT ROWID;
 
+-- A room's picture (a person's, in a direct chat) as its network last gave it, and when
+-- the network was last asked (SetPicture): picture_id is the network's name for that
+-- picture, '' for a room found to have none, so it is not asked again until a check is
+-- due. A rowid table: WITHOUT ROWID suits rows smaller than a picture's kilobytes.
+CREATE TABLE room_pictures (
+	room_id    TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	picture_id TEXT    NOT NULL DEFAULT '',
+	data       BLOB    NOT NULL DEFAULT x'',
+	checked_ms INTEGER NOT NULL DEFAULT 0
+) STRICT;
+
 -- A chat's disappearing-messages timer, a row only while it has one: what kith sends
 -- there must carry it (SetTimers).
 CREATE TABLE room_timers (
@@ -739,6 +750,13 @@ INSERT INTO change_counter(epoch, last) SELECT lower(hex(randomblob(16))), 0
 	room_id TEXT NOT NULL PRIMARY KEY,
 	into_id TEXT NOT NULL
 ) STRICT, WITHOUT ROWID;`,
+	// v32: rooms' pictures.
+	`CREATE TABLE IF NOT EXISTS room_pictures (
+	room_id    TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	picture_id TEXT    NOT NULL DEFAULT '',
+	data       BLOB    NOT NULL DEFAULT x'',
+	checked_ms INTEGER NOT NULL DEFAULT 0
+) STRICT;`,
 }
 
 // messageRedactionTimes is when each deleted message was deleted, the first time heard

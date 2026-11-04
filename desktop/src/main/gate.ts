@@ -500,6 +500,14 @@ export class Gate {
     return response.message.data;
   }
 
+  /** picture is a room's picture, in the window's profile (LoadPicture), called by main as media is. */
+  async picture(room: string): Promise<Uint8Array> {
+    const method = backend.loadPicture;
+    const request = create(method.input, { roomId: room });
+    const response = await this.transport.unary(method, undefined, undefined, this.header(method), request);
+    return response.message.data;
+  }
+
   /**
    * restart is the window loading afresh (a reload): it runs in no profile until it
    * reads the device again, as a window just started does, so both decide alike.

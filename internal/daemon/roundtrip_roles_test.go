@@ -153,6 +153,11 @@ func (r *recording) LoadImage(_ context.Context, roomID domain.RoomID, eventID d
 	return r.image, r.failWith
 }
 
+func (r *recording) LoadPicture(_ context.Context, roomID domain.RoomID) ([]byte, error) {
+	r.gotRoom = roomID
+	return r.image, r.failWith
+}
+
 func (r *recording) SearchMessages(_ context.Context, req domain.SearchRequest) ([]domain.SearchHit, error) {
 	r.gotQuery, r.gotLimit, r.gotSearch = req.Filter.Terms, req.Limit, req
 	r.gotRoom = ""
@@ -423,6 +428,9 @@ func TestRemainingRolesRoundTrip(t *testing.T) {
 	image, err := r.LoadImage(ctx, mx+"!a:example.org", mx+"$m:example.org")
 	if err != nil || !reflect.DeepEqual(image, b.image) {
 		t.Errorf("LoadImage() = %v, %v; want %v", image, err, b.image)
+	}
+	if picture, perr := r.LoadPicture(ctx, mx+"!b:example.org"); perr != nil || !reflect.DeepEqual(picture, b.image) || b.gotRoom != mx+"!b:example.org" {
+		t.Errorf("LoadPicture() = %v, %v of %s; want %v of !b", picture, perr, b.gotRoom, b.image)
 	}
 
 	hits, err := r.SearchMessages(ctx, domain.SearchRequest{Filter: domain.ParseSearch("code", time.Now()), Rooms: domain.TheseRooms([]domain.RoomID{mx + "!a:example.org"}), Limit: 30})

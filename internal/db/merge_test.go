@@ -60,6 +60,7 @@ var roomRows = []roomRow{
 	{"room_gaps", `INSERT INTO room_gaps (room_id, boundary, since_ms, until_ms, token, announce) VALUES (?1, ?4, 1, ?3, ?4, 0)`, false},
 	{"room_read_only", `INSERT INTO room_read_only (room_id) VALUES (?1)`, false},
 	{"room_handles", `INSERT INTO room_handles (room_id, handle) VALUES (?1, ?4)`, false},
+	{"room_pictures", `INSERT INTO room_pictures (room_id, picture_id, data, checked_ms) VALUES (?1, ?4, CAST(?4 AS BLOB), ?3)`, false},
 	{"room_timers", `INSERT INTO room_timers (room_id, seconds) VALUES (?1, 60)`, false},
 	{"room_timer_versions", `INSERT INTO room_timer_versions (room_id, version) VALUES (?1, ?3)`, false},
 	{"room_upgrades", `INSERT INTO room_upgrades (room_id, checked_ms) VALUES (?1, ?3)`, false},

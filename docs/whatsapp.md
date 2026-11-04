@@ -86,6 +86,7 @@ command that links it.
 | Archive | a chat archived on the phone is in kith's Archived tag; archiving in kith archives it on the phone when `[whatsapp.archive] mirror` is on ([configuration.md](configuration.md#follow-a-networks-own-archive)) |
 | Communities | a space holding its groups; what is in it is the admins' to decide, so kith does not offer to file rooms into it |
 | Channels you follow | rooms; the latest posts are fetched the first time; only a channel's admins post |
+| Pictures of chats | groups' and people's, kept in the cache and shown by the desktop window; fetched once, again when WhatsApp says one changed, and checked weekly. A picture someone shows only to their contacts is none to kith unless you are one |
 
 Not yet: reacting to channel posts and sending channel read receipts (kith keeps
 read state there for itself), calls, status updates, votes cast before kith was
