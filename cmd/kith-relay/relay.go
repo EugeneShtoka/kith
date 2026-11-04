@@ -476,7 +476,29 @@ func resolved(dev config.Device) *devicev1.DeviceSettings {
 		ModelDeclined:       dev.Complete.Model.Declined,
 		FilingSpaces:        dev.Display.FilingSpaces,
 		Keys:                keySequences(dev.Keys),
+		Jumps:               jumps(dev.Keys.Jump),
 	}
+}
+
+// jumps are js as the window reads them: each chord one sequence of keys kith names, to
+// a target domain.ParseJump reads; the TUI reports the others.
+func jumps(js config.Jumps) []*devicev1.Jump {
+	var out []*devicev1.Jump
+	for _, j := range js {
+		seqs := config.SplitKeys(j.Chord)
+		target, ok := domain.ParseJump(j.Target)
+		if len(seqs) != 1 || !config.SequenceValid(seqs[0]) || !ok {
+			continue
+		}
+		jump := &devicev1.Jump{Sequence: seqs[0]}
+		if target.Kind == domain.JumpRoom {
+			jump.Room = target.Name
+		} else {
+			jump.Place = target.Name
+		}
+		out = append(out, jump)
+	}
+	return out
 }
 
 // keySequences are k's bindings as the window reads them: each split, and only the

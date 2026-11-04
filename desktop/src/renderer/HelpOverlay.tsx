@@ -2,10 +2,19 @@
 // typed. Closing puts the focus back where it was.
 import { useState } from "react";
 
-import { filtered, helpSections, keysOf } from "./help";
+import { filtered, type HelpSection, keysOf } from "./help";
 import { bound, type Keys } from "./keymap";
 
-export function HelpOverlay({ keys, close }: { keys: Keys; close: () => void }) {
+export function HelpOverlay({
+  keys,
+  sections: all,
+  close,
+}: {
+  keys: Keys;
+  /** helpSections, and the device's own keys beside them. */
+  sections: readonly HelpSection[];
+  close: () => void;
+}) {
   const [query, setQuery] = useState("");
   // Read as it opens, before the filter takes the focus.
   const [was] = useState(() => document.activeElement);
@@ -15,7 +24,7 @@ export function HelpOverlay({ keys, close }: { keys: Keys; close: () => void }) 
       was.focus();
     }
   };
-  const sections = filtered(helpSections, keys, query);
+  const sections = filtered(all, keys, query);
   return (
     <div className="switcher-backdrop" onClick={shut}>
       <div
