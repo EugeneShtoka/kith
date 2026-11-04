@@ -113,6 +113,8 @@ const seatedActions: readonly Action[] = [
     "open_thread",
     "start_thread",
   ].map((action) => ({ path: `timeline.${action}`, anywhere: false })),
+  { path: "rooms.spaces", anywhere: false },
+  { path: "rooms.person", anywhere: false },
   ...[
     "up",
     "down",
@@ -362,6 +364,23 @@ function Seated({ view, session }: { view: View; session: Session }) {
       toThread.current ||= done && (path === "timeline.open_thread" || path === "timeline.start_thread");
       return done;
     };
+    // onRoom acts on the room under the rooms pane's cursor.
+    const onRoom = (path: string): boolean => {
+      const el = document.activeElement;
+      const id = paneOf(el, lastPane.current) === "rooms" ? (el as HTMLElement | null)?.dataset.room : undefined;
+      const room = view.rooms.find((r) => r.id === id);
+      if (room === undefined || room.membership === "invite") {
+        return false;
+      }
+      if (path === "rooms.spaces") {
+        session.openFiling(room.id);
+      } else if (room.isDirect) {
+        session.openPerson({ roomId: room.id }, "");
+      } else {
+        return false;
+      }
+      return true;
+    };
     const act: Readonly<Record<string, (count: number) => boolean | undefined>> = {
       focus_next: () => step(1),
       focus_prev: () => step(-1),
@@ -377,6 +396,8 @@ function Seated({ view, session }: { view: View; session: Session }) {
       settings: () => {
         session.openSettings();
       },
+      "rooms.spaces": () => onRoom("rooms.spaces"),
+      "rooms.person": () => onRoom("rooms.person"),
       help: () => {
         setHelping(true);
       },
@@ -405,7 +426,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
       window.removeEventListener("keydown", key);
       window.removeEventListener("focusin", focused);
     };
-  }, [session, keymap, view.thread]);
+  }, [session, keymap, view.thread, view.rooms]);
   const columns = ["columns"];
   if (view.thread && view.timeline) {
     columns.push("with-thread");
@@ -838,6 +859,7 @@ function RoomRow({
       <button
         type="button"
         aria-current={open}
+        data-room={room.id}
         title="Right-click to file it into tags and spaces"
         onClick={() => {
           session.open(room.id);

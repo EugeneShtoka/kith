@@ -187,6 +187,9 @@ On a message, the cursor's, the `[keys.timeline]` keys act as they do in the ter
 
 The searches look through the messages loaded so far, and take a count (`3m`).
 
+On a room in the list, `rooms.spaces` (`S`) files it into tags and spaces, and
+`rooms.person` (`I`) opens a direct chat's phonebook card.
+
 A thread open beside the room has a cursor of its own, moved and acted on by the same
 keys. `t` and `T` take the focus into the thread they open; `nav.back` in it closes it,
 back to the room's messages. A thread starts on none of its replies.
