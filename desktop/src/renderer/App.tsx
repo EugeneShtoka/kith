@@ -90,6 +90,27 @@ const seatedActions: readonly Action[] = [
   { path: "settings", anywhere: false },
   { path: "focus_next", anywhere: true },
   { path: "focus_prev", anywhere: true },
+  // The timeline's before nav's, as the TUI asks them: its enter goes to what a reply answers.
+  ...[
+    "insert",
+    "reply",
+    "go_reply",
+    "react",
+    "redact",
+    "edit",
+    "next_mention",
+    "prev_mention",
+    "next_attachment",
+    "prev_attachment",
+    "prev_day",
+    "next_day",
+    "person",
+    "download",
+    "play",
+    "vote",
+    "open_thread",
+    "start_thread",
+  ].map((action) => ({ path: `timeline.${action}`, anywhere: false })),
   ...[
     "up",
     "down",
@@ -312,6 +333,12 @@ function Seated({ view, session }: { view: View; session: Session }) {
       }
       return pane === "timeline" ? (timeline.current?.move(path, count) ?? false) : moveRow(pane, path, count);
     };
+    // message acts on the timeline's cursor, where it is a message's key's to take.
+    const message = (path: string, count: number): boolean => {
+      const el = document.activeElement;
+      const pane = paneOf(el, lastPane.current);
+      return pane === "timeline" && onRow(el, pane) && (timeline.current?.act(path, count) ?? false);
+    };
     const act: Readonly<Record<string, (count: number) => boolean | undefined>> = {
       focus_next: () => step(1),
       focus_prev: () => step(-1),
@@ -333,10 +360,15 @@ function Seated({ view, session }: { view: View; session: Session }) {
       if (name === undefined || e.defaultPrevented) {
         return; // a modifier alone, or a press a field took for itself
       }
-      const path = keymap.press(name, typing(document.activeElement));
+      const paths = keymap.press(name, typing(document.activeElement));
       setPending(keymap.pending);
-      // A press an action passes on (false) keeps what it does by itself.
-      const done = path !== undefined && (act[path] ?? ((count) => nav(path, count)))(keymap.count) !== false;
+      // The first action that takes the press acts; one passed on by all (false) keeps what it does by itself.
+      const done = paths.some(
+        (path) =>
+          (act[path] ?? ((count) => (path.startsWith("timeline.") ? message(path, count) : nav(path, count))))(
+            keymap.count,
+          ) !== false,
+      );
       if (done || keymap.pending !== "") {
         e.preventDefault();
       }

@@ -165,6 +165,27 @@ It binds these so far, with their defaults:
 | `nav.select_oldest`, `nav.scroll_oldest` | `gg`, `home` | The first row; in the timeline the oldest message loaded, and a page more is asked for |
 | `nav.select_newest`, `nav.scroll_newest` | `G`, `end` | The last row, or the newest message |
 
+On a message, the cursor's, the `[keys.timeline]` keys act as they do in the terminal:
+
+| Action | Default | Does |
+| --- | --- | --- |
+| `timeline.insert` | `i` | Write a message: the composer takes the keys |
+| `timeline.reply` | `r` | Reply to it, in the composer |
+| `timeline.edit` | `E` | Edit it, if it is yours |
+| `timeline.redact` | `x` | Delete it, if it is yours: asked first, Keep chosen |
+| `timeline.react` | `e` | React: the quick reactions open, the first one chosen |
+| `timeline.go_reply` | `enter` | Go to the message it answers |
+| `timeline.open_thread`, `timeline.start_thread` | `t`, `T` | Open the thread under it, or start one on it |
+| `timeline.next_mention`, `timeline.prev_mention` | `m`, `M` | The next or previous message that names you |
+| `timeline.next_attachment`, `timeline.prev_attachment` | `f`, `F` | The next or previous message with a file |
+| `timeline.next_day`, `timeline.prev_day` | `]`, `[` | The next day's first message; back to this day's start, then the day before |
+| `timeline.person` | `I` | The sender's phonebook card |
+| `timeline.download` | `s` | Save its attachment |
+| `timeline.play` | `p` | Play its voice note or video, or pause it |
+| `timeline.vote` | `P` | Its poll's options, to choose one |
+
+The searches look through the messages loaded so far, and take a count (`3m`).
+
 Digits before a motion are a count, as in the terminal: `5j` moves five rows, `12G` goes
 to the twelfth. A sequence such as `g j`, and a count, wait for the next key, shown at the
 top. While a field takes typing the pane keys stay out of the way, as the terminal's do:

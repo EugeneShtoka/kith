@@ -12,7 +12,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { hueOf } from "./faces";
 import { type Faces, faceClass, senderColor } from "./theme";
 import { builtIn, ColorRow } from "./ThemeRow";
-import { continues, dayLabel, newDay } from "./groups";
+import { continues, dayLabel, newDay, seek } from "./groups";
 import { attachmentURL } from "./media";
 import { PollBlock } from "./Poll";
 import type { Session } from "./session";
@@ -27,10 +27,12 @@ const firstIndex = 1_000_000;
 const clock = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 const hours = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
 
-/** TimelineNav moves the timeline's message cursor: the focused message. */
+/** TimelineNav moves the timeline's message cursor, the focused message, and acts on it. */
 export interface TimelineNav {
   /** move takes a [keys.nav] motion; false for a path that is none, or no messages. */
   move(path: string, count: number): boolean;
+  /** act takes a [keys.timeline] action on the cursor's message; false where it does not apply. */
+  act(path: string, count: number): boolean;
   /** focus focuses the cursor's message, or the newest on screen when there is none. */
   focus(): void;
 }
@@ -94,14 +96,22 @@ export function TimelinePane({
         return view !== undefined && box.bottom > view.top && box.top < view.bottom;
       });
     };
-    const select = (at: number) => {
+    /** select moves the cursor to at, then hands its row, drawn and focused, to then. */
+    const select = (at: number, then?: (row: HTMLElement) => void) => {
       const id = shown[at]?.id ?? "";
       cursor.current = { room: t.room, id };
       list.current?.scrollIntoView({
         index: at,
-        done: () => pane.current?.querySelector<HTMLElement>(`article[data-id="${CSS.escape(id)}"]`)?.focus(),
+        done: () => {
+          const row = pane.current?.querySelector<HTMLElement>(`article[data-id="${CSS.escape(id)}"]`);
+          row?.focus();
+          if (row) {
+            then?.(row);
+          }
+        },
       });
     };
+    const write = () => document.querySelector<HTMLElement>(".composer textarea")?.focus();
     const at = () => {
       const i = cursor.current.room === t.room ? shown.findIndex((m) => m.id === cursor.current.id) : -1;
       const newest = onScreen().at(-1)?.dataset.id;
@@ -119,6 +129,80 @@ export function TimelinePane({
         }
         select(to);
         return true;
+      },
+      act(path, count) {
+        const i = at();
+        const m = shown[i];
+        if (m === undefined) {
+          return false;
+        }
+        const sought = seek(shown, i, path, count);
+        if (sought !== undefined) {
+          select(sought);
+          return true;
+        }
+        // The row's own buttons, where what they open is the row's: the palette, the question.
+        const press = (row: HTMLElement) => row.querySelector<HTMLElement>(`[data-key="${path}"]`)?.click();
+        switch (path) {
+          case "timeline.insert":
+            if (composer === undefined) {
+              return false;
+            }
+            write();
+            return true;
+          case "timeline.reply":
+            if (composer === undefined || m.redacted) {
+              return false;
+            }
+            session.reply(m);
+            write();
+            return true;
+          case "timeline.edit":
+            if (composer?.selves.has(m.sender) !== true || m.redacted) {
+              return false;
+            }
+            session.edit(m);
+            write();
+            return true;
+          case "timeline.go_reply":
+            if (m.replyTo === "") {
+              return false;
+            }
+            cursor.current = { room: t.room, id: m.replyTo };
+            session.jump(t.room, m.replyTo);
+            return true;
+          case "timeline.person":
+            session.openPerson({ person: m.sender }, m.senderName || m.sender);
+            return true;
+          case "timeline.download":
+            if (m.media === undefined) {
+              return false;
+            }
+            void session.save(m);
+            return true;
+          case "timeline.start_thread":
+            session.openThread(m.id);
+            return true;
+          case "timeline.react":
+          case "timeline.redact":
+          case "timeline.open_thread":
+            select(i, press);
+            return true;
+          case "timeline.play":
+            select(i, (row) => {
+              const player = row.querySelector<HTMLMediaElement>("audio, video");
+              if (player?.paused) {
+                void player.play();
+              } else {
+                player?.pause();
+              }
+            });
+            return m.media?.type === "audio" || m.media?.type === "video";
+          case "timeline.vote":
+            select(i, (row) => row.querySelector<HTMLElement>("button.poll-option, .poll-option input")?.focus());
+            return m.poll !== undefined;
+        }
+        return false;
       },
       focus() {
         if (shown.length > 0) {
@@ -309,6 +393,7 @@ export function Row({
               key={th.root}
               type="button"
               className="thread-row"
+              data-key="timeline.open_thread"
               onClick={() => {
                 session.openThread(th.root);
               }}
@@ -352,6 +437,7 @@ function Actions({
       <div className={open === undefined ? "actions" : "actions open"} role="toolbar" aria-label="Message actions">
         <button
           type="button"
+          data-key="timeline.react"
           aria-label="React"
           title="React"
           aria-expanded={open === "palette"}
@@ -411,6 +497,7 @@ function Actions({
         {mine && (
           <button
             type="button"
+            data-key="timeline.redact"
             aria-label="Delete"
             title="Delete"
             onClick={() => {
@@ -423,10 +510,11 @@ function Actions({
       </div>
       {open === "palette" && (
         <span className="palette" role="group" aria-label="Quick reactions">
-          {c.emoji.palette.map((e) => (
+          {c.emoji.palette.map((e, i) => (
             <button
               key={e}
               type="button"
+              autoFocus={i === 0}
               onClick={() => {
                 react(e);
               }}
@@ -482,6 +570,7 @@ function Actions({
           </button>{" "}
           <button
             type="button"
+            autoFocus
             onClick={() => {
               setOpen(undefined);
             }}
