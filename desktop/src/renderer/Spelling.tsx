@@ -4,6 +4,7 @@
 import type { KeyboardEvent, Ref } from "react";
 
 import type { Session } from "./session";
+import type { Keys } from "./keymap";
 import { type Mark, pieces, type SpellSettings, type Walk as WalkState, walkAction, walkRows } from "./spell";
 
 /** markClass is how a mark is underlined: [spell] underline, or rare_underline for a rare word. */
@@ -53,10 +54,12 @@ export function Underlay({
 /** Walk is the correction walk: the word, its suggestions, and what else may be done with it. */
 export function Walk({
   walk,
+  keys,
   session,
   took,
 }: {
   walk: WalkState;
+  keys: Keys;
   session: Session;
   took: (caret: number | undefined) => boolean;
 }) {
@@ -64,10 +67,10 @@ export function Walk({
   if (m === undefined) {
     return null;
   }
-  const button = (label: string, key: string, act: () => void) => (
+  const button = (label: string, path: string, act: () => void) => (
     <button
       type="button"
-      title={key}
+      title={(keys[path] ?? []).join(", ")}
       onMouseDown={(e) => {
         e.preventDefault(); // the textarea keeps the focus
         act();
@@ -91,28 +94,32 @@ export function Walk({
         <ol className="spell-suggestions">
           {m.suggestions.slice(0, walkRows).map((s, i) => (
             <li key={s}>
-              {button(`${String(i + 1)}  ${s}`, String(i + 1), () => {
-                took(session.walkTake(i));
-              })}
+              {button(
+                `${keys[`spell.choose_${String(i + 1)}`]?.[0] ?? ""}  ${s}`,
+                `spell.choose_${String(i + 1)}`,
+                () => {
+                  took(session.walkTake(i));
+                },
+              )}
             </li>
           ))}
         </ol>
       )}
       <div className="spell-walk-actions">
-        {button(m.rare ? "It's fine" : "Add to dictionary", "a", () => {
+        {button(m.rare ? "It's fine" : "Add to dictionary", "spell.add", () => {
           session.walkLearn(true);
         })}
-        {button("Ignore", "i", () => {
+        {button("Ignore", "spell.ignore", () => {
           session.walkLearn(false);
         })}
-        {button("Skip", "s", () => {
+        {button("Skip", "spell.skip", () => {
           session.walkSkip();
         })}
-        {button("Ignore all", "I", () => {
+        {button("Ignore all", "spell.ignore_all", () => {
           session.walkIgnoreAll();
         })}
-        {button("Skip all", "S", () => void session.walkSkipAll())}
-        {button("Stop", "esc", () => {
+        {button("Skip all", "spell.skip_all", () => void session.walkSkipAll())}
+        {button("Stop", "spell.stop", () => {
           session.walkStop();
         })}
       </div>
@@ -123,10 +130,11 @@ export function Walk({
 /** walkKey does what a key pressed in the composer does while the walk is open. */
 export function walkKey(
   e: KeyboardEvent<HTMLTextAreaElement>,
+  keys: Keys,
   session: Session,
   took: (caret: number | undefined) => boolean,
 ): void {
-  const action = walkAction(e.key, e.ctrlKey || e.metaKey || e.altKey);
+  const action = walkAction(e, keys);
   if (action === undefined) {
     return;
   }

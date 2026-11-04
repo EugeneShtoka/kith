@@ -135,15 +135,33 @@ describe("spelling", () => {
     expect(carried("abcd", "aXd", 2)).toBe(2); // inside the edit: its end
   });
 
-  it("gives the walk the TUI's keys, and keeps typing from reaching the draft", () => {
-    expect(walkAction("3", false)).toEqual({ kind: "take", n: 2 });
-    expect(walkAction("a", false)).toEqual({ kind: "add" });
-    expect(walkAction(" ", false)).toEqual({ kind: "skip" });
-    expect(walkAction("S", false)).toEqual({ kind: "skipAll" });
-    expect(walkAction("Escape", false)).toEqual({ kind: "stop" });
-    expect(walkAction("q", false)).toEqual({ kind: "swallow" });
-    expect(walkAction("ArrowLeft", false)).toBeUndefined();
-    expect(walkAction("a", true)).toBeUndefined();
+  it("gives the walk its [keys.spell], and keeps typing from reaching the draft", () => {
+    const keys = {
+      "spell.choose_3": ["3"],
+      "spell.add": ["a"],
+      "spell.skip": ["s", "space"],
+      "spell.skip_all": ["S"],
+      "spell.stop": ["esc"],
+      "spell.ignore": ["alt+i"],
+    };
+    const press = (key: string, altKey = false) => ({
+      key,
+      code: `Key${key.toUpperCase()}`,
+      ctrlKey: false,
+      altKey,
+      shiftKey: false,
+      metaKey: false,
+    });
+    expect(walkAction(press("3"), keys)).toEqual({ kind: "take", n: 2 });
+    expect(walkAction(press("a"), keys)).toEqual({ kind: "add" });
+    expect(walkAction(press(" "), keys)).toEqual({ kind: "skip" });
+    expect(walkAction(press("S"), keys)).toEqual({ kind: "skipAll" });
+    expect(walkAction(press("Escape"), keys)).toEqual({ kind: "stop" });
+    expect(walkAction(press("i", true), keys)).toEqual({ kind: "ignore" }); // rebound to a chord
+    expect(walkAction(press("i"), keys)).toEqual({ kind: "swallow" }); // its default, no longer bound
+    expect(walkAction(press("q"), keys)).toEqual({ kind: "swallow" });
+    expect(walkAction(press("ArrowLeft"), keys)).toBeUndefined();
+    expect(walkAction(press("a", true), keys)).toBeUndefined();
   });
 
   it("stops asking once kithd has nothing to check with", async () => {

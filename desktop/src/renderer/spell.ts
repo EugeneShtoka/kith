@@ -6,6 +6,7 @@
 // changed it (the person, autocorrect, a suggestion taken, kithd folding in the
 // assistant's words): a mark the change touched is dropped until checked again.
 import type { Misspelling } from "../gen/backend/v1/services_pb";
+import { bound, type Keys, type Press } from "./keymap";
 import { utf16At } from "./spans";
 
 /** The pause after the last keystroke before a check (the TUI's spellDebounce). */
@@ -241,32 +242,32 @@ export type WalkAction =
   | { kind: "add" | "ignore" | "skip" | "ignoreAll" | "skipAll" | "stop" }
   | { kind: "swallow" };
 
+/** walkKinds are the walk's [keys.spell] actions, beside spell.choose_1 … spell.choose_9. */
+const walkKinds = [
+  ["spell.add", "add"],
+  ["spell.ignore", "ignore"],
+  ["spell.skip", "skip"],
+  ["spell.ignore_all", "ignoreAll"],
+  ["spell.skip_all", "skipAll"],
+  ["spell.stop", "stop"],
+] as const;
+
 /**
- * walkAction is what key does in the walk: 1–9 take a suggestion, a adds the word, i
- * ignores it, s or space skips it, I ignores all, S skips all, esc stops. Any other key
- * that would type is swallowed (the walk owns the keys); the rest (arrows) do as usual.
+ * walkAction is what p does in the walk, by [keys.spell]: spell.choose_N takes a
+ * suggestion, the rest answer for the word. Any other key that would type is swallowed
+ * (the walk owns the keys); the rest (arrows) do as usual.
  */
-export function walkAction(key: string, modified: boolean): WalkAction | undefined {
-  if (modified) {
-    return undefined;
+export function walkAction(p: Press, keys: Keys): WalkAction | undefined {
+  const n = [1, 2, 3, 4, 5, 6, 7, 8, 9].findIndex((i) => bound(keys, `spell.choose_${String(i)}`, p));
+  if (n >= 0) {
+    return { kind: "take", n };
   }
-  if (/^[1-9]$/.test(key)) {
-    return { kind: "take", n: Number(key) - 1 };
-  }
-  const named: Record<string, WalkAction["kind"]> = {
-    a: "add",
-    i: "ignore",
-    s: "skip",
-    " ": "skip",
-    I: "ignoreAll",
-    S: "skipAll",
-    Escape: "stop",
-  };
-  const kind = named[key];
-  if (kind !== undefined && kind !== "take" && kind !== "swallow") {
+  const kind = walkKinds.find(([path]) => bound(keys, path, p))?.[1];
+  if (kind !== undefined) {
     return { kind };
   }
-  return key.length === 1 || key === "Enter" || key === "Backspace" || key === "Delete"
+  const modified = p.ctrlKey || p.metaKey || p.altKey;
+  return !modified && (p.key.length === 1 || p.key === "Enter" || p.key === "Backspace" || p.key === "Delete")
     ? { kind: "swallow" }
     : undefined;
 }

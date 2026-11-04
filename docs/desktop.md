@@ -186,6 +186,25 @@ On a message, the cursor's, the `[keys.timeline]` keys act as they do in the ter
 
 The searches look through the messages loaded so far, and take a count (`3m`).
 
+In the composer, the `[keys.insert]`, `[keys.completion]` and `[keys.emoji]` keys act as
+they do in the terminal, and the correction walk takes `[keys.spell]`:
+
+| Action | Default | Does |
+| --- | --- | --- |
+| `insert.send` | `ctrl+enter`, `alt+enter` | Send |
+| `insert.newline` | `enter` | A new line (`shift+enter` makes one too) |
+| `insert.cancel` | `esc` | Back to the message cursor, dropping a reply or a correction |
+| `insert.complete`, `insert.complete_all` | `right`, `tab` | Take a word of the completion, or all of it |
+| `insert.choose_1` … `insert.choose_5` | `alt+1` … `alt+5` | Take one of the next words offered |
+| `insert.attach` | `alt+u` | Attach a file |
+| `emoji.open` | `ctrl+e` | The emoji picker; `emoji.accept` (`enter`, `tab`) takes the first found, `emoji.cancel` (`esc`) closes it |
+| `spell.open_insert` | `alt+s` | The correction walk |
+| `completion.next`, `completion.prev` | `ctrl+n`, `down`; `ctrl+p`, `up` | The next or previous name, emoji or command offered |
+| `completion.accept`, `completion.dismiss` | `tab`, `enter`; `esc` | Take it, or close the list until the next one opens |
+
+To make `enter` send, swap `send` and `newline` in `[keys.insert]`: the terminal changes
+with it. `react.cancel` (`esc`) closes the quick reactions a message's `e` opened.
+
 Digits before a motion are a count, as in the terminal: `5j` moves five rows, `12G` goes
 to the twelfth. A sequence such as `g j`, and a count, wait for the next key, shown at the
 top. While a field takes typing the pane keys stay out of the way, as the terminal's do:
@@ -307,11 +326,11 @@ with the same settings (`[spell]` and `[complete]` in `device.toml`,
   more quietly (`rare_underline`), and never the word you are still typing. The
   window's own browser spellchecker is off, so a word is marked once and no word leaves
   for a spelling service.
-- **Right-click** a marked word, or press **alt+S**, for the correction walk: its
-  suggestions (**1**–**9**), **Add to dictionary** (**a**; for a rare word, **It's
-  fine**), **Ignore** for this session (**i**), **Skip** (**s**), **Ignore all** (**I**),
-  **Skip all** (**S**) and **Stop** (**esc**). A suggestion taken puts right the word and
-  its later copies.
+- **Right-click** a marked word, or press **alt+S** (`spell.open_insert`), for the
+  correction walk: its suggestions (**1**–**9**), **Add to dictionary** (**a**; for a
+  rare word, **It's fine**), **Ignore** for this session (**i**), **Skip** (**s**),
+  **Ignore all** (**I**), **Skip all** (**S**) and **Stop** (**esc**), by default: the
+  walk takes `[keys.spell]`. A suggestion taken puts right the word and its later copies.
 - With `check_before_send`, a send with a word marked opens the walk first, and the
   message goes once you are through it (`rare_before_send`: rare words too).
   `autocorrect` puts right a word as you finish it, only when the fix is certain.

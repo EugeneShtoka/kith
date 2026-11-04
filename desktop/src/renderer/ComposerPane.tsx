@@ -1,4 +1,4 @@
-// The open room's composer, drawn: the words (enter sends, shift+enter breaks the line),
+// The open room's composer, drawn: the words (sent and broken by [keys.insert]),
 // what they reply to or correct, files offered, `@` mentions and `:shortcode:` emoji as
 // they are typed, the emoji picker, a poll asked, the SMS question and sends that failed;
 // the `/` commands as they are typed, sending later and the queue (Later.tsx).
@@ -11,6 +11,7 @@ import { caretInRTL, wordBeingTyped } from "./complete";
 import type { ComposerView } from "./compose";
 import { completions, shortcodeAt, shortcodeOf, toned } from "./emoji";
 import { EmojiPicker } from "./EmojiPicker";
+import { bound, type Keys, type Press } from "./keymap";
 import { Choosing, LaterForm, Queue, Reading, Unscheduled } from "./Later";
 import { type Markup, marked } from "./markup";
 import { matching, mentionAt, nameOf } from "./mentions";
@@ -41,15 +42,20 @@ interface Choice {
 
 export function ComposerPane({
   c,
+  keys,
   room,
   inThread,
   session,
+  onLeave,
 }: {
   c: ComposerView;
+  keys: Keys;
   room: Room | undefined;
   /** A thread is open beside the room: what answers nothing goes into it. */
   inThread: boolean;
   session: Session;
+  /** insert.cancel: back to the message cursor. */
+  onLeave: () => void;
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const under = useRef<HTMLDivElement>(null);
@@ -60,6 +66,8 @@ export function ComposerPane({
   const [later, setLater] = useState(false);
   /** The finished words are listed (Tab with none clearly leading). */
   const [listing, setListing] = useState(false);
+  /** The popup completion.dismiss closed, until another opens. */
+  const [shut, setShut] = useState("");
   const moveTo = useRef<number | undefined>(undefined);
   /** The words as last drawn, and whether the last change of them was typed here. */
   const last = useRef(c.draft.body);
@@ -85,6 +93,10 @@ export function ComposerPane({
   const mention = mentionAt(text, at);
   const code = mention === undefined ? shortcodeAt(text, at) : undefined;
   const slash = mention === undefined && code === undefined ? commandsFor(text, at, c.commands) : undefined;
+  const popup = mention ? `@${String(mention.start)}` : code ? `:${String(code.start)}` : slash ? "/" : "";
+  if (shut !== "" && shut !== popup) {
+    setShut(""); // that popup is gone: the next one opens
+  }
   const wantsMembers = mention !== undefined;
   useEffect(() => {
     if (wantsMembers) {
@@ -104,7 +116,7 @@ export function ComposerPane({
     session.type(text.slice(0, start) + what + text.slice(end), start + what.length);
   const atEnd = at === text.length && walk === undefined;
   const words = atEnd && listing ? c.assist.words : [];
-  const choices: Choice[] =
+  const candidates: Choice[] =
     mention !== undefined
       ? matching(c.members, mention.query).map((m) => ({
           key: m.userId,
@@ -134,12 +146,13 @@ export function ComposerPane({
           : words.map((w, i) => ({
               key: w.word,
               label: w.word,
-              detail: `alt+${String(i + 1)}`,
+              detail: keys[`insert.choose_${String(i + 1)}`]?.[0] ?? "",
               take: () => {
                 setListing(false);
                 return session.chooseCompletion(i) ?? at;
               },
             }));
+  const choices = popup !== "" && popup === shut ? [] : candidates;
   const pick = Math.min(chosen, Math.max(0, choices.length - 1));
   // A command typed whole is done by enter, not completed again.
   const typedWhole = slash?.some((s) => s.name === text) ?? false;
@@ -235,7 +248,7 @@ export function ComposerPane({
       {c.queue && <Queue queue={c.queue} session={session} />}
       {c.reading && <Reading reading={c.reading} session={session} />}
       {c.choosing && <Choosing choosing={c.choosing} session={session} />}
-      {walk && <Walk walk={walk} session={session} took={took} />}
+      {walk && <Walk walk={walk} keys={keys} session={session} took={took} />}
       {choices.length > 0 && (
         <ul className={slash === undefined ? "completions" : "completions commands"} role="listbox">
           {choices.map((choice, i) => (
@@ -283,6 +296,7 @@ export function ComposerPane({
       {picker && (
         <EmojiPicker
           emoji={c.emoji}
+          keys={keys}
           kind="composed"
           onPick={(e) => {
             session.emoji(e);
@@ -291,6 +305,7 @@ export function ComposerPane({
           }}
           onClose={() => {
             setPicker(false);
+            area.current?.focus();
           }}
         />
       )}
@@ -397,44 +412,68 @@ export function ComposerPane({
             onKeyDown={(e) => {
               if (walk !== undefined) {
                 // The walk takes the keys while it is open, as the TUI's does.
-                walkKey(e, session, took);
+                walkKey(e, keys, session, took);
                 return;
               }
+              const is = (path: string, p: Press = e) => bound(keys, path, p);
               const choice = choices[pick];
-              const into = caretInRTL(text, at) ? "ArrowLeft" : "ArrowRight";
-              if (e.altKey && e.key === "s") {
-                e.preventDefault();
+              // In right-to-left words the arrows swap, so insert.complete still goes forward.
+              const arrow = caretInRTL(text, at)
+                ? { ArrowLeft: "ArrowRight", ArrowRight: "ArrowLeft" }[e.key]
+                : undefined;
+              const forward = {
+                key: arrow ?? e.key,
+                code: e.code,
+                ctrlKey: e.ctrlKey,
+                altKey: e.altKey,
+                shiftKey: e.shiftKey,
+                metaKey: e.metaKey,
+              };
+              const chosen = [1, 2, 3, 4, 5].findIndex((i) => is(`insert.choose_${String(i)}`));
+              let done = true;
+              if (is("spell.open_insert")) {
                 session.openWalk();
-              } else if (e.altKey && /^[1-5]$/.test(e.key)) {
-                if (took(session.chooseCompletion(Number(e.key) - 1))) {
-                  e.preventDefault();
-                }
-              } else if (choice !== undefined && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-                e.preventDefault();
-                setChosen((pick + (e.key === "ArrowDown" ? 1 : choices.length - 1)) % choices.length);
-              } else if (choice !== undefined && (e.key === "Tab" || (e.key === "Enter" && !typedWhole))) {
-                e.preventDefault();
+              } else if (chosen >= 0) {
+                done = took(session.chooseCompletion(chosen));
+              } else if (choice !== undefined && (is("completion.next") || is("completion.prev"))) {
+                setChosen((pick + (is("completion.next") ? 1 : choices.length - 1)) % choices.length);
+              } else if (choice !== undefined && is("completion.accept") && !(typedWhole && e.key === "Enter")) {
                 moved(choice.take());
-              } else if (offer !== undefined && e.key === "Tab" && !e.shiftKey) {
-                if (took(session.complete(true))) {
-                  e.preventDefault();
-                } else if (offer.words.length > 0) {
+              } else if (choice !== undefined && is("completion.dismiss")) {
+                if (popup === "") {
+                  setListing(false); // the finished words, listed by insert.complete_all
+                } else {
+                  setShut(popup);
+                }
+              } else if (offer !== undefined && is("insert.complete_all")) {
+                if (!took(session.complete(true))) {
                   // Nothing clearly leads: list the words instead.
-                  e.preventDefault();
-                  setListing(true);
+                  done = offer.words.length > 0;
+                  setListing(done);
                   setChosen(0);
                 }
-              } else if (offer !== undefined && e.key === into && !e.shiftKey && took(session.complete(false))) {
-                e.preventDefault();
-              } else if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
+              } else if (offer !== undefined && is("insert.complete", forward)) {
+                done = took(session.complete(false));
+              } else if (is("insert.send")) {
                 void session.send();
-              } else if (e.key === "Escape") {
-                if (listing) {
-                  setListing(false);
-                } else {
-                  session.cancel();
+              } else if (is("insert.newline")) {
+                // A textarea breaks the line on enter and shift+enter itself, and keeps its undo.
+                done = e.key !== "Enter" || e.ctrlKey || e.altKey || e.metaKey;
+                if (done) {
+                  moved(put(at, e.currentTarget.selectionEnd, "\n"));
                 }
+              } else if (is("insert.attach")) {
+                void session.pick();
+              } else if (is("emoji.open")) {
+                setPicker(true);
+              } else if (is("insert.cancel")) {
+                session.cancel(); // and the reply or the correction it held
+                onLeave();
+              } else {
+                done = false;
+              }
+              if (done) {
+                e.preventDefault();
               }
             }}
           />
