@@ -43,6 +43,13 @@ export const helpSections: readonly HelpSection[] = [
     ],
   },
   {
+    title: "On a room",
+    rows: [
+      row("File it into tags and spaces", "rooms.spaces"),
+      row("The phonebook card of the person in a direct chat", "rooms.person"),
+    ],
+  },
+  {
     title: "On a message",
     rows: [
       row("Write a message", "timeline.insert"),
