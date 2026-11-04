@@ -110,7 +110,7 @@ async function start(): Promise<void> {
 
   serveApp();
   const media = new Media((room, event) => gate.media(room, event));
-  protocol.handle(mediaScheme, (request) => media.answer(request.url));
+  protocol.handle(mediaScheme, (request) => media.answer(request.url, request.headers.get("Range")));
   ipcMain.handle(channels.save, (event, room: unknown, id: unknown, name: unknown) =>
     fromTheWindow(event.senderFrame) && typeof room === "string" && typeof id === "string" && typeof name === "string"
       ? save(gate, room, id, name)

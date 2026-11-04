@@ -8,7 +8,8 @@ accounts, the cache, the keys, the drafts) is the same in both, and you can use 
 This first release reads and writes messages:
 
 - the rail and room list, with unread counts, and invites;
-- the timeline, with replies, edits, reactions, polls, pictures and files;
+- the timeline, with replies, edits, reactions, polls, pictures, voice notes and videos
+  (played in place, with seeking and speed), and files;
 - the composer, with markdown, mentions, emoji, attachments and drafts, and
   [spelling and word completion](#spelling-and-completion), and
   [sending later and commands](#sending-later-and-commands);
