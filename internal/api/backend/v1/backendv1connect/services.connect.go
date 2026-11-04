@@ -186,6 +186,9 @@ const (
 	// BackendServiceLoadImageProcedure is the fully-qualified name of the BackendService's LoadImage
 	// RPC.
 	BackendServiceLoadImageProcedure = "/backend.v1.BackendService/LoadImage"
+	// BackendServiceLoadPictureProcedure is the fully-qualified name of the BackendService's
+	// LoadPicture RPC.
+	BackendServiceLoadPictureProcedure = "/backend.v1.BackendService/LoadPicture"
 	// BackendServiceMembersProcedure is the fully-qualified name of the BackendService's Members RPC.
 	BackendServiceMembersProcedure = "/backend.v1.BackendService/Members"
 	// BackendServiceRefreshMembersProcedure is the fully-qualified name of the BackendService's
@@ -622,6 +625,9 @@ type BackendServiceClient interface {
 	// LoadImage resolves a message's media from cache or the homeserver, decrypting it in
 	// an encrypted room, and returns the raw bytes.
 	LoadImage(context.Context, *connect.Request[v1.LoadImageRequest]) (*connect.Response[v1.LoadImageResponse], error)
+	// LoadPicture returns a room's picture (a person's, in a direct chat) as kept in the
+	// cache, the version Room.picture names.
+	LoadPicture(context.Context, *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error)
 	// Member
 	// Members returns a room's cached members, ordered by display name.
 	Members(context.Context, *connect.Request[v1.MembersRequest]) (*connect.Response[v1.MembersResponse], error)
@@ -1233,6 +1239,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceLoadImageProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("LoadImage")),
+			connect.WithClientOptions(opts...),
+		),
+		loadPicture: connect.NewClient[v1.LoadPictureRequest, v1.LoadPictureResponse](
+			httpClient,
+			baseURL+BackendServiceLoadPictureProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("LoadPicture")),
 			connect.WithClientOptions(opts...),
 		),
 		members: connect.NewClient[v1.MembersRequest, v1.MembersResponse](
@@ -1878,6 +1890,7 @@ type backendServiceClient struct {
 	recordEmoji           *connect.Client[v1.RecordEmojiRequest, v1.RecordEmojiResponse]
 	emojiScores           *connect.Client[v1.EmojiScoresRequest, v1.EmojiScoresResponse]
 	loadImage             *connect.Client[v1.LoadImageRequest, v1.LoadImageResponse]
+	loadPicture           *connect.Client[v1.LoadPictureRequest, v1.LoadPictureResponse]
 	members               *connect.Client[v1.MembersRequest, v1.MembersResponse]
 	refreshMembers        *connect.Client[v1.RefreshMembersRequest, v1.RefreshMembersResponse]
 	mentionCandidates     *connect.Client[v1.MentionCandidatesRequest, v1.MentionCandidatesResponse]
@@ -2255,6 +2268,11 @@ func (c *backendServiceClient) EmojiScores(ctx context.Context, req *connect.Req
 // LoadImage calls backend.v1.BackendService.LoadImage.
 func (c *backendServiceClient) LoadImage(ctx context.Context, req *connect.Request[v1.LoadImageRequest]) (*connect.Response[v1.LoadImageResponse], error) {
 	return c.loadImage.CallUnary(ctx, req)
+}
+
+// LoadPicture calls backend.v1.BackendService.LoadPicture.
+func (c *backendServiceClient) LoadPicture(ctx context.Context, req *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error) {
+	return c.loadPicture.CallUnary(ctx, req)
 }
 
 // Members calls backend.v1.BackendService.Members.
@@ -2908,6 +2926,9 @@ type BackendServiceHandler interface {
 	// LoadImage resolves a message's media from cache or the homeserver, decrypting it in
 	// an encrypted room, and returns the raw bytes.
 	LoadImage(context.Context, *connect.Request[v1.LoadImageRequest]) (*connect.Response[v1.LoadImageResponse], error)
+	// LoadPicture returns a room's picture (a person's, in a direct chat) as kept in the
+	// cache, the version Room.picture names.
+	LoadPicture(context.Context, *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error)
 	// Member
 	// Members returns a room's cached members, ordered by display name.
 	Members(context.Context, *connect.Request[v1.MembersRequest]) (*connect.Response[v1.MembersResponse], error)
@@ -3515,6 +3536,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceLoadImageProcedure,
 		svc.LoadImage,
 		connect.WithSchema(backendServiceMethods.ByName("LoadImage")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceLoadPictureHandler := connect.NewUnaryHandler(
+		BackendServiceLoadPictureProcedure,
+		svc.LoadPicture,
+		connect.WithSchema(backendServiceMethods.ByName("LoadPicture")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceMembersHandler := connect.NewUnaryHandler(
@@ -4213,6 +4240,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceEmojiScoresHandler.ServeHTTP(w, r)
 		case BackendServiceLoadImageProcedure:
 			backendServiceLoadImageHandler.ServeHTTP(w, r)
+		case BackendServiceLoadPictureProcedure:
+			backendServiceLoadPictureHandler.ServeHTTP(w, r)
 		case BackendServiceMembersProcedure:
 			backendServiceMembersHandler.ServeHTTP(w, r)
 		case BackendServiceRefreshMembersProcedure:
@@ -4638,6 +4667,10 @@ func (UnimplementedBackendServiceHandler) EmojiScores(context.Context, *connect.
 
 func (UnimplementedBackendServiceHandler) LoadImage(context.Context, *connect.Request[v1.LoadImageRequest]) (*connect.Response[v1.LoadImageResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.LoadImage is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) LoadPicture(context.Context, *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.LoadPicture is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Members(context.Context, *connect.Request[v1.MembersRequest]) (*connect.Response[v1.MembersResponse], error) {

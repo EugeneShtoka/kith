@@ -44,6 +44,9 @@ message Room {
   // The rooms merged into this one, found to be the same chat (domain.Room.Merged): a
   // WhatsApp chat kept by the person's LID until their number was learned.
   repeated string merged = 17;
+  // The version of the room's picture LoadPicture answers with (domain.Room.Picture):
+  // it changes with the picture; empty while the room has none.
+  string picture = 18;
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted (domain.ChatDeleting).

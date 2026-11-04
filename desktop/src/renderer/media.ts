@@ -1,5 +1,5 @@
-import type { Message } from "../gen/backend/v1/types_pb";
-import { mediaURL } from "../shared/media";
+import type { Message, Room } from "../gen/backend/v1/types_pb";
+import { mediaURL, pictureURL } from "../shared/media";
 
 /**
  * attachmentURL is m's attachment as the window loads it (kith-media:), its version all
@@ -11,4 +11,9 @@ export function attachmentURL(m: Message): string {
   const a = m.media;
   const version = [m.revisionId, a?.type, a?.name, a?.mime, a?.size, a?.width, a?.height].map(String).join("\n");
   return mediaURL(m.roomId, m.id, version);
+}
+
+/** roomPicture is room's picture as the window loads it, or undefined while it has none. */
+export function roomPicture(room: Room | undefined): string | undefined {
+  return room?.picture ? pictureURL(room.id, room.picture) : undefined;
 }

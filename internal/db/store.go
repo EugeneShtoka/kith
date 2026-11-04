@@ -41,7 +41,7 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 		`SELECT r.id, r.name, r.is_direct, r.invited_by, r.heroes,
 		        COALESCE(t.topic, ''), COALESCE(u.replacement, ''), a.room_id IS NOT NULL,
 		        f.room_id IS NOT NULL, COALESCE(n.network, ''), m.room_id IS NOT NULL,
-		        o.room_id IS NOT NULL, COALESCE(h.handle, ''),
+		        o.room_id IS NOT NULL, COALESCE(h.handle, ''), COALESCE(p.picture_id, ''),
 		        (SELECT json_group_array(room_id ORDER BY room_id) FROM room_aliases WHERE into_id = r.id)
 		   FROM rooms r
 		   LEFT JOIN room_topics   t ON t.room_id = r.id
@@ -52,14 +52,15 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 		   LEFT JOIN room_sms      m ON m.room_id = r.id
 		   LEFT JOIN room_read_only o ON o.room_id = r.id
 		   LEFT JOIN room_handles  h ON h.room_id = r.id
+		   LEFT JOIN room_pictures p ON p.room_id = r.id
 		  WHERE r.membership = ?`,
 		func(rows *sql.Rows) (domain.Room, error) {
 			var (
-				id, name, invitedBy, heroes, topic, replacement, network, handle, merged string
-				isDirect                                                                 int
-				archived, forum, sms, readOnly                                           bool
+				id, name, invitedBy, heroes, topic, replacement, network, handle, picture, merged string
+				isDirect                                                                          int
+				archived, forum, sms, readOnly                                                    bool
 			)
-			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement, &archived, &forum, &network, &sms, &readOnly, &handle, &merged); err != nil {
+			if err := rows.Scan(&id, &name, &isDirect, &invitedBy, &heroes, &topic, &replacement, &archived, &forum, &network, &sms, &readOnly, &handle, &picture, &merged); err != nil {
 				return domain.Room{}, err
 			}
 			room := domain.Room{
@@ -76,6 +77,7 @@ func (c *Cache) roomsWith(ctx context.Context, membership string) ([]domain.Room
 				SMS:         sms,
 				ReadOnly:    readOnly,
 				Handle:      handle,
+				Picture:     picture,
 			}
 			if heroes != "" {
 				if err := json.Unmarshal([]byte(heroes), &room.Members); err != nil {

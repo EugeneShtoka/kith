@@ -773,6 +773,14 @@ message LoadImageResponse {
   bytes data = 1;
 }
 
+message LoadPictureRequest {
+  string room_id = 1;
+}
+
+message LoadPictureResponse {
+  bytes data = 1;
+}
+
 // ── Member ──
 
 message MembersRequest {
@@ -2436,6 +2444,9 @@ service BackendService {
   // LoadImage resolves a message's media from cache or the homeserver, decrypting it in
   // an encrypted room, and returns the raw bytes.
   rpc LoadImage(LoadImageRequest) returns (LoadImageResponse);
+  // LoadPicture returns a room's picture (a person's, in a direct chat) as kept in the
+  // cache, the version Room.picture names.
+  rpc LoadPicture(LoadPictureRequest) returns (LoadPictureResponse);
   // Member
   // Members returns a room's cached members, ordered by display name.
   rpc Members(MembersRequest) returns (MembersResponse);

@@ -1,4 +1,4 @@
-import { mediaOf } from "../shared/media";
+import { mediaOf, pictureOf } from "../shared/media";
 
 /**
  * byteRange is the first and last byte a Range header asks of size bytes: undefined for
@@ -24,15 +24,18 @@ export function byteRange(header: string, size: number): [number, number] | null
 export const mediaCacheBytes = 64 << 20;
 
 /**
- * Media answers kith-media: URLs with the attachment's bytes, kept in memory by the
- * whole URL: its version says what the attachment is, so a picture an edit replaced is
- * a URL of its own, never the old bytes.
+ * Media answers kith-media: URLs with the attachment's bytes, or a room's picture, kept
+ * in memory by the whole URL: its version says what the attachment is, so a picture an
+ * edit replaced is a URL of its own, never the old bytes.
  */
 export class Media {
   private readonly held = new Map<string, Uint8Array>();
   private size = 0;
 
-  constructor(private readonly load: (room: string, event: string) => Promise<Uint8Array>) {}
+  constructor(
+    private readonly load: (room: string, event: string) => Promise<Uint8Array>,
+    private readonly picture: (room: string) => Promise<Uint8Array>,
+  ) {}
 
   /**
    * answer is the response to a request for url: the bytes, or why there are none; with
@@ -41,7 +44,8 @@ export class Media {
    */
   async answer(url: string, range: string | null = null): Promise<Response> {
     const named = mediaOf(url);
-    if (named === undefined) {
+    const room = pictureOf(url);
+    if (named === undefined && room === undefined) {
       return new Response(null, { status: 404 });
     }
     let bytes = this.held.get(url);
@@ -50,7 +54,7 @@ export class Media {
       this.held.set(url, bytes);
     } else {
       try {
-        bytes = await this.load(named.room, named.event);
+        bytes = await (named ? this.load(named.room, named.event) : this.picture(room ?? ""));
       } catch (err) {
         return new Response(err instanceof Error ? err.message : String(err), { status: 502 });
       }

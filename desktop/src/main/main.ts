@@ -109,7 +109,10 @@ async function start(): Promise<void> {
   );
 
   serveApp();
-  const media = new Media((room, event) => gate.media(room, event));
+  const media = new Media(
+    (room, event) => gate.media(room, event),
+    (room) => gate.picture(room),
+  );
   protocol.handle(mediaScheme, (request) => media.answer(request.url, request.headers.get("Range")));
   ipcMain.handle(channels.save, (event, room: unknown, id: unknown, name: unknown) =>
     fromTheWindow(event.senderFrame) && typeof room === "string" && typeof id === "string" && typeof name === "string"
