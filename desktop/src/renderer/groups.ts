@@ -62,3 +62,39 @@ export function dayLabel(day: Date, now: Date): string {
   }
   return day.getFullYear() === now.getFullYear() ? longDay.format(day) : yearDay.format(day);
 }
+
+/** seeks are the [keys.timeline] searches: which way each goes, and the rows it stops at. */
+const seeks: Readonly<Record<string, [number, (rows: readonly Message[], i: number) => boolean]>> = {
+  "timeline.next_mention": [1, (rows, i) => rows[i]?.mentioned === true],
+  "timeline.prev_mention": [-1, (rows, i) => rows[i]?.mentioned === true],
+  "timeline.next_attachment": [1, (rows, i) => rows[i]?.media !== undefined],
+  "timeline.prev_attachment": [-1, (rows, i) => rows[i]?.media !== undefined],
+  "timeline.next_day": [1, (rows, i) => rows[i] !== undefined && newDay(rows[i - 1], rows[i])],
+  "timeline.prev_day": [-1, (rows, i) => rows[i] !== undefined && newDay(rows[i - 1], rows[i])],
+};
+
+/**
+ * seek is where a search takes a cursor at `at` in rows, count times over (0: once): the
+ * next or previous message naming you, or with a file, or a day's first message (back
+ * from inside a day is first to its start). It stops at the last one found; undefined is
+ * none found, or a path that is no search.
+ */
+export function seek(rows: readonly Message[], at: number, path: string, count: number): number | undefined {
+  const what = seeks[path];
+  if (what === undefined) {
+    return undefined;
+  }
+  const [dir, stops] = what;
+  let to: number | undefined;
+  for (let n = 0; n < Math.max(count, 1); n++) {
+    let i = (to ?? at) + dir;
+    while (i >= 0 && i < rows.length && !stops(rows, i)) {
+      i += dir;
+    }
+    if (i < 0 || i >= rows.length) {
+      break;
+    }
+    to = i;
+  }
+  return to;
+}

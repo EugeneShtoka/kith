@@ -76,7 +76,9 @@ export interface Action {
 const countLimit = 9999;
 
 /**
- * Keymap resolves presses to actions. A sequence is held while it can still complete
+ * Keymap resolves presses to actions: every action bound to the press, in priority
+ * order, as panes bind one key apart ("enter" opens a room, and goes to the message a
+ * reply answers). A sequence is held while it can still complete
  * (pending says so); a press that continues none ends it and is judged alone. Digits
  * that start no sequence are a count ("12j"), which the next action takes (count) and
  * any other press drops; a leading 0 is not one. Typing wins: while a field takes typing
@@ -84,20 +86,17 @@ const countLimit = 9999;
  * nothing is held.
  */
 export class Keymap {
-  private readonly bound = new Map<string, Action>();
+  private readonly bound = new Map<string, Action[]>();
   private readonly prefixes = new Set<string>();
   private held: string[] = [];
   private typed = 0;
   private counted = 0;
 
-  /** actions is the window's, in priority order: of two bound alike, the first acts. */
+  /** actions is the window's, in priority order: of two bound alike, the first is asked first. */
   constructor(keys: Readonly<Record<string, readonly string[]>>, actions: readonly Action[]) {
     for (const action of actions) {
       for (const seq of keys[action.path] ?? []) {
-        if (this.bound.has(seq)) {
-          continue;
-        }
-        this.bound.set(seq, action);
+        this.bound.set(seq, [...(this.bound.get(seq) ?? []), action]);
         const steps = seq.split(" ");
         for (let i = 1; i < steps.length; i++) {
           this.prefixes.add(steps.slice(0, i).join(" "));
@@ -106,26 +105,26 @@ export class Keymap {
     }
   }
 
-  /** press is one named press: the path of the action it completes, if any. */
-  press(name: string, typing: boolean): string | undefined {
+  /** press is one named press: the paths of the actions it completes, in priority order. */
+  press(name: string, typing: boolean): readonly string[] {
     this.counted = 0;
     if (typing) {
       this.held = [];
       this.typed = 0;
-      const action = this.bound.get(name);
-      return action?.anywhere && !typesText(name) ? action.path : undefined;
+      const actions = typesText(name) ? [] : (this.bound.get(name) ?? []);
+      return actions.filter((a) => a.anywhere).map((a) => a.path);
     }
     const seq = [...this.held, name].join(" ");
-    const action = this.bound.get(seq);
-    if (action !== undefined) {
+    const actions = this.bound.get(seq);
+    if (actions !== undefined) {
       this.held = [];
       this.counted = this.typed;
       this.typed = 0;
-      return action.path;
+      return actions.map((a) => a.path);
     }
     if (this.prefixes.has(seq)) {
       this.held = [...this.held, name];
-      return undefined;
+      return [];
     }
     if (this.held.length > 0) {
       this.held = [];
@@ -133,10 +132,10 @@ export class Keymap {
     }
     if (/^\d$/.test(name) && (this.typed > 0 || name !== "0")) {
       this.typed = Math.min(this.typed * 10 + Number(name), countLimit);
-      return undefined;
+      return [];
     }
     this.typed = 0;
-    return undefined;
+    return [];
   }
 
   /** pending is the count and the sequence typed so far ("12", "g"), or "". */
@@ -144,7 +143,7 @@ export class Keymap {
     return [...(this.typed > 0 ? [String(this.typed)] : []), ...this.held].join(" ");
   }
 
-  /** count is the count the action press just returned was typed with, or 0 for none. */
+  /** count is the count the actions press just returned were typed with, or 0 for none. */
   get count(): number {
     return this.counted;
   }
