@@ -377,11 +377,11 @@ func (m Model) submitJumpBinding(input string) (Model, tea.Cmd) {
 	if target.Kind == domain.JumpNone {
 		return m, nil
 	}
-	seq := normalizeSequence(strings.TrimSpace(input))
+	seq := config.NormalizeSequence(strings.TrimSpace(input))
 	if seq == "" {
 		return m.applyJumps(m.jumpsWithout(target), "unbound "+m.targetName(target))
 	}
-	if !sequenceValid(seq) {
+	if !config.SequenceValid(seq) {
 		return m.say(fmt.Sprintf("%q is not a key name the terminal reports", input)), nil
 	}
 	if why := m.keys.jumpConflict(seq); why != "" {

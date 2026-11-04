@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -129,4 +130,31 @@ func settingsText(s *devicev1.DeviceSettings) string {
 		text += fmt.Sprintf(" {match=%q sender=%q send=%s}", r.GetMatch(), r.GetSender(), send)
 	}
 	return text
+}
+
+// The window reads [keys] as the TUI binds it: every action, its default where unset,
+// each list split into sequences, and a key kith does not name left out.
+func TestDeviceSettingsCarryTheKeys(t *testing.T) {
+	t.Parallel()
+	path, _ := relayConfig(t, t.TempDir())
+	device := deviceClient(relayFor(t, kithdSocket(t), path))
+	handWrite(t, path, "[keys]\njump_to = \"gj, ctrl+k\"\njump_back = \"bogus,ctrl+o\"\n")
+	resp, err := device.DeviceSettings(t.Context(), connect.NewRequest(&devicev1.DeviceSettingsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := resp.Msg.GetSettings().GetKeys()
+	for path, want := range map[string][]string{
+		"jump_to":        {"g j", "ctrl+k"},
+		"jump_back":      {"ctrl+o"},
+		"jump_forward":   {"ctrl+i", "alt+o"}, // unset: the default
+		"timeline.reply": {"r"},
+	} {
+		if got := keys[path].GetSequences(); !slices.Equal(got, want) {
+			t.Errorf("keys[%q] = %q, want %q", path, got, want)
+		}
+	}
+	if len(keys) != len(config.DefaultKeys().Bindings) {
+		t.Errorf("%d actions' keys, want every one of %d", len(keys), len(config.DefaultKeys().Bindings))
+	}
 }

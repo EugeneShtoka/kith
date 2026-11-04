@@ -351,31 +351,6 @@ func TestKeymapIssuesSurfaceOnStatus(t *testing.T) {
 	}
 }
 
-func TestValidKey(t *testing.T) {
-	t.Parallel()
-
-	good := []string{
-		"a", "Z", "?", "1", "·", // any single character
-		"enter", "esc", "tab", "space", "backspace", "up", "pgdown", "home", "end",
-		"f1", "f9", "f20",
-		"ctrl+c", "shift+tab", "alt+enter", "ctrl+alt+delete", "super+k", "meta+x",
-	}
-	for _, key := range good {
-		if !validKey(key) {
-			t.Errorf("validKey(%q) = false, want true", key)
-		}
-	}
-	bad := []string{
-		"kk", "escape", "pageup", "pgdn", "return", "ctrl", "ctrl+", "f0", "f21",
-		"control+c", "cmd+k", "arrowup", "",
-	}
-	for _, key := range bad {
-		if validKey(key) {
-			t.Errorf("validKey(%q) = true, want false", key)
-		}
-	}
-}
-
 // A key name the terminal never reports would be a dead binding, so it is reported and falls
 // back to the default.
 func TestUnknownKeyNameIsReported(t *testing.T) {
@@ -396,29 +371,6 @@ func TestUnknownKeyNameIsReported(t *testing.T) {
 	km = newKeymap(keys)
 	if got := km.lookup("e", scopeTimeline); got != actReact {
 		t.Error("the valid half of the list should still bind")
-	}
-}
-
-func TestSplitKeys(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		in   string
-		want []string
-	}{
-		{"k,up", []string{"k", "up"}},
-		{" k , up ", []string{"k", "up"}}, // whitespace around each name is trimmed
-		{"k,,up,", []string{"k", "up"}},   // blanks and a trailing comma are dropped
-		{"enter", []string{"enter"}},
-		{"", nil},
-		{",", nil},
-		{"shift+tab", []string{"shift+tab"}},
-		{"comma,gg", []string{",", "g g"}},
-	}
-	for _, tc := range tests {
-		if got := splitKeys(tc.in); !slices.Equal(got, tc.want) {
-			t.Errorf("splitKeys(%q) = %v, want %v", tc.in, got, tc.want)
-		}
 	}
 }
 
@@ -480,24 +432,6 @@ func TestKeySequences(t *testing.T) {
 	}
 	if got := km.keysFor(scopeNav, actSelectOldest); len(got) != 1 || got[0] != "gg" {
 		t.Errorf("keysFor = %v, want [gg] — sequences read back as they are written", got)
-	}
-}
-
-// A three-step chord needs the spaced spelling, and a mistyped key name stays a reported
-// mistake.
-func TestSequenceShorthandIsNarrow(t *testing.T) {
-	t.Parallel()
-
-	for in, want := range map[string]string{
-		"gg":       "g g",
-		"esc":      "esc",
-		"pgup":     "pgup",
-		"escape":   "escape", // left for validation to reject
-		"ctrl+w h": "ctrl+w h",
-	} {
-		if got := normalizeSequence(in); got != want {
-			t.Errorf("normalizeSequence(%q) = %q, want %q", in, got, want)
-		}
 	}
 }
 

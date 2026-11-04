@@ -1,5 +1,5 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse } from "../gen/backend/v1/services_pb";
 import type { Room, Unread } from "../gen/backend/v1/types_pb";
@@ -8,6 +8,7 @@ import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
 import { FilingDialog } from "./Filing";
+import { type Action, keyName, Keymap, typing } from "./keymap";
 import { OfferDialog } from "./Offer";
 import { PeopleDialog, PersonDialog } from "./People";
 import { colorClass, themeCSS, modeOf, roomColor } from "./theme";
@@ -80,6 +81,14 @@ export function App() {
     </main>
   );
 }
+
+/** seatedActions are the [keys] actions the seated window binds, in priority order. */
+const seatedActions: readonly Action[] = [
+  { path: "jump_to", anywhere: true },
+  { path: "jump_back", anywhere: true },
+  { path: "jump_forward", anywhere: true },
+  { path: "settings", anywhere: false },
+];
 
 /** TopBar runs across the window's top: kith, what the screen puts there, and Settings. */
 function TopBar({ view, session, children }: { view: View; session: Session; children?: ReactNode }) {
@@ -169,25 +178,42 @@ function Seated({ view, session }: { view: View; session: Session }) {
   const here = `${view.open}\u0000${String(view.row)}`;
   const [unfoldedAt, setUnfoldedAt] = useState<string | undefined>(undefined);
   const unfolded = unfoldedAt === here;
+  const keymap = useMemo(() => new Keymap(view.keys, seatedActions), [view.keys]);
+  const [pending, setPending] = useState("");
   useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
-        e.preventDefault();
+    const act: Readonly<Record<string, () => void>> = {
+      jump_to: () => {
         setSwitching(true);
-      } else if (e.altKey && !e.ctrlKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+      },
+      jump_back: () => {
+        session.back();
+      },
+      jump_forward: () => {
+        session.forward();
+      },
+      settings: () => {
+        session.openSettings();
+      },
+    };
+    const key = (e: KeyboardEvent) => {
+      const name = keyName(e);
+      if (name === undefined || e.defaultPrevented) {
+        return; // a modifier alone, or a press a field took for itself
+      }
+      const path = keymap.press(name, typing(document.activeElement));
+      setPending(keymap.pending);
+      if (path !== undefined || keymap.pending !== "") {
         e.preventDefault();
-        if (e.key === "ArrowLeft") {
-          session.back();
-        } else {
-          session.forward();
-        }
+      }
+      if (path !== undefined) {
+        act[path]?.();
       }
     };
     window.addEventListener("keydown", key);
     return () => {
       window.removeEventListener("keydown", key);
     };
-  }, [session]);
+  }, [session, keymap]);
   const columns = ["columns"];
   if (view.thread && view.timeline) {
     columns.push("with-thread");
@@ -201,6 +227,11 @@ function Seated({ view, session }: { view: View; session: Session }) {
   return (
     <>
       <TopBar view={view} session={session}>
+        {pending !== "" && (
+          <kbd className="keys-pending" aria-live="polite">
+            {pending}…
+          </kbd>
+        )}
         <button
           type="button"
           className="fold"

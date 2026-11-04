@@ -919,7 +919,7 @@ func toggleEnterKey(c *config.Settings, _ string) error {
 
 // firstKey is a binding list's preferred key, the one the app shows.
 func firstKey(list string) string {
-	if keys := splitKeys(list); len(keys) > 0 {
+	if keys := config.SplitKeys(list); len(keys) > 0 {
 		return spellSequence(keys[0])
 	}
 	return "(unbound)"

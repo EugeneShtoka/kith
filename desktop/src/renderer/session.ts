@@ -136,6 +136,8 @@ export interface View {
   timeline: TimelineView | undefined;
   /** Whether the unread line is drawn ([display] unread_line). */
   unreadLine: boolean;
+  /** The device's [keys]: each action's key sequences by its path, none until read. */
+  keys: Readonly<Record<string, readonly string[]>>;
   /** The open room's composer. */
   composer: ComposerView | undefined;
   /** The search shown, its hits only in the profile's rooms. */
@@ -323,6 +325,7 @@ const nothingShown = {
   open: "",
   timeline: undefined,
   unreadLine: true,
+  keys: {},
   composer: undefined,
   slots: new Map(),
   verify: noVerify,
@@ -435,8 +438,9 @@ export class Session {
   private pageProblem: { reader: Timeline | OpenThread; said: number } | undefined;
   /** Counts the settings page's reads and writes: only the last one's answer is shown. */
   private settingsReads = 0;
-  /** Counts the theme's reads and writes, likewise. */
+  /** Counts the theme's reads and writes, likewise; and the keys' reads. */
   private themeReads = 0;
+  private keyReads = 0;
   /** Counts the bridge settings' reads and changes, likewise; and the page's openings and closings. */
   private configReads = 0;
   private configPage = 0;
@@ -765,6 +769,19 @@ export class Session {
         }
       },
       () => undefined, // kithd away, or a [gui.theme] that does not check: the last theme stays
+    );
+  }
+
+  /** readKeys reads the device's keys again; ones that cannot be read leave the last ones bound. */
+  private readKeys(): void {
+    const mine = ++this.keyReads;
+    relay.read().then(
+      ({ settings }) => {
+        if (mine === this.keyReads && !this.stopped) {
+          this.set({ keys: Object.fromEntries(Object.entries(settings.keys).map(([path, k]) => [path, k.sequences])) });
+        }
+      },
+      () => undefined,
     );
   }
 
@@ -1294,6 +1311,7 @@ export class Session {
       });
       this.set({ profiles: d.profiles, socket: d.socket, bridge: d.bridge, problem: this.unsaved() });
       this.readTheme(); // read as the profiles are: at the start, and after each config change
+      this.readKeys();
       this.enter(runIn(this.view.profile, d.profile, d.profiles));
     });
   }

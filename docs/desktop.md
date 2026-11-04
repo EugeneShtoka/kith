@@ -13,7 +13,7 @@ This first release reads and writes messages:
 - the composer, with markdown, mentions, emoji, attachments and drafts, and
   [spelling and word completion](#spelling-and-completion), and
   [sending later and commands](#sending-later-and-commands);
-- search, the ctrl+K switcher, and threads beside the room;
+- search, the Go to switcher, and threads beside the room;
 - a settings page for the settings it shares with the terminal client, this device's
   and every device's ([where settings live](#where-settings-live));
 - [accounts](#accounts): logging a network account in, setting a new one up, and
@@ -103,8 +103,7 @@ terminal client, so a message never pops up twice.
 
 The window fills its height, and each part scrolls on its own:
 
-- **Across the top**, the search bar, back and forward (alt+← and alt+→), **Go to**
-  (ctrl+K) and **Settings**.
+- **Across the top**, the search bar, back and forward, **Go to** and **Settings**.
 - **On the left**, the profile menu (when the config has more than one), the rail of
   places, and the room list beside it. A room with something unread is in bold with
   its count; a red count with an @ means something there names you. Each room shows its
@@ -144,6 +143,22 @@ not in `device.toml`, so the terminal client is not affected.
 
 The colors follow the system's light or dark setting, unless the [theme](#theme) says
 otherwise.
+
+### Keys
+
+The window's keys are the terminal client's: it reads `[keys]` from this device's
+`device.toml` ([Keybindings](keybindings.md)), so a key you rebind there moves in both.
+It binds these so far, with their defaults:
+
+| Action | Default | Does |
+| --- | --- | --- |
+| `jump_to` | `ctrl+k` | Go to a room, person or space, while typing too |
+| `jump_back` | `ctrl+o` | Back to the room you were in before, while typing too |
+| `jump_forward` | `ctrl+i`, `alt+o` | Forward again, while typing too |
+| `settings` | `,` | Settings, when no field takes typing |
+
+A sequence such as `g j` waits for its next key, shown at the top, as it does in the
+terminal. The rest of the terminal client's keys come to the window in later releases.
 
 ## Theme
 

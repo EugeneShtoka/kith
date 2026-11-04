@@ -10,7 +10,7 @@ import {
   SpaceFiledOutcome,
 } from "../gen/backend/v1/services_pb";
 import { ReactionSchema, VerificationKind } from "../gen/backend/v1/types_pb";
-import { type DeviceSettings, DeviceSettingsSchema, ThemeScope } from "../gen/device/v1/device_pb";
+import { type DeviceSettings, DeviceSettingsSchema, KeySequencesSchema, ThemeScope } from "../gen/device/v1/device_pb";
 import { list, number, text, valueAt, words } from "./config";
 import { unreadOf } from "./rooms";
 import { deviceAgain, Session } from "./session";
@@ -53,6 +53,22 @@ const profileStreams = [
   backend.invites,
 ].map((m) => m.name);
 
+describe("the window's keys", () => {
+  it("are the device's [keys], read as it starts", async () => {
+    kithd.settings = create(DeviceSettingsSchema, {
+      keys: { jump_to: create(KeySequencesSchema, { sequences: ["ctrl+k", "g j"] }) },
+    });
+    await started();
+    expect(view().keys).toEqual({ jump_to: ["ctrl+k", "g j"] });
+  });
+
+  it("are none while the device file cannot be read", async () => {
+    kithd.settings = "fail";
+    await started();
+    expect(view().keys).toEqual({});
+  });
+});
+
 describe("the window's profile", () => {
   it("is the only one there is, unasked and not written down", async () => {
     kithd.profiles = ["Solo"];
@@ -69,7 +85,7 @@ describe("the window's profile", () => {
     expect(view().profile).toBe("");
     expect(view().profiles).toEqual(["Home", "Work"]);
     expect(view().seat.state).toBe("none");
-    expect(kithd.calls).toEqual(["Device:", "Theme:"]); // the relay's, which no profile scopes
+    expect(kithd.calls).toEqual(["Device:", "Theme:", "DeviceSettings:"]); // the relay's, which no profile scopes
     expect(kithd.refused).toEqual([]);
 
     await session.choose("Work");
@@ -78,7 +94,7 @@ describe("the window's profile", () => {
     expect(view().seat.state).toBe("seated");
     expect(kithd.remembered).toBe("Work");
     expect(kithd.refused).toEqual([]);
-    for (const c of kithd.calls.slice(3).filter((c) => c !== "Theme:")) {
+    for (const c of kithd.calls.slice(4).filter((c) => c !== "Theme:" && c !== "DeviceSettings:")) {
       expect(c).toMatch(/:Work$/);
     }
     expect(kithd.open().map((s) => s.profile)).toEqual(Array(9).fill("Work"));
