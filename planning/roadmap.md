@@ -47,9 +47,14 @@ small and ships on its own.
 
 ### Desktop client
 
-- **A loaded room that ends up empty.** If a frame moves a room's only row out of what
-  the timeline holds while its next page fails, the timeline is loaded, empty, and
-  nothing asks again. Found at 20 000 runs of the timeline property; it predates #449.
+- **A page asked before a row that then moves** is read around where the row is now:
+  it can add rows far from those shown, or end the room early (a cached page that adds
+  nothing reads as the room's start). A reload meets it most, since it asks before a
+  row it read before the frames it holds. The timeline property that moves rows far
+  back leaves reloads out, and delivers those moves at once, until this is fixed.
+- **A jump's message that moves after it was found** stays the target but is no
+  longer a row, so there is nothing to show and mark. About once in 40 000 runs of the
+  jump property.
 - **A thread whose root cannot be fetched** never loads older replies: the root is
   asked for first and not again after a failure.
 - **Banners clear only on the next connection check.** A failed page's banner comes
