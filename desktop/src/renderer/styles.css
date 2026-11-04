@@ -891,6 +891,16 @@ td {
   border-radius: var(--radius-md);
 }
 
+.player {
+  display: block;
+  width: min(100%, 24rem);
+  margin-top: var(--space-1);
+}
+
+video.player {
+  width: auto;
+}
+
 .attachment {
   display: block;
   margin-top: var(--space-1);

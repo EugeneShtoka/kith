@@ -1,6 +1,26 @@
 import { mediaOf } from "../shared/media";
 
-/** How many bytes of pictures main keeps, the least recently used going first. */
+/**
+ * byteRange is the first and last byte a Range header asks of size bytes: undefined for
+ * a header it does not read (several ranges, another unit), which is answered whole, and
+ * null for one that asks for none of them.
+ */
+export function byteRange(header: string, size: number): [number, number] | null | undefined {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (m === null || (m[1] === "" && m[2] === "")) {
+    return undefined;
+  }
+  const [first, last] = [m[1] ?? "", m[2] ?? ""];
+  const start = first === "" ? Math.max(0, size - Number(last)) : Number(first); // "-n": the last n
+  const end = first === "" || last === "" ? size - 1 : Math.min(Number(last), size - 1);
+  return start > end || start >= size ? null : [start, end];
+}
+
+/**
+ * How many bytes of attachments main keeps, the least recently used going first.
+ * shortcut: a file larger than this (a long video) is read from kithd again for each
+ * part a player asks for; stream it from kithd if long videos are watched in the window.
+ */
 export const mediaCacheBytes = 64 << 20;
 
 /**
@@ -14,8 +34,12 @@ export class Media {
 
   constructor(private readonly load: (room: string, event: string) => Promise<Uint8Array>) {}
 
-  /** answer is the response to a request for url: the bytes, or why there are none. */
-  async answer(url: string): Promise<Response> {
+  /**
+   * answer is the response to a request for url: the bytes, or why there are none; with
+   * range (a Range header), the part it asks for. A player seeks by parts, and it plays a
+   * file of more than a few hundred KB only when each answer says its length.
+   */
+  async answer(url: string, range: string | null = null): Promise<Response> {
     const named = mediaOf(url);
     if (named === undefined) {
       return new Response(null, { status: 404 });
@@ -32,7 +56,23 @@ export class Media {
       }
       this.keep(url, bytes);
     }
-    return new Response(new Uint8Array(bytes), { headers: { "Cache-Control": "no-store" } });
+    const headers = { "Cache-Control": "no-store", "Accept-Ranges": "bytes" };
+    const part = range === null ? undefined : byteRange(range, bytes.length);
+    if (part === null) {
+      return new Response(null, {
+        status: 416,
+        headers: { ...headers, "Content-Range": `bytes */${String(bytes.length)}` },
+      });
+    }
+    if (part !== undefined) {
+      const [start, end] = part;
+      const content = `bytes ${String(start)}-${String(end)}/${String(bytes.length)}`;
+      return new Response(bytes.slice(start, end + 1), {
+        status: 206,
+        headers: { ...headers, "Content-Range": content, "Content-Length": String(end - start + 1) },
+      });
+    }
+    return new Response(new Uint8Array(bytes), { headers: { ...headers, "Content-Length": String(bytes.length) } });
   }
 
   private keep(url: string, bytes: Uint8Array): void {

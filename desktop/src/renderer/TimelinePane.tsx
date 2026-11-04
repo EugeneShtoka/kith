@@ -463,6 +463,20 @@ function Body({ m, composer, session }: { m: Message; composer: ComposerView | u
           height={media.height > 0n ? Number(media.height) : undefined}
         />
       )}
+      {media?.type === "audio" && (
+        <audio className="player" controls preload="metadata" src={attachmentURL(m)} aria-label={media.name} />
+      )}
+      {media?.type === "video" && (
+        <video
+          className="player picture"
+          controls
+          preload="metadata"
+          src={attachmentURL(m)}
+          aria-label={media.name}
+          width={media.width > 0n ? Number(media.width) : undefined}
+          height={media.height > 0n ? Number(media.height) : undefined}
+        />
+      )}
       {media !== undefined && (
         <button
           type="button"
