@@ -157,7 +157,7 @@ It binds these so far, with their defaults:
 | `jump_forward` | `ctrl+i`, `alt+o` | Forward again, while typing too |
 | `settings` | `,` | Settings, when no field takes typing |
 | `help` | `?` | These keys, as bound now, with a box to find one; `esc` clears it, then closes |
-| `focus_next`, `focus_prev` | `tab`, `shift+tab` | The next pane, or the one before: places, rooms, the open room |
+| `focus_next`, `focus_prev` | `tab`, `shift+tab` | The next pane, or the one before: places, rooms, the open room, its thread |
 | `nav.up`, `nav.down` | `k`, `up`; `j`, `down` | The pane's cursor up or down: a place (picked as you go), a room, a message |
 | `nav.open` | `l`, `right`, `enter` | Into the next pane: a place's rooms, a room's messages (opening it) |
 | `nav.back` | `h`, `left`, `esc` | Back a pane; from a message, the open thread closes first |
@@ -186,6 +186,10 @@ On a message, the cursor's, the `[keys.timeline]` keys act as they do in the ter
 | `timeline.vote` | `P` | Its poll's options, to choose one |
 
 The searches look through the messages loaded so far, and take a count (`3m`).
+
+A thread open beside the room has a cursor of its own, moved and acted on by the same
+keys. `t` and `T` take the focus into the thread they open; `nav.back` in it closes it,
+back to the room's messages. A thread starts on none of its replies.
 
 In the composer, the `[keys.insert]`, `[keys.completion]` and `[keys.emoji]` keys act as
 they do in the terminal, and the correction walk takes `[keys.spell]`:

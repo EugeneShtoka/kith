@@ -113,7 +113,6 @@ export function TimelinePane({
         },
       });
     };
-    const write = () => document.querySelector<HTMLElement>(".composer textarea")?.focus();
     const at = () => {
       const i = cursor.current.room === t.room ? shown.findIndex((m) => m.id === cursor.current.id) : -1;
       const newest = onScreen().at(-1)?.dataset.id;
@@ -133,78 +132,14 @@ export function TimelinePane({
         return true;
       },
       act(path, count) {
-        const i = at();
-        const m = shown[i];
-        if (m === undefined) {
-          return false;
-        }
-        const sought = seek(shown, i, path, count);
-        if (sought !== undefined) {
-          select(sought);
-          return true;
-        }
-        // The row's own buttons, where what they open is the row's: the palette, the question.
-        const press = (row: HTMLElement) => row.querySelector<HTMLElement>(`[data-key="${path}"]`)?.click();
-        switch (path) {
-          case "timeline.insert":
-            if (composer === undefined) {
-              return false;
-            }
-            write();
-            return true;
-          case "timeline.reply":
-            if (composer === undefined || m.redacted) {
-              return false;
-            }
-            session.reply(m);
-            write();
-            return true;
-          case "timeline.edit":
-            if (composer?.selves.has(m.sender) !== true || m.redacted) {
-              return false;
-            }
-            session.edit(m);
-            write();
-            return true;
-          case "timeline.go_reply":
-            if (m.replyTo === "") {
-              return false;
-            }
-            cursor.current = { room: t.room, id: m.replyTo };
-            session.jump(t.room, m.replyTo);
-            return true;
-          case "timeline.person":
-            session.openPerson({ person: m.sender }, m.senderName || m.sender);
-            return true;
-          case "timeline.download":
-            if (m.media === undefined) {
-              return false;
-            }
-            void session.save(m);
-            return true;
-          case "timeline.start_thread":
-            session.openThread(m.id);
-            return true;
-          case "timeline.react":
-          case "timeline.redact":
-          case "timeline.open_thread":
-            select(i, press);
-            return true;
-          case "timeline.play":
-            select(i, (row) => {
-              const player = row.querySelector<HTMLMediaElement>("audio, video");
-              if (player?.paused) {
-                void player.play();
-              } else {
-                player?.pause();
-              }
-            });
-            return m.media?.type === "audio" || m.media?.type === "video";
-          case "timeline.vote":
-            select(i, (row) => row.querySelector<HTMLElement>("button.poll-option, .poll-option input")?.focus());
-            return m.poll !== undefined;
-        }
-        return false;
+        return actOn(path, count, shown, at(), select, {
+          room: t.room,
+          composer,
+          session,
+          aim: (id) => {
+            cursor.current = { room: t.room, id };
+          },
+        });
       },
       focus() {
         if (shown.length > 0) {
@@ -267,6 +202,106 @@ export function TimelinePane({
       />
     </section>
   );
+}
+
+/** Here is where a message key acts: the room, its composer, and how the cursor is aimed at a message. */
+export interface Here {
+  room: string;
+  composer: ComposerView | undefined;
+  session: Session;
+  /** aim sets the cursor on the message id, which a jump draws. */
+  aim: (id: string) => void;
+  /** The rows are a thread's, where no thread starts. */
+  inThread?: boolean;
+}
+
+/** write focuses the composer. */
+const write = () => document.querySelector<HTMLElement>(".composer textarea")?.focus();
+
+/** actOn takes a [keys.timeline] action on rows[i], the cursor's; false where it does not apply. */
+export function actOn(
+  path: string,
+  count: number,
+  rows: readonly Message[],
+  i: number,
+  select: (at: number, then?: (row: HTMLElement) => void) => void,
+  here: Here,
+): boolean {
+  const { room, composer, session } = here;
+  const m = rows[i];
+  if (m === undefined) {
+    return false;
+  }
+  const sought = seek(rows, i, path, count);
+  if (sought !== undefined) {
+    select(sought);
+    return true;
+  }
+  // The row's own buttons, where what they open is the row's: the palette, the question.
+  const press = (row: HTMLElement) => row.querySelector<HTMLElement>(`[data-key="${path}"]`)?.click();
+  switch (path) {
+    case "timeline.insert":
+      if (composer === undefined) {
+        return false;
+      }
+      write();
+      return true;
+    case "timeline.reply":
+      if (composer === undefined || m.redacted) {
+        return false;
+      }
+      session.reply(m);
+      write();
+      return true;
+    case "timeline.edit":
+      if (composer?.selves.has(m.sender) !== true || m.redacted) {
+        return false;
+      }
+      session.edit(m);
+      write();
+      return true;
+    case "timeline.go_reply":
+      if (m.replyTo === "") {
+        return false;
+      }
+      here.aim(m.replyTo);
+      session.jump(room, m.replyTo);
+      return true;
+    case "timeline.person":
+      session.openPerson({ person: m.sender }, m.senderName || m.sender);
+      return true;
+    case "timeline.download":
+      if (m.media === undefined) {
+        return false;
+      }
+      void session.save(m);
+      return true;
+    case "timeline.start_thread":
+      if (here.inThread === true) {
+        return false; // a thread starts on none of its own
+      }
+      session.openThread(m.id);
+      return true;
+    case "timeline.react":
+    case "timeline.redact":
+    case "timeline.open_thread":
+      select(i, press);
+      return true;
+    case "timeline.play":
+      select(i, (row) => {
+        const player = row.querySelector<HTMLMediaElement>("audio, video");
+        if (player?.paused) {
+          void player.play();
+        } else {
+          player?.pause();
+        }
+      });
+      return m.media?.type === "audio" || m.media?.type === "video";
+    case "timeline.vote":
+      select(i, (row) => row.querySelector<HTMLElement>("button.poll-option, .poll-option input")?.focus());
+      return m.poll !== undefined;
+  }
+  return false;
 }
 
 /** useWatched: the window is focused and showing, so what it shows is being read. */

@@ -1,5 +1,5 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse } from "../gen/backend/v1/services_pb";
 import type { Room, Unread } from "../gen/backend/v1/types_pb";
@@ -130,7 +130,7 @@ const seatedActions: readonly Action[] = [
 ];
 
 /** panes are the seated window's panes in focus order, each a [data-pane] element. */
-const panes = ["rail", "rooms", "timeline"];
+const panes = ["rail", "rooms", "timeline", "thread"];
 
 /** paneRows are the rows a list pane's cursor moves over: each focusable itself. */
 const paneRows: Readonly<Record<string, string>> = { rail: "li.place > button", rooms: "li.room > button" };
@@ -275,6 +275,9 @@ function Seated({ view, session }: { view: View; session: Session }) {
   const keymap = useMemo(() => new Keymap(view.keys, seatedActions), [view.keys]);
   const [pending, setPending] = useState("");
   const timeline = useRef<TimelineNav>(null);
+  const thread = useRef<TimelineNav>(null);
+  // A thread opened by a key takes the focus once its rows are drawn.
+  const toThread = useRef(false);
   // A room opened from the list takes the focus to its timeline once it is drawn.
   const toTimeline = useRef(false);
   // The pane focused last, which keys go to while nothing is focused: the rooms before any.
@@ -285,17 +288,27 @@ function Seated({ view, session }: { view: View; session: Session }) {
       timeline.current?.focus();
     }
   }, [view.open, view.timeline]);
+  const threadRows = view.thread?.rows.length ?? 0;
+  useEffect(() => {
+    if (toThread.current && threadRows > 0) {
+      toThread.current = false;
+      thread.current?.focus();
+    }
+  }, [view.thread?.root, threadRows]);
   useEffect(() => {
     const focused = (e: FocusEvent) => {
       lastPane.current = paneOf(e.target as Element, "") || lastPane.current;
     };
     const shown = () => panes.filter((p) => document.querySelector(`[data-pane="${p}"]`) !== null);
+    // The message panes, by their handles; the lists, by their rows.
+    const cursors: Readonly<Record<string, RefObject<TimelineNav | null>>> = { timeline, thread };
     const focusTo = (pane: string): boolean => {
-      if (pane !== "timeline") {
+      const nav = cursors[pane]?.current;
+      if (nav === undefined) {
         return focusPane(pane);
       }
-      timeline.current?.focus();
-      return true;
+      nav?.focus();
+      return nav !== null;
     };
     const step = (delta: number) => {
       const order = shown();
@@ -330,17 +343,24 @@ function Seated({ view, session }: { view: View; session: Session }) {
             return true;
           }
           return focusPane("rooms");
+        case "thread nav.back":
+          session.closeThread();
+          return focusTo("timeline");
         case "rail nav.back":
         case "timeline nav.open":
+        case "thread nav.open":
           return false;
       }
-      return pane === "timeline" ? (timeline.current?.move(path, count) ?? false) : moveRow(pane, path, count);
+      const cursor = cursors[pane];
+      return cursor === undefined ? moveRow(pane, path, count) : (cursor.current?.move(path, count) ?? false);
     };
     // message acts on the timeline's cursor, where it is a message's key's to take.
     const message = (path: string, count: number): boolean => {
       const el = document.activeElement;
       const pane = paneOf(el, lastPane.current);
-      return pane === "timeline" && onRow(el, pane) && (timeline.current?.act(path, count) ?? false);
+      const done = onRow(el, pane) && (cursors[pane]?.current?.act(path, count) ?? false);
+      toThread.current ||= done && (path === "timeline.open_thread" || path === "timeline.start_thread");
+      return done;
     };
     const act: Readonly<Record<string, (count: number) => boolean | undefined>> = {
       focus_next: () => step(1),
@@ -584,6 +604,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
         )}
         {view.thread && view.timeline && (
           <ThreadPane
+            ref={thread}
             thread={view.thread}
             t={view.timeline}
             composer={view.composer}
