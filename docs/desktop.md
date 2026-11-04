@@ -187,6 +187,10 @@ On a message, the cursor's, the `[keys.timeline]` keys act as they do in the ter
 
 The searches look through the messages loaded so far, and take a count (`3m`).
 
+Your `[[keys.jump]]` chords go where they do in the terminal: to a room by its ID, or to
+the first rail row a `space:`, `tag:` or `place:` entry names. `?` lists them after the
+window's own keys.
+
 On a room in the list, `rooms.spaces` (`S`) files it into tags and spaces, and
 `rooms.person` (`I`) opens a direct chat's phonebook card.
 

@@ -1,7 +1,8 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BackendService, Change, RailResponseSchema, RailRowKind } from "../gen/backend/v1/services_pb";
+import { BackendService, Change, RailResponseSchema, RailRowKind, RailRowSchema } from "../gen/backend/v1/services_pb";
+import { namesRow } from "./rail";
 import { Session } from "./session";
 import { Kithd, room, settled } from "./testing/kithd";
 
@@ -198,4 +199,26 @@ describe("the rail", () => {
     expect(view().rail).toEqual([]);
     expect(view().rooms).toEqual([]);
   });
+});
+
+describe("a home entry", () => {
+  const space = create(RailRowSchema, { key: "Work", label: "Office", kind: RailRowKind.SPACE, space: "!w:x" });
+  const tag = create(RailRowSchema, { key: "tag:Later", label: "Later", kind: RailRowKind.TAG });
+  for (const [entry, row, want] of [
+    ["space:work", space, true], // case ignored
+    ["space: Work ", space, true],
+    ["tag:Work", space, false], // a tag is not a space
+    ["place:Work", space, true],
+    ["place:office", space, true], // by its label
+    ["space:Office", space, false], // space: names the space, not its label
+    ["tag:later", tag, true],
+    ["space:Later", tag, false],
+    ["place:Later", tag, true],
+    ["place:", tag, false], // no name
+    ["Later", tag, false], // no prefix
+  ] as const) {
+    it(`${entry} names ${row.key}: ${String(want)}`, () => {
+      expect(namesRow(entry, row)).toBe(want);
+    });
+  }
 });

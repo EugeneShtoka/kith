@@ -11,6 +11,27 @@ export interface RowRef {
   space: string;
 }
 
+/**
+ * namesRow: a home entry (space:, tag:, place:) names row, as domain.NamesHome holds:
+ * space: a space's name, tag: a tag's, place: either, or the row's label; case ignored.
+ */
+export function namesRow(entry: string, row: RailRow): boolean {
+  const m = /^\s*(space|tag|place):(.*)$/i.exec(entry);
+  const want = m?.[2]?.trim().toLowerCase() ?? "";
+  if (m === null || want === "") {
+    return false;
+  }
+  const tag = /^\s*tag:(.*)$/i.exec(row.key);
+  const name = (tag?.[1] ?? row.key).trim().toLowerCase();
+  switch (m[1]?.toLowerCase()) {
+    case "space":
+      return tag === null && name === want;
+    case "tag":
+      return tag !== null && name === want;
+  }
+  return name === want || row.label.trim().toLowerCase() === want;
+}
+
 export function refOf(row: RailRow | undefined): RowRef | undefined {
   return row === undefined ? undefined : { key: row.key, space: row.space };
 }

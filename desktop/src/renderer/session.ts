@@ -22,7 +22,7 @@ import {
   type StatusResponse,
 } from "../gen/backend/v1/services_pb";
 import type { Member, Message, Reaction, Room, SearchHit, Unread } from "../gen/backend/v1/types_pb";
-import { type DeviceSettings, DeviceService, type ThemeResponse } from "../gen/device/v1/device_pb";
+import { type DeviceSettings, DeviceService, type Jump, type ThemeResponse } from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
 import { later, listed, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unscheduled, type Unsent } from "./compose";
@@ -138,6 +138,8 @@ export interface View {
   unreadLine: boolean;
   /** The device's [keys]: each action's key sequences by its path, none until read. */
   keys: Readonly<Record<string, readonly string[]>>;
+  /** The device's [[keys.jump]]: each chord, and the room or rail row it goes to. */
+  jumps: readonly Jump[];
   /** The open room's composer. */
   composer: ComposerView | undefined;
   /** The search shown, its hits only in the profile's rooms. */
@@ -326,6 +328,7 @@ const nothingShown = {
   timeline: undefined,
   unreadLine: true,
   keys: {},
+  jumps: [],
   composer: undefined,
   slots: new Map(),
   verify: noVerify,
@@ -778,7 +781,10 @@ export class Session {
     relay.read().then(
       ({ settings }) => {
         if (mine === this.keyReads && !this.stopped) {
-          this.set({ keys: Object.fromEntries(Object.entries(settings.keys).map(([path, k]) => [path, k.sequences])) });
+          this.set({
+            keys: Object.fromEntries(Object.entries(settings.keys).map(([path, k]) => [path, k.sequences])),
+            jumps: settings.jumps,
+          });
         }
       },
       () => undefined,

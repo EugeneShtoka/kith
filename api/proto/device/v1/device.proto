@@ -388,11 +388,23 @@ message DeviceSettings {
   // in, each a sequence of key names joined by single spaces ("g g", "ctrl+k"), as
   // config.SplitKeys reads them; a sequence with an unknown key name is left out.
   map<string, KeySequences> keys = 26;
+  // [[keys.jump]]: each chord as one sequence (as keys has them) and where it goes, in
+  // the order the config lists them; a chord with an unknown key name, or a target
+  // domain.ParseJump cannot read, is left out.
+  repeated Jump jumps = 27;
 }
 
 // KeySequences are one action's keys, in the order [keys] lists them.
 message KeySequences {
   repeated string sequences = 1;
+}
+
+// Jump is one [[keys.jump]]: a room by its ID, or a rail row by a home entry (space:,
+// tag:, place:, as domain.NamesHome matches one). One of the two is set.
+message Jump {
+  string sequence = 1;
+  string room = 2;
+  string place = 3;
 }
 
 // ReadRule is one [[display.read_rule]], less its delay: the window reads a room by

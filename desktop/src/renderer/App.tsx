@@ -8,12 +8,13 @@ import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
 import { FilingDialog } from "./Filing";
+import { helpSections } from "./help";
 import { HelpOverlay } from "./HelpOverlay";
 import { type Action, keyName, Keymap, moved, typing } from "./keymap";
 import { OfferDialog } from "./Offer";
 import { PeopleDialog, PersonDialog } from "./People";
 import { colorClass, themeCSS, modeOf, roomColor } from "./theme";
-import { rowUnread } from "./rail";
+import { namesRow, rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
 import { type Link, type Seat, Session, type View } from "./session";
 import { SearchBar, SearchResults, Switcher } from "./Find";
@@ -274,7 +275,19 @@ function Seated({ view, session }: { view: View; session: Session }) {
   const here = `${view.open}\u0000${String(view.row)}`;
   const [unfoldedAt, setUnfoldedAt] = useState<string | undefined>(undefined);
   const unfolded = unfoldedAt === here;
-  const keymap = useMemo(() => new Keymap(view.keys, seatedActions), [view.keys]);
+  // [[keys.jump]] bound as jump.<i>, after the window's own actions.
+  const keys = useMemo(
+    () => ({ ...view.keys, ...Object.fromEntries(view.jumps.map((j, i) => [`jump.${String(i)}`, [j.sequence]])) }),
+    [view.keys, view.jumps],
+  );
+  const keymap = useMemo(
+    () =>
+      new Keymap(keys, [
+        ...seatedActions,
+        ...view.jumps.map((_, i) => ({ path: `jump.${String(i)}`, anywhere: false })),
+      ]),
+    [keys, view.jumps],
+  );
   const [pending, setPending] = useState("");
   const timeline = useRef<TimelineNav>(null);
   const thread = useRef<TimelineNav>(null);
@@ -381,6 +394,20 @@ function Seated({ view, session }: { view: View; session: Session }) {
       }
       return true;
     };
+    // goTo goes where the ith [[keys.jump]] points: a room of the profile, or the first rail row its entry names.
+    const goTo = (i: number): boolean => {
+      const j = view.jumps[i];
+      if (j !== undefined && view.joined.some((r) => r.id === j.room)) {
+        toTimeline.current = true;
+        session.open(j.room);
+        return true;
+      }
+      const row = j === undefined || j.place === "" ? -1 : view.rail.findIndex((r) => namesRow(j.place, r));
+      if (row >= 0) {
+        session.selectRow(row);
+      }
+      return row >= 0;
+    };
     const act: Readonly<Record<string, (count: number) => boolean | undefined>> = {
       focus_next: () => step(1),
       focus_prev: () => step(-1),
@@ -412,9 +439,15 @@ function Seated({ view, session }: { view: View; session: Session }) {
       // The first action that takes the press acts; one passed on by all (false) keeps what it does by itself.
       const done = paths.some(
         (path) =>
-          (act[path] ?? ((count) => (path.startsWith("timeline.") ? message(path, count) : nav(path, count))))(
-            keymap.count,
-          ) !== false,
+          (
+            act[path] ??
+            ((count) =>
+              path.startsWith("jump.")
+                ? goTo(Number(path.slice("jump.".length)))
+                : path.startsWith("timeline.")
+                  ? message(path, count)
+                  : nav(path, count))
+          )(keymap.count) !== false,
       );
       if (done || keymap.pending !== "") {
         e.preventDefault();
@@ -426,7 +459,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
       window.removeEventListener("keydown", key);
       window.removeEventListener("focusin", focused);
     };
-  }, [session, keymap, view.thread, view.rooms]);
+  }, [session, keymap, view.thread, view.rooms, view.jumps, view.joined, view.rail]);
   const columns = ["columns"];
   if (view.thread && view.timeline) {
     columns.push("with-thread");
@@ -534,7 +567,17 @@ function Seated({ view, session }: { view: View; session: Session }) {
       <Banner link={view.link} status={view.status} bridge={view.bridge} />
       {helping && (
         <HelpOverlay
-          keys={view.keys}
+          keys={keys}
+          sections={[
+            ...helpSections,
+            {
+              title: "Go to (your [[keys.jump]])",
+              rows: view.jumps.map((j, i) => ({
+                paths: [`jump.${String(i)}`],
+                what: j.room === "" ? j.place : (view.joined.find((r) => r.id === j.room)?.name ?? j.room),
+              })),
+            },
+          ]}
           close={() => {
             setHelping(false);
           }}

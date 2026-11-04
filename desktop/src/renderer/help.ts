@@ -1,5 +1,6 @@
 // The help overlay's rows (`?`, as the TUI's view_help.go draws its own): each key the
-// window binds, under where it acts, with the keys [keys] gives it now.
+// window binds, under where it acts, with the keys [keys] gives it now. The device's
+// [[keys.jump]] are drawn after them.
 import type { Keys } from "./keymap";
 
 /** A help row: the [keys] actions it is about, and what they do. */

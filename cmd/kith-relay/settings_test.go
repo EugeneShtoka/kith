@@ -158,3 +158,39 @@ func TestDeviceSettingsCarryTheKeys(t *testing.T) {
 		t.Errorf("%d actions' keys, want every one of %d", len(keys), len(config.DefaultKeys().Bindings))
 	}
 }
+
+// The window reads [[keys.jump]] as the TUI binds them: each chord one sequence, to a
+// room by its ID or a rail row by its entry, and a chord or target it cannot read left out.
+func TestDeviceSettingsCarryTheJumps(t *testing.T) {
+	t.Parallel()
+	path, _ := relayConfig(t, t.TempDir())
+	device := deviceClient(relayFor(t, kithdSocket(t), path))
+	handWrite(t, path, `[[keys.jump]]
+chord = "gw"
+target = "room:matrix:0123456789abcdef/!work:example.org"
+
+[[keys.jump]]
+chord = "g S"
+target = "space:Work"
+
+[[keys.jump]]
+chord = "g bogus"
+target = "tag:Later"
+
+[[keys.jump]]
+chord = "g n"
+target = "room:Standup"
+`)
+	resp, err := device.DeviceSettings(t.Context(), connect.NewRequest(&devicev1.DeviceSettingsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, j := range resp.Msg.GetSettings().GetJumps() {
+		got = append(got, fmt.Sprintf("%s→room=%s,place=%s", j.GetSequence(), j.GetRoom(), j.GetPlace()))
+	}
+	want := []string{"g w→room=matrix:0123456789abcdef/!work:example.org,place=", "g S→room=,place=space:Work"}
+	if !slices.Equal(got, want) {
+		t.Errorf("jumps = %q, want %q", got, want)
+	}
+}
