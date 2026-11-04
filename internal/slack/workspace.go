@@ -51,6 +51,11 @@ type workspace struct {
 	general string
 	// phones is each user's number, where their profile has it in international form.
 	phones map[string]string
+	// pictures is each known user's picture; sweeping marks a sweep of them running, and
+	// pictureWant the latest listing's, for it to sweep next (picturesLater).
+	pictures    map[string]picture
+	sweeping    bool
+	pictureWant map[domain.RoomID]picture
 }
 
 func newWorkspace(account Account, creds Credentials, teamName string, client *slackgo.Client, signIn int) *workspace {
@@ -95,6 +100,12 @@ func (w *workspace) knowUser(u *slackgo.User) {
 	if digits, ok := domain.PhoneIn(u.Profile.Phone); ok {
 		w.knowPhone(u.ID, digits)
 	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.pictures == nil {
+		w.pictures = map[string]picture{}
+	}
+	w.pictures[u.ID] = pictureOf(u)
 }
 
 func (w *workspace) knowPhone(user, digits string) {
@@ -363,6 +374,7 @@ func (a *Adapter) list(ctx context.Context, w *workspace) ([]domain.Room, error)
 	if err := a.save(ctx, w, l, fetched); err != nil {
 		return nil, err
 	}
+	a.picturesLater(w, w.dmPictures(conversations))
 	return l.rooms, nil
 }
 
