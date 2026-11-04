@@ -1,5 +1,5 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse } from "../gen/backend/v1/services_pb";
 import type { Room, Unread } from "../gen/backend/v1/types_pb";
@@ -8,7 +8,7 @@ import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
 import { FilingDialog } from "./Filing";
-import { type Action, keyName, Keymap, typing } from "./keymap";
+import { type Action, keyName, Keymap, moved, typing } from "./keymap";
 import { OfferDialog } from "./Offer";
 import { PeopleDialog, PersonDialog } from "./People";
 import { colorClass, themeCSS, modeOf, roomColor } from "./theme";
@@ -18,7 +18,7 @@ import { type Link, type Seat, Session, type View } from "./session";
 import { SearchBar, SearchResults, Switcher } from "./Find";
 import { SettingsPage } from "./SettingsPage";
 import { ThreadPane } from "./ThreadPane";
-import { TimelinePane } from "./TimelinePane";
+import { type TimelineNav, TimelinePane } from "./TimelinePane";
 import { VerifyDialog } from "./Verification";
 
 const phases: Record<NetworkPhase, string> = {
@@ -88,7 +88,77 @@ const seatedActions: readonly Action[] = [
   { path: "jump_back", anywhere: true },
   { path: "jump_forward", anywhere: true },
   { path: "settings", anywhere: false },
+  { path: "focus_next", anywhere: true },
+  { path: "focus_prev", anywhere: true },
+  ...[
+    "up",
+    "down",
+    "open",
+    "back",
+    "page_up",
+    "page_down",
+    "half_page_up",
+    "half_page_down",
+    "select_oldest",
+    "select_newest",
+    "scroll_oldest",
+    "scroll_newest",
+  ].map((motion) => ({ path: `nav.${motion}`, anywhere: false })),
 ];
+
+/** panes are the seated window's panes in focus order, each a [data-pane] element. */
+const panes = ["rail", "rooms", "timeline"];
+
+/** paneRows are the rows a list pane's cursor moves over: each focusable itself. */
+const paneRows: Readonly<Record<string, string>> = { rail: "li.place > button", rooms: "li.room > button" };
+
+/** paneOf is the pane el is in, "" for none; the body (nothing focused) is the pane focused last. */
+function paneOf(el: Element | null, last: string): string {
+  if (el === null || el === document.body) {
+    return last;
+  }
+  return el.closest("[data-pane]")?.getAttribute("data-pane") ?? "";
+}
+
+/** onRow: el is where a pane's motions act: the pane itself, one of its rows, or nothing focused. */
+function onRow(el: Element | null, pane: string): boolean {
+  return (
+    el === null || el === document.body || el.matches("[data-pane]") || el.matches(paneRows[pane] ?? "article.message")
+  );
+}
+
+function rowsOf(pane: string): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>(`[data-pane="${pane}"] ${paneRows[pane] ?? ""}`)];
+}
+
+/** focusPane focuses a list pane's current row (its first, if none is current): false where it is not shown. */
+function focusPane(pane: string): boolean {
+  const rows = rowsOf(pane);
+  const el = rows.find((r) => r.getAttribute("aria-current") === "true") ?? rows[0];
+  el?.focus();
+  return el !== undefined && document.activeElement === el;
+}
+
+/** moveRow moves a list pane's cursor, the focused row; the rail's also picks the place, as the TUI's does. */
+function moveRow(pane: string, path: string, count: number): boolean {
+  const rows = rowsOf(pane);
+  const focused = rows.indexOf(document.activeElement as HTMLElement);
+  const at = Math.max(0, focused >= 0 ? focused : rows.findIndex((r) => r.getAttribute("aria-current") === "true"));
+  const box = document.querySelector(`[data-pane="${pane}"]`)?.getBoundingClientRect();
+  const page = rows.filter((r) => {
+    const b = r.getBoundingClientRect();
+    return box !== undefined && b.top >= box.top && b.bottom <= box.bottom;
+  }).length;
+  const to = rows.length === 0 ? undefined : moved(path, count, at, page, rows.length);
+  if (to === undefined) {
+    return false;
+  }
+  rows[to]?.focus();
+  if (pane === "rail" && to !== focused) {
+    rows[to]?.click();
+  }
+  return true;
+}
 
 /** TopBar runs across the window's top: kith, what the screen puts there, and Settings. */
 function TopBar({ view, session, children }: { view: View; session: Session; children?: ReactNode }) {
@@ -180,8 +250,71 @@ function Seated({ view, session }: { view: View; session: Session }) {
   const unfolded = unfoldedAt === here;
   const keymap = useMemo(() => new Keymap(view.keys, seatedActions), [view.keys]);
   const [pending, setPending] = useState("");
+  const timeline = useRef<TimelineNav>(null);
+  // A room opened from the list takes the focus to its timeline once it is drawn.
+  const toTimeline = useRef(false);
+  // The pane focused last, which keys go to while nothing is focused: the rooms before any.
+  const lastPane = useRef("rooms");
   useEffect(() => {
-    const act: Readonly<Record<string, () => void>> = {
+    if (toTimeline.current && view.timeline) {
+      toTimeline.current = false;
+      timeline.current?.focus();
+    }
+  }, [view.open, view.timeline]);
+  useEffect(() => {
+    const focused = (e: FocusEvent) => {
+      lastPane.current = paneOf(e.target as Element, "") || lastPane.current;
+    };
+    const shown = () => panes.filter((p) => document.querySelector(`[data-pane="${p}"]`) !== null);
+    const focusTo = (pane: string): boolean => {
+      if (pane !== "timeline") {
+        return focusPane(pane);
+      }
+      timeline.current?.focus();
+      return true;
+    };
+    const step = (delta: number) => {
+      const order = shown();
+      const at = order.indexOf(paneOf(document.activeElement, lastPane.current));
+      const to = order[at + delta];
+      return at >= 0 && to !== undefined && focusTo(to);
+    };
+    // nav moves the focused pane's cursor, opens what it is on, or goes back a pane.
+    const nav = (path: string, count: number): boolean => {
+      const el = document.activeElement;
+      const pane = paneOf(el, lastPane.current);
+      if (pane === "" || !onRow(el, pane)) {
+        return false; // a control's own keys: a button's enter, a player's arrows
+      }
+      switch (`${pane} ${path}`) {
+        case "rail nav.open":
+          return focusPane("rooms");
+        case "rooms nav.open": {
+          const row = el instanceof HTMLElement && el.matches(paneRows.rooms ?? "") ? el : undefined;
+          if (row?.getAttribute("aria-current") === "true") {
+            return focusTo("timeline");
+          }
+          toTimeline.current = row !== undefined;
+          row?.click();
+          return row !== undefined;
+        }
+        case "rooms nav.back":
+          return focusPane("rail");
+        case "timeline nav.back":
+          if (view.thread) {
+            session.closeThread();
+            return true;
+          }
+          return focusPane("rooms");
+        case "rail nav.back":
+        case "timeline nav.open":
+          return false;
+      }
+      return pane === "timeline" ? (timeline.current?.move(path, count) ?? false) : moveRow(pane, path, count);
+    };
+    const act: Readonly<Record<string, (count: number) => boolean | undefined>> = {
+      focus_next: () => step(1),
+      focus_prev: () => step(-1),
       jump_to: () => {
         setSwitching(true);
       },
@@ -202,18 +335,19 @@ function Seated({ view, session }: { view: View; session: Session }) {
       }
       const path = keymap.press(name, typing(document.activeElement));
       setPending(keymap.pending);
-      if (path !== undefined || keymap.pending !== "") {
+      // A press an action passes on (false) keeps what it does by itself.
+      const done = path !== undefined && (act[path] ?? ((count) => nav(path, count)))(keymap.count) !== false;
+      if (done || keymap.pending !== "") {
         e.preventDefault();
-      }
-      if (path !== undefined) {
-        act[path]?.();
       }
     };
     window.addEventListener("keydown", key);
+    window.addEventListener("focusin", focused);
     return () => {
       window.removeEventListener("keydown", key);
+      window.removeEventListener("focusin", focused);
     };
-  }, [session, keymap]);
+  }, [session, keymap, view.thread]);
   const columns = ["columns"];
   if (view.thread && view.timeline) {
     columns.push("with-thread");
@@ -247,7 +381,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
           <button
             type="button"
             aria-label="Back"
-            title="Back (alt+←)"
+            title={`Back (${(view.keys.jump_back ?? []).join(", ")})`}
             disabled={!view.back}
             onClick={() => {
               session.back();
@@ -258,7 +392,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
           <button
             type="button"
             aria-label="Forward"
-            title="Forward (alt+→)"
+            title={`Forward (${(view.keys.jump_forward ?? []).join(", ")})`}
             disabled={!view.forward}
             onClick={() => {
               session.forward();
@@ -340,7 +474,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
             {view.search ? (
               <SearchResults search={view.search} rooms={view.joined} session={session} />
             ) : (
-              <section className="rooms" aria-label="Rooms">
+              <section className="rooms" aria-label="Rooms" data-pane="rooms">
                 {view.invites.length > 0 && <Invites invites={view.invites} session={session} />}
                 <ul>
                   {view.rooms.map((r) => (
@@ -368,7 +502,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
           )}
         </div>
         {view.timeline ? (
-          <div className="open-room">
+          <div className="open-room" data-pane="timeline">
             <RoomHeader
               theme={view.theme}
               id={view.open}
@@ -376,6 +510,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
               session={session}
             />
             <TimelinePane
+              ref={timeline}
               t={view.timeline}
               unreadLine={view.unreadLine}
               composer={view.composer}
@@ -540,7 +675,7 @@ function holderText(h: SeatHolder): string {
 /** Rail draws kithd's rail: its rows in order, the one the window is on marked. */
 function Rail({ view, session }: { view: View; session: Session }) {
   return (
-    <nav className="rail" aria-label="Places">
+    <nav className="rail" aria-label="Places" data-pane="rail">
       <ul>
         {view.rail.map((row, i) => {
           const { count, mentions } = rowUnread(row, view.unread);

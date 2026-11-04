@@ -156,9 +156,21 @@ It binds these so far, with their defaults:
 | `jump_back` | `ctrl+o` | Back to the room you were in before, while typing too |
 | `jump_forward` | `ctrl+i`, `alt+o` | Forward again, while typing too |
 | `settings` | `,` | Settings, when no field takes typing |
+| `focus_next`, `focus_prev` | `tab`, `shift+tab` | The next pane, or the one before: places, rooms, the open room |
+| `nav.up`, `nav.down` | `k`, `up`; `j`, `down` | The pane's cursor up or down: a place (picked as you go), a room, a message |
+| `nav.open` | `l`, `right`, `enter` | Into the next pane: a place's rooms, a room's messages (opening it) |
+| `nav.back` | `h`, `left`, `esc` | Back a pane; from a message, the open thread closes first |
+| `nav.page_up`, `nav.page_down` | `pgup`, `pgdown` | The cursor a screen up or down |
+| `nav.half_page_up`, `nav.half_page_down` | `ctrl+u`, `ctrl+d` | Half a screen |
+| `nav.select_oldest`, `nav.scroll_oldest` | `gg`, `home` | The first row; in the timeline the oldest message loaded, and a page more is asked for |
+| `nav.select_newest`, `nav.scroll_newest` | `G`, `end` | The last row, or the newest message |
 
-A sequence such as `g j` waits for its next key, shown at the top, as it does in the
-terminal. The rest of the terminal client's keys come to the window in later releases.
+Digits before a motion are a count, as in the terminal: `5j` moves five rows, `12G` goes
+to the twelfth. A sequence such as `g j`, and a count, wait for the next key, shown at the
+top. While a field takes typing the pane keys stay out of the way, as the terminal's do:
+`shift+tab` moves from the composer to the rooms, but `j` types a `j`. On a button or a player,
+`enter` and the arrows keep their own meaning. The rest of the terminal client's keys
+come to the window in later releases.
 
 ## Theme
 

@@ -2,7 +2,7 @@
 // the message it hangs from (its replies are the thread pane's), oldest at the top,
 // scrolled back a page at a time.
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { useEffect, useRef, useState } from "react";
+import { type Ref, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 import type { Message, Reaction } from "../gen/backend/v1/types_pb";
@@ -16,6 +16,7 @@ import { continues, dayLabel, newDay } from "./groups";
 import { attachmentURL } from "./media";
 import { PollBlock } from "./Poll";
 import type { Session } from "./session";
+import { moved } from "./keymap";
 import { FormattedText } from "./spans";
 import { collapse, type ThreadSummary } from "./threads";
 import { tally, type TimelineView } from "./timeline";
@@ -26,18 +27,28 @@ const firstIndex = 1_000_000;
 const clock = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 const hours = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
 
+/** TimelineNav moves the timeline's message cursor: the focused message. */
+export interface TimelineNav {
+  /** move takes a [keys.nav] motion; false for a path that is none, or no messages. */
+  move(path: string, count: number): boolean;
+  /** focus focuses the cursor's message, or the newest on screen when there is none. */
+  focus(): void;
+}
+
 export function TimelinePane({
   t,
   unreadLine,
   composer,
   faces,
   session,
+  ref,
 }: {
   t: TimelineView;
   unreadLine: boolean;
   composer: ComposerView | undefined;
   faces: Faces;
   session: Session;
+  ref?: Ref<TimelineNav>;
 }) {
   const { main: shown, threads } = collapse(t.rows);
   // The index of the first row: lowered by as many rows as a page put above it.
@@ -71,9 +82,68 @@ export function TimelinePane({
     }
   }, [t.room, t.jumps, targetAt]);
 
+  // The cursor is the message focused last, in its room: kept across its row scrolling out of the list.
+  const pane = useRef<HTMLElement>(null);
+  const cursor = useRef({ room: t.room, id: "" });
+  useImperativeHandle(ref, () => {
+    const onScreen = () => {
+      const view = pane.current?.getBoundingClientRect();
+      const rows = [...(pane.current?.querySelectorAll<HTMLElement>("article.message[data-id]") ?? [])];
+      return rows.filter((r) => {
+        const box = r.getBoundingClientRect();
+        return view !== undefined && box.bottom > view.top && box.top < view.bottom;
+      });
+    };
+    const select = (at: number) => {
+      const id = shown[at]?.id ?? "";
+      cursor.current = { room: t.room, id };
+      list.current?.scrollIntoView({
+        index: at,
+        done: () => pane.current?.querySelector<HTMLElement>(`article[data-id="${CSS.escape(id)}"]`)?.focus(),
+      });
+    };
+    const at = () => {
+      const i = cursor.current.room === t.room ? shown.findIndex((m) => m.id === cursor.current.id) : -1;
+      const newest = onScreen().at(-1)?.dataset.id;
+      return i >= 0 ? i : newest === undefined ? shown.length - 1 : shown.findIndex((m) => m.id === newest);
+    };
+    return {
+      move(path, count) {
+        const to = shown.length === 0 ? undefined : moved(path, count, at(), onScreen().length, shown.length);
+        if (to === undefined) {
+          return false;
+        }
+        // shortcut: the oldest pulls one page more in, where the TUI's home loads to the start; load on to t.start if that is missed
+        if (to === 0 && !t.start && (path === "nav.select_oldest" || path === "nav.scroll_oldest")) {
+          session.older();
+        }
+        select(to);
+        return true;
+      },
+      focus() {
+        if (shown.length > 0) {
+          select(at());
+        } else {
+          pane.current?.focus();
+        }
+      },
+    };
+  });
+
   const byId = new Map(t.rows.map((m) => [m.id, m]));
   return (
-    <section className="timeline" aria-label="Messages">
+    <section
+      className="timeline"
+      aria-label="Messages"
+      ref={pane}
+      tabIndex={-1}
+      onFocus={(e) => {
+        const id = (e.target as Element).closest<HTMLElement>("article.message")?.dataset.id;
+        if (id !== undefined) {
+          cursor.current = { room: t.room, id };
+        }
+      }}
+    >
       {t.loading && shown.length === 0 && <p className="detail">Loading…</p>}
       <Virtuoso
         ref={list}
@@ -181,7 +251,7 @@ export function Row({
           New
         </div>
       )}
-      <article className={classes.join(" ")}>
+      <article className={classes.join(" ")} data-id={m.id} tabIndex={-1}>
         <div className="gutter">
           {grouped ? (
             at && (
