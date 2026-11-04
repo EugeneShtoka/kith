@@ -93,6 +93,10 @@ type Adapter struct {
 	echoes map[string]time.Time
 	// notMember is, per account, the channels it has left (following.go).
 	notMember map[int64]map[int64]bool
+	// sweeping marks accounts (by user ID) whose pictures are being downloaded, and
+	// pictureWants the latest listing's pictures each is to sweep next (picturesLater).
+	sweeping     map[int64]bool
+	pictureWants map[int64]pictureSweep
 
 	// keeping makes the latest-login check and the credentials write atomic (keepLogin).
 	keeping sync.Mutex
@@ -112,22 +116,24 @@ func New(cache *db.Cache, secrets Secrets, store *Store, accounts []Account, log
 	}
 	return &Adapter{
 		cache: cache, secrets: secrets, store: store, accounts: slices.Clone(accounts), log: log.With("network", "telegram"),
-		heard:     map[domain.RoomID]time.Time{},
-		unreadAt:  map[domain.RoomID]time.Time{},
-		moved:     map[domain.RoomID]time.Time{},
-		reacted:   map[domain.EventID]time.Time{},
-		echoes:    map[string]time.Time{},
-		notMember: map[int64]map[int64]bool{},
-		typing:    map[domain.RoomID]map[string]*time.Timer{},
-		signIns:   map[string]int{},
-		logins:    map[string]*login{},
-		conns:     map[string]*conn{},
-		selves:    map[string]int64{},
-		messages:  make(chan domain.Message, streamBuffer),
-		activity:  make(chan domain.Activity, streamBuffer),
-		unread:    make(chan domain.Unread, streamBuffer),
-		reactions: make(chan domain.ReactionUpdate, streamBuffer),
-		reads:     readstate.NewOwed(func(a, b int) bool { return a > b }),
+		heard:        map[domain.RoomID]time.Time{},
+		unreadAt:     map[domain.RoomID]time.Time{},
+		moved:        map[domain.RoomID]time.Time{},
+		reacted:      map[domain.EventID]time.Time{},
+		echoes:       map[string]time.Time{},
+		notMember:    map[int64]map[int64]bool{},
+		sweeping:     map[int64]bool{},
+		pictureWants: map[int64]pictureSweep{},
+		typing:       map[domain.RoomID]map[string]*time.Timer{},
+		signIns:      map[string]int{},
+		logins:       map[string]*login{},
+		conns:        map[string]*conn{},
+		selves:       map[string]int64{},
+		messages:     make(chan domain.Message, streamBuffer),
+		activity:     make(chan domain.Activity, streamBuffer),
+		unread:       make(chan domain.Unread, streamBuffer),
+		reactions:    make(chan domain.ReactionUpdate, streamBuffer),
+		reads:        readstate.NewOwed(func(a, b int) bool { return a > b }),
 	}
 }
 

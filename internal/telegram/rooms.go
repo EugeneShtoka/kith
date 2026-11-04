@@ -75,6 +75,8 @@ type listing struct {
 	hashes   accessHashes
 	archived map[domain.RoomID]bool
 	forums   map[domain.RoomID]bool
+	// photos are the chats' pictures, but Saved Messages' and topics'.
+	photos map[domain.RoomID]photo
 	// people and links feed the directory; links tie a user to their phone number.
 	people []domain.PersonName
 	links  []domain.PersonLink
@@ -97,6 +99,7 @@ func listed(self int64, elems []dialog) listing {
 		members:  map[domain.RoomID][]domain.Member{},
 		archived: map[domain.RoomID]bool{},
 		forums:   map[domain.RoomID]bool{},
+		photos:   map[domain.RoomID]photo{},
 		hashes:   accessHashes{users: map[int64]int64{}, channels: map[int64]int64{}},
 	}
 	for _, e := range elems {
@@ -170,6 +173,7 @@ func (l *listing) room(self int64, e dialog) (domain.Room, *domain.Member, bool)
 		l.hashes.users[p.UserID] = p.AccessHash
 		room.ID, room.Name, room.IsDirect = roomID(self, p.UserID), personName(u), true
 		room.Handle = userHandle(u)
+		l.photos[room.ID] = photo{peer: p, id: userPhoto(u)}
 		return room, &domain.Member{UserID: personID(p.UserID), DisplayName: room.Name}, true
 	case *tg.InputPeerChat:
 		c, ok := e.entities.Chat(p.ChatID)
@@ -177,6 +181,7 @@ func (l *listing) room(self int64, e dialog) (domain.Room, *domain.Member, bool)
 			return room, nil, false
 		}
 		room.ID, room.Name = roomID(self, -p.ChatID), c.Title
+		l.photos[room.ID] = photo{peer: p, id: chatPhoto(c.Photo)}
 		return room, nil, true
 	case *tg.InputPeerChannel:
 		c, ok := e.entities.Channel(p.ChannelID)
@@ -186,6 +191,7 @@ func (l *listing) room(self int64, e dialog) (domain.Room, *domain.Member, bool)
 		l.hashes.channels[p.ChannelID] = p.AccessHash
 		room.ID, room.Name, room.Forum = roomID(self, -(channelMark+p.ChannelID)), c.Title, c.Forum
 		room.Handle = channelHandle(c)
+		l.photos[room.ID] = photo{peer: p, id: chatPhoto(c.Photo)}
 		return room, nil, true
 	}
 	return room, nil, false
@@ -281,6 +287,7 @@ func (a *Adapter) list(ctx context.Context, account Account, gen int, self int64
 	if err := a.save(ctx, self, l, fetched); err != nil {
 		return nil, err
 	}
+	a.picturesLater(self, client, l.photos)
 	a.settleFollowed(ctx, self, elems)
 	a.cacheTops(ctx, self, elems, l.rooms)
 	a.listedUnread(ctx, self, elems, l.rooms, fetched)
