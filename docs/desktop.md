@@ -187,6 +187,12 @@ On a message, the cursor's, the `[keys.timeline]` keys act as they do in the ter
 
 The searches look through the messages loaded so far, and take a count (`3m`).
 
+While a voice note or video you played is in the window, `[keys.player]` comes ahead of
+the rest, as the terminal's bar does: `space` plays or pauses it, `[` and `]` skip by
+`[display.media.audio] skip`, `{` and `}` change the speed, `=` goes back to `speed`
+(which a note starts at), and `P` stops it. Once it ends, the keys are the panes' again.
+A place's own speed rule, and `save_speed`, are the terminal's only for now.
+
 Your `[[keys.jump]]` chords go where they do in the terminal: to a room by its ID, or to
 the first rail row a `space:`, `tag:` or `place:` entry names. `?` lists them after the
 window's own keys.

@@ -1877,7 +1877,13 @@ type DeviceSettings struct {
 	// [[keys.jump]]: each chord as one sequence (as keys has them) and where it goes, in
 	// the order the config lists them; a chord with an unknown key name, or a target
 	// domain.ParseJump cannot read, is left out.
-	Jumps         []*Jump `protobuf:"bytes,27,rep,name=jumps,proto3" json:"jumps,omitempty"`
+	Jumps []*Jump `protobuf:"bytes,27,rep,name=jumps,proto3" json:"jumps,omitempty"`
+	// [display.media.audio] speed, what a voice note starts at and player.normal_speed returns to,
+	// and skip, the seconds player.back and player.forward move; defaults filled in. A
+	// place's own speed ([[display.media.rule]]) is the TUI's: the window is not told a
+	// room's places.
+	AudioSpeed    float64 `protobuf:"fixed64,28,opt,name=audio_speed,json=audioSpeed,proto3" json:"audio_speed,omitempty"`
+	AudioSkip     int64   `protobuf:"varint,29,opt,name=audio_skip,json=audioSkip,proto3" json:"audio_skip,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2099,6 +2105,20 @@ func (x *DeviceSettings) GetJumps() []*Jump {
 		return x.Jumps
 	}
 	return nil
+}
+
+func (x *DeviceSettings) GetAudioSpeed() float64 {
+	if x != nil {
+		return x.AudioSpeed
+	}
+	return 0
+}
+
+func (x *DeviceSettings) GetAudioSkip() int64 {
+	if x != nil {
+		return x.AudioSkip
+	}
+	return 0
 }
 
 // KeySequences are one action's keys, in the order [keys] lists them.
@@ -2694,7 +2714,8 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\bsettings\x18\x02 \x01(\v2\x19.device.v1.DeviceSettingsR\bsettings\"q\n" +
 	"\x1cUpdateDeviceSettingsResponse\x125\n" +
 	"\bsettings\x18\x01 \x01(\v2\x19.device.v1.DeviceSettingsR\bsettings\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\tR\brevision\"\xdd\t\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\"\x9d\n" +
+	"\n" +
 	"\x0eDeviceSettings\x12#\n" +
 	"\rsend_receipts\x18\x01 \x01(\bR\fsendReceipts\x122\n" +
 	"\n" +
@@ -2728,7 +2749,11 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\x0emodel_declined\x18\x18 \x01(\bR\rmodelDeclined\x12#\n" +
 	"\rfiling_spaces\x18\x19 \x03(\tR\ffilingSpaces\x127\n" +
 	"\x04keys\x18\x1a \x03(\v2#.device.v1.DeviceSettings.KeysEntryR\x04keys\x12%\n" +
-	"\x05jumps\x18\x1b \x03(\v2\x0f.device.v1.JumpR\x05jumps\x1a=\n" +
+	"\x05jumps\x18\x1b \x03(\v2\x0f.device.v1.JumpR\x05jumps\x12\x1f\n" +
+	"\vaudio_speed\x18\x1c \x01(\x01R\n" +
+	"audioSpeed\x12\x1d\n" +
+	"\n" +
+	"audio_skip\x18\x1d \x01(\x03R\taudioSkip\x1a=\n" +
 	"\x0fEmojiExtraEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aP\n" +

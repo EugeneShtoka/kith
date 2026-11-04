@@ -194,3 +194,25 @@ target = "room:Standup"
 		t.Errorf("jumps = %q, want %q", got, want)
 	}
 }
+
+// The window plays a voice note as the TUI does: at [display.media.audio] speed, skipping by its skip,
+// each its default where unset.
+func TestDeviceSettingsCarryThePlayer(t *testing.T) {
+	t.Parallel()
+	path, _ := relayConfig(t, t.TempDir())
+	device := deviceClient(relayFor(t, kithdSocket(t), path))
+	read := func() (float64, int64) {
+		resp, err := device.DeviceSettings(t.Context(), connect.NewRequest(&devicev1.DeviceSettingsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp.Msg.GetSettings().GetAudioSpeed(), resp.Msg.GetSettings().GetAudioSkip()
+	}
+	if speed, skip := read(); speed != config.DefaultAudioSpeed || skip != config.DefaultAudioSkip {
+		t.Errorf("unset: speed %v, skip %d; want the defaults", speed, skip)
+	}
+	handWrite(t, path, "[display.media.audio]\nspeed = 1.5\nskip = 5\n")
+	if speed, skip := read(); speed != 1.5 || skip != 5 {
+		t.Errorf("speed %v, skip %d; want 1.5 and 5", speed, skip)
+	}
+}

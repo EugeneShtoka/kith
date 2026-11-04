@@ -32,6 +32,16 @@ export const helpSections: readonly HelpSection[] = [
     ],
   },
   {
+    title: "While a voice note or video plays (ahead of the rest)",
+    rows: [
+      row("Play or pause", "player.play_pause"),
+      row("Back or forward by the skip step", "player.back", "player.forward"),
+      row("Slower or faster", "player.slower", "player.faster"),
+      row("Back to the speed set", "player.normal_speed"),
+      row("Stop", "player.stop"),
+    ],
+  },
+  {
     title: "Places, rooms and messages",
     rows: [
       row("The cursor up or down; a count before it moves that many", "nav.up", "nav.down"),
