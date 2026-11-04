@@ -546,15 +546,20 @@ function Seated({ view, session }: { view: View; session: Session }) {
               t={view.timeline}
               unreadLine={view.unreadLine}
               composer={view.composer}
+              keys={view.keys}
               faces={{ theme: view.theme, slots: view.slots }}
               session={session}
             />
             {view.composer && (
               <ComposerPane
                 c={view.composer}
+                keys={view.keys}
                 room={view.rooms.find((r) => r.id === view.open)}
                 inThread={view.thread !== undefined}
                 session={session}
+                onLeave={() => {
+                  timeline.current?.focus();
+                }}
               />
             )}
           </div>
@@ -568,6 +573,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
             thread={view.thread}
             t={view.timeline}
             composer={view.composer}
+            keys={view.keys}
             faces={{ theme: view.theme, slots: view.slots }}
             session={session}
           />

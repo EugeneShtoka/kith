@@ -16,7 +16,7 @@ import { continues, dayLabel, newDay, seek } from "./groups";
 import { attachmentURL } from "./media";
 import { PollBlock } from "./Poll";
 import type { Session } from "./session";
-import { moved } from "./keymap";
+import { bound, type Keys, moved } from "./keymap";
 import { FormattedText } from "./spans";
 import { collapse, type ThreadSummary } from "./threads";
 import { tally, type TimelineView } from "./timeline";
@@ -41,6 +41,7 @@ export function TimelinePane({
   t,
   unreadLine,
   composer,
+  keys,
   faces,
   session,
   ref,
@@ -48,6 +49,7 @@ export function TimelinePane({
   t: TimelineView;
   unreadLine: boolean;
   composer: ComposerView | undefined;
+  keys: Keys;
   faces: Faces;
   session: Session;
   ref?: Ref<TimelineNav>;
@@ -256,6 +258,7 @@ export function TimelinePane({
               reactions={t.reactions.get(m.id)}
               threads={threads.filter((th) => th.anchor === m.id || (th.anchor === "" && before === undefined))}
               composer={composer}
+              keys={keys}
               faces={faces}
               session={session}
             />
@@ -296,6 +299,7 @@ export function Row({
   reactions,
   threads,
   composer,
+  keys,
   faces,
   session,
 }: {
@@ -310,6 +314,7 @@ export function Row({
   /** The threads drawn under it; undefined in a thread's pane, where none starts. */
   threads: readonly ThreadSummary[] | undefined;
   composer: ComposerView | undefined;
+  keys: Keys;
   /** Whose colors people are drawn in. */
   faces: Faces;
   session: Session;
@@ -403,7 +408,14 @@ export function Row({
             </button>
           ))}
           {composer !== undefined && !m.redacted && (
-            <Actions m={m} c={composer} startsThread={threads !== undefined} faces={faces} session={session} />
+            <Actions
+              m={m}
+              c={composer}
+              keys={keys}
+              startsThread={threads !== undefined}
+              faces={faces}
+              session={session}
+            />
           )}
         </div>
       </article>
@@ -415,17 +427,25 @@ export function Row({
 function Actions({
   m,
   c,
+  keys,
   startsThread,
   faces,
   session,
 }: {
   m: Message;
   c: ComposerView;
+  keys: Keys;
   startsThread: boolean;
   faces: Faces;
   session: Session;
 }) {
   const [open, setOpen] = useState<"palette" | "picker" | "delete" | "color" | undefined>(undefined);
+  const bar = useRef<HTMLDivElement>(null);
+  /** shut closes the reactions offered, the cursor back on the message. */
+  const shut = () => {
+    setOpen(undefined);
+    bar.current?.closest<HTMLElement>("article.message")?.focus();
+  };
   const mine = c.selves.has(m.sender);
   const react = (key: string) => {
     setOpen(undefined);
@@ -434,7 +454,12 @@ function Actions({
   return (
     <>
       {/* The hover toolbar: kept up while one of its panels is open. */}
-      <div className={open === undefined ? "actions" : "actions open"} role="toolbar" aria-label="Message actions">
+      <div
+        ref={bar}
+        className={open === undefined ? "actions" : "actions open"}
+        role="toolbar"
+        aria-label="Message actions"
+      >
         <button
           type="button"
           data-key="timeline.react"
@@ -509,7 +534,17 @@ function Actions({
         )}
       </div>
       {open === "palette" && (
-        <span className="palette" role="group" aria-label="Quick reactions">
+        <span
+          className="palette"
+          role="group"
+          aria-label="Quick reactions"
+          onKeyDown={(e) => {
+            if (bound(keys, "react.cancel", e)) {
+              e.preventDefault();
+              shut();
+            }
+          }}
+        >
           {c.emoji.palette.map((e, i) => (
             <button
               key={e}
@@ -532,16 +567,7 @@ function Actions({
           </button>
         </span>
       )}
-      {open === "picker" && (
-        <EmojiPicker
-          emoji={c.emoji}
-          kind="reaction"
-          onPick={react}
-          onClose={() => {
-            setOpen(undefined);
-          }}
-        />
-      )}
+      {open === "picker" && <EmojiPicker emoji={c.emoji} keys={keys} kind="reaction" onPick={react} onClose={shut} />}
       {open === "color" && faces.theme !== undefined && (
         <span className="palette" role="group" aria-label="Their color">
           <ColorRow

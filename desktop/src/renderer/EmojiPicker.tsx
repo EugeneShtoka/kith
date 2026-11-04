@@ -4,17 +4,20 @@ import { useState } from "react";
 
 import type { ComposerView } from "./compose";
 import { type EmojiKind, ranked, shortcodeOf, toned } from "./emoji";
+import { bound, type Keys } from "./keymap";
 
 /** How many emoji the grid shows at once: typing narrows the rest. */
 const shown = 400;
 
 export function EmojiPicker({
   emoji,
+  keys,
   kind,
   onPick,
   onClose,
 }: {
   emoji: ComposerView["emoji"];
+  keys: Keys;
   kind: EmojiKind;
   onPick: (emoji: string) => void;
   onClose: () => void;
@@ -35,9 +38,11 @@ export function EmojiPicker({
           setQuery(e.target.value);
         }}
         onKeyDown={(e) => {
-          if (e.key === "Escape") {
+          if (bound(keys, "emoji.cancel", e)) {
+            e.preventDefault();
             onClose();
-          } else if (e.key === "Enter" && found[0] !== undefined) {
+          } else if (bound(keys, "emoji.accept", e) && found[0] !== undefined) {
+            e.preventDefault();
             onPick(toned(found[0], emoji.tone));
           }
         }}

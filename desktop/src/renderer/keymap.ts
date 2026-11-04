@@ -61,6 +61,15 @@ export function keyName(p: Press): string | undefined {
   );
 }
 
+/** Keys are [keys] as DeviceSettings gives them: each action's path, and its sequences. */
+export type Keys = Readonly<Record<string, readonly string[]>>;
+
+/** bound: p is one of the single presses keys binds path to, as a field's own keys ask. */
+export function bound(keys: Keys, path: string, p: Press): boolean {
+  const name = keyName(p);
+  return name !== undefined && (keys[path] ?? []).includes(name);
+}
+
 /** typesText: name is a press that types a character into a text field. */
 function typesText(name: string): boolean {
   return /^.$/u.test(name);
