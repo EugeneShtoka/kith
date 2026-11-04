@@ -8,8 +8,8 @@ import { clone, create, equals } from "@bufbuild/protobuf";
 
 import { type DeviceSettings, DeviceSettingsSchema } from "../gen/device/v1/device_pb";
 
-/** A setting the page changes: each key DeviceSettings carries but filing_spaces, which the window only reads. */
-export type Key = Exclude<keyof DeviceSettings, "$typeName" | "$unknown" | "filingSpaces">;
+/** A setting the page changes: each key DeviceSettings carries but filing_spaces and keys, which the window only reads. */
+export type Key = Exclude<keyof DeviceSettings, "$typeName" | "$unknown" | "filingSpaces" | "keys">;
 
 /** The settings as the file holds them, and the revision of the file they were read from. */
 export interface Read {

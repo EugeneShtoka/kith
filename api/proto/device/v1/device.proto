@@ -384,6 +384,15 @@ message DeviceSettings {
   // [display] filing_spaces: the spaces a room is filed into, by space:, place: or ID;
   // none is every space you made (kithd's FilingPlaces). The window keeps it as read.
   repeated string filing_spaces = 25;
+  // [keys]: each action's keys by its path ("jump_to", "timeline.reply"), defaults filled
+  // in, each a sequence of key names joined by single spaces ("g g", "ctrl+k"), as
+  // config.SplitKeys reads them; a sequence with an unknown key name is left out.
+  map<string, KeySequences> keys = 26;
+}
+
+// KeySequences are one action's keys, in the order [keys] lists them.
+message KeySequences {
+  repeated string sequences = 1;
 }
 
 // ReadRule is one [[display.read_rule]], less its delay: the window reads a room by

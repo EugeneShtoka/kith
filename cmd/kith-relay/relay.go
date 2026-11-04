@@ -475,7 +475,24 @@ func resolved(dev config.Device) *devicev1.DeviceSettings {
 		CompleteSources:     dev.Complete.Sources,
 		ModelDeclined:       dev.Complete.Model.Declined,
 		FilingSpaces:        dev.Display.FilingSpaces,
+		Keys:                keySequences(dev.Keys),
 	}
+}
+
+// keySequences are k's bindings as the window reads them: each split, and only the
+// sequences whose every key is one kith names (the TUI reports the others).
+func keySequences(k config.Keys) map[string]*devicev1.KeySequences {
+	out := make(map[string]*devicev1.KeySequences, len(k.Bindings))
+	for path, list := range k.Bindings {
+		var valid []string
+		for _, seq := range config.SplitKeys(list) {
+			if config.SequenceValid(seq) {
+				valid = append(valid, seq)
+			}
+		}
+		out[path] = &devicev1.KeySequences{Sequences: valid}
+	}
+	return out
 }
 
 // Outgoing readies a file for sending as the TUI's sendFileCmd does, where [display.media]

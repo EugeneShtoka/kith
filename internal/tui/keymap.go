@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -618,10 +616,10 @@ func newKeymap(keys config.Keys) keymap {
 		if strings.TrimSpace(row.keys(keys)) == unbind {
 			continue // deliberately given no key
 		}
-		wanted := splitKeys(row.keys(keys))
+		wanted := config.SplitKeys(row.keys(keys))
 		usable := make([]string, 0, len(wanted))
 		for _, key := range wanted {
-			if !sequenceValid(key) {
+			if !config.SequenceValid(key) {
 				km.issues = append(km.issues,
 					fmt.Sprintf("%s: %q is not a key name the terminal reports; ignored", row.name, key))
 				continue
@@ -641,7 +639,7 @@ func newKeymap(keys config.Keys) keymap {
 			continue
 		}
 		fallback := row.keys(defaults)
-		if n, _ := km.bindAll(row.scope, row.act, splitKeys(fallback)); n > 0 {
+		if n, _ := km.bindAll(row.scope, row.act, config.SplitKeys(fallback)); n > 0 {
 			km.issues = append(km.issues,
 				fmt.Sprintf("%s: nothing left to bind, fell back to %q", row.name, fallback))
 		} else if !isEssential(row.scope, row.act) { // keepEssentials reports those
@@ -664,12 +662,12 @@ func (k *keymap) keepEssentials(defaults config.Keys) {
 			continue
 		}
 		def, _ := defaults.Binding(e.name)
-		if n, _ := k.bindAll(e.scope, e.act, splitKeys(def)); n > 0 {
+		if n, _ := k.bindAll(e.scope, e.act, config.SplitKeys(def)); n > 0 {
 			k.issues = append(k.issues, fmt.Sprintf(
 				"%s: must keep a key, so no keymap can lock you out; using its default %q", e.name, def))
 			continue
 		}
-		key := splitKeys(def)[0]
+		key := config.SplitKeys(def)[0]
 		holder := k.binds[e.scope][key]
 		k.unbindKey(e.scope, key, holder)
 		k.bind(e.scope, key, e.act)
@@ -677,7 +675,7 @@ func (k *keymap) keepEssentials(defaults config.Keys) {
 			actionName(e.scope, holder), key, e.name))
 		if len(k.keysFor(e.scope, holder)) == 0 {
 			fallback, _ := defaults.Binding(actionName(e.scope, holder))
-			if n, _ := k.bindAll(e.scope, holder, splitKeys(fallback)); n > 0 {
+			if n, _ := k.bindAll(e.scope, holder, config.SplitKeys(fallback)); n > 0 {
 				k.issues = append(k.issues, fmt.Sprintf("%s: fell back to %q", actionName(e.scope, holder), fallback))
 			}
 		}
@@ -703,10 +701,10 @@ func (k *keymap) bindJumps(jumps map[string]string) {
 	}
 	k.jumps = make(map[string]domain.JumpTarget, len(jumps))
 	for _, binding := range slices.Sorted(maps.Keys(jumps)) {
-		seq := normalizeSequence(strings.TrimSpace(binding))
+		seq := config.NormalizeSequence(strings.TrimSpace(binding))
 		target, ok := domain.ParseJump(jumps[binding])
 		switch {
-		case !sequenceValid(seq):
+		case !config.SequenceValid(seq):
 			k.issues = append(k.issues,
 				fmt.Sprintf("jump.%s: %q is not a key name the terminal reports; ignored", binding, binding))
 		case !ok:
@@ -727,9 +725,9 @@ func (k *keymap) bindJumps(jumps map[string]string) {
 // exists is asked when the key is pressed: tags change without a new keymap.
 func (k *keymap) bindTagKeys(tags map[string]string) {
 	for _, binding := range slices.Sorted(maps.Keys(tags)) {
-		seq := normalizeSequence(strings.TrimSpace(binding))
+		seq := config.NormalizeSequence(strings.TrimSpace(binding))
 		switch {
-		case !sequenceValid(seq):
+		case !config.SequenceValid(seq):
 			k.issues = append(k.issues,
 				fmt.Sprintf("tag %q: %q is not a key name the terminal reports; ignored", tags[binding], binding))
 		case k.jumpConflict(seq) != "":
@@ -756,9 +754,9 @@ func (k keymap) tagFor(seq string) (string, bool) {
 func (k *keymap) bindScripts(scripts []config.Command) {
 	for _, script := range scripts {
 		name := strings.TrimPrefix(strings.TrimSpace(script.Name), "/")
-		for _, seq := range splitKeys(script.Keys) {
+		for _, seq := range config.SplitKeys(script.Keys) {
 			switch {
-			case !sequenceValid(seq):
+			case !config.SequenceValid(seq):
 				k.issues = append(k.issues, fmt.Sprintf(
 					"command %q: %q is not a key name the terminal reports; ignored", name, seq))
 			case k.scripts[seq] != "":
@@ -954,102 +952,6 @@ func (k keymap) lookup(key string, scopes ...scope) action {
 		}
 	}
 	return actNone
-}
-
-// namedKeys are the non-character key names Bubble Tea reports (tea.KeyPressMsg.String());
-// f1–f20 match by pattern.
-var namedKeys = map[string]bool{
-	"enter": true, "esc": true, "tab": true, "space": true, "backspace": true,
-	"delete": true, "insert": true, "up": true, "down": true, "left": true,
-	"right": true, "home": true, "end": true, "pgup": true, "pgdown": true,
-	"begin": true, "menu": true, "find": true, "select": true, "pause": true,
-	"capslock": true, "numlock": true, "scrolllock": true, "printscreen": true,
-	"plus": true, "minus": true, "comma": true, "period": true,
-}
-
-// modifiers are the prefixes a key name may carry, in any combination.
-var modifiers = []string{"ctrl+", "alt+", "shift+", "meta+", "super+", "hyper+"}
-
-// validKey reports whether name is modifiers over a single character or a named key.
-func validKey(name string) bool {
-	base := name
-	for stripped := true; stripped; {
-		stripped = false
-		for _, mod := range modifiers {
-			if rest, cut := strings.CutPrefix(base, mod); cut && rest != "" {
-				base, stripped = rest, true
-				break
-			}
-		}
-	}
-	if len([]rune(base)) == 1 {
-		return true
-	}
-	if namedKeys[base] {
-		return true
-	}
-	if digits, isFn := strings.CutPrefix(base, "f"); isFn {
-		if n, err := strconv.Atoi(digits); err == nil && n >= 1 && n <= 20 {
-			return true
-		}
-	}
-	return false
-}
-
-// splitKeys parses a comma-separated binding list, dropping blanks. "minus" names the - key
-// ("-" alone unbinds) and "comma" names ",", which the separator makes unwritable.
-func splitKeys(list string) []string {
-	parts := strings.Split(list, ",")
-	keys := make([]string, 0, len(parts))
-	for _, p := range parts {
-		switch key := strings.TrimSpace(p); key {
-		case "":
-		case "comma":
-			keys = append(keys, ",")
-		case "minus":
-			keys = append(keys, "-")
-		default:
-			keys = append(keys, normalizeSequence(key))
-		}
-	}
-	return keys
-}
-
-// shorthandSteps is the longest run-together sequence accepted without spaces ("gg").
-const shorthandSteps = 3
-
-// normalizeSequence canonicalizes a binding to steps joined by one space. "gg" is accepted as
-// "g g" only for 2–3 letters/digits that are not a key name, so a typo like "escape" stays
-// for validation to report.
-func normalizeSequence(binding string) string {
-	if fields := strings.Fields(binding); len(fields) > 1 {
-		return strings.Join(fields, " ")
-	}
-	if validKey(binding) {
-		return binding
-	}
-	runes := []rune(binding)
-	if len(runes) < 2 || len(runes) > shorthandSteps {
-		return binding
-	}
-	steps := make([]string, len(runes))
-	for i, r := range runes {
-		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
-			return binding
-		}
-		steps[i] = string(r)
-	}
-	return strings.Join(steps, " ")
-}
-
-// sequenceValid reports whether every step of a binding is a valid key.
-func sequenceValid(binding string) bool {
-	for step := range strings.SplitSeq(binding, " ") {
-		if !validKey(step) {
-			return false
-		}
-	}
-	return true
 }
 
 // keysFor lists the keys bound to act in declaration order, spelled for humans.

@@ -891,6 +891,11 @@ td {
   border-radius: var(--radius-md);
 }
 
+.keys-pending {
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
 .player {
   display: block;
   width: min(100%, 24rem);
