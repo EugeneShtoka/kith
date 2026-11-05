@@ -12,7 +12,6 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -42,28 +41,21 @@ func TestAnAnswerAboutAPictureIsReadByWhatItSays(t *testing.T) {
 	}
 }
 
-// People and groups are asked when never asked or not for a week; channels never.
-func TestPicturesAreDueWhenNeverAskedOrAWeekOld(t *testing.T) {
+// People and groups have pictures to ask for; channels do not.
+func TestPeopleAndGroupsHavePictures(t *testing.T) {
 	t.Parallel()
-	now := time.UnixMilli(1_000_000_000_000)
 	at := func(s string) domain.RoomID { return domain.RoomID("whatsapp:" + ownDigits + "/" + s) }
 	rooms := []domain.Room{
-		{ID: at("1203@g.us")}, {ID: at("15550101@s.whatsapp.net")}, {ID: at("88001@lid")},
-		{ID: at("120363@newsletter")}, {ID: at("1204@g.us")}, {ID: at("1205@g.us")},
+		{ID: at("1203@g.us")}, {ID: at("15550101@s.whatsapp.net")}, {ID: at("88001@lid")}, {ID: at("120363@newsletter")},
 	}
-	checks := map[domain.RoomID]db.PictureCheck{
-		at("15550101@s.whatsapp.net"): {ID: "p1", Checked: now.Add(-pictureEvery)},
-		at("1204@g.us"):               {ID: "", Checked: now.Add(-pictureEvery + time.Minute)},
-		at("1205@g.us"):               {ID: "p2", Checked: now.Add(-time.Hour)},
-	}
-	got := picturesDue(rooms, checks, now)
+	got := pictureRooms(rooms)
 	want := []domain.RoomID{at("1203@g.us"), at("15550101@s.whatsapp.net"), at("88001@lid")}
 	if !slices.Equal(got, want) {
-		t.Fatalf("picturesDue = %v, want %v", got, want)
+		t.Fatalf("pictureRooms = %v, want %v", got, want)
 	}
 }
 
-// A picture removed is kept as none at once, and the rooms are said to have changed.
+// A picture removed is kept as none, and the rooms are said to have changed.
 func TestARemovedPictureIsKeptAsNone(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -74,36 +66,26 @@ func TestARemovedPictureIsKeptAsNone(t *testing.T) {
 	if err := cache.SetPicture(ctx, waRoom, "p1", []byte("one"), time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	changed := 0
-	a.OnRoomsChanged(func() { changed++ })
+	changed := make(chan struct{}, 1)
+	a.OnRoomsChanged(func() { changed <- struct{}{} })
 	group, _ := types.ParseJID("1203@g.us")
 	a.onPicture(ctx, Account{Name: "home", Digits: ownDigits}, nil, &events.Picture{JID: group, Remove: true})
+	<-changed
 	rooms, err := a.Rooms(ctx)
-	if err != nil || len(rooms) != 1 || rooms[0].Picture != "" || changed != 1 {
-		t.Fatalf("after the removal: rooms %+v (%v), %d changes; want no picture, one change", rooms, err, changed)
+	if err != nil || len(rooms) != 1 || rooms[0].Picture != "" {
+		t.Fatalf("after the removal: rooms %+v (%v); want no picture", rooms, err)
 	}
 	if data, err := cache.Picture(ctx, waRoom); data != nil || err != nil {
 		t.Fatalf("Picture = %q, %v; want none", data, err)
 	}
 }
 
-// A sweep whose first ask fails (offline) stops there, keeping every room due.
-func TestASweepThatCannotAskKeepsEveryRoomDue(t *testing.T) {
+// An ask that cannot reach WhatsApp (offline) fails, so the sweep keeps every room due.
+func TestAnAskThatCannotReachWhatsAppFails(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	a, cache, store := offline(t, Account{Name: "home", Digits: ownDigits})
-	other := domain.RoomID("whatsapp:" + ownDigits + "/15550101@s.whatsapp.net")
-	if err := cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolWhatsApp, ownDigits), []domain.Room{{ID: waRoom}, {ID: other, IsDirect: true}}); err != nil {
-		t.Fatal(err)
-	}
-	changed := 0
-	a.OnRoomsChanged(func() { changed++ })
+	_, _, store := offline(t, Account{Name: "home", Digits: ownDigits})
 	client := linkedClient(t, store, ownDigits)
-	if err := a.sweepPictures(ctx, Account{Name: "home", Digits: ownDigits}, client); err == nil {
-		t.Fatal("a sweep with no connection succeeded")
-	}
-	checks, err := cache.PictureChecks(ctx)
-	if err != nil || len(checks) != 0 || changed != 0 {
-		t.Fatalf("after a failed sweep: checks %v (%v), %d changes; want none", checks, err, changed)
+	if _, _, err := askPicture(client, waRoom, pictureEvery).Ask(context.Background(), "p1"); err == nil {
+		t.Fatal("an ask with no connection succeeded")
 	}
 }

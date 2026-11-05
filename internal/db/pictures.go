@@ -9,13 +9,6 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// PictureCheck is what the cache knows of a room's picture without its bytes: the
-// network's ID for it ("" none) and when the network was last asked.
-type PictureCheck struct {
-	ID      string
-	Checked time.Time
-}
-
 // SetPicture keeps a room's picture as its network gave it at: id its name for the
 // picture, "" (or no data) for a room found to have none. A room merged into another is
 // filed under that one; a room the cache does not hold is skipped, as a network tells of
@@ -57,15 +50,15 @@ func (c *Cache) PictureUnchanged(ctx context.Context, room domain.RoomID, at tim
 }
 
 // PictureChecks is what the cache knows of every room's picture it has asked about.
-func (c *Cache) PictureChecks(ctx context.Context) (map[domain.RoomID]PictureCheck, error) {
+func (c *Cache) PictureChecks(ctx context.Context) (map[domain.RoomID]domain.PictureCheck, error) {
 	return collectMap(ctx, c.db, "picture checks", `SELECT room_id, picture_id, checked_ms FROM room_pictures`,
-		func(rows *sql.Rows) (domain.RoomID, PictureCheck, error) {
+		func(rows *sql.Rows) (domain.RoomID, domain.PictureCheck, error) {
 			var (
 				room, id string
 				checked  int64
 			)
 			err := rows.Scan(&room, &id, &checked)
-			return domain.RoomID(room), PictureCheck{ID: id, Checked: time.UnixMilli(checked)}, err
+			return domain.RoomID(room), domain.PictureCheck{ID: id, Checked: time.UnixMilli(checked)}, err
 		})
 }
 
