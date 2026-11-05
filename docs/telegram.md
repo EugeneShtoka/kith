@@ -27,7 +27,9 @@ the poll is public (Telegram may name them only once you have voted). A closed p
 opens in `P` to read.
 Each chat's picture (a person's, in a private chat) is kept in the cache and shown by
 the desktop window; each listing of the chats says which changed, and only those are
-downloaded again.
+downloaded again. So is each person's who wrote, beside their messages, learned from
+the messages Telegram sends; someone Telegram names only in passing (a "min" user, as
+in a large public group) shows their initials until it names them in full.
 Chats in Telegram's Archived folder are in kith's Archived tag, and archiving a chat
 in kith can move it there too: see `[telegram.archive]` in
 [configuration.md](configuration.md#follow-a-networks-own-archive).

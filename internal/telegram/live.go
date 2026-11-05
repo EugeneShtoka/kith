@@ -49,10 +49,12 @@ func (l *live) message(ctx context.Context, e tg.Entities, m tg.MessageClass) er
 	if self == 0 {
 		return errNotYet
 	}
-	msg, ok := incoming(self, m, peer.EntitiesFromUpdate(e))
+	ent := peer.EntitiesFromUpdate(e)
+	msg, ok := incoming(self, m, ent)
 	if !ok {
 		return nil
 	}
+	l.a.seePeople(self, ent.Users())
 	return l.a.arrived(ctx, l.account, self, msg)
 }
 

@@ -499,6 +499,7 @@ func (a *Adapter) cacheTops(ctx context.Context, self int64, elems []dialog, lis
 		if e.top == nil {
 			continue
 		}
+		a.seePeople(self, e.entities.Users())
 		msg, ok := incoming(self, e.top, e.entities)
 		if !ok || !slices.ContainsFunc(listed, func(r domain.Room) bool { return r.ID == msg.RoomID }) {
 			continue
