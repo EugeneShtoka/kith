@@ -89,7 +89,7 @@ daemon re-read the config. Turning `[slack]` on or off takes a restart of kithd.
 - **A DM** is named after the person; **a group DM** after its people's handles. A
   DM shows the person's picture in the desktop window when they set one of their
   own (Slack's generated default shows as their initials); it is downloaded again
-  only when it changes.
+  only when it changes. So does each message, its sender's.
 - **Threads** read as Matrix threads do: a summary row under the message they hang
   off, opened to read and answer in. A thread is read from Slack whole, in the
   background, when kith first sees it has replies it lacks.

@@ -52,9 +52,12 @@ type workspace struct {
 	general string
 	// phones is each user's number, where their profile has it in international form.
 	phones map[string]string
-	// pictures is each known user's picture; sweeper keeps the DMs' (picturesLater).
+	// pictures is each known user's picture; sweeper keeps the DMs' (picturesLater),
+	// faces those of the users seen, named by a message or a listing this run.
 	pictures map[string]picture
 	sweeper  *pictures.Sweeper[domain.RoomID]
+	faces    *pictures.Sweeper[string]
+	seen     map[string]bool
 }
 
 func newWorkspace(account Account, creds Credentials, teamName string, client *slackgo.Client, signIn int) *workspace {

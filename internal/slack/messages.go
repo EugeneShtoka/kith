@@ -149,6 +149,7 @@ const usersPerLookup = 50
 // learnPeople looks up the users w does not know yet; on failure they stay unnamed
 // (IDs show) and it is logged.
 func (a *Adapter) learnPeople(ctx context.Context, w *workspace, users []string) {
+	defer a.seePeople(w, users) // their pictures, once known
 	unknown := w.unnamed(users)
 	for chunk := range slices.Chunk(unknown, usersPerLookup) {
 		found, err := w.client.GetUsersInfoContext(ctx, chunk...)
