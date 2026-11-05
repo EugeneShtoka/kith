@@ -42,8 +42,9 @@ type conn struct {
 	kept    time.Time
 	// inbox is what the connection knows of its threads and people (inbox.go).
 	inbox *inbox
-	// sweeper keeps the inbox's pictures (picturesLater).
+	// sweeper keeps the inbox's pictures, people its threads' people's (picturesLater).
 	sweeper *pictures.Sweeper[domain.RoomID]
+	people  *pictures.Sweeper[string]
 }
 
 // connect starts account's connection under ctx, unless it has one.

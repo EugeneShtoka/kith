@@ -16,7 +16,7 @@ import (
 
 // A one-to-one thread shows its person's picture and a group its own, each downloaded
 // once per picture though its link changes (Instagram re-signs them); a group without
-// one has none.
+// one has none. Each person's is kept as theirs too.
 func TestAThreadShowsItsPersonsOrItsOwnPicture(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
@@ -45,6 +45,13 @@ func TestAThreadShowsItsPersonsOrItsOwnPicture(t *testing.T) {
 			}
 			out[rooms[i].ID] = rooms[i].Picture + "=" + string(data)
 		}
+		checks, cerr := r.cache.PersonPictures().PictureChecks(ctx)
+		if cerr != nil {
+			t.Fatal(cerr)
+		}
+		for p, c := range checks {
+			out[domain.RoomID(p)] = c.ID // a person's, under their ID
+		}
 		return out
 	}
 	settled := func(want map[domain.RoomID]string) {
@@ -58,13 +65,16 @@ func TestAThreadShowsItsPersonsOrItsOwnPicture(t *testing.T) {
 		t.Fatalf("pictures = %v, want %v", got, want)
 	}
 	dmRoom, groupRoom := roomID(self, danaChat), roomID(self, groupChat)
+	// Dana is in both threads, with a link only in the one-to-one's: a thread naming
+	// none never takes Dana's away. Ofer has none.
+	dana, ofer := domain.RoomID(person(fbid(danaFBID))), domain.RoomID(person(fbid(oferFBID)))
 
 	d, g := dm(), group()
 	d.Users[0].ProfilePicURL = link("dana1.jpg", "a")
 	g.ThreadImageURL = link("hikers1.jpg", "a")
 	r.thread(d)
 	r.thread(g)
-	settled(map[domain.RoomID]string{dmRoom: "dana1.jpg=picture dana1.jpg", groupRoom: "hikers1.jpg=picture hikers1.jpg"})
+	settled(map[domain.RoomID]string{dmRoom: "dana1.jpg=picture dana1.jpg", groupRoom: "hikers1.jpg=picture hikers1.jpg", dana: "dana1.jpg", ofer: ""})
 
 	// Listed again: Dana's link re-signed, the group's picture gone.
 	mu.Lock()
@@ -74,7 +84,7 @@ func TestAThreadShowsItsPersonsOrItsOwnPicture(t *testing.T) {
 	d.Users[0].ProfilePicURL = link("dana1.jpg", "b")
 	r.thread(d)
 	r.thread(g)
-	settled(map[domain.RoomID]string{dmRoom: "dana1.jpg=picture dana1.jpg", groupRoom: "="})
+	settled(map[domain.RoomID]string{dmRoom: "dana1.jpg=picture dana1.jpg", groupRoom: "=", dana: "dana1.jpg", ofer: ""})
 	mu.Lock()
 	defer mu.Unlock()
 	if len(fetched) != 0 {
