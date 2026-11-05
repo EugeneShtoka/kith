@@ -783,6 +783,17 @@ message LoadPictureResponse {
   bytes data = 1;
 }
 
+// SavePicture keeps an upload (every byte written, which it uses up), an image, as a
+// picture a [[display.identity]] can name.
+message SavePictureRequest {
+  string upload_id = 1;
+}
+
+message SavePictureResponse {
+  // picture is what an identity's picture names it by: "file:" and its hash.
+  string picture = 1;
+}
+
 // ── Member ──
 
 message MembersRequest {
@@ -2459,6 +2470,8 @@ service BackendService {
   // cache, the version Room.picture names; with a person, theirs, the version
   // SenderPictures names.
   rpc LoadPicture(LoadPictureRequest) returns (LoadPictureResponse);
+  // SavePicture keeps an uploaded image as a picture for a [[display.identity]].
+  rpc SavePicture(SavePictureRequest) returns (SavePictureResponse);
   // Member
   // Members returns a room's cached members, ordered by display name.
   rpc Members(MembersRequest) returns (MembersResponse);

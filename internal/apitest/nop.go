@@ -110,6 +110,7 @@ func (Nop) CreatePoll(context.Context, domain.RoomID, string, []string, bool) (d
 func (Nop) RecordEmoji(context.Context, domain.EmojiKind, domain.RoomID, string) error { return nil }
 func (Nop) LoadImage(context.Context, domain.RoomID, domain.EventID) ([]byte, error)   { return nil, nil }
 func (Nop) LoadPicture(context.Context, domain.RoomID, string) ([]byte, error)         { return nil, nil }
+func (Nop) SavePicture(context.Context, string) (string, error)                        { return "", nil }
 func (Nop) Start(context.Context) error                                                { return nil }
 func (Nop) Stop()                                                                      {}
 func (n Nop) Messages() <-chan domain.Message                                          { return n.Msgs }

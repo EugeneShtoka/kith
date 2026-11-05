@@ -458,38 +458,58 @@ const (
 // share: StartUpload, then PutUpload chunk by chunk, each retried where it was cut off,
 // then SendFile naming the upload.
 func (r *Remote) SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error {
-	f, err := os.Open(filepath.Clean(path))
+	id, err := r.upload(ctx, path)
 	if err != nil {
 		return fmt.Errorf("send file: %w", err)
+	}
+	_, err = call(ctx, "send file", r.c.SendFile,
+		&v1.SendFileRequest{RoomId: string(roomID), UploadId: id, Name: name, Caption: caption})
+	return err
+}
+
+// SavePicture keeps the image at path, on this machine, as an identity's picture: it is
+// uploaded as SendFile's file is, then SavePicture names the upload.
+func (r *Remote) SavePicture(ctx context.Context, path string) (string, error) {
+	id, err := r.upload(ctx, path)
+	if err != nil {
+		return "", fmt.Errorf("save picture: %w", err)
+	}
+	resp, err := call(ctx, "save picture", r.c.SavePicture, &v1.SavePictureRequest{UploadId: id})
+	return resp.GetPicture(), err
+}
+
+// upload brings kithd the file at path: StartUpload, then PutUpload chunk by chunk.
+func (r *Remote) upload(ctx context.Context, path string) (string, error) {
+	f, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return "", err //nolint:wrapcheck // the caller names what failed
 	}
 	defer func() { _ = f.Close() }() // read only
 	info, err := f.Stat()
 	if err != nil {
-		return fmt.Errorf("send file: %w", err)
+		return "", err //nolint:wrapcheck // the caller names what failed
 	}
 	if info.IsDir() {
-		return fmt.Errorf("send file: %s is a directory", filepath.Base(path))
+		return "", fmt.Errorf("%s is a directory", filepath.Base(path))
 	}
 	size := info.Size()
 	start, err := call(ctx, "upload", r.c.StartUpload, &v1.StartUploadRequest{Name: filepath.Base(path), Size: size})
 	if err != nil {
-		return err
+		return "", err
 	}
 	id := start.GetUploadId()
 	chunk := make([]byte, min(size, uploadChunk))
 	for offset := int64(0); offset < size; {
 		n := min(size-offset, uploadChunk)
 		if _, rerr := f.ReadAt(chunk[:n], offset); rerr != nil {
-			return fmt.Errorf("send file: read %s: %w", filepath.Base(path), rerr)
+			return "", fmt.Errorf("read %s: %w", filepath.Base(path), rerr)
 		}
 		if perr := r.putChunk(ctx, id, offset, chunk[:n]); perr != nil {
-			return perr
+			return "", perr
 		}
 		offset += n
 	}
-	_, err = call(ctx, "send file", r.c.SendFile,
-		&v1.SendFileRequest{RoomId: string(roomID), UploadId: id, Name: name, Caption: caption})
-	return err
+	return id, nil
 }
 
 // putChunk writes one chunk, again after a failure that may pass (a connection cut

@@ -218,6 +218,9 @@ type Media interface {
 	// domain.Room.Picture names; with a person in the room, theirs, the version
 	// SenderPictures names. nil when there is none.
 	LoadPicture(ctx context.Context, roomID domain.RoomID, person string) ([]byte, error)
+	// SavePicture keeps the image at path, on kithd's machine, as a picture a
+	// [[display.identity]] can name: "file:" and its hash, the name returned.
+	SavePicture(ctx context.Context, path string) (string, error)
 }
 
 // Members is who is in a room, and the colors they are drawn in.

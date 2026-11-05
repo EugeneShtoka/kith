@@ -106,7 +106,8 @@ unread = "messages"
 # (#rrggbb or a named color). Both are optional. An alias chooses which name to show;
 # the space's name rules still shorten it ("Dana Levi" → "Dana" under first_name_only).
 # picture is one of ids: its picture is everyone's of the identity (in the desktop
-# window). Unset, each shows their own, else the first of ids that has one.
+# window); or "file:<hash>", a picture of your own the window saved in kithd's data dir.
+# Unset, each shows their own, else the first of ids that has one.
 # [[display.identity]]
 # alias = "Eugene"
 # color = "#8ff586"

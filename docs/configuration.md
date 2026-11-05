@@ -402,9 +402,11 @@ target` takes `room:<room ID>` or a rail row.
 
 - `[[display.name]]` names its `target`: a room ID, `room:<name>`, `space:<name>` or
   `thread:<root event ID>` (a tag is named in its `[[tag]]`);
-- `[[display.identity]]` lists `ids` (user IDs, on any network). Its `picture`, one of
-  them, is the picture the desktop window shows for every one of them; unset, each
-  shows their own, and one with none shows the first of `ids` that has one;
+- `[[display.identity]]` lists `ids` (user IDs, on any network). Its `picture` is the
+  picture the desktop window shows for every one of them: one of the `ids`, whose
+  picture it is, or `file:<hash>`, a picture of your own the window saved in `kithd`'s
+  data dir (`pictures/`); unset, each shows their own, and one with none shows the
+  first of `ids` that has one;
 - `[[filter]]` matches `words` and `from`.
 
 When several rules match, the narrower one wins: a person in a room beats the room,

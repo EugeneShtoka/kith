@@ -2,6 +2,7 @@ package setup
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -96,12 +97,16 @@ func FacesOf(ids []config.Identity) map[string][]string {
 	return out
 }
 
-// identityPictures refuses an identity's picture that is none of its people's IDs.
+// savedPicture is a picture kithd keeps (local.SavePicture): "file:" and its sha256.
+var savedPicture = regexp.MustCompile(`^file:[0-9a-f]{64}$`)
+
+// identityPictures refuses an identity's picture that is neither one of its people's IDs
+// nor a picture kithd keeps.
 func identityPictures(ids []config.Identity) error {
 	groups, pictures := identityGroups(ids)
 	for i, p := range pictures {
-		if p != "" && !slices.Contains(groups[i], p) {
-			return fmt.Errorf("display.identity: picture %q is none of its ids", p)
+		if p != "" && !slices.Contains(groups[i], p) && !savedPicture.MatchString(p) {
+			return fmt.Errorf("display.identity: picture %q is none of its ids, nor a saved picture", p)
 		}
 	}
 	return nil
