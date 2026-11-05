@@ -1,4 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { hostname } from "node:os";
+import path from "node:path";
 
 import {
   create,
@@ -150,6 +152,7 @@ const allowedCalls = [
   "Theme",
   "UpdateTheme",
   "SenderSlots",
+  "SenderPictures",
   "LoginNetworks",
   "BeginLogin",
   "AnswerLogin",
@@ -287,7 +290,38 @@ const names: unknown[] = [
   ["Status"],
 ];
 
+/**
+ * windowMethods are the kithd and relay methods the window's code calls or opens (its
+ * call and subscribe), by their names on the wire: what a list above must hold, or the
+ * window asks and is refused.
+ */
+function windowMethods(): { calls: Set<string>; streams: Set<string> } {
+  const dir = path.join(import.meta.dirname, "..", "renderer");
+  const source = readdirSync(dir, { recursive: true, encoding: "utf8" })
+    .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && !f.startsWith("testing"))
+    .map((f) => readFileSync(path.join(dir, f), "utf8"))
+    .join("\n");
+  const named = (kind: string) =>
+    new Set(
+      [...source.matchAll(new RegExp(`${kind}\\((backend|device)\\.(\\w+)`, "g"))].map(
+        ([, service = "", local = ""]) => {
+          const methods: Record<string, { name: string }> =
+            service === "backend" ? BackendService.method : DeviceService.method;
+          return methods[local]?.name ?? local;
+        },
+      ),
+    );
+  return { calls: named("call"), streams: named("subscribe") };
+}
+
 describe("the gate", () => {
+  it("lists every call and stream the window's code makes", () => {
+    const { calls, streams } = windowMethods();
+    expect(calls.size).toBeGreaterThan(40); // the scan finds them
+    expect([...calls].filter((c) => !allowedCalls.includes(c))).toEqual([]);
+    expect([...streams].filter((s) => !allowedStreams.includes(s) && s !== "StartPairing")).toEqual([]);
+  });
+
   it("answers only the calls on the list, and refuses every other name before kithd", async () => {
     await device();
     await leading();

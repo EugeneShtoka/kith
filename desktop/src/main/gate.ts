@@ -86,10 +86,12 @@ const calls = new Map<string, DescMethodUnary>(
     // The settings page: device.toml written only over the file it read.
     device.updateDeviceSettings,
     // The theme: read, and its keys written over the files the window read; a room's
-    // remembered sender colors, which it draws people in by default.
+    // remembered sender colors, which it draws people in by default, and its people's
+    // pictures' versions (each loaded by main, kith-media:).
     device.theme,
     device.updateTheme,
     backend.senderSlots,
+    backend.senderPictures,
     // Accounts: the networks to log in to, and a login the window leads (logins.ts: only
     // its own, as its step allows), its new account written and its QR code encoded by
     // the relay; and signing out an account whose own space is on the profile's rail.
