@@ -19,6 +19,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
 // A connection loads the account's messages page with its cookies (which proves the
@@ -73,10 +74,8 @@ type conn struct {
 	session Session
 	saved   string
 	client  *messagix.Client
-	// sweeping marks a sweep of the inbox's pictures running, and pictureWant the
-	// latest links, for it to sweep next (picturesLater).
-	sweeping    bool
-	pictureWant map[domain.RoomID]string
+	// sweeper keeps the inbox's pictures (picturesLater).
+	sweeper *pictures.Sweeper
 
 	// applying serializes taking tables in: the inbox, and rooms, which is the account's
 	// rooms as last written (the cached ones, then every thread heard of), so a write
