@@ -106,14 +106,31 @@ func TestAConversationShowsItsPersonsPicture(t *testing.T) {
 			}
 			out[rooms[i].ID] = strings.TrimPrefix(rooms[i].Picture, cdn.URL) + "=" + string(data)
 		}
+		checks, cerr := cache.PersonPictures().PictureChecks(ctx)
+		if cerr != nil {
+			t.Fatal(cerr)
+		}
+		for p, c := range checks {
+			out[domain.RoomID(p)] = strings.TrimPrefix(c.ID, cdn.URL) // a person's, under their ID
+		}
 		return out
 	}
-
-	if err := sweep(ctx, a, client, c.inbox.conversationPictures(c.profile)); err != nil {
-		t.Fatal(err)
+	// sweepAll keeps the conversations' pictures and the participants', as picturesLater does.
+	sweepAll := func() {
+		t.Helper()
+		if err := sweep(ctx, a, client, c.inbox.conversationPictures(c.profile)); err != nil {
+			t.Fatal(err)
+		}
+		if err := sweepPeople(ctx, a, client, c.inbox.personPictures()); err != nil {
+			t.Fatal(err)
+		}
 	}
+
+	sweepAll()
 	want := map[domain.RoomID]string{
 		roomID(me, danaDM): "/dana1/=picture /dana1/s", roomID(me, acmeDM): "/acme1/=picture /acme1/s", roomID(me, group): "=",
+		domain.RoomID(personID(dana)): "/dana1/", domain.RoomID(personID(acmeOrg)): "/acme1/",
+		domain.RoomID(personID(eli)): "", domain.RoomID(personID(me)): "",
 	}
 	if got := pictures(); !maps.Equal(got, want) {
 		t.Fatalf("pictures = %v, want %v", got, want)
@@ -127,22 +144,28 @@ func TestAConversationShowsItsPersonsPicture(t *testing.T) {
 		with(conversation(danaDM, "", 2000, 0, true, me, dana), dana, "dana2"),
 		with(conversation(acmeDM, "", 2000, 0, true, me, acmeOrg), acmeOrg, "acme1"),
 	}, nil)
-	if err := sweep(ctx, a, client, c.inbox.conversationPictures(c.profile)); err != nil {
-		t.Fatal(err)
-	}
+	sweepAll()
 	want[roomID(me, danaDM)] = "/dana2/=picture /dana2/s"
+	want[domain.RoomID(personID(dana))] = "/dana2/"
 	if got := pictures(); !maps.Equal(got, want) {
 		t.Fatalf("after Dana's changed, pictures = %v, want %v", got, want)
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if !slices.Equal(fetched, []string{"/dana2/s"}) {
-		t.Errorf("the second sweep fetched %v, want only Dana's new picture", fetched)
+	// A one-to-one's person's picture is downloaded twice: the room's, and theirs.
+	if !slices.Equal(fetched, []string{"/dana2/s", "/dana2/s"}) {
+		t.Errorf("the second sweep fetched %v, want only Dana's new picture, the room's and theirs", fetched)
 	}
+}
+
+// sweepPeople keeps people's pics as the connection's people's sweeper would, synchronously.
+func sweepPeople(ctx context.Context, a *Adapter, client *linkedingo.Client, pics map[string]picture) error {
+	_, err := pictures.Sweep(ctx, a.cache.PersonPictures(), pictureWants(a, client, pics), time.Now())
+	return err
 }
 
 // sweep keeps pics as the connection's sweeper would, synchronously.
 func sweep(ctx context.Context, a *Adapter, client *linkedingo.Client, pics map[domain.RoomID]picture) error {
-	_, err := pictures.Sweep(ctx, a.cache, a.pictureWants(client, pics), time.Now())
+	_, err := pictures.Sweep(ctx, a.cache, pictureWants(a, client, pics), time.Now())
 	return err
 }

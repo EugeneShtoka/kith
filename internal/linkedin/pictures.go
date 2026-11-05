@@ -13,7 +13,7 @@ import (
 
 // A one-to-one conversation's picture is its person's (a member's photo, an
 // organization's logo); a group has none. The connection's sweeper (internal/pictures)
-// keeps them. Every listing carries the
+// keeps them, and each participant's as theirs. Every listing carries the
 // participants, so each one that changes the rooms sweeps them: a picture the cache
 // holds another version of is downloaded with the account's session, as LinkedIn's
 // links expire. It is kept by its root address, which stays while the picture does.
@@ -63,6 +63,15 @@ func (in *inbox) conversationPictures(profile string) map[domain.RoomID]picture 
 	return out
 }
 
+// personPictures is each participant's picture, by their person ID.
+func (in *inbox) personPictures() map[string]picture {
+	out := make(map[string]picture, len(in.pictures))
+	for id, p := range in.pictures {
+		out[personID(id)] = p
+	}
+	return out
+}
+
 func firstOf(ids []string) string {
 	if len(ids) == 0 {
 		return ""
@@ -70,10 +79,10 @@ func firstOf(ids []string) string {
 	return ids[0]
 }
 
-// pictureWants is what the sweeper is to keep of the conversations' pictures,
-// downloaded with client.
-func (a *Adapter) pictureWants(client *linkedingo.Client, pics map[domain.RoomID]picture) map[domain.RoomID]pictures.Want {
-	wants := make(map[domain.RoomID]pictures.Want, len(pics))
+// pictureWants is what a sweeper is to keep of pictures, a conversation's or a
+// person's, downloaded with client.
+func pictureWants[K ~string](a *Adapter, client *linkedingo.Client, pics map[K]picture) map[K]pictures.Want {
+	wants := make(map[K]pictures.Want, len(pics))
 	for room, p := range pics {
 		wants[room] = pictures.Want{Version: p.root, Fetch: func(ctx context.Context) (data []byte, err error) {
 			err = a.ask(ctx, "downloading a picture", func(ctx context.Context) (err error) {
@@ -89,10 +98,10 @@ func (a *Adapter) pictureWants(client *linkedingo.Client, pics map[domain.RoomID
 	return wants
 }
 
-// picturesLater has c's sweeper keep the pictures its inbox names, off the listing;
-// none before the connection has a client.
+// picturesLater has c's sweepers keep the pictures its inbox names, off the listing:
+// its conversations' and its participants'; none before the connection has a client.
 func (a *Adapter) picturesLater(c *conn) {
-	pics := c.inbox.conversationPictures(c.profile)
+	pics, people := c.inbox.conversationPictures(c.profile), c.inbox.personPictures()
 	a.mu.Lock()
 	ctx := a.run
 	a.mu.Unlock()
@@ -106,13 +115,12 @@ func (a *Adapter) picturesLater(c *conn) {
 		return
 	}
 	if c.sweeper == nil {
-		c.sweeper = &pictures.Sweeper[domain.RoomID]{
-			Store:   a.cache,
-			Changed: a.roomsChanged,
-			Failed:  func(err error) { a.log.Debug("download pictures stopped", "account", c.account.Name, "err", err) },
-		}
+		failed := func(err error) { a.log.Debug("download pictures stopped", "account", c.account.Name, "err", err) }
+		c.sweeper = &pictures.Sweeper[domain.RoomID]{Store: a.cache, Changed: a.roomsChanged, Failed: failed}
+		c.people = &pictures.Sweeper[string]{Store: a.cache.PersonPictures(), Changed: a.roomsChanged, Failed: failed}
 	}
-	s := c.sweeper
+	rooms, faces := c.sweeper, c.people
 	c.mu.Unlock()
-	s.Later(ctx, a.pictureWants(client, pics))
+	rooms.Later(ctx, pictureWants(a, client, pics))
+	faces.Later(ctx, pictureWants(a, client, people))
 }

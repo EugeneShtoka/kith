@@ -10,7 +10,8 @@ or saved from the message. A message carrying more than one names the others
 (`[file: cv.pdf]`). LinkedIn's links to them expire after a while; an old one then
 stops loading. A one-to-one conversation shows its person's photo (or a company's
 logo) in the desktop window, downloaded once and again when it changes; a group
-conversation has no picture of its own on LinkedIn.
+conversation has no picture of its own on LinkedIn. Each message shows its sender's,
+kept the same way.
 
 You can write in a conversation, reply (the reply quotes the original, as LinkedIn
 shows it), mention people (`@` offers the conversation's members), edit and delete
