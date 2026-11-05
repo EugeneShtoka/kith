@@ -70,6 +70,8 @@ const (
 	SignalServiceGroupByInviteProcedure = "/signal.v1.SignalService/GroupByInvite"
 	// SignalServiceJoinGroupProcedure is the fully-qualified name of the SignalService's JoinGroup RPC.
 	SignalServiceJoinGroupProcedure = "/signal.v1.SignalService/JoinGroup"
+	// SignalServicePictureProcedure is the fully-qualified name of the SignalService's Picture RPC.
+	SignalServicePictureProcedure = "/signal.v1.SignalService/Picture"
 )
 
 // SignalServiceClient is a client for the signal.v1.SignalService service.
@@ -119,6 +121,10 @@ type SignalServiceClient interface {
 	// JoinGroup joins a connected account to the group an invite link is to, or asks its
 	// admins to let it in when they approve who joins; its members are told of a join.
 	JoinGroup(context.Context, *connect.Request[v1.JoinGroupRequest]) (*connect.Response[v1.JoinGroupResponse], error)
+	// Picture is a person's or a group's picture as a connected account sees it: its
+	// version (Signal's avatar path, or the phone's contact photo's hash) and, when that
+	// is not the version kept, its bytes, decrypted.
+	Picture(context.Context, *connect.Request[v1.PictureRequest]) (*connect.Response[v1.PictureResponse], error)
 }
 
 // NewSignalServiceClient constructs a client for the signal.v1.SignalService service. By default,
@@ -234,6 +240,12 @@ func NewSignalServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(signalServiceMethods.ByName("JoinGroup")),
 			connect.WithClientOptions(opts...),
 		),
+		picture: connect.NewClient[v1.PictureRequest, v1.PictureResponse](
+			httpClient,
+			baseURL+SignalServicePictureProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Picture")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -256,6 +268,7 @@ type signalServiceClient struct {
 	findPerson    *connect.Client[v1.FindPersonRequest, v1.FindPersonResponse]
 	groupByInvite *connect.Client[v1.GroupByInviteRequest, v1.GroupByInviteResponse]
 	joinGroup     *connect.Client[v1.JoinGroupRequest, v1.JoinGroupResponse]
+	picture       *connect.Client[v1.PictureRequest, v1.PictureResponse]
 }
 
 // Heartbeat calls signal.v1.SignalService.Heartbeat.
@@ -343,6 +356,11 @@ func (c *signalServiceClient) JoinGroup(ctx context.Context, req *connect.Reques
 	return c.joinGroup.CallUnary(ctx, req)
 }
 
+// Picture calls signal.v1.SignalService.Picture.
+func (c *signalServiceClient) Picture(ctx context.Context, req *connect.Request[v1.PictureRequest]) (*connect.Response[v1.PictureResponse], error) {
+	return c.picture.CallUnary(ctx, req)
+}
+
 // SignalServiceHandler is an implementation of the signal.v1.SignalService service.
 type SignalServiceHandler interface {
 	// Heartbeat is kithd's keep-alive: the helper exits when they stop.
@@ -390,6 +408,10 @@ type SignalServiceHandler interface {
 	// JoinGroup joins a connected account to the group an invite link is to, or asks its
 	// admins to let it in when they approve who joins; its members are told of a join.
 	JoinGroup(context.Context, *connect.Request[v1.JoinGroupRequest]) (*connect.Response[v1.JoinGroupResponse], error)
+	// Picture is a person's or a group's picture as a connected account sees it: its
+	// version (Signal's avatar path, or the phone's contact photo's hash) and, when that
+	// is not the version kept, its bytes, decrypted.
+	Picture(context.Context, *connect.Request[v1.PictureRequest]) (*connect.Response[v1.PictureResponse], error)
 }
 
 // NewSignalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -501,6 +523,12 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(signalServiceMethods.ByName("JoinGroup")),
 		connect.WithHandlerOptions(opts...),
 	)
+	signalServicePictureHandler := connect.NewUnaryHandler(
+		SignalServicePictureProcedure,
+		svc.Picture,
+		connect.WithSchema(signalServiceMethods.ByName("Picture")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/signal.v1.SignalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SignalServiceHeartbeatProcedure:
@@ -537,6 +565,8 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 			signalServiceGroupByInviteHandler.ServeHTTP(w, r)
 		case SignalServiceJoinGroupProcedure:
 			signalServiceJoinGroupHandler.ServeHTTP(w, r)
+		case SignalServicePictureProcedure:
+			signalServicePictureHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -612,4 +642,8 @@ func (UnimplementedSignalServiceHandler) GroupByInvite(context.Context, *connect
 
 func (UnimplementedSignalServiceHandler) JoinGroup(context.Context, *connect.Request[v1.JoinGroupRequest]) (*connect.Response[v1.JoinGroupResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.JoinGroup is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Picture(context.Context, *connect.Request[v1.PictureRequest]) (*connect.Response[v1.PictureResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Picture is not implemented"))
 }

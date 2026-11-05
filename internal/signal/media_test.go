@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -118,5 +119,26 @@ func TestAFileIsUploadedThenSent(t *testing.T) {
 	}
 	if n := len(r.uploads()); n != 1 {
 		t.Errorf("uploaded without a connection: %d uploads", n)
+	}
+}
+
+// A chat's picture is asked of the helper once its account connects: Dana's is kept, a
+// chat whose person has none is kept as none.
+func TestAChatsPictureComesThroughTheHelper(t *testing.T) {
+	r := connected(t, msg(dana, dana, 1700000000100, "hi"), msg(ofer, ofer, 1700000000200, "hey"))
+	ctx := context.Background()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		data, err := r.cache.Picture(ctx, direct(dana))
+		checks, cerr := r.cache.PictureChecks(ctx)
+		if err == nil && cerr == nil && string(data) == "picture of dana" && checks[direct(dana)].ID == "p-dana" {
+			if c, ok := checks[direct(ofer)]; ok && c.ID == "" {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Dana's picture = %q (%v), checks %v (%v)", data, err, checks, cerr)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
