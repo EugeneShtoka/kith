@@ -10,6 +10,7 @@ import { FormattedSchema, type Message, type Reaction } from "../gen/backend/v1/
 import { Avatar } from "./Avatar";
 import type { ComposerView } from "./compose";
 import { EmojiPicker } from "./EmojiPicker";
+import { arrowTo } from "./gridnav";
 import { hueOf } from "./faces";
 import { drawsPictures, type Faces, faceClass, senderColor } from "./theme";
 import { builtIn, ColorRow } from "./ThemeRow";
@@ -630,9 +631,22 @@ function Actions({
           role="group"
           aria-label="Quick reactions"
           onKeyDown={(e) => {
+            const buttons = [...e.currentTarget.querySelectorAll<HTMLElement>("button")];
+            const at = buttons.indexOf(document.activeElement as HTMLElement);
+            const pick = c.emoji.palette.findIndex((_, i) => bound(keys, `react.pick_${String(i + 1)}`, e));
+            const to =
+              e.key === "ArrowUp" || e.key === "ArrowDown"
+                ? undefined
+                : arrowTo(e.key, at, buttons.length, buttons.length);
             if (bound(keys, "react.cancel", e)) {
               e.preventDefault();
               shut();
+            } else if (pick >= 0) {
+              e.preventDefault();
+              react(c.emoji.palette[pick] ?? "");
+            } else if (to !== undefined && at >= 0) {
+              e.preventDefault();
+              buttons[to]?.focus();
             }
           }}
         >
