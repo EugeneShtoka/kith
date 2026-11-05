@@ -8,6 +8,7 @@ import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
 import { FilingDialog } from "./Filing";
+import { RoomNameDialog } from "./RoomName";
 import { helpSections } from "./help";
 import { HelpOverlay } from "./HelpOverlay";
 import { roomPicture } from "./media";
@@ -59,6 +60,7 @@ export function App() {
         <OfferDialog key={view.offers.prompt.kind} prompt={view.offers.prompt} session={session} />
       )}
       {seated && view.filing && <FilingDialog filing={view.filing} keys={view.keys} session={session} />}
+      {seated && view.naming && <RoomNameDialog naming={view.naming} keys={view.keys} session={session} />}
       {seated && view.people.list && (
         <PeopleDialog list={view.people.list} covered={view.people.card !== undefined} session={session} />
       )}
@@ -121,6 +123,7 @@ const seatedActions: readonly Action[] = [
     "start_thread",
   ].map((action) => ({ path: `timeline.${action}`, anywhere: false })),
   { path: "rooms.spaces", anywhere: false },
+  { path: "rooms.name", anywhere: false },
   { path: "rooms.person", anywhere: false },
   ...[
     "up",
@@ -419,6 +422,8 @@ function Seated({ view, session }: { view: View; session: Session }) {
           return false;
         }
         session.tagRoom(room.id, t.tag);
+      } else if (path === "rooms.name") {
+        session.openNaming(room.id);
       } else if (room.isDirect) {
         session.openPerson({ roomId: room.id }, "");
       } else {
@@ -505,6 +510,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
         session.openSettings();
       },
       "rooms.spaces": () => onRoom("rooms.spaces"),
+      "rooms.name": () => onRoom("rooms.name"),
       "rooms.person": () => onRoom("rooms.person"),
       help: () => {
         setHelping(true);

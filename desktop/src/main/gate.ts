@@ -142,6 +142,9 @@ const calls = new Map<string, DescMethodUnary>(
     // makes them for a filing it judged.
     backend.filingPlaces,
     backend.fileRoom,
+    // A room's name of your own ([[display.name]]): kithd judges the room against the
+    // profile and writes the one entry itself.
+    backend.setRoomName,
     // People and their cards: kithd's phonebook folder, read and written by kithd. The
     // window names a person by an ID, a card People listed (by its name, which kithd
     // looks up among the folder's cards) or a DM; it never names a file nor gets a path,

@@ -15,6 +15,7 @@ import {
 
 import {
   BackendService,
+  Change,
   type ConfigSetting,
   ConfigSettingSchema,
   type ConfigValue,
@@ -250,6 +251,8 @@ export class Kithd {
   readonly cardWrites: string[] = [];
   readonly filingSpacesAsked: string[][] = [];
   readonly filed: string[] = [];
+  /** The names you gave rooms ([[display.name]]), by ID, which the rail serves; SetRoomName writes them. */
+  readonly roomNames = new Map<string, string>();
   fileAnswer: MessageInitShape<typeof backend.fileRoom.output> = {};
   fileRefusal = "";
   /** The words CompleteWord knows, with their weight; and the model's answer to ModelTask. */
@@ -662,6 +665,19 @@ export class Kithd {
         return reply(backend.status, { ready: true });
       case "Rooms":
         return reply(backend.rooms, { rooms: p.rooms });
+      case "SetRoomName": {
+        const r = request as MessageShape<typeof backend.setRoomName.input>;
+        if (!p.rooms.some((x) => x.id === r.roomId)) {
+          throw new Error(`[not_found] daemon: the profile ${profile} holds no room ${r.roomId}`);
+        }
+        if (r.name.trim() === "") {
+          this.roomNames.delete(r.roomId);
+        } else {
+          this.roomNames.set(r.roomId, r.name.trim());
+        }
+        this.send(backend.changed, profile, { change: Change.RAIL }); // the rail is built again from the config
+        return reply(backend.setRoomName, {});
+      }
       case "Rail": {
         const rail = this.rails.get(profile);
         if (rail === "gone") {
@@ -672,7 +688,7 @@ export class Kithd {
           create(RailResponseSchema, {
             revision: 1n,
             rows: [{ key: "all", label: "All", kind: RailRowKind.ALL, rooms: p.rooms.map((r) => r.id) }],
-            rooms: p.rooms.map((r) => ({ facts: { id: r.id, name: r.name } })),
+            rooms: p.rooms.map((r) => ({ facts: { id: r.id, name: r.name }, name: this.roomNames.get(r.id) ?? "" })),
           })
         );
       }

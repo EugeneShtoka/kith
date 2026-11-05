@@ -348,10 +348,10 @@ func TestAProfiledCallNamesOnlyItsProfilesRooms(t *testing.T) {
 			}
 			draws := judged.draws(header, ph, unknown, held, queued)
 			for _, f := range fields {
-				// A filing judges its room and spaces itself too, by its own rule: a joined
-				// room, and spaces, of the profile named or the first.
+				// A filing, or a room's name, judges its room and spaces itself too, by its own
+				// rule: a joined room, and spaces, of the profile named or the first.
 				pool := draws[f.kind]
-				if name := f.method.Name(); name == "FilingPlaces" || name == "FileRoom" {
+				if name := f.method.Name(); name == "FilingPlaces" || name == "FileRoom" || name == "SetRoomName" {
 					pool = draws[map[protoreflect.Name]string{"room_id": "filed", "spaces": "filed into"}[f.path[0].Name()]]
 				}
 				base := filingBase(f, draws)

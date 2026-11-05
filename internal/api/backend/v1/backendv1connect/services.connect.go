@@ -99,6 +99,9 @@ const (
 	BackendServiceFilingPlacesProcedure = "/backend.v1.BackendService/FilingPlaces"
 	// BackendServiceFileRoomProcedure is the fully-qualified name of the BackendService's FileRoom RPC.
 	BackendServiceFileRoomProcedure = "/backend.v1.BackendService/FileRoom"
+	// BackendServiceSetRoomNameProcedure is the fully-qualified name of the BackendService's
+	// SetRoomName RPC.
+	BackendServiceSetRoomNameProcedure = "/backend.v1.BackendService/SetRoomName"
 	// BackendServicePeopleProcedure is the fully-qualified name of the BackendService's People RPC.
 	BackendServicePeopleProcedure = "/backend.v1.BackendService/People"
 	// BackendServicePersonCardProcedure is the fully-qualified name of the BackendService's PersonCard
@@ -545,6 +548,10 @@ type BackendServiceClient interface {
 	// into records the release, so no filter moves it back. A room, tag or space the
 	// profile does not hold is refused, and nothing is filed.
 	FileRoom(context.Context, *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error)
+	// SetRoomName names a room of the request's profile, or takes its name away, in
+	// [[display.name]], as UpdateConfig writes (one writer, revision-checked,
+	// ConfigChanged told).
+	SetRoomName(context.Context, *connect.Request[v1.SetRoomNameRequest]) (*connect.Response[v1.SetRoomNameResponse], error)
 	// Phonebook
 	// People lists the phonebook's cards ([phonebook] dir, read by kithd from its own
 	// folder) by name, narrowed by the query as :people narrows it, leaving out everyone
@@ -1065,6 +1072,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceFileRoomProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("FileRoom")),
+			connect.WithClientOptions(opts...),
+		),
+		setRoomName: connect.NewClient[v1.SetRoomNameRequest, v1.SetRoomNameResponse](
+			httpClient,
+			baseURL+BackendServiceSetRoomNameProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("SetRoomName")),
 			connect.WithClientOptions(opts...),
 		),
 		people: connect.NewClient[v1.PeopleRequest, v1.PeopleResponse](
@@ -1883,6 +1896,7 @@ type backendServiceClient struct {
 	removeFromSpace       *connect.Client[v1.RemoveFromSpaceRequest, v1.RemoveFromSpaceResponse]
 	filingPlaces          *connect.Client[v1.FilingPlacesRequest, v1.FilingPlacesResponse]
 	fileRoom              *connect.Client[v1.FileRoomRequest, v1.FileRoomResponse]
+	setRoomName           *connect.Client[v1.SetRoomNameRequest, v1.SetRoomNameResponse]
 	people                *connect.Client[v1.PeopleRequest, v1.PeopleResponse]
 	personCard            *connect.Client[v1.PersonCardRequest, v1.PersonCardResponse]
 	setPersonField        *connect.Client[v1.SetPersonFieldRequest, v1.SetPersonFieldResponse]
@@ -2139,6 +2153,11 @@ func (c *backendServiceClient) FilingPlaces(ctx context.Context, req *connect.Re
 // FileRoom calls backend.v1.BackendService.FileRoom.
 func (c *backendServiceClient) FileRoom(ctx context.Context, req *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error) {
 	return c.fileRoom.CallUnary(ctx, req)
+}
+
+// SetRoomName calls backend.v1.BackendService.SetRoomName.
+func (c *backendServiceClient) SetRoomName(ctx context.Context, req *connect.Request[v1.SetRoomNameRequest]) (*connect.Response[v1.SetRoomNameResponse], error) {
+	return c.setRoomName.CallUnary(ctx, req)
 }
 
 // People calls backend.v1.BackendService.People.
@@ -2876,6 +2895,10 @@ type BackendServiceHandler interface {
 	// into records the release, so no filter moves it back. A room, tag or space the
 	// profile does not hold is refused, and nothing is filed.
 	FileRoom(context.Context, *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error)
+	// SetRoomName names a room of the request's profile, or takes its name away, in
+	// [[display.name]], as UpdateConfig writes (one writer, revision-checked,
+	// ConfigChanged told).
+	SetRoomName(context.Context, *connect.Request[v1.SetRoomNameRequest]) (*connect.Response[v1.SetRoomNameResponse], error)
 	// Phonebook
 	// People lists the phonebook's cards ([phonebook] dir, read by kithd from its own
 	// folder) by name, narrowed by the query as :people narrows it, leaving out everyone
@@ -3392,6 +3415,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceFileRoomProcedure,
 		svc.FileRoom,
 		connect.WithSchema(backendServiceMethods.ByName("FileRoom")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceSetRoomNameHandler := connect.NewUnaryHandler(
+		BackendServiceSetRoomNameProcedure,
+		svc.SetRoomName,
+		connect.WithSchema(backendServiceMethods.ByName("SetRoomName")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServicePeopleHandler := connect.NewUnaryHandler(
@@ -4232,6 +4261,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceFilingPlacesHandler.ServeHTTP(w, r)
 		case BackendServiceFileRoomProcedure:
 			backendServiceFileRoomHandler.ServeHTTP(w, r)
+		case BackendServiceSetRoomNameProcedure:
+			backendServiceSetRoomNameHandler.ServeHTTP(w, r)
 		case BackendServicePeopleProcedure:
 			backendServicePeopleHandler.ServeHTTP(w, r)
 		case BackendServicePersonCardProcedure:
@@ -4601,6 +4632,10 @@ func (UnimplementedBackendServiceHandler) FilingPlaces(context.Context, *connect
 
 func (UnimplementedBackendServiceHandler) FileRoom(context.Context, *connect.Request[v1.FileRoomRequest]) (*connect.Response[v1.FileRoomResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.FileRoom is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) SetRoomName(context.Context, *connect.Request[v1.SetRoomNameRequest]) (*connect.Response[v1.SetRoomNameResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SetRoomName is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) People(context.Context, *connect.Request[v1.PeopleRequest]) (*connect.Response[v1.PeopleResponse], error) {

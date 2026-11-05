@@ -19,6 +19,8 @@ type RailSpec struct {
 	Order, Hidden, HideWhenEmpty []string
 	// Labels is a renamed row's label, by its key.
 	Labels map[string]string
+	// RoomNames is the name you gave a room ([[display.name]]), by its ID.
+	RoomNames map[string]string
 }
 
 // RailRoom is one room as the rail judges it.
@@ -100,6 +102,8 @@ type ServedRoom struct {
 	In       []string
 	Owner    string
 	Silenced bool
+	// Name is the name you gave it ([[display.name]]); empty for none.
+	Name string
 }
 
 // Served is the rail as kithd serves it: the rows ShownRows draws, and each of rooms
@@ -108,7 +112,7 @@ func (r Rail) Served(spec RailSpec, rooms []RailRoom) ServedRail {
 	out := ServedRail{Rows: ShownRows(r, spec), Rooms: make([]ServedRoom, 0, len(rooms))}
 	for i := range rooms {
 		judged := r.Judged[rooms[i].ID]
-		room := ServedRoom{Facts: rooms[i].Facts, Silenced: judged.Silenced}
+		room := ServedRoom{Facts: rooms[i].Facts, Silenced: judged.Silenced, Name: spec.RoomNames[string(rooms[i].ID)]}
 		for j, in := range judged.In {
 			if in {
 				room.In = append(room.In, spec.Tags.At(j).Name)
