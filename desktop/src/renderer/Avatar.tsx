@@ -26,7 +26,7 @@ export function Avatar({
   const shown = picture !== undefined && picture !== broken;
   return (
     <span
-      className={`avatar ${hue ?? `hue-${String(hueOf(id))}`}${small ? " small" : ""}${shown ? " picture" : ""}`}
+      className={`avatar ${hue ?? `hue-${String(hueOf(id))}`}${small ? " small" : ""}${shown ? " pictured" : ""}`}
       aria-hidden="true"
     >
       {shown ? (
