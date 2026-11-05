@@ -33,6 +33,8 @@ type inbox struct {
 	gone map[string]time.Time
 	// sources are the addresses of messages' attachments not yet cached (media.go).
 	sources map[domain.EventID]string
+	// pictures are everyone seen's pictures, by profile ID (pictures.go).
+	pictures map[string]picture
 }
 
 // conv is one conversation as kith keeps it.
@@ -50,7 +52,7 @@ type conv struct {
 func newInbox(self string) *inbox {
 	return &inbox{
 		self: self, people: map[string]string{}, convs: map[string]*conv{}, gone: map[string]time.Time{},
-		sources: map[domain.EventID]string{},
+		sources: map[domain.EventID]string{}, pictures: map[string]picture{},
 	}
 }
 
@@ -88,6 +90,7 @@ func (in *inbox) take(c *linkedingo.Conversation) (thread string, shown, met boo
 	var others []string
 	for _, p := range c.ConversationParticipants {
 		met = in.meet(p) || met
+		in.seePicture(p)
 		switch id := profileOf(p.EntityURN); {
 		case id == in.self:
 			member = true

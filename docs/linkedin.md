@@ -8,7 +8,9 @@ their address), edits and deleted messages. Pictures, GIFs, files, videos and vo
 messages show as attachments, as on other networks: pictures inline, the rest opened
 or saved from the message. A message carrying more than one names the others
 (`[file: cv.pdf]`). LinkedIn's links to them expire after a while; an old one then
-stops loading.
+stops loading. A one-to-one conversation shows its person's photo (or a company's
+logo) in the desktop window, downloaded once and again when it changes; a group
+conversation has no picture of its own on LinkedIn.
 
 You can write in a conversation, reply (the reply quotes the original, as LinkedIn
 shows it), mention people (`@` offers the conversation's members), edit and delete

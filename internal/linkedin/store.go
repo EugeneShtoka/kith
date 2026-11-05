@@ -111,6 +111,7 @@ func (a *Adapter) saveRooms(ctx context.Context, c *conn, gone []domain.RoomID) 
 		a.log.Warn("cache the conversations failed", "account", c.account.Name, "err", err)
 	}
 	a.roomsChanged()
+	a.picturesLater(c)
 }
 
 // saveUnread keeps a conversation's unread state: LinkedIn's flag (it has no count) and

@@ -14,6 +14,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
 // A connection checks the session by reading the account's own profile, then holds
@@ -49,6 +50,8 @@ type conn struct {
 	session Session
 	saved   string
 	client  *linkedingo.Client
+	// sweeper keeps the inbox's pictures (picturesLater).
+	sweeper *pictures.Sweeper
 
 	// applying serializes taking conversations in: the inbox, and rooms, which is the
 	// account's rooms as last written (the cached ones, then every conversation heard
