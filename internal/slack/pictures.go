@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"slices"
 	"time"
 
 	slackgo "github.com/slack-go/slack"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
-// A DM's picture is its person's (db.SetPicture), kept by the hash of it their profile
-// names: after each listing, the DMs whose person's picture changed are downloaded.
-// Channels and group DMs have none.
+// A DM's picture is its person's, kept by the hash of it their profile names: after each
+// listing, the workspace's sweeper (internal/pictures) downloads the DMs' whose person's
+// picture changed. Channels and group DMs have none.
 
 // pictureBytes bounds a picture's download; Slack's 72 px avatars are a few KB.
 const pictureBytes = 1 << 20
@@ -46,79 +46,47 @@ func (w *workspace) dmPictures(conversations []slackgo.Channel) map[domain.RoomI
 	return out
 }
 
-// picturesLater keeps the pictures a listing of w named, off the listing: one sweep per
-// workspace at a time, a listing made meanwhile swept after it.
-func (a *Adapter) picturesLater(w *workspace, pictures map[domain.RoomID]picture) {
+// pictureWants is what the sweeper is to keep of the DMs' pictures.
+func pictureWants(pics map[domain.RoomID]picture) map[domain.RoomID]pictures.Want {
+	wants := make(map[domain.RoomID]pictures.Want, len(pics))
+	for room, p := range pics {
+		wants[room] = pictures.Want{Version: p.hash, Fetch: func(ctx context.Context) ([]byte, error) {
+			data, err := downloadPicture(ctx, p.url)
+			if err != nil {
+				return nil, fmt.Errorf("slack: download the picture of %s: %w", room, err)
+			}
+			return data, nil
+		}}
+	}
+	return wants
+}
+
+// picturesLater has w's sweeper keep the pictures a listing named, off the listing.
+func (a *Adapter) picturesLater(w *workspace, pics map[domain.RoomID]picture) {
 	if a.cache == nil {
 		return
 	}
-	w.mu.Lock()
-	w.pictureWant = pictures
-	if w.sweeping {
-		w.mu.Unlock()
-		return
-	}
-	w.sweeping = true
-	w.mu.Unlock()
 	a.mu.Lock()
 	ctx := a.run
 	a.mu.Unlock()
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go func() {
-		for {
-			w.mu.Lock()
-			want := w.pictureWant
-			w.pictureWant = nil
-			if want == nil {
-				w.sweeping = false
-				w.mu.Unlock()
-				return
-			}
-			w.mu.Unlock()
-			if err := a.sweepPictures(ctx, want); err != nil {
-				a.log.Debug("download pictures stopped", "account", w.account.Name, "err", err)
-			}
+	w.mu.Lock()
+	if w.sweeper == nil {
+		w.sweeper = &pictures.Sweeper{
+			Store: a.cache,
+			Changed: func() {
+				if a.onRoomsChanged != nil {
+					a.onRoomsChanged()
+				}
+			},
+			Failed: func(err error) { a.log.Debug("download pictures stopped", "account", w.account.Name, "err", err) },
 		}
-	}()
-}
-
-// sweepPictures keeps each picture the cache holds another version of, stopping at the
-// first download that fails: the rest are tried again with the next listing.
-func (a *Adapter) sweepPictures(ctx context.Context, pictures map[domain.RoomID]picture) error {
-	checks, err := a.cache.PictureChecks(ctx)
-	if err != nil {
-		return fmt.Errorf("slack: read the pictures kept: %w", err)
 	}
-	changed := false
-	defer func() {
-		if changed && a.onRoomsChanged != nil {
-			a.onRoomsChanged()
-		}
-	}()
-	rooms := make([]domain.RoomID, 0, len(pictures))
-	for room := range pictures {
-		rooms = append(rooms, room)
-	}
-	slices.Sort(rooms)
-	for _, room := range rooms {
-		p := pictures[room]
-		if check, ok := checks[room]; ok && check.ID == p.hash {
-			continue
-		}
-		var data []byte
-		if p.url != "" {
-			if data, err = downloadPicture(ctx, p.url); err != nil {
-				return fmt.Errorf("slack: download the picture of %s: %w", room, err)
-			}
-		}
-		if err := a.cache.SetPicture(ctx, room, p.hash, data, time.Now()); err != nil {
-			return fmt.Errorf("slack: keep the picture of %s: %w", room, err)
-		}
-		changed = true
-	}
-	return nil
+	s := w.sweeper
+	w.mu.Unlock()
+	s.Later(ctx, pictureWants(pics))
 }
 
 // downloadPicture fetches an avatar from Slack's CDN, which serves it to anyone.

@@ -269,6 +269,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/pictures"
             - "github.com/EugeneShtoka/kith/internal/readstate"
             - "github.com/EugeneShtoka/kith/internal/emoji"
             - "github.com/EugeneShtoka/kith/internal/richtext"

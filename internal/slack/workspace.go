@@ -13,6 +13,7 @@ import (
 	slackgo "github.com/slack-go/slack"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
 // listPage is the users.conversations page size (Slack's maximum).
@@ -51,11 +52,9 @@ type workspace struct {
 	general string
 	// phones is each user's number, where their profile has it in international form.
 	phones map[string]string
-	// pictures is each known user's picture; sweeping marks a sweep of them running, and
-	// pictureWant the latest listing's, for it to sweep next (picturesLater).
-	pictures    map[string]picture
-	sweeping    bool
-	pictureWant map[domain.RoomID]picture
+	// pictures is each known user's picture; sweeper keeps the DMs' (picturesLater).
+	pictures map[string]picture
+	sweeper  *pictures.Sweeper
 }
 
 func newWorkspace(account Account, creds Credentials, teamName string, client *slackgo.Client, signIn int) *workspace {

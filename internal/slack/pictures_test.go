@@ -14,6 +14,7 @@ import (
 	slackgo "github.com/slack-go/slack"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
 // A DM shows its person's own picture: downloaded when its hash is new, not again
@@ -72,7 +73,7 @@ func TestADMShowsItsPersonsPicture(t *testing.T) {
 	w.knowUser(person("U7", "h7", true))
 	w.knowUser(person("U8", "h8", false)) // Slack's default
 	w.knowUser(person("U9", "h9", true))
-	if err := a.sweepPictures(ctx, w.dmPictures(convs)); err != nil {
+	if err := sweep(ctx, cache, w.dmPictures(convs)); err != nil {
 		t.Fatal(err)
 	}
 	want := map[domain.RoomID]string{"slack:T1/C1": "=", "slack:T1/D7": "h7=avatar /h7", "slack:T1/D8": "=", "slack:T1/D9": "h9=avatar /h9"}
@@ -87,7 +88,7 @@ func TestADMShowsItsPersonsPicture(t *testing.T) {
 	mu.Unlock()
 	w.knowUser(person("U8", "h8b", true))
 	w.knowUser(person("U9", "gone", true))
-	if err := a.sweepPictures(ctx, w.dmPictures(convs)); err == nil {
+	if err := sweep(ctx, cache, w.dmPictures(convs)); err == nil {
 		t.Fatal("a sweep whose download failed succeeded")
 	}
 	want["slack:T1/D8"] = "h8b=avatar /h8b"
@@ -99,4 +100,10 @@ func TestADMShowsItsPersonsPicture(t *testing.T) {
 	if !slices.Equal(fetched, []string{"/h8b", "/gone"}) {
 		t.Errorf("the second sweep fetched %v, want only the changed pictures", fetched)
 	}
+}
+
+// sweep keeps pics as the workspace's sweeper would, synchronously.
+func sweep(ctx context.Context, cache pictures.Store, pics map[domain.RoomID]picture) error {
+	_, err := pictures.Sweep(ctx, cache, pictureWants(pics), time.Now())
+	return err
 }
