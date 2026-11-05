@@ -15,7 +15,8 @@ import (
 
 // A DM's picture is its person's, kept by the hash of it their profile names: after each
 // listing, the workspace's sweeper (internal/pictures) downloads the DMs' whose person's
-// picture changed. Channels and group DMs have none.
+// picture changed. Channels and group DMs have none. Each person a message names has
+// theirs kept the same way, as theirs.
 
 // pictureBytes bounds a picture's download; Slack's 72 px avatars are a few KB.
 const pictureBytes = 1 << 20
@@ -46,9 +47,20 @@ func (w *workspace) dmPictures(conversations []slackgo.Channel) map[domain.RoomI
 	return out
 }
 
-// pictureWants is what the sweeper is to keep of the DMs' pictures.
-func pictureWants(pics map[domain.RoomID]picture) map[domain.RoomID]pictures.Want {
-	wants := make(map[domain.RoomID]pictures.Want, len(pics))
+// peoplePictures is the picture of each user w has seen, by their person ID; w.mu is held.
+func (w *workspace) peoplePictures() map[string]picture {
+	out := map[string]picture{}
+	for u := range w.seen {
+		if p, ok := w.pictures[u]; ok {
+			out[personID(w.creds.Team, u)] = p
+		}
+	}
+	return out
+}
+
+// pictureWants is what a sweeper is to keep of pictures, a DM's or a person's.
+func pictureWants[K ~string](pics map[K]picture) map[K]pictures.Want {
+	wants := make(map[K]pictures.Want, len(pics))
 	for room, p := range pics {
 		wants[room] = pictures.Want{Version: p.hash, Fetch: func(ctx context.Context) ([]byte, error) {
 			data, err := downloadPicture(ctx, p.url)
@@ -61,32 +73,69 @@ func pictureWants(pics map[domain.RoomID]picture) map[domain.RoomID]pictures.Wan
 	return wants
 }
 
-// picturesLater has w's sweeper keep the pictures a listing named, off the listing.
+// picturesLater has w's sweepers keep the pictures a listing named, off the listing:
+// its DMs', and those of the people seen.
 func (a *Adapter) picturesLater(w *workspace, pics map[domain.RoomID]picture) {
 	if a.cache == nil {
 		return
 	}
-	a.mu.Lock()
-	ctx := a.run
-	a.mu.Unlock()
-	if ctx == nil {
-		ctx = context.Background()
+	w.mu.Lock()
+	a.sweepers(w)
+	rooms, faces, seen := w.sweeper, w.faces, w.peoplePictures()
+	w.mu.Unlock()
+	rooms.Later(a.runCtx(), pictureWants(pics))
+	faces.Later(a.runCtx(), pictureWants(seen))
+}
+
+// seePeople has w's faces sweeper keep the pictures of users, named by messages,
+// once any of them is new to w this run.
+func (a *Adapter) seePeople(w *workspace, users []string) {
+	if a.cache == nil {
+		return
 	}
 	w.mu.Lock()
-	if w.sweeper == nil {
-		w.sweeper = &pictures.Sweeper[domain.RoomID]{
-			Store: a.cache,
-			Changed: func() {
-				if a.onRoomsChanged != nil {
-					a.onRoomsChanged()
-				}
-			},
-			Failed: func(err error) { a.log.Debug("download pictures stopped", "account", w.account.Name, "err", err) },
+	news := false
+	for _, u := range users {
+		if !w.seen[u] {
+			if w.seen == nil {
+				w.seen = map[string]bool{}
+			}
+			w.seen[u], news = true, true
 		}
 	}
-	s := w.sweeper
+	if !news {
+		w.mu.Unlock()
+		return
+	}
+	a.sweepers(w)
+	faces, seen := w.faces, w.peoplePictures()
 	w.mu.Unlock()
-	s.Later(ctx, pictureWants(pics))
+	faces.Later(a.runCtx(), pictureWants(seen))
+}
+
+// sweepers makes w's picture sweepers on first use; w.mu is held.
+func (a *Adapter) sweepers(w *workspace) {
+	if w.sweeper != nil {
+		return
+	}
+	changed := func() {
+		if a.onRoomsChanged != nil {
+			a.onRoomsChanged()
+		}
+	}
+	failed := func(err error) { a.log.Debug("download pictures stopped", "account", w.account.Name, "err", err) }
+	w.sweeper = &pictures.Sweeper[domain.RoomID]{Store: a.cache, Changed: changed, Failed: failed}
+	w.faces = &pictures.Sweeper[string]{Store: a.cache.PersonPictures(), Changed: changed, Failed: failed}
+}
+
+// runCtx is the context the adapter's background work runs under.
+func (a *Adapter) runCtx() context.Context {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.run == nil {
+		return context.Background()
+	}
+	return a.run
 }
 
 // downloadPicture fetches an avatar from Slack's CDN, which serves it to anyone.

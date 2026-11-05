@@ -107,3 +107,46 @@ func sweep(ctx context.Context, cache pictures.Store[domain.RoomID], pics map[do
 	_, err := pictures.Sweep(ctx, cache, pictureWants(pics), time.Now())
 	return err
 }
+
+// The people messages name have their own pictures kept, once any of them is new: a
+// custom one downloaded, Slack's default kept as none, and someone not yet known left
+// for when they are. Someone known but named by no message (the directory's) is not.
+func TestThePeopleMessagesNameHaveTheirPicturesKept(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("avatar " + r.URL.Path))
+	}))
+	t.Cleanup(cdn.Close)
+	work := Account{Name: "work", Workspace: "acme"}
+	a, cache := cached(t, work)
+	changed := make(chan struct{}, 4)
+	a.OnRoomsChanged(func() { changed <- struct{}{} })
+	w := newWorkspace(work, Credentials{Team: "T1", User: "U1"}, "", nil, 0)
+	person := func(id, hash string, custom bool) *slackgo.User {
+		u := &slackgo.User{ID: id, Name: id}
+		u.Profile.IsCustomImage, u.Profile.AvatarHash, u.Profile.Image72 = custom, hash, cdn.URL+"/"+hash
+		return u
+	}
+	w.knowUser(person("U7", "h7", true))
+	w.knowUser(person("U8", "h8", false)) // Slack's default
+	w.knowUser(person("U5", "h5", true))  // the directory's
+	a.seePeople(w, []string{"U7", "U8", "U9"})
+	select {
+	case <-changed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no change was heard")
+	}
+	checks, err := cache.PersonPictures().PictureChecks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for p, c := range checks {
+		got[p] = c.ID
+	}
+	want := map[string]string{personID("T1", "U7"): "h7", personID("T1", "U8"): ""}
+	if !maps.Equal(got, want) {
+		t.Fatalf("people's pictures = %v, want %v", got, want)
+	}
+}
