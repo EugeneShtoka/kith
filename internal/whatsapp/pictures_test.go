@@ -85,7 +85,32 @@ func TestAnAskThatCannotReachWhatsAppFails(t *testing.T) {
 	t.Parallel()
 	_, _, store := offline(t, Account{Name: "home", Digits: ownDigits})
 	client := linkedClient(t, store, ownDigits)
-	if _, _, err := askPicture(client, waRoom, pictureEvery).Ask(context.Background(), "p1"); err == nil {
+	if _, _, err := askPicture(client, string(waRoom), pictureEvery).Ask(context.Background(), "p1"); err == nil {
 		t.Fatal("an ask with no connection succeeded")
+	}
+}
+
+// A person's picture removed is kept as none as theirs too, and the rooms are said to
+// have changed.
+func TestAPersonsRemovedPictureIsKeptAsNone(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	a, cache, _ := offline(t, Account{Name: "home", Digits: ownDigits})
+	them := domain.NativePerson(domain.ProtocolWhatsApp, "15550101@s.whatsapp.net")
+	if err := cache.PersonPictures().SetPicture(ctx, them, "p1", []byte("one"), time.UnixMilli(1)); err != nil {
+		t.Fatal(err)
+	}
+	changed := make(chan struct{}, 2)
+	a.OnRoomsChanged(func() { changed <- struct{}{} })
+	jid, _ := types.ParseJID("15550101@s.whatsapp.net")
+	a.onPicture(ctx, Account{Name: "home", Digits: ownDigits}, nil, &events.Picture{JID: jid, Remove: true})
+	select {
+	case <-changed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no change was heard")
+	}
+	checks, err := cache.PersonPictures().PictureChecks(ctx)
+	if err != nil || checks[them].ID != "" || !checks[them].Checked.After(time.UnixMilli(1)) {
+		t.Fatalf("after the removal: checks %+v (%v); want %s kept as none", checks, err, them)
 	}
 }

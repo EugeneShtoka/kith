@@ -17,10 +17,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
-// Pictures are kept in the cache through the account's sweeper (internal/pictures):
-// WhatsApp is asked once per room, again when it tells of a change (events.Picture), and
-// otherwise every pictureEvery, which catches what changed while kith was away and what
-// a change event never reached.
+// Pictures are kept in the cache through the account's sweepers (internal/pictures):
+// WhatsApp is asked once per room, and per person who wrote in one, again when it tells
+// of a change (events.Picture), and otherwise every pictureEvery, which catches what
+// changed while kith was away and what a change event never reached.
 
 // pictureEvery is how long a kept picture, or a room's having none, is trusted.
 const pictureEvery = 7 * 24 * time.Hour
@@ -77,9 +77,11 @@ func pictureRooms(rooms []domain.Room) []domain.RoomID {
 }
 
 // picturesLater asks for an account's due pictures off the event goroutine, through
-// its sweeper (one sweep at a time). changed overrides what is asked of some rooms: a
-// change WhatsApp told of. A chat that appears between listings waits for the next one.
-func (a *Adapter) picturesLater(account Account, client *whatsmeow.Client, changed map[domain.RoomID]pictures.Want) {
+// its sweepers (one sweep at a time each): its rooms', and those of the people who
+// wrote in them. changed and changedPeople override what is asked of some: a change
+// WhatsApp told of. A chat or a person that appears between listings waits for the
+// next one.
+func (a *Adapter) picturesLater(account Account, client *whatsmeow.Client, changed map[domain.RoomID]pictures.Want, changedPeople map[string]pictures.Want) {
 	if a.cache == nil {
 		return
 	}
@@ -90,27 +92,53 @@ func (a *Adapter) picturesLater(account Account, client *whatsmeow.Client, chang
 		return
 	}
 	wants := map[domain.RoomID]pictures.Want{}
+	ids := make([]domain.RoomID, 0, len(rooms))
 	for _, room := range pictureRooms(rooms) {
-		wants[room] = askPicture(client, room, pictureEvery)
+		wants[room] = askPicture(client, string(room), pictureEvery)
+	}
+	for i := range rooms {
+		ids = append(ids, rooms[i].ID)
 	}
 	maps.Copy(wants, changed)
-	a.sweeper(account).Later(ctx, wants)
+	s := a.sweeper(account)
+	s.rooms.Later(ctx, wants)
+
+	senders, err := a.cache.Senders(ctx, domain.TheseRooms(ids))
+	if err != nil {
+		a.log.Warn("read the people to ask pictures of failed", "account", account.Name, "err", err)
+		return
+	}
+	people := map[string]pictures.Want{}
+	for _, p := range senders {
+		if jid, err := types.ParseJID(domain.ParseID(p).Native); err == nil && askable(jid) {
+			people[p] = askPicture(client, p, pictureEvery)
+		}
+	}
+	maps.Copy(people, changedPeople)
+	s.people.Later(ctx, people)
 }
 
-// sweeper is account's picture sweeper, made on first use.
-func (a *Adapter) sweeper(account Account) *pictures.Sweeper[domain.RoomID] {
+// sweepers are an account's picture sweepers: its rooms', and its people's.
+type sweepers struct {
+	rooms  pictures.Sweeper[domain.RoomID]
+	people pictures.Sweeper[string]
+}
+
+// sweeper is account's picture sweepers, made on first use.
+func (a *Adapter) sweeper(account Account) *sweepers {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	s := a.sweepers[account.Digits]
 	if s == nil {
-		s = &pictures.Sweeper[domain.RoomID]{
-			Store: a.cache,
-			Changed: func() {
-				if a.onRoomsChanged != nil {
-					a.onRoomsChanged()
-				}
-			},
-			Failed: func(err error) { a.log.Debug("ask for pictures stopped", "account", account.Name, "err", err) },
+		changed := func() {
+			if a.onRoomsChanged != nil {
+				a.onRoomsChanged()
+			}
+		}
+		failed := func(err error) { a.log.Debug("ask for pictures stopped", "account", account.Name, "err", err) }
+		s = &sweepers{
+			rooms:  pictures.Sweeper[domain.RoomID]{Store: a.cache, Changed: changed, Failed: failed},
+			people: pictures.Sweeper[string]{Store: a.cache.PersonPictures(), Changed: changed, Failed: failed},
 		}
 		a.sweepers[account.Digits] = s
 	}
@@ -124,27 +152,33 @@ func (a *Adapter) pictureChanged(account Account, client *whatsmeow.Client, evt 
 	}
 }
 
-// onPicture has the sweeper keep the picture WhatsApp says a chat changed to: asked at
-// once, or none when it was removed.
+// onPicture has the sweepers keep the picture WhatsApp says a chat changed to, a
+// person's also as theirs: asked at once, or none when it was removed.
 func (a *Adapter) onPicture(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Picture) {
 	chat := e.JID.ToNonAD()
+	var people map[string]pictures.Want
 	if chat.Server != types.GroupServer {
 		chat = person(ctx, chat, types.EmptyJID, a.lookupFor(account)) // a direct chat by its person
+		people = map[string]pictures.Want{}
 	}
 	room := roomID(account.Digits, chat)
-	want := askPicture(client, room, 0)
+	want := askPicture(client, string(room), 0)
 	if e.Remove {
 		want = pictures.Want{}
 	}
-	a.picturesLater(account, client, map[domain.RoomID]pictures.Want{room: want})
+	if people != nil {
+		people[domain.NativePerson(domain.ProtocolWhatsApp, chat.String())] = want
+	}
+	a.picturesLater(account, client, map[domain.RoomID]pictures.Want{room: want}, people)
 }
 
-// askPicture is room's picture as asking WhatsApp tells it, every every (0: each sweep).
-func askPicture(client *whatsmeow.Client, room domain.RoomID, every time.Duration) pictures.Want {
+// askPicture is the picture of id, a room's or a person's, as asking WhatsApp tells it,
+// every every (0: each sweep).
+func askPicture(client *whatsmeow.Client, id string, every time.Duration) pictures.Want {
 	return pictures.Want{Every: every, Ask: func(ctx context.Context, kept string) (string, []byte, error) {
-		jid, err := types.ParseJID(domain.ParseID(string(room)).Native)
+		jid, err := types.ParseJID(domain.ParseID(id).Native)
 		if err != nil {
-			return "", nil, fmt.Errorf("whatsapp: %s names no chat: %w", room, err)
+			return "", nil, fmt.Errorf("whatsapp: %s names no chat: %w", id, err)
 		}
 		info, err := client.GetProfilePictureInfo(ctx, jid, &whatsmeow.GetProfilePictureParams{Preview: true, ExistingID: kept})
 		switch answerOf(kept, info, err) {
@@ -160,7 +194,7 @@ func askPicture(client *whatsmeow.Client, room domain.RoomID, every time.Duratio
 		if err == nil {
 			err = errors.New("an answer without a picture")
 		}
-		return "", nil, fmt.Errorf("whatsapp: ask for the picture of %s: %w", room, err)
+		return "", nil, fmt.Errorf("whatsapp: ask for the picture of %s: %w", id, err)
 	}}
 }
 
