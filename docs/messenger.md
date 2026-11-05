@@ -15,7 +15,7 @@ stops loading; an encrypted chat's are opened with the chat's keys. Attaching a 
 sends it with what you typed: a picture or a video with it as its caption, audio as a
 voice message, anything else as a file. A thread shows its picture in the desktop
 window: a one-to-one thread its person's, a group its own; each is downloaded once,
-and again when it changes. Instagram has [its own page](instagram.md).
+and again when it changes. Each message shows its sender's, kept the same way. Instagram has [its own page](instagram.md).
 
 **End-to-end encrypted chats** (Messenger encrypts one-to-one chats by default since
 late 2023) are read the way Messenger's own apps read them: kith registers itself
