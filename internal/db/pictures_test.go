@@ -182,7 +182,7 @@ func TestPictureChecksSayWhenEachRoomWasAsked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[domain.RoomID]PictureCheck{
+	want := map[domain.RoomID]domain.PictureCheck{
 		lidRoom:    {ID: "p1", Checked: time.UnixMilli(30)},
 		numberRoom: {ID: "", Checked: time.UnixMilli(20)},
 	}

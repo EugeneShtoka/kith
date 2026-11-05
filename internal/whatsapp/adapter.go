@@ -17,6 +17,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
@@ -93,10 +94,8 @@ type Adapter struct {
 	// a listing waiting for listingEvery to pass (see refreshLater).
 	listedAt map[string]time.Time
 	trailing map[string]bool
-	// sweeping marks accounts whose due pictures are being asked for (picturesLater);
-	// asking orders every picture's ask with its keeping (askPicture).
-	sweeping map[string]bool
-	asking   sync.Mutex
+	// sweepers keep each account's pictures (picturesLater).
+	sweepers map[string]*pictures.Sweeper
 	// renames renames direct chats when contact names arrive.
 	renames renamer
 	// keepDeleted is [display.deleted] keep.
@@ -133,7 +132,7 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 		channels:  map[domain.RoomID]channel{},
 		listedAt:  map[string]time.Time{},
 		trailing:  map[string]bool{},
-		sweeping:  map[string]bool{},
+		sweepers:  map[string]*pictures.Sweeper{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),
@@ -400,7 +399,7 @@ func (a *Adapter) refreshAccount(ctx context.Context, account Account, client *w
 	a.listedAt[account.Digits] = time.Now()
 	a.mu.Unlock()
 	a.fetchChannelHistory(ctx, account, client, channelList)
-	a.picturesLater(account, client)
+	a.picturesLater(account, client, nil)
 	// The listing has no direct chats; the cache kept them.
 	return a.accountRooms(ctx, account, func(domain.RoomID) bool { return true })
 }

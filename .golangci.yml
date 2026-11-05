@@ -222,6 +222,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/expiry"
+            - "github.com/EugeneShtoka/kith/internal/pictures"
             - "github.com/EugeneShtoka/kith/internal/readstate"
             - "github.com/EugeneShtoka/kith/internal/sealeddb"
             - "github.com/EugeneShtoka/kith/internal/richtext"
@@ -364,6 +365,15 @@ linters:
             - "github.com/rs/zerolog"
             - "go.mau.fi/mautrix-linkedin/pkg/linkedingo"
             - "go.mau.fi/util/jsontime"
+
+        # Chat pictures kept current, shared by the networks: domain types only.
+        pictures-is-a-leaf:
+          files:
+            - "**/internal/pictures/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/domain"
 
         # Local-first reading, shared by the networks: domain types only.
         readstate-is-a-leaf:
