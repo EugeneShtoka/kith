@@ -206,6 +206,11 @@ cursor starts on the first place: `nav.down` and `nav.up` move it, `picker.toggl
 (`space`) ticks the place under it, `picker.accept` (`enter`, `tab`) applies, and
 `picker.close` (`esc`) closes.
 
+Your `[[keys.tag]]` chords (`!` into Spam, an archive tag) file the room under the
+cursor into their tag, or out of it if it is in, as the terminal's room list does; `?`
+lists them too. In the timeline the terminal marks the message's sender with them; the
+window does not yet.
+
 A thread open beside the room has a cursor of its own, moved and acted on by the same
 keys. `t` and `T` take the focus into the thread they open; `nav.back` in it closes it,
 back to the room's messages. A thread starts on none of its replies.

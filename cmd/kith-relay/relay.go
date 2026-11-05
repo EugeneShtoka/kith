@@ -478,9 +478,24 @@ func resolved(dev config.Device) *devicev1.DeviceSettings {
 		FilingSpaces:        dev.Display.FilingSpaces,
 		Keys:                keySequences(dev.Keys),
 		Jumps:               jumps(dev.Keys.Jump),
+		TagKeys:             tagKeys(dev.Keys.Tag),
 		AudioSpeed:          dev.Display.Media.Audio.PlaySpeed(),
 		AudioSkip:           int64(dev.Display.Media.Audio.SkipStep() / time.Second),
 	}
+}
+
+// tagKeys are ts as the window reads them: each chord one sequence of keys kith names,
+// to a tag named; the TUI reports the others.
+func tagKeys(ts config.TagKeys) []*devicev1.TagKey {
+	var out []*devicev1.TagKey
+	for _, t := range ts {
+		seqs := config.SplitKeys(t.Chord)
+		if len(seqs) != 1 || !config.SequenceValid(seqs[0]) || strings.TrimSpace(t.Tag) == "" {
+			continue
+		}
+		out = append(out, &devicev1.TagKey{Sequence: seqs[0], Tag: strings.TrimSpace(t.Tag)})
+	}
+	return out
 }
 
 // jumps are js as the window reads them: each chord one sequence of keys kith names, to
