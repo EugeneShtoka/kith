@@ -22,12 +22,18 @@ import {
   type StatusResponse,
 } from "../gen/backend/v1/services_pb";
 import type { Member, Message, Reaction, Room, SearchHit, Unread } from "../gen/backend/v1/types_pb";
-import { type DeviceSettings, DeviceService, type Jump, type ThemeResponse } from "../gen/device/v1/device_pb";
+import {
+  type DeviceSettings,
+  DeviceService,
+  type Jump,
+  type TagKey,
+  type ThemeResponse,
+} from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
 import { later, listed, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unscheduled, type Unsent } from "./compose";
 import { type Kept, keptFrom, keptText } from "./drafts";
-import { asked as filingAsked, type Filing, offered, opened, toggled, told } from "./filing";
+import { asked as filingAsked, type Filing, offered, opened, retagged, toggled, told } from "./filing";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { Devices, type DevicesCalls, type DevicesView, noDevices } from "./devices";
 import { call, subscribe } from "./kith";
@@ -140,6 +146,8 @@ export interface View {
   keys: Readonly<Record<string, readonly string[]>>;
   /** The device's [[keys.jump]]: each chord, and the room or rail row it goes to. */
   jumps: readonly Jump[];
+  /** [[keys.tag]]: chords that file the room under the cursor into a tag, or out of it. */
+  tagKeys: readonly TagKey[];
   /** [display.media.audio]: the speed a voice note starts at, and the seconds a skip moves. */
   audio: { speed: number; skip: number };
   /** The open room's composer. */
@@ -333,6 +341,7 @@ const nothingShown = {
   unreadLine: true,
   keys: {},
   jumps: [],
+  tagKeys: [],
   audio: { speed: 1, skip: 10 },
   composer: undefined,
   slots: new Map(),
@@ -790,6 +799,7 @@ export class Session {
           this.set({
             keys: Object.fromEntries(Object.entries(settings.keys).map(([path, k]) => [path, k.sequences])),
             jumps: settings.jumps,
+            tagKeys: settings.tagKeys,
             audio: { speed: settings.audioSpeed, skip: Number(settings.audioSkip) },
           });
         }
@@ -2163,6 +2173,42 @@ export class Session {
           const f = this.view.filing;
           if (shown() && f !== undefined) {
             this.set({ filing: { ...f, note: errorText(err) } });
+          }
+        },
+      );
+  }
+
+  /**
+   * tagRoom is a [[keys.tag]] chord on room, as the TUI's room list takes it: room goes
+   * into tag, or out of it if it is in. kithd says where the room is (FilingPlaces) and
+   * files the one change (FileRoom); the line under the rooms says what came of it.
+   */
+  tagRoom(room: string, tag: string): void {
+    const run = this.run;
+    if (run === undefined || !this.holds(run, room)) {
+      return;
+    }
+    const name = run.joined.find((r) => r.id === room)?.name || room;
+    relay
+      .read()
+      .then(({ settings }) => call(backend.filingPlaces, { roomId: room, filingSpaces: settings.filingSpaces }))
+      .then((r) => {
+        const f = retagged(offered(opened(room, name), r.places, false), tag);
+        if (f === undefined) {
+          return `no tag is called “${tag}”: see [keys.tag]`;
+        }
+        const ask = filingAsked(f);
+        return call(backend.fileRoom, { roomId: room, tags: ask.tags, spaces: [] }).then((resp) => told(f, ask, resp));
+      })
+      .then(
+        (line) => {
+          if (this.live(run)) {
+            this.set({ filingNote: line });
+          }
+        },
+        (err: unknown) => {
+          if (this.live(run)) {
+            this.set({ filingNote: `${name} was not filed: ${errorText(err)}` });
           }
         },
       );

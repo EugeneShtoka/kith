@@ -1842,6 +1842,25 @@ describe("filing a room", () => {
     expect(view().filingNote).toBe("Alpha is in Later · taken out of Job");
   });
 
+  // A [[keys.tag]] chord: the tag it names, matched as kith matches a tag's name, flips for
+  // the room, in when out and out when in; a name no place has files nothing and says so.
+  it("files the room into a chord's tag, or out of it, and only that tag", async () => {
+    await started();
+    session.tagRoom("!a", " later ");
+    await settled();
+    session.tagRoom("!a", "Pinned");
+    await settled();
+    expect(kithd.filed).toEqual(["!a Later+:Home", "!a Pinned-:Home"]);
+    expect(view().filingNote).toBe("Alpha is out of Pinned");
+    session.tagRoom("!a", "Spam");
+    await settled();
+    expect(kithd.filed).toHaveLength(2);
+    expect(view().filingNote).toBe("no tag is called “Spam”: see [keys.tag]");
+    session.tagRoom("!w", "Later"); // Work's
+    await settled();
+    expect(kithd.filed).toHaveLength(2);
+  });
+
   it("asks kithd nothing when no tick changed, and nothing for a room the profile does not hold", async () => {
     await started();
     session.openFiling("!w"); // Work's

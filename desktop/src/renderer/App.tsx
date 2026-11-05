@@ -292,18 +292,23 @@ function Seated({ view, session }: { view: View; session: Session }) {
   const here = `${view.open}\u0000${String(view.row)}`;
   const [unfoldedAt, setUnfoldedAt] = useState<string | undefined>(undefined);
   const unfolded = unfoldedAt === here;
-  // [[keys.jump]] bound as jump.<i>, after the window's own actions.
+  // [[keys.jump]] bound as jump.<i> and [[keys.tag]] as tag.<i>, after the window's own actions.
   const keys = useMemo(
-    () => ({ ...view.keys, ...Object.fromEntries(view.jumps.map((j, i) => [`jump.${String(i)}`, [j.sequence]])) }),
-    [view.keys, view.jumps],
+    () => ({
+      ...view.keys,
+      ...Object.fromEntries(view.jumps.map((j, i) => [`jump.${String(i)}`, [j.sequence]])),
+      ...Object.fromEntries(view.tagKeys.map((t, i) => [`tag.${String(i)}`, [t.sequence]])),
+    }),
+    [view.keys, view.jumps, view.tagKeys],
   );
   const keymap = useMemo(
     () =>
       new Keymap(keys, [
         ...seatedActions,
         ...view.jumps.map((_, i) => ({ path: `jump.${String(i)}`, anywhere: false })),
+        ...view.tagKeys.map((_, i) => ({ path: `tag.${String(i)}`, anywhere: false })),
       ]),
-    [keys, view.jumps],
+    [keys, view.jumps, view.tagKeys],
   );
   const [pending, setPending] = useState("");
   const timeline = useRef<TimelineNav>(null);
@@ -408,6 +413,12 @@ function Seated({ view, session }: { view: View; session: Session }) {
       }
       if (path === "rooms.spaces") {
         session.openFiling(room.id);
+      } else if (path.startsWith("tag.")) {
+        const t = view.tagKeys[Number(path.slice("tag.".length))];
+        if (t === undefined) {
+          return false;
+        }
+        session.tagRoom(room.id, t.tag);
       } else if (room.isDirect) {
         session.openPerson({ roomId: room.id }, "");
       } else {
@@ -514,11 +525,13 @@ function Seated({ view, session }: { view: View; session: Session }) {
             ((count) =>
               path.startsWith("jump.")
                 ? goTo(Number(path.slice("jump.".length)))
-                : path.startsWith("player.")
-                  ? player(path)
-                  : path.startsWith("timeline.")
-                    ? message(path, count)
-                    : nav(path, count))
+                : path.startsWith("tag.")
+                  ? onRoom(path)
+                  : path.startsWith("player.")
+                    ? player(path)
+                    : path.startsWith("timeline.")
+                      ? message(path, count)
+                      : nav(path, count))
           )(keymap.count) !== false,
       );
       if (done || keymap.pending !== "") {
@@ -536,7 +549,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
       document.removeEventListener("play", played, true);
       document.removeEventListener("ended", ended, true);
     };
-  }, [session, keymap, view.thread, view.rooms, view.jumps, view.joined, view.rail, view.audio]);
+  }, [session, keymap, view.thread, view.rooms, view.jumps, view.tagKeys, view.joined, view.rail, view.audio]);
   const columns = ["columns"];
   if (view.thread && view.timeline) {
     columns.push("with-thread");
@@ -653,6 +666,10 @@ function Seated({ view, session }: { view: View; session: Session }) {
                 paths: [`jump.${String(i)}`],
                 what: j.room === "" ? j.place : (view.joined.find((r) => r.id === j.room)?.name ?? j.room),
               })),
+            },
+            {
+              title: "File the room into a tag, or out (your [[keys.tag]])",
+              rows: view.tagKeys.map((t, i) => ({ paths: [`tag.${String(i)}`], what: t.tag })),
             },
           ]}
           close={() => {

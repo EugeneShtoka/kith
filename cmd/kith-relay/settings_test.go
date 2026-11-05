@@ -195,6 +195,41 @@ target = "room:Standup"
 	}
 }
 
+// The window reads [[keys.tag]] as the TUI binds them: each chord one sequence, to the
+// tag it names, and a chord it cannot read or a binding with no tag left out.
+func TestDeviceSettingsCarryTheTagKeys(t *testing.T) {
+	t.Parallel()
+	path, _ := relayConfig(t, t.TempDir())
+	device := deviceClient(relayFor(t, kithdSocket(t), path))
+	handWrite(t, path, `[[keys.tag]]
+chord = "!"
+tag = "Spam"
+
+[[keys.tag]]
+chord = "g a"
+tag = " Archive "
+
+[[keys.tag]]
+chord = "g bogus"
+tag = "Later"
+
+[[keys.tag]]
+chord = "g n"
+tag = ""
+`)
+	resp, err := device.DeviceSettings(t.Context(), connect.NewRequest(&devicev1.DeviceSettingsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, k := range resp.Msg.GetSettings().GetTagKeys() {
+		got = append(got, k.GetSequence()+"→"+k.GetTag())
+	}
+	if want := []string{"!→Spam", "g a→Archive"}; !slices.Equal(got, want) {
+		t.Errorf("tag keys = %q, want %q", got, want)
+	}
+}
+
 // The window plays a voice note as the TUI does: at [display.media.audio] speed, skipping by its skip,
 // each its default where unset.
 func TestDeviceSettingsCarryThePlayer(t *testing.T) {

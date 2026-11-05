@@ -99,6 +99,17 @@ export function filingKey(p: Press, keys: Keys, at: number, count: number): Fili
   return bound(keys, "picker.accept", p) ? "apply" : undefined;
 }
 
+/**
+ * retagged is f with the tag named tag ticked otherwise than it holds the room: a
+ * [[keys.tag]] chord's one change. The name matches as kith matches a tag's, case and
+ * edge spaces aside; undefined when f offers no tag by that name.
+ */
+export function retagged(f: Filing, tag: string): Filing | undefined {
+  const name = tag.trim().toLowerCase();
+  const p = f.places?.find((p) => p.tag.toLowerCase() === name);
+  return p === undefined ? undefined : toggled(f, p.key);
+}
+
 /** Asked is what a filing asks of kithd: the places whose tick differs from what they hold. */
 export interface Asked {
   tags: TagAsked[];

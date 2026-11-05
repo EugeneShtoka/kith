@@ -398,6 +398,10 @@ message DeviceSettings {
   // room's places.
   double audio_speed = 28;
   int64 audio_skip = 29;
+  // [[keys.tag]]: each chord as one sequence (as keys has them) and the tag it files a
+  // room into or out of, in the order the config lists them; a chord with an unknown key
+  // name, or no tag, is left out.
+  repeated TagKey tag_keys = 30;
 }
 
 // KeySequences are one action's keys, in the order [keys] lists them.
@@ -411,6 +415,12 @@ message Jump {
   string sequence = 1;
   string room = 2;
   string place = 3;
+}
+
+// TagKey is one [[keys.tag]]: a chord and the tag it puts a room into, or takes it out of.
+message TagKey {
+  string sequence = 1;
+  string tag = 2;
 }
 
 // ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
