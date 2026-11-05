@@ -123,7 +123,8 @@ func TestAFileIsUploadedThenSent(t *testing.T) {
 }
 
 // A chat's picture is asked of the helper once its account connects: Dana's is kept, a
-// chat whose person has none is kept as none.
+// chat whose person has none is kept as none. Each sender's is kept as theirs the same
+// way, though their chat appeared before their first message was saved.
 func TestAChatsPictureComesThroughTheHelper(t *testing.T) {
 	r := connected(t, msg(dana, dana, 1700000000100, "hi"), msg(ofer, ofer, 1700000000200, "hey"))
 	ctx := context.Background()
@@ -131,13 +132,16 @@ func TestAChatsPictureComesThroughTheHelper(t *testing.T) {
 	for {
 		data, err := r.cache.Picture(ctx, direct(dana))
 		checks, cerr := r.cache.PictureChecks(ctx)
-		if err == nil && cerr == nil && string(data) == "picture of dana" && checks[direct(dana)].ID == "p-dana" {
-			if c, ok := checks[direct(ofer)]; ok && c.ID == "" {
+		people, perr := r.cache.PersonPictures().PictureChecks(ctx)
+		if err == nil && cerr == nil && perr == nil && string(data) == "picture of dana" && checks[direct(dana)].ID == "p-dana" &&
+			people[domain.NativePerson(domain.ProtocolSignal, dana)].ID == "p-dana" {
+			c, ok := checks[direct(ofer)]
+			if p, pok := people[domain.NativePerson(domain.ProtocolSignal, ofer)]; ok && c.ID == "" && pok && p.ID == "" {
 				return
 			}
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("Dana's picture = %q (%v), checks %v (%v)", data, err, checks, cerr)
+			t.Fatalf("Dana's picture = %q (%v), checks %v (%v), people's %v (%v)", data, err, checks, cerr, people, perr)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}

@@ -174,10 +174,15 @@ func (a *Adapter) save(ctx context.Context, room domain.RoomID, msgs ...domain.M
 			return err
 		}
 	}
+	save := a.cache.SaveMessages
 	if a.keepsDeleted() {
-		return a.cache.SaveMessagesWithRevisions(ctx, room, msgs) //nolint:wrapcheck // the caller says what failed
+		save = a.cache.SaveMessagesWithRevisions
 	}
-	return a.cache.SaveMessages(ctx, room, msgs) //nolint:wrapcheck // the caller says what failed
+	if err := save(ctx, room, msgs); err != nil {
+		return err // the caller says what failed
+	}
+	a.seeSenders(room, msgs)
+	return nil
 }
 
 func sentTime(ms uint64) time.Time {
