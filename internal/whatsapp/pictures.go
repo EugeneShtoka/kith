@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"time"
 
@@ -12,13 +13,14 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
-// Pictures are kept in the cache (db.SetPicture): WhatsApp is asked once per room, again
-// when it tells of a change (events.Picture), and otherwise every pictureEvery, which
-// catches what changed while kith was away and what a change event never reached.
+// Pictures are kept in the cache through the account's sweeper (internal/pictures):
+// WhatsApp is asked once per room, again when it tells of a change (events.Picture), and
+// otherwise every pictureEvery, which catches what changed while kith was away and what
+// a change event never reached.
 
 // pictureEvery is how long a kept picture, or a room's having none, is trusted.
 const pictureEvery = 7 * 24 * time.Hour
@@ -63,73 +65,56 @@ func askable(chat types.JID) bool {
 	return false
 }
 
-// picturesDue are the rooms whose picture is due to be asked for at now: never asked,
-// or not within pictureEvery.
-func picturesDue(rooms []domain.Room, checks map[domain.RoomID]db.PictureCheck, now time.Time) []domain.RoomID {
-	var due []domain.RoomID
+// pictureRooms are the rooms WhatsApp keeps a picture for: people and groups.
+func pictureRooms(rooms []domain.Room) []domain.RoomID {
+	var out []domain.RoomID
 	for i := range rooms {
-		id := rooms[i].ID
-		jid, err := types.ParseJID(domain.ParseID(string(id)).Native)
-		if err != nil || !askable(jid) {
-			continue
-		}
-		if check, ok := checks[id]; !ok || now.Sub(check.Checked) >= pictureEvery {
-			due = append(due, id)
+		if jid, err := types.ParseJID(domain.ParseID(string(rooms[i].ID)).Native); err == nil && askable(jid) {
+			out = append(out, rooms[i].ID)
 		}
 	}
-	return due
+	return out
 }
 
-// picturesLater asks for an account's due pictures off the event goroutine, one sweep
-// per account at a time. A chat that appears between listings waits for the next one.
-func (a *Adapter) picturesLater(account Account, client *whatsmeow.Client) {
+// picturesLater asks for an account's due pictures off the event goroutine, through
+// its sweeper (one sweep at a time). changed overrides what is asked of some rooms: a
+// change WhatsApp told of. A chat that appears between listings waits for the next one.
+func (a *Adapter) picturesLater(account Account, client *whatsmeow.Client, changed map[domain.RoomID]pictures.Want) {
 	if a.cache == nil {
 		return
 	}
-	a.mu.Lock()
-	if a.sweeping[account.Digits] {
-		a.mu.Unlock()
-		return
-	}
-	a.sweeping[account.Digits] = true
-	a.mu.Unlock()
-	go func() {
-		defer func() {
-			a.mu.Lock()
-			delete(a.sweeping, account.Digits)
-			a.mu.Unlock()
-		}()
-		if err := a.sweepPictures(a.lifetime(), account, client); err != nil {
-			a.log.Debug("ask for pictures stopped", "account", account.Name, "err", err)
-		}
-	}()
-}
-
-// sweepPictures asks for each of an account's due pictures in turn. It stops at the
-// first ask that fails (offline, refused for asking too fast): the rest stay due.
-func (a *Adapter) sweepPictures(ctx context.Context, account Account, client *whatsmeow.Client) error {
+	ctx := a.lifetime()
 	rooms, err := a.accountRooms(ctx, account, func(domain.RoomID) bool { return true })
 	if err != nil {
-		return err
+		a.log.Warn("read the rooms to ask pictures of failed", "account", account.Name, "err", err)
+		return
 	}
-	checks, err := a.cache.PictureChecks(ctx)
-	if err != nil {
-		return fmt.Errorf("whatsapp: read the pictures asked for: %w", err)
+	wants := map[domain.RoomID]pictures.Want{}
+	for _, room := range pictureRooms(rooms) {
+		wants[room] = askPicture(client, room, pictureEvery)
 	}
-	changed := false
-	defer func() {
-		if changed && a.onRoomsChanged != nil {
-			a.onRoomsChanged()
+	maps.Copy(wants, changed)
+	a.sweeper(account).Later(ctx, wants)
+}
+
+// sweeper is account's picture sweeper, made on first use.
+func (a *Adapter) sweeper(account Account) *pictures.Sweeper {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	s := a.sweepers[account.Digits]
+	if s == nil {
+		s = &pictures.Sweeper{
+			Store: a.cache,
+			Changed: func() {
+				if a.onRoomsChanged != nil {
+					a.onRoomsChanged()
+				}
+			},
+			Failed: func(err error) { a.log.Debug("ask for pictures stopped", "account", account.Name, "err", err) },
 		}
-	}()
-	for _, room := range picturesDue(rooms, checks, time.Now()) {
-		got, err := a.askPicture(ctx, client, room, checks[room].ID)
-		changed = changed || got
-		if err != nil {
-			return err
-		}
+		a.sweepers[account.Digits] = s
 	}
-	return nil
+	return s
 }
 
 // pictureChanged hands a picture's change to onPicture, off the event goroutine.
@@ -139,65 +124,44 @@ func (a *Adapter) pictureChanged(account Account, client *whatsmeow.Client, evt 
 	}
 }
 
-// onPicture keeps the picture WhatsApp says a chat changed to.
+// onPicture has the sweeper keep the picture WhatsApp says a chat changed to: asked at
+// once, or none when it was removed.
 func (a *Adapter) onPicture(ctx context.Context, account Account, client *whatsmeow.Client, e *events.Picture) {
-	if a.cache == nil {
-		return
-	}
 	chat := e.JID.ToNonAD()
 	if chat.Server != types.GroupServer {
 		chat = person(ctx, chat, types.EmptyJID, a.lookupFor(account)) // a direct chat by its person
 	}
 	room := roomID(account.Digits, chat)
-	var changed bool
-	var err error
+	want := askPicture(client, room, 0)
 	if e.Remove {
-		changed, err = true, a.cache.SetPicture(ctx, room, "", nil, time.Now())
-	} else {
-		changed, err = a.askPicture(ctx, client, room, "")
+		want = pictures.Want{}
 	}
-	if err != nil {
-		a.log.Warn("keep a changed picture failed", "room", room, "err", err)
-	}
-	if changed && a.onRoomsChanged != nil {
-		a.onRoomsChanged()
-	}
+	a.picturesLater(account, client, map[domain.RoomID]pictures.Want{room: want})
 }
 
-// askPicture asks WhatsApp for room's picture, known the ID kept ("" none), and keeps
-// the answer; changed is whether the kept picture changed. Asks are one at a time, each
-// kept before the next, so an older answer never overwrites a newer one.
-func (a *Adapter) askPicture(ctx context.Context, client *whatsmeow.Client, room domain.RoomID, known string) (changed bool, err error) {
-	jid, err := types.ParseJID(domain.ParseID(string(room)).Native)
-	if err != nil {
-		return false, fmt.Errorf("whatsapp: %s names no chat: %w", room, err)
-	}
-	a.asking.Lock()
-	defer a.asking.Unlock()
-	info, err := client.GetProfilePictureInfo(ctx, jid, &whatsmeow.GetProfilePictureParams{Preview: true, ExistingID: known})
-	now := time.Now()
-	var kerr error
-	switch answerOf(known, info, err) {
-	case pictureSame:
-		kerr = a.cache.PictureUnchanged(ctx, room, now)
-	case pictureNone:
-		changed, kerr = known != "", a.cache.SetPicture(ctx, room, "", nil, now)
-	case pictureNew:
-		data, derr := downloadPicture(ctx, info.URL)
-		if derr != nil {
-			return false, derr
+// askPicture is room's picture as asking WhatsApp tells it, every every (0: each sweep).
+func askPicture(client *whatsmeow.Client, room domain.RoomID, every time.Duration) pictures.Want {
+	return pictures.Want{Every: every, Ask: func(ctx context.Context, kept string) (string, []byte, error) {
+		jid, err := types.ParseJID(domain.ParseID(string(room)).Native)
+		if err != nil {
+			return "", nil, fmt.Errorf("whatsapp: %s names no chat: %w", room, err)
 		}
-		changed, kerr = true, a.cache.SetPicture(ctx, room, info.ID, data, now)
-	default:
+		info, err := client.GetProfilePictureInfo(ctx, jid, &whatsmeow.GetProfilePictureParams{Preview: true, ExistingID: kept})
+		switch answerOf(kept, info, err) {
+		case pictureSame:
+			return kept, nil, nil
+		case pictureNone:
+			return "", nil, nil
+		case pictureNew:
+			data, derr := downloadPicture(ctx, info.URL)
+			return info.ID, data, derr
+		case pictureFailed:
+		}
 		if err == nil {
 			err = errors.New("an answer without a picture")
 		}
-		return false, fmt.Errorf("whatsapp: ask for the picture of %s: %w", room, err)
-	}
-	if kerr != nil {
-		return false, fmt.Errorf("whatsapp: keep the picture of %s: %w", room, kerr)
-	}
-	return changed, nil
+		return "", nil, fmt.Errorf("whatsapp: ask for the picture of %s: %w", room, err)
+	}}
 }
 
 // downloadPicture fetches a picture WhatsApp named by its URL.

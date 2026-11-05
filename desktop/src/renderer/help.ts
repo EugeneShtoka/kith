@@ -49,7 +49,7 @@ export const helpSections: readonly HelpSection[] = [
       row("Back a pane; from a message, the open thread closes first", "nav.back"),
       row("A screen up or down", "nav.page_up", "nav.page_down"),
       row("Half a screen up or down", "nav.half_page_up", "nav.half_page_down"),
-      row("The first row, or the oldest message loaded", "nav.select_oldest", "nav.scroll_oldest"),
+      row("The first row, or the room's first message", "nav.select_oldest", "nav.scroll_oldest"),
       row("The last row, or the newest message", "nav.select_newest", "nav.scroll_newest"),
     ],
   },
