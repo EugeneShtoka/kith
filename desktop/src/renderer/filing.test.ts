@@ -3,7 +3,8 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { FileRoomResponseSchema, FilingPlaceSchema, SpaceFiledOutcome } from "../gen/backend/v1/services_pb";
-import { asked, offered, opened, toggled, told } from "./filing";
+import { asked, filingKey, offered, opened, toggled, told } from "./filing";
+import type { Press } from "./keymap";
 
 const place = (init: { space?: string; tag?: string; label: string; in?: boolean }) => create(FilingPlaceSchema, init);
 
@@ -92,5 +93,54 @@ describe("the filing picker", () => {
         "refused by Locked (no power) · its network did not archive or unarchive it: telegram: not now",
     );
     expect(told(f, asked(f), create(FileRoomResponseSchema))).toBe("No change.");
+  });
+});
+
+describe("the filing picker's keys", () => {
+  const keys = {
+    "nav.down": ["j", "down"],
+    "nav.up": ["k", "up"],
+    "picker.toggle": ["space"],
+    "picker.accept": ["enter", "tab"],
+    "picker.close": ["esc"],
+  };
+  const press = (key: string): Press => ({
+    key,
+    code: "",
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    metaKey: false,
+  });
+
+  // Every key the picker binds, on the first, a middle and the last of three rows, and off
+  // them on a button: the cursor moves and stays inside, and a button keeps its own keys.
+  it("moves along the rows, ticks, applies and closes, by the TUI's keys", () => {
+    const cases: [string, number, ReturnType<typeof filingKey>][] = [
+      ["j", 0, { to: 1 }],
+      ["ArrowDown", 1, { to: 2 }],
+      ["j", 2, { to: 2 }],
+      ["k", 2, { to: 1 }],
+      ["ArrowUp", 0, { to: 0 }],
+      [" ", 1, "toggle"],
+      ["Enter", 1, "apply"],
+      ["Tab", 0, "apply"],
+      ["Escape", 2, "close"],
+      ["Escape", -1, "close"],
+      ["j", -1, undefined],
+      [" ", -1, undefined],
+      ["Enter", -1, undefined],
+      ["x", 1, undefined],
+    ];
+    for (const [key, at, want] of cases) {
+      expect(filingKey(press(key), keys, at, 3), `${key} on row ${String(at)}`).toEqual(want);
+    }
+  });
+
+  // Rebound in [keys], the picker follows: a tick on t, and space no longer ticks.
+  it("takes the keys as [keys] binds them", () => {
+    const rebound = { ...keys, "picker.toggle": ["t"] };
+    expect(filingKey(press("t"), rebound, 0, 3)).toBe("toggle");
+    expect(filingKey(press(" "), rebound, 0, 3)).toBeUndefined();
   });
 });

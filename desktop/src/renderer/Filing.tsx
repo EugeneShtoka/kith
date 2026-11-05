@@ -1,24 +1,50 @@
 // The filing picker (filing.ts) drawn: the places kithd offers the room, in its order,
 // each ticked where it holds the room. Applying asks kithd to file only what changed.
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
-import type { Filing } from "./filing";
+import { type Filing, filingKey } from "./filing";
+import type { Keys } from "./keymap";
 import type { Session } from "./session";
 
-export function FilingDialog({ filing, session }: { filing: Filing; session: Session }) {
+export function FilingDialog({ filing, keys, session }: { filing: Filing; keys: Keys; session: Session }) {
+  const rows = useRef<HTMLUListElement>(null);
+  const places = filing.places;
+  const offered = places !== undefined && places.length > 0;
+  // The cursor starts on the first place once kithd offers them.
+  useEffect(() => {
+    if (offered) {
+      rows.current?.querySelector("input")?.focus();
+    }
+  }, [offered]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
+      const boxes = [...(rows.current?.querySelectorAll("input") ?? [])];
+      const at = boxes.findIndex((b) => b === document.activeElement);
+      const act = filingKey(e, keys, at, boxes.length);
+      if (act === undefined) {
+        return;
+      }
+      // Taken here, the press is no checkbox's own space and no key of the window behind.
+      e.preventDefault();
+      if (act === "close") {
         session.closeFiling();
+      } else if (act === "apply") {
+        session.applyFiling();
+      } else if (act === "toggle") {
+        const p = places?.[at];
+        if (p !== undefined) {
+          session.tickFiling(p.key);
+        }
+      } else {
+        boxes[act.to]?.focus();
       }
     };
-    window.addEventListener("keydown", key);
+    // Captured: ahead of the window's keys, which would move the room list under the dialog.
+    window.addEventListener("keydown", key, true);
     return () => {
-      window.removeEventListener("keydown", key);
+      window.removeEventListener("keydown", key, true);
     };
-  }, [session]);
-  const places = filing.places;
+  }, [session, keys, places]);
   return (
     <div className="offer-backdrop">
       <section
@@ -38,7 +64,7 @@ export function FilingDialog({ filing, session }: { filing: Filing; session: Ses
           <p className="detail">This profile has no space you made and no tag filed by hand.</p>
         )}
         {places !== undefined && places.length > 0 && (
-          <ul className="offer-rows filing-rows" aria-busy={filing.busy}>
+          <ul ref={rows} className="offer-rows filing-rows" aria-busy={filing.busy}>
             {places.map((p) => (
               <li key={p.key}>
                 <label>

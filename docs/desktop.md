@@ -201,7 +201,10 @@ the first rail row a `space:`, `tag:` or `place:` entry names. `?` lists them af
 window's own keys.
 
 On a room in the list, `rooms.spaces` (`S`) files it into tags and spaces, and
-`rooms.person` (`I`) opens a direct chat's phonebook card.
+`rooms.person` (`I`) opens a direct chat's phonebook card. In the filing picker the
+cursor starts on the first place: `nav.down` and `nav.up` move it, `picker.toggle`
+(`space`) ticks the place under it, `picker.accept` (`enter`, `tab`) applies, and
+`picker.close` (`esc`) closes.
 
 A thread open beside the room has a cursor of its own, moved and acted on by the same
 keys. `t` and `T` take the focus into the thread they open; `nav.back` in it closes it,
