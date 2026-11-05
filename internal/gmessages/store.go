@@ -73,6 +73,7 @@ func (a *Adapter) store(ctx context.Context, c *conn, ch change) {
 	}
 	if len(ch.convs) > 0 || len(gone) > 0 {
 		a.saveRooms(ctx, c, gone, sms)
+		a.picturesLater(c)
 	}
 	counted := map[domain.RoomID]bool{}
 	for _, conversation := range ch.convs {

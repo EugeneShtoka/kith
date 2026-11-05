@@ -23,6 +23,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/logging"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
 // A connection holds libgm's long poll, which reconnects by itself; every request goes
@@ -90,6 +91,8 @@ type conn struct {
 	session *Session
 	saved   string
 	client  *libgm.Client
+	// sweeper keeps the inbox's pictures (picturesLater).
+	sweeper *pictures.Sweeper
 	// me is who you are on this phone, as the inbox last knew: read by Me, which may run
 	// while the inbox is being written (it counts unread for it).
 	me []string
