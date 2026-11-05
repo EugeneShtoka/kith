@@ -145,6 +145,9 @@ func mergeIdentity(display config.Display, alias, mxid, color string) config.Dis
 	found := false
 	for _, ident := range display.Identities {
 		ident.IDs = without(ident.IDs, mxid)
+		if ident.Picture == mxid && ident.Alias != alias {
+			ident.Picture = "" // its picture left with the account
+		}
 		if ident.Alias == alias {
 			found = true
 			ident.IDs = append(ident.IDs, mxid)

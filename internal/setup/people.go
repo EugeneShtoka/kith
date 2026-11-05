@@ -1,6 +1,9 @@
 package setup
 
 import (
+	"fmt"
+	"slices"
+
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -48,4 +51,58 @@ func HiddenInputs(cfg config.Config) (marked, muted []string, groups [][]string,
 		groups[at] = append(groups[at], id.IDs...)
 	}
 	return tags.MutedPeople(), tags.MutedTags(), groups, nil
+}
+
+// identityGroups are the identities' IDs, those sharing an alias as one group as the TUI
+// holds them, each with the picture it names (the first of the group's that names one).
+func identityGroups(ids []config.Identity) (groups [][]string, pictures []string) {
+	byAlias := map[string]int{}
+	for _, id := range ids {
+		at, ok := byAlias[id.Alias]
+		if !ok || id.Alias == "" {
+			at = len(groups)
+			groups, pictures = append(groups, nil), append(pictures, "")
+			byAlias[id.Alias] = at
+		}
+		for _, user := range id.IDs {
+			if !slices.Contains(groups[at], user) {
+				groups[at] = append(groups[at], user)
+			}
+		}
+		if pictures[at] == "" {
+			pictures[at] = id.Picture
+		}
+	}
+	return groups, pictures
+}
+
+// FacesOf is, for each ID a [[display.identity]] names, the IDs whose picture stands for
+// theirs, the first that has one winning: the one its picture names, then their own,
+// then the rest of theirs in the order written.
+func FacesOf(ids []config.Identity) map[string][]string {
+	groups, pictures := identityGroups(ids)
+	out := map[string][]string{}
+	for i, group := range groups {
+		for _, user := range group {
+			var chain []string
+			for _, id := range append([]string{pictures[i], user}, group...) {
+				if id != "" && !slices.Contains(chain, id) {
+					chain = append(chain, id)
+				}
+			}
+			out[user] = chain
+		}
+	}
+	return out
+}
+
+// identityPictures refuses an identity's picture that is none of its people's IDs.
+func identityPictures(ids []config.Identity) error {
+	groups, pictures := identityGroups(ids)
+	for i, p := range pictures {
+		if p != "" && !slices.Contains(groups[i], p) {
+			return fmt.Errorf("display.identity: picture %q is none of its ids", p)
+		}
+	}
+	return nil
 }
