@@ -200,6 +200,17 @@ message ThemeResponse {
   // identities is each person a [[display.identity]] names, by ID: the key a room's
   // color slots remember them by, and the color pinned to them, if any.
   map<string, ThemeIdentity> identities = 7;
+  // themes are the theme files [gui.theme] mode may name, the ones kith ships and this
+  // device's (themes/ beside its config), by name.
+  map<string, ThemeFile> themes = 8;
+}
+
+// ThemeFile is a theme of its own: the mode it starts from and its roles' colors.
+message ThemeFile {
+  string base = 1; // "light" or "dark"
+  // roles is each role's color ("#rrggbb"), by its name as [gui.theme.light] names it;
+  // a role absent is the base's.
+  map<string, string> roles = 2;
 }
 
 // ThemeSource is where a key's value comes from.

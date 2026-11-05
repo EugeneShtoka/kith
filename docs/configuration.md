@@ -457,7 +457,7 @@ is the window's default.
 
 | Key | What |
 | --- | --- |
-| `mode` | `system` (the default) follows the system's light or dark; `light` and `dark` keep to one. |
+| `mode` | `system` (the default) follows the system's light or dark; `light` and `dark` keep to one; any other name is a [theme file](#theme-files)'s, such as `cobalt`. |
 | `faces` | `pictures` (the default) draws people and rooms as their pictures where kith keeps one, else their initials; `initials` draws initials always. |
 | `[gui.theme.light]`, `[gui.theme.dark]` | Each mode's colors, by role: `accent`, `background`, `surface` (the side columns), `text`, `muted` (times, hints), `link`, `selection` (the row you are on), `unread` and `mention`. |
 | `[gui.theme.accounts]` | A network account's color, by its rooms' owner as kith names it (`whatsapp:main/`, or `matrix:<account>/`): its rooms' mark and the open room's network. Unset, its network's `[tui.theme.networks]` color. |
@@ -476,6 +476,30 @@ accent = "#4c8dff"
 [gui.theme.people]
 "matrix:@ada:example.org" = "#d97706"
 ```
+
+### Theme files
+
+A theme is a file, `<name>.toml`, that `mode` names: the mode it starts from (`base`,
+`light` or `dark`) and any of the nine roles' colors. kith ships three: `light` and
+`dark`, the window's own colors (which `system` follows), and `cobalt`, the terminal
+client's `cobalt2` palette. A file of your own goes in the `themes` folder beside your
+`config.toml` (`~/.config/kith/themes/`). One named like a shipped theme takes its place,
+so a `light.toml` there changes the window's light colors. Any other name is a theme of
+its own, listed in **Settings → Theme → Mode** after `system`, `light` and `dark`. The
+`[gui.theme.light]` or `[gui.theme.dark]` colors you pick still go over the theme of
+their base.
+
+```toml
+# ~/.config/kith/themes/dusk.toml
+base = "dark"
+accent = "#ffb86c"
+background = "#1b1d2b"
+text = "#e6e6ef"
+```
+
+A theme file that does not check (a base other than `light` or `dark`, a color that is
+not `#rrggbb`, a key no theme has) is refused, naming the file, and the window keeps
+the theme it had.
 
 When kith writes the file it puts `accounts` and `people` as inline tables under
 `[gui.theme]` (`accounts = { "whatsapp:main/" = "#25d366" }`), which reads the same.

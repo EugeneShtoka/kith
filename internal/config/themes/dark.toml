@@ -1,0 +1,12 @@
+# Dark: the desktop window's built-in dark colors. Copy it into your config dir's
+# themes/ folder (dark.toml) to change them, or under another name for a theme of its own.
+base = "dark"
+accent = "#4c8dff"
+background = "#1e1f22"
+surface = "#232428"
+text = "#ececef"
+muted = "#9ea1a8"
+link = "#82aaff"
+selection = "#283a5c"
+unread = "#4c8dff"
+mention = "#ff5f5f"

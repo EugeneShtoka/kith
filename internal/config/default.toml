@@ -1074,7 +1074,8 @@ listen = []
 # writes these for you.
 #
 #   mode      "system" (the default) follows the system's light or dark; "light" and
-#             "dark" keep to one.
+#             "dark" keep to one; another name is a theme file's (themes/<name>.toml
+#             beside this file; kith ships "cobalt", like the terminal's cobalt2).
 #   faces     "pictures" (the default) draws people and rooms as their pictures where
 #             kith keeps one, else their initials; "initials" draws initials always.
 #   accounts  a network account's color, by its rooms' owner as kith names it

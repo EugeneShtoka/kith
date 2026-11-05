@@ -1,0 +1,13 @@
+# Cobalt: the terminal client's cobalt2 ([tui.theme] preset), for the desktop window.
+# Deep blue, green text, yellow and pink highlights. Copy it into your config dir's
+# themes/ folder under another name to make a theme of your own from it.
+base = "dark"
+accent = "#00aaff"
+background = "#193549"
+surface = "#122738"
+text = "#8ff586"
+muted = "#668799"
+link = "#80fcff"
+selection = "#185294"
+unread = "#ffc600"
+mention = "#ff628c"

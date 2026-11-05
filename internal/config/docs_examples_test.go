@@ -12,7 +12,8 @@ import (
 )
 
 // Every ```toml example in docs/ decodes with no unknown or duplicate keys in one of
-// the two files, config.toml or device.toml, since readers paste them into it.
+// the two files, config.toml or device.toml, or as a theme file, since readers paste
+// them into it.
 func TestTheDocsTOMLExamplesDecode(t *testing.T) {
 	t.Parallel()
 	files, err := filepath.Glob(filepath.Join("..", "..", "docs", "*.md"))
@@ -36,6 +37,10 @@ func TestTheDocsTOMLExamplesDecode(t *testing.T) {
 				case len(meta.Undecoded()) > 0:
 					problems = append(problems, fmt.Sprintf("as %s it has keys nothing reads: %v", f.name, meta.Undecoded()))
 				}
+			}
+			var theme GUIThemeFile
+			if meta, err := toml.Decode(block, &theme); err == nil && len(meta.Undecoded()) == 0 && theme.Base != "" {
+				continue // a theme file (themes/<name>.toml)
 			}
 			if len(problems) == len(settingsFiles) {
 				t.Errorf("%s, toml block %d fits neither file: %s\n%s", filepath.Base(file), i+1, strings.Join(problems, "; "), block)

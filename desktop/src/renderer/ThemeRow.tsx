@@ -122,7 +122,7 @@ export function ColorRow({
   );
 }
 
-/** ModeRow is the theme's mode: the system's light or dark, or one of them. */
+/** ModeRow is the theme's mode: the system's light or dark, one of them, or a theme file. */
 export function ModeRow({ theme, session }: { theme: ThemeResponse; session: Session }) {
   const mode = valueOf(theme, "mode") || "system";
   return (
@@ -139,6 +139,14 @@ export function ModeRow({ theme, session }: { theme: ThemeResponse; session: Ses
             {m === "system" ? "as the system is" : m}
           </option>
         ))}
+        {Object.keys(theme.themes)
+          .filter((name) => !(themeModes as readonly string[]).includes(name)) // light and dark are listed
+          .sort()
+          .map((name) => (
+            <option key={`theme:${name}`} value={name}>
+              {name}
+            </option>
+          ))}
       </select>
       <span>Mode</span>
       <OnlyHere theme={theme} k="mode" value={mode} session={session} />
