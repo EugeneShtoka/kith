@@ -18,7 +18,8 @@ import (
 // the phone names by its address, kept by that address. A one-to-one conversation's is its person's thumbnail, which the
 // phone hands over as bytes with nothing to know it by: it is kept by their hash and
 // asked for again at most every thumbEvery, of people the phone has as contacts (and
-// Google's own senders), as the bridge does.
+// Google's own senders), as the bridge does. Each such person, in any conversation,
+// has theirs kept as theirs too, beside their messages.
 
 // thumbEvery is how often a person's thumbnail is asked for again.
 const thumbEvery = 24 * time.Hour
@@ -56,6 +57,20 @@ func (in *inbox) pictureWants() map[domain.RoomID]pictureWant {
 	return out
 }
 
+// personThumbs is the participant whose thumbnail each person with one has, by their
+// person ID.
+func (in *inbox) personThumbs() map[string]string {
+	out := map[string]string{}
+	for _, cv := range in.convs {
+		for pid, person := range cv.members {
+			if in.thumbs[pid] && person != "" {
+				out[person] = pid
+			}
+		}
+	}
+	return out
+}
+
 // thumbVersion is the version a thumbnail is kept by, "" for none.
 func thumbVersion(data []byte) string {
 	if len(data) == 0 {
@@ -71,21 +86,7 @@ func (a *Adapter) pictureWants(client *libgm.Client, wants map[domain.RoomID]pic
 	for room, w := range wants {
 		switch {
 		case w.person != "":
-			out[room] = pictures.Want{Every: thumbEvery, Ask: func(ctx context.Context, _ string) (string, []byte, error) {
-				var got *gmproto.GetThumbnailResponse
-				if err := a.guard("asking for a thumbnail", func() (err error) {
-					got, err = client.GetParticipantThumbnail(ctx, w.person)
-					return err //nolint:wrapcheck // wrapped below
-				}); err != nil {
-					return "", nil, fmt.Errorf("gmessages: ask for the thumbnail of %s: %w", room, err)
-				}
-				for _, t := range got.GetThumbnail() {
-					if data := t.GetData().GetImageBuffer(); t.GetIdentifier() == w.person {
-						return thumbVersion(data), data, nil
-					}
-				}
-				return "", nil, nil
-			}}
+			out[room] = a.thumbWant(client, string(room), w.person)
 		case w.group && w.url != "":
 			out[room] = pictures.Want{Version: w.url, Fetch: func(ctx context.Context) (data []byte, err error) {
 				if err := a.guard("downloading a group's picture", func() (err error) {
@@ -103,10 +104,30 @@ func (a *Adapter) pictureWants(client *libgm.Client, wants map[domain.RoomID]pic
 	return out
 }
 
-// picturesLater has c's sweeper keep its inbox's pictures, off the batch being stored;
-// none before the connection has a client.
+// thumbWant is participant's thumbnail as asking the phone tells it, for whom, at most
+// every thumbEvery.
+func (a *Adapter) thumbWant(client *libgm.Client, whom, participant string) pictures.Want {
+	return pictures.Want{Every: thumbEvery, Ask: func(ctx context.Context, _ string) (string, []byte, error) {
+		var got *gmproto.GetThumbnailResponse
+		if err := a.guard("asking for a thumbnail", func() (err error) {
+			got, err = client.GetParticipantThumbnail(ctx, participant)
+			return err //nolint:wrapcheck // wrapped below
+		}); err != nil {
+			return "", nil, fmt.Errorf("gmessages: ask for the thumbnail of %s: %w", whom, err)
+		}
+		for _, t := range got.GetThumbnail() {
+			if data := t.GetData().GetImageBuffer(); t.GetIdentifier() == participant {
+				return thumbVersion(data), data, nil
+			}
+		}
+		return "", nil, nil
+	}}
+}
+
+// picturesLater has c's sweepers keep its inbox's pictures, off the batch being stored:
+// its conversations' and its people's; none before the connection has a client.
 func (a *Adapter) picturesLater(c *conn) {
-	wants := c.inbox.pictureWants()
+	wants, thumbs := c.inbox.pictureWants(), c.inbox.personThumbs()
 	a.mu.Lock()
 	ctx := a.run
 	a.mu.Unlock()
@@ -120,13 +141,21 @@ func (a *Adapter) picturesLater(c *conn) {
 		return
 	}
 	if c.sweeper == nil {
-		c.sweeper = &pictures.Sweeper[domain.RoomID]{
-			Store:   a.cache,
-			Changed: a.roomsChanged,
-			Failed:  func(err error) { a.log.Debug("fetch pictures stopped", "account", c.account.Name, "err", err) },
-		}
+		failed := func(err error) { a.log.Debug("fetch pictures stopped", "account", c.account.Name, "err", err) }
+		c.sweeper = &pictures.Sweeper[domain.RoomID]{Store: a.cache, Changed: a.roomsChanged, Failed: failed}
+		c.people = &pictures.Sweeper[string]{Store: a.cache.PersonPictures(), Changed: a.roomsChanged, Failed: failed}
 	}
-	s := c.sweeper
+	rooms, people := c.sweeper, c.people
 	c.mu.Unlock()
-	s.Later(ctx, a.pictureWants(client, wants))
+	rooms.Later(ctx, a.pictureWants(client, wants))
+	people.Later(ctx, a.peopleWants(client, thumbs))
+}
+
+// peopleWants is what the people's sweeper is to keep of thumbs, by person.
+func (a *Adapter) peopleWants(client *libgm.Client, thumbs map[string]string) map[string]pictures.Want {
+	out := make(map[string]pictures.Want, len(thumbs))
+	for person, pid := range thumbs {
+		out[person] = a.thumbWant(client, person, pid)
+	}
+	return out
 }
