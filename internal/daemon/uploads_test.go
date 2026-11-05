@@ -60,6 +60,15 @@ func (b *receiving) SendFile(_ context.Context, room domain.RoomID, path, name, 
 	return b.fail
 }
 
+// SavePicture reads the staged file as SendFile does; a picture is named by its length.
+func (b *receiving) SavePicture(ctx context.Context, path string) (string, error) {
+	if err := b.SendFile(ctx, "", path, "picture", ""); err != nil {
+		return "", err
+	}
+	got := b.posted()
+	return fmt.Sprintf("file:%d", len(got[len(got)-1].data)), nil
+}
+
 func (b *receiving) posted() []posted {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -481,5 +490,25 @@ func TestUploadsRefuseWhatTheyCannotHold(t *testing.T) {
 	start(t, c, 1) // the sent file's room is free again
 	if n := len(staged(t, staging)); n != 4 {
 		t.Errorf("%d files staged, want 4", n)
+	}
+}
+
+// A picture is uploaded as a file is and kept by name: its bytes arrive whole, kithd's
+// name for it comes back, and the staged file goes.
+func TestAPictureArrivesToBeKept(t *testing.T) {
+	t.Parallel()
+	b := &receiving{}
+	h, staging := uploading(t, b)
+	rng := rand.New(rand.NewPCG(3, 4)) // #nosec G404 -- reproducible
+	path, want := randomFile(t, rng, "dana.png", 2*chunk+7)
+	picture, err := h.client().SavePicture(t.Context(), path)
+	if err != nil || picture != fmt.Sprintf("file:%d", len(want)) {
+		t.Fatalf("SavePicture = %q, %v", picture, err)
+	}
+	if got := b.posted(); len(got) != 1 || !bytes.Equal(got[0].data, want) {
+		t.Errorf("the picture's bytes did not arrive whole")
+	}
+	if left := staged(t, staging); len(left) != 0 {
+		t.Errorf("left staged: %v", left)
 	}
 }

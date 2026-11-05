@@ -279,6 +279,17 @@ func (s *server) SendFile(ctx context.Context, r *req[v1.SendFileRequest]) (*res
 	return reply(&v1.SendFileResponse{}, s.Backend.SendFile(ctx, roomID(r.Msg.GetRoomId()), path, name, r.Msg.GetCaption()))
 }
 
+// SavePicture keeps a complete upload's staged file as a picture, and removes the file.
+func (s *server) SavePicture(ctx context.Context, r *req[v1.SavePictureRequest]) (*resp[v1.SavePictureResponse], error) {
+	path, _, done, err := s.Uploads.take(r.Msg.GetUploadId())
+	if err != nil {
+		return nil, err
+	}
+	defer done()
+	picture, err := s.Backend.SavePicture(ctx, path)
+	return reply(&v1.SavePictureResponse{Picture: picture}, err)
+}
+
 // ── Unread ──
 
 func (s *server) CachedUnread(ctx context.Context, _ *req[v1.CachedUnreadRequest]) (*resp[v1.CachedUnreadResponse], error) {

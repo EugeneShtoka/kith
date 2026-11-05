@@ -1,8 +1,12 @@
 package local
 
 import (
+	"bytes"
 	"context"
 	"maps"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,4 +89,59 @@ func TestAnIdentitysPictureStandsInOnlyWhereItsPersonIs(t *testing.T) {
 			}
 		}
 	}
+}
+
+// A saved picture is kept by its hash and named by it; an identity naming it shows it
+// for each of its IDs in the room, and an emptied cache has it back once the identities
+// are set again (the next start). A file that is no image is refused.
+func TestASavedPictureIsAnIdentitysOwn(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	b := backendWithCache(t, "matrix:@me:example.org")
+	b.UseDataDir(t.TempDir())
+	room := domain.RoomID(mx + "!r:x")
+	wa := "whatsapp:15550101@s.whatsapp.net"
+	png := append([]byte("\x89PNG\r\n\x1a\n"), "rest of it"...)
+	src := filepath.Join(t.TempDir(), "dana.png")
+	if err := os.WriteFile(src, png, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	picture, err := b.SavePicture(ctx, src)
+	if err != nil || !strings.HasPrefix(picture, "file:") {
+		t.Fatalf("SavePicture = %q, %v", picture, err)
+	}
+	name := strings.TrimPrefix(picture, "file:")
+	if kept, err := os.ReadFile(filepath.Join(b.picturesDir(), name)); err != nil || !bytes.Equal(kept, png) {
+		t.Fatalf("kept %q (%v), want the picture", kept, err)
+	}
+	notes := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(notes, []byte("not a picture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.SavePicture(ctx, notes); err == nil {
+		t.Error("a text file was saved as a picture")
+	}
+
+	shows := func(when string) {
+		t.Helper()
+		seedRoom(t, b.cache, room)
+		if err := b.cache.SaveMembers(ctx, room, []domain.Member{{UserID: wa}}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := b.SenderPictures(ctx, room)
+		if err != nil || got[wa] != "via "+picture+" "+name {
+			t.Errorf("%s: SenderPictures = %v (%v), want %s's saved picture", when, got, err, wa)
+		}
+		if data, err := b.LoadPicture(ctx, room, wa); err != nil || !bytes.Equal(data, png) {
+			t.Errorf("%s: LoadPicture = %q (%v), want the saved picture", when, data, err)
+		}
+	}
+	faces := setup.FacesOf([]config.Identity{{Alias: "Dana", IDs: []string{wa}, Picture: picture}})
+	b.UseFaces(faces)
+	shows("saved")
+	if err := b.cache.Clear(ctx); err != nil {
+		t.Fatal(err)
+	}
+	b.UseFaces(faces) // the next start
+	shows("after the cache was emptied")
 }

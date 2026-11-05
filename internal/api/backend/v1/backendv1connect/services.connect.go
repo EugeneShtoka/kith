@@ -189,6 +189,9 @@ const (
 	// BackendServiceLoadPictureProcedure is the fully-qualified name of the BackendService's
 	// LoadPicture RPC.
 	BackendServiceLoadPictureProcedure = "/backend.v1.BackendService/LoadPicture"
+	// BackendServiceSavePictureProcedure is the fully-qualified name of the BackendService's
+	// SavePicture RPC.
+	BackendServiceSavePictureProcedure = "/backend.v1.BackendService/SavePicture"
 	// BackendServiceMembersProcedure is the fully-qualified name of the BackendService's Members RPC.
 	BackendServiceMembersProcedure = "/backend.v1.BackendService/Members"
 	// BackendServiceRefreshMembersProcedure is the fully-qualified name of the BackendService's
@@ -632,6 +635,8 @@ type BackendServiceClient interface {
 	// cache, the version Room.picture names; with a person, theirs, the version
 	// SenderPictures names.
 	LoadPicture(context.Context, *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error)
+	// SavePicture keeps an uploaded image as a picture for a [[display.identity]].
+	SavePicture(context.Context, *connect.Request[v1.SavePictureRequest]) (*connect.Response[v1.SavePictureResponse], error)
 	// Member
 	// Members returns a room's cached members, ordered by display name.
 	Members(context.Context, *connect.Request[v1.MembersRequest]) (*connect.Response[v1.MembersResponse], error)
@@ -1252,6 +1257,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceLoadPictureProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("LoadPicture")),
+			connect.WithClientOptions(opts...),
+		),
+		savePicture: connect.NewClient[v1.SavePictureRequest, v1.SavePictureResponse](
+			httpClient,
+			baseURL+BackendServiceSavePictureProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("SavePicture")),
 			connect.WithClientOptions(opts...),
 		),
 		members: connect.NewClient[v1.MembersRequest, v1.MembersResponse](
@@ -1904,6 +1915,7 @@ type backendServiceClient struct {
 	emojiScores           *connect.Client[v1.EmojiScoresRequest, v1.EmojiScoresResponse]
 	loadImage             *connect.Client[v1.LoadImageRequest, v1.LoadImageResponse]
 	loadPicture           *connect.Client[v1.LoadPictureRequest, v1.LoadPictureResponse]
+	savePicture           *connect.Client[v1.SavePictureRequest, v1.SavePictureResponse]
 	members               *connect.Client[v1.MembersRequest, v1.MembersResponse]
 	refreshMembers        *connect.Client[v1.RefreshMembersRequest, v1.RefreshMembersResponse]
 	mentionCandidates     *connect.Client[v1.MentionCandidatesRequest, v1.MentionCandidatesResponse]
@@ -2287,6 +2299,11 @@ func (c *backendServiceClient) LoadImage(ctx context.Context, req *connect.Reque
 // LoadPicture calls backend.v1.BackendService.LoadPicture.
 func (c *backendServiceClient) LoadPicture(ctx context.Context, req *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error) {
 	return c.loadPicture.CallUnary(ctx, req)
+}
+
+// SavePicture calls backend.v1.BackendService.SavePicture.
+func (c *backendServiceClient) SavePicture(ctx context.Context, req *connect.Request[v1.SavePictureRequest]) (*connect.Response[v1.SavePictureResponse], error) {
+	return c.savePicture.CallUnary(ctx, req)
 }
 
 // Members calls backend.v1.BackendService.Members.
@@ -2949,6 +2966,8 @@ type BackendServiceHandler interface {
 	// cache, the version Room.picture names; with a person, theirs, the version
 	// SenderPictures names.
 	LoadPicture(context.Context, *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error)
+	// SavePicture keeps an uploaded image as a picture for a [[display.identity]].
+	SavePicture(context.Context, *connect.Request[v1.SavePictureRequest]) (*connect.Response[v1.SavePictureResponse], error)
 	// Member
 	// Members returns a room's cached members, ordered by display name.
 	Members(context.Context, *connect.Request[v1.MembersRequest]) (*connect.Response[v1.MembersResponse], error)
@@ -3565,6 +3584,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceLoadPictureProcedure,
 		svc.LoadPicture,
 		connect.WithSchema(backendServiceMethods.ByName("LoadPicture")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceSavePictureHandler := connect.NewUnaryHandler(
+		BackendServiceSavePictureProcedure,
+		svc.SavePicture,
+		connect.WithSchema(backendServiceMethods.ByName("SavePicture")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceMembersHandler := connect.NewUnaryHandler(
@@ -4271,6 +4296,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceLoadImageHandler.ServeHTTP(w, r)
 		case BackendServiceLoadPictureProcedure:
 			backendServiceLoadPictureHandler.ServeHTTP(w, r)
+		case BackendServiceSavePictureProcedure:
+			backendServiceSavePictureHandler.ServeHTTP(w, r)
 		case BackendServiceMembersProcedure:
 			backendServiceMembersHandler.ServeHTTP(w, r)
 		case BackendServiceRefreshMembersProcedure:
@@ -4702,6 +4729,10 @@ func (UnimplementedBackendServiceHandler) LoadImage(context.Context, *connect.Re
 
 func (UnimplementedBackendServiceHandler) LoadPicture(context.Context, *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.LoadPicture is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) SavePicture(context.Context, *connect.Request[v1.SavePictureRequest]) (*connect.Response[v1.SavePictureResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SavePicture is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Members(context.Context, *connect.Request[v1.MembersRequest]) (*connect.Response[v1.MembersResponse], error) {

@@ -56,11 +56,13 @@ type Service struct {
 }
 
 // UseFaces sets, for each ID a [[display.identity]] names, the IDs whose picture stands
-// for theirs (setup.FacesOf). Called at startup and on reload.
+// for theirs (setup.FacesOf), and puts the saved pictures they name into the cache.
+// Called at startup and on reload, after UseDataDir.
 func (s *Service) UseFaces(faces map[string][]string) {
 	s.placesMu.Lock()
-	defer s.placesMu.Unlock()
 	s.faces = faces
+	s.placesMu.Unlock()
+	s.keepCustoms(faces)
 }
 
 func (s *Service) facesNow() map[string][]string {
