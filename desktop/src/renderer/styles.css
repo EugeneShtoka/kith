@@ -593,7 +593,7 @@ select option {
 }
 
 /* A picture's own transparency (a round one's corners) shows what is behind it. */
-.avatar.picture {
+.avatar.pictured {
   background: none;
 }
 
