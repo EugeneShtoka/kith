@@ -15,7 +15,7 @@ import (
 	"go.mau.fi/mautrix-meta/pkg/messagix/dgw"
 	"go.mau.fi/mautrix-meta/pkg/messagix/httpclient"
 
-	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
 // keepEvery bounds how often a connection writes its session (rotated cookies, the seq
@@ -41,10 +41,8 @@ type conn struct {
 	kept    time.Time
 	// inbox is what the connection knows of its threads and people (inbox.go).
 	inbox *inbox
-	// sweeping marks a sweep of the inbox's pictures running, and pictureWant the
-	// latest links, for it to sweep next (picturesLater).
-	sweeping    bool
-	pictureWant map[domain.RoomID]string
+	// sweeper keeps the inbox's pictures (picturesLater).
+	sweeper *pictures.Sweeper
 }
 
 // connect starts account's connection under ctx, unless it has one.
