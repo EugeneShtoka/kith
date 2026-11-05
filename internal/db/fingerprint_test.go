@@ -46,6 +46,7 @@ var migrationFingerprints = []struct {
 	{30, "message_redaction_at: when a cached message was deleted", "6a410c048b58"},
 	{31, "room_aliases: rooms merged into another", "e5f29e52be8e"},
 	{32, "room_pictures: rooms' pictures", "eadf0f2df430"},
+	{33, "person_pictures: people's pictures", "e35608d48072"},
 }
 
 func fingerprint(stmt string) string {

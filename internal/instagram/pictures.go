@@ -66,7 +66,7 @@ func (a *Adapter) picturesLater(c *conn) {
 	}
 	c.mu.Lock()
 	if c.sweeper == nil {
-		c.sweeper = &pictures.Sweeper{
+		c.sweeper = &pictures.Sweeper[domain.RoomID]{
 			Store:   a.cache,
 			Changed: a.roomsChanged,
 			Failed:  func(err error) { a.log.Debug("download pictures stopped", "account", c.account.Name, "err", err) },

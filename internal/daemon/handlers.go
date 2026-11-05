@@ -421,7 +421,7 @@ func (s *server) LoadImage(ctx context.Context, r *req[v1.LoadImageRequest]) (*r
 }
 
 func (s *server) LoadPicture(ctx context.Context, r *req[v1.LoadPictureRequest]) (*resp[v1.LoadPictureResponse], error) {
-	data, err := s.Backend.LoadPicture(ctx, roomID(r.Msg.GetRoomId()))
+	data, err := s.Backend.LoadPicture(ctx, roomID(r.Msg.GetRoomId()), r.Msg.GetPerson())
 	return reply(&v1.LoadPictureResponse{Data: data}, err)
 }
 
@@ -459,6 +459,11 @@ func (s *server) DirectCandidates(ctx context.Context, r *req[v1.DirectCandidate
 func (s *server) SenderSlots(ctx context.Context, r *req[v1.SenderSlotsRequest]) (*resp[v1.SenderSlotsResponse], error) {
 	slots, err := s.Backend.SenderSlots(ctx, roomID(r.Msg.GetRoomId()))
 	return reply(&v1.SenderSlotsResponse{Slots: pc.SenderSlotsToProto(slots)}, err)
+}
+
+func (s *server) SenderPictures(ctx context.Context, r *req[v1.SenderPicturesRequest]) (*resp[v1.SenderPicturesResponse], error) {
+	pictures, err := s.Backend.SenderPictures(ctx, roomID(r.Msg.GetRoomId()))
+	return reply(&v1.SenderPicturesResponse{Pictures: pictures}, err)
 }
 
 func (s *server) SaveSenderSlots(ctx context.Context, r *req[v1.SaveSenderSlotsRequest]) (*resp[v1.SaveSenderSlotsResponse], error) {

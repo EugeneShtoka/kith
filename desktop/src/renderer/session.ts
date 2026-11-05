@@ -161,6 +161,8 @@ export interface View {
   config: ConfigView;
   /** The open room's remembered sender colors (SenderSlots). */
   slots: Slots;
+  /** The open room's people's picture versions (SenderPictures), by their ID. */
+  pictures: ReadonlyMap<string, string>;
   /** The settings page's accounts: the networks to log in to, and a login under way. */
   login: LoginView;
   /** The settings page's devices: those paired, a pairing or a join under way (devices.ts). */
@@ -334,6 +336,7 @@ const nothingShown = {
   audio: { speed: 1, skip: 10 },
   composer: undefined,
   slots: new Map(),
+  pictures: new Map(),
   verify: noVerify,
   accounts: [],
   filing: undefined,
@@ -807,6 +810,18 @@ export class Session {
     );
   }
 
+  /** readPictures reads the room's people's pictures, read again as the rooms change: a sweep found new ones. */
+  private readPictures(run: Run, room: string): void {
+    call(backend.senderPictures, { roomId: room }).then(
+      (r) => {
+        if (this.live(run) && this.view.open === room) {
+          this.set({ pictures: new Map(Object.entries(r.pictures)) });
+        }
+      },
+      () => undefined, // drawn in their initials
+    );
+  }
+
   /** takeOver asks for the profile's seat by force: the window that has it steps aside. */
   takeOver(): void {
     const profile = this.view.profile;
@@ -1036,10 +1051,12 @@ export class Session {
       open: room,
       unreadLine: true,
       slots: new Map(),
+      pictures: new Map(),
       ...(said !== undefined && this.view.problem === said ? { problem: this.unsaved() } : {}),
     });
     this.readSettings(run, run.timeline);
     this.readSlots(run, room);
+    this.readPictures(run, room);
     this.readReactions(run);
     this.pump(run);
     this.present(run);
@@ -1556,6 +1573,9 @@ export class Session {
           case "frames":
             if (e.frames.some((f) => f.change === Change.ROOMS)) {
               this.readRooms(run);
+              if (this.view.open !== "") {
+                this.readPictures(run, this.view.open);
+              }
             }
             if (e.frames.some((f) => f.change === Change.RAIL)) {
               this.readRail(run);

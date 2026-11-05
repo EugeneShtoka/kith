@@ -51,7 +51,7 @@ var reaches = map[string]profileReach{
 	"Redact": passes, "SendFile": passes, "SendTyping": passes, "ListThreads": passes,
 	"ThreadPage": passes, "MarkThreadRead": passes, "CachedReactions": passes, "SendReaction": passes,
 	"VotePoll": passes, "PollVoters": passes, "CreatePoll": passes, "LoadImage": passes, "LoadPicture": passes,
-	"Members": passes, "RefreshMembers": passes, "MentionCandidates": passes, "SenderSlots": passes,
+	"Members": passes, "RefreshMembers": passes, "MentionCandidates": passes, "SenderSlots": passes, "SenderPictures": passes,
 	"SaveSenderSlots": passes, "JoinRoom": passes, "KnockRoom": passes, "LeaveRoom": passes,
 	"DeleteChat": passes, "InviteUser": passes, "KickUser": passes, "BanUser": passes,
 	"UnbanUser": passes, "ModelTask": passes, "ReplaceDraft": passes, "RoomEncryption": passes,

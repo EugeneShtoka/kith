@@ -214,6 +214,15 @@ CREATE TABLE room_pictures (
 	checked_ms INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 
+-- A person's picture, by the ID their messages name them by, as room_pictures keeps a
+-- room's (SetPersonPicture). No room owns it: one person writes in many.
+CREATE TABLE person_pictures (
+	person_id  TEXT    NOT NULL PRIMARY KEY,
+	picture_id TEXT    NOT NULL DEFAULT '',
+	data       BLOB    NOT NULL DEFAULT x'',
+	checked_ms INTEGER NOT NULL DEFAULT 0
+) STRICT;
+
 -- A chat's disappearing-messages timer, a row only while it has one: what kith sends
 -- there must carry it (SetTimers).
 CREATE TABLE room_timers (
@@ -753,6 +762,13 @@ INSERT INTO change_counter(epoch, last) SELECT lower(hex(randomblob(16))), 0
 	// v32: rooms' pictures.
 	`CREATE TABLE IF NOT EXISTS room_pictures (
 	room_id    TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	picture_id TEXT    NOT NULL DEFAULT '',
+	data       BLOB    NOT NULL DEFAULT x'',
+	checked_ms INTEGER NOT NULL DEFAULT 0
+) STRICT;`,
+	// v33: people's pictures.
+	`CREATE TABLE IF NOT EXISTS person_pictures (
+	person_id  TEXT    NOT NULL PRIMARY KEY,
 	picture_id TEXT    NOT NULL DEFAULT '',
 	data       BLOB    NOT NULL DEFAULT x'',
 	checked_ms INTEGER NOT NULL DEFAULT 0

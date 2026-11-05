@@ -215,8 +215,9 @@ type Reactions interface {
 type Media interface {
 	LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error)
 	// LoadPicture is a room's picture as the cache keeps it, the version
-	// domain.Room.Picture names; nil when it has none.
-	LoadPicture(ctx context.Context, roomID domain.RoomID) ([]byte, error)
+	// domain.Room.Picture names; with a person in the room, theirs, the version
+	// SenderPictures names. nil when there is none.
+	LoadPicture(ctx context.Context, roomID domain.RoomID, person string) ([]byte, error)
 }
 
 // Members is who is in a room, and the colors they are drawn in.
@@ -238,6 +239,9 @@ type Members interface {
 	SenderSlots(ctx context.Context, roomID domain.RoomID) (map[string]int, error)
 	// SaveSenderSlots records slots; already stored slots win.
 	SaveSenderSlots(ctx context.Context, roomID domain.RoomID, slots map[string]int) error
+	// SenderPictures is the picture version of each person in a room, a member or a
+	// sender, who has one, by their ID.
+	SenderPictures(ctx context.Context, roomID domain.RoomID) (map[string]string, error)
 }
 
 // Membership is our own membership (invites and the answers to them) plus

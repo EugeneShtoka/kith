@@ -1,6 +1,6 @@
 // The window's pictures are never remote URLs: each is a kith-media: URL that main
-// answers with the attachment's bytes, from kithd's LoadImage, or a room's picture,
-// from LoadPicture.
+// answers with the attachment's bytes, from kithd's LoadImage, or a room's picture or a
+// person's in it, from LoadPicture.
 
 export const mediaScheme = "kith-media";
 
@@ -15,15 +15,20 @@ export function mediaURL(room: string, event: string, version: string): string {
 }
 
 /**
- * pictureURL names a room's picture at version (Room.picture), which changes with the
- * picture, as mediaURL's does with an attachment.
+ * pictureURL names a room's picture at version (Room.picture), or with person that
+ * person's in the room (SenderPictures), which changes with the picture, as mediaURL's
+ * does with an attachment.
  */
-export function pictureURL(room: string, version: string): string {
-  return `${mediaScheme}://picture/${encodeURIComponent(room)}?v=${encodeURIComponent(version)}`;
+export function pictureURL(room: string, version: string, person = ""): string {
+  const path = (person === "" ? [room] : [room, person]).map(encodeURIComponent).join("/");
+  return `${mediaScheme}://picture/${path}?v=${encodeURIComponent(version)}`;
 }
 
-/** pictureOf is the room a kith-media: picture URL names, or undefined for any other URL. */
-export function pictureOf(url: string): string | undefined {
+/**
+ * pictureOf is the room a kith-media: picture URL names, and the person in it ("" for
+ * the room's own), or undefined for any other URL.
+ */
+export function pictureOf(url: string): { room: string; person: string } | undefined {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -31,11 +36,12 @@ export function pictureOf(url: string): string | undefined {
     return undefined;
   }
   const parts = parsed.pathname.split("/").slice(1);
-  if (parsed.protocol !== `${mediaScheme}:` || parsed.host !== "picture" || parts.length !== 1) {
+  if (parsed.protocol !== `${mediaScheme}:` || parsed.host !== "picture" || parts.length < 1 || parts.length > 2) {
     return undefined;
   }
   try {
-    return decodeURIComponent(parts[0] ?? "") || undefined;
+    const [room = "", person] = parts.map(decodeURIComponent);
+    return room !== "" && person !== "" ? { room, person: person ?? "" } : undefined;
   } catch {
     return undefined;
   }

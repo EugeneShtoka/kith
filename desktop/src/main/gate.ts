@@ -500,10 +500,13 @@ export class Gate {
     return response.message.data;
   }
 
-  /** picture is a room's picture, in the window's profile (LoadPicture), called by main as media is. */
-  async picture(room: string): Promise<Uint8Array> {
+  /**
+   * picture is a room's picture, or a person's in it, in the window's profile
+   * (LoadPicture), called by main as media is.
+   */
+  async picture(room: string, person: string): Promise<Uint8Array> {
     const method = backend.loadPicture;
-    const request = create(method.input, { roomId: room });
+    const request = create(method.input, { roomId: room, person });
     const response = await this.transport.unary(method, undefined, undefined, this.header(method), request);
     return response.message.data;
   }

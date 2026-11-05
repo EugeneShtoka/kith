@@ -209,6 +209,9 @@ const (
 	// BackendServiceSaveSenderSlotsProcedure is the fully-qualified name of the BackendService's
 	// SaveSenderSlots RPC.
 	BackendServiceSaveSenderSlotsProcedure = "/backend.v1.BackendService/SaveSenderSlots"
+	// BackendServiceSenderPicturesProcedure is the fully-qualified name of the BackendService's
+	// SenderPictures RPC.
+	BackendServiceSenderPicturesProcedure = "/backend.v1.BackendService/SenderPictures"
 	// BackendServiceCachedInvitesProcedure is the fully-qualified name of the BackendService's
 	// CachedInvites RPC.
 	BackendServiceCachedInvitesProcedure = "/backend.v1.BackendService/CachedInvites"
@@ -626,7 +629,8 @@ type BackendServiceClient interface {
 	// an encrypted room, and returns the raw bytes.
 	LoadImage(context.Context, *connect.Request[v1.LoadImageRequest]) (*connect.Response[v1.LoadImageResponse], error)
 	// LoadPicture returns a room's picture (a person's, in a direct chat) as kept in the
-	// cache, the version Room.picture names.
+	// cache, the version Room.picture names; with a person, theirs, the version
+	// SenderPictures names.
 	LoadPicture(context.Context, *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error)
 	// Member
 	// Members returns a room's cached members, ordered by display name.
@@ -644,6 +648,9 @@ type BackendServiceClient interface {
 	SenderSlots(context.Context, *connect.Request[v1.SenderSlotsRequest]) (*connect.Response[v1.SenderSlotsResponse], error)
 	// SaveSenderSlots records the ones a client has assigned.
 	SaveSenderSlots(context.Context, *connect.Request[v1.SaveSenderSlotsRequest]) (*connect.Response[v1.SaveSenderSlotsResponse], error)
+	// SenderPictures returns the picture versions of a room's people, its members and
+	// senders, as kept in the cache.
+	SenderPictures(context.Context, *connect.Request[v1.SenderPicturesRequest]) (*connect.Response[v1.SenderPicturesResponse], error)
 	// Membership
 	// CachedInvites returns the cached pending invitations.
 	CachedInvites(context.Context, *connect.Request[v1.CachedInvitesRequest]) (*connect.Response[v1.CachedInvitesResponse], error)
@@ -1289,6 +1296,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("SaveSenderSlots")),
 			connect.WithClientOptions(opts...),
 		),
+		senderPictures: connect.NewClient[v1.SenderPicturesRequest, v1.SenderPicturesResponse](
+			httpClient,
+			baseURL+BackendServiceSenderPicturesProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("SenderPictures")),
+			connect.WithClientOptions(opts...),
+		),
 		cachedInvites: connect.NewClient[v1.CachedInvitesRequest, v1.CachedInvitesResponse](
 			httpClient,
 			baseURL+BackendServiceCachedInvitesProcedure,
@@ -1898,6 +1911,7 @@ type backendServiceClient struct {
 	directCandidates      *connect.Client[v1.DirectCandidatesRequest, v1.DirectCandidatesResponse]
 	senderSlots           *connect.Client[v1.SenderSlotsRequest, v1.SenderSlotsResponse]
 	saveSenderSlots       *connect.Client[v1.SaveSenderSlotsRequest, v1.SaveSenderSlotsResponse]
+	senderPictures        *connect.Client[v1.SenderPicturesRequest, v1.SenderPicturesResponse]
 	cachedInvites         *connect.Client[v1.CachedInvitesRequest, v1.CachedInvitesResponse]
 	invites               *connect.Client[v1.InvitesRequest, v1.InvitesResponse]
 	joinRoom              *connect.Client[v1.JoinRoomRequest, v1.JoinRoomResponse]
@@ -2308,6 +2322,11 @@ func (c *backendServiceClient) SenderSlots(ctx context.Context, req *connect.Req
 // SaveSenderSlots calls backend.v1.BackendService.SaveSenderSlots.
 func (c *backendServiceClient) SaveSenderSlots(ctx context.Context, req *connect.Request[v1.SaveSenderSlotsRequest]) (*connect.Response[v1.SaveSenderSlotsResponse], error) {
 	return c.saveSenderSlots.CallUnary(ctx, req)
+}
+
+// SenderPictures calls backend.v1.BackendService.SenderPictures.
+func (c *backendServiceClient) SenderPictures(ctx context.Context, req *connect.Request[v1.SenderPicturesRequest]) (*connect.Response[v1.SenderPicturesResponse], error) {
+	return c.senderPictures.CallUnary(ctx, req)
 }
 
 // CachedInvites calls backend.v1.BackendService.CachedInvites.
@@ -2927,7 +2946,8 @@ type BackendServiceHandler interface {
 	// an encrypted room, and returns the raw bytes.
 	LoadImage(context.Context, *connect.Request[v1.LoadImageRequest]) (*connect.Response[v1.LoadImageResponse], error)
 	// LoadPicture returns a room's picture (a person's, in a direct chat) as kept in the
-	// cache, the version Room.picture names.
+	// cache, the version Room.picture names; with a person, theirs, the version
+	// SenderPictures names.
 	LoadPicture(context.Context, *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error)
 	// Member
 	// Members returns a room's cached members, ordered by display name.
@@ -2945,6 +2965,9 @@ type BackendServiceHandler interface {
 	SenderSlots(context.Context, *connect.Request[v1.SenderSlotsRequest]) (*connect.Response[v1.SenderSlotsResponse], error)
 	// SaveSenderSlots records the ones a client has assigned.
 	SaveSenderSlots(context.Context, *connect.Request[v1.SaveSenderSlotsRequest]) (*connect.Response[v1.SaveSenderSlotsResponse], error)
+	// SenderPictures returns the picture versions of a room's people, its members and
+	// senders, as kept in the cache.
+	SenderPictures(context.Context, *connect.Request[v1.SenderPicturesRequest]) (*connect.Response[v1.SenderPicturesResponse], error)
 	// Membership
 	// CachedInvites returns the cached pending invitations.
 	CachedInvites(context.Context, *connect.Request[v1.CachedInvitesRequest]) (*connect.Response[v1.CachedInvitesResponse], error)
@@ -3584,6 +3607,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceSaveSenderSlotsProcedure,
 		svc.SaveSenderSlots,
 		connect.WithSchema(backendServiceMethods.ByName("SaveSenderSlots")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceSenderPicturesHandler := connect.NewUnaryHandler(
+		BackendServiceSenderPicturesProcedure,
+		svc.SenderPictures,
+		connect.WithSchema(backendServiceMethods.ByName("SenderPictures")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceCachedInvitesHandler := connect.NewUnaryHandler(
@@ -4256,6 +4285,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceSenderSlotsHandler.ServeHTTP(w, r)
 		case BackendServiceSaveSenderSlotsProcedure:
 			backendServiceSaveSenderSlotsHandler.ServeHTTP(w, r)
+		case BackendServiceSenderPicturesProcedure:
+			backendServiceSenderPicturesHandler.ServeHTTP(w, r)
 		case BackendServiceCachedInvitesProcedure:
 			backendServiceCachedInvitesHandler.ServeHTTP(w, r)
 		case BackendServiceInvitesProcedure:
@@ -4699,6 +4730,10 @@ func (UnimplementedBackendServiceHandler) SenderSlots(context.Context, *connect.
 
 func (UnimplementedBackendServiceHandler) SaveSenderSlots(context.Context, *connect.Request[v1.SaveSenderSlotsRequest]) (*connect.Response[v1.SaveSenderSlotsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SaveSenderSlots is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) SenderPictures(context.Context, *connect.Request[v1.SenderPicturesRequest]) (*connect.Response[v1.SenderPicturesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SenderPictures is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) CachedInvites(context.Context, *connect.Request[v1.CachedInvitesRequest]) (*connect.Response[v1.CachedInvitesResponse], error) {

@@ -66,12 +66,12 @@ func askPicture(h *helper, self, chat string, group bool) pictures.Want {
 }
 
 // sweeper is self's picture sweeper, made on first use.
-func (a *Adapter) sweeper(self string) *pictures.Sweeper {
+func (a *Adapter) sweeper(self string) *pictures.Sweeper[domain.RoomID] {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	s := a.sweepers[self]
 	if s == nil {
-		s = &pictures.Sweeper{
+		s = &pictures.Sweeper[domain.RoomID]{
 			Store:   a.cache,
 			Changed: a.roomsChanged,
 			Failed:  func(err error) { a.log.Debug("ask for pictures stopped", "account", self, "err", err) },

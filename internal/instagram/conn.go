@@ -15,6 +15,7 @@ import (
 	"go.mau.fi/mautrix-meta/pkg/messagix/dgw"
 	"go.mau.fi/mautrix-meta/pkg/messagix/httpclient"
 
+	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
@@ -42,7 +43,7 @@ type conn struct {
 	// inbox is what the connection knows of its threads and people (inbox.go).
 	inbox *inbox
 	// sweeper keeps the inbox's pictures (picturesLater).
-	sweeper *pictures.Sweeper
+	sweeper *pictures.Sweeper[domain.RoomID]
 }
 
 // connect starts account's connection under ctx, unless it has one.

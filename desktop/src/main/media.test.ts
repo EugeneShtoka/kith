@@ -22,9 +22,9 @@ beforeEach(async () => {
       loads++;
       return gate.media(room, event);
     },
-    (room) => {
+    (room, person) => {
       loads++;
-      return gate.picture(room);
+      return gate.picture(room, person);
     },
   );
 });
@@ -64,9 +64,23 @@ describe("kith-media:", () => {
     expect(loads).toBe(2);
     expect(kithd.reached).toEqual(["Device:", "LoadPicture:Home", "LoadPicture:Home"]);
     expect((await media.answer(pictureURL("!none:x", "p1"))).status).toBe(502);
-    for (const url of ["kith-media://picture/", "kith-media://picture/a/b", "kith-media://picture/%E0%A4%A"]) {
+    for (const url of [
+      "kith-media://picture/",
+      "kith-media://picture/a/",
+      "kith-media://picture/a/b/c",
+      "kith-media://picture/%E0%A4%A",
+    ]) {
       expect((await media.answer(url)).status, url).toBe(404);
     }
+  });
+
+  it("answers a person's picture in a room apart from the room's own", async () => {
+    await gate.call(window, "Device", new Uint8Array());
+    kithd.roomPictures.set("!r:x", new Uint8Array([7]));
+    kithd.roomPictures.set("!r:x/@a/b:x", new Uint8Array([9]));
+    expect(await bytes(pictureURL("!r:x", "p1", "@a/b:x"))).toEqual(new Uint8Array([9]));
+    expect(await bytes(pictureURL("!r:x", "p1"))).toEqual(new Uint8Array([7]));
+    expect(loads).toBe(2);
   });
 
   it("answers nothing before a profile, for an attachment kithd lacks, or for another URL", async () => {

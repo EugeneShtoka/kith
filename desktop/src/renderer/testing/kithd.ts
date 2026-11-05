@@ -118,6 +118,8 @@ export class Kithd {
   themeDefaults: ThemeResponse = create(ThemeResponseSchema);
   /** Each room's remembered sender colors (SenderSlots). */
   readonly slots = new Map<string, Map<string, number>>();
+  /** What SenderPictures answers, by room: each person's picture version. */
+  readonly senderPictures = new Map<string, Record<string, string>>();
   /** What the window told main to count in the tray, in order. */
   readonly told: number[] = [];
   /** The bridge the device joined, "" for a kithd of its own: the relay reads the profiles through it. */
@@ -743,6 +745,10 @@ export class Kithd {
         return reply(backend.senderSlots, {
           slots: [...(this.slots.get(room) ?? new Map<string, number>())].map(([key, slot]) => ({ key, slot })),
         });
+      }
+      case "SenderPictures": {
+        const room = (request as MessageShape<typeof backend.senderPictures.input>).roomId;
+        return reply(backend.senderPictures, { pictures: this.senderPictures.get(room) ?? {} });
       }
       case "CachedTimeline": {
         const room = (request as MessageShape<typeof backend.cachedTimeline.input>).roomId;

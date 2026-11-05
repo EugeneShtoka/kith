@@ -40,6 +40,7 @@ var freeText = map[string][]string{
 	"network_blocks":    {"network"},
 	"person_links":      {"source"},
 	"person_names":      {"source", "name"},
+	"person_pictures":   {"picture_id"},
 	"person_verdicts":   {"account", "tag", "filter"},
 	"quoted_messages":   {"body"},
 	"reaction_refusals": {"protocol", "emoji"},

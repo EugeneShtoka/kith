@@ -74,12 +74,12 @@ func (a *Adapter) picturesLater(self int64, client *telegram.Client, photos map[
 }
 
 // sweeper is self's picture sweeper, made on first use.
-func (a *Adapter) sweeper(self int64) *pictures.Sweeper {
+func (a *Adapter) sweeper(self int64) *pictures.Sweeper[domain.RoomID] {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	s := a.sweepers[self]
 	if s == nil {
-		s = &pictures.Sweeper{
+		s = &pictures.Sweeper[domain.RoomID]{
 			Store: a.cache,
 			Changed: func() {
 				if a.onRoomsChanged != nil {

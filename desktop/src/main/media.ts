@@ -24,7 +24,7 @@ export function byteRange(header: string, size: number): [number, number] | null
 export const mediaCacheBytes = 64 << 20;
 
 /**
- * Media answers kith-media: URLs with the attachment's bytes, or a room's picture, kept
+ * Media answers kith-media: URLs with the attachment's bytes, or a picture, kept
  * in memory by the whole URL: its version says what the attachment is, so a picture an
  * edit replaced is a URL of its own, never the old bytes.
  */
@@ -34,7 +34,7 @@ export class Media {
 
   constructor(
     private readonly load: (room: string, event: string) => Promise<Uint8Array>,
-    private readonly picture: (room: string) => Promise<Uint8Array>,
+    private readonly picture: (room: string, person: string) => Promise<Uint8Array>,
   ) {}
 
   /**
@@ -44,8 +44,8 @@ export class Media {
    */
   async answer(url: string, range: string | null = null): Promise<Response> {
     const named = mediaOf(url);
-    const room = pictureOf(url);
-    if (named === undefined && room === undefined) {
+    const pictured = pictureOf(url);
+    if (named === undefined && pictured === undefined) {
       return new Response(null, { status: 404 });
     }
     let bytes = this.held.get(url);
@@ -54,7 +54,9 @@ export class Media {
       this.held.set(url, bytes);
     } else {
       try {
-        bytes = await (named ? this.load(named.room, named.event) : this.picture(room ?? ""));
+        bytes = await (named
+          ? this.load(named.room, named.event)
+          : this.picture(pictured?.room ?? "", pictured?.person ?? ""));
       } catch (err) {
         return new Response(err instanceof Error ? err.message : String(err), { status: 502 });
       }

@@ -13,6 +13,12 @@ export function attachmentURL(m: Message): string {
   return mediaURL(m.roomId, m.id, version);
 }
 
+/** senderPicture is m's sender's picture as the window loads it, by pictures' versions; undefined while they have none. */
+export function senderPicture(m: Message, pictures: ReadonlyMap<string, string>): string | undefined {
+  const version = pictures.get(m.sender);
+  return version ? pictureURL(m.roomId, version, m.sender) : undefined;
+}
+
 /** roomPicture is room's picture as the window loads it, or undefined while it has none. */
 export function roomPicture(room: Room | undefined): string | undefined {
   return room?.picture ? pictureURL(room.id, room.picture) : undefined;

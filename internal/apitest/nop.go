@@ -109,7 +109,7 @@ func (Nop) CreatePoll(context.Context, domain.RoomID, string, []string, bool) (d
 }
 func (Nop) RecordEmoji(context.Context, domain.EmojiKind, domain.RoomID, string) error { return nil }
 func (Nop) LoadImage(context.Context, domain.RoomID, domain.EventID) ([]byte, error)   { return nil, nil }
-func (Nop) LoadPicture(context.Context, domain.RoomID) ([]byte, error)                 { return nil, nil }
+func (Nop) LoadPicture(context.Context, domain.RoomID, string) ([]byte, error)         { return nil, nil }
 func (Nop) Start(context.Context) error                                                { return nil }
 func (Nop) Stop()                                                                      {}
 func (n Nop) Messages() <-chan domain.Message                                          { return n.Msgs }
@@ -190,12 +190,13 @@ func (Nop) ImportRoomKeys(context.Context, domain.RoomOwner, string, []byte) (in
 func (Nop) SearchSenders(context.Context, domain.RoomSet, int) ([]domain.Member, error) {
 	return nil, nil
 }
-func (Nop) Redact(context.Context, domain.RoomID, domain.EventID, string) error     { return nil }
-func (Nop) LastMessages(context.Context) (map[domain.RoomID]time.Time, error)       { return nil, nil }
-func (Nop) SenderSlots(context.Context, domain.RoomID) (map[string]int, error)      { return nil, nil }
-func (Nop) SaveSenderSlots(context.Context, domain.RoomID, map[string]int) error    { return nil }
-func (Nop) ClearCache(context.Context) error                                        { return nil }
-func (Nop) RestoreKeyBackup(context.Context, domain.RoomOwner, string) (int, error) { return 0, nil }
+func (Nop) Redact(context.Context, domain.RoomID, domain.EventID, string) error      { return nil }
+func (Nop) LastMessages(context.Context) (map[domain.RoomID]time.Time, error)        { return nil, nil }
+func (Nop) SenderSlots(context.Context, domain.RoomID) (map[string]int, error)       { return nil, nil }
+func (Nop) SaveSenderSlots(context.Context, domain.RoomID, map[string]int) error     { return nil }
+func (Nop) SenderPictures(context.Context, domain.RoomID) (map[string]string, error) { return nil, nil }
+func (Nop) ClearCache(context.Context) error                                         { return nil }
+func (Nop) RestoreKeyBackup(context.Context, domain.RoomOwner, string) (int, error)  { return 0, nil }
 func (Nop) BootstrapKeyBackup(context.Context, domain.RoomOwner, string) (domain.KeyBackup, error) {
 	return domain.KeyBackup{}, nil
 }
