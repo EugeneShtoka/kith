@@ -98,12 +98,12 @@ func (a *Adapter) picturesLater(account Account, client *whatsmeow.Client, chang
 }
 
 // sweeper is account's picture sweeper, made on first use.
-func (a *Adapter) sweeper(account Account) *pictures.Sweeper {
+func (a *Adapter) sweeper(account Account) *pictures.Sweeper[domain.RoomID] {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	s := a.sweepers[account.Digits]
 	if s == nil {
-		s = &pictures.Sweeper{
+		s = &pictures.Sweeper[domain.RoomID]{
 			Store: a.cache,
 			Changed: func() {
 				if a.onRoomsChanged != nil {

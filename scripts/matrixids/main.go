@@ -215,6 +215,7 @@ var idColumns = map[string][]string{
 	"network_blocks":       {"user_id"},
 	"person_links":         {"id", "other"},
 	"person_names":         {"id"},
+	"person_pictures":      {"person_id"},
 	"person_verdicts":      {"person"},
 	"quoted_messages":      {"room_id", "event_id", "sender"},
 	"reactions":            {"event_id", "room_id", "target_event", "sender"},

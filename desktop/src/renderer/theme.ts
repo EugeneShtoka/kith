@@ -76,10 +76,12 @@ export function colorClass(hex: string): string {
 /** Slots are a room's remembered sender colors (SenderSlots), by the key the TUI keeps each sender under. */
 export type Slots = ReadonlyMap<string, number>;
 
-/** Faces is what a person's color is read from: the theme, and the open room's slots. */
+/** Faces is what a person's face is drawn from: the theme, and the open room's slots and pictures. */
 export interface Faces {
   theme: ThemeResponse | undefined;
   slots: Slots;
+  /** Each person's picture version, by their ID (SenderPictures). */
+  pictures: ReadonlyMap<string, string>;
 }
 
 /** faceClass is the class a person's face and name are drawn in: their color, else the window's hashed hue. */

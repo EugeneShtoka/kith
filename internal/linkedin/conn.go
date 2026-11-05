@@ -51,7 +51,7 @@ type conn struct {
 	saved   string
 	client  *linkedingo.Client
 	// sweeper keeps the inbox's pictures (picturesLater).
-	sweeper *pictures.Sweeper
+	sweeper *pictures.Sweeper[domain.RoomID]
 
 	// applying serializes taking conversations in: the inbox, and rooms, which is the
 	// account's rooms as last written (the cached ones, then every conversation heard

@@ -1014,6 +1014,24 @@ describe("the theme", () => {
     await settled();
     expect(view().slots.get("@ann:x")).toBe(3);
   });
+
+  it("reads the open room's people's pictures, and again as the rooms change", async () => {
+    kithd.of("Home").rooms = [room("!a")];
+    kithd.senderPictures.set("!a", { "@ann:x": "p1" });
+    await started();
+    session.open("!a");
+    await settled();
+    expect(view().pictures).toEqual(new Map([["@ann:x", "p1"]]));
+    kithd.senderPictures.set("!a", { "@ann:x": "p2", "@bo:x": "q1" }); // a sweep found new ones
+    kithd.send(backend.changed, "Home", { change: Change.ROOMS });
+    await settled();
+    expect(view().pictures).toEqual(
+      new Map([
+        ["@ann:x", "p2"],
+        ["@bo:x", "q1"],
+      ]),
+    );
+  });
 });
 
 describe("search, jumps, and back and forward", () => {

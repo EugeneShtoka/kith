@@ -75,7 +75,7 @@ type conn struct {
 	saved   string
 	client  *messagix.Client
 	// sweeper keeps the inbox's pictures (picturesLater).
-	sweeper *pictures.Sweeper
+	sweeper *pictures.Sweeper[domain.RoomID]
 
 	// applying serializes taking tables in: the inbox, and rooms, which is the account's
 	// rooms as last written (the cached ones, then every thread heard of), so a write

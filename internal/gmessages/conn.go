@@ -92,7 +92,7 @@ type conn struct {
 	saved   string
 	client  *libgm.Client
 	// sweeper keeps the inbox's pictures (picturesLater).
-	sweeper *pictures.Sweeper
+	sweeper *pictures.Sweeper[domain.RoomID]
 	// me is who you are on this phone, as the inbox last knew: read by Me, which may run
 	// while the inbox is being written (it counts unread for it).
 	me []string

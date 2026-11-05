@@ -104,7 +104,7 @@ type Adapter struct {
 	// run is Start's context; the helper runs under it.
 	run context.Context //nolint:containedctx // reloads arrive with no context of their own to outlive
 	// sweepers keep each account's pictures, by its ACI (pictures.go).
-	sweepers map[string]*pictures.Sweeper
+	sweepers map[string]*pictures.Sweeper[domain.RoomID]
 	// supervisor runs the helper while there is an account (supervise.go).
 	supervisor *supervisor
 	// helper is the helper while it is up, nil otherwise; up closes when it comes up.
@@ -139,7 +139,7 @@ func New(cache *db.Cache, secrets Secrets, key []byte, paths Paths, accounts []A
 		cache: cache, secrets: secrets, key: key, paths: paths, accounts: slices.Clone(accounts), log: log.With("network", "signal"),
 		said:      map[string]domain.AccountStatus{},
 		books:     map[string]*book{},
-		sweepers:  map[string]*pictures.Sweeper{},
+		sweepers:  map[string]*pictures.Sweeper[domain.RoomID]{},
 		txns:      map[string]uint64{},
 		typing:    map[domain.RoomID]map[string]*time.Timer{},
 		up:        make(chan struct{}),

@@ -13,7 +13,7 @@ import { hueOf } from "./faces";
 import { type Faces, faceClass, senderColor } from "./theme";
 import { builtIn, ColorRow } from "./ThemeRow";
 import { continues, dayLabel, newDay, seek } from "./groups";
-import { attachmentURL } from "./media";
+import { attachmentURL, senderPicture } from "./media";
 import { PollBlock } from "./Poll";
 import type { Session } from "./session";
 import { bound, type Keys, moved } from "./keymap";
@@ -408,7 +408,12 @@ export function Row({
               </time>
             )
           ) : (
-            <Avatar id={m.sender} name={m.senderName || m.sender} hue={faceClass(faces, m.sender)} />
+            <Avatar
+              id={m.sender}
+              name={m.senderName || m.sender}
+              hue={faceClass(faces, m.sender)}
+              picture={senderPicture(m, faces.pictures)}
+            />
           )}
         </div>
         <div className="content">

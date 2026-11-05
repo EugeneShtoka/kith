@@ -737,6 +737,12 @@ func (r *Remote) SenderSlots(ctx context.Context, roomID domain.RoomID) (map[str
 	return pc.ProtoToSenderSlots(resp.GetSlots()), err
 }
 
+// SenderPictures returns the picture versions of a room's people.
+func (r *Remote) SenderPictures(ctx context.Context, roomID domain.RoomID) (map[string]string, error) {
+	resp, err := call(ctx, "sender pictures", r.c.SenderPictures, &v1.SenderPicturesRequest{RoomId: string(roomID)})
+	return resp.GetPictures(), err
+}
+
 func (r *Remote) SaveSenderSlots(ctx context.Context, roomID domain.RoomID, slots map[string]int) error {
 	_, err := call(ctx, "save sender slots", r.c.SaveSenderSlots,
 		&v1.SaveSenderSlotsRequest{RoomId: string(roomID), Slots: pc.SenderSlotsToProto(slots)})
@@ -769,9 +775,9 @@ func (r *Remote) LoadImage(ctx context.Context, roomID domain.RoomID, eventID do
 	return resp.GetData(), err
 }
 
-// LoadPicture returns a room's picture as the daemon's cache keeps it.
-func (r *Remote) LoadPicture(ctx context.Context, roomID domain.RoomID) ([]byte, error) {
-	resp, err := call(ctx, "load picture", r.c.LoadPicture, &v1.LoadPictureRequest{RoomId: string(roomID)})
+// LoadPicture returns a room's picture, or a person's in it, as the daemon's cache keeps it.
+func (r *Remote) LoadPicture(ctx context.Context, roomID domain.RoomID, person string) ([]byte, error) {
+	resp, err := call(ctx, "load picture", r.c.LoadPicture, &v1.LoadPictureRequest{RoomId: string(roomID), Person: person})
 	return resp.GetData(), err
 }
 

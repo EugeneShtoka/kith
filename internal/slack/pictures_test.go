@@ -103,7 +103,7 @@ func TestADMShowsItsPersonsPicture(t *testing.T) {
 }
 
 // sweep keeps pics as the workspace's sweeper would, synchronously.
-func sweep(ctx context.Context, cache pictures.Store, pics map[domain.RoomID]picture) error {
+func sweep(ctx context.Context, cache pictures.Store[domain.RoomID], pics map[domain.RoomID]picture) error {
 	_, err := pictures.Sweep(ctx, cache, pictureWants(pics), time.Now())
 	return err
 }

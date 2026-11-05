@@ -185,6 +185,14 @@ func (c *Cache) SearchSenders(ctx context.Context, rooms domain.RoomSet, limit i
 	return members, nil
 }
 
+// Senders is everyone who wrote in a set of rooms, hidden people aside, who wrote most first.
+func (c *Cache) Senders(ctx context.Context, rooms domain.RoomSet) ([]string, error) {
+	if rooms.None() {
+		return nil, nil
+	}
+	return c.topSenders(ctx, rooms, 0)
+}
+
 // topSenders ranks senders in a set of rooms by message count, then recency.
 func (c *Cache) topSenders(ctx context.Context, rooms domain.RoomSet, limit int) ([]string, error) {
 	query := "SELECT sender, COUNT(*) AS n, MAX(ts_ms) AS recent FROM messages WHERE sender != ''"

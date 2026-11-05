@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { mediaOf } from "../shared/media";
-import { attachmentURL } from "./media";
+import { mediaOf, pictureOf } from "../shared/media";
+import { attachmentURL, senderPicture } from "./media";
 import { message } from "./testing/rows";
 
 describe("an attachment's URL", () => {
@@ -18,5 +18,15 @@ describe("an attachment's URL", () => {
     const urls = [first, edited, renamed].map(attachmentURL);
     expect(new Set(urls).size).toBe(3);
     expect(attachmentURL(message({ id: "$p:x", media: "cat.png" }, "!r:x"))).toBe(urls[0]);
+  });
+});
+
+describe("a sender's picture", () => {
+  it("names their room and them, at the version kept, and is none while they have none", () => {
+    const m = message({ id: "$1:x", sender: "@a/b:x" }, "!r:x");
+    const url = senderPicture(m, new Map([["@a/b:x", "v1"]]));
+    expect(url && pictureOf(url)).toEqual({ room: "!r:x", person: "@a/b:x" });
+    expect(senderPicture(m, new Map([["@a/b:x", "v2"]]))).not.toBe(url);
+    expect(senderPicture(m, new Map([["@c:x", "v1"]]))).toBeUndefined();
   });
 });

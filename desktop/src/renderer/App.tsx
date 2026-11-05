@@ -722,7 +722,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
               unreadLine={view.unreadLine}
               composer={view.composer}
               keys={view.keys}
-              faces={{ theme: view.theme, slots: view.slots }}
+              faces={{ theme: view.theme, slots: view.slots, pictures: view.pictures }}
               session={session}
             />
             {view.composer && (
@@ -750,7 +750,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
             t={view.timeline}
             composer={view.composer}
             keys={view.keys}
-            faces={{ theme: view.theme, slots: view.slots }}
+            faces={{ theme: view.theme, slots: view.slots, pictures: view.pictures }}
             session={session}
           />
         )}

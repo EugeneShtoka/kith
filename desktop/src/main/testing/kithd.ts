@@ -74,7 +74,7 @@ export class FakeKithd {
   readonly changes: Row[] = [];
   /** What LoadImage answers, by event. */
   readonly pictures = new Map<string, Uint8Array>();
-  /** What LoadPicture answers, by room. */
+  /** What LoadPicture answers, by room, or by room and person ("room/person"). */
   readonly roomPictures = new Map<string, Uint8Array>();
   /** Uploads staged (StartUpload), by ID: the name, the bytes, which bytes chunks covered. */
   readonly uploads = new Map<string, { name: string; data: Uint8Array; covered: Uint8Array }>();
@@ -383,9 +383,10 @@ export class FakeKithd {
           return { data };
         },
         loadPicture: (req) => {
-          const data = this.roomPictures.get(req.roomId);
+          const key = req.person === "" ? req.roomId : `${req.roomId}/${req.person}`;
+          const data = this.roomPictures.get(key);
           if (data === undefined) {
-            throw new ConnectError(`no picture of ${req.roomId}`, Code.NotFound);
+            throw new ConnectError(`no picture of ${key}`, Code.NotFound);
           }
           return { data };
         },

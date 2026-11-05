@@ -111,7 +111,7 @@ async function start(): Promise<void> {
   serveApp();
   const media = new Media(
     (room, event) => gate.media(room, event),
-    (room) => gate.picture(room),
+    (room, person) => gate.picture(room, person),
   );
   protocol.handle(mediaScheme, (request) => media.answer(request.url, request.headers.get("Range")));
   ipcMain.handle(channels.save, (event, room: unknown, id: unknown, name: unknown) =>

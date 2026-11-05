@@ -166,6 +166,13 @@ func (s *Service) SaveSenderSlots(ctx context.Context, roomID domain.RoomID, slo
 	})
 }
 
+// SenderPictures is the picture version of each person in a room who has one.
+func (s *Service) SenderPictures(ctx context.Context, roomID domain.RoomID) (map[string]string, error) {
+	return fromCache(s, "sender pictures for "+string(roomID), func(c *db.Cache) (map[string]string, error) {
+		return c.SenderPictures(ctx, roomID)
+	})
+}
+
 // SearchSenders ranks who posted in a set of rooms, for the search `from:` filter.
 func (s *Service) SearchSenders(ctx context.Context, rooms domain.RoomSet, limit int) ([]domain.Member, error) {
 	return fromCache(s, "read search senders", func(c *db.Cache) ([]domain.Member, error) {
@@ -173,7 +180,13 @@ func (s *Service) SearchSenders(ctx context.Context, rooms domain.RoomSet, limit
 	})
 }
 
-// LoadPicture is a room's picture as the cache keeps it; nil when it has none.
-func (s *Service) LoadPicture(ctx context.Context, roomID domain.RoomID) ([]byte, error) {
-	return fromCache(s, "load picture", func(c *db.Cache) ([]byte, error) { return c.Picture(ctx, roomID) })
+// LoadPicture is a room's picture as the cache keeps it, or a person's in it; nil when
+// there is none.
+func (s *Service) LoadPicture(ctx context.Context, roomID domain.RoomID, person string) ([]byte, error) {
+	return fromCache(s, "load picture", func(c *db.Cache) ([]byte, error) {
+		if person != "" {
+			return c.PersonPicture(ctx, roomID, person)
+		}
+		return c.Picture(ctx, roomID)
+	})
 }

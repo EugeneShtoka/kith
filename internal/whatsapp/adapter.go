@@ -95,7 +95,7 @@ type Adapter struct {
 	listedAt map[string]time.Time
 	trailing map[string]bool
 	// sweepers keep each account's pictures (picturesLater).
-	sweepers map[string]*pictures.Sweeper
+	sweepers map[string]*pictures.Sweeper[domain.RoomID]
 	// renames renames direct chats when contact names arrive.
 	renames renamer
 	// keepDeleted is [display.deleted] keep.
@@ -132,7 +132,7 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 		channels:  map[domain.RoomID]channel{},
 		listedAt:  map[string]time.Time{},
 		trailing:  map[string]bool{},
-		sweepers:  map[string]*pictures.Sweeper{},
+		sweepers:  map[string]*pictures.Sweeper[domain.RoomID]{},
 		messages:  make(chan domain.Message, streamBuffer),
 		activity:  make(chan domain.Activity, streamBuffer),
 		unread:    make(chan domain.Unread, streamBuffer),

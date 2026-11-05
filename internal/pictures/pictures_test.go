@@ -220,7 +220,7 @@ func TestASweeperSweepsOnlyTheLatestWantsAfterTheRunningOne(t *testing.T) {
 	}
 	changes := make(chan struct{}, 4)
 	failures := make(chan error, 4)
-	s := &Sweeper{Store: store, Changed: func() { changes <- struct{}{} }, Failed: func(err error) { failures <- err }}
+	s := &Sweeper[domain.RoomID]{Store: store, Changed: func() { changes <- struct{}{} }, Failed: func(err error) { failures <- err }}
 	ctx := context.Background()
 	s.Later(ctx, map[domain.RoomID]Want{room: fetch("first", true)})
 	wait(t, started)

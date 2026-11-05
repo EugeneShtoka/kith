@@ -122,6 +122,7 @@ the map.
 | `room_topics` | a room's `m.room.topic`, only for rooms that have one |
 | `room_upgrades` | the tombstone link in both directions (`replacement`, `predecessor`) and when it was last checked |
 | `room_pictures` | a room's picture (a person's, in a direct chat): the network's ID for it, the bytes, and when the network was last asked; `''` is a room found to have none |
+| `person_pictures` | a person's picture, by the ID their messages name them by, kept as `room_pictures` keeps a room's; no room owns it |
 | `room_aliases` | a room merged into another (`MergeRoom`: a WhatsApp chat known by the person's LID, then by their number), and the room it joined; a write naming it is filed under that room |
 | `room_parents` | a room's canonical parent space; `''` is a recorded "no parent", not a missing answer |
 | `spaces` | one row per space: name, the bridge that owns it, who keeps it |
@@ -434,8 +435,11 @@ Since then:
 - v32 (`room_pictures`): each room's picture (a person's, in a direct chat), its
   network's ID for it, and when the network was last asked. Starts empty; each
   network fills it as it asks.
+- v33 (`person_pictures`): each person's picture, by the ID their messages name them
+  by, as `room_pictures` keeps a room's. Starts empty; each network fills it as it
+  asks.
 
-so a current cache is at version 32.
+so a current cache is at version 33.
 
 ### Indexes need no migration
 

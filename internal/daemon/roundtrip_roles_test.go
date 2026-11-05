@@ -30,6 +30,7 @@ type recording struct {
 	refusals []domain.ReactionRefusal
 	scores   map[string]int
 	slots    map[string]int
+	pictures map[string]string
 	verdicts []domain.TagVerdict
 	spelling []domain.Misspelling
 	model    domain.ModelSuggestion
@@ -153,8 +154,8 @@ func (r *recording) LoadImage(_ context.Context, roomID domain.RoomID, eventID d
 	return r.image, r.failWith
 }
 
-func (r *recording) LoadPicture(_ context.Context, roomID domain.RoomID) ([]byte, error) {
-	r.gotRoom = roomID
+func (r *recording) LoadPicture(_ context.Context, roomID domain.RoomID, person string) ([]byte, error) {
+	r.gotRoom, r.gotFrom = roomID, person
 	return r.image, r.failWith
 }
 
@@ -204,6 +205,11 @@ func (r *recording) CancelVerification(_ context.Context, txnID string) error {
 func (r *recording) SenderSlots(_ context.Context, roomID domain.RoomID) (map[string]int, error) {
 	r.gotRoom = roomID
 	return r.slots, r.failWith
+}
+
+func (r *recording) SenderPictures(_ context.Context, roomID domain.RoomID) (map[string]string, error) {
+	r.gotRoom = roomID
+	return r.pictures, r.failWith
 }
 
 func (r *recording) SaveSenderSlots(_ context.Context, roomID domain.RoomID, slots map[string]int) error {
@@ -429,8 +435,9 @@ func TestRemainingRolesRoundTrip(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(image, b.image) {
 		t.Errorf("LoadImage() = %v, %v; want %v", image, err, b.image)
 	}
-	if picture, perr := r.LoadPicture(ctx, mx+"!b:example.org"); perr != nil || !reflect.DeepEqual(picture, b.image) || b.gotRoom != mx+"!b:example.org" {
-		t.Errorf("LoadPicture() = %v, %v of %s; want %v of !b", picture, perr, b.gotRoom, b.image)
+	if picture, perr := r.LoadPicture(ctx, mx+"!b:example.org", "matrix:@bob:example.org"); perr != nil || !reflect.DeepEqual(picture, b.image) ||
+		b.gotRoom != mx+"!b:example.org" || b.gotFrom != "matrix:@bob:example.org" {
+		t.Errorf("LoadPicture() = %v, %v of %s %s; want %v of !b's bob", picture, perr, b.gotRoom, b.gotFrom, b.image)
 	}
 
 	hits, err := r.SearchMessages(ctx, domain.SearchRequest{Filter: domain.ParseSearch("code", time.Now()), Rooms: domain.TheseRooms([]domain.RoomID{mx + "!a:example.org"}), Limit: 30})
@@ -728,6 +735,11 @@ func TestSenderSlotsRoundTrip(t *testing.T) {
 	got, err := r.SenderSlots(ctx, mx+"!a:example.org")
 	if err != nil || !reflect.DeepEqual(got, b.slots) || b.gotRoom != mx+"!a:example.org" {
 		t.Errorf("SenderSlots() = %v, %v (room %q); want %v", got, err, b.gotRoom, b.slots)
+	}
+
+	b.pictures = map[string]string{"matrix:@bob:example.org": "v1"}
+	if got, err := r.SenderPictures(ctx, mx+"!c:example.org"); err != nil || !reflect.DeepEqual(got, b.pictures) || b.gotRoom != mx+"!c:example.org" {
+		t.Errorf("SenderPictures() = %v, %v (room %q); want %v", got, err, b.gotRoom, b.pictures)
 	}
 
 	send := map[string]int{"matrix:@carol:example.org": 3, "matrix:@dave:example.org": 4}

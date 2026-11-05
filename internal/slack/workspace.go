@@ -54,7 +54,7 @@ type workspace struct {
 	phones map[string]string
 	// pictures is each known user's picture; sweeper keeps the DMs' (picturesLater).
 	pictures map[string]picture
-	sweeper  *pictures.Sweeper
+	sweeper  *pictures.Sweeper[domain.RoomID]
 }
 
 func newWorkspace(account Account, creds Credentials, teamName string, client *slackgo.Client, signIn int) *workspace {

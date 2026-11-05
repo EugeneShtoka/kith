@@ -74,7 +74,7 @@ func (a *Adapter) picturesLater(w *workspace, pics map[domain.RoomID]picture) {
 	}
 	w.mu.Lock()
 	if w.sweeper == nil {
-		w.sweeper = &pictures.Sweeper{
+		w.sweeper = &pictures.Sweeper[domain.RoomID]{
 			Store: a.cache,
 			Changed: func() {
 				if a.onRoomsChanged != nil {
