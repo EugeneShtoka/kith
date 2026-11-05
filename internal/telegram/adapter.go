@@ -13,6 +13,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 	"github.com/EugeneShtoka/kith/internal/readstate"
 )
 
@@ -93,6 +94,8 @@ type Adapter struct {
 	echoes map[string]time.Time
 	// notMember is, per account, the channels it has left (following.go).
 	notMember map[int64]map[int64]bool
+	// sweepers keep each account's pictures, by user ID (picturesLater).
+	sweepers map[int64]*pictures.Sweeper
 
 	// keeping makes the latest-login check and the credentials write atomic (keepLogin).
 	keeping sync.Mutex
@@ -118,6 +121,7 @@ func New(cache *db.Cache, secrets Secrets, store *Store, accounts []Account, log
 		reacted:   map[domain.EventID]time.Time{},
 		echoes:    map[string]time.Time{},
 		notMember: map[int64]map[int64]bool{},
+		sweepers:  map[int64]*pictures.Sweeper{},
 		typing:    map[domain.RoomID]map[string]*time.Timer{},
 		signIns:   map[string]int{},
 		logins:    map[string]*login{},
