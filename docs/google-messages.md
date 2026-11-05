@@ -12,7 +12,8 @@ yet, shows as a short label (`[photo]`, `[MMS not downloaded yet]`). You can sen
 text, replies and files, and react. A conversation shows its picture in the desktop
 window: a group its own, a one-to-one conversation the photo the phone keeps for the
 contact (asked of the phone at most once a day); someone not in your contacts shows
-as their initials.
+as their initials. Each message shows its sender's, the same contact photo, in a group
+too.
 
 Older messages, from before kith was paired too, come from the phone as you scroll
 back, and each conversation's history is read back in the background after kith

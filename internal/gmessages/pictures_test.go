@@ -2,6 +2,7 @@ package gmessages
 
 import (
 	"context"
+	"maps"
 	"testing"
 	"time"
 
@@ -45,6 +46,26 @@ func TestEachConversationWantsItsPicture(t *testing.T) {
 		if got[room] != w {
 			t.Errorf("%s wants %+v, want %+v", room, got[room], w)
 		}
+	}
+}
+
+// A person's own picture is the thumbnail of their participant, whatever conversation
+// names them, a group's included, when the phone may keep one; no one else's is asked.
+func TestEachPersonWithAThumbnailWantsIt(t *testing.T) {
+	t.Parallel()
+	contact := participant("2", danaNum, "Dana Reyes", false)
+	contact.ContactID = "c2"
+	google := participant("4", "verify.goog", "Google", false)
+	in := newInbox(self)
+	for _, c := range []*gmproto.Conversation{
+		active(group, "Board", true, 1000, false, pMe, contact, pEli),
+		active("14", "", false, 1000, false, pMe, google),
+	} {
+		in.take(c)
+	}
+	want := map[string]string{personOf(self, contact.GetID()): "2", personOf(self, google.GetID()): "4"}
+	if got := in.personThumbs(); !maps.Equal(got, want) {
+		t.Fatalf("personThumbs = %v, want %v", got, want)
 	}
 }
 
