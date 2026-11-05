@@ -154,6 +154,7 @@ func (a *Adapter) cachePage(ctx context.Context, ch chat, raw []tg.MessageClass,
 	if len(msgs) == 0 {
 		return nil
 	}
+	a.seePeople(ch.conn.user, ent.Users())
 	if _, err := a.record(ctx, ch.conn.user, msgs[0].RoomID, msgs); err != nil {
 		a.log.Warn("cache a page of history failed", "room", msgs[0].RoomID, "err", err)
 	}

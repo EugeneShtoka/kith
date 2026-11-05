@@ -127,3 +127,80 @@ func TestAListingKeepsEveryChatsPicture(t *testing.T) {
 		t.Errorf("the second listing downloaded %v, want the refused photo, then the changed one", downloads)
 	}
 }
+
+// The users a history page names have their photos kept as people's pictures, a
+// changed one downloaded again; a min user, whose photo is reached only through its
+// message, is not asked.
+func TestAPagesPeopleHaveTheirPicturesKept(t *testing.T) {
+	t.Parallel()
+	f := newFakeTelegram(t)
+	f.serveUpdates(&updatesOf{pts: 1})
+	d := f.cluster.Dispatch(2, "dc2")
+	var mu sync.Mutex
+	photoID := int64(77)
+	var downloads []int64
+	d.HandleFunc(tg.MessagesGetHistoryRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
+		mu.Lock()
+		person := *dana
+		person.Photo = &tg.UserProfilePhoto{PhotoID: photoID, DCID: 2}
+		mu.Unlock()
+		stranger := &tg.User{ID: 9, Min: true, Photo: &tg.UserProfilePhoto{PhotoID: 66, DCID: 2}}
+		return sendResult(s, r, &tg.MessagesMessages{
+			Users:    []tg.UserClass{&person, stranger},
+			Messages: []tg.MessageClass{&tg.Message{ID: 1, PeerID: &tg.PeerUser{UserID: 7}, Message: "m", Date: 1001}},
+		})
+	})
+	d.HandleFunc(tg.UploadGetFileRequestTypeID, func(s *tgtest.Server, r *tgtest.Request) error {
+		var req tg.UploadGetFileRequest
+		if err := req.Decode(r.Buf); err != nil {
+			return err
+		}
+		loc := req.Location.(*tg.InputPeerPhotoFileLocation)
+		if req.Offset > 0 {
+			return sendResult(s, r, &tg.UploadFile{Type: &tg.StorageFileJpeg{}, Mtime: 1})
+		}
+		mu.Lock()
+		downloads = append(downloads, loc.PhotoID)
+		mu.Unlock()
+		return sendResult(s, r, &tg.UploadFile{Type: &tg.StorageFileJpeg{}, Bytes: []byte("photo " + strconv.FormatInt(loc.PhotoID, 10)), Mtime: 1})
+	})
+	st := openStore(t)
+	knowDana(t, st)
+	a, cache := loggedInWithStore(t, f, st)
+	kept := func(want string) {
+		t.Helper()
+		var checks map[string]domain.PictureCheck
+		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+			var err error
+			if checks, err = cache.PersonPictures().PictureChecks(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if checks[personID(7)].ID == want {
+				break
+			}
+		}
+		if checks[personID(7)].ID != want || len(checks) != 1 {
+			t.Fatalf("people's pictures = %v, want only Dana's at %s", checks, want)
+		}
+	}
+	room := domain.RoomID("telegram:42/7")
+	if _, err := a.Timeline(t.Context(), room, "", 4); err != nil {
+		t.Fatal(err)
+	}
+	kept("77")
+	if _, err := a.Timeline(t.Context(), room, "", 4); err != nil { // the same photo: not downloaded again
+		t.Fatal(err)
+	}
+	mu.Lock()
+	photoID = 78
+	mu.Unlock()
+	if _, err := a.Timeline(t.Context(), room, "", 4); err != nil {
+		t.Fatal(err)
+	}
+	kept("78")
+	mu.Lock()
+	defer mu.Unlock()
+	if !slices.Equal(downloads, []int64{77, 78}) {
+		t.Errorf("downloaded %v, want Dana's photo, then their new one", downloads)
+	}
+}
