@@ -50,6 +50,7 @@ func Validate(cfg config.Config) error {
 		BridgeContacts(cfg.BridgeContacts),
 		DefaultAccounts(cfg),
 		GUITheme(cfg.GUI.Theme),
+		identityPictures(cfg.Display.Identities),
 	} {
 		if err != nil {
 			return err

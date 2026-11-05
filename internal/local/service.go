@@ -51,6 +51,22 @@ type Service struct {
 	// places are the names, space order and pins a room's facts are read with.
 	placesMu sync.Mutex
 	places   domain.Places
+	// faces are the identities' pictures (UseFaces), under placesMu.
+	faces map[string][]string
+}
+
+// UseFaces sets, for each ID a [[display.identity]] names, the IDs whose picture stands
+// for theirs (setup.FacesOf). Called at startup and on reload.
+func (s *Service) UseFaces(faces map[string][]string) {
+	s.placesMu.Lock()
+	defer s.placesMu.Unlock()
+	s.faces = faces
+}
+
+func (s *Service) facesNow() map[string][]string {
+	s.placesMu.Lock()
+	defer s.placesMu.Unlock()
+	return s.faces
 }
 
 // UsePlaces sets the room names, space priority and pins the model opt-in reads room

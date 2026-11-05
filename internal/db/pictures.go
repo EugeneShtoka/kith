@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -151,4 +153,106 @@ func (c *Cache) PersonPicture(ctx context.Context, room domain.RoomID, person st
 		return nil, nil
 	}
 	return data, nil
+}
+
+// peopleInRoom is which of people are in room: a member, or a sender of a message it keeps.
+func (c *Cache) peopleInRoom(ctx context.Context, room domain.RoomID, people []string) ([]string, error) {
+	var in []string
+	for _, p := range people {
+		var there bool
+		if err := c.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM room_members WHERE room_id = ?1 AND user_id = ?2)
+			OR EXISTS (SELECT 1 FROM messages WHERE room_id = ?1 AND sender = ?2)`, string(room), p).Scan(&there); err != nil {
+			return nil, fmt.Errorf("db: is %s in %s: %w", p, room, err)
+		}
+		if there {
+			in = append(in, p)
+		}
+	}
+	return in, nil
+}
+
+// versions is the kept picture version of each of people who has one.
+func (p PersonPictures) versions(ctx context.Context, people []string) (map[string]string, error) {
+	out := map[string]string{}
+	for _, person := range people {
+		var id string
+		found, err := optional(p.c.db.QueryRowContext(ctx,
+			`SELECT picture_id FROM person_pictures WHERE person_id = ? AND picture_id <> ''`, person).Scan(&id))
+		if err != nil {
+			return nil, fmt.Errorf("db: read the picture version of %s: %w", person, err)
+		}
+		if found {
+			out[person] = id
+		}
+	}
+	return out, nil
+}
+
+// picture is a person's kept picture wherever they are; nil when they have none. It is
+// handed on only for someone in a room the caller may show.
+func (p PersonPictures) picture(ctx context.Context, person string) ([]byte, error) {
+	var data []byte
+	found, err := optional(p.c.db.QueryRowContext(ctx,
+		`SELECT data FROM person_pictures WHERE person_id = ? AND picture_id <> ''`, person).Scan(&data))
+	if err != nil {
+		return nil, fmt.Errorf("db: read the picture of %s: %w", person, err)
+	}
+	if !found {
+		return nil, nil
+	}
+	return data, nil
+}
+
+// SenderPicturesAs is SenderPictures as faces have it: each person faces names who is in
+// room shows the first picture of their chain (setup.FacesOf), under a version of its own
+// when it is another's.
+func (c *Cache) SenderPicturesAs(ctx context.Context, room domain.RoomID, faces map[string][]string) (map[string]string, error) {
+	out, err := c.SenderPictures(ctx, room)
+	if err != nil || len(faces) == 0 {
+		return out, err
+	}
+	in, err := c.peopleInRoom(ctx, room, slices.Sorted(maps.Keys(faces)))
+	if err != nil {
+		return nil, err
+	}
+	for _, person := range in {
+		source, version, err := c.standIn(ctx, faces[person])
+		if err != nil {
+			return nil, err
+		}
+		if source != "" && source != person { // none (their own is in the chain), or their own, as kept
+			out[person] = "via " + source + " " + version
+		}
+	}
+	return out, nil
+}
+
+// PersonPictureAs is PersonPicture as chain has it (setup.FacesOf; nil for someone no
+// identity names): the first picture of it, for someone in room alone.
+func (c *Cache) PersonPictureAs(ctx context.Context, room domain.RoomID, person string, chain []string) ([]byte, error) {
+	if chain == nil {
+		return c.PersonPicture(ctx, room, person)
+	}
+	if in, err := c.peopleInRoom(ctx, room, []string{person}); err != nil || len(in) == 0 {
+		return nil, err // no one there is shown
+	}
+	source, _, err := c.standIn(ctx, chain)
+	if err != nil || source == "" {
+		return nil, err
+	}
+	return c.PersonPictures().picture(ctx, source)
+}
+
+// standIn is the first of chain that has a picture, and its version; "" for none.
+func (c *Cache) standIn(ctx context.Context, chain []string) (source, version string, err error) {
+	versions, err := c.PersonPictures().versions(ctx, chain)
+	if err != nil {
+		return "", "", err
+	}
+	for _, id := range chain {
+		if v, ok := versions[id]; ok {
+			return id, v, nil
+		}
+	}
+	return "", "", nil
 }

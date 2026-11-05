@@ -305,6 +305,9 @@ type Identity struct {
 	Alias string   `toml:"alias"`
 	Color string   `toml:"color"` // "#rrggbb" or a named color
 	IDs   []string `toml:"ids"`   // user IDs, on any network
+	// Picture is one of IDs, whose picture is everyone's of the identity; empty, each
+	// their own, else the first of IDs that has one.
+	Picture string `toml:"picture"`
 }
 
 // DisplayName is one [[display.name]]: a name you gave something.

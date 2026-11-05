@@ -449,6 +449,7 @@ func configure(log *slog.Logger, backend served, cfg config.Config, storage doma
 	backend.UseModel(modelSettings(log, cfg, storage.KeyringService))
 	backend.UseCompletionModel(modelsetup.CompletionModel(cfg.Complete.Model, storage.DataDir))
 	backend.UsePlaces(setup.PlacesOf(cfg))
+	backend.UseFaces(setup.FacesOf(cfg.Display.Identities))
 }
 
 // modelSettings translates `[assist]` and `[complete.model]` and reads the API key.
@@ -652,6 +653,7 @@ func reloader(
 		cutoff.Store(int64(reloaded.Schedule.Cutoff()))
 		backend.UseCompletionModel(modelsetup.CompletionModel(reloaded.Complete.Model, backend.dataDir))
 		backend.UsePlaces(setup.PlacesOf(reloaded))
+		backend.UseFaces(setup.FacesOf(reloaded.Display.Identities))
 		backend.defaults.use(reloaded)
 		for _, n := range backend.networks {
 			n.UseConfig(ctx, reloaded)

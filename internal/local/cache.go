@@ -166,10 +166,11 @@ func (s *Service) SaveSenderSlots(ctx context.Context, roomID domain.RoomID, slo
 	})
 }
 
-// SenderPictures is the picture version of each person in a room who has one.
+// SenderPictures is the picture version of each person in a room who has one: their
+// [[display.identity]]'s choice (UseFaces) for someone it names.
 func (s *Service) SenderPictures(ctx context.Context, roomID domain.RoomID) (map[string]string, error) {
 	return fromCache(s, "sender pictures for "+string(roomID), func(c *db.Cache) (map[string]string, error) {
-		return c.SenderPictures(ctx, roomID)
+		return c.SenderPicturesAs(ctx, roomID, s.facesNow())
 	})
 }
 
@@ -184,9 +185,9 @@ func (s *Service) SearchSenders(ctx context.Context, rooms domain.RoomSet, limit
 // there is none.
 func (s *Service) LoadPicture(ctx context.Context, roomID domain.RoomID, person string) ([]byte, error) {
 	return fromCache(s, "load picture", func(c *db.Cache) ([]byte, error) {
-		if person != "" {
-			return c.PersonPicture(ctx, roomID, person)
+		if person == "" {
+			return c.Picture(ctx, roomID)
 		}
-		return c.Picture(ctx, roomID)
+		return c.PersonPictureAs(ctx, roomID, person, s.facesNow()[person])
 	})
 }

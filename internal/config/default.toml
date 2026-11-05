@@ -105,10 +105,13 @@ unread = "messages"
 # Merge several accounts into one person with a shared alias and/or fixed color
 # (#rrggbb or a named color). Both are optional. An alias chooses which name to show;
 # the space's name rules still shorten it ("Dana Levi" → "Dana" under first_name_only).
+# picture is one of ids: its picture is everyone's of the identity (in the desktop
+# window). Unset, each shows their own, else the first of ids that has one.
 # [[display.identity]]
 # alias = "Eugene"
 # color = "#8ff586"
 # ids = ["matrix:@eugene:example.org", "matrix:@whatsapp_1234:example.org"]
+# picture = "matrix:@eugene:example.org"
 
 # Names you gave things: a room, a space, a rail row, a thread (`a` on it in the app).
 # `target` is one of:
