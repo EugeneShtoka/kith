@@ -11,7 +11,7 @@ import (
 // themePaths are keys of [gui.theme] a generated window writes: one of each kind, an account
 // as kith names one (a colon and a slash in it) and a person whose ID has dots.
 var themePaths = []string{
-	"mode", "light.accent", "dark.text", "dark.selection",
+	"mode", "faces", "light.accent", "dark.text", "dark.selection",
 	"accounts.whatsapp:main/", "accounts.matrix:0123456789abcdef/", "people.matrix:@a.b:x.org", "people.whatsapp:15550100@s.whatsapp.net",
 }
 
@@ -22,6 +22,9 @@ func themeValueOf(rng *rand.Rand, path string) string {
 	}
 	if path == "mode" {
 		return GUIThemeModes()[rng.IntN(len(GUIThemeModes()))]
+	}
+	if path == "faces" {
+		return GUIThemeFaces()[rng.IntN(len(GUIThemeFaces()))]
 	}
 	return fmt.Sprintf("#%06x", rng.IntN(1<<24))
 }

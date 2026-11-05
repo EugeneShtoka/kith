@@ -15,7 +15,9 @@ type GUI struct {
 // GUITheme is [gui.theme]: the graphical clients' theme. The TUI draws with its own
 // [tui.theme] and reads none of it. A color is "#rrggbb"; an empty value is unset.
 type GUITheme struct {
-	Mode  string   `toml:"mode"` // GUIThemeModes; empty is "system"
+	Mode string `toml:"mode"` // GUIThemeModes; empty is "system"
+	// Faces is how people and rooms are drawn: GUIThemeFaces; empty is "pictures".
+	Faces string   `toml:"faces"`
 	Light GUIRoles `toml:"light"`
 	Dark  GUIRoles `toml:"dark"`
 	// Accounts is a network account's color, by its rooms' owner (domain.AccountRooms).
@@ -39,6 +41,10 @@ type GUIRoles struct {
 
 // GUIThemeModes are the modes [gui.theme] mode takes.
 func GUIThemeModes() []string { return []string{"system", "light", "dark"} }
+
+// GUIThemeFaces are the ways [gui.theme] faces draws people and rooms: their pictures
+// where kith keeps one (else their initials), or their initials always.
+func GUIThemeFaces() []string { return []string{"pictures", "initials"} }
 
 // GUIThemeRoles are the roles a mode colors, in GUIRoles' order.
 func GUIThemeRoles() []string {
@@ -76,7 +82,7 @@ const (
 	GUIThemePeople   = "people"
 )
 
-// Get is the value of the key at path in [gui.theme] ("mode", "dark.accent",
+// Get is the value of the key at path in [gui.theme] ("mode", "faces", "dark.accent",
 // "people.<id>"), "" where unset; false for a path that names no key.
 func (l GUITheme) Get(path string) (string, bool) {
 	at, ok := l.at(path)
@@ -102,6 +108,9 @@ func (l GUITheme) Keys() []string {
 	var out []string
 	if l.Mode != "" {
 		out = append(out, "mode")
+	}
+	if l.Faces != "" {
+		out = append(out, "faces")
 	}
 	for mode, roles := range map[string]*GUIRoles{"light": &l.Light, "dark": &l.Dark} {
 		for _, name := range GUIThemeRoles() {
@@ -150,6 +159,8 @@ func (l *GUITheme) at(path string) (themeKey, bool) {
 	switch {
 	case path == "mode":
 		return field(&l.Mode), true
+	case path == "faces":
+		return field(&l.Faces), true
 	case table == "light" && l.Light.role(key) != nil:
 		return field(l.Light.role(key)), true
 	case table == "dark" && l.Dark.role(key) != nil:

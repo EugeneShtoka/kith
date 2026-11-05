@@ -198,17 +198,19 @@ func TestTheThemeIsTheDevicesOverTheSharedOverTheDefault(t *testing.T) {
 	cfgPath := filepath.Join(dir, "config.toml")
 	var shared config.GUITheme
 	shared.Set("mode", "dark")
+	shared.Set("faces", "initials")
 	shared.Set("light.accent", "#111111")
 	shared.Set("dark.text", "#222222")
 	shared.Set("people.matrix:@ada:x", "#333333")
 	themeConfig(t, cfgPath, shared)
-	handWrite(t, cfgPath, "[tui.theme.networks]\nwhatsapp = \"#25d366\"\n\n[gui.theme.accounts]\n\"matrix:"+domain.AccountKey("@me:x")+"/\" = \"#bbbbbb\"\n\n[gui.theme.light]\naccent = \"#aaaaaa\"\n")
+	handWrite(t, cfgPath, "[tui.theme.networks]\nwhatsapp = \"#25d366\"\n\n[gui.theme]\nfaces = \"pictures\"\n\n[gui.theme.accounts]\n\"matrix:"+domain.AccountKey("@me:x")+"/\" = \"#bbbbbb\"\n\n[gui.theme.light]\naccent = \"#aaaaaa\"\n")
 	relay := deviceClient(relayFor(t, serveThemeKithd(t, cfgPath).socket, cfgPath))
 
 	theme := themeOf(t, relay)
 	whatsapp, matrix := string(themeAccounts[0].On), string(themeAccounts[1].On)
 	want := map[string]*devicev1.ThemeValue{
 		"mode":                    {Value: "dark", Source: devicev1.ThemeSource_THEME_SOURCE_SHARED, Shared: "dark"},
+		"faces":                   {Value: "pictures", Source: devicev1.ThemeSource_THEME_SOURCE_DEVICE, Shared: "initials", Device: "pictures"},
 		"light.accent":            {Value: "#aaaaaa", Source: devicev1.ThemeSource_THEME_SOURCE_DEVICE, Shared: "#111111", Device: "#aaaaaa"},
 		"dark.text":               {Value: "#222222", Source: devicev1.ThemeSource_THEME_SOURCE_SHARED, Shared: "#222222"},
 		"dark.accent":             {},
@@ -230,8 +232,8 @@ func TestTheThemeIsTheDevicesOverTheSharedOverTheDefault(t *testing.T) {
 			t.Errorf("%s = %v, want %v", key, got, w)
 		}
 	}
-	if len(theme.GetValues()) != 1+2*len(config.GUIThemeRoles())+len(themeAccounts)+1 {
-		t.Errorf("%d keys, want the mode, every role of both modes, each account and the one person", len(theme.GetValues()))
+	if len(theme.GetValues()) != 2+2*len(config.GUIThemeRoles())+len(themeAccounts)+1 {
+		t.Errorf("%d keys, want the mode, the faces, every role of both modes, each account and the one person", len(theme.GetValues()))
 	}
 	if got := theme.GetNetworkColors(); got["WhatsApp"] != "#25d366" || got["Google Messages"] == "" || got["Matrix"] != "" {
 		t.Errorf("network colors %v: want WhatsApp's set, Google Messages' default, none for Matrix", got)

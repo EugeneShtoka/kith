@@ -354,7 +354,7 @@ key.
 | `[keys]` and `[keys.*]` | device | Every keybinding, one table per mode. | [keybindings.md](keybindings.md) |
 | `[tui.theme]` | device | The terminal client's color palette: a preset plus per-role overrides. | [Themes](#themes) |
 | `[tui.theme.networks]` | device | The color each network's rooms are named in, where the room lists or the rail ask for it. | [usage.md](usage.md) |
-| `[gui.theme]` | both: config for every device, device for this one, key by key over it | The graphical clients' theme (the desktop window): its mode, each mode's colors, and colors per account and per person. The terminal client reads none of it. | [The graphical clients' theme](#the-graphical-clients-theme) |
+| `[gui.theme]` | both: config for every device, device for this one, key by key over it | The graphical clients' theme (the desktop window): its mode, pictures or initials, each mode's colors, and colors per account and per person. The terminal client reads none of it. | [The graphical clients' theme](#the-graphical-clients-theme) |
 
 Settings that name a place say which kind with a prefix:
 
@@ -454,6 +454,7 @@ is the window's default.
 | Key | What |
 | --- | --- |
 | `mode` | `system` (the default) follows the system's light or dark; `light` and `dark` keep to one. |
+| `faces` | `pictures` (the default) draws people and rooms as their pictures where kith keeps one, else their initials; `initials` draws initials always. |
 | `[gui.theme.light]`, `[gui.theme.dark]` | Each mode's colors, by role: `accent`, `background`, `surface` (the side columns), `text`, `muted` (times, hints), `link`, `selection` (the row you are on), `unread` and `mention`. |
 | `[gui.theme.accounts]` | A network account's color, by its rooms' owner as kith names it (`whatsapp:main/`, or `matrix:<account>/`): its rooms' mark and the open room's network. Unset, its network's `[tui.theme.networks]` color. |
 | `[gui.theme.people]` | A person's color, by their ID: their name and face. Unset, the color the terminal client gives them in that room; one it has not given a color yet is drawn in the window's own. |
