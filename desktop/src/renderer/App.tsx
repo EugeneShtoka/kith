@@ -21,7 +21,7 @@ import { type Link, type Seat, Session, type View } from "./session";
 import { SearchBar, SearchResults, Switcher } from "./Find";
 import { SettingsPage } from "./SettingsPage";
 import { ThreadPane } from "./ThreadPane";
-import { type TimelineNav, TimelinePane } from "./TimelinePane";
+import { type TimelineNav, TimelinePane, write } from "./TimelinePane";
 import { VerifyDialog } from "./Verification";
 
 const phases: Record<NetworkPhase, string> = {
@@ -157,10 +157,16 @@ function paneOf(el: Element | null, last: string): string {
   return el.closest("[data-pane]")?.getAttribute("data-pane") ?? "";
 }
 
-/** onRow: el is where a pane's motions act: the pane itself, one of its rows, or nothing focused. */
+/**
+ * onRow: el is where a pane's motions act: the pane itself, one of its rows, its list's
+ * scroller (which a click on the timeline between messages focuses), or nothing focused.
+ */
 function onRow(el: Element | null, pane: string): boolean {
   return (
-    el === null || el === document.body || el.matches("[data-pane]") || el.matches(paneRows[pane] ?? "article.message")
+    el === null ||
+    el === document.body ||
+    el.matches("[data-pane], [data-virtuoso-scroller]") ||
+    el.matches(paneRows[pane] ?? "article.message")
   );
 }
 
@@ -343,7 +349,8 @@ function Seated({ view, session }: { view: View; session: Session }) {
       const order = shown();
       const at = order.indexOf(paneOf(document.activeElement, lastPane.current));
       const to = order[at + delta];
-      return at >= 0 && to !== undefined && focusTo(to);
+      // Into the open room is into its composer, as the TUI's insert; esc goes on to the message cursor.
+      return at >= 0 && to !== undefined && ((to === "timeline" && write()) || focusTo(to));
     };
     // nav moves the focused pane's cursor, opens what it is on, or goes back a pane.
     const nav = (path: string, count: number): boolean => {

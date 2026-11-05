@@ -159,7 +159,7 @@ It binds these so far, with their defaults:
 | `jump_forward` | `ctrl+i`, `alt+o` | Forward again, while typing too |
 | `settings` | `,` | Settings, when no field takes typing |
 | `help` | `?` | These keys, as bound now, with a box to find one; `esc` clears it, then closes |
-| `focus_next`, `focus_prev` | `tab`, `shift+tab` | The next pane, or the one before: places, rooms, the open room, its thread |
+| `focus_next`, `focus_prev` | `tab`, `shift+tab` | The next pane, or the one before: places, rooms, the open room, its thread. Into the open room is into its composer; `esc` goes on to the message focused last |
 | `nav.up`, `nav.down` | `k`, `up`; `j`, `down` | The pane's cursor up or down: a place (picked as you go), a room, a message |
 | `nav.open` | `l`, `right`, `enter` | Into the next pane: a place's rooms, a room's messages (opening it) |
 | `nav.back` | `h`, `left`, `esc` | Back a pane; from a message, the open thread closes first |
