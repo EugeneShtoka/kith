@@ -9,10 +9,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"go.mau.fi/mautrix-linkedin/pkg/linkedingo"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
 func withPicture(p linkedingo.MessagingParticipant, img *linkedingo.VectorImage) linkedingo.MessagingParticipant {
@@ -107,7 +109,7 @@ func TestAConversationShowsItsPersonsPicture(t *testing.T) {
 		return out
 	}
 
-	if err := a.sweepPictures(ctx, client, c.inbox.conversationPictures(c.profile)); err != nil {
+	if err := sweep(ctx, a, client, c.inbox.conversationPictures(c.profile)); err != nil {
 		t.Fatal(err)
 	}
 	want := map[domain.RoomID]string{
@@ -125,7 +127,7 @@ func TestAConversationShowsItsPersonsPicture(t *testing.T) {
 		with(conversation(danaDM, "", 2000, 0, true, me, dana), dana, "dana2"),
 		with(conversation(acmeDM, "", 2000, 0, true, me, acmeOrg), acmeOrg, "acme1"),
 	}, nil)
-	if err := a.sweepPictures(ctx, client, c.inbox.conversationPictures(c.profile)); err != nil {
+	if err := sweep(ctx, a, client, c.inbox.conversationPictures(c.profile)); err != nil {
 		t.Fatal(err)
 	}
 	want[roomID(me, danaDM)] = "/dana2/=picture /dana2/s"
@@ -137,4 +139,10 @@ func TestAConversationShowsItsPersonsPicture(t *testing.T) {
 	if !slices.Equal(fetched, []string{"/dana2/s"}) {
 		t.Errorf("the second sweep fetched %v, want only Dana's new picture", fetched)
 	}
+}
+
+// sweep keeps pics as the connection's sweeper would, synchronously.
+func sweep(ctx context.Context, a *Adapter, client *linkedingo.Client, pics map[domain.RoomID]picture) error {
+	_, err := pictures.Sweep(ctx, a.cache, a.pictureWants(client, pics), time.Now())
+	return err
 }

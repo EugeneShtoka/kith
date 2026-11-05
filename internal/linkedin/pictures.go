@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"time"
 
 	"go.mau.fi/mautrix-linkedin/pkg/linkedingo"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
 // A one-to-one conversation's picture is its person's (a member's photo, an
-// organization's logo); a group has none (db.SetPicture). Every listing carries the
+// organization's logo); a group has none. The connection's sweeper (internal/pictures)
+// keeps them. Every listing carries the
 // participants, so each one that changes the rooms sweeps them: a picture the cache
 // holds another version of is downloaded with the account's session, as LinkedIn's
 // links expire. It is kept by its root address, which stays while the picture does.
@@ -69,80 +70,49 @@ func firstOf(ids []string) string {
 	return ids[0]
 }
 
-// picturesLater keeps the pictures c's inbox names, off the listing: one sweep per
-// connection at a time, the pictures named meanwhile swept after it.
-func (a *Adapter) picturesLater(c *conn) {
-	pictures := c.inbox.conversationPictures(c.profile)
-	c.mu.Lock()
-	c.pictureWant = pictures
-	client := c.client
-	if c.sweeping || client == nil {
-		c.mu.Unlock()
-		return
+// pictureWants is what the sweeper is to keep of the conversations' pictures,
+// downloaded with client.
+func (a *Adapter) pictureWants(client *linkedingo.Client, pics map[domain.RoomID]picture) map[domain.RoomID]pictures.Want {
+	wants := make(map[domain.RoomID]pictures.Want, len(pics))
+	for room, p := range pics {
+		wants[room] = pictures.Want{Version: p.root, Fetch: func(ctx context.Context) (data []byte, err error) {
+			err = a.ask(ctx, "downloading a picture", func(ctx context.Context) (err error) {
+				data, err = client.DownloadBytes(ctx, p.link)
+				return err //nolint:wrapcheck // wrapped below
+			})
+			if err != nil {
+				return nil, fmt.Errorf("linkedin: download the picture of %s: %w", room, err)
+			}
+			return data, nil
+		}}
 	}
-	c.sweeping = true
-	c.mu.Unlock()
+	return wants
+}
+
+// picturesLater has c's sweeper keep the pictures its inbox names, off the listing;
+// none before the connection has a client.
+func (a *Adapter) picturesLater(c *conn) {
+	pics := c.inbox.conversationPictures(c.profile)
 	a.mu.Lock()
 	ctx := a.run
 	a.mu.Unlock()
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go func() {
-		for {
-			c.mu.Lock()
-			want := c.pictureWant
-			c.pictureWant = nil
-			if want == nil {
-				c.sweeping = false
-				c.mu.Unlock()
-				return
-			}
-			c.mu.Unlock()
-			if err := a.sweepPictures(ctx, client, want); err != nil {
-				a.log.Debug("download pictures stopped", "account", c.account.Name, "err", err)
-			}
-		}
-	}()
-}
-
-// sweepPictures keeps each picture the cache holds another version of, stopping at the
-// first download that fails: the rest are tried again with the next listing.
-func (a *Adapter) sweepPictures(ctx context.Context, client *linkedingo.Client, pictures map[domain.RoomID]picture) error {
-	checks, err := a.cache.PictureChecks(ctx)
-	if err != nil {
-		return fmt.Errorf("linkedin: read the pictures kept: %w", err)
+	c.mu.Lock()
+	client := c.client
+	if client == nil {
+		c.mu.Unlock()
+		return
 	}
-	changed := false
-	defer func() {
-		if changed {
-			a.roomsChanged()
+	if c.sweeper == nil {
+		c.sweeper = &pictures.Sweeper{
+			Store:   a.cache,
+			Changed: a.roomsChanged,
+			Failed:  func(err error) { a.log.Debug("download pictures stopped", "account", c.account.Name, "err", err) },
 		}
-	}()
-	rooms := make([]domain.RoomID, 0, len(pictures))
-	for room := range pictures {
-		rooms = append(rooms, room)
 	}
-	slices.Sort(rooms)
-	for _, room := range rooms {
-		p := pictures[room]
-		if check, ok := checks[room]; ok && check.ID == p.root {
-			continue
-		}
-		var data []byte
-		if p.root != "" {
-			err := a.ask(ctx, "downloading a picture", func(ctx context.Context) (err error) {
-				data, err = client.DownloadBytes(ctx, p.link)
-				return err //nolint:wrapcheck // wrapped below
-			})
-			if err != nil {
-				return fmt.Errorf("linkedin: download the picture of %s: %w", room, err)
-			}
-		}
-		if err := a.cache.SetPicture(ctx, room, p.root, data, time.Now()); err != nil {
-			return fmt.Errorf("linkedin: keep the picture of %s: %w", room, err)
-		}
-		changed = true
-	}
-	return nil
+	s := c.sweeper
+	c.mu.Unlock()
+	s.Later(ctx, a.pictureWants(client, pics))
 }
