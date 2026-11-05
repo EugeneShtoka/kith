@@ -138,7 +138,7 @@ calls a tool directly instead of through its target. In order:
 | --- | --- |
 | `mod-check` | `go mod tidy -diff` and `go mod verify` |
 | `compile` | every package builds as released (`CGO_ENABLED=0`) |
-| `test` | `go test -race -count=1 -coverprofile=… ./...`; the profile goes to `$TMPDIR/kith-cover-<pid>.out`, or `COVERPROFILE=path`. CI splits it over parallel jobs with `TEST_GROUP=db`, `tui`, `adapters` and `rest` (the two slowest packages on their own, then matrix, telegram, slack and whatsapp) |
+| `test` | `go test -race -count=1 -coverprofile=… ./...`; the profile goes to `$TMPDIR/kith-cover-<pid>.out`, or `COVERPROFILE=path`. CI splits it over parallel jobs with `TEST_GROUP=db`, `tui`, `adapters`, `networks` and `rest` (the two slowest packages on their own, then matrix, telegram, slack and whatsapp, then gmessages, meta, instagram, linkedin and signal) |
 | `coverage-gate` | the floors in `scripts/coverage-gate.sh` over `test`'s profile, or CI's groups' profiles merged (`COVERPROFILES`). `make coverage-check` runs `test` then this |
 | `cross` | every package builds for linux, darwin, freebsd and windows on amd64 and arm64 (`CROSS_TARGETS`) |
 | `lint` | `golangci-lint run`, including the depguard layer rules; then gohawk's core analyzers (goroutine and lock ownership, resources released on every path), which `_test.go` files are outside of |
