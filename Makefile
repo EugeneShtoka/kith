@@ -128,22 +128,26 @@ TEST_HOME := $(or $(TMPDIR),/tmp)/kith-test-home
 TEST_ENV  := XDG_DATA_HOME=$(TEST_HOME)/data XDG_CONFIG_HOME=$(TEST_HOME)/config XDG_STATE_HOME=$(TEST_HOME)/state
 
 # CI splits the tests over parallel jobs by TEST_GROUP: the two slowest packages each on
-# a runner of its own, the network adapters together, and the rest (each job writes its
-# own profile; the coverage-gate job merges them). Unset, as locally, every package.
+# a runner of its own, the network adapters in two groups, and the rest (each job writes
+# its own profile; the coverage-gate job merges them). Unset, as locally, every package.
 TEST_ADAPTERS := ./internal/matrix/... ./internal/telegram/... ./internal/slack/... ./internal/whatsapp/...
+TEST_NETWORKS := ./internal/gmessages/... ./internal/meta/... ./internal/instagram/... ./internal/linkedin/... ./internal/signal/...
 ifeq ($(TEST_GROUP),db)
 TEST_PKGS := ./internal/db/...
 else ifeq ($(TEST_GROUP),tui)
 TEST_PKGS := ./internal/tui/...
 else ifeq ($(TEST_GROUP),adapters)
 TEST_PKGS := $(TEST_ADAPTERS)
+else ifeq ($(TEST_GROUP),networks)
+TEST_PKGS := $(TEST_NETWORKS)
 else ifeq ($(TEST_GROUP),rest)
 TEST_PKGS = $(shell go list ./... | grep -v -e '/internal/db$$' -e '/internal/tui$$' \
-	-e '/internal/matrix$$' -e '/internal/telegram$$' -e '/internal/slack$$' -e '/internal/whatsapp$$')
+	-e '/internal/matrix$$' -e '/internal/telegram$$' -e '/internal/slack$$' -e '/internal/whatsapp$$' \
+	-e '/internal/gmessages$$' -e '/internal/meta$$' -e '/internal/instagram$$' -e '/internal/linkedin$$' -e '/internal/signal$$')
 else ifeq ($(TEST_GROUP),)
 TEST_PKGS := ./...
 else
-$(error TEST_GROUP is db, tui, adapters, rest, or unset for every package)
+$(error TEST_GROUP is db, tui, adapters, networks, rest, or unset for every package)
 endif
 
 # -count=1: never serve cached results. The profile feeds coverage-gate.
