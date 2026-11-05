@@ -116,6 +116,26 @@ export class Attachments {
     await Promise.all(offers.map(removeMade));
   }
 
+  /**
+   * picture keeps an offered image as a picture a person's identity names (SavePicture),
+   * brought to kithd as a file to send is, as it is: no metadata is taken off, as kithd
+   * keeps it to itself. Answered with kithd's name for it ("file:…").
+   */
+  async picture(token: string): Promise<string> {
+    const offer = this.offers.get(token);
+    if (offer === undefined) {
+      throw new Error("kith: that file is no longer offered");
+    }
+    this.offers.delete(token);
+    const signal = this.stopped.signal;
+    try {
+      const uploadId = await this.bring(offer.file, offer, signal);
+      return (await this.call(backend.savePicture, { uploadId }, signal)).picture;
+    } finally {
+      await removeMade(offer);
+    }
+  }
+
   private offer(o: Offer): Offered {
     const token = randomUUID();
     this.offers.set(token, o);
@@ -130,6 +150,12 @@ export class Attachments {
     name: string,
     signal: AbortSignal,
   ): Promise<void> {
+    const uploadId = await this.bring(file, offer, signal);
+    await this.call(backend.sendFile, { roomId: room, uploadId, caption, name }, signal);
+  }
+
+  /** bring brings kithd file's bytes in chunks (StartUpload, PutUpload): the upload's ID. */
+  private async bring(file: string, offer: Offer, signal: AbortSignal): Promise<string> {
     const handle = await open(file, "r");
     try {
       const size = (await handle.stat()).size;
@@ -143,7 +169,7 @@ export class Attachments {
         await this.put(started.uploadId, offset, chunk, signal);
       }
       signal.throwIfAborted();
-      await this.call(backend.sendFile, { roomId: room, uploadId: started.uploadId, caption, name }, signal);
+      return started.uploadId;
     } finally {
       await handle.close();
     }

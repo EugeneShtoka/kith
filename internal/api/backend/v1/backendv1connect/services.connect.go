@@ -192,6 +192,12 @@ const (
 	// BackendServiceSavePictureProcedure is the fully-qualified name of the BackendService's
 	// SavePicture RPC.
 	BackendServiceSavePictureProcedure = "/backend.v1.BackendService/SavePicture"
+	// BackendServiceIdentitiesProcedure is the fully-qualified name of the BackendService's Identities
+	// RPC.
+	BackendServiceIdentitiesProcedure = "/backend.v1.BackendService/Identities"
+	// BackendServiceSetIdentityProcedure is the fully-qualified name of the BackendService's
+	// SetIdentity RPC.
+	BackendServiceSetIdentityProcedure = "/backend.v1.BackendService/SetIdentity"
 	// BackendServiceMembersProcedure is the fully-qualified name of the BackendService's Members RPC.
 	BackendServiceMembersProcedure = "/backend.v1.BackendService/Members"
 	// BackendServiceRefreshMembersProcedure is the fully-qualified name of the BackendService's
@@ -637,6 +643,11 @@ type BackendServiceClient interface {
 	LoadPicture(context.Context, *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error)
 	// SavePicture keeps an uploaded image as a picture for a [[display.identity]].
 	SavePicture(context.Context, *connect.Request[v1.SavePictureRequest]) (*connect.Response[v1.SavePictureResponse], error)
+	// Identities lists the config's [[display.identity]] people.
+	Identities(context.Context, *connect.Request[v1.IdentitiesRequest]) (*connect.Response[v1.IdentitiesResponse], error)
+	// SetIdentity writes one account into a person, with their color and picture, in the
+	// config as UpdateConfig writes it.
+	SetIdentity(context.Context, *connect.Request[v1.SetIdentityRequest]) (*connect.Response[v1.SetIdentityResponse], error)
 	// Member
 	// Members returns a room's cached members, ordered by display name.
 	Members(context.Context, *connect.Request[v1.MembersRequest]) (*connect.Response[v1.MembersResponse], error)
@@ -1263,6 +1274,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceSavePictureProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("SavePicture")),
+			connect.WithClientOptions(opts...),
+		),
+		identities: connect.NewClient[v1.IdentitiesRequest, v1.IdentitiesResponse](
+			httpClient,
+			baseURL+BackendServiceIdentitiesProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Identities")),
+			connect.WithClientOptions(opts...),
+		),
+		setIdentity: connect.NewClient[v1.SetIdentityRequest, v1.SetIdentityResponse](
+			httpClient,
+			baseURL+BackendServiceSetIdentityProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("SetIdentity")),
 			connect.WithClientOptions(opts...),
 		),
 		members: connect.NewClient[v1.MembersRequest, v1.MembersResponse](
@@ -1916,6 +1939,8 @@ type backendServiceClient struct {
 	loadImage             *connect.Client[v1.LoadImageRequest, v1.LoadImageResponse]
 	loadPicture           *connect.Client[v1.LoadPictureRequest, v1.LoadPictureResponse]
 	savePicture           *connect.Client[v1.SavePictureRequest, v1.SavePictureResponse]
+	identities            *connect.Client[v1.IdentitiesRequest, v1.IdentitiesResponse]
+	setIdentity           *connect.Client[v1.SetIdentityRequest, v1.SetIdentityResponse]
 	members               *connect.Client[v1.MembersRequest, v1.MembersResponse]
 	refreshMembers        *connect.Client[v1.RefreshMembersRequest, v1.RefreshMembersResponse]
 	mentionCandidates     *connect.Client[v1.MentionCandidatesRequest, v1.MentionCandidatesResponse]
@@ -2304,6 +2329,16 @@ func (c *backendServiceClient) LoadPicture(ctx context.Context, req *connect.Req
 // SavePicture calls backend.v1.BackendService.SavePicture.
 func (c *backendServiceClient) SavePicture(ctx context.Context, req *connect.Request[v1.SavePictureRequest]) (*connect.Response[v1.SavePictureResponse], error) {
 	return c.savePicture.CallUnary(ctx, req)
+}
+
+// Identities calls backend.v1.BackendService.Identities.
+func (c *backendServiceClient) Identities(ctx context.Context, req *connect.Request[v1.IdentitiesRequest]) (*connect.Response[v1.IdentitiesResponse], error) {
+	return c.identities.CallUnary(ctx, req)
+}
+
+// SetIdentity calls backend.v1.BackendService.SetIdentity.
+func (c *backendServiceClient) SetIdentity(ctx context.Context, req *connect.Request[v1.SetIdentityRequest]) (*connect.Response[v1.SetIdentityResponse], error) {
+	return c.setIdentity.CallUnary(ctx, req)
 }
 
 // Members calls backend.v1.BackendService.Members.
@@ -2968,6 +3003,11 @@ type BackendServiceHandler interface {
 	LoadPicture(context.Context, *connect.Request[v1.LoadPictureRequest]) (*connect.Response[v1.LoadPictureResponse], error)
 	// SavePicture keeps an uploaded image as a picture for a [[display.identity]].
 	SavePicture(context.Context, *connect.Request[v1.SavePictureRequest]) (*connect.Response[v1.SavePictureResponse], error)
+	// Identities lists the config's [[display.identity]] people.
+	Identities(context.Context, *connect.Request[v1.IdentitiesRequest]) (*connect.Response[v1.IdentitiesResponse], error)
+	// SetIdentity writes one account into a person, with their color and picture, in the
+	// config as UpdateConfig writes it.
+	SetIdentity(context.Context, *connect.Request[v1.SetIdentityRequest]) (*connect.Response[v1.SetIdentityResponse], error)
 	// Member
 	// Members returns a room's cached members, ordered by display name.
 	Members(context.Context, *connect.Request[v1.MembersRequest]) (*connect.Response[v1.MembersResponse], error)
@@ -3590,6 +3630,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceSavePictureProcedure,
 		svc.SavePicture,
 		connect.WithSchema(backendServiceMethods.ByName("SavePicture")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceIdentitiesHandler := connect.NewUnaryHandler(
+		BackendServiceIdentitiesProcedure,
+		svc.Identities,
+		connect.WithSchema(backendServiceMethods.ByName("Identities")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceSetIdentityHandler := connect.NewUnaryHandler(
+		BackendServiceSetIdentityProcedure,
+		svc.SetIdentity,
+		connect.WithSchema(backendServiceMethods.ByName("SetIdentity")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceMembersHandler := connect.NewUnaryHandler(
@@ -4298,6 +4350,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceLoadPictureHandler.ServeHTTP(w, r)
 		case BackendServiceSavePictureProcedure:
 			backendServiceSavePictureHandler.ServeHTTP(w, r)
+		case BackendServiceIdentitiesProcedure:
+			backendServiceIdentitiesHandler.ServeHTTP(w, r)
+		case BackendServiceSetIdentityProcedure:
+			backendServiceSetIdentityHandler.ServeHTTP(w, r)
 		case BackendServiceMembersProcedure:
 			backendServiceMembersHandler.ServeHTTP(w, r)
 		case BackendServiceRefreshMembersProcedure:
@@ -4733,6 +4789,14 @@ func (UnimplementedBackendServiceHandler) LoadPicture(context.Context, *connect.
 
 func (UnimplementedBackendServiceHandler) SavePicture(context.Context, *connect.Request[v1.SavePictureRequest]) (*connect.Response[v1.SavePictureResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SavePicture is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Identities(context.Context, *connect.Request[v1.IdentitiesRequest]) (*connect.Response[v1.IdentitiesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Identities is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) SetIdentity(context.Context, *connect.Request[v1.SetIdentityRequest]) (*connect.Response[v1.SetIdentityResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SetIdentity is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Members(context.Context, *connect.Request[v1.MembersRequest]) (*connect.Response[v1.MembersResponse], error) {

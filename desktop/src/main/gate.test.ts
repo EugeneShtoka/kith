@@ -153,6 +153,8 @@ const allowedCalls = [
   "UpdateTheme",
   "SenderSlots",
   "SenderPictures",
+  "Identities",
+  "SetIdentity",
   "LoginNetworks",
   "BeginLogin",
   "AnswerLogin",

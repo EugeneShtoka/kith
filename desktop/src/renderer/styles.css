@@ -2337,3 +2337,19 @@ section.add-field {
   background: none;
   text-decoration: underline;
 }
+
+/* "Same person as…" under a message: one setting a line. */
+.person-editor fieldset {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+  margin-top: var(--space-1);
+  border: none;
+  padding: 0;
+}
+
+.person-editor label {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+}

@@ -118,6 +118,8 @@ export class Kithd {
   themeDefaults: ThemeResponse = create(ThemeResponseSchema);
   /** Each room's remembered sender colors (SenderSlots). */
   readonly slots = new Map<string, Map<string, number>>();
+  /** The config's people ([[display.identity]]): what Identities answers, SetIdentity writes. */
+  identities: { alias: string; color: string; ids: string[]; picture: string }[] = [];
   /** What SenderPictures answers, by room: each person's picture version. */
   readonly senderPictures = new Map<string, Record<string, string>>();
   /** What the window told main to count in the tray, in order. */
@@ -330,6 +332,15 @@ export class Kithd {
         }
         this.attached.push(`${room} ${name} ${caption}`);
         return { kept: false };
+      },
+      savePicture: async (token) => {
+        await later();
+        const name = this.offers.get(token);
+        this.offers.delete(token);
+        if (name === undefined) {
+          throw new Error("the upload failed");
+        }
+        return `file:${name}`;
       },
       fontSize: () => Promise.resolve(this.fontSize),
       setFontSize: (px) => {
@@ -745,6 +756,22 @@ export class Kithd {
         return reply(backend.senderSlots, {
           slots: [...(this.slots.get(room) ?? new Map<string, number>())].map(([key, slot]) => ({ key, slot })),
         });
+      }
+      case "Identities":
+        return reply(backend.identities, { identities: this.identities });
+      case "SetIdentity": {
+        const r = request as MessageShape<typeof backend.setIdentity.input>;
+        // As config.MergeIdentity: the account leaves every other person, joins this one.
+        this.identities = this.identities
+          .map((p) => ({ ...p, ids: p.ids.filter((id) => id !== r.id) }))
+          .filter((p) => p.ids.length > 0 || p.alias === r.alias);
+        let person = this.identities.find((p) => p.alias === r.alias);
+        if (person === undefined) {
+          person = { alias: r.alias, color: "", ids: [], picture: "" };
+          this.identities.push(person);
+        }
+        Object.assign(person, { color: r.color, picture: r.picture, ids: [...person.ids, r.id] });
+        return reply(backend.setIdentity, {});
       }
       case "SenderPictures": {
         const room = (request as MessageShape<typeof backend.senderPictures.input>).roomId;

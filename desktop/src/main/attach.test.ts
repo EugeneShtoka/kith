@@ -51,6 +51,18 @@ function same(a: Uint8Array | undefined, b: Uint8Array): boolean {
 const calls = (method: string) => kithd.reached.filter((r) => r.startsWith(`${method}:`)).length;
 
 describe("attachments", () => {
+  it("keep an image as a picture as a file is brought, kithd naming it, the offer used up", async () => {
+    const f = await file("dana.png", uploadChunk + 99);
+    const offered = await attachments.fromPath(f.path);
+    kithd.cutPuts = 1;
+    expect(await attachments.picture(offered.token)).toBe(`file:${String(f.bytes.length)}`);
+    expect(kithd.posted).toHaveLength(1);
+    expect(kithd.posted[0]?.name).toBe("picture:dana.png");
+    expect(same(kithd.posted[0]?.data, f.bytes)).toBe(true);
+    expect(calls("SendFile")).toBe(0);
+    await expect(attachments.picture(offered.token)).rejects.toThrow(/no longer offered/);
+  });
+
   it("bring a file to kithd in chunks, each cut chunk sent again where it was cut, and post it once", async () => {
     const f = await file("report.pdf", 2 * uploadChunk + 1234);
     const offered = await attachments.fromPath(f.path);

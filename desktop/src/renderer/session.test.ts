@@ -1015,6 +1015,22 @@ describe("the theme", () => {
     expect(view().slots.get("@ann:x")).toBe(3);
   });
 
+  it("writes an account into a person with their picture, and reads the open room's pictures again", async () => {
+    kithd.of("Home").rooms = [room("!a")];
+    kithd.identities = [{ alias: "Dana", color: "", ids: ["@dana:x"], picture: "" }];
+    await started();
+    session.open("!a");
+    await settled();
+    expect((await session.identities()).map((p) => p.alias)).toEqual(["Dana"]);
+    kithd.senderPictures.set("!a", { "@dana:x": "via file:dana.png dana.png" }); // as kithd resolves it now
+    await session.setIdentity("@dana:x", "Dana", "#ff0000", (await session.pickPicture()) ?? "");
+    await settled();
+    expect(kithd.identities).toEqual([
+      { alias: "Dana", color: "#ff0000", ids: ["@dana:x"], picture: "file:report.pdf" },
+    ]);
+    expect(view().pictures.get("@dana:x")).toBe("via file:dana.png dana.png");
+  });
+
   it("reads the open room's people's pictures, and again as the rooms change", async () => {
     kithd.of("Home").rooms = [room("!a")];
     kithd.senderPictures.set("!a", { "@ann:x": "p1" });

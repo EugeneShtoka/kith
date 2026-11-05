@@ -21,6 +21,8 @@ export const channels = {
   discard: "kith:discard",
   /** Sending an offered file: (token, room, caption), answered with a Sent. */
   attach: "kith:attach",
+  /** Keeping an offered image as a person's picture: (token), answered with its name. */
+  savePicture: "kith:save-picture",
   /** Main to the window: it is closing, write what is unsaved; the window answers closed. */
   closing: "kith:closing",
   closed: "kith:closed",
@@ -102,6 +104,8 @@ export interface KithBridge {
   discard(token: string): Promise<void>;
   /** Sends an offered file to room, caption with it. */
   attach(token: string, room: string, caption: string): Promise<Sent>;
+  /** Keeps an offered image as a picture a person's identity can name: its name ("file:…"). */
+  savePicture(token: string): Promise<string>;
   /** Says what to do as the window closes (write its drafts); main waits a little for it. */
   closing(write: () => Promise<void>): void;
   /**
