@@ -90,6 +90,10 @@ type conn struct {
 	session *Session
 	saved   string
 	client  *libgm.Client
+	// sweeping marks a sweep of the inbox's pictures running, and pictureWant the
+	// latest ones, for it to sweep next (picturesLater).
+	sweeping    bool
+	pictureWant map[domain.RoomID]pictureWant
 	// me is who you are on this phone, as the inbox last knew: read by Me, which may run
 	// while the inbox is being written (it counts unread for it).
 	me []string

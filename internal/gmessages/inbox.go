@@ -26,6 +26,8 @@ type inbox struct {
 	// gone is when each conversation went away (deleted, spam, blocked), so a listing
 	// fetched before does not bring it back.
 	gone map[string]time.Time
+	// thumbs is which participants the phone may keep a thumbnail of (pictures.go).
+	thumbs map[string]bool
 }
 
 // conv is one conversation as kith keeps it.
@@ -51,6 +53,8 @@ type conv struct {
 	// switchedAt, the newest such notice seen.
 	encrypted  bool
 	switchedAt time.Time
+	// avatar is a group's picture address (pictures.go).
+	avatar string
 }
 
 // sms reports whether a message sent to cv goes out as SMS or MMS: an SMS chat, or
@@ -69,7 +73,7 @@ func (cv *conv) forceRCS() bool {
 func newInbox(self string) *inbox {
 	return &inbox{
 		self: self, people: map[string]string{}, me: map[string]bool{},
-		convs: map[string]*conv{}, gone: map[string]time.Time{},
+		convs: map[string]*conv{}, gone: map[string]time.Time{}, thumbs: map[string]bool{},
 	}
 }
 
@@ -132,6 +136,7 @@ func (in *inbox) take(c *gmproto.Conversation) (shownNow, met bool) {
 		if pid != "" {
 			members[pid] = person
 			order = append(order, pid)
+			in.thumbs[pid] = mayHaveThumb(p)
 		}
 	}
 	active := micros(c.GetLastMessageTimestamp())
@@ -148,7 +153,7 @@ func (in *inbox) take(c *gmproto.Conversation) (shownNow, met bool) {
 		cv = &conv{id: id}
 		in.convs[id] = cv
 	}
-	cv.name, cv.group = strings.TrimSpace(c.GetName()), c.GetIsGroupChat()
+	cv.name, cv.group, cv.avatar = strings.TrimSpace(c.GetName()), c.GetIsGroupChat(), c.GetGroupAvatarURL()
 	if len(members) > 0 {
 		cv.members, cv.order = members, order
 	}
