@@ -43,6 +43,8 @@ type thread struct {
 	group    bool
 	title    string
 	users    []*slidetypes.User // all but the account
+	// image is a group's own picture link (pictures.go).
+	image string
 }
 
 func newInbox() *inbox {
@@ -80,7 +82,7 @@ func (a *Adapter) seed(ctx context.Context, c *conn) {
 func (in *inbox) learn(t *slidetypes.ThreadInfo, self string) (*thread, bool) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
-	th := &thread{id: t.ID, long: t.ThreadID, group: t.IsGroup || len(t.Users) > 1, title: t.ThreadTitle}
+	th := &thread{id: t.ID, long: t.ThreadID, group: t.IsGroup || len(t.Users) > 1, title: t.ThreadTitle, image: t.ThreadImageURL}
 	met := false
 	for _, u := range t.Users {
 		if u == nil || fbid(u.InteropMessagingUserFBID) == self {
@@ -175,6 +177,7 @@ func (a *Adapter) keepThread(ctx context.Context, c *conn, th *thread, met bool)
 			a.log.Warn("keep who people are failed", "account", c.account.Name, "err", err)
 		}
 	}
+	a.picturesLater(c)
 }
 
 // takeThread keeps a listed thread: its room and people, the account's read position
