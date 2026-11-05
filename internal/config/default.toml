@@ -1071,6 +1071,8 @@ listen = []
 #
 #   mode      "system" (the default) follows the system's light or dark; "light" and
 #             "dark" keep to one.
+#   faces     "pictures" (the default) draws people and rooms as their pictures where
+#             kith keeps one, else their initials; "initials" draws initials always.
 #   accounts  a network account's color, by its rooms' owner as kith names it
 #             ("whatsapp:main/"): its rooms' mark. Unset, its network's color
 #             ([tui.theme.networks] in device.toml).
@@ -1079,6 +1081,7 @@ listen = []
 #
 # [gui.theme]
 # mode = "dark"
+# faces = "pictures"
 #
 # Each mode's colors, one per role: accent, background, surface (the side columns),
 # text, muted (times, hints), link, selection (the row you are on), unread and mention.

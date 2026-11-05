@@ -236,7 +236,8 @@ come to the window in later releases.
 ## Theme
 
 **Settings → Theme** sets how the window looks: its mode (as the system is, light or
-dark), each mode's colors (accent, background, surface, text, muted, link, selection,
+dark), its faces (people's and rooms' pictures, else their initials; or initials
+always), each mode's colors (accent, background, surface, text, muted, link, selection,
 unread and mention), each account's color, and the colors you picked for people. To
 pick someone's color, point at a message of theirs and press **◐** in its actions.
 

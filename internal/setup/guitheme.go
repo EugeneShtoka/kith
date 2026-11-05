@@ -13,7 +13,7 @@ import (
 // writes and reads.
 var themeColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
-// GUITheme refuses a [gui.theme] the desktop could not draw: a mode it does not know, or a
+// GUITheme refuses a [gui.theme] the desktop could not draw: a mode or faces it does not know, or a
 // color that is not "#rrggbb". The first in its keys' order is named.
 func GUITheme(l config.GUITheme) error {
 	for _, key := range l.Keys() {
@@ -34,6 +34,10 @@ func GUIThemeValue(path, value string) error {
 	case path == "mode":
 		if !slices.Contains(config.GUIThemeModes(), value) {
 			return fmt.Errorf("gui.theme.mode: unknown mode %q (want %s)", value, strings.Join(config.GUIThemeModes(), ", "))
+		}
+	case path == "faces":
+		if !slices.Contains(config.GUIThemeFaces(), value) {
+			return fmt.Errorf("gui.theme.faces: unknown way %q (want %s)", value, strings.Join(config.GUIThemeFaces(), ", "))
 		}
 	case !themeColor.MatchString(value):
 		return fmt.Errorf("gui.theme.%s: %q is no color (write #rrggbb)", path, value)

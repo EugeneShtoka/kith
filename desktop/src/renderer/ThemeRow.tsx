@@ -146,3 +146,25 @@ export function ModeRow({ theme, session }: { theme: ThemeResponse; session: Ses
     </div>
   );
 }
+
+/** FacesRow is how people and rooms are drawn: their pictures where kith keeps one, or their initials always. */
+export function FacesRow({ theme, session }: { theme: ThemeResponse; session: Session }) {
+  const faces = valueOf(theme, "faces") || "pictures";
+  return (
+    <div className="setting-row theme-row">
+      <select
+        aria-label="Faces"
+        value={faces}
+        onChange={(e) => {
+          void session.changeTheme("faces", scopeOf(theme, "faces"), e.target.value);
+        }}
+      >
+        <option value="pictures">pictures, else initials</option>
+        <option value="initials">initials</option>
+      </select>
+      <span>Faces</span>
+      <OnlyHere theme={theme} k="faces" value={faces} session={session} />
+      <Reset theme={theme} k="faces" session={session} />
+    </div>
+  );
+}

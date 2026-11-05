@@ -14,7 +14,7 @@ import { roomPicture } from "./media";
 import { type Action, keyName, Keymap, moved, typing } from "./keymap";
 import { OfferDialog } from "./Offer";
 import { PeopleDialog, PersonDialog } from "./People";
-import { colorClass, themeCSS, modeOf, roomColor } from "./theme";
+import { colorClass, drawsPictures, themeCSS, modeOf, roomColor } from "./theme";
 import { namesRow, rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
 import { type Link, type Seat, Session, type View } from "./session";
@@ -779,7 +779,7 @@ function RoomHeader({
   const color = room && roomColor(theme, room);
   return (
     <header className="room-header">
-      <Avatar id={id} name={name} picture={roomPicture(room)} />
+      <Avatar id={id} name={name} picture={drawsPictures(theme) ? roomPicture(room) : undefined} />
       <h2 dir="auto">{name}</h2>
       {mark && <span className={`net ${color ? colorClass(color) : `net-${mark.slug}`}`}>{room?.network}</span>}
       {room?.topic ? (
@@ -989,7 +989,7 @@ function RoomRow({
           session.openFiling(room.id);
         }}
       >
-        <Avatar id={room.id} name={name} small picture={roomPicture(room)} />
+        <Avatar id={room.id} name={name} small picture={drawsPictures(theme) ? roomPicture(room) : undefined} />
         <span className="label" dir="auto">
           {name}
         </span>

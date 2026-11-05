@@ -30,6 +30,8 @@ export function themeLabel(key: string): string {
   switch (table) {
     case "mode":
       return "The mode";
+    case "faces":
+      return "How faces are drawn";
     case "light":
     case "dark":
       return `The ${table} ${rest} color`;
@@ -49,6 +51,11 @@ const color = /^#[0-9a-f]{6}$/i;
 /** valueOf is key's effective value in theme, "" for its default with none. */
 export function valueOf(theme: ThemeResponse, key: string): string {
   return theme.values[key]?.value ?? "";
+}
+
+/** drawsPictures: faces are drawn as pictures where kith keeps one ([gui.theme] faces), not always as initials. */
+export function drawsPictures(theme: ThemeResponse | undefined): boolean {
+  return theme === undefined || valueOf(theme, "faces") !== "initials";
 }
 
 /** picked is whether a file sets key: false for its default. */

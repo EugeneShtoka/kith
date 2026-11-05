@@ -10,7 +10,7 @@ import { Avatar } from "./Avatar";
 import type { ComposerView } from "./compose";
 import { EmojiPicker } from "./EmojiPicker";
 import { hueOf } from "./faces";
-import { type Faces, faceClass, senderColor } from "./theme";
+import { drawsPictures, type Faces, faceClass, senderColor } from "./theme";
 import { builtIn, ColorRow } from "./ThemeRow";
 import { continues, dayLabel, newDay, seek } from "./groups";
 import { attachmentURL, senderPicture } from "./media";
@@ -412,7 +412,7 @@ export function Row({
               id={m.sender}
               name={m.senderName || m.sender}
               hue={faceClass(faces, m.sender)}
-              picture={senderPicture(m, faces.pictures)}
+              picture={drawsPictures(faces.theme) ? senderPicture(m, faces.pictures) : undefined}
             />
           )}
         </div>

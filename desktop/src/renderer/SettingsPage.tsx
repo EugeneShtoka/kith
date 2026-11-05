@@ -12,7 +12,7 @@ import { Devices } from "./Devices";
 import { VerifyStart } from "./Verification";
 import { networkMark } from "./faces";
 import { picked, roles, valueOf } from "./theme";
-import { builtIn, ColorRow, ModeRow } from "./ThemeRow";
+import { builtIn, ColorRow, FacesRow, ModeRow } from "./ThemeRow";
 import type { Session, SettingsPage as Page, View } from "./session";
 import { type Key, labels } from "./settings";
 
@@ -143,6 +143,7 @@ function Theme({
       ) : (
         <fieldset disabled={change.busy} className="theme">
           <ModeRow theme={theme} session={session} />
+          <FacesRow theme={theme} session={session} />
           {(["light", "dark"] as const).map((mode) => (
             <div key={mode}>
               <h4>{mode === "light" ? "Light" : "Dark"}</h4>

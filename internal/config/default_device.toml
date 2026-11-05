@@ -537,12 +537,13 @@ timeout = 15
 #   keys   = "gX"
 
 # The graphical clients' theme on this device alone: the keys of [gui.theme] in
-# config.toml (mode, accounts, people, and each mode's roles), each one set here taking
+# config.toml (mode, faces, accounts, people, and each mode's roles), each one set here taking
 # the place of the shared one. The window's Settings → Theme writes it for a row whose
 # "only this device" is on; turning it off removes the key here.
 #
 # [gui.theme]
 # mode = "light"
+# faces = "initials"
 #
 # Roles: accent, background, surface, text, muted, link, selection, unread, mention.
 # [gui.theme.dark]

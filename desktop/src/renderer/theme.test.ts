@@ -6,6 +6,7 @@ import { type ThemeResponse, ThemeResponseSchema, ThemeScope, ThemeSource } from
 import {
   changeTheme,
   type ThemeChanged,
+  drawsPictures,
   type ThemeRelay,
   themeCSS,
   themeTries,
@@ -238,5 +239,15 @@ describe("the theme drawn", () => {
     expect(modeOf(undefined)).toBe("system");
     expect(modeOf(theme({ values: { mode: { value: "light" } } }))).toBe("light");
     expect(modeOf(theme({}))).toBe("system");
+  });
+});
+
+describe("faces", () => {
+  it("are pictures unless the theme says initials, from whichever file wins, and before it is read", () => {
+    const faces = (value: string) => theme({ values: { faces: { value } } });
+    expect(drawsPictures(undefined)).toBe(true);
+    expect(drawsPictures(faces(""))).toBe(true);
+    expect(drawsPictures(faces("pictures"))).toBe(true);
+    expect(drawsPictures(faces("initials"))).toBe(false);
   });
 });

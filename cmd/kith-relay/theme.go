@@ -176,7 +176,7 @@ func resolveTheme(cfg config.Config, dev config.Device, accounts []*backendv1.Ac
 		Identities:    map[string]*devicev1.ThemeIdentity{},
 	}
 	defaults := map[string]string{}
-	paths := []string{"mode"}
+	paths := []string{"mode", "faces"}
 	for _, mode := range []string{"light", "dark"} {
 		for _, role := range config.GUIThemeRoles() {
 			paths = append(paths, mode+"."+role)
