@@ -75,7 +75,7 @@ command that links it.
 
 ## What works
 
-| | |
+| Feature | In kith |
 | --- | --- |
 | Direct chats and groups | live, sending, history (the cache keeps every message, unless `[storage] messages_per_room` says fewer) |
 | Replies, mentions | both ways; a reply to a message older than the cache keeps still shows what it quotes |

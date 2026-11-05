@@ -172,7 +172,7 @@ Full walkthrough, per platform, with several accounts and encryption setup:
 
 ## Documentation
 
-| | |
+| Topic | Pages |
 | --- | --- |
 | **Using kith** | [Getting started](docs/getting-started.md) · [Using the client](docs/usage.md) · [Keybindings](docs/keybindings.md) · [Search](docs/search.md) |
 | **Networks** | [WhatsApp](docs/whatsapp.md) · [Telegram](docs/telegram.md) · [Slack](docs/slack.md) · [Matrix encryption](docs/encryption.md) |
