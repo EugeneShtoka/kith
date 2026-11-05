@@ -44,6 +44,8 @@ type Network interface {
 	// Download fetches and decrypts an attachment by its pointer; one Signal no longer
 	// has is ErrGone.
 	Download(ctx context.Context, req *signalv1.DownloadRequest) ([]byte, error)
+	// Picture is a person's or a group's picture, its bytes only when not the kept one.
+	Picture(ctx context.Context, req *signalv1.PictureRequest) (*signalv1.PictureResponse, error)
 	// Upload puts a file on Signal's CDN from a connected account, as a Send carries it.
 	Upload(ctx context.Context, req *signalv1.UploadRequest) (*signalv1.Attachment, error)
 	// Unlink removes the linked device aci: Signal is told when it is connected, and the
@@ -226,6 +228,14 @@ func (s *service) Download(ctx context.Context, req *connect.Request[signalv1.Do
 		return nil, connect.NewError(connect.CodeUnavailable, err)
 	}
 	return connect.NewResponse(&signalv1.DownloadResponse{Data: data}), nil
+}
+
+func (s *service) Picture(ctx context.Context, req *connect.Request[signalv1.PictureRequest]) (*connect.Response[signalv1.PictureResponse], error) {
+	res, err := s.network.Picture(ctx, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(res), nil
 }
 
 func (s *service) Upload(ctx context.Context, req *connect.Request[signalv1.UploadRequest]) (*connect.Response[signalv1.UploadResponse], error) {

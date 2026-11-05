@@ -20,7 +20,10 @@ pictures and stickers inline, the rest opened or saved from the message. A messa
 than one shows the first and counts the others (`(+2 more attachments)`). Signal keeps
 attachments for a while only; an old one then stops loading. View-once media stays in
 Signal's apps: kith says it came, and shows nothing of it. A shared contact reads as
-`[contact]` and its name, a payment as `[payment]`.
+`[contact]` and its name, a payment as `[payment]`. A chat shows its picture in the desktop
+window: a person's Signal profile photo (once one of their messages has given kith
+their profile key), else the photo your phone's contact has; a group its own. Each is
+asked for when the account connects, at most once a day.
 
 You can write in a chat, reply, mention people (`@` offers the chat's members, and
 the mention reaches them as one), edit and delete what you wrote (for everyone),

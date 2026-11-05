@@ -124,6 +124,18 @@ func (f *fakeNetwork) MarkRead(_ context.Context, req *signalv1.MarkReadRequest)
 }
 
 // Download is any attachment's bytes ("bytes of" its pointer) but a pointer "gone".
+// Picture is Dana's picture "p-dana", sent again only to one who does not keep it;
+// anyone else and any group have none.
+func (f *fakeNetwork) Picture(_ context.Context, req *signalv1.PictureRequest) (*signalv1.PictureResponse, error) {
+	switch {
+	case req.GetPerson() != dana:
+		return &signalv1.PictureResponse{}, nil
+	case req.GetKept() == "p-dana":
+		return &signalv1.PictureResponse{Version: "p-dana"}, nil
+	}
+	return &signalv1.PictureResponse{Version: "p-dana", Data: []byte("picture of dana")}, nil
+}
+
 func (f *fakeNetwork) Download(_ context.Context, req *signalv1.DownloadRequest) ([]byte, error) {
 	pointer := string(req.GetPointer())
 	if pointer == "gone" {

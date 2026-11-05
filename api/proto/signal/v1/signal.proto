@@ -53,6 +53,10 @@ service SignalService {
   // JoinGroup joins a connected account to the group an invite link is to, or asks its
   // admins to let it in when they approve who joins; its members are told of a join.
   rpc JoinGroup(JoinGroupRequest) returns (JoinGroupResponse);
+  // Picture is a person's or a group's picture as a connected account sees it: its
+  // version (Signal's avatar path, or the phone's contact photo's hash) and, when that
+  // is not the version kept, its bytes, decrypted.
+  rpc Picture(PictureRequest) returns (PictureResponse);
 }
 
 message HeartbeatRequest {}
@@ -423,6 +427,23 @@ message DownloadRequest {
 
 message DownloadResponse {
   bytes data = 1;
+}
+
+message PictureRequest {
+  // The connected account asking, by its ACI.
+  string account = 1;
+  // Exactly one: a person's ACI, or a group's ID.
+  string person = 2;
+  string group = 3;
+  // The version the asker keeps; its bytes are not sent again.
+  string kept = 4;
+}
+
+message PictureResponse {
+  // Empty for none.
+  string version = 1;
+  // Empty when version is the one kept, or there is none.
+  bytes data = 2;
 }
 
 message UploadRequest {

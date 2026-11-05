@@ -44,6 +44,10 @@ func (unbuilt) Download(context.Context, *signalv1.DownloadRequest) ([]byte, err
 	return nil, errUnbuilt
 }
 
+func (unbuilt) Picture(context.Context, *signalv1.PictureRequest) (*signalv1.PictureResponse, error) {
+	return nil, errUnbuilt
+}
+
 func (unbuilt) Unlink(context.Context, string) error { return errUnbuilt }
 
 func (unbuilt) Leave(context.Context, string, string) error { return errUnbuilt }

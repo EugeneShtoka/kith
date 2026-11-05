@@ -387,6 +387,7 @@ func (a *Adapter) keepChat(ctx context.Context, self string, room domain.Room, m
 		return fmt.Errorf("cache a chat's people: %w", err)
 	}
 	a.roomsChanged()
+	a.picturesLater(self)
 	return nil
 }
 
