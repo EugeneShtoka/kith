@@ -8,6 +8,7 @@ import (
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/pictures"
 )
 
 // A group wants its picture's address; a one-to-one conversation the thumbnail of its
@@ -75,7 +76,7 @@ func TestASweepFetchesOnlyWhatIsDue(t *testing.T) {
 		rooms[2]: {},
 	}
 	// No client: anything fetched would fail the sweep.
-	if err := a.sweepPictures(ctx, nil, wants, now); err != nil {
+	if _, err := pictures.Sweep(ctx, cache, a.pictureWants(nil, wants), now); err != nil {
 		t.Fatalf("a sweep with nothing due fetched: %v", err)
 	}
 	checks, err := cache.PictureChecks(ctx)
@@ -86,7 +87,7 @@ func TestASweepFetchesOnlyWhatIsDue(t *testing.T) {
 		t.Errorf("a conversation with no picture is %+v, %v; want kept as none", c, ok)
 	}
 	// A day on, the thumbnail is due: with no client to ask, the sweep fails.
-	if err := a.sweepPictures(ctx, nil, wants, now.Add(time.Minute)); err == nil {
+	if _, err := pictures.Sweep(ctx, cache, a.pictureWants(nil, wants), now.Add(time.Minute)); err == nil {
 		t.Error("a sweep with a thumbnail due asked nobody")
 	}
 }

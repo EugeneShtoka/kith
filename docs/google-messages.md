@@ -9,7 +9,10 @@ phone number are named by their contact name and known by the number. A message'
 first picture, video, voice message or file shows as an attachment (loaded from
 Google's servers when shown); any further one, and an MMS the phone has not downloaded
 yet, shows as a short label (`[photo]`, `[MMS not downloaded yet]`). You can send
-text, replies and files, and react.
+text, replies and files, and react. A conversation shows its picture in the desktop
+window: a group its own, a one-to-one conversation the photo the phone keeps for the
+contact (asked of the phone at most once a day); someone not in your contacts shows
+as their initials.
 
 Older messages, from before kith was paired too, come from the phone as you scroll
 back, and each conversation's history is read back in the background after kith
