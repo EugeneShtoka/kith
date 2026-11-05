@@ -283,6 +283,9 @@ message RailRoom {
   string owner = 3;
   // silenced says a silent tag holds it: it counts toward no total.
   bool silenced = 4;
+  // name is the name you gave it ([[display.name]]), shown in place of its own; empty
+  // for none.
+  string name = 5;
 }
 
 message AddToSpaceRequest {
@@ -357,6 +360,14 @@ message FileRoomResponse {
   // recorded: the tag holds it out here, but a filter may move it back elsewhere.
   string release_failed = 3;
 }
+
+message SetRoomNameRequest {
+  string room_id = 1;
+  // name is the room's own name for you; empty takes the one it had away.
+  string name = 2;
+}
+
+message SetRoomNameResponse {}
 
 // SpaceFiledOutcome is what came of one space filing.
 enum SpaceFiledOutcome {
@@ -2380,6 +2391,10 @@ service BackendService {
   // into records the release, so no filter moves it back. A room, tag or space the
   // profile does not hold is refused, and nothing is filed.
   rpc FileRoom(FileRoomRequest) returns (FileRoomResponse);
+  // SetRoomName names a room of the request's profile, or takes its name away, in
+  // [[display.name]], as UpdateConfig writes (one writer, revision-checked,
+  // ConfigChanged told).
+  rpc SetRoomName(SetRoomNameRequest) returns (SetRoomNameResponse);
   // Phonebook
   // People lists the phonebook's cards ([phonebook] dir, read by kithd from its own
   // folder) by name, narrowed by the query as :people narrows it, leaving out everyone

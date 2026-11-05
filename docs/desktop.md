@@ -200,6 +200,12 @@ Your `[[keys.jump]]` chords go where they do in the terminal: to a room by its I
 the first rail row a `space:`, `tag:` or `place:` entry names. `?` lists them after the
 window's own keys.
 
+On a room in the list, `rooms.name` (`a`) gives it a name of your own, as the
+terminal's does: written into `[[display.name]]`, and shown in place of its own name
+wherever the room is named, in both clients. `prompt.submit` (`enter`) keeps it,
+`prompt.cancel` (`esc`) leaves it as it was, and an empty name gives the room its own
+back.
+
 On a room in the list, `rooms.spaces` (`S`) files it into tags and spaces, and
 `rooms.person` (`I`) opens a direct chat's phonebook card. In the filing picker the
 cursor starts on the first place: `nav.down` and `nav.up` move it, `picker.toggle`

@@ -2,7 +2,8 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BackendService, Change, RailResponseSchema, RailRowKind, RailRowSchema } from "../gen/backend/v1/services_pb";
-import { namesRow } from "./rail";
+import { RoomSchema } from "../gen/backend/v1/types_pb";
+import { named, namesRow } from "./rail";
 import { Session } from "./session";
 import { Kithd, room, settled } from "./testing/kithd";
 
@@ -221,4 +222,21 @@ describe("a home entry", () => {
       expect(namesRow(entry, row)).toBe(want);
     });
   }
+});
+
+describe("the names you gave rooms", () => {
+  // A room the rail names takes that name; one it serves with none, one it does not
+  // serve, and a rail not read yet leave the room's own.
+  it("show in place of the rooms' own, where the rail names them", () => {
+    const rooms = ["!a", "!b", "!c"].map((id) => create(RoomSchema, { id, name: id.slice(1).toUpperCase() }));
+    const served = create(RailResponseSchema, {
+      rooms: [
+        { facts: { id: "!a" }, name: "Boss" },
+        { facts: { id: "!b" }, name: "" },
+        { facts: { id: "!z" }, name: "Gone" },
+      ],
+    });
+    expect(named(rooms, served).map((r) => r.name)).toEqual(["Boss", "B", "C"]);
+    expect(named(rooms, undefined).map((r) => r.name)).toEqual(["A", "B", "C"]);
+  });
 });

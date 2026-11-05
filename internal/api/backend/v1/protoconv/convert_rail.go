@@ -54,11 +54,11 @@ func protoToRailRow(pb *v1.RailRow) domain.RailRow {
 }
 
 func servedRoomToProto(r domain.ServedRoom) *v1.RailRoom {
-	return &v1.RailRoom{Facts: roomFactsToProto(r.Facts), In: r.In, Owner: r.Owner, Silenced: r.Silenced}
+	return &v1.RailRoom{Facts: roomFactsToProto(r.Facts), In: r.In, Owner: r.Owner, Silenced: r.Silenced, Name: r.Name}
 }
 
 func protoToServedRoom(pb *v1.RailRoom) domain.ServedRoom {
-	return domain.ServedRoom{Facts: protoToRoomFacts(pb.GetFacts()), In: pb.GetIn(), Owner: pb.GetOwner(), Silenced: pb.GetSilenced()}
+	return domain.ServedRoom{Facts: protoToRoomFacts(pb.GetFacts()), In: pb.GetIn(), Owner: pb.GetOwner(), Silenced: pb.GetSilenced(), Name: pb.GetName()}
 }
 
 // roomFactsToProto converts what a place entry can match about a room.
