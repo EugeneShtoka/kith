@@ -9,7 +9,7 @@ missed. Replies, mentions of you, shared posts, reels and stories (as their text
 address) and call notes show; an edited message shows its new text, and an unsent one
 reads `(deleted)`, as on other networks. A thread shows its picture in the desktop
 window: a one-to-one thread its person's, a group its own; each is downloaded once,
-and again when it changes.
+and again when it changes. Each message shows its sender's, kept the same way.
 
 Photos, videos, voice messages, stickers and GIFs show as attachments, as on other
 networks: pictures inline, the rest opened or saved from the message. A message
