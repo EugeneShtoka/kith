@@ -235,8 +235,12 @@ export interface Here {
   inThread?: boolean;
 }
 
-/** write focuses the composer. */
-const write = () => document.querySelector<HTMLElement>(".composer textarea")?.focus();
+/** write focuses the composer: false where the room has none. */
+export function write(): boolean {
+  const area = document.querySelector<HTMLElement>(".composer textarea");
+  area?.focus();
+  return area !== null && document.activeElement === area;
+}
 
 /** actOn takes a [keys.timeline] action on rows[i], the cursor's; false where it does not apply. */
 export function actOn(
