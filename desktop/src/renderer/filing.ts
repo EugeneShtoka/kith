@@ -12,6 +12,7 @@ import {
   type SpaceFilingSchema,
   type TagFilingSchema,
 } from "../gen/backend/v1/services_pb";
+import { bound, type Keys, type Press } from "./keymap";
 
 type TagAsked = MessageInitShape<typeof TagFilingSchema>;
 type SpaceAsked = MessageInitShape<typeof SpaceFilingSchema>;
@@ -69,6 +70,33 @@ export function toggled(f: Filing, key: string): Filing {
     ticked.add(key);
   }
   return { ...f, ticked };
+}
+
+/** A key's act in the picker: move the cursor to a row, tick the row under it, apply, or close. */
+export type FilingKey = { to: number } | "toggle" | "apply" | "close";
+
+/**
+ * filingKey is what p does in the picker with the cursor on row at of count, by the TUI's
+ * keys: nav.up and nav.down move it (held at the ends), picker.toggle ticks, picker.accept
+ * applies, picker.close closes. Off the rows (at -1, on a button) only close is the picker's.
+ */
+export function filingKey(p: Press, keys: Keys, at: number, count: number): FilingKey | undefined {
+  if (bound(keys, "picker.close", p)) {
+    return "close";
+  }
+  if (at < 0) {
+    return undefined;
+  }
+  if (bound(keys, "nav.down", p)) {
+    return { to: Math.min(at + 1, count - 1) };
+  }
+  if (bound(keys, "nav.up", p)) {
+    return { to: Math.max(at - 1, 0) };
+  }
+  if (bound(keys, "picker.toggle", p)) {
+    return "toggle";
+  }
+  return bound(keys, "picker.accept", p) ? "apply" : undefined;
 }
 
 /** Asked is what a filing asks of kithd: the places whose tick differs from what they hold. */

@@ -58,7 +58,7 @@ export function App() {
       {view.offers.prompt && (
         <OfferDialog key={view.offers.prompt.kind} prompt={view.offers.prompt} session={session} />
       )}
-      {seated && view.filing && <FilingDialog filing={view.filing} session={session} />}
+      {seated && view.filing && <FilingDialog filing={view.filing} keys={view.keys} session={session} />}
       {seated && view.people.list && (
         <PeopleDialog list={view.people.list} covered={view.people.card !== undefined} session={session} />
       )}
