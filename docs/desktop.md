@@ -203,6 +203,14 @@ On a message, the cursor's, the `[keys.timeline]` keys act as they do in the ter
 | `timeline.download` | `s` | Save its attachment |
 | `timeline.play` | `p` | Play its voice note or video, or pause it |
 | `timeline.vote` | `P` | Its poll's options, to choose one |
+| `timeline.copy_text` | `yy` | Copy its text |
+| `timeline.copy_url` | `yu` | Copy a link from it |
+| `timeline.open_url` | `gx` | Open a link from it in the browser, and stay here |
+| `timeline.open_url_focus` | `gX` | Open a link from it, and go to the browser |
+
+The copy and open keys ask which link when a message holds several. Only web links
+(http and https) open; a Matrix, Telegram or WhatsApp link opens in the terminal client
+for now.
 
 The searches look through the messages loaded so far, and take a count (`3m`).
 

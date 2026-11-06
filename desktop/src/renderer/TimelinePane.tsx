@@ -301,6 +301,18 @@ export function actOn(
       }
       void session.save(m);
       return true;
+    case "timeline.copy_text":
+      session.copyText(m);
+      return true;
+    case "timeline.copy_url":
+      session.takeLink(m, "copy");
+      return true;
+    case "timeline.open_url":
+      session.takeLink(m, "open");
+      return true;
+    case "timeline.open_url_focus":
+      session.takeLink(m, "open_focus");
+      return true;
     case "timeline.start_thread":
       if (here.inThread === true) {
         return false; // a thread starts on none of its own

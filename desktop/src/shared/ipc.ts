@@ -31,7 +31,17 @@ export const channels = {
   setFontSize: "kith:set-font-size",
   /** The theme's mode ([gui.theme] mode), which main gives the window's light or dark: (mode). */
   themeMode: "kith:theme-mode",
+  /** Text the window copies (a message's, a link): (text). */
+  copy: "kith:copy",
+  /** A web link to open in the browser: (url, stay), answered with whether it went. */
+  open: "kith:open",
 } as const;
+
+/** openable: link is one the browser may be handed (channels.open), http or https (domain.OpenableLink). */
+export function openable(link: string): boolean {
+  const lower = link.toLowerCase();
+  return lower.startsWith("http://") || lower.startsWith("https://");
+}
 
 /** The text sizes the window offers, in pixels; the default is 15. */
 export const fontSizes = [12, 13, 14, 15, 16, 17, 18, 20] as const;
@@ -121,4 +131,11 @@ export interface KithBridge {
   setFontSize(px: number): Promise<number>;
   /** Draws the window light, dark, or as the system is (the theme's mode). */
   themeMode(mode: ThemeMode): void;
+  /** Puts text on the clipboard, which the window holds none of. */
+  copy(text: string): Promise<void>;
+  /**
+   * Opens an http or https link in the browser, the window brought forward again after
+   * where stay; resolves to whether it went (any other link is refused).
+   */
+  open(url: string, stay: boolean): Promise<boolean>;
 }

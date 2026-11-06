@@ -36,6 +36,7 @@ import { Composer, type ComposerView, type Unscheduled, type Unsent } from "./co
 import { type Kept, keptFrom, keptText } from "./drafts";
 import { asked as filingAsked, type Filing, offered, opened, retagged, toggled, told } from "./filing";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
+import { type LinkAct, links } from "./links";
 import { Devices, type DevicesCalls, type DevicesView, noDevices } from "./devices";
 import { call, subscribe } from "./kith";
 import { Login, type LoginCalls, type LoginView } from "./login";
@@ -184,6 +185,8 @@ export interface View {
   /** The filing picker open on a room (filing.ts), and what the last filing came to. */
   filing: Filing | undefined;
   filingNote: string;
+  /** A message's links offered to choose from, for the [keys.timeline] link key pressed. */
+  linking: { act: LinkAct; links: readonly string[] } | undefined;
   /** The room whose name is being written (rooms.name), and the name it starts from. */
   naming: { room: string; name: string } | undefined;
   /** The People list and a person's card (people.ts). */
@@ -354,6 +357,7 @@ const nothingShown = {
   filing: undefined,
   naming: undefined,
   filingNote: "",
+  linking: undefined,
   people: noPeople,
 } satisfies Partial<View>;
 
@@ -1386,6 +1390,85 @@ export class Session {
     return this.inRun(async () => {
       await window.kith.save(m.roomId, m.id, m.media?.name ?? "");
     });
+  }
+
+  /** copyText puts m's text on the clipboard: an attachment's caption, or its name where it has none. */
+  copyText(m: Message): void {
+    if (m.redacted) {
+      this.set({ filingNote: "that message was deleted — nothing to copy" });
+    } else if (m.body.trim() === "") {
+      this.set({ filingNote: "nothing to copy" });
+    } else {
+      this.copyOut(m.body, "message");
+    }
+  }
+
+  /** takeLink copies or opens one of m's web links: its only one, or the one picked (pickLink). */
+  takeLink(m: Message, act: LinkAct): void {
+    const found = links(m);
+    const only = found.length === 1 ? found[0] : undefined;
+    if (only !== undefined) {
+      this.useLink(act, only);
+    } else {
+      this.set(
+        found.length === 0
+          ? { filingNote: "no link in that message" }
+          : { linking: { act, links: found }, filingNote: "" },
+      );
+    }
+  }
+
+  /** pickLink takes the i-th link offered (from 0) for the key that offered them. */
+  pickLink(i: number): void {
+    const l = this.view.linking;
+    const link = l?.links[i];
+    this.set({ linking: undefined });
+    if (l !== undefined && link !== undefined) {
+      this.useLink(l.act, link);
+    }
+  }
+
+  closeLinking(): void {
+    this.set({ linking: undefined });
+  }
+
+  private useLink(act: LinkAct, link: string): void {
+    if (act === "copy") {
+      this.copyOut(link, "link");
+      return;
+    }
+    const host = link.replace(/^https?:\/\//i, "").split("/")[0] ?? link;
+    this.set({ filingNote: `opening ${host}…` });
+    window.kith.open(link, act === "open").then(
+      (went) => {
+        if (!went && !this.stopped) {
+          this.set({ filingNote: "refusing to open that — only http and https links" });
+        }
+      },
+      (err: unknown) => {
+        if (!this.stopped) {
+          this.set({ filingNote: `${host} did not open: ${errorText(err)}` });
+        }
+      },
+    );
+  }
+
+  /** copyOut puts text on the clipboard and says so, what it is and its start. */
+  private copyOut(text: string, what: string): void {
+    const flat = text.split(/\s+/).filter(Boolean).join(" ");
+    const shown = flat.length > 48 ? `${flat.slice(0, 47)}…` : flat;
+    window.kith.copy(text).then(
+      () => {
+        if (!this.stopped) {
+          this.set({ filingNote: `copied ${what}: ${shown}` });
+        }
+      },
+      (err: unknown) => {
+        if (!this.stopped) {
+          this.set({ filingNote: `the ${what} was not copied: ${errorText(err)}` });
+        }
+      },
+    );
   }
 
   /**

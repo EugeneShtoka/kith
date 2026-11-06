@@ -1702,6 +1702,51 @@ describe("an attachment", () => {
   });
 });
 
+describe("a message's text and links", () => {
+  const note = () => view().filingNote;
+
+  it("copies its text through main, and says so; a deleted or empty one, nothing", async () => {
+    await started();
+    session.copyText(message({ id: "$1", body: "the  plan\nfor today" }));
+    await settled();
+    expect(kithd.copied).toEqual(["the  plan\nfor today"]);
+    expect(note()).toBe("copied message: the plan for today");
+    session.copyText(message({ id: "$2", body: "gone", redacted: true }));
+    session.copyText(message({ id: "$3", body: " " }));
+    await settled();
+    expect(kithd.copied).toHaveLength(1);
+    expect(note()).toBe("nothing to copy");
+  });
+
+  it("takes a message's only link at once, staying here or going to the browser", async () => {
+    await started();
+    const m = message({ id: "$1", body: "see https://example.org/a." });
+    session.takeLink(m, "copy");
+    session.takeLink(m, "open");
+    session.takeLink(m, "open_focus");
+    await settled();
+    expect(kithd.copied).toEqual(["https://example.org/a"]);
+    expect(kithd.opened).toEqual(["https://example.org/a", "https://example.org/a focused"]);
+    expect(view().linking).toBeUndefined();
+    session.takeLink(message({ id: "$2", body: "no link" }), "open");
+    expect(note()).toBe("no link in that message");
+  });
+
+  it("asks which of several, and takes the one picked for the key that asked", async () => {
+    await started();
+    session.takeLink(message({ id: "$1", body: "https://a.example or https://b.example" }), "open_focus");
+    expect(view().linking).toEqual({ act: "open_focus", links: ["https://a.example", "https://b.example"] });
+    session.pickLink(1);
+    await settled();
+    expect(kithd.opened).toEqual(["https://b.example focused"]);
+    expect(view().linking).toBeUndefined();
+    session.takeLink(message({ id: "$2", body: "https://a.example https://b.example" }), "copy");
+    session.closeLinking();
+    await settled();
+    expect(kithd.copied).toEqual([]);
+  });
+});
+
 describe("the settings page's accounts", () => {
   const opened = async () => {
     kithd.loginNetworks = { networks: [{ network: "whatsapp", label: "WhatsApp", accounts: [{ name: "main" }] }] };
