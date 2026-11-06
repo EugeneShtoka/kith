@@ -145,7 +145,7 @@ export function FormattedText({ f, pills = [] }: { f: Formatted; pills?: readonl
       pill === undefined ? (
         piece
       ) : (
-        <span key={`m${String(i)}`} className={`mention ${pill.className}`}>
+        <span key={`m${String(i)}`} className={`named ${pill.className}`}>
           {piece}
         </span>
       ),

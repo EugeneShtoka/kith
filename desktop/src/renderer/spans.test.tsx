@@ -51,7 +51,7 @@ describe("mentions", () => {
       <FormattedText f={f} pills={pills(f.text, [mention("dana", "@Dana")], classOf)} />,
     );
     expect(html).toBe(
-      '<span><strong>hi </strong></span><span class="mention of-dana"><span><strong>Da</strong></span></span><span class="mention of-dana">na</span>!',
+      '<span><strong>hi </strong></span><span class="named of-dana"><span><strong>Da</strong></span></span><span class="named of-dana">na</span>!',
     );
   });
 });
