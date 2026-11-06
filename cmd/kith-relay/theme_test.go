@@ -621,7 +621,7 @@ func TestAThemeTheWindowCannotDrawIsRefused(t *testing.T) {
 		{Key: "dark.accent", Value: "green", Scope: devicev1.ThemeScope_THEME_SCOPE_SHARED},
 		{Key: "dark.accent", Value: "#12345", Scope: devicev1.ThemeScope_THEME_SCOPE_DEVICE},
 		{Key: "mode", Value: "Sepia Tone", Scope: devicev1.ThemeScope_THEME_SCOPE_SHARED}, // no theme file is named so
-		{Key: "dark.border", Value: "#123456", Scope: devicev1.ThemeScope_THEME_SCOPE_DEVICE},
+		{Key: "dark.frame", Value: "#123456", Scope: devicev1.ThemeScope_THEME_SCOPE_DEVICE},
 		{Key: "people.", Value: "#123456", Scope: devicev1.ThemeScope_THEME_SCOPE_SHARED},
 		{Key: "dark.accent", Value: "#123456"},
 	} {

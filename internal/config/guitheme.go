@@ -37,6 +37,13 @@ type GUIRoles struct {
 	Selection  string `toml:"selection"`
 	Unread     string `toml:"unread"`
 	Mention    string `toml:"mention"`
+	// Bar, Raised and Border are the top bar and rail, buttons and fields, and lines;
+	// UnreadText and MentionText are a badge's count on Unread and Mention.
+	Bar         string `toml:"bar"`
+	Raised      string `toml:"raised"`
+	Border      string `toml:"border"`
+	UnreadText  string `toml:"unread_text"`
+	MentionText string `toml:"mention_text"`
 }
 
 // GUIThemeModes are the modes [gui.theme] mode takes.
@@ -48,7 +55,9 @@ func GUIThemeFaces() []string { return []string{"pictures", "initials"} }
 
 // GUIThemeRoles are the roles a mode colors, in GUIRoles' order.
 func GUIThemeRoles() []string {
-	return []string{"accent", "background", "surface", "text", "muted", "link", "selection", "unread", "mention"}
+	return []string{"accent", "background", "surface", "text", "muted", "link", "selection", "unread", "mention",
+		"bar", "raised", "border", "unread_text", "mention_text",
+	}
 }
 
 // role is the field of r named name; nil for no role.
@@ -72,6 +81,16 @@ func (r *GUIRoles) role(name string) *string {
 		return &r.Unread
 	case "mention":
 		return &r.Mention
+	case "bar":
+		return &r.Bar
+	case "raised":
+		return &r.Raised
+	case "border":
+		return &r.Border
+	case "unread_text":
+		return &r.UnreadText
+	case "mention_text":
+		return &r.MentionText
 	}
 	return nil
 }

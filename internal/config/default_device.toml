@@ -545,11 +545,13 @@ timeout = 15
 # mode = "light"
 # faces = "initials"
 #
-# Roles: accent, background, surface, text, muted, link, selection, unread, mention.
+# Roles: accent, background, surface, text, muted, link, selection, unread, mention,
+# bar, raised, border, unread_text, mention_text.
 # [gui.theme.dark]
 # accent = "#4c8dff"
 #
-# Roles: accent, background, surface, text, muted, link, selection, unread, mention.
+# Roles: accent, background, surface, text, muted, link, selection, unread, mention,
+# bar, raised, border, unread_text, mention_text.
 # [gui.theme.light]
 # accent = "#1f6feb"
 #

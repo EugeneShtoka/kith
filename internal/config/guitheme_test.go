@@ -83,7 +83,7 @@ func TestGUIThemeKeysRoundTripThroughEitherFile(t *testing.T) {
 		}
 	}
 	var l GUITheme
-	for _, path := range []string{"", "moda", "light", "light.", "light.border", "sepia.accent", "accounts.", "people", "accounts"} {
+	for _, path := range []string{"", "moda", "light", "light.", "light.frame", "sepia.accent", "accounts.", "people", "accounts"} {
 		if l.Set(path, "#000000") {
 			t.Errorf("Set(%q) took a path that names no key", path)
 		}
