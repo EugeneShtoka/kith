@@ -1,6 +1,7 @@
 // Whether a read receipt is announced to the people in a room or kept private: send_receipts
 // and [[display.read_rule]] (domain.ResolveRead), held to Go by the conformance table
-// internal/domain/testdata/read.json.
+// internal/domain/testdata/read.json; and how long the list's cursor rests on a room
+// before it is read (read_delay).
 import type { DeviceSettings, ReadRule } from "../gen/device/v1/device_pb";
 
 // The rungs a rule names a place on (domain.Rank), widest first; the narrowest wins.
@@ -39,19 +40,18 @@ function rank(rule: ReadRule, room: string, sender: string): { rank: number; may
 }
 
 /**
- * announces says whether a receipt in room for sender's message is announced: only when
- * every rule that could decide it says so. A rule naming a home might or might not name
- * this room (the window does not know its homes), so where one could win, the receipt
- * is announced only if it and the rule winning without it both say announce. No settings
- * (none read yet, or the read failed) is private: a receipt never tells people what
- * the settings might forbid.
+ * outcomes are what each rule that could decide room's message by sender says by say,
+ * the defaults' where none does: the rule winning outright, and each rule naming a home
+ * that would beat it did the room turn out to be in that home (the window does not know
+ * its homes).
  */
-export function announces(settings: DeviceSettings | undefined, room: string, sender: string): boolean {
-  if (settings === undefined) {
-    return false;
-  }
-  const send = (rule: ReadRule | undefined) => rule?.send ?? settings.sendReceipts;
-  const ranked = settings.readRules.map((rule) => ({ rule, ...rank(rule, room, sender) }));
+function outcomes<T>(
+  rules: readonly ReadRule[],
+  room: string,
+  sender: string,
+  say: (rule: ReadRule | undefined) => T,
+): T[] {
+  const ranked = rules.map((rule) => ({ rule, ...rank(rule, room, sender) }));
   // The winner where no home rule matches: the narrowest certain one, the later on a tie.
   let best: (typeof ranked)[number] | undefined;
   for (const r of ranked) {
@@ -59,13 +59,39 @@ export function announces(settings: DeviceSettings | undefined, room: string, se
       best = r;
     }
   }
-  const outcomes = [send(best?.rule)];
-  // Each home rule that would beat it, did the room turn out to be in that home.
+  const out = [say(best?.rule)];
   ranked.forEach((r, i) => {
     const beats = best === undefined || r.rank > best.rank || (r.rank === best.rank && i > ranked.indexOf(best));
     if (r.maybe && beats) {
-      outcomes.push(send(r.rule));
+      out.push(say(r.rule));
     }
   });
-  return outcomes.every(Boolean);
+  return out;
+}
+
+/**
+ * announces says whether a receipt in room for sender's message is announced: only when
+ * every rule that could decide it says so, a rule naming a home included. No settings
+ * (none read yet, or the read failed) is private: a receipt never tells people what
+ * the settings might forbid.
+ */
+export function announces(settings: DeviceSettings | undefined, room: string, sender: string): boolean {
+  if (settings === undefined) {
+    return false;
+  }
+  return outcomes(settings.readRules, room, sender, (rule) => rule?.send ?? settings.sendReceipts).every(Boolean);
+}
+
+/**
+ * readAfter is the seconds the list's cursor rests on room, its newest message sender's,
+ * before it is read without being entered ([display] read_delay and the rules' delay);
+ * negative is never. Where rules disagree, the longest wait, and never over any; no
+ * settings is never.
+ */
+export function readAfter(settings: DeviceSettings | undefined, room: string, sender: string): number {
+  if (settings === undefined) {
+    return -1;
+  }
+  const delays = outcomes(settings.readRules, room, sender, (rule) => Number(rule?.delay ?? settings.readDelay));
+  return delays.some((d) => d < 0) ? -1 : Math.max(...delays);
 }

@@ -67,16 +67,17 @@ export function placed(rows: readonly RailRow[], was: RowRef | undefined, at: nu
 
 /**
  * listed is rooms as the row lists them: those it holds, and the room open when the rail
- * does not know it (a chat newer than the rail), so it stays where the person is. With
- * no rail yet, every room.
+ * does not know it (a chat newer than the rail) or the row is a sticky tag's (read, it
+ * leaves Unread), so it stays where the person is until they move off it. With no rail
+ * yet, every room.
  */
 export function listed(rooms: readonly Room[], rail: RailResponse | undefined, row: number, open: string): Room[] {
   if (rail === undefined) {
     return [...rooms];
   }
   const holds = new Set(rail.rows[row]?.rooms ?? []);
-  const known = rail.rooms.some((r) => r.facts?.id === open);
-  return rooms.filter((r) => holds.has(r.id) || (r.id === open && !known));
+  const kept = rail.rows[row]?.sticky === true || !rail.rooms.some((r) => r.facts?.id === open);
+  return rooms.filter((r) => holds.has(r.id) || (r.id === open && kept));
 }
 
 /** rowUnread is what a row's badge counts: its rooms' unread, and whether any mentions. */

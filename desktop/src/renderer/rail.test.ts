@@ -190,6 +190,25 @@ describe("the rail", () => {
     expect(listed()).toEqual([]);
   });
 
+  it("keeps the open room listed in a sticky tag's row it left, until another room is open", async () => {
+    const unread = (revision: number, rooms: string[], sticky: boolean) => {
+      const r = rail(revision, [["Unread", rooms]], ["!a", "!b"]);
+      for (const row of r.rows) {
+        row.sticky = sticky;
+      }
+      return r;
+    };
+    await started(["!a", "!b"], unread(1, ["!a", "!b"], true));
+    session.open("!a");
+    await served("Home", unread(2, ["!b"], true)); // read, !a leaves Unread
+    expect(listed().sort()).toEqual(["!a", "!b"]);
+    session.peek("!b");
+    expect(listed()).toEqual(["!b"]);
+    session.open("!a");
+    await served("Home", unread(3, ["!b"], false)); // the same row, not sticky
+    expect(listed()).toEqual(["!b"]);
+  });
+
   it("empties with a profile gone from the config, and the window asks for one", async () => {
     kithd.profiles = ["Home", "Work"];
     kithd.remembered = "Home";

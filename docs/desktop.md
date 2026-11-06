@@ -108,7 +108,16 @@ The window fills its height, and each part scrolls on its own:
   places, and the room list beside it. A room with something unread is in bold with
   its count; a red count with an @ means something there names you. Each room shows its
   network's mark (WA, TG, SL, …) where the network is known. **Connection**, at the
-  bottom, shows the cache's state and each account's.
+  bottom, shows the cache's state and each account's. The place and the room you are
+  on are marked bright in the list that has the focus, faded in the other, and faded
+  in both while you are in the room.
+- **Moving through the room list** shows each room you stop on, a moment after you
+  stop: running down the list shows none on the way, and back and forward pass them
+  by. A room shown is read only once you go into it (`enter`, `l`, `right` or a click,
+  which put you in its composer), unless `[display] read_delay` (or a
+  `[[display.read_rule]]`'s `delay`) says how many seconds resting on it reads it, as
+  in the terminal. In a tag marked `sticky` (Unread, say), the room you read stays
+  listed until you move off it.
 - **In the middle**, the open room: its name, network and topic above, its messages,
   and the composer under them. Messages are split by day, and one sender's messages a
   few minutes apart are drawn as one group, with the time of each in the margin when

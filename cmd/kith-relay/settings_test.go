@@ -32,18 +32,18 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 		file string
 		want *devicev1.DeviceSettings
 	}{
-		{"nothing set", "", spelling(&devicev1.DeviceSettings{SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room"})},
+		{"nothing set", "", spelling(&devicev1.DeviceSettings{ReadDelay: -1, SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room"})},
 		{
 			"keys and rules set",
-			"[display]\nsend_receipts = false\nunread_line = false\nfiling_spaces = [\"space:Work\", \"place:Home\"]\n\n" +
+			"[display]\nsend_receipts = false\nunread_line = false\nread_delay = 2\nfiling_spaces = [\"space:Work\", \"place:Home\"]\n\n" +
 				"[[display.read_rule]]\nmatch = \"space:Work\"\nsend = true\n\n" +
 				"[[display.read_rule]]\nsender = \"matrix:@alice:example.org\"\ndelay = 5\n",
 			spelling(&devicev1.DeviceSettings{
 				ReadRules: []*devicev1.ReadRule{
 					{Match: "space:Work", Send: &yes},
-					{Sender: "matrix:@alice:example.org"},
+					{Sender: "matrix:@alice:example.org", Delay: new(int64(5))},
 				},
-				Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
+				ReadDelay: 2, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
 				FilingSpaces: []string{"space:Work", "place:Home"},
 			}),
 		},
@@ -54,7 +54,7 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 				"[display.emoji]\nset = \"standard\"\nextra = { shipit = \"🐿️\" }\n\n" +
 				"[display.reactions]\nscope = \"static\"\nstatic = [\"👍\", \"🎉\"]\n",
 			spelling(&devicev1.DeviceSettings{
-				SendReceipts: true, UnreadLine: true, SkinTone: "\U0001F3FD", EmojiSet: "standard",
+				ReadDelay: -1, SendReceipts: true, UnreadLine: true, SkinTone: "\U0001F3FD", EmojiSet: "standard",
 				EmojiExtra: map[string]string{"shipit": "🐿️"}, ReactionsScope: "static", ReactionsStatic: []string{"👍", "🎉"},
 			}),
 		},
@@ -65,7 +65,7 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 				"[complete]\nenabled = false\nghost = false\nratio = 5\nscope = \"global\"\nsources = [\"history\"]\n\n" +
 				"[complete.model]\ndeclined = true\n",
 			&devicev1.DeviceSettings{
-				SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
+				ReadDelay: -1, SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
 				SpellUnderline: "line", RareUnderline: "none", CheckBeforeSend: true, RareBeforeSend: true, Autocorrect: "all",
 				SpellDeclined: []string{"de_DE"}, FrequenciesDeclined: []string{"he_IL"},
 				CompleteRatio: 5, CompleteScope: "global", CompleteSources: []string{"history"}, ModelDeclined: true,
@@ -75,7 +75,7 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 			"changed by hand meanwhile",
 			"[display]\n[[display.read_rule]]\nmatch = \"matrix:fedcba9876543210/!room:example.org\"\nsend = false\n",
 			spelling(&devicev1.DeviceSettings{
-				SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
+				ReadDelay: -1, SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
 				ReadRules: []*devicev1.ReadRule{{Match: "matrix:fedcba9876543210/!room:example.org", Send: &no}},
 			}),
 		},
@@ -121,13 +121,17 @@ func settingsText(s *devicev1.DeviceSettings) string {
 		s.GetSpellUnderline(), s.GetRareUnderline(), s.GetCheckBeforeSend(), s.GetRareBeforeSend(), s.GetAutocorrect(),
 		s.GetSpellDeclined(), s.GetFrequenciesDeclined(), s.GetComplete(), s.GetCompleteGhost(), s.GetCompleteRatio(),
 		s.GetCompleteScope(), s.GetCompleteSources(), s.GetModelDeclined())
-	text += fmt.Sprintf(" filing_spaces=%q", s.GetFilingSpaces())
+	text += fmt.Sprintf(" filing_spaces=%q read_delay=%d", s.GetFilingSpaces(), s.GetReadDelay())
 	for _, r := range s.GetReadRules() {
 		send := "unset"
 		if r.Send != nil {
 			send = fmt.Sprint(r.GetSend())
 		}
-		text += fmt.Sprintf(" {match=%q sender=%q send=%s}", r.GetMatch(), r.GetSender(), send)
+		delay := "unset"
+		if r.Delay != nil {
+			delay = fmt.Sprint(r.GetDelay())
+		}
+		text += fmt.Sprintf(" {match=%q sender=%q send=%s delay=%s}", r.GetMatch(), r.GetSender(), send, delay)
 	}
 	return text
 }
