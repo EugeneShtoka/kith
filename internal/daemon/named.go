@@ -130,7 +130,10 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	// A page's cursor, issued by the backend for the room the request names.
 	"backend.v1.TimelineRequest.from": notARoom, "backend.v1.ThreadPageRequest.from": notARoom,
 	// An upload: a random ID only its uploader holds, sent into the room the request names.
-	"backend.v1.PutUploadRequest.upload_id": notARoom, "backend.v1.SavePictureRequest.upload_id": notARoom, "backend.v1.SendFileRequest.upload_id": notARoom,
+	"backend.v1.PutUploadRequest.upload_id": notARoom, "backend.v1.SavePictureRequest.upload_id": notARoom,
+	"backend.v1.SetIdentityRequest.id": notARoom, "backend.v1.SetIdentityRequest.alias": notARoom,
+	"backend.v1.SetIdentityRequest.color": notARoom, "backend.v1.SetIdentityRequest.picture": notARoom,
+	"backend.v1.SendFileRequest.upload_id": notARoom,
 	// A sender's color slot in the room the request names.
 	"backend.v1.SenderSlot.key": notARoom,
 	// Search terms and people; the rooms searched are narrowed.

@@ -11,6 +11,7 @@ import {
   type ConfigValue,
   type Device as PairedDevice,
   type FollowStreamResponse,
+  type Identity,
   type LoginNetwork,
   type PersonListed,
   type RailResponse,
@@ -310,8 +311,8 @@ const offerCalls: OfferCalls = {
   },
 };
 
-/** errorText is what the settings page says of a failure. */
-function errorText(err: unknown): string {
+/** errorText is what the settings page, or an editor, says of a failure. */
+export function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
@@ -770,6 +771,31 @@ export class Session {
     } catch (err) {
       this.login.say(`Could not sign out of ${label}: ${errorText(err)}`);
     }
+  }
+
+  /** identities are the config's people ([[display.identity]]), which an account may join. */
+  async identities(): Promise<Identity[]> {
+    return (await call(backend.identities, {})).identities;
+  }
+
+  /**
+   * setIdentity makes the account id one of the person alias, with their color and
+   * picture (setup.FacesOf's: "" each their own, one of their IDs, or a saved picture);
+   * the theme and the open room's pictures are read again, as they follow it.
+   */
+  async setIdentity(id: string, alias: string, color: string, picture: string): Promise<void> {
+    await call(backend.setIdentity, { id, alias, color, picture });
+    this.readTheme();
+    const run = this.run;
+    if (run !== undefined && this.live(run) && this.view.open !== "") {
+      this.readPictures(run, this.view.open);
+    }
+  }
+
+  /** pickPicture asks for an image in the open dialog and keeps it as a picture: its name, or undefined for none picked. */
+  async pickPicture(): Promise<string | undefined> {
+    const [offer] = await window.kith.pick();
+    return offer === undefined ? undefined : window.kith.savePicture(offer.token);
   }
 
   /** reread reads the rail and the rooms again: an account came or went. */

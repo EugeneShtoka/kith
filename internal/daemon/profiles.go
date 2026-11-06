@@ -77,7 +77,7 @@ var reaches = map[string]profileReach{
 	"DetectModel": passes, "InstallModel": passes, "CheckSpelling": passes, "LearnWord": passes,
 	"AllowRareWord": passes, "SetDND": passes, "ClearDND": passes, "DND": passes,
 	"RescanFilters": passes, "RescanPeople": passes, "ReloadConfig": passes, "CheckConfig": passes,
-	"GetConfig": passes, "PreviewGroupings": passes, "ApplyGroupings": passes, "UpdateConfig": passes,
+	"GetConfig": passes, "Identities": passes, "SetIdentity": passes, "PreviewGroupings": passes, "ApplyGroupings": passes, "UpdateConfig": passes,
 	"ConfigChanged": passes, "StartUpload": passes, "PutUpload": passes,
 	// The bridge's config one setting at a time: the bridge's, not a profile's, so every
 	// profile reads and sets the same settings, none of which names a room
