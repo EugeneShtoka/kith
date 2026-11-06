@@ -1089,13 +1089,18 @@ listen = []
 # faces = "pictures"
 #
 # Each mode's colors, one per role: accent, background, surface (the side columns),
-# text, muted (times, hints), link, selection (the row you are on), unread and mention.
+# text, muted (times, hints), link, selection (the row you are on), unread and mention
+# (their badges), bar (the top bar and the rail), raised (buttons, fields, popups),
+# border (lines), unread_text and mention_text (the count on each badge), badge (every
+# badge's color, where set), focus and focus_text (the row you are on, in the list you
+# are in).
 # [gui.theme.dark]
 # accent = "#4c8dff"
 # background = "#1e1f22"
 #
 # The same roles for light: accent, background, surface, text, muted, link, selection,
-# unread and mention.
+# unread, mention, bar, raised, border, unread_text, mention_text, badge, focus and
+# focus_text.
 # [gui.theme.light]
 # accent = "#1f6feb"
 #
