@@ -319,6 +319,10 @@ func viaBridge(t *testing.T, key *ecdsa.PrivateKey, pin devicekey.ID, addrs ...s
 // clientDevices numbers the machines clientDevice makes.
 var clientDevices atomic.Int64
 
+// mockKeyring takes the test binary's mock keyring one caller at a time: go-keyring's
+// mock is a map it does not lock, and parallel tests creating device keys raced on it.
+var mockKeyring sync.Mutex
+
 // clientDevice is a machine that runs no kithd: a config holding only where it keeps its
 // own files (no profile, no account), and its device key, as every client here makes it.
 // It returns the config's path and the key.
@@ -337,7 +341,9 @@ func clientDevice(t *testing.T) (string, *ecdsa.PrivateKey) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	mockKeyring.Lock()
 	key, err := keystore.LoadOrCreateDeviceKey(keystore.DeviceStore(storage, "client-device"), allowFile)
+	mockKeyring.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
