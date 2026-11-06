@@ -619,8 +619,9 @@ select option {
   font-weight: 700;
 }
 
-/* A person a message names, in their color, as the TUI draws a mention. */
-.mention {
+/* A person a message names, in their color, as the TUI draws a mention. Not .mention:
+   that is the red badge's, whose white count this would color. */
+.named {
   color: var(--hue, var(--accent));
   font-weight: 600;
 }
