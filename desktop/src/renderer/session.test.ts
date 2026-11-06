@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   BackendService,
@@ -658,6 +658,7 @@ describe("read receipts", () => {
     kithd.write("Home", message({ id: "$1", ts: 10, sender: "@alice" }, r));
     await started();
     session.open(r);
+    session.inRoom(true);
     await settled();
   };
 
@@ -721,6 +722,45 @@ describe("read receipts", () => {
     await settled();
     expect(kithd.receipts).toEqual([`${r} $1 public`]);
   });
+
+  it("wait for the room to be entered: one the list's cursor shows is not read", async () => {
+    kithd.of("Home").rooms = [room(r)];
+    kithd.write("Home", message({ id: "$1", ts: 10, sender: "@alice" }, r));
+    await started();
+    session.peek(r);
+    session.watch(true);
+    await settled();
+    expect(view().open).toBe(r);
+    expect(kithd.receipts).toEqual([]);
+    session.inRoom(true);
+    await settled();
+    session.inRoom(false);
+    kithd.write("Home", message({ id: "$2", ts: 20, sender: "@alice" }, r));
+    await settled();
+    expect(kithd.receipts).toEqual([`${r} $1 public`]); // back in the list, what arrives is not read
+  });
+
+  it("are sent for a room the cursor rested on for read_delay, not for one it left sooner", async () => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers(); // the tests after settle by real timers, this one failing or not
+    });
+    const pass = (ms: number) => vi.advanceTimersByTimeAsync(ms);
+    kithd.settings = create(DeviceSettingsSchema, { sendReceipts: true, readDelay: 2n });
+    kithd.of("Home").rooms = [room(r), room("!s")];
+    kithd.write("Home", message({ id: "$1", ts: 10, sender: "@alice" }, r));
+    kithd.write("Home", message({ id: "$s", ts: 10, sender: "@alice" }, "!s"));
+    session.start();
+    await pass(100);
+    session.watch(true);
+    session.peek(r);
+    await pass(1500);
+    session.peek("!s");
+    await pass(1500);
+    expect(kithd.receipts).toEqual([]);
+    await pass(600);
+    expect(kithd.receipts).toEqual(["!s $s public"]);
+  });
 });
 
 describe("the settings page", () => {
@@ -732,6 +772,7 @@ describe("the settings page", () => {
     kithd.write("Home", message({ id: "$1", ts: 10, sender: "@alice" }, r));
     await started();
     session.open(r);
+    session.inRoom(true);
     session.watch(true);
     session.openSettings();
     await settled();

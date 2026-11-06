@@ -402,6 +402,9 @@ message DeviceSettings {
   // room into or out of, in the order the config lists them; a chord with an unknown key
   // name, or no tag, is left out.
   repeated TagKey tag_keys = 30;
+  // [display] read_delay: the seconds the list's cursor rests on a room, shown, before it
+  // is read without being entered; -1 never.
+  int64 read_delay = 31;
 }
 
 // KeySequences are one action's keys, in the order [keys] lists them.
@@ -423,8 +426,7 @@ message TagKey {
   string tag = 2;
 }
 
-// ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
-// opening it, so how long a cursor rests on one is the TUI's.
+// ReadRule is one [[display.read_rule]].
 message ReadRule {
   // A room ID, or a home entry (space:, tag:, place:); empty with a sender.
   string match = 1;
@@ -432,6 +434,9 @@ message ReadRule {
   string sender = 2;
   // Whether receipts are announced there; unset inherits.
   optional bool send = 3;
+  // The seconds the list's cursor rests on a room before it is read (-1 never, 0 at
+  // once); unset inherits. The window shows it as the cursor rests, but does not write it.
+  optional int64 delay = 4;
 }
 
 message CommandsRequest {

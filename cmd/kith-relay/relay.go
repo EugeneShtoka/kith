@@ -416,9 +416,9 @@ func sameRule(a, b *devicev1.ReadRule) bool {
 		(a.Send == nil) == (b.Send == nil) && a.GetSend() == b.GetSend()
 }
 
-// readRules is the window's rules as the file spells them. The window is not told a
-// rule's delay (the TUI's), so each keeps the delay of the file's rule for the same match
-// and sender: of several, the n-th the n-th's.
+// readRules is the window's rules as the file spells them. The window does not write a
+// rule's delay, so each keeps the delay of the file's rule for the same match and sender:
+// of several, the n-th the n-th's.
 func readRules(want []*devicev1.ReadRule, had []config.ReadRule) []config.ReadRule {
 	type place struct{ match, sender string }
 	delays := map[place][]*int{}
@@ -442,6 +442,9 @@ func resolved(dev config.Device) *devicev1.DeviceSettings {
 	rules := make([]*devicev1.ReadRule, len(dev.Display.ReadRules))
 	for i, r := range dev.Display.ReadRules {
 		rules[i] = &devicev1.ReadRule{Match: r.Match, Sender: r.Sender, Send: r.Send}
+		if r.Delay != nil {
+			rules[i].Delay = new(int64(*r.Delay))
+		}
 	}
 	// Checked as the device file loaded (setup.ValidateDevice): a name here is one of them.
 	tone, _ := setup.SkinTone(dev.Display.SkinTone)
@@ -479,6 +482,7 @@ func resolved(dev config.Device) *devicev1.DeviceSettings {
 		Keys:                keySequences(dev.Keys),
 		Jumps:               jumps(dev.Keys.Jump),
 		TagKeys:             tagKeys(dev.Keys.Tag),
+		ReadDelay:           int64(dev.Display.ReadAfter() / time.Second),
 		AudioSpeed:          dev.Display.Media.Audio.PlaySpeed(),
 		AudioSkip:           int64(dev.Display.Media.Audio.SkipStep() / time.Second),
 	}

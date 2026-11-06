@@ -1887,7 +1887,10 @@ type DeviceSettings struct {
 	// [[keys.tag]]: each chord as one sequence (as keys has them) and the tag it files a
 	// room into or out of, in the order the config lists them; a chord with an unknown key
 	// name, or no tag, is left out.
-	TagKeys       []*TagKey `protobuf:"bytes,30,rep,name=tag_keys,json=tagKeys,proto3" json:"tag_keys,omitempty"`
+	TagKeys []*TagKey `protobuf:"bytes,30,rep,name=tag_keys,json=tagKeys,proto3" json:"tag_keys,omitempty"`
+	// [display] read_delay: the seconds the list's cursor rests on a room, shown, before it
+	// is read without being entered; -1 never.
+	ReadDelay     int64 `protobuf:"varint,31,opt,name=read_delay,json=readDelay,proto3" json:"read_delay,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2132,6 +2135,13 @@ func (x *DeviceSettings) GetTagKeys() []*TagKey {
 	return nil
 }
 
+func (x *DeviceSettings) GetReadDelay() int64 {
+	if x != nil {
+		return x.ReadDelay
+	}
+	return 0
+}
+
 // KeySequences are one action's keys, in the order [keys] lists them.
 type KeySequences struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2292,8 +2302,7 @@ func (x *TagKey) GetTag() string {
 	return ""
 }
 
-// ReadRule is one [[display.read_rule]], less its delay: the window reads a room by
-// opening it, so how long a cursor rests on one is the TUI's.
+// ReadRule is one [[display.read_rule]].
 type ReadRule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// A room ID, or a home entry (space:, tag:, place:); empty with a sender.
@@ -2301,7 +2310,10 @@ type ReadRule struct {
 	// A message author's ID; empty is anyone.
 	Sender string `protobuf:"bytes,2,opt,name=sender,proto3" json:"sender,omitempty"`
 	// Whether receipts are announced there; unset inherits.
-	Send          *bool `protobuf:"varint,3,opt,name=send,proto3,oneof" json:"send,omitempty"`
+	Send *bool `protobuf:"varint,3,opt,name=send,proto3,oneof" json:"send,omitempty"`
+	// The seconds the list's cursor rests on a room before it is read (-1 never, 0 at
+	// once); unset inherits. The window shows it as the cursor rests, but does not write it.
+	Delay         *int64 `protobuf:"varint,4,opt,name=delay,proto3,oneof" json:"delay,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2355,6 +2367,13 @@ func (x *ReadRule) GetSend() bool {
 		return *x.Send
 	}
 	return false
+}
+
+func (x *ReadRule) GetDelay() int64 {
+	if x != nil && x.Delay != nil {
+		return *x.Delay
+	}
+	return 0
 }
 
 type CommandsRequest struct {
@@ -2778,7 +2797,7 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\bsettings\x18\x02 \x01(\v2\x19.device.v1.DeviceSettingsR\bsettings\"q\n" +
 	"\x1cUpdateDeviceSettingsResponse\x125\n" +
 	"\bsettings\x18\x01 \x01(\v2\x19.device.v1.DeviceSettingsR\bsettings\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\tR\brevision\"\xcb\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\"\xea\n" +
 	"\n" +
 	"\x0eDeviceSettings\x12#\n" +
 	"\rsend_receipts\x18\x01 \x01(\bR\fsendReceipts\x122\n" +
@@ -2818,7 +2837,9 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"audioSpeed\x12\x1d\n" +
 	"\n" +
 	"audio_skip\x18\x1d \x01(\x03R\taudioSkip\x12,\n" +
-	"\btag_keys\x18\x1e \x03(\v2\x11.device.v1.TagKeyR\atagKeys\x1a=\n" +
+	"\btag_keys\x18\x1e \x03(\v2\x11.device.v1.TagKeyR\atagKeys\x12\x1d\n" +
+	"\n" +
+	"read_delay\x18\x1f \x01(\x03R\treadDelay\x1a=\n" +
 	"\x0fEmojiExtraEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aP\n" +
@@ -2833,12 +2854,14 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\x05place\x18\x03 \x01(\tR\x05place\"6\n" +
 	"\x06TagKey\x12\x1a\n" +
 	"\bsequence\x18\x01 \x01(\tR\bsequence\x12\x10\n" +
-	"\x03tag\x18\x02 \x01(\tR\x03tag\"Z\n" +
+	"\x03tag\x18\x02 \x01(\tR\x03tag\"\x7f\n" +
 	"\bReadRule\x12\x14\n" +
 	"\x05match\x18\x01 \x01(\tR\x05match\x12\x16\n" +
 	"\x06sender\x18\x02 \x01(\tR\x06sender\x12\x17\n" +
-	"\x04send\x18\x03 \x01(\bH\x00R\x04send\x88\x01\x01B\a\n" +
-	"\x05_send\"*\n" +
+	"\x04send\x18\x03 \x01(\bH\x00R\x04send\x88\x01\x01\x12\x19\n" +
+	"\x05delay\x18\x04 \x01(\x03H\x01R\x05delay\x88\x01\x01B\a\n" +
+	"\x05_sendB\b\n" +
+	"\x06_delay\"*\n" +
 	"\x0fCommandsRequest\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"B\n" +
 	"\x10CommandsResponse\x12.\n" +

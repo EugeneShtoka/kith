@@ -43,7 +43,7 @@ import { noPeople, People, type PeopleCalls, type PeopleView, type Who } from ".
 import type { Asked } from "./polls";
 import { type Bridge, change as changeConfig } from "./config";
 import { changeTheme, type ThemeRelay, themeLabel, type Scope, type Slots } from "./theme";
-import { announces } from "./read";
+import { announces, readAfter } from "./read";
 import { ordered, total } from "./rooms";
 import type { When } from "./schedule";
 import { emptyFilter, parseSearch } from "./search";
@@ -433,6 +433,11 @@ export class Session {
   private told = 0;
   /** The open room is watched: shown at its newest, the window focused. */
   private watching = false;
+  /** The focus is in the open room (its messages, thread or composer): what it shows is read. */
+  private entered = false;
+  /** The room the list's cursor rested on for its read_delay, read as if entered; and the wait for it. */
+  private rested = "";
+  private resting: ReturnType<typeof setTimeout> | undefined;
   /**
    * Where the window has been, per profile: back and forward stay in the profile the
    * window runs in, and find their way again when it comes back to one.
@@ -878,6 +883,25 @@ export class Session {
     this.show(run, room);
   }
 
+  /** peek shows room as the list's cursor rests on it, without going there: back and forward pass it by. */
+  peek(room: string): void {
+    const run = this.run;
+    if (run?.listed === true && this.holds(run, room)) {
+      this.show(run, room);
+    }
+  }
+
+  /**
+   * inRoom says whether the focus is in the open room: its messages, thread or composer.
+   * Only then is what it shows read, or once the list's cursor rests on it for read_delay.
+   */
+  inRoom(on: boolean): void {
+    this.entered = on;
+    if (on && this.run !== undefined) {
+      this.markRead(this.run);
+    }
+  }
+
   /** back opens the room the window was in before, of those still in the profile. */
   back(): void {
     this.step(true);
@@ -1051,6 +1075,9 @@ export class Session {
       return;
     }
     this.closeThread();
+    clearTimeout(this.resting);
+    this.resting = undefined;
+    this.rested = "";
     run.timeline = new Timeline(room, this.view.unread.get(room)?.readEvent ?? "");
     run.settings = undefined;
     const kept = this.kept.get(room);
@@ -2008,11 +2035,25 @@ export class Session {
     );
   }
 
+  /** rest reads room once the list's cursor has rested on it, shown, for after seconds; negative never. */
+  private rest(run: Run, room: string, after: number): void {
+    if (after < 0 || this.resting !== undefined) {
+      return;
+    }
+    this.resting = setTimeout(() => {
+      this.resting = undefined;
+      if (this.live(run) && run.timeline?.room === room) {
+        this.rested = room;
+        this.markRead(run);
+      }
+    }, after * 1000);
+  }
+
   /**
-   * markRead sends a receipt for the open room's newest message while it is watched,
-   * once its settings are read: announced where they say so, else private, which still
-   * clears its badge everywhere. Each message is marked once; a failed receipt is sent
-   * again with the next.
+   * markRead sends a receipt for the open room's newest message while it is watched and
+   * entered (or rested on in the list), once its settings are read: announced where they
+   * say so, else private, which still clears its badge everywhere. Each message is marked
+   * once; a failed receipt is sent again with the next.
    */
   private markRead(run: Run): void {
     const t = run.timeline;
@@ -2024,6 +2065,10 @@ export class Session {
       return;
     }
     const settings = run.settings === "failed" ? undefined : run.settings;
+    if (!this.entered && this.rested !== t.room) {
+      this.rest(run, t.room, readAfter(settings, t.room, last.sender));
+      return;
+    }
     const quiet = !announces(settings, t.room, last.sender);
     t.sending = last.id;
     call(backend.markRead, { roomId: t.room, eventId: last.id, private: quiet }).then(

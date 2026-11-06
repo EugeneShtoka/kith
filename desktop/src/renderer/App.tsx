@@ -206,6 +206,11 @@ function moveRow(pane: string, path: string, count: number): boolean {
   return true;
 }
 
+// The list's cursor shows its room once it stops a moment there: a fast run down the list
+// shows none on the way.
+const peekAfter = 150;
+let peeking: ReturnType<typeof setTimeout> | undefined;
+
 /** TopBar runs across the window's top: kith, what the screen puts there, and Settings. */
 function TopBar({ view, session, children }: { view: View; session: Session; children?: ReactNode }) {
   return (
@@ -324,6 +329,16 @@ function Seated({ view, session }: { view: View; session: Session }) {
   // A room opened from the list takes the focus once it is drawn: to its composer, else
   // (a room with none) to its timeline.
   const toTimeline = useRef(false);
+  // enterRoom goes into a room from the list, the one its cursor shows or another.
+  const enterRoom = (room: string) => {
+    const shown = room === view.open;
+    session.open(room); // a room the cursor showed is gone to now: back returns to it
+    if (!shown) {
+      toTimeline.current = true;
+    } else if (!write()) {
+      timeline.current?.focus();
+    }
+  };
   // The pane focused last, which keys go to while nothing is focused: the rooms before any.
   const lastPane = useRef("rooms");
   useEffect(() => {
@@ -344,6 +359,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
   useEffect(() => {
     const focused = (e: FocusEvent) => {
       lastPane.current = paneOf(e.target as Element, "") || lastPane.current;
+      session.inRoom((e.target as Element).closest('.open-room, [data-pane="thread"]') !== null);
     };
     const shown = () => panes.filter((p) => document.querySelector(`[data-pane="${p}"]`) !== null);
     // The message panes, by their handles; the lists, by their rows.
@@ -375,11 +391,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
           return focusPane("rooms");
         case "rooms nav.open": {
           const row = el instanceof HTMLElement && el.matches(paneRows.rooms ?? "") ? el : undefined;
-          if (row?.getAttribute("aria-current") === "true") {
-            return write() || focusTo("timeline");
-          }
-          toTimeline.current = row !== undefined;
-          row?.click();
+          row?.click(); // enterRoom
           return row !== undefined;
         }
         case "rooms nav.back":
@@ -718,6 +730,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
                       open={r.id === view.open}
                       theme={view.theme}
                       session={session}
+                      onEnter={enterRoom}
                     />
                   ))}
                 </ul>
@@ -989,12 +1002,14 @@ function RoomRow({
   open,
   theme,
   session,
+  onEnter,
 }: {
   room: Room;
   unread: Unread | undefined;
   open: boolean;
   theme: ThemeResponse | undefined;
   session: Session;
+  onEnter: (room: string) => void;
 }) {
   const { count, mentions } = unreadOf(unread);
   const name = room.name || room.id;
@@ -1007,8 +1022,14 @@ function RoomRow({
         aria-current={open}
         data-room={room.id}
         title="Right-click to file it into tags and spaces"
+        onFocus={() => {
+          clearTimeout(peeking);
+          peeking = setTimeout(() => {
+            session.peek(room.id);
+          }, peekAfter);
+        }}
         onClick={() => {
-          session.open(room.id);
+          onEnter(room.id);
         }}
         onContextMenu={(e) => {
           e.preventDefault();

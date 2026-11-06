@@ -129,6 +129,7 @@ export class Kithd {
   settings: DeviceSettings | "fail" = create(DeviceSettingsSchema, {
     sendReceipts: true,
     unreadLine: true,
+    readDelay: -1n, // as the relay serves it unset: a room is read only once entered
   });
   /**
    * The bridge's settings as kithd lists them (ConfigSettings), config.toml's revision

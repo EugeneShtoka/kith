@@ -418,13 +418,16 @@ select option {
   background: var(--hover);
 }
 
-.place button[aria-current="true"] {
+/* The place and the room the window is on: bright in the list the focus is in, faded in
+   the other, and faded in both while the focus is in the room. */
+.place button[aria-current="true"],
+.room button[aria-current="true"] {
   background: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.room button[aria-current="true"],
-.room button[aria-current="true"]:hover {
+.rail:focus-within .place button[aria-current="true"],
+.rooms:focus-within .room button[aria-current="true"] {
   background: var(--accent);
   color: var(--accent-fg);
 }
@@ -467,7 +470,7 @@ select option {
   background: var(--mention);
 }
 
-.room button[aria-current="true"] .badge:not(.mention) {
+.rooms:focus-within .room button[aria-current="true"] .badge:not(.mention) {
   background: var(--accent-fg);
   color: var(--accent);
 }
@@ -483,7 +486,7 @@ select option {
   line-height: 1.2rem;
 }
 
-.room button[aria-current="true"] .net {
+.rooms:focus-within .room button[aria-current="true"] .net {
   color: inherit;
 }
 
