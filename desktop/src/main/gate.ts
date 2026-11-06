@@ -57,6 +57,7 @@ const calls = new Map<string, DescMethodUnary>(
     backend.fetchEvent,
     backend.cachedReactions,
     backend.markRead,
+    backend.markRoomsRead,
     // The composer: sending, editing and deleting, reactions, typing, mentions, the
     // emoji ranking, and drafts (written as the seat's, below).
     backend.send,

@@ -128,6 +128,7 @@ const allowedCalls = [
   "FetchEvent",
   "CachedReactions",
   "MarkRead",
+  "MarkRoomsRead",
   "Send",
   "Redact",
   "SendReaction",

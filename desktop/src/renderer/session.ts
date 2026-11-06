@@ -13,6 +13,7 @@ import {
   type FollowStreamResponse,
   type Identity,
   type LoginNetwork,
+  type MarkRoomsReadResponse,
   type PersonListed,
   type RailResponse,
   type RailRow,
@@ -46,7 +47,7 @@ import type { Asked } from "./polls";
 import { type Bridge, change as changeConfig } from "./config";
 import { changeTheme, type ThemeRelay, themeLabel, type Scope, type Slots } from "./theme";
 import { announces, readAfter } from "./read";
-import { ordered, total } from "./rooms";
+import { hasUnread, ordered, total } from "./rooms";
 import type { When } from "./schedule";
 import { emptyFilter, parseSearch } from "./search";
 import { change, type Device, type Key, labels, type Read, withKey } from "./settings";
@@ -194,6 +195,8 @@ export interface View {
   linking: { act: LinkAct; links: readonly string[] } | undefined;
   /** The room whose name is being written (rooms.name), and the name it starts from. */
   naming: { room: string; name: string } | undefined;
+  /** A rail row's unread rooms asked about marking read (rail.mark_read), and its label. */
+  marking: { label: string; rooms: readonly string[] } | undefined;
   /** The People list and a person's card (people.ts). */
   people: PeopleView;
   problem: string | undefined;
@@ -361,6 +364,7 @@ const nothingShown = {
   accounts: [],
   filing: undefined,
   naming: undefined,
+  marking: undefined,
   filingNote: "",
   linking: undefined,
   people: noPeople,
@@ -2488,6 +2492,82 @@ export class Session {
     this.set({ filing: undefined });
   }
 
+  /** markRoomRead marks a room read without opening it (rooms.mark_read), as the TUI's does. */
+  markRoomRead(room: string): void {
+    const run = this.run;
+    if (run !== undefined && this.holds(run, room)) {
+      this.markRooms(run, [room], run.joined.find((r) => r.id === room)?.name || room);
+    }
+  }
+
+  /**
+   * askMarkRead asks before marking a rail row's unread rooms read (rail.mark_read), the
+   * rooms captured with the question so a row that changes meanwhile cannot redirect it.
+   */
+  askMarkRead(row: number): void {
+    const run = this.run;
+    const place = this.view.rail[row];
+    if (run === undefined || place === undefined) {
+      return;
+    }
+    const rooms = [...new Set(place.rooms)].filter((id) => this.holds(run, id) && hasUnread(this.view.unread.get(id)));
+    if (rooms.length === 0) {
+      this.set({ filingNote: `Nothing is unread in ${place.label}` });
+      return;
+    }
+    this.set({ marking: { label: place.label, rooms } });
+  }
+
+  closeMarking(): void {
+    this.set({ marking: undefined });
+  }
+
+  /** markAsked marks the rooms asked about read. */
+  markAsked(): void {
+    const run = this.run;
+    const asked = this.view.marking;
+    this.set({ marking: undefined });
+    if (run !== undefined && asked !== undefined) {
+      this.markRooms(run, asked.rooms, asked.label);
+    }
+  }
+
+  /**
+   * markRooms has kithd receipt each room's newest message (MarkRoomsRead), announced
+   * where the settings say so, else private; the badges clear by the unread stream, and
+   * the line under the rooms says what came of it.
+   */
+  private markRooms(run: Run, rooms: readonly string[], label: string): void {
+    // Settings that cannot be read leave every receipt private, as an open room's.
+    relay
+      .read()
+      .then(
+        ({ settings }) => settings,
+        () => undefined,
+      )
+      .then((settings) => {
+        const loud = rooms.filter((id) => announces(settings, id, ""));
+        const quiet = rooms.filter((id) => !loud.includes(id));
+        return Promise.all(
+          [loud, quiet].flatMap((ids, i) =>
+            ids.length === 0 ? [] : [call(backend.markRoomsRead, { roomIds: ids, private: i === 1 })],
+          ),
+        );
+      })
+      .then(
+        (got) => {
+          if (this.live(run)) {
+            this.set({ filingNote: readNote(rooms.length, label, got) });
+          }
+        },
+        (err: unknown) => {
+          if (this.live(run)) {
+            this.set({ filingNote: `${label} was not marked read: ${errorText(err)}` });
+          }
+        },
+      );
+  }
+
   /** forgetFilingNote clears what the last filing came to. */
   forgetFilingNote(): void {
     this.set({ filingNote: "" });
@@ -2826,6 +2906,35 @@ export class Session {
 function spaceRooms(rows: readonly RailRow[], room: string): string[] {
   const home = rows.find((r) => r.kind !== RailRowKind.ALL && r.rooms.includes(room));
   return home === undefined ? [] : [...home.rooms];
+}
+
+/** readNote says what marking rooms read came to, as the TUI's readStatus: one room named, a place counted. */
+export function readNote(rooms: number, label: string, got: readonly MarkRoomsReadResponse[]): string {
+  const marked = got.reduce((n, r) => n + r.marked, 0);
+  const skipped = got.reduce((n, r) => n + r.skipped, 0);
+  const failed = got.reduce((n, r) => n + r.failed, 0);
+  const why = got.find((r) => r.firstError !== "")?.firstError ?? "";
+  if (rooms === 1) {
+    if (marked === 1) {
+      return `${label} is read`;
+    }
+    if (skipped === 1) {
+      return `Nothing of ${label} is cached yet: open it to mark it read`;
+    }
+    return `${label} was not marked read${why === "" ? "" : `: ${why}`}`;
+  }
+  const parts = [`${roomsPhrase(marked)} in ${label} marked read`];
+  if (skipped > 0) {
+    parts.push(`${roomsPhrase(skipped)} had nothing cached`);
+  }
+  if (failed > 0) {
+    parts.push(`${roomsPhrase(failed)} refused${why === "" ? "" : `: ${why}`}`);
+  }
+  return parts.join(" · ");
+}
+
+export function roomsPhrase(n: number): string {
+  return n === 1 ? "1 room" : `${String(n)} rooms`;
 }
 
 /** speakers are who wrote rows, newest first, each once: the first people a mention offers. */
