@@ -36,6 +36,18 @@ export function refOf(row: RailRow | undefined): RowRef | undefined {
   return row === undefined ? undefined : { key: row.key, space: row.space };
 }
 
+/**
+ * named is rooms under the names you gave them ([[display.name]]), as the rail serves
+ * them, in place of their own; rooms the rail names none of are as they were.
+ */
+export function named(rooms: readonly Room[], rail: RailResponse | undefined): readonly Room[] {
+  const names = new Map((rail?.rooms ?? []).filter((r) => r.name !== "").map((r) => [r.facts?.id ?? "", r.name]));
+  return rooms.map((r) => {
+    const name = names.get(r.id);
+    return name === undefined ? r : { ...r, name };
+  });
+}
+
 /** later: got may replace held, a rail served no earlier (an answer overtaken arrives late). */
 export function later(held: RailResponse | undefined, got: RailResponse): boolean {
   return held === undefined || got.revision >= held.revision;

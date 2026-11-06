@@ -1819,6 +1819,59 @@ describe("verifying this session", () => {
   });
 });
 
+describe("naming a room", () => {
+  beforeEach(() => {
+    kithd.profiles = ["Home", "Work"];
+    kithd.remembered = "Home";
+    kithd.of("Home").rooms = [room("!a", { name: "Alpha" }), room("!b", { name: "Bravo" })];
+    kithd.of("Work").rooms = [room("!w", { name: "Desk" })];
+  });
+  const shown = (id: string) => view().joined.find((r) => r.id === id)?.name;
+
+  // rooms.name: the prompt starts from the name the room shows; the name typed shows in
+  // place of the room's own once kithd's rail serves it, everywhere the room is named;
+  // an empty one gives the room its own back; a room the profile does not hold is asked
+  // nothing, and a refusal says so.
+  it("names a room for you, shows the name, and takes it away again", async () => {
+    await started();
+    session.openNaming("!a");
+    expect(view().naming).toEqual({ room: "!a", name: "Alpha" });
+    session.nameRoom("  Boss ");
+    expect(view().naming).toBeUndefined();
+    await settled();
+    expect(kithd.roomNames.get("!a")).toBe("Boss");
+    expect(shown("!a")).toBe("Boss");
+    expect(view().rooms.find((r) => r.id === "!a")?.name).toBe("Boss");
+    expect(shown("!b")).toBe("Bravo");
+    expect(view().filingNote).toBe("Alpha is Boss for you");
+    session.openNaming("!a");
+    expect(view().naming?.name).toBe("Boss");
+    session.nameRoom("");
+    await settled();
+    expect(kithd.roomNames.has("!a")).toBe(false);
+    expect(shown("!a")).toBe("Alpha");
+    expect(view().filingNote).toBe("Alpha has its own name again");
+
+    session.openNaming("!w"); // Work's
+    expect(view().naming).toBeUndefined();
+    session.openNaming("!b");
+    session.closeNaming();
+    expect(view().naming).toBeUndefined();
+    session.nameRoom("Never");
+    await settled();
+    expect(kithd.roomNames.size).toBe(0);
+  });
+
+  it("says why when kithd refuses the name", async () => {
+    await started();
+    session.openNaming("!a");
+    kithd.of("Home").rooms = [room("!b", { name: "Bravo" })]; // gone from the profile meanwhile
+    session.nameRoom("Boss");
+    await settled();
+    expect(view().filingNote).toMatch(/^Alpha was not named: .*holds no room !a/);
+  });
+});
+
 describe("filing a room", () => {
   const alpha = () => room("!a", { name: "Alpha" });
   beforeEach(() => {
@@ -1856,6 +1909,25 @@ describe("filing a room", () => {
     expect(kithd.filed).toEqual(["!a Later+ !work-:Home"]);
     expect(view().filing).toBeUndefined();
     expect(view().filingNote).toBe("Alpha is in Later · taken out of Job");
+  });
+
+  // A [[keys.tag]] chord: the tag it names, matched as kith matches a tag's name, flips for
+  // the room, in when out and out when in; a name no place has files nothing and says so.
+  it("files the room into a chord's tag, or out of it, and only that tag", async () => {
+    await started();
+    session.tagRoom("!a", " later ");
+    await settled();
+    session.tagRoom("!a", "Pinned");
+    await settled();
+    expect(kithd.filed).toEqual(["!a Later+:Home", "!a Pinned-:Home"]);
+    expect(view().filingNote).toBe("Alpha is out of Pinned");
+    session.tagRoom("!a", "Spam");
+    await settled();
+    expect(kithd.filed).toHaveLength(2);
+    expect(view().filingNote).toBe("no tag is called “Spam”: see [keys.tag]");
+    session.tagRoom("!w", "Later"); // Work's
+    await settled();
+    expect(kithd.filed).toHaveLength(2);
   });
 
   it("asks kithd nothing when no tick changed, and nothing for a room the profile does not hold", async () => {

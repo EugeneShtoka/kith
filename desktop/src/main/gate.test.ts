@@ -186,6 +186,7 @@ const allowedCalls = [
   "RunCommand",
   "FilingPlaces",
   "FileRoom",
+  "SetRoomName",
   "People",
   "PersonCard",
   "SetPersonField",

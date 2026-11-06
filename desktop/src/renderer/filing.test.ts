@@ -3,7 +3,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { FileRoomResponseSchema, FilingPlaceSchema, SpaceFiledOutcome } from "../gen/backend/v1/services_pb";
-import { asked, filingKey, offered, opened, toggled, told } from "./filing";
+import { asked, filingKey, offered, opened, retagged, toggled, told } from "./filing";
 import type { Press } from "./keymap";
 
 const place = (init: { space?: string; tag?: string; label: string; in?: boolean }) => create(FilingPlaceSchema, init);
@@ -142,5 +142,21 @@ describe("the filing picker's keys", () => {
     const rebound = { ...keys, "picker.toggle": ["t"] };
     expect(filingKey(press("t"), rebound, 0, 3)).toBe("toggle");
     expect(filingKey(press(" "), rebound, 0, 3)).toBeUndefined();
+  });
+});
+
+describe("a tag chord", () => {
+  // Over a tag and a space of the same label, held or not: the chord flips the tag alone,
+  // by its name in any case, and a name no tag has is undefined.
+  it("flips only the tag it names", () => {
+    for (const held of [false, true]) {
+      const f = offered(
+        opened("!r", "Room"),
+        [place({ tag: "Spam", label: "Spam", in: held }), place({ space: "!spam", label: "Spam", in: held })],
+        false,
+      );
+      expect(asked(retagged(f, " spam ") ?? f)).toEqual({ tags: [{ tag: "Spam", in: !held }], spaces: [] });
+      expect(retagged(f, "Archive")).toBeUndefined();
+    }
   });
 });

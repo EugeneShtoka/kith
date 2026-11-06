@@ -23,12 +23,18 @@ import {
   type StatusResponse,
 } from "../gen/backend/v1/services_pb";
 import type { Member, Message, Reaction, Room, SearchHit, Unread } from "../gen/backend/v1/types_pb";
-import { type DeviceSettings, DeviceService, type Jump, type ThemeResponse } from "../gen/device/v1/device_pb";
+import {
+  type DeviceSettings,
+  DeviceService,
+  type Jump,
+  type TagKey,
+  type ThemeResponse,
+} from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
-import { later, listed, placed, refOf, type RowRef } from "./rail";
+import { later, listed, named, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unscheduled, type Unsent } from "./compose";
 import { type Kept, keptFrom, keptText } from "./drafts";
-import { asked as filingAsked, type Filing, offered, opened, toggled, told } from "./filing";
+import { asked as filingAsked, type Filing, offered, opened, retagged, toggled, told } from "./filing";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { Devices, type DevicesCalls, type DevicesView, noDevices } from "./devices";
 import { call, subscribe } from "./kith";
@@ -141,6 +147,8 @@ export interface View {
   keys: Readonly<Record<string, readonly string[]>>;
   /** The device's [[keys.jump]]: each chord, and the room or rail row it goes to. */
   jumps: readonly Jump[];
+  /** [[keys.tag]]: chords that file the room under the cursor into a tag, or out of it. */
+  tagKeys: readonly TagKey[];
   /** [display.media.audio]: the speed a voice note starts at, and the seconds a skip moves. */
   audio: { speed: number; skip: number };
   /** The open room's composer. */
@@ -176,6 +184,8 @@ export interface View {
   /** The filing picker open on a room (filing.ts), and what the last filing came to. */
   filing: Filing | undefined;
   filingNote: string;
+  /** The room whose name is being written (rooms.name), and the name it starts from. */
+  naming: { room: string; name: string } | undefined;
   /** The People list and a person's card (people.ts). */
   people: PeopleView;
   problem: string | undefined;
@@ -334,6 +344,7 @@ const nothingShown = {
   unreadLine: true,
   keys: {},
   jumps: [],
+  tagKeys: [],
   audio: { speed: 1, skip: 10 },
   composer: undefined,
   slots: new Map(),
@@ -341,6 +352,7 @@ const nothingShown = {
   verify: noVerify,
   accounts: [],
   filing: undefined,
+  naming: undefined,
   filingNote: "",
   people: noPeople,
 } satisfies Partial<View>;
@@ -352,7 +364,8 @@ interface Run {
   /** The seat's stream, and the profile's streams once seated. */
   seat: (() => void) | undefined;
   streams: (() => void)[];
-  /** Rooms as Rooms last read them, and when each last had a message. */
+  /** Rooms as Rooms last read them (own), and under the names you gave them (joined); when each last had a message. */
+  own: readonly Room[];
   joined: readonly Room[];
   at: Readonly<Record<string, bigint>>;
   /** Counts the room reads, so an older answer arriving last is dropped; and whether one has answered. */
@@ -816,6 +829,7 @@ export class Session {
           this.set({
             keys: Object.fromEntries(Object.entries(settings.keys).map(([path, k]) => [path, k.sequences])),
             jumps: settings.jumps,
+            tagKeys: settings.tagKeys,
             audio: { speed: settings.audioSpeed, skip: Number(settings.audioSkip) },
           });
         }
@@ -1399,6 +1413,7 @@ export class Session {
       closed: false,
       seat: undefined,
       streams: [],
+      own: [],
       joined: [],
       at: {},
       roomReads: 0,
@@ -2100,7 +2115,8 @@ export class Session {
     Promise.all([call(backend.rooms, {}), call(backend.lastMessages, {})]).then(
       ([rooms, last]) => {
         if (this.live(run) && mine === run.roomReads) {
-          run.joined = rooms.rooms;
+          run.own = rooms.rooms;
+          run.joined = named(run.own, run.rail);
           run.listed = true;
           run.at = last.at;
           if (rooms.rooms.length > 0) {
@@ -2136,6 +2152,7 @@ export class Session {
           return;
         }
         run.rail = rail;
+        run.joined = named(run.own, rail);
         run.rowAt = placed(rail.rows, run.row, run.rowAt);
         run.row = refOf(rail.rows[run.rowAt]);
         this.set({});
@@ -2192,6 +2209,82 @@ export class Session {
           }
         },
       );
+  }
+
+  /**
+   * tagRoom is a [[keys.tag]] chord on room, as the TUI's room list takes it: room goes
+   * into tag, or out of it if it is in. kithd says where the room is (FilingPlaces) and
+   * files the one change (FileRoom); the line under the rooms says what came of it.
+   */
+  tagRoom(room: string, tag: string): void {
+    const run = this.run;
+    if (run === undefined || !this.holds(run, room)) {
+      return;
+    }
+    const name = run.joined.find((r) => r.id === room)?.name || room;
+    relay
+      .read()
+      .then(({ settings }) => call(backend.filingPlaces, { roomId: room, filingSpaces: settings.filingSpaces }))
+      .then((r) => {
+        const f = retagged(offered(opened(room, name), r.places, false), tag);
+        if (f === undefined) {
+          return `no tag is called “${tag}”: see [keys.tag]`;
+        }
+        const ask = filingAsked(f);
+        return call(backend.fileRoom, { roomId: room, tags: ask.tags, spaces: [] }).then((resp) => told(f, ask, resp));
+      })
+      .then(
+        (line) => {
+          if (this.live(run)) {
+            this.set({ filingNote: line });
+          }
+        },
+        (err: unknown) => {
+          if (this.live(run)) {
+            this.set({ filingNote: `${name} was not filed: ${errorText(err)}` });
+          }
+        },
+      );
+  }
+
+  /** openNaming asks for a room's name, starting from the one it shows. */
+  openNaming(room: string): void {
+    const run = this.run;
+    if (run !== undefined && this.holds(run, room)) {
+      this.set({ naming: { room, name: run.joined.find((r) => r.id === room)?.name ?? "" }, filingNote: "" });
+    }
+  }
+
+  closeNaming(): void {
+    this.set({ naming: undefined });
+  }
+
+  /**
+   * nameRoom gives the room being named the name typed, as the TUI's rooms.name does: a
+   * name of your own in [[display.name]], which kithd writes and the rail then serves;
+   * an empty one takes it away. The line under the rooms says what came of it.
+   */
+  nameRoom(name: string): void {
+    const run = this.run;
+    const asked = this.view.naming;
+    if (run === undefined || asked === undefined) {
+      return;
+    }
+    this.set({ naming: undefined });
+    const typed = name.trim();
+    const own = run.own.find((r) => r.id === asked.room)?.name || asked.room;
+    call(backend.setRoomName, { roomId: asked.room, name: typed }).then(
+      () => {
+        if (this.live(run)) {
+          this.set({ filingNote: typed === "" ? `${own} has its own name again` : `${own} is ${typed} for you` });
+        }
+      },
+      (err: unknown) => {
+        if (this.live(run)) {
+          this.set({ filingNote: `${asked.name} was not named: ${errorText(err)}` });
+        }
+      },
+    );
   }
 
   /** tickFiling ticks a place of the open filing picker, or clears it. */
