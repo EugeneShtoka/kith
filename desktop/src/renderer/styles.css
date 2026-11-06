@@ -1654,6 +1654,20 @@ mark {
   background: var(--accent-soft);
 }
 
+/* Which of a message's links a link key takes: one row each, long ones broken. */
+.link-choices {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.link-choices button {
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
 /* The help overlay (?): the switcher's frame, wider, each key beside what it does. */
 .switcher.help {
   width: min(44rem, calc(100vw - 2rem));

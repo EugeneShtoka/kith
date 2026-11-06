@@ -8,6 +8,7 @@ import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
 import { FilingDialog } from "./Filing";
+import { LinkingDialog } from "./Linking";
 import { RoomNameDialog } from "./RoomName";
 import { helpSections } from "./help";
 import { HelpOverlay } from "./HelpOverlay";
@@ -61,6 +62,7 @@ export function App() {
       )}
       {seated && view.filing && <FilingDialog filing={view.filing} keys={view.keys} session={session} />}
       {seated && view.naming && <RoomNameDialog naming={view.naming} keys={view.keys} session={session} />}
+      {seated && view.linking && <LinkingDialog linking={view.linking} keys={view.keys} session={session} />}
       {seated && view.people.list && (
         <PeopleDialog list={view.people.list} covered={view.people.card !== undefined} session={session} />
       )}
@@ -121,6 +123,10 @@ const seatedActions: readonly Action[] = [
     "vote",
     "open_thread",
     "start_thread",
+    "copy_text",
+    "copy_url",
+    "open_url",
+    "open_url_focus",
   ].map((action) => ({ path: `timeline.${action}`, anywhere: false })),
   { path: "rooms.spaces", anywhere: false },
   { path: "rooms.name", anywhere: false },

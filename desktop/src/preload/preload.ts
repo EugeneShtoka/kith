@@ -26,6 +26,8 @@ const kith: KithBridge = {
     ipcRenderer.send(channels.unread, count);
   },
   save: (room, event, name) => ipcRenderer.invoke(channels.save, room, event, name) as Promise<boolean>,
+  copy: (text) => ipcRenderer.invoke(channels.copy, text) as Promise<void>,
+  open: (url, stay) => ipcRenderer.invoke(channels.open, url, stay) as Promise<boolean>,
   pick: () => ipcRenderer.invoke(channels.pick) as Promise<Offered[]>,
   async offer(file) {
     // The path is the system's, for a file it dropped or pasted: a File the page made

@@ -150,6 +150,9 @@ export class Kithd {
   readonly receipts: string[] = [];
   /** Every attachment the window asked main to save, as "room event name". */
   readonly saved: string[] = [];
+  /** What the window copied, and the links it opened (" focused": the browser left in front). */
+  readonly copied: string[] = [];
+  readonly opened: string[] = [];
   /** Answers held back until release, by method name. */
   readonly holding = new Set<string>();
   /** The stored drafts, by room: kithd keeps them for every profile alike. */
@@ -306,6 +309,14 @@ export class Kithd {
       },
       save: (room, event, name) => {
         this.saved.push(`${room} ${event} ${name}`);
+        return Promise.resolve(true);
+      },
+      copy: (text) => {
+        this.copied.push(text);
+        return Promise.resolve();
+      },
+      open: (url, stay) => {
+        this.opened.push(`${url}${stay ? "" : " focused"}`);
         return Promise.resolve(true);
       },
       pick: () => Promise.resolve([this.offer("report.pdf")]),

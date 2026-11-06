@@ -17,11 +17,12 @@ import {
   net,
   protocol,
   session,
+  shell,
   Tray,
 } from "electron";
 
 import { BackendService } from "../gen/backend/v1/services_pb";
-import { channels, fontSizes, type ThemeMode, themeModes, type Subscribe } from "../shared/ipc";
+import { channels, fontSizes, openable, type ThemeMode, themeModes, type Subscribe } from "../shared/ipc";
 import { mediaScheme } from "../shared/media";
 import { Attachments } from "./attach";
 import { appURL, fromTheWindow, Gate } from "./gate";
@@ -119,6 +120,20 @@ async function start(): Promise<void> {
       ? save(gate, room, id, name)
       : false,
   );
+  ipcMain.handle(channels.copy, (event, text: unknown) =>
+    fromTheWindow(event.senderFrame) && typeof text === "string" ? clipboard.writeText(text) : undefined,
+  );
+  // Links come from senders: only the web's go to the browser, as they are.
+  ipcMain.handle(channels.open, async (event, url: unknown, stay: unknown) => {
+    if (!fromTheWindow(event.senderFrame) || typeof url !== "string" || !openable(url)) {
+      return false;
+    }
+    await shell.openExternal(url);
+    if (stay === true) {
+      window?.focus();
+    }
+    return true;
+  });
   // Files to send: main reads them where the person picked or dropped them, or keeps
   // what was pasted, and the window holds only a token for each (attach.ts).
   const attachments = new Attachments((method, input, signal) => gate.own(method, input, signal));
