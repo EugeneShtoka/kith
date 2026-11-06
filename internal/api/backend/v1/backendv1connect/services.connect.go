@@ -760,9 +760,10 @@ type BackendServiceClient interface {
 	Messages(context.Context, *connect.Request[v1.MessagesRequest]) (*connect.ServerStreamForClient[v1.MessagesResponse], error)
 	// Activity streams typing and other people's read receipts.
 	ActivityStream(context.Context, *connect.Request[v1.ActivityStreamRequest]) (*connect.ServerStreamForClient[v1.ActivityStreamResponse], error)
-	// Follow hands a link to one attached window — the desktop clicked a link, and a
-	// running TUI is what can go there: the one with the link's room open, else the one
-	// used last whose profile holds it, else the one used last.
+	// Follow hands a link to one attached window — the desktop clicked a link, or a
+	// window's gx followed one, and a running TUI or desktop window is what can go there:
+	// the one with the link's room open, else the one used last whose profile holds it,
+	// else the one used last. A web link that names no chat kith follows goes to none.
 	Follow(context.Context, *connect.Request[v1.FollowRequest]) (*connect.Response[v1.FollowResponse], error)
 	// FollowStream is the receiving end, held open by each TUI window.
 	FollowStream(context.Context, *connect.Request[v1.FollowStreamRequest]) (*connect.ServerStreamForClient[v1.FollowStreamResponse], error)
@@ -3107,9 +3108,10 @@ type BackendServiceHandler interface {
 	Messages(context.Context, *connect.Request[v1.MessagesRequest], *connect.ServerStream[v1.MessagesResponse]) error
 	// Activity streams typing and other people's read receipts.
 	ActivityStream(context.Context, *connect.Request[v1.ActivityStreamRequest], *connect.ServerStream[v1.ActivityStreamResponse]) error
-	// Follow hands a link to one attached window — the desktop clicked a link, and a
-	// running TUI is what can go there: the one with the link's room open, else the one
-	// used last whose profile holds it, else the one used last.
+	// Follow hands a link to one attached window — the desktop clicked a link, or a
+	// window's gx followed one, and a running TUI or desktop window is what can go there:
+	// the one with the link's room open, else the one used last whose profile holds it,
+	// else the one used last. A web link that names no chat kith follows goes to none.
 	Follow(context.Context, *connect.Request[v1.FollowRequest]) (*connect.Response[v1.FollowResponse], error)
 	// FollowStream is the receiving end, held open by each TUI window.
 	FollowStream(context.Context, *connect.Request[v1.FollowStreamRequest], *connect.ServerStream[v1.FollowStreamResponse]) error

@@ -258,6 +258,42 @@ func TestASignalKeepsTheSeatUntilStop(t *testing.T) {
 	}
 }
 
+// A web link goes to a window only where kith follows it: a chat link on a network a
+// cached room is on, whichever profile holds it. Any other web link goes to none and is
+// told back as the browser's; a link that is no web link goes to a window as before,
+// since nothing else opens it.
+func TestAWebLinkGoesToAWindowOnlyWhereKithFollowsIt(t *testing.T) {
+	t.Parallel()
+	h := serve(t, &draftStore{rooms: []domain.Room{{ID: "telegram:42/-1"}}})
+	seated, err := window(t, h, false, 101)
+	if err != nil {
+		t.Fatalf("the window: %v", err)
+	}
+	go func() { _ = seated.Start(context.Background()) }()
+	asker := h.client()
+	t.Cleanup(asker.Stop)
+	for _, tc := range []struct {
+		uri string
+		web bool
+	}{
+		{"https://t.me/somebody", false},
+		{"https://example.org/a", true},
+		{"https://wa.me/15551234567", true}, // no WhatsApp chat is cached
+		{"matrix:roomid/abc:x", false},      // nor a Matrix one, but no browser opens it
+	} {
+		web, err := asker.FollowLink(t.Context(), tc.uri)
+		if err != nil || web != tc.web {
+			t.Fatalf("FollowLink(%s) = web %v, %v; want web %v", tc.uri, web, err, tc.web)
+		}
+		if !tc.web {
+			// A web link handed over by mistake would arrive first.
+			if got := take(t, seated.Follows(), "Follows()"); got != tc.uri {
+				t.Errorf("the window was handed %q, want %q", got, tc.uri)
+			}
+		}
+	}
+}
+
 // A link handed over while the seated window is not yet listening is delivered, not
 // taken as "no window" (which would start a second terminal).
 func TestALinkWaitsForTheWindowThatSits(t *testing.T) {

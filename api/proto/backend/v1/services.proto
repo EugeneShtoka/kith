@@ -1491,6 +1491,9 @@ message FollowRequest {
 message FollowResponse {
   // Whether a client was listening.
   bool delivered = 1;
+  // The link is a web link kith does not follow, naming no chat on a network kithd holds
+  // rooms on (domain.Followable): it went to no window, and is the browser's.
+  bool web = 2;
 }
 
 // Change is what changed in the daemon, for a client to read again.
@@ -2603,9 +2606,10 @@ service BackendService {
   rpc Messages(MessagesRequest) returns (stream MessagesResponse);
   // Activity streams typing and other people's read receipts.
   rpc ActivityStream(ActivityStreamRequest) returns (stream ActivityStreamResponse);
-  // Follow hands a link to one attached window — the desktop clicked a link, and a
-  // running TUI is what can go there: the one with the link's room open, else the one
-  // used last whose profile holds it, else the one used last.
+  // Follow hands a link to one attached window — the desktop clicked a link, or a
+  // window's gx followed one, and a running TUI or desktop window is what can go there:
+  // the one with the link's room open, else the one used last whose profile holds it,
+  // else the one used last. A web link that names no chat kith follows goes to none.
   rpc Follow(FollowRequest) returns (FollowResponse);
   // FollowStream is the receiving end, held open by each TUI window.
   rpc FollowStream(FollowStreamRequest) returns (stream FollowStreamResponse);

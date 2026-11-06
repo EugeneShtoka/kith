@@ -1208,7 +1208,7 @@ func (m Model) handleContentMsg(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleFetchedQuote(msg)
 	case fetchedEventMsg:
 		return m.handleFetchedEvent(msg)
-	case followMsg, linkResolvedMsg, accountsPickedMsg, accountListMsg:
+	case followMsg, followedMsg, linkResolvedMsg, accountsPickedMsg, accountListMsg:
 		return m.handleLinking(msg)
 	case changedMsg:
 		return m.handleChanged(msg)

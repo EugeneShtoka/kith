@@ -1,6 +1,22 @@
 package domain
 
-import "strconv"
+import (
+	"slices"
+	"strconv"
+)
+
+// Followable reports whether kith follows link rather than the browser: a Matrix address,
+// or a Telegram, WhatsApp or Signal chat link, on a network one of rooms is on (a bridged
+// chat is Matrix's, which looks up no Telegram link).
+func Followable(link string, rooms []Room) bool {
+	network, ok := LinkNetwork(link)
+	if _, place := ParsePlace(link); place {
+		network, ok = ProtocolMatrix, true
+	}
+	return ok && slices.ContainsFunc(rooms, func(r Room) bool {
+		return NetworkOf(string(r.ID)) == network
+	})
+}
 
 // LinkedRooms is the chat a link names among rooms, as each account in it sees it: a
 // Matrix room by its ID, a Telegram chat by its @username or private channel, a

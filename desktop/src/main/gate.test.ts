@@ -185,6 +185,7 @@ const allowedCalls = [
   "FilingPlaces",
   "FileRoom",
   "SetRoomName",
+  "Follow",
   "People",
   "PersonCard",
   "SetPersonField",
