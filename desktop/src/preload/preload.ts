@@ -72,6 +72,7 @@ const kith: KithBridge = {
   },
   discard: (token) => ipcRenderer.invoke(channels.discard, token) as Promise<void>,
   attach: (token, room, caption) => ipcRenderer.invoke(channels.attach, token, room, caption) as Promise<Sent>,
+  savePicture: (token) => ipcRenderer.invoke(channels.savePicture, token) as Promise<string>,
   fontSize: () => ipcRenderer.invoke(channels.fontSize) as Promise<number>,
   setFontSize: (px) => ipcRenderer.invoke(channels.setFontSize, px) as Promise<number>,
   themeMode(mode) {

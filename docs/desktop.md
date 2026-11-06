@@ -144,6 +144,13 @@ and rooms without a picture are drawn as their initials, each in a color of thei
 that stays the same everywhere: a person in the color the terminal client gives them in that room,
 until you pick one ([Theme](#theme)). Phone numbers are shown as the network gives them.
 
+**👤** in a message's actions makes its sender's account **the same person as** others
+on any network, as the terminal client's `a` does (`[[display.identity]]`): pick a
+person or start a new one, give them a color of their own if you like, and choose their
+picture. That is each account's own (and where one has none, another of theirs), one
+account's picture for all of them, or **a picture of your own**, which kithd keeps in its
+data dir for them.
+
 As the window narrows, the columns narrow with it. Under about 960 pixels the rail
 folds away behind the **☰** button in the top bar, and a thread opens over the room
 instead of beside it; under about 640 pixels the whole left column folds away too, and

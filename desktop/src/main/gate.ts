@@ -156,6 +156,12 @@ const calls = new Map<string, DescMethodUnary>(
     backend.personCard,
     backend.setPersonField,
     backend.personKeys,
+    // Who an account is one of ([[display.identity]]): the people, and an account written
+    // into one with their color and picture, as the terminal client's alias flow writes
+    // it (kithd merges it into the config); a picture of their own is brought by main
+    // (attach.ts) and named by kithd, never by the window.
+    backend.identities,
+    backend.setIdentity,
     // The bridge's settings, one at a time: kithd lists those the window may set and sets
     // one over the file as the window read it (SetConfigSetting at its revision). Which
     // ones is kithd's list (configsettings.go): never a program, a path, an address, an

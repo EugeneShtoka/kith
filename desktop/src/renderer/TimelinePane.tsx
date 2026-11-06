@@ -14,6 +14,7 @@ import { drawsPictures, type Faces, faceClass, senderColor } from "./theme";
 import { builtIn, ColorRow } from "./ThemeRow";
 import { continues, dayLabel, newDay, seek } from "./groups";
 import { attachmentURL, senderPicture } from "./media";
+import { PersonEditor } from "./PersonEditor";
 import { PollBlock } from "./Poll";
 import type { Session } from "./session";
 import { bound, type Keys, moved } from "./keymap";
@@ -515,7 +516,7 @@ function Actions({
   faces: Faces;
   session: Session;
 }) {
-  const [open, setOpen] = useState<"palette" | "picker" | "delete" | "color" | undefined>(undefined);
+  const [open, setOpen] = useState<"palette" | "picker" | "delete" | "color" | "person" | undefined>(undefined);
   const bar = useRef<HTMLDivElement>(null);
   /** shut closes the reactions offered, the cursor back on the message. */
   const shut = () => {
@@ -581,6 +582,19 @@ function Actions({
             }}
           >
             ◐
+          </button>
+        )}
+        {m.sender !== "" && (
+          <button
+            type="button"
+            aria-label="Same person as"
+            title="Same person as… (their name, color and picture across accounts)"
+            aria-expanded={open === "person"}
+            onClick={() => {
+              setOpen(open === "person" ? undefined : "person");
+            }}
+          >
+            👤
           </button>
         )}
         {mine && (
@@ -657,6 +671,16 @@ function Actions({
             session={session}
           />
         </span>
+      )}
+      {open === "person" && (
+        <PersonEditor
+          account={m.sender}
+          name={m.senderName || m.sender}
+          session={session}
+          onDone={() => {
+            setOpen(undefined);
+          }}
+        />
       )}
       {open === "delete" && (
         <span className="banner waiting">

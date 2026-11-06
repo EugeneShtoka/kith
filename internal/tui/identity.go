@@ -134,34 +134,8 @@ func (m Model) chooseColor(hex string) (Model, tea.Cmd) {
 	if pending.mxid == "" || pending.alias == "" {
 		return m, nil
 	}
-	display := mergeIdentity(m.prefs.display, pending.alias, pending.mxid, hex)
+	display := config.MergeIdentity(m.prefs.display, pending.alias, pending.mxid, hex)
 	return m.applyDisplay(display, fmt.Sprintf("%s is now %s", isolate(pending.name), isolate(pending.alias)))
-}
-
-// mergeIdentity adds mxid to the identity named alias (creating it if needed) and removes it
-// from every other, since an MXID belongs to one person. Emptied identities are dropped.
-func mergeIdentity(display config.Display, alias, mxid, color string) config.Display {
-	identities := make([]config.Identity, 0, len(display.Identities)+1)
-	found := false
-	for _, ident := range display.Identities {
-		ident.IDs = without(ident.IDs, mxid)
-		if ident.Picture == mxid && ident.Alias != alias {
-			ident.Picture = "" // its picture left with the account
-		}
-		if ident.Alias == alias {
-			found = true
-			ident.IDs = append(ident.IDs, mxid)
-			ident.Color = color
-		}
-		if ident.Alias == alias || len(ident.IDs) > 0 {
-			identities = append(identities, ident)
-		}
-	}
-	if !found {
-		identities = append(identities, config.Identity{Alias: alias, Color: color, IDs: []string{mxid}})
-	}
-	display.Identities = identities
-	return display
 }
 
 // lipglossSwatch renders a solid block in the given color.

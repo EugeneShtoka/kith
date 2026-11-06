@@ -173,6 +173,13 @@ async function start(): Promise<void> {
     }
     return attachments.send(token, room, caption);
   });
+  ipcMain.handle(channels.savePicture, (event, token: unknown) => {
+    fromWindow(event);
+    if (typeof token !== "string") {
+      throw new Error("kith: a picture is kept by the token of the file offered");
+    }
+    return attachments.picture(token);
+  });
   ipcMain.handle(channels.call, (event, name: unknown, request: unknown) =>
     gate.call(event.senderFrame, name, request),
   );

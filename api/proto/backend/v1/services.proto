@@ -794,6 +794,33 @@ message LoadPictureResponse {
   bytes data = 1;
 }
 
+// A person as a [[display.identity]] makes one of several accounts.
+message Identity {
+  string alias = 1;
+  string color = 2; // "#rrggbb" or a named color; "" for none
+  repeated string ids = 3;
+  // picture is one of ids, or a saved picture ("file:<hash>"); "" for each their own.
+  string picture = 4;
+}
+
+message IdentitiesRequest {}
+
+message IdentitiesResponse {
+  repeated Identity identities = 1;
+}
+
+// SetIdentity makes id one of the identity named alias (making it if there is none),
+// taking it out of any other, as the terminal client's alias flow does, and sets that
+// identity's color and picture.
+message SetIdentityRequest {
+  string id = 1;
+  string alias = 2;
+  string color = 3;
+  string picture = 4;
+}
+
+message SetIdentityResponse {}
+
 // SavePicture keeps an upload (every byte written, which it uses up), an image, as a
 // picture a [[display.identity]] can name.
 message SavePictureRequest {
@@ -2490,6 +2517,11 @@ service BackendService {
   rpc LoadPicture(LoadPictureRequest) returns (LoadPictureResponse);
   // SavePicture keeps an uploaded image as a picture for a [[display.identity]].
   rpc SavePicture(SavePictureRequest) returns (SavePictureResponse);
+  // Identities lists the config's [[display.identity]] people.
+  rpc Identities(IdentitiesRequest) returns (IdentitiesResponse);
+  // SetIdentity writes one account into a person, with their color and picture, in the
+  // config as UpdateConfig writes it.
+  rpc SetIdentity(SetIdentityRequest) returns (SetIdentityResponse);
   // Member
   // Members returns a room's cached members, ordered by display name.
   rpc Members(MembersRequest) returns (MembersResponse);

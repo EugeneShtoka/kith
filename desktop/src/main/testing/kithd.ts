@@ -278,6 +278,15 @@ export class FakeKithd {
           }
           return {};
         },
+        savePicture: (req) => {
+          const up = this.uploads.get(req.uploadId);
+          if (up === undefined || up.covered.includes(0)) {
+            throw new ConnectError("no complete upload", Code.NotFound);
+          }
+          this.uploads.delete(req.uploadId); // used up
+          this.posted.push({ room: "", name: "picture:" + up.name, caption: "", data: up.data });
+          return { picture: `file:${String(up.data.length)}` };
+        },
         leaveRoom: () => ({}),
         rail: () => ({
           rows: [
