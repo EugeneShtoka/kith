@@ -518,6 +518,42 @@ func TestAProfileRemovedAndAddedBackGetsItsOwnRail(t *testing.T) {
 	}
 }
 
+// A profile's rail is built once the config names it, before any client asks, and built
+// again on a change: a window's first ask is answered from what is kept.
+func TestAProfilesRailIsBuiltBeforeItIsAskedFor(t *testing.T) {
+	t.Parallel()
+	w := newRailWorld()
+	w.set(slices.Clone(railRooms), railSpaces(3), nil)
+	h, n := serveRailWorld(t, w)
+	withP := func(include ...string) config.Config {
+		return config.Config{
+			Tags:     []config.Tag{{Name: "Unread", Rule: []string{"unread"}}},
+			Profiles: []config.Profile{{Name: "first", Include: []string{"*"}}, {Name: "p", Include: include}},
+		}
+	}
+	mustReload(t, n, withP("room:Nowhere"))
+	client := h.client()
+	client.UseProfile("p")
+	go func() { _ = client.Start(t.Context()) }()
+	defer client.Stop()
+	h.waitAttached(1)
+	changes := railChanges(t, client)
+	told(changes)
+
+	cfg := withP("room:Alpha")
+	mustReload(t, n, cfg)
+	if told(changes) == 0 {
+		t.Fatal("p's rail was not built until asked for")
+	}
+	u := domain.Unread{RoomID: mx + "!a:x", Messages: 1, Counted: true}
+	w.setUnread(u)
+	w.Unreads <- u
+	if told(changes) == 0 {
+		t.Error("p's rail, never asked for, was not built again on a change")
+	}
+	servedOnce(t, client, w.fresh(cfg, "p"), "p")
+}
+
 // CHANGE_RAIL goes to the clients of the profile whose rail changed, not to another's.
 func TestARailChangeIsToldOnlyToItsProfile(t *testing.T) {
 	t.Parallel()

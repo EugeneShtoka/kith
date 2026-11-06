@@ -22,8 +22,8 @@ import (
 // The rail per profile (Rail): built here from the config and the rooms in their state
 // now, so every client draws the same rows. The rail last served each profile is kept;
 // every change to what it is built from moves a generation, and the server's loop
-// (serveRails) builds each served profile's again and tells its clients (CHANGE_RAIL)
-// when it differs.
+// (serveRails) builds every profile's again, asked for or not, so a window's first ask
+// is answered from what is kept, and tells its clients (CHANGE_RAIL) when it differs.
 
 // railSettle lets a burst of changes (a sync's unread counts) end in one rebuild.
 const railSettle = 50 * time.Millisecond
@@ -361,9 +361,9 @@ func (s *server) railInputs(ctx context.Context) (railRead, error) {
 	return in, nil
 }
 
-// serveRails builds each served profile's rail again once what it is built from
-// changed, telling its clients when it differs, and finds the canonical parents builds
-// wait on. The unread counts and the invitations change with no call, so their
+// serveRails builds each profile's rail again once what it is built from changed (the
+// config loading at start among it), telling its clients when it differs, and finds the
+// canonical parents builds wait on. The unread counts and the invitations change with no call, so their
 // streams move the generation. It returns when ctx ends.
 func (s *server) serveRails(ctx context.Context) {
 	c := s.Notifications.rails
@@ -392,13 +392,25 @@ func (s *server) serveRails(ctx context.Context) {
 				return
 			}
 			s.findParents(ctx)
-			for _, name := range c.servedNames() {
+			for _, name := range s.railNames() {
 				if _, err := s.rail(ctx, name); err != nil && !errors.Is(err, api.ErrUnknownProfile) && ctx.Err() == nil {
 					s.Log.Warn("build a profile's rail", "profile", name, "err", err)
 				}
 			}
 		}
 	}
+}
+
+// railNames is every profile the config has, and every one a rail was served, which a
+// build then finds gone.
+func (s *server) railNames() []string {
+	names := s.Notifications.profileNames()
+	for _, name := range s.Notifications.rails.servedNames() {
+		if !slices.ContainsFunc(names, func(n string) bool { return strings.EqualFold(n, name) }) {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 // startRails runs serveRails until ctx ends; wait returns once it has.
