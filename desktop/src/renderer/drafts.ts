@@ -262,9 +262,13 @@ export class Drafts {
    */
   unstored(): Map<string, Kept> {
     const kept = new Map<string, Kept>();
-    for (const [room, draft] of this.local) {
-      if (differs(draft, this.bases.get(room))) {
-        kept.set(room, { draft, base: this.bases.get(room), unanswered: this.unsure.get(room) ?? [] });
+    // A room whose writes are not answered may hold in kithd what it no longer holds here
+    // (a draft sent, its clear unanswered): that is unstored too.
+    for (const room of new Set([...this.local.keys(), ...this.unsure.keys()])) {
+      const draft = this.local.get(room) ?? blank;
+      const unanswered = this.unsure.get(room) ?? [];
+      if (differs(draft, this.bases.get(room)) || unanswered.length > 0) {
+        kept.set(room, { draft, base: this.bases.get(room), unanswered });
       }
     }
     return kept;
