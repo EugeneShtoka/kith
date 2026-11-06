@@ -261,13 +261,16 @@ they do in the terminal, and the correction walk takes `[keys.spell]`:
 | `insert.complete`, `insert.complete_all` | `right`, `tab` | Take a word of the completion, or all of it |
 | `insert.choose_1` … `insert.choose_5` | `alt+1` … `alt+5` | Take one of the next words offered |
 | `insert.attach` | `alt+u` | Attach a file |
-| `emoji.open` | `ctrl+e` | The emoji picker; `emoji.accept` (`enter`, `tab`) takes the first found, `emoji.cancel` (`esc`) closes it |
+| `emoji.open` | `ctrl+e` | The emoji picker; `emoji.accept` (`enter`, `tab`) takes the first found, `emoji.cancel` (`esc`) closes it; `down` goes from the search into the emoji, the arrows move among them (`up` from the top row back to the search), and `enter` takes one |
 | `spell.open_insert` | `alt+s` | The correction walk |
 | `completion.next`, `completion.prev` | `ctrl+n`, `down`; `ctrl+p`, `up` | The next or previous name, emoji or command offered |
 | `completion.accept`, `completion.dismiss` | `tab`, `enter`; `esc` | Take it, or close the list until the next one opens |
 
 To make `enter` send, swap `send` and `newline` in `[keys.insert]`: the terminal changes
-with it. `react.cancel` (`esc`) closes the quick reactions a message's `e` opened.
+with it. In the quick reactions a message's `e` opened, `left` and `right` (and `home`,
+`end`) move among them, `enter` reacts with the one you are on, `react.pick_1` …
+`react.pick_10` (`1` … `0`) react with that one at once, and `react.cancel` (`esc`)
+closes them.
 
 Digits before a motion are a count, as in the terminal: `5j` moves five rows, `12G` goes
 to the twelfth. A sequence such as `g j`, and a count, wait for the next key, shown at the
