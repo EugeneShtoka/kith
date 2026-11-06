@@ -75,6 +75,7 @@ export const helpSections: readonly HelpSection[] = [
       row("The next or previous message with a file", "timeline.next_attachment", "timeline.prev_attachment"),
       row("The next day, or back to this day's start", "timeline.next_day", "timeline.prev_day"),
       row("The sender's phonebook card", "timeline.person"),
+      row("Name the sender: the same person as others, their color and picture", "timeline.name"),
       row("Save its attachment", "timeline.download"),
       row("Play its voice note or video, or pause it", "timeline.play"),
       row("Its poll's options", "timeline.vote"),

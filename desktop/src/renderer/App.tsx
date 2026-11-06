@@ -123,6 +123,7 @@ const seatedActions: readonly Action[] = [
     "vote",
     "open_thread",
     "start_thread",
+    "name",
     "copy_text",
     "copy_url",
     "open_url",

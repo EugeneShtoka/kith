@@ -202,6 +202,7 @@ On a message, the cursor's, the `[keys.timeline]` keys act as they do in the ter
 | `timeline.next_attachment`, `timeline.prev_attachment` | `f`, `F` | The next or previous message with a file |
 | `timeline.next_day`, `timeline.prev_day` | `]`, `[` | The next day's first message; back to this day's start, then the day before |
 | `timeline.person` | `I` | The sender's phonebook card |
+| `timeline.name` | `a` | Name the sender: the same person as others, with their color and picture (`esc` closes it) |
 | `timeline.download` | `s` | Save its attachment |
 | `timeline.play` | `p` | Play its voice note or video, or pause it |
 | `timeline.vote` | `P` | Its poll's options, to choose one |
