@@ -113,7 +113,9 @@ The window fills its height, and each part scrolls on its own:
   in both while you are in the room.
 - **Moving through the room list** shows each room you stop on, a moment after you
   stop: running down the list shows none on the way, and back and forward pass them
-  by. A room shown is read only once you go into it (`enter`, `l`, `right` or a click,
+  by. Moving to another place on the rail does the same for the room its list starts on
+  (the room open stays, where the place lists it), or shows none for a place with no
+  rooms, so the timeline is never a room the list does not show. A room shown is read only once you go into it (`enter`, `l`, `right` or a click,
   which put you in its composer), unless `[display] read_delay` (or a
   `[[display.read_rule]]`'s `delay`) says how many seconds resting on it reads it, as
   in the terminal. In a tag marked `sticky` (Unread, say), the room you read stays
