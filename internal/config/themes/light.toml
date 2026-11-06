@@ -1,0 +1,12 @@
+# Light: the desktop window's built-in light colors. Copy it into your config dir's
+# themes/ folder (light.toml) to change them, or under another name for a theme of its own.
+base = "light"
+accent = "#1f6feb"
+background = "#ffffff"
+surface = "#f4f5f7"
+text = "#1d1d1f"
+muted = "#6b6f78"
+link = "#0b5cd5"
+selection = "#dbe7fb"
+unread = "#1f6feb"
+mention = "#d1242f"

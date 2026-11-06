@@ -161,7 +161,15 @@ func (d device) theme(ctx context.Context) (*devicev1.ThemeResponse, error) {
 	if err != nil {
 		return nil, d.at.failure(err)
 	}
+	themes, err := config.LoadGUIThemes(config.GUIThemesDir(d.configPath))
+	if err == nil {
+		err = setup.GUIThemeFiles(themes)
+	}
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
 	theme := resolveTheme(cfg, dev, accounts.Msg.GetAccounts())
+	theme.Themes = themeFiles(themes)
 	theme.ConfigRevision, theme.DeviceRevision = got.Msg.GetRevision(), revision
 	return theme, nil
 }
@@ -231,6 +239,21 @@ func networkColors(n config.NetworkColors) map[string]string {
 		if hex, ok := themespec.Color(n.For(network.String())); ok {
 			out[network.String()] = hex
 		}
+	}
+	return out
+}
+
+// themeFiles are the theme files as the window reads them.
+func themeFiles(themes map[string]config.GUIThemeFile) map[string]*devicev1.ThemeFile {
+	out := make(map[string]*devicev1.ThemeFile, len(themes))
+	for name := range themes {
+		roles := map[string]string{}
+		for _, role := range config.GUIThemeRoles() {
+			if c := themes[name].Role(role); c != "" {
+				roles[role] = c
+			}
+		}
+		out[name] = &devicev1.ThemeFile{Base: themes[name].Base, Roles: roles}
 	}
 	return out
 }

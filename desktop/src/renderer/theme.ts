@@ -5,7 +5,7 @@
 // of one key is written as the settings page writes one (settings.ts): over the files
 // the page read, read again and written onto when another writer changed one, unless
 // that writer changed the same key.
-import { type ThemeResponse, ThemeScope, ThemeSource } from "../gen/device/v1/device_pb";
+import { type ThemeFile, type ThemeResponse, ThemeScope, ThemeSource } from "../gen/device/v1/device_pb";
 import type { ThemeMode } from "../shared/ipc";
 import { hueOf } from "./faces";
 import { aborted } from "./settings";
@@ -71,8 +71,13 @@ export function layer(theme: ThemeResponse, key: string, scope: Scope): string {
 
 /** modeOf is the theme's mode: as set, else following the system. */
 export function modeOf(theme: ThemeResponse | undefined): ThemeMode {
-  const mode = theme === undefined ? "" : valueOf(theme, "mode");
+  const mode = themeFileOf(theme)?.base ?? (theme === undefined ? "" : valueOf(theme, "mode"));
   return mode === "light" || mode === "dark" ? mode : "system";
+}
+
+/** themeFileOf is the theme file mode names, if it names one there is: its base and roles. */
+export function themeFileOf(theme: ThemeResponse | undefined): ThemeFile | undefined {
+  return theme === undefined ? undefined : theme.themes[valueOf(theme, "mode")];
 }
 
 /** colorClass is the class that draws a face or a mark in hex (one themeCSS defines). */
@@ -145,6 +150,23 @@ export function themeCSS(theme: ThemeResponse | undefined): string {
     return "";
   }
   const out: string[] = [];
+  // The theme file's colors (as the system is: light's and dark's, each as it is), over
+  // the stylesheet's own; the [gui.theme.<mode>] picks go over them.
+  const tokens = (file: ThemeFile | undefined) =>
+    Object.entries(file?.roles ?? {})
+      .filter(([role, value]) => role in roles && color.test(value))
+      .map(([role, value]) => `${roles[role as Role]}: ${value};`)
+      .join(" ");
+  const named = themeFileOf(theme);
+  if (named !== undefined) {
+    out.push(`:root { ${tokens(named)} }`);
+  } else {
+    for (const mode of ["light", "dark"] as const) {
+      if (tokens(theme.themes[mode]) !== "") {
+        out.push(`@media (prefers-color-scheme: ${mode}) { :root { ${tokens(theme.themes[mode])} } }`);
+      }
+    }
+  }
   for (const mode of ["light", "dark"] as const) {
     const set = Object.entries(roles)
       .map(([role, token]) => [token, valueOf(theme, `${mode}.${role}`)] as const)

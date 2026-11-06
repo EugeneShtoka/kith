@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file device/v1/device.proto.
  */
 export const file_device_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEibgoRUGFpcmluZ1VSSVJlcXVlc3QSDQoFdG9rZW4YASABKAkSEQoJYWRkcmVzc2VzGAIgAygJEgoKAmlkGAMgASgJEisKB2V4cGlyZXMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIiEKElBhaXJpbmdVUklSZXNwb25zZRILCgN1cmkYASABKAkiHAoNSW52aXRlUmVxdWVzdBILCgN1cmkYASABKAkiXAoOSW52aXRlUmVzcG9uc2USEQoJYWRkcmVzc2VzGAEgAygJEgoKAmlkGAIgASgJEisKB2V4cGlyZXMYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIi4KEUpvaW5CcmlkZ2VSZXF1ZXN0EgsKA3VyaRgBIAEoCRIMCgRuYW1lGAIgASgJIloKEkpvaW5CcmlkZ2VSZXNwb25zZRIQCgZkaWdpdHMYASABKAlIABIpCgZqb2luZWQYAiABKAsyFy5kZXZpY2UudjEuSm9pbmVkQnJpZGdlSABCBwoFZXZlbnQiOwoMSm9pbmVkQnJpZGdlEgwKBG5hbWUYASABKAkSCgoCaWQYAiABKAkSEQoJYWRkcmVzc2VzGAMgAygJIhMKEVRoaXNEZXZpY2VSZXF1ZXN0IiAKElRoaXNEZXZpY2VSZXNwb25zZRIKCgJpZBgBIAEoCSKPAQoTV3JpdGVBY2NvdW50UmVxdWVzdBINCgV0YWJsZRgBIAEoCRI6CgZ2YWx1ZXMYAiADKAsyKi5kZXZpY2UudjEuV3JpdGVBY2NvdW50UmVxdWVzdC5WYWx1ZXNFbnRyeRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIhYKFFdyaXRlQWNjb3VudFJlc3BvbnNlIh0KDVFSQ29kZVJlcXVlc3QSDAoEZGF0YRgBIAEoCSIeCg5RUkNvZGVSZXNwb25zZRIMCgRkYXJrGAEgASgMIg4KDFRoZW1lUmVxdWVzdCKGBAoNVGhlbWVSZXNwb25zZRI0CgZ2YWx1ZXMYASADKAsyJC5kZXZpY2UudjEuVGhlbWVSZXNwb25zZS5WYWx1ZXNFbnRyeRIXCg9jb25maWdfcmV2aXNpb24YAiABKAkSFwoPZGV2aWNlX3JldmlzaW9uGAMgASgJEikKCGFjY291bnRzGAQgAygLMhcuZGV2aWNlLnYxLlRoZW1lQWNjb3VudBIWCg5zZW5kZXJfcGFsZXR0ZRgFIAMoCRJDCg5uZXR3b3JrX2NvbG9ycxgGIAMoCzIrLmRldmljZS52MS5UaGVtZVJlc3BvbnNlLk5ldHdvcmtDb2xvcnNFbnRyeRI8CgppZGVudGl0aWVzGAcgAygLMiguZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2UuSWRlbnRpdGllc0VudHJ5GkQKC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLmRldmljZS52MS5UaGVtZVZhbHVlOgI4ARo0ChJOZXR3b3JrQ29sb3JzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARpLCg9JZGVudGl0aWVzRW50cnkSCwoDa2V5GAEgASgJEicKBXZhbHVlGAIgASgLMhguZGV2aWNlLnYxLlRoZW1lSWRlbnRpdHk6AjgBImMKClRoZW1lVmFsdWUSDQoFdmFsdWUYASABKAkSJgoGc291cmNlGAIgASgOMhYuZGV2aWNlLnYxLlRoZW1lU291cmNlEg4KBnNoYXJlZBgDIAEoCRIOCgZkZXZpY2UYBCABKAkiOQoMVGhlbWVBY2NvdW50EgoKAm9uGAEgASgJEg8KB25ldHdvcmsYAiABKAkSDAoEbmFtZRgDIAEoCSIrCg1UaGVtZUlkZW50aXR5EgsKA2tleRgBIAEoCRINCgVjb2xvchgCIAEoCSJOCgpUaGVtZVdyaXRlEgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCRIkCgVzY29wZRgDIAEoDjIVLmRldmljZS52MS5UaGVtZVNjb3BlIm0KElVwZGF0ZVRoZW1lUmVxdWVzdBIXCg9jb25maWdfcmV2aXNpb24YASABKAkSFwoPZGV2aWNlX3JldmlzaW9uGAIgASgJEiUKBndyaXRlcxgDIAMoCzIVLmRldmljZS52MS5UaGVtZVdyaXRlIj4KE1VwZGF0ZVRoZW1lUmVzcG9uc2USJwoFdGhlbWUYASABKAsyGC5kZXZpY2UudjEuVGhlbWVSZXNwb25zZSIfCg9PdXRnb2luZ1JlcXVlc3QSDAoEcGF0aBgBIAEoCSJMChBPdXRnb2luZ1Jlc3BvbnNlEgwKBHBhdGgYASABKAkSDAoEbmFtZRgCIAEoCRIOCgZjb3BpZWQYAyABKAgSDAoEa2VwdBgEIAEoCCIPCg1EZXZpY2VSZXF1ZXN0IlMKDkRldmljZVJlc3BvbnNlEg4KBnNvY2tldBgBIAEoCRIPCgdwcm9maWxlGAIgASgJEhAKCHByb2ZpbGVzGAMgAygJEg4KBmJyaWRnZRgEIAEoCSIkChRDaG9vc2VQcm9maWxlUmVxdWVzdBIMCgRuYW1lGAEgASgJIigKFUNob29zZVByb2ZpbGVSZXNwb25zZRIPCgdwcm9maWxlGAEgASgJIhcKFURldmljZVNldHRpbmdzUmVxdWVzdCJXChZEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzEhAKCHJldmlzaW9uGAIgASgJImEKG1VwZGF0ZURldmljZVNldHRpbmdzUmVxdWVzdBIVCg1iYXNlX3JldmlzaW9uGAEgASgJEisKCHNldHRpbmdzGAIgASgLMhkuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzIl0KHFVwZGF0ZURldmljZVNldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3MSEAoIcmV2aXNpb24YAiABKAkivAcKDkRldmljZVNldHRpbmdzEhUKDXNlbmRfcmVjZWlwdHMYASABKAgSJwoKcmVhZF9ydWxlcxgCIAMoCzITLmRldmljZS52MS5SZWFkUnVsZRITCgt1bnJlYWRfbGluZRgDIAEoCBIQCghtYXJrZG93bhgEIAEoCBITCgtjb25maXJtX3NtcxgFIAEoCBITCgtzZW5kX3R5cGluZxgGIAEoCBIRCglza2luX3RvbmUYByABKAkSEQoJZW1vamlfc2V0GAggASgJEj4KC2Vtb2ppX2V4dHJhGAkgAygLMikuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzLkVtb2ppRXh0cmFFbnRyeRIXCg9yZWFjdGlvbnNfc2NvcGUYCiABKAkSGAoQcmVhY3Rpb25zX3N0YXRpYxgLIAMoCRIXCg9zcGVsbF91bmRlcmxpbmUYDCABKAkSFgoOcmFyZV91bmRlcmxpbmUYDSABKAkSGQoRY2hlY2tfYmVmb3JlX3NlbmQYDiABKAgSGAoQcmFyZV9iZWZvcmVfc2VuZBgPIAEoCBITCgthdXRvY29ycmVjdBgQIAEoCRIWCg5zcGVsbF9kZWNsaW5lZBgRIAMoCRIcChRmcmVxdWVuY2llc19kZWNsaW5lZBgSIAMoCRIQCghjb21wbGV0ZRgTIAEoCBIWCg5jb21wbGV0ZV9naG9zdBgUIAEoCBIWCg5jb21wbGV0ZV9yYXRpbxgVIAEoAxIWCg5jb21wbGV0ZV9zY29wZRgWIAEoCRIYChBjb21wbGV0ZV9zb3VyY2VzGBcgAygJEhYKDm1vZGVsX2RlY2xpbmVkGBggASgIEhUKDWZpbGluZ19zcGFjZXMYGSADKAkSMQoEa2V5cxgaIAMoCzIjLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncy5LZXlzRW50cnkSHgoFanVtcHMYGyADKAsyDy5kZXZpY2UudjEuSnVtcBITCgthdWRpb19zcGVlZBgcIAEoARISCgphdWRpb19za2lwGB0gASgDEiMKCHRhZ19rZXlzGB4gAygLMhEuZGV2aWNlLnYxLlRhZ0tleRISCgpyZWFkX2RlbGF5GB8gASgDGjEKD0Vtb2ppRXh0cmFFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGkQKCUtleXNFbnRyeRILCgNrZXkYASABKAkSJgoFdmFsdWUYAiABKAsyFy5kZXZpY2UudjEuS2V5U2VxdWVuY2VzOgI4ASIhCgxLZXlTZXF1ZW5jZXMSEQoJc2VxdWVuY2VzGAEgAygJIjUKBEp1bXASEAoIc2VxdWVuY2UYASABKAkSDAoEcm9vbRgCIAEoCRINCgVwbGFjZRgDIAEoCSInCgZUYWdLZXkSEAoIc2VxdWVuY2UYASABKAkSCwoDdGFnGAIgASgJImMKCFJlYWRSdWxlEg0KBW1hdGNoGAEgASgJEg4KBnNlbmRlchgCIAEoCRIRCgRzZW5kGAMgASgISACIAQESEgoFZGVsYXkYBCABKANIAYgBAUIHCgVfc2VuZEIICgZfZGVsYXkiIgoPQ29tbWFuZHNSZXF1ZXN0Eg8KB3Jvb21faWQYASABKAkiOAoQQ29tbWFuZHNSZXNwb25zZRIkCghjb21tYW5kcxgBIAMoCzISLmRldmljZS52MS5Db21tYW5kIjgKB0NvbW1hbmQSDAoEbmFtZRgBIAEoCRIPCgdhcHBsaWVzGAIgASgIEg4KBnBsYWNlcxgDIAMoCSJSChFSdW5Db21tYW5kUmVxdWVzdBIMCgRuYW1lGAEgASgJEg8KB3Jvb21faWQYAiABKAkSEAoIZXZlbnRfaWQYAyABKAkSDAoEbGluaxgEIAEoDSJhChJSdW5Db21tYW5kUmVzcG9uc2USDgoGb3V0cHV0GAEgASgJEgwKBGJvZHkYAiABKAkSEQoJdHJ1bmNhdGVkGAMgASgIEgsKA3doeRgEIAEoCRINCgVsaW5rcxgFIAMoCSpdCgtUaGVtZVNvdXJjZRIcChhUSEVNRV9TT1VSQ0VfVU5TUEVDSUZJRUQQABIXChNUSEVNRV9TT1VSQ0VfU0hBUkVEEAESFwoTVEhFTUVfU09VUkNFX0RFVklDRRACKlkKClRoZW1lU2NvcGUSGwoXVEhFTUVfU0NPUEVfVU5TUEVDSUZJRUQQABIWChJUSEVNRV9TQ09QRV9TSEFSRUQQARIWChJUSEVNRV9TQ09QRV9ERVZJQ0UQAjLzCAoNRGV2aWNlU2VydmljZRI9CgZEZXZpY2USGC5kZXZpY2UudjEuRGV2aWNlUmVxdWVzdBoZLmRldmljZS52MS5EZXZpY2VSZXNwb25zZRJSCg1DaG9vc2VQcm9maWxlEh8uZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXF1ZXN0GiAuZGV2aWNlLnYxLkNob29zZVByb2ZpbGVSZXNwb25zZRJVCg5EZXZpY2VTZXR0aW5ncxIgLmRldmljZS52MS5EZXZpY2VTZXR0aW5nc1JlcXVlc3QaIS5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXNwb25zZRJnChRVcGRhdGVEZXZpY2VTZXR0aW5ncxImLmRldmljZS52MS5VcGRhdGVEZXZpY2VTZXR0aW5nc1JlcXVlc3QaJy5kZXZpY2UudjEuVXBkYXRlRGV2aWNlU2V0dGluZ3NSZXNwb25zZRJDCghPdXRnb2luZxIaLmRldmljZS52MS5PdXRnb2luZ1JlcXVlc3QaGy5kZXZpY2UudjEuT3V0Z29pbmdSZXNwb25zZRI6CgVUaGVtZRIXLmRldmljZS52MS5UaGVtZVJlcXVlc3QaGC5kZXZpY2UudjEuVGhlbWVSZXNwb25zZRJMCgtVcGRhdGVUaGVtZRIdLmRldmljZS52MS5VcGRhdGVUaGVtZVJlcXVlc3QaHi5kZXZpY2UudjEuVXBkYXRlVGhlbWVSZXNwb25zZRJPCgxXcml0ZUFjY291bnQSHi5kZXZpY2UudjEuV3JpdGVBY2NvdW50UmVxdWVzdBofLmRldmljZS52MS5Xcml0ZUFjY291bnRSZXNwb25zZRI9CgZRUkNvZGUSGC5kZXZpY2UudjEuUVJDb2RlUmVxdWVzdBoZLmRldmljZS52MS5RUkNvZGVSZXNwb25zZRJDCghDb21tYW5kcxIaLmRldmljZS52MS5Db21tYW5kc1JlcXVlc3QaGy5kZXZpY2UudjEuQ29tbWFuZHNSZXNwb25zZRJJCgpSdW5Db21tYW5kEhwuZGV2aWNlLnYxLlJ1bkNvbW1hbmRSZXF1ZXN0Gh0uZGV2aWNlLnYxLlJ1bkNvbW1hbmRSZXNwb25zZRJJCgpQYWlyaW5nVVJJEhwuZGV2aWNlLnYxLlBhaXJpbmdVUklSZXF1ZXN0Gh0uZGV2aWNlLnYxLlBhaXJpbmdVUklSZXNwb25zZRI9CgZJbnZpdGUSGC5kZXZpY2UudjEuSW52aXRlUmVxdWVzdBoZLmRldmljZS52MS5JbnZpdGVSZXNwb25zZRJLCgpKb2luQnJpZGdlEhwuZGV2aWNlLnYxLkpvaW5CcmlkZ2VSZXF1ZXN0Gh0uZGV2aWNlLnYxLkpvaW5CcmlkZ2VSZXNwb25zZTABEkkKClRoaXNEZXZpY2USHC5kZXZpY2UudjEuVGhpc0RldmljZVJlcXVlc3QaHS5kZXZpY2UudjEuVGhpc0RldmljZVJlc3BvbnNlQj5aPGdpdGh1Yi5jb20vRXVnZW5lU2h0b2thL2tpdGgvaW50ZXJuYWwvYXBpL2RldmljZS92MTtkZXZpY2V2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("ChZkZXZpY2UvdjEvZGV2aWNlLnByb3RvEglkZXZpY2UudjEibgoRUGFpcmluZ1VSSVJlcXVlc3QSDQoFdG9rZW4YASABKAkSEQoJYWRkcmVzc2VzGAIgAygJEgoKAmlkGAMgASgJEisKB2V4cGlyZXMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIiEKElBhaXJpbmdVUklSZXNwb25zZRILCgN1cmkYASABKAkiHAoNSW52aXRlUmVxdWVzdBILCgN1cmkYASABKAkiXAoOSW52aXRlUmVzcG9uc2USEQoJYWRkcmVzc2VzGAEgAygJEgoKAmlkGAIgASgJEisKB2V4cGlyZXMYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIi4KEUpvaW5CcmlkZ2VSZXF1ZXN0EgsKA3VyaRgBIAEoCRIMCgRuYW1lGAIgASgJIloKEkpvaW5CcmlkZ2VSZXNwb25zZRIQCgZkaWdpdHMYASABKAlIABIpCgZqb2luZWQYAiABKAsyFy5kZXZpY2UudjEuSm9pbmVkQnJpZGdlSABCBwoFZXZlbnQiOwoMSm9pbmVkQnJpZGdlEgwKBG5hbWUYASABKAkSCgoCaWQYAiABKAkSEQoJYWRkcmVzc2VzGAMgAygJIhMKEVRoaXNEZXZpY2VSZXF1ZXN0IiAKElRoaXNEZXZpY2VSZXNwb25zZRIKCgJpZBgBIAEoCSKPAQoTV3JpdGVBY2NvdW50UmVxdWVzdBINCgV0YWJsZRgBIAEoCRI6CgZ2YWx1ZXMYAiADKAsyKi5kZXZpY2UudjEuV3JpdGVBY2NvdW50UmVxdWVzdC5WYWx1ZXNFbnRyeRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIhYKFFdyaXRlQWNjb3VudFJlc3BvbnNlIh0KDVFSQ29kZVJlcXVlc3QSDAoEZGF0YRgBIAEoCSIeCg5RUkNvZGVSZXNwb25zZRIMCgRkYXJrGAEgASgMIg4KDFRoZW1lUmVxdWVzdCKBBQoNVGhlbWVSZXNwb25zZRI0CgZ2YWx1ZXMYASADKAsyJC5kZXZpY2UudjEuVGhlbWVSZXNwb25zZS5WYWx1ZXNFbnRyeRIXCg9jb25maWdfcmV2aXNpb24YAiABKAkSFwoPZGV2aWNlX3JldmlzaW9uGAMgASgJEikKCGFjY291bnRzGAQgAygLMhcuZGV2aWNlLnYxLlRoZW1lQWNjb3VudBIWCg5zZW5kZXJfcGFsZXR0ZRgFIAMoCRJDCg5uZXR3b3JrX2NvbG9ycxgGIAMoCzIrLmRldmljZS52MS5UaGVtZVJlc3BvbnNlLk5ldHdvcmtDb2xvcnNFbnRyeRI8CgppZGVudGl0aWVzGAcgAygLMiguZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2UuSWRlbnRpdGllc0VudHJ5EjQKBnRoZW1lcxgIIAMoCzIkLmRldmljZS52MS5UaGVtZVJlc3BvbnNlLlRoZW1lc0VudHJ5GkQKC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLmRldmljZS52MS5UaGVtZVZhbHVlOgI4ARo0ChJOZXR3b3JrQ29sb3JzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARpLCg9JZGVudGl0aWVzRW50cnkSCwoDa2V5GAEgASgJEicKBXZhbHVlGAIgASgLMhguZGV2aWNlLnYxLlRoZW1lSWRlbnRpdHk6AjgBGkMKC1RoZW1lc0VudHJ5EgsKA2tleRgBIAEoCRIjCgV2YWx1ZRgCIAEoCzIULmRldmljZS52MS5UaGVtZUZpbGU6AjgBIncKCVRoZW1lRmlsZRIMCgRiYXNlGAEgASgJEi4KBXJvbGVzGAIgAygLMh8uZGV2aWNlLnYxLlRoZW1lRmlsZS5Sb2xlc0VudHJ5GiwKClJvbGVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJjCgpUaGVtZVZhbHVlEg0KBXZhbHVlGAEgASgJEiYKBnNvdXJjZRgCIAEoDjIWLmRldmljZS52MS5UaGVtZVNvdXJjZRIOCgZzaGFyZWQYAyABKAkSDgoGZGV2aWNlGAQgASgJIjkKDFRoZW1lQWNjb3VudBIKCgJvbhgBIAEoCRIPCgduZXR3b3JrGAIgASgJEgwKBG5hbWUYAyABKAkiKwoNVGhlbWVJZGVudGl0eRILCgNrZXkYASABKAkSDQoFY29sb3IYAiABKAkiTgoKVGhlbWVXcml0ZRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAkSJAoFc2NvcGUYAyABKA4yFS5kZXZpY2UudjEuVGhlbWVTY29wZSJtChJVcGRhdGVUaGVtZVJlcXVlc3QSFwoPY29uZmlnX3JldmlzaW9uGAEgASgJEhcKD2RldmljZV9yZXZpc2lvbhgCIAEoCRIlCgZ3cml0ZXMYAyADKAsyFS5kZXZpY2UudjEuVGhlbWVXcml0ZSI+ChNVcGRhdGVUaGVtZVJlc3BvbnNlEicKBXRoZW1lGAEgASgLMhguZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2UiHwoPT3V0Z29pbmdSZXF1ZXN0EgwKBHBhdGgYASABKAkiTAoQT3V0Z29pbmdSZXNwb25zZRIMCgRwYXRoGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGY29waWVkGAMgASgIEgwKBGtlcHQYBCABKAgiDwoNRGV2aWNlUmVxdWVzdCJTCg5EZXZpY2VSZXNwb25zZRIOCgZzb2NrZXQYASABKAkSDwoHcHJvZmlsZRgCIAEoCRIQCghwcm9maWxlcxgDIAMoCRIOCgZicmlkZ2UYBCABKAkiJAoUQ2hvb3NlUHJvZmlsZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSIoChVDaG9vc2VQcm9maWxlUmVzcG9uc2USDwoHcHJvZmlsZRgBIAEoCSIXChVEZXZpY2VTZXR0aW5nc1JlcXVlc3QiVwoWRGV2aWNlU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncxIQCghyZXZpc2lvbhgCIAEoCSJhChtVcGRhdGVEZXZpY2VTZXR0aW5nc1JlcXVlc3QSFQoNYmFzZV9yZXZpc2lvbhgBIAEoCRIrCghzZXR0aW5ncxgCIAEoCzIZLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncyJdChxVcGRhdGVEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzEhAKCHJldmlzaW9uGAIgASgJIrwHCg5EZXZpY2VTZXR0aW5ncxIVCg1zZW5kX3JlY2VpcHRzGAEgASgIEicKCnJlYWRfcnVsZXMYAiADKAsyEy5kZXZpY2UudjEuUmVhZFJ1bGUSEwoLdW5yZWFkX2xpbmUYAyABKAgSEAoIbWFya2Rvd24YBCABKAgSEwoLY29uZmlybV9zbXMYBSABKAgSEwoLc2VuZF90eXBpbmcYBiABKAgSEQoJc2tpbl90b25lGAcgASgJEhEKCWVtb2ppX3NldBgIIAEoCRI+CgtlbW9qaV9leHRyYRgJIAMoCzIpLmRldmljZS52MS5EZXZpY2VTZXR0aW5ncy5FbW9qaUV4dHJhRW50cnkSFwoPcmVhY3Rpb25zX3Njb3BlGAogASgJEhgKEHJlYWN0aW9uc19zdGF0aWMYCyADKAkSFwoPc3BlbGxfdW5kZXJsaW5lGAwgASgJEhYKDnJhcmVfdW5kZXJsaW5lGA0gASgJEhkKEWNoZWNrX2JlZm9yZV9zZW5kGA4gASgIEhgKEHJhcmVfYmVmb3JlX3NlbmQYDyABKAgSEwoLYXV0b2NvcnJlY3QYECABKAkSFgoOc3BlbGxfZGVjbGluZWQYESADKAkSHAoUZnJlcXVlbmNpZXNfZGVjbGluZWQYEiADKAkSEAoIY29tcGxldGUYEyABKAgSFgoOY29tcGxldGVfZ2hvc3QYFCABKAgSFgoOY29tcGxldGVfcmF0aW8YFSABKAMSFgoOY29tcGxldGVfc2NvcGUYFiABKAkSGAoQY29tcGxldGVfc291cmNlcxgXIAMoCRIWCg5tb2RlbF9kZWNsaW5lZBgYIAEoCBIVCg1maWxpbmdfc3BhY2VzGBkgAygJEjEKBGtleXMYGiADKAsyIy5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3MuS2V5c0VudHJ5Eh4KBWp1bXBzGBsgAygLMg8uZGV2aWNlLnYxLkp1bXASEwoLYXVkaW9fc3BlZWQYHCABKAESEgoKYXVkaW9fc2tpcBgdIAEoAxIjCgh0YWdfa2V5cxgeIAMoCzIRLmRldmljZS52MS5UYWdLZXkSEgoKcmVhZF9kZWxheRgfIAEoAxoxCg9FbW9qaUV4dHJhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARpECglLZXlzRW50cnkSCwoDa2V5GAEgASgJEiYKBXZhbHVlGAIgASgLMhcuZGV2aWNlLnYxLktleVNlcXVlbmNlczoCOAEiIQoMS2V5U2VxdWVuY2VzEhEKCXNlcXVlbmNlcxgBIAMoCSI1CgRKdW1wEhAKCHNlcXVlbmNlGAEgASgJEgwKBHJvb20YAiABKAkSDQoFcGxhY2UYAyABKAkiJwoGVGFnS2V5EhAKCHNlcXVlbmNlGAEgASgJEgsKA3RhZxgCIAEoCSJjCghSZWFkUnVsZRINCgVtYXRjaBgBIAEoCRIOCgZzZW5kZXIYAiABKAkSEQoEc2VuZBgDIAEoCEgAiAEBEhIKBWRlbGF5GAQgASgDSAGIAQFCBwoFX3NlbmRCCAoGX2RlbGF5IiIKD0NvbW1hbmRzUmVxdWVzdBIPCgdyb29tX2lkGAEgASgJIjgKEENvbW1hbmRzUmVzcG9uc2USJAoIY29tbWFuZHMYASADKAsyEi5kZXZpY2UudjEuQ29tbWFuZCI4CgdDb21tYW5kEgwKBG5hbWUYASABKAkSDwoHYXBwbGllcxgCIAEoCBIOCgZwbGFjZXMYAyADKAkiUgoRUnVuQ29tbWFuZFJlcXVlc3QSDAoEbmFtZRgBIAEoCRIPCgdyb29tX2lkGAIgASgJEhAKCGV2ZW50X2lkGAMgASgJEgwKBGxpbmsYBCABKA0iYQoSUnVuQ29tbWFuZFJlc3BvbnNlEg4KBm91dHB1dBgBIAEoCRIMCgRib2R5GAIgASgJEhEKCXRydW5jYXRlZBgDIAEoCBILCgN3aHkYBCABKAkSDQoFbGlua3MYBSADKAkqXQoLVGhlbWVTb3VyY2USHAoYVEhFTUVfU09VUkNFX1VOU1BFQ0lGSUVEEAASFwoTVEhFTUVfU09VUkNFX1NIQVJFRBABEhcKE1RIRU1FX1NPVVJDRV9ERVZJQ0UQAipZCgpUaGVtZVNjb3BlEhsKF1RIRU1FX1NDT1BFX1VOU1BFQ0lGSUVEEAASFgoSVEhFTUVfU0NPUEVfU0hBUkVEEAESFgoSVEhFTUVfU0NPUEVfREVWSUNFEAIy8wgKDURldmljZVNlcnZpY2USPQoGRGV2aWNlEhguZGV2aWNlLnYxLkRldmljZVJlcXVlc3QaGS5kZXZpY2UudjEuRGV2aWNlUmVzcG9uc2USUgoNQ2hvb3NlUHJvZmlsZRIfLmRldmljZS52MS5DaG9vc2VQcm9maWxlUmVxdWVzdBogLmRldmljZS52MS5DaG9vc2VQcm9maWxlUmVzcG9uc2USVQoORGV2aWNlU2V0dGluZ3MSIC5kZXZpY2UudjEuRGV2aWNlU2V0dGluZ3NSZXF1ZXN0GiEuZGV2aWNlLnYxLkRldmljZVNldHRpbmdzUmVzcG9uc2USZwoUVXBkYXRlRGV2aWNlU2V0dGluZ3MSJi5kZXZpY2UudjEuVXBkYXRlRGV2aWNlU2V0dGluZ3NSZXF1ZXN0GicuZGV2aWNlLnYxLlVwZGF0ZURldmljZVNldHRpbmdzUmVzcG9uc2USQwoIT3V0Z29pbmcSGi5kZXZpY2UudjEuT3V0Z29pbmdSZXF1ZXN0GhsuZGV2aWNlLnYxLk91dGdvaW5nUmVzcG9uc2USOgoFVGhlbWUSFy5kZXZpY2UudjEuVGhlbWVSZXF1ZXN0GhguZGV2aWNlLnYxLlRoZW1lUmVzcG9uc2USTAoLVXBkYXRlVGhlbWUSHS5kZXZpY2UudjEuVXBkYXRlVGhlbWVSZXF1ZXN0Gh4uZGV2aWNlLnYxLlVwZGF0ZVRoZW1lUmVzcG9uc2USTwoMV3JpdGVBY2NvdW50Eh4uZGV2aWNlLnYxLldyaXRlQWNjb3VudFJlcXVlc3QaHy5kZXZpY2UudjEuV3JpdGVBY2NvdW50UmVzcG9uc2USPQoGUVJDb2RlEhguZGV2aWNlLnYxLlFSQ29kZVJlcXVlc3QaGS5kZXZpY2UudjEuUVJDb2RlUmVzcG9uc2USQwoIQ29tbWFuZHMSGi5kZXZpY2UudjEuQ29tbWFuZHNSZXF1ZXN0GhsuZGV2aWNlLnYxLkNvbW1hbmRzUmVzcG9uc2USSQoKUnVuQ29tbWFuZBIcLmRldmljZS52MS5SdW5Db21tYW5kUmVxdWVzdBodLmRldmljZS52MS5SdW5Db21tYW5kUmVzcG9uc2USSQoKUGFpcmluZ1VSSRIcLmRldmljZS52MS5QYWlyaW5nVVJJUmVxdWVzdBodLmRldmljZS52MS5QYWlyaW5nVVJJUmVzcG9uc2USPQoGSW52aXRlEhguZGV2aWNlLnYxLkludml0ZVJlcXVlc3QaGS5kZXZpY2UudjEuSW52aXRlUmVzcG9uc2USSwoKSm9pbkJyaWRnZRIcLmRldmljZS52MS5Kb2luQnJpZGdlUmVxdWVzdBodLmRldmljZS52MS5Kb2luQnJpZGdlUmVzcG9uc2UwARJJCgpUaGlzRGV2aWNlEhwuZGV2aWNlLnYxLlRoaXNEZXZpY2VSZXF1ZXN0Gh0uZGV2aWNlLnYxLlRoaXNEZXZpY2VSZXNwb25zZUI+WjxnaXRodWIuY29tL0V1Z2VuZVNodG9rYS9raXRoL2ludGVybmFsL2FwaS9kZXZpY2UvdjE7ZGV2aWNldjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message device.v1.PairingURIRequest
@@ -371,6 +371,14 @@ export type ThemeResponse = Message<"device.v1.ThemeResponse"> & {
    * @generated from field: map<string, device.v1.ThemeIdentity> identities = 7;
    */
   identities: { [key: string]: ThemeIdentity };
+
+  /**
+   * themes are the theme files [gui.theme] mode may name, the ones kith ships and this
+   * device's (themes/ beside its config), by name.
+   *
+   * @generated from field: map<string, device.v1.ThemeFile> themes = 8;
+   */
+  themes: { [key: string]: ThemeFile };
 };
 
 /**
@@ -379,6 +387,35 @@ export type ThemeResponse = Message<"device.v1.ThemeResponse"> & {
  */
 export const ThemeResponseSchema: GenMessage<ThemeResponse> = /*@__PURE__*/
   messageDesc(file_device_v1_device, 14);
+
+/**
+ * ThemeFile is a theme of its own: the mode it starts from and its roles' colors.
+ *
+ * @generated from message device.v1.ThemeFile
+ */
+export type ThemeFile = Message<"device.v1.ThemeFile"> & {
+  /**
+   * "light" or "dark"
+   *
+   * @generated from field: string base = 1;
+   */
+  base: string;
+
+  /**
+   * roles is each role's color ("#rrggbb"), by its name as [gui.theme.light] names it;
+   * a role absent is the base's.
+   *
+   * @generated from field: map<string, string> roles = 2;
+   */
+  roles: { [key: string]: string };
+};
+
+/**
+ * Describes the message device.v1.ThemeFile.
+ * Use `create(ThemeFileSchema)` to create a new message.
+ */
+export const ThemeFileSchema: GenMessage<ThemeFile> = /*@__PURE__*/
+  messageDesc(file_device_v1_device, 15);
 
 /**
  * ThemeValue is one key: what it is, from where, and what each file holds of it.
@@ -418,7 +455,7 @@ export type ThemeValue = Message<"device.v1.ThemeValue"> & {
  * Use `create(ThemeValueSchema)` to create a new message.
  */
 export const ThemeValueSchema: GenMessage<ThemeValue> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 15);
+  messageDesc(file_device_v1_device, 16);
 
 /**
  * ThemeAccount is one network account kithd serves.
@@ -452,7 +489,7 @@ export type ThemeAccount = Message<"device.v1.ThemeAccount"> & {
  * Use `create(ThemeAccountSchema)` to create a new message.
  */
 export const ThemeAccountSchema: GenMessage<ThemeAccount> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 16);
+  messageDesc(file_device_v1_device, 17);
 
 /**
  * ThemeIdentity is a person as their [[display.identity]] colors them.
@@ -480,7 +517,7 @@ export type ThemeIdentity = Message<"device.v1.ThemeIdentity"> & {
  * Use `create(ThemeIdentitySchema)` to create a new message.
  */
 export const ThemeIdentitySchema: GenMessage<ThemeIdentity> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 17);
+  messageDesc(file_device_v1_device, 18);
 
 /**
  * @generated from message device.v1.ThemeWrite
@@ -511,7 +548,7 @@ export type ThemeWrite = Message<"device.v1.ThemeWrite"> & {
  * Use `create(ThemeWriteSchema)` to create a new message.
  */
 export const ThemeWriteSchema: GenMessage<ThemeWrite> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 18);
+  messageDesc(file_device_v1_device, 19);
 
 /**
  * @generated from message device.v1.UpdateThemeRequest
@@ -541,7 +578,7 @@ export type UpdateThemeRequest = Message<"device.v1.UpdateThemeRequest"> & {
  * Use `create(UpdateThemeRequestSchema)` to create a new message.
  */
 export const UpdateThemeRequestSchema: GenMessage<UpdateThemeRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 19);
+  messageDesc(file_device_v1_device, 20);
 
 /**
  * @generated from message device.v1.UpdateThemeResponse
@@ -558,7 +595,7 @@ export type UpdateThemeResponse = Message<"device.v1.UpdateThemeResponse"> & {
  * Use `create(UpdateThemeResponseSchema)` to create a new message.
  */
 export const UpdateThemeResponseSchema: GenMessage<UpdateThemeResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 20);
+  messageDesc(file_device_v1_device, 21);
 
 /**
  * @generated from message device.v1.OutgoingRequest
@@ -577,7 +614,7 @@ export type OutgoingRequest = Message<"device.v1.OutgoingRequest"> & {
  * Use `create(OutgoingRequestSchema)` to create a new message.
  */
 export const OutgoingRequestSchema: GenMessage<OutgoingRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 21);
+  messageDesc(file_device_v1_device, 22);
 
 /**
  * @generated from message device.v1.OutgoingResponse
@@ -617,7 +654,7 @@ export type OutgoingResponse = Message<"device.v1.OutgoingResponse"> & {
  * Use `create(OutgoingResponseSchema)` to create a new message.
  */
 export const OutgoingResponseSchema: GenMessage<OutgoingResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 22);
+  messageDesc(file_device_v1_device, 23);
 
 /**
  * @generated from message device.v1.DeviceRequest
@@ -630,7 +667,7 @@ export type DeviceRequest = Message<"device.v1.DeviceRequest"> & {
  * Use `create(DeviceRequestSchema)` to create a new message.
  */
 export const DeviceRequestSchema: GenMessage<DeviceRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 23);
+  messageDesc(file_device_v1_device, 24);
 
 /**
  * @generated from message device.v1.DeviceResponse
@@ -675,7 +712,7 @@ export type DeviceResponse = Message<"device.v1.DeviceResponse"> & {
  * Use `create(DeviceResponseSchema)` to create a new message.
  */
 export const DeviceResponseSchema: GenMessage<DeviceResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 24);
+  messageDesc(file_device_v1_device, 25);
 
 /**
  * @generated from message device.v1.ChooseProfileRequest
@@ -694,7 +731,7 @@ export type ChooseProfileRequest = Message<"device.v1.ChooseProfileRequest"> & {
  * Use `create(ChooseProfileRequestSchema)` to create a new message.
  */
 export const ChooseProfileRequestSchema: GenMessage<ChooseProfileRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 25);
+  messageDesc(file_device_v1_device, 26);
 
 /**
  * @generated from message device.v1.ChooseProfileResponse
@@ -713,7 +750,7 @@ export type ChooseProfileResponse = Message<"device.v1.ChooseProfileResponse"> &
  * Use `create(ChooseProfileResponseSchema)` to create a new message.
  */
 export const ChooseProfileResponseSchema: GenMessage<ChooseProfileResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 26);
+  messageDesc(file_device_v1_device, 27);
 
 /**
  * @generated from message device.v1.DeviceSettingsRequest
@@ -726,7 +763,7 @@ export type DeviceSettingsRequest = Message<"device.v1.DeviceSettingsRequest"> &
  * Use `create(DeviceSettingsRequestSchema)` to create a new message.
  */
 export const DeviceSettingsRequestSchema: GenMessage<DeviceSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 27);
+  messageDesc(file_device_v1_device, 28);
 
 /**
  * @generated from message device.v1.DeviceSettingsResponse
@@ -751,7 +788,7 @@ export type DeviceSettingsResponse = Message<"device.v1.DeviceSettingsResponse">
  * Use `create(DeviceSettingsResponseSchema)` to create a new message.
  */
 export const DeviceSettingsResponseSchema: GenMessage<DeviceSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 28);
+  messageDesc(file_device_v1_device, 29);
 
 /**
  * @generated from message device.v1.UpdateDeviceSettingsRequest
@@ -775,7 +812,7 @@ export type UpdateDeviceSettingsRequest = Message<"device.v1.UpdateDeviceSetting
  * Use `create(UpdateDeviceSettingsRequestSchema)` to create a new message.
  */
 export const UpdateDeviceSettingsRequestSchema: GenMessage<UpdateDeviceSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 29);
+  messageDesc(file_device_v1_device, 30);
 
 /**
  * @generated from message device.v1.UpdateDeviceSettingsResponse
@@ -799,7 +836,7 @@ export type UpdateDeviceSettingsResponse = Message<"device.v1.UpdateDeviceSettin
  * Use `create(UpdateDeviceSettingsResponseSchema)` to create a new message.
  */
 export const UpdateDeviceSettingsResponseSchema: GenMessage<UpdateDeviceSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 30);
+  messageDesc(file_device_v1_device, 31);
 
 /**
  * DeviceSettings is what the window reads of this device's settings (device.toml), each
@@ -1026,7 +1063,7 @@ export type DeviceSettings = Message<"device.v1.DeviceSettings"> & {
  * Use `create(DeviceSettingsSchema)` to create a new message.
  */
 export const DeviceSettingsSchema: GenMessage<DeviceSettings> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 31);
+  messageDesc(file_device_v1_device, 32);
 
 /**
  * KeySequences are one action's keys, in the order [keys] lists them.
@@ -1045,7 +1082,7 @@ export type KeySequences = Message<"device.v1.KeySequences"> & {
  * Use `create(KeySequencesSchema)` to create a new message.
  */
 export const KeySequencesSchema: GenMessage<KeySequences> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 32);
+  messageDesc(file_device_v1_device, 33);
 
 /**
  * Jump is one [[keys.jump]]: a room by its ID, or a rail row by a home entry (space:,
@@ -1075,7 +1112,7 @@ export type Jump = Message<"device.v1.Jump"> & {
  * Use `create(JumpSchema)` to create a new message.
  */
 export const JumpSchema: GenMessage<Jump> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 33);
+  messageDesc(file_device_v1_device, 34);
 
 /**
  * TagKey is one [[keys.tag]]: a chord and the tag it puts a room into, or takes it out of.
@@ -1099,7 +1136,7 @@ export type TagKey = Message<"device.v1.TagKey"> & {
  * Use `create(TagKeySchema)` to create a new message.
  */
 export const TagKeySchema: GenMessage<TagKey> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 34);
+  messageDesc(file_device_v1_device, 35);
 
 /**
  * ReadRule is one [[display.read_rule]].
@@ -1142,7 +1179,7 @@ export type ReadRule = Message<"device.v1.ReadRule"> & {
  * Use `create(ReadRuleSchema)` to create a new message.
  */
 export const ReadRuleSchema: GenMessage<ReadRule> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 35);
+  messageDesc(file_device_v1_device, 36);
 
 /**
  * @generated from message device.v1.CommandsRequest
@@ -1161,7 +1198,7 @@ export type CommandsRequest = Message<"device.v1.CommandsRequest"> & {
  * Use `create(CommandsRequestSchema)` to create a new message.
  */
 export const CommandsRequestSchema: GenMessage<CommandsRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 36);
+  messageDesc(file_device_v1_device, 37);
 
 /**
  * @generated from message device.v1.CommandsResponse
@@ -1178,7 +1215,7 @@ export type CommandsResponse = Message<"device.v1.CommandsResponse"> & {
  * Use `create(CommandsResponseSchema)` to create a new message.
  */
 export const CommandsResponseSchema: GenMessage<CommandsResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 37);
+  messageDesc(file_device_v1_device, 38);
 
 /**
  * Command is one command of the commands directory.
@@ -1212,7 +1249,7 @@ export type Command = Message<"device.v1.Command"> & {
  * Use `create(CommandSchema)` to create a new message.
  */
 export const CommandSchema: GenMessage<Command> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 38);
+  messageDesc(file_device_v1_device, 39);
 
 /**
  * @generated from message device.v1.RunCommandRequest
@@ -1251,7 +1288,7 @@ export type RunCommandRequest = Message<"device.v1.RunCommandRequest"> & {
  * Use `create(RunCommandRequestSchema)` to create a new message.
  */
 export const RunCommandRequestSchema: GenMessage<RunCommandRequest> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 39);
+  messageDesc(file_device_v1_device, 40);
 
 /**
  * @generated from message device.v1.RunCommandResponse
@@ -1299,7 +1336,7 @@ export type RunCommandResponse = Message<"device.v1.RunCommandResponse"> & {
  * Use `create(RunCommandResponseSchema)` to create a new message.
  */
 export const RunCommandResponseSchema: GenMessage<RunCommandResponse> = /*@__PURE__*/
-  messageDesc(file_device_v1_device, 40);
+  messageDesc(file_device_v1_device, 41);
 
 /**
  * ThemeSource is where a key's value comes from.

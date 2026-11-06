@@ -204,9 +204,19 @@ func TestTheThemeIsTheDevicesOverTheSharedOverTheDefault(t *testing.T) {
 	shared.Set("people.matrix:@ada:x", "#333333")
 	themeConfig(t, cfgPath, shared)
 	handWrite(t, cfgPath, "[tui.theme.networks]\nwhatsapp = \"#25d366\"\n\n[gui.theme]\nfaces = \"pictures\"\n\n[gui.theme.accounts]\n\"matrix:"+domain.AccountKey("@me:x")+"/\" = \"#bbbbbb\"\n\n[gui.theme.light]\naccent = \"#aaaaaa\"\n")
+	if err := os.MkdirAll(config.GUIThemesDir(cfgPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(config.GUIThemesDir(cfgPath), "paper.toml"), []byte("base = \"light\"\naccent = \"#aa0000\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	relay := deviceClient(relayFor(t, serveThemeKithd(t, cfgPath).socket, cfgPath))
 
 	theme := themeOf(t, relay)
+	if paper, cobalt := theme.GetThemes()["paper"], theme.GetThemes()["cobalt"]; paper.GetBase() != "light" || paper.GetRoles()["accent"] != "#aa0000" ||
+		cobalt.GetBase() != "dark" || cobalt.GetRoles()["background"] == "" {
+		t.Errorf("themes %v: want this device's paper and the shipped cobalt", theme.GetThemes())
+	}
 	whatsapp, matrix := string(themeAccounts[0].On), string(themeAccounts[1].On)
 	want := map[string]*devicev1.ThemeValue{
 		"mode":                    {Value: "dark", Source: devicev1.ThemeSource_THEME_SOURCE_SHARED, Shared: "dark"},
@@ -610,7 +620,7 @@ func TestAThemeTheWindowCannotDrawIsRefused(t *testing.T) {
 	for _, w := range []*devicev1.ThemeWrite{
 		{Key: "dark.accent", Value: "green", Scope: devicev1.ThemeScope_THEME_SCOPE_SHARED},
 		{Key: "dark.accent", Value: "#12345", Scope: devicev1.ThemeScope_THEME_SCOPE_DEVICE},
-		{Key: "mode", Value: "sepia", Scope: devicev1.ThemeScope_THEME_SCOPE_SHARED},
+		{Key: "mode", Value: "Sepia Tone", Scope: devicev1.ThemeScope_THEME_SCOPE_SHARED}, // no theme file is named so
 		{Key: "dark.border", Value: "#123456", Scope: devicev1.ThemeScope_THEME_SCOPE_DEVICE},
 		{Key: "people.", Value: "#123456", Scope: devicev1.ThemeScope_THEME_SCOPE_SHARED},
 		{Key: "dark.accent", Value: "#123456"},

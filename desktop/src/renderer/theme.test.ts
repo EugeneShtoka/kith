@@ -251,3 +251,33 @@ describe("faces", () => {
     expect(drawsPictures(faces("initials"))).toBe(false);
   });
 });
+
+describe("a theme file", () => {
+  const cobalt = { base: "dark", roles: { background: "#193549", text: "#8ff586", glow: "#ffffff", link: "blue" } };
+  const named = (mode: string) => theme({ values: { mode: { value: mode } }, themes: { cobalt } });
+
+  it("named by the mode draws its colors over its base, which the window's light or dark follows", () => {
+    expect(modeOf(named("cobalt"))).toBe("dark");
+    const css = themeCSS(named("cobalt"));
+    expect(css).toContain(":root { --bg: #193549; --text: #8ff586; }"); // no unknown role, no non-color
+  });
+
+  it("named but not there leaves the window as the system is, in its own colors", () => {
+    expect(modeOf(named("paper"))).toBe("system");
+    expect(themeCSS(named("paper"))).not.toContain(":root {");
+  });
+});
+
+describe("the shipped light and dark themes", () => {
+  it("are drawn as the system is when the mode names no file", () => {
+    const shipped = theme({
+      themes: {
+        light: { base: "light", roles: { accent: "#111111" } },
+        dark: { base: "dark", roles: { accent: "#222222" } },
+      },
+    });
+    const out = themeCSS(shipped);
+    expect(out).toContain("@media (prefers-color-scheme: light) { :root { --accent: #111111; } }");
+    expect(out).toContain("@media (prefers-color-scheme: dark) { :root { --accent: #222222; } }");
+  });
+});

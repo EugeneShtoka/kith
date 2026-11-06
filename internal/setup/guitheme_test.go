@@ -16,7 +16,8 @@ func TestAGUIThemeIsRefusedForWhatTheWindowCannotDraw(t *testing.T) {
 	}{
 		{"mode", "dark", ""},
 		{"mode", "system", ""},
-		{"mode", "sepia", "gui.theme.mode"},
+		{"mode", "cobalt", ""}, // a theme file's name
+		{"mode", "Sepia Tone", "gui.theme.mode"},
 		{"faces", "initials", ""},
 		{"faces", "pictures", ""},
 		{"faces", "photos", "gui.theme.faces"},
@@ -59,6 +60,27 @@ func TestSenderKeysAreTheTUIs(t *testing.T) {
 	} {
 		if got := SenderKey(i, tc.id); got != tc.want {
 			t.Errorf("SenderKey(%d, %+v) = %q, want %q", i, tc.id, got, tc.want)
+		}
+	}
+}
+
+// A theme file is refused for a base that is neither light nor dark, a name mode could
+// not name, or a color that is not #rrggbb.
+func TestAThemeFileIsRefusedForWhatTheWindowCannotDraw(t *testing.T) {
+	t.Parallel()
+	good := config.GUIThemeFile{Base: "dark", GUIRoles: config.GUIRoles{Accent: "#00aaff"}}
+	if err := GUIThemeFiles(map[string]config.GUIThemeFile{"cobalt": good}); err != nil {
+		t.Errorf("a good theme refused: %v", err)
+	}
+	for name, themes := range map[string]map[string]config.GUIThemeFile{
+		"base":  {"dim": {Base: "dim"}},
+		"name":  {"My Theme": good},
+		"mode":  {"system": good},
+		"light": {"light": good}, // the light theme's base is light
+		"color": {"bad": {Base: "light", GUIRoles: config.GUIRoles{Text: "white"}}},
+	} {
+		if err := GUIThemeFiles(themes); err == nil {
+			t.Errorf("%s: taken", name)
 		}
 	}
 }

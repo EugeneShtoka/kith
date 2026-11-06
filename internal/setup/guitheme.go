@@ -2,6 +2,7 @@ package setup
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -12,6 +13,29 @@ import (
 // themeColor is a color as [gui.theme] takes it: "#rrggbb", which the window's color picker
 // writes and reads.
 var themeColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+// themeName is a theme file's name as mode names it: themes/<name>.toml.
+var themeName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
+
+// GUIThemeFiles refuses a theme file the desktop could not draw: a base that is not light
+// or dark, a name mode could not name, or a color that is not "#rrggbb".
+func GUIThemeFiles(themes map[string]config.GUIThemeFile) error {
+	for _, name := range slices.Sorted(maps.Keys(themes)) {
+		t := themes[name]
+		if !themeName.MatchString(name) || name == "system" {
+			return fmt.Errorf("theme %q: a theme's file is named in lower case letters, digits, - and _, and is not system", name)
+		}
+		if t.Base != "light" && t.Base != "dark" || (name == "light" || name == "dark") && t.Base != name {
+			return fmt.Errorf("theme %s: base %q (want light or dark; the light and dark themes' own)", name, t.Base)
+		}
+		for _, role := range config.GUIThemeRoles() {
+			if c := t.Role(role); c != "" && !themeColor.MatchString(c) {
+				return fmt.Errorf("theme %s: %s %q is no color (write #rrggbb)", name, role, c)
+			}
+		}
+	}
+	return nil
+}
 
 // GUITheme refuses a [gui.theme] the desktop could not draw: a mode or faces it does not know, or a
 // color that is not "#rrggbb". The first in its keys' order is named.
@@ -32,8 +56,8 @@ func GUIThemeValue(path, value string) error {
 	case value == "":
 		return nil
 	case path == "mode":
-		if !slices.Contains(config.GUIThemeModes(), value) {
-			return fmt.Errorf("gui.theme.mode: unknown mode %q (want %s)", value, strings.Join(config.GUIThemeModes(), ", "))
+		if !slices.Contains(config.GUIThemeModes(), value) && !themeName.MatchString(value) {
+			return fmt.Errorf("gui.theme.mode: unknown mode %q (want %s, or a theme file's name)", value, strings.Join(config.GUIThemeModes(), ", "))
 		}
 	case path == "faces":
 		if !slices.Contains(config.GUIThemeFaces(), value) {
