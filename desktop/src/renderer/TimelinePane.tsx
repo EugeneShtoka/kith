@@ -1,11 +1,12 @@
 // The open room's timeline, drawn: the main timeline's messages, each thread a row under
 // the message it hangs from (its replies are the thread pane's), oldest at the top,
 // scrolled back a page at a time.
+import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type Ref, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
-import type { Message, Reaction } from "../gen/backend/v1/types_pb";
+import { FormattedSchema, type Message, type Reaction } from "../gen/backend/v1/types_pb";
 import { Avatar } from "./Avatar";
 import type { ComposerView } from "./compose";
 import { EmojiPicker } from "./EmojiPicker";
@@ -18,7 +19,7 @@ import { PersonEditor } from "./PersonEditor";
 import { PollBlock } from "./Poll";
 import type { Session } from "./session";
 import { bound, type Keys, moved } from "./keymap";
-import { FormattedText } from "./spans";
+import { FormattedText, pills } from "./spans";
 import { collapse, type ThreadSummary } from "./threads";
 import { tally, type TimelineView } from "./timeline";
 
@@ -452,7 +453,7 @@ export function Row({
             </header>
           )}
           {m.replyTo !== "" && <Quote quoted={quoted} faces={faces} />}
-          <Body m={m} composer={composer} session={session} />
+          <Body m={m} composer={composer} faces={faces} session={session} />
           {grouped && m.edited && !m.redacted && <span className="detail edited">(edited)</span>}
           {reactions !== undefined && reactions.length > 0 && (
             <ul className="reactions" aria-label="Reactions">
@@ -722,7 +723,17 @@ function Quote({ quoted, faces }: { quoted: Message | undefined; faces: Faces })
   );
 }
 
-function Body({ m, composer, session }: { m: Message; composer: ComposerView | undefined; session: Session }) {
+function Body({
+  m,
+  composer,
+  faces,
+  session,
+}: {
+  m: Message;
+  composer: ComposerView | undefined;
+  faces: Faces;
+  session: Session;
+}) {
   if (m.redacted) {
     return (
       <p className="body deleted">
@@ -776,7 +787,10 @@ function Body({ m, composer, session }: { m: Message; composer: ComposerView | u
       )}
       {caption && (
         <p className={m.emote ? "body emote" : "body"} dir="auto">
-          {m.format ? <FormattedText f={m.format} /> : m.body}
+          <FormattedText
+            f={m.format ?? create(FormattedSchema, { text: m.body })}
+            pills={pills(m.format?.text ?? m.body, m.mentions, (person) => faceClass(faces, person))}
+          />
         </p>
       )}
     </>

@@ -3,7 +3,7 @@
 // UTF-16 units, so each offset is turned into one before the text is cut.
 import type { ReactNode } from "react";
 
-import type { Formatted, Span } from "../gen/backend/v1/types_pb";
+import type { Formatted, Mention, Span } from "../gen/backend/v1/types_pb";
 
 /**
  * utf16At is, for text, the function from a UTF-8 byte offset to the UTF-16 index of
@@ -94,18 +94,62 @@ function wrap(piece: ReactNode, over: readonly Span[], key: number): ReactNode {
   return <span key={key}>{out}</span>;
 }
 
-/** Formatted draws f: its text cut where any span starts or ends, each piece in its marks. */
-export function FormattedText({ f }: { f: Formatted }): ReactNode {
+/** Pill is a person a message mentions, where the text names them (UTF-16), and the class they are drawn in. */
+export interface Pill {
+  start: number;
+  end: number;
+  className: string;
+}
+
+/**
+ * pills are where text names the people mentions mention (domain.ResolveMentions' rule:
+ * longest name first, each at its first place no other took), each in classOf's class
+ * for them; a room's mention, and a name the text does not hold, are none.
+ */
+export function pills(text: string, mentions: readonly Mention[], classOf: (person: string) => string): Pill[] {
+  const out: Pill[] = [];
+  const named = mentions.filter((m) => m.userId !== "" && m.name !== "");
+  for (const m of [...named].sort((a, b) => b.name.length - a.name.length)) {
+    for (let from = text.indexOf(m.name); from >= 0; from = text.indexOf(m.name, from + 1)) {
+      const end = from + m.name.length;
+      if (!out.some((p) => p.start < end && from < p.end)) {
+        out.push({ start: from, end, className: classOf(m.userId) });
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Formatted draws f: its text cut where any span or pill starts or ends, each piece in
+ * its marks; a pill in its person's color, without the "@" the text names them with.
+ */
+export function FormattedText({ f, pills = [] }: { f: Formatted; pills?: readonly Pill[] }): ReactNode {
   const at = utf16At(f.text);
   const spans = f.spans.map((s) => ({ span: s, start: at(s.start), end: at(s.end) })).filter((s) => s.start < s.end);
-  const cuts = [...new Set([0, f.text.length, ...spans.flatMap((s) => [s.start, s.end])])].sort((a, b) => a - b);
+  const edges = [...spans, ...pills].flatMap((s) => [s.start, s.end]);
+  const cuts = [...new Set([0, f.text.length, ...edges])].sort((a, b) => a - b);
   const pieces: ReactNode[] = [];
   for (let i = 0; i + 1 < cuts.length; i++) {
     const from = cuts[i] ?? 0;
     const to = cuts[i + 1] ?? 0;
     const over = spans.filter((s) => s.start <= from && s.end >= to).map((s) => s.span);
-    const text = f.text.slice(from, to);
-    pieces.push(over.length === 0 ? text : wrap(text, over, i));
+    const pill = pills.find((p) => p.start <= from && p.end >= to);
+    let text = f.text.slice(from, to);
+    if (pill?.start === from && text.startsWith("@")) {
+      text = text.slice(1); // shown without it; the text keeps it
+    }
+    const piece = over.length === 0 ? text : wrap(text, over, i);
+    pieces.push(
+      pill === undefined ? (
+        piece
+      ) : (
+        <span key={`m${String(i)}`} className={`mention ${pill.className}`}>
+          {piece}
+        </span>
+      ),
+    );
   }
   return <>{pieces}</>;
 }

@@ -143,6 +143,8 @@ network's page says which). People
 and rooms without a picture are drawn as their initials, each in a color of their own
 that stays the same everywhere: a person in the color the terminal client gives them in that room,
 until you pick one ([Theme](#theme)). Phone numbers are shown as the network gives them.
+A person a message mentions is drawn in that color too, without the `@` the message
+names them with (the message itself keeps it).
 
 **👤** in a message's actions makes its sender's account **the same person as** others
 on any network, as the terminal client's `a` does (`[[display.identity]]`): pick a

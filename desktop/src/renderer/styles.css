@@ -619,6 +619,12 @@ select option {
   font-weight: 700;
 }
 
+/* A person a message names, in their color, as the TUI draws a mention. */
+.mention {
+  color: var(--hue, var(--accent));
+  font-weight: 600;
+}
+
 .invites {
   margin-bottom: var(--space-2);
   border-bottom: 1px solid var(--line);
