@@ -13534,7 +13534,10 @@ func (x *FollowRequest) GetUri() string {
 type FollowResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Whether a client was listening.
-	Delivered     bool `protobuf:"varint,1,opt,name=delivered,proto3" json:"delivered,omitempty"`
+	Delivered bool `protobuf:"varint,1,opt,name=delivered,proto3" json:"delivered,omitempty"`
+	// The link is a web link kith does not follow, naming no chat on a network kithd holds
+	// rooms on (domain.Followable): it went to no window, and is the browser's.
+	Web           bool `protobuf:"varint,2,opt,name=web,proto3" json:"web,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -13572,6 +13575,13 @@ func (*FollowResponse) Descriptor() ([]byte, []int) {
 func (x *FollowResponse) GetDelivered() bool {
 	if x != nil {
 		return x.Delivered
+	}
+	return false
+}
+
+func (x *FollowResponse) GetWeb() bool {
+	if x != nil {
+		return x.Web
 	}
 	return false
 }
@@ -20667,9 +20677,10 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x16ActivityStreamResponse\x120\n" +
 	"\bactivity\x18\x01 \x01(\v2\x14.backend.v1.ActivityR\bactivity\"!\n" +
 	"\rFollowRequest\x12\x10\n" +
-	"\x03uri\x18\x01 \x01(\tR\x03uri\".\n" +
+	"\x03uri\x18\x01 \x01(\tR\x03uri\"@\n" +
 	"\x0eFollowResponse\x12\x1c\n" +
-	"\tdelivered\x18\x01 \x01(\bR\tdelivered\"\x10\n" +
+	"\tdelivered\x18\x01 \x01(\bR\tdelivered\x12\x10\n" +
+	"\x03web\x18\x02 \x01(\bR\x03web\"\x10\n" +
 	"\x0eChangedRequest\"=\n" +
 	"\x0fChangedResponse\x12*\n" +
 	"\x06change\x18\x01 \x01(\x0e2\x12.backend.v1.ChangeR\x06change\"-\n" +

@@ -45,6 +45,58 @@ func TestFollowingALinkToAJoinedRoomOpensIt(t *testing.T) {
 	}
 }
 
+// linkRouter is kithd as gx reaches it: each link it is handed, and which it leaves to
+// the browser.
+type linkRouter struct {
+	apitest.Nop
+	handed []string
+	web    map[string]bool
+}
+
+func (r *linkRouter) FollowLink(_ context.Context, uri string) (bool, error) {
+	r.handed = append(r.handed, uri)
+	return r.web[uri], nil
+}
+
+// Attached to kithd, gx hands every link to Follow, whose seat rules pick the window that
+// follows it, this one or another, TUI or desktop alike: this window does not go there by
+// itself. Only a link kithd leaves to the browser opens there.
+func TestGxHandsTheLinkToTheWindowKithdPicks(t *testing.T) {
+	t.Parallel()
+	router := &linkRouter{web: map[string]bool{"https://example.org/a": true}}
+	m := update(t, starterNew(router, config.Display{}), roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x"}, {ID: mx + "!b:x"}}})
+	m = sized(t, m)
+	m, _ = m.selectRoom(domain.Room{ID: mx + "!a:x"})
+	for _, tc := range []struct {
+		id, body, link string
+		browser        bool
+	}{
+		{mx + "$1", "see https://matrix.to/#/!b:x now", "https://matrix.to/#/!b:x", false},
+		{mx + "$2", "see https://example.org/a now", "https://example.org/a", true},
+	} {
+		msg := linkMsg(tc.body, "")
+		msg.ID = domain.EventID(tc.id)
+		m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{msg}}})
+		m.timeline.selected = msg.ID
+		m = m.clearStatus()
+		next, cmd := m.takeContext(actOpenURL)
+		if next.openRoom != mx+"!a:x" {
+			t.Errorf("%s: gx went to %s by itself", tc.link, next.openRoom)
+		}
+		if cmd == nil {
+			t.Fatalf("%s: gx asked kithd nothing", tc.link)
+		}
+		done, opening := next.handleFollowed(cmd().(followedMsg))
+		if got := router.handed[len(router.handed)-1]; got != tc.link {
+			t.Errorf("kithd was handed %q, want %q", got, tc.link)
+		}
+		if (opening != nil) != tc.browser || strings.Contains(done.status(), "opening") != tc.browser {
+			t.Errorf("%s: browser %v (status %q), want %v", tc.link, opening != nil, done.status(), tc.browser)
+		}
+		m = done
+	}
+}
+
 // A link to a message queues the jump until the timeline holds it, as a search hit does.
 func TestFollowingALinkToAMessageQueuesTheJump(t *testing.T) {
 	t.Parallel()

@@ -1054,6 +1054,13 @@ func (r *Remote) Follow(ctx context.Context, uri string) (bool, error) {
 	return resp.GetDelivered(), err
 }
 
+// FollowLink hands a link a window's gx chose to the window Follow picks, which may be
+// this one; web: it is a web link kith does not follow, handed to none, the browser's.
+func (r *Remote) FollowLink(ctx context.Context, uri string) (web bool, err error) {
+	resp, err := call(ctx, "follow", r.c.Follow, &v1.FollowRequest{Uri: uri})
+	return resp.GetWeb(), err
+}
+
 // Present tells the daemon the room this window has open ("" none) and that it was
 // used just now, which Follow picks a window by.
 func (r *Remote) Present(ctx context.Context, open domain.RoomID) error {

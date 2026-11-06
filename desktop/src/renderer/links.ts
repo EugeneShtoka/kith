@@ -1,5 +1,5 @@
-// The web links in a message, as domain.LinksWithHrefs finds them: what the copy and open
-// keys ([keys.timeline] copy_url, open_url) choose from.
+// The links in a message, as domain.MessageLinks finds them: what the copy and open keys
+// ([keys.timeline] copy_url, open_url) choose from.
 import type { Message } from "../gen/backend/v1/types_pb";
 import { openable } from "../shared/ipc";
 
@@ -27,7 +27,21 @@ function trimmed(link: string): string {
   }
 }
 
-/** links are m's web links: those in its words in order, then its formatted links' targets, each once. */
+/**
+ * The schemes of the chat links kith follows that are no web links (matrix:, Telegram's,
+ * WhatsApp's, Signal's).
+ * shortcut: by scheme alone, where Go also parses each (and takes a bare t.me/name); kithd's Follow judges the link
+ */
+const chatSchemes = /^(matrix|tg|whatsapp|sgnl):\S/i;
+
+/** The words a chat link may be, split at white space (domain's isURIBoundary). */
+const words = /\s+/;
+
+/**
+ * links are m's links: the web links in its words in order, then its formatted links' web
+ * targets, then the chat links that are no web links, from its words and then its
+ * formatted links, each once.
+ */
 export function links(m: Message): string[] {
   const out: string[] = [];
   const add = (link: string) => {
@@ -38,10 +52,18 @@ export function links(m: Message): string[] {
   for (const found of m.body.matchAll(linkPattern)) {
     add(trimmed(found[0]));
   }
-  for (const span of m.format?.spans ?? []) {
-    if (span.link && openable(span.href)) {
-      add(span.href);
+  const hrefs = (m.format?.spans ?? []).filter((s) => s.link).map((s) => s.href);
+  for (const href of hrefs.filter(openable)) {
+    add(href);
+  }
+  for (const word of m.body.split(words)) {
+    const candidate = word.replace(/^[.,;:!?"'()[\]<>]+|[.,;:!?"'()[\]<>]+$/g, "");
+    if (chatSchemes.test(candidate)) {
+      add(candidate);
     }
+  }
+  for (const href of hrefs.filter((h) => chatSchemes.test(h))) {
+    add(href);
   }
   return out;
 }

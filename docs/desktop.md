@@ -207,12 +207,15 @@ On a message, the cursor's, the `[keys.timeline]` keys act as they do in the ter
 | `timeline.vote` | `P` | Its poll's options, to choose one |
 | `timeline.copy_text` | `yy` | Copy its text |
 | `timeline.copy_url` | `yu` | Copy a link from it |
-| `timeline.open_url` | `gx` | Open a link from it in the browser, and stay here |
-| `timeline.open_url_focus` | `gX` | Open a link from it, and go to the browser |
+| `timeline.open_url` | `gx` | Open a link from it: a chat link in kith, any other in the browser, and stay here |
+| `timeline.open_url_focus` | `gX` | The same, going to the browser for a web link |
 
-The copy and open keys ask which link when a message holds several. Only web links
-(http and https) open; a Matrix, Telegram or WhatsApp link opens in the terminal client
-for now.
+The copy and open keys ask which link when a message holds several. A chat link
+(Matrix, Telegram, WhatsApp, Signal) goes to whichever kith window kithd picks, desktop
+or terminal alike, as a link clicked elsewhere does: the one with its chat open, else
+the one used last whose profile holds it, else the one used last, which may be this
+one. A web link names a chat only on a network kithd holds rooms on; any other opens in
+the browser.
 
 The searches look through the messages loaded so far, and take a count (`3m`).
 

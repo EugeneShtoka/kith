@@ -575,7 +575,7 @@ In the composer, `alt+u` opens the desktop's file chooser and sends the file wit
 
 A message with several links asks which one. Links in formatted messages count too, including the address behind a named link.
 
-`gx` follows inside the client a `matrix:` URI or a `matrix.to` address, a Telegram `tg:` or `t.me` link, and a WhatsApp `whatsapp:`, `wa.me` or `chat.whatsapp.com` link, as long as a chat in your room list is on its network. Any other link goes to the browser.
+`gx` follows inside kith a `matrix:` URI or a `matrix.to` address, a Telegram `tg:` or `t.me` link, and a WhatsApp `whatsapp:`, `wa.me` or `chat.whatsapp.com` link, as long as a chat kithd holds is on its network. Any other link goes to the browser. The link goes to whichever kith window kithd picks, terminal or desktop alike, as a link clicked in another app does: the one with its chat open, else the one used last whose profile holds it, else the one used last — often this one.
 
 A Matrix link opens a room or a message you can see directly. A room you are not in asks before joining, since everyone there sees you join. A person opens the switcher filtered to them, listing your conversations with them and the option to start one — following a link never creates a room on its own.
 

@@ -1726,10 +1726,21 @@ describe("a message's text and links", () => {
     session.takeLink(m, "open_focus");
     await settled();
     expect(kithd.copied).toEqual(["https://example.org/a"]);
+    expect(kithd.followed).toEqual(["https://example.org/a", "https://example.org/a"]); // kithd asked first
     expect(kithd.opened).toEqual(["https://example.org/a", "https://example.org/a focused"]);
     expect(view().linking).toBeUndefined();
     session.takeLink(message({ id: "$2", body: "no link" }), "open");
     expect(note()).toBe("no link in that message");
+  });
+
+  it("hands a chat link to kithd, whose seat rules pick the window that follows it, not the browser", async () => {
+    await started();
+    kithd.chatLinks.add("https://matrix.to/#/!r:x");
+    session.takeLink(message({ id: "$1", body: "see https://matrix.to/#/!r:x" }), "open_focus");
+    session.takeLink(message({ id: "$2", body: "or matrix:r/team:x" }), "open");
+    await settled();
+    expect(kithd.followed).toEqual(["https://matrix.to/#/!r:x", "matrix:r/team:x"]);
+    expect(kithd.opened).toEqual([]);
   });
 
   it("asks which of several, and takes the one picked for the key that asked", async () => {

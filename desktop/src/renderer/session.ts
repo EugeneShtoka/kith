@@ -1432,14 +1432,36 @@ export class Session {
     this.set({ linking: undefined });
   }
 
+  /**
+   * useLink copies link, or hands it to kithd (Follow), whose seat rules pick the window
+   * that follows it, this one or another, TUI or desktop alike; this one follows it on its
+   * link stream, as a link clicked elsewhere. A web link kithd does not follow is the
+   * browser's.
+   */
   private useLink(act: LinkAct, link: string): void {
     if (act === "copy") {
       this.copyOut(link, "link");
       return;
     }
+    call(backend.follow, { uri: link }).then(
+      (r) => {
+        if (r.web && !this.stopped) {
+          this.browse(link, act === "open");
+        }
+      },
+      (err: unknown) => {
+        if (!this.stopped) {
+          this.set({ filingNote: `the link was not followed: ${errorText(err)}` });
+        }
+      },
+    );
+  }
+
+  /** browse opens a web link in the browser, the window brought forward again after where stay. */
+  private browse(link: string, stay: boolean): void {
     const host = link.replace(/^https?:\/\//i, "").split("/")[0] ?? link;
     this.set({ filingNote: `opening ${host}…` });
-    window.kith.open(link, act === "open").then(
+    window.kith.open(link, stay).then(
       (went) => {
         if (!went && !this.stopped) {
           this.set({ filingNote: "refusing to open that — only http and https links" });

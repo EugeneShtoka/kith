@@ -106,6 +106,9 @@ func (m Model) useContext(then action, value string) (Model, tea.Cmd) {
 	case actCopyURL:
 		return m.copy(value, describeCopy("link", value))
 	case actOpenURL, actOpenURLFocus:
+		if f, ok := m.backend.(linkFollower); ok {
+			return m, m.followLinkCmd(f, then, value)
+		}
 		switch place, isPlace := domain.ParsePlace(value); {
 		case !m.followsHere(value):
 		case isPlace:

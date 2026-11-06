@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"slices"
+	"context"
 	"strconv"
 
 	tea "charm.land/bubbletea/v2"
@@ -36,17 +36,10 @@ func (m Model) messageHrefs(msg domain.Message) []string {
 	return hrefs
 }
 
-// followsHere reports whether link opens in kith rather than the browser: a Matrix
-// address, or a Telegram or WhatsApp chat link, on a network one of the room list's
-// chats is on (a bridged chat is Matrix's, which looks up no Telegram link).
+// followsHere reports whether link opens in kith rather than the browser, by the room
+// list's chats (domain.Followable).
 func (m Model) followsHere(link string) bool {
-	network, ok := domain.LinkNetwork(link)
-	if _, place := domain.ParsePlace(link); place {
-		network, ok = domain.ProtocolMatrix, true
-	}
-	return ok && slices.ContainsFunc(m.rooms.joined, func(r domain.Room) bool {
-		return domain.NetworkOf(string(r.ID)) == network
-	})
+	return domain.Followable(link, m.rooms.joined)
 }
 
 // placeLabel is what to call a place, and what kind of thing it is.
@@ -306,6 +299,43 @@ type followSource interface {
 	Follows() <-chan string
 }
 
+// linkFollower is a backend that hands a link gx chose to the window kithd's seat rules
+// pick (Follow), TUI or desktop, this one included; a web link kith does not follow
+// comes back as the browser's.
+type linkFollower interface {
+	FollowLink(ctx context.Context, uri string) (web bool, err error)
+}
+
+// followedMsg is what Follow did with the link a gx key chose: web, it went to no window.
+type followedMsg struct {
+	link string
+	then action
+	web  bool
+	err  error
+}
+
+func (m Model) followLinkCmd(f linkFollower, then action, link string) tea.Cmd {
+	ctx := m.ctx
+	return func() tea.Msg {
+		web, err := f.FollowLink(ctx, link)
+		return followedMsg{link: link, then: then, web: web, err: err}
+	}
+}
+
+// handleFollowed opens a web link Follow left to the browser; one it handed over is the
+// picked window's to follow, through its link stream, this one's too.
+func (m Model) handleFollowed(msg followedMsg) (Model, tea.Cmd) {
+	switch {
+	case msg.err != nil:
+		return m.sayFailure("could not follow the link: ", msg.err), nil
+	case !msg.web:
+		return m, nil
+	case msg.then == actOpenURLFocus:
+		return m.openFocused(msg.link)
+	}
+	return m.open(msg.link)
+}
+
 // listenFollowCmd waits for a handed-over link; nil for backends without the stream.
 func (m Model) listenFollowCmd() tea.Cmd {
 	source, ok := m.backend.(followSource)
@@ -370,6 +400,8 @@ func (m Model) handleLinking(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleAccountsPicked(msg)
 	case accountListMsg:
 		return m.handleAccountList(msg)
+	case followedMsg:
+		return m.handleFollowed(msg)
 	}
 	handed, _ := msg.(followMsg)
 	return m.handleFollow(handed)

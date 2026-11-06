@@ -30,7 +30,7 @@ describe("a message's links, as domain.LinksWithHrefs finds them", () => {
     expect(links(message(body))).toEqual(want);
   });
 
-  it("adds the formatted links' web targets after the words', leaving out others", () => {
+  it("adds the formatted links' web targets after the words', then their chat links, leaving out others", () => {
     expect(
       links(
         message("https://a.example and x/y", [
@@ -40,7 +40,26 @@ describe("a message's links, as domain.LinksWithHrefs finds them", () => {
           "mailto:a@b",
         ]),
       ),
-    ).toEqual(["https://a.example", "https://x.example/y"]);
+    ).toEqual(["https://a.example", "https://x.example/y", "matrix:r/room:x"]);
+  });
+});
+
+describe("a message's chat links that are no web links, as domain.MessageLinks finds them", () => {
+  it("adds them after the web links, from the words and then the formatted links, each once", () => {
+    expect(
+      links(
+        message(
+          "go (matrix:r/team:x), tg://resolve?domain=kith or https://t.me/kith; whatsapp://send?phone=15551234567 and file:///x",
+          ["matrix:u/dana:x", "matrix:r/team:x", "mailto:a@b"],
+        ),
+      ),
+    ).toEqual([
+      "https://t.me/kith",
+      "matrix:r/team:x",
+      "tg://resolve?domain=kith",
+      "whatsapp://send?phone=15551234567",
+      "matrix:u/dana:x",
+    ]);
   });
 });
 

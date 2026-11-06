@@ -791,12 +791,16 @@ func (s *server) RoomEncryption(ctx context.Context, r *req[v1.RoomEncryptionReq
 // Follow hands a link to one window (seats.follow), now if it listens, else when its
 // link stream opens. The link's chat is looked for among the cached rooms; one not
 // found (an alias, an invite) goes to the window used last. Delivered is false only
-// with no window; `kith --open` then starts one.
+// with no window; `kith --open` then starts one. A web link kith does not follow
+// (domain.Followable over every cached room, whichever profile holds it) goes to none.
 func (s *server) Follow(ctx context.Context, r *req[v1.FollowRequest]) (*resp[v1.FollowResponse], error) {
 	uri := r.Msg.GetUri()
 	rooms, err := s.Backend.Rooms(ctx)
 	if err != nil {
 		s.Log.Warn("follow a link: read the rooms failed; it goes to the window used last", "err", err)
+	}
+	if domain.OpenableLink(uri) && !domain.Followable(uri, rooms) {
+		return connect.NewResponse(&v1.FollowResponse{Web: true}), nil
 	}
 	found := domain.LinkedRooms(uri, rooms)
 	linked := make([]domain.RoomID, len(found))

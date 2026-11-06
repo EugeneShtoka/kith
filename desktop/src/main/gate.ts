@@ -145,6 +145,9 @@ const calls = new Map<string, DescMethodUnary>(
     // A room's name of your own ([[display.name]]): kithd judges the room against the
     // profile and writes the one entry itself.
     backend.setRoomName,
+    // A link a link key chose (gx), handed to the window kithd's seat rules pick, this
+    // one or another, TUI or desktop; kithd says when it is the browser's instead.
+    backend.follow,
     // People and their cards: kithd's phonebook folder, read and written by kithd. The
     // window names a person by an ID, a card People listed (by its name, which kithd
     // looks up among the folder's cards) or a DM; it never names a file nor gets a path,

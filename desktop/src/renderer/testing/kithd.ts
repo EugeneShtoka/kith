@@ -54,7 +54,7 @@ import {
 } from "../../gen/device/v1/device_pb";
 import { same, words } from "../config";
 import { compare } from "../merge";
-import type { KithBridge, ThemeMode, Offered, StreamEvent } from "../../shared/ipc";
+import { type KithBridge, openable, type ThemeMode, type Offered, type StreamEvent } from "../../shared/ipc";
 import { runIn } from "../../shared/profile";
 
 const backend = BackendService.method;
@@ -155,6 +155,9 @@ export class Kithd {
   /** What the window copied, and the links it opened (" focused": the browser left in front). */
   readonly copied: string[] = [];
   readonly opened: string[] = [];
+  /** The links the window handed kithd to follow, and the web ones kithd follows (the rest are the browser's). */
+  readonly followed: string[] = [];
+  readonly chatLinks = new Set<string>();
   /** Answers held back until release, by method name. */
   readonly holding = new Set<string>();
   /** The stored drafts, by room: kithd keeps them for every profile alike. */
@@ -1021,6 +1024,12 @@ export class Kithd {
         const r = request as MessageShape<typeof backend.markThreadRead.input>;
         this.receipts.push(`${r.roomId} ${r.root} ${r.eventId} ${r.private ? "private" : "public"}`);
         return reply(backend.markThreadRead, {});
+      }
+      case "Follow": {
+        // Handed to no window here: a test hands a window its link with follow.
+        const r = request as MessageShape<typeof backend.follow.input>;
+        this.followed.push(r.uri);
+        return reply(backend.follow, { delivered: true, web: openable(r.uri) && !this.chatLinks.has(r.uri) });
       }
       case "Present": {
         const r = request as MessageShape<typeof backend.present.input>;
