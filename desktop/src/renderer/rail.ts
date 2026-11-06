@@ -69,11 +69,12 @@ export function placed(rows: readonly RailRow[], was: RowRef | undefined, at: nu
  * listed is rooms as the row lists them: those it holds, and the room open when the rail
  * does not know it (a chat newer than the rail) or the row is a sticky tag's (read, it
  * leaves Unread), so it stays where the person is until they move off it. With no rail
- * yet, every room.
+ * yet, none: the rooms would be drawn, their pictures fetched, only to be shuffled into
+ * rows once it comes.
  */
 export function listed(rooms: readonly Room[], rail: RailResponse | undefined, row: number, open: string): Room[] {
   if (rail === undefined) {
-    return [...rooms];
+    return [];
   }
   const holds = new Set(rail.rows[row]?.rooms ?? []);
   const kept = rail.rows[row]?.sticky === true || !rail.rooms.some((r) => r.facts?.id === open);
