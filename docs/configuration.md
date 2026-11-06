@@ -459,7 +459,7 @@ is the window's default.
 | --- | --- |
 | `mode` | `system` (the default) follows the system's light or dark; `light` and `dark` keep to one; any other name is a [theme file](#theme-files)'s, such as `cobalt`. |
 | `faces` | `pictures` (the default) draws people and rooms as their pictures where kith keeps one, else their initials; `initials` draws initials always. |
-| `[gui.theme.light]`, `[gui.theme.dark]` | Each mode's colors, by role: `accent`, `background`, `surface` (the side columns), `text`, `muted` (times, hints), `link`, `selection` (the row you are on), `unread` and `mention`. |
+| `[gui.theme.light]`, `[gui.theme.dark]` | Each mode's colors, by role: `accent`, `background`, `surface` (the side columns), `text`, `muted` (times, hints), `link`, `selection` (the row you are on), `unread` and `mention` (their badges), `bar` (the top bar and the rail), `raised` (buttons, fields and popups), `border` (lines), `unread_text` and `mention_text` (the count on each badge), `badge` (every badge's own color, where set; else each is its `unread` or `mention` color), and `focus` and `focus_text` (the row you are on in the list you are in; `selection` in the other). |
 | `[gui.theme.accounts]` | A network account's color, by its rooms' owner as kith names it (`whatsapp:main/`, or `matrix:<account>/`): its rooms' mark and the open room's network. Unset, its network's `[tui.theme.networks]` color. |
 | `[gui.theme.people]` | A person's color, by their ID: their name and face. Unset, the color the terminal client gives them in that room; one it has not given a color yet is drawn in the window's own. |
 
@@ -480,7 +480,7 @@ accent = "#4c8dff"
 ### Theme files
 
 A theme is a file, `<name>.toml`, that `mode` names: the mode it starts from (`base`,
-`light` or `dark`) and any of the nine roles' colors. kith ships three: `light` and
+`light` or `dark`) and any of the roles' colors. kith ships three: `light` and
 `dark`, the window's own colors (which `system` follows), and `cobalt`, the terminal
 client's `cobalt2` palette. A file of your own goes in the `themes` folder beside your
 `config.toml` (`~/.config/kith/themes/`). One named like a shipped theme takes its place,

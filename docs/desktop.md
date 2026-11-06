@@ -288,7 +288,7 @@ come to the window in later releases.
 dark, or a [theme file](configuration.md#theme-files) such as `cobalt`, the terminal
 client's colors), its faces (people's and rooms' pictures, else their initials; or
 initials always), each mode's colors (accent, background, surface, text, muted, link, selection,
-unread and mention), each account's color, and the colors you picked for people. To
+unread and mention, the bar, buttons, borders, badges and the focused row), each account's color, and the colors you picked for people. To
 pick someone's color, point at a message of theirs and press **◐** in its actions.
 
 Each row is written for every device at once: it goes into the bridge's `config.toml`

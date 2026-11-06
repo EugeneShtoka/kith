@@ -1,5 +1,6 @@
 # Cobalt: the terminal client's cobalt2 ([tui.theme] preset), for the desktop window.
-# Deep blue, green text, yellow and pink highlights. Copy it into your config dir's
+# Deep blue, green text, yellow and pink highlights; as there, a badge is its count in
+# yellow or pink. Copy it into your config dir's
 # themes/ folder under another name to make a theme of your own from it.
 base = "dark"
 accent = "#00aaff"
@@ -8,6 +9,14 @@ surface = "#122738"
 text = "#8ff586"
 muted = "#668799"
 link = "#80fcff"
-selection = "#185294"
+selection = "#0d3a58"
 unread = "#ffc600"
 mention = "#ff628c"
+bar = "#15232d"
+raised = "#1f4662"
+border = "#0d3a58"
+unread_text = "#ffc600"
+mention_text = "#ff628c"
+badge = "#0d3a58"
+focus = "#185294"
+focus_text = "#8ff586"

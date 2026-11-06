@@ -30,14 +30,13 @@
   --rooms-width: clamp(12rem, 22vw, 18rem);
   --thread-width: clamp(16rem, 30vw, 26rem);
 
-  /* Surfaces. The bars, buttons and lines follow from the theme's roles, so a theme
-     that sets background, surface and muted colors them too. */
+  /* Surfaces. */
   --bg: #ffffff;
   --surface: #f4f5f7;
-  --surface-2: color-mix(in srgb, var(--surface) 95.5%, black);
-  --raised: var(--bg);
+  --surface-2: #e8eaee;
+  --raised: #ffffff;
   --hover: rgb(0 0 0 / 5%);
-  --line: color-mix(in srgb, var(--surface) 84%, var(--muted));
+  --line: #dcdfe4;
   --shadow: 0 4px 16px rgb(0 0 0 / 14%);
   --backdrop: rgb(0 0 0 / 30%);
 
@@ -49,7 +48,11 @@
   --accent-soft: #dbe7fb;
   --link: #0b5cd5;
   --unread: #1f6feb;
+  --unread-fg: #ffffff;
   --mention: #d1242f;
+  --mention-fg: #ffffff;
+  --focus: #1f6feb;
+  --focus-fg: #ffffff;
   --highlight: #fff3bf;
   --ok: #1a7f37;
   --lost: #b42318;
@@ -96,10 +99,10 @@
   :root {
     --bg: #1e1f22;
     --surface: #232428;
-    --surface-2: color-mix(in srgb, var(--surface) 75%, black);
-    --raised: color-mix(in srgb, var(--surface) 96%, white);
+    --surface-2: #1a1b1e;
+    --raised: #2b2d31;
     --hover: rgb(255 255 255 / 6%);
-    --line: color-mix(in srgb, var(--surface) 80%, var(--muted));
+    --line: #3a3c42;
     --shadow: 0 4px 16px rgb(0 0 0 / 50%);
     --backdrop: rgb(0 0 0 / 50%);
     --text: #ececef;
@@ -109,7 +112,11 @@
     --accent-soft: #283a5c;
     --link: #82aaff;
     --unread: #4c8dff;
+    --unread-fg: #ffffff;
     --mention: #ff5f5f;
+    --mention-fg: #ffffff;
+    --focus: #4c8dff;
+    --focus-fg: #ffffff;
     --highlight: #3d3820;
     --ok: #4ac26b;
     --lost: #ff7b72;
@@ -429,8 +436,8 @@ select option {
 
 .rail:focus-within .place button[aria-current="true"],
 .rooms:focus-within .room button[aria-current="true"] {
-  background: var(--accent);
-  color: var(--accent-fg);
+  background: var(--focus);
+  color: var(--focus-fg);
 }
 
 .label {
@@ -454,17 +461,13 @@ select option {
   font-weight: 700;
 }
 
-/* A badge's text is black on a light color and white on a dark one, whatever a theme
-   makes unread and mention. */
 .badge {
-  --badge: var(--unread);
-
   flex: none;
   min-width: 1.25rem;
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--badge);
-  color: oklch(from var(--badge) clamp(0, (0.6 - l) * 1000, 1) 0 0);
+  background: var(--badge, var(--unread));
+  color: var(--unread-fg);
   font-size: var(--text-xs);
   font-weight: 700;
   line-height: 1.4rem;
@@ -472,12 +475,13 @@ select option {
 }
 
 .badge.mention {
-  --badge: var(--mention);
+  background: var(--badge, var(--mention));
+  color: var(--mention-fg);
 }
 
 .rooms:focus-within .room button[aria-current="true"] .badge:not(.mention) {
-  background: var(--accent-fg);
-  color: var(--accent);
+  background: var(--focus-fg);
+  color: var(--focus);
 }
 
 /* A network's mark: its letters in its color. */

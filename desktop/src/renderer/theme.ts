@@ -21,6 +21,14 @@ export const roles = {
   selection: "--accent-soft",
   unread: "--unread",
   mention: "--mention",
+  bar: "--surface-2",
+  raised: "--raised",
+  border: "--line",
+  unread_text: "--unread-fg",
+  mention_text: "--mention-fg",
+  badge: "--badge",
+  focus: "--focus",
+  focus_text: "--focus-fg",
 } as const;
 export type Role = keyof typeof roles;
 
