@@ -30,13 +30,14 @@
   --rooms-width: clamp(12rem, 22vw, 18rem);
   --thread-width: clamp(16rem, 30vw, 26rem);
 
-  /* Surfaces. */
+  /* Surfaces. The bars, buttons and lines follow from the theme's roles, so a theme
+     that sets background, surface and muted colors them too. */
   --bg: #ffffff;
   --surface: #f4f5f7;
-  --surface-2: #e8eaee;
-  --raised: #ffffff;
+  --surface-2: color-mix(in srgb, var(--surface) 95.5%, black);
+  --raised: var(--bg);
   --hover: rgb(0 0 0 / 5%);
-  --line: #dcdfe4;
+  --line: color-mix(in srgb, var(--surface) 84%, var(--muted));
   --shadow: 0 4px 16px rgb(0 0 0 / 14%);
   --backdrop: rgb(0 0 0 / 30%);
 
@@ -95,10 +96,10 @@
   :root {
     --bg: #1e1f22;
     --surface: #232428;
-    --surface-2: #1a1b1e;
-    --raised: #2b2d31;
+    --surface-2: color-mix(in srgb, var(--surface) 75%, black);
+    --raised: color-mix(in srgb, var(--surface) 96%, white);
     --hover: rgb(255 255 255 / 6%);
-    --line: #3a3c42;
+    --line: color-mix(in srgb, var(--surface) 80%, var(--muted));
     --shadow: 0 4px 16px rgb(0 0 0 / 50%);
     --backdrop: rgb(0 0 0 / 50%);
     --text: #ececef;
@@ -453,13 +454,17 @@ select option {
   font-weight: 700;
 }
 
+/* A badge's text is black on a light color and white on a dark one, whatever a theme
+   makes unread and mention. */
 .badge {
+  --badge: var(--unread);
+
   flex: none;
   min-width: 1.25rem;
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--unread);
-  color: var(--accent-fg);
+  background: var(--badge);
+  color: oklch(from var(--badge) clamp(0, (0.6 - l) * 1000, 1) 0 0);
   font-size: var(--text-xs);
   font-weight: 700;
   line-height: 1.4rem;
@@ -467,7 +472,7 @@ select option {
 }
 
 .badge.mention {
-  background: var(--mention);
+  --badge: var(--mention);
 }
 
 .rooms:focus-within .room button[aria-current="true"] .badge:not(.mention) {
