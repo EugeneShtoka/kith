@@ -321,14 +321,17 @@ function Seated({ view, session }: { view: View; session: Session }) {
   const playing = useRef<HTMLMediaElement>(undefined);
   // A thread opened by a key takes the focus once its rows are drawn.
   const toThread = useRef(false);
-  // A room opened from the list takes the focus to its timeline once it is drawn.
+  // A room opened from the list takes the focus once it is drawn: to its composer, else
+  // (a room with none) to its timeline.
   const toTimeline = useRef(false);
   // The pane focused last, which keys go to while nothing is focused: the rooms before any.
   const lastPane = useRef("rooms");
   useEffect(() => {
     if (toTimeline.current && view.timeline) {
       toTimeline.current = false;
-      timeline.current?.focus();
+      if (!write()) {
+        timeline.current?.focus();
+      }
     }
   }, [view.open, view.timeline]);
   const threadRows = view.thread?.rows.length ?? 0;
@@ -373,7 +376,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
         case "rooms nav.open": {
           const row = el instanceof HTMLElement && el.matches(paneRows.rooms ?? "") ? el : undefined;
           if (row?.getAttribute("aria-current") === "true") {
-            return focusTo("timeline");
+            return write() || focusTo("timeline");
           }
           toTimeline.current = row !== undefined;
           row?.click();

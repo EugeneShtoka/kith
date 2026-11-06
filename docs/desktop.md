@@ -162,7 +162,7 @@ It binds these so far, with their defaults:
 | `help` | `?` | These keys, as bound now, with a box to find one; `esc` clears it, then closes |
 | `focus_next`, `focus_prev` | `tab`, `shift+tab` | The next pane, or the one before: places, rooms, the open room, its thread. Into the open room is into its composer; `esc` goes on to the message focused last |
 | `nav.up`, `nav.down` | `k`, `up`; `j`, `down` | The pane's cursor up or down: a place (picked as you go), a room, a message |
-| `nav.open` | `l`, `right`, `enter` | Into the next pane: a place's rooms, a room's messages (opening it) |
+| `nav.open` | `l`, `right`, `enter` | Into the next pane: a place's rooms, a room (opening it, ready to type in its composer) |
 | `nav.back` | `h`, `left`, `esc` | Back a pane; from a message, the open thread closes first |
 | `nav.page_up`, `nav.page_down` | `pgup`, `pgdown` | The cursor a screen up or down |
 | `nav.half_page_up`, `nav.half_page_down` | `ctrl+u`, `ctrl+d` | Half a screen |
