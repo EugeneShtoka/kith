@@ -1020,6 +1020,20 @@ export class Kithd {
         this.receipts.push(`${r.roomId} ${r.eventId} ${r.private ? "private" : "public"}`);
         return reply(backend.markRead, {});
       }
+      case "MarkRoomsRead": {
+        // Each room's newest message receipted (whichever it is: "newest"); one the profile does not hold, refused.
+        const r = request as MessageShape<typeof backend.markRoomsRead.input>;
+        const held = r.roomIds.filter((id) => p.rooms.some((room) => room.id === id));
+        for (const id of held) {
+          this.receipts.push(`${id} newest ${r.private ? "private" : "public"}`);
+        }
+        const failed = r.roomIds.length - held.length;
+        return reply(backend.markRoomsRead, {
+          marked: held.length,
+          failed,
+          firstError: failed > 0 ? "not in the room" : "",
+        });
+      }
       case "MarkThreadRead": {
         const r = request as MessageShape<typeof backend.markThreadRead.input>;
         this.receipts.push(`${r.roomId} ${r.root} ${r.eventId} ${r.private ? "private" : "public"}`);

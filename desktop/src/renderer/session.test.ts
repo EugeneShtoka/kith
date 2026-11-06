@@ -6,6 +6,7 @@ import {
   Change,
   ConfigSettingKind,
   ConfigSettingSchema,
+  MarkRoomsReadResponseSchema,
   type SeatRequest,
   SpaceFiledOutcome,
 } from "../gen/backend/v1/services_pb";
@@ -13,7 +14,7 @@ import { ReactionSchema, VerificationKind } from "../gen/backend/v1/types_pb";
 import { type DeviceSettings, DeviceSettingsSchema, KeySequencesSchema, ThemeScope } from "../gen/device/v1/device_pb";
 import { list, number, text, valueAt, words } from "./config";
 import { unreadOf } from "./rooms";
-import { deviceAgain, Session } from "./session";
+import { deviceAgain, readNote, Session } from "./session";
 import { type Key, withKey } from "./settings";
 import { Kithd, room, settled, unread } from "./testing/kithd";
 import { message, row } from "./testing/rows";
@@ -1966,6 +1967,64 @@ describe("naming a room", () => {
     session.nameRoom("Boss");
     await settled();
     expect(view().filingNote).toMatch(/^Alpha was not named: .*holds no room !a/);
+  });
+});
+
+describe("marking read without opening", () => {
+  beforeEach(() => {
+    kithd.of("Home").rooms = [
+      room("!a", { name: "Alpha" }),
+      room("!b", { name: "Bravo" }),
+      room("!c", { name: "Charlie" }),
+    ];
+    kithd.of("Home").unread.set("!a", unread("!a", 2));
+    kithd.of("Home").unread.set("!b", unread("!b", 3));
+    kithd.settings = create(DeviceSettingsSchema, { sendReceipts: true, readRules: [{ match: "!b", send: false }] });
+  });
+
+  // rail.mark_read asks about the place's unread rooms, and marks those once confirmed, each
+  // announced or private as the read rules say; rooms.mark_read marks one room at once.
+  it("asks before marking a place's unread rooms read, and marks only those", async () => {
+    await started();
+    session.askMarkRead(0);
+    expect(view().marking).toEqual({ label: "All", rooms: ["!a", "!b"] });
+    session.closeMarking();
+    expect(view().marking).toBeUndefined();
+    session.markAsked();
+    await settled();
+    expect(kithd.receipts).toEqual([]);
+
+    session.askMarkRead(0);
+    session.markAsked();
+    expect(view().marking).toBeUndefined();
+    await settled();
+    expect(kithd.receipts).toEqual(["!a newest public", "!b newest private"]);
+    expect(view().filingNote).toBe("2 rooms in All marked read");
+  });
+
+  it("marks one room read at once, and says when a place has nothing unread", async () => {
+    await started();
+    session.markRoomRead("!c");
+    await settled();
+    expect(kithd.receipts).toEqual(["!c newest public"]);
+    expect(view().filingNote).toBe("Charlie is read");
+
+    kithd.send(backend.unreadStream, "Home", { unread: unread("!a", 0) });
+    kithd.send(backend.unreadStream, "Home", { unread: unread("!b", 0) });
+    await settled();
+    session.askMarkRead(0);
+    expect(view().marking).toBeUndefined();
+    expect(view().filingNote).toBe("Nothing is unread in All");
+  });
+
+  it("says what kithd skipped and refused", () => {
+    const got = (marked: number, skipped: number, failed: number, firstError = "") =>
+      create(MarkRoomsReadResponseSchema, { marked, skipped, failed, firstError });
+    expect(readNote(1, "Alpha", [got(0, 1, 0)])).toBe("Nothing of Alpha is cached yet: open it to mark it read");
+    expect(readNote(1, "Alpha", [got(0, 0, 1, "forbidden")])).toBe("Alpha was not marked read: forbidden");
+    expect(readNote(4, "Work", [got(1, 1, 0), got(0, 0, 2, "forbidden")])).toBe(
+      "1 room in Work marked read · 1 room had nothing cached · 2 rooms refused: forbidden",
+    );
   });
 });
 

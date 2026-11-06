@@ -9,6 +9,7 @@ import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
 import { FilingDialog } from "./Filing";
 import { LinkingDialog } from "./Linking";
+import { MarkReadDialog } from "./MarkRead";
 import { RoomNameDialog } from "./RoomName";
 import { helpSections } from "./help";
 import { HelpOverlay } from "./HelpOverlay";
@@ -62,6 +63,7 @@ export function App() {
       )}
       {seated && view.filing && <FilingDialog filing={view.filing} keys={view.keys} session={session} />}
       {seated && view.naming && <RoomNameDialog naming={view.naming} keys={view.keys} session={session} />}
+      {seated && view.marking && <MarkReadDialog marking={view.marking} keys={view.keys} session={session} />}
       {seated && view.linking && <LinkingDialog linking={view.linking} keys={view.keys} session={session} />}
       {seated && view.people.list && (
         <PeopleDialog list={view.people.list} covered={view.people.card !== undefined} session={session} />
@@ -132,6 +134,8 @@ const seatedActions: readonly Action[] = [
   { path: "rooms.spaces", anywhere: false },
   { path: "rooms.name", anywhere: false },
   { path: "rooms.person", anywhere: false },
+  { path: "rooms.mark_read", anywhere: false },
+  { path: "rail.mark_read", anywhere: false },
   ...[
     "up",
     "down",
@@ -444,6 +448,8 @@ function Seated({ view, session }: { view: View; session: Session }) {
         session.tagRoom(room.id, t.tag);
       } else if (path === "rooms.name") {
         session.openNaming(room.id);
+      } else if (path === "rooms.mark_read") {
+        session.markRoomRead(room.id);
       } else if (room.isDirect) {
         session.openPerson({ roomId: room.id }, "");
       } else {
@@ -532,6 +538,14 @@ function Seated({ view, session }: { view: View; session: Session }) {
       "rooms.spaces": () => onRoom("rooms.spaces"),
       "rooms.name": () => onRoom("rooms.name"),
       "rooms.person": () => onRoom("rooms.person"),
+      "rooms.mark_read": () => onRoom("rooms.mark_read"),
+      "rail.mark_read": () => {
+        const row = rowsOf("rail").indexOf(document.activeElement as HTMLElement);
+        if (row >= 0) {
+          session.askMarkRead(row);
+        }
+        return row >= 0;
+      },
       help: () => {
         setHelping(true);
       },

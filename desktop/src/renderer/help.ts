@@ -51,6 +51,7 @@ export const helpSections: readonly HelpSection[] = [
       row("Half a screen up or down", "nav.half_page_up", "nav.half_page_down"),
       row("The first row, or the room's first message", "nav.select_oldest", "nav.scroll_oldest"),
       row("The last row, or the newest message", "nav.select_newest", "nav.scroll_newest"),
+      row("Mark a place's unread rooms read; it asks first", "rail.mark_read"),
     ],
   },
   {
@@ -59,6 +60,7 @@ export const helpSections: readonly HelpSection[] = [
       row("File it into tags and spaces", "rooms.spaces"),
       row("Name it, for you alone", "rooms.name"),
       row("The phonebook card of the person in a direct chat", "rooms.person"),
+      row("Mark it read without opening it", "rooms.mark_read"),
     ],
   },
   {
