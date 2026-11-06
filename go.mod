@@ -51,7 +51,7 @@ require (
 
 require (
 	filippo.io/hpke v0.4.0 // indirect
-	github.com/andybalholm/brotli v1.2.4 // indirect
+	github.com/andybalholm/brotli v1.2.7 // indirect
 	github.com/apache/thrift v0.24.0 // indirect
 	github.com/armfazh/h2c-go-ref v0.0.0-20210215173008-07e12a6f8e0d // indirect
 	github.com/armfazh/tozan-ecc v0.1.3 // indirect
@@ -75,7 +75,7 @@ require (
 	github.com/gtank/ristretto255 v0.2.0 // indirect
 	github.com/icholy/digest v1.2.0 // indirect
 	github.com/imroc/req/v3 v3.56.0 // indirect
-	github.com/klauspost/compress v1.20.0 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/kojah/gohawk v0.7.1 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v6 v6.3.35304 // indirect
