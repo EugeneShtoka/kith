@@ -105,6 +105,8 @@ export class Kithd {
   readonly refused: string[] = [];
   /** The window's text size, as main keeps it. */
   fontSize = 15;
+  /** Whether the window's menu bar shows, as main keeps it. */
+  menuBar = true;
   /** The theme's mode the window last told main. */
   themeMode: ThemeMode | undefined;
   /**
@@ -364,6 +366,11 @@ export class Kithd {
       setFontSize: (px) => {
         this.fontSize = px;
         return Promise.resolve(px);
+      },
+      menuBar: () => Promise.resolve(this.menuBar),
+      setMenuBar: (shown) => {
+        this.menuBar = shown;
+        return Promise.resolve(shown);
       },
       themeMode: (mode) => {
         this.themeMode = mode;

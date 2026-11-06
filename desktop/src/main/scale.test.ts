@@ -49,9 +49,10 @@ describe("the window's scale", () => {
   });
 
   it("keeps only what the window offers, each key apart", () => {
-    expect(valid({ zoom: 1.25, fontSize: 18 })).toEqual({ zoom: 1.25, fontSize: 18 });
-    expect(valid({ zoom: 7, fontSize: 18 })).toEqual({ zoom: 1, fontSize: 18 });
-    expect(valid({ zoom: 1.25, fontSize: "18" })).toEqual({ zoom: 1.25, fontSize: 15 });
+    expect(valid({ zoom: 1.25, fontSize: 18, menuBar: false })).toEqual({ zoom: 1.25, fontSize: 18, menuBar: false });
+    expect(valid({ zoom: 7, fontSize: 18 })).toEqual({ zoom: 1, fontSize: 18, menuBar: true });
+    expect(valid({ zoom: 1.25, fontSize: "18" })).toEqual({ zoom: 1.25, fontSize: 15, menuBar: true });
+    expect(valid({ zoom: 1.25, fontSize: 18, menuBar: "no" })).toEqual({ zoom: 1.25, fontSize: 18, menuBar: true });
     expect(valid(null)).toEqual(defaultScale);
     expect(valid([])).toEqual(defaultScale);
   });
@@ -66,10 +67,10 @@ describe("the window's scale", () => {
     const store = new ScaleStore(file);
     await store.load();
     const writes = [store.set({ zoom: 1.1 }), store.set({ fontSize: 18 }), store.set({ zoom: 1.25 })];
-    expect(store.get()).toEqual({ zoom: 1.25, fontSize: 18 });
+    expect(store.get()).toEqual({ zoom: 1.25, fontSize: 18, menuBar: true });
     await Promise.all(writes);
-    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({ zoom: 1.25, fontSize: 18 });
-    expect(await new ScaleStore(file).load()).toEqual({ zoom: 1.25, fontSize: 18 });
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({ zoom: 1.25, fontSize: 18, menuBar: true });
+    expect(await new ScaleStore(file).load()).toEqual({ zoom: 1.25, fontSize: 18, menuBar: true });
   });
 
   it("goes on writing after a write fails", async () => {
@@ -78,6 +79,10 @@ describe("the window's scale", () => {
     await expect(store.set({ zoom: 1.1 })).rejects.toThrow();
     await mkdir(sub);
     await store.set({ fontSize: 13 });
-    expect(await new ScaleStore(path.join(sub, "scale.json")).load()).toEqual({ zoom: 1.1, fontSize: 13 });
+    expect(await new ScaleStore(path.join(sub, "scale.json")).load()).toEqual({
+      zoom: 1.1,
+      fontSize: 13,
+      menuBar: true,
+    });
   });
 });
