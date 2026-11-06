@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { Identity } from "../gen/backend/v1/services_pb";
 import { pictureChoices, saved } from "./identity";
+import { bound, type Keys } from "./keymap";
 import { errorText, type Session } from "./session";
 
 /** newPerson is the choice of a person not yet made; it is no alias, which is never empty. */
@@ -11,16 +12,19 @@ const newPerson = "";
 
 /**
  * PersonEditor sets which person account (named name) is one of, their color and their
- * picture; onDone closes it, written or not.
+ * picture; onDone closes it, written or not (prompt.cancel too). It takes the focus once
+ * the people are read, as the TUI's a does.
  */
 export function PersonEditor({
   account,
   name,
+  keys,
   session,
   onDone,
 }: {
   account: string;
   name: string;
+  keys: Keys;
   session: Session;
   onDone: () => void;
 }) {
@@ -109,11 +113,18 @@ export function PersonEditor({
         e.preventDefault();
         void save();
       }}
+      onKeyDown={(e) => {
+        if (bound(keys, "prompt.cancel", e)) {
+          e.preventDefault();
+          onDone();
+        }
+      }}
     >
       <fieldset disabled={busy}>
         <label>
           <span>Same person as</span>
           <select
+            autoFocus
             value={alias}
             onChange={(e) => {
               pickPerson(e.target.value);

@@ -336,6 +336,9 @@ export function actOn(
         }
       });
       return m.media?.type === "audio" || m.media?.type === "video";
+    case "timeline.name":
+      select(i, press);
+      return m.sender !== ""; // the row's 👤, which a message with no sender has not
     case "timeline.vote":
       select(i, (row) => row.querySelector<HTMLElement>("button.poll-option, .poll-option input")?.focus());
       return m.poll !== undefined;
@@ -589,6 +592,7 @@ function Actions({
         {m.sender !== "" && (
           <button
             type="button"
+            data-key="timeline.name"
             aria-label="Same person as"
             title="Same person as… (their name, color and picture across accounts)"
             aria-expanded={open === "person"}
@@ -691,6 +695,7 @@ function Actions({
         <PersonEditor
           account={m.sender}
           name={m.senderName || m.sender}
+          keys={keys}
           session={session}
           onDone={() => {
             setOpen(undefined);
