@@ -85,6 +85,11 @@ const presentEvery = 2000;
  * may start before the bridge answers. A reload's page that failed waits as long.
  */
 export const deviceAgain = 1000;
+/**
+ * How long a cursor rests on a room in the list, or on a place on the rail, before its
+ * room is shown: a fast run down either shows none on the way.
+ */
+export const peekAfter = 150;
 
 /** The window's seat in its profile: one window per profile is served (kithd's Seat). */
 export type Seat =
@@ -443,6 +448,8 @@ export class Session {
   /** The room the list's cursor rested on for its read_delay, read as if entered; and the wait for it. */
   private rested = "";
   private resting: ReturnType<typeof setTimeout> | undefined;
+  /** The wait before the place the rail moved to shows its room. */
+  private railing: ReturnType<typeof setTimeout> | undefined;
   /**
    * Where the window has been, per profile: back and forward stay in the profile the
    * window runs in, and find their way again when it comes back to one.
@@ -520,6 +527,7 @@ export class Session {
     this.login.stop();
     this.devices.stop();
     clearTimeout(this.deviceLater);
+    clearTimeout(this.railing);
     this.leave();
     for (const stop of this.lingering) {
       stop();
@@ -2326,6 +2334,35 @@ export class Session {
     run.rowAt = i;
     run.row = refOf(row);
     this.set({});
+    // The timeline shows what the room list does once the rail rests: the open room where
+    // the place lists it, else its first, else none.
+    clearTimeout(this.railing);
+    this.railing = setTimeout(() => {
+      this.railing = undefined;
+      if (!this.live(run) || this.view.rooms.some((r) => r.id === this.view.open)) {
+        return;
+      }
+      const first = this.view.rooms[0];
+      if (first === undefined) {
+        this.hide(run);
+      } else {
+        this.peek(first.id);
+      }
+    }, peekAfter);
+  }
+
+  /** hide shows no room: the place the rail moved to lists none. */
+  private hide(run: Run): void {
+    if (this.view.open === "") {
+      return;
+    }
+    this.closeThread();
+    clearTimeout(this.resting);
+    this.resting = undefined;
+    this.rested = "";
+    run.timeline = undefined;
+    this.set({ open: "" });
+    this.present(run);
   }
 
   /**

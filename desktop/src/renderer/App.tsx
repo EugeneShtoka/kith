@@ -19,7 +19,7 @@ import { PeopleDialog, PersonDialog } from "./People";
 import { colorClass, drawsPictures, themeCSS, modeOf, roomColor } from "./theme";
 import { namesRow, rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
-import { type Link, type Seat, Session, type View } from "./session";
+import { type Link, peekAfter, type Seat, Session, type View } from "./session";
 import { SearchBar, SearchResults, Switcher } from "./Find";
 import { SettingsPage } from "./SettingsPage";
 import { ThreadPane } from "./ThreadPane";
@@ -212,9 +212,7 @@ function moveRow(pane: string, path: string, count: number): boolean {
   return true;
 }
 
-// The list's cursor shows its room once it stops a moment there: a fast run down the list
-// shows none on the way.
-const peekAfter = 150;
+// The list's cursor shows its room once it stops a moment there (peekAfter).
 let peeking: ReturnType<typeof setTimeout> | undefined;
 
 /** TopBar runs across the window's top: kith, what the screen puts there, and Settings. */

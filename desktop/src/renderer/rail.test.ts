@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BackendService, Change, RailResponseSchema, RailRowKind, RailRowSchema } from "../gen/backend/v1/services_pb";
 import { RoomSchema } from "../gen/backend/v1/types_pb";
 import { named, namesRow } from "./rail";
-import { Session } from "./session";
+import { peekAfter, Session } from "./session";
 import { Kithd, room, settled } from "./testing/kithd";
 
 const backend = BackendService.method;
@@ -188,6 +188,44 @@ describe("the rail", () => {
       ]),
     );
     expect(listed()).toEqual([]);
+  });
+
+  it("shows the room the place moved to lists, once the rail rests: the open one where it is listed, else the first, else none", async () => {
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const rested = () => wait(peekAfter + 20);
+    await started(
+      ["!a", "!b", "!c"],
+      rail(1, [
+        ["A", ["!a"]],
+        ["B", ["!b", "!c"]],
+        ["C", ["!a", "!c"]],
+        ["Empty", []],
+      ]),
+    );
+    session.open("!a");
+    await settled();
+    session.selectRow(1);
+    expect(view().open).toBe("!a"); // not while the rail moves
+    await rested();
+    expect([view().open, listed().includes(view().open)]).toEqual([listed()[0], true]);
+    session.open("!c");
+    await settled();
+    session.selectRow(2); // it lists the open room: it stays
+    await rested();
+    expect(view().open).toBe("!c");
+    session.selectRow(1); // moving on before the rail rests starts the wait again
+    await wait(peekAfter / 2);
+    session.selectRow(0);
+    await wait(peekAfter / 2 + 20);
+    expect(view().open).toBe("!c");
+    session.selectRow(0); // a fast run along the rail shows only where it rests
+    session.selectRow(1);
+    session.selectRow(3);
+    await rested();
+    expect([view().open, view().timeline, view().composer]).toEqual(["", undefined, undefined]);
+    session.back(); // a room shown only as the rail passed is not one the window went to
+    await settled();
+    expect(view().open).toBe("!a");
   });
 
   it("keeps the open room listed in a sticky tag's row it left, until another room is open", async () => {
