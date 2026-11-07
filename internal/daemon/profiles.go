@@ -168,6 +168,17 @@ func (p profileName) WrapStreamingHandler(next connect.StreamingHandlerFunc) con
 	return next
 }
 
+// profileNames is the config's profiles, in its order.
+func (n *Notifications) profileNames() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	names := make([]string, len(n.profiles))
+	for i, p := range n.profiles {
+		names[i] = p.Name
+	}
+	return names
+}
+
 // Profile is the [[profile]] named, in any case; "" is the first.
 func (n *Notifications) Profile(name string) (domain.Profile, error) {
 	n.mu.Lock()

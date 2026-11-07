@@ -67,10 +67,15 @@ func TestTheClientResumesWhereItStoppedAcrossARestart(t *testing.T) {
 	run.waitAttached(t, 1)
 	want = append(want, burst(cache, "after", 50)...)
 	readBodies(t, client, want)
-	select {
-	case c := <-client.Changed():
-		t.Fatalf("Changed() said %v; the stream resumed, nothing to read again", c)
-	default:
+	for drained := false; !drained; {
+		select {
+		case c := <-client.Changed():
+			if c != domain.ChangeRail { // the new kithd builds the rail, under its own revision
+				t.Fatalf("Changed() said %v; the stream resumed, nothing to read again", c)
+			}
+		default:
+			drained = true
+		}
 	}
 }
 
@@ -91,7 +96,11 @@ func TestAClientThatCannotResumeIsToldToReadAgain(t *testing.T) {
 	cache.clear("two")
 	run = restart(t, run, path, cache)
 	run.waitAttached(t, 1)
-	if c := take(t, client.Changed(), "Changed()"); c != domain.ChangeMessages {
+	c := take(t, client.Changed(), "Changed()")
+	for c == domain.ChangeRail { // the new kithd builds the rail, under its own revision
+		c = take(t, client.Changed(), "Changed()")
+	}
+	if c != domain.ChangeMessages {
 		t.Fatalf("Changed() = %v, want ChangeMessages", c)
 	}
 	readBodies(t, client, burst(cache, "after", 3))

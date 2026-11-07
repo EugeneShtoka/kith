@@ -29,7 +29,8 @@ import (
 // filingWorld is a railWorld whose networks archive chats and file rooms into spaces,
 // either able to refuse, and which runs one thing while a FileRoom of one profile is
 // between reading the config and writing it (its read of the unread counts, which only
-// the rail's inputs read, after the config): another client's filing, or a hand edit.
+// the rail's inputs read, after the config; not kithd's own rail builds, which read them
+// too): another client's filing, or a hand edit.
 type filingWorld struct {
 	*railWorld
 
@@ -44,7 +45,9 @@ type filingWorld struct {
 func (w *filingWorld) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
 	w.fmu.Lock()
 	run := w.between
-	if run != nil && domain.ProfileIn(ctx) == w.betweenIn {
+	call, inCall := connect.CallInfoForHandlerContext(ctx)
+	filing := inCall && call.Spec().Procedure == backendv1connect.BackendServiceFileRoomProcedure
+	if run != nil && filing && domain.ProfileIn(ctx) == w.betweenIn {
 		w.between = nil
 	} else {
 		run = nil
