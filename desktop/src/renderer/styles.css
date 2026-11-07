@@ -250,7 +250,7 @@ select option {
   outline-offset: 1px;
 }
 
-/* The bar across the top: kith, the profile or the search, Settings. */
+/* The bar across the top: the profile or the search, Settings. */
 .topbar {
   display: flex;
   flex: none;
@@ -261,17 +261,12 @@ select option {
   background: var(--surface-2);
 }
 
-.topbar h1 {
-  margin: 0;
-  font-size: var(--text-lg);
-}
-
 .settings-button {
   margin-left: auto;
 }
 
 .fold {
-  display: none;
+  padding: var(--space-1) var(--space-2);
 }
 
 .find {
@@ -358,6 +353,11 @@ select option {
 
 .columns.with-thread {
   grid-template-columns: auto minmax(0, 1fr) var(--thread-width);
+}
+
+/* A wide window's rail, folded away by the toggle. */
+.columns.folded .rail {
+  display: none;
 }
 
 /* The left column: the profile, the rail and the rooms beside it, the connection under. */
@@ -2127,11 +2127,6 @@ mark {
  * 640px the whole left column does, and the search takes a line of its own.
  */
 @media (max-width: 960px) {
-  .fold {
-    display: inline-block;
-    padding: var(--space-1) var(--space-2);
-  }
-
   .rail {
     display: none;
   }

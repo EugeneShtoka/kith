@@ -217,14 +217,24 @@ function moveRow(pane: string, path: string, count: number): boolean {
   return true;
 }
 
+// Narrow is the window the stylesheet folds the rail in (its max-width: 960px).
+const narrowQuery = "(max-width: 960px)";
+const isNarrow = () => window.matchMedia(narrowQuery).matches;
+const onNarrow = (changed: () => void) => {
+  const query = window.matchMedia(narrowQuery);
+  query.addEventListener("change", changed);
+  return () => {
+    query.removeEventListener("change", changed);
+  };
+};
+
 // The list's cursor shows its room once it stops a moment there (peekAfter).
 let peeking: ReturnType<typeof setTimeout> | undefined;
 
-/** TopBar runs across the window's top: kith, what the screen puts there, and Settings. */
+/** TopBar runs across the window's top: what the screen puts there, and Settings. */
 function TopBar({ view, session, children }: { view: View; session: Session; children?: ReactNode }) {
   return (
     <header className="topbar">
-      <h1>kith</h1>
       {children}
       <button
         type="button"
@@ -300,7 +310,7 @@ function Body({ view, session }: { view: View; session: Session }) {
  * Seated is the window in its profile's seat: the search bar across the top, then the
  * columns, each scrolling on its own: the left one (profile, rail, rooms), the open room
  * with its composer docked under it, and a thread beside it. In a narrow window the
- * left column folds away behind a toggle.
+ * left column folds away behind a toggle; in a wide one the toggle folds the rail.
  */
 function Seated({ view, session }: { view: View; session: Session }) {
   const [switching, setSwitching] = useState(false);
@@ -309,6 +319,9 @@ function Seated({ view, session }: { view: View; session: Session }) {
   const here = `${view.open}\u0000${String(view.row)}`;
   const [unfoldedAt, setUnfoldedAt] = useState<string | undefined>(undefined);
   const unfolded = unfoldedAt === here;
+  // The rail folded away in a wide window: until the toggle brings it back.
+  const [folded, setFolded] = useState(false);
+  const narrow = useSyncExternalStore(onNarrow, isNarrow);
   // [[keys.jump]] bound as jump.<i> and [[keys.tag]] as tag.<i>, after the window's own actions.
   const keys = useMemo(
     () => ({
@@ -597,6 +610,9 @@ function Seated({ view, session }: { view: View; session: Session }) {
   if (unfolded) {
     columns.push("unfolded");
   }
+  if (folded && !narrow) {
+    columns.push("folded");
+  }
   if (!view.timeline) {
     columns.push("no-room");
   }
@@ -612,9 +628,13 @@ function Seated({ view, session }: { view: View; session: Session }) {
           type="button"
           className="fold"
           aria-label="Rooms and places"
-          aria-expanded={unfolded}
+          aria-expanded={narrow ? unfolded : !folded}
           onClick={() => {
-            setUnfoldedAt(unfolded ? undefined : here);
+            if (narrow) {
+              setUnfoldedAt(unfolded ? undefined : here);
+            } else {
+              setFolded(!folded);
+            }
           }}
         >
           ☰

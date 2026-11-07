@@ -234,6 +234,8 @@ async function start(): Promise<void> {
     width: 1000,
     height: 700,
     title: "kith",
+    // No File, Edit, View row: alt shows it for the moment, its keys work without it.
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       // Electron's defaults, said anyway: the window holds what other people wrote.

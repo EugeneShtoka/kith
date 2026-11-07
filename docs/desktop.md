@@ -155,10 +155,11 @@ picture. That is each account's own (and where one has none, another of theirs),
 account's picture for all of them, or **a picture of your own**, which kithd keeps in its
 data dir for them.
 
-As the window narrows, the columns narrow with it. Under about 960 pixels the rail
-folds away behind the **☰** button in the top bar, and a thread opens over the room
-instead of beside it; under about 640 pixels the whole left column folds away too, and
-picking a room or a place folds it again.
+The **☰** button in the top bar folds the rail away, and brings it back. As the window
+narrows, the columns narrow with it. Under about 960 pixels the rail folds away behind
+that button, and a thread opens over the room instead of beside it; under about 640
+pixels the whole left column folds away too, and picking a room or a place folds it
+again.
 
 **Zoom** with ctrl+= and ctrl+-, and ctrl+0 to go back to 100%. **Text size** is on the
 settings page, under **This window**. Both are kept by the window for the next start,
