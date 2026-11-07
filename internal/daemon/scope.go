@@ -143,9 +143,19 @@ func (x *scopeIndex) Facts(ctx context.Context, roomID domain.RoomID) domain.Roo
 }
 
 // FactsOf is Facts for a room in hand: one the index has not placed yet (an invitation,
-// a room newer than the last rebuild) is judged by what it says itself.
+// a room newer than the last rebuild) is judged by what it says itself. An invitation is
+// never among the rooms the index reads, so it rebuilds nothing: each one did, every time
+// a profile's rooms were listed.
 func (x *scopeIndex) FactsOf(ctx context.Context, room domain.Room) domain.RoomFacts {
-	facts, ok := x.lookup(ctx, room.ID)
+	var facts domain.RoomFacts
+	ok := false
+	if room.IsInvite() {
+		x.mu.Lock()
+		facts, ok = x.rooms[room.ID]
+		x.mu.Unlock()
+	} else {
+		facts, ok = x.lookup(ctx, room.ID)
+	}
 	if !ok {
 		x.mu.Lock()
 		aliases := x.aliases
