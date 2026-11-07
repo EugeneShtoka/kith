@@ -5,17 +5,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"sync"
 
 	"github.com/gotd/td/telegram/updates"
 
-	// Pure-Go SQLite driver, as the cache uses.
-	_ "modernc.org/sqlite"
+	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
 // The Telegram store keeps, per account user ID, gotd's updates state (for gap
-// recovery), access hashes and backfill progress. Nothing secret; daemon-only.
+// recovery), access hashes and backfill progress: no messages, but whom the account
+// talks to, so it is encrypted like the other stores (internal/sealeddb). Daemon-only.
 //
 // gotd saves the updates position even when the handler failed, so an account whose
 // caching failed is held: its position goes unsaved until it reconnects and refetches.
@@ -61,12 +60,10 @@ var (
 	_ updates.UserAccessHasher    = (*Store)(nil)
 )
 
-// OpenStore opens (creating and migrating) the store at path.
-func OpenStore(ctx context.Context, path string) (*Store, error) {
-	dsn := (&url.URL{Scheme: "file", Opaque: path, RawQuery: url.Values{
-		"_pragma": {"journal_mode(WAL)", "busy_timeout(5000)"},
-	}.Encode()}).String()
-	db, err := sql.Open("sqlite", dsn)
+// OpenStore opens (creating and migrating) the store at path, encrypted with key; a
+// plain store from before is encrypted first (sealeddb.OpenMigrating).
+func OpenStore(ctx context.Context, path string, key []byte) (*Store, error) {
+	db, err := sealeddb.OpenMigrating(ctx, path, key)
 	if err != nil {
 		return nil, fmt.Errorf("telegram: open the store: %w", err)
 	}
