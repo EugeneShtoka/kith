@@ -70,6 +70,28 @@ export function bound(keys: Keys, path: string, p: Press): boolean {
   return name !== undefined && (keys[path] ?? []).includes(name);
 }
 
+/**
+ * conflict is why seq cannot be bound beside the sequences already bound (each under what
+ * it does), as the TUI's jumpConflict says: the same, one it starts, or one that starts it;
+ * "" for none.
+ */
+export function conflict(seq: string, bound: Readonly<Record<string, readonly string[]>>): string {
+  for (const [what, seqs] of Object.entries(bound)) {
+    for (const s of seqs) {
+      if (s === seq) {
+        return `already bound to ${what}`;
+      }
+      if (s.startsWith(`${seq} `)) {
+        return `the start of ${s} (${what}), which would become unreachable`;
+      }
+      if (seq.startsWith(`${s} `)) {
+        return `${s} already means ${what} on its own, so the rest would never arrive`;
+      }
+    }
+  }
+  return "";
+}
+
 /** typesText: name is a press that types a character into a text field. */
 function typesText(name: string): boolean {
   return /^.$/u.test(name);

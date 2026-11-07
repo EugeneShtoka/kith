@@ -10,7 +10,7 @@ import { networkMark } from "./faces";
 import { FilingDialog } from "./Filing";
 import { LinkingDialog } from "./Linking";
 import { MarkReadDialog } from "./MarkRead";
-import { RoomNameDialog } from "./RoomName";
+import { RoomNameDialog, ShortcutDialog } from "./RoomName";
 import { helpSections } from "./help";
 import { HelpOverlay } from "./HelpOverlay";
 import { roomPicture } from "./media";
@@ -63,6 +63,7 @@ export function App() {
       )}
       {seated && view.filing && <FilingDialog filing={view.filing} keys={view.keys} session={session} />}
       {seated && view.naming && <RoomNameDialog naming={view.naming} keys={view.keys} session={session} />}
+      {seated && view.shortcut && <ShortcutDialog shortcut={view.shortcut} keys={view.keys} session={session} />}
       {seated && view.marking && <MarkReadDialog marking={view.marking} keys={view.keys} session={session} />}
       {seated && view.linking && <LinkingDialog linking={view.linking} keys={view.keys} session={session} />}
       {seated && view.people.list && (

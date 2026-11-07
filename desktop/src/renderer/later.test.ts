@@ -248,6 +248,49 @@ describe("the composer's commands", () => {
     expect(session.snapshot().open).toBe("!a");
   });
 
+  // /shortcut, as the TUI's: a [[keys.jump]] to the room in device.toml, the room's
+  // earlier one replaced and another room's kept; asked with no keys, starting from the
+  // room's own; refused where it would collide with what is bound; unbound when empty.
+  it("bind a key sequence to the room with /shortcut", async () => {
+    await opened({
+      keys: { jump_to: { sequences: ["g j"] } },
+      jumps: [{ sequence: "g o", room: "!old" }],
+      tagKeys: [{ sequence: "t l", tag: "Later" }],
+    });
+    const jumps = () => (kithd.settings === "fail" ? [] : kithd.settings.jumps.map((j) => `${j.sequence}→${j.room}`));
+    const notice = () => session.snapshot().notice;
+    typed("/shortcut g  w");
+    await session.send();
+    await settled();
+    expect(composer().draft.body).toBe("");
+    expect(jumps()).toEqual(["g o→!old", "g w→!a"]);
+    expect(session.snapshot().jumps.map((j) => j.sequence)).toEqual(["g o", "g w"]);
+    expect(notice()).toEqual({ text: "g w now goes to Family", level: "message" });
+
+    typed("/shortcut");
+    await session.send();
+    expect(session.snapshot().shortcut).toEqual({ room: "!a", keys: "g w" });
+    await session.bindShortcut("!a", " ctrl+1 ");
+    expect(session.snapshot().shortcut).toBeUndefined();
+    expect(jumps()).toEqual(["g o→!old", "ctrl+1→!a"]);
+
+    for (const [keys, why] of [
+      ["g j", "g j: already bound to jump_to"],
+      ["g", "g: the start of g j (jump_to), which would become unreachable"],
+      ["g j x", "g j x: g j already means jump_to on its own, so the rest would never arrive"],
+      ["t l", "t l: already bound to putting rooms in Later"],
+      ["g o", "g o: already bound to a jump to !old"],
+    ] as const) {
+      await session.bindShortcut("!a", keys);
+      expect(notice()).toEqual({ text: why, level: "warning" });
+    }
+    expect(jumps()).toEqual(["g o→!old", "ctrl+1→!a"]);
+
+    await session.bindShortcut("!a", "");
+    expect(jumps()).toEqual(["g o→!old"]);
+    expect(notice()?.text).toBe("unbound Family");
+  });
+
   it("run the commands folder's by name in the relay, its output where its block says, and give it no words", async () => {
     await opened();
     kithd.userCommands = [
