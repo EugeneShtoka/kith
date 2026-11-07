@@ -105,7 +105,7 @@ func loggedInWithStore(t *testing.T, f *fakeTelegram, st *Store) (*Adapter, *db.
 
 func openStore(t *testing.T) *Store {
 	t.Helper()
-	st, err := OpenStore(context.Background(), filepath.Join(t.TempDir(), "telegram.db"))
+	st, err := OpenStore(context.Background(), filepath.Join(t.TempDir(), "telegram.db"), make([]byte, sealeddb.KeyLen))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -112,8 +112,10 @@ func openNetworks(
 	}
 	networks = append(networks, whatsapp.New(cache, wa, nil, log))
 	secrets := keyringSecrets{service: storage.KeyringService, scope: storage.Instance}
-	tg, err := telegram.OpenStore(ctx, storage.TelegramPath())
-	if err != nil {
+	var tg *telegram.Store
+	if key, err := session.LoadOrCreateStoreKey(storage.KeyringService, storage.Instance, "telegram"); err != nil {
+		log.Warn("Telegram's store's key cannot be had from the keyring; its updates positions are kept in memory", "err", err)
+	} else if tg, err = telegram.OpenStore(ctx, storage.TelegramPath(), key); err != nil {
 		log.Warn("Telegram's store will not open; its updates positions are kept in memory", "path", storage.TelegramPath(), "err", err)
 		tg = nil
 	} else {
