@@ -300,6 +300,15 @@ select option {
   .columns.folded-all .sidebar {
     display: none;
   }
+
+  /* Without the left column, the room is the first column: it takes the width. */
+  .columns.folded-all {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .columns.folded-all.with-thread {
+    grid-template-columns: minmax(0, 1fr) var(--thread-width);
+  }
 }
 
 @media (max-width: 960px) {
@@ -364,12 +373,13 @@ select option {
   border-color: var(--waiting);
 }
 
-/* A note's level: a message as any banner, a warning and an error marked. */
-.banner.warning {
+/* A note's level: a message as any banner, a warning and an error marked. Prefixed, as
+   a bare level ("message") would take the timeline's rule of that name. */
+.banner.note-warning {
   border-color: var(--waiting);
 }
 
-.banner.error {
+.banner.note-error {
   border-color: var(--lost);
   color: var(--lost);
 }

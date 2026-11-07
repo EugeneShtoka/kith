@@ -727,7 +727,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
         </p>
       )}
       {view.notice && (
-        <p className={`banner ${view.notice.level}`} role={view.notice.level === "error" ? "alert" : "status"}>
+        <p className={`banner note-${view.notice.level}`} role={view.notice.level === "error" ? "alert" : "status"}>
           <span dir="auto">{view.notice.text}</span>{" "}
           <button
             type="button"
