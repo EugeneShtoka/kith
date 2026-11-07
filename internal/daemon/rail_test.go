@@ -518,6 +518,83 @@ func TestAProfileRemovedAndAddedBackGetsItsOwnRail(t *testing.T) {
 	}
 }
 
+// heldUnread is a railWorld whose unread counts are read only once let through, saying
+// when a read waits: a rail build stops there.
+type heldUnread struct {
+	*railWorld
+	mu      sync.Mutex
+	gate    chan struct{} // nil lets every read through
+	waiting chan struct{}
+}
+
+func (w *heldUnread) CachedUnread(ctx context.Context) ([]domain.Unread, error) {
+	w.mu.Lock()
+	gate := w.gate
+	w.mu.Unlock()
+	if gate != nil {
+		select {
+		case w.waiting <- struct{}{}:
+		default:
+		}
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return w.railWorld.CachedUnread(ctx)
+}
+
+// A room's state changing (its unread) leaves the rail kept answering at once while the
+// next is built; once built, the profile's clients are told and served it.
+func TestARailIsAnsweredFromWhatIsKeptWhileTheNextIsBuilt(t *testing.T) {
+	t.Parallel()
+	w := &heldUnread{railWorld: newRailWorld(), waiting: make(chan struct{}, 1)}
+	w.set(slices.Clone(railRooms), railSpaces(3), nil)
+	n, err := daemon.NewNotifications(asStarted(config.Config{}), scopeOnly{w})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := serve(t, w, func(d *daemon.Daemon) { d.Notifications = n })
+	cfg := config.Config{
+		Tags:     []config.Tag{{Name: "Unread", Rule: []string{"unread"}}},
+		Profiles: []config.Profile{{Name: "p", Include: []string{"*"}}},
+	}
+	mustReload(t, n, cfg)
+	client := h.client()
+	client.UseProfile("p")
+	go func() { _ = client.Start(t.Context()) }()
+	defer client.Stop()
+	h.waitAttached(1)
+	changes := railChanges(t, client)
+	kept := servedOnce(t, client, w.fresh(cfg, "p"), "before")
+	told(changes)
+
+	gate := make(chan struct{})
+	w.mu.Lock()
+	w.gate = gate
+	w.mu.Unlock()
+	u := domain.Unread{RoomID: mx + "!a:x", Messages: 1, Counted: true}
+	w.setUnread(u)
+	w.Unreads <- u
+	<-w.waiting // the next rail is being built
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	got, err := client.Rail(ctx)
+	if err != nil || got.Revision != kept.Revision {
+		t.Fatalf("while the next rail is built, Rail answered revision %d (%v), want the kept %d", got.Revision, err, kept.Revision)
+	}
+
+	w.mu.Lock()
+	w.gate = nil
+	w.mu.Unlock()
+	close(gate)
+	if told(changes) == 0 {
+		t.Error("the rail built after the unread was not told")
+	}
+	servedOnce(t, client, w.fresh(cfg, "p"), "after")
+}
+
 // CHANGE_RAIL goes to the clients of the profile whose rail changed, not to another's.
 func TestARailChangeIsToldOnlyToItsProfile(t *testing.T) {
 	t.Parallel()
