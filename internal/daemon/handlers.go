@@ -629,7 +629,7 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 		return nil
 	})
 	if answer.GetSaved() {
-		s.Notifications.rails.bump() // a draft is a room's state
+		s.Notifications.rails.restate() // a draft is a room's state
 	}
 	return reply(&answer, cmp.Or(err, wrote))
 }

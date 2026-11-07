@@ -70,6 +70,9 @@ type railCache struct {
 
 	mu  sync.Mutex
 	gen uint64
+	// reach is gen at the last change that can move a room into or out of a profile (all
+	// but restate's): a rail built before it is never served again.
+	reach uint64
 	// rev is the last revision handed out. It starts at the boot time, so a client
 	// holding a revision from before a restart takes the new kithd's.
 	rev uint64
@@ -103,6 +106,16 @@ func newRailCache() *railCache {
 func (c *railCache) bump() {
 	c.mu.Lock()
 	c.gen++
+	c.reach = c.gen
+	c.mu.Unlock()
+	c.ring()
+}
+
+// restate is bump for a change to what the rail shows of a room alone (its unread, its
+// draft, an invitation): the rail kept still answers until the next is built.
+func (c *railCache) restate() {
+	c.mu.Lock()
+	c.gen++
 	c.mu.Unlock()
 	c.ring()
 }
@@ -120,6 +133,14 @@ func (c *railCache) current(name string) (domain.ServedRail, bool, uint64) {
 	defer c.mu.Unlock()
 	last, ok := c.served[strings.ToLower(name)]
 	return last.rail, ok && last.gen == c.gen, c.gen
+}
+
+// kept is the profile's last rail while only restate's changes came since it was built.
+func (c *railCache) kept(name string) (domain.ServedRail, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	last, ok := c.served[strings.ToLower(name)]
+	return last.rail, ok && last.gen >= c.reach
 }
 
 // install keeps a rail built at gen as the profile's, unless one built later is kept
@@ -219,9 +240,15 @@ func (c *railCache) found(parents map[domain.RoomID]domain.SpaceID) {
 	c.bump()
 }
 
-// Rail is the rail of the request's profile.
+// Rail is the rail of the request's profile: the one kept while only a room's state
+// changed since (serveRails is building it again and tells the clients when it differs),
+// else one built now, so a profile narrowed is never answered with what it held.
 func (s *server) Rail(ctx context.Context, _ *req[v1.RailRequest]) (*resp[v1.RailResponse], error) {
-	rail, err := s.rail(ctx, s.requestProfile(ctx))
+	name := s.requestProfile(ctx)
+	if kept, ok := s.Notifications.rails.kept(name); ok {
+		return reply(pc.RailToProto(kept), nil)
+	}
+	rail, err := s.rail(ctx, name)
 	if err != nil {
 		return nil, rpcErr(err)
 	}
@@ -380,13 +407,13 @@ func (s *server) serveRails(ctx context.Context) {
 				unread = nil // ended with the backend: no more counts
 				continue
 			}
-			c.bump()
+			c.restate()
 		case _, ok := <-invites:
 			if !ok {
 				invites = nil
 				continue
 			}
-			c.bump()
+			c.restate()
 		case <-c.wake:
 			if !sleepUntil(ctx, railSettle) {
 				return

@@ -77,6 +77,17 @@ describe("the rail", () => {
     expect(listed().sort()).toEqual(["!b", "!c"]);
   });
 
+  it("lists no room until the rail comes, then the row's", async () => {
+    kithd.holding.add("Rail");
+    await started(["!a", "!b"], rail(1, [["One", ["!a"]]]));
+    expect(view().joined.length).toBe(2);
+    expect(listed()).toEqual([]);
+    kithd.holding.clear();
+    kithd.release();
+    await settled();
+    expect(listed()).toEqual(["!a"]);
+  });
+
   it("shows the latest rail when answers arrive out of order", async () => {
     await started(["!a", "!b"], rail(1, [["One", ["!a"]]]));
     kithd.holding.add("Rail");
