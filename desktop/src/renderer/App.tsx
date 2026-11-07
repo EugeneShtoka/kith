@@ -307,8 +307,9 @@ function Body({ view, session }: { view: View; session: Session }) {
  * Seated is the window in its profile's seat: the search bar across the top, then the
  * columns, each scrolling on its own: the left one (profile, rail, rooms), the open room
  * with its composer docked under it, and a thread beside it. A toggle folds the rail
- * away and back; in a narrow window it is folded, and the toggle lays it (or under
- * 640px the whole left column) over the room until a room or a place is picked.
+ * away, then the whole left column, then brings both back; in a narrow window the rail
+ * is folded, and the toggle lays it (or under 640px the whole left column) over the room
+ * until a room or a place is picked.
  */
 function Seated({ view, session }: { view: View; session: Session }) {
   const [switching, setSwitching] = useState(false);
@@ -317,8 +318,8 @@ function Seated({ view, session }: { view: View; session: Session }) {
   const here = `${view.open}\u0000${String(view.row)}`;
   const [unfoldedAt, setUnfoldedAt] = useState<string | undefined>(undefined);
   const unfolded = unfoldedAt === here;
-  // The rail folded away in a wide window, until the toggle brings it back.
-  const [folded, setFolded] = useState(false);
+  // What a wide window folds away: nothing, the rail, or the whole left column; the toggle steps through them.
+  const [folded, setFolded] = useState<"none" | "places" | "rooms">("none");
   // [[keys.jump]] bound as jump.<i> and [[keys.tag]] as tag.<i>, after the window's own actions.
   const keys = useMemo(
     () => ({
@@ -625,8 +626,11 @@ function Seated({ view, session }: { view: View; session: Session }) {
   if (unfolded) {
     columns.push("unfolded");
   }
-  if (folded) {
+  // Searching shows its results in the left column, so it stays while there are any.
+  if (folded === "places" || (folded === "rooms" && view.search)) {
     columns.push("folded");
+  } else if (folded === "rooms") {
+    columns.push("folded-all");
   }
   if (!view.timeline) {
     columns.push("no-room");
@@ -643,16 +647,23 @@ function Seated({ view, session }: { view: View; session: Session }) {
           type="button"
           className="fold"
           aria-label="Rooms and places"
-          aria-expanded={narrow() ? unfolded : !folded}
+          aria-expanded={narrow() ? unfolded : folded === "none"}
+          title={{ none: "Hide places", places: "Hide the room list too", rooms: "Show places and rooms" }[folded]}
           onClick={() => {
             if (narrow()) {
               setUnfoldedAt(unfolded ? undefined : here);
             } else {
-              setFolded(!folded);
+              setFolded(({ none: "places", places: "rooms", rooms: "none" } as const)[folded]);
             }
           }}
         >
-          ☰
+          <span className="fold-glyph">☰</span>
+          {/* The wide window's columns as bars: places, rooms, the room; a folded one hollow. */}
+          <span className="fold-icon" aria-hidden="true">
+            <span className={folded === "none" ? "shown" : ""} />
+            <span className={folded === "rooms" ? "" : "shown"} />
+            <span className="shown room" />
+          </span>
         </button>
         <nav className="find" aria-label="Find">
           <button

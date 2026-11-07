@@ -269,8 +269,41 @@ select option {
   padding: var(--space-1) var(--space-2);
 }
 
+/* Wide, the toggle draws what it folds; narrow, where it only lays the left column over, a ☰. */
+.fold-icon {
+  display: inline-flex;
+  gap: 2px;
+  height: 0.9em;
+  vertical-align: middle;
+}
+
+.fold-icon span {
+  width: 3px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+}
+
+.fold-icon span.shown {
+  background: currentColor;
+}
+
+.fold-icon span.room {
+  width: 8px;
+}
+
 @media (min-width: 961px) {
-  .columns.folded .rail {
+  .fold-glyph {
+    display: none;
+  }
+
+  .columns.folded .rail,
+  .columns.folded-all .sidebar {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .fold-icon {
     display: none;
   }
 }
