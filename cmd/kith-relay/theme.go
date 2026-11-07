@@ -175,13 +175,17 @@ func (d device) theme(ctx context.Context) (*devicev1.ThemeResponse, error) {
 }
 
 // resolveTheme is each key of the theme as the window draws it: this device's value, else
-// the shared one, else its default; and what the defaults come from, as the TUI has
-// them.
+// the shared one, else its default; what the defaults come from, as the TUI has them;
+// and how long its bar's notes stay, as [gui.notices] says the same way.
 func resolveTheme(cfg config.Config, dev config.Device, accounts []*backendv1.Account) *devicev1.ThemeResponse {
+	message, warning, failure := dev.GUI.Notices.Over(cfg.GUI.Notices).Lifetimes()
 	out := &devicev1.ThemeResponse{
-		Values:        map[string]*devicev1.ThemeValue{},
-		NetworkColors: networkColors(dev.TUI.Theme.Networks),
-		Identities:    map[string]*devicev1.ThemeIdentity{},
+		Values:         map[string]*devicev1.ThemeValue{},
+		NetworkColors:  networkColors(dev.TUI.Theme.Networks),
+		Identities:     map[string]*devicev1.ThemeIdentity{},
+		MessageSeconds: int64(message),
+		WarningSeconds: int64(warning),
+		ErrorSeconds:   int64(failure),
 	}
 	defaults := map[string]string{}
 	paths := []string{"mode", "faces"}

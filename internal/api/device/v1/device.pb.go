@@ -859,9 +859,15 @@ type ThemeResponse struct {
 	Identities map[string]*ThemeIdentity `protobuf:"bytes,7,rep,name=identities,proto3" json:"identities,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// themes are the theme files [gui.theme] mode may name, the ones kith ships and this
 	// device's (themes/ beside its config), by name.
-	Themes        map[string]*ThemeFile `protobuf:"bytes,8,rep,name=themes,proto3" json:"themes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Themes map[string]*ThemeFile `protobuf:"bytes,8,rep,name=themes,proto3" json:"themes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// [gui.notices]: the seconds a message, a warning and an error stay on the window's bar
+	// before they go by themselves, this device's key over the shared one, defaults filled
+	// in; -1 until dismissed.
+	MessageSeconds int64 `protobuf:"varint,9,opt,name=message_seconds,json=messageSeconds,proto3" json:"message_seconds,omitempty"`
+	WarningSeconds int64 `protobuf:"varint,10,opt,name=warning_seconds,json=warningSeconds,proto3" json:"warning_seconds,omitempty"`
+	ErrorSeconds   int64 `protobuf:"varint,11,opt,name=error_seconds,json=errorSeconds,proto3" json:"error_seconds,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ThemeResponse) Reset() {
@@ -948,6 +954,27 @@ func (x *ThemeResponse) GetThemes() map[string]*ThemeFile {
 		return x.Themes
 	}
 	return nil
+}
+
+func (x *ThemeResponse) GetMessageSeconds() int64 {
+	if x != nil {
+		return x.MessageSeconds
+	}
+	return 0
+}
+
+func (x *ThemeResponse) GetWarningSeconds() int64 {
+	if x != nil {
+		return x.WarningSeconds
+	}
+	return 0
+}
+
+func (x *ThemeResponse) GetErrorSeconds() int64 {
+	if x != nil {
+		return x.ErrorSeconds
+	}
+	return 0
 }
 
 // ThemeFile is a theme of its own: the mode it starts from and its roles' colors.
@@ -2894,7 +2921,7 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\x04data\x18\x01 \x01(\tR\x04data\"$\n" +
 	"\x0eQRCodeResponse\x12\x12\n" +
 	"\x04dark\x18\x01 \x01(\fR\x04dark\"\x0e\n" +
-	"\fThemeRequest\"\x95\x06\n" +
+	"\fThemeRequest\"\x8c\a\n" +
 	"\rThemeResponse\x12<\n" +
 	"\x06values\x18\x01 \x03(\v2$.device.v1.ThemeResponse.ValuesEntryR\x06values\x12'\n" +
 	"\x0fconfig_revision\x18\x02 \x01(\tR\x0econfigRevision\x12'\n" +
@@ -2905,7 +2932,11 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\n" +
 	"identities\x18\a \x03(\v2(.device.v1.ThemeResponse.IdentitiesEntryR\n" +
 	"identities\x12<\n" +
-	"\x06themes\x18\b \x03(\v2$.device.v1.ThemeResponse.ThemesEntryR\x06themes\x1aP\n" +
+	"\x06themes\x18\b \x03(\v2$.device.v1.ThemeResponse.ThemesEntryR\x06themes\x12'\n" +
+	"\x0fmessage_seconds\x18\t \x01(\x03R\x0emessageSeconds\x12'\n" +
+	"\x0fwarning_seconds\x18\n" +
+	" \x01(\x03R\x0ewarningSeconds\x12#\n" +
+	"\rerror_seconds\x18\v \x01(\x03R\ferrorSeconds\x1aP\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
 	"\x05value\x18\x02 \x01(\v2\x15.device.v1.ThemeValueR\x05value:\x028\x01\x1a@\n" +

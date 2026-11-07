@@ -9,7 +9,8 @@ import (
 // both files: the bridge's config.toml holds what every device shares, a device's
 // device.toml the same keys for that device alone, each set there over the shared one.
 type GUI struct {
-	Theme GUITheme `toml:"theme"`
+	Theme   GUITheme   `toml:"theme"`
+	Notices GUINotices `toml:"notices"`
 }
 
 // GUITheme is [gui.theme]: the graphical clients' theme. The TUI draws with its own

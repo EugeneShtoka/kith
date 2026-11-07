@@ -150,6 +150,30 @@ func TestSecondsSignConvention(t *testing.T) {
 	}
 }
 
+// [gui.notices]: unset is the level's default, 0 or negative stays until dismissed.
+func TestNoticeLifetimes(t *testing.T) {
+	t.Parallel()
+
+	seconds := func(i int) *int { return &i }
+	for _, tc := range []struct {
+		set                    GUINotices
+		message, warning, fail int
+	}{
+		{GUINotices{}, DefaultMessageSeconds, DefaultWarningSeconds, -1},
+		{GUINotices{Message: seconds(0), Warning: seconds(-1), Error: seconds(30)}, -1, -1, 30},
+		{GUINotices{Message: seconds(2), Warning: seconds(-30), Error: seconds(0)}, 2, -1, -1},
+	} {
+		if m, w, e := tc.set.Lifetimes(); m != tc.message || w != tc.warning || e != tc.fail {
+			t.Errorf("Lifetimes(%+v) = %d, %d, %d; want %d, %d, %d", tc.set, m, w, e, tc.message, tc.warning, tc.fail)
+		}
+	}
+	// A device's level over the shared one; one it leaves unset is the shared one's.
+	own := GUINotices{Error: seconds(30)}.Over(GUINotices{Message: seconds(2), Error: seconds(0)})
+	if m, w, e := own.Lifetimes(); m != 2 || w != DefaultWarningSeconds || e != 30 {
+		t.Errorf("a device's error over the shared message and error = %d, %d, %d; want 2, the default, 30", m, w, e)
+	}
+}
+
 // An explicit "0s" idle means never stop the server, unlike unset.
 func TestModelIdleZeroMeansNever(t *testing.T) {
 	t.Parallel()

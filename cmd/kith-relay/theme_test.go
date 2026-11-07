@@ -203,7 +203,7 @@ func TestTheThemeIsTheDevicesOverTheSharedOverTheDefault(t *testing.T) {
 	shared.Set("dark.text", "#222222")
 	shared.Set("people.matrix:@ada:x", "#333333")
 	themeConfig(t, cfgPath, shared)
-	handWrite(t, cfgPath, "[tui.theme.networks]\nwhatsapp = \"#25d366\"\n\n[gui.theme]\nfaces = \"pictures\"\n\n[gui.theme.accounts]\n\"matrix:"+domain.AccountKey("@me:x")+"/\" = \"#bbbbbb\"\n\n[gui.theme.light]\naccent = \"#aaaaaa\"\n")
+	handWrite(t, cfgPath, "[tui.theme.networks]\nwhatsapp = \"#25d366\"\n\n[gui.theme]\nfaces = \"pictures\"\n\n[gui.theme.accounts]\n\"matrix:"+domain.AccountKey("@me:x")+"/\" = \"#bbbbbb\"\n\n[gui.theme.light]\naccent = \"#aaaaaa\"\n\n[gui.notices]\nerror = 30\n")
 	if err := os.MkdirAll(config.GUIThemesDir(cfgPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -244,6 +244,9 @@ func TestTheThemeIsTheDevicesOverTheSharedOverTheDefault(t *testing.T) {
 	}
 	if len(theme.GetValues()) != 2+2*len(config.GUIThemeRoles())+len(themeAccounts)+1 {
 		t.Errorf("%d keys, want the mode, the faces, every role of both modes, each account and the one person", len(theme.GetValues()))
+	}
+	if m, w, e := theme.GetMessageSeconds(), theme.GetWarningSeconds(), theme.GetErrorSeconds(); m != config.DefaultMessageSeconds || w != config.DefaultWarningSeconds || e != 30 {
+		t.Errorf("notices %d, %d, %d: want the defaults, and this device's 30 for an error", m, w, e)
 	}
 	if got := theme.GetNetworkColors(); got["WhatsApp"] != "#25d366" || got["Google Messages"] == "" || got["Matrix"] != "" {
 		t.Errorf("network colors %v: want WhatsApp's set, Google Messages' default, none for Matrix", got)

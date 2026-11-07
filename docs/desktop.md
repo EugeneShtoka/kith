@@ -164,6 +164,14 @@ picture. That is each account's own (and where one has none, another of theirs),
 account's picture for all of them, or **a picture of your own**, which kithd keeps in its
 data dir for them.
 
+What an act came to (a copy, a filing, a name, marking read) is a note under the top
+bar, at one of three levels: a **message**, a **warning** (nothing was done, or only
+part of it) and an **error** (it failed, in red). A message goes after 5 seconds and a
+warning after 10; an error stays until you dismiss it with **×**, which takes any of
+them down. `[gui.notices]` sets each level's seconds (`message`, `warning`, `error`;
+`0` or `-1` keeps that level until dismissed), in config.toml for every device and in
+device.toml, key by key over it, for this one.
+
 As the window narrows, the columns narrow with it. Under about 960 pixels the rail
 folds away behind the **☰** button in the top bar, and a thread opens over the room
 instead of beside it; under about 640 pixels the whole left column folds away too, and

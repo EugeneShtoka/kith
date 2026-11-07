@@ -11,10 +11,16 @@ import {
   SpaceFiledOutcome,
 } from "../gen/backend/v1/services_pb";
 import { ReactionSchema, UnreadSchema, VerificationKind } from "../gen/backend/v1/types_pb";
-import { type DeviceSettings, DeviceSettingsSchema, KeySequencesSchema, ThemeScope } from "../gen/device/v1/device_pb";
+import {
+  type DeviceSettings,
+  DeviceSettingsSchema,
+  KeySequencesSchema,
+  ThemeResponseSchema,
+  ThemeScope,
+} from "../gen/device/v1/device_pb";
 import { list, number, text, valueAt, words } from "./config";
 import { unreadOf } from "./rooms";
-import { deviceAgain, readNote, Session } from "./session";
+import { deviceAgain, noticeSeconds, readLevel, readNote, Session } from "./session";
 import { type Key, withKey } from "./settings";
 import { Kithd, room, settled, unread } from "./testing/kithd";
 import { message, row } from "./testing/rows";
@@ -1796,7 +1802,7 @@ describe("an attachment", () => {
 });
 
 describe("a message's text and links", () => {
-  const note = () => view().filingNote;
+  const note = () => view().notice?.text;
 
   it("copies its text through main, and says so; a deleted or empty one, nothing", async () => {
     await started();
@@ -2033,14 +2039,14 @@ describe("naming a room", () => {
     expect(shown("!a")).toBe("Boss");
     expect(view().rooms.find((r) => r.id === "!a")?.name).toBe("Boss");
     expect(shown("!b")).toBe("Bravo");
-    expect(view().filingNote).toBe("Alpha is Boss for you");
+    expect(view().notice?.text).toBe("Alpha is Boss for you");
     session.openNaming("!a");
     expect(view().naming?.name).toBe("Boss");
     session.nameRoom("");
     await settled();
     expect(kithd.roomNames.has("!a")).toBe(false);
     expect(shown("!a")).toBe("Alpha");
-    expect(view().filingNote).toBe("Alpha has its own name again");
+    expect(view().notice?.text).toBe("Alpha has its own name again");
 
     session.openNaming("!w"); // Work's
     expect(view().naming).toBeUndefined();
@@ -2058,7 +2064,7 @@ describe("naming a room", () => {
     kithd.of("Home").rooms = [room("!b", { name: "Bravo" })]; // gone from the profile meanwhile
     session.nameRoom("Boss");
     await settled();
-    expect(view().filingNote).toMatch(/^Alpha was not named: .*holds no room !a/);
+    expect(view().notice?.text).toMatch(/^Alpha was not named: .*holds no room !a/);
   });
 });
 
@@ -2091,7 +2097,7 @@ describe("marking read without opening", () => {
     expect(view().marking).toBeUndefined();
     await settled();
     expect(kithd.receipts).toEqual(["!a newest public", "!b newest private"]);
-    expect(view().filingNote).toBe("2 rooms in All marked read");
+    expect(view().notice?.text).toBe("2 rooms in All marked read");
   });
 
   it("marks one room read at once, and says when a place has nothing unread", async () => {
@@ -2099,14 +2105,14 @@ describe("marking read without opening", () => {
     session.markRoomRead("!c");
     await settled();
     expect(kithd.receipts).toEqual(["!c newest public"]);
-    expect(view().filingNote).toBe("Charlie is read");
+    expect(view().notice?.text).toBe("Charlie is read");
 
     kithd.send(backend.unreadStream, "Home", { unread: unread("!a", 0) });
     kithd.send(backend.unreadStream, "Home", { unread: unread("!b", 0) });
     await settled();
     session.askMarkRead(0);
     expect(view().marking).toBeUndefined();
-    expect(view().filingNote).toBe("Nothing is unread in All");
+    expect(view().notice?.text).toBe("Nothing is unread in All");
   });
 
   it("says what kithd skipped and refused", () => {
@@ -2117,6 +2123,57 @@ describe("marking read without opening", () => {
     expect(readNote(4, "Work", [got(1, 1, 0), got(0, 0, 2, "forbidden")])).toBe(
       "1 room in Work marked read · 1 room had nothing cached · 2 rooms refused: forbidden",
     );
+    // Every room marked is a message; some left a warning; none, refused, an error.
+    expect([
+      readLevel([got(2, 0, 0)]),
+      readLevel([got(0, 1, 0)]),
+      readLevel([got(1, 0, 0), got(0, 0, 1)]),
+      readLevel([got(0, 1, 1)]),
+    ]).toEqual(["message", "warning", "warning", "error"]);
+  });
+});
+
+describe("the bar's notes", () => {
+  it("go by themselves after their level's [gui.notices] seconds, each its own; an error stays until dismissed", async () => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers(); // the tests after settle by real timers, this one failing or not
+    });
+    const pass = (ms: number) => vi.advanceTimersByTimeAsync(ms);
+    kithd.themeDefaults = create(ThemeResponseSchema, { messageSeconds: 2n, warningSeconds: 4n, errorSeconds: -1n });
+    kithd.of("Home").rooms = [room("!a", { name: "Alpha" })];
+    session.start();
+    await pass(100);
+    session.copyText(message({ id: "$1", body: "plan" }));
+    await pass(100);
+    expect(view().notice).toEqual({ text: "copied message: plan", level: "message" });
+    await pass(1000);
+    session.copyText(message({ id: "$2", body: " " }));
+    await pass(1500); // past the message's 2 s, which takes down no newer note
+    expect(view().notice).toEqual({ text: "nothing to copy", level: "warning" });
+    await pass(2600);
+    expect(view().notice).toBeUndefined();
+    session.openNaming("!a");
+    kithd.of("Home").rooms = [room("!b", { name: "Bravo" })]; // gone from the profile meanwhile
+    session.nameRoom("Boss");
+    await pass(100);
+    expect(view().notice?.level).toBe("error");
+    await pass(600_000);
+    expect(view().notice?.level).toBe("error");
+    session.forgetNotice();
+    expect(view().notice).toBeUndefined();
+  });
+
+  it("stay for 0 or -1, and for their defaults before the theme is read", () => {
+    const set = create(ThemeResponseSchema, { messageSeconds: 0n, warningSeconds: -1n, errorSeconds: 30n });
+    expect([noticeSeconds(set, "message"), noticeSeconds(set, "warning"), noticeSeconds(set, "error")]).toEqual([
+      0, -1, 30,
+    ]);
+    expect([
+      noticeSeconds(undefined, "message"),
+      noticeSeconds(undefined, "warning"),
+      noticeSeconds(undefined, "error"),
+    ]).toEqual([5, 10, -1]);
   });
 });
 
@@ -2156,7 +2213,7 @@ describe("filing a room", () => {
     await settled();
     expect(kithd.filed).toEqual(["!a Later+ !work-:Home"]);
     expect(view().filing).toBeUndefined();
-    expect(view().filingNote).toBe("Alpha is in Later · taken out of Job");
+    expect(view().notice?.text).toBe("Alpha is in Later · taken out of Job");
   });
 
   // A [[keys.tag]] chord: the tag it names, matched as kith matches a tag's name, flips for
@@ -2168,11 +2225,11 @@ describe("filing a room", () => {
     session.tagRoom("!a", "Pinned");
     await settled();
     expect(kithd.filed).toEqual(["!a Later+:Home", "!a Pinned-:Home"]);
-    expect(view().filingNote).toBe("Alpha is out of Pinned");
+    expect(view().notice?.text).toBe("Alpha is out of Pinned");
     session.tagRoom("!a", "Spam");
     await settled();
     expect(kithd.filed).toHaveLength(2);
-    expect(view().filingNote).toBe("no tag is called “Spam”: see [keys.tag]");
+    expect(view().notice?.text).toBe("no tag is called “Spam”: see [keys.tag]");
     session.tagRoom("!w", "Later"); // Work's
     await settled();
     expect(kithd.filed).toHaveLength(2);
@@ -2192,7 +2249,7 @@ describe("filing a room", () => {
       "FilingPlaces:Home",
     ]);
     expect(view().filing).toBeUndefined();
-    expect(view().filingNote).toBe("No change.");
+    expect(view().notice?.text).toBe("No change.");
   });
 
   it("refused, keeps the picker open with its ticks and says why; refused by the network, says so", async () => {
@@ -2211,7 +2268,7 @@ describe("filing a room", () => {
     session.applyFiling();
     await settled();
     expect(view().filing).toBeUndefined();
-    expect(view().filingNote).toBe(
+    expect(view().notice?.text).toBe(
       "Alpha is in Later · its network did not archive or unarchive it: telegram: not now",
     );
   });
@@ -2248,7 +2305,7 @@ describe("filing a room", () => {
     await settled();
     expect(kithd.filed).toEqual(["!a Later+:Home"]); // filed where it was asked
     expect(view().filing).toBeUndefined();
-    expect(view().filingNote).toBe("");
+    expect(view().notice).toBeUndefined();
     expect(view().problem).toBeUndefined();
   });
 
@@ -2267,7 +2324,7 @@ describe("filing a room", () => {
     await settled();
     expect(kithd.filed).toEqual(["!a Later+:Home"]);
     expect(view().filing).toBeUndefined();
-    expect(view().filingNote).toBe("");
+    expect(view().notice).toBeUndefined();
   });
 
   it("closed while kithd answers its places, stays closed", async () => {

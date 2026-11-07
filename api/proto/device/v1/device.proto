@@ -203,6 +203,12 @@ message ThemeResponse {
   // themes are the theme files [gui.theme] mode may name, the ones kith ships and this
   // device's (themes/ beside its config), by name.
   map<string, ThemeFile> themes = 8;
+  // [gui.notices]: the seconds a message, a warning and an error stay on the window's bar
+  // before they go by themselves, this device's key over the shared one, defaults filled
+  // in; -1 until dismissed.
+  int64 message_seconds = 9;
+  int64 warning_seconds = 10;
+  int64 error_seconds = 11;
 }
 
 // ThemeFile is a theme of its own: the mode it starts from and its roles' colors.
