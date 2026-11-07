@@ -29,6 +29,9 @@ export const channels = {
   /** The window's text size in pixels (Electron's own store, not device.toml): asked, or set to (px). */
   fontSize: "kith:font-size",
   setFontSize: "kith:set-font-size",
+  /** Whether the window's menu bar shows (kept beside the text size): asked, or set to (shown). */
+  menuBar: "kith:menu-bar",
+  setMenuBar: "kith:set-menu-bar",
   /** The theme's mode ([gui.theme] mode), which main gives the window's light or dark: (mode). */
   themeMode: "kith:theme-mode",
   /** Text the window copies (a message's, a link): (text). */
@@ -129,6 +132,10 @@ export interface KithBridge {
   fontSize(): Promise<number>;
   /** Sets the window's text size (one of fontSizes); resolves to the size now in use. */
   setFontSize(px: number): Promise<number>;
+  /** Whether the window's menu bar shows; hidden, alt brings it up. */
+  menuBar(): Promise<boolean>;
+  /** Shows or hides the window's menu bar; resolves to whether it shows now. */
+  setMenuBar(shown: boolean): Promise<boolean>;
   /** Draws the window light, dark, or as the system is (the theme's mode). */
   themeMode(mode: ThemeMode): void;
   /** Puts text on the clipboard, which the window holds none of. */

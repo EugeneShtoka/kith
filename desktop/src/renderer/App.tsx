@@ -220,11 +220,15 @@ function moveRow(pane: string, path: string, count: number): boolean {
 // The list's cursor shows its room once it stops a moment there (peekAfter).
 let peeking: ReturnType<typeof setTimeout> | undefined;
 
-/** TopBar runs across the window's top: kith, what the screen puts there, and Settings. */
+/** narrow: the window is narrow enough that the rail folds by itself (styles.css). */
+function narrow(): boolean {
+  return window.matchMedia("(max-width: 960px)").matches;
+}
+
+/** TopBar runs across the window's top: what the screen puts there, and Settings. */
 function TopBar({ view, session, children }: { view: View; session: Session; children?: ReactNode }) {
   return (
     <header className="topbar">
-      <h1>kith</h1>
       {children}
       <button
         type="button"
@@ -299,8 +303,9 @@ function Body({ view, session }: { view: View; session: Session }) {
 /**
  * Seated is the window in its profile's seat: the search bar across the top, then the
  * columns, each scrolling on its own: the left one (profile, rail, rooms), the open room
- * with its composer docked under it, and a thread beside it. In a narrow window the
- * left column folds away behind a toggle.
+ * with its composer docked under it, and a thread beside it. A toggle folds the rail
+ * away and back; in a narrow window it is folded, and the toggle lays it (or under
+ * 640px the whole left column) over the room until a room or a place is picked.
  */
 function Seated({ view, session }: { view: View; session: Session }) {
   const [switching, setSwitching] = useState(false);
@@ -309,6 +314,8 @@ function Seated({ view, session }: { view: View; session: Session }) {
   const here = `${view.open}\u0000${String(view.row)}`;
   const [unfoldedAt, setUnfoldedAt] = useState<string | undefined>(undefined);
   const unfolded = unfoldedAt === here;
+  // The rail folded away in a wide window, until the toggle brings it back.
+  const [folded, setFolded] = useState(false);
   // [[keys.jump]] bound as jump.<i> and [[keys.tag]] as tag.<i>, after the window's own actions.
   const keys = useMemo(
     () => ({
@@ -597,6 +604,9 @@ function Seated({ view, session }: { view: View; session: Session }) {
   if (unfolded) {
     columns.push("unfolded");
   }
+  if (folded) {
+    columns.push("folded");
+  }
   if (!view.timeline) {
     columns.push("no-room");
   }
@@ -612,9 +622,13 @@ function Seated({ view, session }: { view: View; session: Session }) {
           type="button"
           className="fold"
           aria-label="Rooms and places"
-          aria-expanded={unfolded}
+          aria-expanded={narrow() ? unfolded : !folded}
           onClick={() => {
-            setUnfoldedAt(unfolded ? undefined : here);
+            if (narrow()) {
+              setUnfoldedAt(unfolded ? undefined : here);
+            } else {
+              setFolded(!folded);
+            }
           }}
         >
           ☰

@@ -1,4 +1,5 @@
-// The window's scale: its zoom (ctrl+= / ctrl+- / ctrl+0) and its text size. Only the
+// The window's scale: its zoom (ctrl+= / ctrl+- / ctrl+0), its text size, and whether
+// its menu bar shows (hidden, alt brings it up). Only the
 // window has them (decision 5), so main keeps them in Electron's own store,
 // scale.json in userData, and applies them to the page itself.
 import { readFile, rename, writeFile } from "node:fs/promises";
@@ -10,12 +11,14 @@ export interface Scale {
   zoom: number;
   /** The root text size in pixels, one of fontSizes. */
   fontSize: number;
+  /** The menu bar shows; false hides it until alt is pressed. */
+  menuBar: boolean;
 }
 
 /** The zoom steps ctrl+= and ctrl+- move through, as a browser's. */
 export const zooms = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2] as const;
 
-export const defaultScale: Scale = { zoom: 1, fontSize: 15 };
+export const defaultScale: Scale = { zoom: 1, fontSize: 15, menuBar: true };
 
 /** valid is s read from the store, each key that is not one the window offers its default. */
 export function valid(s: unknown): Scale {
@@ -25,6 +28,7 @@ export function valid(s: unknown): Scale {
   return {
     zoom: one(zooms, got.zoom, defaultScale.zoom),
     fontSize: one(fontSizes, got.fontSize, defaultScale.fontSize),
+    menuBar: typeof got.menuBar === "boolean" ? got.menuBar : defaultScale.menuBar,
   };
 }
 

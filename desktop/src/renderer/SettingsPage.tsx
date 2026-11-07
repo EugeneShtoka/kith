@@ -194,9 +194,10 @@ function Theme({
 /** WindowScale is what this window keeps alone, in Electron's store: its text size, and its zoom's keys. */
 function WindowScale() {
   const [size, setSize] = useState<number | undefined>(undefined);
+  const [menuBar, setMenuBar] = useState<boolean | undefined>(undefined);
   const [note, setNote] = useState("");
-  const failed = (err: unknown) => {
-    setNote(`The text size could not be changed: ${err instanceof Error ? err.message : String(err)}`);
+  const failed = (what: string) => (err: unknown) => {
+    setNote(`${what} could not be changed: ${err instanceof Error ? err.message : String(err)}`);
   };
   useEffect(() => {
     let live = true;
@@ -208,7 +209,19 @@ function WindowScale() {
       },
       (err: unknown) => {
         if (live) {
-          failed(err);
+          failed("The text size")(err);
+        }
+      },
+    );
+    window.kith.menuBar().then(
+      (shown) => {
+        if (live) {
+          setMenuBar(shown);
+        }
+      },
+      (err: unknown) => {
+        if (live) {
+          failed("The menu bar")(err);
         }
       },
     );
@@ -229,7 +242,7 @@ function WindowScale() {
           disabled={size === undefined}
           onChange={(e) => {
             setNote("");
-            window.kith.setFontSize(Number(e.target.value)).then(setSize, failed);
+            window.kith.setFontSize(Number(e.target.value)).then(setSize, failed("The text size"));
           }}
         >
           {fontSizes.map((px) => (
@@ -238,6 +251,18 @@ function WindowScale() {
             </option>
           ))}
         </select>
+      </label>
+      <label className="setting">
+        <input
+          type="checkbox"
+          checked={menuBar ?? true}
+          disabled={menuBar === undefined}
+          onChange={(e) => {
+            setNote("");
+            window.kith.setMenuBar(e.target.checked).then(setMenuBar, failed("The menu bar"));
+          }}
+        />{" "}
+        Show the menu bar (hidden, alt brings it up)
       </label>
       {note && <p className="problem">{note}</p>}
     </>

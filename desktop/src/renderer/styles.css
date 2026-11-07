@@ -261,17 +261,18 @@ select option {
   background: var(--surface-2);
 }
 
-.topbar h1 {
-  margin: 0;
-  font-size: var(--text-lg);
-}
-
 .settings-button {
   margin-left: auto;
 }
 
 .fold {
-  display: none;
+  padding: var(--space-1) var(--space-2);
+}
+
+@media (min-width: 961px) {
+  .columns.folded .rail {
+    display: none;
+  }
 }
 
 .find {
@@ -2123,15 +2124,10 @@ mark {
 
 /*
  * Narrower: the columns narrow (their widths are clamped above), then fold. Under
- * 960px the rail folds behind the toggle, and a thread lies over the room; under
+ * 960px the rail folds behind the toggle by itself, and a thread lies over the room; under
  * 640px the whole left column does, and the search takes a line of its own.
  */
 @media (max-width: 960px) {
-  .fold {
-    display: inline-block;
-    padding: var(--space-1) var(--space-2);
-  }
-
   .rail {
     display: none;
   }

@@ -275,6 +275,25 @@ async function start(): Promise<void> {
     await Promise.all([scale.set({ fontSize: px }), applyFontSize(px)]);
     return px;
   });
+  // The menu bar, hidden: alt brings it up.
+  const applyMenuBar = (shown: boolean) => {
+    window?.setAutoHideMenuBar(!shown);
+    window?.setMenuBarVisibility(shown);
+  };
+  applyMenuBar(scale.get().menuBar);
+  ipcMain.handle(channels.menuBar, (event) => {
+    fromWindow(event);
+    return scale.get().menuBar;
+  });
+  ipcMain.handle(channels.setMenuBar, async (event, shown: unknown) => {
+    fromWindow(event);
+    if (typeof shown !== "boolean") {
+      throw new Error("kith: the menu bar shows or not");
+    }
+    applyMenuBar(shown);
+    await scale.set({ menuBar: shown });
+    return shown;
+  });
   // ctrl+= / ctrl+- / ctrl+0 zoom the window, kept for the next start.
   window.webContents.on("before-input-event", (event, input) => {
     const key = zoomKey(input);
