@@ -16,10 +16,12 @@ type gatedRooms struct {
 	rooms []domain.Room
 	hold  chan struct{} // when set, the next read waits on it
 	read  chan struct{} // signaled once that read has taken its snapshot
+	reads int
 }
 
 func (g *gatedRooms) Rooms(context.Context) ([]domain.Room, error) {
 	g.mu.Lock()
+	g.reads++
 	rooms, hold, read := g.rooms, g.hold, g.read
 	g.hold = nil
 	g.mu.Unlock()
@@ -58,6 +60,33 @@ func TestInvalidateOvertakesARebuildAlreadyReading(t *testing.T) {
 	facts, ok := x.lookup(context.Background(), mx+"!a:x")
 	if !ok || facts.Name != "New name" {
 		t.Errorf("lookup = %+v, %v; want the name read after the invalidation", facts, ok)
+	}
+}
+
+// An invitation, never among the rooms the index reads, is judged by what it says itself
+// and rebuilds nothing, however many there are; a joined room the index lacks still does.
+func TestAnInvitationRebuildsNoIndex(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	src := &gatedRooms{rooms: []domain.Room{{ID: mx + "!a:x"}}}
+	x := newScopeIndex(src, nil, domain.HomeOrder{})
+	reads := func() int {
+		src.mu.Lock()
+		defer src.mu.Unlock()
+		return src.reads
+	}
+	x.FactsOf(ctx, domain.Room{ID: mx + "!a:x"})
+	for _, id := range []domain.RoomID{mx + "!i1:x", mx + "!i2:x", mx + "!i3:x", mx + "!i1:x"} {
+		if got := x.FactsOf(ctx, domain.Room{ID: id, Name: "Invited", Membership: domain.MembershipInvite}); got.Name != "Invited" {
+			t.Errorf("invitation %s judged as %+v, want by its own name", id, got)
+		}
+	}
+	if got := reads(); got != 1 {
+		t.Errorf("four invitations read the rooms %d times in all, want once (the first build)", got)
+	}
+	x.FactsOf(ctx, domain.Room{ID: mx + "!new:x"})
+	if got := reads(); got != 2 {
+		t.Errorf("a joined room the index lacks read the rooms %d times in all, want a rebuild (2)", got)
 	}
 }
 
