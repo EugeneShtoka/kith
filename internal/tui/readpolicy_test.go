@@ -132,6 +132,20 @@ func TestReadDelayNeverOnFocus(t *testing.T) {
 	}
 }
 
+// A rule's delay = -1 never reads its rooms on focus, over a read_delay that would.
+func TestReadRuleDelayNeverOnFocus(t *testing.T) {
+	spy := &receiptSpy{}
+	zero, never := 0, -1
+	m := readingRoom(t, spy, config.DeviceDisplay{ReadDelay: &zero,
+		ReadRules: []config.ReadRule{{Match: mx + "!a:x", Delay: &never}}})
+	m.receipts.policy = readSettingsFrom(m.conf.device.Display)
+	m, cmd := m.armFocusRead()
+	deliver(t, m, cmd)
+	if cmd != nil || len(spy.reads) != 0 {
+		t.Errorf("a rule's delay -1 still read on focus: %v", spy.reads)
+	}
+}
+
 // Receipts off still reads the room, privately.
 func TestReceiptsOffSendPrivately(t *testing.T) {
 	spy := &receiptSpy{}

@@ -115,7 +115,7 @@ func readRules(cfg config.DeviceDisplay) []domain.ReadRule {
 	for _, rule := range cfg.ReadRules {
 		converted := domain.ReadRule{Match: rule.Match, Sender: rule.Sender, Send: rule.Send}
 		if rule.Delay != nil {
-			delay := time.Duration(max(*rule.Delay, 0)) * time.Second
+			delay := time.Duration(*rule.Delay) * time.Second // -1: never, as read_delay's
 			converted.Delay = &delay
 		}
 		rules = append(rules, converted)
