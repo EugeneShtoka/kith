@@ -172,6 +172,11 @@ them down. `[gui.notices]` sets each level's seconds (`message`, `warning`, `err
 `0` or `-1` keeps that level until dismissed), in config.toml for every device and in
 device.toml, key by key over it, for this one.
 
+The **☰** button at the left of the top bar folds the left column away in steps:
+the first click hides the rail of places, the second the room list too (a search still
+shows its results there), and the third brings both back. Its icon draws the columns,
+places, rooms and the room, with a folded one hollow.
+
 As the window narrows, the columns narrow with it. Under about 960 pixels the rail
 folds away behind the **☰** button in the top bar, and a thread opens over the room
 instead of beside it; under about 640 pixels the whole left column folds away too, and
