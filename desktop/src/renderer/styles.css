@@ -311,6 +311,12 @@ select option {
   border-left: 3px solid var(--line);
 }
 
+/* A notice stands off the window behind it: raised, its bar the accent unless its kind colors it. */
+.banner {
+  border-left-color: var(--accent);
+  background: var(--raised);
+}
+
 .banner.ok {
   border-color: var(--ok);
 }
@@ -779,6 +785,7 @@ td {
   min-width: 0;
   padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
 }
 
 .room-header h2 {
@@ -1201,11 +1208,14 @@ video.player {
 }
 
 /* The composer, docked under the messages. */
+/* The room's name above its messages and the composer under them are bars, apart from the timeline. */
 .composer {
   flex: none;
   max-height: 50%;
   overflow-y: auto;
   padding: var(--space-2) var(--space-4) var(--space-3);
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
 }
 
 .composer > p {
