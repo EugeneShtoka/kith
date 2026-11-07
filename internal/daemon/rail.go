@@ -298,7 +298,7 @@ func (s *server) buildRail(ctx context.Context, name string) (rail domain.Served
 		return domain.ServedRail{}, nil, err
 	}
 	parents := s.Notifications.rails.knownParents()
-	_, rooms := s.railRooms(cfg.places, cfg.local, in)
+	places, rooms := s.railRooms(cfg.places, cfg.local, in)
 	for i := range rooms {
 		rooms[i].Parent = parents[rooms[i].ID]
 	}
@@ -308,7 +308,9 @@ func (s *server) buildRail(ctx context.Context, name string) (rail domain.Served
 			wanted = append(wanted, rooms[i].ID)
 		}
 	}
-	return built.Served(cfg.spec, rooms), wanted, nil
+	served := built.Served(cfg.spec, rooms)
+	served.PlaceHomes(places.Order)
+	return served, wanted, nil
 }
 
 // railRooms is each room of in as places judge it, its facts and its state (local: a

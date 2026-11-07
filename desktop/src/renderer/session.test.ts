@@ -10,7 +10,7 @@ import {
   type SeatRequest,
   SpaceFiledOutcome,
 } from "../gen/backend/v1/services_pb";
-import { ReactionSchema, VerificationKind } from "../gen/backend/v1/types_pb";
+import { ReactionSchema, UnreadSchema, VerificationKind } from "../gen/backend/v1/types_pb";
 import { type DeviceSettings, DeviceSettingsSchema, KeySequencesSchema, ThemeScope } from "../gen/device/v1/device_pb";
 import { list, number, text, valueAt, words } from "./config";
 import { unreadOf } from "./rooms";
@@ -659,7 +659,7 @@ describe("read receipts", () => {
     kithd.write("Home", message({ id: "$1", ts: 10, sender: "@alice" }, r));
     await started();
     session.open(r);
-    session.inRoom(true);
+    session.inRoom("room");
     await settled();
   };
 
@@ -733,9 +733,9 @@ describe("read receipts", () => {
     await settled();
     expect(view().open).toBe(r);
     expect(kithd.receipts).toEqual([]);
-    session.inRoom(true);
+    session.inRoom("room");
     await settled();
-    session.inRoom(false);
+    session.inRoom("");
     kithd.write("Home", message({ id: "$2", ts: 20, sender: "@alice" }, r));
     await settled();
     expect(kithd.receipts).toEqual([`${r} $1 public`]); // back in the list, what arrives is not read
@@ -764,6 +764,98 @@ describe("read receipts", () => {
   });
 });
 
+describe("the room list's thread rows", () => {
+  const r = "!r";
+  /** seeded is r with a thread ($1, its reply $t) unread, and a later message in the room. */
+  const seeded = () => {
+    kithd.of("Home").rooms = [room(r)];
+    kithd.write("Home", message({ id: "$1", ts: 10, sender: "@alice", body: "Lunch?" }, r));
+    kithd.write("Home", message({ id: "$t", ts: 20, sender: "@bob", threadRoot: "$1" }, r));
+    kithd.write("Home", message({ id: "$2", ts: 30, sender: "@alice" }, r));
+    kithd.of("Home").unread.set(
+      r,
+      create(UnreadSchema, {
+        roomId: r,
+        messages: 2n,
+        counted: true,
+        threads: [{ root: "$1", unread: 1n, latest: "$t", title: "Lunch?" }],
+      }),
+    );
+  };
+  const rows = () =>
+    view().list.map((x) => (x.kind === "thread" ? `↳ ${x.thread.root}` : x.kind === "room" ? x.room.id : "+"));
+  const roomReceipts = () => kithd.receipts.filter((x) => x.split(" ").length === 3);
+
+  it("list a room's unread thread under it, and keep it there under the cursor once read", async () => {
+    seeded();
+    await started();
+    expect(rows()).toEqual([r, "↳ $1"]);
+    session.cursorOn(r, "$1");
+    session.peek(r);
+    await settled();
+    kithd.setUnread("Home", unread(r, 1));
+    await settled();
+    expect(rows()).toEqual([r, "↳ $1"]);
+    session.cursorOn(r, "");
+    expect(rows()).toEqual([r]);
+  });
+
+  it("read the thread opened from its row, not the room beside it, until the room is entered", async () => {
+    seeded();
+    await started();
+    session.cursorOn(r, "$1");
+    session.open(r);
+    session.openThread("$1");
+    session.inRoom("thread");
+    session.watch(true);
+    session.watchThread(true);
+    await settled();
+    expect(kithd.receipts).toEqual([`${r} $1 $t public`]);
+    expect(rows()).toEqual([r, "↳ $1"]); // open, so kept once read
+    session.inRoom("room");
+    await settled();
+    expect(roomReceipts()).toEqual([`${r} $2 public`]);
+  });
+
+  it("read the room of a thread opened from its timeline when the thread pane has the focus", async () => {
+    seeded();
+    await started();
+    session.cursorOn(r, "");
+    session.open(r);
+    session.openThread("$1");
+    session.inRoom("thread");
+    session.watch(true);
+    await settled();
+    expect(roomReceipts()).toEqual([`${r} $2 public`]);
+  });
+
+  it("read nothing of the room while the cursor rests on a thread's row; its own row rests as before", async () => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const pass = (ms: number) => vi.advanceTimersByTimeAsync(ms);
+    kithd.settings = create(DeviceSettingsSchema, { sendReceipts: true, readDelay: 1n });
+    seeded();
+    session.start();
+    await pass(100);
+    session.watch(true);
+    session.cursorOn(r, "");
+    session.peek(r);
+    await pass(600);
+    session.cursorOn(r, "$1"); // before read_delay: the rest is called off
+    await pass(3000);
+    expect(roomReceipts()).toEqual([]);
+    session.cursorOn(r, "");
+    await pass(1100);
+    expect(roomReceipts()).toEqual([`${r} $2 public`]);
+    session.cursorOn(r, "$1"); // rested on before: what arrives now is not read
+    kithd.write("Home", message({ id: "$3", ts: 40, sender: "@alice" }, r));
+    await pass(3000);
+    expect(roomReceipts()).toEqual([`${r} $2 public`]);
+  });
+});
+
 describe("the settings page", () => {
   const r = "!r";
   const page = () => view().settingsPage;
@@ -773,7 +865,7 @@ describe("the settings page", () => {
     kithd.write("Home", message({ id: "$1", ts: 10, sender: "@alice" }, r));
     await started();
     session.open(r);
-    session.inRoom(true);
+    session.inRoom("room");
     session.watch(true);
     session.openSettings();
     await settled();

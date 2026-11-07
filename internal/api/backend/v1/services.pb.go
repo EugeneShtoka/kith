@@ -2901,7 +2901,11 @@ type RailRoom struct {
 	Silenced bool `protobuf:"varint,4,opt,name=silenced,proto3" json:"silenced,omitempty"`
 	// name is the name you gave it ([[display.name]]), shown in place of its own; empty
 	// for none.
-	Name          string `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
+	// home is its first home, as rules naming a place read it: a space's name or
+	// tag:<name>, "" for none; home_label is that home's rail label when renamed.
+	Home          string `protobuf:"bytes,6,opt,name=home,proto3" json:"home,omitempty"`
+	HomeLabel     string `protobuf:"bytes,7,opt,name=home_label,json=homeLabel,proto3" json:"home_label,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2967,6 +2971,20 @@ func (x *RailRoom) GetSilenced() bool {
 func (x *RailRoom) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *RailRoom) GetHome() string {
+	if x != nil {
+		return x.Home
+	}
+	return ""
+}
+
+func (x *RailRoom) GetHomeLabel() string {
+	if x != nil {
+		return x.HomeLabel
 	}
 	return ""
 }
@@ -20039,13 +20057,16 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x0fhide_when_empty\x18\n" +
 	" \x01(\bR\rhideWhenEmpty\x12\x1b\n" +
 	"\tsep_after\x18\v \x01(\bR\bsepAfter\x12\x14\n" +
-	"\x05rooms\x18\f \x03(\tR\x05rooms\"\x8d\x01\n" +
+	"\x05rooms\x18\f \x03(\tR\x05rooms\"\xc0\x01\n" +
 	"\bRailRoom\x12+\n" +
 	"\x05facts\x18\x01 \x01(\v2\x15.backend.v1.RoomFactsR\x05facts\x12\x0e\n" +
 	"\x02in\x18\x02 \x03(\tR\x02in\x12\x14\n" +
 	"\x05owner\x18\x03 \x01(\tR\x05owner\x12\x1a\n" +
 	"\bsilenced\x18\x04 \x01(\bR\bsilenced\x12\x12\n" +
-	"\x04name\x18\x05 \x01(\tR\x04name\"G\n" +
+	"\x04name\x18\x05 \x01(\tR\x04name\x12\x12\n" +
+	"\x04home\x18\x06 \x01(\tR\x04home\x12\x1d\n" +
+	"\n" +
+	"home_label\x18\a \x01(\tR\thomeLabel\"G\n" +
 	"\x11AddToSpaceRequest\x12\x19\n" +
 	"\bspace_id\x18\x01 \x01(\tR\aspaceId\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\"\x14\n" +

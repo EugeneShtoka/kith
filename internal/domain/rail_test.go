@@ -170,3 +170,24 @@ func TestBuildRailHoldsWhatEachRowLists(t *testing.T) {
 		t.Errorf("a rail of nothing is %+v, want one row of every room but invitations", none.Rows)
 	}
 }
+
+// A served room's home is its first home as the order ranks spaces and tags together,
+// with the label its rail row was renamed to; a room in no home has none.
+func TestAServedRoomsHomeIsItsFirstHome(t *testing.T) {
+	t.Parallel()
+	order := NewHomeOrder([]string{"tag:Friends"}, nil, TagSet{}, nil, map[string]string{"Work": "Office"})
+	rail := ServedRail{Rooms: []ServedRoom{
+		{Facts: RoomFacts{ID: "a", Spaces: []string{"Work"}, Tags: []string{"Friends"}}},
+		{Facts: RoomFacts{ID: "b", Spaces: []string{"Work"}}},
+		{Facts: RoomFacts{ID: "c"}},
+	}}
+	rail.PlaceHomes(order)
+	got := make([][2]string, 0, len(rail.Rooms))
+	for _, r := range rail.Rooms {
+		got = append(got, [2]string{r.Home, r.HomeLabel})
+	}
+	want := [][2]string{{"tag:Friends", ""}, {"Work", "Office"}, {"", ""}}
+	if !slices.Equal(got, want) {
+		t.Errorf("homes = %q, want %q", got, want)
+	}
+}

@@ -120,6 +120,15 @@ The window fills its height, and each part scrolls on its own:
   `[[display.read_rule]]`'s `delay`) says how many seconds resting on it reads it, as
   in the terminal. In a tag marked `sticky` (Unread, say), the room you read stays
   listed until you move off it.
+- **A room's threads** with unread replies are listed under it, newest first, each led
+  by `[display.threads] marker` (`↳`) and named by its first message, as in the
+  terminal. A thread you read keeps its row while it is open or the cursor is on it.
+  After `max_in_room_list` of them (5; `[[display.threads.rule]]` sets it per room or
+  place) one row counts the rest; rooms a silent tag holds list none, and so does
+  `in_room_list = "never"` (`"all"` lists the unread ones here, for now). Going into a
+  thread's row opens its room with the thread beside it, and reads the thread only:
+  neither that nor resting on the row reads the room, until you go into the room
+  itself.
 - **In the middle**, the open room: its name, network and topic above, its messages,
   and the composer under them. Messages are split by day, and one sender's messages a
   few minutes apart are drawn as one group, with the time of each in the margin when

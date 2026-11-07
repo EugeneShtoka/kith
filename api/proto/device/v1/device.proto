@@ -416,6 +416,18 @@ message DeviceSettings {
   // [display] read_delay: the seconds the list's cursor rests on a room, shown, before it
   // is read without being entered; -1 never.
   int64 read_delay = 31;
+  // [display.threads]: which of a room's threads the room list shows under it
+  // (in_room_list: "unread", "all" or "never", unset or unknown read as "unread"), how
+  // many before the rest are counted into one row (max_in_room_list: 0 is
+  // threads_default_max, negative is no cap), and the mark leading each row, default
+  // filled in. thread_rules are [[display.threads.rule]] in the file's order: the
+  // narrowest naming a room, by its ID or its first home, caps its rows otherwise
+  // (domain.ThreadCap).
+  string threads_in_room_list = 32;
+  int64 threads_max = 33;
+  int64 threads_default_max = 34;
+  string threads_marker = 35;
+  repeated ThreadRule thread_rules = 36;
 }
 
 // KeySequences are one action's keys, in the order [keys] lists them.
@@ -448,6 +460,14 @@ message ReadRule {
   // The seconds the list's cursor rests on a room before it is read (-1 never, 0 at
   // once); unset inherits. The window shows it as the cursor rests, but does not write it.
   optional int64 delay = 4;
+}
+
+// ThreadRule is one [[display.threads.rule]].
+message ThreadRule {
+  // A room ID, or a home entry (space:, tag:, place:).
+  string match = 1;
+  // Its rooms' cap: 0 is the default, negative no cap.
+  int64 max = 2;
 }
 
 message CommandsRequest {

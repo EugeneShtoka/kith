@@ -23,7 +23,7 @@ import {
   type SeatResponse,
   type StatusResponse,
 } from "../gen/backend/v1/services_pb";
-import type { Member, Message, Reaction, Room, SearchHit, Unread } from "../gen/backend/v1/types_pb";
+import type { Member, Message, Reaction, Room, SearchHit, ThreadUnread, Unread } from "../gen/backend/v1/types_pb";
 import {
   type DeviceSettings,
   DeviceService,
@@ -51,6 +51,7 @@ import { hasUnread, ordered, total } from "./rooms";
 import type { When } from "./schedule";
 import { emptyFilter, parseSearch } from "./search";
 import { change, type Device, type Key, labels, type Read, withKey } from "./settings";
+import { type ListRow, listRows, pinnedThread, type ThreadList } from "./threadrows";
 import { OpenThread, type ThreadView } from "./threads";
 import {
   answerable,
@@ -139,6 +140,8 @@ export interface View {
   row: number;
   /** The joined rooms the row lists, in list order (every one before a rail), and the invitations. */
   rooms: readonly Room[];
+  /** The room list as drawn: rooms, each with its thread rows under it ([display.threads]). */
+  list: readonly ListRow[];
   /** Every joined room of the profile, in list order: what the switcher offers. */
   joined: readonly Room[];
   invites: readonly Room[];
@@ -158,6 +161,8 @@ export interface View {
   tagKeys: readonly TagKey[];
   /** [display.media.audio]: the speed a voice note starts at, and the seconds a skip moves. */
   audio: { speed: number; skip: number };
+  /** [display.threads]: which of a room's threads the list shows under it; none until read. */
+  threads: ThreadList | undefined;
   /** The open room's composer. */
   composer: ComposerView | undefined;
   /** The search shown, its hits only in the profile's rooms. */
@@ -342,6 +347,7 @@ const nothingShown = {
   rail: [],
   row: -1,
   rooms: [],
+  list: [],
   joined: [],
   search: undefined,
   thread: undefined,
@@ -357,6 +363,7 @@ const nothingShown = {
   jumps: [],
   tagKeys: [],
   audio: { speed: 1, skip: 10 },
+  threads: undefined,
   composer: undefined,
   slots: new Map(),
   pictures: new Map(),
@@ -449,6 +456,12 @@ export class Session {
   private watching = false;
   /** The focus is in the open room (its messages, thread or composer): what it shows is read. */
   private entered = false;
+  /**
+   * The row the room list's cursor is on: a room's, or one of its threads' (root). A
+   * thread's row reads that thread only: resting on it, or being in the thread it opened,
+   * reads nothing of its room.
+   */
+  private cursor = { room: "", root: "" };
   /** The room the list's cursor rested on for its read_delay, read as if entered; and the wait for it. */
   private rested = "";
   private resting: ReturnType<typeof setTimeout> | undefined;
@@ -852,6 +865,7 @@ export class Session {
             jumps: settings.jumps,
             tagKeys: settings.tagKeys,
             audio: { speed: settings.audioSpeed, skip: Number(settings.audioSkip) },
+            threads: settings,
           });
         }
       },
@@ -934,13 +948,33 @@ export class Session {
   }
 
   /**
-   * inRoom says whether the focus is in the open room: its messages, thread or composer.
-   * Only then is what it shows read, or once the list's cursor rests on it for read_delay.
+   * inRoom says where in the open room the focus is: its messages or composer ("room"),
+   * its thread, or neither (""). Only then is what it shows read, or once the list's
+   * cursor rests on it for read_delay. A thread opened from its row in the list reads
+   * that thread, not the room beside it.
    */
-  inRoom(on: boolean): void {
-    this.entered = on;
-    if (on && this.run !== undefined) {
+  inRoom(where: "room" | "thread" | ""): void {
+    const fromRow = this.cursor.root !== "" && this.cursor.root === this.run?.thread?.root;
+    this.entered = where === "room" || (where === "thread" && !fromRow);
+    if (this.entered && this.run !== undefined) {
       this.markRead(this.run);
+    }
+  }
+
+  /** cursorOn says which row the room list's cursor is on: room's, or its thread root's ("" the room's). */
+  cursorOn(room: string, root: string): void {
+    if (this.cursor.room === room && this.cursor.root === root) {
+      return;
+    }
+    this.cursor = { room, root };
+    if (root !== "") {
+      clearTimeout(this.resting); // a thread's row reads nothing of its room
+      this.resting = undefined;
+      this.rested = "";
+    }
+    this.set({});
+    if (root === "" && this.run !== undefined) {
+      this.markRead(this.run); // back on the room's row: it rests there again
     }
   }
 
@@ -2209,7 +2243,9 @@ export class Session {
     }
     const settings = run.settings === "failed" ? undefined : run.settings;
     if (!this.entered && this.rested !== t.room) {
-      this.rest(run, t.room, readAfter(settings, t.room, last.sender));
+      if (this.cursor.root === "" || this.cursor.room !== t.room) {
+        this.rest(run, t.room, readAfter(settings, t.room, last.sender));
+      }
       return;
     }
     const quiet = !announces(settings, t.room, last.sender);
@@ -2876,6 +2912,7 @@ export class Session {
     next.timeline = run?.timeline?.view();
     next.composer = run === undefined || next.open === "" ? undefined : run.composer.view(next.open);
     next.thread = run?.thread?.view(next.timeline?.rows ?? []);
+    next.list = listRows(next.rooms, next.unread, run?.rail, next.threads, next.open, this.pinned(next));
     this.view = next;
     if (next.unreadTotal !== this.told) {
       this.told = next.unreadTotal;
@@ -2884,6 +2921,19 @@ export class Session {
     for (const listener of this.listeners) {
       listener();
     }
+  }
+
+  /** pinned are the open room's threads listed once read: the one open, and the one the list's cursor is on. */
+  private pinned(next: View): ThreadUnread[] {
+    const rows = next.timeline?.rows ?? [];
+    const roots = [next.thread?.root ?? ""];
+    if (this.cursor.room === next.open) {
+      roots.push(this.cursor.root);
+    }
+    return roots.flatMap((root) => {
+      const row = root === "" ? undefined : pinnedThread(rows, root);
+      return row === undefined ? [] : [row];
+    });
   }
 
   private inRun(f: (run: Run) => Promise<void>): Promise<void> {
