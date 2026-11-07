@@ -1699,6 +1699,14 @@ mark {
   margin: var(--space-2) 0 var(--space-1);
 }
 
+/* One row per key, stacked: not the page's dl grid, which would pair the rows up. */
+.help-sections dl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
 .help-sections dl > div {
   display: grid;
   grid-template-columns: minmax(6rem, 14rem) 1fr;
