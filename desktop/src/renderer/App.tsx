@@ -715,14 +715,14 @@ function Seated({ view, session }: { view: View; session: Session }) {
           </button>
         </p>
       )}
-      {view.filingNote && (
-        <p className="banner" role="status">
-          <span dir="auto">{view.filingNote}</span>{" "}
+      {view.notice && (
+        <p className={`banner ${view.notice.level}`} role={view.notice.level === "error" ? "alert" : "status"}>
+          <span dir="auto">{view.notice.text}</span>{" "}
           <button
             type="button"
             aria-label="Dismiss"
             onClick={() => {
-              session.forgetFilingNote();
+              session.forgetNotice();
             }}
           >
             ×

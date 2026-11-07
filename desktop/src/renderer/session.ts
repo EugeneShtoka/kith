@@ -10,6 +10,7 @@ import {
   type ConfigSettingsResponse,
   type ConfigValue,
   type Device as PairedDevice,
+  type FileRoomResponse,
   type FollowStreamResponse,
   type Identity,
   type LoginNetwork,
@@ -193,9 +194,10 @@ export interface View {
   accounts: readonly Account[];
   /** The one-time offers (offers.ts): the one shown, and what the last download came to. */
   offers: { prompt: Prompt | undefined; note: string };
-  /** The filing picker open on a room (filing.ts), and what the last filing came to. */
+  /** The filing picker open on a room (filing.ts). */
   filing: Filing | undefined;
-  filingNote: string;
+  /** The note on the bar: what the last act (a filing, a copy, a link, a name) came to. */
+  notice: Notice | undefined;
   /** A message's links offered to choose from, for the [keys.timeline] link key pressed. */
   linking: { act: LinkAct; links: readonly string[] } | undefined;
   /** The room whose name is being written (rooms.name), and the name it starts from. */
@@ -372,7 +374,7 @@ const nothingShown = {
   filing: undefined,
   naming: undefined,
   marking: undefined,
-  filingNote: "",
+  notice: undefined,
   linking: undefined,
   people: noPeople,
 } satisfies Partial<View>;
@@ -450,6 +452,8 @@ export class Session {
   private device: Promise<void> = Promise.resolve();
   /** The device read again after one failed, while it waits; none once stopped. */
   private deviceLater: ReturnType<typeof setTimeout> | undefined;
+  /** The notice's going by itself, after its level's [gui.notices] seconds. */
+  private noticeLater: ReturnType<typeof setTimeout> | undefined;
   private stopped = false;
   private told = 0;
   /** The open room is watched: shown at its newest, the window focused. */
@@ -545,6 +549,7 @@ export class Session {
     this.devices.stop();
     clearTimeout(this.deviceLater);
     clearTimeout(this.railing);
+    clearTimeout(this.noticeLater);
     this.leave();
     for (const stop of this.lingering) {
       stop();
@@ -1441,9 +1446,9 @@ export class Session {
   /** copyText puts m's text on the clipboard: an attachment's caption, or its name where it has none. */
   copyText(m: Message): void {
     if (m.redacted) {
-      this.set({ filingNote: "that message was deleted — nothing to copy" });
+      this.set(this.noticed("that message was deleted — nothing to copy", "warning"));
     } else if (m.body.trim() === "") {
-      this.set({ filingNote: "nothing to copy" });
+      this.set(this.noticed("nothing to copy", "warning"));
     } else {
       this.copyOut(m.body, "message");
     }
@@ -1458,8 +1463,8 @@ export class Session {
     } else {
       this.set(
         found.length === 0
-          ? { filingNote: "no link in that message" }
-          : { linking: { act, links: found }, filingNote: "" },
+          ? this.noticed("no link in that message", "warning")
+          : { linking: { act, links: found }, notice: undefined },
       );
     }
   }
@@ -1497,7 +1502,7 @@ export class Session {
       },
       (err: unknown) => {
         if (!this.stopped) {
-          this.set({ filingNote: `the link was not followed: ${errorText(err)}` });
+          this.set(this.noticed(`the link was not followed: ${errorText(err)}`, "error"));
         }
       },
     );
@@ -1506,16 +1511,16 @@ export class Session {
   /** browse opens a web link in the browser, the window brought forward again after where stay. */
   private browse(link: string, stay: boolean): void {
     const host = link.replace(/^https?:\/\//i, "").split("/")[0] ?? link;
-    this.set({ filingNote: `opening ${host}…` });
+    this.set(this.noticed(`opening ${host}…`, "message"));
     window.kith.open(link, stay).then(
       (went) => {
         if (!went && !this.stopped) {
-          this.set({ filingNote: "refusing to open that — only http and https links" });
+          this.set(this.noticed("refusing to open that — only http and https links", "warning"));
         }
       },
       (err: unknown) => {
         if (!this.stopped) {
-          this.set({ filingNote: `${host} did not open: ${errorText(err)}` });
+          this.set(this.noticed(`${host} did not open: ${errorText(err)}`, "error"));
         }
       },
     );
@@ -1528,12 +1533,12 @@ export class Session {
     window.kith.copy(text).then(
       () => {
         if (!this.stopped) {
-          this.set({ filingNote: `copied ${what}: ${shown}` });
+          this.set(this.noticed(`copied ${what}: ${shown}`, "message"));
         }
       },
       (err: unknown) => {
         if (!this.stopped) {
-          this.set({ filingNote: `the ${what} was not copied: ${errorText(err)}` });
+          this.set(this.noticed(`the ${what} was not copied: ${errorText(err)}`, "error"));
         }
       },
     );
@@ -2417,7 +2422,7 @@ export class Session {
     }
     const mine = ++this.filings;
     const name = run.joined.find((r) => r.id === room)?.name ?? "";
-    this.set({ filing: opened(room, name || room), filingNote: "" });
+    this.set({ filing: opened(room, name || room), notice: undefined });
     const shown = () => this.live(run) && this.filings === mine && this.view.filing?.room === room;
     relay
       .read()
@@ -2455,20 +2460,22 @@ export class Session {
       .then((r) => {
         const f = retagged(offered(opened(room, name), r.places, false), tag);
         if (f === undefined) {
-          return `no tag is called “${tag}”: see [keys.tag]`;
+          return this.noticed(`no tag is called “${tag}”: see [keys.tag]`, "warning");
         }
         const ask = filingAsked(f);
-        return call(backend.fileRoom, { roomId: room, tags: ask.tags, spaces: [] }).then((resp) => told(f, ask, resp));
+        return call(backend.fileRoom, { roomId: room, tags: ask.tags, spaces: [] }).then((resp) =>
+          this.noticed(told(f, ask, resp), toldLevel(resp)),
+        );
       })
       .then(
-        (line) => {
+        (said) => {
           if (this.live(run)) {
-            this.set({ filingNote: line });
+            this.set(said);
           }
         },
         (err: unknown) => {
           if (this.live(run)) {
-            this.set({ filingNote: `${name} was not filed: ${errorText(err)}` });
+            this.set(this.noticed(`${name} was not filed: ${errorText(err)}`, "error"));
           }
         },
       );
@@ -2478,7 +2485,7 @@ export class Session {
   openNaming(room: string): void {
     const run = this.run;
     if (run !== undefined && this.holds(run, room)) {
-      this.set({ naming: { room, name: run.joined.find((r) => r.id === room)?.name ?? "" }, filingNote: "" });
+      this.set({ naming: { room, name: run.joined.find((r) => r.id === room)?.name ?? "" }, notice: undefined });
     }
   }
 
@@ -2503,12 +2510,14 @@ export class Session {
     call(backend.setRoomName, { roomId: asked.room, name: typed }).then(
       () => {
         if (this.live(run)) {
-          this.set({ filingNote: typed === "" ? `${own} has its own name again` : `${own} is ${typed} for you` });
+          this.set(
+            this.noticed(typed === "" ? `${own} has its own name again` : `${own} is ${typed} for you`, "message"),
+          );
         }
       },
       (err: unknown) => {
         if (this.live(run)) {
-          this.set({ filingNote: `${asked.name} was not named: ${errorText(err)}` });
+          this.set(this.noticed(`${asked.name} was not named: ${errorText(err)}`, "error"));
         }
       },
     );
@@ -2548,7 +2557,7 @@ export class Session {
     }
     const rooms = [...new Set(place.rooms)].filter((id) => this.holds(run, id) && hasUnread(this.view.unread.get(id)));
     if (rooms.length === 0) {
-      this.set({ filingNote: `Nothing is unread in ${place.label}` });
+      this.set(this.noticed(`Nothing is unread in ${place.label}`, "warning"));
       return;
     }
     this.set({ marking: { label: place.label, rooms } });
@@ -2593,20 +2602,36 @@ export class Session {
       .then(
         (got) => {
           if (this.live(run)) {
-            this.set({ filingNote: readNote(rooms.length, label, got) });
+            this.set(this.noticed(readNote(rooms.length, label, got), readLevel(got)));
           }
         },
         (err: unknown) => {
           if (this.live(run)) {
-            this.set({ filingNote: `${label} was not marked read: ${errorText(err)}` });
+            this.set(this.noticed(`${label} was not marked read: ${errorText(err)}`, "error"));
           }
         },
       );
   }
 
-  /** forgetFilingNote clears what the last filing came to. */
-  forgetFilingNote(): void {
-    this.set({ filingNote: "" });
+  /** forgetNotice takes the bar's note down. */
+  forgetNotice(): void {
+    clearTimeout(this.noticeLater);
+    this.set({ notice: undefined });
+  }
+
+  /** noticed is text on the bar at level, going by itself after the level's [gui.notices] seconds. */
+  private noticed(text: string, level: Level): { notice: Notice } {
+    const notice = { text, level };
+    clearTimeout(this.noticeLater);
+    const seconds = noticeSeconds(this.view.theme, level);
+    if (seconds > 0) {
+      this.noticeLater = setTimeout(() => {
+        if (this.view.notice === notice) {
+          this.set({ notice: undefined });
+        }
+      }, seconds * 1000);
+    }
+    return { notice };
   }
 
   /** The People list (as the TUI's :people): every card the profile shows, narrowed by query. */
@@ -2760,7 +2785,7 @@ export class Session {
     const ask = filingAsked(f);
     if (ask.tags.length === 0 && ask.spaces.length === 0) {
       this.closeFiling();
-      this.set({ filingNote: "No change." });
+      this.set(this.noticed("No change.", "message"));
       return;
     }
     const mine = this.filings;
@@ -2769,7 +2794,7 @@ export class Session {
     call(backend.fileRoom, { roomId: f.room, tags: ask.tags, spaces: ask.spaces }).then(
       (r) => {
         if (this.live(run)) {
-          this.set({ filing: still() ? undefined : this.view.filing, filingNote: told(f, ask, r) });
+          this.set({ filing: still() ? undefined : this.view.filing, ...this.noticed(told(f, ask, r), toldLevel(r)) });
         }
       },
       (err: unknown) => {
@@ -2779,7 +2804,7 @@ export class Session {
         if (still()) {
           this.set({ filing: { ...f, busy: false, note: errorText(err) } });
         } else {
-          this.set({ filingNote: `${f.name} was not filed: ${errorText(err)}` });
+          this.set(this.noticed(`${f.name} was not filed: ${errorText(err)}`, "error"));
         }
       },
     );
@@ -2981,6 +3006,37 @@ export function readNote(rooms: number, label: string, got: readonly MarkRoomsRe
     parts.push(`${roomsPhrase(failed)} refused${why === "" ? "" : `: ${why}`}`);
   }
   return parts.join(" · ");
+}
+
+/** readLevel is how much readNote's line matters: every room marked a message, none an error, some a warning. */
+export function readLevel(got: readonly MarkRoomsReadResponse[]): Level {
+  const marked = got.reduce((n, r) => n + r.marked, 0);
+  if (got.every((r) => r.skipped === 0 && r.failed === 0)) {
+    return "message";
+  }
+  return marked === 0 && got.some((r) => r.failed > 0) ? "error" : "warning";
+}
+
+/** toldLevel is how much a filing's line (told) matters: a warning where its network or a filter undid part of it. */
+function toldLevel(r: FileRoomResponse): Level {
+  return r.archiveFailed !== "" || r.releaseFailed !== "" ? "warning" : "message";
+}
+
+/** Level is how much a note on the bar matters: a message and a warning go by themselves, an error stays. */
+export type Level = "message" | "warning" | "error";
+
+/** Notice is a note on the bar, at its level. */
+export interface Notice {
+  text: string;
+  level: Level;
+}
+
+/** noticeSeconds is how long a note at level stays, by [gui.notices] as theme has it (before it is read, its defaults); 0 or less, until dismissed. */
+export function noticeSeconds(theme: ThemeResponse | undefined, level: Level): number {
+  if (theme === undefined) {
+    return { message: 5, warning: 10, error: -1 }[level];
+  }
+  return Number({ message: theme.messageSeconds, warning: theme.warningSeconds, error: theme.errorSeconds }[level]);
 }
 
 export function roomsPhrase(n: number): string {

@@ -331,6 +331,16 @@ select option {
   border-color: var(--waiting);
 }
 
+/* A note's level: a message as any banner, a warning and an error marked. */
+.banner.warning {
+  border-color: var(--waiting);
+}
+
+.banner.error {
+  border-color: var(--lost);
+  color: var(--lost);
+}
+
 /* Before the seat: the picker, the seat's state, the settings page. */
 .page {
   flex: 1;

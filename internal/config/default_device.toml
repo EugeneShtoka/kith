@@ -562,6 +562,14 @@ timeout = 15
 # [gui.theme.people]
 # "matrix:@ada:example.org" = "#d97706"
 
+# How many seconds a note stays on the window's bar before it goes by itself, by its
+# level; 0 or -1 keeps it until you dismiss it. Each key set here takes the place of
+# config.toml's [gui.notices].
+# [gui.notices]
+# message = 5
+# warning = 10
+# error   = 0
+
 # `!` puts the room under the cursor in Spam, or takes it out, and in the timeline the
 # selected message's sender: a key bound to a tag by its chord. See [keys] for more.
 [[keys.tag]]

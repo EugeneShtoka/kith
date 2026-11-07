@@ -1110,6 +1110,15 @@ listen = []
 #
 # [gui.theme.people]
 # "matrix:@ada:example.org" = "#d97706"
+#
+# How many seconds a note stays on the window's bar before it goes by itself, by its
+# level: a message (what something came to), a warning (what was not done, and why it
+# needs nothing of you) and an error (a failure). 0 or -1 keeps it until you dismiss
+# it. A device's own [gui.notices] overrides it key by key.
+# [gui.notices]
+# message = 5
+# warning = 10
+# error   = 0
 # Your own commands: `/zoom` runs the executable `zoom` in `dir`, and its stdout lands
 # in the composer for you to send or not. A non-zero exit, timeout or empty output
 # leaves the composer untouched and says why. Built-ins of the same name win.

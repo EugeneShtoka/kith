@@ -355,6 +355,7 @@ key.
 | `[tui.theme]` | device | The terminal client's color palette: a preset plus per-role overrides. | [Themes](#themes) |
 | `[tui.theme.networks]` | device | The color each network's rooms are named in, where the room lists or the rail ask for it. | [usage.md](usage.md) |
 | `[gui.theme]` | both: config for every device, device for this one, key by key over it | The graphical clients' theme (the desktop window): its mode, pictures or initials, each mode's colors, and colors per account and per person. The terminal client reads none of it. | [The graphical clients' theme](#the-graphical-clients-theme) |
+| `[gui.notices]` | both, as `[gui.theme]` | How many seconds a note on the desktop window's bar stays, by its level: `message` (default 5), `warning` (default 10), `error` (default: until dismissed); `0` or `-1` keeps that level until dismissed. | [desktop.md](desktop.md) |
 
 Settings that name a place say which kind with a prefix:
 
