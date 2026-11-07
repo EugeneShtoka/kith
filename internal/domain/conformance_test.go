@@ -267,6 +267,33 @@ func TestTheReadTableIsWhatGoResolves(t *testing.T) {
 	}
 }
 
+// ThreadCap over the table's settings, the room told its first home.
+func TestTheThreadCapTableIsWhatGoResolves(t *testing.T) {
+	t.Parallel()
+	var table struct {
+		Cases []struct {
+			Name      string       `json:"name"`
+			Max       int          `json:"max"`
+			Fallback  int          `json:"fallback"`
+			Rules     []ThreadRule `json:"rules"`
+			Room      string       `json:"room"`
+			Home      string       `json:"home"`
+			HomeLabel string       `json:"homeLabel"`
+			Want      int          `json:"want"`
+		} `json:"cases"`
+	}
+	readTable(t, "threadcap.json", &table)
+	if len(table.Cases) == 0 {
+		t.Fatal("threadcap.json has no cases")
+	}
+	for _, c := range table.Cases {
+		scope := Scope{RoomID: c.Room, Space: c.Home, SpaceLabel: c.HomeLabel}
+		if got := ThreadCap(c.Max, c.Fallback, c.Rules, scope); got != c.Want {
+			t.Errorf("%s: ThreadCap = %d, the table says %d", c.Name, got, c.Want)
+		}
+	}
+}
+
 // ParseSearch over the table's queries, its times read in the zone now is in (here UTC;
 // the desktop's, its own).
 func TestTheSearchTableIsWhatGoParses(t *testing.T) {

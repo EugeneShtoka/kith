@@ -405,7 +405,8 @@ select option {
 }
 
 .place button,
-.room button {
+.room button,
+.thread button {
   display: flex;
   width: 100%;
   align-items: center;
@@ -422,20 +423,23 @@ select option {
 }
 
 .place button:hover,
-.room button:hover {
+.room button:hover,
+.thread button:hover {
   background: var(--hover);
 }
 
 /* The place and the room the window is on: bright in the list the focus is in, faded in
    the other, and faded in both while the focus is in the room. */
 .place button[aria-current="true"],
-.room button[aria-current="true"] {
+.room button[aria-current="true"],
+.thread button[aria-current="true"] {
   background: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .rail:focus-within .place button[aria-current="true"],
-.rooms:focus-within .room button[aria-current="true"] {
+.rooms:focus-within .room button[aria-current="true"],
+.rooms:focus-within .thread button[aria-current="true"] {
   background: var(--focus);
   color: var(--focus-fg);
 }
@@ -448,17 +452,40 @@ select option {
   white-space: nowrap;
 }
 
-.room .label {
+.room .label,
+.thread .label {
   color: var(--muted);
 }
 
 .room.unread .label,
-.room button[aria-current="true"] .label {
+.room button[aria-current="true"] .label,
+.thread.unread .label,
+.thread button[aria-current="true"] .label {
   color: inherit;
 }
 
 .room.unread .label {
   font-weight: 700;
+}
+
+/* A room's threads, under it: set in past its picture, each led by its marker, and the
+   count of those not listed, which the cursor passes by. */
+.thread button,
+.thread.more {
+  padding-left: calc(var(--space-2) + var(--avatar-small));
+  font-size: var(--text-sm);
+}
+
+.thread.more {
+  display: flex;
+  gap: var(--space-2);
+  padding-block: var(--space-1);
+  color: var(--muted);
+}
+
+.thread .marker {
+  flex: none;
+  color: var(--muted);
 }
 
 .badge {
@@ -479,7 +506,8 @@ select option {
   color: var(--mention-fg);
 }
 
-.rooms:focus-within .room button[aria-current="true"] .badge:not(.mention) {
+.rooms:focus-within .room button[aria-current="true"] .badge:not(.mention),
+.rooms:focus-within .thread button[aria-current="true"] .badge:not(.mention) {
   background: var(--focus-fg);
   color: var(--focus);
 }

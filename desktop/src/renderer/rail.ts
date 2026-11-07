@@ -16,20 +16,25 @@ export interface RowRef {
  * space: a space's name, tag: a tag's, place: either, or the row's label; case ignored.
  */
 export function namesRow(entry: string, row: RailRow): boolean {
+  return namesHome(entry, row.key, row.label);
+}
+
+/** namesHome: a home entry names home (a space's name, or tag:<name>), its row labeled label (domain.NamesHome). */
+export function namesHome(entry: string, home: string, label: string): boolean {
   const m = /^\s*(space|tag|place):(.*)$/i.exec(entry);
   const want = m?.[2]?.trim().toLowerCase() ?? "";
   if (m === null || want === "") {
     return false;
   }
-  const tag = /^\s*tag:(.*)$/i.exec(row.key);
-  const name = (tag?.[1] ?? row.key).trim().toLowerCase();
+  const tag = /^\s*tag:(.*)$/i.exec(home);
+  const name = (tag?.[1] ?? home).trim().toLowerCase();
   switch (m[1]?.toLowerCase()) {
     case "space":
       return tag === null && name === want;
     case "tag":
       return tag !== null && name === want;
   }
-  return name === want || row.label.trim().toLowerCase() === want;
+  return name === want || label.trim().toLowerCase() === want;
 }
 
 export function refOf(row: RailRow | undefined): RowRef | undefined {

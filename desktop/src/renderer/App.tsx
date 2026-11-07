@@ -2,7 +2,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse } from "../gen/backend/v1/services_pb";
-import type { Room, Unread } from "../gen/backend/v1/types_pb";
+import type { Room, ThreadUnread, Unread } from "../gen/backend/v1/types_pb";
 import type { ThemeResponse } from "../gen/device/v1/device_pb";
 import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
@@ -161,7 +161,10 @@ const speedStep = 0.25;
 const panes = ["rail", "rooms", "timeline", "thread"];
 
 /** paneRows are the rows a list pane's cursor moves over: each focusable itself. */
-const paneRows: Readonly<Record<string, string>> = { rail: "li.place > button", rooms: "li.room > button" };
+const paneRows: Readonly<Record<string, string>> = {
+  rail: "li.place > button",
+  rooms: "li.room > button, li.thread > button",
+};
 
 /** paneOf is the pane el is in, "" for none; the body (nothing focused) is the pane focused last. */
 function paneOf(el: Element | null, last: string): string {
@@ -348,6 +351,17 @@ function Seated({ view, session }: { view: View; session: Session }) {
       timeline.current?.focus();
     }
   };
+  // enterThread goes into a thread from its row in the list: its room shown, the thread
+  // open beside it and focused.
+  const enterThread = (room: string, root: string) => {
+    session.open(room);
+    session.openThread(root);
+    toThread.current = true;
+    if (view.thread?.root === root) {
+      toThread.current = false;
+      thread.current?.focus();
+    }
+  };
   // The pane focused last, which keys go to while nothing is focused: the rooms before any.
   const lastPane = useRef("rooms");
   useEffect(() => {
@@ -368,7 +382,10 @@ function Seated({ view, session }: { view: View; session: Session }) {
   useEffect(() => {
     const focused = (e: FocusEvent) => {
       lastPane.current = paneOf(e.target as Element, "") || lastPane.current;
-      session.inRoom((e.target as Element).closest('.open-room, [data-pane="thread"]') !== null);
+      const el = e.target as Element;
+      session.inRoom(
+        el.closest(".open-room") !== null ? "room" : el.closest('[data-pane="thread"]') !== null ? "thread" : "",
+      );
     };
     const shown = () => panes.filter((p) => document.querySelector(`[data-pane="${p}"]`) !== null);
     // The message panes, by their handles; the lists, by their rows.
@@ -590,6 +607,10 @@ function Seated({ view, session }: { view: View; session: Session }) {
       document.removeEventListener("ended", ended, true);
     };
   }, [session, keymap, view.thread, view.rooms, view.jumps, view.tagKeys, view.joined, view.rail, view.audio]);
+  // The open thread's row, when the list shows it, is where the list's cursor is; else the open room's.
+  const threadListed = view.list.some(
+    (r) => r.kind === "thread" && r.room.id === view.open && r.thread.root === view.thread?.root,
+  );
   const columns = ["columns"];
   if (view.thread && view.timeline) {
     columns.push("with-thread");
@@ -741,17 +762,46 @@ function Seated({ view, session }: { view: View; session: Session }) {
               <section className="rooms" aria-label="Rooms" data-pane="rooms">
                 {view.invites.length > 0 && <Invites invites={view.invites} session={session} />}
                 <ul>
-                  {view.rooms.map((r) => (
-                    <RoomRow
-                      key={r.id}
-                      room={r}
-                      unread={view.unread.get(r.id)}
-                      open={r.id === view.open}
-                      theme={view.theme}
-                      session={session}
-                      onEnter={enterRoom}
-                    />
-                  ))}
+                  {view.list.map((row) => {
+                    const r = row.room;
+                    switch (row.kind) {
+                      case "room":
+                        return (
+                          <RoomRow
+                            key={r.id}
+                            room={r}
+                            unread={view.unread.get(r.id)}
+                            open={r.id === view.open && !threadListed}
+                            theme={view.theme}
+                            session={session}
+                            onEnter={enterRoom}
+                          />
+                        );
+                      case "thread":
+                        return (
+                          <ThreadRow
+                            key={`${r.id} ${row.thread.root}`}
+                            room={r.id}
+                            thread={row.thread}
+                            marker={view.threads?.threadsMarker ?? ""}
+                            open={r.id === view.open && row.thread.root === view.thread?.root}
+                            session={session}
+                            onEnter={enterThread}
+                          />
+                        );
+                      case "more":
+                        return (
+                          <li key={`${r.id} more`} className="thread more">
+                            <span className="marker" aria-hidden="true">
+                              {view.threads?.threadsMarker}
+                            </span>
+                            <span className="label">
+                              +{row.more} more {row.more === 1 ? "thread" : "threads"}
+                            </span>
+                          </li>
+                        );
+                    }
+                  })}
                 </ul>
               </section>
             )}
@@ -1042,6 +1092,7 @@ function RoomRow({
         data-room={room.id}
         title="Right-click to file it into tags and spaces"
         onFocus={() => {
+          session.cursorOn(room.id, "");
           clearTimeout(peeking);
           peeking = setTimeout(() => {
             session.peek(room.id);
@@ -1065,6 +1116,56 @@ function RoomRow({
           </span>
         )}
         {count > 0 && <Badge count={count} mentions={mentions} />}
+      </button>
+    </li>
+  );
+}
+
+/**
+ * ThreadRow is one of a room's threads, under its room in the list: the marker, its root's
+ * text, and its unread replies. Resting on it shows its room; it reads only the thread.
+ */
+function ThreadRow({
+  room,
+  thread,
+  marker,
+  open,
+  session,
+  onEnter,
+}: {
+  room: string;
+  thread: ThreadUnread;
+  marker: string;
+  open: boolean;
+  session: Session;
+  onEnter: (room: string, root: string) => void;
+}) {
+  const title = thread.title.replace(/\s+/g, " ").trim() || "an older thread";
+  return (
+    <li className={thread.unread > 0n ? "thread unread" : "thread"}>
+      <button
+        type="button"
+        aria-current={open}
+        data-thread={thread.root}
+        data-thread-room={room}
+        onFocus={() => {
+          session.cursorOn(room, thread.root);
+          clearTimeout(peeking);
+          peeking = setTimeout(() => {
+            session.peek(room);
+          }, peekAfter);
+        }}
+        onClick={() => {
+          onEnter(room, thread.root);
+        }}
+      >
+        <span className="marker" aria-hidden="true">
+          {marker}
+        </span>
+        <span className="label" dir="auto">
+          {title}
+        </span>
+        {thread.unread > 0n && <Badge count={Number(thread.unread)} mentions={Number(thread.mentions)} />}
       </button>
     </li>
   );

@@ -161,7 +161,9 @@ func (w *railWorld) fresh(cfg config.Config, name string) domain.ServedRail {
 			Parent: w.parents[id],
 		})
 	}
-	return domain.BuildRail(spec, spaces, in).Served(spec, in)
+	served := domain.BuildRail(spec, spaces, in).Served(spec, in)
+	served.PlaceHomes(places.Order)
+	return served
 }
 
 // sameRail reports whether two rails hold the same rows and rooms, whatever their

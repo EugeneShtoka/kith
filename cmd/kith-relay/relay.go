@@ -485,7 +485,21 @@ func resolved(dev config.Device) *devicev1.DeviceSettings {
 		ReadDelay:           int64(dev.Display.ReadAfter() / time.Second),
 		AudioSpeed:          dev.Display.Media.Audio.PlaySpeed(),
 		AudioSkip:           int64(dev.Display.Media.Audio.SkipStep() / time.Second),
+		ThreadsInRoomList:   dev.Display.Threads.Mode(),
+		ThreadsMax:          int64(dev.Display.Threads.MaxInRoomList),
+		ThreadsDefaultMax:   config.DefaultThreadsInRoomList,
+		ThreadsMarker:       dev.Display.Threads.RowMark(),
+		ThreadRules:         threadRules(dev.Display.Threads.Rules),
 	}
+}
+
+// threadRules are [[display.threads.rule]] as the window reads them, in the file's order.
+func threadRules(rules []config.ThreadRule) []*devicev1.ThreadRule {
+	out := make([]*devicev1.ThreadRule, len(rules))
+	for i, r := range rules {
+		out[i] = &devicev1.ThreadRule{Match: r.Match, Max: int64(r.MaxInRoomList)}
+	}
+	return out
 }
 
 // tagKeys are ts as the window reads them: each chord one sequence of keys kith names,

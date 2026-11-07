@@ -1,0 +1,27 @@
+{
+  "about": "How many of a room's threads the room list shows under it (ThreadCap): [display.threads] max_in_room_list (max; 0 is fallback, negative no cap) and [[display.threads.rule]] (rules), the narrowest naming the room by its ID or its first home (home, its rail label homeLabel) winning, the later on a tie. want 0 is no cap. Read by internal/domain's conformance test and the desktop's thread-row tests.",
+  "cases": [
+    { "name": "nothing set: the default", "max": 0, "fallback": 5, "rules": [], "room": "matrix:a/!r:x", "home": "", "want": 5 },
+    { "name": "max set", "max": 3, "fallback": 5, "rules": [], "room": "matrix:a/!r:x", "home": "", "want": 3 },
+    { "name": "negative max: no cap", "max": -1, "fallback": 5, "rules": [], "room": "matrix:a/!r:x", "home": "", "want": 0 },
+    { "name": "a rule naming the room", "max": 3, "fallback": 5, "rules": [{ "match": "matrix:a/!r:x", "max": 2 }], "room": "matrix:a/!r:x", "home": "", "want": 2 },
+    { "name": "a rule naming another room", "max": 3, "fallback": 5, "rules": [{ "match": "matrix:a/!other:x", "max": 2 }], "room": "matrix:a/!r:x", "home": "", "want": 3 },
+    { "name": "a room rule's ID trimmed", "max": 3, "fallback": 5, "rules": [{ "match": "  matrix:a/!r:x ", "max": 2 }], "room": "matrix:a/!r:x", "home": "", "want": 2 },
+    { "name": "space: names the room's first home", "max": 3, "fallback": 5, "rules": [{ "match": "space:Work", "max": 1 }], "room": "matrix:a/!r:x", "home": "Work", "want": 1 },
+    { "name": "space: ignores case", "max": 3, "fallback": 5, "rules": [{ "match": "SPACE: work", "max": 1 }], "room": "matrix:a/!r:x", "home": "Work", "want": 1 },
+    { "name": "space: does not name a tag", "max": 3, "fallback": 5, "rules": [{ "match": "space:Work", "max": 1 }], "room": "matrix:a/!r:x", "home": "tag:Work", "want": 3 },
+    { "name": "tag: names a tag home", "max": 3, "fallback": 5, "rules": [{ "match": "tag:Friends", "max": 4 }], "room": "matrix:a/!r:x", "home": "tag:friends", "want": 4 },
+    { "name": "tag: does not name a space", "max": 3, "fallback": 5, "rules": [{ "match": "tag:Work", "max": 4 }], "room": "matrix:a/!r:x", "home": "Work", "want": 3 },
+    { "name": "place: names a space by its name", "max": 3, "fallback": 5, "rules": [{ "match": "place:Work", "max": 1 }], "room": "matrix:a/!r:x", "home": "Work", "homeLabel": "Office", "want": 1 },
+    { "name": "place: names a space by its label", "max": 3, "fallback": 5, "rules": [{ "match": "place:office", "max": 1 }], "room": "matrix:a/!r:x", "home": "Work", "homeLabel": "Office", "want": 1 },
+    { "name": "place: names a tag", "max": 3, "fallback": 5, "rules": [{ "match": "place:Friends", "max": 1 }], "room": "matrix:a/!r:x", "home": "tag:Friends", "want": 1 },
+    { "name": "a bare name names nothing", "max": 3, "fallback": 5, "rules": [{ "match": "Work", "max": 1 }], "room": "matrix:a/!r:x", "home": "Work", "want": 3 },
+    { "name": "a home rule with no home", "max": 3, "fallback": 5, "rules": [{ "match": "space:Work", "max": 1 }], "room": "matrix:a/!r:x", "home": "", "want": 3 },
+    { "name": "the room's rule beats its home's, before it", "max": 3, "fallback": 5, "rules": [{ "match": "matrix:a/!r:x", "max": 2 }, { "match": "space:Work", "max": 1 }], "room": "matrix:a/!r:x", "home": "Work", "want": 2 },
+    { "name": "the room's rule beats its home's, after it", "max": 3, "fallback": 5, "rules": [{ "match": "space:Work", "max": 1 }, { "match": "matrix:a/!r:x", "max": 2 }], "room": "matrix:a/!r:x", "home": "Work", "want": 2 },
+    { "name": "two rules as narrow: the later", "max": 3, "fallback": 5, "rules": [{ "match": "space:Work", "max": 1 }, { "match": "place:Office", "max": 4 }], "room": "matrix:a/!r:x", "home": "Work", "homeLabel": "Office", "want": 4 },
+    { "name": "a rule's 0 is the default, not max", "max": 3, "fallback": 5, "rules": [{ "match": "space:Work", "max": 0 }], "room": "matrix:a/!r:x", "home": "Work", "want": 5 },
+    { "name": "a rule's negative is no cap", "max": 3, "fallback": 5, "rules": [{ "match": "space:Work", "max": -1 }], "room": "matrix:a/!r:x", "home": "Work", "want": 0 },
+    { "name": "an empty match names nothing", "max": 3, "fallback": 5, "rules": [{ "match": "", "max": 1 }], "room": "matrix:a/!r:x", "home": "Work", "want": 3 }
+  ]
+}

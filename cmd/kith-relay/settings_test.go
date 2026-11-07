@@ -32,20 +32,20 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 		file string
 		want *devicev1.DeviceSettings
 	}{
-		{"nothing set", "", spelling(&devicev1.DeviceSettings{ReadDelay: -1, SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room"})},
+		{"nothing set", "", threadless(spelling(&devicev1.DeviceSettings{ReadDelay: -1, SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room"}))},
 		{
 			"keys and rules set",
 			"[display]\nsend_receipts = false\nunread_line = false\nread_delay = 2\nfiling_spaces = [\"space:Work\", \"place:Home\"]\n\n" +
 				"[[display.read_rule]]\nmatch = \"space:Work\"\nsend = true\n\n" +
 				"[[display.read_rule]]\nsender = \"matrix:@alice:example.org\"\ndelay = 5\n",
-			spelling(&devicev1.DeviceSettings{
+			threadless(spelling(&devicev1.DeviceSettings{
 				ReadRules: []*devicev1.ReadRule{
 					{Match: "space:Work", Send: &yes},
 					{Sender: "matrix:@alice:example.org", Delay: new(int64(5))},
 				},
 				ReadDelay: 2, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
 				FilingSpaces: []string{"space:Work", "place:Home"},
-			}),
+			})),
 		},
 		{
 			"the composer's keys set",
@@ -53,10 +53,10 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 				"[display]\nsend_typing = false\nskin_tone = \"medium\"\n\n" +
 				"[display.emoji]\nset = \"standard\"\nextra = { shipit = \"🐿️\" }\n\n" +
 				"[display.reactions]\nscope = \"static\"\nstatic = [\"👍\", \"🎉\"]\n",
-			spelling(&devicev1.DeviceSettings{
+			threadless(spelling(&devicev1.DeviceSettings{
 				ReadDelay: -1, SendReceipts: true, UnreadLine: true, SkinTone: "\U0001F3FD", EmojiSet: "standard",
 				EmojiExtra: map[string]string{"shipit": "🐿️"}, ReactionsScope: "static", ReactionsStatic: []string{"👍", "🎉"},
-			}),
+			})),
 		},
 		{
 			"spelling and completion set",
@@ -64,20 +64,30 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 				"rare_before_send = true\nautocorrect = \"all\"\ndeclined = [\"de_DE\"]\nfrequencies_declined = [\"he_IL\"]\n\n" +
 				"[complete]\nenabled = false\nghost = false\nratio = 5\nscope = \"global\"\nsources = [\"history\"]\n\n" +
 				"[complete.model]\ndeclined = true\n",
-			&devicev1.DeviceSettings{
+			threadless(&devicev1.DeviceSettings{
 				ReadDelay: -1, SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
 				SpellUnderline: "line", RareUnderline: "none", CheckBeforeSend: true, RareBeforeSend: true, Autocorrect: "all",
 				SpellDeclined: []string{"de_DE"}, FrequenciesDeclined: []string{"he_IL"},
 				CompleteRatio: 5, CompleteScope: "global", CompleteSources: []string{"history"}, ModelDeclined: true,
-			},
+			}),
+		},
+		{
+			"threads in the room list set",
+			"[display.threads]\nin_room_list = \"never\"\nmax_in_room_list = 3\nmarker = \"»\"\n\n" +
+				"[[display.threads.rule]]\nmatch = \"space:Work\"\nmax_in_room_list = -1\n",
+			spelling(&devicev1.DeviceSettings{
+				ReadDelay: -1, SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
+				ThreadsInRoomList: "never", ThreadsMax: 3, ThreadsDefaultMax: 5, ThreadsMarker: "»",
+				ThreadRules: []*devicev1.ThreadRule{{Match: "space:Work", Max: -1}},
+			}),
 		},
 		{
 			"changed by hand meanwhile",
 			"[display]\n[[display.read_rule]]\nmatch = \"matrix:fedcba9876543210/!room:example.org\"\nsend = false\n",
-			spelling(&devicev1.DeviceSettings{
+			threadless(spelling(&devicev1.DeviceSettings{
 				ReadDelay: -1, SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
 				ReadRules: []*devicev1.ReadRule{{Match: "matrix:fedcba9876543210/!room:example.org", Send: &no}},
-			}),
+			})),
 		},
 	} {
 		handWrite(t, path, step.file)
@@ -112,6 +122,12 @@ func spelling(s *devicev1.DeviceSettings) *devicev1.DeviceSettings {
 	return s
 }
 
+// threadless is s with [display.threads] as the TUI reads it unset.
+func threadless(s *devicev1.DeviceSettings) *devicev1.DeviceSettings {
+	s.ThreadsInRoomList, s.ThreadsDefaultMax, s.ThreadsMarker = "unread", 5, "↳"
+	return s
+}
+
 // settingsText spells s for comparing: each key, and each rule with send unset told apart.
 func settingsText(s *devicev1.DeviceSettings) string {
 	text := fmt.Sprintf("send_receipts=%v unread_line=%v markdown=%v confirm_sms=%v send_typing=%v tone=%q set=%q extra=%v scope=%q static=%q rules:",
@@ -122,6 +138,11 @@ func settingsText(s *devicev1.DeviceSettings) string {
 		s.GetSpellDeclined(), s.GetFrequenciesDeclined(), s.GetComplete(), s.GetCompleteGhost(), s.GetCompleteRatio(),
 		s.GetCompleteScope(), s.GetCompleteSources(), s.GetModelDeclined())
 	text += fmt.Sprintf(" filing_spaces=%q read_delay=%d", s.GetFilingSpaces(), s.GetReadDelay())
+	text += fmt.Sprintf(" threads=%q max=%d/%d marker=%q thread_rules:", s.GetThreadsInRoomList(), s.GetThreadsMax(),
+		s.GetThreadsDefaultMax(), s.GetThreadsMarker())
+	for _, r := range s.GetThreadRules() {
+		text += fmt.Sprintf(" %q=%d", r.GetMatch(), r.GetMax())
+	}
 	for _, r := range s.GetReadRules() {
 		send := "unset"
 		if r.Send != nil {

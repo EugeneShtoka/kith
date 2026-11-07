@@ -104,6 +104,9 @@ type ServedRoom struct {
 	Silenced bool
 	// Name is the name you gave it ([[display.name]]); empty for none.
 	Name string
+	// Home is its first home as rules naming a place read it (Scope.Space): a space's
+	// name or tag:<name>, "" for none; HomeLabel is that home's rail label when renamed.
+	Home, HomeLabel string
 }
 
 // Served is the rail as kithd serves it: the rows ShownRows draws, and each of rooms
@@ -124,6 +127,16 @@ func (r Rail) Served(spec RailSpec, rooms []RailRoom) ServedRail {
 		out.Rooms = append(out.Rooms, room)
 	}
 	return out
+}
+
+// PlaceHomes sets each room's first home, and its label, as order ranks its homes.
+func (r ServedRail) PlaceHomes(order HomeOrder) {
+	for i := range r.Rooms {
+		facts := r.Rooms[i].Facts
+		if homes := Homes(facts.Spaces, facts.Tags, order); len(homes) > 0 {
+			r.Rooms[i].Home, r.Rooms[i].HomeLabel = homes[0], order.Label(homes[0])
+		}
+	}
 }
 
 // NeedsParent reports whether a room's canonical parent space decides which rows hold

@@ -286,6 +286,10 @@ message RailRoom {
   // name is the name you gave it ([[display.name]]), shown in place of its own; empty
   // for none.
   string name = 5;
+  // home is its first home, as rules naming a place read it: a space's name or
+  // tag:<name>, "" for none; home_label is that home's rail label when renamed.
+  string home = 6;
+  string home_label = 7;
 }
 
 message AddToSpaceRequest {
