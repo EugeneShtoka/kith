@@ -394,8 +394,7 @@ Those must exist before the sandbox is built, or the unit fails before the daemo
 even starts (see
 [troubleshooting](troubleshooting.md#the-unit-fails-with-status-226namespace)). The
 unit creates them itself, in an `ExecStartPre=+mkdir` step that runs outside the
-sandbox, so you no longer need to. A unit installed before that line existed still
-needs the `mkdir -p` by hand.
+sandbox.
 Only import variables that are set in your shell: importing an unset one clears the
 value the user manager already has.
 

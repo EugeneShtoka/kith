@@ -152,11 +152,9 @@ mkdir -p ~/.local/share/kith ~/.local/state/kith ~/.cache/kith
 systemctl --user restart kithd
 ```
 
-Current units create them themselves, in an `ExecStartPre=+mkdir` step that runs
-outside the sandbox, so this happens only with a unit installed before that step
-existed, or one edited to write somewhere new without adding the directory to both
-`ReadWritePaths=` and that `mkdir` line. Reinstall the unit (`make install`, or copy
-it from a current release) to pick up the step.
+The unit creates them itself, in an `ExecStartPre=+mkdir` step that runs outside the
+sandbox, so this happens only with a unit edited to write somewhere new without adding
+the directory to both `ReadWritePaths=` and that `mkdir` line.
 
 ### The unit is inactive, but kith works
 

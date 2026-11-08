@@ -118,12 +118,10 @@ without it the deb and rpm would install a root-owned binary anyone could rewrit
 The unit's sandbox (`ProtectSystem=strict`, `ProtectHome=read-only`) allows writes to
 four directories through `ReadWritePaths=`. systemd builds that mount namespace
 before the daemon runs, and it fails the unit with `226/NAMESPACE` if one of them is
-missing. Until now `make deploy` created them, which a package can't do: it has no
-user to create them for.
+missing. A package can't create them: it has no user to create them for. So the units
+create them themselves:
 
-The units now create them themselves:
-
-- `%t/kith`, the runtime directory: `RuntimeDirectory=kith`, as before.
+- `%t/kith`, the runtime directory: `RuntimeDirectory=kith`.
 - `~/.local/share/kith`, `~/.local/state/kith` and `~/.cache/kith`:
   `ExecStartPre=+mkdir -p …`.
 
