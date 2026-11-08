@@ -6,7 +6,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -106,28 +105,14 @@ var ErrWrongKey = sealeddb.ErrWrongKey
 // KeyLen is a cache key's length in bytes.
 const KeyLen = sealeddb.KeyLen
 
-// Plain reports whether the cache at path was written before caches were encrypted,
-// so Open encrypts it first, once.
-func Plain(path string) (bool, error) {
-	plain, err := sealeddb.IsPlain(path)
-	if err != nil {
-		return false, fmt.Errorf("db: %w", err)
-	}
-	return plain, nil
-}
-
 // Open opens (creating if needed) the cache at path, encrypted under key, and brings
-// its schema up to date; a plain cache from before is encrypted first, once. One
-// connection serializes access.
+// its schema up to date. One connection serializes access.
 func Open(ctx context.Context, path string, key []byte) (*Cache, error) {
 	return open(ctx, path, key, currentSchema)
 }
 
 // open is Open with the schema to bring the cache to.
 func open(ctx context.Context, path string, key []byte, plan schemaPlan) (*Cache, error) {
-	if err := sealeddb.Seal(ctx, path, key, setup); err != nil {
-		return nil, fmt.Errorf("db: encrypt %s: %w", path, err)
-	}
 	sqlDB, err := connect(ctx, path, key, false)
 	if err != nil {
 		return nil, err
@@ -145,7 +130,7 @@ func open(ctx context.Context, path string, key []byte, plan schemaPlan) (*Cache
 			return nil, err
 		}
 	}
-	return &Cache{db: sqlDB, path: path, rebuilt: state.rebuilt, asideErr: errors.Join(state.asideErr, sealAside(ctx, path, key))}, nil
+	return &Cache{db: sqlDB, path: path, rebuilt: state.rebuilt, asideErr: state.asideErr}, nil
 }
 
 // Close runs PRAGMA optimize and closes the handle.

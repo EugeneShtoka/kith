@@ -23,10 +23,9 @@ type Store struct {
 	container *sqlstore.Container
 }
 
-// OpenStore opens the store at path, encrypted with key, creating and upgrading it;
-// a plain store from before is encrypted first (sealeddb.OpenMigrating).
+// OpenStore opens the store at path, encrypted with key, creating and upgrading it.
 func OpenStore(ctx context.Context, path string, key []byte, log *slog.Logger) (*Store, error) {
-	db, err := sealeddb.OpenMigrating(ctx, path, key)
+	db, err := sealeddb.Open(ctx, path, key)
 	if err != nil {
 		return nil, fmt.Errorf("meta: open the store: %w", err)
 	}

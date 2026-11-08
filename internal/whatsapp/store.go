@@ -31,11 +31,10 @@ var askFullHistory = sync.OnceFunc(func() {
 	store.DeviceProps.RequireFullSync = new(true)
 })
 
-// OpenStore opens the store at path, encrypted with key, creating and upgrading it;
-// a plain store from before is encrypted first (sealeddb.OpenMigrating).
+// OpenStore opens the store at path, encrypted with key, creating and upgrading it.
 func OpenStore(ctx context.Context, path string, key []byte, log waLog.Logger) (*Store, error) {
 	askFullHistory()
-	db, err := sealeddb.OpenMigrating(ctx, path, key)
+	db, err := sealeddb.Open(ctx, path, key)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: open the store: %w", err)
 	}

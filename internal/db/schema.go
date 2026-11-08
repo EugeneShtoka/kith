@@ -1093,25 +1093,6 @@ func pruneAside(path string, keep int) {
 	}
 }
 
-// sealAside encrypts the copies a rebuild set aside while the cache was plain, so no
-// history stays beside the cache in the clear. Best effort, as setting them aside was.
-func sealAside(ctx context.Context, path string, key []byte) error {
-	dir, base := filepath.Split(path)
-	entries, _ := os.ReadDir(filepath.Clean(dir)) // no folder yet: nothing set aside
-	var errs []error
-	for _, e := range entries {
-		name := e.Name()
-		stamp, isCopy := strings.CutPrefix(name, base+asideInfix)
-		if _, perr := time.Parse(asideStamp, stamp); e.IsDir() || !isCopy || perr != nil {
-			continue // not a copy, or a file beside one (-wal, .sealing)
-		}
-		if serr := sealeddb.Seal(ctx, filepath.Join(dir, name), key, setup); serr != nil {
-			errs = append(errs, fmt.Errorf("db: encrypt %s: %w", name, serr))
-		}
-	}
-	return errors.Join(errs...)
-}
-
 // userVersion reads the stamped schema version; an untouched file reads 0.
 func userVersion(ctx context.Context, sqlDB *sql.DB) (int, error) {
 	var version int
