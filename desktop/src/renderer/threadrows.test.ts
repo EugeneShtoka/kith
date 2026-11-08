@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { describe, expect, it } from "vitest";
 
 import table from "../../../internal/domain/testdata/threadcap.json";
-import { RailResponseSchema } from "../gen/backend/v1/services_pb";
+import { type RailResponse, RailResponseSchema } from "../gen/backend/v1/services_pb";
 import { type ThreadUnread, ThreadUnreadSchema, type Unread, UnreadSchema } from "../gen/backend/v1/types_pb";
 import { DeviceSettingsSchema } from "../gen/device/v1/device_pb";
 import { room } from "./testing/kithd";
@@ -81,6 +81,16 @@ describe("the room list's thread rows", () => {
     ]);
     const rail = create(RailResponseSchema, { rooms: [{ facts: { id: "!b" }, silenced: true }] });
     expect(drawn(listRows(rooms, unread, rail, settings(), "", []))).toEqual(["!a", "!a ↳ $1", "!b"]);
+  });
+
+  it("mark a room a silent tag holds (Archived), so its count is drawn without a pill, as the terminal's ·N", () => {
+    const rail = create(RailResponseSchema, { rooms: [{ facts: { id: "!b" }, silenced: true }] });
+    const silenced = (rail: RailResponse | undefined) =>
+      listRows(rooms, new Map(), rail, settings(), "", []).flatMap((r) =>
+        r.kind === "room" && r.silenced ? [r.room.id] : [],
+      );
+    expect(silenced(rail)).toEqual(["!b"]);
+    expect(silenced(undefined)).toEqual([]);
   });
 
   it("stop at the cap, the rest counted in one row; a rule naming the room's first home caps it otherwise", () => {
