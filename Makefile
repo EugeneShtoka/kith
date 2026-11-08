@@ -125,7 +125,13 @@ endif
 # test cache, which keys on the environment, stays valid. XDG_CACHE_HOME is left alone:
 # it holds Go's build cache.
 TEST_HOME := $(or $(TMPDIR),/tmp)/kith-test-home
-TEST_ENV  := XDG_DATA_HOME=$(TEST_HOME)/data XDG_CONFIG_HOME=$(TEST_HOME)/config XDG_STATE_HOME=$(TEST_HOME)/state
+# The tests' stores (SQLite, sealed) live under t.TempDir and write fsync by fsync,
+# which on a disk is most of their time: the cache package takes 8 minutes there and
+# 20 seconds on a tmpfs, where fsync costs nothing. So the tests' TMPDIR is /dev/shm
+# where there is one (Linux, CI's runners); it is short enough for their sockets.
+TEST_TMP  := $(shell [ -d /dev/shm ] && [ -w /dev/shm ] && echo /dev/shm)
+TEST_ENV  := XDG_DATA_HOME=$(TEST_HOME)/data XDG_CONFIG_HOME=$(TEST_HOME)/config XDG_STATE_HOME=$(TEST_HOME)/state \
+	$(if $(TEST_TMP),TMPDIR=$(TEST_TMP))
 
 # CI splits the tests over parallel jobs by TEST_GROUP: the two slowest packages each on
 # a runner of its own, the network adapters in two groups, and the rest (each job writes
