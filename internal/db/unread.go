@@ -60,7 +60,7 @@ func (c *Cache) SaveUnread(ctx context.Context, u domain.Unread, readTS int64) e
 }
 
 // ReadPositions is when each room's read event happened: the stored timestamp, or
-// the cached event's when the row predates it. Rooms with neither are absent.
+// the cached event's when none is stored (0). Rooms with neither are absent.
 func (c *Cache) ReadPositions(ctx context.Context) (map[domain.RoomID]int64, error) {
 	return collectMap(ctx, c.db, "read positions", `
 		SELECT u.room_id, max(u.read_ts_ms, coalesce(r.ts_ms, 0)) AS ts
@@ -78,7 +78,7 @@ func (c *Cache) ReadPositions(ctx context.Context) (map[domain.RoomID]int64, err
 }
 
 // readPosition is a room's read position over room_unread u and its LEFT JOINed
-// read event r: read_ts_ms, or the cached event's time for a row that predates it.
+// read event r: read_ts_ms, or the cached event's time when none is stored (0).
 const readPosition = `max(u.read_ts_ms, coalesce(r.ts_ms, 0))`
 
 // readKnown keeps the rooms whose read position is known.
