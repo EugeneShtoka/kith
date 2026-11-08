@@ -106,7 +106,7 @@ func TestMessagesAreCachedThenAcked(t *testing.T) {
 		group,
 		inGroup(named(msg(groupID, ofer, 1700000000400, "trail?"), "Ofer", "")),
 	})
-	r.until(10*time.Second, "every event acked", func() bool { return len(r.acked()) == 5 })
+	r.until("every event acked", func() bool { return len(r.acked()) == 5 })
 
 	room, ok := r.room(direct(dana))
 	if !ok || room.Name != "Dana" || !room.IsDirect {
@@ -154,7 +154,7 @@ func TestAnOwnMessageReadsItsChat(t *testing.T) {
 		msg(dana, me, 1700000000300, "answered"),
 		msg(dana, dana, 1700000000400, "three"),
 	})
-	r.until(10*time.Second, "every event acked", func() bool { return len(r.acked()) == 4 })
+	r.until("every event acked", func() bool { return len(r.acked()) == 4 })
 	n, _, counted, err := r.cache.CountUnread(context.Background(), r.a.Me(), direct(dana))
 	if err != nil {
 		t.Fatal(err)
@@ -176,7 +176,7 @@ func TestContactsAndMentions(t *testing.T) {
 		}}}},
 		mention,
 	})
-	r.until(10*time.Second, "every event acked", func() bool { return len(r.acked()) == 3 })
+	r.until("every event acked", func() bool { return len(r.acked()) == 3 })
 	if room, _ := r.room(direct(dana)); room.Name != "Dana Levi" {
 		t.Errorf("after the contacts, Dana's room is %q", room.Name)
 	}
@@ -193,13 +193,13 @@ func TestAnEventNotCachedIsNotAcked(t *testing.T) {
 	// The cache refuses messages until the table is back.
 	r := newRigPrepared(t, "ok", me, me, []*signalv1.EventsResponse{msg(dana, dana, 1700000000100, "kept late")},
 		func(r *rig) { r.sql("ALTER TABLE messages RENAME TO messages_away") })
-	r.until(5*time.Second, "connected", r.phase(signal.Linked, ""))
+	r.until("connected", r.phase(signal.Linked, ""))
 	time.Sleep(3 * time.Second)
 	if acked := r.acked(); len(acked) != 0 {
 		t.Fatalf("acked %v while the cache refused it", acked)
 	}
 	r.sql("ALTER TABLE messages_away RENAME TO messages")
-	r.until(10*time.Second, "acked once cached", func() bool { return len(r.acked()) == 1 })
+	r.until("acked once cached", func() bool { return len(r.acked()) == 1 })
 	if msgs := r.messages(direct(dana)); len(msgs) != 1 || msgs[0].Body != "kept late" {
 		t.Errorf("cached = %+v", msgs)
 	}
@@ -211,7 +211,7 @@ func TestAnEventForNoAccountWaits(t *testing.T) {
 	stray := msg(dana, dana, 1700000000100, "for the other account")
 	stray.Account = other
 	r := newRigPlaying(t, "ok", me+","+other, me, []*signalv1.EventsResponse{stray, msg(dana, dana, 1700000000200, "mine")})
-	r.until(10*time.Second, "mine acked", func() bool { return slices.Contains(r.acked(), "mine") })
+	r.until("mine acked", func() bool { return slices.Contains(r.acked(), "mine") })
 	time.Sleep(time.Second)
 	if acked := r.acked(); slices.Contains(acked, "for the other account") {
 		t.Fatalf("acked %v: the stray was let go", acked)
@@ -224,7 +224,7 @@ func TestAnEventForNoAccountWaits(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.a.UseConfig(context.Background(), config.Config{Signal: config.Signal{Accounts: []config.SignalAccount{{Name: "phone"}, {Name: "two"}}}})
-	r.until(10*time.Second, "the stray acked once its account came", func() bool {
+	r.until("the stray acked once its account came", func() bool {
 		return slices.Contains(r.acked(), "for the other account")
 	})
 	if msgs := r.messages(domain.RoomID("signal:" + other + "/" + dana)); len(msgs) != 1 {
@@ -236,9 +236,9 @@ func TestAnEventForNoAccountWaits(t *testing.T) {
 // unlinked come, in one change, is a rename.
 func TestARenameKeepsTheLink(t *testing.T) {
 	r := newRig(t, "ok", me, me)
-	r.until(5*time.Second, "linked", r.phase(signal.Linked, ""))
+	r.until("linked", r.phase(signal.Linked, ""))
 	r.a.UseConfig(context.Background(), config.Config{Signal: config.Signal{Accounts: []config.SignalAccount{{Name: "il"}}}})
-	r.until(5*time.Second, "il linked", func() bool {
+	r.until("il linked", func() bool {
 		s, ok := r.last()
 		return ok && s.Account == "il" && s.Phase == signal.Linked
 	})
@@ -264,7 +264,7 @@ func TestANumberJoinsAPersonToTheirPhone(t *testing.T) {
 	hi := msg(dana, me, 1700000000100, "hi")
 	hi.GetMessage().ChatNumber = "+972 50-000-0002"
 	r := newRigPlaying(t, "ok", me, me, []*signalv1.EventsResponse{hi})
-	r.until(10*time.Second, "acked", func() bool { return len(r.acked()) == 1 })
+	r.until("acked", func() bool { return len(r.acked()) == 1 })
 	if room, _ := r.room(direct(dana)); room.Name != "+972500000002" {
 		t.Errorf("Dana's room is %q, want her number", room.Name)
 	}

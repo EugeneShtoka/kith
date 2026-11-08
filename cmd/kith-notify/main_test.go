@@ -123,6 +123,24 @@ type shown struct {
 	mu     sync.Mutex
 	bodies []string
 	sounds map[string]string // by body
+	// muted is what reached the agent while the device's notifications were off.
+	muted []string
+}
+
+// off is the sink the agent shows to while the device's notifications are off: it
+// shows nothing, and records what it was handed, so a test knows it arrived.
+type off struct{ s *shown }
+
+func (o off) Notify(n notify.Notification) {
+	o.s.mu.Lock()
+	defer o.s.mu.Unlock()
+	o.s.muted = append(o.s.muted, n.Body)
+}
+
+func (s *shown) mutedCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.muted)
 }
 
 func (s *shown) Notify(n notify.Notification) {
@@ -192,7 +210,7 @@ func listeningWith(t *testing.T, socket, device string, rec *shown, profiles ...
 	logs := &logBuffer{}
 	sinks := func(notifs config.DeviceNotifications) notify.Notifier {
 		if !notifs.Enabled {
-			return notify.Nop{}
+			return off{rec}
 		}
 		return rec
 	}
@@ -278,7 +296,8 @@ func TestTheAgentFollowsTheDeviceFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	k.says(firstOnly, "while off")
-	time.Sleep(200 * time.Millisecond)
+	// Handled once it reached the agent, which reads the file then: not before.
+	waitFor(t, func() bool { return rec.mutedCount() == 1 }, "the notification while off")
 	if got := rec.all(); len(got) != 0 {
 		t.Errorf("shown %v with the device's notifications off", got)
 	}

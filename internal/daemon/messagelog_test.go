@@ -28,8 +28,9 @@ type numberedCache struct {
 	last    int64
 	changes []domain.MessageChange
 	streams *daemon.Streams
-	// whileRead runs once, inside the next read, after it has taken what it returns:
-	// a commit landing while a reader reads.
+	// whileRead runs once, inside the next read that takes a change, after it has taken
+	// what it returns: a commit landing while a reader reads. A read that takes nothing
+	// (the stream's first, racing the test) leaves it armed.
 	whileRead func()
 	// slowStart is how long saying where the numbering stands takes.
 	slowStart time.Duration
@@ -108,7 +109,11 @@ func (c *numberedCache) ChangesAfter(_ context.Context, after int64, limit int) 
 		}
 	}
 	epoch, during := c.epoch, c.whileRead
-	c.whileRead = nil
+	if len(out) > 0 {
+		c.whileRead = nil
+	} else {
+		during = nil
+	}
 	c.mu.Unlock()
 	if during != nil {
 		during()
@@ -386,11 +391,10 @@ func TestACommitLargerThanAReadArrivesWhole(t *testing.T) {
 func TestACommitDuringAReadWakesTheReader(t *testing.T) {
 	t.Parallel()
 	h, cache := serveNumbered(t)
+	// Armed before the stream opens: its first read, which takes nothing, passes it by.
+	cache.whileRead = func() { cache.commit(message("during")) }
 	frames, _ := openMessages(t, h, "", 0)
 	h.waitStreams(1)
-	cache.mu.Lock()
-	cache.whileRead = func() { cache.commit(message("during")) }
-	cache.mu.Unlock()
 	cache.commit(message("first"))
 	for _, want := range []string{"first", "during"} {
 		if f := nextFrame(t, frames); f.msg == nil || f.msg.Body != want {

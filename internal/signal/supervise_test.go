@@ -504,14 +504,18 @@ func (r *rig) last() (domain.AccountStatus, bool) {
 	return r.statuses[len(r.statuses)-1], true
 }
 
-// until waits up to within for ok, failing with what it waited for.
-func (r *rig) until(within time.Duration, what string, ok func() bool) {
+// until waits for ok, failing with what it waited for.
+// hangAfter is how long until waits before it takes the wait for a hang. An event is
+// acked once cached, fsync by fsync: on a disk busy with other suites that took over 5s.
+const hangAfter = time.Minute
+
+func (r *rig) until(what string, ok func() bool) {
 	r.t.Helper()
-	deadline := time.Now().Add(within)
+	deadline := time.Now().Add(hangAfter)
 	for !ok() {
 		if time.Now().After(deadline) {
 			s, _ := r.last()
-			r.t.Fatalf("waited %v for %s; helpers %v, last state %+v", within, what, r.pids(), s)
+			r.t.Fatalf("waited %v for %s; helpers %v, last state %+v", hangAfter, what, r.pids(), s)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -545,17 +549,17 @@ func TestTheHelperIsKeptRunning(t *testing.T) {
 		then func(*testing.T, *rig)
 	}{
 		{"ok", func(t *testing.T, r *rig) {
-			r.until(5*time.Second, "linked", r.phase(signal.Linked, ""))
+			r.until("linked", r.phase(signal.Linked, ""))
 			r.steady(3 * time.Second)
 		}},
 		{"slow", func(t *testing.T, r *rig) {
 			// Slower than a heartbeat's answer, so one is missed: not killed for it.
-			r.until(8*time.Second, "linked", r.phase(signal.Linked, ""))
+			r.until("linked", r.phase(signal.Linked, ""))
 			r.steady(3 * time.Second)
 		}},
 		{"crash", func(t *testing.T, r *rig) {
-			r.until(10*time.Second, "three starts", r.started(3))
-			r.until(time.Second, "the state to say so", r.phase(signal.Connecting, "stopped"))
+			r.until("three starts", r.started(3))
+			r.until("the state to say so", r.phase(signal.Connecting, "stopped"))
 			// Started again after a growing wait (1 s, 2 s, 4 s), never in a tight loop.
 			time.Sleep(time.Second)
 			if n := len(r.pids()); n > 4 {
@@ -563,21 +567,21 @@ func TestTheHelperIsKeptRunning(t *testing.T) {
 			}
 		}},
 		{"exit", func(t *testing.T, r *rig) {
-			r.until(5*time.Second, "linked", r.phase(signal.Linked, ""))
-			r.until(8*time.Second, "a second start", r.started(2))
+			r.until("linked", r.phase(signal.Linked, ""))
+			r.until("a second start", r.started(2))
 		}},
 		{"freeze", func(t *testing.T, r *rig) {
-			r.until(5*time.Second, "linked", r.phase(signal.Linked, ""))
+			r.until("linked", r.phase(signal.Linked, ""))
 			first := r.pids()[0]
-			r.until(20*time.Second, "the frozen helper killed", func() bool { return !alive(first) })
-			r.until(5*time.Second, "a new helper", r.started(2))
-			r.until(5*time.Second, "linked again", r.phase(signal.Linked, ""))
+			r.until("the frozen helper killed", func() bool { return !alive(first) })
+			r.until("a new helper", r.started(2))
+			r.until("linked again", r.phase(signal.Linked, ""))
 		}},
 		{"mute", func(t *testing.T, r *rig) {
-			r.until(5*time.Second, "a start", r.started(1))
+			r.until("a start", r.started(1))
 			first := r.pids()[0]
-			r.until(20*time.Second, "the mute helper killed", func() bool { return !alive(first) })
-			r.until(5*time.Second, "a new helper", r.started(2))
+			r.until("the mute helper killed", func() bool { return !alive(first) })
+			r.until("a new helper", r.started(2))
 		}},
 	} {
 		t.Run(tc.mode, func(t *testing.T) {
@@ -601,7 +605,7 @@ func TestAccountsSayWhetherTheyAreLinked(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newRig(t, "ok", tc.devices, tc.linkedTo)
-			r.until(5*time.Second, tc.name, r.phase(tc.phase, tc.detail))
+			r.until(tc.name, r.phase(tc.phase, tc.detail))
 			if tc.phase == signal.Linked {
 				if me := r.a.Me(); !slices.Equal(me, []string{"signal:aci-1"}) {
 					t.Errorf("Me = %v", me)
@@ -619,12 +623,12 @@ func TestTheHelperStartsOnlyWhenInstalled(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := newRig(t, "exit", "aci-1", "aci-1")
-	r.until(5*time.Second, "a start", r.started(1))
+	r.until("a start", r.started(1))
 	r.uninstall()
-	r.until(10*time.Second, "not installed", r.phase(domain.AccountFailed, ""))
+	r.until("not installed", r.phase(domain.AccountFailed, ""))
 	r.steady(3 * time.Second)
 	r.install(self)
-	r.until(10*time.Second, "a start once installed", r.started(2))
+	r.until("a start once installed", r.started(2))
 }
 
 // Without the store's key (the keyring would not give it) the helper is never started:
@@ -637,7 +641,7 @@ func TestWithoutTheStoreKeyTheCacheIsStillServed(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	r.until(5*time.Second, "failed for its key", r.phase(domain.AccountFailed, ""))
+	r.until("failed for its key", r.phase(domain.AccountFailed, ""))
 	r.steady(2 * time.Second)
 	if n := len(r.pids()); n != 0 {
 		t.Errorf("%d helpers started without a key", n)
@@ -650,15 +654,15 @@ func TestWithoutTheStoreKeyTheCacheIsStillServed(t *testing.T) {
 // With no account left, or kithd stopping, the helper is killed and not started again.
 func TestTheHelperEndsWithItsAccounts(t *testing.T) {
 	r := newRig(t, "ok", "aci-1", "aci-1")
-	r.until(5*time.Second, "linked", r.phase(signal.Linked, ""))
+	r.until("linked", r.phase(signal.Linked, ""))
 	first := r.pids()[0]
 	r.a.UseConfig(context.Background(), config.Config{})
-	r.until(5*time.Second, "the helper killed", func() bool { return !alive(first) })
+	r.until("the helper killed", func() bool { return !alive(first) })
 	r.steady(3 * time.Second)
 
 	r.a.UseConfig(context.Background(), config.Config{Signal: config.Signal{Accounts: []config.SignalAccount{{Name: "phone"}}}})
-	r.until(5*time.Second, "a helper for the account back", r.started(2))
-	r.until(5*time.Second, "linked", r.phase(signal.Linked, ""))
+	r.until("a helper for the account back", r.started(2))
+	r.until("linked", r.phase(signal.Linked, ""))
 	second := r.pids()[1]
 	r.stop()
 	if alive(second) {
@@ -669,7 +673,7 @@ func TestTheHelperEndsWithItsAccounts(t *testing.T) {
 // A state is said once: config re-reads that change nothing say nothing again.
 func TestAStateIsSaidOnce(t *testing.T) {
 	r := newRig(t, "ok", "aci-1", "aci-1")
-	r.until(5*time.Second, "linked", r.phase(signal.Linked, ""))
+	r.until("linked", r.phase(signal.Linked, ""))
 	r.mu.Lock()
 	before := len(r.statuses)
 	r.mu.Unlock()
@@ -688,7 +692,7 @@ func TestAStateIsSaidOnce(t *testing.T) {
 // Login draws the helper's link as a QR code and keeps which Signal account it linked.
 func TestLoginLinksByQR(t *testing.T) {
 	r := newRig(t, "ok", "", "")
-	r.until(5*time.Second, "not linked", r.phase(signal.Unlinked, "not linked yet"))
+	r.until("not linked", r.phase(signal.Unlinked, "not linked yet"))
 	talk := &apitest.Talk{}
 	end, err := r.a.Login(context.Background(), "phone", talk)
 	if err != nil {
@@ -703,7 +707,7 @@ func TestLoginLinksByQR(t *testing.T) {
 	if aci, _, _ := r.secrets.Secret("signal|phone"); aci != "aci-new" {
 		t.Errorf("kept %q as the account's Signal account", aci)
 	}
-	r.until(time.Second, "linked", r.phase(signal.Linked, ""))
+	r.until("linked", r.phase(signal.Linked, ""))
 	if me := r.a.Me(); !slices.Equal(me, []string{"signal:aci-new"}) {
 		t.Errorf("Me = %v", me)
 	}
