@@ -8,14 +8,13 @@ import { clone, create, equals } from "@bufbuild/protobuf";
 
 import { type DeviceSettings, DeviceSettingsSchema } from "../gen/device/v1/device_pb";
 
-/** A setting the page changes: each key DeviceSettings carries but filing_spaces, keys, jumps, read_delay, the audio's and the threads', which the window only reads. */
+/** A setting the window changes: each key DeviceSettings carries but filing_spaces, keys, tag keys, read_delay, the audio's and the threads', which the window only reads. */
 export type Key = Exclude<
   keyof DeviceSettings,
   | "$typeName"
   | "$unknown"
   | "filingSpaces"
   | "keys"
-  | "jumps"
   | "tagKeys"
   | "readDelay"
   | "audioSpeed"
@@ -73,6 +72,7 @@ export const labels: Record<Key, string> = {
   completeScope: "Words weighed from",
   completeSources: "Words from",
   modelDeclined: "Completion model turned down",
+  jumps: "Jump shortcuts",
 };
 
 /** withKey is settings with key set to value. */

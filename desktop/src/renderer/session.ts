@@ -1,7 +1,13 @@
 // The window's state, outside React: the profile it runs in, its seat there, and the
 // profile's rooms, unread and invitations, kept by the streams main holds open. React
 // reads it through useSyncExternalStore; nothing here draws.
-import type { DescMessage, DescMethodServerStreaming, MessageInitShape, MessageShape } from "@bufbuild/protobuf";
+import {
+  create,
+  type DescMessage,
+  type DescMethodServerStreaming,
+  type MessageInitShape,
+  type MessageShape,
+} from "@bufbuild/protobuf";
 
 import {
   BackendService,
@@ -29,6 +35,7 @@ import {
   type DeviceSettings,
   DeviceService,
   type Jump,
+  JumpSchema,
   type TagKey,
   type ThemeResponse,
 } from "../gen/device/v1/device_pb";
@@ -36,6 +43,7 @@ import { runIn } from "../shared/profile";
 import { later, listed, named, placed, refOf, type RowRef } from "./rail";
 import { Composer, type ComposerView, type Unscheduled, type Unsent } from "./compose";
 import { type Kept, keptFrom, keptText } from "./drafts";
+import { conflict } from "./keymap";
 import { asked as filingAsked, type Filing, offered, opened, retagged, toggled, told } from "./filing";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { type LinkAct, links } from "./links";
@@ -202,6 +210,8 @@ export interface View {
   linking: { act: LinkAct; links: readonly string[] } | undefined;
   /** The room whose name is being written (rooms.name), and the name it starts from. */
   naming: { room: string; name: string } | undefined;
+  /** The room a key sequence is being written for (/shortcut), and the one it starts from. */
+  shortcut: { room: string; keys: string } | undefined;
   /** A rail row's unread rooms asked about marking read (rail.mark_read), and its label. */
   marking: { label: string; rooms: readonly string[] } | undefined;
   /** The People list and a person's card (people.ts). */
@@ -373,6 +383,7 @@ const nothingShown = {
   accounts: [],
   filing: undefined,
   naming: undefined,
+  shortcut: undefined,
   marking: undefined,
   notice: undefined,
   linking: undefined,
@@ -1643,6 +1654,14 @@ export class Session {
           this.open(room);
           return true;
         },
+        shortcut: (room, keys) => {
+          if (keys === "") {
+            const keys = this.view.jumps.find((j) => j.room === room)?.sequence ?? "";
+            this.set({ shortcut: { room, keys }, notice: undefined });
+          } else {
+            void this.bindShortcut(room, keys);
+          }
+        },
       }),
     };
     this.run = run;
@@ -2521,6 +2540,60 @@ export class Session {
         }
       },
     );
+  }
+
+  closeShortcut(): void {
+    this.set({ shortcut: undefined });
+  }
+
+  /**
+   * bindShortcut makes keys the sequence that goes to room, as the TUI's /shortcut does:
+   * a [[keys.jump]] in device.toml, the room's earlier one replaced; empty keys unbind
+   * it. A sequence already bound, or one that starts or is started by a bound one, is
+   * refused. The line under the rooms says what came of it.
+   */
+  async bindShortcut(room: string, keys: string): Promise<void> {
+    const run = this.run;
+    if (run === undefined) {
+      return;
+    }
+    this.set({ shortcut: undefined });
+    const seq = keys.trim().split(/\s+/u).filter(Boolean).join(" ");
+    const name = run.joined.find((r) => r.id === room)?.name || room;
+    const bound: Record<string, readonly string[]> = { ...this.view.keys };
+    for (const j of this.view.jumps) {
+      if (j.room !== room) {
+        bound[`a jump to ${j.place || (run.joined.find((r) => r.id === j.room)?.name ?? j.room)}`] = [j.sequence];
+      }
+    }
+    for (const t of this.view.tagKeys) {
+      bound[`putting rooms in ${t.tag}`] = [t.sequence];
+    }
+    const why = seq === "" ? "" : conflict(seq, bound);
+    if (why !== "") {
+      this.set(this.noticed(`${seq}: ${why}`, "warning"));
+      return;
+    }
+    let note: Notice;
+    try {
+      const shown = await relay.read();
+      const jumps = shown.settings.jumps.filter((j) => j.room !== room);
+      if (seq !== "") {
+        jumps.push(create(JumpSchema, { sequence: seq, room }));
+      }
+      const got = await change(relay, shown, "jumps", jumps);
+      if (this.live(run)) {
+        this.set({ jumps: got.settings.jumps });
+      }
+      note = got.kept
+        ? { text: `${labels.jumps} were changed elsewhere meanwhile: ${name} was not bound`, level: "warning" }
+        : { text: seq === "" ? `unbound ${name}` : `${seq} now goes to ${name}`, level: "message" };
+    } catch (err) {
+      note = { text: `${name} was not bound: ${errorText(err)}`, level: "error" };
+    }
+    if (this.live(run)) {
+      this.set(this.noticed(note.text, note.level));
+    }
   }
 
   /** tickFiling ticks a place of the open filing picker, or clears it. */

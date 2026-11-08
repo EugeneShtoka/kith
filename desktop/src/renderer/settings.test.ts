@@ -160,6 +160,16 @@ const values: { [K in Key]: fc.Arbitrary<DeviceSettings[K]> } = {
   completeScope: fc.constantFrom("room", "space", "global"),
   completeSources: fc.array(fc.constantFrom("history", "frequency"), { maxLength: 2 }),
   modelDeclined: fc.boolean(),
+  // [[keys.jump]], as /shortcut writes them.
+  jumps: fc.array(
+    fc.record({
+      $typeName: fc.constant("device.v1.Jump" as const),
+      sequence: fc.constantFrom("g w", "ctrl+1"),
+      room: fc.constantFrom("!a", "!b"),
+      place: fc.constant(""),
+    }),
+    { maxLength: 2 },
+  ),
 };
 const keys = Object.keys(values) as Key[];
 

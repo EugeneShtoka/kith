@@ -311,3 +311,69 @@ func TestTheTUIsEditorAndTheDesktopsPageWritingAtOnce(t *testing.T) {
 			final.Terminal, final.Display.SendsTyping(), want, typed)
 	}
 }
+
+// The window's [[keys.jump]] (/shortcut binding a room) is written as the file spells
+// them, after the file's jumps the window is not shown, which stay; a sequence of a key
+// kith does not name, a jump to a room and a place at once or to a room ID kith does not
+// read, or a chord bound twice is refused and nothing is written.
+func TestTheDesktopsJumpsAreWrittenOntoTheDeviceFile(t *testing.T) {
+	t.Parallel()
+	path, _ := relayConfig(t, t.TempDir())
+	device := deviceClient(relayFor(t, kithdSocket(t), path))
+	devicePath := config.DevicePath(path)
+	handWrite(t, path, "[[keys.jump]]\nchord = \"g bogus\"\ntarget = \"tag:Later\"\n\n"+
+		"[[keys.jump]]\nchord = \"g S\"\ntarget = \"space:Work\"\n")
+	shown, err := readPage(t, device)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(js ...*devicev1.Jump) (page, error) {
+		want, _ := proto.Clone(shown.settings).(*devicev1.DeviceSettings)
+		want.Jumps = js
+		res, werr := device.UpdateDeviceSettings(t.Context(), connect.NewRequest(&devicev1.UpdateDeviceSettingsRequest{
+			BaseRevision: shown.revision, Settings: want,
+		}))
+		if werr != nil {
+			return shown, werr
+		}
+		return page{res.Msg.GetSettings(), res.Msg.GetRevision()}, nil
+	}
+	onDisk := func() config.Jumps {
+		t.Helper()
+		dev, lerr := config.LoadDevice(devicePath)
+		if lerr != nil {
+			t.Fatal(lerr)
+		}
+		return dev.Keys.Jump
+	}
+	work := &devicev1.Jump{Sequence: "g S", Place: "space:Work"}
+
+	if shown, err = write(work, &devicev1.Jump{Sequence: "g w", Room: "matrix:0123456789abcdef/!w:example.org"}); err != nil {
+		t.Fatal(err)
+	}
+	want := config.Jumps{{Chord: "g bogus", Target: "tag:Later"}, {Chord: "g S", Target: "space:Work"}, {Chord: "g w", Target: "room:matrix:0123456789abcdef/!w:example.org"}}
+	if got := onDisk(); !slices.Equal(got, want) {
+		t.Errorf("jumps written %v, want %v", got, want)
+	}
+
+	for what, j := range map[string]*devicev1.Jump{
+		"a key kith does not name": {Sequence: "g nokey", Room: "matrix:0123456789abcdef/!x:example.org"},
+		"a room and a place":       {Sequence: "g x", Room: "matrix:0123456789abcdef/!x:example.org", Place: "space:Work"},
+		"a room kith cannot read":  {Sequence: "g x", Room: "!x:example.org"},
+		"a chord bound twice":      {Sequence: "g S", Room: "matrix:0123456789abcdef/!x:example.org"},
+	} {
+		if _, werr := write(work, j); connect.CodeOf(werr) != connect.CodeInvalidArgument {
+			t.Errorf("%s: %v, want it refused", what, werr)
+		}
+		if got := onDisk(); !slices.Equal(got, want) {
+			t.Errorf("%s was written: %v", what, got)
+		}
+	}
+
+	if _, err = write(work); err != nil {
+		t.Fatal(err)
+	}
+	if got := onDisk(); !slices.Equal(got, want[:2]) {
+		t.Errorf("g w unbound: jumps %v, want %v", got, want[:2])
+	}
+}

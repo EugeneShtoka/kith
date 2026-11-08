@@ -252,7 +252,10 @@ A place's own speed rule, and `save_speed`, are the terminal's only for now.
 
 Your `[[keys.jump]]` chords go where they do in the terminal: to a room by its ID, or to
 the first rail row a `space:`, `tag:` or `place:` entry names. `?` lists them after the
-window's own keys.
+window's own keys. `/shortcut g w` in a room's composer binds `g w` to that room, replacing
+its earlier chord; `/shortcut` alone asks, starting from the room's chord, and an empty one
+unbinds it. A sequence already bound, or one that starts a bound one or is started by one,
+is refused.
 
 On a room in the list, `rooms.name` (`a`) gives it a name of your own, as the
 terminal's does: written into `[[display.name]]`, and shown in place of its own name
@@ -470,7 +473,7 @@ sends from it, so it goes on time whether the window is open or not.
 A `/` at the start of the composer lists the commands, as the terminal client's does
 ([commands](commands.md#composer-commands-)): `/me`, `/plain`, `/at`, `/in`,
 `/scheduled`, `/search`, `/upload` (it opens the file dialog), `/poll`, `/topic` (shown in
-full) and `/replacement` work in the window; the rest say they are in the terminal
+full), `/replacement` and `/shortcut` work in the window; the rest say they are in the terminal
 client and keep your words. `//` starts a message with one slash.
 
 Your own commands ([your own commands](commands.md#your-own-commands): the executables

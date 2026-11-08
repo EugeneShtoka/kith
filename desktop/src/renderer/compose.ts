@@ -181,6 +181,8 @@ export interface Surroundings {
   pick(): void;
   /** go opens room if the profile has it joined, answering whether it did. */
   go(room: string): boolean;
+  /** shortcut binds keys to room ([[keys.jump]]), or with none asks which, starting from its own. */
+  shortcut(room: string, keys: string): void;
 }
 
 /** One run's composer: its drafts, files, failed sends and what it read for them. */
@@ -1159,6 +1161,9 @@ export class Composer {
         break;
       case "/upload":
         this.around.pick();
+        break;
+      case "/shortcut":
+        this.around.shortcut(room, arg);
         break;
       case "/topic":
         if (where?.topic) {

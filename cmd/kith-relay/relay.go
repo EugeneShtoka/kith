@@ -364,8 +364,49 @@ func applySettings(file config.Device, want *devicev1.DeviceSettings) (config.De
 	if !slices.EqualFunc(want.GetReadRules(), has.GetReadRules(), sameRule) {
 		file.Display.ReadRules = readRules(want.GetReadRules(), file.Display.ReadRules)
 	}
+	if !slices.EqualFunc(want.GetJumps(), has.GetJumps(), sameJump) {
+		js, err := jumpEntries(want.GetJumps(), file.Keys.Jump)
+		if err != nil {
+			return config.Device{}, err
+		}
+		file.Keys.Jump = js
+	}
 	applySpelling(&file, want, has)
 	return file, nil
+}
+
+// sameJump is whether two jumps say the same.
+func sameJump(a, b *devicev1.Jump) bool {
+	return a.GetSequence() == b.GetSequence() && a.GetRoom() == b.GetRoom() && a.GetPlace() == b.GetPlace()
+}
+
+// jumpEntries is the window's [[keys.jump]] as the file spells them, after the file's
+// entries the window is not shown (jumps leaves them out), which it cannot have meant to
+// drop. A sequence of a key kith does not name, or a jump to no place, two, or one the
+// window could not read back, is refused.
+func jumpEntries(want []*devicev1.Jump, had config.Jumps) (config.Jumps, error) {
+	var out config.Jumps
+	for _, j := range had {
+		if len(jumps(config.Jumps{j})) == 0 {
+			out = append(out, j)
+		}
+	}
+	for _, j := range want {
+		seq := config.NormalizeSequence(j.GetSequence())
+		if seq == "" || !config.SequenceValid(seq) {
+			return nil, fmt.Errorf("keys.jump: %q is not a key sequence kith names", j.GetSequence())
+		}
+		target := domain.JumpTarget{Kind: domain.JumpRoom, Name: j.GetRoom()}
+		if j.GetPlace() != "" {
+			target = domain.JumpTarget{Kind: domain.JumpHome, Name: j.GetPlace()}
+		}
+		entry := config.Jump{Chord: seq, Target: target.String()}
+		if (j.GetRoom() == "") == (j.GetPlace() == "") || len(jumps(config.Jumps{entry})) == 0 {
+			return nil, fmt.Errorf("keys.jump: %s goes to one room or one place kith reads", seq)
+		}
+		out = append(out, entry)
+	}
+	return out, nil
 }
 
 // applySpelling is applySettings for [spell] and [complete]: a word the TUI does not know
