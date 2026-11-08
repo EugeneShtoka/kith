@@ -5,10 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
-
-	"github.com/ncruces/go-sqlite3/driver"
 
 	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
@@ -43,21 +40,6 @@ func connect(ctx context.Context, path string, key []byte, readOnly bool) (*sql.
 	return sqlDB, nil
 }
 
-// connectPlain opens a plain cache file at path only for reading: a backup made before
-// caches were encrypted.
-func connectPlain(path string) (*sql.DB, error) {
-	q := url.Values{}
-	q.Set("mode", "ro")
-	q.Add("_pragma", "busy_timeout(5000)")
-	u := url.URL{Scheme: "file", Opaque: (&url.URL{Path: path}).EscapedPath(), RawQuery: q.Encode()}
-	sqlDB, err := driver.Open(u.String(), setup.Init)
-	if err != nil {
-		return nil, fmt.Errorf("db: open %s: %w", path, err)
-	}
-	sqlDB.SetMaxOpenConns(1)
-	return sqlDB, nil
-}
-
 // Snapshot writes a consistent, self-contained copy of the cache at path (under key)
 // to dst under dstKey, a file that must not exist or be empty, and checks the copy.
 // The cache is only read, so the daemon may keep running.
@@ -81,16 +63,9 @@ func Snapshot(ctx context.Context, path string, key []byte, dst string, dstKey [
 
 // Adopt checks the copy at src (intact, and a schema this kith opens without
 // rebuilding) and writes it as a cache file at dst under dstKey, which must not exist
-// or be empty, then checks what it wrote. src is under srcKey, or plain for a nil
-// srcKey (a backup made before caches were encrypted); it is only read.
+// or be empty, then checks what it wrote. src is under srcKey; it is only read.
 func Adopt(ctx context.Context, src string, srcKey []byte, dst string, dstKey []byte) error {
-	var sqlDB *sql.DB
-	var err error
-	if srcKey == nil {
-		sqlDB, err = connectPlain(src)
-	} else {
-		sqlDB, err = connect(ctx, src, srcKey, true)
-	}
+	sqlDB, err := connect(ctx, src, srcKey, true)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrNotACache, err)
 	}

@@ -92,8 +92,7 @@ type restore struct {
 	configPath string
 	replace    bool
 	// cacheKey finds this machine's key for a storage's cache; key is the one found
-	// for the restored storage, and backupKey the one the backup's cache is under (nil:
-	// a plain cache).
+	// for the restored storage, and backupKey the one the backup's cache is under.
 	cacheKey       func(domain.Storage) ([]byte, error)
 	key, backupKey []byte
 	// id is the backup key the backup opened with.

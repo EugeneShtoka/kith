@@ -230,37 +230,25 @@ func opsAndHead(t *testing.T, path string, key []byte) (ops, head int) {
 	return ops, head
 }
 
-// A backup of the layout before the mesh store (format 3, which holds none) restores
-// as it did, and leaves a mesh store already there alone.
-func TestABackupFromBeforeTheMeshStoreStillRestores(t *testing.T) {
+// A backup of another layout is refused, naming it.
+func TestABackupOfAnotherLayoutIsRefused(t *testing.T) {
 	old := newMachine(t)
 	old.as(t).fill(t, "kept", 5)
 	body, err := os.ReadFile(old.backUp(t)) // #nosec G304 -- the test's own file
 	if err != nil {
 		t.Fatal(err)
 	}
-	archive := filepath.Join(t.TempDir(), "old.tar.age")
-	if err := os.WriteFile(archive, asFormat(t, body, 3), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	fresh := newMachine(t).as(t)
+	archive := filepath.Join(t.TempDir(), "other.tar.age")
 	asked := 0
-	if _, err := backup.Restore(context.Background(), archive, fresh.configPath, false, answer(testKey, &asked), keyOf); err != nil {
-		t.Fatalf("Restore() of a format 3 backup: %v", err)
-	}
-	if b := bodies(t, fresh.storage(t).CachePath()); len(b) != 5 {
-		t.Errorf("the restored cache holds %d messages, want 5", len(b))
-	}
-	if _, err := os.Stat(fresh.storage(t).MeshPath()); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("a backup with no mesh store left one: %v", err)
-	}
-	if err := os.WriteFile(archive, asFormat(t, body, 5), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	newer := newMachine(t).as(t)
-	if _, err := backup.Restore(context.Background(), archive, newer.configPath, false, answer(testKey, &asked), keyOf); err == nil ||
-		!strings.Contains(err.Error(), "layout is 5") {
-		t.Errorf("Restore() of a newer layout: %v; want it refused, naming the layout", err)
+	for _, layout := range []int{3, 5} {
+		if err := os.WriteFile(archive, asFormat(t, body, layout), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		fresh := newMachine(t).as(t)
+		if _, err := backup.Restore(context.Background(), archive, fresh.configPath, false, answer(testKey, &asked), keyOf); err == nil ||
+			!strings.Contains(err.Error(), fmt.Sprintf("layout is %d", layout)) {
+			t.Errorf("Restore() of layout %d: %v; want it refused, naming the layout", layout, err)
+		}
 	}
 }
 
