@@ -30,7 +30,7 @@ func StorageFor(cfg config.Config, configPath string) (domain.Storage, error) {
 	if err != nil {
 		return domain.Storage{}, err
 	}
-	base, err := baseInstance(cfg, configPath, storage)
+	base, err := baseInstance(cfg, configPath)
 	if err != nil {
 		return domain.Storage{}, err
 	}
@@ -85,11 +85,7 @@ func RememberInstance(cfg config.Config, configPath string) error {
 	if cfg.Storage.Instance != "" || configPath == "" {
 		return nil
 	}
-	storage, err := StorageDirs(cfg)
-	if err != nil {
-		return err
-	}
-	base, err := baseInstance(cfg, configPath, storage)
+	base, err := baseInstance(cfg, configPath)
 	if err != nil {
 		return err
 	}
@@ -99,33 +95,15 @@ func RememberInstance(cfg config.Config, configPath string) error {
 	return nil
 }
 
-// baseInstance is the configured instance, else a pre-instance install's legacy name
-// if its files exist, else pathInstance.
-func baseInstance(cfg config.Config, configPath string, storage domain.Storage) (string, error) {
+// baseInstance is the configured instance, else pathInstance.
+func baseInstance(cfg config.Config, configPath string) (string, error) {
 	if id := cfg.Storage.Instance; id != "" {
 		if !validInstance.MatchString(id) {
 			return "", fmt.Errorf("storage.instance %q: use letters, digits, '.', '_' and '-' (it names files)", id)
 		}
 		return id, nil
 	}
-	for _, acc := range cfg.Matrix.Accounts {
-		if legacy := domain.AccountKey(acc.User); hasFiles(storage, legacy) {
-			return legacy, nil
-		}
-	}
 	return pathInstance(configPath), nil
-}
-
-// hasFiles reports whether files named for instance exist in storage's directories.
-func hasFiles(storage domain.Storage, instance string) bool {
-	probe := storage
-	probe.Instance = instance
-	for _, path := range []string{probe.CachePath(), probe.CryptoPath(), probe.SessionFile()} {
-		if _, err := os.Stat(path); err == nil {
-			return true
-		}
-	}
-	return false
 }
 
 // pathInstance is 64 bits of the hash of the config's resolved path: every program

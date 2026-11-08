@@ -442,10 +442,9 @@ store, never in a file by default.
   followed by the reason.
 
 On a headless machine with no keyring, `allow_token_file = true` stores the token in
-`~/.local/state/kith/session-<instance>-<account>.toml` (mode 0600), one file per account. A
-`session.toml` from an older version still loads for the account it belongs to and is
-renamed to the new name. End-to-end encryption still needs a
-keyring, so without one the daemon runs with encryption disabled.
+`~/.local/state/kith/session-<instance>-<account>.toml` (mode 0600), one file per account.
+End-to-end encryption still needs a keyring, so without one the daemon runs with
+encryption disabled.
 
 ## Notifications don't show
 

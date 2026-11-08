@@ -103,32 +103,6 @@ func TestStorageDefaultsAndADerivedInstance(t *testing.T) {
 	}
 }
 
-// A pre-instance install keeps its legacy instance name, found without writing the
-// config.
-func TestAnInstallFromBeforeKeepsItsFiles(t *testing.T) {
-	root, path := home(t, "[[matrix.account]]\nname = \"ada\"\nhomeserver = \"h\"\nuser = \"@ada:x\"\n")
-	legacy := domain.AccountKey("@ada:x")
-	dir := filepath.Join(root, "data_home", "kith")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "cache-"+legacy+".db"), nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	before, _ := os.ReadFile(path)
-	storage, err := setup.StorageFor(load(t, path), path)
-	if err != nil || storage.Instance != legacy || storage.CachePath() != filepath.Join(dir, "cache-"+legacy+".db") {
-		t.Fatalf("storage = (%+v, %v), want the existing files", storage, err)
-	}
-	unchanged(t, path, before)
-	if err := setup.RememberInstance(load(t, path), path); err != nil {
-		t.Fatal(err)
-	}
-	if got := load(t, path).Storage.Instance; got != legacy {
-		t.Errorf("config instance = %q, want %q recorded", got, legacy)
-	}
-}
-
 // A read-only config still resolves storage.
 func TestAReadOnlyConfigIsServed(t *testing.T) {
 	root, path := home(t, "[[matrix.account]]\nname = \"ada\"\nhomeserver = \"h\"\nuser = \"@ada:x\"\n")

@@ -488,10 +488,8 @@ numbers, Telegram accounts, Slack workspaces and Matrix accounts share its one c
 so search, mentions and the room list span all of them. What is kept apart is the
 **instance**: two configs (a test one beside your own, say) are **two daemons that
 share nothing**. Every per-instance file is named by the instance ID,
-`[storage] instance`, which kith chooses on first run and writes into the config (an
-install from before instances kept its files under `domain.AccountKey`, the first 8
-bytes of `sha256(MXID)` hex-encoded, and goes on using that). There is no instance
-column anywhere:
+`[storage] instance`, which kith chooses on first run and writes into the config.
+There is no instance column anywhere:
 
 | resource | path (default directories) | derived in |
 | --- | --- | --- |

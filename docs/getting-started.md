@@ -587,7 +587,7 @@ don't reveal who is logged in.
 | Mesh store | `~/.local/share/kith/mesh-<hash>.db` | The paired devices as signed changes, encrypted under the cache's key. **Not** a cache: don't delete it. See [database.md](database.md#the-mesh-file). |
 | Scheduled messages | `~/.local/state/kith/scheduled-<hash>.toml` | The send-later queue. |
 | Assistant ledger | `~/.local/state/kith/agent-sends-<hash>.jsonl` | What `kith-mcp` wrote on your behalf. Read it with `kith --agent-log`. |
-| Token file (opt-in only) | `~/.local/state/kith/session-<hash>-<account>.toml` | Only with `allow_token_file = true`. Mode 0600, one per account. An older single `session.toml` is still read for the account it belongs to and renamed on first use. |
+| Token file (opt-in only) | `~/.local/state/kith/session-<hash>-<account>.toml` | Only with `allow_token_file = true`. Mode 0600, one per account. |
 | Device key file (opt-in only) | `~/.local/state/kith/device-<hash>.key`, `client-device-<hash>.key` | Only with `allow_token_file = true` and no keyring. Mode 0600. Moved into the keyring once it answers. |
 | Media cache | `~/.cache/kith/media/` | Attachments and their rendered previews, capped at 1 GiB by default (`[display.media] cache_dir`, `cache_max_mb`, in `device.toml`). |
 | Files being sent | `~/.cache/kith/uploads-<hash>/` | What a client has sent `kithd` and it has not posted yet: removed once posted, an hour after the client stops sending it, and when `kithd` starts. |
