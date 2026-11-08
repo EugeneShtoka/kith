@@ -20,9 +20,9 @@ type readKeeper interface {
 
 // readInMesh writes into the mesh how far each room or thread of of (Room and Root) is
 // read here, once a read made in kith was kept by its network, which sends the receipt
-// or owes it: every other bridge keeps the read and sends none (planning/design-mesh.md,
-// decision 13). A read a network reports never passes here, so it stays out of the mesh
-// (decision 14). A failure is logged; the read stands here.
+// or owes it: every other bridge keeps the read and sends none. A read a network
+// reports never passes here, so it stays out of the mesh: each bridge on the account
+// hears it from the network. A failure is logged; the read stands here.
 func (s *server) readInMesh(ctx context.Context, of []domain.ReadPosition) {
 	keeper, ok := s.Backend.(readKeeper)
 	if !ok {

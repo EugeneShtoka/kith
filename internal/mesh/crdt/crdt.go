@@ -1,6 +1,6 @@
 // Package crdt is the mesh's data model: the hybrid logical clock, dots, version
-// vectors, signed ops and the roster they keep (planning/design-mesh.md). Pure: the
-// store that keeps a replica's ops is internal/mesh's.
+// vectors, signed ops and the roster they keep. Pure: the store that keeps a replica's
+// ops is internal/mesh's.
 package crdt
 
 import (

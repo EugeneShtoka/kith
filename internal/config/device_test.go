@@ -363,8 +363,8 @@ func TestUpdateDeviceRefusesAFileThatWillNotLoad(t *testing.T) {
 	}
 }
 
-// The device holds exactly the keys design-remote.md's table gives it, so a key
-// moving file is a decision written there first.
+// The device holds exactly these keys, so a key moving file is a decision made here
+// first.
 func TestTheDeviceHoldsTheDesignsKeys(t *testing.T) {
 	t.Parallel()
 	want := map[string]string{

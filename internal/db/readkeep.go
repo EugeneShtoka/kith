@@ -9,10 +9,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Read positions cross bridges (planning/design-mesh.md, Read positions): a read made
-// here is written to the mesh from what the cache holds once the network's adapter
-// kept it (HeldReads), and one made on another bridge is kept here as the mesh holds it
-// (KeepReads), with no receipt: the bridge where it was made sends that.
+// Read positions cross bridges: a read made here is written to the mesh from what the
+// cache holds once the network's adapter kept it (HeldReads), and one made on another
+// bridge is kept here as the mesh holds it (KeepReads), with no receipt: the bridge
+// where it was made sends that.
 
 // HeldReads is how far each room or thread of of (Room and Root; Event and At are
 // not read) is read here, a room merged into another as the room it joined; one

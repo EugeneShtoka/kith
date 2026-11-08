@@ -20,7 +20,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/mesh/crdt"
 )
 
-// The bounds a replica keeps (planning/design-mesh.md, decisions 10 and 12).
+// The bounds a replica keeps.
 const (
 	// Horizon is how long the log keeps an op every live peer has acknowledged, and how
 	// long a peer may go unheard before it is dormant: it no longer holds the log back,

@@ -10,7 +10,7 @@ built yet.
 The mesh syncs two bridges only while they can reach each other. Two machines that are
 never on at the same time, such as a desktop used in the day and a laptop used at night,
 never converge: each one's read positions, drafts and config edits wait for a meeting
-that never happens. Past the 30-day horizon (decision 10) the one that was away comes back
+that never happens. Past the mesh's 30-day horizon the one that was away comes back
 through a snapshot, but only from a peer it can reach.
 
 The **mailbox** is a store that is always reachable. Bridges leave their ops there and
@@ -25,8 +25,8 @@ read nothing it holds**:
 - it can withhold or lose what it holds. That is an availability failure, and the
   members' own copies are unaffected ([What the mailbox can do](#what-the-mailbox-can-do)).
 
-Not a goal: messages and media. The mesh never carries them (design-mesh.md, What
-crosses). Backing them up is a separate design ([Backups are not the mesh](#backups-are-not-the-mesh)).
+Not a goal: messages and media. The mesh never carries them: each bridge
+syncs them from the networks. Backing them up is a separate design ([Backups are not the mesh](#backups-are-not-the-mesh)).
 
 ## What the mailbox is
 
@@ -42,7 +42,7 @@ never writes an op, never applies one, and has no entries, no clock and no confi
   pinned mutual TLS of `dialBridge`. A bridge behind NAT can use it, since it only dials
   out.
 - **More than one** may be listed. Each is independent, and a bridge syncs with each.
-  Ops are exactly-once by dot (design-mesh.md, An op), so the same op arriving from two
+  Ops are exactly-once by dot (`internal/mesh/crdt`), so the same op arriving from two
   mailboxes is a duplicate.
 - **Its own admission** is separate from the roster: the mailbox cannot read the roster
   ([Admission](#admission)).
@@ -122,7 +122,8 @@ exchange them in Hello.
 - **when a member bridge is removed**, by the bridge that writes the removal, wrapped for
   every remaining member. A removed bridge can read every op sealed before the new epoch
   (it held those keys), and none after. That is the best a shared key can do, and it
-  matches decision 8: a removal stops new reads, and undoes none;
+  matches the mesh's rule for a removal (it stops new writes, and undoes none): here it
+  stops new reads, and undoes none;
 - **when a bridge joins**: the confirming bridge adds a wrap for the newcomer to the
   current epoch's record. The newcomer starts from a snapshot sealed under that epoch, so
   it never needs older keys.
@@ -145,7 +146,7 @@ of a mailbox that cannot read. A user may choose to keep a way back:
   With it, a new kithd can open the newest snapshot on the mailbox.
 - **Recovering starts a new mesh.** No member is left to sign the new bridge's add, so it
   makes a new genesis, adopts the snapshot's entries as its own ops (as a joining bridge
-  adopts them today, design-mesh.md Pairing a bridge, step 4), and starts a new epoch.
+  adopts them today, `adopt` in `internal/mesh`), and starts a new epoch.
   The old roster is kept as history. Devices pair again.
 - **A passphrase instead of a key** would let whoever runs the mailbox try passwords
   offline against the wrap. It is not offered unless a question below decides otherwise.
@@ -165,7 +166,7 @@ admits, per **mailbox account**:
   (`Revoke{device ID}`, signed by the removing member, sent in the clear). A mailbox that
   never got it still admits the removed device, which can then read only ops sealed
   before the new epoch. It can still write ops, which every replica then refuses by the
-  removal (decision 8).
+  removal, as the mesh judges a removed replica's ops by their context.
 - **Admitting a bridge** works the other way round: the bridge that confirms a pairing
   asks the mailbox to admit the newcomer, from an account that already admits it.
 
@@ -229,7 +230,7 @@ roster's names.
 ## Equivocation through a mailbox
 
 Today two bridges find a fork when their vectors' head hashes differ for one dot
-(design-mesh.md, Equivocation). Through a mailbox, two bridges can each hold a different
+(`forks` in the mesh store). Through a mailbox, two bridges can each hold a different
 op under one dot and never meet. So:
 
 - A mailbox that receives a **second, different envelope** under a dot it holds keeps

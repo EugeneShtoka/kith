@@ -649,8 +649,7 @@ func (s *Store) PublishAliases(ctx context.Context, signer crypto.Signer, aliase
 
 // Read writes how far each of reads is read, unless the mesh holds it at least as far,
 // and clears the unread mark of each room read that it holds marked, signed by signer:
-// a read made here, whose receipt this bridge sends (planning/design-mesh.md, decision
-// 13).
+// a read made here, whose receipt this bridge sends.
 func (s *Store) Read(ctx context.Context, signer crypto.Signer, reads []domain.ReadPosition) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -74,7 +74,7 @@ type ReadResult struct {
 
 // ReadPosition is how far a room, or one of its threads (Root, "" for the room's own
 // timeline), is read: through Event, a message sent at At (Unix ms). A read made in
-// kith crosses to every bridge of the mesh (planning/design-mesh.md, Read positions).
+// kith crosses to every bridge of the mesh.
 type ReadPosition struct {
 	Room  RoomID
 	Root  EventID

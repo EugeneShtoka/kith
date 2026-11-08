@@ -8,12 +8,12 @@ import (
 	"strings"
 )
 
-// Read positions and unread marks (planning/design-mesh.md, Read positions): a room's
-// position (read/<room>), a thread's (thread/<room>/<root>), and the room's mark
-// (marked/<room>). A position is a max register: of the values its key holds, the
-// furthest is the position, and a writer writes only one further than it holds, so no
-// write lowers it. A mark is a register whose newest value wins. Either kind is
-// deleted by an empty value: a merged room's, moved under the room it joined.
+// Read positions and unread marks: a room's position (read/<room>), a thread's
+// (thread/<room>/<root>), and the room's mark (marked/<room>). A position is a max
+// register: of the values its key holds, the furthest is the position, and a writer
+// writes only one further than it holds, so no write lowers it. A mark is a register
+// whose newest value wins. Either kind is deleted by an empty value: a merged room's,
+// moved under the room it joined.
 const (
 	readPrefix   = "read/"
 	threadPrefix = "thread/"

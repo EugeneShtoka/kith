@@ -151,7 +151,7 @@ var excluded = append([]exclusion{
 }, networkExclusions()...)
 
 // networkExclusions are the networks' sections: each bridge's own accounts, their
-// default and their archive (design-mesh.md decision 1), which logins write.
+// default and their archive, which logins write.
 func networkExclusions() []exclusion {
 	var out []exclusion
 	for _, n := range (config.Config{}).Networks() {

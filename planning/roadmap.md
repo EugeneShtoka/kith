@@ -5,14 +5,10 @@ that defaults to today's behaviour. For what already exists, see
 [docs/README.md](../docs/README.md).
 
 **Design docs for the larger initiatives** live beside this file:
-- [design-clients.md](design-clients.md): the bridge/device/GUI split, N:M
-  bridge-device topology, a mesh CRDT, and Electron and Android clients
-- [design-adapters.md](design-adapters.md): how networks plug in (IDs that name their
-  network and account, capability interfaces, adapters in-process or as a helper)
-- [design-matrix-accounts.md](design-matrix-accounts.md): several Matrix accounts in
-  one kithd, Matrix IDs that name their account, and the old `[[profile]]` removed
-- [design-profiles.md](design-profiles.md): profiles in today's kithd (Phase 0 of
-  design-clients.md), one window per profile, and the PRs that build them
+- [design-clients.md](design-clients.md): failover between bridges, the desktop's
+  partial cache, and an Android client
+- [design-mesh.md](design-mesh.md): the mesh's remaining steps: the shared config,
+  drafts and verdicts crossing bridges, and key rotation
 - [design-mailbox.md](design-mailbox.md): a mesh peer that holds sealed ops it cannot
   read, for bridges that are never online at the same time (proposed, undecided)
 
@@ -20,10 +16,6 @@ Every item below is described here in full; nothing depends on notes kept elsewh
 
 ## Now
 
-- **Google Messages: older history (#105).** Conversations, text, replies, reactions,
-  typing and attachments work both ways; what is missing is the history from before
-  kith was paired. The phone relays everything, so the backfill has to page through it
-  without holding the phone's single web session for long.
 - **LinkedIn: received attachments, checked live (#100).** Attachments are sent and
   shown; that a received one downloads has only been tested against fixtures.
 
@@ -34,11 +26,10 @@ changes a default goes while changing defaults is still free.
 
 | step | items | why these together |
 | --- | --- | --- |
-| **1: several Matrix accounts** | `[[matrix.account]]` · Matrix IDs as `matrix:<account>/…` · Matrix-only calls name their account · `[[profile]]` removed | **Done** (#328–#338). **See [design-matrix-accounts.md](design-matrix-accounts.md).** Five PRs. Matrix is the one network limited to one account per daemon; every other network's accounts already sit side by side. Goes first because profiles (step 2) reuse the name `[[profile]]`, and because Matrix's bare IDs are the last place an account is implicit. Includes signing a Matrix account out from kith. |
-| **2: multi-device and client topology** | profiles (named setups a device picks: rooms, people, rail, archive rules; unread, notifications and push topics per profile) · N:M bridges and devices · mesh CRDT for soft state · Electron client · Android client | **See [design-clients.md](design-clients.md); Phase 0 in [design-profiles.md](design-profiles.md) (done), Phase 1 in [design-replay.md](design-replay.md), Phase 2a in [design-remote.md](design-remote.md), Phase 2b in [design-mesh.md](design-mesh.md), Phase 4 in [design-electron.md](design-electron.md).** Seven phases, from profiles inside today's kithd, to an optional bridge running on the phone. The largest initiative here. Phase 0 (profiles) is useful on its own with one bridge; Phases 4 and 5 (Electron, Android) take the most calendar time. |
-| **3: names, everywhere the same way (S4)** | the rest of the name pipeline | `first_name_only` already resolves against the room's own space (the first by `[display] space_priority` when a room is in several), and identity merge and room aliases are built. What is left is the rest of a global → space → chat pipeline: more rule types beside `first_name_only` (for example stripping a bridge's suffix, or a fixed name for one person in one space), and a per-chat rung that overrides the space's rule. It goes through the single narrowest-wins scope resolver every other setting uses, rather than a resolver of its own. It changes what `first_name_only` means in a room whose space has no rule, so the default is decided before it is built. |
-| **4: Matrix sessions** | list an account's other sessions, rename them, sign old ones out | A lost laptop's session can only be ended from another client today. Signing out another session revokes its access token on the homeserver. |
-| **5: verifying other people** | in-room SAS verification of another person | Today kith verifies only your own sessions (`:verify`, emoji SAS). Verifying a contact is the same SAS exchange carried in the room (`m.key.verification.request` as a room message) instead of to-device. |
+| **1: multi-device and client topology** | the rest of the mesh (shared config, drafts, verdicts, key rotation) · failover between bridges · the desktop's partial cache · Android client | **See [design-mesh.md](design-mesh.md) and [design-clients.md](design-clients.md).** Profiles, replay, remote clients, bridges pairing with read positions crossing, and the desktop client are built. The largest initiative here; the Android client takes the most calendar time. |
+| **2: names, everywhere the same way (S4)** | the rest of the name pipeline | `first_name_only` already resolves against the room's own space (the first by `[display] space_priority` when a room is in several), and identity merge and room aliases are built. What is left is the rest of a global → space → chat pipeline: more rule types beside `first_name_only` (for example stripping a bridge's suffix, or a fixed name for one person in one space), and a per-chat rung that overrides the space's rule. It goes through the single narrowest-wins scope resolver every other setting uses, rather than a resolver of its own. It changes what `first_name_only` means in a room whose space has no rule, so the default is decided before it is built. |
+| **3: Matrix sessions** | list an account's other sessions, rename them, sign old ones out | A lost laptop's session can only be ended from another client today. Signing out another session revokes its access token on the homeserver. |
+| **4: verifying other people** | in-room SAS verification of another person | Today kith verifies only your own sessions (`:verify`, emoji SAS). Verifying a contact is the same SAS exchange carried in the room (`m.key.verification.request` as a room message) instead of to-device. |
 
 ## Follow-ups
 
@@ -73,6 +64,13 @@ small and ships on its own.
 - **A second bridge** joined from the window is added after the first, which stays
   the one dialed; choosing between them waits for Phase 3.
 - **The verification dialog** is wider than a phone's screen.
+- **`kith --open` with no window running** starts a terminal client; whether it starts
+  the desktop instead is a device setting, undecided.
+- **Version skew with a remote bridge**: the relay matches the app, but a kithd on a
+  server may be older. A version in `Status`, refused on mismatch, would serve the
+  remote terminal client too.
+- **Keyboard-first use**: whether the desktop wants a vim-style navigation layer like
+  the terminal client's, or conventional shortcuts are enough.
 
 ### Terminal client and kithd
 
@@ -95,6 +93,18 @@ small and ships on its own.
   from a terminal client that names a profile is refused until the next sync lists it.
 - **Words typed during a profile switch**, for a room the new profile does not hold,
   are saved only once a profile that holds it is back.
+
+### Remote clients
+
+- **Matrix single sign-on from a remote client.** The OAuth and SSO flows
+  (`internal/matrix/oauth.go`) run in kithd and listen for the browser's redirect on
+  kithd's own loopback, but the browser opens on the client's machine, whose loopback
+  is another; the login cannot finish. A password login works remotely; SSO must be
+  done on kithd's machine for now. The fix: the client listens on its own loopback and
+  hands kithd the redirect it receives (the code and state) over the login's stream,
+  kithd keeping the PKCE verifier and the token exchange. Logins that read a browser's
+  cookies (Meta, Instagram, LinkedIn) need the same check: whose browser they read when
+  the client is remote.
 
 ### Tests
 
@@ -134,6 +144,7 @@ Not ordered; taken when a reason appears.
   through the registry and Windows Terminal; starting `kithd` at login; signed
   binaries so SmartScreen does not warn. Windows Terminal will be required: the old
   console cannot draw the TUI.
+- **The desktop client on macOS and Windows**: it is packaged for Linux only.
 - **Native macOS notifications.** Today the desktop notification sink is D-Bus; on
   macOS the notification command hook is the way to be notified.
 
@@ -145,7 +156,7 @@ Not ordered; taken when a reason appears.
 
 ## How to read this
 
-- **IDs** (`#105`, `S4`) are stable identifiers, not order: commit messages refer to
+- **IDs** (`#100`, `S4`) are stable identifiers, not order: commit messages refer to
   them, so they are never renumbered. They are not GitHub issue numbers.
 - Every item ships on its own, behind configuration that defaults to today's
   behaviour.

@@ -11,7 +11,7 @@ import (
 )
 
 // A direct chat is kept under the person's phone number, the identity kith matches
-// people by across networks (planning/design-mesh.md, decision 17). One known only by
+// people by across networks. One known only by
 // the person's LID is kept under the LID until the number is learned; then the LID's
 // room merges into the number's, and the cache keeps where it went (room_aliases), so
 // what arrives under the LID later is filed under the number. The number's room lists
