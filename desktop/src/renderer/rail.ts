@@ -86,11 +86,26 @@ export function listed(rooms: readonly Room[], rail: RailResponse | undefined, r
   return rooms.filter((r) => holds.has(r.id) || (r.id === open && kept));
 }
 
-/** rowUnread is what a row's badge counts: its rooms' unread, and whether any mentions. */
-export function rowUnread(row: RailRow, unread: ReadonlyMap<string, Unread>): { count: number; mentions: number } {
+/** silencedRooms is the rooms a silent tag holds (Archived), as kithd judged them. */
+export function silencedRooms(rail: RailResponse | undefined): ReadonlySet<string> {
+  return new Set((rail?.rooms ?? []).filter((r) => r.silenced).map((r) => r.facts?.id ?? ""));
+}
+
+/**
+ * rowUnread is what a row's badge counts: its rooms' unread, and whether any mentions.
+ * A room a silent tag holds counts toward no row, as in the terminal.
+ */
+export function rowUnread(
+  row: RailRow,
+  unread: ReadonlyMap<string, Unread>,
+  silenced: ReadonlySet<string>,
+): { count: number; mentions: number } {
   let count = 0;
   let mentions = 0;
   for (const id of new Set(row.rooms)) {
+    if (silenced.has(id)) {
+      continue;
+    }
     const u = unreadOf(unread.get(id));
     count += u.count;
     mentions += u.mentions;

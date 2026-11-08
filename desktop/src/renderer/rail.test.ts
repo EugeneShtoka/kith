@@ -2,8 +2,8 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BackendService, Change, RailResponseSchema, RailRowKind, RailRowSchema } from "../gen/backend/v1/services_pb";
-import { RoomSchema } from "../gen/backend/v1/types_pb";
-import { named, namesRow } from "./rail";
+import { RoomSchema, UnreadSchema } from "../gen/backend/v1/types_pb";
+import { named, namesRow, rowUnread, silencedRooms } from "./rail";
 import { peekAfter, Session } from "./session";
 import { Kithd, room, settled } from "./testing/kithd";
 
@@ -267,6 +267,24 @@ describe("the rail", () => {
     expect(view().profile).toBe("");
     expect(view().rail).toEqual([]);
     expect(view().rooms).toEqual([]);
+  });
+});
+
+describe("a row's badge", () => {
+  const counted = (roomId: string, messages: bigint, mentions: bigint) =>
+    [roomId, create(UnreadSchema, { roomId, counted: true, messages, mentions })] as const;
+  const unread = new Map([counted("!a", 2n, 1n), counted("!b", 5n, 3n)]);
+  const row = create(RailRowSchema, { key: "tag:Archived", rooms: ["!a", "!b"] });
+
+  it("counts every room's unread and mentions", () => {
+    expect(rowUnread(row, unread, silencedRooms(undefined))).toEqual({ count: 7, mentions: 4 });
+  });
+
+  it("leaves out a room a silent tag holds (Archived), as the terminal does", () => {
+    const rail = create(RailResponseSchema, {
+      rooms: [{ facts: { id: "!b" }, silenced: true }, { facts: { id: "!a" } }],
+    });
+    expect(rowUnread(row, unread, silencedRooms(rail))).toEqual({ count: 2, mentions: 1 });
   });
 });
 

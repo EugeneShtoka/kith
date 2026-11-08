@@ -40,7 +40,7 @@ import {
   type ThemeResponse,
 } from "../gen/device/v1/device_pb";
 import { runIn } from "../shared/profile";
-import { later, listed, named, placed, refOf, type RowRef } from "./rail";
+import { later, listed, named, placed, refOf, type RowRef, silencedRooms } from "./rail";
 import { Composer, type ComposerView, type Unscheduled, type Unsent } from "./compose";
 import { type Kept, keptFrom, keptText } from "./drafts";
 import { conflict } from "./keymap";
@@ -147,6 +147,8 @@ export interface View {
   /** The rail's rows (Rail), and the one the window is on (-1: none, no rail yet). */
   rail: readonly RailRow[];
   row: number;
+  /** The rooms a silent tag holds (Archived): their unread is drawn, but counts toward no row. */
+  silenced: ReadonlySet<string>;
   /** The joined rooms the row lists, in list order (every one before a rail), and the invitations. */
   rooms: readonly Room[];
   /** The room list as drawn: rooms, each with its thread rows under it ([display.threads]). */
@@ -358,6 +360,7 @@ const nothingShown = {
   status: undefined,
   rail: [],
   row: -1,
+  silenced: new Set(),
   rooms: [],
   list: [],
   joined: [],
@@ -2996,6 +2999,7 @@ export class Session {
     const joined = run === undefined ? [] : ordered(run.joined, next.unread, run.at);
     next.rail = run?.rail?.rows ?? [];
     next.row = run?.rail === undefined ? -1 : placed(next.rail, run.row, run.rowAt);
+    next.silenced = silencedRooms(run?.rail);
     next.rooms = listed(joined, run?.rail, next.row, next.open);
     next.joined = joined;
     next.unreadTotal = total(joined, next.unread);

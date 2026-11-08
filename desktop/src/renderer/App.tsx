@@ -796,6 +796,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
                           <RoomRow
                             key={r.id}
                             room={r}
+                            silenced={row.silenced}
                             unread={view.unread.get(r.id)}
                             open={r.id === view.open && !threadListed}
                             theme={view.theme}
@@ -1026,7 +1027,7 @@ function Rail({ view, session }: { view: View; session: Session }) {
     <nav className="rail" aria-label="Places" data-pane="rail">
       <ul>
         {view.rail.map((row, i) => {
-          const { count, mentions } = rowUnread(row, view.unread);
+          const { count, mentions } = rowUnread(row, view.unread, view.silenced);
           return (
             <li key={`${row.key}\u0000${row.space}`} className={row.sepAfter ? "place separated" : "place"}>
               <button
@@ -1093,6 +1094,7 @@ function Invites({ invites, session }: { invites: readonly Room[]; session: Sess
 
 function RoomRow({
   room,
+  silenced,
   unread,
   open,
   theme,
@@ -1100,6 +1102,7 @@ function RoomRow({
   onEnter,
 }: {
   room: Room;
+  silenced: boolean;
   unread: Unread | undefined;
   open: boolean;
   theme: ThemeResponse | undefined;
@@ -1141,7 +1144,14 @@ function RoomRow({
             {mark.abbr}
           </span>
         )}
-        {count > 0 && <Badge count={count} mentions={mentions} />}
+        {count > 0 &&
+          (silenced ? (
+            <span className="badge silent" title={`${String(count)} unread`}>
+              {count}
+            </span>
+          ) : (
+            <Badge count={count} mentions={mentions} />
+          ))}
       </button>
     </li>
   );

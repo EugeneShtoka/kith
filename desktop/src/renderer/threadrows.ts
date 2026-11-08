@@ -19,7 +19,7 @@ import { collapse } from "./threads";
 
 /** One row of the room list: a room, one of its threads, or the count of its threads not listed. */
 export type ListRow =
-  | { kind: "room"; room: Room }
+  | { kind: "room"; room: Room; silenced: boolean }
   | { kind: "thread"; room: Room; thread: ThreadUnread }
   | { kind: "more"; room: Room; more: number };
 
@@ -71,8 +71,9 @@ export function pinnedThread(rows: readonly Message[], root: string): ThreadUnre
 }
 
 /**
- * listRows is the room list as drawn: each of rooms, and under it its threads, unless
- * threads are never listed, the settings are not read yet, or a silent tag holds it.
+ * listRows is the room list as drawn: each of rooms, marked when a silent tag holds it
+ * (Archived), and under it its threads, unless threads are never listed, the settings are
+ * not read yet, or a silent tag holds it.
  * pinned are the open room's threads kept listed once read, after its unread ones.
  */
 export function listRows(
@@ -86,9 +87,10 @@ export function listRows(
   const served = new Map((rail?.rooms ?? []).map((r) => [r.facts?.id ?? "", r]));
   const rows: ListRow[] = [];
   for (const room of rooms) {
-    rows.push({ kind: "room", room });
     const judged = served.get(room.id);
-    if (list === undefined || list.threadsInRoomList === "never" || judged?.silenced === true) {
+    const silenced = judged?.silenced === true;
+    rows.push({ kind: "room", room, silenced });
+    if (list === undefined || list.threadsInRoomList === "never" || silenced) {
       continue;
     }
     const threads = [...(unread.get(room.id)?.threads ?? [])];

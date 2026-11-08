@@ -566,7 +566,18 @@ select option {
   color: var(--mention-fg);
 }
 
-.rooms:focus-within .room button[aria-current="true"] .badge:not(.mention),
+/* A room a silent tag holds (Archived) counts toward nothing: its number, no pill. */
+.badge.silent {
+  background: none;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.rooms:focus-within .room button[aria-current="true"] .badge.silent {
+  color: inherit;
+}
+
+.rooms:focus-within .room button[aria-current="true"] .badge:not(.mention, .silent),
 .rooms:focus-within .thread button[aria-current="true"] .badge:not(.mention) {
   background: var(--focus-fg);
   color: var(--focus);
