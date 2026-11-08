@@ -344,10 +344,8 @@ A few consequences are worth knowing before you write anything:
   `--clear-cache` and the reset leaves the cache empty, so the next start resets. A
   reset that fails stops the sync instead of resuming from the old token.
 
-`schemaVersion` is `1`: the base is the whole schema, and `migrations` is empty. The
-2026-11-08 fold took v2–v33 into the base and reset the number, so a cache an older
-kith stamped above 1 is rebuilt once (see
-[Folding](#folding-and-bumping-schemaversion)), and a current cache is at version 1.
+`schemaVersion` is `1`: the base is the whole schema, `migrations` is empty, and a
+current cache is at version 1.
 
 ### Indexes need no migration
 
@@ -457,10 +455,9 @@ a new tokenizer. There are two ways to reset the list, and they are not the same
   produce, set `schemaVersion` to the old `current` (`schemaVersion + len(migrations)`),
   empty `migrations`, and empty `migrationFingerprints`. Caches at the old `current`
   open as current and keep everything; caches older than that are rebuilt. (Resetting
-  the number to 1 instead, as the 2026-09-26 and 2026-11-08 folds did, rebuilds every
-  cache stamped above 1 unless each is re-stamped by hand. A cache stamped 1 by the old
-  chain has the old shape: the shape check rebuilds it rather than opening it as
-  current.)
+  the number to 1 instead rebuilds every cache stamped above 1 unless each is
+  re-stamped by hand. A cache stamped 1 by the old chain has the old shape: the shape
+  check rebuilds it rather than opening it as current.)
 - **Bump (rebuild everyone).** When the shape itself changes, set `schemaVersion` to a
   number **greater than any version ever stamped** (above the old `current`), with an
   empty `migrations`. A lower number would be read as current by a cache the old chain
