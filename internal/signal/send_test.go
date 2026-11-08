@@ -34,8 +34,8 @@ func (r *rig) sends() []*signalv1.SendRequest {
 func connected(t *testing.T, events ...*signalv1.EventsResponse) *rig {
 	t.Helper()
 	r := newRigPlaying(t, "ok", me, me, events)
-	r.until(5*time.Second, "connected", r.phase(signal.Linked, ""))
-	r.until(5*time.Second, "every event acked", func() bool { return len(r.acked()) == len(events) })
+	r.until("connected", r.phase(signal.Linked, ""))
+	r.until("every event acked", func() bool { return len(r.acked()) == len(events) })
 	return r
 }
 
@@ -124,7 +124,7 @@ func TestARetryIsTheSameMessage(t *testing.T) {
 // is cached.
 func TestASendWithoutAConnectionFails(t *testing.T) {
 	r := newRigPlaying(t, "ok", "", me, nil) // linked in kithd, not in the helper's store
-	r.until(5*time.Second, "unlinked", r.phase(signal.Unlinked, ""))
+	r.until("unlinked", r.phase(signal.Unlinked, ""))
 	err := r.a.Send(context.Background(), direct(dana), domain.Draft{Body: "lost"})
 	if !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("send = %v, want ErrNetworkOff", err)

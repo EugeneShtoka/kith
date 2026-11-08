@@ -207,9 +207,13 @@ func named(t *testing.T, m *Adapter, name string) *runner {
 	return r
 }
 
+// hangAfter is how long a wait here goes before it is taken for a hang. A login opens a
+// crypto store, fsync by fsync: on a disk busy with other suites one took 35s.
+const hangAfter = time.Minute
+
 func waitUntil(t *testing.T, what string, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(hangAfter)
 	for !cond() {
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for %s", what)
@@ -492,7 +496,7 @@ func TestAccountsComeAndGoWhateverRuns(t *testing.T) {
 		go func() { logins.Wait(); close(loginsDone) }()
 		select {
 		case <-loginsDone:
-		case <-time.After(10 * time.Second):
+		case <-time.After(hangAfter):
 			t.Fatalf("seed %d: a login never returned, after %v", seed, trail)
 		}
 		names := make([]string, 0, len(cfg.Matrix.Accounts))
@@ -518,7 +522,7 @@ func TestAccountsComeAndGoWhateverRuns(t *testing.T) {
 		cancel()
 		select {
 		case <-done:
-		case <-time.After(10 * time.Second):
+		case <-time.After(hangAfter):
 			t.Fatalf("seed %d: Start did not return after shutdown, after %v", seed, trail)
 		}
 		m.Stop()

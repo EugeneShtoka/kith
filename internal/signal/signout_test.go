@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/signal"
@@ -34,7 +33,7 @@ func TestSigningOutUnlinksTheDevice(t *testing.T) {
 		if err != nil || len(spaces) != 0 {
 			t.Errorf("spaces after signing out: %v, %v", spaces, err)
 		}
-		r.until(5*time.Second, "unlinked", r.phase(signal.Unlinked, ""))
+		r.until("unlinked", r.phase(signal.Unlinked, ""))
 		if _, kept := r.room(direct(dana)); kept == forget {
 			t.Errorf("forget=%v: the chat kept = %v", forget, kept)
 		}
