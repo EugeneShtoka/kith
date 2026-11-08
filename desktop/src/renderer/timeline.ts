@@ -2,7 +2,7 @@
 // Messages stream's frames, merged so what is shown is always a stretch of the cache,
 // up to its newest message, each row as the cache holds it once the frames settle.
 //
-// Frames are the cache's changes in the order it wrote them (design-replay.md), every
+// Frames are the cache's changes in the order it wrote them, every
 // one after the stream's start: so a row shown is kept current by its frames, a page
 // only adds rows and fills in. What a page cannot know is what changed while it was
 // read: the frames that arrive meanwhile are put back over it when it lands.

@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -29,22 +30,15 @@ func TestLoadDeviceIsStrictAndAMissingFileIsTheDefaults(t *testing.T) {
 }
 
 // The terminal's palette is [tui.theme] in the device file, its network colors
-// [tui.theme.networks], and a config holding it moves it there; [display.theme] is a key
-// neither file reads, refused by name.
+// [tui.theme.networks]; [display.theme] is a key neither file reads, refused by name.
 func TestTheTerminalThemeIsTUITheme(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	configPath, devicePath := filepath.Join(dir, BridgeFile), filepath.Join(dir, DeviceFile)
-	writeFile(t, configPath, "[tui.theme]\npreset = \"gruvbox\"\naccent = \"#ff8800\"\n\n[tui.theme.networks]\nwhatsapp = \"#25d366\"\n")
-	if moved, err := SplitDevice(configPath, devicePath); !moved || err != nil {
-		t.Fatalf("a config holding [tui.theme]: moved %v, %v", moved, err)
-	}
+	devicePath := filepath.Join(dir, DeviceFile)
+	writeFile(t, devicePath, "[tui.theme]\npreset = \"gruvbox\"\naccent = \"#ff8800\"\n\n[tui.theme.networks]\nwhatsapp = \"#25d366\"\n")
 	dev, err := LoadDevice(devicePath)
 	if err != nil || dev.TUI.Theme.Preset != "gruvbox" || dev.TUI.Theme.Accent != "#ff8800" || dev.TUI.Theme.Networks.WhatsApp != "#25d366" {
 		t.Errorf("the device's [tui.theme] = %+v, %v", dev.TUI.Theme, err)
-	}
-	if _, err := Load(configPath); err != nil {
-		t.Errorf("the config after the split = %v", err)
 	}
 
 	old := filepath.Join(dir, "old.toml")
@@ -53,7 +47,7 @@ func TestTheTerminalThemeIsTUITheme(t *testing.T) {
 	if _, err := LoadDevice(old); err == nil || err.Error() != "config: "+old+want {
 		t.Errorf("[display.theme] in the device file = %v, want it refused as unknown", err)
 	}
-	if _, err := SplitDevice(old, filepath.Join(dir, "old-device.toml")); err == nil || !strings.HasSuffix(err.Error(), want) {
+	if _, err := Load(old); err == nil || !strings.HasSuffix(err.Error(), want) {
 		t.Errorf("[display.theme] in the config = %v, want it refused as unknown", err)
 	}
 }
@@ -319,46 +313,6 @@ func slicesHasValue(now []Device, ws []int, path, value string) bool {
 	return false
 }
 
-// kithd's split and a client's run at once: the client splits, then saves a change to
-// the device file it read, while kithd's split of the same old config is under way.
-// The client's change is the file's after, whichever got there first.
-func TestASplitAndAWindowsChangeAtOnceKeepTheChange(t *testing.T) {
-	t.Parallel()
-	for seed := range uint64(200) {
-		rng := rand.New(rand.NewPCG(seed, 0x51d3)) // #nosec G404 -- reproducible
-		c := genSplitCase(rng)
-		c.reply = "R" // the config's, which the client's change replaces
-		configPath, devicePath := c.files(t, t.TempDir())
-		var wg sync.WaitGroup
-		wg.Go(func() {
-			if _, err := SplitDevice(configPath, devicePath); err != nil {
-				t.Errorf("seed %d: kithd's split: %v", seed, err)
-			}
-		})
-		var was, now Device
-		wg.Go(func() {
-			if _, err := SplitDevice(configPath, devicePath); err != nil {
-				t.Errorf("seed %d: the client's split: %v", seed, err)
-				return
-			}
-			loaded, err := LoadDevice(devicePath)
-			if err != nil {
-				t.Errorf("seed %d: %v", seed, err)
-				return
-			}
-			was, now = loaded, loaded.Clone()
-			now.Keys.Bindings["timeline.reply"] = "Z"
-			if _, err := UpdateDevice(devicePath, was, now); err != nil {
-				t.Errorf("seed %d: the client's save: %v", seed, err)
-			}
-		})
-		wg.Wait()
-		if dev, err := LoadDevice(devicePath); err != nil || dev.Keys.Bindings["timeline.reply"] != "Z" {
-			t.Fatalf("seed %d: reply bound to %q (%v) after both, want the client's Z", seed, dev.Keys.Bindings["timeline.reply"], err)
-		}
-	}
-}
-
 // A save at the file's revision answers what it wrote and the revision of those bytes,
 // which the next save is made at, even one that changes nothing.
 func TestUpdateDeviceAtAnswersTheRevisionItWrote(t *testing.T) {
@@ -409,8 +363,8 @@ func TestUpdateDeviceRefusesAFileThatWillNotLoad(t *testing.T) {
 	}
 }
 
-// The device holds exactly the keys design-remote.md's table gives it, so a key
-// moving file is a decision written there first.
+// The device holds exactly these keys, so a key moving file is a decision made here
+// first.
 func TestTheDeviceHoldsTheDesignsKeys(t *testing.T) {
 	t.Parallel()
 	want := map[string]string{
@@ -458,5 +412,104 @@ func TestTheDeviceHoldsTheDesignsKeys(t *testing.T) {
 	}
 	if complete := reflect.TypeFor[DeviceCompleteModel](); complete.NumField() != 1 || tomlName(complete.Field(0)) != "declined" {
 		t.Errorf("[complete.model] device keys are %v, want declined alone", complete)
+	}
+}
+
+// A setting written into a test file: its property, and its value as TOML.
+type written struct {
+	p     Property
+	value string
+}
+
+// settingsIn picks some of file's properties and gives each a value of its kind.
+func settingsIn(rng *rand.Rand, file string, most int) []written {
+	var all []Property
+	for _, p := range Properties() {
+		if p.File == file {
+			all = append(all, p)
+		}
+	}
+	rng.Shuffle(len(all), func(i, j int) { all[i], all[j] = all[j], all[i] })
+	out := make([]written, 0, most)
+	for _, p := range all[:rng.IntN(most+1)] {
+		out = append(out, written{p, valueOfKind(rng, p.Kind)})
+	}
+	return out
+}
+
+// valueOfKind is a TOML value a property of kind decodes, its default or not.
+func valueOfKind(rng *rand.Rand, kind PropertyKind) string {
+	switch kind {
+	case PropertyBool, PropertyOptionalBool:
+		return fmt.Sprint(rng.IntN(2) == 0)
+	case PropertyInt, PropertyOptionalInt:
+		return fmt.Sprint(rng.IntN(5))
+	case PropertyFloat, PropertyOptionalFloat:
+		return fmt.Sprintf("%d.5", rng.IntN(3))
+	case PropertyList:
+		return fmt.Sprintf(`["w%d", "x"]`, rng.IntN(9))
+	default:
+		return fmt.Sprintf(`"v%d"`, rng.IntN(9))
+	}
+}
+
+// tomlText writes settings under their tables, top-level keys first.
+func tomlText(settings []written) string {
+	byTable := map[string][]string{}
+	for _, s := range settings {
+		table, key := "", s.p.Path
+		if i := strings.LastIndex(s.p.Path, "."); i >= 0 {
+			table, key = s.p.Path[:i], s.p.Path[i+1:]
+		}
+		byTable[table] = append(byTable[table], key+" = "+s.value)
+	}
+	var b strings.Builder
+	for _, table := range slices.Sorted(func(yield func(string) bool) {
+		for t := range byTable {
+			if !yield(t) {
+				return
+			}
+		}
+	}) {
+		if table != "" {
+			b.WriteString("\n[" + table + "]\n")
+		}
+		b.WriteString(strings.Join(byTable[table], "\n") + "\n")
+	}
+	return b.String()
+}
+
+// deviceValue is the device property at path, as text.
+func deviceValue(dev Device, path string) string {
+	v, _, _ := Settings{Device: dev}.Value(path)
+	return v
+}
+
+func writeFile(t *testing.T, path, text string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A device setting written into the config is refused there as any unknown key is, by
+// name.
+func TestADeviceSettingWrittenIntoTheConfigIsAnUnknownKey(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, BridgeFile)
+	writeFile(t, configPath, "[display]\ntime_format = \"12h\"\nfps = 24\nmouse = false\n")
+	_, err := Load(configPath)
+	typo := filepath.Join(dir, "typo.toml")
+	writeFile(t, typo, "[display]\ntime_format = \"12h\"\nfsp = 24\n")
+	_, typoErr := Load(typo)
+	if err == nil || typoErr == nil {
+		t.Fatalf("Load = %v; a typo = %v; want both refused", err, typoErr)
+	}
+	if want := "config: " + configPath + ": unknown keys: display.fps, display.mouse"; err.Error() != want {
+		t.Errorf("the device key's error = %q, want %q", err, want)
+	}
+	if _, derr := Decode("[display]\nfps = 24\n"); derr == nil || !strings.HasSuffix(derr.Error(), "unknown keys: display.fps") {
+		t.Errorf("kithd's check of a sent config = %v, want the unknown key", derr)
 	}
 }

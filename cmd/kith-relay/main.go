@@ -117,9 +117,9 @@ func listen(ctx context.Context, runtimeDir string) (net.Listener, string, error
 	return ln, dir, nil
 }
 
-// loadAccount reads the config for where kithd's socket is, as kith-notify does, after
-// moving its device settings out (config.SplitDevice), and returns where kithd is, the
-// runtime dir the relay's socket goes in, and the config's path. On a device that joined
+// loadAccount reads the config for where kithd's socket is, as kith-notify does, and
+// returns where kithd is, the runtime dir the relay's socket goes in, and the config's
+// path. On a device that joined
 // a bridge elsewhere kithd is that bridge, and no config here is read. Which profile the
 // window runs in is DeviceService's, read on each call.
 func loadAccount(log *slog.Logger, configPath string) (at kithdAt, runtimeDir, configFile string, err error) {
@@ -137,9 +137,6 @@ func loadAccount(log *slog.Logger, configPath string) (at kithdAt, runtimeDir, c
 	}
 	if joined {
 		return loadBridged(path, b)
-	}
-	if _, serr := config.SplitDevice(path, config.DevicePath(path)); serr != nil {
-		return kithdAt{}, "", "", fmt.Errorf("reading %s: %w", path, serr)
 	}
 	cfg, err := config.Load(path)
 	if err != nil {

@@ -175,9 +175,7 @@ it):
 
 A file that does not read, or a mesh store that does not open (another key's, or one
 written by a newer kith), keeps kithd from listening until it is fixed, and nothing is
-written meanwhile. The first kithd of this release reads the file into a new store once,
-keeping the file as it was in `devices-<hash>.toml.pre-mesh`, which nothing reads after.
-A backup (`kith backup`) holds the store; restored where kithd keeps the same device
+written meanwhile. A backup (`kith backup`) holds the store; restored where kithd keeps the same device
 key, the same devices are paired. Onto a new machine, give `kith restore` the old
 kithd's [recovery key](#kithds-recovery-key) when it asks, and kithd keeps that key.
 If kithd's device key changes (a keyring reset, or a restore without the recovery

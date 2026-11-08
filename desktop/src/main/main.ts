@@ -1,5 +1,5 @@
 // The desktop's main process: it starts kith-relay, holds the Connect client and serves
-// the window, which reaches kithd only through the gate. See planning/design-electron.md.
+// the window, which reaches kithd only through the gate. See SECURITY.md.
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";

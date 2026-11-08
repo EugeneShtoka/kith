@@ -137,9 +137,9 @@ func readManifest(tr *tar.Reader) ([]string, []byte, error) {
 	if decErr := json.NewDecoder(io.LimitReader(tr, smallLimit)).Decode(&m); decErr != nil {
 		return nil, nil, damaged(decErr)
 	}
-	if m.Format < oldestFormat || m.Format > format {
-		return nil, nil, fmt.Errorf("restore: the backup's layout is %d; this kith reads %d to %d (it was made by %s)",
-			m.Format, oldestFormat, format, m.Kith)
+	if m.Format != format {
+		return nil, nil, fmt.Errorf("restore: the backup's layout is %d; this kith reads %d (it was made by %s)",
+			m.Format, format, m.Kith)
 	}
 	key, err := hex.DecodeString(m.CacheKey)
 	if err != nil || len(key) != db.KeyLen {

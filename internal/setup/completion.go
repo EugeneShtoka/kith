@@ -29,16 +29,14 @@ func ModelNames(cfg config.CompleteModel) error {
 		return fmt.Errorf(
 			"complete.model.model: %q is not a model this client knows and not a path to one.\n"+
 				"        `kith --add-model list` names the ones it can install; a path to a .gguf\n"+
-				"        of your own works too. (If this was the *remote* model's name, that setting\n"+
-				"        moved to [assist] model when completion stopped going over the network.)",
+				"        of your own works too",
 			named)
 	}
 	if info, err := os.Stat(named); err != nil || info.IsDir() {
 		return fmt.Errorf(
 			"complete.model.model: %q is not a file this machine has.\n"+
 				"        It names weights to run — a .gguf on disk — rather than a model on a\n"+
-				"        server. (If this was the *remote* model's name, that setting moved to\n"+
-				"        [assist] model when completion stopped going over the network.)",
+				"        server",
 			named)
 	}
 	return nil

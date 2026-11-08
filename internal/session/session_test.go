@@ -16,6 +16,9 @@ import (
 
 // withTempState points the file fallback at a temp dir and returns the path of
 // sample()'s account file in it.
+// defaultService is the default keyring service; secrets under it are found from any.
+const defaultService = "kith"
+
 func withTempState(t *testing.T) string {
 	t.Helper()
 	// Registered first, so the reload runs after the environment is restored.
@@ -28,7 +31,7 @@ func withTempState(t *testing.T) string {
 // storeOf is the store of user's Matrix account in a test instance.
 func storeOf(user string) Store {
 	return MatrixStore(domain.Storage{
-		Instance: "test", StateDir: filepath.Join(xdg.StateHome, "kith"), KeyringService: legacyService,
+		Instance: "test", StateDir: filepath.Join(xdg.StateHome, "kith"), KeyringService: defaultService,
 	}, domain.AccountKey(user))
 }
 
@@ -305,13 +308,13 @@ func TestACorruptPickleKeyIsKeptAndReported(t *testing.T) {
 	keyring.MockInit()
 	acct := storeOf("@alice:example.org").Account + "|pickle"
 	for _, corrupt := range []string{"not base64!", "c2hvcnQ="} { // garbage, and too short
-		if err := keyring.Set(legacyService, acct, corrupt); err != nil {
+		if err := keyring.Set(defaultService, acct, corrupt); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := LoadOrCreatePickleKey(storeOf("@alice:example.org")); !errors.Is(err, ErrCorruptPickleKey) {
 			t.Errorf("LoadOrCreatePickleKey(storeOf()) with %q stored: error = %v, want ErrCorruptPickleKey", corrupt, err)
 		}
-		if kept, err := keyring.Get(legacyService, acct); err != nil || kept != corrupt {
+		if kept, err := keyring.Get(defaultService, acct); err != nil || kept != corrupt {
 			t.Errorf("the entry became %q (err %v); want it left as %q", kept, err, corrupt)
 		}
 	}

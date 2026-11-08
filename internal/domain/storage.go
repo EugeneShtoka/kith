@@ -18,10 +18,6 @@ type Storage struct {
 // CachePath is the local cache.
 func (s Storage) CachePath() string { return s.store("cache") }
 
-// CryptoPath is the Matrix crypto and state store an instance kept before Matrix
-// accounts (MatrixCryptoPath): what tells an older install's files apart.
-func (s Storage) CryptoPath() string { return s.store("crypto") }
-
 // MatrixCryptoPath is the crypto and state store of the Matrix account whose key
 // (AccountKey of its Matrix ID) is key.
 func (s Storage) MatrixCryptoPath(key string) string {
@@ -57,12 +53,6 @@ func (s Storage) SignalSocketPath() string {
 
 func (s Storage) store(kind string) string {
 	return filepath.Join(s.DataDir, kind+"-"+s.Instance+".db")
-}
-
-// SessionFile is the session's fallback file an instance kept before Matrix accounts
-// (MatrixSessionFile).
-func (s Storage) SessionFile() string {
-	return filepath.Join(s.StateDir, "session-"+s.Instance+".toml")
 }
 
 // LedgerPath is the record of what an assistant wrote through kith-mcp.

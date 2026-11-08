@@ -78,8 +78,7 @@ with this table as its mirror (see [Account-data mirrors](#account-data-mirrors)
 ## The mesh file
 
 The mesh store, `$XDG_DATA_HOME/kith/mesh-<hash>.db` (`internal/mesh`), is not a cache:
-it holds writes nothing else has, so none of the rules below apply to it. The design is
-[planning/design-mesh.md](../planning/design-mesh.md). For now it holds the roster of
+it holds writes nothing else has, so none of the rules below apply to it. For now it holds the roster of
 paired devices (`devices-<hash>.toml` is written out from it), the accounts each
 bridge runs, the chats any bridge merged into another (`alias/<room>`: a WhatsApp
 chat known by a LID, then by the number), and the reads made in kith (`read/<room>`,
@@ -124,9 +123,18 @@ the map.
 | `room_pictures` | a room's picture (a person's, in a direct chat): the network's ID for it, the bytes, and when the network was last asked; `''` is a room found to have none |
 | `person_pictures` | a person's picture, by the ID their messages name them by, kept as `room_pictures` keeps a room's; no room owns it |
 | `room_aliases` | a room merged into another (`MergeRoom`: a WhatsApp chat known by the person's LID, then by their number), and the room it joined; a write naming it is filed under that room |
+| `room_archived` | the chats a network archived itself (Telegram's Archived folder, WhatsApp's archive); written only by that network, so a listing's rewrite of its rooms never blanks it |
+| `room_forums` | the rooms made of topics (Telegram's forums); written only by that network's listing |
+| `room_networks` | the network behind a room another network keeps for it (a Matrix room a bridge keeps, by its `m.bridge` state), read once and kept: a room never changes network. A room found to be no bridge's keeps `Matrix`, so no row is a room not read yet |
+| `room_handles` | the public `@username` that names a room on its network (Telegram public chats and channels), lowercase and without the `@`, so `tg://` links resolve after a restart |
+| `room_read_only` | the rooms this account may read but not post in (a Matrix room whose power levels put messages above ours), written when the network lists rooms |
+| `room_sms` | the chats whose messages go out as SMS or MMS through a phone's carrier (Google Messages); written only by that network |
+| `room_history_start` | the rooms whose history the cache holds back to their first message; written by Google Messages when paging back finds nothing older, so it does not ask the phone again after a restart |
+| `room_gaps` | stretches of a Matrix room's history a sync skipped, a row until filled: from the newest message held below to the oldest fetched above, and where paging back resumes, so a restart mid-fill carries on |
 | `room_parents` | a room's canonical parent space; `''` is a recorded "no parent", not a missing answer |
 | `spaces` | one row per space: name, the bridge that owns it, who keeps it |
 | `space_children` | each space's children in hierarchy order |
+| `space_leaving` | how a space is left, as its network says: a Matrix space on its own, a WhatsApp community with its groups. A bridge's own space for an account has none: leaving it would be signing out |
 
 `rooms.membership` is `'join'`, `'invite'`, or `''`. The empty string is a room the
 sync stream wrote about before a room-list refresh named it (see `registerRoom`); it
@@ -140,11 +148,14 @@ holds data but appears in neither list until the next refresh promotes it.
 | `message_html` | the formatting, in kith's markup (the sanitized HTML subset of `internal/richtext`, which each network's formatting converts into), only for messages that carry formatting |
 | `message_media` | the attachment: kind, name, MIME type, size, dimensions, and how to fetch it: for Matrix the `mxc` URI and the encrypted-file JSON, for WhatsApp `{"whatsapp": kind, "proto": …}` (the message's media part, with its keys) in `file_json` |
 | `message_redaction` | who deleted a message and why, which outlives the content |
-| `message_redaction_at` | when a message was deleted, the first time heard (`RedactedAt`); only messages deleted since v30 have one |
+| `message_redaction_at` | when a message was deleted, the first time heard (`RedactedAt`); only messages deleted since the cache began keeping it have one |
 | `person_names` | what each source (an account, a bridge login) calls an identifier: a number as `tel:<digits>`, or a person's ID on a network, ranked saved < bridged < chosen |
 | `person_links` | identifiers a source says are one person (a Telegram user and their number) |
 | `message_mentions` | the people a message mentions (`domain.Mention`), each with the text that names them in the body |
 | `message_order` | a message's place among those sharing its time (`domain.Message.Seq`), only for a network that gives one; timelines order by time, then this, then the event ID |
+| `quoted_messages` | the sender and words a reply quotes (WhatsApp sends them with the reply), shown when the quoted message itself is not cached |
+| `message_polls` | a message's poll: its question, answers and how the votes stand, as JSON, rewritten whole as the results change |
+| `message_expiry` | a disappearing message's timer and when its countdown started (0 until the account reads it, for networks that count from reading), a row until the message expires and is deleted as a deletion is |
 | `message_edit` | the edit a message's body and formatting come from (its event ID and send time), so an older edit delivered later never replaces a newer one |
 | `message_tombstone` | a redaction whose message was not cached yet (who, why, when): a copy arriving later, such as an edit, which servers do not redact, is saved as deleted. Spent when applied, and trimmed with the room |
 | `message_revisions` | every version of an edited message, keyed by the event that carried it |
@@ -162,9 +173,13 @@ holds data but appears in neither list until the next refresh promotes it.
 | `thread_read` | our read position in each thread |
 | `reactions` | `m.annotation` events: target, sender, and the key (column `emoji`) |
 | `drafts` | the unsent message per room, including reply/edit state, mentions, the caret, and who wrote it (you, or an assistant) |
+| `draft_threads` | the thread a draft is written into, only for a draft in one |
+| `room_timers` | a chat's disappearing-messages timer in seconds, while it has one, so what kith sends there carries it (WhatsApp) |
+| `room_timer_versions` | the version a chat's timer was set at, once a network has numbered one (Signal counts a one-to-one chat's timer changes; an older change is not taken); it outlives the timer |
 | `starred` | mirror of the `org.kith.starred` account data |
 | `tag_verdicts` | mirror of the `org.kith.tags` account data: per room and tag, the rule and filter that moved it, or a release |
 | `person_verdicts` | per person ID and tag, the rule and filter that put them there, or a release; Matrix IDs mirror each account's `org.kith.people` account data, under that account |
+| `network_blocks` | a network's server-side block list (WhatsApp's, Telegram's `contacts.blocked`, Meta's), mirrored for offline reads; the server copy wins, pulled on connect and after every block-list change |
 
 ### Rankings and bookkeeping
 
@@ -328,118 +343,8 @@ A few consequences are worth knowing before you write anything:
   `--clear-cache` and the reset leaves the cache empty, so the next start resets. A
   reset that fails stops the sync instead of resuming from the old token.
 
-`schemaVersion` is `1`: the base is the whole schema as of the first public release.
-Since then:
-
-- v2 (`draft_threads`): the thread a draft is written into, a row only for a draft
-  in one.
-- v3 (`quoted_messages`): the sender and words a reply quotes (WhatsApp sends them
-  with the reply), shown when the quoted message itself is not cached.
-- v4 (`room_archived`): the chats a network archived itself (Telegram's Archived
-  folder, WhatsApp's archive), a row only for one archived; written only by that
-  network, so a listing's rewrite of its rooms never blanks it.
-- v5 (`room_forums`): the rooms made of topics (Telegram's forums), a row only for
-  one; written only by that network's listing.
-- v6 (`phone_names`): the names each account knows numbers by (a WhatsApp account's
-  address book and its contacts' own names, Telegram users whose number it knows),
-  each account's rows replaced whole when it reads them again. Moved into
-  `person_names` by v10.
-
-- v7 (`message_polls`): a message's poll, its question, answers and how the votes
-  stand, as JSON, rewritten whole as the results change.
-- v8 (`message_order`): a message's place among those sharing its time, for a
-  network whose times are whole seconds and whose IDs carry no order (WhatsApp:
-  its history's own sequence, or when a live message arrived). A row only for a
-  message given one; the first given stays.
-- v9 (`message_mentions`): the people a message mentions and the text naming each
-  in its body, so a mention written only as a number (WhatsApp's) is drawn with the
-  name the person is known by, after a restart as well.
-- v10 (`person_names`): with `person_links`, names by any identifier a person is known by
-  (a number as `tel:<digits>`, or their ID on a network) and which identifiers a
-  source says are one person; `phone_names` moved in as `tel:` names and dropped.
-  Together they are the directory: a person is named by the best name any source
-  gives any of their identifiers.
-- v11 (`space_leaving`): how a space is left, as its network says, a row only for
-  one that is: a Matrix space on its own, a WhatsApp community with its groups. A
-  bridge's own space for an account has none: leaving it would be signing out.
-
-- v12 (`room_networks`): the network behind a room another network keeps for it (a
-  Matrix room a bridge keeps, by its `m.bridge` state), read once per room and kept: a
-  room never changes network. A room read and found to be no bridge's keeps `Matrix`,
-  so a room with no row is one not read yet.
-- v13 (`tag_verdicts`): filter moves per room and tag, and releases, mirroring
-  `org.kith.tags`. v14 and v15 drop `spam_rooms` and `spam_released`, which spam
-  verdicts used before Spam became an ordinary tag; their account data is not
-  carried over (`:rescan` judges the cache again).
-- v16 (`person_verdicts`): filter marks per person ID and tag, and releases. Matrix
-  IDs mirror `org.kith.people`; other networks' are kept here alone.
-- v17 (`room_timers`): a chat's disappearing-messages timer in seconds, a row only
-  while it has one, so what kith sends there carries it (WhatsApp).
-- v18 (`room_timer_versions`): the version a chat's timer was set at, a row once a
-  network has numbered one (Signal counts a one-to-one chat's timer changes; an older
-  change is not taken). It outlives the timer's being turned off.
-- v19 (`message_expiry`): a disappearing message's timer and when its countdown started
-  (0 until the account reads it, for networks that count from reading), a row until
-  the message expires and is deleted as a deletion is.
-- v20 (`room_sms`): the chats whose messages go out as SMS or MMS through a phone's
-  carrier (Google Messages), a row only for one; written only by that network, so the
-  question before sending there stands after a restart.
-- v21 (`room_gaps`): stretches of a Matrix room's history a sync skipped (the timeline
-  came cut short after kith was away), a row until filled: from the newest message held
-  below to the oldest fetched above, and where paging back resumes, so a restart
-  mid-fill carries on.
-- v22 (`room_read_only`): the rooms this account may read but not post in (a Matrix
-  room whose power levels put messages above ours), a row only for one; written by the
-  network when it lists rooms, so the composer says so after a restart too.
-- v23 (`ignored_users`): the MXIDs this account ignores, mirror of Matrix's
-  `m.ignored_user_list` account data event; the server copy is the record, this table
-  keeps the list readable offline and across cache rebuilds.
-- v24 (`network_blocks`): a network's server-side block list (WhatsApp blocklist,
-  Telegram's `contacts.blocked`, Meta's), mirrored for offline reads and quick
-  person-card display; the server copy wins, pulled on connect and after every
-  blocklist-change event.
-- v25 (`room_handles`): the public `@username` that names a room on its network
-  (Telegram public chats and channels), lowercase and without the `@`; written by that
-  network when it lists rooms, so `tg://` link resolution survives a restart without
-  waiting for the next refresh.
-- v26 (`ignored_users`, `person_verdicts`): Matrix mirrors are per account. Both tables
-  gain `account` (the account's rooms' owner, `matrix:<key>/`) in their key, so one
-  account's account data never replaces another's; rows kept here alone have none.
-  Until then one Matrix account wrote them, so its owner is read off the cached rooms
-  (with none cached, its mirrored rows go: the homeserver holds them). Bridge contact
-  sources gain the account the same way (`bridge:matrix:<key>/<url>#<login>`).
-- v27 (`message_revisions`): a message keeps version rows only once it has more than
-  one; a message never edited is its own one version. Until then `[display.deleted]
-  keep` wrote a copy of every message as its first version, so this deletes each
-  message's lone row when it reads exactly as the message does (same words, same
-  formatting, not edited). The space goes to SQLite's free list and is reused by later
-  writes; the daemon's vacuum (see [The file](#the-file)) gives it back.
-- v28 (`room_history_start`): the rooms whose history the cache holds back to their
-  first message, a row only for one; written by Google Messages when paging back from
-  the phone finds nothing older, so its backfill does not ask the phone again for every
-  conversation after a restart.
-- v29 (`change_counter`): the epoch naming the numbering of changes, with
-  `message_changes` and `message_touched`: messages numbered as they change, recorded
-  by triggers on `messages` and every side table a message is read with. Messages already cached get a number at their
-  next change; the new epoch tells every client to read again.
-
-- v30 (`message_redaction_at`): when a cached message was deleted, kept from the
-  deletion, a tombstone or a deleted copy, so a message read from the cache (the
-  message stream sends no other kind) carries `RedactedAt`. Messages deleted before it
-  have none.
-- v31 (`room_aliases`): the rooms merged into another and the room each joined (a
-  WhatsApp direct chat kept by the person's LID until their number was learned). Not a
-  foreign key, so `Clear` names it. The chats already merged are found by the WhatsApp
-  adapter, not the migration: the LID-to-number map is in WhatsApp's own store, and
-  each account merges every chat whose number it knows when it connects.
-- v32 (`room_pictures`): each room's picture (a person's, in a direct chat), its
-  network's ID for it, and when the network was last asked. Starts empty; each
-  network fills it as it asks.
-- v33 (`person_pictures`): each person's picture, by the ID their messages name them
-  by, as `room_pictures` keeps a room's. Starts empty; each network fills it as it
-  asks.
-
-so a current cache is at version 33.
+`schemaVersion` is `1`: the base is the whole schema, `migrations` is empty, and a
+current cache is at version 1.
 
 ### Indexes need no migration
 
@@ -549,9 +454,9 @@ a new tokenizer. There are two ways to reset the list, and they are not the same
   produce, set `schemaVersion` to the old `current` (`schemaVersion + len(migrations)`),
   empty `migrations`, and empty `migrationFingerprints`. Caches at the old `current`
   open as current and keep everything; caches older than that are rebuilt. (Resetting
-  the number to 1 instead, as the 2026-09-26 fold did, rebuilds every cache stamped
-  above 1 unless each is re-stamped by hand. A cache stamped 1 by the old chain has the
-  old shape: the shape check rebuilds it rather than opening it as current.)
+  the number to 1 instead rebuilds every cache stamped above 1 unless each is
+  re-stamped by hand. A cache stamped 1 by the old chain has the old shape: the shape
+  check rebuilds it rather than opening it as current.)
 - **Bump (rebuild everyone).** When the shape itself changes, set `schemaVersion` to a
   number **greater than any version ever stamped** (above the old `current`), with an
   empty `migrations`. A lower number would be read as current by a cache the old chain

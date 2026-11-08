@@ -11,8 +11,7 @@ import (
 const aliasPrefix = "alias/"
 
 // AliasKey is the key of room, merged into another: a WhatsApp chat kept by the
-// person's LID until a bridge learned their number (planning/design-mesh.md, decision
-// 17). Its value is the room it joined. Any bridge writes it as it merges, and every
+// person's LID until a bridge learned their number. Its value is the room it joined. Any bridge writes it as it merges, and every
 // bridge running the room's account merges its own the same way.
 func AliasKey(room string) string { return aliasPrefix + room }
 

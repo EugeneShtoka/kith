@@ -81,8 +81,6 @@ message Revision {
   // The event that carried this wording.
   string id = 1;
   string body = 2;
-  reserved 3;
-  reserved "html";
   google.protobuf.Timestamp at = 4;
   Formatted format = 5; // unset when the version is plain
 }
@@ -111,9 +109,6 @@ message Message {
   bool emote = 14;
   // The thread this message belongs to, empty when it is in the main timeline.
   string thread_root = 13;
-  // Formatting travels drawn (format), never as any network's markup.
-  reserved 15;
-  reserved "html";
   // Who removed the message, what they said about it, and when.
   string redacted_by = 16;
   string redacted_reason = 17;

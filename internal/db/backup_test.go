@@ -79,10 +79,11 @@ func TestSnapshotCopiesEveryCommitWhileTheCacheIsOpen(t *testing.T) {
 // the cache it writes opens without a rebuild.
 func TestAdoptTakesACacheThisKithOpens(t *testing.T) {
 	t.Parallel()
-	for name, plan := range map[string]schemaPlan{
-		"current schema":    currentSchema,
-		"one schema behind": newSchemaPlan(migrations[:len(migrations)-1]),
-	} {
+	plans := map[string]schemaPlan{"current schema": currentSchema}
+	if len(migrations) > 0 {
+		plans["one schema behind"] = newSchemaPlan(migrations[:len(migrations)-1])
+	}
+	for name, plan := range plans {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir()

@@ -815,8 +815,6 @@ func (f configFile) read() (config.Config, error) {
 }
 
 // loadConfig reads and validates the config to serve, returning its path for reloads.
-// A config still holding device settings has them moved out first (config.SplitDevice):
-// kithd reads none, and refuses them as unknown keys.
 func loadConfig(configPath string) (config.Config, string, error) {
 	path := configPath
 	if path == "" {
@@ -825,9 +823,6 @@ func loadConfig(configPath string) (config.Config, string, error) {
 			return config.Config{}, "", fmt.Errorf("resolve config path: %w", err)
 		}
 		path = resolved
-	}
-	if _, err := config.SplitDevice(path, config.DevicePath(path)); err != nil {
-		return config.Config{}, "", fmt.Errorf("load config: %w", err)
 	}
 	cfg, err := config.Load(path)
 	if err != nil {
@@ -856,7 +851,7 @@ func makeStorageDirs(storage domain.Storage) error {
 // the cache, kithd waits (waitForCache) rather than exit or start an empty cache. A
 // nil cache with no error is a daemon stopped while it waited.
 func openCache(ctx context.Context, log *slog.Logger, lock *daemon.Lock, storage domain.Storage) (*db.Cache, error) {
-	cache, err := tryCache(ctx, log, storage)
+	cache, err := tryCache(ctx, storage)
 	if locked := (*cacheLocked)(nil); errors.As(err, &locked) {
 		cache, err = waitForCache(ctx, log, lock, storage, locked)
 	}
@@ -890,9 +885,8 @@ func cacheKey(storage domain.Storage) ([]byte, error) {
 }
 
 // tryCache opens the cache under its key in the keyring. A keyring that cannot be
-// read, or a key that does not open the cache, is cacheLocked. A cache from before
-// caches were encrypted is encrypted first, once, which is said: it takes a while.
-func tryCache(ctx context.Context, log *slog.Logger, storage domain.Storage) (*db.Cache, error) {
+// read, or a key that does not open the cache, is cacheLocked.
+func tryCache(ctx context.Context, storage domain.Storage) (*db.Cache, error) {
 	key, err := cacheKey(storage)
 	switch {
 	case errors.Is(err, session.ErrKeyringNotAnswering):
@@ -900,16 +894,7 @@ func tryCache(ctx context.Context, log *slog.Logger, storage domain.Storage) (*d
 	case err != nil:
 		return nil, &cacheLocked{why: "the cache is locked: unlock the keyring", err: err}
 	}
-	path := storage.CachePath()
-	plain, _ := db.Plain(path) // a file that cannot be read fails in Open, saying why
-	start := time.Now()
-	if plain {
-		log.Info("encrypting the cache, one time", "path", path, "size", fileSize(path))
-	}
-	cache, err := db.Open(ctx, path, key)
-	if plain && err == nil {
-		log.Info("the cache is encrypted", "took", time.Since(start).Round(100*time.Millisecond), "size", fileSize(path))
-	}
+	cache, err := db.Open(ctx, storage.CachePath(), key)
 	switch {
 	case errors.Is(err, db.ErrWrongKey):
 		return nil, &cacheLocked{
@@ -922,17 +907,6 @@ func tryCache(ctx context.Context, log *slog.Logger, storage domain.Storage) (*d
 		return nil, fmt.Errorf("open the cache %s (free disk space or fix its permissions): %w", storage.CachePath(), err)
 	}
 	return cache, nil
-}
-
-// fileSize is the size of the database at path with its log, in MB, for the log.
-func fileSize(path string) string {
-	var n int64
-	for _, f := range []string{path, path + "-wal"} {
-		if info, err := os.Stat(f); err == nil {
-			n += info.Size()
-		}
-	}
-	return fmt.Sprintf("%.0f MB", float64(n)/1e6)
 }
 
 // How long kithd waits between tries at a cache it cannot open yet: cacheRetry at
@@ -972,7 +946,7 @@ func waitForCache(ctx context.Context, log *slog.Logger, lock *daemon.Lock, stor
 			return nil, nil
 		case <-time.After(delay):
 		}
-		cache, err := tryCache(ctx, log, storage)
+		cache, err := tryCache(ctx, storage)
 		var still *cacheLocked
 		if !errors.As(err, &still) {
 			if err == nil {

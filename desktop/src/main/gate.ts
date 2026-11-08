@@ -457,8 +457,8 @@ export class Gate {
     }
     if (method.name === backend.messages.name) {
       // Opened again (kithd restarted, the relay failed), the stream resumes after the
-      // last change posted to the window, so it is sent what it missed meanwhile, once
-      // (design-replay.md). A window loading afresh subscribes afresh, from the newest.
+      // last change posted to the window, so it is sent what it missed meanwhile, once.
+      // A window loading afresh subscribes afresh, from the newest.
       let at: MessageShape<typeof backend.messages.input> | undefined;
       again = () => at ?? input;
       post = resuming(post, (epoch, change) => {

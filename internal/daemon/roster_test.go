@@ -407,9 +407,6 @@ func TestAMeshStoreThatDoesNotOpenListensNowhere(t *testing.T) {
 			if body, _ := os.ReadFile(b.roster); string(body) != roster {
 				t.Errorf("the roster was rewritten:\n%s", body)
 			}
-			if _, err := os.Stat(b.roster + ".pre-mesh"); !os.IsNotExist(err) {
-				t.Errorf("the roster was moved aside for a store that did not open: %v", err)
-			}
 			if tc.name == "a newer kith's" {
 				db, err := sealeddb.Open(t.Context(), b.mesh, key)
 				if err != nil {
@@ -436,21 +433,21 @@ func TestAMeshStoreThatDoesNotOpenListensNowhere(t *testing.T) {
 	}
 }
 
-// The roster file read into the mesh store once, cut off at each point and run again,
-// ends as a migration never cut off does: the same devices, the same file, the old file
-// kept as .pre-mesh, and only the genesis in the store.
-func TestAMigrationCutOffIsMadeAgainWhole(t *testing.T) {
+// The mesh store's genesis from the roster file, cut off at each point and run again,
+// ends as one never cut off does: the same devices, the same file, and only the
+// genesis in the store.
+func TestAGenesisCutOffIsMadeAgainWhole(t *testing.T) {
 	t.Parallel()
 	bridgeKey := newDeviceKey(t)
 	identity := identityOf(t, bridgeKey)
 	old := fmt.Sprintf("[[device]]\n  name = \"laptop\"\n  id = %q\n  added_at = 2026-09-01T10:00:00Z\n  added_by = %q\n\n"+
 		"[[device]]\n  name = \"phone\"\n  id = %q\n  added_at = 2026-09-02T11:30:00Z\n  added_by = %q\n",
 		idOf(t, newDeviceKey(t)).String(), idOf(t, bridgeKey).String(), idOf(t, newDeviceKey(t)).String(), idOf(t, newDeviceKey(t)).String())
-	type migrated struct {
+	type made struct {
 		devices []domain.Device
 		file    string
 	}
-	migrate := func(t *testing.T, dir string, key []byte) migrated {
+	genesis := func(t *testing.T, dir string, key []byte) made {
 		t.Helper()
 		d := daemon.NewDevices(filepath.Join(dir, "devices.toml"), meshAt(t, filepath.Join(dir, "mesh.db"), key), identity, slog.New(slog.DiscardHandler))
 		_, devices, err := d.List()
@@ -461,7 +458,7 @@ func TestAMigrationCutOffIsMadeAgainWhole(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return migrated{devices, string(file)}
+		return made{devices, string(file)}
 	}
 	write := func(t *testing.T, path, body string) {
 		t.Helper()
@@ -471,20 +468,16 @@ func TestAMigrationCutOffIsMadeAgainWhole(t *testing.T) {
 	}
 	refDir := t.TempDir()
 	write(t, filepath.Join(refDir, "devices.toml"), old)
-	want := migrate(t, refDir, storeKey(t))
+	want := genesis(t, refDir, storeKey(t))
 	if len(want.devices) != 2 || !strings.Contains(want.file, `role = "device"`) {
-		t.Fatalf("an uncut migration: %+v\n%s", want.devices, want.file)
+		t.Fatalf("an uncut genesis: %+v\n%s", want.devices, want.file)
 	}
 	for _, tc := range []struct {
 		name string
 		cut  func(t *testing.T, dir string, key []byte)
 	}{
 		{"before anything", func(*testing.T, string, []byte) {}},
-		{"the old file kept, an older copy beside it", func(t *testing.T, dir string, _ []byte) {
-			write(t, filepath.Join(dir, "devices.toml.pre-mesh"), "# an earlier try\n")
-		}},
 		{"the store laid out, no genesis", func(t *testing.T, dir string, key []byte) {
-			write(t, filepath.Join(dir, "devices.toml.pre-mesh"), old)
 			s, err := mesh.Open(t.Context(), filepath.Join(dir, "mesh.db"), key)
 			if err != nil {
 				t.Fatal(err)
@@ -492,7 +485,7 @@ func TestAMigrationCutOffIsMadeAgainWhole(t *testing.T) {
 			_ = s.Close()
 		}},
 		{"the genesis kept, the file not written", func(t *testing.T, dir string, key []byte) {
-			migrate(t, dir, key)
+			genesis(t, dir, key)
 			write(t, filepath.Join(dir, "devices.toml"), old)
 		}},
 	} {
@@ -501,7 +494,7 @@ func TestAMigrationCutOffIsMadeAgainWhole(t *testing.T) {
 			dir, key := t.TempDir(), storeKey(t)
 			write(t, filepath.Join(dir, "devices.toml"), old)
 			tc.cut(t, dir, key)
-			got := migrate(t, dir, key)
+			got := genesis(t, dir, key)
 			if !slices.EqualFunc(got.devices, want.devices, func(a, b domain.Device) bool {
 				return a.Name == b.Name && a.ID == b.ID && a.Role == b.Role && a.AddedAt.Equal(b.AddedAt) && a.AddedBy == b.AddedBy
 			}) {
@@ -509,9 +502,6 @@ func TestAMigrationCutOffIsMadeAgainWhole(t *testing.T) {
 			}
 			if got.file != want.file {
 				t.Errorf("the file:\n%s\nwant:\n%s", got.file, want.file)
-			}
-			if kept, _ := os.ReadFile(filepath.Join(dir, "devices.toml.pre-mesh")); string(kept) != old {
-				t.Errorf("devices.toml.pre-mesh:\n%s\nwant the file as it was:\n%s", kept, old)
 			}
 			if n := opsIn(t, filepath.Join(dir, "mesh.db"), key); n != 1 {
 				t.Errorf("the store holds %d ops, want the genesis alone", n)

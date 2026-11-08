@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -64,61 +63,6 @@ func TestTheDirectoryTakesTheMostTrustedNameFromAnyAccount(t *testing.T) {
 	}
 	if dana, _ := dir.Named("+15550100001"); dana != "Dana Saved" {
 		t.Errorf("after Telegram knows nobody, Dana is %q", dana)
-	}
-}
-
-// Upgrading a v9 cache (names in phone_names) keeps every name and rank.
-func TestACacheFromBeforeTheDirectoryKeepsItsNames(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "old.db")
-	c, err := Open(ctx, path, testKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cerr := c.Close(); cerr != nil {
-		t.Fatal(cerr)
-	}
-	raw, err := openRaw(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, stmt := range []string{
-		"DROP TABLE person_names", "DROP TABLE person_links",
-		`CREATE TABLE phone_names (
-	source TEXT    NOT NULL,
-	phone  TEXT    NOT NULL,
-	name   TEXT    NOT NULL,
-	rank   INTEGER NOT NULL,
-	PRIMARY KEY (source, phone)
-) STRICT, WITHOUT ROWID`,
-		"INSERT INTO phone_names VALUES ('whatsapp:111', '15550100001', 'Dana', 0), ('telegram:42', '15550100002', 'Eli', 2)",
-		"PRAGMA user_version = 9",
-	} {
-		if _, xerr := raw.ExecContext(ctx, stmt); xerr != nil {
-			t.Fatalf("%s: %v", stmt, xerr)
-		}
-	}
-	if rerr := raw.Close(); rerr != nil {
-		t.Fatal(rerr)
-	}
-
-	c, err = Open(ctx, path, testKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = c.Close() })
-	dir, err := c.Directory(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for number, want := range map[string]string{"15550100001": "Dana", "15550100002": "Eli"} {
-		if got, _ := dir.Named("+" + number); got != want {
-			t.Errorf("after the upgrade +%s is %q, want %q", number, got, want)
-		}
-	}
-	if _, rank, _ := dir.Name(domain.PhoneID("15550100002")); rank != domain.RankChosen {
-		t.Errorf("Eli's rank = %v, want the chosen rank kept", rank)
 	}
 }
 

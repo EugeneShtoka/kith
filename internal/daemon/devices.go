@@ -296,7 +296,7 @@ func (d *Devices) refreshLocked() (rosterRead, error) {
 	}
 	r := rosterRead{store: store, signer: signer, file: body, entries: file}
 	if len(members) == 0 {
-		err = d.migrateLocked(&r, file)
+		err = d.genesisLocked(&r, file)
 		return r, err
 	}
 	if !slices.ContainsFunc(members, func(m domain.Device) bool { return m.ID == self.String() && m.Role == domain.RoleBridge }) {
@@ -328,15 +328,10 @@ func (d *Devices) refreshLocked() (rosterRead, error) {
 	return r, err
 }
 
-// migrateLocked makes the mesh store's genesis from the roster file, read once: this
-// bridge as its first member, then every device the file lists. The file is kept as
-// .pre-mesh first, so a migration cut off anywhere is made again, whole, from it.
-func (d *Devices) migrateLocked(r *rosterRead, file []pairedDevice) error {
-	if r.file != nil {
-		if err := writeRoster(d.path+".pre-mesh", r.file); err != nil {
-			return err
-		}
-	}
+// genesisLocked makes the mesh store's genesis from the roster file: this bridge as its
+// first member, then every device the file lists. One cut off anywhere is made again,
+// whole, from the file.
+func (d *Devices) genesisLocked(r *rosterRead, file []pairedDevice) error {
 	self := d.self.String()
 	set := []domain.Device{{ID: self, Role: domain.RoleBridge, AddedAt: time.Now().UTC().Truncate(time.Second), AddedBy: self}}
 	for _, p := range file {
@@ -346,9 +341,9 @@ func (d *Devices) migrateLocked(r *rosterRead, file []pairedDevice) error {
 		}
 	}
 	if err := r.store.ChangeRoster(context.Background(), r.signer, set, nil); err != nil {
-		return fmt.Errorf("daemon: move the device roster %s into the mesh store: %w", d.path, err)
+		return fmt.Errorf("daemon: make the mesh store from the device roster %s: %w", d.path, err)
 	}
-	d.log.Info("the device roster is kept in the mesh store now", "roster", d.path, "devices", len(set)-1)
+	d.log.Info("the mesh store is made from the device roster", "roster", d.path, "devices", len(set)-1)
 	return d.settleLocked(r)
 }
 

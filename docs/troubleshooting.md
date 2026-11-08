@@ -152,11 +152,9 @@ mkdir -p ~/.local/share/kith ~/.local/state/kith ~/.cache/kith
 systemctl --user restart kithd
 ```
 
-Current units create them themselves, in an `ExecStartPre=+mkdir` step that runs
-outside the sandbox, so this happens only with a unit installed before that step
-existed, or one edited to write somewhere new without adding the directory to both
-`ReadWritePaths=` and that `mkdir` line. Reinstall the unit (`make install`, or copy
-it from a current release) to pick up the step.
+The unit creates them itself, in an `ExecStartPre=+mkdir` step that runs outside the
+sandbox, so this happens only with a unit edited to write somewhere new without adding
+the directory to both `ReadWritePaths=` and that `mkdir` line.
 
 ### The unit is inactive, but kith works
 
@@ -260,12 +258,10 @@ cache-<hash>.db.pre-schema-20260901-101500
 
 They're kept because they may contain history the homeserver can no longer serve (for
 example, from a bridge that has purged its backfill). They're encrypted with the
-cache's key, as the cache is (a copy from before that is encrypted at the next start).
-Nothing reads them, and nothing
-deletes them automatically, so remove them once you're sure you don't need them. If
-the copy couldn't be made, the daemon logs
-`the previous cache could not be kept` and starts with an empty cache
-anyway.
+cache's key, as the cache is. Nothing reads them; a rebuild keeps the two newest and
+deletes older ones, so remove them once you're sure you don't need them. If the copy
+couldn't be made, the daemon logs `the previous cache could not be kept` and starts
+with an empty cache anyway.
 
 Switching back and forth between two builds with different schemas rebuilds the
 cache on each switch. That's slow, but nothing is corrupted.
@@ -294,10 +290,6 @@ Signal's and Messenger's stores included. Unlock the keyring
 `the cache is locked: the keyring is not answering; unlock it` is the same wait for a
 keyring that takes no calls at all: a Secret Service D-Bus is still trying to start,
 or one waiting on a password prompt nothing shows. Each try waits 5 seconds for it.
-
-On the first start of a kith that encrypts the cache, the journal says
-`encrypting the cache, one time` with its size, then `the cache is encrypted` with how
-long it took: about 15 seconds for 500 MB, during which kith waits for the daemon.
 
 ### "the keyring's key does not open the cache"
 
@@ -442,10 +434,9 @@ store, never in a file by default.
   followed by the reason.
 
 On a headless machine with no keyring, `allow_token_file = true` stores the token in
-`~/.local/state/kith/session-<instance>-<account>.toml` (mode 0600), one file per account. A
-`session.toml` from an older version still loads for the account it belongs to and is
-renamed to the new name. End-to-end encryption still needs a
-keyring, so without one the daemon runs with encryption disabled.
+`~/.local/state/kith/session-<instance>-<account>.toml` (mode 0600), one file per account.
+End-to-end encryption still needs a keyring, so without one the daemon runs with
+encryption disabled.
 
 ## Notifications don't show
 

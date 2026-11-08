@@ -297,15 +297,13 @@ func inDefaultDirs(storage domain.Storage) bool {
 }
 
 // sharedStorage is where the config's shared files go (dictionaries, models, API keys),
-// read writing nothing but the one-time move of its device settings (config.SplitDevice),
-// without which it would not load; the defaults without a config.
+// read writing nothing; the defaults without a config.
 func sharedStorage(configPath string) domain.Storage {
 	cfg := config.Config{}
 	path := configPath
 	if path == "" {
 		path, _ = config.Path()
 	}
-	_, _ = config.SplitDevice(path, config.DevicePath(path)) // a config that will not split will not load either
 	if loaded, err := config.Load(path); err == nil {
 		cfg = loaded
 	}
@@ -539,18 +537,14 @@ func openLogTo(d logging.Destination) (*slog.Logger, func()) {
 	}
 }
 
-// loadConfig resolves, loads and validates the config, once its device settings are
-// moved out (config.SplitDevice). On first run it writes a documented default and
-// returns ready=false.
+// loadConfig resolves, loads and validates the config. On first run it writes a
+// documented default and returns ready=false.
 func loadConfig(configPath string) (path string, cfg config.Config, ready bool, err error) {
 	path = configPath
 	if path == "" {
 		if path, err = config.Path(); err != nil {
 			return "", config.Config{}, false, fmt.Errorf("resolve config path: %w", err)
 		}
-	}
-	if _, serr := config.SplitDevice(path, config.DevicePath(path)); serr != nil {
-		return "", config.Config{}, false, fmt.Errorf("load config: %w", serr)
 	}
 	if created, cerr := config.WriteDefaultIfMissing(path); cerr != nil {
 		return "", config.Config{}, false, fmt.Errorf("write default config: %w", cerr)

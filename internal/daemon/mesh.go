@@ -23,10 +23,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/pairing"
 )
 
-// The pace of the mesh's loop (planning/design-mesh.md, Sync): each bridge dials every
-// member bridge that has addresses, backing off from meshBackoffMin to meshBackoffMax
-// while one does not answer; a stream that held for meshSteady starts the backoff
-// over. With nothing to wake it, the loop looks again every meshRecheck.
+// The pace of the mesh's loop: each bridge dials every member bridge that has
+// addresses, backing off from meshBackoffMin to meshBackoffMax while one does not
+// answer; a stream that held for meshSteady starts the backoff over. With nothing to
+// wake it, the loop looks again every meshRecheck.
 const (
 	meshBackoffMin = time.Second
 	meshBackoffMax = 5 * time.Minute

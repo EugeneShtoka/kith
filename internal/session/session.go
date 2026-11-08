@@ -19,10 +19,8 @@ import (
 )
 
 const (
-	// legacyService is the default keyring service; secrets under it are found from any.
-	legacyService             = "kith"
-	pickleKeyLen              = 32
-	ownerOnly     fs.FileMode = 0o600
+	pickleKeyLen             = 32
+	ownerOnly    fs.FileMode = 0o600
 )
 
 // Store locates one instance's session and encryption key: keyring service, account

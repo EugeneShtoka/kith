@@ -3,16 +3,12 @@ package sealeddb_test
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
-	_ "modernc.org/sqlite"
-
 	"github.com/EugeneShtoka/kith/internal/sealeddb"
-	"github.com/ncruces/go-sqlite3/driver"
 )
 
 func key(b byte) []byte { return bytes.Repeat([]byte{b}, sealeddb.KeyLen) }
@@ -87,101 +83,21 @@ func TestAWrongKeyIsSaidAtOnce(t *testing.T) {
 	}
 }
 
-// plainStore writes a plain database at path as the stores were before: two tables,
-// the second row still in the write-ahead log when the database is left.
-func plainStore(t *testing.T, path string) {
-	t.Helper()
-	src := path + ".src"
-	db, err := sql.Open("sqlite", "file:"+src+"?_pragma=journal_mode(WAL)&_pragma=wal_autocheckpoint(0)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, q := range []string{
-		"CREATE TABLE devices (jid TEXT PRIMARY KEY)", "CREATE TABLE sessions (addr TEXT, v BLOB)",
-		"INSERT INTO devices VALUES ('15550100001.0:1@s.whatsapp.net')",
-		"INSERT INTO sessions VALUES ('15550100009.0', x'01'), ('15550100010.0', x'02')",
-	} {
-		if _, err := db.ExecContext(context.Background(), q); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// Copied while open, as a daemon that stopped dead leaves it: the rows are in the
-	// log, not yet in the database file.
-	for _, suffix := range []string{"", "-wal"} {
-		raw, err := os.ReadFile(src + suffix)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path+suffix, raw, 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	_ = db.Close()
-	if raw, _ := os.ReadFile(path + "-wal"); !bytes.Contains(raw, []byte("15550100009")) {
-		t.Fatal("the fixture's rows did not stay in the log")
-	}
-}
-
-// readBack checks the store at path opens with key and holds plainStore's rows, and
-// that nothing of the plain store is left beside it.
-func readBack(t *testing.T, path string, k []byte) {
-	t.Helper()
-	db, err := sealeddb.Open(context.Background(), path, k)
-	if err != nil {
-		t.Fatalf("the migrated store does not open: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-	var devices, sessions int
-	if err := db.QueryRowContext(context.Background(), "SELECT (SELECT count(*) FROM devices), (SELECT count(*) FROM sessions)").Scan(&devices, &sessions); err != nil || devices != 1 || sessions != 2 {
-		t.Errorf("read back %d devices, %d sessions (%v), want 1 and 2", devices, sessions, err)
-	}
-	raw, _ := os.ReadFile(path)
-	if bytes.HasPrefix(raw, []byte("SQLite format 3")) || bytes.Contains(raw, []byte("15550100009")) {
-		t.Error("the store is still in the clear")
-	}
-	for _, left := range []string{".plain", ".sealing", ".plain-wal"} {
-		if _, err := os.Stat(path + left); !errors.Is(err, os.ErrNotExist) {
-			t.Errorf("%s left beside the store", left)
-		}
-	}
-}
-
-// A plain store is turned into an encrypted one, whole, the rows its log held too; a
-// fresh store is encrypted from the start; and the migrated store refuses another key.
-// Every file of either, the log and shared memory too, is the owner's alone, whatever
+// Every file of a store, the log and shared memory too, is the owner's alone, whatever
 // the umask.
-func TestAPlainStoreIsEncryptedOnce(t *testing.T) {
+func TestAStoreIsTheOwnersAlone(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "whatsapp.db")
-	plainStore(t, path)
-	db, err := sealeddb.OpenMigrating(ctx, path, key(1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.ExecContext(ctx, "CREATE TABLE written_after (v)"); err != nil {
-		t.Fatal(err)
-	}
-	ownerOnly(t, path)
-	_ = db.Close()
-	readBack(t, path, key(1))
-	if _, err = sealeddb.OpenMigrating(ctx, path, key(2)); !errors.Is(err, sealeddb.ErrWrongKey) {
-		t.Errorf("another key on the migrated store: %v, want ErrWrongKey", err)
-	}
-	fresh := filepath.Join(dir, "messenger.db")
-	db, err = sealeddb.OpenMigrating(ctx, fresh, key(1))
+	path := filepath.Join(t.TempDir(), "messenger.db")
+	db, err := sealeddb.Open(ctx, path, key(1))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.ExecContext(ctx, "CREATE TABLE t (v)"); err != nil {
 		t.Fatal(err)
 	}
-	ownerOnly(t, fresh)
+	ownerOnly(t, path)
 	_ = db.Close()
-	if raw, _ := os.ReadFile(fresh); bytes.HasPrefix(raw, []byte("SQLite format 3")) {
-		t.Error("a fresh store was made in the clear")
-	}
 }
 
 // ownerOnly checks the store at path, its log and its shared memory, those there, are
@@ -200,98 +116,4 @@ func ownerOnly(t *testing.T, path string) {
 			t.Errorf("%s is %v; want 0600, the owner's alone", filepath.Base(f), perm)
 		}
 	}
-}
-
-// A migration interrupted anywhere is taken up again at the next open, and ends with
-// every row and nothing in the clear: a half copy beside the plain store, the plain
-// store set aside before the copy took its name, or set aside after it did.
-func TestAnInterruptedMigrationIsTakenUpAgain(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	for _, tc := range []struct {
-		name  string
-		crash func(t *testing.T, path string)
-	}{
-		{"a half-written copy", func(t *testing.T, path string) {
-			if err := os.WriteFile(path+".sealing", []byte("half a copy"), 0o600); err != nil {
-				t.Fatal(err)
-			}
-		}},
-		{"the plain store set aside, the copy not in place", func(t *testing.T, path string) {
-			if err := os.Rename(path, path+".plain"); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(path+".sealing", []byte("an unchecked copy"), 0o600); err != nil {
-				t.Fatal(err)
-			}
-		}},
-		{"the copy in place, the plain store not yet deleted", func(t *testing.T, path string) {
-			if err := os.Rename(path, path+".plain"); err != nil {
-				t.Fatal(err)
-			}
-			plainStore(t, path+".copy")
-			db, err := sealeddb.OpenMigrating(ctx, path+".copy", key(1))
-			if err != nil {
-				t.Fatal(err)
-			}
-			_ = db.Close()
-			if err := os.Rename(path+".copy", path); err != nil {
-				t.Fatal(err)
-			}
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			path := filepath.Join(t.TempDir(), "whatsapp.db")
-			plainStore(t, path)
-			tc.crash(t, path)
-			db, err := sealeddb.OpenMigrating(ctx, path, key(1))
-			if err != nil {
-				t.Fatalf("after %s: %v", tc.name, err)
-			}
-			_ = db.Close()
-			readBack(t, path, key(1))
-		})
-	}
-}
-
-// A plain store another process still has open in a read (a backup copying it) is not
-// migrated: its log cannot all be emptied into it, so setting it aside without the log
-// could lose those commits. Once the reader is gone, it migrates whole.
-func TestAPlainStoreInUseIsNotMigrated(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "whatsapp.db")
-	plainStore(t, path)
-	reader, err := driver.Open("file:" + path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	conn, err := reader.Conn(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = conn.ExecContext(ctx, "BEGIN"); err != nil {
-		t.Fatal(err)
-	}
-	var n int
-	if err = conn.QueryRowContext(ctx, "SELECT count(*) FROM sessions").Scan(&n); err != nil {
-		t.Fatal(err)
-	}
-	if inUse, openErr := sealeddb.OpenMigrating(ctx, path, key(1)); openErr == nil {
-		_ = inUse.Close()
-		t.Fatal("a store in use was migrated")
-	}
-	if raw, _ := os.ReadFile(path); !bytes.HasPrefix(raw, []byte("SQLite format 3")) {
-		t.Fatal("the store in use is no longer the plain one")
-	}
-	_, _ = conn.ExecContext(ctx, "COMMIT")
-	_ = conn.Close()
-	_ = reader.Close()
-	db, err := sealeddb.OpenMigrating(ctx, path, key(1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = db.Close()
-	readBack(t, path, key(1))
 }

@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS backfill (
 	next TEXT NOT NULL, fetched INTEGER NOT NULL, done INTEGER NOT NULL,
 	PRIMARY KEY (user, room)
 );
-PRAGMA user_version = 2;
+PRAGMA user_version = 1;
 `
 
 // Store is the Telegram store. Build it with OpenStore.
@@ -60,17 +60,16 @@ var (
 	_ updates.UserAccessHasher    = (*Store)(nil)
 )
 
-// OpenStore opens (creating and migrating) the store at path, encrypted with key; a
-// plain store from before is encrypted first (sealeddb.OpenMigrating).
+// OpenStore opens (creating) the store at path, encrypted with key.
 func OpenStore(ctx context.Context, path string, key []byte) (*Store, error) {
-	db, err := sealeddb.OpenMigrating(ctx, path, key)
+	db, err := sealeddb.Open(ctx, path, key)
 	if err != nil {
 		return nil, fmt.Errorf("telegram: open the store: %w", err)
 	}
 	db.SetMaxOpenConns(1)
 	if _, err := db.ExecContext(ctx, storeSchema); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("telegram: migrate the store: %w", err)
+		return nil, fmt.Errorf("telegram: create the store's tables: %w", err)
 	}
 	return &Store{db: db, held: map[int64]bool{}}, nil
 }

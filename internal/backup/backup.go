@@ -59,13 +59,9 @@ const (
 	meshPattern     = ".backup-mesh-*.db"
 )
 
-// format is the layout this kith writes: encrypted to a backup key, the cache and the
-// mesh store in it encrypted under the manifest's CacheKey. It reads oldestFormat on,
-// a backup before 4 holding no mesh store.
-const (
-	format       = 4
-	oldestFormat = 3
-)
+// format is the layout this kith writes and reads: encrypted to a backup key, the cache
+// and the mesh store in it encrypted under the manifest's CacheKey.
+const format = 4
 
 // manifest is a backup's first entry: its layout, when and by what it was made, every
 // file after it, so a restore can tell a whole backup from a cut one, the key (hex)

@@ -9,6 +9,7 @@ import (
 	"reflect"
 
 	"github.com/BurntSushi/toml"
+	"github.com/gofrs/flock"
 )
 
 // defaultDeviceTOML is the fully-annotated device file written on a device's first run.
@@ -273,4 +274,14 @@ func overlayEntry(dst, key, got reflect.Value) {
 		dst.Set(reflect.MakeMap(dst.Type()))
 	}
 	dst.SetMapIndex(key, deepCopy(got))
+}
+
+// lockDevice takes the device file's lock, held by every writer of it (a split, a
+// window's change) so none writes over another's read.
+func lockDevice(path string) (unlock func(), err error) {
+	fl := flock.New(path + ".lock")
+	if err := fl.Lock(); err != nil {
+		return nil, fmt.Errorf("config: lock %s: %w", path, err)
+	}
+	return func() { _ = fl.Unlock() }, nil
 }
