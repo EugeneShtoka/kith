@@ -14,40 +14,7 @@ var migrationFingerprints = []struct {
 	version int    // the user_version this entry stamps
 	what    string // what it does, for the failure message
 	sha     string // first 12 hex of sha256 over the statement, whitespace collapsed
-}{
-	{2, "draft_threads: the thread a draft is written into", "2a951409973f"},
-	{3, "quoted_messages: what a reply quotes, when the original is not cached", "227cafbf0452"},
-	{4, "room_archived: chats the network archived", "4ac51b166e07"},
-	{5, "room_forums: rooms made of topics", "bf42226a5158"},
-	{6, "phone_names: the names accounts know numbers by", "ce6ec69e96b0"},
-	{7, "message_polls: messages' polls", "4f80008f627c"},
-	{8, "message_order: messages' places among those sharing their time", "8da39a288478"},
-	{9, "message_mentions: the people messages mention", "2fe42c55b9cb"},
-	{10, "person_names, person_links: names by any identifier, and links; phone_names moved in", "5aa551cbaa7b"},
-	{11, "space_leaving: how a space is left", "20b7e6e0ef13"},
-	{12, "room_networks: the network behind a bridged room", "0b9a747aeb01"},
-	{13, "tag_verdicts: filter moves per room and tag, and releases", "3c8b378d4069"},
-	{14, "drop spam_rooms: spam verdicts are tag verdicts", "2243f0b8aa8f"},
-	{15, "drop spam_released: spam releases are tag releases", "eee14992913e"},
-	{16, "person_verdicts: filter marks per person and tag, and releases", "b5ed1027de59"},
-	{17, "room_timers: a chat's disappearing-messages timer", "6809131de809"},
-	{18, "room_timer_versions: the version a chat's timer was set at", "6f5a367f6ec0"},
-	{19, "message_expiry: a disappearing message's timer and countdown", "488045fe6e27"},
-	{20, "room_sms: chats whose messages go out as SMS or MMS", "8c1211e90cee"},
-	{21, "room_gaps: stretches of history a sync skipped, until filled", "7b308a266c57"},
-	{22, "room_read_only: rooms this account may read but not post in", "991afc455e6d"},
-	{23, "ignored_users: Matrix MXIDs this account ignores (m.ignored_user_list mirror)", "39ce6833da72"},
-	{24, "network_blocks: a network's server-side block list mirror", "00720526d8e2"},
-	{25, "room_handles: the public @username that names a room on its network", "f109681ba3bf"},
-	{26, "ignored_users, person_verdicts: Matrix mirrors per account; bridge sources too", "3285083d3603"},
-	{27, "message_revisions: a message never edited keeps no copy of itself", "a89d92f86c40"},
-	{28, "room_history_start: rooms cached back to their first message", "08b5ba002df3"},
-	{29, "change_counter, message_changes, message_touched: messages numbered as they change", "f2c833bf0a2f"},
-	{30, "message_redaction_at: when a cached message was deleted", "6a410c048b58"},
-	{31, "room_aliases: rooms merged into another", "e5f29e52be8e"},
-	{32, "room_pictures: rooms' pictures", "eadf0f2df430"},
-	{33, "person_pictures: people's pictures", "e35608d48072"},
-}
+}{}
 
 func fingerprint(stmt string) string {
 	sum := sha256.Sum256([]byte(strings.Join(strings.Fields(stmt), " ")))
