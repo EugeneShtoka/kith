@@ -41,9 +41,6 @@ func ClientStorage(configPath string) (domain.Storage, bool, error) {
 		storage, serr := StorageFor(config.Config{}, configPath)
 		return storage, false, serr
 	}
-	if _, err := config.SplitDevice(configPath, config.DevicePath(configPath)); err != nil {
-		return domain.Storage{}, false, fmt.Errorf("reading %s: %w", configPath, err)
-	}
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return domain.Storage{}, false, fmt.Errorf("reading %s: %w", configPath, err)

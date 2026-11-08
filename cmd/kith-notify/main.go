@@ -130,9 +130,8 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 	return nil
 }
 
-// loadAccount reads the config for where kithd's socket is, as kith-mcp does, after
-// moving its device settings out (config.SplitDevice); device is the device file, and
-// dial reaches kithd. On a device that joined a bridge elsewhere the config is the
+// loadAccount reads the config for where kithd's socket is, as kith-mcp does; device is
+// the device file, and dial reaches kithd. On a device that joined a bridge elsewhere the config is the
 // bridge's, read through it once it answers, and dial reaches it over TLS.
 func loadAccount(ctx context.Context, log *slog.Logger, configPath string) (cfg config.Config, storage domain.Storage, device string, dial func() *daemon.Remote, err error) {
 	path := configPath
@@ -151,9 +150,6 @@ func loadAccount(ctx context.Context, log *slog.Logger, configPath string) (cfg 
 	if joined {
 		cfg, storage, dial, err = loadBridged(ctx, log, path, b)
 		return cfg, storage, device, dial, err
-	}
-	if _, serr := config.SplitDevice(path, device); serr != nil {
-		return config.Config{}, domain.Storage{}, "", nil, fmt.Errorf("reading %s: %w", path, serr)
 	}
 	cfg, err = config.Load(path)
 	if err != nil {

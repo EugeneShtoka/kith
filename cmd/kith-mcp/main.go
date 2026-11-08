@@ -135,8 +135,7 @@ func warnAboutScope(log *slog.Logger, places setup.AgentPlaces, cfg config.Confi
 // scopeCheckTimeout bounds the startup warning's three cache reads.
 const scopeCheckTimeout = 5 * time.Second
 
-// loadAccount loads and validates the config, once its device settings are moved out
-// (config.SplitDevice): it reads none of them.
+// loadAccount loads and validates the config.
 func loadAccount(log *slog.Logger, configPath string) (config.Config, domain.Storage, *daemon.Remote, error) {
 	path := configPath
 	if path == "" {
@@ -152,9 +151,6 @@ func loadAccount(log *slog.Logger, configPath string) (config.Config, domain.Sto
 	}
 	if joined {
 		return loadBridged(path, b)
-	}
-	if _, err := config.SplitDevice(path, config.DevicePath(path)); err != nil {
-		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	cfg, err := config.Load(path)
 	if err != nil {

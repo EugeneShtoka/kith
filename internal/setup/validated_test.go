@@ -10,8 +10,7 @@ import (
 	"testing"
 )
 
-// Every binary that reads a config also checks it, having moved its device settings out
-// first (a config still holding them does not load); one that reads a device file checks
+// Every binary that reads a config also checks it; one that reads a device file checks
 // that too.
 func TestEveryBinaryThatLoadsAConfigChecksIt(t *testing.T) {
 	t.Parallel()
@@ -36,9 +35,6 @@ func TestEveryBinaryThatLoadsAConfigChecksIt(t *testing.T) {
 		checked++
 		if !validates {
 			t.Errorf("cmd/%s calls config.Load and never setup.Validate", entry.Name())
-		}
-		if !mentions(t, dir, "config", "SplitDevice") {
-			t.Errorf("cmd/%s calls config.Load and never config.SplitDevice", entry.Name())
 		}
 	}
 	if checked == 0 {

@@ -214,14 +214,7 @@ table whose keys are split keeps its name in both, so `[display] time_format` is
 says which file each is in; `kith --print-device-config` lists every device key.
 
 `kithd` never reads `device.toml`, and a device key written into `config.toml` is
-refused there as any unknown key is. A `config.toml` from before the split still
-holding device keys is split once, by whichever of `kithd` and the client opens it
-first: the device keys move into `device.toml` (a setting `device.toml` already gives
-a value other than its default keeps it), then `config.toml` is rewritten without
-them, the original, comments and all, kept as `config.toml.before-device`. A rule's
-`sound` moves to `device.toml`'s `[notifications.sounds]` under the rule's `name`; a
-rule without one is named first, from what it matches. A key neither file reads stops
-the split, named, and nothing is written.
+refused there as any unknown key is.
 
 ### Validation
 

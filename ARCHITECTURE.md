@@ -535,11 +535,9 @@ notification rules, profiles, the assistant's policy. A device's `device.toml`
 (comma-separated, with chord sequences), the scripts' bindings, how a notification is
 shown; a table split between them keeps its name in both. kithd's types have no
 device field, so kithd reading one does not compile, and kithd never opens
-`device.toml`. `config.SplitDevice` moves the device keys out of an older
-`config.toml` once, run by kithd and every client before loading. `internal/setup`
-turns the files into running structures (`Validate` for the bridge's,
-`ValidateDevice` for a device's), and a spelling it does not recognize **stops
-startup** rather than falling back. In a client whose failure mode is silence, a
+`device.toml`. `internal/setup` turns the files into running structures (`Validate`
+for the bridge's, `ValidateDevice` for a device's), and a spelling it does not
+recognize **stops startup** rather than falling back. In a client whose failure mode is silence, a
 quietly ignored setting looks exactly like a working one. The user-facing reference is
 [docs/configuration.md](docs/configuration.md); `kith --print-config` and
 `kith --print-device-config` print the annotated default files.

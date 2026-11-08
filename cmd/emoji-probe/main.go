@@ -207,9 +207,6 @@ func loadConfig() (config.Config, config.Device, string, error) {
 		return config.Config{}, config.Device{}, "", fmt.Errorf("resolve config path: %w", err)
 	}
 	device := config.DevicePath(path)
-	if _, serr := config.SplitDevice(path, device); serr != nil {
-		return config.Config{}, config.Device{}, path, fmt.Errorf("load config: %w", serr)
-	}
 	cfg, err := config.Load(path)
 	if err != nil {
 		return config.Config{}, config.Device{}, path, fmt.Errorf("load config: %w", err)
