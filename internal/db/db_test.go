@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -900,5 +901,62 @@ func TestForgettingASpace(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].ID != mx+"!fun:x" || len(got[0].Children) != 1 {
 		t.Errorf("Spaces after forgetting Work = %+v, want Friends alone with its room", got)
+	}
+}
+
+// The archive is offered every attachment on a message still there and not set to
+// disappear, oldest first, under the edit the message shows.
+func TestAttachmentsToArchive(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cache := openTemp(t)
+	a, b := domain.RoomID(mx+"!a:x"), domain.RoomID(mx+"!b:x")
+	if err := cache.SaveRooms(ctx, mxRooms, []domain.Room{{ID: a, Name: "Alpha"}, {ID: b, Name: "Beta"}}); err != nil {
+		t.Fatalf("SaveRooms() error = %v", err)
+	}
+	at := func(min int) time.Time { return time.Date(2026, 11, 9, 12, min, 0, 0, time.UTC) }
+	pic := &domain.Media{Type: domain.MediaImage, Name: "p.jpg", Mime: "image/jpeg"}
+	if err := cache.SaveMessages(ctx, a, []domain.Message{
+		{ID: mx + "$late", Timestamp: at(3), Media: pic},
+		{ID: mx + "$early", Timestamp: at(1), Media: pic, Edited: true, RevisionID: mx + "$r", EditedAt: at(2)},
+		{ID: mx + "$text", Timestamp: at(1), Body: "no attachment"},
+		{ID: mx + "$gone", Timestamp: at(1), Media: pic, Redacted: true},
+		{ID: mx + "$timed", Timestamp: at(1), Media: pic},
+	}); err != nil {
+		t.Fatalf("SaveMessages() error = %v", err)
+	}
+	if err := cache.SaveMessages(ctx, b, []domain.Message{{ID: mx + "$other", Timestamp: at(0), Media: pic}}); err != nil {
+		t.Fatalf("SaveMessages() error = %v", err)
+	}
+	if err := cache.SetExpiry(ctx, a, mx+"$timed", time.Hour, at(1)); err != nil {
+		t.Fatalf("SetExpiry() error = %v", err)
+	}
+	ids := func(refs []domain.AttachmentRef) (out []string) {
+		for _, r := range refs {
+			out = append(out, string(r.Event)+"@"+string(r.Revision))
+		}
+		return out
+	}
+	for _, c := range []struct {
+		room  domain.RoomID
+		since time.Time
+		want  []string
+	}{
+		{"", time.Time{}, []string{mx + "$other@", mx + "$early@" + mx + "$r", mx + "$late@"}},
+		{a, time.Time{}, []string{mx + "$early@" + mx + "$r", mx + "$late@"}},
+		{a, at(2), []string{mx + "$late@"}},
+	} {
+		got, err := cache.Attachments(ctx, c.room, c.since)
+		if err != nil || !slices.Equal(ids(got), c.want) {
+			t.Errorf("Attachments(%q, %v) = %v, %v; want %v", c.room, c.since, ids(got), err, c.want)
+		}
+	}
+	if ref, ok, err := cache.Attachment(ctx, a, mx+"$early"); err != nil || !ok || ref.Name != "p.jpg" || ref.Mime != "image/jpeg" || ref.Revision != mx+"$r" {
+		t.Errorf("Attachment($early) = %+v, %v, %v", ref, ok, err)
+	}
+	for _, event := range []domain.EventID{mx + "$text", mx + "$gone", mx + "$timed", mx + "$none"} {
+		if _, ok, err := cache.Attachment(ctx, a, event); ok || err != nil {
+			t.Errorf("Attachment(%s) = %v, %v; want none", event, ok, err)
+		}
 	}
 }

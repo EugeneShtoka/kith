@@ -1019,6 +1019,15 @@ keyring_service = "kith"
 # set a place's own number.
 messages_per_room = -1
 
+# kithd keeps a copy of every attachment it caches, downloaded as it arrives (and, the
+# first time, for everything already cached), in <data_dir>/media-<instance>, so one a
+# network later removes still opens; WhatsApp drops old media for good. Disappearing
+# messages' attachments are not kept. kith never deletes a copy: past archive_warn_mb
+# megabytes (0 = 10240, -1 never) it warns instead. A rule's archive_media sets one
+# place's.
+archive_media   = true
+archive_warn_mb = 0
+
 # Per-place numbers. `match` names the place as any place list does: a room ID,
 # room:<name>, space:<name>, tag:<name>, protocol:<network>, dm or group. One room
 # beats a set of them; among equals, the later rule wins. A smaller number takes
@@ -1031,6 +1040,10 @@ messages_per_room = -1
 # [[storage.rule]]
 # match    = "protocol:telegram"
 # messages = 5000
+#
+# [[storage.rule]]
+# match         = "tag:Spam"
+# archive_media = false
 
 # kithd's scheduled backups: the cache, this config, your local records and the
 # pictures, in one file encrypted to your backup key. `kith backup` makes one by hand

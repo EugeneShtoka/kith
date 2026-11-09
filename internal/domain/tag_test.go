@@ -350,3 +350,23 @@ func TestARoomKeepsWhatItsNarrowestRuleSays(t *testing.T) {
 		}
 	}
 }
+
+// Whether a room's attachments are archived follows its narrowest rule too.
+func TestARoomArchivesItsMediaAsItsNarrowestRuleSays(t *testing.T) {
+	t.Parallel()
+	room := RoomFacts{ID: "telegram:42/7", Name: "Dana", Spaces: []string{"Family"}, Tags: []string{"Archived"}, Protocol: ProtocolTelegram, Direct: true}
+	for _, c := range []struct {
+		rules []ArchiveRule
+		want  bool
+	}{
+		{nil, true},
+		{[]ArchiveRule{{"tag:Archived", false}}, false},
+		{[]ArchiveRule{{"tag:Archived", false}, {"space:Family", true}}, true},   // equals: the later
+		{[]ArchiveRule{{"room:Dana", true}, {"protocol:telegram", false}}, true}, // one room over a set
+		{[]ArchiveRule{{"tag:Work", false}, {mx + "!other:x", false}}, true},     // none name it
+	} {
+		if got := MediaArchived(true, c.rules, room); got != c.want {
+			t.Errorf("rules %v: archived %v, want %v", c.rules, got, c.want)
+		}
+	}
+}

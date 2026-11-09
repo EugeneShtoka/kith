@@ -40,6 +40,17 @@ func (m *Media) IsAudio() bool { return m != nil && m.Type == MediaAudio }
 // IsVideo reports whether the attachment is a video.
 func (m *Media) IsVideo() bool { return m != nil && m.Type == MediaVideo }
 
+// AttachmentRef is a cached message's attachment as kithd's media archive keeps it:
+// Revision is the edit the message shows ("" for none), so a replaced attachment is a
+// file of its own.
+type AttachmentRef struct {
+	Room     RoomID
+	Event    EventID
+	Revision EventID
+	Name     string
+	Mime     string
+}
+
 // MediaRule is one place's attachment policy; a nil field inherits.
 type MediaRule struct {
 	// Match is a room ID or a home entry (NamesHome); Sender is an MXID.

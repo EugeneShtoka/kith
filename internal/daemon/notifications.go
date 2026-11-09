@@ -48,9 +48,14 @@ type Notifications struct {
 	// keep and keepRules are [storage] messages_per_room and its rules.
 	keep      int
 	keepRules []domain.KeepRule
-	limit     notify.Limit
-	rules     []notify.Rule
-	clock     domain.Clock // how a notification writes its {date} and {time}
+	// mediaArchive and mediaRules are [storage] archive_media and its rules;
+	// archiveWarn is archive_warn_mb in bytes.
+	mediaArchive bool
+	mediaRules   []domain.ArchiveRule
+	archiveWarn  int64
+	limit        notify.Limit
+	rules        []notify.Rule
+	clock        domain.Clock // how a notification writes its {date} and {time}
 	// aliases are the person's names for people, firstNames whether a home shows first
 	// names only, roomRules whether a direct chat's label is shaped too.
 	aliases    map[string]string
@@ -329,6 +334,8 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.firstNames = func(home string) bool { return setup.FirstNamesIn(display, home) }
 	n.roomRules = cfg.Display.ApplyRoomNameRules()
 	n.keep, n.keepRules = keep, keepRules
+	n.mediaArchive, n.mediaRules = setup.ArchiveRules(cfg.Storage)
+	n.archiveWarn = cfg.Storage.ArchiveWarnBytes()
 	n.autocopy = autocopy
 	n.tracked, n.trackedNotify = setup.TrackedRules(cfg.Display.Tracked), cfg.Display.Tracked.Notify
 	return nil
@@ -522,6 +529,38 @@ func (n *Notifications) MessagesKept(roomID domain.RoomID) int {
 		return keep
 	}
 	return domain.MessagesKept(keep, rules, n.scope.Known(roomID))
+}
+
+// MediaArchived is whether kithd keeps a copy of room's attachments, judged as
+// MessagesKept is.
+func (n *Notifications) MediaArchived(roomID domain.RoomID) bool {
+	n.mu.Lock()
+	archived, rules := n.mediaArchive, n.mediaRules
+	n.mu.Unlock()
+	if len(rules) == 0 {
+		return archived
+	}
+	return domain.MediaArchived(archived, rules, n.scope.Known(roomID))
+}
+
+// ArchiveWarnBytes is how large the media archive grows before a warning; negative
+// never warns.
+func (n *Notifications) ArchiveWarnBytes() int64 {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.archiveWarn
+}
+
+// MediaSay raises a popup about the media archive saying body, to every profile as
+// BackupsSay does.
+func (n *Notifications) MediaSay(body string) {
+	n.notify(notify.Notification{
+		Sender:   "kith media",
+		Room:     "kith media",
+		Body:     body,
+		Sent:     time.Now(),
+		Replaces: "kith:media",
+	}, "", n.everyTopic())
 }
 
 // Deliver captures a verification code if configured, then raises a notification
