@@ -58,15 +58,12 @@ func (b badArchive) Unwrap() error { return b.err }
 // pictures and the cache beside where they go (the cache adopted). It reads to the
 // very end, so a cut or altered backup fails here, before anything in place is touched.
 func (r *restore) read(ctx context.Context, f io.Reader) error {
-	plain, err := age.Decrypt(f, r.id)
+	plain, err := r.decrypt(f)
 	if err != nil {
-		if _, ok := errors.AsType[*age.NoIdentityMatchError](err); ok {
-			return fmt.Errorf("restore: %w", ErrWrongKey)
-		}
-		return damaged(err)
+		return err
 	}
 	tr := tar.NewReader(plain)
-	listed, key, err := readManifest(tr)
+	listed, key, err := readManifest(tr, "")
 	if err != nil {
 		return err
 	}
@@ -103,7 +100,7 @@ func (r *restore) read(ctx context.Context, f io.Reader) error {
 // memory.
 func (r *restore) stage(ctx context.Context, hdr *tar.Header, tr io.Reader) error {
 	if name, ok := strings.CutPrefix(hdr.Name, mediaPrefix); ok {
-		return r.stagePicture(ctx, name, hdr, tr)
+		return r.stageFile(ctx, &r.pictures, name, hdr, tr)
 	}
 	if hdr.Name == cacheName {
 		return r.stageCache(ctx, tr)
@@ -123,9 +120,22 @@ func (r *restore) stage(ctx context.Context, hdr *tar.Header, tr io.Reader) erro
 	return nil
 }
 
+// decrypt opens the backup with the backup key.
+func (r *restore) decrypt(f io.Reader) (io.Reader, error) {
+	plain, err := age.Decrypt(f, r.id)
+	if err != nil {
+		if _, ok := errors.AsType[*age.NoIdentityMatchError](err); ok {
+			return nil, fmt.Errorf("restore: %w", ErrWrongKey)
+		}
+		return nil, damaged(err)
+	}
+	return plain, nil
+}
+
 // readManifest reads the first entry: the list of every file after it, and the key
-// the cache in the backup is encrypted under.
-func readManifest(tr *tar.Reader) ([]string, []byte, error) {
+// the cache in the backup is encrypted under (none in a media backup). A backup of
+// another kind than kind is refused.
+func readManifest(tr *tar.Reader, kind string) ([]string, []byte, error) {
 	hdr, err := tr.Next()
 	if err != nil {
 		return nil, nil, damaged(err)
@@ -140,6 +150,14 @@ func readManifest(tr *tar.Reader) ([]string, []byte, error) {
 	if m.Format != format {
 		return nil, nil, fmt.Errorf("restore: the backup's layout is %d; this kith reads %d (it was made by %s)",
 			m.Format, format, m.Kith)
+	}
+	switch {
+	case m.Kind == kind && kind == kindMedia:
+		return m.Files, nil, nil
+	case m.Kind == kindMedia:
+		return nil, nil, fmt.Errorf("restore: %w", errMediaBackup)
+	case m.Kind != kind:
+		return nil, nil, fmt.Errorf("restore: %w", errNotMediaBackup)
 	}
 	key, err := hex.DecodeString(m.CacheKey)
 	if err != nil || len(key) != db.KeyLen {
@@ -193,35 +211,44 @@ func (r *restore) prepare() error {
 	if err != nil {
 		return fmt.Errorf("restore: the backup's config: %w", err)
 	}
-	r.cfg, r.storage, r.media = cfg, storage, storage.MediaDir()
+	r.cfg, r.storage = cfg, storage
+	r.pictures = folder{dest: storage.MediaDir(), pattern: ".restore-pictures-*"}
 	if lockErr := r.lock(storage); lockErr != nil {
 		return lockErr
 	}
 	return r.refuseExisting()
 }
 
-// stagePicture writes one picture into a folder beside the picture cache, keeping its
-// time, which the cache trims by.
-func (r *restore) stagePicture(ctx context.Context, name string, hdr *tar.Header, tr io.Reader) error {
+// folder is a folder whose files a backup carries one by one: where it goes, the
+// pattern of the folder they are staged in beside it, that folder once made, and
+// their names there.
+type folder struct {
+	dest, pattern, staged string
+	names                 []string
+}
+
+// stageFile writes one picture or archived copy into a folder beside f, keeping its
+// time, which the picture cache trims by.
+func (r *restore) stageFile(ctx context.Context, f *folder, name string, hdr *tar.Header, tr io.Reader) error {
 	if err := r.prepare(); err != nil {
 		return err
 	}
-	if r.pictures == "" {
-		if err := os.MkdirAll(r.media, 0o700); err != nil {
+	if f.staged == "" {
+		if err := os.MkdirAll(f.dest, 0o700); err != nil {
 			return fmt.Errorf("restore: %w", err)
 		}
-		dir, err := os.MkdirTemp(filepath.Dir(r.media), ".restore-pictures-*")
+		dir, err := os.MkdirTemp(filepath.Dir(f.dest), f.pattern)
 		if err != nil {
 			return fmt.Errorf("restore: %w", err)
 		}
 		r.staged = append(r.staged, dir)
-		r.pictures = dir
+		f.staged = dir
 	}
-	staged, err := r.stageStream(ctx, r.pictures, ".picture-*", archiveReader{tr})
+	staged, err := r.stageStream(ctx, f.staged, ".picture-*", archiveReader{tr})
 	if err != nil {
 		return err
 	}
-	dest := filepath.Join(r.pictures, name)
+	dest := filepath.Join(f.staged, name)
 	if err := os.Rename(staged, dest); err != nil {
 		return fmt.Errorf("restore: %w", err)
 	}
@@ -229,7 +256,7 @@ func (r *restore) stagePicture(ctx context.Context, name string, hdr *tar.Header
 		return fmt.Errorf("restore: %w", err)
 	}
 	_ = os.Chtimes(dest, hdr.ModTime, hdr.ModTime)
-	r.pictureNames = append(r.pictureNames, name)
+	f.names = append(f.names, name)
 	return nil
 }
 
@@ -381,34 +408,35 @@ func (r *restore) swap(ctx context.Context) (Restored, error) {
 			return r.done, err
 		}
 	}
-	r.placePictures()
+	r.done.Pictures, r.done.PicturesThere, r.done.PicturesFolder = r.placeFolder(&r.pictures, "pictures")
 	r.done.Logins = logins(r.cfg)
 	return r.done, nil
 }
 
-// placePictures adds the staged pictures to the picture cache. A picture is named by
-// the message it came with, so one already there is the same picture and stays.
-func (r *restore) placePictures() {
-	if r.pictures == "" {
-		return
+// placeFolder adds f's staged files to its folder, returning how many went in, how
+// many were there already, and the folder. A file is named by the message it came
+// with, so one already there is the same file and stays.
+func (r *restore) placeFolder(f *folder, what string) (placed, there int, dest string) {
+	if f.staged == "" {
+		return 0, 0, ""
 	}
-	r.done.PicturesFolder = r.media
 	var failed []string
-	for _, name := range r.pictureNames {
-		dest := filepath.Join(r.media, name)
+	for _, name := range f.names {
+		dest := filepath.Join(f.dest, name)
 		if _, err := os.Lstat(dest); err == nil {
-			r.done.PicturesThere++
+			there++
 			continue
 		}
-		if err := os.Rename(filepath.Join(r.pictures, name), dest); err != nil {
+		if err := os.Rename(filepath.Join(f.staged, name), dest); err != nil {
 			failed = append(failed, err.Error())
 			continue
 		}
-		r.done.Pictures++
+		placed++
 	}
 	if len(failed) > 0 {
-		r.done.Left = append(r.done.Left, fmt.Sprintf("pictures: %d not put back (%s)", len(failed), failed[0]))
+		r.done.Left = append(r.done.Left, fmt.Sprintf("%s: %d not put back (%s)", what, len(failed), failed[0]))
 	}
+	return placed, there, f.dest
 }
 
 // stageSmall writes the config, the records and the commands beside where each goes.

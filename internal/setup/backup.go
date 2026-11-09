@@ -19,8 +19,20 @@ var errPrivateBackupKey = errors.New("backup.key: this is the private key; put o
 
 // Backups checks [backup]: a public key (never the private one), a readable interval
 // or cron expression (not both), at least one backup kept, and a folder kithd can be
-// given (a full path, and not under /tmp, which kithd's sandbox replaces).
+// given (a full path, and not under /tmp, which kithd's sandbox replaces); and
+// [backup.media] alike.
 func Backups(b config.Backup) error {
+	if err := backups(b); err != nil {
+		return err
+	}
+	if err := backups(b.MediaSchedule()); err != nil {
+		return fmt.Errorf("[backup.media] %w", err)
+	}
+	return nil
+}
+
+// backups checks one schedule of backups.
+func backups(b config.Backup) error {
 	if key := strings.TrimSpace(b.Key); key != "" {
 		if strings.Contains(strings.ToUpper(key), "AGE-SECRET-KEY-") {
 			return errPrivateBackupKey

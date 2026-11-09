@@ -44,6 +44,16 @@ type dailyBackups struct {
 	storage     domain.Storage
 	say         func(body string)
 	maintenance *sync.Mutex
+	// media makes the media archive's backups, by [backup.media], instead.
+	media bool
+}
+
+// what is what the user is told this runner backs up.
+func (d dailyBackups) what() string {
+	if d.media {
+		return "media backup"
+	}
+	return "backup"
 }
 
 // run makes the daily backups until ctx ends, which interrupts one running. It blocks.
@@ -91,21 +101,21 @@ func (d dailyBackups) outcome(done backup.Daily, err error) (string, slog.Level)
 	case errors.Is(err, backup.ErrNoKey):
 		return noKeySaid, slog.LevelInfo
 	case errors.Is(err, db.ErrNoRoom):
-		return "The scheduled backup is put off: " + err.Error(), slog.LevelWarn
+		return "The scheduled " + d.what() + " is put off: " + err.Error(), slog.LevelWarn
 	case errors.Is(err, fs.ErrPermission) || errors.Is(err, syscall.EROFS):
-		return "The scheduled backup failed: " + err.Error() + "\nkithd may not write there: a folder outside " +
+		return "The scheduled " + d.what() + " failed: " + err.Error() + "\nkithd may not write there: a folder outside " +
 			"kith's own needs kithd restarted, or a drop-in under the packaged unit (docs/troubleshooting.md)", slog.LevelError
 	case err != nil:
-		return "The scheduled backup failed: " + err.Error(), slog.LevelError
+		return "The scheduled " + d.what() + " failed: " + err.Error(), slog.LevelError
 	case done.Ran:
-		d.log.Info("backed up", "op", "daily backup", "path", done.Made.Path, "deleted", len(done.Deleted))
+		d.log.Info("backed up", "op", "scheduled "+d.what(), "path", done.Made.Path, "deleted", len(done.Deleted))
 	}
 	return "", slog.LevelInfo
 }
 
 // once is one scheduled run at now, by the config as it reads now, holding maintenance,
 // a panic in it an error: a failing backup is told, never takes the daemon down. With
-// [backup] enabled off it does nothing.
+// [backup] enabled off it does nothing; a media runner reads [backup.media] instead.
 func (d dailyBackups) once(ctx context.Context, now time.Time) (done backup.Daily, err error) {
 	cfg, err := d.file.read()
 	if err != nil {
@@ -113,6 +123,9 @@ func (d dailyBackups) once(ctx context.Context, now time.Time) (done backup.Dail
 	}
 	if invalid := setup.Backups(cfg.Backup); invalid != nil {
 		return backup.Daily{}, invalid
+	}
+	if d.media {
+		cfg.Backup = cfg.Backup.MediaSchedule()
 	}
 	if !cfg.Backup.On() {
 		return backup.Daily{}, nil
@@ -125,13 +138,16 @@ func (d dailyBackups) once(ctx context.Context, now time.Time) (done backup.Dail
 	if err != nil {
 		return backup.Daily{}, err //nolint:wrapcheck // backup words it
 	}
-	key, err := cacheKey(d.storage)
-	if err != nil {
-		return backup.Daily{}, fmt.Errorf("%w (unlock the keyring)", err)
-	}
-	src := backup.Source{
-		ConfigPath: d.file.path, Config: cfg, Storage: d.storage, CacheKey: key,
-		MediaDir: d.storage.MediaDir(),
+	var src backup.Source
+	if !d.media { // a media backup holds no cache, so needs no keyring
+		key, keyErr := cacheKey(d.storage)
+		if keyErr != nil {
+			return backup.Daily{}, fmt.Errorf("%w (unlock the keyring)", keyErr)
+		}
+		src = backup.Source{
+			ConfigPath: d.file.path, Config: cfg, Storage: d.storage, CacheKey: key,
+			MediaDir: d.storage.MediaDir(),
+		}
 	}
 	d.maintenance.Lock()
 	defer d.maintenance.Unlock()
@@ -145,5 +161,8 @@ func (d dailyBackups) once(ctx context.Context, now time.Time) (done backup.Dail
 		return backup.Daily{}, err
 	}
 	sched := backup.Schedule{Next: next, Keep: cfg.Backup.KeepOrDefault()}
+	if d.media {
+		return backup.MakeMedia(ctx, d.storage.MediaArchiveDir(), to, storage.BackupsDir(), sched, now) //nolint:wrapcheck // backup words it
+	}
 	return backup.MakeDaily(ctx, src, to, storage.BackupsDir(), sched, now) //nolint:wrapcheck // backup words it
 }

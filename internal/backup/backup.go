@@ -48,8 +48,10 @@ const (
 	ledgerName   = "state/agent-sends.jsonl"
 	scheduleName = "state/scheduled.toml"
 	mediaPrefix  = "media/"
-	meshName     = "mesh.db"
-	cacheName    = "cache.db"
+	// archivePrefix is the media archive's copies, in a media backup.
+	archivePrefix = "archive/"
+	meshName      = "mesh.db"
+	cacheName     = "cache.db"
 )
 
 // snapshotPattern and meshPattern name the copies of the cache and the mesh store a
@@ -74,7 +76,12 @@ type manifest struct {
 	Files     []string  `json:"files"`
 	CacheKey  string    `json:"cache_key"`
 	Recipient string    `json:"recipient"`
+	// Kind is kindMedia for a media backup, else empty.
+	Kind string `json:"kind,omitempty"`
 }
+
+// kindMedia is a media backup's manifest kind: the media archive alone.
+const kindMedia = "media"
 
 // Source is what a backup is made of: the config file at ConfigPath, its contents,
 // the storage it names, the key the cache there is encrypted under, and the picture
@@ -133,7 +140,7 @@ func Create(ctx context.Context, src Source, out string, to *PublicKey) (Made, e
 		defer func() { _ = os.Remove(meshCopy) }()
 		files = append(files, file{name: meshName, path: meshCopy})
 	}
-	media, err := mediaFiles(src.MediaDir)
+	media, err := mediaFiles(src.MediaDir, mediaPrefix)
 	if err != nil {
 		return Made{}, err
 	}
@@ -148,11 +155,35 @@ func Create(ctx context.Context, src Source, out string, to *PublicKey) (Made, e
 	if mkErr := os.MkdirAll(filepath.Dir(out), 0o700); mkErr != nil {
 		return Made{}, fmt.Errorf("backup: %w", mkErr)
 	}
-	entries, err := writeArchive(ctx, out, to, files, key)
+	entries, err := writeArchive(ctx, out, to, files, key, "")
 	if err != nil {
 		return Made{}, err
 	}
 	return Made{Path: out, Entries: entries, Left: left}, nil
+}
+
+// CreateMedia writes a media backup of the archive in dir to out, a file that must not
+// exist, encrypted to to: every copy, and nothing else. A failed or interrupted backup
+// leaves no file at out.
+func CreateMedia(ctx context.Context, dir, out string, to *PublicKey) (Made, error) {
+	if to == nil {
+		return Made{}, ErrNoKey
+	}
+	if _, err := os.Lstat(out); err == nil {
+		return Made{}, fmt.Errorf("backup: %s exists; name another file", out)
+	}
+	files, err := mediaFiles(dir, archivePrefix)
+	if err != nil {
+		return Made{}, err
+	}
+	if mkErr := os.MkdirAll(filepath.Dir(out), 0o700); mkErr != nil {
+		return Made{}, fmt.Errorf("backup: %w", mkErr)
+	}
+	entries, err := writeArchive(ctx, out, to, files, nil, kindMedia)
+	if err != nil {
+		return Made{}, err
+	}
+	return Made{Path: out, Entries: entries}, nil
 }
 
 // smallFiles is everything but the cache that goes in a backup of src, and what was
@@ -217,9 +248,10 @@ func commandFiles(src Source) (files []file, left string, err error) {
 	return files, "", nil
 }
 
-// mediaFiles is the picture cache's originals in dir: its top level, where the
-// attachments are. Renders and pictures waiting to be sent below it are made again.
-func mediaFiles(dir string) ([]file, error) {
+// mediaFiles is the files at dir's top level, named under prefix: the picture cache's
+// originals (renders and pictures waiting to be sent below it are made again), or the
+// media archive's copies.
+func mediaFiles(dir, prefix string) ([]file, error) {
 	if dir == "" {
 		return nil, nil
 	}
@@ -233,7 +265,7 @@ func mediaFiles(dir string) ([]file, error) {
 	var files []file
 	for _, e := range entries {
 		if e.Type().IsRegular() && !strings.HasPrefix(e.Name(), ".") {
-			files = append(files, file{name: mediaPrefix + e.Name(), path: filepath.Join(dir, e.Name())})
+			files = append(files, file{name: prefix + e.Name(), path: filepath.Join(dir, e.Name())})
 		}
 	}
 	return files, nil
@@ -284,7 +316,7 @@ func snapshotMesh(ctx context.Context, storage domain.Storage, cacheKey, key []b
 // writeArchive writes files to out through a partial file renamed into place once
 // whole, so an interrupted backup never leaves a file that looks complete. cacheKey is
 // what the cache among them is encrypted under.
-func writeArchive(ctx context.Context, out string, to *PublicKey, files []file, cacheKey []byte) ([]Entry, error) {
+func writeArchive(ctx context.Context, out string, to *PublicKey, files []file, cacheKey []byte, kind string) ([]Entry, error) {
 	partial, err := os.CreateTemp(filepath.Dir(out), "."+filepath.Base(out)+".partial-*")
 	if err != nil {
 		return nil, fmt.Errorf("backup: %w", err)
@@ -301,7 +333,7 @@ func writeArchive(ctx context.Context, out string, to *PublicKey, files []file, 
 		return nil, fmt.Errorf("backup: %w", err)
 	}
 	tw := tar.NewWriter(sealed)
-	entries, err := writeEntries(ctx, tw, files, cacheKey, to)
+	entries, err := writeEntries(ctx, tw, files, cacheKey, to, kind)
 	if err != nil {
 		return nil, err
 	}
@@ -317,12 +349,12 @@ func writeArchive(ctx context.Context, out string, to *PublicKey, files []file, 
 	return entries, nil
 }
 
-// writeEntries writes the manifest, then each file. The pictures are reported as one
-// entry, however many there are.
-func writeEntries(ctx context.Context, tw *tar.Writer, files []file, cacheKey []byte, to *PublicKey) ([]Entry, error) {
+// writeEntries writes the manifest, then each file. The pictures (or the archive's
+// copies) are reported as one entry, however many there are.
+func writeEntries(ctx context.Context, tw *tar.Writer, files []file, cacheKey []byte, to *PublicKey, kind string) ([]Entry, error) {
 	m := manifest{
 		Format: format, Created: time.Now().UTC(), Kith: buildinfo.String("kith"),
-		CacheKey: hex.EncodeToString(cacheKey), Recipient: to.String(),
+		CacheKey: hex.EncodeToString(cacheKey), Recipient: to.String(), Kind: kind,
 	}
 	for _, f := range files {
 		m.Files = append(m.Files, f.name)
@@ -341,14 +373,17 @@ func writeEntries(ctx context.Context, tw *tar.Writer, files []file, cacheKey []
 		if err != nil {
 			return nil, err
 		}
-		if strings.HasPrefix(f.name, mediaPrefix) {
-			pictures.Name, pictures.Size, pictures.Count = mediaPrefix, pictures.Size+size, pictures.Count+1
+		if prefix, _, ok := strings.Cut(f.name, "/"); ok && (prefix+"/" == mediaPrefix || prefix+"/" == archivePrefix) {
+			pictures.Name, pictures.Size, pictures.Count = prefix+"/", pictures.Size+size, pictures.Count+1
 			continue
 		}
 		if f.name == cacheName && pictures.Count > 0 {
 			entries = append(entries, pictures)
 		}
 		entries = append(entries, Entry{Name: f.name, Size: size})
+	}
+	if kind == kindMedia && pictures.Count > 0 { // no cache to come after
+		entries = append(entries, pictures)
 	}
 	return entries, nil
 }

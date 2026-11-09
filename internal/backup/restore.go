@@ -42,7 +42,8 @@ type Login struct {
 // Restored is a restore done: where each file went, what was there before and where
 // it was set aside, what was not restored and why, and the accounts to log in to.
 // Pictures counts the pictures put back in the picture cache; PicturesThere those it
-// held already, which stay as they were.
+// held already, which stay as they were. Archived and ArchivedThere count the media
+// archive's alike.
 type Restored struct {
 	Files          []string
 	Aside          []string
@@ -51,6 +52,9 @@ type Restored struct {
 	Pictures       int
 	PicturesThere  int
 	PicturesFolder string
+	Archived       int
+	ArchivedThere  int
+	ArchiveFolder  string
 }
 
 // Restore puts the backup at archive back for the config at configPath: the config
@@ -109,11 +113,10 @@ type restore struct {
 	order     []string
 	cache     string // the adopted cache, ready to move into place
 	mesh      string // the copied mesh store, ready to move into place; "" when the backup has none
-	// media is the picture cache's folder; pictures, the folder the backup's are staged
-	// in beside it, and pictureNames their names there.
-	media, pictures string
-	pictureNames    []string
-	staged          []string
+	// pictures and archive are the picture cache and, for a media backup, the media
+	// archive.
+	pictures, archive folder
+	staged            []string
 
 	done Restored
 }

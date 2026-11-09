@@ -31,8 +31,10 @@ type Schedule struct {
 // dailySuffix.
 const (
 	dailyPrefix = "kith-daily-"
-	dailyStamp  = "2006-01-02-150405"
-	dailySuffix = ".tar.age"
+	// mediaBackupPrefix names a scheduled media backup (MakeMedia) instead.
+	mediaBackupPrefix = "kith-media-"
+	dailyStamp        = "2006-01-02-150405"
+	dailySuffix       = ".tar.age"
 )
 
 // stalePartial is how old a partial scheduled backup must be before it is taken for
@@ -55,11 +57,28 @@ type Daily struct {
 // was made. Only whole backups count, and the newest is never deleted. A disk without
 // room for it is db.ErrNoRoom, and nothing is written or deleted.
 func MakeDaily(ctx context.Context, src Source, to *PublicKey, dir string, sched Schedule, now time.Time) (Daily, error) {
+	return makeScheduled(dir, dailyPrefix, src.Storage.DataDir, sched, now,
+		func() error { return roomForDaily(src, dir) },
+		func(out string) (Made, error) { return Create(ctx, src, out, to) })
+}
+
+// MakeMedia is MakeDaily for media backups of the archive in archiveDir: named apart,
+// so each kind keeps its own sched.Keep.
+func MakeMedia(ctx context.Context, archiveDir string, to *PublicKey, dir string, sched Schedule, now time.Time) (Daily, error) {
+	return makeScheduled(dir, mediaBackupPrefix, "", sched, now,
+		func() error { return roomForMedia(archiveDir, dir) },
+		func(out string) (Made, error) { return CreateMedia(ctx, archiveDir, out, to) })
+}
+
+// makeScheduled makes one scheduled backup named prefix in dir when due (room checks
+// the disks hold it, create writes it), and rotates them; dataDir is where a stopped
+// one may have left the cache's copy, "" for none.
+func makeScheduled(dir, prefix, dataDir string, sched Schedule, now time.Time, room func() error, create func(out string) (Made, error)) (Daily, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return Daily{}, fmt.Errorf("backup: %w", err)
 	}
-	removeStalePartials(dir, src.Storage.DataDir)
-	good, ignored, err := dailyBackups(dir)
+	removeStalePartials(dir, prefix, dataDir)
+	good, ignored, err := dailyBackups(dir, prefix)
 	if err != nil {
 		return Daily{}, err
 	}
@@ -69,11 +88,11 @@ func MakeDaily(ctx context.Context, src Source, to *PublicKey, dir string, sched
 		done.Deleted = rotate(good, "", sched.Keep)
 		return done, nil
 	}
-	if roomErr := roomForDaily(src, dir); roomErr != nil {
+	if roomErr := room(); roomErr != nil {
 		return done, roomErr
 	}
-	out := filepath.Join(dir, dailyPrefix+now.Format(dailyStamp)+dailySuffix)
-	made, err := Create(ctx, src, out, to)
+	out := filepath.Join(dir, prefix+now.Format(dailyStamp)+dailySuffix)
+	made, err := create(out)
 	if err != nil {
 		return done, err
 	}
@@ -101,15 +120,15 @@ type daily struct {
 	at   time.Time
 }
 
-// dailyBackups is every whole daily backup in dir, oldest first by name, and the
-// daily-named files that are not whole.
-func dailyBackups(dir string) (good []daily, ignored []string, err error) {
+// dailyBackups is every whole scheduled backup named prefix in dir, oldest first by
+// name, and the files so named that are not whole.
+func dailyBackups(dir, prefix string) (good []daily, ignored []string, err error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("backup: %w", err)
 	}
 	for _, e := range entries {
-		stamp, ok := strings.CutPrefix(e.Name(), dailyPrefix)
+		stamp, ok := strings.CutPrefix(e.Name(), prefix)
 		stamp, isDaily := strings.CutSuffix(stamp, dailySuffix)
 		if !ok || !isDaily {
 			continue
@@ -163,11 +182,14 @@ func rotate(good []daily, made string, keep int) []string {
 }
 
 // removeStalePartials deletes what a backup stopped mid-way (a kithd killed) leaves:
-// a partial daily backup in dir, and the cache's copy in dataDir, encrypted under a
-// key nothing kept.
-func removeStalePartials(dir, dataDir string) {
-	partials, _ := filepath.Glob(filepath.Join(dir, "."+dailyPrefix+"*"+dailySuffix+".partial-*"))
-	copies, _ := filepath.Glob(filepath.Join(dataDir, snapshotPattern))
+// a partial scheduled backup named prefix in dir, and the cache's copy in dataDir (when
+// not ""), encrypted under a key nothing kept.
+func removeStalePartials(dir, prefix, dataDir string) {
+	partials, _ := filepath.Glob(filepath.Join(dir, "."+prefix+"*"+dailySuffix+".partial-*"))
+	var copies []string
+	if dataDir != "" {
+		copies, _ = filepath.Glob(filepath.Join(dataDir, snapshotPattern))
+	}
 	for _, p := range append(partials, copies...) {
 		if info, err := os.Lstat(p); err == nil && info.Mode().IsRegular() && time.Since(info.ModTime()) > stalePartial {
 			_ = os.Remove(p)
@@ -180,12 +202,27 @@ func removeStalePartials(dir, dataDir string) {
 func roomForDaily(src Source, dir string) error {
 	cache := fileSize(src.Storage.CachePath()) + fileSize(src.Storage.CachePath()+"-wal")
 	var pictures int64
-	if files, err := mediaFiles(src.MediaDir); err == nil {
+	if files, err := mediaFiles(src.MediaDir, mediaPrefix); err == nil {
 		for _, f := range files {
 			pictures += fileSize(f.path)
 		}
 	}
 	if err := db.RoomFor(map[string]int64{src.Storage.DataDir: cache, dir: cache + pictures}); err != nil {
+		return fmt.Errorf("backup: %w", err)
+	}
+	return nil
+}
+
+// roomForMedia refuses, as db.ErrNoRoom, a media backup of archiveDir that dir's disk
+// cannot hold.
+func roomForMedia(archiveDir, dir string) error {
+	var size int64
+	if files, err := mediaFiles(archiveDir, archivePrefix); err == nil {
+		for _, f := range files {
+			size += fileSize(f.path)
+		}
+	}
+	if err := db.RoomFor(map[string]int64{dir: size}); err != nil {
 		return fmt.Errorf("backup: %w", err)
 	}
 	return nil

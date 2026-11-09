@@ -714,6 +714,9 @@ func (w *workers) run(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger,
 	}
 	daily := dailyBackups{log: log, file: file, storage: backend.storage, say: w.notifications.BackupsSay, maintenance: &w.maintenance}
 	wg.Go(func() { daily.run(ctx) })
+	media := daily
+	media.media, media.say = true, w.notifications.MediaSay
+	wg.Go(func() { media.run(ctx) })
 }
 
 // newWorkers builds the workers and registers their backend callbacks; serve starts them.

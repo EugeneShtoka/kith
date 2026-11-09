@@ -359,6 +359,26 @@ private half. A scheduled backup that fails, or is put off for want of disk spac
 said in a notification. The default folder is on the same disk as the cache: point
 `dir` at another disk, or sync or copy the folder elsewhere.
 
+**Media backups.** kithd's [media archive](getting-started.md) (every attachment,
+`[storage] archive_media`) is backed up apart, in files of its own
+(`kith-media-<date>-<time>.tar.age`, in the same folder), since it only grows: by
+default once a week, keeping 3. `[backup.media]` has the same keys as `[backup]`, set
+apart; an empty `key` or `dir` is `[backup]`'s:
+
+```toml
+[backup.media]
+enabled = true
+key     = ""
+dir     = ""
+every   = "7d"
+cron    = ""
+keep    = 3
+```
+
+Each holds the whole archive. Put one back after the history, into the restored
+config's archive: `kith restore --media ~/Backups/kith-media-….tar.age`. Copies the
+archive holds already stay, and kithd may keep running.
+
 What a backup leaves out:
 
 - **Network sessions and their keys.** After a restore, log in to each account

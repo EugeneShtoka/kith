@@ -223,16 +223,18 @@ func keepKeyFile(id *backup.Key, in *bufio.Reader) error {
 	}
 }
 
-// runRestore is `kith restore [--config path] [--replace] [--key-file path] <file>`.
+// runRestore is `kith restore [--config path] [--replace] [--media] [--key-file path] <file>`.
 func runRestore(args []string) error {
 	fs := flag.NewFlagSet("restore", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file to restore (default: XDG config dir)")
 	replace := fs.Bool("replace", false, "set aside the config, cache and records already there (renamed *.before-restore-<time>), instead of refusing")
 	keyFile := fs.String("key-file", "", "read the backup key from this file instead of asking for it")
+	media := fs.Bool("media", false, "put a media backup (kith-media-<time>.tar.age) back into the media archive of the config there, which kithd may keep using")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: kith restore [--config path] [--replace] [--key-file path] <file> — put a `kith backup`\n"+
+		fmt.Fprintln(os.Stderr, "usage: kith restore [--config path] [--replace] [--media] [--key-file path] <file> — put a `kith backup`\n"+
 			"back: the config, then the cache, records and pictures where it keeps them on this machine. It\n"+
-			"asks for your backup key (AGE-SECRET-KEY-1…). Stop kithd first; log in again after.")
+			"asks for your backup key (AGE-SECRET-KEY-1…). Stop kithd first; log in again after. With --media,\n"+
+			"put a media backup back into the restored config's media archive.")
 		fs.PrintDefaults()
 	}
 	_ = fs.Parse(args) // ExitOnError
@@ -250,6 +252,17 @@ func runRestore(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if *media {
+		got, err := backup.RestoreMedia(ctx, fs.Arg(0), path, func() (*backup.Key, error) { return readKey(*keyFile) })
+		if err != nil {
+			return fmt.Errorf("%s: %w", fs.Arg(0), err)
+		}
+		fmt.Printf("archived attachments: %d put back in %s (%d there already)\n", got.Archived, got.ArchiveFolder, got.ArchivedThere)
+		for _, why := range got.Left {
+			fmt.Println("left:", why)
+		}
+		return nil
+	}
 	got, err := backup.Restore(ctx, fs.Arg(0), path, *replace, func() (*backup.Key, error) {
 		return readKey(*keyFile)
 	}, cacheKey)

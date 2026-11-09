@@ -14,7 +14,7 @@ the binaries and exits.
 kith [flags]
 kith login [--config path] [--code] [network [account]]
 kith backup [--config path] [--no-media] [--new-key] [file]
-kith restore [--config path] [--replace] [--key-file path] file
+kith restore [--config path] [--replace] [--media] [--key-file path] file
 kith export [--config path] [--since when] [--last n] [folder]
 kith import [--config path] network [account]
 kith ignore [--config path] mxid
@@ -112,7 +112,7 @@ there is a key, kithd also backs up on its own, as `[backup]` says (by default e
 ### kith restore
 
 ```sh
-kith restore [--config path] [--replace] [--key-file path] file
+kith restore [--config path] [--replace] [--media] [--key-file path] file
 ```
 
 Puts a `kith backup` back: the config, then the cache, the paired devices (the mesh
@@ -130,6 +130,7 @@ a backup holds no device key.
 | `--config path` | Where the restored config goes, and so which instance's files it restores. |
 | `--replace` | Set aside the config, cache and records already there (renamed `<name>.before-restore-<time>`) instead of refusing. Nothing is deleted. |
 | `--key-file path` | Read the backup key from this file instead of asking for it. |
+| `--media` | Put a media backup (`kith-media-<time>.tar.age`, made on the `[backup.media]` schedule) back into the media archive of the config already there: restore the history first. Copies already in the archive stay, and kithd may keep running. |
 
 Both are run by kithd, which owns the cache: `kith` runs the `kithd` installed beside
 it, or else the first on `PATH`, and only when it is the same build; another one is
