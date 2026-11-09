@@ -134,6 +134,12 @@ Not ordered; taken when a reason appears.
   `/call` from it by default on a fresh install is undecided.
 - **iMessage**, only through a helper on a Mac (the shape of `kith-signal`); no other
   approach works today.
+- **The terminal client's media cache keeps every file.** It evicts the least recently
+  opened attachments once it passes `[display.media] cache_max_mb` (1 GiB by default),
+  and an attachment a network has since removed (WhatsApp drops old media) cannot be
+  fetched again. Instead it deletes nothing and warns once it passes the limit, which
+  stays configurable. Scaled renders, which are redrawn from the original, may still
+  be evicted.
 
 ## Later: platforms
 
