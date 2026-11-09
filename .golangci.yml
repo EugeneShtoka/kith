@@ -907,6 +907,7 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/local"
             - "github.com/EugeneShtoka/kith/internal/logging"
             - "github.com/EugeneShtoka/kith/internal/matrix"
+            - "github.com/EugeneShtoka/kith/internal/mediaarchive"
             - "github.com/EugeneShtoka/kith/internal/mesh"
             - "github.com/EugeneShtoka/kith/internal/meta"
             - "github.com/EugeneShtoka/kith/internal/modelsetup"

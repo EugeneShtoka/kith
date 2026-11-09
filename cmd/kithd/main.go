@@ -337,10 +337,15 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 
 // LoadImage is an attachment's bytes, from the media archive when it holds them.
 func (s served) LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error) {
-	if s.archive == nil {
-		return s.Router.LoadImage(ctx, roomID, eventID)
+	load := s.Router.LoadImage
+	if s.archive != nil {
+		load = s.archive.Load
 	}
-	return s.archive.Load(ctx, roomID, eventID)
+	data, err := load(ctx, roomID, eventID)
+	if err != nil {
+		return nil, fmt.Errorf("served: %w", err)
+	}
+	return data, nil
 }
 
 // useHidden tells the cache who cfg's muted tags hide, and whom each profile hides.

@@ -186,8 +186,7 @@ func (a *Archive) Load(ctx context.Context, room domain.RoomID, event domain.Eve
 		a.log.Warn("look up an archived attachment failed", "room", room, "err", err)
 	}
 	if ok {
-		data, err := os.ReadFile(a.path(ref)) // #nosec G304 -- a name this package made from a hash
-		if err == nil {
+		if data, readErr := os.ReadFile(a.path(ref)); readErr == nil { // #nosec G304 -- a name this package made from a hash
 			return data, nil
 		}
 	}
@@ -220,8 +219,12 @@ func (a *Archive) has(ref domain.AttachmentRef) bool {
 // keep writes data as ref's copy, unless the message changed while it was fetched (an
 // edit that replaced the attachment, a deletion, a timer): the next pass sees it anew.
 func (a *Archive) keep(ctx context.Context, ref domain.AttachmentRef, data []byte) error {
-	if now, ok, err := a.cache.Attachment(ctx, ref.Room, ref.Event); err != nil || !ok || now != ref {
-		return err
+	now, ok, err := a.cache.Attachment(ctx, ref.Room, ref.Event)
+	if err != nil {
+		return fmt.Errorf("mediaarchive: look up %s again: %w", ref.Event, err)
+	}
+	if !ok || now != ref {
+		return nil
 	}
 	tmp, err := os.CreateTemp(a.dir, tmpPattern)
 	if err != nil {

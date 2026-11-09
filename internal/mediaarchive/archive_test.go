@@ -1,6 +1,7 @@
 package mediaarchive
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
@@ -156,13 +157,13 @@ func TestLoadServesTheCopyFirst(t *testing.T) {
 	if err != nil || n.count("$1") != 1 || !a.has(ref(kept, "$1", "")) {
 		t.Fatalf("first Load = %q, %v; fetched %d, kept %v", first, err, n.count("$1"), a.has(ref(kept, "$1", "")))
 	}
-	if _, err := a.Load(ctx, skipped, "$2"); err != nil || a.has(ref(skipped, "$2", "")) {
-		t.Errorf("Load in a room whose attachments are not kept: %v, archived %v", err, a.has(ref(skipped, "$2", "")))
+	if _, skipErr := a.Load(ctx, skipped, "$2"); skipErr != nil || a.has(ref(skipped, "$2", "")) {
+		t.Errorf("Load in a room whose attachments are not kept: %v, archived %v", skipErr, a.has(ref(skipped, "$2", "")))
 	}
 	n.fail = true
 	a.Use(func(domain.RoomID) bool { return false }, func() int64 { return -1 }, func(string) {})
 	again, err := a.Load(ctx, kept, "$1")
-	if err != nil || string(again) != string(first) || n.count("$1") != 1 {
+	if err != nil || !bytes.Equal(again, first) || n.count("$1") != 1 {
 		t.Errorf("Load from the archive = %q, %v; fetched %d", again, err, n.count("$1"))
 	}
 	if _, err := a.Load(ctx, skipped, "$2"); err == nil {
