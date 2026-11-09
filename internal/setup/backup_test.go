@@ -66,6 +66,11 @@ func TestTheBackupScheduleAndFolderAreChecked(t *testing.T) {
 			t.Errorf("Backups(%+v) was taken; want it refused", refused)
 		}
 	}
+	for _, refused := range []config.MediaBackup{{Every: "0d"}, {Keep: &zero}, {Dir: "/tmp/kith"}, {Every: "7d", Cron: "0 3 * * 0"}} {
+		if err := setup.Backups(config.Backup{Media: refused}); err == nil || !strings.HasPrefix(err.Error(), "[backup.media]") {
+			t.Errorf("Backups([backup.media] %+v) = %v; want it refused, naming [backup.media]", refused, err)
+		}
+	}
 }
 
 // The next backup is due by cron when cron is set, after every when that is, and 24h
