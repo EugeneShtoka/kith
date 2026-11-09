@@ -30,6 +30,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/local"
 	"github.com/EugeneShtoka/kith/internal/logging"
 	"github.com/EugeneShtoka/kith/internal/matrix"
+	"github.com/EugeneShtoka/kith/internal/mediaarchive"
 	"github.com/EugeneShtoka/kith/internal/mesh"
 	"github.com/EugeneShtoka/kith/internal/modelsetup"
 	"github.com/EugeneShtoka/kith/internal/route"
@@ -284,6 +285,8 @@ type served struct {
 	defaults *accountDefaults
 	// people keeps whom each profile hides, from the config and the phonebook.
 	people *daemon.ProfilePeople
+	// archive keeps a copy of every attachment; nil without a cache.
+	archive *mediaarchive.Archive
 }
 
 var _ api.Backend = served{}
@@ -321,11 +324,23 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	}
 	defaults := &accountDefaults{}
 	defaults.use(cfg)
+	var archive *mediaarchive.Archive
+	if cache != nil {
+		archive = mediaarchive.New(storage.MediaArchiveDir(), cache, router.LoadImage, log)
+	}
 	return served{
 		Router: router, Service: service, matrix: mx, networks: networks, stores: stores,
 		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), storage: storage, cache: cache, defaults: defaults,
-		people: people, mesh: &meshFile{storage: storage},
+		people: people, mesh: &meshFile{storage: storage}, archive: archive,
 	}
+}
+
+// LoadImage is an attachment's bytes, from the media archive when it holds them.
+func (s served) LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error) {
+	if s.archive == nil {
+		return s.Router.LoadImage(ctx, roomID, eventID)
+	}
+	return s.archive.Load(ctx, roomID, eventID)
 }
 
 // useHidden tells the cache who cfg's muted tags hide, and whom each profile hides.
@@ -689,6 +704,9 @@ func (w *workers) run(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger,
 	wg.Go(func() { w.refresher.Run(ctx) })
 	wg.Go(func() { w.backups.Run(ctx) })
 	wg.Go(func() { vacuumCache(ctx, log, backend.cache, &w.maintenance) })
+	if backend.archive != nil {
+		wg.Go(func() { backend.archive.Run(ctx) })
+	}
 	daily := dailyBackups{log: log, file: file, storage: backend.storage, say: w.notifications.BackupsSay, maintenance: &w.maintenance}
 	wg.Go(func() { daily.run(ctx) })
 }
@@ -783,7 +801,11 @@ func useCache(backend served, notifications *daemon.Notifications) {
 	// each profile's stream takes its people out (ProfileUnread). Nothing is moved.
 	backend.cache.OnProfileHiddenChange(backend.RecountUnread)
 	backend.cache.UseKeep(notifications.MessagesKept)
-	backend.cache.OnArrived(notifications.Arrived)
+	backend.cache.OnArrived(func(room domain.RoomID, since time.Time) {
+		notifications.Arrived(room, since)
+		backend.archive.Arrived(room, since)
+	})
+	backend.archive.Use(notifications.MediaArchived, notifications.ArchiveWarnBytes, notifications.MediaSay)
 }
 
 // expected is every account the daemon starts with a session, for State.Expect. A

@@ -120,6 +120,9 @@ func (s Storage) NotifierLockPath() string {
 // LogPath is where a program of this instance logs when it logs to a file.
 func (s Storage) LogPath(program string) string { return filepath.Join(s.StateDir, program+".log") }
 
+// MediaArchiveDir is where kithd keeps a copy of every attachment (mediaarchive).
+func (s Storage) MediaArchiveDir() string { return filepath.Join(s.DataDir, "media-"+s.Instance) }
+
 // MediaDir is the client's picture cache.
 func (s Storage) MediaDir() string { return filepath.Join(s.CacheDir, "media") }
 

@@ -209,6 +209,15 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/route"
 
+        # kithd's copies of attachments: the cache and the networks only by interface.
+        mediaarchive-keeps-files:
+          files:
+            - "**/internal/mediaarchive/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+
         # The WhatsApp adapter: the only package that imports whatsmeow. Only the daemon
         # links it.
         whatsapp-is-the-adapter:

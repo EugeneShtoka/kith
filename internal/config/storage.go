@@ -14,9 +14,18 @@ type Storage struct {
 	KeyringService string `toml:"keyring_service"`
 	// MessagesPerRoom is how many newest messages a room keeps; nil or negative keeps
 	// all. Rules override it per place.
-	MessagesPerRoom *int          `toml:"messages_per_room"`
-	Rules           []StorageRule `toml:"rule"`
+	MessagesPerRoom *int `toml:"messages_per_room"`
+	// ArchiveMedia is whether kithd keeps a copy of every attachment (nil: on). Rules
+	// override it per place.
+	ArchiveMedia *bool `toml:"archive_media"`
+	// ArchiveWarnMB is how large the copies grow before kithd warns; it never deletes
+	// them. 0 is DefaultArchiveWarnMB, negative never warns.
+	ArchiveWarnMB int           `toml:"archive_warn_mb"`
+	Rules         []StorageRule `toml:"rule"`
 }
+
+// DefaultArchiveWarnMB is archive_warn_mb when unset: 10 GiB.
+const DefaultArchiveWarnMB = 10 << 10
 
 // StorageRule is one [[storage.rule]]: what one place keeps instead.
 type StorageRule struct {
@@ -24,6 +33,8 @@ type StorageRule struct {
 	// space:<name>, tag:<name>, place:<name>, protocol:<network>, dm or group.
 	Match    string `toml:"match"`
 	Messages *int   `toml:"messages"` // negative keeps every one
+	// ArchiveMedia is archive_media for this place; nil inherits.
+	ArchiveMedia *bool `toml:"archive_media"`
 }
 
 // MessagesKept is messages_per_room: negative (every one) when unset.
@@ -32,4 +43,18 @@ func (s Storage) MessagesKept() int {
 		return -1
 	}
 	return *s.MessagesPerRoom
+}
+
+// MediaArchived is archive_media: on when unset.
+func (s Storage) MediaArchived() bool { return enabled(s.ArchiveMedia) }
+
+// ArchiveWarnBytes is archive_warn_mb in bytes; negative never warns.
+func (s Storage) ArchiveWarnBytes() int64 {
+	switch {
+	case s.ArchiveWarnMB < 0:
+		return -1
+	case s.ArchiveWarnMB == 0:
+		return DefaultArchiveWarnMB << 20
+	}
+	return int64(s.ArchiveWarnMB) << 20
 }

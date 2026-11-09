@@ -271,20 +271,42 @@ func TestCombinedTagsKeepTheirPeople(t *testing.T) {
 func TestStorageRulesAreChecked(t *testing.T) {
 	t.Parallel()
 	n := func(v int) *int { return &v }
+	no := false
 	for name, c := range map[string]struct {
 		st config.Storage
 		ok bool
 	}{
-		"default":        {config.Storage{}, true},
-		"a number":       {config.Storage{MessagesPerRoom: n(500)}, true},
-		"zero":           {config.Storage{MessagesPerRoom: n(0)}, false},
-		"a rule":         {config.Storage{Rules: []config.StorageRule{{Match: "tag:Archived", Messages: n(10)}}}, true},
-		"a rule of zero": {config.Storage{Rules: []config.StorageRule{{Match: "tag:Archived", Messages: n(0)}}}, false},
-		"no number":      {config.Storage{Rules: []config.StorageRule{{Match: "tag:Archived"}}}, false},
-		"no place":       {config.Storage{Rules: []config.StorageRule{{Match: "", Messages: n(10)}}}, false},
+		"default":         {config.Storage{}, true},
+		"a number":        {config.Storage{MessagesPerRoom: n(500)}, true},
+		"zero":            {config.Storage{MessagesPerRoom: n(0)}, false},
+		"a rule":          {config.Storage{Rules: []config.StorageRule{{Match: "tag:Archived", Messages: n(10)}}}, true},
+		"a rule of zero":  {config.Storage{Rules: []config.StorageRule{{Match: "tag:Archived", Messages: n(0)}}}, false},
+		"no number":       {config.Storage{Rules: []config.StorageRule{{Match: "tag:Archived"}}}, false},
+		"no place":        {config.Storage{Rules: []config.StorageRule{{Match: "", Messages: n(10)}}}, false},
+		"media only":      {config.Storage{Rules: []config.StorageRule{{Match: "tag:Spam", ArchiveMedia: &no}}}, true},
+		"media, no place": {config.Storage{Rules: []config.StorageRule{{Match: "", ArchiveMedia: &no}}}, false},
 	} {
 		if _, _, err := KeepRules(c.st); (err == nil) != c.ok {
 			t.Errorf("%s: %v", name, err)
 		}
+	}
+}
+
+// A rule that sets only archive_media keeps every message, and one that sets only
+// messages leaves the archive as [storage] says.
+func TestStorageRulesSetEachSettingApart(t *testing.T) {
+	t.Parallel()
+	ten, yes, no := 10, true, false
+	st := config.Storage{ArchiveMedia: &no, Rules: []config.StorageRule{
+		{Match: "tag:Spam", ArchiveMedia: &yes},
+		{Match: "tag:Archived", Messages: &ten},
+	}}
+	_, keep, err := KeepRules(st)
+	if err != nil || len(keep) != 1 || keep[0] != (domain.KeepRule{Match: "tag:Archived", Messages: 10}) {
+		t.Errorf("keep rules = %v, %v", keep, err)
+	}
+	base, archive := ArchiveRules(st)
+	if base || len(archive) != 1 || archive[0] != (domain.ArchiveRule{Match: "tag:Spam", Archive: true}) {
+		t.Errorf("archive = %v, %v", base, archive)
 	}
 }

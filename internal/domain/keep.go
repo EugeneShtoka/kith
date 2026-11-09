@@ -18,3 +18,22 @@ func MessagesKept(base int, rules []KeepRule, room RoomFacts) int {
 	}
 	return kept
 }
+
+// ArchiveRule is whether one place's attachments are archived, overriding the setting
+// everywhere.
+type ArchiveRule struct {
+	Match   string // a place entry (ParseEntry)
+	Archive bool
+}
+
+// MediaArchived is whether room's attachments are archived: the narrowest rule naming
+// it (one room over a set; among equals, the last), else base.
+func MediaArchived(base bool, rules []ArchiveRule, room RoomFacts) bool {
+	archived, best := base, EntryInvalid
+	for _, r := range rules {
+		if kind, ok := room.Match(r.Match); ok && kind >= best {
+			archived, best = r.Archive, kind
+		}
+	}
+	return archived
+}
