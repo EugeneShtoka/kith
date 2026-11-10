@@ -23,8 +23,11 @@ type Storage struct {
 	ArchiveWarnMB int `toml:"archive_warn_mb"`
 	// EncryptMedia is whether those copies are kept encrypted (nil: off). Rules
 	// override it per place.
-	EncryptMedia *bool         `toml:"encrypt_media"`
-	Rules        []StorageRule `toml:"rule"`
+	EncryptMedia *bool `toml:"encrypt_media"`
+	// ArchiveDisappearing is whether a disappearing message's attachment is kept too
+	// (nil: off). Rules override it per place.
+	ArchiveDisappearing *bool         `toml:"archive_disappearing"`
+	Rules               []StorageRule `toml:"rule"`
 }
 
 // DefaultArchiveWarnMB is archive_warn_mb when unset: 10 GiB.
@@ -40,6 +43,8 @@ type StorageRule struct {
 	ArchiveMedia *bool `toml:"archive_media"`
 	// EncryptMedia is encrypt_media for this place; nil inherits.
 	EncryptMedia *bool `toml:"encrypt_media"`
+	// ArchiveDisappearing is archive_disappearing for this place; nil inherits.
+	ArchiveDisappearing *bool `toml:"archive_disappearing"`
 }
 
 // MessagesKept is messages_per_room: negative (every one) when unset.
@@ -55,6 +60,11 @@ func (s Storage) MediaArchived() bool { return enabled(s.ArchiveMedia) }
 
 // MediaEncrypted is encrypt_media: off when unset.
 func (s Storage) MediaEncrypted() bool { return s.EncryptMedia != nil && *s.EncryptMedia }
+
+// DisappearingArchived is archive_disappearing: off when unset.
+func (s Storage) DisappearingArchived() bool {
+	return s.ArchiveDisappearing != nil && *s.ArchiveDisappearing
+}
 
 // ArchiveWarnBytes is archive_warn_mb in bytes; negative never warns.
 func (s Storage) ArchiveWarnBytes() int64 {

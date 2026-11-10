@@ -49,12 +49,14 @@ type Notifications struct {
 	keep      int
 	keepRules []domain.KeepRule
 	// mediaArchive and mediaRules are [storage] archive_media and its rules,
-	// mediaEncrypt and encryptRules encrypt_media and its; archiveWarn is
-	// archive_warn_mb in bytes.
+	// mediaEncrypt and encryptRules encrypt_media and its, timedArchive and timedRules
+	// archive_disappearing and its; archiveWarn is archive_warn_mb in bytes.
 	mediaArchive bool
 	mediaRules   []domain.ArchiveRule
 	mediaEncrypt bool
 	encryptRules []domain.EncryptRule
+	timedArchive bool
+	timedRules   []domain.DisappearingRule
 	archiveWarn  int64
 	limit        notify.Limit
 	rules        []notify.Rule
@@ -549,6 +551,7 @@ func (n *Notifications) MediaArchived(roomID domain.RoomID) bool {
 func (n *Notifications) useMedia(st config.Storage) {
 	n.mediaArchive, n.mediaRules = setup.ArchiveRules(st)
 	n.mediaEncrypt, n.encryptRules = setup.EncryptRules(st)
+	n.timedArchive, n.timedRules = setup.DisappearingRules(st)
 	n.archiveWarn = st.ArchiveWarnBytes()
 }
 
@@ -562,6 +565,18 @@ func (n *Notifications) MediaEncrypted(roomID domain.RoomID) bool {
 		return encrypted
 	}
 	return domain.MediaEncrypted(encrypted, rules, n.scope.Known(roomID))
+}
+
+// DisappearingArchived is whether kithd keeps a copy of room's disappearing messages'
+// attachments too, judged as MessagesKept is.
+func (n *Notifications) DisappearingArchived(roomID domain.RoomID) bool {
+	n.mu.Lock()
+	archived, rules := n.timedArchive, n.timedRules
+	n.mu.Unlock()
+	if len(rules) == 0 {
+		return archived
+	}
+	return domain.DisappearingArchived(archived, rules, n.scope.Known(roomID))
 }
 
 // ArchiveWarnBytes is how large the media archive grows before a warning; negative

@@ -145,15 +145,15 @@ func saveHTML(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.M
 	return nil
 }
 
-// attachmentsQuery is every attachment worth archiving: not redacted, and not on a
-// disappearing message, whose sender asked for it to go.
+// attachmentsQuery is every attachment worth archiving: not redacted. One on a
+// disappearing message is marked, its sender having asked for it to go.
 const attachmentsQuery = `
-	SELECT mm.room_id, mm.event_id, COALESCE(me.revision_id, ''), mm.name, mm.mime
+	SELECT mm.room_id, mm.event_id, COALESCE(me.revision_id, ''), mm.name, mm.mime,
+		EXISTS (SELECT 1 FROM message_expiry x WHERE x.room_id = mm.room_id AND x.event_id = mm.event_id)
 	FROM message_media mm
 	JOIN messages m ON m.room_id = mm.room_id AND m.event_id = mm.event_id
 	LEFT JOIN message_edit me ON me.room_id = mm.room_id AND me.event_id = mm.event_id
-	WHERE m.redacted = 0
-		AND NOT EXISTS (SELECT 1 FROM message_expiry x WHERE x.room_id = mm.room_id AND x.event_id = mm.event_id)`
+	WHERE m.redacted = 0`
 
 // Attachments lists the attachments to archive in room ("" for every room) on messages
 // sent since, oldest first: the first a network removes.
@@ -169,7 +169,7 @@ func (c *Cache) Attachments(ctx context.Context, roomID domain.RoomID, since tim
 	var out []domain.AttachmentRef
 	for rows.Next() {
 		var a domain.AttachmentRef
-		if err := rows.Scan(&a.Room, &a.Event, &a.Revision, &a.Name, &a.Mime); err != nil {
+		if err := rows.Scan(&a.Room, &a.Event, &a.Revision, &a.Name, &a.Mime, &a.Timed); err != nil {
 			return nil, fmt.Errorf("db: list attachments: %w", err)
 		}
 		out = append(out, a)
@@ -181,11 +181,11 @@ func (c *Cache) Attachments(ctx context.Context, roomID domain.RoomID, since tim
 }
 
 // Attachment is one message's attachment to archive; false when it has none, or is
-// redacted or disappearing.
+// redacted.
 func (c *Cache) Attachment(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.AttachmentRef, bool, error) {
 	var a domain.AttachmentRef
 	err := c.db.QueryRowContext(ctx, attachmentsQuery+` AND mm.room_id = ? AND mm.event_id = ?`,
-		string(roomID), string(eventID)).Scan(&a.Room, &a.Event, &a.Revision, &a.Name, &a.Mime)
+		string(roomID), string(eventID)).Scan(&a.Room, &a.Event, &a.Revision, &a.Name, &a.Mime, &a.Timed)
 	ok, err := optional(err)
 	if err != nil {
 		return a, false, fmt.Errorf("db: lookup attachment %s: %w", eventID, err)

@@ -292,9 +292,9 @@ func TestStorageRulesAreChecked(t *testing.T) {
 	}
 }
 
-// A rule that sets only archive_media or encrypt_media keeps every message, and one
-// that sets only messages leaves the archive as [storage] says; encryption is off
-// unless set.
+// A rule that sets only archive_media, encrypt_media or archive_disappearing keeps
+// every message, and one that sets only messages leaves the archive as [storage] says;
+// encryption and keeping disappearing messages' attachments are off unless set.
 func TestStorageRulesSetEachSettingApart(t *testing.T) {
 	t.Parallel()
 	ten, yes, no := 10, true, false
@@ -302,6 +302,7 @@ func TestStorageRulesSetEachSettingApart(t *testing.T) {
 		{Match: "tag:Spam", ArchiveMedia: &yes},
 		{Match: "tag:Archived", Messages: &ten},
 		{Match: "space:Family", EncryptMedia: &yes},
+		{Match: "room:Notes", ArchiveDisappearing: &yes},
 	}}
 	_, keep, err := KeepRules(st)
 	if err != nil || len(keep) != 1 || keep[0] != (domain.KeepRule{Match: "tag:Archived", Messages: 10}) {
@@ -314,6 +315,10 @@ func TestStorageRulesSetEachSettingApart(t *testing.T) {
 	sealed, encrypt := EncryptRules(st)
 	if sealed || len(encrypt) != 1 || encrypt[0] != (domain.EncryptRule{Match: "space:Family", Encrypt: true}) {
 		t.Errorf("encrypt = %v, %v", sealed, encrypt)
+	}
+	timed, disappearing := DisappearingRules(st)
+	if timed || len(disappearing) != 1 || disappearing[0] != (domain.DisappearingRule{Match: "room:Notes", Archive: true}) {
+		t.Errorf("disappearing = %v, %v", timed, disappearing)
 	}
 	if _, _, err := KeepRules(config.Storage{Rules: []config.StorageRule{{Match: "tag:Spam"}}}); err == nil {
 		t.Error("a rule setting nothing was taken")

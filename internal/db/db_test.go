@@ -904,8 +904,8 @@ func TestForgettingASpace(t *testing.T) {
 	}
 }
 
-// The archive is offered every attachment on a message still there and not set to
-// disappear, oldest first, under the edit the message shows.
+// The archive is offered every attachment on a message still there, oldest first, under
+// the edit the message shows, one set to disappear marked.
 func TestAttachmentsToArchive(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -933,7 +933,7 @@ func TestAttachmentsToArchive(t *testing.T) {
 	}
 	ids := func(refs []domain.AttachmentRef) (out []string) {
 		for _, r := range refs {
-			out = append(out, string(r.Event)+"@"+string(r.Revision))
+			out = append(out, string(r.Event)+"@"+string(r.Revision)+map[bool]string{true: " timed"}[r.Timed])
 		}
 		return out
 	}
@@ -942,8 +942,8 @@ func TestAttachmentsToArchive(t *testing.T) {
 		since time.Time
 		want  []string
 	}{
-		{"", time.Time{}, []string{mx + "$other@", mx + "$early@" + mx + "$r", mx + "$late@"}},
-		{a, time.Time{}, []string{mx + "$early@" + mx + "$r", mx + "$late@"}},
+		{"", time.Time{}, []string{mx + "$other@", mx + "$early@" + mx + "$r", mx + "$timed@ timed", mx + "$late@"}},
+		{a, time.Time{}, []string{mx + "$early@" + mx + "$r", mx + "$timed@ timed", mx + "$late@"}},
 		{a, at(2), []string{mx + "$late@"}},
 	} {
 		got, err := cache.Attachments(ctx, c.room, c.since)
@@ -954,7 +954,10 @@ func TestAttachmentsToArchive(t *testing.T) {
 	if ref, ok, err := cache.Attachment(ctx, a, mx+"$early"); err != nil || !ok || ref.Name != "p.jpg" || ref.Mime != "image/jpeg" || ref.Revision != mx+"$r" {
 		t.Errorf("Attachment($early) = %+v, %v, %v", ref, ok, err)
 	}
-	for _, event := range []domain.EventID{mx + "$text", mx + "$gone", mx + "$timed", mx + "$none"} {
+	if ref, ok, err := cache.Attachment(ctx, a, mx+"$timed"); err != nil || !ok || !ref.Timed {
+		t.Errorf("Attachment($timed) = %+v, %v, %v; want it, timed", ref, ok, err)
+	}
+	for _, event := range []domain.EventID{mx + "$text", mx + "$gone", mx + "$none"} {
 		if _, ok, err := cache.Attachment(ctx, a, event); ok || err != nil {
 			t.Errorf("Attachment(%s) = %v, %v; want none", event, ok, err)
 		}
