@@ -15,7 +15,7 @@ import (
 // failing is the fixture with some daemon lookups failing.
 type failing struct {
 	*fake
-	spaces, encryption bool
+	spaces, encryption, verdicts bool
 }
 
 var errLookup = errors.New("daemon restarting")
@@ -25,6 +25,13 @@ func (f failing) Spaces(ctx context.Context) ([]domain.Space, error) {
 		return nil, errLookup
 	}
 	return f.fake.Spaces(ctx)
+}
+
+func (f failing) TagVerdicts(ctx context.Context) ([]domain.TagVerdict, error) {
+	if f.verdicts {
+		return nil, errLookup
+	}
+	return f.fake.TagVerdicts(ctx)
 }
 
 func (f failing) RoomEncryption(ctx context.Context, rooms []domain.RoomID) (map[domain.RoomID]bool, error) {
@@ -43,7 +50,7 @@ const (
 
 // scopeRooms covers every place kind a scope entry can name: a room in a space, a
 // bridged room, a spaceless room, a DM, an encrypted room, and a direct-network group
-// and DM.
+// and DM. A filter moved the group into Spam; the DM was taken out of it again.
 func scopeRooms() *fake {
 	return &fake{
 		rooms: []domain.Room{
@@ -63,6 +70,10 @@ func scopeRooms() *fake {
 			{ID: mx + "!s3:x", Name: "Telegram", Bridge: domain.ProtocolTelegram, Children: []domain.RoomID{mx + "!both:x"}},
 		},
 		encrypted: map[domain.RoomID]bool{mx + "!enc:x": true},
+		verdicts: []domain.TagVerdict{
+			{Room: nativeGroup, Tag: "spam", Rule: domain.MoveAlways},
+			{Room: nativeDM, Tag: "Spam", Rule: domain.MoveDirect, Released: true},
+		},
 	}
 }
 
@@ -75,12 +86,14 @@ var scopePlaces = domain.Places{
 }
 
 // pinnedTag picks two rooms (one by your name for it) and takes in a space; Work picks
-// a room outside the space of that name.
+// a room outside the space of that name; Spam holds only what filters move into it.
 func pinnedTag() domain.TagSet {
 	tags, _, err := domain.NewTagSet([]domain.Tag{{
 		Name: "Pinned", Rule: []string{"space:Telegram"}, Picked: []string{"room:Lounge", mx + "!work:x"},
 	}, {
 		Name: "Work", Picked: []string{mx + "!dm:x"},
+	}, {
+		Name: "Spam",
 	}})
 	if err != nil {
 		panic(err)
@@ -92,8 +105,8 @@ func pinnedTag() domain.TagSet {
 var scopeEntries = []string{
 	"space:Work", "space:WhatsApp", "space:Telegram", "protocol:matrix", "protocol:whatsapp",
 	"protocol:telegram", "room:Standup", "room:Lounge", "room:Quiet", mx + "!wa:x", "dm", "group",
-	"tag:Pinned", string(nativeGroup), "tag:Work",
-	"place:Work", "place:chats", "place:Pinned", "place:TELEGRAM", "place:WhatsApp",
+	"tag:Pinned", string(nativeGroup), "tag:Work", "tag:Spam",
+	"place:Work", "place:chats", "place:Pinned", "place:TELEGRAM", "place:WhatsApp", "place:spam",
 }
 
 // strayEntries name no fixture room, though each looks close to one: what the switch to
@@ -187,7 +200,10 @@ func nonBlank(entry string) []string {
 // neverWidens fails when some daemon read failing allows a room the healthy run refuses.
 func neverWidens(t *testing.T, label string, read, write domain.ModelScope, send []string) {
 	t.Helper()
-	failures := []failing{{spaces: true}, {encryption: true}, {spaces: true, encryption: true}}
+	var failures []failing
+	for mask := 1; mask < 8; mask++ { // every non-empty set of failing reads
+		failures = append(failures, failing{spaces: mask&1 != 0, encryption: mask&2 != 0, verdicts: mask&4 != 0})
+	}
 	build := func(backend daemonCalls) *server {
 		s := writerWith(t, scopeRooms(), read, write, send)
 		s.backend = backend
@@ -211,9 +227,9 @@ func neverWidens(t *testing.T, label string, read, write domain.ModelScope, send
 				{"send unreviewed", healthy.send[room.ID], got.send[room.ID]},
 			} {
 				if c.under && !c.ok {
-					t.Fatalf("%s, spaces failing=%v, encryption failing=%v: %s %s is allowed only "+
-						"while the lookup fails\nread %+v\nwrite %+v\nsend %v",
-						label, fail.spaces, fail.encryption, c.what, room.Name, read, write, send)
+					t.Fatalf("%s, spaces failing=%v, encryption failing=%v, verdicts failing=%v: %s %s "+
+						"is allowed only while the lookup fails\nread %+v\nwrite %+v\nsend %v",
+						label, fail.spaces, fail.encryption, fail.verdicts, c.what, room.Name, read, write, send)
 				}
 			}
 		}
@@ -281,6 +297,8 @@ func TestAPlaceEntryAdmitsExactlyTheRoomsOfItsRows(t *testing.T) {
 		{"place:WhatsApp", []domain.RoomID{mx + "!wa:x", mx + "!dm:x", mx + "!both:x"}},    // by its name too
 		{"place:TELEGRAM", []domain.RoomID{mx + "!both:x"}},                                // a bridge's space
 		{"place:Pinned", []domain.RoomID{mx + "!work:x", mx + "!loose:x", mx + "!both:x"}}, // a tag
+		{"tag:Spam", []domain.RoomID{nativeGroup}},                                         // moved there by a filter; the released DM is not
+		{"place:SPAM", []domain.RoomID{nativeGroup}},                                       // the same row
 		{"place:Lounge", nil}, // a room's name is no row
 		{"space:Chats", nil},  // space: reads the name
 		{"Work", nil},         // a bare name names nothing
@@ -328,8 +346,8 @@ func TestANativeRoomIsOnItsOwnNetwork(t *testing.T) {
 	}
 }
 
-// While spaces are unreadable, every tool says so and asks for a retry instead of
-// answering empty.
+// While spaces or filter verdicts are unreadable, every tool says so and asks for a
+// retry instead of answering empty.
 func TestEveryToolSaysWhenTheSpacesAreUnknown(t *testing.T) {
 	t.Parallel()
 	scope := domain.ModelScope{Only: []string{"group"}, Except: []string{"space:Work"}}
@@ -346,14 +364,22 @@ func TestEveryToolSaysWhenTheSpacesAreUnknown(t *testing.T) {
 		{"unread_summary", map[string]any{}},
 		{"send_message", map[string]any{"room": "Loose", "text": "hi"}},
 	} {
-		t.Run(c.tool, func(t *testing.T) {
-			t.Parallel()
-			s := writerWith(t, scopeRooms(), scope, domain.ModelScope{}, everything)
-			s.backend = failing{fake: scopeRooms(), spaces: true}
-			if got := callErr(t, s, c.tool, c.args); !strings.Contains(got, "could not tell which spaces") {
-				t.Fatalf("%s said %q, want the spaces named as the reason", c.tool, got)
-			}
-		})
+		for _, fail := range []struct {
+			backend failing
+			reason  string
+		}{
+			{failing{fake: scopeRooms(), spaces: true}, "could not tell which spaces"},
+			{failing{fake: scopeRooms(), verdicts: true}, "could not tell which tags filters moved"},
+		} {
+			t.Run(c.tool+"/"+fail.reason, func(t *testing.T) {
+				t.Parallel()
+				s := writerWith(t, scopeRooms(), scope, domain.ModelScope{}, everything)
+				s.backend = fail.backend
+				if got := callErr(t, s, c.tool, c.args); !strings.Contains(got, fail.reason) {
+					t.Fatalf("%s said %q, want %q as the reason", c.tool, got, fail.reason)
+				}
+			})
+		}
 	}
 }
 

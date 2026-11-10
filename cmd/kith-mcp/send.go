@@ -194,7 +194,7 @@ type writeChoice struct {
 func (s *server) howToWrite(ctx context.Context, room domain.Room) (writeChoice, error) {
 	facts, placeErr := s.factsOf(ctx, room)
 	if placeErr != nil && domain.NamesAPlace(s.send) {
-		return writeChoice{reason: "which spaces this room is in could not be read, so the words wait in its composer"}, nil
+		return writeChoice{reason: "which spaces or tags this room is in could not be read, so the words wait in its composer"}, nil
 	}
 	if !domain.AllowSend(s.send, facts) {
 		return writeChoice{reason: "this room is not one [agent.write] send names, so the words wait in its composer"}, nil

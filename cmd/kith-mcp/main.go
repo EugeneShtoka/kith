@@ -222,6 +222,7 @@ type reader interface {
 	Selves(ctx context.Context) ([]string, error)
 	Directory(ctx context.Context) (domain.Directory, error)
 	PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, error)
+	TagVerdicts(ctx context.Context) ([]domain.TagVerdict, error)
 	LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error)
 }
 
@@ -280,7 +281,8 @@ type server struct {
 	crypto map[domain.RoomID]bool
 	// client is the assistant's name from initialize, recorded as the author.
 	client string
-	// places are the room names, space order and pins every scope reads a room with.
+	// places are the room names, space order and pins every scope reads a room with;
+	// the tags filters moved rooms into are added per call (factsOf).
 	places domain.Places
 	// files is where get_attachment puts a file that is not an image.
 	files string
