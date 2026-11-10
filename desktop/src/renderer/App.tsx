@@ -24,6 +24,7 @@ import { type Link, peekAfter, type Seat, Session, type View } from "./session";
 import { SearchBar, SearchResults, Switcher } from "./Find";
 import { SettingsPage } from "./SettingsPage";
 import { ThreadPane } from "./ThreadPane";
+import { hasThreads } from "./threads";
 import { type TimelineNav, TimelinePane, write } from "./TimelinePane";
 import { VerifyDialog } from "./Verification";
 
@@ -859,6 +860,10 @@ function Seated({ view, session }: { view: View; session: Session }) {
               keys={view.keys}
               faces={{ theme: view.theme, slots: view.slots, pictures: view.pictures }}
               session={session}
+              threads={hasThreads(
+                view.open,
+                view.joined.find((r) => r.id === view.open) ?? view.rooms.find((r) => r.id === view.open),
+              )}
             />
             {view.composer && (
               <ComposerPane

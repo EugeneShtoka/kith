@@ -113,7 +113,7 @@ func (m Model) hints() string {
 		return m.hintLine(
 			nav,
 			keyed(m.keys.keyHint(scopeNav, actOpen), "open"),
-			keyed(m.keys.keyHint(scopeRooms, actListThreads), "threads"),
+			keyedIf(m.cursorHasThreads(), m.keys.keyHint(scopeRooms, actListThreads), "threads"),
 			keyed(m.keys.keyHint(scopeRooms, actMarkRead), "mark read"),
 			keyed(m.keys.keyHint(scopeRooms, actJoin), "join"),
 			keyed(m.keys.keyHint(scopeRooms, actLeave), leave),

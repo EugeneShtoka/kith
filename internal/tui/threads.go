@@ -66,12 +66,35 @@ func (m Model) hasThread() bool {
 	return ok && m.threadOf(msg) != ""
 }
 
+// threadsIn reports whether room's network has threads (Protocol.HasThreads); one
+// without offers none. The open Matrix room is judged by the bridge its people come
+// from (roomProtocol); an ID naming no network is not judged.
+func (m Model) threadsIn(room domain.RoomID) bool {
+	p := domain.NetworkOf(string(room))
+	if p == domain.ProtocolMatrix && room == m.openRoom {
+		p = m.roomProtocol()
+	}
+	return p == "" || p.HasThreads()
+}
+
+// noThreads says room's network has none, for a thread key pressed there anyway.
+func (m Model) noThreads(room domain.RoomID) Model {
+	p := domain.NetworkOf(string(room))
+	if p == domain.ProtocolMatrix {
+		p = m.roomProtocol()
+	}
+	return m.say(p.String() + " has no threads")
+}
+
 func (m Model) openThread() (Model, tea.Cmd) {
 	msg, ok := m.selectedMessage()
 	if !ok {
 		return m, nil
 	}
 	root := m.threadOf(msg)
+	if root == "" && !m.threadsIn(m.openRoom) {
+		return m.noThreads(m.openRoom), nil
+	}
 	if root == "" {
 		return m.say("no thread here — start one with " + m.keys.keyHint(scopeTimeline, actStartThread) +
 			", or list this room's with " + m.keys.keyHint(scopeTimeline, actListThreads)), nil
@@ -119,6 +142,9 @@ func (m Model) startThread() (Model, tea.Cmd) {
 	}
 	if root := m.threadOf(msg); root != "" {
 		return m.enterThread(root, msg.ID)
+	}
+	if !m.threadsIn(m.openRoom) {
+		return m.noThreads(m.openRoom), nil
 	}
 	next, cmd := m.enterThread(msg.ID, msg.ID)
 	next.compose.insertMode = true
@@ -403,6 +429,9 @@ func (m Model) listThreads() (Model, tea.Cmd) {
 	if m.openRoom == "" {
 		return m, nil
 	}
+	if !m.threadsIn(m.openRoom) {
+		return m.noThreads(m.openRoom), nil
+	}
 	return m.doing("looking for threads…"), m.scopeThreadsCmd([]domain.RoomID{m.openRoom})
 }
 
@@ -461,6 +490,9 @@ func (m Model) listRoomThreads() (Model, tea.Cmd) {
 	room, ok := m.currentRoom()
 	if !ok {
 		return m, nil
+	}
+	if !m.threadsIn(room.ID) {
+		return m.noThreads(room.ID), nil
 	}
 	return m.doing("looking for threads…"), m.scopeThreadsCmd([]domain.RoomID{room.ID})
 }
@@ -584,4 +616,11 @@ func (m Model) handleScopeThreads(msg scopeThreadsMsg) (Model, tea.Cmd) {
 	m = m.clearStatus()
 	m.picker = newPicker(pickerThread, items)
 	return m, repaint()
+}
+
+// cursorHasThreads reports whether the room under the list's cursor has threads, for
+// the list's legend.
+func (m Model) cursorHasThreads() bool {
+	room, ok := m.currentRoom()
+	return ok && m.threadsIn(room.ID)
 }

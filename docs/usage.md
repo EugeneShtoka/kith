@@ -550,6 +550,8 @@ A thread appears in the room as a summary under its root — `💬 3 replies · 
 
 An open thread takes over the timeline pane, and what you type there is sent in the thread. `/threads` lists this room's threads; `:threads` can reach further.
 
+Threads are offered only where the room's network has them: Matrix, Slack, and Discord and Google Chat through their bridges. In a WhatsApp, Telegram, Signal, Messenger, Instagram, LinkedIn or Google Messages room (direct, or bridged into Matrix), `T` and `ctrl+t` say the network has none, `/threads` is not offered, and the desktop starts none.
+
 ## Media
 
 ### Pictures

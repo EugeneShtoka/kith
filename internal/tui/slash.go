@@ -372,6 +372,9 @@ func (m Model) commandCandidates(query string) []candidate {
 		if !strings.HasPrefix(strings.TrimPrefix(cmd.name, "/"), q) {
 			continue
 		}
+		if cmd.keyAct == actListThreads && !m.threadsIn(m.openRoom) {
+			continue // the room's network has none
+		}
 		label := cmd.name
 		if cmd.arg != "" {
 			label += " " + cmd.arg

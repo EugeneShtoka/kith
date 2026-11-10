@@ -1,12 +1,12 @@
-import { clone } from "@bufbuild/protobuf";
+import { clone, create } from "@bufbuild/protobuf";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import table from "../../../internal/domain/testdata/threads.json";
-import { type Message, MessageSchema } from "../gen/backend/v1/types_pb";
+import { type Message, MessageSchema, RoomSchema } from "../gen/backend/v1/types_pb";
 import { compare } from "./merge";
 import { message, type Row, row } from "./testing/rows";
-import { collapse, OpenThread, type ThreadTicket, threadMessages } from "./threads";
+import { collapse, hasThreads, OpenThread, type ThreadTicket, threadMessages } from "./threads";
 
 interface Case {
   name: string;
@@ -396,5 +396,17 @@ describe("the thread pane over any interleaving of reads and frames", () => {
         ],
       },
     );
+  });
+});
+
+describe("hasThreads", () => {
+  it("judges a room by the bridge behind it, else its ID's network, and leaves one not known alone", () => {
+    const bridged = create(RoomSchema, { id: "matrix:1/!a:x", network: "WhatsApp" });
+    expect(hasThreads(bridged.id, bridged)).toBe(false);
+    expect(hasThreads("whatsapp:4915550009/4915550001@s.whatsapp.net", undefined)).toBe(false);
+    expect(hasThreads("matrix:1/!b:x", create(RoomSchema, { id: "matrix:1/!b:x" }))).toBe(true);
+    expect(hasThreads("slack:T1/C1", undefined)).toBe(true);
+    expect(hasThreads("matrix:1/!c:x", create(RoomSchema, { id: "matrix:1/!c:x", network: "Discord" }))).toBe(true);
+    expect(hasThreads("!bare:x", undefined)).toBe(true);
   });
 });
