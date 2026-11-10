@@ -3,6 +3,10 @@
   ctrl+v           paste the terminal's clipboard, from anywhere
   tab              next pane
   shift+tab        previous pane
+  ctrl+shift+1     straight to the rail
+  ctrl+shift+2     straight to the room list
+  ctrl+shift+3     straight to the timeline
+  ctrl+shift+4     straight to the composer
   ctrl+n           do not disturb on/off
   alt+n            mute sound on/off
   ctrl+l           redraw the screen

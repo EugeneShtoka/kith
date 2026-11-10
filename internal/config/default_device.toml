@@ -596,28 +596,35 @@ tag   = "Spam"
 # reported in `?` and falls back to its default.
 [keys]
 # Not while typing, where q types itself.
-quit         = "q"             # quit
+quit           = "q"             # quit
 # No key by default: most terminals keep ctrl+c for copying. Checked before every other
 # key.
-interrupt    = "-"             # quit, from anywhere — typing, a prompt, a picker
+interrupt      = "-"             # quit, from anywhere — typing, a prompt, a picker
 # For terminals that pass the key through rather than pasting themselves.
-paste        = "ctrl+v"        # paste the terminal's clipboard, from anywhere
-help         = "?"             # this help
-settings     = "comma"         # settings, showing what each is set to
+paste          = "ctrl+v"        # paste the terminal's clipboard, from anywhere
+help           = "?"             # this help
+settings       = "comma"         # settings, showing what each is set to
 # With more than one [[profile]]; :profile <name> goes straight to one.
-profile      = "gP"            # switch to another profile
-command      = ":"             # command line — global commands, as / is for this room
-focus_next   = "tab"           # next pane
-focus_prev   = "shift+tab"     # previous pane
+profile        = "gP"            # switch to another profile
+command        = ":"             # command line — global commands, as / is for this room
+focus_next     = "tab"           # next pane
+focus_prev     = "shift+tab"     # previous pane
+# ctrl+shift with a digit reaches the client only through the Kitty keyboard protocol
+# (WezTerm: enable_kitty_keyboard = true), and WezTerm keeps these for its tabs until
+# its config gives them up.
+focus_rail     = "ctrl+shift+1"  # straight to the rail
+focus_rooms    = "ctrl+shift+2"  # straight to the room list
+focus_timeline = "ctrl+shift+3"  # straight to the timeline
+focus_composer = "ctrl+shift+4"  # straight to the composer
 # Works while typing too, as do the pane, redraw and jump keys.
-toggle_dnd   = "ctrl+n"        # do not disturb on/off
-toggle_mute  = "alt+n"         # mute sound on/off
-redraw       = "ctrl+l"        # redraw the screen
+toggle_dnd     = "ctrl+n"        # do not disturb on/off
+toggle_mute    = "alt+n"         # mute sound on/off
+redraw         = "ctrl+l"        # redraw the screen
 # By typing its name.
-jump_to      = "ctrl+k"        # go to a room, person or space
+jump_to        = "ctrl+k"        # go to a room, person or space
 # ctrl+i equals tab except on terminals with the Kitty keyboard protocol, hence alt+o.
-jump_back    = "ctrl+o"        # back to the room you jumped from
-jump_forward = "ctrl+i,alt+o"  # forward again
+jump_back      = "ctrl+o"        # back to the room you jumped from
+jump_forward   = "ctrl+i,alt+o"  # forward again
 
 # Key sequences bound to places. Write them from the app with :shortcut (tab moves
 # between the open room and the rail's space), or /shortcut for the room written in.

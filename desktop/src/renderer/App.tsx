@@ -25,6 +25,7 @@ import { SearchBar, SearchResults, Switcher } from "./Find";
 import { SettingsPage } from "./SettingsPage";
 import { ThreadPane } from "./ThreadPane";
 import { hasThreads } from "./threads";
+import { reveal, type Target, type Width } from "./panes";
 import { type TimelineNav, TimelinePane, write } from "./TimelinePane";
 import { VerifyDialog } from "./Verification";
 
@@ -107,6 +108,10 @@ const seatedActions: readonly Action[] = [
   { path: "help", anywhere: false },
   { path: "focus_next", anywhere: true },
   { path: "focus_prev", anywhere: true },
+  { path: "focus_rail", anywhere: true },
+  { path: "focus_rooms", anywhere: true },
+  { path: "focus_timeline", anywhere: true },
+  { path: "focus_composer", anywhere: true },
   // The timeline's before nav's, as the TUI asks them: its enter goes to what a reply answers.
   ...[
     "insert",
@@ -246,6 +251,14 @@ let peeking: ReturnType<typeof setTimeout> | undefined;
 /** narrow: the window is narrow enough that the rail folds by itself (styles.css). */
 function narrow(): boolean {
   return window.matchMedia("(max-width: 960px)").matches;
+}
+
+/** widthOf is the window's width as the left column folds by it (styles.css). */
+function widthOf(): Width {
+  if (!narrow()) {
+    return "wide";
+  }
+  return window.matchMedia("(max-width: 640px)").matches ? "narrowest" : "narrow";
 }
 
 /** TopBar runs across the window's top: what the screen puts there, and Settings. */
@@ -406,6 +419,12 @@ function Seated({ view, session }: { view: View; session: Session }) {
     refocus.current = () => rowsOf("rooms")[at]?.focus();
     session.expandThreads(room);
   };
+  // A pane key's pane, folded away when pressed, takes the focus once it is shown.
+  const toPane = useRef<() => void>(undefined);
+  useEffect(() => {
+    toPane.current?.();
+    toPane.current = undefined;
+  }, [folded, unfoldedAt]);
   // The pane focused last, which keys go to while nothing is focused: the rooms before any.
   const lastPane = useRef("rooms");
   useEffect(() => {
@@ -441,6 +460,19 @@ function Seated({ view, session }: { view: View; session: Session }) {
       }
       nav?.focus();
       return nav !== null;
+    };
+    // jump goes straight to target, showing it first where the left column folds it away.
+    const jump = (target: Target): boolean => {
+      const go = () => (target === "composer" ? write() : focusTo(target));
+      const now = { folded, unfolded };
+      const shown = reveal(target, now, widthOf());
+      if (shown.folded === now.folded && shown.unfolded === now.unfolded) {
+        return go();
+      }
+      toPane.current = go;
+      setFolded(shown.folded);
+      setUnfoldedAt(shown.unfolded ? here : undefined);
+      return true;
     };
     const step = (delta: number) => {
       const order = shown();
@@ -605,6 +637,10 @@ function Seated({ view, session }: { view: View; session: Session }) {
     const act: Readonly<Record<string, (count: number) => boolean | undefined>> = {
       focus_next: () => step(1),
       focus_prev: () => step(-1),
+      focus_rail: () => jump("rail"),
+      focus_rooms: () => jump("rooms"),
+      focus_timeline: () => jump("timeline"),
+      focus_composer: () => jump("composer"),
       jump_to: () => {
         setSwitching(true);
       },
@@ -686,7 +722,20 @@ function Seated({ view, session }: { view: View; session: Session }) {
       document.removeEventListener("play", played, true);
       document.removeEventListener("ended", ended, true);
     };
-  }, [session, keymap, view.thread, view.rooms, view.jumps, view.tagKeys, view.joined, view.rail, view.audio]);
+  }, [
+    session,
+    keymap,
+    view.thread,
+    view.rooms,
+    view.jumps,
+    view.tagKeys,
+    view.joined,
+    view.rail,
+    view.audio,
+    folded,
+    unfolded,
+    here,
+  ]);
   // The open thread's row, when the list shows it, is where the list's cursor is; else the open room's.
   const threadListed = view.list.some(
     (r) => r.kind === "thread" && r.room.id === view.open && r.thread.root === view.thread?.root,

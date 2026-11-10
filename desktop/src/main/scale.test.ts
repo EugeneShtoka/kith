@@ -36,6 +36,10 @@ describe("the window's scale", () => {
     expect(zoomKey(key("=", { control: true, alt: true }))).toBeUndefined();
     expect(zoomKey(key("k"))).toBeUndefined();
     expect(zoomKey({ ...key("="), type: "keyUp" })).toBeUndefined();
+    // ctrl+shift with a digit is the renderer's (the pane keys): "!" is ctrl+shift+1's key.
+    for (const k of ["!", "@", "#", "$"]) {
+      expect(zoomKey(key(k))).toBeUndefined();
+    }
   });
 
   it("steps through the zooms, held at either end", () => {

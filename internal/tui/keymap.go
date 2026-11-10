@@ -26,6 +26,10 @@ const (
 	actJumpForward
 	actFocusNext
 	actFocusPrev
+	actFocusRail
+	actFocusRooms
+	actFocusTimeline
+	actFocusComposer
 	actToggleDND
 	actToggleMute
 	actUp
@@ -337,6 +341,10 @@ var keyActions = []keyAction{
 	{scopeGlobal, actPaste, "paste"},
 	{scopeGlobal, actFocusNext, "focus_next"},
 	{scopeGlobal, actFocusPrev, "focus_prev"},
+	{scopeGlobal, actFocusRail, "focus_rail"},
+	{scopeGlobal, actFocusRooms, "focus_rooms"},
+	{scopeGlobal, actFocusTimeline, "focus_timeline"},
+	{scopeGlobal, actFocusComposer, "focus_composer"},
 	{scopeGlobal, actToggleDND, "toggle_dnd"},
 	{scopeGlobal, actToggleMute, "toggle_mute"},
 	{scopeGlobal, actRedraw, "redraw"},
