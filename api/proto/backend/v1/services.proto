@@ -1977,6 +1977,64 @@ message ApplyGroupingsRequest {
 
 message ApplyGroupingsResponse {}
 
+// A chat a phone exported (WhatsApp's Export chat), zipped or not, is imported from an
+// upload (StartUpload, PutUpload) in three steps, each reading the upload again: the
+// rooms it may be, who wrote it among a room's members, then the import, which uses
+// the upload up. zone is the IANA zone the phone wrote its times in; empty is kithd's.
+message PreviewChatImportRequest {
+  string upload_id = 1;
+  string zone = 2;
+}
+
+message PreviewChatImportResponse {
+  string title = 1; // the file's name
+  int32 messages = 2;
+  int64 first_ms = 3;
+  int64 last_ms = 4;
+  repeated ExportRoom rooms = 5; // the likeliest first
+}
+
+// ExportRoom is a room's case to be where an export goes (domain.ExportRoom).
+message ExportRoom {
+  string room_id = 1;
+  int32 found = 2; // the export's longer messages it has cached already
+  bool named = 3; // the file is named after it
+  int32 adds = 4; // the messages an import would add: older than its oldest cached
+}
+
+message ChatImportSendersRequest {
+  string upload_id = 1;
+  string zone = 2;
+  string room_id = 3;
+}
+
+message ChatImportSendersResponse {
+  repeated ExportSender senders = 1; // the most messages first
+  repeated Member members = 2; // the room's, any of whom a name may be
+  int32 adds = 3;
+}
+
+// ExportSender is one name an export's messages carry (domain.ExportSender).
+message ExportSender {
+  string name = 1;
+  int32 messages = 2;
+  string chosen = 3; // the member they are when it is clear, else empty
+  repeated Member likely = 4; // up to three, the likeliest first
+}
+
+message ApplyChatImportRequest {
+  string upload_id = 1;
+  string zone = 2;
+  string room_id = 3;
+  // senders is who each name is, a member's ID; a name absent or empty is kept as
+  // the message's sender name alone.
+  map<string, string> senders = 4;
+}
+
+message ApplyChatImportResponse {
+  int32 added = 1;
+}
+
 message GetConfigRequest {}
 
 // GetConfigResponse is the configuration the daemon runs with, and the revision of the
@@ -2741,6 +2799,14 @@ service BackendService {
   // ApplyGroupings copies them as chosen, per tag, into the config (as UpdateConfig
   // writes it), judged on the groupings and the config as they are when it runs.
   rpc ApplyGroupings(ApplyGroupingsRequest) returns (ApplyGroupingsResponse);
+  // PreviewChatImport reads an uploaded chat export and offers the rooms it may be:
+  // those that cached its messages, and those its file is named after.
+  rpc PreviewChatImport(PreviewChatImportRequest) returns (PreviewChatImportResponse);
+  // ChatImportSenders matches the export's names to the room's members.
+  rpc ChatImportSenders(ChatImportSendersRequest) returns (ChatImportSendersResponse);
+  // ApplyChatImport caches the export's messages older than the room's oldest cached
+  // one, from the members chosen, and uses the upload up.
+  rpc ApplyChatImport(ApplyChatImportRequest) returns (ApplyChatImportResponse);
   // UpdateConfig writes the configuration file — the daemon is its one writer — if it
   // is still at base_revision and the daemon would run with the change, then puts it in
   // force and tells every client (ConfigChanged).

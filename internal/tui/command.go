@@ -118,7 +118,7 @@ var commands = []command{
 		run:     Model.openLogin,
 	},
 	{
-		name: "import", summary: "copy an account's folders (Telegram's) into tags, once, choosing per tag what changes",
+		name: "import", summary: "copy an account's folders (Telegram's) into tags, once, choosing per tag what changes; or bring in a chat's history a phone exported (WhatsApp's Export chat)",
 		run: Model.openImport,
 	},
 	{

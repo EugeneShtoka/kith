@@ -348,6 +348,9 @@ func (s served) LoadImage(ctx context.Context, roomID domain.RoomID, eventID dom
 	return data, nil
 }
 
+// ChatCache is the cache chat imports go into; false without one.
+func (s served) ChatCache() (daemon.ChatCache, bool) { return s.cache, s.cache != nil }
+
 // useHidden tells the cache who cfg's muted tags hide, and whom each profile hides.
 func (s served) useHidden(ctx context.Context, cfg config.Config) error {
 	if s.cache == nil {

@@ -875,7 +875,8 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleCreating(msg))
 	case configCheckedMsg, configSavedMsg, configNewsMsg, deviceSavedMsg:
 		return answered(m.handleConfigNews(msg))
-	case loginMsg, loginNetworksMsg, insteadFailedMsg, importNetworksMsg, importPreviewMsg, importedMsg:
+	case loginMsg, loginNetworksMsg, insteadFailedMsg, importNetworksMsg, importPreviewMsg, importedMsg,
+		exportChosenMsg, exportReadMsg, exportSendersMsg, chatImportedMsg:
 		return answered(m.handleAccounts(msg))
 	case dndMsg:
 		return answered(m.handleDND(msg))

@@ -1056,3 +1056,25 @@ func (c *Cache) MessagesEndingIn(ctx context.Context, owner domain.RoomOwner, ta
 			return domain.Message{RoomID: domain.RoomID(room), ID: domain.EventID(event)}, err
 		}, args...)
 }
+
+// MessagesSaying is the messages in room ("" every room) whose text is one of bodies,
+// unredacted: how an imported chat is told from the rooms that cached some of it.
+func (c *Cache) MessagesSaying(ctx context.Context, roomID domain.RoomID, bodies []string) ([]domain.Message, error) {
+	if len(bodies) == 0 {
+		return nil, nil
+	}
+	in, args := inIDs([]any{string(roomID), string(roomID)}, bodies)
+	// #nosec G202 -- inIDs emits only placeholders or a bound json_each.
+	return collect(ctx, c.db, "the messages saying",
+		`SELECT m.room_id, m.sender, `+senderNow+`, m.body, m.ts_ms FROM messages m
+		  WHERE (? = '' OR m.room_id = ?) AND m.redacted = 0 AND m.body`+in,
+		func(rows *sql.Rows) (domain.Message, error) {
+			var m domain.Message
+			var ts int64
+			if err := rows.Scan(&m.RoomID, &m.Sender, &m.SenderName, &m.Body, &ts); err != nil {
+				return m, err
+			}
+			m.Timestamp = time.UnixMilli(ts)
+			return m, nil
+		}, args...)
+}

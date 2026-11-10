@@ -134,6 +134,24 @@ func (u *Uploads) take(id string) (path, name string, done func(), err error) {
 	}, nil
 }
 
+// read hands over complete upload id's file and name to read, keeping it staged (and
+// its idle time restarted) for the next step that names it.
+func (u *Uploads) read(id string) (path, name string, err error) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	up, ok := u.open[id]
+	if !ok {
+		return "", "", noUpload()
+	}
+	if !up.complete() {
+		return "", "", connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("daemon: the upload has %d of its %d bytes", up.has(), up.size))
+	}
+	up.touched = time.Now()
+	up.expiry.Reset(uploadIdle)
+	return up.path, up.name, nil
+}
+
 // expire removes upload id if no chunk reached it for uploadIdle; one sent, or
 // touched since the timer fired (which re-armed it), stays.
 func (u *Uploads) expire(id string, up *upload) {

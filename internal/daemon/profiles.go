@@ -40,7 +40,7 @@ var reaches = map[string]profileReach{
 	"LastMessages": narrows, "TagVerdicts": narrows, "CachedUnread": narrows, "UnreadStream": narrows,
 	"CachedInvites": narrows, "Invites": narrows, "SearchMessages": narrows, "SearchSenders": narrows,
 	"RoomsWith": narrows, "MessagesFrom": narrows, "Drafts": narrows, "ScheduledMessages": narrows,
-	"NotificationStream": narrows,
+	"NotificationStream": narrows, "PreviewChatImport": narrows,
 
 	// One room, space or message, named by the caller: a client naming a profile is
 	// refused one the profile does not hold (admitNamed).
@@ -77,7 +77,8 @@ var reaches = map[string]profileReach{
 	"DetectModel": passes, "InstallModel": passes, "CheckSpelling": passes, "LearnWord": passes,
 	"AllowRareWord": passes, "SetDND": passes, "ClearDND": passes, "DND": passes,
 	"RescanFilters": passes, "RescanPeople": passes, "ReloadConfig": passes, "CheckConfig": passes,
-	"GetConfig": passes, "Identities": passes, "SetIdentity": passes, "PreviewGroupings": passes, "ApplyGroupings": passes, "UpdateConfig": passes,
+	"GetConfig": passes, "Identities": passes, "SetIdentity": passes, "PreviewGroupings": passes, "ApplyGroupings": passes,
+	"ChatImportSenders": passes, "ApplyChatImport": passes, "UpdateConfig": passes,
 	"ConfigChanged": passes, "StartUpload": passes, "PutUpload": passes,
 	// The bridge's config one setting at a time: the bridge's, not a profile's, so every
 	// profile reads and sets the same settings, none of which names a room
