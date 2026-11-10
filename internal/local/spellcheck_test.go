@@ -52,6 +52,10 @@ while IFS= read -r line; do
       while IFS='	' read -r w r; do
         if [ "$w" = "$word" ]; then reply=$r; break; fi
       done < "$dir/` + answerFile + `"
+      if [ -f "$dir/` + holdFile + `" ]; then
+        : > "$dir/` + heldFile + `"
+        while [ -f "$dir/` + holdFile + `" ]; do sleep 0.01; done
+      fi
       if [ -n "$reply" ]; then echo "$reply"; else echo '*'; fi
       echo ''
       ;;
@@ -84,6 +88,13 @@ func stubEnginePath(t *testing.T) string {
 
 // commandLog is where the stub records the command lines it was sent.
 const commandLog = "commands"
+
+// While holdFile exists the stub holds each word's answer, saying so in heldFile: a
+// check stays in flight until the test removes it.
+const (
+	holdFile = "hold"
+	heldFile = "held"
+)
 
 // checking returns a backend wired to a stub engine in its own directory.
 func checking(t *testing.T, answers map[string]string) *Service {
@@ -343,5 +354,148 @@ func TestSpellIsOffUntilItIsConfigured(t *testing.T) {
 	}
 	if got != nil {
 		t.Errorf("an unconfigured backend found %v", got)
+	}
+}
+
+// Changed [spell] settings (a reload) take effect on a running engine as at a fresh
+// start; unchanged ones leave it running.
+func TestAChangedSpellSettingTakesEffectAtOnce(t *testing.T) {
+	t.Parallel()
+
+	// moved is b's settings with the same stub under another name: a changed command.
+	moved := func(t *testing.T, b *Service) SpellSettings {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "otherhunspell")
+		if err := os.Symlink(stubEnginePath(t), path); err != nil {
+			t.Fatal(err)
+		}
+		next := b.spell.settings
+		next.Command = path
+		return next
+	}
+	tests := []struct {
+		name string
+		// change changes b's settings while b holds a verdict for the typo and a hint.
+		change func(t *testing.T, b *Service)
+		// wantTypo and wantHint are what is marked afterwards; wantErr is the check's error.
+		wantTypo, wantHint bool
+		wantErr            error
+	}{
+		{
+			name: "turned off, the running engine answers no more",
+			change: func(_ *testing.T, b *Service) {
+				next := b.spell.settings
+				next.Enabled = false
+				b.UseSpell(next)
+			},
+			wantErr: api.ErrSpellUnavailable,
+		},
+		{
+			name: "another engine forgets the old one's verdicts",
+			change: func(t *testing.T, b *Service) {
+				write(t, filepath.Join(b.spell.dirs[0], answerFile), "")
+				b.UseSpell(moved(t, b))
+			},
+			wantHint: true,
+		},
+		{
+			name: "rare-word hints turned off stop at once",
+			change: func(_ *testing.T, b *Service) {
+				next := b.spell.settings
+				next.FlagRare = false
+				b.UseSpell(next)
+			},
+			wantTypo: true,
+		},
+		{
+			name: "an engine given up on is tried again",
+			change: func(t *testing.T, b *Service) {
+				was := b.spell.settings
+				b.UseSpell(SpellSettings{Enabled: true, Command: "definitely-not-an-engine"})
+				if _, err := b.CheckSpelling(t.Context(), "hello"); !errors.Is(err, api.ErrSpellUnavailable) {
+					t.Fatalf("a missing engine checked: %v", err)
+				}
+				b.UseSpell(was)
+			},
+			wantTypo: true, wantHint: true,
+		},
+		{
+			name: "a check in flight across the change leaves no verdict behind",
+			change: func(t *testing.T, b *Service) {
+				dir := b.spell.dirs[0]
+				write(t, filepath.Join(dir, holdFile), "")
+				b.spell.forget(typoReceive)
+				checked := make(chan error, 1)
+				go func() {
+					_, err := b.CheckSpelling(context.Background(), typoReceive)
+					checked <- err
+				}()
+				waitFor(t, func() bool { _, err := os.Stat(filepath.Join(dir, heldFile)); return err == nil })
+				write(t, filepath.Join(dir, answerFile), "")
+				next := moved(t, b)
+				changed := make(chan struct{})
+				go func() { b.UseSpell(next); close(changed) }()
+				// UseSpell holds the lock while it waits for the held check to finish.
+				waitFor(t, func() bool {
+					if b.spell.mu.TryLock() {
+						b.spell.mu.Unlock()
+						return false
+					}
+					return true
+				})
+				if err := os.Remove(filepath.Join(dir, holdFile)); err != nil {
+					t.Fatal(err)
+				}
+				<-changed
+				if err := <-checked; err != nil {
+					t.Fatalf("the check in flight: %v", err)
+				}
+			},
+			wantHint: true,
+		},
+		{
+			name: "the same settings keep the engine and its verdicts",
+			change: func(t *testing.T, b *Service) {
+				b.UseSpell(b.spell.settings)
+				write(t, filepath.Join(b.spell.dirs[0], answerFile), "")
+			},
+			wantTypo: true, wantHint: true,
+		},
+	}
+	const text = typoReceive + " hte"
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			b := rareBackend(t, SpellSettings{FlagRare: true}, true)
+			write(t, filepath.Join(b.spell.dirs[0], answerFile), typoReceive+"\t"+wrongReply+"\n")
+			if got, err := b.CheckSpelling(t.Context(), text); err != nil || len(got) != 2 {
+				t.Fatalf("before the change: %+v, %v; want the typo and the hint", got, err)
+			}
+			tc.change(t, b)
+			got, err := b.CheckSpelling(t.Context(), text)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("after the change: err = %v, want %v", err, tc.wantErr)
+			}
+			var typo, hint bool
+			for _, m := range got {
+				typo = typo || (m.Word == typoReceive && !m.Rare)
+				hint = hint || (m.Word == "hte" && m.Rare)
+			}
+			if typo != tc.wantTypo || hint != tc.wantHint {
+				t.Errorf("after the change: found %+v, want the typo %v and the hint %v", got, tc.wantTypo, tc.wantHint)
+			}
+		})
+	}
+}
+
+// waitFor polls until cond holds.
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatal("gave up waiting")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

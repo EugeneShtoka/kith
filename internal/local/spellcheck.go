@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"time"
 
@@ -119,11 +120,24 @@ func (s *spellcheck) freqDir() string {
 	return spell.FreqDir(s.homeLocked())
 }
 
-// UseSpell sets the spelling settings.
+// UseSpell sets the spelling settings. Changed ones (a reload) stop the running engine
+// and forget its verdicts and its give-up, so the next check starts as a fresh daemon
+// would.
 func (s *Service) UseSpell(settings SpellSettings) {
 	s.spell.mu.Lock()
 	defer s.spell.mu.Unlock()
+	if reflect.DeepEqual(settings, s.spell.settings) {
+		return
+	}
 	s.spell.settings = settings
+	if s.spell.checker != nil {
+		if err := s.spell.checker.Close(); err != nil {
+			s.spell.logger().Debug("stop spell checker failed", "err", err)
+		}
+		s.spell.checker = nil
+	}
+	s.spell.starts, s.spell.gone = 0, false
+	s.spell.memo, s.spell.rarity = nil, nil
 }
 
 // CheckSpelling returns the words in text the engine rejects, plus rare-word hints
@@ -325,7 +339,7 @@ func (s *spellcheck) verdict(ctx context.Context, c *spell.Checker, word string)
 		s.retire(c)
 		return spell.Verdict{}, fmt.Errorf("%w: %w", api.ErrSpellUnavailable, err)
 	}
-	s.remember(word, v)
+	s.remember(c, word, v)
 	return v, nil
 }
 
@@ -392,9 +406,13 @@ func (s *spellcheck) remembered(word string) (spell.Verdict, bool) {
 	return v, ok
 }
 
-func (s *spellcheck) remember(word string, v spell.Verdict) {
+// remember keeps c's verdict unless c was replaced while it answered (UseSpell).
+func (s *spellcheck) remember(c *spell.Checker, word string, v spell.Verdict) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.checker != c {
+		return
+	}
 	if s.memo == nil || len(s.memo) >= spellMemoLimit {
 		s.memo = make(map[string]spell.Verdict, spellMemoLimit/4)
 	}
