@@ -1317,6 +1317,14 @@ func (m Model) globalKey(key tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		return m.moveFocus(1)
 	case actFocusPrev:
 		return m.moveFocus(-1)
+	case actFocusRail:
+		return m.focusOn(paneRail, false)
+	case actFocusRooms:
+		return m.focusOn(paneRooms, false)
+	case actFocusTimeline:
+		return m.focusOn(paneTimeline, false)
+	case actFocusComposer:
+		return m.focusOn(paneTimeline, true)
 	case actToggleDND:
 		return answered(m.toggleDND())
 	case actToggleMute:
@@ -1370,6 +1378,19 @@ func (m Model) moveFocus(delta int) (Model, tea.Cmd, bool) {
 	}
 	m.focus = next
 	m.compose = m.compose.left()
+	return m, nil, true
+}
+
+// focusOn moves focus straight to a pane, as the pane keys ask; write puts the open room's
+// composer in insert mode, as the insert key does, and does nothing with no room open. Every
+// pane is always on screen, so none needs showing first.
+func (m Model) focusOn(p pane, write bool) (Model, tea.Cmd, bool) {
+	if write && m.openRoom == "" {
+		return m, nil, true
+	}
+	m.focus = p
+	m.compose = m.compose.left()
+	m.compose.insertMode = write
 	return m, nil, true
 }
 

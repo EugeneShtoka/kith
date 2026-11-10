@@ -11,6 +11,7 @@
     { "key": "o", "code": "KeyO", "alt": true, "name": "alt+o" },
     { "key": "ø", "code": "KeyO", "alt": true, "name": "alt+o" },
     { "key": "1", "code": "Digit1", "alt": true, "name": "alt+1" },
+    { "key": "!", "code": "Digit1", "ctrl": true, "shift": true, "name": "ctrl+shift+1" },
     { "key": "л", "code": "KeyK", "ctrl": true, "name": "ctrl+k" },
     { "key": "k", "code": "KeyK", "meta": true, "name": "super+k" },
     { "key": " ", "code": "Space", "name": "space" },

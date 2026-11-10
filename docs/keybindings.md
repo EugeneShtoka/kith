@@ -24,6 +24,10 @@ Client-wide keys. The ones marked *anywhere* work while you are typing too, so t
 | --- | --- | --- | --- |
 | `focus_next` | `tab` | Next pane | anywhere, typing included |
 | `focus_prev` | `shift+tab` | Previous pane | anywhere, typing included |
+| `focus_rail` | `ctrl+shift+1` | Straight to the rail. These four need the Kitty keyboard protocol; see [Terminal notes](#terminal-notes) | anywhere, typing included |
+| `focus_rooms` | `ctrl+shift+2` | Straight to the room list | anywhere, typing included |
+| `focus_timeline` | `ctrl+shift+3` | Straight to the timeline, on the message cursor | anywhere, typing included |
+| `focus_composer` | `ctrl+shift+4` | Straight to the open room's composer, typing; with no room open, nothing | anywhere, typing included |
 | `toggle_dnd` | `ctrl+n` | Do not disturb on/off | anywhere, typing included |
 | `toggle_mute` | `alt+n` | Mute sound on/off | anywhere, typing included |
 | `redraw` | `ctrl+l` | Redraw the screen | anywhere, typing included |
@@ -376,6 +380,17 @@ Both are resolved only where keys are commands (never while typing), and both ar
 What a terminal sends decides what the client can tell apart.
 
 - **Kitty keyboard protocol.** Several defaults are only distinguishable on a terminal that speaks it (or xterm's modifyOtherKeys): kitty, foot, ghostty, recent xterm, and WezTerm with `enable_kitty_keyboard = true`. Elsewhere `ctrl+enter` and `ctrl+m` arrive as plain `enter` and `ctrl+i` as `tab`. That is why `send` defaults to `ctrl+enter,alt+enter` — `alt+enter` reaches the client on every terminal — and why `jump_forward` has `alt+o` beside `ctrl+i`. Without the protocol, `rooms.mark_unread` (`ctrl+m`) needs a key of your own, or `/unread`.
+- **The pane keys.** `ctrl+shift+1` to `ctrl+shift+4` (`focus_rail`, `focus_rooms`, `focus_timeline`, `focus_composer`) reach the client only through the Kitty keyboard protocol, which sends them as the digit with ctrl and shift. Without it a terminal sends the digit or its shifted symbol alone, which types; bind other keys there. WezTerm, besides `enable_kitty_keyboard = true`, keeps `ctrl+shift+1` to `9` for its tabs by default; give the four up in `wezterm.lua` (`wezterm show-keys` lists what is left):
+
+  ```lua
+  for _, key in ipairs({ "1", "2", "3", "4", "!", "@", "#", "$" }) do
+    table.insert(config.keys, { key = key, mods = "CTRL|SHIFT", action = wezterm.action.DisableDefaultAssignment })
+  end
+  for _, key in ipairs({ "!", "@", "#", "$" }) do
+    table.insert(config.keys, { key = key, mods = "CTRL", action = wezterm.action.DisableDefaultAssignment })
+  end
+  ```
+
 - **Keys that are other keys.** `ctrl+m` and `ctrl+j` are `enter`; `ctrl+i` is `tab` without the protocol; `ctrl+backspace` is usually sent as `ctrl+h` (both delete a word). Don't bind these expecting a separate key.
 - **Keys the terminal keeps.** Many terminals handle paste (`ctrl+v` or `ctrl+shift+v`) themselves and send the text as a paste, which the client accepts wherever you can type.
 - **Alt and esc.** A legacy terminal sends `alt+x` as `esc` followed by `x`; the client reads the pair as one key.

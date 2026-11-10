@@ -27,6 +27,13 @@ export const helpSections: readonly HelpSection[] = [
       row("Back to the room you were in before, while typing too", "jump_back"),
       row("Forward again, while typing too", "jump_forward"),
       row("The next pane, or the one before", "focus_next", "focus_prev"),
+      row(
+        "Straight to places, rooms, the open room or its composer, while typing too",
+        "focus_rail",
+        "focus_rooms",
+        "focus_timeline",
+        "focus_composer",
+      ),
       row("These keys", "help"),
       row("Settings", "settings"),
     ],
