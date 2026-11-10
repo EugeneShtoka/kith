@@ -73,12 +73,13 @@ func TestDeviceSettingsAreTheDeviceFileResolved(t *testing.T) {
 		},
 		{
 			"threads in the room list set",
-			"[display.threads]\nin_room_list = \"never\"\nmax_in_room_list = 3\nmarker = \"»\"\n\n" +
+			"[display.threads]\nin_room_list = \"never\"\nmax_in_room_list = 3\nmarker = \"»\"\nfolded = { \"!y\" = true, \"!x\" = true, \"!z\" = false }\n\n" +
 				"[[display.threads.rule]]\nmatch = \"space:Work\"\nmax_in_room_list = -1\n",
 			spelling(&devicev1.DeviceSettings{
 				ReadDelay: -1, SendReceipts: true, UnreadLine: true, Markdown: true, ConfirmSms: true, SendTyping: true, EmojiSet: "curated", ReactionsScope: "room",
 				ThreadsInRoomList: "never", ThreadsMax: 3, ThreadsDefaultMax: 5, ThreadsMarker: "»",
-				ThreadRules: []*devicev1.ThreadRule{{Match: "space:Work", Max: -1}},
+				ThreadRules:   []*devicev1.ThreadRule{{Match: "space:Work", Max: -1}},
+				ThreadsFolded: []string{"!x", "!y"},
 			}),
 		},
 		{
@@ -138,8 +139,8 @@ func settingsText(s *devicev1.DeviceSettings) string {
 		s.GetSpellDeclined(), s.GetFrequenciesDeclined(), s.GetComplete(), s.GetCompleteGhost(), s.GetCompleteRatio(),
 		s.GetCompleteScope(), s.GetCompleteSources(), s.GetModelDeclined())
 	text += fmt.Sprintf(" filing_spaces=%q read_delay=%d", s.GetFilingSpaces(), s.GetReadDelay())
-	text += fmt.Sprintf(" threads=%q max=%d/%d marker=%q thread_rules:", s.GetThreadsInRoomList(), s.GetThreadsMax(),
-		s.GetThreadsDefaultMax(), s.GetThreadsMarker())
+	text += fmt.Sprintf(" threads=%q max=%d/%d marker=%q folded=%q thread_rules:", s.GetThreadsInRoomList(), s.GetThreadsMax(),
+		s.GetThreadsDefaultMax(), s.GetThreadsMarker(), s.GetThreadsFolded())
 	for _, r := range s.GetThreadRules() {
 		text += fmt.Sprintf(" %q=%d", r.GetMatch(), r.GetMax())
 	}

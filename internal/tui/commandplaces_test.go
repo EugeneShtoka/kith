@@ -61,7 +61,7 @@ func placedCommands() []placedCommand {
 	}
 	var keys []rune
 	for r := '0'; r <= 'x'; r++ {
-		if (r <= '9' || r >= 'a') && r != 'h' && r != 'o' { // z h and z o are built-ins
+		if (r <= '9' || r > 'a') && r != 'h' && r != 'o' { // z a, z h and z o are built-ins
 			keys = append(keys, r)
 		}
 	}

@@ -1564,6 +1564,8 @@ func (m Model) roomThreadAction(act action) (Model, tea.Cmd, bool) {
 		return m, nil, true
 	case actListThreads:
 		return answered(m.listRoomThreads())
+	case actFoldThreads:
+		return answered(m.toggleThreadsFold())
 	}
 	return m, nil, false
 }
@@ -1653,9 +1655,11 @@ func (m Model) openSelectedRoom() (Model, tea.Cmd) {
 	if room, ok := m.currentRoom(); ok && room.IsInvite() {
 		return m, nil
 	}
-	// A thread row opens its thread.
+	// A thread row opens its thread; the overflow row lists the threads it counted.
 	if row, ok := m.selectedRow(); ok && row.isThread() {
 		return m.openSelectedThread(row.thread.Root)
+	} else if ok && row.more > 0 {
+		return m.expandThreads(), nil
 	}
 	m.focus = paneTimeline
 	// display.open_in_insert_mode decides the starting mode.
@@ -2335,6 +2339,9 @@ func (m Model) selectRoom(room domain.Room) (Model, tea.Cmd) {
 	// thread rows.
 	if leaving && m.rows.cursor != "" && !hasThreadCursorIn(m.unread[room.ID], m.rows.cursor) {
 		m.rows.cursor = ""
+	}
+	if leaving {
+		m.rows = m.rows.left()
 	}
 	// An invitation has no readable history (fetching it would 403).
 	if room.IsInvite() {

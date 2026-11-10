@@ -170,6 +170,10 @@ static = ["👍", "❤️", "😂", "🎉", "😮", "😢", "🙏", "👀", "�
 in_room_list     = "unread"
 max_in_room_list = 5
 # marker         = "↳"   # leads a thread's row
+# folded is written by the app: the rooms whose thread rows rooms.fold_threads (`za`)
+# hides, by room ID. A folded room's badge still counts its threads. `enter` on a
+# "+N more threads" line lists them all, until you leave the room.
+# folded         = { "matrix:4f1c9e2a7b3d5c60/!busy:example.org" = true }
 
 # Per place (room ID, space:, tag: or place:; narrowest wins, later wins among equals):
 #
@@ -717,6 +721,9 @@ archived      = "A"       # show or hide this place's archived rooms
 # An empty name clears it.
 rename_thread = "alt+r"   # name the thread under the cursor
 list_threads  = "ctrl+t"  # list the threads in the room under the cursor
+# From a thread's row too; remembered across restarts ([display.threads] folded). Shown
+# as za.
+fold_threads  = "z a"     # hide this room's thread rows, or show them again
 
 # Room list sorting for the current group, this session only ([display.rooms] holds
 # the defaults). A bare `s` is deliberately unbound so these sequences work.

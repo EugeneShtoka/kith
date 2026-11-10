@@ -71,7 +71,7 @@ func TestThreadsCanBeKeptOutOfTheRoomList(t *testing.T) {
 	}
 }
 
-// The cursor walks rooms and threads as one list, skipping the overflow line.
+// The cursor walks rooms, threads and the overflow line as one list.
 func TestTheCursorWalksRoomsAndThreadsAsOneList(t *testing.T) {
 	t.Parallel()
 
@@ -85,6 +85,10 @@ func TestTheCursorWalksRoomsAndThreadsAsOneList(t *testing.T) {
 	m, _ = m.stepRow(1)
 	if m.rows.cursor != mx+"$one" {
 		t.Fatalf("threadCursor = %q, want the first thread row", m.rows.cursor)
+	}
+	m, _ = m.stepRow(1)
+	if row, _ := m.selectedRow(); m.openRoom != mx+"!a:x" || row.more != 1 {
+		t.Fatalf("stepped to open=%q row=%+v, want Alpha's overflow row", m.openRoom, row)
 	}
 	m, _ = m.stepRow(1)
 	if m.openRoom != mx+"!b:x" || m.rows.cursor != "" {

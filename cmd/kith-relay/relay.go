@@ -371,6 +371,9 @@ func applySettings(file config.Device, want *devicev1.DeviceSettings) (config.De
 		}
 		file.Keys.Jump = js
 	}
+	if !slices.Equal(want.GetThreadsFolded(), has.GetThreadsFolded()) {
+		file.Display.Threads.Folded = foldTable(want.GetThreadsFolded())
+	}
 	applySpelling(&file, want, has)
 	return file, nil
 }
@@ -531,7 +534,32 @@ func resolved(dev config.Device) *devicev1.DeviceSettings {
 		ThreadsDefaultMax:   config.DefaultThreadsInRoomList,
 		ThreadsMarker:       dev.Display.Threads.RowMark(),
 		ThreadRules:         threadRules(dev.Display.Threads.Rules),
+		ThreadsFolded:       folded(dev.Display.Threads.Folded),
 	}
+}
+
+// folded are the rooms a fold table holds folded, sorted.
+func folded(table map[string]bool) []string {
+	var out []string
+	for room, fold := range table {
+		if fold {
+			out = append(out, room)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// foldTable is the rooms folded as the file spells them; none is no table.
+func foldTable(rooms []string) map[string]bool {
+	if len(rooms) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(rooms))
+	for _, room := range rooms {
+		out[room] = true
+	}
+	return out
 }
 
 // threadRules are [[display.threads.rule]] as the window reads them, in the file's order.

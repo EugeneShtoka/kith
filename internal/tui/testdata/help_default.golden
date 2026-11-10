@@ -54,6 +54,7 @@
   v                open this room's pictures in an image viewer, newest first
   alt+r            name the thread under the cursor
   ctrl+t           list the threads in the room under the cursor
+  za               hide this room's thread rows, or show them again
   a                name this room
   I                the phonebook card of the room's one person
   gI               everything the room's one person said, in every room you share

@@ -16,6 +16,11 @@ type threadRows struct {
 	// cursor is the thread row under the room-list cursor (by root, since rows reindex); empty
 	// means the room's own row.
 	cursor domain.EventID
+	// onMore puts the cursor on the open room's overflow row ("+N more threads") instead.
+	onMore bool
+	// expanded is the open room when its overflow row was entered: all its threads are listed,
+	// past the cap, until the room is left (left).
+	expanded domain.RoomID
 	// opening is a thread a row asked to open, held until the room's messages arrive.
 	opening domain.EventID
 	// known is what ListThreads last answered per room (in_room_list = "all" only).
@@ -31,6 +36,13 @@ func (t threadRows) recording(room domain.RoomID, threads []domain.Thread) threa
 	return t
 }
 
+// left is t once the open room is left: the cursor is off its overflow row, and its cap is
+// back.
+func (t threadRows) left() threadRows {
+	t.onMore, t.expanded = false, ""
+	return t
+}
+
 // taking returns the pending open request and clears it, so it is answered once.
 func (t threadRows) taking() (domain.EventID, threadRows) {
 	root := t.opening
@@ -43,16 +55,14 @@ func (t threadRows) taking() (domain.EventID, threadRows) {
 type roomRow struct {
 	room   domain.Room
 	thread domain.ThreadUnread
-	// more is how many threads an overflow row stands for; the cursor skips it.
+	// more is how many threads an overflow row stands for; entering it lists them.
 	more int
 }
 
 func (r roomRow) isThread() bool { return r.thread.Root != "" }
 
-func (r roomRow) selectable() bool { return r.more == 0 }
-
 // roomRows is the room list as drawn: each room of the current group followed by its thread
-// rows. Cursor, window and counter all read this list.
+// rows, unless they are folded away. Cursor, window and counter all read this list.
 func (m Model) roomRows() []roomRow {
 	if m.hasFrameRows {
 		return m.frameRows
@@ -68,7 +78,7 @@ func (m Model) roomRows() []roomRow {
 		}
 		// Rooms a silent tag holds list no threads; muted ones do (muting silences notifications, not
 		// messages).
-		if rooms[i].IsInvite() || view.silenced(rooms[i]) {
+		if rooms[i].IsInvite() || view.silenced(rooms[i]) || m.prefs.device.Threads.Folds(string(rooms[i].ID)) {
 			continue
 		}
 		rows = m.appendThreadRows(rows, rooms[i], mode)
@@ -101,7 +111,7 @@ func (m Model) appendThreadRows(rows []roomRow, room domain.Room, mode string) [
 		return rows
 	}
 	shown := len(threads)
-	if capped := m.threadCap(room); capped > 0 && shown > capped {
+	if capped := m.threadCap(room); capped > 0 && shown > capped && room.ID != m.rows.expanded {
 		shown = capped
 	}
 	for i := range threads[:shown] {
@@ -194,81 +204,66 @@ func (m Model) moreThreadsLabel(n int) string {
 }
 
 // rowCursor is the selected row's position, derived from the selected room and thread IDs so
-// it survives reindexing.
+// it survives reindexing. A row gone from under it (folded, capped) leaves it on its room's
+// own row.
 func (m Model) rowCursor(rows []roomRow) int {
+	own := 0
 	for i := range rows {
-		if rows[i].room.ID != m.openRoom || !rows[i].selectable() {
+		if rows[i].room.ID != m.openRoom {
 			continue
 		}
-		if m.rows.cursor == rows[i].thread.Root {
+		if m.rows.onMore == (rows[i].more > 0) && m.rows.cursor == rows[i].thread.Root {
 			return i
 		}
+		if !rows[i].isThread() && rows[i].more == 0 {
+			own = i
+		}
 	}
-	return 0
+	return own
 }
 
-// selectRow selects a row. A thread row of the already-open room does not reload
+// selectRow selects a row. A thread or overflow row of the already-open room does not reload
 // the timeline.
 func (m Model) selectRow(r roomRow) (Model, tea.Cmd) {
-	if !r.isThread() {
-		m.rows.cursor = ""
+	if !r.isThread() && r.more == 0 {
+		m.rows.cursor, m.rows.onMore = "", false
 		return m.selectRoom(r.room)
 	}
 	m.rows.cursor = r.thread.Root
-	if r.room.ID == m.openRoom {
-		return m, nil
+	var cmd tea.Cmd
+	if r.room.ID != m.openRoom {
+		m, cmd = m.selectRoom(r.room)
 	}
-	return m.selectRoom(r.room)
+	m.rows.onMore = r.more > 0
+	return m, cmd
 }
 
 func (m Model) stepRow(dir int) (Model, tea.Cmd) { return m.stepRows(1, dir) }
 
-// gotoRow selects the nth selectable row, one-based (vim's `12G`); past the end
+// gotoRow selects the nth row, one-based (vim's `12G`); past the end
 // lands on the last.
 func (m Model) gotoRow(n int) (Model, tea.Cmd) {
 	rows := m.roomRows()
-	seen := 0
-	for i := range rows {
-		if !rows[i].selectable() {
-			continue
-		}
-		if seen++; seen == n {
-			return m.selectRow(rows[i])
-		}
+	if n >= 1 && n <= len(rows) {
+		return m.selectRow(rows[n-1])
 	}
 	return m.gotoLastRow()
 }
 
 func (m Model) gotoLastRow() (Model, tea.Cmd) {
 	rows := m.roomRows()
-	for i := range slices.Backward(rows) {
-		if rows[i].selectable() {
-			return m.selectRow(rows[i])
-		}
+	if len(rows) == 0 {
+		return m, nil
 	}
-	return m, nil
+	return m.selectRow(rows[len(rows)-1])
 }
 
-// stepRows repeats a one-row step count times (`5j`), skipping unselectable rows
-// and stopping at the last selectable one.
+// stepRows repeats a one-row step count times (`5j`), stopping at either end.
 func (m Model) stepRows(count, dir int) (Model, tea.Cmd) {
 	rows := m.roomRows()
 	at := m.rowCursor(rows)
-	target := at
-	for range max(count, 1) {
-		next := -1
-		for i := target + dir; i >= 0 && i < len(rows); i += dir {
-			if rows[i].selectable() {
-				next = i
-				break
-			}
-		}
-		if next < 0 {
-			break
-		}
-		target = next
-	}
-	if target == at {
+	target := min(max(at+dir*max(count, 1), 0), len(rows)-1)
+	if target == at || len(rows) == 0 {
 		return m, nil
 	}
 	return m.selectRow(rows[target])
@@ -305,6 +300,43 @@ func hasThreadReply(msgs []domain.Message, root domain.EventID) bool {
 		}
 	}
 	return false
+}
+
+// expandThreads lists all the open room's threads, past the cap, until the room is left; the
+// cursor goes from the overflow row to the first thread it hid.
+func (m Model) expandThreads() Model {
+	at := m.roomCursor()
+	m.rows.expanded, m.rows.onMore = m.openRoom, false
+	if rows := m.roomRows(); at < len(rows) && rows[at].room.ID == m.openRoom {
+		m.rows.cursor = rows[at].thread.Root
+	}
+	return m
+}
+
+// toggleThreadsFold hides the open room's thread rows, or shows them again, remembered in the
+// device file ([display.threads] folded). Folding takes the cursor to the room's own row.
+func (m Model) toggleThreadsFold() (Model, tea.Cmd) {
+	room, ok := m.currentRoom()
+	if !ok || room.IsInvite() {
+		return m, nil
+	}
+	dev := m.conf.device.Clone()
+	id := string(room.ID)
+	if dev.Display.Threads.Folds(id) {
+		delete(dev.Display.Threads.Folded, id)
+		if len(dev.Display.Threads.Folded) == 0 {
+			dev.Display.Threads.Folded = nil // as the file reads with none
+		}
+	} else {
+		if dev.Display.Threads.Folded == nil {
+			dev.Display.Threads.Folded = map[string]bool{}
+		}
+		dev.Display.Threads.Folded[id] = true
+		m.rows.cursor, m.rows.onMore = "", false
+	}
+	m.conf.device = dev
+	m.prefs.device.Threads.Folded = dev.Display.Threads.Folded
+	return m, m.saveDeviceCmd(dev)
 }
 
 // markThreadRowRead marks the cursor's thread read without opening it.

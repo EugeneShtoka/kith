@@ -60,7 +60,7 @@ import { announces, readAfter } from "./read";
 import { hasUnread, ordered, total } from "./rooms";
 import type { When } from "./schedule";
 import { emptyFilter, parseSearch } from "./search";
-import { change, type Device, type Key, labels, type Read, withKey } from "./settings";
+import { change, type Device, folding, type Key, labels, type Read, setFold, withKey } from "./settings";
 import { type ListRow, listRows, pinnedThread, type ThreadList } from "./threadrows";
 import { OpenThread, type ThreadView } from "./threads";
 import {
@@ -492,6 +492,11 @@ export class Session {
    * reads nothing of its room.
    */
   private cursor = { room: "", root: "" };
+  /** The room whose "+N more threads" row was entered: all its threads listed until it is left, or leaves the list. */
+  private expanded = "";
+  /** The folds being written, one after another, and how many are still to answer. */
+  private folds: Promise<void> = Promise.resolve();
+  private foldsPending = 0;
   /** The room the list's cursor rested on for its read_delay, read as if entered; and the wait for it. */
   private rested = "";
   private resting: ReturnType<typeof setTimeout> | undefined;
@@ -2670,6 +2675,42 @@ export class Session {
   }
 
   /**
+   * foldThreads hides room's thread rows in the list, or shows them again (rooms.fold_threads),
+   * remembered in the device file ([display.threads] folded) as the TUI's are. Drawn at once;
+   * written in turn, each on the file as read then (setFold).
+   */
+  foldThreads(room: string): void {
+    const threads = this.view.threads;
+    if (threads === undefined) {
+      return;
+    }
+    const fold = !threads.threadsFolded.includes(room);
+    this.set({ threads: { ...threads, threadsFolded: folding(threads.threadsFolded, room, fold) } });
+    this.foldsPending++;
+    this.folds = this.folds.then(async () => {
+      try {
+        const written = await setFold(relay, room, fold);
+        if (--this.foldsPending === 0 && !this.stopped) {
+          this.set({ threads: written.settings }); // with any other window's folds
+        }
+      } catch (err: unknown) {
+        this.foldsPending--;
+        this.fail(err);
+        this.readKeys(); // the folds as the file has them
+      }
+    });
+  }
+
+  /** expandThreads lists all of room's threads, past the cap, until it is left: shown, if it was not. */
+  expandThreads(room: string): void {
+    this.peek(room);
+    if (this.view.open === room) {
+      this.expanded = room;
+      this.set({});
+    }
+  }
+
+  /**
    * markRoomAndThreadsRead marks a room read without opening it and each of its unread
    * threads by its own receipt at its newest reply (rooms.mark_all_read), as the TUI's does.
    */
@@ -3163,7 +3204,11 @@ export class Session {
     next.timeline = run?.timeline?.view();
     next.composer = run === undefined || next.open === "" ? undefined : run.composer.view(next.open);
     next.thread = run?.thread?.view(next.timeline?.rows ?? []);
-    next.list = listRows(next.rooms, next.unread, run?.rail, next.threads, next.open, this.pinned(next));
+    // Left, or gone from the list, the room whose threads were all listed is capped again.
+    if (this.expanded !== next.open || !next.rooms.some((r) => r.id === this.expanded)) {
+      this.expanded = "";
+    }
+    next.list = listRows(next.rooms, next.unread, run?.rail, next.threads, next.open, this.pinned(next), this.expanded);
     this.view = next;
     if (next.unreadTotal !== this.told) {
       this.told = next.unreadTotal;

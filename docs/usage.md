@@ -440,7 +440,7 @@ first.
 
 ## Threads in the room list
 
-A thread's summary sits at its root in the timeline, which may be far up the scrollback. So threads with unread replies are also listed as rows beneath their room. `enter` on one opens the thread, `m` marks that thread read without opening it, and `alt+r` names it. `[display.threads] in_room_list` chooses `unread` (default), `all` or `never`, and `max_in_room_list` caps the rows (default 5).
+A thread's summary sits at its root in the timeline, which may be far up the scrollback. So threads with unread replies are also listed as rows beneath their room. `enter` on one opens the thread, `m` marks that thread read without opening it, and `alt+r` names it. `[display.threads] in_room_list` chooses `unread` (default), `all` or `never`, and `max_in_room_list` caps the rows (default 5). `enter` on the "+N more threads" row lists them all until you leave the room. `za` on a room's row or one of its thread rows folds that room's threads away, or back; its badge still counts them, and the fold is remembered across restarts.
 
 ## Read and unread
 

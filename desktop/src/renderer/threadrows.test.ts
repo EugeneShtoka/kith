@@ -134,6 +134,27 @@ describe("the room list's thread rows", () => {
       "!b ↳ $9",
     ]);
   });
+
+  it("are none under a folded room, which still says it has some; the expanded room lists them all past the cap", () => {
+    const unread = new Map([
+      unreadOf("!a", thread("$1"), thread("$2"), thread("$3")),
+      unreadOf("!b", thread("$4"), thread("$5"), thread("$6")),
+    ]);
+    const list = settings({ max: 2 });
+    list.threadsFolded = ["!b"];
+    const rows = listRows(rooms, unread, undefined, list, "!a", [], "!a");
+    expect(drawn(rows)).toEqual(["!a", "!a ↳ $1", "!a ↳ $2", "!a ↳ $3", "!b"]);
+    expect(
+      rows.flatMap((r) => (r.kind === "room" ? [`${r.room.id} ${String(r.threads)} ${String(r.folded)}`] : [])),
+    ).toEqual(["!a 3 false", "!b 3 true"]);
+    expect(drawn(listRows(rooms, unread, undefined, list, "!a", []))).toEqual([
+      "!a",
+      "!a ↳ $1",
+      "!a ↳ $2",
+      "!a +1",
+      "!b",
+    ]);
+  });
 });
 
 describe("a read thread's row, from the open room's timeline", () => {

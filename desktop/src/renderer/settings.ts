@@ -8,7 +8,7 @@ import { clone, create, equals } from "@bufbuild/protobuf";
 
 import { type DeviceSettings, DeviceSettingsSchema } from "../gen/device/v1/device_pb";
 
-/** A setting the window changes: each key DeviceSettings carries but filing_spaces, keys, tag keys, read_delay, the audio's and the threads', which the window only reads. */
+/** A setting the window changes: each key DeviceSettings carries but filing_spaces, keys, tag keys, read_delay, the audio's and the threads', which the window only reads (the room list writes threads_folded itself). */
 export type Key = Exclude<
   keyof DeviceSettings,
   | "$typeName"
@@ -24,6 +24,7 @@ export type Key = Exclude<
   | "threadsDefaultMax"
   | "threadsMarker"
   | "threadRules"
+  | "threadsFolded"
 >;
 
 /** The settings as the file holds them, and the revision of the file they were read from. */
@@ -117,6 +118,38 @@ export async function change<K extends Key>(
     }
     try {
       return { ...(await device.write(base.revision, withKey(base.settings, key, now))), kept: false };
+    } catch (err) {
+      if (!aborted(err) || tries >= changeTries) {
+        throw err;
+      }
+    }
+    base = await device.read();
+  }
+}
+
+/** folding is the folded rooms with room folded or not, sorted as the relay answers them. */
+export function folding(folded: readonly string[], room: string, fold: boolean): string[] {
+  const rest = folded.filter((r) => r !== room);
+  return fold ? [...rest, room].sort() : rest;
+}
+
+/**
+ * setFold folds room's thread rows, or unfolds them ([display.threads] folded), on the file as
+ * read now, at its revision. Told the file changed since (the TUI folded another room), it
+ * reads it again and folds room on that, at most changeTries times, so no other writer's fold
+ * is lost. A failure other than ABORTED, or the last try's, is thrown.
+ */
+export async function setFold(device: Device, room: string, fold: boolean): Promise<Read> {
+  let base = await device.read();
+  for (let tries = 1; ; tries++) {
+    const now = folding(base.settings.threadsFolded, room, fold);
+    if (now.join("\n") === base.settings.threadsFolded.join("\n")) {
+      return base;
+    }
+    const next = clone(DeviceSettingsSchema, base.settings);
+    next.threadsFolded = now;
+    try {
+      return await device.write(base.revision, next);
     } catch (err) {
       if (!aborted(err) || tries >= changeTries) {
         throw err;

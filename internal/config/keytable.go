@@ -154,6 +154,8 @@ leave to joined rooms; leave and reject ask first.`,
 				note: "An empty name clears it."},
 			// Same chord as the timeline's; the pane decides which room.
 			{path: "rooms.list_threads", def: "ctrl+t", doc: "list the threads in the room under the cursor"},
+			{path: "rooms.fold_threads", def: "z a", doc: "hide this room's thread rows, or show them again",
+				note: "From a thread's row too; remembered across restarts ([display.threads] folded). Shown as za."},
 		},
 	},
 	{

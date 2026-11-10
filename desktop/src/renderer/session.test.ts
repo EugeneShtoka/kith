@@ -862,6 +862,100 @@ describe("the room list's thread rows", () => {
   });
 });
 
+describe("a room's thread rows folded and listed past the cap", () => {
+  const r = "!r";
+  const s = "!s";
+  const threads = (...roots: string[]) =>
+    create(UnreadSchema, {
+      roomId: r,
+      messages: BigInt(roots.length),
+      counted: true,
+      threads: roots.map((root) => ({ root, unread: 1n, latest: `${root}-reply`, title: root })),
+    });
+  /** capOf is the device's settings listing max of a room's threads; a room gone since is folded. */
+  const capOf = (max: bigint) =>
+    create(DeviceSettingsSchema, {
+      readDelay: -1n,
+      threadsInRoomList: "unread",
+      threadsMax: max,
+      threadsDefaultMax: 5n,
+      threadsFolded: ["!gone"],
+    });
+  /** seeded is r with three unread threads under a cap of two, and s with none. */
+  const seeded = async () => {
+    kithd.settings = capOf(2n);
+    kithd.of("Home").rooms = [room(r), room(s)];
+    kithd.of("Home").unread.set(r, threads("$1", "$2", "$3"));
+    await started();
+  };
+  const rows = () =>
+    view().list.map((x) =>
+      x.kind === "thread"
+        ? `↳ ${x.thread.root}`
+        : x.kind === "room"
+          ? `${x.room.id}${x.folded ? " folded" : ""}`
+          : `+${String(x.more)}`,
+    );
+  const capped = [r, "↳ $1", "↳ $2", "+1", s];
+  const all = [r, "↳ $1", "↳ $2", "↳ $3", s];
+
+  it("list them all from the overflow row until the room is left, then the cap again", async () => {
+    await seeded();
+    expect(rows()).toEqual(capped);
+    session.expandThreads(r);
+    expect([view().open, rows()]).toEqual([r, all]);
+    // A new cap meanwhile does not take them back while the room is open.
+    kithd.settings = capOf(1n);
+    kithd.configChanged();
+    await settled();
+    expect(rows()).toEqual(all);
+    session.peek(s);
+    session.peek(r);
+    expect(rows()).toEqual([r, "↳ $1", "+2", s]);
+  });
+
+  it("cap them again once the room leaves the list, and it comes back", async () => {
+    await seeded();
+    session.expandThreads(r);
+    kithd.of("Home").rooms = [room(s)];
+    kithd.send(backend.changed, "Home", { change: Change.ROOMS });
+    kithd.send(backend.changed, "Home", { change: Change.RAIL });
+    await settled();
+    expect(rows()).toEqual([s]);
+    kithd.of("Home").rooms = [room(r), room(s)];
+    kithd.send(backend.changed, "Home", { change: Change.ROOMS });
+    kithd.send(backend.changed, "Home", { change: Change.RAIL });
+    await settled();
+    session.peek(r);
+    expect(rows()).toEqual(capped);
+  });
+
+  it("fold away, the room's count still whole, a new thread too; written to device.toml with another window's folds", async () => {
+    await seeded();
+    // Another window folds a room between this window's read and its write.
+    kithd.beforeSettingsWrite = () => {
+      if (kithd.settings !== "fail") {
+        kithd.settings = create(DeviceSettingsSchema, { ...kithd.settings, threadsFolded: ["!gone", "!other"] });
+        kithd.settingsRevision++;
+      }
+    };
+    session.foldThreads(r);
+    expect(rows()).toEqual([`${r} folded`, s]);
+    await settled();
+    expect(kithd.settings !== "fail" && kithd.settings.threadsFolded).toEqual(["!gone", "!other", r]);
+    expect(view().threads?.threadsFolded).toEqual(["!gone", "!other", r]); // the other window's shown too
+    kithd.setUnread("Home", threads("$0", "$1", "$2", "$3"));
+    await settled();
+    expect(rows()).toEqual([`${r} folded`, s]);
+    expect(unreadOf(view().unread.get(r)).count).toBe(4);
+
+    session.foldThreads(r);
+    await settled();
+    expect(rows()).toEqual([r, "↳ $0", "↳ $1", "+2", s]);
+    expect(kithd.settings !== "fail" && kithd.settings.threadsFolded).toEqual(["!gone", "!other"]);
+  });
+});
+
 describe("the settings page", () => {
   const r = "!r";
   const page = () => view().settingsPage;

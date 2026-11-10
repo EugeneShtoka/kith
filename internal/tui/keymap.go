@@ -144,6 +144,7 @@ const (
 	actOpenThread
 	actStartThread
 	actListThreads
+	actFoldThreads
 	// actPlay opens a message's media; the rest are live while a voice note is loaded.
 	actPlay
 	actPlayPause
@@ -383,6 +384,7 @@ var keyActions = []keyAction{
 	{scopeRooms, actViewMedia, "rooms.view_media"},
 	{scopeRooms, actRenameThread, "rooms.rename_thread"},
 	{scopeRooms, actListThreads, "rooms.list_threads"},
+	{scopeRooms, actFoldThreads, "rooms.fold_threads"},
 	{scopeRooms, actName, "rooms.name"},
 	{scopeRooms, actPerson, "rooms.person"},
 	{scopeRooms, actSaid, "rooms.said"},

@@ -438,7 +438,13 @@ type Threads struct {
 	MaxInRoomList int          `toml:"max_in_room_list"` // 0 default, negative no cap
 	Rules         []ThreadRule `toml:"rule"`
 	Marker        string       `toml:"marker"` // empty is defaultThreadRowMark
+	// Folded is the rooms, by ID, whose thread rows are hidden (rooms.fold_threads), as the
+	// app remembers them: a map, so two windows folding different rooms both keep theirs.
+	Folded map[string]bool `toml:"folded"`
 }
+
+// Folds reports whether room's thread rows are folded away.
+func (t Threads) Folds(room string) bool { return t.Folded[room] }
 
 // ThreadRule is one [[display.threads.rule]].
 type ThreadRule struct {
