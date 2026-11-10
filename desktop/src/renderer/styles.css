@@ -930,7 +930,7 @@ td {
 .day::before,
 .day::after {
   flex: 1;
-  border-top: 1px solid var(--line);
+  border-top: 2px solid var(--line);
   content: "";
 }
 
@@ -955,6 +955,17 @@ td {
 
 .message.grouped {
   padding-top: 0;
+}
+
+/* A faint line over each sender's run of messages; a day's line is the stronger one. */
+.message:not(.grouped)::before {
+  position: absolute;
+  top: 0;
+  right: var(--space-4);
+  left: var(--space-4);
+  border-top: 1px solid var(--line);
+  opacity: 0.5;
+  content: "";
 }
 
 .message:hover,
