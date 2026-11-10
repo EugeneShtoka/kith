@@ -269,10 +269,13 @@ cursor starts on the first place: `nav.down` and `nav.up` move it, `picker.toggl
 (`space`) ticks the place under it, `picker.accept` (`enter`, `tab`) applies, and
 `picker.close` (`esc`) closes.
 
-`rooms.mark_read` (`m`) marks the room under the cursor read without opening it, and
-`rail.mark_read` (`m`) on a place marks every unread room in it read once you confirm,
-as the terminal's do. Each receipt is announced or private by `send_receipts` and your
-read rules; the line under the rooms says what came of it.
+`rooms.mark_read` (`m`) marks the room under the cursor read without opening it, or,
+on a thread's row, that thread only; `rooms.mark_all_read` (`M`) marks the room and all
+its threads read; `rooms.mark_unread` (`ctrl+m`) marks the room unread, or clears the
+mark (a thread's row has none to set); and `rail.mark_read` (`m`) on a place marks every
+unread room in it read once you confirm, as the terminal's do. Each receipt is announced
+or private by `send_receipts` and your read rules; the line under the rooms says what
+came of it.
 
 Your `[[keys.tag]]` chords (`!` into Spam, an archive tag) file the room under the
 cursor into their tag, or out of it if it is in, as the terminal's room list does; `?`

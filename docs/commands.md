@@ -28,7 +28,7 @@ Both open a completion list as you type, showing each command's arguments and it
 | `/topic` | Read the room's topic in full | `gt` |
 | `/why` | Why this room does or does not notify you | `W` |
 | `/caught` | What the filters catch here | |
-| `/unread` | Mark this room unread | `M` |
+| `/unread` | Mark this room unread | `ctrl+m` |
 | `/tag [name]` | Put this room in a tag, or take it out; with no name, pick among your spaces and tags | `S` with no name |
 | `/invite <@user:server>` | Invite someone to this room | |
 | `/leave` | Leave this room, or delete a private chat its network cannot leave (asks first) | |

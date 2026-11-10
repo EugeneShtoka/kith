@@ -129,6 +129,32 @@ func TestRoomsReadTogetherStayReadAndSaySo(t *testing.T) {
 	}
 }
 
+// A thread read in kith is read here first too: the homeserver refusing its receipt is
+// said, and the thread stays read.
+func TestAThreadReadInKithStaysReadWhenTheHomeserverRefuses(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	f := &fakeReceipts{}
+	f.refuse.Store(true)
+	room := domain.RoomID(mx + "!r:x")
+	b := readingBackend(t, f, room)
+	if err := b.cache.SaveMessages(ctx, room, []domain.Message{
+		{ID: mx + "$reply", RoomID: room, Sender: "matrix:@dana:x", Body: "reply", ThreadRoot: mx + "$one", Timestamp: time.Unix(30, 0)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if threads, err := b.cache.CountThreadUnread(ctx, b.me(), room); err != nil || len(threads) != 1 {
+		t.Fatalf("before reading: unread threads %+v (%v), want the one", threads, err)
+	}
+
+	if err := b.MarkThreadRead(ctx, room, mx+"$one", mx+"$reply", false); err == nil || !strings.Contains(err.Error(), "M_UNKNOWN") {
+		t.Errorf("a refused thread receipt = %v, want the refusal", err)
+	}
+	if threads, err := b.cache.CountThreadUnread(ctx, b.me(), room); err != nil || len(threads) != 0 {
+		t.Errorf("after reading, the homeserver refusing: unread threads %+v (%v)", threads, err)
+	}
+}
+
 // A sync that succeeds sends the receipts owed, one resend at a time.
 func TestASyncSendsTheReceiptsOwed(t *testing.T) {
 	t.Parallel()

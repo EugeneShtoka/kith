@@ -202,19 +202,19 @@ func (b *InProc) positionOf(ctx context.Context, roomID domain.RoomID, eventID d
 	return ts, ok
 }
 
-// MarkThreadRead sends a threaded receipt and writes it through to the cache so the
-// badge clears before the sync echo.
+// MarkThreadRead reads the thread here first, so the badge clears before the sync echo,
+// then sends a threaded receipt; the homeserver refusing it leaves the thread read here,
+// and the refusal is returned.
 func (b *InProc) MarkThreadRead(ctx context.Context, roomID domain.RoomID, root, eventID domain.EventID, private bool) error {
+	if b.cache != nil {
+		if ts, ok := b.positionOf(ctx, roomID, eventID); ok {
+			b.warnIf(ctx, b.cache.SaveThreadRead(ctx, roomID, root, eventID, ts), "cache thread read", "room", roomID, "thread", root, "event", eventID)
+			b.recount(ctx, roomID)
+		}
+	}
 	if err := b.client.SendReceipt(ctx, b.ids.nativeRoom(roomID), b.ids.nativeEvent(eventID), receiptType(private),
 		&mautrix.ReqSendReceipt{ThreadID: matrixString(b.ids.nativeEvent(root))}); err != nil {
 		return fmt.Errorf("matrix: mark thread read: %w", err)
-	}
-	if b.cache == nil {
-		return nil
-	}
-	if ts, ok := b.positionOf(ctx, roomID, eventID); ok {
-		b.warnIf(ctx, b.cache.SaveThreadRead(ctx, roomID, root, eventID, ts), "cache thread read", "room", roomID, "thread", root, "event", eventID)
-		b.recount(ctx, roomID)
 	}
 	return nil
 }

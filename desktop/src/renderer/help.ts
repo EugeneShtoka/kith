@@ -60,7 +60,9 @@ export const helpSections: readonly HelpSection[] = [
       row("File it into tags and spaces", "rooms.spaces"),
       row("Name it, for you alone", "rooms.name"),
       row("The phonebook card of the person in a direct chat", "rooms.person"),
-      row("Mark it read without opening it", "rooms.mark_read"),
+      row("Mark it read without opening it; on a thread's row, that thread", "rooms.mark_read"),
+      row("Mark it and all its threads read", "rooms.mark_all_read"),
+      row("Mark it unread, or clear the mark", "rooms.mark_unread"),
     ],
   },
   {

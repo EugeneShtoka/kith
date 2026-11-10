@@ -84,8 +84,9 @@ The room list, the middle pane. Consulted before `[keys.nav]`. `accept` and `rej
 | `notify_rule` | `b` | Notification rule for this room |
 | `join` | `J` | Join a room by ID or alias |
 | `leave` | `L`, `x` | Leave the selected room (asks first) |
-| `mark_read` | `m` | Mark this room read without opening it |
-| `mark_unread` | `M` | Mark this room unread, or clear the mark |
+| `mark_read` | `m` | Mark this room read without opening it; on a thread's row, that thread only |
+| `mark_all_read` | `M` | Mark this room and all its threads read |
+| `mark_unread` | `ctrl+m` | Mark this room unread, or clear the mark (not on a thread's row: a thread has no unread mark) |
 | `invite` | `i` | Invite someone to this room |
 | `spaces` | `S` | File this room into a space or a tag, or take it out of one |
 | `said` | `gI` | [Everything](search.md#everything-one-person-said) the room's one person said; in a tag's people, that person's |
@@ -373,7 +374,7 @@ Both are resolved only where keys are commands (never while typing), and both ar
 
 What a terminal sends decides what the client can tell apart.
 
-- **Kitty keyboard protocol.** Several defaults are only distinguishable on a terminal that speaks it (or xterm's modifyOtherKeys): kitty, foot, ghostty, recent xterm, and WezTerm with `enable_kitty_keyboard = true`. Elsewhere `ctrl+enter` arrives as plain `enter` and `ctrl+i` as `tab`. That is why `send` defaults to `ctrl+enter,alt+enter` — `alt+enter` reaches the client on every terminal — and why `jump_forward` has `alt+o` beside `ctrl+i`.
+- **Kitty keyboard protocol.** Several defaults are only distinguishable on a terminal that speaks it (or xterm's modifyOtherKeys): kitty, foot, ghostty, recent xterm, and WezTerm with `enable_kitty_keyboard = true`. Elsewhere `ctrl+enter` and `ctrl+m` arrive as plain `enter` and `ctrl+i` as `tab`. That is why `send` defaults to `ctrl+enter,alt+enter` — `alt+enter` reaches the client on every terminal — and why `jump_forward` has `alt+o` beside `ctrl+i`. Without the protocol, `rooms.mark_unread` (`ctrl+m`) needs a key of your own, or `/unread`.
 - **Keys that are other keys.** `ctrl+m` and `ctrl+j` are `enter`; `ctrl+i` is `tab` without the protocol; `ctrl+backspace` is usually sent as `ctrl+h` (both delete a word). Don't bind these expecting a separate key.
 - **Keys the terminal keeps.** Many terminals handle paste (`ctrl+v` or `ctrl+shift+v`) themselves and send the text as a paste, which the client accepts wherever you can type.
 - **Alt and esc.** A legacy terminal sends `alt+x` as `esc` followed by `x`; the client reads the pair as one key.

@@ -693,9 +693,12 @@ people        = "p"       # list the people in this room
 # A local name; an empty one clears it.
 name          = "a"       # name this room
 notify_rule   = "b"       # notification rule for this room
+# On a thread's row, that thread only.
 mark_read     = "m"       # mark this room read without opening it
-# MSC2867, synced to your other clients.
-mark_unread   = "M"       # mark this room unread, or clear the mark
+mark_all_read = "M"       # mark this room and all its threads read
+# MSC2867, synced to your other clients. Not on a thread's row: a thread has no unread
+# mark. ctrl+m equals enter except on terminals with the Kitty keyboard protocol.
+mark_unread   = "ctrl+m"  # mark this room unread, or clear the mark
 # Tick with space, apply with enter.
 spaces        = "S"       # file this room into a space or a tag, or take it out of one
 # Prompts for an @user:server.

@@ -2,8 +2,11 @@ package tui
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -226,5 +229,110 @@ func TestAFailedSendMarksNothing(t *testing.T) {
 	failed, _ := asModel(m.Update(sentMsg{err: context.Canceled}))
 	if failed.receipts.marked == mx+"$1" || failed.receipts.sending == mx+"$1" {
 		t.Error("a failed send marked the conversation read")
+	}
+}
+
+// markRecorder records the read gestures the room list sends: rooms read, thread receipts
+// (root, event), unread marks, and whether each receipt was private.
+type markRecorder struct {
+	apitest.Nop
+	rooms   []domain.RoomID
+	threads [][2]domain.EventID
+	marks   []domain.RoomID
+	private []bool
+}
+
+func (b *markRecorder) MarkRoomsRead(_ context.Context, ids []domain.RoomID, private bool) (domain.ReadResult, error) {
+	b.rooms = append(b.rooms, ids...)
+	b.private = append(b.private, private)
+	return domain.ReadResult{Marked: len(ids)}, nil
+}
+
+func (b *markRecorder) MarkThreadRead(_ context.Context, _ domain.RoomID, root, eventID domain.EventID, private bool) error {
+	b.threads = append(b.threads, [2]domain.EventID{root, eventID})
+	b.private = append(b.private, private)
+	return nil
+}
+
+func (b *markRecorder) MarkRoomUnread(_ context.Context, room domain.RoomID, _ bool) error {
+	b.marks = append(b.marks, room)
+	return nil
+}
+
+// m, M and ctrl+m on the room list's rows: a room's row and a thread's, a room unread in
+// its threads only, a thread whose newest reply is not known, receipts announced or not, a
+// thread the cap leaves unlisted.
+func TestTheMarkKeysOnRoomAndThreadRows(t *testing.T) {
+	t.Parallel()
+
+	alpha := domain.RoomID(mx + "!a:x")
+	one := domain.ThreadUnread{Root: mx + "$one", Unread: 2, Latest: mx + "$l1", Title: "ship it"}
+	two := domain.ThreadUnread{Root: mx + "$two", Unread: 1, Latest: mx + "$l2", Title: "Q3 planning"}
+	unknown := domain.ThreadUnread{Root: mx + "$old", Unread: 1, Title: "an old one"}
+	both := [][2]domain.EventID{{one.Root, one.Latest}, {two.Root, two.Latest}}
+	enter := tea.KeyPressMsg{Code: tea.KeyEnter}
+	cases := []struct {
+		name     string
+		messages int
+		threads  []domain.ThreadUnread
+		onThread bool
+		key      tea.KeyPressMsg
+		rooms    []domain.RoomID
+		receipts [][2]domain.EventID
+		marks    []domain.RoomID
+		status   string
+	}{
+		{name: "M on a room's row", messages: 3, threads: []domain.ThreadUnread{one, two}, key: keyText("M"),
+			rooms: []domain.RoomID{alpha}, receipts: both, status: "marked Alpha read"},
+		{name: "M on a thread's row", messages: 3, threads: []domain.ThreadUnread{one, two}, onThread: true, key: keyText("M"),
+			rooms: []domain.RoomID{alpha}, receipts: both},
+		{name: "M on a room unread only in its threads", threads: []domain.ThreadUnread{one}, key: keyText("M"),
+			rooms: []domain.RoomID{alpha}, receipts: [][2]domain.EventID{{one.Root, one.Latest}}},
+		{name: "M past a thread whose newest reply is unknown", threads: []domain.ThreadUnread{unknown, two}, key: keyText("M"),
+			rooms: []domain.RoomID{alpha}, receipts: [][2]domain.EventID{{two.Root, two.Latest}}},
+		{name: "M on a room with no unread thread", messages: 3, key: keyText("M"), rooms: []domain.RoomID{alpha}},
+		{name: "m on a room's row", messages: 3, threads: []domain.ThreadUnread{one, two}, key: keyText("m"),
+			rooms: []domain.RoomID{alpha}},
+		{name: "m on a thread's row", messages: 3, threads: []domain.ThreadUnread{one, two}, onThread: true, key: keyText("m"),
+			receipts: [][2]domain.EventID{{one.Root, one.Latest}}},
+		{name: "ctrl+m on a room's row", messages: 3, threads: []domain.ThreadUnread{one}, key: ctrl('m'),
+			marks: []domain.RoomID{alpha}},
+		{name: "ctrl+m on a thread's row", messages: 3, threads: []domain.ThreadUnread{one}, onThread: true, key: ctrl('m'),
+			status: "cannot be marked unread"},
+		{name: "enter on a room's row", messages: 3, threads: []domain.ThreadUnread{one}, key: enter},
+	}
+	for _, tc := range cases {
+		for _, dim := range []struct {
+			announce bool
+			listed   int
+		}{{false, 0}, {true, 0}, {false, 1}} {
+			announce := dim.announce
+			b := &markRecorder{}
+			m := sized(t, withRooms(t, starterNew(b, config.Display{}, config.DeviceDisplay{Threads: config.Threads{MaxInRoomList: dim.listed}})))
+			m.receipts.policy.send = announce
+			m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: alpha, Counted: true, Messages: tc.messages, Threads: tc.threads}})
+			m.focus = paneRooms
+			m, _ = m.selectRoom(m.filteredRooms()[0])
+			if tc.onThread {
+				m, _ = m.stepRow(1)
+				if row, ok := m.selectedRow(); !ok || !row.isThread() {
+					t.Fatalf("%s: the cursor is not on a thread's row: %+v", tc.name, row)
+				}
+			}
+			m, cmd := press(t, m, tc.key)
+			m = deliver(t, m, cmd)
+			if !slices.Equal(b.rooms, tc.rooms) || !slices.Equal(b.threads, tc.receipts) || !slices.Equal(b.marks, tc.marks) {
+				t.Errorf("%s: rooms read %v, thread receipts %v, marked unread %v; want %v, %v, %v",
+					tc.name, b.rooms, b.threads, b.marks, tc.rooms, tc.receipts, tc.marks)
+			}
+			for _, private := range b.private {
+				if private == announce {
+					t.Errorf("%s: a receipt private=%v where receipts are announced=%v", tc.name, private, announce)
+				}
+			}
+			if !strings.Contains(m.status(), tc.status) {
+				t.Errorf("%s: status %q, want it to say %q", tc.name, m.status(), tc.status)
+			}
+		}
 	}
 }

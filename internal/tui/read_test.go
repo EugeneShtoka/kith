@@ -284,7 +284,7 @@ func marking(t *testing.T) (Model, *marker) {
 	return m, mk
 }
 
-// M flags a read room; nothing changes locally until the Unread stream says so.
+// ctrl+m flags a read room; nothing changes locally until the Unread stream says so.
 func TestMarkRoomUnreadFlagsTheRoom(t *testing.T) {
 	t.Parallel()
 
@@ -292,9 +292,9 @@ func TestMarkRoomUnreadFlagsTheRoom(t *testing.T) {
 	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next
 
-	m, cmd := press(t, m, keyText("M"))
+	m, cmd := press(t, m, ctrl('m'))
 	if cmd == nil {
-		t.Fatal("M in the room list sent no command")
+		t.Fatal("ctrl+m in the room list sent no command")
 	}
 	msg, ok := cmd().(markedUnreadMsg)
 	if !ok {
@@ -317,13 +317,13 @@ func TestMarkRoomUnreadTogglesOff(t *testing.T) {
 	next, _ := m.selectRoom(domain.Room{ID: mx + "!b:x", Name: "Bravo"})
 	m = next
 
-	m, cmd := press(t, m, keyText("M"))
+	m, cmd := press(t, m, ctrl('m'))
 	if cmd == nil {
-		t.Fatal("M on a marked room sent no command")
+		t.Fatal("ctrl+m on a marked room sent no command")
 	}
 	msg := cmd()
 	if mk.unread {
-		t.Error("M on an already-marked room should clear the mark, not set it again")
+		t.Error("ctrl+m on an already-marked room should clear the mark, not set it again")
 	}
 	_ = update(t, m, msg)
 }

@@ -129,6 +129,7 @@ const allowedCalls = [
   "CachedReactions",
   "MarkRead",
   "MarkRoomsRead",
+  "MarkRoomUnread",
   "Send",
   "Redact",
   "SendReaction",

@@ -137,6 +137,8 @@ const seatedActions: readonly Action[] = [
   { path: "rooms.name", anywhere: false },
   { path: "rooms.person", anywhere: false },
   { path: "rooms.mark_read", anywhere: false },
+  { path: "rooms.mark_all_read", anywhere: false },
+  { path: "rooms.mark_unread", anywhere: false },
   { path: "rail.mark_read", anywhere: false },
   ...[
     "up",
@@ -475,12 +477,33 @@ function Seated({ view, session }: { view: View; session: Session }) {
         session.tagRoom(room.id, t.tag);
       } else if (path === "rooms.name") {
         session.openNaming(room.id);
-      } else if (path === "rooms.mark_read") {
-        session.markRoomRead(room.id);
       } else if (room.isDirect) {
         session.openPerson({ roomId: room.id }, "");
       } else {
         return false;
+      }
+      return true;
+    };
+    // markRow marks the row under the rooms pane's cursor: a room's, or one of its threads'.
+    const markRow = (path: string): boolean => {
+      const el = document.activeElement as HTMLElement | null;
+      if (el === null || paneOf(el, lastPane.current) !== "rooms") {
+        return false;
+      }
+      const root = el.dataset.thread ?? "";
+      const id = root === "" ? el.dataset.room : el.dataset.threadRoom;
+      const room = view.rooms.find((r) => r.id === id);
+      if (room === undefined || room.membership === "invite") {
+        return false;
+      }
+      if (path === "rooms.mark_all_read") {
+        session.markRoomAndThreadsRead(room.id);
+      } else if (path === "rooms.mark_unread") {
+        session.toggleRoomUnread(room.id, root);
+      } else if (root !== "") {
+        session.markThreadRowRead(room.id, root);
+      } else {
+        session.markRoomRead(room.id);
       }
       return true;
     };
@@ -565,7 +588,9 @@ function Seated({ view, session }: { view: View; session: Session }) {
       "rooms.spaces": () => onRoom("rooms.spaces"),
       "rooms.name": () => onRoom("rooms.name"),
       "rooms.person": () => onRoom("rooms.person"),
-      "rooms.mark_read": () => onRoom("rooms.mark_read"),
+      "rooms.mark_read": () => markRow("rooms.mark_read"),
+      "rooms.mark_all_read": () => markRow("rooms.mark_all_read"),
+      "rooms.mark_unread": () => markRow("rooms.mark_unread"),
       "rail.mark_read": () => {
         const row = rowsOf("rail").indexOf(document.activeElement as HTMLElement);
         if (row >= 0) {

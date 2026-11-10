@@ -62,7 +62,8 @@
   (unbound)        join a room by ID or alias
   L, x             leave the selected room
   m                mark this room read without opening it
-  M                mark this room unread, or clear the mark
+  M                mark this room and all its threads read
+  ctrl+m           mark this room unread, or clear the mark
   i                invite someone to this room
   S                file this room into a space or a tag, or take it out of one
   A                show or hide this place's archived rooms

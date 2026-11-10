@@ -1526,6 +1526,8 @@ func (m Model) roomStandingAction(act action) (Model, tea.Cmd, bool) {
 			return answered(m.markThreadRowRead(row))
 		}
 		return answered(m.markRoomRead())
+	case actMarkAllRead:
+		return answered(m.markRoomAndThreadsRead())
 	case actMarkUnread:
 		return answered(m.toggleRoomUnread())
 	case actSpaces:
