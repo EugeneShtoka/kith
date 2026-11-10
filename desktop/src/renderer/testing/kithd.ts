@@ -152,6 +152,8 @@ export class Kithd {
   beforeSettingsWrite: (() => void) | undefined;
   /** Every receipt sent, as "room event public|private". */
   readonly receipts: string[] = [];
+  /** Every unread mark set or cleared, as "room marked|unmarked". */
+  readonly marks: string[] = [];
   /** Every attachment the window asked main to save, as "room event name". */
   readonly saved: string[] = [];
   /** What the window copied, and the links it opened (" focused": the browser left in front). */
@@ -1046,6 +1048,11 @@ export class Kithd {
         const r = request as MessageShape<typeof backend.markThreadRead.input>;
         this.receipts.push(`${r.roomId} ${r.root} ${r.eventId} ${r.private ? "private" : "public"}`);
         return reply(backend.markThreadRead, {});
+      }
+      case "MarkRoomUnread": {
+        const r = request as MessageShape<typeof backend.markRoomUnread.input>;
+        this.marks.push(`${r.roomId} ${r.unread ? "marked" : "unmarked"}`);
+        return reply(backend.markRoomUnread, {});
       }
       case "Follow": {
         // Handed to no window here: a test hands a window its link with follow.

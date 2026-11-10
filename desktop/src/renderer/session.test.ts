@@ -2133,6 +2133,151 @@ describe("marking read without opening", () => {
   });
 });
 
+describe("the room list's mark keys", () => {
+  const one = { root: "$one", unread: 2n, latest: "$l1", title: "ship it" };
+  const two = { root: "$two", unread: 1n, latest: "$l2", title: "Q3 planning" };
+  const unknown = { root: "$old", unread: 1n, latest: "", title: "an old one" };
+  const seed = (id: string, messages: number, threads: (typeof one)[], marked = false) => {
+    kithd
+      .of("Home")
+      .unread.set(id, create(UnreadSchema, { roomId: id, messages: BigInt(messages), counted: true, threads, marked }));
+  };
+  beforeEach(() => {
+    kithd.of("Home").rooms = [
+      room("!a", { name: "Alpha" }),
+      room("!b", { name: "Bravo" }),
+      room("!c", { name: "Charlie" }),
+      room("!d", { name: "Delta" }),
+      room("!e", { name: "Echo" }),
+    ];
+    seed("!a", 3, [one, two]);
+    seed("!b", 1, [one]); // its receipts private, by the rule
+    seed("!c", 0, [two]); // unread in its threads only
+    seed("!d", 1, [unknown, two]); // one thread's newest reply not known
+    seed("!e", 2, [], true); // no thread, marked unread
+  });
+
+  // M (rooms.mark_all_read), m (rooms.mark_read) and ctrl+m (rooms.mark_unread) on a room's
+  // row and a thread's, as the TUI's; each with every thread listed, and with one (the cap
+  // leaving the rest unlisted).
+  const cases: { name: string; act: () => void; receipts: string[]; marks?: string[]; notice: string }[] = [
+    {
+      name: "M reads the room and each unread thread",
+      act: () => {
+        session.markRoomAndThreadsRead("!a");
+      },
+      receipts: ["!a newest public", "!a $one $l1 public", "!a $two $l2 public"],
+      notice: "Alpha is read",
+    },
+    {
+      name: "M's thread receipts are private where the room's are",
+      act: () => {
+        session.markRoomAndThreadsRead("!b");
+      },
+      receipts: ["!b newest private", "!b $one $l1 private"],
+      notice: "Bravo is read",
+    },
+    {
+      name: "M on a room unread only in its threads",
+      act: () => {
+        session.markRoomAndThreadsRead("!c");
+      },
+      receipts: ["!c newest public", "!c $two $l2 public"],
+      notice: "Charlie is read",
+    },
+    {
+      name: "M passes a thread whose newest reply is not known",
+      act: () => {
+        session.markRoomAndThreadsRead("!d");
+      },
+      receipts: ["!d newest public", "!d $two $l2 public"],
+      notice: "Delta is read",
+    },
+    {
+      name: "M on a room with no unread thread",
+      act: () => {
+        session.markRoomAndThreadsRead("!e");
+      },
+      receipts: ["!e newest public"],
+      notice: "Echo is read",
+    },
+    {
+      name: "m on a thread's row reads that thread only",
+      act: () => {
+        session.markThreadRowRead("!a", "$one");
+      },
+      receipts: ["!a $one $l1 public"],
+      notice: "ship it is read",
+    },
+    {
+      name: "m on a thread's row in a private room",
+      act: () => {
+        session.markThreadRowRead("!b", "$one");
+      },
+      receipts: ["!b $one $l1 private"],
+      notice: "ship it is read",
+    },
+    {
+      name: "m on a thread's row whose newest reply is not known",
+      act: () => {
+        session.markThreadRowRead("!d", "$old");
+      },
+      receipts: [],
+      notice: "",
+    },
+    {
+      name: "m on a thread row the list does not hold",
+      act: () => {
+        session.markThreadRowRead("!a", "$gone");
+      },
+      receipts: [],
+      notice: "",
+    },
+    {
+      name: "ctrl+m marks a room unread",
+      act: () => {
+        session.toggleRoomUnread("!a", "");
+      },
+      receipts: [],
+      marks: ["!a marked"],
+      notice: "Alpha is marked unread",
+    },
+    {
+      name: "ctrl+m clears a room's mark",
+      act: () => {
+        session.toggleRoomUnread("!e", "");
+      },
+      receipts: [],
+      marks: ["!e unmarked"],
+      notice: "Echo is no longer marked unread",
+    },
+    {
+      name: "ctrl+m on a thread's row is refused",
+      act: () => {
+        session.toggleRoomUnread("!a", "$one");
+      },
+      receipts: [],
+      notice: "A thread cannot be marked unread, only its room",
+    },
+  ];
+  it.each(cases.flatMap((c) => [0n, 1n].map((listed) => ({ ...c, listed }))))(
+    "$name, $listed listed",
+    async ({ act, receipts, marks = [], notice, listed }) => {
+      kithd.settings = create(DeviceSettingsSchema, {
+        sendReceipts: true,
+        readRules: [{ match: "!b", send: false }],
+        threadsMax: listed,
+      });
+      await started();
+      act();
+      await settled();
+      expect([...kithd.receipts].sort()).toEqual([...receipts].sort());
+      expect(kithd.marks).toEqual(marks);
+      expect(view().notice?.text ?? "").toBe(notice);
+    },
+  );
+});
+
 describe("the bar's notes", () => {
   it("go by themselves after their level's [gui.notices] seconds, each its own; an error stays until dismissed", async () => {
     vi.useFakeTimers();

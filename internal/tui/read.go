@@ -24,6 +24,26 @@ func (m Model) markRoomRead() (Model, tea.Cmd) {
 	return m, m.markRoomsReadCmd([]domain.RoomID{room.ID}, name)
 }
 
+// markRoomAndThreadsRead marks the selected room read without opening it, and each of its
+// unread threads by its own receipt at its newest reply (from a thread's row too: the row's
+// room). Announced or private as the room's receipt is.
+func (m Model) markRoomAndThreadsRead() (Model, tea.Cmd) {
+	room, ok := m.currentRoom()
+	if !ok || room.IsInvite() {
+		return m, nil
+	}
+	name := m.roomName(room)
+	_, quiet := m.splitByReceipt([]domain.RoomID{room.ID})
+	cmds := []tea.Cmd{m.markRoomsReadCmd([]domain.RoomID{room.ID}, name)}
+	for _, t := range m.unread[room.ID].Threads {
+		if t.Latest != "" {
+			cmds = append(cmds, m.markThreadReadCmd(room.ID, t.Root, t.Latest, len(quiet) > 0))
+		}
+	}
+	m = m.say("marking " + name + " and its threads read…")
+	return m, tea.Batch(cmds...)
+}
+
 // toggleRoomUnread sets or clears MSC2867's m.marked_unread on the selected room.
 // The badge updates when the flag comes back on the Unread stream.
 func (m Model) toggleRoomUnread() (Model, tea.Cmd) {

@@ -133,6 +133,7 @@ const (
 	actViewMedia
 	actVote
 	actMarkRead
+	actMarkAllRead
 	actMarkUnread
 	actInvite
 	// actKick and actBan act on the person under a picker's cursor.
@@ -390,6 +391,7 @@ var keyActions = []keyAction{
 	{scopeRooms, actJoin, "rooms.join"},
 	{scopeRooms, actLeave, "rooms.leave"},
 	{scopeRooms, actMarkRead, "rooms.mark_read"},
+	{scopeRooms, actMarkAllRead, "rooms.mark_all_read"},
 	{scopeRooms, actMarkUnread, "rooms.mark_unread"},
 	{scopeRooms, actInvite, "rooms.invite"},
 	{scopeRooms, actSpaces, "rooms.spaces"},

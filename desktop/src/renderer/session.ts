@@ -2670,6 +2670,91 @@ export class Session {
   }
 
   /**
+   * markRoomAndThreadsRead marks a room read without opening it and each of its unread
+   * threads by its own receipt at its newest reply (rooms.mark_all_read), as the TUI's does.
+   */
+  markRoomAndThreadsRead(room: string): void {
+    const run = this.run;
+    if (run === undefined || !this.holds(run, room)) {
+      return;
+    }
+    const threads = (this.view.unread.get(room)?.threads ?? [])
+      .filter((t) => t.latest !== "")
+      .map((t) => ({ room, root: t.root, latest: t.latest }));
+    this.markRooms(run, [room], run.joined.find((r) => r.id === room)?.name || room, threads);
+  }
+
+  /**
+   * markThreadRowRead marks the thread of the room list's row (room, root) read at its newest
+   * reply without opening it (rooms.mark_read on a thread's row), as the TUI's does: announced
+   * or private as its room's receipt is.
+   */
+  markThreadRowRead(room: string, root: string): void {
+    const run = this.run;
+    const row = this.view.list.find((r) => r.kind === "thread" && r.room.id === room && r.thread.root === root);
+    if (run === undefined || row?.kind !== "thread" || row.thread.latest === "" || !this.holds(run, room)) {
+      return;
+    }
+    const title = row.thread.title.replace(/\s+/g, " ").trim() || "an older thread";
+    relay
+      .read()
+      .then(
+        ({ settings }) => settings,
+        () => undefined,
+      )
+      .then((settings) =>
+        call(backend.markThreadRead, {
+          roomId: room,
+          root,
+          eventId: row.thread.latest,
+          private: !announces(settings, room, ""),
+        }),
+      )
+      .then(
+        () => {
+          if (this.live(run)) {
+            this.set(this.noticed(`${title} is read`, "message"));
+          }
+        },
+        (err: unknown) => {
+          if (this.live(run)) {
+            this.set(this.noticed(`${title} was not marked read: ${errorText(err)}`, "error"));
+          }
+        },
+      );
+  }
+
+  /**
+   * toggleRoomUnread marks a room unread, or clears its mark (rooms.mark_unread), as the
+   * TUI's does; the badge follows from the unread stream. A thread's row has no mark.
+   */
+  toggleRoomUnread(room: string, root: string): void {
+    const run = this.run;
+    if (run === undefined || !this.holds(run, room)) {
+      return;
+    }
+    if (root !== "") {
+      // m.marked_unread is room account data; there is no per-thread form.
+      this.set(this.noticed("A thread cannot be marked unread, only its room", "warning"));
+      return;
+    }
+    const name = run.joined.find((r) => r.id === room)?.name || room;
+    const unread = this.view.unread.get(room)?.marked !== true;
+    call(backend.markRoomUnread, { roomId: room, unread }).then(
+      () => {
+        if (this.live(run)) {
+          this.set(this.noticed(unread ? `${name} is marked unread` : `${name} is no longer marked unread`, "message"));
+        }
+      },
+      (err: unknown) => {
+        if (this.live(run)) {
+          this.set(this.noticed(`${name} was not marked: ${errorText(err)}`, "error"));
+        }
+      },
+    );
+  }
+
+  /**
    * askMarkRead asks before marking a rail row's unread rooms read (rail.mark_read), the
    * rooms captured with the question so a row that changes meanwhile cannot redirect it.
    */
@@ -2703,10 +2788,16 @@ export class Session {
 
   /**
    * markRooms has kithd receipt each room's newest message (MarkRoomsRead), announced
-   * where the settings say so, else private; the badges clear by the unread stream, and
-   * the line under the rooms says what came of it.
+   * where the settings say so, else private, and each of threads at its newest reply as its
+   * room's is; the badges clear by the unread stream, and the line under the rooms says what
+   * came of it.
    */
-  private markRooms(run: Run, rooms: readonly string[], label: string): void {
+  private markRooms(
+    run: Run,
+    rooms: readonly string[],
+    label: string,
+    threads: readonly { room: string; root: string; latest: string }[] = [],
+  ): void {
     // Settings that cannot be read leave every receipt private, as an open room's.
     relay
       .read()
@@ -2717,11 +2808,21 @@ export class Session {
       .then((settings) => {
         const loud = rooms.filter((id) => announces(settings, id, ""));
         const quiet = rooms.filter((id) => !loud.includes(id));
-        return Promise.all(
-          [loud, quiet].flatMap((ids, i) =>
-            ids.length === 0 ? [] : [call(backend.markRoomsRead, { roomIds: ids, private: i === 1 })],
+        return Promise.all([
+          Promise.all(
+            [loud, quiet].flatMap((ids, i) =>
+              ids.length === 0 ? [] : [call(backend.markRoomsRead, { roomIds: ids, private: i === 1 })],
+            ),
           ),
-        );
+          ...threads.map((t) =>
+            call(backend.markThreadRead, {
+              roomId: t.room,
+              root: t.root,
+              eventId: t.latest,
+              private: !loud.includes(t.room),
+            }),
+          ),
+        ]).then(([got]) => got);
       })
       .then(
         (got) => {
