@@ -57,6 +57,9 @@ type fake struct {
 	sent     []domain.Draft
 	queued   []domain.ScheduledMessage
 	drafts   map[domain.RoomID]domain.StoredDraft
+
+	// verdicts is the tag verdicts the daemon gives: what filters moved rooms into.
+	verdicts []domain.TagVerdict
 }
 
 func (f *fake) LoadImage(_ context.Context, _ domain.RoomID, event domain.EventID) ([]byte, error) {
@@ -122,6 +125,10 @@ func (f *fake) Directory(context.Context) (domain.Directory, error) { return f.d
 
 func (f *fake) PersonVerdicts(context.Context) ([]domain.PersonVerdict, error) {
 	return f.people, f.peopleErr
+}
+
+func (f *fake) TagVerdicts(context.Context) ([]domain.TagVerdict, error) {
+	return f.verdicts, nil
 }
 
 func (f *fake) Selves(context.Context) ([]string, error) {

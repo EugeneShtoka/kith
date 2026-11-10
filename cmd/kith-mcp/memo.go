@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -16,6 +17,9 @@ type callMemo struct {
 	spacesOnce sync.Once
 	spaces     []domain.Space
 	spacesErr  error
+	caughtOnce sync.Once
+	caught     map[domain.RoomID][]string
+	caughtErr  error
 	// plain are rooms the daemon said are unencrypted. Per call: encryption can turn on at
 	// any time but never off, so only "encrypted" outlives a call (server.crypto).
 	plainMu sync.Mutex
@@ -117,4 +121,29 @@ func (s *server) spaces(ctx context.Context) ([]domain.Space, error) {
 	}
 	m.spacesOnce.Do(func() { m.spaces, m.spacesErr = s.backend.Spaces(ctx) })
 	return m.spaces, m.spacesErr
+}
+
+// caught is, per room, the tags a filter moved it into (domain.Places.Caught), read
+// once per tool call as the TUI reads it.
+func (s *server) caught(ctx context.Context) (map[domain.RoomID][]string, error) {
+	m, ok := ctx.Value(memoKey{}).(*callMemo)
+	if !ok {
+		return s.readCaught(ctx)
+	}
+	m.caughtOnce.Do(func() { m.caught, m.caughtErr = s.readCaught(ctx) })
+	return m.caught, m.caughtErr
+}
+
+func (s *server) readCaught(ctx context.Context) (map[domain.RoomID][]string, error) {
+	verdicts, err := s.backend.TagVerdicts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errTagsUnknown, err)
+	}
+	caught := map[domain.RoomID][]string{}
+	for _, v := range verdicts {
+		if v.In() {
+			caught[v.Room] = append(caught[v.Room], v.Tag)
+		}
+	}
+	return caught, nil
 }

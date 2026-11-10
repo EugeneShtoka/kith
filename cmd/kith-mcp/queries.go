@@ -73,15 +73,19 @@ func (s *server) permits(ctx context.Context, room domain.Room, scope domain.Mod
 	return fmt.Errorf("this room is outside what %s allows: its rooms/except lists do not admit it", table)
 }
 
-// factsOf describes a room for every scope list alike.
+// factsOf describes a room for every scope list alike, in the tags filters moved it
+// into as the TUI shows it: a room is in a tag however it got there.
 func (s *server) factsOf(ctx context.Context, room domain.Room) (domain.RoomFacts, error) {
+	places := s.places
+	caught, caughtErr := s.caught(ctx)
+	places.Caught = caught
 	holders, err := s.holdersOf(ctx, room.ID)
 	if err != nil {
 		// What is known without spaces still counts, your room names above all: an
 		// `except = ["room:<your name>"]` must keep excluding.
-		return s.places.Facts(room, nil), err
+		return places.Facts(room, nil), err
 	}
-	return s.places.Facts(room, holders), nil
+	return places.Facts(room, holders), caughtErr
 }
 
 // errPlaceUnknown refuses a room whose spaces could not be read. Guessing "in no space"
@@ -90,9 +94,14 @@ func (s *server) factsOf(ctx context.Context, room domain.Room) (domain.RoomFact
 var errPlaceUnknown = errors.New("could not tell which spaces this room is in, so it is " +
 	"not shared for now; try again in a moment")
 
-// placesKnown fails a listing whose scope checks would all be guesses: with spaces
-// unreadable every place-naming scope refuses, and an empty answer would read as
-// "nothing there".
+// errTagsUnknown refuses a room when the tags filters moved rooms into could not be
+// read: guessing "moved nowhere" fails open for `except = ["tag:..."]`.
+var errTagsUnknown = errors.New("could not tell which tags filters moved this room into, so it is " +
+	"not shared for now; try again in a moment")
+
+// placesKnown fails a listing whose scope checks would all be guesses: with spaces or
+// filter verdicts unreadable every place-naming scope refuses, and an empty answer
+// would read as "nothing there".
 func (s *server) placesKnown(ctx context.Context) error {
 	if read := s.readScope(); !read.Shares() || !read.NeedsPlaces() {
 		return nil
@@ -100,7 +109,8 @@ func (s *server) placesKnown(ctx context.Context) error {
 	if _, err := s.spaces(ctx); err != nil {
 		return fmt.Errorf("%w: %w", errPlaceUnknown, err)
 	}
-	return nil
+	_, err := s.caught(ctx)
+	return err
 }
 
 // holdersOf is the spaces holding a room, for the scope check.
