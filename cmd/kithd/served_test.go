@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -495,6 +496,41 @@ func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 		if err := reloader(slog.New(slog.DiscardHandler), configFile{path: path}, relevel, nil, backend, nil, nil)(ctx); err == nil {
 			t.Errorf("%s: the re-read took a config its network refuses", n.Network())
 		}
+	}
+}
+
+// A reload puts [assist] and [spell] in force, as a start with the new file would.
+func TestAReloadAppliesAssistAndSpell(t *testing.T) {
+	t.Setenv("PATH", t.TempDir()) // no engine: on, DetectLanguages says what to install
+	ctx := context.Background()
+	off := false
+	cfg := config.Config{Profiles: everyRoom, Spell: config.Spell{Enabled: &off}}
+	backend := servedFor(t, cfg, domain.Session{})
+	w, err := newWorkers(slog.New(slog.DiscardHandler), cfg, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ask := domain.ModelRequest{Task: "no-such-task"} // refused at once, naming the model
+	if got, _ := backend.ModelTask(ctx, ask); got.Endpoint != "" {
+		t.Fatalf("before the reload the model is %q", got.Endpoint)
+	}
+
+	on := true
+	cfg.Spell.Enabled = &on
+	cfg.Assist = config.Assist{Endpoint: "http://127.0.0.1:9/v1/chat/completions", Model: "small"}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := config.Save(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	reload := reloader(slog.New(slog.DiscardHandler), configFile{path: path}, func(string) {}, new(atomic.Int64), backend, w.notifications, w.paired)
+	if err := reload(ctx); err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got, err := backend.ModelTask(ctx, ask); err != nil || got.Endpoint != cfg.Assist.Endpoint || got.Model != cfg.Assist.Model {
+		t.Errorf("after the reload the model is %q %q (%v), want [assist]'s", got.Endpoint, got.Model, err)
+	}
+	if got, err := backend.DetectLanguages(ctx); err != nil || got.Why == "" {
+		t.Errorf("after the reload DetectLanguages = %+v, %v; want spelling on", got, err)
 	}
 }
 

@@ -268,10 +268,10 @@ type served struct {
 	*route.Router
 	*local.Service
 	matrix *matrix.Adapter
-	// dataDir and schedulePath are this instance's ([storage]); storage is all of it,
-	// for the daily backup.
-	dataDir, schedulePath string
-	storage               domain.Storage
+	// schedulePath is this instance's ([storage]); storage is all of it, for the daily
+	// backup.
+	schedulePath string
+	storage      domain.Storage
 	// networks is every network built, Matrix among them when there.
 	networks []network
 	// stores are the networks' own stores, closed with the backend.
@@ -330,7 +330,7 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	}
 	return served{
 		Router: router, Service: service, matrix: mx, networks: networks, stores: stores,
-		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), storage: storage, cache: cache, defaults: defaults,
+		schedulePath: storage.SchedulePath(), storage: storage, cache: cache, defaults: defaults,
 		people: people, mesh: &meshFile{storage: storage}, archive: archive,
 	}
 }
@@ -688,9 +688,7 @@ func reloader(
 		warnAboutDanglingTags(log, reloaded)
 		relevel(reloaded.Log.Level)
 		cutoff.Store(int64(reloaded.Schedule.Cutoff()))
-		backend.UseCompletionModel(modelsetup.CompletionModel(reloaded.Complete.Model, backend.dataDir))
-		backend.UsePlaces(setup.PlacesOf(reloaded))
-		backend.UseFaces(setup.FacesOf(reloaded.Display.Identities))
+		configure(log, backend, reloaded, backend.storage) // as at start: [spell], [assist], …
 		backend.defaults.use(reloaded)
 		for _, n := range backend.networks {
 			n.UseConfig(ctx, reloaded)
