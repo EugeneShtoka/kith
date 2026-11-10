@@ -37,3 +37,22 @@ func MediaArchived(base bool, rules []ArchiveRule, room RoomFacts) bool {
 	}
 	return archived
 }
+
+// EncryptRule is whether one place's archived attachments are kept encrypted,
+// overriding the setting everywhere.
+type EncryptRule struct {
+	Match   string // a place entry (ParseEntry)
+	Encrypt bool
+}
+
+// MediaEncrypted is whether room's archived attachments are kept encrypted: the
+// narrowest rule naming it (one room over a set; among equals, the last), else base.
+func MediaEncrypted(base bool, rules []EncryptRule, room RoomFacts) bool {
+	encrypted, best := base, EntryInvalid
+	for _, r := range rules {
+		if kind, ok := room.Match(r.Match); ok && kind >= best {
+			encrypted, best = r.Encrypt, kind
+		}
+	}
+	return encrypted
+}

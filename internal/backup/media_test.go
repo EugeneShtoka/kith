@@ -1,6 +1,7 @@
 package backup_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/backup"
+	"github.com/EugeneShtoka/kith/internal/mediaarchive"
 )
 
 // archived gives m's media archive a copy per name, saying word.
@@ -24,12 +26,40 @@ func (m machine) archived(t *testing.T, word string, names ...string) string {
 	return dir
 }
 
+// sealer seals as m's kithd does, under its cache's key.
+func (m machine) sealer(t *testing.T) *mediaarchive.Sealer {
+	t.Helper()
+	s, err := mediaarchive.NewSealer(keyAt(m.storage(t).DataDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// sealed gives m's media archive a sealed copy named name, saying word.
+func (m machine) sealed(t *testing.T, word, name string) {
+	t.Helper()
+	dir := m.storage(t).MediaArchiveDir()
+	write(t, filepath.Join(dir, name), string(m.sealer(t).Seal(name, []byte(word+" "+name))), 0o600)
+}
+
+// opened is m's sealed copy named name, opened.
+func (m machine) opened(t *testing.T, name string) (string, error) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(m.storage(t).MediaArchiveDir(), name)) // #nosec G304 -- the test's own file
+	if err != nil {
+		return "", err
+	}
+	data, err := m.sealer(t).Open(name, body)
+	return string(data), err
+}
+
 // mediaBackUp writes a media backup of m's archive (m made current) and returns its path.
 func (m machine) mediaBackUp(t *testing.T) string {
 	t.Helper()
 	m.as(t)
 	out := filepath.Join(t.TempDir(), "kith-media.tar.age")
-	made, err := backup.CreateMedia(context.Background(), m.storage(t).MediaArchiveDir(), out, testKey.Recipient())
+	made, err := backup.CreateMedia(context.Background(), m.storage(t).MediaArchiveDir(), keyAt(m.storage(t).DataDir), out, testKey.Recipient())
 	if err != nil {
 		t.Fatalf("CreateMedia() error = %v", err)
 	}
@@ -51,7 +81,7 @@ func TestAMediaBackupAddsToTheArchive(t *testing.T) {
 	there.fill(t, "local", 1)
 	dir := there.archived(t, "local", "a.jpg", "c.mp4")
 	asked := 0
-	got, err := backup.RestoreMedia(context.Background(), archive, there.configPath, answer(testKey, &asked))
+	got, err := backup.RestoreMedia(context.Background(), archive, there.configPath, answer(testKey, &asked), keyOf)
 	if err != nil {
 		t.Fatalf("RestoreMedia() error = %v", err)
 	}
@@ -66,6 +96,45 @@ func TestAMediaBackupAddsToTheArchive(t *testing.T) {
 	}
 	if staged, _ := filepath.Glob(filepath.Join(filepath.Dir(dir), ".restore-*")); len(staged) != 0 {
 		t.Errorf("left staged: %v", staged)
+	}
+}
+
+// An encrypted copy restored on another machine is encrypted again under that
+// machine's key, and opens there; on the machine that made it, it is as it was.
+func TestAnEncryptedCopyOpensWhereItIsRestored(t *testing.T) {
+	old := newMachine(t)
+	old.as(t).fill(t, "kept", 1)
+	old.archived(t, "kept", "a.jpg")
+	old.sealed(t, "kept", "b"+mediaarchive.SealedExt)
+	archive := old.mediaBackUp(t)
+	oldKey := keyAt(old.storage(t).DataDir)
+
+	there := newMachine(t).as(t)
+	there.fill(t, "local", 1)
+	asked := 0
+	if _, err := backup.RestoreMedia(context.Background(), archive, there.configPath, answer(testKey, &asked), keyOf); err != nil {
+		t.Fatalf("RestoreMedia() error = %v", err)
+	}
+	if got, err := there.opened(t, "b"+mediaarchive.SealedExt); err != nil || got != "kept b.sealed" {
+		t.Errorf("there, the copy opens as %q, %v; want its bytes", got, err)
+	}
+	if bytes.Equal(oldKey, keyAt(there.storage(t).DataDir)) {
+		t.Fatal("the two machines share a key: the test proves nothing")
+	}
+	body, err := os.ReadFile(filepath.Join(there.storage(t).MediaArchiveDir(), "a.jpg")) // #nosec G304 -- the test's own file
+	if err != nil || string(body) != "kept a.jpg" {
+		t.Errorf("the plain copy = %q, %v", body, err)
+	}
+
+	old.as(t)
+	if err := os.RemoveAll(old.storage(t).MediaArchiveDir()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := backup.RestoreMedia(context.Background(), archive, old.configPath, answer(testKey, &asked), keyOf); err != nil {
+		t.Fatalf("RestoreMedia() at home error = %v", err)
+	}
+	if got, err := old.opened(t, "b"+mediaarchive.SealedExt); err != nil || got != "kept b.sealed" {
+		t.Errorf("at home, the copy opens as %q, %v", got, err)
 	}
 }
 
@@ -88,7 +157,7 @@ func TestEachRestoreRefusesTheOtherKind(t *testing.T) {
 	there := newMachine(t).as(t)
 	there.fill(t, "local", 1)
 	before := fingerprint(t, there.home)
-	if _, err := backup.RestoreMedia(context.Background(), history, there.configPath, answer(testKey, &asked)); err == nil || !strings.Contains(err.Error(), "not a media backup") {
+	if _, err := backup.RestoreMedia(context.Background(), history, there.configPath, answer(testKey, &asked), keyOf); err == nil || !strings.Contains(err.Error(), "not a media backup") {
 		t.Errorf("RestoreMedia(a history backup) = %v; want it refused", err)
 	}
 	unchanged(t, there.home, before)
@@ -120,7 +189,7 @@ func TestADamagedMediaBackupPlacesNothing(t *testing.T) {
 		archive := filepath.Join(t.TempDir(), "kith-media.tar.age")
 		write(t, archive, string(body), 0o600)
 		asked := 0
-		if _, err := backup.RestoreMedia(context.Background(), archive, there.configPath, answer(testKey, &asked)); !errors.Is(err, backup.ErrDamaged) {
+		if _, err := backup.RestoreMedia(context.Background(), archive, there.configPath, answer(testKey, &asked), keyOf); !errors.Is(err, backup.ErrDamaged) {
 			t.Errorf("%s: RestoreMedia() = %v; want ErrDamaged", name, err)
 		}
 	}
@@ -140,7 +209,7 @@ func TestMediaBackupsKeepTheirOwnCount(t *testing.T) {
 	}
 	week := backup.Schedule{Next: after(7 * 24 * time.Hour), Keep: 3}
 	for i := range 6 {
-		done, err := backup.MakeMedia(context.Background(), src, testKey.Recipient(), dir, week, day(7*i))
+		done, err := backup.MakeMedia(context.Background(), src, keyAt(m.home), testKey.Recipient(), dir, week, day(7*i))
 		if err != nil || !done.Ran {
 			t.Fatalf("MakeMedia(week %d) = %+v, %v", i, done, err)
 		}
@@ -152,7 +221,7 @@ func TestMediaBackupsKeepTheirOwnCount(t *testing.T) {
 	if got := names(t, dir); !slices.Equal(got, want) {
 		t.Errorf("backups = %v; want %v", got, want)
 	}
-	if done, err := backup.MakeMedia(context.Background(), src, testKey.Recipient(), dir, week, day(35).Add(time.Hour)); err != nil || done.Ran {
+	if done, err := backup.MakeMedia(context.Background(), src, keyAt(m.home), testKey.Recipient(), dir, week, day(35).Add(time.Hour)); err != nil || done.Ran {
 		t.Errorf("MakeMedia an hour after one = %+v, %v; want none due", done, err)
 	}
 }

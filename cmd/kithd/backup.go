@@ -253,7 +253,7 @@ func runRestore(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if *media {
-		got, err := backup.RestoreMedia(ctx, fs.Arg(0), path, func() (*backup.Key, error) { return readKey(*keyFile) })
+		got, err := backup.RestoreMedia(ctx, fs.Arg(0), path, func() (*backup.Key, error) { return readKey(*keyFile) }, cacheKey)
 		if err != nil {
 			return fmt.Errorf("%s: %w", fs.Arg(0), err)
 		}

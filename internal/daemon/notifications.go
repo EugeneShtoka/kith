@@ -48,10 +48,13 @@ type Notifications struct {
 	// keep and keepRules are [storage] messages_per_room and its rules.
 	keep      int
 	keepRules []domain.KeepRule
-	// mediaArchive and mediaRules are [storage] archive_media and its rules;
-	// archiveWarn is archive_warn_mb in bytes.
+	// mediaArchive and mediaRules are [storage] archive_media and its rules,
+	// mediaEncrypt and encryptRules encrypt_media and its; archiveWarn is
+	// archive_warn_mb in bytes.
 	mediaArchive bool
 	mediaRules   []domain.ArchiveRule
+	mediaEncrypt bool
+	encryptRules []domain.EncryptRule
 	archiveWarn  int64
 	limit        notify.Limit
 	rules        []notify.Rule
@@ -334,8 +337,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.firstNames = func(home string) bool { return setup.FirstNamesIn(display, home) }
 	n.roomRules = cfg.Display.ApplyRoomNameRules()
 	n.keep, n.keepRules = keep, keepRules
-	n.mediaArchive, n.mediaRules = setup.ArchiveRules(cfg.Storage)
-	n.archiveWarn = cfg.Storage.ArchiveWarnBytes()
+	n.useMedia(cfg.Storage)
 	n.autocopy = autocopy
 	n.tracked, n.trackedNotify = setup.TrackedRules(cfg.Display.Tracked), cfg.Display.Tracked.Notify
 	return nil
@@ -541,6 +543,25 @@ func (n *Notifications) MediaArchived(roomID domain.RoomID) bool {
 		return archived
 	}
 	return domain.MediaArchived(archived, rules, n.scope.Known(roomID))
+}
+
+// useMedia takes [storage]'s media archive settings; n.mu is held.
+func (n *Notifications) useMedia(st config.Storage) {
+	n.mediaArchive, n.mediaRules = setup.ArchiveRules(st)
+	n.mediaEncrypt, n.encryptRules = setup.EncryptRules(st)
+	n.archiveWarn = st.ArchiveWarnBytes()
+}
+
+// MediaEncrypted is whether kithd keeps room's archived attachments encrypted, judged
+// as MessagesKept is.
+func (n *Notifications) MediaEncrypted(roomID domain.RoomID) bool {
+	n.mu.Lock()
+	encrypted, rules := n.mediaEncrypt, n.encryptRules
+	n.mu.Unlock()
+	if len(rules) == 0 {
+		return encrypted
+	}
+	return domain.MediaEncrypted(encrypted, rules, n.scope.Known(roomID))
 }
 
 // ArchiveWarnBytes is how large the media archive grows before a warning; negative

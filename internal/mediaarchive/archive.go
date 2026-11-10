@@ -1,15 +1,14 @@
 // Package mediaarchive keeps a copy of every attachment kithd caches, so one a network
 // later removes (WhatsApp drops old media for good) still opens. It never deletes a
-// file: past a size it warns instead.
+// copy: past a size it warns instead. Where a room's are to be encrypted, its copies
+// are sealed (seal.go), those already there too.
 package mediaarchive
 
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"mime"
 	"os"
@@ -41,16 +40,18 @@ const tmpPattern = ".tmp-*"
 
 // Archive is the folder of copies and the worker filling it.
 type Archive struct {
-	dir   string
-	cache Cache
-	fetch Fetch
-	log   *slog.Logger
+	dir    string
+	cache  Cache
+	fetch  Fetch
+	sealer *Sealer
+	log    *slog.Logger
 
-	// Set before Run (Use): whether a room's attachments are kept, the size to warn
-	// past (negative: never), and how to warn.
-	archived func(domain.RoomID) bool
-	warnAt   func() int64
-	warn     func(body string)
+	// Set before Run (Use): whether a room's attachments are kept, and sealed, the
+	// size to warn past (negative: never), and how to warn.
+	archived  func(domain.RoomID) bool
+	encrypted func(domain.RoomID) bool
+	warnAt    func() int64
+	warn      func(body string)
 
 	mu     sync.Mutex
 	used   int64 // bytes in dir
@@ -59,23 +60,26 @@ type Archive struct {
 	wake   chan struct{}
 }
 
-// New is the archive in dir, fetching through fetch. Nothing is kept until Use.
-func New(dir string, cache Cache, fetch Fetch, log *slog.Logger) *Archive {
+// New is the archive in dir, fetching through fetch and sealing with sealer. Nothing
+// is kept until Use.
+func New(dir string, cache Cache, fetch Fetch, sealer *Sealer, log *slog.Logger) *Archive {
 	return &Archive{
-		dir: dir, cache: cache, fetch: fetch, log: log,
-		archived: func(domain.RoomID) bool { return false },
-		warnAt:   func() int64 { return -1 },
-		warn:     func(string) {},
-		rooms:    map[domain.RoomID]time.Time{},
-		wake:     make(chan struct{}, 1),
+		dir: dir, cache: cache, fetch: fetch, sealer: sealer, log: log,
+		archived:  func(domain.RoomID) bool { return false },
+		encrypted: func(domain.RoomID) bool { return false },
+		warnAt:    func() int64 { return -1 },
+		warn:      func(string) {},
+		rooms:     map[domain.RoomID]time.Time{},
+		wake:      make(chan struct{}, 1),
 	}
 }
 
-// Use sets the policy, read on every use so a reload reaches it.
-func (a *Archive) Use(archived func(domain.RoomID) bool, warnAt func() int64, warn func(body string)) {
+// Use sets the policy, read on every use so a reload reaches it; a reload that may
+// change it asks for a pass over every room (Arrived("", time.Time{})).
+func (a *Archive) Use(archived, encrypted func(domain.RoomID) bool, warnAt func() int64, warn func(body string)) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.archived, a.warnAt, a.warn = archived, warnAt, warn
+	a.archived, a.encrypted, a.warnAt, a.warn = archived, encrypted, warnAt, warn
 }
 
 // Arrived queues room's attachments on messages since to be fetched; it never blocks.
@@ -146,8 +150,9 @@ func (a *Archive) open() error {
 	return nil
 }
 
-// keepSince fetches each attachment in room since that is kept and not there yet. A
-// failure is retried when the room next gains messages, or at the next start.
+// keepSince fetches each attachment in room ("" every room) since that is kept and not
+// there yet, and seals each copy there plain that is to be sealed. A failure is retried
+// when the room next gains messages, or at the next start.
 func (a *Archive) keepSince(ctx context.Context, room domain.RoomID, since time.Time) {
 	refs, err := a.cache.Attachments(ctx, room, since)
 	if err != nil {
@@ -159,7 +164,17 @@ func (a *Archive) keepSince(ctx context.Context, room domain.RoomID, since time.
 		if ctx.Err() != nil {
 			return
 		}
-		if !a.keeps(ref.Room) || a.has(ref) {
+		if !a.keeps(ref.Room) {
+			continue
+		}
+		if a.seals(ref.Room) && exists(a.path(ref)) {
+			if err := a.sealPlain(ref); err != nil {
+				a.log.Warn("encrypt an archived attachment failed", "room", ref.Room, "err", err)
+				return // a full or unwritable disk fails the rest alike
+			}
+			continue
+		}
+		if a.has(ref) {
 			continue
 		}
 		data, err := a.fetch(ctx, ref.Room, ref.Event)
@@ -186,7 +201,7 @@ func (a *Archive) Load(ctx context.Context, room domain.RoomID, event domain.Eve
 		a.log.Warn("look up an archived attachment failed", "room", room, "err", err)
 	}
 	if ok {
-		if data, readErr := os.ReadFile(a.path(ref)); readErr == nil { // #nosec G304 -- a name this package made from a hash
+		if data, readErr := a.read(ref); readErr == nil {
 			return data, nil
 		}
 	}
@@ -210,9 +225,37 @@ func (a *Archive) keeps(room domain.RoomID) bool {
 	return archived(room)
 }
 
-// has is whether ref is archived.
+// seals is whether room's copies are sealed: encrypt_media, where kithd has a key.
+func (a *Archive) seals(room domain.RoomID) bool {
+	a.mu.Lock()
+	encrypted := a.encrypted
+	a.mu.Unlock()
+	return a.sealer != nil && encrypted(room)
+}
+
+// has is whether ref is archived, plain or sealed.
 func (a *Archive) has(ref domain.AttachmentRef) bool {
-	_, err := os.Lstat(a.path(ref))
+	return exists(a.path(ref)) || exists(a.sealedPath(ref))
+}
+
+// read is ref's archived copy: the plain one, else the sealed one opened.
+func (a *Archive) read(ref domain.AttachmentRef) ([]byte, error) {
+	data, err := os.ReadFile(a.path(ref)) // #nosec G304 -- a name this package made from a hash
+	if err == nil {
+		return data, nil
+	}
+	if a.sealer == nil {
+		return nil, fmt.Errorf("mediaarchive: %w", err)
+	}
+	sealed, err := os.ReadFile(a.sealedPath(ref)) // #nosec G304 -- as above
+	if err != nil {
+		return nil, fmt.Errorf("mediaarchive: %w", err)
+	}
+	return a.sealer.Open(a.sealedPath(ref), sealed)
+}
+
+func exists(path string) bool {
+	_, err := os.Lstat(path)
 	return err == nil
 }
 
@@ -226,12 +269,38 @@ func (a *Archive) keep(ctx context.Context, ref domain.AttachmentRef, data []byt
 	if !ok || now != ref {
 		return nil
 	}
-	tmp, err := os.CreateTemp(a.dir, tmpPattern)
+	body, dest := data, a.path(ref)
+	if a.seals(ref.Room) {
+		dest = a.sealedPath(ref)
+		body = a.sealer.Seal(dest, data)
+	}
+	if err := a.place(ref, body, dest, false); err != nil {
+		return err
+	}
+	a.checkSize()
+	return nil
+}
+
+// sealPlain seals ref's plain copy, in its place.
+func (a *Archive) sealPlain(ref domain.AttachmentRef) error {
+	data, err := os.ReadFile(a.path(ref)) // #nosec G304 -- a name this package made from a hash
 	if err != nil {
 		return fmt.Errorf("mediaarchive: %w", err)
 	}
+	dest := a.sealedPath(ref)
+	return a.place(ref, a.sealer.Seal(dest, data), dest, true)
+}
+
+// place writes body as dest unless ref is archived already (sealing: sealed already),
+// written whole first, so a crash leaves no part. Sealing then removes the plain copy,
+// only once the sealed one is there, so a Load meanwhile finds one or the other.
+func (a *Archive) place(ref domain.AttachmentRef, body []byte, dest string, sealing bool) error {
+	tmp, err := os.CreateTemp(a.dir, tmpPattern)
+	if err != nil {
+		return fmt.Errorf("mediaarchive: write %s: %w", ref.Event, err)
+	}
 	name := tmp.Name()
-	_, err = tmp.Write(data)
+	_, err = tmp.Write(body)
 	if cerr := tmp.Close(); err == nil {
 		err = cerr
 	}
@@ -239,23 +308,24 @@ func (a *Archive) keep(ctx context.Context, ref domain.AttachmentRef, data []byt
 		_ = os.Remove(name) // cleanup on the error path; err is the report
 		return fmt.Errorf("mediaarchive: write %s: %w", ref.Event, err)
 	}
-	dest := a.path(ref)
 	a.mu.Lock()
+	defer a.mu.Unlock()
 	// Under the lock, so a copy written twice at once (a request and the worker) is
 	// counted once.
-	_, there := os.Lstat(dest)
-	if errors.Is(there, fs.ErrNotExist) {
-		err = os.Rename(name, dest)
-		if err == nil {
-			a.used += int64(len(data))
+	if exists(dest) || !sealing && a.has(ref) {
+		_ = os.Remove(name) // a copy that was there first
+	} else {
+		if err := os.Rename(name, dest); err != nil {
+			_ = os.Remove(name) // cleanup on the error path; err is the report
+			return fmt.Errorf("mediaarchive: write %s: %w", ref.Event, err)
+		}
+		a.used += int64(len(body))
+	}
+	if plain := a.path(ref); sealing {
+		if info, err := os.Lstat(plain); err == nil && os.Remove(plain) == nil {
+			a.used -= info.Size()
 		}
 	}
-	a.mu.Unlock()
-	_ = os.Remove(name) // already renamed, or a copy that was there first
-	if err != nil {
-		return fmt.Errorf("mediaarchive: write %s: %w", ref.Event, err)
-	}
-	a.checkSize()
 	return nil
 }
 
@@ -278,8 +348,17 @@ func (a *Archive) checkSize() {
 
 // path is where ref's copy is: named by its message and the edit it shows.
 func (a *Archive) path(ref domain.AttachmentRef) string {
+	return filepath.Join(a.dir, hashOf(ref)+extension(ref.Name, ref.Mime))
+}
+
+// sealedPath is where ref's sealed copy is.
+func (a *Archive) sealedPath(ref domain.AttachmentRef) string {
+	return filepath.Join(a.dir, hashOf(ref)+SealedExt)
+}
+
+func hashOf(ref domain.AttachmentRef) string {
 	sum := sha256.Sum256([]byte(string(ref.Event) + "\x00" + string(ref.Revision)))
-	return filepath.Join(a.dir, hex.EncodeToString(sum[:])+extension(ref.Name, ref.Mime))
+	return hex.EncodeToString(sum[:])
 }
 
 // extension is the name's own, when short and plain, else the MIME type's, so a file

@@ -20,8 +20,11 @@ type Storage struct {
 	ArchiveMedia *bool `toml:"archive_media"`
 	// ArchiveWarnMB is how large the copies grow before kithd warns; it never deletes
 	// them. 0 is DefaultArchiveWarnMB, negative never warns.
-	ArchiveWarnMB int           `toml:"archive_warn_mb"`
-	Rules         []StorageRule `toml:"rule"`
+	ArchiveWarnMB int `toml:"archive_warn_mb"`
+	// EncryptMedia is whether those copies are kept encrypted (nil: off). Rules
+	// override it per place.
+	EncryptMedia *bool         `toml:"encrypt_media"`
+	Rules        []StorageRule `toml:"rule"`
 }
 
 // DefaultArchiveWarnMB is archive_warn_mb when unset: 10 GiB.
@@ -35,6 +38,8 @@ type StorageRule struct {
 	Messages *int   `toml:"messages"` // negative keeps every one
 	// ArchiveMedia is archive_media for this place; nil inherits.
 	ArchiveMedia *bool `toml:"archive_media"`
+	// EncryptMedia is encrypt_media for this place; nil inherits.
+	EncryptMedia *bool `toml:"encrypt_media"`
 }
 
 // MessagesKept is messages_per_room: negative (every one) when unset.
@@ -47,6 +52,9 @@ func (s Storage) MessagesKept() int {
 
 // MediaArchived is archive_media: on when unset.
 func (s Storage) MediaArchived() bool { return enabled(s.ArchiveMedia) }
+
+// MediaEncrypted is encrypt_media: off when unset.
+func (s Storage) MediaEncrypted() bool { return s.EncryptMedia != nil && *s.EncryptMedia }
 
 // ArchiveWarnBytes is archive_warn_mb in bytes; negative never warns.
 func (s Storage) ArchiveWarnBytes() int64 {
