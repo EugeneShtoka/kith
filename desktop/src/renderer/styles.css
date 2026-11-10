@@ -1643,8 +1643,8 @@ video.player {
   background: none;
 }
 
-/* The thread beside the room. */
-.thread {
+/* The thread beside the room: an aside, since the room list's thread rows are li.thread. */
+aside.thread {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -1653,7 +1653,7 @@ video.player {
   background: var(--bg);
 }
 
-.thread > header {
+aside.thread > header {
   display: flex;
   flex: none;
   align-items: center;
@@ -1662,8 +1662,8 @@ video.player {
   border-bottom: 1px solid var(--line);
 }
 
-.thread > button,
-.thread > p {
+aside.thread > button,
+aside.thread > p {
   flex: none;
   margin: var(--space-2) var(--space-4) 0;
 }
@@ -2242,7 +2242,7 @@ mark {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .thread {
+  aside.thread {
     position: absolute;
     top: 0;
     right: 0;
