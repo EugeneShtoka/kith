@@ -1021,10 +1021,9 @@ messages_per_room = -1
 
 # kithd keeps a copy of every attachment it caches, downloaded as it arrives (and, the
 # first time, for everything already cached), in <data_dir>/media-<instance>, so one a
-# network later removes still opens; WhatsApp drops old media for good. Disappearing
-# messages' attachments are not kept. kith never deletes a copy: past archive_warn_mb
-# megabytes (0 = 10240, -1 never) it warns instead. A rule's archive_media sets one
-# place's.
+# network later removes still opens; WhatsApp drops old media for good. kith never
+# deletes a copy: past archive_warn_mb megabytes (0 = 10240, -1 never) it warns
+# instead. A rule's archive_media sets one place's.
 archive_media   = true
 archive_warn_mb = 0
 # The copies are kept encrypted where encrypt_media is on, under a key the cache's key
@@ -1032,6 +1031,10 @@ archive_warn_mb = 0
 # place's. Turned on, the copies already there are encrypted too. A media backup puts
 # them back encrypted under the machine's own key.
 encrypt_media = false
+# Disappearing messages' attachments are not kept, their senders having asked for them
+# to go, unless archive_disappearing is on; a rule's sets one place's. Turned on, those
+# still cached are kept too. A kept copy stays after its message disappears.
+archive_disappearing = false
 
 # Per-place numbers. `match` names the place as any place list does: a room ID,
 # room:<name>, space:<name>, tag:<name>, protocol:<network>, dm or group. One room
@@ -1053,6 +1056,10 @@ encrypt_media = false
 # [[storage.rule]]
 # match         = "space:Family"
 # encrypt_media = true
+#
+# [[storage.rule]]
+# match                = "room:Notes to self"
+# archive_disappearing = true
 
 # kithd's scheduled backups: the cache, this config, your local records and the
 # pictures, in one file encrypted to your backup key. `kith backup` makes one by hand

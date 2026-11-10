@@ -56,3 +56,23 @@ func MediaEncrypted(base bool, rules []EncryptRule, room RoomFacts) bool {
 	}
 	return encrypted
 }
+
+// DisappearingRule is whether one place's disappearing messages' attachments are
+// archived too, overriding the setting everywhere.
+type DisappearingRule struct {
+	Match   string // a place entry (ParseEntry)
+	Archive bool
+}
+
+// DisappearingArchived is whether room's disappearing messages' attachments are
+// archived too: the narrowest rule naming it (one room over a set; among equals, the
+// last), else base.
+func DisappearingArchived(base bool, rules []DisappearingRule, room RoomFacts) bool {
+	archived, best := base, EntryInvalid
+	for _, r := range rules {
+		if kind, ok := room.Match(r.Match); ok && kind >= best {
+			archived, best = r.Archive, kind
+		}
+	}
+	return archived
+}

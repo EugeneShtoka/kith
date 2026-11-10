@@ -833,7 +833,7 @@ func useCache(backend served, notifications *daemon.Notifications) {
 		notifications.Arrived(room, since)
 		backend.archive.Arrived(room, since)
 	})
-	backend.archive.Use(notifications.MediaArchived, notifications.MediaEncrypted, notifications.ArchiveWarnBytes, notifications.MediaSay)
+	backend.archive.Use(notifications.MediaArchived, notifications.MediaEncrypted, notifications.DisappearingArchived, notifications.ArchiveWarnBytes, notifications.MediaSay)
 }
 
 // expected is every account the daemon starts with a session, for State.Expect. A

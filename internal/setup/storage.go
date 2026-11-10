@@ -156,7 +156,7 @@ func PhonebookDir(cfg config.Config) string {
 
 // KeepRules validates [storage] messages_per_room and [[storage.rule]]: a count is
 // negative (keep all) or at least one; a match is a place entry; a rule sets messages,
-// archive_media, encrypt_media or several.
+// archive_media, encrypt_media, archive_disappearing or several.
 func KeepRules(st config.Storage) (int, []domain.KeepRule, error) {
 	base := st.MessagesKept()
 	if base == 0 {
@@ -168,10 +168,10 @@ func KeepRules(st config.Storage) (int, []domain.KeepRule, error) {
 			return 0, nil, fmt.Errorf("config: %w", domain.NeedsPrefix(fmt.Sprintf("storage.rule[%d].match", i), r.Match, domain.EntryPrefixes, domain.EntryWords))
 		}
 		switch {
-		case r.Messages == nil && r.ArchiveMedia == nil && r.EncryptMedia == nil:
-			return 0, nil, fmt.Errorf("config: [[storage.rule]] %d (%s): sets none of messages, archive_media and encrypt_media", i+1, r.Match)
+		case r.Messages == nil && r.ArchiveMedia == nil && r.EncryptMedia == nil && r.ArchiveDisappearing == nil:
+			return 0, nil, fmt.Errorf("config: [[storage.rule]] %d (%s): sets none of messages, archive_media, encrypt_media and archive_disappearing", i+1, r.Match)
 		case r.Messages == nil:
-			continue // an archive_media or encrypt_media rule only
+			continue // a media rule only
 		case *r.Messages == 0:
 			return 0, nil, fmt.Errorf("config: [[storage.rule]] %d (%s): messages = 0 would keep nothing; -1 keeps every message", i+1, r.Match)
 		}
@@ -202,6 +202,18 @@ func EncryptRules(st config.Storage) (bool, []domain.EncryptRule) {
 		}
 	}
 	return st.MediaEncrypted(), rules
+}
+
+// DisappearingRules is [storage] archive_disappearing and the rules that set it;
+// KeepRules validates them.
+func DisappearingRules(st config.Storage) (bool, []domain.DisappearingRule) {
+	var rules []domain.DisappearingRule
+	for _, r := range st.Rules {
+		if r.ArchiveDisappearing != nil {
+			rules = append(rules, domain.DisappearingRule{Match: r.Match, Archive: *r.ArchiveDisappearing})
+		}
+	}
+	return st.DisappearingArchived(), rules
 }
 
 // keepCheck is KeepRules for Validate.

@@ -46,10 +46,12 @@ type Archive struct {
 	sealer *Sealer
 	log    *slog.Logger
 
-	// Set before Run (Use): whether a room's attachments are kept, and sealed, the
-	// size to warn past (negative: never), and how to warn.
+	// Set before Run (Use): whether a room's attachments are kept, and sealed, and its
+	// disappearing messages' kept too, the size to warn past (negative: never), and how
+	// to warn.
 	archived  func(domain.RoomID) bool
 	encrypted func(domain.RoomID) bool
+	timed     func(domain.RoomID) bool
 	warnAt    func() int64
 	warn      func(body string)
 
@@ -67,6 +69,7 @@ func New(dir string, cache Cache, fetch Fetch, sealer *Sealer, log *slog.Logger)
 		dir: dir, cache: cache, fetch: fetch, sealer: sealer, log: log,
 		archived:  func(domain.RoomID) bool { return false },
 		encrypted: func(domain.RoomID) bool { return false },
+		timed:     func(domain.RoomID) bool { return false },
 		warnAt:    func() int64 { return -1 },
 		warn:      func(string) {},
 		rooms:     map[domain.RoomID]time.Time{},
@@ -76,10 +79,10 @@ func New(dir string, cache Cache, fetch Fetch, sealer *Sealer, log *slog.Logger)
 
 // Use sets the policy, read on every use so a reload reaches it; a reload that may
 // change it asks for a pass over every room (Arrived("", time.Time{})).
-func (a *Archive) Use(archived, encrypted func(domain.RoomID) bool, warnAt func() int64, warn func(body string)) {
+func (a *Archive) Use(archived, encrypted, timed func(domain.RoomID) bool, warnAt func() int64, warn func(body string)) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.archived, a.encrypted, a.warnAt, a.warn = archived, encrypted, warnAt, warn
+	a.archived, a.encrypted, a.timed, a.warnAt, a.warn = archived, encrypted, timed, warnAt, warn
 }
 
 // Arrived queues room's attachments on messages since to be fetched; it never blocks.
@@ -164,7 +167,7 @@ func (a *Archive) keepSince(ctx context.Context, room domain.RoomID, since time.
 		if ctx.Err() != nil {
 			return
 		}
-		if !a.keeps(ref.Room) {
+		if !a.keeps(ref) {
 			continue
 		}
 		if a.seals(ref.Room) && exists(a.path(ref)) {
@@ -209,7 +212,7 @@ func (a *Archive) Load(ctx context.Context, room domain.RoomID, event domain.Eve
 	if err != nil {
 		return nil, err
 	}
-	if ok && a.keeps(room) {
+	if ok && a.keeps(ref) {
 		if err := a.keep(ctx, ref, data); err != nil {
 			a.log.Warn("archive an attachment failed", "room", room, "err", err)
 		}
@@ -217,12 +220,13 @@ func (a *Archive) Load(ctx context.Context, room domain.RoomID, event domain.Eve
 	return data, nil
 }
 
-// keeps is whether room's attachments are archived.
-func (a *Archive) keeps(room domain.RoomID) bool {
+// keeps is whether ref is archived: its room's are, and, on a disappearing message, its
+// room's disappearing messages' are too.
+func (a *Archive) keeps(ref domain.AttachmentRef) bool {
 	a.mu.Lock()
-	archived := a.archived
+	archived, timed := a.archived, a.timed
 	a.mu.Unlock()
-	return archived(room)
+	return archived(ref.Room) && (!ref.Timed || timed(ref.Room))
 }
 
 // seals is whether room's copies are sealed: encrypt_media, where kithd has a key.

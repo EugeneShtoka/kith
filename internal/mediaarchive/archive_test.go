@@ -115,7 +115,7 @@ func fixture(t *testing.T, refs ...domain.AttachmentRef) (*Archive, *cache, *net
 	n := &network{fetched: map[domain.EventID]int{}, cache: c}
 	a := New(filepath.Join(t.TempDir(), "media"), c, n.fetch, sealer(t, "this machine"), slog.New(slog.DiscardHandler))
 	var warned []string
-	a.Use(func(r domain.RoomID) bool { return r == kept }, never, func() int64 { return -1 }, func(body string) { warned = append(warned, body) })
+	a.Use(func(r domain.RoomID) bool { return r == kept }, never, never, func() int64 { return -1 }, func(body string) { warned = append(warned, body) })
 	if err := a.open(); err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestLoadServesTheCopyFirst(t *testing.T) {
 		t.Errorf("Load in a room whose attachments are not kept: %v, archived %v", skipErr, a.has(ref(skipped, "$2", "")))
 	}
 	n.fail = true
-	a.Use(never, never, func() int64 { return -1 }, func(string) {})
+	a.Use(never, never, never, func() int64 { return -1 }, func(string) {})
 	again, err := a.Load(ctx, kept, "$1")
 	if err != nil || !bytes.Equal(again, first) || n.count("$1") != 1 {
 		t.Errorf("Load from the archive = %q, %v; fetched %d", again, err, n.count("$1"))
@@ -187,13 +187,18 @@ func TestLoadServesTheCopyFirst(t *testing.T) {
 }
 
 // A message that changes while its attachment downloads (an edit replacing it, a
-// deletion or a timer, which takes it out of the list alike) is not kept under what it
-// was; the next pass keeps the new one.
+// deletion, a timer) is not kept under what it was; the next pass keeps the new one,
+// if it is to be kept.
 func TestAChangeDuringTheDownloadIsNotKept(t *testing.T) {
 	t.Parallel()
 	for name, change := range map[string]func(c *cache){
 		"edited":  func(c *cache) { c.set("$1", ref(kept, "$1", "$edit"), true) },
 		"deleted": func(c *cache) { c.set("$1", domain.AttachmentRef{}, false) },
+		"timed": func(c *cache) {
+			timed := ref(kept, "$1", "")
+			timed.Timed = true
+			c.set("$1", timed, true)
+		},
 	} {
 		a, c, n, _ := fixture(t, ref(kept, "$1", ""))
 		n.during = func(domain.EventID) { change(c); n.during = nil }
@@ -203,9 +208,36 @@ func TestAChangeDuringTheDownloadIsNotKept(t *testing.T) {
 		}
 		a.keepSince(context.Background(), "", time.Time{})
 		now, ok, _ := c.Attachment(context.Background(), kept, "$1")
-		if ok != a.has(now) || len(files(t, a)) != map[bool]int{true: 1, false: 0}[ok] {
+		want := ok && a.keeps(now)
+		if want != a.has(now) || len(files(t, a)) != map[bool]int{true: 1, false: 0}[want] {
 			t.Errorf("%s: next pass kept %v, want the message as it is now", name, files(t, a))
 		}
+	}
+}
+
+// A disappearing message's attachment is kept only where archive_disappearing says so,
+// by the worker and by a request alike, and only where its room's are kept at all;
+// turned on, the next pass keeps those still cached.
+func TestADisappearingMessagesAttachmentIsKeptOnlyWhereAsked(t *testing.T) {
+	t.Parallel()
+	timed := func(room domain.RoomID, event domain.EventID) domain.AttachmentRef {
+		r := ref(room, event, "")
+		r.Timed = true
+		return r
+	}
+	a, _, _, _ := fixture(t, ref(kept, "$plain", ""), timed(kept, "$timed"), timed(skipped, "$elsewhere"))
+	ctx := context.Background()
+	a.keepSince(ctx, "", time.Time{})
+	if _, err := a.Load(ctx, kept, "$timed"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.has(ref(kept, "$plain", "")) || a.has(timed(kept, "$timed")) {
+		t.Errorf("archive_disappearing off: kept %v, want only $plain", files(t, a))
+	}
+	a.Use(func(r domain.RoomID) bool { return r == kept }, never, always, func() int64 { return -1 }, func(string) {})
+	a.keepSince(ctx, "", time.Time{})
+	if !a.has(timed(kept, "$timed")) || a.has(timed(skipped, "$elsewhere")) {
+		t.Errorf("archive_disappearing on: kept %v, want $plain and $timed", files(t, a))
 	}
 }
 
@@ -252,7 +284,7 @@ func TestPastTheLimitItWarnsOnceAndDeletesNothing(t *testing.T) {
 	t.Parallel()
 	a, _, _, warned := fixture(t, ref(kept, "$1", ""), ref(kept, "$2", ""), ref(kept, "$3", ""))
 	limit := int64(30)
-	a.Use(always, never, func() int64 { return limit }, func(body string) { *warned = append(*warned, body) })
+	a.Use(always, never, never, func() int64 { return limit }, func(body string) { *warned = append(*warned, body) })
 	a.keepSince(context.Background(), "", time.Time{})
 	if len(*warned) != 1 || len(files(t, a)) != 3 {
 		t.Fatalf("warned %q with %v kept, want one warning and every file", *warned, files(t, a))
@@ -265,7 +297,7 @@ func TestPastTheLimitItWarnsOnceAndDeletesNothing(t *testing.T) {
 		t.Errorf("after the limit was raised and lowered: warned %d times, want 2", len(*warned))
 	}
 	restarted := New(a.dir, &cache{}, nil, nil, a.log)
-	restarted.Use(always, never, func() int64 { return limit }, func(body string) { *warned = append(*warned, body) })
+	restarted.Use(always, never, never, func() int64 { return limit }, func(body string) { *warned = append(*warned, body) })
 	if err := restarted.open(); err != nil || len(*warned) != 3 {
 		t.Errorf("a start past the limit warned %d times (%v), want 3", len(*warned), err)
 	}
@@ -307,7 +339,7 @@ func usedMatches(t *testing.T, a *Archive) {
 func TestASealedRoomKeepsNoPlainCopy(t *testing.T) {
 	t.Parallel()
 	a, _, n, _ := fixture(t, ref(kept, "$1", ""))
-	a.Use(always, always, func() int64 { return -1 }, func(string) {})
+	a.Use(always, always, never, func() int64 { return -1 }, func(string) {})
 	a.keepSince(context.Background(), "", time.Time{})
 	got := files(t, a)
 	if len(got) != 1 || filepath.Ext(got[0]) != SealedExt {
@@ -330,7 +362,7 @@ func TestTurningEncryptionOnSealsWhatIsThere(t *testing.T) {
 	t.Parallel()
 	a, _, n, _ := fixture(t, ref(kept, "$1", ""), ref(kept, "$2", ""))
 	a.keepSince(context.Background(), "", time.Time{})
-	a.Use(always, always, func() int64 { return -1 }, func(string) {})
+	a.Use(always, always, never, func() int64 { return -1 }, func(string) {})
 	a.keepSince(context.Background(), "", time.Time{})
 	for _, name := range files(t, a) {
 		if filepath.Ext(name) != SealedExt {
@@ -341,7 +373,7 @@ func TestTurningEncryptionOnSealsWhatIsThere(t *testing.T) {
 		t.Errorf("files %v, $1 downloaded %d times; want both sealed, downloaded once", files(t, a), n.count("$1"))
 	}
 	usedMatches(t, a)
-	a.Use(always, never, func() int64 { return -1 }, func(string) {})
+	a.Use(always, never, never, func() int64 { return -1 }, func(string) {})
 	a.keepSince(context.Background(), "", time.Time{})
 	n.fail = true
 	if data, err := a.Load(context.Background(), kept, "$2"); err != nil || string(data) != "bytes of $2@" {
@@ -354,7 +386,7 @@ func TestTurningEncryptionOnSealsWhatIsThere(t *testing.T) {
 func TestASealedCopyOpensOnlyAsItself(t *testing.T) {
 	t.Parallel()
 	a, _, n, _ := fixture(t, ref(kept, "$1", ""), ref(kept, "$2", ""))
-	a.Use(always, always, func() int64 { return -1 }, func(string) {})
+	a.Use(always, always, never, func() int64 { return -1 }, func(string) {})
 	a.keepSince(context.Background(), "", time.Time{})
 	one, two := a.sealedPath(ref(kept, "$1", "")), a.sealedPath(ref(kept, "$2", ""))
 	body, err := os.ReadFile(one) // #nosec G304 -- the test's own file
@@ -368,7 +400,7 @@ func TestASealedCopyOpensOnlyAsItself(t *testing.T) {
 		t.Errorf("Load of a copy passed off as $2 = %q, %v, downloads %d; want $2's own, downloaded", data, err, n.count("$2"))
 	}
 	other := New(a.dir, a.cache, n.fetch, sealer(t, "another machine"), a.log)
-	other.Use(always, always, func() int64 { return -1 }, func(string) {})
+	other.Use(always, always, never, func() int64 { return -1 }, func(string) {})
 	if data, err := other.Load(context.Background(), kept, "$1"); err != nil || n.count("$1") != 2 || string(data) != "bytes of $1@" {
 		t.Errorf("another key's Load = %q, %v, downloads %d; want it downloaded", data, err, n.count("$1"))
 	}
@@ -384,7 +416,7 @@ func TestConcurrentSealingCountsEachCopyOnce(t *testing.T) {
 	}
 	a, _, _, _ := fixture(t, refs...)
 	a.keepSince(context.Background(), "", time.Time{}) // plain first
-	a.Use(func(r domain.RoomID) bool { return r == kept }, always, func() int64 { return -1 }, func(string) {})
+	a.Use(func(r domain.RoomID) bool { return r == kept }, always, never, func() int64 { return -1 }, func(string) {})
 	var wg sync.WaitGroup
 	for range 4 {
 		wg.Go(func() { a.keepSince(context.Background(), "", time.Time{}) })
