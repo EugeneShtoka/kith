@@ -1151,3 +1151,41 @@ func TestATopicOlderThanTheTimelineIsNamedByItsTitle(t *testing.T) {
 		t.Error("the thread the timeline holds was left out")
 	}
 }
+
+// A room on a network without threads offers none: the start and list keys say so
+// instead of opening anything, /threads is not completed, and a native room's ID
+// alone tells. A Matrix room is judged by the bridge its people come from.
+func TestARoomWithoutThreadsOffersNone(t *testing.T) {
+	t.Parallel()
+	bridged := domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$a", RoomID: mx + "!a:x", Sender: "matrix:@whatsapp_4915550001:x", SenderName: "Dana", Body: "dinner?", Timestamp: at(1)},
+		{ID: mx + "$b", RoomID: mx + "!a:x", Sender: "matrix:@whatsapp_4915550002:x", SenderName: "Lee", Body: "yes", Timestamp: at(2)},
+	}}
+	m := inRoom(t, &threadBackend{}, bridged)
+	m.timeline.selected = mx + "$a"
+	for name, act := range map[string]func(Model) (Model, tea.Cmd){
+		"start": Model.startThread, "open": Model.openThread, "list": Model.listThreads,
+	} {
+		next, cmd := act(m)
+		if next.thread.open() || cmd != nil || !strings.Contains(next.status(), "WhatsApp has no threads") {
+			t.Errorf("%s: thread open %v, cmd %v, status %q; want WhatsApp's none said", name, next.thread.open(), cmd != nil, next.status())
+		}
+	}
+	for _, c := range m.commandCandidates("thr") {
+		if c.text == "/threads" {
+			t.Error("/threads is offered in a room without threads")
+		}
+	}
+	if m.threadsIn("whatsapp:4915550009/4915550001@s.whatsapp.net") || !m.threadsIn("slack:T1/C1") {
+		t.Error("a native room's network is not judged by its ID")
+	}
+
+	matrix := inThread(t, &threadBackend{})
+	offered := false
+	for _, c := range matrix.commandCandidates("thr") {
+		offered = offered || c.text == "/threads"
+	}
+	if !offered {
+		t.Error("/threads is not offered in a Matrix room")
+	}
+}

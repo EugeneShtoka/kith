@@ -15,6 +15,13 @@ func (p Protocol) String() string { return string(p) }
 // native); the zero value is not.
 func (p Protocol) IsBridged() bool { return p != "" && p != ProtocolMatrix }
 
+// HasThreads reports whether rooms on the network have threads: Matrix's own, Slack's,
+// and those Discord's and Google Chat's bridges carry over. The other networks' bridges
+// and adapters have none.
+func (p Protocol) HasThreads() bool {
+	return p == ProtocolMatrix || p == ProtocolSlack || p == ProtocolDiscord || p == ProtocolGoogleChat
+}
+
 // RepliesAreThreads reports whether every reply on the network is a thread.
 func (p Protocol) RepliesAreThreads() bool { return p == ProtocolSlack }
 

@@ -2,7 +2,7 @@
 // ThreadMessages), held to Go by the conformance table internal/domain/testdata/threads.json:
 // a thread's replies leave the main timeline for a summary under the message it hangs
 // from, and its pane shows the root and the replies.
-import type { Message } from "../gen/backend/v1/types_pb";
+import type { Message, Room } from "../gen/backend/v1/types_pb";
 import { compare, compareBytes, merge, nanos, place } from "./merge";
 
 /** A thread's summary, enough to draw its row in the main timeline. */
@@ -309,4 +309,33 @@ function due(r: { into: Read; to: Message | "all" | undefined; root: boolean }):
 function put(rows: readonly Message[], m: Message, root: string): readonly Message[] {
   const others = rows.filter((r) => r.id !== m.id);
   return others.length < rows.length || m.id === root || m.threadRoot === root ? place(others, m) : rows;
+}
+
+/**
+ * The networks whose rooms have no threads (domain.Protocol.HasThreads): by the room's
+ * network (Room.network, the bridge behind it) or its ID's prefix.
+ */
+const unthreaded = new Set([
+  "WhatsApp",
+  "Telegram",
+  "Signal",
+  "Messenger",
+  "Instagram",
+  "LinkedIn",
+  "Google Messages",
+  "iMessage",
+  "Twitter",
+  "whatsapp",
+  "telegram",
+  "signal",
+  "messenger",
+  "instagram",
+  "linkedin",
+  "gmessages",
+]);
+
+/** hasThreads: the room id's network has threads; one not known is not judged. */
+export function hasThreads(id: string, room: Room | undefined): boolean {
+  const network = room?.network || (id.includes(":") ? (id.split(":", 1)[0] ?? "") : "");
+  return !unthreaded.has(network);
 }

@@ -47,6 +47,7 @@ export function TimelinePane({
   keys,
   faces,
   session,
+  threads: threaded,
   ref,
 }: {
   t: TimelineView;
@@ -55,6 +56,8 @@ export function TimelinePane({
   keys: Keys;
   faces: Faces;
   session: Session;
+  /** Whether the room's network has threads (hasThreads): a key starts none where not. */
+  threads: boolean;
   ref?: Ref<TimelineNav>;
 }) {
   const { main: shown, threads } = collapse(t.rows);
@@ -159,6 +162,7 @@ export function TimelinePane({
           room: t.room,
           composer,
           session,
+          threads: threaded,
           aim: (id) => {
             cursor.current = { room: t.room, id };
           },
@@ -236,6 +240,8 @@ export interface Here {
   aim: (id: string) => void;
   /** The rows are a thread's, where no thread starts. */
   inThread?: boolean;
+  /** false: the room's network has no threads, so none starts. */
+  threads?: boolean;
 }
 
 /** write focuses the composer: false where the room has none. */
@@ -316,8 +322,8 @@ export function actOn(
       session.takeLink(m, "open_focus");
       return true;
     case "timeline.start_thread":
-      if (here.inThread === true) {
-        return false; // a thread starts on none of its own
+      if (here.inThread === true || here.threads === false) {
+        return false; // a thread starts on none of its own, nor where the network has none
       }
       session.openThread(m.id);
       return true;
