@@ -327,6 +327,7 @@ export class Kithd {
         return Promise.resolve(true);
       },
       pick: () => Promise.resolve([this.offer("report.pdf")]),
+      importChat: () => Promise.resolve(undefined), // the dialog closed with none picked
       offer: (file) => Promise.resolve(this.offer(file.name)),
       closing: (write) => {
         this.closeWrite = write;

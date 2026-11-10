@@ -199,6 +199,8 @@ const allowedCalls = [
   "ConfirmPairing",
   "RemoveDevice",
   "PairingURI",
+  "ChatImportSenders",
+  "ApplyChatImport",
 ];
 const allowedStreams = [
   "Changed",
@@ -237,10 +239,20 @@ const requests: Record<string, Uint8Array> = {
   // A message the queue showed the window (asked first: ScheduledMessages).
   CancelScheduled: bytes(backend.cancelScheduled.input, { id: "q1" }),
   RetryScheduled: bytes(backend.retryScheduled.input, { id: "q1" }),
+  // Exports main brought (imports), one for each: an import uses its upload up.
+  ChatImportSenders: bytes(backend.chatImportSenders.input, { uploadId: "u1", roomId: "!r:x" }),
+  ApplyChatImport: bytes(backend.applyChatImport.input, { uploadId: "u2", roomId: "!r:x" }),
   // A pairing the window opened (pairing), and a device it was shown listed.
   ConfirmPairing: bytes(backend.confirmPairing.input, { token, accept: false }),
   RemoveDevice: bytes(backend.removeDevice.input, { id: "D1" }),
 };
+
+/** imports has main bring chat exports to kithd, as attach.ts does for the window: their uploads. */
+async function imports(...uploads: string[]): Promise<void> {
+  for (const uploadId of uploads) {
+    await gate.own(backend.previewChatImport, { uploadId, zone: "UTC" }, new AbortController().signal);
+  }
+}
 
 /** pairing opens a pairing through the gate, kithd answering it with token's ticket. */
 async function pairing(): Promise<{ events: StreamEvent[]; stop: () => void }> {
@@ -338,6 +350,7 @@ describe("the gate", () => {
     const pair = await pairing();
     kithd.paired = ["D1"];
     await gate.call(window, "Devices", empty);
+    await imports("u1", "u2");
     const seat = listen("Seat", bytes(backend.seat.input, { client: "w" })); // drafts are the seat's
     for (const name of names) {
       const want = typeof name === "string" && allowedCalls.includes(name) ? "answered" : "refused";
@@ -348,6 +361,7 @@ describe("the gate", () => {
     reached.delete("Seat");
     reached.delete("StartPairing");
     reached.delete("ThisDevice"); // main's own, asked before an unpairing
+    reached.delete("PreviewChatImport"); // main's own, reading an export it brought
     seat.stop();
     pair.stop();
     expect([...reached].sort()).toEqual([...allowedCalls].sort());
@@ -846,6 +860,32 @@ describe("the gate", () => {
       "RetryScheduled q1:Work",
       `CancelScheduled ${queued.id}:Work`,
     ]);
+  });
+
+  it("goes on only from a chat export main brought, until imported, in the profile it runs in", async () => {
+    await device(); // Work
+    const senders = (uploadId: string) =>
+      outcome(window, "ChatImportSenders", bytes(backend.chatImportSenders.input, { uploadId, roomId: "!r:x" }));
+    const apply = (uploadId: string) =>
+      outcome(window, "ApplyChatImport", bytes(backend.applyChatImport.input, { uploadId, roomId: "!r:x" }));
+    // An upload guessed, or one main brought to send, never reaches kithd.
+    expect(await senders("u1")).toBe("refused");
+    expect(await apply("u1")).toBe("refused");
+    await imports("u1");
+    expect(await senders("u1")).toBe("answered");
+    expect(await senders("u9")).toBe("refused");
+    expect(await apply("u1")).toBe("answered");
+    // Imported: kithd used it up.
+    expect(await senders("u1")).toBe("refused");
+    // Left for another profile, or loaded afresh: an export brought in Work is not its any more.
+    await imports("u2");
+    await gate.call(window, "ChooseProfile", bytes(DeviceService.method.chooseProfile.input, { name: "Home" }));
+    expect(await senders("u2")).toBe("refused");
+    await imports("u3");
+    gate.restart();
+    await device();
+    expect(await senders("u3")).toBe("refused");
+    expect(kithd.onImport).toEqual(["ChatImportSenders u1:Work", "ApplyChatImport u1:Work"]);
   });
 
   it("files a room only through kithd's judgment, in the profile the window ran in when it asked", async () => {

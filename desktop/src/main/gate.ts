@@ -180,6 +180,12 @@ const calls = new Map<string, DescMethodUnary>(
     backend.confirmPairing,
     backend.removeDevice,
     device.pairingURI,
+    // Importing a chat a phone exported: main brings the file and has kithd read it
+    // (attach.ts); the window matches its names to a room's members and imports it,
+    // naming only an upload main brought for that (importing), into a room kithd judges
+    // against the profile.
+    backend.chatImportSenders,
+    backend.applyChatImport,
   ].map((m) => [m.name, m]),
 );
 
@@ -191,6 +197,9 @@ const calls = new Map<string, DescMethodUnary>(
 const onceStreams = new Map<string, DescMethodServerStreaming>(
   [backend.startPairing, device.joinBridge].map((m) => [m.name, m]),
 );
+
+/** The calls going on from a chat export main brought, by its upload. */
+const onImport = new Set<string>([backend.chatImportSenders.name, backend.applyChatImport.name]);
 
 /** The calls on one queued message, by its ID: only one the window was shown or queued. */
 const onQueued = new Set<string>([backend.cancelScheduled.name, backend.retryScheduled.name]);
@@ -290,6 +299,8 @@ export class Gate {
 
   /** The queued messages' IDs the window was shown or queued, in the profile it runs in. */
   private queued = new Set<string>();
+  /** The chat exports main brought and kithd read, by upload, in the profile it runs in. */
+  private importing = new Set<string>();
   /** The commands running, ended when the window loads afresh or closes. */
   private readonly running = new Set<AbortController>();
 
@@ -350,6 +361,12 @@ export class Gate {
     if (onQueued.has(method.name)) {
       this.mustBeQueued((input as MessageShape<typeof backend.cancelScheduled.input>).id);
     }
+    const upload = onImport.has(method.name)
+      ? (input as MessageShape<typeof backend.applyChatImport.input>).uploadId
+      : undefined;
+    if (upload !== undefined && !this.importing.has(upload)) {
+      throw new Refused(`kith: the window imports only a chat export main brought, not ${upload}`);
+    }
     if (method.name === backend.confirmPairing.name) {
       const r = input as MessageShape<typeof backend.confirmPairing.input>;
       const m = backend.confirmPairing;
@@ -402,6 +419,9 @@ export class Gate {
     }
     if (ticket !== undefined) {
       this.logins.heard(ticket, response.message);
+    }
+    if (method.name === backend.applyChatImport.name && upload !== undefined) {
+      this.importing.delete(upload); // kithd used it up
     }
     if (method.name === backend.startVerification.name) {
       this.verifying.asked((response.message as MessageShape<typeof backend.startVerification.output>).txnId, profile);
@@ -499,7 +519,11 @@ export class Gate {
     signal: AbortSignal,
   ): Promise<MessageShape<O>> {
     const header = this.header(method);
+    const profile = this.profile;
     const response = await this.transport.unary(method, signal, undefined, header, create(method.input, input));
+    if (method.name === backend.previewChatImport.name && profile === this.profile) {
+      this.importing.add((input as MessageInitShape<typeof backend.previewChatImport.input>).uploadId ?? "");
+    }
     return response.message;
   }
 
@@ -700,6 +724,7 @@ export class Gate {
     this.verifying.runIn(profile);
     this.pairings.runIn(profile);
     this.queued = new Set();
+    this.importing = new Set();
     for (const held of this.open) {
       if (held.profile !== profile) {
         this.open.delete(held);

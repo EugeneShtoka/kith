@@ -3,9 +3,10 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { create, toBinary } from "@bufbuild/protobuf";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { BackendService } from "../gen/backend/v1/services_pb";
 import { DeviceService } from "../gen/device/v1/device_pb";
 import { Attachments, uploadChunk } from "./attach";
 import { type Frame, Gate } from "./gate";
@@ -51,6 +52,18 @@ function same(a: Uint8Array | undefined, b: Uint8Array): boolean {
 const calls = (method: string) => kithd.reached.filter((r) => r.startsWith(`${method}:`)).length;
 
 describe("attachments", () => {
+  it("bring a chat export to kithd whole and have it read in this machine's zone, posting nothing", async () => {
+    const f = await file("WhatsApp Chat - Dana.zip", uploadChunk + 7);
+    const chosen = await attachments.importChat(f.path);
+    const preview = fromBinary(BackendService.method.previewChatImport.output, chosen.preview);
+    expect(preview).toMatchObject({ title: "WhatsApp Chat - Dana.zip", messages: f.bytes.length });
+    const read = kithd.received.find((r) => r.method === "PreviewChatImport")?.message;
+    expect(read).toMatchObject({ uploadId: chosen.upload, zone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    expect(chosen.zone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    expect(calls("PutUpload")).toBe(2);
+    expect(calls("SendFile")).toBe(0);
+  });
+
   it("keep an image as a picture as a file is brought, kithd naming it, the offer used up", async () => {
     const f = await file("dana.png", uploadChunk + 99);
     const offered = await attachments.fromPath(f.path);

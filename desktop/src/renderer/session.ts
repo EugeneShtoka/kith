@@ -47,6 +47,7 @@ import { conflict } from "./keymap";
 import { asked as filingAsked, type Filing, offered, opened, retagged, toggled, told } from "./filing";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
 import { type LinkAct, links } from "./links";
+import { ChatImport, idleImport, type ImportCalls, type ImportView } from "./chatimport";
 import { Devices, type DevicesCalls, type DevicesView, noDevices } from "./devices";
 import { call, subscribe } from "./kith";
 import { Login, type LoginCalls, type LoginView } from "./login";
@@ -199,6 +200,8 @@ export interface View {
   login: LoginView;
   /** The settings page's devices: those paired, a pairing or a join under way (devices.ts). */
   devices: DevicesView;
+  /** The settings page's chat import: a chat a phone exported, brought in (chatimport.ts). */
+  chatImport: ImportView;
   /** Verifying this session (verify.ts), and the accounts it is asked for from (Accounts). */
   verify: Verify;
   accounts: readonly Account[];
@@ -282,6 +285,14 @@ const loginCalls: LoginCalls = {
   writeAccount: (record) =>
     call(DeviceService.method.writeAccount, { table: record.table, values: record.values }).then(() => undefined),
   qr: (data) => call(DeviceService.method.qRCode, { data }).then((r) => r.dark),
+};
+
+/** importCalls is a chat import's calls: main's (the dialog, the upload, kithd's read), then kithd's. */
+const importCalls: ImportCalls = {
+  choose: () => window.kith.importChat(),
+  senders: (uploadId, zone, roomId) => call(backend.chatImportSenders, { uploadId, zone, roomId }),
+  apply: (uploadId, zone, roomId, senders) =>
+    call(backend.applyChatImport, { uploadId, zone, roomId, senders }).then((r) => r.added),
 };
 
 /** devicesCalls is the devices section's calls: kithd's, through main, and the relay's. */
@@ -446,6 +457,7 @@ export class Session {
     config: noConfig,
     login: { networks: undefined, run: undefined, note: "" },
     devices: noDevices,
+    chatImport: idleImport,
     offers: { prompt: undefined, note: "" },
     problem: undefined,
     ...nothingShown,
@@ -536,6 +548,11 @@ export class Session {
   /** The devices paired, and a pairing or a join the window leads. */
   private readonly devices = new Devices(devicesCalls, (devices) => {
     this.set({ devices });
+  });
+
+  /** A chat export being imported, from the settings page. */
+  private readonly chatImport = new ChatImport(importCalls, (chatImport) => {
+    this.set({ chatImport });
   });
 
   /** The People list and a person's card, in the profile the window runs in. */
@@ -629,7 +646,38 @@ export class Session {
     this.configPage++;
     this.devices.closePairing();
     this.devices.dismissJoin();
+    this.chatImport.cancel();
     this.set({ settingsPage: undefined, config: noConfig });
+  }
+
+  /** chooseExport asks for a chat export to import, which kithd reads. */
+  chooseExport(): void {
+    this.chatImport.choose();
+  }
+
+  /** importInto matches the export's names to room's members; name is what the page calls it. */
+  importInto(room: string, name: string): void {
+    this.chatImport.room(room, name);
+  }
+
+  /** importAs takes the export's name as the member id ("" as written). */
+  importAs(name: string, id: string): void {
+    this.chatImport.whoIs(name, id);
+  }
+
+  /** importBack goes back to choosing the chat. */
+  importBack(): void {
+    this.chatImport.back();
+  }
+
+  /** applyImport imports the export as chosen. */
+  applyImport(): void {
+    this.chatImport.apply();
+  }
+
+  /** cancelImport drops the import under way. */
+  cancelImport(): void {
+    this.chatImport.cancel();
   }
 
   /** pairDevice opens a pairing for a new device, listed as name ("": the name it gives). */
