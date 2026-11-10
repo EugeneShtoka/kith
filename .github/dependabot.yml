@@ -15,10 +15,6 @@ updates:
     cooldown:
       default-days: 5
     open-pull-requests-limit: 5
-    # go.mod replaces bubbletea with a fork (see docs/getting-started.md), so a bump of
-    # the upstream requirement changes nothing that is built. The fork is rebased by hand.
-    ignore:
-      - dependency-name: "charm.land/bubbletea/v2"
     groups:
       # Majors go in their own PR. Grouped with the rest, a mautrix-go major that needs
       # code changes holds every routine security patch behind it — the group is one PR

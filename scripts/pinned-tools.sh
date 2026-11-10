@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # pinned-tools: the tools pinned outside go.mod (Dependabot bumps actions and Go
-# modules, not these), each against its latest release, and the bubbletea fork's base
-# against upstream. The tool pins live in one place, tools/versions.env and
+# modules, not these), each against its latest release. The tool pins live in one place, tools/versions.env and
 # tools/markdownlint's lock, which CI, the release and `make check` all read. Exits 1
 # when a pin is behind, when a pinned binary lacks a checksum for a platform
 # ensure-tools installs on, or when the lock and its package.json disagree.
@@ -61,25 +60,6 @@ for entry in \
 	fi
 	row "$name" "$pinned" "${newest:-?}" "$note"
 done
-
-# The bubbletea fork (go.mod's replace, rebased by hand; Dependabot ignores it): its
-# base release against upstream's newest, so a rebase is due when upstream moves.
-fork=$(sed -nE 's#^replace charm.land/bubbletea/v2 => [^ ]+ (v[0-9.]+)-[a-z0-9.]+$#\1#p' go.mod)
-if [[ -z "$fork" ]]; then
-	echo "bubbletea fork: no replace line of the form <module> vX.Y.Z-<name> in go.mod" >&2
-	status=1
-else
-	newest=$(latest charmbracelet/bubbletea || true)
-	note=""
-	if [[ -z "$newest" ]]; then
-		note="(could not ask GitHub)"
-		status=1
-	elif [[ "v$newest" != "$fork" ]]; then
-		note="← rebase the fork"
-		status=1
-	fi
-	row "bubbletea (fork)" "${fork#v}" "${newest:-?}" "$note"
-fi
 
 # markdownlint-cli2: the exact version package.json asks for is the one locked.
 wanted=$(sed -nE 's/^ *"markdownlint-cli2": *"([^"]+)".*/\1/p' tools/markdownlint/package.json | head -1)
