@@ -2,6 +2,7 @@ package whatsapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -15,10 +16,11 @@ import (
 // its contents, so kith files nothing into it.
 
 // communities splits joined groups into communities (as spaces) and chat groups. A
-// community missing from the listing is named by communityName ("" leaves it unnamed).
+// community missing from the listing is named by communityName; its error fails the
+// listing.
 func communities(ctx context.Context, account string, groups []*types.GroupInfo,
-	communityName func(context.Context, types.JID) string,
-) (spaces []domain.Space, chats []*types.GroupInfo) {
+	communityName func(context.Context, types.JID) (string, error),
+) (spaces []domain.Space, chats []*types.GroupInfo, err error) {
 	byJID := map[types.JID]*domain.Space{}
 	space := func(jid types.JID) *domain.Space {
 		jid = jid.ToNonAD()
@@ -43,13 +45,42 @@ func communities(ctx context.Context, account string, groups []*types.GroupInfo,
 	}
 	for jid, s := range byJID {
 		if s.Name == "" {
-			s.Name = communityName(ctx, jid)
+			if s.Name, err = communityName(ctx, jid); err != nil {
+				return nil, nil, err
+			}
 		}
 		slices.Sort(s.Children)
 		spaces = append(spaces, *s)
 	}
 	domain.SortSpaces(spaces)
-	return spaces, chats
+	return spaces, chats, nil
+}
+
+// communityNamer names a community the listing lacks by lookup, else by the name
+// cached for it. With neither it fails, so the refresh saves nothing: saving "" would
+// put the community's groups in a space no `space:` entry names, and an
+// `except = ["space:…"]` would stop hiding them.
+func (a *Adapter) communityNamer(account Account,
+	lookup func(context.Context, types.JID) (*types.GroupInfo, error),
+) func(context.Context, types.JID) (string, error) {
+	return func(ctx context.Context, jid types.JID) (string, error) {
+		info, err := lookup(ctx, jid)
+		if err == nil {
+			return info.Name, nil
+		}
+		cached, cacheErr := a.whatsAppSpaces(ctx)
+		if cacheErr != nil {
+			return "", fmt.Errorf("whatsapp: name %s's community %s: %w", account.Name, jid, errors.Join(err, cacheErr))
+		}
+		id := domain.SpaceID(roomID(account.Digits, jid))
+		for i := range cached {
+			if cached[i].ID == id && cached[i].Name != "" {
+				a.log.Debug("read a community's name failed; kept the cached one", "account", account.Name, "err", err)
+				return cached[i].Name, nil
+			}
+		}
+		return "", fmt.Errorf("whatsapp: name %s's community %s: %w", account.Name, jid, err)
+	}
 }
 
 // whatsAppSpaces returns every account's cached communities.
