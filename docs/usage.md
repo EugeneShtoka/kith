@@ -380,7 +380,10 @@ keep    = 3
 
 Each holds the whole archive. Put one back after the history, into the restored
 config's archive: `kith restore --media ~/Backups/kith-media-….tar.age`. Copies the
-archive holds already stay, and kithd may keep running.
+archive holds already stay, and kithd may keep running. Encrypted copies
+(`[storage] encrypt_media`) go into the backup as they are, with the key they are
+encrypted under (the backup itself is encrypted to your backup key), and are
+encrypted again under the restoring machine's own key.
 
 What a backup leaves out:
 

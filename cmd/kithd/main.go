@@ -326,13 +326,27 @@ func newServed(ctx context.Context, cache *db.Cache, log *slog.Logger, cfg confi
 	defaults.use(cfg)
 	var archive *mediaarchive.Archive
 	if cache != nil {
-		archive = mediaarchive.New(storage.MediaArchiveDir(), cache, router.LoadImage, log)
+		archive = mediaarchive.New(storage.MediaArchiveDir(), cache, router.LoadImage, mediaSealer(log, storage), log)
 	}
 	return served{
 		Router: router, Service: service, matrix: mx, networks: networks, stores: stores,
 		dataDir: storage.DataDir, schedulePath: storage.SchedulePath(), storage: storage, cache: cache, defaults: defaults,
 		people: people, mesh: &meshFile{storage: storage}, archive: archive,
 	}
+}
+
+// mediaSealer seals the media archive's copies under a key the cache's makes; nil,
+// keeping every copy plain, when the keyring does not give it.
+func mediaSealer(log *slog.Logger, storage domain.Storage) *mediaarchive.Sealer {
+	key, err := cacheKey(storage)
+	if err == nil {
+		var sealer *mediaarchive.Sealer
+		if sealer, err = mediaarchive.NewSealer(key); err == nil {
+			return sealer
+		}
+	}
+	log.Warn("archived attachments stay unencrypted: no key", "err", err)
+	return nil
 }
 
 // LoadImage is an attachment's bytes, from the media archive when it holds them.
@@ -685,6 +699,9 @@ func reloader(
 		if err := notifications.Reload(reloaded); err != nil {
 			return fmt.Errorf("reload notifications: %w", err)
 		}
+		if backend.archive != nil {
+			backend.archive.Arrived("", time.Time{}) // copies now to be kept, or sealed
+		}
 		// Last: everything else is in force even if the cache cannot be read.
 		return backend.useHidden(ctx, reloaded)
 	}
@@ -816,7 +833,7 @@ func useCache(backend served, notifications *daemon.Notifications) {
 		notifications.Arrived(room, since)
 		backend.archive.Arrived(room, since)
 	})
-	backend.archive.Use(notifications.MediaArchived, notifications.ArchiveWarnBytes, notifications.MediaSay)
+	backend.archive.Use(notifications.MediaArchived, notifications.MediaEncrypted, notifications.ArchiveWarnBytes, notifications.MediaSay)
 }
 
 // expected is every account the daemon starts with a session, for State.Expect. A

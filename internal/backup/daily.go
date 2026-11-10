@@ -62,12 +62,12 @@ func MakeDaily(ctx context.Context, src Source, to *PublicKey, dir string, sched
 		func(out string) (Made, error) { return Create(ctx, src, out, to) })
 }
 
-// MakeMedia is MakeDaily for media backups of the archive in archiveDir: named apart,
-// so each kind keeps its own sched.Keep.
-func MakeMedia(ctx context.Context, archiveDir string, to *PublicKey, dir string, sched Schedule, now time.Time) (Daily, error) {
+// MakeMedia is MakeDaily for media backups of the archive in archiveDir, sealed under
+// cacheKey (CreateMedia): named apart, so each kind keeps its own sched.Keep.
+func MakeMedia(ctx context.Context, archiveDir string, cacheKey []byte, to *PublicKey, dir string, sched Schedule, now time.Time) (Daily, error) {
 	return makeScheduled(dir, mediaBackupPrefix, "", sched, now,
 		func() error { return roomForMedia(archiveDir, dir) },
-		func(out string) (Made, error) { return CreateMedia(ctx, archiveDir, out, to) })
+		func(out string) (Made, error) { return CreateMedia(ctx, archiveDir, cacheKey, out, to) })
 }
 
 // makeScheduled makes one scheduled backup named prefix in dir when due (room checks

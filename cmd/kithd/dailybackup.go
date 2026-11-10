@@ -138,12 +138,13 @@ func (d dailyBackups) once(ctx context.Context, now time.Time) (done backup.Dail
 	if err != nil {
 		return backup.Daily{}, err //nolint:wrapcheck // backup words it
 	}
+	// A media backup carries the key its encrypted copies are sealed under.
+	key, keyErr := cacheKey(d.storage)
+	if keyErr != nil {
+		return backup.Daily{}, fmt.Errorf("%w (unlock the keyring)", keyErr)
+	}
 	var src backup.Source
-	if !d.media { // a media backup holds no cache, so needs no keyring
-		key, keyErr := cacheKey(d.storage)
-		if keyErr != nil {
-			return backup.Daily{}, fmt.Errorf("%w (unlock the keyring)", keyErr)
-		}
+	if !d.media {
 		src = backup.Source{
 			ConfigPath: d.file.path, Config: cfg, Storage: d.storage, CacheKey: key,
 			MediaDir: d.storage.MediaDir(),
@@ -162,7 +163,7 @@ func (d dailyBackups) once(ctx context.Context, now time.Time) (done backup.Dail
 	}
 	sched := backup.Schedule{Next: next, Keep: cfg.Backup.KeepOrDefault()}
 	if d.media {
-		return backup.MakeMedia(ctx, d.storage.MediaArchiveDir(), to, storage.BackupsDir(), sched, now) //nolint:wrapcheck // backup words it
+		return backup.MakeMedia(ctx, d.storage.MediaArchiveDir(), key, to, storage.BackupsDir(), sched, now) //nolint:wrapcheck // backup words it
 	}
 	return backup.MakeDaily(ctx, src, to, storage.BackupsDir(), sched, now) //nolint:wrapcheck // backup words it
 }

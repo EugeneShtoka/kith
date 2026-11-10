@@ -2,6 +2,7 @@ package backup
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,9 @@ import (
 	"os"
 	"slices"
 	"strings"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/mediaarchive"
 )
 
 // A media backup (CreateMedia) is put back apart from the history: into the media
@@ -22,14 +26,18 @@ var (
 // RestoreMedia puts the media backup at archive back into the media archive of the
 // config at configPath, which must read: restore the history first. A copy already
 // there stays (it is named by its message, so it is the same one), and kithd may keep
-// running, since the archive only gains files. key, the private backup key, is asked
-// once the config reads. Until the whole backup is read and checked nothing is placed.
-func RestoreMedia(ctx context.Context, archive, configPath string, key func() (*Key, error)) (Restored, error) {
+// running, since the archive only gains files. A sealed copy is sealed again under
+// this machine's cache key (cacheKey finds it) when the backup's was another. key, the
+// private backup key, is asked once the config reads. Until the whole backup is read
+// and checked nothing is placed.
+func RestoreMedia(ctx context.Context, archive, configPath string, key func() (*Key, error),
+	cacheKey func(domain.Storage) ([]byte, error),
+) (Restored, error) {
 	storage, ok := storageOf(configPath)
 	if !ok {
 		return Restored{}, fmt.Errorf("restore: %s does not read; put the history back first", configPath)
 	}
-	r := restore{configPath: configPath, storage: storage}
+	r := restore{configPath: configPath, storage: storage, cacheKey: cacheKey}
 	r.archive = folder{dest: storage.MediaArchiveDir(), pattern: ".restore-archive-*"}
 	defer r.cleanup()
 	f, err := os.Open(archive) // #nosec G304 -- the backup this user named
@@ -57,7 +65,7 @@ func (r *restore) readMedia(ctx context.Context, f io.Reader) error {
 		return err
 	}
 	tr := tar.NewReader(plain)
-	listed, _, err := readManifest(tr, kindMedia)
+	listed, sealedUnder, err := readManifest(tr, kindMedia)
 	if err != nil {
 		return err
 	}
@@ -80,7 +88,15 @@ func (r *restore) readMedia(ctx context.Context, f io.Reader) error {
 		}
 		had[hdr.Name] = true
 		seen = append(seen, hdr.Name)
-		if stageErr := r.stageFile(ctx, &r.archive, name, hdr, tr); stageErr != nil {
+		body := io.Reader(tr)
+		if strings.HasSuffix(name, mediaarchive.SealedExt) {
+			resealed, resealErr := r.reseal(name, sealedUnder, tr)
+			if resealErr != nil {
+				return resealErr
+			}
+			body = bytes.NewReader(resealed)
+		}
+		if stageErr := r.stageFile(ctx, &r.archive, name, hdr, body); stageErr != nil {
 			return stageErr
 		}
 	}
@@ -92,4 +108,37 @@ func (r *restore) readMedia(ctx context.Context, f io.Reader) error {
 		return damaged(fmt.Errorf("it holds %d copies; its list says %d", len(seen), len(listed)))
 	}
 	return nil
+}
+
+// reseal is the sealed copy name, read from tr, sealed under this machine's cache key:
+// as it is when the backup's (from) is the same key, else opened under from and sealed
+// again. One that does not open is damaged.
+func (r *restore) reseal(name string, from []byte, tr io.Reader) ([]byte, error) {
+	sealed, err := io.ReadAll(archiveReader{tr})
+	if err != nil {
+		return nil, damaged(err)
+	}
+	if from == nil {
+		return nil, damaged(fmt.Errorf("%q is encrypted, but the backup carries no key", name))
+	}
+	local, err := r.storeKey()
+	if err != nil {
+		return nil, err
+	}
+	if bytes.Equal(from, local) {
+		return sealed, nil
+	}
+	opener, err := mediaarchive.NewSealer(from)
+	if err != nil {
+		return nil, fmt.Errorf("restore: %w", err)
+	}
+	sealer, err := mediaarchive.NewSealer(local)
+	if err != nil {
+		return nil, fmt.Errorf("restore: %w", err)
+	}
+	data, err := opener.Open(name, sealed)
+	if err != nil {
+		return nil, damaged(err)
+	}
+	return sealer.Seal(name, data), nil
 }

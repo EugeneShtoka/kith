@@ -67,8 +67,8 @@ const format = 4
 
 // manifest is a backup's first entry: its layout, when and by what it was made, every
 // file after it, so a restore can tell a whole backup from a cut one, the key (hex)
-// the cache and the mesh store in it are encrypted under, and the public backup key it
-// was made to.
+// the cache and the mesh store in it are encrypted under (a media backup's: the key
+// its sealed copies are sealed under), and the public backup key it was made to.
 type manifest struct {
 	Format    int       `json:"format"`
 	Created   time.Time `json:"created"`
@@ -163,9 +163,10 @@ func Create(ctx context.Context, src Source, out string, to *PublicKey) (Made, e
 }
 
 // CreateMedia writes a media backup of the archive in dir to out, a file that must not
-// exist, encrypted to to: every copy, and nothing else. A failed or interrupted backup
-// leaves no file at out.
-func CreateMedia(ctx context.Context, dir, out string, to *PublicKey) (Made, error) {
+// exist, encrypted to to: every copy as it is (a sealed one sealed), and cacheKey, which
+// the sealed ones are sealed under, so a restore on another machine opens them. A failed
+// or interrupted backup leaves no file at out.
+func CreateMedia(ctx context.Context, dir string, cacheKey []byte, out string, to *PublicKey) (Made, error) {
 	if to == nil {
 		return Made{}, ErrNoKey
 	}
@@ -179,7 +180,7 @@ func CreateMedia(ctx context.Context, dir, out string, to *PublicKey) (Made, err
 	if mkErr := os.MkdirAll(filepath.Dir(out), 0o700); mkErr != nil {
 		return Made{}, fmt.Errorf("backup: %w", mkErr)
 	}
-	entries, err := writeArchive(ctx, out, to, files, nil, kindMedia)
+	entries, err := writeArchive(ctx, out, to, files, cacheKey, kindMedia)
 	if err != nil {
 		return Made{}, err
 	}

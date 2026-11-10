@@ -598,6 +598,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/db"
             - "github.com/EugeneShtoka/kith/internal/domain"
+            # A sealed archived copy is sealed again under the restoring machine's key.
+            - "github.com/EugeneShtoka/kith/internal/mediaarchive"
             - "github.com/EugeneShtoka/kith/internal/mesh"
             - "github.com/EugeneShtoka/kith/internal/setup"
 

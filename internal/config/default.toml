@@ -1027,6 +1027,11 @@ messages_per_room = -1
 # place's.
 archive_media   = true
 archive_warn_mb = 0
+# The copies are kept encrypted where encrypt_media is on, under a key the cache's key
+# (in the keyring) makes, so they open in kith only; a rule's encrypt_media sets one
+# place's. Turned on, the copies already there are encrypted too. A media backup puts
+# them back encrypted under the machine's own key.
+encrypt_media = false
 
 # Per-place numbers. `match` names the place as any place list does: a room ID,
 # room:<name>, space:<name>, tag:<name>, protocol:<network>, dm or group. One room
@@ -1044,6 +1049,10 @@ archive_warn_mb = 0
 # [[storage.rule]]
 # match         = "tag:Spam"
 # archive_media = false
+#
+# [[storage.rule]]
+# match         = "space:Family"
+# encrypt_media = true
 
 # kithd's scheduled backups: the cache, this config, your local records and the
 # pictures, in one file encrypted to your backup key. `kith backup` makes one by hand

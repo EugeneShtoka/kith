@@ -133,8 +133,9 @@ func (r *restore) decrypt(f io.Reader) (io.Reader, error) {
 }
 
 // readManifest reads the first entry: the list of every file after it, and the key
-// the cache in the backup is encrypted under (none in a media backup). A backup of
-// another kind than kind is refused.
+// the cache in the backup is encrypted under, or a media backup's copies are sealed
+// under (none in one made before copies were sealed). A backup of another kind than
+// kind is refused.
 func readManifest(tr *tar.Reader, kind string) ([]string, []byte, error) {
 	hdr, err := tr.Next()
 	if err != nil {
@@ -152,12 +153,12 @@ func readManifest(tr *tar.Reader, kind string) ([]string, []byte, error) {
 			m.Format, format, m.Kith)
 	}
 	switch {
-	case m.Kind == kind && kind == kindMedia:
-		return m.Files, nil, nil
-	case m.Kind == kindMedia:
+	case m.Kind == kindMedia && kind != kindMedia:
 		return nil, nil, fmt.Errorf("restore: %w", errMediaBackup)
 	case m.Kind != kind:
 		return nil, nil, fmt.Errorf("restore: %w", errNotMediaBackup)
+	case kind == kindMedia && m.CacheKey == "":
+		return m.Files, nil, nil // made before copies were sealed: none is
 	}
 	key, err := hex.DecodeString(m.CacheKey)
 	if err != nil || len(key) != db.KeyLen {

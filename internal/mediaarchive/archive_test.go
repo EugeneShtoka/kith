@@ -3,6 +3,7 @@ package mediaarchive
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"log/slog"
 	"os"
@@ -89,6 +90,20 @@ const (
 	skipped domain.RoomID = "whatsapp:me/skipped"
 )
 
+func never(domain.RoomID) bool  { return false }
+func always(domain.RoomID) bool { return true }
+
+// sealer is a sealer under a cache key made of seed.
+func sealer(t *testing.T, seed string) *Sealer {
+	t.Helper()
+	sum := sha256.Sum256([]byte(seed))
+	s, err := NewSealer(sum[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
 func ref(room domain.RoomID, event, revision domain.EventID) domain.AttachmentRef {
 	return domain.AttachmentRef{Room: room, Event: event, Revision: revision, Name: "photo.jpg", Mime: "image/jpeg"}
 }
@@ -98,9 +113,9 @@ func fixture(t *testing.T, refs ...domain.AttachmentRef) (*Archive, *cache, *net
 	t.Helper()
 	c := &cache{refs: refs}
 	n := &network{fetched: map[domain.EventID]int{}, cache: c}
-	a := New(filepath.Join(t.TempDir(), "media"), c, n.fetch, slog.New(slog.DiscardHandler))
+	a := New(filepath.Join(t.TempDir(), "media"), c, n.fetch, sealer(t, "this machine"), slog.New(slog.DiscardHandler))
 	var warned []string
-	a.Use(func(r domain.RoomID) bool { return r == kept }, func() int64 { return -1 }, func(body string) { warned = append(warned, body) })
+	a.Use(func(r domain.RoomID) bool { return r == kept }, never, func() int64 { return -1 }, func(body string) { warned = append(warned, body) })
 	if err := a.open(); err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +176,7 @@ func TestLoadServesTheCopyFirst(t *testing.T) {
 		t.Errorf("Load in a room whose attachments are not kept: %v, archived %v", skipErr, a.has(ref(skipped, "$2", "")))
 	}
 	n.fail = true
-	a.Use(func(domain.RoomID) bool { return false }, func() int64 { return -1 }, func(string) {})
+	a.Use(never, never, func() int64 { return -1 }, func(string) {})
 	again, err := a.Load(ctx, kept, "$1")
 	if err != nil || !bytes.Equal(again, first) || n.count("$1") != 1 {
 		t.Errorf("Load from the archive = %q, %v; fetched %d", again, err, n.count("$1"))
@@ -237,7 +252,7 @@ func TestPastTheLimitItWarnsOnceAndDeletesNothing(t *testing.T) {
 	t.Parallel()
 	a, _, _, warned := fixture(t, ref(kept, "$1", ""), ref(kept, "$2", ""), ref(kept, "$3", ""))
 	limit := int64(30)
-	a.Use(func(domain.RoomID) bool { return true }, func() int64 { return limit }, func(body string) { *warned = append(*warned, body) })
+	a.Use(always, never, func() int64 { return limit }, func(body string) { *warned = append(*warned, body) })
 	a.keepSince(context.Background(), "", time.Time{})
 	if len(*warned) != 1 || len(files(t, a)) != 3 {
 		t.Fatalf("warned %q with %v kept, want one warning and every file", *warned, files(t, a))
@@ -249,8 +264,8 @@ func TestPastTheLimitItWarnsOnceAndDeletesNothing(t *testing.T) {
 	if len(*warned) != 2 {
 		t.Errorf("after the limit was raised and lowered: warned %d times, want 2", len(*warned))
 	}
-	restarted := New(a.dir, &cache{}, nil, a.log)
-	restarted.Use(func(domain.RoomID) bool { return true }, func() int64 { return limit }, func(body string) { *warned = append(*warned, body) })
+	restarted := New(a.dir, &cache{}, nil, nil, a.log)
+	restarted.Use(always, never, func() int64 { return limit }, func(body string) { *warned = append(*warned, body) })
 	if err := restarted.open(); err != nil || len(*warned) != 3 {
 		t.Errorf("a start past the limit warned %d times (%v), want 3", len(*warned), err)
 	}
@@ -269,4 +284,127 @@ func TestAStartRemovesWhatACrashLeft(t *testing.T) {
 	if got := files(t, a); len(got) != 0 || a.used != 0 {
 		t.Errorf("after a start: %v, %d bytes counted", got, a.used)
 	}
+}
+
+// usedMatches fails unless the count of bytes is what the folder holds.
+func usedMatches(t *testing.T, a *Archive) {
+	t.Helper()
+	var size int64
+	for _, name := range files(t, a) {
+		info, err := os.Stat(filepath.Join(a.dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		size += info.Size()
+	}
+	if a.used != size {
+		t.Errorf("counted %d bytes, the folder holds %d", a.used, size)
+	}
+}
+
+// A room whose copies are to be encrypted keeps no plain copy: the file holds none of
+// the bytes as they are, and opens again only through the archive, the network down.
+func TestASealedRoomKeepsNoPlainCopy(t *testing.T) {
+	t.Parallel()
+	a, _, n, _ := fixture(t, ref(kept, "$1", ""))
+	a.Use(always, always, func() int64 { return -1 }, func(string) {})
+	a.keepSince(context.Background(), "", time.Time{})
+	got := files(t, a)
+	if len(got) != 1 || filepath.Ext(got[0]) != SealedExt {
+		t.Fatalf("files = %v, want one sealed copy", got)
+	}
+	body, err := os.ReadFile(filepath.Join(a.dir, got[0])) // #nosec G304 -- the test's own file
+	if err != nil || bytes.Contains(body, []byte("bytes of $1")) {
+		t.Fatalf("the sealed copy holds the plain bytes (%v)", err)
+	}
+	n.fail = true
+	if data, err := a.Load(context.Background(), kept, "$1"); err != nil || string(data) != "bytes of $1@" {
+		t.Errorf("Load = %q, %v; want the bytes, from the archive", data, err)
+	}
+	usedMatches(t, a)
+}
+
+// Encryption turned on seals the copies already there, in their place, downloading
+// nothing again; turned off, sealed copies stay sealed and still open.
+func TestTurningEncryptionOnSealsWhatIsThere(t *testing.T) {
+	t.Parallel()
+	a, _, n, _ := fixture(t, ref(kept, "$1", ""), ref(kept, "$2", ""))
+	a.keepSince(context.Background(), "", time.Time{})
+	a.Use(always, always, func() int64 { return -1 }, func(string) {})
+	a.keepSince(context.Background(), "", time.Time{})
+	for _, name := range files(t, a) {
+		if filepath.Ext(name) != SealedExt {
+			t.Errorf("%s left plain", name)
+		}
+	}
+	if len(files(t, a)) != 2 || n.count("$1") != 1 {
+		t.Errorf("files %v, $1 downloaded %d times; want both sealed, downloaded once", files(t, a), n.count("$1"))
+	}
+	usedMatches(t, a)
+	a.Use(always, never, func() int64 { return -1 }, func(string) {})
+	a.keepSince(context.Background(), "", time.Time{})
+	n.fail = true
+	if data, err := a.Load(context.Background(), kept, "$2"); err != nil || string(data) != "bytes of $2@" {
+		t.Errorf("Load after turning it off = %q, %v", data, err)
+	}
+}
+
+// A sealed copy opens only as itself, under this machine's key: one copied over
+// another's name, or sealed under another key, is not served; the network is asked.
+func TestASealedCopyOpensOnlyAsItself(t *testing.T) {
+	t.Parallel()
+	a, _, n, _ := fixture(t, ref(kept, "$1", ""), ref(kept, "$2", ""))
+	a.Use(always, always, func() int64 { return -1 }, func(string) {})
+	a.keepSince(context.Background(), "", time.Time{})
+	one, two := a.sealedPath(ref(kept, "$1", "")), a.sealedPath(ref(kept, "$2", ""))
+	body, err := os.ReadFile(one) // #nosec G304 -- the test's own file
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(two, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := a.Load(context.Background(), kept, "$2"); err != nil || string(data) != "bytes of $2@" || n.count("$2") != 2 {
+		t.Errorf("Load of a copy passed off as $2 = %q, %v, downloads %d; want $2's own, downloaded", data, err, n.count("$2"))
+	}
+	other := New(a.dir, a.cache, n.fetch, sealer(t, "another machine"), a.log)
+	other.Use(always, always, func() int64 { return -1 }, func(string) {})
+	if data, err := other.Load(context.Background(), kept, "$1"); err != nil || n.count("$1") != 2 || string(data) != "bytes of $1@" {
+		t.Errorf("another key's Load = %q, %v, downloads %d; want it downloaded", data, err, n.count("$1"))
+	}
+}
+
+// Requests and the worker sealing the copies already there, all at once, leave each
+// copy once (plain or sealed, never both), whole, counted once.
+func TestConcurrentSealingCountsEachCopyOnce(t *testing.T) {
+	t.Parallel()
+	var refs []domain.AttachmentRef
+	for _, e := range []domain.EventID{"$1", "$2", "$3", "$4", "$5", "$6"} {
+		refs = append(refs, ref(kept, e, ""))
+	}
+	a, _, _, _ := fixture(t, refs...)
+	a.keepSince(context.Background(), "", time.Time{}) // plain first
+	a.Use(func(r domain.RoomID) bool { return r == kept }, always, func() int64 { return -1 }, func(string) {})
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() { a.keepSince(context.Background(), "", time.Time{}) })
+		wg.Go(func() {
+			for _, r := range refs {
+				if data, err := a.Load(context.Background(), r.Room, r.Event); err != nil || string(data) != "bytes of "+string(r.Event)+"@" {
+					t.Errorf("Load %s = %q, %v", r.Event, data, err)
+				}
+			}
+		})
+	}
+	wg.Wait()
+	got := files(t, a)
+	if len(got) != len(refs) {
+		t.Errorf("files = %v, want one per attachment", got)
+	}
+	for _, name := range got {
+		if filepath.Ext(name) != SealedExt {
+			t.Errorf("%s left plain", name)
+		}
+	}
+	usedMatches(t, a)
 }

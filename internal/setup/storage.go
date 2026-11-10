@@ -156,7 +156,7 @@ func PhonebookDir(cfg config.Config) string {
 
 // KeepRules validates [storage] messages_per_room and [[storage.rule]]: a count is
 // negative (keep all) or at least one; a match is a place entry; a rule sets messages,
-// archive_media or both.
+// archive_media, encrypt_media or several.
 func KeepRules(st config.Storage) (int, []domain.KeepRule, error) {
 	base := st.MessagesKept()
 	if base == 0 {
@@ -168,10 +168,10 @@ func KeepRules(st config.Storage) (int, []domain.KeepRule, error) {
 			return 0, nil, fmt.Errorf("config: %w", domain.NeedsPrefix(fmt.Sprintf("storage.rule[%d].match", i), r.Match, domain.EntryPrefixes, domain.EntryWords))
 		}
 		switch {
-		case r.Messages == nil && r.ArchiveMedia == nil:
-			return 0, nil, fmt.Errorf("config: [[storage.rule]] %d (%s): sets neither messages nor archive_media", i+1, r.Match)
+		case r.Messages == nil && r.ArchiveMedia == nil && r.EncryptMedia == nil:
+			return 0, nil, fmt.Errorf("config: [[storage.rule]] %d (%s): sets none of messages, archive_media and encrypt_media", i+1, r.Match)
 		case r.Messages == nil:
-			continue // an archive_media rule only
+			continue // an archive_media or encrypt_media rule only
 		case *r.Messages == 0:
 			return 0, nil, fmt.Errorf("config: [[storage.rule]] %d (%s): messages = 0 would keep nothing; -1 keeps every message", i+1, r.Match)
 		}
@@ -190,6 +190,18 @@ func ArchiveRules(st config.Storage) (bool, []domain.ArchiveRule) {
 		}
 	}
 	return st.MediaArchived(), rules
+}
+
+// EncryptRules is [storage] encrypt_media and the rules that set it; KeepRules
+// validates them.
+func EncryptRules(st config.Storage) (bool, []domain.EncryptRule) {
+	var rules []domain.EncryptRule
+	for _, r := range st.Rules {
+		if r.EncryptMedia != nil {
+			rules = append(rules, domain.EncryptRule{Match: r.Match, Encrypt: *r.EncryptMedia})
+		}
+	}
+	return st.MediaEncrypted(), rules
 }
 
 // keepCheck is KeepRules for Validate.
