@@ -42,7 +42,8 @@ func (m *Media) IsVideo() bool { return m != nil && m.Type == MediaVideo }
 
 // AttachmentRef is a cached message's attachment as kithd's media archive keeps it:
 // Revision is the edit the message shows ("" for none), so a replaced attachment is a
-// file of its own. Timed is a disappearing message's.
+// file of its own. Timed is a disappearing message's; Deleted a message deleted (or
+// disappeared) whose attachment is kept under [display.deleted] keep.
 type AttachmentRef struct {
 	Room     RoomID
 	Event    EventID
@@ -50,6 +51,7 @@ type AttachmentRef struct {
 	Name     string
 	Mime     string
 	Timed    bool
+	Deleted  bool
 }
 
 // MediaRule is one place's attachment policy; a nil field inherits.

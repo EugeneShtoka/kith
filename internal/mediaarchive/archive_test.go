@@ -241,6 +241,29 @@ func TestADisappearingMessagesAttachmentIsKeptOnlyWhereAsked(t *testing.T) {
 	}
 }
 
+// A deleted (or disappeared) message whose attachment the cache keeps opens from its
+// copy with the network gone; one never archived is fetched but not archived after.
+func TestADeletedMessagesCopyStillOpens(t *testing.T) {
+	t.Parallel()
+	a, c, n, _ := fixture(t, ref(kept, "$1", ""), ref(kept, "$2", ""))
+	ctx := context.Background()
+	if _, err := a.Load(ctx, kept, "$1"); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range []domain.EventID{"$1", "$2"} {
+		deleted := ref(kept, e, "")
+		deleted.Deleted = true
+		c.set(e, deleted, true)
+	}
+	if _, err := a.Load(ctx, kept, "$2"); err != nil || a.has(ref(kept, "$2", "")) {
+		t.Errorf("a deleted message's attachment fetched: %v, archived %v", err, a.has(ref(kept, "$2", "")))
+	}
+	n.fail = true
+	if data, err := a.Load(ctx, kept, "$1"); err != nil || n.count("$1") != 1 {
+		t.Errorf("a deleted message's copy = %q, %v; fetched %d", data, err, n.count("$1"))
+	}
+}
+
 // A request and the worker keeping the same attachments at once leave each file once,
 // whole, counted once, and nothing half written.
 func TestConcurrentKeepsCountEachFileOnce(t *testing.T) {

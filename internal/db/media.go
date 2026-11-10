@@ -145,22 +145,25 @@ func saveHTML(ctx context.Context, tx *sql.Tx, roomID domain.RoomID, m *domain.M
 	return nil
 }
 
-// attachmentsQuery is every attachment worth archiving: not redacted. One on a
-// disappearing message is marked, its sender having asked for it to go.
+// attachmentsQuery is every attachment the cache holds: a deleted message's only under
+// [display.deleted] keep. One on a disappearing message is marked, its sender having
+// asked for it to go, and one on a deleted (or disappeared) message too.
+// shortcut: a deleted message's edit is forgotten, so a copy kept under an edit is not
+// found once its message is deleted; look the edit up in message_revisions if it matters.
 const attachmentsQuery = `
 	SELECT mm.room_id, mm.event_id, COALESCE(me.revision_id, ''), mm.name, mm.mime,
-		EXISTS (SELECT 1 FROM message_expiry x WHERE x.room_id = mm.room_id AND x.event_id = mm.event_id)
+		EXISTS (SELECT 1 FROM message_expiry x WHERE x.room_id = mm.room_id AND x.event_id = mm.event_id),
+		m.redacted
 	FROM message_media mm
 	JOIN messages m ON m.room_id = mm.room_id AND m.event_id = mm.event_id
-	LEFT JOIN message_edit me ON me.room_id = mm.room_id AND me.event_id = mm.event_id
-	WHERE m.redacted = 0`
+	LEFT JOIN message_edit me ON me.room_id = mm.room_id AND me.event_id = mm.event_id`
 
 // Attachments lists the attachments to archive in room ("" for every room) on messages
-// sent since, oldest first: the first a network removes.
+// sent since and not deleted, oldest first: the first a network removes.
 // shortcut: one query holds every row in memory; page it if a cache holds millions.
 func (c *Cache) Attachments(ctx context.Context, roomID domain.RoomID, since time.Time) ([]domain.AttachmentRef, error) {
 	rows, err := c.db.QueryContext(ctx, attachmentsQuery+`
-		AND (?1 = '' OR mm.room_id = ?1) AND m.ts_ms >= ?2
+		WHERE m.redacted = 0 AND (?1 = '' OR mm.room_id = ?1) AND m.ts_ms >= ?2
 		ORDER BY m.ts_ms, mm.event_id`, string(roomID), since.UnixMilli())
 	if err != nil {
 		return nil, fmt.Errorf("db: list attachments: %w", err)
@@ -169,7 +172,7 @@ func (c *Cache) Attachments(ctx context.Context, roomID domain.RoomID, since tim
 	var out []domain.AttachmentRef
 	for rows.Next() {
 		var a domain.AttachmentRef
-		if err := rows.Scan(&a.Room, &a.Event, &a.Revision, &a.Name, &a.Mime, &a.Timed); err != nil {
+		if err := rows.Scan(&a.Room, &a.Event, &a.Revision, &a.Name, &a.Mime, &a.Timed, &a.Deleted); err != nil {
 			return nil, fmt.Errorf("db: list attachments: %w", err)
 		}
 		out = append(out, a)
@@ -180,12 +183,12 @@ func (c *Cache) Attachments(ctx context.Context, roomID domain.RoomID, since tim
 	return out, nil
 }
 
-// Attachment is one message's attachment to archive; false when it has none, or is
-// redacted.
+// Attachment is one message's attachment; false when it has none, or its message was
+// deleted and what it said not kept.
 func (c *Cache) Attachment(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) (domain.AttachmentRef, bool, error) {
 	var a domain.AttachmentRef
-	err := c.db.QueryRowContext(ctx, attachmentsQuery+` AND mm.room_id = ? AND mm.event_id = ?`,
-		string(roomID), string(eventID)).Scan(&a.Room, &a.Event, &a.Revision, &a.Name, &a.Mime, &a.Timed)
+	err := c.db.QueryRowContext(ctx, attachmentsQuery+` WHERE mm.room_id = ? AND mm.event_id = ?`,
+		string(roomID), string(eventID)).Scan(&a.Room, &a.Event, &a.Revision, &a.Name, &a.Mime, &a.Timed, &a.Deleted)
 	ok, err := optional(err)
 	if err != nil {
 		return a, false, fmt.Errorf("db: lookup attachment %s: %w", eventID, err)
