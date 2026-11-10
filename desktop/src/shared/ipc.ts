@@ -23,6 +23,8 @@ export const channels = {
   attach: "kith:attach",
   /** Keeping an offered image as a person's picture: (token), answered with its name. */
   savePicture: "kith:save-picture",
+  /** A chat export picked in the open dialog, brought to kithd and read: a ChatChosen, or none. */
+  importChat: "kith:import-chat",
   /** Main to the window: it is closing, write what is unsaved; the window answers closed. */
   closing: "kith:closing",
   closed: "kith:closed",
@@ -58,6 +60,16 @@ export interface Offered {
   token: string;
   name: string;
   size: number;
+}
+
+/**
+ * A chat export kithd read (PreviewChatImport): the upload it is in and the zone its
+ * times were read in, which the next steps name, and the preview in protobuf binary.
+ */
+export interface ChatChosen {
+  upload: string;
+  zone: string;
+  preview: Uint8Array;
 }
 
 /** A file sent; kept: with metadata kith cannot remove from it (HEIC). */
@@ -119,6 +131,8 @@ export interface KithBridge {
   attach(token: string, room: string, caption: string): Promise<Sent>;
   /** Keeps an offered image as a picture a person's identity can name: its name ("file:…"). */
   savePicture(token: string): Promise<string>;
+  /** Asks for a chat export in the open dialog, which kithd reads; none when none was picked. */
+  importChat(): Promise<ChatChosen | undefined>;
   /** Says what to do as the window closes (write its drafts); main waits a little for it. */
   closing(write: () => Promise<void>): void;
   /**

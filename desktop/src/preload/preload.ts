@@ -2,7 +2,15 @@
 // protobuf binary. Main decides which names the window may use; nothing here widens it.
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 
-import { channels, type KithBridge, type Offered, type Sent, type StreamEvent, type Subscribe } from "../shared/ipc";
+import {
+  type ChatChosen,
+  channels,
+  type KithBridge,
+  type Offered,
+  type Sent,
+  type StreamEvent,
+  type Subscribe,
+} from "../shared/ipc";
 
 /** Where a reloading window keeps its drafts not stored. */
 const keptKey = "kith:kept";
@@ -73,6 +81,7 @@ const kith: KithBridge = {
   discard: (token) => ipcRenderer.invoke(channels.discard, token) as Promise<void>,
   attach: (token, room, caption) => ipcRenderer.invoke(channels.attach, token, room, caption) as Promise<Sent>,
   savePicture: (token) => ipcRenderer.invoke(channels.savePicture, token) as Promise<string>,
+  importChat: () => ipcRenderer.invoke(channels.importChat) as Promise<ChatChosen | undefined>,
   fontSize: () => ipcRenderer.invoke(channels.fontSize) as Promise<number>,
   setFontSize: (px) => ipcRenderer.invoke(channels.setFontSize, px) as Promise<number>,
   menuBar: () => ipcRenderer.invoke(channels.menuBar) as Promise<boolean>,

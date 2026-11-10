@@ -148,6 +148,16 @@ async function start(): Promise<void> {
     const chosen = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
     return chosen.canceled ? [] : Promise.all(chosen.filePaths.map((p) => attachments.fromPath(p)));
   });
+  ipcMain.handle(channels.importChat, async (event) => {
+    fromWindow(event);
+    const options: Electron.OpenDialogOptions = {
+      properties: ["openFile"],
+      filters: [{ name: "Chat export", extensions: ["zip", "txt"] }],
+    };
+    const chosen = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
+    const file = chosen.filePaths[0];
+    return chosen.canceled || file === undefined ? undefined : attachments.importChat(file);
+  });
   ipcMain.handle(channels.offerPath, (event, file: unknown) => {
     fromWindow(event);
     if (typeof file !== "string" || !path.isAbsolute(file)) {

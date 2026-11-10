@@ -3,12 +3,18 @@ import { mkdtemp, open, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import type { DescMessage, DescMethodUnary, MessageInitShape, MessageShape } from "@bufbuild/protobuf";
+import {
+  type DescMessage,
+  type DescMethodUnary,
+  type MessageInitShape,
+  type MessageShape,
+  toBinary,
+} from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 
 import { BackendService } from "../gen/backend/v1/services_pb";
 import { DeviceService } from "../gen/device/v1/device_pb";
-import type { Offered } from "../shared/ipc";
+import type { ChatChosen, Offered } from "../shared/ipc";
 
 const backend = BackendService.method;
 
@@ -134,6 +140,20 @@ export class Attachments {
     } finally {
       await removeMade(offer);
     }
+  }
+
+  /**
+   * importChat brings kithd the chat export at file, which the open dialog answered, and
+   * has it read in this machine's zone (PreviewChatImport). The window goes on from the
+   * upload (ChatImportSenders, ApplyChatImport), which the gate lets it name.
+   */
+  async importChat(file: string): Promise<ChatChosen> {
+    const signal = this.stopped.signal;
+    const offer = { file, name: path.basename(file), size: 0, made: undefined };
+    const uploadId = await this.bring(file, offer, signal);
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const preview = await this.call(backend.previewChatImport, { uploadId, zone }, signal);
+    return { upload: uploadId, zone, preview: toBinary(backend.previewChatImport.output, preview) };
   }
 
   private offer(o: Offer): Offered {

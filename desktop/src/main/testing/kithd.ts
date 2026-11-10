@@ -118,6 +118,8 @@ export class FakeKithd {
   /** The send queue's IDs (ScheduledMessages answers these; Schedule adds q1, q2…), and the calls on one. */
   readonly queue: string[] = [];
   readonly onQueued: string[] = [];
+  /** The calls going on from a chat export that reached kithd, as "Method upload:profile". */
+  readonly onImport: string[] = [];
   /** ScheduledMessages answers once this settles. */
   queueHeld: Promise<void> = Promise.resolve();
   /**
@@ -349,6 +351,23 @@ export class FakeKithd {
         cancelScheduled: (req, ctx) => {
           this.onQueued.push(`CancelScheduled ${req.id}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
           return { canceled: true };
+        },
+        previewChatImport: (req, ctx) => {
+          this.received.push({
+            method: "PreviewChatImport",
+            profile: ctx.requestHeader.get("Kith-Profile"),
+            message: req,
+          });
+          const brought = this.uploads.get(req.uploadId);
+          return { title: brought?.name ?? "", messages: brought?.data.length ?? 0 };
+        },
+        chatImportSenders: (req, ctx) => {
+          this.onImport.push(`ChatImportSenders ${req.uploadId}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
+          return {};
+        },
+        applyChatImport: (req, ctx) => {
+          this.onImport.push(`ApplyChatImport ${req.uploadId}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
+          return { added: 3 };
         },
         retryScheduled: (req, ctx) => {
           this.onQueued.push(`RetryScheduled ${req.id}:${ctx.requestHeader.get("Kith-Profile") ?? ""}`);
