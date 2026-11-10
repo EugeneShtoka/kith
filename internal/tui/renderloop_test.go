@@ -12,7 +12,8 @@ import (
 )
 
 // View() must run on the Update goroutine: it reads Model.derived, which Update writes and all
-// copies share. Asserted against the framework source: View() is called only in
+// copies share. Asserted against the framework source kith builds with, so a bubbletea bump
+// that moves rendering off that goroutine fails here: View() is called only in
 // Program.render, never started with `go`. cmdreach_test.go guards the tea.Cmd side.
 func TestRenderRunsOnTheUpdateGoroutine(t *testing.T) {
 	t.Parallel()
@@ -74,26 +75,6 @@ func TestRenderRunsOnTheUpdateGoroutine(t *testing.T) {
 		t.Errorf("the framework starts render/View with `go` at:\n  %s\n\n"+
 			"Rendering has moved off the Update goroutine, so View's reads of Model.derived "+
 			"now race Update's writes.", strings.Join(renderInGoroutine, "\n  "))
-	}
-}
-
-// bubbletea stays replaced by the fork, so the test above asserts against source we control.
-// Deleting the replace fails the build; this catches repointing it.
-func TestBubbleTeaStaysPinnedToTheFork(t *testing.T) {
-	t.Parallel()
-
-	mod, err := os.ReadFile(filepath.Join("..", "..", "go.mod"))
-	if err != nil {
-		t.Fatalf("read go.mod: %v", err)
-	}
-	const want = "replace charm.land/bubbletea/v2 => github.com/EugeneShtoka/bubbletea/v2 "
-	if !strings.Contains(string(mod), want) {
-		t.Fatalf("go.mod no longer replaces bubbletea with the fork.\n\n"+
-			"The fork is what makes TestRenderRunsOnTheUpdateGoroutine a guarantee rather than "+
-			"an observation: upstream has shipped renderer designs where View() does not run on "+
-			"the Update goroutine, and View reads Model.derived while Update writes it. Dropping the replace "+
-			"means reading that test's assertions against whatever upstream does now.\n\n"+
-			"want a line beginning: %s", want)
 	}
 }
 
