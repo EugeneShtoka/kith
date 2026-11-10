@@ -14,6 +14,9 @@ This first release reads and writes messages:
   [spelling and word completion](#spelling-and-completion), and
   [sending later and commands](#sending-later-and-commands);
 - search, the Go to switcher, and threads beside the room;
+- a message's history (`H`, or clicking "(edited)" or "Message deleted"): every
+  version it had, who deleted it and why, and its attachment, the only place a deleted
+  message's is shown, kept under `[display.deleted] keep`;
 - a settings page for the settings it shares with the terminal client, this device's
   and every device's ([where settings live](#where-settings-live));
 - [accounts](#accounts): logging a network account in, setting a new one up, and

@@ -92,6 +92,7 @@ export const helpSections: readonly HelpSection[] = [
       row("Play its voice note or video, or pause it", "timeline.play"),
       row("Its poll's options", "timeline.vote"),
       row("Copy its text, or a link from it", "timeline.copy_text", "timeline.copy_url"),
+      row("Its history: every version, and its deletion and attachment", "timeline.history"),
       row("Open a link from it, staying here or going to the browser", "timeline.open_url", "timeline.open_url_focus"),
     ],
   },

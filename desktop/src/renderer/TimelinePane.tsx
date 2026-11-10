@@ -3,7 +3,7 @@
 // scrolled back a page at a time.
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type Ref, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { type ReactNode, type Ref, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 import { FormattedSchema, type Message, type Reaction } from "../gen/backend/v1/types_pb";
@@ -312,6 +312,9 @@ export function actOn(
     case "timeline.copy_text":
       session.copyText(m);
       return true;
+    case "timeline.history":
+      session.openHistory(m);
+      return true;
     case "timeline.copy_url":
       session.takeLink(m, "copy");
       return true;
@@ -459,12 +462,23 @@ export function Row({
                   {hours.format(at)}
                 </time>
               )}
-              {m.edited && !m.redacted && <span className="detail"> (edited)</span>}
+              {m.edited && !m.redacted && (
+                <>
+                  {" "}
+                  <History m={m} session={session} className="detail">
+                    (edited)
+                  </History>
+                </>
+              )}
             </header>
           )}
           {m.replyTo !== "" && <Quote quoted={quoted} faces={faces} />}
           <Body m={m} composer={composer} faces={faces} session={session} />
-          {grouped && m.edited && !m.redacted && <span className="detail edited">(edited)</span>}
+          {grouped && m.edited && !m.redacted && (
+            <History m={m} session={session} className="detail edited">
+              (edited)
+            </History>
+          )}
           {reactions !== undefined && reactions.length > 0 && (
             <ul className="reactions" aria-label="Reactions">
               {tally(reactions).map((r) => (
@@ -508,6 +522,32 @@ export function Row({
         </div>
       </article>
     </>
+  );
+}
+
+/** History is a row's "(edited)" or "Message deleted", which opens the message's history. */
+function History({
+  m,
+  session,
+  className,
+  children,
+}: {
+  m: Message;
+  session: Session;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`${className} history-link`}
+      title="Its history"
+      onClick={() => {
+        session.openHistory(m);
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -761,11 +801,11 @@ function Body({
 }) {
   if (m.redacted) {
     return (
-      <p className="body deleted">
+      <History m={m} session={session} className="body deleted">
         Message deleted
         {m.redactedBy && m.redactedBy !== m.sender && <> by {m.redactedBy}</>}
         {m.redactedReason && <>: {m.redactedReason}</>}
-      </p>
+      </History>
     );
   }
   if (m.poll !== undefined) {

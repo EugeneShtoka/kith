@@ -390,6 +390,48 @@ describe("the rooms, the unread and the invitations", () => {
   });
 });
 
+describe("a message's history", () => {
+  const r = "!r";
+  beforeEach(() => {
+    kithd.of("Home").rooms = [room(r)];
+  });
+
+  it("shows what MessageHistory says of the message asked, only while it is the one shown", async () => {
+    const first = message({ id: "$1", ts: 10, body: "one", edited: true }, r);
+    const second = message({ id: "$2", ts: 20, body: "two", redacted: true }, r);
+    kithd.of("Home").histories.set("$1", {
+      revisions: [
+        { id: "$1", body: "on" },
+        { id: "$e", body: "one" },
+      ],
+    });
+    kithd.of("Home").histories.set("$2", { revisions: [], deletion: { by: "@mod", atUnixMs: 30n } });
+    await started();
+    session.openHistory(first);
+    expect(view().history).toMatchObject({ message: first, revisions: undefined, error: "" });
+    await settled();
+    expect(view().history?.revisions?.map((v) => v.body)).toEqual(["on", "one"]);
+    // Another asked before the first answers: only its answer is shown.
+    session.openHistory(first);
+    session.openHistory(second);
+    await settled();
+    expect(view().history?.message).toBe(second);
+    expect(view().history?.deletion?.by).toBe("@mod");
+    // Closed before it answers: nothing comes back.
+    session.openHistory(first);
+    session.closeHistory();
+    await settled();
+    expect(view().history).toBeUndefined();
+  });
+
+  it("says why it could not be read", async () => {
+    await started();
+    session.openHistory(message({ id: "$none", ts: 10 }, r));
+    await settled();
+    expect(view().history?.error).toMatch(/no history of \$none/);
+  });
+});
+
 describe("the open room", () => {
   const r = "!r";
   const ids = () => view().timeline?.rows.map((m) => m.id) ?? [];

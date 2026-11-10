@@ -126,6 +126,7 @@ const allowedCalls = [
   "Timeline",
   "MessagesAround",
   "FetchEvent",
+  "MessageHistory",
   "CachedReactions",
   "MarkRead",
   "MarkRoomsRead",

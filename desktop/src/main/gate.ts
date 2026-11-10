@@ -55,6 +55,8 @@ const calls = new Map<string, DescMethodUnary>(
     backend.timeline,
     backend.messagesAround,
     backend.fetchEvent,
+    // A message's history: its versions, and its deletion.
+    backend.messageHistory,
     backend.cachedReactions,
     backend.markRead,
     backend.markRoomsRead,

@@ -81,6 +81,8 @@ interface Profile {
   /** The cache's messages, by room, and its reactions. */
   messages: Map<string, Message[]>;
   reactions: Reaction[];
+  /** MessageHistory's answers, by message; one not here fails. */
+  histories: Map<string, MessageInitShape<typeof backend.messageHistory.output>>;
 }
 
 export function room(id: string, init: MessageInitShape<typeof RoomSchema> = {}): Room {
@@ -297,7 +299,7 @@ export class Kithd {
   of(profile: string): Profile {
     let p = this.data.get(profile);
     if (p === undefined) {
-      p = { rooms: [], unread: new Map(), invites: [], messages: new Map(), reactions: [] };
+      p = { rooms: [], unread: new Map(), invites: [], messages: new Map(), reactions: [], histories: new Map() };
       this.data.set(profile, p);
     }
     return p;
@@ -855,6 +857,14 @@ export class Kithd {
           throw new Error(`no event ${r.eventId}`);
         }
         return reply(backend.fetchEvent, { message: found });
+      }
+      case "MessageHistory": {
+        const r = request as MessageShape<typeof backend.messageHistory.input>;
+        const found = p.histories.get(r.eventId);
+        if (found === undefined) {
+          throw new Error(`no history of ${r.eventId}`);
+        }
+        return reply(backend.messageHistory, found);
       }
       case "CachedReactions": {
         const room = (request as MessageShape<typeof backend.cachedReactions.input>).roomId;
