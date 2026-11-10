@@ -385,14 +385,10 @@ func (a *Adapter) refreshAccount(ctx context.Context, account Account, client *w
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: %s's groups: %w", account.Name, err)
 	}
-	spaces, chats := communities(ctx, account.Digits, groups, func(ctx context.Context, jid types.JID) string {
-		info, gerr := client.GetGroupInfo(ctx, jid)
-		if gerr != nil {
-			a.log.Debug("read a community's name failed", "account", account.Name, "err", gerr)
-			return ""
-		}
-		return info.Name
-	})
+	spaces, chats, err := communities(ctx, account.Digits, groups, a.communityNamer(account, client.GetGroupInfo))
+	if err != nil {
+		return nil, err
+	}
 	rooms, members := groupRooms(ctx, account.Digits, chats, a.names(client))
 	// A failed channel listing fails the refresh, or the sweep would drop the channels.
 	channelList, err := a.listChannels(ctx, account, client)

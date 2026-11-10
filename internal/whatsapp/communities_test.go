@@ -3,6 +3,7 @@ package whatsapp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -29,10 +30,13 @@ func TestCommunitiesAreSpacesOfTheirGroups(t *testing.T) {
 		{JID: group("120363099"), GroupName: types.GroupName{Name: "Family"}},
 	}
 	asked := []types.JID{}
-	spaces, chats := communities(context.Background(), ownDigits, groups, func(_ context.Context, jid types.JID) string {
+	spaces, chats, err := communities(context.Background(), ownDigits, groups, func(_ context.Context, jid types.JID) (string, error) {
 		asked = append(asked, jid)
-		return "School"
+		return "School", nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(spaces) != 2 || spaces[0].Name != "Building" || spaces[1].Name != "School" {
 		t.Fatalf("spaces = %+v, want Building and School", spaces)
@@ -52,6 +56,97 @@ func TestCommunitiesAreSpacesOfTheirGroups(t *testing.T) {
 	}
 	if !slices.Equal(names, []string{"Building announcements", "Parking", "Class 3B", "Family"}) {
 		t.Errorf("chats = %v, want every group but the community itself", names)
+	}
+}
+
+// A failed lookup of a community's name never lets its groups out of an
+// `except = ["space:…"]`. Every sequence of two refreshes, each finding each of two
+// communities in the listing, named by a lookup, or with the lookup failing: after
+// each, every cached group of a community is refused by except = ["space:<its name>"],
+// and no cached community is unnamed.
+func TestAFailedCommunityLookupNeverWidensTheScope(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	home := Account{Name: "home", Digits: ownDigits}
+	school, club := group("120363002"), group("120363003")
+	parents := []types.JID{school, club}
+	names := map[types.JID]string{school: "School", club: "Club"}
+	chats := []*types.GroupInfo{
+		{JID: group("120363021"), GroupName: types.GroupName{Name: "Class 3B"}, GroupLinkedParent: types.GroupLinkedParent{LinkedParentJID: school}},
+		{JID: group("120363031"), GroupName: types.GroupName{Name: "Chess"}, GroupLinkedParent: types.GroupLinkedParent{LinkedParentJID: club}},
+		{JID: group("120363099"), GroupName: types.GroupName{Name: "Family"}},
+	}
+	parentOf := map[domain.RoomID]types.JID{roomID(ownDigits, chats[0].JID): school, roomID(ownDigits, chats[1].JID): club}
+	const (
+		listed   = iota // the listing has the community itself
+		named           // the listing lacks it; the lookup names it
+		failed          // the listing lacks it; the lookup fails
+		outcomes        // how many there are
+	)
+	const steps = 2
+	sequences := 1
+	for range steps * len(parents) {
+		sequences *= outcomes
+	}
+	for seq := range sequences {
+		a, _, _ := offline(t, home)
+		code := seq
+		var trail []string
+		for step := range steps {
+			groups := slices.Clone(chats)
+			failing := map[types.JID]bool{}
+			for _, parent := range parents {
+				outcome := code % outcomes
+				code /= outcomes
+				trail = append(trail, fmt.Sprintf("%s:%d", names[parent], outcome))
+				switch outcome {
+				case listed:
+					groups = append(groups, &types.GroupInfo{JID: parent, GroupName: types.GroupName{Name: names[parent]}, GroupParent: types.GroupParent{IsParent: true}})
+				case failed:
+					failing[parent] = true
+				}
+			}
+			lookup := func(_ context.Context, jid types.JID) (*types.GroupInfo, error) {
+				if failing[jid] {
+					return nil, errors.New("info query timed out")
+				}
+				return &types.GroupInfo{JID: jid, GroupName: types.GroupName{Name: names[jid]}}, nil
+			}
+			// As refreshAccount does: a listing that fails to name a community saves nothing.
+			if spaces, listedChats, err := communities(ctx, ownDigits, groups, a.communityNamer(home, lookup)); err == nil {
+				rooms := make([]domain.Room, 0, len(listedChats))
+				for _, g := range listedChats {
+					rooms = append(rooms, domain.Room{ID: roomID(ownDigits, g.JID), Name: g.Name})
+				}
+				if err := a.saveListing(ctx, home, groupListing{rooms: rooms, spaces: spaces}, time.Now()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cachedSpaces, err := a.Spaces(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, s := range cachedSpaces {
+				if s.Name == "" {
+					t.Fatalf("after %v (step %d): community %s is cached unnamed", trail, step, s.ID)
+				}
+			}
+			rooms, err := a.Rooms(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, room := range rooms {
+				parent, ok := parentOf[room.ID]
+				if !ok {
+					continue
+				}
+				scope := domain.ModelScope{Only: []string{"group"}, Except: []string{"space:" + names[parent]}, Listed: true}
+				facts := domain.Places{}.Facts(room, domain.HoldersOf(room.ID, cachedSpaces))
+				if domain.AllowModel(scope, facts, "configured", false).Allowed {
+					t.Fatalf("after %v (step %d): %s is shared despite except space:%s", trail, step, room.Name, names[parent])
+				}
+			}
+		}
 	}
 }
 
