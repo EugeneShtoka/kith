@@ -24,7 +24,7 @@ import (
 type Cache interface {
 	// Attachments lists room's ("" every room's) on messages sent since, oldest first.
 	Attachments(ctx context.Context, room domain.RoomID, since time.Time) ([]domain.AttachmentRef, error)
-	// Attachment is one message's; false when it has none to keep.
+	// Attachment is one message's, its message's deletion marked; false when it has none.
 	Attachment(ctx context.Context, room domain.RoomID, event domain.EventID) (domain.AttachmentRef, bool, error)
 }
 
@@ -196,8 +196,9 @@ func (a *Archive) keepSince(ctx context.Context, room domain.RoomID, since time.
 	}
 }
 
-// Load is an attachment's bytes: the archived copy when there is one, else fetched,
-// and kept when its room's are.
+// Load is an attachment's bytes: the archived copy when there is one (a deleted or
+// disappeared message's too, while the cache keeps what it said), else fetched, and
+// kept when its room's are.
 func (a *Archive) Load(ctx context.Context, room domain.RoomID, event domain.EventID) ([]byte, error) {
 	ref, ok, err := a.cache.Attachment(ctx, room, event)
 	if err != nil {
@@ -221,12 +222,12 @@ func (a *Archive) Load(ctx context.Context, room domain.RoomID, event domain.Eve
 }
 
 // keeps is whether ref is archived: its room's are, and, on a disappearing message, its
-// room's disappearing messages' are too.
+// room's disappearing messages' are too. A deleted message's copy is served, never made.
 func (a *Archive) keeps(ref domain.AttachmentRef) bool {
 	a.mu.Lock()
 	archived, timed := a.archived, a.timed
 	a.mu.Unlock()
-	return archived(ref.Room) && (!ref.Timed || timed(ref.Room))
+	return !ref.Deleted && archived(ref.Room) && (!ref.Timed || timed(ref.Room))
 }
 
 // seals is whether room's copies are sealed: encrypt_media, where kithd has a key.

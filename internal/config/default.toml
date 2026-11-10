@@ -1033,7 +1033,8 @@ archive_warn_mb = 0
 encrypt_media = false
 # Disappearing messages' attachments are not kept, their senders having asked for them
 # to go, unless archive_disappearing is on; a rule's sets one place's. Turned on, those
-# still cached are kept too. A kept copy stays after its message disappears.
+# still cached are kept too. A kept copy stays after its message disappears, and opens
+# from the message's history while [display.deleted] keep is on.
 archive_disappearing = false
 
 # Per-place numbers. `match` names the place as any place list does: a room ID,

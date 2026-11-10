@@ -957,6 +957,20 @@ func TestAttachmentsToArchive(t *testing.T) {
 	if ref, ok, err := cache.Attachment(ctx, a, mx+"$timed"); err != nil || !ok || !ref.Timed {
 		t.Errorf("Attachment($timed) = %+v, %v, %v; want it, timed", ref, ok, err)
 	}
+	// A deletion leaves the archive's listing; under keep the copy is still looked up.
+	for event, keep := range map[domain.EventID]bool{mx + "$late": true, mx + "$other": false} {
+		room := map[bool]domain.RoomID{true: a, false: b}[keep]
+		if err := cache.MarkRedacted(ctx, room, event, "", "", at(4), keep); err != nil {
+			t.Fatal(err)
+		}
+		ref, ok, err := cache.Attachment(ctx, room, event)
+		if err != nil || ok != keep || ok && !ref.Deleted {
+			t.Errorf("Attachment(%s) deleted, keep %v = %+v, %v, %v", event, keep, ref, ok, err)
+		}
+	}
+	if got, err := cache.Attachments(ctx, "", time.Time{}); err != nil || !slices.Equal(ids(got), []string{mx + "$early@" + mx + "$r", mx + "$timed@ timed"}) {
+		t.Errorf("Attachments after deletions = %v, %v", ids(got), err)
+	}
 	for _, event := range []domain.EventID{mx + "$text", mx + "$gone", mx + "$none"} {
 		if _, ok, err := cache.Attachment(ctx, a, event); ok || err != nil {
 			t.Errorf("Attachment(%s) = %v, %v; want none", event, ok, err)
