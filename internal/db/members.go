@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -27,11 +28,20 @@ func (c *Cache) Members(ctx context.Context, roomID domain.RoomID, limit int) ([
 // SaveMembers replaces a room's cached membership with a /joined_members
 // snapshot, so people who left stop being offered.
 func (c *Cache) SaveMembers(ctx context.Context, roomID domain.RoomID, members []domain.Member) error {
-	return c.inTx(ctx, func(tx *sql.Tx) error {
+	// touched is who the room had and has: a puppet among them may have come, gone or been renamed.
+	var touched []string
+	err := c.inTx(ctx, func(tx *sql.Tx) error {
 		if err := registerRoom(ctx, tx, roomID); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, "DELETE FROM room_members WHERE room_id = ?", string(roomID)); err != nil {
+		var err error
+		touched, err = collect(ctx, tx, "members of "+string(roomID), "DELETE FROM room_members WHERE room_id = ? RETURNING user_id",
+			func(rows *sql.Rows) (string, error) {
+				var id string
+				scanErr := rows.Scan(&id)
+				return id, scanErr
+			}, string(roomID))
+		if err != nil {
 			return fmt.Errorf("db: clear members of %s: %w", roomID, err)
 		}
 		stmt, err := tx.PrepareContext(ctx,
@@ -51,6 +61,14 @@ func (c *Cache) SaveMembers(ctx context.Context, roomID domain.RoomID, members [
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	for i := range members {
+		touched = append(touched, members[i].UserID)
+	}
+	// A puppet's name can join it to a hidden person, or leave with it.
+	return c.relinkPuppet(ctx, touched...)
 }
 
 // SaveMember upserts one person's membership from a member event.
@@ -58,10 +76,13 @@ func (c *Cache) SaveMember(ctx context.Context, roomID domain.RoomID, member dom
 	if member.UserID == "" {
 		return nil
 	}
-	return c.execInRoom(ctx, roomID, "save member "+member.UserID, `
+	if err := c.execInRoom(ctx, roomID, "save member "+member.UserID, `
 		INSERT INTO room_members(room_id, user_id, display_name) VALUES(?, ?, ?)
 		ON CONFLICT(room_id, user_id) DO UPDATE SET display_name = excluded.display_name`,
-		string(roomID), member.UserID, member.DisplayName)
+		string(roomID), member.UserID, member.DisplayName); err != nil {
+		return err
+	}
+	return c.relinkPuppet(ctx, member.UserID)
 }
 
 // RemoveMember drops one person from a room's cached membership (no-op if absent).
@@ -71,7 +92,16 @@ func (c *Cache) RemoveMember(ctx context.Context, roomID domain.RoomID, userID s
 		string(roomID), userID); err != nil {
 		return fmt.Errorf("db: remove member %s of %s: %w", userID, roomID, err)
 	}
-	return nil
+	return c.relinkPuppet(ctx, userID)
+}
+
+// relinkPuppet is relinkHidden after a membership write, when one of the members written
+// is one whose name the directory reads: one with a phone number.
+func (c *Cache) relinkPuppet(ctx context.Context, userIDs ...string) error {
+	if !slices.ContainsFunc(userIDs, func(id string) bool { return domain.PhoneOf(id) != "" }) {
+		return nil
+	}
+	return c.relinkHidden(ctx)
 }
 
 // RecordMention counts one mention of userID in roomID at ts (ms), for ranking.
