@@ -59,6 +59,60 @@ func (c *Cache) SaveUnread(ctx context.Context, u domain.Unread, readTS int64) e
 	})
 }
 
+// SaveReadPosition moves one room's read position as SaveUnread does, keeping its
+// counts and mark: for a network whose unread mark is set apart from reading.
+func (c *Cache) SaveReadPosition(ctx context.Context, roomID domain.RoomID, event domain.EventID, readTS int64) error {
+	return c.inTx(ctx, func(tx *sql.Tx) error {
+		if err := registerRoom(ctx, tx, roomID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+		INSERT INTO room_unread(room_id, read_event, read_ts_ms) VALUES(?, ?, ?)
+		ON CONFLICT(room_id) DO UPDATE SET
+			read_event=CASE WHEN excluded.read_ts_ms >= room_unread.read_ts_ms
+			                THEN excluded.read_event ELSE room_unread.read_event END,
+			read_ts_ms=max(excluded.read_ts_ms, room_unread.read_ts_ms)`,
+			string(roomID), string(event), readTS); err != nil {
+			return fmt.Errorf("db: save the read position of %s: %w", roomID, err)
+		}
+		return startCountdowns(ctx, tx, roomID, time.Now())
+	})
+}
+
+// SetUnreadMark sets or clears one room's unread mark, keeping its read position, and
+// reports whether it was set before. A room not yet known is registered.
+func (c *Cache) SetUnreadMark(ctx context.Context, roomID domain.RoomID, marked bool) (bool, error) {
+	var was bool
+	err := c.inTx(ctx, func(tx *sql.Tx) error {
+		if _, err := optional(tx.QueryRowContext(ctx,
+			"SELECT marked FROM room_unread WHERE room_id = ?", string(roomID)).Scan(&was)); err != nil {
+			return fmt.Errorf("db: read the unread mark of %s: %w", roomID, err)
+		}
+		if was == marked {
+			return nil
+		}
+		if err := registerRoom(ctx, tx, roomID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO room_unread(room_id, marked) VALUES(?, ?)
+			ON CONFLICT(room_id) DO UPDATE SET marked = excluded.marked`, string(roomID), marked); err != nil {
+			return fmt.Errorf("db: keep the unread mark of %s: %w", roomID, err)
+		}
+		return nil
+	})
+	return was, err
+}
+
+// UnreadMark reports whether one room is marked unread.
+func (c *Cache) UnreadMark(ctx context.Context, roomID domain.RoomID) (bool, error) {
+	var marked bool
+	if _, err := optional(c.db.QueryRowContext(ctx,
+		"SELECT marked FROM room_unread WHERE room_id = ?", string(roomID)).Scan(&marked)); err != nil {
+		return false, fmt.Errorf("db: read the unread mark of %s: %w", roomID, err)
+	}
+	return marked, nil
+}
+
 // ReadPositions is when each room's read event happened: the stored timestamp, or
 // the cached event's when none is stored (0). Rooms with neither are absent.
 func (c *Cache) ReadPositions(ctx context.Context) (map[domain.RoomID]int64, error) {

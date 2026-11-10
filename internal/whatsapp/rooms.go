@@ -2,7 +2,6 @@ package whatsapp
 
 import (
 	"context"
-	"fmt"
 
 	"go.mau.fi/whatsmeow/types"
 
@@ -70,8 +69,4 @@ func contactName(c types.ContactInfo) string {
 		}
 	}
 	return ""
-}
-
-func errNotYet(what string) error {
-	return fmt.Errorf("%w: WhatsApp cannot %s yet", errNotOnWhatsApp, what)
 }

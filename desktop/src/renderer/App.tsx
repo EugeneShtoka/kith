@@ -1271,6 +1271,12 @@ function RoomRow({
           ) : (
             <Badge count={count} mentions={mentions} />
           ))}
+        {count === 0 && unread?.marked && !silenced && (
+          // Marked unread with nothing new: the TUI's dot.
+          <span className="badge" title="Marked unread">
+            ●
+          </span>
+        )}
       </button>
     </li>
   );

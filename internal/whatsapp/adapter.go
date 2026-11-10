@@ -23,9 +23,6 @@ import (
 // streamBuffer bounds each stream.
 const streamBuffer = 64
 
-// errNotOnWhatsApp is for what WhatsApp lacks, or kith does not support yet.
-var errNotOnWhatsApp = api.ErrNotOnNetwork
-
 // errNetworkOff is an account that is not linked or not connected.
 var errNetworkOff = api.ErrNetworkOff
 
@@ -62,6 +59,8 @@ type Adapter struct {
 
 	// reads is the read receipts WhatsApp has not taken yet (unread.go).
 	reads *readstate.Owed[receipt]
+	// marks is the unread marks WhatsApp has not taken yet (unread.go).
+	marks *readstate.Owed[chatMark]
 
 	// arrived is the last live message's position (see arrival).
 	arrived atomic.Int64
@@ -137,6 +136,7 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 		unread:    make(chan domain.Unread, streamBuffer),
 		reactions: make(chan domain.ReactionUpdate, streamBuffer),
 		reads:     readstate.NewOwed(laterReceipt),
+		marks:     readstate.NewOwed(laterMark),
 	}
 }
 
@@ -305,8 +305,8 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 		a.onReceipt(a.lifetime(), account, e)
 	case *events.ChatPresence:
 		a.onTyping(a.lifetime(), account, client, e)
-	case *events.Archive:
-		a.onArchive(a.lifetime(), account, e)
+	case *events.Archive, *events.MarkChatAsRead:
+		a.onChatState(a.lifetime(), account, e)
 	case *events.Contact, *events.PushName, *events.BusinessName:
 		a.renameLater(account, client) // names arrive after history
 	case *events.LoggedOut:
@@ -316,6 +316,17 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 		delete(a.clients, account.Digits)
 		a.mu.Unlock()
 		a.link(account, Unlinked, "the phone unlinked kith; run `kith login whatsapp "+account.Name+"` again")
+	}
+}
+
+// onChatState keeps a chat's state from the account's app state: archived, or marked
+// unread.
+func (a *Adapter) onChatState(ctx context.Context, account Account, evt any) {
+	switch e := evt.(type) {
+	case *events.Archive:
+		a.onArchive(ctx, account, e)
+	case *events.MarkChatAsRead:
+		a.onMarkChatAsRead(ctx, account, e)
 	}
 }
 
@@ -704,10 +715,6 @@ func (a *Adapter) RoomEncryption(_ context.Context, roomIDs []domain.RoomID) (ma
 		out[room] = true
 	}
 	return out, nil
-}
-
-func (a *Adapter) MarkRoomUnread(context.Context, domain.RoomID, bool) error {
-	return errNotYet("mark a chat unread")
 }
 
 // MessageHistory returns a message's cached versions (kept under [display.deleted]
