@@ -91,7 +91,7 @@ The server-side key backup holds your room keys, encrypted to a key that only yo
 kith --restore-keys
 ```
 
-This prompts (without echo) for the **recovery key or passphrase**, unlocks secret storage, and imports every room key from the backup. kith detects which of the two you typed. With a recovery key, it also cross-signs this device. The client then starts as usual. Reopen rooms to see decrypted history.
+This prompts (without echo) for the **recovery key or passphrase**, unlocks secret storage, and imports every room key from the backup. kith detects which of the two you typed. With a recovery key, it also cross-signs this device. This device then keeps the backup's key in its encryption store, sealed like the rest of it and in place of any it kept before, so a room key that is missing later is fetched from the backup without asking you again. The recovery key or passphrase itself is not kept. The client then starts as usual. Reopen rooms to see decrypted history.
 
 | Error | Meaning |
 | --- | --- |
