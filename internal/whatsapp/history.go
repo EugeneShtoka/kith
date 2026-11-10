@@ -38,6 +38,11 @@ func (a *Adapter) onHistory(ctx context.Context, account Account, client *whatsm
 			}
 		}
 		for room, msgs := range byRoom {
+			// A chat marked unread when kith was linked: taken from the chunk that first
+			// shows the chat, as a later one, or a live change, knows better.
+			if conv.GetMarkedAsUnread() && !a.placed(ctx, room) {
+				a.keepMark(ctx, room, true)
+			}
 			a.recordHistory(ctx, account, client, room, msgs, conv.GetName(), int(conv.GetUnreadCount()))
 			if timer := conv.GetEphemeralExpiration(); timer > 0 {
 				a.keepTimers(ctx, map[domain.RoomID]time.Duration{room: time.Duration(timer) * time.Second})

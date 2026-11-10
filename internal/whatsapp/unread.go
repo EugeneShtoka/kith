@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
@@ -16,6 +17,8 @@ import (
 // Unread is counted locally from a read position kith keeps (WhatsApp exposes no
 // counts). The position is placed when a room is first seen (from history's unread
 // count, or just before its first live message) and moved by reads on any device.
+// The unread mark is the account's app state, apart from reading: a read on another
+// device leaves it; a read here, or "mark as read" on any device, clears it.
 
 // placed reports whether a room has a read position, loading positions on first use.
 func (a *Adapter) placed(ctx context.Context, room domain.RoomID) bool {
@@ -59,10 +62,10 @@ func (a *Adapter) placeRead(ctx context.Context, room domain.RoomID, at time.Tim
 	}
 }
 
-// readTo moves a room's read position forward to event; a late receipt for an older
-// message is ignored (the cache only moves forward).
+// readTo moves a room's read position forward to event, keeping its unread mark; a
+// late receipt for an older message is ignored (the cache only moves forward).
 func (a *Adapter) readTo(ctx context.Context, room domain.RoomID, event domain.EventID, at time.Time) error {
-	if err := a.cache.SaveUnread(ctx, domain.Unread{RoomID: room, ReadEvent: event}, at.UnixMilli()); err != nil {
+	if err := a.cache.SaveReadPosition(ctx, room, event, at.UnixMilli()); err != nil {
 		return fmt.Errorf("whatsapp: save the read position of %s: %w", room, err)
 	}
 	a.mu.Lock()
@@ -79,7 +82,12 @@ func (a *Adapter) recount(ctx context.Context, room domain.RoomID) {
 		a.log.Warn("count unread failed", "room", room, "err", err)
 		return
 	}
-	emit(a, a.unread, domain.Unread{RoomID: room, Messages: messages, Mentions: mentions, Counted: counted})
+	marked, err := a.cache.UnreadMark(ctx, room)
+	if err != nil {
+		a.log.Warn("read an unread mark failed", "room", room, "err", err)
+		return
+	}
+	emit(a, a.unread, domain.Unread{RoomID: room, Messages: messages, Mentions: mentions, Counted: counted, Marked: marked})
 }
 
 // RecountUnread counts rooms' unread again, when the cache counts them differently
@@ -151,7 +159,8 @@ func (a *Adapter) lookupFor(account Account) pnOf {
 // the account's own devices. Read here first: WhatsApp not taking the receipt
 // (offline, refused) leaves it read here, and the receipt is owed and sent again when
 // the account connects. The read position only moves forward. A read that cannot be
-// kept here is an error, and WhatsApp is not told.
+// kept here is an error, and WhatsApp is not told. Reading a chat marked unread takes
+// the mark away, here and then on WhatsApp, owed the same way.
 func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID domain.EventID, private bool) error {
 	roomID = a.filedUnder(ctx, roomID) // a window still on a chat since merged
 	room := domain.ParseID(string(roomID))
@@ -167,7 +176,14 @@ func (a *Adapter) MarkRead(ctx context.Context, roomID domain.RoomID, eventID do
 		if err := a.readTo(ctx, roomID, eventID, at); err != nil {
 			return err
 		}
+		marked, markErr := a.cache.SetUnreadMark(ctx, roomID, false)
+		if markErr != nil {
+			return fmt.Errorf("whatsapp: %w", markErr)
+		}
 		a.recount(ctx, roomID)
+		if marked {
+			a.oweMark(ctx, roomID, chatMark{last: at, at: time.Now()})
+		}
 	}
 	// Channel posts are marked viewed by server ID, which kith does not keep: local only.
 	if chat.Server == types.NewsletterServer {
@@ -216,11 +232,15 @@ func (a *Adapter) sendRead(ctx context.Context, roomID domain.RoomID, m receipt)
 	a.reads.Settle(roomID, m)
 }
 
-// sendOwed sends an account's owed read receipts, on (re)connecting.
+// sendOwed sends an account's owed read receipts and unread marks, on (re)connecting.
 func (a *Adapter) sendOwed(ctx context.Context, account Account) {
 	for room, m := range a.reads.Take(account.Digits) {
 		a.reads.Add(room, m) // owed until WhatsApp takes it
 		a.sendRead(ctx, room, m)
+	}
+	for room, m := range a.marks.Take(account.Digits) {
+		a.marks.Add(room, m)
+		a.sendMark(ctx, room, m)
 	}
 }
 
@@ -239,4 +259,122 @@ func (a *Adapter) MarkRoomsRead(ctx context.Context, roomIDs []domain.RoomID, pr
 		return result, fmt.Errorf("whatsapp: %w", err)
 	}
 	return result, nil
+}
+
+// MarkRoomUnread marks a chat unread, or takes the mark away, here and then in the
+// account's app state, which its other devices share. Here first: WhatsApp not taking
+// it (offline, refused) leaves it here, and it is owed and sent again when the account
+// connects. WhatsApp takes a mark away only by marking the chat read, so clearing one
+// reads the chat through its newest message, told to your own devices only.
+func (a *Adapter) MarkRoomUnread(ctx context.Context, roomID domain.RoomID, unread bool) error {
+	roomID = a.filedUnder(ctx, roomID)
+	room := domain.ParseID(string(roomID))
+	if _, err := types.ParseJID(room.Native); err != nil || room.Network != domain.ProtocolWhatsApp {
+		return fmt.Errorf("whatsapp: %s is not a chat", roomID)
+	}
+	if !unread {
+		result, err := a.MarkRoomsRead(ctx, []domain.RoomID{roomID}, true)
+		if err != nil {
+			return err
+		}
+		if result.Failed > 0 {
+			return fmt.Errorf("whatsapp: clear the unread mark of %s: %s", roomID, result.FirstError)
+		}
+		if result.Marked > 0 {
+			return nil
+		}
+		// Nothing cached to read through: the mark alone goes.
+	}
+	var last time.Time
+	if a.cache != nil {
+		if _, err := a.cache.SetUnreadMark(ctx, roomID, unread); err != nil {
+			return fmt.Errorf("whatsapp: %w", err)
+		}
+		a.recount(ctx, roomID)
+		if ms, err := a.cache.NewestTS(ctx, roomID); err == nil && ms > 0 {
+			last = time.UnixMilli(ms)
+		}
+	}
+	a.oweMark(ctx, roomID, chatMark{unread: unread, last: last, at: time.Now()})
+	return nil
+}
+
+// chatMark is a chat's unread mark for WhatsApp's app state: set, or taken away by
+// reading the chat through last (zero: now).
+type chatMark struct {
+	unread bool
+	last   time.Time
+	at     time.Time // when it was made here
+}
+
+// laterMark reports whether mark a was made after b.
+func laterMark(a, b chatMark) bool { return a.at.After(b.at) }
+
+// oweMark owes WhatsApp a chat's mark and sends it. A channel's stays here: kith keeps
+// no app state for one.
+func (a *Adapter) oweMark(ctx context.Context, roomID domain.RoomID, m chatMark) {
+	if chat, err := types.ParseJID(domain.ParseID(string(roomID)).Native); err != nil || chat.Server == types.NewsletterServer {
+		return
+	}
+	a.marks.Add(roomID, m)
+	a.sendMark(ctx, roomID, m)
+}
+
+// sendMark sends a chat's mark and settles it when WhatsApp takes it; one it does not
+// take (or an account not connected) stays owed.
+func (a *Adapter) sendMark(ctx context.Context, roomID domain.RoomID, m chatMark) {
+	room := domain.ParseID(string(roomID))
+	chat, err := types.ParseJID(room.Native)
+	if err != nil {
+		return
+	}
+	_, client, ok := a.clientFor(room.Account)
+	if !ok {
+		return // not connected: owed until it is
+	}
+	if err := client.SendAppState(ctx, appstate.BuildMarkChatAsRead(chat, !m.unread, m.last, nil)); err != nil {
+		a.log.Warn("WhatsApp did not take an unread mark; it is kept and sent again on reconnect", "room", roomID, "err", err)
+		return
+	}
+	a.marks.Settle(roomID, m)
+}
+
+// onMarkChatAsRead keeps a chat's unread mark as another device set it, or as kith's
+// own change comes back. Marked read, the chat is also read through the newest message
+// the mark names.
+func (a *Adapter) onMarkChatAsRead(ctx context.Context, account Account, e *events.MarkChatAsRead) {
+	if a.cache == nil || e.Action == nil {
+		return
+	}
+	chat := e.JID.ToNonAD()
+	if chat.Server != types.GroupServer {
+		chat = person(ctx, chat, types.EmptyJID, a.lookupFor(account)) // a direct chat by its person
+	}
+	room := roomID(account.Digits, chat)
+	read := e.Action.GetRead()
+	if span := e.Action.GetMessageRange(); read && span.GetLastMessageTimestamp() > 0 {
+		var last domain.EventID
+		for _, m := range span.GetMessages() {
+			if m.GetTimestamp() == span.GetLastMessageTimestamp() && m.GetKey().GetID() != "" {
+				last = domain.EventID(domain.NativeID(domain.ProtocolWhatsApp, account.Digits, m.GetKey().GetID()))
+			}
+		}
+		if err := a.readTo(ctx, room, last, time.Unix(span.GetLastMessageTimestamp(), 0)); err != nil {
+			a.log.Warn("save a read position failed", "account", account.Name, "err", err)
+		}
+	}
+	// The later of this and a mark owed from here stands: the owed one is sent on
+	// reconnecting.
+	a.marks.Settle(room, chatMark{at: e.Timestamp})
+	if !a.marks.Has(room) {
+		a.keepMark(ctx, room, !read)
+	}
+	a.recount(ctx, room)
+}
+
+// keepMark keeps a chat's unread mark as WhatsApp has it.
+func (a *Adapter) keepMark(ctx context.Context, room domain.RoomID, marked bool) {
+	if _, err := a.cache.SetUnreadMark(ctx, room, marked); err != nil {
+		a.log.Warn("keep an unread mark failed", "room", room, "err", err)
+	}
 }

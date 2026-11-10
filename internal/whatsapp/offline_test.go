@@ -13,7 +13,6 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -120,13 +119,6 @@ func TestTheQuietAnswers(t *testing.T) {
 	}
 	if err := a.SendTyping(ctx, waRoom, true, time.Second); err != nil {
 		t.Errorf("SendTyping = %v", err)
-	}
-	for name, err := range map[string]error{
-		"MarkRoomUnread": a.MarkRoomUnread(ctx, waRoom, true),
-	} {
-		if !errors.Is(err, api.ErrNotOnNetwork) {
-			t.Errorf("%s = %v, want ErrNotOnNetwork", name, err)
-		}
 	}
 }
 
