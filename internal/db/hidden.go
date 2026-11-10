@@ -17,7 +17,8 @@ import (
 // every ID the directory and the identity groups link to them (domain.HiddenPeople).
 // Search leaves them out, and direct replies to them. SQL cannot ask the matcher, so
 // the cache keeps the list of senders it holds that are hidden: rebuilt when the marks
-// or the directory change, extended as senders are written.
+// or the directory change (a member write that changes it: relinkHidden), extended as
+// senders are written.
 //
 // A profile hides more people on top (its people.exclude, UseProfileHidden): each has a
 // matcher and a list of its own, read for a request running in it (domain.ProfileIn).
@@ -33,6 +34,8 @@ type hiddenState struct {
 	groups [][]string
 	// shared is who everyone hides.
 	shared senderSet
+	// dir is the directory the matchers in force were built over; nil when they read none.
+	dir *domain.Directory
 	// excluded is each profile's own exclusions by name; profiles their senders.
 	excluded map[string]domain.ExcludedPeople
 	profiles map[string]*senderSet
@@ -119,11 +122,11 @@ func (c *Cache) rebuildHidden(ctx context.Context) error {
 		}
 		marked = slices.Concat(marked, domain.HiddenByVerdict(verdicts, muted))
 	}
-	people, profiles, senders, err := c.hiddenMatchers(ctx, marked, groups, excluded)
+	people, profiles, senders, dir, err := c.hiddenMatchers(ctx, marked, groups, excluded)
 	if err != nil {
 		return err
 	}
-	moved, movedHere, changed, changedHere := c.swapHidden(people, profiles, senders)
+	moved, movedHere, changed, changedHere := c.swapHidden(people, profiles, senders, dir)
 	if err := c.tellMoved(ctx, moved, changed); err != nil {
 		return err
 	}
@@ -133,16 +136,16 @@ func (c *Cache) rebuildHidden(ctx context.Context) error {
 // hiddenMatchers builds everyone's matcher and each profile's over the current
 // directory, with every sender the cache holds; nothing to read when nobody is hidden.
 func (c *Cache) hiddenMatchers(ctx context.Context, marked []string, groups [][]string, excluded map[string]domain.ExcludedPeople) (
-	people domain.HiddenPeople, profiles map[string]*senderSet, senders []string, err error,
+	people domain.HiddenPeople, profiles map[string]*senderSet, senders []string, built *domain.Directory, err error,
 ) {
 	profiles = map[string]*senderSet{}
 	excluding := slices.ContainsFunc(slices.Collect(maps.Values(excluded)), func(e domain.ExcludedPeople) bool { return !e.Empty() })
 	if len(marked) == 0 && !excluding {
-		return people, profiles, nil, nil
+		return people, profiles, nil, nil, nil
 	}
 	dir, err := c.Directory(ctx)
 	if err != nil {
-		return people, nil, nil, err
+		return people, nil, nil, nil, err
 	}
 	mine := c.mine()
 	people = domain.NewHiddenPeople(marked, groups, dir, mine)
@@ -158,19 +161,40 @@ func (c *Cache) hiddenMatchers(ctx context.Context, marked []string, groups [][]
 			return s, scanErr
 		})
 	if err != nil {
-		return people, nil, nil, fmt.Errorf("db: classify senders: %w", err)
+		return people, nil, nil, nil, fmt.Errorf("db: classify senders: %w", err)
 	}
-	return people, profiles, senders, nil
+	return people, profiles, senders, &dir, nil
+}
+
+// relinkHidden rebuilds the hidden list when the directory differs from the one it was
+// built over: a member write can link a bridge puppet to a hidden person, or unlink
+// it (Directory reads the puppets' names from room_members).
+func (c *Cache) relinkHidden(ctx context.Context) error {
+	c.hidden.mu.Lock()
+	built := c.hidden.dir
+	c.hidden.mu.Unlock()
+	if built == nil {
+		return nil // nobody hidden: no matcher reads the directory
+	}
+	dir, err := c.Directory(ctx)
+	if err != nil {
+		return err
+	}
+	if dir.Equal(*built) {
+		return nil
+	}
+	return c.rebuildHidden(ctx)
 }
 
 // swapHidden puts the new matchers in force, classifying senders and every sender
 // noted meanwhile, and says whose hiding changed: everyone's (moved) and a profile's
 // own (movedHere), with who hears each.
-func (c *Cache) swapHidden(people domain.HiddenPeople, profiles map[string]*senderSet, senders []string) (
+func (c *Cache) swapHidden(people domain.HiddenPeople, profiles map[string]*senderSet, senders []string, dir *domain.Directory) (
 	moved, movedHere []string, changed, changedHere func(context.Context, []domain.RoomID),
 ) {
 	c.hidden.mu.Lock()
 	defer c.hidden.mu.Unlock()
+	c.hidden.dir = dir
 	// Senders noted while the scan ran are in seen, under the old matcher.
 	all := slices.Concat(senders, slices.Collect(maps.Keys(c.hidden.shared.seen)))
 	before := c.hidden.shared.ids

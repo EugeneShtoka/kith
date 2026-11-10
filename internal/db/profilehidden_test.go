@@ -93,8 +93,7 @@ func genProfileWorld(rng *rand.Rand) *profileWorld {
 // hides or the profile hides, not answering one; you never hidden.
 func (w *profileWorld) visibleIn(profile string) func(m *domain.Message) bool {
 	shared := w.visible()
-	dir := domain.NewDirectory(w.names, w.links)
-	here := domain.NewExcludedPeople(w.excluded[profile].people(), w.groups, dir, []string{hiddenMe})
+	here := domain.NewExcludedPeople(w.excluded[profile].people(), w.groups, w.directory(), []string{hiddenMe})
 	senders := map[domain.EventID]string{}
 	for i := range w.msgs {
 		senders[w.msgs[i].ID] = w.msgs[i].Sender

@@ -30,6 +30,31 @@ type hiddenWorld struct {
 	names    []domain.PersonName
 	links    []domain.PersonLink
 	msgs     []domain.Message
+	// members is each room's members by ID, with their display names: a bridge puppet's
+	// name links it to its number (Directory).
+	members map[domain.RoomID]map[string]string
+	// marking is whether the marks are in force yet (UseHidden ran); wants is what
+	// search finds after each step.
+	marking bool
+	wants   [][]domain.EventID
+}
+
+// memberRooms are the rooms the generator's members are in: a puppet left in one may
+// stay in the other.
+var memberRooms = []domain.RoomID{mx + "!a:x", mx + "!b:x"}
+
+// directory is the directory the world's people and members make, as Directory reads it.
+func (w *hiddenWorld) directory() domain.Directory {
+	names := slices.Clone(w.names)
+	for _, room := range memberRooms {
+		for id, display := range w.members[room] {
+			phone, name := domain.PhoneOf(id), domain.WithoutBridgeTag(display)
+			if phone != "" && name != "" {
+				names = append(names, domain.PersonName{Source: id, ID: domain.PhoneID(phone), Name: name, Rank: domain.RankBridged})
+			}
+		}
+	}
+	return domain.NewDirectory(names, w.links)
 }
 
 func genHiddenWorld(rng *rand.Rand) *hiddenWorld {
@@ -86,6 +111,7 @@ func genHiddenWorld(rng *rand.Rand) *hiddenWorld {
 		})
 	}
 	mark := func() {
+		w.marking = true
 		w.steps = append(w.steps, func(t *testing.T, c *Cache) {
 			t.Helper()
 			if err := c.UseHidden(ctx, w.marked, hiddenMuted, w.groups); err != nil {
@@ -113,20 +139,78 @@ func genHiddenWorld(rng *rand.Rand) *hiddenWorld {
 			}
 		})
 	}
-	// Marking lands anywhere among the writes; links, verdicts and messages come before
-	// and after.
-	actions := []func(){saveSome, saveSome, saveSome, link, link, mark, verdict, verdict, verdict}
+	// member writes a room's membership: a snapshot of it, one member (named, renamed or
+	// unnamed), or one leaving.
+	w.members = map[domain.RoomID]map[string]string{}
+	member := func() {
+		room := memberRooms[rng.IntN(len(memberRooms))]
+		name := func() string { return []string{"", "Spammy (WA)", "Ann"}[rng.IntN(3)] }
+		// Mostly the WhatsApp number, native or a puppet: the members whose names link.
+		pickMember := func() string {
+			return []string{"whatsapp:15550000001@s.whatsapp.net", "matrix:@whatsapp_15550000001:example.org", "matrix:@ann:example.org"}[rng.IntN(3)]
+		}
+		in := w.members[room]
+		if in == nil {
+			in = map[string]string{}
+			w.members[room] = in
+		}
+		var step func(t *testing.T, c *Cache)
+		switch rng.IntN(3) {
+		case 0:
+			var snapshot []domain.Member
+			clear(in)
+			for range 1 + rng.IntN(2) {
+				m := domain.Member{UserID: pickMember(), DisplayName: name()}
+				if _, dup := in[m.UserID]; !dup {
+					in[m.UserID] = m.DisplayName
+					snapshot = append(snapshot, m)
+				}
+			}
+			step = func(t *testing.T, c *Cache) {
+				t.Helper()
+				if err := c.SaveMembers(ctx, room, snapshot); err != nil {
+					t.Fatal(err)
+				}
+			}
+		case 1:
+			m := domain.Member{UserID: pickMember(), DisplayName: name()}
+			in[m.UserID] = m.DisplayName
+			step = func(t *testing.T, c *Cache) {
+				t.Helper()
+				if err := c.SaveMember(ctx, room, m); err != nil {
+					t.Fatal(err)
+				}
+			}
+		default:
+			id := pickMember()
+			delete(in, id)
+			step = func(t *testing.T, c *Cache) {
+				t.Helper()
+				if err := c.RemoveMember(ctx, room, id); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		w.steps = append(w.steps, step)
+	}
+	// Marking lands anywhere among the writes; links, verdicts, members and messages come
+	// before and after.
+	actions := []func(){saveSome, saveSome, saveSome, link, link, mark, verdict, verdict, verdict, member, member, member, member}
 	rng.Shuffle(len(actions), func(i, j int) { actions[i], actions[j] = actions[j], actions[i] })
 	for _, a := range actions {
-		a()
+		a() // one step each
+		w.wants = append(w.wants, w.want())
 	}
 	return w
 }
 
 // visible reports whether a message is shown: not from a hidden sender, not answering one.
 func (w *hiddenWorld) visible() func(m *domain.Message) bool {
+	if !w.marking {
+		return func(*domain.Message) bool { return true }
+	}
 	marked := slices.Concat(w.marked, domain.HiddenByVerdict(w.verdicts, hiddenMuted))
-	people := domain.NewHiddenPeople(marked, w.groups, domain.NewDirectory(w.names, w.links), []string{hiddenMe})
+	people := domain.NewHiddenPeople(marked, w.groups, w.directory(), []string{hiddenMe})
 	senders := map[domain.EventID]string{}
 	for i := range w.msgs {
 		senders[w.msgs[i].ID] = w.msgs[i].Sender
@@ -153,8 +237,9 @@ func (w *hiddenWorld) want() []domain.EventID {
 	return out
 }
 
-// Whatever order the messages, links and marks arrive in, search leaves out exactly
-// the hidden senders' messages and direct replies to them, and Hides agrees.
+// Whatever order the messages, links, members and marks arrive in, search leaves out
+// exactly the hidden senders' messages and direct replies to them after every step,
+// and Hides agrees.
 func TestSearchLeavesOutHiddenPeopleInAnyOrder(t *testing.T) {
 	t.Parallel()
 
@@ -163,23 +248,23 @@ func TestSearchLeavesOutHiddenPeopleInAnyOrder(t *testing.T) {
 		w := genHiddenWorld(rng)
 		c := openTemp(t)
 		c.UseSelves(func() []string { return []string{"matrix:@me:example.org"} })
-		for _, step := range w.steps {
+		var want []domain.EventID
+		for i, step := range w.steps {
 			step(t, c)
-		}
-		hits, err := c.SearchMessages(context.Background(), domain.SearchRequest{
-			Filter: domain.ParseSearch("hello", time.Now()), Rooms: domain.EveryRoom(), Limit: 500,
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		var got []domain.EventID
-		for i := range hits {
-			got = append(got, hits[i].EventID)
-		}
-		slices.Sort(got)
-		want := w.want()
-		if !slices.Equal(got, want) {
-			t.Fatalf("seed %d: search found %v, want %v\nmarked %v groups %v links %v", seed, got, want, w.marked, w.groups, w.links)
+			hits, err := c.SearchMessages(context.Background(), domain.SearchRequest{
+				Filter: domain.ParseSearch("hello", time.Now()), Rooms: domain.EveryRoom(), Limit: 500,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []domain.EventID
+			for i := range hits {
+				got = append(got, hits[i].EventID)
+			}
+			slices.Sort(got)
+			if want = w.wants[i]; !slices.Equal(got, want) {
+				t.Fatalf("seed %d, step %d: search found %v, want %v\nmarked %v groups %v links %v members %v", seed, i, got, want, w.marked, w.groups, w.links, w.members)
+			}
 		}
 		for i := range w.msgs {
 			hidden, err := c.Hides(context.Background(), w.msgs[i])
@@ -381,4 +466,96 @@ func TestAChangeOfWhoIsHiddenNamesTheirRooms(t *testing.T) {
 		t.Fatal(err)
 	}
 	expect("letting go", mx+"!a:x", mx+"!b:x")
+}
+
+// Every pair of membership writes, from a start where a WhatsApp number is marked and
+// its bridge puppet wrote: after each write search hides the puppet exactly while a
+// named member makes the number known, which links the puppet to it.
+func TestEveryMembershipWriteRelinksTheHiddenPeople(t *testing.T) {
+	t.Parallel()
+
+	const (
+		native = "whatsapp:15550000001@s.whatsapp.net"
+		puppet = "matrix:@whatsapp_15550000001:example.org"
+		ann    = "matrix:@ann:example.org"
+	)
+	ctx := context.Background()
+	room := domain.RoomID(mx + "!a:x")
+	snapshot := func(members ...domain.Member) func(c *Cache, in map[string]string) error {
+		return func(c *Cache, in map[string]string) error {
+			clear(in)
+			for _, m := range members {
+				in[m.UserID] = m.DisplayName
+			}
+			return c.SaveMembers(ctx, room, members)
+		}
+	}
+	one := func(m domain.Member) func(c *Cache, in map[string]string) error {
+		return func(c *Cache, in map[string]string) error {
+			in[m.UserID] = m.DisplayName
+			return c.SaveMember(ctx, room, m)
+		}
+	}
+	leaving := func(id string) func(c *Cache, in map[string]string) error {
+		return func(c *Cache, in map[string]string) error {
+			delete(in, id)
+			return c.RemoveMember(ctx, room, id)
+		}
+	}
+	type write struct {
+		name string
+		// do writes, and in follows: the room's members by ID, with their names.
+		do func(c *Cache, in map[string]string) error
+	}
+	writes := []write{
+		{"a snapshot naming the puppet", snapshot(domain.Member{UserID: puppet, DisplayName: "Spammy (WA)"})},
+		{"a snapshot of Ann alone", snapshot(domain.Member{UserID: ann, DisplayName: "Ann"})},
+		{"an empty snapshot", snapshot()},
+		{"the puppet named", one(domain.Member{UserID: puppet, DisplayName: "Spammy (WA)"})},
+		{"the puppet unnamed", one(domain.Member{UserID: puppet})},
+		{"the number named", one(domain.Member{UserID: native, DisplayName: "Spammy"})},
+		{"the puppet leaving", leaving(puppet)},
+		{"the number leaving", leaving(native)},
+	}
+	for _, first := range writes {
+		for _, second := range writes {
+			c := openTemp(t)
+			c.UseSelves(func() []string { return []string{hiddenMe} })
+			at := time.Unix(1700000000, 0)
+			if err := c.SaveMessages(ctx, room, []domain.Message{
+				{ID: mx + "$ann", RoomID: room, Sender: ann, Body: "hello", Timestamp: at},
+				{ID: mx + "$puppet", RoomID: room, Sender: puppet, Body: "hello", Timestamp: at.Add(time.Minute)},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.UseHidden(ctx, []string{native}, nil, nil); err != nil {
+				t.Fatal(err)
+			}
+			in := map[string]string{}
+			for _, w := range []write{first, second} {
+				if err := w.do(c, in); err != nil {
+					t.Fatal(err)
+				}
+				known := in[native] != "" || in[puppet] != ""
+				want := []domain.EventID{mx + "$ann"}
+				if !known {
+					want = append(want, mx+"$puppet")
+				}
+				hits, err := c.SearchMessages(ctx, domain.SearchRequest{
+					Filter: domain.ParseSearch("hello", time.Now()), Rooms: domain.EveryRoom(), Limit: 10,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var got []domain.EventID
+				for i := range hits {
+					got = append(got, hits[i].EventID)
+				}
+				slices.Sort(got)
+				if !slices.Equal(got, want) {
+					t.Fatalf("%s, then %s: after %q search found %v, want %v", first.name, second.name, w.name, got, want)
+				}
+			}
+		}
+	}
 }
