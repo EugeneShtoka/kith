@@ -107,6 +107,28 @@ chat. Someone who never shows a number (a hidden one, a username) stays on their
 A poll shows its answers and how the votes stand as they arrive, your own marked; `P`
 votes, or takes the vote back, and lists who chose each answer.
 
+## Older history from the phone
+
+A newly linked device gets only part of a chat's history. For the rest, export the
+chat on the phone (the chat's menu → More → Export chat; without media is enough, as
+kith reads only the text) and bring the file to kith: `:import` → **A WhatsApp chat export**, then choose the `.zip` (or the
+`.txt` in it). The file goes to the daemon, which may be on another machine.
+
+kith offers the chats it may be: those that have some of its messages already, and the
+one the file is named after, each with how many messages it would add; **Somewhere
+else** lists every chat, on any network. Then it lists the names the file's messages
+carry, each taken as the member kith is sure of (the one whose messages these are in the
+cache, else the one member called so) or as written. Choosing a name offers the likeliest
+members, **Someone else** for any member, and **As written**, which shows the name as
+the file has it, as no one's. **Import** adds the messages older than the chat's oldest
+one in kith; nothing newer is touched, so importing the same file again adds nothing.
+
+The file has no zone: its times are read in your machine's zone. Messages come in as
+text: a photo or file shows as the line the phone wrote for it (`<attached: …>`, "image
+omitted"). On an iPhone the export's own notes (that the chat is encrypted, who joined)
+are written as the chat's messages, and come in as such. What `[storage]` keeps per
+chat applies to these too, and clearing the cache removes them with the rest.
+
 ## Unlinking
 
 On the phone, Linked devices lists kith as "Chrome (Linux)" (or your system's name):

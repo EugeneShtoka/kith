@@ -105,6 +105,53 @@ func (r *Remote) PreviewGroupings(ctx context.Context, network, account string) 
 	return out, nil
 }
 
+// PreviewChatImport brings kithd the chat export at path, on this machine, and has it
+// read in zone (an IANA name, "" kithd's) and offer the rooms it may be.
+func (r *Remote) PreviewChatImport(ctx context.Context, path, zone string) (domain.ChatExport, error) {
+	id, err := r.upload(ctx, path)
+	if err != nil {
+		return domain.ChatExport{}, fmt.Errorf("read the export: %w", err)
+	}
+	res, err := call(ctx, "read the export", r.c.PreviewChatImport, &v1.PreviewChatImportRequest{UploadId: id, Zone: zone})
+	if err != nil {
+		return domain.ChatExport{}, err
+	}
+	out := domain.ChatExport{
+		Upload: id, Title: res.GetTitle(), Messages: int(res.GetMessages()),
+		First: time.UnixMilli(res.GetFirstMs()), Last: time.UnixMilli(res.GetLastMs()),
+	}
+	for _, room := range res.GetRooms() {
+		out.Rooms = append(out.Rooms, domain.ExportRoom{
+			ID: domain.RoomID(room.GetRoomId()), Found: int(room.GetFound()), Named: room.GetNamed(), Adds: int(room.GetAdds()),
+		})
+	}
+	return out, nil
+}
+
+// ChatImportSenders matches the names of the export in upload to room's members.
+func (r *Remote) ChatImportSenders(ctx context.Context, upload, zone string, room domain.RoomID) (domain.ExportSenders, error) {
+	res, err := call(ctx, "match the senders", r.c.ChatImportSenders,
+		&v1.ChatImportSendersRequest{UploadId: upload, Zone: zone, RoomId: string(room)})
+	if err != nil {
+		return domain.ExportSenders{}, err
+	}
+	out := domain.ExportSenders{Members: pc.ProtoToMembers(res.GetMembers()), Adds: int(res.GetAdds())}
+	for _, s := range res.GetSenders() {
+		out.Senders = append(out.Senders, domain.ExportSender{
+			Name: s.GetName(), Messages: int(s.GetMessages()), Chosen: s.GetChosen(), Likely: pc.ProtoToMembers(s.GetLikely()),
+		})
+	}
+	return out, nil
+}
+
+// ApplyChatImport imports the export in upload into room, each name sent by the member
+// senders says ("" or absent: the name alone), and is how many messages it added.
+func (r *Remote) ApplyChatImport(ctx context.Context, upload, zone string, room domain.RoomID, senders map[string]string) (int, error) {
+	res, err := call(ctx, "import the chat", r.c.ApplyChatImport,
+		&v1.ApplyChatImportRequest{UploadId: upload, Zone: zone, RoomId: string(room), Senders: senders})
+	return int(res.GetAdded()), err
+}
+
 // ApplyGroupings copies an account's groupings into tags as chosen; an absent key
 // keeps the tag.
 func (r *Remote) ApplyGroupings(ctx context.Context, network, account string, choices map[string]domain.GroupingChoice) error {

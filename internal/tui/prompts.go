@@ -78,6 +78,7 @@ func init() {
 		promptRuleSound:    {label: "sound file (empty for none): ", submit: Model.submitRuleSound, cancel: cancelRule},
 		promptRuleName:     {label: "call this rule (empty for none): ", submit: Model.submitRuleName, cancel: cancelRule},
 		promptAttach:       {label: "send file (path, or path | caption): ", submit: Model.submitAttach},
+		promptImportExport: {label: "chat export (a .zip or .txt): ", submit: Model.submitExportPath},
 		promptSetting:      settingPrompt(Model.submitSetting),
 		promptSettingEntry: settingPrompt(Model.submitSettingEntry), // its list stays open as it was
 		promptInvite:       {label: "invite (@user:server): ", submit: Model.submitInvite, cancel: cancelMember},

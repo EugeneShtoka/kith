@@ -428,6 +428,15 @@ const (
 	// BackendServiceApplyGroupingsProcedure is the fully-qualified name of the BackendService's
 	// ApplyGroupings RPC.
 	BackendServiceApplyGroupingsProcedure = "/backend.v1.BackendService/ApplyGroupings"
+	// BackendServicePreviewChatImportProcedure is the fully-qualified name of the BackendService's
+	// PreviewChatImport RPC.
+	BackendServicePreviewChatImportProcedure = "/backend.v1.BackendService/PreviewChatImport"
+	// BackendServiceChatImportSendersProcedure is the fully-qualified name of the BackendService's
+	// ChatImportSenders RPC.
+	BackendServiceChatImportSendersProcedure = "/backend.v1.BackendService/ChatImportSenders"
+	// BackendServiceApplyChatImportProcedure is the fully-qualified name of the BackendService's
+	// ApplyChatImport RPC.
+	BackendServiceApplyChatImportProcedure = "/backend.v1.BackendService/ApplyChatImport"
 	// BackendServiceUpdateConfigProcedure is the fully-qualified name of the BackendService's
 	// UpdateConfig RPC.
 	BackendServiceUpdateConfigProcedure = "/backend.v1.BackendService/UpdateConfig"
@@ -870,6 +879,14 @@ type BackendServiceClient interface {
 	// ApplyGroupings copies them as chosen, per tag, into the config (as UpdateConfig
 	// writes it), judged on the groupings and the config as they are when it runs.
 	ApplyGroupings(context.Context, *connect.Request[v1.ApplyGroupingsRequest]) (*connect.Response[v1.ApplyGroupingsResponse], error)
+	// PreviewChatImport reads an uploaded chat export and offers the rooms it may be:
+	// those that cached its messages, and those its file is named after.
+	PreviewChatImport(context.Context, *connect.Request[v1.PreviewChatImportRequest]) (*connect.Response[v1.PreviewChatImportResponse], error)
+	// ChatImportSenders matches the export's names to the room's members.
+	ChatImportSenders(context.Context, *connect.Request[v1.ChatImportSendersRequest]) (*connect.Response[v1.ChatImportSendersResponse], error)
+	// ApplyChatImport caches the export's messages older than the room's oldest cached
+	// one, from the members chosen, and uses the upload up.
+	ApplyChatImport(context.Context, *connect.Request[v1.ApplyChatImportRequest]) (*connect.Response[v1.ApplyChatImportResponse], error)
 	// UpdateConfig writes the configuration file — the daemon is its one writer — if it
 	// is still at base_revision and the daemon would run with the change, then puts it in
 	// force and tells every client (ConfigChanged).
@@ -1794,6 +1811,24 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("ApplyGroupings")),
 			connect.WithClientOptions(opts...),
 		),
+		previewChatImport: connect.NewClient[v1.PreviewChatImportRequest, v1.PreviewChatImportResponse](
+			httpClient,
+			baseURL+BackendServicePreviewChatImportProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("PreviewChatImport")),
+			connect.WithClientOptions(opts...),
+		),
+		chatImportSenders: connect.NewClient[v1.ChatImportSendersRequest, v1.ChatImportSendersResponse](
+			httpClient,
+			baseURL+BackendServiceChatImportSendersProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("ChatImportSenders")),
+			connect.WithClientOptions(opts...),
+		),
+		applyChatImport: connect.NewClient[v1.ApplyChatImportRequest, v1.ApplyChatImportResponse](
+			httpClient,
+			baseURL+BackendServiceApplyChatImportProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("ApplyChatImport")),
+			connect.WithClientOptions(opts...),
+		),
 		updateConfig: connect.NewClient[v1.UpdateConfigRequest, v1.UpdateConfigResponse](
 			httpClient,
 			baseURL+BackendServiceUpdateConfigProcedure,
@@ -2038,6 +2073,9 @@ type backendServiceClient struct {
 	getConfig             *connect.Client[v1.GetConfigRequest, v1.GetConfigResponse]
 	previewGroupings      *connect.Client[v1.PreviewGroupingsRequest, v1.PreviewGroupingsResponse]
 	applyGroupings        *connect.Client[v1.ApplyGroupingsRequest, v1.ApplyGroupingsResponse]
+	previewChatImport     *connect.Client[v1.PreviewChatImportRequest, v1.PreviewChatImportResponse]
+	chatImportSenders     *connect.Client[v1.ChatImportSendersRequest, v1.ChatImportSendersResponse]
+	applyChatImport       *connect.Client[v1.ApplyChatImportRequest, v1.ApplyChatImportResponse]
 	updateConfig          *connect.Client[v1.UpdateConfigRequest, v1.UpdateConfigResponse]
 	configChanged         *connect.Client[v1.ConfigChangedRequest, v1.ConfigChangedResponse]
 	configSettings        *connect.Client[v1.ConfigSettingsRequest, v1.ConfigSettingsResponse]
@@ -2771,6 +2809,21 @@ func (c *backendServiceClient) ApplyGroupings(ctx context.Context, req *connect.
 	return c.applyGroupings.CallUnary(ctx, req)
 }
 
+// PreviewChatImport calls backend.v1.BackendService.PreviewChatImport.
+func (c *backendServiceClient) PreviewChatImport(ctx context.Context, req *connect.Request[v1.PreviewChatImportRequest]) (*connect.Response[v1.PreviewChatImportResponse], error) {
+	return c.previewChatImport.CallUnary(ctx, req)
+}
+
+// ChatImportSenders calls backend.v1.BackendService.ChatImportSenders.
+func (c *backendServiceClient) ChatImportSenders(ctx context.Context, req *connect.Request[v1.ChatImportSendersRequest]) (*connect.Response[v1.ChatImportSendersResponse], error) {
+	return c.chatImportSenders.CallUnary(ctx, req)
+}
+
+// ApplyChatImport calls backend.v1.BackendService.ApplyChatImport.
+func (c *backendServiceClient) ApplyChatImport(ctx context.Context, req *connect.Request[v1.ApplyChatImportRequest]) (*connect.Response[v1.ApplyChatImportResponse], error) {
+	return c.applyChatImport.CallUnary(ctx, req)
+}
+
 // UpdateConfig calls backend.v1.BackendService.UpdateConfig.
 func (c *backendServiceClient) UpdateConfig(ctx context.Context, req *connect.Request[v1.UpdateConfigRequest]) (*connect.Response[v1.UpdateConfigResponse], error) {
 	return c.updateConfig.CallUnary(ctx, req)
@@ -3247,6 +3300,14 @@ type BackendServiceHandler interface {
 	// ApplyGroupings copies them as chosen, per tag, into the config (as UpdateConfig
 	// writes it), judged on the groupings and the config as they are when it runs.
 	ApplyGroupings(context.Context, *connect.Request[v1.ApplyGroupingsRequest]) (*connect.Response[v1.ApplyGroupingsResponse], error)
+	// PreviewChatImport reads an uploaded chat export and offers the rooms it may be:
+	// those that cached its messages, and those its file is named after.
+	PreviewChatImport(context.Context, *connect.Request[v1.PreviewChatImportRequest]) (*connect.Response[v1.PreviewChatImportResponse], error)
+	// ChatImportSenders matches the export's names to the room's members.
+	ChatImportSenders(context.Context, *connect.Request[v1.ChatImportSendersRequest]) (*connect.Response[v1.ChatImportSendersResponse], error)
+	// ApplyChatImport caches the export's messages older than the room's oldest cached
+	// one, from the members chosen, and uses the upload up.
+	ApplyChatImport(context.Context, *connect.Request[v1.ApplyChatImportRequest]) (*connect.Response[v1.ApplyChatImportResponse], error)
 	// UpdateConfig writes the configuration file — the daemon is its one writer — if it
 	// is still at base_revision and the daemon would run with the change, then puts it in
 	// force and tells every client (ConfigChanged).
@@ -4167,6 +4228,24 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("ApplyGroupings")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServicePreviewChatImportHandler := connect.NewUnaryHandler(
+		BackendServicePreviewChatImportProcedure,
+		svc.PreviewChatImport,
+		connect.WithSchema(backendServiceMethods.ByName("PreviewChatImport")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceChatImportSendersHandler := connect.NewUnaryHandler(
+		BackendServiceChatImportSendersProcedure,
+		svc.ChatImportSenders,
+		connect.WithSchema(backendServiceMethods.ByName("ChatImportSenders")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceApplyChatImportHandler := connect.NewUnaryHandler(
+		BackendServiceApplyChatImportProcedure,
+		svc.ApplyChatImport,
+		connect.WithSchema(backendServiceMethods.ByName("ApplyChatImport")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceUpdateConfigHandler := connect.NewUnaryHandler(
 		BackendServiceUpdateConfigProcedure,
 		svc.UpdateConfig,
@@ -4551,6 +4630,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServicePreviewGroupingsHandler.ServeHTTP(w, r)
 		case BackendServiceApplyGroupingsProcedure:
 			backendServiceApplyGroupingsHandler.ServeHTTP(w, r)
+		case BackendServicePreviewChatImportProcedure:
+			backendServicePreviewChatImportHandler.ServeHTTP(w, r)
+		case BackendServiceChatImportSendersProcedure:
+			backendServiceChatImportSendersHandler.ServeHTTP(w, r)
+		case BackendServiceApplyChatImportProcedure:
+			backendServiceApplyChatImportHandler.ServeHTTP(w, r)
 		case BackendServiceUpdateConfigProcedure:
 			backendServiceUpdateConfigHandler.ServeHTTP(w, r)
 		case BackendServiceConfigChangedProcedure:
@@ -5162,6 +5247,18 @@ func (UnimplementedBackendServiceHandler) PreviewGroupings(context.Context, *con
 
 func (UnimplementedBackendServiceHandler) ApplyGroupings(context.Context, *connect.Request[v1.ApplyGroupingsRequest]) (*connect.Response[v1.ApplyGroupingsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ApplyGroupings is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) PreviewChatImport(context.Context, *connect.Request[v1.PreviewChatImportRequest]) (*connect.Response[v1.PreviewChatImportResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.PreviewChatImport is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) ChatImportSenders(context.Context, *connect.Request[v1.ChatImportSendersRequest]) (*connect.Response[v1.ChatImportSendersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ChatImportSenders is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) ApplyChatImport(context.Context, *connect.Request[v1.ApplyChatImportRequest]) (*connect.Response[v1.ApplyChatImportResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ApplyChatImport is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) UpdateConfig(context.Context, *connect.Request[v1.UpdateConfigRequest]) (*connect.Response[v1.UpdateConfigResponse], error) {

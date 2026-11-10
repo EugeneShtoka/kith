@@ -123,6 +123,7 @@ linters:
           allow:
             - "$gostd"
             - "github.com/EugeneShtoka/kith/internal/api"
+            - "github.com/EugeneShtoka/kith/internal/chatexport"
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/daemon"
             # The remote listener pins device keys; the roster is a TOML file.
@@ -213,6 +214,15 @@ linters:
         mediaarchive-keeps-files:
           files:
             - "**/internal/mediaarchive/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+
+        # Reading a chat a phone exported, and matching it to rooms and people.
+        chatexport-reads-exports:
+          files:
+            - "**/internal/chatexport/**"
             - "!$test"
           allow:
             - "$gostd"

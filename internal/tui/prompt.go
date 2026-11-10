@@ -24,6 +24,7 @@ const (
 	promptRuleSound
 	promptRuleName
 	promptAttach
+	promptImportExport // a chat export's path, without a desktop chooser (chatimport.go)
 	promptSetting
 	promptSettingEntry
 	promptInvite

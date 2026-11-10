@@ -142,6 +142,9 @@ existing tag would change among that account's chats — and you choose per tag 
 that differs, whether to take the app's chats, merge them in, or keep kith's (the
 default).
 
+**Importing a chat.** `:import` also brings in a chat's older history that a phone
+exported (WhatsApp's Export chat): see [whatsapp.md](whatsapp.md#older-history-from-the-phone).
+
 **Editing tags in the app.** Settings (`,`) → **Places** lists your spaces and tags and
 makes a new tag; `e` on a rail row opens that place's page. A tag's page shows its
 name, rule, picked and excluded rooms, every property as an on/off row (each word of

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"math/rand/v2"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -390,6 +391,23 @@ var narrowingProbes = map[string]func(ctx context.Context, r *daemon.Remote, w *
 		slices.Sort(rooms)
 		return rooms, err
 	},
+	// Every room has cached the export's message (profileWorld.MessagesSaying), so each
+	// is offered.
+	"PreviewChatImport": func(ctx context.Context, r *daemon.Remote, _ *profileWorld, _ generated) ([]domain.RoomID, error) {
+		f, err := os.CreateTemp("", "kith-export-*.txt")
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = os.Remove(f.Name()) }()
+		if _, werr := f.WriteString("04/03/2021, 21:05 - Alice: " + exportSaid + "\n"); werr != nil {
+			return nil, werr
+		}
+		if cerr := f.Close(); cerr != nil {
+			return nil, cerr
+		}
+		e, err := r.PreviewChatImport(ctx, f.Name(), "UTC")
+		return roomsOf(e.Rooms, func(room domain.ExportRoom) domain.RoomID { return room.ID }), err
+	},
 	"MessagesFrom": func(ctx context.Context, r *daemon.Remote, w *profileWorld, _ generated) ([]domain.RoomID, error) {
 		msgs, err := r.MessagesFrom(ctx, domain.SaidRequest{Senders: []string{alice}, Rooms: domain.EveryRoom()})
 		return roomsOf(msgs, func(m domain.Message) domain.RoomID { return m.RoomID }), err
@@ -397,6 +415,24 @@ var narrowingProbes = map[string]func(ctx context.Context, r *daemon.Remote, w *
 }
 
 func roomOf(r domain.Room) domain.RoomID { return r.ID }
+
+// exportSaid is what every room of a profileWorld has cached once.
+const exportSaid = "see you all at the station"
+
+// A profileWorld's cache, for chat imports, has every room saying exportSaid.
+func (w *profileWorld) ChatCache() (daemon.ChatCache, bool) { return w, true }
+
+func (*profileWorld) OldestMessage(context.Context, domain.RoomID) (domain.Message, bool, error) {
+	return domain.Message{}, false, nil
+}
+
+func (w *profileWorld) MessagesSaying(context.Context, domain.RoomID, []string) ([]domain.Message, error) {
+	return each(w, func(id domain.RoomID) domain.Message { return domain.Message{RoomID: id, Body: exportSaid} }), nil
+}
+
+func (*profileWorld) SaveMessages(context.Context, domain.RoomID, []domain.Message) error { return nil }
+
+func (*profileWorld) CountMessages(context.Context, domain.RoomID) (int, error) { return 0, nil }
 
 // idsOf is the rooms' IDs, in order.
 func idsOf(rooms []domain.Room) []domain.RoomID {

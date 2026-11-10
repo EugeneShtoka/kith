@@ -34,6 +34,16 @@ type importState struct {
 	diffs    []domain.GroupingDiff
 	choices  map[string]domain.GroupingChoice
 	folder   string
+
+	// A chat export (chatimport.go): what kithd read, the zone its times are read in,
+	// the chat chosen, who wrote it, who each name is taken as (name → member ID, ""
+	// as written), and the name being chosen for.
+	export  domain.ChatExport
+	zone    string
+	room    domain.RoomID
+	senders domain.ExportSenders
+	who     map[string]string
+	naming  string
 }
 
 // importCopy is the folder list's last row: copy as chosen.
@@ -95,6 +105,8 @@ func (m Model) handleImport(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleImportNetworks(msg)
 	case importPreviewMsg:
 		return m.handleImportPreview(msg)
+	case exportChosenMsg, exportReadMsg, exportSendersMsg, chatImportedMsg:
+		return m.handleChatExport(msg)
 	case importedMsg:
 		if msg.err != nil {
 			return m.sayErr("could not copy the folders", msg.err), nil
@@ -116,6 +128,9 @@ func (m Model) handleImportNetworks(msg importNetworksMsg) (Model, tea.Cmd) {
 			items = append(items, pickerItem{label: n.Label + " " + a.Name, detail: a.Detail, value: n.Network + "\x00" + a.Name})
 		}
 	}
+	if _, ok := m.backend.(chatImporter); ok {
+		items = append(items, pickerItem{label: "A WhatsApp chat export", detail: "a chat's history, from the phone's Export chat", value: importExport})
+	}
 	switch len(items) {
 	case 0:
 		return m.say("no account is set up to copy folders from — :login first"), nil
@@ -127,6 +142,9 @@ func (m Model) handleImportNetworks(msg importNetworksMsg) (Model, tea.Cmd) {
 }
 
 func (m Model) chooseImportAccount(value string) (Model, tea.Cmd) {
+	if value == importExport {
+		return m.chooseExport()
+	}
 	m = m.closePicker()
 	key, account, _ := strings.Cut(value, "\x00")
 	if i := slices.IndexFunc(m.imports.networks, func(n api.LoginNetwork) bool { return n.Network == key }); i >= 0 {

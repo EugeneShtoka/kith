@@ -81,7 +81,8 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	"backend.v1.RoomEncryptionRequest.room_ids": aRoom, "backend.v1.MessagesAroundRequest.room_id": aRoom,
 	"backend.v1.MessagesFromRequest.before_room_id": aRoom, "backend.v1.CompleteWordRequest.room_ids": aRoom,
 	"backend.v1.CompleteWordRequest.space_room_ids": aRoom, "backend.v1.RescanFiltersRequest.room_ids": aRoom,
-	"backend.v1.ScheduledMessage.room_id": aRoom,
+	"backend.v1.ScheduledMessage.room_id": aRoom, "backend.v1.ChatImportSendersRequest.room_id": aRoom,
+	"backend.v1.ApplyChatImportRequest.room_id": aRoom,
 
 	// Messages: the one acted on, replied to, edited, a thread's root, a cursor's.
 	"backend.v1.MarkReadRequest.event_id": aMessage, "backend.v1.StarMessageRequest.event_id": aMessage,
@@ -107,7 +108,10 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	"backend.v1.Draft.body": notARoom, "backend.v1.Draft.txn_id": notARoom, "backend.v1.Mention.user_id": notARoom,
 	"backend.v1.Mention.name": notARoom, "backend.v1.Mention.known": notARoom, "backend.v1.RedactRequest.reason": notARoom,
 	"backend.v1.SendFileRequest.caption": notARoom, "backend.v1.SendFileRequest.name": notARoom,
-	"backend.v1.StartUploadRequest.name": notARoom, "backend.v1.CreatePollRequest.question": notARoom,
+	"backend.v1.StartUploadRequest.name": notARoom, "backend.v1.PreviewChatImportRequest.upload_id": notARoom,
+	"backend.v1.PreviewChatImportRequest.zone": notARoom, "backend.v1.ChatImportSendersRequest.upload_id": notARoom,
+	"backend.v1.ChatImportSendersRequest.zone": notARoom, "backend.v1.ApplyChatImportRequest.upload_id": notARoom,
+	"backend.v1.ApplyChatImportRequest.zone": notARoom, "backend.v1.ApplyChatImportRequest.senders": notARoom, "backend.v1.CreatePollRequest.question": notARoom,
 	"backend.v1.CreatePollRequest.options": notARoom, "backend.v1.VotePollRequest.options": notARoom,
 	"backend.v1.SendReactionRequest.key": notARoom, "backend.v1.RecordEmojiRequest.kind": notARoom,
 	"backend.v1.RecordEmojiRequest.emoji": notARoom, "backend.v1.EmojiScoresRequest.kind": notARoom,

@@ -87,6 +87,9 @@ const (
 	pickerImportAccount // :import's accounts, folders and choices; see imports.go
 	pickerImportFolders
 	pickerImportChoice
+	pickerExportRoom // a chat export's chat, its names, who one is; see chatimport.go
+	pickerExportSenders
+	pickerExportSender
 	pickerCards           // :people, every card in the phonebook; see cards.go
 	pickerRescan          // the moves a rescan would make; see rescan.go
 	pickerFilterTag       // the tag a new filter moves rooms into; see filteradd.go
@@ -145,9 +148,12 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerJump:            {title: "Go to"},
 	pickerLoginNetwork:    {title: "Sign in to what?"},
 	pickerLoginAccount:    {}, // titled with the network
-	pickerImportAccount:   {title: "Copy folders from which account?"},
+	pickerImportAccount:   {title: "Copy which account's folders, or import a chat?"},
 	pickerImportFolders:   {}, // titled with the account
 	pickerImportChoice:    {}, // titled with the folder
+	pickerExportRoom:      {}, // titled with the export
+	pickerExportSenders:   {},
+	pickerExportSender:    {}, // titled with the name
 	pickerCards:           {title: "People in the phonebook"},
 	pickerRescan:          {modal: true, multi: true}, // titled with the count
 	pickerFilterTag:       {title: "Move rooms into which tag?"},
