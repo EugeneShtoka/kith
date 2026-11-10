@@ -641,7 +641,7 @@ func (s *Store) accountsLocked(id devicekey.ID) []domain.MeshAccount {
 
 // encodeVector is a vector as peers keeps it: per origin, its ID, seq and hash.
 func encodeVector(v crdt.Vector) []byte {
-	var b []byte
+	b := []byte{} // an empty vector is an empty blob: a nil one is bound as NULL
 	for origin, h := range v {
 		b = append(b, origin[:]...)
 		b = binary.AppendUvarint(b, h.Seq)
