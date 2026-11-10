@@ -2493,6 +2493,45 @@ section.add-field {
   text-decoration: underline;
 }
 
+/* "(edited)" and "Message deleted" open the message's history: drawn as the words they are. */
+.history-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+}
+
+.history-link:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+
+/* A message's history: its versions scroll, the deletion and the attachment under them. */
+.history {
+  display: flex;
+  flex-direction: column;
+  max-height: 76vh;
+}
+
+.history .versions {
+  overflow-y: auto;
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-4);
+}
+
+.history .versions li + li {
+  margin-top: var(--space-2);
+}
+
+.history .versions .detail {
+  margin: 0;
+}
+
+.history-attachment .picture {
+  max-height: 30vh;
+}
+
 /* "Same person as…" under a message: one setting a line. */
 .person-editor fieldset {
   display: grid;

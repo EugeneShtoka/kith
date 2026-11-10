@@ -8,6 +8,7 @@ import { Avatar } from "./Avatar";
 import { ComposerPane } from "./ComposerPane";
 import { networkMark } from "./faces";
 import { FilingDialog } from "./Filing";
+import { HistoryDialog } from "./History";
 import { LinkingDialog } from "./Linking";
 import { MarkReadDialog } from "./MarkRead";
 import { RoomNameDialog, ShortcutDialog } from "./RoomName";
@@ -68,6 +69,7 @@ export function App() {
       {seated && view.shortcut && <ShortcutDialog shortcut={view.shortcut} keys={view.keys} session={session} />}
       {seated && view.marking && <MarkReadDialog marking={view.marking} keys={view.keys} session={session} />}
       {seated && view.linking && <LinkingDialog linking={view.linking} keys={view.keys} session={session} />}
+      {seated && view.history && <HistoryDialog history={view.history} keys={view.keys} session={session} />}
       {seated && view.people.list && (
         <PeopleDialog list={view.people.list} covered={view.people.card !== undefined} session={session} />
       )}

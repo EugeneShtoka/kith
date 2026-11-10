@@ -46,6 +46,7 @@ import { type Kept, keptFrom, keptText } from "./drafts";
 import { conflict } from "./keymap";
 import { asked as filingAsked, type Filing, offered, opened, retagged, toggled, told } from "./filing";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
+import type { HistoryView } from "./history";
 import { type LinkAct, links } from "./links";
 import { ChatImport, idleImport, type ImportCalls, type ImportView } from "./chatimport";
 import { Devices, type DevicesCalls, type DevicesView, noDevices } from "./devices";
@@ -213,6 +214,8 @@ export interface View {
   notice: Notice | undefined;
   /** A message's links offered to choose from, for the [keys.timeline] link key pressed. */
   linking: { act: LinkAct; links: readonly string[] } | undefined;
+  /** A message's history shown ([keys.timeline] history). */
+  history: HistoryView | undefined;
   /** The room whose name is being written (rooms.name), and the name it starts from. */
   naming: { room: string; name: string } | undefined;
   /** The room a key sequence is being written for (/shortcut), and the one it starts from. */
@@ -401,6 +404,7 @@ const nothingShown = {
   marking: undefined,
   notice: undefined,
   linking: undefined,
+  history: undefined,
   people: noPeople,
 } satisfies Partial<View>;
 
@@ -1548,6 +1552,32 @@ export class Session {
 
   closeLinking(): void {
     this.set({ linking: undefined });
+  }
+
+  /** openHistory shows m's history: every version it had, and its deletion (MessageHistory). */
+  openHistory(m: Message): void {
+    const run = this.run;
+    if (run === undefined) {
+      return;
+    }
+    const shown = (change: Partial<HistoryView>) => {
+      if (this.live(run) && this.view.history?.message === m) {
+        this.set({ history: { ...this.view.history, ...change } });
+      }
+    };
+    this.set({ history: { message: m, revisions: undefined, deletion: undefined, error: "" }, notice: undefined });
+    call(backend.messageHistory, { roomId: m.roomId, eventId: m.id }).then(
+      (r) => {
+        shown({ revisions: r.revisions, deletion: r.deletion });
+      },
+      (err: unknown) => {
+        shown({ error: errorText(err) });
+      },
+    );
+  }
+
+  closeHistory(): void {
+    this.set({ history: undefined });
   }
 
   /**
