@@ -217,8 +217,8 @@ func scalarLiteral(v reflect.Value) (string, bool) {
 	}
 }
 
-// inlineTable renders a map[string]string as `{ k = "v", ... }` with keys sorted for
-// stable output.
+// inlineTable renders a map of string keys to scalars (map[string]string, map[string]bool)
+// as `{ k = "v", ... }` with keys sorted for stable output.
 func inlineTable(v reflect.Value) string {
 	keys := make([]string, 0, v.Len())
 	for _, k := range v.MapKeys() {
@@ -227,7 +227,8 @@ func inlineTable(v reflect.Value) string {
 	sort.Strings(keys)
 	pairs := make([]string, 0, len(keys))
 	for _, k := range keys {
-		pairs = append(pairs, quoteTOML(k)+" = "+quoteTOML(v.MapIndex(reflect.ValueOf(k)).String()))
+		value, _ := scalarLiteral(v.MapIndex(reflect.ValueOf(k)))
+		pairs = append(pairs, quoteTOML(k)+" = "+value)
 	}
 	return "{ " + strings.Join(pairs, ", ") + " }"
 }

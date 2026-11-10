@@ -1995,8 +1995,12 @@ type DeviceSettings struct {
 	ThreadsDefaultMax int64         `protobuf:"varint,34,opt,name=threads_default_max,json=threadsDefaultMax,proto3" json:"threads_default_max,omitempty"`
 	ThreadsMarker     string        `protobuf:"bytes,35,opt,name=threads_marker,json=threadsMarker,proto3" json:"threads_marker,omitempty"`
 	ThreadRules       []*ThreadRule `protobuf:"bytes,36,rep,name=thread_rules,json=threadRules,proto3" json:"thread_rules,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// [display.threads] folded: the rooms, by ID, whose thread rows rooms.fold_threads hid,
+	// sorted. A window folds a room by writing this list with it added (or taken out) to
+	// the list as read at base_revision.
+	ThreadsFolded []string `protobuf:"bytes,37,rep,name=threads_folded,json=threadsFolded,proto3" json:"threads_folded,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeviceSettings) Reset() {
@@ -2277,6 +2281,13 @@ func (x *DeviceSettings) GetThreadsMarker() string {
 func (x *DeviceSettings) GetThreadRules() []*ThreadRule {
 	if x != nil {
 		return x.ThreadRules
+	}
+	return nil
+}
+
+func (x *DeviceSettings) GetThreadsFolded() []string {
+	if x != nil {
+		return x.ThreadsFolded
 	}
 	return nil
 }
@@ -3006,7 +3017,7 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"\bsettings\x18\x02 \x01(\v2\x19.device.v1.DeviceSettingsR\bsettings\"q\n" +
 	"\x1cUpdateDeviceSettingsResponse\x125\n" +
 	"\bsettings\x18\x01 \x01(\v2\x19.device.v1.DeviceSettingsR\bsettings\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\tR\brevision\"\xcd\f\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\"\xf4\f\n" +
 	"\x0eDeviceSettings\x12#\n" +
 	"\rsend_receipts\x18\x01 \x01(\bR\fsendReceipts\x122\n" +
 	"\n" +
@@ -3053,7 +3064,8 @@ const file_device_v1_device_proto_rawDesc = "" +
 	"threadsMax\x12.\n" +
 	"\x13threads_default_max\x18\" \x01(\x03R\x11threadsDefaultMax\x12%\n" +
 	"\x0ethreads_marker\x18# \x01(\tR\rthreadsMarker\x128\n" +
-	"\fthread_rules\x18$ \x03(\v2\x15.device.v1.ThreadRuleR\vthreadRules\x1a=\n" +
+	"\fthread_rules\x18$ \x03(\v2\x15.device.v1.ThreadRuleR\vthreadRules\x12%\n" +
+	"\x0ethreads_folded\x18% \x03(\tR\rthreadsFolded\x1a=\n" +
 	"\x0fEmojiExtraEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aP\n" +

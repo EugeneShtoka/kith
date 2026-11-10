@@ -434,6 +434,10 @@ message DeviceSettings {
   int64 threads_default_max = 34;
   string threads_marker = 35;
   repeated ThreadRule thread_rules = 36;
+  // [display.threads] folded: the rooms, by ID, whose thread rows rooms.fold_threads hid,
+  // sorted. A window folds a room by writing this list with it added (or taken out) to
+  // the list as read at base_revision.
+  repeated string threads_folded = 37;
 }
 
 // KeySequences are one action's keys, in the order [keys] lists them.

@@ -174,7 +174,7 @@ func (m Model) roomListLine(r roomRow, inner int, selected, active bool) string 
 	switch {
 	case r.more > 0:
 		return m.listRow(rowLabel{lead: m.prefs.device.Threads.RowMark(), name: m.moreThreadsLabel(r.more), color: tint},
-			"", false, inner, false, active)
+			"", false, inner, selected, active)
 	case r.isThread():
 		badge := ""
 		if r.thread.Unread > 0 {

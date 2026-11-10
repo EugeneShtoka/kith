@@ -80,6 +80,7 @@ The room list, the middle pane. Consulted before `[keys.nav]`. `accept` and `rej
 | `view_media` | `v` | Open this room's pictures in the image viewer, newest first |
 | `rename_thread` | `alt+r` | Name the thread under the cursor |
 | `list_threads` | `ctrl+t` | List the threads in the room under the cursor |
+| `fold_threads` | `z a` | Hide the room's thread rows, or show them again; from a thread's row too. Remembered across restarts (`[display.threads] folded`); the room's badge still counts them. `enter` on a "+N more threads" row lists them all until you leave the room |
 | `name` | `a` | Name this room |
 | `notify_rule` | `b` | Notification rule for this room |
 | `join` | `J` | Join a room by ID or alias |

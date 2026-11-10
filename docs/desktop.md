@@ -128,7 +128,12 @@ The window fills its height, and each part scrolls on its own:
   `in_room_list = "never"` (`"all"` lists the unread ones here, for now). Going into a
   thread's row opens its room with the thread beside it, and reads the thread only:
   neither that nor resting on the row reads the room, until you go into the room
-  itself.
+  itself. Clicking "+N more threads" (or `enter` on it) lists all of that room's
+  threads, past the cap, until you leave the room. The small chevron beside a room
+  with thread rows, or `rooms.fold_threads` (`za`) on the room's row or one of its
+  threads' rows, folds them away, or back; the room's badge still counts them, and the
+  fold is kept in device.toml (`[display.threads] folded`), so it outlives a restart and
+  the terminal shares it.
 - **In the middle**, the open room: its name, network and topic above, its messages,
   and the composer under them. Messages are split by day, and one sender's messages a
   few minutes apart are drawn as one group, with the time of each in the margin when

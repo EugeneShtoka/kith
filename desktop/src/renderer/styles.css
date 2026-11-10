@@ -529,18 +529,34 @@ select option {
 }
 
 /* A room's threads, under it: set in past its picture, each led by its marker, and the
-   count of those not listed, which the cursor passes by. */
-.thread button,
-.thread.more {
+   count of those not listed, which lists them all once entered. */
+.thread button {
   padding-left: calc(var(--space-2) + var(--avatar-small));
   font-size: var(--text-sm);
 }
 
-.thread.more {
-  display: flex;
-  gap: var(--space-2);
-  padding-block: var(--space-1);
+/* The chevron folding a room's threads away, in the gutter left of its picture. */
+.room {
+  position: relative;
+}
+
+.room button.fold {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(-1 * var(--space-1));
+  z-index: 1;
+  width: calc(var(--space-1) + var(--space-2));
+  padding: 0;
+  justify-content: center;
+  background: none;
+  box-shadow: none;
   color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.room button.fold:hover {
+  color: inherit;
 }
 
 .thread .marker {

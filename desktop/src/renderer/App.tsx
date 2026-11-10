@@ -139,6 +139,7 @@ const seatedActions: readonly Action[] = [
   { path: "rooms.mark_read", anywhere: false },
   { path: "rooms.mark_all_read", anywhere: false },
   { path: "rooms.mark_unread", anywhere: false },
+  { path: "rooms.fold_threads", anywhere: false },
   { path: "rail.mark_read", anywhere: false },
   ...[
     "up",
@@ -167,8 +168,23 @@ const panes = ["rail", "rooms", "timeline", "thread"];
 /** paneRows are the rows a list pane's cursor moves over: each focusable itself. */
 const paneRows: Readonly<Record<string, string>> = {
   rail: "li.place > button",
-  rooms: "li.room > button, li.thread > button",
+  rooms: "li.room > button:not(.fold), li.thread > button",
 };
+
+/**
+ * foldRoomThreads folds room's threads, or unfolds them; the focus on one of the rows it hides
+ * goes to the room's own row once the list is drawn (refocus).
+ */
+function foldRoomThreads(session: Session, refocus: RefObject<(() => void) | undefined>, room: string): void {
+  const el = document.activeElement as HTMLElement | null;
+  if (el?.dataset.threadRoom === room || (el?.dataset.more !== undefined && el.dataset.room === room)) {
+    refocus.current = () =>
+      document
+        .querySelector<HTMLElement>(`[data-pane="rooms"] li.room > button[data-room="${CSS.escape(room)}"]`)
+        ?.focus();
+  }
+  session.foldThreads(room);
+}
 
 /** paneOf is the pane el is in, "" for none; the body (nothing focused) is the pane focused last. */
 function paneOf(el: Element | null, last: string): string {
@@ -373,6 +389,22 @@ function Seated({ view, session }: { view: View; session: Session }) {
       toThread.current = false;
       thread.current?.focus();
     }
+  };
+  // A row a fold or an expansion takes from under the focus hands it on once the list is drawn.
+  const refocus = useRef<() => void>(undefined);
+  useEffect(() => {
+    refocus.current?.();
+    refocus.current = undefined;
+  }, [view.list]);
+  const foldThreads = (room: string) => {
+    foldRoomThreads(session, refocus, room);
+  };
+  // expandThreads lists all of a room's threads from its "+N more threads" row, the focus going
+  // to the first thread that row stood for.
+  const expandThreads = (room: string, row: HTMLElement) => {
+    const at = rowsOf("rooms").indexOf(row);
+    refocus.current = () => rowsOf("rooms")[at]?.focus();
+    session.expandThreads(room);
   };
   // The pane focused last, which keys go to while nothing is focused: the rooms before any.
   const lastPane = useRef("rooms");
@@ -591,6 +623,19 @@ function Seated({ view, session }: { view: View; session: Session }) {
       "rooms.mark_read": () => markRow("rooms.mark_read"),
       "rooms.mark_all_read": () => markRow("rooms.mark_all_read"),
       "rooms.mark_unread": () => markRow("rooms.mark_unread"),
+      "rooms.fold_threads": () => {
+        // From a room's row, one of its threads' or its "+N more threads" row.
+        const el = document.activeElement as HTMLElement | null;
+        const room =
+          el !== null && paneOf(el, lastPane.current) === "rooms"
+            ? (el.dataset.threadRoom ?? el.dataset.room)
+            : undefined;
+        if (room === undefined) {
+          return false;
+        }
+        foldRoomThreads(session, refocus, room);
+        return true;
+      },
       "rail.mark_read": () => {
         const row = rowsOf("rail").indexOf(document.activeElement as HTMLElement);
         if (row >= 0) {
@@ -825,9 +870,12 @@ function Seated({ view, session }: { view: View; session: Session }) {
                             silenced={row.silenced}
                             unread={view.unread.get(r.id)}
                             open={r.id === view.open && !threadListed}
+                            threads={row.threads}
+                            threadsFolded={row.folded}
                             theme={view.theme}
                             session={session}
                             onEnter={enterRoom}
+                            onFold={foldThreads}
                           />
                         );
                       case "thread":
@@ -845,12 +893,29 @@ function Seated({ view, session }: { view: View; session: Session }) {
                       case "more":
                         return (
                           <li key={`${r.id} more`} className="thread more">
-                            <span className="marker" aria-hidden="true">
-                              {view.threads?.threadsMarker}
-                            </span>
-                            <span className="label">
-                              +{row.more} more {row.more === 1 ? "thread" : "threads"}
-                            </span>
+                            <button
+                              type="button"
+                              data-room={r.id}
+                              data-more=""
+                              title="List them all, until you leave the room"
+                              onFocus={() => {
+                                session.cursorOn(r.id, "");
+                                clearTimeout(peeking);
+                                peeking = setTimeout(() => {
+                                  session.peek(r.id);
+                                }, peekAfter);
+                              }}
+                              onClick={(e) => {
+                                expandThreads(r.id, e.currentTarget);
+                              }}
+                            >
+                              <span className="marker" aria-hidden="true">
+                                {view.threads?.threadsMarker}
+                              </span>
+                              <span className="label">
+                                +{row.more} more {row.more === 1 ? "thread" : "threads"}
+                              </span>
+                            </button>
                           </li>
                         );
                     }
@@ -1127,17 +1192,23 @@ function RoomRow({
   silenced,
   unread,
   open,
+  threads,
+  threadsFolded,
   theme,
   session,
   onEnter,
+  onFold,
 }: {
   room: Room;
   silenced: boolean;
   unread: Unread | undefined;
   open: boolean;
+  threads: number;
+  threadsFolded: boolean;
   theme: ThemeResponse | undefined;
   session: Session;
   onEnter: (room: string) => void;
+  onFold: (room: string) => void;
 }) {
   const { count, mentions } = unreadOf(unread);
   const name = room.name || room.id;
@@ -1145,6 +1216,24 @@ function RoomRow({
   const color = roomColor(theme, room);
   return (
     <li className={count > 0 || unread?.marked ? "room unread" : "room"}>
+      {threads > 0 && (
+        // Clicked, it leaves the focus where it was: the list's cursor is a row, not this.
+        <button
+          type="button"
+          className="fold"
+          tabIndex={-1}
+          aria-expanded={!threadsFolded}
+          title={threadsFolded ? "Show its threads" : "Hide its threads"}
+          onMouseDown={(e) => {
+            e.preventDefault();
+          }}
+          onClick={() => {
+            onFold(room.id);
+          }}
+        >
+          {threadsFolded ? "▸" : "▾"}
+        </button>
+      )}
       <button
         type="button"
         aria-current={open}

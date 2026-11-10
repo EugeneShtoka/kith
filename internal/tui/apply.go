@@ -381,20 +381,12 @@ func (m Model) keepCursorNearby(was int) (Model, tea.Cmd) {
 	return next, cmd
 }
 
-// selectableNear is the first selectable row at or after from, and failing that the
-// last one before it.
+// selectableNear is the row at from, and failing that the last one.
 func selectableNear(rows []roomRow, from int) (roomRow, bool) {
-	for i := max(from, 0); i < len(rows); i++ {
-		if rows[i].selectable() {
-			return rows[i], true
-		}
+	if len(rows) == 0 {
+		return roomRow{}, false
 	}
-	for i := min(from, len(rows)) - 1; i >= 0; i-- {
-		if rows[i].selectable() {
-			return rows[i], true
-		}
-	}
-	return roomRow{}, false
+	return rows[min(max(from, 0), len(rows)-1)], true
 }
 
 func (m Model) applyNotifications(notifs config.Notifications, done string) (Model, tea.Cmd) {

@@ -3,7 +3,18 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { type DeviceSettings, DeviceSettingsSchema } from "../gen/device/v1/device_pb";
-import { change, type Changed, changeTries, type Device, type Key, type Read, same, withKey } from "./settings";
+import {
+  change,
+  type Changed,
+  changeTries,
+  type Device,
+  folding,
+  type Key,
+  type Read,
+  same,
+  setFold,
+  withKey,
+} from "./settings";
 
 /**
  * File is device.toml behind the relay: written only at the revision it is at (else
@@ -231,4 +242,60 @@ describe("the settings page and another writer of device.toml", () => {
       { numRuns: 500 },
     );
   });
+});
+
+/** A fold another writer (the TUI, another window) makes: a room folded, or unfolded. */
+interface Fold {
+  room: string;
+  fold: boolean;
+}
+
+/** every is each list of n picks from options, in order. */
+function every<T>(options: readonly T[], n: number): T[][] {
+  return n === 0 ? [[]] : every(options, n - 1).flatMap((rest) => options.map((o) => [o, ...rest]));
+}
+
+describe("a fold of a room's threads, written to device.toml", () => {
+  // Before each of the window's writes: no one, or another writer folding a room of its own,
+  // unfolding one, or folding or unfolding the window's room itself.
+  const others: (Fold | undefined)[] = [
+    undefined,
+    { room: "!x", fold: true },
+    { room: "!pre", fold: false },
+    { room: "!mine", fold: true },
+    { room: "!mine", fold: false },
+  ];
+  for (const fold of [true, false]) {
+    it(`${fold ? "folds" : "unfolds"} the room over every other writer's folds before each try, losing none of theirs`, async () => {
+      for (const schedule of every(others, changeTries + 1)) {
+        const start = create(DeviceSettingsSchema, { threadsFolded: fold ? ["!pre"] : ["!mine", "!pre"] });
+        const file = new File(start);
+        let theirs = start.threadsFolded;
+        for (const other of schedule) {
+          file.before.push(() => {
+            if (other !== undefined) {
+              theirs = folding(theirs, other.room, other.fold);
+              file.settings = clone(DeviceSettingsSchema, file.settings);
+              file.settings.threadsFolded = theirs;
+              file.revision++;
+            }
+          });
+        }
+        const what = schedule.map((o) => (o === undefined ? "-" : `${o.room}${o.fold ? "+" : "-"}`)).join(" ");
+        try {
+          const got = await setFold(file, "!mine", fold);
+          expect(file.settings.threadsFolded, what).toEqual(folding(theirs, "!mine", fold));
+          expect(got.settings.threadsFolded, what).toEqual(file.settings.threadsFolded);
+        } catch (err) {
+          // Given up only with each try lost to another writer, whose folds are all kept.
+          expect(String(err), what).toContain("[aborted]");
+          expect(
+            schedule.slice(0, changeTries).every((o) => o !== undefined),
+            what,
+          ).toBe(true);
+          expect(file.settings.threadsFolded, what).toEqual(theirs);
+        }
+      }
+    });
+  }
 });

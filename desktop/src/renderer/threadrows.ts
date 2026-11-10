@@ -2,7 +2,8 @@
 // each room its threads with unread replies, newest first, then the thread open and the one
 // the cursor is on, which keep their row once read; at most a cap of them, the rest counted
 // into one row. The cap is domain.ThreadCap, held to Go by the conformance table
-// internal/domain/testdata/threadcap.json.
+// internal/domain/testdata/threadcap.json. A folded room ([display.threads] folded) lists
+// none; the room whose overflow row was entered lists them all.
 import { create } from "@bufbuild/protobuf";
 
 import type { RailResponse } from "../gen/backend/v1/services_pb";
@@ -17,16 +18,19 @@ import type { DeviceSettings } from "../gen/device/v1/device_pb";
 import { namesHome } from "./rail";
 import { collapse } from "./threads";
 
-/** One row of the room list: a room, one of its threads, or the count of its threads not listed. */
+/**
+ * One row of the room list: a room, one of its threads, or the count of its threads not listed.
+ * A room's threads are how many it lists under it, or would unfolded.
+ */
 export type ListRow =
-  | { kind: "room"; room: Room; silenced: boolean }
+  | { kind: "room"; room: Room; silenced: boolean; threads: number; folded: boolean }
   | { kind: "thread"; room: Room; thread: ThreadUnread }
   | { kind: "more"; room: Room; more: number };
 
 /** What the room list's thread rows follow of the device's settings. */
 export type ThreadList = Pick<
   DeviceSettings,
-  "threadsInRoomList" | "threadsMax" | "threadsDefaultMax" | "threadsMarker" | "threadRules"
+  "threadsInRoomList" | "threadsMax" | "threadsDefaultMax" | "threadsMarker" | "threadRules" | "threadsFolded"
 >;
 
 // The rungs a rule names a room on (domain.Rank): its first home, or itself.
@@ -73,8 +77,9 @@ export function pinnedThread(rows: readonly Message[], root: string): ThreadUnre
 /**
  * listRows is the room list as drawn: each of rooms, marked when a silent tag holds it
  * (Archived), and under it its threads, unless threads are never listed, the settings are
- * not read yet, or a silent tag holds it.
- * pinned are the open room's threads kept listed once read, after its unread ones.
+ * not read yet, a silent tag holds it, or it is folded.
+ * pinned are the open room's threads kept listed once read, after its unread ones;
+ * expanded is the room listing them all, past the cap.
  */
 export function listRows(
   rooms: readonly Room[],
@@ -83,13 +88,15 @@ export function listRows(
   list: ThreadList | undefined,
   open: string,
   pinned: readonly ThreadUnread[],
+  expanded = "",
 ): ListRow[] {
   const served = new Map((rail?.rooms ?? []).map((r) => [r.facts?.id ?? "", r]));
   const rows: ListRow[] = [];
   for (const room of rooms) {
     const judged = served.get(room.id);
     const silenced = judged?.silenced === true;
-    rows.push({ kind: "room", room, silenced });
+    const row = { kind: "room" as const, room, silenced, threads: 0, folded: false };
+    rows.push(row);
     if (list === undefined || list.threadsInRoomList === "never" || silenced) {
       continue;
     }
@@ -97,7 +104,12 @@ export function listRows(
     if (room.id === open) {
       threads.push(...pinned.filter((p) => !threads.some((t) => t.root === p.root)));
     }
-    const cap = threadCap(list, room.id, judged?.home ?? "", judged?.homeLabel ?? "");
+    row.threads = threads.length;
+    row.folded = list.threadsFolded.includes(room.id);
+    if (row.folded) {
+      continue;
+    }
+    const cap = room.id === expanded ? 0 : threadCap(list, room.id, judged?.home ?? "", judged?.homeLabel ?? "");
     const shown = cap > 0 ? threads.slice(0, cap) : threads;
     rows.push(...shown.map((thread) => ({ kind: "thread" as const, room, thread })));
     if (shown.length < threads.length) {

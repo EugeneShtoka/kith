@@ -98,11 +98,21 @@ func (m Model) hints() string {
 			)
 		}
 		// A thread row: join/leave would act on the room above, so offer thread actions.
-		if row, ok := m.selectedRow(); ok && row.isThread() {
+		row, ok := m.selectedRow()
+		if ok && row.isThread() {
 			return m.hintLine(
 				nav,
 				keyed(m.keys.keyHint(scopeNav, actOpen), "open thread"),
 				keyed(m.keys.keyHint(scopeRooms, actMarkRead), "mark thread read"),
+				keyed(m.keys.keyHint(scopeRooms, actFoldThreads), "fold threads"),
+				keyed(m.keys.keyHint(scopeCommand, actHelp), "help"),
+			)
+		}
+		if ok && row.more > 0 {
+			return m.hintLine(
+				nav,
+				keyed(m.keys.keyHint(scopeNav, actOpen), "list them all"),
+				keyed(m.keys.keyHint(scopeRooms, actFoldThreads), "fold threads"),
 				keyed(m.keys.keyHint(scopeCommand, actHelp), "help"),
 			)
 		}
