@@ -57,27 +57,30 @@ func Read(path, name string, zone *time.Location) (Export, error) {
 // chatText is the chat's text: the zip's _chat.txt (iOS) or only .txt (Android), else
 // the file itself. Nothing is unpacked to disk.
 func chatText(path string) (string, error) {
-	z, err := zip.OpenReader(path)
+	f, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return "", fmt.Errorf("chatexport: %w", err)
+	}
+	defer func() { _ = f.Close() }() // read only
+	info, err := f.Stat()
+	if err != nil {
+		return "", fmt.Errorf("chatexport: %w", err)
+	}
+	z, err := zip.NewReader(f, info.Size())
 	if errors.Is(err, zip.ErrFormat) {
-		f, ferr := os.Open(filepath.Clean(path))
-		if ferr != nil {
-			return "", fmt.Errorf("chatexport: %w", ferr)
-		}
-		defer func() { _ = f.Close() }() // read only
 		return readMost(f)
 	}
 	if err != nil {
 		return "", fmt.Errorf("chatexport: %w", err)
 	}
-	defer func() { _ = z.Close() }() // read only
 	var texts []*zip.File
-	for _, f := range z.File {
-		if filepath.Base(f.Name) == "_chat.txt" {
-			texts = []*zip.File{f}
+	for _, zf := range z.File {
+		if filepath.Base(zf.Name) == "_chat.txt" {
+			texts = []*zip.File{zf}
 			break
 		}
-		if strings.EqualFold(filepath.Ext(f.Name), ".txt") {
-			texts = append(texts, f)
+		if strings.EqualFold(filepath.Ext(zf.Name), ".txt") {
+			texts = append(texts, zf)
 		}
 	}
 	if len(texts) != 1 {
