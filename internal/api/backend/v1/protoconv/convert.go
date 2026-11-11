@@ -128,7 +128,7 @@ func MediaToProto(m *domain.Media) *v1.Media {
 // MentionsToProto converts @-mentions, preserving order.
 func MentionsToProto(ms []domain.Mention) []*v1.Mention {
 	return mapSlice(ms, func(m domain.Mention) *v1.Mention {
-		return &v1.Mention{UserId: m.UserID, Name: m.Name, RoomId: m.RoomID, Known: m.Known}
+		return &v1.Mention{UserId: m.UserID, Name: m.Name, RoomId: m.RoomID, Known: m.Known, KnownAs: m.KnownAs}
 	})
 }
 
@@ -189,6 +189,7 @@ func MessageToProto(m domain.Message) *v1.Message {
 		RoomId:           string(m.RoomID),
 		Sender:           m.Sender,
 		SenderName:       m.SenderName,
+		SenderKnownAs:    m.SenderKnownAs,
 		Body:             m.Body,
 		Format:           FormattedToProto(m.Format),
 		Timestamp:        toProtoTime(m.Timestamp),
@@ -269,7 +270,7 @@ func ProtoToMedia(pb *v1.Media) *domain.Media {
 // ProtoToMentions converts @-mentions back.
 func ProtoToMentions(pb []*v1.Mention) []domain.Mention {
 	return mapSlice(pb, func(m *v1.Mention) domain.Mention {
-		return domain.Mention{UserID: m.GetUserId(), Name: m.GetName(), RoomID: m.GetRoomId(), Known: m.GetKnown()}
+		return domain.Mention{UserID: m.GetUserId(), Name: m.GetName(), RoomID: m.GetRoomId(), Known: m.GetKnown(), KnownAs: m.GetKnownAs()}
 	})
 }
 
@@ -283,6 +284,7 @@ func ProtoToMessage(pb *v1.Message) domain.Message {
 		RoomID:         domain.RoomID(pb.GetRoomId()),
 		Sender:         pb.GetSender(),
 		SenderName:     pb.GetSenderName(),
+		SenderKnownAs:  pb.GetSenderKnownAs(),
 		Body:           pb.GetBody(),
 		Format:         ProtoToFormatted(pb.GetFormat()),
 		Timestamp:      fromProtoTime(pb.GetTimestamp()),

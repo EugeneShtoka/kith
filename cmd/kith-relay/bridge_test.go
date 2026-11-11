@@ -196,7 +196,7 @@ func serveBridge(t *testing.T, paired ...*ecdsa.PrivateKey) *bridgeKithd {
 		func() (tls.Certificate, error) { return cert, nil }, logging.Discard())
 	b.paired.Listen([]string{b.addr})
 	d := &daemon.Daemon{
-		Backend: backend, Streams: b.messages.streams, MessageLog: b.messages, State: daemon.NewState(), Notifications: n,
+		Backend: backend, Streams: b.messages.streams, Names: daemon.NewNames(backend, config.Config{}, nil), MessageLog: b.messages, State: daemon.NewState(), Notifications: n,
 		Reload:      func(context.Context) error { return nil },
 		CheckConfig: func(context.Context, config.Config) error { return nil },
 		Config:      daemon.NewConfigFile(cfgPath),

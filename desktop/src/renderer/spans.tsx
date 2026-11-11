@@ -94,17 +94,22 @@ function wrap(piece: ReactNode, over: readonly Span[], key: number): ReactNode {
   return <span key={key}>{out}</span>;
 }
 
-/** Pill is a person a message mentions, where the text names them (UTF-16), and the class they are drawn in. */
+/**
+ * Pill is a person a message mentions, where the text names them (UTF-16), the class they
+ * are drawn in, and kithd's name for them ("" keeps the text's).
+ */
 export interface Pill {
   start: number;
   end: number;
   className: string;
+  name: string;
 }
 
 /**
  * pills are where text names the people mentions mention (domain.ResolveMentions' rule:
  * longest name first, each at its first place no other took), each in classOf's class
- * for them; a room's mention, and a name the text does not hold, are none.
+ * for them and named as kithd names them; a room's mention, and a name the text does not
+ * hold, are none.
  */
 export function pills(text: string, mentions: readonly Mention[], classOf: (person: string) => string): Pill[] {
   const out: Pill[] = [];
@@ -113,7 +118,7 @@ export function pills(text: string, mentions: readonly Mention[], classOf: (pers
     for (let from = text.indexOf(m.name); from >= 0; from = text.indexOf(m.name, from + 1)) {
       const end = from + m.name.length;
       if (!out.some((p) => p.start < end && from < p.end)) {
-        out.push({ start: from, end, className: classOf(m.userId) });
+        out.push({ start: from, end, className: classOf(m.userId), name: m.knownAs });
         break;
       }
     }
@@ -123,7 +128,8 @@ export function pills(text: string, mentions: readonly Mention[], classOf: (pers
 
 /**
  * Formatted draws f: its text cut where any span or pill starts or ends, each piece in
- * its marks; a pill in its person's color, without the "@" the text names them with.
+ * its marks; a pill in its person's color, by kithd's name for them where it has one,
+ * without the "@" the text names them with.
  */
 export function FormattedText({ f, pills = [] }: { f: Formatted; pills?: readonly Pill[] }): ReactNode {
   const at = utf16At(f.text);
@@ -137,7 +143,13 @@ export function FormattedText({ f, pills = [] }: { f: Formatted; pills?: readonl
     const over = spans.filter((s) => s.start <= from && s.end >= to).map((s) => s.span);
     const pill = pills.find((p) => p.start <= from && p.end >= to);
     let text = f.text.slice(from, to);
-    if (pill?.start === from && text.startsWith("@")) {
+    if (pill !== undefined && pill.name !== "") {
+      // kithd's name stands for the whole of what the text calls them, drawn once.
+      if (pill.start !== from) {
+        continue;
+      }
+      text = pill.name;
+    } else if (pill?.start === from && text.startsWith("@")) {
       text = text.slice(1); // shown without it; the text keeps it
     }
     const piece = over.length === 0 ? text : wrap(text, over, i);

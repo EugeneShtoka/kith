@@ -27,10 +27,10 @@ func (c *Cache) MergeRoom(ctx context.Context, m domain.RoomMerge) (changed bool
 	if m.From == "" || m.Into == "" || m.From == m.Into {
 		return false, nil
 	}
-	err = c.inTx(ctx, func(tx *sql.Tx) error {
+	err = c.roomsWritten(c.inTx(ctx, func(tx *sql.Tx) error {
 		changed, err = mergeRoom(ctx, tx, m)
 		return err
-	})
+	}))
 	if err != nil {
 		return false, err
 	}

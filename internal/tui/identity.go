@@ -174,15 +174,15 @@ func (m Model) openPeopleForRoom() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// peopleItems lists the members by local name, the place's show_field after it, with the
-// MXID as detail.
+// peopleItems lists the members by kithd's name, the place's show_field after it and the
+// network's name when it differs, with the MXID as detail.
 func (m Model) peopleItems() []pickerItem {
 	items := make([]pickerItem, 0, len(m.timeline.members))
 	for _, member := range m.timeline.members {
 		name := m.memberName(member)
 		label := isolate(m.besideName(name, member.UserID))
-		if ident, ok := m.prefs.identities[member.UserID]; ok && ident.alias != "" {
-			label = isolate(m.besideName(ident.alias, member.UserID)) + "  (" + isolate(name) + ")"
+		if own := member.Name(); own != name {
+			label += "  (" + isolate(own) + ")"
 		}
 		items = append(items, pickerItem{
 			label:  label,
@@ -203,11 +203,8 @@ func (m Model) aliasSelectedPerson() (Model, tea.Cmd) {
 	return m.openIdentityFor(item.value, m.memberShown(item.value))
 }
 
-// memberShown is the member list's name for id: their alias, else their name.
+// memberShown is the member list's name for id: kithd's.
 func (m Model) memberShown(id string) string {
-	if ident, ok := m.prefs.identities[id]; ok && ident.alias != "" {
-		return ident.alias
-	}
 	for _, member := range m.timeline.members {
 		if member.UserID == id {
 			return m.memberName(member)

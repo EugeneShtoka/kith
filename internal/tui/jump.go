@@ -35,11 +35,11 @@ func (m Model) jumpItems() []pickerItem {
 	}
 	for _, person := range m.dmCandidates {
 		items = append(items, pickerItem{
-			label:  isolate(m.byNumber(person.DisplayName)),
+			label:  isolate(m.memberName(person)),
 			detail: "start a DM",
 			value:  "dm:" + person.UserID,
 			// The MXID matches too: you may know only their address or number.
-			match: m.byNumber(person.DisplayName) + " " + person.DisplayName + " " + person.UserID,
+			match: m.memberName(person) + " " + person.DisplayName + " " + person.UserID,
 		})
 	}
 	for _, g := range m.rail.groups {
@@ -135,7 +135,7 @@ func (m Model) startDirect(user string) (Model, tea.Cmd) {
 	name := user
 	for _, person := range m.dmCandidates {
 		if person.UserID == user && person.DisplayName != "" {
-			name = m.byNumber(person.DisplayName)
+			name = m.memberName(person)
 			break
 		}
 	}

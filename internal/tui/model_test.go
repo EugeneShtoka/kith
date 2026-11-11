@@ -1657,12 +1657,11 @@ func TestDefaultModeShowsAChip(t *testing.T) {
 func TestMentionRendersResolvedName(t *testing.T) {
 	t.Parallel()
 
-	// An identity alias: mentions of @alice:x collapse to "Ally".
-	disp := config.Display{Identities: []config.Identity{{Alias: "Ally", IDs: []string{"matrix:@alice:x"}}}}
-	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, disp)))
+	// kithd names @alice:x by an identity alias: mentions of her collapse to "Ally".
+	m := sized(t, withRooms(t, starterNew(apitest.Nop{}, config.Display{})))
 	m = loadPage(t, m, []domain.Message{{
 		ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", Body: "hey Alice Smith, hi", Timestamp: at(1),
-		Mentions: []domain.Mention{{UserID: "matrix:@alice:x", Name: "Alice Smith"}},
+		Mentions: []domain.Mention{{UserID: "matrix:@alice:x", Name: "Alice Smith", KnownAs: "Ally"}},
 	}})
 	rows := strings.Join(m.layoutRows(), "\n")
 	if !strings.Contains(rows, "Ally") {
@@ -1898,13 +1897,13 @@ func TestNameProcessing(t *testing.T) {
 	if w := ansi.StringWidth(got); w != 8 {
 		t.Errorf("truncated width = %d (%q), want 8", w, got)
 	}
-	// An alias supplies the name and the space rule still shapes it.
-	m.prefs.identities = map[string]resolvedIdentity{"matrix:@p:x": {alias: "Dana Levi"}}
-	if got := m.processedName(domain.Message{RoomID: mx + "!a:x", Sender: "matrix:@p:x", SenderName: "+1500000"}); got != "Dana" {
+	// kithd's name (an alias) supplies the name and the space rule still shapes it.
+	aliased := domain.Message{RoomID: mx + "!a:x", Sender: "matrix:@p:x", SenderName: "+1500000", SenderKnownAs: "Dana Levi"}
+	if got := m.processedName(aliased); got != "Dana" {
 		t.Errorf("aliased name = %q, want the space rule applied to it too", got)
 	}
 	// The pill path gives the same answer, since both share it.
-	if got := m.mentionedName("matrix:@p:x", mx+"!a:x", "+1500000"); got != "Dana" {
+	if got := m.mentionedName("matrix:@p:x", mx+"!a:x", "Dana Levi", "+1500000"); got != "Dana" {
 		t.Errorf("aliased mention = %q, want Dana", got)
 	}
 
@@ -1914,7 +1913,7 @@ func TestNameProcessing(t *testing.T) {
 	if got := m.processedName(inWork); got != "Rowan Blackwood" {
 		t.Errorf("no rule = %q, want full name", got)
 	}
-	if got := m.processedName(domain.Message{RoomID: mx + "!a:x", Sender: "matrix:@p:x", SenderName: "+1500000"}); got != "Dana Levi" {
+	if got := m.processedName(aliased); got != "Dana Levi" {
 		t.Errorf("aliased name with no rule = %q, want it whole", got)
 	}
 }
@@ -2118,11 +2117,11 @@ func TestIdentityPinsColorAndAlias(t *testing.T) {
 	}}
 	m.prefs.identities = buildIdentities(m.prefs.display.Identities)
 
-	// The alias is shown for every merged account, bypassing name rules.
-	if got := m.processedName(domain.Message{Sender: "matrix:@a:x", SenderName: "Alpha"}); got != "Me" {
+	// kithd's name (the alias) is shown for every merged account.
+	if got := m.processedName(domain.Message{Sender: "matrix:@a:x", SenderName: "Alpha", SenderKnownAs: "Me"}); got != "Me" {
 		t.Errorf("alias = %q, want Me", got)
 	}
-	if got := m.processedName(domain.Message{Sender: "matrix:@a2:x", SenderName: "Alpha Alt"}); got != "Me" {
+	if got := m.processedName(domain.Message{Sender: "matrix:@a2:x", SenderName: "Alpha Alt", SenderKnownAs: "Me"}); got != "Me" {
 		t.Errorf("merged alias = %q, want Me", got)
 	}
 

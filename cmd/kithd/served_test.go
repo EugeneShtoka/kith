@@ -493,7 +493,7 @@ func TestEveryNetworkChecksItsOwnSection(t *testing.T) {
 			t.Fatal(err)
 		}
 		relevel := func(string) { t.Errorf("%s: a refused re-read changed the log level", n.Network()) }
-		if err := reloader(slog.New(slog.DiscardHandler), configFile{path: path}, relevel, nil, backend, nil, nil)(ctx); err == nil {
+		if err := reloader(slog.New(slog.DiscardHandler), configFile{path: path}, relevel, nil, backend, nil, nil, nil)(ctx); err == nil {
 			t.Errorf("%s: the re-read took a config its network refuses", n.Network())
 		}
 	}
@@ -522,7 +522,7 @@ func TestAReloadAppliesAssistAndSpell(t *testing.T) {
 	if err := config.Save(path, cfg); err != nil {
 		t.Fatal(err)
 	}
-	reload := reloader(slog.New(slog.DiscardHandler), configFile{path: path}, func(string) {}, new(atomic.Int64), backend, w.notifications, w.paired)
+	reload := reloader(slog.New(slog.DiscardHandler), configFile{path: path}, func(string) {}, new(atomic.Int64), backend, w.notifications, w.names, w.paired)
 	if err := reload(ctx); err != nil {
 		t.Fatalf("reload: %v", err)
 	}

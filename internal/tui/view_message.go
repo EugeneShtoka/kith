@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
 	"image/color"
 	"slices"
@@ -445,7 +446,7 @@ func (m Model) resolveMentions(body string, mentions []domain.Mention, colors ma
 		return body, nil
 	}
 	body, drawn := domain.ResolveMentions(body, mentions, func(mn domain.Mention, words string) string {
-		return m.mentionedName(mn.UserID, roomID, mn.Known, words)
+		return m.mentionedName(mn.UserID, roomID, mn.KnownAs, mn.Known, words)
 	})
 	spans := make([]mentionSpan, 0, len(drawn))
 	for i, mn := range drawn {
@@ -462,42 +463,31 @@ func (m Model) resolveMentions(body string, mentions []domain.Mention, colors ma
 	return body, spans
 }
 
-// mentionedName is the name a mention of userID is drawn with: domain.People's answer
-// (alias, member name, known names, latest message name, phone book), shaped by the
-// room's space rule like the sender column. A name learned later reaches every mention
-// already drawn.
-func (m Model) mentionedName(userID string, roomID domain.RoomID, known ...string) string {
-	member, sent := "", ""
+// mentionedName is the name a mention of userID is drawn with: kithd's name for them
+// (knownAs, what was sent naming them first), else the first of known, else their ID's
+// short form, shaped by the room's space rule like the sender column.
+func (m Model) mentionedName(userID string, roomID domain.RoomID, knownAs string, known ...string) string {
+	name := cmp.Or(knownAs, m.knownAs(userID))
+	for _, k := range known {
+		name = cmp.Or(name, strings.TrimSpace(k))
+	}
+	return m.shapedName(cmp.Or(name, shortSender(userID)), roomID)
+}
+
+// knownAs is kithd's name for userID as the open room was last read: their member
+// entry's, else their latest message's; "" when neither names them.
+func (m Model) knownAs(userID string) string {
 	for i := range m.timeline.members {
-		if m.timeline.members[i].UserID == userID {
-			member = m.timeline.members[i].DisplayName
-			break
+		if m.timeline.members[i].UserID == userID && m.timeline.members[i].KnownAs != "" {
+			return m.timeline.members[i].KnownAs
 		}
 	}
 	for i := range slices.Backward(m.timeline.messages) {
-		if m.timeline.messages[i].Sender == userID && m.timeline.messages[i].SenderName != "" {
-			sent = m.timeline.messages[i].SenderName
-			break
+		if m.timeline.messages[i].Sender == userID && m.timeline.messages[i].SenderKnownAs != "" {
+			return m.timeline.messages[i].SenderKnownAs
 		}
 	}
-	return m.shapedName(m.people().Name(userID, append(append([]string{member}, known...), sent)...), roomID)
-}
-
-// people is who this person knows people as: their aliases and the phone book.
-func (m Model) people() domain.People {
-	return domain.People{Alias: m.aliasOf, Dir: m.dir.dir}
-}
-
-// aliasOf is the person's own name for userID, or "": an identity alias, else the name
-// of a room named after them.
-func (m Model) aliasOf(userID string) string {
-	if alias := m.prefs.aliases[userID]; alias != "" {
-		return alias
-	}
-	if alias := m.prefs.identities[userID].alias; alias != "" {
-		return alias
-	}
-	return m.peers.aliases[userID]
+	return ""
 }
 
 // styleMentions renders seg with each mentioned name bold in its color and the rest in
@@ -591,21 +581,17 @@ func (m Model) senderName(msg domain.Message) string {
 }
 
 // personIn is a sender label for someone named outside a message (thread reply,
-// typing, invite); the room selects its space's name rule.
-func (m Model) personIn(room domain.RoomID, sender, name string) string {
-	return m.senderName(domain.Message{RoomID: room, Sender: sender, SenderName: name})
+// typing, invite): kithd's name for them (knownAs, else as the room was read), else
+// name; the room selects its space's name rule.
+func (m Model) personIn(room domain.RoomID, sender, knownAs, name string) string {
+	return m.senderName(domain.Message{RoomID: room, Sender: sender, SenderName: name, SenderKnownAs: cmp.Or(knownAs, m.knownAs(sender))})
 }
 
-// processedName is the sender label: a merged identity's alias, else the name of a DM
-// named after them (peeralias.go), else their name, shaped by shapedName.
+// processedName is the sender label: kithd's name for the sender (an alias, a named
+// chat's, the phone book's, the network's), else the message's own, shaped by
+// shapedName.
 func (m Model) processedName(msg domain.Message) string {
-	if id, ok := m.prefs.identities[msg.Sender]; ok && id.alias != "" {
-		return m.shapedName(id.alias, msg.RoomID)
-	}
-	if alias := m.peers.aliases[msg.Sender]; alias != "" {
-		return m.shapedName(alias, msg.RoomID)
-	}
-	return m.shapedName(m.byNumber(senderLabel(msg)), msg.RoomID)
+	return m.shapedName(cmp.Or(msg.SenderKnownAs, senderLabel(msg)), msg.RoomID)
 }
 
 // shapedName applies the room's space name rules to a name, aliases included: the

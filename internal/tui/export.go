@@ -50,10 +50,21 @@ func (m Model) openExport(room domain.Room, arg string) (Model, tea.Cmd) {
 	if thread != "" {
 		of.Title += " — " + m.threadTitle()
 	}
-	ctx, backend, people, clock := m.ctx, m.backend, m.people(), m.prefs.clock
+	ctx, backend, clock := m.ctx, m.backend, m.prefs.clock
 	return m.say("exporting " + of.Title + "…"), func() tea.Msg {
-		return exportRoom(ctx, backend, room.ID, thread, of, span, people, clock, dir, file)
+		return exportRoom(ctx, backend, room.ID, thread, of, span, clock, dir, file)
 	}
+}
+
+// exportName is the first of known, kithd's name leading (domain.ExportMarkdown), else
+// the ID's short form.
+func exportName(userID string, known ...string) string {
+	for _, k := range known {
+		if k = strings.TrimSpace(k); k != "" {
+			return k
+		}
+	}
+	return shortSender(userID)
 }
 
 // errNothingToExport is a room or thread with no cached message in the span.
@@ -62,7 +73,7 @@ var errNothingToExport = errors.New("nothing cached to export")
 // exportRoom writes room's cached messages in span, or only thread's when given, to
 // dir as file, or named after the room when file is "".
 func exportRoom(ctx context.Context, backend api.Backend, room domain.RoomID, thread domain.EventID, of domain.ExportOf,
-	span domain.SummarySpan, people domain.People, clock domain.Clock, dir, file string,
+	span domain.SummarySpan, clock domain.Clock, dir, file string,
 ) exportedMsg {
 	msgs, err := cachedHistory(ctx, backend, room, span)
 	if err != nil {
@@ -79,7 +90,7 @@ func exportRoom(ctx context.Context, backend api.Backend, room domain.RoomID, th
 	if err != nil {
 		return exportedMsg{err: err}
 	}
-	md := domain.ExportMarkdown(of, msgs, reactions, people.Name, clock)
+	md := domain.ExportMarkdown(of, msgs, reactions, exportName, clock)
 	name := file
 	if name == "" {
 		name = exportFileName(of)

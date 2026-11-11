@@ -1,7 +1,7 @@
 // A room's messages in order, and a newer copy of one put in place: ported from
 // domain.CompareMessages and domain.MergeMessages, held to them by the conformance table
 // internal/domain/testdata/timeline.json.
-import type { Formatted, Message } from "../gen/backend/v1/types_pb";
+import type { Formatted, Mention, Message } from "../gen/backend/v1/types_pb";
 
 /** No time: before every other, as Go's zero time. */
 const zero = -(1n << 80n);
@@ -92,6 +92,20 @@ function supersedes(edit: Message, shownAt: bigint, shownRev: string): boolean {
   return compareBytes(edit.revisionId, shownRev) >= 0;
 }
 
+/** renamed is mentions with each person's knownAs as later names them, where later mentions them too (domain.renamedMentions). */
+function renamed(mentions: Mention[], later: readonly Mention[]): Mention[] {
+  let out: Mention[] | undefined;
+  mentions.forEach((m, i) => {
+    for (const l of later) {
+      if (l.userId === m.userId && l.knownAs !== "" && l.knownAs !== m.knownAs) {
+        out ??= [...mentions];
+        out[i] = { ...m, knownAs: l.knownAs };
+      }
+    }
+  });
+  return out ?? mentions;
+}
+
 function formatIsZero(f: Formatted | undefined): boolean {
   return f === undefined || (f.text === "" && f.spans.length === 0);
 }
@@ -123,6 +137,7 @@ function combine(first: Message, b: Message): Message {
   a.edited ||= b.edited;
   a.mentioned ||= b.mentioned;
   a.senderName ||= b.senderName;
+  a.senderKnownAs = b.senderKnownAs || a.senderKnownAs; // a later read names people as kithd does now
   if (a.timestamp === undefined || (b.timestamp !== undefined && nanos(b) < nanos(a))) {
     a.timestamp = b.timestamp;
   }
@@ -136,6 +151,8 @@ function combine(first: Message, b: Message): Message {
   }
   if (a.mentions.length === 0) {
     a.mentions = b.mentions;
+  } else {
+    a.mentions = renamed(a.mentions, b.mentions);
   }
   if (a.redacted) {
     // Never regains a body, not even from an edit.

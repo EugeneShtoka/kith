@@ -23,6 +23,7 @@ type confRow struct {
 	Seq            int64  `json:"seq,omitempty"`
 	Sender         string `json:"sender,omitempty"`
 	SenderName     string `json:"senderName,omitempty"`
+	SenderKnownAs  string `json:"senderKnownAs,omitempty"`
 	Body           string `json:"body,omitempty"`
 	Format         string `json:"format,omitempty"` // the formatting's text, no spans
 	Edited         bool   `json:"edited,omitempty"`
@@ -40,6 +41,15 @@ type confRow struct {
 	Undecrypted    bool   `json:"undecrypted,omitempty"`
 	Media          string `json:"media,omitempty"` // an image attachment's name
 	Poll           string `json:"poll,omitempty"`  // the poll's question
+	// Mentions are the people the message mentions, with kithd's name for each.
+	Mentions []confMention `json:"mentions,omitempty"`
+}
+
+// confMention is a mention as the table writes it.
+type confMention struct {
+	User    string `json:"user"`
+	Name    string `json:"name,omitempty"`
+	KnownAs string `json:"knownAs,omitempty"`
 }
 
 func confTime(ms int64) time.Time {
@@ -59,7 +69,7 @@ func confMillis(t time.Time) int64 {
 func (r confRow) message() Message {
 	m := Message{
 		ID: EventID(r.ID), Timestamp: confTime(r.TS), Seq: r.Seq, Sender: r.Sender, SenderName: r.SenderName,
-		Body: r.Body, Format: richtext.Drawn(r.Format, nil), Edited: r.Edited, EditedAt: confTime(r.EditedAt),
+		SenderKnownAs: r.SenderKnownAs, Body: r.Body, Format: richtext.Drawn(r.Format, nil), Edited: r.Edited, EditedAt: confTime(r.EditedAt),
 		RevisionID: EventID(r.RevisionID), Reverted: r.Reverted, Redacted: r.Redacted, RedactedBy: r.RedactedBy,
 		RedactedReason: r.RedactedReason, RedactedAt: confTime(r.RedactedAt), ReplyTo: EventID(r.ReplyTo),
 		ThreadRoot: EventID(r.ThreadRoot), Mentioned: r.Mentioned, Placeholder: r.Placeholder,
@@ -71,13 +81,16 @@ func (r confRow) message() Message {
 	if r.Poll != "" {
 		m.Poll = &Poll{Question: r.Poll}
 	}
+	for _, mn := range r.Mentions {
+		m.Mentions = append(m.Mentions, Mention{UserID: mn.User, Name: mn.Name, KnownAs: mn.KnownAs})
+	}
 	return m
 }
 
 func confRowOf(m Message) confRow {
 	r := confRow{
 		ID: string(m.ID), TS: confMillis(m.Timestamp), Seq: m.Seq, Sender: m.Sender, SenderName: m.SenderName,
-		Body: m.Body, Format: m.Format.Text(), Edited: m.Edited, EditedAt: confMillis(m.EditedAt),
+		SenderKnownAs: m.SenderKnownAs, Body: m.Body, Format: m.Format.Text(), Edited: m.Edited, EditedAt: confMillis(m.EditedAt),
 		RevisionID: string(m.RevisionID), Reverted: m.Reverted, Redacted: m.Redacted, RedactedBy: m.RedactedBy,
 		RedactedReason: m.RedactedReason, RedactedAt: confMillis(m.RedactedAt), ReplyTo: string(m.ReplyTo),
 		ThreadRoot: string(m.ThreadRoot), Mentioned: m.Mentioned, Placeholder: m.Placeholder,
@@ -88,6 +101,9 @@ func confRowOf(m Message) confRow {
 	}
 	if m.Poll != nil {
 		r.Poll = m.Poll.Question
+	}
+	for _, mn := range m.Mentions {
+		r.Mentions = append(r.Mentions, confMention{User: mn.UserID, Name: mn.Name, KnownAs: mn.KnownAs})
 	}
 	return r
 }
@@ -347,6 +363,7 @@ func TestTheThreadTableIsWhatGoGroups(t *testing.T) {
 		Latest           string `json:"latest"`
 		LatestSender     string `json:"latestSender,omitempty"`
 		LatestSenderName string `json:"latestSenderName,omitempty"`
+		LatestKnownAs    string `json:"latestSenderKnownAs,omitempty"`
 		Anchor           string `json:"anchor"`
 		RootLoaded       bool   `json:"rootLoaded"`
 	}
@@ -377,7 +394,7 @@ func TestTheThreadTableIsWhatGoGroups(t *testing.T) {
 		for _, th := range threads {
 			got = append(got, summary{
 				Root: string(th.Root), Count: th.Count, Latest: string(th.Latest), LatestSender: th.LatestSender,
-				LatestSenderName: th.LatestSenderName, Anchor: string(th.Anchor), RootLoaded: th.RootLoaded,
+				LatestSenderName: th.LatestSenderName, LatestKnownAs: th.LatestSenderKnownAs, Anchor: string(th.Anchor), RootLoaded: th.RootLoaded,
 			})
 		}
 		if !slices.Equal(ids(main), c.Main) || !reflect.DeepEqual(got, c.Threads) {

@@ -220,17 +220,17 @@ func (s *server) MessageHistory(ctx context.Context, r *req[v1.MessageHistoryReq
 
 func (s *server) CachedTimeline(ctx context.Context, r *req[v1.CachedTimelineRequest]) (*resp[v1.CachedTimelineResponse], error) {
 	msgs, err := s.Backend.CachedTimeline(ctx, roomID(r.Msg.GetRoomId()))
-	return reply(&v1.CachedTimelineResponse{Messages: pc.MessagesToProto(msgs)}, err)
+	return reply(&v1.CachedTimelineResponse{Messages: pc.MessagesToProto(s.Names.messages(ctx, msgs))}, err)
 }
 
 func (s *server) Timeline(ctx context.Context, r *req[v1.TimelineRequest]) (*resp[v1.TimelineResponse], error) {
 	page, err := s.Backend.Timeline(ctx, roomID(r.Msg.GetRoomId()), r.Msg.GetFrom(), int(r.Msg.GetLimit()))
-	return reply(&v1.TimelineResponse{Page: pc.TimelinePageToProto(page)}, err)
+	return reply(&v1.TimelineResponse{Page: pc.TimelinePageToProto(s.Names.page(ctx, page))}, err)
 }
 
 func (s *server) FetchEvent(ctx context.Context, r *req[v1.FetchEventRequest]) (*resp[v1.FetchEventResponse], error) {
 	msg, err := s.Backend.FetchEvent(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()))
-	return reply(&v1.FetchEventResponse{Message: pc.MessageToProto(msg)}, err)
+	return reply(&v1.FetchEventResponse{Message: pc.MessageToProto(s.Names.message(ctx, msg))}, err)
 }
 
 func (s *server) FetchEventSource(ctx context.Context, r *req[v1.FetchEventSourceRequest]) (*resp[v1.FetchEventSourceResponse], error) {
@@ -342,13 +342,13 @@ func (s *server) profileUnread(ctx context.Context, unread []domain.Unread) ([]d
 
 func (s *server) ListThreads(ctx context.Context, r *req[v1.ListThreadsRequest]) (*resp[v1.ListThreadsResponse], error) {
 	threads, err := s.Backend.ListThreads(ctx, roomID(r.Msg.GetRoomId()))
-	return reply(&v1.ListThreadsResponse{Threads: pc.ThreadsToProto(threads)}, err)
+	return reply(&v1.ListThreadsResponse{Threads: pc.ThreadsToProto(s.Names.threads(ctx, threads))}, err)
 }
 
 func (s *server) ThreadPage(ctx context.Context, r *req[v1.ThreadPageRequest]) (*resp[v1.ThreadPageResponse], error) {
 	page, err := s.Backend.ThreadPage(ctx, roomID(r.Msg.GetRoomId()),
 		eventID(r.Msg.GetRoot()), r.Msg.GetFrom(), int(r.Msg.GetLimit()))
-	return reply(&v1.ThreadPageResponse{Page: pc.TimelinePageToProto(page)}, err)
+	return reply(&v1.ThreadPageResponse{Page: pc.TimelinePageToProto(s.Names.page(ctx, page))}, err)
 }
 
 func (s *server) MarkThreadRead(ctx context.Context, r *req[v1.MarkThreadReadRequest]) (*resp[v1.MarkThreadReadResponse], error) {
@@ -440,17 +440,17 @@ func (s *server) LoadPicture(ctx context.Context, r *req[v1.LoadPictureRequest])
 
 func (s *server) Members(ctx context.Context, r *req[v1.MembersRequest]) (*resp[v1.MembersResponse], error) {
 	members, err := s.Backend.Members(ctx, roomID(r.Msg.GetRoomId()), int(r.Msg.GetLimit()))
-	return reply(&v1.MembersResponse{Members: pc.MembersToProto(members)}, err)
+	return reply(&v1.MembersResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
 }
 
 func (s *server) RefreshMembers(ctx context.Context, r *req[v1.RefreshMembersRequest]) (*resp[v1.RefreshMembersResponse], error) {
 	members, err := s.Backend.RefreshMembers(ctx, roomID(r.Msg.GetRoomId()))
-	return reply(&v1.RefreshMembersResponse{Members: pc.MembersToProto(members)}, err)
+	return reply(&v1.RefreshMembersResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
 }
 
 func (s *server) MentionCandidates(ctx context.Context, r *req[v1.MentionCandidatesRequest]) (*resp[v1.MentionCandidatesResponse], error) {
 	members, err := s.Backend.MentionCandidates(ctx, roomID(r.Msg.GetRoomId()), int(r.Msg.GetLimit()))
-	return reply(&v1.MentionCandidatesResponse{Members: pc.MembersToProto(members)}, err)
+	return reply(&v1.MentionCandidatesResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
 }
 
 func (s *server) SearchSenders(ctx context.Context, r *req[v1.SearchSendersRequest]) (*resp[v1.SearchSendersResponse], error) {
@@ -459,12 +459,12 @@ func (s *server) SearchSenders(ctx context.Context, r *req[v1.SearchSendersReque
 		return nil, rpcErr(err)
 	}
 	senders, err := s.Backend.SearchSenders(ctx, rooms, int(r.Msg.GetLimit()))
-	return reply(&v1.SearchSendersResponse{Members: pc.MembersToProto(senders)}, err)
+	return reply(&v1.SearchSendersResponse{Members: pc.MembersToProto(s.Names.members(ctx, senders))}, err)
 }
 
 func (s *server) DirectCandidates(ctx context.Context, r *req[v1.DirectCandidatesRequest]) (*resp[v1.DirectCandidatesResponse], error) {
 	members, err := s.Backend.DirectCandidates(ctx, int(r.Msg.GetLimit()))
-	return reply(&v1.DirectCandidatesResponse{Members: pc.MembersToProto(members)}, err)
+	return reply(&v1.DirectCandidatesResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
 }
 
 func (s *server) SenderSlots(ctx context.Context, r *req[v1.SenderSlotsRequest]) (*resp[v1.SenderSlotsResponse], error) {
@@ -597,7 +597,7 @@ func (s *server) SearchMessages(ctx context.Context, r *req[v1.SearchMessagesReq
 	}
 	search.Rooms = rooms
 	hits, err := s.Backend.SearchMessages(ctx, search)
-	return reply(&v1.SearchMessagesResponse{Hits: pc.SearchHitsToProto(hits)}, err)
+	return reply(&v1.SearchMessagesResponse{Hits: pc.SearchHitsToProto(s.Names.hits(ctx, hits))}, err)
 }
 
 func (s *server) CompleteWord(ctx context.Context, r *req[v1.CompleteWordRequest]) (*resp[v1.CompleteWordResponse], error) {
@@ -745,7 +745,7 @@ func (s *server) RoomsWith(ctx context.Context, r *req[v1.RoomsWithRequest]) (*r
 func (s *server) MessagesAround(ctx context.Context, r *req[v1.MessagesAroundRequest]) (*resp[v1.MessagesAroundResponse], error) {
 	msgs, err := s.Backend.MessagesAround(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()),
 		int(r.Msg.GetBefore()), int(r.Msg.GetAfter()))
-	return reply(&v1.MessagesAroundResponse{Messages: pc.MessagesToProto(msgs)}, err)
+	return reply(&v1.MessagesAroundResponse{Messages: pc.MessagesToProto(s.Names.messages(ctx, msgs))}, err)
 }
 
 func (s *server) MessagesFrom(ctx context.Context, r *req[v1.MessagesFromRequest]) (*resp[v1.MessagesFromResponse], error) {
@@ -756,7 +756,7 @@ func (s *server) MessagesFrom(ctx context.Context, r *req[v1.MessagesFromRequest
 	}
 	said.Rooms = rooms
 	msgs, err := s.Backend.MessagesFrom(ctx, said)
-	return reply(&v1.MessagesFromResponse{Messages: pc.MessagesToProto(msgs)}, err)
+	return reply(&v1.MessagesFromResponse{Messages: pc.MessagesToProto(s.Names.messages(ctx, msgs))}, err)
 }
 
 func (s *server) MessageCounts(ctx context.Context, r *req[v1.MessageCountsRequest]) (*resp[v1.MessageCountsResponse], error) {

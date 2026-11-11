@@ -12,6 +12,7 @@ export interface Row {
   seq?: number;
   sender?: string;
   senderName?: string;
+  senderKnownAs?: string;
   body?: string;
   format?: string;
   edited?: boolean;
@@ -29,6 +30,8 @@ export interface Row {
   undecrypted?: boolean;
   media?: string;
   poll?: string;
+  /** The people the message mentions, with kithd's name for each. */
+  mentions?: { user: string; name?: string; knownAs?: string }[];
 }
 
 /** message is r as kithd sends it, in room. */
@@ -40,6 +43,7 @@ export function message(r: Row, room = "!r"): Message {
     seq: BigInt(r.seq ?? 0),
     sender: r.sender ?? "",
     senderName: r.senderName ?? "",
+    senderKnownAs: r.senderKnownAs ?? "",
     body: r.body ?? "",
     format: r.format ? { text: r.format } : undefined,
     edited: r.edited ?? false,
@@ -57,6 +61,7 @@ export function message(r: Row, room = "!r"): Message {
     undecrypted: r.undecrypted ?? false,
     media: r.media ? { type: "image", name: r.media } : undefined,
     poll: r.poll ? { question: r.poll } : undefined,
+    mentions: (r.mentions ?? []).map((m) => ({ userId: m.user, name: m.name ?? "", knownAs: m.knownAs ?? "" })),
   });
 }
 
@@ -72,6 +77,7 @@ export function row(m: Message): Row {
   set("seq", Number(m.seq), 0);
   set("sender", m.sender, "");
   set("senderName", m.senderName, "");
+  set("senderKnownAs", m.senderKnownAs, "");
   set("body", m.body, "");
   set("format", m.format?.text ?? "", "");
   set("edited", m.edited, false);
@@ -89,5 +95,12 @@ export function row(m: Message): Row {
   set("undecrypted", m.undecrypted, false);
   set("media", m.media?.name ?? "", "");
   set("poll", m.poll?.question ?? "", "");
+  if (m.mentions.length > 0) {
+    r.mentions = m.mentions.map((mn) => ({
+      user: mn.userId,
+      ...(mn.name !== "" ? { name: mn.name } : {}),
+      ...(mn.knownAs !== "" ? { knownAs: mn.knownAs } : {}),
+    }));
+  }
   return r;
 }

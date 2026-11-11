@@ -13,6 +13,8 @@ export interface ThreadSummary {
   latest: string;
   latestSender: string;
   latestSenderName: string;
+  /** latestSender's name as kithd names them. */
+  latestSenderKnownAs: string;
   /** The main-timeline message the row hangs under ("" above the first); the root when loaded. */
   anchor: string;
   rootLoaded: boolean;
@@ -58,7 +60,16 @@ export function collapse(msgs: readonly Message[]): { main: Message[]; threads: 
     }
     let t = byRoot.get(root);
     if (t === undefined) {
-      t = { root, count: 0, latest: "", latestSender: "", latestSenderName: "", anchor: "", rootLoaded: false };
+      t = {
+        root,
+        count: 0,
+        latest: "",
+        latestSender: "",
+        latestSenderName: "",
+        latestSenderKnownAs: "",
+        anchor: "",
+        rootLoaded: false,
+      };
       byRoot.set(root, t);
     }
     t.count++;
@@ -66,6 +77,7 @@ export function collapse(msgs: readonly Message[]): { main: Message[]; threads: 
     at.set(root, nanos(m));
     t.latestSender = m.sender;
     t.latestSenderName = m.senderName;
+    t.latestSenderKnownAs = m.senderKnownAs;
     t.anchor = main.at(-1)?.id ?? "";
   }
   const loaded = new Set(main.map((m) => m.id));

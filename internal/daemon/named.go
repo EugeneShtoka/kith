@@ -106,7 +106,7 @@ var namedFields = map[protoreflect.FullName]nameKind{
 
 	// What a message says, and who it names: text, a person, an emoji, a reason.
 	"backend.v1.Draft.body": notARoom, "backend.v1.Draft.txn_id": notARoom, "backend.v1.Mention.user_id": notARoom,
-	"backend.v1.Mention.name": notARoom, "backend.v1.Mention.known": notARoom, "backend.v1.RedactRequest.reason": notARoom,
+	"backend.v1.Mention.name": notARoom, "backend.v1.Mention.known": notARoom, "backend.v1.Mention.known_as": notARoom, "backend.v1.RedactRequest.reason": notARoom,
 	"backend.v1.SendFileRequest.caption": notARoom, "backend.v1.SendFileRequest.name": notARoom,
 	"backend.v1.StartUploadRequest.name": notARoom, "backend.v1.PreviewChatImportRequest.upload_id": notARoom,
 	"backend.v1.PreviewChatImportRequest.zone": notARoom, "backend.v1.ChatImportSendersRequest.upload_id": notARoom,
@@ -144,7 +144,7 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	"backend.v1.SearchMessagesRequest.query": notARoom, "backend.v1.SearchMessagesRequest.sender": notARoom,
 	"backend.v1.SearchMessagesRequest.words": notARoom, "backend.v1.SearchMessagesRequest.senders": notARoom,
 	"backend.v1.RoomsWithRequest.user_ids": notARoom, "backend.v1.MessagesFromRequest.senders": notARoom,
-	"backend.v1.PersonIDs.ids": notARoom,
+	"backend.v1.PersonIDs.ids": notARoom, "backend.v1.KnownAsRequest.user_ids": notARoom,
 	// Tags, filters and people's verdicts: the config's, not a room's.
 	"backend.v1.TagVerdict.tag": notARoom, "backend.v1.TagVerdict.filter": notARoom,
 	"backend.v1.TagFiling.tag": notARoom, "backend.v1.RetagVerdictsRequest.from": notARoom,

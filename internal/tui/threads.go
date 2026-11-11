@@ -380,7 +380,7 @@ func (m Model) threadRow(t domain.Thread, nameW, width int) string {
 	if !t.RootLoaded {
 		label += " in an older thread"
 	}
-	if name := m.personIn(t.RoomID, t.LatestSender, t.LatestSenderName); name != "" {
+	if name := m.personIn(t.RoomID, t.LatestSender, t.LatestSenderKnownAs, t.LatestSenderName); name != "" {
 		label += " · " + name
 	}
 	ts := m.rowTime(t.LatestAt)
@@ -440,7 +440,7 @@ func (m Model) listThreads() (Model, tea.Cmd) {
 // the picker draws labels as our sentence (LTR).
 func (m Model) threadItem(t domain.Thread, roomID domain.RoomID, in *domain.Room) pickerItem {
 	name := m.threadNamed(t.Root, cmp.Or(t.Title, m.knownTitle(t.Root)))
-	sender := m.personIn(roomID, t.LatestSender, t.LatestSenderName)
+	sender := m.personIn(roomID, t.LatestSender, t.LatestSenderKnownAs, t.LatestSenderName)
 	item := pickerItem{
 		label:  isolate(name),
 		detail: threadDetail(t, sender, m.prefs.clock),

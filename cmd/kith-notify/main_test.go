@@ -81,7 +81,7 @@ func serve(t *testing.T, socket string, cfg config.Config) kithd {
 		defer close(served)
 		streams := daemon.NewStreams()
 		_ = daemon.Serve(ctx, ln, &daemon.Daemon{
-			Backend: backend, Streams: streams, MessageLog: noMessages{}, State: daemon.NewState(), Notifications: n,
+			Backend: backend, Streams: streams, Names: daemon.NewNames(backend, config.Config{}, nil), MessageLog: noMessages{}, State: daemon.NewState(), Notifications: n,
 			Languages:   daemon.NewLanguages(filepath.Join(dir, "languages.toml"), streams.LanguagesOwed, logging.Discard()),
 			Reload:      func(context.Context) error { return nil },
 			CheckConfig: func(context.Context, config.Config) error { return nil },

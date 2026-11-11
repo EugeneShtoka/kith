@@ -168,6 +168,17 @@ func (tagPeopleBackend) MessageCounts(_ context.Context, people [][]string) ([]i
 	return out, nil
 }
 
+// KnownAs names Bob by his alias, as kithd does.
+func (tagPeopleBackend) KnownAs(_ context.Context, ids []string) ([]string, error) {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		if id == "matrix:@bob:example.org" {
+			out[i] = "Bob"
+		}
+	}
+	return out, nil
+}
+
 // On a tag the room list switches to its people and back; a row says how they got there
 // and how much they wrote; enter is their card and the said key what they said.
 func TestATagsRoomListSwitchesToItsPeople(t *testing.T) {

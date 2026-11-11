@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -117,7 +118,7 @@ func (s *server) run(t *tool, raw json.RawMessage) any {
 	if err != nil {
 		s.log.Warn("read the directory failed; people are named as their networks name them", "err", err)
 	}
-	s.people = setup.PeopleOf(s.aliases, dir)
+	s.dir = dir
 	marked := s.marked
 	verdicts, verr := s.backend.PersonVerdicts(ctx)
 	if verr == nil {
@@ -339,14 +340,14 @@ func attachmentOf(m *domain.Media) *attachmentView {
 }
 
 func (s *server) view(msg domain.Message, withRoom bool) messageView {
-	// Mentions name people as everyone else is named here.
+	// Mentions name people as everyone else is named here: as kithd names them.
 	body, _ := domain.ResolveMentions(msg.Body, msg.Mentions, func(mn domain.Mention, words string) string {
-		return s.people.Name(mn.UserID, mn.Known, words)
+		return cmp.Or(mn.KnownAs, mn.Known, words)
 	})
 	out := messageView{
 		EventID:    string(msg.ID),
 		Sender:     msg.Sender,
-		Name:       s.people.Name(msg.Sender, msg.SenderName),
+		Name:       cmp.Or(msg.SenderKnownAs, msg.SenderName),
 		Sent:       msg.Timestamp.Format(time.RFC3339),
 		Body:       body,
 		Mine:       msg.Sender != "" && slices.Contains(s.selves, msg.Sender),

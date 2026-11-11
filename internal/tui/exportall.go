@@ -12,9 +12,9 @@ import (
 )
 
 // `kith export` writes every room to its own Markdown file, as /export writes one:
-// the same span, names and file names. A model with no terminal loads what naming reads
-// (the config, the rooms, the phone book, who is me, the people rooms are named after)
-// the way a running client does.
+// the same span, names and file names. A model with no terminal loads what naming rooms
+// reads (the config, the rooms, the phone book) the way a running client does; people
+// are named as kithd names them.
 
 // Exported is one room's export: where it went and how many messages it holds.
 type Exported struct {
@@ -42,7 +42,7 @@ func ExportAll(ctx context.Context, backend api.Backend, cfg config.Config, span
 			Span:    span.Said,
 			At:      at,
 		}
-		done := exportRoom(ctx, backend, room.ID, "", of, span, m.people(), m.prefs.clock, dir, "")
+		done := exportRoom(ctx, backend, room.ID, "", of, span, m.prefs.clock, dir, "")
 		switch {
 		case errors.Is(done.err, errNothingToExport):
 		case done.err != nil:
@@ -57,7 +57,7 @@ func ExportAll(ctx context.Context, backend api.Backend, cfg config.Config, span
 	return errors.Join(failed...)
 }
 
-// exporting is a model with cfg's display (your names, your clock) and what naming
+// exporting is a model with cfg's display (your names, your clock) and what naming rooms
 // reads loaded.
 func exporting(ctx context.Context, backend api.Backend, cfg config.Config) (Model, error) {
 	m := New(ctx, backend, cfg.Display, config.DeviceDisplay{}) // an export reads no device setting
@@ -71,14 +71,5 @@ func exporting(ctx context.Context, backend api.Backend, cfg config.Config) (Mod
 		return Model{}, fmt.Errorf("read the phone book: %w", err)
 	}
 	m.dir = directoryState{dir: dir}
-	if m.selves, err = backend.Selves(ctx); err != nil {
-		return Model{}, fmt.Errorf("read who you are: %w", err)
-	}
-	m, load := m.refreshPeers()
-	if load != nil {
-		if peers, ok := load().(peerMembersMsg); ok {
-			m.peers.members = peers.members
-		}
-	}
-	return m.withPeerAliases(), nil
+	return m, nil
 }

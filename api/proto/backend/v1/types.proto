@@ -64,6 +64,9 @@ message Mention {
   string room_id = 3;
   // The person's name in the room now, as the cache knows it (domain.Mention.Known).
   string known = 4;
+  // The person's name as kithd names them, the one every client shows
+  // (domain.Mention.KnownAs).
+  string known_as = 5;
 }
 
 // Media is a message attachment's display metadata (domain.Media).
@@ -134,6 +137,9 @@ message Message {
   // A stand-in for an encrypted message whose key has not arrived; the decrypted copy
   // replaces it (domain.Message.Undecrypted).
   bool undecrypted = 26;
+  // The sender's name as kithd names them, the one every client shows; sender_name is
+  // the network's own (domain.Message.SenderKnownAs).
+  string sender_known_as = 27;
 }
 
 // Poll is a question a message asks (domain.Poll).
@@ -291,6 +297,7 @@ message Thread {
   int64 unread = 10;
   int64 mentions = 11;
   string title = 12; // the root's text, for naming the thread where the root is not on screen
+  string latest_sender_known_as = 13; // latest_sender's name as kithd names them
 }
 
 // Reaction is one m.annotation event (domain.Reaction).
@@ -337,6 +344,9 @@ message Draft {
 message Member {
   string user_id = 1;
   string display_name = 2;
+  // The person's name as kithd names them, the one every client shows; display_name is
+  // the network's own (domain.Member.KnownAs).
+  string known_as = 3;
 }
 
 // SearchHit is one message matching a search (domain.SearchHit).
@@ -355,6 +365,8 @@ message SearchHit {
   string word = 8;
   // The people the message mentions (domain.SearchHit.Mentions).
   repeated Mention mentions = 9;
+  // The sender's name as kithd names them (domain.SearchHit.SenderKnownAs).
+  string sender_known_as = 10;
 }
 
 // SASEmoji is one emoji of a short authentication string (domain.SASEmoji).

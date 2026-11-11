@@ -43,7 +43,7 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := &Daemon{
-		Backend: b, Streams: streams, MessageLog: noMessages{}, State: NewState(), Notifications: notifications,
+		Backend: b, Streams: streams, Names: NewNames(b, config.Config{}, nil), MessageLog: noMessages{}, State: NewState(), Notifications: notifications,
 		Reload:      func(context.Context) error { return nil },
 		CheckConfig: func(context.Context, config.Config) error { return nil },
 		Config:      NewConfigFile(filepath.Join(t.TempDir(), "config.toml")),

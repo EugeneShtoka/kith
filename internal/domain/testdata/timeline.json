@@ -132,6 +132,56 @@
       "want": [{ "id": "$a", "ts": 1000, "body": "v1" }]
     },
     {
+      "name": "a later copy brings kithd's name for the sender now; one with none keeps it",
+      "kind": "merge",
+      "shown": [
+        { "id": "$a", "ts": 1000, "sender": "@a", "senderName": "neke", "senderKnownAs": "neke" },
+        { "id": "$b", "ts": 2000, "sender": "@a", "senderName": "neke", "senderKnownAs": "Svetlana" }
+      ],
+      "rows": [
+        { "id": "$a", "ts": 1000, "sender": "@a", "senderName": "neke", "senderKnownAs": "Svetlana" },
+        { "id": "$b", "ts": 2000, "sender": "@a", "senderName": "neke" }
+      ],
+      "want": [
+        { "id": "$a", "ts": 1000, "sender": "@a", "senderName": "neke", "senderKnownAs": "Svetlana" },
+        { "id": "$b", "ts": 2000, "sender": "@a", "senderName": "neke", "senderKnownAs": "Svetlana" }
+      ]
+    },
+    {
+      "name": "a later copy brings kithd's name for each person mentioned; the mentions first seen stay",
+      "kind": "merge",
+      "shown": [
+        {
+          "id": "$a",
+          "ts": 1000,
+          "body": "cc @neke and @bo",
+          "mentions": [
+            { "user": "@s", "name": "@neke", "knownAs": "neke" },
+            { "user": "@b", "name": "@bo", "knownAs": "Bo" }
+          ]
+        }
+      ],
+      "rows": [
+        {
+          "id": "$a",
+          "ts": 1000,
+          "body": "cc @neke and @bo",
+          "mentions": [{ "user": "@s", "name": "@neke", "knownAs": "Svetlana" }, { "user": "@b", "name": "@bo" }]
+        }
+      ],
+      "want": [
+        {
+          "id": "$a",
+          "ts": 1000,
+          "body": "cc @neke and @bo",
+          "mentions": [
+            { "user": "@s", "name": "@neke", "knownAs": "Svetlana" },
+            { "user": "@b", "name": "@bo", "knownAs": "Bo" }
+          ]
+        }
+      ]
+    },
+    {
       "name": "a missing body is filled; fields first seen stick",
       "kind": "merge",
       "shown": [{ "id": "$a", "ts": 1000, "sender": "@a", "seq": 3, "replyTo": "$r", "threadRoot": "$t" }],

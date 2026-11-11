@@ -29,7 +29,7 @@ func (c *Cache) ForgetThreads(ctx context.Context, room domain.RoomID, roots []d
 
 // ForgetOwned drops every room and space of owner, with everything kept of them.
 func (c *Cache) ForgetOwned(ctx context.Context, owner domain.RoomOwner) error {
-	return c.inTx(ctx, func(tx *sql.Tx) error {
+	return c.roomsWritten(c.inTx(ctx, func(tx *sql.Tx) error {
 		for _, table := range []string{"rooms", "spaces"} {
 			// #nosec G202 -- table is one of two fixed names; the owner is bound.
 			if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE substr(id, 1, ?) = ?", len(owner), string(owner)); err != nil {
@@ -37,12 +37,12 @@ func (c *Cache) ForgetOwned(ctx context.Context, owner domain.RoomOwner) error {
 			}
 		}
 		return nil
-	})
+	}))
 }
 
 // ForgetRooms drops rooms, with everything kept of them; a space ID drops the space.
 func (c *Cache) ForgetRooms(ctx context.Context, rooms []domain.RoomID) error {
-	return c.inTx(ctx, func(tx *sql.Tx) error {
+	return c.roomsWritten(c.inTx(ctx, func(tx *sql.Tx) error {
 		for _, room := range rooms {
 			if _, err := tx.ExecContext(ctx, "DELETE FROM rooms WHERE id = ?", string(room)); err != nil {
 				return fmt.Errorf("db: forget %s: %w", room, err)
@@ -52,5 +52,5 @@ func (c *Cache) ForgetRooms(ctx context.Context, rooms []domain.RoomID) error {
 			}
 		}
 		return nil
-	})
+	}))
 }

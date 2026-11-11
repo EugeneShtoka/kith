@@ -923,6 +923,17 @@ func (r *Remote) Selves(ctx context.Context) ([]string, error) {
 	return resp.GetIds(), nil
 }
 
+// KnownAs is kithd's name for each of ids, in order.
+func (r *Remote) KnownAs(ctx context.Context, ids []string) ([]string, error) {
+	resp, err := call(ctx, "name people", r.c.KnownAs, &v1.KnownAsRequest{UserIds: ids})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(ids))
+	copy(out, resp.GetKnownAs())
+	return out, nil
+}
+
 func (r *Remote) Directory(ctx context.Context) (domain.Directory, error) {
 	resp, err := call(ctx, "read the directory", r.c.Directory, &v1.DirectoryRequest{})
 	if err != nil {
