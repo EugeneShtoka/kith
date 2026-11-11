@@ -37,7 +37,10 @@ type (
 	D = layout.Dimensions
 )
 
-const pageSize = 50
+const (
+	pageSize  = 50
+	railWidth = 170 // dp
+)
 
 // ui is the whole window's state; mu guards it against the loaders and the sync stream.
 type ui struct {
@@ -53,6 +56,7 @@ type ui struct {
 	roomBtns  []widget.Clickable
 	roomList  widget.List
 	filter    widget.Editor
+	rail      rail
 	unread    map[domain.RoomID]domain.Unread
 	local     bool // badges count cached messages, not the server's notifications
 	focused   bool
@@ -153,6 +157,7 @@ func (u *ui) loadRooms(ctx context.Context, room domain.RoomID, play domain.Even
 	u.mark(fmt.Sprintf("%d rooms loaded", len(rooms)))
 	u.mu.Unlock()
 	u.w.Invalidate()
+	u.loadRail(ctx)
 	if room == "" && len(rooms) > 0 {
 		room = rooms[0].ID
 	}
@@ -303,6 +308,11 @@ func (u *ui) follow(ctx context.Context) {
 		case back := <-b.Attached():
 			if back {
 				go u.reloadUnread(ctx)
+				go u.loadRail(ctx)
+			}
+		case c := <-b.Changed():
+			if c == domain.ChangeRail {
+				go u.loadRail(ctx)
 			}
 		case <-b.Activity():
 		case <-b.Reactions():
@@ -310,7 +320,6 @@ func (u *ui) follow(ctx context.Context) {
 		case <-b.Verifications():
 		case <-b.Follows():
 		case <-b.ConfigChanges():
-		case <-b.Changed():
 		}
 	}
 }
@@ -393,18 +402,25 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 	if u.err != "" {
 		return layout.UniformInset(unit.Dp(16)).Layout(gtx, material.Body1(u.th, u.err).Layout)
 	}
-	u.leftWidth = gtx.Dp(300) + gtx.Dp(1)
+	u.leftWidth = gtx.Dp(railWidth) + gtx.Dp(1) + gtx.Dp(300) + gtx.Dp(1)
+	rule := func(gtx C) D {
+		size := image.Pt(gtx.Dp(1), gtx.Constraints.Max.Y)
+		paint.FillShape(gtx.Ops, u.faint(0x30), clip.Rect{Max: size}.Op())
+		return D{Size: size}
+	}
 	return layout.Flex{}.Layout(gtx,
+		layout.Rigid(func(gtx C) D {
+			gtx.Constraints.Min.X = gtx.Dp(railWidth)
+			gtx.Constraints.Max.X = gtx.Constraints.Min.X
+			return u.layoutRail(gtx)
+		}),
+		layout.Rigid(rule),
 		layout.Rigid(func(gtx C) D {
 			gtx.Constraints.Min.X = gtx.Dp(300)
 			gtx.Constraints.Max.X = gtx.Constraints.Min.X
 			return u.layoutRooms(ctx, gtx)
 		}),
-		layout.Rigid(func(gtx C) D {
-			size := image.Pt(gtx.Dp(1), gtx.Constraints.Max.Y)
-			paint.FillShape(gtx.Ops, u.faint(0x30), clip.Rect{Max: size}.Op())
-			return D{Size: size}
-		}),
+		layout.Rigid(rule),
 		layout.Flexed(1, func(gtx C) D { return u.layoutRoom(ctx, gtx) }),
 	)
 }
@@ -454,12 +470,13 @@ func (u *ui) layoutRooms(ctx context.Context, gtx C) D {
 	)
 }
 
-// filtered is the indexes of the rooms whose names hold the filter's text.
+// filtered is the indexes of the rooms the list shows: the rail row's, or while the
+// filter has text every room whose name holds it, whichever row it is in.
 func (u *ui) filtered() []int {
 	q := strings.ToLower(strings.TrimSpace(u.filter.Text()))
 	shown := make([]int, 0, len(u.rooms))
 	for i, room := range u.rooms {
-		if q == "" || strings.Contains(strings.ToLower(room.DisplayName()), q) {
+		if q == "" && u.inRow(room.ID) || q != "" && strings.Contains(strings.ToLower(room.DisplayName()), q) {
 			shown = append(shown, i)
 		}
 	}
