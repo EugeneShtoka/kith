@@ -15,6 +15,14 @@ gets a private read receipt while the window has focus. Ctrl+K filters every roo
 composer takes Enter as a newline and Ctrl/Alt+Enter or Send to send ([keys.insert]'s
 default), and Attach sends a file from the portal's file chooser.
 
+Messages draw kith's formatting (bold, italic, code in monospace, quotes, headings) and
+links, theirs and bare URLs, which open in the browser (web and mail links only). A reply
+names what it answers, and clicking that scrolls to it. Reactions show as pills that
+follow kithd's stream, and who is typing shows over the composer. A thread's summary opens
+it beside the timeline, where a reply goes into the thread. Clicking an image shows it over
+the window (Esc or a click closes it), a right-click copies a message, and the room list
+reorders as messages arrive.
+
 Search, People and Settings are drawn but do nothing; "system" theme mode is dark.
 
 ## Build and run
@@ -65,9 +73,10 @@ With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, G
   drawing into a texture Gio can show, which Gio does not expose.
 - **Selection is per message.** `widget.Selectable` selects inside one label; selecting
   across messages, as a browser does, has to be written.
-- **No markup or links yet**: kith's spans (`richtext.Formatted`) are not drawn. Gio's rich
-  text (`gioui.org/x/richtext`) draws them with clickable links but is not selectable, so
-  links and selection are a choice until one widget does both.
+- **Formatted text cannot be selected.** Gio's rich text (`gioui.org/x/richtext`) draws
+  spans and clickable links but has no selection, so a message with formatting or a link is
+  drawn rich and the rest stay selectable; a right-click copies any message whole. It has no
+  underline, strikethrough or span background either, so those are dropped.
 - **Slack shortcodes** are converted here for now; kithd's Slack adapter is to do it for
   every client, after which `shortcodes()` goes.
 - **Gio does not report the desktop's color scheme**, so the theme's "system" mode is dark here.

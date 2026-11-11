@@ -12,6 +12,7 @@ replace github.com/imroc/req/v3 => github.com/beeper/req/v3 v3.0.0-2026092513571
 
 require (
 	gioui.org v0.10.3
+	gioui.org/x v0.10.3
 	github.com/EugeneShtoka/kith v0.0.0-00010101000000-000000000000
 	golang.org/x/image v0.48.0
 )
@@ -34,6 +35,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e // indirect
 	golang.org/x/exp/shiny v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect

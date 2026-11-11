@@ -9,6 +9,8 @@ func TestShortcodes(t *testing.T) {
 		"at 10:30:00 sharp":                   "at 10:30:00 sharp",
 		":no_such_emoji_name: stays":          ":no_such_emoji_name: stays",
 		"https://x.io/a:b:c":                  "https://x.io/a:b:c",
+		"is aligned:pray:":                    "is aligned🙏",
+		"done:+1: thanks":                     "done👍 thanks",
 		":cold_face::face_with_rolling_eyes:": "🥶🙄",
 	} {
 		if got := shortcodes(in); got != want {

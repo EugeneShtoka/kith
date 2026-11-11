@@ -83,6 +83,14 @@ type ui struct {
 	topHeight    int // the toolbar's, where the panes start
 	headerHeight int // the room header's, where the player's dock starts
 
+	last           map[domain.RoomID]time.Time // each room's newest message, the list's order
+	typing         map[domain.RoomID][]string
+	note           string // a short word on what was just done ("Copied"), shown a moment
+	noteAt         time.Time
+	viewing        *paint.ImageOp // the image shown over the window; nil for none
+	threadComposer widget.Editor
+	closeThread    widget.Clickable
+
 	view      uintptr // the Gio window's X11 ID; 0 on Wayland
 	player    *player
 	closeBtn  widget.Clickable
@@ -91,19 +99,23 @@ type ui struct {
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
 type timeline struct {
-	room     domain.RoomID
-	msgs     []domain.Message
-	sel      map[domain.EventID]*widget.Selectable
-	media    map[domain.EventID]*widget.Clickable
-	images   map[domain.EventID]*picture
-	next     string // the page before msgs; "" when the room's start is loaded
-	loading  bool
-	marked   domain.EventID                     // the newest message a receipt was sent for
-	threads  map[domain.EventID][]domain.Thread // by the message each hangs beneath
-	pictures map[string]string                  // each sender's picture version
-	slots    map[string]int                     // sender color slots, kithd's then this window's
-	drawn    bool
-	list     widget.List
+	room       domain.RoomID
+	msgs       []domain.Message
+	state      map[domain.EventID]*msgState
+	images     map[domain.EventID]*picture
+	shown      []int                                // the main timeline's messages, as indexes of msgs, as last drawn
+	reactions  map[domain.EventID][]domain.Reaction // by the message they annotate
+	thread     domain.EventID                       // the thread open beside it; "" for none
+	threadList widget.List
+	threadBtns map[domain.EventID]*widget.Clickable
+	next       string // the page before msgs; "" when the room's start is loaded
+	loading    bool
+	marked     domain.EventID                     // the newest message a receipt was sent for
+	threads    map[domain.EventID][]domain.Thread // by the message each hangs beneath
+	pictures   map[string]string                  // each sender's picture version
+	slots      map[string]int                     // sender color slots, kithd's then this window's
+	drawn      bool
+	list       widget.List
 }
 
 // picture is an image message's pixels, once fetched.
@@ -117,6 +129,7 @@ func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette) *ui {
 	u := &ui{
 		w: w, backend: backend, th: material.NewTheme(), local: local, pal: pal, railShown: true,
 		unread: map[domain.RoomID]domain.Unread{}, faces: map[face]*picture{}, saves: map[domain.EventID]*save{},
+		last: map[domain.RoomID]time.Time{}, typing: map[domain.RoomID][]string{},
 	}
 	// go-text's sans-serif fallback has no emoji family, so name it, or emoji are tofu.
 	u.th.Face = "sans-serif, emoji"
@@ -169,6 +182,9 @@ func (u *ui) loadRooms(ctx context.Context, room domain.RoomID, play domain.Even
 		return
 	}
 	byRecent(rooms, last)
+	u.mu.Lock()
+	maps.Copy(u.last, last)
+	u.mu.Unlock()
 	unread, err := u.backend.CachedUnread(ctx)
 	if err != nil {
 		u.fail(fmt.Errorf("unread: %w", err))
@@ -225,11 +241,12 @@ func (u *ui) open(ctx context.Context, room domain.RoomID) {
 	u.focus = &u.composer
 	u.timeline = timeline{
 		room: room, loading: true, slots: map[string]int{}, threads: map[domain.EventID][]domain.Thread{},
-		pictures: map[string]string{},
-		sel:      map[domain.EventID]*widget.Selectable{},
-		media:    map[domain.EventID]*widget.Clickable{},
-		images:   map[domain.EventID]*picture{},
-		list:     widget.List{List: layout.List{Axis: layout.Vertical, ScrollToEnd: true}},
+		pictures:   map[string]string{},
+		state:      map[domain.EventID]*msgState{},
+		reactions:  map[domain.EventID][]domain.Reaction{},
+		threadBtns: map[domain.EventID]*widget.Clickable{},
+		images:     map[domain.EventID]*picture{},
+		list:       widget.List{List: layout.List{Axis: layout.Vertical, ScrollToEnd: true}},
 	}
 	u.mu.Unlock()
 	go func() {
@@ -260,6 +277,12 @@ func (u *ui) open(ctx context.Context, room domain.RoomID) {
 		}
 		u.merge(ctx, room, page.Messages)
 		u.loadThreads(ctx, room)
+		u.loadReactions(ctx, room)
+		u.mu.Lock()
+		if u.timeline.room == room {
+			u.timeline.react(page.Reactions, false)
+		}
+		u.mu.Unlock()
 		u.mu.Lock()
 		if u.timeline.room == room {
 			u.timeline.next, u.timeline.loading = page.Next, false
@@ -284,6 +307,7 @@ func (u *ui) older(ctx context.Context, room domain.RoomID, from string) {
 		return
 	}
 	added := u.timeline.upsert(page.Messages)
+	u.timeline.react(page.Reactions, false)
 	u.timeline.list.Position.First += added
 	u.timeline.next, u.timeline.loading = page.Next, false
 }
@@ -320,8 +344,8 @@ func (u *ui) merge(ctx context.Context, room domain.RoomID, msgs []domain.Messag
 	u.w.Invalidate()
 }
 
-// upsert folds msgs in by ID, keeping time order; it returns how many were new and
-// older than every message held (what a prepend shifts the view by).
+// upsert folds msgs in by ID, keeping time order; it returns how many were new, in the
+// main timeline and older than every message held (what a prepend shifts the view by).
 func (t *timeline) upsert(msgs []domain.Message) int {
 	var oldest time.Time
 	if len(t.msgs) > 0 {
@@ -334,7 +358,7 @@ func (t *timeline) upsert(msgs []domain.Message) int {
 			t.msgs[i] = m
 			continue
 		}
-		if !oldest.IsZero() && m.Timestamp.Before(oldest) {
+		if !oldest.IsZero() && m.Timestamp.Before(oldest) && isMain(m) {
 			before++
 		}
 		t.msgs = append(t.msgs, m)
@@ -361,6 +385,9 @@ func (u *ui) follow(ctx context.Context) {
 			if !ok {
 				return
 			}
+			u.mu.Lock()
+			u.bump(m.RoomID, m.Timestamp)
+			u.mu.Unlock()
 			u.merge(ctx, m.RoomID, []domain.Message{m})
 			if m.ThreadRoot != "" && m.ThreadRoot != m.ID {
 				go u.loadThreads(ctx, m.RoomID)
@@ -379,8 +406,18 @@ func (u *ui) follow(ctx context.Context) {
 			if c == domain.ChangeRail {
 				go u.loadRail(ctx)
 			}
-		case <-b.Activity():
-		case <-b.Reactions():
+		case a := <-b.Activity():
+			u.mu.Lock()
+			u.typing[a.RoomID] = a.Typing
+			u.mu.Unlock()
+			u.w.Invalidate()
+		case r := <-b.Reactions():
+			u.mu.Lock()
+			if u.timeline.room == r.Reaction.RoomID {
+				u.timeline.react([]domain.Reaction{r.Reaction}, r.Removed)
+			}
+			u.mu.Unlock()
+			u.w.Invalidate()
 		case <-b.Invites():
 		case <-b.Verifications():
 		case <-b.Follows():
@@ -496,7 +533,7 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 		}),
 		layout.Rigid(rule),
 		layout.Flexed(1, func(gtx C) D { return u.layoutRoom(ctx, gtx) }))
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx C) D {
 			dims := u.layoutToolbar(ctx, gtx)
 			u.topHeight = dims.Size.Y
@@ -504,6 +541,10 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 		}),
 		layout.Flexed(1, func(gtx C) D { return layout.Flex{}.Layout(gtx, panes...) }),
 	)
+	if u.viewing != nil {
+		u.layoutViewer(gtx)
+	}
+	return dims
 }
 
 // layoutToolbar is the desktop's top bar: the rail's toggle, back and forward through
@@ -736,8 +777,33 @@ func (u *ui) layoutRoom(ctx context.Context, gtx C) D {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx C) D { return u.layoutHeader(ctx, gtx) }),
 		layout.Rigid(u.layoutPlayer),
-		layout.Flexed(1, func(gtx C) D { return u.layoutTimeline(ctx, gtx) }),
-		layout.Rigid(func(gtx C) D { return u.layoutComposer(ctx, gtx) }),
+		layout.Flexed(1, func(gtx C) D {
+			main := func(gtx C) D {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Flexed(1, func(gtx C) D { return u.layoutTimeline(ctx, gtx) }),
+					layout.Rigid(u.layoutTyping),
+					layout.Rigid(func(gtx C) D {
+						return u.layoutEditor(ctx, gtx, &u.composer, &u.attachBtn, "A message", "")
+					}),
+				)
+			}
+			if u.timeline.thread == "" {
+				return main(gtx)
+			}
+			return layout.Flex{}.Layout(gtx,
+				layout.Flexed(1, main),
+				layout.Rigid(func(gtx C) D {
+					size := image.Pt(gtx.Dp(1), gtx.Constraints.Max.Y)
+					paint.FillShape(gtx.Ops, u.pal.border, clip.Rect{Max: size}.Op())
+					return D{Size: size}
+				}),
+				layout.Rigid(func(gtx C) D {
+					gtx.Constraints.Min.X = min(gtx.Dp(380), gtx.Constraints.Max.X)
+					gtx.Constraints.Max.X = gtx.Constraints.Min.X
+					return u.layoutThread(ctx, gtx)
+				}),
+			)
+		}),
 	)
 }
 
@@ -773,8 +839,14 @@ func (u *ui) layoutHeader(ctx context.Context, gtx C) D {
 
 func (u *ui) layoutTimeline(ctx context.Context, gtx C) D {
 	t := &u.timeline
-	dims := material.List(u.th, &t.list).Layout(gtx, len(t.msgs), func(gtx C, i int) D {
-		return u.layoutMessage(ctx, gtx, t, i)
+	t.shown = t.shown[:0]
+	for i, m := range t.msgs {
+		if isMain(m) {
+			t.shown = append(t.shown, i)
+		}
+	}
+	dims := material.List(u.th, &t.list).Layout(gtx, len(t.shown), func(gtx C, k int) D {
+		return u.layoutMessage(ctx, gtx, t, t.shown, k, false)
 	})
 	if len(t.msgs) > 0 {
 		t.drawn = true
@@ -786,14 +858,16 @@ func (u *ui) layoutTimeline(ctx context.Context, gtx C) D {
 	return dims
 }
 
-// layoutMessage draws one message: a sender's run starts with their face, name and time
-// under a faint line; a thread's replies are left to its summary beneath its anchor.
-func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, i int) D {
-	m := t.msgs[i]
-	if m.ThreadRoot != "" && m.ThreadRoot != m.ID {
-		return D{}
+// layoutMessage draws the k-th of list (indexes of t.msgs, the main timeline's or a
+// thread's): a sender's run starts with their face, name and time under a faint line.
+// In the main timeline a thread hangs beneath its anchor as a summary that opens it.
+func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, list []int, k int, inThread bool) D {
+	m := t.msgs[list[k]]
+	prev := -1
+	if k > 0 {
+		prev = list[k-1]
 	}
-	prev := u.previousShown(t, i)
+	st := t.stateOf(m.ID)
 	newDay := prev < 0 || !sameDay(t.msgs[prev].Timestamp, m.Timestamp)
 	head := newDay || t.msgs[prev].Sender != m.Sender ||
 		m.Timestamp.Sub(t.msgs[prev].Timestamp) > 10*time.Minute
@@ -829,41 +903,48 @@ func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, i int) D {
 			)
 		}))
 	}
+	if m.ReplyTo != "" && !m.Redacted {
+		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutReplyTo(gtx, t, st, m) }))
+	}
 	switch {
 	case m.Redacted:
 	case m.Media.IsImage():
-		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutImage(ctx, gtx, t, m) }))
-	case m.Media != nil && (m.Media.Type == domain.MediaVideo || m.Media.Type == domain.MediaAudio):
-		btn := t.media[m.ID]
-		if btn == nil {
-			btn = new(widget.Clickable)
-			t.media[m.ID] = btn
+		if st.image.Clicked(gtx) {
+			if p := t.images[m.ID]; p != nil && p.ok {
+				u.viewing = &p.op
+			}
 		}
-		if btn.Clicked(gtx) {
+		body = append(body, layout.Rigid(func(gtx C) D {
+			return st.image.Layout(gtx, func(gtx C) D { return u.layoutImage(ctx, gtx, t, m) })
+		}))
+	case m.Media != nil && (m.Media.Type == domain.MediaVideo || m.Media.Type == domain.MediaAudio):
+		if st.media.Clicked(gtx) {
 			u.play(ctx, m)
 		}
 		body = append(body, layout.Rigid(func(gtx C) D {
-			return u.button(gtx, btn, fmt.Sprintf("▶ %s", m.Media.Name), true, false)
+			return u.button(gtx, &st.media, fmt.Sprintf("▶ %s", m.Media.Name), true, false)
 		}))
 	case m.Media != nil:
 		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutSave(ctx, gtx, m) }))
 	}
 	if txt := text(m); txt != "" && (m.Media == nil || txt != m.Media.Name) {
-		body = append(body, layout.Rigid(func(gtx C) D {
-			sel := t.sel[m.ID]
-			if sel == nil {
-				sel = new(widget.Selectable)
-				t.sel[m.ID] = sel
-			}
-			l := material.Body1(u.th, txt)
-			l.State = sel
-			if m.Redacted {
-				l.Color = u.pal.muted
-			}
-			return l.Layout(gtx)
-		}))
+		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutText(gtx, st, m, txt) }))
+	}
+	if rs := t.reactions[m.ID]; len(rs) > 0 && !m.Redacted {
+		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutReactions(gtx, rs) }))
 	}
 	for _, th := range t.threads[m.ID] {
+		if inThread {
+			break
+		}
+		btn := t.threadBtns[th.Root]
+		if btn == nil {
+			btn = new(widget.Clickable)
+			t.threadBtns[th.Root] = btn
+		}
+		if btn.Clicked(gtx) {
+			u.openThread(ctx, th.Root)
+		}
 		body = append(body, layout.Rigid(func(gtx C) D {
 			replies := "1 reply"
 			if th.Count != 1 {
@@ -871,7 +952,7 @@ func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, i int) D {
 			}
 			l := material.Caption(u.th, replies+" · "+th.LatestSenderName)
 			l.Color, l.Font.Weight = u.pal.link, font.Bold
-			return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, l.Layout)
+			return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx C) D { return btn.Layout(gtx, l.Layout) })
 		}))
 	}
 	rows = append(rows, layout.Rigid(func(gtx C) D {
@@ -889,21 +970,25 @@ func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, i int) D {
 					return u.layoutFace(ctx, gtx, face{room: t.room, person: m.Sender}, version, m.Sender, sender(m), faceSize)
 				}),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
-				layout.Flexed(1, func(gtx C) D { return layout.Flex{Axis: layout.Vertical}.Layout(gtx, body...) }),
+				layout.Flexed(1, func(gtx C) D {
+					return u.copyable(gtx, &st.copy, text(m), func(gtx C) D {
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx, body...)
+					})
+				}),
 			)
 		})
 	}))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-// previousShown is the index of the main-timeline message before i, or -1.
-func (u *ui) previousShown(t *timeline, i int) int {
-	for j := i - 1; j >= 0; j-- {
-		if r := t.msgs[j].ThreadRoot; r == "" || r == t.msgs[j].ID {
-			return j
-		}
+// stateOf is id's widgets, made on first use.
+func (t *timeline) stateOf(id domain.EventID) *msgState {
+	st := t.state[id]
+	if st == nil {
+		st = new(msgState)
+		t.state[id] = st
 	}
-	return -1
+	return st
 }
 
 // layoutImage draws an image message at most 360×300dp, holding its box while it loads.
@@ -1001,18 +1086,19 @@ func (u *ui) layoutPlayer(gtx C) D {
 	})
 }
 
-// layoutComposer takes a message: Enter is a newline and Ctrl or Alt+Enter sends, as
-// [keys.insert] has it by default, as does Send. The editor's own Enter filter allows
-// only Shift, so these keys reach this one. Attach sends a file picked in the
-// desktop's file dialog.
-func (u *ui) layoutComposer(ctx context.Context, gtx C) D {
+// layoutEditor is a composer: Enter is a newline and Ctrl or Alt+Enter sends, as
+// [keys.insert] has it by default. The editor's own Enter filter allows only Shift, so
+// these keys reach this one. The main composer (attach set) also has Attach, which sends
+// a file picked in the desktop's file chooser, and Send; root is the thread a reply
+// goes into, "" for the main timeline.
+func (u *ui) layoutEditor(ctx context.Context, gtx C, ed *widget.Editor, attach *widget.Clickable, hint string, root domain.EventID) D {
 	var sends []event.Filter
 	for _, name := range []key.Name{key.NameReturn, key.NameEnter} {
 		for _, mod := range []key.Modifiers{key.ModCtrl, key.ModAlt} {
-			sends = append(sends, key.Filter{Focus: &u.composer, Name: name, Required: mod})
+			sends = append(sends, key.Filter{Focus: ed, Name: name, Required: mod})
 		}
 	}
-	send := u.sendBtn.Clicked(gtx)
+	send := attach != nil && u.sendBtn.Clicked(gtx)
 	for {
 		ev, ok := gtx.Event(sends...)
 		if !ok {
@@ -1022,31 +1108,32 @@ func (u *ui) layoutComposer(ctx context.Context, gtx C) D {
 			send = true
 		}
 	}
-	if body := strings.TrimSpace(u.composer.Text()); send && body != "" {
-		u.composer.SetText("")
-		go u.send(ctx, u.current, body)
+	if body := strings.TrimSpace(ed.Text()); send && body != "" {
+		ed.SetText("")
+		go u.send(ctx, u.current, domain.Draft{Body: body, ThreadRoot: root})
 	}
-	if u.attachBtn.Clicked(gtx) {
+	if attach != nil && attach.Clicked(gtx) {
 		go u.attach(ctx, u.current)
 	}
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Top: unit.Dp(6), Bottom: unit.Dp(10)}.Layout(gtx, func(gtx C) D {
 		return u.field(gtx, func(gtx C) D {
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(func(gtx C) D {
-					hint := "A message"
-					if u.sendError != "" {
-						hint = u.sendError
-					}
-					return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8)}.Layout(gtx, u.editor(&u.composer, hint).Layout)
-				}),
-				layout.Rigid(func(gtx C) D {
+			rows := []layout.FlexChild{layout.Rigid(func(gtx C) D {
+				h := hint
+				if u.sendError != "" {
+					h = u.sendError
+				}
+				return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, u.editor(ed, h).Layout)
+			})}
+			if attach != nil {
+				rows = append(rows, layout.Rigid(func(gtx C) D {
 					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-						layout.Rigid(func(gtx C) D { return u.button(gtx, &u.attachBtn, "Attach", true, false) }),
+						layout.Rigid(func(gtx C) D { return u.button(gtx, attach, "Attach", true, false) }),
 						layout.Flexed(1, layout.Spacer{}.Layout),
 						layout.Rigid(func(gtx C) D { return u.accentButton(gtx, &u.sendBtn, "Send") }),
 					)
-				}),
-			)
+				}))
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 		})
 	})
 }
@@ -1085,8 +1172,8 @@ func (u *ui) attach(ctx context.Context, room domain.RoomID) {
 	u.w.Invalidate()
 }
 
-func (u *ui) send(ctx context.Context, room domain.RoomID, body string) {
-	err := u.backend.Send(ctx, room, domain.Draft{Body: body})
+func (u *ui) send(ctx context.Context, room domain.RoomID, draft domain.Draft) {
+	err := u.backend.Send(ctx, room, draft)
 	u.mu.Lock()
 	u.sendError = ""
 	if err != nil {

@@ -22,13 +22,14 @@ import (
 var shortcode = regexp.MustCompile(`:([a-z0-9_+-]+):`)
 
 // shortcodes turns each :name: kith knows into its emoji, Slack's names first as for
-// Slack's reactions (internal/slack reactionKey); unknown names stay as typed. A code
-// starts a word or follows another, so "a:b:c" in a link is left alone.
+// Slack's reactions (internal/slack reactionKey); unknown names stay as typed. Slack
+// puts a code straight after a word ("aligned:pray:"), so only a code inside a word on
+// both sides is left alone, as "a:b:c" in a link.
 func shortcodes(body string) string {
 	var out strings.Builder
 	last := 0
 	for _, at := range shortcode.FindAllStringSubmatchIndex(body, -1) {
-		if at[0] > 0 && isWordByte(body[at[0]-1]) {
+		if at[0] > 0 && isWordByte(body[at[0]-1]) && at[1] < len(body) && isWordByte(body[at[1]]) {
 			continue
 		}
 		e, ok := emoji.SlackNames[body[at[2]:at[3]]]
