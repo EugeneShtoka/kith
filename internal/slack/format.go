@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/richtext"
@@ -81,7 +83,7 @@ func render(text string, n names) rendered {
 		}
 		out.mentioned = out.mentioned || ref.mentionsMe
 	}
-	out.body = strings.NewReplacer(words...).Replace(withRefs)
+	out.body = emojified(strings.NewReplacer(words...).Replace(withRefs))
 	markup, formatted := richtext.FromMarkers(withRefs)
 	if !formatted && !links {
 		return out
@@ -91,8 +93,96 @@ func render(text string, n names) rendered {
 		return out // formatting around nothing: the text as written
 	}
 	// The formatting is drawn over exactly these words, so the two never disagree.
-	out.body, out.format = f.Text(), f
+	out.body, out.format = Emojify(f.Text(), f)
 	return out
+}
+
+// Slack writes an emoji as its name between colons (":tada:", ":wave::skin-tone-3:")
+// and shows the emoji; kith keeps the emoji, so every client shows it. A name counts
+// only where it starts a word or follows another (10:30:00 and a:b:c stay), never in
+// code or a link, and a name Slack does not know stays as typed.
+
+// Emojify is a message's words and formatting with its emoji names turned into the
+// emoji. Formatting is converted as markup and its words read back from it, so its
+// spans fall on the converted words.
+func Emojify(body string, format richtext.Formatted) (string, richtext.Formatted) {
+	if format.Markup() == "" {
+		return emojified(body), format
+	}
+	f := richtext.FromMarkup(emojifiedMarkup(format.Markup()))
+	return f.Text(), f
+}
+
+// shortcode is an emoji name at the start of the text, a skin tone after it as Slack
+// writes one.
+var shortcode = regexp.MustCompile(`^:([a-z0-9_+-]+):(?::(skin-tone-[2-6]):)?`)
+
+// emojified is text with its emoji names turned into the emoji.
+func emojified(text string) string {
+	var b strings.Builder
+	last, after := 0, 0 // after: where the last name ended
+	for i := strings.IndexByte(text, ':'); i >= 0 && i < len(text); i++ {
+		if text[i] != ':' || (i != after && !startsWord(text[:i])) {
+			continue
+		}
+		m := shortcode.FindStringSubmatchIndex(text[i:])
+		if m == nil {
+			continue
+		}
+		name := text[i+m[2] : i+m[3]]
+		if m[4] >= 0 {
+			name += "::" + text[i+m[4]:i+m[5]]
+		}
+		if e, ok := named(name); ok {
+			b.WriteString(text[last:i] + e)
+			last = i + m[1]
+		}
+		after = i + m[1]
+		i = after - 1
+	}
+	if last == 0 {
+		return text
+	}
+	return b.String() + text[last:]
+}
+
+// startsWord reports whether a name may start after before: not inside a word, a
+// path or a run of colons.
+func startsWord(before string) bool {
+	r, _ := utf8.DecodeLastRuneInString(before)
+	return before == "" || !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune("_:/", r)
+}
+
+// tags finds markup's tags; sanitized markup escapes every other '<'.
+var tags = regexp.MustCompile(`<(/?)([a-z0-9]+)[^>]*>`)
+
+// verbatim are the tags whose words are left as written: code and links.
+var verbatim = map[string]bool{"code": true, "pre": true, "a": true}
+
+// emojifiedMarkup is sanitized markup with the emoji names in its words, outside code
+// and links, turned into the emoji. A tag counts as a word's edge.
+func emojifiedMarkup(markup string) string {
+	var b strings.Builder
+	last, inside := 0, 0
+	for _, m := range tags.FindAllStringSubmatchIndex(markup, -1) {
+		words := markup[last:m[0]]
+		if inside == 0 {
+			words = emojified(words)
+		}
+		b.WriteString(words + markup[m[0]:m[1]])
+		if verbatim[markup[m[4]:m[5]]] {
+			if m[3] > m[2] {
+				inside--
+			} else {
+				inside++
+			}
+		}
+		last = m[1]
+	}
+	if inside == 0 {
+		return b.String() + emojified(markup[last:])
+	}
+	return b.String() + markup[last:]
 }
 
 // reference parses the inside of one <…>.
