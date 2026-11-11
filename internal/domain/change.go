@@ -14,4 +14,7 @@ const (
 	ChangeMessages
 	// ChangeRail is the rail of the client's profile having changed (Rail).
 	ChangeRail
+	// ChangeLanguages is the dictionary offer being owed: a new account's history has
+	// arrived.
+	ChangeLanguages
 )

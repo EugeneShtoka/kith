@@ -29,7 +29,7 @@ func TestEveryCommandLineCommandIsGlobal(t *testing.T) {
 		// The phonebook's cards, nobody's room.
 		"people": true,
 		// Every room's cached history.
-		"rescan": true,
+		"rescan": true, "dictionaries": true,
 		// Which rooms this window shows at all.
 		"profile": true,
 	}

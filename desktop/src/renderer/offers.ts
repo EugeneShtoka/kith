@@ -1,12 +1,14 @@
-// The one-time offers the TUI makes when it starts (tui/dictionaries.go,
-// completionmodel.go), in its order: the spelling dictionaries this person's own writing
-// needs (DetectLanguages, from the cache), then the word counts that catch a typo that
-// is also a word, then the local completion model (DetectModel). Each is a list of rows,
-// all ticked but word counts kithd does not recommend: what is ticked is installed
+// The offers the TUI makes (tui/dictionaries.go, completionmodel.go), in its order: the
+// spelling dictionaries this person's own writing needs (DetectLanguages, from the
+// cache), then the word counts that catch a typo that is also a word, then the local
+// completion model (DetectModel), once a window. Detecting reads every cached message,
+// so a start asks kithd only for what it owes (a new account's history has arrived), as
+// does word that it is owed later; Settings → Spelling detects now. Each is a list of
+// rows, all ticked but word counts kithd does not recommend: what is ticked is installed
 // (each checked against its pinned hash in kithd), what is unticked is turned down for
 // good in device.toml ([spell] declined, frequencies_declined, [complete.model]
-// declined). Dismissed, the offers end until the window starts again; a failure to ask
-// is not news, nobody asked for it.
+// declined). Dismissed, the offers end until they are made again; a failure to ask is
+// not news unless the person asked.
 import type { DetectLanguagesResponse, DetectModelResponse, FrequencyCandidate } from "../gen/backend/v1/services_pb";
 import type { DeviceSettings } from "../gen/device/v1/device_pb";
 
@@ -28,7 +30,8 @@ export interface Prompt {
 export interface OfferCalls {
   /** settings reads device.toml's settings, as the relay resolves them. */
   settings(): Promise<DeviceSettings>;
-  detectLanguages(): Promise<DetectLanguagesResponse>;
+  /** detectLanguages, owed, answers only what kithd owes, which the answer clears. */
+  detectLanguages(owed: boolean): Promise<DetectLanguagesResponse>;
   detectModel(): Promise<DetectModelResponse>;
   install(kind: Prompt["kind"], tag: string): Promise<void>;
   /** decline writes what was turned down, added to what the file holds. */
@@ -78,14 +81,15 @@ function installedNote(kind: "dictionaries" | "frequencies", done: string[], fai
 }
 
 /**
- * Offers walks the chain once: start asks, accept answers the offer shown (and shows the
- * next), dismiss ends it. What it says (a download under way and how it ended, why there
- * is nothing to check with) is its note.
+ * Offers walks the chain: start, owed and find ask, accept answers the offer shown (and
+ * shows the next), dismiss ends it. What it says (a download under way and how it ended,
+ * why there is nothing to check with) is its note.
  */
 export class Offers {
   prompt: Prompt | undefined;
   note = "";
   private started = false;
+  private modelAsked = false;
   private frequencies: FrequencyCandidate[] = [];
   private settings: DeviceSettings | undefined;
 
@@ -100,11 +104,29 @@ export class Offers {
       return;
     }
     this.started = true;
+    await this.offer(true, false);
+  }
+
+  /** owed makes the dictionary offer kithd said it owes. */
+  async owed(): Promise<void> {
+    await this.offer(true, false);
+  }
+
+  /** find makes the dictionary offer now, as the person asked: every cached message is read. */
+  async find(): Promise<void> {
+    this.say("reading what you write for its languages…");
+    await this.offer(false, true);
+  }
+
+  private async offer(owed: boolean, asked: boolean): Promise<void> {
     let langs: DetectLanguagesResponse;
     try {
       this.settings = await this.calls.settings();
-      langs = await this.calls.detectLanguages();
-    } catch {
+      langs = await this.calls.detectLanguages(owed);
+    } catch (err) {
+      if (asked) {
+        this.say(`could not read what you write: ${firstLine(err instanceof Error ? err.message : String(err))}`);
+      }
       return;
     }
     if (langs.why !== "") {
@@ -123,6 +145,9 @@ export class Offers {
       }));
     if (rows.length === 0) {
       await this.offerFrequencies();
+      if (asked && this.prompt?.kind !== "frequencies") {
+        this.say("no dictionaries or word counts to offer for what you write");
+      }
       return;
     }
     this.show("dictionaries", rows);
@@ -186,9 +211,10 @@ export class Offers {
   }
 
   private async offerModel(): Promise<void> {
-    if (this.settings === undefined || !this.settings.complete || this.settings.modelDeclined) {
+    if (this.modelAsked || this.settings === undefined || !this.settings.complete || this.settings.modelDeclined) {
       return;
     }
+    this.modelAsked = true; // once a window, however often the dictionaries are offered
     let found: DetectModelResponse;
     try {
       found = await this.calls.detectModel();

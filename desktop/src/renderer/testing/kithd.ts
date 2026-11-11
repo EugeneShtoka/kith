@@ -275,6 +275,12 @@ export class Kithd {
   model: MessageInitShape<typeof backend.modelTask.output> = { refusal: "no model is installed" };
   /** What DetectLanguages and DetectModel offer, and what was installed, as "Method tag". */
   languages: MessageInitShape<typeof backend.detectLanguages.output> = {};
+  /**
+   * Whether kithd owes the dictionary offer, which DetectLanguages asked only for what is
+   * owed answers once; and each DetectLanguages asked, as "owed" or "now".
+   */
+  languagesOwed = false;
+  readonly detections: string[] = [];
   modelOffer: MessageInitShape<typeof backend.detectModel.output> = {};
   readonly installed: string[] = [];
   /**
@@ -1153,8 +1159,15 @@ export class Kithd {
       }
       case "ModelTask":
         return reply(backend.modelTask, this.model);
-      case "DetectLanguages":
+      case "DetectLanguages": {
+        const owed = (request as MessageShape<typeof backend.detectLanguages.input>).owed;
+        this.detections.push(owed ? "owed" : "now");
+        if (owed && !this.languagesOwed) {
+          return reply(backend.detectLanguages, {});
+        }
+        this.languagesOwed &&= !owed;
         return reply(backend.detectLanguages, this.languages);
+      }
       case "DetectModel":
         return reply(backend.detectModel, this.modelOffer);
       case "InstallDictionary":

@@ -375,6 +375,8 @@ func (m Model) handleChanged(msg changedMsg) (Model, tea.Cmd) {
 		return m, tea.Batch(m.loadAccountStatesCmd(), m.listenChangesCmd())
 	case domain.ChangeRail:
 		return m, tea.Batch(m.loadRailCmd(), m.listenChangesCmd())
+	case domain.ChangeLanguages:
+		return m, tea.Batch(m.offerOwedDictionaries(), m.listenChangesCmd())
 	case domain.ChangeMessages:
 		// The message stream could not resume: what arrived meanwhile is read from the
 		// cache instead.

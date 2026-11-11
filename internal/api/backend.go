@@ -425,6 +425,14 @@ type Assist interface {
 	AllowRareWord(ctx context.Context, word string) error
 }
 
+// OwedLanguages is the dictionary offer the daemon owes once a new account's history
+// has arrived.
+type OwedLanguages interface {
+	// OwedLanguages is DetectLanguages when the offer is owed, and clears it; nothing
+	// owed is an empty suggestion, the cache unread.
+	OwedLanguages(ctx context.Context) (domain.SpellSuggestion, error)
+}
+
 // Maintenance is operations on the stores only the process owning them can
 // perform.
 type Maintenance interface {

@@ -461,6 +461,19 @@ func (s served) loginLeaders() []api.LoginLeader {
 	return leaders
 }
 
+// logins runs the networks' logins until ctx ends, logging each, and has languages
+// remember each account one set up, by its network's login name.
+func (s served) logins(ctx context.Context, log *slog.Logger, languages *daemon.Languages) *daemon.Logins {
+	protocols := make(map[string]domain.Protocol, len(s.networks))
+	for _, n := range s.networks {
+		protocols[n.LoginNetwork().Network] = n.Network()
+	}
+	logins := daemon.NewLogins(ctx, s.loginLeaders)
+	logins.LogTo(log)
+	logins.OnAdded(func(network, account string) { languages.Added(protocols[network], account) })
+	return logins
+}
+
 // Close stops the local engines and closes the networks' stores (after Stop
 // disconnected their accounts), logging a failure.
 func (s served) Close(log *slog.Logger) {
@@ -574,8 +587,7 @@ func serve(
 
 	scheduler, cutoff := startScheduler(ctx, log, cfg, backend, backend.schedulePath)
 	defer scheduler.Stop()
-	logins := daemon.NewLogins(ctx, backend.loginLeaders)
-	logins.LogTo(log)
+	logins := backend.logins(ctx, log, w.languages)
 	log.Info("serving", "socket", lock.Socket(), "version", buildinfo.String("kithd"))
 	reload := reloader(log, file, relevel, cutoff, backend, w.notifications, w.paired)
 	// A hand edit to config.toml is picked up without a restart: the watcher
@@ -591,6 +603,7 @@ func serve(
 		Notifications: w.notifications,
 		Scheduler:     scheduler,
 		Logins:        logins,
+		Languages:     w.languages,
 		Uploads:       uploads,
 		Log:           log,
 		Reload:        reload,
@@ -715,6 +728,8 @@ type workers struct {
 	backups       *daemon.KeyBackup
 	// paired listens for paired devices on [remote] listen.
 	paired *daemon.Devices
+	// languages owes the dictionary offer once a new account's history arrived.
+	languages *daemon.Languages
 	// maintenance is held by the cache's vacuum and the daily backup, so they never
 	// run at once: the vacuum would put itself off while the backup reads the cache.
 	maintenance sync.Mutex
@@ -726,6 +741,7 @@ func (w *workers) run(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger,
 	wg.Go(func() { w.notifications.Run(ctx, w.streams) })
 	wg.Go(func() { w.refresher.Run(ctx) })
 	wg.Go(func() { w.backups.Run(ctx) })
+	wg.Go(func() { w.languages.Run(ctx) })
 	wg.Go(func() { vacuumCache(ctx, log, backend.cache, &w.maintenance) })
 	if backend.archive != nil {
 		wg.Go(func() { backend.archive.Run(ctx) })
@@ -750,8 +766,10 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	// to the room's network. A network without an archive (Slack, LinkedIn, Matrix)
 	// refuses with ErrNotOnNetwork — the reconciler keeps silent on that error.
 	notifications.UseArchiver(backend.SetRoomArchived)
+	streams := daemon.NewStreams()
+	languages := daemon.NewLanguages(backend.storage.LanguagesPath(), streams.LanguagesOwed, log)
 	if backend.cache != nil {
-		useCache(backend, notifications)
+		useCache(backend, notifications, languages)
 	}
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)
 	refresher.UseLogger(log)
@@ -759,7 +777,6 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	// Readiness is "what the daemon started with has synced", not "socket open": a cold
 	// cache looks like no rooms.
 	state := daemon.NewState()
-	streams := daemon.NewStreams()
 	if backend.cache != nil {
 		// Before any network writes: clients' message streams read each change.
 		backend.cache.OnChanged(streams.MessagesChanged)
@@ -768,6 +785,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		n.OnStatus(func(s domain.AccountStatus) {
 			backend.ForgetMe() // who you are on it may have changed with it
 			notifications.AccountChanged(s, state.Report(daemon.StatusOf(s), time.Now()))
+			languages.Status(s)
 			streams.AccountsChanged() // attached clients reread the account states
 		})
 		// A network rewriting its own rooms needs the scope reread and clients told; one whose
@@ -808,13 +826,14 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		streams:       streams,
 		backups:       backups,
 		paired:        paired,
+		languages:     languages,
 	}, nil
 }
 
 // useCache wires notifications and the cache together, before any network writes:
 // retention follows [storage] by room place, and reloads; what is cached unannounced
-// is judged by the filters too.
-func useCache(backend served, notifications *daemon.Notifications) {
+// is judged by the filters too, and history arriving puts off the owed dictionary offer.
+func useCache(backend served, notifications *daemon.Notifications, languages *daemon.Languages) {
 	notifications.UseMemberNames(backend.cache.RoomMemberName)
 	notifications.UseHidden(backend.cache.Hides)
 	// After the first list: nothing is counted yet. Later changes recount the rooms
@@ -830,6 +849,7 @@ func useCache(backend served, notifications *daemon.Notifications) {
 	backend.cache.OnArrived(func(room domain.RoomID, since time.Time) {
 		notifications.Arrived(room, since)
 		backend.archive.Arrived(room, since)
+		languages.Arrived(room, since)
 	})
 	backend.archive.Use(notifications.MediaArchived, notifications.MediaEncrypted, notifications.DisappearingArchived, notifications.ArchiveWarnBytes, notifications.MediaSay)
 }

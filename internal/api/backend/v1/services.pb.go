@@ -217,6 +217,9 @@ const (
 	// The rail of the client's profile changed, or the profile is gone: read it again
 	// (Rail).
 	Change_CHANGE_RAIL Change = 3
+	// A new account's history has arrived, so kithd owes the dictionary offer: make it
+	// (DetectLanguages with owed).
+	Change_CHANGE_LANGUAGES Change = 4
 )
 
 // Enum value maps for Change.
@@ -226,12 +229,14 @@ var (
 		1: "CHANGE_ROOMS",
 		2: "CHANGE_ACCOUNTS",
 		3: "CHANGE_RAIL",
+		4: "CHANGE_LANGUAGES",
 	}
 	Change_value = map[string]int32{
 		"CHANGE_UNSPECIFIED": 0,
 		"CHANGE_ROOMS":       1,
 		"CHANGE_ACCOUNTS":    2,
 		"CHANGE_RAIL":        3,
+		"CHANGE_LANGUAGES":   4,
 	}
 )
 
@@ -16228,7 +16233,10 @@ func (x *DetectModelResponse) GetWhy() string {
 }
 
 type DetectLanguagesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Answer only what is owed: the detection a new account's arrived history calls for,
+	// once, the answer clearing it. Nothing owed is an empty answer, the cache unread.
+	Owed          bool `protobuf:"varint,1,opt,name=owed,proto3" json:"owed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -16261,6 +16269,13 @@ func (x *DetectLanguagesRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DetectLanguagesRequest.ProtoReflect.Descriptor instead.
 func (*DetectLanguagesRequest) Descriptor() ([]byte, []int) {
 	return file_backend_v1_services_proto_rawDescGZIP(), []int{304}
+}
+
+func (x *DetectLanguagesRequest) GetOwed() bool {
+	if x != nil {
+		return x.Owed
+	}
+	return false
 }
 
 // LanguageCandidate is one suggested dictionary with the evidence behind it, so a
@@ -21348,8 +21363,9 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x13DetectModelResponse\x128\n" +
 	"\tcandidate\x18\x01 \x01(\v2\x1a.backend.v1.ModelCandidateR\tcandidate\x12\x14\n" +
 	"\x05offer\x18\x02 \x01(\bR\x05offer\x12\x10\n" +
-	"\x03why\x18\x03 \x01(\tR\x03why\"\x18\n" +
-	"\x16DetectLanguagesRequest\"\x7f\n" +
+	"\x03why\x18\x03 \x01(\tR\x03why\",\n" +
+	"\x16DetectLanguagesRequest\x12\x12\n" +
+	"\x04owed\x18\x01 \x01(\bR\x04owed\"\x7f\n" +
 	"\x11LanguageCandidate\x12\x10\n" +
 	"\x03tag\x18\x01 \x01(\tR\x03tag\x12\x16\n" +
 	"\x06script\x18\x02 \x01(\tR\x06script\x12\x14\n" +
@@ -21630,12 +21646,13 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x0eCHAT_KIND_ROOM\x10\x06\x12\x1e\n" +
 	"\x1aCHAT_KIND_ROOM_UNENCRYPTED\x10\a\x12\x19\n" +
 	"\x15CHAT_KIND_ROOM_PUBLIC\x10\b\x12\x13\n" +
-	"\x0fCHAT_KIND_SPACE\x10\t*X\n" +
+	"\x0fCHAT_KIND_SPACE\x10\t*n\n" +
 	"\x06Change\x12\x16\n" +
 	"\x12CHANGE_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fCHANGE_ROOMS\x10\x01\x12\x13\n" +
 	"\x0fCHANGE_ACCOUNTS\x10\x02\x12\x0f\n" +
-	"\vCHANGE_RAIL\x10\x03*\x9d\x01\n" +
+	"\vCHANGE_RAIL\x10\x03\x12\x14\n" +
+	"\x10CHANGE_LANGUAGES\x10\x04*\x9d\x01\n" +
 	"\fNetworkPhase\x12\x1d\n" +
 	"\x19NETWORK_PHASE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18NETWORK_PHASE_LOGGED_OUT\x10\x01\x12\x1c\n" +

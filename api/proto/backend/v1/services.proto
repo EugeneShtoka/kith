@@ -1538,6 +1538,9 @@ enum Change {
   // The rail of the client's profile changed, or the profile is gone: read it again
   // (Rail).
   CHANGE_RAIL = 3;
+  // A new account's history has arrived, so kithd owes the dictionary offer: make it
+  // (DetectLanguages with owed).
+  CHANGE_LANGUAGES = 4;
 }
 
 message ChangedRequest {}
@@ -1855,7 +1858,11 @@ message DetectModelResponse {
   string why = 3;
 }
 
-message DetectLanguagesRequest {}
+message DetectLanguagesRequest {
+  // Answer only what is owed: the detection a new account's arrived history calls for,
+  // once, the answer clearing it. Nothing owed is an empty answer, the cache unread.
+  bool owed = 1;
+}
 
 // LanguageCandidate is one suggested dictionary with the evidence behind it, so a
 // prompt can show its reasoning rather than assert a conclusion.

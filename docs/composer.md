@@ -242,7 +242,7 @@ kith --add-dictionary list    # what can be installed, with sizes
 kith --add-dictionary he_IL   # fetch one, checked against a pinned SHA-256
 ```
 
-kith also looks at the languages in your own cached messages and offers the matching dictionaries once. If you untick a row and accept, it is written to `[spell] declined` and never offered again. Pressing `esc` only dismisses the offer for now.
+kith also looks at the languages in your own cached messages and offers the matching dictionaries, then the word counts for them. Reading every message takes a while, so it is not done at each start: `kithd` does it once after a newly set up account's history has arrived, and `:dictionaries` does it whenever you ask. If you untick a row and accept, it is written to `[spell] declined` and never offered again. Pressing `esc` only dismisses the offer for now.
 
 ### The correction walk
 
