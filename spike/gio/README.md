@@ -15,7 +15,8 @@ gets a private read receipt while the window has focus. Ctrl+K filters every roo
 composer takes Enter as a newline and Ctrl/Alt+Enter or Send to send ([keys.insert]'s
 default), and Attach sends a file from the portal's file chooser.
 
-Messages draw kith's formatting (bold, italic, code in monospace, quotes, headings) and
+Messages draw kith's formatting (bold, italic, code in monospace on a background,
+underline, strikethrough, quotes, headings), selectable, and
 links, theirs and bare URLs, which open in the browser (web and mail links only). A reply
 names what it answers, and clicking that scrolls to it. Reactions show as pills that
 follow kithd's stream, and who is typing shows over the composer. A thread's summary opens
@@ -73,10 +74,15 @@ With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, G
   drawing into a texture Gio can show, which Gio does not expose.
 - **Selection is per message.** `widget.Selectable` selects inside one label; selecting
   across messages, as a browser does, has to be written.
-- **Formatted text cannot be selected.** Gio's rich text (`gioui.org/x/richtext`) draws
-  spans and clickable links but has no selection, so a message with formatting or a link is
-  drawn rich and the rest stay selectable; a right-click copies any message whole. It has no
-  underline, strikethrough or span background either, so those are dropped.
+- **Gio's rich text could not select, and dropped color emoji.** `gioui.org/x/richtext`
+  sits on `x/styledtext`, which shapes each styled run apart and keeps no glyph positions,
+  so there is nothing to hit-test; it also paints only glyph outlines, so bitmap emoji
+  vanish, and a run has no background, underline or strikethrough. No issue or plan for
+  this was found upstream. `seltext/` is styledtext's layout (Unlicense OR MIT) keeping
+  each grapheme cluster's bytes and box: drag to select (across lines and styles),
+  Ctrl+C / Ctrl+A, clickable links, backgrounds, underline, strikethrough, bitmap emoji.
+  Every message draws with it; written so it could go upstream to gio-x. Selection is
+  per message still, and right-to-left text selects by cluster boxes, not yet visually.
 - **Slack shortcodes** are converted here for now; kithd's Slack adapter is to do it for
   every client, after which `shortcodes()` goes.
 - **Gio does not report the desktop's color scheme**, so the theme's "system" mode is dark here.

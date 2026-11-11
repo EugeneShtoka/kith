@@ -1,6 +1,7 @@
 package main
 
 import (
+	"image/color"
 	"io"
 	"log"
 	"net/url"
@@ -17,18 +18,16 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/widget"
-	"gioui.org/widget/material"
-	xrt "gioui.org/x/richtext"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/richtext"
+	"github.com/EugeneShtoka/kith/spike/gio/seltext"
 )
 
-// msgState is one message's widgets: its selectable label, its rich text (formatted
-// messages, links), and the tag its right-click is copied by.
+// msgState is one message's widgets: its text (selectable, links clickable), and the
+// tag its right-click is copied by.
 type msgState struct {
-	sel   widget.Selectable
-	rich  xrt.InteractiveText
+	text  seltext.State
 	media widget.Clickable
 	image widget.Clickable
 	reply widget.Clickable
@@ -54,26 +53,26 @@ func drawn(m domain.Message, body string) (string, []richtext.Span) {
 	return body, spans
 }
 
-// styles cuts text at every span edge and styles each piece by the spans over it.
-func (u *ui) styles(text string, spans []richtext.Span) []xrt.SpanStyle {
+// styles cuts text at every span edge and styles each piece by the spans over it, in
+// fg unless a span colors it.
+func (u *ui) styles(text string, spans []richtext.Span, fg color.NRGBA) []seltext.SpanStyle {
 	cuts := []int{0, len(text)}
 	for _, s := range spans {
 		cuts = append(cuts, min(max(s.Start, 0), len(text)), min(max(s.End, 0), len(text)))
 	}
 	slices.Sort(cuts)
 	cuts = slices.Compact(cuts)
-	var out []xrt.SpanStyle
+	var out []seltext.SpanStyle
 	for i := 0; i+1 < len(cuts); i++ {
 		a, b := cuts[i], cuts[i+1]
-		st := xrt.SpanStyle{Font: font.Font{Typeface: u.th.Face}, Size: u.th.TextSize, Color: u.pal.text, Content: text[a:b]}
+		st := seltext.SpanStyle{Font: font.Font{Typeface: u.th.Face}, Size: u.th.TextSize, Color: fg, Content: text[a:b]}
 		for _, s := range spans {
 			if s.Start > a || s.End < b {
 				continue
 			}
 			switch {
 			case s.Code:
-				st.Font.Typeface = "monospace"
-				st.Size = u.th.TextSize * 0.9
+				st.Font.Typeface, st.Size, st.Background = "monospace", u.th.TextSize*0.9, u.pal.raised
 			case s.Heading:
 				st.Font.Weight, st.Size = font.Bold, u.th.TextSize*1.15
 			}
@@ -83,12 +82,13 @@ func (u *ui) styles(text string, spans []richtext.Span) []xrt.SpanStyle {
 			if s.Italic {
 				st.Font.Style = font.Italic
 			}
+			st.Underline = st.Underline || s.Underline
+			st.Strikethrough = st.Strikethrough || s.Strike
 			if s.Quote || s.Spoiler {
 				st.Color = u.pal.muted
 			}
 			if s.Link && s.Href != "" {
-				st.Color, st.Interactive = u.pal.link, true
-				st.Set("url", s.Href)
+				st.Color, st.Link, st.Underline = u.pal.link, s.Href, true
 			}
 		}
 		out = append(out, st)
@@ -96,30 +96,23 @@ func (u *ui) styles(text string, spans []richtext.Span) []xrt.SpanStyle {
 	return out
 }
 
-// layoutText draws a message's text: rich when it has formatting or a link (its links
-// open in the browser; Gio's rich text cannot be selected), else selectable.
+// layoutText draws a message's text, selectable, its links opening in the browser.
 func (u *ui) layoutText(gtx C, st *msgState, m domain.Message, body string) D {
-	txt, spans := drawn(m, body)
-	if len(spans) == 0 {
-		l := material.Body1(u.th, txt)
-		l.State = &st.sel
-		if m.Redacted {
-			l.Color = u.pal.muted
-		}
-		return l.Layout(gtx)
-	}
 	for {
-		span, ev, ok := st.rich.Update(gtx)
+		link, ok := st.text.Clicked()
 		if !ok {
 			break
 		}
-		if ev.Type == xrt.Click {
-			if href, _ := span.Get("url").(string); href != "" {
-				go openLink(href)
-			}
-		}
+		go openLink(link)
 	}
-	return xrt.Text(&st.rich, u.th.Shaper, u.styles(txt, spans)...).Layout(gtx)
+	txt, spans := drawn(m, body)
+	fg := u.pal.text
+	if m.Redacted {
+		fg = u.pal.muted
+	}
+	ts := seltext.Text(&st.text, u.th.Shaper, u.styles(txt, spans, fg)...)
+	ts.Selection = u.pal.selection
+	return ts.Layout(gtx)
 }
 
 // openLink opens a web or mail link in the person's browser. Links come from other

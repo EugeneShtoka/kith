@@ -1,6 +1,7 @@
 package main
 
 import (
+	"image/color"
 	"testing"
 
 	"gioui.org/font"
@@ -32,7 +33,7 @@ func TestStylesCutAtEveryEdge(t *testing.T) {
 		{Start: 11, End: 15, Code: true},
 		{Start: 16, End: 20, Link: true, Href: "https://example.org"},
 	}
-	st := u.styles(text, spans)
+	st := u.styles(text, spans, u.pal.text)
 	var pieces []string
 	for _, s := range st {
 		pieces = append(pieces, s.Content)
@@ -49,8 +50,11 @@ func TestStylesCutAtEveryEdge(t *testing.T) {
 	if st[1].Font.Weight != font.Bold || st[2].Font.Typeface != "monospace" || st[2].Font.Weight != font.Bold {
 		t.Error("bold and code do not both reach the piece under both")
 	}
-	if !st[4].Interactive || st[0].Interactive {
+	if st[4].Link != "https://example.org" || st[0].Link != "" {
 		t.Error("only the link is clickable")
+	}
+	if st[2].Background == (color.NRGBA{}) || st[1].Background != (color.NRGBA{}) {
+		t.Error("only code has a background")
 	}
 }
 
