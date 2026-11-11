@@ -38,6 +38,7 @@ var (
 var cases = []kept{
 	{room: slackRoom, id: "1.0", body: "Idk why :neutral_face:", wantBody: "Idk why 😐"},
 	{room: slackRoom, id: "2.0", body: "at 10:30:00 a:b:c", wantBody: "at 10:30:00 a:b:c"},
+	{room: slackRoom, id: "2.5", body: "is aligned:pray: now", wantBody: "is aligned🙏 now"},
 	{
 		room: slackRoom, id: "3.0", body: "big news :tada: today", html: "<b>big news</b> :tada: <i>today</i>",
 		wantBody: "big news 🎉 today", wantHTML: "<b>big news</b> 🎉 <i>today</i>", bold: "big news",
@@ -121,7 +122,7 @@ func TestTheCacheConvertsOnce(t *testing.T) {
 	if err = run(ctx, path, true, &out); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "would change 5 of 7 Slack messages and versions") {
+	if !strings.Contains(out.String(), "would change 6 of 8 Slack messages and versions") {
 		t.Errorf("dry run said:\n%s", out.String())
 	}
 	cache = open(t, storage, key)
@@ -134,7 +135,7 @@ func TestTheCacheConvertsOnce(t *testing.T) {
 	if err = run(ctx, path, false, &out); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "changed 5 of 7") {
+	if !strings.Contains(out.String(), "changed 6 of 8") {
 		t.Errorf("run said:\n%s", out.String())
 	}
 	copies, _ := filepath.Glob(storage.CachePath() + ".before-slackemoji-*")
@@ -178,7 +179,7 @@ func TestTheCacheConvertsOnce(t *testing.T) {
 	if err = run(ctx, path, false, &out); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "nothing to change in 7") {
+	if !strings.Contains(out.String(), "nothing to change in 8") {
 		t.Errorf("second run said:\n%s", out.String())
 	}
 }

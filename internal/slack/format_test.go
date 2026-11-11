@@ -55,9 +55,9 @@ func TestSlackTextReadsAsWords(t *testing.T) {
 	}
 }
 
-// An emoji name becomes the emoji where it starts a word or follows another name, and
-// stays as typed inside a word, a time, a path, code or a link, or when Slack does not
-// know it. Formatting is drawn over the converted words.
+// An emoji name becomes the emoji, also at the end of a word, and stays as typed inside
+// a word, a time, a path, code or a link, or when Slack does not know it. Formatting is
+// drawn over the converted words.
 func TestSlackEmojiNamesReadAsEmoji(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -74,11 +74,12 @@ func TestSlackEmojiNamesReadAsEmoji(t *testing.T) {
 		{text: ":wave::skin-tone-9:", body: "👋:skin-tone-9:"},
 		{text: "hi <@U2> :wave:", body: "hi @Dana 👋"},
 		{text: "&lt;:smile:", body: "<😄"},
+		{text: "is aligned:pray: today", body: "is aligned🙏 today"},
+		{text: "done:white_check_mark:", body: "done✅"},
 		{text: "at 10:30:00", body: "at 10:30:00"},
 		{text: "a:smile:b", body: "a:smile:b"},
 		{text: "a:b:c", body: "a:b:c"},
-		{text: "see /tmp/:smile:", body: "see /tmp/:smile:"},
-		{text: "std::smile:", body: "std::smile:"},
+		{text: "see x.io/a:smile:b and /tmp/:smile:/x", body: "see x.io/a:smile:b and /tmp/:smile:/x"},
 		{text: ":Smile: :no_such_name:", body: ":Smile: :no_such_name:"},
 		{text: "`run :smile:` now", body: "run :smile: now", markup: "<code>run :smile:</code> now"},
 		{text: "```\n:smile:\n```", body: ":smile:", markup: "<pre><code>:smile:</code></pre>"},

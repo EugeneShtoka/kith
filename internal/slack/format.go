@@ -98,9 +98,9 @@ func render(text string, n names) rendered {
 }
 
 // Slack writes an emoji as its name between colons (":tada:", ":wave::skin-tone-3:")
-// and shows the emoji; kith keeps the emoji, so every client shows it. A name counts
-// only where it starts a word or follows another (10:30:00 and a:b:c stay), never in
-// code or a link, and a name Slack does not know stays as typed.
+// and shows the emoji; kith keeps the emoji, so every client shows it. A name may
+// touch a word on one side ("aligned:pray:"), not on both (10:30:00, x.io/a:b:c
+// stay); never in code or a link; and a name Slack does not know stays as typed.
 
 // Emojify is a message's words and formatting with its emoji names turned into the
 // emoji. Formatting is converted as markup and its words read back from it, so its
@@ -120,14 +120,20 @@ var shortcode = regexp.MustCompile(`^:([a-z0-9_+-]+):(?::(skin-tone-[2-6]):)?`)
 // emojified is text with its emoji names turned into the emoji.
 func emojified(text string) string {
 	var b strings.Builder
-	last, after := 0, 0 // after: where the last name ended
+	last := 0
 	for i := strings.IndexByte(text, ':'); i >= 0 && i < len(text); i++ {
-		if text[i] != ':' || (i != after && !startsWord(text[:i])) {
+		if text[i] != ':' {
 			continue
 		}
 		m := shortcode.FindStringSubmatchIndex(text[i:])
 		if m == nil {
 			continue
+		}
+		end := i + m[1]
+		before, _ := utf8.DecodeLastRuneInString(text[:i])
+		after, _ := utf8.DecodeRuneInString(text[end:])
+		if wordy(before) && wordy(after) {
+			continue // inside a word on both sides: a path, a time
 		}
 		name := text[i+m[2] : i+m[3]]
 		if m[4] >= 0 {
@@ -135,10 +141,9 @@ func emojified(text string) string {
 		}
 		if e, ok := named(name); ok {
 			b.WriteString(text[last:i] + e)
-			last = i + m[1]
+			last = end
 		}
-		after = i + m[1]
-		i = after - 1
+		i = end - 1
 	}
 	if last == 0 {
 		return text
@@ -146,11 +151,9 @@ func emojified(text string) string {
 	return b.String() + text[last:]
 }
 
-// startsWord reports whether a name may start after before: not inside a word, a
-// path or a run of colons.
-func startsWord(before string) bool {
-	r, _ := utf8.DecodeLastRuneInString(before)
-	return before == "" || !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune("_:/", r)
+// wordy reports whether r continues a word or a path.
+func wordy(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '/'
 }
 
 // tags finds markup's tags; sanitized markup escapes every other '<'.
