@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
@@ -60,17 +61,20 @@ func (u *ui) layoutDay(gtx C, at time.Time) D {
 	if at.Local().Year() != time.Now().Year() {
 		format = "Monday, January 2, 2006"
 	}
+	// A day's line is the stronger one, in the accent; a sender's run has the border's.
+	line := u.pal.accent
+	line.A = 0x99
 	rule := func(gtx C) D {
 		size := image.Pt(gtx.Constraints.Min.X, gtx.Dp(1))
-		paint.FillShape(gtx.Ops, u.faint(0x40), clip.Rect{Max: size}.Op())
+		paint.FillShape(gtx.Ops, line, clip.Rect{Max: size}.Op())
 		return D{Size: size}
 	}
-	return layout.Inset{Top: unit.Dp(14), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx C) D {
+	return layout.Inset{Left: unit.Dp(14), Right: unit.Dp(16), Top: unit.Dp(14), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx C) D {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			layout.Flexed(1, rule),
 			layout.Rigid(func(gtx C) D {
 				l := material.Caption(u.th, at.Local().Format(format))
-				l.Color = u.faint(0xa0)
+				l.Color, l.Font.Weight = u.pal.muted, font.Bold
 				return layout.Inset{Left: unit.Dp(10), Right: unit.Dp(10)}.Layout(gtx, l.Layout)
 			}),
 			layout.Flexed(1, rule),

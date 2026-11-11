@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -10,6 +11,8 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"log"
+	"maps"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -30,6 +33,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/filedialog"
 )
 
 type (
@@ -66,6 +70,19 @@ type ui struct {
 	composer  widget.Editor
 	sendError string
 
+	pal          palette
+	faces        map[face]*picture
+	railShown    bool
+	history      []domain.RoomID // rooms opened, for back and forward
+	at           int             // where in history the open room is
+	nav          struct{ rail, back, forward, goTo widget.Clickable }
+	search       widget.Editor
+	attachBtn    widget.Clickable
+	sendBtn      widget.Clickable
+	saves        map[domain.EventID]*save
+	topHeight    int // the toolbar's, where the panes start
+	headerHeight int // the room header's, where the player's dock starts
+
 	view      uintptr // the Gio window's X11 ID; 0 on Wayland
 	player    *player
 	closeBtn  widget.Clickable
@@ -74,17 +91,19 @@ type ui struct {
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
 type timeline struct {
-	room    domain.RoomID
-	msgs    []domain.Message
-	sel     map[domain.EventID]*widget.Selectable
-	media   map[domain.EventID]*widget.Clickable
-	images  map[domain.EventID]*picture
-	next    string // the page before msgs; "" when the room's start is loaded
-	loading bool
-	marked  domain.EventID // the newest message a receipt was sent for
-	slots   map[string]int // sender color slots, kithd's then this window's
-	drawn   bool
-	list    widget.List
+	room     domain.RoomID
+	msgs     []domain.Message
+	sel      map[domain.EventID]*widget.Selectable
+	media    map[domain.EventID]*widget.Clickable
+	images   map[domain.EventID]*picture
+	next     string // the page before msgs; "" when the room's start is loaded
+	loading  bool
+	marked   domain.EventID                     // the newest message a receipt was sent for
+	threads  map[domain.EventID][]domain.Thread // by the message each hangs beneath
+	pictures map[string]string                  // each sender's picture version
+	slots    map[string]int                     // sender color slots, kithd's then this window's
+	drawn    bool
+	list     widget.List
 }
 
 // picture is an image message's pixels, once fetched.
@@ -94,14 +113,16 @@ type picture struct {
 	err error
 }
 
-func newUI(w *app.Window, backend *daemon.Remote, local bool) *ui {
-	u := &ui{w: w, backend: backend, th: material.NewTheme(), local: local, unread: map[domain.RoomID]domain.Unread{}}
+func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette) *ui {
+	u := &ui{
+		w: w, backend: backend, th: material.NewTheme(), local: local, pal: pal, railShown: true,
+		unread: map[domain.RoomID]domain.Unread{}, faces: map[face]*picture{}, saves: map[domain.EventID]*save{},
+	}
 	// go-text's sans-serif fallback has no emoji family, so name it, or emoji are tofu.
 	u.th.Face = "sans-serif, emoji"
-	// Dark, as the desktop is: the shared sender colors are made for a dark ground.
-	u.th.Palette = material.Palette{
-		Fg: rgb(0xe4e4e7), Bg: rgb(0x1f2023), ContrastBg: rgb(0x4c7bd9), ContrastFg: rgb(0xffffff),
-	}
+	u.th.TextSize = 15
+	u.th.Palette = material.Palette{Fg: pal.text, Bg: pal.background, ContrastBg: pal.accent, ContrastFg: pal.focusText}
+	u.search.SingleLine, u.search.ReadOnly = true, true
 	u.roomList.Axis = layout.Vertical
 	u.filter.SingleLine, u.filter.Submit = true, true
 	return u
@@ -111,11 +132,16 @@ func rgb(c uint32) color.NRGBA {
 	return color.NRGBA{R: uint8(c >> 16), G: uint8(c >> 8), B: uint8(c), A: 0xff}
 }
 
-// faint is the foreground at alpha a: rules, captions, placeholders.
+// faint is the text color at alpha a: hover and placeholder fills.
 func (u *ui) faint(a uint8) color.NRGBA {
 	c := u.th.Palette.Fg
 	c.A = a
 	return c
+}
+
+// fill paints the whole of gtx's constraints c, the pane's ground.
+func fill(gtx C, c color.NRGBA) {
+	paint.FillShape(gtx.Ops, c, clip.Rect{Max: gtx.Constraints.Max}.Op())
 }
 
 func (u *ui) mark(what string) {
@@ -188,14 +214,22 @@ func (u *ui) loadRooms(ctx context.Context, room domain.RoomID, play domain.Even
 // says where older history starts.
 func (u *ui) open(ctx context.Context, room domain.RoomID) {
 	u.mu.Lock()
+	if u.at >= len(u.history) || u.history[u.at] != room {
+		if len(u.history) > 0 {
+			u.history = u.history[:u.at+1]
+		}
+		u.history = append(u.history, room)
+		u.at = len(u.history) - 1
+	}
 	u.current = room
 	u.focus = &u.composer
 	u.timeline = timeline{
-		room: room, loading: true, slots: map[string]int{},
-		sel:    map[domain.EventID]*widget.Selectable{},
-		media:  map[domain.EventID]*widget.Clickable{},
-		images: map[domain.EventID]*picture{},
-		list:   widget.List{List: layout.List{Axis: layout.Vertical, ScrollToEnd: true}},
+		room: room, loading: true, slots: map[string]int{}, threads: map[domain.EventID][]domain.Thread{},
+		pictures: map[string]string{},
+		sel:      map[domain.EventID]*widget.Selectable{},
+		media:    map[domain.EventID]*widget.Clickable{},
+		images:   map[domain.EventID]*picture{},
+		list:     widget.List{List: layout.List{Axis: layout.Vertical, ScrollToEnd: true}},
 	}
 	u.mu.Unlock()
 	go func() {
@@ -203,11 +237,16 @@ func (u *ui) open(ctx context.Context, room domain.RoomID) {
 		if err != nil {
 			log.Printf("sender slots: %v", err)
 		}
+		pictures, err := u.backend.SenderPictures(ctx, room)
+		if err != nil {
+			log.Printf("sender pictures: %v", err)
+		}
 		u.mu.Lock()
 		if u.timeline.room == room {
 			for who, slot := range slots {
 				u.timeline.slots[who] = slot
 			}
+			maps.Copy(u.timeline.pictures, pictures)
 		}
 		u.mu.Unlock()
 		cached, err := u.backend.CachedTimeline(ctx, room)
@@ -220,6 +259,7 @@ func (u *ui) open(ctx context.Context, room domain.RoomID) {
 			u.fail(fmt.Errorf("timeline: %w", err))
 		}
 		u.merge(ctx, room, page.Messages)
+		u.loadThreads(ctx, room)
 		u.mu.Lock()
 		if u.timeline.room == room {
 			u.timeline.next, u.timeline.loading = page.Next, false
@@ -246,6 +286,28 @@ func (u *ui) older(ctx context.Context, room domain.RoomID, from string) {
 	added := u.timeline.upsert(page.Messages)
 	u.timeline.list.Position.First += added
 	u.timeline.next, u.timeline.loading = page.Next, false
+}
+
+// loadThreads reads the room's threads, each to hang beneath its anchor.
+func (u *ui) loadThreads(ctx context.Context, room domain.RoomID) {
+	threads, err := u.backend.ListThreads(ctx, room)
+	if err != nil {
+		return // a network without threads (Telegram) says so here
+	}
+	by := map[domain.EventID][]domain.Thread{}
+	for _, t := range threads {
+		at := t.Anchor
+		if at == "" {
+			at = t.Root
+		}
+		by[at] = append(by[at], t)
+	}
+	u.mu.Lock()
+	if u.timeline.room == room {
+		u.timeline.threads = by
+	}
+	u.mu.Unlock()
+	u.w.Invalidate()
 }
 
 func (u *ui) merge(ctx context.Context, room domain.RoomID, msgs []domain.Message) {
@@ -300,6 +362,9 @@ func (u *ui) follow(ctx context.Context) {
 				return
 			}
 			u.merge(ctx, m.RoomID, []domain.Message{m})
+			if m.ThreadRoot != "" && m.ThreadRoot != m.ID {
+				go u.loadThreads(ctx, m.RoomID)
+			}
 		case n := <-b.Unread():
 			u.mu.Lock()
 			u.unread[n.RoomID] = n
@@ -385,7 +450,7 @@ func (u *ui) drawnTimeline() bool {
 func (u *ui) layout(ctx context.Context, gtx C) D {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	paint.Fill(gtx.Ops, u.th.Palette.Bg)
+	paint.Fill(gtx.Ops, u.pal.background)
 	for {
 		ev, ok := gtx.Event(key.Filter{Name: "K", Required: key.ModShortcut})
 		if !ok {
@@ -402,27 +467,138 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 	if u.err != "" {
 		return layout.UniformInset(unit.Dp(16)).Layout(gtx, material.Body1(u.th, u.err).Layout)
 	}
-	u.leftWidth = gtx.Dp(railWidth) + gtx.Dp(1) + gtx.Dp(300) + gtx.Dp(1)
+	u.leftWidth = gtx.Dp(300) + gtx.Dp(1)
+	if u.railShown {
+		u.leftWidth += gtx.Dp(railWidth) + gtx.Dp(1)
+	}
 	rule := func(gtx C) D {
 		size := image.Pt(gtx.Dp(1), gtx.Constraints.Max.Y)
-		paint.FillShape(gtx.Ops, u.faint(0x30), clip.Rect{Max: size}.Op())
+		paint.FillShape(gtx.Ops, u.pal.border, clip.Rect{Max: size}.Op())
 		return D{Size: size}
 	}
-	return layout.Flex{}.Layout(gtx,
-		layout.Rigid(func(gtx C) D {
-			gtx.Constraints.Min.X = gtx.Dp(railWidth)
-			gtx.Constraints.Max.X = gtx.Constraints.Min.X
-			return u.layoutRail(gtx)
-		}),
-		layout.Rigid(rule),
+	panes := []layout.FlexChild{}
+	if u.railShown {
+		panes = append(panes,
+			layout.Rigid(func(gtx C) D {
+				gtx.Constraints.Min.X = gtx.Dp(railWidth)
+				gtx.Constraints.Max.X = gtx.Constraints.Min.X
+				fill(gtx, u.pal.bar)
+				return u.layoutRail(gtx)
+			}),
+			layout.Rigid(rule))
+	}
+	panes = append(panes,
 		layout.Rigid(func(gtx C) D {
 			gtx.Constraints.Min.X = gtx.Dp(300)
 			gtx.Constraints.Max.X = gtx.Constraints.Min.X
+			fill(gtx, u.pal.surface)
 			return u.layoutRooms(ctx, gtx)
 		}),
 		layout.Rigid(rule),
-		layout.Flexed(1, func(gtx C) D { return u.layoutRoom(ctx, gtx) }),
+		layout.Flexed(1, func(gtx C) D { return u.layoutRoom(ctx, gtx) }))
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx C) D {
+			dims := u.layoutToolbar(ctx, gtx)
+			u.topHeight = dims.Size.Y
+			return dims
+		}),
+		layout.Flexed(1, func(gtx C) D { return layout.Flex{}.Layout(gtx, panes...) }),
 	)
+}
+
+// layoutToolbar is the desktop's top bar: the rail's toggle, back and forward through
+// the rooms opened, search, and the pages. Search, People and Settings are the
+// desktop's alone for now, drawn muted.
+func (u *ui) layoutToolbar(ctx context.Context, gtx C) D {
+	if u.nav.rail.Clicked(gtx) {
+		u.railShown = !u.railShown
+	}
+	if u.nav.back.Clicked(gtx) && u.at > 0 {
+		u.at--
+		u.openLocked(ctx, u.history[u.at])
+	}
+	if u.nav.forward.Clicked(gtx) && u.at < len(u.history)-1 {
+		u.at++
+		u.openLocked(ctx, u.history[u.at])
+	}
+	if u.nav.goTo.Clicked(gtx) {
+		u.focus = &u.filter
+	}
+	m := op.Record(gtx.Ops)
+	dims := layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8), Top: unit.Dp(6), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx C) D {
+		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		gap := layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout)
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx C) D { return u.button(gtx, &u.nav.rail, "▥", true, u.railShown) }), gap,
+			layout.Rigid(func(gtx C) D { return u.button(gtx, &u.nav.back, "←", u.at > 0, false) }), gap,
+			layout.Rigid(func(gtx C) D { return u.button(gtx, &u.nav.forward, "→", u.at < len(u.history)-1, false) }), gap,
+			layout.Flexed(1, func(gtx C) D {
+				return u.field(gtx, func(gtx C) D {
+					return u.editor(&u.search, "Search: words, from:, since:, until:").Layout(gtx)
+				})
+			}), gap,
+			layout.Rigid(func(gtx C) D { return u.button(gtx, new(widget.Clickable), "Search", false, false) }), gap,
+			layout.Rigid(func(gtx C) D { return u.button(gtx, &u.nav.goTo, "Go to", true, false) }), gap,
+			layout.Rigid(func(gtx C) D { return u.button(gtx, new(widget.Clickable), "People", false, false) }), gap,
+			layout.Rigid(func(gtx C) D { return u.button(gtx, new(widget.Clickable), "Settings", false, false) }),
+		)
+	})
+	call := m.Stop()
+	paint.FillShape(gtx.Ops, u.pal.bar, clip.Rect{Max: dims.Size}.Op())
+	call.Add(gtx.Ops)
+	line := image.Rect(0, dims.Size.Y-gtx.Dp(1), dims.Size.X, dims.Size.Y)
+	paint.FillShape(gtx.Ops, u.pal.border, clip.Rect(line).Op())
+	u.headerHeight = dims.Size.Y
+	return dims
+}
+
+// button is a raised button with label; a disabled one is muted and does nothing, an
+// on one is in the selection color.
+func (u *ui) button(gtx C, btn *widget.Clickable, label string, enabled, on bool) D {
+	bg, fg := u.pal.raised, u.pal.text
+	switch {
+	case !enabled:
+		fg = u.pal.muted
+	case on:
+		bg = u.pal.selection
+	}
+	if !enabled {
+		gtx = gtx.Disabled()
+	}
+	return btn.Layout(gtx, func(gtx C) D {
+		m := op.Record(gtx.Ops)
+		dims := layout.Inset{Left: unit.Dp(10), Right: unit.Dp(10), Top: unit.Dp(5), Bottom: unit.Dp(5)}.Layout(gtx, func(gtx C) D {
+			l := material.Body2(u.th, label)
+			l.Color = fg
+			return l.Layout(gtx)
+		})
+		call := m.Stop()
+		paint.FillShape(gtx.Ops, bg, clip.UniformRRect(image.Rectangle{Max: dims.Size}, gtx.Dp(6)).Op(gtx.Ops))
+		call.Add(gtx.Ops)
+		return dims
+	})
+}
+
+// editor is e drawn with hint in the muted color.
+func (u *ui) editor(e *widget.Editor, hint string) material.EditorStyle {
+	st := material.Editor(u.th, e, hint)
+	st.HintColor = u.pal.muted
+	return st
+}
+
+// field is an input's box: raised, bordered, rounded.
+func (u *ui) field(gtx C, w layout.Widget) D {
+	m := op.Record(gtx.Ops)
+	dims := widget.Border{Color: u.pal.border, Width: unit.Dp(1), CornerRadius: unit.Dp(6)}.Layout(gtx, func(gtx C) D {
+		return layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8), Top: unit.Dp(5), Bottom: unit.Dp(5)}.Layout(gtx, func(gtx C) D {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			return w(gtx)
+		})
+	})
+	call := m.Stop()
+	paint.FillShape(gtx.Ops, u.pal.raised, clip.UniformRRect(image.Rectangle{Max: dims.Size}, gtx.Dp(6)).Op(gtx.Ops))
+	call.Add(gtx.Ops)
+	return dims
 }
 
 func (u *ui) layoutRooms(ctx context.Context, gtx C) D {
@@ -454,12 +630,7 @@ func (u *ui) layoutRooms(ctx context.Context, gtx C) D {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx C) D {
 			return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx C) D {
-				return widget.Border{Color: u.faint(0x40), Width: unit.Dp(1), CornerRadius: unit.Dp(6)}.Layout(gtx, func(gtx C) D {
-					return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx C) D {
-						gtx.Constraints.Min.X = gtx.Constraints.Max.X
-						return material.Editor(u.th, &u.filter, "Go to room (Ctrl+K)").Layout(gtx)
-					})
-				})
+				return u.field(gtx, u.editor(&u.filter, "Go to room (Ctrl+K)").Layout)
 			})
 		}),
 		layout.Flexed(1, func(gtx C) D {
@@ -498,27 +669,32 @@ func (u *ui) layoutRoomRow(ctx context.Context, gtx C, i int) D {
 	n := u.unread[room.ID]
 	count, highlights := n.Count(u.local)
 	return u.roomBtns[i].Layout(gtx, func(gtx C) D {
-		if room.ID == u.current {
-			size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(36))
-			paint.FillShape(gtx.Ops, u.faint(0x20), clip.Rect{Max: size}.Op())
-		}
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Top: unit.Dp(7), Bottom: unit.Dp(7)}.Layout(gtx, func(gtx C) D {
+		m := op.Record(gtx.Ops)
+		dims := layout.Inset{Left: unit.Dp(10), Right: unit.Dp(12), Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx C) D {
+					return u.layoutFace(ctx, gtx, face{room: room.ID}, room.Picture, string(room.ID), room.DisplayName(), 24)
+				}),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 				layout.Flexed(1, func(gtx C) D {
 					l := material.Body1(u.th, room.DisplayName())
 					l.MaxLines = 1
 					if n.HasUnread(u.local) {
 						l.Font.Weight = font.Bold
 					} else {
-						l.Color = u.faint(0xb0)
+						l.Color = u.pal.muted
 					}
 					return l.Layout(gtx)
 				}),
 				layout.Rigid(func(gtx C) D {
 					switch {
+					case highlights > 0:
+						return u.badge(gtx, fmt.Sprint(count), true)
 					case count > 0:
-						return u.badge(gtx, fmt.Sprint(count), highlights > 0)
+						l := material.Caption(u.th, fmt.Sprint(count))
+						l.Color = u.pal.muted
+						return l.Layout(gtx)
 					case n.Marked:
 						return u.badge(gtx, "•", false)
 					}
@@ -526,17 +702,24 @@ func (u *ui) layoutRoomRow(ctx context.Context, gtx C, i int) D {
 				}),
 			)
 		})
+		call := m.Stop()
+		if room.ID == u.current {
+			r := image.Rectangle{Min: image.Pt(gtx.Dp(4), 0), Max: image.Pt(dims.Size.X-gtx.Dp(4), dims.Size.Y)}
+			paint.FillShape(gtx.Ops, u.pal.selection, clip.UniformRRect(r, gtx.Dp(6)).Op(gtx.Ops))
+		}
+		call.Add(gtx.Ops)
+		return dims
 	})
 }
 
 // badge is a count in a pill: red when it holds a mention, else the accent.
 func (u *ui) badge(gtx C, text string, mention bool) D {
-	bg := u.th.Palette.ContrastBg
+	bg, fg := u.pal.unread, u.pal.unreadText
 	if mention {
-		bg = rgb(0xe5484d)
+		bg, fg = u.pal.mention, u.pal.mentionText
 	}
 	l := material.Caption(u.th, text)
-	l.Color, l.Font.Weight = u.th.Palette.ContrastFg, font.Bold
+	l.Color, l.Font.Weight = fg, font.Bold
 	m := op.Record(gtx.Ops)
 	dims := layout.Inset{Left: unit.Dp(7), Right: unit.Dp(7), Top: unit.Dp(1), Bottom: unit.Dp(1)}.Layout(gtx, l.Layout)
 	call := m.Stop()
@@ -551,10 +734,41 @@ func (u *ui) layoutRoom(ctx context.Context, gtx C) D {
 		return D{Size: gtx.Constraints.Max}
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx C) D { return u.layoutHeader(ctx, gtx) }),
 		layout.Rigid(u.layoutPlayer),
 		layout.Flexed(1, func(gtx C) D { return u.layoutTimeline(ctx, gtx) }),
 		layout.Rigid(func(gtx C) D { return u.layoutComposer(ctx, gtx) }),
 	)
+}
+
+// layoutHeader is the open room's face and name over its timeline.
+func (u *ui) layoutHeader(ctx context.Context, gtx C) D {
+	i := slices.IndexFunc(u.rooms, func(r domain.Room) bool { return r.ID == u.current })
+	if i < 0 {
+		return D{}
+	}
+	room := u.rooms[i]
+	m := op.Record(gtx.Ops)
+	dims := layout.Inset{Left: unit.Dp(14), Right: unit.Dp(14), Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx C) D {
+		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx C) D {
+				return u.layoutFace(ctx, gtx, face{room: room.ID}, room.Picture, string(room.ID), room.DisplayName(), 26)
+			}),
+			layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
+			layout.Flexed(1, func(gtx C) D {
+				l := material.Subtitle1(u.th, room.DisplayName())
+				l.Font.Weight, l.MaxLines = font.Bold, 1
+				return l.Layout(gtx)
+			}),
+		)
+	})
+	call := m.Stop()
+	paint.FillShape(gtx.Ops, u.pal.bar, clip.Rect{Max: dims.Size}.Op())
+	call.Add(gtx.Ops)
+	line := image.Rect(0, dims.Size.Y-gtx.Dp(1), dims.Size.X, dims.Size.Y)
+	paint.FillShape(gtx.Ops, u.pal.border, clip.Rect(line).Op())
+	return dims
 }
 
 func (u *ui) layoutTimeline(ctx context.Context, gtx C) D {
@@ -572,69 +786,124 @@ func (u *ui) layoutTimeline(ctx context.Context, gtx C) D {
 	return dims
 }
 
+// layoutMessage draws one message: a sender's run starts with their face, name and time
+// under a faint line; a thread's replies are left to its summary beneath its anchor.
 func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, i int) D {
 	m := t.msgs[i]
-	newDay := i == 0 || !sameDay(t.msgs[i-1].Timestamp, m.Timestamp)
-	head := newDay || t.msgs[i-1].Sender != m.Sender ||
-		m.Timestamp.Sub(t.msgs[i-1].Timestamp) > 10*time.Minute
-	top := unit.Dp(1)
-	if head {
-		top = unit.Dp(10)
+	if m.ThreadRoot != "" && m.ThreadRoot != m.ID {
+		return D{}
 	}
-	return layout.Inset{Left: unit.Dp(16), Right: unit.Dp(16), Top: top}.Layout(gtx, func(gtx C) D {
-		var rows []layout.FlexChild
-		if newDay {
-			rows = append(rows, layout.Rigid(func(gtx C) D { return u.layoutDay(gtx, m.Timestamp) }))
+	prev := u.previousShown(t, i)
+	newDay := prev < 0 || !sameDay(t.msgs[prev].Timestamp, m.Timestamp)
+	head := newDay || t.msgs[prev].Sender != m.Sender ||
+		m.Timestamp.Sub(t.msgs[prev].Timestamp) > 10*time.Minute
+	const faceSize = 32
+	var rows []layout.FlexChild
+	if newDay {
+		rows = append(rows, layout.Rigid(func(gtx C) D { return u.layoutDay(gtx, m.Timestamp) }))
+	} else if head {
+		rows = append(rows, layout.Rigid(func(gtx C) D {
+			return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx C) D {
+				size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(1))
+				paint.FillShape(gtx.Ops, u.pal.border, clip.Rect{Max: size}.Op())
+				return D{Size: size}
+			})
+		}))
+	}
+	var body []layout.FlexChild
+	if head {
+		body = append(body, layout.Rigid(func(gtx C) D {
+			return layout.Flex{Alignment: layout.Baseline}.Layout(gtx,
+				layout.Rigid(func(gtx C) D {
+					l := material.Body1(u.th, sender(m))
+					l.Font.Weight = font.Bold
+					l.Color = t.color(m.Sender)
+					return l.Layout(gtx)
+				}),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+				layout.Rigid(func(gtx C) D {
+					l := material.Caption(u.th, m.Timestamp.Local().Format("3:04 PM"))
+					l.Color = u.pal.muted
+					return l.Layout(gtx)
+				}),
+			)
+		}))
+	}
+	switch {
+	case m.Redacted:
+	case m.Media.IsImage():
+		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutImage(ctx, gtx, t, m) }))
+	case m.Media != nil && (m.Media.Type == domain.MediaVideo || m.Media.Type == domain.MediaAudio):
+		btn := t.media[m.ID]
+		if btn == nil {
+			btn = new(widget.Clickable)
+			t.media[m.ID] = btn
 		}
+		if btn.Clicked(gtx) {
+			u.play(ctx, m)
+		}
+		body = append(body, layout.Rigid(func(gtx C) D {
+			return u.button(gtx, btn, fmt.Sprintf("▶ %s", m.Media.Name), true, false)
+		}))
+	case m.Media != nil:
+		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutSave(ctx, gtx, m) }))
+	}
+	if txt := text(m); txt != "" && (m.Media == nil || txt != m.Media.Name) {
+		body = append(body, layout.Rigid(func(gtx C) D {
+			sel := t.sel[m.ID]
+			if sel == nil {
+				sel = new(widget.Selectable)
+				t.sel[m.ID] = sel
+			}
+			l := material.Body1(u.th, txt)
+			l.State = sel
+			if m.Redacted {
+				l.Color = u.pal.muted
+			}
+			return l.Layout(gtx)
+		}))
+	}
+	for _, th := range t.threads[m.ID] {
+		body = append(body, layout.Rigid(func(gtx C) D {
+			replies := "1 reply"
+			if th.Count != 1 {
+				replies = fmt.Sprintf("%d replies", th.Count)
+			}
+			l := material.Caption(u.th, replies+" · "+th.LatestSenderName)
+			l.Color, l.Font.Weight = u.pal.link, font.Bold
+			return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, l.Layout)
+		}))
+	}
+	rows = append(rows, layout.Rigid(func(gtx C) D {
+		top := unit.Dp(1)
 		if head {
-			rows = append(rows, layout.Rigid(func(gtx C) D {
-				return layout.Flex{Alignment: layout.Baseline}.Layout(gtx,
-					layout.Rigid(func(gtx C) D {
-						l := material.Body1(u.th, sender(m))
-						l.Font.Weight = font.Bold
-						l.Color = t.color(m.Sender)
-						return l.Layout(gtx)
-					}),
-					layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
-					layout.Rigid(func(gtx C) D {
-						l := material.Caption(u.th, m.Timestamp.Local().Format("15:04"))
-						l.Color = u.faint(0x90)
-						return l.Layout(gtx)
-					}),
-				)
-			}))
+			top = unit.Dp(8)
 		}
-		if m.Media.IsImage() {
-			rows = append(rows, layout.Rigid(func(gtx C) D { return u.layoutImage(ctx, gtx, t, m) }))
-		} else if m.Media != nil {
-			btn := t.media[m.ID]
-			if btn == nil {
-				btn = new(widget.Clickable)
-				t.media[m.ID] = btn
-			}
-			if btn.Clicked(gtx) {
-				u.play(ctx, m)
-			}
-			rows = append(rows, layout.Rigid(func(gtx C) D {
-				l := material.Body2(u.th, fmt.Sprintf("▶ [%s] %s", m.Media.Type, m.Media.Name))
-				l.Color = u.th.Palette.ContrastBg
-				return btn.Layout(gtx, l.Layout)
-			}))
+		return layout.Inset{Left: unit.Dp(14), Right: unit.Dp(16), Top: top}.Layout(gtx, func(gtx C) D {
+			return layout.Flex{}.Layout(gtx,
+				layout.Rigid(func(gtx C) D {
+					if !head {
+						return D{Size: image.Pt(gtx.Dp(faceSize), 0)}
+					}
+					version := t.pictures[m.Sender]
+					return u.layoutFace(ctx, gtx, face{room: t.room, person: m.Sender}, version, m.Sender, sender(m), faceSize)
+				}),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
+				layout.Flexed(1, func(gtx C) D { return layout.Flex{Axis: layout.Vertical}.Layout(gtx, body...) }),
+			)
+		})
+	}))
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+}
+
+// previousShown is the index of the main-timeline message before i, or -1.
+func (u *ui) previousShown(t *timeline, i int) int {
+	for j := i - 1; j >= 0; j-- {
+		if r := t.msgs[j].ThreadRoot; r == "" || r == t.msgs[j].ID {
+			return j
 		}
-		if body := text(m); body != "" {
-			rows = append(rows, layout.Rigid(func(gtx C) D {
-				sel := t.sel[m.ID]
-				if sel == nil {
-					sel = new(widget.Selectable)
-					t.sel[m.ID] = sel
-				}
-				l := material.Body1(u.th, body)
-				l.State = sel
-				return l.Layout(gtx)
-			}))
-		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
-	})
+	}
+	return -1
 }
 
 // layoutImage draws an image message at most 360×300dp, holding its box while it loads.
@@ -724,7 +993,7 @@ func (u *ui) layoutPlayer(gtx C) D {
 				size := image.Pt(w, w*9/16)
 				paint.FillShape(gtx.Ops, color.NRGBA{A: 0xff}, clip.Rect{Max: size}.Op())
 				// The dock is the room pane's first row, so its box is at a known place.
-				at := image.Pt(u.leftWidth+inset, inset+header)
+				at := image.Pt(u.leftWidth+inset, u.topHeight+u.headerHeight+inset+header)
 				u.place(image.Rectangle{Min: at, Max: at.Add(size)})
 				return D{Size: size}
 			}),
@@ -733,8 +1002,9 @@ func (u *ui) layoutPlayer(gtx C) D {
 }
 
 // layoutComposer takes a message: Enter is a newline and Ctrl or Alt+Enter sends, as
-// [keys.insert] has it by default. The editor's own Enter filter allows only Shift, so
-// these reach this one.
+// [keys.insert] has it by default, as does Send. The editor's own Enter filter allows
+// only Shift, so these keys reach this one. Attach sends a file picked in the
+// desktop's file dialog.
 func (u *ui) layoutComposer(ctx context.Context, gtx C) D {
 	var sends []event.Filter
 	for _, name := range []key.Name{key.NameReturn, key.NameEnter} {
@@ -742,31 +1012,77 @@ func (u *ui) layoutComposer(ctx context.Context, gtx C) D {
 			sends = append(sends, key.Filter{Focus: &u.composer, Name: name, Required: mod})
 		}
 	}
+	send := u.sendBtn.Clicked(gtx)
 	for {
 		ev, ok := gtx.Event(sends...)
 		if !ok {
 			break
 		}
 		if e, ok := ev.(key.Event); ok && e.State == key.Press {
-			body := strings.TrimSpace(u.composer.Text())
-			if body != "" {
-				u.composer.SetText("")
-				go u.send(ctx, u.current, body)
-			}
+			send = true
 		}
 	}
-	return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx C) D {
-		return widget.Border{Color: u.faint(0x40), Width: unit.Dp(1), CornerRadius: unit.Dp(6)}.Layout(gtx, func(gtx C) D {
-			return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx C) D {
-				hint := "Message"
-				if u.sendError != "" {
-					hint = u.sendError
-				}
-				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				return material.Editor(u.th, &u.composer, hint).Layout(gtx)
-			})
+	if body := strings.TrimSpace(u.composer.Text()); send && body != "" {
+		u.composer.SetText("")
+		go u.send(ctx, u.current, body)
+	}
+	if u.attachBtn.Clicked(gtx) {
+		go u.attach(ctx, u.current)
+	}
+	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Top: unit.Dp(6), Bottom: unit.Dp(10)}.Layout(gtx, func(gtx C) D {
+		return u.field(gtx, func(gtx C) D {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx C) D {
+					hint := "A message"
+					if u.sendError != "" {
+						hint = u.sendError
+					}
+					return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8)}.Layout(gtx, u.editor(&u.composer, hint).Layout)
+				}),
+				layout.Rigid(func(gtx C) D {
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx C) D { return u.button(gtx, &u.attachBtn, "Attach", true, false) }),
+						layout.Flexed(1, layout.Spacer{}.Layout),
+						layout.Rigid(func(gtx C) D { return u.accentButton(gtx, &u.sendBtn, "Send") }),
+					)
+				}),
+			)
 		})
 	})
+}
+
+// accentButton is the window's one call to action, in the accent.
+func (u *ui) accentButton(gtx C, btn *widget.Clickable, label string) D {
+	return btn.Layout(gtx, func(gtx C) D {
+		m := op.Record(gtx.Ops)
+		dims := layout.Inset{Left: unit.Dp(14), Right: unit.Dp(14), Top: unit.Dp(5), Bottom: unit.Dp(5)}.Layout(gtx, func(gtx C) D {
+			l := material.Body2(u.th, label)
+			l.Color, l.Font.Weight = u.pal.focusText, font.Bold
+			return l.Layout(gtx)
+		})
+		call := m.Stop()
+		paint.FillShape(gtx.Ops, u.pal.accent, clip.UniformRRect(image.Rectangle{Max: dims.Size}, gtx.Dp(6)).Op(gtx.Ops))
+		call.Add(gtx.Ops)
+		return dims
+	})
+}
+
+// attach asks for a file and sends it under its own name.
+func (u *ui) attach(ctx context.Context, room domain.RoomID) {
+	path, err := filedialog.File(ctx, "Attach a file")
+	if errors.Is(err, filedialog.ErrCanceled) {
+		return
+	}
+	if err == nil {
+		err = u.backend.SendFile(ctx, room, path, filepath.Base(path), "")
+	}
+	u.mu.Lock()
+	u.sendError = ""
+	if err != nil {
+		u.sendError = "Not sent: " + err.Error()
+	}
+	u.mu.Unlock()
+	u.w.Invalidate()
 }
 
 func (u *ui) send(ctx context.Context, room domain.RoomID, body string) {
@@ -790,7 +1106,7 @@ func sender(m domain.Message) string {
 func text(m domain.Message) string {
 	switch {
 	case m.Redacted:
-		return "(deleted)"
+		return "Message deleted"
 	case m.Undecrypted:
 		return "(waiting for the key)"
 	case m.Emote:

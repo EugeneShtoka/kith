@@ -99,7 +99,7 @@ func (u *ui) layoutRail(gtx C) D {
 			return r.btns[i].Layout(gtx, func(gtx C) D {
 				if i == r.sel {
 					size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(34))
-					paint.FillShape(gtx.Ops, u.faint(0x20), clip.Rect{Max: size}.Op())
+					paint.FillShape(gtx.Ops, u.pal.selection, clip.UniformRRect(image.Rectangle{Min: image.Pt(gtx.Dp(4), 0), Max: size}, gtx.Dp(6)).Op(gtx.Ops))
 				}
 				gtx.Constraints.Min.X = gtx.Constraints.Max.X
 				return layout.Inset{Left: unit.Dp(10), Right: unit.Dp(8), Top: unit.Dp(7), Bottom: unit.Dp(7)}.Layout(gtx, func(gtx C) D {
@@ -114,7 +114,7 @@ func (u *ui) layoutRail(gtx C) D {
 							l.Font.Weight = font.Bold
 							if count == 0 {
 								l.Font.Weight = font.Normal
-								l.Color = u.faint(0xb0)
+								l.Color = u.pal.muted
 							}
 							return l.Layout(gtx)
 						}),
@@ -136,7 +136,7 @@ func (u *ui) layoutRail(gtx C) D {
 			layout.Rigid(func(gtx C) D {
 				return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx, func(gtx C) D {
 					size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(1))
-					paint.FillShape(gtx.Ops, u.faint(0x30), clip.Rect{Max: size}.Op())
+					paint.FillShape(gtx.Ops, u.pal.border, clip.Rect{Max: size}.Op())
 					return D{Size: size}
 				})
 			}),

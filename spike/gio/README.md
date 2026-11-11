@@ -1,20 +1,36 @@
 # Gio desktop spike
 
 kith's desktop window drawn by [Gio](https://gioui.org) instead of Electron, to measure what
-a native window costs. It attaches to the local kithd as the terminal client does
-(`daemon.Remote`, no kith-relay) and has a room list (newest first), a timeline with inline
-images, scrollback paging, live messages (not seen arriving yet), a composer (never sent from),
-and video and voice notes played by
-mpv, a video in a child X window of the Gio window (`mpv --wid`). Not meant to merge.
+a native window costs and what building one takes. Not meant to merge.
 
-## Build and run (NixOS)
+It attaches to the local kithd as the terminal client does (`daemon.Remote`, no kith-relay)
+and looks like the desktop: its theme from `[gui.theme]` (the device's over the shared), the
+top bar (rail toggle, back and forward through the rooms opened, Go to), kithd's rail with
+each row's unread, the room list with faces and counts, the room's header, and a timeline
+of sender runs with their pictures (initials on their hue otherwise, as `faces.ts`), day
+dividers, inline images, scrollback paging, thread summaries, "Message deleted", and files
+as Save buttons (to `~/Downloads`). Video and voice notes play in mpv, a video in a child X
+window of the Gio window (`mpv --wid`). Unread badges follow kithd's stream; the open room
+gets a private read receipt while the window has focus. Ctrl+K filters every room. The
+composer takes Enter as a newline and Ctrl/Alt+Enter or Send to send ([keys.insert]'s
+default), and Attach sends a file from the portal's file chooser.
+
+Search, People and Settings are drawn but do nothing; "system" theme mode is dark.
+
+## Build and run
 
 ```sh
+# NixOS
 nix-shell -p pkg-config wayland libxkbcommon xorg.libX11 xorg.libXcursor xorg.libXfixes \
   xorg.libxcb libGL vulkan-headers
+# Arch
+sudo pacman -S --needed go pkgconf wayland libxkbcommon-x11 libx11 libxcursor libxfixes \
+  mesa vulkan-headers mpv noto-fonts-emoji
+
 export GOFLAGS='-tags=goolm -ldflags=-X=github.com/ncruces/go-sqlite3/driver.driverName='
 go build -o /dev/shm/kith-gio . && /dev/shm/kith-gio            # kithd must be running
 /dev/shm/kith-gio -measure                                       # timings and memory, then exit
+/dev/shm/kith-gio -profile work                                  # another [[profile]]
 /dev/shm/kith-gio -room ROOM -play EVENT                         # play an attachment at once
 go run ./findmedia                                               # cached videos and voice notes
 ```
@@ -34,6 +50,8 @@ Xvfb 1280×800, Mesa llvmpipe (software GL) for both, same kithd, 307 rooms.
 | first room drawn         | 300–700 ms (kithd's Timeline call) | — (opens no room)                |
 
 Most of the Gio process beyond the Go runtime is Mesa's llvmpipe; on a GPU it would be less.
+With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, Go runtime
+54 MB, first frame ~90 ms, rooms ~220 ms.
 
 ## Found
 
@@ -47,6 +65,9 @@ Most of the Gio process beyond the Go runtime is Mesa's llvmpipe; on a GPU it wo
   drawing into a texture Gio can show, which Gio does not expose.
 - **Selection is per message.** `widget.Selectable` selects inside one label; selecting
   across messages, as a browser does, has to be written.
-- **No shortcodes, markup, links, reactions or threads yet**, all of which kith's Go code
-  already does for the TUI (`internal/emoji`, `internal/richtext`, `internal/markdown`) and
-  a Go window would import rather than port.
+- **No markup or links yet**: kith's spans (`richtext.Formatted`) are not drawn. Gio's rich
+  text (`gioui.org/x/richtext`) draws them with clickable links but is not selectable, so
+  links and selection are a choice until one widget does both.
+- **Slack shortcodes** are converted here for now; kithd's Slack adapter is to do it for
+  every client, after which `shortcodes()` goes.
+- **Gio does not report the desktop's color scheme**, so the theme's "system" mode is dark here.
