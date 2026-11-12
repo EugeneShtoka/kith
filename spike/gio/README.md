@@ -34,8 +34,10 @@ the link, save, view, play, open or start its thread, and jump by mention, attac
 day, or to what a reply answers. `m` / `M` / Ctrl+M mark a room read or unread from the
 list, and `m` on a rail row marks the row read (asks first). The composer completes
 `:name` into emoji and `@name` into a mention (people as kithd offers them: Matrix,
-LinkedIn and Instagram rooms), turns a typed `:name:` into its emoji, and each room keeps
-its unsent text, reply and edit while another is open.
+LinkedIn and Instagram rooms), and turns a typed `:name:` into its emoji. A room's unsent
+text, reply and edit are kithd's draft (`drafts.go`, the desktop's `drafts.ts` in less):
+written over the version last read after a pause in typing, read at start and when the
+window gets the focus back, so every window and kith-mcp see the same draft.
 
 Search, People and Settings are drawn but do nothing; "system" theme mode is dark.
 
@@ -102,8 +104,8 @@ With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, G
 - **Gio gives a key to the first reader in the frame whose filter matches**, not to the most
   specific filter, so the window-wide key reader runs last: anything earlier (an editor's
   arrows and Backspace, the picker's Esc) keeps its own keys.
-- **Not done here:** drafts live in this window only (kithd's shared drafts need its seat
-  protocol), and a clicked notification opens the room only in the window holding the
-  profile's seat, which the spike does not take (it would take it from the desktop or the
-  terminal). Notifications themselves are `kith-notify`'s. Several links in a message:
+- **Not done here:** the thread composer's draft is not kept, and a clicked notification
+  opens the room only in the window holding the profile's seat, which the spike does not
+  take (planning/design-windows.md drops the seat). Notifications themselves are
+  `kith-notify`'s. Several links in a message:
   the link keys take the first. `[keys.completion]` is fixed at its defaults.

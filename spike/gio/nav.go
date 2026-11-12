@@ -349,6 +349,9 @@ func (u *ui) onMessage(ctx context.Context, gtx C, path string) bool {
 			u.note, u.noteAt = "Only your own text messages can be edited", time.Now()
 			return true
 		}
+		if u.editing == "" {
+			u.editSaved = u.composer.Text()
+		}
 		u.editing, u.replyTo = m.ID, ""
 		u.composer.SetText(m.Body)
 		u.toPane(paneComposer)
@@ -489,10 +492,7 @@ func (u *ui) composing(ctx context.Context, path string) bool {
 		go u.attach(ctx, u.current)
 	case "insert.cancel":
 		if u.replyTo != "" || u.editing != "" {
-			if u.editing != "" {
-				u.composer.SetText("")
-			}
-			u.replyTo, u.editing = "", ""
+			u.dropReplyOrEdit()
 			return true
 		}
 		u.toPane(paneTimeline)
@@ -505,10 +505,7 @@ func (u *ui) composing(ctx context.Context, path string) bool {
 // a key sequence typed so far.
 func (u *ui) layoutStatus(gtx C) D {
 	if u.cancel.Clicked(gtx) {
-		if u.editing != "" {
-			u.composer.SetText("")
-		}
-		u.replyTo, u.editing = "", ""
+		u.dropReplyOrEdit()
 	}
 	said, cancel := u.keymap.pending(), false
 	switch {
@@ -550,4 +547,13 @@ func (u *ui) layoutStatus(gtx C) D {
 			}),
 		)
 	})
+}
+
+// dropReplyOrEdit ends a reply or an edit in the composer; an edit puts back the words
+// it set aside.
+func (u *ui) dropReplyOrEdit() {
+	if u.editing != "" {
+		u.composer.SetText(u.editSaved)
+	}
+	u.replyTo, u.editing, u.editSaved = "", "", ""
 }

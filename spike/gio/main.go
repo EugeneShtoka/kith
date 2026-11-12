@@ -114,9 +114,13 @@ func run(w *app.Window, backend *daemon.Remote, local bool, pal palette, keys co
 		switch e := w.Event().(type) {
 		case app.ConfigEvent:
 			ui.mu.Lock()
+			gained := e.Config.Focused && !ui.focused
 			ui.focused = e.Config.Focused
 			ui.mu.Unlock()
 			ui.markRead(ctx)
+			if gained {
+				go ui.loadDrafts(ctx) // written elsewhere meanwhile
+			}
 		case app.X11ViewEvent:
 			ui.mu.Lock()
 			ui.view = e.Window

@@ -111,16 +111,8 @@ type ui struct {
 	offer     *completion                         // the composer's completion popup
 	dismissed string                              // the word whose popup Esc closed
 	mentions  map[*widget.Editor][]domain.Mention // people chosen into each composer's draft
-	drafts    map[domain.RoomID]draft             // each room's composer, kept while another is open
-}
-
-// draft is what a room's main composer held when another room opened.
-// shortcut: kept in this window only; kithd's shared drafts need its seat protocol
-// (ReplaceDraft), so other windows and a restart do not see these.
-type draft struct {
-	text             string
-	replyTo, editing domain.EventID
-	mentions         []domain.Mention
+	drafts    drafts                              // each room's draft as kithd stores it
+	editSaved string                              // the composer's words an edit set aside
 }
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
@@ -159,7 +151,7 @@ func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, keys 
 	u := &ui{
 		w: w, backend: backend, th: material.NewTheme(), local: local, pal: pal, railShown: true,
 		keymap: newKeymap(keys, actions), pane: paneComposer, selves: map[string]bool{},
-		mentions: map[*widget.Editor][]domain.Mention{}, drafts: map[domain.RoomID]draft{},
+		mentions: map[*widget.Editor][]domain.Mention{}, drafts: newDrafts(),
 		unread: map[domain.RoomID]domain.Unread{}, faces: map[face]*picture{}, saves: map[domain.EventID]*save{},
 		last: map[domain.RoomID]time.Time{}, typing: map[domain.RoomID][]string{},
 	}
@@ -239,6 +231,7 @@ func (u *ui) loadRooms(ctx context.Context, room domain.RoomID, play domain.Even
 	u.mu.Unlock()
 	u.w.Invalidate()
 	u.loadRail(ctx)
+	u.loadDrafts(ctx)
 	if room == "" && len(rooms) > 0 {
 		room = rooms[0].ID
 	}
@@ -276,14 +269,9 @@ func (u *ui) open(ctx context.Context, room domain.RoomID) {
 		u.history = append(u.history, room)
 		u.at = len(u.history) - 1
 	}
-	if u.current != "" && u.current != room {
-		u.drafts[u.current] = draft{u.composer.Text(), u.replyTo, u.editing, u.mentions[&u.composer]}
-		d := u.drafts[room]
-		delete(u.drafts, room)
-		u.composer.SetText(d.text)
-		u.replyTo, u.editing, u.mentions[&u.composer] = d.replyTo, d.editing, d.mentions
+	if u.current != room {
+		u.switchDraft(u.current, room)
 	}
-	u.current = room
 	u.focus = &u.composer
 	u.timeline = timeline{
 		room: room, loading: true, slots: map[string]int{}, threads: map[domain.EventID][]domain.Thread{},
@@ -589,6 +577,7 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 		u.layoutPicker(ctx, gtx)
 	}
 	u.keys(ctx, gtx)
+	u.saveDrafts(ctx)
 	return dims
 }
 
@@ -1244,7 +1233,10 @@ func (u *ui) submit(ctx context.Context, ed *widget.Editor, root domain.EventID)
 	delete(u.mentions, ed)
 	if ed == &u.composer {
 		draft.ReplyTo, draft.Edits = u.replyTo, u.editing
-		u.replyTo, u.editing = "", ""
+		if u.editing != "" {
+			u.composer.SetText(u.editSaved) // the words the edit set aside
+		}
+		u.replyTo, u.editing, u.editSaved = "", "", ""
 	}
 	go u.send(ctx, u.current, draft)
 }
