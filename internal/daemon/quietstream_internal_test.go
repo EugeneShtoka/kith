@@ -43,7 +43,7 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := &Daemon{
-		Backend: b, Streams: streams, MessageLog: noMessages{}, State: NewState(), Notifications: notifications,
+		Backend: b, Streams: streams, Names: NewNames(b, config.Config{}, nil), MessageLog: noMessages{}, State: NewState(), Notifications: notifications,
 		Reload:      func(context.Context) error { return nil },
 		CheckConfig: func(context.Context, config.Config) error { return nil },
 		Config:      NewConfigFile(filepath.Join(t.TempDir(), "config.toml")),
@@ -51,6 +51,7 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 		Logins:      NewLogins(ctx, func() []api.LoginLeader { return nil }),
 		Uploads:     uploads,
 		Log:         logging.Discard(),
+		Languages:   NewLanguages(filepath.Join(t.TempDir(), "languages.toml"), streams.LanguagesOwed, logging.Discard()),
 		Paired: NewDevices(filepath.Join(t.TempDir(), "devices.toml"), func() (RosterStore, error) { return nil, errors.New("no store") },
 			func() (tls.Certificate, error) { return tls.Certificate{}, errors.New("no key") }, logging.Discard()),
 	}

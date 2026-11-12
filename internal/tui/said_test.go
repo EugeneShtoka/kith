@@ -79,14 +79,15 @@ func danaSays(n int) []domain.Message {
 			sender, room = danaWhatsApp, mx+"!b:x"
 		}
 		out[i] = domain.Message{
-			ID: domain.EventID(fmt.Sprintf(mx+"$d%03d", i)), RoomID: room, Sender: sender,
+			ID: domain.EventID(fmt.Sprintf(mx+"$d%03d", i)), RoomID: room, Sender: sender, SenderKnownAs: "Dana",
 			Body: fmt.Sprintf("said %d", i), Timestamp: at(100 + i),
 		}
 	}
 	return out
 }
 
-// saidModel is Alpha open on a message of Dana's, her two accounts one identity, b behind it.
+// saidModel is Alpha open on a message of Dana's, her two accounts one identity kithd names
+// Dana, b behind it.
 func saidModel(t *testing.T, b *saidBackend, cfg config.Config) Model {
 	t.Helper()
 	cfg.Display.Identities = append(cfg.Display.Identities, config.Identity{Alias: "Dana", IDs: []string{danaMatrix, danaWhatsApp}})
@@ -95,7 +96,7 @@ func saidModel(t *testing.T, b *saidBackend, cfg config.Config) Model {
 	next, _ := m.selectRoom(domain.Room{ID: mx + "!a:x", Name: "Alpha"})
 	m = next.setMessages([]domain.Message{
 		{ID: mx + "$x", RoomID: mx + "!a:x", Sender: "matrix:@ezra:example.org", Body: "hi", Timestamp: at(1)},
-		{ID: mx + "$y", RoomID: mx + "!a:x", Sender: danaMatrix, Body: "hello", Timestamp: at(2)},
+		{ID: mx + "$y", RoomID: mx + "!a:x", Sender: danaMatrix, SenderKnownAs: "Dana", Body: "hello", Timestamp: at(2)},
 	})
 	m.timeline.selected = mx + "$y"
 	m.focus = paneTimeline
@@ -247,7 +248,7 @@ func TestFromCompletesAPersonAndOpensWhatTheySaid(t *testing.T) {
 	t.Parallel()
 
 	b := &saidBackend{msgs: danaSays(2), people: []domain.Member{
-		{UserID: "matrix:@ezra:example.org", DisplayName: "Ezra"}, {UserID: danaWhatsApp, DisplayName: "Dana Levi"},
+		{UserID: "matrix:@ezra:example.org", DisplayName: "Ezra", KnownAs: "Ezra"}, {UserID: danaWhatsApp, DisplayName: "Dana Levi", KnownAs: "Dana"},
 	}}
 	m := saidModel(t, b, config.Config{})
 	m, _ = press(t, m, keyText(":"))

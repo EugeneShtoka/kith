@@ -25,7 +25,7 @@ func (m Model) handleSelves(msg selvesMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
 		m.selves = msg.ids
 	}
-	return m.withPeerAliases(), nil
+	return m, nil
 }
 
 // isMe reports whether id is this person on any network (own accounts and bridge puppets).

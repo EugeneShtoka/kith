@@ -17,11 +17,20 @@
         { "id": "$root", "ts": 1000, "sender": "@a" },
         { "id": "$x", "ts": 2000, "sender": "@b", "senderName": "Bea", "threadRoot": "$root" },
         { "id": "$c", "ts": 3000 },
-        { "id": "$y", "ts": 4000, "sender": "@c", "threadRoot": "$root" }
+        { "id": "$y", "ts": 4000, "sender": "@c", "senderName": "cee", "senderKnownAs": "Cecilia", "threadRoot": "$root" }
       ],
       "main": ["$root", "$c"],
       "threads": [
-        { "root": "$root", "count": 2, "latest": "$y", "latestSender": "@c", "anchor": "$root", "rootLoaded": true }
+        {
+          "root": "$root",
+          "count": 2,
+          "latest": "$y",
+          "latestSender": "@c",
+          "latestSenderName": "cee",
+          "latestSenderKnownAs": "Cecilia",
+          "anchor": "$root",
+          "rootLoaded": true
+        }
       ],
       "threadOf": { "$root": ["$root", "$x", "$y"] }
     },

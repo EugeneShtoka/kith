@@ -125,16 +125,20 @@ jobs:
       - name: Coverage gate
         run: make coverage-gate COVERPROFILES=cover-*.out
 
-  # What a release ships, built only for one (release.yml calls this workflow on the
-  # tag; a PR builds for linux alone): every CROSS_TARGETS platform, compile-only (the
-  # release targets plus windows, built, not released), and the Nix flake (flake.lock
-  # and vendorHash current; see nix-check in the Makefile). vendorHash changes with
-  # every package newly imported, not only with go.mod, so a PR does not wait on it;
-  # the weekly workflow builds the flake too, so a stale hash shows within a week.
-  release-builds:
+  # Every CROSS_TARGETS platform, compile-only (the release targets plus windows,
+  # built, not released), only for a release (release.yml calls this workflow on the
+  # tag); the weekly workflow runs `make cross` too, so a darwin, freebsd or windows
+  # break shows within a week. One platform per runner: about 2½ minutes each, past
+  # 15 in one job. linux/amd64 is build-and-test's; keep the rest in step with
+  # CROSS_TARGETS in the Makefile.
+  cross-compile:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux/arm64, darwin/amd64, darwin/arm64, freebsd/amd64, freebsd/arm64, windows/amd64, windows/arm64]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -144,9 +148,24 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build every CROSS_TARGETS platform
-        run: make cross
+      - name: Build for ${{ matrix.target }}
+        env:
+          TARGET: ${{ matrix.target }}
+        run: make cross CROSS_TARGETS=$TARGET
 
+  # The Nix flake (flake.lock and vendorHash current; see nix-check in the Makefile),
+  # built only for a release (release.yml calls this workflow on the tag).
+  # vendorHash changes with every package newly imported, not only with go.mod, so a
+  # PR does not wait on it; the weekly workflow builds the flake too, so a stale hash
+  # shows within a week.
+  release-builds:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
 
       - name: Build the Nix flake
@@ -329,8 +348,9 @@ jobs:
 
   # The single required check for branch protection.
   ci-ok:
-    # always(): a skipped required check counts as passed on GitHub. release-builds is
-    # not here: it runs on tags alone, and a release needs this whole workflow to pass.
+    # always(): a skipped required check counts as passed on GitHub. cross-compile and
+    # release-builds are not here: they run on tags alone, and a release needs this
+    # whole workflow to pass.
     if: always()
     needs: [changes, build-and-test, test, coverage, repo-checks, release-config, lint, vuln, secrets, proto, docs, desktop]
     runs-on: ubuntu-latest

@@ -3,6 +3,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type ReactNode, useEffect, useState } from "react";
 
 import type { Room, SearchHit } from "../gen/backend/v1/types_pb";
+import { senderOf } from "./mentions";
 import type { Search, SearchScope, Session, View } from "./session";
 import { type Choice, choices, hasFieldTerm, matching, personChoices } from "./switcher";
 
@@ -103,7 +104,7 @@ function Hit({ hit, room }: { hit: SearchHit; room: string }) {
   return (
     <>
       <span className="detail">
-        <span dir="auto">{room}</span> · <span dir="auto">{hit.senderName || hit.sender}</span>
+        <span dir="auto">{room}</span> · <span dir="auto">{senderOf(hit)}</span>
         {hit.timestamp && <> · {when.format(timestampDate(hit.timestamp))}</>}
       </span>
       <span className="snippet" dir="auto">

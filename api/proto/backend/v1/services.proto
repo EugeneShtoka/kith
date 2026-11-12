@@ -1271,6 +1271,15 @@ message MessageCountsResponse {
   repeated int64 counts = 1;
 }
 
+message KnownAsRequest {
+  repeated string user_ids = 1;
+}
+
+message KnownAsResponse {
+  // Each person's name as kithd names them, in the request's order.
+  repeated string known_as = 1;
+}
+
 message MessagesFromResponse {
   // Oldest first.
   repeated Message messages = 1;
@@ -1295,14 +1304,10 @@ message ReplaceDraftRequest {
   StoredDraft draft = 1;
   // The draft as the writer read it; unset when none was stored.
   StoredDraft over = 2;
-  // The writing window, once it has the seat (Seat): a write from a window that no
-  // longer has it is refused. Unset for a writer that is not a window (kith-mcp), which
-  // only appends, and the compare-and-set keeps safe.
-  string client = 3;
   // rebase: the draft is a window's, written over over, the version it last read. In
-  // place of a compare-and-set, kithd puts the words another writer (kith-mcp) added
-  // since after the window's (domain.RebaseDraft) and always writes, so every client
-  // keeps them alike.
+  // place of a compare-and-set, kithd puts the words another writer (another window,
+  // kith-mcp) added since after the window's (domain.RebaseDraft) and always writes, so
+  // every client keeps them alike.
   bool rebase = 4;
   // unanswered: with rebase, the window's earlier writes it never heard back about. One
   // may be stored, and its words are the window's own, not another writer's.
@@ -1318,34 +1323,6 @@ message ReplaceDraftResponse {
 }
 
 message DraftsRequest {}
-
-message SeatRequest {
-  // A client id, made up by the client and kept for its whole run.
-  string client = 1;
-  // Take the seat from the window that has it: it is told to save and quit.
-  bool force = 2;
-  // Where this window runs, to tell a person refused the seat where to find it.
-  SeatHolder where = 3;
-}
-
-// SeatHolder is one window's whereabouts.
-message SeatHolder {
-  int64 pid = 1;
-  string tty = 2;
-  string host = 3;
-  int64 since_unix_ms = 4;
-}
-
-message SeatResponse {
-  oneof event {
-    // The seat is this client's, for as long as it keeps the stream open.
-    bool granted = 1;
-    // Another window has the seat, and no force was asked: the stream ends here.
-    SeatHolder taken = 2;
-    // Another window took the seat by force: save the drafts, then close the stream.
-    bool step_aside = 3;
-  }
-}
 
 message LoginField {
   // Key names the answer; label is what the prompt says.
@@ -1538,6 +1515,15 @@ enum Change {
   // The rail of the client's profile changed, or the profile is gone: read it again
   // (Rail).
   CHANGE_RAIL = 3;
+  // A new account's history has arrived, so kithd owes the dictionary offer: make it
+  // (DetectLanguages with owed).
+  CHANGE_LANGUAGES = 4;
+  // How kithd names people changed (an alias, a room's name, a name a network or the
+  // phone book gives): read again what shows people's names.
+  CHANGE_NAMES = 5;
+  // A stored draft changed (any writer: a window, kith-mcp): read the drafts again
+  // (Drafts) and take each changed one where nothing typed here is unsaved.
+  CHANGE_DRAFTS = 6;
 }
 
 message ChangedRequest {}
@@ -1548,12 +1534,12 @@ message ChangedResponse {
 }
 
 message FollowStreamRequest {
-  // The window listening, as SeatRequest names it.
+  // The window listening: a client id, made up by the window and kept for its whole run.
   string client = 1;
 }
 
 message PresentRequest {
-  // The window, as SeatRequest names it.
+  // The window, as FollowStreamRequest names it.
   string client = 1;
   // The room it has open; "" when none is.
   string open_room_id = 2;
@@ -1855,7 +1841,11 @@ message DetectModelResponse {
   string why = 3;
 }
 
-message DetectLanguagesRequest {}
+message DetectLanguagesRequest {
+  // Answer only what is owed: the detection a new account's arrived history calls for,
+  // once, the answer clearing it. Nothing owed is an empty answer, the cache unread.
+  bool owed = 1;
+}
 
 // LanguageCandidate is one suggested dictionary with the evidence behind it, so a
 // prompt can show its reasoning rather than assert a conclusion.
@@ -2652,15 +2642,11 @@ service BackendService {
   rpc ModelTask(ModelTaskRequest) returns (ModelTaskResponse);
   // ReplaceDraft stores one room's half-written message (or removes it when there is
   // nothing left worth keeping), only while the stored draft is still the one the
-  // writer read, so neither writer (TUI, kith-mcp) drops the other's words; or, for a
-  // window (rebase), with the other writer's words since put after its own.
+  // writer read, so no writer (a window, kith-mcp) drops another's words; or, for a
+  // window (rebase), with the other writers' words since put after its own. Changed
+  // says CHANGE_DRAFTS when the stored draft changed.
   rpc ReplaceDraft(ReplaceDraftRequest) returns (ReplaceDraftResponse);
   rpc Drafts(DraftsRequest) returns (DraftsResponse);
-  // Seat is the one window the daemon serves in a [[profile]], the one the request
-  // names (kith-mcp and one-shot commands take none). Opening the stream asks for it;
-  // keeping it open keeps it, and a window that closes or dies frees it. See
-  // SeatRequest.force and SeatResponse.
-  rpc Seat(SeatRequest) returns (stream SeatResponse);
   // Present says what a window is doing: the room it has open, and that it was used
   // just now. Follow hands a link to a window by it.
   rpc Present(PresentRequest) returns (PresentResponse);
@@ -2690,6 +2676,9 @@ service BackendService {
   rpc MessagesFrom(MessagesFromRequest) returns (MessagesFromResponse);
   // MessageCounts is how many cached messages each person wrote.
   rpc MessageCounts(MessageCountsRequest) returns (MessageCountsResponse);
+  // KnownAs is kithd's name for each person, for a client naming people it holds only
+  // the IDs of (what it sends names them already); CHANGE_NAMES says to ask again.
+  rpc KnownAs(KnownAsRequest) returns (KnownAsResponse);
   // CompleteWord finishes a partly typed word from what has been said in scope, ranked,
   // then tops the list up from the installed word-frequency list for the language the
   // prefix is in.
@@ -2710,7 +2699,8 @@ service BackendService {
   // Changed streams a frame each time something a client shows changes in the daemon:
   // a network rewriting its rooms (a chat begun, renamed, archived on another device),
   // or an account's state, or the rail of the request's profile (told only to clients
-  // running in it). The frame says which, and the client reads it again.
+  // running in it), or how people are named. The frame says which, and the client reads
+  // it again.
   rpc Changed(ChangedRequest) returns (stream ChangedResponse);
   // NotificationStream streams the notifications published to the request's profile:
   // kithd publishes each to every profile holding its room, so a listener on several

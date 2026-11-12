@@ -97,15 +97,11 @@ func ResolveMentions(body string, mentions []Mention, name func(m Mention, words
 		if start < 0 {
 			continue
 		}
-		words, at := strings.CutPrefix(mn.Name, "@")
-		if digitsOnly(words) {
-			words = ""
-		}
-		drawn := strings.TrimSpace(name(mn, words))
+		drawn := strings.TrimSpace(name(mn, mn.Words()))
 		if drawn == "" {
 			continue
 		}
-		if at && !strings.HasPrefix(drawn, "@") {
+		if strings.HasPrefix(mn.Name, "@") && !strings.HasPrefix(drawn, "@") {
 			drawn = "@" + drawn
 		}
 		end := start + len(mn.Name)
@@ -133,6 +129,16 @@ func ResolveMentions(body string, mentions []Mention, name func(m Mention, words
 	}
 	b.WriteString(body[last:])
 	return b.String(), out
+}
+
+// Words is the mention's text without "@", empty when it is only an ID's digits
+// (WhatsApp): what it says the person is called.
+func (m Mention) Words() string {
+	words := strings.TrimPrefix(m.Name, "@")
+	if digitsOnly(words) {
+		return ""
+	}
+	return words
 }
 
 // freeIndex is the first place word stands in s not already taken, -1 for none.

@@ -21,9 +21,9 @@ type Streams struct {
 	// activity (typing, receipts) has no paired cache read.
 	activity *hub[domain.Activity]
 	// changes tells clients what changed (a network's rooms, an account's state, a
-	// profile's rail) so they read it again. It has no backend channel (RoomsChanged,
-	// AccountsChanged and railChanged feed it), so Run does not pump it and Attached does
-	// not count it.
+	// profile's rail, how people are named) so they read it again. It has no backend
+	// channel (RoomsChanged, AccountsChanged, railChanged and NamesChanged feed it), so
+	// Run does not pump it and Attached does not count it.
 	changes *hub[change]
 	// configs carries the configuration after each change (Configured), like rooms.
 	configs *hub[config.Snapshot]
@@ -106,6 +106,15 @@ func (s *Streams) RoomsChanged() { s.changes.broadcast(change{what: domain.Chang
 
 // AccountsChanged tells every attached client that a network account's state changed.
 func (s *Streams) AccountsChanged() { s.changes.broadcast(change{what: domain.ChangeAccounts}) }
+
+// LanguagesOwed tells every attached client the dictionary offer is owed.
+func (s *Streams) LanguagesOwed() { s.changes.broadcast(change{what: domain.ChangeLanguages}) }
+
+// NamesChanged tells every attached client that people are named differently (Names).
+func (s *Streams) NamesChanged() { s.changes.broadcast(change{what: domain.ChangeNames}) }
+
+// DraftsChanged tells every attached client that a stored draft changed.
+func (s *Streams) DraftsChanged() { s.changes.broadcast(change{what: domain.ChangeDrafts}) }
 
 // railChanged tells the clients running in profile that its rail changed.
 func (s *Streams) railChanged(profile string) {

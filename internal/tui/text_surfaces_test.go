@@ -232,7 +232,7 @@ func textSurfaces() []textSurface {
 			return m.say("marked " + m.roomName(m.fixtureRoom(t)) + " read").renderStatus()
 		}},
 		{name: "go to person status", draw: func(t *testing.T, m Model, text string) string {
-			m.prefs.identities = map[string]resolvedIdentity{"matrix:@d:x": {alias: text}}
+			m.timeline.members = []domain.Member{{UserID: "matrix:@d:x", KnownAs: text}}
 			next, _ := m.followLink("matrix:u/d:x")
 			return next.renderStatus()
 		}},

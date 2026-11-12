@@ -250,10 +250,11 @@ type server struct {
 	// selves is every ID that is this person, asked per tool call (accounts may log in
 	// meanwhile).
 	selves []string
-	// aliases are the person's names for people ([[display.identity]]); people names
-	// everyone with them and the directory, asked per call. Assistants get whole names.
+	// aliases are the person's names for people ([[display.identity]]), which link the
+	// IDs sharing one to a card; dir is the directory, asked per call. People are named
+	// as kithd names them (KnownAs). Assistants get whole names.
 	aliases map[string]string
-	people  domain.People
+	dir     domain.Directory
 	// marked and groups are who the muted tags list and the identity groups, and muted
 	// the tags whose person verdicts hide people too; hidden is them over the verdicts
 	// and the directory, asked per call, and hiddenErr why they could not be read.

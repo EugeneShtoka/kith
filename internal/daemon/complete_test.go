@@ -18,7 +18,7 @@ import (
 )
 
 // complete gives d every part a test left out, as kithd builds it: a cache of what the
-// backend sends (cacheOf), a config file,
+// backend sends (cacheOf), names with no aliases, a config file,
 // a send-later queue and an uploads folder in a temp dir, no networks to log in, a silent notifier and log,
 // and a config check and reload that accept.
 func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
@@ -26,6 +26,9 @@ func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
 	dir := t.TempDir()
 	if d.Streams == nil {
 		d.Streams = daemon.NewStreams()
+	}
+	if d.Names == nil {
+		d.Names = daemon.NewNames(d.Backend, config.Config{}, d.Streams.NamesChanged)
 	}
 	if d.MessageLog == nil {
 		d.MessageLog = cacheOf(d.Streams)
@@ -65,6 +68,9 @@ func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
 	}
 	if d.Log == nil {
 		d.Log = logging.Discard()
+	}
+	if d.Languages == nil {
+		d.Languages = daemon.NewLanguages(filepath.Join(dir, "languages.toml"), d.Streams.LanguagesOwed, d.Log)
 	}
 	if d.Paired == nil {
 		d.Paired = daemon.NewDevices(filepath.Join(dir, "devices.toml"), meshAt(t, filepath.Join(dir, "mesh.db"), storeKey(t)), identityOf(t, newDeviceKey(t)), d.Log)

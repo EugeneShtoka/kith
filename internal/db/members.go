@@ -64,6 +64,7 @@ func (c *Cache) SaveMembers(ctx context.Context, roomID domain.RoomID, members [
 	if err != nil {
 		return err
 	}
+	c.peopleWritten()
 	for i := range members {
 		touched = append(touched, members[i].UserID)
 	}
@@ -82,6 +83,7 @@ func (c *Cache) SaveMember(ctx context.Context, roomID domain.RoomID, member dom
 		string(roomID), member.UserID, member.DisplayName); err != nil {
 		return err
 	}
+	c.peopleWritten()
 	return c.relinkPuppet(ctx, member.UserID)
 }
 
@@ -92,6 +94,7 @@ func (c *Cache) RemoveMember(ctx context.Context, roomID domain.RoomID, userID s
 		string(roomID), userID); err != nil {
 		return fmt.Errorf("db: remove member %s of %s: %w", userID, roomID, err)
 	}
+	c.peopleWritten()
 	return c.relinkPuppet(ctx, userID)
 }
 

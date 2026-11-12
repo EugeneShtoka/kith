@@ -61,9 +61,8 @@ type Notifications struct {
 	limit        notify.Limit
 	rules        []notify.Rule
 	clock        domain.Clock // how a notification writes its {date} and {time}
-	// aliases are the person's names for people, firstNames whether a home shows first
-	// names only, roomRules whether a direct chat's label is shaped too.
-	aliases    map[string]string
+	// firstNames is whether a home shows first names only, roomRules whether a direct
+	// chat's label is shaped too.
 	firstNames func(home string) bool
 	roomRules  bool
 	temps      notify.Temps
@@ -84,6 +83,9 @@ type Notifications struct {
 	selves func() []string
 	// people reads the directory; nil knows nobody.
 	people func(context.Context) (domain.Directory, error)
+	// names names people as kithd names them everywhere; nil names them by the
+	// directory alone.
+	names *Names
 	// filters has its own lock and outlives reloads: a moved room stays moved.
 	filters *filterWatch
 	// archive mirrors push_archive tag membership into each room's network archive.
@@ -101,7 +103,7 @@ type Notifications struct {
 	count   atomic.Uint64
 }
 
-// notice is one notification published to the topics (profile seat keys) of every
+// notice is one notification published to the topics (profile IDs) of every
 // profile holding its room.
 type notice struct {
 	id     string
@@ -171,6 +173,9 @@ func (n *Notifications) UseDirectory(people func(context.Context) (domain.Direct
 	}
 }
 
+// UseNames sets how people are named, as every client names them. Call before Run.
+func (n *Notifications) UseNames(names *Names) { n.names = names }
+
 // lazyDirectory reads the directory the first time a notification needs it.
 type lazyDirectory struct {
 	dir  domain.Directory
@@ -200,14 +205,18 @@ func (n *Notifications) byNumber(ctx context.Context, once *lazyDirectory, label
 	return label
 }
 
-// namer names people as the timeline does: alias, network name, directory name,
-// first names only where home's rule says so.
+// namer names people as every client does (Names), first names only where home's rule
+// says so.
 func (n *Notifications) namer(ctx context.Context, once *lazyDirectory, home string) func(user string, known ...string) string {
 	n.mu.Lock()
-	aliases, first := n.aliases, n.firstNamesLocked(home)
+	first := n.firstNamesLocked(home)
 	n.mu.Unlock()
 	return func(user string, known ...string) string {
-		name := setup.PeopleOf(aliases, n.directory(ctx, once)).Name(user, known...)
+		people := domain.People{Dir: n.directory(ctx, once)}
+		if n.names != nil {
+			people = n.names.People(ctx)
+		}
+		name := people.Name(user, known...)
 		if first {
 			name = domain.FirstName(name)
 		}
@@ -335,7 +344,6 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	n.rules, n.limit, n.clock = rules, limit, clock
 	n.profiles, n.profileRails = profiles, rails
 	display := cfg.Display
-	n.aliases = setup.Aliases(display.Identities)
 	n.firstNames = func(home string) bool { return setup.FirstNamesIn(display, home) }
 	n.roomRules = cfg.Display.ApplyRoomNameRules()
 	n.keep, n.keepRules = keep, keepRules
@@ -648,7 +656,7 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	return alert, true
 }
 
-// topics are the seat keys of the profiles holding the room, in config order, less those
+// topics are the IDs of the profiles holding the room, in config order, less those
 // hiding msg: its sender, or whom it answers, is among the people the profile excludes.
 func (n *Notifications) topics(ctx context.Context, facts domain.RoomFacts, msg domain.Message) []string {
 	n.mu.Lock()
@@ -662,7 +670,7 @@ func (n *Notifications) topics(ctx context.Context, facts domain.RoomFacts, msg 
 	var topics []string
 	for _, p := range holding {
 		if p.People.Empty() || n.isMine(msg.Sender) || !n.hidden(domain.WithProfile(ctx, p.Name), msg) {
-			topics = append(topics, seatKey(p.Name))
+			topics = append(topics, profileID(p.Name))
 		}
 	}
 	return topics

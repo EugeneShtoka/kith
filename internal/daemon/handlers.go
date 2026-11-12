@@ -29,8 +29,8 @@ type server struct {
 	// lifetime is the daemon's context, for committed work that must outlive the
 	// request; nil falls back to the request's.
 	lifetime context.Context //nolint:containedctx // the process's lifetime, deliberately held
-	// seats are the windows: who sits in each profile, and who listens for links.
-	seats *seats
+	// windows are the windows listening for links, in every profile.
+	windows *windows
 	// answers is which verification steps a client has answered.
 	answers answers
 }
@@ -220,17 +220,17 @@ func (s *server) MessageHistory(ctx context.Context, r *req[v1.MessageHistoryReq
 
 func (s *server) CachedTimeline(ctx context.Context, r *req[v1.CachedTimelineRequest]) (*resp[v1.CachedTimelineResponse], error) {
 	msgs, err := s.Backend.CachedTimeline(ctx, roomID(r.Msg.GetRoomId()))
-	return reply(&v1.CachedTimelineResponse{Messages: pc.MessagesToProto(msgs)}, err)
+	return reply(&v1.CachedTimelineResponse{Messages: pc.MessagesToProto(s.Names.messages(ctx, msgs))}, err)
 }
 
 func (s *server) Timeline(ctx context.Context, r *req[v1.TimelineRequest]) (*resp[v1.TimelineResponse], error) {
 	page, err := s.Backend.Timeline(ctx, roomID(r.Msg.GetRoomId()), r.Msg.GetFrom(), int(r.Msg.GetLimit()))
-	return reply(&v1.TimelineResponse{Page: pc.TimelinePageToProto(page)}, err)
+	return reply(&v1.TimelineResponse{Page: pc.TimelinePageToProto(s.Names.page(ctx, page))}, err)
 }
 
 func (s *server) FetchEvent(ctx context.Context, r *req[v1.FetchEventRequest]) (*resp[v1.FetchEventResponse], error) {
 	msg, err := s.Backend.FetchEvent(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()))
-	return reply(&v1.FetchEventResponse{Message: pc.MessageToProto(msg)}, err)
+	return reply(&v1.FetchEventResponse{Message: pc.MessageToProto(s.Names.message(ctx, msg))}, err)
 }
 
 func (s *server) FetchEventSource(ctx context.Context, r *req[v1.FetchEventSourceRequest]) (*resp[v1.FetchEventSourceResponse], error) {
@@ -342,13 +342,13 @@ func (s *server) profileUnread(ctx context.Context, unread []domain.Unread) ([]d
 
 func (s *server) ListThreads(ctx context.Context, r *req[v1.ListThreadsRequest]) (*resp[v1.ListThreadsResponse], error) {
 	threads, err := s.Backend.ListThreads(ctx, roomID(r.Msg.GetRoomId()))
-	return reply(&v1.ListThreadsResponse{Threads: pc.ThreadsToProto(threads)}, err)
+	return reply(&v1.ListThreadsResponse{Threads: pc.ThreadsToProto(s.Names.threads(ctx, threads))}, err)
 }
 
 func (s *server) ThreadPage(ctx context.Context, r *req[v1.ThreadPageRequest]) (*resp[v1.ThreadPageResponse], error) {
 	page, err := s.Backend.ThreadPage(ctx, roomID(r.Msg.GetRoomId()),
 		eventID(r.Msg.GetRoot()), r.Msg.GetFrom(), int(r.Msg.GetLimit()))
-	return reply(&v1.ThreadPageResponse{Page: pc.TimelinePageToProto(page)}, err)
+	return reply(&v1.ThreadPageResponse{Page: pc.TimelinePageToProto(s.Names.page(ctx, page))}, err)
 }
 
 func (s *server) MarkThreadRead(ctx context.Context, r *req[v1.MarkThreadReadRequest]) (*resp[v1.MarkThreadReadResponse], error) {
@@ -440,17 +440,17 @@ func (s *server) LoadPicture(ctx context.Context, r *req[v1.LoadPictureRequest])
 
 func (s *server) Members(ctx context.Context, r *req[v1.MembersRequest]) (*resp[v1.MembersResponse], error) {
 	members, err := s.Backend.Members(ctx, roomID(r.Msg.GetRoomId()), int(r.Msg.GetLimit()))
-	return reply(&v1.MembersResponse{Members: pc.MembersToProto(members)}, err)
+	return reply(&v1.MembersResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
 }
 
 func (s *server) RefreshMembers(ctx context.Context, r *req[v1.RefreshMembersRequest]) (*resp[v1.RefreshMembersResponse], error) {
 	members, err := s.Backend.RefreshMembers(ctx, roomID(r.Msg.GetRoomId()))
-	return reply(&v1.RefreshMembersResponse{Members: pc.MembersToProto(members)}, err)
+	return reply(&v1.RefreshMembersResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
 }
 
 func (s *server) MentionCandidates(ctx context.Context, r *req[v1.MentionCandidatesRequest]) (*resp[v1.MentionCandidatesResponse], error) {
 	members, err := s.Backend.MentionCandidates(ctx, roomID(r.Msg.GetRoomId()), int(r.Msg.GetLimit()))
-	return reply(&v1.MentionCandidatesResponse{Members: pc.MembersToProto(members)}, err)
+	return reply(&v1.MentionCandidatesResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
 }
 
 func (s *server) SearchSenders(ctx context.Context, r *req[v1.SearchSendersRequest]) (*resp[v1.SearchSendersResponse], error) {
@@ -459,12 +459,12 @@ func (s *server) SearchSenders(ctx context.Context, r *req[v1.SearchSendersReque
 		return nil, rpcErr(err)
 	}
 	senders, err := s.Backend.SearchSenders(ctx, rooms, int(r.Msg.GetLimit()))
-	return reply(&v1.SearchSendersResponse{Members: pc.MembersToProto(senders)}, err)
+	return reply(&v1.SearchSendersResponse{Members: pc.MembersToProto(s.Names.members(ctx, senders))}, err)
 }
 
 func (s *server) DirectCandidates(ctx context.Context, r *req[v1.DirectCandidatesRequest]) (*resp[v1.DirectCandidatesResponse], error) {
 	members, err := s.Backend.DirectCandidates(ctx, int(r.Msg.GetLimit()))
-	return reply(&v1.DirectCandidatesResponse{Members: pc.MembersToProto(members)}, err)
+	return reply(&v1.DirectCandidatesResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
 }
 
 func (s *server) SenderSlots(ctx context.Context, r *req[v1.SenderSlotsRequest]) (*resp[v1.SenderSlotsResponse], error) {
@@ -597,7 +597,7 @@ func (s *server) SearchMessages(ctx context.Context, r *req[v1.SearchMessagesReq
 	}
 	search.Rooms = rooms
 	hits, err := s.Backend.SearchMessages(ctx, search)
-	return reply(&v1.SearchMessagesResponse{Hits: pc.SearchHitsToProto(hits)}, err)
+	return reply(&v1.SearchMessagesResponse{Hits: pc.SearchHitsToProto(s.Names.hits(ctx, hits))}, err)
 }
 
 func (s *server) CompleteWord(ctx context.Context, r *req[v1.CompleteWordRequest]) (*resp[v1.CompleteWordResponse], error) {
@@ -613,25 +613,23 @@ func (s *server) ModelTask(ctx context.Context, r *req[v1.ModelTaskRequest]) (*r
 func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest]) (*resp[v1.ReplaceDraftResponse], error) {
 	draft, over := pc.ProtoToStoredDraft(r.Msg.GetDraft()), pc.ProtoToStoredDraft(r.Msg.GetOver())
 	var answer v1.ReplaceDraftResponse
-	var wrote error
-	err := s.seats.write(s.requestProfile(ctx), r.Msg.GetClient(), func() error {
-		if !r.Msg.GetRebase() {
-			answer.Saved, wrote = s.Backend.ReplaceDraft(ctx, draft, over)
-			return nil
-		}
-		// A window's write is rebased here, so every client keeps the assistant's words alike.
+	var err error
+	if !r.Msg.GetRebase() {
+		answer.Saved, err = s.Backend.ReplaceDraft(ctx, draft, over)
+	} else {
+		// A window's write is rebased here, so every client keeps another writer's words alike.
 		var stored domain.StoredDraft
-		stored, answer.Added, wrote = s.Backend.RebaseDraft(ctx, draft, over, pc.ProtoToStoredDrafts(r.Msg.GetUnanswered()))
-		answer.Saved = wrote == nil
+		stored, answer.Added, err = s.Backend.RebaseDraft(ctx, draft, over, pc.ProtoToStoredDrafts(r.Msg.GetUnanswered()))
+		answer.Saved = err == nil
 		if !stored.Empty() {
 			answer.Stored = pc.StoredDraftToProto(stored)
 		}
-		return nil
-	})
+	}
 	if answer.GetSaved() {
 		s.Notifications.rails.restate() // a draft is a room's state
+		s.Streams.DraftsChanged()       // every window reads it again
 	}
-	return reply(&answer, cmp.Or(err, wrote))
+	return reply(&answer, err)
 }
 
 func (s *server) Accounts(ctx context.Context, _ *req[v1.AccountsRequest]) (*resp[v1.AccountsResponse], error) {
@@ -687,39 +685,6 @@ func (s *server) InsteadLogin(ctx context.Context, r *req[v1.InsteadLoginRequest
 	return reply(&v1.InsteadLoginResponse{}, s.Logins.InsteadLogin(ctx, r.Msg.GetLogin()))
 }
 
-// Seat gives the caller the seat of the profile it runs in while the stream is open,
-// or says who has it.
-func (s *server) Seat(ctx context.Context, r *req[v1.SeatRequest], st *connect.ServerStream[v1.SeatResponse]) error {
-	profile := s.requestProfile(ctx)
-	sat, err := s.seats.take(ctx, profile, r.Msg.GetClient(), s.deviceOf(ctx), r.Msg.GetForce(), pc.ProtoToSeatHolder(r.Msg.GetWhere()))
-	if errors.Is(err, api.ErrSeatTaken) {
-		other := s.seats.holderOf(profile)
-		return sendFrame(st, &v1.SeatResponse{Event: &v1.SeatResponse_Taken{Taken: pc.SeatHolderToProto(other)}})
-	}
-	if err != nil {
-		return rpcErr(err)
-	}
-	defer s.seats.leave(sat)
-	if err := sendFrame(st, &v1.SeatResponse{Event: &v1.SeatResponse_Granted{Granted: true}}); err != nil {
-		return err
-	}
-	select {
-	case <-ctx.Done():
-		return nil
-	case <-sat.aside:
-	}
-	if err := sendFrame(st, &v1.SeatResponse{Event: &v1.SeatResponse_StepAside{StepAside: true}}); err != nil {
-		return err
-	}
-	// The window saves its drafts, then closes the stream; one that does not answer is
-	// let go once the seat is given over.
-	select {
-	case <-ctx.Done():
-	case <-sat.over:
-	}
-	return nil
-}
-
 func sendFrame[T any](st *connect.ServerStream[T], frame *T) error {
 	if err := st.Send(frame); err != nil {
 		return rpcErr(fmt.Errorf("send stream frame: %w", err))
@@ -745,7 +710,7 @@ func (s *server) RoomsWith(ctx context.Context, r *req[v1.RoomsWithRequest]) (*r
 func (s *server) MessagesAround(ctx context.Context, r *req[v1.MessagesAroundRequest]) (*resp[v1.MessagesAroundResponse], error) {
 	msgs, err := s.Backend.MessagesAround(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()),
 		int(r.Msg.GetBefore()), int(r.Msg.GetAfter()))
-	return reply(&v1.MessagesAroundResponse{Messages: pc.MessagesToProto(msgs)}, err)
+	return reply(&v1.MessagesAroundResponse{Messages: pc.MessagesToProto(s.Names.messages(ctx, msgs))}, err)
 }
 
 func (s *server) MessagesFrom(ctx context.Context, r *req[v1.MessagesFromRequest]) (*resp[v1.MessagesFromResponse], error) {
@@ -756,7 +721,7 @@ func (s *server) MessagesFrom(ctx context.Context, r *req[v1.MessagesFromRequest
 	}
 	said.Rooms = rooms
 	msgs, err := s.Backend.MessagesFrom(ctx, said)
-	return reply(&v1.MessagesFromResponse{Messages: pc.MessagesToProto(msgs)}, err)
+	return reply(&v1.MessagesFromResponse{Messages: pc.MessagesToProto(s.Names.messages(ctx, msgs))}, err)
 }
 
 func (s *server) MessageCounts(ctx context.Context, r *req[v1.MessageCountsRequest]) (*resp[v1.MessageCountsResponse], error) {
@@ -788,7 +753,7 @@ func (s *server) RoomEncryption(ctx context.Context, r *req[v1.RoomEncryptionReq
 
 // ── Sync ──
 
-// Follow hands a link to one window (seats.follow), now if it listens, else when its
+// Follow hands a link to one window (windows.follow), now if it listens, else when its
 // link stream opens. The link's chat is looked for among the cached rooms; one not
 // found (an alias, an invite) goes to the window used last. Delivered is false only
 // with no window; `kith --open` then starts one. A web link kith does not follow
@@ -811,12 +776,12 @@ func (s *server) Follow(ctx context.Context, r *req[v1.FollowRequest]) (*resp[v1
 		p, err := s.Notifications.Profile(profile)
 		return err == nil && p.Holds(s.Notifications.scope.Facts(ctx, room))
 	}
-	return connect.NewResponse(&v1.FollowResponse{Delivered: s.seats.follow(uri, s.deviceOf(ctx), linked, holds)}), nil
+	return connect.NewResponse(&v1.FollowResponse{Delivered: s.windows.follow(uri, s.deviceOf(ctx), linked, holds)}), nil
 }
 
 // Present records the room a window has open and that it was used now.
 func (s *server) Present(_ context.Context, r *req[v1.PresentRequest]) (*resp[v1.PresentResponse], error) {
-	s.seats.present(r.Msg.GetClient(), roomID(r.Msg.GetOpenRoomId()), time.Now())
+	s.windows.present(r.Msg.GetClient(), roomID(r.Msg.GetOpenRoomId()), time.Now())
 	return connect.NewResponse(&v1.PresentResponse{}), nil
 }
 
@@ -833,7 +798,7 @@ func (s *server) Changed(ctx context.Context, _ *req[v1.ChangedRequest], st *con
 // FollowStream hands this window the links Follow picks it for, each with the chats it
 // names in the window's profile.
 func (s *server) FollowStream(ctx context.Context, r *req[v1.FollowStreamRequest], st *connect.ServerStream[v1.FollowStreamResponse]) error {
-	wake, take, release := s.seats.listen(r.Msg.GetClient(), s.deviceOf(ctx), s.requestProfile(ctx))
+	wake, take, release := s.windows.listen(r.Msg.GetClient(), s.deviceOf(ctx), s.requestProfile(ctx))
 	defer release()
 	// Headers now, as serveStream sends them: the client bounds its wait for them.
 	if err := st.Send(nil); err != nil {
@@ -1015,8 +980,17 @@ func (s *server) BootstrapKeyBackup(ctx context.Context, r *req[v1.BootstrapKeyB
 	return reply(pc.KeyBackupToProto(made), err)
 }
 
-func (s *server) DetectLanguages(ctx context.Context, _ *req[v1.DetectLanguagesRequest]) (*resp[v1.DetectLanguagesResponse], error) {
+// DetectLanguages asked for what is owed answers only when it is, taking it; owed again
+// if the detection fails.
+func (s *server) DetectLanguages(ctx context.Context, r *req[v1.DetectLanguagesRequest]) (*resp[v1.DetectLanguagesResponse], error) {
+	owed := r.Msg.GetOwed()
+	if owed && !s.Languages.take() {
+		return reply(&v1.DetectLanguagesResponse{}, nil)
+	}
 	found, err := s.Backend.DetectLanguages(ctx)
+	if err != nil && owed {
+		s.Languages.restore()
+	}
 	return reply(pc.SpellSuggestionToProto(found), err)
 }
 

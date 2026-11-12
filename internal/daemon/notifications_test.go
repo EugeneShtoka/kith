@@ -932,17 +932,17 @@ func TestNotificationsWriteTheChosenClock(t *testing.T) {
 	}
 }
 
-// Notifications name people as the timeline does: alias, phone book name, first
-// names only where the space says so.
+// Notifications name people as every client does (kithd's Names): alias, phone book
+// name, first names only where the space says so.
 func TestNotificationsNamePeopleAsTheTimelineDoes(t *testing.T) {
 	t.Parallel()
 	const dana = "whatsapp:15550100001@s.whatsapp.net"
 	cfg := notifsOn("all")
 	cfg.Display.Identities = []config.Identity{{Alias: "Alice Cooper", IDs: []string{alice}}}
 	n, rec, _ := notifier(t, cfg)
-	n.UseDirectory(func(context.Context) (domain.Directory, error) {
-		return numbersNamed(map[string]string{"15550100001": "Dana Levi"}), nil
-	})
+	dir := numbersNamed(map[string]string{"15550100001": "Dana Levi"})
+	n.UseDirectory(func(context.Context) (domain.Directory, error) { return dir, nil })
+	n.UseNames(daemon.NewNames(&peopleBackend{dir: dir}, cfg, nil))
 	m := msg(chatRm, alice, "@100000000000005 can you look?")
 	m.SenderName = "alice"
 	m.Mentions = []domain.Mention{{UserID: dana, Name: "@100000000000005"}}

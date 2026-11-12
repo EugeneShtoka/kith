@@ -70,6 +70,12 @@ func (s Storage) SchedulePath() string {
 	return filepath.Join(s.StateDir, "scheduled-"+s.Instance+".toml")
 }
 
+// LanguagesPath is the language detection kithd owes: the accounts set up whose history
+// has not arrived, and whether the dictionary offer is due.
+func (s Storage) LanguagesPath() string {
+	return filepath.Join(s.StateDir, "languages-"+s.Instance+".toml")
+}
+
 // BackupKeyPath is the public key backups are encrypted to. It is not secret: it can
 // only lock a backup, and the private key that opens one is the user's, never kept
 // here. It sits beside the cache, which a restore recreates, rather than with the

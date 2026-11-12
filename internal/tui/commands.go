@@ -1149,7 +1149,7 @@ type dndMsg struct {
 }
 
 // pollTickMsg is the periodic check for changes made elsewhere (another terminal's
-// mutes, drafts written through kith-mcp).
+// mutes).
 type pollTickMsg struct{}
 
 // pollInterval is slow on purpose: nothing it catches is urgent, and it is the only

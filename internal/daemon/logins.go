@@ -35,6 +35,9 @@ type Logins struct {
 	run     context.Context //nolint:containedctx // logins outlive the RPC that began them
 	// log hears each login's steps and end (never an answer); nil is silent. Set before use.
 	log *slog.Logger
+	// added hears each account a login set up, once it succeeded; nil is silent. Set
+	// before use.
+	added func(network, account string)
 
 	mu    sync.Mutex
 	byID  map[string]*conversation
@@ -51,6 +54,10 @@ func NewLogins(run context.Context, leaders func() []api.LoginLeader) *Logins {
 // the person through a network's own screens, and without this a stuck one leaves no
 // trace. Answers are never logged, only which fields were asked.
 func (l *Logins) LogTo(log *slog.Logger) { l.log = log }
+
+// OnAdded has fn hear each account a login set up (not one logged in again), by the
+// network's login name, once the login succeeded.
+func (l *Logins) OnAdded(fn func(network, account string)) { l.added = fn }
 
 func (l *Logins) logger() *slog.Logger {
 	if l.log == nil {
@@ -144,10 +151,14 @@ func (l *Logins) BeginLogin(ctx context.Context, network, account string) (api.L
 func (l *Logins) lead(ctx context.Context, c *conversation, leader api.LoginLeader) {
 	defer l.forget(c)
 	c.log = l.logger().With("network", c.network, "login", c.id)
+	setUp := c.accountNow() == ""
 	end, err := leader.Login(ctx, c.accountNow(), talk{c})
 	last := said{err: err}
 	if err == nil {
 		last.step = api.LoginStep{Done: end.Done, Restart: end.Restart}
+		if account := c.accountNow(); setUp && account != "" && l.added != nil {
+			l.added(c.network, account) // before the client hears it: a restart may follow
+		}
 	}
 	if !c.say(ctx, last) {
 		c.log.Info("login ended with nobody waiting to hear it", "account", c.accountNow(), "err", cmpErr(err, ctx.Err()))

@@ -656,26 +656,17 @@ func (r *Remote) ModelTask(ctx context.Context, req domain.ModelRequest) (domain
 	return pc.ProtoToModelResult(resp), err
 }
 
-// ReplaceDraft names this window once it has the seat; its writes are then refused
-// if another window takes it.
 func (r *Remote) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (bool, error) {
 	request := &v1.ReplaceDraftRequest{Draft: pc.StoredDraftToProto(draft), Over: pc.StoredDraftToProto(over)}
-	if r.seated.Load() {
-		request.Client = r.client
-	}
 	resp, err := call(ctx, "replace draft", r.c.ReplaceDraft, request)
 	return resp.GetSaved(), err
 }
 
-// RebaseDraft is ReplaceDraft with kithd rebasing the write (rebase), the window named
-// as ReplaceDraft names it.
+// RebaseDraft is ReplaceDraft with kithd rebasing the write (rebase).
 func (r *Remote) RebaseDraft(ctx context.Context, draft, base domain.StoredDraft, unanswered []domain.StoredDraft) (domain.StoredDraft, string, error) {
 	request := &v1.ReplaceDraftRequest{
 		Draft: pc.StoredDraftToProto(draft), Over: pc.StoredDraftToProto(base), Rebase: true,
 		Unanswered: pc.StoredDraftsToProto(unanswered),
-	}
-	if r.seated.Load() {
-		request.Client = r.client
 	}
 	resp, err := call(ctx, "replace draft", r.c.ReplaceDraft, request)
 	if err != nil {
@@ -923,6 +914,17 @@ func (r *Remote) Selves(ctx context.Context) ([]string, error) {
 	return resp.GetIds(), nil
 }
 
+// KnownAs is kithd's name for each of ids, in order.
+func (r *Remote) KnownAs(ctx context.Context, ids []string) ([]string, error) {
+	resp, err := call(ctx, "name people", r.c.KnownAs, &v1.KnownAsRequest{UserIds: ids})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(ids))
+	copy(out, resp.GetKnownAs())
+	return out, nil
+}
+
 func (r *Remote) Directory(ctx context.Context) (domain.Directory, error) {
 	resp, err := call(ctx, "read the directory", r.c.Directory, &v1.DirectoryRequest{})
 	if err != nil {
@@ -960,6 +962,12 @@ func (r *Remote) BootstrapKeyBackup(ctx context.Context, on domain.RoomOwner, pa
 
 func (r *Remote) DetectLanguages(ctx context.Context) (domain.SpellSuggestion, error) {
 	resp, err := call(ctx, "detect languages", r.c.DetectLanguages, &v1.DetectLanguagesRequest{})
+	return pc.ProtoToSpellSuggestion(resp), err
+}
+
+// OwedLanguages is DetectLanguages only when kithd owes it (api.OwedLanguages).
+func (r *Remote) OwedLanguages(ctx context.Context) (domain.SpellSuggestion, error) {
+	resp, err := call(ctx, "detect owed languages", r.c.DetectLanguages, &v1.DetectLanguagesRequest{Owed: true})
 	return pc.ProtoToSpellSuggestion(resp), err
 }
 

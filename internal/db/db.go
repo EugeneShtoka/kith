@@ -34,6 +34,30 @@ type Cache struct {
 	arrived func(domain.RoomID, time.Time)
 	// changed hears that messages changed (see OnChanged); nil is silent.
 	changed func()
+	// people hears a write that may change how people are named (see OnPeopleChange);
+	// nil is silent.
+	people func()
+}
+
+// OnPeopleChange has fn called after each write that may change how people are named:
+// what a source says of people (SetPeople), a room's members, the rooms and their
+// names (rooms saved, added, swept, forgotten, merged or cleared). It runs on the writer's goroutine, after the commit, so it must return at once.
+// Call before use.
+func (c *Cache) OnPeopleChange(fn func()) { c.people = fn }
+
+// peopleWritten tells OnPeopleChange's fn, if any.
+func (c *Cache) peopleWritten() {
+	if c.people != nil {
+		c.people()
+	}
+}
+
+// roomsWritten is peopleWritten after a write of rooms that succeeded; it returns err.
+func (c *Cache) roomsWritten(err error) error {
+	if err == nil {
+		c.peopleWritten()
+	}
+	return err
 }
 
 // OnArrived has fn called after each write that cached messages a room did not have,
@@ -168,7 +192,7 @@ func (c *Cache) Clear(ctx context.Context) error {
 	if err == nil && c.changed != nil {
 		c.changed() // no number moved, but every one now means nothing
 	}
-	return err
+	return c.roomsWritten(err) // the rooms and their members are gone
 }
 
 // inTx runs fn in a transaction, committing on success; the messages it changed are

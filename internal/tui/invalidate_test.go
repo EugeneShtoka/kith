@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -56,22 +55,20 @@ func TestCacheInvalidatedByWidthChange(t *testing.T) {
 	}
 }
 
-// A config reload changes identities and theme, which derived answers depend on.
-func TestCacheInvalidatedByConfigReload(t *testing.T) {
+// kithd naming someone anew (an alias reloaded) sends their messages again with the new
+// name, which derived answers depend on.
+func TestCacheInvalidatedByANewName(t *testing.T) {
 	m := sized(t, withRooms(t, newModel()))
 	m.openRoom = mx + "!a:x"
-	m = m.setMessages([]domain.Message{
-		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob", Body: "hello", Timestamp: at(1)},
-	})
+	hello := domain.Message{ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@bob:x", SenderName: "Bob", SenderKnownAs: "Bob", Body: "hello", Timestamp: at(1)}
+	m = m.setMessages([]domain.Message{hello})
 	if got := strings.Join(m.layoutRows(), "\n"); !strings.Contains(got, "Bob") {
-		t.Fatalf("sender name missing before the reload:\n%s", got)
+		t.Fatalf("sender name missing before the new name:\n%s", got)
 	}
-	cfg := m.conf.base.Clone()
-	cfg.Display.Identities = []config.Identity{{Alias: "Robert", IDs: []string{"matrix:@bob:x"}}}
-	next, _ := m.applyConfig(cfg, "")
-	m = next
+	hello.SenderKnownAs = "Robert"
+	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{hello}}})
 	if got := strings.Join(m.layoutRows(), "\n"); !strings.Contains(got, "Robert") {
-		t.Errorf("the reloaded alias was not drawn:\n%s", got)
+		t.Errorf("the new name was not drawn:\n%s", got)
 	}
 }
 

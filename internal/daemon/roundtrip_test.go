@@ -209,6 +209,9 @@ func TestMessagesStreamRoundTrip(t *testing.T) {
 		Mentions:  []domain.Mention{{UserID: "matrix:@grace:example.org", Name: "Grace"}},
 	}
 	msgs <- want
+	// kithd names whom it sends (Names): with no aliases or directory, as the network does.
+	want.SenderKnownAs = "Ada"
+	want.Mentions = []domain.Mention{{UserID: "matrix:@grace:example.org", Name: "Grace", KnownAs: "Grace"}}
 
 	select {
 	case got := <-r.Messages():

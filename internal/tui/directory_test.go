@@ -26,16 +26,13 @@ func numbersNamed(names map[string]string) domain.Directory {
 	return domain.NewDirectory(rows, nil)
 }
 
-// A room, sender or member shown only as a number is named from the directory (read
-// with the room list); your own names win, and a label that is more than a number is
-// left alone.
+// A room shown only as a number is named from the directory (read with the room list);
+// your own names win, and a label that is more than a number is left alone. People are
+// kithd's to name.
 func TestANumberIsNamedFromTheDirectory(t *testing.T) {
 	t.Parallel()
-	b := bookBackend{dir: numbersNamed(map[string]string{"15550100001": "Dana", "15550100002": "Eli", "15550100003": "Fay"})}
-	display := config.Display{
-		Names:      []config.DisplayName{{Target: mx + "!e:x", Name: "Eli (mine)"}},
-		Identities: []config.Identity{{Alias: "Fay (mine)", IDs: []string{"matrix:@whatsapp_15550100003:x"}}},
-	}
+	b := bookBackend{dir: numbersNamed(map[string]string{"15550100001": "Dana", "15550100002": "Eli"})}
+	display := config.Display{Names: []config.DisplayName{{Target: mx + "!e:x", Name: "Eli (mine)"}}}
 	m := New(context.Background(), b, display, config.DeviceDisplay{})
 	m, cmd := asModel(m.Update(roomsMsg{rooms: []domain.Room{
 		{ID: mx + "!d:x", Name: "+15550100001 (WA)", IsDirect: true},
@@ -53,17 +50,5 @@ func TestANumberIsNamedFromTheDirectory(t *testing.T) {
 		if got := m.roomLabel(room); got != want {
 			t.Errorf("room %s = %q, want %q", id, got, want)
 		}
-	}
-	for _, c := range []struct{ sender, shown, want string }{
-		{"matrix:@whatsapp_il_15550100001:x", "+1 555 010 0001 (WA)", "Dana"},
-		{"matrix:@whatsapp_15550100003:x", "+15550100003 (WA)", "Fay (mine)"},
-		{"matrix:@whatsapp_15550100001:x", "Dana's old name", "Dana's old name"},
-	} {
-		if got := m.processedName(domain.Message{RoomID: mx + "!d:x", Sender: c.sender, SenderName: c.shown}); got != c.want {
-			t.Errorf("sender %s shown %q = %q, want %q", c.sender, c.shown, got, c.want)
-		}
-	}
-	if _, name := m.personOf(domain.Member{UserID: "matrix:@whatsapp_15550100001:x", DisplayName: "+15550100001"}); name != "Dana" {
-		t.Errorf("member = %q, want Dana", name)
 	}
 }

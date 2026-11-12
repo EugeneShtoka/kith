@@ -1,9 +1,9 @@
 // A room's half-written message belongs to the room and is kept in kithd, where the TUI
-// reads it too (db/drafts.go). This window writes its drafts as the seat's (one window
-// per profile: main names the seat), and kith-mcp appends the assistant's words beside
-// it. Each write is made over the version this window last read, and kithd rebases it
-// (ReplaceDraft with rebase, domain.RebaseDraft): the assistant's words added since go
-// after this window's and come back to be folded in here, so neither side loses words.
+// reads it too (db/drafts.go). Any number of windows write it, and kith-mcp appends the
+// assistant's words beside them. Each write is made over the version this window last
+// read, and kithd rebases it (ReplaceDraft with rebase, domain.RebaseDraft): words
+// another writer added since go after this window's and come back to be folded in here,
+// so no side loses words.
 import { create, fromJson, type JsonValue, toJson } from "@bufbuild/protobuf";
 
 import { BackendService } from "../gen/backend/v1/services_pb";
@@ -155,11 +155,13 @@ export class Drafts {
 
   /**
    * changed says the drafts changed (a fold, a load); failed says writes stopped being
-   * kept (err), or are kept again (undefined).
+   * kept (err), or are kept again (undefined); added says another writer's words were
+   * folded into room's draft.
    */
   constructor(
     private readonly changed: () => void,
     private readonly failed: (err: unknown) => void,
+    private readonly added: (room: string) => void,
   ) {}
 
   /** get is room's composition here. */
@@ -236,8 +238,8 @@ export class Drafts {
 
   /**
    * flush writes every room's unsaved draft now and waits until none is on the wire, a
-   * write that failed tried once more, at most most ms in all: the window is stepping
-   * aside, leaving the profile, closing, or going out of sight.
+   * write that failed tried once more, at most most ms in all: the window is leaving the
+   * profile, closing, or going out of sight.
    */
   async flush(most = 2000): Promise<void> {
     const deadline = Date.now() + most;
@@ -289,7 +291,7 @@ export class Drafts {
     this.set(room, kept.draft);
   }
 
-  /** stop writes nothing more: the window left the profile, or lost its seat. */
+  /** stop writes nothing more: the window left the profile. */
   stop(): void {
     this.closed = true;
     for (const { timer } of this.timers.values()) {
@@ -391,13 +393,15 @@ export class Drafts {
     this.retry.delete(room);
     this.based(room, stored);
     if (added !== "") {
-      // The assistant's words, stored after this window's: after its words here too, or
-      // while a message is corrected, after the draft the composer returns to.
+      // Another window's or the assistant's words, stored after this window's: after its
+      // words here too, or while a message is corrected, after the draft the composer
+      // returns to.
       const c = this.get(room);
       this.put(
         room,
         c.editing !== "" ? { ...c, editSaved: joined(c.editSaved, added) } : { ...c, body: joined(c.body, added) },
       );
+      this.added(room);
     }
     if (this.failing) {
       this.failing = false;

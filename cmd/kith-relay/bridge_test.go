@@ -196,16 +196,17 @@ func serveBridge(t *testing.T, paired ...*ecdsa.PrivateKey) *bridgeKithd {
 		func() (tls.Certificate, error) { return cert, nil }, logging.Discard())
 	b.paired.Listen([]string{b.addr})
 	d := &daemon.Daemon{
-		Backend: backend, Streams: b.messages.streams, MessageLog: b.messages, State: daemon.NewState(), Notifications: n,
+		Backend: backend, Streams: b.messages.streams, Names: daemon.NewNames(backend, config.Config{}, nil), MessageLog: b.messages, State: daemon.NewState(), Notifications: n,
 		Reload:      func(context.Context) error { return nil },
 		CheckConfig: func(context.Context, config.Config) error { return nil },
 		Config:      daemon.NewConfigFile(cfgPath),
 		Scheduler: daemon.NewScheduler(schedule.New(filepath.Join(dir, "scheduled.toml")), backend,
 			func() time.Duration { return time.Hour }, nil),
-		Logins:  daemon.NewLogins(t.Context(), func() []api.LoginLeader { return nil }),
-		Uploads: uploads,
-		Log:     logging.Discard(),
-		Paired:  b.paired,
+		Logins:    daemon.NewLogins(t.Context(), func() []api.LoginLeader { return nil }),
+		Uploads:   uploads,
+		Log:       logging.Discard(),
+		Paired:    b.paired,
+		Languages: daemon.NewLanguages(filepath.Join(dir, "languages.toml"), b.messages.streams.LanguagesOwed, logging.Discard()),
 	}
 	d.State.Synced(time.Now())
 	ctx, cancel := context.WithCancel(context.Background())

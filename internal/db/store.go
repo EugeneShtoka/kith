@@ -333,12 +333,12 @@ func (c *Cache) SaveRooms(ctx context.Context, owner domain.RoomOwner, rooms []d
 			return fmt.Errorf("db: %s is not among %q's rooms", rooms[i].ID, owner)
 		}
 	}
-	return c.inTx(ctx, func(tx *sql.Tx) error {
+	return c.roomsWritten(c.inTx(ctx, func(tx *sql.Tx) error {
 		if err := upsertRooms(ctx, tx, rooms, membershipJoin); err != nil {
 			return err
 		}
 		return sweepOwnedRooms(ctx, tx, owner, membershipJoin, rooms)
-	})
+	}))
 }
 
 // AddRooms upserts some of owner's joined rooms without sweeping, for rooms learned
@@ -349,7 +349,7 @@ func (c *Cache) AddRooms(ctx context.Context, owner domain.RoomOwner, rooms []do
 			return fmt.Errorf("db: %s is not among %q's rooms", rooms[i].ID, owner)
 		}
 	}
-	return c.inTx(ctx, func(tx *sql.Tx) error { return upsertRooms(ctx, tx, rooms, membershipJoin) })
+	return c.roomsWritten(c.inTx(ctx, func(tx *sql.Tx) error { return upsertRooms(ctx, tx, rooms, membershipJoin) }))
 }
 
 // JoinRooms marks owner's new or placeholder rooms joined, leaving already joined

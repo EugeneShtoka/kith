@@ -2,11 +2,11 @@ package domain
 
 import "strings"
 
-// A room's draft has two writers: the window holding the seat (api.Seat), which
-// rewrites it as the person types, and kith-mcp, which only appends the assistant's
-// words. A window's write is made over the version it last read; kithd rebases it onto
-// what is stored now, in one step, so every client keeps the assistant's words the same
-// way and none of them is dropped or doubled.
+// A room's draft has many writers: every window open on it, each rewriting it as the
+// person types, and kith-mcp, which only appends the assistant's words. A window's write
+// is made over the version it last read; kithd rebases it onto what is stored now, in
+// one step, so every client keeps another writer's words the same way and none of them
+// is dropped.
 
 // RebaseDraft is what to store when a window writes draft over base, the version it last
 // read (zero: none), and the store holds current; and the words another writer added
@@ -29,8 +29,8 @@ func RebaseDraft(draft, base, current StoredDraft, unanswered []StoredDraft) (St
 // descentOf is the version current was written over, as far as the window can tell: one
 // of its own unanswered writes when current is that write or that write plus the
 // assistant's words (the longest such), else base. The assistant only appends words and
-// never changes the targets, and only the seated window sets them, so a version current
-// does not extend, or whose targets differ, is not its parent.
+// never changes the targets, so a version current does not extend, or whose targets
+// differ, is not its parent: another window's, it is kept whole beside the words.
 func descentOf(current, base StoredDraft, own []StoredDraft) StoredDraft {
 	for i := range own {
 		if sameVersion(own[i], current) {

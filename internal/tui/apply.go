@@ -117,7 +117,6 @@ func (m Model) runDerived(s config.Settings, derived derivations, done string) (
 	m.keys = keymapFor(dev)
 	m.theme = theme.New(derived.palette)
 	m.prefs.identities = buildIdentities(cfg.Display.Identities)
-	m.prefs.aliases = setup.Aliases(cfg.Display.Identities)
 	m.prefs.clock = derived.clock
 	m.receipts.policy = readSettingsFrom(dev.Display)
 	// Invalidates the timeline's cached colors, name column and rows.
@@ -146,12 +145,10 @@ func (m Model) runDerived(s config.Settings, derived derivations, done string) (
 	m.notifications.on = dev.Notifications.Enabled
 
 	m = m.say(done).warnDangling(derived.dangling, wasDangling)
-	// Naming or unnaming a room renames the person it is named after.
-	m, peers := m.refreshPeers()
 	m, fields := m.refreshFieldMembers()
 	// The folder may have moved.
 	m, cards := m.loadCards(false, "")
-	return m, tea.Batch(peers, fields, cards)
+	return m, tea.Batch(fields, cards)
 }
 
 // adoptConfig runs a config changed elsewhere (another window, a hand edit, the

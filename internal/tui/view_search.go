@@ -41,7 +41,7 @@ func (m Model) searchLines(width, rows int) []string {
 func (m Model) searchRow(hit domain.SearchHit, selected bool, width int) string {
 	when := m.prefs.clock.ShortDate(hit.Timestamp) + " " + m.prefs.clock.Time(hit.Timestamp)
 	// Named as the timeline names people, the excerpt's mentions too.
-	who := m.mentionedName(hit.Sender, hit.RoomID, hit.SenderName)
+	who := m.mentionedName(hit.Sender, hit.RoomID, hit.SenderKnownAs, hit.SenderName)
 	// Cut before reordering (see nameCell), so RTL names keep their beginning.
 	prefix := cursor(selected) + when + "  " + nameCell(who, searchNameWidth)
 	if m.search.global() {
@@ -54,7 +54,7 @@ func (m Model) searchRow(hit domain.SearchHit, selected bool, width int) string 
 	row := m.theme.Row(selected, m.focus == paneTimeline).Render(clamp(prefix+"  ", width))
 	room := width - ansi.StringWidth(row)
 	snippet, _ := domain.ResolveMentions(hit.Snippet, hit.Mentions, func(mn domain.Mention, words string) string {
-		return m.mentionedName(mn.UserID, hit.RoomID, mn.Known, words)
+		return m.mentionedName(mn.UserID, hit.RoomID, mn.KnownAs, mn.Known, words)
 	})
 	excerpt := flatten(snippet)
 

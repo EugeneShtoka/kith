@@ -151,6 +151,11 @@ var commands = []command{
 		run:     noArg(Model.openSettings),
 	},
 	{
+		name:    "dictionaries",
+		summary: "read what you write for its languages, and offer the dictionaries and word counts it needs — every message is read, so it takes a moment",
+		run:     noArg(Model.findDictionaries),
+	},
+	{
 		name: "dnd", keyScope: scopeGlobal, keyAct: actToggleDND,
 		summary: "silence, for a while or for a place — opens the same chooser the key does",
 		run:     noArg(Model.toggleDND),

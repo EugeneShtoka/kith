@@ -30,7 +30,7 @@ import {
   shortcodeAt,
 } from "./emoji";
 import { call } from "./kith";
-import { mentionAt, rankMembers } from "./mentions";
+import { mentionAt, nameOf, rankMembers } from "./mentions";
 import type { Asked, VotersRead } from "./polls";
 import { queued, type Row, rows, whenOf, type When, parseSchedule } from "./schedule";
 import { firstLine, pollOf, typed, type Typed, unescaped, type UserCommand } from "./slash";
@@ -49,7 +49,7 @@ import {
 const backend = BackendService.method;
 const device = DeviceService.method;
 
-/** How often stored drafts are read again (the TUI's poll), and when the window is shown. */
+/** How often stored drafts are read again besides when kithd says they changed: a failed write is written again then. */
 export const draftPoll = 60_000;
 /** How long the homeserver keeps a typing notice, and how often it is told again (Element's). */
 export const typingTimeout = 15_000;
@@ -267,11 +267,16 @@ export class Composer {
           around.failed(err);
         }
       },
+      (room) => {
+        if (room === this.open) {
+          this.say("another window or the assistant added to this draft"); // nothing appears silently
+        }
+      },
     );
     this.poll = setInterval(() => void this.drafts.load(), draftPoll);
   }
 
-  /** start reads the stored drafts and who this person is: the window has its seat. */
+  /** start reads the stored drafts and who this person is: the window runs in its profile. */
   start(): void {
     void this.drafts.load();
     call(backend.selves, {}).then(
@@ -661,7 +666,7 @@ export class Composer {
   /** mention puts m's name in place of text[start, end) and the mention with the draft. */
   mention(room: string, m: Member, start: number, end: number): number {
     const c = this.drafts.get(room);
-    const name = m.displayName || m.userId;
+    const name = nameOf(m);
     const body = `${c.body.slice(0, start)}${name} ${c.body.slice(end)}`;
     this.drafts.set(room, {
       ...c,
@@ -692,6 +697,12 @@ export class Composer {
         this.around.failed(err);
       },
     );
+  }
+
+  /** forgetMembers drops the people read for mentions, read again when next wanted: kithd names them differently. */
+  forgetMembers(): void {
+    this.members.clear();
+    this.around.changed();
   }
 
   reply(m: Message): void {

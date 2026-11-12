@@ -28,6 +28,7 @@ func (c *Cache) SetPeople(ctx context.Context, source string, names []domain.Per
 	if err != nil {
 		return err
 	}
+	c.peopleWritten()
 	// A link can join someone to a hidden person.
 	return c.rebuildHidden(ctx)
 }

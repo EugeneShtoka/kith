@@ -3,8 +3,9 @@ name: Weekly vulnerability scan
 # A new advisory against mautrix, x/net or the standard library lands whether or not
 # anyone pushes; this finds it within a week instead of at the next commit. The same
 # run checks the tools the workflows pin by hand, which Dependabot never bumps, and
-# builds the Nix flake, which CI builds only for a release: a vendorHash gone stale
-# shows here, not first at the release.
+# builds the Nix flake and every CROSS_TARGETS platform, which CI builds only for a
+# release: a vendorHash gone stale or a darwin, freebsd or windows break shows here,
+# not first at the release.
 on:
   schedule:
     - cron: "17 6 * * 1" # Mondays, 06:17 UTC
@@ -84,3 +85,19 @@ jobs:
         env:
           REQUIRE_NIX: "1"
         run: make nix-check
+
+  # Every CROSS_TARGETS platform, compile-only, in one job: nobody waits on it here.
+  cross:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Build every CROSS_TARGETS platform
+        run: make cross

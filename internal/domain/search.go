@@ -9,6 +9,8 @@ type SearchHit struct {
 	// Sender is the MXID; SenderName is the cached display name, if any.
 	Sender     string
 	SenderName string
+	// SenderKnownAs is the sender's name as kithd names them (People.Name).
+	SenderKnownAs string
 	// Word is the tracked entry this hit matched; empty for other searches.
 	Word      string
 	Timestamp time.Time

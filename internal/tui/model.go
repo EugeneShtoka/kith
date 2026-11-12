@@ -137,7 +137,6 @@ func startupPrefs(display config.Display, device config.DeviceDisplay, unreadLoc
 		display:     display,
 		device:      device,
 		identities:  buildIdentities(display.Identities),
-		aliases:     setup.Aliases(display.Identities),
 		openInsert:  device.OpenInInsertMode(),
 		unreadLocal: unreadLocal,
 		// A working default even with no config.
@@ -272,9 +271,6 @@ type prefsState struct {
 	device  config.DeviceDisplay
 	// identities maps each merged MXID to its resolved person, from display.Identities.
 	identities map[string]resolvedIdentity
-	// aliases maps every ID and number an identity names to its alias (setup.Aliases), so an alias
-	// reaches linked accounts.
-	aliases map[string]string
 	// roomAliases maps a room ID to its configured display name.
 	roomAliases map[domain.RoomID]string
 	// threadAliases maps a thread root to its given name (a thread's default label is a snippet).
@@ -403,11 +399,11 @@ type Model struct {
 	selves []string
 	// dir is the daemon's directory (directory.go): who people are, on every network.
 	dir directoryState
+	// named is kithd's name for each person asked for by ID (named.go).
+	named map[string]string
 	// markedShownIn is the room showing the people muted tags hide (markedpeople.go),
 	// "" for none; leaving it clears it.
 	markedShownIn domain.RoomID
-	// peers is who each room you named is named after (peeralias.go).
-	peers peerState
 	// cards is the phonebook's cards as last read, and members read for show_field (cards.go).
 	cards cardsState
 	// roomAccounts is each network account the room list has had rooms from (see
@@ -766,7 +762,7 @@ func (m Model) Init() tea.Cmd {
 		m.loadUnreadCmd(), m.loadInvitesCmd(), m.loadRailCmd(),
 		m.startSyncCmd(), m.listenCmd(), m.listenVerifyCmd(), m.listenUnreadCmd(),
 		m.listenReactionsCmd(), m.listenInvitesCmd(), m.listenActivityCmd(),
-		m.listenFollowCmd(), m.listenSeatCmd(), m.listenChangesCmd(), m.listenConfigCmd(),
+		m.listenFollowCmd(), m.listenChangesCmd(), m.listenConfigCmd(),
 		m.loadDraftsCmd(),
 		m.loadVerdictsCmd(), m.loadAccountStatesCmd(),
 		m.readDNDCmd(), m.pollTickCmd(), m.refusalsCmd(),
@@ -1004,8 +1000,6 @@ func (m Model) handleAssistMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDraftsLoaded(msg))
 	case playerControlMsg:
 		return answered(m.handlePlayerControl(msg))
-	case seatLostMsg:
-		return answered(m.handleSeatLost())
 	case draftFileMsg:
 		return answered(m.handleDraftFile(msg))
 	case quitNowMsg:
@@ -1136,10 +1130,9 @@ func (m Model) handleRoomsThenOffer(msg roomsMsg) (Model, tea.Cmd) {
 	}
 	next, offer := next.maybeOfferDictionaries()
 	next, selves := next.selvesAfterRooms(msg.rooms)
-	next, peers := next.refreshPeers()
 	next, fields := next.refreshFieldMembers()
 	next, cards := next.loadCards(false, "")
-	return next, tea.Batch(cmd, offer, selves, next.directoryCmd(), peers, fields, cards)
+	return next, tea.Batch(cmd, offer, selves, next.directoryCmd(), fields, cards)
 }
 
 // handleSideMsg handles account-wide loads, verification, and reactions and images on shown
@@ -1150,6 +1143,8 @@ func (m Model) handleSideMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDirectCandidates(msg))
 	case directoryMsg:
 		return answered(m.handleDirectory(msg))
+	case namedMsg:
+		return answered(m.handleNamed(msg))
 	case selvesMsg:
 		return answered(m.handleSelves(msg))
 	case personCardMsg:
@@ -1162,8 +1157,6 @@ func (m Model) handleSideMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleRoomPerson(msg))
 	case pollVotersMsg:
 		return answered(m.handlePollVoters(msg))
-	case peerMembersMsg:
-		return answered(m.handlePeerMembers(msg))
 	case cardsMsg:
 		return answered(m.handleCards(msg))
 	case fieldMembersMsg:

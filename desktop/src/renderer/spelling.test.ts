@@ -1,6 +1,7 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BackendService, Change } from "../gen/backend/v1/services_pb";
 import { DeviceSettingsSchema } from "../gen/device/v1/device_pb";
 import { assistDebounce } from "./complete";
 import { Session } from "./session";
@@ -8,6 +9,8 @@ import { spellDebounce } from "./spell";
 import { Kithd, room, settled } from "./testing/kithd";
 
 // The composer's spelling and completion, through the window's session, as kithd answers.
+
+const backend = BackendService.method;
 
 let kithd: Kithd;
 let session: Session;
@@ -198,8 +201,9 @@ describe("completion in the composer", () => {
   });
 });
 
-describe("the one-time offers", () => {
+describe("the offers", () => {
   it("offers the dictionaries, word counts and model in turn, installing what is ticked and turning down the rest", async () => {
+    kithd.languagesOwed = true;
     kithd.languages = {
       candidates: [
         { tag: "he_IL", script: "Hebrew", share: 0.4, bytes: 1n << 20n },
@@ -230,5 +234,54 @@ describe("the one-time offers", () => {
     expect(offer()).toBeUndefined();
     expect(kithd.settings !== "fail" && kithd.settings.modelDeclined).toBe(false);
     expect(session.snapshot().offers.note).toBe("installed he_IL — spellcheck is ready");
+    expect(kithd.detections).toEqual(["owed"]);
+    expect(kithd.languagesOwed).toBe(false);
+  });
+
+  const hebrew = { candidates: [{ tag: "he_IL", script: "Hebrew", share: 0.4, bytes: 1n << 20n }] };
+  const offer = () => session.snapshot().offers.prompt;
+
+  it("reads no messages at start when nothing is owed, and offers only the model", async () => {
+    kithd.languages = hebrew;
+    kithd.modelOffer = { offer: true, candidate: { tag: "m1", name: "Model", recall: 0.5, bytes: 1n << 28n } };
+    await opened();
+    await settled();
+    expect(kithd.detections).toEqual(["owed"]);
+    expect(offer()?.kind).toBe("model");
+  });
+
+  it("makes the offer once when kithd says it is owed, and the model offer not again", async () => {
+    kithd.languages = hebrew;
+    kithd.modelOffer = { offer: true, candidate: { tag: "m1", name: "Model", recall: 0.5, bytes: 1n << 28n } };
+    await opened();
+    await settled();
+    session.dismissOffer(); // the model, at start
+    kithd.languagesOwed = true;
+    kithd.send(backend.changed, "Home", { change: Change.LANGUAGES });
+    await settled();
+    expect(offer()?.kind).toBe("dictionaries");
+    session.acceptOffer([]);
+    await settled();
+    expect(offer()).toBeUndefined();
+    kithd.send(backend.changed, "Home", { change: Change.LANGUAGES });
+    await settled();
+    expect(offer()).toBeUndefined();
+    expect(kithd.detections).toEqual(["owed", "owed", "owed"]);
+  });
+
+  it("reads what you write when Settings asks, and says when there is nothing to offer", async () => {
+    kithd.languages = hebrew;
+    await opened();
+    await settled();
+    session.findDictionaries();
+    await settled();
+    expect(kithd.detections).toEqual(["owed", "now"]);
+    expect(offer()?.rows.map((r) => r.tag)).toEqual(["he_IL"]);
+    session.acceptOffer([]); // turned down for good
+    await settled();
+    session.findDictionaries();
+    await settled();
+    expect(offer()).toBeUndefined();
+    expect(session.snapshot().offers.note).toBe("no dictionaries or word counts to offer for what you write");
   });
 });

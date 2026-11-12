@@ -192,9 +192,9 @@ who runs the daemon can connect. Check:
   removed and replaced when the next daemon starts. If there's a socket file but no
   process (`pgrep -a kithd`), start the unit.
 
-### "kith is open in another window: pid 4312 on /dev/pts/3 (laptop), since 10:41"
+### "another window or the assistant added to this draft"
 
-The daemon serves one window per [profile](configuration.md#profiles), and another one runs in yours (`kith --profile <name>` runs in another). Go to that window (the pid and terminal say where), or run `kith --force` to take over: the other window saves its drafts and closes. A window that crashed or was closed never blocks you: the daemon frees its seat the moment it goes.
+Any number of windows run in one [profile](configuration.md#profiles), in terminals and the desktop, on any device. When another window (or kith-mcp) wrote the room's draft while you typed in this one, both are kept: your words, then theirs after a blank line. Remove what you don't want before sending. A draft another window changed while you were not typing here simply shows its words.
 
 ### Configuration errors
 
@@ -372,7 +372,8 @@ That's normal on a new device: history from before it joined was encrypted for y
 other devices.
 
 kith asks for each missing key by itself, once per key: from the key backup when this
-device holds the backup key (a verified device shares it after verification), otherwise
+device holds the backup key (a verified device shares it after verification, and
+`--restore-keys` keeps it), otherwise
 from your other devices and the sender's. If the key comes within ten minutes, the
 message replaces its placeholder where it is shown. If it never comes, the next time
 the message is shown asks again. To give this device every key at once:

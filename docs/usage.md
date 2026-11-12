@@ -640,6 +640,12 @@ network shows only as a number ("+972 54-…", "+359… (WA)") is named, and a n
 give someone with `a` reaches their linked accounts too. Your own names above come
 first.
 
+kithd names each person once, by these rules, and every client shows its name: the
+terminal, the desktop window and an assistant over kith-mcp alike, in the sender
+column, a quote, a thread's row, the member list, search results and every @mention.
+A name you give, a contact saved, a chat renamed or a bridge linking two accounts
+reaches every open window at once.
+
 A bridge also knows the whole address book of each account logged into it. List the
 bridges' provisioning URLs in `bridge_contacts` and kith reads those contact lists too,
 with your Matrix login, every few hours: a contact saved on any of your bridged

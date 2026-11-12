@@ -328,28 +328,17 @@ type Search interface {
 // Drafts is the composer's drafts, kept per room.
 type Drafts interface {
 	// ReplaceDraft stores a room's draft (empty removes it) only while the stored
-	// draft still equals over (zero: none stored); saved is false otherwise. The TUI
-	// and kith-mcp both write drafts, so every write is conditional.
+	// draft still equals over (zero: none stored); saved is false otherwise. Windows
+	// and kith-mcp all write drafts, so every write is conditional.
 	ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (saved bool, err error)
 	// RebaseDraft stores a window's draft, written over base (the version it last
-	// read; zero: none), in one step: words another writer (kith-mcp) added since go
-	// after the window's (domain.RebaseDraft). unanswered are the window's writes it
-	// never heard back about. stored is the draft now stored (empty: none), added the
-	// words of another writer's it took in.
+	// read; zero: none), in one step: words another writer (another window, kith-mcp)
+	// added since go after the window's (domain.RebaseDraft). unanswered are the
+	// window's writes it never heard back about. stored is the draft now stored (empty:
+	// none), added the words of another writer's it took in.
 	RebaseDraft(ctx context.Context, draft, base domain.StoredDraft, unanswered []domain.StoredDraft) (stored domain.StoredDraft, added string, err error)
 	// Drafts returns every stored draft, newest first.
 	Drafts(ctx context.Context) ([]domain.StoredDraft, error)
-}
-
-// Seat makes one window at a time the daemon's, since two windows typing into one
-// draft cannot be merged. kith-mcp and one-shot commands need no seat.
-type Seat interface {
-	// TakeSeat makes this window the one the daemon serves. Without force it fails
-	// with ErrSeatTaken naming the holder; with force the holder is told to save and
-	// quit, and this returns once it has (or after a few seconds).
-	TakeSeat(ctx context.Context, force bool, where domain.SeatHolder) error
-	// SeatLost is told when another window takes the seat: save the drafts and quit.
-	SeatLost() <-chan struct{}
 }
 
 // Threads is threads, whose read position (MSC3771) is separate from the room's.
@@ -423,6 +412,14 @@ type Assist interface {
 	LearnWord(ctx context.Context, word string, forever bool) error
 	// AllowRareWord permanently silences the rare-word hint for word.
 	AllowRareWord(ctx context.Context, word string) error
+}
+
+// OwedLanguages is the dictionary offer the daemon owes once a new account's history
+// has arrived.
+type OwedLanguages interface {
+	// OwedLanguages is DetectLanguages when the offer is owed, and clears it; nothing
+	// owed is an empty suggestion, the cache unread.
+	OwedLanguages(ctx context.Context) (domain.SpellSuggestion, error)
 }
 
 // Maintenance is operations on the stores only the process owning them can

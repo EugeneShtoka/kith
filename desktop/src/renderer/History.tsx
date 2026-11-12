@@ -3,6 +3,7 @@
 import { deleted, type HistoryView, noVersions, versions } from "./history";
 import { bound, type Keys } from "./keymap";
 import { attachmentURL } from "./media";
+import { senderOf } from "./mentions";
 import type { Session } from "./session";
 
 const clock = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" });
@@ -11,7 +12,7 @@ export function HistoryDialog({ history, keys, session }: { history: HistoryView
   const m = history.message;
   const listed = history.revisions && versions(m, history.revisions);
   const gone = deleted(m, history.deletion);
-  const who = m.senderName || m.sender;
+  const who = senderOf(m);
   const title =
     listed === undefined && history.error === ""
       ? `${who} · reading the history`

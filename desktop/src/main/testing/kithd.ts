@@ -235,9 +235,10 @@ export class FakeKithd {
           }
           return { message: found };
         },
-        replaceDraft: (req, ctx) => {
-          this.received.push({ method: "ReplaceDraft", profile: ctx.requestHeader.get("Kith-Profile"), message: req });
-          return { saved: true, stored: req.draft };
+        replaceDraft: (req) => ({ saved: true, stored: req.draft }),
+        present: (req, ctx) => {
+          this.received.push({ method: "Present", profile: ctx.requestHeader.get("Kith-Profile"), message: req });
+          return {};
         },
         startUpload: (req) => {
           const id = `up${String(this.uploads.size + this.posted.length + 1)}`;

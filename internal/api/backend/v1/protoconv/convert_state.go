@@ -139,14 +139,14 @@ func ProtoToUnreads(pb []*v1.Unread) []domain.Unread {
 // MembersToProto converts a room's members.
 func MembersToProto(ms []domain.Member) []*v1.Member {
 	return mapSlice(ms, func(m domain.Member) *v1.Member {
-		return &v1.Member{UserId: m.UserID, DisplayName: m.DisplayName}
+		return &v1.Member{UserId: m.UserID, DisplayName: m.DisplayName, KnownAs: m.KnownAs}
 	})
 }
 
 // ProtoToMembers converts a room's members back.
 func ProtoToMembers(pb []*v1.Member) []domain.Member {
 	return mapSlice(pb, func(m *v1.Member) domain.Member {
-		return domain.Member{UserID: m.GetUserId(), DisplayName: m.GetDisplayName()}
+		return domain.Member{UserID: m.GetUserId(), DisplayName: m.GetDisplayName(), KnownAs: m.GetKnownAs()}
 	})
 }
 
@@ -467,31 +467,13 @@ func ProtoToScheduledList(pb []*v1.ScheduledMessage) []domain.ScheduledMessage {
 	return out
 }
 
-// SeatHolderToProto is a window's whereabouts on the wire.
-func SeatHolderToProto(h domain.SeatHolder) *v1.SeatHolder {
-	out := &v1.SeatHolder{Pid: int64(h.PID), Tty: h.TTY, Host: h.Host}
-	if !h.Since.IsZero() {
-		out.SinceUnixMs = h.Since.UnixMilli()
-	}
-	return out
-}
-
-// ProtoToSeatHolder is a window's whereabouts read back; nil is none.
-func ProtoToSeatHolder(h *v1.SeatHolder) domain.SeatHolder {
-	if h == nil {
-		return domain.SeatHolder{}
-	}
-	out := domain.SeatHolder{PID: int(h.GetPid()), TTY: h.GetTty(), Host: h.GetHost()}
-	if ms := h.GetSinceUnixMs(); ms != 0 {
-		out.Since = time.UnixMilli(ms)
-	}
-	return out
-}
-
 var changes = map[domain.Change]v1.Change{
-	domain.ChangeRooms:    v1.Change_CHANGE_ROOMS,
-	domain.ChangeAccounts: v1.Change_CHANGE_ACCOUNTS,
-	domain.ChangeRail:     v1.Change_CHANGE_RAIL,
+	domain.ChangeRooms:     v1.Change_CHANGE_ROOMS,
+	domain.ChangeAccounts:  v1.Change_CHANGE_ACCOUNTS,
+	domain.ChangeRail:      v1.Change_CHANGE_RAIL,
+	domain.ChangeLanguages: v1.Change_CHANGE_LANGUAGES,
+	domain.ChangeNames:     v1.Change_CHANGE_NAMES,
+	domain.ChangeDrafts:    v1.Change_CHANGE_DRAFTS,
 }
 
 // ChangeToProto converts what changed in the daemon.

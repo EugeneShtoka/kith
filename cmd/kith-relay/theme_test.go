@@ -94,16 +94,17 @@ func serveThemeKithd(t *testing.T, cfgPath string, paired ...*ecdsa.PrivateKey) 
 	}
 	log := &messageLog{streams: daemon.NewStreams()}
 	d := &daemon.Daemon{
-		Backend: backend, Streams: log.streams, MessageLog: log, State: daemon.NewState(), Notifications: n,
+		Backend: backend, Streams: log.streams, Names: daemon.NewNames(backend, config.Config{}, nil), MessageLog: log, State: daemon.NewState(), Notifications: n,
 		Reload:      func(context.Context) error { return nil },
 		CheckConfig: func(_ context.Context, cfg config.Config) error { return setup.Validate(cfg) },
 		Config:      daemon.NewConfigFile(cfgPath),
 		Scheduler: daemon.NewScheduler(schedule.New(filepath.Join(dir, "scheduled.toml")), backend,
 			func() time.Duration { return time.Hour }, nil),
-		Logins:  daemon.NewLogins(t.Context(), func() []api.LoginLeader { return nil }),
-		Uploads: uploads,
-		Log:     logging.Discard(),
-		Paired:  devices,
+		Logins:    daemon.NewLogins(t.Context(), func() []api.LoginLeader { return nil }),
+		Uploads:   uploads,
+		Log:       logging.Discard(),
+		Paired:    devices,
+		Languages: daemon.NewLanguages(filepath.Join(dir, "languages.toml"), log.streams.LanguagesOwed, logging.Discard()),
 	}
 	d.State.Synced(time.Now())
 	ctx, cancel := context.WithCancel(context.Background())

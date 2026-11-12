@@ -34,6 +34,8 @@ type Daemon struct {
 	Backend api.Backend
 	// Streams fans each backend channel out to every subscriber.
 	Streams *Streams
+	// Names names the people in everything sent.
+	Names *Names
 	// MessageLog is the cache's changes, which a client's message stream reads.
 	MessageLog MessageLog
 	// State is readiness: whether a sync has landed, and what broke if not.
@@ -50,6 +52,8 @@ type Daemon struct {
 	Scheduler *Scheduler
 	// Logins logs network accounts in.
 	Logins api.Logins
+	// Languages is the dictionary offer owed once a new account's history arrived.
+	Languages *Languages
 	// Uploads keeps the files clients send until each is posted.
 	Uploads *Uploads
 	// Paired is the devices paired with kithd and the TLS listeners serving them the
@@ -64,11 +68,11 @@ type Daemon struct {
 func (d *Daemon) missing() []string {
 	var out []string
 	for name, absent := range map[string]bool{
-		"Backend": d.Backend == nil, "Streams": d.Streams == nil, "MessageLog": d.MessageLog == nil, "State": d.State == nil,
+		"Backend": d.Backend == nil, "Streams": d.Streams == nil, "Names": d.Names == nil, "MessageLog": d.MessageLog == nil, "State": d.State == nil,
 		"Notifications": d.Notifications == nil, "Reload": d.Reload == nil,
 		"CheckConfig": d.CheckConfig == nil, "Config": d.Config == nil,
 		"Scheduler": d.Scheduler == nil, "Logins": d.Logins == nil, "Uploads": d.Uploads == nil, "Log": d.Log == nil,
-		"Paired": d.Paired == nil,
+		"Paired": d.Paired == nil, "Languages": d.Languages == nil,
 	} {
 		if absent {
 			out = append(out, name)
@@ -90,7 +94,7 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 	// can end them while the caller's ctx is still live.
 	ctx, cancelHandlers := context.WithCancel(ctx)
 	defer cancelHandlers()
-	served := &server{Daemon: d, lifetime: ctx, seats: newSeats()}
+	served := &server{Daemon: d, lifetime: ctx, windows: newWindows()}
 	mux := served.handlers()
 	defer served.startRails(ctx)() // ended with the handlers, before the stores close
 	defer served.startMesh(ctx)()

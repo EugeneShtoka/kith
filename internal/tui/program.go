@@ -103,9 +103,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if err != nil {
 		return fmt.Errorf("tui: run program: %w", err)
 	}
-	if ok && last.link.seatLost {
-		return ErrOpenedElsewhere
-	}
 	return nil
 }
 

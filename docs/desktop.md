@@ -456,11 +456,13 @@ with the same settings (`[spell]` and `[complete]` in `device.toml`,
   are several, taken with **alt+1**…**alt+5**. While the model answers, the composer
   shows ⌂ and its name.
 
-The first time the window has rooms, it offers the dictionaries, word counts and
-completion model your own writing calls for, as the terminal client does. Ticked rows
-are installed (each checked against its pinned hash); an unticked row is written to
+The first time the window has rooms, it offers the completion model, and the
+dictionaries and word counts your own writing calls for once a newly set up account's
+history has arrived, as the terminal client does; **Settings → Spelling → Find
+dictionaries for what I write** reads your messages for them now. Ticked rows are
+installed (each checked against its pinned hash); an unticked row is written to
 `declined`, `frequencies_declined` or `[complete.model] declined` and not offered
-again; **Not now** asks again next time the window starts.
+again; **Not now** puts the offer away until it is made again.
 
 ## Sending later and commands
 

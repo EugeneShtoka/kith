@@ -41,27 +41,18 @@ type Remote struct {
 	// configs is the configuration after each change; not in api.Backend.
 	configs  *stream[config.Snapshot]
 	attached *stream[bool]
-	// client names this Remote to the daemon. seated is set once it takes the seat and
-	// names its draft writes from then on (kith-mcp takes none and writes unnamed). lost
-	// closes when another window takes the seat.
-	client   string
-	seated   atomic.Bool
-	lost     chan struct{}
-	loseOnce sync.Once
+	// client names this Remote's window to the daemon, for links (FollowStream, Present).
+	client string
 	// profile is the [[profile]] named on every request; "" is the first.
 	profile atomic.Pointer[string]
 	// over closes once, when the streams stop for good.
 	over     chan struct{}
 	overOnce sync.Once
 
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	// leaveSeat ends the seat stream; Stop calls it. where is this window's whereabouts,
-	// asked for again when a switch moves the seat.
-	leaveSeat context.CancelFunc
-	where     domain.SeatHolder
-	started   bool
-	stopped   bool
+	mu      sync.Mutex
+	cancel  context.CancelFunc
+	started bool
+	stopped bool
 	// attempt is the streams' current attachment, opened in one profile; begun closes
 	// when the next begins. switchedOff is the last one a profile switch ended.
 	attempt     streamAttempt
@@ -69,10 +60,7 @@ type Remote struct {
 	switchedOff chan struct{}
 }
 
-var (
-	_ api.Backend = (*Remote)(nil)
-	_ api.Seat    = (*Remote)(nil)
-)
+var _ api.Backend = (*Remote)(nil)
 
 // NewRemote returns a Remote for the daemon socket at path. It performs no I/O.
 func NewRemote(path string) *Remote {
@@ -95,7 +83,6 @@ func newRemoteAt(hc *http.Client, base string) *Remote {
 		configs:       newStream[config.Snapshot](),
 		attached:      newStream[bool](),
 		client:        rand.Text(),
-		lost:          make(chan struct{}),
 		over:          make(chan struct{}),
 	}
 	r.c = backendv1connect.NewBackendServiceClient(hc, base,

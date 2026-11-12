@@ -63,20 +63,21 @@ func (m Model) personName(mxid string) string {
 	return isolate(m.knownName(mxid, m.openRoom))
 }
 
-// knownName is someone's label in room, as the sender column writes it: identity
-// alias, open room's member list, newest loaded message, then localpart or number.
+// knownName is someone's label in room, as the sender column writes it: kithd's name for
+// them from the open room's member list, the newest loaded message or as kithd was asked
+// (named.go), then localpart or number.
 func (m Model) knownName(mxid string, room domain.RoomID) string {
 	for i := range m.timeline.members {
-		if m.timeline.members[i].UserID == mxid && m.timeline.members[i].DisplayName != "" {
-			return m.processedName(domain.Message{RoomID: room, Sender: mxid, SenderName: m.timeline.members[i].DisplayName})
+		if member := m.timeline.members[i]; member.UserID == mxid && (member.DisplayName != "" || member.KnownAs != "") {
+			return m.processedName(domain.Message{RoomID: room, Sender: mxid, SenderName: member.DisplayName, SenderKnownAs: member.KnownAs})
 		}
 	}
 	for i := range slices.Backward(m.timeline.messages) {
-		if m.timeline.messages[i].Sender == mxid && m.timeline.messages[i].SenderName != "" {
-			return m.processedName(m.timeline.messages[i])
+		if msg := m.timeline.messages[i]; msg.Sender == mxid && (msg.SenderName != "" || msg.SenderKnownAs != "") {
+			return m.processedName(msg)
 		}
 	}
-	return m.processedName(domain.Message{RoomID: room, Sender: mxid})
+	return m.processedName(domain.Message{RoomID: room, Sender: mxid, SenderKnownAs: m.named[mxid]})
 }
 
 // The refresh must be well under the homeserver timeout or the indicator blinks off

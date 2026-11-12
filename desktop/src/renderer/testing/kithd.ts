@@ -1,8 +1,8 @@
 // A fake of what the window reaches through window.kith, for the window's tests: kithd
-// (its seats, rooms, unread and invitations, per profile), the relay (profiles and the
-// one remembered) and main between them (the profile every request carries, decided as
-// the gate decides it; streams opened again after kithd restarts, a forced seat asked
-// for again unforced). Answers and events arrive later, as over IPC.
+// (its rooms, unread and invitations, per profile), the relay (profiles and the one
+// remembered) and main between them (the profile every request carries, decided as the
+// gate decides it; streams opened again after kithd restarts). Answers and events arrive
+// later, as over IPC.
 import {
   clone,
   create,
@@ -27,7 +27,6 @@ import {
   RailRowKind,
   type ScheduledMessage,
   ScheduledMessageSchema,
-  type SeatRequest,
   type StoredDraft,
   StoredDraftSchema,
 } from "../../gen/backend/v1/services_pb";
@@ -98,8 +97,6 @@ export class Kithd {
   profiles: string[] = ["Home"];
   remembered = "";
   readonly data = new Map<string, Profile>();
-  /** Who sits in each profile: one of the window's Seat streams, or another window. */
-  readonly seats = new Map<string, Sub | "other">();
   readonly subs: Sub[] = [];
   /** Every call, as "Method:profile". */
   readonly calls: string[] = [];
@@ -275,6 +272,12 @@ export class Kithd {
   model: MessageInitShape<typeof backend.modelTask.output> = { refusal: "no model is installed" };
   /** What DetectLanguages and DetectModel offer, and what was installed, as "Method tag". */
   languages: MessageInitShape<typeof backend.detectLanguages.output> = {};
+  /**
+   * Whether kithd owes the dictionary offer, which DetectLanguages asked only for what is
+   * owed answers once; and each DetectLanguages asked, as "owed" or "now".
+   */
+  languagesOwed = false;
+  readonly detections: string[] = [];
   modelOffer: MessageInitShape<typeof backend.detectModel.output> = {};
   readonly installed: string[] = [];
   /**
@@ -517,38 +520,18 @@ export class Kithd {
     }
   }
 
-  /** otherTakesOver is another window taking profile's seat by force: whoever sits steps aside. */
-  otherTakesOver(profile: string): void {
-    const holder = this.seats.get(profile);
-    if (holder !== undefined && holder !== "other") {
-      // As kithd: the window is told to step aside, and keeps the seat (its last draft
-      // writes taken) until it closes the seat's stream.
-      this.taking.add(profile);
-      this.send1(holder, backend.seat, { event: { case: "stepAside", value: true } });
-      return;
-    }
-    this.seats.set(profile, "other");
-  }
-
-  /** Profiles whose seat goes to another window once the one holding it lets go. */
-  private readonly taking = new Set<string>();
-
-  /** down is kithd stopping: every stream ends, and the seats are forgotten. */
+  /** down is kithd stopping: every stream ends. */
   down(): void {
     this.up = false;
-    this.seats.clear();
     for (const s of this.open()) {
       this.post(s, { kind: "detached", error: "kithd went away" });
     }
   }
 
-  /** again is kithd back: main opens every stream again, a forced seat unforced. */
+  /** again is kithd back: main opens every stream again. */
   again(): void {
     this.up = true;
     for (const s of this.open()) {
-      if (s.method === backend.seat.name) {
-        (s.request as SeatRequest).force = false;
-      }
       this.attach(s);
     }
   }
@@ -663,14 +646,6 @@ export class Kithd {
 
   private close(sub: Sub): void {
     sub.closed = true;
-    if (this.seats.get(sub.profile) === sub) {
-      // Closing the seat's stream frees it, or hands it to the window taking it over.
-      if (this.taking.delete(sub.profile)) {
-        this.seats.set(sub.profile, "other");
-      } else {
-        this.seats.delete(sub.profile);
-      }
-    }
   }
 
   private answer(name: string, profile: string, request: MessageShape<DescMethod["input"]>) {
@@ -874,9 +849,6 @@ export class Kithd {
         return reply(backend.drafts, { drafts: [...this.drafts.values()] });
       case "ReplaceDraft": {
         const r = request as MessageShape<typeof backend.replaceDraft.input>;
-        if (this.seats.get(profile) === "other") {
-          throw new Error("daemon: kith is open in another window"); // seats.write
-        }
         const hook = this.beforeDraft;
         this.beforeDraft = undefined;
         hook?.();
@@ -1153,8 +1125,15 @@ export class Kithd {
       }
       case "ModelTask":
         return reply(backend.modelTask, this.model);
-      case "DetectLanguages":
+      case "DetectLanguages": {
+        const owed = (request as MessageShape<typeof backend.detectLanguages.input>).owed;
+        this.detections.push(owed ? "owed" : "now");
+        if (owed && !this.languagesOwed) {
+          return reply(backend.detectLanguages, {});
+        }
+        this.languagesOwed &&= !owed;
         return reply(backend.detectLanguages, this.languages);
+      }
       case "DetectModel":
         return reply(backend.detectModel, this.modelOffer);
       case "InstallDictionary":
@@ -1331,7 +1310,7 @@ export class Kithd {
     };
   }
 
-  /** attach opens sub at kithd: attached, then what a Seat answers. */
+  /** attach opens sub at kithd: attached, then a stream's first frames. */
   private attach(sub: Sub): void {
     this.post(sub, { kind: "attached" });
     if (sub.method === backend.startPairing.name) {
@@ -1347,21 +1326,6 @@ export class Kithd {
     if (sub.method === backend.messages.name) {
       // The first frame says where the stream starts (main resumes it from the last).
       this.send1(sub, backend.messages, { epoch: "e", change: 0n });
-    }
-    if (sub.method !== backend.seat.name) {
-      return;
-    }
-    const ask = sub.request as SeatRequest;
-    const holder = this.seats.get(sub.profile);
-    if (holder === undefined || ask.force) {
-      if (holder !== undefined && holder !== "other") {
-        this.send1(holder, backend.seat, { event: { case: "stepAside", value: true } });
-      }
-      this.seats.set(sub.profile, sub);
-      this.send1(sub, backend.seat, { event: { case: "granted", value: true } });
-    } else {
-      this.send1(sub, backend.seat, { event: { case: "taken", value: { pid: 4312n, host: "elsewhere" } } });
-      this.post(sub, { kind: "detached", error: "the stream ended" });
     }
   }
 

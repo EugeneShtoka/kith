@@ -94,7 +94,7 @@ export function SettingsPage({ page, view, session }: { page: Page; view: View; 
       {s === undefined ? (
         !page.note && <p className="banner">Reading the settings…</p>
       ) : (
-        <Fields s={s} busy={page.busy} session={session} />
+        <Fields s={s} busy={page.busy} offerNote={view.offers.note} session={session} />
       )}
       <BridgeSettings config={view.config} session={session} />
       <Theme theme={view.theme} change={view.themeChange} session={session} />
@@ -102,7 +102,7 @@ export function SettingsPage({ page, view, session }: { page: Page; view: View; 
       <Accounts login={view.login} rail={view.rail} session={session} />
       <ChatImportSection chatImport={view.chatImport} rooms={view.joined} session={session} />
       <Devices devices={view.devices} bridge={view.bridge} session={session} />
-      {view.seat.state === "seated" && <VerifyStart accounts={view.accounts} verify={view.verify} session={session} />}
+      {view.profile !== "" && <VerifyStart accounts={view.accounts} verify={view.verify} session={session} />}
     </section>
   );
 }
@@ -272,7 +272,17 @@ function WindowScale() {
   );
 }
 
-function Fields({ s, busy, session }: { s: DeviceSettings; busy: boolean; session: Session }) {
+function Fields({
+  s,
+  busy,
+  offerNote,
+  session,
+}: {
+  s: DeviceSettings;
+  busy: boolean;
+  offerNote: string;
+  session: Session;
+}) {
   const set = <K extends Key>(key: K, value: DeviceSettings[K]) => {
     void session.changeSetting(key, value);
   };
@@ -400,6 +410,19 @@ function Fields({ s, busy, session }: { s: DeviceSettings; busy: boolean; sessio
       {word("autocorrect", autocorrects)}
       {flag("checkBeforeSend")}
       {flag("rareBeforeSend")}
+      <p className="setting">
+        <button
+          type="button"
+          onClick={() => {
+            session.findDictionaries();
+          }}
+        >
+          Find dictionaries for what I write
+        </button>{" "}
+        <span className="detail">
+          {offerNote || "reads every message kept here for its languages, and offers what they need"}
+        </span>
+      </p>
       <h3>Completion</h3>
       {flag("complete")}
       {flag("completeGhost")}

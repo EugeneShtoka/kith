@@ -61,7 +61,7 @@ func Listen(ctx context.Context, path string) (net.Listener, error) {
 
 // answerTimeout bounds the wait for the first response header, so a wedged daemon
 // cannot hang a TUI call forever. Bodies are unbounded, but every server stream sends
-// headers as it opens (serveStream, Seat).
+// headers as it opens (serveStream, FollowStream).
 const answerTimeout = 2 * time.Minute
 
 // Dial returns an HTTP client that reaches the daemon socket at path, whatever host a

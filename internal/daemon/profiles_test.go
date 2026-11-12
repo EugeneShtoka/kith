@@ -859,64 +859,22 @@ func profiledServe(t *testing.T, b api.Backend, profiles ...config.Profile) *har
 	return serve(t, b, func(d *daemon.Daemon) { d.Notifications = n })
 }
 
-// windowIn is a window of h running in profile that asked for its seat.
-func windowIn(t *testing.T, h *harness, profile string, pid int) (*daemon.Remote, error) {
-	t.Helper()
-	r := h.client()
-	r.UseProfile(profile)
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { r.Stop(); cancel() })
-	err := r.TakeSeat(ctx, false, domain.SeatHolder{PID: pid, TTY: "/dev/pts/7"})
-	return r, err
-}
-
-// Each profile has a window of its own: a second in the same profile, in any case, is
-// refused and told where the first is; one in another profile sits beside it.
-func TestEachProfileHasItsOwnWindow(t *testing.T) {
-	t.Parallel()
-	h := profiledServe(t, &draftStore{}, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}})
-	if _, err := windowIn(t, h, "work", 101); err != nil {
-		t.Fatalf("work's window: %v", err)
-	}
-	if _, err := windowIn(t, h, "home", 202); err != nil {
-		t.Errorf("home's window beside work's: %v", err)
-	}
-	_, err := windowIn(t, h, "WORK", 303)
-	if !errors.Is(err, api.ErrSeatTaken) || !strings.Contains(err.Error(), "pid 101") {
-		t.Errorf("a second window in work = %v, want refused naming pid 101", err)
-	}
-}
-
-// A window switching to a profile another window runs in is refused and stays where it
-// was; to a free one, it takes that seat and leaves its old one free. Its draft writes
-// count in the profile it runs in.
-func TestASwitchMovesTheSeatOrIsRefused(t *testing.T) {
+// Any number of windows run in one profile, in any case of its name, and a window
+// switches into a profile others run in; each one's draft writes are taken. The seat
+// refused the second window in a profile, and the switch into one.
+func TestAnyNumberOfWindowsRunInOneProfile(t *testing.T) {
 	t.Parallel()
 	drafts := &draftStore{rooms: []domain.Room{{ID: mx + "!a:x"}}}
-	h := profiledServe(t, drafts, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}}, config.Profile{Name: "spare", Include: []string{"*"}})
-	a, err := windowIn(t, h, "work", 101)
-	if err != nil {
-		t.Fatal(err)
+	h := profiledServe(t, drafts, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}})
+	a, b, c := window(t, h, "work"), window(t, h, "WORK"), window(t, h, "home")
+	if err := c.SwitchProfile("work"); err != nil {
+		t.Fatalf("switching into work, where two windows run: %v", err)
 	}
-	if _, err := windowIn(t, h, "home", 202); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.SwitchProfile("home"); !errors.Is(err, api.ErrSeatTaken) {
-		t.Fatalf("switching into home's window = %v, want ErrSeatTaken", err)
-	}
-	if _, err := windowIn(t, h, "work", 303); !errors.Is(err, api.ErrSeatTaken) {
-		t.Errorf("after the refused switch, work = %v; want it still a's", err)
-	}
-	if err := a.SwitchProfile("spare"); err != nil {
-		t.Fatalf("switching to spare: %v", err)
-	}
-	waitFor(t, func() bool { _, err := windowIn(t, h, "work", 303); return err == nil })
-	if _, err := windowIn(t, h, "spare", 404); !errors.Is(err, api.ErrSeatTaken) {
-		t.Errorf("a second window in spare = %v, want refused: a runs there", err)
-	}
-	draft := domain.StoredDraft{RoomID: mx + "!a:x", Body: "half"}
-	if saved, err := a.ReplaceDraft(t.Context(), draft, domain.StoredDraft{}); err != nil || !saved {
-		t.Errorf("a's draft in spare = %v, %v; want saved", saved, err)
+	for name, w := range map[string]*daemon.Remote{"a": a, "b": b, "c": c} {
+		draft := domain.StoredDraft{RoomID: mx + "!a:x", Body: "from " + name}
+		if saved, err := w.ReplaceDraft(t.Context(), draft, domain.StoredDraft{}); err != nil || !saved {
+			t.Errorf("%s's draft in work = %v, %v; want saved", name, saved, err)
+		}
 	}
 }
 

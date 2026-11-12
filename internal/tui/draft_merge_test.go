@@ -289,8 +289,8 @@ func TestADraftDeletedElsewhereStaysDeleted(t *testing.T) {
 	}
 }
 
-// Deleted elsewhere while this client typed more: no other window sent those words
-// (there is one, api.Seat), so all this client holds is written back.
+// Deleted elsewhere while this client typed more: all this client holds is written
+// back, whether the deletion was a room left or another window sending (both kept).
 func TestTypingOverADraftDeletedElsewhereKeepsItAll(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)

@@ -288,8 +288,6 @@ const (
 	BackendServiceReplaceDraftProcedure = "/backend.v1.BackendService/ReplaceDraft"
 	// BackendServiceDraftsProcedure is the fully-qualified name of the BackendService's Drafts RPC.
 	BackendServiceDraftsProcedure = "/backend.v1.BackendService/Drafts"
-	// BackendServiceSeatProcedure is the fully-qualified name of the BackendService's Seat RPC.
-	BackendServiceSeatProcedure = "/backend.v1.BackendService/Seat"
 	// BackendServicePresentProcedure is the fully-qualified name of the BackendService's Present RPC.
 	BackendServicePresentProcedure = "/backend.v1.BackendService/Present"
 	// BackendServiceLoginNetworksProcedure is the fully-qualified name of the BackendService's
@@ -322,6 +320,8 @@ const (
 	// BackendServiceMessageCountsProcedure is the fully-qualified name of the BackendService's
 	// MessageCounts RPC.
 	BackendServiceMessageCountsProcedure = "/backend.v1.BackendService/MessageCounts"
+	// BackendServiceKnownAsProcedure is the fully-qualified name of the BackendService's KnownAs RPC.
+	BackendServiceKnownAsProcedure = "/backend.v1.BackendService/KnownAs"
 	// BackendServiceCompleteWordProcedure is the fully-qualified name of the BackendService's
 	// CompleteWord RPC.
 	BackendServiceCompleteWordProcedure = "/backend.v1.BackendService/CompleteWord"
@@ -732,15 +732,11 @@ type BackendServiceClient interface {
 	ModelTask(context.Context, *connect.Request[v1.ModelTaskRequest]) (*connect.Response[v1.ModelTaskResponse], error)
 	// ReplaceDraft stores one room's half-written message (or removes it when there is
 	// nothing left worth keeping), only while the stored draft is still the one the
-	// writer read, so neither writer (TUI, kith-mcp) drops the other's words; or, for a
-	// window (rebase), with the other writer's words since put after its own.
+	// writer read, so no writer (a window, kith-mcp) drops another's words; or, for a
+	// window (rebase), with the other writers' words since put after its own. Changed
+	// says CHANGE_DRAFTS when the stored draft changed.
 	ReplaceDraft(context.Context, *connect.Request[v1.ReplaceDraftRequest]) (*connect.Response[v1.ReplaceDraftResponse], error)
 	Drafts(context.Context, *connect.Request[v1.DraftsRequest]) (*connect.Response[v1.DraftsResponse], error)
-	// Seat is the one window the daemon serves in a [[profile]], the one the request
-	// names (kith-mcp and one-shot commands take none). Opening the stream asks for it;
-	// keeping it open keeps it, and a window that closes or dies frees it. See
-	// SeatRequest.force and SeatResponse.
-	Seat(context.Context, *connect.Request[v1.SeatRequest]) (*connect.ServerStreamForClient[v1.SeatResponse], error)
 	// Present says what a window is doing: the room it has open, and that it was used
 	// just now. Follow hands a link to a window by it.
 	Present(context.Context, *connect.Request[v1.PresentRequest]) (*connect.Response[v1.PresentResponse], error)
@@ -770,6 +766,9 @@ type BackendServiceClient interface {
 	MessagesFrom(context.Context, *connect.Request[v1.MessagesFromRequest]) (*connect.Response[v1.MessagesFromResponse], error)
 	// MessageCounts is how many cached messages each person wrote.
 	MessageCounts(context.Context, *connect.Request[v1.MessageCountsRequest]) (*connect.Response[v1.MessageCountsResponse], error)
+	// KnownAs is kithd's name for each person, for a client naming people it holds only
+	// the IDs of (what it sends names them already); CHANGE_NAMES says to ask again.
+	KnownAs(context.Context, *connect.Request[v1.KnownAsRequest]) (*connect.Response[v1.KnownAsResponse], error)
 	// CompleteWord finishes a partly typed word from what has been said in scope, ranked,
 	// then tops the list up from the installed word-frequency list for the language the
 	// prefix is in.
@@ -790,7 +789,8 @@ type BackendServiceClient interface {
 	// Changed streams a frame each time something a client shows changes in the daemon:
 	// a network rewriting its rooms (a chat begun, renamed, archived on another device),
 	// or an account's state, or the rail of the request's profile (told only to clients
-	// running in it). The frame says which, and the client reads it again.
+	// running in it), or how people are named. The frame says which, and the client reads
+	// it again.
 	Changed(context.Context, *connect.Request[v1.ChangedRequest]) (*connect.ServerStreamForClient[v1.ChangedResponse], error)
 	// NotificationStream streams the notifications published to the request's profile:
 	// kithd publishes each to every profile holding its room, so a listener on several
@@ -1511,12 +1511,6 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("Drafts")),
 			connect.WithClientOptions(opts...),
 		),
-		seat: connect.NewClient[v1.SeatRequest, v1.SeatResponse](
-			httpClient,
-			baseURL+BackendServiceSeatProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("Seat")),
-			connect.WithClientOptions(opts...),
-		),
 		present: connect.NewClient[v1.PresentRequest, v1.PresentResponse](
 			httpClient,
 			baseURL+BackendServicePresentProcedure,
@@ -1581,6 +1575,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+BackendServiceMessageCountsProcedure,
 			connect.WithSchema(backendServiceMethods.ByName("MessageCounts")),
+			connect.WithClientOptions(opts...),
+		),
+		knownAs: connect.NewClient[v1.KnownAsRequest, v1.KnownAsResponse](
+			httpClient,
+			baseURL+BackendServiceKnownAsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("KnownAs")),
 			connect.WithClientOptions(opts...),
 		),
 		completeWord: connect.NewClient[v1.CompleteWordRequest, v1.CompleteWordResponse](
@@ -2023,7 +2023,6 @@ type backendServiceClient struct {
 	modelTask             *connect.Client[v1.ModelTaskRequest, v1.ModelTaskResponse]
 	replaceDraft          *connect.Client[v1.ReplaceDraftRequest, v1.ReplaceDraftResponse]
 	drafts                *connect.Client[v1.DraftsRequest, v1.DraftsResponse]
-	seat                  *connect.Client[v1.SeatRequest, v1.SeatResponse]
 	present               *connect.Client[v1.PresentRequest, v1.PresentResponse]
 	loginNetworks         *connect.Client[v1.LoginNetworksRequest, v1.LoginNetworksResponse]
 	beginLogin            *connect.Client[v1.BeginLoginRequest, v1.BeginLoginResponse]
@@ -2035,6 +2034,7 @@ type backendServiceClient struct {
 	messagesAround        *connect.Client[v1.MessagesAroundRequest, v1.MessagesAroundResponse]
 	messagesFrom          *connect.Client[v1.MessagesFromRequest, v1.MessagesFromResponse]
 	messageCounts         *connect.Client[v1.MessageCountsRequest, v1.MessageCountsResponse]
+	knownAs               *connect.Client[v1.KnownAsRequest, v1.KnownAsResponse]
 	completeWord          *connect.Client[v1.CompleteWordRequest, v1.CompleteWordResponse]
 	messages              *connect.Client[v1.MessagesRequest, v1.MessagesResponse]
 	activityStream        *connect.Client[v1.ActivityStreamRequest, v1.ActivityStreamResponse]
@@ -2559,11 +2559,6 @@ func (c *backendServiceClient) Drafts(ctx context.Context, req *connect.Request[
 	return c.drafts.CallUnary(ctx, req)
 }
 
-// Seat calls backend.v1.BackendService.Seat.
-func (c *backendServiceClient) Seat(ctx context.Context, req *connect.Request[v1.SeatRequest]) (*connect.ServerStreamForClient[v1.SeatResponse], error) {
-	return c.seat.CallServerStream(ctx, req)
-}
-
 // Present calls backend.v1.BackendService.Present.
 func (c *backendServiceClient) Present(ctx context.Context, req *connect.Request[v1.PresentRequest]) (*connect.Response[v1.PresentResponse], error) {
 	return c.present.CallUnary(ctx, req)
@@ -2617,6 +2612,11 @@ func (c *backendServiceClient) MessagesFrom(ctx context.Context, req *connect.Re
 // MessageCounts calls backend.v1.BackendService.MessageCounts.
 func (c *backendServiceClient) MessageCounts(ctx context.Context, req *connect.Request[v1.MessageCountsRequest]) (*connect.Response[v1.MessageCountsResponse], error) {
 	return c.messageCounts.CallUnary(ctx, req)
+}
+
+// KnownAs calls backend.v1.BackendService.KnownAs.
+func (c *backendServiceClient) KnownAs(ctx context.Context, req *connect.Request[v1.KnownAsRequest]) (*connect.Response[v1.KnownAsResponse], error) {
+	return c.knownAs.CallUnary(ctx, req)
 }
 
 // CompleteWord calls backend.v1.BackendService.CompleteWord.
@@ -3153,15 +3153,11 @@ type BackendServiceHandler interface {
 	ModelTask(context.Context, *connect.Request[v1.ModelTaskRequest]) (*connect.Response[v1.ModelTaskResponse], error)
 	// ReplaceDraft stores one room's half-written message (or removes it when there is
 	// nothing left worth keeping), only while the stored draft is still the one the
-	// writer read, so neither writer (TUI, kith-mcp) drops the other's words; or, for a
-	// window (rebase), with the other writer's words since put after its own.
+	// writer read, so no writer (a window, kith-mcp) drops another's words; or, for a
+	// window (rebase), with the other writers' words since put after its own. Changed
+	// says CHANGE_DRAFTS when the stored draft changed.
 	ReplaceDraft(context.Context, *connect.Request[v1.ReplaceDraftRequest]) (*connect.Response[v1.ReplaceDraftResponse], error)
 	Drafts(context.Context, *connect.Request[v1.DraftsRequest]) (*connect.Response[v1.DraftsResponse], error)
-	// Seat is the one window the daemon serves in a [[profile]], the one the request
-	// names (kith-mcp and one-shot commands take none). Opening the stream asks for it;
-	// keeping it open keeps it, and a window that closes or dies frees it. See
-	// SeatRequest.force and SeatResponse.
-	Seat(context.Context, *connect.Request[v1.SeatRequest], *connect.ServerStream[v1.SeatResponse]) error
 	// Present says what a window is doing: the room it has open, and that it was used
 	// just now. Follow hands a link to a window by it.
 	Present(context.Context, *connect.Request[v1.PresentRequest]) (*connect.Response[v1.PresentResponse], error)
@@ -3191,6 +3187,9 @@ type BackendServiceHandler interface {
 	MessagesFrom(context.Context, *connect.Request[v1.MessagesFromRequest]) (*connect.Response[v1.MessagesFromResponse], error)
 	// MessageCounts is how many cached messages each person wrote.
 	MessageCounts(context.Context, *connect.Request[v1.MessageCountsRequest]) (*connect.Response[v1.MessageCountsResponse], error)
+	// KnownAs is kithd's name for each person, for a client naming people it holds only
+	// the IDs of (what it sends names them already); CHANGE_NAMES says to ask again.
+	KnownAs(context.Context, *connect.Request[v1.KnownAsRequest]) (*connect.Response[v1.KnownAsResponse], error)
 	// CompleteWord finishes a partly typed word from what has been said in scope, ranked,
 	// then tops the list up from the installed word-frequency list for the language the
 	// prefix is in.
@@ -3211,7 +3210,8 @@ type BackendServiceHandler interface {
 	// Changed streams a frame each time something a client shows changes in the daemon:
 	// a network rewriting its rooms (a chat begun, renamed, archived on another device),
 	// or an account's state, or the rail of the request's profile (told only to clients
-	// running in it). The frame says which, and the client reads it again.
+	// running in it), or how people are named. The frame says which, and the client reads
+	// it again.
 	Changed(context.Context, *connect.Request[v1.ChangedRequest], *connect.ServerStream[v1.ChangedResponse]) error
 	// NotificationStream streams the notifications published to the request's profile:
 	// kithd publishes each to every profile holding its room, so a listener on several
@@ -3928,12 +3928,6 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("Drafts")),
 		connect.WithHandlerOptions(opts...),
 	)
-	backendServiceSeatHandler := connect.NewServerStreamHandler(
-		BackendServiceSeatProcedure,
-		svc.Seat,
-		connect.WithSchema(backendServiceMethods.ByName("Seat")),
-		connect.WithHandlerOptions(opts...),
-	)
 	backendServicePresentHandler := connect.NewUnaryHandler(
 		BackendServicePresentProcedure,
 		svc.Present,
@@ -3998,6 +3992,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		BackendServiceMessageCountsProcedure,
 		svc.MessageCounts,
 		connect.WithSchema(backendServiceMethods.ByName("MessageCounts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceKnownAsHandler := connect.NewUnaryHandler(
+		BackendServiceKnownAsProcedure,
+		svc.KnownAs,
+		connect.WithSchema(backendServiceMethods.ByName("KnownAs")),
 		connect.WithHandlerOptions(opts...),
 	)
 	backendServiceCompleteWordHandler := connect.NewUnaryHandler(
@@ -4530,8 +4530,6 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceReplaceDraftHandler.ServeHTTP(w, r)
 		case BackendServiceDraftsProcedure:
 			backendServiceDraftsHandler.ServeHTTP(w, r)
-		case BackendServiceSeatProcedure:
-			backendServiceSeatHandler.ServeHTTP(w, r)
 		case BackendServicePresentProcedure:
 			backendServicePresentHandler.ServeHTTP(w, r)
 		case BackendServiceLoginNetworksProcedure:
@@ -4554,6 +4552,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceMessagesFromHandler.ServeHTTP(w, r)
 		case BackendServiceMessageCountsProcedure:
 			backendServiceMessageCountsHandler.ServeHTTP(w, r)
+		case BackendServiceKnownAsProcedure:
+			backendServiceKnownAsHandler.ServeHTTP(w, r)
 		case BackendServiceCompleteWordProcedure:
 			backendServiceCompleteWordHandler.ServeHTTP(w, r)
 		case BackendServiceMessagesProcedure:
@@ -5049,10 +5049,6 @@ func (UnimplementedBackendServiceHandler) Drafts(context.Context, *connect.Reque
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Drafts is not implemented"))
 }
 
-func (UnimplementedBackendServiceHandler) Seat(context.Context, *connect.Request[v1.SeatRequest], *connect.ServerStream[v1.SeatResponse]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Seat is not implemented"))
-}
-
 func (UnimplementedBackendServiceHandler) Present(context.Context, *connect.Request[v1.PresentRequest]) (*connect.Response[v1.PresentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Present is not implemented"))
 }
@@ -5095,6 +5091,10 @@ func (UnimplementedBackendServiceHandler) MessagesFrom(context.Context, *connect
 
 func (UnimplementedBackendServiceHandler) MessageCounts(context.Context, *connect.Request[v1.MessageCountsRequest]) (*connect.Response[v1.MessageCountsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MessageCounts is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) KnownAs(context.Context, *connect.Request[v1.KnownAsRequest]) (*connect.Response[v1.KnownAsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.KnownAs is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) CompleteWord(context.Context, *connect.Request[v1.CompleteWordRequest]) (*connect.Response[v1.CompleteWordResponse], error) {
