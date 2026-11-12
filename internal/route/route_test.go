@@ -70,8 +70,9 @@ func TestACallAboutARoomReachesItsNetwork(t *testing.T) {
 		if tc.to == "whatsapp" {
 			reached, other = other, reached
 		}
-		if len(reached) != len(calls) {
-			t.Errorf("%s reached %d of %d calls about %s", tc.to, len(reached), len(calls), tc.room)
+		// MentionCandidates asks whether the room's members are known first.
+		if want := len(calls) + 1; len(reached) != want {
+			t.Errorf("%s reached %d of %d calls about %s", tc.to, len(reached), want, tc.room)
 		}
 		for _, room := range reached {
 			if room != tc.room {
