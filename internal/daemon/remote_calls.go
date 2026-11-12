@@ -963,6 +963,12 @@ func (r *Remote) DetectLanguages(ctx context.Context) (domain.SpellSuggestion, e
 	return pc.ProtoToSpellSuggestion(resp), err
 }
 
+// OwedLanguages is DetectLanguages only when kithd owes it (api.OwedLanguages).
+func (r *Remote) OwedLanguages(ctx context.Context) (domain.SpellSuggestion, error) {
+	resp, err := call(ctx, "detect owed languages", r.c.DetectLanguages, &v1.DetectLanguagesRequest{Owed: true})
+	return pc.ProtoToSpellSuggestion(resp), err
+}
+
 func (r *Remote) InstallDictionary(ctx context.Context, tag string) error {
 	_, err := call(ctx, "install dictionary", r.c.InstallDictionary, &v1.InstallDictionaryRequest{Tag: tag})
 	return err

@@ -1015,8 +1015,17 @@ func (s *server) BootstrapKeyBackup(ctx context.Context, r *req[v1.BootstrapKeyB
 	return reply(pc.KeyBackupToProto(made), err)
 }
 
-func (s *server) DetectLanguages(ctx context.Context, _ *req[v1.DetectLanguagesRequest]) (*resp[v1.DetectLanguagesResponse], error) {
+// DetectLanguages asked for what is owed answers only when it is, taking it; owed again
+// if the detection fails.
+func (s *server) DetectLanguages(ctx context.Context, r *req[v1.DetectLanguagesRequest]) (*resp[v1.DetectLanguagesResponse], error) {
+	owed := r.Msg.GetOwed()
+	if owed && !s.Languages.take() {
+		return reply(&v1.DetectLanguagesResponse{}, nil)
+	}
 	found, err := s.Backend.DetectLanguages(ctx)
+	if err != nil && owed {
+		s.Languages.restore()
+	}
 	return reply(pc.SpellSuggestionToProto(found), err)
 }
 

@@ -100,10 +100,11 @@ func serveThemeKithd(t *testing.T, cfgPath string, paired ...*ecdsa.PrivateKey) 
 		Config:      daemon.NewConfigFile(cfgPath),
 		Scheduler: daemon.NewScheduler(schedule.New(filepath.Join(dir, "scheduled.toml")), backend,
 			func() time.Duration { return time.Hour }, nil),
-		Logins:  daemon.NewLogins(t.Context(), func() []api.LoginLeader { return nil }),
-		Uploads: uploads,
-		Log:     logging.Discard(),
-		Paired:  devices,
+		Logins:    daemon.NewLogins(t.Context(), func() []api.LoginLeader { return nil }),
+		Uploads:   uploads,
+		Log:       logging.Discard(),
+		Paired:    devices,
+		Languages: daemon.NewLanguages(filepath.Join(dir, "languages.toml"), log.streams.LanguagesOwed, logging.Discard()),
 	}
 	d.State.Synced(time.Now())
 	ctx, cancel := context.WithCancel(context.Background())

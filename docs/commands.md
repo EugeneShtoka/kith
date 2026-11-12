@@ -65,6 +65,7 @@ Press `:` from anywhere except the composer.
 | `:from [person]` | Everything someone said, in every room you share, by every ID kith links to them; none is the person in view. After `:from` and a space, the people who have written are offered | `gI` |
 | `:scheduled` | Everything queued to send later, in every room; `enter` cancels one | |
 | `:todo` | What people are waiting on you for, across rooms (needs [assist](assist.md)) | |
+| `:dictionaries` | Read your own messages for their languages and offer the [dictionaries](composer.md#installing-dictionaries) and word counts they need | |
 | `:dnd` | Silence notifications, for a while or for one place | `ctrl+n` |
 | `:verify` | Ask your other sessions to verify this one | |
 | `:settings` | The settings screen | `,` |

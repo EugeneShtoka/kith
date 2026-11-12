@@ -206,7 +206,7 @@ export interface View {
   /** Verifying this session (verify.ts), and the accounts it is asked for from (Accounts). */
   verify: Verify;
   accounts: readonly Account[];
-  /** The one-time offers (offers.ts): the one shown, and what the last download came to. */
+  /** The offers (offers.ts): the one shown, and what the last download came to. */
   offers: { prompt: Prompt | undefined; note: string };
   /** The filing picker open on a room (filing.ts). */
   filing: Filing | undefined;
@@ -329,10 +329,10 @@ const peopleCalls: PeopleCalls = {
   keys: () => call(backend.personKeys, {}).then((r) => r.keys),
 };
 
-/** offerCalls is the one-time offers' calls: kithd's, through main, and device.toml's through the relay. */
+/** offerCalls is the offers' calls: kithd's, through main, and device.toml's through the relay. */
 const offerCalls: OfferCalls = {
   settings: () => relay.read().then((r) => r.settings),
-  detectLanguages: () => call(backend.detectLanguages, {}),
+  detectLanguages: (owed) => call(backend.detectLanguages, { owed }),
   detectModel: () => call(backend.detectModel, {}),
   install: async (kind, tag) => {
     if (kind === "dictionaries") {
@@ -466,7 +466,7 @@ export class Session {
     problem: undefined,
     ...nothingShown,
   };
-  /** The one-time offers of dictionaries, word counts and the completion model: once a window. */
+  /** The offers of dictionaries, word counts and the completion model: what kithd owes, or was asked. */
   private readonly offers = new Offers(offerCalls, () => {
     this.set({ offers: { prompt: this.offers.prompt, note: this.offers.note } });
   });
@@ -1370,6 +1370,11 @@ export class Session {
     this.offers.dismiss();
   }
 
+  /** findDictionaries offers the dictionaries and word counts for what you write, read now. */
+  findDictionaries(): void {
+    void this.offers.find();
+  }
+
   forgetOfferNote(): void {
     this.offers.forget();
   }
@@ -1912,6 +1917,9 @@ export class Session {
             if (e.frames.some((f) => f.change === Change.ACCOUNTS)) {
               this.readStatus(run);
               this.readAccounts(run);
+            }
+            if (e.frames.some((f) => f.change === Change.LANGUAGES)) {
+              void this.offers.owed();
             }
             break;
           case "detached":

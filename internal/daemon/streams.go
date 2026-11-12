@@ -107,6 +107,9 @@ func (s *Streams) RoomsChanged() { s.changes.broadcast(change{what: domain.Chang
 // AccountsChanged tells every attached client that a network account's state changed.
 func (s *Streams) AccountsChanged() { s.changes.broadcast(change{what: domain.ChangeAccounts}) }
 
+// LanguagesOwed tells every attached client the dictionary offer is owed.
+func (s *Streams) LanguagesOwed() { s.changes.broadcast(change{what: domain.ChangeLanguages}) }
+
 // railChanged tells the clients running in profile that its rail changed.
 func (s *Streams) railChanged(profile string) {
 	s.changes.broadcast(change{what: domain.ChangeRail, profile: profile})

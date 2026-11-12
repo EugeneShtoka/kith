@@ -50,6 +50,8 @@ type Daemon struct {
 	Scheduler *Scheduler
 	// Logins logs network accounts in.
 	Logins api.Logins
+	// Languages is the dictionary offer owed once a new account's history arrived.
+	Languages *Languages
 	// Uploads keeps the files clients send until each is posted.
 	Uploads *Uploads
 	// Paired is the devices paired with kithd and the TLS listeners serving them the
@@ -68,7 +70,7 @@ func (d *Daemon) missing() []string {
 		"Notifications": d.Notifications == nil, "Reload": d.Reload == nil,
 		"CheckConfig": d.CheckConfig == nil, "Config": d.Config == nil,
 		"Scheduler": d.Scheduler == nil, "Logins": d.Logins == nil, "Uploads": d.Uploads == nil, "Log": d.Log == nil,
-		"Paired": d.Paired == nil,
+		"Paired": d.Paired == nil, "Languages": d.Languages == nil,
 	} {
 		if absent {
 			out = append(out, name)

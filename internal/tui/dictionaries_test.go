@@ -1,9 +1,13 @@
 package tui
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+	"github.com/EugeneShtoka/kith/internal/apitest"
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -307,4 +311,115 @@ func TestAcceptingDictionariesGoesOnToTheModelOffer(t *testing.T) {
 		}
 	}
 	t.Fatal("the model offer was marked asked but its lookup never ran")
+}
+
+// detector is a daemon that counts the detections asked of it: every cached message
+// read (DetectLanguages), or only what it owes (OwedLanguages), which owes is.
+type detector struct {
+	apitest.Nop
+	full, owed *int
+	owes       *bool
+}
+
+func newDetector(owes bool) detector {
+	return detector{full: new(int), owed: new(int), owes: &owes}
+}
+
+func (d detector) DetectLanguages(context.Context) (domain.SpellSuggestion, error) {
+	*d.full++
+	return domain.SpellSuggestion{Candidates: candidates()}, nil
+}
+
+func (d detector) OwedLanguages(context.Context) (domain.SpellSuggestion, error) {
+	*d.owed++
+	if !*d.owes {
+		return domain.SpellSuggestion{}, nil
+	}
+	*d.owes = false
+	return domain.SpellSuggestion{Candidates: candidates()}, nil
+}
+
+// detectorModel is a started client of d whose start's offer is still to be made.
+func detectorModel(t *testing.T, d detector) Model {
+	t.Helper()
+	m := sized(t, withRooms(t, starterNew(d, config.Display{})))
+	m.offers.dictionaries.asked = false
+	return m
+}
+
+// delivering folds what a step's command produced into the model the step returned.
+func delivering(t *testing.T) func(Model, tea.Cmd) Model {
+	t.Helper()
+	return func(m Model, cmd tea.Cmd) Model { return deliver(t, m, cmd) }
+}
+
+// A start reads no corpus: it asks only what the daemon owes, and offers that when a new
+// account's history has made it owed.
+func TestAStartOffersOnlyWhatIsOwed(t *testing.T) {
+	t.Parallel()
+
+	for _, owes := range []bool{false, true} {
+		d := newDetector(owes)
+		m := detectorModel(t, d)
+		ran := delivering(t)
+		m = ran(m.maybeOfferDictionaries())
+		if *d.full != 0 {
+			t.Errorf("owed %v: the start read every cached message %d times", owes, *d.full)
+		}
+		if *d.owed != 1 {
+			t.Errorf("owed %v: the start asked what is owed %d times, want once", owes, *d.owed)
+		}
+		if got := m.picker.kind == pickerDictionaries; got != owes {
+			t.Errorf("owed %v: the dictionary offer raised = %v", owes, got)
+		}
+	}
+}
+
+// Told it is owed, a running client makes the offer once: the daemon owes it no more.
+func TestAnOwedOfferIsMadeWhenTheDaemonSaysSo(t *testing.T) {
+	t.Parallel()
+
+	d := newDetector(false)
+	ran := delivering(t)
+	m := ran(detectorModel(t, d).maybeOfferDictionaries()) // the start: nothing owed
+	*d.owes = true
+	m = ran(m.handleChanged(changedMsg{change: domain.ChangeLanguages}))
+	if m.picker.kind != pickerDictionaries {
+		t.Fatal("the owed offer was not made")
+	}
+	m = m.closePicker()
+	m = ran(m.handleChanged(changedMsg{change: domain.ChangeLanguages}))
+	if m.picker.active() {
+		t.Error("the offer was made again once it was no longer owed")
+	}
+	if *d.full != 0 {
+		t.Errorf("an owed offer read every cached message %d times; the daemon's answer is it", *d.full)
+	}
+}
+
+// :dictionaries detects now, though the start's offer was made, and says so when there
+// is nothing to offer.
+func TestTheDictionariesCommandDetectsNow(t *testing.T) {
+	t.Parallel()
+
+	d := newDetector(false)
+	ran := delivering(t)
+	m := ran(detectorModel(t, d).maybeOfferDictionaries())
+	m = ran(m.runCommandLine("dictionaries"))
+	if *d.full != 1 {
+		t.Fatalf(":dictionaries read the corpus %d times, want once", *d.full)
+	}
+	if m.picker.kind != pickerDictionaries {
+		t.Fatal(":dictionaries offered nothing for three detected languages")
+	}
+
+	m = m.closePicker()
+	m.conf.device.Spell.Declined = []string{"en_US", "he_IL", "ru_RU"}
+	m = ran(m.runCommandLine("dictionaries"))
+	if m.picker.active() {
+		t.Error("a chooser was raised with every language turned down")
+	}
+	if !strings.Contains(m.status(), "no dictionaries") {
+		t.Errorf("status = %q, want it to say there was nothing to offer", m.status())
+	}
 }

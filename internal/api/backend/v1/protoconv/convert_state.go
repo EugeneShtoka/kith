@@ -489,9 +489,10 @@ func ProtoToSeatHolder(h *v1.SeatHolder) domain.SeatHolder {
 }
 
 var changes = map[domain.Change]v1.Change{
-	domain.ChangeRooms:    v1.Change_CHANGE_ROOMS,
-	domain.ChangeAccounts: v1.Change_CHANGE_ACCOUNTS,
-	domain.ChangeRail:     v1.Change_CHANGE_RAIL,
+	domain.ChangeRooms:     v1.Change_CHANGE_ROOMS,
+	domain.ChangeAccounts:  v1.Change_CHANGE_ACCOUNTS,
+	domain.ChangeRail:      v1.Change_CHANGE_RAIL,
+	domain.ChangeLanguages: v1.Change_CHANGE_LANGUAGES,
 }
 
 // ChangeToProto converts what changed in the daemon.

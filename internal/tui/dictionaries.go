@@ -8,17 +8,20 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // Offering dictionaries this account's own writing needs, detected from the cache by
-// the daemon. Never automatic. esc dismisses until next launch; unticking a row and
-// accepting declines that language for good. Prompts chain one at a time:
+// the daemon. Detecting reads every cached message, so a start asks only whether the
+// daemon owes it (a new account's history has arrived), as does word that it is owed
+// later; :dictionaries detects now. esc dismisses until next launch; unticking a row
+// and accepting declines that language for good. Prompts chain one at a time:
 // dictionaries, word frequencies, completion model.
 
-// dictionaryOffer is the state behind the one-time prompt.
+// dictionaryOffer is the state behind the prompt.
 type dictionaryOffer struct {
-	// asked is set once the offer has been made this session.
+	// asked is set once the start's offer has been made this session.
 	asked bool
 	// shown is what the prompt offers, so accepting can find the unticked rows.
 	shown []string
@@ -28,23 +31,36 @@ type dictionaryOffer struct {
 	shownFreq []string
 }
 
-func (m Model) offerDictionariesCmd() tea.Cmd {
+// offerDictionariesCmd asks the daemon what to offer: only what it owes when owed, else
+// the whole detection. requested says the person asked for it.
+func (m Model) offerDictionariesCmd(owed, requested bool) tea.Cmd {
 	ctx, backend := m.ctx, m.backend
 	return func() tea.Msg {
-		found, err := backend.DetectLanguages(ctx)
-		if err != nil {
+		detect := backend.DetectLanguages
+		if owed {
+			source, ok := backend.(api.OwedLanguages)
+			if !ok {
+				return dictionaryOfferMsg{} // only a daemon owes it
+			}
+			detect = source.OwedLanguages
+		}
+		found, err := detect(ctx)
+		if err != nil && !requested {
 			// Unprompted, so a failure is silent.
 			return dictionaryOfferMsg{}
 		}
-		return dictionaryOfferMsg{suggestion: found}
+		return dictionaryOfferMsg{suggestion: found, requested: requested, err: err}
 	}
 }
 
 type dictionaryOfferMsg struct {
 	suggestion domain.SpellSuggestion
+	// requested is :dictionaries's answer, which says so when there is nothing to offer.
+	requested bool
+	err       error
 }
 
-// maybeOfferDictionaries asks once, if there is anything to ask.
+// maybeOfferDictionaries makes the start's offer once, if the daemon owes one.
 func (m Model) maybeOfferDictionaries() (Model, tea.Cmd) {
 	if len(m.rooms.joined) == 0 {
 		// Cold start with no corpus: leave `asked` unset so it is asked later.
@@ -58,11 +74,30 @@ func (m Model) maybeOfferDictionaries() (Model, tea.Cmd) {
 		// Spelling is off; the chain continues to the completion model.
 		return m.maybeOfferModel()
 	}
-	return m, m.offerDictionariesCmd()
+	return m, m.offerDictionariesCmd(true, false)
+}
+
+// offerOwedDictionaries makes the offer the daemon said it owes.
+func (m Model) offerOwedDictionaries() tea.Cmd {
+	if !m.conf.base.Spell.SpellEnabled() {
+		return nil
+	}
+	return m.offerDictionariesCmd(true, false)
+}
+
+// findDictionaries is :dictionaries: the offer, detected now.
+func (m Model) findDictionaries() (Model, tea.Cmd) {
+	if !m.conf.base.Spell.SpellEnabled() {
+		return m.say("spell checking is off — see [spell] enabled"), nil
+	}
+	return m.say("reading what you write for its languages…"), m.offerDictionariesCmd(false, true)
 }
 
 // handleDictionaryOffer raises the chooser, or says why it cannot.
 func (m Model) handleDictionaryOffer(msg dictionaryOfferMsg) (Model, tea.Cmd) {
+	if msg.err != nil {
+		return m.sayErr("could not read what you write", msg.err), nil
+	}
 	if why := msg.suggestion.Why; why != "" {
 		// No engine: say why once, and continue the chain.
 		next, offer := m.say(firstLine(why)).maybeOfferModel()
@@ -87,7 +122,11 @@ func (m Model) handleDictionaryOffer(msg dictionaryOfferMsg) (Model, tea.Cmd) {
 		shown = append(shown, c.Tag)
 	}
 	if len(items) == 0 {
-		return m.offerFrequencies(msg.suggestion.Frequencies)
+		next, offer := m.offerFrequencies(msg.suggestion.Frequencies)
+		if msg.requested && next.picker.kind != pickerFrequencies {
+			next = next.say("no dictionaries or word counts to offer for what you write")
+		}
+		return next, offer
 	}
 	m.offers.dictionaries.shown = shown
 	m.offers.dictionaries.frequencies = msg.suggestion.Frequencies
