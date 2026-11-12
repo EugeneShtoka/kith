@@ -126,13 +126,13 @@ jobs:
         run: make coverage-gate COVERPROFILES=cover-*.out
 
   # Every CROSS_TARGETS platform, compile-only (the release targets plus windows,
-  # built, not released), on every PR, so a darwin, freebsd or windows break shows
-  # there and not first at a release. One platform per runner: about 2½ minutes each,
-  # past 15 in one job. linux/amd64 is build-and-test's; keep the rest in step with
+  # built, not released), only for a release (release.yml calls this workflow on the
+  # tag); the weekly workflow runs `make cross` too, so a darwin, freebsd or windows
+  # break shows within a week. One platform per runner: about 2½ minutes each, past
+  # 15 in one job. linux/amd64 is build-and-test's; keep the rest in step with
   # CROSS_TARGETS in the Makefile.
   cross-compile:
-    needs: [changes]
-    if: needs.changes.outputs.docs_only != 'true'
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -348,10 +348,11 @@ jobs:
 
   # The single required check for branch protection.
   ci-ok:
-    # always(): a skipped required check counts as passed on GitHub. release-builds is
-    # not here: it runs on tags alone, and a release needs this whole workflow to pass.
+    # always(): a skipped required check counts as passed on GitHub. cross-compile and
+    # release-builds are not here: they run on tags alone, and a release needs this
+    # whole workflow to pass.
     if: always()
-    needs: [changes, build-and-test, test, coverage, cross-compile, repo-checks, release-config, lint, vuln, secrets, proto, docs, desktop]
+    needs: [changes, build-and-test, test, coverage, repo-checks, release-config, lint, vuln, secrets, proto, docs, desktop]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
