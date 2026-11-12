@@ -38,6 +38,7 @@ deployment shapes:
 | "mesh"       | N (one per device, colocated) | N (same boxes) |
 | "hybrid"     | M (on always-on devices) | N (M < N; others device-only) |
 | "mobile-only"| 1 (phone, if practical) | 1 |
+| "standby" | M, one running at a time, by priority (homelab, then laptop, then phone) | N |
 
 The hybrid shape is particularly attractive: 2 bridges (home PC, work laptop) + 2
 device-only (phone, tablet) uses 2 WA linked-device slots instead of 4, while still
@@ -57,7 +58,7 @@ Each bridge costs linked-device slots per network. Reality:
 | Matrix | unlimited `device_id`s | each bridge registers its own, cross-signs |
 | Telegram | multiple sessions | each bridge its own session |
 | Slack / LinkedIn | session-based | each bridge its own; no cap |
-| Google Messages | one Android pairing | GM-on-phone *is* master; others have no GM |
+| Google Messages | one active web session | many computers may pair, but opening one makes the others inactive (a tablet stays active beside it), so two bridges would keep taking it from each other |
 | WhatsApp | 4 linked devices + master phone | each bridge is one linked device |
 | Signal | ~5 linked devices + master phone | each bridge is one linked device |
 | Messenger | multi-device, lax cap | fine |
@@ -67,11 +68,12 @@ Signal / GM apps as master, kith-on-Android as a *linked* device alongside the
 master app:
 - WA: probably works (different app ID) — needs verifying before Phase 5
 - Signal: same uncertainty as WA
-- GM: no — one Android pairing, taken by the user's official GM
+- GM: a web session paired with the same phone's GM app, and only while it is the
+  active one; unverified
 - Matrix / Telegram / Slack / LinkedIn: clean, independent sessions
 
 Treat an on-device Android bridge as "Matrix/Telegram/Slack/LinkedIn supported,
-WA/Signal pending verification, no GM." If on-phone WA/Signal via a local bridge
+WA/Signal/GM pending verification." If on-phone WA/Signal via a local bridge
 matters to a user, the hybrid shape sidesteps the whole issue by not needing a
 bridge on the phone at all — the phone's client just dials a bridge
 elsewhere.
@@ -141,6 +143,42 @@ Signal/WA behaviour on flaky networks and doesn't violate "no offline writes"
 (this is transient, not offline). Rejected (for v1): parallel sends to multiple
 bridges, picking whichever responds first — more complex, better UX for lossy
 networks, not needed day one.
+
+**Standby: one bridge runs, chosen by device priority.** (Proposed 2026-11-12.) A
+device that may run a bridge has a priority, such as a homelab first, a laptop second,
+a phone last; a device with none never runs one and is only a client. At most one
+bridge is *active*, connected to the networks. The others are *standby*: their network
+sessions are linked and they stay in the mesh, but they hold no network connection and
+act as clients of the active bridge. A phone then runs its own bridge only when it
+sees no other.
+
+- **Each bridge decides alone, with no vote.** It is active unless it sees a healthy
+  bridge of higher priority, directly or through whatever path WAN discovery gives
+  (open question 2). Healthy is the liveness above: a fresh heartbeat whose networks
+  are caught up. A reachable bridge whose sync is stuck does not count, so a phone
+  takes over from a homelab that is up but not syncing.
+- **No flapping.** A bridge stands down after it has seen a healthy higher one for a
+  while, and takes over only after missing every higher one for a few minutes, so a
+  relay dropping or a phone moving between Wi-Fi and mobile data does not swap the
+  active bridge each minute.
+- **Two active bridges are allowed.** A partition can leave one on each side. That is
+  the N:M topology above, which already works: the mesh merges their state, and send
+  IDs keep a send from going out twice. When they see each other again, the lower one
+  stands down. So nothing needs consensus, which with two or three bridges often has
+  no majority and would stop a cut-off side from running at all.
+- **A standby bridge keeps its sessions alive.** It connects to each network on a
+  schedule, long enough that the network does not drop it as an idle linked device,
+  and catches up; otherwise the first takeover, on a trip with the homelab out of
+  reach, finds the phone logged out.
+- **Clients choose as before.** The active bridge is the highest-priority healthy one,
+  which is what pinned priority selection already picks; a standby bridge's heartbeat
+  says it is not caught up, so clients pass it over.
+- **What it buys:** a phone that sleeps as a client while a higher bridge runs, one
+  Google Messages session instead of several taking it from each other, and one
+  connection per network.
+- **What it does not:** each bridge still holds its own linked device per network (the
+  invariant: keys never move between processes), so every device given a priority
+  costs a WhatsApp and a Signal slot. Priorities are opt-in for that reason.
 
 ## Push notifications
 
@@ -264,6 +302,12 @@ As of 2026-10-24, from each product's public site and documentation.
 
 7. **Dedup on failover is by network-level stable ID.** Bounded set per room.
 
+8. **(Proposed 2026-11-12) Standby bridges by device priority.** One bridge is active;
+   the rest stand by, with their sessions linked, and each takes over only when it
+   sees no healthy bridge of higher priority. Two active at once is tolerated, not
+   prevented. Rejected: electing a leader by consensus, which a two- or three-bridge
+   mesh split in half cannot reach.
+
 ## Phasing
 
 Built: Phase 0 (profiles), Phase 1 (replay), Phase 2a (remote clients), Phase 2b's
@@ -280,6 +324,8 @@ bridges: steps 5–8 of [design-mesh.md](design-mesh.md).
 - Resuming at another bridge, by the time last heard less a grace window.
 - Event dedup on device by network-level ID.
 - Send-buffering during failover gaps (3–5s window).
+- Standby bridges: a priority per device, standing down to a healthy higher bridge,
+  taking over when none is seen, and keeping sessions alive while on standby.
 - A client on several bridges showing everything its profile defines across them
   (design-mesh.md decision 6).
 
@@ -294,7 +340,9 @@ the mesh) over TLS; falls over per Phase 3. No offline writes.
 **Phase 6 — on-device bridge for mobile (optional).** gomobile AAR of
 kithd for Android. Only if "a peer bridge is always reachable" turns out
 to be too weak an assumption for a user. Battery is the open question; the WA
-master-device constraint from above still applies.
+master-device constraint from above still applies. With standby bridges (Phase 3) the
+phone's bridge runs only when it sees no other, which answers most of the battery
+question.
 
 ## Open questions
 
@@ -322,3 +370,8 @@ master-device constraint from above still applies.
    doesn't touch it; devices resolve names from whichever bridge they're
    currently talking to, with the shared file keeping them in rough sync. Needs
    thought.
+8. **Standby per network.** How long each network keeps an idle linked device before
+   dropping it, and so how often a standby bridge must connect; and how long it queues
+   messages for that device, so what a bridge taking over can still catch up on. The
+   hold times before standing down and taking over follow from heartbeat semantics
+   (6).
