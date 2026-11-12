@@ -13,6 +13,7 @@ import (
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -650,14 +651,113 @@ func (a *Adapter) Members(ctx context.Context, roomID domain.RoomID, limit int) 
 	return members, nil
 }
 
-// RefreshMembers reads the cache; group members arrive with their messages.
+// membersPage is how many of a supergroup's members RefreshMembers fetches.
+// shortcut: one page of the most recent members (Telegram's largest), not all of a
+// bigger group's; page on with Offset when someone further down is wanted.
+const membersPage = 200
+
+// RefreshMembers fetches a group's members and caches them. A private chat's people
+// are the listing's, and a channel that lists its subscribers to its admins alone keeps
+// what the cache knows; so does a chat whose account is not connected.
 func (a *Adapter) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]domain.Member, error) {
+	ch, err := a.chatOf(ctx, roomID)
+	if err != nil {
+		return a.Members(ctx, roomID, 0)
+	}
+	members, listed, err := groupMembers(ctx, ch.conn.client.API(), ch.peer)
+	if err != nil {
+		return nil, fmt.Errorf("telegram: members of %s: %w", roomID, err)
+	}
+	if listed && a.cache != nil {
+		if err := a.cache.SaveMembers(ctx, roomID, members); err != nil {
+			return nil, fmt.Errorf("telegram: cache the members of %s: %w", roomID, err)
+		}
+	}
 	return a.Members(ctx, roomID, 0)
 }
 
-// MentionCandidates is a room's known members.
+// groupMembers is a group's members, named; false for a chat that lists none.
+func groupMembers(ctx context.Context, api *tg.Client, p tg.InputPeerClass) ([]domain.Member, bool, error) {
+	var ids []int64
+	var users tg.UserClassArray
+	switch p := p.(type) {
+	case *tg.InputPeerChat:
+		full, err := api.MessagesGetFullChat(ctx, p.ChatID)
+		if err != nil {
+			return nil, false, fmt.Errorf("the group: %w", err)
+		}
+		chat, ok := full.FullChat.(*tg.ChatFull)
+		if !ok {
+			return nil, false, nil
+		}
+		listed, ok := chat.Participants.AsNotForbidden()
+		if !ok {
+			return nil, false, nil
+		}
+		for _, part := range listed.Participants {
+			ids = append(ids, part.GetUserID())
+		}
+		users = full.MapUsers()
+	case *tg.InputPeerChannel:
+		got, err := api.ChannelsGetParticipants(ctx, &tg.ChannelsGetParticipantsRequest{
+			Channel: &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: p.AccessHash},
+			Filter:  &tg.ChannelParticipantsRecent{}, Limit: membersPage,
+		})
+		if tgerr.Is(err, "CHAT_ADMIN_REQUIRED") { // a broadcast channel, to a subscriber
+			return nil, false, nil
+		}
+		if err != nil {
+			return nil, false, fmt.Errorf("its recent members: %w", err)
+		}
+		page, ok := got.(*tg.ChannelsChannelParticipants)
+		if !ok {
+			return nil, false, nil
+		}
+		for _, part := range page.Participants {
+			// Members name their user; the banned and the departed name a peer instead.
+			if member, ok := part.(interface{ GetUserID() int64 }); ok {
+				ids = append(ids, member.GetUserID())
+			}
+		}
+		users = page.MapUsers()
+	default:
+		return nil, false, nil // a private chat
+	}
+	// The users carry more than the members (who invited or promoted them): name only these.
+	named := users.UserToMap()
+	members := make([]domain.Member, 0, len(ids))
+	for _, id := range ids {
+		member := domain.Member{UserID: personID(id)}
+		if u, ok := named[id]; ok {
+			member.DisplayName = personName(u)
+		}
+		members = append(members, member)
+	}
+	return members, true, nil
+}
+
+// MentionCandidates orders a room's members for mention completion: recent speakers,
+// most mentioned, then alphabetical. A room whose members are not listed (a channel)
+// offers its recent speakers.
 func (a *Adapter) MentionCandidates(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
-	return a.Members(ctx, roomID, limit)
+	members, err := a.Members(ctx, roomID, 0)
+	if err != nil || a.cache == nil {
+		return domain.RankMembers(members, nil, nil, limit), err
+	}
+	speakers, err := a.cache.RecentSpeakers(ctx, roomID, domain.MentionRankRung)
+	if err != nil {
+		return nil, fmt.Errorf("telegram: rank recent speakers: %w", err)
+	}
+	if len(members) == 0 {
+		for _, id := range speakers {
+			members = append(members, domain.Member{UserID: id}) // kithd names them as it sends them
+		}
+	}
+	mentioned, err := a.cache.FrequentMentions(ctx, roomID, domain.MentionRankRung)
+	if err != nil {
+		return nil, fmt.Errorf("telegram: rank mention history: %w", err)
+	}
+	return domain.RankMembers(members, speakers, mentioned, limit), nil
 }
 
 // DirectCandidates is not supported yet.
