@@ -11,9 +11,9 @@ of sender runs with their pictures (initials on their hue otherwise, as `faces.t
 dividers, inline images, scrollback paging, thread summaries, "Message deleted", and files
 as Save buttons (to `~/Downloads`). Video and voice notes play in mpv, a video in a child X
 window of the Gio window (`mpv --wid`). Unread badges follow kithd's stream; the open room
-gets a private read receipt while the window has focus. Ctrl+K filters every room. The
-composer takes Enter as a newline and Ctrl/Alt+Enter or Send to send ([keys.insert]'s
-default), and Attach sends a file from the portal's file chooser.
+gets a private read receipt while the window has focus. The composer takes Enter as a
+newline and [keys.insert] send (Ctrl/Alt+Enter) or Send to send, and Attach sends a file
+from the portal's file chooser.
 
 Messages draw kith's formatting (bold, italic, code in monospace on a background,
 underline, strikethrough, quotes, headings), selectable, and
@@ -23,6 +23,19 @@ follow kithd's stream, and who is typing shows over the composer. A thread's sum
 it beside the timeline, where a reply goes into the thread. Clicking an image shows it over
 the window (Esc or a click closes it), a right-click copies a message, and the room list
 reorders as messages arrive.
+
+The device's `[keys]` drive the window, as they drive the desktop (`keys.go` ports its
+keymap: sequences such as `g g`, counts such as `12j`, and typing wins). The rail, the
+room list and the timeline each have a cursor that `[keys.nav]` moves; Tab or
+Ctrl+Shift+1..4 move between panes, Ctrl+K goes to a room, Ctrl+O and Ctrl+I back and
+forward. On the selected message: reply, edit (your own), delete (asks first), react (a
+picker that searches emoji by name, your most used first), copy its text or link, open
+the link, save, view, play, open or start its thread, and jump by mention, attachment,
+day, or to what a reply answers. `m` / `M` / Ctrl+M mark a room read or unread from the
+list, and `m` on a rail row marks the row read (asks first). The composer completes
+`:name` into emoji and `@name` into a mention (people as kithd offers them: Matrix,
+LinkedIn and Instagram rooms), turns a typed `:name:` into its emoji, and each room keeps
+its unsent text, reply and edit while another is open.
 
 Search, People and Settings are drawn but do nothing; "system" theme mode is dark.
 
@@ -86,3 +99,11 @@ With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, G
 - **Slack shortcodes** are converted here for now; kithd's Slack adapter is to do it for
   every client, after which `shortcodes()` goes.
 - **Gio does not report the desktop's color scheme**, so the theme's "system" mode is dark here.
+- **Gio gives a key to the first reader in the frame whose filter matches**, not to the most
+  specific filter, so the window-wide key reader runs last: anything earlier (an editor's
+  arrows and Backspace, the picker's Esc) keeps its own keys.
+- **Not done here:** drafts live in this window only (kithd's shared drafts need its seat
+  protocol), and a clicked notification opens the room only in the window holding the
+  profile's seat, which the spike does not take (it would take it from the desktop or the
+  terminal). Notifications themselves are `kith-notify`'s. Several links in a message:
+  the link keys take the first. `[keys.completion]` is fixed at its defaults.

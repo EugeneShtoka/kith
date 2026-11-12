@@ -107,6 +107,20 @@ type ui struct {
 	cancel   widget.Clickable
 	selves   map[string]bool // every ID that is this person
 	picking  *picker         // the reaction picker, nil when closed
+
+	offer     *completion                         // the composer's completion popup
+	dismissed string                              // the word whose popup Esc closed
+	mentions  map[*widget.Editor][]domain.Mention // people chosen into each composer's draft
+	drafts    map[domain.RoomID]draft             // each room's composer, kept while another is open
+}
+
+// draft is what a room's main composer held when another room opened.
+// shortcut: kept in this window only; kithd's shared drafts need its seat protocol
+// (ReplaceDraft), so other windows and a restart do not see these.
+type draft struct {
+	text             string
+	replyTo, editing domain.EventID
+	mentions         []domain.Mention
 }
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
@@ -129,6 +143,9 @@ type timeline struct {
 	drawn      bool
 	list       widget.List
 	sel        domain.EventID // the main timeline's cursor
+
+	members      []domain.Member // who a mention may name, ranked by kithd
+	membersAsked bool
 }
 
 // picture is an image message's pixels, once fetched.
@@ -142,6 +159,7 @@ func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, keys 
 	u := &ui{
 		w: w, backend: backend, th: material.NewTheme(), local: local, pal: pal, railShown: true,
 		keymap: newKeymap(keys, actions), pane: paneComposer, selves: map[string]bool{},
+		mentions: map[*widget.Editor][]domain.Mention{}, drafts: map[domain.RoomID]draft{},
 		unread: map[domain.RoomID]domain.Unread{}, faces: map[face]*picture{}, saves: map[domain.EventID]*save{},
 		last: map[domain.RoomID]time.Time{}, typing: map[domain.RoomID][]string{},
 	}
@@ -257,6 +275,13 @@ func (u *ui) open(ctx context.Context, room domain.RoomID) {
 		}
 		u.history = append(u.history, room)
 		u.at = len(u.history) - 1
+	}
+	if u.current != "" && u.current != room {
+		u.drafts[u.current] = draft{u.composer.Text(), u.replyTo, u.editing, u.mentions[&u.composer]}
+		d := u.drafts[room]
+		delete(u.drafts, room)
+		u.composer.SetText(d.text)
+		u.replyTo, u.editing, u.mentions[&u.composer] = d.replyTo, d.editing, d.mentions
 	}
 	u.current = room
 	u.focus = &u.composer
@@ -1141,30 +1166,36 @@ func (u *ui) layoutEditor(ctx context.Context, gtx C, ed *widget.Editor, attach 
 	if attach != nil && u.sendBtn.Clicked(gtx) {
 		u.submit(ctx, ed, root)
 	}
+	offer := u.complete(ctx, gtx, ed)
 	if attach != nil && attach.Clicked(gtx) {
 		go u.attach(ctx, u.current)
 	}
-	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Top: unit.Dp(6), Bottom: unit.Dp(10)}.Layout(gtx, func(gtx C) D {
-		return u.field(gtx, func(gtx C) D {
-			rows := []layout.FlexChild{layout.Rigid(func(gtx C) D {
-				h := hint
-				if u.sendError != "" {
-					h = u.sendError
+	box := func(gtx C) D {
+		return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Top: unit.Dp(6), Bottom: unit.Dp(10)}.Layout(gtx, func(gtx C) D {
+			return u.field(gtx, func(gtx C) D {
+				rows := []layout.FlexChild{layout.Rigid(func(gtx C) D {
+					h := hint
+					if u.sendError != "" {
+						h = u.sendError
+					}
+					return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, u.editor(ed, h).Layout)
+				})}
+				if attach != nil {
+					rows = append(rows, layout.Rigid(func(gtx C) D {
+						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(func(gtx C) D { return u.button(gtx, attach, "Attach", true, false) }),
+							layout.Flexed(1, layout.Spacer{}.Layout),
+							layout.Rigid(func(gtx C) D { return u.accentButton(gtx, &u.sendBtn, "Send") }),
+						)
+					}))
 				}
-				return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, u.editor(ed, h).Layout)
-			})}
-			if attach != nil {
-				rows = append(rows, layout.Rigid(func(gtx C) D {
-					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-						layout.Rigid(func(gtx C) D { return u.button(gtx, attach, "Attach", true, false) }),
-						layout.Flexed(1, layout.Spacer{}.Layout),
-						layout.Rigid(func(gtx C) D { return u.accentButton(gtx, &u.sendBtn, "Send") }),
-					)
-				}))
-			}
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+			})
 		})
-	})
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx C) D { return u.layoutCompletion(gtx, offer) }),
+		layout.Rigid(box))
 }
 
 // accentButton is the window's one call to action, in the accent.
@@ -1209,7 +1240,8 @@ func (u *ui) submit(ctx context.Context, ed *widget.Editor, root domain.EventID)
 		return
 	}
 	ed.SetText("")
-	draft := domain.Draft{Body: body, ThreadRoot: root}
+	draft := domain.Draft{Body: body, ThreadRoot: root, Mentions: u.mentions[ed]}
+	delete(u.mentions, ed)
 	if ed == &u.composer {
 		draft.ReplyTo, draft.Edits = u.replyTo, u.editing
 		u.replyTo, u.editing = "", ""

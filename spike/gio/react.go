@@ -50,6 +50,12 @@ func (p *picker) offered() []string {
 		slices.SortFunc(used, func(a, b string) int { return cmp.Or(p.scores[b]-p.scores[a], strings.Compare(a, b)) })
 		return firstN(slices.Compact(append(used, common...)), pickerSize)
 	}
+	return searchEmoji(q, pickerSize)
+}
+
+// searchEmoji is at most n emoji whose name holds q, names starting with it first,
+// shorter names before longer.
+func searchEmoji(q string, n int) []string {
 	type hit struct {
 		name, glyph string
 		prefix      bool
@@ -73,8 +79,8 @@ func (p *picker) offered() []string {
 		}
 		return cmp.Or(len(a.name)-len(b.name), strings.Compare(a.name, b.name))
 	})
-	out := make([]string, 0, min(len(hits), pickerSize))
-	for _, h := range firstN(hits, pickerSize) {
+	out := make([]string, 0, min(len(hits), n))
+	for _, h := range firstN(hits, n) {
 		out = append(out, h.glyph)
 	}
 	return out
