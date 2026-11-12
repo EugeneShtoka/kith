@@ -162,8 +162,9 @@ secret scan, when the tree is not the root of its own git repository; `CHECK_STR
 `make quick`, the pre-push gate, is the same list less what costs minutes: tests run
 without `-race` and from Go's test cache (`test-quick`), with no coverage floors;
 `arch-quick` is `arch-check` without `deadcode`; and `cross`, `vuln`, `release-check` and
-`nix-check` are left to CI. In CI, `nix-check` runs only for a release tag (the `release-builds` job);
-the weekly workflow (`.github/workflows/vuln-weekly.yml`) builds the Nix flake too, so
+`nix-check` are left to CI. In CI, `cross` and `nix-check` run only for a release tag (the
+`cross-compile` and `release-builds` jobs); the weekly workflow
+(`.github/workflows/vuln-weekly.yml`) runs both too, so a broken platform or
 a stale `vendorHash` — it changes whenever a package is newly imported, not only when
 `go.mod` does — shows within a week. Its failure prints the hash to put in
 `packaging/nix/package.nix`.
