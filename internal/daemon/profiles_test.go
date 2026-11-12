@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"math/rand/v2"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -923,8 +924,9 @@ func TestFollowHandsALinkToTheWindowPlacedForIt(t *testing.T) {
 			}
 		}
 	}
-	follow("matrix:roomid/dm:x", direct)   // its profile holds it
-	follow("matrix:r/somewhere:x", groups) // nothing cached: used last
+	follow("matrix:roomid/dm:x", direct)               // its profile holds it
+	follow("kith:"+url.PathEscape(string(dm)), direct) // a kith link's room, alike
+	follow("matrix:r/somewhere:x", groups)             // nothing cached: used last
 	if err := direct.Present(ctx, group); err == nil {
 		t.Error("a window in direct said it has a room of groups open")
 	}
@@ -961,6 +963,8 @@ func TestALinkNamesOnlyTheChatsOfTheWindowsProfile(t *testing.T) {
 		"matrix:roomid/dm:x/e/evt": {string(dm) + " " + mx + "$evt"},
 		"matrix:roomid/group:x":    {},
 		"matrix:u/dana:x":          {},
+		"kith:" + url.PathEscape(string(dm)) + "?event=" + url.QueryEscape(mx+"$evt"): {string(dm) + " " + mx + "$evt"},
+		"kith:" + url.PathEscape(string(group)):                                       {},
 	} {
 		follow := connect.NewRequest(&v1.FollowRequest{Uri: uri})
 		follow.Header().Set("Kith-Profile", "groups")
