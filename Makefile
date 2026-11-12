@@ -414,8 +414,8 @@ ifneq ($(UNAME_S),Darwin)
 	@sed 's|^Exec=.*|Exec=$(BINDIR)/kith --open %u|' packaging/desktop/$(DESKTOP) > "$(APPDIR)/$(DESKTOP)"
 	@chmod 0644 "$(APPDIR)/$(DESKTOP)"
 	@command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$(APPDIR)" || true
-	@command -v xdg-mime >/dev/null 2>&1 && xdg-mime default "$(DESKTOP)" x-scheme-handler/matrix x-scheme-handler/tg x-scheme-handler/whatsapp x-scheme-handler/sgnl || true
-	@echo "==> handler  -> $(APPDIR)/$(DESKTOP)  (matrix:, tg:, whatsapp: and sgnl: links open in kith)"
+	@command -v xdg-mime >/dev/null 2>&1 && xdg-mime default "$(DESKTOP)" x-scheme-handler/matrix x-scheme-handler/tg x-scheme-handler/whatsapp x-scheme-handler/sgnl x-scheme-handler/kith || true
+	@echo "==> handler  -> $(APPDIR)/$(DESKTOP)  (matrix:, tg:, whatsapp:, sgnl: and kith: links open in kith)"
 endif
 
 # install + (re)start the daemon and wait for its socket.
@@ -530,7 +530,7 @@ undeploy:
 	  echo "==> removed $(APPDIR)/$(DESKTOP)"; \
 	  for list in "$${XDG_CONFIG_HOME:-$$HOME/.config}/mimeapps.list" "$(APPDIR)/mimeapps.list"; do \
 	    [ -f "$$list" ] || continue; \
-	    for scheme in matrix tg whatsapp sgnl; do \
+	    for scheme in matrix tg whatsapp sgnl kith; do \
 	      grep -Eq "^x-scheme-handler/$$scheme=(.*;)?kith\.desktop(;|$$)" "$$list" || continue; \
 	      sed -i -e "/^x-scheme-handler\/$$scheme=/{s/\([=;]\)kith\.desktop\(;\|$$\)/\1/;/^x-scheme-handler\/$$scheme=;*$$/d;}" "$$list"; \
 	      echo "==> removed the $$scheme: handler association from $$list"; \
