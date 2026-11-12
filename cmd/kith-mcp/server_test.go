@@ -841,18 +841,16 @@ func listsRoom(answer map[string]any, id string) bool {
 	return false
 }
 
-// Assistants see people by this person's names for them (alias, phone book name),
-// whole: a first name alone in a group loses who it was.
+// Assistants see people by kithd's names for them (alias, phone book name), whole: a
+// first name alone in a group loses who it was.
 func TestAnAssistantReadsPeopleByTheirWholeNames(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()
-	f.dir = domain.NewDirectory([]domain.PersonName{{Source: "phone", ID: domain.PhoneID("15550100001"), Name: "Dana Levi"}}, nil)
 	f.messages[mx+"!open:x"] = []domain.Message{{
-		ID: mx + "$m", Sender: "matrix:@dana:x", SenderName: "Dana", Body: "@100000000000005 can you look?", Timestamp: time.Unix(1_700_000_000, 0),
-		Mentions: []domain.Mention{{UserID: "whatsapp:15550100001@s.whatsapp.net", Name: "@100000000000005"}},
+		ID: mx + "$m", Sender: "matrix:@dana:x", SenderName: "Dana", SenderKnownAs: "Dana Cohen", Body: "@100000000000005 can you look?", Timestamp: time.Unix(1_700_000_000, 0),
+		Mentions: []domain.Mention{{UserID: "whatsapp:15550100001@s.whatsapp.net", Name: "@100000000000005", KnownAs: "Dana Levi"}},
 	}}
 	s := newServer(f, shareAll)
-	s.aliases = map[string]string{"matrix:@dana:x": "Dana Cohen"}
 
 	out := call(t, s, "read_room", map[string]any{"room": "Standup"})
 	msgs, _ := out["messages"].([]any)
@@ -862,6 +860,32 @@ func TestAnAssistantReadsPeopleByTheirWholeNames(t *testing.T) {
 	got, _ := msgs[0].(map[string]any)
 	if got["sender_name"] != "Dana Cohen" || got["body"] != "@Dana Levi can you look?" {
 		t.Errorf("the assistant read %q saying %q, want Dana Cohen saying \"@Dana Levi can you look?\"", got["sender_name"], got["body"])
+	}
+}
+
+// Svetlana's Telegram account calls itself "neke"; kithd names her, and her bridge
+// puppet, by her alias, and so does the assistant, in a mention of her too.
+func TestAnAssistantReadsKithdsNames(t *testing.T) {
+	t.Parallel()
+	const svetlana, puppet = "telegram:66919467", "matrix:@telegram_66919467:x"
+	f := twoRooms()
+	f.messages[mx+"!open:x"] = []domain.Message{
+		{ID: mx + "$1", Sender: svetlana, SenderName: "neke", SenderKnownAs: "Svetlana", Body: "first", Timestamp: time.Unix(1_700_000_000, 0)},
+		{
+			ID: mx + "$2", Sender: puppet, SenderName: "neke (Telegram)", SenderKnownAs: "Svetlana", Body: "cc @neke", Timestamp: time.Unix(1_700_000_001, 0),
+			Mentions: []domain.Mention{{UserID: svetlana, Name: "@neke", Known: "neke", KnownAs: "Svetlana"}},
+		},
+	}
+	out := call(t, newServer(f, shareAll), "read_room", map[string]any{"room": "Standup"})
+	msgs, _ := out["messages"].([]any)
+	if len(msgs) != 2 {
+		t.Fatalf("read_room returned %d messages, want 2", len(msgs))
+	}
+	for i, body := range []string{"first", "cc @Svetlana"} {
+		got, _ := msgs[i].(map[string]any)
+		if got["sender_name"] != "Svetlana" || got["body"] != body {
+			t.Errorf("message %d: %q said %q, want Svetlana saying %q", i, got["sender_name"], got["body"], body)
+		}
 	}
 }
 

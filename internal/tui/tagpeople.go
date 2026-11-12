@@ -112,7 +112,12 @@ func (m Model) toggleTagPeople() (Model, tea.Cmd) {
 		return m.say("only a tag holds people — this is " + isolate(m.rail.label())), nil
 	}
 	m.tagPeople = tagPeopleState{tag: key}
-	return m, m.tagPeopleCountsCmd()
+	rows := m.shownTagPeople()
+	ids := make([]string, len(rows))
+	for i := range rows {
+		ids[i] = rows[i].id
+	}
+	return m, tea.Batch(m.tagPeopleCountsCmd(), m.askNamesCmd(ids))
 }
 
 // tagPeopleCountsMsg is how many messages each person of a tag wrote.

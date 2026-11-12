@@ -48,15 +48,25 @@ export function mentionAt(text: string, caret: number): { start: number; query: 
   return { start: caret - query.length - 1, query };
 }
 
-/** matching is the people whose name or ID holds query, in rank order. */
+/** matching is the people whose name (kithd's or the network's) or ID holds query, in rank order. */
 export function matching(ranked: readonly Member[], query: string): Member[] {
   const q = query.toLowerCase();
   return ranked
-    .filter((m) => m.displayName.toLowerCase().includes(q) || m.userId.toLowerCase().includes(q))
+    .filter(
+      (m) =>
+        m.knownAs.toLowerCase().includes(q) ||
+        m.displayName.toLowerCase().includes(q) ||
+        m.userId.toLowerCase().includes(q),
+    )
     .slice(0, offered);
 }
 
-/** nameOf is what a mention of m writes into the text. */
+/** nameOf is what a mention of m writes into the text: kithd's name for them. */
 export function nameOf(m: Member): string {
-  return m.displayName || m.userId;
+  return m.knownAs || m.displayName || m.userId;
+}
+
+/** senderOf is the name a message's sender is shown by: kithd's, else the network's, else their ID. */
+export function senderOf(m: { sender: string; senderName: string; senderKnownAs: string }): string {
+  return m.senderKnownAs || m.senderName || m.sender;
 }

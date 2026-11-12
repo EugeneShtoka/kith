@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"log/slog"
 
 	tea "charm.land/bubbletea/v2"
@@ -8,10 +9,10 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// People are named from the daemon's directory (domain.Directory): the best name any
-// account or bridge gives any of a person's numbers and network IDs. Your own names
-// win: a room's [[display.name]], an identity's alias. Re-read with every room list,
-// since a sync that brings names brings rooms.
+// People are named by kithd (KnownAs on what it sends). The daemon's directory
+// (domain.Directory) is read here for the rest: who a card or a hidden person is, and a
+// room shown only as a number. Re-read with every room list, since a sync that brings
+// names brings rooms.
 
 // directoryState is the directory as last read, and a revision that moves when it changes.
 type directoryState struct {
@@ -40,8 +41,10 @@ func (m Model) handleDirectory(msg directoryMsg) (Model, tea.Cmd) {
 	return m.rebuiltRail(), nil
 }
 
-// memberName is a member's name, the phone book's when they show only as a number.
-func (m Model) memberName(member domain.Member) string { return m.byNumber(member.Name()) }
+// memberName is a member's name as kithd names them, else the network's.
+func (m Model) memberName(member domain.Member) string {
+	return cmp.Or(member.KnownAs, member.Name())
+}
 
 // byNumber is label, or the directory's name for it when label is only a number.
 func (m Model) byNumber(label string) string {

@@ -44,7 +44,7 @@ func (m Model) inviteLines(room domain.Room, width, rows int) []string {
 
 // inviterLabel names an inviter with the timeline's identity resolution, in their hue.
 func (m Model) inviterLabel(mxid string) string {
-	label := drawSentence(m.personIn(m.openRoom, mxid, m.inviterName(mxid)))
+	label := drawSentence(m.personIn(m.openRoom, mxid, "", m.inviterName(mxid)))
 	if protocol := domain.ProtocolOf(mxid); protocol.IsBridged() {
 		label += " " + m.theme.Muted.Render("("+protocol.String()+")")
 	}

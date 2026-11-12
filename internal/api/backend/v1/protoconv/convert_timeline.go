@@ -114,15 +114,16 @@ func ProtoToDraft(pb *v1.Draft) domain.Draft {
 // SearchHitToProto converts one search result; the snippet keeps its highlight markers.
 func SearchHitToProto(h domain.SearchHit) *v1.SearchHit {
 	return &v1.SearchHit{
-		RoomId:     string(h.RoomID),
-		EventId:    string(h.EventID),
-		Sender:     h.Sender,
-		SenderName: h.SenderName,
-		Timestamp:  toProtoTime(h.Timestamp),
-		Snippet:    h.Snippet,
-		FileName:   h.FileName,
-		Word:       h.Word,
-		Mentions:   MentionsToProto(h.Mentions),
+		RoomId:        string(h.RoomID),
+		EventId:       string(h.EventID),
+		Sender:        h.Sender,
+		SenderName:    h.SenderName,
+		SenderKnownAs: h.SenderKnownAs,
+		Timestamp:     toProtoTime(h.Timestamp),
+		Snippet:       h.Snippet,
+		FileName:      h.FileName,
+		Word:          h.Word,
+		Mentions:      MentionsToProto(h.Mentions),
 	}
 }
 
@@ -137,15 +138,16 @@ func ProtoToSearchHit(pb *v1.SearchHit) domain.SearchHit {
 		return domain.SearchHit{}
 	}
 	return domain.SearchHit{
-		RoomID:     domain.RoomID(pb.GetRoomId()),
-		EventID:    domain.EventID(pb.GetEventId()),
-		Sender:     pb.GetSender(),
-		SenderName: pb.GetSenderName(),
-		Timestamp:  fromProtoTime(pb.GetTimestamp()),
-		Snippet:    pb.GetSnippet(),
-		FileName:   pb.GetFileName(),
-		Word:       pb.GetWord(),
-		Mentions:   ProtoToMentions(pb.GetMentions()),
+		RoomID:        domain.RoomID(pb.GetRoomId()),
+		EventID:       domain.EventID(pb.GetEventId()),
+		Sender:        pb.GetSender(),
+		SenderName:    pb.GetSenderName(),
+		SenderKnownAs: pb.GetSenderKnownAs(),
+		Timestamp:     fromProtoTime(pb.GetTimestamp()),
+		Snippet:       pb.GetSnippet(),
+		FileName:      pb.GetFileName(),
+		Word:          pb.GetWord(),
+		Mentions:      ProtoToMentions(pb.GetMentions()),
 	}
 }
 
@@ -158,18 +160,19 @@ func ProtoToSearchHits(pb []*v1.SearchHit) []domain.SearchHit {
 func ThreadsToProto(ts []domain.Thread) []*v1.Thread {
 	return mapSlice(ts, func(t domain.Thread) *v1.Thread {
 		return &v1.Thread{
-			Root:             string(t.Root),
-			RoomId:           string(t.RoomID),
-			Count:            int64(t.Count),
-			Latest:           string(t.Latest),
-			LatestAt:         toProtoTime(t.LatestAt),
-			LatestSender:     t.LatestSender,
-			LatestSenderName: t.LatestSenderName,
-			Anchor:           string(t.Anchor),
-			RootLoaded:       t.RootLoaded,
-			Title:            t.Title,
-			Unread:           int64(t.Unread),
-			Mentions:         int64(t.Mentions),
+			Root:                string(t.Root),
+			RoomId:              string(t.RoomID),
+			Count:               int64(t.Count),
+			Latest:              string(t.Latest),
+			LatestAt:            toProtoTime(t.LatestAt),
+			LatestSender:        t.LatestSender,
+			LatestSenderName:    t.LatestSenderName,
+			LatestSenderKnownAs: t.LatestSenderKnownAs,
+			Anchor:              string(t.Anchor),
+			RootLoaded:          t.RootLoaded,
+			Title:               t.Title,
+			Unread:              int64(t.Unread),
+			Mentions:            int64(t.Mentions),
 		}
 	})
 }
@@ -178,18 +181,19 @@ func ThreadsToProto(ts []domain.Thread) []*v1.Thread {
 func ProtoToThreads(pb []*v1.Thread) []domain.Thread {
 	return mapSlice(pb, func(t *v1.Thread) domain.Thread {
 		return domain.Thread{
-			Root:             domain.EventID(t.GetRoot()),
-			RoomID:           domain.RoomID(t.GetRoomId()),
-			Count:            int(t.GetCount()),
-			Latest:           domain.EventID(t.GetLatest()),
-			LatestAt:         fromProtoTime(t.GetLatestAt()),
-			LatestSender:     t.GetLatestSender(),
-			LatestSenderName: t.GetLatestSenderName(),
-			Anchor:           domain.EventID(t.GetAnchor()),
-			RootLoaded:       t.GetRootLoaded(),
-			Title:            t.GetTitle(),
-			Unread:           int(t.GetUnread()),
-			Mentions:         int(t.GetMentions()),
+			Root:                domain.EventID(t.GetRoot()),
+			RoomID:              domain.RoomID(t.GetRoomId()),
+			Count:               int(t.GetCount()),
+			Latest:              domain.EventID(t.GetLatest()),
+			LatestAt:            fromProtoTime(t.GetLatestAt()),
+			LatestSender:        t.GetLatestSender(),
+			LatestSenderName:    t.GetLatestSenderName(),
+			LatestSenderKnownAs: t.GetLatestSenderKnownAs(),
+			Anchor:              domain.EventID(t.GetAnchor()),
+			RootLoaded:          t.GetRootLoaded(),
+			Title:               t.GetTitle(),
+			Unread:              int(t.GetUnread()),
+			Mentions:            int(t.GetMentions()),
 		}
 	})
 }

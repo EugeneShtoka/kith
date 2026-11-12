@@ -322,6 +322,8 @@ const (
 	// BackendServiceMessageCountsProcedure is the fully-qualified name of the BackendService's
 	// MessageCounts RPC.
 	BackendServiceMessageCountsProcedure = "/backend.v1.BackendService/MessageCounts"
+	// BackendServiceKnownAsProcedure is the fully-qualified name of the BackendService's KnownAs RPC.
+	BackendServiceKnownAsProcedure = "/backend.v1.BackendService/KnownAs"
 	// BackendServiceCompleteWordProcedure is the fully-qualified name of the BackendService's
 	// CompleteWord RPC.
 	BackendServiceCompleteWordProcedure = "/backend.v1.BackendService/CompleteWord"
@@ -770,6 +772,9 @@ type BackendServiceClient interface {
 	MessagesFrom(context.Context, *connect.Request[v1.MessagesFromRequest]) (*connect.Response[v1.MessagesFromResponse], error)
 	// MessageCounts is how many cached messages each person wrote.
 	MessageCounts(context.Context, *connect.Request[v1.MessageCountsRequest]) (*connect.Response[v1.MessageCountsResponse], error)
+	// KnownAs is kithd's name for each person, for a client naming people it holds only
+	// the IDs of (what it sends names them already); CHANGE_NAMES says to ask again.
+	KnownAs(context.Context, *connect.Request[v1.KnownAsRequest]) (*connect.Response[v1.KnownAsResponse], error)
 	// CompleteWord finishes a partly typed word from what has been said in scope, ranked,
 	// then tops the list up from the installed word-frequency list for the language the
 	// prefix is in.
@@ -790,7 +795,8 @@ type BackendServiceClient interface {
 	// Changed streams a frame each time something a client shows changes in the daemon:
 	// a network rewriting its rooms (a chat begun, renamed, archived on another device),
 	// or an account's state, or the rail of the request's profile (told only to clients
-	// running in it). The frame says which, and the client reads it again.
+	// running in it), or how people are named. The frame says which, and the client reads
+	// it again.
 	Changed(context.Context, *connect.Request[v1.ChangedRequest]) (*connect.ServerStreamForClient[v1.ChangedResponse], error)
 	// NotificationStream streams the notifications published to the request's profile:
 	// kithd publishes each to every profile holding its room, so a listener on several
@@ -1583,6 +1589,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("MessageCounts")),
 			connect.WithClientOptions(opts...),
 		),
+		knownAs: connect.NewClient[v1.KnownAsRequest, v1.KnownAsResponse](
+			httpClient,
+			baseURL+BackendServiceKnownAsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("KnownAs")),
+			connect.WithClientOptions(opts...),
+		),
 		completeWord: connect.NewClient[v1.CompleteWordRequest, v1.CompleteWordResponse](
 			httpClient,
 			baseURL+BackendServiceCompleteWordProcedure,
@@ -2035,6 +2047,7 @@ type backendServiceClient struct {
 	messagesAround        *connect.Client[v1.MessagesAroundRequest, v1.MessagesAroundResponse]
 	messagesFrom          *connect.Client[v1.MessagesFromRequest, v1.MessagesFromResponse]
 	messageCounts         *connect.Client[v1.MessageCountsRequest, v1.MessageCountsResponse]
+	knownAs               *connect.Client[v1.KnownAsRequest, v1.KnownAsResponse]
 	completeWord          *connect.Client[v1.CompleteWordRequest, v1.CompleteWordResponse]
 	messages              *connect.Client[v1.MessagesRequest, v1.MessagesResponse]
 	activityStream        *connect.Client[v1.ActivityStreamRequest, v1.ActivityStreamResponse]
@@ -2619,6 +2632,11 @@ func (c *backendServiceClient) MessageCounts(ctx context.Context, req *connect.R
 	return c.messageCounts.CallUnary(ctx, req)
 }
 
+// KnownAs calls backend.v1.BackendService.KnownAs.
+func (c *backendServiceClient) KnownAs(ctx context.Context, req *connect.Request[v1.KnownAsRequest]) (*connect.Response[v1.KnownAsResponse], error) {
+	return c.knownAs.CallUnary(ctx, req)
+}
+
 // CompleteWord calls backend.v1.BackendService.CompleteWord.
 func (c *backendServiceClient) CompleteWord(ctx context.Context, req *connect.Request[v1.CompleteWordRequest]) (*connect.Response[v1.CompleteWordResponse], error) {
 	return c.completeWord.CallUnary(ctx, req)
@@ -3191,6 +3209,9 @@ type BackendServiceHandler interface {
 	MessagesFrom(context.Context, *connect.Request[v1.MessagesFromRequest]) (*connect.Response[v1.MessagesFromResponse], error)
 	// MessageCounts is how many cached messages each person wrote.
 	MessageCounts(context.Context, *connect.Request[v1.MessageCountsRequest]) (*connect.Response[v1.MessageCountsResponse], error)
+	// KnownAs is kithd's name for each person, for a client naming people it holds only
+	// the IDs of (what it sends names them already); CHANGE_NAMES says to ask again.
+	KnownAs(context.Context, *connect.Request[v1.KnownAsRequest]) (*connect.Response[v1.KnownAsResponse], error)
 	// CompleteWord finishes a partly typed word from what has been said in scope, ranked,
 	// then tops the list up from the installed word-frequency list for the language the
 	// prefix is in.
@@ -3211,7 +3232,8 @@ type BackendServiceHandler interface {
 	// Changed streams a frame each time something a client shows changes in the daemon:
 	// a network rewriting its rooms (a chat begun, renamed, archived on another device),
 	// or an account's state, or the rail of the request's profile (told only to clients
-	// running in it). The frame says which, and the client reads it again.
+	// running in it), or how people are named. The frame says which, and the client reads
+	// it again.
 	Changed(context.Context, *connect.Request[v1.ChangedRequest], *connect.ServerStream[v1.ChangedResponse]) error
 	// NotificationStream streams the notifications published to the request's profile:
 	// kithd publishes each to every profile holding its room, so a listener on several
@@ -4000,6 +4022,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("MessageCounts")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceKnownAsHandler := connect.NewUnaryHandler(
+		BackendServiceKnownAsProcedure,
+		svc.KnownAs,
+		connect.WithSchema(backendServiceMethods.ByName("KnownAs")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceCompleteWordHandler := connect.NewUnaryHandler(
 		BackendServiceCompleteWordProcedure,
 		svc.CompleteWord,
@@ -4554,6 +4582,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceMessagesFromHandler.ServeHTTP(w, r)
 		case BackendServiceMessageCountsProcedure:
 			backendServiceMessageCountsHandler.ServeHTTP(w, r)
+		case BackendServiceKnownAsProcedure:
+			backendServiceKnownAsHandler.ServeHTTP(w, r)
 		case BackendServiceCompleteWordProcedure:
 			backendServiceCompleteWordHandler.ServeHTTP(w, r)
 		case BackendServiceMessagesProcedure:
@@ -5095,6 +5125,10 @@ func (UnimplementedBackendServiceHandler) MessagesFrom(context.Context, *connect
 
 func (UnimplementedBackendServiceHandler) MessageCounts(context.Context, *connect.Request[v1.MessageCountsRequest]) (*connect.Response[v1.MessageCountsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MessageCounts is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) KnownAs(context.Context, *connect.Request[v1.KnownAsRequest]) (*connect.Response[v1.KnownAsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.KnownAs is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) CompleteWord(context.Context, *connect.Request[v1.CompleteWordRequest]) (*connect.Response[v1.CompleteWordResponse], error) {

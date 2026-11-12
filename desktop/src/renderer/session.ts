@@ -1921,6 +1921,14 @@ export class Session {
             if (e.frames.some((f) => f.change === Change.LANGUAGES)) {
               void this.offers.owed();
             }
+            if (e.frames.some((f) => f.change === Change.NAMES)) {
+              // kithd names people differently: what shows them is read again.
+              run.timeline?.reload();
+              run.thread?.reload();
+              run.composer.forgetMembers();
+              this.pumpThread(run);
+              this.pump(run);
+            }
             break;
           case "detached":
             this.set({ link: { state: "detached", error: e.error } });

@@ -151,10 +151,10 @@ func (s *server) ChatImportSenders(ctx context.Context, r *req[v1.ChatImportSend
 	if err != nil {
 		return nil, rpcErr(err)
 	}
-	out := &v1.ChatImportSendersResponse{Members: pc.MembersToProto(members), Adds: pc.ClampInt32(e.Adds(before))}
+	out := &v1.ChatImportSendersResponse{Members: pc.MembersToProto(s.Names.members(ctx, members)), Adds: pc.ClampInt32(e.Adds(before))}
 	for _, sender := range e.Senders(members, cached) {
 		out.Senders = append(out.Senders, &v1.ExportSender{
-			Name: sender.Name, Messages: pc.ClampInt32(sender.Messages), Chosen: sender.Chosen, Likely: pc.MembersToProto(sender.Likely),
+			Name: sender.Name, Messages: pc.ClampInt32(sender.Messages), Chosen: sender.Chosen, Likely: pc.MembersToProto(s.Names.members(ctx, sender.Likely)),
 		})
 	}
 	return connect.NewResponse(out), nil

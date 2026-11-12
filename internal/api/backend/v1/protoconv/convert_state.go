@@ -139,14 +139,14 @@ func ProtoToUnreads(pb []*v1.Unread) []domain.Unread {
 // MembersToProto converts a room's members.
 func MembersToProto(ms []domain.Member) []*v1.Member {
 	return mapSlice(ms, func(m domain.Member) *v1.Member {
-		return &v1.Member{UserId: m.UserID, DisplayName: m.DisplayName}
+		return &v1.Member{UserId: m.UserID, DisplayName: m.DisplayName, KnownAs: m.KnownAs}
 	})
 }
 
 // ProtoToMembers converts a room's members back.
 func ProtoToMembers(pb []*v1.Member) []domain.Member {
 	return mapSlice(pb, func(m *v1.Member) domain.Member {
-		return domain.Member{UserID: m.GetUserId(), DisplayName: m.GetDisplayName()}
+		return domain.Member{UserID: m.GetUserId(), DisplayName: m.GetDisplayName(), KnownAs: m.GetKnownAs()}
 	})
 }
 
@@ -493,6 +493,7 @@ var changes = map[domain.Change]v1.Change{
 	domain.ChangeAccounts:  v1.Change_CHANGE_ACCOUNTS,
 	domain.ChangeRail:      v1.Change_CHANGE_RAIL,
 	domain.ChangeLanguages: v1.Change_CHANGE_LANGUAGES,
+	domain.ChangeNames:     v1.Change_CHANGE_NAMES,
 }
 
 // ChangeToProto converts what changed in the daemon.

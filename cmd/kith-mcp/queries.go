@@ -364,11 +364,12 @@ func (s *server) findPeople(ctx context.Context, raw json.RawMessage) (any, erro
 	}
 	var out []personView
 	for _, person := range people {
-		named := strings.Contains(strings.ToLower(person.DisplayName), want) ||
+		named := strings.Contains(strings.ToLower(person.KnownAs), want) ||
+			strings.Contains(strings.ToLower(person.DisplayName), want) ||
 			strings.Contains(strings.ToLower(person.UserID), want)
 		card, found := s.cardOf(cards, person.UserID)
 		if named && (!query.HasTerms() || found && card.Matches(query.Fields())) {
-			out = append(out, personView{UserID: person.UserID, Name: person.DisplayName, Fields: cardFields(card, found)})
+			out = append(out, personView{UserID: person.UserID, Name: cmp.Or(person.KnownAs, person.DisplayName), Fields: cardFields(card, found)})
 		}
 		if len(out) >= limitOr(in.Limit, 10, 50) {
 			break
@@ -415,7 +416,7 @@ func (s *server) cards() phonebook.Index {
 
 // cardOf is userID's person's card: every ID the directory or an identity links to theirs.
 func (s *server) cardOf(cards phonebook.Index, userID string) (phonebook.Card, bool) {
-	ids := s.people.Dir.Identifiers(userID)
+	ids := s.dir.Identifiers(userID)
 	if alias := s.aliases[userID]; alias != "" {
 		for other, a := range s.aliases {
 			if a == alias && !slices.Contains(ids, other) {
@@ -645,11 +646,11 @@ func (s *server) shapeHits(ctx context.Context, hits []domain.SearchHit) []hitVi
 		}
 		// Strip markers first, so a mention's words are whole.
 		snippet, _ := domain.ResolveMentions(unmark.Replace(hits[i].Snippet), hits[i].Mentions, func(mn domain.Mention, words string) string {
-			return s.people.Name(mn.UserID, mn.Known, words)
+			return cmp.Or(mn.KnownAs, mn.Known, words)
 		})
 		out = append(out, hitView{
 			Room: string(hits[i].RoomID), RoomName: room.DisplayName(), EventID: string(hits[i].EventID),
-			Sender: hits[i].Sender, Name: s.people.Name(hits[i].Sender, hits[i].SenderName),
+			Sender: hits[i].Sender, Name: cmp.Or(hits[i].SenderKnownAs, hits[i].SenderName),
 			Sent:    hits[i].Timestamp.Format(time.RFC3339),
 			Snippet: snippet,
 		})

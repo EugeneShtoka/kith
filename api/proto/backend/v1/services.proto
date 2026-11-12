@@ -1271,6 +1271,15 @@ message MessageCountsResponse {
   repeated int64 counts = 1;
 }
 
+message KnownAsRequest {
+  repeated string user_ids = 1;
+}
+
+message KnownAsResponse {
+  // Each person's name as kithd names them, in the request's order.
+  repeated string known_as = 1;
+}
+
 message MessagesFromResponse {
   // Oldest first.
   repeated Message messages = 1;
@@ -1541,6 +1550,9 @@ enum Change {
   // A new account's history has arrived, so kithd owes the dictionary offer: make it
   // (DetectLanguages with owed).
   CHANGE_LANGUAGES = 4;
+  // How kithd names people changed (an alias, a room's name, a name a network or the
+  // phone book gives): read again what shows people's names.
+  CHANGE_NAMES = 5;
 }
 
 message ChangedRequest {}
@@ -2697,6 +2709,9 @@ service BackendService {
   rpc MessagesFrom(MessagesFromRequest) returns (MessagesFromResponse);
   // MessageCounts is how many cached messages each person wrote.
   rpc MessageCounts(MessageCountsRequest) returns (MessageCountsResponse);
+  // KnownAs is kithd's name for each person, for a client naming people it holds only
+  // the IDs of (what it sends names them already); CHANGE_NAMES says to ask again.
+  rpc KnownAs(KnownAsRequest) returns (KnownAsResponse);
   // CompleteWord finishes a partly typed word from what has been said in scope, ranked,
   // then tops the list up from the installed word-frequency list for the language the
   // prefix is in.
@@ -2717,7 +2732,8 @@ service BackendService {
   // Changed streams a frame each time something a client shows changes in the daemon:
   // a network rewriting its rooms (a chat begun, renamed, archived on another device),
   // or an account's state, or the rail of the request's profile (told only to clients
-  // running in it). The frame says which, and the client reads it again.
+  // running in it), or how people are named. The frame says which, and the client reads
+  // it again.
   rpc Changed(ChangedRequest) returns (stream ChangedResponse);
   // NotificationStream streams the notifications published to the request's profile:
   // kithd publishes each to every profile holding its room, so a listener on several

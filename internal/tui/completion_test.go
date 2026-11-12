@@ -355,7 +355,8 @@ func TestSendDropsMentionEditedAway(t *testing.T) {
 	}
 }
 
-// A configured identity merges several accounts into one row.
+// A configured identity merges several accounts into one row, named as kithd names them
+// (the alias).
 func TestMentionPopupIsIdentityMergeAware(t *testing.T) {
 	t.Parallel()
 
@@ -364,10 +365,10 @@ func TestMentionPopupIsIdentityMergeAware(t *testing.T) {
 		IDs:   []string{"matrix:@dana:x", "matrix:@whatsapp_dana:x", "matrix:@telegram_dana:x"},
 	}}}
 	m, _ := composingWith(t, display,
-		domain.Member{UserID: "matrix:@dana:x", DisplayName: "Dana Levi"},
-		domain.Member{UserID: "matrix:@whatsapp_dana:x", DisplayName: "Dana L (WA)"},
-		domain.Member{UserID: "matrix:@telegram_dana:x", DisplayName: "dana_tg"},
-		domain.Member{UserID: "matrix:@other:x", DisplayName: "Danielle"},
+		domain.Member{UserID: "matrix:@dana:x", DisplayName: "Dana Levi", KnownAs: "Dana"},
+		domain.Member{UserID: "matrix:@whatsapp_dana:x", DisplayName: "Dana L (WA)", KnownAs: "Dana"},
+		domain.Member{UserID: "matrix:@telegram_dana:x", DisplayName: "dana_tg", KnownAs: "Dana"},
+		domain.Member{UserID: "matrix:@other:x", DisplayName: "Danielle", KnownAs: "Danielle"},
 	)
 	m = typeInto(t, m, "@dan")
 

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -13,7 +14,8 @@ import (
 )
 
 // A WhatsApp "@<number>" mention is drawn with the person's known name: the number until a
-// name is known, then the member list's name, even if that arrives after the first draw.
+// name is known, then kithd's name for the member, even if that arrives after the first
+// draw.
 func TestANumberMentionIsDrawnWithTheName(t *testing.T) {
 	t.Parallel()
 	const eli = "whatsapp:1500000005@s.whatsapp.net"
@@ -29,55 +31,54 @@ func TestANumberMentionIsDrawnWithTheName(t *testing.T) {
 		t.Errorf("before a name is known, the mention is not the number:\n%s", view)
 	}
 
-	m = settled(update(t, m, membersMsg{roomID: mx + "!a:x", members: []domain.Member{{UserID: eli, DisplayName: "Eli Cohen"}}}))
+	m = settled(update(t, m, membersMsg{roomID: mx + "!a:x", members: []domain.Member{{UserID: eli, DisplayName: "Eli", KnownAs: "Eli Cohen"}}}))
 	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "@Eli Cohen can you look?") {
 		t.Errorf("the member's name does not reach the drawn row:\n%s", view)
 	}
 }
 
-// A mention is drawn with the name known now, not as sent: a Telegram mention by the alias, a
-// Matrix one by the member's current name, a first name where the space keeps first names.
+// A mention is drawn with kithd's name, not as sent: a Telegram mention by the alias kithd
+// names them by, a Matrix one by the member's name kithd gives now, a first name where the
+// space keeps first names.
 func TestEveryMentionIsDrawnWithTheNameKnownNow(t *testing.T) {
 	t.Parallel()
 	m := withRooms(t, newModel())
 	m = update(t, m, tea.WindowSizeMsg{Width: 120, Height: 20})
 	m.openRoom = mx + "!a:x"
-	m.prefs.identities = map[string]resolvedIdentity{"telegram:7": {alias: "Vanya Sokolov"}}
 	m = update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
 		{
 			ID: mx + "$1", RoomID: mx + "!a:x", Sender: "matrix:@maya:x", SenderName: "Maya", Body: "Ivan Petrov, thoughts?", Timestamp: at(1),
-			Mentions: []domain.Mention{{UserID: "telegram:7", Name: "Ivan Petrov"}},
+			Mentions: []domain.Mention{{UserID: "telegram:7", Name: "Ivan Petrov", KnownAs: "Vanya Sokolov"}},
 		},
 		{
 			ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@maya:x", SenderName: "Maya", Body: "ask Robert", Timestamp: at(2),
 			Mentions: []domain.Mention{{UserID: "matrix:@rob:x", Name: "Robert"}},
 		},
 	}}})
-	m = settled(update(t, m, membersMsg{roomID: mx + "!a:x", members: []domain.Member{{UserID: "matrix:@rob:x", DisplayName: "Rob Stone"}}}))
+	m = settled(update(t, m, membersMsg{roomID: mx + "!a:x", members: []domain.Member{{UserID: "matrix:@rob:x", DisplayName: "Robbie", KnownAs: "Rob Stone"}}}))
 	view := ansi.Strip(m.View().Content)
 	if !strings.Contains(view, "Vanya Sokolov, thoughts?") || !strings.Contains(view, "ask Rob Stone") {
 		t.Errorf("the mentions are not drawn with the names known now:\n%s", view)
 	}
 
-	if got := m.mentionedName("telegram:7", mx+"!a:x", "Ivan Petrov"); got != "Vanya Sokolov" {
+	if got := m.mentionedName("telegram:7", mx+"!a:x", "Vanya Sokolov", "Ivan Petrov"); got != "Vanya Sokolov" {
 		t.Fatalf("mentionedName = %q", got)
 	}
 	m.prefs.display.SpaceRules = []config.SpaceRule{{Space: m.ownSpace(mx + "!a:x"), FirstNameOnly: true}}
-	if got := m.mentionedName("telegram:7", mx+"!a:x", "Ivan Petrov"); got != "Vanya" {
+	if got := m.mentionedName("telegram:7", mx+"!a:x", "Vanya Sokolov", "Ivan Petrov"); got != "Vanya" {
 		t.Errorf("in a first-names space the mention = %q, want Vanya", got)
 	}
 }
 
-// A search result names its sender and mentioned people as the timeline would.
+// A search result names its sender and mentioned people as kithd names them.
 func TestASearchResultNamesPeopleAsTheTimelineDoes(t *testing.T) {
 	t.Parallel()
 	m := withRooms(t, newModel())
 	m = update(t, m, tea.WindowSizeMsg{Width: 140, Height: 20})
-	m.prefs.identities = map[string]resolvedIdentity{"slack:T1/U1": {alias: "Annie"}}
 	row := ansi.Strip(m.searchRow(domain.SearchHit{
-		RoomID: mx + "!a:x", EventID: mx + "$1", Sender: "slack:T1/U1", SenderName: "Ann", Timestamp: at(1),
+		RoomID: mx + "!a:x", EventID: mx + "$1", Sender: "slack:T1/U1", SenderName: "Ann", SenderKnownAs: "Annie", Timestamp: at(1),
 		Snippet:  "@Bo Old, standup moved",
-		Mentions: []domain.Mention{{UserID: "slack:T1/U2", Name: "@Bo Old", Known: "Bo New"}},
+		Mentions: []domain.Mention{{UserID: "slack:T1/U2", Name: "@Bo Old", Known: "Bo", KnownAs: "Bo New"}},
 	}, false, 140))
 	if !strings.Contains(row, "Annie") || !strings.Contains(row, "@Bo New, standup moved") {
 		t.Errorf("search row = %q, want Annie and \"@Bo New, standup moved\"", row)
@@ -144,21 +145,19 @@ func TestMentionCandidatesOfferTheRoomsBroadcastsFirst(t *testing.T) {
 	}
 }
 
-// `@` offers people by the name the timeline gives them: in a space that keeps first
-// names, "Sagi", not "Sagi Chizik"; an identity's or a DM's alias as the timeline has
-// it. Never truncated to the column width, since the name goes into the message.
+// `@` offers people by the name the timeline gives them: kithd's, and in a space that
+// keeps first names, "Sagi", not "Sagi Chizik". Never truncated to the column width, since
+// the name goes into the message.
 func TestMentionCandidatesAreNamedAsTheTimelineNamesThem(t *testing.T) {
 	t.Parallel()
 	m := withRooms(t, newModel())
 	m.openRoom = mx + "!a:x"
 	m.timeline.members = []domain.Member{
-		{UserID: "slack:T1.U1", DisplayName: "Sagi Chizik"},
-		{UserID: "slack:T1.U2", DisplayName: "Evgeny"},
-		{UserID: "matrix:@vanya:x", DisplayName: "ivan.p"},
-		{UserID: "matrix:@dm:x", DisplayName: "dm-handle"},
+		{UserID: "slack:T1.U1", DisplayName: "Sagi Chizik", KnownAs: "Sagi Chizik"},
+		{UserID: "slack:T1.U2", DisplayName: "Evgeny", KnownAs: "Evgeny"},
+		{UserID: "matrix:@vanya:x", DisplayName: "ivan.p", KnownAs: "Vanya Sokolov"},
+		{UserID: "matrix:@dm:x", DisplayName: "dm-handle", KnownAs: "Dana Mor"},
 	}
-	m.prefs.identities = map[string]resolvedIdentity{"matrix:@vanya:x": {key: "vanya", alias: "Vanya Sokolov"}}
-	m.peers.aliases = map[string]string{"matrix:@dm:x": "Dana Mor"}
 	m.prefs.display.SpaceRules = []config.SpaceRule{{Space: m.ownSpace(mx + "!a:x"), FirstNameOnly: true}}
 	m.prefs.device.MaxNameLength = 3
 
@@ -173,10 +172,62 @@ func TestMentionCandidatesAreNamedAsTheTimelineNamesThem(t *testing.T) {
 	for _, member := range m.timeline.members {
 		_, name := m.personOf(member)
 		m.prefs.device.MaxNameLength = 0
-		timeline := m.processedName(domain.Message{RoomID: mx + "!a:x", Sender: member.UserID, SenderName: member.DisplayName})
+		timeline := m.processedName(domain.Message{RoomID: mx + "!a:x", Sender: member.UserID, SenderName: member.DisplayName, SenderKnownAs: member.KnownAs})
 		m.prefs.device.MaxNameLength = 3
 		if name != timeline {
 			t.Errorf("%s: @ offers %q, the timeline says %q", member.UserID, name, timeline)
 		}
+	}
+}
+
+// Svetlana's Telegram account calls itself "neke"; kithd names her by her alias. The
+// timeline shows "Svetlana" as her sender name, in a mention of her, and for her bridge
+// puppet, and never "neke".
+func TestTheTimelineShowsKithdsNameForEveryone(t *testing.T) {
+	t.Parallel()
+	const svetlana, puppet = "telegram:66919467", "matrix:@telegram_66919467:x"
+	m := withRooms(t, newModel())
+	m = update(t, m, tea.WindowSizeMsg{Width: 120, Height: 20})
+	m.openRoom = mx + "!a:x"
+	m = settled(update(t, m, timelineMsg{roomID: mx + "!a:x", page: domain.TimelinePage{Messages: []domain.Message{
+		{ID: mx + "$1", RoomID: mx + "!a:x", Sender: svetlana, SenderName: "neke", SenderKnownAs: "Svetlana", Body: "first", Timestamp: at(1)},
+		{
+			ID: mx + "$2", RoomID: mx + "!a:x", Sender: "matrix:@maya:x", SenderName: "Maya", SenderKnownAs: "Maya", Body: "thanks @neke", Timestamp: at(2),
+			Mentions: []domain.Mention{{UserID: svetlana, Name: "@neke", KnownAs: "Svetlana"}},
+		},
+		{ID: mx + "$3", RoomID: mx + "!a:x", Sender: puppet, SenderName: "neke (Telegram)", SenderKnownAs: "Svetlana", Body: "bridged", Timestamp: at(3)},
+	}}}))
+	view := ansi.Strip(m.View().Content)
+	if strings.Contains(view, "neke") || strings.Count(view, "Svetlana") < 3 || !strings.Contains(view, "thanks @Svetlana") {
+		t.Errorf("want Svetlana as both senders and in the mention, never neke:\n%s", view)
+	}
+}
+
+// namingBackend is countingBackend naming everyone "Named".
+type namingBackend struct{ *countingBackend }
+
+func (namingBackend) KnownAs(_ context.Context, ids []string) ([]string, error) {
+	out := make([]string, len(ids))
+	for i := range out {
+		out[i] = "Named"
+	}
+	return out, nil
+}
+
+// kithd saying names changed reads the open room again, and asks again for the people
+// held by ID.
+func TestNamesChangedReadsAgainWhatShowsNames(t *testing.T) {
+	t.Parallel()
+	backend := &countingBackend{}
+	m := attachableWith(t, backend)
+	m.backend = namingBackend{backend}
+	m.named = map[string]string{"matrix:@bob:x": "Bob"}
+	backend.timelines.Store(0)
+	_, cmd := m.Update(changedMsg{change: domain.ChangeNames})
+	if named, asked := msgOf[namedMsg](t, cmd); !asked || named.names["matrix:@bob:x"] != "Named" {
+		t.Errorf("names changed asked again %+v, want Bob named anew", named)
+	}
+	if got := backend.timelines.Load(); got == 0 {
+		t.Error("names changed read no timeline again, so the old names stay on screen")
 	}
 }

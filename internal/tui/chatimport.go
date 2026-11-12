@@ -212,13 +212,13 @@ func (m Model) exportWho(name string) string {
 	}
 	for _, member := range m.imports.senders.Members {
 		if member.UserID == id {
-			return isolate(m.byNumber(member.Name()))
+			return isolate(m.memberName(member))
 		}
 	}
 	for _, s := range m.imports.senders.Senders {
 		for _, member := range s.Likely {
 			if member.UserID == id {
-				return isolate(m.byNumber(member.Name()))
+				return isolate(m.memberName(member))
 			}
 		}
 	}
@@ -255,7 +255,7 @@ func (m Model) exportSender(all bool) Model {
 	}
 	items := make([]pickerItem, 0, len(members)+2)
 	for _, member := range members {
-		items = append(items, pickerItem{label: isolate(m.byNumber(member.Name())), detail: member.UserID, value: member.UserID})
+		items = append(items, pickerItem{label: isolate(m.memberName(member)), detail: member.UserID, value: member.UserID})
 	}
 	if !all {
 		items = append(items, pickerItem{label: "Someone else", detail: "any member", value: senderElse})

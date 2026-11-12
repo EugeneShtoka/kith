@@ -46,8 +46,6 @@ type derivedKey struct {
 	// members is the member list's revision: it names a person a mention writes only as
 	// a number (knownName), and arrives after the messages.
 	members uint64
-	// peers is the room-named people's revision (peeralias.go).
-	peers uint64
 	// tags is the tag set's revision: a muted tag's people are hidden (markedpeople.go).
 	tags uint64
 	// markedShown: the room shows the people muted tags hide.
@@ -128,7 +126,6 @@ func (m Model) keyFor() derivedKey {
 		selves:  selvesFingerprint(m.selves),
 		phones:  m.dir.rev,
 		members: m.timeline.membersRev,
-		peers:   m.peers.rev,
 
 		tags:        m.rail.tagsRev,
 		markedShown: m.markedShownHere(),

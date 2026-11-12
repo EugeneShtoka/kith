@@ -20,7 +20,8 @@ type ExportOf struct {
 const quoteRunes = 80
 
 // ExportMarkdown renders msgs (oldest first) as Markdown: a heading per day, a
-// thread's replies quoted under its root. name is People.Name; reactions are the room's.
+// thread's replies quoted under its root. name is asked with kithd's name for a person
+// (KnownAs) first, then the network's (People.Name's known); reactions are the room's.
 func ExportMarkdown(of ExportOf, msgs []Message, reactions []Reaction, name func(userID string, known ...string) string, clock Clock) string {
 	byID := make(map[EventID]*Message, len(msgs))
 	for i := range msgs {
@@ -81,7 +82,7 @@ type exportWriter struct {
 // message is one message's block: a time and sender line, then its content.
 func (w exportWriter) message(m *Message, inThread bool) string {
 	var b strings.Builder
-	head := "**" + w.clock.Time(m.Timestamp) + " · " + richtext.EscapeMarkdown(w.name(m.Sender, m.SenderName)) + "**"
+	head := "**" + w.clock.Time(m.Timestamp) + " · " + richtext.EscapeMarkdown(w.name(m.Sender, m.SenderKnownAs, m.SenderName)) + "**"
 	if inThread {
 		head += " · " + w.clock.ShortDate(m.Timestamp)
 	}
@@ -133,7 +134,7 @@ func (w exportWriter) words(m *Message) string {
 		escaped[i] = mn
 	}
 	md, _ = ResolveMentions(md, escaped, func(mn Mention, words string) string {
-		return richtext.EscapeMarkdown(w.name(mn.UserID, mn.Known, words))
+		return richtext.EscapeMarkdown(w.name(mn.UserID, mn.KnownAs, mn.Known, words))
 	})
 	// Two trailing spaces keep Markdown line breaks.
 	return strings.ReplaceAll(md, "\n", "  \n")
@@ -153,7 +154,7 @@ func (w exportWriter) quote(target EventID) string {
 	if r := []rune(words); len(r) > quoteRunes {
 		words = string(r[:quoteRunes]) + "…"
 	}
-	return "> ↳ **" + richtext.EscapeMarkdown(w.name(quoted.Sender, quoted.SenderName)) + "**: " + richtext.EscapeMarkdown(words) + "\n"
+	return "> ↳ **" + richtext.EscapeMarkdown(w.name(quoted.Sender, quoted.SenderKnownAs, quoted.SenderName)) + "**: " + richtext.EscapeMarkdown(words) + "\n"
 }
 
 func attachmentLine(md *Media) string {

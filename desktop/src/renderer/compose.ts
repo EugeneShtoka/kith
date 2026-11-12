@@ -30,7 +30,7 @@ import {
   shortcodeAt,
 } from "./emoji";
 import { call } from "./kith";
-import { mentionAt, rankMembers } from "./mentions";
+import { mentionAt, nameOf, rankMembers } from "./mentions";
 import type { Asked, VotersRead } from "./polls";
 import { queued, type Row, rows, whenOf, type When, parseSchedule } from "./schedule";
 import { firstLine, pollOf, typed, type Typed, unescaped, type UserCommand } from "./slash";
@@ -661,7 +661,7 @@ export class Composer {
   /** mention puts m's name in place of text[start, end) and the mention with the draft. */
   mention(room: string, m: Member, start: number, end: number): number {
     const c = this.drafts.get(room);
-    const name = m.displayName || m.userId;
+    const name = nameOf(m);
     const body = `${c.body.slice(0, start)}${name} ${c.body.slice(end)}`;
     this.drafts.set(room, {
       ...c,
@@ -692,6 +692,12 @@ export class Composer {
         this.around.failed(err);
       },
     );
+  }
+
+  /** forgetMembers drops the people read for mentions, read again when next wanted: kithd names them differently. */
+  forgetMembers(): void {
+    this.members.clear();
+    this.around.changed();
   }
 
   reply(m: Message): void {

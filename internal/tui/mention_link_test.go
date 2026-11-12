@@ -20,6 +20,8 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 
 	const pillHref = "matrix:u/dana:x"
 	dana := []domain.Mention{{UserID: "matrix:@dana:x", Name: "Dana"}}
+	// dee is the mention as kithd names her by an alias.
+	dee := []domain.Mention{{UserID: "matrix:@dana:x", Name: "Dana", KnownAs: "Dee"}}
 	for _, tc := range []struct {
 		name string
 		disp config.Display
@@ -57,18 +59,16 @@ func TestTimelineMentionPillCarriesItsLink(t *testing.T) {
 		},
 		{
 			name: "formatted pill rewritten to an alias",
-			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", IDs: []string{"matrix:@dana:x"}}}},
 			msg: domain.Message{
-				Body: "ask Dana about it", Mentions: dana,
+				Body: "ask Dana about it", Mentions: dee,
 				Format: richtext.FromMarkup(`ask <a href="https://matrix.to/#/@dana:x">Dana</a> about it`),
 			},
 			want: pillHref,
 		},
 		{
 			name: "formatted RTL pill rewritten to an alias",
-			disp: config.Display{Identities: []config.Identity{{Alias: "Dee", IDs: []string{"matrix:@dana:x"}}}},
 			msg: domain.Message{
-				Body: "שאל את Dana על זה", Mentions: dana,
+				Body: "שאל את Dana על זה", Mentions: dee,
 				Format: richtext.FromMarkup(`שאל את <a href="https://matrix.to/#/@dana:x">Dana</a> על זה`),
 			},
 			want: pillHref,

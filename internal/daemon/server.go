@@ -34,6 +34,8 @@ type Daemon struct {
 	Backend api.Backend
 	// Streams fans each backend channel out to every subscriber.
 	Streams *Streams
+	// Names names the people in everything sent.
+	Names *Names
 	// MessageLog is the cache's changes, which a client's message stream reads.
 	MessageLog MessageLog
 	// State is readiness: whether a sync has landed, and what broke if not.
@@ -66,7 +68,7 @@ type Daemon struct {
 func (d *Daemon) missing() []string {
 	var out []string
 	for name, absent := range map[string]bool{
-		"Backend": d.Backend == nil, "Streams": d.Streams == nil, "MessageLog": d.MessageLog == nil, "State": d.State == nil,
+		"Backend": d.Backend == nil, "Streams": d.Streams == nil, "Names": d.Names == nil, "MessageLog": d.MessageLog == nil, "State": d.State == nil,
 		"Notifications": d.Notifications == nil, "Reload": d.Reload == nil,
 		"CheckConfig": d.CheckConfig == nil, "Config": d.Config == nil,
 		"Scheduler": d.Scheduler == nil, "Logins": d.Logins == nil, "Uploads": d.Uploads == nil, "Log": d.Log == nil,

@@ -17,4 +17,6 @@ const (
 	// ChangeLanguages is the dictionary offer being owed: a new account's history has
 	// arrived.
 	ChangeLanguages
+	// ChangeNames is how kithd names people having changed (People.Name's inputs).
+	ChangeNames
 )

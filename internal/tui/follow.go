@@ -47,7 +47,7 @@ func (m Model) placeLabel(place domain.Place) (label, detail string) {
 	switch place.Kind {
 	case domain.PlaceNone:
 	case domain.PlacePerson:
-		return m.mentionedName(placeUser(place), m.openRoom, localpart(place.User)), "person"
+		return m.mentionedName(placeUser(place), m.openRoom, "", localpart(place.User)), "person"
 	case domain.PlaceRoom, domain.PlaceEvent:
 		kind := "room"
 		if place.Kind == domain.PlaceEvent {
@@ -79,7 +79,7 @@ func (m Model) goToPlace(place domain.Place) (Model, tea.Cmd) {
 // have none.
 func (m Model) goToPerson(user string) (Model, tea.Cmd) {
 	next, cmd := m.openJump()
-	name := next.mentionedName(user, next.openRoom)
+	name := next.mentionedName(user, next.openRoom, "")
 	if name == "" {
 		name = user
 	}
@@ -377,6 +377,14 @@ func (m Model) handleChanged(msg changedMsg) (Model, tea.Cmd) {
 		return m, tea.Batch(m.loadRailCmd(), m.listenChangesCmd())
 	case domain.ChangeLanguages:
 		return m, tea.Batch(m.offerOwedDictionaries(), m.listenChangesCmd())
+	case domain.ChangeNames:
+		// kithd names people differently: the open room's messages, members and threads
+		// are read again, with the new names, and the people asked for by ID.
+		cmds := []tea.Cmd{m.listenChangesCmd(), m.askNamesAgainCmd()}
+		if m.openRoom != "" {
+			cmds = append(cmds, m.loadRoomCmd(m.openRoom))
+		}
+		return m, tea.Batch(cmds...)
 	case domain.ChangeMessages:
 		// The message stream could not resume: what arrived meanwhile is read from the
 		// cache instead.

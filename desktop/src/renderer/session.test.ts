@@ -10,7 +10,7 @@ import {
   type SeatRequest,
   SpaceFiledOutcome,
 } from "../gen/backend/v1/services_pb";
-import { ReactionSchema, UnreadSchema, VerificationKind } from "../gen/backend/v1/types_pb";
+import { MentionSchema, ReactionSchema, UnreadSchema, VerificationKind } from "../gen/backend/v1/types_pb";
 import {
   type DeviceSettings,
   DeviceSettingsSchema,
@@ -19,6 +19,7 @@ import {
   ThemeScope,
 } from "../gen/device/v1/device_pb";
 import { list, number, text, valueAt, words } from "./config";
+import { senderOf } from "./mentions";
 import { unreadOf } from "./rooms";
 import { deviceAgain, noticeSeconds, readLevel, readNote, Session } from "./session";
 import { type Key, withKey } from "./settings";
@@ -493,6 +494,41 @@ describe("the open room", () => {
     kithd.again();
     await settled();
     expect(kithd.calls.filter((c) => c.startsWith("CachedTimeline"))).toHaveLength(1);
+  });
+
+  it("shows kithd's names, and is read again, named anew, when kithd says names changed", async () => {
+    // Svetlana's Telegram account calls itself "neke"; kithd names her, and her bridge
+    // puppet, by her alias once one is set, in a mention of her too.
+    const svetlana = "telegram:66919467";
+    const said = (knownAs: string) => {
+      const cc = message(
+        {
+          id: "$2",
+          ts: 20,
+          body: "cc @neke",
+          sender: "@puppet",
+          senderName: "neke (Telegram)",
+          senderKnownAs: knownAs,
+        },
+        r,
+      );
+      cc.mentions = [create(MentionSchema, { userId: svetlana, name: "@neke", knownAs })];
+      return [
+        message({ id: "$1", ts: 10, body: "first", sender: svetlana, senderName: "neke", senderKnownAs: knownAs }, r),
+        cc,
+      ];
+    };
+    kithd.of("Home").messages.set(r, said("neke"));
+    await started();
+    session.open(r);
+    await settled();
+    expect(view().timeline?.rows.map(senderOf)).toEqual(["neke", "neke"]);
+    kithd.of("Home").messages.set(r, said("Svetlana"));
+    kithd.send(backend.changed, "Home", { change: Change.NAMES });
+    await settled();
+    expect(view().timeline?.rows.map(senderOf)).toEqual(["Svetlana", "Svetlana"]);
+    expect(view().timeline?.rows[1]?.mentions[0]?.knownAs).toBe("Svetlana");
+    expect(kithd.calls.filter((c) => c.startsWith("CachedTimeline"))).toHaveLength(2);
   });
 
   it("is read again, with the rooms, when kithd could not resume", async () => {

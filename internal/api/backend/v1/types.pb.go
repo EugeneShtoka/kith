@@ -515,7 +515,10 @@ type Mention struct {
 	Name   string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	RoomId string `protobuf:"bytes,3,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
 	// The person's name in the room now, as the cache knows it (domain.Mention.Known).
-	Known         string `protobuf:"bytes,4,opt,name=known,proto3" json:"known,omitempty"`
+	Known string `protobuf:"bytes,4,opt,name=known,proto3" json:"known,omitempty"`
+	// The person's name as kithd names them, the one every client shows
+	// (domain.Mention.KnownAs).
+	KnownAs       string `protobuf:"bytes,5,opt,name=known_as,json=knownAs,proto3" json:"known_as,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -574,6 +577,13 @@ func (x *Mention) GetRoomId() string {
 func (x *Mention) GetKnown() string {
 	if x != nil {
 		return x.Known
+	}
+	return ""
+}
+
+func (x *Mention) GetKnownAs() string {
+	if x != nil {
+		return x.KnownAs
 	}
 	return ""
 }
@@ -829,7 +839,10 @@ type Message struct {
 	Seq int64 `protobuf:"varint,25,opt,name=seq,proto3" json:"seq,omitempty"`
 	// A stand-in for an encrypted message whose key has not arrived; the decrypted copy
 	// replaces it (domain.Message.Undecrypted).
-	Undecrypted   bool `protobuf:"varint,26,opt,name=undecrypted,proto3" json:"undecrypted,omitempty"`
+	Undecrypted bool `protobuf:"varint,26,opt,name=undecrypted,proto3" json:"undecrypted,omitempty"`
+	// The sender's name as kithd names them, the one every client shows; sender_name is
+	// the network's own (domain.Message.SenderKnownAs).
+	SenderKnownAs string `protobuf:"bytes,27,opt,name=sender_known_as,json=senderKnownAs,proto3" json:"sender_known_as,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1037,6 +1050,13 @@ func (x *Message) GetUndecrypted() bool {
 		return x.Undecrypted
 	}
 	return false
+}
+
+func (x *Message) GetSenderKnownAs() string {
+	if x != nil {
+		return x.SenderKnownAs
+	}
+	return ""
 }
 
 // Poll is a question a message asks (domain.Poll).
@@ -1943,21 +1963,22 @@ func (x *ThreadUnread) GetTitle() string {
 
 // Thread is one thread's summary (domain.Thread).
 type Thread struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Root             string                 `protobuf:"bytes,1,opt,name=root,proto3" json:"root,omitempty"`
-	RoomId           string                 `protobuf:"bytes,2,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	Count            int64                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"` // replies, excluding the root
-	Latest           string                 `protobuf:"bytes,4,opt,name=latest,proto3" json:"latest,omitempty"`
-	LatestAt         *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=latest_at,json=latestAt,proto3" json:"latest_at,omitempty"`
-	LatestSender     string                 `protobuf:"bytes,6,opt,name=latest_sender,json=latestSender,proto3" json:"latest_sender,omitempty"`
-	LatestSenderName string                 `protobuf:"bytes,7,opt,name=latest_sender_name,json=latestSenderName,proto3" json:"latest_sender_name,omitempty"`
-	Anchor           string                 `protobuf:"bytes,8,opt,name=anchor,proto3" json:"anchor,omitempty"`
-	RootLoaded       bool                   `protobuf:"varint,9,opt,name=root_loaded,json=rootLoaded,proto3" json:"root_loaded,omitempty"`
-	Unread           int64                  `protobuf:"varint,10,opt,name=unread,proto3" json:"unread,omitempty"`
-	Mentions         int64                  `protobuf:"varint,11,opt,name=mentions,proto3" json:"mentions,omitempty"`
-	Title            string                 `protobuf:"bytes,12,opt,name=title,proto3" json:"title,omitempty"` // the root's text, for naming the thread where the root is not on screen
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Root                string                 `protobuf:"bytes,1,opt,name=root,proto3" json:"root,omitempty"`
+	RoomId              string                 `protobuf:"bytes,2,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	Count               int64                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"` // replies, excluding the root
+	Latest              string                 `protobuf:"bytes,4,opt,name=latest,proto3" json:"latest,omitempty"`
+	LatestAt            *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=latest_at,json=latestAt,proto3" json:"latest_at,omitempty"`
+	LatestSender        string                 `protobuf:"bytes,6,opt,name=latest_sender,json=latestSender,proto3" json:"latest_sender,omitempty"`
+	LatestSenderName    string                 `protobuf:"bytes,7,opt,name=latest_sender_name,json=latestSenderName,proto3" json:"latest_sender_name,omitempty"`
+	Anchor              string                 `protobuf:"bytes,8,opt,name=anchor,proto3" json:"anchor,omitempty"`
+	RootLoaded          bool                   `protobuf:"varint,9,opt,name=root_loaded,json=rootLoaded,proto3" json:"root_loaded,omitempty"`
+	Unread              int64                  `protobuf:"varint,10,opt,name=unread,proto3" json:"unread,omitempty"`
+	Mentions            int64                  `protobuf:"varint,11,opt,name=mentions,proto3" json:"mentions,omitempty"`
+	Title               string                 `protobuf:"bytes,12,opt,name=title,proto3" json:"title,omitempty"`                                                            // the root's text, for naming the thread where the root is not on screen
+	LatestSenderKnownAs string                 `protobuf:"bytes,13,opt,name=latest_sender_known_as,json=latestSenderKnownAs,proto3" json:"latest_sender_known_as,omitempty"` // latest_sender's name as kithd names them
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *Thread) Reset() {
@@ -2070,6 +2091,13 @@ func (x *Thread) GetMentions() int64 {
 func (x *Thread) GetTitle() string {
 	if x != nil {
 		return x.Title
+	}
+	return ""
+}
+
+func (x *Thread) GetLatestSenderKnownAs() string {
+	if x != nil {
+		return x.LatestSenderKnownAs
 	}
 	return ""
 }
@@ -2374,9 +2402,12 @@ func (x *Draft) GetPlain() bool {
 
 // Member is one person in a room (domain.Member).
 type Member struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	UserId      string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DisplayName string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// The person's name as kithd names them, the one every client shows; display_name is
+	// the network's own (domain.Member.KnownAs).
+	KnownAs       string `protobuf:"bytes,3,opt,name=known_as,json=knownAs,proto3" json:"known_as,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2425,6 +2456,13 @@ func (x *Member) GetDisplayName() string {
 	return ""
 }
 
+func (x *Member) GetKnownAs() string {
+	if x != nil {
+		return x.KnownAs
+	}
+	return ""
+}
+
 // SearchHit is one message matching a search (domain.SearchHit).
 type SearchHit struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
@@ -2441,7 +2479,9 @@ type SearchHit struct {
 	// list groups by what the user wrote.
 	Word string `protobuf:"bytes,8,opt,name=word,proto3" json:"word,omitempty"`
 	// The people the message mentions (domain.SearchHit.Mentions).
-	Mentions      []*Mention `protobuf:"bytes,9,rep,name=mentions,proto3" json:"mentions,omitempty"`
+	Mentions []*Mention `protobuf:"bytes,9,rep,name=mentions,proto3" json:"mentions,omitempty"`
+	// The sender's name as kithd names them (domain.SearchHit.SenderKnownAs).
+	SenderKnownAs string `protobuf:"bytes,10,opt,name=sender_known_as,json=senderKnownAs,proto3" json:"sender_known_as,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2537,6 +2577,13 @@ func (x *SearchHit) GetMentions() []*Mention {
 		return x.Mentions
 	}
 	return nil
+}
+
+func (x *SearchHit) GetSenderKnownAs() string {
+	if x != nil {
+		return x.SenderKnownAs
+	}
+	return ""
 }
 
 // SASEmoji is one emoji of a short authentication string (domain.SASEmoji).
@@ -2939,12 +2986,13 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\tread_only\x18\x0f \x01(\bR\breadOnly\x12\x16\n" +
 	"\x06handle\x18\x10 \x01(\tR\x06handle\x12\x16\n" +
 	"\x06merged\x18\x11 \x03(\tR\x06merged\x12\x18\n" +
-	"\apicture\x18\x12 \x01(\tR\apicture\"e\n" +
+	"\apicture\x18\x12 \x01(\tR\apicture\"\x80\x01\n" +
 	"\aMention\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x17\n" +
 	"\aroom_id\x18\x03 \x01(\tR\x06roomId\x12\x14\n" +
-	"\x05known\x18\x04 \x01(\tR\x05known\"\x85\x01\n" +
+	"\x05known\x18\x04 \x01(\tR\x05known\x12\x19\n" +
+	"\bknown_as\x18\x05 \x01(\tR\aknownAs\"\x85\x01\n" +
 	"\x05Media\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -2959,7 +3007,7 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x06format\x18\x05 \x01(\v2\x15.backend.v1.FormattedR\x06format\";\n" +
 	"\bActivity\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x16\n" +
-	"\x06typing\x18\x02 \x03(\tR\x06typing\"\xc3\x06\n" +
+	"\x06typing\x18\x02 \x03(\tR\x06typing\"\xeb\x06\n" +
 	"\aMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x16\n" +
@@ -2990,7 +3038,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\vplaceholder\x18\x17 \x01(\bR\vplaceholder\x12$\n" +
 	"\x04poll\x18\x18 \x01(\v2\x10.backend.v1.PollR\x04poll\x12\x10\n" +
 	"\x03seq\x18\x19 \x01(\x03R\x03seq\x12 \n" +
-	"\vundecrypted\x18\x1a \x01(\bR\vundecrypted\"\xf2\x01\n" +
+	"\vundecrypted\x18\x1a \x01(\bR\vundecrypted\x12&\n" +
+	"\x0fsender_known_as\x18\x1b \x01(\tR\rsenderKnownAs\"\xf2\x01\n" +
 	"\x04Poll\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bquestion\x18\x02 \x01(\tR\bquestion\x120\n" +
@@ -3070,7 +3119,7 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\bmentions\x18\x03 \x01(\x03R\bmentions\x127\n" +
 	"\tlatest_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\blatestAt\x12\x16\n" +
 	"\x06latest\x18\x05 \x01(\tR\x06latest\x12\x14\n" +
-	"\x05title\x18\x06 \x01(\tR\x05title\"\xf2\x02\n" +
+	"\x05title\x18\x06 \x01(\tR\x05title\"\xa7\x03\n" +
 	"\x06Thread\x12\x12\n" +
 	"\x04root\x18\x01 \x01(\tR\x04root\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x14\n" +
@@ -3085,7 +3134,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x06unread\x18\n" +
 	" \x01(\x03R\x06unread\x12\x1a\n" +
 	"\bmentions\x18\v \x01(\x03R\bmentions\x12\x14\n" +
-	"\x05title\x18\f \x01(\tR\x05title\"u\n" +
+	"\x05title\x18\f \x01(\tR\x05title\x123\n" +
+	"\x16latest_sender_known_as\x18\r \x01(\tR\x13latestSenderKnownAs\"u\n" +
 	"\bReaction\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x16\n" +
@@ -3108,10 +3158,11 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\vthread_root\x18\x04 \x01(\tR\n" +
 	"threadRoot\x12\x15\n" +
 	"\x06txn_id\x18\a \x01(\tR\x05txnId\x12\x14\n" +
-	"\x05plain\x18\b \x01(\bR\x05plain\"D\n" +
+	"\x05plain\x18\b \x01(\bR\x05plain\"_\n" +
 	"\x06Member\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12!\n" +
-	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\"\xae\x02\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x19\n" +
+	"\bknown_as\x18\x03 \x01(\tR\aknownAs\"\xd6\x02\n" +
 	"\tSearchHit\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x19\n" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12\x16\n" +
@@ -3122,7 +3173,9 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\asnippet\x18\x06 \x01(\tR\asnippet\x12\x1b\n" +
 	"\tfile_name\x18\a \x01(\tR\bfileName\x12\x12\n" +
 	"\x04word\x18\b \x01(\tR\x04word\x12/\n" +
-	"\bmentions\x18\t \x03(\v2\x13.backend.v1.MentionR\bmentions\"4\n" +
+	"\bmentions\x18\t \x03(\v2\x13.backend.v1.MentionR\bmentions\x12&\n" +
+	"\x0fsender_known_as\x18\n" +
+	" \x01(\tR\rsenderKnownAs\"4\n" +
 	"\bSASEmoji\x12\x14\n" +
 	"\x05glyph\x18\x01 \x01(\tR\x05glyph\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"\xe5\x01\n" +

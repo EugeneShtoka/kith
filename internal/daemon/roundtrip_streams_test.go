@@ -135,8 +135,8 @@ func TestTwoClientsBothSeeEveryMessage(t *testing.T) {
 	}
 }
 
-// A network rewriting its rooms, and an account's state changing, reach the client
-// saying which.
+// A network rewriting its rooms, an account's state changing, and people named
+// differently reach the client saying which.
 func TestChangesReachTheClient(t *testing.T) {
 	t.Parallel()
 	r, h := attach(t, &fakeBackend{Nop: apitest.Nop{}})
@@ -149,6 +149,7 @@ func TestChangesReachTheClient(t *testing.T) {
 	}{
 		{"rooms", h.streams.RoomsChanged, domain.ChangeRooms},
 		{"accounts", h.streams.AccountsChanged, domain.ChangeAccounts},
+		{"names", h.streams.NamesChanged, domain.ChangeNames},
 	} {
 		deadline := time.Now().Add(settle)
 	waiting:

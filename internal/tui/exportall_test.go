@@ -26,12 +26,12 @@ func (b roomsBackend) CachedTimeline(_ context.Context, room domain.RoomID) ([]d
 }
 
 // `kith export` writes each room with messages in the span to its own file, named and
-// with senders named and times told as the client does (your names and clock); a room
-// with nothing in the span gets none; two rooms of one name get two files.
+// with times told as the client does (your names and clock), senders as kithd names them;
+// a room with nothing in the span gets none; two rooms of one name get two files.
 func TestEveryRoomIsExportedToItsOwnFile(t *testing.T) {
 	t.Parallel()
 	msg := func(room domain.RoomID, id, body string, minute int) domain.Message {
-		return domain.Message{ID: domain.EventID(id), RoomID: room, Sender: "matrix:@maya:x", SenderName: "maya", Body: body, Timestamp: at(60 * minute)}
+		return domain.Message{ID: domain.EventID(id), RoomID: room, Sender: "matrix:@maya:x", SenderName: "maya", SenderKnownAs: "Maya K", Body: body, Timestamp: at(60 * minute)}
 	}
 	b := roomsBackend{
 		rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}, {ID: mx + "!c:x", Name: "Bravo"}, {ID: mx + "!d:x", Name: "Quiet"}},
@@ -44,7 +44,6 @@ func TestEveryRoomIsExportedToItsOwnFile(t *testing.T) {
 	cfg := config.Config{Display: config.Display{
 		TimeFormat: "12h",
 		Names:      []config.DisplayName{{Target: mx + "!a:x", Name: "Team"}},
-		Identities: []config.Identity{{Alias: "Maya K", IDs: []string{"matrix:@maya:x"}}},
 	}}
 	files := func(t *testing.T, span domain.SummarySpan) map[string]string {
 		t.Helper()

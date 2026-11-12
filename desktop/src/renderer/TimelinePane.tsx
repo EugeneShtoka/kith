@@ -16,6 +16,7 @@ import { drawsPictures, type Faces, faceClass, senderColor } from "./theme";
 import { builtIn, ColorRow } from "./ThemeRow";
 import { continues, dayLabel, newDay, seek } from "./groups";
 import { attachmentURL, senderPicture } from "./media";
+import { senderOf } from "./mentions";
 import { PersonEditor } from "./PersonEditor";
 import { PollBlock } from "./Poll";
 import type { Session } from "./session";
@@ -301,7 +302,7 @@ export function actOn(
       session.jump(room, m.replyTo);
       return true;
     case "timeline.person":
-      session.openPerson({ person: m.sender }, m.senderName || m.sender);
+      session.openPerson({ person: m.sender }, senderOf(m));
       return true;
     case "timeline.download":
       if (m.media === undefined) {
@@ -437,7 +438,7 @@ export function Row({
           ) : (
             <Avatar
               id={m.sender}
-              name={m.senderName || m.sender}
+              name={senderOf(m)}
               hue={faceClass(faces, m.sender)}
               picture={drawsPictures(faces.theme) ? senderPicture(m, faces.pictures) : undefined}
             />
@@ -452,10 +453,10 @@ export function Row({
                 dir="auto"
                 title="Their phonebook card"
                 onClick={() => {
-                  session.openPerson({ person: m.sender }, m.senderName || m.sender);
+                  session.openPerson({ person: m.sender }, senderOf(m));
                 }}
               >
-                {m.senderName || m.sender}
+                {senderOf(m)}
               </button>{" "}
               {at && (
                 <time className="detail" title={clock.format(at)}>
@@ -506,7 +507,8 @@ export function Row({
               }}
             >
               {th.count === 1 ? "1 reply" : `${String(th.count)} replies`}
-              {th.rootLoaded ? "" : " in a thread"} · <span dir="auto">{th.latestSenderName || th.latestSender}</span>
+              {th.rootLoaded ? "" : " in a thread"} ·{" "}
+              <span dir="auto">{th.latestSenderKnownAs || th.latestSenderName || th.latestSender}</span>
             </button>
           ))}
           {composer !== undefined && !m.redacted && (
@@ -726,7 +728,7 @@ function Actions({
       {open === "color" && faces.theme !== undefined && (
         <span className="palette" role="group" aria-label="Their color">
           <ColorRow
-            label={m.senderName || m.sender}
+            label={senderOf(m)}
             k={`people.${m.sender}`}
             theme={faces.theme}
             fallback={
@@ -740,7 +742,7 @@ function Actions({
       {open === "person" && (
         <PersonEditor
           account={m.sender}
-          name={m.senderName || m.sender}
+          name={senderOf(m)}
           keys={keys}
           session={session}
           onDone={() => {
@@ -782,7 +784,7 @@ function Quote({ quoted, faces }: { quoted: Message | undefined; faces: Faces })
   const words = quoted.redacted ? "Message deleted" : (quoted.format?.text ?? quoted.body);
   return (
     <blockquote className="reply" dir="auto">
-      <span className={`sender ${faceClass(faces, quoted.sender)}`}>{quoted.senderName || quoted.sender}</span>{" "}
+      <span className={`sender ${faceClass(faces, quoted.sender)}`}>{senderOf(quoted)}</span>{" "}
       <span className={quoted.redacted ? "deleted" : undefined}>{words.split("\n")[0]}</span>
     </blockquote>
   );

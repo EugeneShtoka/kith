@@ -67,7 +67,7 @@ func (s *server) Messages(ctx context.Context, r *req[v1.MessagesRequest], st *c
 				return err
 			}
 		}
-		past, sent := sendChanges(st, epoch, at, changes, s.streamHolds(ctx))
+		past, sent := sendChanges(st, epoch, at, s.Names.changes(ctx, changes), s.streamHolds(ctx))
 		if sent != nil {
 			return sent
 		}

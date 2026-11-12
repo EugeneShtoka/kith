@@ -129,14 +129,15 @@ func (m Model) besideName(name, id string) string {
 	return isolate(name) + " · " + isolate(strings.Join(values, ", "))
 }
 
+// peerMembersLimit bounds members read per room for its one person; a room this big is
+// not a DM.
+const peerMembersLimit = 8
+
 // roomPerson is the room's one person besides you and bridge bots, from members read for
-// show_field or for its name, or the open room's.
+// show_field, or the open room's.
 func (m Model) roomPerson(room domain.Room) (string, bool) {
 	read, ok := m.cards.members[room.ID]
 	members := read.members
-	if !ok {
-		members, ok = m.peers.members[room.ID]
-	}
 	if !ok && room.ID == m.openRoom {
 		members, ok = m.timeline.members, len(m.timeline.members) > 0
 	}
@@ -278,11 +279,6 @@ func (m Model) knownPeople() []string {
 	}
 	for _, id := range slices.Sorted(maps.Keys(m.cards.members)) {
 		for _, p := range m.cards.members[id].members {
-			add(p.UserID)
-		}
-	}
-	for _, id := range slices.Sorted(maps.Keys(m.peers.members)) {
-		for _, p := range m.peers.members[id] {
 			add(p.UserID)
 		}
 	}

@@ -29,15 +29,16 @@ describe("span offsets, from UTF-8 bytes to UTF-16 indices", () => {
 });
 
 describe("mentions", () => {
-  const mention = (userId: string, name: string, roomId = "") => create(MentionSchema, { userId, name, roomId });
+  const mention = (userId: string, name: string, roomId = "", knownAs = "") =>
+    create(MentionSchema, { userId, name, roomId, knownAs });
   const classOf = (person: string) => `of-${person}`;
 
   it("fall where the text names each person, the longest name first, never over another", () => {
     const text = "@Dana and @Dan met @Dana";
     const got = pills(text, [mention("dan", "@Dan"), mention("dana", "@Dana"), mention("", "@room", "!r")], classOf);
     expect(got).toEqual([
-      { start: 0, end: 5, className: "of-dana" },
-      { start: 10, end: 14, className: "of-dan" },
+      { start: 0, end: 5, className: "of-dana", name: "" },
+      { start: 10, end: 14, className: "of-dan", name: "" },
     ]);
     expect(pills("nobody here", [mention("eli", "@Eli")], classOf)).toEqual([]);
   });
@@ -52,6 +53,20 @@ describe("mentions", () => {
     );
     expect(html).toBe(
       '<span><strong>hi </strong></span><span class="named of-dana"><span><strong>Da</strong></span></span><span class="named of-dana">na</span>!',
+    );
+  });
+
+  it("are drawn by kithd's name for the person, once, whatever the text calls them", () => {
+    // Svetlana's Telegram account calls itself "neke"; kithd names her by her alias.
+    const f = create(FormattedSchema, {
+      text: "hi @neke!",
+      spans: [create(SpanSchema, { start: 0n, end: 6n, bold: true })], // over "hi @ne"
+    });
+    const html = renderToStaticMarkup(
+      <FormattedText f={f} pills={pills(f.text, [mention("telegram:66919467", "@neke", "", "Svetlana")], classOf)} />,
+    );
+    expect(html).toBe(
+      '<span><strong>hi </strong></span><span class="named of-telegram:66919467"><span><strong>Svetlana</strong></span></span>!',
     );
   });
 });

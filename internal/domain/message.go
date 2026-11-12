@@ -19,6 +19,9 @@ type Message struct {
 	RoomID     RoomID
 	Sender     string // the sender's ID (matrix:@user:server)
 	SenderName string // the sender's room display name, if resolved; may be empty
+	// SenderKnownAs is the sender's name as kithd names them (People.Name), the one every
+	// client shows; stamped as kithd sends the message, never stored.
+	SenderKnownAs string
 	// Body is the resolved plain text: an edit's replacement, empty when redacted.
 	Body string
 	// Format is the formatting drawn over Body (see richtext.Formatted), usually none.
@@ -70,6 +73,9 @@ type Mention struct {
 	Name   string
 	// Known is the person's current member name, filled in on read and never stored.
 	Known string
+	// KnownAs is the person's name as kithd names them (People.Name), stamped as kithd
+	// sends the mention and never stored.
+	KnownAs string
 }
 
 // Target is the mention's person or room ID.
@@ -252,6 +258,8 @@ func combine(a, b Message) Message {
 	a.Edited = a.Edited || b.Edited
 	a.Mentioned = a.Mentioned || b.Mentioned
 	a.SenderName = cmp.Or(a.SenderName, b.SenderName)
+	// A later read names people as kithd names them now.
+	a.SenderKnownAs = cmp.Or(b.SenderKnownAs, a.SenderKnownAs)
 	switch {
 	case a.Timestamp.IsZero():
 		a.Timestamp = b.Timestamp
@@ -265,9 +273,7 @@ func combine(a, b Message) Message {
 	// A poll's later copy has the current votes.
 	a.Media, a.Poll = cmp.Or(a.Media, b.Media), cmp.Or(b.Poll, a.Poll)
 	a.Seq = cmp.Or(a.Seq, b.Seq) // first Seq sticks
-	if a.Mentions == nil {
-		a.Mentions = b.Mentions
-	}
+	a.Mentions = mergedMentions(a.Mentions, b.Mentions)
 	switch {
 	case a.Redacted:
 		// Never regains a body, not even from an edit (servers leave edits unredacted).
@@ -294,6 +300,29 @@ func combine(a, b Message) Message {
 		a.EditedAt, a.RevisionID = time.Time{}, ""
 	}
 	return a
+}
+
+// mergedMentions is the mentions first seen, later's when none were, with each person's
+// KnownAs as later names them, where later mentions them too.
+func mergedMentions(mentions, later []Mention) []Mention {
+	if mentions == nil {
+		return later
+	}
+	var out []Mention
+	for i := range mentions {
+		for _, l := range later {
+			if l.UserID == mentions[i].UserID && l.KnownAs != "" && l.KnownAs != mentions[i].KnownAs {
+				if out == nil {
+					out = slices.Clone(mentions)
+				}
+				out[i].KnownAs = l.KnownAs
+			}
+		}
+	}
+	if out == nil {
+		return mentions
+	}
+	return out
 }
 
 // EditTime is when the shown edit was sent, zero when unknown: EditedAt on a folded

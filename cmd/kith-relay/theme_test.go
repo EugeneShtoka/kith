@@ -94,7 +94,7 @@ func serveThemeKithd(t *testing.T, cfgPath string, paired ...*ecdsa.PrivateKey) 
 	}
 	log := &messageLog{streams: daemon.NewStreams()}
 	d := &daemon.Daemon{
-		Backend: backend, Streams: log.streams, MessageLog: log, State: daemon.NewState(), Notifications: n,
+		Backend: backend, Streams: log.streams, Names: daemon.NewNames(backend, config.Config{}, nil), MessageLog: log, State: daemon.NewState(), Notifications: n,
 		Reload:      func(context.Context) error { return nil },
 		CheckConfig: func(_ context.Context, cfg config.Config) error { return setup.Validate(cfg) },
 		Config:      daemon.NewConfigFile(cfgPath),
