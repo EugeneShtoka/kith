@@ -275,12 +275,11 @@ func textSurfaces() []textSurface {
 			return m.whyView()
 		}},
 		{name: "typing note", draw: func(t *testing.T, m Model, text string) string {
-			m.live.typists = map[domain.RoomID][]string{mx + "!a:x": {"matrix:@d:x"}}
+			m.live.typists = map[domain.RoomID]domain.Activity{mx + "!a:x": {RoomID: mx + "!a:x", Typing: []string{"matrix:@d:x"}, TypingKnownAs: []string{text}}}
 			return m.composerDivider(80)
 		}},
 		{name: "invitation", draw: func(t *testing.T, m Model, text string) string {
-			m.prefs.identities = map[string]resolvedIdentity{"matrix:@d:x": {alias: text}}
-			return strings.Join(m.inviteLines(domain.Room{ID: mx + "!i:x", Name: text, InvitedBy: "matrix:@d:x"}, 60, 20), "\n")
+			return strings.Join(m.inviteLines(domain.Room{ID: mx + "!i:x", Name: text, InvitedBy: "matrix:@d:x", InvitedByKnownAs: text}, 60, 20), "\n")
 		}},
 		// The whole frame, last: catches any name that reaches the screen in the default layout.
 		{name: "whole frame", draw: func(t *testing.T, m Model, text string) string {

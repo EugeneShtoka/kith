@@ -146,33 +146,15 @@ func chosenBy(voters []domain.PollVoter, option string, name func(domain.PollVot
 // voterYou is how a poll names this person among its voters.
 const voterYou = "you"
 
-// voterName names a voter in room: "you"; as the sender column would if kith knows them; else
-// as the network called them.
+// voterName names a voter in room: "you"; else as kithd named them, shaped as the sender
+// column is.
 func (m Model) voterName(room domain.RoomID) func(domain.PollVoter) string {
 	return func(voter domain.PollVoter) string {
 		if m.isMe(voter.ID) {
 			return voterYou
 		}
-		if voter.Name != "" && !m.knowsName(voter.ID) {
-			return isolate(m.processedName(domain.Message{RoomID: room, Sender: voter.ID, SenderName: voter.Name}))
-		}
-		return isolate(m.knownName(voter.ID, room))
+		return isolate(m.processedName(domain.Message{RoomID: room, Sender: voter.ID, SenderName: voter.Name, SenderKnownAs: voter.KnownAs}))
 	}
-}
-
-// knowsName reports whether the open room names id: as a member, or by a message.
-func (m Model) knowsName(id string) bool {
-	for i := range m.timeline.members {
-		if m.timeline.members[i].UserID == id && m.timeline.members[i].DisplayName != "" {
-			return true
-		}
-	}
-	for i := range m.timeline.messages {
-		if m.timeline.messages[i].Sender == id && m.timeline.messages[i].SenderName != "" {
-			return true
-		}
-	}
-	return false
 }
 
 type votedMsg struct{ err error }

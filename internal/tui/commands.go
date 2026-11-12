@@ -77,11 +77,20 @@ type unreadUpdateMsg struct{ u domain.Unread }
 // only the streamed one re-subscribes.
 type invitesMsg struct {
 	switches int
+	renames  int
 	invites  []domain.Room
 	err      error
 }
 
 type inviteUpdateMsg struct{ invites []domain.Room }
+
+// invitesRenamedMsg is the invitations read again for their inviters' names, after
+// kithd's renames'th word that names changed.
+type invitesRenamedMsg struct {
+	renames int
+	invites []domain.Room
+	err     error
+}
 
 // joinedMsg and leftMsg report the outcome of a membership change; enter opens the joined
 // room once a refresh lists it.
@@ -291,10 +300,23 @@ func (m Model) listenUnreadCmd() tea.Cmd {
 
 // loadInvitesCmd reads the cached invitations; listenInvitesCmd follows the stream.
 func (m Model) loadInvitesCmd() tea.Cmd {
-	switches := m.profiles.switches
+	switches, renames := m.profiles.switches, m.renames
 	return fetch(m.ctx, m.backend.CachedInvites,
 		func(invites []domain.Room, err error) tea.Msg {
-			return invitesMsg{switches: switches, invites: invites, err: err}
+			return invitesMsg{switches: switches, renames: renames, invites: invites, err: err}
+		})
+}
+
+// renameInvitesCmd reads the invitations again for their inviters' names; nil when
+// there are none.
+func (m Model) renameInvitesCmd() tea.Cmd {
+	if len(m.rooms.invites) == 0 {
+		return nil
+	}
+	renames := m.renames
+	return fetch(m.ctx, m.backend.CachedInvites,
+		func(invites []domain.Room, err error) tea.Msg {
+			return invitesRenamedMsg{renames: renames, invites: invites, err: err}
 		})
 }
 

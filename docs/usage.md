@@ -642,7 +642,8 @@ first.
 
 kithd names each person once, by these rules, and every client shows its name: the
 terminal, the desktop window and an assistant over kith-mcp alike, in the sender
-column, a quote, a thread's row, the member list, search results and every @mention.
+column, a quote, a thread's row, the member list, search results, every @mention, who
+invited you, who voted in a poll and who is typing.
 A name you give, a contact saved, a chat renamed or a bridge linking two accounts
 reaches every open window at once.
 

@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -366,6 +367,19 @@ func (m Model) handleLeft(msg leftMsg) (Model, tea.Cmd) {
 	return next, tea.Batch(cmd, next.refreshRoomsCmd())
 }
 
+// handleInvitesMsg handles the invitations read, streamed, or read again for their
+// inviters' names.
+func (m Model) handleInvitesMsg(msg tea.Msg) (Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case invitesMsg:
+		return m.handleCachedInvites(msg)
+	case invitesRenamedMsg:
+		return m.handleInvitesRenamed(msg)
+	}
+	update, _ := msg.(inviteUpdateMsg)
+	return m.handleInviteUpdate(update)
+}
+
 // handleCachedInvites seeds invitations from the cache at startup; a read error is not
 // evidence they are gone, and invitations asked before the last profile switch landed
 // are not its own.
@@ -376,7 +390,33 @@ func (m Model) handleCachedInvites(msg invitesMsg) (Model, tea.Cmd) {
 	}
 	was, name := m.openRoom, m.namedRoom(m.openRoom)
 	next, cmd := m.handleInvites(msg.invites)
+	if msg.renames != m.renames {
+		// Read before kithd's last word that names changed: its inviters are named again.
+		cmd = tea.Batch(cmd, next.renameInvitesCmd())
+	}
 	return next.profileListRead(was, name, false, true), cmd
+}
+
+// handleInvitesRenamed takes the inviters' names from a read of the invitations made
+// after kithd's last word that names changed; names change with no other. Which
+// invitations there are stays the stream's: the read may be older than its last set.
+func (m Model) handleInvitesRenamed(msg invitesRenamedMsg) (Model, tea.Cmd) {
+	m.logErr(slog.LevelWarn, "name the invitations' inviters again", msg.err)
+	if msg.err != nil || msg.renames != m.renames {
+		return m, nil
+	}
+	named := make(map[domain.RoomID]string, len(msg.invites))
+	for i := range msg.invites {
+		named[msg.invites[i].ID] = msg.invites[i].InvitedByKnownAs
+	}
+	invites := slices.Clone(m.rooms.invites)
+	for i := range invites {
+		if name, ok := named[invites[i].ID]; ok {
+			invites[i].InvitedByKnownAs = name
+		}
+	}
+	m.rooms = m.rooms.withInvites(invites)
+	return m, nil
 }
 
 // handleInviteUpdate applies a streamed invitation set and keeps listening.

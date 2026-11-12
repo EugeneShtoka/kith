@@ -398,10 +398,15 @@ func (m Model) handleChanged(msg changedMsg) (Model, tea.Cmd) {
 		return m, tea.Batch(m.offerOwedDictionaries(), m.listenChangesCmd())
 	case domain.ChangeNames:
 		// kithd names people differently: the open room's messages, members and threads
-		// are read again, with the new names, and the people asked for by ID.
-		cmds := []tea.Cmd{m.listenChangesCmd(), m.askNamesAgainCmd()}
+		// are read again, with the new names, and the people asked for by ID, the
+		// invitations' inviters and the open poll's voters.
+		m.renames++
+		cmds := []tea.Cmd{m.listenChangesCmd(), m.askNamesAgainCmd(), m.renameInvitesCmd()}
 		if m.openRoom != "" {
 			cmds = append(cmds, m.loadRoomCmd(m.openRoom))
+		}
+		if m.votePickerOpen() {
+			cmds = append(cmds, m.readVotersCmd(m.aimedAt.vote))
 		}
 		return m, tea.Batch(cmds...)
 	case domain.ChangeMessages:

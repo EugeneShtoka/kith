@@ -108,7 +108,10 @@ type PollVoters struct {
 type PollVoter struct {
 	ID string
 	// Name is what the network calls them, "" where it gives no name.
-	Name    string
+	Name string
+	// KnownAs is their name as kithd names them (People.Name), stamped as kithd sends
+	// the voters.
+	KnownAs string
 	Options []string
 }
 

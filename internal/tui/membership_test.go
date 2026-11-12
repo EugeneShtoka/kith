@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -363,10 +364,11 @@ func TestSelectingInviteFetchesNothing(t *testing.T) {
 func TestInviteDecisionPane(t *testing.T) {
 	t.Parallel()
 
-	m := onInvite(t, withInvites(t, sized(t, withRooms(t, newModel())),
-		invited(mx+"!i1:x", "Design Review", "matrix:@alice:x")))
+	review := invited(mx+"!i1:x", "Design Review", "matrix:@alice:x")
+	review.InvitedByKnownAs = "Alice Doe"
+	m := onInvite(t, withInvites(t, sized(t, withRooms(t, newModel())), review))
 	body := stripStyles(m.View().Content)
-	for _, want := range []string{"Design Review", "matrix:@alice:x"} {
+	for _, want := range []string{"Design Review", "Alice Doe"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the decision pane should mention %q", want)
 		}
@@ -488,6 +490,111 @@ func roomByIDIn(rooms []domain.Room, id domain.RoomID) (domain.Room, bool) {
 		return rooms[at], true
 	}
 	return domain.Room{}, false
+}
+
+// invitesBackend answers CachedInvites with what it holds.
+type invitesBackend struct {
+	apitest.Nop
+	invites []domain.Room
+}
+
+func (b invitesBackend) CachedInvites(context.Context) ([]domain.Room, error) { return b.invites, nil }
+
+// An invitation names its inviter as kithd does, not by a local alias. When kithd says
+// names changed the inviter is named anew; the read that names them neither brings
+// back an invitation the stream has dropped nor drops one it holds.
+func TestAnInvitationNamesItsInviterAsKithdDoes(t *testing.T) {
+	t.Parallel()
+	const ada = "matrix:@ada:x"
+	m := sized(t, withRooms(t, newModel()))
+	m.prefs.identities = map[string]resolvedIdentity{ada: {alias: "Ada from a local alias"}}
+	offer, other := invited(mx+"!offer:x", "Offer", ada), invited(mx+"!other:x", "Other", "matrix:@bo:x")
+	offer.InvitedByKnownAs = "Ada Lovelace"
+	m = withInvites(t, m, offer, other)
+	drawn := ansi.Strip(strings.Join(m.inviteLines(offer, 80, 20), "\n"))
+	if !strings.Contains(drawn, "Ada Lovelace") || strings.Contains(drawn, "alias") {
+		t.Errorf("the invitation names its inviter:\n%s\nwant Ada Lovelace, as kithd names her", drawn)
+	}
+
+	renamed := offer
+	renamed.InvitedByKnownAs = "Ada King"
+	answered := invited(mx+"!answered:x", "Answered", ada)
+	m.backend = invitesBackend{invites: []domain.Room{renamed, answered}}
+	m, cmd := asModel(m.Update(changedMsg{change: domain.ChangeNames}))
+	read, ok := msgOf[invitesRenamedMsg](t, cmd)
+	if !ok {
+		t.Fatal("names changed read no invitations again")
+	}
+	m = update(t, m, read)
+	got := m.rooms.invites
+	if len(got) != 2 || got[0].ID != offer.ID || got[0].InvitedByKnownAs != "Ada King" || got[1].ID != other.ID {
+		t.Errorf("invitations after names changed = %+v, want Offer from Ada King and Other, nothing else", got)
+	}
+}
+
+// Names changed twice, and the invitations read whole before, between or after: in
+// whatever order the answers land, the inviter ends named as kithd names her now.
+func TestTheInviterIsNamedAsKithdNamesHerNow(t *testing.T) {
+	t.Parallel()
+	offer := invited(mx+"!offer:x", "Offer", "matrix:@ada:x")
+	named := func(name string) invitesBackend {
+		r := offer
+		r.InvitedByKnownAs = name
+		return invitesBackend{invites: []domain.Room{r}}
+	}
+	// land delivers an answer, and at once the reads it asks for.
+	land := func(m Model, answer tea.Msg) Model {
+		t.Helper()
+		m, cmd := asModel(m.Update(answer))
+		if again, ok := msgOf[invitesRenamedMsg](t, cmd); ok {
+			m = update(t, m, again)
+		}
+		return m
+	}
+	read := func(m Model) tea.Msg {
+		t.Helper()
+		whole, ok := msgOf[invitesMsg](t, m.loadInvitesCmd())
+		if !ok {
+			t.Fatal("no invitations read")
+		}
+		return whole
+	}
+	renamed := func(m Model, name string) (Model, tea.Msg) {
+		t.Helper()
+		m.backend = named(name)
+		m, cmd := asModel(m.Update(changedMsg{change: domain.ChangeNames}))
+		again, ok := msgOf[invitesRenamedMsg](t, cmd)
+		if !ok {
+			t.Fatal("names changed read no invitations again")
+		}
+		return m, again
+	}
+	m := withInvites(t, sized(t, withRooms(t, newModel())), named("Ada").invites...)
+	m.backend = named("Ada")
+	before := read(m)
+	m, first := renamed(m, "Ada Lovelace")
+	between := read(m)
+	m, second := renamed(m, "Ada King")
+	after := read(m)
+	answers := map[string]tea.Msg{"first": first, "second": second}
+	orders := [][]string{{"first", "second"}, {"second", "first"}}
+	for _, whole := range []string{"before", "between", "after"} {
+		for _, at := range []int{0, 1, 2} {
+			for _, o := range [][]string{{"first", "second"}, {"second", "first"}} {
+				orders = append(orders, slices.Insert(slices.Clone(o), at, whole))
+			}
+		}
+	}
+	answers["before"], answers["between"], answers["after"] = before, between, after
+	for _, order := range orders {
+		got := m
+		for _, answer := range order {
+			got = land(got, answers[answer])
+		}
+		if name := got.rooms.invites[0].InvitedByKnownAs; name != "Ada King" {
+			t.Errorf("answers landing %q name her %q, want Ada King", order, name)
+		}
+	}
 }
 
 // stripStyles removes ANSI escapes so a test can match rendered text.

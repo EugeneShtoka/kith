@@ -346,9 +346,12 @@ type Room struct {
 	Merged []string `protobuf:"bytes,17,rep,name=merged,proto3" json:"merged,omitempty"`
 	// The version of the room's picture LoadPicture answers with (domain.Room.Picture):
 	// it changes with the picture; empty while the room has none.
-	Picture       string `protobuf:"bytes,18,opt,name=picture,proto3" json:"picture,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Picture string `protobuf:"bytes,18,opt,name=picture,proto3" json:"picture,omitempty"`
+	// The inviter's name as kithd names them, the one every client shows
+	// (domain.Room.InvitedByKnownAs).
+	InvitedByKnownAs string `protobuf:"bytes,19,opt,name=invited_by_known_as,json=invitedByKnownAs,proto3" json:"invited_by_known_as,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Room) Reset() {
@@ -503,6 +506,13 @@ func (x *Room) GetMerged() []string {
 func (x *Room) GetPicture() string {
 	if x != nil {
 		return x.Picture
+	}
+	return ""
+}
+
+func (x *Room) GetInvitedByKnownAs() string {
+	if x != nil {
+		return x.InvitedByKnownAs
 	}
 	return ""
 }
@@ -745,9 +755,12 @@ func (x *Revision) GetFormat() *Formatted {
 
 // Activity is what the other people in a room are doing right now (domain.Activity).
 type Activity struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	Typing        []string               `protobuf:"bytes,2,rep,name=typing,proto3" json:"typing,omitempty"` // everyone typing right now, us excluded
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	RoomId string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	Typing []string               `protobuf:"bytes,2,rep,name=typing,proto3" json:"typing,omitempty"` // everyone typing right now, us excluded
+	// Each of typing's names as kithd names them, in its order
+	// (domain.Activity.TypingKnownAs).
+	TypingKnownAs []string `protobuf:"bytes,3,rep,name=typing_known_as,json=typingKnownAs,proto3" json:"typing_known_as,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -792,6 +805,13 @@ func (x *Activity) GetRoomId() string {
 func (x *Activity) GetTyping() []string {
 	if x != nil {
 		return x.Typing
+	}
+	return nil
+}
+
+func (x *Activity) GetTypingKnownAs() []string {
+	if x != nil {
+		return x.TypingKnownAs
 	}
 	return nil
 }
@@ -1221,7 +1241,10 @@ type PollVoter struct {
 	// What the network calls them; empty where it gives no name.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// The answers they chose, by ID.
-	Options       []string `protobuf:"bytes,3,rep,name=options,proto3" json:"options,omitempty"`
+	Options []string `protobuf:"bytes,3,rep,name=options,proto3" json:"options,omitempty"`
+	// The person's name as kithd names them, the one every client shows; name is the
+	// network's own (domain.PollVoter.KnownAs).
+	KnownAs       string `protobuf:"bytes,4,opt,name=known_as,json=knownAs,proto3" json:"known_as,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1275,6 +1298,13 @@ func (x *PollVoter) GetOptions() []string {
 		return x.Options
 	}
 	return nil
+}
+
+func (x *PollVoter) GetKnownAs() string {
+	if x != nil {
+		return x.KnownAs
+	}
+	return ""
 }
 
 // PollOption is one answer of a poll.
@@ -2961,7 +2991,7 @@ var File_backend_v1_types_proto protoreflect.FileDescriptor
 const file_backend_v1_types_proto_rawDesc = "" +
 	"\n" +
 	"\x16backend/v1/types.proto\x12\n" +
-	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf3\x03\n" +
+	"backend.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa2\x04\n" +
 	"\x04Room\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1b\n" +
@@ -2986,7 +3016,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\tread_only\x18\x0f \x01(\bR\breadOnly\x12\x16\n" +
 	"\x06handle\x18\x10 \x01(\tR\x06handle\x12\x16\n" +
 	"\x06merged\x18\x11 \x03(\tR\x06merged\x12\x18\n" +
-	"\apicture\x18\x12 \x01(\tR\apicture\"\x80\x01\n" +
+	"\apicture\x18\x12 \x01(\tR\apicture\x12-\n" +
+	"\x13invited_by_known_as\x18\x13 \x01(\tR\x10invitedByKnownAs\"\x80\x01\n" +
 	"\aMention\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x17\n" +
@@ -3004,10 +3035,11 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04body\x18\x02 \x01(\tR\x04body\x12*\n" +
 	"\x02at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x12-\n" +
-	"\x06format\x18\x05 \x01(\v2\x15.backend.v1.FormattedR\x06format\";\n" +
+	"\x06format\x18\x05 \x01(\v2\x15.backend.v1.FormattedR\x06format\"c\n" +
 	"\bActivity\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x16\n" +
-	"\x06typing\x18\x02 \x03(\tR\x06typing\"\xeb\x06\n" +
+	"\x06typing\x18\x02 \x03(\tR\x06typing\x12&\n" +
+	"\x0ftyping_known_as\x18\x03 \x03(\tR\rtypingKnownAs\"\xeb\x06\n" +
 	"\aMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x16\n" +
@@ -3051,11 +3083,12 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\aballots\x18\b \x03(\v2\x12.backend.v1.BallotR\aballots\"8\n" +
 	"\x06Ballot\x12\x14\n" +
 	"\x05voter\x18\x01 \x01(\tR\x05voter\x12\x18\n" +
-	"\aoptions\x18\x02 \x03(\tR\aoptions\"I\n" +
+	"\aoptions\x18\x02 \x03(\tR\aoptions\"d\n" +
 	"\tPollVoter\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
-	"\aoptions\x18\x03 \x03(\tR\aoptions\"Z\n" +
+	"\aoptions\x18\x03 \x03(\tR\aoptions\x12\x19\n" +
+	"\bknown_as\x18\x04 \x01(\tR\aknownAs\"Z\n" +
 	"\n" +
 	"PollOption\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +

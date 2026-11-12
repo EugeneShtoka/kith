@@ -31,6 +31,9 @@ type Room struct {
 	Members    []string
 	Membership Membership
 	InvitedBy  string // ID of the inviter, for an invite
+	// InvitedByKnownAs is the inviter's name as kithd names them (People.Name), stamped
+	// as kithd sends the invite.
+	InvitedByKnownAs string
 	// Replacement is the m.room.tombstone replacement_room, if upgraded.
 	Replacement RoomID
 	// Archived is set by the network's own archive (Telegram's Archived folder,
