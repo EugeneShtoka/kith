@@ -108,15 +108,20 @@ func importKeyBackup(ctx context.Context, mach *crypto.OlmMachine, backupKey *ba
 	}
 	// A version trusted by its signature alone may be encrypted to another key, which
 	// opens none of it: that one is not kept.
-	if pub, perr := backupPublicKey(version.AuthData); perr != nil || !pub.Equal(backupKey.PublicKey()) {
-		return version.Count, nil
-	}
-	// Padded base64, as storeBackupKey writes it.
-	secret := base64.StdEncoding.EncodeToString(backupKey.Bytes())
-	if err := mach.CryptoStore.PutSecret(ctx, id.SecretMegolmBackupV1, secret); err != nil {
-		return 0, fmt.Errorf("matrix: keep the backup key: %w", err)
+	if encryptedTo(version.AuthData, backupKey) {
+		// Padded base64, as storeBackupKey writes it.
+		secret := base64.StdEncoding.EncodeToString(backupKey.Bytes())
+		if err := mach.CryptoStore.PutSecret(ctx, id.SecretMegolmBackupV1, secret); err != nil {
+			return 0, fmt.Errorf("matrix: keep the backup key: %w", err)
+		}
 	}
 	return version.Count, nil
+}
+
+// encryptedTo reports whether a backup version is encrypted to key.
+func encryptedTo(authData backup.MegolmAuthData, key *backup.MegolmBackupKey) bool {
+	pub, err := backupPublicKey(authData)
+	return err == nil && pub.Equal(key.PublicKey())
 }
 
 // unlockSSSS resolves the SSSS key from a recovery key or passphrase, reporting
