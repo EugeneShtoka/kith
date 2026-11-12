@@ -251,6 +251,11 @@ type Router struct {
 	meAt   time.Time
 	meGen  uint64
 	meOf   uint64 // the gen me was built in
+
+	// membersFetched is each room whose members MentionCandidates fetched this run, or
+	// is fetching: its channel closes when the fetch ends. A failed one is dropped.
+	membersMu      sync.Mutex
+	membersFetched map[domain.RoomID]chan struct{}
 }
 
 // New routes adapters keyed by the network their IDs name. None at all is a daemon
@@ -259,6 +264,7 @@ func New(adapters map[domain.Protocol]Adapter) *Router {
 	r := &Router{
 		adapters: maps.Clone(adapters), done: make(chan struct{}),
 		noInvites: make(chan []domain.Room), noVerifications: make(chan domain.Verification),
+		membersFetched: map[domain.RoomID]chan struct{}{},
 	}
 	for _, network := range slices.Sorted(maps.Keys(adapters)) {
 		r.all = append(r.all, adapters[network])

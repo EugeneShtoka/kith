@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"time"
@@ -224,9 +225,46 @@ func (r *Router) RefreshMembers(ctx context.Context, roomID domain.RoomID) ([]do
 	return onRoom(r, roomID, "members", func(c People) ([]domain.Member, error) { return c.RefreshMembers(ctx, roomID) })
 }
 
-// MentionCandidates orders a room's members for the mention dropdown.
+// MentionCandidates orders a room's members for the mention dropdown. A room with no
+// members cached has them fetched first, once a run, so no client need remember to.
 func (r *Router) MentionCandidates(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error) {
-	return onRoom(r, roomID, "mentions", func(c People) ([]domain.Member, error) { return c.MentionCandidates(ctx, roomID, limit) })
+	return onRoom(r, roomID, "mentions", func(c People) ([]domain.Member, error) {
+		known, err := c.Members(ctx, roomID, 1)
+		if err != nil {
+			return nil, err
+		}
+		if len(known) == 0 {
+			r.fetchMembersOnce(ctx, c, roomID)
+		}
+		return c.MentionCandidates(ctx, roomID, limit)
+	})
+}
+
+// fetchMembersOnce refreshes a room's members unless this run already did, or is
+// doing so (then it waits for that). A failure is logged, not kept: the room is
+// fetched again at its next mention, and this one answers from the cache.
+func (r *Router) fetchMembersOnce(ctx context.Context, c People, roomID domain.RoomID) {
+	r.membersMu.Lock()
+	done, asked := r.membersFetched[roomID]
+	if !asked {
+		done = make(chan struct{})
+		r.membersFetched[roomID] = done
+	}
+	r.membersMu.Unlock()
+	if asked {
+		select {
+		case <-done:
+		case <-ctx.Done():
+		}
+		return
+	}
+	defer close(done)
+	if _, err := c.RefreshMembers(ctx, roomID); err != nil {
+		r.membersMu.Lock()
+		delete(r.membersFetched, roomID)
+		r.membersMu.Unlock()
+		slog.WarnContext(ctx, "fetch a room's members for mentions failed; trying again at its next mention", "room", roomID, "err", err)
+	}
 }
 
 // Spaces is every network's cached spaces (Matrix hierarchy, WhatsApp communities),
