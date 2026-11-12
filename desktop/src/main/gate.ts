@@ -1,4 +1,4 @@
-import { hostname } from "node:os";
+import { randomUUID } from "node:crypto";
 
 import {
   create,
@@ -12,12 +12,7 @@ import {
 } from "@bufbuild/protobuf";
 import { Code, ConnectError, type Transport } from "@connectrpc/connect";
 
-import {
-  BackendService,
-  MessagesResponseSchema,
-  SeatHolderSchema,
-  type SeatRequestSchema,
-} from "../gen/backend/v1/services_pb";
+import { BackendService, MessagesResponseSchema } from "../gen/backend/v1/services_pb";
 import { DeviceService } from "../gen/device/v1/device_pb";
 import type { StreamEvent } from "../shared/ipc";
 import { runIn } from "../shared/profile";
@@ -62,7 +57,7 @@ const calls = new Map<string, DescMethodUnary>(
     backend.markRoomsRead,
     backend.markRoomUnread,
     // The composer: sending, editing and deleting, reactions, typing, mentions, the
-    // emoji ranking, and drafts (written as the seat's, below).
+    // emoji ranking, and drafts.
     backend.send,
     backend.redact,
     backend.sendReaction,
@@ -82,7 +77,7 @@ const calls = new Map<string, DescMethodUnary>(
     // Threads: a thread's older replies, and its receipt.
     backend.threadPage,
     backend.markThreadRead,
-    // Links: the room open, which kithd hands a clicked link by (as the seat, below).
+    // Links: the room open, which kithd hands a clicked link by (as the window, below).
     backend.present,
     device.device,
     device.chooseProfile,
@@ -149,7 +144,7 @@ const calls = new Map<string, DescMethodUnary>(
     // A room's name of your own ([[display.name]]): kithd judges the room against the
     // profile and writes the one entry itself.
     backend.setRoomName,
-    // A link a link key chose (gx), handed to the window kithd's seat rules pick, this
+    // A link a link key chose (gx), handed to the window kithd's link rules pick, this
     // one or another, TUI or desktop; kithd says when it is the browser's instead.
     backend.follow,
     // People and their cards: kithd's phonebook folder, read and written by kithd. The
@@ -223,7 +218,6 @@ const streams = new Map<string, DescMethodServerStreaming>(
   [
     backend.changed,
     backend.configChanged,
-    backend.seat,
     backend.unreadStream,
     backend.invites,
     backend.messages,
@@ -270,8 +264,8 @@ export class Refused extends Error {}
 export class Gate {
   private profile = "";
   private readonly open = new Set<{ profile: string; stop: () => void; post: (event: StreamEvent) => void }>();
-  /** The client each Seat stream open asks the seat for, in its profile. */
-  private readonly seats = new Map<object, { profile: string; client: string }>();
+  /** This window, to kithd's windows: the client its links are listened for and told by. */
+  private readonly client = randomUUID();
   /** The logins the window leads; kithd ends one the window no longer does. */
   private readonly logins = new Logins((login, header) =>
     this.transport
@@ -343,8 +337,8 @@ export class Gate {
     if (invited !== undefined) {
       await this.mustBeInvited(invited(input), header);
     }
-    if (method.name === backend.replaceDraft.name || method.name === backend.present.name) {
-      this.asTheSeat(input as MessageShape<typeof backend.replaceDraft.input | typeof backend.present.input>);
+    if (method.name === backend.present.name) {
+      this.asTheWindow(input as MessageShape<typeof backend.present.input>);
     }
     if (method.name === backend.signOut.name) {
       await this.mustBeAnAccount((input as MessageShape<typeof backend.signOut.input>).spaceId, header);
@@ -456,27 +450,7 @@ export class Gate {
     const header = this.header(method);
     let again = () => input;
     if (method.name === backend.followStream.name) {
-      this.asTheSeat(input as MessageShape<typeof backend.followStream.input>);
-    }
-    if (method.name === backend.seat.name) {
-      // The seat is asked for from this machine, whatever the window says; and a take by
-      // force is forced once: opened again (kithd restarted), it is asked for, so a
-      // window that took it meanwhile keeps it (daemon.Remote.keepSeat).
-      const seat = input as MessageShape<typeof SeatRequestSchema>;
-      seat.where = create(SeatHolderSchema, {
-        pid: BigInt(process.pid),
-        host: hostname(),
-        sinceUnixMs: seat.where?.sinceUnixMs ?? 0n,
-      });
-      const asked: MessageShape<typeof SeatRequestSchema> = { ...seat, force: false };
-      again = () => asked;
-    }
-    const seated = method.name === backend.seat.name ? {} : undefined;
-    if (seated !== undefined) {
-      this.seats.set(seated, {
-        profile: this.profile,
-        client: (input as MessageShape<typeof SeatRequestSchema>).client,
-      });
+      this.asTheWindow(input as MessageShape<typeof backend.followStream.input>);
     }
     if (method.name === backend.messages.name) {
       // Opened again (kithd restarted, the relay failed), the stream resumes after the
@@ -495,16 +469,7 @@ export class Gate {
       post = withoutConfig(post);
     }
     const stop = keepOpen(this.transport, method, input, header, post, again);
-    const held = {
-      profile: this.profile,
-      stop: () => {
-        if (seated !== undefined) {
-          this.seats.delete(seated);
-        }
-        stop();
-      },
-      post,
-    };
+    const held = { profile: this.profile, stop, post };
     this.open.add(held);
     return () => {
       this.open.delete(held);
@@ -738,18 +703,11 @@ export class Gate {
   }
 
   /**
-   * asTheSeat names the window's seat in this profile on a draft write, whatever the
-   * window says: kithd refuses it once another window has the seat (daemon seats.write),
-   * so a window that stepped aside never writes over the one that took over. A window
-   * asking for no seat here writes none. Its links are listened for, and what it has
-   * open told, as the seat too: the window cannot speak for another.
+   * asTheWindow names this window on its link stream and on what it says it has open,
+   * whatever the window says: it cannot speak for another.
    */
-  private asTheSeat(request: { client: string }): void {
-    const seat = [...this.seats.values()].find((s) => s.profile === this.profile);
-    if (seat === undefined || seat.client === "") {
-      throw new Refused(`kith: the window speaks only as its seat in ${this.profile}`);
-    }
-    request.client = seat.client;
+  private asTheWindow(request: { client: string }): void {
+    request.client = this.client;
   }
 
   /**

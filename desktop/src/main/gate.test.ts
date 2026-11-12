@@ -1,5 +1,4 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { hostname } from "node:os";
 import path from "node:path";
 
 import {
@@ -13,7 +12,7 @@ import {
 import { Code, ConnectError } from "@connectrpc/connect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { BackendService, type LoginStep, LoginStepSchema, type SeatRequest } from "../gen/backend/v1/services_pb";
+import { BackendService, type LoginStep, LoginStepSchema } from "../gen/backend/v1/services_pb";
 import { MessageSchema, VerificationKind } from "../gen/backend/v1/types_pb";
 import { DeviceService } from "../gen/device/v1/device_pb";
 import type { StreamEvent } from "../shared/ipc";
@@ -207,7 +206,6 @@ const allowedCalls = [
 const allowedStreams = [
   "Changed",
   "ConfigChanged",
-  "Seat",
   "UnreadStream",
   "Invites",
   "Messages",
@@ -353,18 +351,15 @@ describe("the gate", () => {
     kithd.paired = ["D1"];
     await gate.call(window, "Devices", empty);
     await imports("u1", "u2");
-    const seat = listen("Seat", bytes(backend.seat.input, { client: "w" })); // drafts are the seat's
     for (const name of names) {
       const want = typeof name === "string" && allowedCalls.includes(name) ? "answered" : "refused";
       const request = typeof name === "string" ? (requests[name] ?? empty) : empty;
       expect(await outcome(window, name, request), String(name)).toBe(want);
     }
     const reached = new Set(kithd.reached.map((r) => r.split(":")[0]));
-    reached.delete("Seat");
     reached.delete("StartPairing");
     reached.delete("ThisDevice"); // main's own, asked before an unpairing
     reached.delete("PreviewChatImport"); // main's own, reading an export it brought
-    seat.stop();
     pair.stop();
     expect([...reached].sort()).toEqual([...allowedCalls].sort());
   });
@@ -396,61 +391,28 @@ describe("the gate", () => {
     expect(kithd.reached.filter((r) => r.startsWith("ModelTask"))).toHaveLength(1);
   });
 
-  it("writes a draft as the window's seat in its profile, whatever the window names, and none without one", async () => {
+  it("listens for links and tells what is open as this window, whatever the window names", async () => {
     await device();
-    const draft = (client: string) =>
-      outcome(
-        window,
-        "ReplaceDraft",
-        bytes(backend.replaceDraft.input, { client, draft: { roomId: "!r:x", body: "hi" } }),
-      );
-    const written = () =>
-      kithd.received
-        .filter((r) => r.method === "ReplaceDraft")
-        .map((r) => (r.message as MessageShape<typeof backend.replaceDraft.input>).client);
-
-    expect(await draft("")).toBe("refused");
-    expect(await draft("someone-else")).toBe("refused");
-    const seat = listen("Seat", bytes(backend.seat.input, { client: "w" }));
-    expect(await draft("")).toBe("answered");
-    expect(await draft("someone-else")).toBe("answered");
-    expect(written()).toEqual(["w", "w"]);
-    // Stepped aside (the stream closed), it writes no more.
-    seat.stop();
-    expect(await draft("w")).toBe("refused");
-    // A seat in another profile is not this one's.
-    const other = listen("Seat", bytes(backend.seat.input, { client: "w" }));
-    await gate.call(window, "ChooseProfile", bytes(DeviceService.method.chooseProfile.input, { name: "Home" }));
-    expect(await draft("w")).toBe("refused");
-    other.stop();
-    expect(written()).toEqual(["w", "w"]);
-  });
-
-  it("listens for links and tells what is open as the window's seat, whatever the window names, and not without one", async () => {
-    await device();
-    const as = (client: string) => bytes(backend.followStream.input, { client });
     const present = (client: string) =>
       outcome(window, "Present", bytes(backend.present.input, { client, openRoomId: "!r:x" }));
-    expect(await present("someone-else")).toBe("refused");
-    expect(opened(window, "FollowStream", as("someone-else"))).toBe("refused");
-    const seat = listen("Seat", bytes(backend.seat.input, { client: "w" }));
     expect(await present("someone-else")).toBe("answered");
-    const links = listen("FollowStream", as("someone-else"));
+    const links = listen("FollowStream", bytes(backend.followStream.input, { client: "someone-else" }));
     await until(() => kithd.received.some((r) => r.method === "FollowStream"), "the link stream to reach kithd");
-    const listening = kithd.received.filter((r) => r.method === "FollowStream");
-    expect(listening.map((r) => (r.message as MessageShape<typeof backend.followStream.input>).client)).toEqual(["w"]);
     links.stop();
-    seat.stop();
+    const told = kithd.received
+      .filter((r) => r.method === "Present" || r.method === "FollowStream")
+      .map((r) => (r.message as MessageShape<typeof backend.present.input>).client);
+    expect(told).toHaveLength(2);
+    expect(told[0]).not.toBe("someone-else");
+    expect(told[1]).toBe(told[0]);
   });
 
   it("opens only the streams on the list, and refuses every other name before kithd", async () => {
     await device();
-    const seat = listen("Seat", bytes(backend.seat.input, { client: "w" })); // links are the seat's
     for (const name of names) {
       const want = typeof name === "string" && allowedStreams.includes(name) ? "opened" : "refused";
       expect(opened(window, name, empty), String(name)).toBe(want);
     }
-    seat.stop();
   });
 
   // Electron's WebFrameMain: the window's top frame, or anything that is not it.
@@ -515,15 +477,14 @@ describe("the gate", () => {
       await outcome(window, "Status", empty),
       await outcome(window, "Rooms", empty),
       opened(window, "Changed", empty),
-      opened(window, "Seat", empty),
     ];
-    expect(await tryAll()).toEqual(["refused", "refused", "refused", "refused"]);
+    expect(await tryAll()).toEqual(["refused", "refused", "refused"]);
     await device();
-    expect(await tryAll()).toEqual(["refused", "refused", "refused", "refused"]);
+    expect(await tryAll()).toEqual(["refused", "refused", "refused"]);
     expect(
       await outcome(window, "ChooseProfile", bytes(DeviceService.method.chooseProfile.input, { name: "nope" })),
     ).toBe("answered");
-    expect(await tryAll()).toEqual(["refused", "refused", "refused", "refused"]);
+    expect(await tryAll()).toEqual(["refused", "refused", "refused"]);
     expect(kithd.reached).toEqual(["Device:", "ChooseProfile:"]);
 
     await gate.call(window, "ChooseProfile", bytes(DeviceService.method.chooseProfile.input, { name: "work" }));
@@ -578,28 +539,6 @@ describe("the gate", () => {
     changed.stop();
     unread.stop();
     home.stop();
-  });
-
-  it("asks for the seat from this machine, and by force only once", async () => {
-    await device();
-    const seat = listen(
-      "Seat",
-      bytes(backend.seat.input, { client: "w", force: true, where: { pid: 7n, host: "elsewhere", sinceUnixMs: 5n } }),
-    );
-    const seats = () => kithd.received.filter((r) => r.method === "Seat").map((r) => r.message as SeatRequest);
-    await until(() => seats().length === 1, "the seat asked for");
-    await kithd.stop();
-    await kithd.start();
-    await until(() => seats().length === 2, "the seat asked for again on the new kithd");
-    seat.stop();
-
-    expect(seats().map((s) => s.force)).toEqual([true, false]);
-    for (const s of seats()) {
-      expect(s.client).toBe("w");
-      expect(s.where?.pid).toBe(BigInt(process.pid));
-      expect(s.where?.host).toBe(hostname());
-      expect(s.where?.sinceUnixMs).toBe(5n);
-    }
   });
 
   it("joins or leaves only a room the profile is invited to", async () => {

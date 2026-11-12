@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -10,7 +9,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -53,8 +51,8 @@ type draftSaver struct {
 	// failing: the last write failed and the reader has been told.
 	failing bool
 	// bases are the stored versions this client's drafts are based on, per room, set on
-	// load, adoption and save. A differing stored draft was written elsewhere (kith-mcp);
-	// a differing local copy holds unsaved typing. Copied on write.
+	// load, adoption and save. A differing stored draft was written elsewhere (another
+	// window, kith-mcp); a differing local copy holds unsaved typing. Copied on write.
 	bases map[domain.RoomID]draftStamp
 	// inflight are rooms with a save on the wire, dirty those asked to save again
 	// meanwhile. One save per room at a time, each based on what the previous stored, so
@@ -290,7 +288,8 @@ func draftTickCmd(gen int) tea.Cmd {
 	return tea.Tick(draftSaveDelay, func(time.Time) tea.Msg { return draftTickMsg{gen: gen} })
 }
 
-// loadDraftsCmd reads every stored draft (at startup and on the poll).
+// loadDraftsCmd reads every stored draft (at startup, on reattaching, on CHANGE_DRAFTS,
+// and on the poll while a save failed).
 func (m Model) loadDraftsCmd() tea.Cmd {
 	ctx, backend, log, issued := m.ctx, m.backend, m.log, m.draftSync.epoch
 	return func() tea.Msg {
@@ -304,12 +303,12 @@ func (m Model) loadDraftsCmd() tea.Cmd {
 	}
 }
 
-// handleDraftsLoaded files stored drafts (startup and poll). A draft written elsewhere
-// (kith-mcp) since this client's version is taken when this client has no unsaved
-// typing there; otherwise the typing stays and the next save folds the other words in
-// (saveDraftCmd). A known draft no longer stored was deleted elsewhere and goes too.
-// Rooms with a save on the wire, or one since the poll was read, are skipped: the
-// poll may predate it.
+// handleDraftsLoaded files stored drafts (loadDraftsCmd). A draft written elsewhere
+// (another window, kith-mcp) since this client's version is taken when this client has
+// no unsaved typing there; otherwise the typing stays and the next save folds the other
+// words in (saveDraftCmd). A known draft no longer stored was deleted elsewhere and goes
+// too. Rooms with a save on the wire, or one since the read was asked for, are skipped:
+// the read may predate it.
 func (m Model) handleDraftsLoaded(msg draftsLoadedMsg) (Model, tea.Cmd) {
 	stored := make(map[domain.RoomID]bool, len(msg.drafts))
 	var cmds []tea.Cmd
@@ -476,18 +475,6 @@ func (s draftSaver) stamped(now time.Time) (draftSaver, time.Time) {
 // unsureKept bounds the writes remembered per room while the daemon does not answer.
 const unsureKept = 16
 
-// notWritten forgets versions of room the store turned down.
-func (s draftSaver) notWritten(room domain.RoomID, refused []draftStamp) draftSaver {
-	if len(refused) == 0 {
-		return s
-	}
-	list := slices.DeleteFunc(slices.Clone(s.unsure[room]), func(w ownWrite) bool {
-		return slices.Contains(refused, w.v)
-	})
-	s.unsure = withEntry(s.unsure, room, list)
-	return s
-}
-
 // mayHaveWritten records versions of room that may be stored now, reply or not.
 func (s draftSaver) mayHaveWritten(room domain.RoomID, writes ...ownWrite) draftSaver {
 	list := slices.Clone(s.unsure[room])
@@ -596,17 +583,15 @@ type draftSavedMsg struct {
 	// wrote is what the save stored, the assistant's words included.
 	wrote domain.StoredDraft
 	added string
-	// unsure is the version a failed write may have stored; refused are those the store
-	// turned down (known not stored).
-	unsure  []ownWrite
-	refused []draftStamp
+	// unsure is the version a failed write may have stored.
+	unsure []ownWrite
 }
 
 // saveDraftCmd writes or clears one room's draft over the version this client holds.
-// kithd rebases it (api.Drafts.RebaseDraft): if the assistant (kith-mcp) appended
-// since, its words go after these, so neither side loses words, and come back to be
-// folded into the local copy. This client's writes it never heard back about go along,
-// so a stored version it wrote is read as its own, not the assistant's.
+// kithd rebases it (api.Drafts.RebaseDraft): if another window or the assistant
+// (kith-mcp) wrote since, its words go after these, so no side loses words, and come
+// back to be folded into the local copy. This client's writes it never heard back about
+// go along, so a stored version it wrote is read as its own, not another writer's.
 func (m Model) saveDraftCmd(room domain.RoomID, stored domain.StoredDraft) tea.Cmd {
 	base := m.draftSync.bases[room].over(room)
 	var unanswered []domain.StoredDraft
@@ -622,20 +607,11 @@ func (m Model) saveDraftCmd(room domain.RoomID, stored domain.StoredDraft) tea.C
 			return nil // the program ended (tui.Run cancels its commands); its last write redoes this
 		}
 		if err != nil {
-			return failedSave(err, room, ownWrite{v: stampOf(stored)})
+			// It may have landed with its answer lost, so it may be stored.
+			return draftSavedMsg{err: err, room: room, unsure: []ownWrite{{v: stampOf(stored)}}}
 		}
 		return draftSavedMsg{room: room, wrote: wrote, added: added}
 	}
-}
-
-// failedSave is a save's answer when its write failed. A write the seat refused is
-// known not stored (another window has it); any other failure may have landed with
-// its answer lost, so mine may be stored.
-func failedSave(err error, room domain.RoomID, mine ownWrite) draftSavedMsg {
-	if errors.Is(err, api.ErrSeatTaken) {
-		return draftSavedMsg{err: err, room: room, refused: []draftStamp{mine.v}}
-	}
-	return draftSavedMsg{err: err, room: room, unsure: []ownWrite{mine}}
 }
 
 // handleDraftSaved ends a save: the room's base moves to what was stored, the
@@ -645,15 +621,6 @@ func failedSave(err error, room domain.RoomID, mine ownWrite) draftSavedMsg {
 // the poll would bring the sent draft back.
 func (m Model) handleDraftSaved(msg draftSavedMsg) (Model, tea.Cmd) {
 	room := msg.room
-	if errors.Is(msg.err, api.ErrSeatTaken) {
-		// Another window has the seat: step aside.
-		m.draftSync.inflight = withoutEntry(m.draftSync.inflight, room)
-		m.draftSync = m.draftSync.touch(room).notWritten(room, msg.refused)
-		if m.link.seatLost {
-			return m, m.quitWhenDrafted()
-		}
-		return m.handleSeatLost()
-	}
 	m.draftSync.inflight = withoutEntry(m.draftSync.inflight, room)
 	m.draftSync = m.draftSync.touch(room)
 	owed := m.draftSync.dirty[room]
@@ -661,7 +628,7 @@ func (m Model) handleDraftSaved(msg draftSavedMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
 		m.draftSync.unsure = withoutEntry(m.draftSync.unsure, room)
 	} else {
-		m.draftSync = m.draftSync.notWritten(room, msg.refused).mayHaveWritten(room, msg.unsure...)
+		m.draftSync = m.draftSync.mayHaveWritten(room, msg.unsure...)
 	}
 	if msg.err != nil && !owed {
 		if m.draftSync.quitting && m.draftSync.quitRetries < quitSaveRetries {
@@ -672,6 +639,8 @@ func (m Model) handleDraftSaved(msg draftSavedMsg) (Model, tea.Cmd) {
 			m.draftSync.retry = withEntry(m.draftSync.retry, room, true)
 		}
 	}
+	// Said before the fold, which says another writer's words were added over it.
+	m = m.reportDraftSave(msg.err)
 	if msg.err == nil {
 		m.draftSync.bases = withBase(m.draftSync.bases, room, stampOf(msg.wrote))
 		if msg.added != "" {
@@ -687,7 +656,6 @@ func (m Model) handleDraftSaved(msg draftSavedMsg) (Model, tea.Cmd) {
 	if owed {
 		m, next = m.requestSave(room)
 	}
-	m = m.reportDraftSave(msg.err)
 	m, switching := m.switchWhenDrafted()
 	return m, batched([]tea.Cmd{next, m.quitWhenDrafted(), switching})
 }
@@ -713,9 +681,10 @@ func sameStored(a, b domain.StoredDraft) bool {
 		a.ThreadRoot == b.ThreadRoot
 }
 
-// foldInDraft appends words another writer added, already stored after this client's,
-// to the room's local copy: to the words or, while a message is corrected, to the
-// draft the composer returns to.
+// foldInDraft appends words another writer (another window, the assistant) added,
+// already stored after this client's, to the room's local copy: to the words or, while
+// a message is corrected, to the draft the composer returns to. In the open room it says
+// so, so nothing appears silently.
 func (m Model) foldInDraft(room domain.RoomID, added string) Model {
 	if room != m.openRoom {
 		held := m.drafts[room]
@@ -729,7 +698,7 @@ func (m Model) foldInDraft(room domain.RoomID, added string) Model {
 	}
 	if m.compose.isEditing() {
 		m.compose.editSaved = domain.JoinDraft(m.compose.editSaved, added)
-		return m.say("the assistant added to this draft; it is back when the edit ends")
+		return m.say("another window or the assistant added to this draft; it is back when the edit ends")
 	}
 	if m.compose.input == "" {
 		// Nothing of this client's to continue from: continue after theirs.
@@ -738,7 +707,7 @@ func (m Model) foldInDraft(room domain.RoomID, added string) Model {
 		m.compose.input = domain.JoinDraft(m.compose.input, added)
 	}
 	m = m.trackComposerDraft()
-	return m.say("the assistant added to this draft")
+	return m.say("another window or the assistant added to this draft")
 }
 
 // quitDraftWait bounds how long quitting waits for drafts being written;

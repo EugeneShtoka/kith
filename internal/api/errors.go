@@ -38,9 +38,6 @@ var (
 	ErrEditsRemain = errors.New("matrix: the message is deleted, but earlier versions of it could not be removed")
 	// ErrSpellUnavailable: no spelling engine or dictionary; callers should stop asking.
 	ErrSpellUnavailable = errors.New("matrix: nothing to check spelling with")
-	// ErrSeatTaken: another window has the Seat; also refuses draft writes from a
-	// window that lost it.
-	ErrSeatTaken = errors.New("daemon: kith is open in another window")
 	// ErrNetworkOff: the room's network has no configured connection; cached history
 	// stays readable.
 	ErrNetworkOff = errors.New("daemon: that room's network is not connected")

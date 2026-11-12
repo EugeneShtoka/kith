@@ -113,6 +113,9 @@ func (s *Streams) LanguagesOwed() { s.changes.broadcast(change{what: domain.Chan
 // NamesChanged tells every attached client that people are named differently (Names).
 func (s *Streams) NamesChanged() { s.changes.broadcast(change{what: domain.ChangeNames}) }
 
+// DraftsChanged tells every attached client that a stored draft changed.
+func (s *Streams) DraftsChanged() { s.changes.broadcast(change{what: domain.ChangeDrafts}) }
+
 // railChanged tells the clients running in profile that its rail changed.
 func (s *Streams) railChanged(profile string) {
 	s.changes.broadcast(change{what: domain.ChangeRail, profile: profile})

@@ -1,6 +1,7 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BackendService, Change, StoredDraftSchema } from "../gen/backend/v1/services_pb";
 import { type Message, PollSchema, ReactionSchema } from "../gen/backend/v1/types_pb";
 import { DeviceSettingsSchema } from "../gen/device/v1/device_pb";
 import { typingRefresh } from "./compose";
@@ -33,7 +34,7 @@ const composer = () => {
   return c;
 };
 
-/** opened is the window seated in Home with !a open, the device settings as given. */
+/** opened is the window running in Home with !a open, the device settings as given. */
 /** settings are the device's, each key its default but those given. */
 function settings(init: MessageInitShape<typeof DeviceSettingsSchema>) {
   return create(DeviceSettingsSchema, {
@@ -214,14 +215,23 @@ describe("the composer", () => {
     expect(composer().draft.body).toBe("");
   });
 
-  it("steps aside for another window: its drafts written from the seat first, then nothing more", async () => {
+  it("takes another window's draft when kithd says drafts changed, and says when its words are folded in", async () => {
     await opened();
-    typed("unsaved words");
-    kithd.otherTakesOver("Home");
+    const anotherWindow = (body: string) => {
+      kithd.drafts.set("!a", create(StoredDraftSchema, { roomId: "!a", body, updatedUnixMs: BigInt(Date.now()) }));
+      kithd.send(BackendService.method.changed, "Home", { change: Change.DRAFTS });
+    };
+    anotherWindow("from the laptop");
     await settled();
-    expect(view().seat.state).toBe("steppedAside");
-    expect(kithd.seats.get("Home")).toBe("other");
-    expect(kithd.drafts.get("!a")?.body).toBe("unsaved words");
+    expect(composer().draft.body).toBe("from the laptop");
+    expect(composer().note).toBe("");
+    // Both windows type at once: both are kept, this one's words first, and it says so.
+    typed("from the laptop, then the phone");
+    anotherWindow("from the laptop and more");
+    await saved();
+    expect(kithd.drafts.get("!a")?.body).toBe("from the laptop, then the phone\n\nand more");
+    expect(composer().draft.body).toBe("from the laptop, then the phone\n\nand more");
+    expect(composer().note).toBe("another window or the assistant added to this draft");
   });
 });
 
@@ -449,17 +459,6 @@ describe("a draft as the window leaves a profile", () => {
     expect(body()).toBe("w1");
     await pass(saveDelay + 10);
     expect(stored("!h")).toBe("w1");
-  });
-
-  it("stepping aside for another window, failing twice, is said kept", async () => {
-    await start();
-    await open("!h");
-    write("w1");
-    kithd.draftFaults.push("before", "before");
-    kithd.otherTakesOver("Home");
-    await pass(3000);
-    expect(view().seat.state).toBe("steppedAside");
-    expect(view().problem).toMatch(/draft in !h is not saved/);
   });
 
   it("is kept through a reload, and written once its room is open again", async () => {

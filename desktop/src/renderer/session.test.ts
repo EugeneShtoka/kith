@@ -7,7 +7,6 @@ import {
   ConfigSettingKind,
   ConfigSettingSchema,
   MarkRoomsReadResponseSchema,
-  type SeatRequest,
   SpaceFiledOutcome,
 } from "../gen/backend/v1/services_pb";
 import { MentionSchema, ReactionSchema, UnreadSchema, VerificationKind } from "../gen/backend/v1/types_pb";
@@ -49,7 +48,7 @@ async function started(): Promise<void> {
 
 const view = () => session.snapshot();
 
-/** The streams a seated window holds in its profile, besides its seat's. */
+/** The streams a window holds in its profile. */
 const profileStreams = [
   backend.followStream,
   backend.changed,
@@ -82,7 +81,6 @@ describe("the window's profile", () => {
     kithd.profiles = ["Solo"];
     await started();
     expect(view().profile).toBe("Solo");
-    expect(view().seat.state).toBe("seated");
     expect(kithd.remembered).toBe("");
     expect(kithd.calls).not.toContain("ChooseProfile:");
   });
@@ -92,20 +90,18 @@ describe("the window's profile", () => {
     await started();
     expect(view().profile).toBe("");
     expect(view().profiles).toEqual(["Home", "Work"]);
-    expect(view().seat.state).toBe("none");
     expect(kithd.calls).toEqual(["Device:", "Theme:", "DeviceSettings:"]); // the relay's, which no profile scopes
     expect(kithd.refused).toEqual([]);
 
     await session.choose("Work");
     await settled();
     expect(view().profile).toBe("Work");
-    expect(view().seat.state).toBe("seated");
     expect(kithd.remembered).toBe("Work");
     expect(kithd.refused).toEqual([]);
     for (const c of kithd.calls.slice(4).filter((c) => c !== "Theme:" && c !== "DeviceSettings:")) {
       expect(c).toMatch(/:Work$/);
     }
-    expect(kithd.open().map((s) => s.profile)).toEqual(Array(9).fill("Work"));
+    expect(kithd.open().map((s) => s.profile)).toEqual(Array(profileStreams.length).fill("Work"));
   });
 
   it("is the one remembered, when the config still has it", async () => {
@@ -132,7 +128,6 @@ describe("the window's profile", () => {
     expect(view().unreadTotal).toBe(0);
     expect(kithd.told.at(-1)).toBe(0);
     expect(kithd.open().every((s) => s.profile === "Work")).toBe(true);
-    expect(kithd.seats.has("Home")).toBe(false);
   });
 
   it("removed by a config reload: with several left the list empties and the window asks; with one left it runs there", async () => {
@@ -149,7 +144,6 @@ describe("the window's profile", () => {
     expect(view().profile).toBe("");
     expect(view().profiles).toEqual(["Home", "Play"]);
     expect(view().rooms).toEqual([]);
-    expect(view().seat.state).toBe("none");
     expect(kithd.told.at(-1)).toBe(0);
     expect(kithd.open()).toEqual([]);
     expect(kithd.refused).toEqual([]);
@@ -160,7 +154,6 @@ describe("the window's profile", () => {
     kithd.send(backend.configChanged, "Play", { config: "" });
     await settled();
     expect(view().profile).toBe("Solo");
-    expect(view().seat.state).toBe("seated");
   });
 
   it("is the bridge's on a device that joined one, and the window says it is connected there", async () => {
@@ -170,7 +163,6 @@ describe("the window's profile", () => {
     expect(view().bridge).toBe("home");
     expect(view().socket).toBe("");
     expect(view().profile).toBe("Solo");
-    expect(view().seat.state).toBe("seated");
   });
 
   it("is read again until a bridge that did not answer at start does", async () => {
@@ -185,7 +177,6 @@ describe("the window's profile", () => {
     await new Promise((resolve) => setTimeout(resolve, deviceAgain));
     await settled();
     expect(view().profile).toBe("Solo");
-    expect(view().seat.state).toBe("seated");
     expect(view().problem).toBeUndefined();
     expect(kithd.calls.filter((c) => c === "Device:").length).toBe(2);
   });
@@ -199,73 +190,6 @@ describe("the window's profile", () => {
     kithd.again();
     await settled();
     expect(view().profile).toBe("");
-    expect(kithd.open()).toEqual([]);
-  });
-});
-
-describe("the window's seat", () => {
-  it("taken elsewhere: nothing of the profile is read until it is taken over, by force", async () => {
-    kithd.of("Home").rooms = [room("!a")];
-    kithd.seats.set("Home", "other");
-    await started();
-    expect(view().seat).toMatchObject({ state: "taken", holder: { pid: 4312n, host: "elsewhere" } });
-    expect(kithd.open()).toEqual([]);
-    expect(kithd.calls.filter((c) => !c.startsWith("Device") && !c.startsWith("Theme"))).toEqual([]);
-
-    session.takeOver();
-    await settled();
-    expect(view().seat.state).toBe("seated");
-    const seats = kithd.subs.filter((s) => s.method === backend.seat.name);
-    expect(seats.map((s) => (s.request as SeatRequest).force)).toEqual([false, true]);
-    expect(kithd.open().map((s) => s.method)).toEqual([backend.seat.name, ...profileStreams]);
-    expect(view().rooms.map((r) => r.id)).toEqual(["!a"]);
-  });
-
-  it("taken over by another window: every stream stops, the rooms and the badge go, and a late answer brings nothing back", async () => {
-    kithd.of("Home").rooms = [room("!a"), room("!b")];
-    kithd.of("Home").unread.set("!a", unread("!a", 3));
-    kithd.of("Home").invites = [room("!i", { membership: "invite" })];
-    await started();
-    expect(view().unreadTotal).toBe(3);
-    expect(view().invites).toHaveLength(1);
-
-    // kithd restarts and the window reads again, its answers still on their way.
-    kithd.holding.add("CachedUnread").add("CachedInvites").add("Rooms");
-    kithd.down();
-    kithd.again();
-    await settled();
-    kithd.otherTakesOver("Home");
-    await settled();
-    kithd.release();
-    kithd.send(backend.unreadStream, "Home", { unread: unread("!b", 9) });
-    await settled();
-
-    expect(view().seat.state).toBe("steppedAside");
-    expect(view().rooms).toEqual([]);
-    expect(view().invites).toEqual([]);
-    expect(view().unread.size).toBe(0);
-    expect(view().unreadTotal).toBe(0);
-    expect(kithd.told.at(-1)).toBe(0);
-    expect(kithd.open()).toEqual([]);
-    expect(kithd.seats.get("Home")).toBe("other");
-
-    kithd.holding.clear();
-    session.takeOver();
-    await settled();
-    expect(view().seat.state).toBe("seated");
-    expect(kithd.seats.get("Home")).not.toBe("other");
-    expect(view().unreadTotal).toBe(3);
-  });
-
-  it("after kithd restarts is asked for again, unforced: a window that took it meanwhile keeps it", async () => {
-    session.takeOver(); // no profile yet: nothing
-    await started();
-    kithd.down();
-    kithd.seats.set("Home", "other");
-    kithd.again();
-    await settled();
-    expect(view().seat.state).toBe("taken");
-    expect(kithd.seats.get("Home")).toBe("other");
     expect(kithd.open()).toEqual([]);
   });
 });
@@ -1037,7 +961,7 @@ describe("a room's thread rows folded and listed past the cap", () => {
 describe("the settings page", () => {
   const r = "!r";
   const page = () => view().settingsPage;
-  /** opened is the window seated with r open and watched, and the settings page open. */
+  /** opened is the window running with r open and watched, and the settings page open. */
   const opened = async () => {
     kithd.of("Home").rooms = [room(r)];
     kithd.write("Home", message({ id: "$1", ts: 10, sender: "@alice" }, r));
@@ -1109,7 +1033,7 @@ describe("the bridge's settings on the settings page", () => {
     const read = config().read;
     return read === undefined ? "unread" : words(valueAt(read, path));
   };
-  /** opened is the window seated in Home (of Home and Work), the settings page open on kithd's settings. */
+  /** opened is the window running in Home (of Home and Work), the settings page open on kithd's settings. */
   const opened = async () => {
     kithd.profiles = ["Home", "Work"];
     kithd.remembered = "Home";
@@ -1586,64 +1510,48 @@ describe("a link handed to the window", () => {
     );
   });
 
-  // A switch from Home to Work, Work's seat free or held by another window (then taken
-  // over), its rooms read at once or late; a link sent on Home's or Work's stream at
-  // every turn of the event loop from before the switch is asked to after it settled:
-  // while main has moved and the window has not, while the seat is asked for or held,
-  // before the rooms are read. Each link handed to it reaches it, and is followed in Work if
+  // A switch from Home to Work, its rooms read at once or late; a link sent on Home's or
+  // Work's stream at every turn of the event loop from before the switch is asked to
+  // after it settled: while main has moved and the window has not, before the rooms are
+  // read. Each link handed to it reaches it, and is followed in Work if
   // its stream's profile named the chat and Work holds it, and else opens nothing.
   const points = Array.from({ length: 12 }, (_, at) => at);
   const cases = points.flatMap((at) =>
-    [false, true].flatMap((taken) =>
-      ["Home", "Work"].flatMap((on) => ["!h0", "!w0", "!both"].map((to) => ({ at, taken, on, to }))),
-    ),
+    ["Home", "Work"].flatMap((on) => ["!h0", "!w0", "!both"].map((to) => ({ at, on, to }))),
   );
-  it.each(cases)(
-    "sent at turn $at on $on's stream to $to, Work's seat taken: $taken",
-    async ({ at, taken, on, to }) => {
-      const all = { Home: ["!h0", "!both"], Work: ["!w0", "!both"] };
-      kithd.profiles = ["Home", "Work"];
-      kithd.remembered = "Home";
-      for (const [profile, ids] of Object.entries(all)) {
-        kithd.of(profile).rooms = ids.map((id) => room(id));
-      }
-      await started();
-      if (taken) {
-        kithd.seats.set("Work", "other");
-      }
-      if (at % 2 === 1) {
-        kithd.holding.add("Rooms");
-      }
-      void session.choose("Work");
-      for (let i = 0; i < at; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-      const link = kithd.follow(on, to);
-      await settled();
-      if (taken) {
-        session.takeOver();
-        await settled();
-      }
-      kithd.holding.clear();
-      kithd.release();
-      await settled();
-      expect(view().profile).toBe("Work");
-      expect(view().seat.state).toBe("seated");
-      // Handed to a stream that was open, the link must reach the window: none is lost.
-      const handed = link !== undefined;
-      expect(handed && !kithd.linksArrived.includes(link)).toBe(false);
-      const follows = handed && link.chats.length > 0 && all.Work.includes(to);
-      expect(view().open).toBe(follows ? to : "");
-      if (handed && !follows) {
-        expect(view().problem).toBe("That link names no chat in Work");
-      }
-    },
-  );
+  it.each(cases)("sent at turn $at on $on's stream to $to", async ({ at, on, to }) => {
+    const all = { Home: ["!h0", "!both"], Work: ["!w0", "!both"] };
+    kithd.profiles = ["Home", "Work"];
+    kithd.remembered = "Home";
+    for (const [profile, ids] of Object.entries(all)) {
+      kithd.of(profile).rooms = ids.map((id) => room(id));
+    }
+    await started();
+    if (at % 2 === 1) {
+      kithd.holding.add("Rooms");
+    }
+    void session.choose("Work");
+    for (let i = 0; i < at; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    const link = kithd.follow(on, to);
+    await settled();
+    kithd.holding.clear();
+    kithd.release();
+    await settled();
+    expect(view().profile).toBe("Work");
+    // Handed to a stream that was open, the link must reach the window: none is lost.
+    const handed = link !== undefined;
+    expect(handed && !kithd.linksArrived.includes(link)).toBe(false);
+    const follows = handed && link.chats.length > 0 && all.Work.includes(to);
+    expect(view().open).toBe(follows ? to : "");
+    if (handed && !follows) {
+      expect(view().problem).toBe("That link names no chat in Work");
+    }
+  });
 
   // Links arrive at every point of a profile switch: before it is asked, while main has
-  // moved and the window has not, while the new profile's seat is asked for or held by
-  // another window, before its rooms are read; and the window steps aside and takes
-  // over. Whenever all is quiet no room outside the profile is open, and at the end the
+  // moved and the window has not, before its rooms are read. Whenever all is quiet no room outside the profile is open, and at the end the
   // last link that reached the window was followed where the profile allows, and
   // refused where it does not.
   it.each(Array.from({ length: 20 }, (_, i) => i + 1))(
@@ -1668,38 +1576,22 @@ describe("a link handed to the window", () => {
           expect(holds, `${v.open} open in ${v.profile}, ${when}`).toContain(v.open);
         }
       };
-      // When each link was sent, and when the window was last moved (a switch asked, a
-      // seat taken): a link followed before a later move is the person's to leave.
+      // When each link was sent, and when the window was last moved (a switch asked): a link followed before a later move is the person's to leave.
       const sent = new Map<object, number>();
       let moved = 0;
       for (let s = 0; s < 60; s++) {
         for (let i = pick(3); i > 0; i--) {
           await new Promise((resolve) => setTimeout(resolve, 0));
         }
-        switch (pick(9)) {
+        switch (pick(7)) {
           case 0:
           case 1:
             moved = s;
             void session.choose(pick(2) === 0 ? "Home" : "Work");
             break;
-          case 2: {
-            // Another window sits in a profile, or takes this one's seat over.
-            const p = pick(2) === 0 ? "Home" : "Work";
-            moved = s;
-            if (kithd.seats.get(p) === undefined) {
-              kithd.seats.set(p, "other");
-            } else {
-              kithd.otherTakesOver(p);
-            }
-            break;
-          }
+          case 2:
           case 3:
-            moved = s;
-            session.takeOver();
-            break;
-          case 4:
-          case 5:
-          case 6: {
+          case 4: {
             const id = every[pick(every.length)] ?? "";
             const frame = kithd.follow(pick(2) === 0 ? "Home" : "Work", pick(2) === 0 ? id : `${id}/$${id}`);
             if (frame !== undefined) {
@@ -1707,7 +1599,7 @@ describe("a link handed to the window", () => {
             }
             break;
           }
-          case 7:
+          case 5:
             kithd.holding.add("Rooms");
             break;
           default:
@@ -1720,10 +1612,6 @@ describe("a link handed to the window", () => {
       kithd.holding.clear();
       kithd.release();
       await settled();
-      if (view().seat.state !== "seated" && view().profile !== "") {
-        session.takeOver();
-        await settled();
-      }
       const when = `seed ${String(seed)}, at the end`;
       check(when);
       const last = kithd.linksArrived.at(-1);
@@ -2004,7 +1892,7 @@ describe("a message's text and links", () => {
     expect(note()).toBe("no link in that message");
   });
 
-  it("hands a chat link to kithd, whose seat rules pick the window that follows it, not the browser", async () => {
+  it("hands a chat link to kithd, whose link rules pick the window that follows it, not the browser", async () => {
     await started();
     kithd.chatLinks.add("https://matrix.to/#/!r:x");
     session.takeLink(message({ id: "$1", body: "see https://matrix.to/#/!r:x" }), "open_focus");

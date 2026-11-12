@@ -1,7 +1,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { NetworkPhase, type NetworkStatus, type SeatHolder, type StatusResponse } from "../gen/backend/v1/services_pb";
+import { NetworkPhase, type NetworkStatus, type StatusResponse } from "../gen/backend/v1/services_pb";
 import type { Room, ThreadUnread, Unread } from "../gen/backend/v1/types_pb";
 import type { ThemeResponse } from "../gen/device/v1/device_pb";
 import { Avatar } from "./Avatar";
@@ -21,7 +21,7 @@ import { PeopleDialog, PersonDialog } from "./People";
 import { colorClass, drawsPictures, themeCSS, modeOf, roomColor } from "./theme";
 import { namesRow, rowUnread } from "./rail";
 import { unreadOf } from "./rooms";
-import { type Link, peekAfter, type Seat, Session, type View } from "./session";
+import { type Link, peekAfter, Session, type View } from "./session";
 import { SearchBar, SearchResults, Switcher } from "./Find";
 import { SettingsPage } from "./SettingsPage";
 import { ThreadPane } from "./ThreadPane";
@@ -39,7 +39,6 @@ const phases: Record<NetworkPhase, string> = {
 };
 
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" });
-const clock = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
 
 export function App() {
   const [session] = useState(() => new Session());
@@ -57,25 +56,25 @@ export function App() {
     paint(view.theme);
   }, [view.theme]);
 
-  const seated = view.profile !== "" && view.seat.state === "seated" && view.settingsPage === undefined;
+  const running = view.profile !== "" && view.settingsPage === undefined;
   return (
     <main className="app">
       <VerifyDialog verify={view.verify} session={session} />
       {view.offers.prompt && (
         <OfferDialog key={view.offers.prompt.kind} prompt={view.offers.prompt} session={session} />
       )}
-      {seated && view.filing && <FilingDialog filing={view.filing} keys={view.keys} session={session} />}
-      {seated && view.naming && <RoomNameDialog naming={view.naming} keys={view.keys} session={session} />}
-      {seated && view.shortcut && <ShortcutDialog shortcut={view.shortcut} keys={view.keys} session={session} />}
-      {seated && view.marking && <MarkReadDialog marking={view.marking} keys={view.keys} session={session} />}
-      {seated && view.linking && <LinkingDialog linking={view.linking} keys={view.keys} session={session} />}
-      {seated && view.history && <HistoryDialog history={view.history} keys={view.keys} session={session} />}
-      {seated && view.people.list && (
+      {running && view.filing && <FilingDialog filing={view.filing} keys={view.keys} session={session} />}
+      {running && view.naming && <RoomNameDialog naming={view.naming} keys={view.keys} session={session} />}
+      {running && view.shortcut && <ShortcutDialog shortcut={view.shortcut} keys={view.keys} session={session} />}
+      {running && view.marking && <MarkReadDialog marking={view.marking} keys={view.keys} session={session} />}
+      {running && view.linking && <LinkingDialog linking={view.linking} keys={view.keys} session={session} />}
+      {running && view.history && <HistoryDialog history={view.history} keys={view.keys} session={session} />}
+      {running && view.people.list && (
         <PeopleDialog list={view.people.list} covered={view.people.card !== undefined} session={session} />
       )}
-      {seated && view.people.card && <PersonDialog card={view.people.card} session={session} />}
-      {seated ? (
-        <Seated view={view} session={session} />
+      {running && view.people.card && <PersonDialog card={view.people.card} session={session} />}
+      {running ? (
+        <Running view={view} session={session} />
       ) : (
         <>
           <TopBar view={view} session={session}>
@@ -96,8 +95,8 @@ export function App() {
   );
 }
 
-/** seatedActions are the [keys] actions the seated window binds, in priority order. */
-const seatedActions: readonly Action[] = [
+/** runningActions are the [keys] actions the window running in a profile binds, in priority order. */
+const runningActions: readonly Action[] = [
   // The player's ahead of the panes', as the TUI asks them: they win while something plays.
   ...["play_pause", "back", "forward", "slower", "faster", "normal_speed", "stop"].map((action) => ({
     path: `player.${action}`,
@@ -169,7 +168,7 @@ const minSpeed = 0.25;
 const maxSpeed = 4;
 const speedStep = 0.25;
 
-/** panes are the seated window's panes in focus order, each a [data-pane] element. */
+/** panes are the running window's panes in focus order, each a [data-pane] element. */
 const panes = ["rail", "rooms", "timeline", "thread"];
 
 /** paneRows are the rows a list pane's cursor moves over: each focusable itself. */
@@ -330,23 +329,20 @@ function Where({ view }: { view: View }) {
   );
 }
 
-/** Body is the window before it is seated: which profile, and its seat. */
+/** Body is the window before it runs in a profile: which profile. */
 function Body({ view, session }: { view: View; session: Session }) {
-  if (view.profile === "") {
-    return view.profiles.length > 0 ? <Picker profiles={view.profiles} session={session} /> : null;
-  }
-  return <SeatState seat={view.seat} profile={view.profile} session={session} />;
+  return view.profiles.length > 0 ? <Picker profiles={view.profiles} session={session} /> : null;
 }
 
 /**
- * Seated is the window in its profile's seat: the search bar across the top, then the
+ * Running is the window in its profile: the search bar across the top, then the
  * columns, each scrolling on its own: the left one (profile, rail, rooms), the open room
  * with its composer docked under it, and a thread beside it. A toggle folds the rail
  * away, then the whole left column, then brings both back; in a narrow window the rail
  * is folded, and the toggle lays it (or under 640px the whole left column) over the room
  * until a room or a place is picked.
  */
-function Seated({ view, session }: { view: View; session: Session }) {
+function Running({ view, session }: { view: View; session: Session }) {
   const [switching, setSwitching] = useState(false);
   const [helping, setHelping] = useState(false);
   // The left column unfolded over a narrow window: until a room or a place is picked.
@@ -367,7 +363,7 @@ function Seated({ view, session }: { view: View; session: Session }) {
   const keymap = useMemo(
     () =>
       new Keymap(keys, [
-        ...seatedActions,
+        ...runningActions,
         ...view.jumps.map((_, i) => ({ path: `jump.${String(i)}`, anywhere: false })),
         ...view.tagKeys.map((_, i) => ({ path: `tag.${String(i)}`, anywhere: false })),
       ]),
@@ -1119,52 +1115,6 @@ function Picker({ profiles, session }: { profiles: readonly string[]; session: S
       </ul>
     </section>
   );
-}
-
-function SeatState({ seat, profile, session }: { seat: Seat; profile: string; session: Session }) {
-  const takeOver = (label: string) => (
-    <button
-      type="button"
-      onClick={() => {
-        session.takeOver();
-      }}
-    >
-      {label}
-    </button>
-  );
-  switch (seat.state) {
-    case "none":
-    case "asking":
-    case "seated":
-      return <p className="banner">Opening {profile}…</p>;
-    case "taken":
-      return (
-        <p className="banner waiting">
-          {profile} is open in another window{seat.holder && <> ({holderText(seat.holder)})</>}. {takeOver("Take over")}
-        </p>
-      );
-    case "steppedAside":
-      return (
-        <p className="banner waiting">
-          {profile} was opened in another window. {takeOver("Take it back")}
-        </p>
-      );
-  }
-}
-
-/** holderText reads like "pid 4312 on laptop, since 10:41", as the TUI says it. */
-function holderText(h: SeatHolder): string {
-  let text = `pid ${String(h.pid)}`;
-  if (h.tty) {
-    text += ` on ${h.tty}`;
-  }
-  if (h.host) {
-    text += ` (${h.host})`;
-  }
-  if (h.sinceUnixMs > 0n) {
-    text += `, since ${clock.format(new Date(Number(h.sinceUnixMs)))}`;
-  }
-  return text;
 }
 
 /** Rail draws kithd's rail: its rows in order, the one the window is on marked. */

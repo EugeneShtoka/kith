@@ -16,20 +16,18 @@ type genWindow struct {
 	client  string
 	device  string // "" is kithd's own machine
 	profile string
-	sits    bool
-	listens bool
 	open    domain.RoomID // "" when it said nothing of a room
 	used    int           // its turn in the order windows said they were used; 0 never
-	gone    bool          // it left its seat and closed its link stream
+	gone    bool          // it closed its link stream
 }
 
 // A link goes to exactly one window on the device it was clicked on: the one with its room
 // open, else the one used last whose profile holds the room, else the one used last (a
-// window never used counts as used when it came); none when no window there sits or
-// listens. A window not listening yet gets it once it does. Generated: windows on kithd's
-// machine and on paired devices, sitting, listening or both, in profiles holding some
-// rooms, with presence in random orders, ties, and links to a room, to several accounts'
-// views of one chat, or to nothing known, clicked on any of the devices.
+// window never used counts as used when it came); none when no window there listens.
+// Generated: windows on kithd's machine and on paired devices, any number in one profile,
+// in profiles holding some rooms, some closing their link stream, with presence in random
+// orders, ties, and links to a room, to several accounts' views of one chat, or to nothing
+// known, clicked on any of the devices.
 func TestALinkGoesToTheWindowPlacedForIt(t *testing.T) {
 	t.Parallel()
 	rooms := []domain.RoomID{"r0", "r1", "r2", "r3"}
@@ -45,7 +43,7 @@ func TestALinkGoesToTheWindowPlacedForIt(t *testing.T) {
 		}
 		holds := func(profile string, room domain.RoomID) bool { return slices.Contains(holdsRooms[profile], room) }
 
-		s := newSeats()
+		s := newWindows()
 		var windows []*genWindow
 		var departures []func()
 		takes := map[string]func() string{}
@@ -53,35 +51,17 @@ func TestALinkGoesToTheWindowPlacedForIt(t *testing.T) {
 		devices := []string{"", "laptop", "tablet"}
 		rng.Shuffle(len(profiles), func(i, j int) { profiles[i], profiles[j] = profiles[j], profiles[i] })
 		for i := range rng.IntN(4) {
-			w := &genWindow{client: fmt.Sprintf("w%d", i), device: devices[rng.IntN(len(devices))], profile: profiles[i%3], sits: rng.IntN(3) > 0, listens: rng.IntN(3) > 0}
-			if !w.sits && !w.listens {
-				w.listens = true
-			}
-			var sat sitting
-			if w.sits {
-				var err error
-				if sat, err = s.take(t.Context(), w.profile, w.client, w.device, false, domain.SeatHolder{}); err != nil {
-					t.Fatalf("seed %d: %s could not sit: %v", seed, w.client, err)
-				}
-			}
-			var release func()
-			if w.listens {
-				var take func() string
-				_, take, release = s.listen(w.client, w.device, w.profile)
-				takes[w.client] = take
-			}
+			w := &genWindow{client: fmt.Sprintf("w%d", i), device: devices[rng.IntN(len(devices))], profile: profiles[rng.IntN(3)]}
+			_, take, release := s.listen(w.client, w.device, w.profile)
+			takes[w.client] = take
 			windows = append(windows, w)
 			departures = append(departures, func() {
-				// A window leaving: its seat, its link stream, or both; gone once neither holds it.
-				leaveSeat, closeStream := w.sits && rng.IntN(4) == 0, w.listens && rng.IntN(4) == 0
-				if leaveSeat {
-					s.leave(sat)
-				}
-				if closeStream {
+				// A window leaving: gone once its link stream closes.
+				if rng.IntN(4) == 0 {
 					release()
 					delete(takes, w.client)
+					w.gone = true
 				}
-				w.gone = (!w.sits || leaveSeat) && (!w.listens || closeStream)
 			})
 		}
 		for _, depart := range departures {
@@ -126,7 +106,7 @@ func TestALinkGoesToTheWindowPlacedForIt(t *testing.T) {
 			if take := takes[w.client]; take != nil {
 				got = take()
 			} else {
-				// Not listening yet: it gets the link once it listens.
+				// Gone: listening again, it is a new window, handed no earlier link.
 				_, take, _ := s.listen(w.client, w.device, w.profile)
 				got = take()
 			}

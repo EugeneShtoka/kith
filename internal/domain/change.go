@@ -19,4 +19,6 @@ const (
 	ChangeLanguages
 	// ChangeNames is how kithd names people having changed (People.Name's inputs).
 	ChangeNames
+	// ChangeDrafts is a stored draft having changed, by any writer (Drafts).
+	ChangeDrafts
 )

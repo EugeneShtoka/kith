@@ -20,17 +20,17 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Two writers share every stored draft: the one window the daemon serves (api.Seat)
-// and kith-mcp appending the assistant's words; each window is followed by another on
-// the same store (seat taken over, or kith restarted). Writes are compare-and-set,
-// replies can be late, and commands finish in any order. A scheduler holds every
-// command and reply, and a seeded walk interleaves them with typing, pauses, sends,
-// room switches, edits, polls, assistant appends (also between one save's RPCs),
-// deletions (a room left elsewhere), and quitting. The daemon fails too: writes refused
-// before commit, writes committed with the reply lost, failed reads. Quitting is either
-// quit (waits for saves, as stepping aside does) or the program ending at once, after
-// which only tui.Run's last write (FlushDrafts) runs and what it cannot write is kept
-// in a file. At rest:
+// Writers share every stored draft: a window and kith-mcp appending the assistant's
+// words (a second window is TestTwoWindowsKeepEveryWordInAnyOrder's); each window is
+// followed by another on the same store (kith restarted). Writes are rebased, replies
+// can be late, and commands finish in any order. A scheduler holds every command and
+// reply, and a seeded walk interleaves them with typing, pauses, sends, room switches,
+// edits, drafts read again (CHANGE_DRAFTS), assistant appends (also between one save's
+// RPCs), deletions (a room left elsewhere), and quitting. The daemon fails too: writes
+// refused before commit, writes committed with the reply lost, failed reads. Quitting
+// is either quit (waits for saves) or the program ending at once, after which only
+// tui.Run's last write (FlushDrafts) runs and what it cannot write is kept in a file.
+// At rest:
 //
 //   - every word typed or appended is, exactly once, in a sent message or a stored
 //     draft (never lost, never doubled; sent words never come back);
@@ -263,8 +263,8 @@ func (w *draftWorld) step() {
 	case r < 43:
 		w.moveThread()
 	case r < 49:
-		w.note("poll")
-		w.enqueue(w.m.loadDraftsCmd())
+		w.note("drafts changed (CHANGE_DRAFTS)")
+		w.update(changedMsg{change: domain.ChangeDrafts})
 	case r < 53:
 		w.assistantAppends(draftRooms[w.rng.IntN(len(draftRooms))])
 	case r < 59:
@@ -284,11 +284,7 @@ func (w *draftWorld) step() {
 			w.note("deliver %T", msg)
 			w.update(msg)
 		}
-	case w.rng.IntN(3) == 0:
-		w.note("another window takes the seat: this one saves its drafts and quits")
-		w.leaving = true
-		w.update(seatLostMsg{})
-	case w.rng.IntN(2) == 0:
+	case w.rng.IntN(3) > 0:
 		w.note("quit (esc, q)")
 		w.leaving = true
 		room, reply, editing, thread := w.m.openRoom, w.m.compose.replyTo, w.m.compose.editing, w.m.thread.root
@@ -462,7 +458,7 @@ func (w *draftWorld) deleteElsewhere(room domain.RoomID) {
 	delete(s.drafts, room)
 }
 
-// rest lets everything finish: every command and reply, then pauses and polls until
+// rest lets everything finish: every command and reply, then pauses and reads until
 // nothing changes. After quit nothing is delivered: only what reached the store counts.
 func (w *draftWorld) rest() {
 	w.note("— rest —")

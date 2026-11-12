@@ -384,7 +384,7 @@ select option {
   color: var(--lost);
 }
 
-/* Before the seat: the picker, the seat's state, the settings page. */
+/* Before a profile: the picker, the settings page. */
 .page {
   flex: 1;
   min-height: 0;

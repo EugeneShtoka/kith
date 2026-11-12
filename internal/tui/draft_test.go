@@ -439,9 +439,9 @@ func TestLoadedDraftsDoNotOverwriteLiveTyping(t *testing.T) {
 	}
 }
 
-// A draft written elsewhere while this client runs is picked up on the poll and shows
-// in the Drafts group.
-func TestThePollPicksUpADraftWrittenElsewhere(t *testing.T) {
+// A draft written elsewhere while this client runs is picked up when kithd says drafts
+// changed (CHANGE_DRAFTS) and shows in the Drafts group.
+func TestADraftsChangePicksUpADraftWrittenElsewhere(t *testing.T) {
 	t.Parallel()
 
 	m, b := drafting(t)
@@ -450,25 +450,19 @@ func TestThePollPicksUpADraftWrittenElsewhere(t *testing.T) {
 		RoomID: mx + "!a:x", Body: "drafted for you", Author: "claude-code", Updated: time.Now(),
 	}}
 
-	next, cmd := asModel(m.Update(pollTickMsg{}))
-	m = next
-	if cmd == nil {
-		t.Fatal("the poll asked for nothing")
-	}
-	for _, msg := range pollAnswers(t, cmd) {
-		m = update(t, m, msg)
-	}
+	next, cmd := asModel(m.Update(changedMsg{change: domain.ChangeDrafts}))
+	m = deliver(t, next, cmd)
 
 	if !m.hasDraft(mx + "!a:x") {
-		t.Fatal("the poll did not pick up a draft written elsewhere")
+		t.Fatal("a drafts change did not pick up a draft written elsewhere")
 	}
 	if indexOfGroup(m.rail.groups, draftsGroupKey) < 0 {
 		t.Error("the Drafts group is missing after a draft arrived")
 	}
 }
 
-// What this client holds wins over a polled draft.
-func TestThePollDoesNotDisturbADraftThisClientHolds(t *testing.T) {
+// What this client holds wins over a draft read on a drafts change.
+func TestADraftsChangeDoesNotDisturbADraftThisClientHolds(t *testing.T) {
 	t.Parallel()
 
 	m, b := drafting(t)
@@ -478,38 +472,12 @@ func TestThePollDoesNotDisturbADraftThisClientHolds(t *testing.T) {
 		Author: "claude-code", Updated: time.Now(),
 	}}
 
-	next, cmd := asModel(m.Update(pollTickMsg{}))
-	m = next
-	for _, msg := range pollAnswers(t, cmd) {
-		m = update(t, m, msg)
-	}
+	next, cmd := asModel(m.Update(changedMsg{change: domain.ChangeDrafts}))
+	m = deliver(t, next, cmd)
 
 	if m.compose.input != "mine, half typed" {
 		t.Errorf("composer = %q, want the words being typed here left alone", m.compose.input)
 	}
-}
-
-// pollAnswers is what a poll produced, skipping commands that do not answer promptly
-// (the next tick's timer).
-func pollAnswers(t *testing.T, cmd tea.Cmd) []tea.Msg {
-	t.Helper()
-	batch, ok := cmd().(tea.BatchMsg)
-	if !ok {
-		t.Fatalf("the poll returned %T, want a batch of commands", cmd())
-	}
-	var out []tea.Msg
-	for _, one := range batch {
-		answered := make(chan tea.Msg, 1)
-		go func(c tea.Cmd) { answered <- c() }(one)
-		select {
-		case msg := <-answered:
-			if msg != nil {
-				out = append(out, msg)
-			}
-		case <-time.After(500 * time.Millisecond):
-		}
-	}
-	return out
 }
 
 // A sent or cleared draft leaves the Drafts group, is written at once, and is not

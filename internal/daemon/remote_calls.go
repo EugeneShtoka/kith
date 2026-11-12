@@ -656,26 +656,17 @@ func (r *Remote) ModelTask(ctx context.Context, req domain.ModelRequest) (domain
 	return pc.ProtoToModelResult(resp), err
 }
 
-// ReplaceDraft names this window once it has the seat; its writes are then refused
-// if another window takes it.
 func (r *Remote) ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (bool, error) {
 	request := &v1.ReplaceDraftRequest{Draft: pc.StoredDraftToProto(draft), Over: pc.StoredDraftToProto(over)}
-	if r.seated.Load() {
-		request.Client = r.client
-	}
 	resp, err := call(ctx, "replace draft", r.c.ReplaceDraft, request)
 	return resp.GetSaved(), err
 }
 
-// RebaseDraft is ReplaceDraft with kithd rebasing the write (rebase), the window named
-// as ReplaceDraft names it.
+// RebaseDraft is ReplaceDraft with kithd rebasing the write (rebase).
 func (r *Remote) RebaseDraft(ctx context.Context, draft, base domain.StoredDraft, unanswered []domain.StoredDraft) (domain.StoredDraft, string, error) {
 	request := &v1.ReplaceDraftRequest{
 		Draft: pc.StoredDraftToProto(draft), Over: pc.StoredDraftToProto(base), Rebase: true,
 		Unanswered: pc.StoredDraftsToProto(unanswered),
-	}
-	if r.seated.Load() {
-		request.Client = r.client
 	}
 	resp, err := call(ctx, "replace draft", r.c.ReplaceDraft, request)
 	if err != nil {

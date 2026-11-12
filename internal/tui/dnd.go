@@ -276,10 +276,14 @@ func (m Model) handleDND(msg dndMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// handlePollTick re-reads state changed elsewhere (drafts, filter moves, mutes) and always
-// reschedules, even with no notification backend attached yet.
+// handlePollTick re-reads state changed elsewhere (filter moves, mutes) and always
+// reschedules, even with no notification backend attached yet. Drafts are read on
+// CHANGE_DRAFTS, and here only while a save failed: the read retries it.
 func (m Model) handlePollTick() (Model, tea.Cmd) {
-	cmds := []tea.Cmd{m.pollTickCmd(), m.loadDraftsCmd(), m.loadVerdictsCmd(), m.loadAccountStatesCmd()}
+	cmds := []tea.Cmd{m.pollTickCmd(), m.loadVerdictsCmd(), m.loadAccountStatesCmd()}
+	if len(m.draftSync.retry) > 0 {
+		cmds = append(cmds, m.loadDraftsCmd())
+	}
 	if m.notifications.attached() {
 		cmds = append(cmds, m.readDNDCmd())
 	}

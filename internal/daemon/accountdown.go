@@ -36,13 +36,13 @@ func (n *Notifications) AccountChanged(s domain.AccountStatus, was domain.Accoun
 	}, "", n.everyTopic())
 }
 
-// everyTopic is the seat keys of every profile, in config order.
+// everyTopic is the IDs of every profile, in config order.
 func (n *Notifications) everyTopic() []string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	topics := make([]string, len(n.profiles))
 	for i, p := range n.profiles {
-		topics[i] = seatKey(p.Name)
+		topics[i] = profileID(p.Name)
 	}
 	return topics
 }

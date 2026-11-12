@@ -2,7 +2,7 @@ package tui
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"slices"
 	"strings"
 	"sync"
@@ -10,7 +10,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/EugeneShtoka/kith/internal/api"
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -24,8 +23,8 @@ type profiledBackend struct {
 	mu       sync.Mutex
 	in       string
 	switches []string
-	// taken are the profiles another window runs in.
-	taken []string
+	// failing are the profiles a switch into fails.
+	failing []string
 	// told is every room Present was told, in order.
 	told []domain.RoomID
 }
@@ -33,8 +32,8 @@ type profiledBackend struct {
 func (b *profiledBackend) SwitchProfile(name string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if slices.Contains(b.taken, name) {
-		return fmt.Errorf("%w: pid 7", api.ErrSeatTaken)
+	if slices.Contains(b.failing, name) {
+		return errors.New("daemon: unavailable")
 	}
 	b.in = name
 	b.switches = append(b.switches, name)
@@ -134,11 +133,10 @@ func TestTheProfileCommand(t *testing.T) {
 	}
 }
 
-// A switch into a profile another window runs in is refused, says so, and leaves the
-// window where it was.
+// A switch that fails says so and leaves the window where it was.
 func TestASwitchRefusedLeavesTheWindowWhereItWas(t *testing.T) {
 	t.Parallel()
-	b := &profiledBackend{rooms: map[string][]domain.Room{}, taken: []string{"home"}}
+	b := &profiledBackend{rooms: map[string][]domain.Room{}, failing: []string{"home"}}
 	m := inProfiles(t, b, config.Profile{Name: "work", Include: []string{"*"}}, config.Profile{Name: "home", Include: []string{"*"}})
 	m, cmd := m.clearStatus().switchProfile("home")
 	m = settle(t, m, cmd)

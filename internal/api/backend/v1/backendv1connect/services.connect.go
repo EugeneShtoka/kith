@@ -288,8 +288,6 @@ const (
 	BackendServiceReplaceDraftProcedure = "/backend.v1.BackendService/ReplaceDraft"
 	// BackendServiceDraftsProcedure is the fully-qualified name of the BackendService's Drafts RPC.
 	BackendServiceDraftsProcedure = "/backend.v1.BackendService/Drafts"
-	// BackendServiceSeatProcedure is the fully-qualified name of the BackendService's Seat RPC.
-	BackendServiceSeatProcedure = "/backend.v1.BackendService/Seat"
 	// BackendServicePresentProcedure is the fully-qualified name of the BackendService's Present RPC.
 	BackendServicePresentProcedure = "/backend.v1.BackendService/Present"
 	// BackendServiceLoginNetworksProcedure is the fully-qualified name of the BackendService's
@@ -734,15 +732,11 @@ type BackendServiceClient interface {
 	ModelTask(context.Context, *connect.Request[v1.ModelTaskRequest]) (*connect.Response[v1.ModelTaskResponse], error)
 	// ReplaceDraft stores one room's half-written message (or removes it when there is
 	// nothing left worth keeping), only while the stored draft is still the one the
-	// writer read, so neither writer (TUI, kith-mcp) drops the other's words; or, for a
-	// window (rebase), with the other writer's words since put after its own.
+	// writer read, so no writer (a window, kith-mcp) drops another's words; or, for a
+	// window (rebase), with the other writers' words since put after its own. Changed
+	// says CHANGE_DRAFTS when the stored draft changed.
 	ReplaceDraft(context.Context, *connect.Request[v1.ReplaceDraftRequest]) (*connect.Response[v1.ReplaceDraftResponse], error)
 	Drafts(context.Context, *connect.Request[v1.DraftsRequest]) (*connect.Response[v1.DraftsResponse], error)
-	// Seat is the one window the daemon serves in a [[profile]], the one the request
-	// names (kith-mcp and one-shot commands take none). Opening the stream asks for it;
-	// keeping it open keeps it, and a window that closes or dies frees it. See
-	// SeatRequest.force and SeatResponse.
-	Seat(context.Context, *connect.Request[v1.SeatRequest]) (*connect.ServerStreamForClient[v1.SeatResponse], error)
 	// Present says what a window is doing: the room it has open, and that it was used
 	// just now. Follow hands a link to a window by it.
 	Present(context.Context, *connect.Request[v1.PresentRequest]) (*connect.Response[v1.PresentResponse], error)
@@ -1517,12 +1511,6 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("Drafts")),
 			connect.WithClientOptions(opts...),
 		),
-		seat: connect.NewClient[v1.SeatRequest, v1.SeatResponse](
-			httpClient,
-			baseURL+BackendServiceSeatProcedure,
-			connect.WithSchema(backendServiceMethods.ByName("Seat")),
-			connect.WithClientOptions(opts...),
-		),
 		present: connect.NewClient[v1.PresentRequest, v1.PresentResponse](
 			httpClient,
 			baseURL+BackendServicePresentProcedure,
@@ -2035,7 +2023,6 @@ type backendServiceClient struct {
 	modelTask             *connect.Client[v1.ModelTaskRequest, v1.ModelTaskResponse]
 	replaceDraft          *connect.Client[v1.ReplaceDraftRequest, v1.ReplaceDraftResponse]
 	drafts                *connect.Client[v1.DraftsRequest, v1.DraftsResponse]
-	seat                  *connect.Client[v1.SeatRequest, v1.SeatResponse]
 	present               *connect.Client[v1.PresentRequest, v1.PresentResponse]
 	loginNetworks         *connect.Client[v1.LoginNetworksRequest, v1.LoginNetworksResponse]
 	beginLogin            *connect.Client[v1.BeginLoginRequest, v1.BeginLoginResponse]
@@ -2570,11 +2557,6 @@ func (c *backendServiceClient) ReplaceDraft(ctx context.Context, req *connect.Re
 // Drafts calls backend.v1.BackendService.Drafts.
 func (c *backendServiceClient) Drafts(ctx context.Context, req *connect.Request[v1.DraftsRequest]) (*connect.Response[v1.DraftsResponse], error) {
 	return c.drafts.CallUnary(ctx, req)
-}
-
-// Seat calls backend.v1.BackendService.Seat.
-func (c *backendServiceClient) Seat(ctx context.Context, req *connect.Request[v1.SeatRequest]) (*connect.ServerStreamForClient[v1.SeatResponse], error) {
-	return c.seat.CallServerStream(ctx, req)
 }
 
 // Present calls backend.v1.BackendService.Present.
@@ -3171,15 +3153,11 @@ type BackendServiceHandler interface {
 	ModelTask(context.Context, *connect.Request[v1.ModelTaskRequest]) (*connect.Response[v1.ModelTaskResponse], error)
 	// ReplaceDraft stores one room's half-written message (or removes it when there is
 	// nothing left worth keeping), only while the stored draft is still the one the
-	// writer read, so neither writer (TUI, kith-mcp) drops the other's words; or, for a
-	// window (rebase), with the other writer's words since put after its own.
+	// writer read, so no writer (a window, kith-mcp) drops another's words; or, for a
+	// window (rebase), with the other writers' words since put after its own. Changed
+	// says CHANGE_DRAFTS when the stored draft changed.
 	ReplaceDraft(context.Context, *connect.Request[v1.ReplaceDraftRequest]) (*connect.Response[v1.ReplaceDraftResponse], error)
 	Drafts(context.Context, *connect.Request[v1.DraftsRequest]) (*connect.Response[v1.DraftsResponse], error)
-	// Seat is the one window the daemon serves in a [[profile]], the one the request
-	// names (kith-mcp and one-shot commands take none). Opening the stream asks for it;
-	// keeping it open keeps it, and a window that closes or dies frees it. See
-	// SeatRequest.force and SeatResponse.
-	Seat(context.Context, *connect.Request[v1.SeatRequest], *connect.ServerStream[v1.SeatResponse]) error
 	// Present says what a window is doing: the room it has open, and that it was used
 	// just now. Follow hands a link to a window by it.
 	Present(context.Context, *connect.Request[v1.PresentRequest]) (*connect.Response[v1.PresentResponse], error)
@@ -3950,12 +3928,6 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("Drafts")),
 		connect.WithHandlerOptions(opts...),
 	)
-	backendServiceSeatHandler := connect.NewServerStreamHandler(
-		BackendServiceSeatProcedure,
-		svc.Seat,
-		connect.WithSchema(backendServiceMethods.ByName("Seat")),
-		connect.WithHandlerOptions(opts...),
-	)
 	backendServicePresentHandler := connect.NewUnaryHandler(
 		BackendServicePresentProcedure,
 		svc.Present,
@@ -4558,8 +4530,6 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceReplaceDraftHandler.ServeHTTP(w, r)
 		case BackendServiceDraftsProcedure:
 			backendServiceDraftsHandler.ServeHTTP(w, r)
-		case BackendServiceSeatProcedure:
-			backendServiceSeatHandler.ServeHTTP(w, r)
 		case BackendServicePresentProcedure:
 			backendServicePresentHandler.ServeHTTP(w, r)
 		case BackendServiceLoginNetworksProcedure:
@@ -5077,10 +5047,6 @@ func (UnimplementedBackendServiceHandler) ReplaceDraft(context.Context, *connect
 
 func (UnimplementedBackendServiceHandler) Drafts(context.Context, *connect.Request[v1.DraftsRequest]) (*connect.Response[v1.DraftsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Drafts is not implemented"))
-}
-
-func (UnimplementedBackendServiceHandler) Seat(context.Context, *connect.Request[v1.SeatRequest], *connect.ServerStream[v1.SeatResponse]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Seat is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Present(context.Context, *connect.Request[v1.PresentRequest]) (*connect.Response[v1.PresentResponse], error) {

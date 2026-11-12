@@ -196,12 +196,11 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	"backend.v1.ConfigValue.text": notARoom, "backend.v1.ConfigList.entries": notARoom,
 	"backend.v1.TempRule.name": notARoom, "backend.v1.TempRule.match": notARoom, "backend.v1.TempRule.sender": notARoom,
 	"backend.v1.ClearDNDRequest.match": notARoom, "backend.v1.ClearDNDRequest.sender": notARoom,
-	// The window speaking: its client ID for the seat and drafts.
-	"backend.v1.ReplaceDraftRequest.client": notARoom, "backend.v1.PresentRequest.client": notARoom,
+	// The window speaking: its client ID for links.
+	"backend.v1.PresentRequest.client": notARoom,
 	// Streams' requests, which admitNamed does not read: none names a room.
-	"backend.v1.SeatRequest.client": notARoom, "backend.v1.SeatHolder.tty": notARoom,
-	"backend.v1.SeatHolder.host": notARoom, "backend.v1.MessagesRequest.since_epoch": notARoom,
-	"backend.v1.FollowStreamRequest.client": notARoom, "backend.v1.StartPairingRequest.name": notARoom,
+	"backend.v1.MessagesRequest.since_epoch": notARoom,
+	"backend.v1.FollowStreamRequest.client":  notARoom, "backend.v1.StartPairingRequest.name": notARoom,
 	"backend.v1.PairRequest.token": notARoom, "backend.v1.PairRequest.name": notARoom,
 	"backend.v1.PairRequest.role": notARoom, "backend.v1.PairRequest.addresses": notARoom,
 	"backend.v1.JoinMeshRequest.uri": notARoom, "backend.v1.JoinMeshRequest.name": notARoom,

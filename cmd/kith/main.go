@@ -81,8 +81,7 @@ func main() {
 	open := flag.String("open", "", "hand a matrix: or matrix.to `uri` to the running client — starting a terminal for it if none is running — and exit. This is what the desktop's matrix: handler calls")
 	logLevel, logTarget := flag.String("log-level", "", "how much to log ("+logging.Levels+"); overrides $"+logging.EnvLevel+" and `[log] level`"),
 		flag.String("log-target", "", "where to log ("+logging.Targets+"): the journal, $XDG_STATE_HOME/kith/"+logging.FileName+", or the journal when there is one; overrides $"+logging.EnvTarget+" and `[log] target`")
-	follow, force := flag.String("follow", "", "start the client and go to this matrix `uri` once it knows where it is. Used by --open when it has to start a terminal"),
-		flag.Bool("force", false, "take over from an kith already open on this account: it saves its drafts and closes")
+	follow := flag.String("follow", "", "start the client and go to this matrix `uri` once it knows where it is. Used by --open when it has to start a terminal")
 	profile := flag.String("profile", "", "run in this `[[profile]]`: its rooms, unread and search (default: the config's first)")
 	flag.Parse()
 
@@ -108,7 +107,6 @@ func main() {
 	default:
 		exitOn(run(*configPath, startup{
 			follow:        *follow,
-			force:         *force,
 			profile:       *profile,
 			logLevel:      *logLevel,
 			logTarget:     *logTarget,
@@ -132,7 +130,6 @@ func annotated(device bool) string {
 // startup is the one-off work flags ask for around the session.
 type startup struct {
 	follow        string // a matrix URI to open first
-	force         bool   // take the seat from the window that has it
 	profile       string // the [[profile]] to run in; empty is the first
 	logLevel      string // --log-level; empty defers to $KITH_LOG_LEVEL and the config
 	logTarget     string // --log-target; empty defers to $KITH_LOG_TARGET and the config
@@ -385,7 +382,7 @@ func run(configPath string, jobs startup) error {
 	if at.note != "" {
 		fmt.Fprintln(os.Stderr, "kith:", at.note)
 	}
-	profile, serr := sitDown(ctx, backend, cfg, jobs, at.dev.ProfileInUse)
+	profile, serr := chooseProfile(ctx, backend, cfg, jobs, at.dev.ProfileInUse)
 	if serr != nil {
 		return serr
 	}
@@ -420,20 +417,17 @@ func run(configPath string, jobs startup) error {
 		RestartDaemon: at.restarter(),
 		Secrets:       commandSecrets{service: at.storage.KeyringService},
 		Profiles:      backend, Profile: profile, Presence: backend,
-	}); errors.Is(err, tui.ErrOpenedElsewhere) {
-		log.Info("kith closed: opened in another window")
-		fmt.Fprintln(os.Stderr, "kith: opened in another window")
-	} else if err != nil {
+	}); err != nil {
 		log.Error("kith stopped", "err", err)
 		return fmt.Errorf("run tui: %w", err)
 	}
 	return nil
 }
 
-// sitDown names the profile this window runs in ("" the first) and takes the seat,
-// warning first about the assistant's scope: --profile for this run, else the one the
-// device remembers (profile_in_use) while the config still has it.
-func sitDown(ctx context.Context, backend *daemon.Remote, cfg config.Config, jobs startup, remembered string) (string, error) {
+// chooseProfile names the profile this window runs in ("" the first), warning about
+// the assistant's scope: --profile for this run, else the one the device remembers
+// (profile_in_use) while the config still has it.
+func chooseProfile(ctx context.Context, backend *daemon.Remote, cfg config.Config, jobs startup, remembered string) (string, error) {
 	profile, err := useProfile(backend, cfg, jobs.profile)
 	if err != nil {
 		return "", err
@@ -442,14 +436,6 @@ func sitDown(ctx context.Context, backend *daemon.Remote, cfg config.Config, job
 		profile = rememberedProfile(backend, cfg, remembered)
 	}
 	warnAboutAgentScope(ctx, backend, cfg)
-	// One window per daemon (api.Seat), taken first; runs ending in a printout need none.
-	if !jobs.bootstrapKeys && jobs.exportKeys == "" {
-		if serr := backend.TakeSeat(ctx, jobs.force, whereAmI()); errors.Is(serr, api.ErrSeatTaken) {
-			return "", fmt.Errorf("%w; close it, or run kith --force to take over", serr)
-		} else if serr != nil {
-			return "", fmt.Errorf("take the seat: %w", serr)
-		}
-	}
 	return profile, nil
 }
 
@@ -485,17 +471,6 @@ func rememberedProfile(backend *daemon.Remote, cfg config.Config, name string) s
 		return ""
 	}
 	return profile
-}
-
-// whereAmI describes this window for one refused the seat: process, terminal (via /proc
-// on Linux), machine and time.
-func whereAmI() domain.SeatHolder {
-	where := domain.SeatHolder{PID: os.Getpid(), Since: time.Now()}
-	if tty, err := os.Readlink("/proc/self/fd/0"); err == nil && strings.HasPrefix(tty, "/dev/") {
-		where.TTY = tty
-	}
-	where.Host, _ = os.Hostname()
-	return where
 }
 
 // openLog opens the client's log, the journal (SYSLOG_IDENTIFIER kith) or

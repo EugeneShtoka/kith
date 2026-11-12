@@ -762,7 +762,7 @@ func (m Model) Init() tea.Cmd {
 		m.loadUnreadCmd(), m.loadInvitesCmd(), m.loadRailCmd(),
 		m.startSyncCmd(), m.listenCmd(), m.listenVerifyCmd(), m.listenUnreadCmd(),
 		m.listenReactionsCmd(), m.listenInvitesCmd(), m.listenActivityCmd(),
-		m.listenFollowCmd(), m.listenSeatCmd(), m.listenChangesCmd(), m.listenConfigCmd(),
+		m.listenFollowCmd(), m.listenChangesCmd(), m.listenConfigCmd(),
 		m.loadDraftsCmd(),
 		m.loadVerdictsCmd(), m.loadAccountStatesCmd(),
 		m.readDNDCmd(), m.pollTickCmd(), m.refusalsCmd(),
@@ -1000,8 +1000,6 @@ func (m Model) handleAssistMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleDraftsLoaded(msg))
 	case playerControlMsg:
 		return answered(m.handlePlayerControl(msg))
-	case seatLostMsg:
-		return answered(m.handleSeatLost())
 	case draftFileMsg:
 		return answered(m.handleDraftFile(msg))
 	case quitNowMsg:
