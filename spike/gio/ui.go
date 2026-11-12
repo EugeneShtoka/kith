@@ -435,10 +435,16 @@ func (u *ui) follow(ctx context.Context) {
 			if back {
 				go u.reloadUnread(ctx)
 				go u.loadRail(ctx)
+				go u.loadDrafts(ctx) // written elsewhere meanwhile
 			}
 		case c := <-b.Changed():
-			if c == domain.ChangeRail {
+			switch c {
+			case domain.ChangeRail:
 				go u.loadRail(ctx)
+			case domain.ChangeDrafts:
+				// Another window, or kith-mcp, wrote a draft: each changed one is taken
+				// where nothing typed here is unsaved (loadDrafts).
+				go u.loadDrafts(ctx)
 			}
 		case a := <-b.Activity():
 			u.mu.Lock()
