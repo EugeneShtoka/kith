@@ -71,9 +71,9 @@ export interface VotersRead {
 /** you is how a poll names this person among its voters. */
 export const you = "you";
 
-/** voterName names a voter: "you", else as the network calls them. */
+/** voterName names a voter: "you", else as kithd names them. */
 export function voterName(v: PollVoter, selves: ReadonlySet<string>): string {
-  return selves.has(v.id) ? you : v.name || v.id;
+  return selves.has(v.id) ? you : v.knownAs || v.name || v.id;
 }
 
 /** chosenBy is who chose an answer, by name: "you" first, then sorted (tui chosenBy). */

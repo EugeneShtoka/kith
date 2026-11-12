@@ -21,7 +21,7 @@ func (m Model) inviteLines(room domain.Room, width, rows int) []string {
 		"  " + displayName(m.roomLabel(room)),
 	}
 	if room.InvitedBy != "" {
-		lines = append(lines, "", m.theme.Title.Render("by"), "  "+m.inviterLabel(room.InvitedBy))
+		lines = append(lines, "", m.theme.Title.Render("by"), "  "+m.inviterLabel(room.InvitedBy, room.InvitedByKnownAs))
 	}
 	if room.IsDirect {
 		lines = append(lines, "", m.theme.Muted.Render("a direct message"))
@@ -42,9 +42,9 @@ func (m Model) inviteLines(room domain.Room, width, rows int) []string {
 	return lines
 }
 
-// inviterLabel names an inviter with the timeline's identity resolution, in their hue.
-func (m Model) inviterLabel(mxid string) string {
-	label := drawSentence(m.personIn(m.openRoom, mxid, "", m.inviterName(mxid)))
+// inviterLabel names an inviter as kithd named them, in their hue.
+func (m Model) inviterLabel(mxid, knownAs string) string {
+	label := drawSentence(m.personIn(m.openRoom, mxid, knownAs, ""))
 	if protocol := domain.ProtocolOf(mxid); protocol.IsBridged() {
 		label += " " + m.theme.Muted.Render("("+protocol.String()+")")
 	}

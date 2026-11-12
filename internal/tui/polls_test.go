@@ -160,6 +160,35 @@ func TestThePollPickerNamesWhoChoseEachAnswer(t *testing.T) {
 	}
 }
 
+// Each voter is named as kithd named them, not as the network or the open room's members
+// do; when kithd says names changed, the open picker reads its voters again.
+func TestThePollPickerNamesVotersAsKithdDoes(t *testing.T) {
+	t.Parallel()
+	b := &voteBackend{voters: domain.PollVoters{Voters: []domain.PollVoter{
+		{ID: "matrix:@eli:x", Name: "eli on the network", KnownAs: "Elijah", Options: []string{"sat"}},
+		{ID: "matrix:@zoe:x", KnownAs: "Zoe Stone", Options: []string{"sun"}},
+	}}}
+	m := withPoll(t, b, hikePoll())
+	m.timeline.members = []domain.Member{{UserID: "matrix:@zoe:x", DisplayName: "zoe", KnownAs: "Zoe from the members"}}
+	m, cmd := m.openVote()
+	read, _ := msgOf[pollVotersMsg](t, cmd)
+	m = update(t, m, read)
+	if got, want := notes(m), []string{"", "Saturday: Elijah, 2 more", "Sunday: Zoe Stone"}; !slices.Equal(got, want) {
+		t.Errorf("notes = %q, want %q", got, want)
+	}
+
+	b.voters.Voters[0].KnownAs = "Eli Cohen"
+	_, cmd = m.Update(changedMsg{change: domain.ChangeNames})
+	reread, ok := msgOf[pollVotersMsg](t, cmd)
+	if !ok {
+		t.Fatal("names changed did not read the open poll's voters again")
+	}
+	m = update(t, m, reread)
+	if got, want := notes(m), []string{"", "Saturday: Eli Cohen, 2 more", "Sunday: Zoe Stone"}; !slices.Equal(got, want) {
+		t.Errorf("after names changed notes = %q, want %q", got, want)
+	}
+}
+
 // Why no one is named is said; an answer for another poll, or after the picker closed, is
 // dropped.
 func TestThePollPickerSaysWhyNoOneIsNamed(t *testing.T) {
