@@ -95,3 +95,22 @@ func TestMovedClampsAndCounts(t *testing.T) {
 		t.Error("a path that is no motion moved")
 	}
 }
+
+// A press [keys] names becomes the filters whose presses keyName names alike: what the
+// completion popup reads its keys by.
+func TestPressFiltersAreKeyNamesInverse(t *testing.T) {
+	for _, name := range []string{"ctrl+n", "ctrl+p", "down", "up", "tab", "enter", "esc", "N", "j", "?", "ctrl+shift+k", "alt+enter", "f5"} {
+		filters := pressFilters(name, nil)
+		if len(filters) == 0 {
+			t.Errorf("%q makes no filter", name)
+		}
+		for _, f := range filters {
+			if got := keyName(key.Event{Name: f.Name, Modifiers: f.Required}); got != name {
+				t.Errorf("%q makes a filter for %q with %v, which is %q", name, f.Name, f.Required, got)
+			}
+		}
+	}
+	if f := pressFilters("tab", nil); len(f) != 1 || f[0].Optional != 0 {
+		t.Errorf("tab's filter %+v would take shift+tab too", f)
+	}
+}

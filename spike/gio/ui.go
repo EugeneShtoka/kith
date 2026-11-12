@@ -107,12 +107,14 @@ type ui struct {
 	cancel   widget.Clickable
 	selves   map[string]bool // every ID that is this person
 	picking  *picker         // the reaction picker, nil when closed
+	linking  *linkChoice     // the link chooser, nil when closed
 
-	offer     *completion                         // the composer's completion popup
-	dismissed string                              // the word whose popup Esc closed
-	mentions  map[*widget.Editor][]domain.Mention // people chosen into each composer's draft
-	drafts    drafts                              // each room's draft as kithd stores it
-	editSaved string                              // the composer's words an edit set aside
+	offer          *completion                         // the composer's completion popup
+	completionKeys map[string]string                   // [keys.completion]: each press's action
+	dismissed      string                              // the word whose popup Esc closed
+	mentions       map[*widget.Editor][]domain.Mention // people chosen into each composer's draft
+	drafts         drafts                              // each room's draft as kithd stores it
+	editSaved      string                              // the composer's words an edit set aside
 
 	presents chan domain.RoomID // the room to tell kithd is open (present)
 	link     string             // a link kithd handed over before the rooms were read
@@ -158,7 +160,13 @@ func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, keys 
 		mentions: map[*widget.Editor][]domain.Mention{}, drafts: newDrafts(),
 		unread: map[domain.RoomID]domain.Unread{}, faces: map[face]*picture{}, saves: map[domain.EventID]*save{},
 		last: map[domain.RoomID]time.Time{}, typing: map[domain.RoomID][]string{},
-		presents: make(chan domain.RoomID, 1),
+		presents: make(chan domain.RoomID, 1), completionKeys: map[string]string{},
+	}
+	for _, path := range []string{"completion.next", "completion.prev", "completion.accept", "completion.dismiss"} {
+		binding, _ := keys.Binding(path)
+		for _, press := range config.SplitKeys(binding) {
+			u.completionKeys[press] = path
+		}
 	}
 	// go-text's sans-serif fallback has no emoji family, so name it, or emoji are tofu.
 	u.th.Face = "sans-serif, emoji"
@@ -593,6 +601,9 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 	}
 	if u.picking != nil {
 		u.layoutPicker(ctx, gtx)
+	}
+	if u.linking != nil {
+		u.layoutLinking(ctx, gtx)
 	}
 	u.keys(ctx, gtx)
 	u.saveDrafts(ctx)

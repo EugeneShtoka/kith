@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -104,9 +105,9 @@ func (u *ui) loadMembers(ctx context.Context) {
 	}()
 }
 
-// complete runs before ed lays out, so it takes the popup's keys first: up and down
-// choose, Tab or Enter take, Esc closes. It also turns a `:name:` just closed into its
-// emoji. shortcut: the popup's keys are [keys.completion]'s defaults, not read from it.
+// complete runs before ed lays out, so it takes the popup's keys first, [keys.completion]'s:
+// next and prev choose, accept takes, dismiss closes. It also turns a `:name:` just
+// closed into its emoji.
 func (u *ui) complete(ctx context.Context, gtx C, ed *widget.Editor) *completion {
 	if !gtx.Focused(ed) {
 		return nil
@@ -131,13 +132,14 @@ func (u *ui) complete(ctx context.Context, gtx C, ed *widget.Editor) *completion
 		c.at = min(u.offer.at, len(c.offers)-1)
 	}
 	u.offer = c
+	var filters []event.Filter
+	for name := range u.completionKeys {
+		for _, f := range pressFilters(name, ed) {
+			filters = append(filters, f)
+		}
+	}
 	for {
-		ev, ok := gtx.Event(
-			key.Filter{Focus: ed, Name: key.NameUpArrow}, key.Filter{Focus: ed, Name: key.NameDownArrow},
-			key.Filter{Focus: ed, Name: "P", Required: key.ModCtrl}, key.Filter{Focus: ed, Name: "N", Required: key.ModCtrl},
-			key.Filter{Focus: ed, Name: key.NameTab}, key.Filter{Focus: ed, Name: key.NameReturn},
-			key.Filter{Focus: ed, Name: key.NameEnter}, key.Filter{Focus: ed, Name: key.NameEscape},
-		)
+		ev, ok := gtx.Event(filters...)
 		if !ok {
 			break
 		}
@@ -145,15 +147,15 @@ func (u *ui) complete(ctx context.Context, gtx C, ed *widget.Editor) *completion
 		if !ok || e.State != key.Press {
 			continue
 		}
-		switch e.Name {
-		case key.NameUpArrow, "P":
+		switch u.completionKeys[keyName(e)] {
+		case "completion.prev":
 			c.at = (c.at + len(c.offers) - 1) % len(c.offers)
-		case key.NameDownArrow, "N":
+		case "completion.next":
 			c.at = (c.at + 1) % len(c.offers)
-		case key.NameEscape:
+		case "completion.dismiss":
 			u.dismissed = c.query
 			return nil
-		default:
+		case "completion.accept":
 			o := c.offers[c.at]
 			u.put(ed, runes, c.start, c.caret, o.put)
 			if o.mention != nil {

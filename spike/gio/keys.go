@@ -188,3 +188,40 @@ func moved(path string, count, at, page, n int) (int, bool) {
 	}
 	return 0, false
 }
+
+// pressFilters are Gio's key filters on focus for one press as [keys] names it ("ctrl+n",
+// "down", "N"): the inverse of keyName, for a widget that must take a key before the
+// widget focused does. shortcut: a chorded shifted digit ("ctrl+shift+1") is not made.
+func pressFilters(name string, focus any) []key.Filter {
+	var mods key.Modifiers
+	for _, m := range []struct {
+		mod  key.Modifiers
+		name string
+	}{{key.ModCtrl, "ctrl+"}, {key.ModAlt, "alt+"}, {key.ModShift, "shift+"}, {key.ModSuper, "super+"}} {
+		if rest, ok := strings.CutPrefix(name, m.name); ok && rest != "" {
+			mods, name = mods|m.mod, rest
+		}
+	}
+	var out []key.Filter
+	for gio, word := range named {
+		if word == name {
+			out = append(out, key.Filter{Focus: focus, Name: gio, Required: mods})
+		}
+	}
+	if n, err := strconv.Atoi(strings.TrimPrefix(name, "f")); err == nil && strings.HasPrefix(name, "f") && n >= 1 && n <= 20 {
+		return []key.Filter{{Focus: focus, Name: key.Name("F" + strconv.Itoa(n)), Required: mods}}
+	}
+	r := []rune(name)
+	if len(out) > 0 || len(r) != 1 {
+		return out
+	}
+	f := key.Filter{Focus: focus, Name: key.Name(unicode.ToUpper(r[0])), Required: mods}
+	switch {
+	case mods&(key.ModCtrl|key.ModAlt|key.ModSuper) != 0:
+	case unicode.IsUpper(r[0]):
+		f.Required |= key.ModShift
+	case !unicode.IsLetter(r[0]):
+		f.Optional = key.ModShift // a symbol is named alike shifted or not
+	}
+	return []key.Filter{f}
+}

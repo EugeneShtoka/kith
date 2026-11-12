@@ -53,6 +53,7 @@ var actions = []action{
 	{"nav.open", false}, {"nav.back", false}, {"nav.up", false}, {"nav.down", false},
 	{"nav.page_up", false}, {"nav.page_down", false}, {"nav.half_page_up", false}, {"nav.half_page_down", false},
 	{"nav.select_oldest", false}, {"nav.select_newest", false}, {"nav.scroll_oldest", false}, {"nav.scroll_newest", false},
+	{"picker.accept", false}, {"picker.close", false}, // the link chooser's (chooseLink)
 }
 
 // confirmation is a question the next press answers: y or enter does it, anything else
@@ -102,6 +103,15 @@ func (u *ui) keys(ctx context.Context, gtx C) {
 			if name == "y" || name == "enter" {
 				c.yes()
 			}
+			continue
+		}
+		if u.linking != nil {
+			for _, path := range u.keymap.press(name, false) {
+				if u.chooseLink(ctx, gtx, path) {
+					break
+				}
+			}
+			gtx.Execute(op.InvalidateCmd{})
 			continue
 		}
 		for _, path := range u.keymap.press(name, typing) {
@@ -376,16 +386,7 @@ func (u *ui) onMessage(ctx context.Context, gtx C, path string) bool {
 	case "timeline.copy_text":
 		u.copy(gtx, text(m), "Copied the message")
 	case "timeline.copy_url", "timeline.open_url", "timeline.open_url_focus":
-		// shortcut: the first link only; the TUI offers a list when there are several.
-		href := firstLink(m, text(m))
-		if href == "" {
-			return false
-		}
-		if path == "timeline.copy_url" {
-			u.copy(gtx, href, "Copied the link")
-		} else {
-			go openLink(href)
-		}
+		return u.takeLink(ctx, gtx, m, path == "timeline.copy_url")
 	case "timeline.download":
 		if m.Media == nil {
 			return false
@@ -432,17 +433,6 @@ func direction(path string) int {
 		return -1
 	}
 	return 1
-}
-
-// firstLink is the first link m's text draws, "" for none.
-func firstLink(m domain.Message, body string) string {
-	_, spans := drawn(m, body)
-	for _, s := range spans {
-		if s.Link && s.Href != "" {
-			return s.Href
-		}
-	}
-	return ""
 }
 
 // copy puts s on the clipboard and says so.
