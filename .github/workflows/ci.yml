@@ -127,12 +127,18 @@ jobs:
 
   # Every CROSS_TARGETS platform, compile-only (the release targets plus windows,
   # built, not released), on every PR, so a darwin, freebsd or windows break shows
-  # there and not first at a release.
+  # there and not first at a release. One platform per runner: about 2½ minutes each,
+  # past 15 in one job. linux/amd64 is build-and-test's; keep the rest in step with
+  # CROSS_TARGETS in the Makefile.
   cross-compile:
     needs: [changes]
     if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux/arm64, darwin/amd64, darwin/arm64, freebsd/amd64, freebsd/arm64, windows/amd64, windows/arm64]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -142,8 +148,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build every CROSS_TARGETS platform
-        run: make cross
+      - name: Build for ${{ matrix.target }}
+        env:
+          TARGET: ${{ matrix.target }}
+        run: make cross CROSS_TARGETS=$TARGET
 
   # The Nix flake (flake.lock and vendorHash current; see nix-check in the Makefile),
   # built only for a release (release.yml calls this workflow on the tag).
