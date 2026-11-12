@@ -16,8 +16,8 @@ import (
 
 // Drafts are saved after a pause (draftSaveDelay), at least every draftSaveEvery while
 // typing, when a room is left, and on quit. At exit unsaved drafts are written once
-// more; what the daemon doesn't take then (down, or another window has the seat) is
-// lost: at most the last few seconds of typing.
+// more; what the daemon doesn't take then (down) is lost: at most the last few seconds
+// of typing.
 
 // exitFlushWait bounds the drafts' last write at exit, when the daemon may be gone.
 const exitFlushWait = 3 * time.Second

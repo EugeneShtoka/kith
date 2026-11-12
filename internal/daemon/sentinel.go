@@ -32,7 +32,6 @@ var sentinels = map[string]error{
 	"unreachable":       api.ErrUnreachable,
 	"edits-remain":      api.ErrEditsRemain,
 	"spell-unavailable": api.ErrSpellUnavailable,
-	"seat-taken":        api.ErrSeatTaken,
 	"network-off":       api.ErrNetworkOff,
 	"not-on-network":    api.ErrNotOnNetwork,
 	"config-moved":      api.ErrConfigMoved,

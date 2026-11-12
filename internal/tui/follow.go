@@ -299,7 +299,7 @@ type followSource interface {
 	Follows() <-chan string
 }
 
-// linkFollower is a backend that hands a link gx chose to the window kithd's seat rules
+// linkFollower is a backend that hands a link gx chose to the window kithd's link rules
 // pick (Follow), TUI or desktop, this one included; a web link kith does not follow
 // comes back as the browser's.
 type linkFollower interface {
@@ -375,6 +375,10 @@ func (m Model) handleChanged(msg changedMsg) (Model, tea.Cmd) {
 		return m, tea.Batch(m.loadAccountStatesCmd(), m.listenChangesCmd())
 	case domain.ChangeRail:
 		return m, tea.Batch(m.loadRailCmd(), m.listenChangesCmd())
+	case domain.ChangeDrafts:
+		// Another window, or kith-mcp, wrote a draft: each changed one is taken where
+		// nothing typed here is unsaved (handleDraftsLoaded).
+		return m, tea.Batch(m.loadDraftsCmd(), m.listenChangesCmd())
 	case domain.ChangeLanguages:
 		return m, tea.Batch(m.offerOwedDictionaries(), m.listenChangesCmd())
 	case domain.ChangeNames:

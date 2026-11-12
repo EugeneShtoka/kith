@@ -26,7 +26,7 @@ type Notice struct {
 // a burst must not lose any of it.
 func (s *server) NotificationStream(ctx context.Context, _ *req[v1.NotificationStreamRequest], st *connect.ServerStream[v1.NotificationStreamResponse]) error {
 	return serveStreamWith(ctx, s.Notifications.notices, notifierBuffer, st, func(v notice) *v1.NotificationStreamResponse {
-		if !slices.Contains(v.topics, seatKey(s.requestProfile(ctx))) {
+		if !slices.Contains(v.topics, profileID(s.requestProfile(ctx))) {
 			return nil
 		}
 		return &v1.NotificationStreamResponse{Notification: noticeToProto(v)}

@@ -90,11 +90,12 @@ included; nothing reads it.
 
 ## Drafts
 
-A draft is a register whose concurrent versions all survive. Two writers on one bridge
-are already merged there: the seat lets one window type per room (`Seat`), kith-mcp only
-appends, and `ReplaceDraft` takes the base a window wrote over and kithd rebases onto
-it. Across bridges there is no seat, and two windows on two bridges, or a window on one
-and kith-mcp on the other, can write the same room's draft at once.
+A draft is a register whose concurrent versions all survive. Many writers on one bridge
+are already merged there (design-windows.md): any number of windows type in a room,
+kith-mcp only appends, and `ReplaceDraft` takes the base a window wrote over and kithd
+rebases onto it, keeping both when two windows wrote at once. Across bridges, two
+windows on two bridges, or a window on one and kith-mcp on the other, can write the same
+room's draft at once too.
 
 - **Each version records the words it was written over** (`over`, as `ReplaceDraft`
   already takes): drafts are small, and the merge needs the base.

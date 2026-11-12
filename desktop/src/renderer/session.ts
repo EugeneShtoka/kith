@@ -1,5 +1,4 @@
-// The window's state, outside React: the profile it runs in, its seat there, and the
-// profile's rooms, unread and invitations, kept by the streams main holds open. React
+// The window's state, outside React: the profile it runs in, and the profile's rooms, unread and invitations, kept by the streams main holds open. React
 // reads it through useSyncExternalStore; nothing here draws.
 import {
   create,
@@ -26,8 +25,6 @@ import {
   type RailRow,
   RailRowKind,
   type ReactionsResponse,
-  type SeatHolder,
-  type SeatResponse,
   type StatusResponse,
 } from "../gen/backend/v1/services_pb";
 import type { Member, Message, Reaction, Room, SearchHit, ThreadUnread, Unread } from "../gen/backend/v1/types_pb";
@@ -104,18 +101,6 @@ export const deviceAgain = 1000;
  */
 export const peekAfter = 150;
 
-/** The window's seat in its profile: one window per profile is served (kithd's Seat). */
-export type Seat =
-  /** No profile yet: nothing to sit in. */
-  | { state: "none" }
-  /** Asked for, not answered yet. */
-  | { state: "asking" }
-  | { state: "seated" }
-  /** Another window has it; this one may take it over. */
-  | { state: "taken"; holder: SeatHolder | undefined }
-  /** Another window took it over; this one may take it back. */
-  | { state: "steppedAside" };
-
 /** The window's link to kithd: its Changed stream, held open by main. */
 export type Link = { state: "connecting" } | { state: "attached" } | { state: "detached"; error: string };
 
@@ -143,7 +128,6 @@ export interface View {
   /** Where kithd is: the local one's socket, or the bridge this device joined (one is ""). */
   socket: string;
   bridge: string;
-  seat: Seat;
   link: Link;
   status: StatusResponse | undefined;
   /** The rail's rows (Rail), and the one the window is on (-1: none, no rail yet). */
@@ -369,7 +353,6 @@ function answered(r: { settings?: DeviceSettings; revision: string }): Read {
 }
 
 const nothingShown = {
-  seat: { state: "none" },
   link: { state: "connecting" },
   status: undefined,
   rail: [],
@@ -408,12 +391,11 @@ const nothingShown = {
   people: noPeople,
 } satisfies Partial<View>;
 
-/** Run is one stay in one profile's seat: what it opened, closed together when it ends. */
+/** Run is one stay in one profile: what it opened, closed together when it ends. */
 interface Run {
   profile: string;
   closed: boolean;
-  /** The seat's stream, and the profile's streams once seated. */
-  seat: (() => void) | undefined;
+  /** The profile's streams. */
   streams: (() => void)[];
   /** Rooms as Rooms last read them (own), and under the names you gave them (joined); when each last had a message. */
   own: readonly Room[];
@@ -472,9 +454,8 @@ export class Session {
   });
   private readonly listeners = new Set<() => void>();
   private run: Run | undefined;
-  /** This window, to kithd's seats; and since when it runs, for one it refuses. */
+  /** This window, to kithd's windows (main names it so, whatever this says). */
   private readonly client = crypto.randomUUID();
-  private readonly since = BigInt(Date.now());
   /**
    * The DeviceService calls, one after another: main moves to the profile each answer
    * leaves it in (runIn), and so does the window, so both read them in one order.
@@ -971,16 +952,6 @@ export class Session {
       },
       () => undefined, // drawn in their initials
     );
-  }
-
-  /** takeOver asks for the profile's seat by force: the window that has it steps aside. */
-  takeOver(): void {
-    const profile = this.view.profile;
-    if (profile === "" || this.view.seat.state === "seated") {
-      return;
-    }
-    this.leave();
-    this.sit(this.begin(profile), true);
   }
 
   /** accept joins the room an invitation is to. */
@@ -1586,7 +1557,7 @@ export class Session {
   }
 
   /**
-   * useLink copies link, or hands it to kithd (Follow), whose seat rules pick the window
+   * useLink copies link, or hands it to kithd (Follow), whose link rules pick the window
    * that follows it, this one or another, TUI or desktop alike; this one follows it on its
    * link stream, as a link clicked elsewhere. A web link kithd does not follow is the
    * browser's.
@@ -1676,9 +1647,8 @@ export class Session {
   }
 
   /**
-   * enter runs the window in profile: what the last one showed goes, and its seat is
-   * asked for. "" shows the picker. The profile it already runs in is left as it is,
-   * seated or not.
+   * enter runs the window in profile: what the last one showed goes, and the profile's
+   * streams open. "" shows the picker. The profile it already runs in is left as it is.
    */
   private enter(profile: string): void {
     if (profile === this.view.profile) {
@@ -1688,7 +1658,9 @@ export class Session {
     this.leave(true);
     this.set({ ...nothingShown, profile });
     if (profile !== "") {
-      this.sit(this.begin(profile), false);
+      const run = this.begin(profile);
+      this.follow(run);
+      run.composer.start();
     }
   }
 
@@ -1696,7 +1668,6 @@ export class Session {
     const run: Run = {
       profile,
       closed: false,
-      seat: undefined,
       streams: [],
       own: [],
       joined: [],
@@ -1774,7 +1745,6 @@ export class Session {
     run.closed = true;
     run.composer.stop();
     this.keepUnstored(run);
-    run.seat?.();
     for (const stop of run.streams) {
       stop();
     }
@@ -1817,62 +1787,6 @@ export class Session {
 
   private live(run: Run): boolean {
     return !run.closed && run === this.run;
-  }
-
-  /**
-   * sit asks for the seat, by force or not, and opens the profile's streams once it is
-   * granted. Main asks again (never by force) after kithd restarts, so a window that took
-   * the seat meanwhile keeps it, and this one is told so.
-   */
-  private sit(run: Run, force: boolean): void {
-    this.set({ seat: { state: "asking" } });
-    run.seat = subscribe(backend.seat, { client: this.client, force, where: { sinceUnixMs: this.since } }, (e) => {
-      if (!this.live(run)) {
-        return;
-      }
-      if (e.kind === "frames") {
-        for (const f of e.frames) {
-          this.seatEvent(run, f);
-        }
-      } else if (e.kind === "refused") {
-        this.fail(e.error);
-      }
-    });
-  }
-
-  private seatEvent(run: Run, frame: SeatResponse): void {
-    if (!this.live(run)) {
-      return; // an earlier frame of the batch ended the run
-    }
-    switch (frame.event.case) {
-      case "granted":
-        if (this.view.seat.state !== "seated") {
-          this.set({ seat: { state: "seated" } });
-          this.follow(run);
-          run.composer.start();
-        }
-        break;
-      case "taken":
-        this.lose({ state: "taken", holder: frame.event.value });
-        break;
-      case "stepAside":
-        // The drafts are written first, from the seat (kithd refuses them once the other
-        // window has it); closing the seat's stream is what lets the other window in.
-        void run.composer.drafts.flush().finally(() => {
-          if (this.live(run)) {
-            this.lose({ state: "steppedAside" });
-          }
-        });
-        break;
-      case undefined:
-        break;
-    }
-  }
-
-  /** lose ends the run: its streams stop, its rooms go, and the window says why. */
-  private lose(seat: Seat): void {
-    this.leave();
-    this.set({ ...nothingShown, seat });
   }
 
   /** follow opens the profile's streams, each read whole as it opens and kept by its frames. */
@@ -1920,6 +1834,11 @@ export class Session {
             }
             if (e.frames.some((f) => f.change === Change.LANGUAGES)) {
               void this.offers.owed();
+            }
+            if (e.frames.some((f) => f.change === Change.DRAFTS)) {
+              // Another window, or kith-mcp, wrote a draft: each changed one is taken
+              // where nothing typed here is unsaved (Drafts.load).
+              void run.composer.drafts.load();
             }
             if (e.frames.some((f) => f.change === Change.NAMES)) {
               // kithd names people differently: what shows them is read again.

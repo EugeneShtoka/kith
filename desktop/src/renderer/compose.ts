@@ -49,7 +49,7 @@ import {
 const backend = BackendService.method;
 const device = DeviceService.method;
 
-/** How often stored drafts are read again (the TUI's poll), and when the window is shown. */
+/** How often stored drafts are read again besides when kithd says they changed: a failed write is written again then. */
 export const draftPoll = 60_000;
 /** How long the homeserver keeps a typing notice, and how often it is told again (Element's). */
 export const typingTimeout = 15_000;
@@ -267,11 +267,16 @@ export class Composer {
           around.failed(err);
         }
       },
+      (room) => {
+        if (room === this.open) {
+          this.say("another window or the assistant added to this draft"); // nothing appears silently
+        }
+      },
     );
     this.poll = setInterval(() => void this.drafts.load(), draftPoll);
   }
 
-  /** start reads the stored drafts and who this person is: the window has its seat. */
+  /** start reads the stored drafts and who this person is: the window runs in its profile. */
   start(): void {
     void this.drafts.load();
     call(backend.selves, {}).then(

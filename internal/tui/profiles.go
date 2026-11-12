@@ -16,7 +16,7 @@ import (
 // daemon.Remote implements it.
 type Profiles interface {
 	// SwitchProfile runs every call in the named profile, returning once every stream
-	// runs in it; refused (api.ErrSeatTaken) while another window runs in it.
+	// runs in it.
 	SwitchProfile(name string) error
 }
 

@@ -94,7 +94,7 @@ func Serve(ctx context.Context, ln net.Listener, d *Daemon) error {
 	// can end them while the caller's ctx is still live.
 	ctx, cancelHandlers := context.WithCancel(ctx)
 	defer cancelHandlers()
-	served := &server{Daemon: d, lifetime: ctx, seats: newSeats()}
+	served := &server{Daemon: d, lifetime: ctx, windows: newWindows()}
 	mux := served.handlers()
 	defer served.startRails(ctx)() // ended with the handlers, before the stores close
 	defer served.startMesh(ctx)()

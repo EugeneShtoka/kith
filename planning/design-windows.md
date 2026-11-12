@@ -1,6 +1,6 @@
 # Design: windows, not seats
 
-Status: planned 2026-11-12, decisions taken the same day (below). Nothing built yet.
+Status: planned 2026-11-12, decisions taken the same day (below); built the same day.
 
 ## Goal
 

@@ -67,7 +67,7 @@ var reaches = map[string]profileReach{
 	"Unignore": passes, "Ignored": passes, "ReactionRefusals": passes, "RecordReactionRefusal": passes,
 	"RecordEmoji": passes, "EmojiScores": passes, "DirectCandidates": passes, "PublicRooms": passes,
 	"BlockPerson": passes, "UnblockPerson": passes, "BlockedPeople": passes, "SignOut": passes,
-	"ChatOffers": passes, "Accounts": passes, "Seat": passes, "LoginNetworks": passes,
+	"ChatOffers": passes, "Accounts": passes, "LoginNetworks": passes,
 	"BeginLogin": passes, "AnswerLogin": passes, "CancelLogin": passes, "InsteadLogin": passes, "MessageCounts": passes, "KnownAs": passes,
 	"FollowStream": passes, "Changed": passes, "Verifications": passes, "StartVerification": passes,
 	"AcceptVerification": passes, "ConfirmSAS": passes, "CancelVerification": passes, "Status": passes,
@@ -153,11 +153,7 @@ func (p profileName) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 func (p profileName) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
 	return func(ctx context.Context, spec connect.Spec) connect.StreamingClientConn {
 		conn := next(ctx, spec)
-		name, asked := ctx.Value(seatProfileKey{}).(string)
-		if !asked {
-			name = p.name()
-		}
-		if name != "" {
+		if name := p.name(); name != "" {
 			conn.RequestHeader().Set(profileHeader, name)
 		}
 		return conn
@@ -201,7 +197,7 @@ func (s *server) requestProfile(ctx context.Context) string {
 	name, _ := ctx.Value(profileKey{}).(string)
 	p, err := s.Notifications.Profile(name)
 	if err != nil {
-		return name // a reload took it away since: its own seat, which nothing else names
+		return name // a reload took it away since: its own, which nothing else names
 	}
 	return p.Name
 }

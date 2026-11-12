@@ -35,7 +35,6 @@ func TestEverySentinelInTheContractCrossesTheWire(t *testing.T) {
 		"ErrUnreachable":      api.ErrUnreachable,
 		"ErrSpellUnavailable": api.ErrSpellUnavailable,
 		"ErrEditsRemain":      api.ErrEditsRemain,
-		"ErrSeatTaken":        api.ErrSeatTaken,
 		"ErrNetworkOff":       api.ErrNetworkOff,
 		"ErrNotOnNetwork":     api.ErrNotOnNetwork,
 		"ErrConfigMoved":      api.ErrConfigMoved,

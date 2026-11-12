@@ -58,7 +58,7 @@ func (r *linkRouter) FollowLink(_ context.Context, uri string) (bool, error) {
 	return r.web[uri], nil
 }
 
-// Attached to kithd, gx hands every link to Follow, whose seat rules pick the window that
+// Attached to kithd, gx hands every link to Follow, whose link rules pick the window that
 // follows it, this one or another, TUI or desktop alike: this window does not go there by
 // itself. Only a link kithd leaves to the browser opens there.
 func TestGxHandsTheLinkToTheWindowKithdPicks(t *testing.T) {

@@ -43,17 +43,21 @@ async function drive<T>(p: Promise<T>): Promise<T> {
 async function window(changed: () => void = () => undefined): Promise<Drafts> {
   kithd.of("Solo").rooms = rooms.map((r) => room(r));
   await drive(kithd.bridge().call("Device", new Uint8Array()));
-  return new Drafts(changed, (err) => {
-    if (err !== undefined) console.log("FAILED", err);
-  });
+  return new Drafts(
+    changed,
+    (err) => {
+      if (err !== undefined) console.log("FAILED", err);
+    },
+    () => undefined,
+  );
 }
 
 const rooms = ["!a:x", "!b:x"] as const;
 
-/** A step of the walk: the person, the assistant, kithd's answers and faults, a takeover. */
+/** A step of the walk: the person, the assistant, kithd's answers and faults, the window going. */
 type Step =
   | { kind: "type" | "send" | "edit" | "assistant" | "between"; room: number }
-  | { kind: "pause" | "spell" | "poll" | "takeover" | "close" | "leave" }
+  | { kind: "pause" | "spell" | "poll" | "close" | "leave" }
   | { kind: "hold"; what: "ReplaceDraft" | "Drafts" | "CheckSpelling" }
   | { kind: "deliver"; i: number }
   | { kind: "fault"; when: "before" | "after" };
@@ -75,7 +79,6 @@ const moves: readonly Step[] = [
   { kind: "fault", when: "after" },
   { kind: "leave" },
   { kind: "close" },
-  { kind: "takeover" },
 ];
 
 /** Where the search starts: states the moves alone would take long to reach. */
@@ -266,18 +269,6 @@ async function walk(steps: readonly Step[]): Promise<void> {
       case "fault":
         kithd.draftFaults.push(s.when);
         break;
-      case "takeover":
-        // Another window takes the seat: this one writes what it holds (kithd answering
-        // as it steps aside), then nothing more; the new one reads what is stored.
-        kithd.holding.clear();
-        kithd.draftFaults.length = 0;
-        kithd.release();
-        await drive(drafts.flush());
-        drafts.stop();
-        await settle();
-        drafts = await window(spelled);
-        await drive(drafts.load());
-        break;
       case "leave": {
         // The window leaves the profile, kithd failing or slow as it may be: it writes
         // what it holds, a write that failed once more, a little while at most, then
@@ -388,9 +379,10 @@ async function walk(steps: readonly Step[]): Promise<void> {
 
 describe("drafts", () => {
   // Two writers share every stored draft: this window, its writes rebased in kithd, and
-  // kith-mcp appending (also between this window's read and its write). Answers come
-  // late and in any order, writes fail before they land or land with the answer lost,
-  // and another window takes over (this one saves, then writes no more). At rest every
+  // kith-mcp appending (also between this window's read and its write); a second window
+  // is the TUI's TestTwoWindowsKeepEveryWordInAnyOrder. Answers come late and in any
+  // order, writes fail before they land or land with the answer lost, and the window
+  // leaves or closes (writing what it holds, then no more). At rest every
   // word typed or appended is, exactly once, in a message sent or a stored draft, and
   // the window and kithd agree on every draft.
   searched("keep every word once, whatever the interleaving", 3);

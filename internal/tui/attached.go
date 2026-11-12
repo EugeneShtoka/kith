@@ -12,8 +12,6 @@ type linkState struct {
 	detached bool
 	// ended: the streams are closed for good (Remote.Start returned); the badge asks for a restart.
 	ended bool
-	// seatLost: another window took the daemon's seat, and this one is quitting.
-	seatLost bool
 	// restart restarts the daemon and returns once it answers (RunOptions.RestartDaemon).
 	restart func(context.Context) error
 }
@@ -28,7 +26,7 @@ func (m Model) handleAttached(msg attachedMsg) (Model, tea.Cmd) {
 	}
 	m = m.say("daemon back — catching up")
 	return m, tea.Batch(m.listenAttachedCmd(), m.loadRoomsCmd(), m.loadUnreadCmd(),
-		m.loadInvitesCmd(), m.lastMessagesCmd(), m.readConfigCmd(false), m.loadRailCmd())
+		m.loadInvitesCmd(), m.lastMessagesCmd(), m.readConfigCmd(false), m.loadRailCmd(), m.loadDraftsCmd())
 }
 
 // connectionBadge is the right-edge marker while the daemon is lost; it outranks the

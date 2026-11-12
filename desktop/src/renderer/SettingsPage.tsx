@@ -102,7 +102,7 @@ export function SettingsPage({ page, view, session }: { page: Page; view: View; 
       <Accounts login={view.login} rail={view.rail} session={session} />
       <ChatImportSection chatImport={view.chatImport} rooms={view.joined} session={session} />
       <Devices devices={view.devices} bridge={view.bridge} session={session} />
-      {view.seat.state === "seated" && <VerifyStart accounts={view.accounts} verify={view.verify} session={session} />}
+      {view.profile !== "" && <VerifyStart accounts={view.accounts} verify={view.verify} session={session} />}
     </section>
   );
 }

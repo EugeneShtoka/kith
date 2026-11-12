@@ -103,7 +103,7 @@ type Notifications struct {
 	count   atomic.Uint64
 }
 
-// notice is one notification published to the topics (profile seat keys) of every
+// notice is one notification published to the topics (profile IDs) of every
 // profile holding its room.
 type notice struct {
 	id     string
@@ -656,7 +656,7 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	return alert, true
 }
 
-// topics are the seat keys of the profiles holding the room, in config order, less those
+// topics are the IDs of the profiles holding the room, in config order, less those
 // hiding msg: its sender, or whom it answers, is among the people the profile excludes.
 func (n *Notifications) topics(ctx context.Context, facts domain.RoomFacts, msg domain.Message) []string {
 	n.mu.Lock()
@@ -670,7 +670,7 @@ func (n *Notifications) topics(ctx context.Context, facts domain.RoomFacts, msg 
 	var topics []string
 	for _, p := range holding {
 		if p.People.Empty() || n.isMine(msg.Sender) || !n.hidden(domain.WithProfile(ctx, p.Name), msg) {
-			topics = append(topics, seatKey(p.Name))
+			topics = append(topics, profileID(p.Name))
 		}
 	}
 	return topics
