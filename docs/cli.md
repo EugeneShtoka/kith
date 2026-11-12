@@ -283,7 +283,7 @@ Every secret is read from the terminal with echo off and passed to the daemon ov
 | Flag | Meaning |
 | --- | --- |
 | `--clear-cache` | Ask the daemon to empty the local message cache and rewind to a full initial sync. The encryption store is untouched. See [troubleshooting.md](troubleshooting.md#rebuild-the-cache). |
-| `--restore-keys` | Prompt for the account's recovery key or passphrase and import room keys from the server-side key backup. |
+| `--restore-keys` | Prompt for the account's recovery key or passphrase and import room keys from the server-side key backup. The backup's key is kept, so a room key missing later comes from the backup by itself. |
 | `--bootstrap-keys` | Set up cross-signing, secret storage and a key backup for an account that has none. It prompts for the account password, prints the recovery key once, and exits. It refuses to run if the account already has secret storage or a backup. |
 | `--export-keys file` | Write this device's room keys to `file`, encrypted with a passphrase you enter twice, and exit. The file is created with mode 0600 and never overwrites an existing one. |
 | `--import-keys file` | Add the room keys from a Matrix key export (for example, one from Element), after prompting for its passphrase. It reports how many keys were new out of how many were in the file. |
