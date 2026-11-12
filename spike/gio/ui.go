@@ -113,6 +113,9 @@ type ui struct {
 	mentions  map[*widget.Editor][]domain.Mention // people chosen into each composer's draft
 	drafts    drafts                              // each room's draft as kithd stores it
 	editSaved string                              // the composer's words an edit set aside
+
+	presents chan domain.RoomID // the room to tell kithd is open (present)
+	link     string             // a link kithd handed over before the rooms were read
 }
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
@@ -135,6 +138,7 @@ type timeline struct {
 	drawn      bool
 	list       widget.List
 	sel        domain.EventID // the main timeline's cursor
+	jump       domain.EventID // a linked message to select once loaded
 
 	members      []domain.Member // who a mention may name, ranked by kithd
 	membersAsked bool
@@ -154,6 +158,7 @@ func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, keys 
 		mentions: map[*widget.Editor][]domain.Mention{}, drafts: newDrafts(),
 		unread: map[domain.RoomID]domain.Unread{}, faces: map[face]*picture{}, saves: map[domain.EventID]*save{},
 		last: map[domain.RoomID]time.Time{}, typing: map[domain.RoomID][]string{},
+		presents: make(chan domain.RoomID, 1),
 	}
 	// go-text's sans-serif fallback has no emoji family, so name it, or emoji are tofu.
 	u.th.Face = "sans-serif, emoji"
@@ -228,10 +233,15 @@ func (u *ui) loadRooms(ctx context.Context, room domain.RoomID, play domain.Even
 	u.rooms = rooms
 	u.roomBtns = make([]widget.Clickable, len(rooms))
 	u.mark(fmt.Sprintf("%d rooms loaded", len(rooms)))
+	link := u.link
 	u.mu.Unlock()
 	u.w.Invalidate()
 	u.loadRail(ctx)
 	u.loadDrafts(ctx)
+	if link != "" {
+		u.followLink(ctx, link)
+		return
+	}
 	if room == "" && len(rooms) > 0 {
 		room = rooms[0].ID
 	}
@@ -271,6 +281,7 @@ func (u *ui) open(ctx context.Context, room domain.RoomID) {
 	}
 	if u.current != room {
 		u.switchDraft(u.current, room)
+		u.present(room)
 	}
 	u.focus = &u.composer
 	u.timeline = timeline{
@@ -460,7 +471,8 @@ func (u *ui) follow(ctx context.Context) {
 			u.w.Invalidate()
 		case <-b.Invites():
 		case <-b.Verifications():
-		case <-b.Follows():
+		case uri := <-b.Follows():
+			go u.followLink(ctx, uri)
 		case <-b.ConfigChanges():
 		}
 	}
@@ -890,6 +902,17 @@ func (u *ui) layoutTimeline(ctx context.Context, gtx C) D {
 	for i, m := range t.msgs {
 		if isMain(m) {
 			t.shown = append(t.shown, i)
+		}
+	}
+	if t.jump != "" {
+		// shortcut: only a linked message in the pages loaded is found; the desktop reads
+		// the room around one older.
+		if k := slices.IndexFunc(t.shown, func(i int) bool { return t.msgs[i].ID == t.jump }); k >= 0 {
+			t.selectAt(k)
+			t.jump = ""
+			u.toPane(paneTimeline)
+		} else if !t.loading {
+			u.note, u.noteAt, t.jump = "The linked message is not loaded", time.Now(), ""
 		}
 	}
 	dims := material.List(u.th, &t.list).Layout(gtx, len(t.shown), func(gtx C, k int) D {

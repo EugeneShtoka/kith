@@ -107,6 +107,7 @@ func run(w *app.Window, backend *daemon.Remote, local bool, pal palette, keys co
 	go ui.loadRooms(ctx, room, play)
 	go func() { _ = backend.Start(ctx) }()
 	go ui.follow(ctx)
+	go ui.presenting(ctx)
 
 	var ops op.Ops
 	first := true
@@ -116,6 +117,9 @@ func run(w *app.Window, backend *daemon.Remote, local bool, pal palette, keys co
 			ui.mu.Lock()
 			gained := e.Config.Focused && !ui.focused
 			ui.focused = e.Config.Focused
+			if gained {
+				ui.present(ui.current) // in use now: the window a link goes to
+			}
 			ui.mu.Unlock()
 			ui.markRead(ctx)
 			if gained {
