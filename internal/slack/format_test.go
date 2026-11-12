@@ -55,6 +55,65 @@ func TestSlackTextReadsAsWords(t *testing.T) {
 	}
 }
 
+// An emoji name becomes the emoji, also at the end of a word, and stays as typed inside
+// a word, a time, a path, code or a link, or when Slack does not know it. Formatting is
+// drawn over the converted words.
+func TestSlackEmojiNamesReadAsEmoji(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		text, body, markup string
+		bold               string // the words the bold span covers, when there is one
+	}{
+		{text: "Idk why :neutral_face:", body: "Idk why 😐"},
+		{text: ":tada: shipped", body: "🎉 shipped"},
+		{text: "(:smile:)", body: "(😄)"},
+		{text: ":tada::smile:", body: "🎉😄"},
+		{text: ":partyparrot::smile:", body: ":partyparrot:😄"},
+		{text: ":wave::skin-tone-3: hi", body: "👋\U0001F3FC hi"},
+		{text: ":partyparrot::skin-tone-3:", body: ":partyparrot::skin-tone-3:"},
+		{text: ":wave::skin-tone-9:", body: "👋:skin-tone-9:"},
+		{text: "hi <@U2> :wave:", body: "hi @Dana 👋"},
+		{text: "&lt;:smile:", body: "<😄"},
+		{text: "is aligned:pray: today", body: "is aligned🙏 today"},
+		{text: "done:white_check_mark:", body: "done✅"},
+		{text: "at 10:30:00", body: "at 10:30:00"},
+		{text: "a:smile:b", body: "a:smile:b"},
+		{text: "a:b:c", body: "a:b:c"},
+		{text: "see x.io/a:smile:b and /tmp/:smile:/x", body: "see x.io/a:smile:b and /tmp/:smile:/x"},
+		{text: ":Smile: :no_such_name:", body: ":Smile: :no_such_name:"},
+		{text: "`run :smile:` now", body: "run :smile: now", markup: "<code>run :smile:</code> now"},
+		{text: "```\n:smile:\n```", body: ":smile:", markup: "<pre><code>:smile:</code></pre>"},
+		{
+			text: "<https://x.io/a/:smile:/b|:smile: notes> :tada:", body: ":smile: notes 🎉",
+			markup: `<a href="https://x.io/a/:smile:/b">:smile: notes</a> 🎉`,
+		},
+		{text: ":tada: *big news* :smile:", body: "🎉 big news 😄", markup: "🎉 <b>big news</b> 😄", bold: "big news"},
+		{text: "*:tada: done*", body: "🎉 done", markup: "<b>🎉 done</b>", bold: "🎉 done"},
+	} {
+		got := render(tc.text, acmeNames())
+		if got.body != tc.body || got.format.Markup() != tc.markup {
+			t.Errorf("render(%q) = %q %q; want %q %q", tc.text, got.body, got.format.Markup(), tc.body, tc.markup)
+			continue
+		}
+		if !got.format.IsZero() && got.format.Text() != got.body {
+			t.Errorf("render(%q): the formatting draws %q over the words %q", tc.text, got.format.Text(), got.body)
+		}
+		var bold string
+		for _, s := range got.format.Spans() {
+			if s.Bold {
+				bold = got.body[s.Start:s.End]
+			}
+		}
+		if bold != tc.bold {
+			t.Errorf("render(%q): bold over %q, want %q", tc.text, bold, tc.bold)
+		}
+		// Converting what is converted changes nothing.
+		if body, f := Emojify(got.body, got.format); body != got.body || f.Markup() != got.format.Markup() {
+			t.Errorf("Emojify(render(%q)) = %q %q, changed again", tc.text, body, f.Markup())
+		}
+	}
+}
+
 // A mention keeps the words it reads as, for a person or a channel.
 func TestSlackMentionsNameWhomTheyMention(t *testing.T) {
 	t.Parallel()

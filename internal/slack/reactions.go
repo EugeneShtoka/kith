@@ -27,20 +27,29 @@ var skinTones = map[string]string{
 const presentation = "️"
 
 // reactionKey is the emoji a reaction name stands for, toned; ":name:" when unknown.
-// Slack's own names come first: kith's may name another emoji ("umbrella").
 func reactionKey(name string) string {
+	if e, ok := named(name); ok {
+		return e
+	}
+	return ":" + name + ":"
+}
+
+// named is the emoji a Slack name stands for ("thumbsup", "+1::skin-tone-2"), toned;
+// false when unknown. Slack's own names come first: kith's may name another emoji
+// ("umbrella").
+func named(name string) (string, bool) {
 	base, tone, _ := strings.Cut(name, "::")
 	e, ok := emoji.SlackNames[base]
 	if !ok {
 		e, ok = emoji.ByName(base)
 	}
 	if !ok {
-		return ":" + name + ":"
+		return "", false
 	}
 	if mod, toned := skinTones[tone]; toned {
 		e = strings.TrimSuffix(e, presentation) + mod
 	}
-	return e
+	return e, true
 }
 
 // reactionName is the Slack name for a key: ":name:" as written, a toned emoji as
