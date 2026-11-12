@@ -20,7 +20,6 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/font"
-	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -31,6 +30,7 @@ import (
 	"gioui.org/widget/material"
 	_ "golang.org/x/image/webp"
 
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/filedialog"
@@ -95,6 +95,18 @@ type ui struct {
 	player    *player
 	closeBtn  widget.Clickable
 	leftWidth int // the room list and its rule, where the room pane starts
+
+	keymap   *keymap
+	pane     pane
+	typingIn any           // the field with the focus, nil for none
+	roomAt   domain.RoomID // the room list's cursor
+	blur     bool          // take the focus from the fields on the next frame
+	confirm  *confirmation
+	replyTo  domain.EventID // what the composer's message answers
+	editing  domain.EventID // the message of yours the composer replaces
+	cancel   widget.Clickable
+	selves   map[string]bool // every ID that is this person
+	picking  *picker         // the reaction picker, nil when closed
 }
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
@@ -116,6 +128,7 @@ type timeline struct {
 	slots      map[string]int                     // sender color slots, kithd's then this window's
 	drawn      bool
 	list       widget.List
+	sel        domain.EventID // the main timeline's cursor
 }
 
 // picture is an image message's pixels, once fetched.
@@ -125,9 +138,10 @@ type picture struct {
 	err error
 }
 
-func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette) *ui {
+func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, keys config.Keys) *ui {
 	u := &ui{
 		w: w, backend: backend, th: material.NewTheme(), local: local, pal: pal, railShown: true,
+		keymap: newKeymap(keys, actions), pane: paneComposer, selves: map[string]bool{},
 		unread: map[domain.RoomID]domain.Unread{}, faces: map[face]*picture{}, saves: map[domain.EventID]*save{},
 		last: map[domain.RoomID]time.Time{}, typing: map[domain.RoomID][]string{},
 	}
@@ -182,8 +196,15 @@ func (u *ui) loadRooms(ctx context.Context, room domain.RoomID, play domain.Even
 		return
 	}
 	byRecent(rooms, last)
+	selves, err := u.backend.Selves(ctx)
+	if err != nil {
+		log.Printf("selves: %v", err)
+	}
 	u.mu.Lock()
 	maps.Copy(u.last, last)
+	for _, id := range selves {
+		u.selves[id] = true
+	}
 	u.mu.Unlock()
 	unread, err := u.backend.CachedUnread(ctx)
 	if err != nil {
@@ -488,14 +509,9 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	paint.Fill(gtx.Ops, u.pal.background)
-	for {
-		ev, ok := gtx.Event(key.Filter{Name: "K", Required: key.ModShortcut})
-		if !ok {
-			break
-		}
-		if e, ok := ev.(key.Event); ok && e.State == key.Press {
-			u.focus = &u.filter
-		}
+	if u.blur {
+		gtx.Execute(key.FocusCmd{})
+		u.blur = false
 	}
 	if u.focus != nil {
 		gtx.Execute(key.FocusCmd{Tag: u.focus})
@@ -544,6 +560,10 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 	if u.viewing != nil {
 		u.layoutViewer(gtx)
 	}
+	if u.picking != nil {
+		u.layoutPicker(ctx, gtx)
+	}
+	u.keys(ctx, gtx)
 	return dims
 }
 
@@ -704,8 +724,11 @@ func (u *ui) openLocked(ctx context.Context, room domain.RoomID) {
 
 func (u *ui) layoutRoomRow(ctx context.Context, gtx C, i int) D {
 	room := u.rooms[i]
-	if u.roomBtns[i].Clicked(gtx) && room.ID != u.current {
-		u.openLocked(ctx, room.ID)
+	if u.roomBtns[i].Clicked(gtx) {
+		u.roomAt = room.ID
+		if room.ID != u.current {
+			u.openLocked(ctx, room.ID)
+		}
 	}
 	n := u.unread[room.ID]
 	count, highlights := n.Count(u.local)
@@ -744,9 +767,12 @@ func (u *ui) layoutRoomRow(ctx context.Context, gtx C, i int) D {
 			)
 		})
 		call := m.Stop()
+		r := image.Rectangle{Min: image.Pt(gtx.Dp(4), 0), Max: image.Pt(dims.Size.X-gtx.Dp(4), dims.Size.Y)}
 		if room.ID == u.current {
-			r := image.Rectangle{Min: image.Pt(gtx.Dp(4), 0), Max: image.Pt(dims.Size.X-gtx.Dp(4), dims.Size.Y)}
 			paint.FillShape(gtx.Ops, u.pal.selection, clip.UniformRRect(r, gtx.Dp(6)).Op(gtx.Ops))
+		}
+		if u.pane == paneRooms && room.ID == u.roomAt {
+			u.outline(gtx, r)
 		}
 		call.Add(gtx.Ops)
 		return dims
@@ -782,6 +808,7 @@ func (u *ui) layoutRoom(ctx context.Context, gtx C) D {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Flexed(1, func(gtx C) D { return u.layoutTimeline(ctx, gtx) }),
 					layout.Rigid(u.layoutTyping),
+					layout.Rigid(u.layoutStatus),
 					layout.Rigid(func(gtx C) D {
 						return u.layoutEditor(ctx, gtx, &u.composer, &u.attachBtn, "A message", "")
 					}),
@@ -973,12 +1000,32 @@ func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, list []int, 
 				layout.Flexed(1, func(gtx C) D {
 					return u.copyable(gtx, &st.copy, text(m), func(gtx C) D {
 						return layout.Flex{Axis: layout.Vertical}.Layout(gtx, body...)
+					}, func() {
+						if !inThread {
+							t.sel, u.pane = m.ID, paneTimeline
+						}
 					})
 				}),
 			)
 		})
 	}))
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+	if inThread || u.pane != paneTimeline || m.ID != t.sel {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+	}
+	rec := op.Record(gtx.Ops)
+	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+	call := rec.Stop()
+	paint.FillShape(gtx.Ops, u.faint(0x14), clip.Rect{Max: dims.Size}.Op())
+	bar := image.Rect(0, 0, gtx.Dp(3), dims.Size.Y)
+	paint.FillShape(gtx.Ops, u.pal.accent, clip.Rect(bar).Op())
+	call.Add(gtx.Ops)
+	return dims
+}
+
+// outline is the keys' cursor around r.
+func (u *ui) outline(gtx C, r image.Rectangle) {
+	rr := clip.UniformRRect(r, gtx.Dp(6))
+	paint.FillShape(gtx.Ops, u.pal.accent, clip.Stroke{Path: rr.Path(gtx.Ops), Width: float32(gtx.Dp(1.5))}.Op())
 }
 
 // stateOf is id's widgets, made on first use.
@@ -1086,31 +1133,13 @@ func (u *ui) layoutPlayer(gtx C) D {
 	})
 }
 
-// layoutEditor is a composer: Enter is a newline and Ctrl or Alt+Enter sends, as
-// [keys.insert] has it by default. The editor's own Enter filter allows only Shift, so
-// these keys reach this one. The main composer (attach set) also has Attach, which sends
-// a file picked in the desktop's file chooser, and Send; root is the thread a reply
-// goes into, "" for the main timeline.
+// layoutEditor is a composer: Enter is a newline and [keys.insert] send sends (see
+// composing). The main composer (attach set) also has Attach, which sends a file picked
+// in the desktop's file chooser, and Send; root is the thread a reply goes into, "" for
+// the main timeline.
 func (u *ui) layoutEditor(ctx context.Context, gtx C, ed *widget.Editor, attach *widget.Clickable, hint string, root domain.EventID) D {
-	var sends []event.Filter
-	for _, name := range []key.Name{key.NameReturn, key.NameEnter} {
-		for _, mod := range []key.Modifiers{key.ModCtrl, key.ModAlt} {
-			sends = append(sends, key.Filter{Focus: ed, Name: name, Required: mod})
-		}
-	}
-	send := attach != nil && u.sendBtn.Clicked(gtx)
-	for {
-		ev, ok := gtx.Event(sends...)
-		if !ok {
-			break
-		}
-		if e, ok := ev.(key.Event); ok && e.State == key.Press {
-			send = true
-		}
-	}
-	if body := strings.TrimSpace(ed.Text()); send && body != "" {
-		ed.SetText("")
-		go u.send(ctx, u.current, domain.Draft{Body: body, ThreadRoot: root})
+	if attach != nil && u.sendBtn.Clicked(gtx) {
+		u.submit(ctx, ed, root)
 	}
 	if attach != nil && attach.Clicked(gtx) {
 		go u.attach(ctx, u.current)
@@ -1170,6 +1199,22 @@ func (u *ui) attach(ctx context.Context, room domain.RoomID) {
 	}
 	u.mu.Unlock()
 	u.w.Invalidate()
+}
+
+// submit sends what ed holds into root ("" for the main timeline): from the main
+// composer as a reply or an edit when one is pending.
+func (u *ui) submit(ctx context.Context, ed *widget.Editor, root domain.EventID) {
+	body := strings.TrimSpace(ed.Text())
+	if body == "" {
+		return
+	}
+	ed.SetText("")
+	draft := domain.Draft{Body: body, ThreadRoot: root}
+	if ed == &u.composer {
+		draft.ReplyTo, draft.Edits = u.replyTo, u.editing
+		u.replyTo, u.editing = "", ""
+	}
+	go u.send(ctx, u.current, draft)
 }
 
 func (u *ui) send(ctx context.Context, room domain.RoomID, draft domain.Draft) {

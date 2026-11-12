@@ -132,17 +132,23 @@ func webOrMail(href string) bool {
 	return err == nil && slices.Contains([]string{"http", "https", "mailto"}, strings.ToLower(parsed.Scheme))
 }
 
-// copyable lays w out under an area that copies txt on a right-click: an ancestor of
-// w's own areas, so a selectable label or a link beneath still gets its clicks.
-func (u *ui) copyable(gtx C, tag *int, txt string, w layout.Widget) D {
+// copyable lays w out under an area that copies txt on a right-click and calls pressed
+// on a left one: an ancestor of w's own areas, so a selectable label or a link beneath
+// still gets its clicks.
+func (u *ui) copyable(gtx C, tag *int, txt string, w layout.Widget, pressed func()) D {
 	for {
 		ev, ok := gtx.Event(pointer.Filter{Target: tag, Kinds: pointer.Press})
 		if !ok {
 			break
 		}
-		if e, ok := ev.(pointer.Event); ok && e.Buttons.Contain(pointer.ButtonSecondary) && txt != "" {
+		e, ok := ev.(pointer.Event)
+		switch {
+		case !ok:
+		case e.Buttons.Contain(pointer.ButtonSecondary) && txt != "":
 			gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(txt))})
 			u.note = "Copied the message"
+		case e.Buttons.Contain(pointer.ButtonPrimary):
+			pressed()
 		}
 	}
 	m := op.Record(gtx.Ops)

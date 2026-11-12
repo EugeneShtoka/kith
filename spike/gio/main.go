@@ -35,14 +35,14 @@ func main() {
 	play := flag.String("play", "", "and play this message's attachment in it")
 	flag.Parse()
 
-	backend, local, pal, err := attach(*configPath, *profile)
+	backend, local, pal, keys, err := attach(*configPath, *profile)
 	if err != nil {
 		log.Fatal(err)
 	}
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("kith (gio)"), app.Size(unit.Dp(1100), unit.Dp(760)))
-		if err := run(w, backend, local, pal, *measure, domain.RoomID(*room), domain.EventID(*play)); err != nil {
+		if err := run(w, backend, local, pal, keys, *measure, domain.RoomID(*room), domain.EventID(*play)); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
@@ -53,29 +53,29 @@ func main() {
 // attach reaches the local kithd's socket as kith-relay does, starting nothing, in
 // profile: the one named, else the one the device remembers, else the config's first.
 // local is whether badges count cached messages rather than notifications; pal is the
-// desktop's theme, as [gui.theme] sets it.
-func attach(configPath, profile string) (backend *daemon.Remote, local bool, pal palette, err error) {
+// desktop's theme, as [gui.theme] sets it; keys are the device's [keys].
+func attach(configPath, profile string) (backend *daemon.Remote, local bool, pal palette, keys config.Keys, err error) {
 	path := configPath
 	if path == "" {
 		if path, err = config.Path(); err != nil {
-			return nil, false, palette{}, err
+			return nil, false, palette{}, config.Keys{}, err
 		}
 	}
 	cfg, err := config.Load(path)
 	if err != nil {
-		return nil, false, palette{}, fmt.Errorf("reading %s: %w", path, err)
+		return nil, false, palette{}, config.Keys{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 	storage, err := setup.StorageFor(cfg, path)
 	if err != nil {
-		return nil, false, palette{}, err
+		return nil, false, palette{}, config.Keys{}, err
 	}
 	socket, err := daemon.SocketPath(storage)
 	if err != nil {
-		return nil, false, palette{}, err
+		return nil, false, palette{}, config.Keys{}, err
 	}
 	source, err := setup.UnreadSource(cfg.Display.Unread)
 	if err != nil {
-		return nil, false, palette{}, err
+		return nil, false, palette{}, config.Keys{}, err
 	}
 	backend = daemon.NewRemote(socket)
 	dev, derr := config.LoadDevice(config.DevicePath(path))
@@ -88,19 +88,20 @@ func attach(configPath, profile string) (backend *daemon.Remote, local bool, pal
 	if profile != "" {
 		profiles, perr := setup.Profiles(cfg)
 		if perr != nil {
-			return nil, false, palette{}, perr
+			return nil, false, palette{}, config.Keys{}, perr
 		}
 		i := slices.IndexFunc(profiles, func(p domain.Profile) bool { return strings.EqualFold(p.Name, strings.TrimSpace(profile)) })
 		if i < 0 {
-			return nil, false, palette{}, fmt.Errorf("no [[profile]] %q in %s", profile, path)
+			return nil, false, palette{}, config.Keys{}, fmt.Errorf("no [[profile]] %q in %s", profile, path)
 		}
 		backend.UseProfile(profiles[i].Name)
 	}
-	return backend, source != config.UnreadNotifications, themeOf(cfg, dev), nil
+	dev.Keys.FillDefaults() // a device file that failed to load is all defaults
+	return backend, source != config.UnreadNotifications, themeOf(cfg, dev), dev.Keys, nil
 }
 
-func run(w *app.Window, backend *daemon.Remote, local bool, pal palette, measure bool, room domain.RoomID, play domain.EventID) error {
-	ui := newUI(w, backend, local, pal)
+func run(w *app.Window, backend *daemon.Remote, local bool, pal palette, keys config.Keys, measure bool, room domain.RoomID, play domain.EventID) error {
+	ui := newUI(w, backend, local, pal, keys)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go ui.loadRooms(ctx, room, play)

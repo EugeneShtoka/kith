@@ -99,7 +99,11 @@ func (u *ui) layoutRail(gtx C) D {
 			return r.btns[i].Layout(gtx, func(gtx C) D {
 				if i == r.sel {
 					size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(34))
-					paint.FillShape(gtx.Ops, u.pal.selection, clip.UniformRRect(image.Rectangle{Min: image.Pt(gtx.Dp(4), 0), Max: size}, gtx.Dp(6)).Op(gtx.Ops))
+					box := image.Rectangle{Min: image.Pt(gtx.Dp(4), 0), Max: size}
+					paint.FillShape(gtx.Ops, u.pal.selection, clip.UniformRRect(box, gtx.Dp(6)).Op(gtx.Ops))
+					if u.pane == paneRail {
+						u.outline(gtx, box)
+					}
 				}
 				gtx.Constraints.Min.X = gtx.Constraints.Max.X
 				return layout.Inset{Left: unit.Dp(10), Right: unit.Dp(8), Top: unit.Dp(7), Bottom: unit.Dp(7)}.Layout(gtx, func(gtx C) D {
