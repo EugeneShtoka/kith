@@ -92,7 +92,9 @@ func (b *InProc) restoreFromGossip(ctx context.Context) (int, error) {
 }
 
 // importKeyBackup verifies the latest backup version against the key and imports it,
-// returning the version's key count.
+// returning the version's key count. A key that opens the version is kept in the
+// crypto store, replacing one kept before, so a key missing later is fetched from
+// the backup (sessionFromBackup) without the recovery key.
 func importKeyBackup(ctx context.Context, mach *crypto.OlmMachine, backupKey *backup.MegolmBackupKey) (int, error) {
 	version, err := mach.GetAndVerifyLatestKeyBackupVersion(ctx, backupKey)
 	if err != nil {
@@ -104,7 +106,22 @@ func importKeyBackup(ctx context.Context, mach *crypto.OlmMachine, backupKey *ba
 	if err := mach.GetAndStoreKeyBackup(ctx, version.Version, backupKey); err != nil {
 		return 0, fmt.Errorf("matrix: import key backup: %w", err)
 	}
+	// A version trusted by its signature alone may be encrypted to another key, which
+	// opens none of it: that one is not kept.
+	if encryptedTo(version.AuthData, backupKey) {
+		// Padded base64, as storeBackupKey writes it.
+		secret := base64.StdEncoding.EncodeToString(backupKey.Bytes())
+		if err := mach.CryptoStore.PutSecret(ctx, id.SecretMegolmBackupV1, secret); err != nil {
+			return 0, fmt.Errorf("matrix: keep the backup key: %w", err)
+		}
+	}
 	return version.Count, nil
+}
+
+// encryptedTo reports whether a backup version is encrypted to key.
+func encryptedTo(authData backup.MegolmAuthData, key *backup.MegolmBackupKey) bool {
+	pub, err := backupPublicKey(authData)
+	return err == nil && pub.Equal(key.PublicKey())
 }
 
 // unlockSSSS resolves the SSSS key from a recovery key or passphrase, reporting

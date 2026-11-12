@@ -372,7 +372,8 @@ That's normal on a new device: history from before it joined was encrypted for y
 other devices.
 
 kith asks for each missing key by itself, once per key: from the key backup when this
-device holds the backup key (a verified device shares it after verification), otherwise
+device holds the backup key (a verified device shares it after verification, and
+`--restore-keys` keeps it), otherwise
 from your other devices and the sender's. If the key comes within ten minutes, the
 message replaces its placeholder where it is shown. If it never comes, the next time
 the message is shown asks again. To give this device every key at once:
