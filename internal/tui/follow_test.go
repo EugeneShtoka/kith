@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -281,6 +282,44 @@ func TestAHandedOverTelegramLinkOpensTheChat(t *testing.T) {
 	}
 	if !strings.Contains(next.status(), "Novo Salsa") {
 		t.Errorf("status = %q, want it to name the chat", next.status())
+	}
+}
+
+// A kith link opens the room it names by kith's ID, on any network, at the message it
+// names; one to a room not listed here moves nowhere, asks no network and offers no join.
+func TestAHandedOverKithLinkOpensItsRoomAtItsMessage(t *testing.T) {
+	t.Parallel()
+
+	const (
+		group   = "whatsapp:359884650326/120363429032076834@g.us"
+		message = "whatsapp:359884650326/3BF495B87692C4F46C02"
+		slack   = "slack:T01K2D5TCAC/C08HVEWCKQE"
+	)
+	b := &linkBackend{}
+	m := sized(t, starterNew(b, config.Display{}))
+	m = update(t, m, roomsMsg{rooms: []domain.Room{
+		{ID: group, Name: "Tipmaster"},
+		{ID: "whatsapp:111/120363429032076834@g.us", Name: "Tipmaster, as 111"},
+		{ID: mx + "!b:x", Name: "Bravo"},
+	}})
+
+	next, _ := m.handleFollow(followMsg{uri: "kith:" + url.PathEscape(group) + "?event=" + url.QueryEscape(message)})
+	if next.openRoom != group {
+		t.Errorf("open room = %q, want the linked room", next.openRoom)
+	}
+	if next.jump.to != message {
+		t.Errorf("jump.to = %q, want the linked message as it is", next.jump.to)
+	}
+	if !strings.Contains(next.status(), "Tipmaster") {
+		t.Errorf("status = %q, want it to name the room", next.status())
+	}
+
+	next, _ = m.handleFollow(followMsg{uri: "kith:" + url.PathEscape(slack) + "?event=" + url.QueryEscape(slack+"/1794382539.534909")})
+	if next.openRoom != m.openRoom || next.confirm.action != m.confirm.action || len(b.resolved) > 0 {
+		t.Errorf("a link to an unlisted room moved to %q, asked %v, looked up %v", next.openRoom, next.confirm.action, b.resolved)
+	}
+	if !strings.Contains(next.status(), slack) {
+		t.Errorf("status = %q, want it to name the room it did not find", next.status())
 	}
 }
 
