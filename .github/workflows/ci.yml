@@ -125,16 +125,14 @@ jobs:
       - name: Coverage gate
         run: make coverage-gate COVERPROFILES=cover-*.out
 
-  # What a release ships, built only for one (release.yml calls this workflow on the
-  # tag; a PR builds for linux alone): every CROSS_TARGETS platform, compile-only (the
-  # release targets plus windows, built, not released), and the Nix flake (flake.lock
-  # and vendorHash current; see nix-check in the Makefile). vendorHash changes with
-  # every package newly imported, not only with go.mod, so a PR does not wait on it;
-  # the weekly workflow builds the flake too, so a stale hash shows within a week.
-  release-builds:
-    if: startsWith(github.ref, 'refs/tags/')
+  # Every CROSS_TARGETS platform, compile-only (the release targets plus windows,
+  # built, not released), on every PR, so a darwin, freebsd or windows break shows
+  # there and not first at a release.
+  cross-compile:
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -147,6 +145,19 @@ jobs:
       - name: Build every CROSS_TARGETS platform
         run: make cross
 
+  # The Nix flake (flake.lock and vendorHash current; see nix-check in the Makefile),
+  # built only for a release (release.yml calls this workflow on the tag).
+  # vendorHash changes with every package newly imported, not only with go.mod, so a
+  # PR does not wait on it; the weekly workflow builds the flake too, so a stale hash
+  # shows within a week.
+  release-builds:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
 
       - name: Build the Nix flake
@@ -332,7 +343,7 @@ jobs:
     # always(): a skipped required check counts as passed on GitHub. release-builds is
     # not here: it runs on tags alone, and a release needs this whole workflow to pass.
     if: always()
-    needs: [changes, build-and-test, test, coverage, repo-checks, release-config, lint, vuln, secrets, proto, docs, desktop]
+    needs: [changes, build-and-test, test, coverage, cross-compile, repo-checks, release-config, lint, vuln, secrets, proto, docs, desktop]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
