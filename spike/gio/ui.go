@@ -120,6 +120,10 @@ type ui struct {
 
 	presents chan domain.RoomID   // the room to tell kithd is open (present)
 	display  config.DeviceDisplay // the device's [display]: receipts, the unread line
+	jumps    config.Jumps         // [[keys.jump]]: where each jump.<n> goes
+	titled   int                  // the unread count the window's title shows
+	helping  *helpView            // the help overlay, nil when closed
+	helpRows []helpRow            // what it lists
 	link     string               // a link kithd handed over before the rooms were read
 }
 
@@ -165,7 +169,8 @@ func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev c
 		mentions: map[*widget.Editor][]domain.Mention{}, drafts: newDrafts(),
 		unread: map[domain.RoomID]domain.Unread{}, faces: map[face]*picture{}, saves: map[domain.EventID]*save{},
 		last: map[domain.RoomID]time.Time{}, typing: map[domain.RoomID][]string{},
-		presents: make(chan domain.RoomID, 1), completionKeys: map[string]string{}, display: dev.Display,
+		presents: make(chan domain.RoomID, 1), completionKeys: map[string]string{}, display: dev.Display, jumps: keys.Jump,
+		helpRows: helpRows(keys),
 	}
 	for _, path := range []string{"completion.next", "completion.prev", "completion.accept", "completion.dismiss"} {
 		binding, _ := keys.Binding(path)
@@ -621,9 +626,34 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 	if u.linking != nil {
 		u.layoutLinking(ctx, gtx)
 	}
+	if u.helping != nil {
+		u.layoutHelp(gtx)
+	}
 	u.keys(ctx, gtx)
 	u.saveDrafts(ctx)
+	u.title()
 	return dims
+}
+
+// title puts the unread count in the window's title, where the desktop has its tray
+// badge: every room's count summed, as its badge does (rooms.ts total).
+// shortcut: no tray icon; a tray needs a new dependency (systray), wanted once this
+// window replaces the desktop.
+func (u *ui) title() {
+	n := 0
+	for _, r := range u.rooms {
+		c, _ := u.unread[r.ID].Count(u.local)
+		n += c
+	}
+	if n == u.titled {
+		return
+	}
+	u.titled = n
+	title := "kith (gio)"
+	if n > 0 {
+		title = fmt.Sprintf("(%d) %s", n, title)
+	}
+	u.w.Option(app.Title(title))
 }
 
 // layoutToolbar is the desktop's top bar: the rail's toggle, back and forward through

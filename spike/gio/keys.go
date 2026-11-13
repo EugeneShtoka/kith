@@ -96,14 +96,23 @@ func newKeymap(keys config.Keys, actions []action) *keymap {
 	for _, a := range actions {
 		binding, _ := keys.Binding(a.path)
 		for _, seq := range config.SplitKeys(binding) {
-			k.bound[seq] = append(k.bound[seq], a)
-			steps := strings.Split(seq, " ")
-			for i := 1; i < len(steps); i++ {
-				k.prefixes[strings.Join(steps[:i], " ")] = true
-			}
+			k.bind(seq, a)
 		}
 	}
+	// [[keys.jump]]: each entry's chord is jump.<its place in the list>.
+	for i, j := range keys.Jump {
+		k.bind(j.Chord, action{path: "jump." + strconv.Itoa(i)})
+	}
 	return k
+}
+
+// bind makes seq complete a, and every press of it before the last a prefix.
+func (k *keymap) bind(seq string, a action) {
+	k.bound[seq] = append(k.bound[seq], a)
+	steps := strings.Split(seq, " ")
+	for i := 1; i < len(steps); i++ {
+		k.prefixes[strings.Join(steps[:i], " ")] = true
+	}
 }
 
 // press is one named press: the paths of the actions it completes, in priority order.

@@ -47,6 +47,7 @@ func TestKeymapHoldsSequencesCountsAndYieldsToTyping(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	keys.Jump = config.Jumps{{Chord: "g B", Target: "room:matrix:!a:x"}, {Chord: "g u", Target: "tag:unread"}}
 	k := newKeymap(keys, []action{{"jump_to", true}, {"nav.down", false}, {"timeline.copy_text", false}})
 	step := func(name string, typing bool, want ...string) {
 		t.Helper()
@@ -60,6 +61,11 @@ func TestKeymapHoldsSequencesCountsAndYieldsToTyping(t *testing.T) {
 		t.Fatalf("pending %q, want g", k.pending())
 	}
 	step("j", false, "jump_to")
+	step("g", false)
+	step("u", false, "jump.1") // a [[keys.jump]] chord
+	step("g", false)
+	step("B", false, "jump.0")
+	step("g", true) // typing: a jump is not anywhere
 	step("y", false)
 	step("j", false, "nav.down") // breaks the sequence and is judged alone
 	step("1", false)

@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,7 +36,7 @@ const (
 // key, the first that applies to the pane acts ("enter" opens a room in the list, and
 // goes to what a reply answers in the timeline).
 var actions = []action{
-	{"jump_to", true}, {"jump_back", true}, {"jump_forward", true},
+	{"help", false}, {"jump_to", true}, {"jump_back", true}, {"jump_forward", true},
 	{"focus_rail", true}, {"focus_rooms", true}, {"focus_timeline", true}, {"focus_composer", true},
 	{"focus_next", false}, {"focus_prev", false},
 	{"insert.send", true}, {"insert.attach", true}, {"insert.cancel", true},
@@ -105,6 +106,15 @@ func (u *ui) keys(ctx context.Context, gtx C) {
 			}
 			continue
 		}
+		if u.helping != nil {
+			for _, path := range u.keymap.press(name, false) {
+				if u.browseHelp(path, u.keymap.count) {
+					break
+				}
+			}
+			gtx.Execute(op.InvalidateCmd{})
+			continue
+		}
 		if u.linking != nil {
 			for _, path := range u.keymap.press(name, false) {
 				if u.chooseLink(ctx, gtx, path) {
@@ -127,6 +137,8 @@ func (u *ui) keys(ctx context.Context, gtx C) {
 func (u *ui) do(ctx context.Context, gtx C, path string, count int) bool {
 	t := &u.timeline
 	switch path {
+	case "help":
+		u.helping = &helpView{list: widget.List{List: layout.List{Axis: layout.Vertical}}}
 	case "jump_to":
 		u.focus = &u.filter
 	case "jump_back":
@@ -213,11 +225,44 @@ func (u *ui) do(ctx context.Context, gtx C, path string, count int) bool {
 			return false
 		}
 	default:
+		if n, ok := strings.CutPrefix(path, "jump."); ok {
+			return u.jump(ctx, n)
+		}
 		if u.pane != paneTimeline || !strings.HasPrefix(path, "timeline.") {
 			return false
 		}
 		return u.onMessage(ctx, gtx, path)
 	}
+	return true
+}
+
+// jump goes where the n-th [[keys.jump]] points, as the desktop's goTo: a room of the
+// profile opens in the timeline, a home entry selects the first rail row it names.
+func (u *ui) jump(ctx context.Context, n string) bool {
+	i, _ := strconv.Atoi(n)
+	to, ok := domain.ParseJump(u.jumps[i].Target)
+	switch {
+	case !ok:
+		return false
+	case to.Kind == domain.JumpRoom:
+		room := domain.RoomID(to.Name)
+		if !slices.ContainsFunc(u.rooms, func(r domain.Room) bool { return r.ID == room }) {
+			return false
+		}
+		if room != u.current {
+			u.openLocked(ctx, room)
+		}
+		u.roomAt = room
+		u.toPane(paneTimeline)
+		return true
+	}
+	row := slices.IndexFunc(u.rail.rows, func(r domain.RailRow) bool { return domain.NamesHome(to.Name, r.Key, r.Label) })
+	if row < 0 {
+		return false
+	}
+	u.rail.sel = row
+	u.roomList.Position = layout.Position{}
+	reveal(&u.rail.list.List, row, len(u.rail.rows))
 	return true
 }
 
@@ -244,7 +289,7 @@ func (u *ui) toPane(p pane) {
 			t.sel = t.msgs[t.shown[len(t.shown)-1]].ID
 		}
 	}
-	u.blur = true
+	u.focus, u.blur = nil, true // over the composer a room just opened gave it
 }
 
 // move is a [keys.nav] motion in the pane's list: the rail's rows, the room list, or the
