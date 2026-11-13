@@ -14,6 +14,7 @@ import (
 	"maps"
 	"math"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -61,6 +62,7 @@ type ui struct {
 	rooms     []domain.Room
 	roomBtns  []widget.Clickable
 	roomList  widget.List
+	placeBtns []widget.Clickable // the switcher's rail rows, by row
 	filter    widget.Editor
 	rail      rail
 	unread    map[domain.RoomID]domain.Unread
@@ -118,13 +120,15 @@ type ui struct {
 	drafts         drafts                              // each room's draft as kithd stores it
 	editSaved      string                              // the composer's words an edit set aside
 
-	presents chan domain.RoomID   // the room to tell kithd is open (present)
-	display  config.DeviceDisplay // the device's [display]: receipts, the unread line
-	jumps    config.Jumps         // [[keys.jump]]: where each jump.<n> goes
-	titled   int                  // the unread count the window's title shows
-	helping  *helpView            // the help overlay, nil when closed
-	helpRows []helpRow            // what it lists
-	link     string               // a link kithd handed over before the rooms were read
+	presents   chan domain.RoomID   // the room to tell kithd is open (present)
+	display    config.DeviceDisplay // the device's [display]: receipts, the unread line
+	jumps      config.Jumps         // [[keys.jump]]: where each jump.<n> goes
+	titled     int                  // the unread count the window's title shows
+	frame      uint64               // frames laid out so far
+	imageSlots chan struct{}        // images read and decoded at once (loadImage)
+	helping    *helpView            // the help overlay, nil when closed
+	helpRows   []helpRow            // what it lists
+	link       string               // a link kithd handed over before the rooms were read
 }
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
@@ -156,9 +160,10 @@ type timeline struct {
 
 // picture is an image message's pixels, once fetched.
 type picture struct {
-	op  paint.ImageOp
-	ok  bool
-	err error
+	op    paint.ImageOp
+	ok    bool
+	err   error
+	drawn uint64 // the frame it was last drawn in, a placeholder or not
 }
 
 func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev config.Device) *ui {
@@ -170,7 +175,7 @@ func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev c
 		unread: map[domain.RoomID]domain.Unread{}, faces: map[face]*picture{}, saves: map[domain.EventID]*save{},
 		last: map[domain.RoomID]time.Time{}, typing: map[domain.RoomID][]string{},
 		presents: make(chan domain.RoomID, 1), completionKeys: map[string]string{}, display: dev.Display, jumps: keys.Jump,
-		helpRows: helpRows(keys),
+		helpRows: helpRows(keys), imageSlots: make(chan struct{}, max(1, runtime.NumCPU()/2)),
 	}
 	for _, path := range []string{"completion.next", "completion.prev", "completion.accept", "completion.dismiss"} {
 		binding, _ := keys.Binding(path)
@@ -568,6 +573,7 @@ func (u *ui) drawnTimeline() bool {
 func (u *ui) layout(ctx context.Context, gtx C) D {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+	u.frame++
 	paint.Fill(gtx.Ops, u.pal.background)
 	if u.blur {
 		gtx.Execute(key.FocusCmd{})
@@ -755,7 +761,7 @@ func (u *ui) layoutRooms(ctx context.Context, gtx C) D {
 	if u.rooms == nil {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, material.Body2(u.th, "Loading rooms").Layout)
 	}
-	shown := u.filtered()
+	shown, places := u.filtered(), u.places()
 	for {
 		ev, ok := gtx.Event(key.Filter{Focus: &u.filter, Name: key.NameEscape})
 		if !ok {
@@ -771,37 +777,96 @@ func (u *ui) layoutRooms(ctx context.Context, gtx C) D {
 		if !ok {
 			break
 		}
-		if _, ok := ev.(widget.SubmitEvent); ok && len(shown) > 0 {
-			u.filter.SetText("")
-			u.openLocked(ctx, u.rooms[shown[0]].ID)
-			shown = u.filtered()
+		if _, ok := ev.(widget.SubmitEvent); ok {
+			switch {
+			case len(shown) > 0:
+				u.filter.SetText("")
+				u.openLocked(ctx, u.rooms[shown[0]].ID)
+			case len(places) > 0:
+				u.goToPlace(places[0])
+			}
+			shown, places = u.filtered(), u.places()
 		}
+	}
+	if len(u.placeBtns) != len(u.rail.rows) {
+		u.placeBtns = make([]widget.Clickable, len(u.rail.rows))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx C) D {
 			return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx C) D {
-				return u.field(gtx, u.editor(&u.filter, "Go to room (Ctrl+K)").Layout)
+				return u.field(gtx, u.editor(&u.filter, "Go to a room or place (Ctrl+K)").Layout)
 			})
 		}),
 		layout.Flexed(1, func(gtx C) D {
-			return material.List(u.th, &u.roomList).Layout(gtx, len(shown), func(gtx C, j int) D {
-				return u.layoutRoomRow(ctx, gtx, shown[j])
+			return material.List(u.th, &u.roomList).Layout(gtx, len(shown)+len(places), func(gtx C, j int) D {
+				if j < len(shown) {
+					return u.layoutRoomRow(ctx, gtx, shown[j])
+				}
+				return u.layoutPlaceRow(gtx, places[j-len(shown)])
 			})
 		}),
 	)
 }
 
 // filtered is the indexes of the rooms the list shows: the rail row's, or while the
-// filter has text every room whose name holds it, whichever row it is in.
+// filter has text, as the desktop's switcher (switcher.ts): every room whose name,
+// members or ID hold each word typed, whichever row it is in, those with unread first.
 func (u *ui) filtered() []int {
-	q := strings.ToLower(strings.TrimSpace(u.filter.Text()))
+	typed := u.filter.Text()
 	shown := make([]int, 0, len(u.rooms))
+	var unread []int
 	for i, room := range u.rooms {
-		if q == "" && u.inRow(room.ID) || q != "" && strings.Contains(strings.ToLower(room.DisplayName()), q) {
-			shown = append(shown, i)
+		switch {
+		case strings.TrimSpace(typed) == "":
+			if u.inRow(room.ID) {
+				shown = append(shown, i)
+			}
+		case holdsAll(typed, room.DisplayName(), strings.Join(room.Members, " "), string(room.ID)):
+			if c, _ := u.unread[room.ID].Count(u.local); c > 0 {
+				unread = append(unread, i)
+			} else {
+				shown = append(shown, i)
+			}
 		}
 	}
-	return shown
+	return append(unread, shown...)
+}
+
+// places is the rail rows whose label or key hold each word typed in the filter, which
+// the switcher offers after the rooms; none while it is empty.
+// shortcut: reached by click or by Enter when no room matches, not by the room list's
+// cursor.
+func (u *ui) places() []int {
+	typed := u.filter.Text()
+	if strings.TrimSpace(typed) == "" {
+		return nil
+	}
+	var out []int
+	for i, row := range u.rail.rows {
+		if holdsAll(typed, row.Label, row.Key) {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// holdsAll is whether texts hold every word of typed, in any case.
+func holdsAll(typed string, texts ...string) bool {
+	all := strings.ToLower(strings.Join(texts, " "))
+	for _, w := range strings.Fields(strings.ToLower(typed)) {
+		if !strings.Contains(all, w) {
+			return false
+		}
+	}
+	return true
+}
+
+// goToPlace shows rail row i's rooms, the filter emptied.
+func (u *ui) goToPlace(i int) {
+	u.filter.SetText("")
+	u.rail.sel = i
+	u.roomList.Position = layout.Position{}
+	reveal(&u.rail.list.List, i, len(u.rail.rows))
 }
 
 // openLocked is open called with mu held.
@@ -865,6 +930,30 @@ func (u *ui) layoutRoomRow(ctx context.Context, gtx C, i int) D {
 		}
 		call.Add(gtx.Ops)
 		return dims
+	})
+}
+
+// layoutPlaceRow is rail row i offered by the switcher: a click goes to it.
+func (u *ui) layoutPlaceRow(gtx C, i int) D {
+	if u.placeBtns[i].Clicked(gtx) {
+		u.goToPlace(i)
+	}
+	return u.placeBtns[i].Layout(gtx, func(gtx C) D {
+		return layout.Inset{Left: unit.Dp(10), Right: unit.Dp(12), Top: unit.Dp(6), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx C) D {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, func(gtx C) D {
+					l := material.Body1(u.th, u.rail.rows[i].Label)
+					l.MaxLines = 1
+					return l.Layout(gtx)
+				}),
+				layout.Rigid(func(gtx C) D {
+					l := material.Caption(u.th, "place")
+					l.Color = u.pal.muted
+					return l.Layout(gtx)
+				}),
+			)
+		})
 	})
 }
 
@@ -1151,6 +1240,7 @@ func (u *ui) layoutImage(ctx context.Context, gtx C, t *timeline, m domain.Messa
 		t.images[m.ID] = p
 		go u.loadImage(ctx, t.room, m.ID, p, maxW, maxH)
 	}
+	p.drawn = u.frame
 	if !p.ok {
 		w, h := maxW, maxH/2
 		if m.Media.Width > 0 && m.Media.Height > 0 {
@@ -1166,7 +1256,22 @@ func (u *ui) layoutImage(ctx context.Context, gtx C, t *timeline, m domain.Messa
 	return widget.Image{Src: p.op, Fit: widget.Contain}.Layout(gtx)
 }
 
+// loadImage reads and decodes an image message's picture in one of the window's few
+// image slots. One whose turn comes after it left the screen (the last frame did not
+// draw it: scrolled past) is dropped, read again once drawn again; idle, no frame passes,
+// so what is on screen stays.
 func (u *ui) loadImage(ctx context.Context, room domain.RoomID, id domain.EventID, p *picture, maxW, maxH int) {
+	u.imageSlots <- struct{}{}
+	defer func() { <-u.imageSlots }()
+	u.mu.Lock()
+	gone := p.drawn != u.frame
+	if t := &u.timeline; gone && t.room == room && t.images[id] == p {
+		delete(t.images, id)
+	}
+	u.mu.Unlock()
+	if gone {
+		return
+	}
 	data, err := u.backend.LoadImage(ctx, room, id)
 	var img paint.ImageOp
 	if err == nil {
@@ -1196,7 +1301,15 @@ func decode(data []byte, maxW, maxH int) (paint.ImageOp, error) {
 	if w == b.Dx() && h == b.Dy() {
 		draw.Draw(dst, dst.Bounds(), img, b.Min, draw.Src)
 	} else {
-		draw.CatmullRom.Scale(dst, dst.Bounds(), img, b, draw.Src, nil)
+		// A camera photo is ten times the size drawn: CatmullRom over all of it is
+		// 380 ms. A cheap step to twice the size first leaves it 25 ms, alike to see.
+		var src image.Image = img
+		if b.Dx() > 2*w && b.Dy() > 2*h {
+			mid := image.NewRGBA(image.Rect(0, 0, 2*w, 2*h))
+			draw.ApproxBiLinear.Scale(mid, mid.Bounds(), img, b, draw.Src, nil)
+			src, b = mid, mid.Bounds()
+		}
+		draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Src, nil)
 	}
 	return paint.NewImageOp(dst), nil
 }
