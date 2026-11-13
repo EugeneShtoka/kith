@@ -27,6 +27,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	gtext "gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
@@ -61,6 +62,8 @@ type ui struct {
 
 	rooms     []domain.Room
 	roomBtns  []widget.Clickable
+	foldBtns  []widget.Clickable           // each room's thread rows' fold, by room
+	rowBtns   map[rowKey]*widget.Clickable // the thread and count rows
 	roomList  widget.List
 	placeBtns []widget.Clickable // the switcher's rail rows, by row
 	filter    widget.Editor
@@ -104,6 +107,8 @@ type ui struct {
 	pane     pane
 	typingIn any           // the field with the focus, nil for none
 	roomAt   domain.RoomID // the room list's cursor
+	threadAt rowKey        // and the row it is on within its room
+	expanded domain.RoomID // the open room once its count of threads was entered: it lists them all
 	blur     bool          // take the focus from the fields on the next frame
 	confirm  *confirmation
 	replyTo  domain.EventID // what the composer's message answers
@@ -131,30 +136,32 @@ type ui struct {
 	searchScope searchScope          // where the next search looks
 	helpRows    []helpRow            // what it lists
 	link        string               // a link kithd handed over before the rooms were read
+	devicePath  string               // the device file, where folds are kept
 }
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
 type timeline struct {
-	room       domain.RoomID
-	msgs       []domain.Message
-	state      map[domain.EventID]*msgState
-	images     map[domain.EventID]*picture
-	shown      []int                                // the main timeline's messages, as indexes of msgs, as last drawn
-	reactions  map[domain.EventID][]domain.Reaction // by the message they annotate
-	thread     domain.EventID                       // the thread open beside it; "" for none
-	threadList widget.List
-	threadBtns map[domain.EventID]*widget.Clickable
-	next       string // the page before msgs; "" when the room's start is loaded
-	loading    bool
-	marked     domain.EventID                     // the newest message a receipt was sent for
-	threads    map[domain.EventID][]domain.Thread // by the message each hangs beneath
-	pictures   map[string]string                  // each sender's picture version
-	slots      map[string]int                     // sender color slots, kithd's then this window's
-	drawn      bool
-	list       widget.List
-	sel        domain.EventID // the main timeline's cursor
-	jump       domain.EventID // a linked message to select once loaded
-	unreadFrom domain.EventID // the read receipt's message as the room opened: "New" goes under it
+	room         domain.RoomID
+	msgs         []domain.Message
+	state        map[domain.EventID]*msgState
+	images       map[domain.EventID]*picture
+	shown        []int                                // the main timeline's messages, as indexes of msgs, as last drawn
+	reactions    map[domain.EventID][]domain.Reaction // by the message they annotate
+	thread       domain.EventID                       // the thread open beside it; "" for none
+	threadList   widget.List
+	threadBtns   map[domain.EventID]*widget.Clickable
+	next         string // the page before msgs; "" when the room's start is loaded
+	loading      bool
+	marked       domain.EventID                     // the newest message a receipt was sent for
+	threadMarked domain.EventID                     // and the open thread's newest reply
+	threads      map[domain.EventID][]domain.Thread // by the message each hangs beneath
+	pictures     map[string]string                  // each sender's picture version
+	slots        map[string]int                     // sender color slots, kithd's then this window's
+	drawn        bool
+	list         widget.List
+	sel          domain.EventID // the main timeline's cursor
+	jump         domain.EventID // a linked message to select once loaded
+	unreadFrom   domain.EventID // the read receipt's message as the room opened: "New" goes under it
 
 	members      []domain.Member // who a mention may name, ranked by kithd
 	membersAsked bool
@@ -168,7 +175,7 @@ type picture struct {
 	drawn uint64 // the frame it was last drawn in, a placeholder or not
 }
 
-func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev config.Device) *ui {
+func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev config.Device, devicePath string) *ui {
 	keys := dev.Keys
 	u := &ui{
 		w: w, backend: backend, th: material.NewTheme(), local: local, pal: pal, railShown: true,
@@ -178,6 +185,7 @@ func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev c
 		last: map[domain.RoomID]time.Time{}, typing: map[domain.RoomID][]string{},
 		presents: make(chan domain.RoomID, 1), completionKeys: map[string]string{}, display: dev.Display, jumps: keys.Jump,
 		helpRows: helpRows(keys), imageSlots: make(chan struct{}, max(1, runtime.NumCPU()/2)),
+		rowBtns: map[rowKey]*widget.Clickable{}, devicePath: devicePath,
 	}
 	for _, path := range []string{"completion.next", "completion.prev", "completion.accept", "completion.dismiss"} {
 		binding, _ := keys.Binding(path)
@@ -257,6 +265,7 @@ func (u *ui) loadRooms(ctx context.Context, room domain.RoomID, play domain.Even
 	}
 	u.rooms = rooms
 	u.roomBtns = make([]widget.Clickable, len(rooms))
+	u.foldBtns = make([]widget.Clickable, len(rooms))
 	u.mark(fmt.Sprintf("%d rooms loaded", len(rooms)))
 	link := u.link
 	u.mu.Unlock()
@@ -307,6 +316,7 @@ func (u *ui) open(ctx context.Context, room domain.RoomID) {
 	if u.current != room {
 		u.switchDraft(u.current, room)
 		u.present(room)
+		u.expanded = "" // left: its threads are capped again
 	}
 	u.focus = &u.composer
 	u.timeline = timeline{
@@ -526,8 +536,10 @@ func (u *ui) reloadUnread(ctx context.Context) {
 
 // markRead sends a receipt for the open room's newest main-timeline message, once per
 // message, while the window has focus: announced or private as send_receipts and the
-// [[display.read_rule]] naming the room, its home or the sender say (domain.ResolveRead).
+// [[display.read_rule]] naming the room, its home or the sender say (domain.ResolveRead);
+// then the open thread's (markThreadRead).
 func (u *ui) markRead(ctx context.Context) {
+	defer u.markThreadRead(ctx)
 	u.mu.Lock()
 	t := &u.timeline
 	var newest domain.EventID
@@ -548,10 +560,7 @@ func (u *ui) markRead(ctx context.Context) {
 		return
 	}
 	t.marked = newest
-	if r, ok := u.rail.served[room]; ok {
-		place.Space, place.SpaceLabel = r.Home, r.HomeLabel
-	}
-	private := !domain.ResolveRead(u.display.SendsReceipts(), u.display.ReadAfter(), readRules(u.display), place).Send
+	private := u.receiptPrivate(place)
 	u.mu.Unlock()
 	go func() {
 		log.Printf("read receipt: %s at %s (private %v)", room, newest, private)
@@ -562,6 +571,62 @@ func (u *ui) markRead(ctx context.Context) {
 				u.timeline.marked = "" // the next trigger tries again
 			}
 			u.mu.Unlock()
+		}
+	}()
+}
+
+// receiptPrivate is whether a receipt at place goes private, as send_receipts and the
+// [[display.read_rule]] naming its room, the room's home or the sender say.
+func (u *ui) receiptPrivate(place domain.DownloadPlace) bool {
+	if r, ok := u.rail.served[domain.RoomID(place.RoomID)]; ok {
+		place.Space, place.SpaceLabel = r.Home, r.HomeLabel
+	}
+	return !domain.ResolveRead(u.display.SendsReceipts(), u.display.ReadAfter(), readRules(u.display), place).Send
+}
+
+// markThreadRead sends the open thread's receipt for its newest reply, once per reply,
+// while the window has focus: its own (MSC3771), the room's position left alone, so its
+// row in the room list goes once read.
+func (u *ui) markThreadRead(ctx context.Context) {
+	u.mu.Lock()
+	t := &u.timeline
+	var newest domain.Message
+	for _, m := range slices.Backward(t.msgs) {
+		if t.thread != "" && m.ThreadRoot == t.thread {
+			newest = m
+			break
+		}
+	}
+	if !u.focused || newest.ID == "" || newest.ID == t.threadMarked {
+		u.mu.Unlock()
+		return
+	}
+	t.threadMarked = newest.ID
+	room, root := t.room, t.thread
+	private := u.receiptPrivate(domain.DownloadPlace{RoomID: string(room), Thread: string(root), Sender: newest.Sender, Person: sender(newest)})
+	u.mu.Unlock()
+	go func() {
+		if err := u.backend.MarkThreadRead(ctx, room, root, newest.ID, private); err != nil {
+			log.Printf("thread receipt: %v", err)
+			u.mu.Lock()
+			if u.timeline.room == room && u.timeline.threadMarked == newest.ID {
+				u.timeline.threadMarked = "" // the next trigger tries again
+			}
+			u.mu.Unlock()
+		}
+	}()
+}
+
+// markThreadRow marks a thread read from its row, unopened (rooms.mark_read on it), at
+// its newest unread reply.
+func (u *ui) markThreadRow(ctx context.Context, room domain.RoomID, th domain.ThreadUnread) {
+	if th.Latest == "" {
+		return
+	}
+	private := u.receiptPrivate(domain.DownloadPlace{RoomID: string(room), Thread: string(th.Root)})
+	go func() {
+		if err := u.backend.MarkThreadRead(ctx, room, th.Root, th.Latest, private); err != nil {
+			log.Printf("thread receipt: %v", err)
 		}
 	}()
 }
@@ -816,6 +881,12 @@ func (u *ui) layoutRooms(ctx context.Context, gtx C) D {
 	if len(u.placeBtns) != len(u.rail.rows) {
 		u.placeBtns = make([]widget.Clickable, len(u.rail.rows))
 	}
+	rows := u.listRows(shown)
+	cursor := u.cursorRow(rows)
+	// The open thread's row, when listed, is the one selected; else the open room's.
+	threadListed := slices.ContainsFunc(rows, func(r listRow) bool {
+		return r.more == 0 && r.thread.Root != "" && r.thread.Root == u.timeline.thread
+	})
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx C) D {
 			return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx C) D {
@@ -823,11 +894,18 @@ func (u *ui) layoutRooms(ctx context.Context, gtx C) D {
 			})
 		}),
 		layout.Flexed(1, func(gtx C) D {
-			return material.List(u.th, &u.roomList).Layout(gtx, len(shown)+len(places), func(gtx C, j int) D {
-				if j < len(shown) {
-					return u.layoutRoomRow(ctx, gtx, shown[j])
+			return material.List(u.th, &u.roomList).Layout(gtx, len(rows)+len(places), func(gtx C, j int) D {
+				if j < len(rows) {
+					r := rows[j]
+					open := u.rooms[r.room].ID == u.current
+					if r.key() == (rowKey{}) {
+						open = open && !threadListed
+					} else {
+						open = open && r.more == 0 && r.thread.Root == u.timeline.thread
+					}
+					return u.layoutListRow(ctx, gtx, r, open, u.pane == paneRooms && j == cursor)
 				}
-				return u.layoutPlaceRow(gtx, places[j-len(shown)])
+				return u.layoutPlaceRow(gtx, places[j-len(rows)])
 			})
 		}),
 	)
@@ -901,60 +979,148 @@ func (u *ui) openLocked(ctx context.Context, room domain.RoomID) {
 	u.mu.Lock()
 }
 
-func (u *ui) layoutRoomRow(ctx context.Context, gtx C, i int) D {
-	room := u.rooms[i]
-	if u.roomBtns[i].Clicked(gtx) {
-		u.roomAt = room.ID
-		if room.ID != u.current {
-			u.openLocked(ctx, room.ID)
+// layoutListRow is a row of the room list: a room's, a thread's or a count's. open is
+// whether it is the room or thread shown, cursor whether the keys are on it.
+func (u *ui) layoutListRow(ctx context.Context, gtx C, row listRow, open, cursor bool) D {
+	btn := &u.roomBtns[row.room]
+	if row.key() != (rowKey{}) {
+		if btn = u.rowBtns[row.key()]; btn == nil {
+			btn = new(widget.Clickable)
+			u.rowBtns[row.key()] = btn
 		}
+	}
+	if btn.Clicked(gtx) {
+		u.enterRow(ctx, row)
+	}
+	m := op.Record(gtx.Ops)
+	var dims D
+	if row.key() == (rowKey{}) {
+		dims = u.layoutRoomRow(ctx, gtx, btn, row.room)
+	} else {
+		dims = btn.Layout(gtx, func(gtx C) D { return u.layoutThreadRow(gtx, row) })
+	}
+	call := m.Stop()
+	r := image.Rectangle{Min: image.Pt(gtx.Dp(4), 0), Max: image.Pt(dims.Size.X-gtx.Dp(4), dims.Size.Y)}
+	if open {
+		paint.FillShape(gtx.Ops, u.pal.selection, clip.UniformRRect(r, gtx.Dp(6)).Op(gtx.Ops))
+	}
+	if cursor {
+		u.outline(gtx, r)
+	}
+	call.Add(gtx.Ops)
+	return dims
+}
+
+// layoutRoomRow is room i's row: its picture, name and unread, and before them, when it
+// has thread rows, the fold that hides or shows them.
+func (u *ui) layoutRoomRow(ctx context.Context, gtx C, btn *widget.Clickable, i int) D {
+	room := u.rooms[i]
+	threads := 0
+	if u.display.Threads.Mode() != config.ThreadsNever && !room.IsInvite() && !u.rail.silenced[room.ID] {
+		threads = len(u.threadsUnder(room.ID))
+	}
+	if u.foldBtns[i].Clicked(gtx) {
+		u.foldThreads(room.ID)
 	}
 	n := u.unread[room.ID]
 	count, highlights := n.Count(u.local)
-	return u.roomBtns[i].Layout(gtx, func(gtx C) D {
-		m := op.Record(gtx.Ops)
-		dims := layout.Inset{Left: unit.Dp(10), Right: unit.Dp(12), Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
-			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(func(gtx C) D {
-					return u.layoutFace(ctx, gtx, face{room: room.ID}, room.Picture, string(room.ID), room.DisplayName(), 24)
-				}),
-				layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
-				layout.Flexed(1, func(gtx C) D {
-					l := material.Body1(u.th, room.DisplayName())
-					l.MaxLines = 1
-					if n.HasUnread(u.local) {
-						l.Font.Weight = font.Bold
-					} else {
-						l.Color = u.pal.muted
-					}
+	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx C) D {
+			gtx.Constraints.Min.X = gtx.Dp(14)
+			if threads == 0 {
+				return D{Size: image.Pt(gtx.Constraints.Min.X, 0)}
+			}
+			mark := "▾"
+			if u.display.Threads.Folds(string(room.ID)) {
+				mark = "▸"
+			}
+			return u.foldBtns[i].Layout(gtx, func(gtx C) D {
+				l := material.Caption(u.th, mark)
+				l.Color, l.Alignment = u.pal.muted, gtext.End
+				return l.Layout(gtx)
+			})
+		}),
+		layout.Flexed(1, func(gtx C) D {
+			return btn.Layout(gtx, func(gtx C) D {
+				return layout.Inset{Left: unit.Dp(2), Right: unit.Dp(12), Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
+					gtx.Constraints.Min.X = gtx.Constraints.Max.X
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx C) D {
+							return u.layoutFace(ctx, gtx, face{room: room.ID}, room.Picture, string(room.ID), room.DisplayName(), 24)
+						}),
+						layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+						layout.Flexed(1, func(gtx C) D {
+							l := material.Body1(u.th, room.DisplayName())
+							l.MaxLines = 1
+							if n.HasUnread(u.local) {
+								l.Font.Weight = font.Bold
+							} else {
+								l.Color = u.pal.muted
+							}
+							return l.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx C) D {
+							switch {
+							case highlights > 0:
+								return u.badge(gtx, fmt.Sprint(count), true)
+							case count > 0:
+								l := material.Caption(u.th, fmt.Sprint(count))
+								l.Color = u.pal.muted
+								return l.Layout(gtx)
+							case n.Marked:
+								return u.badge(gtx, "•", false)
+							}
+							return D{}
+						}),
+					)
+				})
+			})
+		}),
+	)
+}
+
+// layoutThreadRow is a thread's row under its room, its marker pointing up at it: the
+// root's text and its unread replies; or a count's, of the threads not listed.
+func (u *ui) layoutThreadRow(gtx C, row listRow) D {
+	label := threadLabel(row.thread)
+	if row.more > 0 {
+		label = fmt.Sprintf("+%d more threads", row.more)
+		if row.more == 1 {
+			label = "+1 more thread"
+		}
+	}
+	return layout.Inset{Left: unit.Dp(30), Right: unit.Dp(12), Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx C) D {
+		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx C) D {
+				l := material.Body2(u.th, u.display.Threads.RowMark()+" ")
+				l.Color = u.pal.muted
+				return l.Layout(gtx)
+			}),
+			layout.Flexed(1, func(gtx C) D {
+				l := material.Body2(u.th, label)
+				l.MaxLines = 1
+				if row.more > 0 || row.thread.Unread == 0 {
+					l.Color = u.pal.muted
+				} else {
+					l.Font.Weight = font.Bold
+				}
+				return l.Layout(gtx)
+			}),
+			layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+			layout.Rigid(func(gtx C) D {
+				switch th := row.thread; {
+				case row.more > 0:
+				case th.Mentions > 0:
+					return u.badge(gtx, fmt.Sprint(th.Unread), true)
+				case th.Unread > 0:
+					l := material.Caption(u.th, fmt.Sprint(th.Unread))
+					l.Color = u.pal.muted
 					return l.Layout(gtx)
-				}),
-				layout.Rigid(func(gtx C) D {
-					switch {
-					case highlights > 0:
-						return u.badge(gtx, fmt.Sprint(count), true)
-					case count > 0:
-						l := material.Caption(u.th, fmt.Sprint(count))
-						l.Color = u.pal.muted
-						return l.Layout(gtx)
-					case n.Marked:
-						return u.badge(gtx, "•", false)
-					}
-					return D{}
-				}),
-			)
-		})
-		call := m.Stop()
-		r := image.Rectangle{Min: image.Pt(gtx.Dp(4), 0), Max: image.Pt(dims.Size.X-gtx.Dp(4), dims.Size.Y)}
-		if room.ID == u.current {
-			paint.FillShape(gtx.Ops, u.pal.selection, clip.UniformRRect(r, gtx.Dp(6)).Op(gtx.Ops))
-		}
-		if u.pane == paneRooms && room.ID == u.roomAt {
-			u.outline(gtx, r)
-		}
-		call.Add(gtx.Ops)
-		return dims
+				}
+				return D{}
+			}),
+		)
 	})
 }
 

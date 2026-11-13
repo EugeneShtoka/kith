@@ -35,14 +35,14 @@ func main() {
 	play := flag.String("play", "", "and play this message's attachment in it")
 	flag.Parse()
 
-	backend, local, pal, dev, err := attach(*configPath, *profile)
+	backend, local, pal, dev, devicePath, err := attach(*configPath, *profile)
 	if err != nil {
 		log.Fatal(err)
 	}
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("kith (gio)"), app.Size(unit.Dp(1100), unit.Dp(760)))
-		if err := run(w, backend, local, pal, dev, *measure, domain.RoomID(*room), domain.EventID(*play)); err != nil {
+		if err := run(w, backend, local, pal, dev, devicePath, *measure, domain.RoomID(*room), domain.EventID(*play)); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
@@ -54,32 +54,33 @@ func main() {
 // profile: the one named, else the one the device remembers, else the config's first.
 // local is whether badges count cached messages rather than notifications; pal is the
 // desktop's theme, as [gui.theme] sets it; dev is the device's settings ([keys],
-// [display]).
-func attach(configPath, profile string) (backend *daemon.Remote, local bool, pal palette, dev config.Device, err error) {
+// [display]), read from devicePath.
+func attach(configPath, profile string) (backend *daemon.Remote, local bool, pal palette, dev config.Device, devicePath string, err error) {
 	path := configPath
 	if path == "" {
 		if path, err = config.Path(); err != nil {
-			return nil, false, palette{}, config.Device{}, err
+			return nil, false, palette{}, config.Device{}, "", err
 		}
 	}
 	cfg, err := config.Load(path)
 	if err != nil {
-		return nil, false, palette{}, config.Device{}, fmt.Errorf("reading %s: %w", path, err)
+		return nil, false, palette{}, config.Device{}, "", fmt.Errorf("reading %s: %w", path, err)
 	}
 	storage, err := setup.StorageFor(cfg, path)
 	if err != nil {
-		return nil, false, palette{}, config.Device{}, err
+		return nil, false, palette{}, config.Device{}, "", err
 	}
 	socket, err := daemon.SocketPath(storage)
 	if err != nil {
-		return nil, false, palette{}, config.Device{}, err
+		return nil, false, palette{}, config.Device{}, "", err
 	}
 	source, err := setup.UnreadSource(cfg.Display.Unread)
 	if err != nil {
-		return nil, false, palette{}, config.Device{}, err
+		return nil, false, palette{}, config.Device{}, "", err
 	}
 	backend = daemon.NewRemote(socket)
-	dev, derr := config.LoadDevice(config.DevicePath(path))
+	devicePath = config.DevicePath(path)
+	dev, derr := config.LoadDevice(devicePath)
 	if derr != nil {
 		log.Printf("the device file: %v (the config's first profile, the shared theme)", derr)
 	}
@@ -89,20 +90,20 @@ func attach(configPath, profile string) (backend *daemon.Remote, local bool, pal
 	if profile != "" {
 		profiles, perr := setup.Profiles(cfg)
 		if perr != nil {
-			return nil, false, palette{}, config.Device{}, perr
+			return nil, false, palette{}, config.Device{}, "", perr
 		}
 		i := slices.IndexFunc(profiles, func(p domain.Profile) bool { return strings.EqualFold(p.Name, strings.TrimSpace(profile)) })
 		if i < 0 {
-			return nil, false, palette{}, config.Device{}, fmt.Errorf("no [[profile]] %q in %s", profile, path)
+			return nil, false, palette{}, config.Device{}, "", fmt.Errorf("no [[profile]] %q in %s", profile, path)
 		}
 		backend.UseProfile(profiles[i].Name)
 	}
 	dev.Keys.FillDefaults() // a device file that failed to load is all defaults
-	return backend, source != config.UnreadNotifications, themeOf(cfg, dev), dev, nil
+	return backend, source != config.UnreadNotifications, themeOf(cfg, dev), dev, devicePath, nil
 }
 
-func run(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev config.Device, measure bool, room domain.RoomID, play domain.EventID) error {
-	ui := newUI(w, backend, local, pal, dev)
+func run(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev config.Device, devicePath string, measure bool, room domain.RoomID, play domain.EventID) error {
+	ui := newUI(w, backend, local, pal, dev, devicePath)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go ui.loadRooms(ctx, room, play)

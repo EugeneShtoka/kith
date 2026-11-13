@@ -22,7 +22,11 @@ names what it answers, and clicking that scrolls to it. Reactions show as pills 
 follow kithd's stream, and who is typing shows over the composer. A thread's summary opens
 it beside the timeline, where a reply goes into the thread. Clicking an image shows it over
 the window (Esc or a click closes it), a right-click copies a message, and the room list
-reorders as messages arrive.
+reorders as messages arrive. Under each room the list has a row for each thread with unread
+replies, as `[display.threads]` caps them (a "+N more" row lists the rest), and for the
+thread open, which keeps its row once read; a thread read here sends its own receipt.
+Opening a thread's row opens it beside its room, and `z a` or the room's ▾ folds its
+threads away, kept in the device file as the TUI and the desktop keep them.
 
 The device's `[keys]` drive the window, as they drive the desktop (`keys.go` ports its
 keymap: sequences such as `g g`, counts such as `12j`, and typing wins). The rail, the
@@ -35,8 +39,8 @@ a link (with several, a chooser asks which, as the desktop's does; opening hands
 kithd, so a chat link opens in the window kithd picks and a web one in the browser), save,
 view, play, open or start its thread, and jump by mention, attachment,
 day, or to what a reply answers. `m` / `M` / Ctrl+M mark a room read or unread from the
-list, and `m` on a rail row marks the row read (asks first). The composer completes
-`:name` into emoji and `@name` into a mention (people as kithd offers them: Matrix,
+list (on a thread's row, `m` marks the thread), and `m` on a rail row marks the row read
+(asks first). The composer completes `:name` into emoji and `@name` into a mention (people as kithd offers them: Matrix,
 LinkedIn and Instagram rooms), and turns a typed `:name:` into its emoji; the popup's keys
 are `[keys.completion]`'s. A room's unsent text, reply and edit are kithd's draft
 (`drafts.go`, the desktop's `drafts.ts` in less), which any number of windows and kith-mcp
@@ -122,9 +126,6 @@ With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, G
 - **Gio gives a key to the first reader in the frame whose filter matches**, not to the most
   specific filter, so the window-wide key reader runs last: anything earlier (an editor's
   arrows and Backspace, the picker's Esc) keeps its own keys.
-- **A notification has no click.** `kith-notify` posts its popups with no actions and no
-  room in them, so clicking one reaches no window, the desktop's included; what reaches a
-  window is a link opened elsewhere (`kith --open`, kithd's Follow). Making a popup open
-  its room needs kith-notify to carry the room and handle the default action.
-- **Not done here:** the thread composer's draft is not kept; a link handed over picks the
+- **Not done here:** the thread composer's draft is not kept; `in_room_list = "all"` lists
+  only the threads `"unread"` does, as kithd's thread list is not read per room; a link handed over picks the
   first chat it names where the TUI asks which account.

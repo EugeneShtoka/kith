@@ -41,7 +41,7 @@ var actions = []action{
 	{"focus_next", false}, {"focus_prev", false},
 	{"insert.send", true}, {"insert.attach", true}, {"insert.cancel", true},
 	{"rail.mark_read", false},
-	{"rooms.mark_read", false}, {"rooms.mark_all_read", false}, {"rooms.mark_unread", false},
+	{"rooms.mark_read", false}, {"rooms.mark_all_read", false}, {"rooms.mark_unread", false}, {"rooms.fold_threads", false},
 	{"timeline.insert", false}, {"timeline.reply", false}, {"timeline.go_reply", false},
 	{"timeline.react", false}, {"timeline.redact", false}, {"timeline.edit", false},
 	{"timeline.next_mention", false}, {"timeline.prev_mention", false},
@@ -193,7 +193,18 @@ func (u *ui) do(ctx context.Context, gtx C, path string, count int) bool {
 		if u.pane != paneRooms || u.roomAt == "" {
 			return false
 		}
+		if rows := u.listRows(u.filtered()); path == "rooms.mark_read" {
+			if i := u.cursorRow(rows); i >= 0 && rows[i].more == 0 && rows[i].thread.Root != "" {
+				u.markThreadRow(ctx, u.roomAt, rows[i].thread)
+				return true
+			}
+		}
 		go u.markRooms(ctx, []domain.RoomID{u.roomAt})
+	case "rooms.fold_threads":
+		if u.pane != paneRooms || u.roomAt == "" {
+			return false
+		}
+		u.foldThreads(u.roomAt)
 	case "rooms.mark_unread":
 		if u.pane != paneRooms || u.roomAt == "" {
 			return false
@@ -212,13 +223,14 @@ func (u *ui) do(ctx context.Context, gtx C, path string, count int) bool {
 		case paneRail:
 			u.toPane(paneRooms)
 		case paneRooms:
-			if u.roomAt == "" {
+			rows := u.listRows(u.filtered())
+			i := u.cursorRow(rows)
+			if i < 0 {
 				return false
 			}
-			if u.roomAt != u.current {
-				u.openLocked(ctx, u.roomAt)
+			if u.enterRow(ctx, rows[i]); rows[i].key() == (rowKey{}) {
+				u.toPane(paneTimeline)
 			}
-			u.toPane(paneTimeline)
 		default:
 			return false
 		}
@@ -317,14 +329,13 @@ func (u *ui) move(path string, count int) bool {
 		}
 		reveal(&u.rail.list.List, to, n)
 	case paneRooms:
-		shown := u.filtered()
-		if len(shown) == 0 {
+		rows := u.listRows(u.filtered())
+		if len(rows) == 0 {
 			return false
 		}
-		at := max(0, slices.IndexFunc(shown, func(i int) bool { return u.rooms[i].ID == u.roomAt }))
-		to, _ := moved(path, count, at, u.roomList.Position.Count, len(shown))
-		u.roomAt = u.rooms[shown[to]].ID
-		reveal(&u.roomList.List, to, len(shown))
+		to, _ := moved(path, count, max(0, u.cursorRow(rows)), u.roomList.Position.Count, len(rows))
+		u.roomAt, u.threadAt = u.rooms[rows[to].room].ID, rows[to].key()
+		reveal(&u.roomList.List, to, len(rows))
 	case paneTimeline:
 		t := &u.timeline
 		if len(t.shown) == 0 {
