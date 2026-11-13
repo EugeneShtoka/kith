@@ -118,3 +118,27 @@ func TestAKithLinkNamesOnlyItsOwnRoom(t *testing.T) {
 		}
 	}
 }
+
+// What KithLink writes, ParseKithLink reads back as the same room and message, on every
+// network's IDs: a slash, a dot, an at, a hash and a space among them.
+func TestAKithLinkWrittenReadsBack(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct{ room, event string }{
+		{kithWAGroup, kithWAMsg},
+		{kithWAGroup, ""},
+		{kithSlackCh, kithSlackTS},
+		{mx + "!abc:x", mx + "$evt+/=="},
+		{"telegram:1/-1001~27628", "telegram:1/-1001~27628/42"},
+		{"linkedin:urn:li:a/b c#d", "linkedin:urn:li:a/b c#d/e?f&g"},
+	} {
+		link := domain.KithLink(domain.RoomID(c.room), domain.EventID(c.event))
+		want := domain.Place{Kind: domain.PlaceRoom, Room: c.room}
+		if c.event != "" {
+			want = domain.Place{Kind: domain.PlaceEvent, Room: c.room, Event: domain.EventID(c.event)}
+		}
+		got, ok := domain.ParseKithLink(link)
+		if !ok || got.Kind != want.Kind || got.Room != want.Room || got.Event != want.Event {
+			t.Errorf("%s (from %q, %q) reads as %+v (%v), want %+v", link, c.room, c.event, got, ok, want)
+		}
+	}
+}

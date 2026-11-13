@@ -114,13 +114,13 @@ func TestNotificationRulesRejectBadSpellings(t *testing.T) {
 func TestNotifierComposesFromConfig(t *testing.T) {
 	t.Parallel()
 
-	if got := setup.NotifierReporting(config.DeviceNotifications{Desktop: true}, nil); got != (notify.Nop{}) {
+	if got := setup.NotifierReporting(config.DeviceNotifications{Desktop: true}, nil, nil); got != (notify.Nop{}) {
 		t.Errorf("notifier = %T, want a Nop while notifications are off", got)
 	}
-	if got := setup.NotifierReporting(config.DeviceNotifications{Enabled: true}, nil); got != (notify.Nop{}) {
+	if got := setup.NotifierReporting(config.DeviceNotifications{Enabled: true}, nil, nil); got != (notify.Nop{}) {
 		t.Errorf("notifier = %T, want a Nop with no sinks configured", got)
 	}
-	if got := setup.NotifierReporting(config.DeviceNotifications{Enabled: true, Desktop: true}, nil); got == (notify.Nop{}) {
+	if got := setup.NotifierReporting(config.DeviceNotifications{Enabled: true, Desktop: true}, nil, nil); got == (notify.Nop{}) {
 		t.Error("a configured desktop sink should produce something that delivers")
 	}
 }

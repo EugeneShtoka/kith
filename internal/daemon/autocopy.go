@@ -44,5 +44,6 @@ func codeAlert(msg domain.Message, room domain.RoomFacts, code domain.Code) noti
 		Body:     code.Value,
 		Protocol: domain.ProtocolOf(msg.Sender).String(),
 		Sent:     msg.Timestamp,
+		Link:     domain.KithLink(msg.RoomID, msg.ID),
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"os/signal"
 	"slices"
 	"strings"
@@ -114,7 +115,7 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 	// Delivery has no caller to tell: each failed sink is logged, never with the message.
 	sinks := setup.NotifierSinks(func(sink string, err error) {
 		log.Warn("notification delivery failed", "sink", sink, "err", err)
-	})
+	}, &notify.Clicks{Open: openLink(ctx, log, configPath)})
 	dev, err := config.LoadDevice(device)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", device, err)
@@ -128,6 +129,26 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 	a := newAgent(log, dial, sinks, device, dev)
 	a.run(ctx, names)
 	return nil
+}
+
+// openLink follows the link of a popup clicked as the desktop's link handlers do:
+// `kith --open` hands it to a window, or starts one.
+func openLink(ctx context.Context, log *slog.Logger, configPath string) func(link string) {
+	return func(link string) {
+		kith, err := daemon.Binary("kith")
+		if err != nil {
+			log.Warn("cannot open a clicked notification", "err", err)
+			return
+		}
+		args := []string{"--open", link}
+		if configPath != "" {
+			args = append([]string{"--config", configPath}, args...)
+		}
+		// #nosec G204 -- kith is daemon.Binary's, this build's own; the link is one argument, no shell
+		if out, err := exec.CommandContext(ctx, kith, args...).CombinedOutput(); err != nil {
+			log.Warn("cannot open a clicked notification", "err", err, "said", strings.TrimSpace(string(out)))
+		}
+	}
 }
 
 // loadAccount reads the config for where kithd's socket is, as kith-mcp does; device is

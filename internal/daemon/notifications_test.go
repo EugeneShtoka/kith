@@ -750,8 +750,9 @@ func TestOldMessagesFromAFilledGapFoldIntoOne(t *testing.T) {
 	if !slices.Equal(bodies, want) {
 		t.Fatalf("notified %q, want %q", bodies, want)
 	}
-	if folded := sent[1]; !folded.Silent || folded.Sender != "" || folded.Replaces != string(chatRm) {
-		t.Errorf("folded = %+v, want a silent count about the room, replacing itself", folded)
+	if folded := sent[1]; !folded.Silent || folded.Sender != "" || folded.Replaces != string(chatRm) ||
+		folded.Link != domain.KithLink(chatRm, "") {
+		t.Errorf("folded = %+v, want a silent count about the room, replacing itself, a click opening the room", folded)
 	}
 }
 
