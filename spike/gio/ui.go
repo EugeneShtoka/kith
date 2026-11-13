@@ -79,7 +79,7 @@ type ui struct {
 	railShown    bool
 	history      []domain.RoomID // rooms opened, for back and forward
 	at           int             // where in history the open room is
-	nav          struct{ rail, back, forward, goTo widget.Clickable }
+	nav          struct{ rail, back, forward, goTo, search, scope widget.Clickable }
 	search       widget.Editor
 	attachBtn    widget.Clickable
 	sendBtn      widget.Clickable
@@ -120,15 +120,17 @@ type ui struct {
 	drafts         drafts                              // each room's draft as kithd stores it
 	editSaved      string                              // the composer's words an edit set aside
 
-	presents   chan domain.RoomID   // the room to tell kithd is open (present)
-	display    config.DeviceDisplay // the device's [display]: receipts, the unread line
-	jumps      config.Jumps         // [[keys.jump]]: where each jump.<n> goes
-	titled     int                  // the unread count the window's title shows
-	frame      uint64               // frames laid out so far
-	imageSlots chan struct{}        // images read and decoded at once (loadImage)
-	helping    *helpView            // the help overlay, nil when closed
-	helpRows   []helpRow            // what it lists
-	link       string               // a link kithd handed over before the rooms were read
+	presents    chan domain.RoomID   // the room to tell kithd is open (present)
+	display     config.DeviceDisplay // the device's [display]: receipts, the unread line
+	jumps       config.Jumps         // [[keys.jump]]: where each jump.<n> goes
+	titled      int                  // the unread count the window's title shows
+	frame       uint64               // frames laid out so far
+	imageSlots  chan struct{}        // images read and decoded at once (loadImage)
+	helping     *helpView            // the help overlay, nil when closed
+	searching   *searchView          // a search's hits, listed in the room list's place; nil for none
+	searchScope searchScope          // where the next search looks
+	helpRows    []helpRow            // what it lists
+	link        string               // a link kithd handed over before the rooms were read
 }
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
@@ -187,7 +189,7 @@ func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev c
 	u.th.Face = "sans-serif, emoji"
 	u.th.TextSize = 15
 	u.th.Palette = material.Palette{Fg: pal.text, Bg: pal.background, ContrastBg: pal.accent, ContrastFg: pal.focusText}
-	u.search.SingleLine, u.search.ReadOnly = true, true
+	u.search.SingleLine, u.search.Submit = true, true
 	u.roomList.Axis = layout.Vertical
 	u.filter.SingleLine, u.filter.Submit = true, true
 	return u
@@ -362,9 +364,9 @@ func (u *ui) open(ctx context.Context, room domain.RoomID) {
 	}()
 }
 
-// older fetches the page before the oldest message shown, keeping the view where it is.
-func (u *ui) older(ctx context.Context, room domain.RoomID, from string) {
-	page, err := u.backend.Timeline(ctx, room, from, pageSize)
+// older fetches the limit messages before the oldest shown, keeping the view where it is.
+func (u *ui) older(ctx context.Context, room domain.RoomID, from string, limit int) {
+	page, err := u.backend.Timeline(ctx, room, from, limit)
 	if err != nil {
 		u.fail(fmt.Errorf("older: %w", err))
 		return
@@ -663,7 +665,7 @@ func (u *ui) title() {
 }
 
 // layoutToolbar is the desktop's top bar: the rail's toggle, back and forward through
-// the rooms opened, search, and the pages. Search, People and Settings are the
+// the rooms opened, search and its scope, and the pages. People and Settings are the
 // desktop's alone for now, drawn muted.
 func (u *ui) layoutToolbar(ctx context.Context, gtx C) D {
 	if u.nav.rail.Clicked(gtx) {
@@ -680,6 +682,25 @@ func (u *ui) layoutToolbar(ctx context.Context, gtx C) D {
 	if u.nav.goTo.Clicked(gtx) {
 		u.focus = &u.filter
 	}
+	if u.nav.scope.Clicked(gtx) {
+		u.searchScope = (u.searchScope + 1) % searchScope(len(scopeNames))
+	}
+	asked := u.nav.search.Clicked(gtx)
+	for {
+		ev, ok := u.search.Update(gtx)
+		if !ok {
+			break
+		}
+		if _, ok := ev.(widget.SubmitEvent); ok {
+			asked = true
+		}
+	}
+	if asked {
+		if u.searchScope == scopeRoom && u.current == "" {
+			u.searchScope = scopeAll
+		}
+		u.runSearch(ctx)
+	}
 	m := op.Record(gtx.Ops)
 	dims := layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8), Top: unit.Dp(6), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx C) D {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -693,7 +714,8 @@ func (u *ui) layoutToolbar(ctx context.Context, gtx C) D {
 					return u.editor(&u.search, "Search: words, from:, since:, until:").Layout(gtx)
 				})
 			}), gap,
-			layout.Rigid(func(gtx C) D { return u.button(gtx, new(widget.Clickable), "Search", false, false) }), gap,
+			layout.Rigid(func(gtx C) D { return u.button(gtx, &u.nav.scope, scopeNames[u.searchScope], true, false) }), gap,
+			layout.Rigid(func(gtx C) D { return u.button(gtx, &u.nav.search, "Search", true, false) }), gap,
 			layout.Rigid(func(gtx C) D { return u.button(gtx, &u.nav.goTo, "Go to", true, false) }), gap,
 			layout.Rigid(func(gtx C) D { return u.button(gtx, new(widget.Clickable), "People", false, false) }), gap,
 			layout.Rigid(func(gtx C) D { return u.button(gtx, new(widget.Clickable), "Settings", false, false) }),
@@ -760,6 +782,9 @@ func (u *ui) field(gtx C, w layout.Widget) D {
 func (u *ui) layoutRooms(ctx context.Context, gtx C) D {
 	if u.rooms == nil {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, material.Body2(u.th, "Loading rooms").Layout)
+	}
+	if u.searching != nil {
+		return u.layoutSearch(ctx, gtx)
 	}
 	shown, places := u.filtered(), u.places()
 	for {
@@ -1051,15 +1076,7 @@ func (u *ui) layoutTimeline(ctx context.Context, gtx C) D {
 		}
 	}
 	if t.jump != "" {
-		// shortcut: only a linked message in the pages loaded is found; the desktop reads
-		// the room around one older.
-		if k := slices.IndexFunc(t.shown, func(i int) bool { return t.msgs[i].ID == t.jump }); k >= 0 {
-			t.selectAt(k)
-			t.jump = ""
-			u.toPane(paneTimeline)
-		} else if !t.loading {
-			u.note, u.noteAt, t.jump = "The linked message is not loaded", time.Now(), ""
-		}
+		u.seek(ctx)
 	}
 	dims := material.List(u.th, &t.list).Layout(gtx, len(t.shown), func(gtx C, k int) D {
 		return u.layoutMessage(ctx, gtx, t, t.shown, k, false)
@@ -1069,7 +1086,7 @@ func (u *ui) layoutTimeline(ctx context.Context, gtx C) D {
 	}
 	if t.list.Position.First == 0 && t.next != "" && !t.loading && len(t.msgs) > 0 {
 		t.loading = true
-		go u.older(ctx, t.room, t.next)
+		go u.older(ctx, t.room, t.next, pageSize)
 	}
 	return dims
 }

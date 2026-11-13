@@ -36,7 +36,7 @@ const (
 // key, the first that applies to the pane acts ("enter" opens a room in the list, and
 // goes to what a reply answers in the timeline).
 var actions = []action{
-	{"help", false}, {"jump_to", true}, {"jump_back", true}, {"jump_forward", true},
+	{"help", false}, {"jump_to", true}, {"search.all", true}, {"search.room", false}, {"jump_back", true}, {"jump_forward", true},
 	{"focus_rail", true}, {"focus_rooms", true}, {"focus_timeline", true}, {"focus_composer", true},
 	{"focus_next", false}, {"focus_prev", false},
 	{"insert.send", true}, {"insert.attach", true}, {"insert.cancel", true},
@@ -80,7 +80,7 @@ func (u *ui) keys(ctx context.Context, gtx C) {
 		}
 	}
 	typing := u.typingIn != nil
-	if typing {
+	if typing && !u.blur { // a field losing the focus next frame keeps the pane moved to
 		u.pane = paneComposer
 	} else if u.pane == paneComposer {
 		u.pane = paneTimeline
@@ -136,9 +136,18 @@ func (u *ui) keys(ctx context.Context, gtx C) {
 // do acts on path in the pane the keys are in; false when it does not apply there.
 func (u *ui) do(ctx context.Context, gtx C, path string, count int) bool {
 	t := &u.timeline
+	if u.searching != nil && u.pane == paneRooms && strings.HasPrefix(path, "nav.") {
+		return u.browseHits(ctx, path, count)
+	}
 	switch path {
 	case "help":
 		u.helping = &helpView{list: widget.List{List: layout.List{Axis: layout.Vertical}}}
+	case "search.all", "search.room":
+		u.searchScope = scopeAll
+		if path == "search.room" && u.current != "" {
+			u.searchScope = scopeRoom
+		}
+		u.focus = &u.search
 	case "jump_to":
 		u.focus = &u.filter
 	case "jump_back":

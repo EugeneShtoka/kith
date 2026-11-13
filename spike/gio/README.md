@@ -54,7 +54,10 @@ has the link's chat open or was used last. A link it is handed opens the chat it
 among the profile's rooms (the first, as the desktop takes), at the message it names once
 loaded, and raises the window (X11; Wayland has no raise without xdg-activation).
 
-Search, People and Settings are drawn but do nothing; "system" theme mode is dark.
+Search is the desktop's (`search.go`): words with `from:`, `since:` and `until:`, everywhere,
+in the place shown or in the open room (Ctrl+F and `/`), hits in the room list's place, a hit
+opening its room at its message, read back page by page when older than those loaded (a link's
+message too). People and Settings are drawn but do nothing; "system" theme mode is dark.
 
 ## Build and run
 
@@ -123,6 +126,5 @@ With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, G
   room in them, so clicking one reaches no window, the desktop's included; what reaches a
   window is a link opened elsewhere (`kith --open`, kithd's Follow). Making a popup open
   its room needs kith-notify to carry the room and handle the default action.
-- **Not done here:** the thread composer's draft is not kept; a linked message older than
-  the pages loaded is not fetched (the desktop reads the room around it); a link handed
-  over picks the first chat it names where the TUI asks which account.
+- **Not done here:** the thread composer's draft is not kept; a link handed over picks the
+  first chat it names where the TUI asks which account.
