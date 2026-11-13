@@ -100,7 +100,8 @@ says so, and comes back in its composer when you open the room again, in whichev
 profile holds it. A reload keeps it the same way.
 
 Notifications are not the window's: `kith-notify` shows them, as it does for the
-terminal client, so a message never pops up twice.
+terminal client, so a message never pops up twice. Clicking one opens its message in
+the kith window kithd picks.
 
 ## The window
 

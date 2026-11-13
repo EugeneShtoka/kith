@@ -44,6 +44,9 @@ type Notification struct {
 	Silent bool
 	// Replaces is a coalescing key (the room) whose previous popup this one supersedes.
 	Replaces string
+	// Link is the kith link (domain.KithLink) to the message or room it is about, which
+	// a click on the popup follows; "" for none.
+	Link string
 }
 
 // Templates are the user's title and body formats; an empty template renders empty.
@@ -180,6 +183,8 @@ type Settings struct {
 	// Report, when set, receives every failed delivery; Notify returns nothing, so
 	// otherwise failures are silent. Called from any goroutine.
 	Report func(sink string, err error)
+	// Clicks, when set, makes a desktop popup with a Link clickable: a click follows it.
+	Clicks *Clicks
 }
 
 // reporter is Settings.Report made safe to call when unset.
@@ -196,7 +201,7 @@ func New(s Settings) Notifier {
 	tpl, command, soundCommand, report := s.Templates, s.Command, s.SoundCommand, reporter(s.Report)
 	var sinks multi
 	if s.Desktop {
-		sinks = append(sinks, dbusSink{tpl: tpl, timeout: s.Timeout, ids: &popupIDs{}, report: report})
+		sinks = append(sinks, dbusSink{tpl: tpl, timeout: s.Timeout, ids: &popupIDs{}, report: report, clicks: s.Clicks})
 	}
 	if command != "" {
 		sinks = append(sinks, commandSink{template: command, tpl: tpl, report: report, run: newBounded()})
@@ -231,6 +236,7 @@ type dbusSink struct {
 	// ids maps coalescing keys to popup IDs so a popup replaces the room's previous one.
 	ids    *popupIDs
 	report reporter
+	clicks *Clicks // nil: popups take no clicks
 }
 
 // callTimeout bounds the D-Bus round trip to the notification daemon.
@@ -246,6 +252,12 @@ func (d dbusSink) Notify(n Notification) {
 	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 	defer cancel()
 	obj := conn.Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
+	clickable := d.clicks != nil && d.clicks.Open != nil && n.Link != ""
+	actions := []string{}
+	if clickable {
+		d.clicks.listening(conn, d.report)
+		actions = []string{clickAction, "Open"}
+	}
 	var id uint32
 	err = obj.CallWithContext(ctx, "org.freedesktop.Notifications.Notify", 0,
 		"kith",                // app_name
@@ -253,7 +265,7 @@ func (d dbusSink) Notify(n Notification) {
 		"",                    // app_icon
 		n.Render(d.tpl.Title), // summary
 		n.Render(d.tpl.Body),  // body
-		[]string{},            // actions
+		actions,               // a click's, when it opens something
 		n.hints(),             // sound-file / suppress-sound
 		expireTimeout(d.timeout),
 	).Store(&id)
@@ -262,6 +274,13 @@ func (d dbusSink) Notify(n Notification) {
 		return
 	}
 	d.remember(n, id)
+	if d.clicks != nil {
+		link := n.Link
+		if !clickable {
+			link = ""
+		}
+		d.clicks.shown(id, link) // a popup replaced in place drops the link it had
+	}
 }
 
 // replacing is the popup id this notification replaces; remember records the id it got.

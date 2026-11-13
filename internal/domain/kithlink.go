@@ -45,6 +45,16 @@ func ParseKithLink(uri string) (Place, bool) {
 	return Place{Kind: PlaceEvent, Room: room, Event: EventID(event)}, true
 }
 
+// KithLink is the kith link to room, or to event in it when one is named: what
+// ParseKithLink reads back.
+func KithLink(room RoomID, event EventID) string {
+	link := kithScheme + url.PathEscape(string(room))
+	if event != "" {
+		link += "?event=" + url.QueryEscape(string(event))
+	}
+	return link
+}
+
 // kithLinkRooms is the room a kith link names among rooms: that exact room, or none.
 func kithLinkRooms(place Place, rooms []Room) []Room {
 	for i := range rooms {

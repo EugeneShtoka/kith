@@ -65,8 +65,8 @@ func optionalLevel(key, spelled string) (*notify.Level, error) {
 }
 
 // NotifierReporting builds the delivery sinks, or a Nop when notifications are off;
-// report receives every failed delivery.
-func NotifierReporting(notifs config.DeviceNotifications, report func(sink string, err error)) notify.Notifier {
+// report receives every failed delivery, and clicks, when set, takes popups' clicks.
+func NotifierReporting(notifs config.DeviceNotifications, report func(sink string, err error), clicks *notify.Clicks) notify.Notifier {
 	if !notifs.Enabled {
 		return notify.Nop{}
 	}
@@ -77,12 +77,16 @@ func NotifierReporting(notifs config.DeviceNotifications, report func(sink strin
 		SoundCommand: notifs.SoundCommand,
 		Timeout:      notifs.PopupTimeout(),
 		Templates:    Templates(notifs),
+		Clicks:       clicks,
 	})
 }
 
-// NotifierSinks is NotifierReporting as a builder, for rebuilding sinks on reload.
-func NotifierSinks(report func(sink string, err error)) func(config.DeviceNotifications) notify.Notifier {
-	return func(notifs config.DeviceNotifications) notify.Notifier { return NotifierReporting(notifs, report) }
+// NotifierSinks is NotifierReporting as a builder, for rebuilding sinks on reload; every
+// notifier it builds shares clicks.
+func NotifierSinks(report func(sink string, err error), clicks *notify.Clicks) func(config.DeviceNotifications) notify.Notifier {
+	return func(notifs config.DeviceNotifications) notify.Notifier {
+		return NotifierReporting(notifs, report, clicks)
+	}
 }
 
 // NotificationLimit is how much one room may interrupt you with, resolved.

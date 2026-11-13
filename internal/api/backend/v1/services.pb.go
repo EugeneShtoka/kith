@@ -13853,7 +13853,10 @@ type Notification struct {
 	Replaces string `protobuf:"bytes,13,opt,name=replaces,proto3" json:"replaces,omitempty"`
 	// A verification code to copy to the clipboard ([codes]), set on the notification
 	// announcing it; the listener copies it and says in the body whether it could.
-	Code          string `protobuf:"bytes,14,opt,name=code,proto3" json:"code,omitempty"`
+	Code string `protobuf:"bytes,14,opt,name=code,proto3" json:"code,omitempty"`
+	// The kith link (kith:<room>[?event=<event>]) to the message or room it is about,
+	// which a click on the popup follows; "" for none.
+	Link          string `protobuf:"bytes,15,opt,name=link,proto3" json:"link,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -13982,6 +13985,13 @@ func (x *Notification) GetReplaces() string {
 func (x *Notification) GetCode() string {
 	if x != nil {
 		return x.Code
+	}
+	return ""
+}
+
+func (x *Notification) GetLink() string {
+	if x != nil {
+		return x.Link
 	}
 	return ""
 }
@@ -21080,7 +21090,7 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"LinkedChat\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x19\n" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\"\x1b\n" +
-	"\x19NotificationStreamRequest\"\xcc\x02\n" +
+	"\x19NotificationStreamRequest\"\xe0\x02\n" +
 	"\fNotification\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06sender\x18\x02 \x01(\tR\x06sender\x12\x1b\n" +
@@ -21096,7 +21106,8 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x05rules\x18\v \x03(\tR\x05rules\x12\x16\n" +
 	"\x06silent\x18\f \x01(\bR\x06silent\x12\x1a\n" +
 	"\breplaces\x18\r \x01(\tR\breplaces\x12\x12\n" +
-	"\x04code\x18\x0e \x01(\tR\x04code\"Z\n" +
+	"\x04code\x18\x0e \x01(\tR\x04code\x12\x12\n" +
+	"\x04link\x18\x0f \x01(\tR\x04link\"Z\n" +
 	"\x1aNotificationStreamResponse\x12<\n" +
 	"\fnotification\x18\x01 \x01(\v2\x18.backend.v1.NotificationR\fnotification\"\x16\n" +
 	"\x14VerificationsRequest\"U\n" +

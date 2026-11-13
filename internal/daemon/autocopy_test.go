@@ -72,11 +72,12 @@ func TestAutoCopyPublishesTheCode(t *testing.T) {
 	published := rec.published()
 	for i := range published {
 		if p := &published[i]; p.Code == "482910" {
-			announced = p.Alert.Body == "482910" && p.Alert.Room == "SMS" && slices.Equal(p.Topics, []string{"default"})
+			announced = p.Alert.Body == "482910" && p.Alert.Room == "SMS" && slices.Equal(p.Topics, []string{"default"}) &&
+				p.Alert.Link == domain.KithLink(smsRoom, mx+"$1")
 		}
 	}
 	if !announced {
-		t.Errorf("published %+v, want the code to copy, announced by itself in the room, to the profile holding it", rec.published())
+		t.Errorf("published %+v, want the code to copy, announced by itself in the room, to the profile holding it, a click opening its message", rec.published())
 	}
 }
 
