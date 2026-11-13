@@ -63,12 +63,10 @@ func (u *ui) layoutDay(gtx C, at time.Time) D {
 	if at.Local().Year() != time.Now().Year() {
 		format = "Monday, January 2, 2006"
 	}
-	// A day's line is the stronger one, in the accent; a sender's run has the border's.
-	line := u.pal.accent
-	line.A = 0x99
+	// A day's line is in its date's color, stronger than a sender's run's border.
 	rule := func(gtx C) D {
 		size := image.Pt(gtx.Constraints.Min.X, gtx.Dp(1))
-		paint.FillShape(gtx.Ops, line, clip.Rect{Max: size}.Op())
+		paint.FillShape(gtx.Ops, u.pal.muted, clip.Rect{Max: size}.Op())
 		return D{Size: size}
 	}
 	return layout.Inset{Left: unit.Dp(14), Right: unit.Dp(16), Top: unit.Dp(14), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx C) D {
