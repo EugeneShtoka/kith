@@ -12,6 +12,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	gtext "gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
 
@@ -115,4 +116,24 @@ func taken(slots map[string]int, slot int) bool {
 		}
 	}
 	return false
+}
+
+// layoutNew is the line over the first message that came after the read receipt as the
+// room opened (the desktop's unread line): "New" at its end, in the mention color.
+func (u *ui) layoutNew(gtx C) D {
+	return layout.Inset{Left: unit.Dp(14), Right: unit.Dp(16), Top: unit.Dp(10)}.Layout(gtx, func(gtx C) D {
+		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx C) D {
+				size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(1))
+				paint.FillShape(gtx.Ops, u.pal.mention, clip.Rect{Max: size}.Op())
+				return D{Size: size}
+			}),
+			layout.Rigid(func(gtx C) D {
+				l := material.Caption(u.th, "New")
+				l.Color, l.Font.Weight, l.Alignment = u.pal.mention, font.Bold, gtext.End
+				return l.Layout(gtx)
+			}),
+		)
+	})
 }

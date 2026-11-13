@@ -14,6 +14,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 
+	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -21,8 +22,9 @@ import (
 // filtered by kithd (domain.ShownRows), and the row the room list shows.
 type rail struct {
 	rows     []domain.RailRow
-	holds    []map[domain.RoomID]bool // each row's rooms
-	silenced map[domain.RoomID]bool   // a silent tag holds it: no unread counted
+	holds    []map[domain.RoomID]bool            // each row's rooms
+	silenced map[domain.RoomID]bool              // a silent tag holds it: no unread counted
+	served   map[domain.RoomID]domain.ServedRoom // each room as kithd served it: its home
 	sel      int
 	btns     []widget.Clickable
 	list     widget.List
@@ -43,7 +45,9 @@ func (u *ui) loadRail(ctx context.Context) {
 		}
 	}
 	silenced := map[domain.RoomID]bool{}
+	rooms := make(map[domain.RoomID]domain.ServedRoom, len(served.Rooms))
 	for _, room := range served.Rooms {
+		rooms[domain.RoomID(room.Facts.ID)] = room
 		if room.Silenced {
 			silenced[domain.RoomID(room.Facts.ID)] = true
 		}
@@ -58,7 +62,7 @@ func (u *ui) loadRail(ctx context.Context) {
 			}
 		}
 	}
-	u.rail.rows, u.rail.holds, u.rail.silenced, u.rail.sel = served.Rows, holds, silenced, sel
+	u.rail.rows, u.rail.holds, u.rail.silenced, u.rail.served, u.rail.sel = served.Rows, holds, silenced, rooms, sel
 	u.rail.btns = make([]widget.Clickable, len(served.Rows))
 	u.rail.list.Axis = layout.Vertical
 	u.mu.Unlock()
@@ -146,4 +150,14 @@ func (u *ui) layoutRail(gtx C) D {
 			}),
 		)
 	})
+}
+
+// readRules are the device's [[display.read_rule]]s as domain.ResolveRead takes them;
+// only whether a receipt is announced matters here, not the list cursor's delay.
+func readRules(d config.DeviceDisplay) []domain.ReadRule {
+	rules := make([]domain.ReadRule, len(d.ReadRules))
+	for i, r := range d.ReadRules {
+		rules[i] = domain.ReadRule{Match: r.Match, Sender: r.Sender, Send: r.Send}
+	}
+	return rules
 }

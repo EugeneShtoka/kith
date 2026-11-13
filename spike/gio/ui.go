@@ -118,8 +118,9 @@ type ui struct {
 	drafts         drafts                              // each room's draft as kithd stores it
 	editSaved      string                              // the composer's words an edit set aside
 
-	presents chan domain.RoomID // the room to tell kithd is open (present)
-	link     string             // a link kithd handed over before the rooms were read
+	presents chan domain.RoomID   // the room to tell kithd is open (present)
+	display  config.DeviceDisplay // the device's [display]: receipts, the unread line
+	link     string               // a link kithd handed over before the rooms were read
 }
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
@@ -143,6 +144,7 @@ type timeline struct {
 	list       widget.List
 	sel        domain.EventID // the main timeline's cursor
 	jump       domain.EventID // a linked message to select once loaded
+	unreadFrom domain.EventID // the read receipt's message as the room opened: "New" goes under it
 
 	members      []domain.Member // who a mention may name, ranked by kithd
 	membersAsked bool
@@ -155,14 +157,15 @@ type picture struct {
 	err error
 }
 
-func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, keys config.Keys) *ui {
+func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev config.Device) *ui {
+	keys := dev.Keys
 	u := &ui{
 		w: w, backend: backend, th: material.NewTheme(), local: local, pal: pal, railShown: true,
 		keymap: newKeymap(keys, actions), pane: paneComposer, selves: map[string]bool{},
 		mentions: map[*widget.Editor][]domain.Mention{}, drafts: newDrafts(),
 		unread: map[domain.RoomID]domain.Unread{}, faces: map[face]*picture{}, saves: map[domain.EventID]*save{},
 		last: map[domain.RoomID]time.Time{}, typing: map[domain.RoomID][]string{},
-		presents: make(chan domain.RoomID, 1), completionKeys: map[string]string{},
+		presents: make(chan domain.RoomID, 1), completionKeys: map[string]string{}, display: dev.Display,
 	}
 	for _, path := range []string{"completion.next", "completion.prev", "completion.accept", "completion.dismiss"} {
 		binding, _ := keys.Binding(path)
@@ -296,6 +299,7 @@ func (u *ui) open(ctx context.Context, room domain.RoomID) {
 	u.focus = &u.composer
 	u.timeline = timeline{
 		room: room, loading: true, slots: map[string]int{}, threads: map[domain.EventID][]domain.Thread{},
+		unreadFrom: u.unread[room].ReadEvent,
 		pictures:   map[string]string{},
 		state:      map[domain.EventID]*msgState{},
 		reactions:  map[domain.EventID][]domain.Reaction{},
@@ -509,15 +513,16 @@ func (u *ui) reloadUnread(ctx context.Context) {
 }
 
 // markRead sends a receipt for the open room's newest main-timeline message, once per
-// message, while the window has focus. Always private: the read policy's rules (who
-// may see a receipt) are the TUI's to resolve, and the spike doesn't port them.
+// message, while the window has focus: announced or private as send_receipts and the
+// [[display.read_rule]] naming the room, its home or the sender say (domain.ResolveRead).
 func (u *ui) markRead(ctx context.Context) {
 	u.mu.Lock()
 	t := &u.timeline
 	var newest domain.EventID
+	place := domain.DownloadPlace{RoomID: string(t.room)}
 	for _, m := range slices.Backward(t.msgs) {
 		if m.ThreadRoot == "" {
-			newest = m.ID
+			newest, place.Sender, place.Person = m.ID, m.Sender, sender(m)
 			break
 		}
 	}
@@ -531,10 +536,14 @@ func (u *ui) markRead(ctx context.Context) {
 		return
 	}
 	t.marked = newest
+	if r, ok := u.rail.served[room]; ok {
+		place.Space, place.SpaceLabel = r.Home, r.HomeLabel
+	}
+	private := !domain.ResolveRead(u.display.SendsReceipts(), u.display.ReadAfter(), readRules(u.display), place).Send
 	u.mu.Unlock()
 	go func() {
-		log.Printf("read receipt: %s at %s", room, newest)
-		if err := u.backend.MarkRead(ctx, room, newest, true); err != nil {
+		log.Printf("read receipt: %s at %s (private %v)", room, newest, private)
+		if err := u.backend.MarkRead(ctx, room, newest, private); err != nil {
 			log.Printf("read receipt: %v", err)
 			u.mu.Lock()
 			if u.timeline.room == room && u.timeline.marked == newest {
@@ -957,13 +966,17 @@ func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, list []int, 
 	}
 	st := t.stateOf(m.ID)
 	newDay := prev < 0 || !sameDay(t.msgs[prev].Timestamp, m.Timestamp)
-	head := newDay || t.msgs[prev].Sender != m.Sender ||
+	newSince := !inThread && prev >= 0 && t.msgs[prev].ID == t.unreadFrom && u.display.ShowUnreadLine()
+	head := newDay || newSince || t.msgs[prev].Sender != m.Sender ||
 		m.Timestamp.Sub(t.msgs[prev].Timestamp) > 10*time.Minute
 	const faceSize = 32
 	var rows []layout.FlexChild
 	if newDay {
 		rows = append(rows, layout.Rigid(func(gtx C) D { return u.layoutDay(gtx, m.Timestamp) }))
-	} else if head {
+	}
+	if newSince {
+		rows = append(rows, layout.Rigid(u.layoutNew))
+	} else if head && !newDay {
 		rows = append(rows, layout.Rigid(func(gtx C) D {
 			return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx C) D {
 				size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(1))
