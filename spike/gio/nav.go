@@ -405,7 +405,7 @@ func (u *ui) onMessage(ctx context.Context, gtx C, path string) bool {
 		if !m.Media.IsImage() || p == nil || !p.ok {
 			return false
 		}
-		u.viewing = &p.op
+		u.viewImage(ctx, t.room, m.ID, p)
 	case "timeline.play":
 		if m.Media == nil || m.Media.Type != domain.MediaVideo && m.Media.Type != domain.MediaAudio {
 			return false

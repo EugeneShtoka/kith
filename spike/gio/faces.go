@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"image"
 	"image/color"
@@ -77,7 +76,7 @@ func (u *ui) layoutFace(ctx context.Context, gtx C, f face, version, id, name st
 		if p == nil {
 			p = new(picture)
 			u.faces[f] = p
-			go u.loadFace(ctx, f, p)
+			go u.loadFace(ctx, f, p, px)
 		}
 		if p.ok {
 			defer clip.UniformRRect(image.Rectangle{Max: box}, radius).Push(gtx.Ops).Pop()
@@ -94,15 +93,20 @@ func (u *ui) layoutFace(ctx context.Context, gtx C, f face, version, id, name st
 	return D{Size: box}
 }
 
-func (u *ui) loadFace(ctx context.Context, f face, p *picture) {
+// loadFace reads f's picture at px square, the size it is first drawn at.
+// shortcut: a picture that is not square fits in px×px and Cover then enlarges it, a
+// little soft; scale its short side to px if non-square faces turn up.
+func (u *ui) loadFace(ctx context.Context, f face, p *picture, px int) {
 	data, err := u.backend.LoadPicture(ctx, f.room, f.person)
-	var img image.Image
+	var img paint.ImageOp
+	got := false
 	if err == nil && len(data) > 0 {
-		img, _, err = image.Decode(bytes.NewReader(data))
+		img, err = decode(data, px, px)
+		got = err == nil
 	}
 	u.mu.Lock()
-	if err == nil && img != nil {
-		p.op, p.ok = paint.NewImageOp(img), true
+	if got {
+		p.op, p.ok = img, true
 	}
 	p.err = err
 	u.mu.Unlock()

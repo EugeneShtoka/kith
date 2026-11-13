@@ -12,6 +12,7 @@ import (
 	_ "image/png"
 	"log"
 	"maps"
+	"math"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -28,6 +29,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 
 	"github.com/EugeneShtoka/kith/internal/config"
@@ -405,15 +407,20 @@ func (t *timeline) upsert(msgs []domain.Message) int {
 		oldest = t.msgs[0].Timestamp
 	}
 	before := 0
+	at := make(map[domain.EventID]int, len(t.msgs)+len(msgs))
+	for i, h := range t.msgs {
+		at[h.ID] = i
+	}
 	for _, m := range msgs {
 		m.Body = shortcodes(m.Body)
-		if i := slices.IndexFunc(t.msgs, func(h domain.Message) bool { return h.ID == m.ID }); i >= 0 {
+		if i, ok := at[m.ID]; ok {
 			t.msgs[i] = m
 			continue
 		}
 		if !oldest.IsZero() && m.Timestamp.Before(oldest) && isMain(m) {
 			before++
 		}
+		at[m.ID] = len(t.msgs)
 		t.msgs = append(t.msgs, m)
 	}
 	slices.SortStableFunc(t.msgs, func(a, b domain.Message) int {
@@ -992,7 +999,7 @@ func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, list []int, 
 	case m.Media.IsImage():
 		if st.image.Clicked(gtx) {
 			if p := t.images[m.ID]; p != nil && p.ok {
-				u.viewing = &p.op
+				u.viewImage(ctx, t.room, m.ID, p)
 			}
 		}
 		body = append(body, layout.Rigid(func(gtx C) D {
@@ -1099,7 +1106,7 @@ func (u *ui) layoutImage(ctx context.Context, gtx C, t *timeline, m domain.Messa
 	if p == nil {
 		p = new(picture)
 		t.images[m.ID] = p
-		go u.loadImage(ctx, t.room, m.ID, p)
+		go u.loadImage(ctx, t.room, m.ID, p, maxW, maxH)
 	}
 	if !p.ok {
 		w, h := maxW, maxH/2
@@ -1116,21 +1123,63 @@ func (u *ui) layoutImage(ctx context.Context, gtx C, t *timeline, m domain.Messa
 	return widget.Image{Src: p.op, Fit: widget.Contain}.Layout(gtx)
 }
 
-func (u *ui) loadImage(ctx context.Context, room domain.RoomID, id domain.EventID, p *picture) {
+func (u *ui) loadImage(ctx context.Context, room domain.RoomID, id domain.EventID, p *picture, maxW, maxH int) {
 	data, err := u.backend.LoadImage(ctx, room, id)
-	var img image.Image
+	var img paint.ImageOp
 	if err == nil {
-		img, _, err = image.Decode(bytes.NewReader(data))
+		img, err = decode(data, maxW, maxH)
 	}
 	u.mu.Lock()
 	if err != nil {
 		p.err = err
 		log.Printf("image %s: %v", id, err)
 	} else {
-		p.op, p.ok = paint.NewImageOp(img), true
+		p.op, p.ok = img, true
 	}
 	u.mu.Unlock()
 	u.w.Invalidate()
+}
+
+// decode reads an image scaled down to fit maxW×maxH px, ready to draw. Kept at full
+// size, every photo scrolled past held megabytes for as long as its room was open.
+func decode(data []byte, maxW, maxH int) (paint.ImageOp, error) {
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return paint.ImageOp{}, err
+	}
+	b := img.Bounds()
+	w, h := fit(b.Dx(), b.Dy(), maxW, maxH)
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	if w == b.Dx() && h == b.Dy() {
+		draw.Draw(dst, dst.Bounds(), img, b.Min, draw.Src)
+	} else {
+		draw.CatmullRom.Scale(dst, dst.Bounds(), img, b, draw.Src, nil)
+	}
+	return paint.NewImageOp(dst), nil
+}
+
+// viewImage shows p, an image message's picture, over the window at once, and the image at
+// full size once read: the timeline keeps only the size it draws.
+func (u *ui) viewImage(ctx context.Context, room domain.RoomID, id domain.EventID, p *picture) {
+	shown := &p.op
+	u.viewing = shown
+	go func() {
+		data, err := u.backend.LoadImage(ctx, room, id)
+		var full paint.ImageOp
+		if err == nil {
+			full, err = decode(data, math.MaxInt, math.MaxInt)
+		}
+		if err != nil {
+			log.Printf("image %s: %v", id, err)
+			return
+		}
+		u.mu.Lock()
+		if u.viewing == shown {
+			u.viewing = &full
+		}
+		u.mu.Unlock()
+		u.w.Invalidate()
+	}()
 }
 
 // fit scales w×h down to fit maxW×maxH, never up.
