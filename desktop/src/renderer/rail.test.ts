@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BackendService, Change, RailResponseSchema, RailRowKind, RailRowSchema } from "../gen/backend/v1/services_pb";
 import { RoomSchema, UnreadSchema } from "../gen/backend/v1/types_pb";
 import { named, namesRow, rowUnread, silencedRooms } from "./rail";
+import { total } from "./rooms";
 import { peekAfter, Session } from "./session";
 import { Kithd, room, settled } from "./testing/kithd";
 
@@ -285,6 +286,13 @@ describe("a row's badge", () => {
       rooms: [{ facts: { id: "!b" }, silenced: true }, { facts: { id: "!a" } }],
     });
     expect(rowUnread(row, unread, silencedRooms(rail))).toEqual({ count: 2, mentions: 1 });
+  });
+
+  it("is left out of the tray's count too", () => {
+    const rooms = [create(RoomSchema, { id: "!a" }), create(RoomSchema, { id: "!b" })];
+    const rail = create(RailResponseSchema, { rooms: [{ facts: { id: "!b" }, silenced: true }] });
+    expect(total(rooms, unread, silencedRooms(undefined))).toBe(7);
+    expect(total(rooms, unread, silencedRooms(rail))).toBe(2);
   });
 });
 

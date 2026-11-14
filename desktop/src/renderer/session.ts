@@ -3165,7 +3165,7 @@ export class Session {
     next.silenced = silencedRooms(run?.rail);
     next.rooms = listed(joined, run?.rail, next.row, next.open);
     next.joined = joined;
-    next.unreadTotal = total(joined, next.unread);
+    next.unreadTotal = total(joined, next.unread, next.silenced);
     // A hit is listed only while its room is in the profile: one that left since it was
     // found shows nothing of it.
     const search = run?.search;
