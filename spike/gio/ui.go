@@ -709,12 +709,16 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 }
 
 // title puts the unread count in the window's title, where the desktop has its tray
-// badge: every room's count summed, as its badge does (rooms.ts total).
+// badge: every room's count summed but those a silent tag holds, as its badge does
+// (rooms.ts total).
 // shortcut: no tray icon; a tray needs a new dependency (systray), wanted once this
 // window replaces the desktop.
 func (u *ui) title() {
 	n := 0
 	for _, r := range u.rooms {
+		if u.rail.silenced[r.ID] {
+			continue // counts_unread = false (Archived): counted as read, as on the rail
+		}
 		c, _ := u.unread[r.ID].Count(u.local)
 		n += c
 	}
