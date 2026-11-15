@@ -416,7 +416,7 @@ func (u *ui) onMessage(ctx context.Context, gtx C, path string) bool {
 	case "timeline.react":
 		u.picking = &picker{target: m.ID}
 	case "timeline.vote":
-		if m.Redacted || m.Poll == nil || len(pollButtons(m.Poll)) == 0 {
+		if m.Redacted || m.Poll == nil {
 			return false
 		}
 		u.voting = &pollCursor{event: m.ID}

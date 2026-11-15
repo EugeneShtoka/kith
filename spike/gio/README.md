@@ -28,7 +28,8 @@ thread open, which keeps its row once read; a thread read here sends its own rec
 Opening a thread's row opens it beside its room, and `z a` or the room's ▾ folds its
 threads away, kept in the device file as the TUI and the desktop keep them. A poll shows
 each answer's tally and share, yours marked; clicking an answer votes it (several are
-ticked, then voted), and a vote of one answer can be taken back.
+ticked, then voted), a vote of one answer can be taken back, and Who voted lists who chose
+each answer as far as the network names them.
 
 The device's `[keys]` drive the window, as they drive the desktop (`keys.go` ports its
 keymap: sequences such as `g g`, counts such as `12j`, and typing wins). The rail, the
@@ -129,7 +130,7 @@ With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, G
 - **Gio gives a key to the first reader in the frame whose filter matches**, not to the most
   specific filter, so the window-wide key reader runs last: anything earlier (an editor's
   arrows and Backspace, the picker's Esc) keeps its own keys.
-- **Not done here:** the thread composer's draft is not kept; a poll's "Who voted" and
-  asking a poll (the desktop's form, the TUI's `/poll`); `in_room_list = "all"` lists
+- **Not done here:** the thread composer's draft is not kept; asking a poll (the desktop's
+  form, the TUI's `/poll`); `in_room_list = "all"` lists
   only the threads `"unread"` does, as kithd's thread list is not read per room; a link handed over picks the
   first chat it names where the TUI asks which account.

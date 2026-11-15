@@ -16,17 +16,17 @@ func poll(multiple bool, mine ...string) *domain.Poll {
 }
 
 // An open poll's buttons are its answers, then Vote where several may be ticked, or Take
-// my vote back once one answer is chosen; a closed one has none.
+// my vote back once one answer is chosen, then Who voted; a closed one has Who voted alone.
 func TestAPollsButtons(t *testing.T) {
 	for _, tc := range []struct {
 		what string
 		p    *domain.Poll
 		want []int
 	}{
-		{"one answer, not voted", poll(false), []int{0, 1, 2}},
-		{"one answer, voted", poll(false, "b"), []int{0, 1, 2, pollBack}},
-		{"several", poll(true), []int{0, 1, 2, pollVote}},
-		{"closed", &domain.Poll{Closed: true, Options: poll(false, "a").Options}, nil},
+		{"one answer, not voted", poll(false), []int{0, 1, 2, pollWho}},
+		{"one answer, voted", poll(false, "b"), []int{0, 1, 2, pollBack, pollWho}},
+		{"several", poll(true), []int{0, 1, 2, pollVote, pollWho}},
+		{"closed", &domain.Poll{Closed: true, Options: poll(false, "a").Options}, []int{pollWho}},
 	} {
 		if got := pollButtons(tc.p); !slices.Equal(got, tc.want) {
 			t.Errorf("%s: buttons %v, want %v", tc.what, got, tc.want)
@@ -64,4 +64,28 @@ func TestPressingAPoll(t *testing.T) {
 	press(&s, several, pollVote, nil, true)
 
 	press(&s, poll(true), pollVote, nil, false)
+}
+
+// Who chose each answer: "you" first, then by name, those counted but not named as
+// "n more", an answer no one chose left out; or why no one is named.
+func TestWhoVoted(t *testing.T) {
+	u := &ui{selves: map[string]bool{"@me": true}}
+	p := poll(false, "a")
+	p.Options[0].Votes, p.Options[1].Votes = 3, 1
+	v := &votersRead{read: true, voters: domain.PollVoters{Voters: []domain.PollVoter{
+		{ID: "@zed", KnownAs: "Zed", Options: []string{"a"}},
+		{ID: "@me", KnownAs: "Me", Options: []string{"a"}},
+		{ID: "@bo", Name: "bo", Options: []string{"b"}},
+	}}}
+	want := []string{"a: you, Zed, 1 more", "b: bo"}
+	if got := u.voterLines(p, v); !slices.Equal(got, want) {
+		t.Errorf("lines %q, want %q", got, want)
+	}
+	v.voters = domain.PollVoters{Hidden: domain.PollAnonymous}
+	if got := u.voterLines(p, v); len(got) != 1 || got[0] != "An anonymous poll: no one who voted is named" {
+		t.Errorf("anonymous: %q", got)
+	}
+	if got := u.voterLines(poll(false), &votersRead{read: true}); len(got) != 1 || got[0] != "No one has voted yet" {
+		t.Errorf("no votes: %q", got)
+	}
 }
