@@ -39,7 +39,7 @@ var actions = []action{
 	{"help", false}, {"jump_to", true}, {"search.all", true}, {"search.room", false}, {"jump_back", true}, {"jump_forward", true},
 	{"focus_rail", true}, {"focus_rooms", true}, {"focus_timeline", true}, {"focus_composer", true},
 	{"focus_next", false}, {"focus_prev", false},
-	{"insert.send", true}, {"insert.attach", true}, {"insert.cancel", true},
+	{"insert.send", true}, {"insert.attach", true}, {"insert.cancel", true}, {"spell.open_insert", true},
 	{"rail.mark_read", false},
 	{"rooms.mark_read", false}, {"rooms.mark_all_read", false}, {"rooms.mark_unread", false}, {"rooms.fold_threads", false},
 	{"rooms.name", false}, {"rooms.spaces", false}, {"timeline.name", false},
@@ -193,7 +193,7 @@ func (u *ui) do(ctx context.Context, gtx C, path string, count int) bool {
 			next = (next + pane(step)) % 4
 		}
 		u.toPane(next)
-	case "insert.send", "insert.attach", "insert.cancel":
+	case "insert.send", "insert.attach", "insert.cancel", "spell.open_insert":
 		return u.composing(ctx, path)
 	case "rail.mark_read":
 		if u.pane != paneRail || len(u.rail.rows) == 0 {
@@ -586,6 +586,8 @@ func (u *ui) composing(ctx context.Context, path string) bool {
 			return false
 		}
 		go u.attach(ctx, u.current)
+	case "spell.open_insert":
+		u.openWalk(ed)
 	case "insert.cancel":
 		if u.replyTo != "" || u.editing != "" {
 			u.dropReplyOrEdit()

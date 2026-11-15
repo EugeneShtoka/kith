@@ -50,7 +50,13 @@ now show), `S` files it into spaces and tags (space ticks, Enter files), and `a`
 message makes its sender one of your people ("same person as": one picked keeps their
 color and picture). Ctrl+V in a composer asks the clipboard (xclip, or wl-paste
 under Wayland) first: copied files or an image are offered to send here (y sends), text
-pastes as before; a file dropped on the window is not taken (Gio receives no drops). The
+pastes as before; a file dropped on the window is not taken (Gio receives no drops).
+kithd checks a composer's spelling after a pause, marked under the words (`[spell]`
+underline and rare_underline; none on the word being typed); `[keys.spell] open_insert`
+walks the marks (a number takes a suggestion, `a` adds, `i` ignores, `s` skips). The word
+being typed is completed from what has been said: one clearly leading is drawn after the
+caret, and Right or Tab takes it. No autocorrect, check before send, model or phrase
+completion yet. The
 composer completes `:name` into emoji and `@name` into a mention (people as kithd offers them: Matrix,
 LinkedIn and Instagram rooms), and turns a typed `:name:` into its emoji; the popup's keys
 are `[keys.completion]`'s. `/` at the start offers the commands the window does: `/me`,

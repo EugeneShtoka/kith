@@ -125,6 +125,11 @@ type ui struct {
 	mentions       map[*widget.Editor][]domain.Mention // people chosen into each composer's draft
 	drafts         drafts                              // each room's draft as kithd stores it
 	editSaved      string                              // the composer's words an edit set aside
+	spells         map[*widget.Editor]*spelling        // each composer's marks, walk and completion
+	spellKeys      map[string]string                   // [keys.spell]: the walk's presses
+	ghostKeys      map[string]string                   // [keys.insert] complete, complete_all
+	spellConf      config.DeviceSpell                  // the device's [spell]
+	completeConf   config.DeviceComplete               // and [complete]
 
 	presents    chan domain.RoomID   // the room to tell kithd is open (present)
 	display     config.DeviceDisplay // the device's [display]: receipts, the unread line
@@ -191,6 +196,20 @@ func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev c
 		presents: make(chan domain.RoomID, 1), completionKeys: map[string]string{}, display: dev.Display, jumps: keys.Jump,
 		helpRows: helpRows(keys), imageSlots: make(chan struct{}, max(1, runtime.NumCPU()/2)),
 		rowBtns: map[rowKey]*widget.Clickable{}, devicePath: devicePath,
+		spells: map[*widget.Editor]*spelling{}, spellKeys: map[string]string{}, ghostKeys: map[string]string{},
+		spellConf: dev.Spell, completeConf: dev.Complete,
+	}
+	for _, path := range spellPaths {
+		binding, _ := keys.Binding(path)
+		for _, press := range config.SplitKeys(binding) {
+			u.spellKeys[press] = path
+		}
+	}
+	for _, path := range []string{"insert.complete", "insert.complete_all"} {
+		binding, _ := keys.Binding(path)
+		for _, press := range config.SplitKeys(binding) {
+			u.ghostKeys[press] = path
+		}
 	}
 	for _, path := range []string{"completion.next", "completion.prev", "completion.accept", "completion.dismiss"} {
 		binding, _ := keys.Binding(path)
@@ -1615,6 +1634,14 @@ func (u *ui) layoutEditor(ctx context.Context, gtx C, ed *widget.Editor, attach 
 	}
 	u.pasteKey(ctx, gtx, ed)
 	offer := u.complete(ctx, gtx, ed)
+	s := u.followWords(ctx, ed)
+	ghosted := ""
+	if caret, _ := ed.Selection(); offer == nil && s.walk == nil {
+		if typed := wordBeingTyped([]rune(ed.Text()), caret); strings.EqualFold(typed, s.prefix) {
+			ghosted = ghost(typed, s.words, u.completeConf.RatioOrDefault())
+		}
+	}
+	u.walkKeys(ctx, gtx, ed, s, ghosted)
 	if attach != nil && attach.Clicked(gtx) {
 		go u.attach(ctx, u.current)
 	}
@@ -1626,7 +1653,7 @@ func (u *ui) layoutEditor(ctx context.Context, gtx C, ed *widget.Editor, attach 
 					if u.sendError != "" {
 						h = u.sendError
 					}
-					return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, u.editor(ed, h).Layout)
+					return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx C) D { return u.layoutWords(gtx, ed, s, ghosted, h) })
 				})}
 				if attach != nil {
 					rows = append(rows, layout.Rigid(func(gtx C) D {
@@ -1642,6 +1669,7 @@ func (u *ui) layoutEditor(ctx context.Context, gtx C, ed *widget.Editor, attach 
 		})
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx C) D { return u.layoutWalk(gtx, s) }),
 		layout.Rigid(func(gtx C) D { return u.layoutCompletion(gtx, offer) }),
 		layout.Rigid(box))
 }
