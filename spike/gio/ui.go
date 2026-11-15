@@ -1663,6 +1663,14 @@ func (u *ui) submit(ctx context.Context, ed *widget.Editor, root domain.EventID)
 	if body == "" {
 		return
 	}
+	if ed != &u.composer || u.editing == "" { // an edit's words are the message
+		if u.command(ctx, ed, root, body) {
+			return
+		}
+		if strings.HasPrefix(body, "//") {
+			body = body[1:] // `//` sends one slash
+		}
+	}
 	ed.SetText("")
 	draft := domain.Draft{Body: body, ThreadRoot: root, Mentions: u.mentions[ed]}
 	delete(u.mentions, ed)

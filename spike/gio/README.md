@@ -46,7 +46,10 @@ day, or to what a reply answers. `m` / `M` / Ctrl+M mark a room read or unread f
 list (on a thread's row, `m` marks the thread), and `m` on a rail row marks the row read
 (asks first). The composer completes `:name` into emoji and `@name` into a mention (people as kithd offers them: Matrix,
 LinkedIn and Instagram rooms), and turns a typed `:name:` into its emoji; the popup's keys
-are `[keys.completion]`'s. A room's unsent text, reply and edit are kithd's draft
+are `[keys.completion]`'s. `/` at the start offers the commands the window does: `/me`,
+`/plain`, `/upload`, `/at` and `/in` (queued in kithd to send later), `/search` and `/poll`;
+the TUI's others say so, `//` sends one slash, and any other slash word is refused, as the
+commands folder is not read here. A room's unsent text, reply and edit are kithd's draft
 (`drafts.go`, the desktop's `drafts.ts` in less), which any number of windows and kith-mcp
 write: written over the version last read after a pause in typing, and read at start, when
 the window gets the focus back, and whenever kithd says drafts changed (`CHANGE_DRAFTS`).
@@ -130,7 +133,7 @@ With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, G
 - **Gio gives a key to the first reader in the frame whose filter matches**, not to the most
   specific filter, so the window-wide key reader runs last: anything earlier (an editor's
   arrows and Backspace, the picker's Esc) keeps its own keys.
-- **Not done here:** the thread composer's draft is not kept; asking a poll (the desktop's
-  form, the TUI's `/poll`); `in_room_list = "all"` lists
+- **Not done here:** the thread composer's draft is not kept; the desktop's poll form (`/poll`
+  asks one), `/scheduled` and the commands folder; `in_room_list = "all"` lists
   only the threads `"unread"` does, as kithd's thread list is not read per room; a link handed over picks the
   first chat it names where the TUI asks which account.
