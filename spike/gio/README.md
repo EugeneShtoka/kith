@@ -60,9 +60,13 @@ completion yet. The
 composer completes `:name` into emoji and `@name` into a mention (people as kithd offers them: Matrix,
 LinkedIn and Instagram rooms), and turns a typed `:name:` into its emoji; the popup's keys
 are `[keys.completion]`'s. `/` at the start offers the commands the window does: `/me`,
-`/plain`, `/upload`, `/at` and `/in` (queued in kithd to send later), `/search` and `/poll`;
-the TUI's others say so, `//` sends one slash, and any other slash word is refused, as the
-commands folder is not read here. A room's unsent text, reply and edit are kithd's draft
+`/plain`, `/upload`, `/at` and `/in` (queued in kithd to send later), `/search`,
+`/scheduled` (the queue, this room's or every room's, with Cancel and Try again), `/poll`,
+`/topic`, `/shortcut` (a `[[keys.jump]]` written to the device file) and `/replacement`;
+then the commands folder's that run in the room (`commands.go`), which the window runs
+itself as the TUI does, argument and all, their output going where their `[[command]]`
+says. The TUI's others say so, `//` sends one slash, and any other slash word is a message.
+The Poll button opens the desktop's form for one. A room's unsent text, reply and edit are kithd's draft
 (`drafts.go`, the desktop's `drafts.ts` in less), which any number of windows and kith-mcp
 write: written over the version last read after a pause in typing, and read at start, when
 the window gets the focus back, and whenever kithd says drafts changed (`CHANGE_DRAFTS`).
@@ -146,7 +150,7 @@ With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, G
 - **Gio gives a key to the first reader in the frame whose filter matches**, not to the most
   specific filter, so the window-wide key reader runs last: anything earlier (an editor's
   arrows and Backspace, the picker's Esc) keeps its own keys.
-- **Not done here:** the thread composer's draft is not kept; the desktop's poll form (`/poll`
-  asks one), `/scheduled` and the commands folder; `in_room_list = "all"` lists
+- **Not done here:** the thread composer's draft is not kept; a folder command's
+  `[keys]` binding (the TUI's script keys); `in_room_list = "all"` lists
   only the threads `"unread"` does, as kithd's thread list is not read per room; a link handed over picks the
   first chat it names where the TUI asks which account.

@@ -24,6 +24,7 @@ import (
 // under the cursor.
 type linkChoice struct {
 	copy  bool
+	take  func(link string) // what takes the link, a command's; nil copies or opens it
 	links []string
 	at    int
 	btns  []widget.Clickable
@@ -88,13 +89,22 @@ func (u *ui) chooseLink(ctx context.Context, gtx C, path string) bool {
 		l.at = min(len(l.links)-1, l.at+1)
 	case "picker.accept":
 		u.linking = nil
-		u.useLink(ctx, gtx, l.copy, l.links[l.at])
+		u.pickLink(ctx, gtx, l, l.links[l.at])
 	case "picker.close":
 		u.linking = nil
 	default:
 		return false
 	}
 	return true
+}
+
+// pickLink gives the link picked to what asked for it.
+func (u *ui) pickLink(ctx context.Context, gtx C, l *linkChoice, link string) {
+	if l.take != nil {
+		l.take(link)
+		return
+	}
+	u.useLink(ctx, gtx, l.copy, link)
 }
 
 // layoutLinking draws the chooser as a card over the window.
@@ -107,7 +117,7 @@ func (u *ui) layoutLinking(ctx context.Context, gtx C) {
 	for i := range l.btns {
 		if l.btns[i].Clicked(gtx) {
 			u.linking = nil
-			u.useLink(ctx, gtx, l.copy, l.links[i])
+			u.pickLink(ctx, gtx, l, l.links[i])
 			return
 		}
 	}

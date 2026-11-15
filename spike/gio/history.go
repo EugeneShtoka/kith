@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"image"
 	"strconv"
@@ -21,7 +22,8 @@ import (
 // shown as a card over the window: every version it had, oldest first, with when and by
 // how much it changed, and its deletion, as kithd's MessageHistory tells them. A
 // message's "(edited)" opens it too. [keys.nav] up and down scroll it; history, back or
-// close close it, as a click outside does.
+// close close it, as a click outside does. The same card shows what is not a message's
+// history: a room's topic, a command's output, the send queue (rowsOf).
 
 // historyView is the card while it is up: its message, and what kithd said (read false
 // while it is asked).
@@ -34,11 +36,37 @@ type historyView struct {
 	list      widget.List
 	close     widget.Clickable
 	card      widget.Clickable // takes the card's clicks, so only one outside closes it
+	title     string           // "" is History
+	rowsOf    func() []historyRow
 }
 
 // historyRow is one line of the card: a heading (when, and what happened) over words,
-// either of which may be "".
-type historyRow struct{ head, body string }
+// either of which may be "", and buttons under them.
+type historyRow struct {
+	head, body string
+	buttons    []cardButton
+}
+
+// cardButton is a button under a card's line: what a click does runs as the window lays
+// out, holding mu.
+type cardButton struct {
+	label string
+	click *widget.Clickable
+	do    func()
+}
+
+// openReading shows body in the card to read, under title: a room's topic, or what a
+// command printed for reading.
+func (u *ui) openReading(title, body string, truncated bool) {
+	rows := []historyRow{{body: body}}
+	if truncated {
+		rows = append([]historyRow{{head: "More than fits: the first 8 KB."}}, rows...)
+	}
+	u.revisions = &historyView{
+		title: title, rowsOf: func() []historyRow { return rows },
+		list: widget.List{List: layout.List{Axis: layout.Vertical}},
+	}
+}
 
 // openHistory shows m's history, read from kithd now.
 func (u *ui) openHistory(ctx context.Context, m domain.Message) {
@@ -58,6 +86,9 @@ func (u *ui) openHistory(ctx context.Context, m domain.Message) {
 // listed. Where none was kept, a message never edited is its own words (a deleted one's,
 // kept under [display.deleted] keep).
 func historyRows(h *historyView) []historyRow {
+	if h.rowsOf != nil {
+		return h.rowsOf()
+	}
 	m := h.msg
 	switch {
 	case !h.read:
@@ -146,6 +177,17 @@ func (u *ui) layoutHistory(gtx C) {
 		return
 	}
 	rows := historyRows(h)
+	for _, r := range rows {
+		for _, b := range r.buttons {
+			if b.click.Clicked(gtx) {
+				b.do()
+			}
+		}
+	}
+	if u.revisions != h {
+		return
+	}
+	rows = historyRows(h)
 	shade := u.pal.background
 	shade.A = 0x99
 	paint.FillShape(gtx.Ops, shade, clip.Rect{Max: gtx.Constraints.Max}.Op())
@@ -157,18 +199,11 @@ func (u *ui) layoutHistory(gtx C) {
 		m := op.Record(gtx.Ops)
 		dims := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx C) D {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(material.H6(u.th, "History").Layout),
+				layout.Rigid(material.H6(u.th, cmp.Or(h.title, "History")).Layout),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
 				layout.Flexed(1, func(gtx C) D {
 					return material.List(u.th, &h.list).Layout(gtx, len(rows), func(gtx C, i int) D {
-						return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, func(gtx C) D {
-							head := material.Caption(u.th, rows[i].head)
-							head.Color = u.pal.muted
-							return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-								layout.Rigid(head.Layout),
-								layout.Rigid(material.Body1(u.th, rows[i].body).Layout),
-							)
-						})
+						return u.cardLine(gtx, rows[i])
 					})
 				}),
 			)
@@ -181,4 +216,34 @@ func (u *ui) layoutHistory(gtx C) {
 		call.Add(gtx.Ops)
 		return dims
 	})
+}
+
+// cardLine is one line of the card: its heading, words and buttons, each it has.
+func (u *ui) cardLine(gtx C, r historyRow) D {
+	return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, func(gtx C) D {
+		var parts []layout.FlexChild
+		if r.head != "" {
+			head := material.Caption(u.th, r.head)
+			head.Color = u.pal.muted
+			parts = append(parts, layout.Rigid(head.Layout))
+		}
+		if r.body != "" {
+			parts = append(parts, layout.Rigid(material.Body1(u.th, r.body).Layout))
+		}
+		if len(r.buttons) > 0 {
+			parts = append(parts, layout.Rigid(func(gtx C) D { return u.cardButtons(gtx, r.buttons) }))
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, parts...)
+	})
+}
+
+// cardButtons are a line's buttons, in a row.
+func (u *ui) cardButtons(gtx C, buttons []cardButton) D {
+	children := make([]layout.FlexChild, 0, 2*len(buttons))
+	for _, b := range buttons {
+		children = append(children,
+			layout.Rigid(func(gtx C) D { return u.button(gtx, b.click, b.label, true, false) }),
+			layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout))
+	}
+	return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx C) D { return layout.Flex{}.Layout(gtx, children...) })
 }

@@ -32,12 +32,11 @@ func TestCommandOf(t *testing.T) {
 	}
 }
 
-// A command the window has not got, an unknown slash word, or one missing its words is
-// said and keeps them, sending nothing.
+// A command the window has not got, or one missing its words, is said and keeps them,
+// sending nothing.
 func TestACommandNotDoneKeepsItsWords(t *testing.T) {
 	for _, tc := range []struct{ words, said string }{
 		{"/leave", "/leave is in the TUI"},
-		{"/frobnicate x", "/frobnicate is not a command here"},
 		{"/me", "/me <what you are doing>"},
 		{"/at 25:00 hi", `/at "25:00" is not a time`},
 		{"/in 2h", "/in needs a time and a message"},
@@ -90,26 +89,28 @@ func TestPollOf(t *testing.T) {
 	}
 }
 
-// `/` at the start offers the window's commands by what is typed, until a space.
+// `/` at the start offers the window's commands by what is typed, until a space, then
+// the folder's (a command of the window's wins a name).
 func TestCommandOffers(t *testing.T) {
+	yours := func() []string { return []string{"plan", "poll", "zoom"} }
 	names := func(before string) []string {
 		var out []string
-		for _, c := range commandOffers(before) {
+		for _, c := range commandOffers(before, yours) {
 			out = append(out, c.put)
 		}
 		return out
 	}
-	if got := names("/"); len(got) != len(windowCommands) {
-		t.Errorf("/: %q, want every command", got)
+	if got := names("/"); len(got) != len(windowCommands)+2 {
+		t.Errorf("/: %q, want every command, and yours but /poll", got)
 	}
-	if got := names("/p"); !slices.Equal(got, []string{"/plain ", "/poll "}) {
+	if got := names("/p"); !slices.Equal(got, []string{"/plain ", "/poll ", "/plan"}) {
 		t.Errorf("/p: %q", got)
 	}
 	if got := names("/up"); !slices.Equal(got, []string{"/upload"}) {
 		t.Errorf("/up: %q", got)
 	}
 	for _, before := range []string{"/me ", "//", "hi /p", ""} {
-		if got := commandOffers(before); got != nil {
+		if got := commandOffers(before, yours); got != nil {
 			t.Errorf("%q: offered %v", before, got)
 		}
 	}

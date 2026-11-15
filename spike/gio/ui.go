@@ -148,6 +148,13 @@ type ui struct {
 	link        string               // a link kithd handed over before the rooms were read
 	devicePath  string               // the device file, where folds are kept
 	tray        *tray                // the tray icon, nil without a session bus
+	keyConf     config.Keys          // the device's [keys], as /shortcut last wrote them
+	device      config.Device        // the device's settings: its [[command]] blocks, [commands]
+	cmds        commandsAt           // the commands folder
+	running     string               // the folder's command running, "" for none
+	ran         *commandRan          // what one came to, to put where it goes next frame
+	asking      *pollForm            // the poll form, nil when closed
+	pollBtn     widget.Clickable
 }
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
@@ -198,7 +205,7 @@ func newUI(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev c
 		helpRows: helpRows(keys), imageSlots: make(chan struct{}, max(1, runtime.NumCPU()/2)),
 		rowBtns: map[rowKey]*widget.Clickable{}, devicePath: devicePath,
 		spells: map[*widget.Editor]*spelling{}, spellKeys: map[string]string{}, ghostKeys: map[string]string{},
-		spellConf: dev.Spell, completeConf: dev.Complete,
+		spellConf: dev.Spell, completeConf: dev.Complete, keyConf: keys, device: dev,
 	}
 	for _, path := range spellPaths {
 		binding, _ := keys.Binding(path)
@@ -735,6 +742,9 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 	}
 	if u.filing != nil {
 		u.layoutFiling(ctx, gtx)
+	}
+	if u.ran != nil {
+		u.landCommand(ctx, gtx)
 	}
 	u.keys(ctx, gtx)
 	u.saveDrafts(ctx)
@@ -1632,6 +1642,9 @@ func (u *ui) layoutEditor(ctx context.Context, gtx C, ed *widget.Editor, attach 
 	if attach != nil && u.sendBtn.Clicked(gtx) {
 		u.submit(ctx, ed, root)
 	}
+	if attach != nil && u.pollBtn.Clicked(gtx) {
+		u.togglePoll()
+	}
 	u.pasteKey(ctx, gtx, ed)
 	offer := u.complete(ctx, gtx, ed)
 	s := u.followWords(ctx, ed)
@@ -1659,6 +1672,8 @@ func (u *ui) layoutEditor(ctx context.Context, gtx C, ed *widget.Editor, attach 
 					rows = append(rows, layout.Rigid(func(gtx C) D {
 						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 							layout.Rigid(func(gtx C) D { return u.button(gtx, attach, "Attach", true, false) }),
+							layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+							layout.Rigid(func(gtx C) D { return u.button(gtx, &u.pollBtn, "Poll", true, u.asking != nil) }),
 							layout.Flexed(1, layout.Spacer{}.Layout),
 							layout.Rigid(func(gtx C) D { return u.accentButton(gtx, &u.sendBtn, "Send") }),
 						)
@@ -1669,6 +1684,12 @@ func (u *ui) layoutEditor(ctx context.Context, gtx C, ed *widget.Editor, attach 
 		})
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx C) D {
+			if attach == nil {
+				return D{}
+			}
+			return u.layoutPollForm(ctx, gtx)
+		}),
 		layout.Rigid(func(gtx C) D { return u.layoutWalk(gtx, s) }),
 		layout.Rigid(func(gtx C) D { return u.layoutCompletion(gtx, offer) }),
 		layout.Rigid(box))

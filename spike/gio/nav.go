@@ -78,6 +78,11 @@ func (u *ui) keys(ctx context.Context, gtx C) {
 	if u.prompting != nil {
 		fields = append(fields, &u.prompting.field)
 	}
+	if u.asking != nil {
+		for _, ed := range u.asking.fields() {
+			fields = append(fields, ed)
+		}
+	}
 	for _, field := range fields {
 		if gtx.Focused(field) {
 			u.typingIn = field

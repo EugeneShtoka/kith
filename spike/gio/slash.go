@@ -14,12 +14,11 @@ import (
 
 // The composer's `/` commands, as the TUI's and the desktop's (slash.ts): a known command
 // is not a message, `//` escapes one slash, and words over more than one line are never
-// a command. The window does the commands that send (/me, /plain, /at, /in, /poll) and
-// those it has the action for (/upload, /search); the TUI's others say so. Typing `/` at
-// the start of the words offers the window's commands.
-// shortcut: the commands folder (kith-relay) is not read here, so any other slash word
-// is refused rather than sent as words, which a folder command would otherwise be; read
-// it (device.Commands) when the window is to run them.
+// a command. The window does the commands that send (/me, /plain, /at, /in, /poll), those
+// it has the action for (/upload, /search, /scheduled, /topic, /shortcut, /replacement),
+// and the commands folder's (commands.go); the TUI's others say so, and any other slash
+// word is a message. Typing `/` at the start of the words offers the window's commands,
+// then the folder's that run in the room.
 
 // slashCommand is a command the window does: its name, the words it takes ("" none), and
 // whether it runs without them.
@@ -36,15 +35,19 @@ var windowCommands = []slashCommand{
 	{name: "/at", arg: "<time> <message>", summary: "send it later: /at 09:00 good morning"},
 	{name: "/in", arg: "<delay> <message>", summary: "send it after a delay: /in 2h see you then"},
 	{name: "/search", arg: "[terms]", argOptional: true, summary: "search this room"},
+	{name: "/scheduled", summary: "what is waiting to go out in this room"},
 	{name: "/poll", arg: "<question> | <answer> | <answer> [| any]", summary: "ask a poll; a trailing | any lets voters pick several"},
+	{name: "/topic", summary: "what this room is for, in full"},
+	{name: "/shortcut", arg: "[keys]", argOptional: true, summary: "a key sequence that goes to this room"},
+	{name: "/replacement", summary: "go to the room that replaced this one"},
 }
 
 // tuiCommands are the TUI's commands the window has not got (slash.ts tuiOnly and the
 // desktop's own).
 var tuiCommands = []string{
 	"/summary", "/export", "/tracked", "/files", "/mentions", "/hidden", "/threads", "/starred",
-	"/scheduled", "/ignored", "/discover", "/knock", "/topic", "/why", "/unread", "/tag", "/caught",
-	"/direction", "/shortcut", "/replacement", "/invite", "/unban", "/leave",
+	"/ignored", "/discover", "/knock", "/why", "/unread", "/tag", "/caught", "/direction",
+	"/invite", "/unban", "/leave",
 }
 
 // commandOf reads body as the TUI's submit does: the slash word and its words after a
@@ -68,7 +71,8 @@ func commandOf(body string) (name, arg string, ok bool) {
 }
 
 // command does the command in ed's words, if they are one; false when they are a message
-// to send. A command it cannot do, or one missing its words, says so and keeps them.
+// to send. A command it cannot do, or one missing its words, says so and keeps them; a
+// command of the folder keeps them until it has run.
 func (u *ui) command(ctx context.Context, ed *widget.Editor, root domain.EventID, body string) bool {
 	name, arg, ok := commandOf(body)
 	if !ok {
@@ -83,7 +87,7 @@ func (u *ui) command(ctx context.Context, ed *widget.Editor, root domain.EventID
 	case slices.Contains(tuiCommands, name):
 		return tell(name + " is in the TUI; it is not in this window yet")
 	case i < 0:
-		return tell(name + " is not a command here; start with // to send it as words")
+		return u.userCommand(ctx, ed, name[1:], arg)
 	case windowCommands[i].arg != "" && !windowCommands[i].argOptional && arg == "":
 		return tell(name + " " + windowCommands[i].arg)
 	}
@@ -144,8 +148,41 @@ func (u *ui) doCommand(ctx context.Context, ed *widget.Editor, root domain.Event
 		} else {
 			u.runSearch(ctx)
 		}
+	case "/scheduled":
+		u.showQueue(ctx, room)
+	case "/topic", "/shortcut", "/replacement":
+		u.onRoom(ctx, name, arg)
 	}
 	return ""
+}
+
+// onRoom does a command that acts on the open room and sends nothing: its words go
+// whatever it says.
+func (u *ui) onRoom(ctx context.Context, name, arg string) {
+	r, _ := u.roomOf(u.current)
+	say := func(note string) { u.note, u.noteAt = note, time.Now() }
+	switch name {
+	case "/topic":
+		if r.Topic == "" {
+			say("This room has no topic")
+		} else {
+			u.openReading(u.roomName(r), r.Topic, false)
+		}
+	case "/shortcut":
+		u.shortcut(r, arg)
+	case "/replacement":
+		_, joined := u.roomOf(r.Replacement)
+		switch {
+		case r.Replacement == "":
+			say("This room has not been replaced")
+		case !joined:
+			say("The room that replaced this one is not joined here: the TUI joins it")
+		default:
+			u.openLocked(ctx, r.Replacement)
+			u.roomAt = r.Replacement
+			u.toPane(paneTimeline)
+		}
+	}
 }
 
 // scheduleTime splits `/at 09:00 words` or `/in 2h words` into the time to send and the
@@ -203,9 +240,10 @@ func pollOf(arg string) (question string, options []string, multiple, ok bool) {
 	return question, options, multiple, true
 }
 
-// commandOffers are the window's commands whose names start with what is typed: the
-// words up to the caret, one slash word at the very start.
-func commandOffers(before string) []candidate {
+// commandOffers are the window's commands whose names start with what is typed, then the
+// folder's of yours (a command of the window's wins a name): the words up to the caret,
+// one slash word at the very start.
+func commandOffers(before string, yours func() []string) []candidate {
 	if !strings.HasPrefix(before, "/") || strings.HasPrefix(before, "//") || strings.ContainsAny(before, " \t\n") {
 		return nil
 	}
@@ -217,6 +255,11 @@ func commandOffers(before string) []candidate {
 				label, put = c.name+" "+c.arg+"  "+c.summary, c.name+" "
 			}
 			offers = append(offers, candidate{label: label, put: put})
+		}
+	}
+	for _, name := range yours() {
+		if strings.HasPrefix("/"+name, before) && !slices.ContainsFunc(windowCommands, func(c slashCommand) bool { return c.name == "/"+name }) {
+			offers = append(offers, candidate{label: "/" + name + "  yours, in your commands folder", put: "/" + name})
 		}
 	}
 	return offers

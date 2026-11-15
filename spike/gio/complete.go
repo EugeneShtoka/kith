@@ -56,7 +56,7 @@ type completion struct {
 // completing is what the text before caret is completing, nil for nothing.
 func (u *ui) completing(ctx context.Context, before []rune, caret int) *completion {
 	text := string(before)
-	if offers := commandOffers(text); offers != nil {
+	if offers := commandOffers(text, u.commandsHere); offers != nil {
 		return &completion{start: 0, caret: caret, query: text, offers: offers}
 	}
 	if m := mentionTyped.FindStringSubmatch(text); m != nil {
