@@ -134,6 +134,8 @@ type ui struct {
 	imageSlots  chan struct{}        // images read and decoded at once (loadImage)
 	helping     *helpView            // the help overlay, nil when closed
 	revisions   *historyView         // a message's history, nil when closed
+	prompting   *prompt              // a name asked for, nil when not
+	filing      *filingView          // the filing card, nil when closed
 	searching   *searchView          // a search's hits, listed in the room list's place; nil for none
 	searchScope searchScope          // where the next search looks
 	helpRows    []helpRow            // what it lists
@@ -707,6 +709,12 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 	if u.revisions != nil {
 		u.layoutHistory(gtx)
 	}
+	if u.prompting != nil {
+		u.layoutPrompt(gtx)
+	}
+	if u.filing != nil {
+		u.layoutFiling(ctx, gtx)
+	}
 	u.keys(ctx, gtx)
 	u.saveDrafts(ctx)
 	u.title()
@@ -933,7 +941,7 @@ func (u *ui) filtered() []int {
 			if u.inRow(room.ID) {
 				shown = append(shown, i)
 			}
-		case holdsAll(typed, room.DisplayName(), strings.Join(room.Members, " "), string(room.ID)):
+		case holdsAll(typed, u.roomName(room), room.DisplayName(), strings.Join(room.Members, " "), string(room.ID)):
 			if c, _ := u.unread[room.ID].Count(u.local); c > 0 {
 				unread = append(unread, i)
 			} else {
@@ -1055,11 +1063,11 @@ func (u *ui) layoutRoomRow(ctx context.Context, gtx C, btn *widget.Clickable, i 
 					gtx.Constraints.Min.X = gtx.Constraints.Max.X
 					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 						layout.Rigid(func(gtx C) D {
-							return u.layoutFace(ctx, gtx, face{room: room.ID}, room.Picture, string(room.ID), room.DisplayName(), 24)
+							return u.layoutFace(ctx, gtx, face{room: room.ID}, room.Picture, string(room.ID), u.roomName(room), 24)
 						}),
 						layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 						layout.Flexed(1, func(gtx C) D {
-							l := material.Body1(u.th, room.DisplayName())
+							l := material.Body1(u.th, u.roomName(room))
 							l.MaxLines = 1
 							if n.HasUnread(u.local) {
 								l.Font.Weight = font.Bold
@@ -1224,11 +1232,11 @@ func (u *ui) layoutHeader(ctx context.Context, gtx C) D {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx C) D {
-				return u.layoutFace(ctx, gtx, face{room: room.ID}, room.Picture, string(room.ID), room.DisplayName(), 26)
+				return u.layoutFace(ctx, gtx, face{room: room.ID}, room.Picture, string(room.ID), u.roomName(room), 26)
 			}),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
 			layout.Flexed(1, func(gtx C) D {
-				l := material.Subtitle1(u.th, room.DisplayName())
+				l := material.Subtitle1(u.th, u.roomName(room))
 				l.Font.Weight, l.MaxLines = font.Bold, 1
 				return l.Layout(gtx)
 			}),

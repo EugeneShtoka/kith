@@ -204,7 +204,7 @@ func (u *ui) layoutSearch(ctx context.Context, gtx C) D {
 	}
 	names := map[domain.RoomID]string{}
 	for _, r := range u.rooms {
-		names[r.ID] = r.DisplayName()
+		names[r.ID] = u.roomName(r)
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx C) D {

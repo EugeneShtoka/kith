@@ -42,6 +42,7 @@ var actions = []action{
 	{"insert.send", true}, {"insert.attach", true}, {"insert.cancel", true},
 	{"rail.mark_read", false},
 	{"rooms.mark_read", false}, {"rooms.mark_all_read", false}, {"rooms.mark_unread", false}, {"rooms.fold_threads", false},
+	{"rooms.name", false}, {"rooms.spaces", false}, {"timeline.name", false},
 	{"timeline.insert", false}, {"timeline.reply", false}, {"timeline.go_reply", false},
 	{"timeline.react", false}, {"timeline.redact", false}, {"timeline.edit", false},
 	{"timeline.next_mention", false}, {"timeline.prev_mention", false},
@@ -73,6 +74,9 @@ func (u *ui) keys(ctx context.Context, gtx C) {
 	fields := []any{&u.composer, &u.threadComposer, &u.filter, &u.search}
 	if u.picking != nil {
 		fields = append(fields, &u.picking.query)
+	}
+	if u.prompting != nil {
+		fields = append(fields, &u.prompting.field)
 	}
 	for _, field := range fields {
 		if gtx.Focused(field) {
@@ -106,27 +110,9 @@ func (u *ui) keys(ctx context.Context, gtx C) {
 			}
 			continue
 		}
-		if u.helping != nil {
+		if card := u.card(ctx, gtx); card != nil {
 			for _, path := range u.keymap.press(name, false) {
-				if u.browseHelp(path, u.keymap.count) {
-					break
-				}
-			}
-			gtx.Execute(op.InvalidateCmd{})
-			continue
-		}
-		if u.revisions != nil {
-			for _, path := range u.keymap.press(name, false) {
-				if u.browseHistory(path, u.keymap.count) {
-					break
-				}
-			}
-			gtx.Execute(op.InvalidateCmd{})
-			continue
-		}
-		if u.linking != nil {
-			for _, path := range u.keymap.press(name, false) {
-				if u.chooseLink(ctx, gtx, path) {
+				if card(path) {
 					break
 				}
 			}
@@ -148,6 +134,22 @@ func (u *ui) keys(ctx context.Context, gtx C) {
 		}
 		gtx.Execute(op.InvalidateCmd{})
 	}
+}
+
+// card is the [keys] actions of the card over the window, which takes every key while
+// it is up; nil when none is.
+func (u *ui) card(ctx context.Context, gtx C) func(path string) bool {
+	switch {
+	case u.helping != nil:
+		return func(path string) bool { return u.browseHelp(path, u.keymap.count) }
+	case u.revisions != nil:
+		return func(path string) bool { return u.browseHistory(path, u.keymap.count) }
+	case u.filing != nil:
+		return func(path string) bool { return u.chooseFiling(ctx, path) }
+	case u.linking != nil:
+		return func(path string) bool { return u.chooseLink(ctx, gtx, path) }
+	}
+	return nil
 }
 
 // do acts on path in the pane the keys are in; false when it does not apply there.
@@ -222,6 +224,16 @@ func (u *ui) do(ctx context.Context, gtx C, path string, count int) bool {
 			return false
 		}
 		u.foldThreads(u.roomAt)
+	case "rooms.name", "rooms.spaces":
+		i := slices.IndexFunc(u.rooms, func(r domain.Room) bool { return r.ID == u.roomAt })
+		if u.pane != paneRooms || i < 0 || u.rooms[i].IsInvite() {
+			return false
+		}
+		if path == "rooms.name" {
+			u.nameRoom(ctx, u.rooms[i])
+		} else {
+			u.openFiling(ctx, u.rooms[i])
+		}
 	case "rooms.mark_unread":
 		if u.pane != paneRooms || u.roomAt == "" {
 			return false
@@ -424,6 +436,11 @@ func (u *ui) onMessage(ctx context.Context, gtx C, path string) bool {
 		return m.ReplyTo != "" && t.seek(-1, func(h domain.Message) bool { return h.ID == m.ReplyTo })
 	case "timeline.react":
 		u.picking = &picker{target: m.ID}
+	case "timeline.name":
+		if m.Sender == "" {
+			return false
+		}
+		u.samePerson(ctx, m.Sender, sender(m))
 	case "timeline.history":
 		u.openHistory(ctx, m)
 	case "timeline.vote":
