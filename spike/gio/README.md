@@ -26,7 +26,9 @@ reorders as messages arrive. Under each room the list has a row for each thread 
 replies, as `[display.threads]` caps them (a "+N more" row lists the rest), and for the
 thread open, which keeps its row once read; a thread read here sends its own receipt.
 Opening a thread's row opens it beside its room, and `z a` or the room's ▾ folds its
-threads away, kept in the device file as the TUI and the desktop keep them.
+threads away, kept in the device file as the TUI and the desktop keep them. A poll shows
+each answer's tally and share, yours marked; clicking an answer votes it (several are
+ticked, then voted), and a vote of one answer can be taken back.
 
 The device's `[keys]` drive the window, as they drive the desktop (`keys.go` ports its
 keymap: sequences such as `g g`, counts such as `12j`, and typing wins). The rail, the
@@ -37,7 +39,8 @@ now. The title counts unread, where the desktop has its tray badge. On the selec
 picker that searches emoji by name, your most used first), copy its text or link, open
 a link (with several, a chooser asks which, as the desktop's does; opening hands it to
 kithd, so a chat link opens in the window kithd picks and a web one in the browser), save,
-view, play, open or start its thread, and jump by mention, attachment,
+view, play, open or start its thread, vote in its poll (`P` puts the keys on the poll's
+answers: `j`/`k`, Enter, Esc), and jump by mention, attachment,
 day, or to what a reply answers. `m` / `M` / Ctrl+M mark a room read or unread from the
 list (on a thread's row, `m` marks the thread), and `m` on a rail row marks the row read
 (asks first). The composer completes `:name` into emoji and `@name` into a mention (people as kithd offers them: Matrix,
@@ -126,6 +129,7 @@ With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, G
 - **Gio gives a key to the first reader in the frame whose filter matches**, not to the most
   specific filter, so the window-wide key reader runs last: anything earlier (an editor's
   arrows and Backspace, the picker's Esc) keeps its own keys.
-- **Not done here:** the thread composer's draft is not kept; `in_room_list = "all"` lists
+- **Not done here:** the thread composer's draft is not kept; a poll's "Who voted" and
+  asking a poll (the desktop's form, the TUI's `/poll`); `in_room_list = "all"` lists
   only the threads `"unread"` does, as kithd's thread list is not read per room; a link handed over picks the
   first chat it names where the TUI asks which account.

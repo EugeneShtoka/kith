@@ -117,6 +117,7 @@ type ui struct {
 	selves   map[string]bool // every ID that is this person
 	picking  *picker         // the reaction picker, nil when closed
 	linking  *linkChoice     // the link chooser, nil when closed
+	voting   *pollCursor     // the keys on a poll's buttons, nil when not
 
 	offer          *completion                         // the composer's completion popup
 	completionKeys map[string]string                   // [keys.completion]: each press's action
@@ -1315,6 +1316,8 @@ func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, list []int, 
 	}
 	switch {
 	case m.Redacted:
+	case m.Poll != nil:
+		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutPoll(ctx, gtx, t, st, m) }))
 	case m.Media.IsImage():
 		if st.image.Clicked(gtx) {
 			if p := t.images[m.ID]; p != nil && p.ok {
@@ -1334,7 +1337,7 @@ func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, list []int, 
 	case m.Media != nil:
 		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutSave(ctx, gtx, m) }))
 	}
-	if txt := text(m); txt != "" && (m.Media == nil || txt != m.Media.Name) {
+	if txt := text(m); txt != "" && (m.Poll == nil || m.Redacted) && (m.Media == nil || txt != m.Media.Name) {
 		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutText(gtx, st, m, txt) }))
 	}
 	if rs := t.reactions[m.ID]; len(rs) > 0 && !m.Redacted {

@@ -50,7 +50,7 @@ var actions = []action{
 	{"timeline.copy_text", false}, {"timeline.copy_url", false},
 	{"timeline.open_url", false}, {"timeline.open_url_focus", false},
 	{"timeline.download", false}, {"timeline.view_media", false}, {"timeline.play", false},
-	{"timeline.open_thread", false}, {"timeline.start_thread", false},
+	{"timeline.open_thread", false}, {"timeline.start_thread", false}, {"timeline.vote", false},
 	{"nav.open", false}, {"nav.back", false}, {"nav.up", false}, {"nav.down", false},
 	{"nav.page_up", false}, {"nav.page_down", false}, {"nav.half_page_up", false}, {"nav.half_page_down", false},
 	{"nav.select_oldest", false}, {"nav.select_newest", false}, {"nav.scroll_oldest", false}, {"nav.scroll_newest", false},
@@ -124,7 +124,15 @@ func (u *ui) keys(ctx context.Context, gtx C) {
 			gtx.Execute(op.InvalidateCmd{})
 			continue
 		}
-		for _, path := range u.keymap.press(name, typing) {
+		paths := u.keymap.press(name, typing)
+		if u.voting != nil {
+			if !typing && u.pane == paneTimeline && slices.ContainsFunc(paths, func(path string) bool { return u.choosePoll(ctx, path) }) {
+				gtx.Execute(op.InvalidateCmd{})
+				continue
+			}
+			u.voting = nil // any other key takes the keys off the poll, and does what it does
+		}
+		for _, path := range paths {
 			if u.do(ctx, gtx, path, u.keymap.count) {
 				break
 			}
@@ -407,6 +415,11 @@ func (u *ui) onMessage(ctx context.Context, gtx C, path string) bool {
 		return m.ReplyTo != "" && t.seek(-1, func(h domain.Message) bool { return h.ID == m.ReplyTo })
 	case "timeline.react":
 		u.picking = &picker{target: m.ID}
+	case "timeline.vote":
+		if m.Redacted || m.Poll == nil || len(pollButtons(m.Poll)) == 0 {
+			return false
+		}
+		u.voting = &pollCursor{event: m.ID}
 	case "timeline.redact":
 		if m.Redacted {
 			return false

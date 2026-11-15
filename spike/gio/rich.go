@@ -31,6 +31,7 @@ type msgState struct {
 	media widget.Clickable
 	image widget.Clickable
 	reply widget.Clickable
+	poll  pollState
 	copy  int
 }
 
