@@ -50,7 +50,7 @@ var actions = []action{
 	{"timeline.copy_text", false}, {"timeline.copy_url", false},
 	{"timeline.open_url", false}, {"timeline.open_url_focus", false},
 	{"timeline.download", false}, {"timeline.view_media", false}, {"timeline.play", false},
-	{"timeline.open_thread", false}, {"timeline.start_thread", false}, {"timeline.vote", false},
+	{"timeline.open_thread", false}, {"timeline.start_thread", false}, {"timeline.vote", false}, {"timeline.history", false},
 	{"nav.open", false}, {"nav.back", false}, {"nav.up", false}, {"nav.down", false},
 	{"nav.page_up", false}, {"nav.page_down", false}, {"nav.half_page_up", false}, {"nav.half_page_down", false},
 	{"nav.select_oldest", false}, {"nav.select_newest", false}, {"nav.scroll_oldest", false}, {"nav.scroll_newest", false},
@@ -109,6 +109,15 @@ func (u *ui) keys(ctx context.Context, gtx C) {
 		if u.helping != nil {
 			for _, path := range u.keymap.press(name, false) {
 				if u.browseHelp(path, u.keymap.count) {
+					break
+				}
+			}
+			gtx.Execute(op.InvalidateCmd{})
+			continue
+		}
+		if u.revisions != nil {
+			for _, path := range u.keymap.press(name, false) {
+				if u.browseHistory(path, u.keymap.count) {
 					break
 				}
 			}
@@ -415,6 +424,8 @@ func (u *ui) onMessage(ctx context.Context, gtx C, path string) bool {
 		return m.ReplyTo != "" && t.seek(-1, func(h domain.Message) bool { return h.ID == m.ReplyTo })
 	case "timeline.react":
 		u.picking = &picker{target: m.ID}
+	case "timeline.history":
+		u.openHistory(ctx, m)
 	case "timeline.vote":
 		if m.Redacted || m.Poll == nil {
 			return false

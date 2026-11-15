@@ -40,7 +40,8 @@ now. The title counts unread, where the desktop has its tray badge. On the selec
 picker that searches emoji by name, your most used first), copy its text or link, open
 a link (with several, a chooser asks which, as the desktop's does; opening hands it to
 kithd, so a chat link opens in the window kithd picks and a web one in the browser), save,
-view, play, open or start its thread, vote in its poll (`P` puts the keys on the poll's
+view, play, open or start its thread, show its history (`H`, or a click on its "(edited)": every version with what changed,
+and who deleted it), vote in its poll (`P` puts the keys on the poll's
 answers: `j`/`k`, Enter, Esc), and jump by mention, attachment,
 day, or to what a reply answers. `m` / `M` / Ctrl+M mark a room read or unread from the
 list (on a thread's row, `m` marks the thread), and `m` on a rail row marks the row read

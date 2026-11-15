@@ -133,6 +133,7 @@ type ui struct {
 	frame       uint64               // frames laid out so far
 	imageSlots  chan struct{}        // images read and decoded at once (loadImage)
 	helping     *helpView            // the help overlay, nil when closed
+	revisions   *historyView         // a message's history, nil when closed
 	searching   *searchView          // a search's hits, listed in the room list's place; nil for none
 	searchScope searchScope          // where the next search looks
 	helpRows    []helpRow            // what it lists
@@ -702,6 +703,9 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 	}
 	if u.helping != nil {
 		u.layoutHelp(gtx)
+	}
+	if u.revisions != nil {
+		u.layoutHistory(gtx)
 	}
 	u.keys(ctx, gtx)
 	u.saveDrafts(ctx)
@@ -1339,6 +1343,16 @@ func (u *ui) layoutMessage(ctx context.Context, gtx C, t *timeline, list []int, 
 	}
 	if txt := text(m); txt != "" && (m.Poll == nil || m.Redacted) && (m.Media == nil || txt != m.Media.Name) {
 		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutText(gtx, st, m, txt) }))
+	}
+	if m.Edited && !m.Redacted {
+		if st.history.Clicked(gtx) {
+			u.openHistory(ctx, m)
+		}
+		body = append(body, layout.Rigid(func(gtx C) D {
+			l := material.Caption(u.th, "(edited)")
+			l.Color = u.pal.muted
+			return st.history.Layout(gtx, l.Layout)
+		}))
 	}
 	if rs := t.reactions[m.ID]; len(rs) > 0 && !m.Redacted {
 		body = append(body, layout.Rigid(func(gtx C) D { return u.layoutReactions(gtx, rs) }))

@@ -27,12 +27,13 @@ import (
 // msgState is one message's widgets: its text (selectable, links clickable), and the
 // tag its right-click is copied by.
 type msgState struct {
-	text  seltext.State
-	media widget.Clickable
-	image widget.Clickable
-	reply widget.Clickable
-	poll  pollState
-	copy  int
+	text    seltext.State
+	media   widget.Clickable
+	image   widget.Clickable
+	reply   widget.Clickable
+	poll    pollState
+	history widget.Clickable // its "(edited)"
+	copy    int
 }
 
 var bareURL = regexp.MustCompile(`https?://[^\s<>"]+`)
