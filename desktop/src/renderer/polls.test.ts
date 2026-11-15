@@ -92,6 +92,14 @@ describe("who voted", () => {
     expect(chosenBy(voters, "p", name)).toEqual([]);
   });
 
+  it("names the rest as kithd names them, before the network's name", () => {
+    const voters = [
+      create(PollVoterSchema, { id: "@eli:x", name: "eli on the network", knownAs: "Elijah", options: ["s"] }),
+      create(PollVoterSchema, { id: "@me:x", knownAs: "Me Myself", options: ["s"] }),
+    ];
+    expect(chosenBy(voters, "s", name)).toEqual(["you", "Elijah"]);
+  });
+
   it("lists each answer someone chose, with those counted and not named as more", () => {
     const voters = [voter("@me:x", "", ["s"]), voter("@bo:x", "Bo", ["s", "t"])];
     expect(voterLines(lunch(["s"]), read({ voters }), name)).toEqual(["Soup: you, Bo, 1 more", "Tacos: Bo, 1 more"]);

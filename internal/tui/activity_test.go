@@ -49,6 +49,22 @@ func TestTypingShowsOnTheComposerDivider(t *testing.T) {
 	}
 }
 
+// Each typist is named as kithd named them in the activity, not as the open room's
+// members name them, and not by an ID's short form when the room never named them.
+func TestTheTypingNoteNamesTypistsAsKithdDoes(t *testing.T) {
+	t.Parallel()
+
+	m := sized(t, withRooms(t, newModel()))
+	m.openRoom = mx + "!a:x"
+	m.timeline.members = []domain.Member{{UserID: "matrix:@alice:x", DisplayName: "alice", KnownAs: "Alice from the members"}}
+	m = update(t, m, activityMsg{a: domain.Activity{
+		RoomID: mx + "!a:x", Typing: []string{"matrix:@alice:x", "matrix:@bob:x"}, TypingKnownAs: []string{"Alicia", "Bob Stone"},
+	}})
+	if got := m.typingNote(); !strings.Contains(got, "Alicia") || !strings.Contains(got, "Bob Stone") || strings.Contains(got, "members") {
+		t.Errorf("typingNote = %q, want Alicia and Bob Stone as kithd named them", got)
+	}
+}
+
 func TestTypingNamesTwoThenCounts(t *testing.T) {
 	t.Parallel()
 

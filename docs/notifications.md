@@ -8,6 +8,8 @@ What notifies (the rules, whether it rings, the rate limit) is configured in `co
 
 kithd publishes each notification to every [profile](configuration.md#profiles) holding its room. `kith-notify` listens to profiles and shows what arrives: a message in two of the profiles it listens to pops up once. It holds no rules of its own: it reads `[notifications]` (the sinks, templates, timeout, sounds) from the device file as it changes, and `enabled = false` there stops it showing anything.
 
+Clicking a popup opens what it is about: the message in its room, or the room for a count of several. `kith-notify` hands it on as `kith --open` does ([cli.md](cli.md)), to the kith window kithd picks, terminal or desktop, else a new terminal. A popup carries the click only through the D-Bus `desktop` sink, on a notification daemon that offers actions (GNOME, KDE, dunst and mako do).
+
 `kith` starts it when it starts, as it does kithd: through its systemd user unit when there is one, else detached. Only one runs for a config on a machine, however often it is started. To have popups from login, before you open `kith`, enable its unit:
 
 ```sh

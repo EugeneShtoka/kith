@@ -14,24 +14,25 @@ import (
 // RoomToProto converts one room.
 func RoomToProto(r domain.Room) *v1.Room {
 	return &v1.Room{
-		Id:          string(r.ID),
-		Name:        r.Name,
-		IsDirect:    r.IsDirect,
-		Members:     r.Members,
-		Membership:  string(r.Membership),
-		InvitedBy:   r.InvitedBy,
-		Replacement: string(r.Replacement),
-		Topic:       r.Topic,
-		Archived:    r.Archived,
-		Forum:       r.Forum,
-		Deleting:    chatDeletings[r.Deleting],
-		Network:     string(r.Network),
-		Broadcasts:  r.Broadcasts,
-		Sms:         r.SMS,
-		ReadOnly:    r.ReadOnly,
-		Handle:      r.Handle,
-		Picture:     r.Picture,
-		Merged:      RoomIDsToStrings(r.Merged),
+		Id:               string(r.ID),
+		Name:             r.Name,
+		IsDirect:         r.IsDirect,
+		Members:          r.Members,
+		Membership:       string(r.Membership),
+		InvitedBy:        r.InvitedBy,
+		InvitedByKnownAs: r.InvitedByKnownAs,
+		Replacement:      string(r.Replacement),
+		Topic:            r.Topic,
+		Archived:         r.Archived,
+		Forum:            r.Forum,
+		Deleting:         chatDeletings[r.Deleting],
+		Network:          string(r.Network),
+		Broadcasts:       r.Broadcasts,
+		Sms:              r.SMS,
+		ReadOnly:         r.ReadOnly,
+		Handle:           r.Handle,
+		Picture:          r.Picture,
+		Merged:           RoomIDsToStrings(r.Merged),
 	}
 }
 
@@ -85,7 +86,7 @@ func ProtoToPoll(pb *v1.Poll) *domain.Poll {
 func PollVotersToProto(v domain.PollVoters) *v1.PollVotersResponse {
 	voters := make([]*v1.PollVoter, len(v.Voters))
 	for i, voter := range v.Voters {
-		voters[i] = &v1.PollVoter{Id: voter.ID, Name: voter.Name, Options: voter.Options}
+		voters[i] = &v1.PollVoter{Id: voter.ID, Name: voter.Name, KnownAs: voter.KnownAs, Options: voter.Options}
 	}
 	return &v1.PollVotersResponse{Voters: voters, Hidden: pollHidings[v.Hidden]}
 }
@@ -99,7 +100,7 @@ func ProtoToPollVoters(pb *v1.PollVotersResponse) domain.PollVoters {
 		}
 	}
 	for _, voter := range pb.GetVoters() {
-		out.Voters = append(out.Voters, domain.PollVoter{ID: voter.GetId(), Name: voter.GetName(), Options: voter.GetOptions()})
+		out.Voters = append(out.Voters, domain.PollVoter{ID: voter.GetId(), Name: voter.GetName(), KnownAs: voter.GetKnownAs(), Options: voter.GetOptions()})
 	}
 	return out
 }
@@ -226,24 +227,25 @@ func ProtoToRoom(pb *v1.Room) domain.Room {
 		return domain.Room{}
 	}
 	return domain.Room{
-		ID:          domain.RoomID(pb.GetId()),
-		Name:        pb.GetName(),
-		IsDirect:    pb.GetIsDirect(),
-		Members:     pb.GetMembers(),
-		Membership:  domain.Membership(pb.GetMembership()),
-		InvitedBy:   pb.GetInvitedBy(),
-		Replacement: domain.RoomID(pb.GetReplacement()),
-		Topic:       pb.GetTopic(),
-		Archived:    pb.GetArchived(),
-		Forum:       pb.GetForum(),
-		Deleting:    protoToChatDeleting(pb.GetDeleting()),
-		Network:     domain.Protocol(pb.GetNetwork()),
-		Broadcasts:  pb.GetBroadcasts(),
-		SMS:         pb.GetSms(),
-		ReadOnly:    pb.GetReadOnly(),
-		Handle:      pb.GetHandle(),
-		Picture:     pb.GetPicture(),
-		Merged:      StringsToRoomIDs(pb.GetMerged()),
+		ID:               domain.RoomID(pb.GetId()),
+		Name:             pb.GetName(),
+		IsDirect:         pb.GetIsDirect(),
+		Members:          pb.GetMembers(),
+		Membership:       domain.Membership(pb.GetMembership()),
+		InvitedBy:        pb.GetInvitedBy(),
+		InvitedByKnownAs: pb.GetInvitedByKnownAs(),
+		Replacement:      domain.RoomID(pb.GetReplacement()),
+		Topic:            pb.GetTopic(),
+		Archived:         pb.GetArchived(),
+		Forum:            pb.GetForum(),
+		Deleting:         protoToChatDeleting(pb.GetDeleting()),
+		Network:          domain.Protocol(pb.GetNetwork()),
+		Broadcasts:       pb.GetBroadcasts(),
+		SMS:              pb.GetSms(),
+		ReadOnly:         pb.GetReadOnly(),
+		Handle:           pb.GetHandle(),
+		Picture:          pb.GetPicture(),
+		Merged:           StringsToRoomIDs(pb.GetMerged()),
 	}
 }
 

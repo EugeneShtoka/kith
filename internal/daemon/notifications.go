@@ -647,6 +647,7 @@ func (n *Notifications) Deliver(ctx context.Context, msg domain.Message) (notify
 	if !ok {
 		return notify.Notification{}, false
 	}
+	alert.Link = domain.KithLink(msg.RoomID, msg.ID)
 	alert = n.foldLate(alert, msg, now)
 	alert, ok = n.rated(alert, string(msg.RoomID), now)
 	if !ok {
@@ -723,6 +724,7 @@ func (n *Notifications) rated(alert notify.Notification, room string, now time.T
 			Body:     newMessages(held),
 			Silent:   true,
 			Replaces: room,
+			Link:     domain.KithLink(domain.RoomID(room), ""),
 		}, true
 	case notify.Hold:
 		return notify.Notification{}, false
@@ -755,6 +757,7 @@ func (n *Notifications) foldLate(alert notify.Notification, msg domain.Message, 
 		Body:     earlierMessages(n.late[room]),
 		Silent:   true,
 		Replaces: room,
+		Link:     domain.KithLink(msg.RoomID, ""),
 	}
 }
 

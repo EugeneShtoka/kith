@@ -16,6 +16,7 @@ func TestANoticeCrossesTheWireWhole(t *testing.T) {
 		Sender: "Alice", SenderID: "matrix:@alice:x", Room: "Standup", Space: "Work", Body: "hi",
 		Protocol: "Matrix", Sent: time.UnixMilli(1_700_000_000_123), Date: "2023-11-14", Time: "22:13",
 		Rules: []string{"the boss", "work", "all rooms"}, Silent: true, Replaces: "room",
+		Link: "kith:matrix:%21room:x?event=matrix%3A%24e",
 	}
 	got := protoToNotice(noticeToProto(notice{id: "n1", alert: alert, code: "1234"}))
 	want := Notice{ID: "n1", Alert: alert, Code: "1234"}

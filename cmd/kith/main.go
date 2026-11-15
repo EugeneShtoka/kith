@@ -78,7 +78,7 @@ func main() {
 	addModelTag := flag.String("add-model", "", "install the local completion model by `tag` (\"list\" to see them) and exit; what `[complete.model]` reads")
 	setModelKeyRef := flag.String("set-model-key", "", "store the language model's API key in the OS keyring under `ref` (what `[assist] key_ref` names) and exit; an empty answer removes it")
 	agentLog := flag.Bool("agent-log", false, "print what an assistant has written on your behalf through kith-mcp — sent, queued, left as a draft, or refused — and exit")
-	open := flag.String("open", "", "hand a matrix: or matrix.to `uri` to the running client — starting a terminal for it if none is running — and exit. This is what the desktop's matrix: handler calls")
+	open := flag.String("open", "", "hand a matrix: or matrix.to, tg:, whatsapp:, sgnl: or kith: `uri` to the running client — starting a terminal for it if none is running — and exit. A kith: link names a room by kith's ID, kith:<room>[?event=<event>], each escaped. This is what the desktop's link handlers call")
 	logLevel, logTarget := flag.String("log-level", "", "how much to log ("+logging.Levels+"); overrides $"+logging.EnvLevel+" and `[log] level`"),
 		flag.String("log-target", "", "where to log ("+logging.Targets+"): the journal, $XDG_STATE_HOME/kith/"+logging.FileName+", or the journal when there is one; overrides $"+logging.EnvTarget+" and `[log] target`")
 	follow := flag.String("follow", "", "start the client and go to this matrix `uri` once it knows where it is. Used by --open when it has to start a terminal")

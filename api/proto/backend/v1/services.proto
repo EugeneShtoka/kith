@@ -1594,6 +1594,9 @@ message Notification {
   // A verification code to copy to the clipboard ([codes]), set on the notification
   // announcing it; the listener copies it and says in the body whether it could.
   string code = 14;
+  // The kith link (kith:<room>[?event=<event>]) to the message or room it is about,
+  // which a click on the popup follows; "" for none.
+  string link = 15;
 }
 
 message NotificationStreamResponse {

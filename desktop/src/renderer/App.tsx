@@ -1159,7 +1159,7 @@ function Invites({ invites, session }: { invites: readonly Room[]; session: Sess
               {r.invitedBy && (
                 <span className="detail" dir="auto">
                   {" "}
-                  from {r.invitedBy}
+                  from {r.invitedByKnownAs || r.invitedBy}
                 </span>
               )}
             </span>

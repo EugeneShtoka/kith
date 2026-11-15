@@ -6,12 +6,15 @@ import (
 )
 
 // Followable reports whether kith follows link rather than the browser: a Matrix address,
-// or a Telegram, WhatsApp or Signal chat link, on a network one of rooms is on (a bridged
-// chat is Matrix's, which looks up no Telegram link).
+// a Telegram, WhatsApp or Signal chat link, or a kith link (its room's network), on a
+// network one of rooms is on (a bridged chat is Matrix's, which looks up no Telegram link).
 func Followable(link string, rooms []Room) bool {
 	network, ok := LinkNetwork(link)
 	if _, place := ParsePlace(link); place {
 		network, ok = ProtocolMatrix, true
+	}
+	if place, kith := ParseKithLink(link); kith {
+		network, ok = NetworkOf(place.Room), true
 	}
 	return ok && slices.ContainsFunc(rooms, func(r Room) bool {
 		return NetworkOf(string(r.ID)) == network
@@ -20,9 +23,12 @@ func Followable(link string, rooms []Room) bool {
 
 // LinkedRooms is the chat a link names among rooms, as each account in it sees it: a
 // Matrix room by its ID, a Telegram chat by its @username or private channel, a
-// WhatsApp chat by its number. None when the link names no listed chat (an alias, an
-// invite, a person), which only its network can look up.
+// WhatsApp chat by its number, a kith link's room by its kith ID. None when the link
+// names no listed chat (an alias, an invite, a person), which only its network can look up.
 func LinkedRooms(uri string, rooms []Room) []Room {
+	if place, ok := ParseKithLink(uri); ok {
+		return kithLinkRooms(place, rooms)
+	}
 	if place, ok := ParsePlace(uri); ok {
 		if place.Kind != PlaceRoom && place.Kind != PlaceEvent {
 			return nil
@@ -39,8 +45,15 @@ func LinkedRooms(uri string, rooms []Room) []Room {
 }
 
 // LinkedMessage is the message a link names in room, one of its LinkedRooms: a Matrix
-// event as that room's account sees it, or a Telegram post; "" for a link to the chat.
+// event as that room's account sees it, a Telegram post, or a kith link's event in its
+// own room; "" for a link to the chat.
 func LinkedMessage(uri string, room RoomID) EventID {
+	if place, ok := ParseKithLink(uri); ok {
+		if RoomID(place.Room) != room {
+			return ""
+		}
+		return place.Event
+	}
 	if place, ok := ParsePlace(uri); ok {
 		if place.Kind != PlaceEvent {
 			return ""

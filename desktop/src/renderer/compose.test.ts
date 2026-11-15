@@ -279,6 +279,23 @@ describe("a poll", () => {
     expect(composer().voters).toBeUndefined();
   });
 
+  it("reads who voted again when kithd says names changed, what shows staying till then", async () => {
+    kithd.pollVoters.set("$p", { voters: [{ id: "@bob:x", knownAs: "Bob", options: ["s"] }] });
+    await opened();
+    session.showVoters(asking());
+    await settled();
+    kithd.pollVoters.set("$p", { voters: [{ id: "@bob:x", knownAs: "Bob Stone", options: ["s"] }] });
+    kithd.holding.add("PollVoters");
+    kithd.send(BackendService.method.changed, "Home", { change: Change.NAMES });
+    await settled();
+    expect(composer().voters?.answer?.voters.map((v) => v.knownAs)).toEqual(["Bob"]);
+    kithd.holding.delete("PollVoters");
+    kithd.release();
+    await settled();
+    expect(composer().voters).toMatchObject({ read: true, error: "" });
+    expect(composer().voters?.answer?.voters.map((v) => v.knownAs)).toEqual(["Bob Stone"]);
+  });
+
   it("drops who voted read for a poll put away, or shown again since", async () => {
     kithd.pollVoters.set("$p", { voters: [{ id: "@bob:x", options: ["s"] }] });
     await opened();

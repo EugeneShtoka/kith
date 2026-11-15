@@ -401,6 +401,9 @@ type Model struct {
 	dir directoryState
 	// named is kithd's name for each person asked for by ID (named.go).
 	named map[string]string
+	// renames counts kithd's word that people are named differently, so a read of the
+	// invitations from before the last word is named again (handleInvitesRenamed).
+	renames int
 	// markedShownIn is the room showing the people muted tags hide (markedpeople.go),
 	// "" for none; leaving it clears it.
 	markedShownIn domain.RoomID
@@ -1100,14 +1103,12 @@ func (m Model) handleRoomListMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleUnread(msg))
 	case unreadUpdateMsg:
 		return answered(m.handleUnreadUpdate(msg))
-	case invitesMsg:
-		return answered(m.handleCachedInvites(msg))
+	case invitesMsg, inviteUpdateMsg, invitesRenamedMsg:
+		return answered(m.handleInvitesMsg(msg))
 	case searchResultsMsg:
 		return answered(m.handleSearchResults(msg))
 	case membersMsg:
 		return answered(m.handleMembers(msg))
-	case inviteUpdateMsg:
-		return answered(m.handleInviteUpdate(msg))
 	case joinedMsg:
 		return answered(m.handleJoined(msg))
 	case leftMsg, spaceLeftMsg, signedOutMsg:

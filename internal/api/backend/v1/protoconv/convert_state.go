@@ -162,7 +162,7 @@ func StringsToRoomIDs(ss []string) []domain.RoomID {
 
 // ActivityToProto converts who is typing in a room.
 func ActivityToProto(a domain.Activity) *v1.Activity {
-	return &v1.Activity{RoomId: string(a.RoomID), Typing: append([]string(nil), a.Typing...)}
+	return &v1.Activity{RoomId: string(a.RoomID), Typing: append([]string(nil), a.Typing...), TypingKnownAs: append([]string(nil), a.TypingKnownAs...)}
 }
 
 // ProtoToActivity converts a room's activity back.
@@ -170,7 +170,10 @@ func ProtoToActivity(pb *v1.Activity) domain.Activity {
 	if pb == nil {
 		return domain.Activity{}
 	}
-	return domain.Activity{RoomID: domain.RoomID(pb.GetRoomId()), Typing: append([]string(nil), pb.GetTyping()...)}
+	return domain.Activity{
+		RoomID: domain.RoomID(pb.GetRoomId()), Typing: append([]string(nil), pb.GetTyping()...),
+		TypingKnownAs: append([]string(nil), pb.GetTypingKnownAs()...),
+	}
 }
 
 // SenderSlotsToProto converts a room's color slots, sorted by key for

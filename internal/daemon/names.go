@@ -43,6 +43,9 @@ type Names struct {
 	// told hears a build that names someone differently; nil is silent.
 	told func()
 	log  *slog.Logger
+	// memberNames reads a person's name in a room, for those sent by ID alone (an
+	// inviter, a voter, a typist); nil reads none.
+	memberNames func(ctx context.Context, room domain.RoomID, user string) (string, error)
 	// wake asks Run for a build; one pending is enough.
 	wake chan struct{}
 
@@ -83,6 +86,12 @@ func (n *Names) UseLogger(log *slog.Logger) {
 	if log != nil {
 		n.log = log
 	}
+}
+
+// UseMemberNames sets where a person's name in a room is read, the network's name for
+// those kithd sends by ID alone. Call before use.
+func (n *Names) UseMemberNames(names func(ctx context.Context, room domain.RoomID, user string) (string, error)) {
+	n.memberNames = names
 }
 
 // Use puts cfg's aliases and room names in force and builds at once.
@@ -353,6 +362,61 @@ func (n *Names) hits(ctx context.Context, hits []domain.SearchHit) []domain.Sear
 		out[i].Mentions = nameMentions(p, out[i].Mentions)
 	}
 	return out
+}
+
+// invites names each invitation's inviter.
+func (n *Names) invites(ctx context.Context, rooms []domain.Room) []domain.Room {
+	if len(rooms) == 0 {
+		return rooms
+	}
+	p := n.People(ctx)
+	out := slices.Clone(rooms)
+	for i := range out {
+		if out[i].InvitedBy != "" {
+			out[i].InvitedByKnownAs = p.Name(out[i].InvitedBy, n.memberName(ctx, out[i].ID, out[i].InvitedBy))
+		}
+	}
+	return out
+}
+
+// voters names each of a poll's voters in room.
+func (n *Names) voters(ctx context.Context, room domain.RoomID, voters domain.PollVoters) domain.PollVoters {
+	if len(voters.Voters) == 0 {
+		return voters
+	}
+	p := n.People(ctx)
+	voters.Voters = slices.Clone(voters.Voters)
+	for i := range voters.Voters {
+		if v := &voters.Voters[i]; v.ID != "" {
+			v.KnownAs = p.Name(v.ID, v.Name, n.memberName(ctx, room, v.ID))
+		}
+	}
+	return voters
+}
+
+// activity names everyone typing.
+func (n *Names) activity(ctx context.Context, a domain.Activity) domain.Activity {
+	if len(a.Typing) == 0 {
+		return a
+	}
+	p := n.People(ctx)
+	a.TypingKnownAs = make([]string, len(a.Typing))
+	for i, id := range a.Typing {
+		a.TypingKnownAs[i] = p.Name(id, n.memberName(ctx, a.RoomID, id))
+	}
+	return a
+}
+
+// memberName is user's name in room as the network gives it, "" when unknown.
+func (n *Names) memberName(ctx context.Context, room domain.RoomID, user string) string {
+	if n.memberNames == nil {
+		return ""
+	}
+	name, err := n.memberNames(ctx, room, user)
+	if err != nil {
+		n.log.Warn("read a member's name; they are named without it", "err", err)
+	}
+	return name
 }
 
 func nameMessage(p domain.People, msg *domain.Message) {

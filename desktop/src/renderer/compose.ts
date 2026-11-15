@@ -765,7 +765,17 @@ export class Composer {
 
   /** showVoters reads who chose what in m's poll, shown until put away: one poll's at a time. */
   showVoters(m: Message): void {
-    const read: VotersRead = { room: m.roomId, event: m.id, read: false, answer: undefined, error: "" };
+    this.readVoters({ room: m.roomId, event: m.id, read: false, answer: undefined, error: "" });
+  }
+
+  /** rereadVoters reads the shown poll's voters again, what shows staying till they land: kithd names them differently. */
+  rereadVoters(): void {
+    if (this.voters !== undefined) {
+      this.readVoters({ ...this.voters });
+    }
+  }
+
+  private readVoters(read: VotersRead): void {
     this.voters = read;
     this.around.changed();
     const land = (answered: Partial<VotersRead>) => {
@@ -774,9 +784,9 @@ export class Composer {
         this.around.changed();
       }
     };
-    call(backend.pollVoters, { roomId: m.roomId, eventId: m.id }).then(
+    call(backend.pollVoters, { roomId: read.room, eventId: read.event }).then(
       (answer) => {
-        land({ answer });
+        land({ answer, error: "" });
       },
       (err: unknown) => {
         land({ error: err instanceof Error ? err.message : String(err) });

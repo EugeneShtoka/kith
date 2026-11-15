@@ -380,7 +380,7 @@ func (s *server) Reactions(ctx context.Context, _ *req[v1.ReactionsRequest], st 
 
 func (s *server) PollVoters(ctx context.Context, r *req[v1.PollVotersRequest]) (*resp[v1.PollVotersResponse], error) {
 	voters, err := s.Backend.PollVoters(ctx, roomID(r.Msg.GetRoomId()), eventID(r.Msg.GetEventId()))
-	return reply(pc.PollVotersToProto(voters), err)
+	return reply(pc.PollVotersToProto(s.Names.voters(ctx, roomID(r.Msg.GetRoomId()), voters)), err)
 }
 
 func (s *server) VotePoll(ctx context.Context, r *req[v1.VotePollRequest]) (*resp[v1.VotePollResponse], error) {
@@ -486,14 +486,14 @@ func (s *server) SaveSenderSlots(ctx context.Context, r *req[v1.SaveSenderSlotsR
 
 func (s *server) CachedInvites(ctx context.Context, _ *req[v1.CachedInvitesRequest]) (*resp[v1.CachedInvitesResponse], error) {
 	invites, err := s.Backend.CachedInvites(ctx)
-	return reply(&v1.CachedInvitesResponse{Invites: pc.RoomsToProto(s.profileRooms(ctx, invites))}, err)
+	return reply(&v1.CachedInvitesResponse{Invites: pc.RoomsToProto(s.Names.invites(ctx, s.profileRooms(ctx, invites)))}, err)
 }
 
 // Invites sends every frame, empty included: an empty set means the last
 // invitation was answered.
 func (s *server) Invites(ctx context.Context, _ *req[v1.InvitesRequest], st *connect.ServerStream[v1.InvitesResponse]) error {
 	return serveStream(ctx, s.Streams.invites, st, func(rooms []domain.Room) *v1.InvitesResponse {
-		return &v1.InvitesResponse{Invites: pc.RoomsToProto(s.profileRooms(ctx, rooms))}
+		return &v1.InvitesResponse{Invites: pc.RoomsToProto(s.Names.invites(ctx, s.profileRooms(ctx, rooms)))}
 	})
 }
 
@@ -841,7 +841,7 @@ func (s *server) ActivityStream(ctx context.Context, _ *req[v1.ActivityStreamReq
 		if holds := s.streamHolds(ctx); holds != nil && !holds(a.RoomID) {
 			return nil
 		}
-		return &v1.ActivityStreamResponse{Activity: pc.ActivityToProto(a)}
+		return &v1.ActivityStreamResponse{Activity: pc.ActivityToProto(s.Names.activity(ctx, a))}
 	})
 }
 

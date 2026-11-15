@@ -80,7 +80,8 @@ func TestARemovedProfilesStreamGetsNothing(t *testing.T) {
 }
 
 // A notification arrives as kithd made it: a burst past the room's limit is one silent
-// popup replacing itself per room, under an ID of its own.
+// popup replacing itself per room, under an ID of its own; a click on the message's
+// opens the message, on the burst's the room.
 func TestANotificationArrivesAsKithdMadeIt(t *testing.T) {
 	t.Parallel()
 	room := domain.RoomID(mx + "!a:x")
@@ -98,6 +99,12 @@ func TestANotificationArrivesAsKithdMadeIt(t *testing.T) {
 	}
 	if !burst.Alert.Silent || burst.Alert.Replaces != string(room) || burst.Alert.Body != "1 new message" {
 		t.Errorf("burst = %+v, want a silent count replacing the room's popup", burst.Alert)
+	}
+	if want := domain.KithLink(room, mx+"$1"); first.Alert.Link != want {
+		t.Errorf("first links to %q, want the message, %q", first.Alert.Link, want)
+	}
+	if want := domain.KithLink(room, ""); burst.Alert.Link != want {
+		t.Errorf("burst links to %q, want the room, %q", burst.Alert.Link, want)
 	}
 	if first.ID == "" || first.ID == burst.ID {
 		t.Errorf("IDs %q and %q, want two of their own", first.ID, burst.ID)

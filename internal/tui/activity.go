@@ -17,14 +17,14 @@ type typingNotice struct {
 	at   time.Time
 }
 
-// liveActivity is who is typing in each room. Kept for every room: the stream
-// carries all rooms and nothing re-fetches it on entry.
+// liveActivity is who is typing in each room, as kithd named them. Kept for every
+// room: the stream carries all rooms and nothing re-fetches it on entry.
 type liveActivity struct {
-	typists map[domain.RoomID][]string
+	typists map[domain.RoomID]domain.Activity
 }
 
 func newLiveActivity() liveActivity {
-	return liveActivity{typists: map[domain.RoomID][]string{}}
+	return liveActivity{typists: map[domain.RoomID]domain.Activity{}}
 }
 
 // handleActivity folds one room's activity in. Typing is the whole set, so it is
@@ -34,7 +34,7 @@ func (m Model) handleActivity(msg activityMsg) (Model, tea.Cmd) {
 	if len(a.Typing) == 0 {
 		m.live.typists = withoutEntry(m.live.typists, a.RoomID)
 	} else {
-		m.live.typists = withEntry(m.live.typists, a.RoomID, a.Typing)
+		m.live.typists = withEntry(m.live.typists, a.RoomID, a)
 	}
 	return m, m.listenActivityCmd()
 }
@@ -45,17 +45,27 @@ func (m Model) typingNote() string {
 	if !m.prefs.device.ShowTyping() {
 		return ""
 	}
-	who := m.live.typists[m.openRoom]
-	switch len(who) {
+	a := m.live.typists[m.openRoom]
+	switch len(a.Typing) {
 	case 0:
 		return ""
 	case 1:
-		return m.personName(who[0]) + " is typing"
+		return m.typistName(a, 0) + " is typing"
 	case 2:
-		return m.personName(who[0]) + " and " + m.personName(who[1]) + " are typing"
+		return m.typistName(a, 0) + " and " + m.typistName(a, 1) + " are typing"
 	default:
-		return strconv.Itoa(len(who)) + " people are typing"
+		return strconv.Itoa(len(a.Typing)) + " people are typing"
 	}
+}
+
+// typistName is the i-th typist as kithd named them, shaped by the room's space rule and
+// isolated for a sentence.
+func (m Model) typistName(a domain.Activity, i int) string {
+	known := ""
+	if i < len(a.TypingKnownAs) {
+		known = a.TypingKnownAs[i]
+	}
+	return isolate(m.processedName(domain.Message{RoomID: a.RoomID, Sender: a.Typing[i], SenderKnownAs: known}))
 }
 
 // personName resolves an MXID to a display name, isolated for a sentence (knownName).

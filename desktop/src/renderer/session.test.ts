@@ -195,6 +195,18 @@ describe("the window's profile", () => {
 });
 
 describe("the window's invitations", () => {
+  it("name the inviter as kithd does, and again when kithd says names changed", async () => {
+    const from = (id: string, knownAs: string) =>
+      room(id, { membership: "invite", invitedBy: "@ada:x", invitedByKnownAs: knownAs });
+    kithd.of("Home").invites = [from("!i", "Ada"), from("!j", "Ada")];
+    await started();
+    expect(view().invites.map((r) => r.invitedByKnownAs)).toEqual(["Ada", "Ada"]);
+    kithd.of("Home").invites = [from("!i", "Ada Lovelace"), from("!j", "Ada Lovelace")];
+    kithd.send(backend.changed, "Home", { change: Change.NAMES });
+    await settled();
+    expect(view().invites.map((r) => r.invitedByKnownAs)).toEqual(["Ada Lovelace", "Ada Lovelace"]);
+  });
+
   it("are accepted by joining and declined by leaving", async () => {
     kithd.of("Home").invites = [room("!i", { membership: "invite" }), room("!j", { membership: "invite" })];
     await started();
@@ -222,6 +234,7 @@ describe("the rooms, the unread and the invitations", () => {
   it.each(Array.from({ length: 40 }, (_, i) => i + 1))("hold over kithd restarts (seed %i)", async (seed) => {
     const pick = rng(seed);
     const all = ["!r0", "!r1", "!r2", "!r3"];
+    let inviter = "Ada";
     const want = kithd.of("Home");
     want.rooms = all.map((id) => room(id));
     await started();
@@ -240,9 +253,9 @@ describe("the rooms, the unread and the invitations", () => {
       expect(view().unreadTotal, when).toBe(total);
       expect(kithd.told.at(-1) ?? 0, when).toBe(total);
       expect(
-        view().invites.map((r) => r.id),
+        view().invites.map((r) => `${r.id} from ${r.invitedByKnownAs}`),
         when,
-      ).toEqual(want.invites.map((r) => r.id));
+      ).toEqual(want.invites.map((r) => `${r.id} from ${r.invitedByKnownAs}`));
     };
     const reads = ["CachedUnread", "CachedInvites", "Rooms"];
     const holdSome = () => {
@@ -268,7 +281,9 @@ describe("the rooms, the unread and the invitations", () => {
         case 4:
           kithd.setInvites(
             "Home",
-            ["!i0", "!i1", "!i2"].filter(() => pick(2) === 0).map((id) => room(id, { membership: "invite" })),
+            ["!i0", "!i1", "!i2"]
+              .filter(() => pick(2) === 0)
+              .map((id) => room(id, { membership: "invite", invitedBy: "@ada:x", invitedByKnownAs: inviter })),
           );
           break;
         case 5:
@@ -294,6 +309,12 @@ describe("the rooms, the unread and the invitations", () => {
           holdSome();
           break;
         case 10:
+          // kithd names the inviter anew, and says so: no invitation changes.
+          inviter = `Ada ${String(step)}`;
+          want.invites = want.invites.map((r) => ({ ...r, invitedByKnownAs: inviter }));
+          if (up) {
+            kithd.send(backend.changed, "Home", { change: Change.NAMES });
+          }
           break;
         default:
           kithd.holding.clear();

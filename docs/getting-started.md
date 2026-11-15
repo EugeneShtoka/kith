@@ -488,13 +488,14 @@ Device verification, key export and the details are covered in
 ## Open matrix:, tg:, whatsapp: and Signal links in kith
 
 `make install` registers kith as the handler for `matrix:`, `tg:`, `whatsapp:` and `sgnl:`
-links. When you click one in a browser or another app, the desktop runs:
+links, and for kith's own `kith:` links. When you click one in a browser or another app, the desktop runs:
 
 ```sh
 kith --open 'matrix:r/room:example.org'
 kith --open 'tg://resolve?domain=novosalsa&post=35'
 kith --open 'whatsapp://send?phone=15551234567&text=hello'
 kith --open 'sgnl://signal.me/#p/+15551234567'
+kith --open 'kith:slack:T01K2D5TCAC%2FC08HVEWCKQE?event=slack%3AT01K2D5TCAC%2FC08HVEWCKQE%2F1794382539.534909'
 ```
 
 `--open` accepts `matrix:` URIs and `https://matrix.to/#/…` links, `tg://` URIs and
@@ -540,6 +541,18 @@ being found by it. A group invite (`signal.group/#…`) asks before joining, say
 group's size, then opens it; where an admin approves who joins, it sends the request
 instead.
 
+A `kith:` link names a room, or a message in it, by kith's own IDs on any network: the
+`room.id` and `event_id` that `kith-mcp` hands out. It is `kith:<room>` for the room and
+`kith:<room>?event=<event>` for a message, the room ID path-escaped (each `/` as `%2F`)
+and the event ID query-escaped. A WhatsApp message, for example:
+
+```text
+kith:whatsapp:359884650326%2F120363429032076834@g.us?event=whatsapp%3A359884650326%2F3BF495B87692C4F46C02
+```
+
+The IDs name one account's view of the chat, so the link opens only where that account
+is signed in, and kith asks no network about a room it does not list. Nothing is joined.
+
 Links your browser opens as web pages (`https://t.me/…`, `https://wa.me/…`) reach kith
 only if you paste them into `kith --open`: the desktop sends `https:` to the browser.
 
@@ -551,7 +564,7 @@ copy `packaging/desktop/kith.desktop` from the repository, then run:
 
 ```sh
 install -Dm644 kith.desktop ~/.local/share/applications/kith.desktop
-xdg-mime default kith.desktop x-scheme-handler/matrix x-scheme-handler/tg x-scheme-handler/whatsapp x-scheme-handler/sgnl
+xdg-mime default kith.desktop x-scheme-handler/matrix x-scheme-handler/tg x-scheme-handler/whatsapp x-scheme-handler/sgnl x-scheme-handler/kith
 ```
 
 If `kith` isn't on the desktop session's `PATH`, change the entry's `Exec=` line to

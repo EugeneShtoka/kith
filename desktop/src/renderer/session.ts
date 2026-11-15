@@ -403,6 +403,8 @@ interface Run {
   at: Readonly<Record<string, bigint>>;
   /** Counts the room reads, so an older answer arriving last is dropped; and whether one has answered. */
   roomReads: number;
+  /** Reads the invitations again, as their stream's opening does (keep): kithd names their inviters differently. */
+  rereadInvites: () => void;
   listed: boolean;
   /** A room asked to open before the rooms were read: opened once they are, if held. */
   opening: string | undefined;
@@ -1673,6 +1675,7 @@ export class Session {
       joined: [],
       at: {},
       roomReads: 0,
+      rereadInvites: () => undefined,
       listed: false,
       opening: undefined,
       search: undefined,
@@ -1845,6 +1848,8 @@ export class Session {
               run.timeline?.reload();
               run.thread?.reload();
               run.composer.forgetMembers();
+              run.composer.rereadVoters();
+              run.rereadInvites();
               this.pumpThread(run);
               this.pump(run);
             }
@@ -1970,7 +1975,7 @@ export class Session {
         }
       },
     );
-    this.keep(
+    run.rereadInvites = this.keep(
       run,
       backend.invites,
       {},
@@ -1988,7 +1993,7 @@ export class Session {
    * keep holds a stream whose state is read whole (read) each time it opens, kithd
    * having restarted or not: its frames until that read answers are held, then applied
    * over it in order, so none is lost to an older read and none counted twice (a frame
-   * carries a room's whole count, or the whole set).
+   * carries a room's whole count, or the whole set). What it returns reads it again so.
    */
   private keep<I extends DescMessage, O extends DescMessage, S>(
     run: Run,
@@ -1997,7 +2002,7 @@ export class Session {
     read: () => Promise<S>,
     replace: (state: S) => void,
     apply: (frame: MessageShape<O>) => void,
-  ): void {
+  ): () => void {
     let opened = 0;
     let held: MessageShape<O>[] | undefined;
     const settle = (mine: number, state: S | undefined) => {
@@ -2011,26 +2016,28 @@ export class Session {
       held = undefined;
       frames.forEach(apply);
     };
+    const reread = () => {
+      const mine = ++opened;
+      held = [];
+      read().then(
+        (state) => {
+          settle(mine, state);
+        },
+        (err: unknown) => {
+          this.fail(err);
+          settle(mine, undefined);
+        },
+      );
+    };
     run.streams.push(
       subscribe(method, input, (e) => {
         if (!this.live(run)) {
           return;
         }
         switch (e.kind) {
-          case "attached": {
-            const mine = ++opened;
-            held = [];
-            read().then(
-              (state) => {
-                settle(mine, state);
-              },
-              (err: unknown) => {
-                this.fail(err);
-                settle(mine, undefined);
-              },
-            );
+          case "attached":
+            reread();
             break;
-          }
           case "frames":
             if (held !== undefined) {
               held.push(...e.frames);
@@ -2046,6 +2053,7 @@ export class Session {
         }
       }),
     );
+    return reread;
   }
 
   /**

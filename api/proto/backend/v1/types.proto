@@ -47,6 +47,9 @@ message Room {
   // The version of the room's picture LoadPicture answers with (domain.Room.Picture):
   // it changes with the picture; empty while the room has none.
   string picture = 18;
+  // The inviter's name as kithd names them, the one every client shows
+  // (domain.Room.InvitedByKnownAs).
+  string invited_by_known_as = 19;
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted (domain.ChatDeleting).
@@ -92,6 +95,9 @@ message Revision {
 message Activity {
   string room_id = 1;
   repeated string typing = 2; // everyone typing right now, us excluded
+  // Each of typing's names as kithd names them, in its order
+  // (domain.Activity.TypingKnownAs).
+  repeated string typing_known_as = 3;
 }
 
 // Message is a single timeline message event (domain.Message).
@@ -168,6 +174,9 @@ message PollVoter {
   string name = 2;
   // The answers they chose, by ID.
   repeated string options = 3;
+  // The person's name as kithd names them, the one every client shows; name is the
+  // network's own (domain.PollVoter.KnownAs).
+  string known_as = 4;
 }
 
 // PollHiding is why a poll's network names none of its voters (domain.PollHiding).

@@ -786,6 +786,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		// write that may name someone differently builds the names again.
 		backend.cache.OnChanged(streams.MessagesChanged)
 		backend.cache.OnPeopleChange(names.Changed)
+		names.UseMemberNames(backend.cache.RoomMemberName)
 	}
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)
 	refresher.UseLogger(log)

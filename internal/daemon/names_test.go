@@ -2,6 +2,7 @@ package daemon_test
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -14,19 +15,22 @@ import (
 
 // People named in the tests below, all invented: Svetlana's Telegram account calls
 // itself "neke", her bridge puppet is linked to it, Dana is a number the phone book
-// names, and Bo is the one peer of a direct chat [[display.name]] calls "Bohdan".
+// names, Bo is the one peer of a direct chat [[display.name]] calls "Bohdan", and Cleo
+// is named only by her name in a room.
 const (
 	svetlana     = "telegram:66919467"
 	svetlanaPup  = "matrix:@telegram_66919467:example.org"
 	danaNumber   = "whatsapp:15550100001@s.whatsapp.net"
 	bo           = "matrix:@bo:example.org"
+	cleo         = "matrix:@cleo:example.org"
+	inviteRoom   = mx + "!invite:example.org"
 	boRoom       = mx + "!bo:example.org"
 	knownRoom    = mx + "!names:example.org"
 	svetlanaName = "Svetlana"
 )
 
-// peopleBackend serves one room's messages, threads, members and hits, the rooms, and a
-// directory a test may change.
+// peopleBackend serves one room's messages, threads, members, hits and a poll's voters,
+// the rooms, invitations, and a directory a test may change.
 type peopleBackend struct {
 	apitest.Nop
 
@@ -35,6 +39,8 @@ type peopleBackend struct {
 	rooms   []domain.Room
 	members map[domain.RoomID][]domain.Member
 	msgs    []domain.Message
+	invites []domain.Room
+	voters  domain.PollVoters
 }
 
 func (b *peopleBackend) Directory(context.Context) (domain.Directory, error) {
@@ -55,6 +61,22 @@ func (b *peopleBackend) Selves(context.Context) ([]string, error) { return []str
 
 func (b *peopleBackend) Members(_ context.Context, room domain.RoomID, _ int) ([]domain.Member, error) {
 	return b.members[room], nil
+}
+
+// memberName is user's name in room, as the cache's RoomMemberName reads it.
+func (b *peopleBackend) memberName(_ context.Context, room domain.RoomID, user string) (string, error) {
+	for _, m := range b.members[room] {
+		if m.UserID == user {
+			return m.DisplayName, nil
+		}
+	}
+	return "", nil
+}
+
+func (b *peopleBackend) CachedInvites(context.Context) ([]domain.Room, error) { return b.invites, nil }
+
+func (b *peopleBackend) PollVoters(context.Context, domain.RoomID, domain.EventID) (domain.PollVoters, error) {
+	return b.voters, nil
 }
 
 func (b *peopleBackend) MentionCandidates(ctx context.Context, room domain.RoomID, limit int) ([]domain.Member, error) {
@@ -105,7 +127,8 @@ func (b *peopleBackend) SearchMessages(context.Context, domain.SearchRequest) ([
 }
 
 // knownWorld is the backend the tests name people in: one message from each, the
-// first mentioning Svetlana by her network name.
+// first mentioning Svetlana by her network name; an invitation from Svetlana's puppet
+// and one from Cleo; a poll each of them voted in.
 func knownWorld() *peopleBackend {
 	return &peopleBackend{
 		dir: domain.NewDirectory(
@@ -114,9 +137,21 @@ func knownWorld() *peopleBackend {
 		),
 		rooms: []domain.Room{{ID: boRoom, Name: "Bo", IsDirect: true}, {ID: knownRoom, Name: "Names"}},
 		members: map[domain.RoomID][]domain.Member{
-			boRoom:    {{UserID: me, DisplayName: "Me"}, {UserID: bo, DisplayName: "Bo"}},
-			knownRoom: {{UserID: svetlana, DisplayName: "neke"}, {UserID: svetlanaPup, DisplayName: "neke (Telegram)"}, {UserID: danaNumber, DisplayName: "+15550100001"}, {UserID: bo, DisplayName: "Bo"}},
+			boRoom: {{UserID: me, DisplayName: "Me"}, {UserID: bo, DisplayName: "Bo"}},
+			knownRoom: {
+				{UserID: svetlana, DisplayName: "neke"}, {UserID: svetlanaPup, DisplayName: "neke (Telegram)"},
+				{UserID: danaNumber, DisplayName: "+15550100001"}, {UserID: bo, DisplayName: "Bo"}, {UserID: cleo, DisplayName: "Cleo"},
+			},
+			inviteRoom: {{UserID: cleo, DisplayName: "Cleo"}},
 		},
+		invites: []domain.Room{
+			{ID: mx + "!plans:example.org", Name: "Plans", Membership: domain.MembershipInvite, InvitedBy: svetlanaPup},
+			{ID: inviteRoom, Name: "Cleo's", Membership: domain.MembershipInvite, InvitedBy: cleo},
+		},
+		voters: domain.PollVoters{Voters: []domain.PollVoter{
+			{ID: svetlanaPup, Options: []string{"a"}}, {ID: danaNumber, Name: "+15550100001", Options: []string{"a"}},
+			{ID: bo, Name: "Bo", Options: []string{"b"}}, {ID: cleo, Options: []string{"b"}},
+		}},
 		msgs: []domain.Message{
 			{
 				ID: mx + "$1", RoomID: knownRoom, Sender: svetlana, SenderName: "neke", Body: "hi @neke",
@@ -138,7 +173,7 @@ func peopleConfig() config.Config {
 }
 
 // wantNames is what kithd calls each sender of knownWorld.
-var wantNames = map[string]string{svetlana: svetlanaName, svetlanaPup: svetlanaName, danaNumber: "Dana Levi", bo: "Bohdan"}
+var wantNames = map[string]string{svetlana: svetlanaName, svetlanaPup: svetlanaName, danaNumber: "Dana Levi", bo: "Bohdan", cleo: "Cleo"}
 
 // servePeople serves b with peopleConfig's names.
 func servePeople(t *testing.T, b *peopleBackend) (*daemon.Remote, *harness, *daemon.Names) {
@@ -146,6 +181,7 @@ func servePeople(t *testing.T, b *peopleBackend) (*daemon.Remote, *harness, *dae
 	var names *daemon.Names
 	h := serve(t, b, func(d *daemon.Daemon) {
 		names = daemon.NewNames(b, peopleConfig(), d.Streams.NamesChanged)
+		names.UseMemberNames(b.memberName)
 		d.Names = names
 	})
 	r := h.client()
@@ -201,7 +237,7 @@ func TestKithdNamesPeopleInEverythingItSends(t *testing.T) {
 	}
 
 	members, err := r.Members(ctx, knownRoom, 10)
-	if err != nil || len(members) != 4 {
+	if err != nil || len(members) != 5 {
 		t.Fatalf("Members = %+v, %v", members, err)
 	}
 	for _, m := range members {
@@ -221,6 +257,28 @@ func TestKithdNamesPeopleInEverythingItSends(t *testing.T) {
 	}
 	if got := hits[0].Mentions; len(got) != 1 || got[0].KnownAs != svetlanaName {
 		t.Errorf("a hit's mention of Svetlana = %+v, want her known as %q", got, svetlanaName)
+	}
+
+	// An invitation's inviter, by a linked puppet or by their name in the room alone.
+	invites, err := r.CachedInvites(ctx)
+	if err != nil || len(invites) != len(b.invites) {
+		t.Fatalf("CachedInvites = %+v, %v", invites, err)
+	}
+	for _, inv := range invites {
+		if inv.InvitedByKnownAs != wantNames[inv.InvitedBy] {
+			t.Errorf("an invitation from %s names them %q, want %q", inv.InvitedBy, inv.InvitedByKnownAs, wantNames[inv.InvitedBy])
+		}
+	}
+
+	// A poll's voters, whether the network names them or not.
+	voters, err := r.PollVoters(ctx, knownRoom, mx+"$1")
+	if err != nil || len(voters.Voters) != len(b.voters.Voters) {
+		t.Fatalf("PollVoters = %+v, %v", voters, err)
+	}
+	for i, v := range voters.Voters {
+		if v.KnownAs != wantNames[v.ID] || v.Name != b.voters.Voters[i].Name {
+			t.Errorf("voter %s (network: %q) is known as %q, want %q", v.ID, v.Name, v.KnownAs, wantNames[v.ID])
+		}
 	}
 
 	// People a client holds only by ID are named alike when it asks.
@@ -249,6 +307,31 @@ func TestStreamedMessagesAreNamed(t *testing.T) {
 	got := take(t, r.Messages(), "the client")
 	if got.SenderKnownAs != svetlanaName || len(got.Mentions) != 1 || got.Mentions[0].KnownAs != svetlanaName {
 		t.Errorf("streamed %+v, want Svetlana's message and mention known as %q", got, svetlanaName)
+	}
+}
+
+// Invitations and everyone typing, streamed, are named as the rest of what kithd sends
+// names them: typists in typing's order.
+func TestStreamedInvitationsAndTypingAreNamed(t *testing.T) {
+	t.Parallel()
+	b := knownWorld()
+	acts, invs := make(chan domain.Activity, 1), make(chan []domain.Room, 1)
+	b.Acts, b.Invs = acts, invs
+	r, h, _ := servePeople(t, b)
+	go func() { _ = r.Start(context.Background()) }()
+	h.waitAttached(1)
+	invs <- b.invites
+	for _, inv := range take(t, r.Invites(), "the client") {
+		if inv.InvitedByKnownAs != wantNames[inv.InvitedBy] {
+			t.Errorf("a streamed invitation from %s names them %q, want %q", inv.InvitedBy, inv.InvitedByKnownAs, wantNames[inv.InvitedBy])
+		}
+	}
+	typing := []string{cleo, svetlanaPup, danaNumber}
+	acts <- domain.Activity{RoomID: knownRoom, Typing: typing}
+	got := take(t, r.Activity(), "the client")
+	want := []string{"Cleo", svetlanaName, "Dana Levi"}
+	if !slices.Equal(got.Typing, typing) || !slices.Equal(got.TypingKnownAs, want) {
+		t.Errorf("streamed typing %q known as %q, want %q known as %q", got.Typing, got.TypingKnownAs, typing, want)
 	}
 }
 

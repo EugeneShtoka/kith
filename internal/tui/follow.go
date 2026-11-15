@@ -164,8 +164,12 @@ func (m Model) followPendingLink() (Model, tea.Cmd, bool) {
 // followLink goes where uri points and says so after the move, since opening a room
 // sets its own status and the last writer wins. Matrix is tried first; a tg:// link
 // looks up a chat by its stored @username, a WhatsApp link by its number, else the
-// network is asked; a Signal link is always asked about, since no chat stores one.
+// network is asked; a Signal link is always asked about, since no chat stores one. A kith
+// link goes to the room it names by kith's ID, which no network is asked about.
 func (m Model) followLink(uri string) (Model, tea.Cmd) {
+	if place, ok := domain.ParseKithLink(uri); ok {
+		return m.followKithLink(place)
+	}
 	if place, ok := domain.ParsePlace(uri); ok {
 		label, _ := m.placeLabel(place)
 		next, cmd := m.goToPlace(place)
@@ -181,6 +185,17 @@ func (m Model) followLink(uri string) (Model, tea.Cmd) {
 		return m.pickAccount(accountThen{kind: thenResolve, network: domain.ProtocolSignal, uri: uri})
 	}
 	return m.say("not a Matrix, Telegram, WhatsApp or Signal link: " + uri), nil
+}
+
+// followKithLink goes to the room a kith link names, at its message if it names one. A
+// room not listed here is only said: its ID is one account's view, nothing to join.
+func (m Model) followKithLink(place domain.Place) (Model, tea.Cmd) {
+	room, found := m.roomByID(domain.RoomID(place.Room))
+	if !found {
+		return m.say("that link names no chat here: " + place.Room), nil
+	}
+	next, cmd := m.openPlaceRoom(room, place.Event)
+	return next.say("followed a link to " + isolate(next.roomName(room))), cmd
 }
 
 // followTelegramLink goes to the cached Telegram chat whose @username (or private
@@ -383,10 +398,15 @@ func (m Model) handleChanged(msg changedMsg) (Model, tea.Cmd) {
 		return m, tea.Batch(m.offerOwedDictionaries(), m.listenChangesCmd())
 	case domain.ChangeNames:
 		// kithd names people differently: the open room's messages, members and threads
-		// are read again, with the new names, and the people asked for by ID.
-		cmds := []tea.Cmd{m.listenChangesCmd(), m.askNamesAgainCmd()}
+		// are read again, with the new names, and the people asked for by ID, the
+		// invitations' inviters and the open poll's voters.
+		m.renames++
+		cmds := []tea.Cmd{m.listenChangesCmd(), m.askNamesAgainCmd(), m.renameInvitesCmd()}
 		if m.openRoom != "" {
 			cmds = append(cmds, m.loadRoomCmd(m.openRoom))
+		}
+		if m.votePickerOpen() {
+			cmds = append(cmds, m.readVotersCmd(m.aimedAt.vote))
 		}
 		return m, tea.Batch(cmds...)
 	case domain.ChangeMessages:
