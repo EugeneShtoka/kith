@@ -106,6 +106,7 @@ func run(w *app.Window, backend *daemon.Remote, local bool, pal palette, dev con
 	ui := newUI(w, backend, local, pal, dev, devicePath)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	ui.tray = ui.startTray(ctx)
 	go ui.loadRooms(ctx, room, play)
 	go func() { _ = backend.Start(ctx) }()
 	go ui.follow(ctx)

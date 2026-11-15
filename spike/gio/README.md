@@ -36,7 +36,7 @@ keymap: sequences such as `g g`, counts such as `12j`, and typing wins). The rai
 room list and the timeline each have a cursor that `[keys.nav]` moves; Tab or
 Ctrl+Shift+1..4 move between panes, Ctrl+K goes to a room, Ctrl+O and Ctrl+I back and
 forward, each `[[keys.jump]]` chord to its room or rail row, and `?` lists the keys bound
-now. The title counts unread, where the desktop has its tray badge. On the selected message: reply, edit (your own), delete (asks first), react (a
+now. The title counts unread, and so does a tray icon (a StatusNotifierItem, as Electron's tray: a disc, red while unread, the count in its tooltip, a click raising the window). On the selected message: reply, edit (your own), delete (asks first), react (a
 picker that searches emoji by name, your most used first), copy its text or link, open
 a link (with several, a chooser asks which, as the desktop's does; opening hands it to
 kithd, so a chat link opens in the window kithd picks and a web one in the browser), save,

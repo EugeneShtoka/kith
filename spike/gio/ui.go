@@ -147,6 +147,7 @@ type ui struct {
 	helpRows    []helpRow            // what it lists
 	link        string               // a link kithd handed over before the rooms were read
 	devicePath  string               // the device file, where folds are kept
+	tray        *tray                // the tray icon, nil without a session bus
 }
 
 // timeline is the open room's messages, oldest first, and how far back they reach.
@@ -741,11 +742,9 @@ func (u *ui) layout(ctx context.Context, gtx C) D {
 	return dims
 }
 
-// title puts the unread count in the window's title, where the desktop has its tray
+// title puts the unread count in the window's title and the tray, as the desktop's tray
 // badge: every room's count summed but those a silent tag holds, as its badge does
 // (rooms.ts total).
-// shortcut: no tray icon; a tray needs a new dependency (systray), wanted once this
-// window replaces the desktop.
 func (u *ui) title() {
 	n := 0
 	for _, r := range u.rooms {
@@ -759,6 +758,7 @@ func (u *ui) title() {
 		return
 	}
 	u.titled = n
+	u.tray.set(n)
 	title := "kith (gio)"
 	if n > 0 {
 		title = fmt.Sprintf("(%d) %s", n, title)
