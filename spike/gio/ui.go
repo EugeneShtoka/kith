@@ -135,6 +135,7 @@ type ui struct {
 	helping     *helpView            // the help overlay, nil when closed
 	revisions   *historyView         // a message's history, nil when closed
 	prompting   *prompt              // a name asked for, nil when not
+	pasteText   *widget.Editor       // the field to paste the clipboard's text into next frame
 	filing      *filingView          // the filing card, nil when closed
 	searching   *searchView          // a search's hits, listed in the room list's place; nil for none
 	searchScope searchScope          // where the next search looks
@@ -1612,6 +1613,7 @@ func (u *ui) layoutEditor(ctx context.Context, gtx C, ed *widget.Editor, attach 
 	if attach != nil && u.sendBtn.Clicked(gtx) {
 		u.submit(ctx, ed, root)
 	}
+	u.pasteKey(ctx, gtx, ed)
 	offer := u.complete(ctx, gtx, ed)
 	if attach != nil && attach.Clicked(gtx) {
 		go u.attach(ctx, u.current)

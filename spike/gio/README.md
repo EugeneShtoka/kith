@@ -48,7 +48,10 @@ list (on a thread's row, `m` marks the thread), and `m` on a rail row marks the 
 (asks first). `a` on a room names it for you (`[[display.name]]`, which the list and header
 now show), `S` files it into spaces and tags (space ticks, Enter files), and `a` on a
 message makes its sender one of your people ("same person as": one picked keeps their
-color and picture). The composer completes `:name` into emoji and `@name` into a mention (people as kithd offers them: Matrix,
+color and picture). Ctrl+V in a composer asks the clipboard (xclip, or wl-paste
+under Wayland) first: copied files or an image are offered to send here (y sends), text
+pastes as before; a file dropped on the window is not taken (Gio receives no drops). The
+composer completes `:name` into emoji and `@name` into a mention (people as kithd offers them: Matrix,
 LinkedIn and Instagram rooms), and turns a typed `:name:` into its emoji; the popup's keys
 are `[keys.completion]`'s. `/` at the start offers the commands the window does: `/me`,
 `/plain`, `/upload`, `/at` and `/in` (queued in kithd to send later), `/search` and `/poll`;
