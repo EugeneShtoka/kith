@@ -64,7 +64,7 @@ LinkedIn and Instagram rooms), and turns a typed `:name:` into its emoji; the po
 are `[keys.completion]`'s. `/` at the start offers the commands the window does: `/me`,
 `/plain`, `/upload`, `/at` and `/in` (queued in kithd to send later), `/search`,
 `/scheduled` (the queue, this room's or every room's, with Cancel and Try again), `/poll`,
-`/topic`, `/shortcut` (a `[[keys.jump]]` written to the device file) and `/replacement`;
+`/topic`, `/shortcut` (a `[[keys.jump]]` written to the device file, to the room or, Tab in its prompt, the rail's selected space or tag, as the TUI's) and `/replacement`;
 then the commands folder's that run in the room (`commands.go`), which the window runs
 itself as the TUI does, argument and all, their output going where their `[[command]]`
 says. The TUI's others say so, `//` sends one slash, and any other slash word is a message.

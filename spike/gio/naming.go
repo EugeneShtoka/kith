@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -40,6 +41,7 @@ type prompt struct {
 	at          int
 	btns        []widget.Clickable
 	take        func(words string)
+	tab         func() // Tab's: another question in its place; nil, Tab is not taken
 	focused     bool
 	close, card widget.Clickable
 }
@@ -148,20 +150,29 @@ func (u *ui) samePerson(ctx context.Context, account, name string) {
 }
 
 // arrows moves the choice under the arrows by the field's Up and Down; true on Esc.
+// Tab runs the prompt's tab, when it has one.
 func (p *prompt) arrows(gtx C, offered int) (closed bool) {
 	step := map[key.Name]int{key.NameUpArrow: -1, key.NameDownArrow: 1}
+	filters := []event.Filter{
+		key.Filter{Focus: &p.field, Name: key.NameEscape},
+		key.Filter{Focus: &p.field, Name: key.NameUpArrow},
+		key.Filter{Focus: &p.field, Name: key.NameDownArrow},
+	}
+	if p.tab != nil {
+		filters = append(filters, key.Filter{Focus: &p.field, Name: key.NameTab})
+	}
 	for {
-		ev, ok := gtx.Event(
-			key.Filter{Focus: &p.field, Name: key.NameEscape},
-			key.Filter{Focus: &p.field, Name: key.NameUpArrow},
-			key.Filter{Focus: &p.field, Name: key.NameDownArrow},
-		)
+		ev, ok := gtx.Event(filters...)
 		if !ok {
 			return false
 		}
 		if e, ok := ev.(key.Event); ok && e.State == key.Press {
-			if e.Name == key.NameEscape {
+			switch e.Name {
+			case key.NameEscape:
 				return true
+			case key.NameTab:
+				p.tab()
+				return false
 			}
 			p.at = max(-1, min(offered-1, p.at+step[e.Name]))
 		}
@@ -183,6 +194,9 @@ func (u *ui) layoutPrompt(gtx C) {
 	if p.arrows(gtx, len(offered)) {
 		shut()
 		return
+	}
+	if u.prompting != p {
+		return // Tab put another question in its place
 	}
 	for {
 		ev, ok := p.field.Update(gtx)

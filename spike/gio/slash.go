@@ -38,7 +38,7 @@ var windowCommands = []slashCommand{
 	{name: "/scheduled", summary: "what is waiting to go out in this room"},
 	{name: "/poll", arg: "<question> | <answer> | <answer> [| any]", summary: "ask a poll; a trailing | any lets voters pick several"},
 	{name: "/topic", summary: "what this room is for, in full"},
-	{name: "/shortcut", arg: "[keys]", argOptional: true, summary: "a key sequence that goes to this room"},
+	{name: "/shortcut", arg: "[keys]", argOptional: true, summary: "a key sequence that goes to this room, or the rail's space or tag"},
 	{name: "/replacement", summary: "go to the room that replaced this one"},
 }
 
