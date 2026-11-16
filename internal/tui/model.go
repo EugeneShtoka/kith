@@ -337,8 +337,8 @@ type Model struct {
 	// openRoom is the ID of the room whose timeline is shown; tracked by ID so reindexing cannot move it.
 	openRoom domain.RoomID
 
-	// drafts are the unsent compositions of rooms other than the open one. See draft.go.
-	drafts map[domain.RoomID]draft
+	// drafts are the unsent compositions of places other than the open one: rooms, and their threads. See draft.go.
+	drafts map[place]draft
 
 	// quotes are reply targets that are not among the loaded messages. See quotes.go.
 	quotes quoteState
@@ -2316,7 +2316,7 @@ func (m Model) maxScroll() int {
 // empty group.
 func (m Model) selectGroup() (Model, tea.Cmd) {
 	// Stash before clearing openRoom: the ID is how the draft's room is known.
-	m = m.stashDraft(m.openRoom)
+	m = m.stashDraft(m.here())
 	m.openRoom = "" // drop any Unread-group pin carried over from the previous group
 	fr := m.filteredRooms()
 	if len(fr) == 0 {
@@ -2337,14 +2337,19 @@ func (m Model) leavingFor(room domain.Room) Model {
 	m.timeline.starred = nil
 	// Hidden people show only until you leave the room.
 	m.markedShownIn = ""
-	return m.stashDraft(m.openRoom)
+	return m.stashDraft(m.here())
 }
 
 // selectRoom makes room the open room and arms its loads.
 func (m Model) selectRoom(room domain.Room) (Model, tea.Cmd) {
 	leaving := m.openRoom != room.ID
+	// The thread open here closes with the timeline: its draft is put aside as the room's
+	// would be.
+	inThread := !leaving && m.thread.open()
 	if leaving {
 		m = m.leavingFor(room)
+	} else if inThread {
+		m = m.stashDraft(m.here())
 	}
 	saveColors := m.flushSenderSlots()
 	m.openRoom = room.ID
@@ -2362,9 +2367,7 @@ func (m Model) selectRoom(room domain.Room) (Model, tea.Cmd) {
 	if room.IsInvite() {
 		m = m.clearStatus()
 		if leaving {
-			var aimed tea.Cmd
-			m, aimed = m.restoreDraft(room.ID)
-			return m, tea.Batch(saveColors, repaint(), aimed)
+			return m.restoreDraft(m.here()), tea.Batch(saveColors, repaint())
 		}
 		return m, saveColors
 	}
@@ -2375,15 +2378,13 @@ func (m Model) selectRoom(room domain.Room) (Model, tea.Cmd) {
 	m.timeline.members = nil
 	m.timeline.membersRev++
 	// Restore this room's draft; rebuild the rail since the Drafts set changed.
-	var aimed tea.Cmd
-	if leaving {
-		m, aimed = m.restoreDraft(room.ID)
-		m = m.rebuiltRail()
+	if leaving || inThread {
+		m = m.restoreDraft(m.here()).rebuiltRail()
 	}
 	// Loads are armed, not issued: they fire once the cursor rests (roomLoadDelay), so scrolling past
 	// rooms costs no round trips.
 	m.loadArmed++
-	cmds := []tea.Cmd{saveColors, focusRead, m.armRoomLoad(room.ID), aimed}
+	cmds := []tea.Cmd{saveColors, focusRead, m.armRoomLoad(room.ID)}
 	// Repaint on a room change so mis-measured cells do not survive; not on re-selecting the open
 	// room, which happens on every re-sort.
 	if leaving {
@@ -2436,7 +2437,7 @@ func (m Model) loadRoomCmd(roomID domain.RoomID) tea.Cmd {
 func (m Model) clearRoom() (Model, tea.Cmd) {
 	wasOpen := m.openRoom != ""
 	// The draft goes with the room, wherever the room went.
-	m = m.stashDraft(m.openRoom)
+	m = m.stashDraft(m.here())
 	saveColors := m.flushSenderSlots()
 	m.openRoom = ""
 	m = m.emptiedTimeline()
@@ -3428,10 +3429,11 @@ func (m Model) handleQueuedUnsent(msg queuedUnsentMsg) (Model, tea.Cmd) {
 		m.namedRoom(msg.roomID) + "'s draft"), nil
 }
 
-// putBackDraft returns an unsendable message to its room's draft, prepended and separated by a
-// blank line.
+// putBackDraft returns an unsendable message to the draft of its room or thread, prepended and
+// separated by a blank line.
 func (m Model) putBackDraft(roomID domain.RoomID, unsent domain.Draft) Model {
-	if roomID == m.openRoom {
+	at := place{room: roomID, thread: unsent.ThreadRoot}
+	if at == m.here() {
 		ed := m.editorFor(fieldComposer)
 		body := unsent.Body
 		if ed.text != "" {
@@ -3444,7 +3446,7 @@ func (m Model) putBackDraft(roomID domain.RoomID, unsent domain.Draft) Model {
 		}
 		return m
 	}
-	held := m.drafts[roomID]
+	held := m.drafts[at]
 	if held.input != "" {
 		held.input = unsent.Body + "\n\n" + held.input
 	} else {
@@ -3455,9 +3457,9 @@ func (m Model) putBackDraft(roomID domain.RoomID, unsent domain.Draft) Model {
 	held.drafted = append(unsent.Mentions, held.drafted...)
 	drafts := maps.Clone(m.drafts)
 	if drafts == nil {
-		drafts = map[domain.RoomID]draft{}
+		drafts = map[place]draft{}
 	}
-	drafts[roomID] = held
+	drafts[at] = held
 	m.drafts = drafts
 	return m.rebuiltRail()
 }

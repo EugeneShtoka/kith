@@ -203,8 +203,8 @@ func (m Model) switchWhenDrafted() (Model, tea.Cmd) {
 	}
 	// One on the wire is waited for: asking again would mark it owed, and a write kithd
 	// refuses (a room the window still shows after landing) would go round for ever.
-	room := m.openRoom
-	if room != "" && !m.draftSync.inflight[room] && !m.draftSync.retry[room] &&
+	room := m.here()
+	if room.room != "" && !m.draftSync.inflight[room] && !m.draftSync.retry[room] &&
 		m.draftSync.differs(room, m.composerDraft()) {
 		var write tea.Cmd
 		m, write = m.requestSave(room)

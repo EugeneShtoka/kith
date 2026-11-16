@@ -40,7 +40,7 @@ func (v unreadView) tagState(i int, room domain.Room) domain.RoomState {
 // rawState is the room's state before any tag silences it.
 func (v unreadView) rawState(room domain.Room) domain.RoomState {
 	_, highlights := v.count(room)
-	_, draft := v.drafts[room.ID]
+	draft := roomDrafted(v.drafts, room.ID)
 	return domain.RoomState{
 		Unread:  v.counts[room.ID].HasUnread(v.local),
 		Mention: highlights > 0,

@@ -5120,7 +5120,8 @@ export type StoredDraft = Message<"backend.v1.StoredDraft"> & {
   updatedUnixMs: bigint;
 
   /**
-   * The thread it is written into; empty for the main timeline.
+   * The thread it is written into; empty for the main timeline. Each thread keeps its
+   * own draft beside the room's: room_id and thread_root name the one.
    *
    * @generated from field: string thread_root = 10;
    */

@@ -38,11 +38,10 @@ type aim struct {
 	thread, replyTo domain.EventID
 }
 
-// errElsewhere refuses to add to a draft aimed elsewhere (another thread, the main
-// timeline, another reply target): the words would go where not meant.
-var errElsewhere = errors.New("that room's composer already holds a draft aimed elsewhere (another " +
-	"thread, the main timeline, or another message to answer), so nothing was added to it. Tell them; " +
-	"it can go in once that draft is sent or cleared")
+// errElsewhere refuses to add to a draft answering another message: the words would
+// answer what they were not meant to.
+var errElsewhere = errors.New("that composer already holds a draft answering another message, so " +
+	"nothing was added to it. Tell them; it can go in once that draft is sent or cleared")
 
 // shortDashes turns every dash longer than a hyphen into a hyphen.
 var shortDashes = strings.NewReplacer("\u2012", "-", "\u2013", "-", "\u2014", "-", "\u2015", "-")
@@ -290,10 +289,11 @@ func (s *server) draftFor(ctx context.Context, room domain.Room, text, why strin
 	return nil, s.refuse(room, text, errDraftChanging)
 }
 
-// appendDraft adds text to the room's draft once, over the draft it read; saved is
-// false when the draft changed in between.
+// appendDraft adds text to the draft of the room's main timeline or of the thread aimed
+// at, each its own, once, over the draft it read; saved is false when the draft changed
+// in between.
 func (s *server) appendDraft(ctx context.Context, room domain.Room, text string, target aim) (appended, saved bool, err error) {
-	held, err := s.draftIn(ctx, room.ID)
+	held, err := s.draftIn(ctx, room.ID, target.thread)
 	if err != nil {
 		return false, false, err
 	}
@@ -302,12 +302,12 @@ func (s *server) appendDraft(ctx context.Context, room domain.Room, text string,
 	if held.Editing != "" || held.EditSaved != "" {
 		return false, false, errMidEdit
 	}
-	// An empty composer takes these words' aim; a held draft keeps its aim and takes them
-	// only when it matches.
+	// An empty composer takes these words' reply target; a held draft keeps its own and
+	// takes them only when it matches.
 	switch {
 	case held.Empty():
-		held.ThreadRoot, held.ReplyTo = target.thread, target.replyTo
-	case held.ThreadRoot != target.thread, target.replyTo != "" && held.ReplyTo != target.replyTo:
+		held.ReplyTo = target.replyTo
+	case target.replyTo != "" && held.ReplyTo != target.replyTo:
 		return false, false, errElsewhere
 	}
 	if n := len([]rune(held.Body)) + len([]rune(text)); n > draftCap {
@@ -325,7 +325,7 @@ func (s *server) appendDraft(ctx context.Context, room domain.Room, text string,
 	if err != nil {
 		// The write may have landed with its answer lost; retrying would append twice. Stored
 		// as written, or with more after it, means it landed.
-		if now, rerr := s.draftIn(ctx, room.ID); rerr == nil && landed(now, held) {
+		if now, rerr := s.draftIn(ctx, room.ID, target.thread); rerr == nil && landed(now, held) {
 			return appended, true, nil
 		}
 		return false, false, fmt.Errorf("writing the draft: %w", err)
@@ -343,18 +343,19 @@ func landed(stored, wrote domain.StoredDraft) bool {
 	return ok && (strings.HasPrefix(rest, " ") || strings.HasPrefix(rest, "\n"))
 }
 
-// draftIn is a room's current draft, or the empty one.
-func (s *server) draftIn(ctx context.Context, room domain.RoomID) (domain.StoredDraft, error) {
+// draftIn is the current draft of a room's thread (its main timeline for none), or the
+// empty one.
+func (s *server) draftIn(ctx context.Context, room domain.RoomID, thread domain.EventID) (domain.StoredDraft, error) {
 	drafts, err := s.backend.Drafts(ctx)
 	if err != nil {
 		return domain.StoredDraft{}, fmt.Errorf("reading what is already in the composer: %w", err)
 	}
 	for i := range drafts {
-		if drafts[i].RoomID == room {
+		if drafts[i].RoomID == room && drafts[i].ThreadRoot == thread {
 			return drafts[i], nil
 		}
 	}
-	return domain.StoredDraft{RoomID: room}, nil
+	return domain.StoredDraft{RoomID: room, ThreadRoot: thread}, nil
 }
 
 // wrote records what happened, then says it.

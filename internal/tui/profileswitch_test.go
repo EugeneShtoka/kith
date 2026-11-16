@@ -240,7 +240,7 @@ func (w *switchWalk) fails(room domain.RoomID) bool {
 func newSwitchWalk(t *testing.T, seed uint64) *switchWalk {
 	t.Helper()
 	w := &switchWalk{rng: rand.New(rand.NewPCG(seed, 0x7377)), typed: map[domain.RoomID][]string{}, failed: map[domain.RoomID]bool{}}
-	w.k = &profiledKithd{sharedDrafts: &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{}}, landed: w.landed, fails: w.fails}
+	w.k = &profiledKithd{sharedDrafts: &sharedDrafts{drafts: map[place]domain.StoredDraft{}}, landed: w.landed, fails: w.fails}
 	m := sized(t, starterNew(w.k, config.Display{}))
 	m = m.WithConfigFile("", config.Config{Profiles: []config.Profile{
 		{Name: "work", Include: []string{"*"}}, {Name: "home", Include: []string{"*"}}, {Name: "play", Include: []string{"*"}},
@@ -275,7 +275,7 @@ func (w *switchWalk) update(msg tea.Msg) {
 		return swIDs(w.m.rooms.joined)
 	}
 	if saved, ok := msg.(draftSavedMsg); ok && saved.err != nil {
-		w.failed[saved.room] = true
+		w.failed[saved.at.room] = true
 	}
 	was, before := w.m.openRoom, listed()
 	next, cmd := asModel(w.m.Update(msg))
@@ -337,13 +337,19 @@ func (w *switchWalk) landed(profile string) {
 		if swHolds(profile, room) || w.failed[room] {
 			continue // a write that failed is retried, as any is; the switch does not wait on it
 		}
+		// Its main timeline's draft or a thread's: words go where they were typed.
+		var stored []string
 		w.k.sharedDrafts.mu.Lock()
-		stored := w.k.drafts[room]
+		for at := range w.k.drafts {
+			if at.room == room {
+				stored = append(stored, strings.Fields(w.k.drafts[at].Body+" "+w.k.drafts[at].EditSaved)...)
+			}
+		}
 		w.k.sharedDrafts.mu.Unlock()
 		for _, word := range words {
-			if !slices.Contains(strings.Fields(stored.Body+" "+stored.EditSaved), word) && w.failure == "" {
-				w.failure = fmt.Sprintf("switched to %s with %q, typed in %s before, not stored (stored %q, editing over %q)",
-					profile, word, room, stored.Body, stored.EditSaved)
+			if !slices.Contains(stored, word) && w.failure == "" {
+				w.failure = fmt.Sprintf("switched to %s with %q, typed in %s before, not stored (stored %q)",
+					profile, word, room, stored)
 			}
 		}
 	}

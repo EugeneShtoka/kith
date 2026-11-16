@@ -445,11 +445,8 @@ CREATE TABLE drafts (
 	updated_ms INTEGER NOT NULL DEFAULT 0
 ) STRICT, WITHOUT ROWID;
 
--- The thread a draft is written into: a row only for a draft in one.
-CREATE TABLE draft_threads (
-	room_id     TEXT NOT NULL PRIMARY KEY REFERENCES drafts(room_id) ON DELETE CASCADE,
-	thread_root TEXT NOT NULL
-) STRICT, WITHOUT ROWID;
+-- A draft written into a thread: each thread's own, beside the room's (drafts).
+` + threadDrafts + `
 
 CREATE TABLE reactions (
 	event_id     TEXT NOT NULL PRIMARY KEY,
@@ -533,7 +530,29 @@ CREATE TABLE reaction_refusals (
 // ADD COLUMN, and is pinned in migrationFingerprints. Indexes need none (see
 // ensureIndexes); removals are new DROP migrations. TestAnUpgradedCacheMatchesAFreshOne
 // checks a migrated v1 cache against a fresh one.
-var migrations []string
+var migrations = []string{
+	// v2: thread_drafts, each thread's own draft, beside the room's.
+	threadDrafts,
+	// v3: draft_threads, the thread the room's one draft was aimed at, gone: such a
+	// draft stays the room's.
+	`DROP TABLE IF EXISTS draft_threads;`,
+}
+
+// threadDrafts is each thread's draft, keyed by room and thread root, its columns the
+// drafts table's.
+const threadDrafts = `CREATE TABLE IF NOT EXISTS thread_drafts (
+	room_id     TEXT    NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+	thread_root TEXT    NOT NULL,
+	body        TEXT    NOT NULL DEFAULT '',
+	caret       INTEGER NOT NULL DEFAULT 0,
+	mentions    TEXT    NOT NULL DEFAULT '',
+	reply_to    TEXT    NOT NULL DEFAULT '',
+	editing     TEXT    NOT NULL DEFAULT '',
+	edit_saved  TEXT    NOT NULL DEFAULT '',
+	author      TEXT    NOT NULL DEFAULT '',
+	updated_ms  INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (room_id, thread_root)
+) STRICT, WITHOUT ROWID;`
 
 // messageRedactionTimes is when each deleted message was deleted, the first time heard
 // (domain.Message.RedactedAt): only messages deleted since it was kept have a row. Its

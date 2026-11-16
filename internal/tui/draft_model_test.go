@@ -116,16 +116,16 @@ type draftWorld struct {
 	typed, added []string
 	// sent is the windows' sent messages.
 	sent []string
-	// deleted are the words a deletion elsewhere removed, per room; touched rooms held
+	// deleted are the words a deletion elsewhere removed, per place; touched places held
 	// unsaved changes then, or were typed in after, which may bring them back.
-	deleted map[domain.RoomID][]string
-	touched map[domain.RoomID]bool
+	deleted map[place][]string
+	touched map[place]bool
 	// end cancels the program's context, as tui.Run does before its last write.
 	end context.CancelFunc
-	// targets records, per room and field ("reply", "edit"), what the person last set;
-	// settled rooms (no send, no deletion) are checked against it at rest.
-	targets   map[domain.RoomID]map[string]string
-	unsettled map[domain.RoomID]bool
+	// targets records, per place and field ("reply", "edit"), what the person last set;
+	// settled places (no send, no deletion) are checked against it at rest.
+	targets   map[place]map[string]string
+	unsettled map[place]bool
 	serial    int
 	// exits counts the programs ended (each followed by nextRun).
 	exits int
@@ -144,8 +144,8 @@ func (w *draftWorld) holdsTyped(d domain.StoredDraft) bool {
 	return false
 }
 
-// setTarget records the person setting a target in a room.
-func (w *draftWorld) setTarget(room domain.RoomID, field, value string) {
+// setTarget records the person setting a target in a place.
+func (w *draftWorld) setTarget(room place, field, value string) {
 	if w.targets[room] == nil {
 		w.targets[room] = map[string]string{}
 	}
@@ -154,18 +154,29 @@ func (w *draftWorld) setTarget(room domain.RoomID, field, value string) {
 
 var draftRooms = []domain.RoomID{mx + "!a:x", mx + "!b:x"}
 
+// draftPlaces are where the walk's drafts are: each room's main timeline and its threads.
+var draftPlaces = func() []place {
+	var out []place
+	for _, room := range draftRooms {
+		for _, thread := range draftThreads {
+			out = append(out, place{room: room, thread: thread})
+		}
+	}
+	return out
+}()
+
 func newDraftWorld(t *testing.T, seed uint64) *draftWorld {
 	t.Helper()
 	m, shared := sharing(t)
 	w := &draftWorld{
 		t: t, rng: rand.New(rand.NewPCG(seed, 0x6d78)), clock: 5000,
-		deleted: map[domain.RoomID][]string{}, touched: map[domain.RoomID]bool{},
+		deleted: map[place][]string{}, touched: map[place]bool{},
 		typed: []string{"hi"}, // the draft sharing() starts with
 	}
 	w.store = &racyDrafts{sharedDrafts: shared, world: w, who: "this client"}
 	m.backend = w.store
 	m.ctx, w.end = context.WithCancel(context.Background())
-	w.targets, w.unsettled = map[domain.RoomID]map[string]string{}, map[domain.RoomID]bool{}
+	w.targets, w.unsettled = map[place]map[string]string{}, map[place]bool{}
 	w.givenUp = map[string]bool{}
 	m.compose.caret = caret{owner: fieldComposer, at: len(m.compose.input)}
 	w.m = m
@@ -266,9 +277,9 @@ func (w *draftWorld) step() {
 		w.note("drafts changed (CHANGE_DRAFTS)")
 		w.update(changedMsg{change: domain.ChangeDrafts})
 	case r < 53:
-		w.assistantAppends(draftRooms[w.rng.IntN(len(draftRooms))])
+		w.assistantAppends(draftPlaces[w.rng.IntN(len(draftPlaces))])
 	case r < 59:
-		w.deleteElsewhere(draftRooms[w.rng.IntN(len(draftRooms))])
+		w.deleteElsewhere(draftPlaces[w.rng.IntN(len(draftPlaces))])
 	case r < 80:
 		if len(w.cmds) > 0 {
 			i := w.rng.IntN(len(w.cmds))
@@ -287,12 +298,11 @@ func (w *draftWorld) step() {
 	case w.rng.IntN(3) > 0:
 		w.note("quit (esc, q)")
 		w.leaving = true
-		room, reply, editing, thread := w.m.openRoom, w.m.compose.replyTo, w.m.compose.editing, w.m.thread.root
+		room, reply, editing := w.m.here(), w.m.compose.replyTo, w.m.compose.editing
 		w.update(tea.KeyPressMsg{Code: tea.KeyEscape})
-		// Esc can close a thread, taking the composer's words with it.
-		if w.m.thread.root != thread && w.m.compose.input != "" {
-			w.setTarget(room, "thread", string(w.m.thread.root))
-			w.touched[room] = true // moving the words is changing the draft
+		// Esc can close a thread: its draft is put aside, the room's comes back.
+		if w.m.here() != room {
+			return
 		}
 		// Esc in the composer can drop a reply or an edit: the person's change.
 		if w.m.compose.replyTo != reply {
@@ -315,9 +325,9 @@ func (w *draftWorld) typeWord() {
 		return
 	}
 	word := w.word("w")
-	w.note("type %q in %s", word, w.m.openRoom)
+	w.note("type %q in %v", word, w.m.here())
 	w.typed = append(w.typed, word)
-	w.touched[w.m.openRoom] = true
+	w.touched[w.m.here()] = true
 	// Always after a space: typing that waits on a hold lands on the draft as it is when
 	// the hold arrives, which may no longer be empty.
 	word = " " + word
@@ -326,8 +336,6 @@ func (w *draftWorld) typeWord() {
 	for _, r := range word {
 		w.update(keyText(string(r)))
 	}
-	// Words typed here are the person's, in the thread they are typed in.
-	w.setTarget(w.m.openRoom, "thread", string(w.m.thread.root))
 }
 
 func (w *draftWorld) send() {
@@ -360,86 +368,74 @@ func (w *draftWorld) reply() {
 	}
 	w.serial++
 	target := domain.EventID(fmt.Sprintf(mx+"$t%d", w.serial))
-	w.note("reply to %s in %s", target, w.m.openRoom)
+	w.note("reply to %s in %v", target, w.m.here())
 	w.m.compose.replyTo = target
-	w.setTarget(w.m.openRoom, "reply", string(target))
-	w.touched[w.m.openRoom] = true
+	w.setTarget(w.m.here(), "reply", string(target))
+	w.touched[w.m.here()] = true
 	w.update(draftTickMsg{gen: -1})
 }
 
 // edit starts correcting one of this client's messages, or cancels the correction.
 func (w *draftWorld) edit() {
-	w.touched[w.m.openRoom] = true // the person acts in the room, as typing does
+	w.touched[w.m.here()] = true // the person acts in the place, as typing does
 	w.m.focus, w.m.compose.insertMode = paneTimeline, true
 	if w.m.compose.isEditing() {
 		w.note("cancel the edit")
 		w.m = w.m.cancelEdit()
-		w.setTarget(w.m.openRoom, "edit", "")
+		w.setTarget(w.m.here(), "edit", "")
 	} else {
 		w.note("start an edit")
 		w.m.compose.editSaved = w.m.editorFor(fieldComposer).text
 		w.m.compose.editing = mx + "$mine"
 		w.m = w.m.store(fieldComposer, newEditor("corrected").end())
-		w.setTarget(w.m.openRoom, "edit", mx+"$mine")
+		w.setTarget(w.m.here(), "edit", mx+"$mine")
 	}
 	w.update(draftTickMsg{gen: -1})
 }
 
 // assistantAppends is kith-mcp's send_message in draft mode: an append to the stored
-// draft, refused while a message is being corrected there.
-func (w *draftWorld) assistantAppends(room domain.RoomID) {
+// draft of a room's main timeline or one of its threads, each its own, refused while a
+// message is being corrected there.
+func (w *draftWorld) assistantAppends(at place) {
 	s := w.store.sharedDrafts
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cur := s.drafts[room]
+	cur := s.drafts[at]
 	if cur.Editing != "" {
 		return
 	}
-	// Sometimes into a thread, by kith-mcp's rule: an empty draft takes the aim; a draft
-	// aimed elsewhere is not added to.
-	thread := draftThreads[w.rng.IntN(len(draftThreads))]
-	switch {
-	case cur.Empty():
-		cur.ThreadRoot = thread
-	case cur.ThreadRoot != thread:
-		return
-	}
 	word := w.word("a")
-	w.note("assistant appends %q to %s (thread %q)", word, room, thread)
+	w.note("assistant appends %q to %v", word, at)
 	w.added = append(w.added, word)
 	w.clock++
-	cur.RoomID, cur.Body, cur.Author = room, domain.JoinDraft(cur.Body, word), "claude-code"
+	cur.RoomID, cur.ThreadRoot, cur.Body, cur.Author = at.room, at.thread, domain.JoinDraft(cur.Body, word), "claude-code"
 	cur.Updated = time.UnixMilli(w.clock)
-	s.drafts[room] = cur
+	s.drafts[at] = cur
 }
 
-// draftThreads are where a draft can be aimed: the main timeline and two threads.
+// draftThreads are where in a room a draft is written: the main timeline and two threads.
 var draftThreads = []domain.EventID{"", mx + "$t1", mx + "$t2"}
 
-// moveThread takes the open room's composer and its content to the main timeline or a
-// thread, as opening and closing a thread does.
+// moveThread enters a thread of the open room, or closes the one open: the composer
+// puts the draft of the place left aside and shows the one entered.
 func (w *draftWorld) moveThread() {
-	room := w.m.openRoom
 	to := draftThreads[w.rng.IntN(len(draftThreads))]
 	if to == w.m.thread.root {
 		return
 	}
 	w.note("go to thread %q", to)
-	w.touched[room] = true // the person acts in the room, as typing does
 	var cmd tea.Cmd
-	w.m, cmd = w.m.aimAt(to)
-	w.enqueue(cmd)
-	// Moving an empty composer chooses nothing that is stored; carrying words does.
-	if w.m.compose.input != "" {
-		w.setTarget(room, "thread", string(to))
+	if to == "" {
+		w.m, cmd = w.m.closeThread()
+	} else {
+		w.m, cmd = w.m.enterThread(to, "")
 	}
-	// Leaving or entering a thread drops the reply target, as in the client.
-	w.setTarget(room, "reply", string(w.m.compose.replyTo))
+	w.enqueue(cmd)
 	w.update(draftTickMsg{gen: -1})
 }
 
-// deleteElsewhere is the room left on another device: the daemon deletes its draft.
-func (w *draftWorld) deleteElsewhere(room domain.RoomID) {
+// deleteElsewhere is the draft cleared on another device: the daemon deletes it.
+func (w *draftWorld) deleteElsewhere(room place) {
 	s := w.store.sharedDrafts
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -447,7 +443,7 @@ func (w *draftWorld) deleteElsewhere(room domain.RoomID) {
 	if !held {
 		return
 	}
-	w.note("deleted elsewhere: %s (%q, edit returns to %q)", room, cur.Body, cur.EditSaved)
+	w.note("deleted elsewhere: %v (%q, edit returns to %q)", room, cur.Body, cur.EditSaved)
 	w.deleted[room] = append(w.deleted[room], strings.Fields(cur.Body+" "+cur.EditSaved)...)
 	// Held here unsaved, a different composition may be kept whole (the person saw it and
 	// went on); held as stored, the deletion wins. An unanswered write counts as unsaved:
@@ -545,7 +541,7 @@ func (w *draftWorld) exit() {
 	for _, room := range w.m.flushDrafts(context.Background()) {
 		local, stored := w.local(room), w.stored(room)
 		w.unsettled[room] = true // its targets as much as its words
-		w.note("given up at exit: %s %q (stored %q)", room, local.Body+" "+local.EditSaved, stored.Body+" "+stored.EditSaved)
+		w.note("given up at exit: %v %q (stored %q)", room, local.Body+" "+local.EditSaved, stored.Body+" "+stored.EditSaved)
 		for f := range strings.FieldsSeq(local.Body + " " + local.EditSaved + " " + stored.Body + " " + stored.EditSaved) {
 			w.givenUp[f] = true
 		}
@@ -598,13 +594,13 @@ func (w *draftWorld) detach(cmd tea.Cmd) {
 
 func (w *draftWorld) snapshot() string {
 	var b strings.Builder
-	for _, room := range draftRooms {
-		fmt.Fprintf(&b, "%s|%+v|%+v;", room, w.stored(room), w.local(room))
+	for _, room := range draftPlaces {
+		fmt.Fprintf(&b, "%v|%+v|%+v;", room, w.stored(room), w.local(room))
 	}
 	return b.String()
 }
 
-func (w *draftWorld) stored(room domain.RoomID) domain.StoredDraft {
+func (w *draftWorld) stored(room place) domain.StoredDraft {
 	s := w.store.sharedDrafts
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -624,33 +620,25 @@ func (w *draftWorld) check() string {
 		}
 		where = append(where, fmt.Sprintf("sent %q", body))
 	}
-	for _, room := range draftRooms {
+	for _, room := range draftPlaces {
 		d := w.stored(room)
 		for f := range strings.FieldsSeq(d.Body + " " + d.EditSaved) {
 			count[f]++
 		}
-		where = append(where, fmt.Sprintf("stored %s %q (edit returns to %q)", room, d.Body, d.EditSaved))
+		where = append(where, fmt.Sprintf("stored %v %q (edit returns to %q)", room, d.Body, d.EditSaved))
 		if local := w.local(room); !w.quit && !sameComposition(d, local) {
-			return fmt.Sprintf("%s: stored %+v but this client holds %+v", room, d, local)
+			return fmt.Sprintf("%v: stored %+v but this client holds %+v", room, d, local)
 		}
 		if w.unsettled[room] {
 			continue
 		}
 		for field, want := range w.targets[room] {
 			got := string(d.ReplyTo)
-			switch field {
-			case "edit":
+			if field == "edit" {
 				got = string(d.Editing)
-			case "thread":
-				// The thread is the person's only where their own words are: a draft of only the
-				// assistant's words is aimed where it was written.
-				if !w.holdsTyped(d) {
-					continue
-				}
-				got = string(d.ThreadRoot)
 			}
 			if got != want {
-				return fmt.Sprintf("%s: the %s target %q the person set is stored as %q (%s)",
+				return fmt.Sprintf("%v: the %s target %q the person set is stored as %q (%s)",
 					room, field, want, got, strings.Join(where, "; "))
 			}
 		}
@@ -660,7 +648,7 @@ func (w *draftWorld) check() string {
 		for _, word := range words {
 			gone[word] = true
 			if !w.touched[room] && strings.Contains(" "+w.stored(room).Body+" ", " "+word+" ") {
-				return fmt.Sprintf("%q came back in %s after it was deleted elsewhere (%s)", word, room, strings.Join(where, "; "))
+				return fmt.Sprintf("%q came back in %v after it was deleted elsewhere (%s)", word, room, strings.Join(where, "; "))
 			}
 		}
 	}
@@ -678,19 +666,19 @@ func (w *draftWorld) check() string {
 	return ""
 }
 
-// local is room's draft as this client holds it: the composer for the open room, the
-// stashed copy otherwise.
-func (w *draftWorld) local(room domain.RoomID) domain.StoredDraft { return localOf(w.m, room) }
+// local is a place's draft as this client holds it: the composer for the open place,
+// the stashed copy otherwise.
+func (w *draftWorld) local(room place) domain.StoredDraft { return localOf(w.m, room) }
 
-func localOf(m Model, room domain.RoomID) domain.StoredDraft {
-	d := m.drafts[room]
-	if room == m.openRoom {
+func localOf(m Model, at place) domain.StoredDraft {
+	d := m.drafts[at]
+	if at == m.here() {
 		c := m.compose
-		d = draft{input: c.input, replyTo: c.replyTo, editing: c.editing, editSaved: c.editSaved, thread: m.thread.root}
+		d = draft{input: c.input, replyTo: c.replyTo, editing: c.editing, editSaved: c.editSaved}
 	}
 	return domain.StoredDraft{
-		RoomID: room, Body: d.input, ReplyTo: d.replyTo, Editing: d.editing, EditSaved: d.editSaved,
-		ThreadRoot: d.thread,
+		RoomID: at.room, ThreadRoot: at.thread, Body: d.input, ReplyTo: d.replyTo, Editing: d.editing,
+		EditSaved: d.editSaved,
 	}
 }
 
@@ -714,13 +702,13 @@ func (r *racyDrafts) Send(_ context.Context, room domain.RoomID, d domain.Draft)
 	w := r.world
 	w.note("    %s sends %q in %s", r.who, d.Body, room)
 	w.sent = append(w.sent, d.Body)
-	w.unsettled[room] = true
+	w.unsettled[place{room: room, thread: d.ThreadRoot}] = true
 	return nil
 }
 
 func (r *racyDrafts) meddle() {
 	if !r.world.calm && r.world.rng.IntN(5) == 0 {
-		r.world.assistantAppends(draftRooms[r.world.rng.IntN(len(draftRooms))])
+		r.world.assistantAppends(draftPlaces[r.world.rng.IntN(len(draftPlaces))])
 	}
 }
 

@@ -173,7 +173,7 @@ holds data but appears in neither list until the next refresh promotes it.
 | `thread_read` | our read position in each thread |
 | `reactions` | `m.annotation` events: target, sender, and the key (column `emoji`) |
 | `drafts` | the unsent message per room, including reply/edit state, mentions, the caret, and who wrote it (you, or an assistant) |
-| `draft_threads` | the thread a draft is written into, only for a draft in one |
+| `thread_drafts` | the unsent message per thread, as `drafts` keeps a room's, keyed by room and thread root |
 | `room_timers` | a chat's disappearing-messages timer in seconds, while it has one, so what kith sends there carries it (WhatsApp) |
 | `room_timer_versions` | the version a chat's timer was set at, once a network has numbered one (Signal counts a one-to-one chat's timer changes; an older change is not taken); it outlives the timer |
 | `starred` | mirror of the `org.kith.starred` account data |
@@ -343,8 +343,10 @@ A few consequences are worth knowing before you write anything:
   `--clear-cache` and the reset leaves the cache empty, so the next start resets. A
   reset that fails stops the sync instead of resuming from the old token.
 
-`schemaVersion` is `1`: the base is the whole schema, `migrations` is empty, and a
-current cache is at version 1.
+`schemaVersion` is `1`, and a current cache is at version 3 after two migrations:
+v2 (`thread_drafts`) keeps each thread's draft beside the room's, and v3 drops
+`draft_threads`, which aimed a room's one draft at a thread (such a draft stays the
+room's).
 
 ### Indexes need no migration
 

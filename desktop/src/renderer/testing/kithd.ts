@@ -53,6 +53,7 @@ import {
 } from "../../gen/device/v1/device_pb";
 import { same, words } from "../config";
 import { compare } from "../merge";
+import { partsOf, placeOf } from "../drafts";
 import { type KithBridge, openable, type ThemeMode, type Offered, type StreamEvent } from "../../shared/ipc";
 import { runIn } from "../../shared/profile";
 
@@ -163,7 +164,7 @@ export class Kithd {
   readonly chatLinks = new Set<string>();
   /** Answers held back until release, by method name. */
   readonly holding = new Set<string>();
-  /** The stored drafts, by room: kithd keeps them for every profile alike. */
+  /** The stored drafts, by place (placeOf): kithd keeps them for every profile alike. */
   readonly drafts = new Map<string, StoredDraft>();
   /**
    * Each profile's rail, as Rail serves it; "gone" refuses it (the profile is no longer
@@ -411,19 +412,19 @@ export class Kithd {
     }
   }
 
-  /** append is kith-mcp appending words to room's draft over what it read, as send.go does. */
-  append(room: string, words: string): boolean {
-    const held = this.drafts.get(room);
+  /** append is kith-mcp appending words to a place's draft over what it read, as send.go does. */
+  append(place: string, words: string): boolean {
+    const held = this.drafts.get(place);
     if (held !== undefined && (held.editing !== "" || held.editSaved !== "")) {
       return false; // refused mid-edit
     }
     this.drafts.set(
-      room,
+      place,
       create(StoredDraftSchema, {
-        roomId: room,
+        roomId: partsOf(place)[0],
+        threadRoot: partsOf(place)[1],
         body: held?.body ? `${held.body}\n\n${words}` : words,
         replyTo: held?.replyTo ?? "",
-        threadRoot: held?.threadRoot ?? "",
         author: "agent",
         updatedUnixMs: (held?.updatedUnixMs ?? 0n) + 1n,
       }),
@@ -863,11 +864,12 @@ export class Kithd {
         if (!p.rooms.some((x) => x.id === draft.roomId)) {
           throw new Error(`[not_found] daemon: the profile ${profile} holds no room ${draft.roomId}`);
         }
-        const [stored, added] = rebased(draft, r.over, this.drafts.get(draft.roomId), r.unanswered);
+        const place = placeOf(draft.roomId, draft.threadRoot);
+        const [stored, added] = rebased(draft, r.over, this.drafts.get(place), r.unanswered);
         if (blank(stored)) {
-          this.drafts.delete(draft.roomId);
+          this.drafts.delete(place);
         } else {
-          this.drafts.set(draft.roomId, stored);
+          this.drafts.set(place, stored);
         }
         if (this.draftFaults[0] === "after") {
           this.draftFaults.shift();

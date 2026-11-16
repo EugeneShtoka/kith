@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"testing"
@@ -281,7 +282,6 @@ func TestReplaceDraftTellsVersionsApartByTheirComposition(t *testing.T) {
 		"the draft the edit returns to": func(d *domain.StoredDraft) { d.EditSaved = "hi\n\np5" },
 		"the reply target":              func(d *domain.StoredDraft) { d.ReplyTo = mx + "$q" },
 		"the edit target":               func(d *domain.StoredDraft) { d.Editing = mx + "$other" },
-		"the thread":                    func(d *domain.StoredDraft) { d.ThreadRoot = mx + "$t" },
 	} {
 		cache, ctx := openTemp(t), context.Background()
 		stored := read
@@ -296,34 +296,38 @@ func TestReplaceDraftTellsVersionsApartByTheirComposition(t *testing.T) {
 	}
 }
 
-// A draft's thread round-trips, is cleared when rewritten without one, and is deleted with it.
-func TestADraftKeepsItsThread(t *testing.T) {
+// A room's draft and each of its threads' are kept apart: each is written over its own
+// version, a rebase reads only its own, and clearing one leaves the others.
+func TestEachThreadKeepsItsOwnDraft(t *testing.T) {
 	t.Parallel()
 	cache, ctx := openTemp(t), context.Background()
-	inThread := domain.StoredDraft{RoomID: mx + "!r:x", Body: "on it", ThreadRoot: mx + "$root", Updated: time.UnixMilli(5000)}
-	if saved, err := cache.ReplaceDraft(ctx, inThread, domain.StoredDraft{}); err != nil || !saved {
-		t.Fatalf("storing = %v, %v", saved, err)
+	const room = domain.RoomID(mx + "!r:x")
+	main := domain.StoredDraft{RoomID: room, Body: "in the room", Updated: time.UnixMilli(4000)}
+	one := domain.StoredDraft{RoomID: room, Body: "on it", ThreadRoot: mx + "$one", Updated: time.UnixMilli(5000)}
+	two := domain.StoredDraft{RoomID: room, Body: "elsewhere", ThreadRoot: mx + "$two", Updated: time.UnixMilli(6000)}
+	for _, d := range []domain.StoredDraft{main, one, two} {
+		if saved, err := cache.ReplaceDraft(ctx, d, domain.StoredDraft{}); err != nil || !saved {
+			t.Fatalf("storing %q over none = %v, %v", d.Body, saved, err)
+		}
 	}
-	if got := onlyDraft(t, cache); got.ThreadRoot != mx+"$root" {
-		t.Fatalf("read back thread %q, want $root", got.ThreadRoot)
+	more := domain.StoredDraft{RoomID: room, Body: "on it, more", ThreadRoot: mx + "$one", Updated: time.UnixMilli(7000)}
+	stored, added, err := cache.RebaseDraft(ctx, more, one, nil)
+	if err != nil || stored.Body != more.Body || added != "" {
+		t.Fatalf("rebasing the thread's = %q, added %q, %v; want its words alone", stored.Body, added, err)
 	}
-	moved := domain.StoredDraft{RoomID: mx + "!r:x", Body: "on it, in the room", Updated: time.UnixMilli(6000)}
-	if saved, err := cache.ReplaceDraft(ctx, moved, inThread); err != nil || !saved {
-		t.Fatalf("moving to the main timeline = %v, %v", saved, err)
+	if saved, clearErr := cache.ReplaceDraft(ctx, domain.StoredDraft{RoomID: room, ThreadRoot: mx + "$two"}, two); clearErr != nil || !saved {
+		t.Fatalf("clearing the second thread's = %v, %v", saved, clearErr)
 	}
-	if got := onlyDraft(t, cache); got.ThreadRoot != "" {
-		t.Errorf("read back thread %q after the move, want none", got.ThreadRoot)
+	got, err := cache.Drafts(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	again := domain.StoredDraft{RoomID: mx + "!r:x", Body: "back", ThreadRoot: mx + "$root", Updated: time.UnixMilli(7000)}
-	if saved, err := cache.ReplaceDraft(ctx, again, moved); err != nil || !saved {
-		t.Fatal(saved, err)
+	held := map[domain.EventID]string{}
+	for _, d := range got {
+		held[d.ThreadRoot] = d.Body
 	}
-	if saved, err := cache.ReplaceDraft(ctx, domain.StoredDraft{RoomID: mx + "!r:x"}, again); err != nil || !saved {
-		t.Fatalf("clearing = %v, %v", saved, err)
-	}
-	var left int
-	if err := cache.db.QueryRowContext(ctx, "SELECT count(*) FROM draft_threads").Scan(&left); err != nil || left != 0 {
-		t.Errorf("draft_threads holds %d rows after the draft was cleared (%v), want none", left, err)
+	if want := map[domain.EventID]string{"": "in the room", mx + "$one": "on it, more"}; !maps.Equal(held, want) {
+		t.Errorf("stored %v, want %v", held, want)
 	}
 }
 

@@ -5,7 +5,7 @@ import { BackendService, Change, StoredDraftSchema } from "../gen/backend/v1/ser
 import { type Message, PollSchema, ReactionSchema } from "../gen/backend/v1/types_pb";
 import { DeviceSettingsSchema } from "../gen/device/v1/device_pb";
 import { typingRefresh } from "./compose";
-import { saveDelay } from "./drafts";
+import { placeOf, saveDelay } from "./drafts";
 import { Session } from "./session";
 import { Kithd, room, settled } from "./testing/kithd";
 import { message } from "./testing/rows";
@@ -73,6 +73,20 @@ async function saved(): Promise<void> {
 const bodies = () => kithd.sent.map((s) => s.draft.body);
 
 describe("the composer", () => {
+  it("keeps the room's draft and each thread's apart: a thread opened shows its own, closed the room's", async () => {
+    await opened();
+    typed("for the room");
+    session.openThread("$t");
+    await settled();
+    expect(composer().draft.body).toBe("");
+    typed("for the thread");
+    await saved();
+    expect(kithd.drafts.get("!a")?.body).toBe("for the room");
+    expect(kithd.drafts.get(placeOf("!a", "$t"))).toMatchObject({ body: "for the thread", threadRoot: "$t" });
+    session.closeThread();
+    expect(composer().draft.body).toBe("for the room");
+  });
+
   it("sends the words with their Markdown rendered, or as typed where [composer] markdown is off", async () => {
     await opened();
     typed("**hi**");
