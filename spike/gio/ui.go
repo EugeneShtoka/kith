@@ -1612,7 +1612,8 @@ func (u *ui) layoutPlayer(gtx C) D {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(func(gtx C) D {
 				dims := layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-					layout.Flexed(1, material.Body2(u.th, fmt.Sprintf("%s %s: %s", state, p.msg.Media.Type, p.msg.Media.Name)).Layout),
+					layout.Flexed(1, material.Body2(u.th, fmt.Sprintf("%s %s: %s%s", state, p.msg.Media.Type, p.msg.Media.Name,
+						p.speedNote(u.device.Display.Media.Audio))).Layout),
 					layout.Rigid(material.Button(u.th, &u.closeBtn, "Close").Layout),
 				)
 				header = dims.Size.Y

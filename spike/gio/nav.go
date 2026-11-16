@@ -36,6 +36,10 @@ const (
 // key, the first that applies to the pane acts ("enter" opens a room in the list, and
 // goes to what a reply answers in the timeline).
 var actions = []action{
+	// The player's ahead of the panes', as the desktop and the TUI ask them: they win while
+	// something plays (playerKey).
+	{"player.play_pause", false}, {"player.back", false}, {"player.forward", false}, {"player.slower", false},
+	{"player.faster", false}, {"player.normal_speed", false}, {"player.stop", false},
 	{"help", false}, {"jump_to", true}, {"search.all", true}, {"search.room", false}, {"jump_back", true}, {"jump_forward", true},
 	{"focus_rail", true}, {"focus_rooms", true}, {"focus_timeline", true}, {"focus_composer", true},
 	{"focus_next", false}, {"focus_prev", false},
@@ -162,6 +166,9 @@ func (u *ui) do(ctx context.Context, gtx C, path string, count int) bool {
 	t := &u.timeline
 	if u.searching != nil && u.pane == paneRooms && strings.HasPrefix(path, "nav.") {
 		return u.browseHits(ctx, path, count)
+	}
+	if strings.HasPrefix(path, "player.") {
+		return u.playerKey(path)
 	}
 	switch path {
 	case "help":

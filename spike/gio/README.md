@@ -10,7 +10,9 @@ each row's unread, the room list with faces and counts, the room's header, and a
 of sender runs with their pictures (initials on their hue otherwise, as `faces.ts`), day
 dividers, inline images, scrollback paging, thread summaries, "Message deleted", and files
 as Save buttons (to `~/Downloads`). Video and voice notes play in mpv, a video in a child X
-window of the Gio window (`mpv --wid`). Unread badges follow kithd's stream; the open room
+window of the Gio window (`mpv --wid`), and [keys.player] (play/pause, from the start once
+ended; skip by [display.media.audio] skip; slower, faster, the set speed; stop) reach it
+over its IPC socket while it plays, ahead of the panes' keys as on the desktop. Unread badges follow kithd's stream; the open room
 gets a private read receipt while the window has focus. The composer takes Enter as a
 newline and [keys.insert] send (Ctrl/Alt+Enter) or Send to send, and Attach sends a file
 from the portal's file chooser.
