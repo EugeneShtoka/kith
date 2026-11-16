@@ -57,6 +57,8 @@ type fake struct {
 	sent     []domain.Draft
 	queued   []domain.ScheduledMessage
 	drafts   map[domain.RoomID]domain.StoredDraft
+	// threadDrafts are the threads' drafts, by root.
+	threadDrafts map[domain.EventID]domain.StoredDraft
 
 	// verdicts is the tag verdicts the daemon gives: what filters moved rooms into.
 	verdicts []domain.TagVerdict
@@ -89,16 +91,24 @@ func (f *fake) Schedule(_ context.Context, msg domain.ScheduledMessage) (string,
 }
 
 func (f *fake) Drafts(context.Context) ([]domain.StoredDraft, error) {
-	out := make([]domain.StoredDraft, 0, len(f.drafts))
+	out := make([]domain.StoredDraft, 0, len(f.drafts)+len(f.threadDrafts))
 	for room := range f.drafts {
 		out = append(out, f.drafts[room])
+	}
+	for root := range f.threadDrafts {
+		out = append(out, f.threadDrafts[root])
 	}
 	return out, nil
 }
 
+// store keeps a room's draft in drafts, a thread's in threadDrafts.
 func (f *fake) store(draft domain.StoredDraft) {
 	if f.drafts == nil {
-		f.drafts = map[domain.RoomID]domain.StoredDraft{}
+		f.drafts, f.threadDrafts = map[domain.RoomID]domain.StoredDraft{}, map[domain.EventID]domain.StoredDraft{}
+	}
+	if draft.ThreadRoot != "" {
+		f.threadDrafts[draft.ThreadRoot] = draft
+		return
 	}
 	f.drafts[draft.RoomID] = draft
 }
@@ -110,7 +120,13 @@ func (f *fake) ReplaceDraft(_ context.Context, draft, over domain.StoredDraft) (
 		f.beforeReplace = nil
 		hook()
 	}
-	current := f.drafts[draft.RoomID]
+	current, found := f.drafts[draft.RoomID]
+	if draft.ThreadRoot != "" {
+		current, found = f.threadDrafts[draft.ThreadRoot]
+	}
+	if !found {
+		current.ThreadRoot = over.ThreadRoot // none stored: whatever thread it is
+	}
 	if current.Body != over.Body || current.ReplyTo != over.ReplyTo || current.Editing != over.Editing ||
 		current.EditSaved != over.EditSaved || current.ThreadRoot != over.ThreadRoot ||
 		!current.Updated.Equal(over.Updated) {

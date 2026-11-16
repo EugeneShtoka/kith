@@ -1296,7 +1296,8 @@ message StoredDraft {
   // Who wrote it.
   string author = 8;
   int64 updated_unix_ms = 9;
-  // The thread it is written into; empty for the main timeline.
+  // The thread it is written into; empty for the main timeline. Each thread keeps its
+  // own draft beside the room's: room_id and thread_root name the one.
   string thread_root = 10;
 }
 

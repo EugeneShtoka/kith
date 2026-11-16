@@ -10,8 +10,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-
-	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // Drafts are saved after a pause (draftSaveDelay), at least every draftSaveEvery while
@@ -25,12 +23,12 @@ const exitFlushWait = 3 * time.Second
 // flushDrafts writes every unstored draft once the program has ended; every exit path
 // passes here, and only quit waits for its saves. A save still in flight is written
 // again; its version may be this client's own, so the retry doesn't mistake it for
-// another writer's. Returns the rooms it couldn't write. ctx must outlive the program's.
-func (m Model) flushDrafts(ctx context.Context) []domain.RoomID {
+// another writer's. Returns the places it couldn't write. ctx must outlive the program's.
+func (m Model) flushDrafts(ctx context.Context) []place {
 	m.ctx = ctx
 	m.draftSync.inflight, m.draftSync.dirty = nil, nil
-	rooms := map[domain.RoomID]bool{}
-	for _, keys := range []func(yield func(domain.RoomID) bool){
+	rooms := map[place]bool{}
+	for _, keys := range []func(yield func(place) bool){
 		maps.Keys(m.drafts), maps.Keys(m.draftSync.bases), maps.Keys(m.draftSync.retry),
 		maps.Keys(m.draftSync.unsure), slices.Values(m.draftSync.pending),
 	} {
@@ -39,10 +37,10 @@ func (m Model) flushDrafts(ctx context.Context) []domain.RoomID {
 		}
 	}
 	if m.openRoom != "" {
-		rooms[m.openRoom] = true
+		rooms[m.here()] = true
 	}
-	var lost []domain.RoomID
-	for _, room := range slices.Sorted(maps.Keys(rooms)) {
+	var lost []place
+	for _, room := range slices.SortedFunc(maps.Keys(rooms), place.compare) {
 		var save tea.Cmd
 		m, save = m.requestSave(room)
 		if save == nil {

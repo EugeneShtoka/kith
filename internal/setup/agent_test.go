@@ -83,3 +83,17 @@ func TestPlaceEntriesChecksEveryAgentList(t *testing.T) {
 		t.Errorf("well-formed agent lists were refused: %v", err)
 	}
 }
+
+func TestAgentKithLinks(t *testing.T) {
+	t.Parallel()
+
+	for spelled, want := range map[string]bool{"": false, "native": false, "kith": true} {
+		if got, err := setup.AgentKithLinks(config.Agent{Links: spelled}); err != nil || got != want {
+			t.Errorf("AgentKithLinks(%q) = %v, %v; want %v", spelled, got, err, want)
+		}
+	}
+	// A typo must not silently pick one.
+	if _, err := setup.AgentKithLinks(config.Agent{Links: "slack"}); err == nil || !strings.Contains(err.Error(), "agent.links") {
+		t.Errorf("AgentKithLinks(\"slack\") error = %v, want one naming the setting", err)
+	}
+}

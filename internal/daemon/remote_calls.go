@@ -672,7 +672,7 @@ func (r *Remote) RebaseDraft(ctx context.Context, draft, base domain.StoredDraft
 	if err != nil {
 		return domain.StoredDraft{}, "", err
 	}
-	stored := domain.StoredDraft{RoomID: draft.RoomID}
+	stored := domain.StoredDraft{RoomID: draft.RoomID, ThreadRoot: draft.ThreadRoot}
 	if resp.GetStored() != nil {
 		stored = pc.ProtoToStoredDraft(resp.GetStored())
 	}

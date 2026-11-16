@@ -167,9 +167,9 @@ func (d *windowDrafts) Send(_ context.Context, room domain.RoomID, draft domain.
 func newTwoWindows(t *testing.T, stored domain.StoredDraft) *twoWindows {
 	t.Helper()
 	w := &twoWindows{t: t, clock: 5000, windows: map[string]*aWindow{}, replaced: map[string]bool{}}
-	w.store = &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{}}
+	w.store = &sharedDrafts{drafts: map[place]domain.StoredDraft{}}
 	if !stored.Empty() {
-		w.store.drafts[stored.RoomID] = stored
+		w.store.drafts[placeOf(stored)] = stored
 	}
 	for _, name := range []string{"A", "B"} {
 		drafts := &windowDrafts{sharedDrafts: w.store, world: w, who: name}
@@ -197,13 +197,13 @@ func (w *twoWindows) draftsChanged() {
 // update gives a window one message and keeps the commands it asks for.
 func (w *twoWindows) update(win *aWindow, msg tea.Msg) {
 	next, cmd := asModel(win.m.Update(msg))
-	if saved, ok := msg.(draftSavedMsg); ok && saved.err == nil && saved.added != "" && saved.room == next.openRoom &&
+	if saved, ok := msg.(draftSavedMsg); ok && saved.err == nil && saved.added != "" && saved.at == next.here() &&
 		!strings.Contains(next.status(), "added to this draft") {
 		w.silent = fmt.Sprintf("%s took in %q without saying so (status %q)", win.name, saved.added, next.status())
 	}
 	win.m = next
 	w.updates++
-	if n := len(localOf(next, mx+"!a:x").Body); n > maxRestingDraft && w.runaway == "" {
+	if n := len(localOf(next, place{room: mx + "!a:x"}).Body); n > maxRestingDraft && w.runaway == "" {
 		w.runaway = fmt.Sprintf("%s's draft grew to %d bytes: the windows never come to rest", win.name, n)
 	}
 	if cmd != nil {
@@ -303,13 +303,13 @@ func (w *twoWindows) takeAll(win *aWindow) {
 func (w *twoWindows) assistantAppends(room domain.RoomID) {
 	s := w.store
 	s.mu.Lock()
-	cur := s.drafts[room]
+	cur := s.drafts[place{room: room}]
 	word := fmt.Sprintf("m%d", w.next())
 	w.added = append(w.added, word)
 	w.clock++
 	cur.RoomID, cur.Body, cur.Author = room, domain.JoinDraft(cur.Body, word), "claude-code"
 	cur.Updated = time.UnixMilli(w.clock)
-	s.drafts[room] = cur
+	s.drafts[place{room: room}] = cur
 	s.mu.Unlock()
 	w.note("    the assistant appends %q: stored %q", word, cur.Body)
 	w.draftsChanged()
@@ -348,15 +348,15 @@ func (w *twoWindows) rest() {
 }
 
 func (w *twoWindows) snapshot() string {
-	return fmt.Sprintf("%+v|%+v|%+v|%d %d", w.storedDraft(), localOf(w.windows["A"].m, mx+"!a:x"),
-		localOf(w.windows["B"].m, mx+"!a:x"), len(w.windows["A"].cmds)+len(w.windows["A"].answers),
+	return fmt.Sprintf("%+v|%+v|%+v|%d %d", w.storedDraft(), localOf(w.windows["A"].m, place{room: mx + "!a:x"}),
+		localOf(w.windows["B"].m, place{room: mx + "!a:x"}), len(w.windows["A"].cmds)+len(w.windows["A"].answers),
 		len(w.windows["B"].cmds)+len(w.windows["B"].answers))
 }
 
 func (w *twoWindows) storedDraft() domain.StoredDraft {
 	w.store.mu.Lock()
 	defer w.store.mu.Unlock()
-	d := w.store.drafts[mx+"!a:x"]
+	d := w.store.drafts[place{room: mx + "!a:x"}]
 	d.Updated = time.Time{}
 	return d
 }
@@ -369,7 +369,7 @@ func (w *twoWindows) check() string {
 	stored := w.storedDraft()
 	where := fmt.Sprintf("stored %q, sent %q", stored.Body, w.sent)
 	for _, name := range []string{"A", "B"} {
-		if local := localOf(w.windows[name].m, mx+"!a:x"); !sameComposition(stored, local) {
+		if local := localOf(w.windows[name].m, place{room: mx + "!a:x"}); !sameComposition(stored, local) {
 			return fmt.Sprintf("window %s holds %q, not the draft stored (%s)", name, local.Body, where)
 		}
 	}

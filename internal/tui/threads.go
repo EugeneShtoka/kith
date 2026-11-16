@@ -157,14 +157,20 @@ func (m Model) enterThread(root, selected domain.EventID) (Model, tea.Cmd) {
 	if !m.thread.open() {
 		m.thread.returnTo, m.thread.returnScroll = m.timeline.selected, m.timeline.scroll
 	}
-	if m.thread.root != root {
+	// Each thread has a draft of its own, as the main timeline has: the one left is put
+	// aside and the one entered comes back.
+	switching := m.thread.root != root
+	if switching {
 		m.thread.token, m.thread.atStart, m.thread.loading = "", false, false
+		m = m.stashDraft(m.here())
 	}
 	m.thread.root = root
 	m.timeline.selected = selected
 	m.timeline.scroll = 0
 	m.compose.insertMode = false
-	m.compose.replyTo = ""
+	if switching {
+		m = m.restoreDraft(m.here())
+	}
 	if selected == "" {
 		msgs := m.shownMessages()
 		if len(msgs) > 0 {
@@ -226,9 +232,10 @@ func threadHistoryStatus(n int, atStart bool) string {
 // closeThread restores the room, with the cursor on the thread's root.
 func (m Model) closeThread() (Model, tea.Cmd) {
 	root, back, scroll := m.thread.root, m.thread.returnTo, m.thread.returnScroll
+	m = m.stashDraft(m.here())
 	m.thread = threadState{}
 	m.compose.insertMode = false
-	m.compose.replyTo = ""
+	m = m.restoreDraft(m.here())
 	m.timeline.scroll = scroll
 	m.timeline.selected = back
 	if indexOfMessage(m.roomStretch(), root) >= 0 {

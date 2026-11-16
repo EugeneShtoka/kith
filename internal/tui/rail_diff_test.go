@@ -66,7 +66,7 @@ func compareRails(t *testing.T, seed uint64) {
 		names = append(names, config.DisplayName{Target: config.GroupTarget(target), Name: []string{"Job", "DMs", "", "Work"}[rng.IntN(4)]})
 	}
 
-	view := unreadView{tags: set, local: pick(0.5), counts: map[domain.RoomID]domain.Unread{}, drafts: map[domain.RoomID]draft{}}
+	view := unreadView{tags: set, local: pick(0.5), counts: map[domain.RoomID]domain.Unread{}, drafts: map[place]draft{}}
 	parents := map[domain.RoomID]domain.SpaceID{}
 	places := domain.Places{
 		Order: domain.NewHomeOrder(nil, cfg.Order, set, spaces, config.Display{Names: names}.SpaceLabels()),
@@ -81,7 +81,7 @@ func compareRails(t *testing.T, seed uint64) {
 				Messages: rng.IntN(3), Mentions: rng.IntN(2), Counted: pick(0.7), Marked: pick(0.2)}
 		}
 		if pick(0.3) {
-			view.drafts[id] = draft{input: "x"}
+			view.drafts[place{room: id}] = draft{input: "x"}
 		}
 		if len(spaces) > 0 && pick(0.4) {
 			parents[id] = spaces[rng.IntN(len(spaces))].ID

@@ -39,7 +39,7 @@ import {
 import { runIn } from "../shared/profile";
 import { later, listed, named, placed, refOf, type RowRef, silencedRooms } from "./rail";
 import { Composer, type ComposerView, type Unscheduled, type Unsent } from "./compose";
-import { type Kept, keptFrom, keptText } from "./drafts";
+import { type Kept, keptFrom, keptText, partsOf } from "./drafts";
 import { conflict } from "./keymap";
 import { asked as filingAsked, type Filing, offered, opened, retagged, toggled, told } from "./filing";
 import { arrived, type Jumplist, nowhere, step } from "./jumplist";
@@ -504,8 +504,9 @@ export class Session {
   /** Profile switches asked for and not landed yet. */
   private switching = 0;
   /**
-   * Words a profile left (or the window before a reload) did not get stored, by room, and
-   * the rooms' names: back in its composer once it is open again, said until then.
+   * Words a profile left (or the window before a reload) did not get stored, by place (a
+   * room's main timeline or a thread, placeOf), and their rooms' names: back in the
+   * composer once their room is open again, said until then.
    */
   private readonly kept = new Map<string, Kept>();
   private readonly keptNames = new Map<string, string>();
@@ -1129,7 +1130,10 @@ export class Session {
     }
   }
 
-  /** openThread opens the thread root of the open room beside it: the composer writes into it. */
+  /**
+   * openThread opens the thread root of the open room beside it: the composer writes into
+   * it, the thread's own draft.
+   */
   openThread(root: string): void {
     const run = this.run;
     const room = this.view.open;
@@ -1137,12 +1141,13 @@ export class Session {
       return;
     }
     run.thread = new OpenThread(room, root);
+    run.composer.threadChanged();
     this.pumpThread(run);
     this.markThreadRead(run);
     this.set({});
   }
 
-  /** closeThread puts the thread pane away: the composer writes into the room again. */
+  /** closeThread puts the thread pane away: the composer writes into the room again, its draft back. */
   closeThread(): void {
     const run = this.run;
     const t = run?.thread;
@@ -1150,6 +1155,7 @@ export class Session {
       return;
     }
     run.thread = undefined;
+    run.composer.threadChanged();
     this.set({});
   }
 
@@ -1205,12 +1211,13 @@ export class Session {
     this.rested = "";
     run.timeline = new Timeline(room, this.view.unread.get(room)?.readEvent ?? "");
     run.settings = undefined;
-    const kept = this.kept.get(room);
     const said = this.unsaved();
-    if (kept !== undefined) {
-      this.kept.delete(room);
-      this.keptNames.delete(room);
-      run.composer.drafts.keep(room, kept);
+    for (const [place, kept] of this.kept) {
+      if (partsOf(place)[0] === room) {
+        this.kept.delete(place);
+        this.keptNames.delete(place);
+        run.composer.drafts.keep(place, kept);
+      }
     }
     run.composer.opened(room);
     this.set({
@@ -1766,9 +1773,10 @@ export class Session {
    */
   private keepUnstored(run: Run): void {
     const unstored = run.composer.drafts.unstored();
-    for (const [room, kept] of unstored) {
-      this.kept.set(room, kept);
-      this.keptNames.set(room, run.joined.find((r) => r.id === room)?.name ?? room);
+    for (const [place, kept] of unstored) {
+      const room = partsOf(place)[0];
+      this.kept.set(place, kept);
+      this.keptNames.set(place, run.joined.find((r) => r.id === room)?.name ?? room);
     }
     if (unstored.size > 0) {
       this.fail(this.unsaved());
@@ -1783,8 +1791,9 @@ export class Session {
     if (this.kept.size === 0) {
       return undefined;
     }
-    const name = (room: string) => this.keptNames.get(room) ?? this.run?.joined.find((r) => r.id === room)?.name;
-    const rooms = [...this.kept.keys()].map((room) => name(room) ?? room);
+    const name = (place: string) =>
+      this.keptNames.get(place) ?? this.run?.joined.find((r) => r.id === partsOf(place)[0])?.name;
+    const rooms = [...new Set([...this.kept.keys()].map((place) => name(place) ?? partsOf(place)[0]))];
     return `The draft in ${rooms.join(", ")} is not saved: it is kept here until the room is open again`;
   }
 
