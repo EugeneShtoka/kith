@@ -44,7 +44,7 @@ func TestALostReplyThenTypingWritesTheWordsOnce(t *testing.T) {
 	m = typeInto(t, m, " there")
 	m, save := tickCmd(t, m)
 	m = settle(t, m, save)
-	if store.body(mx+"!a:x") != "hi there" || !m.draftSync.retry[mx+"!a:x"] {
+	if store.body(mx+"!a:x") != "hi there" || !m.draftSync.retry[place{room: mx + "!a:x"}] {
 		t.Fatalf("stored %q, retry %v: want the write landed and a retry owed", store.body(mx+"!a:x"), m.draftSync.retry)
 	}
 	m = typeInto(t, m, " more")
@@ -61,7 +61,7 @@ func TestALostReplyAfterAFoldKeepsTheAdditionOnce(t *testing.T) {
 	m, store := sharing(t)
 	l := &lostReply{sharedDrafts: store, loseOn: 1}
 	l.before = func() {
-		store.drafts[mx+"!a:x"] = domain.StoredDraft{RoomID: mx + "!a:x", Body: "hi\n\na1", Author: "claude-code", Updated: time.UnixMilli(2000)}
+		store.drafts[place{room: mx + "!a:x"}] = domain.StoredDraft{RoomID: mx + "!a:x", Body: "hi\n\na1", Author: "claude-code", Updated: time.UnixMilli(2000)}
 	}
 	m.backend = l
 	m.compose.caret = caret{owner: fieldComposer, at: len(m.compose.input)}
@@ -81,7 +81,7 @@ func TestALostReplyAfterAFoldThenTypingKeepsTheAdditionOnce(t *testing.T) {
 	m, store := sharing(t)
 	l := &lostReply{sharedDrafts: store, loseOn: 1}
 	l.before = func() {
-		store.drafts[mx+"!a:x"] = domain.StoredDraft{RoomID: mx + "!a:x", Body: "hi\n\na1", Author: "claude-code", Updated: time.UnixMilli(2000)}
+		store.drafts[place{room: mx + "!a:x"}] = domain.StoredDraft{RoomID: mx + "!a:x", Body: "hi\n\na1", Author: "claude-code", Updated: time.UnixMilli(2000)}
 	}
 	w := &writesSeen{Backend: l, store: store}
 	m.backend = w
@@ -150,7 +150,7 @@ func TestTheLastWriteReportsWhatItCouldNotSave(t *testing.T) {
 	}
 	m = typeInto(t, m, " again")
 	m.backend = failingDrafts{store}
-	if lost := m.flushDrafts(context.Background()); !slices.Equal(lost, []domain.RoomID{mx + "!a:x"}) {
+	if lost := m.flushDrafts(context.Background()); !slices.Equal(lost, []place{{room: mx + "!a:x"}}) {
 		t.Fatalf("lost %v, want the room the daemon did not take", lost)
 	}
 }

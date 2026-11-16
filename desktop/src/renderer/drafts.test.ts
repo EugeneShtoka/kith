@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BackendService } from "../gen/backend/v1/services_pb";
-import { blank, type Composition, Drafts, saveDelay } from "./drafts";
+import { blank, type Composition, Drafts, partsOf, placeOf, saveDelay } from "./drafts";
 import { call } from "./kith";
 import { endsWord, type Speller as SpellerType, Speller, spellDebounce } from "./spell";
 import { Kithd, room } from "./testing/kithd";
@@ -49,15 +49,30 @@ async function window(changed: () => void = () => undefined): Promise<Drafts> {
       if (err !== undefined) console.log("FAILED", err);
     },
     () => undefined,
+    (r) => (r === rooms[0] ? openThread : ""),
   );
 }
 
 const rooms = ["!a:x", "!b:x"] as const;
+/** The thread open beside the first room ("" none): its place is that thread's. */
+let openThread = "";
+/** The places the walk writes in: the first room's main timeline and thread, the second room's. */
+const places = [rooms[0], placeOf(rooms[0], "$t"), rooms[1]];
+
+/** heldAt is place's composition in the window, as if its thread were open. */
+function heldAt(drafts: Drafts, place: string): Composition {
+  const [r, thread] = partsOf(place);
+  const was = openThread;
+  openThread = thread;
+  const c = drafts.get(r);
+  openThread = was;
+  return c;
+}
 
 /** A step of the walk: the person, the assistant, kithd's answers and faults, the window going. */
 type Step =
   | { kind: "type" | "send" | "edit" | "assistant" | "between"; room: number }
-  | { kind: "pause" | "spell" | "poll" | "close" | "leave" }
+  | { kind: "pause" | "spell" | "poll" | "close" | "leave" | "thread" }
   | { kind: "hold"; what: "ReplaceDraft" | "Drafts" | "CheckSpelling" }
   | { kind: "deliver"; i: number }
   | { kind: "fault"; when: "before" | "after" };
@@ -79,6 +94,7 @@ const moves: readonly Step[] = [
   { kind: "fault", when: "after" },
   { kind: "leave" },
   { kind: "close" },
+  { kind: "thread" },
 ];
 
 /** Where the search starts: states the moves alone would take long to reach. */
@@ -106,6 +122,12 @@ const starts: Readonly<Record<string, readonly Step[]>> = {
     { kind: "between", room: 0 },
     { kind: "type", room: 0 },
     { kind: "pause" },
+  ],
+  "words typed in the room, then in its thread": [
+    { kind: "type", room: 0 },
+    { kind: "pause" },
+    { kind: "thread" },
+    { kind: "type", room: 0 },
   ],
   "an edit open, its spelling checks held": [
     { kind: "hold", what: "CheckSpelling" },
@@ -144,9 +166,9 @@ function searched(name: string, depth: number): void {
   }
 }
 
-/** stored is room's draft as kithd holds it, as a composition. */
-function stored(room: string): Composition {
-  const d = kithd.drafts.get(room);
+/** stored is place's draft as kithd holds it, as a composition. */
+function stored(place: string): Composition {
+  const d = kithd.drafts.get(place);
   return d === undefined
     ? blank
     : {
@@ -170,6 +192,7 @@ async function walk(steps: readonly Step[]): Promise<void> {
   kithd = new Kithd();
   kithd.profiles = ["Solo"];
   vi.stubGlobal("window", { kith: kithd.bridge() });
+  openThread = "";
   // The first room's draft is spell-checked as the composer checks it (spell.ts): its
   // marks follow every change, the assistant's words folded in among them, while
   // checks are held and answered late. Every other word kithd rejects.
@@ -190,9 +213,9 @@ async function walk(steps: readonly Step[]): Promise<void> {
   const typed: string[] = [];
   const added: string[] = [];
   const sent: string[] = [];
-  // Words typed in each room and not sent: the window never takes one back (a read
+  // Words typed in each place and not sent: the window never takes one back (a read
   // older than a write, or taken over typing, would).
-  const kept = new Map<string, Set<string>>(rooms.map((r) => [r, new Set<string>()]));
+  const kept = new Map<string, Set<string>>(places.map((p) => [p, new Set<string>()]));
   // Words an abrupt close (a crash) may have lost: typed, and not stored when it came;
   // and words sent whose clear had not landed, which may be offered again (as the
   // TUI's model allows of its last write at exit).
@@ -201,7 +224,7 @@ async function walk(steps: readonly Step[]): Promise<void> {
   let n = 0;
   const append = (room: string) => {
     const word = `a${String(++n)}`;
-    if (kithd.append(room, word)) {
+    if (kithd.append(drafts.here(room), word)) {
       added.push(word);
     }
   };
@@ -213,14 +236,14 @@ async function walk(steps: readonly Step[]): Promise<void> {
         if (room !== undefined && c.editing === "") {
           const word = `w${String(++n)}`;
           typed.push(word);
-          kept.get(room)?.add(word);
+          kept.get(drafts.here(room))?.add(word);
           drafts.set(room, { ...c, body: `${c.body} ${word}`.trim() });
         }
         break;
       case "send":
         if (room !== undefined && c.editing === "" && c.body !== "") {
           sent.push(c.body);
-          kept.get(room)?.clear();
+          kept.get(drafts.here(room))?.clear();
           drafts.set(room, blank);
         }
         break;
@@ -248,6 +271,9 @@ async function walk(steps: readonly Step[]): Promise<void> {
         break;
       case "pause":
         await vi.advanceTimersByTimeAsync(saveDelay);
+        break;
+      case "thread":
+        openThread = openThread === "" ? "$t" : "";
         break;
       case "spell":
         await vi.advanceTimersByTimeAsync(spellDebounce);
@@ -289,14 +315,14 @@ async function walk(steps: readonly Step[]): Promise<void> {
       case "close": {
         // The window closes at once: nothing more is written, and a write on the wire
         // lands or not. What it typed and kithd does not hold is given up.
-        const held = rooms.map((r) => drafts.get(r));
+        const held = places.map((p) => heldAt(drafts, p));
         drafts.stop();
         kithd.holding.clear();
         kithd.draftFaults.length = 0;
         kithd.release();
         await settle();
         const said = sent.flatMap((body) => body.split(/\s+/));
-        for (const [i, r] of rooms.entries()) {
+        for (const [i, r] of places.entries()) {
           const there = `${stored(r).body} ${stored(r).editSaved}`.split(/\s+/);
           for (const word of there.filter((w) => said.includes(w))) {
             offeredAgain.add(word);
@@ -321,8 +347,8 @@ async function walk(steps: readonly Step[]): Promise<void> {
         (m.end === body.length || endsWord(body.slice(m.end, m.end + 1)));
       expect(body.slice(m.start, m.end) === m.word && whole, `${m.word} marked in ${JSON.stringify(body)}`).toBe(true);
     }
-    for (const r of rooms) {
-      const here = `${drafts.get(r).body} ${drafts.get(r).editSaved}`.split(/\s+/);
+    for (const r of places) {
+      const here = `${heldAt(drafts, r).body} ${heldAt(drafts, r).editSaved}`.split(/\s+/);
       for (const word of kept.get(r) ?? []) {
         expect(here, `${word}, typed in ${r} after ${s.kind}`).toContain(word);
       }
@@ -340,7 +366,7 @@ async function walk(steps: readonly Step[]): Promise<void> {
     await settle();
     await drive(drafts.load());
     await settle();
-    const now = rooms.map((r) => shown(drafts.get(r)) + "/" + shown(stored(r))).join(";");
+    const now = places.map((r) => shown(heldAt(drafts, r)) + "/" + shown(stored(r))).join(";");
     if (now === before) {
       break;
     }
@@ -359,11 +385,11 @@ async function walk(steps: readonly Step[]): Promise<void> {
     JSON.stringify(end),
   ).toEqual(end.match(/\b[wa][0-9]*[02468]\b/g) ?? []);
 
-  for (const r of rooms) {
-    expect(shown(drafts.get(r)), `${r}: the window and kithd agree`).toBe(shown(stored(r)));
+  for (const r of places) {
+    expect(shown(heldAt(drafts, r)), `${r}: the window and kithd agree`).toBe(shown(stored(r)));
   }
   const count = new Map<string, number>();
-  const where = [...sent, ...rooms.flatMap((r) => [stored(r).body, stored(r).editSaved])];
+  const where = [...sent, ...places.flatMap((r) => [stored(r).body, stored(r).editSaved])];
   for (const text of where) {
     for (const word of text.split(/\s+/)) {
       count.set(word, (count.get(word) ?? 0) + 1);

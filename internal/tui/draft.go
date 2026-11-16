@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -12,11 +13,24 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// A half-written message belongs to its room: the composer is stashed under the room
-// being left and restored on return. Everything that decides what enter means travels
-// together (words, caret, mentions, reply and edit targets, undo history). The daemon
-// stores all but undo history (db/drafts.go); a draft restored from disk shows who
-// wrote it and when.
+// A half-written message belongs to its place: a room's main timeline, or one of its
+// threads. The composer is stashed under the place being left (another room, a thread
+// entered or closed) and restored on return. Everything that decides what enter means
+// travels together (words, caret, mentions, reply and edit targets, undo history). The
+// daemon stores all but undo history (db/drafts.go); a draft restored from disk shows
+// who wrote it and when.
+
+// place is where a draft is written: a room's main timeline, or one of its threads.
+type place struct {
+	room   domain.RoomID
+	thread domain.EventID
+}
+
+// placeOf is where a stored draft is written.
+func placeOf(s domain.StoredDraft) place { return place{room: s.RoomID, thread: s.ThreadRoot} }
+
+// here is the open room's place: the thread open in it, else its main timeline.
+func (m Model) here() place { return place{room: m.openRoom, thread: m.thread.root} }
 
 // draft is one room's unsent composition.
 type draft struct {
@@ -30,8 +44,6 @@ type draft struct {
 	replyTo   domain.EventID
 	editing   domain.EventID
 	editSaved string
-	// thread is the thread it is written into ("" for the main timeline).
-	thread domain.EventID
 	// edits is the composer's undo history, kept in memory only.
 	edits editHistory
 }
@@ -42,36 +54,36 @@ type draft struct {
 // append, so Model copies never share it).
 type draftSaver struct {
 	saved composerKey
-	room  domain.RoomID
+	at    place
 	gen   int
 	// since is when the open room's composer first changed after its last save: unbroken
 	// typing is still saved every draftSaveEvery.
 	since   time.Time
-	pending []domain.RoomID
+	pending []place
 	// failing: the last write failed and the reader has been told.
 	failing bool
 	// bases are the stored versions this client's drafts are based on, per room, set on
 	// load, adoption and save. A differing stored draft was written elsewhere (another
 	// window, kith-mcp); a differing local copy holds unsaved typing. Copied on write.
-	bases map[domain.RoomID]draftStamp
+	bases map[place]draftStamp
 	// inflight are rooms with a save on the wire, dirty those asked to save again
 	// meanwhile. One save per room at a time, each based on what the previous stored, so
 	// this client never mistakes its own write for another writer's addition.
-	inflight map[domain.RoomID]bool
-	dirty    map[domain.RoomID]bool
+	inflight map[place]bool
+	dirty    map[place]bool
 	// epoch counts save starts and ends, touched is each room's last. A poll carries the
 	// epoch it was read at and is ignored for rooms touched since: it may predate a save
 	// that already answered.
 	epoch   int
-	touched map[domain.RoomID]int
+	touched map[place]int
 	// retry are rooms whose last save failed. The next successful poll writes them again.
-	retry map[domain.RoomID]bool
+	retry map[place]bool
 	// unsure are this client's writes whose outcome it never heard, per room, oldest
 	// first: a write can land and its reply be lost. Each save hands them to kithd, which
 	// reads a stored draft equal to or extending one as descending from this client's own
 	// write, so none of it is another writer's (domain.RebaseDraft). Cleared when a save
 	// of the room answers.
-	unsure map[domain.RoomID][]ownWrite
+	unsure map[place][]ownWrite
 	// lastMs is the newest stamp this client gave a write. Stamps only increase, so a
 	// write turned down is never mistaken for one that landed.
 	lastMs int64
@@ -86,38 +98,38 @@ type ownWrite struct {
 	v draftStamp
 }
 
-// composerKey is what the debounce watches in the open room's composer.
+// composerKey is what the debounce watches in the open place's composer.
 type composerKey struct {
-	text, editSaved        string
-	reply, editing, thread domain.EventID
+	text, editSaved string
+	reply, editing  domain.EventID
 }
 
 func (m Model) composerKey() composerKey {
 	c := m.compose
-	return composerKey{text: c.input, editSaved: c.editSaved, reply: c.replyTo, editing: c.editing, thread: m.thread.root}
+	return composerKey{text: c.input, editSaved: c.editSaved, reply: c.replyTo, editing: c.editing}
 }
 
-func (s draftSaver) touch(room domain.RoomID) draftSaver {
+func (s draftSaver) touch(at place) draftSaver {
 	s.epoch++
-	s.touched = withEntry(s.touched, room, s.epoch)
+	s.touched = withEntry(s.touched, at, s.epoch)
 	return s
 }
 
 // settled reports whether a poll read at epoch issued still describes room: no save of
 // it is on the wire, owed, or started or answered since.
-func (s draftSaver) settled(room domain.RoomID, issued int) bool {
-	return !s.inflight[room] && !s.dirty[room] && !s.retry[room] && s.touched[room] <= issued &&
-		!slices.Contains(s.pending, room)
+func (s draftSaver) settled(at place, issued int) bool {
+	return !s.inflight[at] && !s.dirty[at] && !s.retry[at] && s.touched[at] <= issued &&
+		!slices.Contains(s.pending, at)
 }
 
-// draftStamp identifies one stored draft version and what it composes: words, reply
-// and edit targets, thread, and the draft an edit returns to. Zero means none stored.
+// draftStamp identifies one stored draft version of a place and what it composes:
+// words, reply and edit targets, and the draft an edit returns to. Zero means none
+// stored.
 type draftStamp struct {
 	body    string
 	saved   string
 	editing domain.EventID
 	reply   domain.EventID
-	thread  domain.EventID
 	ms      int64
 }
 
@@ -126,27 +138,26 @@ func stampOf(s domain.StoredDraft) draftStamp {
 		return draftStamp{}
 	}
 	return draftStamp{
-		body: s.Body, saved: s.EditSaved, editing: s.Editing, reply: s.ReplyTo, thread: s.ThreadRoot,
-		ms: s.Updated.UnixMilli(),
+		body: s.Body, saved: s.EditSaved, editing: s.Editing, reply: s.ReplyTo, ms: s.Updated.UnixMilli(),
 	}
 }
 
 // over is the stamp as the draft ReplaceDraft compares against.
-func (st draftStamp) over(room domain.RoomID) domain.StoredDraft {
+func (st draftStamp) over(at place) domain.StoredDraft {
 	if st == (draftStamp{}) {
 		return domain.StoredDraft{}
 	}
 	return domain.StoredDraft{
-		RoomID: room, Body: st.body, ReplyTo: st.reply, Editing: st.editing, EditSaved: st.saved,
-		ThreadRoot: st.thread, Updated: time.UnixMilli(st.ms),
+		RoomID: at.room, ThreadRoot: at.thread, Body: st.body, ReplyTo: st.reply, Editing: st.editing,
+		EditSaved: st.saved, Updated: time.UnixMilli(st.ms),
 	}
 }
 
 // withBase is bases with room's set, copied because the Model is copied by value.
-func withBase(bases map[domain.RoomID]draftStamp, room domain.RoomID, st draftStamp) map[domain.RoomID]draftStamp {
-	out := make(map[domain.RoomID]draftStamp, len(bases)+1)
+func withBase(bases map[place]draftStamp, at place, st draftStamp) map[place]draftStamp {
+	out := make(map[place]draftStamp, len(bases)+1)
 	maps.Copy(out, bases)
-	out[room] = st
+	out[at] = st
 	return out
 }
 
@@ -155,10 +166,10 @@ func (d draft) empty() bool {
 	return d.input == "" && d.replyTo == "" && d.editing == "" && d.editSaved == ""
 }
 
-// stashDraft puts the composer aside under the room being left (before openRoom
-// moves) and empties it.
-func (m Model) stashDraft(from domain.RoomID) Model {
-	if from == "" {
+// stashDraft puts the composer aside under the place being left (before openRoom or the
+// open thread moves) and empties it.
+func (m Model) stashDraft(from place) Model {
+	if from.room == "" {
 		return m
 	}
 	held := m.composerDraft()
@@ -172,46 +183,25 @@ func (m Model) stashDraft(from domain.RoomID) Model {
 	// The write is deferred to armDraftSave via draftSync.pending, since callers are
 	// mid-transition. A draft matching what is stored writes nothing.
 	if m.draftSync.differs(from, held) {
-		m.draftSync.pending = append(append([]domain.RoomID{}, m.draftSync.pending...), from)
+		m.draftSync.pending = append(slices.Clone(m.draftSync.pending), from)
 	}
 	return m.withDraft(draft{})
 }
 
 // differs reports whether held differs from the stored version this client is based
 // on: only then is there anything to write.
-func (s draftSaver) differs(room domain.RoomID, held draft) bool {
-	base := s.bases[room]
+func (s draftSaver) differs(at place, held draft) bool {
+	base := s.bases[at]
 	if held.empty() {
 		return base != (draftStamp{})
 	}
 	return held.input != base.body || held.editSaved != base.saved ||
-		held.editing != base.editing || held.replyTo != base.reply || held.thread != base.thread
+		held.editing != base.editing || held.replyTo != base.reply
 }
 
-// restoreDraft puts a room's stashed draft back in the composer, or empties it. A
-// draft written in a thread opens that thread, where it will be sent.
-func (m Model) restoreDraft(to domain.RoomID) (Model, tea.Cmd) {
-	d := m.drafts[to]
-	m, cmd := m.aimAt(d.thread)
-	return m.withDraft(d), cmd
-}
-
-// aimAt shows the draft's thread (the main timeline for none) so the composer sends
-// where the draft is aimed. The composer's mode is kept: the draft is put in
-// afterwards, and changing thread drops the reply target it holds.
-func (m Model) aimAt(thread domain.EventID) (Model, tea.Cmd) {
-	if thread == m.thread.root {
-		return m, nil
-	}
-	mode := m.compose.insertMode
-	var cmd tea.Cmd
-	if thread == "" {
-		m, cmd = m.closeThread()
-	} else {
-		m, cmd = m.enterThread(thread, "")
-	}
-	m.compose.insertMode = mode
-	return m, cmd
+// restoreDraft puts a place's stashed draft back in the composer, or empties it.
+func (m Model) restoreDraft(to place) Model {
+	return m.withDraft(m.drafts[to])
 }
 
 // withDraft is the composer set from a draft, empty or not.
@@ -229,26 +219,36 @@ func (m Model) withDraft(d draft) Model {
 	return m
 }
 
-// hasDraft reports whether a room holds an unsent message.
+// hasDraft reports whether a room holds an unsent message, in its main timeline or a
+// thread.
 func (m Model) hasDraft(id domain.RoomID) bool {
-	if id == m.openRoom {
-		return m.compose.input != ""
+	if id == m.openRoom && m.compose.input != "" {
+		return true
 	}
-	_, held := m.drafts[id]
-	return held
+	return roomDrafted(m.drafts, id)
+}
+
+// roomDrafted reports whether drafts holds one of room's, in any of its places.
+func roomDrafted(drafts map[place]draft, room domain.RoomID) bool {
+	for at := range drafts {
+		if at.room == room {
+			return true
+		}
+	}
+	return false
 }
 
 // stored is this draft as it survives a restart.
-func (d draft) stored(room domain.RoomID) domain.StoredDraft {
+func (d draft) stored(at place) domain.StoredDraft {
 	return domain.StoredDraft{
-		RoomID:     room,
+		RoomID:     at.room,
+		ThreadRoot: at.thread,
 		Body:       d.input,
 		Caret:      d.caret,
 		Mentions:   d.drafted,
 		ReplyTo:    d.replyTo,
 		Editing:    d.editing,
 		EditSaved:  d.editSaved,
-		ThreadRoot: d.thread,
 		Author:     d.author,
 		Updated:    time.Now(),
 	}
@@ -263,7 +263,6 @@ func draftFrom(stored domain.StoredDraft) draft {
 		replyTo:   stored.ReplyTo,
 		editing:   stored.Editing,
 		editSaved: stored.EditSaved,
-		thread:    stored.ThreadRoot,
 		author:    stored.Author,
 		written:   stored.Updated,
 	}
@@ -310,35 +309,30 @@ func (m Model) loadDraftsCmd() tea.Cmd {
 // too. Rooms with a save on the wire, or one since the read was asked for, are skipped:
 // the read may predate it.
 func (m Model) handleDraftsLoaded(msg draftsLoadedMsg) (Model, tea.Cmd) {
-	stored := make(map[domain.RoomID]bool, len(msg.drafts))
-	var cmds []tea.Cmd
+	stored := make(map[place]bool, len(msg.drafts))
 	for i := range msg.drafts {
-		stored[msg.drafts[i].RoomID] = true
-		var aimed tea.Cmd
-		m, aimed = m.adoptStored(msg.drafts[i], msg.issued)
-		cmds = append(cmds, aimed)
+		stored[placeOf(msg.drafts[i])] = true
+		m = m.adoptStored(msg.drafts[i], msg.issued)
 	}
-	for room, base := range m.draftSync.bases {
-		if !stored[room] && base != (draftStamp{}) {
-			var aimed tea.Cmd
-			m, aimed = m.adoptStored(domain.StoredDraft{RoomID: room}, msg.issued)
-			cmds = append(cmds, aimed)
+	for at, base := range m.draftSync.bases {
+		if !stored[at] && base != (draftStamp{}) {
+			m = m.adoptStored(domain.StoredDraft{RoomID: at.room, ThreadRoot: at.thread}, msg.issued)
 		}
 	}
 	// The daemon answers again: rewrite what it failed to take.
 	m, retries := m.saveRetries()
 	// The rail's Drafts group must show what arrived.
-	return m.rebuiltRail(), batched(slices.DeleteFunc(append(cmds, retries...), func(c tea.Cmd) bool { return c == nil }))
+	return m.rebuiltRail(), batched(retries)
 }
 
-// saveRetries asks again for the saves that failed, in room order.
+// saveRetries asks again for the saves that failed, in place order.
 func (m Model) saveRetries() (Model, []tea.Cmd) {
-	rooms := slices.Sorted(maps.Keys(m.draftSync.retry))
+	rooms := slices.SortedFunc(maps.Keys(m.draftSync.retry), place.compare)
 	m.draftSync.retry = nil
 	var writes []tea.Cmd
-	for _, room := range rooms {
+	for _, at := range rooms {
 		var write tea.Cmd
-		m, write = m.requestSave(room)
+		m, write = m.requestSave(at)
 		if write != nil {
 			writes = append(writes, write)
 		}
@@ -346,51 +340,39 @@ func (m Model) saveRetries() (Model, []tea.Cmd) {
 	return m, writes
 }
 
-// adoptStored takes one room's stored version (empty: deleted) as its draft, unless
-// the poll is stale for the room or this client has unsaved typing there.
-func (m Model) adoptStored(stored domain.StoredDraft, issued int) (Model, tea.Cmd) {
-	room := stored.RoomID
-	base := m.draftSync.bases[room]
-	if stampOf(stored) == base || !m.draftSync.settled(room, issued) {
-		return m, nil
+// adoptStored takes one place's stored version (empty: deleted) as its draft, unless
+// the poll is stale for the place or this client has unsaved typing there.
+func (m Model) adoptStored(stored domain.StoredDraft, issued int) Model {
+	at := placeOf(stored)
+	base := m.draftSync.bases[at]
+	if stampOf(stored) == base || !m.draftSync.settled(at, issued) {
+		return m
 	}
-	if m.draftSync.differs(room, m.localDraft(room)) {
-		return m, nil // changes not yet saved: they win here, and the save merges
+	if m.draftSync.differs(at, m.localDraft(at)) {
+		return m // changes not yet saved: they win here, and the save merges
 	}
 	adopted := draftFrom(stored)
 	// Another writer's caret means nothing here: same words keep this caret, new ones put
 	// it at the end.
-	if local := m.localDraft(room); adopted.input == local.input {
+	if local := m.localDraft(at); adopted.input == local.input {
 		adopted.caret = local.caret
 	} else {
 		adopted.caret = len(adopted.input)
 	}
 	// The undo history stays, so the adoption can be undone.
-	if room == m.openRoom {
+	if at == m.here() {
 		adopted.edits = m.edits[fieldComposer]
 	} else {
-		adopted.edits = m.drafts[room].edits
+		adopted.edits = m.drafts[at].edits
 	}
-	m.drafts = setDraft(m.drafts, room, adopted)
-	m.draftSync.bases = withBase(m.draftSync.bases, room, stampOf(stored))
-	if room != m.openRoom {
-		return m, nil
-	}
-	// The composer shows the draft where it will be sent: a draft written into another
-	// thread (by the assistant, into an idle composer) opens that thread. An emptied
-	// draft moves nothing.
-	var aimed tea.Cmd
-	if !adopted.empty() && adopted.thread != m.thread.root {
-		m, aimed = m.aimAt(adopted.thread)
-		where := "the main timeline"
-		if adopted.thread != "" {
-			where = "a thread"
-		}
-		m = m.say("a draft is waiting in " + where + " — showing it")
+	m.drafts = setDraft(m.drafts, at, adopted)
+	m.draftSync.bases = withBase(m.draftSync.bases, at, stampOf(stored))
+	if at != m.here() {
+		return m
 	}
 	m = m.withDraft(adopted)
-	m.draftSync.room, m.draftSync.saved = room, m.composerKey()
-	return m, aimed
+	m.draftSync.at, m.draftSync.saved = at, m.composerKey()
+	return m
 }
 
 // armDraftSave schedules a write when the composer changed. Called after every Update
@@ -403,9 +385,9 @@ func (m Model) armDraftSave() (Model, tea.Cmd) {
 	}
 
 	now := m.composerKey()
-	if m.draftSync.room != m.openRoom {
+	if m.draftSync.at != m.here() {
 		// Arriving in a room changes nothing stored: re-sync without a write.
-		m.draftSync.room, m.draftSync.saved, m.draftSync.since = m.openRoom, now, time.Time{}
+		m.draftSync.at, m.draftSync.saved, m.draftSync.since = m.here(), now, time.Time{}
 		return m, batched(writes)
 	}
 	if now == m.draftSync.saved {
@@ -423,7 +405,7 @@ func (m Model) armDraftSave() (Model, tea.Cmd) {
 	if emptied || time.Since(m.draftSync.since) >= draftSaveEvery {
 		m.draftSync.since = time.Time{}
 		var write tea.Cmd
-		m, write = m.requestSave(m.openRoom)
+		m, write = m.requestSave(m.here())
 		return m, batched(append(writes, write))
 	}
 	return m, batched(append(writes, draftTickCmd(m.draftSync.gen)))
@@ -434,9 +416,9 @@ func (m Model) savePending() (Model, []tea.Cmd) {
 	var writes []tea.Cmd
 	pending := m.draftSync.pending
 	m.draftSync.pending = nil
-	for _, room := range pending {
+	for _, at := range pending {
 		var write tea.Cmd
-		m, write = m.requestSave(room)
+		m, write = m.requestSave(at)
 		if write != nil {
 			writes = append(writes, write)
 		}
@@ -446,23 +428,28 @@ func (m Model) savePending() (Model, []tea.Cmd) {
 
 // requestSave writes room's draft as held now or, while a save of the room is on the
 // wire, marks it to be written when that answers (handleDraftSaved).
-func (m Model) requestSave(room domain.RoomID) (Model, tea.Cmd) {
-	if m.draftSync.inflight[room] {
-		m.draftSync.dirty = withEntry(m.draftSync.dirty, room, true)
+func (m Model) requestSave(at place) (Model, tea.Cmd) {
+	if m.draftSync.inflight[at] {
+		m.draftSync.dirty = withEntry(m.draftSync.dirty, at, true)
 		return m, nil
 	}
-	held := m.localDraft(room)
-	if !m.draftSync.differs(room, held) && len(m.draftSync.unsure[room]) == 0 {
+	held := m.localDraft(at)
+	if !m.draftSync.differs(at, held) && len(m.draftSync.unsure[at]) == 0 {
 		// Nothing of this client's to add: whatever is stored (an addition, or a deletion
 		// elsewhere) stands and the poll brings it. An unanswered write may have stored
 		// something else, so that room is written again.
 		return m, nil
 	}
-	stored := held.stored(room)
+	stored := held.stored(at)
 	m.draftSync, stored.Updated = m.draftSync.stamped(stored.Updated)
-	m.draftSync.inflight = withEntry(m.draftSync.inflight, room, true)
-	m.draftSync = m.draftSync.touch(room).mayHaveWritten(room, ownWrite{v: stampOf(stored)})
-	return m, m.saveDraftCmd(room, stored)
+	m.draftSync.inflight = withEntry(m.draftSync.inflight, at, true)
+	m.draftSync = m.draftSync.touch(at).mayHaveWritten(at, ownWrite{v: stampOf(stored)})
+	return m, m.saveDraftCmd(at, stored)
+}
+
+// compare orders places by room, then thread, the main timeline first.
+func (a place) compare(b place) int {
+	return cmp.Or(cmp.Compare(a.room, b.room), cmp.Compare(a.thread, b.thread))
 }
 
 // stamped is now as a write stamp, after every stamp this client gave before.
@@ -476,8 +463,8 @@ func (s draftSaver) stamped(now time.Time) (draftSaver, time.Time) {
 const unsureKept = 16
 
 // mayHaveWritten records versions of room that may be stored now, reply or not.
-func (s draftSaver) mayHaveWritten(room domain.RoomID, writes ...ownWrite) draftSaver {
-	list := slices.Clone(s.unsure[room])
+func (s draftSaver) mayHaveWritten(at place, writes ...ownWrite) draftSaver {
+	list := slices.Clone(s.unsure[at])
 	for i := range writes {
 		if !slices.ContainsFunc(list, func(had ownWrite) bool { return had.v == writes[i].v }) {
 			list = append(list, writes[i])
@@ -486,21 +473,21 @@ func (s draftSaver) mayHaveWritten(room domain.RoomID, writes ...ownWrite) draft
 	if len(list) > unsureKept {
 		list = list[len(list)-unsureKept:]
 	}
-	out := make(map[domain.RoomID][]ownWrite, len(s.unsure)+1)
+	out := make(map[place][]ownWrite, len(s.unsure)+1)
 	maps.Copy(out, s.unsure)
-	out[room] = list
+	out[at] = list
 	s.unsure = out
 	return s
 }
 
 // localDraft is room's draft as this client holds it: the composer for the open room
 // (keeping provenance while its words are the loaded ones), else the stashed copy.
-func (m Model) localDraft(room domain.RoomID) draft {
-	if room != m.openRoom {
-		return m.drafts[room]
+func (m Model) localDraft(at place) draft {
+	if at != m.here() {
+		return m.drafts[at]
 	}
 	held := m.composerDraft()
-	if was := m.drafts[room]; was.input == held.input {
+	if was := m.drafts[at]; was.input == held.input {
 		held.author, held.written = was.author, was.written
 	}
 	return held
@@ -511,7 +498,7 @@ func (m Model) localDraft(room domain.RoomID) draft {
 func (m Model) trackComposerDraft() Model {
 	held := m.composerDraft()
 	held.edits = m.edits[fieldComposer]
-	was, had := m.drafts[m.openRoom]
+	was, had := m.drafts[m.here()]
 	if held.empty() && !had {
 		return m
 	}
@@ -519,7 +506,7 @@ func (m Model) trackComposerDraft() Model {
 	if had && was.input == held.input {
 		return m
 	}
-	m.drafts = setDraft(m.drafts, m.openRoom, held)
+	m.drafts = setDraft(m.drafts, m.here(), held)
 	// Rebuild the rail only when presence in the Drafts group changes.
 	if had == held.empty() {
 		m = m.rebuiltRail()
@@ -529,13 +516,13 @@ func (m Model) trackComposerDraft() Model {
 
 // setDraft is drafts with room set to d (removed when empty), copied because the
 // Model is copied by value.
-func setDraft(drafts map[domain.RoomID]draft, room domain.RoomID, d draft) map[domain.RoomID]draft {
-	out := make(map[domain.RoomID]draft, len(drafts)+1)
+func setDraft(drafts map[place]draft, at place, d draft) map[place]draft {
+	out := make(map[place]draft, len(drafts)+1)
 	maps.Copy(out, drafts)
 	if d.empty() {
-		delete(out, room)
+		delete(out, at)
 	} else {
-		out[room] = d
+		out[at] = d
 	}
 	return out
 }
@@ -550,15 +537,15 @@ func batched(cmds []tea.Cmd) tea.Cmd {
 
 // handleDraftTick writes if the composer it was armed for is unchanged.
 func (m Model) handleDraftTick(msg draftTickMsg) (Model, tea.Cmd) {
-	room := m.draftSync.room
-	if msg.gen != m.draftSync.gen || room == "" {
+	at := m.draftSync.at
+	if msg.gen != m.draftSync.gen || at.room == "" {
 		return m, nil
 	}
 	m.draftSync.since = time.Time{}
-	if !m.draftSync.differs(room, m.composerDraft()) {
+	if !m.draftSync.differs(at, m.composerDraft()) {
 		return m, nil // typed back to what is stored: nothing to write
 	}
-	return m.requestSave(room)
+	return m.requestSave(at)
 }
 
 // composerDraft is the composer's current content as a draft with no author: a draft
@@ -571,15 +558,14 @@ func (m Model) composerDraft() draft {
 		replyTo:   m.compose.replyTo,
 		editing:   m.compose.editing,
 		editSaved: m.compose.editSaved,
-		thread:    m.thread.root,
 	}
 }
 
 // draftSavedMsg is a draft write's outcome: the version now stored, and the
 // assistant's words kithd folded in, for the room's local copy.
 type draftSavedMsg struct {
-	err  error
-	room domain.RoomID
+	err error
+	at  place
 	// wrote is what the save stored, the assistant's words included.
 	wrote domain.StoredDraft
 	added string
@@ -592,12 +578,12 @@ type draftSavedMsg struct {
 // (kith-mcp) wrote since, its words go after these, so no side loses words, and come
 // back to be folded into the local copy. This client's writes it never heard back about
 // go along, so a stored version it wrote is read as its own, not another writer's.
-func (m Model) saveDraftCmd(room domain.RoomID, stored domain.StoredDraft) tea.Cmd {
-	base := m.draftSync.bases[room].over(room)
+func (m Model) saveDraftCmd(at place, stored domain.StoredDraft) tea.Cmd {
+	base := m.draftSync.bases[at].over(at)
 	var unanswered []domain.StoredDraft
-	for _, w := range m.draftSync.unsure[room] {
+	for _, w := range m.draftSync.unsure[at] {
 		if w.v != stampOf(stored) { // this write itself is not stored yet
-			unanswered = append(unanswered, w.v.over(room))
+			unanswered = append(unanswered, w.v.over(at))
 		}
 	}
 	ctx, backend := m.ctx, m.backend
@@ -608,9 +594,9 @@ func (m Model) saveDraftCmd(room domain.RoomID, stored domain.StoredDraft) tea.C
 		}
 		if err != nil {
 			// It may have landed with its answer lost, so it may be stored.
-			return draftSavedMsg{err: err, room: room, unsure: []ownWrite{{v: stampOf(stored)}}}
+			return draftSavedMsg{err: err, at: at, unsure: []ownWrite{{v: stampOf(stored)}}}
 		}
-		return draftSavedMsg{room: room, wrote: wrote, added: added}
+		return draftSavedMsg{at: at, wrote: wrote, added: added}
 	}
 }
 
@@ -620,15 +606,15 @@ func (m Model) saveDraftCmd(room domain.RoomID, stored domain.StoredDraft) tea.C
 // drafts stop being kept, and when they are kept again. A failed clear matters too:
 // the poll would bring the sent draft back.
 func (m Model) handleDraftSaved(msg draftSavedMsg) (Model, tea.Cmd) {
-	room := msg.room
-	m.draftSync.inflight = withoutEntry(m.draftSync.inflight, room)
-	m.draftSync = m.draftSync.touch(room)
-	owed := m.draftSync.dirty[room]
-	m.draftSync.dirty = withoutEntry(m.draftSync.dirty, room)
+	at := msg.at
+	m.draftSync.inflight = withoutEntry(m.draftSync.inflight, at)
+	m.draftSync = m.draftSync.touch(at)
+	owed := m.draftSync.dirty[at]
+	m.draftSync.dirty = withoutEntry(m.draftSync.dirty, at)
 	if msg.err == nil {
-		m.draftSync.unsure = withoutEntry(m.draftSync.unsure, room)
+		m.draftSync.unsure = withoutEntry(m.draftSync.unsure, at)
 	} else {
-		m.draftSync = m.draftSync.mayHaveWritten(room, msg.unsure...)
+		m.draftSync = m.draftSync.mayHaveWritten(at, msg.unsure...)
 	}
 	if msg.err != nil && !owed {
 		if m.draftSync.quitting && m.draftSync.quitRetries < quitSaveRetries {
@@ -636,25 +622,25 @@ func (m Model) handleDraftSaved(msg draftSavedMsg) (Model, tea.Cmd) {
 			m.draftSync.quitRetries++
 			owed = true
 		} else {
-			m.draftSync.retry = withEntry(m.draftSync.retry, room, true)
+			m.draftSync.retry = withEntry(m.draftSync.retry, at, true)
 		}
 	}
 	// Said before the fold, which says another writer's words were added over it.
 	m = m.reportDraftSave(msg.err)
 	if msg.err == nil {
-		m.draftSync.bases = withBase(m.draftSync.bases, room, stampOf(msg.wrote))
+		m.draftSync.bases = withBase(m.draftSync.bases, at, stampOf(msg.wrote))
 		if msg.added != "" {
-			m = m.foldInDraft(room, msg.added)
+			m = m.foldInDraft(at, msg.added)
 		}
 		// Typing (or the fold) since the write is not stored yet.
-		owed = owed || !sameStored(m.localDraft(room).stored(room), msg.wrote)
-		if room == m.openRoom && sameStored(m.composerDraft().stored(room), msg.wrote) {
+		owed = owed || !sameStored(m.localDraft(at).stored(at), msg.wrote)
+		if at == m.here() && sameStored(m.composerDraft().stored(at), msg.wrote) {
 			m.draftSync.saved = m.composerKey() // stored already: nothing to arm
 		}
 	}
 	var next tea.Cmd
 	if owed {
-		m, next = m.requestSave(room)
+		m, next = m.requestSave(at)
 	}
 	m, switching := m.switchWhenDrafted()
 	return m, batched([]tea.Cmd{next, m.quitWhenDrafted(), switching})
@@ -685,15 +671,15 @@ func sameStored(a, b domain.StoredDraft) bool {
 // already stored after this client's, to the room's local copy: to the words or, while
 // a message is corrected, to the draft the composer returns to. In the open room it says
 // so, so nothing appears silently.
-func (m Model) foldInDraft(room domain.RoomID, added string) Model {
-	if room != m.openRoom {
-		held := m.drafts[room]
+func (m Model) foldInDraft(at place, added string) Model {
+	if at != m.here() {
+		held := m.drafts[at]
 		if held.editing != "" {
 			held.editSaved = domain.JoinDraft(held.editSaved, added)
 		} else {
 			held.input = domain.JoinDraft(held.input, added)
 		}
-		m.drafts = setDraft(m.drafts, room, held)
+		m.drafts = setDraft(m.drafts, at, held)
 		return m.rebuiltRail()
 	}
 	if m.compose.isEditing() {
@@ -729,9 +715,9 @@ func (m Model) quitAfterDrafts(first tea.Cmd) (Model, tea.Cmd) {
 	m, writes := m.savePending()
 	m, retries := m.saveRetries()
 	writes = append(writes, retries...)
-	if room := m.openRoom; room != "" && m.draftSync.differs(room, m.composerDraft()) {
+	if at := m.here(); at.room != "" && m.draftSync.differs(at, m.composerDraft()) {
 		var write tea.Cmd
-		m, write = m.requestSave(room)
+		m, write = m.requestSave(at)
 		writes = append(writes, write)
 	}
 	if len(m.draftSync.inflight) == 0 {
@@ -752,7 +738,7 @@ func (m Model) quitWhenDrafted() tea.Cmd {
 // draftNote says who wrote a restored draft and how long ago, or "" for words typed
 // or edited this session.
 func (m Model) draftNote() string {
-	held, ok := m.drafts[m.openRoom]
+	held, ok := m.drafts[m.here()]
 	if !ok || held.written.IsZero() || m.compose.input != held.input {
 		return ""
 	}

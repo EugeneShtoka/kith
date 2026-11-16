@@ -18,7 +18,7 @@ import (
 type sharedDrafts struct {
 	apitest.Nop
 	mu     sync.Mutex
-	drafts map[domain.RoomID]domain.StoredDraft
+	drafts map[place]domain.StoredDraft
 }
 
 func (s *sharedDrafts) Drafts(context.Context) ([]domain.StoredDraft, error) {
@@ -34,7 +34,7 @@ func (s *sharedDrafts) Drafts(context.Context) ([]domain.StoredDraft, error) {
 func (s *sharedDrafts) ReplaceDraft(_ context.Context, draft, over domain.StoredDraft) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	current, held := s.drafts[draft.RoomID]
+	current, held := s.drafts[placeOf(draft)]
 	switch {
 	case !held && (over.Body != "" || !over.Updated.IsZero()):
 		return false, nil
@@ -42,10 +42,10 @@ func (s *sharedDrafts) ReplaceDraft(_ context.Context, draft, over domain.Stored
 		return false, nil
 	}
 	if draft.Empty() {
-		delete(s.drafts, draft.RoomID)
+		delete(s.drafts, placeOf(draft))
 	} else {
 		draft.Updated = time.UnixMilli(draft.Updated.UnixMilli())
-		s.drafts[draft.RoomID] = draft
+		s.drafts[placeOf(draft)] = draft
 	}
 	return true, nil
 }
@@ -54,12 +54,12 @@ func (s *sharedDrafts) ReplaceDraft(_ context.Context, draft, over domain.Stored
 func (s *sharedDrafts) RebaseDraft(_ context.Context, draft, base domain.StoredDraft, unanswered []domain.StoredDraft) (domain.StoredDraft, string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	stored, added := domain.RebaseDraft(draft, base, s.drafts[draft.RoomID], unanswered)
+	stored, added := domain.RebaseDraft(draft, base, s.drafts[placeOf(draft)], unanswered)
 	if stored.Empty() {
-		delete(s.drafts, draft.RoomID)
+		delete(s.drafts, placeOf(draft))
 	} else {
 		stored.Updated = time.UnixMilli(stored.Updated.UnixMilli())
-		s.drafts[draft.RoomID] = stored
+		s.drafts[placeOf(draft)] = stored
 	}
 	return stored, added, nil
 }
@@ -68,20 +68,20 @@ func (s *sharedDrafts) RebaseDraft(_ context.Context, draft, base domain.StoredD
 func (s *sharedDrafts) assistantWrites(room domain.RoomID, body string, at time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.drafts[room] = domain.StoredDraft{RoomID: room, Body: body, Author: "claude-code", Updated: at}
+	s.drafts[place{room: room}] = domain.StoredDraft{RoomID: room, Body: body, Author: "claude-code", Updated: at}
 }
 
 func (s *sharedDrafts) body(room domain.RoomID) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.drafts[room].Body
+	return s.drafts[place{room: room}].Body
 }
 
 // sharing is a client in !a:x with "hi" already stored and loaded at start.
 func sharing(t *testing.T) (Model, *sharedDrafts) {
 	t.Helper()
-	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{
-		mx + "!a:x": {RoomID: mx + "!a:x", Body: "hi", Updated: time.UnixMilli(1000)},
+	store := &sharedDrafts{drafts: map[place]domain.StoredDraft{
+		{room: mx + "!a:x"}: {RoomID: mx + "!a:x", Body: "hi", Updated: time.UnixMilli(1000)},
 	}}
 	m := update(t, starterNew(store, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
@@ -122,7 +122,7 @@ func TestAnIdleDraftTakesTheAssistantsAddition(t *testing.T) {
 		m = openedFromList(t, m, mx+"!b:x")
 		store.assistantWrites(mx+"!a:x", "hi\n\nthe report is attached", time.UnixMilli(2000))
 		m = polled(t, m)
-		if got := m.drafts[mx+"!a:x"].input; got != "hi\n\nthe report is attached" {
+		if got := m.drafts[place{room: mx + "!a:x"}].input; got != "hi\n\nthe report is attached" {
 			t.Errorf("stashed draft = %q, want the assistant's addition taken", got)
 		}
 	})
@@ -277,7 +277,7 @@ func TestADraftDeletedElsewhereStaysDeleted(t *testing.T) {
 	t.Parallel()
 	m, store := sharing(t)
 	store.mu.Lock()
-	delete(store.drafts, mx+"!a:x")
+	delete(store.drafts, place{room: mx + "!a:x"})
 	store.mu.Unlock()
 	m = polled(t, m)
 	if m.compose.input != "" {
@@ -297,7 +297,7 @@ func TestTypingOverADraftDeletedElsewhereKeepsItAll(t *testing.T) {
 	m.compose.caret = caret{owner: fieldComposer, at: len(m.compose.input)}
 	m = typeInto(t, m, " there")
 	store.mu.Lock()
-	delete(store.drafts, mx+"!a:x")
+	delete(store.drafts, place{room: mx + "!a:x"})
 	store.mu.Unlock()
 	m, save := tickCmd(t, m)
 	m = settle(t, m, save)
@@ -335,7 +335,7 @@ func TestAnAdditionCrossingAnEditSurvivesItsCancel(t *testing.T) {
 // assistant's words are not cut where they happen to match the typing's start.
 func TestADraftStartedOnBothSidesKeepsBothWhole(t *testing.T) {
 	t.Parallel()
-	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{}}
+	store := &sharedDrafts{drafts: map[place]domain.StoredDraft{}}
 	m := update(t, starterNew(store, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})
 	m = sized(t, m)
@@ -354,8 +354,8 @@ func TestADraftStartedOnBothSidesKeepsBothWhole(t *testing.T) {
 // Visiting a room holds its draft without writing it: its author stays.
 func TestVisitingADraftKeepsWhoWroteIt(t *testing.T) {
 	t.Parallel()
-	store := &sharedDrafts{drafts: map[domain.RoomID]domain.StoredDraft{
-		mx + "!a:x": {RoomID: mx + "!a:x", Body: "from claude", Author: "claude-code", Updated: time.UnixMilli(1000)},
+	store := &sharedDrafts{drafts: map[place]domain.StoredDraft{
+		{room: mx + "!a:x"}: {RoomID: mx + "!a:x", Body: "from claude", Author: "claude-code", Updated: time.UnixMilli(1000)},
 	}}
 	m := update(t, starterNew(store, config.Display{}),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}}})
@@ -364,7 +364,7 @@ func TestVisitingADraftKeepsWhoWroteIt(t *testing.T) {
 	m = deliver(t, m, m.loadDraftsCmd())
 	_ = leaveFor(t, m, mx+"!b:x")
 	store.mu.Lock()
-	got := store.drafts[mx+"!a:x"]
+	got := store.drafts[place{room: mx + "!a:x"}]
 	store.mu.Unlock()
 	if got.Author != "claude-code" || !got.Updated.Equal(time.UnixMilli(1000)) {
 		t.Errorf("stored after a visit: author %q at %v; want it untouched", got.Author, got.Updated)
@@ -383,7 +383,7 @@ func TestQuitWritesTheTypingFirst(t *testing.T) {
 	if w.exits == 0 {
 		t.Error("quit never came")
 	}
-	if got, want := w.stored(mx+"!a:x").Body, "hi w1"; got != want {
+	if got, want := w.stored(place{room: mx + "!a:x"}).Body, "hi w1"; got != want {
 		t.Errorf("stored after quit %q, want the typing kept: %q", got, want)
 	}
 }
