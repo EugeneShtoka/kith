@@ -722,6 +722,13 @@ stop = []
 # What an AI assistant attached to kith (`kith-mcp`, stdio) may read and write. Entries
 # take the place vocabulary.
 #
+# [agent] links is the link each message the assistant reads carries: "native" opens it
+# in its network's apps where the network has a message link (matrix.to for Matrix,
+# t.me/c for a Telegram channel or supergroup) and in kith elsewhere; "kith" is kith's
+# own link (kith:…) on every message.
+[agent]
+links = "native"
+
 # [agent.read] — nothing is shared until listed: empty `rooms` means none.
 #
 #   rooms = ["space:Work"]                          one space

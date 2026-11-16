@@ -322,6 +322,9 @@ type messageView struct {
 	ReplyTo string `json:"reply_to,omitempty"`
 	// Attachment is the file the message carries, which get_attachment fetches.
 	Attachment *attachmentView `json:"attachment,omitempty"`
+	// Link opens the message: in its network's apps where they have a link to it, else
+	// in kith.
+	Link string `json:"link"`
 }
 
 // attachmentView is what a message's file is, without its bytes.
@@ -354,6 +357,7 @@ func (s *server) view(msg domain.Message, withRoom bool) messageView {
 		Thread:     string(msg.ThreadRoot),
 		ReplyTo:    string(msg.ReplyTo),
 		Attachment: attachmentOf(msg.Media),
+		Link:       s.link(msg.RoomID, msg.ID),
 	}
 	if withRoom {
 		out.Room = string(msg.RoomID)
@@ -362,6 +366,14 @@ func (s *server) view(msg domain.Message, withRoom bool) messageView {
 		out.Body, out.Attachment = "(deleted)", nil
 	}
 	return out
+}
+
+// link is the link to event in room, as `[agent] links` asks.
+func (s *server) link(room domain.RoomID, event domain.EventID) string {
+	if s.kithLinks {
+		return domain.KithLink(room, event)
+	}
+	return domain.MessageLink(room, event)
 }
 
 func args[T any](raw json.RawMessage) (T, error) {

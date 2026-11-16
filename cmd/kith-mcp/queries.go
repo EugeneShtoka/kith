@@ -631,6 +631,7 @@ type hitView struct {
 	Name     string `json:"sender_name,omitempty"`
 	Sent     string `json:"sent"`
 	Snippet  string `json:"snippet"`
+	Link     string `json:"link"`
 }
 
 // shapeHits drops hits in rooms outside `[agent.read]`; the query was scoped, so this
@@ -653,6 +654,7 @@ func (s *server) shapeHits(ctx context.Context, hits []domain.SearchHit) []hitVi
 			Sender: hits[i].Sender, Name: cmp.Or(hits[i].SenderKnownAs, hits[i].SenderName),
 			Sent:    hits[i].Timestamp.Format(time.RFC3339),
 			Snippet: snippet,
+			Link:    s.link(hits[i].RoomID, hits[i].EventID),
 		})
 	}
 	return out
