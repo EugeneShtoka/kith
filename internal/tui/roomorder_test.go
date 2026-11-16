@@ -88,7 +88,7 @@ func TestRoomOrders(t *testing.T) {
 		{
 			name: "drafts", sort: []string{"drafts", "name"},
 			setup: func(m Model) Model {
-				m.drafts = map[domain.RoomID]draft{mx + "!delta:x": {input: "half a thought"}}
+				m.drafts = map[place]draft{{room: mx + "!delta:x"}: {input: "half a thought"}}
 				return m
 			},
 			want: []string{"Delta", "Alpha", "Bravo", "Charlie"},

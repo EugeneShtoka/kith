@@ -157,7 +157,7 @@ func walkRailInputs(t *testing.T, seed uint64, steps int) {
 			if rng.IntN(2) == 0 {
 				d.input = "x"
 			}
-			m.drafts = setDraft(m.drafts, r.ID, d)
+			m.drafts = setDraft(m.drafts, place{room: r.ID}, d)
 			log = append(log, fmt.Sprintf("draft in %s: %q", r.ID, d.input))
 		case 3:
 			local = !local

@@ -30,6 +30,9 @@ type workspace struct {
 	// teamName is the workspace's name and handle the person's, from sign-in.
 	teamName, handle string
 	client           *slackgo.Client
+	// web is its host ("acme.slack.com"), kept beside the credentials: what its messages'
+	// links are under.
+	web string
 
 	// rtm is the live websocket while live runs (under mu); typing notices go out on it.
 	rtm *slackgo.RTM
@@ -202,6 +205,27 @@ func cookieValue(cookie string) string {
 // landing is the workspace and user a sign-in landed on, by name.
 type landing struct{ workspace, user string }
 
+// hostOf is a workspace's host from auth.test's address ("https://acme.slack.com/"),
+// empty when it names none.
+func hostOf(address string) string {
+	u, err := url.Parse(address)
+	if err != nil {
+		return ""
+	}
+	return u.Host
+}
+
+// keepWeb is the account's workspace host from auth.test's address, kept beside its
+// credentials; a store that fails is logged, and the host still used this run.
+func (a *Adapter) keepWeb(account, address string) string {
+	web, err := keepWeb(a.secrets, account, hostOf(address))
+	if err != nil {
+		a.log.Warn("keep the workspace's address failed", "account", account, "err", err)
+		return hostOf(address)
+	}
+	return web
+}
+
 // signIn verifies a browser session (token and `d` cookie) with Slack and against the
 // account's workspace, stores it, and connects the account.
 func (a *Adapter) signIn(ctx context.Context, name, token, cookie string) (landing, error) {
@@ -224,7 +248,7 @@ func (a *Adapter) signIn(ctx context.Context, name, token, cookie string) (landi
 		return landing{}, err
 	}
 	w := newWorkspace(account, creds, who.Team, client, a.newSignIn(account.Name))
-	w.handle = who.User
+	w.handle, w.web = who.User, a.keepWeb(account.Name, who.URL)
 	if !a.adopt(w) {
 		return landing{}, fmt.Errorf("%w named %q: it left the config while signing in", ErrNoAccount, name)
 	}
@@ -273,7 +297,7 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, creds Creden
 		return ctx.Err() != nil
 	}
 	w := newWorkspace(account, creds, who.Team, client, signIn)
-	w.handle = who.User
+	w.handle, w.web = who.User, a.keepWeb(account.Name, who.URL)
 	if !a.adopt(w) {
 		return true // signed in again, or removed, meanwhile
 	}

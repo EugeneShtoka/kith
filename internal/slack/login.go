@@ -141,6 +141,7 @@ func (a *Adapter) Accounts() []domain.Account {
 	for _, w := range a.connected() {
 		out = append(out, domain.Account{
 			Network: domain.ProtocolSlack, On: domain.AccountRooms(domain.ProtocolSlack, w.creds.Team), Name: w.account.Name,
+			Web: w.web,
 		})
 	}
 	slices.SortFunc(out, func(x, y domain.Account) int { return strings.Compare(x.Name, y.Name) })

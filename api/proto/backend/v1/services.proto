@@ -1072,6 +1072,9 @@ message Account {
   string name = 3;
   // Whether it is its network's [<network>] default.
   bool default = 4;
+  // Its web address, where its network has one per account ("acme.slack.com" for a
+  // Slack workspace): what its messages' links are under.
+  string web = 5;
 }
 
 message AccountsRequest {}
@@ -1296,7 +1299,8 @@ message StoredDraft {
   // Who wrote it.
   string author = 8;
   int64 updated_unix_ms = 9;
-  // The thread it is written into; empty for the main timeline.
+  // The thread it is written into; empty for the main timeline. Each thread keeps its
+  // own draft beside the room's: room_id and thread_root name the one.
   string thread_root = 10;
 }
 

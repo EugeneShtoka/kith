@@ -77,6 +77,10 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string) e
 	if err != nil {
 		return err
 	}
+	kithLinks, err := setup.AgentKithLinks(cfg.Agent)
+	if err != nil {
+		return err
+	}
 	marked, muted, groups, err := setup.HiddenInputs(cfg)
 	if err != nil {
 		return err
@@ -90,18 +94,19 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string) e
 		muted:  muted,
 		groups: groups,
 		// kith-mcp names no profile, so it runs in the first, as kithd answers it.
-		excludes: profiles[0].People,
-		cardsDir: setup.PhonebookDir(cfg),
-		places:   setup.PlacesOf(cfg),
-		backend:  backend,
-		scope:    setup.AgentReadScope(cfg.Agent),
-		write:    setup.AgentWriteScope(cfg.Agent),
-		send:     cfg.Agent.Write.Send,
-		aliases:  setup.Aliases(cfg.Display.Identities),
-		cooldown: cooldown,
-		files:    storage.AgentFilesDir(),
-		book:     phonebookFor(cfg),
-		log:      log,
+		excludes:  profiles[0].People,
+		cardsDir:  setup.PhonebookDir(cfg),
+		places:    setup.PlacesOf(cfg),
+		backend:   backend,
+		scope:     setup.AgentReadScope(cfg.Agent),
+		write:     setup.AgentWriteScope(cfg.Agent),
+		send:      cfg.Agent.Write.Send,
+		aliases:   setup.Aliases(cfg.Display.Identities),
+		cooldown:  cooldown,
+		kithLinks: kithLinks,
+		files:     storage.AgentFilesDir(),
+		book:      phonebookFor(cfg),
+		log:       log,
 	}
 	// Without a ledger the read tools still work; send_message refuses.
 	if ledger, openErr := agent.Open(storage.LedgerPath()); openErr == nil {
@@ -220,6 +225,7 @@ type reader interface {
 	MessagesAround(ctx context.Context, roomID domain.RoomID, event domain.EventID, before, after int) ([]domain.Message, error)
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
 	Selves(ctx context.Context) ([]string, error)
+	Accounts(ctx context.Context) ([]domain.Account, error)
 	Directory(ctx context.Context) (domain.Directory, error)
 	PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, error)
 	TagVerdicts(ctx context.Context) ([]domain.TagVerdict, error)
@@ -270,6 +276,12 @@ type server struct {
 	excludes domain.PeopleFilter
 	excluded domain.HiddenPeople
 	cardsDir string
+	// kithLinks is `[agent] links = "kith"`: each message's link is kith's own, never
+	// its network's.
+	kithLinks bool
+	// webs is each account's web address (Account.Web) by its rooms' owner, kept
+	// (knowWebs).
+	webs map[domain.RoomOwner]string
 	// send is `[agent.write] send`: rooms posted to rather than drafted into.
 	send []string
 	// cooldown is how long a room rests after a message goes out to it.

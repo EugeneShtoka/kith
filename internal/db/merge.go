@@ -64,7 +64,7 @@ func filedUnder(ctx context.Context, tx *sql.Tx, room domain.RoomID) (domain.Roo
 // mergedApart are the tables whose rows mergeRoom joins rather than moves (see
 // mergeRows); the rest are moved by mergeTables, a row Into holds already kept.
 var mergedApart = []string{
-	"room_unread", "thread_read", "drafts", "draft_threads", "tag_verdicts", "mention_usage",
+	"room_unread", "thread_read", "drafts", "thread_drafts", "tag_verdicts", "mention_usage",
 	"emoji_usage", "room_members", "room_aliases", "message_touched",
 }
 
@@ -248,34 +248,41 @@ func mergeReadPosition(ctx context.Context, tx *sql.Tx, from, into domain.RoomID
 	return nil
 }
 
-// mergeDrafts keeps from's draft under into, joined with into's when both have one.
+// mergeDrafts keeps each of from's drafts, its own and its threads', under into, joined
+// with into's of the same thread when both have one.
 func mergeDrafts(ctx context.Context, tx *sql.Tx, from, into domain.RoomID) error {
-	theirs, found, err := wholeDraft(ctx, tx, from)
-	if err != nil || !found {
-		return err
-	}
-	theirs.RoomID = into
-	mine, held, err := wholeDraft(ctx, tx, into)
+	drafts, err := roomDrafts(ctx, tx, from, "")
 	if err != nil {
 		return err
 	}
-	joined := theirs
-	if held {
-		newer, older := mine, theirs
-		if theirs.Updated.After(mine.Updated) {
-			newer, older = theirs, mine
+	for i := range drafts {
+		theirs := drafts[i]
+		theirs.RoomID = into
+		mine, held, err := wholeDraft(ctx, tx, into, theirs.ThreadRoot)
+		if err != nil {
+			return err
 		}
-		joined, _ = domain.RebaseDraft(newer, domain.StoredDraft{}, older, nil)
-		for _, mention := range older.Mentions {
-			if !slices.Contains(joined.Mentions, mention) {
-				joined.Mentions = append(joined.Mentions, mention)
+		joined := theirs
+		if held {
+			newer, older := mine, theirs
+			if theirs.Updated.After(mine.Updated) {
+				newer, older = theirs, mine
+			}
+			joined, _ = domain.RebaseDraft(newer, domain.StoredDraft{}, older, nil)
+			for _, mention := range older.Mentions {
+				if !slices.Contains(joined.Mentions, mention) {
+					joined.Mentions = append(joined.Mentions, mention)
+				}
 			}
 		}
+		if joined.Updated.IsZero() {
+			joined.Updated = time.Now()
+		}
+		if err := writeDraft(ctx, tx, joined); err != nil {
+			return err
+		}
 	}
-	if joined.Updated.IsZero() {
-		joined.Updated = time.Now()
-	}
-	return writeDraft(ctx, tx, joined)
+	return nil
 }
 
 // mergePersonVerdicts keeps each verdict on from (a person's ID) under into, the newer

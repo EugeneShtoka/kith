@@ -322,6 +322,9 @@ type messageView struct {
 	ReplyTo string `json:"reply_to,omitempty"`
 	// Attachment is the file the message carries, which get_attachment fetches.
 	Attachment *attachmentView `json:"attachment,omitempty"`
+	// Link opens the message: in its network's apps where they have a link to it, else
+	// in kith.
+	Link string `json:"link"`
 }
 
 // attachmentView is what a message's file is, without its bytes.
@@ -354,6 +357,7 @@ func (s *server) view(msg domain.Message, withRoom bool) messageView {
 		Thread:     string(msg.ThreadRoot),
 		ReplyTo:    string(msg.ReplyTo),
 		Attachment: attachmentOf(msg.Media),
+		Link:       s.link(msg.RoomID, msg.ID),
 	}
 	if withRoom {
 		out.Room = string(msg.RoomID)
@@ -362,6 +366,37 @@ func (s *server) view(msg domain.Message, withRoom bool) messageView {
 		out.Body, out.Attachment = "(deleted)", nil
 	}
 	return out
+}
+
+// link is the link to event in room, as `[agent] links` asks.
+func (s *server) link(room domain.RoomID, event domain.EventID) string {
+	if s.kithLinks {
+		return domain.KithLink(room, event)
+	}
+	return domain.MessageLink(room, event, s.webs[domain.OwnerOf(room)])
+}
+
+// knowWebs asks the daemon for the accounts' web addresses when a Slack room among
+// rooms has none yet; they hardly change, so they are kept. A failed read leaves those
+// messages with their web client's links, by team ID.
+func (s *server) knowWebs(ctx context.Context, rooms ...domain.RoomID) {
+	if s.kithLinks || !slices.ContainsFunc(rooms, func(room domain.RoomID) bool {
+		return domain.NetworkOf(string(room)) == domain.ProtocolSlack && s.webs[domain.OwnerOf(room)] == ""
+	}) {
+		return
+	}
+	accounts, err := s.backend.Accounts(ctx)
+	if err != nil {
+		s.log.Warn("list the accounts failed; Slack messages link by team ID", "err", err)
+	}
+	if s.webs == nil {
+		s.webs = map[domain.RoomOwner]string{}
+	}
+	for _, a := range accounts {
+		if a.Web != "" {
+			s.webs[a.On] = a.Web
+		}
+	}
 }
 
 func args[T any](raw json.RawMessage) (T, error) {

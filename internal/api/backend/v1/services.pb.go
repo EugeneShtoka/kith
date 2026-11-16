@@ -9890,7 +9890,10 @@ type Account struct {
 	// What the config calls it (Matrix: the MXID).
 	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	// Whether it is its network's [<network>] default.
-	Default       bool `protobuf:"varint,4,opt,name=default,proto3" json:"default,omitempty"`
+	Default bool `protobuf:"varint,4,opt,name=default,proto3" json:"default,omitempty"`
+	// Its web address, where its network has one per account ("acme.slack.com" for a
+	// Slack workspace): what its messages' links are under.
+	Web           string `protobuf:"bytes,5,opt,name=web,proto3" json:"web,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9951,6 +9954,13 @@ func (x *Account) GetDefault() bool {
 		return x.Default
 	}
 	return false
+}
+
+func (x *Account) GetWeb() string {
+	if x != nil {
+		return x.Web
+	}
+	return ""
 }
 
 type AccountsRequest struct {
@@ -11798,7 +11808,8 @@ type StoredDraft struct {
 	// Who wrote it.
 	Author        string `protobuf:"bytes,8,opt,name=author,proto3" json:"author,omitempty"`
 	UpdatedUnixMs int64  `protobuf:"varint,9,opt,name=updated_unix_ms,json=updatedUnixMs,proto3" json:"updated_unix_ms,omitempty"`
-	// The thread it is written into; empty for the main timeline.
+	// The thread it is written into; empty for the main timeline. Each thread keeps its
+	// own draft beside the room's: room_id and thread_root name the one.
 	ThreadRoot    string `protobuf:"bytes,10,opt,name=thread_root,json=threadRoot,proto3" json:"thread_root,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -20838,12 +20849,13 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x06detail\x18\x05 \x01(\tR\x06detail\x12\x1f\n" +
 	"\vmin_members\x18\x06 \x01(\x05R\n" +
 	"minMembers\"\x13\n" +
-	"\x11ChatOffersRequest\"a\n" +
+	"\x11ChatOffersRequest\"s\n" +
 	"\aAccount\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x0e\n" +
 	"\x02on\x18\x02 \x01(\tR\x02on\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x18\n" +
-	"\adefault\x18\x04 \x01(\bR\adefault\"\x11\n" +
+	"\adefault\x18\x04 \x01(\bR\adefault\x12\x10\n" +
+	"\x03web\x18\x05 \x01(\tR\x03web\"\x11\n" +
 	"\x0fAccountsRequest\"C\n" +
 	"\x10AccountsResponse\x12/\n" +
 	"\baccounts\x18\x01 \x03(\v2\x13.backend.v1.AccountR\baccounts\"C\n" +

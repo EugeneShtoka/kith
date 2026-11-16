@@ -95,6 +95,9 @@ func TestAThreadReplyIsDraftedIntoItsThread(t *testing.T) {
 			t.Fatalf("%v: action = %v, want drafted", c.args, out["action"])
 		}
 		held := f.drafts[mx+"!open:x"]
+		if c.thread != "" {
+			held = f.threadDrafts[c.thread]
+		}
 		if held.Body != "I will" || held.ThreadRoot != c.thread || held.ReplyTo != c.replyTo {
 			t.Errorf("%v: draft %+v, want it aimed at thread %q reply %q", c.args, held, c.thread, c.replyTo)
 		}
@@ -104,30 +107,38 @@ func TestAThreadReplyIsDraftedIntoItsThread(t *testing.T) {
 	}
 }
 
-// A held draft keeps its aim: words for elsewhere are refused and recorded, the draft
-// untouched; words for the same place append.
+// The main timeline and each thread have a draft of their own: words go into the one
+// they are aimed at, the others untouched. A held draft keeps its reply target: words
+// answering another message are refused and recorded, the draft untouched.
 func TestADraftAimedElsewhereIsNotAddedTo(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
 		name string
 		held domain.StoredDraft
 		args map[string]any
+		into domain.EventID // the thread whose draft takes the words; "" the room's
 		ok   bool
 	}{
-		{"a thread draft, the main timeline", domain.StoredDraft{Body: "mine", ThreadRoot: mx + "$root"}, map[string]any{}, false},
-		{"a main draft, a thread", domain.StoredDraft{Body: "mine"}, map[string]any{"thread": mx + "$root"}, false},
-		{"a reply draft, another reply", domain.StoredDraft{Body: "mine", ReplyTo: mx + "$main"}, map[string]any{"reply_to": mx + "$root"}, false},
-		{"a thread draft, the same thread", domain.StoredDraft{Body: "mine", ThreadRoot: mx + "$root"}, map[string]any{"thread": mx + "$r2"}, true},
-		{"a reply draft, no reply of its own", domain.StoredDraft{Body: "mine", ReplyTo: mx + "$main"}, map[string]any{}, true},
+		{"a thread draft, the main timeline", domain.StoredDraft{Body: "mine", ThreadRoot: mx + "$root"}, map[string]any{}, "", true},
+		{"a main draft, a thread", domain.StoredDraft{Body: "mine"}, map[string]any{"thread": mx + "$root"}, mx + "$root", true},
+		{"a reply draft, another reply", domain.StoredDraft{Body: "mine", ReplyTo: mx + "$main"}, map[string]any{"reply_to": mx + "$root"}, "", false},
+		{"a thread draft, the same thread", domain.StoredDraft{Body: "mine", ThreadRoot: mx + "$root"}, map[string]any{"thread": mx + "$r2"}, mx + "$root", true},
+		{"a reply draft, no reply of its own", domain.StoredDraft{Body: "mine", ReplyTo: mx + "$main"}, map[string]any{}, "", true},
 	} {
 		f := threaded()
 		c.held.RoomID = mx + "!open:x"
 		f.store(c.held)
 		s := newWriter(t, f, shareAll, nil)
 		c.args["room"], c.args["text"] = "Standup", "I will"
+		heldNow := func() domain.StoredDraft {
+			if c.held.ThreadRoot != "" {
+				return f.threadDrafts[c.held.ThreadRoot]
+			}
+			return f.drafts[mx+"!open:x"]
+		}
 		if !c.ok {
 			callErr(t, s, "send_message", c.args)
-			if held := f.drafts[mx+"!open:x"]; held.Body != "mine" || held.ThreadRoot != c.held.ThreadRoot || held.ReplyTo != c.held.ReplyTo {
+			if held := heldNow(); held.Body != "mine" || held.ThreadRoot != c.held.ThreadRoot || held.ReplyTo != c.held.ReplyTo {
 				t.Errorf("%s: the draft changed to %+v", c.name, held)
 			}
 			if ledger := entries(t, s); len(ledger) != 1 || ledger[0].Outcome != agent.Refused {
@@ -136,8 +147,21 @@ func TestADraftAimedElsewhereIsNotAddedTo(t *testing.T) {
 			continue
 		}
 		call(t, s, "send_message", c.args)
-		if held := f.drafts[mx+"!open:x"]; held.Body != "mine\n\nI will" || held.ThreadRoot != c.held.ThreadRoot || held.ReplyTo != c.held.ReplyTo {
-			t.Errorf("%s: draft %+v, want the words appended and the aim kept", c.name, held)
+		got := f.drafts[mx+"!open:x"]
+		if c.into != "" {
+			got = f.threadDrafts[c.into]
+		}
+		if c.into != c.held.ThreadRoot {
+			if held := heldNow(); held.Body != "mine" {
+				t.Errorf("%s: the held draft changed to %+v", c.name, held)
+			}
+			if got.Body != "I will" || got.ThreadRoot != c.into {
+				t.Errorf("%s: draft %+v, want the words alone in its own", c.name, got)
+			}
+			continue
+		}
+		if got.Body != "mine\n\nI will" || got.ThreadRoot != c.held.ThreadRoot || got.ReplyTo != c.held.ReplyTo {
+			t.Errorf("%s: draft %+v, want the words appended and the aim kept", c.name, got)
 		}
 	}
 }
@@ -162,7 +186,7 @@ func TestAQueuedThreadReplyKeepsItsThread(t *testing.T) {
 	if out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "I will", "thread": mx + "$root"}); out["action"] != agent.Drafted {
 		t.Fatalf("action = %v, want drafted", out["action"])
 	}
-	if held := f.drafts[mx+"!open:x"]; held.ThreadRoot != mx+"$root" {
+	if held := f.threadDrafts[mx+"$root"]; held.Body != "I will" || held.ThreadRoot != mx+"$root" {
 		t.Errorf("draft %+v, want it in the thread", held)
 	}
 }

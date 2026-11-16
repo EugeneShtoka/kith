@@ -549,6 +549,7 @@ func (s *server) readRoom(ctx context.Context, raw json.RawMessage) (any, error)
 		return nil, err
 	}
 	limit := limitOr(in.Limit, 40, 200)
+	s.knowWebs(ctx, room.ID)
 	var out []messageView
 	for i := range msgs {
 		if in.Sender != "" && msgs[i].Sender != domain.TypedUserID(in.Sender) {
@@ -631,6 +632,7 @@ type hitView struct {
 	Name     string `json:"sender_name,omitempty"`
 	Sent     string `json:"sent"`
 	Snippet  string `json:"snippet"`
+	Link     string `json:"link"`
 }
 
 // shapeHits drops hits in rooms outside `[agent.read]`; the query was scoped, so this
@@ -638,6 +640,11 @@ type hitView struct {
 func (s *server) shapeHits(ctx context.Context, hits []domain.SearchHit) []hitView {
 	byID := s.roomsByID(ctx)
 	unmark := strings.NewReplacer(domain.HighlightStart, "", domain.HighlightEnd, "")
+	hitRooms := make([]domain.RoomID, 0, len(hits))
+	for i := range hits {
+		hitRooms = append(hitRooms, hits[i].RoomID)
+	}
+	s.knowWebs(ctx, hitRooms...)
 	var out []hitView
 	for i := range hits {
 		room, known := byID[hits[i].RoomID]
@@ -653,6 +660,7 @@ func (s *server) shapeHits(ctx context.Context, hits []domain.SearchHit) []hitVi
 			Sender: hits[i].Sender, Name: cmp.Or(hits[i].SenderKnownAs, hits[i].SenderName),
 			Sent:    hits[i].Timestamp.Format(time.RFC3339),
 			Snippet: snippet,
+			Link:    s.link(hits[i].RoomID, hits[i].EventID),
 		})
 	}
 	return out
@@ -683,6 +691,7 @@ func (s *server) readAround(ctx context.Context, raw json.RawMessage) (any, erro
 	if msgs, err = s.visible(msgs); err != nil {
 		return nil, err
 	}
+	s.knowWebs(ctx, room.ID)
 	out := make([]messageView, 0, len(msgs))
 	for i := range msgs {
 		out = append(out, s.view(msgs[i], false))

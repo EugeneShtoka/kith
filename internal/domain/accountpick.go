@@ -12,6 +12,9 @@ type Account struct {
 	Name string
 	// Default is the network's [<network>] default.
 	Default bool
+	// Web is its web address, where its network has one per account ("acme.slack.com"
+	// for a Slack workspace): what its messages' links are under.
+	Web string
 }
 
 // PickAccount is the account of network a call that names none goes to: what opening

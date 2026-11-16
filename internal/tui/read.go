@@ -101,7 +101,7 @@ type unreadView struct {
 	tags      domain.TagSet
 	tagsRev   uint64
 	roomFacts map[domain.RoomID]domain.RoomFacts
-	drafts    map[domain.RoomID]draft
+	drafts    map[place]draft
 	// served is the rail kithd served: which rows hold a room, and what the tags made of it.
 	served servedRail
 }

@@ -930,7 +930,7 @@ td {
 .day::before,
 .day::after {
   flex: 1;
-  border-top: 2px solid var(--line);
+  border-top: 2px solid currentColor; /* the date's color */
   content: "";
 }
 

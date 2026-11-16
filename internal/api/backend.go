@@ -325,9 +325,10 @@ type Search interface {
 	MessageCounts(ctx context.Context, people [][]string) ([]int, error)
 }
 
-// Drafts is the composer's drafts, kept per room.
+// Drafts is the composer's drafts, kept per room and per thread: a draft's RoomID and
+// ThreadRoot name the one it is, the room's own for no thread.
 type Drafts interface {
-	// ReplaceDraft stores a room's draft (empty removes it) only while the stored
+	// ReplaceDraft stores a room's or thread's draft (empty removes it) only while the stored
 	// draft still equals over (zero: none stored); saved is false otherwise. Windows
 	// and kith-mcp all write drafts, so every write is conditional.
 	ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (saved bool, err error)

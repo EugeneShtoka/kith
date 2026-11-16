@@ -86,6 +86,9 @@ func (c DeviceAssist) NameThreadsAfterOrDefault() int {
 type Agent struct {
 	Read  AgentRead  `toml:"read"`
 	Write AgentWrite `toml:"write"`
+	// Links is the link kith-mcp gives each message: "native" (the default), its own
+	// network's where it has one, or "kith", kith's own everywhere.
+	Links string `toml:"links"`
 }
 
 // AgentRead is [agent.read]: the rooms an assistant may read.
