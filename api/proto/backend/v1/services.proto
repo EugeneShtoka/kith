@@ -1072,6 +1072,9 @@ message Account {
   string name = 3;
   // Whether it is its network's [<network>] default.
   bool default = 4;
+  // Its web address, where its network has one per account ("acme.slack.com" for a
+  // Slack workspace): what its messages' links are under.
+  string web = 5;
 }
 
 message AccountsRequest {}
