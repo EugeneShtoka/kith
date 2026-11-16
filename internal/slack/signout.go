@@ -34,6 +34,9 @@ func (a *Adapter) SignOut(ctx context.Context, space domain.SpaceID, forget bool
 	if err := a.secrets.DeleteSecret(credentialsRef(w.account.Name)); err != nil {
 		return fmt.Errorf("slack: delete %s's credentials: %w", w.account.Name, err)
 	}
+	if err := a.secrets.DeleteSecret(webRef(w.account.Name)); err != nil {
+		a.log.Warn("delete the workspace's address failed", "account", w.account.Name, "err", err)
+	}
 	a.session(w.account, SignedOut, "signed out; run `kith login slack "+w.account.Name+"` to sign in again")
 	if forget && a.cache != nil {
 		if err := a.cache.ForgetOwned(ctx, domain.AccountRooms(domain.ProtocolSlack, w.creds.Team)); err != nil {

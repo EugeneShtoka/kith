@@ -47,6 +47,9 @@ type fake struct {
 	withAsked []string
 	// selves is who the daemon says this person is; nil is @me:x.
 	selves []string
+	// accounts is the daemon's connected accounts; accountsCalls counts the reads.
+	accounts      []domain.Account
+	accountsCalls int
 	// files is each attachment's bytes by message; loaded records the event IDs fetched.
 	files  map[domain.EventID][]byte
 	loaded []domain.EventID
@@ -152,6 +155,10 @@ func (f *fake) Selves(context.Context) ([]string, error) {
 		return []string{"matrix:@me:x"}, nil
 	}
 	return f.selves, nil
+}
+func (f *fake) Accounts(context.Context) ([]domain.Account, error) {
+	f.accountsCalls++
+	return f.accounts, nil
 }
 func (f *fake) Spaces(context.Context) ([]domain.Space, error) {
 	f.spacesCalls++

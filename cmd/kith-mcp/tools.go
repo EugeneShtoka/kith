@@ -373,7 +373,30 @@ func (s *server) link(room domain.RoomID, event domain.EventID) string {
 	if s.kithLinks {
 		return domain.KithLink(room, event)
 	}
-	return domain.MessageLink(room, event)
+	return domain.MessageLink(room, event, s.webs[domain.OwnerOf(room)])
+}
+
+// knowWebs asks the daemon for the accounts' web addresses when a Slack room among
+// rooms has none yet; they hardly change, so they are kept. A failed read leaves those
+// messages with their web client's links, by team ID.
+func (s *server) knowWebs(ctx context.Context, rooms ...domain.RoomID) {
+	if s.kithLinks || !slices.ContainsFunc(rooms, func(room domain.RoomID) bool {
+		return domain.NetworkOf(string(room)) == domain.ProtocolSlack && s.webs[domain.OwnerOf(room)] == ""
+	}) {
+		return
+	}
+	accounts, err := s.backend.Accounts(ctx)
+	if err != nil {
+		s.log.Warn("list the accounts failed; Slack messages link by team ID", "err", err)
+	}
+	if s.webs == nil {
+		s.webs = map[domain.RoomOwner]string{}
+	}
+	for _, a := range accounts {
+		if a.Web != "" {
+			s.webs[a.On] = a.Web
+		}
+	}
 }
 
 func args[T any](raw json.RawMessage) (T, error) {

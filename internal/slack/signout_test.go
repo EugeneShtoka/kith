@@ -27,6 +27,7 @@ func TestSigningOutEndsTheSlackSession(t *testing.T) {
 		a, w := connectedTo(t, client)
 		secrets, _ := a.secrets.(*memSecrets)
 		signedIn(t, secrets, "work")
+		secrets.values[webRef("work")] = "acme.slack.com"
 		room := roomID("T1", "C1")
 		if err := a.cache.SaveRooms(ctx, domain.AccountRooms(domain.ProtocolSlack, "T1"), []domain.Room{{ID: room, Name: "general"}}); err != nil {
 			t.Fatal(err)
@@ -43,6 +44,9 @@ func TestSigningOutEndsTheSlackSession(t *testing.T) {
 		}
 		if _, kept := secrets.values[credentialsRef("work")]; kept {
 			t.Errorf("forget %v: the credentials are still kept", tc.forget)
+		}
+		if _, kept := secrets.values[webRef("work")]; kept {
+			t.Errorf("forget %v: the workspace's address is still kept", tc.forget)
 		}
 		if len(a.connected()) != 0 {
 			t.Errorf("forget %v: still connected", tc.forget)
