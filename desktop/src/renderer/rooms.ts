@@ -42,7 +42,14 @@ export function ordered(
     );
 }
 
-/** total is what the tray counts: the unread of the rooms listed, each once. */
-export function total(rooms: readonly Room[], unread: ReadonlyMap<string, Unread>): number {
-  return rooms.reduce((sum, r) => sum + unreadOf(unread.get(r.id)).count, 0);
+/**
+ * total is what the tray counts: the unread of the rooms listed, each once, but those a
+ * silent tag holds (counts_unread = false, as Archived), as the rail's badges leave them out.
+ */
+export function total(
+  rooms: readonly Room[],
+  unread: ReadonlyMap<string, Unread>,
+  silenced: ReadonlySet<string>,
+): number {
+  return rooms.reduce((sum, r) => sum + (silenced.has(r.id) ? 0 : unreadOf(unread.get(r.id)).count), 0);
 }
