@@ -43,6 +43,20 @@ func (c Credentials) valid() error {
 // credentialsRef is the secret name for an account's credentials.
 func credentialsRef(account string) string { return "slack|" + account }
 
+// webRef is the secret name for an account's workspace host ("acme.slack.com"), kept
+// beside its credentials but apart, so writing it never races a sign-in's new token.
+func webRef(account string) string { return credentialsRef(account) + "|web" }
+
+// keepWeb is the account's workspace host: seen, the host auth.test answered with, kept
+// when it differs from the one stored; the stored one when seen is empty.
+func keepWeb(secrets Secrets, account, seen string) (string, error) {
+	kept, _, err := secrets.Secret(webRef(account))
+	if err != nil || seen == "" || seen == kept {
+		return kept, err //nolint:wrapcheck // the store's own error says which
+	}
+	return seen, secrets.StoreSecret(webRef(account), seen) //nolint:wrapcheck // the store says why
+}
+
 // loadCredentials reads an account's credentials; ok is false when not signed in.
 func loadCredentials(secrets Secrets, account string) (Credentials, bool, error) {
 	blob, ok, err := secrets.Secret(credentialsRef(account))

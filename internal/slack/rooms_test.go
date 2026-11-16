@@ -133,6 +133,39 @@ func TestASignInMustBeToTheAccountsWorkspace(t *testing.T) {
 	}
 }
 
+// A workspace's host, what its messages' links are under, is auth.test's address
+// without scheme or path; none when it names none.
+func TestAWorkspacesHostIsItsAddress(t *testing.T) {
+	t.Parallel()
+	for address, want := range map[string]string{"https://acme.slack.com/": "acme.slack.com", "": "", "::": ""} {
+		if got := hostOf(address); got != want {
+			t.Errorf("hostOf(%q) = %q, want %q", address, got, want)
+		}
+	}
+}
+
+// The workspace's host is kept beside the credentials, never in them: a new one replaces
+// it, none seen leaves it, and the credentials are not written.
+func TestAWorkspacesHostIsKeptApartFromItsCredentials(t *testing.T) {
+	t.Parallel()
+	secrets := &memSecrets{values: map[string]string{credentialsRef("work"): "creds"}}
+	for _, c := range []struct{ seen, want string }{
+		{"acme.slack.com", "acme.slack.com"},
+		{"", "acme.slack.com"},
+		{"acme-inc.slack.com", "acme-inc.slack.com"},
+	} {
+		if got, err := keepWeb(secrets, "work", c.seen); err != nil || got != c.want {
+			t.Errorf("keepWeb(%q) = %q, %v; want %q", c.seen, got, err, c.want)
+		}
+		if kept := secrets.values[webRef("work")]; kept != c.want {
+			t.Errorf("after %q the store keeps %q, want %q", c.seen, kept, c.want)
+		}
+	}
+	if secrets.values[credentialsRef("work")] != "creds" {
+		t.Error("keeping the host rewrote the credentials")
+	}
+}
+
 // Slack refusing the session is signed out; anything else is not.
 func TestASessionSlackRefusedIsSignedOut(t *testing.T) {
 	t.Parallel()

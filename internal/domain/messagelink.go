@@ -7,9 +7,11 @@ import (
 
 // MessageLink is the link to event in room that its own network's apps open, where the
 // network has one: matrix.to for Matrix, t.me/c for a Telegram channel or supergroup
-// (which its members open). Anywhere else, and for an event that is not room's, it is
-// the kith link (KithLink).
-func MessageLink(room RoomID, event EventID) string {
+// (which its members open), and for Slack the archives link under web, the workspace's
+// address (Account.Web, "acme.slack.com"), or its web client's by team ID while that is
+// unknown. Anywhere else, and for an event that is not room's, it is the kith link
+// (KithLink).
+func MessageLink(room RoomID, event EventID, web string) string {
 	r, e := ParseID(string(room)), ParseID(string(event))
 	if r.Network == "" || e.Network != r.Network || e.Account != r.Account {
 		return KithLink(room, event)
@@ -27,9 +29,18 @@ func MessageLink(room RoomID, event EventID) string {
 		if peer == r.Native && isChannel && channel != "" && id != "" && allDigits(channel+id) {
 			return "https://t.me/c/" + channel + "/" + id
 		}
+	case ProtocolSlack:
+		// A message is "<channel>/<ts>"; the link drops the ts's dot.
+		channel, ts, _ := strings.Cut(e.Native, accountSep)
+		if channel == r.Native && ts != "" {
+			path := "/" + channel + "/p" + strings.Replace(ts, ".", "", 1)
+			if web != "" {
+				return "https://" + web + "/archives" + path
+			}
+			return "https://app.slack.com/client/" + r.Account + path
+		}
 	default:
-		// Slack's needs the workspace's address, which kith-mcp does not have; the rest
-		// have no link to a message.
+		// The rest have no link to a message.
 	}
 	return KithLink(room, event)
 }

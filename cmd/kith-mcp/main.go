@@ -225,6 +225,7 @@ type reader interface {
 	MessagesAround(ctx context.Context, roomID domain.RoomID, event domain.EventID, before, after int) ([]domain.Message, error)
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
 	Selves(ctx context.Context) ([]string, error)
+	Accounts(ctx context.Context) ([]domain.Account, error)
 	Directory(ctx context.Context) (domain.Directory, error)
 	PersonVerdicts(ctx context.Context) ([]domain.PersonVerdict, error)
 	TagVerdicts(ctx context.Context) ([]domain.TagVerdict, error)
@@ -278,6 +279,9 @@ type server struct {
 	// kithLinks is `[agent] links = "kith"`: each message's link is kith's own, never
 	// its network's.
 	kithLinks bool
+	// webs is each account's web address (Account.Web) by its rooms' owner, kept
+	// (knowWebs).
+	webs map[domain.RoomOwner]string
 	// send is `[agent.write] send`: rooms posted to rather than drafted into.
 	send []string
 	// cooldown is how long a room rests after a message goes out to it.
