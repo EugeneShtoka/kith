@@ -210,9 +210,9 @@ func TestTagPropertiesOverRandomConfigs(t *testing.T) {
 			case 0:
 				m = update(t, m, unreadUpdateMsg{u: domain.Unread{RoomID: room, Messages: rng.IntN(3), Mentions: rng.IntN(2), Counted: true}})
 			case 1:
-				m.drafts = setDraft(m.drafts, room, draft{input: "x"})
+				m.drafts = setDraft(m.drafts, place{room: room}, draft{input: "x"})
 			default:
-				m.drafts = setDraft(m.drafts, room, draft{})
+				m.drafts = setDraft(m.drafts, place{room: room}, draft{})
 			}
 			m = serveRail(m) // kithd builds again on a draft
 			checkTagInvariants(t, fmt.Sprintf("seed %d step %d", seed, step), m, tags)

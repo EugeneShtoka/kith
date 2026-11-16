@@ -132,7 +132,7 @@ func TestAnEmptiedDraftIsForgotten(t *testing.T) {
 	if m.hasDraft(mx + "!a:x") {
 		t.Error("an emptied composer was stashed as a draft")
 	}
-	if _, held := m.drafts[domain.RoomID(mx+"!a:x")]; held {
+	if _, held := m.drafts[place{room: mx + "!a:x"}]; held {
 		t.Error("the room is pinned in the draft map with nothing in it")
 	}
 }
@@ -422,7 +422,7 @@ func TestStoredDraftsComeBackWithTheirProvenance(t *testing.T) {
 	if note := m.draftNote(); note != "" {
 		t.Fatalf("draftNote() = %q after editing, want nothing", note)
 	}
-	if m.composerDraft().stored(mx+"!a:x").Author != "" {
+	if m.composerDraft().stored(place{room: mx + "!a:x"}).Author != "" {
 		t.Error("an edited draft still claimed to be the agent's")
 	}
 }
@@ -487,7 +487,7 @@ func TestAClearedDraftStaysCleared(t *testing.T) {
 
 	m := sized(t, withRooms(t, newModel()))
 	m, _ = m.selectRoom(m.filteredRooms()[0])
-	room := m.openRoom
+	room := m.here()
 
 	m.compose.insertMode = true
 	m.compose.input = "half a sentence"
@@ -501,7 +501,7 @@ func TestAClearedDraftStaysCleared(t *testing.T) {
 	if m.draftSync.bases[room] == (draftStamp{}) {
 		t.Fatal("the pause stored nothing, so nothing below is tested")
 	}
-	if !m.hasDraft(room) {
+	if !m.hasDraft(room.room) {
 		t.Error("hasDraft is false for a room being typed in")
 	}
 
@@ -521,7 +521,7 @@ func TestAClearedDraftStaysCleared(t *testing.T) {
 		t.Errorf("the poll refilled the composer with %q — nobody typed that",
 			loaded.compose.input)
 	}
-	if loaded.hasDraft(room) {
+	if loaded.hasDraft(room.room) {
 		t.Error("the room is back in the Drafts group after a poll")
 	}
 }
@@ -538,7 +538,7 @@ func TestDraftSaveFailuresAreSaidOnceAndRecoverySaid(t *testing.T) {
 	t.Parallel()
 	m := sized(t, starterNew(draftFailer{}, config.Display{}))
 
-	saved, ok := m.saveDraftCmd(mx+"!a:x", draft{input: "half a thought"}.stored(mx+"!a:x"))().(draftSavedMsg)
+	saved, ok := m.saveDraftCmd(place{room: mx + "!a:x"}, draft{input: "half a thought"}.stored(place{room: mx + "!a:x"}))().(draftSavedMsg)
 	if !ok || saved.err == nil {
 		t.Fatalf("saveDraftCmd = %#v, want the failure reported back", saved)
 	}
@@ -570,7 +570,7 @@ func TestAReplyChosenAloneIsSaved(t *testing.T) {
 	}
 	m, save := m.handleDraftTick(draftTickMsg{gen: m.draftSync.gen})
 	_ = settle(t, m, save)
-	if got := store.drafts[mx+"!a:x"]; got.ReplyTo != mx+"$target" {
+	if got := store.drafts[place{room: mx + "!a:x"}]; got.ReplyTo != mx+"$target" {
 		t.Fatalf("stored %+v, want the reply target written", got)
 	}
 }

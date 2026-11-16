@@ -11798,7 +11798,8 @@ type StoredDraft struct {
 	// Who wrote it.
 	Author        string `protobuf:"bytes,8,opt,name=author,proto3" json:"author,omitempty"`
 	UpdatedUnixMs int64  `protobuf:"varint,9,opt,name=updated_unix_ms,json=updatedUnixMs,proto3" json:"updated_unix_ms,omitempty"`
-	// The thread it is written into; empty for the main timeline.
+	// The thread it is written into; empty for the main timeline. Each thread keeps its
+	// own draft beside the room's: room_id and thread_root name the one.
 	ThreadRoot    string `protobuf:"bytes,10,opt,name=thread_root,json=threadRoot,proto3" json:"thread_root,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

@@ -68,7 +68,7 @@ var roomRows = []roomRow{
 	{"room_unread", `INSERT INTO room_unread (room_id, read_event, read_ts_ms) VALUES (?1, ?2, ?3)`, false},
 	{"thread_read", `INSERT INTO thread_read (room_id, root_event, read_event, read_ts_ms) VALUES (?1, 'root', ?2, ?3)`, false},
 	{"drafts", `INSERT INTO drafts (room_id, body, updated_ms) VALUES (?1, 'words from ' || ?4, ?3)`, false},
-	{"draft_threads", `INSERT INTO draft_threads (room_id, thread_root) VALUES (?1, 'root')`, false},
+	{"thread_drafts", `INSERT INTO thread_drafts (room_id, thread_root, body, updated_ms) VALUES (?1, 'root', 'thread words from ' || ?4, ?3)`, false},
 	{"mention_usage", `INSERT INTO mention_usage (room_id, user_id, count, last_used_ms) VALUES (?1, 'someone', 2, ?3)`, false},
 	{"emoji_usage", `INSERT INTO emoji_usage (room_id, kind, emoji, count, last_used_ms) VALUES (?1, 'reaction', 'x', 3, ?3)`, false},
 	{"sender_slots", `INSERT INTO sender_slots (room_id, group_key, slot) VALUES (?1, ?4, 1)`, false},
@@ -230,9 +230,6 @@ func randomSide(r *rand.Rand) mergeSide {
 			side.rows[row.table] = int64(1 + r.IntN(4))
 		}
 	}
-	if _, ok := side.rows["draft_threads"]; ok {
-		side.rows["drafts"] = max(side.rows["drafts"], 1)
-	}
 	return side
 }
 
@@ -293,9 +290,9 @@ func TestAMergedRoomKeepsWhatEitherHeld(t *testing.T) {
 				if gone := keyed(t, cache, table, key, lidRoom); len(gone) > 0 && table != "room_aliases" {
 					t.Errorf("%s still holds the LID room's %v", table, gone)
 				}
-				// Members and a draft's thread are one side's: the person by the ID
-				// the number's room knows them by, and the newer draft's targets.
-				if slices.Contains([]string{"message_touched", "room_aliases", "room_members", "draft_threads"}, table) {
+				// Members are one side's: the person by the ID the number's room knows
+				// them by.
+				if slices.Contains([]string{"message_touched", "room_aliases", "room_members"}, table) {
 					continue
 				}
 				after := keyed(t, cache, table, key, numberRoom)
@@ -396,14 +393,9 @@ func checkJoinedRows(t *testing.T, cache *Cache, lid, number mergeSide) {
 	if _, err := optional(cache.db.QueryRowContext(ctx, `SELECT body FROM drafts WHERE room_id = ?`, string(numberRoom)).Scan(&body)); err != nil {
 		t.Fatal(err)
 	}
-	// The newer draft's targets: the number's on a tie.
-	newer := number
-	if lid.rows["drafts"] > number.rows["drafts"] {
-		newer = lid
-	}
-	_, threaded := newer.rows["draft_threads"]
-	if got := scalar(`SELECT count(*) FROM draft_threads WHERE room_id = ?`) == 1; body != "" && got != threaded {
-		t.Errorf("the draft is in a thread: %v, want the newer draft's: %v", got, threaded)
+	var threadBody string
+	if _, err := optional(cache.db.QueryRowContext(ctx, `SELECT body FROM thread_drafts WHERE room_id = ?`, string(numberRoom)).Scan(&threadBody)); err != nil {
+		t.Fatal(err)
 	}
 	_, lidMembers := lid.rows["room_members"]
 	_, numberMembers := number.rows["room_members"]
@@ -413,6 +405,9 @@ func checkJoinedRows(t *testing.T, cache *Cache, lid, number mergeSide) {
 	for side, words := range map[string]mergeSide{"words from lid": lid, "words from number": number} {
 		if _, ok := words.rows["drafts"]; ok && !strings.Contains(body, side) {
 			t.Errorf("the draft %q lost %q", body, side)
+		}
+		if _, ok := words.rows["thread_drafts"]; ok && !strings.Contains(threadBody, "thread "+side) {
+			t.Errorf("the thread's draft %q lost %q", threadBody, side)
 		}
 	}
 }

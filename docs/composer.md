@@ -1,6 +1,6 @@
 # Writing messages
 
-The composer is where you write. It is a multi-line editor with undo, Markdown, mentions, emoji, attachments, spell-checking and word completion. Each room has its own draft, and that draft survives restarts. A message that fails to send is kept and retried by the daemon.
+The composer is where you write. It is a multi-line editor with undo, Markdown, mentions, emoji, attachments, spell-checking and word completion. Each room, and each thread, has its own draft, and that draft survives restarts. A message that fails to send is kept and retried by the daemon.
 
 Every key on this page is a default. The [`[keys.*]` tables](keybindings.md) let you rebind them, and `?` inside the client lists what is currently bound.
 
@@ -171,14 +171,14 @@ To save attachments other people sent, use `s` and `S` on the timeline. The [usa
 
 ## Drafts
 
-**A draft belongs to its room.** If you switch rooms, the composer empties. When you come back, everything is where you left it: your words, the caret, mention pills, the reply target, an edit in progress, and the undo history.
+**A draft belongs to its room, or to its thread.** If you switch rooms, the composer empties. When you come back, everything is where you left it: your words, the caret, mention pills, the reply target, an edit in progress, and the undo history.
 
 - The daemon stores drafts, so they survive quitting the client and restarting the machine. The undo history is kept only for the current session.
 - A draft is saved a moment after you stop typing, at least every five seconds while you keep typing, when you leave the room, and when you quit (which waits up to two seconds for the daemon). Every other way out (the interrupt key, SIGTERM, SIGHUP when the terminal closes, another window taking over) writes once more when the screen is gone.
 - If the daemon does not take that last write (it is down), kith says so as it exits, and the words typed since the last save are gone: at most the last few seconds.
-- A draft remembers the thread it is written in. Opening a room whose draft is in a thread opens that thread, and moving between threads with words in the composer takes them along, as sending would.
+- Each thread keeps a draft of its own, apart from the room's. Entering a thread puts the room's draft aside and shows the thread's; leaving it brings the room's back.
 - Any number of kith windows can be open on an account, in terminals and the desktop. Each writes a draft over the version it last read: when two wrote one draft at once, both are kept, the other's words after yours, and the window says so; a window where you have typed nothing unsaved takes another's draft as soon as it is written. [kith-mcp](mcp.md) only ever adds to a draft: its words go after yours, and a draft sent or cleared while it was writing does not come back. A draft you only visit is not written, so it keeps who drafted it.
-- Rooms that hold a draft are marked `✎` after their name in the room list.
+- Rooms that hold a draft, their own or in one of their threads, are marked `✎` after their name in the room list.
 - The rail has a **Drafts** group that collects them.
 - `s d` in the room list moves rooms with drafts to the top.
 - A draft restored from disk shows who wrote it and how long ago, for example `✎ drafted 2h ago` or `✎ drafted by claude-code 5m ago`, until you type in it. Drafts written by an assistant through [kith-mcp](mcp.md) appear this way.

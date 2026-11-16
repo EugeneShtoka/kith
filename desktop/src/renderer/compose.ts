@@ -267,11 +267,12 @@ export class Composer {
           around.failed(err);
         }
       },
-      (room) => {
-        if (room === this.open) {
+      (place) => {
+        if (place === this.drafts.here(this.open)) {
           this.say("another window or the assistant added to this draft"); // nothing appears silently
         }
       },
+      (room) => around.thread(room),
     );
     this.poll = setInterval(() => void this.drafts.load(), draftPoll);
   }
@@ -299,6 +300,18 @@ export class Composer {
     this.assist.stop();
     clearTimeout(this.queueAgain);
     this.queue = undefined;
+  }
+
+  /**
+   * threadChanged is a thread opened or closed beside the open room: the composer shows
+   * that place's own draft, the thread's or the room's, checked and completed from its end.
+   */
+  threadChanged(): void {
+    this.caret = this.drafts.get(this.open).body.length;
+    this.walk = undefined;
+    this.speller.reset();
+    this.assist.reset();
+    this.follow();
   }
 
   /**
