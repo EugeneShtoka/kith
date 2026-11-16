@@ -1,9 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -25,7 +27,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// Any number of windows write one draft, beside kith-mcp; each writes over the version
+// Any number of windows write each draft, beside kith-mcp; each writes over the version
 // it last read and kithd rebases it, and kithd says drafts changed (CHANGE_DRAFTS) to
 // every window after each write. Two Gio windows, each over its own socket to one store,
 // and kith-mcp follow short scripts, and every interleaving of the scripts is walked,
@@ -35,9 +37,12 @@ import (
 // over a version the other replaced; a window typing while its write is on the wire; a
 // drafts change read before the window's own write was answered and delivered after; a
 // room left with a failed write and opened again; one window alone losing an answer,
-// or erasing a word after a lost or failed write (and leaving the room); kith-mcp appending in between each. A
-// window's step is one of: type a word, erase its last, pause (the debounce fires),
-// send, replace its words, switch to the other room, run its writes
+// or erasing a word after a lost or failed write (and leaving the room); both windows,
+// or one, typing in a thread of the room, which has a draft of its own, closed and
+// opened again; kith-mcp appending in between each, to the room's draft or the
+// thread's. A window's step is one of: type a word (in the thread's composer while it
+// is open), erase its last, pause (the debounce fires), send, replace its words, open or
+// close the thread, switch to the other room, run its writes
 // (each reaches the store; with lose it commits and its answer is lost, with fail it
 // never commits), or take (its answers, then the drafts it read, then a read of the
 // drafts if kithd said they changed). At rest:
@@ -55,10 +60,12 @@ import (
 func TestTwoGioWindowsKeepEveryWordInAnyOrder(t *testing.T) {
 	t.Parallel()
 	starts := map[string]domain.StoredDraft{
-		"hi stored":      {RoomID: roomA, Body: "hi", Updated: time.UnixMilli(1000)},
-		"nothing stored": {},
+		"hi stored":               {RoomID: roomA, Body: "hi", Updated: time.UnixMilli(1000)},
+		"hi stored in its thread": {RoomID: roomA, ThreadRoot: threadA.thread, Body: "hi", Updated: time.UnixMilli(1000)},
+		"nothing stored":          {},
 	}
-	type scripts struct{ a, b string }
+	// mcp is where kith-mcp appends: "append" room A, "thread" its thread.
+	type scripts struct{ a, b, mcp string }
 	cases := map[string]scripts{
 		"both type over one base":           {a: "type pause run take", b: "type pause run take"},
 		"one sends while the other types":   {a: "type send run take", b: "type pause run take"},
@@ -74,13 +81,20 @@ func TestTwoGioWindowsKeepEveryWordInAnyOrder(t *testing.T) {
 		"an answer lost, its word erased": {a: "type pause lose take erase take"},
 		"a write failed, its word erased": {a: "type pause fail take erase take"},
 		"erased, then its room left":      {a: "type pause lose take erase switch take"},
+		// The thread's draft is its own: typed in beside the room's, set aside and back.
+		"both type in the thread":               {a: "thread type pause run take", b: "thread type pause run take", mcp: "thread"},
+		"one in the thread, one in the room":    {a: "thread type pause run take", b: "type pause run take", mcp: "thread"},
+		"one sends in the thread":               {a: "thread type send run take", b: "thread type pause run take", mcp: "thread"},
+		"a thread closed, its write failed":     {a: "thread type thread fail take", b: "thread type pause run take", mcp: "thread"},
+		"words in the room, then its thread":    {a: "type thread type pause run thread take"},
+		"a thread left with its room, and back": {a: "thread type switch fail switch thread type take", mcp: "thread"},
 	}
 	for start, stored := range starts {
 		for name, s := range cases {
 			t.Run(start+"/"+name, func(t *testing.T) {
 				t.Parallel()
 				w := newWorld(t)
-				for _, order := range interleavings([]string{"A " + s.a, "B " + s.b, "mcp append"}) {
+				for _, order := range interleavings([]string{"A " + s.a, "B " + s.b, "mcp " + cmp.Or(s.mcp, "append")}) {
 					w.reset(stored)
 					for _, step := range order {
 						w.do(step)
@@ -99,6 +113,21 @@ const (
 	roomA domain.RoomID = "matrix:x/!a:x"
 	roomB domain.RoomID = "matrix:x/!b:x"
 )
+
+// threadA is a thread of room A, with a draft of its own; places are where drafts are
+// written: room A, its thread, room B.
+var (
+	threadA = place{room: roomA, thread: "matrix:x/$t"}
+	places  = []place{{room: roomA}, threadA, {room: roomB}}
+)
+
+// typing is the composer the person types in: the thread's while one is open.
+func typing(u *ui) *widget.Editor {
+	if u.timeline.thread != "" {
+		return &u.threadComposer
+	}
+	return &u.composer
+}
 
 // interleavings is every order of the actors' steps that keeps each actor's own order;
 // each script is "actor step step ...", and a step comes back as "actor step".
@@ -135,7 +164,7 @@ func interleavings(scripts []string) [][]string {
 type world struct {
 	t       *testing.T
 	mu      sync.Mutex
-	drafts  map[domain.RoomID]domain.StoredDraft
+	drafts  map[place]domain.StoredDraft
 	windows []*window
 	log     []string
 	words   int
@@ -225,11 +254,11 @@ func (k *kithd) Drafts(context.Context, *connect.Request[v1.DraftsRequest]) (*co
 func (w *world) rebase(r *v1.ReplaceDraftRequest) (domain.StoredDraft, string) {
 	draft, base := pc.ProtoToStoredDraft(r.GetDraft()), pc.ProtoToStoredDraft(r.GetOver())
 	w.mu.Lock()
-	stored, added := domain.RebaseDraft(draft, base, w.drafts[draft.RoomID], pc.ProtoToStoredDrafts(r.GetUnanswered()))
+	stored, added := domain.RebaseDraft(draft, base, w.drafts[placeOf(draft)], pc.ProtoToStoredDrafts(r.GetUnanswered()))
 	if stored.Empty() {
-		delete(w.drafts, draft.RoomID)
+		delete(w.drafts, placeOf(draft))
 	} else {
-		w.drafts[draft.RoomID] = stored
+		w.drafts[placeOf(draft)] = stored
 	}
 	w.version++
 	w.mu.Unlock()
@@ -273,9 +302,9 @@ func newWorld(t *testing.T) *world {
 
 // reset stores start and opens a new window on each socket, in room A, having read it.
 func (w *world) reset(start domain.StoredDraft) {
-	w.drafts = map[domain.RoomID]domain.StoredDraft{}
+	w.drafts = map[place]domain.StoredDraft{}
 	if !start.Empty() {
-		w.drafts[start.RoomID] = start
+		w.drafts[placeOf(start)] = start
 	}
 	w.log, w.words, w.clock, w.version = nil, 0, 0, 0
 	w.typed, w.added, w.sent, w.replaced = nil, nil, nil, map[string]bool{}
@@ -301,7 +330,11 @@ func (w *world) next() int { w.words++; return w.words }
 func (w *world) do(step string) {
 	actor, what, _ := strings.Cut(step, " ")
 	if actor == "mcp" {
-		w.assistantAppends(roomA)
+		at := place{room: roomA}
+		if what == "thread" {
+			at = threadA // into the thread's own draft
+		}
+		w.assistantAppends(at)
 		return
 	}
 	win := w.windows[0]
@@ -313,26 +346,26 @@ func (w *world) do(step string) {
 	case "type":
 		word := fmt.Sprintf("%s%d", strings.ToLower(actor), w.next())
 		w.typed = append(w.typed, word)
-		w.frame(win, func(u *ui) { u.composer.SetText(strings.TrimSpace(u.composer.Text() + " " + word)) })
+		w.frame(win, func(u *ui) { typing(u).SetText(strings.TrimSpace(typing(u).Text() + " " + word)) })
 	case "replace":
 		word := fmt.Sprintf("r%d", w.next())
 		w.typed = append(w.typed, word)
 		w.frame(win, func(u *ui) {
-			for _, gone := range strings.Fields(u.composer.Text()) {
+			for _, gone := range strings.Fields(typing(u).Text()) {
 				w.replaced[gone] = true
 			}
-			u.composer.SetText(word)
+			typing(u).SetText(word)
 		})
 	case "send":
 		w.frame(win, func(u *ui) {
-			w.sent = append(w.sent, strings.Fields(u.composer.Text())...)
-			u.submit(context.Background(), &u.composer, "")
+			w.sent = append(w.sent, strings.Fields(typing(u).Text())...)
+			u.submit(context.Background(), typing(u), u.timeline.thread)
 		})
 	case "erase":
 		w.frame(win, func(u *ui) {
-			words := strings.Fields(u.composer.Text())
+			words := strings.Fields(typing(u).Text())
 			w.replaced[words[len(words)-1]] = true
-			u.composer.SetText(strings.Join(words[:len(words)-1], " "))
+			typing(u).SetText(strings.Join(words[:len(words)-1], " "))
 		})
 	case "switch":
 		w.frame(win, func(u *ui) {
@@ -340,7 +373,16 @@ func (w *world) do(step string) {
 			if u.current == roomB {
 				to = roomA
 			}
+			u.leaveThread() // it closes with the timeline, as open does
 			u.switchDraft(u.current, to)
+		})
+	case "thread":
+		w.frame(win, func(u *ui) {
+			if u.timeline.thread != "" {
+				u.leaveThread()
+				return
+			}
+			u.openThread(context.Background(), threadA.thread)
 		})
 	case "pause":
 		w.pause(win)
@@ -369,12 +411,16 @@ func (w *world) frame(win *window, change func(*ui)) {
 			w.t.Fatalf("window %s: a write never reached kithd", win.name)
 		}
 	}
-	w.note("    %s holds %q", win.name, u.composer.Text())
+	w.note("    %s holds %q", win.name, typing(u).Text())
 }
 
 // pause is the debounce firing: the frame after typing stopped long enough.
 func (w *world) pause(win *window) {
-	w.frame(win, func(u *ui) { u.drafts.seen, u.drafts.changed = u.composition(), time.Time{} })
+	w.frame(win, func(u *ui) {
+		for _, at := range u.opened() {
+			u.drafts.seen[at], u.drafts.changed[at] = u.composition(at), time.Time{}
+		}
+	})
 }
 
 func (w *world) run(win *window, how string) {
@@ -385,7 +431,7 @@ func (w *world) run(win *window, how string) {
 	}
 	win.waiting = nil
 	w.mu.Lock()
-	w.note("    stored %q", w.drafts[roomA].Body)
+	w.note("    stored %q, in its thread %q", w.drafts[place{room: roomA}].Body, w.drafts[threadA].Body)
 	w.mu.Unlock()
 }
 
@@ -395,7 +441,7 @@ func (w *world) take(win *window) {
 	u := win.u
 	if len(win.ran) > 0 {
 		u.mu.Lock()
-		was, said := strings.Fields(u.composer.Text()), u.noteAt
+		was, said := strings.Fields(typing(u).Text()), u.noteAt
 		u.mu.Unlock()
 		for _, c := range win.ran {
 			close(c.answer)
@@ -403,7 +449,7 @@ func (w *world) take(win *window) {
 		win.ran = nil
 		w.until(win, func() bool { return len(u.drafts.busy) == len(win.waiting) })
 		u.mu.Lock()
-		now := strings.Fields(u.composer.Text())
+		now := strings.Fields(typing(u).Text())
 		if u.noteAt == said && slices.ContainsFunc(now, func(s string) bool { return !slices.Contains(was, s) }) {
 			w.silent = fmt.Sprintf("window %s took in another writer's words without saying so", win.name)
 		}
@@ -414,7 +460,7 @@ func (w *world) take(win *window) {
 		win.changed = false
 		w.startRead(win)
 	}
-	w.note("    %s holds %q", win.name, u.composer.Text())
+	w.note("    %s holds %q", win.name, typing(u).Text())
 }
 
 // until waits for the window's goroutines to bring it to done.
@@ -453,29 +499,32 @@ func (w *world) deliverRead(win *window) {
 	win.reading = nil
 	u := win.u
 	u.mu.Lock()
-	before := u.drafts.base[roomA]
+	before := maps.Clone(u.drafts.base)
 	u.mu.Unlock()
 	close(r.release)
 	<-r.over
 	u.mu.Lock()
-	after := u.drafts.base[roomA]
+	after := maps.Clone(u.drafts.base)
 	u.mu.Unlock()
-	if r.at < win.wrote && (before.Body != after.Body || !before.Updated.Equal(after.Updated)) {
-		w.stale = fmt.Sprintf("window %s took %q, read before its own write stored %q", win.name, after.Body, before.Body)
+	for _, at := range places {
+		was, now := before[at], after[at]
+		if r.at < win.wrote && (was.Body != now.Body || !was.Updated.Equal(now.Updated)) {
+			w.stale = fmt.Sprintf("window %s took %q in %v, read before its own write stored %q", win.name, now.Body, at, was.Body)
+		}
 	}
 }
 
 // assistantAppends is kith-mcp's send_message in draft mode: an append to the stored
-// draft, which kithd tells every window of.
-func (w *world) assistantAppends(room domain.RoomID) {
+// draft of a room or one of its threads, which kithd tells every window of.
+func (w *world) assistantAppends(at place) {
 	word := fmt.Sprintf("m%d", w.next())
 	w.added = append(w.added, word)
 	w.mu.Lock()
-	cur := w.drafts[room]
+	cur := w.drafts[at]
 	w.clock++
-	cur.RoomID, cur.Body, cur.Author = room, domain.JoinDraft(cur.Body, word), "claude-code"
+	cur.RoomID, cur.ThreadRoot, cur.Body, cur.Author = at.room, at.thread, domain.JoinDraft(cur.Body, word), "claude-code"
 	cur.Updated = time.UnixMilli(w.clock)
-	w.drafts[room] = cur
+	w.drafts[at] = cur
 	w.version++
 	w.mu.Unlock()
 	w.note("mcp appends %q: stored %q", word, cur.Body)
@@ -507,31 +556,32 @@ func (w *world) check() string {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	where := fmt.Sprintf("stored %q / %q, sent %q", w.drafts[roomA].Body, w.drafts[roomB].Body, w.sent)
+	where := fmt.Sprintf("stored %q, in its thread %q / %q, sent %q",
+		w.drafts[places[0]].Body, w.drafts[places[1]].Body, w.drafts[places[2]].Body, w.sent)
 	var held []string
-	for _, room := range []domain.RoomID{roomA, roomB} {
+	for _, room := range places {
 		stored := w.drafts[room]
 		held = append(held, strings.Fields(stored.Body)...)
 		for _, win := range w.windows {
 			u := win.u
 			has, ok := u.drafts.local[room]
-			if room == u.current {
-				has, ok = u.composition(), true
+			if u.isOpen(room) {
+				has, ok = u.composition(room), true
 			}
 			if !ok {
 				has = u.drafts.base[room]
 			}
 			if has.Body != stored.Body {
-				return fmt.Sprintf("window %s holds %q in %s, not the draft stored (%s)", win.name, has.Body, room, where)
+				return fmt.Sprintf("window %s holds %q in %v, not the draft stored (%s)", win.name, has.Body, room, where)
 			}
 		}
 	}
 	alone := !slices.ContainsFunc(w.typed, func(s string) bool { return s[0] == 'b' })
-	for _, room := range []domain.RoomID{roomA, roomB} {
+	for _, room := range places {
 		words := strings.Fields(w.drafts[room].Body)
 		for i, word := range words {
 			if alone && (slices.Contains(words[i+1:], word) || w.replaced[word]) {
-				return fmt.Sprintf("%q came twice or back into the draft of %s (%s)", word, room, where)
+				return fmt.Sprintf("%q came twice or back into the draft of %v (%s)", word, room, where)
 			}
 		}
 	}

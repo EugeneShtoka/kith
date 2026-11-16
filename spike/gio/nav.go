@@ -271,7 +271,7 @@ func (u *ui) do(ctx context.Context, gtx C, path string, count int) bool {
 	case "nav.back":
 		switch {
 		case u.pane == paneTimeline && t.thread != "":
-			t.thread = ""
+			u.leaveThread()
 		case u.pane == paneTimeline:
 			u.toPane(paneRooms)
 		case u.pane == paneRooms && u.railShown:

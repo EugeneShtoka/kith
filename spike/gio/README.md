@@ -66,9 +66,10 @@ are `[keys.completion]`'s. `/` at the start offers the commands the window does:
 then the commands folder's that run in the room (`commands.go`), which the window runs
 itself as the TUI does, argument and all, their output going where their `[[command]]`
 says. The TUI's others say so, `//` sends one slash, and any other slash word is a message.
-The Poll button opens the desktop's form for one. A room's unsent text, reply and edit are kithd's draft
-(`drafts.go`, the desktop's `drafts.ts` in less), which any number of windows and kith-mcp
-write: written over the version last read after a pause in typing, and read at start, when
+The Poll button opens the desktop's form for one. A room's unsent text, reply and edit are kithd's draft,
+and the open thread's composer holds that thread's own draft, set aside when the thread or
+room is left and back on return (`drafts.go`, the desktop's `drafts.ts` in less), which any
+number of windows and kith-mcp write: written over the version last read after a pause in typing, and read at start, when
 the window gets the focus back, and whenever kithd says drafts changed (`CHANGE_DRAFTS`).
 Words another window or the assistant added come back in the write's answer and go after
 the window's own, typed meanwhile or not, and the window says so; a read older than one of
@@ -150,7 +151,8 @@ With the rail, faces and theme added the Gio numbers barely moved: RSS 188 MB, G
 - **Gio gives a key to the first reader in the frame whose filter matches**, not to the most
   specific filter, so the window-wide key reader runs last: anything earlier (an editor's
   arrows and Backspace, the picker's Esc) keeps its own keys.
-- **Not done here:** the thread composer's draft is not kept; a folder command's
+- **Not done here:** the thread composer has no reply or edit, so a thread's draft written
+  elsewhere answering a message loses that when typed in here; a folder command's
   `[keys]` binding (the TUI's script keys); `in_room_list = "all"` lists
   only the threads `"unread"` does, as kithd's thread list is not read per room; a link handed over picks the
   first chat it names where the TUI asks which account.

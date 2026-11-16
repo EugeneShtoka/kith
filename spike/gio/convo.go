@@ -147,10 +147,14 @@ func (u *ui) layoutReplyTo(gtx C, t *timeline, st *msgState, m domain.Message) D
 // --- Threads ---
 
 // openThread shows a thread beside the timeline: what is cached at once, then its newest
-// page from kithd.
+// page from kithd. Its composer holds the thread's own draft, another thread's set aside.
 func (u *ui) openThread(ctx context.Context, root domain.EventID) {
 	t := &u.timeline
-	t.thread = root
+	if t.thread != root {
+		u.leaveThread()
+		t.thread = root
+		u.bringBack(place{room: u.current, thread: root})
+	}
 	t.threadList = widget.List{List: layout.List{Axis: layout.Vertical, ScrollToEnd: true}}
 	u.focus = &u.threadComposer
 	room := t.room
@@ -178,7 +182,7 @@ func (t *timeline) threadIndexes() []int {
 func (u *ui) layoutThread(ctx context.Context, gtx C) D {
 	t := &u.timeline
 	if u.closeThread.Clicked(gtx) {
-		t.thread = ""
+		u.leaveThread()
 		return D{}
 	}
 	shown := t.threadIndexes()

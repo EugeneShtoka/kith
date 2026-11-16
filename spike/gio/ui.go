@@ -345,6 +345,7 @@ func (u *ui) open(ctx context.Context, room domain.RoomID) {
 		u.history = append(u.history, room)
 		u.at = len(u.history) - 1
 	}
+	u.leaveThread() // it closes with the timeline: its draft is put aside
 	if u.current != room {
 		u.switchDraft(u.current, room)
 		u.present(room)
