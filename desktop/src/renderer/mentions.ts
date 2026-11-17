@@ -55,18 +55,24 @@ export function matching(ranked: readonly Member[], query: string): Member[] {
     .filter(
       (m) =>
         m.knownAs.toLowerCase().includes(q) ||
+        m.shownAs.toLowerCase().includes(q) ||
         m.displayName.toLowerCase().includes(q) ||
         m.userId.toLowerCase().includes(q),
     )
     .slice(0, offered);
 }
 
-/** nameOf is what a mention of m writes into the text: kithd's name for them. */
+/** nameOf is what a mention of m writes into the text: kithd's name for them, as the room's name rule shows it. */
 export function nameOf(m: Member): string {
-  return m.knownAs || m.displayName || m.userId;
+  return m.shownAs || m.knownAs || m.displayName || m.userId;
 }
 
-/** senderOf is the name a message's sender is shown by: kithd's, else the network's, else their ID. */
-export function senderOf(m: { sender: string; senderName: string; senderKnownAs: string }): string {
-  return m.senderKnownAs || m.senderName || m.sender;
+/** senderOf is the name a message's sender is shown by: kithd's as the room's name rule shows it, else the network's, else their ID. */
+export function senderOf(m: {
+  sender: string;
+  senderName: string;
+  senderKnownAs: string;
+  senderShownAs: string;
+}): string {
+  return m.senderShownAs || m.senderKnownAs || m.senderName || m.sender;
 }

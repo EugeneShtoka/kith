@@ -139,19 +139,20 @@ func TestRoomsAreNamedInTheirNetworksColors(t *testing.T) {
 // rule goes only when neither is set. network_colors off counts as set and overrides [display].
 func TestAPlacesSwitchesKeepEachOther(t *testing.T) {
 	t.Parallel()
-	d := config.Display{SpaceRules: []config.SpaceRule{{Space: "space:Other", FirstNameOnly: true}}}
+	d := config.Display{SpaceRules: []config.SpaceRule{{Space: "space:Other", ShowField: "company"}}}
 	friends := setup.HomeNamer(d, "Friends")
-	d.SpaceRules = withFirstNames(d, "Friends", true)
+	showRole := func(r *config.SpaceRule) { r.ShowField = "role" }
+	d.SpaceRules = withSpaceRule(d, "Friends", showRole)
 	d.SpaceRules = withNetworkColors(d, "Friends", new(true))
 	c := config.Settings{Bridge: config.Config{Display: d}}
-	if !firstNamesIn(c, "Friends") || !c.Bridge.Display.NetworkColorsIn(c.Device.Display, friends) || len(d.SpaceRules) != 2 ||
+	if d.ShowFieldIn(friends) != "role" || !c.Bridge.Display.NetworkColorsIn(c.Device.Display, friends) || len(d.SpaceRules) != 2 ||
 		d.SpaceRules[1].Space != "space:Friends" {
 		t.Fatalf("both on: %+v, want one space:Friends rule", d.SpaceRules)
 	}
-	d.SpaceRules = withFirstNames(d, "Friends", false)
+	d.SpaceRules = withSpaceRule(d, "Friends", func(r *config.SpaceRule) { r.ShowField = "" })
 	c.Bridge.Display = d
-	if firstNamesIn(c, "Friends") || !c.Bridge.Display.NetworkColorsIn(c.Device.Display, friends) {
-		t.Fatalf("first names off took the colors with it: %+v", d.SpaceRules)
+	if d.ShowFieldIn(friends) != "" || !c.Bridge.Display.NetworkColorsIn(c.Device.Display, friends) {
+		t.Fatalf("the field off took the colors with it: %+v", d.SpaceRules)
 	}
 	d.SpaceRules = withNetworkColors(d, "Friends", new(false))
 	c.Device.Display.NetworkColors = true
@@ -160,8 +161,39 @@ func TestAPlacesSwitchesKeepEachOther(t *testing.T) {
 		t.Fatalf("off is not kept against [display] network_colors: %+v", d.SpaceRules)
 	}
 	d.SpaceRules = withNetworkColors(d, "Friends", nil)
-	if len(d.SpaceRules) != 1 || d.SpaceRules[0].Space != "space:Other" || !d.SpaceRules[0].FirstNameOnly {
+	if len(d.SpaceRules) != 1 || d.SpaceRules[0].Space != "space:Other" || d.SpaceRules[0].ShowField != "company" {
 		t.Fatalf("both off: %+v, want only Other's rule", d.SpaceRules)
+	}
+}
+
+// A place's first-names switch writes its own [[display.name_rule]], keeping the rest of
+// the list, and drops it when it says what [display] first_name_only does; off is kept
+// against that.
+func TestAPlacesFirstNamesKeepOtherNameRules(t *testing.T) {
+	t.Parallel()
+	d := config.Display{NameRules: []config.NameRule{
+		{Match: "space:Other", FirstNameOnly: new(true)},
+		{Match: "space:Friends", Sender: "telegram:1", Name: "Sveta"},
+	}}
+	firstNames := func() bool {
+		t.Helper()
+		return firstNamesIn(config.Settings{Bridge: config.Config{Display: d}}, "Friends")
+	}
+	if firstNames() {
+		t.Fatal("Friends shows first names before it is switched on")
+	}
+	d.NameRules = withFirstNames(d, "Friends", true)
+	if !firstNames() || len(d.NameRules) != 3 || d.NameRules[2].Match != "space:Friends" {
+		t.Fatalf("on: %+v, want a space:Friends rule beside the others", d.NameRules)
+	}
+	d.FirstNameOnly = true
+	d.NameRules = withFirstNames(d, "Friends", true)
+	if !firstNames() || len(d.NameRules) != 2 {
+		t.Fatalf("on as everywhere: %+v, want the place's rule dropped", d.NameRules)
+	}
+	d.NameRules = withFirstNames(d, "Friends", false)
+	if firstNames() || len(d.NameRules) != 3 {
+		t.Fatalf("off against [display] first_name_only: %+v, want it kept", d.NameRules)
 	}
 }
 
