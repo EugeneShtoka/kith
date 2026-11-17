@@ -34,10 +34,10 @@ deployment shapes:
 
 | shape | bridges | devices |
 | --- | --- | --- |
-| "central"    | 1 (homelab/VPS) | N (laptops, phones) |
-| "mesh"       | N (one per device, colocated) | N (same boxes) |
-| "hybrid"     | M (on always-on devices) | N (M < N; others device-only) |
-| "mobile-only"| 1 (phone, if practical) | 1 |
+| "central" | 1 (homelab/VPS) | N (laptops, phones) |
+| "mesh" | N (one per device, colocated) | N (same boxes) |
+| "hybrid" | M (on always-on devices) | N (M < N; others device-only) |
+| "mobile-only" | 1 (phone, if practical) | 1 |
 | "standby" | M, one running at a time, by priority (homelab, then laptop, then phone) | N |
 
 The hybrid shape is particularly attractive: 2 bridges (home PC, work laptop) + 2
@@ -66,6 +66,7 @@ Each bridge costs linked-device slots per network. Reality:
 **The Android special case:** on a phone that already hosts the official WA /
 Signal / GM apps as master, kith-on-Android as a *linked* device alongside the
 master app:
+
 - WA: probably works (different app ID) — needs verifying before Phase 5
 - Signal: same uncertainty as WA
 - GM: a web session paired with the same phone's GM app, and only while it is the
@@ -84,6 +85,7 @@ The client holds `[[bridge]]` entries and tries them in priority order on
 startup, with failover on disconnect.
 
 **Discovery sources** (in order of simplicity, not necessarily shipped order):
+
 1. Endpoints the user adds on the device (always available)
 2. The mesh's roster, which lists each bridge's addresses
 3. mDNS on LAN (nice for same-network discovery)
@@ -101,6 +103,7 @@ or stale heartbeat, try next. Rejected (for v1): lowest-latency selection, becau
 it adds measurement overhead for no real benefit at 2–4 bridges.
 
 **Failover.**
+
 1. Current bridge disconnects, times out, or heartbeat goes stale.
 2. Device dials next bridge in priority order.
 3. On connect, device resubscribes with what it last held. To the same bridge that
@@ -230,7 +233,7 @@ notification.
 As of 2026-10-24, from each product's public site and documentation.
 
 | | **Pantheon** | **Ferdium** | **Rambox** | **Trillian** | **kith (planned)** |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | Network protocol work | Server-side (needs Mac for iMessage, linked WA host) | Webview per service | Webview per service | Native XMPP/IRC + Astra; modern networks limited | Native in-process adapters (whatsmeow, mautrix-*, gotd), pure Go |
 | State lives | Pantheon's cloud | Per-webview localStorage | Device + Auth0 (service list only) | Astra cloud + per-device | Bridge SQLite; CRDT for soft state across devices |
 | Multi-device | Through their cloud | Each install independent | Service list syncs via Auth0 | Astra syncs across all devices | N:M bridges and devices, failover |
@@ -318,6 +321,7 @@ client).
 bridges: steps 5–8 of [design-mesh.md](design-mesh.md).
 
 **Phase 3 — multi-bridge failover.**
+
 - Bridge heartbeat RPC (`Heartbeat(network, caught_up_as_of)`).
 - Client-side bridge roster, pinned priority, failover on disconnect / stale
   heartbeat.
