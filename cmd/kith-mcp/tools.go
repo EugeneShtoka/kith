@@ -66,6 +66,9 @@ func (s *server) writePolicy() string {
 	b.WriteString(". Any other room is refused and nothing is written; list_rooms marks the rooms you may write to as writable.")
 	if send := listed(s.send); send != "" {
 		b.WriteString(" Of those, rooms matching " + send + " are sent to (unless the room is resting after a recent send); the rest are drafted.")
+		if len(s.hours) > 0 {
+			b.WriteString(" A send outside the room's working hours is scheduled for when they next open, unless you pass urgent.")
+		}
 	} else {
 		b.WriteString(" Nothing is sent unreviewed: every message you write becomes a draft.")
 	}
@@ -288,6 +291,8 @@ var tools = []tool{
 			"at": str("optional: send it at this time instead of now, RFC 3339 with its offset " +
 				"(2026-10-12T09:00:00+03:00). Only in a room you may send to; a room you would only " +
 				"draft into is refused"),
+			"urgent": map[string]any{"type": "boolean", "description": "optional: send it even outside " +
+				"the room's working hours. Only when the person said it is urgent or must go now"},
 		}, "room", "text"),
 		run: (*server).sendMessage,
 	},

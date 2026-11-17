@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/domain"
+	"github.com/EugeneShtoka/kith/internal/notify"
 )
 
 // DefaultAgentCooldown is the default rest for a room after an assistant posts to it.
@@ -38,4 +40,31 @@ func AgentCooldown(agent config.Agent) (time.Duration, error) {
 		return 0, fmt.Errorf("agent.write.cooldown: %q must not be negative — \"0\" turns it off", spelled)
 	}
 	return parsed, nil
+}
+
+// weekdays reads a [[agent.write.hours]] day by its first three letters.
+var weekdays = map[string]time.Weekday{
+	"sun": time.Sunday, "mon": time.Monday, "tue": time.Tuesday, "wed": time.Wednesday,
+	"thu": time.Thursday, "fri": time.Friday, "sat": time.Saturday,
+}
+
+// AgentHours is [[agent.write.hours]], resolved.
+func AgentHours(agent config.Agent) ([]domain.WorkingHours, error) {
+	out := make([]domain.WorkingHours, 0, len(agent.Write.Hours))
+	for i, h := range agent.Write.Hours {
+		w, err := notify.ParseWhen(h.When)
+		if err != nil || w.Start == w.End {
+			return nil, fmt.Errorf("agent.write.hours[%d].when: %q is not a window (try \"09:00-18:00\")", i, h.When)
+		}
+		hours := domain.WorkingHours{Match: strings.TrimSpace(h.Match), Start: w.Start, End: w.End}
+		for _, spelled := range h.Days {
+			day, ok := weekdays[strings.ToLower(strings.TrimSpace(spelled))]
+			if !ok {
+				return nil, fmt.Errorf("agent.write.hours[%d].days: %q is not a day (mon, tue, wed, thu, fri, sat, sun)", i, spelled)
+			}
+			hours.Days = append(hours.Days, day)
+		}
+		out = append(out, hours)
+	}
+	return out, nil
 }

@@ -761,6 +761,21 @@ encrypted = false
 send = []
 cooldown = "1m"
 
+# [[agent.write.hours]] — when the assistant may send. A send outside the hours of the
+# room is scheduled for when they next open (on this machine's clock), unless the
+# assistant marks it urgent; a draft is not held back. `match` is one place entry
+# (empty: every room) and the narrowest entry naming a room is its hours; a room no
+# entry names may be sent to any time. `when` is a daily window, past midnight if the
+# end comes first; `days` are the days it opens on (empty: every day).
+#
+#   [[agent.write.hours]]
+#   when = "09:00-18:00"
+#   days = ["sun", "mon", "tue", "wed", "thu"]
+#
+#   [[agent.write.hours]]
+#   match = "space:Family"
+#   when = "08:00-22:00"
+
 # Messages written now and sent later (`/at`, `/in`). One whose time passed while
 # nothing was running is still sent if at most this many hours late, and otherwise
 # held for you to decide. 0 holds nothing: every late message is sent.

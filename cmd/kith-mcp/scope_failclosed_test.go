@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -128,7 +129,7 @@ func someEntries(rng *rand.Rand) []string {
 }
 
 // decisions is what a server decides per fixture room: read, write, and post without
-// review.
+// review now (not waiting for working hours).
 type decisions struct{ read, write, send map[domain.RoomID]bool }
 
 func decide(t *testing.T, s *server, rooms []domain.Room) decisions {
@@ -139,8 +140,8 @@ func decide(t *testing.T, s *server, rooms []domain.Room) decisions {
 		ctx := withCallMemo(context.Background())
 		d.read[room.ID] = s.allowed(ctx, room) == nil
 		d.write[room.ID] = s.writable(ctx, room) == nil
-		if choice, err := s.howToWrite(ctx, room); err == nil {
-			d.send[room.ID] = choice.send
+		if choice, err := s.howToWrite(ctx, room, false); err == nil {
+			d.send[room.ID] = choice.send && (choice.hours == nil || choice.hours.Covers(time.Now()))
 		}
 	}
 	return d
@@ -156,13 +157,19 @@ func TestAFailedLookupNeverWidensTheScope(t *testing.T) {
 		rng := rand.New(rand.NewPCG(seed, 7))
 		read := domain.ModelScope{Only: someEntries(rng), Except: someEntries(rng), Encrypted: rng.IntN(2) == 0}
 		write := domain.ModelScope{Only: someEntries(rng), Except: someEntries(rng), Encrypted: rng.IntN(2) == 0}
-		neverWidens(t, fmt.Sprintf("seed %d", seed), read, write, someEntries(rng))
+		hours := someEntries(rng)
+		if rng.IntN(2) == 0 {
+			hours = append(hours, "")
+		}
+		neverWidens(t, fmt.Sprintf("seed %d", seed), read, write, someEntries(rng), hours)
 	}
 	for _, only := range append([]string{""}, scopeEntries...) {
 		for _, except := range append([]string{""}, scopeEntries...) {
 			scope := domain.ModelScope{Only: nonBlank(only), Except: nonBlank(except), Encrypted: true}
-			neverWidens(t, fmt.Sprintf("rooms %q, except %q", only, except), scope, scope, nonBlank(only))
+			neverWidens(t, fmt.Sprintf("rooms %q, except %q", only, except), scope, scope, nonBlank(only), nil)
 		}
+		// Hours closed where only names, open everywhere else.
+		neverWidens(t, fmt.Sprintf("hours closed in %q", only), shareAll, shareAll, []string{"dm", "group"}, []string{"", only})
 	}
 }
 
@@ -198,7 +205,8 @@ func nonBlank(entry string) []string {
 }
 
 // neverWidens fails when some daemon read failing allows a room the healthy run refuses.
-func neverWidens(t *testing.T, label string, read, write domain.ModelScope, send []string) {
+// Working hours with a match are never open; the one without is always open.
+func neverWidens(t *testing.T, label string, read, write domain.ModelScope, send, hours []string) {
 	t.Helper()
 	var failures []failing
 	for mask := 1; mask < 8; mask++ { // every non-empty set of failing reads
@@ -209,6 +217,13 @@ func neverWidens(t *testing.T, label string, read, write domain.ModelScope, send
 		s.backend = backend
 		s.places = scopePlaces
 		s.cooldown = 0
+		for _, match := range hours {
+			h := domain.WorkingHours{Match: match}
+			if match == "" {
+				h.End = 24 * time.Hour
+			}
+			s.hours = append(s.hours, h)
+		}
 		return s
 	}
 	fixture := scopeRooms()

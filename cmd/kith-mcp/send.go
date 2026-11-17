@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,6 +26,8 @@ type writeArgs struct {
 	ReplyTo string `json:"reply_to"`
 	// At sends it then rather than now: RFC 3339 with offset.
 	At string `json:"at"`
+	// Urgent sends it outside the room's working hours too.
+	Urgent bool `json:"urgent"`
 }
 
 // errLaterOnlyWhereSent refuses a delayed send to a draft-only room: a draft is
@@ -88,15 +91,16 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 		return nil, fmt.Errorf("refusing to send what cannot be recorded: %w", err)
 	}
 	defer release()
-	decision, err := s.howToWrite(ctx, room)
+	decision, err := s.howToWrite(ctx, room, in.Urgent)
 	if err != nil {
 		return nil, err
 	}
+	later, why := decision.within(later)
 	switch {
 	case !later.IsZero() && !decision.send:
 		return nil, s.refuse(room, text, fmt.Errorf("%w (%s)", errLaterOnlyWhereSent, decision.reason))
 	case !later.IsZero():
-		return s.sendLater(ctx, room, text, target, later)
+		return s.sendLater(ctx, room, text, target, later, why)
 	case decision.send:
 		return s.sendNow(ctx, room, text, target)
 	}
@@ -129,15 +133,16 @@ func sendTime(at string, now time.Time) (time.Time, error) {
 	return t.UTC(), nil
 }
 
-// sendLater hands the message to the daemon's queue for its time.
-func (s *server) sendLater(ctx context.Context, room domain.Room, text string, target aim, at time.Time) (any, error) {
+// sendLater hands the message to the daemon's queue for its time; why, when set, says
+// why then.
+func (s *server) sendLater(ctx context.Context, room domain.Room, text string, target aim, at time.Time, why string) (any, error) {
 	if _, err := s.backend.Schedule(ctx, domain.ScheduledMessage{
 		RoomID: room.ID, Body: text, TxnID: domain.NewTxnID(), At: at, Written: time.Now().UTC(),
 		ThreadRoot: target.thread, ReplyTo: target.replyTo,
 	}); err != nil {
 		return nil, fmt.Errorf("scheduling it: %w", err)
 	}
-	return s.wrote(room, agent.Scheduled, text, "it goes out at "+at.Format(time.RFC3339)+"; the daemon sends it, and the client lists it under :scheduled until then")
+	return s.wrote(room, agent.Scheduled, text, why+"it goes out at "+at.Format(time.RFC3339)+"; the daemon sends it, and the client lists it under :scheduled until then")
 }
 
 // aimIn resolves thread and reply targets within this room's cached history (already
@@ -182,17 +187,19 @@ func (s *server) messageIn(ctx context.Context, room domain.Room, event string) 
 	return domain.Message{}, fmt.Errorf("%s is not a message in this room's cached history", event)
 }
 
-// writeChoice is the answer to "send or draft, and why".
+// writeChoice is the answer to "send or draft, and why", and for a send, the working
+// hours it waits for (nil: any time).
 type writeChoice struct {
 	send   bool
 	reason string
+	hours  *domain.WorkingHours
 }
 
-// howToWrite reads the policy, then the cooldown. An unwritable ledger refuses the
-// send: the cooldown is counted from it.
-func (s *server) howToWrite(ctx context.Context, room domain.Room) (writeChoice, error) {
+// howToWrite reads the policy, the working hours unless urgent, then the cooldown. An
+// unwritable ledger refuses the send: the cooldown is counted from it.
+func (s *server) howToWrite(ctx context.Context, room domain.Room, urgent bool) (writeChoice, error) {
 	facts, placeErr := s.factsOf(ctx, room)
-	if placeErr != nil && domain.NamesAPlace(s.send) {
+	if placeErr != nil && (domain.NamesAPlace(s.send) || !urgent && s.hoursNameAPlace()) {
 		return writeChoice{reason: "which spaces or tags this room is in could not be read, so the words wait in its composer"}, nil
 	}
 	if !domain.AllowSend(s.send, facts) {
@@ -201,8 +208,12 @@ func (s *server) howToWrite(ctx context.Context, room domain.Room) (writeChoice,
 	if err := s.ledger.Writable(); err != nil {
 		return writeChoice{}, fmt.Errorf("refusing to send what cannot be recorded: %w", err)
 	}
+	var hours *domain.WorkingHours
+	if h, ok := domain.HoursFor(s.hours, facts); ok && !urgent {
+		hours = &h
+	}
 	if s.cooldown <= 0 {
-		return writeChoice{send: true}, nil
+		return writeChoice{send: true, hours: hours}, nil
 	}
 	entries, err := s.ledger.Entries()
 	if err != nil {
@@ -214,7 +225,26 @@ func (s *server) howToWrite(ctx context.Context, room domain.Room) (writeChoice,
 			"a message went to this room %s ago and [agent.write] cooldown is %s, so this one waits in the composer",
 			human.Duration(round(rest)), human.Duration(s.cooldown))}, nil
 	}
-	return writeChoice{send: true}, nil
+	return writeChoice{send: true, hours: hours}, nil
+}
+
+// within moves a send at later (zero: now) to when the working hours next open, and
+// says why; anything else stays as it is.
+func (c writeChoice) within(later time.Time) (time.Time, string) {
+	if !c.send || c.hours == nil {
+		return later, ""
+	}
+	from := cmp.Or(later, time.Now()).Local() // the hours are on this machine's clock
+	if opens := c.hours.Next(from); opens.After(from) {
+		return opens.UTC(), "it is outside this room's working hours ([agent.write] hours), so it waits for them to open; "
+	}
+	return later, ""
+}
+
+// hoursNameAPlace reports whether which working hours apply rests on a room's spaces
+// or tags.
+func (s *server) hoursNameAPlace() bool {
+	return slices.ContainsFunc(s.hours, func(h domain.WorkingHours) bool { return domain.NamesAPlace([]string{h.Match}) })
 }
 
 // sendNow posts the message. A failure goes to the daemon's queue under the same txn ID
