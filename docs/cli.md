@@ -396,7 +396,7 @@ kith-notify [--profile name]... [--config path] [--log-level level] [--log-file 
 
 Shows kithd's desktop notifications on this machine
 ([notifications.md](notifications.md#where-popups-appear-kith-notify)). It listens to
-the profiles it is given, the first without one, and shows each notification once
+the profiles it is given (`--profile`, else `device.toml`'s `[notifications] profiles`), the first without either, and shows each notification once
 however many of them carry it. `kith` starts it; its systemd user unit
 `kith-notify.service` starts it at login. Only one runs per config: a second exits at
 once. It waits for kithd when kithd is not running, and listens again when kithd
@@ -404,7 +404,7 @@ restarts.
 
 | Flag | Meaning |
 | --- | --- |
-| `--profile name` | A profile whose notifications to show, in any case; repeat it for several. One the config lacks stops it, naming those it has. |
+| `--profile name` | A profile whose notifications to show, in any case; repeat it for several. Given, the flags are used instead of `[notifications] profiles` in `device.toml`. One the config lacks stops it, naming those it has. |
 | `--config path` | Config file to read: where kithd's socket is, and the profiles. |
 | `--log-level level` | How much to log: `debug`, `info`, `warn` or `error`. Overrides `KITH_LOG_LEVEL` and `[log] level`. |
 | `--log-file file` | Log to the journal, or to this file when there is none, instead of stderr. `kith` passes it when it starts kith-notify without systemd. |

@@ -310,18 +310,34 @@ func TestTheAgentFollowsTheDeviceFile(t *testing.T) {
 	settled(t, rec, []string{"on again"})
 }
 
-// A profile the config lacks is refused, naming those it has; none named is the first.
+// A profile the config lacks is refused, naming those it has and where it was named;
+// --profile, when given, overrides the device's [notifications] profiles, and with
+// neither it is the first.
 func TestProfilesAreTheConfigs(t *testing.T) {
 	t.Parallel()
 	cfg := threeProfiles()
-	if got, err := profileNames(cfg, nil); err != nil || strings.Join(got, ",") != "First" {
-		t.Errorf("no --profile = %v, %v; want First", got, err)
-	}
-	if got, err := profileNames(cfg, []string{" third ", "SECOND"}); err != nil || strings.Join(got, ",") != "Third,Second" {
-		t.Errorf("--profile third --profile SECOND = %v, %v; want Third, Second", got, err)
-	}
-	if _, err := profileNames(cfg, []string{"home"}); err == nil || !strings.Contains(err.Error(), "First, Second, Third") {
-		t.Errorf("--profile home = %v, want it refused naming First, Second, Third", err)
+	for _, tc := range []struct {
+		name                string
+		flagged, configured []string
+		want, refused       string
+	}{
+		{name: "neither", want: "First"},
+		{name: "flags", flagged: []string{" third ", "SECOND"}, want: "Third,Second"},
+		{name: "config", configured: []string{"second", "Third"}, want: "Second,Third"},
+		{name: "flags over config", flagged: []string{"third"}, configured: []string{"second"}, want: "Third"},
+		{name: "flags over a config naming none", flagged: []string{"third"}, configured: []string{"home"}, want: "Third"},
+		{name: "a flag the config lacks", flagged: []string{"home"}, configured: []string{"second"}, refused: `--profile "home"`},
+		{name: "a configured one the config lacks", configured: []string{"home"}, refused: `[notifications] profiles "home"`},
+	} {
+		got, err := profileNames(cfg, tc.flagged, tc.configured)
+		switch {
+		case tc.refused != "":
+			if err == nil || !strings.Contains(err.Error(), tc.refused) || !strings.Contains(err.Error(), "First, Second, Third") {
+				t.Errorf("%s: %v, %v; want it refused as %s, naming First, Second, Third", tc.name, got, err, tc.refused)
+			}
+		case err != nil || strings.Join(got, ",") != tc.want:
+			t.Errorf("%s: %v, %v; want %s", tc.name, got, err, tc.want)
+		}
 	}
 }
 
