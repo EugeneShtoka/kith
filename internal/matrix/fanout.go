@@ -312,6 +312,21 @@ func (m *Adapter) StartVerification(ctx context.Context, on domain.RoomOwner) (s
 	return txn, err
 }
 
+// VerifyPerson asks the other person in a direct chat to verify each other.
+func (m *Adapter) VerifyPerson(ctx context.Context, roomID domain.RoomID) (string, error) {
+	r, err := m.runnerOf(string(roomID))
+	if err != nil {
+		return "", err
+	}
+	txn, err := r.VerifyPerson(ctx, roomID)
+	if err == nil {
+		m.mu.Lock()
+		m.txns[txn] = r
+		m.mu.Unlock()
+	}
+	return txn, err
+}
+
 // verifying is the runner verification txnID is on.
 func (m *Adapter) verifying(txnID string) (*runner, error) {
 	m.mu.Lock()

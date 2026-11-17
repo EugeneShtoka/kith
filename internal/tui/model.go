@@ -521,7 +521,9 @@ type verifyState struct {
 	txnID  string
 	stage  domain.VerificationKind
 	// ours marks a verification this session requested: nothing to accept, only cancel.
-	ours     bool
+	ours bool
+	// person marks one with another person rather than this account's own sessions.
+	person   bool
 	from     string
 	device   string
 	emojis   []domain.SASEmoji
@@ -3197,7 +3199,7 @@ func (m Model) handleVerify(msg verifyMsg) (Model, tea.Cmd) {
 			// Our own request echoed back; not a new one.
 			break
 		}
-		m.verify = verifyState{active: true, txnID: v.TxnID, stage: v.Kind, from: v.From, device: v.Device}
+		m.verify = verifyState{active: true, txnID: v.TxnID, stage: v.Kind, from: v.From, device: v.Device, person: v.Person}
 	case domain.VerificationSAS:
 		if m.verify.active && m.verify.txnID == v.TxnID {
 			m.verify.stage = v.Kind
@@ -3207,8 +3209,12 @@ func (m Model) handleVerify(msg verifyMsg) (Model, tea.Cmd) {
 		}
 	case domain.VerificationDone:
 		if m.verify.txnID == v.TxnID {
+			done := "✓ device verified"
+			if m.verify.person {
+				done = "✓ verified each other"
+			}
 			m.verify = verifyState{}
-			m = m.say("✓ device verified")
+			m = m.say(done)
 		}
 	case domain.VerificationCanceled:
 		if m.verify.txnID == v.TxnID {
@@ -3245,7 +3251,7 @@ func (m Model) handleVerifyStarted(msg verifyStartedMsg) (Model, tea.Cmd) {
 		return m.sayErr("could not ask", msg.err), nil
 	}
 	m.verify = verifyState{
-		active: true, ours: true, txnID: msg.txnID, stage: domain.VerificationRequested,
+		active: true, ours: true, person: msg.person, txnID: msg.txnID, stage: domain.VerificationRequested,
 	}
 	return m, nil
 }

@@ -409,6 +409,7 @@ message Verification {
   repeated SASEmoji emojis = 5;
   repeated int64 decimals = 6;
   string reason = 7; // canceled: why; restored: what was imported
+  bool person = 8;   // requested: another person asks, not one of your own sessions
 }
 
 // Level is the bar a message clears to earn something (notify.Level).
