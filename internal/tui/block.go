@@ -1,24 +1,29 @@
 package tui
 
 import (
+	"slices"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// blockableKeys names the phonebook identifier keys of networks whose adapters
-// implement route.Blocker. Keep in sync with the adapters.
+// blockableKeys names the networks whose adapters implement route.Blocker, by their
+// phonebook identifier key (or ID prefix, for a network the phonebook has no key for).
+// Keep in sync with the adapters.
 var blockableKeys = []string{"whatsapp", "telegram", "messenger", "instagram"}
 
-// hasBlockableID reports whether a card has any ID on a network with a server-side
-// block list.
-func hasBlockableID(ids map[string][]string) bool {
+// blockTargets is every kith-shaped ID of the person on a blockable network: the
+// card's, and the one their card was opened on, which alone names them on a network
+// the phonebook has no key for.
+func blockTargets(p personState) []string {
+	out := collectBlockableIDs(p.card.IDs)
 	for _, key := range blockableKeys {
-		if len(ids[key]) > 0 {
-			return true
+		if protocolOfKey(key) == domain.NetworkOf(p.id) && !slices.Contains(out, p.id) {
+			out = append(out, p.id)
 		}
 	}
-	return false
+	return out
 }
 
 // blockedChangedMsg is the outcome of a block/unblock round-trip; one message
@@ -33,7 +38,7 @@ type blockedChangedMsg struct {
 // on a network with a server-side block list.
 func (m Model) blockUnblockCmd(p personState, block bool) tea.Cmd {
 	backend, ctx := m.backend, m.ctx
-	targets := collectBlockableIDs(p.card.IDs)
+	targets := blockTargets(p)
 	if len(targets) == 0 {
 		return func() tea.Msg {
 			return blockedChangedMsg{err: errNoBlockableID{}}
