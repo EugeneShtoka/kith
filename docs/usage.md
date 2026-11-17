@@ -353,8 +353,9 @@ takes either and keeps only the one you typed. A backup is made once `every` has
 since the newest one, or at the cron expression's next time after it, in local time; a
 time the machine was off is skipped, not made up (one backup, not one per time
 missed). The oldest beyond `keep` are deleted, never the newest,
-and only files kithd named itself (`kith-daily-<date>-<time>.tar.age`) are ever
-counted or deleted, never yours. A change applies at kithd's next look, within the
+and only files kithd named itself (`kith-backup-<date>-<time>.tar.age`, and
+`kith-daily-<date>-<time>.tar.age` from before the rename) are ever counted or deleted,
+never yours. A change applies at kithd's next look, within the
 hour, with no restart; a `dir` outside kith's own folders needs a restart under the
 systemd unit (see [troubleshooting](troubleshooting.md)). Until there is a key they are
 off, and kith says so: kithd never makes a key itself, since nobody would see its

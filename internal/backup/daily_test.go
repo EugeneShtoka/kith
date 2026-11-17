@@ -63,7 +63,7 @@ func names(t *testing.T, dir string) []string {
 
 // dailyName is the name MakeDaily gives a backup made at at.
 func dailyName(at time.Time) string {
-	return "kith-daily-" + at.Format("2006-01-02-150405") + ".tar.age"
+	return "kith-backup-" + at.Format("2006-01-02-150405") + ".tar.age"
 }
 
 // stand is a file under a daily backup's name that starts as a whole one does, standing
@@ -196,6 +196,44 @@ func TestKeepLoweredDeletesOnlyTheOldestWholeOnes(t *testing.T) {
 		if _, err := os.Stat(p); err != nil {
 			t.Errorf("%s is gone: %v", filepath.Base(p), err)
 		}
+	}
+}
+
+// Backups named kith-daily-, as scheduled ones were before, count with the new ones
+// and are deleted with them, oldest first by when they were made, not by name; a
+// kith backup of the user's, named kith-backup- to the minute, is neither counted nor
+// deleted nor reported.
+func TestFormerlyNamedBackupsAreKeptAndDeletedWithTheRest(t *testing.T) {
+	m := newMachine(t)
+	m.as(t).fill(t, "kept", 5)
+	dir := t.TempDir()
+	former := func(at time.Time) string {
+		p := filepath.Join(dir, "kith-daily-"+at.Format("2006-01-02-150405")+".tar.age")
+		write(t, p, "age-encryption.org/v1\n-> X25519 stand-in\n"+strings.Repeat("x", 64), 0o600)
+		return p
+	}
+	old1, new2, old3, new4, old5 := former(day(1)), stand(t, dir, day(2)), former(day(3)), stand(t, dir, day(4)), former(day(5))
+	mine := filepath.Join(dir, "kith-backup-"+day(5).Format("2006-01-02-1504")+".tar.age")
+	write(t, mine, "age-encryption.org/v1\n-> X25519 mine\n", 0o600)
+
+	got, err := m.scheduled(t, context.Background(), dir, backup.Schedule{Next: after(24 * time.Hour), Keep: 3}, day(6))
+	if err != nil || !got.Ran {
+		t.Fatalf("MakeDaily(keep 3) = %+v, %v; want one made", got, err)
+	}
+	if want := dailyName(day(6)); filepath.Base(got.Made.Path) != want {
+		t.Errorf("made %s; want %s", filepath.Base(got.Made.Path), want)
+	}
+	slices.Sort(got.Deleted)
+	if want := []string{new2, old1, old3}; !slices.Equal(got.Deleted, want) {
+		t.Errorf("deleted %v; want the three oldest, %v", got.Deleted, want)
+	}
+	for _, p := range []string{new4, old5, mine, got.Made.Path} {
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("%s is gone: %v", filepath.Base(p), err)
+		}
+	}
+	if len(got.Ignored) != 0 {
+		t.Errorf("Ignored = %v; want none", got.Ignored)
 	}
 }
 

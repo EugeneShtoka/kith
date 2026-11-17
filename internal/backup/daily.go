@@ -2,6 +2,7 @@ package backup
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -18,7 +19,7 @@ import (
 // come, so a clock set forward or a machine that slept makes one backup, not one per
 // time missed, and a clock set back past every backup there makes one more. Only files
 // named as scheduled backups are counted or deleted, so a backup the user put there
-// stays. (They keep the name "daily" from when the schedule was fixed.)
+// stays. (The code keeps the name "daily" from when the schedule was fixed.)
 
 // Schedule is when kithd backs up and how many backups it keeps: Next is when the
 // backup after one made at last is due ([backup] every or cron), Keep [backup] keep.
@@ -28,9 +29,11 @@ type Schedule struct {
 }
 
 // A scheduled backup's name is dailyPrefix, the time it was made (dailyStamp),
-// dailySuffix.
+// dailySuffix. Those made before were named formerDailyPrefix, and still count and are
+// deleted with the rest.
 const (
-	dailyPrefix = "kith-daily-"
+	dailyPrefix       = "kith-backup-"
+	formerDailyPrefix = "kith-daily-"
 	// mediaBackupPrefix names a scheduled media backup (MakeMedia) instead.
 	mediaBackupPrefix = "kith-media-"
 	dailyStamp        = "2006-01-02-150405"
@@ -57,7 +60,7 @@ type Daily struct {
 // was made. Only whole backups count, and the newest is never deleted. A disk without
 // room for it is db.ErrNoRoom, and nothing is written or deleted.
 func MakeDaily(ctx context.Context, src Source, to *PublicKey, dir string, sched Schedule, now time.Time) (Daily, error) {
-	return makeScheduled(dir, dailyPrefix, src.Storage.DataDir, sched, now,
+	return makeScheduled(dir, []string{dailyPrefix, formerDailyPrefix}, src.Storage.DataDir, sched, now,
 		func() error { return roomForDaily(src, dir) },
 		func(out string) (Made, error) { return Create(ctx, src, out, to) })
 }
@@ -65,20 +68,20 @@ func MakeDaily(ctx context.Context, src Source, to *PublicKey, dir string, sched
 // MakeMedia is MakeDaily for media backups of the archive in archiveDir, sealed under
 // cacheKey (CreateMedia): named apart, so each kind keeps its own sched.Keep.
 func MakeMedia(ctx context.Context, archiveDir string, cacheKey []byte, to *PublicKey, dir string, sched Schedule, now time.Time) (Daily, error) {
-	return makeScheduled(dir, mediaBackupPrefix, "", sched, now,
+	return makeScheduled(dir, []string{mediaBackupPrefix}, "", sched, now,
 		func() error { return roomForMedia(archiveDir, dir) },
 		func(out string) (Made, error) { return CreateMedia(ctx, archiveDir, cacheKey, out, to) })
 }
 
-// makeScheduled makes one scheduled backup named prefix in dir when due (room checks
-// the disks hold it, create writes it), and rotates them; dataDir is where a stopped
-// one may have left the cache's copy, "" for none.
-func makeScheduled(dir, prefix, dataDir string, sched Schedule, now time.Time, room func() error, create func(out string) (Made, error)) (Daily, error) {
+// makeScheduled makes one scheduled backup named prefixes[0] in dir when due (room
+// checks the disks hold it, create writes it), and rotates those named any of
+// prefixes; dataDir is where a stopped one may have left the cache's copy, "" for none.
+func makeScheduled(dir string, prefixes []string, dataDir string, sched Schedule, now time.Time, room func() error, create func(out string) (Made, error)) (Daily, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return Daily{}, fmt.Errorf("backup: %w", err)
 	}
-	removeStalePartials(dir, prefix, dataDir)
-	good, ignored, err := dailyBackups(dir, prefix)
+	removeStalePartials(dir, prefixes, dataDir)
+	good, ignored, err := dailyBackups(dir, prefixes)
 	if err != nil {
 		return Daily{}, err
 	}
@@ -91,7 +94,7 @@ func makeScheduled(dir, prefix, dataDir string, sched Schedule, now time.Time, r
 	if roomErr := room(); roomErr != nil {
 		return done, roomErr
 	}
-	out := filepath.Join(dir, prefix+now.Format(dailyStamp)+dailySuffix)
+	out := filepath.Join(dir, prefixes[0]+now.Format(dailyStamp)+dailySuffix)
 	made, err := create(out)
 	if err != nil {
 		return done, err
@@ -120,29 +123,50 @@ type daily struct {
 	at   time.Time
 }
 
-// dailyBackups is every whole scheduled backup named prefix in dir, oldest first by
-// name, and the files so named that are not whole.
-func dailyBackups(dir, prefix string) (good []daily, ignored []string, err error) {
+// dailyBackups is every whole scheduled backup named one of prefixes in dir, oldest
+// first, and the files so named that are not whole. A name whose time does not parse
+// is not one kithd gave (kith backup's own, kith-backup-<date>-<minute>, say), so it is
+// neither.
+func dailyBackups(dir string, prefixes []string) (good []daily, ignored []string, err error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("backup: %w", err)
 	}
 	for _, e := range entries {
-		stamp, ok := strings.CutPrefix(e.Name(), prefix)
-		stamp, isDaily := strings.CutSuffix(stamp, dailySuffix)
-		if !ok || !isDaily {
+		at, ok := scheduledAt(e.Name(), prefixes)
+		if !ok {
 			continue
 		}
-		at, perr := time.ParseInLocation(dailyStamp, stamp, time.Local)
 		p := filepath.Join(dir, e.Name())
-		if perr != nil || !e.Type().IsRegular() || !whole(p) {
+		if !e.Type().IsRegular() || !whole(p) {
 			ignored = append(ignored, p)
 			continue
 		}
 		good = append(good, daily{path: p, at: at})
 	}
-	slices.SortFunc(good, func(a, b daily) int { return strings.Compare(a.path, b.path) })
+	slices.SortFunc(good, oldestFirst)
 	return good, ignored, nil
+}
+
+// scheduledAt is when the scheduled backup named name was made; false when name is not
+// one of prefixes, a time and dailySuffix.
+func scheduledAt(name string, prefixes []string) (time.Time, bool) {
+	for _, prefix := range prefixes {
+		stamp, ok := strings.CutPrefix(name, prefix)
+		stamp, isDaily := strings.CutSuffix(stamp, dailySuffix)
+		if !ok || !isDaily {
+			continue
+		}
+		at, err := time.ParseInLocation(dailyStamp, stamp, time.Local)
+		return at, err == nil
+	}
+	return time.Time{}, false
+}
+
+// oldestFirst orders backups by when they were made, then by name: the former and the
+// current names sort apart, so a name alone is no order.
+func oldestFirst(a, b daily) int {
+	return cmp.Or(a.at.Compare(b.at), strings.Compare(a.path, b.path))
 }
 
 // whole reports whether path starts as an age file encrypted to an X25519 key does. A
@@ -165,10 +189,10 @@ func whole(path string) bool {
 	return err == nil && strings.HasPrefix(stanza, "-> X25519 ")
 }
 
-// rotate deletes the oldest of good (sorted by name, with made among them when one was)
-// beyond keep, never made and never the newest by name, returning what it deleted.
+// rotate deletes the oldest of good (with made among them when one was) beyond keep,
+// never made and never the newest, returning what it deleted.
 func rotate(good []daily, made string, keep int) []string {
-	slices.SortFunc(good, func(a, b daily) int { return strings.Compare(a.path, b.path) })
+	slices.SortFunc(good, oldestFirst)
 	var deleted []string
 	for i, b := range good {
 		if len(good)-i <= max(keep, 1) || b.path == made {
@@ -182,10 +206,14 @@ func rotate(good []daily, made string, keep int) []string {
 }
 
 // removeStalePartials deletes what a backup stopped mid-way (a kithd killed) leaves:
-// a partial scheduled backup named prefix in dir, and the cache's copy in dataDir (when
-// not ""), encrypted under a key nothing kept.
-func removeStalePartials(dir, prefix, dataDir string) {
-	partials, _ := filepath.Glob(filepath.Join(dir, "."+prefix+"*"+dailySuffix+".partial-*"))
+// a partial scheduled backup named one of prefixes in dir, and the cache's copy in
+// dataDir (when not ""), encrypted under a key nothing kept.
+func removeStalePartials(dir string, prefixes []string, dataDir string) {
+	var partials []string
+	for _, prefix := range prefixes {
+		found, _ := filepath.Glob(filepath.Join(dir, "."+prefix+"*"+dailySuffix+".partial-*"))
+		partials = append(partials, found...)
+	}
 	var copies []string
 	if dataDir != "" {
 		copies, _ = filepath.Glob(filepath.Join(dataDir, snapshotPattern))
