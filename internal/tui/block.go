@@ -11,7 +11,7 @@ import (
 // blockableKeys names the networks whose adapters implement route.Blocker, by their
 // phonebook identifier key (or ID prefix, for a network the phonebook has no key for).
 // Keep in sync with the adapters.
-var blockableKeys = []string{"whatsapp", "telegram", "messenger", "instagram"}
+var blockableKeys = []string{"whatsapp", "telegram", "messenger", "instagram", "signal"}
 
 // blockTargets is every kith-shaped ID of the person on a blockable network: the
 // card's, and the one their card was opened on, which alone names them on a network
@@ -86,6 +86,8 @@ func protocolOfKey(key string) domain.Protocol {
 		return domain.ProtocolMessenger
 	case "instagram":
 		return domain.ProtocolInstagram
+	case "signal":
+		return domain.ProtocolSignal
 	}
 	return domain.ProtocolMatrix
 }

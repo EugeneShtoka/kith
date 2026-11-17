@@ -57,6 +57,12 @@ service SignalService {
   // version (Signal's avatar path, or the phone's contact photo's hash) and, when that
   // is not the version kept, its bytes, decrypted.
   rpc Picture(PictureRequest) returns (PictureResponse);
+  // Block blocks a person from a connected account, or unblocks them, as the phone
+  // does: the account's other devices are told, and the helper drops their direct
+  // messages and calls from then on.
+  rpc Block(BlockRequest) returns (BlockResponse);
+  // Blocked is the people a connected account has blocked, as its store keeps them.
+  rpc Blocked(BlockedRequest) returns (BlockedResponse);
 }
 
 message HeartbeatRequest {}
@@ -472,6 +478,27 @@ message LeaveRequest {
 }
 
 message LeaveResponse {}
+
+message BlockRequest {
+  // The connected account's ACI.
+  string account = 1;
+  // The person's ACI.
+  string person = 2;
+  // False unblocks.
+  bool blocked = 3;
+}
+
+message BlockResponse {}
+
+message BlockedRequest {
+  // The connected account's ACI.
+  string account = 1;
+}
+
+message BlockedResponse {
+  // By ACI.
+  repeated string people = 1;
+}
 
 message CreateGroupRequest {
   // The connected account's ACI.
