@@ -8,13 +8,7 @@ import (
 
 // blockableKeys names the phonebook identifier keys of networks whose adapters
 // implement route.Blocker. Keep in sync with the adapters.
-//
-// Meta's (Messenger / Instagram) is deferred: mautrix-meta's messagix package
-// exposes block mutations only as GraphQL metadata, not a public BlockUser call,
-// so wiring it up means plumbing through messagix's internal GraphQL mechanism.
-// Deferred until upstream exposes a method or the person-card row is reworked
-// to say "not supported on this network" instead of silently refusing.
-var blockableKeys = []string{"whatsapp", "telegram"}
+var blockableKeys = []string{"whatsapp", "telegram", "messenger", "instagram"}
 
 // hasBlockableID reports whether a card has any ID on a network with a server-side
 // block list.
