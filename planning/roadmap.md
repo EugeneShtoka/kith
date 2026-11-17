@@ -93,6 +93,9 @@ small and ships on its own.
   from a terminal client that names a profile is refused until the next sync lists it.
 - **Words typed during a profile switch**, for a room the new profile does not hold,
   are saved only once a profile that holds it is back.
+- **Creating a room from a script**: a `create_room` tool on kith-mcp and a
+  `kith room new` command, both over kithd's existing `CreateRoom`, so a hook can open
+  a group without the app.
 
 ### Remote clients
 
@@ -130,8 +133,6 @@ Not ordered; taken when a reason appears.
 - **Server-side search** for history that was never cached locally (Matrix's
   `/search`, and the networks that have one), merged into the same results pane as a
   separate, slower tier.
-- **`/call` with no setup.** The Jitsi command template needs no account; offering
-  `/call` from it by default on a fresh install is undecided.
 - **iMessage**, only through a helper on a Mac (the shape of `kith-signal`); no other
   approach works today.
 
