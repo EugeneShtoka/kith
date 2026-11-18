@@ -9,13 +9,12 @@ import (
 )
 
 // blockableKeys names the networks whose adapters implement route.Blocker, by their
-// phonebook identifier key (or ID prefix, for a network the phonebook has no key for).
-// Keep in sync with the adapters.
+// phonebook identifier key. Keep in sync with the adapters.
 var blockableKeys = []string{"whatsapp", "telegram", "messenger", "instagram"}
 
 // blockTargets is every kith-shaped ID of the person on a blockable network: the
-// card's, and the one their card was opened on, which alone names them on a network
-// the phonebook has no key for.
+// card's, and the one their card was opened on, which names them before their card
+// has that network's key.
 func blockTargets(p personState) []string {
 	out := collectBlockableIDs(p.card.IDs)
 	for _, key := range blockableKeys {
