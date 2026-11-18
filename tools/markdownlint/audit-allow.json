@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "advisory": "GHSA-fc5q-39xc-vjpf",
+    "package": "picomatch",
+    "until": "2027-01-18",
+    "reason": "No fixed release (every picomatch through 4.0.7, the newest). markdownlint-cli2 runs only on this repository's own Markdown, with globs from our own Makefile and config: no one else supplies a pattern, so the extglob ReDoS has no attacker."
+  }
+]
