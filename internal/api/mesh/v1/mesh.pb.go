@@ -120,6 +120,7 @@ type SyncFrame struct {
 	//	*SyncFrame_Ops
 	//	*SyncFrame_Snapshot
 	//	*SyncFrame_Ack
+	//	*SyncFrame_Epochs
 	Frame         isSyncFrame_Frame `protobuf_oneof:"frame"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -198,6 +199,15 @@ func (x *SyncFrame) GetAck() *Ack {
 	return nil
 }
 
+func (x *SyncFrame) GetEpochs() *Epochs {
+	if x != nil {
+		if x, ok := x.Frame.(*SyncFrame_Epochs); ok {
+			return x.Epochs
+		}
+	}
+	return nil
+}
+
 type isSyncFrame_Frame interface {
 	isSyncFrame_Frame()
 }
@@ -218,6 +228,10 @@ type SyncFrame_Ack struct {
 	Ack *Ack `protobuf:"bytes,4,opt,name=ack,proto3,oneof"`
 }
 
+type SyncFrame_Epochs struct {
+	Epochs *Epochs `protobuf:"bytes,5,opt,name=epochs,proto3,oneof"`
+}
+
 func (*SyncFrame_Hello) isSyncFrame_Frame() {}
 
 func (*SyncFrame_Ops) isSyncFrame_Frame() {}
@@ -226,15 +240,18 @@ func (*SyncFrame_Snapshot) isSyncFrame_Frame() {}
 
 func (*SyncFrame_Ack) isSyncFrame_Frame() {}
 
+func (*SyncFrame_Epochs) isSyncFrame_Frame() {}
+
 // Hello is each side's first frame: its device ID, its wall clock (Unix
-// milliseconds), its version vector and the protocol it speaks. A peer whose clock is
-// more than 60 seconds off is refused, the gap named.
+// milliseconds), its version vector, the protocol it speaks and the epoch records it
+// holds. A peer whose clock is more than 60 seconds off is refused, the gap named.
 type Hello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Replica       []byte                 `protobuf:"bytes,1,opt,name=replica,proto3" json:"replica,omitempty"`
 	WallMs        int64                  `protobuf:"varint,2,opt,name=wall_ms,json=wallMs,proto3" json:"wall_ms,omitempty"`
 	Vector        []*Head                `protobuf:"bytes,3,rep,name=vector,proto3" json:"vector,omitempty"`
 	Protocol      uint32                 `protobuf:"varint,4,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	Epochs        *Epochs                `protobuf:"bytes,5,opt,name=epochs,proto3" json:"epochs,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -297,6 +314,177 @@ func (x *Hello) GetProtocol() uint32 {
 	return 0
 }
 
+func (x *Hello) GetEpochs() *Epochs {
+	if x != nil {
+		return x.Epochs
+	}
+	return nil
+}
+
+// Epochs are epoch records the sender holds that the receiver may not, and the epochs
+// whose content key the sender lacks though it holds ops sealed under them: a bridge
+// holding the key answers with a wrap for it.
+type Epochs struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Records       []*EpochRecord         `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
+	Want          []*Epoch               `protobuf:"bytes,2,rep,name=want,proto3" json:"want,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Epochs) Reset() {
+	*x = Epochs{}
+	mi := &file_mesh_v1_mesh_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Epochs) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Epochs) ProtoMessage() {}
+
+func (x *Epochs) ProtoReflect() protoreflect.Message {
+	mi := &file_mesh_v1_mesh_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Epochs.ProtoReflect.Descriptor instead.
+func (*Epochs) Descriptor() ([]byte, []int) {
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Epochs) GetRecords() []*EpochRecord {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+func (x *Epochs) GetWant() []*Epoch {
+	if x != nil {
+		return x.Want
+	}
+	return nil
+}
+
+// EpochRecord is an epoch's content key wrapped for bridges, as its signer wrote it:
+// body is every field the signature covers, in the mesh's own encoding
+// (internal/mesh/crdt): the epoch, the maker's vector when it made it, each wrap (a
+// bridge's device ID and the key sealed to its sealing key, HPKE), and the signer.
+type EpochRecord struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Body          []byte                 `protobuf:"bytes,1,opt,name=body,proto3" json:"body,omitempty"`
+	Sig           []byte                 `protobuf:"bytes,2,opt,name=sig,proto3" json:"sig,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EpochRecord) Reset() {
+	*x = EpochRecord{}
+	mi := &file_mesh_v1_mesh_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EpochRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EpochRecord) ProtoMessage() {}
+
+func (x *EpochRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_mesh_v1_mesh_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EpochRecord.ProtoReflect.Descriptor instead.
+func (*EpochRecord) Descriptor() ([]byte, []int) {
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *EpochRecord) GetBody() []byte {
+	if x != nil {
+		return x.Body
+	}
+	return nil
+}
+
+func (x *EpochRecord) GetSig() []byte {
+	if x != nil {
+		return x.Sig
+	}
+	return nil
+}
+
+// Epoch names a content key: its number and the device ID of the bridge that made it.
+type Epoch struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Number        uint64                 `protobuf:"varint,1,opt,name=number,proto3" json:"number,omitempty"`
+	Maker         []byte                 `protobuf:"bytes,2,opt,name=maker,proto3" json:"maker,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Epoch) Reset() {
+	*x = Epoch{}
+	mi := &file_mesh_v1_mesh_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Epoch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Epoch) ProtoMessage() {}
+
+func (x *Epoch) ProtoReflect() protoreflect.Message {
+	mi := &file_mesh_v1_mesh_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Epoch.ProtoReflect.Descriptor instead.
+func (*Epoch) Descriptor() ([]byte, []int) {
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Epoch) GetNumber() uint64 {
+	if x != nil {
+		return x.Number
+	}
+	return 0
+}
+
+func (x *Epoch) GetMaker() []byte {
+	if x != nil {
+		return x.Maker
+	}
+	return nil
+}
+
 // Head is what a version vector holds of one origin: every op up to seq, and the hash
 // of the op at seq.
 type Head struct {
@@ -310,7 +498,7 @@ type Head struct {
 
 func (x *Head) Reset() {
 	*x = Head{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[4]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -322,7 +510,7 @@ func (x *Head) String() string {
 func (*Head) ProtoMessage() {}
 
 func (x *Head) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[4]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -335,7 +523,7 @@ func (x *Head) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Head.ProtoReflect.Descriptor instead.
 func (*Head) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{4}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Head) GetOrigin() []byte {
@@ -361,18 +549,23 @@ func (x *Head) GetHash() []byte {
 
 // Op is one signed op, as its origin wrote it: body is every field the signature
 // covers, in the mesh's own encoding (internal/mesh/crdt), so a relay passes on
-// exactly what the origin signed.
+// exactly what the origin signed. sealed is its envelope, made by the origin: origin,
+// seq and epoch in the clear, then a nonce and body and sig padded to a multiple of
+// 4 KiB in an AES-256-GCM box under the epoch's content key, with the clear fields as
+// additional data. A relay passes it on as those bytes too; an op written before ops
+// were sealed has none.
 type Op struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Body          []byte                 `protobuf:"bytes,1,opt,name=body,proto3" json:"body,omitempty"`
 	Sig           []byte                 `protobuf:"bytes,2,opt,name=sig,proto3" json:"sig,omitempty"`
+	Sealed        []byte                 `protobuf:"bytes,3,opt,name=sealed,proto3" json:"sealed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Op) Reset() {
 	*x = Op{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[5]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -384,7 +577,7 @@ func (x *Op) String() string {
 func (*Op) ProtoMessage() {}
 
 func (x *Op) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[5]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -397,7 +590,7 @@ func (x *Op) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Op.ProtoReflect.Descriptor instead.
 func (*Op) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{5}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Op) GetBody() []byte {
@@ -414,6 +607,13 @@ func (x *Op) GetSig() []byte {
 	return nil
 }
 
+func (x *Op) GetSealed() []byte {
+	if x != nil {
+		return x.Sealed
+	}
+	return nil
+}
+
 // Ops are ops in an order that follows causality: the sender's apply order.
 type Ops struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -424,7 +624,7 @@ type Ops struct {
 
 func (x *Ops) Reset() {
 	*x = Ops{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[6]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -436,7 +636,7 @@ func (x *Ops) String() string {
 func (*Ops) ProtoMessage() {}
 
 func (x *Ops) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[6]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -449,7 +649,7 @@ func (x *Ops) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ops.ProtoReflect.Descriptor instead.
 func (*Ops) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{6}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Ops) GetOps() []*Op {
@@ -474,7 +674,7 @@ type Snapshot struct {
 
 func (x *Snapshot) Reset() {
 	*x = Snapshot{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[7]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -486,7 +686,7 @@ func (x *Snapshot) String() string {
 func (*Snapshot) ProtoMessage() {}
 
 func (x *Snapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[7]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -499,7 +699,7 @@ func (x *Snapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Snapshot.ProtoReflect.Descriptor instead.
 func (*Snapshot) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{7}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Snapshot) GetEntries() []*Entry {
@@ -551,7 +751,7 @@ type Entry struct {
 
 func (x *Entry) Reset() {
 	*x = Entry{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[8]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -563,7 +763,7 @@ func (x *Entry) String() string {
 func (*Entry) ProtoMessage() {}
 
 func (x *Entry) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[8]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -576,7 +776,7 @@ func (x *Entry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Entry.ProtoReflect.Descriptor instead.
 func (*Entry) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{8}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Entry) GetKey() string {
@@ -624,7 +824,7 @@ type Ack struct {
 
 func (x *Ack) Reset() {
 	*x = Ack{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[9]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -636,7 +836,7 @@ func (x *Ack) String() string {
 func (*Ack) ProtoMessage() {}
 
 func (x *Ack) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[9]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -649,7 +849,7 @@ func (x *Ack) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ack.ProtoReflect.Descriptor instead.
 func (*Ack) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{9}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Ack) GetVector() []*Head {
@@ -667,25 +867,37 @@ const file_mesh_v1_mesh_proto_rawDesc = "" +
 	"\vSyncRequest\x12(\n" +
 	"\x05frame\x18\x01 \x01(\v2\x12.mesh.v1.SyncFrameR\x05frame\"8\n" +
 	"\fSyncResponse\x12(\n" +
-	"\x05frame\x18\x01 \x01(\v2\x12.mesh.v1.SyncFrameR\x05frame\"\xb1\x01\n" +
+	"\x05frame\x18\x01 \x01(\v2\x12.mesh.v1.SyncFrameR\x05frame\"\xdc\x01\n" +
 	"\tSyncFrame\x12&\n" +
 	"\x05hello\x18\x01 \x01(\v2\x0e.mesh.v1.HelloH\x00R\x05hello\x12 \n" +
 	"\x03ops\x18\x02 \x01(\v2\f.mesh.v1.OpsH\x00R\x03ops\x12/\n" +
 	"\bsnapshot\x18\x03 \x01(\v2\x11.mesh.v1.SnapshotH\x00R\bsnapshot\x12 \n" +
-	"\x03ack\x18\x04 \x01(\v2\f.mesh.v1.AckH\x00R\x03ackB\a\n" +
-	"\x05frame\"}\n" +
+	"\x03ack\x18\x04 \x01(\v2\f.mesh.v1.AckH\x00R\x03ack\x12)\n" +
+	"\x06epochs\x18\x05 \x01(\v2\x0f.mesh.v1.EpochsH\x00R\x06epochsB\a\n" +
+	"\x05frame\"\xa6\x01\n" +
 	"\x05Hello\x12\x18\n" +
 	"\areplica\x18\x01 \x01(\fR\areplica\x12\x17\n" +
 	"\awall_ms\x18\x02 \x01(\x03R\x06wallMs\x12%\n" +
 	"\x06vector\x18\x03 \x03(\v2\r.mesh.v1.HeadR\x06vector\x12\x1a\n" +
-	"\bprotocol\x18\x04 \x01(\rR\bprotocol\"D\n" +
+	"\bprotocol\x18\x04 \x01(\rR\bprotocol\x12'\n" +
+	"\x06epochs\x18\x05 \x01(\v2\x0f.mesh.v1.EpochsR\x06epochs\"\\\n" +
+	"\x06Epochs\x12.\n" +
+	"\arecords\x18\x01 \x03(\v2\x14.mesh.v1.EpochRecordR\arecords\x12\"\n" +
+	"\x04want\x18\x02 \x03(\v2\x0e.mesh.v1.EpochR\x04want\"3\n" +
+	"\vEpochRecord\x12\x12\n" +
+	"\x04body\x18\x01 \x01(\fR\x04body\x12\x10\n" +
+	"\x03sig\x18\x02 \x01(\fR\x03sig\"5\n" +
+	"\x05Epoch\x12\x16\n" +
+	"\x06number\x18\x01 \x01(\x04R\x06number\x12\x14\n" +
+	"\x05maker\x18\x02 \x01(\fR\x05maker\"D\n" +
 	"\x04Head\x12\x16\n" +
 	"\x06origin\x18\x01 \x01(\fR\x06origin\x12\x10\n" +
 	"\x03seq\x18\x02 \x01(\x04R\x03seq\x12\x12\n" +
-	"\x04hash\x18\x03 \x01(\fR\x04hash\"*\n" +
+	"\x04hash\x18\x03 \x01(\fR\x04hash\"B\n" +
 	"\x02Op\x12\x12\n" +
 	"\x04body\x18\x01 \x01(\fR\x04body\x12\x10\n" +
-	"\x03sig\x18\x02 \x01(\fR\x03sig\"$\n" +
+	"\x03sig\x18\x02 \x01(\fR\x03sig\x12\x16\n" +
+	"\x06sealed\x18\x03 \x01(\fR\x06sealed\"$\n" +
 	"\x03Ops\x12\x1d\n" +
 	"\x03ops\x18\x01 \x03(\v2\v.mesh.v1.OpR\x03ops\"\xaa\x01\n" +
 	"\bSnapshot\x12(\n" +
@@ -717,39 +929,46 @@ func file_mesh_v1_mesh_proto_rawDescGZIP() []byte {
 	return file_mesh_v1_mesh_proto_rawDescData
 }
 
-var file_mesh_v1_mesh_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_mesh_v1_mesh_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_mesh_v1_mesh_proto_goTypes = []any{
 	(*SyncRequest)(nil),  // 0: mesh.v1.SyncRequest
 	(*SyncResponse)(nil), // 1: mesh.v1.SyncResponse
 	(*SyncFrame)(nil),    // 2: mesh.v1.SyncFrame
 	(*Hello)(nil),        // 3: mesh.v1.Hello
-	(*Head)(nil),         // 4: mesh.v1.Head
-	(*Op)(nil),           // 5: mesh.v1.Op
-	(*Ops)(nil),          // 6: mesh.v1.Ops
-	(*Snapshot)(nil),     // 7: mesh.v1.Snapshot
-	(*Entry)(nil),        // 8: mesh.v1.Entry
-	(*Ack)(nil),          // 9: mesh.v1.Ack
+	(*Epochs)(nil),       // 4: mesh.v1.Epochs
+	(*EpochRecord)(nil),  // 5: mesh.v1.EpochRecord
+	(*Epoch)(nil),        // 6: mesh.v1.Epoch
+	(*Head)(nil),         // 7: mesh.v1.Head
+	(*Op)(nil),           // 8: mesh.v1.Op
+	(*Ops)(nil),          // 9: mesh.v1.Ops
+	(*Snapshot)(nil),     // 10: mesh.v1.Snapshot
+	(*Entry)(nil),        // 11: mesh.v1.Entry
+	(*Ack)(nil),          // 12: mesh.v1.Ack
 }
 var file_mesh_v1_mesh_proto_depIdxs = []int32{
 	2,  // 0: mesh.v1.SyncRequest.frame:type_name -> mesh.v1.SyncFrame
 	2,  // 1: mesh.v1.SyncResponse.frame:type_name -> mesh.v1.SyncFrame
 	3,  // 2: mesh.v1.SyncFrame.hello:type_name -> mesh.v1.Hello
-	6,  // 3: mesh.v1.SyncFrame.ops:type_name -> mesh.v1.Ops
-	7,  // 4: mesh.v1.SyncFrame.snapshot:type_name -> mesh.v1.Snapshot
-	9,  // 5: mesh.v1.SyncFrame.ack:type_name -> mesh.v1.Ack
-	4,  // 6: mesh.v1.Hello.vector:type_name -> mesh.v1.Head
-	5,  // 7: mesh.v1.Ops.ops:type_name -> mesh.v1.Op
-	8,  // 8: mesh.v1.Snapshot.entries:type_name -> mesh.v1.Entry
-	5,  // 9: mesh.v1.Snapshot.roster:type_name -> mesh.v1.Op
-	4,  // 10: mesh.v1.Snapshot.vector:type_name -> mesh.v1.Head
-	4,  // 11: mesh.v1.Ack.vector:type_name -> mesh.v1.Head
-	0,  // 12: mesh.v1.MeshService.Sync:input_type -> mesh.v1.SyncRequest
-	1,  // 13: mesh.v1.MeshService.Sync:output_type -> mesh.v1.SyncResponse
-	13, // [13:14] is the sub-list for method output_type
-	12, // [12:13] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	9,  // 3: mesh.v1.SyncFrame.ops:type_name -> mesh.v1.Ops
+	10, // 4: mesh.v1.SyncFrame.snapshot:type_name -> mesh.v1.Snapshot
+	12, // 5: mesh.v1.SyncFrame.ack:type_name -> mesh.v1.Ack
+	4,  // 6: mesh.v1.SyncFrame.epochs:type_name -> mesh.v1.Epochs
+	7,  // 7: mesh.v1.Hello.vector:type_name -> mesh.v1.Head
+	4,  // 8: mesh.v1.Hello.epochs:type_name -> mesh.v1.Epochs
+	5,  // 9: mesh.v1.Epochs.records:type_name -> mesh.v1.EpochRecord
+	6,  // 10: mesh.v1.Epochs.want:type_name -> mesh.v1.Epoch
+	8,  // 11: mesh.v1.Ops.ops:type_name -> mesh.v1.Op
+	11, // 12: mesh.v1.Snapshot.entries:type_name -> mesh.v1.Entry
+	8,  // 13: mesh.v1.Snapshot.roster:type_name -> mesh.v1.Op
+	7,  // 14: mesh.v1.Snapshot.vector:type_name -> mesh.v1.Head
+	7,  // 15: mesh.v1.Ack.vector:type_name -> mesh.v1.Head
+	0,  // 16: mesh.v1.MeshService.Sync:input_type -> mesh.v1.SyncRequest
+	1,  // 17: mesh.v1.MeshService.Sync:output_type -> mesh.v1.SyncResponse
+	17, // [17:18] is the sub-list for method output_type
+	16, // [16:17] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_mesh_v1_mesh_proto_init() }
@@ -762,6 +981,7 @@ func file_mesh_v1_mesh_proto_init() {
 		(*SyncFrame_Ops)(nil),
 		(*SyncFrame_Snapshot)(nil),
 		(*SyncFrame_Ack)(nil),
+		(*SyncFrame_Epochs)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -769,7 +989,7 @@ func file_mesh_v1_mesh_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mesh_v1_mesh_proto_rawDesc), len(file_mesh_v1_mesh_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

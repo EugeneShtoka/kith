@@ -29,7 +29,7 @@ import (
 // schemaVersion is the store's layout (PRAGMA user_version). A store of a later one was
 // written by a newer kith, and is refused rather than read or rebuilt: it holds writes
 // and pairings nothing else has.
-const schemaVersion = 1
+const schemaVersion = 2
 
 // ErrNewer is a store a newer kith wrote.
 var ErrNewer = errors.New("mesh: the store was written by a newer kith; run that kith, or restore the store it replaced")
@@ -40,7 +40,10 @@ var ErrNewer = errors.New("mesh: the store was written by a newer kith; run that
 // of any op is read from them, and a snapshot carries them; every other op leaves the
 // log once past the horizon and acknowledged by every live peer. peers is each other
 // replica's last reported vector, when it was heard and its clock's gap then; forks
-// each origin that signed two ops under one dot, with both.
+// each origin that signed two ops under one dot, with both. An op keeps its envelope
+// beside it (none for one written before ops were sealed, layout 1), and keys the
+// keyring (keys.go): this replica's sealing key, the content keys it holds and the
+// epoch records it passes on.
 const schema = `
 CREATE TABLE replicas (
 	idx INTEGER PRIMARY KEY,
@@ -53,6 +56,7 @@ CREATE TABLE ops (
 	body   BLOB NOT NULL,
 	sig    BLOB NOT NULL,
 	roster INTEGER NOT NULL,
+	sealed BLOB,
 	PRIMARY KEY (origin, seq)
 ) WITHOUT ROWID;
 CREATE TABLE entries (
@@ -83,6 +87,26 @@ CREATE TABLE forks (
 	other_body BLOB NOT NULL,
 	other_sig  BLOB NOT NULL
 );
+` + keysSchema
+
+// keysSchema is what layout 2 adds to layout 1, beside the ops' envelopes.
+const keysSchema = `
+CREATE TABLE sealing (
+	id      INTEGER PRIMARY KEY CHECK (id = 1),
+	private BLOB NOT NULL
+);
+CREATE TABLE epochs (
+	number INTEGER NOT NULL,
+	maker  BLOB NOT NULL,
+	key    BLOB NOT NULL,
+	seals  INTEGER NOT NULL,
+	PRIMARY KEY (number, maker)
+) WITHOUT ROWID;
+CREATE TABLE records (
+	hash BLOB PRIMARY KEY,
+	body BLOB NOT NULL,
+	sig  BLOB NOT NULL
+) WITHOUT ROWID;
 `
 
 // Store is one replica's store, its state held in memory as last committed.
@@ -110,6 +134,8 @@ type Store struct {
 	// marks are the write of each room's unread mark handed out (TakeMarks), or held
 	// when the store was opened.
 	marks map[string]crdt.Dot
+	// keys are what seals and opens ops.
+	keys keyring
 }
 
 // peer is what a replica last said of itself.
@@ -186,8 +212,8 @@ func check(ctx context.Context, path string, key []byte) error {
 	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return fmt.Errorf("mesh: %s: %w", path, err)
 	}
-	if version == 0 {
-		return nil // laid out by nobody yet: nothing to read
+	if version < schemaVersion {
+		return nil // laid out by nobody yet, or an older layout Open lays out anew: nothing to read
 	}
 	if err := (&Store{db: db}).load(ctx); err != nil {
 		return fmt.Errorf("mesh: %s: %w", path, err)
@@ -216,6 +242,10 @@ func (s *Store) load(ctx context.Context) error {
 		return fmt.Errorf("%w (layout %d, this kith reads %d)", ErrNewer, version, schemaVersion)
 	case version == 0:
 		return s.create(ctx)
+	case version < schemaVersion:
+		if err := s.migrate(ctx); err != nil {
+			return err
+		}
 	}
 	state := crdt.State{Entries: map[string][]crdt.Entry{}, Vector: crdt.Vector{}}
 	if err := s.loadEntries(ctx, state.Entries); err != nil {
@@ -232,6 +262,9 @@ func (s *Store) load(ctx context.Context) error {
 		return fmt.Errorf("read the roster: %w", err)
 	}
 	if err := s.loadPeers(ctx); err != nil {
+		return err
+	}
+	if err := s.loadKeys(ctx); err != nil {
 		return err
 	}
 	if err := s.db.QueryRowContext(ctx, `SELECT max(coalesce((SELECT max(clock) FROM ops), 0), coalesce((SELECT max(clock) FROM entries), 0))`).
@@ -311,10 +344,11 @@ func (s *Store) loadVector(ctx context.Context, v crdt.Vector) error {
 // origin's ID, after which seq, up to which), in an order that follows causality: by
 // (clock, origin), as a write's clock is past every op it had seen.
 const (
-	selectOps   = `SELECT o.body, o.sig FROM ops o JOIN replicas r ON r.idx = o.origin `
+	selectOps   = `SELECT o.body, o.sig, o.sealed FROM ops o JOIN replicas r ON r.idx = o.origin `
 	rosterOps   = selectOps + `WHERE o.roster = 1 ORDER BY o.clock, r.id`
 	originOps   = selectOps + `WHERE r.id = ? AND o.seq > ? AND o.seq <= ? ORDER BY o.clock, r.id`
-	deleteEvery = `DELETE FROM entries; DELETE FROM ops; DELETE FROM vv; DELETE FROM peers; DELETE FROM forks;`
+	deleteEvery = `DELETE FROM entries; DELETE FROM ops; DELETE FROM vv; DELETE FROM peers; DELETE FROM forks;
+		DELETE FROM epochs; DELETE FROM records;`
 )
 
 // loadOps reads the kept ops query (rosterOps, originOps) names.
@@ -326,14 +360,15 @@ func (s *Store) loadOps(ctx context.Context, query string, args ...any) ([]crdt.
 	defer func() { _ = rows.Close() }()
 	var out []crdt.Op
 	for rows.Next() {
-		var body, sig []byte
-		if err := rows.Scan(&body, &sig); err != nil {
+		var body, sig, sealed []byte
+		if err := rows.Scan(&body, &sig, &sealed); err != nil {
 			return nil, fmt.Errorf("read the ops: %w", err)
 		}
 		op, err := crdt.ParseOp(body, sig)
 		if err != nil {
 			return nil, fmt.Errorf("read the ops: %w", err)
 		}
+		op.Sealed = sealed
 		out = append(out, op)
 	}
 	if err := rows.Err(); err != nil {
@@ -392,6 +427,9 @@ func (s *Store) create(ctx context.Context) error {
 	if _, err := tx.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("lay out the store: %w", err)
 	}
+	if err := newSealing(ctx, tx); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
 		return fmt.Errorf("lay out the store: %w", err)
 	}
@@ -399,6 +437,29 @@ func (s *Store) create(ctx context.Context) error {
 		return fmt.Errorf("lay out the store: %w", err)
 	}
 	s.state, s.marks = crdt.State{}, map[string]crdt.Dot{}
+	return s.loadKeys(ctx)
+}
+
+// migrate lays out a store of layout 1 as layout 2: its ops keep no envelope (they
+// reach a mailbox only inside a snapshot), and it gets a sealing key.
+func (s *Store) migrate(ctx context.Context) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("lay out the store anew: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }() // a no-op once committed
+	if _, err := tx.ExecContext(ctx, `ALTER TABLE ops ADD COLUMN sealed BLOB;`+keysSchema); err != nil {
+		return fmt.Errorf("lay out the store anew: %w", err)
+	}
+	if err := newSealing(ctx, tx); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
+		return fmt.Errorf("lay out the store anew: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("lay out the store anew: %w", err)
+	}
 	return nil
 }
 
@@ -461,25 +522,56 @@ func (s *Store) ChangeRoster(ctx context.Context, signer crypto.Signer, set []do
 	return s.writeLocked(ctx, signer, origin, writes)
 }
 
-// writeLocked writes writes as this replica's next op, signed by signer.
+// writeLocked writes writes as this replica's next op, signed by signer, and seals it
+// (keyring.seal), in one transaction.
 func (s *Store) writeLocked(ctx context.Context, signer crypto.Signer, origin devicekey.ID, writes []crdt.Write) error {
+	writes, err := s.withSealing(origin, writes)
+	if err != nil {
+		return err
+	}
 	op := crdt.Op{
 		Origin: origin, Seq: s.state.Vector[origin].Seq + 1, Clock: s.clock.Next(time.Now()),
 		Context: s.state.Vector.Context(), Writes: writes,
 	}
-	if err := op.Sign(signer); err != nil {
+	if err = op.Sign(signer); err != nil {
 		return fmt.Errorf("mesh: %w", err)
 	}
 	next, err := s.state.Apply(op)
 	if err != nil {
 		return fmt.Errorf("mesh: %w", err)
 	}
-	if err := s.commit(ctx, []crdt.Op{op}, next, nil); err != nil {
+	keys := s.keys.clone()
+	if err := keys.seal(&next, signer, origin, &op); err != nil {
 		return err
 	}
-	s.state, s.clock = next, op.Clock
+	if err := s.commit(ctx, []crdt.Op{op}, next, nil, &keys); err != nil {
+		return err
+	}
+	s.state, s.clock, s.keys = next, op.Clock, keys
 	s.notifyLocked()
 	return nil
+}
+
+// withSealing is writes, and this bridge's own entry with its sealing key when the
+// roster holds it without (a mesh made before ops were sealed) and writes do not
+// write the entry themselves.
+func (s *Store) withSealing(origin devicekey.ID, writes []crdt.Write) ([]crdt.Write, error) {
+	roster, err := s.state.Roster()
+	if err != nil {
+		return nil, fmt.Errorf("mesh: %w", err)
+	}
+	me, ok := roster[origin]
+	key := crdt.RosterKey(origin)
+	if !ok || me.Removed || me.Role != crdt.RoleBridge || bytes.Equal(me.Sealing, s.keys.public()) ||
+		slices.ContainsFunc(writes, func(w crdt.Write) bool { return w.Key == key }) {
+		return writes, nil
+	}
+	me.Sealing = s.keys.public()
+	value, err := me.Encode()
+	if err != nil {
+		return nil, fmt.Errorf("mesh: %w", err)
+	}
+	return append(slices.Clip(writes), crdt.Write{Key: key, Value: value}), nil
 }
 
 // opBudget bounds the keys and values of one op this replica writes, well under
@@ -529,12 +621,13 @@ func (s *Store) rosterWrites(signer crypto.Signer, origin devicekey.ID, set []do
 		}
 		m := crdt.Member{Name: d.Name, Role: crdt.Role(d.Role), AddedAt: d.AddedAt, AddedBy: d.AddedBy}
 		if was, ok := roster[id]; ok && !was.Removed {
-			m.Key, m.Addresses = was.Key, was.Addresses // a rename keeps a bridge's key and addresses
+			m.Key, m.Sealing, m.Addresses = was.Key, was.Sealing, was.Addresses // a rename keeps a bridge's keys and addresses
 		}
 		if id == origin {
 			if m.Key, err = x509.MarshalPKIXPublicKey(signer.Public()); err != nil {
 				return nil, fmt.Errorf("mesh: %w", err)
 			}
+			m.Sealing = s.keys.public()
 		}
 		members, ids = append(members, m), append(ids, id)
 	}
@@ -562,9 +655,11 @@ func (s *Store) rosterWrites(signer crypto.Signer, origin devicekey.ID, set []do
 }
 
 // Bridge writes the roster entry of the bridge d names (its name, when and by whom it
-// was added) with its public key (PKIX) and the addresses it is dialed at, signed by
-// signer: a bridge of the roster. Its own entry carries the signer's key.
-func (s *Store) Bridge(ctx context.Context, signer crypto.Signer, d domain.Device, key []byte, addresses []string) error {
+// was added) with its public key (PKIX), its sealing key and the addresses it is dialed
+// at, signed by signer: a bridge of the roster. Its own entry carries the signer's key
+// and this replica's sealing key. Another's, a bridge joining, is given a wrap of the
+// epoch this bridge writes under, so it opens what it is sent from the start.
+func (s *Store) Bridge(ctx context.Context, signer crypto.Signer, d domain.Device, key, sealing []byte, addresses []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	origin, err := devicekey.IDOf(signer.Public())
@@ -579,14 +674,53 @@ func (s *Store) Bridge(ctx context.Context, signer crypto.Signer, d domain.Devic
 		if key, err = x509.MarshalPKIXPublicKey(signer.Public()); err != nil {
 			return fmt.Errorf("mesh: %w", err)
 		}
+		sealing = s.keys.public()
 	}
 	value, err := crdt.Member{
-		Key: key, Name: d.Name, Role: crdt.RoleBridge, Addresses: addresses, AddedAt: d.AddedAt, AddedBy: d.AddedBy,
+		Key: key, Sealing: sealing, Name: d.Name, Role: crdt.RoleBridge, Addresses: addresses, AddedAt: d.AddedAt, AddedBy: d.AddedBy,
 	}.Encode()
 	if err != nil {
 		return fmt.Errorf("mesh: %w", err)
 	}
-	return s.writeLocked(ctx, signer, origin, []crdt.Write{{Key: crdt.RosterKey(id), Value: value}})
+	if err := s.writeLocked(ctx, signer, origin, []crdt.Write{{Key: crdt.RosterKey(id), Value: value}}); err != nil || id == origin {
+		return err
+	}
+	return s.wrapCurrentLocked(ctx, signer, origin, id)
+}
+
+// wrapCurrentLocked adds a wrap for the bridge to of the epoch this replica (self)
+// writes under, and keeps it.
+func (s *Store) wrapCurrentLocked(ctx context.Context, signer crypto.Signer, self, to devicekey.ID) error {
+	roster, err := s.state.Roster()
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	keys := s.keys.clone()
+	e, ok := keys.current(s.state, roster)
+	if !ok {
+		return nil
+	}
+	if err := keys.wrapFor(s.state, roster, signer, self, to, e); err != nil {
+		return err
+	}
+	return s.keepKeysLocked(ctx, keys)
+}
+
+// keepKeysLocked commits keys, a changed clone of the keyring, and holds it.
+func (s *Store) keepKeysLocked(ctx context.Context, keys keyring) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("mesh: keep the keyring: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }() // a no-op once committed
+	if err := keys.save(ctx, tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("mesh: keep the keyring: %w", err)
+	}
+	s.keys = keys
+	return nil
 }
 
 // PublishAccounts writes the accounts this bridge runs to its own key, signed by
@@ -731,16 +865,17 @@ type fork struct {
 }
 
 // commit keeps ops and what they changed of next: the entries of every key they wrote,
-// and each origin's head; and the forks found.
-func (s *Store) commit(ctx context.Context, ops []crdt.Op, next crdt.State, forks []fork) error {
+// and each origin's head; the forks found; and what changed of ring, when given.
+func (s *Store) commit(ctx context.Context, ops []crdt.Op, next crdt.State, forks []fork, ring *keyring) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("mesh: keep an op: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }() // a no-op once committed
 	keys, origins := map[string]bool{}, map[devicekey.ID]bool{}
-	for _, op := range ops {
-		if err := insertOp(ctx, tx, op); err != nil {
+	for i := range ops {
+		op := &ops[i]
+		if err := insertOp(ctx, tx, *op); err != nil {
 			return err
 		}
 		for _, w := range op.Writes {
@@ -761,6 +896,11 @@ func (s *Store) commit(ctx context.Context, ops []crdt.Op, next crdt.State, fork
 	if err := insertForks(ctx, tx, forks); err != nil {
 		return err
 	}
+	if ring != nil {
+		if err := ring.save(ctx, tx); err != nil {
+			return err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("mesh: keep an op: %w", err)
 	}
@@ -774,8 +914,8 @@ func insertOp(ctx context.Context, tx *sql.Tx, op crdt.Op) error {
 		return err
 	}
 	roster := slices.ContainsFunc(op.Writes, func(w crdt.Write) bool { return crdt.IsRosterKey(w.Key) })
-	if _, err := tx.ExecContext(ctx, `INSERT INTO ops (origin, seq, clock, body, sig, roster) VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT DO NOTHING`, origin, op.Seq, op.Clock, op.Body(), op.Sig, roster); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO ops (origin, seq, clock, body, sig, roster, sealed) VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT DO NOTHING`, origin, op.Seq, op.Clock, op.Body(), op.Sig, roster, op.Sealed); err != nil {
 		return fmt.Errorf("mesh: keep an op: %w", err)
 	}
 	return nil

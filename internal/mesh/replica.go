@@ -66,10 +66,10 @@ func (s *Store) applyLocked(ctx context.Context, ops []crdt.Op, now time.Time) (
 	for progress := true; progress; {
 		progress = false
 		var rest []crdt.Op
-		for _, op := range queue {
-			switch s.offer(ctx, &b, op, now) {
+		for i := range queue {
+			switch s.offer(ctx, &b, queue[i], now) {
 			case kept:
-				rest = append(rest, op)
+				rest = append(rest, queue[i])
 			case applied:
 				progress = true
 			case dropped:
@@ -78,12 +78,12 @@ func (s *Store) applyLocked(ctx context.Context, ops []crdt.Op, now time.Time) (
 		queue = rest
 	}
 	if len(b.taken)+len(b.forks) > 0 {
-		if err := s.commit(ctx, b.taken, b.state, b.forks); err != nil {
+		if err := s.commit(ctx, b.taken, b.state, b.forks, nil); err != nil {
 			return received{}, err
 		}
 		s.state = b.state
-		for _, op := range b.taken {
-			s.clock = max(s.clock, op.Clock)
+		for i := range b.taken {
+			s.clock = max(s.clock, b.taken[i].Clock)
 		}
 		for i := range b.forks {
 			s.forked[b.forks[i].other.Origin] = true
@@ -109,11 +109,18 @@ type offered int
 
 const (
 	dropped offered = iota // a duplicate (or a fork, recorded), or refused
-	kept                   // held back: it follows ops not held yet, or is from the future
+	kept                   // held back: it follows ops not held yet, is from the future, or is sealed under an epoch whose key is not held yet
 	applied
 )
 
-// offer applies op to b, at now, if it can be.
+// errUnsealed is an op without its envelope from an origin that seals: stripped on its
+// way, and taken only as its origin sent it.
+var errUnsealed = errors.New("mesh: the op came without the envelope its origin sealed it in")
+
+// offer applies op to b, at now, if it can be. An op with an envelope is taken only
+// once it opens to the op: one moved to another dot, or tampered with, is refused; so
+// is one without, once its origin seals (an op written before ops were sealed has
+// none).
 func (s *Store) offer(ctx context.Context, b *batch, op crdt.Op, now time.Time) offered {
 	switch {
 	case op.Seq <= b.state.Vector[op.Origin].Seq:
@@ -128,11 +135,23 @@ func (s *Store) offer(ctx context.Context, b *batch, op crdt.Op, now time.Time) 
 	case op.Clock.Time().After(now.Add(MaxClockGap)):
 		return kept
 	}
+	if len(op.Sealed) > 0 {
+		switch err := s.keys.unseal(op); {
+		case errors.Is(err, errNoKey):
+			return kept
+		case err != nil:
+			b.out.refused = append(b.out.refused, fmt.Errorf("%s's op %d: %w", op.Origin, op.Seq, err))
+			return dropped
+		}
+	}
 	next, err := b.state.Apply(op)
 	switch {
 	case errors.Is(err, crdt.ErrNotReady):
 		return kept
-	case err != nil:
+	case err == nil && len(op.Sealed) == 0 && len(b.state.SignerOf(op).Sealing) > 0:
+		err = errUnsealed
+	}
+	if err != nil {
 		b.out.refused = append(b.out.refused, fmt.Errorf("%s's op %d: %w", op.Origin, op.Seq, err))
 		return dropped
 	}
@@ -149,13 +168,14 @@ func (s *Store) holdBack(ops []crdt.Op) []crdt.Op {
 	}
 	seen := map[key]bool{}
 	var out []crdt.Op
-	for _, op := range ops {
+	for i := range ops {
+		op := &ops[i]
 		k := key{crdt.Dot{Origin: op.Origin, Seq: op.Seq}, string(op.Sig)}
 		if seen[k] {
 			continue
 		}
 		seen[k] = true
-		out = append(out, op)
+		out = append(out, *op)
 	}
 	return out[:min(len(out), maxHeld)]
 }
@@ -261,17 +281,21 @@ func (s *Store) merge(ctx context.Context, snap crdt.Snapshot, now time.Time) (r
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.keys.checkSnapshot(snap); err != nil {
+		return received{}, err
+	}
 	next, dots, err := s.state.Merge(snap)
 	if err != nil {
 		return received{}, fmt.Errorf("mesh: %w", err)
 	}
 	var forks []fork
 	var proofs []crdt.Op
-	for _, op := range snap.RosterOps {
+	for i := range snap.RosterOps {
+		op := &snap.RosterOps[i]
 		if !s.state.Vector.Covers(crdt.Dot{Origin: op.Origin, Seq: op.Seq}) {
 			continue
 		}
-		if f, ok := s.forkOf(ctx, s.state, nil, op); ok && !s.forked[op.Origin] &&
+		if f, ok := s.forkOf(ctx, s.state, nil, *op); ok && !s.forked[op.Origin] &&
 			!slices.ContainsFunc(forks, func(g fork) bool { return g.other.Origin == op.Origin }) {
 			forks = append(forks, f)
 		}
@@ -281,7 +305,7 @@ func (s *Store) merge(ctx context.Context, snap crdt.Snapshot, now time.Time) (r
 			proofs = append(proofs, *op)
 		}
 	}
-	if kerr := s.replace(ctx, next, forks, false); kerr != nil {
+	if kerr := s.replace(ctx, next, forks, nil); kerr != nil {
 		return received{}, kerr
 	}
 	s.state, s.clock = next, max(s.clock, snap.Clock)
@@ -326,8 +350,8 @@ var errAhead = errors.New("mesh: the snapshot holds a write further ahead of thi
 // now.
 func ahead(snap crdt.Snapshot, now time.Time) bool {
 	limit := now.Add(MaxClockGap)
-	for _, op := range snap.RosterOps {
-		if op.Clock.Time().After(limit) {
+	for i := range snap.RosterOps {
+		if snap.RosterOps[i].Clock.Time().After(limit) {
 			return true
 		}
 	}
@@ -342,16 +366,17 @@ func ahead(snap crdt.Snapshot, now time.Time) bool {
 }
 
 // replace keeps next whole: every entry and head, every roster op, and ops (this
-// replica's own, written over it); afresh drops all the store held first (the ops, the
-// peers and the forks too).
-func (s *Store) replace(ctx context.Context, next crdt.State, forks []fork, afresh bool, ops ...crdt.Op) error {
+// replica's own, written over it). Given keys (a store made the mesh's), it drops all
+// the store held first (the ops, the peers, the forks and the keyring too, but its
+// sealing key) and keeps keys whole.
+func (s *Store) replace(ctx context.Context, next crdt.State, forks []fork, keys *keyring, ops ...crdt.Op) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("mesh: keep a snapshot: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }() // a no-op once committed
 	wipe := "DELETE FROM entries"
-	if afresh {
+	if keys != nil {
 		wipe = deleteEvery
 	}
 	if _, err := tx.ExecContext(ctx, wipe); err != nil {
@@ -362,8 +387,9 @@ func (s *Store) replace(ctx context.Context, next crdt.State, forks []fork, afre
 			return err
 		}
 	}
-	for _, op := range slices.Concat(next.RosterOps, ops) {
-		if err := insertOp(ctx, tx, op); err != nil {
+	all := slices.Concat(next.RosterOps, ops)
+	for i := range all {
+		if err := insertOp(ctx, tx, all[i]); err != nil {
 			return err
 		}
 	}
@@ -375,6 +401,11 @@ func (s *Store) replace(ctx context.Context, next crdt.State, forks []fork, afre
 	if err := insertForks(ctx, tx, forks); err != nil {
 		return err
 	}
+	if keys != nil {
+		if err := keys.save(ctx, tx); err != nil {
+			return err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("mesh: keep a snapshot: %w", err)
 	}
@@ -385,15 +416,18 @@ func (s *Store) replace(ctx context.Context, next crdt.State, forks []fork, afre
 // pairing was not confirmed, or the bridge was removed since.
 var errNotJoined = errors.New("mesh: the mesh does not list this bridge as one of its bridges: the pairing was not confirmed")
 
-// adopt makes the store the mesh's, from a member's snapshot, for a bridge that joins
-// it (self, signing with signer): its own genesis and everything it held are dropped,
+// adopt makes the store the mesh's, from a member's snapshot and epoch records, for a
+// bridge that joins it (self, signing with signer): its own genesis and everything it
+// held are dropped (its sealing key kept), the records taken as the mesh's roster
+// admits them, so the ops it writes are sealed under the epoch its sponsor wrapped
+// for it,
 // and the devices paired with it written again as its own ops, so they chain from its
 // add and every bridge admits them. A device whose name the mesh has taken keeps it
 // with its ID's first group added. Its read positions are written again too, each
 // further than the mesh's, and its unread marks of rooms the mesh holds none of. One
 // transaction: a join cut off leaves the store as it was. It returns the mesh's
 // members as this bridge admits them now.
-func (s *Store) adopt(ctx context.Context, snap crdt.Snapshot, signer crypto.Signer, self devicekey.ID) ([]domain.Device, error) {
+func (s *Store) adopt(ctx context.Context, snap crdt.Snapshot, records []crdt.EpochRecord, signer crypto.Signer, self devicekey.ID) ([]domain.Device, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	mine, err := s.state.Roster()
@@ -411,6 +445,10 @@ func (s *Store) adopt(ctx context.Context, snap crdt.Snapshot, signer crypto.Sig
 	if m, ok := theirs[self]; !ok || m.Removed || m.Role != crdt.RoleBridge {
 		return nil, errNotJoined
 	}
+	keys := s.keys.joined(records, theirs, self)
+	if cerr := keys.checkSnapshot(snap); cerr != nil {
+		return nil, cerr
+	}
 	writes, err := readds(mine, theirs)
 	if err != nil {
 		return nil, err
@@ -419,14 +457,14 @@ func (s *Store) adopt(ctx context.Context, snap crdt.Snapshot, signer crypto.Sig
 	if err != nil {
 		return nil, fmt.Errorf("mesh: %w", err)
 	}
-	next, clock, ops, err := writeOver(next, max(s.clock, snap.Clock), self, signer, append([][]crdt.Write{writes}, batches(reads)...))
+	next, clock, ops, err := writeOver(next, max(s.clock, snap.Clock), self, signer, &keys, append([][]crdt.Write{writes}, batches(reads)...))
 	if err != nil {
 		return nil, err
 	}
-	if kerr := s.replace(ctx, next, nil, true, ops...); kerr != nil {
+	if kerr := s.replace(ctx, next, nil, &keys, ops...); kerr != nil {
 		return nil, kerr
 	}
-	s.state, s.clock, s.marks = next, clock, markDots(next)
+	s.state, s.clock, s.marks, s.keys = next, clock, markDots(next), keys
 	s.peers, s.forked, s.held = map[devicekey.ID]peer{}, map[devicekey.ID]bool{}, nil
 	s.notifyLocked()
 	roster, err := next.Roster()
@@ -444,8 +482,10 @@ func (s *Store) adopt(ctx context.Context, snap crdt.Snapshot, signer crypto.Sig
 }
 
 // writeOver is next with each batch of writes written over it as an op of self's,
-// signed by signer, clocked past clock: the state, the last op's clock, and the ops.
-func writeOver(next crdt.State, clock crdt.Clock, self devicekey.ID, signer crypto.Signer, writes [][]crdt.Write) (crdt.State, crdt.Clock, []crdt.Op, error) {
+// signed by signer and sealed with keys, clocked past clock: the state, the last op's
+// clock, and the ops.
+func writeOver(next crdt.State, clock crdt.Clock, self devicekey.ID, signer crypto.Signer, keys *keyring, writes [][]crdt.Write,
+) (crdt.State, crdt.Clock, []crdt.Op, error) {
 	var ops []crdt.Op
 	for _, batch := range writes {
 		if len(batch) == 0 {
@@ -461,6 +501,9 @@ func writeOver(next crdt.State, clock crdt.Clock, self devicekey.ID, signer cryp
 		var err error
 		if next, err = next.Apply(op); err != nil {
 			return next, clock, nil, fmt.Errorf("mesh: %w", err)
+		}
+		if err := keys.seal(&next, signer, self, &op); err != nil {
+			return next, clock, nil, err
 		}
 		clock, ops = op.Clock, append(ops, op)
 	}

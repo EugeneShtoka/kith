@@ -88,9 +88,12 @@ type RosterStore interface {
 	// one op signed by signer: a bridge of the roster, or on an empty store the
 	// genesis, whose set names the signer.
 	ChangeRoster(ctx context.Context, signer crypto.Signer, set []domain.Device, remove []string) error
-	// Bridge writes the entry of the bridge d names with its public key (PKIX) and the
-	// addresses it is dialed at, signed by signer; this bridge's own takes the signer's.
-	Bridge(ctx context.Context, signer crypto.Signer, d domain.Device, key []byte, addresses []string) error
+	// Bridge writes the entry of the bridge d names with its public key (PKIX), its
+	// sealing key and the addresses it is dialed at, signed by signer; this bridge's own
+	// takes the signer's and the store's. Another's gets a wrap of the epoch it writes under.
+	Bridge(ctx context.Context, signer crypto.Signer, d domain.Device, key, sealing []byte, addresses []string) error
+	// Sealing is this bridge's sealing key (X25519), which it pairs with when it joins a mesh.
+	Sealing() []byte
 	// PublishAccounts writes the accounts this bridge runs (bridge/<ID>/accounts),
 	// signed by signer, when they changed.
 	PublishAccounts(ctx context.Context, signer crypto.Signer, accounts []domain.MeshAccount) error
@@ -220,7 +223,7 @@ func (d *Devices) addLocked(id devicekey.ID, as domain.Device, joined *joiner, b
 	added := as
 	added.ID, added.AddedAt, added.AddedBy = id.String(), time.Now().UTC().Truncate(time.Second), by.String()
 	if added.Role == domain.RoleBridge && joined != nil {
-		if err := r.store.Bridge(context.Background(), r.signer, added, joined.key, joined.addrs); err != nil {
+		if err := r.store.Bridge(context.Background(), r.signer, added, joined.key, joined.sealing, joined.addrs); err != nil {
 			return domain.Device{}, fmt.Errorf("daemon: change the device roster: %w", err)
 		}
 		return added, d.settleLocked(&r)

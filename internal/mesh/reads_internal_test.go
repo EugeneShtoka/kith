@@ -91,18 +91,24 @@ type modelReads struct {
 // other some.
 func (m *model) openCaches() {
 	m.rd = modelReads{made: map[int][]domain.ReadPosition{}, named: map[domain.RoomID][]domain.RoomID{}}
-	for i, r := range m.r {
-		r.reads = replicaReads{key: make([]byte, sealeddb.KeyLen), rooms: map[domain.RoomID]bool{}, arrived: map[crdt.Dot]int{}}
-		if _, err := rand.Read(r.reads.key); err != nil {
-			m.t.Fatal(err)
-		}
-		for _, room := range modelRooms {
-			if i == 0 || m.rng.IntN(3) > 0 {
-				r.reads.rooms[room] = true
-			}
-		}
-		m.openCache(i)
+	for i := range m.r {
+		m.newCache(i)
 	}
+}
+
+// newCache gives replica i its rooms and a cache.
+func (m *model) newCache(i int) {
+	r := m.r[i]
+	r.reads = replicaReads{key: make([]byte, sealeddb.KeyLen), rooms: map[domain.RoomID]bool{}, arrived: map[crdt.Dot]int{}}
+	if _, err := rand.Read(r.reads.key); err != nil {
+		m.t.Fatal(err)
+	}
+	for _, room := range modelRooms {
+		if i == 0 || m.rng.IntN(3) > 0 {
+			r.reads.rooms[room] = true
+		}
+	}
+	m.openCache(i)
 }
 
 // openCache gives replica i a new, empty cache holding its rooms, as one rebuilt.
@@ -510,11 +516,12 @@ func TestAJoiningBridgeBringsItsReads(t *testing.T) {
 	m.must(r.store.Read(m.ctx, r.key, []domain.ReadPosition{read}))
 	der, err := x509.MarshalPKIXPublicKey(r.key.Public())
 	m.must(err)
-	m.must(first.store.Bridge(m.ctx, first.key, domain.Device{ID: r.id.String(), Name: "joining"}, der, nil))
+	m.must(first.store.Bridge(m.ctx, first.key, domain.Device{ID: r.id.String(), Name: "joining"}, der, r.store.Sealing(), nil))
 	first.store.mu.Lock()
 	snap := first.store.state.Snapshot(first.store.clock)
+	records := slices.Collect(maps.Values(first.store.keys.records))
 	first.store.mu.Unlock()
-	_, err = r.store.adopt(m.ctx, snap, r.key, r.id)
+	_, err = r.store.adopt(m.ctx, snap, records, r.key, r.id)
 	m.must(err)
 	ops, gotSnap, _, err := r.store.missing(m.ctx, snap.Vector)
 	m.must(err)
