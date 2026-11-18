@@ -1528,6 +1528,9 @@ enum Change {
   // A stored draft changed (any writer: a window, kith-mcp): read the drafts again
   // (Drafts) and take each changed one where nothing typed here is unsaved.
   CHANGE_DRAFTS = 6;
+  // The warning about the scheduled backups' folder changed (a reload moved the
+  // folder, or a client dismissed it): read Status again.
+  CHANGE_BACKUP_WARNING = 7;
 }
 
 message ChangedRequest {}
@@ -1662,7 +1665,26 @@ message StatusResponse {
   // locked: unlock the keyring"); while it is set, Status is the only call answered.
   // Unlike last_error, it does not pass by waiting: someone has to act.
   string waiting = 5;
+  // backup_warning is set while the scheduled backups go to a folder that does not keep
+  // them, unless it was dismissed for that folder (DismissBackupWarning).
+  BackupWarning backup_warning = 6;
 }
+
+// BackupWarning is a folder kithd's scheduled backups go to that does not keep them:
+// one under /tmp or /var/tmp, which kithd's systemd unit replaces with its own.
+message BackupWarning {
+  // The folder, as DismissBackupWarning takes it.
+  string dir = 1;
+  // The sentence to show: where the backups go and why they vanish there.
+  string why = 2;
+}
+
+message DismissBackupWarningRequest {
+  // The folder BackupWarning named.
+  string dir = 1;
+}
+
+message DismissBackupWarningResponse {}
 
 // NetworkPhase is where one network account is.
 enum NetworkPhase {
@@ -2728,6 +2750,9 @@ service BackendService {
   // Maintenance
   // Status reports whether the daemon is ready to serve, and why not if it isn't.
   rpc Status(StatusRequest) returns (StatusResponse);
+  // DismissBackupWarning stops the backup folder warning for that folder, on this
+  // machine, for good; another folder warns again.
+  rpc DismissBackupWarning(DismissBackupWarningRequest) returns (DismissBackupWarningResponse);
   // Selves is every ID that is this person, on every network served; it grows as
   // accounts log in.
   rpc Selves(SelvesRequest) returns (SelvesResponse);

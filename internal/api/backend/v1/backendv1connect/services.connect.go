@@ -357,6 +357,9 @@ const (
 	BackendServiceCancelVerificationProcedure = "/backend.v1.BackendService/CancelVerification"
 	// BackendServiceStatusProcedure is the fully-qualified name of the BackendService's Status RPC.
 	BackendServiceStatusProcedure = "/backend.v1.BackendService/Status"
+	// BackendServiceDismissBackupWarningProcedure is the fully-qualified name of the BackendService's
+	// DismissBackupWarning RPC.
+	BackendServiceDismissBackupWarningProcedure = "/backend.v1.BackendService/DismissBackupWarning"
 	// BackendServiceSelvesProcedure is the fully-qualified name of the BackendService's Selves RPC.
 	BackendServiceSelvesProcedure = "/backend.v1.BackendService/Selves"
 	// BackendServiceDirectoryProcedure is the fully-qualified name of the BackendService's Directory
@@ -811,6 +814,9 @@ type BackendServiceClient interface {
 	// Maintenance
 	// Status reports whether the daemon is ready to serve, and why not if it isn't.
 	Status(context.Context, *connect.Request[v1.StatusRequest]) (*connect.Response[v1.StatusResponse], error)
+	// DismissBackupWarning stops the backup folder warning for that folder, on this
+	// machine, for good; another folder warns again.
+	DismissBackupWarning(context.Context, *connect.Request[v1.DismissBackupWarningRequest]) (*connect.Response[v1.DismissBackupWarningResponse], error)
 	// Selves is every ID that is this person, on every network served; it grows as
 	// accounts log in.
 	Selves(context.Context, *connect.Request[v1.SelvesRequest]) (*connect.Response[v1.SelvesResponse], error)
@@ -1661,6 +1667,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("Status")),
 			connect.WithClientOptions(opts...),
 		),
+		dismissBackupWarning: connect.NewClient[v1.DismissBackupWarningRequest, v1.DismissBackupWarningResponse](
+			httpClient,
+			baseURL+BackendServiceDismissBackupWarningProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("DismissBackupWarning")),
+			connect.WithClientOptions(opts...),
+		),
 		selves: connect.NewClient[v1.SelvesRequest, v1.SelvesResponse](
 			httpClient,
 			baseURL+BackendServiceSelvesProcedure,
@@ -2048,6 +2060,7 @@ type backendServiceClient struct {
 	confirmSAS            *connect.Client[v1.ConfirmSASRequest, v1.ConfirmSASResponse]
 	cancelVerification    *connect.Client[v1.CancelVerificationRequest, v1.CancelVerificationResponse]
 	status                *connect.Client[v1.StatusRequest, v1.StatusResponse]
+	dismissBackupWarning  *connect.Client[v1.DismissBackupWarningRequest, v1.DismissBackupWarningResponse]
 	selves                *connect.Client[v1.SelvesRequest, v1.SelvesResponse]
 	directory             *connect.Client[v1.DirectoryRequest, v1.DirectoryResponse]
 	clearCache            *connect.Client[v1.ClearCacheRequest, v1.ClearCacheResponse]
@@ -2684,6 +2697,11 @@ func (c *backendServiceClient) Status(ctx context.Context, req *connect.Request[
 	return c.status.CallUnary(ctx, req)
 }
 
+// DismissBackupWarning calls backend.v1.BackendService.DismissBackupWarning.
+func (c *backendServiceClient) DismissBackupWarning(ctx context.Context, req *connect.Request[v1.DismissBackupWarningRequest]) (*connect.Response[v1.DismissBackupWarningResponse], error) {
+	return c.dismissBackupWarning.CallUnary(ctx, req)
+}
+
 // Selves calls backend.v1.BackendService.Selves.
 func (c *backendServiceClient) Selves(ctx context.Context, req *connect.Request[v1.SelvesRequest]) (*connect.Response[v1.SelvesResponse], error) {
 	return c.selves.CallUnary(ctx, req)
@@ -3232,6 +3250,9 @@ type BackendServiceHandler interface {
 	// Maintenance
 	// Status reports whether the daemon is ready to serve, and why not if it isn't.
 	Status(context.Context, *connect.Request[v1.StatusRequest]) (*connect.Response[v1.StatusResponse], error)
+	// DismissBackupWarning stops the backup folder warning for that folder, on this
+	// machine, for good; another folder warns again.
+	DismissBackupWarning(context.Context, *connect.Request[v1.DismissBackupWarningRequest]) (*connect.Response[v1.DismissBackupWarningResponse], error)
 	// Selves is every ID that is this person, on every network served; it grows as
 	// accounts log in.
 	Selves(context.Context, *connect.Request[v1.SelvesRequest]) (*connect.Response[v1.SelvesResponse], error)
@@ -4078,6 +4099,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("Status")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceDismissBackupWarningHandler := connect.NewUnaryHandler(
+		BackendServiceDismissBackupWarningProcedure,
+		svc.DismissBackupWarning,
+		connect.WithSchema(backendServiceMethods.ByName("DismissBackupWarning")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceSelvesHandler := connect.NewUnaryHandler(
 		BackendServiceSelvesProcedure,
 		svc.Selves,
@@ -4580,6 +4607,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceCancelVerificationHandler.ServeHTTP(w, r)
 		case BackendServiceStatusProcedure:
 			backendServiceStatusHandler.ServeHTTP(w, r)
+		case BackendServiceDismissBackupWarningProcedure:
+			backendServiceDismissBackupWarningHandler.ServeHTTP(w, r)
 		case BackendServiceSelvesProcedure:
 			backendServiceSelvesHandler.ServeHTTP(w, r)
 		case BackendServiceDirectoryProcedure:
@@ -5147,6 +5176,10 @@ func (UnimplementedBackendServiceHandler) CancelVerification(context.Context, *c
 
 func (UnimplementedBackendServiceHandler) Status(context.Context, *connect.Request[v1.StatusRequest]) (*connect.Response[v1.StatusResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Status is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) DismissBackupWarning(context.Context, *connect.Request[v1.DismissBackupWarningRequest]) (*connect.Response[v1.DismissBackupWarningResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.DismissBackupWarning is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Selves(context.Context, *connect.Request[v1.SelvesRequest]) (*connect.Response[v1.SelvesResponse], error) {

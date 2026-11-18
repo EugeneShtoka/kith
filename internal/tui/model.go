@@ -549,6 +549,9 @@ type oneTimeOffers struct {
 	dictionaries dictionaryOffer
 	// model is the local completion model offer. See completionmodel.go.
 	model modelOffer
+	// backupWarned is the backups folders kithd's warning was shown for this run. See
+	// backupwarning.go.
+	backupWarned map[string]bool
 }
 
 // resolvedIdentity is a merged person: group key, alias (empty = none) and optional pinned color.
@@ -767,7 +770,7 @@ func (m Model) Init() tea.Cmd {
 		m.listenReactionsCmd(), m.listenInvitesCmd(), m.listenActivityCmd(),
 		m.listenFollowCmd(), m.listenChangesCmd(), m.listenConfigCmd(),
 		m.loadDraftsCmd(),
-		m.loadVerdictsCmd(), m.loadAccountStatesCmd(),
+		m.loadVerdictsCmd(), m.loadAccountStatesCmd(), m.loadBackupWarningCmd(),
 		m.readDNDCmd(), m.pollTickCmd(), m.refusalsCmd(),
 		m.listenAttachedCmd(),
 		m.lastMessagesCmd(),
@@ -1063,6 +1066,8 @@ func (m Model) handleHousekeepingMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handlePollTick())
 	case accountStatesMsg:
 		return answered(m.handleAccountStates(msg))
+	case backupWarningMsg:
+		return answered(m.handleBackupWarning(msg))
 	case playerTickMsg:
 		// Forces the repaint that moves the playback bar.
 		return answered(m.handlePlayerTick())

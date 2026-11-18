@@ -76,6 +76,12 @@ func (s Storage) LanguagesPath() string {
 	return filepath.Join(s.StateDir, "languages-"+s.Instance+".toml")
 }
 
+// DismissedBackupFoldersPath is the backup folders whose warning was dismissed: a
+// folder is this machine's, so the record is too.
+func (s Storage) DismissedBackupFoldersPath() string {
+	return filepath.Join(s.StateDir, "backup-warnings-"+s.Instance+".toml")
+}
+
 // BackupKeyPath is the public key backups are encrypted to. It is not secret: it can
 // only lock a backup, and the private key that opens one is the user's, never kept
 // here. It sits beside the cache, which a restore recreates, rather than with the

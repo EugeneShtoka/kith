@@ -89,6 +89,7 @@ func init() {
 		pickerPublicRooms:     {choose: Model.chooseJoinPublicRoom},
 		pickerChooseAccount:   {choose: byValue(Model.chooseAccount)},
 		pickerProfile:         {choose: byValue(Model.switchProfile)},
+		pickerBackupWarning:   {choose: byValue(Model.answerBackupWarning)},
 		pickerLoginNetwork:    {choose: account},
 		pickerLoginAccount:    {choose: account},
 		pickerImportAccount:   {choose: account},

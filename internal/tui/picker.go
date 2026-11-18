@@ -100,6 +100,7 @@ const (
 	pickerPublicRooms     // Matrix public rooms directory; see publicrooms.go
 	pickerChooseAccount   // which account a call naming none goes to; see accountpick.go
 	pickerProfile         // the profiles to switch to; see profiles.go
+	pickerBackupWarning   // kithd's warning about the backups folder; see backupwarning.go
 )
 
 // pickerSpec is a kind's fixed properties, copied into the picker when it opens.
@@ -164,6 +165,7 @@ var pickerSpecs = map[pickerKind]pickerSpec{
 	pickerPublicRooms:     {title: "Matrix public rooms — enter joins", modal: true},
 	pickerChooseAccount:   {}, // titled with the network
 	pickerProfile:         {title: "Switch to which profile?"},
+	pickerBackupWarning:   {modal: true}, // titled with kithd's warning
 }
 
 // pickerItem is one row: label shown, detail dimmed, value acted on, and match the filter text

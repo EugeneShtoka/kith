@@ -471,12 +471,13 @@ func ProtoToScheduledList(pb []*v1.ScheduledMessage) []domain.ScheduledMessage {
 }
 
 var changes = map[domain.Change]v1.Change{
-	domain.ChangeRooms:     v1.Change_CHANGE_ROOMS,
-	domain.ChangeAccounts:  v1.Change_CHANGE_ACCOUNTS,
-	domain.ChangeRail:      v1.Change_CHANGE_RAIL,
-	domain.ChangeLanguages: v1.Change_CHANGE_LANGUAGES,
-	domain.ChangeNames:     v1.Change_CHANGE_NAMES,
-	domain.ChangeDrafts:    v1.Change_CHANGE_DRAFTS,
+	domain.ChangeRooms:         v1.Change_CHANGE_ROOMS,
+	domain.ChangeAccounts:      v1.Change_CHANGE_ACCOUNTS,
+	domain.ChangeRail:          v1.Change_CHANGE_RAIL,
+	domain.ChangeLanguages:     v1.Change_CHANGE_LANGUAGES,
+	domain.ChangeNames:         v1.Change_CHANGE_NAMES,
+	domain.ChangeDrafts:        v1.Change_CHANGE_DRAFTS,
+	domain.ChangeBackupWarning: v1.Change_CHANGE_BACKUP_WARNING,
 }
 
 // ChangeToProto converts what changed in the daemon.

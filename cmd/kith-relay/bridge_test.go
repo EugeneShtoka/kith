@@ -207,6 +207,8 @@ func serveBridge(t *testing.T, paired ...*ecdsa.PrivateKey) *bridgeKithd {
 		Log:       logging.Discard(),
 		Paired:    b.paired,
 		Languages: daemon.NewLanguages(filepath.Join(dir, "languages.toml"), b.messages.streams.LanguagesOwed, logging.Discard()),
+		BackupWarning: daemon.NewBackupWarning(filepath.Join(dir, "backup-warnings.toml"),
+			b.messages.streams.BackupWarningChanged, logging.Discard()),
 	}
 	d.State.Synced(time.Now())
 	ctx, cancel := context.WithCancel(context.Background())

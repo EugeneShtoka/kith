@@ -54,6 +54,8 @@ type Daemon struct {
 	Logins api.Logins
 	// Languages is the dictionary offer owed once a new account's history arrived.
 	Languages *Languages
+	// BackupWarning is the warning about a backups folder that does not keep them.
+	BackupWarning *BackupWarning
 	// Uploads keeps the files clients send until each is posted.
 	Uploads *Uploads
 	// Paired is the devices paired with kithd and the TLS listeners serving them the
@@ -72,7 +74,7 @@ func (d *Daemon) missing() []string {
 		"Notifications": d.Notifications == nil, "Reload": d.Reload == nil,
 		"CheckConfig": d.CheckConfig == nil, "Config": d.Config == nil,
 		"Scheduler": d.Scheduler == nil, "Logins": d.Logins == nil, "Uploads": d.Uploads == nil, "Log": d.Log == nil,
-		"Paired": d.Paired == nil, "Languages": d.Languages == nil,
+		"Paired": d.Paired == nil, "Languages": d.Languages == nil, "BackupWarning": d.BackupWarning == nil,
 	} {
 		if absent {
 			out = append(out, name)

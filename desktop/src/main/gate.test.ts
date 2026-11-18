@@ -114,6 +114,7 @@ async function device(): Promise<void> {
 // The window's whole scope: a call or stream joins the list only with the PR that needs it.
 const allowedCalls = [
   "Status",
+  "DismissBackupWarning",
   "Rail",
   "Rooms",
   "LastMessages",

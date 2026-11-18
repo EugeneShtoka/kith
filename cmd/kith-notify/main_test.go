@@ -82,10 +82,11 @@ func serve(t *testing.T, socket string, cfg config.Config) kithd {
 		streams := daemon.NewStreams()
 		_ = daemon.Serve(ctx, ln, &daemon.Daemon{
 			Backend: backend, Streams: streams, Names: daemon.NewNames(backend, config.Config{}, nil), MessageLog: noMessages{}, State: daemon.NewState(), Notifications: n,
-			Languages:   daemon.NewLanguages(filepath.Join(dir, "languages.toml"), streams.LanguagesOwed, logging.Discard()),
-			Reload:      func(context.Context) error { return nil },
-			CheckConfig: func(context.Context, config.Config) error { return nil },
-			Config:      daemon.NewConfigFile(path),
+			Languages:     daemon.NewLanguages(filepath.Join(dir, "languages.toml"), streams.LanguagesOwed, logging.Discard()),
+			BackupWarning: daemon.NewBackupWarning(filepath.Join(dir, "backup-warnings.toml"), streams.BackupWarningChanged, logging.Discard()),
+			Reload:        func(context.Context) error { return nil },
+			CheckConfig:   func(context.Context, config.Config) error { return nil },
+			Config:        daemon.NewConfigFile(path),
 			Scheduler: daemon.NewScheduler(schedule.New(filepath.Join(dir, "scheduled.toml")), backend,
 				func() time.Duration { return time.Hour }, nil),
 			Logins:  daemon.NewLogins(ctx, func() []api.LoginLeader { return nil }),

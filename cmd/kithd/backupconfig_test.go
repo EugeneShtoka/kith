@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -284,6 +285,28 @@ func TestTheNextLookIsWhenTheNextBackupIsDue(t *testing.T) {
 	} {
 		if got := nextLook(backup.Daily{Next: next}, now); got != want {
 			t.Errorf("nextLook(next in %v) = %v; want %v", next.Sub(now), got, want)
+		}
+	}
+}
+
+// The folders warned about are where each schedule that is on backs up: [backup] dir,
+// else <export_dir>/backups, and [backup.media] dir, else [backup]'s.
+func TestBackupFoldersAreWhereEachScheduleOnBacksUp(t *testing.T) {
+	t.Parallel()
+	off := false
+	storage := domain.Storage{ExportDir: "/home/u/exports"}
+	for _, c := range []struct {
+		backup config.Backup
+		want   []string
+	}{
+		{config.Backup{}, []string{"/home/u/exports/backups", "/home/u/exports/backups"}},
+		{config.Backup{Dir: "/tmp/kith"}, []string{"/tmp/kith", "/tmp/kith"}},
+		{config.Backup{Dir: "/tmp/kith", Media: config.MediaBackup{Dir: "/var/tmp/media"}}, []string{"/tmp/kith", "/var/tmp/media"}},
+		{config.Backup{Enabled: &off, Media: config.MediaBackup{Dir: "/tmp/media"}}, []string{"/tmp/media"}},
+		{config.Backup{Dir: "/tmp/kith", Media: config.MediaBackup{Enabled: &off}}, []string{"/tmp/kith"}},
+	} {
+		if got := backupFolders(storage, config.Config{Backup: c.backup}); !slices.Equal(got, c.want) {
+			t.Errorf("backupFolders(%+v) = %q, want %q", c.backup, got, c.want)
 		}
 	}
 }
