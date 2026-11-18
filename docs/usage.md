@@ -262,7 +262,7 @@ backup: one encrypted file that `kith restore` loads back. (`kith import` is nei
 it copies Telegram folders into tags, see [Tags](#tags).)
 
 ```sh
-kith backup                      # a dated file in [storage] export_dir
+kith backup                      # a dated file in the backups folder ([backup] dir)
 kith backup ~/Backups/kith.tar.age
 kith backup --no-media           # without the pictures
 ```
@@ -352,10 +352,12 @@ Set `every` or `cron`, not both (both is refused); in Settings, *Backup · sched
 takes either and keeps only the one you typed. A backup is made once `every` has passed
 since the newest one, or at the cron expression's next time after it, in local time; a
 time the machine was off is skipped, not made up (one backup, not one per time
-missed). The oldest beyond `keep` are deleted, never the newest,
-and only files kithd named itself (`kith-backup-<date>-<time>.tar.age`, and
+missed). A backup is a backup: one `kith backup` made into this folder counts as the
+newest too. The oldest beyond `keep` are deleted, never the newest,
+and only files kith named itself (`kith-backup-<date>-<time>.tar.age`, and
 `kith-daily-<date>-<time>.tar.age` from before the rename) are ever counted or deleted,
-never yours. A change applies at kithd's next look, within the
+never yours. To keep one for good (the one before a cleanup, say), copy it out of the
+folder, or give `kith backup` a file elsewhere. A change applies at kithd's next look, within the
 hour, with no restart; a `dir` outside kith's own folders needs a restart under the
 systemd unit (see [troubleshooting](troubleshooting.md)). Until there is a key they are
 off, and kith says so: kithd never makes a key itself, since nobody would see its

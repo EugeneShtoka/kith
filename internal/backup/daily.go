@@ -123,10 +123,17 @@ type daily struct {
 	at   time.Time
 }
 
+// Name is what a backup made at at is called in the backups folder, by kithd on its
+// schedule and by kith backup alike: either one counts toward keep and is deleted with
+// the rest.
+func Name(at time.Time) string {
+	return dailyPrefix + at.Format(dailyStamp) + dailySuffix
+}
+
 // dailyBackups is every whole scheduled backup named one of prefixes in dir, oldest
 // first, and the files so named that are not whole. A name whose time does not parse
-// is not one kithd gave (kith backup's own, kith-backup-<date>-<minute>, say), so it is
-// neither.
+// is not one kith gave (an older kith backup's, kith-backup-<date>-<minute>, say), so
+// it is neither.
 func dailyBackups(dir string, prefixes []string) (good []daily, ignored []string, err error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

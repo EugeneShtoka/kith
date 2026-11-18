@@ -199,6 +199,30 @@ func TestKeepLoweredDeletesOnlyTheOldestWholeOnes(t *testing.T) {
 	}
 }
 
+// A backup kith backup made into the folder (backup.Name) is a backup like the rest: it
+// is the newest, so none is due a day after the one before it, and keep counts it.
+func TestABackupMadeByHandCountsWithTheScheduledOnes(t *testing.T) {
+	m := newMachine(t)
+	m.as(t).fill(t, "kept", 5)
+	dir := t.TempDir()
+	oldest, older := stand(t, dir, day(1)), stand(t, dir, day(2))
+	byHand := filepath.Join(dir, backup.Name(day(3)))
+	write(t, byHand, "age-encryption.org/v1\n-> X25519 by hand\n"+strings.Repeat("x", 64), 0o600)
+
+	got, err := m.scheduled(t, context.Background(), dir, backup.Schedule{Next: after(24 * time.Hour), Keep: 2}, day(3).Add(time.Hour))
+	if err != nil || got.Ran {
+		t.Fatalf("MakeDaily an hour after one by hand = %+v, %v; want none made", got, err)
+	}
+	if want := []string{oldest}; !slices.Equal(got.Deleted, want) {
+		t.Errorf("deleted %v; want the oldest, %v", got.Deleted, want)
+	}
+	for _, p := range []string{older, byHand} {
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("%s is gone: %v", filepath.Base(p), err)
+		}
+	}
+}
+
 // Backups named kith-daily-, as scheduled ones were before, count with the new ones
 // and are deleted with them, oldest first by when they were made, not by name; a
 // kith backup of the user's, named kith-backup- to the minute, is neither counted nor
