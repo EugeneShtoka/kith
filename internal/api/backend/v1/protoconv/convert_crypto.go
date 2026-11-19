@@ -42,6 +42,7 @@ func VerificationToProto(v domain.Verification) *v1.Verification {
 		Emojis:   sasEmojisToProto(v.Emojis),
 		Decimals: decimalsToProto(v.Decimals),
 		Reason:   v.Reason,
+		Person:   v.Person,
 	}
 }
 
@@ -63,6 +64,7 @@ func ProtoToVerification(pb *v1.Verification) (domain.Verification, bool) {
 		Emojis:   protoToSASEmojis(pb.GetEmojis()),
 		Decimals: protoToDecimals(pb.GetDecimals()),
 		Reason:   pb.GetReason(),
+		Person:   pb.GetPerson(),
 	}, true
 }
 

@@ -142,7 +142,10 @@ func TestAMessageThatIsGoneCrossesAsNotFound(t *testing.T) {
 	if code := connect.CodeOf(err); code != connect.CodeNotFound {
 		t.Errorf("FetchEvent() on the wire = %v (%v), want not_found", err, code)
 	}
-	if out := logs.String(); strings.Contains(out, "level=WARN") {
-		t.Errorf("logged as a failure: %q", out)
+	// Only the call's own line counts: the rails built beside it fail against this backend too.
+	for line := range strings.Lines(logs.String()) {
+		if strings.Contains(line, "level=WARN") && strings.Contains(line, `msg="call failed"`) {
+			t.Errorf("logged as a failure: %q", line)
+		}
 	}
 }

@@ -471,7 +471,7 @@ func (m Model) mentionedName(userID string, roomID domain.RoomID, knownAs string
 	for _, k := range known {
 		name = cmp.Or(name, strings.TrimSpace(k))
 	}
-	return m.shapedName(cmp.Or(name, shortSender(userID)), roomID)
+	return m.shapedName(cmp.Or(name, shortSender(userID)), roomID, userID)
 }
 
 // knownAs is kithd's name for userID as the open room was last read: their member
@@ -591,42 +591,36 @@ func (m Model) personIn(room domain.RoomID, sender, knownAs, name string) string
 // chat's, the phone book's, the network's), else the message's own, shaped by
 // shapedName.
 func (m Model) processedName(msg domain.Message) string {
-	return m.shapedName(cmp.Or(msg.SenderKnownAs, senderLabel(msg)), msg.RoomID)
+	return m.shapedName(cmp.Or(msg.SenderKnownAs, senderLabel(msg)), msg.RoomID, msg.Sender)
 }
 
-// shapedName applies the room's space name rules to a name, aliases included: the
-// alias picks the name, the rule how much of it.
-func (m Model) shapedName(name string, roomID domain.RoomID) string {
-	return m.nameRuleFor(m.ownSpace(roomID)).apply(name)
+// shapedName applies the room's name rule for sender to a name, aliases included: the
+// alias picks the name, the rule how it shows.
+func (m Model) shapedName(name string, roomID domain.RoomID, sender string) string {
+	return m.nameRuleIn(roomID, m.ownSpace(roomID), sender).apply(name)
 }
 
-// nameRule is everything the display settings do to a name, resolved for one space,
+// nameRule is everything the display settings do to a name, resolved for one place,
 // so every surface applies the same transform.
 type nameRule struct {
-	firstOnly bool // keep the first word; per-space first_name_only
-	rooms     bool // also shorten people-named room labels; [display] room_name_rules
-	width     int  // truncate sender labels to this many columns, 0 = no limit
+	rule  domain.NameRule // the place's [[display.name_rule]] (domain.NameRules)
+	rooms bool            // also shorten people-named room labels; [display] room_name_rules
+	width int             // truncate sender labels to this many columns, 0 = no limit
 }
 
-// nameRuleFor is the rule for one space, or only the global half for a room in none.
-func (m Model) nameRuleFor(space string) nameRule {
-	rule := nameRule{
+// nameRuleIn is the rule for sender in a room whose home is space; sender "" is the
+// room's own label.
+func (m Model) nameRuleIn(roomID domain.RoomID, space, sender string) nameRule {
+	scope := domain.Scope{RoomID: string(roomID), Space: space, SpaceLabel: m.rail.homes.Label(space), Sender: sender}
+	return nameRule{
+		rule:  m.prefs.names.In(scope),
 		rooms: m.prefs.display.ApplyRoomNameRules(),
 		width: m.prefs.device.MaxNameLength,
 	}
-	if space == "" {
-		return rule
-	}
-	if r, ok := m.prefs.display.SpaceRule(m.namesHome(space)); ok {
-		rule.firstOnly = r.FirstNameOnly
-	}
-	return rule
 }
 
 func (r nameRule) apply(name string) string {
-	if r.firstOnly {
-		name = firstName(name)
-	}
+	name = r.rule.Shape(name)
 	if r.width > 0 && ansi.StringWidth(name) > r.width {
 		return truncateLogical(name, r.width)
 	}
@@ -636,7 +630,7 @@ func (r nameRule) apply(name string) string {
 // within shortens participants inside a people-named room label, reporting whether it
 // was one.
 func (r nameRule) within(name string, members []string) (string, bool) {
-	if !r.firstOnly || !r.rooms {
+	if !r.rule.FirstOnly() || !r.rooms {
 		return name, false
 	}
 	return shortenByMembers(name, members)

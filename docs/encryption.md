@@ -72,6 +72,24 @@ Once verification succeeds, kith asks the verified device for the **key backup s
 
 If the verification machinery cannot be set up, encryption keeps working. The daemon logs `device verification unavailable` and `:verify` says why.
 
+## Verifying another person
+
+Verifying a contact proves that the sessions you encrypt to are really theirs. It is the
+same emoji comparison, carried in your direct chat with them instead of between your own
+sessions.
+
+In a Matrix direct chat with them, type `/verify-person`. They receive the request in
+their app; when they accept, you both see the same emoji. Compare them with each other,
+on a call or side by side, and press `y` only if they match. A chat with anyone else in
+it, a bridged chat's bot included, is refused: ask from your chat with them alone.
+
+When someone asks to verify you, the overlay says they want to verify *you* rather than
+this session, and answers the same way. Once it succeeds, this session trusts their
+device, and your account signs their identity, so your other sessions trust them too.
+Signing needs your cross-signing keys on this session (restored from secret storage);
+without them the exchange is canceled at the end. kith asks no one for the key backup
+afterwards, as it does after verifying one of your own sessions.
+
 ## Trust model
 
 kith uses mautrix-go's default policies:

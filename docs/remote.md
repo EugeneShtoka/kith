@@ -263,6 +263,25 @@ beside it. With several `[[bridge]]` entries the first is dialed.
   says which bridge it is connected to, and, if the bridge no longer has this device
   paired, says the bridge refused it until it is paired again.
 
+## Reaching a bridge from outside its network
+
+kith does not find a bridge across the internet by itself, and needs no port opened for
+it: put the bridge and the devices on one [Tailscale](https://tailscale.com) tailnet
+(or any VPN that gives the bridge an address the devices can reach).
+
+1. Install Tailscale on the bridge's machine and on each device, signed in to one
+   tailnet. `tailscale ip -4` on the bridge prints its tailnet address (`100.x.y.z`).
+2. Add that address to the bridge's `[remote] listen`, beside its LAN one
+   ([Listening](#listening)).
+3. Pair as usual. A device paired before the address was added gets it when it joins
+   the bridge again, or add it to the `[[bridge]]`'s `addresses` in its `device.toml`
+   by hand. The LAN address first and the tailnet one after is the usual order: at
+   home the LAN answers, away the tailnet does.
+
+The tailnet only carries the connection. The device still checks the bridge's own key,
+and the bridge the device's, so Tailscale cannot read or change what crosses it, and a
+machine on the tailnet that is not paired is refused as on a LAN.
+
 ## What an attacker on the network sees
 
 A TLS 1.3 handshake that asks for a client certificate. A key that is not paired is
