@@ -39,7 +39,8 @@ func TestRenamingATagRewritesEveryReferenceAndNothingElse(t *testing.T) {
 		cfg.Display.Priority = []string{positive(), "space:T0"}
 		cfg.Display.Rail.Order = []string{positive(), "place:T0", "-"}
 		cfg.Display.Rail.Hidden = []string{"tag:t0", decoy()}
-		cfg.Display.SpaceRules = []config.SpaceRule{{Space: positive(), FirstNameOnly: true}}
+		cfg.Display.SpaceRules = []config.SpaceRule{{Space: positive(), ShowField: "company"}}
+		cfg.Display.NameRules = []config.NameRule{{Match: positive(), FirstNameOnly: new(true)}}
 
 		out := RenameTag(cfg, "t0", "Family")
 		before, _, errBefore := Tags(cfg)

@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { describe, expect, it } from "vitest";
 
 import { MemberSchema } from "../gen/backend/v1/types_pb";
-import { matching, mentionAt, rankMembers } from "./mentions";
+import { matching, mentionAt, nameOf, rankMembers, senderOf } from "./mentions";
 
 const m = (userId: string, displayName = "") => create(MemberSchema, { userId, displayName });
 
@@ -21,5 +21,15 @@ describe("mentions", () => {
     const ranked = [m("@bob:x", "Bob"), m("@robert:x", "Rob"), m("@ann:x", "Ann")];
     expect(matching(ranked, "ob").map((x) => x.userId)).toEqual(["@bob:x", "@robert:x"]);
     expect(matching(ranked, "ann:").map((x) => x.userId)).toEqual(["@ann:x"]);
+  });
+
+  it("name a person as the room's name rule shows them, else as kithd names them", () => {
+    const dana = create(MemberSchema, { userId: "@d:x", displayName: "+1555", knownAs: "Dana Levi", shownAs: "Dana" });
+    expect(nameOf(dana)).toBe("Dana");
+    expect(nameOf(create(MemberSchema, { userId: "@d:x", knownAs: "Dana Levi" }))).toBe("Dana Levi");
+    expect(matching([dana], "dana l").map((p) => p.userId)).toEqual(["@d:x"]);
+    const said = { sender: "@d:x", senderName: "+1555", senderKnownAs: "Dana Levi", senderShownAs: "Dana" };
+    expect(senderOf(said)).toBe("Dana");
+    expect(senderOf({ ...said, senderShownAs: "" })).toBe("Dana Levi");
   });
 });

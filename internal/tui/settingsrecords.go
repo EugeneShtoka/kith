@@ -38,6 +38,7 @@ const (
 var recordTableLabels = withNetworkTables(map[string]string{
 	"display.identity":     "People (accounts shown as one)",
 	"display.name":         "Names you gave",
+	"display.name_rule":    "Name rules",
 	"display.read_rule":    "Read rules",
 	"display.tracked.rule": "Tracked-word rules",
 	"display.rooms.rule":   "Room list order per group",
@@ -341,7 +342,7 @@ func nameRow(place, label, group string) setting {
 		doc:   "Senders in rooms whose home is " + label + " are shown by their first name. A room in several places follows its home: [display] priority, then the rail's order.",
 		show:  func(c config.Settings) string { return onOff(firstNamesIn(c, place)) },
 		set: func(c *config.Settings, _ string) error {
-			c.Bridge.Display.SpaceRules = withFirstNames(c.Bridge.Display, place, !firstNamesIn(*c, place))
+			c.Bridge.Display.NameRules = withFirstNames(c.Bridge.Display, place, !firstNamesIn(*c, place))
 			return nil
 		},
 	}
@@ -470,13 +471,37 @@ func placeWord(key string) string {
 	return "space"
 }
 
-// firstNamesIn reports whether place (a space's name, or tag:<name>) shows first names.
+// firstNamesIn reports whether place (a space's name, or tag:<name>) shows first names:
+// as its name rule says, else as [display] first_name_only does.
 func firstNamesIn(c config.Settings, place string) bool {
-	return setup.FirstNamesIn(c.Bridge.Display, place)
+	rules, _ := setup.NameRules(c.Bridge.Display) // checked before it was saved
+	label := setup.PlacesOf(c.Bridge).Order.Label(place)
+	return rules.In(domain.Scope{Space: place, SpaceLabel: label}).FirstOnly()
 }
 
-func withFirstNames(d config.Display, place string, on bool) []config.SpaceRule {
-	return withSpaceRule(d, place, func(r *config.SpaceRule) { r.FirstNameOnly = on })
+// withFirstNames sets place's own name rule's first_name_only, unset where it is what
+// [display] first_name_only says; a rule left setting nothing is dropped.
+func withFirstNames(d config.Display, place string, on bool) []config.NameRule {
+	own := func(r config.NameRule) bool {
+		return r.Sender == "" && !domain.IsPlaceEntry(r.Match) && domain.NamesHome(r.Match, place, "")
+	}
+	rule := config.NameRule{Match: domain.HomeEntry(place)}
+	out := make([]config.NameRule, 0, len(d.NameRules)+1)
+	for _, r := range d.NameRules {
+		if own(r) {
+			rule = r
+		} else {
+			out = append(out, r)
+		}
+	}
+	rule.FirstNameOnly = &on
+	if on == d.FirstNameOnly {
+		rule.FirstNameOnly = nil
+	}
+	if rule.FirstNameOnly != nil || rule.Strip != "" {
+		out = append(out, rule)
+	}
+	return out
 }
 
 // withNetworkColors sets place's network-colors choice: nil follows [display] network_colors.

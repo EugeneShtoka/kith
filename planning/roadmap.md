@@ -31,7 +31,7 @@ changes a default goes while changing defaults is still free.
 | **1b: failover between bridges** (Phase 3) | a heartbeat every 30 s with each account alive-as-of and caught up, by the per-network table in design-clients.md · a client's `[[bridge]]` list, by pinned priority, failing over on disconnect or a stale heartbeat · resuming at another bridge from the time last heard, deduped by network ID · sends buffered 3–5 s with an ID that stops a second bridge sending them again · a bridge offered only once verified with its keys restored · standby bridges: one active at a time by device priority, the rest keeping their sessions alive · a client on several bridges · notification IDs from the message · kithd's version in `Status` | The heartbeat table's windows are decided first. Bridges reach each other across the internet over Tailscale, which kith documents and does not build ([remote.md](../docs/remote.md)). Standby gives one Google Messages session instead of several taking it from each other, at a WhatsApp and a Signal slot per device given a priority. |
 | **1c: the desktop's partial cache** | the desktop's relay holding its profile's rooms and a recent window as a replica in the mesh, scrollback from the bridge | Offline reading and instant start. Waits for 1a's steps 5–8; HTTP/2 on the local socket lands with it. Needs a design pass. |
 | **1d: Android client** (Phase 5) | spikes first: WhatsApp, Signal and Google Messages linked beside their official apps on one phone · credentials in Keystore decided · a `buf breaking` check · a UnifiedPush sink in `notify` (encrypted, wake only, a secret endpoint per profile) · a Kotlin app with its own SQLite cache, failing over per 1b, sending only when connected · Matrix single sign-on from a remote client | Takes the most calendar time of step 1. The push carries a wake and nothing else: the app syncs from the bridge over TLS right after. |
-| **2: names, everywhere the same way (S4)** | the rest of the name pipeline | `first_name_only` already resolves against the room's own space (the first by `[display] space_priority` when a room is in several), and identity merge and room aliases are built. What is left is the rest of a global → space → chat pipeline: more rule types beside `first_name_only` (for example stripping a bridge's suffix, or a fixed name for one person in one space), and a per-chat rung that overrides the space's rule. It goes through the single narrowest-wins scope resolver every other setting uses, rather than a resolver of its own. It changes what `first_name_only` means in a room whose space has no rule, so the default is decided before it is built. |
+| **2: names, everywhere the same way (S4)** | the rest of the name pipeline | **Done** (#599): `[display] first_name_only` (off by default) and `[[display.name_rule]]` (`first_name_only`, `strip`, `name`; per space, room and person, narrowest wins), shaped by kithd for every window and notification. `first_name_only` already resolves against the room's own space (the first by `[display] space_priority` when a room is in several), and identity merge and room aliases are built. What is left is the rest of a global → space → chat pipeline: more rule types beside `first_name_only` (for example stripping a bridge's suffix, or a fixed name for one person in one space), and a per-chat rung that overrides the space's rule. It goes through the single narrowest-wins scope resolver every other setting uses, rather than a resolver of its own. It changes what `first_name_only` means in a room whose space has no rule, so the default is decided before it is built. |
 | **3: Matrix sessions** | list an account's other sessions, rename them, sign old ones out | A lost laptop's session can only be ended from another client today. Signing out another session revokes its access token on the homeserver. |
 | **4: verifying other people** | in-room SAS verification of another person | Today kith verifies only your own sessions (`:verify`, emoji SAS). Verifying a contact is the same SAS exchange carried in the room (`m.key.verification.request` as a room message) instead of to-device. |
 
@@ -97,6 +97,9 @@ small and ships on its own.
   from a terminal client that names a profile is refused until the next sync lists it.
 - **Words typed during a profile switch**, for a room the new profile does not hold,
   are saved only once a profile that holds it is back.
+- **Creating a room from a script**: a `create_room` tool on kith-mcp and a
+  `kith room new` command, both over kithd's existing `CreateRoom`, so a hook can open
+  a group without the app.
 
 ### Remote clients
 
@@ -134,8 +137,6 @@ Not ordered; taken when a reason appears.
 - **Server-side search** for history that was never cached locally (Matrix's
   `/search`, and the networks that have one), merged into the same results pane as a
   separate, slower tier.
-- **`/call` with no setup.** The Jitsi command template needs no account; offering
-  `/call` from it by default on a fresh install is undecided.
 - **iMessage**, only through a helper on a Mac (the shape of `kith-signal`); no other
   approach works today.
 

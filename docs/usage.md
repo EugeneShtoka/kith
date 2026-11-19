@@ -69,7 +69,7 @@ In the rail:
 | `m` | Mark every unread room in the group read (asks first) |
 
 The rail's order and hidden rows are `[display.rail]` (`order`, `hidden`); a space's or
-tag's first-names-only rule is a `[[display.space_rule]]`.
+tag's first-names-only rule is a `[[display.name_rule]]`.
 
 These write to your config for you (a tag is renamed in its `[[tag]]`, not with `a`;
 name and notification rules work on tag rows as on spaces). To arrange the rail by hand, use `[display.rail]`: `order` names rows as `space:<name>`, `tag:<name>` or `place:<name>` (every row the rail shows by that name, renamed or not, a space's or a tag's; several are placed together), with `"-"` for a divider and `"*"` for every group you did not name; `hidden` removes groups; `hide_when_empty` hides groups while they hold nothing. A bare name is refused at startup. Without an `order`, tags come first, then spaces.
@@ -620,7 +620,7 @@ Names you give are local — only you see them — and live in your config.
 - `gI` on a message shows [everything its sender said](search.md#everything-one-person-said), in every room you share and by every ID kith links to them.
 - `a` on a room or rail group gives it a name of your own (`[[display.name]]`); `alt+r` names a thread.
   A private chat is named after the person in it, so naming one names them too, wherever they are shown, while the room's own name is still that person's name and nobody else but you is in it. A name given with `a` on their message wins.
-- `[[display.space_rule]]` shows first names only in a space or tag (`space = "space:Work"`, `"tag:Work"` or `"place:Work"`).
+- `[display] first_name_only = true` shows people by their first names everywhere; a `[[display.name_rule]]` says otherwise for one place, or one person there. `match` is a space or tag (`"space:Work"`, `"tag:Work"`, `"place:Work"`) or a room ID, and `sender` one person's ID. A rule sets `first_name_only`, `strip` (a regular expression taken out of names, such as a bridge's `" (WA)"`), or `name` (that person's fixed name there). A room follows its home's rule; the narrowest rule wins whole, a room's over its space's and one person's over everyone's. Every window, the terminal's and the desktop's, and every notification shows names this way; kith-mcp gives assistants whole names.
 - A place's `[[display.space_rule]] show_field = "company"` shows that field of a person's [phonebook](phonebook.md#a-field-beside-names) card after their name, in its room list and member list: "Dana Levi · Meta".
 - `[display] network_colors = true` names each room in every room list in its network's color; a place's `[[display.space_rule]] network_colors = true` or `false` overrides that for its own room list.
 - `[display.rail] network_colors = true` colors a rail row whose rooms are all on one network the same way.
