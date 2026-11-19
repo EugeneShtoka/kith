@@ -376,7 +376,8 @@ bridges: steps 5–8 of [design-mesh.md](design-mesh.md).
   (design-mesh.md decision 6).
 
 **The desktop's partial cache.** Offline reading in the desktop client makes it a
-replica in the mesh, so it waits for the rest of Phase 2b.
+replica in the mesh, so it waits for the rest of Phase 2b. Designed in
+[design-desktop-cache.md](design-desktop-cache.md) (proposed 2026-11-19).
 
 **Phase 5 — Android client.** Kotlin app, woken by UnifiedPush: the push sink in
 `notify` POSTs encrypted wakes to each profile's endpoints. Local SQLite cache for
