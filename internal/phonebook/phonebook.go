@@ -28,8 +28,9 @@ import (
 
 // IdentifierKeys are the front-matter keys that identify a person: phone in
 // international form, email, and per-network IDs (Matrix user ID, Telegram user ID,
-// WhatsApp number's ID, Slack ID as team.user).
-var IdentifierKeys = []string{"phone", "email", "matrix", "telegram", "whatsapp", "slack"}
+// WhatsApp number's ID, Slack ID as team.user, Messenger and Instagram user IDs,
+// Signal ACI).
+var IdentifierKeys = []string{"phone", "email", "matrix", "telegram", "whatsapp", "slack", "messenger", "instagram", "signal"}
 
 // Identifiers are a person's identifiers, by key.
 type Identifiers map[string][]string

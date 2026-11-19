@@ -346,6 +346,9 @@ const (
 	// BackendServiceStartVerificationProcedure is the fully-qualified name of the BackendService's
 	// StartVerification RPC.
 	BackendServiceStartVerificationProcedure = "/backend.v1.BackendService/StartVerification"
+	// BackendServiceVerifyPersonProcedure is the fully-qualified name of the BackendService's
+	// VerifyPerson RPC.
+	BackendServiceVerifyPersonProcedure = "/backend.v1.BackendService/VerifyPerson"
 	// BackendServiceAcceptVerificationProcedure is the fully-qualified name of the BackendService's
 	// AcceptVerification RPC.
 	BackendServiceAcceptVerificationProcedure = "/backend.v1.BackendService/AcceptVerification"
@@ -804,6 +807,8 @@ type BackendServiceClient interface {
 	Verifications(context.Context, *connect.Request[v1.VerificationsRequest]) (*connect.ServerStreamForClient[v1.VerificationsResponse], error)
 	// StartVerification asks this account's other devices to verify this one.
 	StartVerification(context.Context, *connect.Request[v1.StartVerificationRequest]) (*connect.Response[v1.StartVerificationResponse], error)
+	// VerifyPerson asks the other person in a direct chat to verify each other, in the room.
+	VerifyPerson(context.Context, *connect.Request[v1.VerifyPersonRequest]) (*connect.Response[v1.VerifyPersonResponse], error)
 	// AcceptVerification accepts an incoming request, advancing toward the SAS
 	// comparison.
 	AcceptVerification(context.Context, *connect.Request[v1.AcceptVerificationRequest]) (*connect.Response[v1.AcceptVerificationResponse], error)
@@ -1643,6 +1648,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("StartVerification")),
 			connect.WithClientOptions(opts...),
 		),
+		verifyPerson: connect.NewClient[v1.VerifyPersonRequest, v1.VerifyPersonResponse](
+			httpClient,
+			baseURL+BackendServiceVerifyPersonProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("VerifyPerson")),
+			connect.WithClientOptions(opts...),
+		),
 		acceptVerification: connect.NewClient[v1.AcceptVerificationRequest, v1.AcceptVerificationResponse](
 			httpClient,
 			baseURL+BackendServiceAcceptVerificationProcedure,
@@ -2056,6 +2067,7 @@ type backendServiceClient struct {
 	notificationStream    *connect.Client[v1.NotificationStreamRequest, v1.NotificationStreamResponse]
 	verifications         *connect.Client[v1.VerificationsRequest, v1.VerificationsResponse]
 	startVerification     *connect.Client[v1.StartVerificationRequest, v1.StartVerificationResponse]
+	verifyPerson          *connect.Client[v1.VerifyPersonRequest, v1.VerifyPersonResponse]
 	acceptVerification    *connect.Client[v1.AcceptVerificationRequest, v1.AcceptVerificationResponse]
 	confirmSAS            *connect.Client[v1.ConfirmSASRequest, v1.ConfirmSASResponse]
 	cancelVerification    *connect.Client[v1.CancelVerificationRequest, v1.CancelVerificationResponse]
@@ -2677,6 +2689,11 @@ func (c *backendServiceClient) StartVerification(ctx context.Context, req *conne
 	return c.startVerification.CallUnary(ctx, req)
 }
 
+// VerifyPerson calls backend.v1.BackendService.VerifyPerson.
+func (c *backendServiceClient) VerifyPerson(ctx context.Context, req *connect.Request[v1.VerifyPersonRequest]) (*connect.Response[v1.VerifyPersonResponse], error) {
+	return c.verifyPerson.CallUnary(ctx, req)
+}
+
 // AcceptVerification calls backend.v1.BackendService.AcceptVerification.
 func (c *backendServiceClient) AcceptVerification(ctx context.Context, req *connect.Request[v1.AcceptVerificationRequest]) (*connect.Response[v1.AcceptVerificationResponse], error) {
 	return c.acceptVerification.CallUnary(ctx, req)
@@ -3240,6 +3257,8 @@ type BackendServiceHandler interface {
 	Verifications(context.Context, *connect.Request[v1.VerificationsRequest], *connect.ServerStream[v1.VerificationsResponse]) error
 	// StartVerification asks this account's other devices to verify this one.
 	StartVerification(context.Context, *connect.Request[v1.StartVerificationRequest]) (*connect.Response[v1.StartVerificationResponse], error)
+	// VerifyPerson asks the other person in a direct chat to verify each other, in the room.
+	VerifyPerson(context.Context, *connect.Request[v1.VerifyPersonRequest]) (*connect.Response[v1.VerifyPersonResponse], error)
 	// AcceptVerification accepts an incoming request, advancing toward the SAS
 	// comparison.
 	AcceptVerification(context.Context, *connect.Request[v1.AcceptVerificationRequest]) (*connect.Response[v1.AcceptVerificationResponse], error)
@@ -4075,6 +4094,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("StartVerification")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceVerifyPersonHandler := connect.NewUnaryHandler(
+		BackendServiceVerifyPersonProcedure,
+		svc.VerifyPerson,
+		connect.WithSchema(backendServiceMethods.ByName("VerifyPerson")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceAcceptVerificationHandler := connect.NewUnaryHandler(
 		BackendServiceAcceptVerificationProcedure,
 		svc.AcceptVerification,
@@ -4599,6 +4624,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceVerificationsHandler.ServeHTTP(w, r)
 		case BackendServiceStartVerificationProcedure:
 			backendServiceStartVerificationHandler.ServeHTTP(w, r)
+		case BackendServiceVerifyPersonProcedure:
+			backendServiceVerifyPersonHandler.ServeHTTP(w, r)
 		case BackendServiceAcceptVerificationProcedure:
 			backendServiceAcceptVerificationHandler.ServeHTTP(w, r)
 		case BackendServiceConfirmSASProcedure:
@@ -5160,6 +5187,10 @@ func (UnimplementedBackendServiceHandler) Verifications(context.Context, *connec
 
 func (UnimplementedBackendServiceHandler) StartVerification(context.Context, *connect.Request[v1.StartVerificationRequest]) (*connect.Response[v1.StartVerificationResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.StartVerification is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) VerifyPerson(context.Context, *connect.Request[v1.VerifyPersonRequest]) (*connect.Response[v1.VerifyPersonResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.VerifyPerson is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) AcceptVerification(context.Context, *connect.Request[v1.AcceptVerificationRequest]) (*connect.Response[v1.AcceptVerificationResponse], error) {

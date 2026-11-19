@@ -152,6 +152,7 @@ var (
 		route.Encryption
 		route.SpaceLister
 		route.SignOuter
+		route.Blocker
 		configChecker
 		roomsRewriter
 		cacheWriter
@@ -183,8 +184,8 @@ var (
 		cacheWriter
 	} = (*linkedin.Adapter)(nil)
 
-	// Google Messages, so far: conversations, people, messages from the cache, reading
-	// (sending and history paging come next).
+	// Google Messages: conversations, people, messages, history paging, reading, sending,
+	// reactions, typing and attachments both ways.
 	_ interface {
 		route.Adapter
 		route.AccountLister
@@ -254,6 +255,7 @@ var (
 		route.Encryption
 		route.SpaceLister
 		route.SignOuter
+		route.Blocker
 		configChecker
 		roomsRewriter
 		cacheWriter

@@ -39,8 +39,11 @@ func placeSettings() []placeSetting {
 		{"display.filing_spaces", func(c *config.Settings, e string) { c.Device.Display.FilingSpaces = one(e) },
 			[]string{"space:Work", "place:Work", mx + "!abc:example.org"}},
 		{"display.space_rule[0].space", func(c *config.Settings, e string) {
-			c.Bridge.Display.SpaceRules = []config.SpaceRule{{Space: e, FirstNameOnly: true}}
+			c.Bridge.Display.SpaceRules = []config.SpaceRule{{Space: e, ShowField: "company"}}
 		}, homeForms},
+		{"display.name_rule[0].match", func(c *config.Settings, e string) {
+			c.Bridge.Display.NameRules = []config.NameRule{{Match: e, FirstNameOnly: new(true)}}
+		}, append(cloned(homeForms), roomForms...)},
 		{"display.rooms.rule[0].group", func(c *config.Settings, e string) {
 			c.Device.Display.Rooms.Rules = []config.RoomsRule{{Group: e, Sort: []string{"name"}}}
 		}, homeForms},

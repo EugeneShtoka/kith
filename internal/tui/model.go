@@ -132,9 +132,11 @@ func (m Model) railFromState() []group {
 // startupPrefs is the settings New starts with, before a config is applied.
 func startupPrefs(display config.Display, device config.DeviceDisplay, unreadLocal bool) prefsState {
 	clock, _ := setup.Clock(display) // validated at startup; the zero Clock is the default
+	names, _ := setup.NameRules(display)
 	return prefsState{
 		clock:       clock,
 		display:     display,
+		names:       names,
 		device:      device,
 		identities:  buildIdentities(display.Identities),
 		openInsert:  device.OpenInInsertMode(),
@@ -269,6 +271,8 @@ type prefsState struct {
 	// display is the bridge's [display], device this device's.
 	display config.Display
 	device  config.DeviceDisplay
+	// names is display's name rules, built once (setup.NameRules).
+	names domain.NameRules
 	// identities maps each merged MXID to its resolved person, from display.Identities.
 	identities map[string]resolvedIdentity
 	// roomAliases maps a room ID to its configured display name.
@@ -521,7 +525,9 @@ type verifyState struct {
 	txnID  string
 	stage  domain.VerificationKind
 	// ours marks a verification this session requested: nothing to accept, only cancel.
-	ours     bool
+	ours bool
+	// person marks one with another person rather than this account's own sessions.
+	person   bool
 	from     string
 	device   string
 	emojis   []domain.SASEmoji
@@ -685,13 +691,13 @@ func (m Model) roomName(room domain.Room) string {
 // roomLabel is a room's logical-order label: alias, else name, first-named per its own space's
 // rule when named after its members.
 func (m Model) roomLabel(room domain.Room) string {
-	return m.labeled(room, m.nameRuleFor(m.ownSpace(room.ID)))
+	return m.labeled(room, m.nameRuleIn(room.ID, m.ownSpace(room.ID), ""))
 }
 
 // roomLabelHere is roomLabel for a room-list row, using the viewed space's rule so a column is
 // uniform. See firstNameOnlyHere.
 func (m Model) roomLabelHere(room domain.Room) string {
-	return m.labeled(room, m.nameRuleFor(m.listedSpace(room.ID)))
+	return m.labeled(room, m.nameRuleIn(room.ID, m.listedSpace(room.ID), ""))
 }
 
 // labeled applies an alias, else rule-based shortening of a room named after its members.
@@ -3202,7 +3208,7 @@ func (m Model) handleVerify(msg verifyMsg) (Model, tea.Cmd) {
 			// Our own request echoed back; not a new one.
 			break
 		}
-		m.verify = verifyState{active: true, txnID: v.TxnID, stage: v.Kind, from: v.From, device: v.Device}
+		m.verify = verifyState{active: true, txnID: v.TxnID, stage: v.Kind, from: v.From, device: v.Device, person: v.Person}
 	case domain.VerificationSAS:
 		if m.verify.active && m.verify.txnID == v.TxnID {
 			m.verify.stage = v.Kind
@@ -3212,8 +3218,12 @@ func (m Model) handleVerify(msg verifyMsg) (Model, tea.Cmd) {
 		}
 	case domain.VerificationDone:
 		if m.verify.txnID == v.TxnID {
+			done := "✓ device verified"
+			if m.verify.person {
+				done = "✓ verified each other"
+			}
 			m.verify = verifyState{}
-			m = m.say("✓ device verified")
+			m = m.say(done)
 		}
 	case domain.VerificationCanceled:
 		if m.verify.txnID == v.TxnID {
@@ -3250,7 +3260,7 @@ func (m Model) handleVerifyStarted(msg verifyStartedMsg) (Model, tea.Cmd) {
 		return m.sayErr("could not ask", msg.err), nil
 	}
 	m.verify = verifyState{
-		active: true, ours: true, txnID: msg.txnID, stage: domain.VerificationRequested,
+		active: true, ours: true, person: msg.person, txnID: msg.txnID, stage: domain.VerificationRequested,
 	}
 	return m, nil
 }

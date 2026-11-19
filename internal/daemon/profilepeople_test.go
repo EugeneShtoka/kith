@@ -194,7 +194,9 @@ func TestAProfileHidesItsPeoplesNotificationsAndCounts(t *testing.T) {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if !slices.Equal(w.counted, []string{"Home", "first"}) {
-		t.Errorf("counted in %v, want Home then first, as the config spells them", w.counted)
+	// The rails rebuilt after the unread push count too, whenever they land.
+	if !slices.Contains(w.counted, "Home") || !slices.Contains(w.counted, "first") ||
+		slices.ContainsFunc(w.counted, func(p string) bool { return p != "Home" && p != "first" }) {
+		t.Errorf("counted in %v, want Home and first, as the config spells them", w.counted)
 	}
 }

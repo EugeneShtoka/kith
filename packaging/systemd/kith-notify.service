@@ -7,8 +7,9 @@
 #   systemctl --user daemon-reload
 #   systemctl --user enable --now kith-notify
 #
-# Other profiles: `systemctl --user edit kith-notify` and repeat the command below
-# with them:
+# Other profiles: name them in device.toml ([notifications] profiles = ["work", "home"]),
+# or `systemctl --user edit kith-notify` and repeat the command below with them; the
+# flags, when given, are used instead of profiles:
 #   [Service]
 #   ExecStart=
 #   ExecStart=<the ExecStart= below> --profile work --profile home

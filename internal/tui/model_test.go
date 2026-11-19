@@ -1870,9 +1870,7 @@ func TestNameProcessing(t *testing.T) {
 	m = update(t, m, spacesMsg{spaces: []domain.Space{
 		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x"}},
 	}})
-	m.prefs.display = config.Display{
-		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
-	}
+	m.prefs.names = domain.NameRules{Rules: []domain.NameRule{{Match: "space:Work", FirstNameOnly: new(true)}}}
 	m.prefs.device = config.DeviceDisplay{MaxNameLength: 8}
 	inWork := domain.Message{RoomID: mx + "!a:x", Sender: "matrix:@x:x", SenderName: "Rowan Blackwood"}
 
@@ -1883,7 +1881,7 @@ func TestNameProcessing(t *testing.T) {
 	// A rule on the rail group the cursor is on does not apply.
 	railKey := m.rail.key()
 	onTheRailGroup := m
-	onTheRailGroup.prefs.display.SpaceRules = []config.SpaceRule{{Space: railKey, FirstNameOnly: true}}
+	onTheRailGroup.prefs.names = domain.NameRules{Rules: []domain.NameRule{{Match: railKey, FirstNameOnly: new(true)}}}
 	if got := onTheRailGroup.processedName(inWork); got != "Rowan B…" {
 		t.Errorf("a rule on the rail group %q shortened %q — only the room's space may", railKey, got)
 	}
@@ -1908,7 +1906,7 @@ func TestNameProcessing(t *testing.T) {
 	}
 
 	// Without a matching rule, the name is left intact — alias or not.
-	m.prefs.display.SpaceRules = nil
+	m.prefs.names = domain.NameRules{}
 	m.prefs.device.MaxNameLength = 0
 	if got := m.processedName(inWork); got != "Rowan Blackwood" {
 		t.Errorf("no rule = %q, want full name", got)
@@ -1930,8 +1928,8 @@ func TestRoomName(t *testing.T) {
 
 	// A configured alias wins verbatim, over the space name rules.
 	m := starterNew(apitest.Nop{}, config.Display{
-		Names:      []config.DisplayName{{Target: mx + "!dm:x", Name: "Mom"}},
-		SpaceRules: []config.SpaceRule{{Space: homeGroupKey, FirstNameOnly: true}},
+		Names:     []config.DisplayName{{Target: mx + "!dm:x", Name: "Mom"}},
+		NameRules: []config.NameRule{{Match: homeGroupKey, FirstNameOnly: new(true)}},
 	}, config.DeviceDisplay{MaxNameLength: 8})
 	m = sized(t, withRooms(t, m)) // current rail group key is homeGroupKey
 	if got := m.roomName(single); got != "Mom" {
@@ -1941,7 +1939,7 @@ func TestRoomName(t *testing.T) {
 	// A first-name-only space shortens people-named rooms and leaves titles alone; the
 	// rule names the space the rooms are in.
 	m = starterNew(apitest.Nop{}, config.Display{
-		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
+		NameRules: []config.NameRule{{Match: "space:Work", FirstNameOnly: new(true)}},
 	})
 	m = sized(t, withRooms(t, m))
 	m = update(t, m, spacesMsg{spaces: []domain.Space{{
@@ -1976,7 +1974,7 @@ func TestRoomName(t *testing.T) {
 		Members: []string{"Rowan Blackwood", "Piper Nightingale", "Quinn Foster"},
 	}
 	m = starterNew(apitest.Nop{}, config.Display{
-		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
+		NameRules: []config.NameRule{{Match: "space:Work", FirstNameOnly: new(true)}},
 	}, config.DeviceDisplay{MaxNameLength: 8})
 	m = sized(t, withRooms(t, m))
 	m = update(t, m, spacesMsg{spaces: []domain.Space{{
@@ -1988,7 +1986,7 @@ func TestRoomName(t *testing.T) {
 
 	off := false
 	m = starterNew(apitest.Nop{}, config.Display{
-		SpaceRules:    []config.SpaceRule{{Space: homeGroupKey, FirstNameOnly: true}},
+		NameRules:     []config.NameRule{{Match: homeGroupKey, FirstNameOnly: new(true)}},
 		RoomNameRules: &off,
 	})
 	m = sized(t, withRooms(t, m))

@@ -143,6 +143,13 @@ func (r *Router) StartVerification(ctx context.Context, on domain.RoomOwner) (st
 	})
 }
 
+// VerifyPerson asks the other person in a direct chat to verify each other.
+func (r *Router) VerifyPerson(ctx context.Context, roomID domain.RoomID) (string, error) {
+	return onRoom(r, roomID, "verifying people", func(c api.Verification) (string, error) {
+		return c.VerifyPerson(ctx, roomID)
+	})
+}
+
 // onVerification runs call on Matrix, whose adapter knows the account a transaction is
 // for.
 func onVerification(r *Router, call func(api.Verification) error) error {
