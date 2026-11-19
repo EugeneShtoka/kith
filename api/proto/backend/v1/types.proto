@@ -50,6 +50,7 @@ message Room {
   // The inviter's name as kithd names them, the one every client shows
   // (domain.Room.InvitedByKnownAs).
   string invited_by_known_as = 19;
+  string invited_by_shown_as = 20; // invited_by_known_as as the room's name rule shows it
 }
 
 // ChatDeleting is how a chat that cannot be left is deleted (domain.ChatDeleting).
@@ -70,6 +71,7 @@ message Mention {
   // The person's name as kithd names them, the one every client shows
   // (domain.Mention.KnownAs).
   string known_as = 5;
+  string shown_as = 6; // known_as as the room's name rule shows it
 }
 
 // Media is a message attachment's display metadata (domain.Media).
@@ -98,6 +100,7 @@ message Activity {
   // Each of typing's names as kithd names them, in its order
   // (domain.Activity.TypingKnownAs).
   repeated string typing_known_as = 3;
+  repeated string typing_shown_as = 4; // typing_known_as as the room's name rule shows each
 }
 
 // Message is a single timeline message event (domain.Message).
@@ -146,6 +149,7 @@ message Message {
   // The sender's name as kithd names them, the one every client shows; sender_name is
   // the network's own (domain.Message.SenderKnownAs).
   string sender_known_as = 27;
+  string sender_shown_as = 28; // sender_known_as as the room's name rule shows it
 }
 
 // Poll is a question a message asks (domain.Poll).
@@ -177,6 +181,7 @@ message PollVoter {
   // The person's name as kithd names them, the one every client shows; name is the
   // network's own (domain.PollVoter.KnownAs).
   string known_as = 4;
+  string shown_as = 5; // known_as as the room's name rule shows it
 }
 
 // PollHiding is why a poll's network names none of its voters (domain.PollHiding).
@@ -307,6 +312,7 @@ message Thread {
   int64 mentions = 11;
   string title = 12; // the root's text, for naming the thread where the root is not on screen
   string latest_sender_known_as = 13; // latest_sender's name as kithd names them
+  string latest_sender_shown_as = 14; // that name as the room's name rule shows it
 }
 
 // Reaction is one m.annotation event (domain.Reaction).
@@ -356,6 +362,7 @@ message Member {
   // The person's name as kithd names them, the one every client shows; display_name is
   // the network's own (domain.Member.KnownAs).
   string known_as = 3;
+  string shown_as = 4; // known_as as the room's name rule shows it
 }
 
 // SearchHit is one message matching a search (domain.SearchHit).
@@ -376,6 +383,7 @@ message SearchHit {
   repeated Mention mentions = 9;
   // The sender's name as kithd names them (domain.SearchHit.SenderKnownAs).
   string sender_known_as = 10;
+  string sender_shown_as = 11; // sender_known_as as the room's name rule shows it
 }
 
 // SASEmoji is one emoji of a short authentication string (domain.SASEmoji).

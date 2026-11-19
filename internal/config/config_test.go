@@ -18,8 +18,8 @@ func TestLoad(t *testing.T) {
 [display]
 room_name_rules = false
 
-[[display.space_rule]]
-space = "Friends"
+[[display.name_rule]]
+match = "space:Friends"
 first_name_only = true
 
 [[display.identity]]
@@ -41,8 +41,8 @@ max_per_room = 3
 	if cfg.Matrix.Accounts[0].Homeserver != "https://x" || !cfg.AllowTokenFile || d.ApplyRoomNameRules() {
 		t.Errorf("top level / display = %+v", cfg)
 	}
-	if len(d.SpaceRules) != 1 || d.SpaceRules[0].Space != "Friends" || !d.SpaceRules[0].FirstNameOnly {
-		t.Errorf("SpaceRules = %+v", d.SpaceRules)
+	if len(d.NameRules) != 1 || d.NameRules[0].Match != "space:Friends" || !*d.NameRules[0].FirstNameOnly {
+		t.Errorf("NameRules = %+v", d.NameRules)
 	}
 	if len(d.Identities) != 1 || d.Identities[0].Alias != "Robin" || len(d.Identities[0].IDs) != 2 {
 		t.Errorf("Identities = %+v", d.Identities)

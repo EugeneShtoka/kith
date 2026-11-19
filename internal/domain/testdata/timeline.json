@@ -182,6 +182,43 @@
       ]
     },
     {
+      "name": "a later copy brings how the room shows each person now, under the same name too",
+      "kind": "merge",
+      "shown": [
+        {
+          "id": "$a",
+          "ts": 1000,
+          "sender": "@s",
+          "senderKnownAs": "Svetlana",
+          "senderShownAs": "Svetlana",
+          "body": "cc @bo",
+          "mentions": [{ "user": "@b", "name": "@bo", "knownAs": "Bo Levi", "shownAs": "Bo Levi" }]
+        }
+      ],
+      "rows": [
+        {
+          "id": "$a",
+          "ts": 1000,
+          "sender": "@s",
+          "senderKnownAs": "Svetlana",
+          "senderShownAs": "Sveta",
+          "body": "cc @bo",
+          "mentions": [{ "user": "@b", "name": "@bo", "knownAs": "Bo Levi", "shownAs": "Bo" }]
+        }
+      ],
+      "want": [
+        {
+          "id": "$a",
+          "ts": 1000,
+          "sender": "@s",
+          "senderKnownAs": "Svetlana",
+          "senderShownAs": "Sveta",
+          "body": "cc @bo",
+          "mentions": [{ "user": "@b", "name": "@bo", "knownAs": "Bo Levi", "shownAs": "Bo" }]
+        }
+      ]
+    },
+    {
       "name": "a missing body is filled; fields first seen stick",
       "kind": "merge",
       "shown": [{ "id": "$a", "ts": 1000, "sender": "@a", "seq": 3, "replyTo": "$r", "threadRoot": "$t" }],
