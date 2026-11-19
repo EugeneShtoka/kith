@@ -222,7 +222,10 @@ What follows from the table:
   alive and caught up, except as above (decided 2026-11-19). One stuck account makes a
   bridge unhealthy, whichever profile uses it, so every client and every standby bridge
   agree on which bridge is healthy. When none is, each with a different account stuck,
-  is open question 9.
+  standby and the client's choice go per account (open question 9, decided 2026-11-19):
+  each account is active on the highest-priority bridge where it is alive, a standby
+  bridge connects only the accounts stuck on every bridge above it, and a client takes
+  each account's rooms from the bridge where that account is active.
 
 ## Push notifications
 
@@ -348,8 +351,8 @@ As of 2026-10-24, from each product's public site and documentation.
 
 8. **(Adopted 2026-11-18, Phase 3) Standby bridges by device priority.** One bridge is active;
    the rest stand by, with their sessions linked, and each takes over only when it
-   sees no healthy bridge of higher priority. Two active at once is tolerated, not
-   prevented. Rejected: electing a leader by consensus, which a two- or three-bridge
+   sees no healthy bridge of higher priority; when no bridge is healthy, per account
+   (open question 9). Two active at once is tolerated, not prevented. Rejected: electing a leader by consensus, which a two- or three-bridge
    mesh split in half cannot reach.
 
 ## Phasing
@@ -370,14 +373,17 @@ bridges: steps 5–8 of [design-mesh.md](design-mesh.md).
 - Resuming at another bridge, by the time last heard less a grace window.
 - Event dedup on device by network-level ID.
 - Send-buffering during failover gaps (3–5s window).
-- Standby bridges: a priority per device, standing down to a healthy higher bridge,
-  taking over when none is seen, and keeping sessions alive while on standby.
+- Standby bridges: a priority per device, each account active on the highest bridge
+  where it is alive, a standby bridge connecting only the accounts stuck above it, and
+  keeping sessions alive while on standby.
 - A client on several bridges showing everything its profile defines across them
   (design-mesh.md decision 6).
 
-**The desktop's partial cache.** Offline reading in the desktop client makes it a
-replica in the mesh, so it waits for the rest of Phase 2b. Designed in
-[design-desktop-cache.md](design-desktop-cache.md) (proposed 2026-11-19).
+**The desktop's partial cache.** Offline reading and instant start in the desktop
+client. Its design is reopened (2026-11-19) and gets a design and planning phase of its
+own before any build: how it relates to a kithd cache on the same machine comes first.
+The draft and the answers given so far are in
+[design-desktop-cache.md](design-desktop-cache.md).
 
 **Phase 5 — Android client.** Kotlin app, woken by UnifiedPush: the push sink in
 `notify` POSTs encrypted wakes to each profile's endpoints. Local SQLite cache for
@@ -425,10 +431,10 @@ question.
    messages for that device, so what a bridge taking over can still catch up on. The
    hold times before standing down and taking over follow from heartbeat semantics
    (6).
-9. **No bridge healthy.** Two bridges each have a different account stuck: WhatsApp on
-   the homelab, Signal on the laptop. Neither is healthy, so by the rule above both take
-   over and every client passes both over. Either standby is decided per account (each
-   account active on the highest-priority bridge where it is alive, a standby bridge
-   connecting only the accounts stuck above it, a client taking each account from the
-   bridge where it is active), or per bridge (the one with most accounts alive, ties by
-   priority, or the higher one kept and the rest shown as stuck).
+9. ~~**No bridge healthy.**~~ *Decided 2026-11-19:* per account. Two bridges each with a
+   different account stuck (WhatsApp on the homelab, Signal on the laptop) would, by
+   bridge, both take over and both be passed over. Instead each account is active on the
+   highest-priority bridge where it is alive; a standby bridge connects only the accounts
+   stuck on every bridge above it; a client takes each account from the bridge where it
+   is active. Rejected: choosing one bridge (most accounts alive, or the higher one with
+   the rest shown as stuck).
