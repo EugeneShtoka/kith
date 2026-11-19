@@ -105,6 +105,8 @@ func serveThemeKithd(t *testing.T, cfgPath string, paired ...*ecdsa.PrivateKey) 
 		Log:       logging.Discard(),
 		Paired:    devices,
 		Languages: daemon.NewLanguages(filepath.Join(dir, "languages.toml"), log.streams.LanguagesOwed, logging.Discard()),
+		BackupWarning: daemon.NewBackupWarning(filepath.Join(dir, "backup-warnings.toml"),
+			log.streams.BackupWarningChanged, logging.Discard()),
 	}
 	d.State.Synced(time.Now())
 	ctx, cancel := context.WithCancel(context.Background())

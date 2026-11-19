@@ -197,24 +197,25 @@ func (l *Languages) restore() {
 // saveLocked writes the file, logging a failure: the next start then owes what the
 // last write said.
 func (l *Languages) saveLocked() {
-	if err := writeLanguages(l.path, l.file); err != nil {
+	if err := writeTOML(l.path, l.file, "the owed languages"); err != nil {
 		l.log.Warn("keep which languages are owed failed", "path", l.path, "err", err)
 	}
 }
 
-// writeLanguages replaces the file at path with f atomically.
-func writeLanguages(path string, f languagesFile) error {
+// writeTOML replaces the file at path with v, encoded, atomically; what names it in an
+// error.
+func writeTOML(path string, v any, what string) error {
 	var body bytes.Buffer
-	if err := toml.NewEncoder(&body).Encode(f); err != nil {
-		return fmt.Errorf("daemon: encode the owed languages: %w", err)
+	if err := toml.NewEncoder(&body).Encode(v); err != nil {
+		return fmt.Errorf("daemon: encode %s: %w", what, err)
 	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("daemon: write the owed languages: %w", err)
+		return fmt.Errorf("daemon: write %s: %w", what, err)
 	}
-	tmp, err := os.CreateTemp(dir, ".languages-*.toml")
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+"-*")
 	if err != nil {
-		return fmt.Errorf("daemon: write the owed languages: %w", err)
+		return fmt.Errorf("daemon: write %s: %w", what, err)
 	}
 	defer func() { _ = os.Remove(tmp.Name()) }() // gone after the rename; a leftover on failure
 	_, err = tmp.Write(body.Bytes())
@@ -225,7 +226,7 @@ func writeLanguages(path string, f languagesFile) error {
 		err = os.Rename(tmp.Name(), path)
 	}
 	if err != nil {
-		return fmt.Errorf("daemon: write the owed languages: %w", err)
+		return fmt.Errorf("daemon: write %s: %w", what, err)
 	}
 	return nil
 }

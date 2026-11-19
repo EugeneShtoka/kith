@@ -217,6 +217,38 @@ describe("the window's invitations", () => {
   });
 });
 
+describe("kithd's warning about the backups folder", () => {
+  it("shows once a window; closed, kithd is told nothing, and Don't warn again dismisses that folder", async () => {
+    await started();
+    expect(view().backupWarning).toBeUndefined(); // no warning, no notice
+
+    kithd.backupFolder = "/tmp/kith";
+    kithd.send(backend.changed, "Home", { change: Change.BACKUP_WARNING });
+    await settled();
+    expect(view().backupWarning?.why).toBe("Backups in /tmp/kith vanish when kithd stops.");
+    session.closeBackupWarning(false);
+    kithd.send(backend.changed, "Home", { change: Change.BACKUP_WARNING });
+    await settled();
+    expect(view().backupWarning).toBeUndefined();
+    expect(kithd.backupFoldersDismissed).toEqual([]);
+
+    session.stop();
+    session = new Session(); // the window starts again
+    await started();
+    expect(view().backupWarning?.dir).toBe("/tmp/kith");
+    session.closeBackupWarning(true);
+    await settled();
+    expect(kithd.calls).toContain("DismissBackupWarning:Home");
+    expect(kithd.backupFoldersDismissed).toEqual(["/tmp/kith"]);
+    expect(view().backupWarning).toBeUndefined();
+
+    kithd.backupFolder = "/tmp/elsewhere"; // another folder warns again
+    kithd.send(backend.changed, "Home", { change: Change.BACKUP_WARNING });
+    await settled();
+    expect(view().backupWarning?.dir).toBe("/tmp/elsewhere");
+  });
+});
+
 /** A small seeded generator, so a failure names the seed that made it. */
 function rng(seed: number) {
   let s = seed;

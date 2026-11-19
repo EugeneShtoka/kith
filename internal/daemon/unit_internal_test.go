@@ -91,8 +91,8 @@ func TestOwnUnitServesItsConfig(t *testing.T) {
 }
 
 // Scheduled backups outside the config's folders ([backup] dir, or an export_dir of
-// its own) may be written and are made before the sandbox is built; inside them they
-// add nothing.
+// its own) may be written and are made before the sandbox is built; inside them, or
+// under /tmp, they add nothing.
 func TestOwnUnitWritesTheBackupsFolder(t *testing.T) {
 	t.Parallel()
 	base := []string{"/home/u/sb/data", "/home/u/sb/state", "/home/u/sb/cache", "/run/user/1000/sb", "/home/u/sb"}
@@ -101,6 +101,9 @@ func TestOwnUnitWritesTheBackupsFolder(t *testing.T) {
 		"/home/u/sb/data/backups":   base,
 		"/home/u/sb/datastore/kith": append(slices.Clone(base), "/home/u/sb/datastore/kith"),
 		"":                          base, // no export_dir here: <export_dir>/backups is no path
+		// PrivateTmp='s own /tmp and /var/tmp, writable already.
+		"/tmp/kith":     base,
+		"/var/tmp/kith": base,
 	} {
 		storage := ownStorage()
 		storage.Backups = backups

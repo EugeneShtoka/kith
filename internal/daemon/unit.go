@@ -81,9 +81,11 @@ func ownUnit(storage domain.Storage, kithd string, launch Launch) (string, error
 	}
 	writable := []string{words["data"], words["state"], words["cache"], words["runtime"], configDir}
 	// Scheduled backups go to [backup] dir (else <export_dir>/backups), which may lie
-	// outside the folders above.
+	// outside the folders above. One under /tmp is in the private /tmp PrivateTmp= gives,
+	// writable already (and warned about: BackupWarning).
 	backups := storage.BackupsDir()
-	if filepath.IsAbs(backups) && !under(backups, storage.DataDir, storage.StateDir, storage.CacheDir, storage.RuntimeDir) {
+	if filepath.IsAbs(backups) && !underTmp(backups) &&
+		!under(backups, storage.DataDir, storage.StateDir, storage.CacheDir, storage.RuntimeDir) {
 		w, err := unitPath(backups)
 		if err != nil {
 			return "", err

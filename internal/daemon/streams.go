@@ -116,6 +116,12 @@ func (s *Streams) NamesChanged() { s.changes.broadcast(change{what: domain.Chang
 // DraftsChanged tells every attached client that a stored draft changed.
 func (s *Streams) DraftsChanged() { s.changes.broadcast(change{what: domain.ChangeDrafts}) }
 
+// BackupWarningChanged tells every attached client that the backup folder warning
+// changed.
+func (s *Streams) BackupWarningChanged() {
+	s.changes.broadcast(change{what: domain.ChangeBackupWarning})
+}
+
 // railChanged tells the clients running in profile that its rail changed.
 func (s *Streams) railChanged(profile string) {
 	s.changes.broadcast(change{what: domain.ChangeRail, profile: profile})

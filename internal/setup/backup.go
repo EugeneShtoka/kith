@@ -19,8 +19,8 @@ var errPrivateBackupKey = errors.New("backup.key: this is the private key; put o
 
 // Backups checks [backup]: a public key (never the private one), a readable interval
 // or cron expression (not both), at least one backup kept, and a folder kithd can be
-// given (a full path, and not under /tmp, which kithd's sandbox replaces); and
-// [backup.media] alike.
+// given (a full path); and [backup.media] alike. A folder under /tmp is taken: kithd
+// warns about it (daemon.BackupWarning).
 func Backups(b config.Backup) error {
 	if err := backups(b); err != nil {
 		return err
@@ -50,20 +50,10 @@ func backups(b config.Backup) error {
 	return backupDir(b.Dir)
 }
 
-// backupDir checks [backup] dir: empty, or a full path (or one starting with ~/)
-// outside /tmp and /var/tmp.
+// backupDir checks [backup] dir: empty, or a full path (or one starting with ~/).
 func backupDir(dir string) error {
-	if dir == "" {
+	if dir == "" || dir == "~" || strings.HasPrefix(dir, "~/") || filepath.IsAbs(dir) {
 		return nil
 	}
-	if dir != "~" && !strings.HasPrefix(dir, "~/") && !filepath.IsAbs(dir) {
-		return fmt.Errorf("backup.dir %q: give a full path (or one starting with ~/)", dir)
-	}
-	clean := filepath.Clean(dirOr(dir, ""))
-	for _, tmp := range []string{"/tmp", "/var/tmp"} {
-		if clean == tmp || strings.HasPrefix(clean, tmp+"/") {
-			return fmt.Errorf("backup.dir %q: kithd's sandbox gives it a /tmp of its own, so backups there would vanish; choose a folder elsewhere", dir)
-		}
-	}
-	return nil
+	return fmt.Errorf("backup.dir %q: give a full path (or one starting with ~/)", dir)
 }

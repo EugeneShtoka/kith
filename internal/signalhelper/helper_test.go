@@ -85,6 +85,10 @@ func (f *fakeNetwork) JoinGroup(context.Context, *signalv1.JoinGroupRequest) (*s
 	return &signalv1.JoinGroupResponse{}, nil
 }
 
+func (f *fakeNetwork) Block(context.Context, *signalv1.BlockRequest) error { return nil }
+
+func (f *fakeNetwork) Blocked(context.Context, string) ([]string, error) { return nil, nil }
+
 func (f *fakeNetwork) Upload(_ context.Context, req *signalv1.UploadRequest) (*signalv1.Attachment, error) {
 	return &signalv1.Attachment{FileName: req.GetFileName(), Pointer: []byte("kept")}, nil
 }

@@ -46,13 +46,14 @@ func TestAPrivateBackupKeyIsRefusedAndNeverEchoed(t *testing.T) {
 	}
 }
 
-// every is a readable interval, keep at least 1, and dir a full path outside the /tmp
-// kithd's sandbox replaces.
+// every is a readable interval, keep at least 1, and dir a full path; one under /tmp
+// or /var/tmp is taken (kithd warns about it instead).
 func TestTheBackupScheduleAndFolderAreChecked(t *testing.T) {
 	t.Parallel()
 	zero, one := 0, 1
 	for _, ok := range []config.Backup{
 		{}, {Every: "1m"}, {Every: "7d"}, {Keep: &one}, {Dir: "~/backups"}, {Dir: "/mnt/nas/kith"},
+		{Dir: "/tmp/kith"}, {Dir: "/var/tmp"}, {Dir: "/tmp/../tmp/x"}, {Media: config.MediaBackup{Dir: "/tmp/kith"}},
 	} {
 		if err := setup.Backups(ok); err != nil {
 			t.Errorf("Backups(%+v) = %v; want it taken", ok, err)
@@ -60,13 +61,13 @@ func TestTheBackupScheduleAndFolderAreChecked(t *testing.T) {
 	}
 	for _, refused := range []config.Backup{
 		{Every: "0d"}, {Keep: &zero},
-		{Dir: "backups"}, {Dir: "/tmp/kith"}, {Dir: "/var/tmp"}, {Dir: "/tmp/../tmp/x"},
+		{Dir: "backups"}, {Dir: "tmp/kith"},
 	} {
 		if err := setup.Backups(refused); err == nil {
 			t.Errorf("Backups(%+v) was taken; want it refused", refused)
 		}
 	}
-	for _, refused := range []config.MediaBackup{{Every: "0d"}, {Keep: &zero}, {Dir: "/tmp/kith"}, {Every: "7d", Cron: "0 3 * * 0"}} {
+	for _, refused := range []config.MediaBackup{{Every: "0d"}, {Keep: &zero}, {Dir: "kith"}, {Every: "7d", Cron: "0 3 * * 0"}} {
 		if err := setup.Backups(config.Backup{Media: refused}); err == nil || !strings.HasPrefix(err.Error(), "[backup.media]") {
 			t.Errorf("Backups([backup.media] %+v) = %v; want it refused, naming [backup.media]", refused, err)
 		}

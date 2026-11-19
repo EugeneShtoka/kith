@@ -26,6 +26,7 @@ import {
   RailRowKind,
   type ReactionsResponse,
   type StatusResponse,
+  type BackupWarning,
 } from "../gen/backend/v1/services_pb";
 import type { Member, Message, Reaction, Room, SearchHit, ThreadUnread, Unread } from "../gen/backend/v1/types_pb";
 import {
@@ -192,6 +193,8 @@ export interface View {
   accounts: readonly Account[];
   /** The offers (offers.ts): the one shown, and what the last download came to. */
   offers: { prompt: Prompt | undefined; note: string };
+  /** kithd's warning about the backups folder (Status), unless closed in this window. */
+  backupWarning: BackupWarning | undefined;
   /** The filing picker open on a room (filing.ts). */
   filing: Filing | undefined;
   /** The note on the bar: what the last act (a filing, a copy, a link, a name) came to. */
@@ -447,6 +450,7 @@ export class Session {
     devices: noDevices,
     chatImport: idleImport,
     offers: { prompt: undefined, note: "" },
+    backupWarning: undefined,
     problem: undefined,
     ...nothingShown,
   };
@@ -454,6 +458,8 @@ export class Session {
   private readonly offers = new Offers(offerCalls, () => {
     this.set({ offers: { prompt: this.offers.prompt, note: this.offers.note } });
   });
+  /** The backups folders whose warning was closed in this window: not shown again until it starts again. */
+  private readonly backupWarningsClosed = new Set<string>();
   private readonly listeners = new Set<() => void>();
   private run: Run | undefined;
   /** This window, to kithd's windows (main names it so, whatever this says). */
@@ -1350,6 +1356,24 @@ export class Session {
     this.offers.dismiss();
   }
 
+  /**
+   * closeBackupWarning puts kithd's warning about the backups folder away until the
+   * window starts again; forever, kithd keeps that folder dismissed (another warns again).
+   */
+  closeBackupWarning(forever: boolean): void {
+    const w = this.view.backupWarning;
+    if (w === undefined) {
+      return;
+    }
+    this.backupWarningsClosed.add(w.dir);
+    this.set({ backupWarning: undefined });
+    if (forever) {
+      call(backend.dismissBackupWarning, { dir: w.dir }).catch((err: unknown) => {
+        this.fail(err);
+      });
+    }
+  }
+
   /** findDictionaries offers the dictionaries and word counts for what you write, read now. */
   findDictionaries(): void {
     void this.offers.find();
@@ -1846,6 +1870,9 @@ export class Session {
             }
             if (e.frames.some((f) => f.change === Change.LANGUAGES)) {
               void this.offers.owed();
+            }
+            if (e.frames.some((f) => f.change === Change.BACKUP_WARNING)) {
+              this.readStatus(run);
             }
             if (e.frames.some((f) => f.change === Change.DRAFTS)) {
               // Another window, or kith-mcp, wrote a draft: each changed one is taken
@@ -3148,7 +3175,9 @@ export class Session {
     call(backend.status, {}).then(
       (status) => {
         if (this.live(run)) {
-          this.set({ status, problem: this.unsaved() });
+          const w = status.backupWarning;
+          const backupWarning = w && !this.backupWarningsClosed.has(w.dir) ? w : undefined;
+          this.set({ status, backupWarning, problem: this.unsaved() });
         }
       },
       (err: unknown) => {

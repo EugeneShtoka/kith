@@ -915,7 +915,15 @@ func (s *server) Status(_ context.Context, _ *req[v1.StatusRequest]) (*resp[v1.S
 		}
 		out.Networks = append(out.Networks, row)
 	}
+	if dir, why := s.BackupWarning.Current(); dir != "" {
+		out.BackupWarning = &v1.BackupWarning{Dir: dir, Why: why}
+	}
 	return connect.NewResponse(out), nil
+}
+
+// DismissBackupWarning stops the backup folder warning for the folder named.
+func (s *server) DismissBackupWarning(_ context.Context, r *req[v1.DismissBackupWarningRequest]) (*resp[v1.DismissBackupWarningResponse], error) {
+	return reply(&v1.DismissBackupWarningResponse{}, s.BackupWarning.Dismiss(r.Msg.GetDir()))
 }
 
 func phaseToProto(p Phase) v1.NetworkPhase {

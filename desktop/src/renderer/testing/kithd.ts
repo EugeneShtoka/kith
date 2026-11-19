@@ -281,6 +281,9 @@ export class Kithd {
   readonly detections: string[] = [];
   modelOffer: MessageInitShape<typeof backend.detectModel.output> = {};
   readonly installed: string[] = [];
+  /** The backups folder kithd warns about ("" none), and the folders dismissed. */
+  backupFolder = "";
+  readonly backupFoldersDismissed: string[] = [];
   /**
    * Pairing, as kithd and main answer it: kithd's own ID and the devices paired; the QR
    * code's modules the relay draws; what a pairing's stream sends as it opens (the ticket,
@@ -675,8 +678,17 @@ export class Kithd {
         this.remembered = chosen;
         return reply(DeviceService.method.chooseProfile, { profile: chosen });
       }
-      case "Status":
-        return reply(backend.status, { ready: true });
+      case "Status": {
+        const dir = this.backupFoldersDismissed.includes(this.backupFolder) ? "" : this.backupFolder;
+        return reply(backend.status, {
+          ready: true,
+          backupWarning: dir === "" ? undefined : { dir, why: `Backups in ${dir} vanish when kithd stops.` },
+        });
+      }
+      case "DismissBackupWarning":
+        this.backupFoldersDismissed.push((request as MessageShape<typeof backend.dismissBackupWarning.input>).dir);
+        this.send(backend.changed, profile, { change: Change.BACKUP_WARNING });
+        return reply(backend.dismissBackupWarning, {});
       case "Rooms":
         return reply(backend.rooms, { rooms: p.rooms });
       case "SetRoomName": {

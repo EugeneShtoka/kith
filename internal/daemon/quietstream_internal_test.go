@@ -52,6 +52,8 @@ func TestAQuietStreamOutlivesTheAnswerTimeout(t *testing.T) {
 		Uploads:     uploads,
 		Log:         logging.Discard(),
 		Languages:   NewLanguages(filepath.Join(t.TempDir(), "languages.toml"), streams.LanguagesOwed, logging.Discard()),
+		BackupWarning: NewBackupWarning(filepath.Join(t.TempDir(), "backup-warnings.toml"),
+			streams.BackupWarningChanged, logging.Discard()),
 		Paired: NewDevices(filepath.Join(t.TempDir(), "devices.toml"), func() (RosterStore, error) { return nil, errors.New("no store") },
 			func() (tls.Certificate, error) { return tls.Certificate{}, errors.New("no key") }, logging.Discard()),
 	}

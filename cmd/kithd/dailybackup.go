@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/backup"
+	"github.com/EugeneShtoka/kith/internal/config"
+	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/db"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/setup"
@@ -111,6 +113,28 @@ func (d dailyBackups) outcome(done backup.Daily, err error) (string, slog.Level)
 		d.log.Info("backed up", "op", "scheduled "+d.what(), "path", done.Made.Path, "deleted", len(done.Deleted))
 	}
 	return "", slog.LevelInfo
+}
+
+// warnAboutBackups is the warning about the folders cfg's scheduled backups go to, as
+// kithd starts with it; a reload passes it the folders again.
+func warnAboutBackups(log *slog.Logger, storage domain.Storage, cfg config.Config, streams *daemon.Streams) *daemon.BackupWarning {
+	w := daemon.NewBackupWarning(storage.DismissedBackupFoldersPath(), streams.BackupWarningChanged, log)
+	w.Use(backupFolders(storage, cfg))
+	return w
+}
+
+// backupFolders is the folders cfg's scheduled backups go to, [backup]'s and then
+// [backup.media]'s, each only while it is on.
+func backupFolders(storage domain.Storage, cfg config.Config) []string {
+	var dirs []string
+	schedules := []config.Backup{cfg.Backup, cfg.Backup.MediaSchedule()}
+	for i := range schedules {
+		cfg.Backup = schedules[i]
+		if s, err := setup.WithBackups(storage, cfg); err == nil && cfg.Backup.On() {
+			dirs = append(dirs, s.BackupsDir())
+		}
+	}
+	return dirs
 }
 
 // once is one scheduled run at now, by the config as it reads now, holding maintenance,

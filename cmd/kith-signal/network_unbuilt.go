@@ -68,6 +68,10 @@ func (unbuilt) JoinGroup(context.Context, *signalv1.JoinGroupRequest) (*signalv1
 	return nil, errUnbuilt
 }
 
+func (unbuilt) Block(context.Context, *signalv1.BlockRequest) error { return errUnbuilt }
+
+func (unbuilt) Blocked(context.Context, string) ([]string, error) { return nil, errUnbuilt }
+
 func (unbuilt) Upload(context.Context, *signalv1.UploadRequest) (*signalv1.Attachment, error) {
 	return nil, errUnbuilt
 }

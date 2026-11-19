@@ -190,6 +190,8 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	"backend.v1.CheckConfigRequest.config": notARoom, "backend.v1.UpdateConfigRequest.base_revision": notARoom,
 	"backend.v1.UpdateConfigRequest.config": notARoom, "backend.v1.InstallDictionaryRequest.tag": notARoom,
 	"backend.v1.InstallFrequenciesRequest.tag": notARoom, "backend.v1.InstallModelRequest.tag": notARoom,
+	// A backups folder whose warning is dismissed.
+	"backend.v1.DismissBackupWarningRequest.dir": notARoom,
 	// One setting of the bridge's config: its path, a revision, and its value as text or a
 	// list, none a list of places (configsettings.go excludes those).
 	"backend.v1.SetConfigSettingRequest.base_revision": notARoom, "backend.v1.SetConfigSettingRequest.path": notARoom,

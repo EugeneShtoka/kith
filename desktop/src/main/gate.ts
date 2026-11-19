@@ -39,6 +39,8 @@ const refuseAll: Asks = {
 const calls = new Map<string, DescMethodUnary>(
   [
     backend.status,
+    // kithd's warning about the backups folder (Status), dismissed for that folder alone.
+    backend.dismissBackupWarning,
     backend.rail,
     backend.rooms,
     backend.lastMessages,
