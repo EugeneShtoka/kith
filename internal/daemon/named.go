@@ -175,7 +175,7 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	// An account (domain.RoomOwner), a network: every profile's.
 	"backend.v1.PublicRoomsRequest.on": notARoom, "backend.v1.CreateRoomRequest.on": notARoom,
 	"backend.v1.ResolveLinkRequest.on": notARoom, "backend.v1.JoinLinkRequest.on": notARoom,
-	"backend.v1.StartVerificationRequest.on": notARoom, "backend.v1.BeginLoginRequest.network": notARoom,
+	"backend.v1.StartVerificationRequest.on": notARoom, "backend.v1.VerifyPersonRequest.room_id": aRoom, "backend.v1.BeginLoginRequest.network": notARoom,
 	"backend.v1.BeginLoginRequest.account": notARoom, "backend.v1.PreviewGroupingsRequest.network": notARoom,
 	"backend.v1.PreviewGroupingsRequest.account": notARoom, "backend.v1.ApplyGroupingsRequest.network": notARoom,
 	"backend.v1.ApplyGroupingsRequest.account": notARoom,

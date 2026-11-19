@@ -858,6 +858,11 @@ func (s *server) StartVerification(ctx context.Context, r *req[v1.StartVerificat
 	return reply(&v1.StartVerificationResponse{TxnId: txnID}, err)
 }
 
+func (s *server) VerifyPerson(ctx context.Context, r *req[v1.VerifyPersonRequest]) (*resp[v1.VerifyPersonResponse], error) {
+	txnID, err := s.Backend.VerifyPerson(ctx, roomID(r.Msg.GetRoomId()))
+	return reply(&v1.VerifyPersonResponse{TxnId: txnID}, err)
+}
+
 func (s *server) AcceptVerification(ctx context.Context, r *req[v1.AcceptVerificationRequest]) (*resp[v1.AcceptVerificationResponse], error) {
 	txn := r.Msg.GetTxnId()
 	return reply(&v1.AcceptVerificationResponse{}, s.answer(txn, domain.VerificationAccepted, func() error {

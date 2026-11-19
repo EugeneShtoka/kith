@@ -2743,7 +2743,8 @@ type Verification struct {
 	Device        string                 `protobuf:"bytes,4,opt,name=device,proto3" json:"device,omitempty"` // requested: which device
 	Emojis        []*SASEmoji            `protobuf:"bytes,5,rep,name=emojis,proto3" json:"emojis,omitempty"`
 	Decimals      []int64                `protobuf:"varint,6,rep,packed,name=decimals,proto3" json:"decimals,omitempty"`
-	Reason        string                 `protobuf:"bytes,7,opt,name=reason,proto3" json:"reason,omitempty"` // canceled: why; restored: what was imported
+	Reason        string                 `protobuf:"bytes,7,opt,name=reason,proto3" json:"reason,omitempty"`  // canceled: why; restored: what was imported
+	Person        bool                   `protobuf:"varint,8,opt,name=person,proto3" json:"person,omitempty"` // requested: another person asks, not one of your own sessions
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2825,6 +2826,13 @@ func (x *Verification) GetReason() string {
 		return x.Reason
 	}
 	return ""
+}
+
+func (x *Verification) GetPerson() bool {
+	if x != nil {
+		return x.Person
+	}
+	return false
 }
 
 // TempRule is one temporary notification rule in force — what do-not-disturb is made of
@@ -3283,7 +3291,7 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x0fsender_shown_as\x18\v \x01(\tR\rsenderShownAs\"4\n" +
 	"\bSASEmoji\x12\x14\n" +
 	"\x05glyph\x18\x01 \x01(\tR\x05glyph\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\xe5\x01\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\xfd\x01\n" +
 	"\fVerification\x120\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1c.backend.v1.VerificationKindR\x04kind\x12\x15\n" +
 	"\x06txn_id\x18\x02 \x01(\tR\x05txnId\x12\x12\n" +
@@ -3291,7 +3299,8 @@ const file_backend_v1_types_proto_rawDesc = "" +
 	"\x06device\x18\x04 \x01(\tR\x06device\x12,\n" +
 	"\x06emojis\x18\x05 \x03(\v2\x14.backend.v1.SASEmojiR\x06emojis\x12\x1a\n" +
 	"\bdecimals\x18\x06 \x03(\x03R\bdecimals\x12\x16\n" +
-	"\x06reason\x18\a \x01(\tR\x06reason\"\xcc\x01\n" +
+	"\x06reason\x18\a \x01(\tR\x06reason\x12\x16\n" +
+	"\x06person\x18\b \x01(\bR\x06person\"\xcc\x01\n" +
 	"\bTempRule\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05match\x18\x02 \x01(\tR\x05match\x12\x16\n" +
