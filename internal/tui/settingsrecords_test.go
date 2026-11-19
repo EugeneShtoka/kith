@@ -46,20 +46,24 @@ func TestFirstNamesPerPlace(t *testing.T) {
 	}
 	m = pickLabel(t, m.settingsIn(placePage("Work"), ""), "First names only")
 	m = pickLabel(t, m.settingsIn(placePage("tag:DMs"), ""), "First names only")
-	rules := m.conf.base.Display.SpaceRules
-	if !slices.Contains(rules, config.SpaceRule{Space: "space:Work", FirstNameOnly: true}) ||
-		!slices.Contains(rules, config.SpaceRule{Space: "tag:DMs", FirstNameOnly: true}) {
+	rules := m.conf.base.Display.NameRules
+	on := func(match string) bool {
+		return slices.ContainsFunc(rules, func(r config.NameRule) bool {
+			return r.Match == match && r.FirstNameOnly != nil && *r.FirstNameOnly
+		})
+	}
+	if !on("space:Work") || !on("tag:DMs") {
 		t.Fatalf("rules = %+v, want Work and tag:DMs on", rules)
 	}
 	reloaded, err := config.Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(reloaded.Display.SpaceRules) != 2 {
-		t.Errorf("saved rules = %+v", reloaded.Display.SpaceRules)
+	if len(reloaded.Display.NameRules) != 2 {
+		t.Errorf("saved rules = %+v", reloaded.Display.NameRules)
 	}
 	m = pickLabel(t, m.settingsIn(placePage("Work"), ""), "First names only")
-	if slices.ContainsFunc(m.conf.base.Display.SpaceRules, func(r config.SpaceRule) bool { return r.Space == "space:Work" }) {
+	if slices.ContainsFunc(m.conf.base.Display.NameRules, func(r config.NameRule) bool { return r.Match == "space:Work" }) {
 		t.Error("switched off, Work's rule is still written")
 	}
 }
