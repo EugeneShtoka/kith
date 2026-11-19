@@ -30,6 +30,14 @@ var ErrNoAccount = errors.New("meta: no such [[messenger.account]]")
 // device already signed in, which shows no code of its own.
 const approveElsewhere = "approve it in the Facebook or Messenger app"
 
+// messagixCredentials is messagix's note on the step asking for the email or phone and
+// password; kith asks in its own words (credentialsNote), keeping a rejection messagix
+// puts before it.
+const (
+	messagixCredentials = "Enter your Facebook credentials. The Messenger network will only work with Facebook accounts."
+	credentialsNote     = "Sign in with the Meta account your Messenger uses: its email or phone, and its password."
+)
+
 // LoginNetwork is Messenger and its accounts as a login lists them.
 func (a *Adapter) LoginNetwork() api.LoginNetwork {
 	n := api.LoginNetwork{Network: "messenger", Label: "Messenger", Detail: "a Meta account, signed in with its password"}
@@ -80,7 +88,11 @@ func (a *Adapter) Login(ctx context.Context, account string, talk api.LoginTalk)
 func answer(ctx context.Context, talk api.LoginTalk, step *bridgev2.LoginStep) (map[string]string, error) {
 	switch {
 	case step.Type == bridgev2.LoginStepTypeUserInput && step.UserInputParams != nil:
-		return askFields(ctx, talk, step.Instructions, step.UserInputParams.Fields)
+		note := step.Instructions
+		if rejected, ok := strings.CutSuffix(note, messagixCredentials); ok {
+			note = rejected + credentialsNote
+		}
+		return askFields(ctx, talk, note, step.UserInputParams.Fields)
 	case step.Type == bridgev2.LoginStepTypeDisplayAndWait:
 		code := approveElsewhere
 		if p := step.DisplayAndWaitParams; p != nil && p.Type == bridgev2.LoginDisplayTypeCode && p.Data != "" {

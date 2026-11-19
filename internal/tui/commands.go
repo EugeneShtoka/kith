@@ -1021,10 +1021,20 @@ func (m Model) startVerifyCmd(on domain.RoomOwner) tea.Cmd {
 	}
 }
 
-// verifyStartedMsg is the outcome of startVerifyCmd.
+// verifyPersonCmd asks the other person in the direct chat room to verify each other.
+func (m Model) verifyPersonCmd(room domain.RoomID) tea.Cmd {
+	ctx, backend := m.ctx, m.backend
+	return func() tea.Msg {
+		txnID, err := backend.VerifyPerson(ctx, room)
+		return verifyStartedMsg{txnID: txnID, err: err, person: true}
+	}
+}
+
+// verifyStartedMsg is the outcome of startVerifyCmd or verifyPersonCmd.
 type verifyStartedMsg struct {
-	txnID string
-	err   error
+	txnID  string
+	err    error
+	person bool
 }
 
 func (m Model) acceptVerifyCmd(txnID string) tea.Cmd {

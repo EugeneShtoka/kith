@@ -107,14 +107,18 @@ func (m Model) frameView() string {
 // emoji to compare.
 func (m Model) verifyView() string {
 	var b strings.Builder
-	b.WriteString(m.theme.TitleActive.Render("Device verification") + "\n\n")
+	title, other, asked := "Device verification", "the other device", "this session"
+	if m.verify.person {
+		title, other, asked = "Verifying a person", "their screen", "you"
+	}
+	b.WriteString(m.theme.TitleActive.Render(title) + "\n\n")
 
 	switch m.verify.stage {
 	case domain.VerificationDone, domain.VerificationCanceled, domain.VerificationRestored,
 		domain.VerificationAccepted, domain.VerificationConfirmed:
 		// Terminal stages: the overlay is dismissed on arrival. Answers are no stage.
 	case domain.VerificationSAS:
-		b.WriteString("Compare these emoji with the other device:\n\n")
+		b.WriteString("Compare these emoji with " + other + ":\n\n")
 		b.WriteString(sasGrid(m.verify.emojis))
 		if len(m.verify.decimals) > 0 {
 			b.WriteString("\n\n" + m.theme.Muted.Render(decimalLine(m.verify.decimals)))
@@ -125,6 +129,12 @@ func (m Model) verifyView() string {
 			b.WriteString("\n\nDo they match?   [y] yes   [n] no")
 		}
 	case domain.VerificationRequested:
+		if m.verify.ours && m.verify.person {
+			b.WriteString("Asked them to verify each other.\n\n")
+			b.WriteString(m.theme.Muted.Render("The emoji appear here when they accept."))
+			b.WriteString("\n\n[n] cancel")
+			break
+		}
 		if m.verify.ours {
 			// Our own request: nothing to accept, only to cancel.
 			b.WriteString("Asked your other sessions to verify this one.\n\n")
@@ -137,7 +147,7 @@ func (m Model) verifyView() string {
 		if m.verify.device != "" {
 			who += " (" + isolate(m.verify.device) + ")"
 		}
-		b.WriteString(drawSentence(who) + "\nwants to verify this session.\n\n")
+		b.WriteString(drawSentence(who) + "\nwants to verify " + asked + ".\n\n")
 		if m.verify.waiting {
 			b.WriteString(m.theme.Muted.Render("waiting for the other device…"))
 		} else {

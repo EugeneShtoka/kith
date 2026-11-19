@@ -44,9 +44,11 @@ type Verification struct {
 	Kind  VerificationKind
 	TxnID string
 
-	// Requested: who is asking to verify.
+	// Requested: who is asking to verify, and whether that is another person rather
+	// than one of your own sessions.
 	From   string
 	Device string
+	Person bool
 
 	// SAS: the string to compare, as emojis and/or the decimal fallback.
 	Emojis   []SASEmoji
