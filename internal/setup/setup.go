@@ -29,6 +29,7 @@ func Validate(cfg config.Config) error {
 		PlaceEntries(cfg),
 		errOf(NotificationRules(cfg.Notifications)),
 		errOf(CodeRules(cfg.Codes)),
+		errOf(NameRules(d)),
 		errOf(Filters(cfg)),
 		errOf(Clock(d)),
 		errOf(UnreadSource(d.Unread)),

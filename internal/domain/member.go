@@ -13,6 +13,8 @@ type Member struct {
 	// KnownAs is the person's name as kithd names them (People.Name), stamped as kithd
 	// sends the member; DisplayName is the network's own.
 	KnownAs string
+	// ShownAs is KnownAs as the room's name rule shows it (NameRules), stamped beside it.
+	ShownAs string
 }
 
 // Name is the display name, else the ID's short name, else the ID; never blank.

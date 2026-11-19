@@ -132,9 +132,11 @@ func (m Model) railFromState() []group {
 // startupPrefs is the settings New starts with, before a config is applied.
 func startupPrefs(display config.Display, device config.DeviceDisplay, unreadLocal bool) prefsState {
 	clock, _ := setup.Clock(display) // validated at startup; the zero Clock is the default
+	names, _ := setup.NameRules(display)
 	return prefsState{
 		clock:       clock,
 		display:     display,
+		names:       names,
 		device:      device,
 		identities:  buildIdentities(display.Identities),
 		openInsert:  device.OpenInInsertMode(),
@@ -269,6 +271,8 @@ type prefsState struct {
 	// display is the bridge's [display], device this device's.
 	display config.Display
 	device  config.DeviceDisplay
+	// names is display's name rules, built once (setup.NameRules).
+	names domain.NameRules
 	// identities maps each merged MXID to its resolved person, from display.Identities.
 	identities map[string]resolvedIdentity
 	// roomAliases maps a room ID to its configured display name.
@@ -684,13 +688,13 @@ func (m Model) roomName(room domain.Room) string {
 // roomLabel is a room's logical-order label: alias, else name, first-named per its own space's
 // rule when named after its members.
 func (m Model) roomLabel(room domain.Room) string {
-	return m.labeled(room, m.nameRuleFor(m.ownSpace(room.ID)))
+	return m.labeled(room, m.nameRuleIn(room.ID, m.ownSpace(room.ID), ""))
 }
 
 // roomLabelHere is roomLabel for a room-list row, using the viewed space's rule so a column is
 // uniform. See firstNameOnlyHere.
 func (m Model) roomLabelHere(room domain.Room) string {
-	return m.labeled(room, m.nameRuleFor(m.listedSpace(room.ID)))
+	return m.labeled(room, m.nameRuleIn(room.ID, m.listedSpace(room.ID), ""))
 }
 
 // labeled applies an alias, else rule-based shortening of a room named after its members.

@@ -18,6 +18,8 @@ type Thread struct {
 	LatestSenderName string
 	// LatestSenderKnownAs is LatestSender's name as kithd names them (People.Name).
 	LatestSenderKnownAs string
+	// LatestSenderShownAs is LatestSenderKnownAs as the room's name rule shows it.
+	LatestSenderShownAs string
 	// Anchor is the main-timeline message the row is drawn beneath: the root when
 	// loaded, else the newest main-timeline message before the thread's newest reply.
 	Anchor EventID
@@ -100,7 +102,7 @@ func CollapseThreads(msgs []Message) ([]Message, []Thread) {
 		// Input is ordered, so the last reply seen is the newest; the anchor follows it,
 		// keeping a rootless thread's row where it last moved.
 		t.Latest, t.LatestAt = msg.ID, msg.Timestamp
-		t.LatestSender, t.LatestSenderName, t.LatestSenderKnownAs = msg.Sender, msg.SenderName, msg.SenderKnownAs
+		t.LatestSender, t.LatestSenderName, t.LatestSenderKnownAs, t.LatestSenderShownAs = msg.Sender, msg.SenderName, msg.SenderKnownAs, msg.SenderShownAs
 		if len(main) > 0 {
 			t.Anchor = main[len(main)-1].ID
 		} else {

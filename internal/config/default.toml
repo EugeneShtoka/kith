@@ -64,13 +64,17 @@ short_date_format = "YYYY-MM-DD"
 
 # Preference order when one home must be chosen for a room in several spaces or tags:
 # the {space} of a notification, the download folder, which [[display.space_rule]]
-# applies, which place rule counts as the room's space. Spaces as space:<name>, tags
+# and [[display.name_rule]] apply, which place rule counts as the room's space. Spaces as space:<name>, tags
 # as tag:<name>, or place:<name>. What it does not name follows the rail's order
 # ([display.rail]); what the rail does not name either goes where its "*" is: tags in
 # the order they are written, then spaces you made, then a network's own (a bridge's,
 # a WhatsApp account's, a Slack workspace's). A tag of every room (All) is a room's
 # home only when nothing else is.
 # priority = ["tag:Family", "space:Work", "place:Friends"]
+
+# Show people by their first names only ("Dana Levi" → "Dana") wherever no name
+# rule ([[display.name_rule]]) says otherwise.
+# first_name_only = false
 
 # Apply the name rules (first_name_only, …) to rooms named after their participants
 # (DMs, bridge rooms) too.
@@ -84,9 +88,30 @@ short_date_format = "YYYY-MM-DD"
 #                   homeserver counts it (a muted room badges nothing)
 unread = "messages"
 
-# Per-place rules: space is space:<name>, tag:<name> or place:<name>.
-# first_name_only shows just the first token of a sender's name. A room in two places
-# follows the one selected in the rail in the room list, else its home (see priority).
+# How people are named in one place, or one person there: match is a room ID,
+# space:<name>, tag:<name> or place:<name>; sender is one person's ID (with no match,
+# that person everywhere). A room follows its home's rule (see priority). The
+# narrowest rule naming a place wins whole: a room's over its space's, and one
+# person's over everyone's at each. Every window and notification shows names this
+# way; kith-mcp gives whole names.
+# first_name_only keeps a name's first word; unset follows [display] first_name_only.
+# strip is a regular expression removed from names, a bridge's suffix for example.
+# name is that sender's fixed name there; it needs sender.
+# [[display.name_rule]]
+# match = "space:Friends"
+# first_name_only = true
+#
+# [[display.name_rule]]
+# match = "matrix:4f1c9e2a7b3d5c60/!abcdef:example.org"
+# strip = '\s*\(WA\)$'
+#
+# [[display.name_rule]]
+# match = "tag:Family"
+# sender = "telegram:12345678"
+# name = "Sveta"
+
+# How one place's room list is drawn: space is space:<name>, tag:<name> or
+# place:<name>.
 # network_colors names each room in this place's room list in its network's color
 # ([tui.theme.networks]), true or false whatever [display] network_colors (in
 # device.toml) says.
@@ -97,7 +122,6 @@ unread = "messages"
 # member list ("Dana Levi · Meta").
 # [[display.space_rule]]
 # space = "space:Friends"
-# first_name_only = true
 # network_colors = true
 # show_archived = false
 # show_field = "company"

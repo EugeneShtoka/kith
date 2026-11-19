@@ -69,4 +69,9 @@ describe("mentions", () => {
       '<span><strong>hi </strong></span><span class="named of-telegram:66919467"><span><strong>Svetlana</strong></span></span>!',
     );
   });
+
+  it("are drawn as the room's name rule shows the person, where kithd says", () => {
+    const shown = create(MentionSchema, { userId: "dana", name: "@Dana", knownAs: "Dana Levi", shownAs: "Dana" });
+    expect(pills("hi @Dana", [shown], classOf)).toEqual([{ start: 3, end: 8, className: "of-dana", name: "Dana" }]);
+  });
 });

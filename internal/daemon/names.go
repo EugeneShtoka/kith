@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"maps"
+	"reflect"
 	"slices"
 	"sync"
 
@@ -56,6 +57,8 @@ type Names struct {
 	// aliases are the identities' aliases (setup.Aliases); rooms the [[display.name]]s.
 	aliases map[string]string
 	rooms   map[domain.RoomID]string
+	// shape is how each room shows the names People gives.
+	shape shaper
 	// built is the last build; nil before the first.
 	built *namesBuilt
 }
@@ -78,7 +81,16 @@ type namesBuilt struct {
 func NewNames(src namesSource, cfg config.Config, told func()) *Names {
 	n := &Names{src: src, told: told, log: slog.New(slog.DiscardHandler), wake: make(chan struct{}, 1)}
 	n.aliases, n.rooms = setup.Aliases(cfg.Display.Identities), roomAliases(cfg.Display.Names)
+	n.shape = newShaper(cfg, nil)
 	return n
+}
+
+// UseHomes sets where a room's first home is read (scopeIndex.FirstHome), which picks
+// the space rule its names follow. Call before use.
+func (n *Names) UseHomes(homeOf func(context.Context, domain.RoomID) string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.shape.homeOf = homeOf
 }
 
 // UseLogger sets where failed reads are logged. Call before use.
@@ -98,8 +110,77 @@ func (n *Names) UseMemberNames(names func(ctx context.Context, room domain.RoomI
 func (n *Names) Use(ctx context.Context, cfg config.Config) {
 	n.mu.Lock()
 	n.aliases, n.rooms = setup.Aliases(cfg.Display.Identities), roomAliases(cfg.Display.Names)
+	shapedBefore := n.shape
+	n.shape = newShaper(cfg, n.shape.homeOf)
+	reshaped := !shapedBefore.same(n.shape)
 	n.mu.Unlock()
 	n.build(ctx)
+	if reshaped && n.told != nil {
+		n.told() // the same people, shown differently
+	}
+}
+
+// shaper shows names by the name rules: as the rule naming a room and its sender says.
+type shaper struct {
+	rules domain.NameRules
+	// rule is the config's, to tell a change; order is the home order, whose renames a
+	// rule may name a space by; tags, what files a room in a home, only told apart.
+	rule  []config.NameRule
+	first bool
+	order domain.HomeOrder
+	tags  []config.Tag
+	// homeOf is a room's first home; nil knows none.
+	homeOf func(context.Context, domain.RoomID) string
+}
+
+func newShaper(cfg config.Config, homeOf func(context.Context, domain.RoomID) string) shaper {
+	rules, _ := setup.NameRules(cfg.Display) // validated as the config loaded
+	return shaper{
+		rules: rules, rule: cfg.Display.NameRules, first: cfg.Display.FirstNameOnly,
+		order: homeOrderOf(cfg), tags: cfg.Tags, homeOf: homeOf,
+	}
+}
+
+// same reports whether o shows every name as s does: the same rules, and the same
+// tags and order picking the home whose rule a room follows.
+func (s shaper) same(o shaper) bool {
+	return s.first == o.first && reflect.DeepEqual(s.rule, o.rule) && reflect.DeepEqual(s.order, o.order) &&
+		reflect.DeepEqual(s.tags, o.tags)
+}
+
+// show is name, sender's in room, as room's rule shows it; "" stays "".
+func (s shaper) show(ctx context.Context, room domain.RoomID, sender, name string) string {
+	home := ""
+	if s.homeOf != nil && name != "" {
+		home = s.homeOf(ctx, room)
+	}
+	return s.showIn(room, home, sender, name)
+}
+
+// showIn is show for a room whose first home is known.
+func (s shaper) showIn(room domain.RoomID, home, sender, name string) string {
+	if name == "" {
+		return ""
+	}
+	return s.rules.Shape(s.scope(room, home, sender), name)
+}
+
+// scope is where a name is shown, as name rules match it; sender "" is the room's own
+// label.
+func (s shaper) scope(room domain.RoomID, home, sender string) domain.Scope {
+	return domain.Scope{RoomID: string(room), Space: home, SpaceLabel: s.order.Label(home), Sender: sender}
+}
+
+// firstOnlyIn reports whether room, in home, shows first names only.
+func (s shaper) firstOnlyIn(room domain.RoomID, home string) bool {
+	return s.rules.In(s.scope(room, home, "")).FirstOnly()
+}
+
+// shaping is the shaper in force.
+func (n *Names) shaping() shaper {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.shape
 }
 
 // Changed says a write may have changed how people are named (db.Cache.OnPeopleChange):
@@ -285,17 +366,17 @@ func (n *Names) messages(ctx context.Context, msgs []domain.Message) []domain.Me
 	if len(msgs) == 0 {
 		return msgs
 	}
-	p := n.People(ctx)
+	p, shape := n.People(ctx), n.shaping()
 	out := slices.Clone(msgs)
 	for i := range out {
-		nameMessage(p, &out[i])
+		nameMessage(ctx, p, shape, &out[i])
 	}
 	return out
 }
 
 // message is messages for one.
 func (n *Names) message(ctx context.Context, msg domain.Message) domain.Message {
-	nameMessage(n.People(ctx), &msg)
+	nameMessage(ctx, n.People(ctx), n.shaping(), &msg)
 	return msg
 }
 
@@ -310,10 +391,10 @@ func (n *Names) changes(ctx context.Context, changes []domain.MessageChange) []d
 	if len(changes) == 0 {
 		return changes
 	}
-	p := n.People(ctx)
+	p, shape := n.People(ctx), n.shaping()
 	out := slices.Clone(changes)
 	for i := range out {
-		nameMessage(p, &out[i].Message)
+		nameMessage(ctx, p, shape, &out[i].Message)
 	}
 	return out
 }
@@ -323,26 +404,31 @@ func (n *Names) threads(ctx context.Context, threads []domain.Thread) []domain.T
 	if len(threads) == 0 {
 		return threads
 	}
-	p := n.People(ctx)
+	p, shape := n.People(ctx), n.shaping()
 	out := slices.Clone(threads)
 	for i := range out {
-		if out[i].LatestSender != "" {
-			out[i].LatestSenderKnownAs = p.Name(out[i].LatestSender, out[i].LatestSenderName)
+		if t := &out[i]; t.LatestSender != "" {
+			t.LatestSenderKnownAs = p.Name(t.LatestSender, t.LatestSenderName)
+			t.LatestSenderShownAs = shape.show(ctx, t.RoomID, t.LatestSender, t.LatestSenderKnownAs)
 		}
 	}
 	return out
 }
 
-// members names each member.
-func (n *Names) members(ctx context.Context, members []domain.Member) []domain.Member {
+// members names each member, and shows them as room's rule does; "" is no one room,
+// where none is shown.
+func (n *Names) members(ctx context.Context, room domain.RoomID, members []domain.Member) []domain.Member {
 	if len(members) == 0 {
 		return members
 	}
-	p := n.People(ctx)
+	p, shape := n.People(ctx), n.shaping()
 	out := slices.Clone(members)
 	for i := range out {
 		if out[i].UserID != "" {
 			out[i].KnownAs = p.Name(out[i].UserID, out[i].DisplayName)
+			if room != "" {
+				out[i].ShownAs = shape.show(ctx, room, out[i].UserID, out[i].KnownAs)
+			}
 		}
 	}
 	return out
@@ -353,13 +439,14 @@ func (n *Names) hits(ctx context.Context, hits []domain.SearchHit) []domain.Sear
 	if len(hits) == 0 {
 		return hits
 	}
-	p := n.People(ctx)
+	p, shape := n.People(ctx), n.shaping()
 	out := slices.Clone(hits)
 	for i := range out {
-		if out[i].Sender != "" {
-			out[i].SenderKnownAs = p.Name(out[i].Sender, out[i].SenderName)
+		if h := &out[i]; h.Sender != "" {
+			h.SenderKnownAs = p.Name(h.Sender, h.SenderName)
+			h.SenderShownAs = shape.show(ctx, h.RoomID, h.Sender, h.SenderKnownAs)
 		}
-		out[i].Mentions = nameMentions(p, out[i].Mentions)
+		out[i].Mentions = nameMentions(ctx, p, shape, out[i].RoomID, out[i].Mentions)
 	}
 	return out
 }
@@ -369,11 +456,12 @@ func (n *Names) invites(ctx context.Context, rooms []domain.Room) []domain.Room 
 	if len(rooms) == 0 {
 		return rooms
 	}
-	p := n.People(ctx)
+	p, shape := n.People(ctx), n.shaping()
 	out := slices.Clone(rooms)
 	for i := range out {
-		if out[i].InvitedBy != "" {
-			out[i].InvitedByKnownAs = p.Name(out[i].InvitedBy, n.memberName(ctx, out[i].ID, out[i].InvitedBy))
+		if r := &out[i]; r.InvitedBy != "" {
+			r.InvitedByKnownAs = p.Name(r.InvitedBy, n.memberName(ctx, r.ID, r.InvitedBy))
+			r.InvitedByShownAs = shape.show(ctx, r.ID, r.InvitedBy, r.InvitedByKnownAs)
 		}
 	}
 	return out
@@ -384,11 +472,12 @@ func (n *Names) voters(ctx context.Context, room domain.RoomID, voters domain.Po
 	if len(voters.Voters) == 0 {
 		return voters
 	}
-	p := n.People(ctx)
+	p, shape := n.People(ctx), n.shaping()
 	voters.Voters = slices.Clone(voters.Voters)
 	for i := range voters.Voters {
 		if v := &voters.Voters[i]; v.ID != "" {
 			v.KnownAs = p.Name(v.ID, v.Name, n.memberName(ctx, room, v.ID))
+			v.ShownAs = shape.show(ctx, room, v.ID, v.KnownAs)
 		}
 	}
 	return voters
@@ -399,10 +488,11 @@ func (n *Names) activity(ctx context.Context, a domain.Activity) domain.Activity
 	if len(a.Typing) == 0 {
 		return a
 	}
-	p := n.People(ctx)
-	a.TypingKnownAs = make([]string, len(a.Typing))
+	p, shape := n.People(ctx), n.shaping()
+	a.TypingKnownAs, a.TypingShownAs = make([]string, len(a.Typing)), make([]string, len(a.Typing))
 	for i, id := range a.Typing {
 		a.TypingKnownAs[i] = p.Name(id, n.memberName(ctx, a.RoomID, id))
+		a.TypingShownAs[i] = shape.show(ctx, a.RoomID, id, a.TypingKnownAs[i])
 	}
 	return a
 }
@@ -419,16 +509,17 @@ func (n *Names) memberName(ctx context.Context, room domain.RoomID, user string)
 	return name
 }
 
-func nameMessage(p domain.People, msg *domain.Message) {
+func nameMessage(ctx context.Context, p domain.People, shape shaper, msg *domain.Message) {
 	if msg.Sender != "" {
 		msg.SenderKnownAs = p.Name(msg.Sender, msg.SenderName)
+		msg.SenderShownAs = shape.show(ctx, msg.RoomID, msg.Sender, msg.SenderKnownAs)
 	}
-	msg.Mentions = nameMentions(p, msg.Mentions)
+	msg.Mentions = nameMentions(ctx, p, shape, msg.RoomID, msg.Mentions)
 }
 
 // nameMentions names each person mentioned by their name in the room, then what the
-// mention calls them.
-func nameMentions(p domain.People, mentions []domain.Mention) []domain.Mention {
+// mention calls them, and shows them as room's rule does.
+func nameMentions(ctx context.Context, p domain.People, shape shaper, room domain.RoomID, mentions []domain.Mention) []domain.Mention {
 	if len(mentions) == 0 {
 		return mentions
 	}
@@ -436,6 +527,7 @@ func nameMentions(p domain.People, mentions []domain.Mention) []domain.Mention {
 	for i := range out {
 		if out[i].UserID != "" {
 			out[i].KnownAs = p.Name(out[i].UserID, out[i].Known, out[i].Words())
+			out[i].ShownAs = shape.show(ctx, room, out[i].UserID, out[i].KnownAs)
 		}
 	}
 	return out
