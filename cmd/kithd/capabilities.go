@@ -152,6 +152,7 @@ var (
 		route.Encryption
 		route.SpaceLister
 		route.SignOuter
+		route.Blocker
 		configChecker
 		roomsRewriter
 		cacheWriter
@@ -254,6 +255,7 @@ var (
 		route.Encryption
 		route.SpaceLister
 		route.SignOuter
+		route.Blocker
 		configChecker
 		roomsRewriter
 		cacheWriter

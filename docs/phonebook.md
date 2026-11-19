@@ -40,6 +40,9 @@ Anything written here is the person's notes. kith never reads or changes it.
 | `telegram` | Telegram user IDs |
 | `whatsapp` | WhatsApp IDs that are not a number (a number goes under `phone`) |
 | `slack` | Slack users as `team.user` |
+| `messenger` | Messenger (Meta) user IDs |
+| `instagram` | Instagram user IDs |
+| `signal` | Signal account IDs (the ACI, a UUID); a number goes under `phone` |
 
 A card is found by any of these, never by its file name: renaming the file, or moving
 the person's name around in it, breaks nothing. When two cards share an identifier,

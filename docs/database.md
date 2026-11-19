@@ -180,7 +180,7 @@ holds data but appears in neither list until the next refresh promotes it.
 | `starred` | mirror of the `org.kith.starred` account data |
 | `tag_verdicts` | mirror of the `org.kith.tags` account data: per room and tag, the rule and filter that moved it, or a release |
 | `person_verdicts` | per person ID and tag, the rule and filter that put them there, or a release; Matrix IDs mirror each account's `org.kith.people` account data, under that account |
-| `network_blocks` | a network's server-side block list (WhatsApp's, Telegram's `contacts.blocked`, Meta's), mirrored for offline reads; the server copy wins, pulled on connect and after every block-list change |
+| `network_blocks` | a network's server-side block list (WhatsApp's, Telegram's `contacts.blocked`), mirrored for offline reads; the server copy wins, pulled on connect and after every block-list change. Messenger and Instagram have no call listing theirs, so it holds none of theirs |
 
 ### Rankings and bookkeeping
 

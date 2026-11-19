@@ -115,7 +115,7 @@ func (m Model) showPerson(at string) Model {
 	// person with any ID on such a network gets a Block/Unblock row. The action
 	// routes to whichever network the ID is on; a merged person with IDs on more
 	// than one gets one call per ID.
-	if hasBlockableID(p.card.IDs) {
+	if len(blockTargets(p)) > 0 {
 		items = append(items,
 			pickerItem{label: "Block on their network", detail: "WhatsApp / Telegram / Meta drop their messages, calls and presence", value: personBlock, match: "block"},
 			pickerItem{label: "Unblock on their network", detail: "take them off the server-side block list", value: personUnblock, match: "unblock"})

@@ -27,7 +27,8 @@ func CardIdentifiers(ids []string) map[string][]string {
 		}
 		id := ParseID(x)
 		switch {
-		case id.Network == ProtocolTelegram, id.Network == ProtocolWhatsApp, id.Network == ProtocolSlack:
+		case id.Network == ProtocolTelegram, id.Network == ProtocolWhatsApp, id.Network == ProtocolSlack,
+			id.Network == ProtocolMessenger, id.Network == ProtocolInstagram, id.Network == ProtocolSignal:
 			add(strings.ToLower(prefixOf(id.Network)), id.Native)
 		case !IsMatrixUserID(x):
 		case ProtocolOf(x) == ProtocolMatrix:
@@ -43,9 +44,13 @@ func CardIdentifiers(ids []string) map[string][]string {
 
 // CardPeople is the IDs a card's identifier keys name, in kith's form, the other way
 // from CardIdentifiers: a phone as its number's identifier (PhoneID), a Matrix,
-// Telegram, WhatsApp or Slack ID as that network's person. An email names no one.
+// Telegram, WhatsApp, Slack, Messenger, Instagram or Signal ID as that network's
+// person. An email names no one.
 func CardPeople(ids map[string][]string) []string {
-	networks := map[string]Protocol{"matrix": ProtocolMatrix, "telegram": ProtocolTelegram, "whatsapp": ProtocolWhatsApp, "slack": ProtocolSlack}
+	networks := map[string]Protocol{
+		"matrix": ProtocolMatrix, "telegram": ProtocolTelegram, "whatsapp": ProtocolWhatsApp, "slack": ProtocolSlack,
+		"messenger": ProtocolMessenger, "instagram": ProtocolInstagram, "signal": ProtocolSignal,
+	}
 	var out []string
 	for _, key := range slices.Sorted(maps.Keys(ids)) {
 		for _, value := range ids[key] {
