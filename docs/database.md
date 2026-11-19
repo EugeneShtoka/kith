@@ -82,7 +82,8 @@ it holds writes nothing else has, so none of the rules below apply to it. For no
 paired devices (`devices-<hash>.toml` is written out from it), the accounts each
 bridge runs, the chats any bridge merged into another (`alias/<room>`: a WhatsApp
 chat known by a LID, then by the number), and the reads made in kith (`read/<room>`,
-`thread/<room>/<root>`, `marked/<room>`), which every bridge of the mesh syncs. The
+`thread/<room>/<root>`, `marked/<room>`) and the shared keys of the config
+(`config/<TOML path>`, each key's value as TOML), which every bridge of the mesh syncs. The
 cache's `room_unread` and `thread_read` follow the mesh's reads (moved forward only, for
 the rooms the cache holds), so a rebuilt cache takes them back; a read a network
 reports stays in the cache alone. Of the mesh's mark and the cache's, the one set later
@@ -97,7 +98,8 @@ is kept (`room_mark_times`).
   concurrently, and the op that wrote each), `vv` (the version vector: per origin, the
   last op held and its hash), `peers` (each other bridge's last reported vector, when it
   was heard and its clock's gap then) and `forks` (each bridge found to have signed two
-  ops under one number, with both). The roster's ops are kept for good; every other op
+  ops under one number, with both), and `rendered` (each `config.toml` kithd wrote since
+a hand edit was last read, which tells a hand edit's keys from those it never touched). The roster's ops are kept for good; every other op
   leaves `ops` once 30 days old and held by every bridge heard from in those 30 days. An
   op, its entries and its vector row are written in one transaction.
 - A backup takes it as it takes the cache: a copy made in one read transaction

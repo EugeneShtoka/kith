@@ -39,6 +39,7 @@ type joined struct {
 	outcome  domain.PairingOutcome
 	members  []domain.Device
 	bringing []domain.Device
+	setAside *domain.ConfigSetAside
 	err      error
 }
 
@@ -49,7 +50,7 @@ func (b *bridge) joinMesh(p *opened) <-chan joined {
 	go func() {
 		var j joined
 		j.outcome, j.members, j.err = b.socket.JoinMesh(b.t.Context(), uri(b.t, p.ticket), "laptop",
-			func(d []domain.Device) { j.bringing = d }, func(string) {})
+			func(d []domain.Device) { j.bringing = d }, func(string) {}, func(a domain.ConfigSetAside) { j.setAside = &a })
 		out <- j
 	}()
 	return out

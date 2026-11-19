@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 
@@ -27,6 +28,14 @@ type ConfigFile struct {
 	path string
 	// mu serializes writes, each read-check-write-apply as one.
 	mu sync.Mutex
+	// paired keeps the mesh store the file's shared keys are kept in (Share); none
+	// keeps the file alone.
+	paired *Devices
+	// say raises a popup; log is where the sharing says what it did.
+	say func(string)
+	log *slog.Logger
+	// refused is why the mesh's config was last refused here, said once.
+	refused string
 }
 
 func NewConfigFile(path string) *ConfigFile {
@@ -50,10 +59,15 @@ func (f *ConfigFile) Read() (config.Snapshot, error) {
 }
 
 // Write makes cfg the config file if the file is still at base and check passes, then
-// applies it, returning what was written.
+// applies it, returning what was written. Shared with a mesh, the file is settled
+// first (a hand edit not read yet moves it), and the shared keys cfg changes are
+// written to the mesh before the file is rendered.
 func (f *ConfigFile) Write(ctx context.Context, base string, cfg config.Config, check CheckConfig, apply Reload) (config.Snapshot, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if _, err := f.settleLocked(ctx, check); err != nil {
+		f.logger().Warn("bring the config and the mesh's together before a write", "err", err)
+	}
 	data, err := os.ReadFile(f.path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return config.Snapshot{}, fmt.Errorf("daemon: read the config: %w", err)
@@ -67,8 +81,14 @@ func (f *ConfigFile) Write(ctx context.Context, base string, cfg config.Config, 
 			return config.Snapshot{}, err
 		}
 	}
-	if err := config.Save(f.path, written); err != nil {
-		return config.Snapshot{}, unwritable{err}
+	shared, serr := f.writeSharedLocked(ctx, check, data, written)
+	if serr != nil {
+		return config.Snapshot{}, serr
+	}
+	if !shared {
+		if err := config.Save(f.path, written); err != nil {
+			return config.Snapshot{}, unwritable{err}
+		}
 	}
 	if apply != nil {
 		if err := apply(ctx); err != nil {

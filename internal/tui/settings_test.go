@@ -723,3 +723,27 @@ func TestEverySettingsGroupOpens(t *testing.T) {
 		}
 	}
 }
+
+// A key the bridges of a mesh disagree on says so on its row, and no other row does.
+func TestAKeyBridgesDisagreeOnIsMarkedInTheSettings(t *testing.T) {
+	m, _ := opened(t, config.Notifications{})
+	const key = "notifications.max_per_room"
+	i := slices.IndexFunc(settingsList, func(s setting) bool { return s.key == key })
+	if i < 0 {
+		t.Fatalf("no row for %s", key)
+	}
+	m, _ = m.handleConfigConflicts(configConflictsMsg{paths: map[string]bool{key: true}})
+	m = m.settingsIn(settingsList[i].group, "")
+	marked := 0
+	for _, it := range m.picker.all {
+		if strings.HasSuffix(it.detail, conflictNote) {
+			marked++
+			if it.value != key {
+				t.Errorf("%s is marked, want only %s", it.value, key)
+			}
+		}
+	}
+	if marked != 1 {
+		t.Errorf("%d rows marked, want %s's", marked, key)
+	}
+}

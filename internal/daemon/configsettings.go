@@ -13,6 +13,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/api"
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
+	pc "github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -334,13 +335,48 @@ func (s *server) ConfigSettings(context.Context, *req[v1.ConfigSettingsRequest])
 	if err != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
 	}
+	conflicted := map[string]bool{}
+	for _, c := range s.Config.ConfigConflicts() {
+		conflicted[c.Path] = true
+	}
 	out := &v1.ConfigSettingsResponse{Revision: snap.Revision}
 	for _, p := range config.Properties() {
 		if st, ok := settable[p.Path]; ok && p.File == config.BridgeFile {
-			out.Settings = append(out.Settings, st.served(p, snap.Config))
+			served := st.served(p, snap.Config)
+			served.Conflict = conflicted[p.Path]
+			out.Settings = append(out.Settings, served)
 		}
 	}
 	return connect.NewResponse(out), nil
+}
+
+// ConfigConflicts is each shared key of the config that bridges of the mesh wrote
+// concurrently with different values.
+func (s *server) ConfigConflicts(context.Context, *req[v1.ConfigConflictsRequest]) (*resp[v1.ConfigConflictsResponse], error) {
+	return connect.NewResponse(&v1.ConfigConflictsResponse{Conflicts: pc.ConfigConflictsToProto(s.Config.ConfigConflicts())}), nil
+}
+
+// errKeepOverRemote is a value kept from a paired device: any shared key may be in
+// conflict, [agent]'s scope among them, which only this machine sets.
+var errKeepOverRemote = errors.New("a conflict of the config is ended on the bridge's machine: run `kith config keep` there")
+
+// KeepConfigValue ends a key's conflict by keeping one of its values, over the socket
+// only, and tells every client the config that follows.
+func (s *server) KeepConfigValue(ctx context.Context, r *req[v1.KeepConfigValueRequest]) (*resp[v1.KeepConfigValueResponse], error) {
+	if s.Paired.peer(ctx) != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, errKeepOverRemote)
+	}
+	err := s.Config.KeepConfigValue(ctx, r.Msg.GetPath(), int(r.Msg.GetIndex()), s.Daemon.CheckConfig, s.Reload)
+	switch {
+	case errors.Is(err, errNoConflict), errors.Is(err, errNoValue):
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	case err != nil:
+		return nil, rpcErr(err)
+	}
+	if snap, rerr := s.Config.Read(); rerr == nil {
+		s.Streams.Configured(snap)
+	}
+	return connect.NewResponse(&v1.KeepConfigValueResponse{}), nil
 }
 
 // SetConfigSetting sets or clears one setting ConfigSettings lists, on the file as it is

@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -571,7 +573,49 @@ func groupLabel(group string) string {
 	return group
 }
 
-func (m Model) openSettings() (Model, tea.Cmd) { return m.settingsTop(""), nil }
+func (m Model) openSettings() (Model, tea.Cmd) { return m.settingsTop(""), m.askConfigConflicts() }
+
+// configConflicter is a daemon that tells which keys of the config the bridges of its mesh
+// wrote concurrently with different values. Optional, like configStore.
+type configConflicter interface {
+	ConfigConflicts(ctx context.Context) ([]domain.ConfigConflict, error)
+}
+
+// configConflictsMsg is the keys in conflict, by TOML path.
+type configConflictsMsg struct{ paths map[string]bool }
+
+// askConfigConflicts asks the daemon which keys are in conflict, so their rows say so.
+func (m Model) askConfigConflicts() tea.Cmd {
+	c, ok := m.backend.(configConflicter)
+	if !ok {
+		return nil
+	}
+	ctx := m.ctx
+	return func() tea.Msg {
+		conflicts, err := c.ConfigConflicts(ctx)
+		if err != nil {
+			return nil // a daemon without a mesh, or gone: no row says anything
+		}
+		paths := make(map[string]bool, len(conflicts))
+		for _, k := range conflicts {
+			paths[k.Path] = true
+		}
+		return configConflictsMsg{paths: paths}
+	}
+}
+
+// handleConfigConflicts keeps the keys in conflict, and shows them in the group open.
+func (m Model) handleConfigConflicts(msg configConflictsMsg) (Model, tea.Cmd) {
+	m.conf.conflicts = msg.paths
+	if m.picker.kind == pickerSetting && m.choosing.settingGroup != "" {
+		at, _ := m.picker.selected()
+		m = m.settingsIn(m.choosing.settingGroup, at.value)
+	}
+	return m, nil
+}
+
+// conflictNote is what a row adds when bridges of the mesh disagree on its key.
+const conflictNote = " · bridges disagree: kith config conflicts"
 
 // settingsTop shows the groups, the cursor on at. A group holding one row that leads
 // somewhere (Tags) is that row.
@@ -596,7 +640,7 @@ func (m Model) settingsIn(group, at string) Model {
 	for i := range rows {
 		items = append(items, pickerItem{
 			label:  rows[i].label,
-			detail: choiceWords(rows[i], rows[i].show(m.settings())),
+			detail: choiceWords(rows[i], rows[i].show(m.settings())) + m.conflictNote(rows[i]),
 			value:  rows[i].key,
 			match:  rows[i].label + " " + rows[i].key,
 		})
@@ -928,4 +972,12 @@ func firstKey(list string) string {
 func flipped(v bool) *bool {
 	v = !v
 	return &v
+}
+
+// conflictNote is conflictNote when bridges disagree on s's key or one it covers.
+func (m Model) conflictNote(s setting) string {
+	if m.conf.conflicts[s.key] || slices.ContainsFunc(s.covers, func(k string) bool { return m.conf.conflicts[k] }) {
+		return conflictNote
+	}
+	return ""
 }

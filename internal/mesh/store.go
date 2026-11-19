@@ -29,7 +29,7 @@ import (
 // schemaVersion is the store's layout (PRAGMA user_version). A store of a later one was
 // written by a newer kith, and is refused rather than read or rebuilt: it holds writes
 // and pairings nothing else has.
-const schemaVersion = 2
+const schemaVersion = 3
 
 // ErrNewer is a store a newer kith wrote.
 var ErrNewer = errors.New("mesh: the store was written by a newer kith; run that kith, or restore the store it replaced")
@@ -43,7 +43,8 @@ var ErrNewer = errors.New("mesh: the store was written by a newer kith; run that
 // each origin that signed two ops under one dot, with both. An op keeps its envelope
 // beside it (none for one written before ops were sealed, layout 1), and keys the
 // keyring (keys.go): this replica's sealing key, the content keys it holds and the
-// epoch records it passes on.
+// epoch records it passes on. rendered keeps each config.toml kithd wrote since a hand
+// edit was last read (layout 3).
 const schema = `
 CREATE TABLE replicas (
 	idx INTEGER PRIMARY KEY,
@@ -87,7 +88,7 @@ CREATE TABLE forks (
 	other_body BLOB NOT NULL,
 	other_sig  BLOB NOT NULL
 );
-` + keysSchema
+` + keysSchema + renderedSchema
 
 // keysSchema is what layout 2 adds to layout 1, beside the ops' envelopes.
 const keysSchema = `
@@ -107,6 +108,16 @@ CREATE TABLE records (
 	body BLOB NOT NULL,
 	sig  BLOB NOT NULL
 ) WITHOUT ROWID;
+`
+
+// renderedSchema is what layout 3 adds: the renderings of config.toml, in the order
+// written. A row with no body marks a store that has just joined a mesh, whose config
+// this bridge takes before it renders.
+const renderedSchema = `
+CREATE TABLE rendered (
+	n    INTEGER PRIMARY KEY,
+	body TEXT NOT NULL
+);
 `
 
 // Store is one replica's store, its state held in memory as last committed.
@@ -243,7 +254,7 @@ func (s *Store) load(ctx context.Context) error {
 	case version == 0:
 		return s.create(ctx)
 	case version < schemaVersion:
-		if err := s.migrate(ctx); err != nil {
+		if err := s.migrate(ctx, version); err != nil {
 			return err
 		}
 	}
@@ -348,7 +359,7 @@ const (
 	rosterOps   = selectOps + `WHERE o.roster = 1 ORDER BY o.clock, r.id`
 	originOps   = selectOps + `WHERE r.id = ? AND o.seq > ? AND o.seq <= ? ORDER BY o.clock, r.id`
 	deleteEvery = `DELETE FROM entries; DELETE FROM ops; DELETE FROM vv; DELETE FROM peers; DELETE FROM forks;
-		DELETE FROM epochs; DELETE FROM records;`
+		DELETE FROM epochs; DELETE FROM records; DELETE FROM rendered;`
 )
 
 // loadOps reads the kept ops query (rosterOps, originOps) names.
@@ -440,19 +451,25 @@ func (s *Store) create(ctx context.Context) error {
 	return s.loadKeys(ctx)
 }
 
-// migrate lays out a store of layout 1 as layout 2: its ops keep no envelope (they
-// reach a mailbox only inside a snapshot), and it gets a sealing key.
-func (s *Store) migrate(ctx context.Context) error {
+// migrate lays out a store of an earlier layout as this one. Layout 1 gets layout 2's:
+// its ops keep no envelope (they reach a mailbox only inside a snapshot), and it gets a
+// sealing key. Layout 2 gets layout 3's renderings, none yet.
+func (s *Store) migrate(ctx context.Context, version int) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("lay out the store anew: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }() // a no-op once committed
-	if _, err := tx.ExecContext(ctx, `ALTER TABLE ops ADD COLUMN sealed BLOB;`+keysSchema); err != nil {
-		return fmt.Errorf("lay out the store anew: %w", err)
+	if version < 2 {
+		if _, err := tx.ExecContext(ctx, `ALTER TABLE ops ADD COLUMN sealed BLOB;`+keysSchema); err != nil {
+			return fmt.Errorf("lay out the store anew: %w", err)
+		}
+		if err := newSealing(ctx, tx); err != nil {
+			return err
+		}
 	}
-	if err := newSealing(ctx, tx); err != nil {
-		return err
+	if _, err := tx.ExecContext(ctx, renderedSchema); err != nil {
+		return fmt.Errorf("lay out the store anew: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
 		return fmt.Errorf("lay out the store anew: %w", err)

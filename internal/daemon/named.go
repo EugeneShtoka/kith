@@ -195,7 +195,7 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	// One setting of the bridge's config: its path, a revision, and its value as text or a
 	// list, none a list of places (configsettings.go excludes those).
 	"backend.v1.SetConfigSettingRequest.base_revision": notARoom, "backend.v1.SetConfigSettingRequest.path": notARoom,
-	"backend.v1.ConfigValue.text": notARoom, "backend.v1.ConfigList.entries": notARoom,
+	"backend.v1.ConfigValue.text": notARoom, "backend.v1.ConfigList.entries": notARoom, "backend.v1.KeepConfigValueRequest.path": notARoom,
 	"backend.v1.TempRule.name": notARoom, "backend.v1.TempRule.match": notARoom, "backend.v1.TempRule.sender": notARoom,
 	"backend.v1.ClearDNDRequest.match": notARoom, "backend.v1.ClearDNDRequest.sender": notARoom,
 	// The window speaking: its client ID for links.

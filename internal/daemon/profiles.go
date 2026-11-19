@@ -83,7 +83,7 @@ var reaches = map[string]profileReach{
 	// The bridge's config one setting at a time: the bridge's, not a profile's, so every
 	// profile reads and sets the same settings, none of which names a room
 	// (configsettings.go leaves out every list of places).
-	"ConfigSettings": passes, "SetConfigSetting": passes,
+	"ConfigSettings": passes, "SetConfigSetting": passes, "ConfigConflicts": passes, "KeepConfigValue": passes,
 	"Devices": passes, "AddDevice": passes, "RemoveDevice": passes,
 	// The phonebook: people, not rooms; whom the profile hides is judged by the handlers,
 	// and PersonCard's room by admitNamed.

@@ -24,6 +24,7 @@ kith devices [--config path] [add id [name] | remove id|name | id | recovery-key
 kith pair [--config path] [name]
 kith join [--config path] [--name name] [--bridge] uri
 kith mesh [--config path]
+kith config [--config path] conflicts | keep key n
 ```
 
 With no flags, `kith` loads the config, attaches to the daemon (starting it if
@@ -261,6 +262,18 @@ the size of its mesh store; then each other bridge with the same, whether a sync
 stream is open with it, when it was last heard, how many changes it has not
 acknowledged, and how far its clock is off this one's. A bridge found to have signed
 two different changes under one number is named, and removed.
+
+### kith config
+
+```sh
+kith config [--config path] conflicts | keep key n
+```
+
+The config the bridges of a mesh share
+([configuration.md](configuration.md#bridges-of-a-mesh-share-the-config)). `conflicts`
+lists each key two bridges changed at once with different values: every value,
+numbered, the bridge that wrote it and when, the one in force first. `keep key n` keeps
+the `n`th, which ends the conflict on every bridge.
 
 ### General flags
 

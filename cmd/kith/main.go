@@ -49,6 +49,7 @@ var subcommands = map[string]func([]string) error{
 	"pair":     runPair,
 	"join":     runJoin,
 	"mesh":     runMesh,
+	"config":   runConfig,
 }
 
 func firstArg() string {
