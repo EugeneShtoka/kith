@@ -135,7 +135,7 @@ and on connecting with the old ID it reads the roster and rewrites the pin in
 
 Each PR lands working. A pure package lands with its first caller (`deadcode`).
 
-5. **feat: the shared config crosses bridges.** `config.Local`, per-key registers,
+- **5. feat: the shared config crosses bridges.** `config.Local`, per-key registers,
    rendering, the three-way read of a hand edit, conflicts (`kith config conflicts`,
    the settings screen), a merged config that does not check, the join's
    `config.toml.pre-mesh` with its printed list, log warning and popup;
@@ -147,18 +147,18 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
    (never crosses), a hand edit while kithd renders, an invalid hand edit, two concurrent
    writes of equal values (no conflict), a deleted key against an edited one, a join
    whose config differs in no key and in every key.
-6. **feat: drafts cross bridges.** Drafts move from the cache into the mesh (the
+- **6. feat: drafts cross bridges.** Drafts move from the cache into the mesh (the
    `drafts` tables become its read model; a rebuild no longer loses them), siblings, the
    5-second cadence. **Failure review** (merges writers):
    `TestDraftsSurviveEveryInterleaving` gains a second bridge with its own window and
    kith-mcp, partitions and a send on one side; it asserts no typed or appended word is
    lost and every bridge reads the same draft; plus a draft over 1 MiB, a send
    concurrent with an append, a room left mid-save.
-7. **feat: verdicts cross bridges on networks that keep none.** **Failure review**
+- **7. feat: verdicts cross bridges on networks that keep none.** **Failure review**
    (merges writers): a filter firing on both bridges for one message, a release
    concurrent with a move, a retag (`domain.Retagged`) concurrent with a move under the
    old name.
-8. **feat: keys rotate.** `kith devices rotate`, the rotation op, a bridge answering on
+- **8. feat: keys rotate.** `kith devices rotate`, the rotation op, a bridge answering on
    its old key by SNI for the horizon, clients rewriting their pin. **Failure review**
    (enforces scope): a rotation signed by one key only, a rotated-out key connecting
    after the rotation arrived, a rotation concurrent with the device's removal, a client

@@ -1626,6 +1626,16 @@ message StartVerificationResponse {
   string txn_id = 1;
 }
 
+message VerifyPersonRequest {
+  // A direct chat on Matrix: its one other member is asked, in the room.
+  string room_id = 1;
+}
+
+message VerifyPersonResponse {
+  // As StartVerificationResponse's.
+  string txn_id = 1;
+}
+
 message AcceptVerificationRequest {
   string txn_id = 1;
 }
@@ -2718,6 +2728,8 @@ service BackendService {
   rpc Verifications(VerificationsRequest) returns (stream VerificationsResponse);
   // StartVerification asks this account's other devices to verify this one.
   rpc StartVerification(StartVerificationRequest) returns (StartVerificationResponse);
+  // VerifyPerson asks the other person in a direct chat to verify each other, in the room.
+  rpc VerifyPerson(VerifyPersonRequest) returns (VerifyPersonResponse);
   // AcceptVerification accepts an incoming request, advancing toward the SAS
   // comparison.
   rpc AcceptVerification(AcceptVerificationRequest) returns (AcceptVerificationResponse);

@@ -386,6 +386,11 @@ func (m *fakeMatrix) StartVerification(context.Context, domain.RoomOwner) (strin
 	return "", nil
 }
 
+func (m *fakeMatrix) VerifyPerson(context.Context, domain.RoomID) (string, error) {
+	m.only("VerifyPerson")
+	return "", nil
+}
+
 func (m *fakeMatrix) AcceptVerification(context.Context, string) error {
 	m.only("AcceptVerification")
 	return nil

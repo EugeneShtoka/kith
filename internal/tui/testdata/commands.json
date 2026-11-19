@@ -4,7 +4,7 @@
     "/me", "/summary", "/export", "/plain", "/upload", "/at", "/in", "/tracked", "/files",
     "/mentions", "/search", "/hidden", "/threads", "/starred", "/scheduled", "/ignored",
     "/discover", "/knock", "/poll", "/topic", "/why", "/unread", "/tag", "/caught",
-    "/direction", "/shortcut", "/replacement", "/invite", "/unban", "/leave"
+    "/direction", "/shortcut", "/replacement", "/invite", "/unban", "/verify-person", "/leave"
   ],
   "cases": [
     { "input": "hello", "message": "hello" },

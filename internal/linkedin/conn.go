@@ -60,6 +60,9 @@ type conn struct {
 	applying sync.Mutex
 	inbox    *inbox
 	rooms    map[domain.RoomID]domain.Room
+	// awaited are the conversations live messages named before LinkedIn listed them,
+	// each with what closes to end asking for it (awaitConversation); guarded by applying.
+	awaited map[string]chan struct{}
 	// synced is the session ID of the realtime connection last synced after; syncing
 	// runs one at a time.
 	synced  string
@@ -77,7 +80,7 @@ func (a *Adapter) newConn(account Account, s Session, at *int) *conn {
 	return &conn{
 		account: account, profile: s.ProfileID, signIn: signIn, session: s, saved: saved,
 		done: make(chan struct{}), gaveUp: make(chan error, 1),
-		inbox: newInbox(s.ProfileID), rooms: map[domain.RoomID]domain.Room{},
+		inbox: newInbox(s.ProfileID), rooms: map[domain.RoomID]domain.Room{}, awaited: map[string]chan struct{}{},
 	}
 }
 

@@ -24,6 +24,7 @@ type confRow struct {
 	Sender         string `json:"sender,omitempty"`
 	SenderName     string `json:"senderName,omitempty"`
 	SenderKnownAs  string `json:"senderKnownAs,omitempty"`
+	SenderShownAs  string `json:"senderShownAs,omitempty"`
 	Body           string `json:"body,omitempty"`
 	Format         string `json:"format,omitempty"` // the formatting's text, no spans
 	Edited         bool   `json:"edited,omitempty"`
@@ -50,6 +51,7 @@ type confMention struct {
 	User    string `json:"user"`
 	Name    string `json:"name,omitempty"`
 	KnownAs string `json:"knownAs,omitempty"`
+	ShownAs string `json:"shownAs,omitempty"`
 }
 
 func confTime(ms int64) time.Time {
@@ -69,7 +71,7 @@ func confMillis(t time.Time) int64 {
 func (r confRow) message() Message {
 	m := Message{
 		ID: EventID(r.ID), Timestamp: confTime(r.TS), Seq: r.Seq, Sender: r.Sender, SenderName: r.SenderName,
-		SenderKnownAs: r.SenderKnownAs, Body: r.Body, Format: richtext.Drawn(r.Format, nil), Edited: r.Edited, EditedAt: confTime(r.EditedAt),
+		SenderKnownAs: r.SenderKnownAs, SenderShownAs: r.SenderShownAs, Body: r.Body, Format: richtext.Drawn(r.Format, nil), Edited: r.Edited, EditedAt: confTime(r.EditedAt),
 		RevisionID: EventID(r.RevisionID), Reverted: r.Reverted, Redacted: r.Redacted, RedactedBy: r.RedactedBy,
 		RedactedReason: r.RedactedReason, RedactedAt: confTime(r.RedactedAt), ReplyTo: EventID(r.ReplyTo),
 		ThreadRoot: EventID(r.ThreadRoot), Mentioned: r.Mentioned, Placeholder: r.Placeholder,
@@ -82,7 +84,7 @@ func (r confRow) message() Message {
 		m.Poll = &Poll{Question: r.Poll}
 	}
 	for _, mn := range r.Mentions {
-		m.Mentions = append(m.Mentions, Mention{UserID: mn.User, Name: mn.Name, KnownAs: mn.KnownAs})
+		m.Mentions = append(m.Mentions, Mention{UserID: mn.User, Name: mn.Name, KnownAs: mn.KnownAs, ShownAs: mn.ShownAs})
 	}
 	return m
 }
@@ -90,7 +92,7 @@ func (r confRow) message() Message {
 func confRowOf(m Message) confRow {
 	r := confRow{
 		ID: string(m.ID), TS: confMillis(m.Timestamp), Seq: m.Seq, Sender: m.Sender, SenderName: m.SenderName,
-		SenderKnownAs: m.SenderKnownAs, Body: m.Body, Format: m.Format.Text(), Edited: m.Edited, EditedAt: confMillis(m.EditedAt),
+		SenderKnownAs: m.SenderKnownAs, SenderShownAs: m.SenderShownAs, Body: m.Body, Format: m.Format.Text(), Edited: m.Edited, EditedAt: confMillis(m.EditedAt),
 		RevisionID: string(m.RevisionID), Reverted: m.Reverted, Redacted: m.Redacted, RedactedBy: m.RedactedBy,
 		RedactedReason: m.RedactedReason, RedactedAt: confMillis(m.RedactedAt), ReplyTo: string(m.ReplyTo),
 		ThreadRoot: string(m.ThreadRoot), Mentioned: m.Mentioned, Placeholder: m.Placeholder,
@@ -103,7 +105,7 @@ func confRowOf(m Message) confRow {
 		r.Poll = m.Poll.Question
 	}
 	for _, mn := range m.Mentions {
-		r.Mentions = append(r.Mentions, confMention{User: mn.UserID, Name: mn.Name, KnownAs: mn.KnownAs})
+		r.Mentions = append(r.Mentions, confMention{User: mn.UserID, Name: mn.Name, KnownAs: mn.KnownAs, ShownAs: mn.ShownAs})
 	}
 	return r
 }

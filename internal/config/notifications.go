@@ -26,6 +26,9 @@ type DeviceNotifications struct {
 	Sound        string `toml:"sound"`   // a file; empty silent
 	// Sounds are each rule's own sound on this device, by the rule's name.
 	Sounds map[string]string `toml:"sounds"`
+	// Profiles are the profiles kith-notify shows here, by name; empty is the first.
+	// kith-notify's --profile flags, when given, are used instead.
+	Profiles []string `toml:"profiles"`
 }
 
 // SoundFor is the file to play for a notification whose matching rules are named, most
