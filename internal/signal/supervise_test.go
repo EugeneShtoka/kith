@@ -101,6 +101,7 @@ type fakeNetwork struct {
 	devices, links string
 	mu             sync.Mutex
 	failed         int
+	blocked        map[string]bool
 }
 
 // Send records req, failing the first fakeFails of them.
@@ -220,6 +221,35 @@ const (
 	madeGroup   = "bWFkZSBncm91cA=="
 	joinedGroup = "am9pbmVkIGdyb3Vw"
 )
+
+// Block records req and keeps the block.
+func (f *fakeNetwork) Block(_ context.Context, req *signalv1.BlockRequest) error {
+	record(req)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.blockedLocked()[req.GetPerson()] = req.GetBlocked()
+	return nil
+}
+
+// Blocked is who is blocked: ofer from the start, as if blocked on the phone before.
+func (f *fakeNetwork) Blocked(context.Context, string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []string
+	for aci, blocked := range f.blockedLocked() {
+		if blocked {
+			out = append(out, aci)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeNetwork) blockedLocked() map[string]bool {
+	if f.blocked == nil {
+		f.blocked = map[string]bool{ofer: true}
+	}
+	return f.blocked
+}
 
 // Leave records which group was left.
 func (f *fakeNetwork) Leave(_ context.Context, aci, group string) error {

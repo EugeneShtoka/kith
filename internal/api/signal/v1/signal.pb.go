@@ -3362,6 +3362,195 @@ func (*LeaveResponse) Descriptor() ([]byte, []int) {
 	return file_signal_v1_signal_proto_rawDescGZIP(), []int{44}
 }
 
+type BlockRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The connected account's ACI.
+	Account string `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	// The person's ACI.
+	Person string `protobuf:"bytes,2,opt,name=person,proto3" json:"person,omitempty"`
+	// False unblocks.
+	Blocked       bool `protobuf:"varint,3,opt,name=blocked,proto3" json:"blocked,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BlockRequest) Reset() {
+	*x = BlockRequest{}
+	mi := &file_signal_v1_signal_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BlockRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BlockRequest) ProtoMessage() {}
+
+func (x *BlockRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BlockRequest.ProtoReflect.Descriptor instead.
+func (*BlockRequest) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *BlockRequest) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
+func (x *BlockRequest) GetPerson() string {
+	if x != nil {
+		return x.Person
+	}
+	return ""
+}
+
+func (x *BlockRequest) GetBlocked() bool {
+	if x != nil {
+		return x.Blocked
+	}
+	return false
+}
+
+type BlockResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BlockResponse) Reset() {
+	*x = BlockResponse{}
+	mi := &file_signal_v1_signal_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BlockResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BlockResponse) ProtoMessage() {}
+
+func (x *BlockResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BlockResponse.ProtoReflect.Descriptor instead.
+func (*BlockResponse) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{46}
+}
+
+type BlockedRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The connected account's ACI.
+	Account       string `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BlockedRequest) Reset() {
+	*x = BlockedRequest{}
+	mi := &file_signal_v1_signal_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BlockedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BlockedRequest) ProtoMessage() {}
+
+func (x *BlockedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BlockedRequest.ProtoReflect.Descriptor instead.
+func (*BlockedRequest) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *BlockedRequest) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
+type BlockedResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// By ACI.
+	People        []string `protobuf:"bytes,1,rep,name=people,proto3" json:"people,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BlockedResponse) Reset() {
+	*x = BlockedResponse{}
+	mi := &file_signal_v1_signal_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BlockedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BlockedResponse) ProtoMessage() {}
+
+func (x *BlockedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_signal_v1_signal_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BlockedResponse.ProtoReflect.Descriptor instead.
+func (*BlockedResponse) Descriptor() ([]byte, []int) {
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *BlockedResponse) GetPeople() []string {
+	if x != nil {
+		return x.People
+	}
+	return nil
+}
+
 type CreateGroupRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The connected account's ACI.
@@ -3377,7 +3566,7 @@ type CreateGroupRequest struct {
 
 func (x *CreateGroupRequest) Reset() {
 	*x = CreateGroupRequest{}
-	mi := &file_signal_v1_signal_proto_msgTypes[45]
+	mi := &file_signal_v1_signal_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3389,7 +3578,7 @@ func (x *CreateGroupRequest) String() string {
 func (*CreateGroupRequest) ProtoMessage() {}
 
 func (x *CreateGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[45]
+	mi := &file_signal_v1_signal_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3402,7 +3591,7 @@ func (x *CreateGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGroupRequest.ProtoReflect.Descriptor instead.
 func (*CreateGroupRequest) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{45}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *CreateGroupRequest) GetAccount() string {
@@ -3444,7 +3633,7 @@ type CreateGroupResponse struct {
 
 func (x *CreateGroupResponse) Reset() {
 	*x = CreateGroupResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[46]
+	mi := &file_signal_v1_signal_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3456,7 +3645,7 @@ func (x *CreateGroupResponse) String() string {
 func (*CreateGroupResponse) ProtoMessage() {}
 
 func (x *CreateGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[46]
+	mi := &file_signal_v1_signal_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3469,7 +3658,7 @@ func (x *CreateGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGroupResponse.ProtoReflect.Descriptor instead.
 func (*CreateGroupResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{46}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *CreateGroupResponse) GetGroup() *Group {
@@ -3501,7 +3690,7 @@ type FindPersonRequest struct {
 
 func (x *FindPersonRequest) Reset() {
 	*x = FindPersonRequest{}
-	mi := &file_signal_v1_signal_proto_msgTypes[47]
+	mi := &file_signal_v1_signal_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3513,7 +3702,7 @@ func (x *FindPersonRequest) String() string {
 func (*FindPersonRequest) ProtoMessage() {}
 
 func (x *FindPersonRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[47]
+	mi := &file_signal_v1_signal_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3526,7 +3715,7 @@ func (x *FindPersonRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FindPersonRequest.ProtoReflect.Descriptor instead.
 func (*FindPersonRequest) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{47}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *FindPersonRequest) GetAccount() string {
@@ -3592,7 +3781,7 @@ type FindPersonResponse struct {
 
 func (x *FindPersonResponse) Reset() {
 	*x = FindPersonResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[48]
+	mi := &file_signal_v1_signal_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3604,7 +3793,7 @@ func (x *FindPersonResponse) String() string {
 func (*FindPersonResponse) ProtoMessage() {}
 
 func (x *FindPersonResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[48]
+	mi := &file_signal_v1_signal_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3617,7 +3806,7 @@ func (x *FindPersonResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FindPersonResponse.ProtoReflect.Descriptor instead.
 func (*FindPersonResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{48}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *FindPersonResponse) GetAci() string {
@@ -3644,7 +3833,7 @@ type UploadResponse struct {
 
 func (x *UploadResponse) Reset() {
 	*x = UploadResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[49]
+	mi := &file_signal_v1_signal_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3656,7 +3845,7 @@ func (x *UploadResponse) String() string {
 func (*UploadResponse) ProtoMessage() {}
 
 func (x *UploadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[49]
+	mi := &file_signal_v1_signal_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3669,7 +3858,7 @@ func (x *UploadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadResponse.ProtoReflect.Descriptor instead.
 func (*UploadResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{49}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *UploadResponse) GetAttachment() *Attachment {
@@ -3687,7 +3876,7 @@ type SendResponse struct {
 
 func (x *SendResponse) Reset() {
 	*x = SendResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[50]
+	mi := &file_signal_v1_signal_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3699,7 +3888,7 @@ func (x *SendResponse) String() string {
 func (*SendResponse) ProtoMessage() {}
 
 func (x *SendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[50]
+	mi := &file_signal_v1_signal_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3712,7 +3901,7 @@ func (x *SendResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendResponse.ProtoReflect.Descriptor instead.
 func (*SendResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{50}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{54}
 }
 
 type TypingRequest struct {
@@ -3727,7 +3916,7 @@ type TypingRequest struct {
 
 func (x *TypingRequest) Reset() {
 	*x = TypingRequest{}
-	mi := &file_signal_v1_signal_proto_msgTypes[51]
+	mi := &file_signal_v1_signal_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3739,7 +3928,7 @@ func (x *TypingRequest) String() string {
 func (*TypingRequest) ProtoMessage() {}
 
 func (x *TypingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[51]
+	mi := &file_signal_v1_signal_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3752,7 +3941,7 @@ func (x *TypingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypingRequest.ProtoReflect.Descriptor instead.
 func (*TypingRequest) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{51}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *TypingRequest) GetAccount() string {
@@ -3791,7 +3980,7 @@ type TypingResponse struct {
 
 func (x *TypingResponse) Reset() {
 	*x = TypingResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[52]
+	mi := &file_signal_v1_signal_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3803,7 +3992,7 @@ func (x *TypingResponse) String() string {
 func (*TypingResponse) ProtoMessage() {}
 
 func (x *TypingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[52]
+	mi := &file_signal_v1_signal_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3816,7 +4005,7 @@ func (x *TypingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypingResponse.ProtoReflect.Descriptor instead.
 func (*TypingResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{52}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{56}
 }
 
 type MarkReadRequest struct {
@@ -3832,7 +4021,7 @@ type MarkReadRequest struct {
 
 func (x *MarkReadRequest) Reset() {
 	*x = MarkReadRequest{}
-	mi := &file_signal_v1_signal_proto_msgTypes[53]
+	mi := &file_signal_v1_signal_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3844,7 +4033,7 @@ func (x *MarkReadRequest) String() string {
 func (*MarkReadRequest) ProtoMessage() {}
 
 func (x *MarkReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[53]
+	mi := &file_signal_v1_signal_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3857,7 +4046,7 @@ func (x *MarkReadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkReadRequest.ProtoReflect.Descriptor instead.
 func (*MarkReadRequest) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{53}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *MarkReadRequest) GetAccount() string {
@@ -3889,7 +4078,7 @@ type MarkReadResponse struct {
 
 func (x *MarkReadResponse) Reset() {
 	*x = MarkReadResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[54]
+	mi := &file_signal_v1_signal_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3901,7 +4090,7 @@ func (x *MarkReadResponse) String() string {
 func (*MarkReadResponse) ProtoMessage() {}
 
 func (x *MarkReadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[54]
+	mi := &file_signal_v1_signal_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3914,7 +4103,7 @@ func (x *MarkReadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarkReadResponse.ProtoReflect.Descriptor instead.
 func (*MarkReadResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{54}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{58}
 }
 
 type GroupByInviteRequest struct {
@@ -3929,7 +4118,7 @@ type GroupByInviteRequest struct {
 
 func (x *GroupByInviteRequest) Reset() {
 	*x = GroupByInviteRequest{}
-	mi := &file_signal_v1_signal_proto_msgTypes[55]
+	mi := &file_signal_v1_signal_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3941,7 +4130,7 @@ func (x *GroupByInviteRequest) String() string {
 func (*GroupByInviteRequest) ProtoMessage() {}
 
 func (x *GroupByInviteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[55]
+	mi := &file_signal_v1_signal_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3954,7 +4143,7 @@ func (x *GroupByInviteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupByInviteRequest.ProtoReflect.Descriptor instead.
 func (*GroupByInviteRequest) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{55}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *GroupByInviteRequest) GetAccount() string {
@@ -3989,7 +4178,7 @@ type GroupByInviteResponse struct {
 
 func (x *GroupByInviteResponse) Reset() {
 	*x = GroupByInviteResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[56]
+	mi := &file_signal_v1_signal_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4001,7 +4190,7 @@ func (x *GroupByInviteResponse) String() string {
 func (*GroupByInviteResponse) ProtoMessage() {}
 
 func (x *GroupByInviteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[56]
+	mi := &file_signal_v1_signal_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4014,7 +4203,7 @@ func (x *GroupByInviteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupByInviteResponse.ProtoReflect.Descriptor instead.
 func (*GroupByInviteResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{56}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *GroupByInviteResponse) GetId() string {
@@ -4071,7 +4260,7 @@ type JoinGroupRequest struct {
 
 func (x *JoinGroupRequest) Reset() {
 	*x = JoinGroupRequest{}
-	mi := &file_signal_v1_signal_proto_msgTypes[57]
+	mi := &file_signal_v1_signal_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4083,7 +4272,7 @@ func (x *JoinGroupRequest) String() string {
 func (*JoinGroupRequest) ProtoMessage() {}
 
 func (x *JoinGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[57]
+	mi := &file_signal_v1_signal_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4096,7 +4285,7 @@ func (x *JoinGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinGroupRequest.ProtoReflect.Descriptor instead.
 func (*JoinGroupRequest) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{57}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *JoinGroupRequest) GetAccount() string {
@@ -4125,7 +4314,7 @@ type JoinGroupResponse struct {
 
 func (x *JoinGroupResponse) Reset() {
 	*x = JoinGroupResponse{}
-	mi := &file_signal_v1_signal_proto_msgTypes[58]
+	mi := &file_signal_v1_signal_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4137,7 +4326,7 @@ func (x *JoinGroupResponse) String() string {
 func (*JoinGroupResponse) ProtoMessage() {}
 
 func (x *JoinGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_signal_v1_signal_proto_msgTypes[58]
+	mi := &file_signal_v1_signal_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4150,7 +4339,7 @@ func (x *JoinGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinGroupResponse.ProtoReflect.Descriptor instead.
 func (*JoinGroupResponse) Descriptor() ([]byte, []int) {
-	return file_signal_v1_signal_proto_rawDescGZIP(), []int{58}
+	return file_signal_v1_signal_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *JoinGroupResponse) GetGroup() *Group {
@@ -4413,7 +4602,16 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\fLeaveRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x14\n" +
 	"\x05group\x18\x02 \x01(\tR\x05group\"\x0f\n" +
-	"\rLeaveResponse\"x\n" +
+	"\rLeaveResponse\"Z\n" +
+	"\fBlockRequest\x12\x18\n" +
+	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x16\n" +
+	"\x06person\x18\x02 \x01(\tR\x06person\x12\x18\n" +
+	"\ablocked\x18\x03 \x01(\bR\ablocked\"\x0f\n" +
+	"\rBlockResponse\"*\n" +
+	"\x0eBlockedRequest\x12\x18\n" +
+	"\aaccount\x18\x01 \x01(\tR\aaccount\")\n" +
+	"\x0fBlockedResponse\x12\x16\n" +
+	"\x06people\x18\x01 \x03(\tR\x06people\"x\n" +
 	"\x12CreateGroupRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
@@ -4461,7 +4659,8 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"\x06invite\x18\x02 \x01(\fR\x06invite\"Y\n" +
 	"\x11JoinGroupResponse\x12&\n" +
 	"\x05group\x18\x01 \x01(\v2\x10.signal.v1.GroupR\x05group\x12\x1c\n" +
-	"\trequested\x18\x02 \x01(\bR\trequested2\xba\t\n" +
+	"\trequested\x18\x02 \x01(\bR\trequested2\xb8\n" +
+	"\n" +
 	"\rSignalService\x12F\n" +
 	"\tHeartbeat\x12\x1b.signal.v1.HeartbeatRequest\x1a\x1c.signal.v1.HeartbeatResponse\x12:\n" +
 	"\x05Start\x12\x17.signal.v1.StartRequest\x1a\x18.signal.v1.StartResponse\x129\n" +
@@ -4481,7 +4680,9 @@ const file_signal_v1_signal_proto_rawDesc = "" +
 	"FindPerson\x12\x1c.signal.v1.FindPersonRequest\x1a\x1d.signal.v1.FindPersonResponse\x12R\n" +
 	"\rGroupByInvite\x12\x1f.signal.v1.GroupByInviteRequest\x1a .signal.v1.GroupByInviteResponse\x12F\n" +
 	"\tJoinGroup\x12\x1b.signal.v1.JoinGroupRequest\x1a\x1c.signal.v1.JoinGroupResponse\x12@\n" +
-	"\aPicture\x12\x19.signal.v1.PictureRequest\x1a\x1a.signal.v1.PictureResponseB>Z<github.com/EugeneShtoka/kith/internal/api/signal/v1;signalv1b\x06proto3"
+	"\aPicture\x12\x19.signal.v1.PictureRequest\x1a\x1a.signal.v1.PictureResponse\x12:\n" +
+	"\x05Block\x12\x17.signal.v1.BlockRequest\x1a\x18.signal.v1.BlockResponse\x12@\n" +
+	"\aBlocked\x12\x19.signal.v1.BlockedRequest\x1a\x1a.signal.v1.BlockedResponseB>Z<github.com/EugeneShtoka/kith/internal/api/signal/v1;signalv1b\x06proto3"
 
 var (
 	file_signal_v1_signal_proto_rawDescOnce sync.Once
@@ -4496,7 +4697,7 @@ func file_signal_v1_signal_proto_rawDescGZIP() []byte {
 }
 
 var file_signal_v1_signal_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_signal_v1_signal_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
+var file_signal_v1_signal_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
 var file_signal_v1_signal_proto_goTypes = []any{
 	(Receipt_Kind)(0),             // 0: signal.v1.Receipt.Kind
 	(Style_Kind)(0),               // 1: signal.v1.Style.Kind
@@ -4546,20 +4747,24 @@ var file_signal_v1_signal_proto_goTypes = []any{
 	(*UnlinkResponse)(nil),        // 45: signal.v1.UnlinkResponse
 	(*LeaveRequest)(nil),          // 46: signal.v1.LeaveRequest
 	(*LeaveResponse)(nil),         // 47: signal.v1.LeaveResponse
-	(*CreateGroupRequest)(nil),    // 48: signal.v1.CreateGroupRequest
-	(*CreateGroupResponse)(nil),   // 49: signal.v1.CreateGroupResponse
-	(*FindPersonRequest)(nil),     // 50: signal.v1.FindPersonRequest
-	(*FindPersonResponse)(nil),    // 51: signal.v1.FindPersonResponse
-	(*UploadResponse)(nil),        // 52: signal.v1.UploadResponse
-	(*SendResponse)(nil),          // 53: signal.v1.SendResponse
-	(*TypingRequest)(nil),         // 54: signal.v1.TypingRequest
-	(*TypingResponse)(nil),        // 55: signal.v1.TypingResponse
-	(*MarkReadRequest)(nil),       // 56: signal.v1.MarkReadRequest
-	(*MarkReadResponse)(nil),      // 57: signal.v1.MarkReadResponse
-	(*GroupByInviteRequest)(nil),  // 58: signal.v1.GroupByInviteRequest
-	(*GroupByInviteResponse)(nil), // 59: signal.v1.GroupByInviteResponse
-	(*JoinGroupRequest)(nil),      // 60: signal.v1.JoinGroupRequest
-	(*JoinGroupResponse)(nil),     // 61: signal.v1.JoinGroupResponse
+	(*BlockRequest)(nil),          // 48: signal.v1.BlockRequest
+	(*BlockResponse)(nil),         // 49: signal.v1.BlockResponse
+	(*BlockedRequest)(nil),        // 50: signal.v1.BlockedRequest
+	(*BlockedResponse)(nil),       // 51: signal.v1.BlockedResponse
+	(*CreateGroupRequest)(nil),    // 52: signal.v1.CreateGroupRequest
+	(*CreateGroupResponse)(nil),   // 53: signal.v1.CreateGroupResponse
+	(*FindPersonRequest)(nil),     // 54: signal.v1.FindPersonRequest
+	(*FindPersonResponse)(nil),    // 55: signal.v1.FindPersonResponse
+	(*UploadResponse)(nil),        // 56: signal.v1.UploadResponse
+	(*SendResponse)(nil),          // 57: signal.v1.SendResponse
+	(*TypingRequest)(nil),         // 58: signal.v1.TypingRequest
+	(*TypingResponse)(nil),        // 59: signal.v1.TypingResponse
+	(*MarkReadRequest)(nil),       // 60: signal.v1.MarkReadRequest
+	(*MarkReadResponse)(nil),      // 61: signal.v1.MarkReadResponse
+	(*GroupByInviteRequest)(nil),  // 62: signal.v1.GroupByInviteRequest
+	(*GroupByInviteResponse)(nil), // 63: signal.v1.GroupByInviteResponse
+	(*JoinGroupRequest)(nil),      // 64: signal.v1.JoinGroupRequest
+	(*JoinGroupResponse)(nil),     // 65: signal.v1.JoinGroupResponse
 }
 var file_signal_v1_signal_proto_depIdxs = []int32{
 	7,  // 0: signal.v1.StartResponse.devices:type_name -> signal.v1.Device
@@ -4610,37 +4815,41 @@ var file_signal_v1_signal_proto_depIdxs = []int32{
 	12, // 45: signal.v1.SignalService.Events:input_type -> signal.v1.EventsRequest
 	36, // 46: signal.v1.SignalService.Ack:input_type -> signal.v1.AckRequest
 	38, // 47: signal.v1.SignalService.Send:input_type -> signal.v1.SendRequest
-	54, // 48: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
-	56, // 49: signal.v1.SignalService.MarkRead:input_type -> signal.v1.MarkReadRequest
+	58, // 48: signal.v1.SignalService.Typing:input_type -> signal.v1.TypingRequest
+	60, // 49: signal.v1.SignalService.MarkRead:input_type -> signal.v1.MarkReadRequest
 	39, // 50: signal.v1.SignalService.Download:input_type -> signal.v1.DownloadRequest
 	43, // 51: signal.v1.SignalService.Upload:input_type -> signal.v1.UploadRequest
 	44, // 52: signal.v1.SignalService.Unlink:input_type -> signal.v1.UnlinkRequest
 	46, // 53: signal.v1.SignalService.Leave:input_type -> signal.v1.LeaveRequest
-	48, // 54: signal.v1.SignalService.CreateGroup:input_type -> signal.v1.CreateGroupRequest
-	50, // 55: signal.v1.SignalService.FindPerson:input_type -> signal.v1.FindPersonRequest
-	58, // 56: signal.v1.SignalService.GroupByInvite:input_type -> signal.v1.GroupByInviteRequest
-	60, // 57: signal.v1.SignalService.JoinGroup:input_type -> signal.v1.JoinGroupRequest
+	52, // 54: signal.v1.SignalService.CreateGroup:input_type -> signal.v1.CreateGroupRequest
+	54, // 55: signal.v1.SignalService.FindPerson:input_type -> signal.v1.FindPersonRequest
+	62, // 56: signal.v1.SignalService.GroupByInvite:input_type -> signal.v1.GroupByInviteRequest
+	64, // 57: signal.v1.SignalService.JoinGroup:input_type -> signal.v1.JoinGroupRequest
 	41, // 58: signal.v1.SignalService.Picture:input_type -> signal.v1.PictureRequest
-	4,  // 59: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
-	6,  // 60: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
-	9,  // 61: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
-	11, // 62: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
-	13, // 63: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
-	37, // 64: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
-	53, // 65: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
-	55, // 66: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
-	57, // 67: signal.v1.SignalService.MarkRead:output_type -> signal.v1.MarkReadResponse
-	40, // 68: signal.v1.SignalService.Download:output_type -> signal.v1.DownloadResponse
-	52, // 69: signal.v1.SignalService.Upload:output_type -> signal.v1.UploadResponse
-	45, // 70: signal.v1.SignalService.Unlink:output_type -> signal.v1.UnlinkResponse
-	47, // 71: signal.v1.SignalService.Leave:output_type -> signal.v1.LeaveResponse
-	49, // 72: signal.v1.SignalService.CreateGroup:output_type -> signal.v1.CreateGroupResponse
-	51, // 73: signal.v1.SignalService.FindPerson:output_type -> signal.v1.FindPersonResponse
-	59, // 74: signal.v1.SignalService.GroupByInvite:output_type -> signal.v1.GroupByInviteResponse
-	61, // 75: signal.v1.SignalService.JoinGroup:output_type -> signal.v1.JoinGroupResponse
-	42, // 76: signal.v1.SignalService.Picture:output_type -> signal.v1.PictureResponse
-	59, // [59:77] is the sub-list for method output_type
-	41, // [41:59] is the sub-list for method input_type
+	48, // 59: signal.v1.SignalService.Block:input_type -> signal.v1.BlockRequest
+	50, // 60: signal.v1.SignalService.Blocked:input_type -> signal.v1.BlockedRequest
+	4,  // 61: signal.v1.SignalService.Heartbeat:output_type -> signal.v1.HeartbeatResponse
+	6,  // 62: signal.v1.SignalService.Start:output_type -> signal.v1.StartResponse
+	9,  // 63: signal.v1.SignalService.Link:output_type -> signal.v1.LinkResponse
+	11, // 64: signal.v1.SignalService.Connect:output_type -> signal.v1.ConnectResponse
+	13, // 65: signal.v1.SignalService.Events:output_type -> signal.v1.EventsResponse
+	37, // 66: signal.v1.SignalService.Ack:output_type -> signal.v1.AckResponse
+	57, // 67: signal.v1.SignalService.Send:output_type -> signal.v1.SendResponse
+	59, // 68: signal.v1.SignalService.Typing:output_type -> signal.v1.TypingResponse
+	61, // 69: signal.v1.SignalService.MarkRead:output_type -> signal.v1.MarkReadResponse
+	40, // 70: signal.v1.SignalService.Download:output_type -> signal.v1.DownloadResponse
+	56, // 71: signal.v1.SignalService.Upload:output_type -> signal.v1.UploadResponse
+	45, // 72: signal.v1.SignalService.Unlink:output_type -> signal.v1.UnlinkResponse
+	47, // 73: signal.v1.SignalService.Leave:output_type -> signal.v1.LeaveResponse
+	53, // 74: signal.v1.SignalService.CreateGroup:output_type -> signal.v1.CreateGroupResponse
+	55, // 75: signal.v1.SignalService.FindPerson:output_type -> signal.v1.FindPersonResponse
+	63, // 76: signal.v1.SignalService.GroupByInvite:output_type -> signal.v1.GroupByInviteResponse
+	65, // 77: signal.v1.SignalService.JoinGroup:output_type -> signal.v1.JoinGroupResponse
+	42, // 78: signal.v1.SignalService.Picture:output_type -> signal.v1.PictureResponse
+	49, // 79: signal.v1.SignalService.Block:output_type -> signal.v1.BlockResponse
+	51, // 80: signal.v1.SignalService.Blocked:output_type -> signal.v1.BlockedResponse
+	61, // [61:81] is the sub-list for method output_type
+	41, // [41:61] is the sub-list for method input_type
 	41, // [41:41] is the sub-list for extension type_name
 	41, // [41:41] is the sub-list for extension extendee
 	0,  // [0:41] is the sub-list for field type_name
@@ -4671,7 +4880,7 @@ func file_signal_v1_signal_proto_init() {
 		(*EventsResponse_Vote)(nil),
 		(*EventsResponse_PollEnd)(nil),
 	}
-	file_signal_v1_signal_proto_msgTypes[47].OneofWrappers = []any{
+	file_signal_v1_signal_proto_msgTypes[51].OneofWrappers = []any{
 		(*FindPersonRequest_Number)(nil),
 		(*FindPersonRequest_UsernameLink)(nil),
 	}
@@ -4681,7 +4890,7 @@ func file_signal_v1_signal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signal_v1_signal_proto_rawDesc), len(file_signal_v1_signal_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   59,
+			NumMessages:   63,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
