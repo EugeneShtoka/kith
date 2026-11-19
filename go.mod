@@ -1,6 +1,6 @@
 module github.com/EugeneShtoka/kith
 
-go 1.26.3
+go 1.26.7
 
 toolchain go1.26.11
 
@@ -15,7 +15,7 @@ tool (
 
 require (
 	charm.land/bubbletea/v2 v2.1.2-0.20261109105522-e4d617e7e0c0
-	charm.land/lipgloss/v2 v2.0.6
+	charm.land/lipgloss/v2 v2.1.0
 	connectrpc.com/connect v1.21.1
 	filippo.io/age v1.3.2
 	github.com/BurntSushi/toml v1.6.0
@@ -23,10 +23,10 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/godbus/dbus/v5 v5.2.4
-	github.com/gofrs/flock v0.13.1
+	github.com/gofrs/flock v0.13.2
 	github.com/gotd/log v0.1.0
-	github.com/gotd/td v0.163.0
-	github.com/ncruces/go-sqlite3 v0.36.0
+	github.com/gotd/td v0.165.0
+	github.com/ncruces/go-sqlite3 v0.37.0
 	github.com/rivo/uniseg v0.4.7
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.35.1
@@ -39,13 +39,13 @@ require (
 	go.mau.fi/mautrix-signal v0.2610.0
 	go.mau.fi/util v0.11.0
 	go.mau.fi/whatsmeow v0.0.0-20261014094007-f16f9ca30d6a
-	golang.org/x/image v0.47.0
+	golang.org/x/image v0.48.0
 	golang.org/x/net v0.62.0
-	golang.org/x/term v0.47.0
-	golang.org/x/text v0.43.0
+	golang.org/x/term v0.48.0
+	golang.org/x/text v0.44.0
 	google.golang.org/protobuf v1.36.12
 	maunium.net/go/mautrix v0.32.0
-	modernc.org/sqlite v1.61.1
+	modernc.org/sqlite v1.62.0
 	rsc.io/qr v0.2.0
 )
 
@@ -78,7 +78,7 @@ require (
 	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/kojah/gohawk v0.7.1 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
-	github.com/ncruces/go-sqlite3-wasm/v6 v6.4.35401 // indirect
+	github.com/ncruces/go-sqlite3-wasm/v6 v6.5.35401 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/ogen-go/ogen v1.23.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
@@ -91,9 +91,9 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.mau.fi/zeroconfig v0.2.0 // indirect
-	go.opentelemetry.io/otel v1.44.0 // indirect
-	go.opentelemetry.io/otel/metric v1.44.0 // indirect
-	go.opentelemetry.io/otel/trace v1.44.0 // indirect
+	go.opentelemetry.io/otel v1.47.0 // indirect
+	go.opentelemetry.io/otel/metric v1.47.0 // indirect
+	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 // indirect
 	google.golang.org/grpc v1.84.0 // indirect
@@ -317,8 +317,8 @@ require (
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e // indirect
 	golang.org/x/exp/typeparams v0.0.0-20260811152304-ee035b5b010f // indirect
 	golang.org/x/mod v0.42.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/telemetry v0.0.0-20261009151841-97e8ea77aa2a // indirect
 	golang.org/x/tools v0.52.0
 	golang.org/x/vuln v1.6.0 // indirect
@@ -326,7 +326,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 	honnef.co/go/tools v0.8.0 // indirect
-	modernc.org/libc v1.79.0 // indirect
+	modernc.org/libc v1.80.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 	mvdan.cc/gofumpt v0.11.0 // indirect

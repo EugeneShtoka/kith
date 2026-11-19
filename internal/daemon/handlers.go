@@ -440,17 +440,17 @@ func (s *server) LoadPicture(ctx context.Context, r *req[v1.LoadPictureRequest])
 
 func (s *server) Members(ctx context.Context, r *req[v1.MembersRequest]) (*resp[v1.MembersResponse], error) {
 	members, err := s.Backend.Members(ctx, roomID(r.Msg.GetRoomId()), int(r.Msg.GetLimit()))
-	return reply(&v1.MembersResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
+	return reply(&v1.MembersResponse{Members: pc.MembersToProto(s.Names.members(ctx, roomID(r.Msg.GetRoomId()), members))}, err)
 }
 
 func (s *server) RefreshMembers(ctx context.Context, r *req[v1.RefreshMembersRequest]) (*resp[v1.RefreshMembersResponse], error) {
 	members, err := s.Backend.RefreshMembers(ctx, roomID(r.Msg.GetRoomId()))
-	return reply(&v1.RefreshMembersResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
+	return reply(&v1.RefreshMembersResponse{Members: pc.MembersToProto(s.Names.members(ctx, roomID(r.Msg.GetRoomId()), members))}, err)
 }
 
 func (s *server) MentionCandidates(ctx context.Context, r *req[v1.MentionCandidatesRequest]) (*resp[v1.MentionCandidatesResponse], error) {
 	members, err := s.Backend.MentionCandidates(ctx, roomID(r.Msg.GetRoomId()), int(r.Msg.GetLimit()))
-	return reply(&v1.MentionCandidatesResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
+	return reply(&v1.MentionCandidatesResponse{Members: pc.MembersToProto(s.Names.members(ctx, roomID(r.Msg.GetRoomId()), members))}, err)
 }
 
 func (s *server) SearchSenders(ctx context.Context, r *req[v1.SearchSendersRequest]) (*resp[v1.SearchSendersResponse], error) {
@@ -459,12 +459,12 @@ func (s *server) SearchSenders(ctx context.Context, r *req[v1.SearchSendersReque
 		return nil, rpcErr(err)
 	}
 	senders, err := s.Backend.SearchSenders(ctx, rooms, int(r.Msg.GetLimit()))
-	return reply(&v1.SearchSendersResponse{Members: pc.MembersToProto(s.Names.members(ctx, senders))}, err)
+	return reply(&v1.SearchSendersResponse{Members: pc.MembersToProto(s.Names.members(ctx, "", senders))}, err)
 }
 
 func (s *server) DirectCandidates(ctx context.Context, r *req[v1.DirectCandidatesRequest]) (*resp[v1.DirectCandidatesResponse], error) {
 	members, err := s.Backend.DirectCandidates(ctx, int(r.Msg.GetLimit()))
-	return reply(&v1.DirectCandidatesResponse{Members: pc.MembersToProto(s.Names.members(ctx, members))}, err)
+	return reply(&v1.DirectCandidatesResponse{Members: pc.MembersToProto(s.Names.members(ctx, "", members))}, err)
 }
 
 func (s *server) SenderSlots(ctx context.Context, r *req[v1.SenderSlotsRequest]) (*resp[v1.SenderSlotsResponse], error) {
@@ -856,6 +856,11 @@ func (s *server) Verifications(ctx context.Context, _ *req[v1.VerificationsReque
 func (s *server) StartVerification(ctx context.Context, r *req[v1.StartVerificationRequest]) (*resp[v1.StartVerificationResponse], error) {
 	txnID, err := s.Backend.StartVerification(ctx, domain.RoomOwner(r.Msg.GetOn()))
 	return reply(&v1.StartVerificationResponse{TxnId: txnID}, err)
+}
+
+func (s *server) VerifyPerson(ctx context.Context, r *req[v1.VerifyPersonRequest]) (*resp[v1.VerifyPersonResponse], error) {
+	txnID, err := s.Backend.VerifyPerson(ctx, roomID(r.Msg.GetRoomId()))
+	return reply(&v1.VerifyPersonResponse{TxnId: txnID}, err)
 }
 
 func (s *server) AcceptVerification(ctx context.Context, r *req[v1.AcceptVerificationRequest]) (*resp[v1.AcceptVerificationResponse], error) {

@@ -92,9 +92,9 @@ The desktop ([desktop.md](desktop.md)) is packaged by Electron Forge's makers
    still names the commit, and uploads them to the tag's release.
 
 So the desktop on a release is always the tagged commit's, with that commit's relay;
-a desktop build failing leaves kith's own assets published without it. It runs in
-the `release` environment too, so a protected environment asks for approval a second
-time. The runners are pinned to Ubuntu 24.04 because electron-installer-redhat's spec
+a desktop build failing leaves kith's own assets published without it. It runs
+outside the `release` environment: it follows the `release` job, so the one approval
+covers it. The runners are pinned to Ubuntu 24.04 because electron-installer-redhat's spec
 fails under rpm 4.20's build directories; 24.04 has rpm 4.18.
 
 What the packages install:
@@ -262,7 +262,7 @@ The `.apk` is unsigned, which is why the install instructions use
 3. Watch the Release workflow. When it finishes, check:
    - the release page has six archives, eight Linux packages, the source tarball,
      `checksums.txt` with its `checksums.txt.sigstore.json` bundle, and the SBOMs;
-   - after a second approval (`desktop-publish`), the desktop's two `.deb`, two `.rpm`,
+   - the desktop's two `.deb`, two `.rpm`,
      two `.zip`, and `kith-desktop_SHA256SUMS` with its `.sigstore.json` bundle;
    - <https://aur.archlinux.org/packages/kith-bin> and `/packages/kith` show the
      new version (if `AUR_SSH_PRIVATE_KEY` is set);

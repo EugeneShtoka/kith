@@ -246,6 +246,17 @@ var slashCommands = []slashCommand{
 		},
 	},
 	{
+		name:    "/verify-person",
+		summary: "verify the person in this Matrix direct chat — you both compare the emoji, each in your own app",
+		run: func(m Model, _ string, room domain.Room) (Model, tea.Cmd) {
+			m.compose.input, m.compose.drafted = "", nil
+			if m.verify.active {
+				return m.say("a verification is already going — finish or cancel it first"), nil
+			}
+			return m, m.verifyPersonCmd(room.ID)
+		},
+	},
+	{
 		name: "/leave", summary: "leave the room you are writing in, or delete a private chat that cannot be left (asks first)",
 		run: func(m Model, _ string, _ domain.Room) (Model, tea.Cmd) {
 			// Irreversible, so through the room list's confirmation.

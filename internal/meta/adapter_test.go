@@ -451,6 +451,30 @@ func TestLoginStepsAreAsked(t *testing.T) {
 	}
 }
 
+// messagix's credentials note is asked in kith's words, after the rejection messagix
+// reports before it, if any.
+func TestTheCredentialsStepIsAskedInKithsWords(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ messagix, want string }{
+		{messagixCredentials, credentialsNote},
+		{"Facebook rejected that login. " + messagixCredentials, "Facebook rejected that login. " + credentialsNote},
+	} {
+		talk := &talkScript{answers: []map[string]string{{"username": "me@example.com", "password": "pw"}}}
+		step := &bridgev2.LoginStep{Type: bridgev2.LoginStepTypeUserInput, Instructions: tc.messagix,
+			UserInputParams: &bridgev2.LoginUserInputParams{Fields: []bridgev2.LoginInputDataField{
+				{Type: bridgev2.LoginInputFieldTypeUsername, ID: "username", Name: "Username or email address"},
+				{Type: bridgev2.LoginInputFieldTypePassword, ID: "password", Name: "Password"},
+			}}}
+		if _, err := answer(context.Background(), talk, step); err != nil {
+			t.Fatal(err)
+		}
+		if len(talk.notes) != 1 || talk.notes[0] != tc.want {
+			t.Errorf("%q was asked as %q, want %q", tc.messagix, talk.notes, tc.want)
+		}
+	}
+}
+
 // A new account is named, written into the config and signed in under that name; a
 // login for an account the config does not have is refused.
 func TestLoginSetsUpANewAccount(t *testing.T) {

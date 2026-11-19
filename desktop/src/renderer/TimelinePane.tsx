@@ -521,7 +521,9 @@ export function Row({
             >
               {th.count === 1 ? "1 reply" : `${String(th.count)} replies`}
               {th.rootLoaded ? "" : " in a thread"} ·{" "}
-              <span dir="auto">{th.latestSenderKnownAs || th.latestSenderName || th.latestSender}</span>
+              <span dir="auto">
+                {th.latestSenderShownAs || th.latestSenderKnownAs || th.latestSenderName || th.latestSender}
+              </span>
             </button>
           ))}
           {composer !== undefined && !m.redacted && (

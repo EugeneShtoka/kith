@@ -40,7 +40,7 @@ func start() int {
 	logLevel := flag.String("log-level", "", "how much to log ("+logging.Levels+"); overrides $"+logging.EnvLevel+" and `[log] level`")
 	logFile := flag.String(strings.TrimPrefix(daemon.LogFlag, "--"), "", "log to the journal, or to this `file` when there is none, instead of stderr; what kith passes when it starts kith-notify without systemd")
 	var profiles []string
-	flag.Func("profile", "a profile whose notifications to show; repeat for several (default: the first)", func(name string) error {
+	flag.Func("profile", "a profile whose notifications to show; repeat for several (default: device.toml's [notifications] profiles, else the first)", func(name string) error {
 		profiles = append(profiles, name)
 		return nil
 	})
@@ -95,7 +95,14 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 		return fmt.Errorf("log level: %w", err)
 	}
 	level.Set(resolved)
-	names, err := profileNames(cfg, profiles)
+	dev, err := config.LoadDevice(device)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", device, err)
+	}
+	if err = setup.ValidateDevice(dev); err != nil {
+		return fmt.Errorf("reading %s: %w", device, err)
+	}
+	names, err := profileNames(cfg, profiles, dev.Notifications.Profiles)
 	if err != nil {
 		return err
 	}
@@ -116,13 +123,6 @@ func run(ctx context.Context, log *slog.Logger, level *slog.LevelVar, flagLevel,
 	sinks := setup.NotifierSinks(func(sink string, err error) {
 		log.Warn("notification delivery failed", "sink", sink, "err", err)
 	}, &notify.Clicks{Open: openLink(ctx, log, configPath)})
-	dev, err := config.LoadDevice(device)
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", device, err)
-	}
-	if err := setup.ValidateDevice(dev); err != nil {
-		return fmt.Errorf("reading %s: %w", device, err)
-	}
 	if uerr := setup.AutoCopyUnavailable(cfg, dev); uerr != nil {
 		log.Warn("auto-copy is on but cannot run", "err", uerr)
 	}
@@ -228,12 +228,17 @@ func loadBridged(ctx context.Context, log *slog.Logger, path string, b config.Br
 	}
 }
 
-// profileNames are the profiles named, as the config spells them, or the first when
-// none is; one the config lacks is refused naming those it has.
-func profileNames(cfg config.Config, named []string) ([]string, error) {
+// profileNames are the profiles flagged (--profile), else those configured (the device's
+// [notifications] profiles), as the config spells them, or the first when neither names
+// one; one the config lacks is refused naming those it has.
+func profileNames(cfg config.Config, flagged, configured []string) ([]string, error) {
 	profiles, err := setup.Profiles(cfg)
 	if err != nil {
 		return nil, err
+	}
+	named, from := flagged, "--profile"
+	if len(named) == 0 {
+		named, from = configured, "[notifications] profiles"
 	}
 	if len(named) == 0 {
 		return []string{profiles[0].Name}, nil
@@ -246,7 +251,7 @@ func profileNames(cfg config.Config, named []string) ([]string, error) {
 	for _, name := range named {
 		i := slices.IndexFunc(have, func(p string) bool { return strings.EqualFold(p, strings.TrimSpace(name)) })
 		if i < 0 {
-			return nil, fmt.Errorf("--profile %q: the config has %s", name, strings.Join(have, ", "))
+			return nil, fmt.Errorf("%s %q: the config has %s", from, name, strings.Join(have, ", "))
 		}
 		out = append(out, have[i])
 	}

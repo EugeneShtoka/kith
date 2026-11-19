@@ -39,8 +39,9 @@ func runBackup(args []string) error {
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "usage: kith backup [--config path] [--no-media] [--new-key] [file] — your history, config,\n"+
 			"local records and pictures in one file encrypted to your backup key (default: a dated one\n"+
-			"in [storage] export_dir). The first backup makes the key and shows it once; --new-key\n"+
-			"replaces a lost one. Network sessions are not in it: after a restore, log in again.")
+			"in the backups folder, kept and deleted with kithd's own). The first backup makes the\n"+
+			"key and shows it once; --new-key replaces a lost one. Network sessions are not in it:\n"+
+			"after a restore, log in again.")
 		fs.PrintDefaults()
 	}
 	_ = fs.Parse(args) // ExitOnError
@@ -58,7 +59,10 @@ func runBackup(args []string) error {
 	}
 	out := fs.Arg(0)
 	if out == "" {
-		out = filepath.Join(storage.ExportDir, "kith-backup-"+time.Now().Format("2006-01-02-1504")+".tar.age")
+		if err = os.MkdirAll(storage.BackupsDir(), 0o700); err != nil {
+			return fmt.Errorf("the backups folder: %w", err)
+		}
+		out = filepath.Join(storage.BackupsDir(), backup.Name(time.Now()))
 	}
 	to, err := backupKey(cfg, storage, *renew)
 	if err != nil {
