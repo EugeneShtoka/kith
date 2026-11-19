@@ -266,13 +266,14 @@ func (s State) Merge(snap Snapshot) (next State, forks []Dot, err error) {
 		return s, nil, bad
 	}
 	next = s
-	for _, op := range snap.RosterOps {
+	for i := range snap.RosterOps {
+		op := &snap.RosterOps[i]
 		if s.Vector.Covers(Dot{Origin: op.Origin, Seq: op.Seq}) || slices.ContainsFunc(next.RosterOps, func(o Op) bool {
 			return o.Origin == op.Origin && o.Seq == op.Seq
 		}) {
 			continue
 		}
-		if next, err = next.take(op); err != nil {
+		if next, err = next.take(*op); err != nil {
 			return s, nil, fmt.Errorf("the snapshot's roster: %w", err)
 		}
 	}

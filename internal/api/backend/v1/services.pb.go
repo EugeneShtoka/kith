@@ -19905,13 +19905,15 @@ func (x *ConfirmPairingResponse) GetDevice() *Device {
 
 // PairRequest is a new device answering a pairing over [remote] listen; name is how
 // it would be listed. role "bridge" is a kithd joining the mesh (kith join --bridge),
-// dialed at addresses; anything else pairs a device.
+// dialed at addresses, with sealing its X25519 key that content keys are wrapped to;
+// anything else pairs a device.
 type PairRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Role          string                 `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
 	Addresses     []string               `protobuf:"bytes,4,rep,name=addresses,proto3" json:"addresses,omitempty"`
+	Sealing       []byte                 `protobuf:"bytes,5,opt,name=sealing,proto3" json:"sealing,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -19970,6 +19972,13 @@ func (x *PairRequest) GetRole() string {
 func (x *PairRequest) GetAddresses() []string {
 	if x != nil {
 		return x.Addresses
+	}
+	return nil
+}
+
+func (x *PairRequest) GetSealing() []byte {
+	if x != nil {
+		return x.Sealing
 	}
 	return nil
 }
@@ -21701,12 +21710,13 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x16\n" +
 	"\x06accept\x18\x02 \x01(\bR\x06accept\"D\n" +
 	"\x16ConfirmPairingResponse\x12*\n" +
-	"\x06device\x18\x01 \x01(\v2\x12.backend.v1.DeviceR\x06device\"i\n" +
+	"\x06device\x18\x01 \x01(\v2\x12.backend.v1.DeviceR\x06device\"\x83\x01\n" +
 	"\vPairRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
 	"\x04role\x18\x03 \x01(\tR\x04role\x12\x1c\n" +
-	"\taddresses\x18\x04 \x03(\tR\taddresses\"i\n" +
+	"\taddresses\x18\x04 \x03(\tR\taddresses\x12\x18\n" +
+	"\asealing\x18\x05 \x01(\fR\asealing\"i\n" +
 	"\fPairResponse\x12\x18\n" +
 	"\x06digits\x18\x01 \x01(\tH\x00R\x06digits\x126\n" +
 	"\aoutcome\x18\x02 \x01(\x0e2\x1a.backend.v1.PairingOutcomeH\x00R\aoutcomeB\a\n" +

@@ -32,17 +32,42 @@ message SyncFrame {
     Ops ops = 2;
     Snapshot snapshot = 3;
     Ack ack = 4;
+    Epochs epochs = 5;
   }
 }
 
 // Hello is each side's first frame: its device ID, its wall clock (Unix
-// milliseconds), its version vector and the protocol it speaks. A peer whose clock is
-// more than 60 seconds off is refused, the gap named.
+// milliseconds), its version vector, the protocol it speaks and the epoch records it
+// holds. A peer whose clock is more than 60 seconds off is refused, the gap named.
 message Hello {
   bytes replica = 1;
   int64 wall_ms = 2;
   repeated Head vector = 3;
   uint32 protocol = 4;
+  Epochs epochs = 5;
+}
+
+// Epochs are epoch records the sender holds that the receiver may not, and the epochs
+// whose content key the sender lacks though it holds ops sealed under them: a bridge
+// holding the key answers with a wrap for it.
+message Epochs {
+  repeated EpochRecord records = 1;
+  repeated Epoch want = 2;
+}
+
+// EpochRecord is an epoch's content key wrapped for bridges, as its signer wrote it:
+// body is every field the signature covers, in the mesh's own encoding
+// (internal/mesh/crdt): the epoch, the maker's vector when it made it, each wrap (a
+// bridge's device ID and the key sealed to its sealing key, HPKE), and the signer.
+message EpochRecord {
+  bytes body = 1;
+  bytes sig = 2;
+}
+
+// Epoch names a content key: its number and the device ID of the bridge that made it.
+message Epoch {
+  uint64 number = 1;
+  bytes maker = 2;
 }
 
 // Head is what a version vector holds of one origin: every op up to seq, and the hash
@@ -55,10 +80,15 @@ message Head {
 
 // Op is one signed op, as its origin wrote it: body is every field the signature
 // covers, in the mesh's own encoding (internal/mesh/crdt), so a relay passes on
-// exactly what the origin signed.
+// exactly what the origin signed. sealed is its envelope, made by the origin: origin,
+// seq and epoch in the clear, then a nonce and body and sig padded to a multiple of
+// 4 KiB in an AES-256-GCM box under the epoch's content key, with the clear fields as
+// additional data. A relay passes it on as those bytes too; an op written before ops
+// were sealed has none.
 message Op {
   bytes body = 1;
   bytes sig = 2;
+  bytes sealed = 3;
 }
 
 // Ops are ops in an order that follows causality: the sender's apply order.

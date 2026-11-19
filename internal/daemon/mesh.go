@@ -186,7 +186,7 @@ func (d *Devices) publishAddresses(ctx context.Context, store RosterStore, signe
 	self := d.self.String()
 	d.mu.Unlock()
 	if i := slices.IndexFunc(members, func(m domain.Device) bool { return m.ID == self }); i >= 0 {
-		if err := store.Bridge(ctx, signer, members[i], nil, addrs); err != nil {
+		if err := store.Bridge(ctx, signer, members[i], nil, nil, addrs); err != nil {
 			d.log.Warn("write this bridge's addresses into the mesh", "err", err)
 		}
 	}
@@ -365,7 +365,7 @@ func (d *Devices) joinMesh(ctx context.Context, inv pairing.Invite, name string,
 		return err
 	}
 	addrs, _ := d.dialable() // none: the mesh's bridges never dial this one, it dials them
-	outcome, perr := d.pairAsBridge(ctx, cert, self, inv, name, addrs, say)
+	outcome, perr := d.pairAsBridge(ctx, cert, self, inv, name, addrs, store.Sealing(), say)
 	if errors.Is(perr, errDigitsDiffer) || ctx.Err() != nil {
 		return perr
 	}
@@ -386,10 +386,11 @@ func (d *Devices) joinMesh(ctx context.Context, inv pairing.Invite, name string,
 	return say(&v1.JoinMeshResponse{Event: &v1.JoinMeshResponse_Joined{Joined: &v1.MeshDevices{Devices: pc.DevicesToProto(joined)}}})
 }
 
-// pairAsBridge answers inv's pairing as this bridge (self), checking the digits the
-// other side shows against its own; say gets them.
+// pairAsBridge answers inv's pairing as this bridge (self), dialed at addrs, its
+// sealing key sealing, checking the digits the other side shows against its own; say
+// gets them.
 func (d *Devices) pairAsBridge(ctx context.Context, cert tls.Certificate, self devicekey.ID, inv pairing.Invite, name string,
-	addrs []string, say func(*v1.JoinMeshResponse) error,
+	addrs []string, sealing []byte, say func(*v1.JoinMeshResponse) error,
 ) (domain.PairingOutcome, error) {
 	remote := NewBridgeRemote(cert, inv.ID, inv.Addresses)
 	defer remote.Stop()
@@ -397,7 +398,7 @@ func (d *Devices) pairAsBridge(ctx context.Context, cert tls.Certificate, self d
 	defer cancel(nil)
 	want := pairing.Digits(inv.ID, self, inv.Token)
 	outcome, err := remote.pair(ctx, &v1.PairRequest{
-		Token: inv.Token.String(), Name: name, Role: string(domain.RoleBridge), Addresses: addrs,
+		Token: inv.Token.String(), Name: name, Role: string(domain.RoleBridge), Addresses: addrs, Sealing: sealing,
 	}, func(got string) {
 		if got != want {
 			cancel(errDigitsDiffer) // ends the pairing unconfirmed

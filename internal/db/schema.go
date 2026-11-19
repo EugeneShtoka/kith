@@ -476,6 +476,9 @@ CREATE TABLE room_unread (
 	read_ts_ms    INTEGER NOT NULL DEFAULT 0
 ) STRICT, WITHOUT ROWID;
 
+-- When a room's unread mark was last set: see roomMarkTimes.
+` + roomMarkTimes + `
+
 CREATE TABLE thread_read (
 	room_id    TEXT    NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
 	root_event TEXT    NOT NULL,
@@ -536,7 +539,18 @@ var migrations = []string{
 	// v3: draft_threads, the thread the room's one draft was aimed at, gone: such a
 	// draft stays the room's.
 	`DROP TABLE IF EXISTS draft_threads;`,
+	// v4: room_mark_times, when each room's unread mark was set, so a mark the mesh
+	// carries is kept only over one set earlier.
+	roomMarkTimes,
 }
+
+// roomMarkTimes is when each room's unread mark was last set (Unix ms): by kith or the
+// network here, at this machine's time; from the mesh, at the time its bridge wrote it.
+// A room whose mark was not set since it was kept has no row.
+const roomMarkTimes = `CREATE TABLE IF NOT EXISTS room_mark_times (
+	room_id TEXT    NOT NULL PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+	set_ms  INTEGER NOT NULL
+) STRICT, WITHOUT ROWID;`
 
 // threadDrafts is each thread's draft, keyed by room and thread root, its columns the
 // drafts table's.

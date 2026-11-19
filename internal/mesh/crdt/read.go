@@ -141,10 +141,11 @@ func (s State) furthest(key string, entries []Entry) (Read, bool) {
 	return best, found
 }
 
-// Mark is a room's unread mark and the write that set it.
+// Mark is a room's unread mark, the write that set it and that write's clock.
 type Mark struct {
 	Marked bool
 	Dot    Dot
+	Clock  Clock
 }
 
 // Marks is every room's unread mark: of a key's values, the newest by (clock, origin).
@@ -161,7 +162,7 @@ func (s State) Marks() map[string]Mark {
 				best = e
 			}
 		}
-		out[room] = Mark{Marked: string(best.Value) == "true", Dot: best.Dot}
+		out[room] = Mark{Marked: string(best.Value) == "true", Dot: best.Dot, Clock: best.Clock}
 	}
 	return out
 }

@@ -85,7 +85,8 @@ chat known by a LID, then by the number), and the reads made in kith (`read/<roo
 `thread/<room>/<root>`, `marked/<room>`), which every bridge of the mesh syncs. The
 cache's `room_unread` and `thread_read` follow the mesh's reads (moved forward only, for
 the rooms the cache holds), so a rebuilt cache takes them back; a read a network
-reports stays in the cache alone.
+reports stays in the cache alone. Of the mesh's mark and the cache's, the one set later
+is kept (`room_mark_times`).
 
 - Sealed like the cache (`internal/sealeddb`), under the cache's key, but a file of
   its own: a cache rebuild never touches it. Only kithd opens it; `scripts/deps-check.sh`
@@ -170,6 +171,7 @@ holds data but appears in neither list until the next refresh promotes it.
 | --- | --- |
 | `room_members` | members and display names, per room |
 | `room_unread` | notification and highlight counts, our read position, and the `m.marked_unread` flag |
+| `room_mark_times` | when each room's unread mark was last set: here, or by the bridge that wrote the mesh's |
 | `thread_read` | our read position in each thread |
 | `reactions` | `m.annotation` events: target, sender, and the key (column `emoji`) |
 | `drafts` | the unsent message per room, including reply/edit state, mentions, the caret, and who wrote it (you, or an assistant) |
@@ -343,10 +345,11 @@ A few consequences are worth knowing before you write anything:
   `--clear-cache` and the reset leaves the cache empty, so the next start resets. A
   reset that fails stops the sync instead of resuming from the old token.
 
-`schemaVersion` is `1`, and a current cache is at version 3 after two migrations:
-v2 (`thread_drafts`) keeps each thread's draft beside the room's, and v3 drops
+`schemaVersion` is `1`, and a current cache is at version 4 after three migrations:
+v2 (`thread_drafts`) keeps each thread's draft beside the room's, v3 drops
 `draft_threads`, which aimed a room's one draft at a thread (such a draft stays the
-room's).
+room's), and v4 (`room_mark_times`) notes when each room's unread mark was set, so the
+mesh's mark is kept only over one set earlier.
 
 ### Indexes need no migration
 

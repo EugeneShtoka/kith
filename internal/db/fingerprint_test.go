@@ -17,6 +17,7 @@ var migrationFingerprints = []struct {
 }{
 	{version: 2, what: "thread_drafts: each thread's own draft", sha: "c0d9db8f99f5"},
 	{version: 3, what: "draft_threads dropped: a thread's draft is in thread_drafts", sha: "7d42464d0dc7"},
+	{version: 4, what: "room_mark_times: when each room's unread mark was set", sha: "cc32ed039168"},
 }
 
 func fingerprint(stmt string) string {

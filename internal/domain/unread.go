@@ -62,6 +62,13 @@ func (u Unread) HasUnread(local bool) bool {
 	return n > 0
 }
 
+// UnreadMark is a room's unread mark and when it was set (Unix ms), on the bridge or
+// network that set it: of two, the one set later is kept.
+type UnreadMark struct {
+	Marked bool
+	At     int64
+}
+
 // ReadResult is the outcome of marking rooms read without opening them: receipts
 // sent, rooms skipped for lack of a known event, and receipts the server refused.
 type ReadResult struct {

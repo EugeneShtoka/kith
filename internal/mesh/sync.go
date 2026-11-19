@@ -2,13 +2,16 @@ package mesh
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"maps"
+	"slices"
 	"time"
 
 	meshv1 "github.com/EugeneShtoka/kith/internal/api/mesh/v1"
@@ -26,7 +29,8 @@ type Frames = interface {
 }
 
 // protocol is the sync protocol this kith speaks; a peer speaking another is refused.
-const protocol = 1
+// 2: ops carry their envelopes, and epoch records cross.
+const protocol = 2
 
 // The pace of a session.
 const (
@@ -121,7 +125,8 @@ func (s *Store) Sync(ctx context.Context, signer crypto.Signer, peer devicekey.I
 	if perr := s.stillPaired(peer); perr != nil {
 		return perr
 	}
-	theirs, err := s.greet(ctx, self, peer, frames, time.Now())
+	ss := syncing{signer: signer, peer: peer, frames: frames, log: log, told: newTold()}
+	theirs, err := s.greet(ctx, ss, time.Now())
 	if err != nil {
 		return err
 	}
@@ -143,7 +148,7 @@ func (s *Store) Sync(ctx context.Context, signer crypto.Signer, peer devicekey.I
 		return err
 	}
 	in, failed := receiving(ctx, frames)
-	return s.serve(ctx, syncing{signer: signer, peer: peer, frames: frames, log: log}, theirs, in, failed)
+	return s.serve(ctx, ss, theirs, in, failed)
 }
 
 // receiving reads frames on a goroutine of its own: each frame on in, then the error
@@ -174,6 +179,117 @@ type syncing struct {
 	peer   devicekey.ID
 	frames Frames
 	log    *slog.Logger
+	told   *told
+}
+
+// told is what a session has sent the peer of the keyring: the records, and the
+// epochs it asked for last.
+type told struct {
+	records map[[sha256.Size]byte]bool
+	want    string
+}
+
+func newTold() *told { return &told{records: map[[sha256.Size]byte]bool{}} }
+
+// tell is what the peer has not been told of the keyring: each record not sent yet, and
+// the epochs whose key this replica lacks (wantLocked), when they changed; nil when
+// nothing. Lacking one is said in the log, with the peer asked.
+func (s *Store) tell(ss syncing) *meshv1.Epochs {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := &meshv1.Epochs{}
+	for _, h := range slices.SortedFunc(maps.Keys(s.keys.records), func(a, b [sha256.Size]byte) int { return bytes.Compare(a[:], b[:]) }) {
+		if !ss.told.records[h] {
+			ss.told.records[h] = true
+			r := s.keys.records[h]
+			out.Records = append(out.Records, &meshv1.EpochRecord{Body: r.Body(), Sig: r.Sig})
+		}
+	}
+	want := s.wantLocked()
+	if text := fmt.Sprint(want); text != ss.told.want {
+		ss.told.want = text
+		for _, e := range want {
+			out.Want = append(out.Want, &meshv1.Epoch{Number: e.Number, Maker: bytes.Clone(e.Maker[:])})
+		}
+		if len(want) > 0 {
+			ss.log.Warn("no wrap for this bridge has opened the content key of an epoch; asking the peer for one",
+				"peer", ss.peer.String(), "epochs", text)
+		}
+	}
+	if len(out.GetRecords())+len(out.GetWant()) == 0 {
+		return nil
+	}
+	return out
+}
+
+// wantLocked is each epoch whose key is not held: named by a record taken, or by an
+// op held back. Every one is asked for, so a bridge that learned of an epoch by a
+// snapshot, holding no op sealed under it, still moves to it as the others do.
+func (s *Store) wantLocked() []crdt.Epoch {
+	seen := map[crdt.Epoch]bool{}
+	for h := range s.keys.records {
+		if e := s.keys.records[h].Epoch; !s.holdsKey(e) {
+			seen[e] = true
+		}
+	}
+	for i := range s.held {
+		if e, err := crdt.SealedEpoch(s.held[i].Sealed); err == nil {
+			if !s.holdsKey(e) {
+				seen[e] = true
+			}
+		}
+	}
+	return slices.SortedFunc(maps.Keys(seen), func(a, b crdt.Epoch) int {
+		return cmp.Or(cmp.Compare(a.Number, b.Number), bytes.Compare(a.Maker[:], b.Maker[:]))
+	})
+}
+
+// holdsKey reports whether this replica holds the key of e.
+func (s *Store) holdsKey(e crdt.Epoch) bool {
+	_, ok := s.keys.keys[e]
+	return ok
+}
+
+// takeEpochs takes what the peer said of its keyring: each record a bridge of the
+// roster signed, the content key of each wrap for this replica, and for each epoch the
+// peer lacks, a wrap of it for the peer (keyring.wrapFor). It returns why any record was
+// not taken. The ops held back are tried again with the next frame, or tick.
+func (s *Store) takeEpochs(ctx context.Context, signer crypto.Signer, peer devicekey.ID, e *meshv1.Epochs) ([]error, error) {
+	self, err := devicekey.IDOf(signer.Public())
+	if err != nil {
+		return nil, fmt.Errorf("mesh: %w", err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	roster, err := s.state.Roster()
+	if err != nil {
+		return nil, fmt.Errorf("mesh: %w", err)
+	}
+	keys := s.keys.clone()
+	var refused []error
+	for _, w := range e.GetRecords() {
+		r, err := crdt.ParseEpochRecord(w.GetBody(), w.GetSig())
+		if err == nil {
+			err = keys.take(r, roster, self)
+		}
+		if err != nil {
+			refused = append(refused, err)
+		}
+	}
+	for _, w := range e.GetWant() {
+		if len(w.GetMaker()) != len(devicekey.ID{}) {
+			return nil, fmt.Errorf("%w: an epoch names no maker", errProtocol)
+		}
+		if err := keys.wrapFor(s.state, roster, signer, self, peer, crdt.Epoch{Number: w.GetNumber(), Maker: devicekey.ID(w.GetMaker())}); err != nil {
+			return nil, err
+		}
+	}
+	if len(keys.added)+len(keys.touched) > 0 {
+		if err := s.keepKeysLocked(ctx, keys); err != nil {
+			return nil, err
+		}
+	}
+	return refused, nil
 }
 
 // serve is a session past its Hellos: it sends the peer what it lacks past sent, and
@@ -187,6 +303,11 @@ func (s *Store) serve(ctx context.Context, ss syncing, sent crdt.Vector, in <-ch
 		err := s.stillPaired(ss.peer)
 		if err != nil {
 			return err
+		}
+		if e := s.tell(ss); e != nil {
+			if err = ss.frames.Send(&meshv1.SyncFrame{Frame: &meshv1.SyncFrame_Epochs{Epochs: e}}); err != nil {
+				return fmt.Errorf("mesh: send epoch records: %w", err)
+			}
 		}
 		if sent, err = s.sendMissing(ctx, ss.frames, sent); err != nil {
 			return err
@@ -242,45 +363,58 @@ func (s *Store) stillPaired(peer devicekey.ID) error {
 
 // greet says Hello and reads the peer's: it must be the peer the stream authenticated,
 // speak this protocol and keep a clock within MaxClockGap of this bridge's. Its vector
-// is returned, and kept as what it said last. now is this bridge's clock.
-func (s *Store) greet(ctx context.Context, self, peer devicekey.ID, frames Frames, now time.Time) (crdt.Vector, error) {
-	if err := frames.Send(helloFrame(self, now, s.vector())); err != nil {
+// is returned, and kept as what it said last; its epoch records are taken. now is this
+// bridge's clock.
+func (s *Store) greet(ctx context.Context, ss syncing, now time.Time) (crdt.Vector, error) {
+	self, err := devicekey.IDOf(ss.signer.Public())
+	if err != nil {
+		return nil, fmt.Errorf("mesh: %w", err)
+	}
+	if err = ss.frames.Send(helloFrame(self, now, s.vector(), s.tell(ss))); err != nil {
 		return nil, fmt.Errorf("mesh: say hello: %w", err)
 	}
-	theirs, gap, err := readHello(frames, peer, now)
+	theirs, gap, epochs, err := readHello(ss.frames, ss.peer, now)
 	if err != nil {
 		return nil, err
 	}
 	if gap > MaxClockGap || gap < -MaxClockGap {
-		_ = s.heard(ctx, peer, nil, gap, now) // the gap is what kith mesh shows; the refusal is the error
-		return nil, ClockGapError{Peer: peer, Gap: gap}
+		_ = s.heard(ctx, ss.peer, nil, gap, now) // the gap is what kith mesh shows; the refusal is the error
+		return nil, ClockGapError{Peer: ss.peer, Gap: gap}
 	}
-	if err := s.heard(ctx, peer, theirs, gap, now); err != nil {
+	if herr := s.heard(ctx, ss.peer, theirs, gap, now); herr != nil {
+		return nil, herr
+	}
+	refused, err := s.takeEpochs(ctx, ss.signer, ss.peer, epochs)
+	if err != nil {
 		return nil, err
+	}
+	for _, why := range refused {
+		ss.log.Warn("refused what a peer sent", "peer", ss.peer.String(), "err", why)
 	}
 	return theirs, nil
 }
 
-// readHello reads the peer's Hello: its vector, and its clock less this bridge's (now).
-func readHello(frames Frames, peer devicekey.ID, now time.Time) (crdt.Vector, time.Duration, error) {
+// readHello reads the peer's Hello: its vector, its clock less this bridge's (now), and
+// what it says of its keyring.
+func readHello(frames Frames, peer devicekey.ID, now time.Time) (crdt.Vector, time.Duration, *meshv1.Epochs, error) {
 	f, err := frames.Receive()
 	if err != nil {
-		return nil, 0, fmt.Errorf("mesh: read the peer's hello: %w", err)
+		return nil, 0, nil, fmt.Errorf("mesh: read the peer's hello: %w", err)
 	}
 	h := f.GetHello()
 	switch {
 	case h == nil:
-		return nil, 0, fmt.Errorf("%w: it did not say hello first", errProtocol)
+		return nil, 0, nil, fmt.Errorf("%w: it did not say hello first", errProtocol)
 	case !bytes.Equal(h.GetReplica(), peer[:]):
-		return nil, 0, fmt.Errorf("%w: it says it is another bridge", errProtocol)
+		return nil, 0, nil, fmt.Errorf("%w: it says it is another bridge", errProtocol)
 	case h.GetProtocol() != protocol:
-		return nil, 0, fmt.Errorf("%w: it speaks protocol %d, this kith %d; run one kith on both", errProtocol, h.GetProtocol(), protocol)
+		return nil, 0, nil, fmt.Errorf("%w: it speaks protocol %d, this kith %d; run one kith on both", errProtocol, h.GetProtocol(), protocol)
 	}
 	vector, err := vectorOf(h.GetVector())
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
 	}
-	return vector, time.UnixMilli(h.GetWallMs()).Sub(now), nil
+	return vector, time.UnixMilli(h.GetWallMs()).Sub(now), h.GetEpochs(), nil
 }
 
 // sendMissing sends the peer what it lacks past sent (missing), and returns what it
@@ -335,6 +469,12 @@ func (s *Store) take(ctx context.Context, signer crypto.Signer, peer devicekey.I
 		}
 		res, err = s.merge(ctx, *snapshot, now)
 		snapshot = nil
+	case f.GetEpochs() != nil:
+		var refused []error
+		if refused, err = s.takeEpochs(ctx, signer, peer, f.GetEpochs()); err == nil {
+			res, err = s.receive(ctx, nil, now)
+			res.refused = append(refused, res.refused...)
+		}
 	case f.GetAck() != nil:
 		vector, verr := vectorOf(f.GetAck().GetVector())
 		if verr != nil {
@@ -348,7 +488,7 @@ func (s *Store) take(ctx context.Context, signer crypto.Signer, peer devicekey.I
 		return nil, err
 	}
 	for _, why := range res.refused {
-		log.Warn("refused an op a peer sent", "peer", peer.String(), "err", why)
+		log.Warn("refused what a peer sent", "peer", peer.String(), "err", why)
 	}
 	if err := frames.Send(ackFrame(s.vector())); err != nil {
 		return nil, fmt.Errorf("mesh: acknowledge: %w", err)
@@ -393,15 +533,22 @@ func (s *Store) compactIfDue(ctx context.Context, now time.Time, log *slog.Logge
 
 // Join makes this bridge (self, signing with signer) one of the mesh of sponsor, a
 // member bridge that has just confirmed its pairing, over frames: it says Hello holding
-// nothing, so the sponsor sends a snapshot, and adopts it (adopt). It returns the
-// mesh's members as this bridge admits them now.
+// nothing, so the sponsor sends a snapshot, and adopts it (adopt) with the epoch records
+// of the sponsor's Hello, among them a wrap for this bridge. It returns the mesh's
+// members as this bridge admits them now.
 func (s *Store) Join(ctx context.Context, self, sponsor devicekey.ID, signer crypto.Signer, frames Frames) ([]domain.Device, error) {
-	if err := frames.Send(helloFrame(self, time.Now(), nil)); err != nil {
+	if err := frames.Send(helloFrame(self, time.Now(), nil, nil)); err != nil {
 		return nil, fmt.Errorf("mesh: say hello: %w", err)
 	}
-	_, gap, err := readHello(frames, sponsor, time.Now())
+	_, gap, epochs, err := readHello(frames, sponsor, time.Now())
 	if err != nil {
 		return nil, err
+	}
+	var records []crdt.EpochRecord
+	for _, w := range epochs.GetRecords() {
+		if r, perr := crdt.ParseEpochRecord(w.GetBody(), w.GetSig()); perr == nil {
+			records = append(records, r)
+		}
 	}
 	if gap > MaxClockGap || gap < -MaxClockGap {
 		return nil, ClockGapError{Peer: sponsor, Gap: gap}
@@ -410,7 +557,7 @@ func (s *Store) Join(ctx context.Context, self, sponsor devicekey.ID, signer cry
 	if err != nil {
 		return nil, err
 	}
-	members, err := s.adopt(ctx, *snapshot, signer, self)
+	members, err := s.adopt(ctx, *snapshot, records, signer, self)
 	if err != nil {
 		return nil, err
 	}
@@ -440,9 +587,9 @@ func awaitSnapshot(ctx context.Context, frames Frames) (*crdt.Snapshot, error) {
 
 // ── The wire ──
 
-func helloFrame(self devicekey.ID, now time.Time, vector crdt.Vector) *meshv1.SyncFrame {
+func helloFrame(self devicekey.ID, now time.Time, vector crdt.Vector, epochs *meshv1.Epochs) *meshv1.SyncFrame {
 	return &meshv1.SyncFrame{Frame: &meshv1.SyncFrame_Hello{Hello: &meshv1.Hello{
-		Replica: self[:], WallMs: now.UnixMilli(), Vector: headsOf(vector), Protocol: protocol,
+		Replica: self[:], WallMs: now.UnixMilli(), Vector: headsOf(vector), Protocol: protocol, Epochs: epochs,
 	}}}
 }
 
@@ -543,8 +690,8 @@ func vectorOf(heads []*meshv1.Head) (crdt.Vector, error) {
 
 func wireOps(ops []crdt.Op) []*meshv1.Op {
 	out := make([]*meshv1.Op, 0, len(ops))
-	for _, op := range ops {
-		out = append(out, &meshv1.Op{Body: op.Body(), Sig: op.Sig})
+	for i := range ops {
+		out = append(out, &meshv1.Op{Body: ops[i].Body(), Sig: ops[i].Sig, Sealed: ops[i].Sealed})
 	}
 	return out
 }
@@ -556,6 +703,7 @@ func opsOf(wire []*meshv1.Op) ([]crdt.Op, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", errProtocol, err)
 		}
+		op.Sealed = w.GetSealed()
 		out = append(out, op)
 	}
 	return out, nil
