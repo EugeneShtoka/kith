@@ -61,12 +61,12 @@ type Notifications struct {
 	limit        notify.Limit
 	rules        []notify.Rule
 	clock        domain.Clock // how a notification writes its {date} and {time}
-	// firstNames is whether a home shows first names only, roomRules whether a direct
-	// chat's label is shaped too.
-	firstNames func(home string) bool
-	roomRules  bool
-	temps      notify.Temps
-	autocopy   domain.AutoCopy
+	// shape shows names by the name rules; roomRules is whether a direct chat's label
+	// is shaped too.
+	shape     shaper
+	roomRules bool
+	temps     notify.Temps
+	autocopy  domain.AutoCopy
 	// profiles are the [[profile]]s: each notification is published to every one
 	// holding its room.
 	profiles []domain.Profile
@@ -173,8 +173,17 @@ func (n *Notifications) UseDirectory(people func(context.Context) (domain.Direct
 	}
 }
 
-// UseNames sets how people are named, as every client names them. Call before Run.
-func (n *Notifications) UseNames(names *Names) { n.names = names }
+// UseNames sets how people are named, as every client names them, and has names read
+// each room's home, whose name rule it follows, from here. Call before Run.
+func (n *Notifications) UseNames(names *Names) {
+	n.names = names
+	names.UseHomes(n.homeOf)
+}
+
+// homeOf is a room's first home in home order.
+func (n *Notifications) homeOf(ctx context.Context, room domain.RoomID) string {
+	return n.scope.FirstHome(n.scope.Facts(ctx, room))
+}
 
 // lazyDirectory reads the directory the first time a notification needs it.
 type lazyDirectory struct {
@@ -205,34 +214,16 @@ func (n *Notifications) byNumber(ctx context.Context, once *lazyDirectory, label
 	return label
 }
 
-// namer names people as every client does (Names), first names only where home's rule
-// says so.
-func (n *Notifications) namer(ctx context.Context, once *lazyDirectory, home string) func(user string, known ...string) string {
-	n.mu.Lock()
-	first := n.firstNamesLocked(home)
-	n.mu.Unlock()
+// namer names people as every client does (Names), shown as the rule naming room (in
+// home) and them says.
+func (n *Notifications) namer(ctx context.Context, once *lazyDirectory, shape shaper, room domain.RoomID, home string) func(user string, known ...string) string {
 	return func(user string, known ...string) string {
 		people := domain.People{Dir: n.directory(ctx, once)}
 		if n.names != nil {
 			people = n.names.People(ctx)
 		}
-		name := people.Name(user, known...)
-		if first {
-			name = domain.FirstName(name)
-		}
-		return name
+		return shape.showIn(room, home, user, people.Name(user, known...))
 	}
-}
-
-// firstNamesIn reports whether home's names are first names only.
-func (n *Notifications) firstNamesIn(home string) bool {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	return n.firstNamesLocked(home)
-}
-
-func (n *Notifications) firstNamesLocked(home string) bool {
-	return n.firstNames != nil && n.firstNames(home)
 }
 
 func (n *Notifications) isMine(sender string) bool {
@@ -343,8 +334,7 @@ func (n *Notifications) Reload(cfg config.Config) error {
 	defer n.mu.Unlock()
 	n.rules, n.limit, n.clock = rules, limit, clock
 	n.profiles, n.profileRails = profiles, rails
-	display := cfg.Display
-	n.firstNames = func(home string) bool { return setup.FirstNamesIn(display, home) }
+	n.shape = newShaper(cfg, nil)
 	n.roomRules = cfg.Display.ApplyRoomNameRules()
 	n.keep, n.keepRules = keep, keepRules
 	n.useMedia(cfg.Storage)
@@ -818,9 +808,12 @@ func (n *Notifications) decide(ctx context.Context, msg domain.Message, scope no
 	home := n.scope.FirstHome(facts)
 	space := domain.HomeLabel(home)
 	var once lazyDirectory // read only when someone is to be named
-	name := n.namer(ctx, &once, home)
+	n.mu.Lock()
+	shape, roomRules := n.shape, n.roomRules
+	n.mu.Unlock()
+	name := n.namer(ctx, &once, shape, msg.RoomID, home)
 	room := n.byNumber(ctx, &once, facts.Name)
-	if n.roomRules && facts.Direct && n.firstNamesIn(home) {
+	if roomRules && facts.Direct && shape.firstOnlyIn(msg.RoomID, home) {
 		room = domain.FirstName(room)
 	}
 	// NotifyBody keeps what the sender covered up covered.

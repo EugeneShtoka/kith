@@ -324,8 +324,8 @@ func TestTimelineRoundTrip(t *testing.T) {
 	at := stamp()
 	b := &recording{page: domain.TimelinePage{
 		Messages: []domain.Message{
-			{ID: mx + "$one:example.org", RoomID: mx + "!a:example.org", Sender: "matrix:@ada:example.org", SenderKnownAs: "ada", Body: "older", Timestamp: at},
-			{ID: mx + "$two:example.org", RoomID: mx + "!a:example.org", Sender: "matrix:@ada:example.org", SenderKnownAs: "ada", Body: "newer", Timestamp: at, Edited: true},
+			{ID: mx + "$one:example.org", RoomID: mx + "!a:example.org", Sender: "matrix:@ada:example.org", SenderKnownAs: "ada", SenderShownAs: "ada", Body: "older", Timestamp: at},
+			{ID: mx + "$two:example.org", RoomID: mx + "!a:example.org", Sender: "matrix:@ada:example.org", SenderKnownAs: "ada", SenderShownAs: "ada", Body: "newer", Timestamp: at, Edited: true},
 		},
 		Reactions: []domain.Reaction{{ID: mx + "$r:example.org", RoomID: mx + "!a:example.org", Target: mx + "$one:example.org", Sender: "matrix:@grace:example.org", Key: "👍"}},
 		Next:      "t42-back",
@@ -391,8 +391,8 @@ func TestRemainingRolesRoundTrip(t *testing.T) {
 
 	b := &recording{
 		reacts:  []domain.Reaction{{ID: mx + "$r:example.org", RoomID: mx + "!a:example.org", Target: mx + "$m:example.org", Sender: "matrix:@ada:example.org", Key: "🎉"}},
-		members: []domain.Member{{UserID: "matrix:@ada:example.org", DisplayName: "Ada", KnownAs: "Ada"}, {UserID: "matrix:@grace:example.org", KnownAs: "grace"}},
-		hits:    []domain.SearchHit{{RoomID: mx + "!a:example.org", EventID: mx + "$m:example.org", Sender: "matrix:@ada:example.org", SenderName: "Ada", SenderKnownAs: "Ada", Timestamp: stamp(), Snippet: "the " + domain.HighlightStart + "code" + domain.HighlightEnd + " is"}},
+		members: []domain.Member{{UserID: "matrix:@ada:example.org", DisplayName: "Ada", KnownAs: "Ada", ShownAs: "Ada"}, {UserID: "matrix:@grace:example.org", KnownAs: "grace", ShownAs: "grace"}},
+		hits:    []domain.SearchHit{{RoomID: mx + "!a:example.org", EventID: mx + "$m:example.org", Sender: "matrix:@ada:example.org", SenderName: "Ada", SenderKnownAs: "Ada", SenderShownAs: "Ada", Timestamp: stamp(), Snippet: "the " + domain.HighlightStart + "code" + domain.HighlightEnd + " is"}},
 		emoji:   []string{"👍", "🎉"},
 		image:   []byte{0x89, 'P', 'N', 'G', 0x00, 0xff},
 		words:   []domain.WordCandidate{{Word: "completion", Score: 42}, {Word: "compiler", Score: 7}},
