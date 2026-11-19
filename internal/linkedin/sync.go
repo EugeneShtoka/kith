@@ -23,6 +23,10 @@ const listPages = 50
 // syncSpan bounds one sync.
 const syncSpan = 5 * time.Minute
 
+// awaitTries bounds asking for a conversation a live message named: with the waits
+// between (retryFirst doubling to retryMax), about a quarter of an hour.
+const awaitTries = 10
+
 // sync lists c's conversations after the realtime connection session connected,
 // unless that session was synced already.
 func (a *Adapter) sync(ctx context.Context, c *conn, session string) {
@@ -133,6 +137,7 @@ func (a *Adapter) takeConversations(ctx context.Context, c *conn, convs []linked
 	for _, thread := range deleted {
 		in.drop(thread, time.Now())
 		ch.gone = append(ch.gone, thread)
+		c.arrived(thread)
 	}
 	for i := range convs {
 		thread, shown, met := in.take(&convs[i])
@@ -140,6 +145,7 @@ func (a *Adapter) takeConversations(ctx context.Context, c *conn, convs []linked
 		if thread == "" {
 			continue
 		}
+		c.arrived(thread)
 		if !shown {
 			ch.gone = append(ch.gone, thread)
 			continue
@@ -201,18 +207,106 @@ func (a *Adapter) syncChanges(ctx context.Context, c *conn) {
 	go func() {
 		c.syncing.Lock()
 		defer c.syncing.Unlock()
-		bounded, cancel := context.WithTimeout(a.withLog(ctx), syncSpan)
-		defer cancel()
-		if err := a.listChanges(bounded, c, client); err != nil {
+		if err := a.changes(ctx, c, client); err != nil {
 			a.log.Warn("list the changed conversations failed", "account", c.account.Name, "err", err)
-			return
 		}
-		a.keepCookies(c)
 	}()
 }
 
+// changes lists what changed with client. Caller holds c.syncing.
+func (a *Adapter) changes(ctx context.Context, c *conn, client *linkedingo.Client) error {
+	bounded, cancel := context.WithTimeout(a.withLog(ctx), syncSpan)
+	defer cancel()
+	if err := a.listChanges(bounded, c, client); err != nil {
+		return err
+	}
+	a.keepCookies(c)
+	return nil
+}
+
+// awaitConversation has LinkedIn asked for thread, which a live message named before
+// any listing had it, until a listing or an event brings it (shown or not), the
+// connection is let go, or awaitTries asks are made. An ask that fails, or lists what
+// changed without it, is made again after a wait, as a lost connection is. Another
+// message in it starts the asking over, at once. Caller holds c.applying.
+func (a *Adapter) awaitConversation(ctx context.Context, c *conn, thread string) {
+	if earlier, ok := c.awaited[thread]; ok {
+		close(earlier)
+	}
+	over := make(chan struct{})
+	c.awaited[thread] = over
+	go a.askFor(ctx, c, thread, over)
+}
+
+// askFor is awaitConversation's asking for thread, until over closes.
+func (a *Adapter) askFor(ctx context.Context, c *conn, thread string, over chan struct{}) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		select {
+		case <-c.done:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	wait := retryFirst
+	for tries := 1; ; tries++ {
+		asked, err := a.askOnce(ctx, c, over)
+		if !asked {
+			return
+		}
+		if err != nil {
+			a.log.Warn("ask for a conversation a message came from failed", "account", c.account.Name, "err", err)
+		}
+		if tries == awaitTries {
+			a.log.Warn("a conversation a message came from was not listed; the next message in it asks again", "account", c.account.Name)
+			c.applying.Lock()
+			if c.awaited[thread] == over {
+				delete(c.awaited, thread)
+			}
+			c.applying.Unlock()
+			return
+		}
+		select {
+		case <-time.After(wait):
+			wait = min(2*wait, retryMax)
+		case <-over:
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// askOnce lists what changed, unless over closed meanwhile (false): a sync that
+// brought the conversation may have held the turn.
+func (a *Adapter) askOnce(ctx context.Context, c *conn, over chan struct{}) (bool, error) {
+	c.syncing.Lock()
+	defer c.syncing.Unlock()
+	select {
+	case <-over:
+		return false, nil
+	default:
+	}
+	c.mu.Lock()
+	client := c.client
+	c.mu.Unlock()
+	if client == nil {
+		return true, errNotConnected
+	}
+	return true, a.changes(ctx, c, client)
+}
+
+// arrived is thread listed or deleted: asking for it stops. Caller holds c.applying.
+func (c *conn) arrived(thread string) {
+	if over, ok := c.awaited[thread]; ok {
+		delete(c.awaited, thread)
+		close(over)
+	}
+}
+
 // liveMessage is a message as it happens: new, edited (at), or recalled. A message in
-// a conversation not known yet asks for it.
+// a conversation not known yet asks for it until it comes.
 func (a *Adapter) liveMessage(ctx context.Context, c *conn, m *linkedingo.Message, at time.Time) {
 	thread, ok := threadIn(m.Conversation.EntityURN)
 	if !ok {
@@ -231,7 +325,7 @@ func (a *Adapter) liveMessage(ctx context.Context, c *conn, m *linkedingo.Messag
 		return
 	}
 	if in.convs[thread] == nil {
-		a.syncChanges(ctx, c)
+		a.awaitConversation(ctx, c, thread)
 	} else if cv := in.convs[thread]; m.DeliveredAt.After(cv.lastActive) {
 		cv.lastActive = m.DeliveredAt.Time
 	}

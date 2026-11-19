@@ -206,10 +206,10 @@ jobs:
           if-no-files-found: error
 
   # The desktop packages go on the tag's release with their own checksums, signed
-  # keyless and attested as GoReleaser's are.
+  # keyless and attested as GoReleaser's are. No environment of its own: it needs only
+  # GITHUB_TOKEN, and runs only after release, so the release's one approval covers it.
   desktop-publish:
     needs: [desktop]
-    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

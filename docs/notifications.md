@@ -16,7 +16,14 @@ Clicking a popup opens what it is about: the message in its room, or the room fo
 systemctl --user enable --now kith-notify
 ```
 
-It listens to the first profile. To listen to others, give each with `--profile` (see [cli.md](cli.md#kith-notify)); for the unit, `systemctl --user edit kith-notify` and repeat its `ExecStart=` with them.
+It listens to the first profile. To listen to others, name them in `device.toml`, read when kith-notify starts:
+
+```toml
+[notifications]
+profiles = ["work", "home"]
+```
+
+`--profile`, given once per profile (see [cli.md](cli.md#kith-notify)), is used instead of `profiles` when given; for the unit, `systemctl --user edit kith-notify` and repeat its `ExecStart=` with them.
 
 ## Turning notifications on
 

@@ -19,6 +19,7 @@ interface Case {
     latestSender?: string;
     latestSenderName?: string;
     latestSenderKnownAs?: string;
+    latestSenderShownAs?: string;
     anchor: string;
     rootLoaded: boolean;
   }[];
@@ -38,7 +39,13 @@ describe("threads, as Go groups them", () => {
       const { main, threads } = collapse(msgs);
       expect(main.map((m) => m.id)).toEqual(c.main);
       expect(threads).toEqual(
-        c.threads.map((t) => ({ latestSender: "", latestSenderName: "", latestSenderKnownAs: "", ...t })),
+        c.threads.map((t) => ({
+          latestSender: "",
+          latestSenderName: "",
+          latestSenderKnownAs: "",
+          latestSenderShownAs: "",
+          ...t,
+        })),
       );
       for (const [root, want] of Object.entries(c.threadOf)) {
         expect(threadMessages(msgs, root).map((m) => m.id)).toEqual(want);

@@ -949,7 +949,7 @@ func TestNotificationsNamePeopleAsTheTimelineDoes(t *testing.T) {
 	m.Mentions = []domain.Mention{{UserID: dana, Name: "@100000000000005"}}
 	n.Deliver(context.Background(), m)
 
-	cfg.Display.SpaceRules = []config.SpaceRule{{Space: "space:" + space, FirstNameOnly: true}}
+	cfg.Display.NameRules = []config.NameRule{{Match: "space:" + space, FirstNameOnly: new(true)}}
 	if err := n.Reload(asStarted(cfg)); err != nil {
 		t.Fatal(err)
 	}

@@ -152,7 +152,8 @@ func TestSaveRoundTripsEveryShape(t *testing.T) {
 	cfg.Display.Deleted.Mine = "hide"                                                                     // string in a nested table
 	cfg.Display.Tracked.Words = []string{"👍", "🎉"}                                                        // non-ASCII array
 	cfg.Display.Names = append(cfg.Display.Names, DisplayName{Target: mx + "!a:x", Name: `He said "hi"`}) // escaping
-	cfg.Display.SpaceRules = []SpaceRule{{Space: "Work", FirstNameOnly: true}}
+	cfg.Display.SpaceRules = []SpaceRule{{Space: "Work", ShowField: "role"}}
+	cfg.Display.NameRules = []NameRule{{Match: "Work", FirstNameOnly: &yes}}
 	cfg.Notifications.Rules = []Rule{{Match: "Work", Show: "all", When: "22:00-08:00"}}
 
 	body, path := saved(t, cfg)

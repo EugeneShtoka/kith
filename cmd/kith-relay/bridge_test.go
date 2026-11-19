@@ -465,6 +465,15 @@ func TestADeviceUnpairedMidStreamIsToldTheBridgeRefusedIt(t *testing.T) {
 	b := serveBridge(t, laptop)
 	relay := viaBridge(t, laptop, b.id, b.addr)
 	backend := backendVia(relay)
+	// The rail asked for first is the one kept: the bridge's own first build (50 ms after
+	// it starts) then finds nothing changed, so nothing sent while paired is still on the
+	// way when the device is unpaired.
+	if err := within(t, 5*time.Second, "the rail through the relay", func() error {
+		_, err := backend.Rail(t.Context(), connect.NewRequest(&v1.RailRequest{}))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	stream := changed(t, backend)
 
 	b.unpair(t, laptop)

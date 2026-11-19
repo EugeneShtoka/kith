@@ -99,6 +99,7 @@ export const builtins: readonly Builtin[] = [
   { name: "/replacement", arg: "", argOptional: false, summary: "go to the room that replaced this one", window: true },
   tuiOnly("/invite", "invite somebody to this room", "<@user:server>", false),
   tuiOnly("/unban", "lift a ban in this room", "[@user:server]"),
+  tuiOnly("/verify-person", "verify the person in this Matrix direct chat"),
   tuiOnly("/leave", "leave this room"),
 ];
 
