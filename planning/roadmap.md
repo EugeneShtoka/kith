@@ -5,6 +5,7 @@ that defaults to today's behaviour. For what already exists, see
 [docs/README.md](../docs/README.md).
 
 **Design docs for the larger initiatives** live beside this file:
+
 - [design-clients.md](design-clients.md): failover between bridges, the desktop's
   partial cache, and an Android client
 - [design-mesh.md](design-mesh.md): the mesh's remaining steps: the shared config,
