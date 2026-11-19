@@ -1,7 +1,10 @@
 # Design: the desktop's partial cache (step 1c)
 
-Status: proposed 2026-11-19, before mesh step 5. Its questions are at the end, none
-decided. It adds to [design-clients.md](design-clients.md) (Where messages are kept,
+Status: a draft, reopened 2026-11-19. The desktop's partial cache gets a design and
+planning phase of its own before any build, starting from
+[One cache or two](#one-cache-or-two-on-a-machine-that-runs-kithd), which this draft did
+not answer. The answers given so far to its questions are at the end, provisional until
+that phase ends. It adds to [design-clients.md](design-clients.md) (Where messages are kept,
 Phasing) and to [design-mesh.md](design-mesh.md), which it does not change except where
 [What steps 5–8 must not assume](#what-steps-58-must-not-assume) says so. Nothing here is
 built yet.
@@ -62,6 +65,37 @@ The read positions show why the mesh alone is not enough: an unread count comes 
 network's count, the mesh's reads and the reads the network reports, and two of those
 three are only in the bridge's cache. The window needs the bridge's derived
 answers whatever the store also holds.
+
+## One cache or two on a machine that runs kithd
+
+The question this draft left out, and the first the design phase answers (Eugene,
+2026-11-19). A laptop that runs kithd as a bridge keeps every message in kithd's cache
+while that kithd runs, so a window there needs no store of its own. But with standby
+bridges (design-clients.md decision 8) the laptop's kithd is often not the active one:
+it holds no network connection and is a client of the homelab. Then the window reads
+from another bridge, and the laptop's own cache is falling behind. So:
+
+- **Is it one cache or two?** kithd's cache and the desktop's store on one machine are
+  two copies of the same messages, kept by two writers, with two keys and two schemas.
+- **Does kithd's cache take what a client reads while kithd is on standby,** or only
+  what kithd's own network connections bring? If it does, a standby kithd is itself the
+  "client cache", and the window always reads from the kithd on its own machine.
+- **A machine with no kithd** (a laptop that only joined a bridge) still needs a store
+  of its own, or a kithd running only as a client.
+
+Shapes to compare in the design phase, none chosen:
+
+1. **Two caches**, as drafted below: kithd's as today, and the relay's store on a device
+   that runs no kithd (question 2's recommendation).
+2. **One cache, kept by kithd**: a standby kithd fills its own cache from the active
+   bridge's answers, and the window always talks to its machine's kithd. A machine that
+   should not run a bridge runs kithd as a client only.
+3. **One store format, two writers**: the relay's store and kithd's cache share a layout,
+   and whichever runs keeps it current.
+
+Each answers differently what the relay may open (today it never reads kithd's cache,
+`scripts/deps-check.sh`), how a standby kithd that takes over catches up, and what
+question 1 (answers or replica) means.
 
 ## A cache of the bridge's answers, not a replica
 
@@ -383,7 +417,10 @@ generate:
 
 ## Open questions
 
-1. **A cache of answers, or a mesh replica?** *Recommended: a cache of answers.* A
+Answers given 2026-11-19, provisional until the design phase above settles one cache or
+two. Questions 1 and 2 stay open and are part of it.
+
+1. **A cache of answers, or a mesh replica?** *Open: part of the design phase.* *Recommended: a cache of answers.* A
    replica signs nothing, so it only holds what bridges wrote; offline it is as stale as
    a cached answer, and the window needs the bridge's derived answers anyway (unread
    counts include reads only the bridge's cache holds). A replica would also hold every
@@ -391,23 +428,28 @@ generate:
    a non-bridge and h2c. With this answer the desktop's store no longer waits for mesh
    steps 5–8, and design-mesh.md decision 8 waits for whatever first puts a replica
    beside its bridge.
-2. **Which machines keep a store?** *Recommended: only a device that joined a bridge.*
+2. **Which machines keep a store?** *Open: part of the design phase.* *Recommended: only a device that joined a bridge.*
    Beside a local kithd the cache is on the same disk and answers in milliseconds; a
    second copy adds a writer and nothing to read. (The other option: every machine
    running the window, so it still reads when the local kithd is down.)
-3. **How much?** *Recommended: each room's newest 500 messages, 256 MiB per profile,
+3. **How much?** *Answered, not final:* each room's newest 500 messages, and none older
+   than two weeks; 256 MiB per profile. Settled with one cache or two.
+   *Recommended in the draft: each room's newest 500 messages, 256 MiB per profile,
    pictures included.* 500 is several screens of any room and a quarter of what
    `CachedTimeline` returns. (Others: 2000, `CachedTimeline`'s own; or by age, such as 30
    days.)
-4. **Attachments on disk?** *Recommended: none in the first build.* They are most of a
+4. **Attachments on disk?** *Answered:* small previews of images only.
+   *Recommended in the draft: none in the first build.* They are most of a
    cache's size, main already keeps 64 MiB of them in memory, and pictures (the rows'
    faces) are kept. Offline an attachment says it needs the bridge. (Others: the ones
    the window opened, up to a bound; small previews of images.)
-5. **Reads made offline?** *Recommended: kept in the store and sent as `MarkRead` once
+5. **Reads made offline?** *Answered:* kept, and sent as `MarkRead` once the bridge is
+   back; marking unread stays refused offline. *Recommended in the draft: kept in the store and sent as `MarkRead` once
    live.* Read state is local-first: a room read stays read. A position is a max register
    everywhere, so a late one moves nothing back. Marking unread stays refused offline.
    (The other option: reads refused offline like every other write.)
-6. **The store when the bridge refuses this device's key?** *Recommended: delete it.*
+6. **The store when the bridge refuses this device's key?** *Answered:* delete it.
+   *Recommended in the draft: delete it.*
    Only a definite refusal (a TLS alert) counts. A lost laptop, once unpaired, deletes
    what it held the first time it is opened in reach of the bridge; until then the keyring
    guards it. It is a cache: pairing again fills it again. (The other option: keep it,
@@ -415,6 +457,7 @@ generate:
 
 ## Plan
 
+A draft, not the plan: it is rewritten once the design phase settles one cache or two.
 Each PR lands working, with a failure review as above.
 
 - **Step 1, feat: the relay holds its profile's answers.** `internal/devicecache` (the
