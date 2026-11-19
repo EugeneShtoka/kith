@@ -185,14 +185,16 @@ sees no other.
 
 ## Heartbeat per network
 
-Proposed 2026-11-18 for open question 6; the windows below are not decided.
+Proposed 2026-11-18 for open question 6, and decided 2026-11-19 as proposed. LinkedIn's
+window and Messenger's and Instagram's are measured on live accounts when Phase 3 builds
+the heartbeat.
 
 A heartbeat says, for each account a bridge holds, two things: its connection to the
 network is **alive**, and it has **caught up** since connecting. Neither can be read from
 the last message's time, since a quiet account gets nothing for hours. Each network gives
 its own evidence, some of which kith already handles:
 
-| network | alive: seen within the window | caught up after connecting | kith today | window (proposed) |
+| network | alive: seen within the window | caught up after connecting | kith today | window |
 | --- | --- | --- | --- | --- |
 | Matrix | a `/sync` answered; the long poll returns at least every timeout even when quiet | the first `/sync` after connecting returned | `ONLINE` after the first sync, `online_at` | 90 s |
 | WhatsApp | whatsmeow's keep-alive answered (every 20–30 s); `KeepAliveTimeout` and `KeepAliveRestored` say when it fails and comes back | `OfflineSyncCompleted` after `Connected`: the server's queue for this device is drained | `Connected` only | 90 s |
@@ -217,8 +219,10 @@ What follows from the table:
   bridge, so failing over or taking over (standby) gains nothing. Those accounts say so
   in the beat and are left out of "healthy".
 - **Healthy** for failover and for standby is a fresh beat with every logged-in account
-  alive and caught up, except as above. Whether one stuck account makes a bridge
-  unhealthy, or only the accounts the client's profile uses, is not decided.
+  alive and caught up, except as above (decided 2026-11-19). One stuck account makes a
+  bridge unhealthy, whichever profile uses it, so every client and every standby bridge
+  agree on which bridge is healthy. When none is, each with a different account stuck,
+  is open question 9.
 
 ## Push notifications
 
@@ -360,7 +364,7 @@ bridges: steps 5–8 of [design-mesh.md](design-mesh.md).
 **Phase 3 — multi-bridge failover.**
 
 - Bridge heartbeat RPC: one beat every 30 s, per account alive-as-of and caught up, by
-  [Heartbeat per network](#heartbeat-per-network), once its windows are decided.
+  [Heartbeat per network](#heartbeat-per-network).
 - Client-side bridge roster, pinned priority, failover on disconnect / stale
   heartbeat.
 - Resuming at another bridge, by the time last heard less a grace window.
@@ -388,11 +392,11 @@ question.
 
 ## Open questions
 
-1. **Which sections a profile overrides.** Built: rooms, people, rail, archive
-   rules. Candidates: notification rules and quiet hours, display (theme, media),
-   keys, assist and `[agent.*]` room lists. List them explicitly and merge the same
-   way for each (a profile's value replaces the shared one, never deep-merges), so
-   what a profile does is readable from its block.
+1. ~~**Which sections a profile overrides.**~~ *Decided 2026-11-19:* notification rules,
+   quiet hours among them, and nothing more for now. Built: rooms, people, rail, archive
+   rules. A profile's rules replace the shared ones, never deep-merge, so what a profile
+   does is readable from its block. Display, keys, assist and the `[agent.*]` room lists
+   stay shared until someone asks.
 2. ~~**WAN discovery for multi-bridge.**~~ *Decided 2026-11-18:* Tailscale, documented
    in remote.md, nothing built. A self-hosted rendezvous and a pasted address were the
    other options; the live relay in [design-mailbox.md](design-mailbox.md) stays an idea
@@ -406,17 +410,24 @@ question.
 5. **Credentials on Android.** The Linux keyring holds them today, and the desktop's
    relay uses it; Android has Keystore. It needs the equivalent of
    `internal/session`'s pickle-key story.
-6. **Heartbeat semantics.** How often, how stale is "stale", what counts as
-   "caught up" per network. The per-network table is in
-   [Heartbeat per network](#heartbeat-per-network) (2026-11-18); the numbers in it are
-   proposed, not decided.
-7. **Phonebook across bridges.** Shared phonebook is a file ([phonebook](../docs/phonebook.md)). In a multi-bridge config, which bridge's phonebook is
-   canonical? Likely: file lives on each bridge independently and the mesh
-   doesn't touch it; devices resolve names from whichever bridge they're
-   currently talking to, with the shared file keeping them in rough sync. Needs
-   thought.
+6. ~~**Heartbeat semantics.**~~ *Decided 2026-11-19:* the
+   [Heartbeat per network](#heartbeat-per-network) table as proposed, LinkedIn and
+   Messenger/Instagram measured when Phase 3 is built; healthy is every logged-in
+   account alive and caught up.
+7. ~~**Phonebook across bridges.**~~ *Decided 2026-11-19:* each bridge keeps its own
+   [phonebook](../docs/phonebook.md) folder and the mesh never touches it. The cards are
+   files other apps edit too, and a folder sync (Syncthing, say) already merges them; the
+   mesh would need a three-way merge of free text. A device reads names from the bridge
+   it is talking to.
 8. **Standby per network.** How long each network keeps an idle linked device before
    dropping it, and so how often a standby bridge must connect; and how long it queues
    messages for that device, so what a bridge taking over can still catch up on. The
    hold times before standing down and taking over follow from heartbeat semantics
    (6).
+9. **No bridge healthy.** Two bridges each have a different account stuck: WhatsApp on
+   the homelab, Signal on the laptop. Neither is healthy, so by the rule above both take
+   over and every client passes both over. Either standby is decided per account (each
+   account active on the highest-priority bridge where it is alive, a standby bridge
+   connecting only the accounts stuck above it, a client taking each account from the
+   bridge where it is active), or per bridge (the one with most accounts alive, ties by
+   priority, or the higher one kept and the rest shown as stuck).
