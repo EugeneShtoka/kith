@@ -328,7 +328,7 @@ key.
 | `[display.reactions]` | device | The quick-react palette and how it ranks by your usage. | [usage.md](usage.md) |
 | `[display.threads]` | device | Which threads appear as rows under their room. | [usage.md](usage.md) |
 | `[display.direction]` | device | Which rooms read right to left, mirrored with names on the right: set by place, or guessed per room (`auto`). | [usage.md](usage.md#the-timeline) |
-| `[notifications]` | config: `max_per_room`, `rate_window`, `[[notifications.rule]]`; device: `enabled`, `desktop`, `command`, `sound`, `sound_command`, `[notifications.sounds]`, `timeout`, `title`, `body` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
+| `[notifications]` | config: `max_per_room`, `rate_window`, `[[notifications.rule]]`; device: `enabled`, `desktop`, `command`, `sound`, `sound_command`, `[notifications.sounds]`, `timeout`, `title`, `body`, `profiles` | Desktop delivery (D-Bus popup, command hook, sound, timeout, rate limit) and `[[notifications.rule]]`, the rules that decide what notifies. | [notifications.md](notifications.md) |
 | `[clipboard]` | config: `auto_copy`; device: the rest | The copy command, link opener, window focusing, unattended code copy, copying saved-file paths. | [usage.md](usage.md) |
 | `[codes]` | config | Where verification codes are looked for and what one looks like. | [notifications.md](notifications.md) |
 | `[[profile]]` | config | Named setups, each with its own rooms, archive, rail and notification topic. | [Profiles](#profiles) |

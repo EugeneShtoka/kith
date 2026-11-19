@@ -371,7 +371,7 @@ func TestTheDeviceHoldsTheDesignsKeys(t *testing.T) {
 		"":              "profile_in_use terminal",
 		"display":       "color_messages direction emoji filing_spaces fps hyperlinks max_name_length media mouse network_colors open_in_insert_mode reactions read_delay read_rule rooms row_numbers send_receipts send_typing show_archived skin_tone threads typing unread_line",
 		"tui":           "theme",
-		"notifications": "body command desktop enabled sound sound_command sounds timeout title",
+		"notifications": "body command desktop enabled profiles sound sound_command sounds timeout title",
 		"clipboard":     "command copy_downloads focus_command open_command raise_command",
 		"commands":      "timeout",
 		"complete":      "enabled ghost model ratio scope sources",
