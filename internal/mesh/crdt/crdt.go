@@ -84,6 +84,9 @@ type Op struct {
 	Context []Dot // the origin's version vector when it wrote
 	Writes  []Write
 	Sig     []byte // the origin's signature over Body's digest
+	// Sealed is the op's envelope (Seal), made by its origin as it wrote the op and
+	// passed on as those bytes; none on an op written before ops were sealed.
+	Sealed []byte
 }
 
 // opFormat starts every op's body: what it is, and which encoding.

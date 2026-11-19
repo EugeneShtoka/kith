@@ -15,7 +15,7 @@ const readsRecheck = time.Minute
 // receipt sent.
 type readKeeper interface {
 	HeldReads(ctx context.Context, of []domain.ReadPosition) ([]domain.ReadPosition, error)
-	KeepReads(ctx context.Context, reads []domain.ReadPosition, marks map[domain.RoomID]bool) error
+	KeepReads(ctx context.Context, reads []domain.ReadPosition, marks map[domain.RoomID]domain.UnreadMark) error
 }
 
 // readInMesh writes into the mesh how far each room or thread of of (Room and Root) is

@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -45,12 +46,35 @@ const (
 // bridge still in the mesh holds the same entries; and no replica ever syncs directly
 // with a bridge every member holds removed. Every replica keeps a cache following its
 // store, and reads are made, reported and kept throughout (reads_internal_test.go).
+// Ops are sealed: after every step every replica holds the same envelope per dot, and
+// no op written after its origin held a bridge's removal is sealed under an epoch that
+// bridge holds the key of; once settled, every bridge of the mesh writes under the
+// same epoch.
 func TestEveryReplicaConvergesOverAnyInterleaving(t *testing.T) {
 	t.Parallel()
+	runModel(t, false)
+}
+
+// TestSealedOpsHoldOverAnyInterleaving is step 5a's failure review: the class test's
+// generator, and what it never made of sealing. A bridge joins mid-run, with removals
+// and partitions around it, so one may join between a removal and its new epoch;
+// bridges reach 2²⁸ seals, two at once at times, making concurrent epochs; frames of
+// epoch records are lost, so a bridge lacks a wrap and must ask again; a relay moves
+// boxes between ops, changes a byte of one, and strips an op of its envelope. It holds
+// the class test's invariants but those of the caches' reads, which fail on some
+// seeds before sealing too (a mark set by the network while the follower lags, a
+// position moved back through a merge): those are step 4's, and stay the class test's.
+func TestSealedOpsHoldOverAnyInterleaving(t *testing.T) {
+	t.Parallel()
+	runModel(t, true)
+}
+
+func runModel(t *testing.T, sealing bool) {
 	for seed := range uint64(modelSeeds) {
 		t.Run(fmt.Sprint(seed), func(t *testing.T) {
 			t.Parallel()
 			m := newModel(t, seed)
+			m.sealing = sealing
 			for range modelSteps {
 				m.step()
 			}
@@ -116,6 +140,9 @@ type model struct {
 	forger   int
 	forkSeq  uint64
 	dormant  int
+	// sealing turns on what only the sealing review generates; joined is whether a
+	// bridge joined mid-run.
+	sealing, joined bool
 	// rd is what the model knows of reads (reads_internal_test.go).
 	rd modelReads
 }
@@ -131,42 +158,51 @@ func newModel(t *testing.T, seed uint64) *model {
 		deviceIDs: map[string]bool{},
 	}
 	n := 3 + m.rng.IntN(3)
-	dir := t.TempDir()
-	for i := range n {
-		key, err := devicekey.Generate()
-		if err != nil {
-			t.Fatal(err)
-		}
-		id, err := devicekey.IDOf(key.Public())
-		if err != nil {
-			t.Fatal(err)
-		}
-		r := &modelReplica{key: key, id: id, path: filepath.Join(dir, fmt.Sprintf("mesh-%d.db", i)), dbKey: make([]byte, sealeddb.KeyLen)}
-		if _, err := rand.Read(r.dbKey); err != nil {
-			t.Fatal(err)
-		}
-		r.store = m.open(r)
-		m.r = append(m.r, r)
+	for range n {
+		m.r = append(m.r, m.newReplica())
 	}
-	// The first is the genesis; it adds the others as bridges, and each joins (adopt).
+	// The first's genesis is the mesh's; it adds the others as bridges, and each joins.
 	first := m.r[0]
-	m.must(first.store.ChangeRoster(m.ctx, first.key, []domain.Device{{ID: first.id.String(), Role: domain.RoleBridge}}, nil))
 	for i, r := range m.r[1:] {
-		der, err := x509.MarshalPKIXPublicKey(r.key.Public())
-		if err != nil {
-			t.Fatal(err)
-		}
-		m.must(first.store.Bridge(m.ctx, first.key, domain.Device{ID: r.id.String(), Name: fmt.Sprint("bridge", i+1)},
-			der, []string{"192.0.2.1:7443"}))
-		first.store.mu.Lock()
-		snap := first.store.state.Snapshot(first.store.clock)
-		first.store.mu.Unlock()
-		if _, err := r.store.adopt(m.ctx, snap, r.key, r.id); err != nil {
-			t.Fatalf("replica %d joins: %v", i+1, err)
-		}
+		m.join(first, r, fmt.Sprint("bridge", i+1))
 	}
 	m.openCaches()
 	return m
+}
+
+// newReplica is a kithd's store, made afresh: its own genesis, nobody else's.
+func (m *model) newReplica() *modelReplica {
+	key, id := newDeviceID(m.t)
+	r := &modelReplica{key: key, id: mustID(m.t, id), path: filepath.Join(m.t.TempDir(), "mesh.db"), dbKey: make([]byte, sealeddb.KeyLen)}
+	if _, err := rand.Read(r.dbKey); err != nil {
+		m.t.Fatal(err)
+	}
+	r.store = m.open(r)
+	m.must(r.store.ChangeRoster(m.ctx, r.key, []domain.Device{{ID: id, Role: domain.RoleBridge}}, nil))
+	return r
+}
+
+// join has r join the mesh of sponsor as kithd does: the sponsor confirms its pairing
+// (its entry, with the sealing key it paired with, and a wrap of the epoch the sponsor
+// writes under), then r says Hello holding nothing over a stream the sponsor syncs.
+func (m *model) join(sponsor, r *modelReplica, name string) {
+	der, err := x509.MarshalPKIXPublicKey(r.key.Public())
+	m.must(err)
+	m.must(sponsor.store.Bridge(m.ctx, sponsor.key, domain.Device{ID: r.id.String(), Name: name}, der, r.store.Sealing(),
+		[]string{"192.0.2.1:7443"}))
+	joining, sponsoring := newStream()
+	done := make(chan error, 1)
+	go func() {
+		serr := sponsor.store.Sync(m.ctx, sponsor.key, r.id, false, sponsoring, m.log)
+		sponsoring.close()
+		done <- serr
+	}()
+	_, err = r.store.Join(m.ctx, r.id, sponsor.id, r.key, joining)
+	joining.close()
+	<-done
+	if err != nil {
+		m.t.Fatalf("%s joins: %v", name, err)
+	}
 }
 
 func (m *model) open(r *modelReplica) *Store {
@@ -192,7 +228,11 @@ func (m *model) at(i int) time.Time { return m.now.Add(m.r[i].skew) }
 func (m *model) step() {
 	m.now = m.now.Add(time.Duration(m.rng.IntN(15)) * time.Second)
 	m.rd.step++
-	switch n := m.rng.IntN(130); {
+	steps := 130
+	if m.sealing {
+		steps += 6
+	}
+	switch n := m.rng.IntN(steps); {
 	case n < 30:
 		m.write(m.rng.IntN(len(m.r)))
 	case n < 70:
@@ -217,6 +257,10 @@ func (m *model) step() {
 		m.networkReport(m.rng.IntN(len(m.r)))
 	case n < 110:
 		m.openCache(m.rng.IntN(len(m.r))) // rebuilt under a mesh that holds positions
+	case n >= 133:
+		m.rotate()
+	case n >= 130:
+		m.joinStep()
 	default:
 		// A read, more often than the other writes: one while the follower lags is the one
 		// that must not write a position back.
@@ -224,8 +268,197 @@ func (m *model) step() {
 			m.read(i, m.rng.IntN(4) == 0)
 		}
 	}
-	m.checkReads(m.followSome())
+	followed := m.followSome()
+	if !m.sealing {
+		m.checkReads(followed)
+	}
 	m.checkRemovedAreRefused()
+	m.checkEnvelopes()
+	m.checkRemovedReadNothingNew()
+}
+
+// joinStep has a new bridge join the mesh through a member, once a run: it made a read
+// of its own first, which it writes again over the mesh's, sealed under the epoch its
+// sponsor wrapped for it.
+func (m *model) joinStep() {
+	s := m.rng.IntN(len(m.r))
+	if m.joined || !m.member(s) || s == m.forger || m.dormant >= 0 {
+		return
+	}
+	m.joined = true
+	r := m.newReplica()
+	m.r = append(m.r, r)
+	j := len(m.r) - 1
+	m.newCache(j)
+	m.read(j, false)
+	m.join(m.r[s], r, "joined")
+	m.reopened(j)
+	sponsor, _ := currentEpoch(m.r[s].store)
+	got, ok := currentEpoch(r.store)
+	if !ok || got != sponsor || madeAny(r.store, r.id) {
+		m.t.Fatalf("the bridge joining writes under %v (%v; made one of its own: %v), not its sponsor's %v", got, ok, madeAny(r.store, r.id), sponsor)
+	}
+}
+
+// rotate has one or two members reach maxSeals under the epoch they write under, as
+// after 2²⁸ ops: each makes a new epoch with its next write, two at once concurrent.
+func (m *model) rotate() {
+	for range 1 + m.rng.IntN(2) {
+		i := m.rng.IntN(len(m.r))
+		if !m.member(i) {
+			continue
+		}
+		s := m.r[i].store
+		s.mu.Lock()
+		if e, ok := currentEpochLocked(s); ok {
+			k := s.keys.keys[e]
+			k.seals = maxSeals
+			s.keys.keys[e] = k
+			_, err := s.db.ExecContext(m.ctx, `UPDATE epochs SET seals = ? WHERE number = ? AND maker = ?`, k.seals, e.Number, e.Maker[:])
+			m.must(err)
+		}
+		s.mu.Unlock()
+	}
+}
+
+// currentEpoch is the epoch s writes under now, if one serves.
+func currentEpoch(s *Store) (crdt.Epoch, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return currentEpochLocked(s)
+}
+
+func currentEpochLocked(s *Store) (crdt.Epoch, bool) {
+	roster, err := s.state.Roster()
+	if err != nil {
+		return crdt.Epoch{}, false
+	}
+	return s.keys.current(s.state, roster)
+}
+
+// madeAny reports whether s holds the key of an epoch id made.
+func madeAny(s *Store, id devicekey.ID) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.ContainsFunc(slices.Collect(maps.Keys(s.keys.keys)), func(e crdt.Epoch) bool { return e.Maker == id })
+}
+
+// heldOps is every op replica i's log keeps.
+func (m *model) heldOps(i int) []crdt.Op {
+	s := m.r[i].store
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ops, err := s.loadOps(m.ctx, selectOps+`ORDER BY o.clock, r.id`)
+	m.must(err)
+	return ops
+}
+
+// checkEnvelopes holds that every op a replica keeps carries an envelope, and that
+// every replica keeping an op keeps the same one: the origin's, passed on as it was
+// (the forger's two ops under one dot left out: each is sealed apart).
+func (m *model) checkEnvelopes() {
+	held := map[crdt.Dot][]byte{}
+	for i := range m.r {
+		ops := m.heldOps(i)
+		for k := range ops {
+			op := &ops[k]
+			d := crdt.Dot{Origin: op.Origin, Seq: op.Seq}
+			if m.forger >= 0 && d == (crdt.Dot{Origin: m.r[m.forger].id, Seq: m.forkSeq}) {
+				continue
+			}
+			if len(op.Sealed) == 0 {
+				m.t.Fatalf("replica %d keeps %s's op %d without its envelope", i, op.Origin, op.Seq)
+			}
+			if other, ok := held[d]; ok && !bytes.Equal(other, op.Sealed) {
+				m.t.Fatalf("replica %d keeps another envelope for %s's op %d than a replica before it", i, op.Origin, op.Seq)
+			}
+			held[d] = op.Sealed
+		}
+	}
+}
+
+// checkRemovedReadNothingNew holds that no op a member keeps, written once its origin
+// held a bridge's removal, is sealed under an epoch whose key that bridge holds.
+func (m *model) checkRemovedReadNothingNew() {
+	removals := map[devicekey.ID][]crdt.Dot{}
+	for i := range m.r {
+		s := m.r[i].store
+		s.mu.Lock()
+		for k := range s.state.RosterOps {
+			op := &s.state.RosterOps[k]
+			for _, w := range op.Writes {
+				var mem crdt.Member
+				if json.Unmarshal(w.Value, &mem) == nil && mem.Removed && mem.Role == crdt.RoleBridge {
+					id := mustID(m.t, strings.TrimPrefix(w.Key, "roster/"))
+					removals[id] = append(removals[id], crdt.Dot{Origin: op.Origin, Seq: op.Seq})
+				}
+			}
+		}
+		s.mu.Unlock()
+	}
+	for d, gone := range m.r {
+		dots := removals[gone.id]
+		if len(dots) == 0 {
+			continue
+		}
+		gone.store.mu.Lock()
+		keys := maps.Clone(gone.store.keys.keys)
+		gone.store.mu.Unlock()
+		for i := range m.r {
+			if i == d {
+				continue
+			}
+			ops := m.heldOps(i)
+			for k := range ops {
+				op := &ops[k]
+				e, err := crdt.SealedEpoch(op.Sealed)
+				if _, readable := keys[e]; err != nil || !readable || !slices.ContainsFunc(dots, func(r crdt.Dot) bool { return seen(*op, r) }) {
+					continue
+				}
+				m.t.Fatalf("replica %d keeps %s's op %d, written after it held replica %d's removal, sealed under %v, whose key replica %d holds",
+					i, op.Origin, op.Seq, d, e, d)
+			}
+		}
+	}
+}
+
+// seen reports whether op was written once its origin held the op d names.
+func seen(op crdt.Op, d crdt.Dot) bool {
+	if d.Origin == op.Origin {
+		return d.Seq < op.Seq
+	}
+	return slices.ContainsFunc(op.Context, func(c crdt.Dot) bool { return c.Origin == d.Origin && c.Seq >= d.Seq })
+}
+
+// checkOneEpoch holds that once settled every member holds the key each other writes
+// under, and once every member has written again (one that reached 2²⁸ seals makes a
+// new epoch only then) and the mesh has settled again, every member writes under the
+// same epoch.
+func (m *model) checkOneEpoch(members []int, settle func()) {
+	// First, settled: each member holds the key of the epoch each other writes under,
+	// asked for though it may hold no op sealed under it (one taken by snapshot).
+	for _, j := range members {
+		e, ok := currentEpoch(m.r[j].store)
+		for _, i := range members {
+			s := m.r[i].store
+			s.mu.Lock()
+			_, held := s.keys.keys[e]
+			s.mu.Unlock()
+			if ok && !held {
+				m.t.Fatalf("replica %d holds no key of %v, which replica %d writes under", i, e, j)
+			}
+		}
+	}
+	for _, i := range members {
+		m.must(m.r[i].store.PublishAccounts(m.ctx, m.r[i].key, []domain.MeshAccount{{Network: "settled", ID: fmt.Sprint(i)}}))
+	}
+	settle()
+	want, wok := currentEpoch(m.r[members[0]].store)
+	for _, i := range members[1:] {
+		if got, ok := currentEpoch(m.r[i].store); got != want || ok != wok {
+			m.t.Fatalf("replica %d writes under %v (%v), replica %d under %v (%v)", i, got, ok, members[0], want, wok)
+		}
+	}
 }
 
 // pair is two distinct replicas.
@@ -387,6 +620,14 @@ func (m *model) equivocate() {
 	m.must(err)
 	twin := crdt.Op{Origin: r.id, Seq: seq, Clock: held.Clock, Context: held.Context, Writes: []crdt.Write{{Key: crdt.RosterKey(mustID(m.t, other)), Value: value}}}
 	m.must(twin.Sign(r.key))
+	// Sealed as its origin seals: under the epoch of the op it forks.
+	epoch, err := crdt.SealedEpoch(held.Sealed)
+	m.must(err)
+	r.store.mu.Lock()
+	key := r.store.keys.keys[epoch].key
+	r.store.mu.Unlock()
+	twin.Sealed, err = crdt.Seal(twin, epoch, key)
+	m.must(err)
 	m.forger, m.forkSeq = e, seq
 	to := (e + 1 + m.rng.IntN(len(m.r)-1)) % len(m.r)
 	if _, err := m.r[to].store.receive(m.ctx, []crdt.Op{twin}, m.at(to)); err != nil {
@@ -444,20 +685,24 @@ func (m *model) exchange(i, j int, faults bool) {
 	var hello sync.WaitGroup
 	var fromA crdt.Vector
 	var errB error
-	hello.Go(func() { fromA, errB = b.store.greet(m.ctx, b.id, a.id, pipe{in: ab, out: ba}, m.at(j)) })
-	fromB, errA := a.store.greet(m.ctx, a.id, b.id, pipe{in: ba, out: ab}, m.at(i))
+	sb := syncing{signer: b.key, peer: a.id, frames: pipe{in: ab, out: ba}, log: m.log, told: newTold()}
+	sa := syncing{signer: a.key, peer: b.id, frames: pipe{in: ba, out: ab}, log: m.log, told: newTold()}
+	hello.Go(func() { fromA, errB = b.store.greet(m.ctx, sb, m.at(j)) })
+	fromB, errA := a.store.greet(m.ctx, sa, m.at(i))
 	hello.Wait()
 	if errA != nil || errB != nil {
 		return // a clock past the bound: refused both ways
 	}
 	toB, toA := &queue{}, &queue{}
+	sa.frames, sb.frames = toB, toA
 	for _, side := range []struct {
 		s      *Store
-		out    *queue
+		ss     syncing
 		theirs crdt.Vector
-	}{{a.store, toB, fromB}, {b.store, toA, fromA}} {
-		m.must(sendOps(side.out, side.s.headProofs(m.ctx, side.theirs)))
-		if _, err := side.s.sendMissing(m.ctx, side.out, side.theirs); err != nil {
+	}{{a.store, sa, fromB}, {b.store, sb, fromA}} {
+		m.must(sendOps(side.ss.frames, side.s.headProofs(m.ctx, side.theirs)))
+		side.s.tellPeer(m.t, side.ss)
+		if _, err := side.s.sendMissing(m.ctx, side.ss.frames, side.theirs); err != nil {
 			m.t.Fatal(err)
 		}
 	}
@@ -465,7 +710,8 @@ func (m *model) exchange(i, j int, faults bool) {
 		to, from int
 		in, back *queue
 		snap     *crdt.Snapshot
-	}{{j, i, toB, toA, nil}, {i, j, toA, toB, nil}}
+		ss       syncing
+	}{{j, i, toB, toA, nil, sb}, {i, j, toA, toB, nil, sa}}
 	if faults {
 		for e := range ends {
 			ends[e].in.frames = append(m.replay[ends[e].to], ends[e].in.frames...)
@@ -498,6 +744,17 @@ func (m *model) exchange(i, j int, faults bool) {
 			}
 			m.must(err)
 			m.checkNothingFromTheFuture(end.to, before)
+			r.store.tellPeer(m.t, end.ss) // as serve does after every frame: records made, keys asked for
+		}
+	}
+}
+
+// tellPeer sends the peer what of the keyring it has not been told, as serve does.
+func (s *Store) tellPeer(t *testing.T, ss syncing) {
+	t.Helper()
+	if e := s.tell(ss); e != nil {
+		if err := ss.frames.Send(&meshv1.SyncFrame{Frame: &meshv1.SyncFrame_Epochs{Epochs: e}}); err != nil {
+			t.Fatal(err)
 		}
 	}
 }
@@ -538,6 +795,28 @@ func (m *model) fault(from, to int, f *meshv1.SyncFrame, in *queue) fate {
 		}
 		m.rng.Shuffle(len(split), func(x, y int) { split[x], split[y] = split[y], split[x] })
 		in.frames = append(split, in.frames...)
+		return passOn
+	case m.sealing && n < 52 && f.GetEpochs() != nil:
+		return passOn // lost: what it asked for is asked again, what it held is sent next session
+	case m.sealing && n < 56 && len(f.GetOps().GetOps()) > 1:
+		// A relay moves two boxes between ops: neither opens as the other.
+		moved := cloneFrame(f)
+		ops := moved.GetOps().GetOps()
+		ops[0].Sealed, ops[1].Sealed = ops[1].GetSealed(), ops[0].GetSealed()
+		in.frames = append([]*meshv1.SyncFrame{moved}, in.frames...)
+		return passOn
+	case m.sealing && n < 59 && len(f.GetOps().GetOps()) > 0 && len(f.GetOps().GetOps()[0].GetSealed()) > 0:
+		// A relay changes a byte of a box.
+		tampered := cloneFrame(f)
+		box := tampered.GetOps().GetOps()[0].GetSealed()
+		box[m.rng.IntN(len(box))] ^= 1
+		in.frames = append([]*meshv1.SyncFrame{tampered}, in.frames...)
+		return passOn
+	case m.sealing && n < 61 && len(f.GetOps().GetOps()) > 0:
+		// A relay strips an op of its envelope.
+		stripped := cloneFrame(f)
+		stripped.GetOps().GetOps()[0].Sealed = nil
+		in.frames = append([]*meshv1.SyncFrame{stripped}, in.frames...)
 		return passOn
 	}
 	return deliver
@@ -665,7 +944,10 @@ func (m *model) settle() {
 			m.t.Fatalf("replica %d and replica 0 differ:\n%s", i, diffLines(got, want))
 		}
 	}
-	m.checkReadsSettled(members)
+	if !m.sealing {
+		m.checkReadsSettled(members)
+	}
+	m.checkOneEpoch(members, m.quiesce)
 }
 
 // forked reports whether a bridge of the mesh found the forger out (one removed itself
@@ -688,8 +970,11 @@ func (m *model) forked() bool {
 // quiesce syncs every pair of members, without faults, until a round changes nothing.
 func (m *model) quiesce() {
 	for round := range 2 * len(m.r) {
+		m.rd.step++ // a mark arriving now arrived after every one set before settling
 		m.followAll()
-		m.checkReads(nil)
+		if !m.sealing {
+			m.checkReads(nil)
+		}
 		before := m.texts()
 		for i := range m.r {
 			for j := i + 1; j < len(m.r); j++ {

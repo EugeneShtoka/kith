@@ -2350,12 +2350,14 @@ message ConfirmPairingResponse {
 
 // PairRequest is a new device answering a pairing over [remote] listen; name is how
 // it would be listed. role "bridge" is a kithd joining the mesh (kith join --bridge),
-// dialed at addresses; anything else pairs a device.
+// dialed at addresses, with sealing its X25519 key that content keys are wrapped to;
+// anything else pairs a device.
 message PairRequest {
   string token = 1;
   string name = 2;
   string role = 3;
   repeated string addresses = 4;
+  bytes sealing = 5;
 }
 
 // PairResponse is one frame: the six digits first, then the outcome, which ends the

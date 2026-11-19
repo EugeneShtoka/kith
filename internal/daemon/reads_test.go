@@ -74,7 +74,7 @@ func (b *readingBackend) HeldReads(_ context.Context, of []domain.ReadPosition) 
 	return out, nil
 }
 
-func (b *readingBackend) KeepReads(_ context.Context, reads []domain.ReadPosition, marks map[domain.RoomID]bool) error {
+func (b *readingBackend) KeepReads(_ context.Context, reads []domain.ReadPosition, marks map[domain.RoomID]domain.UnreadMark) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.kept = slices.Clone(reads)
@@ -88,7 +88,7 @@ func (b *readingBackend) KeepReads(_ context.Context, reads []domain.ReadPositio
 	}
 	for room, m := range marks {
 		if runs(room) {
-			b.marked[room] = m
+			b.marked[room] = m.Marked
 		}
 	}
 	return nil

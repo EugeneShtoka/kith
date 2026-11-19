@@ -34,7 +34,7 @@ func (c *Cache) Unread(ctx context.Context) ([]domain.Unread, error) {
 // newest message time at or before the receipt in stream order, not the receipt
 // event's own (see matrix.resolveReceipt). Counts and mark are replaced; the
 // position only moves forward by readTS, like the server's receipts, since echoes
-// and per-kind receipts arrive out of order.
+// and per-kind receipts arrive out of order. The mark is noted as set now.
 //
 // Reading a disappearing message starts its countdown (see SetExpiry).
 func (c *Cache) SaveUnread(ctx context.Context, u domain.Unread, readTS int64) error {
@@ -54,6 +54,9 @@ func (c *Cache) SaveUnread(ctx context.Context, u domain.Unread, readTS int64) e
 			marked=excluded.marked`,
 			string(u.RoomID), u.Notifications, u.Highlights, string(u.ReadEvent), u.Marked, readTS); err != nil {
 			return fmt.Errorf("db: upsert unread %s: %w", u.RoomID, err)
+		}
+		if err := stampMark(ctx, tx, u.RoomID, time.Now().UnixMilli()); err != nil {
+			return err
 		}
 		return startCountdowns(ctx, tx, u.RoomID, time.Now())
 	})
@@ -80,7 +83,8 @@ func (c *Cache) SaveReadPosition(ctx context.Context, roomID domain.RoomID, even
 }
 
 // SetUnreadMark sets or clears one room's unread mark, keeping its read position, and
-// reports whether it was set before. A room not yet known is registered.
+// reports whether it was set before; either way the mark is noted as set now. A room
+// not yet known is registered.
 func (c *Cache) SetUnreadMark(ctx context.Context, roomID domain.RoomID, marked bool) (bool, error) {
 	var was bool
 	err := c.inTx(ctx, func(tx *sql.Tx) error {
@@ -88,10 +92,10 @@ func (c *Cache) SetUnreadMark(ctx context.Context, roomID domain.RoomID, marked 
 			"SELECT marked FROM room_unread WHERE room_id = ?", string(roomID)).Scan(&was)); err != nil {
 			return fmt.Errorf("db: read the unread mark of %s: %w", roomID, err)
 		}
-		if was == marked {
-			return nil
-		}
 		if err := registerRoom(ctx, tx, roomID); err != nil {
+			return err
+		}
+		if err := stampMark(ctx, tx, roomID, time.Now().UnixMilli()); err != nil || was == marked {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO room_unread(room_id, marked) VALUES(?, ?)
@@ -205,4 +209,13 @@ func (c *Cache) CountUnreadAll(ctx context.Context, me []string) (map[domain.Roo
 				Counted:  true,
 			}, err
 		}, args...)
+}
+
+// stampMark notes room's unread mark as set at ms (room_mark_times).
+func stampMark(ctx context.Context, tx *sql.Tx, room domain.RoomID, ms int64) error {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO room_mark_times(room_id, set_ms) VALUES(?, ?)
+		ON CONFLICT(room_id) DO UPDATE SET set_ms = excluded.set_ms`, string(room), ms); err != nil {
+		return fmt.Errorf("db: note when the unread mark of %s was set: %w", room, err)
+	}
+	return nil
 }

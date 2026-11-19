@@ -46,18 +46,20 @@ func (c *Cache) HeldReads(ctx context.Context, of []domain.ReadPosition) ([]doma
 
 // heldReads is what KeepReads compares against: the rooms the cache holds, each
 // room merged into another and the room it joined, and each room's read position
-// (its time) and mark, and each thread's.
+// (its time), mark and when the mark was set, and each thread's.
 type heldReads struct {
-	rooms   map[domain.RoomID]bool
-	aliases map[domain.RoomID]domain.RoomID
-	at      map[domain.RoomID]int64
-	marked  map[domain.RoomID]bool
-	threads map[[2]string]domain.ReadPosition
+	rooms    map[domain.RoomID]bool
+	aliases  map[domain.RoomID]domain.RoomID
+	at       map[domain.RoomID]int64
+	marked   map[domain.RoomID]bool
+	markedAt map[domain.RoomID]int64
+	threads  map[[2]string]domain.ReadPosition
 }
 
 // readHeld reads what KeepReads compares against.
 func (c *Cache) readHeld(ctx context.Context) (heldReads, error) {
-	h := heldReads{rooms: map[domain.RoomID]bool{}, at: map[domain.RoomID]int64{}, marked: map[domain.RoomID]bool{}, threads: map[[2]string]domain.ReadPosition{}}
+	h := heldReads{rooms: map[domain.RoomID]bool{}, at: map[domain.RoomID]int64{}, marked: map[domain.RoomID]bool{},
+		markedAt: map[domain.RoomID]int64{}, threads: map[[2]string]domain.ReadPosition{}}
 	rooms, err := collect(ctx, c.db, "rooms", `SELECT id FROM rooms`, func(rows *sql.Rows) (string, error) {
 		var id string
 		err := rows.Scan(&id)
@@ -89,6 +91,17 @@ func (c *Cache) readHeld(ctx context.Context) (heldReads, error) {
 	for _, r := range rows {
 		h.at[domain.RoomID(r.room)], h.marked[domain.RoomID(r.room)] = r.at, r.marked
 	}
+	stamps, err := collect(ctx, c.db, "unread mark times", `SELECT room_id, set_ms FROM room_mark_times`,
+		func(rows *sql.Rows) (roomRow, error) {
+			var r roomRow
+			return r, rows.Scan(&r.room, &r.at)
+		})
+	if err != nil {
+		return heldReads{}, err
+	}
+	for _, r := range stamps {
+		h.markedAt[domain.RoomID(r.room)] = r.at
+	}
 	threads, err := collect(ctx, c.db, "thread read positions", `SELECT room_id, root_event, read_event, read_ts_ms FROM thread_read`,
 		func(rows *sql.Rows) (domain.ReadPosition, error) {
 			var p domain.ReadPosition
@@ -107,9 +120,10 @@ func (c *Cache) readHeld(ctx context.Context) (heldReads, error) {
 // made on other bridges (the mesh's). A room the cache does not hold is left alone (one
 // of an account this bridge does not run), and one merged into another is filed under
 // it. A position at or before the one held changes nothing; one further starts the
-// countdown of the disappearing messages it reads through, as a read here does. moved
-// are the rooms whose position or mark changed.
-func (c *Cache) KeepReads(ctx context.Context, reads []domain.ReadPosition, marks map[domain.RoomID]bool) ([]domain.RoomID, error) {
+// countdown of the disappearing messages it reads through, as a read here does. A mark
+// set here as late or later (the network's, while this bridge's follower lagged) is
+// kept over the mesh's. moved are the rooms whose position or mark changed.
+func (c *Cache) KeepReads(ctx context.Context, reads []domain.ReadPosition, marks map[domain.RoomID]domain.UnreadMark) ([]domain.RoomID, error) {
 	h, err := c.readHeld(ctx)
 	if err != nil {
 		return nil, err
@@ -132,7 +146,7 @@ func (c *Cache) KeepReads(ctx context.Context, reads []domain.ReadPosition, mark
 // readsToKeep are the room and thread positions, and the marks, that move the cache.
 type readsToKeep struct {
 	rooms, threads []domain.ReadPosition
-	marked         map[domain.RoomID]bool
+	marked         map[domain.RoomID]domain.UnreadMark
 }
 
 // filed is the room a write naming room goes to here, and whether the cache holds it.
@@ -144,8 +158,8 @@ func (h heldReads) filed(room domain.RoomID) (domain.RoomID, bool) {
 }
 
 // toKeep is what of reads and marks moves the cache past what h holds.
-func (h heldReads) toKeep(reads []domain.ReadPosition, marks map[domain.RoomID]bool) readsToKeep {
-	k := readsToKeep{marked: map[domain.RoomID]bool{}}
+func (h heldReads) toKeep(reads []domain.ReadPosition, marks map[domain.RoomID]domain.UnreadMark) readsToKeep {
+	k := readsToKeep{marked: map[domain.RoomID]domain.UnreadMark{}}
 	for _, r := range reads {
 		var held bool
 		if r.Room, held = h.filed(r.Room); !held {
@@ -163,7 +177,7 @@ func (h heldReads) toKeep(reads []domain.ReadPosition, marks map[domain.RoomID]b
 		}
 	}
 	for room, m := range marks {
-		if into, held := h.filed(room); held && h.marked[into] != m {
+		if into, held := h.filed(room); held && h.marked[into] != m.Marked && m.At > h.markedAt[into] {
 			k.marked[into] = m
 		}
 	}
@@ -190,8 +204,11 @@ func (k readsToKeep) write(ctx context.Context, tx *sql.Tx, moved map[domain.Roo
 	}
 	for room, m := range k.marked {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO room_unread(room_id, marked) VALUES(?, ?)
-			ON CONFLICT(room_id) DO UPDATE SET marked = excluded.marked`, string(room), m); err != nil {
+			ON CONFLICT(room_id) DO UPDATE SET marked = excluded.marked`, string(room), m.Marked); err != nil {
 			return fmt.Errorf("db: keep the unread mark of %s: %w", room, err)
+		}
+		if err := stampMark(ctx, tx, room, m.At); err != nil {
+			return err
 		}
 		moved[room] = true
 	}

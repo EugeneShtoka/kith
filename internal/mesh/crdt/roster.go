@@ -3,6 +3,7 @@ package crdt
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
@@ -26,10 +27,13 @@ const (
 // Member is a roster entry's value: who paired the device and when, its role, and the
 // public key that names it (PKIX), when known. A bridge's key is always known, since it
 // signs and pairs over TLS; a device paired by its pasted ID has none. A bridge's
+// Sealing is the X25519 key content keys are wrapped to (EpochRecord), apart from the
+// key it signs with; a thin device has none, holding no content key. A bridge's
 // Addresses are where it is dialed (its [remote] listen); a bridge that only dials has
 // none. A removed member stays listed as removed.
 type Member struct {
 	Key       []byte    `json:"key,omitempty"`
+	Sealing   []byte    `json:"sealing,omitempty"`
 	Name      string    `json:"name,omitempty"`
 	Role      Role      `json:"role"`
 	Addresses []string  `json:"addresses,omitempty"`
@@ -161,6 +165,11 @@ func readRosterWrite(w Write) (devicekey.ID, Member, error) {
 	case m.Role == RoleBridge && !m.Removed && len(m.Key) == 0:
 		return devicekey.ID{}, Member{}, fmt.Errorf("%w: %s: a bridge with no key", ErrBadWrite, w.Key)
 	}
+	if len(m.Sealing) > 0 {
+		if _, err := SealingKey(m.Sealing); err != nil {
+			return devicekey.ID{}, Member{}, fmt.Errorf("%w: %s: %w", ErrBadWrite, w.Key, err)
+		}
+	}
 	if len(m.Key) > 0 {
 		pub, err := publicKey(m.Key)
 		if err != nil {
@@ -187,13 +196,14 @@ func publicKey(der []byte) (*ecdsa.PublicKey, error) {
 }
 
 // Verify checks op's signature against key, the signer's (PKIX).
-func Verify(key []byte, op Op) error {
+func Verify(key []byte, op Op) error { return verify(key, op.Digest(), op.Sig) }
+
+func verify(key []byte, digest [sha256.Size]byte, sig []byte) error {
 	pub, err := publicKey(key)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrBadSignature, err)
 	}
-	digest := op.Digest()
-	if !ecdsa.VerifyASN1(pub, digest[:], op.Sig) {
+	if !ecdsa.VerifyASN1(pub, digest[:], sig) {
 		return ErrBadSignature
 	}
 	return nil

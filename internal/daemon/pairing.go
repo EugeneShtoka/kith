@@ -54,13 +54,15 @@ type ticket struct {
 }
 
 // joiner is the device pending under a ticket, the connection it answered over, and,
-// for a bridge, the key its handshake showed and the addresses it is dialed at.
+// for a bridge, the key its handshake showed, its sealing key and the addresses it is
+// dialed at.
 type joiner struct {
 	domain.PendingDevice
-	id    devicekey.ID
-	conn  *remoteConn
-	key   []byte
-	addrs []string
+	id      devicekey.ID
+	conn    *remoteConn
+	key     []byte
+	sealing []byte
+	addrs   []string
 }
 
 // startPairing opens a pairing named name and its ticket. Nothing to dial is refused.
@@ -97,14 +99,15 @@ func (d *Devices) ticketLocked(token pairing.Token) *ticket {
 
 // answer holds the device on c as pending under the token, named name unless the
 // trusted side named it: one device per token, and never one already paired. A bridge
-// (role) pairs with the addresses it is dialed at, each one a device could dial.
-func (d *Devices) answer(tokenText, name string, role domain.DeviceRole, addresses []string, c *remoteConn) (*ticket, error) {
+// (role) pairs with the addresses it is dialed at, each one a device could dial, and
+// its sealing key.
+func (d *Devices) answer(tokenText, name string, role domain.DeviceRole, addresses []string, sealing []byte, c *remoteConn) (*ticket, error) {
 	token, err := pairing.ParseToken(tokenText)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: pair: %w", err)
 	}
 	if role != domain.RoleBridge {
-		role, addresses = domain.RoleDevice, nil
+		role, addresses, sealing = domain.RoleDevice, nil, nil
 	}
 	for _, a := range addresses {
 		if err := pairing.CheckAddress(a); err != nil {
@@ -135,7 +138,7 @@ func (d *Devices) answer(tokenText, name string, role domain.DeviceRole, address
 	}
 	t.pending = &joiner{
 		PendingDevice: domain.PendingDevice{Name: name, ID: c.id.String(), Digits: pairing.Digits(self, c.id, token), Role: role},
-		id:            c.id, conn: c, key: c.key, addrs: addresses,
+		id:            c.id, conn: c, key: c.key, sealing: sealing, addrs: addresses,
 	}
 	close(t.answered)
 	return t, nil
@@ -385,7 +388,7 @@ func (s *server) Pair(ctx context.Context, r *req[v1.PairRequest], st *connect.S
 	if !ok {
 		return connect.NewError(connect.CodeInvalidArgument, errPairOverSocket)
 	}
-	t, err := s.Paired.answer(r.Msg.GetToken(), r.Msg.GetName(), domain.DeviceRole(r.Msg.GetRole()), r.Msg.GetAddresses(), c)
+	t, err := s.Paired.answer(r.Msg.GetToken(), r.Msg.GetName(), domain.DeviceRole(r.Msg.GetRole()), r.Msg.GetAddresses(), r.Msg.GetSealing(), c)
 	if err != nil {
 		return pairingErr(err)
 	}
