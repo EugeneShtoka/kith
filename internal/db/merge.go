@@ -209,7 +209,8 @@ func mergeRows(ctx context.Context, tx *sql.Tx, from, into domain.RoomID) error 
 }
 
 // mergeReadPosition keeps into's read position or from's, the later; marked unread on
-// either stays so. The counts are into's until the room is counted again.
+// either stays so, set as late as either was. The counts are into's until the room is
+// counted again.
 func mergeReadPosition(ctx context.Context, tx *sql.Tx, from, into domain.RoomID) error {
 	type position struct {
 		event  string
@@ -226,6 +227,12 @@ func mergeReadPosition(ctx context.Context, tx *sql.Tx, from, into domain.RoomID
 			return position{}, false, fmt.Errorf("db: read the read position of %s: %w", room, err)
 		}
 		return p, found, nil
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO room_mark_times (room_id, set_ms) SELECT ?, set_ms FROM room_mark_times WHERE room_id = ?
+		ON CONFLICT(room_id) DO UPDATE SET set_ms = max(room_mark_times.set_ms, excluded.set_ms)`,
+		string(into), string(from)); err != nil {
+		return fmt.Errorf("db: merge when the unread mark of %s was set into %s: %w", from, into, err)
 	}
 	theirs, found, err := read(from)
 	if err != nil || !found {

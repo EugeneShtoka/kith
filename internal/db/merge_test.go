@@ -66,6 +66,7 @@ var roomRows = []roomRow{
 	{"room_upgrades", `INSERT INTO room_upgrades (room_id, checked_ms) VALUES (?1, ?3)`, false},
 	{"room_members", `INSERT INTO room_members (room_id, user_id, display_name) VALUES (?1, ?4, ?4)`, false},
 	{"room_unread", `INSERT INTO room_unread (room_id, read_event, read_ts_ms) VALUES (?1, ?2, ?3)`, false},
+	{"room_mark_times", `INSERT INTO room_mark_times (room_id, set_ms) VALUES (?1, ?3)`, false},
 	{"thread_read", `INSERT INTO thread_read (room_id, root_event, read_event, read_ts_ms) VALUES (?1, 'root', ?2, ?3)`, false},
 	{"drafts", `INSERT INTO drafts (room_id, body, updated_ms) VALUES (?1, 'words from ' || ?4, ?3)`, false},
 	{"thread_drafts", `INSERT INTO thread_drafts (room_id, thread_root, body, updated_ms) VALUES (?1, 'root', 'thread words from ' || ?4, ?3)`, false},
@@ -374,6 +375,9 @@ func checkJoinedRows(t *testing.T, cache *Cache, lid, number mergeSide) {
 	}
 	if want := max(lid.rows["tag_verdicts"], number.rows["tag_verdicts"]); scalar(`SELECT at_ms FROM tag_verdicts WHERE room_id = ?`) != want {
 		t.Errorf("the room's verdict is not the newer, %d", want)
+	}
+	if want := max(lid.rows["room_mark_times"], number.rows["room_mark_times"]); scalar(`SELECT set_ms FROM room_mark_times WHERE room_id = ?`) != want {
+		t.Errorf("the unread mark's time is not the later, %d", want)
 	}
 	if want := max(lid.rows["thread_read"], number.rows["thread_read"]); scalar(`SELECT read_ts_ms FROM thread_read WHERE room_id = ?`) != want {
 		t.Errorf("the thread's read position is not the later, %d", want)

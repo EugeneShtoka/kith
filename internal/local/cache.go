@@ -40,7 +40,7 @@ func (s *Service) HeldReads(ctx context.Context, of []domain.ReadPosition) ([]do
 // KeepReads keeps the read positions and unread marks made on other bridges
 // (db.Cache.KeepReads) and has the rooms they moved counted again. No network hears
 // of them: the bridge where each was made sends its receipt.
-func (s *Service) KeepReads(ctx context.Context, reads []domain.ReadPosition, marks map[domain.RoomID]bool) error {
+func (s *Service) KeepReads(ctx context.Context, reads []domain.ReadPosition, marks map[domain.RoomID]domain.UnreadMark) error {
 	if s.cache == nil {
 		return nil
 	}

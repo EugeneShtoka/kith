@@ -109,8 +109,8 @@ type RosterStore interface {
 	// Reads is every read position the mesh holds.
 	Reads() []domain.ReadPosition
 	// TakeMarks is each room's unread mark written since it was last asked, or since
-	// the store was opened.
-	TakeMarks() map[domain.RoomID]bool
+	// the store was opened, with the time it was written.
+	TakeMarks() map[domain.RoomID]domain.UnreadMark
 	// Sync runs one sync session of this bridge (signer, its device key) with the
 	// bridge peer over frames until either ends it; dialed is whether this side dialed.
 	Sync(ctx context.Context, signer crypto.Signer, peer devicekey.ID, dialed bool, frames MeshFrames, log *slog.Logger) error

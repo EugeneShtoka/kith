@@ -696,15 +696,17 @@ func (s *Store) Reads() []domain.ReadPosition {
 }
 
 // TakeMarks is each room's unread mark written since the last TakeMarks, or since the
-// store was opened: a mark arriving is set here once, so a mark the network changed
-// since (the room read on the phone) is not set back by the mesh's older one.
-func (s *Store) TakeMarks() map[domain.RoomID]bool {
+// store was opened, with the time it was written: a mark arriving is set here once, and
+// only over one the network set earlier, so a mark the network changed since (the room
+// read on the phone while this bridge's follower lagged) is not set back by the mesh's
+// older one.
+func (s *Store) TakeMarks() map[domain.RoomID]domain.UnreadMark {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := map[domain.RoomID]bool{}
+	out := map[domain.RoomID]domain.UnreadMark{}
 	for room, m := range s.state.Marks() {
 		if s.marks[room] != m.Dot {
-			out[domain.RoomID(room)], s.marks[room] = m.Marked, m.Dot
+			out[domain.RoomID(room)], s.marks[room] = domain.UnreadMark{Marked: m.Marked, At: m.Clock.Time().UnixMilli()}, m.Dot
 		}
 	}
 	return out

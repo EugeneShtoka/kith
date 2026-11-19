@@ -30,8 +30,8 @@ import (
 // every step it holds that no replica's mesh moves a position back or loses one but to
 // a merge, that each cache that looked holds what its mesh holds (filed as the cache
 // merged its chats) and what was read or reported there, no further, and nothing of a
-// room it does not run, and that a Telegram chat's mark is the later of the mesh's (as
-// it arrived) and the one set there; once settled, that no read a member made was lost
+// room it does not run, and that a Telegram chat's mark is the later of the mesh's (by
+// when it was written) and the one set there; once settled, that no read a member made was lost
 // and none is left under a merged chat's key.
 
 // modelRooms are the model's rooms: WhatsApp chats known by a LID and by a number, as
@@ -63,11 +63,12 @@ type replicaReads struct {
 	local, cached map[place]int64
 	// seen is the furthest the mesh held each place: it never moves back.
 	seen map[place]int64
-	// lastMark is the step a room's mark was last set here, not from the mesh, and
-	// localMark what to; arrived is the step each mark's write first was a room's mark
-	// here (0: held when the store was opened again, so taken as kept, not owed to the
-	// cache); rebuilt the step the cache was last rebuilt at.
-	lastMark  map[domain.RoomID]int
+	// markSet is when a room's mark was last set here, not from the mesh, since the
+	// cache was built (Unix ms, no earlier and no later than the cache's own note of it),
+	// and localMark what to; arrived is the step each mark's write first was a room's
+	// mark here (0: held when the store was opened again, so handed to the cache at its
+	// next look); rebuilt the step the cache was last rebuilt at.
+	markSet   map[domain.RoomID][2]int64
 	localMark map[domain.RoomID]bool
 	arrived   map[crdt.Dot]int
 	rebuilt   int
@@ -119,7 +120,7 @@ func (m *model) openCache(i int) {
 	}
 	r.cache, r.rebuilt = c, m.rd.step
 	r.local, r.cached = map[place]int64{}, map[place]int64{}
-	r.lastMark, r.localMark = map[domain.RoomID]int{}, map[domain.RoomID]bool{}
+	r.markSet, r.localMark = map[domain.RoomID][2]int64{}, map[domain.RoomID]bool{}
 }
 
 // reopened notes the marks replica i's store holds as it is opened again: taken as
@@ -197,8 +198,7 @@ func (m *model) read(i int, thread bool) {
 	at := m.readAt()
 	event := domain.EventID(fmt.Sprint("e", at))
 	if p.root == "" {
-		m.must(r.cache.SaveUnread(m.ctx, domain.Unread{RoomID: room, ReadEvent: event}, at))
-		r.lastMark[room], r.localMark[room] = m.rd.step, false
+		m.must(r.setMark(room, false, func() error { return r.cache.SaveUnread(m.ctx, domain.Unread{RoomID: room, ReadEvent: event}, at) }))
 	} else {
 		m.must(r.cache.SaveThreadRead(m.ctx, room, p.root, event, at))
 	}
@@ -221,8 +221,7 @@ func (m *model) mark(i int) {
 		return
 	}
 	marked := m.rng.IntN(2) == 0
-	m.must(r.cache.SaveUnread(m.ctx, domain.Unread{RoomID: room, Marked: marked}, 0))
-	r.lastMark[room], r.localMark[room] = m.rd.step, marked
+	m.must(r.setMark(room, marked, func() error { return r.cache.SaveUnread(m.ctx, domain.Unread{RoomID: room, Marked: marked}, 0) }))
 	m.must(m.r[i].store.MarkUnread(m.ctx, m.r[i].key, room, marked))
 }
 
@@ -238,9 +237,20 @@ func (m *model) networkReport(i int) {
 	}
 	at := m.readAt() - int64(m.rng.IntN(120_000))
 	marked := telegram(room) && m.rng.IntN(3) == 0
-	m.must(r.cache.SaveUnread(m.ctx, domain.Unread{RoomID: room, ReadEvent: domain.EventID(fmt.Sprint("n", at)), Marked: marked}, at))
+	m.must(r.setMark(room, marked, func() error {
+		return r.cache.SaveUnread(m.ctx, domain.Unread{RoomID: room, ReadEvent: domain.EventID(fmt.Sprint("n", at)), Marked: marked}, at)
+	}))
 	p := place{room: room}
-	r.local[p], r.lastMark[room], r.localMark[room] = max(r.local[p], at), m.rd.step, marked
+	r.local[p] = max(r.local[p], at)
+}
+
+// setMark sets room's mark here, not from the mesh, by set: noting when, as the
+// milliseconds set ran in.
+func (r *replicaReads) setMark(room domain.RoomID, marked bool, set func() error) error {
+	from := time.Now().UnixMilli()
+	err := set()
+	r.markSet[room], r.localMark[room] = [2]int64{from, time.Now().UnixMilli()}, marked
+	return err
 }
 
 // followAll has every replica's cache follow its store.
@@ -323,17 +333,20 @@ func (m *model) checkReads(followed []bool) {
 }
 
 // checkMesh holds that replica i's mesh moved no position back, and dropped none but
-// one of a room it holds merged into another (moved there).
+// one of a room it holds merged into another (moved there). A merged room's own key may
+// go back while the room it joined holds as far: a fold deletes only the values it saw,
+// so an older one written beside them shows until the next fold moves it too.
 func (m *model) checkMesh(i int) {
 	r := &m.r[i].reads
 	aliases := m.r[i].store.Aliases()
 	now := map[place]int64{}
 	for _, p := range m.r[i].store.Reads() {
-		q := place{p.Room, p.Root}
-		if p.At < r.seen[q] {
-			m.t.Fatalf("replica %d's mesh moved the read position of %v back from %d to %d", i, q, r.seen[q], p.At)
+		now[place{p.Room, p.Root}] = p.At
+	}
+	for q, at := range now {
+		if at < r.seen[q] && (aliases[q.room] == "" || now[place{aliases[q.room], q.root}] < r.seen[q]) {
+			m.t.Fatalf("replica %d's mesh moved the read position of %v back from %d to %d", i, q, r.seen[q], at)
 		}
-		now[q] = p.At
 	}
 	for q := range r.seen {
 		if _, held := now[q]; !held && aliases[q.room] == "" {
@@ -402,26 +415,31 @@ func (m *model) checkCache(i int) {
 		cachedMarks[u.RoomID] = u.Marked
 	}
 	// A WhatsApp chat's mark is filed as the cache merged it; convergence holds its mesh
-	// to the others'. A Telegram chat's mark is the later of the mesh's newest, as it
-	// arrived, and the one set here: never the mesh's set again over a later one here.
+	// to the others'. A Telegram chat's mark is the later written of the mesh's newest,
+	// once handed to the cache, and the one set here: never the mesh's set over one set
+	// here after it was written, however late it arrived.
 	marks := marksOf(m.r[i].store)
 	for room := range r.rooms {
 		if domain.NetworkOf(string(room)) != domain.ProtocolTelegram {
 			continue
 		}
 		w, inMesh := marks[room]
+		set, local := r.markSet[room]
+		written := w.Clock.Time().UnixMilli()
 		want := false
 		switch at := r.arrived[w.Dot]; {
-		case inMesh && at > r.rebuilt && at > r.lastMark[room]:
+		case inMesh && at == 0 && (!local || written >= set[0]):
+			continue // held as the store opened: handed over at the next look, unless rebuilt since
+		case inMesh && at > r.rebuilt && local && written >= set[0] && written <= set[1]:
+			continue // written in the milliseconds the one here was set in: either is kept
+		case inMesh && at > r.rebuilt && (!local || written > set[1]):
 			want = w.Marked
-		case r.lastMark[room] > 0:
+		case local:
 			want = r.localMark[room]
-		case inMesh && at == 0:
-			continue // held as the store opened, never given to the cache: what it was before
 		}
 		if cachedMarks[room] != want {
-			m.t.Fatalf("replica %d's cache holds %s marked %v, want %v (mesh %+v arrived at step %d, set here at step %d, rebuilt at %d)",
-				i, room, cachedMarks[room], want, w, r.arrived[w.Dot], r.lastMark[room], r.rebuilt)
+			m.t.Fatalf("replica %d's cache holds %s marked %v, want %v (mesh %+v written at %d, arrived at step %d; set here at %v; rebuilt at step %d)",
+				i, room, cachedMarks[room], want, w, written, r.arrived[w.Dot], set, r.rebuilt)
 		}
 	}
 }
