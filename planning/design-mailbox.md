@@ -1,6 +1,7 @@
 # Design: the mailbox, a mesh peer that cannot read (an addition to Phase 2b)
 
-Status: proposed 2026-11-01, nothing decided yet (the questions are at the end). It adds to
+Status: proposed 2026-11-01; its questions (at the end) all decided by 2026-11-18. Step 5a
+(sealed ops) comes before mesh step 5, and the mailbox itself (step 9) after step 8. It adds to
 [design-mesh.md](design-mesh.md), which it does not change except where
 [What steps 5–8 must not assume](#what-steps-58-must-not-assume) says so. Nothing here is
 built yet.
@@ -76,9 +77,12 @@ message Sealed {
   holds both for every op.
 - **Additional data binds the clear fields**: a mailbox that moves a box to another
   origin or seq produces an envelope that does not open.
-- **Padding**: `body ‖ sig` is padded to the next of 256 B, 1 KiB, 4 KiB, then a
-  multiple of 4 KiB, so a read position, a draft and a config write do not tell
-  themselves apart by size. The 1 MiB bound on an op stays.
+- **Padding**: `body ‖ sig` is padded to the next multiple of 4 KiB, so a read
+  position, a draft and a config write do not tell themselves apart by size. The 1 MiB
+  bound on an op stays.
+- **The cipher** is AES-256-GCM from the standard library, the media archive's cipher.
+  Its 96-bit nonces are random, which stays safe only well below 2³² boxes under one
+  key, so a bridge makes a new epoch once it has sealed 2²⁸ under the current one (Keys).
 - **The clock and the context are inside the box.** The mailbox cannot order ops by
   causality. It does not need to: it sends each origin's ops in seq order, and the
   receiver holds back what it cannot apply yet, as it already does (causal delivery).
@@ -124,6 +128,8 @@ exchange them in Hello.
   (it held those keys), and none after. That is the best a shared key can do, and it
   matches the mesh's rule for a removal (it stops new writes, and undoes none): here it
   stops new reads, and undoes none;
+- **when a bridge has sealed 2²⁸ ops** under the current epoch, by that bridge, so that
+  random AES-GCM nonces never come near a collision;
 - **when a bridge joins**: the confirming bridge adds a wrap for the newcomer to the
   current epoch's record. The newcomer starts from a snapshot sealed under that epoch, so
   it never needs older keys.
@@ -149,7 +155,7 @@ of a mailbox that cannot read. A user may choose to keep a way back:
   adopts them today, `adopt` in `internal/mesh`), and starts a new epoch.
   The old roster is kept as history. Devices pair again.
 - **A passphrase instead of a key** would let whoever runs the mailbox try passwords
-  offline against the wrap. It is not offered unless a question below decides otherwise.
+  offline against the wrap. It is not offered (question 3).
 
 ## Admission
 
@@ -301,18 +307,38 @@ Each PR lands working, with a failure review as design-mesh.md asks.
   new genesis from the newest snapshot. **Failure review**: recovery from a mailbox
   alone, from a mailbox holding an old snapshot, and with a wrong key.
 
+## A relay to a bridge behind NAT (an idea, undecided)
+
+A bridge at home behind NAT cannot be dialled from a phone on mobile data. A relay that
+both dial out to, and that passes the TLS stream between them live, would let them reach
+each other without port forwarding or Tailscale. It stores nothing, so unlike the
+mailbox it holds no ops, sealed or not, and it never sees inside the pinned mutual TLS.
+It came up as part of a possible paid tier (one subscription tiered by backup size, with
+the mailbox and the relay included); that is not decided. It answers the same need as
+design-clients.md's open question 2 (WAN discovery), which is decided for now as
+Tailscale, documented and not built (2026-11-18); the relay stays an idea for the paid
+tier.
+
 ## Questions to decide
 
-1. **Seal between bridges too**, so there is one format and every op carries its
-   envelope (proposed), or seal only for mailboxes?
-2. **The cipher**: XChaCha20-Poly1305, whose random 192-bit nonces are safe without
-   counters (proposed), or AES-256-GCM?
-3. **Recovery**: a random recovery key only (proposed), also a passphrase (weaker against
-   the mailbox), or nothing?
-4. **Padding buckets** as above, or none (smaller, and leaks the kind of write)?
-5. **Ops already written by steps 1–4** reach a mailbox only through a snapshot
-   (proposed), or are re-sealed by a migration? The mesh has no release behind it yet.
-6. **Admission to a self-hosted mailbox** by pairing, as above (proposed), or by a token
-   in its config?
-7. **Where this goes in the order**: step 5a before step 5 (proposed, so the config never
-   crosses unsealed), with the mailbox itself after step 8?
+Decided 2026-11-10 (Eugene): 1, seal between bridges too; 4, pad every op to a multiple
+of 4 KiB; 7, step 5a before step 5. Decided 2026-11-17: 2, AES-256-GCM. Decided
+2026-11-18: 3, a random recovery key only; 5, old ops only through a snapshot; 6,
+admission by pairing; 7, the mailbox itself (step 9) after step 8. Every question here
+is decided.
+
+1. ~~**Seal between bridges too**~~, so there is one format and every op carries its
+   envelope. *Decided: yes.*
+2. ~~**The cipher**~~: AES-256-GCM, standard library only, the media archive's cipher.
+   *Decided.* (XChaCha20-Poly1305 was proposed.)
+3. ~~**Recovery**~~: a random recovery key only, as kithd's own recovery key is.
+   *Decided.* (A passphrase as well was weaker against whoever holds the mailbox's data;
+   no recovery at all was the other option.)
+4. ~~**Padding**~~: every op padded to a multiple of 4 KiB. *Decided.*
+5. ~~**Ops already written by steps 1–4**~~ reach a mailbox only through a snapshot.
+   *Decided.* No migration re-seals them; the mesh has no release behind it.
+6. ~~**Admission to a self-hosted mailbox**~~ by pairing, as a device pairs with a bridge.
+   *Decided.* (A token in its config was the other option.)
+7. ~~**Where this goes in the order**~~: step 5a before step 5, so the config never
+   crosses unsealed. *Decided.* The mailbox itself (step 9) follows step 8. *Decided
+   2026-11-18.*
