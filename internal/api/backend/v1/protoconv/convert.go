@@ -21,6 +21,7 @@ func RoomToProto(r domain.Room) *v1.Room {
 		Membership:       string(r.Membership),
 		InvitedBy:        r.InvitedBy,
 		InvitedByKnownAs: r.InvitedByKnownAs,
+		InvitedByShownAs: r.InvitedByShownAs,
 		Replacement:      string(r.Replacement),
 		Topic:            r.Topic,
 		Archived:         r.Archived,
@@ -86,7 +87,7 @@ func ProtoToPoll(pb *v1.Poll) *domain.Poll {
 func PollVotersToProto(v domain.PollVoters) *v1.PollVotersResponse {
 	voters := make([]*v1.PollVoter, len(v.Voters))
 	for i, voter := range v.Voters {
-		voters[i] = &v1.PollVoter{Id: voter.ID, Name: voter.Name, KnownAs: voter.KnownAs, Options: voter.Options}
+		voters[i] = &v1.PollVoter{Id: voter.ID, Name: voter.Name, KnownAs: voter.KnownAs, ShownAs: voter.ShownAs, Options: voter.Options}
 	}
 	return &v1.PollVotersResponse{Voters: voters, Hidden: pollHidings[v.Hidden]}
 }
@@ -100,7 +101,7 @@ func ProtoToPollVoters(pb *v1.PollVotersResponse) domain.PollVoters {
 		}
 	}
 	for _, voter := range pb.GetVoters() {
-		out.Voters = append(out.Voters, domain.PollVoter{ID: voter.GetId(), Name: voter.GetName(), KnownAs: voter.GetKnownAs(), Options: voter.GetOptions()})
+		out.Voters = append(out.Voters, domain.PollVoter{ID: voter.GetId(), Name: voter.GetName(), KnownAs: voter.GetKnownAs(), ShownAs: voter.GetShownAs(), Options: voter.GetOptions()})
 	}
 	return out
 }
@@ -129,7 +130,7 @@ func MediaToProto(m *domain.Media) *v1.Media {
 // MentionsToProto converts @-mentions, preserving order.
 func MentionsToProto(ms []domain.Mention) []*v1.Mention {
 	return mapSlice(ms, func(m domain.Mention) *v1.Mention {
-		return &v1.Mention{UserId: m.UserID, Name: m.Name, RoomId: m.RoomID, Known: m.Known, KnownAs: m.KnownAs}
+		return &v1.Mention{UserId: m.UserID, Name: m.Name, RoomId: m.RoomID, Known: m.Known, KnownAs: m.KnownAs, ShownAs: m.ShownAs}
 	})
 }
 
@@ -191,6 +192,7 @@ func MessageToProto(m domain.Message) *v1.Message {
 		Sender:           m.Sender,
 		SenderName:       m.SenderName,
 		SenderKnownAs:    m.SenderKnownAs,
+		SenderShownAs:    m.SenderShownAs,
 		Body:             m.Body,
 		Format:           FormattedToProto(m.Format),
 		Timestamp:        toProtoTime(m.Timestamp),
@@ -234,6 +236,7 @@ func ProtoToRoom(pb *v1.Room) domain.Room {
 		Membership:       domain.Membership(pb.GetMembership()),
 		InvitedBy:        pb.GetInvitedBy(),
 		InvitedByKnownAs: pb.GetInvitedByKnownAs(),
+		InvitedByShownAs: pb.GetInvitedByShownAs(),
 		Replacement:      domain.RoomID(pb.GetReplacement()),
 		Topic:            pb.GetTopic(),
 		Archived:         pb.GetArchived(),
@@ -272,7 +275,7 @@ func ProtoToMedia(pb *v1.Media) *domain.Media {
 // ProtoToMentions converts @-mentions back.
 func ProtoToMentions(pb []*v1.Mention) []domain.Mention {
 	return mapSlice(pb, func(m *v1.Mention) domain.Mention {
-		return domain.Mention{UserID: m.GetUserId(), Name: m.GetName(), RoomID: m.GetRoomId(), Known: m.GetKnown(), KnownAs: m.GetKnownAs()}
+		return domain.Mention{UserID: m.GetUserId(), Name: m.GetName(), RoomID: m.GetRoomId(), Known: m.GetKnown(), KnownAs: m.GetKnownAs(), ShownAs: m.GetShownAs()}
 	})
 }
 
@@ -287,6 +290,7 @@ func ProtoToMessage(pb *v1.Message) domain.Message {
 		Sender:         pb.GetSender(),
 		SenderName:     pb.GetSenderName(),
 		SenderKnownAs:  pb.GetSenderKnownAs(),
+		SenderShownAs:  pb.GetSenderShownAs(),
 		Body:           pb.GetBody(),
 		Format:         ProtoToFormatted(pb.GetFormat()),
 		Timestamp:      fromProtoTime(pb.GetTimestamp()),

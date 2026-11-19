@@ -139,14 +139,14 @@ func ProtoToUnreads(pb []*v1.Unread) []domain.Unread {
 // MembersToProto converts a room's members.
 func MembersToProto(ms []domain.Member) []*v1.Member {
 	return mapSlice(ms, func(m domain.Member) *v1.Member {
-		return &v1.Member{UserId: m.UserID, DisplayName: m.DisplayName, KnownAs: m.KnownAs}
+		return &v1.Member{UserId: m.UserID, DisplayName: m.DisplayName, KnownAs: m.KnownAs, ShownAs: m.ShownAs}
 	})
 }
 
 // ProtoToMembers converts a room's members back.
 func ProtoToMembers(pb []*v1.Member) []domain.Member {
 	return mapSlice(pb, func(m *v1.Member) domain.Member {
-		return domain.Member{UserID: m.GetUserId(), DisplayName: m.GetDisplayName(), KnownAs: m.GetKnownAs()}
+		return domain.Member{UserID: m.GetUserId(), DisplayName: m.GetDisplayName(), KnownAs: m.GetKnownAs(), ShownAs: m.GetShownAs()}
 	})
 }
 
@@ -162,7 +162,7 @@ func StringsToRoomIDs(ss []string) []domain.RoomID {
 
 // ActivityToProto converts who is typing in a room.
 func ActivityToProto(a domain.Activity) *v1.Activity {
-	return &v1.Activity{RoomId: string(a.RoomID), Typing: append([]string(nil), a.Typing...), TypingKnownAs: append([]string(nil), a.TypingKnownAs...)}
+	return &v1.Activity{RoomId: string(a.RoomID), Typing: append([]string(nil), a.Typing...), TypingKnownAs: append([]string(nil), a.TypingKnownAs...), TypingShownAs: append([]string(nil), a.TypingShownAs...)}
 }
 
 // ProtoToActivity converts a room's activity back.
@@ -173,6 +173,7 @@ func ProtoToActivity(pb *v1.Activity) domain.Activity {
 	return domain.Activity{
 		RoomID: domain.RoomID(pb.GetRoomId()), Typing: append([]string(nil), pb.GetTyping()...),
 		TypingKnownAs: append([]string(nil), pb.GetTypingKnownAs()...),
+		TypingShownAs: append([]string(nil), pb.GetTypingShownAs()...),
 	}
 }
 

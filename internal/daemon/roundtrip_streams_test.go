@@ -64,6 +64,7 @@ func TestEveryStreamRoundTrips(t *testing.T) {
 	wantInvites := []domain.Room{{ID: mx + "!invite:example.org", Name: "Book club", Membership: domain.MembershipInvite, InvitedBy: "matrix:@ada:example.org"}}
 	fake.Invs <- []domain.Room{wantInvites[0]}
 	wantInvites[0].InvitedByKnownAs = "ada" // kithd names the inviter, here by the ID alone
+	wantInvites[0].InvitedByShownAs = "ada"
 	if got := take(t, r.Invites(), "Invites()"); !reflect.DeepEqual(got, wantInvites) {
 		t.Errorf("Invites() = %+v, want %+v", got, wantInvites)
 	}
