@@ -118,6 +118,7 @@ func (n Nop) Activity() <-chan domain.Activity                                  
 func (n Nop) Attached() <-chan bool                                                    { return n.Attach }
 func (n Nop) Verifications() <-chan domain.Verification                                { return n.Verifs }
 func (Nop) StartVerification(context.Context, domain.RoomOwner) (string, error)        { return "", nil }
+func (Nop) VerifyPerson(context.Context, domain.RoomID) (string, error)                { return "", nil }
 func (Nop) AcceptVerification(context.Context, string) error                           { return nil }
 func (Nop) ConfirmSAS(context.Context, string) error                                   { return nil }
 func (Nop) CancelVerification(context.Context, string) error                           { return nil }

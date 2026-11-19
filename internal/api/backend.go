@@ -360,6 +360,9 @@ type Verification interface {
 	// StartVerification asks this account's other devices to verify this one and
 	// returns the transaction ID.
 	StartVerification(ctx context.Context, on domain.RoomOwner) (string, error)
+	// VerifyPerson asks the other person in the direct chat roomID to verify each
+	// other, in the room, and returns the transaction ID.
+	VerifyPerson(ctx context.Context, roomID domain.RoomID) (string, error)
 	AcceptVerification(ctx context.Context, txnID string) error
 	ConfirmSAS(ctx context.Context, txnID string) error
 	CancelVerification(ctx context.Context, txnID string) error

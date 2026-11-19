@@ -106,7 +106,7 @@ var namedFields = map[protoreflect.FullName]nameKind{
 
 	// What a message says, and who it names: text, a person, an emoji, a reason.
 	"backend.v1.Draft.body": notARoom, "backend.v1.Draft.txn_id": notARoom, "backend.v1.Mention.user_id": notARoom,
-	"backend.v1.Mention.name": notARoom, "backend.v1.Mention.known": notARoom, "backend.v1.Mention.known_as": notARoom, "backend.v1.RedactRequest.reason": notARoom,
+	"backend.v1.Mention.name": notARoom, "backend.v1.Mention.known": notARoom, "backend.v1.Mention.known_as": notARoom, "backend.v1.Mention.shown_as": notARoom, "backend.v1.RedactRequest.reason": notARoom,
 	"backend.v1.SendFileRequest.caption": notARoom, "backend.v1.SendFileRequest.name": notARoom,
 	"backend.v1.StartUploadRequest.name": notARoom, "backend.v1.PreviewChatImportRequest.upload_id": notARoom,
 	"backend.v1.PreviewChatImportRequest.zone": notARoom, "backend.v1.ChatImportSendersRequest.upload_id": notARoom,
@@ -175,7 +175,7 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	// An account (domain.RoomOwner), a network: every profile's.
 	"backend.v1.PublicRoomsRequest.on": notARoom, "backend.v1.CreateRoomRequest.on": notARoom,
 	"backend.v1.ResolveLinkRequest.on": notARoom, "backend.v1.JoinLinkRequest.on": notARoom,
-	"backend.v1.StartVerificationRequest.on": notARoom, "backend.v1.BeginLoginRequest.network": notARoom,
+	"backend.v1.StartVerificationRequest.on": notARoom, "backend.v1.VerifyPersonRequest.room_id": aRoom, "backend.v1.BeginLoginRequest.network": notARoom,
 	"backend.v1.BeginLoginRequest.account": notARoom, "backend.v1.PreviewGroupingsRequest.network": notARoom,
 	"backend.v1.PreviewGroupingsRequest.account": notARoom, "backend.v1.ApplyGroupingsRequest.network": notARoom,
 	"backend.v1.ApplyGroupingsRequest.account": notARoom,

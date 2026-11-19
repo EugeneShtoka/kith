@@ -316,7 +316,7 @@ key.
 | --- | --- | --- | --- |
 | *(top level)* | config, but `terminal` and `profile_in_use` device | `allow_token_file`, `terminal`, `bridge_contacts`, and `profile_in_use`, the profile a window runs in. | [getting-started.md](getting-started.md), [Profiles](#profiles) |
 | `[matrix]` | config | The Matrix accounts (`[[matrix.account]]`) and which is the default. | [Matrix accounts](#matrix-accounts) |
-| `[display]` | config: `time_format`, `long_date_format`, `short_date_format`, `priority`, `room_name_rules`, `unread`, `[[display.space_rule]]`, `[[display.identity]]`, `[[display.name]]`; device: the rest, `[[display.read_rule]]` included | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, how times and dates are written (`time_format`, `long_date_format`, `short_date_format`), and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
+| `[display]` | config: `time_format`, `long_date_format`, `short_date_format`, `priority`, `first_name_only`, `room_name_rules`, `unread`, `[[display.name_rule]]`, `[[display.space_rule]]`, `[[display.identity]]`, `[[display.name]]`; device: the rest, `[[display.read_rule]]` included | How the client looks and reads: name widths, mouse, links, the unread line, typing notices, read receipts, what a badge counts, the `priority` of homes, name rules, identities, your own names for things, how times and dates are written (`time_format`, `long_date_format`, `short_date_format`), and the emoji skin tone (`skin_tone`). | [usage.md](usage.md) |
 | `[display.emoji]` | device | Emoji set size (`curated`, `standard`, `complete`) and your own shortcodes. | [composer.md](composer.md) |
 | `[display.tracked]` | config | Words highlighted wherever they are said and listed by `/tracked`, optionally with notifications. | [search.md](search.md) |
 | `[display.rail]` | config | Order, dividers and visibility of the spaces rail. | [usage.md](usage.md) |
@@ -389,7 +389,7 @@ order` / `hidden` / `hide_when_empty`, `[[display.space_rule]] space` and
 target` takes `room:<room ID>` or a rail row.
 
 **A room ID or a rail row** is what `match` takes in `[[display.read_rule]]`,
-`[[display.media.rule]]` and `[[display.threads.rule]]`, for example
+`[[display.name_rule]]`, `[[display.media.rule]]` and `[[display.threads.rule]]`, for example
 `match = "space:Work"`; a row there is the room's first home ([display] priority).
 
 **Their own keys:**

@@ -658,6 +658,7 @@ func TestWithoutMatrixNothingLiveReachesIt(t *testing.T) {
 		_, actions["ThreadPage"] = r.ThreadPage(ctx, matrixRoomID, mx+"$r", "", 10)
 		actions["MarkThreadRead"] = r.MarkThreadRead(ctx, matrixRoomID, mx+"$r", mx+"$e", false)
 		_, actions["StartVerification"] = r.StartVerification(ctx, domain.RoomOwner(mx))
+		_, actions["VerifyPerson"] = r.VerifyPerson(ctx, matrixRoomID)
 		actions["AcceptVerification"] = r.AcceptVerification(ctx, "t")
 		actions["ConfirmSAS"] = r.ConfirmSAS(ctx, "t")
 		actions["CancelVerification"] = r.CancelVerification(ctx, "t")

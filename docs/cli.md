@@ -94,7 +94,9 @@ kith backup [--config path] [--no-media] [--new-key] [file]
 ```
 
 Writes your history, config, local records and pictures into one file encrypted to your
-backup key: `file`, or a dated one in `[storage] export_dir`. kithd may keep running.
+backup key: `file`, or a dated one in the backups folder, where kithd's scheduled ones
+are kept and deleted with it (see `keep` in [usage.md](usage.md#backing-up-and-moving-to-a-new-machine)).
+kithd may keep running.
 The first backup makes the key and prints its private half once (`AGE-SECRET-KEY-1…`),
 then offers to save it to a file; it is the only way to restore. Each backup lists what
 went in, with sizes, and what it leaves out (network sessions, and what refills

@@ -118,7 +118,7 @@ export function pills(text: string, mentions: readonly Mention[], classOf: (pers
     for (let from = text.indexOf(m.name); from >= 0; from = text.indexOf(m.name, from + 1)) {
       const end = from + m.name.length;
       if (!out.some((p) => p.start < end && from < p.end)) {
-        out.push({ start: from, end, className: classOf(m.userId), name: m.knownAs });
+        out.push({ start: from, end, className: classOf(m.userId), name: m.shownAs || m.knownAs });
         break;
       }
     }

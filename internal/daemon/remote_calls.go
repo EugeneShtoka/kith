@@ -846,6 +846,11 @@ func (r *Remote) StartVerification(ctx context.Context, on domain.RoomOwner) (st
 	return resp.GetTxnId(), err
 }
 
+func (r *Remote) VerifyPerson(ctx context.Context, roomID domain.RoomID) (string, error) {
+	resp, err := call(ctx, "verify person", r.c.VerifyPerson, &v1.VerifyPersonRequest{RoomId: string(roomID)})
+	return resp.GetTxnId(), err
+}
+
 func (r *Remote) AcceptVerification(ctx context.Context, txnID string) error {
 	_, err := call(ctx, "accept verification", r.c.AcceptVerification, &v1.AcceptVerificationRequest{TxnId: txnID})
 	return err

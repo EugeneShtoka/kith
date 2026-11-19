@@ -338,7 +338,7 @@ func (m Model) personOf(member domain.Member) (person, name string) {
 	name = m.memberName(member)
 	// The open room's space rule, as the timeline names them; never truncated, since
 	// the name goes into the message.
-	rule := m.nameRuleFor(m.ownSpace(m.openRoom))
+	rule := m.nameRuleIn(m.openRoom, m.ownSpace(m.openRoom), member.UserID)
 	rule.width = 0
 	return person, rule.apply(name)
 }
