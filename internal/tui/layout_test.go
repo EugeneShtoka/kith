@@ -255,8 +255,8 @@ func TestTheListFollowsTheSpaceAndTheTimelineDoesNot(t *testing.T) {
 	t.Parallel()
 
 	m, _ := laidOut(t, config.Display{
-		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
-		Priority:   []string{"Friends", "Work"},
+		NameRules: []config.NameRule{{Match: "space:Work", FirstNameOnly: new(true)}},
+		Priority:  []string{"Friends", "Work"},
 	})
 	// A DM in Friends and Work, ranked so Friends (no rule) is its own space rather than the DMs
 	// tag.
@@ -278,7 +278,7 @@ func TestTheListFollowsTheSpaceAndTheTimelineDoesNot(t *testing.T) {
 		t.Errorf("listed under Work, the row is %q, want Work's rule applied", got)
 	}
 	// Opening the room from Work must not reshape the conversation inside it.
-	if got := m.shapedName("Michael Livingston", mx+"!a:x"); got != "Michael Livingston" {
+	if got := m.shapedName("Michael Livingston", mx+"!a:x", ""); got != "Michael Livingston" {
 		t.Errorf("the sender label is %q, want the room's own space to decide", got)
 	}
 
@@ -293,7 +293,7 @@ func TestASpanningGroupLeavesTheRoomsOwnSpaceToDecide(t *testing.T) {
 	t.Parallel()
 
 	m, _ := laidOut(t, config.Display{
-		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
+		NameRules: []config.NameRule{{Match: "space:Work", FirstNameOnly: new(true)}},
 	})
 	for _, key := range []string{homeGroupKey, dmsGroupKey, unreadGroupKey} {
 		m.rail.cursor = indexOfGroup(m.rail.groups, key)
@@ -305,8 +305,41 @@ func TestASpanningGroupLeavesTheRoomsOwnSpaceToDecide(t *testing.T) {
 		}
 	}
 	// A room in no space has no rule either way, but still gets the global half (the width cap).
-	if m.nameRuleFor(m.ownSpace(mx + "!nowhere:x")).firstOnly {
+	if m.nameRuleIn(mx+"!nowhere:x", m.ownSpace(mx+"!nowhere:x"), "").rule.FirstOnly() {
 		t.Error("a room in no space matched a space rule")
+	}
+}
+
+// A room's name rule wins whole over its space's, one person's over the room's, and
+// [display] first_name_only names the rest.
+func TestTheNarrowestNameRuleShapesASender(t *testing.T) {
+	t.Parallel()
+
+	m, _ := laidOut(t, config.Display{
+		FirstNameOnly: true,
+		NameRules: []config.NameRule{
+			{Match: "space:Work", FirstNameOnly: new(false)},
+			{Match: mx + "!a:x", Strip: `\s*\(WA\)$`, FirstNameOnly: new(true)},
+			{Match: mx + "!a:x", Sender: "matrix:@sveta:x", Name: "Sveta"},
+		},
+	})
+	m = update(t, m, roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}, {ID: mx + "!b:x", Name: "Bravo"}, {ID: mx + "!c:x", Name: "Charlie"}}})
+	m = update(t, m, spacesMsg{spaces: []domain.Space{
+		{ID: mx + "!w:x", Name: "Work", Children: []domain.RoomID{mx + "!a:x", mx + "!c:x"}},
+		{ID: mx + "!f:x", Name: "Friends", Children: []domain.RoomID{mx + "!b:x"}},
+	}})
+	if got := m.ownSpace(mx + "!c:x"); got != "Work" {
+		t.Fatalf("precondition: Charlie's home is %q, want Work", got)
+	}
+	for _, c := range []struct{ room, sender, name, want string }{
+		{mx + "!a:x", "matrix:@dana:x", "Dana Levi (WA)", "Dana"},
+		{mx + "!a:x", "matrix:@sveta:x", "neke", "Sveta"},
+		{mx + "!c:x", "matrix:@dana:x", "Dana Levi (WA)", "Dana Levi (WA)"},
+		{mx + "!b:x", "matrix:@dana:x", "Dana Levi", "Dana"},
+	} {
+		if got := m.shapedName(c.name, domain.RoomID(c.room), c.sender); got != c.want {
+			t.Errorf("%s in %s shows as %q, want %q", c.name, c.room, got, c.want)
+		}
 	}
 }
 
@@ -315,7 +348,7 @@ func TestTheWidthCapIsForSenderLabelsOnly(t *testing.T) {
 	t.Parallel()
 
 	m, _ := laidOut(t, config.Display{}, config.DeviceDisplay{MaxNameLength: 6})
-	if got := m.shapedName("Michael Livingston", mx+"!a:x"); got != "Micha…" {
+	if got := m.shapedName("Michael Livingston", mx+"!a:x", ""); got != "Micha…" {
 		t.Errorf("sender label = %q, want it capped at 6", got)
 	}
 	long := domain.Room{ID: mx + "!a:x", Name: "Beer & Escape Room Planning"}

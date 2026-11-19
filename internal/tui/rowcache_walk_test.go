@@ -45,8 +45,8 @@ func walkRowInputs(t *testing.T, seed uint64, steps int) {
 	}()
 
 	display := config.Display{
-		SpaceRules: []config.SpaceRule{{Space: "space:Work", FirstNameOnly: true}},
-		Tracked:    config.Tracked{Rules: []config.TrackedRule{{Words: []string{"word3"}, In: []string{"room:Alpha"}}}},
+		NameRules: []config.NameRule{{Match: "space:Work", FirstNameOnly: new(true)}},
+		Tracked:   config.Tracked{Rules: []config.TrackedRule{{Words: []string{"word3"}, In: []string{"room:Alpha"}}}},
 	}
 	m := update(t, starterNew(&quoteBackend{}, display, config.DeviceDisplay{Media: config.Media{Mode: "inline"}}),
 		roomsMsg{rooms: []domain.Room{{ID: mx + "!a:x", Name: "Alpha"}}})

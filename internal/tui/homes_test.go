@@ -13,7 +13,7 @@ func TestATagIsAHomeForRules(t *testing.T) {
 	t.Parallel()
 	cfg := config.Config{Tags: []config.Tag{{Name: "Family", Rule: []string{"dm"}}}}
 	cfg.Display.Priority = []string{"tag:Family", "space:Friends"}
-	cfg.Display.SpaceRules = []config.SpaceRule{{Space: "tag:Family", FirstNameOnly: true}}
+	cfg.Display.NameRules = []config.NameRule{{Match: "tag:Family", FirstNameOnly: new(true)}}
 	dm := domain.Room{ID: mx + "!a:x", Name: "Michael Livingston", Members: []string{"Michael Livingston"}, IsDirect: true}
 	other := domain.Room{ID: mx + "!o:x", Name: "Other"} // so Family does not hold every room
 	m := update(t, configured(cfg), roomsMsg{rooms: []domain.Room{dm, other}})
