@@ -61,6 +61,10 @@ type Network interface {
 	GroupByInvite(ctx context.Context, req *signalv1.GroupByInviteRequest) (*signalv1.GroupByInviteResponse, error)
 	// JoinGroup joins the group an invite link is to, or asks its admins to.
 	JoinGroup(ctx context.Context, req *signalv1.JoinGroupRequest) (*signalv1.JoinGroupResponse, error)
+	// Block blocks or unblocks a person, telling the account's other devices.
+	Block(ctx context.Context, req *signalv1.BlockRequest) error
+	// Blocked is the ACIs a connected account has blocked.
+	Blocked(ctx context.Context, aci string) ([]string, error)
 }
 
 // ErrGone is an attachment Signal no longer keeps (its CDN drops them after a while).
@@ -291,6 +295,21 @@ func (s *service) JoinGroup(ctx context.Context, req *connect.Request[signalv1.J
 		return nil, connect.NewError(connect.CodeUnavailable, err)
 	}
 	return connect.NewResponse(res), nil
+}
+
+func (s *service) Block(ctx context.Context, req *connect.Request[signalv1.BlockRequest]) (*connect.Response[signalv1.BlockResponse], error) {
+	if err := s.network.Block(ctx, req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(&signalv1.BlockResponse{}), nil
+}
+
+func (s *service) Blocked(ctx context.Context, req *connect.Request[signalv1.BlockedRequest]) (*connect.Response[signalv1.BlockedResponse], error) {
+	people, err := s.network.Blocked(ctx, req.Msg.GetAccount())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	return connect.NewResponse(&signalv1.BlockedResponse{People: people}), nil
 }
 
 func wireDevice(d Device) *signalv1.Device {

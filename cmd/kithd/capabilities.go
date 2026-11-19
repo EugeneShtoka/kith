@@ -233,6 +233,7 @@ var (
 		roomsRewriter
 		cacheWriter
 		route.LinkFollower
+		route.Blocker
 	} = (*signal.Adapter)(nil)
 
 	// Instagram: signed in by cookies, the inbox and messages received, text sent,

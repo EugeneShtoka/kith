@@ -140,6 +140,9 @@ func (a *Adapter) take(ctx context.Context, h *helper, ev *signalv1.EventsRespon
 	case *signalv1.EventsResponse_Connection:
 		h.setState(self, e.Connection.GetState(), e.Connection.GetDetail())
 		a.announceAll()
+		if e.Connection.GetState() == signalv1.Connection_STATE_CONNECTED {
+			go a.RefreshBlocklist(ctx) // blocks made on the phone while kith was away
+		}
 		return nil
 	case *signalv1.EventsResponse_Message:
 		return a.takeMessage(ctx, self, e.Message)

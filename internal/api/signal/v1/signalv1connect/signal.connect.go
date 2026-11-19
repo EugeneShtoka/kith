@@ -72,6 +72,10 @@ const (
 	SignalServiceJoinGroupProcedure = "/signal.v1.SignalService/JoinGroup"
 	// SignalServicePictureProcedure is the fully-qualified name of the SignalService's Picture RPC.
 	SignalServicePictureProcedure = "/signal.v1.SignalService/Picture"
+	// SignalServiceBlockProcedure is the fully-qualified name of the SignalService's Block RPC.
+	SignalServiceBlockProcedure = "/signal.v1.SignalService/Block"
+	// SignalServiceBlockedProcedure is the fully-qualified name of the SignalService's Blocked RPC.
+	SignalServiceBlockedProcedure = "/signal.v1.SignalService/Blocked"
 )
 
 // SignalServiceClient is a client for the signal.v1.SignalService service.
@@ -125,6 +129,12 @@ type SignalServiceClient interface {
 	// version (Signal's avatar path, or the phone's contact photo's hash) and, when that
 	// is not the version kept, its bytes, decrypted.
 	Picture(context.Context, *connect.Request[v1.PictureRequest]) (*connect.Response[v1.PictureResponse], error)
+	// Block blocks a person from a connected account, or unblocks them, as the phone
+	// does: the account's other devices are told, and the helper drops their direct
+	// messages and calls from then on.
+	Block(context.Context, *connect.Request[v1.BlockRequest]) (*connect.Response[v1.BlockResponse], error)
+	// Blocked is the people a connected account has blocked, as its store keeps them.
+	Blocked(context.Context, *connect.Request[v1.BlockedRequest]) (*connect.Response[v1.BlockedResponse], error)
 }
 
 // NewSignalServiceClient constructs a client for the signal.v1.SignalService service. By default,
@@ -246,6 +256,18 @@ func NewSignalServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(signalServiceMethods.ByName("Picture")),
 			connect.WithClientOptions(opts...),
 		),
+		block: connect.NewClient[v1.BlockRequest, v1.BlockResponse](
+			httpClient,
+			baseURL+SignalServiceBlockProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Block")),
+			connect.WithClientOptions(opts...),
+		),
+		blocked: connect.NewClient[v1.BlockedRequest, v1.BlockedResponse](
+			httpClient,
+			baseURL+SignalServiceBlockedProcedure,
+			connect.WithSchema(signalServiceMethods.ByName("Blocked")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -269,6 +291,8 @@ type signalServiceClient struct {
 	groupByInvite *connect.Client[v1.GroupByInviteRequest, v1.GroupByInviteResponse]
 	joinGroup     *connect.Client[v1.JoinGroupRequest, v1.JoinGroupResponse]
 	picture       *connect.Client[v1.PictureRequest, v1.PictureResponse]
+	block         *connect.Client[v1.BlockRequest, v1.BlockResponse]
+	blocked       *connect.Client[v1.BlockedRequest, v1.BlockedResponse]
 }
 
 // Heartbeat calls signal.v1.SignalService.Heartbeat.
@@ -361,6 +385,16 @@ func (c *signalServiceClient) Picture(ctx context.Context, req *connect.Request[
 	return c.picture.CallUnary(ctx, req)
 }
 
+// Block calls signal.v1.SignalService.Block.
+func (c *signalServiceClient) Block(ctx context.Context, req *connect.Request[v1.BlockRequest]) (*connect.Response[v1.BlockResponse], error) {
+	return c.block.CallUnary(ctx, req)
+}
+
+// Blocked calls signal.v1.SignalService.Blocked.
+func (c *signalServiceClient) Blocked(ctx context.Context, req *connect.Request[v1.BlockedRequest]) (*connect.Response[v1.BlockedResponse], error) {
+	return c.blocked.CallUnary(ctx, req)
+}
+
 // SignalServiceHandler is an implementation of the signal.v1.SignalService service.
 type SignalServiceHandler interface {
 	// Heartbeat is kithd's keep-alive: the helper exits when they stop.
@@ -412,6 +446,12 @@ type SignalServiceHandler interface {
 	// version (Signal's avatar path, or the phone's contact photo's hash) and, when that
 	// is not the version kept, its bytes, decrypted.
 	Picture(context.Context, *connect.Request[v1.PictureRequest]) (*connect.Response[v1.PictureResponse], error)
+	// Block blocks a person from a connected account, or unblocks them, as the phone
+	// does: the account's other devices are told, and the helper drops their direct
+	// messages and calls from then on.
+	Block(context.Context, *connect.Request[v1.BlockRequest]) (*connect.Response[v1.BlockResponse], error)
+	// Blocked is the people a connected account has blocked, as its store keeps them.
+	Blocked(context.Context, *connect.Request[v1.BlockedRequest]) (*connect.Response[v1.BlockedResponse], error)
 }
 
 // NewSignalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -529,6 +569,18 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(signalServiceMethods.ByName("Picture")),
 		connect.WithHandlerOptions(opts...),
 	)
+	signalServiceBlockHandler := connect.NewUnaryHandler(
+		SignalServiceBlockProcedure,
+		svc.Block,
+		connect.WithSchema(signalServiceMethods.ByName("Block")),
+		connect.WithHandlerOptions(opts...),
+	)
+	signalServiceBlockedHandler := connect.NewUnaryHandler(
+		SignalServiceBlockedProcedure,
+		svc.Blocked,
+		connect.WithSchema(signalServiceMethods.ByName("Blocked")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/signal.v1.SignalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SignalServiceHeartbeatProcedure:
@@ -567,6 +619,10 @@ func NewSignalServiceHandler(svc SignalServiceHandler, opts ...connect.HandlerOp
 			signalServiceJoinGroupHandler.ServeHTTP(w, r)
 		case SignalServicePictureProcedure:
 			signalServicePictureHandler.ServeHTTP(w, r)
+		case SignalServiceBlockProcedure:
+			signalServiceBlockHandler.ServeHTTP(w, r)
+		case SignalServiceBlockedProcedure:
+			signalServiceBlockedHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -646,4 +702,12 @@ func (UnimplementedSignalServiceHandler) JoinGroup(context.Context, *connect.Req
 
 func (UnimplementedSignalServiceHandler) Picture(context.Context, *connect.Request[v1.PictureRequest]) (*connect.Response[v1.PictureResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Picture is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Block(context.Context, *connect.Request[v1.BlockRequest]) (*connect.Response[v1.BlockResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Block is not implemented"))
+}
+
+func (UnimplementedSignalServiceHandler) Blocked(context.Context, *connect.Request[v1.BlockedRequest]) (*connect.Response[v1.BlockedResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("signal.v1.SignalService.Blocked is not implemented"))
 }
