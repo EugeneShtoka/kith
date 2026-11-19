@@ -22,6 +22,9 @@ type Message struct {
 	// SenderKnownAs is the sender's name as kithd names them (People.Name), the one every
 	// client shows; stamped as kithd sends the message, never stored.
 	SenderKnownAs string
+	// SenderShownAs is SenderKnownAs as the room's name rule shows it (NameRules),
+	// stamped beside it.
+	SenderShownAs string
 	// Body is the resolved plain text: an edit's replacement, empty when redacted.
 	Body string
 	// Format is the formatting drawn over Body (see richtext.Formatted), usually none.
@@ -76,6 +79,8 @@ type Mention struct {
 	// KnownAs is the person's name as kithd names them (People.Name), stamped as kithd
 	// sends the mention and never stored.
 	KnownAs string
+	// ShownAs is KnownAs as the room's name rule shows it (NameRules), stamped beside it.
+	ShownAs string
 }
 
 // Target is the mention's person or room ID.
@@ -258,8 +263,7 @@ func combine(a, b Message) Message {
 	a.Edited = a.Edited || b.Edited
 	a.Mentioned = a.Mentioned || b.Mentioned
 	a.SenderName = cmp.Or(a.SenderName, b.SenderName)
-	// A later read names people as kithd names them now.
-	a.SenderKnownAs = cmp.Or(b.SenderKnownAs, a.SenderKnownAs)
+	a.SenderKnownAs, a.SenderShownAs = laterNames(a, b)
 	switch {
 	case a.Timestamp.IsZero():
 		a.Timestamp = b.Timestamp
@@ -302,8 +306,17 @@ func combine(a, b Message) Message {
 	return a
 }
 
+// laterNames is the sender's names as b, a later read, gives them (kithd's name now, and
+// how today's rules show it), else as a does.
+func laterNames(a, b Message) (knownAs, shownAs string) {
+	if b.SenderKnownAs == "" {
+		return a.SenderKnownAs, a.SenderShownAs
+	}
+	return b.SenderKnownAs, b.SenderShownAs
+}
+
 // mergedMentions is the mentions first seen, later's when none were, with each person's
-// KnownAs as later names them, where later mentions them too.
+// KnownAs and ShownAs as later names them, where later mentions them too.
 func mergedMentions(mentions, later []Mention) []Mention {
 	if mentions == nil {
 		return later
@@ -311,11 +324,11 @@ func mergedMentions(mentions, later []Mention) []Mention {
 	var out []Mention
 	for i := range mentions {
 		for _, l := range later {
-			if l.UserID == mentions[i].UserID && l.KnownAs != "" && l.KnownAs != mentions[i].KnownAs {
+			if l.UserID == mentions[i].UserID && l.KnownAs != "" && (l.KnownAs != mentions[i].KnownAs || l.ShownAs != mentions[i].ShownAs) {
 				if out == nil {
 					out = slices.Clone(mentions)
 				}
-				out[i].KnownAs = l.KnownAs
+				out[i].KnownAs, out[i].ShownAs = l.KnownAs, l.ShownAs
 			}
 		}
 	}

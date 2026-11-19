@@ -164,16 +164,25 @@ func knownWorld() *peopleBackend {
 	}
 }
 
-// peopleConfig aliases Svetlana's Telegram account and names Bo's chat.
+// peopleConfig aliases Svetlana's Telegram account and names Bo's chat; knownRoom shows
+// first names, and Bo by a name of his own.
 func peopleConfig() config.Config {
 	var cfg config.Config
 	cfg.Display.Identities = []config.Identity{{Alias: svetlanaName, IDs: []string{svetlana}}}
 	cfg.Display.Names = []config.DisplayName{{Target: string(boRoom), Name: "Bohdan"}}
+	cfg.Display.NameRules = []config.NameRule{
+		{Match: string(knownRoom), FirstNameOnly: new(true)},
+		{Match: string(knownRoom), Sender: bo, Name: "Bo-bo"},
+	}
 	return cfg
 }
 
-// wantNames is what kithd calls each sender of knownWorld.
-var wantNames = map[string]string{svetlana: svetlanaName, svetlanaPup: svetlanaName, danaNumber: "Dana Levi", bo: "Bohdan", cleo: "Cleo"}
+// wantNames is what kithd calls each sender of knownWorld; wantShown how knownRoom
+// shows them.
+var (
+	wantNames = map[string]string{svetlana: svetlanaName, svetlanaPup: svetlanaName, danaNumber: "Dana Levi", bo: "Bohdan", cleo: "Cleo"}
+	wantShown = map[string]string{svetlana: svetlanaName, svetlanaPup: svetlanaName, danaNumber: "Dana", bo: "Bo-bo", cleo: "Cleo"}
+)
 
 // servePeople serves b with peopleConfig's names.
 func servePeople(t *testing.T, b *peopleBackend) (*daemon.Remote, *harness, *daemon.Names) {
@@ -206,8 +215,11 @@ func TestKithdNamesPeopleInEverythingItSends(t *testing.T) {
 			if m.SenderKnownAs != wantNames[m.Sender] || m.SenderName != b.msgs[i].SenderName {
 				t.Errorf("%s: %s known as %q (network: %q), want %q (network: %q)", what, m.Sender, m.SenderKnownAs, m.SenderName, wantNames[m.Sender], b.msgs[i].SenderName)
 			}
+			if m.SenderShownAs != wantShown[m.Sender] {
+				t.Errorf("%s: %s shown as %q, want %q", what, m.Sender, m.SenderShownAs, wantShown[m.Sender])
+			}
 		}
-		if got := msgs[0].Mentions; len(got) != 1 || got[0].KnownAs != svetlanaName || got[0].Name != "@neke" {
+		if got := msgs[0].Mentions; len(got) != 1 || got[0].KnownAs != svetlanaName || got[0].ShownAs != svetlanaName || got[0].Name != "@neke" {
 			t.Errorf("%s: the mention of Svetlana = %+v, want her known as %q, the text kept", what, got, svetlanaName)
 		}
 	}
@@ -231,8 +243,8 @@ func TestKithdNamesPeopleInEverythingItSends(t *testing.T) {
 		t.Fatalf("ListThreads = %d, %v", len(threads), err)
 	}
 	for _, th := range threads {
-		if th.LatestSenderKnownAs != wantNames[th.LatestSender] {
-			t.Errorf("a thread's latest sender %s is known as %q, want %q", th.LatestSender, th.LatestSenderKnownAs, wantNames[th.LatestSender])
+		if th.LatestSenderKnownAs != wantNames[th.LatestSender] || th.LatestSenderShownAs != wantShown[th.LatestSender] {
+			t.Errorf("a thread's latest sender %s is known as %q, shown as %q; want %q, %q", th.LatestSender, th.LatestSenderKnownAs, th.LatestSenderShownAs, wantNames[th.LatestSender], wantShown[th.LatestSender])
 		}
 	}
 
@@ -241,8 +253,8 @@ func TestKithdNamesPeopleInEverythingItSends(t *testing.T) {
 		t.Fatalf("Members = %+v, %v", members, err)
 	}
 	for _, m := range members {
-		if m.KnownAs != wantNames[m.UserID] {
-			t.Errorf("member %s (%q) is known as %q, want %q", m.UserID, m.DisplayName, m.KnownAs, wantNames[m.UserID])
+		if m.KnownAs != wantNames[m.UserID] || m.ShownAs != wantShown[m.UserID] {
+			t.Errorf("member %s (%q) is known as %q, shown as %q; want %q, %q", m.UserID, m.DisplayName, m.KnownAs, m.ShownAs, wantNames[m.UserID], wantShown[m.UserID])
 		}
 	}
 
@@ -251,8 +263,8 @@ func TestKithdNamesPeopleInEverythingItSends(t *testing.T) {
 		t.Fatalf("SearchMessages = %d hits, %v", len(hits), err)
 	}
 	for _, hit := range hits {
-		if hit.SenderKnownAs != wantNames[hit.Sender] {
-			t.Errorf("a hit from %s is known as %q, want %q", hit.Sender, hit.SenderKnownAs, wantNames[hit.Sender])
+		if hit.SenderKnownAs != wantNames[hit.Sender] || hit.SenderShownAs != wantShown[hit.Sender] {
+			t.Errorf("a hit from %s is known as %q, shown as %q; want %q, %q", hit.Sender, hit.SenderKnownAs, hit.SenderShownAs, wantNames[hit.Sender], wantShown[hit.Sender])
 		}
 	}
 	if got := hits[0].Mentions; len(got) != 1 || got[0].KnownAs != svetlanaName {
@@ -276,8 +288,8 @@ func TestKithdNamesPeopleInEverythingItSends(t *testing.T) {
 		t.Fatalf("PollVoters = %+v, %v", voters, err)
 	}
 	for i, v := range voters.Voters {
-		if v.KnownAs != wantNames[v.ID] || v.Name != b.voters.Voters[i].Name {
-			t.Errorf("voter %s (network: %q) is known as %q, want %q", v.ID, v.Name, v.KnownAs, wantNames[v.ID])
+		if v.KnownAs != wantNames[v.ID] || v.Name != b.voters.Voters[i].Name || v.ShownAs != wantShown[v.ID] {
+			t.Errorf("voter %s (network: %q) is known as %q, shown as %q; want %q, %q", v.ID, v.Name, v.KnownAs, v.ShownAs, wantNames[v.ID], wantShown[v.ID])
 		}
 	}
 
@@ -329,9 +341,9 @@ func TestStreamedInvitationsAndTypingAreNamed(t *testing.T) {
 	typing := []string{cleo, svetlanaPup, danaNumber}
 	acts <- domain.Activity{RoomID: knownRoom, Typing: typing}
 	got := take(t, r.Activity(), "the client")
-	want := []string{"Cleo", svetlanaName, "Dana Levi"}
-	if !slices.Equal(got.Typing, typing) || !slices.Equal(got.TypingKnownAs, want) {
-		t.Errorf("streamed typing %q known as %q, want %q known as %q", got.Typing, got.TypingKnownAs, typing, want)
+	want, shown := []string{"Cleo", svetlanaName, "Dana Levi"}, []string{"Cleo", svetlanaName, "Dana"}
+	if !slices.Equal(got.Typing, typing) || !slices.Equal(got.TypingKnownAs, want) || !slices.Equal(got.TypingShownAs, shown) {
+		t.Errorf("streamed typing %q known as %q, shown as %q; want %q known as %q, shown as %q", got.Typing, got.TypingKnownAs, got.TypingShownAs, typing, want, shown)
 	}
 }
 
@@ -351,8 +363,9 @@ func waitNamesChanged(t *testing.T, r *daemon.Remote) {
 	}
 }
 
-// A config reload with a new alias, and a directory write that names someone anew, each
-// tell the client names changed; what it reads again carries the new names.
+// A config reload with a new alias or new name rules, and a directory write that names
+// someone anew, each tell the client names changed; what it reads again carries the new
+// names.
 func TestNamesChangedOnReloadAndOnADirectoryWrite(t *testing.T) {
 	t.Parallel()
 	b := knownWorld()
@@ -360,7 +373,7 @@ func TestNamesChangedOnReloadAndOnADirectoryWrite(t *testing.T) {
 	ctx := t.Context()
 	go func() { _ = r.Start(context.Background()) }()
 	h.waitAttached(1)
-	knownAs := func(user string) string {
+	member := func(user string) domain.Member {
 		t.Helper()
 		members, err := r.Members(ctx, knownRoom, 10)
 		if err != nil {
@@ -368,11 +381,13 @@ func TestNamesChangedOnReloadAndOnADirectoryWrite(t *testing.T) {
 		}
 		for _, m := range members {
 			if m.UserID == user {
-				return m.KnownAs
+				return m
 			}
 		}
-		return ""
+		return domain.Member{}
 	}
+	knownAs := func(user string) string { t.Helper(); return member(user).KnownAs }
+	shownAs := func(user string) string { t.Helper(); return member(user).ShownAs }
 	if got := knownAs(svetlana); got != svetlanaName {
 		t.Fatalf("before: %q, want %q", got, svetlanaName)
 	}
@@ -384,6 +399,21 @@ func TestNamesChangedOnReloadAndOnADirectoryWrite(t *testing.T) {
 	if got := knownAs(svetlanaPup); got != "Sveta" {
 		t.Errorf("after the reload her puppet is known as %q, want Sveta", got)
 	}
+
+	// A name rule alone names no one anew, but shows them differently.
+	cfg.Display.NameRules = nil
+	names.Use(ctx, cfg)
+	waitNamesChanged(t, r)
+	if got := shownAs(danaNumber); got != "Dana Levi" {
+		t.Errorf("with knownRoom's rule gone Dana is shown as %q, want Dana Levi", got)
+	}
+	// Filing a room may move it to a home with another rule.
+	cfg.Tags = []config.Tag{{Name: "Work"}}
+	names.Use(ctx, cfg)
+	waitNamesChanged(t, r)
+	cfg.Tags = []config.Tag{{Name: "Work", Picked: []string{string(knownRoom)}}}
+	names.Use(ctx, cfg)
+	waitNamesChanged(t, r)
 
 	b.setDirectory(domain.NewDirectory(
 		[]domain.PersonName{{Source: "phone", ID: domain.PhoneID("15550100001"), Name: "Dana Cohen", Rank: domain.RankSaved}},

@@ -11,6 +11,8 @@ type SearchHit struct {
 	SenderName string
 	// SenderKnownAs is the sender's name as kithd names them (People.Name).
 	SenderKnownAs string
+	// SenderShownAs is SenderKnownAs as the room's name rule shows it (NameRules).
+	SenderShownAs string
 	// Word is the tracked entry this hit matched; empty for other searches.
 	Word      string
 	Timestamp time.Time

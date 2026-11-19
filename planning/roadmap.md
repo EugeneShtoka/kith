@@ -26,8 +26,14 @@ changes a default goes while changing defaults is still free.
 
 | step | items | why these together |
 | --- | --- | --- |
-| **1: multi-device and client topology** | the rest of the mesh (shared config, drafts, verdicts, key rotation) · failover between bridges · the desktop's partial cache · Android client | **See [design-mesh.md](design-mesh.md) and [design-clients.md](design-clients.md).** Profiles, replay, remote clients, bridges pairing with read positions crossing, and the desktop client are built. The largest initiative here; the Android client takes the most calendar time. |
-| **2: names, everywhere the same way (S4)** | the rest of the name pipeline | `first_name_only` already resolves against the room's own space (the first by `[display] space_priority` when a room is in several), and identity merge and room aliases are built. What is left is the rest of a global → space → chat pipeline: more rule types beside `first_name_only` (for example stripping a bridge's suffix, or a fixed name for one person in one space), and a per-chat rung that overrides the space's rule. It goes through the single narrowest-wins scope resolver every other setting uses, rather than a resolver of its own. It changes what `first_name_only` means in a room whose space has no rule, so the default is decided before it is built. |
+| **1a: the shared config across bridges** (mesh step 5) | `config.Local` and a register per leaf key or whole array · `config.toml` rendered from the file's local keys and the mesh's shared ones · a hand edit read three ways · `kith config conflicts` and conflicts marked in settings · a merged config that does not check left unapplied · a joining bridge's own config set aside in `config.toml.pre-mesh`, printed, logged and shown | **Steps 1a–1g are multi-device and client topology; see [design-mesh.md](design-mesh.md) and [design-clients.md](design-clients.md).** Profiles, replay, remote clients, bridges pairing with read positions crossing, and the desktop client are built. If the mailbox goes ahead ([design-mailbox.md](design-mailbox.md)), its step 5a, sealed ops, comes before this. |
+| **1b: drafts across bridges** (mesh step 6) | room and thread drafts kept in the mesh · concurrent versions all kept, each with the words it was written over · written after 5 s idle or on leaving the room · a draft over 1 MiB stays on its bridge | Two windows on two bridges, or a window and kith-mcp, can write one draft at once; no typed or appended word may be lost. |
+| **1c: verdicts across bridges** (mesh step 7) | tag and person verdicts on networks that keep none, the newest winning | Matrix's stay in account data, which already reaches every bridge. |
+| **1d: key rotation** (mesh step 8) | `kith devices rotate`, for a device or a bridge · a rotation op signed by both keys · a bridge answering on its old key by SNI for a while · clients rewriting their pin | A lost key is not rotated: the device is removed and paired again. |
+| **1e: failover between bridges** (Phase 3) | a heartbeat with each network's caught-up time · a client's `[[bridge]]` list, by pinned priority, failing over on disconnect or a stale heartbeat · resuming at another bridge from the time last heard, deduped by network ID · sends buffered 3–5 s with an ID that stops a second bridge sending them again · a bridge offered only once verified with its keys restored · standby bridges, if decided · a client on several bridges · notification IDs from the message · kithd's version in `Status` | Decide first what a heartbeat counts as caught up on each network, and how bridges reach each other across the internet. |
+| **1f: the desktop's partial cache** | the desktop's relay holding its profile's rooms and a recent window as a replica in the mesh, scrollback from the bridge | Offline reading and instant start. Waits for 1a–1d; HTTP/2 on the local socket lands with it. |
+| **1g: Android client** (Phase 5) | spikes first: WhatsApp, Signal and Google Messages linked beside their official apps on one phone · the push payload and credentials in Keystore decided · a `buf breaking` check · a UnifiedPush sink in `notify` (encrypted wake-only, a secret endpoint per profile) · a Kotlin app with its own SQLite cache, failing over per 1e, sending only when connected · Matrix single sign-on from a remote client | Takes the most calendar time of step 1. |
+| **2: names, everywhere the same way (S4)** | the rest of the name pipeline | **Done** (#599): `[display] first_name_only` (off by default) and `[[display.name_rule]]` (`first_name_only`, `strip`, `name`; per space, room and person, narrowest wins), shaped by kithd for every window and notification. `first_name_only` already resolves against the room's own space (the first by `[display] space_priority` when a room is in several), and identity merge and room aliases are built. What is left is the rest of a global → space → chat pipeline: more rule types beside `first_name_only` (for example stripping a bridge's suffix, or a fixed name for one person in one space), and a per-chat rung that overrides the space's rule. It goes through the single narrowest-wins scope resolver every other setting uses, rather than a resolver of its own. It changes what `first_name_only` means in a room whose space has no rule, so the default is decided before it is built. |
 | **3: Matrix sessions** | list an account's other sessions, rename them, sign old ones out | A lost laptop's session can only be ended from another client today. Signing out another session revokes its access token on the homeserver. |
 | **4: verifying other people** | in-room SAS verification of another person | Today kith verifies only your own sessions (`:verify`, emoji SAS). Verifying a contact is the same SAS exchange carried in the room (`m.key.verification.request` as a room message) instead of to-device. |
 
@@ -93,6 +99,9 @@ small and ships on its own.
   from a terminal client that names a profile is refused until the next sync lists it.
 - **Words typed during a profile switch**, for a room the new profile does not hold,
   are saved only once a profile that holds it is back.
+- **Creating a room from a script**: a `create_room` tool on kith-mcp and a
+  `kith room new` command, both over kithd's existing `CreateRoom`, so a hook can open
+  a group without the app.
 
 ### Remote clients
 
@@ -130,8 +139,6 @@ Not ordered; taken when a reason appears.
 - **Server-side search** for history that was never cached locally (Matrix's
   `/search`, and the networks that have one), merged into the same results pane as a
   separate, slower tier.
-- **`/call` with no setup.** The Jitsi command template needs no account; offering
-  `/call` from it by default on a fresh install is undecided.
 - **iMessage**, only through a helper on a Mac (the shape of `kith-signal`); no other
   approach works today.
 
