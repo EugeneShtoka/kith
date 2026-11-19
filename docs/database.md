@@ -22,10 +22,10 @@ What is **not** in it, and why:
 | access token | OS keyring (`internal/session`), or an opt-in `0600` file | a credential, not a copy |
 | E2EE crypto store and the sync position | its own SQLite file per Matrix account, `crypto-<instance>-<account>.db`, owned by mautrix-go | mautrix owns that schema; losing it loses the device's keys |
 | configuration | `config.toml` | written by you, not fetched |
-| scheduled messages | `scheduled-<hash>.toml` in the XDG state dir (`internal/schedule`) | an unsent message has no copy anywhere, so it cannot live under "rebuild on doubt" |
-| the assistant ledger | `agent-sends-<hash>.jsonl` in the XDG state dir (`internal/agent`) | a record of what was sent on your behalf exists nowhere else |
+| scheduled messages | `scheduled-<instance>.toml` in the XDG state dir (`internal/schedule`) | an unsent message has no copy anywhere, so it cannot live under "rebuild on doubt" |
+| the assistant ledger | `agent-sends-<instance>.jsonl` in the XDG state dir (`internal/agent`) | a record of what was sent on your behalf exists nowhere else |
 | attachment files | the media cache directory (`internal/media`) | files an external viewer opens by path |
-| the paired devices, as signed ops | the mesh store, `mesh-<hash>.db` (`internal/mesh`, [below](#the-mesh-file)) | a rebuild must not unpair anyone |
+| the paired devices, as signed ops | the mesh store, `mesh-<instance>.db` (`internal/mesh`, [below](#the-mesh-file)) | a rebuild must not unpair anyone |
 
 A few tables hold state that is local but cheap to lose: usage counters for the
 emoji and mention rankings, per-room sender colours, what bridges have refused, and
@@ -35,9 +35,10 @@ with this table as its mirror (see [Account-data mirrors](#account-data-mirrors)
 
 ## The file
 
-- One file per account: `$XDG_DATA_HOME/kith/cache-<hash>.db`, where `<hash>` is
-  `domain.AccountKey(mxid)` (the first 8 bytes of SHA-256 of the MXID, hex). See
-  `db.DefaultPath`.
+- One file per config, whatever accounts it holds: `$XDG_DATA_HOME/kith/cache-<instance>.db`
+  (`[storage] data_dir` moves the folder), where `<instance>` is `Storage.Instance`:
+  `[storage] instance`, or else the first 8 bytes of SHA-256 of the config file's
+  resolved path, hex (`setup.StorageFor`). See `Storage.CachePath`.
 - Only the daemon opens it. The TUI and `kith-mcp` reach it through the daemon's
   socket; depguard keeps `internal/db` out of both.
 - Driver: `internal/sealeddb`, ncruces' SQLite translated to pure Go with the Adiantum
@@ -77,9 +78,9 @@ with this table as its mirror (see [Account-data mirrors](#account-data-mirrors)
 
 ## The mesh file
 
-The mesh store, `$XDG_DATA_HOME/kith/mesh-<hash>.db` (`internal/mesh`), is not a cache:
+The mesh store, `$XDG_DATA_HOME/kith/mesh-<instance>.db` (`internal/mesh`), is not a cache:
 it holds writes nothing else has, so none of the rules below apply to it. For now it holds the roster of
-paired devices (`devices-<hash>.toml` is written out from it), the accounts each
+paired devices (`devices-<instance>.toml` is written out from it), the accounts each
 bridge runs, the chats any bridge merged into another (`alias/<room>`: a WhatsApp
 chat known by a LID, then by the number), and the reads made in kith (`read/<room>`,
 `thread/<room>/<root>`, `marked/<room>`), which every bridge of the mesh syncs. The
@@ -179,7 +180,7 @@ holds data but appears in neither list until the next refresh promotes it.
 | `starred` | mirror of the `org.kith.starred` account data |
 | `tag_verdicts` | mirror of the `org.kith.tags` account data: per room and tag, the rule and filter that moved it, or a release |
 | `person_verdicts` | per person ID and tag, the rule and filter that put them there, or a release; Matrix IDs mirror each account's `org.kith.people` account data, under that account |
-| `network_blocks` | a network's server-side block list (WhatsApp's, Telegram's `contacts.blocked`, Meta's), mirrored for offline reads; the server copy wins, pulled on connect and after every block-list change |
+| `network_blocks` | a network's server-side block list (WhatsApp's, Telegram's `contacts.blocked`), mirrored for offline reads; the server copy wins, pulled on connect and after every block-list change. Messenger and Instagram have no call listing theirs, so it holds none of theirs |
 
 ### Rankings and bookkeeping
 

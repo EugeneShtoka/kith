@@ -363,6 +363,12 @@ sound = ""
 # (pw-play, paplay, ffplay -nodisp -autoexit).
 sound_command = ""
 
+# The profiles kith-notify shows notifications for on this device, by name, in any
+# case; empty is the first. Read when kith-notify starts. Its --profile flags, when
+# given, are used instead.
+profiles = []
+# profiles = ["work", "home"]
+
 # A rule's own sound, by the rule's `name` in config.toml, in place of `sound` for what
 # the rule matches; where several named rules match, the most specific one this table
 # names wins. A rule named nowhere here rings with `sound`. `b` in the app writes these,

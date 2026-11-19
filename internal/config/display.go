@@ -18,9 +18,12 @@ type Display struct {
 	Deleted         Deleted       `toml:"deleted"`
 	Identities      []Identity    `toml:"identity"`
 	Names           []DisplayName `toml:"name"`
-	RoomNameRules   *bool         `toml:"room_name_rules"`
-	Priority        []string      `toml:"priority"` // home entries (space:, tag:, place:), most preferred first
-	Rail            Rail          `toml:"rail"`
+	// FirstNameOnly shows people by their first names where no NameRule says otherwise.
+	FirstNameOnly bool       `toml:"first_name_only"`
+	NameRules     []NameRule `toml:"name_rule"`
+	RoomNameRules *bool      `toml:"room_name_rules"`
+	Priority      []string   `toml:"priority"` // home entries (space:, tag:, place:), most preferred first
+	Rail          Rail       `toml:"rail"`
 	// Unread is what a badge counts (UnreadSources; empty is "messages"): kithd judges
 	// each room's unread state by it when it builds the rail.
 	Unread string `toml:"unread"`
@@ -174,10 +177,21 @@ type TrackedRule struct {
 	Notify *bool    `toml:"notify"` // unset follows Tracked.Notify
 }
 
-// SpaceRule is one [[display.space_rule]]: a per-space name-display rule.
+// NameRule is one [[display.name_rule]]: how people are named in one place, or one
+// person there. The narrowest rule naming a place wins (domain.NameRules).
+type NameRule struct {
+	Match  string `toml:"match"`  // a room ID, space:, tag: or place:
+	Sender string `toml:"sender"` // one person's ID; empty everyone
+	// Name is that person's fixed name there; it needs Sender.
+	Name string `toml:"name"`
+	// Strip is a regular expression removed from names (a bridge's suffix).
+	Strip         string `toml:"strip"`
+	FirstNameOnly *bool  `toml:"first_name_only"` // nil follows [display] first_name_only
+}
+
+// SpaceRule is one [[display.space_rule]]: how one place's room list is drawn.
 type SpaceRule struct {
-	Space         string `toml:"space"` // a home entry: space:, tag: or place:<name>
-	FirstNameOnly bool   `toml:"first_name_only"`
+	Space string `toml:"space"` // a home entry: space:, tag: or place:<name>
 	// NetworkColors names each room in this place's room list in its network's color,
 	// or not, whatever Display.NetworkColors says; nil follows it.
 	NetworkColors *bool `toml:"network_colors"`
@@ -191,7 +205,7 @@ type SpaceRule struct {
 
 // Empty reports whether the rule sets nothing, so the file need not keep it.
 func (r SpaceRule) Empty() bool {
-	return !r.FirstNameOnly && r.NetworkColors == nil && r.ShowArchived == nil && r.ShowField == ""
+	return r.NetworkColors == nil && r.ShowArchived == nil && r.ShowField == ""
 }
 
 // SpaceRule is a place's [[display.space_rule]], if it has one: names reports whether

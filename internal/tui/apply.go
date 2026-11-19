@@ -114,6 +114,7 @@ func (m Model) runDerived(s config.Settings, derived derivations, done string) (
 	m.conf.applied++
 	m = m.applyIntegrations(cfg, derived).runningOn(dev)
 	m.prefs.display = cfg.Display
+	m.prefs.names, _ = setup.NameRules(cfg.Display) // checked with the rest before it runs
 	m.keys = keymapFor(dev)
 	m.theme = theme.New(derived.palette)
 	m.prefs.identities = buildIdentities(cfg.Display.Identities)

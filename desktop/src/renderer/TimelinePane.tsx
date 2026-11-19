@@ -71,6 +71,10 @@ export function TimelinePane({
   }
   const watched = useWatched();
   const [atBottom, setAtBottom] = useState(true);
+  // The room whose list was off its newest row at its last scroll. Elsewhere the list rests on its
+  // newest, and a row growing there (a picture loading) scrolls it back down: Virtuoso alone counts
+  // the growth as leaving the bottom, so the room would no longer be watched, nor read.
+  const away = useRef("");
   useEffect(() => {
     session.watch(watched && atBottom);
   }, [session, watched, atBottom]);
@@ -209,6 +213,15 @@ export function TimelinePane({
           }
         }}
         atBottomStateChange={setAtBottom}
+        onScroll={(e) => {
+          const s = e.currentTarget;
+          away.current = s.scrollHeight - s.scrollTop - s.clientHeight < 4 ? "" : t.room;
+        }}
+        totalListHeightChanged={() => {
+          if (away.current !== t.room) {
+            list.current?.scrollToIndex({ index: "LAST", align: "end" });
+          }
+        }}
         itemContent={(index, m) => {
           const before = shown[index - anchor.index - 1];
           return (
@@ -508,7 +521,9 @@ export function Row({
             >
               {th.count === 1 ? "1 reply" : `${String(th.count)} replies`}
               {th.rootLoaded ? "" : " in a thread"} ·{" "}
-              <span dir="auto">{th.latestSenderKnownAs || th.latestSenderName || th.latestSender}</span>
+              <span dir="auto">
+                {th.latestSenderShownAs || th.latestSenderKnownAs || th.latestSenderName || th.latestSender}
+              </span>
             </button>
           ))}
           {composer !== undefined && !m.redacted && (

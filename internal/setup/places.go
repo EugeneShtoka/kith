@@ -3,6 +3,7 @@ package setup
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -163,6 +164,11 @@ func ruleLists(cfg config.Config) []placeList {
 	for i, r := range d.SpaceRules {
 		add(fmt.Sprintf("display.space_rule[%d].space", i), homePrefixes, "", r.Space, isHomeEntry)
 	}
+	for i, r := range d.NameRules {
+		add(fmt.Sprintf("display.name_rule[%d].match", i), homePrefixes, ruleWords, r.Match, func(e string) bool {
+			return isHomeEntry(e) || domain.IsRoomID(strings.TrimSpace(e))
+		})
+	}
 	return out
 }
 
@@ -274,13 +280,25 @@ func HomeNamer(d config.Display, home string) func(entry string) bool {
 	return func(entry string) bool { return domain.NamesHome(entry, home, label) }
 }
 
-// FirstNamesIn reports whether home's [[display.space_rule]] shows first names only.
-func FirstNamesIn(d config.Display, home string) bool {
-	if home == "" {
-		return false
+// NameRules builds [display] first_name_only and its [[display.name_rule]]s, refusing
+// a strip that is no regular expression and a fixed name for no one in particular.
+func NameRules(d config.Display) (domain.NameRules, error) {
+	out := domain.NameRules{FirstNameOnly: d.FirstNameOnly, Rules: make([]domain.NameRule, 0, len(d.NameRules))}
+	for i, r := range d.NameRules {
+		rule := domain.NameRule{Match: r.Match, Sender: r.Sender, Name: r.Name, FirstNameOnly: r.FirstNameOnly}
+		if r.Name != "" && strings.TrimSpace(r.Sender) == "" {
+			return domain.NameRules{}, fmt.Errorf("display.name_rule[%d]: a name needs the sender it is for", i)
+		}
+		if r.Strip != "" {
+			re, err := regexp.Compile(r.Strip)
+			if err != nil {
+				return domain.NameRules{}, fmt.Errorf("display.name_rule[%d].strip: %w", i, err)
+			}
+			rule.Strip = re
+		}
+		out.Rules = append(out.Rules, rule)
 	}
-	r, ok := d.SpaceRule(HomeNamer(d, home))
-	return ok && r.FirstNameOnly
+	return out, nil
 }
 
 // Place adapts the client's place vocabulary to the ranking notify does.

@@ -244,6 +244,7 @@ var notPlaces = []string{
 	"display.rooms.rule.sort", "display.reactions.static", "spell.declined", "spell.frequencies_declined",
 	"complete.sources", "command.needs", "command.secrets", "remote.listen", "bridge.addresses",
 	"agent.write.hours.days",
+	"notifications.profiles",
 }
 
 // Every list of strings in either file holding tag:X and another entry loses tag:X on

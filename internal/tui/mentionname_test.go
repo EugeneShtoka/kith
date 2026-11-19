@@ -9,7 +9,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
@@ -64,7 +63,7 @@ func TestEveryMentionIsDrawnWithTheNameKnownNow(t *testing.T) {
 	if got := m.mentionedName("telegram:7", mx+"!a:x", "Vanya Sokolov", "Ivan Petrov"); got != "Vanya Sokolov" {
 		t.Fatalf("mentionedName = %q", got)
 	}
-	m.prefs.display.SpaceRules = []config.SpaceRule{{Space: m.ownSpace(mx + "!a:x"), FirstNameOnly: true}}
+	m.prefs.names = domain.NameRules{Rules: []domain.NameRule{{Match: m.ownSpace(mx + "!a:x"), FirstNameOnly: new(true)}}}
 	if got := m.mentionedName("telegram:7", mx+"!a:x", "Vanya Sokolov", "Ivan Petrov"); got != "Vanya" {
 		t.Errorf("in a first-names space the mention = %q, want Vanya", got)
 	}
@@ -158,7 +157,7 @@ func TestMentionCandidatesAreNamedAsTheTimelineNamesThem(t *testing.T) {
 		{UserID: "matrix:@vanya:x", DisplayName: "ivan.p", KnownAs: "Vanya Sokolov"},
 		{UserID: "matrix:@dm:x", DisplayName: "dm-handle", KnownAs: "Dana Mor"},
 	}
-	m.prefs.display.SpaceRules = []config.SpaceRule{{Space: m.ownSpace(mx + "!a:x"), FirstNameOnly: true}}
+	m.prefs.names = domain.NameRules{Rules: []domain.NameRule{{Match: m.ownSpace(mx + "!a:x"), FirstNameOnly: new(true)}}}
 	m.prefs.device.MaxNameLength = 3
 
 	var got []string
