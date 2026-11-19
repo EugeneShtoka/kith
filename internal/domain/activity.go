@@ -8,4 +8,6 @@ type Activity struct {
 	// TypingKnownAs is each of Typing's names as kithd names them (People.Name), in its
 	// order; stamped as kithd sends the activity.
 	TypingKnownAs []string
+	// TypingShownAs is each of TypingKnownAs as the room's name rule shows it (NameRules).
+	TypingShownAs []string
 }
