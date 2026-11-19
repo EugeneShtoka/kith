@@ -92,14 +92,14 @@ function supersedes(edit: Message, shownAt: bigint, shownRev: string): boolean {
   return compareBytes(edit.revisionId, shownRev) >= 0;
 }
 
-/** renamed is mentions with each person's knownAs as later names them, where later mentions them too (domain.renamedMentions). */
+/** renamed is mentions with each person's knownAs and shownAs as later names them, where later mentions them too (domain.mergedMentions). */
 function renamed(mentions: Mention[], later: readonly Mention[]): Mention[] {
   let out: Mention[] | undefined;
   mentions.forEach((m, i) => {
     for (const l of later) {
-      if (l.userId === m.userId && l.knownAs !== "" && l.knownAs !== m.knownAs) {
+      if (l.userId === m.userId && l.knownAs !== "" && (l.knownAs !== m.knownAs || l.shownAs !== m.shownAs)) {
         out ??= [...mentions];
-        out[i] = { ...m, knownAs: l.knownAs };
+        out[i] = { ...m, knownAs: l.knownAs, shownAs: l.shownAs };
       }
     }
   });
@@ -137,7 +137,11 @@ function combine(first: Message, b: Message): Message {
   a.edited ||= b.edited;
   a.mentioned ||= b.mentioned;
   a.senderName ||= b.senderName;
-  a.senderKnownAs = b.senderKnownAs || a.senderKnownAs; // a later read names people as kithd does now
+  if (b.senderKnownAs !== "") {
+    // a later read names people as kithd does now, and shows them by today's rules
+    a.senderKnownAs = b.senderKnownAs;
+    a.senderShownAs = b.senderShownAs;
+  }
   if (a.timestamp === undefined || (b.timestamp !== undefined && nanos(b) < nanos(a))) {
     a.timestamp = b.timestamp;
   }

@@ -74,6 +74,7 @@ var settable = map[string]setting{
 	"notifications.max_per_room": {group: "notifications", label: "Popups one room may raise", least: new(int64(0))},
 	"notifications.rate_window":  {group: "notifications", label: "Within", duration: true},
 
+	"display.first_name_only": {group: "names", label: "First names only"},
 	"display.room_name_rules": {group: "names", label: "Name rules apply to room names"},
 
 	// Messages.
