@@ -589,7 +589,7 @@ func serve(
 	defer scheduler.Stop()
 	logins := backend.logins(ctx, log, w.languages)
 	log.Info("serving", "socket", lock.Socket(), "version", buildinfo.String("kithd"))
-	reload := reloader(log, file, relevel, cutoff, backend, w.notifications, w.names, w.paired)
+	reload := reloader(log, file, relevel, cutoff, backend, w.notifications, w.names, w.paired, w.backupWarning)
 	watchConfig(ctx, log, file, reload)
 	err = daemon.Serve(ctx, ln, &daemon.Daemon{
 		Backend:       backend,
@@ -601,6 +601,7 @@ func serve(
 		Scheduler:     scheduler,
 		Logins:        logins,
 		Languages:     w.languages,
+		BackupWarning: w.backupWarning,
 		Uploads:       uploads,
 		Log:           log,
 		Reload:        reload,
@@ -690,6 +691,7 @@ func reloader(
 	notifications *daemon.Notifications,
 	names *daemon.Names,
 	paired *daemon.Devices,
+	backupWarning *daemon.BackupWarning,
 ) daemon.Reload {
 	// One reload at a time: interleaved ones would mix both files' settings.
 	var one sync.Mutex
@@ -713,6 +715,7 @@ func reloader(
 			n.UseConfig(ctx, reloaded)
 		}
 		paired.Listen(reloaded.Remote.Listen)
+		backupWarning.Use(backupFolders(backend.storage, reloaded))
 		if err := notifications.Reload(reloaded); err != nil {
 			return fmt.Errorf("reload notifications: %w", err)
 		}
@@ -738,6 +741,8 @@ type workers struct {
 	paired *daemon.Devices
 	// languages owes the dictionary offer once a new account's history arrived.
 	languages *daemon.Languages
+	// backupWarning warns about a scheduled backups folder that does not keep them.
+	backupWarning *daemon.BackupWarning
 	// maintenance is held by the cache's vacuum and the daily backup, so they never
 	// run at once: the vacuum would put itself off while the backup reads the cache.
 	maintenance sync.Mutex
@@ -790,7 +795,6 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	}
 	refresher := daemon.NewRefresher(backend, notifications.InvalidateScope)
 	refresher.UseLogger(log)
-
 	// Readiness is "what the daemon started with has synced", not "socket open": a cold
 	// cache looks like no rooms.
 	state := daemon.NewState()
@@ -841,6 +845,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		backups:       backups,
 		paired:        paired,
 		languages:     languages,
+		backupWarning: warnAboutBackups(log, backend.storage, cfg, streams),
 	}, nil
 }
 

@@ -312,6 +312,15 @@ machine: without it no backup opens
 ([your backup key](usage.md#backing-up-and-moving-to-a-new-machine)). To have no
 scheduled backups and no message, set `[backup] enabled = false`.
 
+### "Backups in /tmp/… vanish when kithd stops"
+
+`[backup] dir` (or `[backup.media]`'s) is under `/tmp` or `/var/tmp`. kithd takes it,
+but its systemd unit gives it a `/tmp` and `/var/tmp` of its own (`PrivateTmp=`),
+emptied whenever kithd stops: the backups there are gone after the next restart. Point
+`dir` at a folder elsewhere to keep them. If that is what you want (a scratch setup),
+choose *Don't warn again* in the terminal or the desktop: kithd remembers that folder on
+this machine, and warns again only about another one.
+
 ### "The scheduled backup failed: …" or "is put off: …"
 
 kithd tried a scheduled backup into the backups folder (`[backup] dir`, by default

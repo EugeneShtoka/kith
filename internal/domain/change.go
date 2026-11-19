@@ -21,4 +21,7 @@ const (
 	ChangeNames
 	// ChangeDrafts is a stored draft having changed, by any writer (Drafts).
 	ChangeDrafts
+	// ChangeBackupWarning is the warning about the scheduled backups' folder having
+	// changed (Status).
+	ChangeBackupWarning
 )

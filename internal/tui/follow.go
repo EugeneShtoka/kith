@@ -396,6 +396,8 @@ func (m Model) handleChanged(msg changedMsg) (Model, tea.Cmd) {
 		return m, tea.Batch(m.loadDraftsCmd(), m.listenChangesCmd())
 	case domain.ChangeLanguages:
 		return m, tea.Batch(m.offerOwedDictionaries(), m.listenChangesCmd())
+	case domain.ChangeBackupWarning:
+		return m, tea.Batch(m.loadBackupWarningCmd(), m.listenChangesCmd())
 	case domain.ChangeNames:
 		// kithd names people differently: the open room's messages, members and threads
 		// are read again, with the new names, and the people asked for by ID, the

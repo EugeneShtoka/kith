@@ -72,6 +72,9 @@ func complete(t *testing.T, d *daemon.Daemon) *daemon.Daemon {
 	if d.Languages == nil {
 		d.Languages = daemon.NewLanguages(filepath.Join(dir, "languages.toml"), d.Streams.LanguagesOwed, d.Log)
 	}
+	if d.BackupWarning == nil {
+		d.BackupWarning = daemon.NewBackupWarning(filepath.Join(dir, "backup-warnings.toml"), d.Streams.BackupWarningChanged, d.Log)
+	}
 	if d.Paired == nil {
 		d.Paired = daemon.NewDevices(filepath.Join(dir, "devices.toml"), meshAt(t, filepath.Join(dir, "mesh.db"), storeKey(t)), identityOf(t, newDeviceKey(t)), d.Log)
 	}

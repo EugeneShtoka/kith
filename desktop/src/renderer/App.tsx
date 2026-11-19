@@ -16,7 +16,7 @@ import { helpSections } from "./help";
 import { HelpOverlay } from "./HelpOverlay";
 import { roomPicture } from "./media";
 import { type Action, keyName, Keymap, moved, typing } from "./keymap";
-import { OfferDialog } from "./Offer";
+import { BackupWarningDialog, OfferDialog } from "./Offer";
 import { PeopleDialog, PersonDialog } from "./People";
 import { colorClass, drawsPictures, themeCSS, modeOf, roomColor } from "./theme";
 import { namesRow, rowUnread } from "./rail";
@@ -62,6 +62,9 @@ export function App() {
       <VerifyDialog verify={view.verify} session={session} />
       {view.offers.prompt && (
         <OfferDialog key={view.offers.prompt.kind} prompt={view.offers.prompt} session={session} />
+      )}
+      {view.backupWarning && !view.offers.prompt && (
+        <BackupWarningDialog warning={view.backupWarning} session={session} />
       )}
       {running && view.filing && <FilingDialog filing={view.filing} keys={view.keys} session={session} />}
       {running && view.naming && <RoomNameDialog naming={view.naming} keys={view.keys} session={session} />}

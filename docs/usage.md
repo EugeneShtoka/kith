@@ -365,6 +365,14 @@ private half. A scheduled backup that fails, or is put off for want of disk spac
 said in a notification. The default folder is on the same disk as the cache: point
 `dir` at another disk, or sync or copy the folder elsewhere.
 
+A `dir` under `/tmp` or `/var/tmp` is allowed, and warned about: under its systemd unit
+kithd has a `/tmp` and `/var/tmp` of its own (`PrivateTmp=`), emptied whenever it
+stops, so backups there vanish with the next restart. kithd logs the warning when it
+starts or a reload moves the backups there, and the terminal and the desktop show it
+once a run, with *Don't warn again*: kithd then remembers that folder on this machine
+(`backup-warnings-<instance>.toml` in `[storage] state_dir`), and only another folder
+under `/tmp` warns again. The same goes for `[backup.media]`'s `dir`.
+
 **Media backups.** kithd's [media archive](getting-started.md) (every attachment,
 `[storage] archive_media`) is backed up apart, in files of its own
 (`kith-media-<date>-<time>.tar.age`, in the same folder), since it only grows: by

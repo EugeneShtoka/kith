@@ -880,6 +880,21 @@ func (r *Remote) Status(ctx context.Context) (ready bool, syncedAt time.Time, la
 	return resp.GetReady(), syncedAt, resp.GetLastError(), nil
 }
 
+// BackupWarning is Status's warning about the backups folder (api.BackupWarnings).
+func (r *Remote) BackupWarning(ctx context.Context) (dir, why string, err error) {
+	resp, err := call(ctx, "status", r.c.Status, &v1.StatusRequest{})
+	if err != nil {
+		return "", "", err
+	}
+	return resp.GetBackupWarning().GetDir(), resp.GetBackupWarning().GetWhy(), nil
+}
+
+// DismissBackupWarning stops the warning about dir for good (api.BackupWarnings).
+func (r *Remote) DismissBackupWarning(ctx context.Context, dir string) error {
+	_, err := call(ctx, "dismiss the backup warning", r.c.DismissBackupWarning, &v1.DismissBackupWarningRequest{Dir: dir})
+	return err
+}
+
 // Networks is each network account the daemon serves, logged in or not.
 func (r *Remote) Networks(ctx context.Context) ([]NetworkStatus, error) {
 	resp, err := call(ctx, "status", r.c.Status, &v1.StatusRequest{})

@@ -426,6 +426,15 @@ type OwedLanguages interface {
 	OwedLanguages(ctx context.Context) (domain.SpellSuggestion, error)
 }
 
+// BackupWarnings is the daemon's warning about a scheduled backups folder that does not
+// keep them (one under /tmp), shown until dismissed for that folder.
+type BackupWarnings interface {
+	// BackupWarning is the folder warned about and the warning; "" when there is none.
+	BackupWarning(ctx context.Context) (dir, why string, err error)
+	// DismissBackupWarning stops the warning about dir for good.
+	DismissBackupWarning(ctx context.Context, dir string) error
+}
+
 // Maintenance is operations on the stores only the process owning them can
 // perform.
 type Maintenance interface {
