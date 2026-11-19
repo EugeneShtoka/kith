@@ -1,10 +1,12 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/agent"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // With at, a send-list room gets the message queued for that time, recorded as
@@ -51,5 +53,38 @@ func TestALaterSendIsRefusedWhereItWouldBeDrafted(t *testing.T) {
 	sender := newWriter(t, twoRooms(), shareAll, []string{"space:Work"})
 	for _, bad := range []string{"tomorrow 9am", time.Now().Add(-time.Minute).Format(time.RFC3339)} {
 		callErr(t, sender, "send_message", map[string]any{"room": "Standup", "text": "hi", "at": bad})
+	}
+}
+
+// Outside the room's working hours a send, and a later send, waits for them to open,
+// saying why; urgent sends it now; inside them it goes now.
+func TestASendOutsideWorkingHoursWaitsForThem(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	y, m, d := now.Date()
+	tomorrow := time.Date(y, m, d+1, 0, 0, 0, 0, time.Local)
+	closedToday := domain.WorkingHours{Match: "space:Work", End: 24 * time.Hour, Days: []time.Weekday{tomorrow.Weekday()}}
+	f := twoRooms()
+	s := newWriter(t, f, shareAll, []string{"space:Work"})
+	s.cooldown = 0
+	s.hours = []domain.WorkingHours{{End: 24 * time.Hour}, closedToday}
+
+	out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "now please"})
+	if out["action"] != agent.Scheduled || len(f.sent) != 0 || len(f.queued) != 1 || !f.queued[0].At.Equal(tomorrow) {
+		t.Fatalf("outside hours: %v, sent %d, queued %+v; want it scheduled for %s", out["action"], len(f.sent), f.queued, tomorrow)
+	}
+	if why, _ := out["reason"].(string); !strings.Contains(why, "working hours") {
+		t.Errorf("reason = %q, want it to name the working hours", why)
+	}
+	call(t, s, "send_message", map[string]any{"room": "Standup", "text": "in an hour", "at": now.Add(time.Hour).Format(time.RFC3339)})
+	if len(f.queued) != 2 || !f.queued[1].At.Equal(tomorrow) {
+		t.Errorf("a later send inside today: queued %+v, want it moved to %s", f.queued, tomorrow)
+	}
+	if out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "fire", "urgent": true}); out["action"] != agent.Sent || len(f.sent) != 1 {
+		t.Errorf("urgent: %v, sent %d; want it sent now", out["action"], len(f.sent))
+	}
+	s.hours = s.hours[:1] // open all day everywhere
+	if out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "hi"}); out["action"] != agent.Sent || len(f.sent) != 2 {
+		t.Errorf("inside hours: %v, sent %d; want it sent now", out["action"], len(f.sent))
 	}
 }

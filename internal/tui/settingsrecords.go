@@ -50,6 +50,7 @@ var recordTableLabels = withNetworkTables(map[string]string{
 	"bridge":               "Bridges this device dials",
 	"keys.jump":            "Jump shortcuts",
 	"keys.tag":             "Tag keys",
+	"agent.write.hours":    "Assistant working hours",
 })
 
 func withNetworkTables(labels map[string]string) map[string]string {

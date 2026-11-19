@@ -243,6 +243,7 @@ var notPlaces = []string{
 	"assist.rewrite.stop", "assist.summary.stop", "assist.thread_name.stop", "assist.todo.stop",
 	"display.rooms.rule.sort", "display.reactions.static", "spell.declined", "spell.frequencies_declined",
 	"complete.sources", "command.needs", "command.secrets", "remote.listen", "bridge.addresses",
+	"agent.write.hours.days",
 	"notifications.profiles",
 }
 

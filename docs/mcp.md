@@ -96,6 +96,7 @@ Search matches terms, not meaning. The tool description tells the assistant to r
 | `thread` | Optional: write into this thread, named by its root or any message in it |
 | `reply_to` | Optional: the event ID of the message this answers. A reply to a message in a thread goes into that thread |
 | `at` | Optional: send it at this time instead of now, RFC 3339 with its offset (`2026-10-12T09:00:00+03:00`). The daemon's send-later queue sends it, and the client lists it under `:scheduled` until then |
+| `urgent` | Optional: send it even outside the room's [working hours](#working-hours-when-it-may-send). The assistant is told to pass it only when you said the message is urgent or must go now |
 
 A `thread` or `reply_to` must be a message of that room's cached history, or nothing is written: an event of any other room is not found, whatever room it is in. **A drafted thread reply stays in its thread.** Each thread has a draft of its own, apart from the room's: the assistant's words go into the draft of the thread they are aimed at, or the room's for none, and you find them when you open that thread. An empty draft takes their reply target. A draft that already answers a message keeps it: words answering another message are refused and recorded, and your draft is untouched.
 
@@ -132,6 +133,11 @@ except    = []      # deny list, used only when rooms is empty
 encrypted = false   # whether it may write into encrypted rooms it can read
 send      = []      # of those, rooms that are sent to rather than drafted into
 cooldown  = "1m"    # rest after a message goes out to a room
+
+[[agent.write.hours]] # when it may send; outside them a send waits (any number of these)
+match = ""            # one place entry; empty = every room
+when  = "09:00-18:00" # a daily window
+days  = []            # "mon".."sun"; empty = every day
 ```
 
 Reading and writing are separate tables because the useful policy is usually lopsided: an assistant that reads your whole account to tell you what you missed, and writes only in your own notes room.
@@ -143,6 +149,7 @@ Reading and writing are separate tables because the useful policy is usually lop
 | May it read this room? | `[agent.read]` |
 | May it write here at all? | `[agent.read]`, then `[agent.write]` `rooms`/`except`/`encrypted` |
 | Sent or drafted? | `[agent.write] send`, then `cooldown` |
+| Sent now or later? | `[[agent.write.hours]]`, unless `urgent` |
 
 The two tables read their lists differently. **Reading is least privilege**; writing reads its lists the way `[assist]` does, inside what reading allows:
 
@@ -255,6 +262,25 @@ Of the rooms the assistant may write to, a room that `send` names is **sent to**
 ### `cooldown`: stopping a runaway
 
 After a message is sent to a room, that room rests for `cooldown`. A second message inside the window is **drafted instead**, and the answer says why. A loop sends its next message within milliseconds, so any cooldown stops one. A person who asks for two messages a minute apart loses only a keystroke. `"0"` turns the cooldown off.
+
+### Working hours: when it may send
+
+```toml
+[[agent.write.hours]]
+when = "09:00-18:00"
+days = ["sun", "mon", "tue", "wed", "thu"]
+
+[[agent.write.hours]]
+match = "space:Family"
+when  = "08:00-22:00"
+```
+
+A send to a room outside its working hours is **scheduled for when they next open**, and the answer says so: `scheduled`, with a `reason` naming the working hours and the time it goes out. A later send (`at`) that falls outside them moves to the next opening too. Drafts are not held back: a person still presses send.
+
+- The **narrowest entry naming the room** is its hours (a room over its space, a space over an entry with no `match`), the first of equals. A room that no entry names may be sent to any time, so an entry with no `match` is the default for every room.
+- `when` is a daily window on this machine's clock; an end before the start runs past midnight, and those small hours belong to the day the window opened on. `days` are the days it opens on (`mon` to `sun`), every day when empty.
+- **`urgent`** sends it now whatever the hours. The assistant is told to pass it only when you said it is urgent. It does not skip the cooldown or the `send` list.
+- When the daemon cannot say which spaces or tags a room is in and an entry names one, the message is drafted, as a `send` list naming one does: guessing could pick a wider entry's hours.
 
 ### Failed sends
 

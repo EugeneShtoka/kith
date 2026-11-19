@@ -97,3 +97,29 @@ func TestAgentKithLinks(t *testing.T) {
 		t.Errorf("AgentKithLinks(\"slack\") error = %v, want one naming the setting", err)
 	}
 }
+
+// [[agent.write.hours]] resolve to their windows and days; a bad window or day is
+// refused naming the entry.
+func TestAgentHours(t *testing.T) {
+	t.Parallel()
+	hours := func(h ...config.AgentHours) config.Agent { return config.Agent{Write: config.AgentWrite{Hours: h}} }
+	got, err := setup.AgentHours(hours(
+		config.AgentHours{When: "09:00-18:00", Days: []string{"Sun", " thu "}},
+		config.AgentHours{Match: "space:Family", When: "22:00-07:30"},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Start != 9*time.Hour || got[0].End != 18*time.Hour ||
+		len(got[0].Days) != 2 || got[0].Days[0] != time.Sunday || got[0].Days[1] != time.Thursday ||
+		got[1].Match != "space:Family" || got[1].End != 7*time.Hour+30*time.Minute || got[1].Days != nil {
+		t.Errorf("got %+v", got)
+	}
+	for _, bad := range []config.AgentHours{
+		{When: ""}, {When: "9-18"}, {When: "09:00-09:00"}, {When: "09:00-18:00", Days: []string{"monday"}},
+	} {
+		if _, err := setup.AgentHours(hours(config.AgentHours{When: "08:00-09:00"}, bad)); err == nil || !strings.Contains(err.Error(), "agent.write.hours[1]") {
+			t.Errorf("%+v: err = %v, want one naming agent.write.hours[1]", bad, err)
+		}
+	}
+}

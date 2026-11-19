@@ -77,6 +77,10 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string) e
 	if err != nil {
 		return err
 	}
+	hours, err := setup.AgentHours(cfg.Agent)
+	if err != nil {
+		return err
+	}
 	kithLinks, err := setup.AgentKithLinks(cfg.Agent)
 	if err != nil {
 		return err
@@ -103,6 +107,7 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string) e
 		send:      cfg.Agent.Write.Send,
 		aliases:   setup.Aliases(cfg.Display.Identities),
 		cooldown:  cooldown,
+		hours:     hours,
 		kithLinks: kithLinks,
 		files:     storage.AgentFilesDir(),
 		book:      phonebookFor(cfg),
@@ -286,6 +291,8 @@ type server struct {
 	send []string
 	// cooldown is how long a room rests after a message goes out to it.
 	cooldown time.Duration
+	// hours are `[[agent.write.hours]]`: a send outside a room's waits for them to open.
+	hours []domain.WorkingHours
 	// ledger records every write and answers the cooldown; nil disables writing.
 	ledger *agent.Ledger
 	// crypto holds rooms known to be encrypted (never reverts); others are asked again on

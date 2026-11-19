@@ -41,6 +41,11 @@ func PlaceEntries(cfg config.Config) error {
 			lists[fmt.Sprintf("notifications.rule[%d].match", i)] = []string{match}
 		}
 	}
+	for i, h := range cfg.Agent.Write.Hours {
+		if h.Match != "" {
+			lists[fmt.Sprintf("agent.write.hours[%d].match", i)] = []string{h.Match}
+		}
+	}
 	if err := placeLists(lists); err != nil {
 		return err
 	}

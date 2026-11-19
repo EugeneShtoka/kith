@@ -114,4 +114,13 @@ type AgentWrite struct {
 	Encrypted bool     `toml:"encrypted"`
 	Send      []string `toml:"send"`     // where it posts unreviewed
 	Cooldown  string   `toml:"cooldown"` // a duration
+	// Hours are when it may send; a send outside them is scheduled for the next opening.
+	Hours []AgentHours `toml:"hours"`
+}
+
+// AgentHours is one [[agent.write.hours]]: when an assistant may send to some rooms.
+type AgentHours struct {
+	Match string   `toml:"match"` // one place-vocabulary entry; empty is every room
+	When  string   `toml:"when"`  // a daily window, "09:00-18:00"
+	Days  []string `toml:"days"`  // "mon".."sun"; empty is every day
 }
