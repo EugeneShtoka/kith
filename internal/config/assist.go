@@ -114,6 +114,8 @@ type AgentWrite struct {
 	Encrypted bool     `toml:"encrypted"`
 	Send      []string `toml:"send"`     // where it posts unreviewed
 	Cooldown  string   `toml:"cooldown"` // a duration
+	// QueueLimit is how many messages may wait to go out to one room; nil is the default.
+	QueueLimit *int `toml:"queue_limit"`
 	// Hours are when it may send; a send outside them is scheduled for the next opening.
 	Hours []AgentHours `toml:"hours"`
 }

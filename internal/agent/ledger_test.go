@@ -3,6 +3,7 @@ package agent_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -59,26 +60,27 @@ func TestAppendedEntriesComeBackInOrder(t *testing.T) {
 	}
 }
 
-// Drafts are what the cooldown produces, so counting them would lock a room forever.
-func TestLastOutIgnoresDraftsAndRefusals(t *testing.T) {
+// Drafts are what the cooldown produces, so counting them would lock a room forever. A
+// scheduled message goes out at its due time, which counts even while it is ahead.
+func TestOutsAreSendsQueuesAndDueTimes(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
 	entries := []agent.Entry{
+		{Room: mx + "!a:x", Outcome: agent.Scheduled, At: now.Add(-2 * time.Hour), Due: now.Add(time.Hour)},
 		{Room: mx + "!a:x", Outcome: agent.Sent, At: now.Add(-time.Hour)},
 		{Room: mx + "!a:x", Outcome: agent.Drafted, At: now},
 		{Room: mx + "!a:x", Outcome: agent.Refused, At: now},
 		{Room: mx + "!b:x", Outcome: agent.Queued, At: now},
 	}
-	last, ever := agent.LastOut(entries, mx+"!a:x")
-	if !ever || !last.Equal(now.Add(-time.Hour)) {
-		t.Errorf("last out of !a:x = %v (%v), want the send an hour ago", last, ever)
+	if outs := agent.Outs(entries, mx+"!a:x"); !slices.EqualFunc(outs, []time.Time{now.Add(-time.Hour), now.Add(time.Hour)}, time.Time.Equal) {
+		t.Errorf("outs of !a:x = %v, want the send an hour ago, then the scheduled one an hour ahead", outs)
 	}
 	// A queued message counts as sent.
-	if _, ever := agent.LastOut(entries, mx+"!b:x"); !ever {
+	if outs := agent.Outs(entries, mx+"!b:x"); len(outs) != 1 {
 		t.Error("a queued message did not count")
 	}
-	if _, ever := agent.LastOut(entries, mx+"!c:x"); ever {
+	if outs := agent.Outs(entries, mx+"!c:x"); len(outs) != 0 {
 		t.Error("a room nothing was written to reported a send")
 	}
 }

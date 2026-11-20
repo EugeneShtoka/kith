@@ -13,6 +13,10 @@ import (
 // DefaultAgentCooldown is the default rest for a room after an assistant posts to it.
 const DefaultAgentCooldown = time.Minute
 
+// DefaultAgentQueueLimit is how many of an assistant's messages may wait to go out to
+// one room by default.
+const DefaultAgentQueueLimit = 10
+
 // AgentKithLinks reports whether [agent] links asks for kith's own links on every
 // message, rather than its network's where it has one.
 func AgentKithLinks(agent config.Agent) (bool, error) {
@@ -40,6 +44,17 @@ func AgentCooldown(agent config.Agent) (time.Duration, error) {
 		return 0, fmt.Errorf("agent.write.cooldown: %q must not be negative — \"0\" turns it off", spelled)
 	}
 	return parsed, nil
+}
+
+// AgentQueueLimit is how many messages may wait to go out to one room, resolved.
+func AgentQueueLimit(agent config.Agent) (int, error) {
+	if agent.Write.QueueLimit == nil {
+		return DefaultAgentQueueLimit, nil
+	}
+	if limit := *agent.Write.QueueLimit; limit >= 0 {
+		return limit, nil
+	}
+	return 0, fmt.Errorf("agent.write.queue_limit: %d must not be negative — 0 lets no message wait", *agent.Write.QueueLimit)
 }
 
 // weekdays reads a [[agent.write.hours]] day by its first three letters.

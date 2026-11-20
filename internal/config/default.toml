@@ -775,8 +775,10 @@ people = false
 #   send  = ["room:Notes"]       post there, draft elsewhere
 #   rooms = ["room:Notes"]       write only in Notes
 #
-# A write entry that reading rules out is warned about at startup. `cooldown` makes a
-# second message to the same room within the window a draft instead ("0" disables).
+# A write entry that reading rules out is warned about at startup. `cooldown` is how
+# long a room rests after a message goes out to it: a message inside the window is
+# scheduled for when it ends ("0" disables). `queue_limit` is how many messages may
+# wait to go out to one room; past it, a message is drafted instead (0: none waits).
 # Everything written is logged; `kith --agent-log` prints it.
 [agent.write]
 rooms = []
@@ -784,6 +786,7 @@ except = []
 encrypted = false
 send = []
 cooldown = "1m"
+queue_limit = 10
 
 # [[agent.write.hours]] — when the assistant may send. A send outside the hours of the
 # room is scheduled for when they next open (on this machine's clock), unless the
