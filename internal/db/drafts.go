@@ -75,6 +75,35 @@ func (c *Cache) RebaseDraft(ctx context.Context, draft, base domain.StoredDraft,
 	return stored, added, nil
 }
 
+// TakeDraft takes a draft that moved from from to to on another bridge, in one step
+// with reading what is stored (domain.TakeDraft): to while the stored draft is still
+// from, else the stored one with to's words added. stored is the draft now stored
+// (empty: none). A room the cache does not hold (left, merged, or of an account this
+// bridge does not run) is left alone, held false.
+func (c *Cache) TakeDraft(ctx context.Context, from, to domain.StoredDraft) (stored domain.StoredDraft, held bool, err error) {
+	err = c.inTx(ctx, func(tx *sql.Tx) error {
+		var n int
+		if qerr := tx.QueryRowContext(ctx, `SELECT count(*) FROM rooms WHERE id = ?`, string(to.RoomID)).Scan(&n); qerr != nil || n == 0 {
+			return qerr
+		}
+		held = true
+		current, _, qerr := wholeDraft(ctx, tx, to.RoomID, to.ThreadRoot)
+		if qerr != nil {
+			return qerr
+		}
+		current.RoomID, current.ThreadRoot = to.RoomID, to.ThreadRoot
+		if stored = domain.TakeDraft(current, from, to); domain.SameDraft(stored, current) {
+			stored = current
+			return nil
+		}
+		return writeDraft(ctx, tx, stored)
+	})
+	if err != nil {
+		return domain.StoredDraft{}, false, err
+	}
+	return stored, held, nil
+}
+
 // unixMillisOrZero is t in milliseconds, 0 for the zero time.
 func unixMillisOrZero(t time.Time) int64 {
 	if t.IsZero() {

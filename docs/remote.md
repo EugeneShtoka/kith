@@ -194,7 +194,12 @@ and only the bridge where you read it sends the network a receipt. A read the ne
 reports (made on the phone) reaches each bridge from the network itself. The config is
 shared too, but for the keys that name a machine
 ([Bridges of a mesh share the config](configuration.md#bridges-of-a-mesh-share-the-config)).
-Each bridge still runs its own network accounts. Two bridges on one WhatsApp
+So are drafts, a room's and each thread's: a bridge passes one on once you have stopped
+typing for 5 seconds, or at once when no window has its room open (you left it, or
+kith-mcp wrote it). Two bridges writing one draft at once both keep their words: the
+later version first, then what the other added, so text may repeat but none is lost; a
+message sent on one bridge while words were added on another leaves just those words. A
+draft over 1 MiB stays on its bridge, which says so in its log. Each bridge still runs its own network accounts. Two bridges on one WhatsApp
 account keep a chat under the person's number as soon as either learns it: a
 chat known by the person's LID merges into the number's on every bridge running that
 account ([whatsapp.md](whatsapp.md#what-works)).

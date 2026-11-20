@@ -1,10 +1,17 @@
 package daemon
 
 import (
+	"context"
 	"net/http"
 	"slices"
+	"time"
 
+	"connectrpc.com/connect"
+
+	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
+	pc "github.com/EugeneShtoka/kith/internal/api/backend/v1/protoconv"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // Test-only accessors.
@@ -76,4 +83,49 @@ func (d *Devices) ExpirePairings() {
 	for _, t := range open {
 		t.timer.Reset(0)
 	}
+}
+
+// DraftsServer is a server's drafts as ReplaceDraft and followDrafts keep them, for a
+// test that takes every step itself.
+type DraftsServer struct{ s *server }
+
+// NewDraftsServer is the drafts of a server over d.
+func NewDraftsServer(d *Daemon) DraftsServer {
+	return DraftsServer{&server{Daemon: d, windows: newWindows(), drafts: newDraftPace()}}
+}
+
+// Save is a draft write as ReplaceDraft takes it: a window's (rebase) or kith-mcp's.
+func (x DraftsServer) Save(ctx context.Context, draft, over domain.StoredDraft, rebase bool) (saved bool, stored domain.StoredDraft, err error) {
+	r, err := x.s.ReplaceDraft(ctx, connect.NewRequest(&v1.ReplaceDraftRequest{
+		Draft: pc.StoredDraftToProto(draft), Over: pc.StoredDraftToProto(over), Rebase: rebase,
+	}))
+	if err != nil {
+		return false, domain.StoredDraft{}, err
+	}
+	return r.Msg.GetSaved(), pc.ProtoToStoredDraft(r.Msg.GetStored()), nil
+}
+
+// Open has the window client listen and show room ("" for none), as Present says.
+func (x DraftsServer) Open(client string, room domain.RoomID) {
+	x.s.windows.listen(client, "", "")
+	x.s.windows.present(client, room, time.Now())
+	x.s.drafts.poke()
+}
+
+// Rested is every save made so far draftsIdle old.
+func (x DraftsServer) Rested() {
+	x.s.drafts.mu.Lock()
+	defer x.s.drafts.mu.Unlock()
+	for at, t := range x.s.drafts.saved {
+		x.s.drafts.saved[at] = t.Add(-draftsIdle)
+	}
+}
+
+// Follow is one pass of followDrafts.
+func (x DraftsServer) Follow(ctx context.Context) {
+	store, _, _, signer, err := x.s.Paired.meshParts()
+	if err != nil {
+		panic(err)
+	}
+	x.s.syncDrafts(ctx, x.s.Backend.(draftKeeper), store, signer)
 }

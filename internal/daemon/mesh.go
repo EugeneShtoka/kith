@@ -505,13 +505,14 @@ func (s *server) publishAccounts(ctx context.Context) {
 	}
 }
 
-// startMesh runs publishAccounts, followReads and followConfig until ctx ends; wait
-// returns once all have.
+// startMesh runs publishAccounts, followReads, followConfig and followDrafts until ctx
+// ends; wait returns once all have.
 func (s *server) startMesh(ctx context.Context) (wait func()) {
 	var running sync.WaitGroup
 	running.Go(func() { s.publishAccounts(ctx) })
 	running.Go(func() { s.followReads(ctx) })
 	running.Go(func() { s.followConfig(ctx) })
+	running.Go(func() { s.followDrafts(ctx) })
 	return running.Wait
 }
 
