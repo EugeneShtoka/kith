@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -62,13 +63,17 @@ type network struct {
 	cache   *cache
 	during  func(event domain.EventID) // runs mid-download
 	fail    bool
+	gone    map[domain.EventID]bool // what the network no longer has
 }
 
 func (n *network) fetch(_ context.Context, room domain.RoomID, event domain.EventID) ([]byte, error) {
 	n.mu.Lock()
 	n.fetched[event]++
-	fail, during := n.fail, n.during
+	fail, during, gone := n.fail, n.during, n.gone[event]
 	n.mu.Unlock()
+	if gone {
+		return nil, fmt.Errorf("410 Gone: %w", domain.ErrMediaGone)
+	}
 	if fail {
 		return nil, errors.New("offline")
 	}
@@ -158,6 +163,42 @@ func TestRunKeepsWhatIsAlreadyCached(t *testing.T) {
 	a.keepSince(context.Background(), "", time.Time{})
 	if n.count("$1") != 1 {
 		t.Errorf("downloaded %d times, want once", n.count("$1"))
+	}
+}
+
+// An attachment its network no longer has is asked for once, never again, a start
+// between; one that failed otherwise is asked for again, as is one an edit replaced, and
+// one the user opens.
+func TestWhatItsNetworkNoLongerHasIsAskedForOnce(t *testing.T) {
+	t.Parallel()
+	a, c, n, _ := fixture(t, ref(kept, "$1", ""), ref(kept, "$2", ""), ref(kept, "$3", ""))
+	ctx := context.Background()
+	n.gone = map[domain.EventID]bool{"$1": true, "$3": true}
+	n.fail = true
+	a.keepSince(ctx, "", time.Time{})
+	if err := a.open(); err != nil { // the next start
+		t.Fatal(err)
+	}
+	n.fail = false
+	a.keepSince(ctx, "", time.Time{})
+	if n.count("$1") != 1 || n.count("$3") != 1 {
+		t.Errorf("gone attachments asked for %d and %d times, want once", n.count("$1"), n.count("$3"))
+	}
+	if n.count("$2") != 2 || !a.has(ref(kept, "$2", "")) {
+		t.Errorf("one that failed while offline: asked %d times, kept %v", n.count("$2"), a.has(ref(kept, "$2", "")))
+	}
+
+	n.gone = map[domain.EventID]bool{}
+	c.set("$1", ref(kept, "$1", "$edit"), true)
+	a.keepSince(ctx, "", time.Time{})
+	if !a.has(ref(kept, "$1", "$edit")) {
+		t.Error("an attachment an edit replaced was not asked for")
+	}
+	if n.count("$3") != 1 {
+		t.Errorf("a gone attachment asked for %d times by a pass, want once", n.count("$3"))
+	}
+	if _, err := a.Load(ctx, kept, "$3"); err != nil || !a.has(ref(kept, "$3", "")) {
+		t.Errorf("one the user opens is asked for and kept: %v", err)
 	}
 }
 

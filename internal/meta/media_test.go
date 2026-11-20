@@ -132,8 +132,12 @@ func TestLoadingAnAttachment(t *testing.T) {
 	if data, err := a.LoadImage(ctx, room, eventID(me, eli, "mid.$ok")); err != nil || string(data) != "JPEG" {
 		t.Errorf("a plain photo: %q, %v", data, err)
 	}
-	if _, err := a.LoadImage(ctx, room, eventID(me, eli, "mid.$old")); !errors.Is(err, errMediaRefused) {
-		t.Errorf("an expired link: %v, want refused", err)
+	if _, err := a.LoadImage(ctx, room, eventID(me, eli, "mid.$old")); !errors.Is(err, errMediaRefused) || !errors.Is(err, domain.ErrMediaGone) {
+		t.Errorf("an expired link: %v, want refused and gone", err)
+	}
+	save(eventID(me, eli, "mid.$oe"), mediaSource{URL: srv.URL + "/expired?oe=5F5E1000", Mime: "image/jpeg"})
+	if _, err := a.LoadImage(ctx, room, eventID(me, eli, "mid.$oe")); !errors.Is(err, domain.ErrMediaGone) || errors.Is(err, errMediaRefused) {
+		t.Errorf("a link past its oe: %v, want gone without asking", err)
 	}
 	if _, err := a.LoadImage(ctx, room, eventID(me, eli, "mid.$none")); !errors.Is(err, errNoMedia) {
 		t.Errorf("a message with no source: %v, want none to load", err)

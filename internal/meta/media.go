@@ -201,6 +201,9 @@ func (a *Adapter) LoadImage(ctx context.Context, room domain.RoomID, event domai
 	if source.URL == "" {
 		return nil, fmt.Errorf("%w: %s", errNoMedia, event)
 	}
+	if domain.LinkExpired(source.URL, time.Now()) {
+		return nil, fmt.Errorf("meta: the link to the attachment of %s expired: %w", event, domain.ErrMediaGone)
+	}
 	data, err := download(ctx, source.URL, source.Mime)
 	if err != nil {
 		return nil, fmt.Errorf("meta: download the attachment of %s (Meta's links expire): %w", event, err)
@@ -230,6 +233,9 @@ func download(ctx context.Context, url, mime string) ([]byte, error) {
 		return nil, fmt.Errorf("fetch: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if c := resp.StatusCode; c == http.StatusForbidden || c == http.StatusNotFound || c == http.StatusGone {
+		return nil, fmt.Errorf("%w: %w: %s", errMediaRefused, domain.ErrMediaGone, resp.Status)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("%w: %s", errMediaRefused, resp.Status)
 	}

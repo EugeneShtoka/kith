@@ -139,7 +139,12 @@ func (a *Adapter) LoadImage(ctx context.Context, room domain.RoomID, event domai
 	if err != nil {
 		return nil, err
 	}
-	data, err := download(ctx, s)
+	var data []byte
+	if domain.LinkExpired(s.URL, time.Now()) {
+		err = fmt.Errorf("%w: %w: the link expired", errMediaRefused, domain.ErrMediaGone)
+	} else {
+		data, err = download(ctx, s)
+	}
 	if !errors.Is(err, errMediaRefused) {
 		if err != nil {
 			return nil, fmt.Errorf("instagram: download the attachment of %s: %w", event, err)
@@ -149,7 +154,9 @@ func (a *Adapter) LoadImage(ctx context.Context, room domain.RoomID, event domai
 	self, chat, _ := threadOf(room)
 	c, client := a.connected(self)
 	if client == nil {
-		return nil, fmt.Errorf("instagram: the attachment of %s expired; it can be fetched again once the account connects: %w", event, err)
+		// Not ErrMediaGone: once connected, the thread's page may renew it.
+		return nil, fmt.Errorf("instagram: the attachment of %s expired; it can be fetched again once the account connects: %w (%s)",
+			event, errMediaRefused, err.Error())
 	}
 	a.fetchRecent(ctx, c, client, chat)
 	fresh, ferr := a.source(ctx, room, event)
@@ -184,6 +191,9 @@ func download(ctx context.Context, s mediaSource) ([]byte, error) {
 		return nil, fmt.Errorf("fetch: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if c := resp.StatusCode; c == http.StatusForbidden || c == http.StatusNotFound || c == http.StatusGone {
+		return nil, fmt.Errorf("%w: %w: %s", errMediaRefused, domain.ErrMediaGone, resp.Status)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("%w: %s", errMediaRefused, resp.Status)
 	}
