@@ -19,11 +19,6 @@ that defaults to today's behaviour. For what already exists, see
 
 Every item below is described here in full; nothing depends on notes kept elsewhere.
 
-## Now
-
-- **LinkedIn: received attachments, checked live (#100).** Attachments are sent and
-  shown; that a received one downloads has only been tested against fixtures.
-
 ## Next
 
 Ordered. Anything that makes later work cheaper or safer goes first; anything that
