@@ -83,6 +83,20 @@ func TestLastOutIgnoresDraftsAndRefusals(t *testing.T) {
 	}
 }
 
+// A scheduled message goes out at its due time, which counts even while it is ahead.
+func TestLastOutIsAScheduledMessagesDueTime(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	entries := []agent.Entry{
+		{Room: mx + "!a:x", Outcome: agent.Sent, At: now},
+		{Room: mx + "!a:x", Outcome: agent.Scheduled, At: now.Add(-time.Minute), Due: now.Add(time.Hour)},
+	}
+	if last, _ := agent.LastOut(entries, mx+"!a:x"); !last.Equal(now.Add(time.Hour)) {
+		t.Errorf("last out = %v, want the scheduled message's due time", last)
+	}
+}
+
 func TestTextIsCapped(t *testing.T) {
 	t.Parallel()
 

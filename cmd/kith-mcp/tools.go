@@ -65,7 +65,7 @@ func (s *server) writePolicy() string {
 	}
 	b.WriteString(". Any other room is refused and nothing is written; list_rooms marks the rooms you may write to as writable.")
 	if send := listed(s.send); send != "" {
-		b.WriteString(" Of those, rooms matching " + send + " are sent to (unless the room is resting after a recent send); the rest are drafted.")
+		b.WriteString(" Of those, rooms matching " + send + " are sent to (a room resting after a recent send gets it once the rest ends, or a draft while another message already waits); the rest are drafted.")
 		if len(s.hours) > 0 {
 			b.WriteString(" A send outside the room's working hours is scheduled for when they next open, unless you pass urgent.")
 		}

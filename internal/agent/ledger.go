@@ -37,6 +37,8 @@ type Entry struct {
 	// Reason explains the outcome, e.g. cooldown running or send failed.
 	Reason string `json:"reason,omitempty"`
 	Text   string `json:"text"` // capped by TextCap
+	// Due is when a scheduled message goes out.
+	Due time.Time `json:"due,omitzero"`
 }
 
 // Field caps in runes. Every field is capped: a line over maxLine could not be read
@@ -161,7 +163,7 @@ func (l *Ledger) Read() (entries []Entry, skipped int, err error) {
 const maxLine = 1 << 16
 
 // LastOut is when a message last went out (sent, queued or scheduled) to room, for the
-// cooldown.
+// cooldown: a scheduled one at its due time, which may be ahead.
 func LastOut(entries []Entry, room domain.RoomID) (time.Time, bool) {
 	var latest time.Time
 	var found bool
@@ -172,8 +174,12 @@ func LastOut(entries []Entry, room domain.RoomID) (time.Time, bool) {
 		if entries[i].Outcome != Sent && entries[i].Outcome != Queued && entries[i].Outcome != Scheduled {
 			continue
 		}
-		if !found || entries[i].At.After(latest) {
-			latest, found = entries[i].At, true
+		out := entries[i].At
+		if entries[i].Due.After(out) {
+			out = entries[i].Due
+		}
+		if !found || out.After(latest) {
+			latest, found = out, true
 		}
 	}
 	return latest, found

@@ -100,7 +100,7 @@ Search matches terms, not meaning. The tool description tells the assistant to r
 
 A `thread` or `reply_to` must be a message of that room's cached history, or nothing is written: an event of any other room is not found, whatever room it is in. **A drafted thread reply stays in its thread.** Each thread has a draft of its own, apart from the room's: the assistant's words go into the draft of the thread they are aimed at, or the room's for none, and you find them when you open that thread. An empty draft takes their reply target. A draft that already answers a message keeps it: words answering another message are refused and recorded, and your draft is untouched.
 
-**A later send (`at`) goes only to a room the assistant may send to.** A room it would only draft into refuses it, recorded: a draft is reviewed before it goes, a scheduled message is not. It is recorded as `scheduled`, and rests the room for the cooldown as a send does.
+**A later send (`at`) goes only to a room the assistant may send to.** A room it would only draft into refuses it, recorded: a draft is reviewed before it goes, a scheduled message is not. It is recorded as `scheduled`, and rests the room for the cooldown from when it goes out. One inside a cooldown moves to when the room has rested.
 
 **The assistant may write only where `[agent.write]` allows**, and that is never wider than what `[agent.read]` allows. The tool's description, as the assistant receives it, spells out your write scope and send list, so it knows where it may write before it tries. A room it may read but not write is refused with an error naming `[agent.write]`. A room outside `[agent.read]` is answered as if it did not exist. Either way nothing is sent or drafted, and the refusal is recorded in the [ledger](#the-audit-trail-kith---agent-log) with the rule that refused it.
 
@@ -149,7 +149,7 @@ Reading and writing are separate tables because the useful policy is usually lop
 | May it read this room? | `[agent.read]` |
 | May it write here at all? | `[agent.read]`, then `[agent.write]` `rooms`/`except`/`encrypted` |
 | Sent or drafted? | `[agent.write] send`, then `cooldown` |
-| Sent now or later? | `[[agent.write.hours]]`, unless `urgent` |
+| Sent now or later? | `cooldown`, then `[[agent.write.hours]]` unless `urgent` |
 
 The two tables read their lists differently. **Reading is least privilege**; writing reads its lists the way `[assist]` does, inside what reading allows:
 
@@ -261,7 +261,7 @@ Of the rooms the assistant may write to, a room that `send` names is **sent to**
 
 ### `cooldown`: stopping a runaway
 
-After a message is sent to a room, that room rests for `cooldown`. A second message inside the window is **drafted instead**, and the answer says why. A loop sends its next message within milliseconds, so any cooldown stops one. A person who asks for two messages a minute apart loses only a keystroke. `"0"` turns the cooldown off.
+After a message goes out to a room, that room rests for `cooldown`. A second message inside the window is **scheduled for when the rest ends** (`scheduled`, with a `reason` naming the cooldown and the time it goes out), and the working hours still apply to that time. Only one message waits per room: a third, while the second still waits, is **drafted instead**, and the answer says why. A loop sends its next message within milliseconds, so any cooldown stops one after a single scheduled message. `"0"` turns the cooldown off.
 
 ### Working hours: when it may send
 
