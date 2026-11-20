@@ -135,6 +135,12 @@ type RosterStore interface {
 	// WriteDraft writes current, the cache's draft of d's place, into the mesh, signed
 	// by signer: false while the mesh holds versions the cache has not taken.
 	WriteDraft(ctx context.Context, signer crypto.Signer, d domain.MeshDraft, current domain.StoredDraft) (bool, error)
+	// Verdicts is every verdict the mesh holds of the networks that keep none, each
+	// key's value as it reads, and every retag (mesh.Store.Verdicts).
+	Verdicts() domain.MeshVerdicts
+	// WriteVerdicts writes each verdict of mv that wins over the mesh's value of it, and
+	// each retag the mesh holds otherwise, signed by signer.
+	WriteVerdicts(ctx context.Context, signer crypto.Signer, mv domain.MeshVerdicts) error
 	// TakeMarks is each room's unread mark written since it was last asked, or since
 	// the store was opened, with the time it was written.
 	TakeMarks() map[domain.RoomID]domain.UnreadMark

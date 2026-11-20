@@ -129,3 +129,27 @@ func (x DraftsServer) Follow(ctx context.Context) {
 	}
 	x.s.syncDrafts(ctx, x.s.Backend.(draftKeeper), store, signer)
 }
+
+// VerdictsServer is a server's verdicts as RetagVerdicts and followVerdicts keep them,
+// for a test that takes every step itself.
+type VerdictsServer struct{ s *server }
+
+// NewVerdictsServer is the verdicts of a server over d.
+func NewVerdictsServer(d *Daemon) VerdictsServer {
+	return VerdictsServer{&server{Daemon: d, verdicts: make(chan struct{}, 1)}}
+}
+
+// Retag is RetagVerdicts as the tag editor asks it.
+func (x VerdictsServer) Retag(ctx context.Context, from, to string) error {
+	_, err := x.s.RetagVerdicts(ctx, connect.NewRequest(&v1.RetagVerdictsRequest{From: from, To: to}))
+	return err
+}
+
+// Follow is one pass of followVerdicts.
+func (x VerdictsServer) Follow(ctx context.Context) {
+	store, _, _, signer, err := x.s.Paired.meshParts()
+	if err != nil {
+		panic(err)
+	}
+	x.s.syncVerdicts(ctx, x.s.Backend.(verdictKeeper), store, signer)
+}

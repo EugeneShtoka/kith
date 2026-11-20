@@ -3,6 +3,7 @@ package local
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/db"
@@ -65,6 +66,42 @@ func (s *Service) KeepReads(ctx context.Context, reads []domain.ReadPosition, ma
 		s.net.RecountUnread(ctx, moved)
 	}
 	return nil
+}
+
+// ownVerdicts is a network that keeps some networks' verdicts itself (route.Router);
+// the cache only mirrors those.
+type ownVerdicts interface{ KeepsVerdicts(id string) bool }
+
+// KeptVerdicts is the verdicts the cache keeps for the networks with nowhere else to
+// keep them, which the mesh carries.
+func (s *Service) KeptVerdicts(ctx context.Context) (domain.MeshVerdicts, error) {
+	tags, err := fromCache(s, "read the verdicts kept here", func(c *db.Cache) ([]domain.TagVerdict, error) {
+		return c.TagVerdicts(ctx)
+	})
+	if err != nil {
+		return domain.MeshVerdicts{}, err
+	}
+	people, err := fromCache(s, "read the marks kept here", func(c *db.Cache) ([]domain.PersonVerdict, error) {
+		return c.KeptPersonVerdicts(ctx)
+	})
+	return domain.MeshVerdicts{Tags: s.keptHere(tags), People: people}, err
+}
+
+// KeepVerdicts keeps the verdicts another bridge made that win over the cache's own
+// (db.Cache.KeepVerdicts), reporting whether any was kept.
+func (s *Service) KeepVerdicts(ctx context.Context, mv domain.MeshVerdicts) (bool, error) {
+	return fromCache(s, "keep the verdicts made elsewhere", func(c *db.Cache) (bool, error) {
+		return c.KeepVerdicts(ctx, s.keptHere(mv.Tags), mv.People)
+	})
+}
+
+// keptHere is tags without those of rooms whose network keeps its own.
+func (s *Service) keptHere(tags []domain.TagVerdict) []domain.TagVerdict {
+	own, ok := s.net.(ownVerdicts)
+	if !ok {
+		return tags
+	}
+	return slices.DeleteFunc(slices.Clone(tags), func(v domain.TagVerdict) bool { return own.KeepsVerdicts(string(v.Room)) })
 }
 
 // Drafts returns every stored draft.

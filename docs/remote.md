@@ -199,7 +199,12 @@ typing for 5 seconds, or at once when no window has its room open (you left it, 
 kith-mcp wrote it). Two bridges writing one draft at once both keep their words: the
 later version first, then what the other added, so text may repeat but none is lost; a
 message sent on one bridge while words were added on another leaves just those words. A
-draft over 1 MiB stays on its bridge, which says so in its log. Each bridge still runs its own network accounts. Two bridges on one WhatsApp
+draft over 1 MiB stays on its bridge, which says so in its log. Filters' moves and
+your releases of rooms and people on networks with nowhere of their own to keep them
+(all but Matrix, whose live in your account data) cross too, within a minute of a
+filter's move and at once for yours: a release wins over a move another bridge made
+at the same time, and a tag renamed on one bridge takes them along on every bridge
+([filters.md](filters.md#where-moves-are-stored)). Each bridge still runs its own network accounts. Two bridges on one WhatsApp
 account keep a chat under the person's number as soon as either learns it: a
 chat known by the person's LID merges into the number's on every bridge running that
 account ([whatsapp.md](whatsapp.md#what-works)).

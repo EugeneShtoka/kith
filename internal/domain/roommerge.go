@@ -9,3 +9,17 @@ type RoomMerge struct {
 	From, Into             RoomID
 	FromPerson, IntoPerson string
 }
+
+// MergedPeople is the person each merge of merged (a room to the room it joined) moves
+// to, by each ID as RoomMerge's FromPerson and IntoPerson name them: a direct chat's
+// native ID is the person's (a LID's chat, the LID).
+func MergedPeople(merged map[RoomID]RoomID) map[string]string {
+	out := map[string]string{}
+	for from, into := range merged {
+		f, i := ParseID(string(from)), ParseID(string(into))
+		if f.Network != "" && i.Network == f.Network {
+			out[NativePerson(f.Network, f.Native)] = NativePerson(i.Network, i.Native)
+		}
+	}
+	return out
+}

@@ -292,6 +292,7 @@ func (s *server) release(ctx context.Context, room domain.RoomID, leaving []stri
 	}
 	if released {
 		s.Notifications.TagMarked(ctx)
+		s.pokeVerdicts()
 	}
 	return strings.Join(failed, "; ")
 }

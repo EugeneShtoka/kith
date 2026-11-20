@@ -783,9 +783,9 @@ func (s *Store) PublishAccounts(ctx context.Context, signer crypto.Signer, accou
 
 // PublishAliases writes each room of aliases as merged into the room it names
 // (crdt.AliasKey), unless the mesh holds it so already, and moves what the mesh holds
-// of the reads and drafts of every room merged, these and those it held, under the
-// room it joined (crdt.State.FoldWrites, draftMoves): ops signed by signer, none with
-// nothing to write.
+// of the reads, drafts and verdicts of every room merged, these and those it held,
+// under the room it joined (crdt.State.FoldWrites, draftMoves, verdictMoves): ops
+// signed by signer, none with nothing to write.
 func (s *Store) PublishAliases(ctx context.Context, signer crypto.Signer, aliases map[domain.RoomID]domain.RoomID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -814,7 +814,11 @@ func (s *Store) PublishAliases(ctx context.Context, signer crypto.Signer, aliase
 	if err != nil {
 		return err
 	}
-	return s.writeAllLocked(ctx, signer, origin, slices.Concat(writes, folds, moves))
+	verdicts, err := verdictMoves(s.state, merged)
+	if err != nil {
+		return err
+	}
+	return s.writeAllLocked(ctx, signer, origin, slices.Concat(writes, folds, moves, verdicts))
 }
 
 // Read writes how far each of reads is read, unless the mesh holds it at least as far,

@@ -26,21 +26,30 @@ func (c *Cache) SetRoomVerdicts(ctx context.Context, roomID domain.RoomID, verdi
 			if !v.In() && !v.Released {
 				continue
 			}
-			rule, filter := int(v.Rule), v.Filter
-			if v.Released {
-				rule, filter = 0, ""
-			}
-			_, err := tx.ExecContext(ctx, `
-				INSERT INTO tag_verdicts (room_id, tag, rule, filter, at_ms, released) VALUES (?, ?, ?, ?, ?, ?)
-				ON CONFLICT (room_id, tag) DO UPDATE SET
-					rule = excluded.rule, filter = excluded.filter, at_ms = excluded.at_ms, released = excluded.released`,
-				string(roomID), verdictKey(v.Tag), rule, filter, v.At.UnixMilli(), boolInt(v.Released))
-			if err != nil {
-				return fmt.Errorf("db: record the %s verdict of %s: %w", v.Tag, roomID, err)
+			v.Room = roomID
+			if err := writeTagVerdict(ctx, tx, v); err != nil {
+				return err
 			}
 		}
 		return nil
 	})
+}
+
+// writeTagVerdict records v, a move or a release, as its room's verdict on its tag.
+func writeTagVerdict(ctx context.Context, tx *sql.Tx, v domain.TagVerdict) error {
+	rule, filter := int(v.Rule), v.Filter
+	if v.Released {
+		rule, filter = 0, ""
+	}
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO tag_verdicts (room_id, tag, rule, filter, at_ms, released) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (room_id, tag) DO UPDATE SET
+			rule = excluded.rule, filter = excluded.filter, at_ms = excluded.at_ms, released = excluded.released`,
+		string(v.Room), verdictKey(v.Tag), rule, filter, v.At.UnixMilli(), boolInt(v.Released))
+	if err != nil {
+		return fmt.Errorf("db: record the %s verdict of %s: %w", v.Tag, v.Room, err)
+	}
+	return nil
 }
 
 // TagVerdicts is every room's verdicts and releases, newest first.
