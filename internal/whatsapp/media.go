@@ -146,13 +146,22 @@ func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID d
 	if err != nil {
 		return nil, err
 	}
-	if domain.LinkExpired(part.GetDirectPath(), time.Now()) {
-		return nil, fmt.Errorf("whatsapp: the link to the attachment of %s expired: %w", eventID, domain.ErrMediaGone)
-	}
 	_, client, connected := a.clientFor(domain.ParseID(string(roomID)).Account)
 	if !connected {
 		return nil, fmt.Errorf("whatsapp: account %s is not connected: %w", domain.ParseID(string(roomID)).Account, errNetworkOff)
 	}
+	if !domain.LinkExpired(part.GetDirectPath(), time.Now()) {
+		data, err := download(ctx, client, eventID, part)
+		if !errors.Is(err, domain.ErrMediaGone) {
+			return data, err
+		}
+	}
+	// WhatsApp's servers dropped it: the phone may still have it.
+	return a.reupload(ctx, roomID, eventID, source.Kind, part)
+}
+
+// download fetches part; a link the servers refuse (403, 404, 410) is ErrMediaGone.
+func download(ctx context.Context, client *whatsmeow.Client, eventID domain.EventID, part whatsmeow.DownloadableMessage) ([]byte, error) {
 	data, err := client.Download(ctx, part)
 	if errors.Is(err, whatsmeow.ErrMediaDownloadFailedWith403) || errors.Is(err, whatsmeow.ErrMediaDownloadFailedWith404) ||
 		errors.Is(err, whatsmeow.ErrMediaDownloadFailedWith410) {
