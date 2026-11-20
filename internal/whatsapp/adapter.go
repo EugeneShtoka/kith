@@ -105,6 +105,11 @@ type Adapter struct {
 	// sent maps a send's TxnID to its WhatsApp message ID, so a retry reuses the ID
 	// and WhatsApp dedupes it.
 	sent map[string]types.MessageID
+	// retries are the attachments asked of the phone again, by message (mediaretry.go).
+	retries map[types.MessageID]*retry
+	// quietUntil is, by account digits, when its phone is asked again after it did not
+	// answer one.
+	quietUntil map[string]time.Time
 
 	streamMu  sync.RWMutex
 	closed    bool
@@ -122,21 +127,23 @@ func New(cache *db.Cache, store *Store, accounts []Account, log *slog.Logger) *A
 	}
 	return &Adapter{
 		cache: cache, store: store, accounts: slices.Clone(accounts), log: log.With("network", "whatsapp"),
-		clients:   map[string]*whatsmeow.Client{},
-		pairing:   map[string]bool{},
-		sent:      map[string]types.MessageID{},
-		heard:     map[domain.RoomID]time.Time{},
-		typing:    map[domain.RoomID][]string{},
-		channels:  map[domain.RoomID]channel{},
-		listedAt:  map[string]time.Time{},
-		trailing:  map[string]bool{},
-		sweepers:  map[string]*sweepers{},
-		messages:  make(chan domain.Message, streamBuffer),
-		activity:  make(chan domain.Activity, streamBuffer),
-		unread:    make(chan domain.Unread, streamBuffer),
-		reactions: make(chan domain.ReactionUpdate, streamBuffer),
-		reads:     readstate.NewOwed(laterReceipt),
-		marks:     readstate.NewOwed(laterMark),
+		clients:    map[string]*whatsmeow.Client{},
+		pairing:    map[string]bool{},
+		sent:       map[string]types.MessageID{},
+		retries:    map[types.MessageID]*retry{},
+		quietUntil: map[string]time.Time{},
+		heard:      map[domain.RoomID]time.Time{},
+		typing:     map[domain.RoomID][]string{},
+		channels:   map[domain.RoomID]channel{},
+		listedAt:   map[string]time.Time{},
+		trailing:   map[string]bool{},
+		sweepers:   map[string]*sweepers{},
+		messages:   make(chan domain.Message, streamBuffer),
+		activity:   make(chan domain.Activity, streamBuffer),
+		unread:     make(chan domain.Unread, streamBuffer),
+		reactions:  make(chan domain.ReactionUpdate, streamBuffer),
+		reads:      readstate.NewOwed(laterReceipt),
+		marks:      readstate.NewOwed(laterMark),
 	}
 }
 
@@ -256,6 +263,7 @@ func (a *Adapter) connect(account Account, client *whatsmeow.Client) {
 	a.mu.Unlock()
 	client.AddEventHandler(func(evt any) { a.handle(account, client, evt) })
 	client.AddEventHandler(func(evt any) { a.pictureChanged(account, client, evt) })
+	client.AddEventHandler(a.onMediaRetry)
 	if client.IsConnected() {
 		// Just paired: its Connected event came before this handler.
 		a.link(account, Connected, "")
