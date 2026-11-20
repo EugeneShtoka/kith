@@ -91,13 +91,28 @@ func (s *windows) listen(client, device, profile string) (wake <-chan struct{}, 
 	return mine, take, release
 }
 
-// present records what a window said it is doing.
-func (s *windows) present(client string, open domain.RoomID, at time.Time) {
+// present records what a window said it is doing, reporting whether it left the room
+// it had open.
+func (s *windows) present(client string, open domain.RoomID, at time.Time) (left bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if w := s.windows[client]; w != nil {
+		left = w.open != "" && w.open != open
 		w.open, w.used = open, at
 	}
+	return left
+}
+
+// hasOpen reports whether a window has room open.
+func (s *windows) hasOpen(room domain.RoomID) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, w := range s.windows {
+		if w.open == room {
+			return true
+		}
+	}
+	return false
 }
 
 // follow hands uri to one window on device, the one the link was clicked on: the one with

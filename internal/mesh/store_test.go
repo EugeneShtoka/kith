@@ -134,7 +134,7 @@ func TestAStoreThatIsNotThisKithsDoesNotOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.ExecContext(t.Context(), "PRAGMA user_version = 4"); err != nil {
+	if _, err := db.ExecContext(t.Context(), "PRAGMA user_version = 5"); err != nil {
 		t.Fatal(err)
 	}
 	_ = db.Close()

@@ -122,6 +122,19 @@ type RosterStore interface {
 	Rendered(ctx context.Context) (renderings []string, joined bool, err error)
 	// KeepRendered keeps body as the latest rendering; fresh drops those before it.
 	KeepRendered(ctx context.Context, body string, fresh bool) error
+	// Drafts is every place's draft the mesh holds or the cache took, with what the
+	// cache last took of it (mesh.Store.Drafts).
+	Drafts() []domain.MeshDraft
+	// OweDraft records, before a save here changes the cache's draft of a place, that
+	// the mesh is owed it; SavedDraft, after, that the save was made.
+	OweDraft(ctx context.Context, room domain.RoomID, root domain.EventID) error
+	SavedDraft(room domain.RoomID, root domain.EventID)
+	// TookDraft records that the cache took d.Draft, and whether it holds words of its
+	// own besides that the mesh is owed.
+	TookDraft(ctx context.Context, d domain.MeshDraft, owed bool) error
+	// WriteDraft writes current, the cache's draft of d's place, into the mesh, signed
+	// by signer: false while the mesh holds versions the cache has not taken.
+	WriteDraft(ctx context.Context, signer crypto.Signer, d domain.MeshDraft, current domain.StoredDraft) (bool, error)
 	// TakeMarks is each room's unread mark written since it was last asked, or since
 	// the store was opened, with the time it was written.
 	TakeMarks() map[domain.RoomID]domain.UnreadMark

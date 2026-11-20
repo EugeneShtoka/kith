@@ -1,11 +1,12 @@
 # Design: the mesh CRDT, what is left (Phase 2b of design-clients.md)
 
-Status: steps 1–5 built (#407, #422, #424, #427, #609 for 5a, then step 5): bridges pair
-and sync, the roster is kept as signed ops, a WhatsApp DM known by its LID joins its
-number's room, read positions cross bridges, every op is sealed, and the config's shared
-keys cross. How that works is in `internal/mesh` and [docs/remote.md](../docs/remote.md).
-This file holds the steps still to build: drafts, verdicts, and key rotation; the Config
-section stays as the shared config's design. Failover between bridges stays Phase 3.
+Status: steps 1–6 built (#407, #422, #424, #427, #609 for 5a, then steps 5 and 6):
+bridges pair and sync, the roster is kept as signed ops, a WhatsApp DM known by its LID
+joins its number's room, read positions cross bridges, every op is sealed, the config's
+shared keys cross, and so do drafts. How that works is in `internal/mesh` and
+[docs/remote.md](../docs/remote.md). This file holds the steps still to build: verdicts
+and key rotation; the Config and Drafts sections stay as their design. Failover between
+bridges stays Phase 3.
 
 ## What is left to cross
 
@@ -113,6 +114,28 @@ room's draft at once too.
   seconds, or the room is left, not per keystroke, which keeps the op log small.
 - **Bounded**: a draft over an op's 1 MiB stays on its bridge, and says so.
 
+As built (step 6), where it differs from the above or adds to it:
+
+- **A send writes a version that clears** (a value, `{"over": …}` with no words), not a
+  bare delete: with only the concurrent append left, a read could not tell its base was
+  sent. Over a clearing version every other version gives only what it added, so the
+  append comes back alone. A place whose draft was sent keeps that one small entry.
+- **What a version added counts only over words the newest had seen** (written over the
+  same words, holding them, or written over words that held them); else the version is
+  kept whole. A bridge that wrote twice before the bridges met replaces its first
+  version, and the second's base, its first, survives nowhere else: taking only the
+  second's addition lost words (`TestDraftsSurviveEveryInterleavingAcrossBridges`, "a
+  room left mid-save"). Text may repeat; none is lost.
+- **The room left** is a window's Present naming another room: a place's draft is
+  written at once when no window has its room open, which also covers kith-mcp's appends.
+- **The cache stays the working copy** every window rebases against. The mesh store keeps
+  per place what the cache last took or passed on (`drafts_taken`), and whether a save
+  here is owed, recorded before the save, so a draft saved and not passed on survives a
+  restart. A version arriving is taken over a save not passed on with the save's words
+  first (`domain.TakeDraft`); a write waits while the mesh holds versions not taken yet.
+  A place the cache lost while owing nothing (a rebuild) takes the mesh's draft back,
+  once its room is in the cache again; a room the cache does not hold is left alone.
+
 ## Verdicts
 
 On networks that keep no verdicts of their own, `Router.keeperFor`'s store keeper writes
@@ -148,7 +171,7 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
    (never crosses), a hand edit while kithd renders, an invalid hand edit, two concurrent
    writes of equal values (no conflict), a deleted key against an edited one, a join
    whose config differs in no key and in every key.
-- **6. feat: drafts cross bridges.** Drafts move from the cache into the mesh (the
+- **6. feat: drafts cross bridges** (built). Drafts move from the cache into the mesh (the
    `drafts` tables become its read model; a rebuild no longer loses them), siblings, the
    5-second cadence. **Failure review** (merges writers):
    `TestDraftsSurviveEveryInterleaving` gains a second bridge with its own window and

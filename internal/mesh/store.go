@@ -29,7 +29,7 @@ import (
 // schemaVersion is the store's layout (PRAGMA user_version). A store of a later one was
 // written by a newer kith, and is refused rather than read or rebuilt: it holds writes
 // and pairings nothing else has.
-const schemaVersion = 3
+const schemaVersion = 4
 
 // ErrNewer is a store a newer kith wrote.
 var ErrNewer = errors.New("mesh: the store was written by a newer kith; run that kith, or restore the store it replaced")
@@ -44,7 +44,8 @@ var ErrNewer = errors.New("mesh: the store was written by a newer kith; run that
 // beside it (none for one written before ops were sealed, layout 1), and keys the
 // keyring (keys.go): this replica's sealing key, the content keys it holds and the
 // epoch records it passes on. rendered keeps each config.toml kithd wrote since a hand
-// edit was last read (layout 3).
+// edit was last read (layout 3), and drafts_taken what the cache last took of each
+// place's draft (layout 4).
 const schema = `
 CREATE TABLE replicas (
 	idx INTEGER PRIMARY KEY,
@@ -88,7 +89,7 @@ CREATE TABLE forks (
 	other_body BLOB NOT NULL,
 	other_sig  BLOB NOT NULL
 );
-` + keysSchema + renderedSchema
+` + keysSchema + renderedSchema + draftsSchema
 
 // keysSchema is what layout 2 adds to layout 1, beside the ops' envelopes.
 const keysSchema = `
@@ -147,6 +148,10 @@ type Store struct {
 	marks map[string]crdt.Dot
 	// keys are what seals and opens ops.
 	keys keyring
+	// taken is what the cache last took of each place's draft (drafts_taken), and saves
+	// counts the saves made here of each since the store was opened.
+	taken map[string]taken
+	saves map[string]uint64
 }
 
 // peer is what a replica last said of itself.
@@ -283,7 +288,7 @@ func (s *Store) load(ctx context.Context) error {
 		return fmt.Errorf("read the clock: %w", err)
 	}
 	s.state, s.marks = state, markDots(state)
-	return nil
+	return s.loadTaken(ctx)
 }
 
 // markDots is the write of each room's unread mark state holds.
@@ -448,12 +453,16 @@ func (s *Store) create(ctx context.Context) error {
 		return fmt.Errorf("lay out the store: %w", err)
 	}
 	s.state, s.marks = crdt.State{}, map[string]crdt.Dot{}
+	if err := s.loadTaken(ctx); err != nil {
+		return err
+	}
 	return s.loadKeys(ctx)
 }
 
 // migrate lays out a store of an earlier layout as this one. Layout 1 gets layout 2's:
 // its ops keep no envelope (they reach a mailbox only inside a snapshot), and it gets a
-// sealing key. Layout 2 gets layout 3's renderings, none yet.
+// sealing key. Layout 2 gets layout 3's renderings, none yet, and layout 3 layout 4's
+// drafts taken, none yet: the cache's drafts are then owed to the mesh.
 func (s *Store) migrate(ctx context.Context, version int) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -468,7 +477,12 @@ func (s *Store) migrate(ctx context.Context, version int) error {
 			return err
 		}
 	}
-	if _, err := tx.ExecContext(ctx, renderedSchema); err != nil {
+	if version < 3 {
+		if _, err := tx.ExecContext(ctx, renderedSchema); err != nil {
+			return fmt.Errorf("lay out the store anew: %w", err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, draftsSchema); err != nil {
 		return fmt.Errorf("lay out the store anew: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
@@ -769,8 +783,9 @@ func (s *Store) PublishAccounts(ctx context.Context, signer crypto.Signer, accou
 
 // PublishAliases writes each room of aliases as merged into the room it names
 // (crdt.AliasKey), unless the mesh holds it so already, and moves what the mesh holds
-// of the reads of every room merged, these and those it held, under the room it joined
-// (crdt.State.FoldWrites): one op signed by signer, none with nothing to write.
+// of the reads and drafts of every room merged, these and those it held, under the
+// room it joined (crdt.State.FoldWrites, draftMoves): ops signed by signer, none with
+// nothing to write.
 func (s *Store) PublishAliases(ctx context.Context, signer crypto.Signer, aliases map[domain.RoomID]domain.RoomID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -795,7 +810,11 @@ func (s *Store) PublishAliases(ctx context.Context, signer crypto.Signer, aliase
 	if err != nil {
 		return fmt.Errorf("mesh: %w", err)
 	}
-	return s.writeAllLocked(ctx, signer, origin, append(writes, folds...))
+	moves, err := draftMoves(s.state, merged)
+	if err != nil {
+		return err
+	}
+	return s.writeAllLocked(ctx, signer, origin, slices.Concat(writes, folds, moves))
 }
 
 // Read writes how far each of reads is read, unless the mesh holds it at least as far,

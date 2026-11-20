@@ -177,3 +177,27 @@ func TestOfTwoConcurrentMarksTheNewerHolds(t *testing.T) {
 		}
 	}
 }
+
+// A draft's value names its place: a room's key holds no thread's, a thread's key names
+// the root its value does, and nothing but a version or a deletion is kept.
+func TestADraftWriteNamesItsPlace(t *testing.T) {
+	t.Parallel()
+	a := newReplica(t)
+	s := genesis(t, a)
+	for _, w := range []crdt.Write{
+		{Key: crdt.DraftKey(tgChat, ""), Value: []byte(`{"root":"$r"}`)},
+		{Key: crdt.DraftKey(tgChat, "$r"), Value: []byte(`{"root":"$other"}`)},
+		{Key: crdt.DraftKey(tgChat, "$r"), Value: []byte(`{}`)},
+		{Key: crdt.DraftKey(tgChat, ""), Value: []byte(`"words"`)},
+		{Key: crdt.DraftKey("", ""), Value: nil},
+	} {
+		if _, err := s.Apply(a.op(s, w)); !errors.Is(err, crdt.ErrBadWrite) {
+			t.Errorf("%s = %s: %v, want refused", w.Key, w.Value, err)
+		}
+	}
+	s = apply(t, s, a.op(s, crdt.Write{Key: crdt.DraftKey(tgChat, "$r"), Value: []byte(`{"root":"$r","body":"hi"}`)}))
+	room, root, ok := crdt.DraftPlace(crdt.DraftKey(tgChat, "$r"), s.Drafts()[crdt.DraftKey(tgChat, "$r")][0].Value)
+	if !ok || room != tgChat || root != "$r" {
+		t.Errorf("DraftPlace = %q %q %v", room, root, ok)
+	}
+}

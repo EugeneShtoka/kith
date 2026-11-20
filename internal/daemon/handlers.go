@@ -33,6 +33,8 @@ type server struct {
 	windows *windows
 	// answers is which verification steps a client has answered.
 	answers answers
+	// drafts paces the drafts written into the mesh (followDrafts).
+	drafts *draftPace
 }
 
 var _ backendv1connect.BackendServiceHandler = (*server)(nil)
@@ -614,6 +616,7 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 	draft, over := pc.ProtoToStoredDraft(r.Msg.GetDraft()), pc.ProtoToStoredDraft(r.Msg.GetOver())
 	var answer v1.ReplaceDraftResponse
 	var err error
+	s.oweDraft(ctx, draft) // before the save, so a write of it is owed however kithd stops
 	if !r.Msg.GetRebase() {
 		answer.Saved, err = s.Backend.ReplaceDraft(ctx, draft, over)
 	} else {
@@ -625,6 +628,7 @@ func (s *server) ReplaceDraft(ctx context.Context, r *req[v1.ReplaceDraftRequest
 			answer.Stored = pc.StoredDraftToProto(stored)
 		}
 	}
+	s.savedDraft(draft)
 	if answer.GetSaved() {
 		s.Notifications.rails.restate() // a draft is a room's state
 		s.Streams.DraftsChanged()       // every window reads it again
@@ -781,7 +785,9 @@ func (s *server) Follow(ctx context.Context, r *req[v1.FollowRequest]) (*resp[v1
 
 // Present records the room a window has open and that it was used now.
 func (s *server) Present(_ context.Context, r *req[v1.PresentRequest]) (*resp[v1.PresentResponse], error) {
-	s.windows.present(r.Msg.GetClient(), roomID(r.Msg.GetOpenRoomId()), time.Now())
+	if s.windows.present(r.Msg.GetClient(), roomID(r.Msg.GetOpenRoomId()), time.Now()) {
+		s.drafts.poke() // a room left: its draft is written now
+	}
 	return connect.NewResponse(&v1.PresentResponse{}), nil
 }
 

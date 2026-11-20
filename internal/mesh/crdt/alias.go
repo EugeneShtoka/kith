@@ -29,7 +29,7 @@ func readAliasWrite(w Write) (bool, error) {
 }
 
 // readWrite checks a write by origin that is not the roster's: an alias, a read
-// position or mark, a shared config key, or a bridge's own accounts. Any other key is
+// position or mark, a shared config key, a draft, or a bridge's own accounts. Any other key is
 // of a kind not kept yet.
 func readWrite(origin devicekey.ID, w Write) error {
 	if alias, err := readAliasWrite(w); alias {
@@ -39,6 +39,9 @@ func readWrite(origin devicekey.ID, w Write) error {
 		return err
 	}
 	if read, err := readReadWrite(w); read {
+		return err
+	}
+	if draft, err := readDraftWrite(w); draft {
 		return err
 	}
 	return readAccountsWrite(origin, w)
