@@ -368,7 +368,8 @@ func ahead(snap crdt.Snapshot, now time.Time) bool {
 // replace keeps next whole: every entry and head, every roster op, and ops (this
 // replica's own, written over it). Given keys (a store made the mesh's), it drops all
 // the store held first (the ops, the peers, the forks and the keyring too, but its
-// sealing key) and keeps keys whole.
+// sealing key) and keeps keys whole; its renderings of the config go too, marked as a
+// join's, so the mesh's config is taken before the file is rendered again.
 func (s *Store) replace(ctx context.Context, next crdt.State, forks []fork, keys *keyring, ops ...crdt.Op) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -404,6 +405,9 @@ func (s *Store) replace(ctx context.Context, next crdt.State, forks []fork, keys
 	if keys != nil {
 		if err := keys.save(ctx, tx); err != nil {
 			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO rendered (body) VALUES ('')`); err != nil {
+			return fmt.Errorf("mesh: keep a snapshot: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {

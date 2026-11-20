@@ -505,13 +505,33 @@ func (s *server) publishAccounts(ctx context.Context) {
 	}
 }
 
-// startMesh runs publishAccounts and followReads until ctx ends; wait returns once
-// both have.
+// startMesh runs publishAccounts, followReads and followConfig until ctx ends; wait
+// returns once all have.
 func (s *server) startMesh(ctx context.Context) (wait func()) {
 	var running sync.WaitGroup
 	running.Go(func() { s.publishAccounts(ctx) })
 	running.Go(func() { s.followReads(ctx) })
+	running.Go(func() { s.followConfig(ctx) })
 	return running.Wait
+}
+
+// takeMeshConfig has this bridge, just joined to a mesh, take the mesh's config (its
+// own set aside, ConfigFile.Settle), and tells st what was set aside.
+func (s *server) takeMeshConfig(ctx context.Context, st *connect.ServerStream[v1.JoinMeshResponse]) error {
+	wrote, err := s.Config.Settle(ctx, s.Daemon.CheckConfig, s.Reload, false)
+	switch {
+	case err != nil:
+		s.Log.Warn("take the config of the mesh joined", "err", err)
+	case wrote:
+		if snap, rerr := s.Config.Read(); rerr == nil {
+			s.Streams.Configured(snap)
+		}
+	}
+	aside, ok := s.Config.SetAside()
+	if !ok {
+		return nil
+	}
+	return sendFrame(st, &v1.JoinMeshResponse{Event: &v1.JoinMeshResponse_SetAside{SetAside: pc.ConfigSetAsideToProto(aside)}})
 }
 
 // ── Handlers ──
@@ -526,7 +546,14 @@ func (s *server) JoinMesh(ctx context.Context, r *req[v1.JoinMeshRequest], st *c
 	if err != nil {
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	err = s.Paired.joinMesh(ctx, inv, r.Msg.GetName(), func(ev *v1.JoinMeshResponse) error { return sendFrame(st, ev) })
+	err = s.Paired.joinMesh(ctx, inv, r.Msg.GetName(), func(ev *v1.JoinMeshResponse) error {
+		if _, joined := ev.GetEvent().(*v1.JoinMeshResponse_Joined); joined {
+			if terr := s.takeMeshConfig(ctx, st); terr != nil {
+				return terr
+			}
+		}
+		return sendFrame(st, ev)
+	})
 	switch {
 	case err == nil:
 		return nil

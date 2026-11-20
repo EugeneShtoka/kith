@@ -1096,7 +1096,7 @@ func (s *server) RescanPeople(ctx context.Context, r *req[v1.RescanPeopleRequest
 
 // ReloadConfig reports an unparsable config as InvalidArgument: it is the caller's input.
 func (s *server) ReloadConfig(ctx context.Context, _ *req[v1.ReloadConfigRequest]) (*resp[v1.ReloadConfigResponse], error) {
-	if err := s.Reload(ctx); err != nil {
+	if _, err := s.Config.Settle(ctx, s.Daemon.CheckConfig, s.Reload, true); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	// A hand edit: every client hears it as a written change.

@@ -2146,6 +2146,9 @@ message ConfigSetting {
   ConfigValue value = 9;
   // doc is default.toml's text for it, as the TUI's settings screen shows it.
   string doc = 10;
+  // conflict is set when bridges of the mesh wrote this key concurrently with
+  // different values (ConfigConflicts): value is the one applied.
+  bool conflict = 11;
 }
 
 // ConfigChoice is one value a CHOICE takes, and what it means ("" nothing more to say).
@@ -2380,15 +2383,63 @@ message JoinMeshRequest {
 
 // JoinMeshResponse is one frame: the devices this bridge brings (every bridge of the
 // mesh admits them once it has joined), then the six digits, then the outcome; once
-// confirmed, the members this bridge admits from then on, which ends the stream.
+// confirmed, what of this bridge's config was set aside as it took the mesh's, then the
+// members this bridge admits from then on, which ends the stream.
 message JoinMeshResponse {
   oneof event {
     MeshDevices bringing = 1;
     string digits = 2;
     PairingOutcome outcome = 3;
     MeshDevices joined = 4;
+    ConfigSetAside set_aside = 5;
   }
 }
+
+// ConfigSetAside is the file a bridge's own config was kept in as it took the mesh's,
+// and each shared key it held at another value than the mesh.
+message ConfigSetAside {
+  string file = 1;
+  repeated ConfigChange keys = 2;
+}
+
+// ConfigChange is a shared key at the value this bridge had (was) and the mesh's (now),
+// as TOML writes each after `key = ` ("unset" for none).
+message ConfigChange {
+  string path = 1;
+  string was = 2;
+  string now = 3;
+}
+
+message ConfigConflictsRequest {}
+
+// ConfigConflictsResponse is each shared key of the config that bridges wrote
+// concurrently with different values, by path.
+message ConfigConflictsResponse {
+  repeated ConfigConflict conflicts = 1;
+}
+
+// ConfigConflict is one key's values, the applied one first.
+message ConfigConflict {
+  string path = 1;
+  repeated ConfigVersion values = 2;
+}
+
+// ConfigVersion is one value of a key in conflict, as TOML writes it after `key = `
+// ("unset" for none), the bridge that wrote it and when.
+message ConfigVersion {
+  string value = 1;
+  Device bridge = 2;
+  google.protobuf.Timestamp at = 3;
+}
+
+// KeepConfigValueRequest keeps the index-th value (as ConfigConflicts lists them) of
+// the key at path.
+message KeepConfigValueRequest {
+  string path = 1;
+  int32 index = 2;
+}
+
+message KeepConfigValueResponse {}
 
 message MeshDevices {
   repeated Device devices = 1;
@@ -2864,6 +2915,13 @@ service BackendService {
   // PERMISSION_DENIED; a value of another kind, out of bounds, not among the choices, or
   // a config kithd would not run with is INVALID_ARGUMENT, and nothing is written.
   rpc SetConfigSetting(SetConfigSettingRequest) returns (SetConfigSettingResponse);
+  // ConfigConflicts lists each shared key of the config that bridges of the mesh wrote
+  // concurrently with different values: every value, the bridge that wrote it and when.
+  rpc ConfigConflicts(ConfigConflictsRequest) returns (ConfigConflictsResponse);
+  // KeepConfigValue ends a key's conflict by keeping one of its values: a write that has
+  // seen them all, so every bridge ends it. A key in no conflict, or no such value, is
+  // FAILED_PRECONDITION.
+  rpc KeepConfigValue(KeepConfigValueRequest) returns (KeepConfigValueResponse);
   // Schedule
   // Schedule queues a message.
   rpc Schedule(ScheduleRequest) returns (ScheduleResponse);

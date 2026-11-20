@@ -306,6 +306,47 @@ when `kithd` restarts:
 systemctl --user restart kithd
 ```
 
+### Bridges of a mesh share the config
+
+On bridges paired as a [mesh](remote.md#bridges-in-a-mesh), `config.toml` has two
+owners. **The keys that name this machine stay in its file** and never leave it:
+
+- `allow_token_file`, `bridge_contacts`;
+- `[storage]`, `[remote]`, `[log]` and `[backup]`, whole;
+- the paths and the local model: `[commands] dir`, `[phonebook] dir`, `[spell] command`,
+  and `[complete.model]` `command`, `model`, `threads` and `port`;
+- each network's accounts and default (`[[matrix.account]]`, `[matrix] default`, and so
+  on for every network).
+
+**Every other key is shared** by the bridges of the mesh: each key of a table on its own,
+and each list whole (`[[tag]]`, `[[filter]]`, `[[profile]]`, `[[notifications.rule]]`, a
+list of rooms). kithd writes the file as this machine's keys plus the mesh's shared
+ones, and writes it again when another bridge changes a shared key.
+
+- **A change in the settings screen** is made on the file as it was read, as above;
+  what changed crosses to every bridge.
+- **An edit by hand** is read when the file is saved. A shared key counts as edited
+  only if its value differs from every version kithd wrote since the last hand edit, so
+  an editor opened before another bridge's change arrived does not undo it by saving a
+  key it never touched. The file is then written again (comments go, as above).
+- **Two bridges that change one key at once**, each before seeing the other's change,
+  with different values, are a **conflict**: the later is in force, both are kept. `kith
+  config conflicts` lists each such key with every value, the bridge that wrote it and
+  when, and the settings screen marks the key. `kith config keep <key> <n>` keeps one,
+  which ends the conflict on every bridge; so does any later change of the key.
+- **Two changes each fine but not together** (a profile naming a tag removed meanwhile)
+  are not applied: each bridge keeps running its last valid config, writes nothing,
+  and says so in a popup and its log, until a later change fixes it.
+- **A bridge that joins a mesh takes the mesh's shared keys**, not merged with its own.
+  Its file as it was is kept, whole, in `config.toml.pre-mesh` (nothing reads it), and
+  `kith join --bridge` lists each shared key whose value differed, as `key: this
+  bridge's value → the mesh's`. kithd logs it and a popup says how many keys were set
+  aside. Copy back what you want to keep, in the settings screen or by hand.
+
+A new key that names this machine is listed in `config.Local`
+([`internal/config/shared.go`](../internal/config/shared.go)); every key not listed there is
+shared.
+
 ## Sections
 
 Each top-level section, which file it is in, and what it's for. The linked page covers

@@ -455,6 +455,12 @@ const (
 	// BackendServiceSetConfigSettingProcedure is the fully-qualified name of the BackendService's
 	// SetConfigSetting RPC.
 	BackendServiceSetConfigSettingProcedure = "/backend.v1.BackendService/SetConfigSetting"
+	// BackendServiceConfigConflictsProcedure is the fully-qualified name of the BackendService's
+	// ConfigConflicts RPC.
+	BackendServiceConfigConflictsProcedure = "/backend.v1.BackendService/ConfigConflicts"
+	// BackendServiceKeepConfigValueProcedure is the fully-qualified name of the BackendService's
+	// KeepConfigValue RPC.
+	BackendServiceKeepConfigValueProcedure = "/backend.v1.BackendService/KeepConfigValue"
 	// BackendServiceScheduleProcedure is the fully-qualified name of the BackendService's Schedule RPC.
 	BackendServiceScheduleProcedure = "/backend.v1.BackendService/Schedule"
 	// BackendServiceScheduledMessagesProcedure is the fully-qualified name of the BackendService's
@@ -919,6 +925,13 @@ type BackendServiceClient interface {
 	// PERMISSION_DENIED; a value of another kind, out of bounds, not among the choices, or
 	// a config kithd would not run with is INVALID_ARGUMENT, and nothing is written.
 	SetConfigSetting(context.Context, *connect.Request[v1.SetConfigSettingRequest]) (*connect.Response[v1.SetConfigSettingResponse], error)
+	// ConfigConflicts lists each shared key of the config that bridges of the mesh wrote
+	// concurrently with different values: every value, the bridge that wrote it and when.
+	ConfigConflicts(context.Context, *connect.Request[v1.ConfigConflictsRequest]) (*connect.Response[v1.ConfigConflictsResponse], error)
+	// KeepConfigValue ends a key's conflict by keeping one of its values: a write that has
+	// seen them all, so every bridge ends it. A key in no conflict, or no such value, is
+	// FAILED_PRECONDITION.
+	KeepConfigValue(context.Context, *connect.Request[v1.KeepConfigValueRequest]) (*connect.Response[v1.KeepConfigValueResponse], error)
 	// Schedule
 	// Schedule queues a message.
 	Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error)
@@ -1876,6 +1889,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("SetConfigSetting")),
 			connect.WithClientOptions(opts...),
 		),
+		configConflicts: connect.NewClient[v1.ConfigConflictsRequest, v1.ConfigConflictsResponse](
+			httpClient,
+			baseURL+BackendServiceConfigConflictsProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("ConfigConflicts")),
+			connect.WithClientOptions(opts...),
+		),
+		keepConfigValue: connect.NewClient[v1.KeepConfigValueRequest, v1.KeepConfigValueResponse](
+			httpClient,
+			baseURL+BackendServiceKeepConfigValueProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("KeepConfigValue")),
+			connect.WithClientOptions(opts...),
+		),
 		schedule: connect.NewClient[v1.ScheduleRequest, v1.ScheduleResponse](
 			httpClient,
 			baseURL+BackendServiceScheduleProcedure,
@@ -2105,6 +2130,8 @@ type backendServiceClient struct {
 	configChanged         *connect.Client[v1.ConfigChangedRequest, v1.ConfigChangedResponse]
 	configSettings        *connect.Client[v1.ConfigSettingsRequest, v1.ConfigSettingsResponse]
 	setConfigSetting      *connect.Client[v1.SetConfigSettingRequest, v1.SetConfigSettingResponse]
+	configConflicts       *connect.Client[v1.ConfigConflictsRequest, v1.ConfigConflictsResponse]
+	keepConfigValue       *connect.Client[v1.KeepConfigValueRequest, v1.KeepConfigValueResponse]
 	schedule              *connect.Client[v1.ScheduleRequest, v1.ScheduleResponse]
 	scheduledMessages     *connect.Client[v1.ScheduledMessagesRequest, v1.ScheduledMessagesResponse]
 	cancelScheduled       *connect.Client[v1.CancelScheduledRequest, v1.CancelScheduledResponse]
@@ -2879,6 +2906,16 @@ func (c *backendServiceClient) SetConfigSetting(ctx context.Context, req *connec
 	return c.setConfigSetting.CallUnary(ctx, req)
 }
 
+// ConfigConflicts calls backend.v1.BackendService.ConfigConflicts.
+func (c *backendServiceClient) ConfigConflicts(ctx context.Context, req *connect.Request[v1.ConfigConflictsRequest]) (*connect.Response[v1.ConfigConflictsResponse], error) {
+	return c.configConflicts.CallUnary(ctx, req)
+}
+
+// KeepConfigValue calls backend.v1.BackendService.KeepConfigValue.
+func (c *backendServiceClient) KeepConfigValue(ctx context.Context, req *connect.Request[v1.KeepConfigValueRequest]) (*connect.Response[v1.KeepConfigValueResponse], error) {
+	return c.keepConfigValue.CallUnary(ctx, req)
+}
+
 // Schedule calls backend.v1.BackendService.Schedule.
 func (c *backendServiceClient) Schedule(ctx context.Context, req *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error) {
 	return c.schedule.CallUnary(ctx, req)
@@ -3369,6 +3406,13 @@ type BackendServiceHandler interface {
 	// PERMISSION_DENIED; a value of another kind, out of bounds, not among the choices, or
 	// a config kithd would not run with is INVALID_ARGUMENT, and nothing is written.
 	SetConfigSetting(context.Context, *connect.Request[v1.SetConfigSettingRequest]) (*connect.Response[v1.SetConfigSettingResponse], error)
+	// ConfigConflicts lists each shared key of the config that bridges of the mesh wrote
+	// concurrently with different values: every value, the bridge that wrote it and when.
+	ConfigConflicts(context.Context, *connect.Request[v1.ConfigConflictsRequest]) (*connect.Response[v1.ConfigConflictsResponse], error)
+	// KeepConfigValue ends a key's conflict by keeping one of its values: a write that has
+	// seen them all, so every bridge ends it. A key in no conflict, or no such value, is
+	// FAILED_PRECONDITION.
+	KeepConfigValue(context.Context, *connect.Request[v1.KeepConfigValueRequest]) (*connect.Response[v1.KeepConfigValueResponse], error)
 	// Schedule
 	// Schedule queues a message.
 	Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error)
@@ -4322,6 +4366,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("SetConfigSetting")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceConfigConflictsHandler := connect.NewUnaryHandler(
+		BackendServiceConfigConflictsProcedure,
+		svc.ConfigConflicts,
+		connect.WithSchema(backendServiceMethods.ByName("ConfigConflicts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceKeepConfigValueHandler := connect.NewUnaryHandler(
+		BackendServiceKeepConfigValueProcedure,
+		svc.KeepConfigValue,
+		connect.WithSchema(backendServiceMethods.ByName("KeepConfigValue")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceScheduleHandler := connect.NewUnaryHandler(
 		BackendServiceScheduleProcedure,
 		svc.Schedule,
@@ -4700,6 +4756,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceConfigSettingsHandler.ServeHTTP(w, r)
 		case BackendServiceSetConfigSettingProcedure:
 			backendServiceSetConfigSettingHandler.ServeHTTP(w, r)
+		case BackendServiceConfigConflictsProcedure:
+			backendServiceConfigConflictsHandler.ServeHTTP(w, r)
+		case BackendServiceKeepConfigValueProcedure:
+			backendServiceKeepConfigValueHandler.ServeHTTP(w, r)
 		case BackendServiceScheduleProcedure:
 			backendServiceScheduleHandler.ServeHTTP(w, r)
 		case BackendServiceScheduledMessagesProcedure:
@@ -5339,6 +5399,14 @@ func (UnimplementedBackendServiceHandler) ConfigSettings(context.Context, *conne
 
 func (UnimplementedBackendServiceHandler) SetConfigSetting(context.Context, *connect.Request[v1.SetConfigSettingRequest]) (*connect.Response[v1.SetConfigSettingResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.SetConfigSetting is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) ConfigConflicts(context.Context, *connect.Request[v1.ConfigConflictsRequest]) (*connect.Response[v1.ConfigConflictsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.ConfigConflicts is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) KeepConfigValue(context.Context, *connect.Request[v1.KeepConfigValueRequest]) (*connect.Response[v1.KeepConfigValueResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.KeepConfigValue is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) Schedule(context.Context, *connect.Request[v1.ScheduleRequest]) (*connect.Response[v1.ScheduleResponse], error) {

@@ -1,10 +1,11 @@
 # Design: the mesh CRDT, what is left (Phase 2b of design-clients.md)
 
-Status: steps 1–4 built (#407, #422, #424, #427): bridges pair and sync, the roster is
-kept as signed ops, a WhatsApp DM known by its LID joins its number's room, and read
-positions cross bridges. How that works is in `internal/mesh` and
-[docs/remote.md](../docs/remote.md). This file holds the steps still to build: the shared
-config, drafts, verdicts, and key rotation. Failover between bridges stays Phase 3.
+Status: steps 1–5 built (#407, #422, #424, #427, #609 for 5a, then step 5): bridges pair
+and sync, the roster is kept as signed ops, a WhatsApp DM known by its LID joins its
+number's room, read positions cross bridges, every op is sealed, and the config's shared
+keys cross. How that works is in `internal/mesh` and [docs/remote.md](../docs/remote.md).
+This file holds the steps still to build: drafts, verdicts, and key rotation; the Config
+section stays as the shared config's design. Failover between bridges stays Phase 3.
 
 ## What is left to cross
 
