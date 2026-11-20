@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -163,6 +164,26 @@ func TestAnonymizeResolvesNarrowestFirst(t *testing.T) {
 	} {
 		if got := domain.ResolveMedia(defaults, tc.rules, place).Anonymize; got != tc.want {
 			t.Errorf("%s: anonymize = %v, want %v", tc.why, got, tc.want)
+		}
+	}
+}
+
+// A link's oe is a hex Unix time; a WhatsApp direct path carries one too, and a link
+// without a readable one never expires.
+func TestALinkExpiresAtItsOE(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(0x6B16FC19, 0)
+	for link, want := range map[string]bool{
+		"https://scontent.xx.fbcdn.net/v/t1/1.jpg?_nc_cat=1&oe=6B16FC18":     true,
+		"https://scontent.xx.fbcdn.net/v/t1/1.jpg?_nc_cat=1&oe=6B16FC19":     true,
+		"https://scontent.xx.fbcdn.net/v/t1/1.jpg?_nc_cat=1&oe=6B16FC1A":     false,
+		"/v/t62.7118-24/1_n.enc?ccb=11-4&oh=01_x&oe=6B16FC18&_nc_sid=5e03e0": true,
+		"https://files.slack.com/files-pri/T1-F1/download/image.png":         false,
+		"https://example.com/x?oe=soon":                                      false,
+		"://not a link?oe=0":                                                 false,
+	} {
+		if got := domain.LinkExpired(link, now); got != want {
+			t.Errorf("LinkExpired(%q) = %v, want %v", link, got, want)
 		}
 	}
 }

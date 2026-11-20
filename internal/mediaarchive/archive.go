@@ -5,9 +5,11 @@
 package mediaarchive
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"mime"
@@ -38,6 +40,11 @@ const settle = 2 * time.Second
 // tmpPattern names a file being written; one a crash left is removed at the next start.
 const tmpPattern = ".tmp-*"
 
+// goneList names the file listing, a hash a line, the attachments their networks no
+// longer have (domain.ErrMediaGone), which the worker does not ask for again. Backups
+// skip it, as every dot file: a restored archive asks for each once more.
+const goneList = ".gone"
+
 // Archive is the folder of copies and the worker filling it.
 type Archive struct {
 	dir    string
@@ -59,6 +66,7 @@ type Archive struct {
 	used   int64 // bytes in dir
 	warned bool
 	rooms  map[domain.RoomID]time.Time // arrivals not yet fetched, by the oldest message
+	gone   map[string]bool             // goneList's hashes
 	wake   chan struct{}
 }
 
@@ -73,6 +81,7 @@ func New(dir string, cache Cache, fetch Fetch, sealer *Sealer, log *slog.Logger)
 		warnAt:    func() int64 { return -1 },
 		warn:      func(string) {},
 		rooms:     map[domain.RoomID]time.Time{},
+		gone:      map[string]bool{},
 		wake:      make(chan struct{}, 1),
 	}
 }
@@ -127,7 +136,8 @@ func (a *Archive) Run(ctx context.Context) {
 	}
 }
 
-// open makes the folder, removes what a crash left half written, and counts its size.
+// open makes the folder, removes what a crash left half written, counts its size and
+// reads the gone list.
 func (a *Archive) open() error {
 	if err := os.MkdirAll(a.dir, 0o700); err != nil {
 		return fmt.Errorf("mediaarchive: %w", err)
@@ -146,23 +156,58 @@ func (a *Archive) open() error {
 			used += info.Size()
 		}
 	}
+	gone := map[string]bool{}
+	if f, err := os.Open(filepath.Join(a.dir, goneList)); err == nil {
+		lines := bufio.NewScanner(f)
+		for lines.Scan() {
+			gone[lines.Text()] = true // a line a crash cut short matches nothing
+		}
+		_ = f.Close() // read only
+	}
 	a.mu.Lock()
-	a.used = used
+	a.used, a.gone = used, gone
 	a.mu.Unlock()
 	a.checkSize()
 	return nil
 }
 
+// isGone is whether ref's network said it no longer has it.
+func (a *Archive) isGone(ref domain.AttachmentRef) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.gone[hashOf(ref)]
+}
+
+// markGone adds ref to the gone list; one not written is only asked for again at the
+// next start.
+func (a *Archive) markGone(ref domain.AttachmentRef) {
+	hash := hashOf(ref)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.gone[hash] = true
+	f, err := os.OpenFile(filepath.Join(a.dir, goneList), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err == nil {
+		_, err = f.WriteString(hash + "\n")
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+	}
+	if err != nil {
+		a.log.Warn("list an attachment as gone failed", "dir", a.dir, "err", err)
+	}
+}
+
 // keepSince fetches each attachment in room ("" every room) since that is kept and not
 // there yet, and seals each copy there plain that is to be sealed. A failure is retried
-// when the room next gains messages, or at the next start.
+// when the room next gains messages, or at the next start; one its network no longer
+// has is not.
 func (a *Archive) keepSince(ctx context.Context, room domain.RoomID, since time.Time) {
 	refs, err := a.cache.Attachments(ctx, room, since)
 	if err != nil {
 		a.log.Warn("list attachments to archive failed", "room", room, "err", err)
 		return
 	}
-	var failed int
+	var failed, gone int
 	for _, ref := range refs {
 		if ctx.Err() != nil {
 			return
@@ -177,10 +222,15 @@ func (a *Archive) keepSince(ctx context.Context, room domain.RoomID, since time.
 			}
 			continue
 		}
-		if a.has(ref) {
+		if a.has(ref) || a.isGone(ref) {
 			continue
 		}
 		data, err := a.fetch(ctx, ref.Room, ref.Event)
+		if errors.Is(err, domain.ErrMediaGone) {
+			gone++
+			a.markGone(ref)
+			continue
+		}
 		if err != nil {
 			failed++
 			a.log.Debug("fetch an attachment to archive failed", "room", ref.Room, "event", ref.Event, "err", err)
@@ -190,6 +240,9 @@ func (a *Archive) keepSince(ctx context.Context, room domain.RoomID, since time.
 			a.log.Warn("archive an attachment failed", "room", ref.Room, "err", err)
 			return // a full or unwritable disk fails the rest alike
 		}
+	}
+	if gone > 0 {
+		a.log.Info("some attachments are gone from their networks; not asked for again", "room", room, "gone", gone)
 	}
 	if failed > 0 {
 		a.log.Info("some attachments could not be archived; retried later", "room", room, "failed", failed, "of", len(refs))

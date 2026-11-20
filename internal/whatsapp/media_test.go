@@ -86,6 +86,12 @@ func TestAPhotoArrivesLoadable(t *testing.T) {
 	if _, err := a.LoadImage(ctx, danaChat, msgs[0].ID); !errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("loading with nothing connected = %v", err)
 	}
+	old := danaWrites("3EB0R", "")
+	old.Message = &waE2E.Message{ImageMessage: &waE2E.ImageMessage{Mimetype: new("image/jpeg"), DirectPath: new("/v/1.enc?oe=5F5E1000")}}
+	a.onMessage(ctx, account, client, old)
+	if _, err := a.LoadImage(ctx, danaChat, "whatsapp:"+ownDigits+"/3EB0R"); !errors.Is(err, domain.ErrMediaGone) {
+		t.Errorf("loading one whose link expired = %v, want gone", err)
+	}
 	a.onMessage(ctx, account, client, danaWrites("3EB0Q", "just words"))
 	if _, err := a.LoadImage(ctx, danaChat, "whatsapp:"+ownDigits+"/3EB0Q"); err == nil || errors.Is(err, api.ErrNetworkOff) {
 		t.Errorf("loading a message with no attachment = %v", err)

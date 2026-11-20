@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/gif" // a GIF's preview
@@ -16,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -144,11 +146,18 @@ func (a *Adapter) LoadImage(ctx context.Context, roomID domain.RoomID, eventID d
 	if err != nil {
 		return nil, err
 	}
+	if domain.LinkExpired(part.GetDirectPath(), time.Now()) {
+		return nil, fmt.Errorf("whatsapp: the link to the attachment of %s expired: %w", eventID, domain.ErrMediaGone)
+	}
 	_, client, connected := a.clientFor(domain.ParseID(string(roomID)).Account)
 	if !connected {
 		return nil, fmt.Errorf("whatsapp: account %s is not connected: %w", domain.ParseID(string(roomID)).Account, errNetworkOff)
 	}
 	data, err := client.Download(ctx, part)
+	if errors.Is(err, whatsmeow.ErrMediaDownloadFailedWith403) || errors.Is(err, whatsmeow.ErrMediaDownloadFailedWith404) ||
+		errors.Is(err, whatsmeow.ErrMediaDownloadFailedWith410) {
+		return nil, fmt.Errorf("whatsapp: download the attachment of %s: %w: %w", eventID, domain.ErrMediaGone, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: download the attachment of %s: %w", eventID, err)
 	}

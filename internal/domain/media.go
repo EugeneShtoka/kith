@@ -1,9 +1,13 @@
 package domain
 
 import (
+	"errors"
 	"fmt"
+	"net/url"
 	"path"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // MediaType is the kind of attachment a media message carries.
@@ -39,6 +43,22 @@ func (m *Media) IsAudio() bool { return m != nil && m.Type == MediaAudio }
 
 // IsVideo reports whether the attachment is a video.
 func (m *Media) IsVideo() bool { return m != nil && m.Type == MediaVideo }
+
+// ErrMediaGone is an attachment its network will not hand over again from the link
+// kith has: the link expired, or the network answered 403, 404 or 410.
+var ErrMediaGone = errors.New("the network no longer has that attachment")
+
+// LinkExpired is whether link's oe (the hex Unix time Meta's and WhatsApp's media
+// links carry, a WhatsApp direct path's included) has passed; a link without one never
+// expires here.
+func LinkExpired(link string, now time.Time) bool {
+	u, err := url.Parse(link)
+	if err != nil {
+		return false
+	}
+	oe, err := strconv.ParseInt(u.Query().Get("oe"), 16, 64)
+	return err == nil && now.Unix() >= oe
+}
 
 // AttachmentRef is a cached message's attachment as kithd's media archive keeps it:
 // Revision is the edit the message shows ("" for none), so a replaced attachment is a
