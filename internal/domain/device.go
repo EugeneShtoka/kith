@@ -90,3 +90,31 @@ const (
 	// PairingAbandoned is the other side going away first.
 	PairingAbandoned
 )
+
+// ConfigConflict is a key of the shared config that bridges wrote concurrently with
+// different values: each value, the one applied first.
+type ConfigConflict struct {
+	Path   string // the key's TOML path
+	Values []ConfigVersion
+}
+
+// ConfigVersion is one value of a shared config key: as TOML writes it after `key = `
+// ("unset" for none), the bridge that wrote it, and when.
+type ConfigVersion struct {
+	Value  string
+	Bridge Device
+	At     time.Time
+}
+
+// ConfigSetAside is what a bridge joining a mesh set aside of its own config: the file
+// it is kept in, and each shared key whose value differed from the mesh's.
+type ConfigSetAside struct {
+	File string
+	Keys []ConfigChange
+}
+
+// ConfigChange is a shared key whose value this bridge had (Was) and the mesh's (Now),
+// as ConfigVersion writes them.
+type ConfigChange struct {
+	Path, Was, Now string
+}

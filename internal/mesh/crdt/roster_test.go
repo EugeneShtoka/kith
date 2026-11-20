@@ -205,7 +205,7 @@ func TestAnOpIsTakenOnceAndInOrder(t *testing.T) {
 	if _, err := next.Apply(twice); !errors.Is(err, crdt.ErrBadWrite) {
 		t.Errorf("an entry written twice in one op: %v, want %v", err, crdt.ErrBadWrite)
 	}
-	if _, err := next.Apply(a.op(next, crdt.Write{Key: "config/display.theme", Value: []byte(`"dark"`)})); !errors.Is(err, crdt.ErrBadWrite) {
+	if _, err := next.Apply(a.op(next, crdt.Write{Key: "draft/!room:example.org", Value: []byte("hello")})); !errors.Is(err, crdt.ErrBadWrite) {
 		t.Errorf("a key of a kind not kept yet: %v, want %v", err, crdt.ErrBadWrite)
 	}
 }

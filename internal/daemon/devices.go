@@ -111,6 +111,17 @@ type RosterStore interface {
 	MarkUnread(ctx context.Context, signer crypto.Signer, room domain.RoomID, marked bool) error
 	// Reads is every read position the mesh holds.
 	Reads() []domain.ReadPosition
+	// WriteConfig writes each shared config key of writes (config/<TOML path>, its value
+	// as config.Leaves writes it) the mesh holds otherwise, as one op signed by signer.
+	WriteConfig(ctx context.Context, signer crypto.Signer, writes map[string][]byte) error
+	// Config is the shared config the mesh holds, each key's applied value by its TOML
+	// path, and each key bridges wrote concurrently with different values.
+	Config() (map[string][]byte, []domain.ConfigConflict)
+	// Rendered is each config.toml rendered since a hand edit was last read, oldest
+	// first, and whether the store has just joined a mesh.
+	Rendered(ctx context.Context) (renderings []string, joined bool, err error)
+	// KeepRendered keeps body as the latest rendering; fresh drops those before it.
+	KeepRendered(ctx context.Context, body string, fresh bool) error
 	// TakeMarks is each room's unread mark written since it was last asked, or since
 	// the store was opened, with the time it was written.
 	TakeMarks() map[domain.RoomID]domain.UnreadMark

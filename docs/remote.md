@@ -191,8 +191,10 @@ Two or more kithd (a home server and a laptop, say) can pair with each other as 
 with any bridge is admitted by every bridge, and one unpaired on any bridge is cut off by
 every bridge; a room read in kith on one bridge, or marked unread, is so on every bridge,
 and only the bridge where you read it sends the network a receipt. A read the network
-reports (made on the phone) reaches each bridge from the network itself. Each bridge
-still runs its own network accounts and its own config. Two bridges on one WhatsApp
+reports (made on the phone) reaches each bridge from the network itself. The config is
+shared too, but for the keys that name a machine
+([Bridges of a mesh share the config](configuration.md#bridges-of-a-mesh-share-the-config)).
+Each bridge still runs its own network accounts. Two bridges on one WhatsApp
 account keep a chat under the person's number as soon as either learns it: a
 chat known by the person's LID merges into the number's on every bridge running that
 account ([whatsapp.md](whatsapp.md#what-works)).
@@ -209,7 +211,8 @@ its `[remote] listen` (none: it only dials the others). It lists the devices pai
 with it, which every bridge admits once it has joined, and shows six digits; `kith
 pair` on the trusted side says a bridge asks to pair. Once confirmed there, the new
 bridge takes the mesh's device list in place of its own, pairs its own devices again
-into it, and `kith join` lists the members it admits from then on. If the confirmation
+into it, takes the mesh's shared config (its own set aside in `config.toml.pre-mesh`,
+and each key that differed listed), and `kith join` lists the members it admits from then on. If the confirmation
 was given but its answer was lost, run the same line again: it takes the mesh's list
 without asking a second time. A pairing refused, expired or abandoned changes nothing on
 either bridge.

@@ -318,7 +318,7 @@ func TestAStoreFromBeforeSealingSealsFromItsNextWrite(t *testing.T) {
 	m.must(r.store.Close())
 	db, err := sealeddb.Open(m.ctx, r.path, r.dbKey)
 	m.must(err)
-	_, err = db.ExecContext(m.ctx, `ALTER TABLE ops DROP COLUMN sealed; DROP TABLE sealing; DROP TABLE epochs; DROP TABLE records;
+	_, err = db.ExecContext(m.ctx, `ALTER TABLE ops DROP COLUMN sealed; DROP TABLE sealing; DROP TABLE epochs; DROP TABLE records; DROP TABLE rendered;
 		PRAGMA user_version = 1;`)
 	m.must(err)
 	m.must(db.Close())

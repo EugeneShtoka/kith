@@ -106,3 +106,35 @@ func ProtoToPairingOutcome(pb v1.PairingOutcome) (domain.PairingOutcome, bool) {
 	}
 	return 0, false
 }
+
+// ConfigSetAsideToProto converts what a bridge joining a mesh set aside of its config.
+func ConfigSetAsideToProto(s domain.ConfigSetAside) *v1.ConfigSetAside {
+	return &v1.ConfigSetAside{File: s.File, Keys: mapSlice(s.Keys, func(c domain.ConfigChange) *v1.ConfigChange {
+		return &v1.ConfigChange{Path: c.Path, Was: c.Was, Now: c.Now}
+	})}
+}
+
+// ProtoToConfigSetAside converts it back; nil is the zero value.
+func ProtoToConfigSetAside(pb *v1.ConfigSetAside) domain.ConfigSetAside {
+	return domain.ConfigSetAside{File: pb.GetFile(), Keys: mapSlice(pb.GetKeys(), func(c *v1.ConfigChange) domain.ConfigChange {
+		return domain.ConfigChange{Path: c.GetPath(), Was: c.GetWas(), Now: c.GetNow()}
+	})}
+}
+
+// ConfigConflictsToProto converts the shared config's keys in conflict.
+func ConfigConflictsToProto(cs []domain.ConfigConflict) []*v1.ConfigConflict {
+	return mapSlice(cs, func(c domain.ConfigConflict) *v1.ConfigConflict {
+		return &v1.ConfigConflict{Path: c.Path, Values: mapSlice(c.Values, func(v domain.ConfigVersion) *v1.ConfigVersion {
+			return &v1.ConfigVersion{Value: v.Value, Bridge: DeviceToProto(v.Bridge), At: toProtoTime(v.At)}
+		})}
+	})
+}
+
+// ProtoToConfigConflicts converts them back.
+func ProtoToConfigConflicts(pbs []*v1.ConfigConflict) []domain.ConfigConflict {
+	return mapSlice(pbs, func(c *v1.ConfigConflict) domain.ConfigConflict {
+		return domain.ConfigConflict{Path: c.GetPath(), Values: mapSlice(c.GetValues(), func(v *v1.ConfigVersion) domain.ConfigVersion {
+			return domain.ConfigVersion{Value: v.GetValue(), Bridge: ProtoToDevice(v.GetBridge()), At: fromProtoTime(v.GetAt())}
+		})}
+	})
+}

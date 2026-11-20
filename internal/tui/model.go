@@ -312,6 +312,9 @@ type configState struct {
 	// applied counts changes applied, so one kithd was still checking can tell whether it would
 	// land over a newer one (applySettings).
 	applied uint64
+	// conflicts are the keys the mesh's bridges wrote concurrently with different values,
+	// as last asked when the settings opened.
+	conflicts map[string]bool
 }
 
 // Model is the root Bubble Tea model driving the three-pane frame.
@@ -881,7 +884,7 @@ func (m Model) handleAppMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleMemberChanged(msg))
 	case roomCreatedMsg, chatOffersMsg:
 		return answered(m.handleCreating(msg))
-	case configCheckedMsg, configSavedMsg, configNewsMsg, deviceSavedMsg:
+	case configCheckedMsg, configSavedMsg, configNewsMsg, deviceSavedMsg, configConflictsMsg:
 		return answered(m.handleConfigNews(msg))
 	case loginMsg, loginNetworksMsg, insteadFailedMsg, importNetworksMsg, importPreviewMsg, importedMsg,
 		exportChosenMsg, exportReadMsg, exportSendersMsg, chatImportedMsg:
@@ -2888,6 +2891,8 @@ func (m Model) handleConfigNews(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleConfigSaved(msg)
 	case deviceSavedMsg:
 		return m.handleDeviceSaved(msg)
+	case configConflictsMsg:
+		return m.handleConfigConflicts(msg)
 	}
 	news, _ := msg.(configNewsMsg)
 	return m.handleConfigNewsMsg(news)

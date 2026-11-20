@@ -138,6 +138,12 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 		{"MeshStatus", domain.MeshStatus{}, func(v any) any {
 			return protoconv.ProtoToMeshStatus(protoconv.MeshStatusToProto(v.(domain.MeshStatus)))
 		}},
+		{"ConfigSetAside", domain.ConfigSetAside{}, func(v any) any {
+			return protoconv.ProtoToConfigSetAside(protoconv.ConfigSetAsideToProto(v.(domain.ConfigSetAside)))
+		}},
+		{"ConfigConflict", domain.ConfigConflict{}, func(v any) any {
+			return protoconv.ProtoToConfigConflicts(protoconv.ConfigConflictsToProto([]domain.ConfigConflict{v.(domain.ConfigConflict)}))[0]
+		}},
 		{"KeyBackup", domain.KeyBackup{}, func(v any) any {
 			return protoconv.ProtoToKeyBackup(protoconv.KeyBackupToProto(v.(domain.KeyBackup)))
 		}},

@@ -213,7 +213,7 @@ func joinMesh(ctx context.Context, b *daemon.Remote, uri, name string, out io.Wr
 		}
 	}, func(digits string) {
 		_, _ = fmt.Fprintf(out, "This bridge shows %s. Confirm on the other device that it shows the same.\n", digits)
-	})
+	}, func(aside domain.ConfigSetAside) { showSetAside(out, aside) })
 	if err != nil {
 		return fmt.Errorf("join: %w", err)
 	}
@@ -226,4 +226,18 @@ func joinMesh(ctx context.Context, b *daemon.Remote, uri, name string, out io.Wr
 	}
 	_, _ = fmt.Fprintln(out, "`kith mesh` shows the bridges and how their sync stands.")
 	return nil
+}
+
+// showSetAside says what of this bridge's config was set aside as it took the mesh's:
+// each shared key whose value differed, then where its own is kept.
+func showSetAside(out io.Writer, aside domain.ConfigSetAside) {
+	if len(aside.Keys) == 0 {
+		_, _ = fmt.Fprintf(out, "This bridge now runs the mesh's config; its own differed in no shared key (kept as it was in %s).\n", aside.File)
+		return
+	}
+	_, _ = fmt.Fprintln(out, "This bridge now runs the mesh's config. Its own differed in these keys (this bridge's value → the mesh's):")
+	for _, k := range aside.Keys {
+		_, _ = fmt.Fprintf(out, "  %s: %s → %s\n", k.Path, k.Was, k.Now)
+	}
+	_, _ = fmt.Fprintf(out, "Set aside in %s: %d keys. Copy back what you want to keep (the settings screen, or by hand).\n", aside.File, len(aside.Keys))
 }

@@ -590,7 +590,7 @@ func serve(
 	logins := backend.logins(ctx, log, w.languages)
 	log.Info("serving", "socket", lock.Socket(), "version", buildinfo.String("kithd"))
 	reload := reloader(log, file, relevel, cutoff, backend, w.notifications, w.names, w.paired, w.backupWarning)
-	watchConfig(ctx, log, file, reload)
+	cfgFile := watchConfig(ctx, log, file, w.paired, w.notifications.ConfigSays, backend.checkConfig, reload)
 	err = daemon.Serve(ctx, ln, &daemon.Daemon{
 		Backend:       backend,
 		Streams:       w.streams,
@@ -606,7 +606,7 @@ func serve(
 		Log:           log,
 		Reload:        reload,
 		CheckConfig:   backend.checkConfig,
-		Config:        daemon.NewConfigFile(file.path),
+		Config:        cfgFile,
 		Paired:        w.paired,
 	})
 	// Cancel (not backend.Stop) and join: a sync still decrypting needs the store, and
@@ -617,11 +617,23 @@ func serve(
 }
 
 // watchConfig picks a hand edit to config.toml up without a restart: the watcher runs
-// the same reload the RPC does, and logs the outcome.
-func watchConfig(ctx context.Context, log *slog.Logger, file configFile, reload daemon.Reload) {
-	if werr := daemon.WatchConfig(ctx, file.path, reload, log); werr != nil {
+// the same reload the RPC does (the edit read into the mesh's shared config first), and
+// logs the outcome. It returns the config file, shared with paired's mesh.
+func watchConfig(ctx context.Context, log *slog.Logger, file configFile, paired *daemon.Devices, say func(string),
+	check daemon.CheckConfig, reload daemon.Reload,
+) *daemon.ConfigFile {
+	cfg := daemon.NewConfigFile(file.path)
+	cfg.Share(paired, say, log)
+	settle := func(ctx context.Context) error {
+		if _, serr := cfg.Settle(ctx, check, reload, true); serr != nil {
+			return fmt.Errorf("settle the config: %w", serr)
+		}
+		return nil
+	}
+	if werr := daemon.WatchConfig(ctx, file.path, settle, log); werr != nil {
 		log.Warn("config hot reload is off; edits need a restart or `kith config reload`", "err", werr)
 	}
+	return cfg
 }
 
 // deviceIdentity is kithd's TLS certificate, made from its device key (made on first

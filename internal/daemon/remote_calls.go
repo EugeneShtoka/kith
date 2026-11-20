@@ -1267,6 +1267,7 @@ func PairingOutcomeErr(o domain.PairingOutcome) error {
 // brings, digits with the six it shows; it returns how the pairing ended and, once
 // confirmed, the members the bridge admits from then on.
 func (r *Remote) JoinMesh(ctx context.Context, uri, name string, bringing func([]domain.Device), digits func(string),
+	setAside func(domain.ConfigSetAside),
 ) (domain.PairingOutcome, []domain.Device, error) {
 	st, err := r.c.JoinMesh(ctx, connect.NewRequest(&v1.JoinMeshRequest{Uri: uri, Name: name}))
 	if err != nil {
@@ -1284,6 +1285,8 @@ func (r *Remote) JoinMesh(ctx context.Context, uri, name string, bringing func([
 			if outcome, err = pairingOutcome("join the mesh", ev.Outcome); err != nil || outcome != domain.PairingConfirmed {
 				return outcome, nil, err
 			}
+		case *v1.JoinMeshResponse_SetAside:
+			setAside(pc.ProtoToConfigSetAside(ev.SetAside))
 		case *v1.JoinMeshResponse_Joined:
 			return outcome, pc.ProtoToDevices(ev.Joined.GetDevices()), nil
 		}
@@ -1298,6 +1301,22 @@ func (r *Remote) MeshStatus(ctx context.Context) (domain.MeshStatus, error) {
 		return domain.MeshStatus{}, err
 	}
 	return pc.ProtoToMeshStatus(resp), nil
+}
+
+// ConfigConflicts is each shared key of the bridge's config that bridges of its mesh
+// wrote concurrently with different values.
+func (r *Remote) ConfigConflicts(ctx context.Context) ([]domain.ConfigConflict, error) {
+	resp, err := call(ctx, "read the config's conflicts", r.c.ConfigConflicts, &v1.ConfigConflictsRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return pc.ProtoToConfigConflicts(resp.GetConflicts()), nil
+}
+
+// KeepConfigValue ends the conflict of the key at path by keeping its index-th value.
+func (r *Remote) KeepConfigValue(ctx context.Context, path string, index int) error {
+	_, err := call(ctx, "keep a value of the config", r.c.KeepConfigValue, &v1.KeepConfigValueRequest{Path: path, Index: pc.ClampInt32(index)})
+	return err
 }
 
 // errPairingCut is a pairing stream that ended without an outcome.
