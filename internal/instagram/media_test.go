@@ -175,8 +175,8 @@ func TestAnAttachmentLoadsAgainOnceItsAddressExpired(t *testing.T) {
 	}
 
 	r.delta(danaChat, &slidetypes.NewMessageEvent{Message: photoAt(servers.URL + "/expired")})
-	if _, err := r.a.LoadImage(ctx, room, event); err == nil {
-		t.Errorf("an expired address while not connected: %v", err)
+	if _, err := r.a.LoadImage(ctx, room, event); err == nil || errors.Is(err, domain.ErrMediaGone) {
+		t.Errorf("an expired address while not connected: %v, want an error that is not gone", err)
 	}
 	f := r.connect()
 	f.data["IGDThreadDetailQuery"] = threadPage(servers.URL + "/fresh")
@@ -190,11 +190,20 @@ func TestAnAttachmentLoadsAgainOnceItsAddressExpired(t *testing.T) {
 	r.delta(danaChat, &slidetypes.NewMessageEvent{Message: photoAt(servers.URL + "/expired")})
 	f.data["IGDThreadDetailQuery"] = threadPage(servers.URL + "/expired")
 	before := servers.asked.Load()
-	if _, err := r.a.LoadImage(ctx, room, event); err == nil || !errors.Is(err, errMediaRefused) {
+	if _, err := r.a.LoadImage(ctx, room, event); !errors.Is(err, errMediaRefused) || !errors.Is(err, domain.ErrMediaGone) {
 		t.Errorf("an address the thread's page does not renew: %v", err)
 	}
 	if n := servers.asked.Load() - before; n != 1 {
 		t.Errorf("an address the page did not renew was asked for %d times", n)
+	}
+	r.delta(danaChat, &slidetypes.NewMessageEvent{Message: photoAt(servers.URL + "/fresh?oe=5F5E1000")})
+	f.data["IGDThreadDetailQuery"] = threadPage(servers.URL + "/fresh?oe=5F5E1000")
+	before = servers.asked.Load()
+	if _, err := r.a.LoadImage(ctx, room, event); !errors.Is(err, domain.ErrMediaGone) {
+		t.Errorf("an address past its oe the page does not renew: %v", err)
+	}
+	if n := servers.asked.Load() - before; n != 0 {
+		t.Errorf("an address past its oe was asked for %d times", n)
 	}
 	r.delta(danaChat, &slidetypes.NewMessageEvent{Message: text("m2", danaFBID, 2*time.Minute, "no photo")})
 	if _, err := r.a.LoadImage(ctx, room, eventID(self, danaChat, "m2")); !errors.Is(err, errNoMedia) {
