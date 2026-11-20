@@ -30,6 +30,19 @@ func (s *Service) RebaseDraft(ctx context.Context, draft, base domain.StoredDraf
 	return stored, added, nil
 }
 
+// TakeDraft takes a draft that moved from from to to on another bridge
+// (db.Cache.TakeDraft).
+func (s *Service) TakeDraft(ctx context.Context, from, to domain.StoredDraft) (domain.StoredDraft, bool, error) {
+	if s.cache == nil {
+		return domain.StoredDraft{}, false, nil
+	}
+	stored, held, err := s.cache.TakeDraft(ctx, from, to)
+	if err != nil {
+		return domain.StoredDraft{}, false, fmt.Errorf("local: take a draft written elsewhere: %w", err)
+	}
+	return stored, held, nil
+}
+
 // HeldReads is how far each room or thread of of is read here (db.Cache.HeldReads).
 func (s *Service) HeldReads(ctx context.Context, of []domain.ReadPosition) ([]domain.ReadPosition, error) {
 	return fromCache(s, "read positions", func(c *db.Cache) ([]domain.ReadPosition, error) {

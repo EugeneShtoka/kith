@@ -428,7 +428,8 @@ var errNotJoined = errors.New("mesh: the mesh does not list this bridge as one o
 // and the devices paired with it written again as its own ops, so they chain from its
 // add and every bridge admits them. A device whose name the mesh has taken keeps it
 // with its ID's first group added. Its read positions are written again too, each
-// further than the mesh's, and its unread marks of rooms the mesh holds none of. One
+// further than the mesh's, its unread marks of rooms the mesh holds none of, and its
+// drafts beside the mesh's (adoptDrafts). One
 // transaction: a join cut off leaves the store as it was. It returns the mesh's
 // members as this bridge admits them now.
 func (s *Store) adopt(ctx context.Context, snap crdt.Snapshot, records []crdt.EpochRecord, signer crypto.Signer, self devicekey.ID) ([]domain.Device, error) {
@@ -457,11 +458,11 @@ func (s *Store) adopt(ctx context.Context, snap crdt.Snapshot, records []crdt.Ep
 	if err != nil {
 		return nil, err
 	}
-	reads, err := next.AdoptWrites(s.state)
+	own, err := s.ownWritesLocked(ctx, next)
 	if err != nil {
-		return nil, fmt.Errorf("mesh: %w", err)
+		return nil, err
 	}
-	next, clock, ops, err := writeOver(next, max(s.clock, snap.Clock), self, signer, &keys, append([][]crdt.Write{writes}, batches(reads)...))
+	next, clock, ops, err := writeOver(next, max(s.clock, snap.Clock), self, signer, &keys, append([][]crdt.Write{writes}, batches(own)...))
 	if err != nil {
 		return nil, err
 	}

@@ -28,8 +28,9 @@ What is **not** in it, and why:
 | the paired devices, as signed ops | the mesh store, `mesh-<hash>.db` (`internal/mesh`, [below](#the-mesh-file)) | a rebuild must not unpair anyone |
 
 A few tables hold state that is local but cheap to lose: usage counters for the
-emoji and mention rankings, per-room sender colours, what bridges have refused, and
-unsent drafts. A rebuild resets them. Keep that list short: anything that must
+emoji and mention rankings, per-room sender colours, and what bridges have refused. A
+rebuild resets them. Unsent drafts are kept in the mesh store too, so a rebuilt cache
+takes them back (below). Keep that list short: anything that must
 survive a rebuild belongs outside this file, or in account data on the homeserver
 with this table as its mirror (see [Account-data mirrors](#account-data-mirrors)).
 
@@ -82,8 +83,13 @@ it holds writes nothing else has, so none of the rules below apply to it. For no
 paired devices (`devices-<hash>.toml` is written out from it), the accounts each
 bridge runs, the chats any bridge merged into another (`alias/<room>`: a WhatsApp
 chat known by a LID, then by the number), and the reads made in kith (`read/<room>`,
-`thread/<room>/<root>`, `marked/<room>`) and the shared keys of the config
-(`config/<TOML path>`, each key's value as TOML), which every bridge of the mesh syncs. The
+`thread/<room>/<root>`, `marked/<room>`), the shared keys of the config
+(`config/<TOML path>`, each key's value as TOML), and the drafts (`draft/<room>`,
+`threaddraft/<room>/<root>`: every version written concurrently, each with the words it
+was written over), which every bridge of the mesh syncs. The cache's `drafts` and
+`thread_drafts` are what kithd's windows and kith-mcp write; each place's draft is passed
+into the mesh, and taken from it, beside what was written here and not passed on yet,
+so a rebuilt cache takes the drafts back too. The
 cache's `room_unread` and `thread_read` follow the mesh's reads (moved forward only, for
 the rooms the cache holds), so a rebuilt cache takes them back; a read a network
 reports stays in the cache alone. Of the mesh's mark and the cache's, the one set later
@@ -98,14 +104,17 @@ is kept (`room_mark_times`).
   concurrently, and the op that wrote each), `vv` (the version vector: per origin, the
   last op held and its hash), `peers` (each other bridge's last reported vector, when it
   was heard and its clock's gap then) and `forks` (each bridge found to have signed two
-  ops under one number, with both), and `rendered` (each `config.toml` kithd wrote since
-a hand edit was last read, which tells a hand edit's keys from those it never touched). The roster's ops are kept for good; every other op
+  ops under one number, with both), `rendered` (each `config.toml` kithd wrote since
+a hand edit was last read, which tells a hand edit's keys from those it never touched),
+and `drafts_taken` (per place, the draft the cache last took from the mesh or passed
+into it, the versions the mesh held then, and whether a save here is owed to the mesh,
+set before the save). The roster's ops are kept for good; every other op
   leaves `ops` once 30 days old and held by every bridge heard from in those 30 days. An
   op, its entries and its vector row are written in one transaction.
 - A backup takes it as it takes the cache: a copy made in one read transaction
   (`VACUUM INTO`, `mesh.Copy`) while kithd writes, encrypted under the backup's own key,
   checked, and written back under the restoring machine's cache key.
-- `PRAGMA user_version` is the layout, 1. A store of a later one was written by a newer
+- `PRAGMA user_version` is the layout, 4. A store of a later one was written by a newer
   kith and is refused, never read or rebuilt: kithd does not listen for paired devices
   until that kith runs again. A later layout is reached by migrations in place, never by
   a rebuild.
