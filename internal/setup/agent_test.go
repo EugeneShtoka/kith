@@ -123,3 +123,19 @@ func TestAgentHours(t *testing.T) {
 		}
 	}
 }
+
+// Unset is the default; zero lets nothing wait; negative is refused.
+func TestAgentQueueLimit(t *testing.T) {
+	t.Parallel()
+
+	limit := func(n int) config.Agent { return config.Agent{Write: config.AgentWrite{QueueLimit: &n}} }
+	if got, err := setup.AgentQueueLimit(config.Agent{}); err != nil || got != setup.DefaultAgentQueueLimit {
+		t.Errorf("unset = %d, %v; want the default", got, err)
+	}
+	if got, err := setup.AgentQueueLimit(limit(0)); err != nil || got != 0 {
+		t.Errorf("0 = %d, %v; want 0", got, err)
+	}
+	if _, err := setup.AgentQueueLimit(limit(-1)); err == nil || !strings.Contains(err.Error(), "agent.write.queue_limit") {
+		t.Errorf("-1: %v, want an error naming the setting", err)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -95,10 +96,24 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 	if err != nil {
 		return nil, err
 	}
-	later, why := decision.within(later)
+	return s.writeBy(ctx, decision, room, text, target, later)
+}
+
+// writeBy sends, schedules or drafts the words as decided; asked is the time asked for
+// (zero: now).
+func (s *server) writeBy(ctx context.Context, decision writeChoice, room domain.Room, text string, target aim, asked time.Time) (any, error) {
+	waiting := decision.waiting(time.Now())
+	later, why := decision.within(asked)
 	switch {
 	case !later.IsZero() && !decision.send:
 		return nil, s.refuse(room, text, fmt.Errorf("%w (%s)", errLaterOnlyWhereSent, decision.reason))
+	case !later.IsZero() && waiting >= s.queueLimit:
+		full := fmt.Sprintf("%d messages already wait to go out to this room and [agent.write] queue_limit is %d",
+			waiting, s.queueLimit)
+		if !asked.IsZero() {
+			return nil, s.refuse(room, text, errors.New(full+", so nothing was scheduled. Tell them, or try again once some have gone out"))
+		}
+		return s.draftFor(ctx, room, text, full+", so this one waits in the composer", target)
 	case !later.IsZero():
 		return s.sendLater(ctx, room, text, target, later, why)
 	case decision.send:
@@ -142,7 +157,7 @@ func (s *server) sendLater(ctx context.Context, room domain.Room, text string, t
 	}); err != nil {
 		return nil, fmt.Errorf("scheduling it: %w", err)
 	}
-	return s.wrote(room, agent.Scheduled, text, why+"it goes out at "+at.Format(time.RFC3339)+"; the daemon sends it, and the client lists it under :scheduled until then")
+	return s.wrote(room, agent.Scheduled, text, at, why+"it goes out at "+at.Local().Format(time.RFC3339)+"; the daemon sends it, and the client lists it under :scheduled until then")
 }
 
 // aimIn resolves thread and reply targets within this room's cached history (already
@@ -188,15 +203,23 @@ func (s *server) messageIn(ctx context.Context, room domain.Room, event string) 
 }
 
 // writeChoice is the answer to "send or draft, and why", and for a send, the working
-// hours it waits for (nil: any time).
+// hours it waits for (nil: any time) and when messages go out to the room, earliest
+// first, which it keeps a cooldown from.
 type writeChoice struct {
-	send   bool
-	reason string
-	hours  *domain.WorkingHours
+	send     bool
+	reason   string
+	hours    *domain.WorkingHours
+	outs     []time.Time
+	cooldown time.Duration
 }
 
-// howToWrite reads the policy, the working hours unless urgent, then the cooldown. An
-// unwritable ledger refuses the send: the cooldown is counted from it.
+// waiting is how many messages to the room have yet to go out.
+func (c writeChoice) waiting(now time.Time) int {
+	return len(c.outs) - sort.Search(len(c.outs), func(i int) bool { return c.outs[i].After(now) })
+}
+
+// howToWrite reads the policy, the working hours unless urgent, then when messages go
+// out to the room. An unwritable ledger refuses the send: the cooldown is counted from it.
 func (s *server) howToWrite(ctx context.Context, room domain.Room, urgent bool) (writeChoice, error) {
 	facts, placeErr := s.factsOf(ctx, room)
 	if placeErr != nil && (domain.NamesAPlace(s.send) || !urgent && s.hoursNameAPlace()) {
@@ -212,33 +235,49 @@ func (s *server) howToWrite(ctx context.Context, room domain.Room, urgent bool) 
 	if h, ok := domain.HoursFor(s.hours, facts); ok && !urgent {
 		hours = &h
 	}
-	if s.cooldown <= 0 {
-		return writeChoice{send: true, hours: hours}, nil
-	}
 	entries, err := s.ledger.Entries()
 	if err != nil {
 		return writeChoice{}, fmt.Errorf("reading the ledger the cooldown is counted from: %w", err)
 	}
-	last, ever := agent.LastOut(entries, room.ID)
-	if rest := time.Since(last); ever && rest < s.cooldown {
-		return writeChoice{reason: fmt.Sprintf(
-			"a message went to this room %s ago and [agent.write] cooldown is %s, so this one waits in the composer",
-			human.Duration(round(rest)), human.Duration(s.cooldown))}, nil
-	}
-	return writeChoice{send: true, hours: hours}, nil
+	return writeChoice{send: true, hours: hours, outs: agent.Outs(entries, room.ID), cooldown: s.cooldown}, nil
 }
 
-// within moves a send at later (zero: now) to when the working hours next open, and
-// says why; anything else stays as it is.
+// within moves a send at later (zero: now) to the first time a cooldown away from every
+// other message to the room and inside its working hours, and says why; anything else
+// stays as it is.
 func (c writeChoice) within(later time.Time) (time.Time, string) {
-	if !c.send || c.hours == nil {
+	if !c.send {
 		return later, ""
 	}
-	from := cmp.Or(later, time.Now()).Local() // the hours are on this machine's clock
-	if opens := c.hours.Next(from); opens.After(from) {
-		return opens.UTC(), "it is outside this room's working hours ([agent.write] hours), so it waits for them to open; "
+	now := time.Now()
+	at := cmp.Or(later, now)
+	var rest, closed string
+	for moved := true; moved; {
+		moved = false
+		for _, out := range c.outs {
+			if out.After(at.Add(-c.cooldown)) && out.Before(at.Add(c.cooldown)) {
+				verb := "went"
+				if out.After(now) {
+					verb = "goes"
+				}
+				rest = fmt.Sprintf("a message %s out to this room at %s and [agent.write] cooldown is %s, so this one waits for the room to rest; ",
+					verb, out.Local().Format(time.RFC3339), human.Duration(c.cooldown))
+				at, moved = out.Add(c.cooldown), true
+			}
+		}
+		if c.hours == nil {
+			break
+		}
+		from := at.Local() // the hours are on this machine's clock
+		if opens := c.hours.Next(from); opens.After(from) {
+			closed = "it is outside this room's working hours ([agent.write] hours), so it waits for them to open; "
+			at, moved = opens, true
+		}
 	}
-	return later, ""
+	if rest == "" && closed == "" {
+		return later, ""
+	}
+	return at.UTC(), rest + closed
 }
 
 // hoursNameAPlace reports whether which working hours apply rests on a room's spaces
@@ -253,7 +292,7 @@ func (s *server) sendNow(ctx context.Context, room domain.Room, text string, tar
 	draft := domain.Draft{Body: text, TxnID: domain.NewTxnID(), ThreadRoot: target.thread, ReplyTo: target.replyTo}
 	sendErr := s.backend.Send(ctx, room.ID, draft)
 	if sendErr == nil {
-		return s.wrote(room, agent.Sent, text, "")
+		return s.wrote(room, agent.Sent, text, time.Time{}, "")
 	}
 	// The daemon's error stays in the log; the assistant gets what happened, not internals.
 	s.log.Warn("send failed; queueing", "room", room.ID, "err", sendErr)
@@ -263,7 +302,7 @@ func (s *server) sendNow(ctx context.Context, room domain.Room, text string, tar
 		ThreadRoot: target.thread, ReplyTo: target.replyTo,
 	})
 	if queueErr == nil {
-		return s.wrote(room, agent.Queued, text, "the homeserver would not take it yet; the daemon is retrying it")
+		return s.wrote(room, agent.Queued, text, time.Time{}, "the homeserver would not take it yet; the daemon is retrying it")
 	}
 	s.log.Warn("queueing failed; drafting", "room", room.ID, "err", queueErr)
 	return s.draftFor(ctx, room, text, "the send failed and the queue would not take it either", target)
@@ -314,7 +353,7 @@ func (s *server) draftFor(ctx context.Context, room domain.Room, text, why strin
 		if appended {
 			why = strings.TrimSpace(why + " — appended after what was already written there")
 		}
-		return s.wrote(room, agent.Drafted, text, why)
+		return s.wrote(room, agent.Drafted, text, time.Time{}, why)
 	}
 	return nil, s.refuse(room, text, errDraftChanging)
 }
@@ -388,8 +427,8 @@ func (s *server) draftIn(ctx context.Context, room domain.RoomID, thread domain.
 	return domain.StoredDraft{RoomID: room, ThreadRoot: thread}, nil
 }
 
-// wrote records what happened, then says it.
-func (s *server) wrote(room domain.Room, outcome, text, why string) (any, error) {
+// wrote records what happened, then says it; due is when a scheduled message goes out.
+func (s *server) wrote(room domain.Room, outcome, text string, due time.Time, why string) (any, error) {
 	out := map[string]any{
 		"action": outcome,
 		"room":   viewOf(&room),
@@ -397,13 +436,16 @@ func (s *server) wrote(room domain.Room, outcome, text, why string) (any, error)
 	if why != "" {
 		out["reason"] = why
 	}
+	if !due.IsZero() {
+		out["at"] = due.Local().Format(time.RFC3339)
+	}
 	if outcome == agent.Drafted {
 		out["note"] = "it is in that room's composer, marked as drafted by " + s.whoever() +
 			", and shows in the client's Drafts group. A person sends it, or does not."
 	}
 	if err := s.ledger.Append(agent.Entry{
 		Room: room.ID, Name: room.DisplayName(), Author: s.whoever(),
-		Outcome: outcome, Reason: why, Text: text,
+		Outcome: outcome, Reason: why, Text: text, Due: due,
 	}); err != nil {
 		s.log.Error("agent ledger append failed", "room", room.ID, "outcome", outcome, "err", err)
 		out["ledger_error"] = err.Error() + " — tell them: what you write is supposed to be recorded"
@@ -478,12 +520,4 @@ func printable(r rune) rune {
 		return ' '
 	}
 	return r
-}
-
-// round is a duration rounded for a sentence.
-func round(d time.Duration) time.Duration {
-	if d < time.Minute {
-		return d.Round(time.Second)
-	}
-	return d.Round(time.Minute)
 }

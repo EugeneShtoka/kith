@@ -26,7 +26,7 @@ func newWriter(t *testing.T, f *fake, scope domain.ModelScope, send []string) *s
 	}
 	return &server{
 		backend: f, scope: scope,
-		send: send, cooldown: time.Minute, ledger: ledger, client: "test-client",
+		send: send, cooldown: time.Minute, queueLimit: 10, ledger: ledger, client: "test-client",
 		log: logging.Discard(),
 	}
 }
@@ -130,27 +130,72 @@ func TestSendCannotOutrankTheReadScope(t *testing.T) {
 	}
 }
 
-// A second message within the cooldown waits in the composer.
-func TestCooldownDraftsTheSecondMessage(t *testing.T) {
+// Messages within the cooldown are scheduled a cooldown apart, the answer saying when;
+// once queue_limit wait, the next goes in the composer, so a loop is stopped.
+func TestCooldownSchedulesMessagesUpToTheQueueLimit(t *testing.T) {
+	t.Parallel()
+
+	f := twoRooms()
+	s := newWriter(t, f, shareAll, []string{"space:Work"})
+	s.queueLimit = 2
+	call(t, s, "send_message", map[string]any{"room": "Standup", "text": "first"})
+	sent := entries(t, s)[0].At
+	for i, text := range []string{"second", "third"} {
+		out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": text})
+		due := sent.Add(time.Duration(i+1) * time.Minute)
+		if out["action"] != agent.Scheduled || len(f.queued) != i+1 || !f.queued[i].At.Equal(due) {
+			t.Fatalf("%s: %v, queued %+v; want it scheduled for %s", text, out["action"], f.queued, due)
+		}
+		if out["at"] != due.Local().Format(time.RFC3339) {
+			t.Errorf("%s: answer at = %v, want %s", text, out["at"], due.Local().Format(time.RFC3339))
+		}
+		if reason, _ := out["reason"].(string); !strings.Contains(reason, "cooldown") {
+			t.Errorf("reason = %q, want it to name the cooldown", reason)
+		}
+	}
+	out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "fourth"})
+	if out["action"] != agent.Drafted || len(f.queued) != 2 {
+		t.Fatalf("fourth: %v, queued %d; want it drafted with the queue full", out["action"], len(f.queued))
+	}
+	if reason, _ := out["reason"].(string); !strings.Contains(reason, "queue_limit") {
+		t.Errorf("reason = %q, want it to name queue_limit", reason)
+	}
+	// The words are not lost: they are in the composer.
+	if !strings.Contains(f.drafts[mx+"!open:x"].Body, "fourth") {
+		t.Errorf("draft = %q, want the message the queue held back", f.drafts[mx+"!open:x"].Body)
+	}
+	// A later send to a full queue is refused rather than drafted.
+	callErr(t, s, "send_message", map[string]any{"room": "Standup", "text": "fifth", "at": time.Now().Add(time.Hour).Format(time.RFC3339)})
+	if len(f.queued) != 2 {
+		t.Errorf("queued %d, want the later send refused", len(f.queued))
+	}
+}
+
+// A later send inside the cooldown is moved to when the room has rested; one after it
+// keeps its time, and a send now still goes before it.
+func TestALaterSendInsideTheCooldownWaitsForIt(t *testing.T) {
 	t.Parallel()
 
 	f := twoRooms()
 	s := newWriter(t, f, shareAll, []string{"space:Work"})
 	call(t, s, "send_message", map[string]any{"room": "Standup", "text": "first"})
-	out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "second"})
+	soon := time.Now().Add(20 * time.Second).Format(time.RFC3339)
+	call(t, s, "send_message", map[string]any{"room": "Standup", "text": "soon", "at": soon})
+	if rested := entries(t, s)[0].At.Add(time.Minute); len(f.queued) != 1 || !f.queued[0].At.Equal(rested) {
+		t.Fatalf("queued %+v, want it moved to %s", f.queued, rested)
+	}
 
-	if out["action"] != agent.Drafted {
-		t.Fatalf("action = %v, want the second message drafted", out["action"])
+	f = twoRooms()
+	s = newWriter(t, f, shareAll, []string{"space:Work"})
+	call(t, s, "send_message", map[string]any{"room": "Standup", "text": "first"})
+	later := time.Now().Add(time.Hour).Truncate(time.Second)
+	call(t, s, "send_message", map[string]any{"room": "Standup", "text": "later", "at": later.Format(time.RFC3339)})
+	if len(f.queued) != 1 || !f.queued[0].At.Equal(later) {
+		t.Errorf("queued %+v, want it kept at %s", f.queued, later)
 	}
-	if len(f.sent) != 1 {
-		t.Fatalf("sent %d messages, want the cooldown to have stopped the second", len(f.sent))
-	}
-	if reason, _ := out["reason"].(string); !strings.Contains(reason, "cooldown") {
-		t.Errorf("reason = %q, want it to name the cooldown", reason)
-	}
-	// The words are not lost: they are in the composer.
-	if !strings.Contains(f.drafts[mx+"!open:x"].Body, "second") {
-		t.Errorf("draft = %q, want the message the cooldown held back", f.drafts[mx+"!open:x"].Body)
+	if out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "now", "at": ""}); out["action"] != agent.Scheduled ||
+		len(f.queued) != 2 || !f.queued[1].At.Equal(entries(t, s)[0].At.Add(time.Minute)) {
+		t.Errorf("a send inside the first's cooldown: %v, queued %+v; want it right after the first", out["action"], f.queued)
 	}
 }
 
@@ -271,7 +316,7 @@ func TestFailedSendIsQueuedUnderTheSameID(t *testing.T) {
 		t.Fatalf("queued = %+v, want one message carrying its transaction ID", f.queued)
 	}
 	// A queued message counts for the cooldown, so failing cannot bypass it.
-	if _, ever := agent.LastOut(entries(t, s), mx+"!open:x"); !ever {
+	if outs := agent.Outs(entries(t, s), mx+"!open:x"); len(outs) != 1 {
 		t.Error("a queued message was not counted by the cooldown")
 	}
 }
@@ -574,7 +619,7 @@ func (g gatedSend) Send(ctx context.Context, room domain.RoomID, d domain.Draft)
 }
 
 // Two sessions share one ledger and cooldown: while one sends, the other waits, then
-// sees the send recorded and drafts.
+// sees the send recorded and schedules after it.
 func TestTwoSessionsShareOneCooldown(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "sends.jsonl")
@@ -587,7 +632,7 @@ func TestTwoSessionsShareOneCooldown(t *testing.T) {
 		return &server{
 			backend: gatedSend{fake: scopeRooms(), arrived: arrived, release: release},
 			scope:   shareAllEncrypted, send: []string{"group"},
-			cooldown: time.Hour, ledger: ledger, client: "test",
+			cooldown: time.Hour, queueLimit: 10, ledger: ledger, client: "test",
 			log: logging.Discard(),
 		}
 	}
@@ -615,7 +660,7 @@ func TestTwoSessionsShareOneCooldown(t *testing.T) {
 	close(release)
 	got := []string{<-outcomes, <-outcomes}
 	slices.Sort(got)
-	if want := []string{agent.Drafted, agent.Sent}; !slices.Equal(got, want) {
-		t.Errorf("outcomes %v, want one sent and one drafted", got)
+	if want := []string{agent.Scheduled, agent.Sent}; !slices.Equal(got, want) {
+		t.Errorf("outcomes %v, want one sent and one scheduled", got)
 	}
 }

@@ -10,7 +10,7 @@ import (
 )
 
 // With at, a send-list room gets the message queued for that time, recorded as
-// scheduled, dashes shortened, and the room rests as after a send.
+// scheduled, dashes shortened.
 func TestALaterSendIsQueuedForItsTime(t *testing.T) {
 	t.Parallel()
 	f := twoRooms()
@@ -30,9 +30,10 @@ func TestALaterSendIsQueuedForItsTime(t *testing.T) {
 	if ledger := entries(t, s); len(ledger) != 1 || ledger[0].Outcome != agent.Scheduled {
 		t.Errorf("ledger = %+v", ledger)
 	}
+	// It rests the room around its own time, not now.
 	again := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "and again"})
-	if again["action"] != agent.Drafted || len(f.sent) != 0 {
-		t.Errorf("right after a scheduled message: %v, sent %d; want the room resting", again["action"], len(f.sent))
+	if again["action"] != agent.Sent || len(f.sent) != 1 {
+		t.Errorf("hours before a scheduled message: %v, sent %d; want it sent now", again["action"], len(f.sent))
 	}
 }
 

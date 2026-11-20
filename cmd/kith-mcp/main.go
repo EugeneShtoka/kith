@@ -77,6 +77,10 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string) e
 	if err != nil {
 		return err
 	}
+	queueLimit, err := setup.AgentQueueLimit(cfg.Agent)
+	if err != nil {
+		return err
+	}
 	hours, err := setup.AgentHours(cfg.Agent)
 	if err != nil {
 		return err
@@ -98,20 +102,21 @@ func run(log *slog.Logger, level *slog.LevelVar, flagLevel, configPath string) e
 		muted:  muted,
 		groups: groups,
 		// kith-mcp names no profile, so it runs in the first, as kithd answers it.
-		excludes:  profiles[0].People,
-		cardsDir:  setup.PhonebookDir(cfg),
-		places:    setup.PlacesOf(cfg),
-		backend:   backend,
-		scope:     setup.AgentReadScope(cfg.Agent),
-		write:     setup.AgentWriteScope(cfg.Agent),
-		send:      cfg.Agent.Write.Send,
-		aliases:   setup.Aliases(cfg.Display.Identities),
-		cooldown:  cooldown,
-		hours:     hours,
-		kithLinks: kithLinks,
-		files:     storage.AgentFilesDir(),
-		book:      phonebookFor(cfg),
-		log:       log,
+		excludes:   profiles[0].People,
+		cardsDir:   setup.PhonebookDir(cfg),
+		places:     setup.PlacesOf(cfg),
+		backend:    backend,
+		scope:      setup.AgentReadScope(cfg.Agent),
+		write:      setup.AgentWriteScope(cfg.Agent),
+		send:       cfg.Agent.Write.Send,
+		aliases:    setup.Aliases(cfg.Display.Identities),
+		cooldown:   cooldown,
+		queueLimit: queueLimit,
+		hours:      hours,
+		kithLinks:  kithLinks,
+		files:      storage.AgentFilesDir(),
+		book:       phonebookFor(cfg),
+		log:        log,
 	}
 	// Without a ledger the read tools still work; send_message refuses.
 	if ledger, openErr := agent.Open(storage.LedgerPath()); openErr == nil {
@@ -291,6 +296,8 @@ type server struct {
 	send []string
 	// cooldown is how long a room rests after a message goes out to it.
 	cooldown time.Duration
+	// queueLimit is how many messages may wait to go out to one room.
+	queueLimit int
 	// hours are `[[agent.write.hours]]`: a send outside a room's waits for them to open.
 	hours []domain.WorkingHours
 	// ledger records every write and answers the cooldown; nil disables writing.

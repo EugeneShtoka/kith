@@ -40,6 +40,7 @@ func Validate(cfg config.Config) error {
 		ModelLayer(cfg.Assist),
 		errOf(CompletionPick(cfg.Complete.Model)),
 		errOf(AgentCooldown(cfg.Agent)),
+		errOf(AgentQueueLimit(cfg.Agent)),
 		errOf(AgentHours(cfg.Agent)),
 		errOf(LogLevel(cfg.Log)),
 		errOf(LogTarget(cfg.Log)),
