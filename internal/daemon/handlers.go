@@ -35,6 +35,8 @@ type server struct {
 	answers answers
 	// drafts paces the drafts written into the mesh (followDrafts).
 	drafts *draftPace
+	// verdicts wakes followVerdicts.
+	verdicts chan struct{}
 }
 
 var _ backendv1connect.BackendServiceHandler = (*server)(nil)
@@ -124,6 +126,7 @@ func (s *server) MarkTag(ctx context.Context, r *req[v1.MarkTagRequest]) (*resp[
 		return nil, rpcErr(err)
 	}
 	s.Notifications.TagMarked(ctx)
+	s.pokeVerdicts()
 	return reply(&v1.MarkTagResponse{}, nil)
 }
 
@@ -133,7 +136,9 @@ func (s *server) PersonVerdicts(ctx context.Context, _ *req[v1.PersonVerdictsReq
 }
 
 func (s *server) MarkPerson(ctx context.Context, r *req[v1.MarkPersonRequest]) (*resp[v1.MarkPersonResponse], error) {
-	return reply(&v1.MarkPersonResponse{}, s.Backend.MarkPerson(ctx, pc.ProtoToPersonVerdict(r.Msg.GetVerdict())))
+	err := s.Backend.MarkPerson(ctx, pc.ProtoToPersonVerdict(r.Msg.GetVerdict()))
+	s.pokeVerdicts()
+	return reply(&v1.MarkPersonResponse{}, err)
 }
 
 func (s *server) Ignore(ctx context.Context, r *req[v1.IgnoreRequest]) (*resp[v1.IgnoreResponse], error) {
@@ -150,6 +155,7 @@ func (s *server) Ignored(ctx context.Context, _ *req[v1.IgnoredRequest]) (*resp[
 }
 
 func (s *server) RetagVerdicts(ctx context.Context, r *req[v1.RetagVerdictsRequest]) (*resp[v1.RetagVerdictsResponse], error) {
+	s.retagInMesh(ctx, r.Msg.GetFrom(), r.Msg.GetTo()) // first: a retag cut off here is finished from the mesh
 	return reply(&v1.RetagVerdictsResponse{}, s.Backend.RetagVerdicts(ctx, r.Msg.GetFrom(), r.Msg.GetTo()))
 }
 

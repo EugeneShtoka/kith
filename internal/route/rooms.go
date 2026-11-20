@@ -61,6 +61,14 @@ func (r *Router) keeperFor(id, what string) (verdictKeeper, error) {
 	return r.verdicts, nil
 }
 
+// KeepsVerdicts reports whether the network id is on keeps its own moves (TagMoves),
+// which the store then only mirrors.
+func (r *Router) KeepsVerdicts(id string) bool {
+	a, err := r.adapterFor(id)
+	_, own := a.(TagMoves)
+	return err == nil && own
+}
+
 // MarkTag records a move or a release on its room.
 func (r *Router) MarkTag(ctx context.Context, verdict domain.TagVerdict) error {
 	k, err := r.keeperFor(string(verdict.Room), "tag moves")

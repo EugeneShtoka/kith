@@ -266,7 +266,7 @@ more:
 In a muted tag, the message that marks them does not notify, and nothing of theirs
 does after. A
 Matrix ID's mark is kept in your account data, so it reaches your other machines;
-another network's is kept by kith on this machine, as that network's room moves are.
+another network's is kept by kith, as that network's room moves are.
 
 ### Preview before you trust a filter
 
@@ -335,7 +335,12 @@ release. The local cache mirrors them. Account data lives on your homeserver, so
   the room never see either.
 
 A room of kith's own WhatsApp, Telegram, Slack or LinkedIn connection has no account
-data, so its moves are kept in the local cache only. A tag's `picked` and `excluded` are part of
+data, so its moves are kept in the local cache, and pass to the other bridges of your
+mesh ([remote.md](remote.md#bridges-in-a-mesh)) with the marks on
+such a network's people. There a release wins over a filter's move made on another
+bridge at the same time; otherwise the later stands. A cache rebuilt takes them back
+from the mesh, and a tag renamed or deleted on one bridge takes them along on every
+bridge. A tag's `picked` and `excluded` are part of
 `config.toml`, stored on each machine with the rest of your configuration.
 
 A room a muted tag holds is left out of notifications in the daemon before any

@@ -1,12 +1,12 @@
 # Design: the mesh CRDT, what is left (Phase 2b of design-clients.md)
 
-Status: steps 1–6 built (#407, #422, #424, #427, #609 for 5a, then steps 5 and 6):
+Status: steps 1–7 built (#407, #422, #424, #427, #609 for 5a, then steps 5 to 7):
 bridges pair and sync, the roster is kept as signed ops, a WhatsApp DM known by its LID
 joins its number's room, read positions cross bridges, every op is sealed, the config's
-shared keys cross, and so do drafts. How that works is in `internal/mesh` and
-[docs/remote.md](../docs/remote.md). This file holds the steps still to build: verdicts
-and key rotation; the Config and Drafts sections stay as their design. Failover between
-bridges stays Phase 3.
+shared keys cross, and so do drafts and verdicts. How that works is in `internal/mesh`
+and [docs/remote.md](../docs/remote.md). This file holds the step still to build: key
+rotation; the Config, Drafts and Verdicts sections stay as their design. Failover
+between bridges stays Phase 3.
 
 ## What is left to cross
 
@@ -143,6 +143,36 @@ On networks that keep no verdicts of their own, `Router.keeperFor`'s store keepe
 4). Of concurrent verdicts the newest wins, silently: two bridges' filters firing on
 the same message write the same verdict, and equal values are no conflict.
 
+As built (step 7), where it differs from the above or adds to it:
+
+- **A release wins over a move whenever either was made**; otherwise the later by the
+  verdict's own time, then by rule and filter, so every bridge reads siblings alike
+  (`domain.TagVerdict.Beats`). The newest by `(clock, origin)` alone would let a filter
+  firing on a bridge that had not seen a release put the room back, which no filter
+  may. Two values differing only in their time are the same verdict.
+- **The cache stays the working copy**, as the router's store keeper writes it. kithd's
+  follower offers each side the other's differing values every pass (at start, on a
+  change to the mesh or the rooms, on a release or a mark made here, and every
+  minute), and each keeps only what wins over its own, checked as it writes: the mesh
+  under its lock, the cache in its transaction. So a sync landing between a pass's read
+  and its write, or a release made here meanwhile, is never written over by what it
+  wins over. A key the mesh holds none of takes the cache's (verdicts made before this
+  step, and a joining bridge's own, cross so); a cache rebuilt takes the mesh's back. A
+  room the cache does not hold is left alone, as for reads.
+- **A rename or deletion is a retag op** (`retag/<tag>`, naming the new tag or none),
+  written before the cache's own retag. A bridge whose view of the mesh's shared config
+  no longer has the old tag moves what the mesh holds under it as `domain.Retagged`
+  does (a release wins over the new name's move), deleting the old keys, and moves the
+  cache's likewise. The deletion covers only what that bridge had seen, so a verdict
+  written under the old name concurrently on another bridge survives it and is moved
+  at the next pass. The check reads the mesh's config, which reached every bridge
+  holding the retag, so a bridge whose config.toml lags does not write the old name
+  back; a tag renamed back, or made anew, ends the retag. Clearing in the cache is
+  dated just after the entry when that entry's clock was ahead.
+- **A merged room's verdicts** move under the room it joined in the mesh with its reads
+  and drafts (`PublishAliases`), each unless the joined room's own wins; the follower
+  leaves the merged room's alone in the cache, which its network merges.
+
 ## Key rotation
 
 `kith devices rotate` (on a device, or `--bridge` for its kithd) makes a new key, signs
@@ -178,7 +208,7 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
    kith-mcp, partitions and a send on one side; it asserts no typed or appended word is
    lost and every bridge reads the same draft; plus a draft over 1 MiB, a send
    concurrent with an append, a room left mid-save.
-- **7. feat: verdicts cross bridges on networks that keep none.** **Failure review**
+- **7. feat: verdicts cross bridges on networks that keep none** (built). **Failure review**
    (merges writers): a filter firing on both bridges for one message, a release
    concurrent with a move, a retag (`domain.Retagged`) concurrent with a move under the
    old name.
