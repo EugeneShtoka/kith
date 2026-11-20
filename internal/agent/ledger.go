@@ -5,12 +5,14 @@ package agent
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -162,11 +164,10 @@ func (l *Ledger) Read() (entries []Entry, skipped int, err error) {
 // read whole.
 const maxLine = 1 << 16
 
-// LastOut is when a message last went out (sent, queued or scheduled) to room, for the
-// cooldown: a scheduled one at its due time, which may be ahead.
-func LastOut(entries []Entry, room domain.RoomID) (time.Time, bool) {
-	var latest time.Time
-	var found bool
+// Outs are when messages went or go out (sent, queued or scheduled) to room, earliest
+// first, for the cooldown: a scheduled one at its due time, which may be ahead.
+func Outs(entries []Entry, room domain.RoomID) []time.Time {
+	var outs []time.Time
 	for i := range entries {
 		if entries[i].Room != room {
 			continue
@@ -174,15 +175,10 @@ func LastOut(entries []Entry, room domain.RoomID) (time.Time, bool) {
 		if entries[i].Outcome != Sent && entries[i].Outcome != Queued && entries[i].Outcome != Scheduled {
 			continue
 		}
-		out := entries[i].At
-		if entries[i].Due.After(out) {
-			out = entries[i].Due
-		}
-		if !found || out.After(latest) {
-			latest, found = out, true
-		}
+		outs = append(outs, cmp.Or(entries[i].Due, entries[i].At))
 	}
-	return latest, found
+	slices.SortFunc(outs, time.Time.Compare)
+	return outs
 }
 
 // capped trims text to n runes plus an ellipsis.

@@ -100,7 +100,7 @@ Search matches terms, not meaning. The tool description tells the assistant to r
 
 A `thread` or `reply_to` must be a message of that room's cached history, or nothing is written: an event of any other room is not found, whatever room it is in. **A drafted thread reply stays in its thread.** Each thread has a draft of its own, apart from the room's: the assistant's words go into the draft of the thread they are aimed at, or the room's for none, and you find them when you open that thread. An empty draft takes their reply target. A draft that already answers a message keeps it: words answering another message are refused and recorded, and your draft is untouched.
 
-**A later send (`at`) goes only to a room the assistant may send to.** A room it would only draft into refuses it, recorded: a draft is reviewed before it goes, a scheduled message is not. It is recorded as `scheduled`, and rests the room for the cooldown from when it goes out. One inside a cooldown moves to when the room has rested.
+**A later send (`at`) goes only to a room the assistant may send to.** A room it would only draft into refuses it, recorded: a draft is reviewed before it goes, a scheduled message is not. It is recorded as `scheduled`, and rests the room for the cooldown around when it goes out. One inside a cooldown moves to when the room has rested, and one to a room already holding `queue_limit` waiting messages is refused.
 
 **The assistant may write only where `[agent.write]` allows**, and that is never wider than what `[agent.read]` allows. The tool's description, as the assistant receives it, spells out your write scope and send list, so it knows where it may write before it tries. A room it may read but not write is refused with an error naming `[agent.write]`. A room outside `[agent.read]` is answered as if it did not exist. Either way nothing is sent or drafted, and the refusal is recorded in the [ledger](#the-audit-trail-kith---agent-log) with the rule that refused it.
 
@@ -133,6 +133,7 @@ except    = []      # deny list, used only when rooms is empty
 encrypted = false   # whether it may write into encrypted rooms it can read
 send      = []      # of those, rooms that are sent to rather than drafted into
 cooldown  = "1m"    # rest after a message goes out to a room
+queue_limit = 10    # how many messages may wait to go out to one room
 
 [[agent.write.hours]] # when it may send; outside them a send waits (any number of these)
 match = ""            # one place entry; empty = every room
@@ -261,7 +262,9 @@ Of the rooms the assistant may write to, a room that `send` names is **sent to**
 
 ### `cooldown`: stopping a runaway
 
-After a message goes out to a room, that room rests for `cooldown`. A second message inside the window is **scheduled for when the rest ends** (`scheduled`, with a `reason` naming the cooldown and the time it goes out), and the working hours still apply to that time. Only one message waits per room: a third, while the second still waits, is **drafted instead**, and the answer says why. A loop sends its next message within milliseconds, so any cooldown stops one after a single scheduled message. `"0"` turns the cooldown off.
+Around each message that goes out to a room, sent or scheduled, that room rests for `cooldown`. A message inside a rest is **scheduled for the first time clear of every rest**, so messages sent in a burst go out a cooldown apart, in order. The working hours still apply to that time. The answer comes back at once: `scheduled`, with `at` (when it goes out) and a `reason` naming the cooldown. `"0"` turns the cooldown off.
+
+`queue_limit` (10 by default) is how many messages may wait to go out to one room. A message that would wait past it is **drafted instead**, or refused if it carries an `at`, and the answer says why. A loop sends its next message within milliseconds, so it fills the queue, and from then on what it writes lands in the composer. `0` lets no message wait, so nothing is scheduled. A message that can go now is never held back by a full queue.
 
 ### Working hours: when it may send
 
@@ -296,8 +299,8 @@ kith --agent-log
 
 ```text
 2026-09-24T10:02:11+03:00  sent     Notes  [claude-code 2.1.0]  Remember to renew the domain
-2026-09-24T10:02:40+03:00  drafted  Notes  [claude-code 2.1.0]  And the certificate
-  ↳ a message went to this room 29s ago and [agent.write] cooldown is 1m, so this one waits in the composer
+2026-09-24T10:02:40+03:00  scheduled  Notes  [claude-code 2.1.0]  And the certificate
+  ↳ a message went out to this room at 2026-09-24T10:02:11+03:00 and [agent.write] cooldown is 1m, so this one waits for the room to rest; it goes out at 2026-09-24T10:03:11+03:00; the daemon sends it, and the client lists it under :scheduled until then
 2026-09-24T10:03:05+03:00  refused  Board  [claude-code 2.1.0]  Summary of today
   ↳ this room is outside what [agent.write] allows: its rooms/except lists do not admit it
 
