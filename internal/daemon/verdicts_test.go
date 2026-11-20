@@ -443,15 +443,21 @@ func (s *verdictScenario) releasedAs(k verdictKey) bool {
 	return false
 }
 
-// A merged chat's verdict moves under the chat it joined, and stays there: the cache
-// still holding the merged chat's (its network has not merged it yet) does not write it
-// back under the merged chat's key. The other bridge takes it under the chat joined.
+// A merged chat's verdict moves under the chat it joined, and its person's under the
+// joined chat's person, and both stay there: the cache still holding the merged chat's
+// (its network has not merged it yet) does not write them back under the merged
+// chat's keys. The other bridge takes them under the chat joined, and its person.
 func TestAMergedRoomsVerdictStaysUnderTheRoomItJoined(t *testing.T) {
 	t.Parallel()
 	a, b := verdictMesh(t)
 	a.moveRoom(draftRoom, "spam", time.Now())
+	const lid, number = domain.RoomID("whatsapp:1/88000@lid"), domain.RoomID("whatsapp:1/15550@s.whatsapp.net")
+	merged := domain.PersonVerdict{Person: "whatsapp:88000@lid", Tag: "spam", Rule: domain.MoveSenderFirst, Filter: "a", At: time.Now()}
+	if err := a.back.cache.MarkPerson(t.Context(), merged); err != nil {
+		t.Fatal(err)
+	}
 	a.follow()
-	if err := a.store.PublishAliases(t.Context(), a.key, map[domain.RoomID]domain.RoomID{draftRoom: otherRoom}); err != nil {
+	if err := a.store.PublishAliases(t.Context(), a.key, map[domain.RoomID]domain.RoomID{draftRoom: otherRoom, lid: number}); err != nil {
 		t.Fatal(err)
 	}
 	a.follow()
@@ -464,8 +470,15 @@ func TestAMergedRoomsVerdictStaysUnderTheRoomItJoined(t *testing.T) {
 	}
 	a.sync(b)
 	b.follow()
-	if got := b.cached()[verdictKey{string(otherRoom), "spam"}]; !got.in {
-		t.Errorf("b holds %v of the chat joined, want the move", got)
+	got := b.cached()
+	if v := got[verdictKey{string(otherRoom), "spam"}]; !v.in {
+		t.Errorf("b holds %v of the chat joined, want the move", v)
+	}
+	if v := got[verdictKey{"whatsapp:15550@s.whatsapp.net", "spam"}]; !v.in {
+		t.Errorf("b holds %v of the joined chat's person, want the move", v)
+	}
+	if v, ok := got[verdictKey{merged.Person, "spam"}]; ok {
+		t.Errorf("b holds %v of the merged chat's person, want none", v)
 	}
 }
 

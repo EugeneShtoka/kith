@@ -53,18 +53,25 @@ func TestAVerdictWriteNeverUndoesARelease(t *testing.T) {
 	}
 }
 
-// A merged chat's verdicts move under the chat it joined, each unless that chat's own
-// wins over it: a release under the merged chat over a move under the one it joined.
-// Published again, nothing moves.
+// A merged chat's verdicts move under the chat it joined, and its person's under the
+// joined chat's person, each unless that one's own wins over it: a release under the
+// merged chat over a move under the one it joined. Published again, nothing moves. One
+// written under the merged person later (a bridge yet to learn of the merge) is left
+// out, to move at the next publish.
 func TestAMergedChatsVerdictsMoveUnderTheChatItJoined(t *testing.T) {
 	t.Parallel()
 	s, key, write := verdictStore(t)
 	at := time.Now().Truncate(time.Millisecond)
 	const lid, number = domain.RoomID("whatsapp:1/88000@lid"), domain.RoomID("whatsapp:1/15550@s.whatsapp.net")
+	const lidPerson, numberPerson = "whatsapp:88000@lid", "whatsapp:15550@s.whatsapp.net"
 	write(domain.MeshVerdicts{Tags: []domain.TagVerdict{
 		{Room: lid, Tag: "spam", Released: true, At: at},
 		{Room: lid, Tag: "work", Rule: domain.MoveAlways, At: at},
 		{Room: number, Tag: "spam", Rule: domain.MoveAlways, At: at.Add(time.Minute)},
+	}, People: []domain.PersonVerdict{
+		{Person: lidPerson, Tag: "spam", Released: true, At: at},
+		{Person: lidPerson, Tag: "work", Rule: domain.MoveSenderFirst, At: at},
+		{Person: numberPerson, Tag: "spam", Rule: domain.MoveSenderFirst, At: at.Add(time.Minute)},
 	}})
 	if err := s.PublishAliases(t.Context(), key, map[domain.RoomID]domain.RoomID{lid: number}); err != nil {
 		t.Fatal(err)
@@ -72,6 +79,10 @@ func TestAMergedChatsVerdictsMoveUnderTheChatItJoined(t *testing.T) {
 	got := s.Verdicts().Tags
 	if len(got) != 2 || got[0].Room != number || !got[0].Released || got[1].Room != number || !got[1].In() {
 		t.Fatalf("Verdicts = %+v, want the number's: spam released, work moved", got)
+	}
+	people := s.Verdicts().People
+	if len(people) != 2 || people[0].Person != numberPerson || !people[0].Released || people[1].Person != numberPerson || !people[1].In() {
+		t.Fatalf("Verdicts().People = %+v, want the number's: spam released, work moved", people)
 	}
 	changed := s.Changed()
 	if err := s.PublishAliases(t.Context(), key, nil); err != nil {
@@ -81,5 +92,9 @@ func TestAMergedChatsVerdictsMoveUnderTheChatItJoined(t *testing.T) {
 	case <-changed:
 		t.Error("published again, something moved")
 	default:
+	}
+	write(domain.MeshVerdicts{People: []domain.PersonVerdict{{Person: lidPerson, Tag: "news", Rule: domain.MoveSenderFirst, At: at}}})
+	if people := s.Verdicts().People; len(people) != 2 {
+		t.Errorf("Verdicts().People = %+v, want the number's two alone", people)
 	}
 }

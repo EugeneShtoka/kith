@@ -174,17 +174,22 @@ func (s *server) meshTags(store RosterStore) ([]config.Tag, bool) {
 // passVerdicts is what of the mesh's verdicts (held) and the cache's (kept) each is
 // offered of the other's: each the other holds none of, or another of. Each side keeps
 // only what wins over its own (mesh.Store.WriteVerdicts, db.Cache.KeepVerdicts),
-// checked as it writes. A room's the mesh holds as merged into another stays where it
-// is: the mesh moves its own (mesh.Store.PublishAliases), and the cache its own as the
-// room's network merges it.
+// checked as it writes. A room's the mesh holds as merged into another, and the
+// person's the merged chat is with, stays where it is: the mesh moves its own
+// (mesh.Store.PublishAliases), and the cache its own as the room's network merges it.
 func passVerdicts(held, kept domain.MeshVerdicts, merged map[domain.RoomID]domain.RoomID) (toMesh, toCache domain.MeshVerdicts) {
 	tags := slices.DeleteFunc(slices.Clone(kept.Tags), func(v domain.TagVerdict) bool {
 		_, gone := merged[v.Room]
 		return gone
 	})
+	left := domain.MergedPeople(merged)
+	people := slices.DeleteFunc(slices.Clone(kept.People), func(v domain.PersonVerdict) bool {
+		_, gone := left[v.Person]
+		return gone
+	})
 	toMesh.Tags, toCache.Tags = differing(held.Tags, tags,
 		func(v domain.TagVerdict) [2]string { return [2]string{string(v.Room), strings.ToLower(v.Tag)} }, domain.TagVerdict.Same)
-	toMesh.People, toCache.People = differing(held.People, kept.People,
+	toMesh.People, toCache.People = differing(held.People, people,
 		func(v domain.PersonVerdict) [2]string { return [2]string{v.Person, strings.ToLower(v.Tag)} }, domain.PersonVerdict.Same)
 	return toMesh, toCache
 }

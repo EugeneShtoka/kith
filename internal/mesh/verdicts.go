@@ -104,12 +104,14 @@ func heldRetag(key string, entries []crdt.Entry) (from, to string, ok bool) {
 }
 
 // Verdicts is every verdict the mesh holds, each key's value as it reads, and every
-// retag. A verdict of a room the mesh holds as merged into another is left out: it
-// moves under the room it joined (PublishAliases).
+// retag. A verdict of a room the mesh holds as merged into another, or of the person
+// the merged chat is with, is left out: it moves under the room, or person, it joined
+// (PublishAliases).
 func (s *Store) Verdicts() domain.MeshVerdicts {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	merged := s.state.Aliases()
+	people := mergedPeople(merged)
 	held := s.state.Verdicts()
 	out := domain.MeshVerdicts{Retags: map[string]string{}}
 	for _, key := range slices.Sorted(maps.Keys(held)) {
@@ -118,10 +120,14 @@ func (s *Store) Verdicts() domain.MeshVerdicts {
 			continue
 		}
 		v, person, ok := heldVerdict(key, held[key])
-		switch _, gone := merged[v.ID]; {
+		_, gone := merged[v.ID]
+		_, left := people[v.ID]
+		switch {
 		case !ok:
 		case person:
-			out.People = append(out.People, v.personVerdict())
+			if !left {
+				out.People = append(out.People, v.personVerdict())
+			}
 		case !gone:
 			out.Tags = append(out.Tags, v.tagVerdict())
 		}
@@ -188,36 +194,51 @@ func (s *Store) WriteVerdicts(ctx context.Context, signer crypto.Signer, mv doma
 }
 
 // verdictMoves are the writes that move the verdicts state holds of each room merged
-// into another under the room it joined: each one there unless that room's own wins
-// over it, and the merged room's deleted. A room merged into a room itself merged is
+// into another under the room it joined, and of the person the merged chat is with
+// under the person the joined one is with: each one there unless that one's own wins
+// over it, and the merged one's deleted. A room merged into a room itself merged is
 // left, as FoldWrites leaves its reads.
 func verdictMoves(state crdt.State, aliases map[string]string) ([]crdt.Write, error) {
 	held := state.Verdicts()
+	people := mergedPeople(aliases)
 	var writes []crdt.Write
-	moved := map[string]verdictValue{}
+	moved, movedPerson := map[string]verdictValue{}, map[string]bool{}
 	for _, key := range slices.Sorted(maps.Keys(held)) {
 		v, person, ok := heldVerdict(key, held[key])
-		into, merged := aliases[v.ID]
-		if _, chained := aliases[into]; !ok || person || !merged || chained {
+		joined, keyOf := aliases, crdt.TagVerdictKey
+		if person {
+			joined, keyOf = people, crdt.PersonVerdictKey
+		}
+		into, merged := joined[v.ID]
+		if _, chained := joined[into]; !ok || !merged || chained {
 			continue
 		}
 		writes = append(writes, crdt.Write{Key: key})
 		v.ID = into
-		to := crdt.TagVerdictKey(into, v.Tag)
+		to := keyOf(into, v.Tag)
 		best, ok := moved[to]
 		if !ok {
 			best, _, ok = heldVerdict(to, held[to])
 		}
 		if !ok || v.tagVerdict().Beats(best.tagVerdict()) {
-			moved[to] = v
+			moved[to], movedPerson[to] = v, person
 		}
 	}
 	for _, to := range slices.Sorted(maps.Keys(moved)) {
-		w, err := moved[to].write(false)
+		w, err := moved[to].write(movedPerson[to])
 		if err != nil {
 			return nil, err
 		}
 		writes = append(writes, w)
 	}
 	return writes, nil
+}
+
+// mergedPeople is domain.MergedPeople of the mesh's aliases.
+func mergedPeople(aliases map[string]string) map[string]string {
+	merged := make(map[domain.RoomID]domain.RoomID, len(aliases))
+	for from, into := range aliases {
+		merged[domain.RoomID(from)] = domain.RoomID(into)
+	}
+	return domain.MergedPeople(merged)
 }
