@@ -71,9 +71,10 @@ jobs:
         run: make mod-check compile
 
   # Race detector and a coverage profile, split over parallel runners by package group
-  # (TEST_GROUP in the Makefile): the two slowest packages on their own, the network
+  # (TEST_GROUP in the Makefile): the three slowest packages on their own, the network
   # adapters in two groups, and the rest. One job's 15 minutes held them all before, and
-  # no longer did; nor did the rest's, with the adapters added since.
+  # no longer did; nor did the rest's, with the adapters added since; nor did the
+  # daemon's 10-minute test timeout, with the mesh's class tests.
   test:
     needs: [changes]
     if: needs.changes.outputs.docs_only != 'true'
@@ -82,7 +83,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [db, tui, adapters, networks, rest]
+        group: [db, tui, daemon, adapters, networks, rest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
