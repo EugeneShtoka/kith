@@ -121,6 +121,9 @@ type SyncFrame struct {
 	//	*SyncFrame_Snapshot
 	//	*SyncFrame_Ack
 	//	*SyncFrame_Epochs
+	//	*SyncFrame_Envelopes
+	//	*SyncFrame_SealedSnapshot
+	//	*SyncFrame_Admission
 	Frame         isSyncFrame_Frame `protobuf_oneof:"frame"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -208,6 +211,33 @@ func (x *SyncFrame) GetEpochs() *Epochs {
 	return nil
 }
 
+func (x *SyncFrame) GetEnvelopes() *Envelopes {
+	if x != nil {
+		if x, ok := x.Frame.(*SyncFrame_Envelopes); ok {
+			return x.Envelopes
+		}
+	}
+	return nil
+}
+
+func (x *SyncFrame) GetSealedSnapshot() *SealedSnapshot {
+	if x != nil {
+		if x, ok := x.Frame.(*SyncFrame_SealedSnapshot); ok {
+			return x.SealedSnapshot
+		}
+	}
+	return nil
+}
+
+func (x *SyncFrame) GetAdmission() *Admission {
+	if x != nil {
+		if x, ok := x.Frame.(*SyncFrame_Admission); ok {
+			return x.Admission
+		}
+	}
+	return nil
+}
+
 type isSyncFrame_Frame interface {
 	isSyncFrame_Frame()
 }
@@ -232,6 +262,18 @@ type SyncFrame_Epochs struct {
 	Epochs *Epochs `protobuf:"bytes,5,opt,name=epochs,proto3,oneof"`
 }
 
+type SyncFrame_Envelopes struct {
+	Envelopes *Envelopes `protobuf:"bytes,6,opt,name=envelopes,proto3,oneof"`
+}
+
+type SyncFrame_SealedSnapshot struct {
+	SealedSnapshot *SealedSnapshot `protobuf:"bytes,7,opt,name=sealed_snapshot,json=sealedSnapshot,proto3,oneof"`
+}
+
+type SyncFrame_Admission struct {
+	Admission *Admission `protobuf:"bytes,8,opt,name=admission,proto3,oneof"`
+}
+
 func (*SyncFrame_Hello) isSyncFrame_Frame() {}
 
 func (*SyncFrame_Ops) isSyncFrame_Frame() {}
@@ -242,9 +284,17 @@ func (*SyncFrame_Ack) isSyncFrame_Frame() {}
 
 func (*SyncFrame_Epochs) isSyncFrame_Frame() {}
 
+func (*SyncFrame_Envelopes) isSyncFrame_Frame() {}
+
+func (*SyncFrame_SealedSnapshot) isSyncFrame_Frame() {}
+
+func (*SyncFrame_Admission) isSyncFrame_Frame() {}
+
 // Hello is each side's first frame: its device ID, its wall clock (Unix
 // milliseconds), its version vector, the protocol it speaks and the epoch records it
 // holds. A peer whose clock is more than 60 seconds off is refused, the gap named.
+// A mailbox's says so (mailbox): its vector holds, per origin, the envelopes it keeps
+// up to seq and the hash of the envelope at seq, and its clock is only logged.
 type Hello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Replica       []byte                 `protobuf:"bytes,1,opt,name=replica,proto3" json:"replica,omitempty"`
@@ -252,6 +302,7 @@ type Hello struct {
 	Vector        []*Head                `protobuf:"bytes,3,rep,name=vector,proto3" json:"vector,omitempty"`
 	Protocol      uint32                 `protobuf:"varint,4,opt,name=protocol,proto3" json:"protocol,omitempty"`
 	Epochs        *Epochs                `protobuf:"bytes,5,opt,name=epochs,proto3" json:"epochs,omitempty"`
+	Mailbox       *MailboxState          `protobuf:"bytes,6,opt,name=mailbox,proto3" json:"mailbox,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -321,20 +372,84 @@ func (x *Hello) GetEpochs() *Epochs {
 	return nil
 }
 
+func (x *Hello) GetMailbox() *MailboxState {
+	if x != nil {
+		return x.Mailbox
+	}
+	return nil
+}
+
+// MailboxState is what a mailbox says of its store: whether it wants a bridge to leave
+// a sealed snapshot (it holds none, or more than 30 days or 64 MiB of envelopes past
+// its newest), and its size in bytes.
+type MailboxState struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SnapshotDue   bool                   `protobuf:"varint,1,opt,name=snapshot_due,json=snapshotDue,proto3" json:"snapshot_due,omitempty"`
+	StoreBytes    uint64                 `protobuf:"varint,2,opt,name=store_bytes,json=storeBytes,proto3" json:"store_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MailboxState) Reset() {
+	*x = MailboxState{}
+	mi := &file_mesh_v1_mesh_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MailboxState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MailboxState) ProtoMessage() {}
+
+func (x *MailboxState) ProtoReflect() protoreflect.Message {
+	mi := &file_mesh_v1_mesh_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MailboxState.ProtoReflect.Descriptor instead.
+func (*MailboxState) Descriptor() ([]byte, []int) {
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *MailboxState) GetSnapshotDue() bool {
+	if x != nil {
+		return x.SnapshotDue
+	}
+	return false
+}
+
+func (x *MailboxState) GetStoreBytes() uint64 {
+	if x != nil {
+		return x.StoreBytes
+	}
+	return 0
+}
+
 // Epochs are epoch records the sender holds that the receiver may not, and the epochs
 // whose content key the sender lacks though it holds ops sealed under them: a bridge
-// holding the key answers with a wrap for it.
+// holding the key answers with a wrap for it. A mailbox passes on another bridge's
+// wants, naming that bridge (for), and the wrap goes to it.
 type Epochs struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Records       []*EpochRecord         `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
 	Want          []*Epoch               `protobuf:"bytes,2,rep,name=want,proto3" json:"want,omitempty"`
+	For           []byte                 `protobuf:"bytes,3,opt,name=for,proto3" json:"for,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Epochs) Reset() {
 	*x = Epochs{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[4]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -346,7 +461,7 @@ func (x *Epochs) String() string {
 func (*Epochs) ProtoMessage() {}
 
 func (x *Epochs) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[4]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -359,7 +474,7 @@ func (x *Epochs) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Epochs.ProtoReflect.Descriptor instead.
 func (*Epochs) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{4}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Epochs) GetRecords() []*EpochRecord {
@@ -372,6 +487,13 @@ func (x *Epochs) GetRecords() []*EpochRecord {
 func (x *Epochs) GetWant() []*Epoch {
 	if x != nil {
 		return x.Want
+	}
+	return nil
+}
+
+func (x *Epochs) GetFor() []byte {
+	if x != nil {
+		return x.For
 	}
 	return nil
 }
@@ -390,7 +512,7 @@ type EpochRecord struct {
 
 func (x *EpochRecord) Reset() {
 	*x = EpochRecord{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[5]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -402,7 +524,7 @@ func (x *EpochRecord) String() string {
 func (*EpochRecord) ProtoMessage() {}
 
 func (x *EpochRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[5]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -415,7 +537,7 @@ func (x *EpochRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EpochRecord.ProtoReflect.Descriptor instead.
 func (*EpochRecord) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{5}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *EpochRecord) GetBody() []byte {
@@ -443,7 +565,7 @@ type Epoch struct {
 
 func (x *Epoch) Reset() {
 	*x = Epoch{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[6]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -455,7 +577,7 @@ func (x *Epoch) String() string {
 func (*Epoch) ProtoMessage() {}
 
 func (x *Epoch) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[6]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -468,7 +590,7 @@ func (x *Epoch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Epoch.ProtoReflect.Descriptor instead.
 func (*Epoch) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{6}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Epoch) GetNumber() uint64 {
@@ -498,7 +620,7 @@ type Head struct {
 
 func (x *Head) Reset() {
 	*x = Head{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[7]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -510,7 +632,7 @@ func (x *Head) String() string {
 func (*Head) ProtoMessage() {}
 
 func (x *Head) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[7]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -523,7 +645,7 @@ func (x *Head) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Head.ProtoReflect.Descriptor instead.
 func (*Head) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{7}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Head) GetOrigin() []byte {
@@ -565,7 +687,7 @@ type Op struct {
 
 func (x *Op) Reset() {
 	*x = Op{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[8]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -577,7 +699,7 @@ func (x *Op) String() string {
 func (*Op) ProtoMessage() {}
 
 func (x *Op) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[8]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -590,7 +712,7 @@ func (x *Op) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Op.ProtoReflect.Descriptor instead.
 func (*Op) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{8}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Op) GetBody() []byte {
@@ -624,7 +746,7 @@ type Ops struct {
 
 func (x *Ops) Reset() {
 	*x = Ops{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[9]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -636,7 +758,7 @@ func (x *Ops) String() string {
 func (*Ops) ProtoMessage() {}
 
 func (x *Ops) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[9]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -649,7 +771,7 @@ func (x *Ops) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ops.ProtoReflect.Descriptor instead.
 func (*Ops) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{9}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Ops) GetOps() []*Op {
@@ -674,7 +796,7 @@ type Snapshot struct {
 
 func (x *Snapshot) Reset() {
 	*x = Snapshot{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[10]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -686,7 +808,7 @@ func (x *Snapshot) String() string {
 func (*Snapshot) ProtoMessage() {}
 
 func (x *Snapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[10]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -699,7 +821,7 @@ func (x *Snapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Snapshot.ProtoReflect.Descriptor instead.
 func (*Snapshot) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{10}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Snapshot) GetEntries() []*Entry {
@@ -751,7 +873,7 @@ type Entry struct {
 
 func (x *Entry) Reset() {
 	*x = Entry{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[11]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -763,7 +885,7 @@ func (x *Entry) String() string {
 func (*Entry) ProtoMessage() {}
 
 func (x *Entry) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[11]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -776,7 +898,7 @@ func (x *Entry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Entry.ProtoReflect.Descriptor instead.
 func (*Entry) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{11}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Entry) GetKey() string {
@@ -814,7 +936,8 @@ func (x *Entry) GetClock() uint64 {
 	return 0
 }
 
-// Ack is the receiver's version vector after it applied a batch.
+// Ack is the receiver's version vector after it applied a batch; a mailbox's, after it
+// stored one durably.
 type Ack struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Vector        []*Head                `protobuf:"bytes,1,rep,name=vector,proto3" json:"vector,omitempty"`
@@ -824,7 +947,7 @@ type Ack struct {
 
 func (x *Ack) Reset() {
 	*x = Ack{}
-	mi := &file_mesh_v1_mesh_proto_msgTypes[12]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -836,7 +959,7 @@ func (x *Ack) String() string {
 func (*Ack) ProtoMessage() {}
 
 func (x *Ack) ProtoReflect() protoreflect.Message {
-	mi := &file_mesh_v1_mesh_proto_msgTypes[12]
+	mi := &file_mesh_v1_mesh_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -849,12 +972,204 @@ func (x *Ack) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ack.ProtoReflect.Descriptor instead.
 func (*Ack) Descriptor() ([]byte, []int) {
-	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{12}
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Ack) GetVector() []*Head {
 	if x != nil {
 		return x.Vector
+	}
+	return nil
+}
+
+// Envelopes are ops as a mailbox holds them: their envelopes alone (Op.sealed), each
+// origin's in seq order. forks marks two or more envelopes a mailbox holds under one
+// dot, sent to every bridge whatever it holds.
+type Envelopes struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Envelopes     [][]byte               `protobuf:"bytes,1,rep,name=envelopes,proto3" json:"envelopes,omitempty"`
+	Forks         bool                   `protobuf:"varint,2,opt,name=forks,proto3" json:"forks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Envelopes) Reset() {
+	*x = Envelopes{}
+	mi := &file_mesh_v1_mesh_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Envelopes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Envelopes) ProtoMessage() {}
+
+func (x *Envelopes) ProtoReflect() protoreflect.Message {
+	mi := &file_mesh_v1_mesh_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Envelopes.ProtoReflect.Descriptor instead.
+func (*Envelopes) Descriptor() ([]byte, []int) {
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *Envelopes) GetEnvelopes() [][]byte {
+	if x != nil {
+		return x.Envelopes
+	}
+	return nil
+}
+
+func (x *Envelopes) GetForks() bool {
+	if x != nil {
+		return x.Forks
+	}
+	return false
+}
+
+// SealedSnapshot is a bridge's snapshot as a mailbox keeps it, in chunks: the boxes
+// in any chunk; the maker's device ID, the vector it covers (seqs, no hashes) and the
+// maker's signature over all of it with the last. Each box holds part of the snapshot
+// (a Snapshot frame, whole), padded, sealed under a content key; a box's head names
+// the snapshot, its place in it and the epoch.
+type SealedSnapshot struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Boxes         [][]byte               `protobuf:"bytes,1,rep,name=boxes,proto3" json:"boxes,omitempty"`
+	Maker         []byte                 `protobuf:"bytes,2,opt,name=maker,proto3" json:"maker,omitempty"`
+	Vector        []*Head                `protobuf:"bytes,3,rep,name=vector,proto3" json:"vector,omitempty"`
+	Sig           []byte                 `protobuf:"bytes,4,opt,name=sig,proto3" json:"sig,omitempty"`
+	Last          bool                   `protobuf:"varint,5,opt,name=last,proto3" json:"last,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SealedSnapshot) Reset() {
+	*x = SealedSnapshot{}
+	mi := &file_mesh_v1_mesh_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SealedSnapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SealedSnapshot) ProtoMessage() {}
+
+func (x *SealedSnapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_mesh_v1_mesh_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SealedSnapshot.ProtoReflect.Descriptor instead.
+func (*SealedSnapshot) Descriptor() ([]byte, []int) {
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *SealedSnapshot) GetBoxes() [][]byte {
+	if x != nil {
+		return x.Boxes
+	}
+	return nil
+}
+
+func (x *SealedSnapshot) GetMaker() []byte {
+	if x != nil {
+		return x.Maker
+	}
+	return nil
+}
+
+func (x *SealedSnapshot) GetVector() []*Head {
+	if x != nil {
+		return x.Vector
+	}
+	return nil
+}
+
+func (x *SealedSnapshot) GetSig() []byte {
+	if x != nil {
+		return x.Sig
+	}
+	return nil
+}
+
+func (x *SealedSnapshot) GetLast() bool {
+	if x != nil {
+		return x.Last
+	}
+	return false
+}
+
+// Admission is what a bridge tells a mailbox of who may sync with it: every bridge of
+// its roster (admit) and every bridge removed from it (revoke). A key revoked is
+// admitted again only by pairing it with the mailbox again, so a bridge that has not
+// heard of a removal does not let the key back in.
+type Admission struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Admit         [][]byte               `protobuf:"bytes,1,rep,name=admit,proto3" json:"admit,omitempty"`
+	Revoke        [][]byte               `protobuf:"bytes,2,rep,name=revoke,proto3" json:"revoke,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Admission) Reset() {
+	*x = Admission{}
+	mi := &file_mesh_v1_mesh_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Admission) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Admission) ProtoMessage() {}
+
+func (x *Admission) ProtoReflect() protoreflect.Message {
+	mi := &file_mesh_v1_mesh_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Admission.ProtoReflect.Descriptor instead.
+func (*Admission) Descriptor() ([]byte, []int) {
+	return file_mesh_v1_mesh_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *Admission) GetAdmit() [][]byte {
+	if x != nil {
+		return x.Admit
+	}
+	return nil
+}
+
+func (x *Admission) GetRevoke() [][]byte {
+	if x != nil {
+		return x.Revoke
 	}
 	return nil
 }
@@ -867,23 +1182,32 @@ const file_mesh_v1_mesh_proto_rawDesc = "" +
 	"\vSyncRequest\x12(\n" +
 	"\x05frame\x18\x01 \x01(\v2\x12.mesh.v1.SyncFrameR\x05frame\"8\n" +
 	"\fSyncResponse\x12(\n" +
-	"\x05frame\x18\x01 \x01(\v2\x12.mesh.v1.SyncFrameR\x05frame\"\xdc\x01\n" +
+	"\x05frame\x18\x01 \x01(\v2\x12.mesh.v1.SyncFrameR\x05frame\"\x88\x03\n" +
 	"\tSyncFrame\x12&\n" +
 	"\x05hello\x18\x01 \x01(\v2\x0e.mesh.v1.HelloH\x00R\x05hello\x12 \n" +
 	"\x03ops\x18\x02 \x01(\v2\f.mesh.v1.OpsH\x00R\x03ops\x12/\n" +
 	"\bsnapshot\x18\x03 \x01(\v2\x11.mesh.v1.SnapshotH\x00R\bsnapshot\x12 \n" +
 	"\x03ack\x18\x04 \x01(\v2\f.mesh.v1.AckH\x00R\x03ack\x12)\n" +
-	"\x06epochs\x18\x05 \x01(\v2\x0f.mesh.v1.EpochsH\x00R\x06epochsB\a\n" +
-	"\x05frame\"\xa6\x01\n" +
+	"\x06epochs\x18\x05 \x01(\v2\x0f.mesh.v1.EpochsH\x00R\x06epochs\x122\n" +
+	"\tenvelopes\x18\x06 \x01(\v2\x12.mesh.v1.EnvelopesH\x00R\tenvelopes\x12B\n" +
+	"\x0fsealed_snapshot\x18\a \x01(\v2\x17.mesh.v1.SealedSnapshotH\x00R\x0esealedSnapshot\x122\n" +
+	"\tadmission\x18\b \x01(\v2\x12.mesh.v1.AdmissionH\x00R\tadmissionB\a\n" +
+	"\x05frame\"\xd7\x01\n" +
 	"\x05Hello\x12\x18\n" +
 	"\areplica\x18\x01 \x01(\fR\areplica\x12\x17\n" +
 	"\awall_ms\x18\x02 \x01(\x03R\x06wallMs\x12%\n" +
 	"\x06vector\x18\x03 \x03(\v2\r.mesh.v1.HeadR\x06vector\x12\x1a\n" +
 	"\bprotocol\x18\x04 \x01(\rR\bprotocol\x12'\n" +
-	"\x06epochs\x18\x05 \x01(\v2\x0f.mesh.v1.EpochsR\x06epochs\"\\\n" +
+	"\x06epochs\x18\x05 \x01(\v2\x0f.mesh.v1.EpochsR\x06epochs\x12/\n" +
+	"\amailbox\x18\x06 \x01(\v2\x15.mesh.v1.MailboxStateR\amailbox\"R\n" +
+	"\fMailboxState\x12!\n" +
+	"\fsnapshot_due\x18\x01 \x01(\bR\vsnapshotDue\x12\x1f\n" +
+	"\vstore_bytes\x18\x02 \x01(\x04R\n" +
+	"storeBytes\"n\n" +
 	"\x06Epochs\x12.\n" +
 	"\arecords\x18\x01 \x03(\v2\x14.mesh.v1.EpochRecordR\arecords\x12\"\n" +
-	"\x04want\x18\x02 \x03(\v2\x0e.mesh.v1.EpochR\x04want\"3\n" +
+	"\x04want\x18\x02 \x03(\v2\x0e.mesh.v1.EpochR\x04want\x12\x10\n" +
+	"\x03for\x18\x03 \x01(\fR\x03for\"3\n" +
 	"\vEpochRecord\x12\x12\n" +
 	"\x04body\x18\x01 \x01(\fR\x04body\x12\x10\n" +
 	"\x03sig\x18\x02 \x01(\fR\x03sig\"5\n" +
@@ -913,7 +1237,19 @@ const file_mesh_v1_mesh_proto_rawDesc = "" +
 	"\x03seq\x18\x04 \x01(\x04R\x03seq\x12\x14\n" +
 	"\x05clock\x18\x05 \x01(\x04R\x05clock\",\n" +
 	"\x03Ack\x12%\n" +
-	"\x06vector\x18\x01 \x03(\v2\r.mesh.v1.HeadR\x06vector2F\n" +
+	"\x06vector\x18\x01 \x03(\v2\r.mesh.v1.HeadR\x06vector\"?\n" +
+	"\tEnvelopes\x12\x1c\n" +
+	"\tenvelopes\x18\x01 \x03(\fR\tenvelopes\x12\x14\n" +
+	"\x05forks\x18\x02 \x01(\bR\x05forks\"\x89\x01\n" +
+	"\x0eSealedSnapshot\x12\x14\n" +
+	"\x05boxes\x18\x01 \x03(\fR\x05boxes\x12\x14\n" +
+	"\x05maker\x18\x02 \x01(\fR\x05maker\x12%\n" +
+	"\x06vector\x18\x03 \x03(\v2\r.mesh.v1.HeadR\x06vector\x12\x10\n" +
+	"\x03sig\x18\x04 \x01(\fR\x03sig\x12\x12\n" +
+	"\x04last\x18\x05 \x01(\bR\x04last\"9\n" +
+	"\tAdmission\x12\x14\n" +
+	"\x05admit\x18\x01 \x03(\fR\x05admit\x12\x16\n" +
+	"\x06revoke\x18\x02 \x03(\fR\x06revoke2F\n" +
 	"\vMeshService\x127\n" +
 	"\x04Sync\x12\x14.mesh.v1.SyncRequest\x1a\x15.mesh.v1.SyncResponse(\x010\x01B:Z8github.com/EugeneShtoka/kith/internal/api/mesh/v1;meshv1b\x06proto3"
 
@@ -929,46 +1265,55 @@ func file_mesh_v1_mesh_proto_rawDescGZIP() []byte {
 	return file_mesh_v1_mesh_proto_rawDescData
 }
 
-var file_mesh_v1_mesh_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_mesh_v1_mesh_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_mesh_v1_mesh_proto_goTypes = []any{
-	(*SyncRequest)(nil),  // 0: mesh.v1.SyncRequest
-	(*SyncResponse)(nil), // 1: mesh.v1.SyncResponse
-	(*SyncFrame)(nil),    // 2: mesh.v1.SyncFrame
-	(*Hello)(nil),        // 3: mesh.v1.Hello
-	(*Epochs)(nil),       // 4: mesh.v1.Epochs
-	(*EpochRecord)(nil),  // 5: mesh.v1.EpochRecord
-	(*Epoch)(nil),        // 6: mesh.v1.Epoch
-	(*Head)(nil),         // 7: mesh.v1.Head
-	(*Op)(nil),           // 8: mesh.v1.Op
-	(*Ops)(nil),          // 9: mesh.v1.Ops
-	(*Snapshot)(nil),     // 10: mesh.v1.Snapshot
-	(*Entry)(nil),        // 11: mesh.v1.Entry
-	(*Ack)(nil),          // 12: mesh.v1.Ack
+	(*SyncRequest)(nil),    // 0: mesh.v1.SyncRequest
+	(*SyncResponse)(nil),   // 1: mesh.v1.SyncResponse
+	(*SyncFrame)(nil),      // 2: mesh.v1.SyncFrame
+	(*Hello)(nil),          // 3: mesh.v1.Hello
+	(*MailboxState)(nil),   // 4: mesh.v1.MailboxState
+	(*Epochs)(nil),         // 5: mesh.v1.Epochs
+	(*EpochRecord)(nil),    // 6: mesh.v1.EpochRecord
+	(*Epoch)(nil),          // 7: mesh.v1.Epoch
+	(*Head)(nil),           // 8: mesh.v1.Head
+	(*Op)(nil),             // 9: mesh.v1.Op
+	(*Ops)(nil),            // 10: mesh.v1.Ops
+	(*Snapshot)(nil),       // 11: mesh.v1.Snapshot
+	(*Entry)(nil),          // 12: mesh.v1.Entry
+	(*Ack)(nil),            // 13: mesh.v1.Ack
+	(*Envelopes)(nil),      // 14: mesh.v1.Envelopes
+	(*SealedSnapshot)(nil), // 15: mesh.v1.SealedSnapshot
+	(*Admission)(nil),      // 16: mesh.v1.Admission
 }
 var file_mesh_v1_mesh_proto_depIdxs = []int32{
 	2,  // 0: mesh.v1.SyncRequest.frame:type_name -> mesh.v1.SyncFrame
 	2,  // 1: mesh.v1.SyncResponse.frame:type_name -> mesh.v1.SyncFrame
 	3,  // 2: mesh.v1.SyncFrame.hello:type_name -> mesh.v1.Hello
-	9,  // 3: mesh.v1.SyncFrame.ops:type_name -> mesh.v1.Ops
-	10, // 4: mesh.v1.SyncFrame.snapshot:type_name -> mesh.v1.Snapshot
-	12, // 5: mesh.v1.SyncFrame.ack:type_name -> mesh.v1.Ack
-	4,  // 6: mesh.v1.SyncFrame.epochs:type_name -> mesh.v1.Epochs
-	7,  // 7: mesh.v1.Hello.vector:type_name -> mesh.v1.Head
-	4,  // 8: mesh.v1.Hello.epochs:type_name -> mesh.v1.Epochs
-	5,  // 9: mesh.v1.Epochs.records:type_name -> mesh.v1.EpochRecord
-	6,  // 10: mesh.v1.Epochs.want:type_name -> mesh.v1.Epoch
-	8,  // 11: mesh.v1.Ops.ops:type_name -> mesh.v1.Op
-	11, // 12: mesh.v1.Snapshot.entries:type_name -> mesh.v1.Entry
-	8,  // 13: mesh.v1.Snapshot.roster:type_name -> mesh.v1.Op
-	7,  // 14: mesh.v1.Snapshot.vector:type_name -> mesh.v1.Head
-	7,  // 15: mesh.v1.Ack.vector:type_name -> mesh.v1.Head
-	0,  // 16: mesh.v1.MeshService.Sync:input_type -> mesh.v1.SyncRequest
-	1,  // 17: mesh.v1.MeshService.Sync:output_type -> mesh.v1.SyncResponse
-	17, // [17:18] is the sub-list for method output_type
-	16, // [16:17] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	10, // 3: mesh.v1.SyncFrame.ops:type_name -> mesh.v1.Ops
+	11, // 4: mesh.v1.SyncFrame.snapshot:type_name -> mesh.v1.Snapshot
+	13, // 5: mesh.v1.SyncFrame.ack:type_name -> mesh.v1.Ack
+	5,  // 6: mesh.v1.SyncFrame.epochs:type_name -> mesh.v1.Epochs
+	14, // 7: mesh.v1.SyncFrame.envelopes:type_name -> mesh.v1.Envelopes
+	15, // 8: mesh.v1.SyncFrame.sealed_snapshot:type_name -> mesh.v1.SealedSnapshot
+	16, // 9: mesh.v1.SyncFrame.admission:type_name -> mesh.v1.Admission
+	8,  // 10: mesh.v1.Hello.vector:type_name -> mesh.v1.Head
+	5,  // 11: mesh.v1.Hello.epochs:type_name -> mesh.v1.Epochs
+	4,  // 12: mesh.v1.Hello.mailbox:type_name -> mesh.v1.MailboxState
+	6,  // 13: mesh.v1.Epochs.records:type_name -> mesh.v1.EpochRecord
+	7,  // 14: mesh.v1.Epochs.want:type_name -> mesh.v1.Epoch
+	9,  // 15: mesh.v1.Ops.ops:type_name -> mesh.v1.Op
+	12, // 16: mesh.v1.Snapshot.entries:type_name -> mesh.v1.Entry
+	9,  // 17: mesh.v1.Snapshot.roster:type_name -> mesh.v1.Op
+	8,  // 18: mesh.v1.Snapshot.vector:type_name -> mesh.v1.Head
+	8,  // 19: mesh.v1.Ack.vector:type_name -> mesh.v1.Head
+	8,  // 20: mesh.v1.SealedSnapshot.vector:type_name -> mesh.v1.Head
+	0,  // 21: mesh.v1.MeshService.Sync:input_type -> mesh.v1.SyncRequest
+	1,  // 22: mesh.v1.MeshService.Sync:output_type -> mesh.v1.SyncResponse
+	22, // [22:23] is the sub-list for method output_type
+	21, // [21:22] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_mesh_v1_mesh_proto_init() }
@@ -982,6 +1327,9 @@ func file_mesh_v1_mesh_proto_init() {
 		(*SyncFrame_Snapshot)(nil),
 		(*SyncFrame_Ack)(nil),
 		(*SyncFrame_Epochs)(nil),
+		(*SyncFrame_Envelopes)(nil),
+		(*SyncFrame_SealedSnapshot)(nil),
+		(*SyncFrame_Admission)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -989,7 +1337,7 @@ func file_mesh_v1_mesh_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mesh_v1_mesh_proto_rawDesc), len(file_mesh_v1_mesh_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

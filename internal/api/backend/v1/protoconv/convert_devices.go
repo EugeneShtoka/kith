@@ -51,6 +51,7 @@ func MeshStatusToProto(s domain.MeshStatus) *v1.MeshStatusResponse {
 	return &v1.MeshStatusResponse{
 		Self: s.Self, Addresses: s.Addresses, StoreBytes: s.StoreBytes, Removed: s.Removed,
 		Accounts: mapSlice(s.Accounts, meshAccountToProto), Peers: mapSlice(s.Peers, meshPeerToProto),
+		Mailboxes: mapSlice(s.Mailboxes, meshMailboxToProto),
 	}
 }
 
@@ -59,6 +60,23 @@ func ProtoToMeshStatus(pb *v1.MeshStatusResponse) domain.MeshStatus {
 	return domain.MeshStatus{
 		Self: pb.GetSelf(), Addresses: pb.GetAddresses(), StoreBytes: pb.GetStoreBytes(), Removed: pb.GetRemoved(),
 		Accounts: mapSlice(pb.GetAccounts(), protoToMeshAccount), Peers: mapSlice(pb.GetPeers(), protoToMeshPeer),
+		Mailboxes: mapSlice(pb.GetMailboxes(), protoToMeshMailbox),
+	}
+}
+
+func meshMailboxToProto(m domain.MeshMailbox) *v1.MeshMailbox {
+	return &v1.MeshMailbox{
+		Mailbox: DeviceToProto(m.Mailbox), Addresses: m.Addresses, Heard: toProtoTime(m.Heard),
+		Lag:       mapSlice(m.Lag, func(l domain.MeshLag) *v1.MeshLag { return &v1.MeshLag{Origin: l.Origin, Ops: l.Ops} }),
+		Connected: m.Connected, StoreBytes: m.StoreBytes,
+	}
+}
+
+func protoToMeshMailbox(pb *v1.MeshMailbox) domain.MeshMailbox {
+	return domain.MeshMailbox{
+		Mailbox: ProtoToDevice(pb.GetMailbox()), Addresses: pb.GetAddresses(), Heard: fromProtoTime(pb.GetHeard()),
+		Lag:       mapSlice(pb.GetLag(), func(l *v1.MeshLag) domain.MeshLag { return domain.MeshLag{Origin: l.GetOrigin(), Ops: l.GetOps()} }),
+		Connected: pb.GetConnected(), StoreBytes: pb.GetStoreBytes(),
 	}
 }
 

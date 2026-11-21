@@ -152,6 +152,40 @@ threat model:
   is the authorization: it is written `0600`, atomically, and a list that does not
   read keeps kithd from listening at all.
 
+## A mailbox
+
+`kith-mailbox` is a store the bridges of a mesh leave their changes with, for bridges
+that are never on at the same time ([docs/remote.md](docs/remote.md#a-mailbox-for-bridges-that-never-meet)).
+It is built on the assumption that whoever runs it reads nothing it holds.
+
+- **Sealed.** Every change is sealed by the bridge that wrote it (AES-256-GCM, padded
+  to a multiple of 4 KiB) under a content key wrapped for each member bridge's
+  sealing key (HPKE, X25519); snapshots are sealed likewise, in boxes of at most 1 MiB,
+  and signed by the bridge that made them. The mailbox holds no key that opens any of
+  it, and cannot write a change, alter one, move one to another bridge or number, or
+  splice two snapshots: each is refused by every bridge.
+- **What it sees.** The device IDs of the bridges and the sealing keys in the epoch
+  records it passes on; each bridge's IP address and when it connects; how many
+  changes each bridge writes, when, and their padded sizes (which shows when someone
+  uses kith, not what they read); epochs and revocations, which show that a bridge was
+  removed, and when; snapshot sizes. Not keys, values, room IDs, names, drafts, config,
+  tags or people. A bridge tells it how far it holds each bridge's changes as numbers
+  only, never a hash of what one says.
+- **What it can do.** Withhold or lose what it holds, or serve an old copy: an
+  availability failure, which the bridges' own copies outlive. A bridge sees its own
+  changes go missing (it says so in its log); another's, only by meeting that bridge
+  directly or through a second mailbox. Two mailboxes are the answer to one that fails.
+- **Admission.** Pinned mutual TLS 1.3 as for a listening kithd: a key is let in only
+  once paired by hand at the mailbox (`kith-mailbox pair`, six digits confirmed on both
+  sides), or named a bridge by one already admitted. A bridge removed from the mesh is
+  revoked at each mailbox the others tell, its sessions cut, and the snapshots it made
+  dropped; a key revoked is admitted again only by pairing it again. A mailbox never
+  told still lets it in: it can read only what was sealed before the epoch its
+  removal began, and what it writes is refused by every bridge.
+- **Its store.** `mailbox.db` in its folder, encrypted under a key derived from its own
+  device key (`key.pem`, `0600`); neither holds anything of the mesh's but what is
+  above.
+
 ## The desktop window
 
 The desktop window ([docs/desktop.md](docs/desktop.md)) draws what other people wrote,

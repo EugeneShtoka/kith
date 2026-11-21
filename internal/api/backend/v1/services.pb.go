@@ -20956,6 +20956,7 @@ type MeshStatusResponse struct {
 	Accounts      []*MeshAccount         `protobuf:"bytes,4,rep,name=accounts,proto3" json:"accounts,omitempty"`
 	Peers         []*MeshPeer            `protobuf:"bytes,5,rep,name=peers,proto3" json:"peers,omitempty"`
 	Addresses     []string               `protobuf:"bytes,6,rep,name=addresses,proto3" json:"addresses,omitempty"`
+	Mailboxes     []*MeshMailbox         `protobuf:"bytes,7,rep,name=mailboxes,proto3" json:"mailboxes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -21032,6 +21033,292 @@ func (x *MeshStatusResponse) GetAddresses() []string {
 	return nil
 }
 
+func (x *MeshStatusResponse) GetMailboxes() []*MeshMailbox {
+	if x != nil {
+		return x.Mailboxes
+	}
+	return nil
+}
+
+// MeshMailbox is a mailbox of the mesh: its roster entry and the addresses it is
+// dialed at; when this bridge last heard it (unset: never), how many ops of each origin
+// this bridge holds that it does not, whether a sync stream is open with it, and its
+// store's size as it said last.
+type MeshMailbox struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Mailbox       *Device                `protobuf:"bytes,1,opt,name=mailbox,proto3" json:"mailbox,omitempty"`
+	Addresses     []string               `protobuf:"bytes,2,rep,name=addresses,proto3" json:"addresses,omitempty"`
+	Heard         *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=heard,proto3" json:"heard,omitempty"`
+	Lag           []*MeshLag             `protobuf:"bytes,4,rep,name=lag,proto3" json:"lag,omitempty"`
+	Connected     bool                   `protobuf:"varint,5,opt,name=connected,proto3" json:"connected,omitempty"`
+	StoreBytes    uint64                 `protobuf:"varint,6,opt,name=store_bytes,json=storeBytes,proto3" json:"store_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MeshMailbox) Reset() {
+	*x = MeshMailbox{}
+	mi := &file_backend_v1_services_proto_msgTypes[390]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MeshMailbox) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MeshMailbox) ProtoMessage() {}
+
+func (x *MeshMailbox) ProtoReflect() protoreflect.Message {
+	mi := &file_backend_v1_services_proto_msgTypes[390]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MeshMailbox.ProtoReflect.Descriptor instead.
+func (*MeshMailbox) Descriptor() ([]byte, []int) {
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{390}
+}
+
+func (x *MeshMailbox) GetMailbox() *Device {
+	if x != nil {
+		return x.Mailbox
+	}
+	return nil
+}
+
+func (x *MeshMailbox) GetAddresses() []string {
+	if x != nil {
+		return x.Addresses
+	}
+	return nil
+}
+
+func (x *MeshMailbox) GetHeard() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Heard
+	}
+	return nil
+}
+
+func (x *MeshMailbox) GetLag() []*MeshLag {
+	if x != nil {
+		return x.Lag
+	}
+	return nil
+}
+
+func (x *MeshMailbox) GetConnected() bool {
+	if x != nil {
+		return x.Connected
+	}
+	return false
+}
+
+func (x *MeshMailbox) GetStoreBytes() uint64 {
+	if x != nil {
+		return x.StoreBytes
+	}
+	return 0
+}
+
+// MeshLag is how many ops of origin (a device ID) a peer lacks.
+type MeshLag struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Origin        string                 `protobuf:"bytes,1,opt,name=origin,proto3" json:"origin,omitempty"`
+	Ops           uint64                 `protobuf:"varint,2,opt,name=ops,proto3" json:"ops,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MeshLag) Reset() {
+	*x = MeshLag{}
+	mi := &file_backend_v1_services_proto_msgTypes[391]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MeshLag) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MeshLag) ProtoMessage() {}
+
+func (x *MeshLag) ProtoReflect() protoreflect.Message {
+	mi := &file_backend_v1_services_proto_msgTypes[391]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MeshLag.ProtoReflect.Descriptor instead.
+func (*MeshLag) Descriptor() ([]byte, []int) {
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{391}
+}
+
+func (x *MeshLag) GetOrigin() string {
+	if x != nil {
+		return x.Origin
+	}
+	return ""
+}
+
+func (x *MeshLag) GetOps() uint64 {
+	if x != nil {
+		return x.Ops
+	}
+	return 0
+}
+
+// AddMailboxRequest has this kithd pair with the mailbox whose pairing uri
+// (kith://pair?…, from kith-mailbox pair) carries, and add it to the mesh as name.
+type AddMailboxRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Uri           string                 `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddMailboxRequest) Reset() {
+	*x = AddMailboxRequest{}
+	mi := &file_backend_v1_services_proto_msgTypes[392]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddMailboxRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddMailboxRequest) ProtoMessage() {}
+
+func (x *AddMailboxRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backend_v1_services_proto_msgTypes[392]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddMailboxRequest.ProtoReflect.Descriptor instead.
+func (*AddMailboxRequest) Descriptor() ([]byte, []int) {
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{392}
+}
+
+func (x *AddMailboxRequest) GetUri() string {
+	if x != nil {
+		return x.Uri
+	}
+	return ""
+}
+
+func (x *AddMailboxRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// AddMailboxResponse is one frame: the six digits this bridge worked out, then the
+// outcome, which ends the stream.
+type AddMailboxResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*AddMailboxResponse_Digits
+	//	*AddMailboxResponse_Outcome
+	Event         isAddMailboxResponse_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddMailboxResponse) Reset() {
+	*x = AddMailboxResponse{}
+	mi := &file_backend_v1_services_proto_msgTypes[393]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddMailboxResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddMailboxResponse) ProtoMessage() {}
+
+func (x *AddMailboxResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backend_v1_services_proto_msgTypes[393]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddMailboxResponse.ProtoReflect.Descriptor instead.
+func (*AddMailboxResponse) Descriptor() ([]byte, []int) {
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{393}
+}
+
+func (x *AddMailboxResponse) GetEvent() isAddMailboxResponse_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *AddMailboxResponse) GetDigits() string {
+	if x != nil {
+		if x, ok := x.Event.(*AddMailboxResponse_Digits); ok {
+			return x.Digits
+		}
+	}
+	return ""
+}
+
+func (x *AddMailboxResponse) GetOutcome() PairingOutcome {
+	if x != nil {
+		if x, ok := x.Event.(*AddMailboxResponse_Outcome); ok {
+			return x.Outcome
+		}
+	}
+	return PairingOutcome_PAIRING_OUTCOME_UNSPECIFIED
+}
+
+type isAddMailboxResponse_Event interface {
+	isAddMailboxResponse_Event()
+}
+
+type AddMailboxResponse_Digits struct {
+	Digits string `protobuf:"bytes,1,opt,name=digits,proto3,oneof"`
+}
+
+type AddMailboxResponse_Outcome struct {
+	Outcome PairingOutcome `protobuf:"varint,2,opt,name=outcome,proto3,enum=backend.v1.PairingOutcome,oneof"`
+}
+
+func (*AddMailboxResponse_Digits) isAddMailboxResponse_Event() {}
+
+func (*AddMailboxResponse_Outcome) isAddMailboxResponse_Event() {}
+
 // MeshPeer is another bridge: its roster entry, the addresses it is dialed at (none: it
 // only dials) and the accounts it runs; when this bridge last heard it (unset: never),
 // its wall clock less this one's then, how many ops this bridge holds that it has not
@@ -21053,7 +21340,7 @@ type MeshPeer struct {
 
 func (x *MeshPeer) Reset() {
 	*x = MeshPeer{}
-	mi := &file_backend_v1_services_proto_msgTypes[390]
+	mi := &file_backend_v1_services_proto_msgTypes[394]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21065,7 +21352,7 @@ func (x *MeshPeer) String() string {
 func (*MeshPeer) ProtoMessage() {}
 
 func (x *MeshPeer) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[390]
+	mi := &file_backend_v1_services_proto_msgTypes[394]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21078,7 +21365,7 @@ func (x *MeshPeer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MeshPeer.ProtoReflect.Descriptor instead.
 func (*MeshPeer) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{390}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{394}
 }
 
 func (x *MeshPeer) GetBridge() *Device {
@@ -21150,7 +21437,7 @@ type MeshAccount struct {
 
 func (x *MeshAccount) Reset() {
 	*x = MeshAccount{}
-	mi := &file_backend_v1_services_proto_msgTypes[391]
+	mi := &file_backend_v1_services_proto_msgTypes[395]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21162,7 +21449,7 @@ func (x *MeshAccount) String() string {
 func (*MeshAccount) ProtoMessage() {}
 
 func (x *MeshAccount) ProtoReflect() protoreflect.Message {
-	mi := &file_backend_v1_services_proto_msgTypes[391]
+	mi := &file_backend_v1_services_proto_msgTypes[395]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21175,7 +21462,7 @@ func (x *MeshAccount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MeshAccount.ProtoReflect.Descriptor instead.
 func (*MeshAccount) Descriptor() ([]byte, []int) {
-	return file_backend_v1_services_proto_rawDescGZIP(), []int{391}
+	return file_backend_v1_services_proto_rawDescGZIP(), []int{395}
 }
 
 func (x *MeshAccount) GetNetwork() string {
@@ -22392,7 +22679,7 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x17KeepConfigValueResponse\";\n" +
 	"\vMeshDevices\x12,\n" +
 	"\adevices\x18\x01 \x03(\v2\x12.backend.v1.DeviceR\adevices\"\x13\n" +
-	"\x11MeshStatusRequest\"\xe2\x01\n" +
+	"\x11MeshStatusRequest\"\x99\x02\n" +
 	"\x12MeshStatusResponse\x12\x12\n" +
 	"\x04self\x18\x01 \x01(\tR\x04self\x12\x1f\n" +
 	"\vstore_bytes\x18\x02 \x01(\x03R\n" +
@@ -22400,7 +22687,26 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\aremoved\x18\x03 \x01(\bR\aremoved\x123\n" +
 	"\baccounts\x18\x04 \x03(\v2\x17.backend.v1.MeshAccountR\baccounts\x12*\n" +
 	"\x05peers\x18\x05 \x03(\v2\x14.backend.v1.MeshPeerR\x05peers\x12\x1c\n" +
-	"\taddresses\x18\x06 \x03(\tR\taddresses\"\xbb\x02\n" +
+	"\taddresses\x18\x06 \x03(\tR\taddresses\x125\n" +
+	"\tmailboxes\x18\a \x03(\v2\x17.backend.v1.MeshMailboxR\tmailboxes\"\xf1\x01\n" +
+	"\vMeshMailbox\x12,\n" +
+	"\amailbox\x18\x01 \x01(\v2\x12.backend.v1.DeviceR\amailbox\x12\x1c\n" +
+	"\taddresses\x18\x02 \x03(\tR\taddresses\x120\n" +
+	"\x05heard\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x05heard\x12%\n" +
+	"\x03lag\x18\x04 \x03(\v2\x13.backend.v1.MeshLagR\x03lag\x12\x1c\n" +
+	"\tconnected\x18\x05 \x01(\bR\tconnected\x12\x1f\n" +
+	"\vstore_bytes\x18\x06 \x01(\x04R\n" +
+	"storeBytes\"3\n" +
+	"\aMeshLag\x12\x16\n" +
+	"\x06origin\x18\x01 \x01(\tR\x06origin\x12\x10\n" +
+	"\x03ops\x18\x02 \x01(\x04R\x03ops\"9\n" +
+	"\x11AddMailboxRequest\x12\x10\n" +
+	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"o\n" +
+	"\x12AddMailboxResponse\x12\x18\n" +
+	"\x06digits\x18\x01 \x01(\tH\x00R\x06digits\x126\n" +
+	"\aoutcome\x18\x02 \x01(\x0e2\x1a.backend.v1.PairingOutcomeH\x00R\aoutcomeB\a\n" +
+	"\x05event\"\xbb\x02\n" +
 	"\bMeshPeer\x12*\n" +
 	"\x06bridge\x18\x01 \x01(\v2\x12.backend.v1.DeviceR\x06bridge\x123\n" +
 	"\baccounts\x18\x02 \x03(\v2\x17.backend.v1.MeshAccountR\baccounts\x120\n" +
@@ -22467,7 +22773,7 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x19PAIRING_OUTCOME_CONFIRMED\x10\x01\x12\x1b\n" +
 	"\x17PAIRING_OUTCOME_REFUSED\x10\x02\x12\x1b\n" +
 	"\x17PAIRING_OUTCOME_EXPIRED\x10\x03\x12\x1d\n" +
-	"\x19PAIRING_OUTCOME_ABANDONED\x10\x042\xd2j\n" +
+	"\x19PAIRING_OUTCOME_ABANDONED\x10\x042\xa1k\n" +
 	"\x0eBackendService\x12<\n" +
 	"\x05Rooms\x12\x18.backend.v1.RoomsRequest\x1a\x19.backend.v1.RoomsResponse\x12Q\n" +
 	"\fRefreshRooms\x12\x1f.backend.v1.RefreshRoomsRequest\x1a .backend.v1.RefreshRoomsResponse\x12E\n" +
@@ -22654,7 +22960,9 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x04Pair\x12\x17.backend.v1.PairRequest\x1a\x18.backend.v1.PairResponse0\x01\x12G\n" +
 	"\bJoinMesh\x12\x1b.backend.v1.JoinMeshRequest\x1a\x1c.backend.v1.JoinMeshResponse0\x01\x12K\n" +
 	"\n" +
-	"MeshStatus\x12\x1d.backend.v1.MeshStatusRequest\x1a\x1e.backend.v1.MeshStatusResponseB@Z>github.com/EugeneShtoka/kith/internal/api/backend/v1;backendv1b\x06proto3"
+	"MeshStatus\x12\x1d.backend.v1.MeshStatusRequest\x1a\x1e.backend.v1.MeshStatusResponse\x12M\n" +
+	"\n" +
+	"AddMailbox\x12\x1d.backend.v1.AddMailboxRequest\x1a\x1e.backend.v1.AddMailboxResponse0\x01B@Z>github.com/EugeneShtoka/kith/internal/api/backend/v1;backendv1b\x06proto3"
 
 var (
 	file_backend_v1_services_proto_rawDescOnce sync.Once
@@ -22669,7 +22977,7 @@ func file_backend_v1_services_proto_rawDescGZIP() []byte {
 }
 
 var file_backend_v1_services_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_backend_v1_services_proto_msgTypes = make([]protoimpl.MessageInfo, 399)
+var file_backend_v1_services_proto_msgTypes = make([]protoimpl.MessageInfo, 403)
 var file_backend_v1_services_proto_goTypes = []any{
 	(RailRowKind)(0),                      // 0: backend.v1.RailRowKind
 	(SpaceFiledOutcome)(0),                // 1: backend.v1.SpaceFiledOutcome
@@ -23069,58 +23377,62 @@ var file_backend_v1_services_proto_goTypes = []any{
 	(*MeshDevices)(nil),                   // 395: backend.v1.MeshDevices
 	(*MeshStatusRequest)(nil),             // 396: backend.v1.MeshStatusRequest
 	(*MeshStatusResponse)(nil),            // 397: backend.v1.MeshStatusResponse
-	(*MeshPeer)(nil),                      // 398: backend.v1.MeshPeer
-	(*MeshAccount)(nil),                   // 399: backend.v1.MeshAccount
-	nil,                                   // 400: backend.v1.EmojiScoresResponse.ScoresEntry
-	nil,                                   // 401: backend.v1.LastMessagesResponse.AtEntry
-	nil,                                   // 402: backend.v1.SenderPicturesResponse.PicturesEntry
-	nil,                                   // 403: backend.v1.LoginRecord.ValuesEntry
-	nil,                                   // 404: backend.v1.AnswerLoginRequest.ValuesEntry
-	nil,                                   // 405: backend.v1.ApplyGroupingsRequest.ChoicesEntry
-	nil,                                   // 406: backend.v1.ApplyChatImportRequest.SendersEntry
-	(*Room)(nil),                          // 407: backend.v1.Room
-	(*Message)(nil),                       // 408: backend.v1.Message
-	(*Space)(nil),                         // 409: backend.v1.Space
-	(*RoomFacts)(nil),                     // 410: backend.v1.RoomFacts
-	(*TimelinePage)(nil),                  // 411: backend.v1.TimelinePage
-	(*Draft)(nil),                         // 412: backend.v1.Draft
-	(*Revision)(nil),                      // 413: backend.v1.Revision
-	(*Unread)(nil),                        // 414: backend.v1.Unread
-	(*Thread)(nil),                        // 415: backend.v1.Thread
-	(*Reaction)(nil),                      // 416: backend.v1.Reaction
-	(*ReactionUpdate)(nil),                // 417: backend.v1.ReactionUpdate
-	(*PollVoter)(nil),                     // 418: backend.v1.PollVoter
-	(PollHiding)(0),                       // 419: backend.v1.PollHiding
-	(*Member)(nil),                        // 420: backend.v1.Member
-	(*SearchHit)(nil),                     // 421: backend.v1.SearchHit
-	(*Mention)(nil),                       // 422: backend.v1.Mention
-	(*Activity)(nil),                      // 423: backend.v1.Activity
-	(*Verification)(nil),                  // 424: backend.v1.Verification
-	(*timestamppb.Timestamp)(nil),         // 425: google.protobuf.Timestamp
-	(*PersonName)(nil),                    // 426: backend.v1.PersonName
-	(*PersonLink)(nil),                    // 427: backend.v1.PersonLink
-	(*TempRule)(nil),                      // 428: backend.v1.TempRule
-	(*durationpb.Duration)(nil),           // 429: google.protobuf.Duration
+	(*MeshMailbox)(nil),                   // 398: backend.v1.MeshMailbox
+	(*MeshLag)(nil),                       // 399: backend.v1.MeshLag
+	(*AddMailboxRequest)(nil),             // 400: backend.v1.AddMailboxRequest
+	(*AddMailboxResponse)(nil),            // 401: backend.v1.AddMailboxResponse
+	(*MeshPeer)(nil),                      // 402: backend.v1.MeshPeer
+	(*MeshAccount)(nil),                   // 403: backend.v1.MeshAccount
+	nil,                                   // 404: backend.v1.EmojiScoresResponse.ScoresEntry
+	nil,                                   // 405: backend.v1.LastMessagesResponse.AtEntry
+	nil,                                   // 406: backend.v1.SenderPicturesResponse.PicturesEntry
+	nil,                                   // 407: backend.v1.LoginRecord.ValuesEntry
+	nil,                                   // 408: backend.v1.AnswerLoginRequest.ValuesEntry
+	nil,                                   // 409: backend.v1.ApplyGroupingsRequest.ChoicesEntry
+	nil,                                   // 410: backend.v1.ApplyChatImportRequest.SendersEntry
+	(*Room)(nil),                          // 411: backend.v1.Room
+	(*Message)(nil),                       // 412: backend.v1.Message
+	(*Space)(nil),                         // 413: backend.v1.Space
+	(*RoomFacts)(nil),                     // 414: backend.v1.RoomFacts
+	(*TimelinePage)(nil),                  // 415: backend.v1.TimelinePage
+	(*Draft)(nil),                         // 416: backend.v1.Draft
+	(*Revision)(nil),                      // 417: backend.v1.Revision
+	(*Unread)(nil),                        // 418: backend.v1.Unread
+	(*Thread)(nil),                        // 419: backend.v1.Thread
+	(*Reaction)(nil),                      // 420: backend.v1.Reaction
+	(*ReactionUpdate)(nil),                // 421: backend.v1.ReactionUpdate
+	(*PollVoter)(nil),                     // 422: backend.v1.PollVoter
+	(PollHiding)(0),                       // 423: backend.v1.PollHiding
+	(*Member)(nil),                        // 424: backend.v1.Member
+	(*SearchHit)(nil),                     // 425: backend.v1.SearchHit
+	(*Mention)(nil),                       // 426: backend.v1.Mention
+	(*Activity)(nil),                      // 427: backend.v1.Activity
+	(*Verification)(nil),                  // 428: backend.v1.Verification
+	(*timestamppb.Timestamp)(nil),         // 429: google.protobuf.Timestamp
+	(*PersonName)(nil),                    // 430: backend.v1.PersonName
+	(*PersonLink)(nil),                    // 431: backend.v1.PersonLink
+	(*TempRule)(nil),                      // 432: backend.v1.TempRule
+	(*durationpb.Duration)(nil),           // 433: google.protobuf.Duration
 }
 var file_backend_v1_services_proto_depIdxs = []int32{
-	407, // 0: backend.v1.RoomsResponse.rooms:type_name -> backend.v1.Room
-	407, // 1: backend.v1.RefreshRoomsResponse.rooms:type_name -> backend.v1.Room
+	411, // 0: backend.v1.RoomsResponse.rooms:type_name -> backend.v1.Room
+	411, // 1: backend.v1.RefreshRoomsResponse.rooms:type_name -> backend.v1.Room
 	24,  // 2: backend.v1.TagVerdictsResponse.verdicts:type_name -> backend.v1.TagVerdict
 	24,  // 3: backend.v1.MoveCandidate.verdict:type_name -> backend.v1.TagVerdict
-	408, // 4: backend.v1.MoveCandidate.sample:type_name -> backend.v1.Message
+	412, // 4: backend.v1.MoveCandidate.sample:type_name -> backend.v1.Message
 	27,  // 5: backend.v1.RescanFiltersResponse.rooms:type_name -> backend.v1.MoveCandidate
 	24,  // 6: backend.v1.MarkTagRequest.verdict:type_name -> backend.v1.TagVerdict
 	32,  // 7: backend.v1.PersonVerdictsResponse.verdicts:type_name -> backend.v1.PersonVerdict
 	32,  // 8: backend.v1.PersonCandidate.verdict:type_name -> backend.v1.PersonVerdict
-	408, // 9: backend.v1.PersonCandidate.sample:type_name -> backend.v1.Message
+	412, // 9: backend.v1.PersonCandidate.sample:type_name -> backend.v1.Message
 	35,  // 10: backend.v1.RescanPeopleResponse.people:type_name -> backend.v1.PersonCandidate
 	32,  // 11: backend.v1.MarkPersonRequest.verdict:type_name -> backend.v1.PersonVerdict
-	409, // 12: backend.v1.SpacesResponse.spaces:type_name -> backend.v1.Space
-	409, // 13: backend.v1.RefreshSpacesResponse.spaces:type_name -> backend.v1.Space
+	413, // 12: backend.v1.SpacesResponse.spaces:type_name -> backend.v1.Space
+	413, // 13: backend.v1.RefreshSpacesResponse.spaces:type_name -> backend.v1.Space
 	56,  // 14: backend.v1.RailResponse.rows:type_name -> backend.v1.RailRow
 	57,  // 15: backend.v1.RailResponse.rooms:type_name -> backend.v1.RailRoom
 	0,   // 16: backend.v1.RailRow.kind:type_name -> backend.v1.RailRowKind
-	410, // 17: backend.v1.RailRoom.facts:type_name -> backend.v1.RoomFacts
+	414, // 17: backend.v1.RailRoom.facts:type_name -> backend.v1.RoomFacts
 	64,  // 18: backend.v1.FilingPlacesResponse.places:type_name -> backend.v1.FilingPlace
 	66,  // 19: backend.v1.FileRoomRequest.tags:type_name -> backend.v1.TagFiling
 	67,  // 20: backend.v1.FileRoomRequest.spaces:type_name -> backend.v1.SpaceFiling
@@ -23133,89 +23445,89 @@ var file_backend_v1_services_proto_depIdxs = []int32{
 	76,  // 27: backend.v1.PeopleResponse.unreadable:type_name -> backend.v1.UnreadableCard
 	73,  // 28: backend.v1.PersonCardResponse.card:type_name -> backend.v1.PhonebookCard
 	73,  // 29: backend.v1.SetPersonFieldResponse.card:type_name -> backend.v1.PhonebookCard
-	408, // 30: backend.v1.CachedTimelineResponse.messages:type_name -> backend.v1.Message
-	411, // 31: backend.v1.TimelineResponse.page:type_name -> backend.v1.TimelinePage
-	412, // 32: backend.v1.SendRequest.draft:type_name -> backend.v1.Draft
-	408, // 33: backend.v1.FetchEventResponse.message:type_name -> backend.v1.Message
+	412, // 30: backend.v1.CachedTimelineResponse.messages:type_name -> backend.v1.Message
+	415, // 31: backend.v1.TimelineResponse.page:type_name -> backend.v1.TimelinePage
+	416, // 32: backend.v1.SendRequest.draft:type_name -> backend.v1.Draft
+	412, // 33: backend.v1.FetchEventResponse.message:type_name -> backend.v1.Message
 	102, // 34: backend.v1.PublicRoomsResponse.rooms:type_name -> backend.v1.PublicRoom
-	413, // 35: backend.v1.MessageHistoryResponse.revisions:type_name -> backend.v1.Revision
+	417, // 35: backend.v1.MessageHistoryResponse.revisions:type_name -> backend.v1.Revision
 	107, // 36: backend.v1.MessageHistoryResponse.deletion:type_name -> backend.v1.Deletion
-	414, // 37: backend.v1.CachedUnreadResponse.unread:type_name -> backend.v1.Unread
-	414, // 38: backend.v1.UnreadStreamResponse.unread:type_name -> backend.v1.Unread
-	415, // 39: backend.v1.ListThreadsResponse.threads:type_name -> backend.v1.Thread
-	411, // 40: backend.v1.ThreadPageResponse.page:type_name -> backend.v1.TimelinePage
-	416, // 41: backend.v1.CachedReactionsResponse.reactions:type_name -> backend.v1.Reaction
-	417, // 42: backend.v1.ReactionsResponse.update:type_name -> backend.v1.ReactionUpdate
-	418, // 43: backend.v1.PollVotersResponse.voters:type_name -> backend.v1.PollVoter
-	419, // 44: backend.v1.PollVotersResponse.hidden:type_name -> backend.v1.PollHiding
+	418, // 37: backend.v1.CachedUnreadResponse.unread:type_name -> backend.v1.Unread
+	418, // 38: backend.v1.UnreadStreamResponse.unread:type_name -> backend.v1.Unread
+	419, // 39: backend.v1.ListThreadsResponse.threads:type_name -> backend.v1.Thread
+	415, // 40: backend.v1.ThreadPageResponse.page:type_name -> backend.v1.TimelinePage
+	420, // 41: backend.v1.CachedReactionsResponse.reactions:type_name -> backend.v1.Reaction
+	421, // 42: backend.v1.ReactionsResponse.update:type_name -> backend.v1.ReactionUpdate
+	422, // 43: backend.v1.PollVotersResponse.voters:type_name -> backend.v1.PollVoter
+	423, // 44: backend.v1.PollVotersResponse.hidden:type_name -> backend.v1.PollHiding
 	130, // 45: backend.v1.ReactionRefusalsResponse.refusals:type_name -> backend.v1.ReactionRefusal
-	400, // 46: backend.v1.EmojiScoresResponse.scores:type_name -> backend.v1.EmojiScoresResponse.ScoresEntry
+	404, // 46: backend.v1.EmojiScoresResponse.scores:type_name -> backend.v1.EmojiScoresResponse.ScoresEntry
 	143, // 47: backend.v1.IdentitiesResponse.identities:type_name -> backend.v1.Identity
-	420, // 48: backend.v1.MembersResponse.members:type_name -> backend.v1.Member
-	420, // 49: backend.v1.RefreshMembersResponse.members:type_name -> backend.v1.Member
-	420, // 50: backend.v1.MentionCandidatesResponse.members:type_name -> backend.v1.Member
-	420, // 51: backend.v1.SearchSendersResponse.members:type_name -> backend.v1.Member
-	420, // 52: backend.v1.DirectCandidatesResponse.members:type_name -> backend.v1.Member
-	401, // 53: backend.v1.LastMessagesResponse.at:type_name -> backend.v1.LastMessagesResponse.AtEntry
+	424, // 48: backend.v1.MembersResponse.members:type_name -> backend.v1.Member
+	424, // 49: backend.v1.RefreshMembersResponse.members:type_name -> backend.v1.Member
+	424, // 50: backend.v1.MentionCandidatesResponse.members:type_name -> backend.v1.Member
+	424, // 51: backend.v1.SearchSendersResponse.members:type_name -> backend.v1.Member
+	424, // 52: backend.v1.DirectCandidatesResponse.members:type_name -> backend.v1.Member
+	405, // 53: backend.v1.LastMessagesResponse.at:type_name -> backend.v1.LastMessagesResponse.AtEntry
 	164, // 54: backend.v1.SenderSlotsResponse.slots:type_name -> backend.v1.SenderSlot
 	164, // 55: backend.v1.SaveSenderSlotsRequest.slots:type_name -> backend.v1.SenderSlot
-	402, // 56: backend.v1.SenderPicturesResponse.pictures:type_name -> backend.v1.SenderPicturesResponse.PicturesEntry
-	407, // 57: backend.v1.CachedInvitesResponse.invites:type_name -> backend.v1.Room
-	407, // 58: backend.v1.InvitesResponse.invites:type_name -> backend.v1.Room
+	406, // 56: backend.v1.SenderPicturesResponse.pictures:type_name -> backend.v1.SenderPicturesResponse.PicturesEntry
+	411, // 57: backend.v1.CachedInvitesResponse.invites:type_name -> backend.v1.Room
+	411, // 58: backend.v1.InvitesResponse.invites:type_name -> backend.v1.Room
 	184, // 59: backend.v1.BlockedPeopleResponse.lists:type_name -> backend.v1.NetworkBlocklist
 	2,   // 60: backend.v1.CreateRoomRequest.kind:type_name -> backend.v1.ChatKind
 	2,   // 61: backend.v1.ChatOffer.kind:type_name -> backend.v1.ChatKind
 	195, // 62: backend.v1.AccountsResponse.accounts:type_name -> backend.v1.Account
 	193, // 63: backend.v1.ChatOffersResponse.offers:type_name -> backend.v1.ChatOffer
-	407, // 64: backend.v1.ResolveLinkResponse.room:type_name -> backend.v1.Room
-	421, // 65: backend.v1.SearchMessagesResponse.hits:type_name -> backend.v1.SearchHit
+	411, // 64: backend.v1.ResolveLinkResponse.room:type_name -> backend.v1.Room
+	425, // 65: backend.v1.SearchMessagesResponse.hits:type_name -> backend.v1.SearchHit
 	215, // 66: backend.v1.CompleteWordResponse.candidates:type_name -> backend.v1.WordCandidate
-	407, // 67: backend.v1.RoomsWithResponse.rooms:type_name -> backend.v1.Room
-	408, // 68: backend.v1.MessagesAroundResponse.messages:type_name -> backend.v1.Message
+	411, // 67: backend.v1.RoomsWithResponse.rooms:type_name -> backend.v1.Room
+	412, // 68: backend.v1.MessagesAroundResponse.messages:type_name -> backend.v1.Message
 	224, // 69: backend.v1.MessageCountsRequest.people:type_name -> backend.v1.PersonIDs
-	408, // 70: backend.v1.MessagesFromResponse.messages:type_name -> backend.v1.Message
-	422, // 71: backend.v1.StoredDraft.mentions:type_name -> backend.v1.Mention
+	412, // 70: backend.v1.MessagesFromResponse.messages:type_name -> backend.v1.Message
+	426, // 71: backend.v1.StoredDraft.mentions:type_name -> backend.v1.Mention
 	230, // 72: backend.v1.ReplaceDraftRequest.draft:type_name -> backend.v1.StoredDraft
 	230, // 73: backend.v1.ReplaceDraftRequest.over:type_name -> backend.v1.StoredDraft
 	230, // 74: backend.v1.ReplaceDraftRequest.unanswered:type_name -> backend.v1.StoredDraft
 	230, // 75: backend.v1.ReplaceDraftResponse.stored:type_name -> backend.v1.StoredDraft
-	403, // 76: backend.v1.LoginRecord.values:type_name -> backend.v1.LoginRecord.ValuesEntry
+	407, // 76: backend.v1.LoginRecord.values:type_name -> backend.v1.LoginRecord.ValuesEntry
 	234, // 77: backend.v1.LoginStep.ask:type_name -> backend.v1.LoginField
 	235, // 78: backend.v1.LoginStep.configure:type_name -> backend.v1.LoginRecord
 	237, // 79: backend.v1.LoginNetwork.accounts:type_name -> backend.v1.LoginAccount
 	238, // 80: backend.v1.LoginNetworksResponse.networks:type_name -> backend.v1.LoginNetwork
 	236, // 81: backend.v1.BeginLoginResponse.step:type_name -> backend.v1.LoginStep
-	404, // 82: backend.v1.AnswerLoginRequest.values:type_name -> backend.v1.AnswerLoginRequest.ValuesEntry
+	408, // 82: backend.v1.AnswerLoginRequest.values:type_name -> backend.v1.AnswerLoginRequest.ValuesEntry
 	236, // 83: backend.v1.AnswerLoginResponse.step:type_name -> backend.v1.LoginStep
 	230, // 84: backend.v1.DraftsResponse.drafts:type_name -> backend.v1.StoredDraft
-	408, // 85: backend.v1.MessagesResponse.message:type_name -> backend.v1.Message
-	423, // 86: backend.v1.ActivityStreamResponse.activity:type_name -> backend.v1.Activity
+	412, // 85: backend.v1.MessagesResponse.message:type_name -> backend.v1.Message
+	427, // 86: backend.v1.ActivityStreamResponse.activity:type_name -> backend.v1.Activity
 	3,   // 87: backend.v1.ChangedResponse.change:type_name -> backend.v1.Change
 	264, // 88: backend.v1.FollowStreamResponse.chats:type_name -> backend.v1.LinkedChat
 	266, // 89: backend.v1.NotificationStreamResponse.notification:type_name -> backend.v1.Notification
-	424, // 90: backend.v1.VerificationsResponse.verification:type_name -> backend.v1.Verification
-	425, // 91: backend.v1.StatusResponse.synced_at:type_name -> google.protobuf.Timestamp
+	428, // 90: backend.v1.VerificationsResponse.verification:type_name -> backend.v1.Verification
+	429, // 91: backend.v1.StatusResponse.synced_at:type_name -> google.protobuf.Timestamp
 	285, // 92: backend.v1.StatusResponse.networks:type_name -> backend.v1.NetworkStatus
 	282, // 93: backend.v1.StatusResponse.backup_warning:type_name -> backend.v1.BackupWarning
 	4,   // 94: backend.v1.NetworkStatus.phase:type_name -> backend.v1.NetworkPhase
-	425, // 95: backend.v1.NetworkStatus.online_at:type_name -> google.protobuf.Timestamp
-	426, // 96: backend.v1.DirectoryResponse.names:type_name -> backend.v1.PersonName
-	427, // 97: backend.v1.DirectoryResponse.links:type_name -> backend.v1.PersonLink
+	429, // 95: backend.v1.NetworkStatus.online_at:type_name -> google.protobuf.Timestamp
+	430, // 96: backend.v1.DirectoryResponse.names:type_name -> backend.v1.PersonName
+	431, // 97: backend.v1.DirectoryResponse.links:type_name -> backend.v1.PersonLink
 	301, // 98: backend.v1.CheckSpellingResponse.misspellings:type_name -> backend.v1.Misspelling
 	314, // 99: backend.v1.DetectModelResponse.candidate:type_name -> backend.v1.ModelCandidate
 	317, // 100: backend.v1.DetectLanguagesResponse.candidates:type_name -> backend.v1.LanguageCandidate
 	319, // 101: backend.v1.DetectLanguagesResponse.frequencies:type_name -> backend.v1.FrequencyCandidate
-	428, // 102: backend.v1.SetDNDRequest.rule:type_name -> backend.v1.TempRule
-	428, // 103: backend.v1.SetDNDResponse.rules:type_name -> backend.v1.TempRule
-	428, // 104: backend.v1.ClearDNDResponse.rules:type_name -> backend.v1.TempRule
-	428, // 105: backend.v1.DNDResponse.rules:type_name -> backend.v1.TempRule
+	432, // 102: backend.v1.SetDNDRequest.rule:type_name -> backend.v1.TempRule
+	432, // 103: backend.v1.SetDNDResponse.rules:type_name -> backend.v1.TempRule
+	432, // 104: backend.v1.ClearDNDResponse.rules:type_name -> backend.v1.TempRule
+	432, // 105: backend.v1.DNDResponse.rules:type_name -> backend.v1.TempRule
 	330, // 106: backend.v1.PreviewGroupingsResponse.groupings:type_name -> backend.v1.GroupingDiff
-	405, // 107: backend.v1.ApplyGroupingsRequest.choices:type_name -> backend.v1.ApplyGroupingsRequest.ChoicesEntry
+	409, // 107: backend.v1.ApplyGroupingsRequest.choices:type_name -> backend.v1.ApplyGroupingsRequest.ChoicesEntry
 	337, // 108: backend.v1.PreviewChatImportResponse.rooms:type_name -> backend.v1.ExportRoom
 	340, // 109: backend.v1.ChatImportSendersResponse.senders:type_name -> backend.v1.ExportSender
-	420, // 110: backend.v1.ChatImportSendersResponse.members:type_name -> backend.v1.Member
-	420, // 111: backend.v1.ExportSender.likely:type_name -> backend.v1.Member
-	406, // 112: backend.v1.ApplyChatImportRequest.senders:type_name -> backend.v1.ApplyChatImportRequest.SendersEntry
+	424, // 110: backend.v1.ChatImportSendersResponse.members:type_name -> backend.v1.Member
+	424, // 111: backend.v1.ExportSender.likely:type_name -> backend.v1.Member
+	410, // 112: backend.v1.ApplyChatImportRequest.senders:type_name -> backend.v1.ApplyChatImportRequest.SendersEntry
 	351, // 113: backend.v1.ConfigSettingsResponse.settings:type_name -> backend.v1.ConfigSetting
 	6,   // 114: backend.v1.ConfigSetting.kind:type_name -> backend.v1.ConfigSettingKind
 	352, // 115: backend.v1.ConfigSetting.choices:type_name -> backend.v1.ConfigChoice
@@ -23224,14 +23536,14 @@ var file_backend_v1_services_proto_depIdxs = []int32{
 	354, // 118: backend.v1.ConfigValue.list:type_name -> backend.v1.ConfigList
 	353, // 119: backend.v1.SetConfigSettingRequest.value:type_name -> backend.v1.ConfigValue
 	351, // 120: backend.v1.SetConfigSettingResponse.setting:type_name -> backend.v1.ConfigSetting
-	422, // 121: backend.v1.ScheduledMessage.mentions:type_name -> backend.v1.Mention
+	426, // 121: backend.v1.ScheduledMessage.mentions:type_name -> backend.v1.Mention
 	357, // 122: backend.v1.ScheduleRequest.message:type_name -> backend.v1.ScheduledMessage
 	357, // 123: backend.v1.ScheduledMessagesResponse.messages:type_name -> backend.v1.ScheduledMessage
-	425, // 124: backend.v1.Device.added_at:type_name -> google.protobuf.Timestamp
+	429, // 124: backend.v1.Device.added_at:type_name -> google.protobuf.Timestamp
 	366, // 125: backend.v1.DevicesResponse.devices:type_name -> backend.v1.Device
 	366, // 126: backend.v1.AddDeviceResponse.device:type_name -> backend.v1.Device
 	366, // 127: backend.v1.RotateDeviceResponse.device:type_name -> backend.v1.Device
-	425, // 128: backend.v1.PairingTicket.expires:type_name -> google.protobuf.Timestamp
+	429, // 128: backend.v1.PairingTicket.expires:type_name -> google.protobuf.Timestamp
 	378, // 129: backend.v1.StartPairingResponse.ticket:type_name -> backend.v1.PairingTicket
 	379, // 130: backend.v1.StartPairingResponse.pending:type_name -> backend.v1.PendingDevice
 	7,   // 131: backend.v1.StartPairingResponse.outcome:type_name -> backend.v1.PairingOutcome
@@ -23245,356 +23557,363 @@ var file_backend_v1_services_proto_depIdxs = []int32{
 	391, // 139: backend.v1.ConfigConflictsResponse.conflicts:type_name -> backend.v1.ConfigConflict
 	392, // 140: backend.v1.ConfigConflict.values:type_name -> backend.v1.ConfigVersion
 	366, // 141: backend.v1.ConfigVersion.bridge:type_name -> backend.v1.Device
-	425, // 142: backend.v1.ConfigVersion.at:type_name -> google.protobuf.Timestamp
+	429, // 142: backend.v1.ConfigVersion.at:type_name -> google.protobuf.Timestamp
 	366, // 143: backend.v1.MeshDevices.devices:type_name -> backend.v1.Device
-	399, // 144: backend.v1.MeshStatusResponse.accounts:type_name -> backend.v1.MeshAccount
-	398, // 145: backend.v1.MeshStatusResponse.peers:type_name -> backend.v1.MeshPeer
-	366, // 146: backend.v1.MeshPeer.bridge:type_name -> backend.v1.Device
-	399, // 147: backend.v1.MeshPeer.accounts:type_name -> backend.v1.MeshAccount
-	425, // 148: backend.v1.MeshPeer.heard:type_name -> google.protobuf.Timestamp
-	429, // 149: backend.v1.MeshPeer.clock_gap:type_name -> google.protobuf.Duration
-	5,   // 150: backend.v1.ApplyGroupingsRequest.ChoicesEntry.value:type_name -> backend.v1.GroupingChoice
-	8,   // 151: backend.v1.BackendService.Rooms:input_type -> backend.v1.RoomsRequest
-	10,  // 152: backend.v1.BackendService.RefreshRooms:input_type -> backend.v1.RefreshRoomsRequest
-	12,  // 153: backend.v1.BackendService.MarkRead:input_type -> backend.v1.MarkReadRequest
-	22,  // 154: backend.v1.BackendService.MarkRoomsRead:input_type -> backend.v1.MarkRoomsReadRequest
-	14,  // 155: backend.v1.BackendService.MarkRoomUnread:input_type -> backend.v1.MarkRoomUnreadRequest
-	16,  // 156: backend.v1.BackendService.SetRoomArchived:input_type -> backend.v1.SetRoomArchivedRequest
-	18,  // 157: backend.v1.BackendService.StarMessage:input_type -> backend.v1.StarMessageRequest
-	20,  // 158: backend.v1.BackendService.StarredIn:input_type -> backend.v1.StarredInRequest
-	48,  // 159: backend.v1.BackendService.CanonicalParent:input_type -> backend.v1.CanonicalParentRequest
-	160, // 160: backend.v1.BackendService.LastMessages:input_type -> backend.v1.LastMessagesRequest
-	25,  // 161: backend.v1.BackendService.TagVerdicts:input_type -> backend.v1.TagVerdictsRequest
-	30,  // 162: backend.v1.BackendService.MarkTag:input_type -> backend.v1.MarkTagRequest
-	46,  // 163: backend.v1.BackendService.RetagVerdicts:input_type -> backend.v1.RetagVerdictsRequest
-	33,  // 164: backend.v1.BackendService.PersonVerdicts:input_type -> backend.v1.PersonVerdictsRequest
-	38,  // 165: backend.v1.BackendService.MarkPerson:input_type -> backend.v1.MarkPersonRequest
-	40,  // 166: backend.v1.BackendService.Ignore:input_type -> backend.v1.IgnoreRequest
-	42,  // 167: backend.v1.BackendService.Unignore:input_type -> backend.v1.UnignoreRequest
-	44,  // 168: backend.v1.BackendService.Ignored:input_type -> backend.v1.IgnoredRequest
-	50,  // 169: backend.v1.BackendService.Spaces:input_type -> backend.v1.SpacesRequest
-	52,  // 170: backend.v1.BackendService.RefreshSpaces:input_type -> backend.v1.RefreshSpacesRequest
-	54,  // 171: backend.v1.BackendService.Rail:input_type -> backend.v1.RailRequest
-	58,  // 172: backend.v1.BackendService.AddToSpace:input_type -> backend.v1.AddToSpaceRequest
-	60,  // 173: backend.v1.BackendService.RemoveFromSpace:input_type -> backend.v1.RemoveFromSpaceRequest
-	62,  // 174: backend.v1.BackendService.FilingPlaces:input_type -> backend.v1.FilingPlacesRequest
-	65,  // 175: backend.v1.BackendService.FileRoom:input_type -> backend.v1.FileRoomRequest
-	69,  // 176: backend.v1.BackendService.SetRoomName:input_type -> backend.v1.SetRoomNameRequest
-	74,  // 177: backend.v1.BackendService.People:input_type -> backend.v1.PeopleRequest
-	78,  // 178: backend.v1.BackendService.PersonCard:input_type -> backend.v1.PersonCardRequest
-	80,  // 179: backend.v1.BackendService.SetPersonField:input_type -> backend.v1.SetPersonFieldRequest
-	82,  // 180: backend.v1.BackendService.PersonKeys:input_type -> backend.v1.PersonKeysRequest
-	84,  // 181: backend.v1.BackendService.CachedTimeline:input_type -> backend.v1.CachedTimelineRequest
-	86,  // 182: backend.v1.BackendService.Timeline:input_type -> backend.v1.TimelineRequest
-	105, // 183: backend.v1.BackendService.MessageHistory:input_type -> backend.v1.MessageHistoryRequest
-	98,  // 184: backend.v1.BackendService.FetchEvent:input_type -> backend.v1.FetchEventRequest
-	100, // 185: backend.v1.BackendService.FetchEventSource:input_type -> backend.v1.FetchEventSourceRequest
-	88,  // 186: backend.v1.BackendService.Send:input_type -> backend.v1.SendRequest
-	162, // 187: backend.v1.BackendService.Redact:input_type -> backend.v1.RedactRequest
-	90,  // 188: backend.v1.BackendService.StartUpload:input_type -> backend.v1.StartUploadRequest
-	92,  // 189: backend.v1.BackendService.PutUpload:input_type -> backend.v1.PutUploadRequest
-	94,  // 190: backend.v1.BackendService.SendFile:input_type -> backend.v1.SendFileRequest
-	96,  // 191: backend.v1.BackendService.SendTyping:input_type -> backend.v1.SendTypingRequest
-	108, // 192: backend.v1.BackendService.CachedUnread:input_type -> backend.v1.CachedUnreadRequest
-	110, // 193: backend.v1.BackendService.UnreadStream:input_type -> backend.v1.UnreadStreamRequest
-	112, // 194: backend.v1.BackendService.ListThreads:input_type -> backend.v1.ListThreadsRequest
-	116, // 195: backend.v1.BackendService.ThreadPage:input_type -> backend.v1.ThreadPageRequest
-	114, // 196: backend.v1.BackendService.MarkThreadRead:input_type -> backend.v1.MarkThreadReadRequest
-	118, // 197: backend.v1.BackendService.CachedReactions:input_type -> backend.v1.CachedReactionsRequest
-	120, // 198: backend.v1.BackendService.Reactions:input_type -> backend.v1.ReactionsRequest
-	122, // 199: backend.v1.BackendService.SendReaction:input_type -> backend.v1.SendReactionRequest
-	124, // 200: backend.v1.BackendService.VotePoll:input_type -> backend.v1.VotePollRequest
-	126, // 201: backend.v1.BackendService.PollVoters:input_type -> backend.v1.PollVotersRequest
-	128, // 202: backend.v1.BackendService.CreatePoll:input_type -> backend.v1.CreatePollRequest
-	131, // 203: backend.v1.BackendService.ReactionRefusals:input_type -> backend.v1.ReactionRefusalsRequest
-	133, // 204: backend.v1.BackendService.RecordReactionRefusal:input_type -> backend.v1.RecordReactionRefusalRequest
-	135, // 205: backend.v1.BackendService.RecordEmoji:input_type -> backend.v1.RecordEmojiRequest
-	137, // 206: backend.v1.BackendService.EmojiScores:input_type -> backend.v1.EmojiScoresRequest
-	139, // 207: backend.v1.BackendService.LoadImage:input_type -> backend.v1.LoadImageRequest
-	141, // 208: backend.v1.BackendService.LoadPicture:input_type -> backend.v1.LoadPictureRequest
-	148, // 209: backend.v1.BackendService.SavePicture:input_type -> backend.v1.SavePictureRequest
-	144, // 210: backend.v1.BackendService.Identities:input_type -> backend.v1.IdentitiesRequest
-	146, // 211: backend.v1.BackendService.SetIdentity:input_type -> backend.v1.SetIdentityRequest
-	150, // 212: backend.v1.BackendService.Members:input_type -> backend.v1.MembersRequest
-	152, // 213: backend.v1.BackendService.RefreshMembers:input_type -> backend.v1.RefreshMembersRequest
-	154, // 214: backend.v1.BackendService.MentionCandidates:input_type -> backend.v1.MentionCandidatesRequest
-	156, // 215: backend.v1.BackendService.SearchSenders:input_type -> backend.v1.SearchSendersRequest
-	158, // 216: backend.v1.BackendService.DirectCandidates:input_type -> backend.v1.DirectCandidatesRequest
-	165, // 217: backend.v1.BackendService.SenderSlots:input_type -> backend.v1.SenderSlotsRequest
-	167, // 218: backend.v1.BackendService.SaveSenderSlots:input_type -> backend.v1.SaveSenderSlotsRequest
-	169, // 219: backend.v1.BackendService.SenderPictures:input_type -> backend.v1.SenderPicturesRequest
-	171, // 220: backend.v1.BackendService.CachedInvites:input_type -> backend.v1.CachedInvitesRequest
-	173, // 221: backend.v1.BackendService.Invites:input_type -> backend.v1.InvitesRequest
-	175, // 222: backend.v1.BackendService.JoinRoom:input_type -> backend.v1.JoinRoomRequest
-	103, // 223: backend.v1.BackendService.PublicRooms:input_type -> backend.v1.PublicRoomsRequest
-	177, // 224: backend.v1.BackendService.KnockRoom:input_type -> backend.v1.KnockRoomRequest
-	179, // 225: backend.v1.BackendService.BlockPerson:input_type -> backend.v1.BlockPersonRequest
-	181, // 226: backend.v1.BackendService.UnblockPerson:input_type -> backend.v1.UnblockPersonRequest
-	183, // 227: backend.v1.BackendService.BlockedPeople:input_type -> backend.v1.BlockedPeopleRequest
-	186, // 228: backend.v1.BackendService.LeaveRoom:input_type -> backend.v1.LeaveRoomRequest
-	188, // 229: backend.v1.BackendService.DeleteChat:input_type -> backend.v1.DeleteChatRequest
-	190, // 230: backend.v1.BackendService.SignOut:input_type -> backend.v1.SignOutRequest
-	192, // 231: backend.v1.BackendService.CreateRoom:input_type -> backend.v1.CreateRoomRequest
-	194, // 232: backend.v1.BackendService.ChatOffers:input_type -> backend.v1.ChatOffersRequest
-	196, // 233: backend.v1.BackendService.Accounts:input_type -> backend.v1.AccountsRequest
-	199, // 234: backend.v1.BackendService.ResolveLink:input_type -> backend.v1.ResolveLinkRequest
-	201, // 235: backend.v1.BackendService.JoinLink:input_type -> backend.v1.JoinLinkRequest
-	204, // 236: backend.v1.BackendService.InviteUser:input_type -> backend.v1.InviteUserRequest
-	206, // 237: backend.v1.BackendService.KickUser:input_type -> backend.v1.KickUserRequest
-	208, // 238: backend.v1.BackendService.BanUser:input_type -> backend.v1.BanUserRequest
-	210, // 239: backend.v1.BackendService.UnbanUser:input_type -> backend.v1.UnbanUserRequest
-	212, // 240: backend.v1.BackendService.SearchMessages:input_type -> backend.v1.SearchMessagesRequest
-	250, // 241: backend.v1.BackendService.ModelTask:input_type -> backend.v1.ModelTaskRequest
-	231, // 242: backend.v1.BackendService.ReplaceDraft:input_type -> backend.v1.ReplaceDraftRequest
-	233, // 243: backend.v1.BackendService.Drafts:input_type -> backend.v1.DraftsRequest
-	261, // 244: backend.v1.BackendService.Present:input_type -> backend.v1.PresentRequest
-	239, // 245: backend.v1.BackendService.LoginNetworks:input_type -> backend.v1.LoginNetworksRequest
-	241, // 246: backend.v1.BackendService.BeginLogin:input_type -> backend.v1.BeginLoginRequest
-	243, // 247: backend.v1.BackendService.AnswerLogin:input_type -> backend.v1.AnswerLoginRequest
-	245, // 248: backend.v1.BackendService.CancelLogin:input_type -> backend.v1.CancelLoginRequest
-	247, // 249: backend.v1.BackendService.InsteadLogin:input_type -> backend.v1.InsteadLoginRequest
-	219, // 250: backend.v1.BackendService.RoomsWith:input_type -> backend.v1.RoomsWithRequest
-	217, // 251: backend.v1.BackendService.RoomEncryption:input_type -> backend.v1.RoomEncryptionRequest
-	221, // 252: backend.v1.BackendService.MessagesAround:input_type -> backend.v1.MessagesAroundRequest
-	223, // 253: backend.v1.BackendService.MessagesFrom:input_type -> backend.v1.MessagesFromRequest
-	225, // 254: backend.v1.BackendService.MessageCounts:input_type -> backend.v1.MessageCountsRequest
-	227, // 255: backend.v1.BackendService.KnownAs:input_type -> backend.v1.KnownAsRequest
-	214, // 256: backend.v1.BackendService.CompleteWord:input_type -> backend.v1.CompleteWordRequest
-	252, // 257: backend.v1.BackendService.Messages:input_type -> backend.v1.MessagesRequest
-	254, // 258: backend.v1.BackendService.ActivityStream:input_type -> backend.v1.ActivityStreamRequest
-	256, // 259: backend.v1.BackendService.Follow:input_type -> backend.v1.FollowRequest
-	260, // 260: backend.v1.BackendService.FollowStream:input_type -> backend.v1.FollowStreamRequest
-	258, // 261: backend.v1.BackendService.Changed:input_type -> backend.v1.ChangedRequest
-	265, // 262: backend.v1.BackendService.NotificationStream:input_type -> backend.v1.NotificationStreamRequest
-	268, // 263: backend.v1.BackendService.Verifications:input_type -> backend.v1.VerificationsRequest
-	270, // 264: backend.v1.BackendService.StartVerification:input_type -> backend.v1.StartVerificationRequest
-	272, // 265: backend.v1.BackendService.VerifyPerson:input_type -> backend.v1.VerifyPersonRequest
-	274, // 266: backend.v1.BackendService.AcceptVerification:input_type -> backend.v1.AcceptVerificationRequest
-	276, // 267: backend.v1.BackendService.ConfirmSAS:input_type -> backend.v1.ConfirmSASRequest
-	278, // 268: backend.v1.BackendService.CancelVerification:input_type -> backend.v1.CancelVerificationRequest
-	280, // 269: backend.v1.BackendService.Status:input_type -> backend.v1.StatusRequest
-	283, // 270: backend.v1.BackendService.DismissBackupWarning:input_type -> backend.v1.DismissBackupWarningRequest
-	286, // 271: backend.v1.BackendService.Selves:input_type -> backend.v1.SelvesRequest
-	288, // 272: backend.v1.BackendService.Directory:input_type -> backend.v1.DirectoryRequest
-	290, // 273: backend.v1.BackendService.ClearCache:input_type -> backend.v1.ClearCacheRequest
-	292, // 274: backend.v1.BackendService.RestoreKeyBackup:input_type -> backend.v1.RestoreKeyBackupRequest
-	293, // 275: backend.v1.BackendService.ExportRoomKeys:input_type -> backend.v1.ExportRoomKeysRequest
-	295, // 276: backend.v1.BackendService.ImportRoomKeys:input_type -> backend.v1.ImportRoomKeysRequest
-	298, // 277: backend.v1.BackendService.BootstrapKeyBackup:input_type -> backend.v1.BootstrapKeyBackupRequest
-	316, // 278: backend.v1.BackendService.DetectLanguages:input_type -> backend.v1.DetectLanguagesRequest
-	307, // 279: backend.v1.BackendService.InstallDictionary:input_type -> backend.v1.InstallDictionaryRequest
-	309, // 280: backend.v1.BackendService.InstallFrequencies:input_type -> backend.v1.InstallFrequenciesRequest
-	313, // 281: backend.v1.BackendService.DetectModel:input_type -> backend.v1.DetectModelRequest
-	311, // 282: backend.v1.BackendService.InstallModel:input_type -> backend.v1.InstallModelRequest
-	300, // 283: backend.v1.BackendService.CheckSpelling:input_type -> backend.v1.CheckSpellingRequest
-	303, // 284: backend.v1.BackendService.LearnWord:input_type -> backend.v1.LearnWordRequest
-	305, // 285: backend.v1.BackendService.AllowRareWord:input_type -> backend.v1.AllowRareWordRequest
-	320, // 286: backend.v1.BackendService.SetDND:input_type -> backend.v1.SetDNDRequest
-	321, // 287: backend.v1.BackendService.ClearDND:input_type -> backend.v1.ClearDNDRequest
-	322, // 288: backend.v1.BackendService.DND:input_type -> backend.v1.DNDRequest
-	28,  // 289: backend.v1.BackendService.RescanFilters:input_type -> backend.v1.RescanFiltersRequest
-	36,  // 290: backend.v1.BackendService.RescanPeople:input_type -> backend.v1.RescanPeopleRequest
-	326, // 291: backend.v1.BackendService.ReloadConfig:input_type -> backend.v1.ReloadConfigRequest
-	328, // 292: backend.v1.BackendService.CheckConfig:input_type -> backend.v1.CheckConfigRequest
-	343, // 293: backend.v1.BackendService.GetConfig:input_type -> backend.v1.GetConfigRequest
-	331, // 294: backend.v1.BackendService.PreviewGroupings:input_type -> backend.v1.PreviewGroupingsRequest
-	333, // 295: backend.v1.BackendService.ApplyGroupings:input_type -> backend.v1.ApplyGroupingsRequest
-	335, // 296: backend.v1.BackendService.PreviewChatImport:input_type -> backend.v1.PreviewChatImportRequest
-	338, // 297: backend.v1.BackendService.ChatImportSenders:input_type -> backend.v1.ChatImportSendersRequest
-	341, // 298: backend.v1.BackendService.ApplyChatImport:input_type -> backend.v1.ApplyChatImportRequest
-	345, // 299: backend.v1.BackendService.UpdateConfig:input_type -> backend.v1.UpdateConfigRequest
-	347, // 300: backend.v1.BackendService.ConfigChanged:input_type -> backend.v1.ConfigChangedRequest
-	349, // 301: backend.v1.BackendService.ConfigSettings:input_type -> backend.v1.ConfigSettingsRequest
-	355, // 302: backend.v1.BackendService.SetConfigSetting:input_type -> backend.v1.SetConfigSettingRequest
-	389, // 303: backend.v1.BackendService.ConfigConflicts:input_type -> backend.v1.ConfigConflictsRequest
-	393, // 304: backend.v1.BackendService.KeepConfigValue:input_type -> backend.v1.KeepConfigValueRequest
-	358, // 305: backend.v1.BackendService.Schedule:input_type -> backend.v1.ScheduleRequest
-	360, // 306: backend.v1.BackendService.ScheduledMessages:input_type -> backend.v1.ScheduledMessagesRequest
-	362, // 307: backend.v1.BackendService.CancelScheduled:input_type -> backend.v1.CancelScheduledRequest
-	364, // 308: backend.v1.BackendService.RetryScheduled:input_type -> backend.v1.RetryScheduledRequest
-	367, // 309: backend.v1.BackendService.Devices:input_type -> backend.v1.DevicesRequest
-	369, // 310: backend.v1.BackendService.AddDevice:input_type -> backend.v1.AddDeviceRequest
-	371, // 311: backend.v1.BackendService.RemoveDevice:input_type -> backend.v1.RemoveDeviceRequest
-	373, // 312: backend.v1.BackendService.RotateDevice:input_type -> backend.v1.RotateDeviceRequest
-	375, // 313: backend.v1.BackendService.RotateBridge:input_type -> backend.v1.RotateBridgeRequest
-	377, // 314: backend.v1.BackendService.StartPairing:input_type -> backend.v1.StartPairingRequest
-	381, // 315: backend.v1.BackendService.ConfirmPairing:input_type -> backend.v1.ConfirmPairingRequest
-	383, // 316: backend.v1.BackendService.Pair:input_type -> backend.v1.PairRequest
-	385, // 317: backend.v1.BackendService.JoinMesh:input_type -> backend.v1.JoinMeshRequest
-	396, // 318: backend.v1.BackendService.MeshStatus:input_type -> backend.v1.MeshStatusRequest
-	9,   // 319: backend.v1.BackendService.Rooms:output_type -> backend.v1.RoomsResponse
-	11,  // 320: backend.v1.BackendService.RefreshRooms:output_type -> backend.v1.RefreshRoomsResponse
-	13,  // 321: backend.v1.BackendService.MarkRead:output_type -> backend.v1.MarkReadResponse
-	23,  // 322: backend.v1.BackendService.MarkRoomsRead:output_type -> backend.v1.MarkRoomsReadResponse
-	15,  // 323: backend.v1.BackendService.MarkRoomUnread:output_type -> backend.v1.MarkRoomUnreadResponse
-	17,  // 324: backend.v1.BackendService.SetRoomArchived:output_type -> backend.v1.SetRoomArchivedResponse
-	19,  // 325: backend.v1.BackendService.StarMessage:output_type -> backend.v1.StarMessageResponse
-	21,  // 326: backend.v1.BackendService.StarredIn:output_type -> backend.v1.StarredInResponse
-	49,  // 327: backend.v1.BackendService.CanonicalParent:output_type -> backend.v1.CanonicalParentResponse
-	161, // 328: backend.v1.BackendService.LastMessages:output_type -> backend.v1.LastMessagesResponse
-	26,  // 329: backend.v1.BackendService.TagVerdicts:output_type -> backend.v1.TagVerdictsResponse
-	31,  // 330: backend.v1.BackendService.MarkTag:output_type -> backend.v1.MarkTagResponse
-	47,  // 331: backend.v1.BackendService.RetagVerdicts:output_type -> backend.v1.RetagVerdictsResponse
-	34,  // 332: backend.v1.BackendService.PersonVerdicts:output_type -> backend.v1.PersonVerdictsResponse
-	39,  // 333: backend.v1.BackendService.MarkPerson:output_type -> backend.v1.MarkPersonResponse
-	41,  // 334: backend.v1.BackendService.Ignore:output_type -> backend.v1.IgnoreResponse
-	43,  // 335: backend.v1.BackendService.Unignore:output_type -> backend.v1.UnignoreResponse
-	45,  // 336: backend.v1.BackendService.Ignored:output_type -> backend.v1.IgnoredResponse
-	51,  // 337: backend.v1.BackendService.Spaces:output_type -> backend.v1.SpacesResponse
-	53,  // 338: backend.v1.BackendService.RefreshSpaces:output_type -> backend.v1.RefreshSpacesResponse
-	55,  // 339: backend.v1.BackendService.Rail:output_type -> backend.v1.RailResponse
-	59,  // 340: backend.v1.BackendService.AddToSpace:output_type -> backend.v1.AddToSpaceResponse
-	61,  // 341: backend.v1.BackendService.RemoveFromSpace:output_type -> backend.v1.RemoveFromSpaceResponse
-	63,  // 342: backend.v1.BackendService.FilingPlaces:output_type -> backend.v1.FilingPlacesResponse
-	68,  // 343: backend.v1.BackendService.FileRoom:output_type -> backend.v1.FileRoomResponse
-	70,  // 344: backend.v1.BackendService.SetRoomName:output_type -> backend.v1.SetRoomNameResponse
-	77,  // 345: backend.v1.BackendService.People:output_type -> backend.v1.PeopleResponse
-	79,  // 346: backend.v1.BackendService.PersonCard:output_type -> backend.v1.PersonCardResponse
-	81,  // 347: backend.v1.BackendService.SetPersonField:output_type -> backend.v1.SetPersonFieldResponse
-	83,  // 348: backend.v1.BackendService.PersonKeys:output_type -> backend.v1.PersonKeysResponse
-	85,  // 349: backend.v1.BackendService.CachedTimeline:output_type -> backend.v1.CachedTimelineResponse
-	87,  // 350: backend.v1.BackendService.Timeline:output_type -> backend.v1.TimelineResponse
-	106, // 351: backend.v1.BackendService.MessageHistory:output_type -> backend.v1.MessageHistoryResponse
-	99,  // 352: backend.v1.BackendService.FetchEvent:output_type -> backend.v1.FetchEventResponse
-	101, // 353: backend.v1.BackendService.FetchEventSource:output_type -> backend.v1.FetchEventSourceResponse
-	89,  // 354: backend.v1.BackendService.Send:output_type -> backend.v1.SendResponse
-	163, // 355: backend.v1.BackendService.Redact:output_type -> backend.v1.RedactResponse
-	91,  // 356: backend.v1.BackendService.StartUpload:output_type -> backend.v1.StartUploadResponse
-	93,  // 357: backend.v1.BackendService.PutUpload:output_type -> backend.v1.PutUploadResponse
-	95,  // 358: backend.v1.BackendService.SendFile:output_type -> backend.v1.SendFileResponse
-	97,  // 359: backend.v1.BackendService.SendTyping:output_type -> backend.v1.SendTypingResponse
-	109, // 360: backend.v1.BackendService.CachedUnread:output_type -> backend.v1.CachedUnreadResponse
-	111, // 361: backend.v1.BackendService.UnreadStream:output_type -> backend.v1.UnreadStreamResponse
-	113, // 362: backend.v1.BackendService.ListThreads:output_type -> backend.v1.ListThreadsResponse
-	117, // 363: backend.v1.BackendService.ThreadPage:output_type -> backend.v1.ThreadPageResponse
-	115, // 364: backend.v1.BackendService.MarkThreadRead:output_type -> backend.v1.MarkThreadReadResponse
-	119, // 365: backend.v1.BackendService.CachedReactions:output_type -> backend.v1.CachedReactionsResponse
-	121, // 366: backend.v1.BackendService.Reactions:output_type -> backend.v1.ReactionsResponse
-	123, // 367: backend.v1.BackendService.SendReaction:output_type -> backend.v1.SendReactionResponse
-	125, // 368: backend.v1.BackendService.VotePoll:output_type -> backend.v1.VotePollResponse
-	127, // 369: backend.v1.BackendService.PollVoters:output_type -> backend.v1.PollVotersResponse
-	129, // 370: backend.v1.BackendService.CreatePoll:output_type -> backend.v1.CreatePollResponse
-	132, // 371: backend.v1.BackendService.ReactionRefusals:output_type -> backend.v1.ReactionRefusalsResponse
-	134, // 372: backend.v1.BackendService.RecordReactionRefusal:output_type -> backend.v1.RecordReactionRefusalResponse
-	136, // 373: backend.v1.BackendService.RecordEmoji:output_type -> backend.v1.RecordEmojiResponse
-	138, // 374: backend.v1.BackendService.EmojiScores:output_type -> backend.v1.EmojiScoresResponse
-	140, // 375: backend.v1.BackendService.LoadImage:output_type -> backend.v1.LoadImageResponse
-	142, // 376: backend.v1.BackendService.LoadPicture:output_type -> backend.v1.LoadPictureResponse
-	149, // 377: backend.v1.BackendService.SavePicture:output_type -> backend.v1.SavePictureResponse
-	145, // 378: backend.v1.BackendService.Identities:output_type -> backend.v1.IdentitiesResponse
-	147, // 379: backend.v1.BackendService.SetIdentity:output_type -> backend.v1.SetIdentityResponse
-	151, // 380: backend.v1.BackendService.Members:output_type -> backend.v1.MembersResponse
-	153, // 381: backend.v1.BackendService.RefreshMembers:output_type -> backend.v1.RefreshMembersResponse
-	155, // 382: backend.v1.BackendService.MentionCandidates:output_type -> backend.v1.MentionCandidatesResponse
-	157, // 383: backend.v1.BackendService.SearchSenders:output_type -> backend.v1.SearchSendersResponse
-	159, // 384: backend.v1.BackendService.DirectCandidates:output_type -> backend.v1.DirectCandidatesResponse
-	166, // 385: backend.v1.BackendService.SenderSlots:output_type -> backend.v1.SenderSlotsResponse
-	168, // 386: backend.v1.BackendService.SaveSenderSlots:output_type -> backend.v1.SaveSenderSlotsResponse
-	170, // 387: backend.v1.BackendService.SenderPictures:output_type -> backend.v1.SenderPicturesResponse
-	172, // 388: backend.v1.BackendService.CachedInvites:output_type -> backend.v1.CachedInvitesResponse
-	174, // 389: backend.v1.BackendService.Invites:output_type -> backend.v1.InvitesResponse
-	176, // 390: backend.v1.BackendService.JoinRoom:output_type -> backend.v1.JoinRoomResponse
-	104, // 391: backend.v1.BackendService.PublicRooms:output_type -> backend.v1.PublicRoomsResponse
-	178, // 392: backend.v1.BackendService.KnockRoom:output_type -> backend.v1.KnockRoomResponse
-	180, // 393: backend.v1.BackendService.BlockPerson:output_type -> backend.v1.BlockPersonResponse
-	182, // 394: backend.v1.BackendService.UnblockPerson:output_type -> backend.v1.UnblockPersonResponse
-	185, // 395: backend.v1.BackendService.BlockedPeople:output_type -> backend.v1.BlockedPeopleResponse
-	187, // 396: backend.v1.BackendService.LeaveRoom:output_type -> backend.v1.LeaveRoomResponse
-	189, // 397: backend.v1.BackendService.DeleteChat:output_type -> backend.v1.DeleteChatResponse
-	191, // 398: backend.v1.BackendService.SignOut:output_type -> backend.v1.SignOutResponse
-	203, // 399: backend.v1.BackendService.CreateRoom:output_type -> backend.v1.CreateRoomResponse
-	198, // 400: backend.v1.BackendService.ChatOffers:output_type -> backend.v1.ChatOffersResponse
-	197, // 401: backend.v1.BackendService.Accounts:output_type -> backend.v1.AccountsResponse
-	200, // 402: backend.v1.BackendService.ResolveLink:output_type -> backend.v1.ResolveLinkResponse
-	202, // 403: backend.v1.BackendService.JoinLink:output_type -> backend.v1.JoinLinkResponse
-	205, // 404: backend.v1.BackendService.InviteUser:output_type -> backend.v1.InviteUserResponse
-	207, // 405: backend.v1.BackendService.KickUser:output_type -> backend.v1.KickUserResponse
-	209, // 406: backend.v1.BackendService.BanUser:output_type -> backend.v1.BanUserResponse
-	211, // 407: backend.v1.BackendService.UnbanUser:output_type -> backend.v1.UnbanUserResponse
-	213, // 408: backend.v1.BackendService.SearchMessages:output_type -> backend.v1.SearchMessagesResponse
-	251, // 409: backend.v1.BackendService.ModelTask:output_type -> backend.v1.ModelTaskResponse
-	232, // 410: backend.v1.BackendService.ReplaceDraft:output_type -> backend.v1.ReplaceDraftResponse
-	249, // 411: backend.v1.BackendService.Drafts:output_type -> backend.v1.DraftsResponse
-	262, // 412: backend.v1.BackendService.Present:output_type -> backend.v1.PresentResponse
-	240, // 413: backend.v1.BackendService.LoginNetworks:output_type -> backend.v1.LoginNetworksResponse
-	242, // 414: backend.v1.BackendService.BeginLogin:output_type -> backend.v1.BeginLoginResponse
-	244, // 415: backend.v1.BackendService.AnswerLogin:output_type -> backend.v1.AnswerLoginResponse
-	246, // 416: backend.v1.BackendService.CancelLogin:output_type -> backend.v1.CancelLoginResponse
-	248, // 417: backend.v1.BackendService.InsteadLogin:output_type -> backend.v1.InsteadLoginResponse
-	220, // 418: backend.v1.BackendService.RoomsWith:output_type -> backend.v1.RoomsWithResponse
-	218, // 419: backend.v1.BackendService.RoomEncryption:output_type -> backend.v1.RoomEncryptionResponse
-	222, // 420: backend.v1.BackendService.MessagesAround:output_type -> backend.v1.MessagesAroundResponse
-	229, // 421: backend.v1.BackendService.MessagesFrom:output_type -> backend.v1.MessagesFromResponse
-	226, // 422: backend.v1.BackendService.MessageCounts:output_type -> backend.v1.MessageCountsResponse
-	228, // 423: backend.v1.BackendService.KnownAs:output_type -> backend.v1.KnownAsResponse
-	216, // 424: backend.v1.BackendService.CompleteWord:output_type -> backend.v1.CompleteWordResponse
-	253, // 425: backend.v1.BackendService.Messages:output_type -> backend.v1.MessagesResponse
-	255, // 426: backend.v1.BackendService.ActivityStream:output_type -> backend.v1.ActivityStreamResponse
-	257, // 427: backend.v1.BackendService.Follow:output_type -> backend.v1.FollowResponse
-	263, // 428: backend.v1.BackendService.FollowStream:output_type -> backend.v1.FollowStreamResponse
-	259, // 429: backend.v1.BackendService.Changed:output_type -> backend.v1.ChangedResponse
-	267, // 430: backend.v1.BackendService.NotificationStream:output_type -> backend.v1.NotificationStreamResponse
-	269, // 431: backend.v1.BackendService.Verifications:output_type -> backend.v1.VerificationsResponse
-	271, // 432: backend.v1.BackendService.StartVerification:output_type -> backend.v1.StartVerificationResponse
-	273, // 433: backend.v1.BackendService.VerifyPerson:output_type -> backend.v1.VerifyPersonResponse
-	275, // 434: backend.v1.BackendService.AcceptVerification:output_type -> backend.v1.AcceptVerificationResponse
-	277, // 435: backend.v1.BackendService.ConfirmSAS:output_type -> backend.v1.ConfirmSASResponse
-	279, // 436: backend.v1.BackendService.CancelVerification:output_type -> backend.v1.CancelVerificationResponse
-	281, // 437: backend.v1.BackendService.Status:output_type -> backend.v1.StatusResponse
-	284, // 438: backend.v1.BackendService.DismissBackupWarning:output_type -> backend.v1.DismissBackupWarningResponse
-	287, // 439: backend.v1.BackendService.Selves:output_type -> backend.v1.SelvesResponse
-	289, // 440: backend.v1.BackendService.Directory:output_type -> backend.v1.DirectoryResponse
-	291, // 441: backend.v1.BackendService.ClearCache:output_type -> backend.v1.ClearCacheResponse
-	297, // 442: backend.v1.BackendService.RestoreKeyBackup:output_type -> backend.v1.RestoreKeyBackupResponse
-	294, // 443: backend.v1.BackendService.ExportRoomKeys:output_type -> backend.v1.ExportRoomKeysResponse
-	296, // 444: backend.v1.BackendService.ImportRoomKeys:output_type -> backend.v1.ImportRoomKeysResponse
-	299, // 445: backend.v1.BackendService.BootstrapKeyBackup:output_type -> backend.v1.BootstrapKeyBackupResponse
-	318, // 446: backend.v1.BackendService.DetectLanguages:output_type -> backend.v1.DetectLanguagesResponse
-	308, // 447: backend.v1.BackendService.InstallDictionary:output_type -> backend.v1.InstallDictionaryResponse
-	310, // 448: backend.v1.BackendService.InstallFrequencies:output_type -> backend.v1.InstallFrequenciesResponse
-	315, // 449: backend.v1.BackendService.DetectModel:output_type -> backend.v1.DetectModelResponse
-	312, // 450: backend.v1.BackendService.InstallModel:output_type -> backend.v1.InstallModelResponse
-	302, // 451: backend.v1.BackendService.CheckSpelling:output_type -> backend.v1.CheckSpellingResponse
-	304, // 452: backend.v1.BackendService.LearnWord:output_type -> backend.v1.LearnWordResponse
-	306, // 453: backend.v1.BackendService.AllowRareWord:output_type -> backend.v1.AllowRareWordResponse
-	323, // 454: backend.v1.BackendService.SetDND:output_type -> backend.v1.SetDNDResponse
-	324, // 455: backend.v1.BackendService.ClearDND:output_type -> backend.v1.ClearDNDResponse
-	325, // 456: backend.v1.BackendService.DND:output_type -> backend.v1.DNDResponse
-	29,  // 457: backend.v1.BackendService.RescanFilters:output_type -> backend.v1.RescanFiltersResponse
-	37,  // 458: backend.v1.BackendService.RescanPeople:output_type -> backend.v1.RescanPeopleResponse
-	327, // 459: backend.v1.BackendService.ReloadConfig:output_type -> backend.v1.ReloadConfigResponse
-	329, // 460: backend.v1.BackendService.CheckConfig:output_type -> backend.v1.CheckConfigResponse
-	344, // 461: backend.v1.BackendService.GetConfig:output_type -> backend.v1.GetConfigResponse
-	332, // 462: backend.v1.BackendService.PreviewGroupings:output_type -> backend.v1.PreviewGroupingsResponse
-	334, // 463: backend.v1.BackendService.ApplyGroupings:output_type -> backend.v1.ApplyGroupingsResponse
-	336, // 464: backend.v1.BackendService.PreviewChatImport:output_type -> backend.v1.PreviewChatImportResponse
-	339, // 465: backend.v1.BackendService.ChatImportSenders:output_type -> backend.v1.ChatImportSendersResponse
-	342, // 466: backend.v1.BackendService.ApplyChatImport:output_type -> backend.v1.ApplyChatImportResponse
-	346, // 467: backend.v1.BackendService.UpdateConfig:output_type -> backend.v1.UpdateConfigResponse
-	348, // 468: backend.v1.BackendService.ConfigChanged:output_type -> backend.v1.ConfigChangedResponse
-	350, // 469: backend.v1.BackendService.ConfigSettings:output_type -> backend.v1.ConfigSettingsResponse
-	356, // 470: backend.v1.BackendService.SetConfigSetting:output_type -> backend.v1.SetConfigSettingResponse
-	390, // 471: backend.v1.BackendService.ConfigConflicts:output_type -> backend.v1.ConfigConflictsResponse
-	394, // 472: backend.v1.BackendService.KeepConfigValue:output_type -> backend.v1.KeepConfigValueResponse
-	359, // 473: backend.v1.BackendService.Schedule:output_type -> backend.v1.ScheduleResponse
-	361, // 474: backend.v1.BackendService.ScheduledMessages:output_type -> backend.v1.ScheduledMessagesResponse
-	363, // 475: backend.v1.BackendService.CancelScheduled:output_type -> backend.v1.CancelScheduledResponse
-	365, // 476: backend.v1.BackendService.RetryScheduled:output_type -> backend.v1.RetryScheduledResponse
-	368, // 477: backend.v1.BackendService.Devices:output_type -> backend.v1.DevicesResponse
-	370, // 478: backend.v1.BackendService.AddDevice:output_type -> backend.v1.AddDeviceResponse
-	372, // 479: backend.v1.BackendService.RemoveDevice:output_type -> backend.v1.RemoveDeviceResponse
-	374, // 480: backend.v1.BackendService.RotateDevice:output_type -> backend.v1.RotateDeviceResponse
-	376, // 481: backend.v1.BackendService.RotateBridge:output_type -> backend.v1.RotateBridgeResponse
-	380, // 482: backend.v1.BackendService.StartPairing:output_type -> backend.v1.StartPairingResponse
-	382, // 483: backend.v1.BackendService.ConfirmPairing:output_type -> backend.v1.ConfirmPairingResponse
-	384, // 484: backend.v1.BackendService.Pair:output_type -> backend.v1.PairResponse
-	386, // 485: backend.v1.BackendService.JoinMesh:output_type -> backend.v1.JoinMeshResponse
-	397, // 486: backend.v1.BackendService.MeshStatus:output_type -> backend.v1.MeshStatusResponse
-	319, // [319:487] is the sub-list for method output_type
-	151, // [151:319] is the sub-list for method input_type
-	151, // [151:151] is the sub-list for extension type_name
-	151, // [151:151] is the sub-list for extension extendee
-	0,   // [0:151] is the sub-list for field type_name
+	403, // 144: backend.v1.MeshStatusResponse.accounts:type_name -> backend.v1.MeshAccount
+	402, // 145: backend.v1.MeshStatusResponse.peers:type_name -> backend.v1.MeshPeer
+	398, // 146: backend.v1.MeshStatusResponse.mailboxes:type_name -> backend.v1.MeshMailbox
+	366, // 147: backend.v1.MeshMailbox.mailbox:type_name -> backend.v1.Device
+	429, // 148: backend.v1.MeshMailbox.heard:type_name -> google.protobuf.Timestamp
+	399, // 149: backend.v1.MeshMailbox.lag:type_name -> backend.v1.MeshLag
+	7,   // 150: backend.v1.AddMailboxResponse.outcome:type_name -> backend.v1.PairingOutcome
+	366, // 151: backend.v1.MeshPeer.bridge:type_name -> backend.v1.Device
+	403, // 152: backend.v1.MeshPeer.accounts:type_name -> backend.v1.MeshAccount
+	429, // 153: backend.v1.MeshPeer.heard:type_name -> google.protobuf.Timestamp
+	433, // 154: backend.v1.MeshPeer.clock_gap:type_name -> google.protobuf.Duration
+	5,   // 155: backend.v1.ApplyGroupingsRequest.ChoicesEntry.value:type_name -> backend.v1.GroupingChoice
+	8,   // 156: backend.v1.BackendService.Rooms:input_type -> backend.v1.RoomsRequest
+	10,  // 157: backend.v1.BackendService.RefreshRooms:input_type -> backend.v1.RefreshRoomsRequest
+	12,  // 158: backend.v1.BackendService.MarkRead:input_type -> backend.v1.MarkReadRequest
+	22,  // 159: backend.v1.BackendService.MarkRoomsRead:input_type -> backend.v1.MarkRoomsReadRequest
+	14,  // 160: backend.v1.BackendService.MarkRoomUnread:input_type -> backend.v1.MarkRoomUnreadRequest
+	16,  // 161: backend.v1.BackendService.SetRoomArchived:input_type -> backend.v1.SetRoomArchivedRequest
+	18,  // 162: backend.v1.BackendService.StarMessage:input_type -> backend.v1.StarMessageRequest
+	20,  // 163: backend.v1.BackendService.StarredIn:input_type -> backend.v1.StarredInRequest
+	48,  // 164: backend.v1.BackendService.CanonicalParent:input_type -> backend.v1.CanonicalParentRequest
+	160, // 165: backend.v1.BackendService.LastMessages:input_type -> backend.v1.LastMessagesRequest
+	25,  // 166: backend.v1.BackendService.TagVerdicts:input_type -> backend.v1.TagVerdictsRequest
+	30,  // 167: backend.v1.BackendService.MarkTag:input_type -> backend.v1.MarkTagRequest
+	46,  // 168: backend.v1.BackendService.RetagVerdicts:input_type -> backend.v1.RetagVerdictsRequest
+	33,  // 169: backend.v1.BackendService.PersonVerdicts:input_type -> backend.v1.PersonVerdictsRequest
+	38,  // 170: backend.v1.BackendService.MarkPerson:input_type -> backend.v1.MarkPersonRequest
+	40,  // 171: backend.v1.BackendService.Ignore:input_type -> backend.v1.IgnoreRequest
+	42,  // 172: backend.v1.BackendService.Unignore:input_type -> backend.v1.UnignoreRequest
+	44,  // 173: backend.v1.BackendService.Ignored:input_type -> backend.v1.IgnoredRequest
+	50,  // 174: backend.v1.BackendService.Spaces:input_type -> backend.v1.SpacesRequest
+	52,  // 175: backend.v1.BackendService.RefreshSpaces:input_type -> backend.v1.RefreshSpacesRequest
+	54,  // 176: backend.v1.BackendService.Rail:input_type -> backend.v1.RailRequest
+	58,  // 177: backend.v1.BackendService.AddToSpace:input_type -> backend.v1.AddToSpaceRequest
+	60,  // 178: backend.v1.BackendService.RemoveFromSpace:input_type -> backend.v1.RemoveFromSpaceRequest
+	62,  // 179: backend.v1.BackendService.FilingPlaces:input_type -> backend.v1.FilingPlacesRequest
+	65,  // 180: backend.v1.BackendService.FileRoom:input_type -> backend.v1.FileRoomRequest
+	69,  // 181: backend.v1.BackendService.SetRoomName:input_type -> backend.v1.SetRoomNameRequest
+	74,  // 182: backend.v1.BackendService.People:input_type -> backend.v1.PeopleRequest
+	78,  // 183: backend.v1.BackendService.PersonCard:input_type -> backend.v1.PersonCardRequest
+	80,  // 184: backend.v1.BackendService.SetPersonField:input_type -> backend.v1.SetPersonFieldRequest
+	82,  // 185: backend.v1.BackendService.PersonKeys:input_type -> backend.v1.PersonKeysRequest
+	84,  // 186: backend.v1.BackendService.CachedTimeline:input_type -> backend.v1.CachedTimelineRequest
+	86,  // 187: backend.v1.BackendService.Timeline:input_type -> backend.v1.TimelineRequest
+	105, // 188: backend.v1.BackendService.MessageHistory:input_type -> backend.v1.MessageHistoryRequest
+	98,  // 189: backend.v1.BackendService.FetchEvent:input_type -> backend.v1.FetchEventRequest
+	100, // 190: backend.v1.BackendService.FetchEventSource:input_type -> backend.v1.FetchEventSourceRequest
+	88,  // 191: backend.v1.BackendService.Send:input_type -> backend.v1.SendRequest
+	162, // 192: backend.v1.BackendService.Redact:input_type -> backend.v1.RedactRequest
+	90,  // 193: backend.v1.BackendService.StartUpload:input_type -> backend.v1.StartUploadRequest
+	92,  // 194: backend.v1.BackendService.PutUpload:input_type -> backend.v1.PutUploadRequest
+	94,  // 195: backend.v1.BackendService.SendFile:input_type -> backend.v1.SendFileRequest
+	96,  // 196: backend.v1.BackendService.SendTyping:input_type -> backend.v1.SendTypingRequest
+	108, // 197: backend.v1.BackendService.CachedUnread:input_type -> backend.v1.CachedUnreadRequest
+	110, // 198: backend.v1.BackendService.UnreadStream:input_type -> backend.v1.UnreadStreamRequest
+	112, // 199: backend.v1.BackendService.ListThreads:input_type -> backend.v1.ListThreadsRequest
+	116, // 200: backend.v1.BackendService.ThreadPage:input_type -> backend.v1.ThreadPageRequest
+	114, // 201: backend.v1.BackendService.MarkThreadRead:input_type -> backend.v1.MarkThreadReadRequest
+	118, // 202: backend.v1.BackendService.CachedReactions:input_type -> backend.v1.CachedReactionsRequest
+	120, // 203: backend.v1.BackendService.Reactions:input_type -> backend.v1.ReactionsRequest
+	122, // 204: backend.v1.BackendService.SendReaction:input_type -> backend.v1.SendReactionRequest
+	124, // 205: backend.v1.BackendService.VotePoll:input_type -> backend.v1.VotePollRequest
+	126, // 206: backend.v1.BackendService.PollVoters:input_type -> backend.v1.PollVotersRequest
+	128, // 207: backend.v1.BackendService.CreatePoll:input_type -> backend.v1.CreatePollRequest
+	131, // 208: backend.v1.BackendService.ReactionRefusals:input_type -> backend.v1.ReactionRefusalsRequest
+	133, // 209: backend.v1.BackendService.RecordReactionRefusal:input_type -> backend.v1.RecordReactionRefusalRequest
+	135, // 210: backend.v1.BackendService.RecordEmoji:input_type -> backend.v1.RecordEmojiRequest
+	137, // 211: backend.v1.BackendService.EmojiScores:input_type -> backend.v1.EmojiScoresRequest
+	139, // 212: backend.v1.BackendService.LoadImage:input_type -> backend.v1.LoadImageRequest
+	141, // 213: backend.v1.BackendService.LoadPicture:input_type -> backend.v1.LoadPictureRequest
+	148, // 214: backend.v1.BackendService.SavePicture:input_type -> backend.v1.SavePictureRequest
+	144, // 215: backend.v1.BackendService.Identities:input_type -> backend.v1.IdentitiesRequest
+	146, // 216: backend.v1.BackendService.SetIdentity:input_type -> backend.v1.SetIdentityRequest
+	150, // 217: backend.v1.BackendService.Members:input_type -> backend.v1.MembersRequest
+	152, // 218: backend.v1.BackendService.RefreshMembers:input_type -> backend.v1.RefreshMembersRequest
+	154, // 219: backend.v1.BackendService.MentionCandidates:input_type -> backend.v1.MentionCandidatesRequest
+	156, // 220: backend.v1.BackendService.SearchSenders:input_type -> backend.v1.SearchSendersRequest
+	158, // 221: backend.v1.BackendService.DirectCandidates:input_type -> backend.v1.DirectCandidatesRequest
+	165, // 222: backend.v1.BackendService.SenderSlots:input_type -> backend.v1.SenderSlotsRequest
+	167, // 223: backend.v1.BackendService.SaveSenderSlots:input_type -> backend.v1.SaveSenderSlotsRequest
+	169, // 224: backend.v1.BackendService.SenderPictures:input_type -> backend.v1.SenderPicturesRequest
+	171, // 225: backend.v1.BackendService.CachedInvites:input_type -> backend.v1.CachedInvitesRequest
+	173, // 226: backend.v1.BackendService.Invites:input_type -> backend.v1.InvitesRequest
+	175, // 227: backend.v1.BackendService.JoinRoom:input_type -> backend.v1.JoinRoomRequest
+	103, // 228: backend.v1.BackendService.PublicRooms:input_type -> backend.v1.PublicRoomsRequest
+	177, // 229: backend.v1.BackendService.KnockRoom:input_type -> backend.v1.KnockRoomRequest
+	179, // 230: backend.v1.BackendService.BlockPerson:input_type -> backend.v1.BlockPersonRequest
+	181, // 231: backend.v1.BackendService.UnblockPerson:input_type -> backend.v1.UnblockPersonRequest
+	183, // 232: backend.v1.BackendService.BlockedPeople:input_type -> backend.v1.BlockedPeopleRequest
+	186, // 233: backend.v1.BackendService.LeaveRoom:input_type -> backend.v1.LeaveRoomRequest
+	188, // 234: backend.v1.BackendService.DeleteChat:input_type -> backend.v1.DeleteChatRequest
+	190, // 235: backend.v1.BackendService.SignOut:input_type -> backend.v1.SignOutRequest
+	192, // 236: backend.v1.BackendService.CreateRoom:input_type -> backend.v1.CreateRoomRequest
+	194, // 237: backend.v1.BackendService.ChatOffers:input_type -> backend.v1.ChatOffersRequest
+	196, // 238: backend.v1.BackendService.Accounts:input_type -> backend.v1.AccountsRequest
+	199, // 239: backend.v1.BackendService.ResolveLink:input_type -> backend.v1.ResolveLinkRequest
+	201, // 240: backend.v1.BackendService.JoinLink:input_type -> backend.v1.JoinLinkRequest
+	204, // 241: backend.v1.BackendService.InviteUser:input_type -> backend.v1.InviteUserRequest
+	206, // 242: backend.v1.BackendService.KickUser:input_type -> backend.v1.KickUserRequest
+	208, // 243: backend.v1.BackendService.BanUser:input_type -> backend.v1.BanUserRequest
+	210, // 244: backend.v1.BackendService.UnbanUser:input_type -> backend.v1.UnbanUserRequest
+	212, // 245: backend.v1.BackendService.SearchMessages:input_type -> backend.v1.SearchMessagesRequest
+	250, // 246: backend.v1.BackendService.ModelTask:input_type -> backend.v1.ModelTaskRequest
+	231, // 247: backend.v1.BackendService.ReplaceDraft:input_type -> backend.v1.ReplaceDraftRequest
+	233, // 248: backend.v1.BackendService.Drafts:input_type -> backend.v1.DraftsRequest
+	261, // 249: backend.v1.BackendService.Present:input_type -> backend.v1.PresentRequest
+	239, // 250: backend.v1.BackendService.LoginNetworks:input_type -> backend.v1.LoginNetworksRequest
+	241, // 251: backend.v1.BackendService.BeginLogin:input_type -> backend.v1.BeginLoginRequest
+	243, // 252: backend.v1.BackendService.AnswerLogin:input_type -> backend.v1.AnswerLoginRequest
+	245, // 253: backend.v1.BackendService.CancelLogin:input_type -> backend.v1.CancelLoginRequest
+	247, // 254: backend.v1.BackendService.InsteadLogin:input_type -> backend.v1.InsteadLoginRequest
+	219, // 255: backend.v1.BackendService.RoomsWith:input_type -> backend.v1.RoomsWithRequest
+	217, // 256: backend.v1.BackendService.RoomEncryption:input_type -> backend.v1.RoomEncryptionRequest
+	221, // 257: backend.v1.BackendService.MessagesAround:input_type -> backend.v1.MessagesAroundRequest
+	223, // 258: backend.v1.BackendService.MessagesFrom:input_type -> backend.v1.MessagesFromRequest
+	225, // 259: backend.v1.BackendService.MessageCounts:input_type -> backend.v1.MessageCountsRequest
+	227, // 260: backend.v1.BackendService.KnownAs:input_type -> backend.v1.KnownAsRequest
+	214, // 261: backend.v1.BackendService.CompleteWord:input_type -> backend.v1.CompleteWordRequest
+	252, // 262: backend.v1.BackendService.Messages:input_type -> backend.v1.MessagesRequest
+	254, // 263: backend.v1.BackendService.ActivityStream:input_type -> backend.v1.ActivityStreamRequest
+	256, // 264: backend.v1.BackendService.Follow:input_type -> backend.v1.FollowRequest
+	260, // 265: backend.v1.BackendService.FollowStream:input_type -> backend.v1.FollowStreamRequest
+	258, // 266: backend.v1.BackendService.Changed:input_type -> backend.v1.ChangedRequest
+	265, // 267: backend.v1.BackendService.NotificationStream:input_type -> backend.v1.NotificationStreamRequest
+	268, // 268: backend.v1.BackendService.Verifications:input_type -> backend.v1.VerificationsRequest
+	270, // 269: backend.v1.BackendService.StartVerification:input_type -> backend.v1.StartVerificationRequest
+	272, // 270: backend.v1.BackendService.VerifyPerson:input_type -> backend.v1.VerifyPersonRequest
+	274, // 271: backend.v1.BackendService.AcceptVerification:input_type -> backend.v1.AcceptVerificationRequest
+	276, // 272: backend.v1.BackendService.ConfirmSAS:input_type -> backend.v1.ConfirmSASRequest
+	278, // 273: backend.v1.BackendService.CancelVerification:input_type -> backend.v1.CancelVerificationRequest
+	280, // 274: backend.v1.BackendService.Status:input_type -> backend.v1.StatusRequest
+	283, // 275: backend.v1.BackendService.DismissBackupWarning:input_type -> backend.v1.DismissBackupWarningRequest
+	286, // 276: backend.v1.BackendService.Selves:input_type -> backend.v1.SelvesRequest
+	288, // 277: backend.v1.BackendService.Directory:input_type -> backend.v1.DirectoryRequest
+	290, // 278: backend.v1.BackendService.ClearCache:input_type -> backend.v1.ClearCacheRequest
+	292, // 279: backend.v1.BackendService.RestoreKeyBackup:input_type -> backend.v1.RestoreKeyBackupRequest
+	293, // 280: backend.v1.BackendService.ExportRoomKeys:input_type -> backend.v1.ExportRoomKeysRequest
+	295, // 281: backend.v1.BackendService.ImportRoomKeys:input_type -> backend.v1.ImportRoomKeysRequest
+	298, // 282: backend.v1.BackendService.BootstrapKeyBackup:input_type -> backend.v1.BootstrapKeyBackupRequest
+	316, // 283: backend.v1.BackendService.DetectLanguages:input_type -> backend.v1.DetectLanguagesRequest
+	307, // 284: backend.v1.BackendService.InstallDictionary:input_type -> backend.v1.InstallDictionaryRequest
+	309, // 285: backend.v1.BackendService.InstallFrequencies:input_type -> backend.v1.InstallFrequenciesRequest
+	313, // 286: backend.v1.BackendService.DetectModel:input_type -> backend.v1.DetectModelRequest
+	311, // 287: backend.v1.BackendService.InstallModel:input_type -> backend.v1.InstallModelRequest
+	300, // 288: backend.v1.BackendService.CheckSpelling:input_type -> backend.v1.CheckSpellingRequest
+	303, // 289: backend.v1.BackendService.LearnWord:input_type -> backend.v1.LearnWordRequest
+	305, // 290: backend.v1.BackendService.AllowRareWord:input_type -> backend.v1.AllowRareWordRequest
+	320, // 291: backend.v1.BackendService.SetDND:input_type -> backend.v1.SetDNDRequest
+	321, // 292: backend.v1.BackendService.ClearDND:input_type -> backend.v1.ClearDNDRequest
+	322, // 293: backend.v1.BackendService.DND:input_type -> backend.v1.DNDRequest
+	28,  // 294: backend.v1.BackendService.RescanFilters:input_type -> backend.v1.RescanFiltersRequest
+	36,  // 295: backend.v1.BackendService.RescanPeople:input_type -> backend.v1.RescanPeopleRequest
+	326, // 296: backend.v1.BackendService.ReloadConfig:input_type -> backend.v1.ReloadConfigRequest
+	328, // 297: backend.v1.BackendService.CheckConfig:input_type -> backend.v1.CheckConfigRequest
+	343, // 298: backend.v1.BackendService.GetConfig:input_type -> backend.v1.GetConfigRequest
+	331, // 299: backend.v1.BackendService.PreviewGroupings:input_type -> backend.v1.PreviewGroupingsRequest
+	333, // 300: backend.v1.BackendService.ApplyGroupings:input_type -> backend.v1.ApplyGroupingsRequest
+	335, // 301: backend.v1.BackendService.PreviewChatImport:input_type -> backend.v1.PreviewChatImportRequest
+	338, // 302: backend.v1.BackendService.ChatImportSenders:input_type -> backend.v1.ChatImportSendersRequest
+	341, // 303: backend.v1.BackendService.ApplyChatImport:input_type -> backend.v1.ApplyChatImportRequest
+	345, // 304: backend.v1.BackendService.UpdateConfig:input_type -> backend.v1.UpdateConfigRequest
+	347, // 305: backend.v1.BackendService.ConfigChanged:input_type -> backend.v1.ConfigChangedRequest
+	349, // 306: backend.v1.BackendService.ConfigSettings:input_type -> backend.v1.ConfigSettingsRequest
+	355, // 307: backend.v1.BackendService.SetConfigSetting:input_type -> backend.v1.SetConfigSettingRequest
+	389, // 308: backend.v1.BackendService.ConfigConflicts:input_type -> backend.v1.ConfigConflictsRequest
+	393, // 309: backend.v1.BackendService.KeepConfigValue:input_type -> backend.v1.KeepConfigValueRequest
+	358, // 310: backend.v1.BackendService.Schedule:input_type -> backend.v1.ScheduleRequest
+	360, // 311: backend.v1.BackendService.ScheduledMessages:input_type -> backend.v1.ScheduledMessagesRequest
+	362, // 312: backend.v1.BackendService.CancelScheduled:input_type -> backend.v1.CancelScheduledRequest
+	364, // 313: backend.v1.BackendService.RetryScheduled:input_type -> backend.v1.RetryScheduledRequest
+	367, // 314: backend.v1.BackendService.Devices:input_type -> backend.v1.DevicesRequest
+	369, // 315: backend.v1.BackendService.AddDevice:input_type -> backend.v1.AddDeviceRequest
+	371, // 316: backend.v1.BackendService.RemoveDevice:input_type -> backend.v1.RemoveDeviceRequest
+	373, // 317: backend.v1.BackendService.RotateDevice:input_type -> backend.v1.RotateDeviceRequest
+	375, // 318: backend.v1.BackendService.RotateBridge:input_type -> backend.v1.RotateBridgeRequest
+	377, // 319: backend.v1.BackendService.StartPairing:input_type -> backend.v1.StartPairingRequest
+	381, // 320: backend.v1.BackendService.ConfirmPairing:input_type -> backend.v1.ConfirmPairingRequest
+	383, // 321: backend.v1.BackendService.Pair:input_type -> backend.v1.PairRequest
+	385, // 322: backend.v1.BackendService.JoinMesh:input_type -> backend.v1.JoinMeshRequest
+	396, // 323: backend.v1.BackendService.MeshStatus:input_type -> backend.v1.MeshStatusRequest
+	400, // 324: backend.v1.BackendService.AddMailbox:input_type -> backend.v1.AddMailboxRequest
+	9,   // 325: backend.v1.BackendService.Rooms:output_type -> backend.v1.RoomsResponse
+	11,  // 326: backend.v1.BackendService.RefreshRooms:output_type -> backend.v1.RefreshRoomsResponse
+	13,  // 327: backend.v1.BackendService.MarkRead:output_type -> backend.v1.MarkReadResponse
+	23,  // 328: backend.v1.BackendService.MarkRoomsRead:output_type -> backend.v1.MarkRoomsReadResponse
+	15,  // 329: backend.v1.BackendService.MarkRoomUnread:output_type -> backend.v1.MarkRoomUnreadResponse
+	17,  // 330: backend.v1.BackendService.SetRoomArchived:output_type -> backend.v1.SetRoomArchivedResponse
+	19,  // 331: backend.v1.BackendService.StarMessage:output_type -> backend.v1.StarMessageResponse
+	21,  // 332: backend.v1.BackendService.StarredIn:output_type -> backend.v1.StarredInResponse
+	49,  // 333: backend.v1.BackendService.CanonicalParent:output_type -> backend.v1.CanonicalParentResponse
+	161, // 334: backend.v1.BackendService.LastMessages:output_type -> backend.v1.LastMessagesResponse
+	26,  // 335: backend.v1.BackendService.TagVerdicts:output_type -> backend.v1.TagVerdictsResponse
+	31,  // 336: backend.v1.BackendService.MarkTag:output_type -> backend.v1.MarkTagResponse
+	47,  // 337: backend.v1.BackendService.RetagVerdicts:output_type -> backend.v1.RetagVerdictsResponse
+	34,  // 338: backend.v1.BackendService.PersonVerdicts:output_type -> backend.v1.PersonVerdictsResponse
+	39,  // 339: backend.v1.BackendService.MarkPerson:output_type -> backend.v1.MarkPersonResponse
+	41,  // 340: backend.v1.BackendService.Ignore:output_type -> backend.v1.IgnoreResponse
+	43,  // 341: backend.v1.BackendService.Unignore:output_type -> backend.v1.UnignoreResponse
+	45,  // 342: backend.v1.BackendService.Ignored:output_type -> backend.v1.IgnoredResponse
+	51,  // 343: backend.v1.BackendService.Spaces:output_type -> backend.v1.SpacesResponse
+	53,  // 344: backend.v1.BackendService.RefreshSpaces:output_type -> backend.v1.RefreshSpacesResponse
+	55,  // 345: backend.v1.BackendService.Rail:output_type -> backend.v1.RailResponse
+	59,  // 346: backend.v1.BackendService.AddToSpace:output_type -> backend.v1.AddToSpaceResponse
+	61,  // 347: backend.v1.BackendService.RemoveFromSpace:output_type -> backend.v1.RemoveFromSpaceResponse
+	63,  // 348: backend.v1.BackendService.FilingPlaces:output_type -> backend.v1.FilingPlacesResponse
+	68,  // 349: backend.v1.BackendService.FileRoom:output_type -> backend.v1.FileRoomResponse
+	70,  // 350: backend.v1.BackendService.SetRoomName:output_type -> backend.v1.SetRoomNameResponse
+	77,  // 351: backend.v1.BackendService.People:output_type -> backend.v1.PeopleResponse
+	79,  // 352: backend.v1.BackendService.PersonCard:output_type -> backend.v1.PersonCardResponse
+	81,  // 353: backend.v1.BackendService.SetPersonField:output_type -> backend.v1.SetPersonFieldResponse
+	83,  // 354: backend.v1.BackendService.PersonKeys:output_type -> backend.v1.PersonKeysResponse
+	85,  // 355: backend.v1.BackendService.CachedTimeline:output_type -> backend.v1.CachedTimelineResponse
+	87,  // 356: backend.v1.BackendService.Timeline:output_type -> backend.v1.TimelineResponse
+	106, // 357: backend.v1.BackendService.MessageHistory:output_type -> backend.v1.MessageHistoryResponse
+	99,  // 358: backend.v1.BackendService.FetchEvent:output_type -> backend.v1.FetchEventResponse
+	101, // 359: backend.v1.BackendService.FetchEventSource:output_type -> backend.v1.FetchEventSourceResponse
+	89,  // 360: backend.v1.BackendService.Send:output_type -> backend.v1.SendResponse
+	163, // 361: backend.v1.BackendService.Redact:output_type -> backend.v1.RedactResponse
+	91,  // 362: backend.v1.BackendService.StartUpload:output_type -> backend.v1.StartUploadResponse
+	93,  // 363: backend.v1.BackendService.PutUpload:output_type -> backend.v1.PutUploadResponse
+	95,  // 364: backend.v1.BackendService.SendFile:output_type -> backend.v1.SendFileResponse
+	97,  // 365: backend.v1.BackendService.SendTyping:output_type -> backend.v1.SendTypingResponse
+	109, // 366: backend.v1.BackendService.CachedUnread:output_type -> backend.v1.CachedUnreadResponse
+	111, // 367: backend.v1.BackendService.UnreadStream:output_type -> backend.v1.UnreadStreamResponse
+	113, // 368: backend.v1.BackendService.ListThreads:output_type -> backend.v1.ListThreadsResponse
+	117, // 369: backend.v1.BackendService.ThreadPage:output_type -> backend.v1.ThreadPageResponse
+	115, // 370: backend.v1.BackendService.MarkThreadRead:output_type -> backend.v1.MarkThreadReadResponse
+	119, // 371: backend.v1.BackendService.CachedReactions:output_type -> backend.v1.CachedReactionsResponse
+	121, // 372: backend.v1.BackendService.Reactions:output_type -> backend.v1.ReactionsResponse
+	123, // 373: backend.v1.BackendService.SendReaction:output_type -> backend.v1.SendReactionResponse
+	125, // 374: backend.v1.BackendService.VotePoll:output_type -> backend.v1.VotePollResponse
+	127, // 375: backend.v1.BackendService.PollVoters:output_type -> backend.v1.PollVotersResponse
+	129, // 376: backend.v1.BackendService.CreatePoll:output_type -> backend.v1.CreatePollResponse
+	132, // 377: backend.v1.BackendService.ReactionRefusals:output_type -> backend.v1.ReactionRefusalsResponse
+	134, // 378: backend.v1.BackendService.RecordReactionRefusal:output_type -> backend.v1.RecordReactionRefusalResponse
+	136, // 379: backend.v1.BackendService.RecordEmoji:output_type -> backend.v1.RecordEmojiResponse
+	138, // 380: backend.v1.BackendService.EmojiScores:output_type -> backend.v1.EmojiScoresResponse
+	140, // 381: backend.v1.BackendService.LoadImage:output_type -> backend.v1.LoadImageResponse
+	142, // 382: backend.v1.BackendService.LoadPicture:output_type -> backend.v1.LoadPictureResponse
+	149, // 383: backend.v1.BackendService.SavePicture:output_type -> backend.v1.SavePictureResponse
+	145, // 384: backend.v1.BackendService.Identities:output_type -> backend.v1.IdentitiesResponse
+	147, // 385: backend.v1.BackendService.SetIdentity:output_type -> backend.v1.SetIdentityResponse
+	151, // 386: backend.v1.BackendService.Members:output_type -> backend.v1.MembersResponse
+	153, // 387: backend.v1.BackendService.RefreshMembers:output_type -> backend.v1.RefreshMembersResponse
+	155, // 388: backend.v1.BackendService.MentionCandidates:output_type -> backend.v1.MentionCandidatesResponse
+	157, // 389: backend.v1.BackendService.SearchSenders:output_type -> backend.v1.SearchSendersResponse
+	159, // 390: backend.v1.BackendService.DirectCandidates:output_type -> backend.v1.DirectCandidatesResponse
+	166, // 391: backend.v1.BackendService.SenderSlots:output_type -> backend.v1.SenderSlotsResponse
+	168, // 392: backend.v1.BackendService.SaveSenderSlots:output_type -> backend.v1.SaveSenderSlotsResponse
+	170, // 393: backend.v1.BackendService.SenderPictures:output_type -> backend.v1.SenderPicturesResponse
+	172, // 394: backend.v1.BackendService.CachedInvites:output_type -> backend.v1.CachedInvitesResponse
+	174, // 395: backend.v1.BackendService.Invites:output_type -> backend.v1.InvitesResponse
+	176, // 396: backend.v1.BackendService.JoinRoom:output_type -> backend.v1.JoinRoomResponse
+	104, // 397: backend.v1.BackendService.PublicRooms:output_type -> backend.v1.PublicRoomsResponse
+	178, // 398: backend.v1.BackendService.KnockRoom:output_type -> backend.v1.KnockRoomResponse
+	180, // 399: backend.v1.BackendService.BlockPerson:output_type -> backend.v1.BlockPersonResponse
+	182, // 400: backend.v1.BackendService.UnblockPerson:output_type -> backend.v1.UnblockPersonResponse
+	185, // 401: backend.v1.BackendService.BlockedPeople:output_type -> backend.v1.BlockedPeopleResponse
+	187, // 402: backend.v1.BackendService.LeaveRoom:output_type -> backend.v1.LeaveRoomResponse
+	189, // 403: backend.v1.BackendService.DeleteChat:output_type -> backend.v1.DeleteChatResponse
+	191, // 404: backend.v1.BackendService.SignOut:output_type -> backend.v1.SignOutResponse
+	203, // 405: backend.v1.BackendService.CreateRoom:output_type -> backend.v1.CreateRoomResponse
+	198, // 406: backend.v1.BackendService.ChatOffers:output_type -> backend.v1.ChatOffersResponse
+	197, // 407: backend.v1.BackendService.Accounts:output_type -> backend.v1.AccountsResponse
+	200, // 408: backend.v1.BackendService.ResolveLink:output_type -> backend.v1.ResolveLinkResponse
+	202, // 409: backend.v1.BackendService.JoinLink:output_type -> backend.v1.JoinLinkResponse
+	205, // 410: backend.v1.BackendService.InviteUser:output_type -> backend.v1.InviteUserResponse
+	207, // 411: backend.v1.BackendService.KickUser:output_type -> backend.v1.KickUserResponse
+	209, // 412: backend.v1.BackendService.BanUser:output_type -> backend.v1.BanUserResponse
+	211, // 413: backend.v1.BackendService.UnbanUser:output_type -> backend.v1.UnbanUserResponse
+	213, // 414: backend.v1.BackendService.SearchMessages:output_type -> backend.v1.SearchMessagesResponse
+	251, // 415: backend.v1.BackendService.ModelTask:output_type -> backend.v1.ModelTaskResponse
+	232, // 416: backend.v1.BackendService.ReplaceDraft:output_type -> backend.v1.ReplaceDraftResponse
+	249, // 417: backend.v1.BackendService.Drafts:output_type -> backend.v1.DraftsResponse
+	262, // 418: backend.v1.BackendService.Present:output_type -> backend.v1.PresentResponse
+	240, // 419: backend.v1.BackendService.LoginNetworks:output_type -> backend.v1.LoginNetworksResponse
+	242, // 420: backend.v1.BackendService.BeginLogin:output_type -> backend.v1.BeginLoginResponse
+	244, // 421: backend.v1.BackendService.AnswerLogin:output_type -> backend.v1.AnswerLoginResponse
+	246, // 422: backend.v1.BackendService.CancelLogin:output_type -> backend.v1.CancelLoginResponse
+	248, // 423: backend.v1.BackendService.InsteadLogin:output_type -> backend.v1.InsteadLoginResponse
+	220, // 424: backend.v1.BackendService.RoomsWith:output_type -> backend.v1.RoomsWithResponse
+	218, // 425: backend.v1.BackendService.RoomEncryption:output_type -> backend.v1.RoomEncryptionResponse
+	222, // 426: backend.v1.BackendService.MessagesAround:output_type -> backend.v1.MessagesAroundResponse
+	229, // 427: backend.v1.BackendService.MessagesFrom:output_type -> backend.v1.MessagesFromResponse
+	226, // 428: backend.v1.BackendService.MessageCounts:output_type -> backend.v1.MessageCountsResponse
+	228, // 429: backend.v1.BackendService.KnownAs:output_type -> backend.v1.KnownAsResponse
+	216, // 430: backend.v1.BackendService.CompleteWord:output_type -> backend.v1.CompleteWordResponse
+	253, // 431: backend.v1.BackendService.Messages:output_type -> backend.v1.MessagesResponse
+	255, // 432: backend.v1.BackendService.ActivityStream:output_type -> backend.v1.ActivityStreamResponse
+	257, // 433: backend.v1.BackendService.Follow:output_type -> backend.v1.FollowResponse
+	263, // 434: backend.v1.BackendService.FollowStream:output_type -> backend.v1.FollowStreamResponse
+	259, // 435: backend.v1.BackendService.Changed:output_type -> backend.v1.ChangedResponse
+	267, // 436: backend.v1.BackendService.NotificationStream:output_type -> backend.v1.NotificationStreamResponse
+	269, // 437: backend.v1.BackendService.Verifications:output_type -> backend.v1.VerificationsResponse
+	271, // 438: backend.v1.BackendService.StartVerification:output_type -> backend.v1.StartVerificationResponse
+	273, // 439: backend.v1.BackendService.VerifyPerson:output_type -> backend.v1.VerifyPersonResponse
+	275, // 440: backend.v1.BackendService.AcceptVerification:output_type -> backend.v1.AcceptVerificationResponse
+	277, // 441: backend.v1.BackendService.ConfirmSAS:output_type -> backend.v1.ConfirmSASResponse
+	279, // 442: backend.v1.BackendService.CancelVerification:output_type -> backend.v1.CancelVerificationResponse
+	281, // 443: backend.v1.BackendService.Status:output_type -> backend.v1.StatusResponse
+	284, // 444: backend.v1.BackendService.DismissBackupWarning:output_type -> backend.v1.DismissBackupWarningResponse
+	287, // 445: backend.v1.BackendService.Selves:output_type -> backend.v1.SelvesResponse
+	289, // 446: backend.v1.BackendService.Directory:output_type -> backend.v1.DirectoryResponse
+	291, // 447: backend.v1.BackendService.ClearCache:output_type -> backend.v1.ClearCacheResponse
+	297, // 448: backend.v1.BackendService.RestoreKeyBackup:output_type -> backend.v1.RestoreKeyBackupResponse
+	294, // 449: backend.v1.BackendService.ExportRoomKeys:output_type -> backend.v1.ExportRoomKeysResponse
+	296, // 450: backend.v1.BackendService.ImportRoomKeys:output_type -> backend.v1.ImportRoomKeysResponse
+	299, // 451: backend.v1.BackendService.BootstrapKeyBackup:output_type -> backend.v1.BootstrapKeyBackupResponse
+	318, // 452: backend.v1.BackendService.DetectLanguages:output_type -> backend.v1.DetectLanguagesResponse
+	308, // 453: backend.v1.BackendService.InstallDictionary:output_type -> backend.v1.InstallDictionaryResponse
+	310, // 454: backend.v1.BackendService.InstallFrequencies:output_type -> backend.v1.InstallFrequenciesResponse
+	315, // 455: backend.v1.BackendService.DetectModel:output_type -> backend.v1.DetectModelResponse
+	312, // 456: backend.v1.BackendService.InstallModel:output_type -> backend.v1.InstallModelResponse
+	302, // 457: backend.v1.BackendService.CheckSpelling:output_type -> backend.v1.CheckSpellingResponse
+	304, // 458: backend.v1.BackendService.LearnWord:output_type -> backend.v1.LearnWordResponse
+	306, // 459: backend.v1.BackendService.AllowRareWord:output_type -> backend.v1.AllowRareWordResponse
+	323, // 460: backend.v1.BackendService.SetDND:output_type -> backend.v1.SetDNDResponse
+	324, // 461: backend.v1.BackendService.ClearDND:output_type -> backend.v1.ClearDNDResponse
+	325, // 462: backend.v1.BackendService.DND:output_type -> backend.v1.DNDResponse
+	29,  // 463: backend.v1.BackendService.RescanFilters:output_type -> backend.v1.RescanFiltersResponse
+	37,  // 464: backend.v1.BackendService.RescanPeople:output_type -> backend.v1.RescanPeopleResponse
+	327, // 465: backend.v1.BackendService.ReloadConfig:output_type -> backend.v1.ReloadConfigResponse
+	329, // 466: backend.v1.BackendService.CheckConfig:output_type -> backend.v1.CheckConfigResponse
+	344, // 467: backend.v1.BackendService.GetConfig:output_type -> backend.v1.GetConfigResponse
+	332, // 468: backend.v1.BackendService.PreviewGroupings:output_type -> backend.v1.PreviewGroupingsResponse
+	334, // 469: backend.v1.BackendService.ApplyGroupings:output_type -> backend.v1.ApplyGroupingsResponse
+	336, // 470: backend.v1.BackendService.PreviewChatImport:output_type -> backend.v1.PreviewChatImportResponse
+	339, // 471: backend.v1.BackendService.ChatImportSenders:output_type -> backend.v1.ChatImportSendersResponse
+	342, // 472: backend.v1.BackendService.ApplyChatImport:output_type -> backend.v1.ApplyChatImportResponse
+	346, // 473: backend.v1.BackendService.UpdateConfig:output_type -> backend.v1.UpdateConfigResponse
+	348, // 474: backend.v1.BackendService.ConfigChanged:output_type -> backend.v1.ConfigChangedResponse
+	350, // 475: backend.v1.BackendService.ConfigSettings:output_type -> backend.v1.ConfigSettingsResponse
+	356, // 476: backend.v1.BackendService.SetConfigSetting:output_type -> backend.v1.SetConfigSettingResponse
+	390, // 477: backend.v1.BackendService.ConfigConflicts:output_type -> backend.v1.ConfigConflictsResponse
+	394, // 478: backend.v1.BackendService.KeepConfigValue:output_type -> backend.v1.KeepConfigValueResponse
+	359, // 479: backend.v1.BackendService.Schedule:output_type -> backend.v1.ScheduleResponse
+	361, // 480: backend.v1.BackendService.ScheduledMessages:output_type -> backend.v1.ScheduledMessagesResponse
+	363, // 481: backend.v1.BackendService.CancelScheduled:output_type -> backend.v1.CancelScheduledResponse
+	365, // 482: backend.v1.BackendService.RetryScheduled:output_type -> backend.v1.RetryScheduledResponse
+	368, // 483: backend.v1.BackendService.Devices:output_type -> backend.v1.DevicesResponse
+	370, // 484: backend.v1.BackendService.AddDevice:output_type -> backend.v1.AddDeviceResponse
+	372, // 485: backend.v1.BackendService.RemoveDevice:output_type -> backend.v1.RemoveDeviceResponse
+	374, // 486: backend.v1.BackendService.RotateDevice:output_type -> backend.v1.RotateDeviceResponse
+	376, // 487: backend.v1.BackendService.RotateBridge:output_type -> backend.v1.RotateBridgeResponse
+	380, // 488: backend.v1.BackendService.StartPairing:output_type -> backend.v1.StartPairingResponse
+	382, // 489: backend.v1.BackendService.ConfirmPairing:output_type -> backend.v1.ConfirmPairingResponse
+	384, // 490: backend.v1.BackendService.Pair:output_type -> backend.v1.PairResponse
+	386, // 491: backend.v1.BackendService.JoinMesh:output_type -> backend.v1.JoinMeshResponse
+	397, // 492: backend.v1.BackendService.MeshStatus:output_type -> backend.v1.MeshStatusResponse
+	401, // 493: backend.v1.BackendService.AddMailbox:output_type -> backend.v1.AddMailboxResponse
+	325, // [325:494] is the sub-list for method output_type
+	156, // [156:325] is the sub-list for method input_type
+	156, // [156:156] is the sub-list for extension type_name
+	156, // [156:156] is the sub-list for extension extendee
+	0,   // [0:156] is the sub-list for field type_name
 }
 
 func init() { file_backend_v1_services_proto_init() }
@@ -23626,13 +23945,17 @@ func file_backend_v1_services_proto_init() {
 		(*JoinMeshResponse_Joined)(nil),
 		(*JoinMeshResponse_SetAside)(nil),
 	}
+	file_backend_v1_services_proto_msgTypes[393].OneofWrappers = []any{
+		(*AddMailboxResponse_Digits)(nil),
+		(*AddMailboxResponse_Outcome)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backend_v1_services_proto_rawDesc), len(file_backend_v1_services_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   399,
+			NumMessages:   403,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

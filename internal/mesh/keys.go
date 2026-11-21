@@ -67,6 +67,23 @@ func (k *keyring) unseal(op crdt.Op) error {
 	return nil
 }
 
+// open is the op envelope holds, opened under its epoch's key (crdt.Open).
+func (k *keyring) open(envelope []byte) (crdt.Op, error) {
+	e, err := crdt.SealedEpoch(envelope)
+	if err != nil {
+		return crdt.Op{}, fmt.Errorf("mesh: %w", err)
+	}
+	held, ok := k.keys[e]
+	if !ok {
+		return crdt.Op{}, fmt.Errorf("%w (%s)", errNoKey, e)
+	}
+	op, err := crdt.Open(envelope, held.key)
+	if err != nil {
+		return crdt.Op{}, fmt.Errorf("mesh: %w", err)
+	}
+	return op, nil
+}
+
 // seal seals op, written by self and applied to state, under the epoch it writes
 // under (current), made first when none serves; a roster op state keeps gets its
 // envelope too, so a snapshot carries it.

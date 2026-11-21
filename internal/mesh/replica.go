@@ -62,6 +62,16 @@ func (s *Store) receive(ctx context.Context, ops []crdt.Op, now time.Time) (rece
 // removed from the roster instead (removeForked), which every replica judges alike.
 func (s *Store) applyLocked(ctx context.Context, ops []crdt.Op, now time.Time) (received, error) {
 	queue := slices.Concat(s.held, ops)
+	waiting := s.sealedHeld[:0:0]
+	for _, env := range s.sealedHeld {
+		switch op, err := s.keys.open(env); {
+		case errors.Is(err, errNoKey):
+			waiting = append(waiting, env)
+		case err == nil:
+			queue = append(queue, op)
+		}
+	}
+	s.sealedHeld = waiting
 	b := batch{state: s.state}
 	for progress := true; progress; {
 		progress = false
@@ -585,9 +595,13 @@ func (s *Store) compact(ctx context.Context, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	for _, p := range s.peers {
-		if now.Sub(p.heard) > Horizon {
-			continue
+	roster, err := s.state.Roster()
+	if err != nil {
+		return fmt.Errorf("mesh: compact: %w", err)
+	}
+	for id, p := range s.peers {
+		if now.Sub(p.heard) > Horizon || roster[id].Role == crdt.RoleMailbox {
+			continue // a mailbox's ack is no replica's
 		}
 		drop = slices.DeleteFunc(drop, func(d crdt.Dot) bool { return !p.vector.Covers(d) })
 	}
@@ -667,7 +681,34 @@ func (s *Store) Status(self devicekey.ID) (domain.MeshStatus, error) {
 	slices.SortFunc(out.Peers, func(a, b domain.MeshPeer) int {
 		return cmp.Or(cmp.Compare(a.Bridge.Name, b.Bridge.Name), cmp.Compare(a.Bridge.ID, b.Bridge.ID))
 	})
+	out.Mailboxes = s.mailboxesLocked(roster)
 	return out, nil
+}
+
+// mailboxesLocked is each mailbox of roster as this bridge last heard it.
+func (s *Store) mailboxesLocked(roster map[devicekey.ID]crdt.Member) []domain.MeshMailbox {
+	var out []domain.MeshMailbox
+	for id := range roster {
+		m := roster[id]
+		if m.Removed || m.Role != crdt.RoleMailbox {
+			continue
+		}
+		p := s.peers[id]
+		mb := domain.MeshMailbox{
+			Mailbox: deviceOf(id, &m), Addresses: m.Addresses, Heard: p.heard, Connected: s.sessions[id] != nil, StoreBytes: s.mailboxBytes[id],
+		}
+		for origin, h := range s.state.Vector {
+			if held := p.vector[origin].Seq; h.Seq > held {
+				mb.Lag = append(mb.Lag, domain.MeshLag{Origin: origin.String(), Ops: h.Seq - held})
+			}
+		}
+		slices.SortFunc(mb.Lag, func(a, b domain.MeshLag) int { return cmp.Compare(a.Origin, b.Origin) })
+		out = append(out, mb)
+	}
+	slices.SortFunc(out, func(a, b domain.MeshMailbox) int {
+		return cmp.Or(cmp.Compare(a.Mailbox.Name, b.Mailbox.Name), cmp.Compare(a.Mailbox.ID, b.Mailbox.ID))
+	})
+	return out
 }
 
 // accountsLocked is what id last published of the accounts it runs.

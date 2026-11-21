@@ -15,13 +15,16 @@ import (
 )
 
 // Role is what a roster member is: a bridge (a kithd, which keeps a replica and signs
-// ops) or a device (a client of a bridge, whose writes are its bridge's ops).
+// ops), a device (a client of a bridge, whose writes are its bridge's ops), or a
+// mailbox (a store the bridges leave sealed ops in and pick them up from, which signs
+// nothing and opens nothing).
 type Role string
 
 // The roles.
 const (
-	RoleBridge Role = "bridge"
-	RoleDevice Role = "device"
+	RoleBridge  Role = "bridge"
+	RoleDevice  Role = "device"
+	RoleMailbox Role = "mailbox"
 )
 
 // Member is a roster entry's value: who paired the device and when, its role, and the
@@ -30,7 +33,7 @@ const (
 // Sealing is the X25519 key content keys are wrapped to (EpochRecord), apart from the
 // key it signs with; a thin device has none, holding no content key. A bridge's
 // Addresses are where it is dialed (its [remote] listen); a bridge that only dials has
-// none. A removed member stays listed as removed. Rotated is the rotation that made
+// none. A mailbox's are where kith-mailbox listens. A removed member stays listed as removed. Rotated is the rotation that made
 // the entry, signed by the key it replaced and its own; RotatedTo, on the removed entry
 // of that replaced key, names the entry it made (Settle).
 type Member struct {
@@ -173,7 +176,7 @@ func readRosterWrite(w Write) (devicekey.ID, Member, error) {
 		return devicekey.ID{}, Member{}, fmt.Errorf("%w: %s: %w", ErrBadWrite, w.Key, err)
 	}
 	switch {
-	case m.Role != RoleBridge && m.Role != RoleDevice:
+	case m.Role != RoleBridge && m.Role != RoleDevice && m.Role != RoleMailbox:
 		return devicekey.ID{}, Member{}, fmt.Errorf("%w: %s: role %q", ErrBadWrite, w.Key, m.Role)
 	case m.Role == RoleBridge && !m.Removed && len(m.Key) == 0:
 		return devicekey.ID{}, Member{}, fmt.Errorf("%w: %s: a bridge with no key", ErrBadWrite, w.Key)

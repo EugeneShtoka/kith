@@ -53,7 +53,7 @@ const (
 // same epoch.
 func TestEveryReplicaConvergesOverAnyInterleaving(t *testing.T) {
 	t.Parallel()
-	runModel(t, false, false)
+	runModel(t, false, false, 0)
 }
 
 // TestSealedOpsHoldOverAnyInterleaving is step 5a's failure review: the class test's
@@ -67,7 +67,7 @@ func TestEveryReplicaConvergesOverAnyInterleaving(t *testing.T) {
 // position moved back through a merge): those are step 4's, and stay the class test's.
 func TestSealedOpsHoldOverAnyInterleaving(t *testing.T) {
 	t.Parallel()
-	runModel(t, true, false)
+	runModel(t, true, false, 0)
 }
 
 // TestKeyRotationsHoldOverAnyInterleaving is step 8's failure review: the sealing
@@ -82,15 +82,18 @@ func TestSealedOpsHoldOverAnyInterleaving(t *testing.T) {
 // removed concurrently stands nowhere, nor do both of two rotations of one key.
 func TestKeyRotationsHoldOverAnyInterleaving(t *testing.T) {
 	t.Parallel()
-	runModel(t, true, true)
+	runModel(t, true, true, 0)
 }
 
-func runModel(t *testing.T, sealing, rotating bool) {
+func runModel(t *testing.T, sealing, rotating bool, mailboxes int) {
 	for seed := range uint64(modelSeeds) {
 		t.Run(fmt.Sprint(seed), func(t *testing.T) {
 			t.Parallel()
 			m := newModel(t, seed)
-			m.sealing, m.rotating = sealing, rotating
+			m.sealing, m.rotating, m.mailboxing = sealing, rotating, mailboxes > 0
+			if m.mailboxing {
+				m.addMailboxes(mailboxes)
+			}
 			for range modelSteps {
 				m.step()
 			}
@@ -162,8 +165,13 @@ type model struct {
 	forkSeq  uint64
 	dormant  int
 	// sealing turns on what only the sealing review generates, rotating what only the
-	// rotation review does; joined is whether a bridge joined mid-run.
-	sealing, rotating, joined bool
+	// rotation review does, mailboxing what only the mailbox review does
+	// (mailbox_internal_test.go); joined is whether a bridge joined mid-run.
+	sealing, rotating, mailboxing, joined bool
+	// mb are the mailboxes every sync goes through when mailboxing, and spliced a box of
+	// a sealed snapshot one passed on, to splice into another.
+	mb      []*modelMailbox
+	spliced []byte
 	// deviceKeys are the paired devices' keys, which sign their rotations; fall are the
 	// keys a rotation made whose old key was removed concurrently, and oneOf each pair
 	// of keys two concurrent rotations of one key made.
@@ -268,6 +276,9 @@ func (m *model) step() {
 	if m.rotating {
 		steps += 16
 	}
+	if m.mailboxing {
+		steps += 8
+	}
 	switch n := m.rng.IntN(steps); {
 	case n < 30:
 		m.write(m.rng.IntN(len(m.r)))
@@ -293,6 +304,8 @@ func (m *model) step() {
 		m.networkReport(m.rng.IntN(len(m.r)))
 	case n < 110:
 		m.openCache(m.rng.IntN(len(m.r))) // rebuilt under a mesh that holds positions
+	case n >= 152:
+		m.mailboxStep()
 	case n >= 136:
 		m.rotateKey()
 	case n >= 133:
@@ -713,6 +726,10 @@ func (m *model) restart(i int) {
 // to be replayed later, and the session cut, the receiver's store restarting mid-batch
 // at times.
 func (m *model) exchange(i, j int, faults bool) {
+	if m.mailboxing {
+		m.through(i, j, faults)
+		return
+	}
 	if m.cut[[2]int{min(i, j), max(i, j)}] {
 		return
 	}
@@ -1022,8 +1039,11 @@ func (m *model) quiesce() {
 			m.checkReads(nil)
 		}
 		before := m.texts()
+		if m.mailboxing {
+			m.postAll()
+		}
 		for i := range m.r {
-			for j := i + 1; j < len(m.r); j++ {
+			for j := i + 1; j < len(m.r) && !m.mailboxing; j++ {
 				m.exchange(i, j, false)
 			}
 		}

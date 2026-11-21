@@ -1,4 +1,4 @@
-.PHONY: build build-tui build-daemon build-mcp build-notify build-relay run run-daemon install deploy undeploy \
+.PHONY: build build-tui build-daemon build-mcp build-notify build-relay build-mailbox run run-daemon install deploy undeploy \
 	daemon-status daemon-logs daemon-restart daemon-stop \
 	test lint fmt fmt-check fix vuln secrets pin-check unit-check arch-check mod-check release-check \
 	proto-check docs-check nix-check hooks check coverage coverage-check tools pins-outdated \
@@ -80,6 +80,10 @@ build-notify:
 # The desktop window's link to kithd; desktop/ runs ./kith-relay when not packaged.
 build-relay:
 	$(GOBUILD) -o kith-relay ./cmd/kith-relay/
+
+# A mailbox for a mesh, run on a machine of its own (docs/remote.md).
+build-mailbox:
+	$(GOBUILD) -o kith-mailbox ./cmd/kith-mailbox/
 
 # ── Signal helper ────────────────────────────────────────────────────────────
 # kith-signal is the one binary built with cgo: it links libsignal_ffi (Rust), at the

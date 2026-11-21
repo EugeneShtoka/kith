@@ -75,7 +75,8 @@ func (d *Devices) meshParts() (RosterStore, tls.Certificate, devicekey.ID, crypt
 // runMesh is the mesh's loop while Serve runs: after every change to the store (a write
 // here, or one a peer sent) it settles the roster as a change made here would (the file
 // rendered, the removed cut off), keeps this bridge's own addresses in its entry, and
-// dials every other bridge that has addresses, each on a loop of its own.
+// dials every other bridge that has addresses, and every mailbox, each on a loop of its
+// own.
 func (d *Devices) runMesh(ctx context.Context) {
 	type dialing struct {
 		addrs []string
@@ -90,7 +91,7 @@ func (d *Devices) runMesh(ctx context.Context) {
 		running.Wait()
 	}()
 	for {
-		changed, want := d.synced(ctx)
+		changed, want, mailboxes := d.synced(ctx)
 		for id, dl := range dialers {
 			if addrs, ok := want[id]; !ok || !slices.Equal(addrs, dl.addrs) {
 				dl.stop()
@@ -103,7 +104,7 @@ func (d *Devices) runMesh(ctx context.Context) {
 			}
 			dctx, stop := context.WithCancel(ctx)
 			dialers[id] = dialing{addrs: addrs, stop: stop}
-			running.Go(func() { d.dial(dctx, id, addrs) })
+			running.Go(func() { d.dial(dctx, id, addrs, mailboxes[id]) })
 		}
 		timer := time.NewTimer(meshRecheck)
 		select {
@@ -118,16 +119,17 @@ func (d *Devices) runMesh(ctx context.Context) {
 	}
 }
 
-// synced settles the roster after a change and is the bridges to dial, by ID, and
-// what closes on the store's next change (nil when the store is not to be had). A
-// bridge removed from its mesh stops listening, and dials on only to pass the news on:
-// each bridge refuses it once it holds the removal.
-func (d *Devices) synced(ctx context.Context) (<-chan struct{}, map[devicekey.ID][]string) {
+// synced settles the roster after a change and is the bridges and mailboxes to dial, by
+// ID (mailboxes says which are mailboxes), and what closes on the store's next change
+// (nil when the store is not to be had). A bridge removed from its mesh stops
+// listening, and dials on only to pass the news on: each bridge refuses it once it
+// holds the removal.
+func (d *Devices) synced(ctx context.Context) (<-chan struct{}, map[devicekey.ID][]string, map[devicekey.ID]bool) {
 	addrs, derr := d.dialable() // none: this bridge only dials
 	store, _, self, signer, err := d.meshParts()
 	if err != nil {
 		d.log.Debug("the mesh waits for its store and kithd's key", "err", err)
-		return nil, nil
+		return nil, nil, nil
 	}
 	changed := store.Changed() // before reading, so nothing committed after is missed
 	d.mu.Lock()
@@ -140,7 +142,7 @@ func (d *Devices) synced(ctx context.Context) (<-chan struct{}, map[devicekey.ID
 	st, serr := store.Status(self)
 	if err = errors.Join(err, serr); serr != nil || (err != nil && !errors.Is(err, errOutOfMesh)) {
 		d.log.Warn("the mesh's roster", "err", err)
-		return changed, nil
+		return changed, nil, nil
 	}
 	d.mu.Lock()
 	newlyOut := st.Removed && !d.outOfMesh
@@ -158,14 +160,20 @@ func (d *Devices) synced(ctx context.Context) (<-chan struct{}, map[devicekey.ID
 	if !st.Removed && !down && !slices.Equal(st.Addresses, addrs) {
 		d.publishAddresses(ctx, store, signer, addrs)
 	}
-	want := map[devicekey.ID][]string{}
+	want, mailboxes := map[devicekey.ID][]string{}, map[devicekey.ID]bool{}
 	for i := range st.Peers {
 		p := &st.Peers[i]
 		if id, perr := devicekey.ParseID(p.Bridge.ID); perr == nil && !p.Forked && len(p.Addresses) > 0 {
 			want[id] = p.Addresses
 		}
 	}
-	return changed, want
+	for i := range st.Mailboxes {
+		mb := &st.Mailboxes[i]
+		if id, perr := devicekey.ParseID(mb.Mailbox.ID); perr == nil && len(mb.Addresses) > 0 {
+			want[id], mailboxes[id] = mb.Addresses, true
+		}
+	}
+	return changed, want, mailboxes
 }
 
 // wantsListening reports whether the config names addresses to listen on.
@@ -199,10 +207,10 @@ func (d *Devices) relisten() {
 	d.reconcileLocked()
 }
 
-// dial keeps a sync stream open with the bridge peer at addrs while ctx lasts: when
-// none is (the peer may have dialed this bridge), it dials, backing off while the peer
-// does not answer.
-func (d *Devices) dial(ctx context.Context, peer devicekey.ID, addrs []string) {
+// dial keeps a sync stream open with the bridge peer (or mailbox) at addrs while ctx
+// lasts: when none is (a bridge may have dialed this one), it dials, backing off while
+// the peer does not answer.
+func (d *Devices) dial(ctx context.Context, peer devicekey.ID, addrs []string, mailbox bool) {
 	backoff := meshBackoffMin
 	for ctx.Err() == nil {
 		store, cert, _, signer, err := d.meshParts()
@@ -214,7 +222,11 @@ func (d *Devices) dial(ctx context.Context, peer devicekey.ID, addrs []string) {
 			continue
 		}
 		started := time.Now()
-		if err == nil {
+		switch {
+		case err != nil:
+		case mailbox:
+			err = d.postWith(ctx, store, cert, signer, peer, addrs)
+		default:
 			err = d.syncWith(ctx, store, cert, signer, peer, addrs)
 		}
 		if time.Since(started) >= meshSteady {
@@ -378,7 +390,9 @@ func (d *Devices) joinMesh(ctx context.Context, inv pairing.Invite, name string,
 		return err
 	}
 	addrs, _ := d.dialable() // none: the mesh's bridges never dial this one, it dials them
-	outcome, perr := d.pairAsBridge(ctx, cert, self, inv, name, addrs, store.Sealing(), say)
+	outcome, perr := d.pairAsBridge(ctx, cert, self, inv, name, addrs, store.Sealing(), func(digits string) error {
+		return say(&v1.JoinMeshResponse{Event: &v1.JoinMeshResponse_Digits{Digits: digits}})
+	})
 	if errors.Is(perr, errDigitsDiffer) || ctx.Err() != nil {
 		return perr
 	}
@@ -403,7 +417,7 @@ func (d *Devices) joinMesh(ctx context.Context, inv pairing.Invite, name string,
 // sealing key sealing, checking the digits the other side shows against its own; say
 // gets them.
 func (d *Devices) pairAsBridge(ctx context.Context, cert tls.Certificate, self devicekey.ID, inv pairing.Invite, name string,
-	addrs []string, sealing []byte, say func(*v1.JoinMeshResponse) error,
+	addrs []string, sealing []byte, say func(digits string) error,
 ) (domain.PairingOutcome, error) {
 	remote := NewBridgeRemote(cert, inv.ID, inv.Addresses)
 	defer remote.Stop()
@@ -417,7 +431,7 @@ func (d *Devices) pairAsBridge(ctx context.Context, cert tls.Certificate, self d
 			cancel(errDigitsDiffer) // ends the pairing unconfirmed
 			return
 		}
-		if err := say(&v1.JoinMeshResponse{Event: &v1.JoinMeshResponse_Digits{Digits: want}}); err != nil {
+		if err := say(want); err != nil {
 			cancel(err)
 		}
 	})

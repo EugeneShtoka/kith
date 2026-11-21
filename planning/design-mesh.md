@@ -258,8 +258,8 @@ write over both, verdicts as writes.
   replica role and sync through their bridge; syncing device to device directly waits
   for them.
 - **Bridges that are never online at the same time**: a mailbox, a mesh peer that holds
-  sealed ops it cannot read, and the envelopes every op would need first
-  ([design-mailbox.md](design-mailbox.md), proposed, undecided).
+  sealed ops it cannot read ([design-mailbox.md](design-mailbox.md), built as step 9; a
+  recovery key is step 10).
 - **A text CRDT for drafts**: only if keeping every sibling repeats text in practice.
 - **WAN reach between bridges**: as for devices, addresses or a tailnet
   (design-clients.md open question 2).

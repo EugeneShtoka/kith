@@ -13,13 +13,15 @@ type Device struct {
 	AddedBy string
 }
 
-// DeviceRole is what a paired device is: a bridge (a kithd) or a client of one.
+// DeviceRole is what a paired device is: a bridge (a kithd), a client of one, or a
+// mailbox (kith-mailbox), which the bridges dial and which connects to none of them.
 type DeviceRole string
 
 // The roles a paired device has.
 const (
-	RoleBridge DeviceRole = "bridge"
-	RoleDevice DeviceRole = "device"
+	RoleBridge  DeviceRole = "bridge"
+	RoleDevice  DeviceRole = "device"
+	RoleMailbox DeviceRole = "mailbox"
 )
 
 // PairingTicket is what a new device needs to pair with kithd: its Addresses as a
@@ -43,7 +45,7 @@ type PendingDevice struct {
 
 // MeshStatus is a bridge's view of its mesh: its own ID, the addresses it is dialed at
 // and the accounts it runs, the size of its mesh store, whether it was removed from
-// the mesh, and each other bridge.
+// the mesh, each other bridge, and each mailbox.
 type MeshStatus struct {
 	Self       string
 	Addresses  []string
@@ -51,6 +53,26 @@ type MeshStatus struct {
 	Removed    bool
 	Accounts   []MeshAccount
 	Peers      []MeshPeer
+	Mailboxes  []MeshMailbox
+}
+
+// MeshMailbox is a mailbox of the mesh: its roster entry, the addresses it is dialed
+// at, when it was last heard (zero: never), how many ops of each origin this bridge
+// holds that it does not, whether a sync stream is open with it, and the size of its
+// store as it said last.
+type MeshMailbox struct {
+	Mailbox    Device
+	Addresses  []string
+	Heard      time.Time
+	Lag        []MeshLag
+	Connected  bool
+	StoreBytes uint64
+}
+
+// MeshLag is how many ops of Origin (a device ID) a peer lacks.
+type MeshLag struct {
+	Origin string
+	Ops    uint64
 }
 
 // MeshPeer is another bridge of the mesh: its roster entry, the addresses it is dialed

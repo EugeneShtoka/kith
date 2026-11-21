@@ -113,6 +113,22 @@ builds:
     goos: [linux] # the desktop is packaged for Linux alone
     goarch: [amd64, arm64]
 
+  # A mailbox for a mesh (docs/remote.md): a server of its own, in an archive of its own.
+  - id: kith-mailbox
+    main: ./cmd/kith-mailbox
+    binary: kith-mailbox
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Version={{.Version}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Commit={{.ShortCommit}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Date={{.Date}}
+    goos: [linux, darwin, freebsd]
+    goarch: [amd64, arm64]
+
   # ── WINDOWS slot ────────────────────────────────────────────────────────────
   # A Windows port is being assessed separately. Do not add `windows` to the goos
   # lists above until it lands; when it does, the release also needs, here and below:
@@ -151,6 +167,15 @@ archives:
       - src: "build/signal/kith-signal-{{ .Os }}_{{ .Arch }}/kith-signal*"
         strip_parent: true
         info: { mode: 0755 }
+
+  - id: mailbox
+    ids: [kith-mailbox]
+    name_template: >-
+      kith-mailbox_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    formats: [tar.gz]
+    files:
+      - README.md
+      - LICENSE
 
 # The release's own source, as a tarball beside the binaries. The `kith` AUR
 # package (aur_sources below) builds from it, and it is what a distribution packager
