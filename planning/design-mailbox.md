@@ -1,7 +1,7 @@
 # Design: the mailbox, a mesh peer that cannot read (an addition to Phase 2b)
 
 Status: proposed 2026-11-01; its questions (at the end) all decided by 2026-11-18. Built:
-step 5a (sealed ops, #609), step 9 (the mailbox, #624) and step 10 (a recovery key). It
+step 5a (sealed ops, #609), step 9 (the mailbox, #624) and step 10 (a recovery key, #625). It
 adds to [design-mesh.md](design-mesh.md), which it does not change except where
 [What steps 5–8 must not assume](#what-steps-58-must-not-assume) says so. The sections
 below stay as the design; [As built (step 9)](#as-built-step-9) and
