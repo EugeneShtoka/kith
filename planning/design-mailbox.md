@@ -1,11 +1,11 @@
 # Design: the mailbox, a mesh peer that cannot read (an addition to Phase 2b)
 
-Status: proposed 2026-11-01; its questions (at the end) all decided by 2026-11-18. Step 5a
-(sealed ops, #609) and step 9 (the mailbox) are built; step 10 (a recovery key) is next. It
+Status: proposed 2026-11-01; its questions (at the end) all decided by 2026-11-18. Built:
+step 5a (sealed ops, #609), step 9 (the mailbox, #624) and step 10 (a recovery key). It
 adds to [design-mesh.md](design-mesh.md), which it does not change except where
 [What steps 5–8 must not assume](#what-steps-58-must-not-assume) says so. The sections
-below stay as the design; [As built (step 9)](#as-built-step-9) records where the mailbox
-differs or adds to it.
+below stay as the design; [As built (step 9)](#as-built-step-9) and
+[As built (step 10)](#as-built-step-10) record where they differ or add to it.
 
 ## Goal
 
@@ -331,6 +331,37 @@ Nothing in the mesh depends on it.
   the next session sends them again regardless); a mailbox that loses everything while
   the last copy of an op is on a revoked bridge loses it for the mesh (a revoked key may
   not even leave; the review generated this only before leaving came before admitting).
+
+## As built (step 10)
+
+- **The key in the mesh** is `recovery`, a register any bridge writes, holding the
+  public half of an X25519 key derived from the 32 bytes (SHA-256 over a label and the
+  bytes). Concurrent writes all stand and are all wrapped for; a write over them
+  replaces them, and the old keys still open the epochs wrapped for them.
+- **Wraps.** Whenever a bridge seals (an op, a snapshot), it first wraps every epoch it
+  holds the key of, the one it has just made too, for each recovery key that no record
+  of the epoch wraps it for yet: one record per epoch, signed by that bridge, its wrap
+  named by `crdt.RecoveryID(public half)`. So what the mailbox held before the key was
+  made opens too, once any bridge holding those epochs writes once.
+- **The written form** is kithd's recovery key's (`devicekey.Secret`), its check taken
+  over the kind (`devicekey.MeshRecovery`) and the bytes, so either key typed for the
+  other does not check out.
+- **Recovering** (`kith mesh recover`, `Store.Recover`) runs on a kithd whose roster
+  lists no other bridge, paired with the mailbox (`kith mailbox add`). It asks the
+  mailbox for everything (a Hello holding nothing) and reads to the mailbox's first Ack,
+  which a mailbox now sends once it has passed on all it held when a session began. It
+  opens each epoch wrapped for the key, merges each snapshot that opens and is signed by
+  its maker, a bridge of its roster, then applies each envelope that opens, every op
+  judged as a bridge judges a peer's, in a mesh of its own. It writes that mesh's
+  entries as its own ops (each key's latest value; the accounts, each old bridge's own,
+  stay behind), the old roster's members as removed (but itself, so a kithd restored
+  from the old one's key keeps its ID, and the mailboxes), and so the recovery key
+  itself, which goes on opening the new mesh. Ops after the newest snapshot come back
+  too, not only the snapshot.
+- **Left:** a fresh epoch made for a snapshot, with no op sealed under it after, is
+  wrapped in the same seal; the review never generates that case, so its mutant
+  survives. Recovery takes the latest of a key's concurrent values, so a draft written
+  on two bridges at once comes back as the later one.
 
 ## Plan
 

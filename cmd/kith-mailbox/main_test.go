@@ -34,7 +34,8 @@ import (
 // A bridge pairs with a running mailbox by its token and the digits the person there
 // confirms; then two bridges of one mesh that never sync with each other again hand a
 // read across through it, over mutual TLS with the mailbox's key pinned. The second is
-// admitted by the first's word, never paired with the mailbox itself.
+// admitted by the first's word, never paired with the mailbox itself. Once a recovery
+// key is made, a new kithd brings the read back from the mailbox alone.
 func TestTwoBridgesMeetThroughARunningMailbox(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -64,17 +65,17 @@ func TestTwoBridgesMeetThroughARunningMailbox(t *testing.T) {
 	if want := pairing.Digits(o.self, a.id, inv.Token); digits != want || outcome != v1.PairingOutcome_PAIRING_OUTCOME_CONFIRMED {
 		t.Fatalf("the pairing: digits %s (want %s), %v", digits, want, outcome)
 	}
-	if err := <-paired; err != nil {
-		t.Fatal(err)
+	if perr := <-paired; perr != nil {
+		t.Fatal(perr)
 	}
 	for _, br := range []*bridge{a, b} {
-		if err := br.store.AddMailbox(ctx, br.key, domain.Device{ID: o.self.String(), Name: "mailbox"}, []string{addr}); err != nil {
-			t.Fatal(err)
+		if aerr := br.store.AddMailbox(ctx, br.key, domain.Device{ID: o.self.String(), Name: "mailbox"}, []string{addr}); aerr != nil {
+			t.Fatal(aerr)
 		}
 	}
 	read := domain.ReadPosition{Room: "telegram:200/300", Event: "e1", At: time.Now().UnixMilli()}
-	if err := a.store.Read(ctx, a.key, []domain.ReadPosition{read}); err != nil {
-		t.Fatal(err)
+	if rerr := a.store.Read(ctx, a.key, []domain.ReadPosition{read}); rerr != nil {
+		t.Fatal(rerr)
 	}
 	stopA := a.post(t, o.self, addr)
 	defer stopA()
@@ -82,6 +83,28 @@ func TestTwoBridgesMeetThroughARunningMailbox(t *testing.T) {
 	stopB := b.post(t, o.self, addr)
 	defer stopB()
 	waitFor(t, "a's read at b", func() bool { return slices.Contains(b.store.Reads(), read) })
+
+	// Every bridge is lost but the recovery key: a new kithd, paired with the mailbox
+	// alone, brings the read back.
+	key, err := a.store.NewRecoveryKey(ctx, a.key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret, err := devicekey.ParseSecret(key, devicekey.MeshRecovery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := newBridge(t, "c")
+	if err := o.store.Admit(ctx, c.id); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "a's read recovered at c", func() bool {
+		st := meshv1connect.NewMeshServiceClient(c.client(o.self), "https://"+addr).Sync(ctx)
+		got, rerr := c.store.Recover(ctx, c.key, secret, o.self, streamFrames{st})
+		_ = st.CloseRequest()
+		_ = st.CloseResponse()
+		return rerr == nil && got.Keys > 0 && slices.Contains(c.store.Reads(), read)
+	})
 }
 
 // The mailbox keeps its key: opened again in the same folder, it has the same ID, and

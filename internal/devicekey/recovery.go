@@ -28,7 +28,19 @@ func RecoveryKey(key *ecdsa.PrivateKey) (string, error) {
 	if err != nil || key.Curve != elliptic.P256() {
 		return "", errors.New("devicekey: not an ECDSA P-256 key")
 	}
-	return grouped(encoding.EncodeToString(append(scalar, check(scalar)...))), nil
+	return Secret(scalar, ""), nil
+}
+
+// MeshRecovery is the kind of a mesh's recovery key (Secret), which opens what a
+// mailbox holds once every bridge is lost.
+const MeshRecovery = "kith mesh recovery\n"
+
+// Secret writes 32 secret bytes to be written down as RecoveryKey writes a key, its
+// check taken over kind and the bytes: a secret of one kind (a mesh's recovery key) does
+// not check out as another's (kithd's), so typing one for the other is said at once.
+// kithd's own are of kind "".
+func Secret(raw []byte, kind string) string {
+	return grouped(encoding.EncodeToString(append(bytes.Clone(raw), check(append([]byte(kind), raw...))...)))
 }
 
 // ParseRecoveryKey reads a key as RecoveryKey writes it, in either case, with or
@@ -36,15 +48,9 @@ func RecoveryKey(key *ecdsa.PrivateKey) (string, error) {
 // a typo, never another key; one that holds over a number that is no P-256 key is
 // refused too.
 func ParseRecoveryKey(s string) (*ecdsa.PrivateKey, error) {
-	plain := strings.ToUpper(strings.Join(strings.Fields(strings.ReplaceAll(s, "-", " ")), ""))
-	raw, err := encoding.DecodeString(plain)
-	// Spelled back as typed, or a 57th character would be quietly dropped.
-	if err != nil || len(raw) != scalarLen+checkLen || encoding.EncodeToString(raw) != plain {
-		return nil, fmt.Errorf("%w (56 letters A–Z and digits 2–7, in groups of four)", ErrNotARecoveryKey)
-	}
-	scalar := raw[:scalarLen]
-	if !bytes.Equal(check(scalar), raw[scalarLen:]) {
-		return nil, fmt.Errorf("%w: it does not check out, so a character is mistyped", ErrNotARecoveryKey)
+	scalar, err := ParseSecret(s, "")
+	if err != nil {
+		return nil, err
 	}
 	key, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), scalar)
 	if err != nil {
@@ -53,13 +59,30 @@ func ParseRecoveryKey(s string) (*ecdsa.PrivateKey, error) {
 	return key, nil
 }
 
-// check is OpenPGP's CRC-24 of scalar (RFC 4880, 6.1), big-endian. A CRC changes
+// ParseSecret reads 32 secret bytes of kind as Secret writes them, in either case, with
+// or without its dashes and with any spaces or line breaks. A check that does not hold
+// is a typo, or a secret of another kind, never another secret.
+func ParseSecret(s, kind string) ([]byte, error) {
+	plain := strings.ToUpper(strings.Join(strings.Fields(strings.ReplaceAll(s, "-", " ")), ""))
+	raw, err := encoding.DecodeString(plain)
+	// Spelled back as typed, or a 57th character would be quietly dropped.
+	if err != nil || len(raw) != scalarLen+checkLen || encoding.EncodeToString(raw) != plain {
+		return nil, fmt.Errorf("%w (56 letters A–Z and digits 2–7, in groups of four)", ErrNotARecoveryKey)
+	}
+	secret := raw[:scalarLen]
+	if !bytes.Equal(check(append([]byte(kind), secret...)), raw[scalarLen:]) {
+		return nil, fmt.Errorf("%w: it does not check out, so a character is mistyped (or it is another kind of key)", ErrNotARecoveryKey)
+	}
+	return secret, nil
+}
+
+// check is OpenPGP's CRC-24 of data (RFC 4880, 6.1), big-endian. A CRC changes
 // under any error confined to as many consecutive bits as it has, so one character
 // mistyped (5 bits) or two neighbors swapped (10) is always caught, as a hash's
 // truncation would only almost always.
-func check(scalar []byte) []byte {
+func check(data []byte) []byte {
 	crc := uint32(0xB704CE)
-	for _, b := range scalar {
+	for _, b := range data {
 		crc ^= uint32(b) << 16
 		for range 8 {
 			crc <<= 1

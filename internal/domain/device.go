@@ -69,6 +69,14 @@ type MeshMailbox struct {
 	StoreBytes uint64
 }
 
+// MeshRecovered is what recovering a mesh from a mailbox brought back: how many keys
+// (read positions, drafts, config, verdicts…), and the old mesh's members, kept as
+// removed in the new one, to pair again.
+type MeshRecovered struct {
+	Keys    int
+	Members []Device
+}
+
 // MeshLag is how many ops of Origin (a device ID) a peer lacks.
 type MeshLag struct {
 	Origin string

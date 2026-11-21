@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"connectrpc.com/connect"
@@ -18,9 +19,17 @@ import (
 	"github.com/EugeneShtoka/kith/internal/pairing"
 )
 
-// errMailboxOverRemote is AddMailbox over [remote] listen: it is this machine's kithd
-// that pairs with the mailbox.
-var errMailboxOverRemote = errors.New("a bridge pairs with a mailbox over its own socket: run `kith mailbox add` on its machine")
+// Why a mailbox's call is refused.
+var (
+	// errMailboxOverRemote is AddMailbox over [remote] listen: it is this machine's kithd
+	// that pairs with the mailbox.
+	errMailboxOverRemote = errors.New("a bridge pairs with a mailbox over its own socket: run `kith mailbox add` on its machine")
+	// errRecoveryOverRemote is a mesh's recovery key asked for, or used, over [remote]
+	// listen: like kithd's own, it is shown and typed on kithd's machine alone.
+	errRecoveryOverRemote = errors.New("a mesh's recovery key is made and used on its bridge's own machine: run `kith mesh` there")
+	// errNoMailbox is recovering on a kithd no mailbox is paired with.
+	errNoMailbox = errors.New("pair this kithd with the mailbox first: `kith-mailbox pair` there, then `kith mailbox add` here")
+)
 
 // postWith runs one session with the mailbox at addrs. A mailbox that refuses this
 // bridge's key may admit only the key it rotated from, while the others have not yet
@@ -138,4 +147,106 @@ func (r *Remote) AddMailbox(ctx context.Context, uri, name string, digits func(s
 		}
 	}
 	return 0, callErr("add a mailbox", cmpErr(st.Err(), errPairingCut))
+}
+
+// recoverMesh starts this bridge's mesh anew from the first mailbox it lists, opened
+// with secret, the mesh's recovery key, then settles the roster as a change made here.
+func (d *Devices) recoverMesh(ctx context.Context, secret []byte) (domain.MeshRecovered, devicekey.ID, error) {
+	store, cert, self, signer, err := d.meshParts()
+	if err != nil {
+		return domain.MeshRecovered{}, devicekey.ID{}, err
+	}
+	st, err := store.Status(self)
+	if err != nil {
+		return domain.MeshRecovered{}, devicekey.ID{}, fmt.Errorf("daemon: %w", err)
+	}
+	i := slices.IndexFunc(st.Mailboxes, func(mb domain.MeshMailbox) bool { return len(mb.Addresses) > 0 })
+	if i < 0 {
+		return domain.MeshRecovered{}, devicekey.ID{}, errNoMailbox
+	}
+	mailbox, err := devicekey.ParseID(st.Mailboxes[i].Mailbox.ID)
+	if err != nil {
+		return domain.MeshRecovered{}, devicekey.ID{}, fmt.Errorf("daemon: %w", err)
+	}
+	hc := dialBridge(cert, mailbox, st.Mailboxes[i].Addresses)
+	defer hc.CloseIdleConnections()
+	sctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stream := meshv1connect.NewMeshServiceClient(hc, bridgeBaseURL).Sync(sctx)
+	got, err := store.Recover(sctx, signer, secret, mailbox, clientFrames{stream})
+	cancel()
+	_ = stream.CloseRequest()
+	_ = stream.CloseResponse()
+	if err != nil {
+		return domain.MeshRecovered{}, mailbox, fmt.Errorf("daemon: recover the mesh: %w", err)
+	}
+	d.mu.Lock()
+	if d.refreshed {
+		err = d.settleLocked(&rosterRead{store: store, signer: signer, file: d.rendered, entries: d.known})
+	} else {
+		_, err = d.refreshLocked()
+	}
+	d.mu.Unlock()
+	d.poke()
+	return got, mailbox, err
+}
+
+// MakeMeshRecoveryKey makes a recovery key for this bridge's mesh: over the socket only.
+func (s *server) MakeMeshRecoveryKey(ctx context.Context, _ *req[v1.MakeMeshRecoveryKeyRequest]) (*resp[v1.MakeMeshRecoveryKeyResponse], error) {
+	if s.Paired.peer(ctx) != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, errRecoveryOverRemote)
+	}
+	store, _, _, signer, err := s.Paired.meshParts()
+	if err != nil {
+		return nil, rpcErr(err)
+	}
+	key, err := store.NewRecoveryKey(ctx, signer)
+	if err != nil {
+		return nil, rpcErr(err)
+	}
+	return connect.NewResponse(&v1.MakeMeshRecoveryKeyResponse{Key: key}), nil
+}
+
+// RecoverMesh starts this bridge's mesh anew from its mailbox, with the mesh's recovery
+// key: over the socket only.
+func (s *server) RecoverMesh(ctx context.Context, r *req[v1.RecoverMeshRequest]) (*resp[v1.RecoverMeshResponse], error) {
+	if s.Paired.peer(ctx) != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, errRecoveryOverRemote)
+	}
+	secret, err := devicekey.ParseSecret(r.Msg.GetKey(), devicekey.MeshRecovery)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	got, mailbox, err := s.Paired.recoverMesh(ctx, secret)
+	if err != nil {
+		if errors.Is(err, errNoMailbox) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+		}
+		return nil, rpcErr(err)
+	}
+	s.Log.Info("recovered the mesh from a mailbox", "mailbox", mailbox.String(), "keys", got.Keys, "members", len(got.Members))
+	return connect.NewResponse(&v1.RecoverMeshResponse{
+		Keys: int32(min(got.Keys, 1<<30)), Members: pc.DevicesToProto(got.Members), Mailbox: mailbox.String(), // #nosec G115 -- clamped
+	}), nil
+}
+
+// MakeMeshRecoveryKey asks the kithd of this machine (over its socket) for a new
+// recovery key of its mesh.
+func (r *Remote) MakeMeshRecoveryKey(ctx context.Context) (string, error) {
+	resp, err := call(ctx, "make the mesh's recovery key", r.c.MakeMeshRecoveryKey, &v1.MakeMeshRecoveryKeyRequest{})
+	if err != nil {
+		return "", err
+	}
+	return resp.GetKey(), nil
+}
+
+// RecoverMesh has the kithd of this machine (over its socket) start its mesh anew from
+// its mailbox with key, the mesh's recovery key as written down: how many keys came
+// back, the old members to pair again, and the mailbox.
+func (r *Remote) RecoverMesh(ctx context.Context, key string) (domain.MeshRecovered, string, error) {
+	resp, err := call(ctx, "recover the mesh", r.c.RecoverMesh, &v1.RecoverMeshRequest{Key: key})
+	if err != nil {
+		return domain.MeshRecovered{}, "", err
+	}
+	return domain.MeshRecovered{Keys: int(resp.GetKeys()), Members: pc.ProtoToDevices(resp.GetMembers())}, resp.GetMailbox(), nil
 }

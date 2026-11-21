@@ -23,7 +23,7 @@ kith ignored [--config path]
 kith devices [--config path] [add id [name] | remove id|name | id | recovery-key | rotate [--bridge]]
 kith pair [--config path] [name]
 kith join [--config path] [--name name] [--bridge] uri
-kith mesh [--config path]
+kith mesh [--config path] [recovery-key | recover]
 kith mailbox add [--config path] [--name name] uri
 kith config [--config path] conflicts | keep key n
 ```
@@ -268,6 +268,11 @@ acknowledged, and how far its clock is off this one's. A bridge found to have si
 two different changes under one number is named, and removed. Then each mailbox:
 where it is dialed, when it was last heard, its store's size, and how many changes of
 each bridge it lacks.
+
+`kith mesh recovery-key` makes a recovery key for the mesh and shows it once; `kith mesh
+recover`, on a new kithd paired with the mailbox alone, asks for it and starts a mesh
+anew from what the mailbox holds
+([remote.md](remote.md#a-recovery-key-for-the-mesh)).
 
 ### kith mailbox add
 

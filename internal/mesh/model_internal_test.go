@@ -168,6 +168,14 @@ type model struct {
 	// rotation review does, mailboxing what only the mailbox review does
 	// (mailbox_internal_test.go); joined is whether a bridge joined mid-run.
 	sealing, rotating, mailboxing, joined bool
+	// recovering writes recovery keys (recover_internal_test.go), each kept by its public
+	// half in secrets.
+	recovering bool
+	secrets    map[string]string
+	// ever is each (key, value) a replica held at some step, when recovering; recovered
+	// checks the removed of a mesh recovered.
+	ever      map[[2]string]bool
+	recovered func(removed []string)
 	// mb are the mailboxes every sync goes through when mailboxing, and spliced a box of
 	// a sealed snapshot one passed on, to splice into another.
 	mb      []*modelMailbox
@@ -279,6 +287,9 @@ func (m *model) step() {
 	if m.mailboxing {
 		steps += 8
 	}
+	if m.recovering {
+		steps += 3
+	}
 	switch n := m.rng.IntN(steps); {
 	case n < 30:
 		m.write(m.rng.IntN(len(m.r)))
@@ -304,6 +315,8 @@ func (m *model) step() {
 		m.networkReport(m.rng.IntN(len(m.r)))
 	case n < 110:
 		m.openCache(m.rng.IntN(len(m.r))) // rebuilt under a mesh that holds positions
+	case n >= 160:
+		m.writeRecoveryKey()
 	case n >= 152:
 		m.mailboxStep()
 	case n >= 136:

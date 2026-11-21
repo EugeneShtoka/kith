@@ -327,6 +327,29 @@ hears of the mailbox only by `kith mailbox add` there too (another `kith-mailbox
   a bridge revokes its key at every mailbox the others reach; a key revoked is admitted
   again only by pairing it again. Two mailboxes may be listed; each is independent.
 
+### A recovery key for the mesh
+
+The mailbox cannot read what it holds, so if every bridge is lost, nothing can open it
+unless you keep a way back. On any bridge, run
+
+```sh
+kith mesh recovery-key
+```
+
+which shows a key once, in the same letters and digits as kithd's own recovery key;
+keep it on paper or in a password manager. Every bridge then wraps each content key for
+it, including those of what the mailbox already holds. Making another replaces it; the
+old one still opens what was sealed until then.
+
+To recover, set up a new kithd, pair it with the mailbox (`kith-mailbox pair` there,
+`kith mailbox add` here), and run `kith mesh recover`, which asks for the key. The new
+kithd opens what the mailbox holds, checks it as any bridge would, and starts a mesh of
+its own from it: read positions, drafts, the shared config and verdicts come back (of a
+key's concurrent values, the latest); the old mesh's bridges and devices are listed as
+removed, to pair again; the recovery key goes on opening the new mesh. Accounts are
+logged in again on the new bridge. A kithd made from the old one's recovery key
+(`kith devices recovery-key`) keeps its ID.
+
 ## Using a bridge
 
 A machine whose `device.toml` names a `[[bridge]]` dials it: `kith`, `kith-notify`,
