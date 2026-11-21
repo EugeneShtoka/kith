@@ -254,9 +254,9 @@ write over both, verdicts as writes.
 
 - **A client on several bridges**, showing everything its profile defines across them
   (decision 6), and **failover**: Phase 3.
-- **Store-holding clients** (the desktop's partial cache, Android): they pair with a
-  replica role and sync through their bridge; syncing device to device directly waits
-  for them.
+- **Store-holding clients**: the desktop's, the TUI's and kith-mcp's store is a cache of
+  the bridge's answers, not a replica (design-desktop-cache.md). Android may still want
+  a replica role; syncing device to device directly waits for that.
 - **Bridges that are never online at the same time**: a mailbox, a mesh peer that holds
   sealed ops it cannot read, and a recovery key ([design-mailbox.md](design-mailbox.md),
   built as steps 9 and 10).
@@ -295,4 +295,4 @@ Decided by the user on 2026-10-30.
 7. **Bridges rotate keys too** (step 8), the old key answered by SNI for the horizon.
    Rejected: devices only, a bridge re-paired.
 8. **No HTTP/2 on the socket (h2c) yet**: it lands when a replica first sits beside its
-   bridge (the desktop's relay with a store). Bridge to bridge is TLS, already HTTP/2.
+   bridge. The client's local store is not one (design-desktop-cache.md). Bridge to bridge is TLS, already HTTP/2.
