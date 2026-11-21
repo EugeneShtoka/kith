@@ -166,6 +166,8 @@ type bridgeOpts struct {
 	meshKey  []byte
 	// backend serves the bridge's rooms; a fixed list of one when nil.
 	backend api.Backend
+	// keeper keeps the bridge's key through a rotation; none lets it rotate nothing.
+	keeper daemon.KeyKeeper
 }
 
 func serveBridge(t *testing.T, opts bridgeOpts) *bridge {
@@ -197,6 +199,9 @@ func serveBridge(t *testing.T, opts bridgeOpts) *bridge {
 	}
 	log := slog.New(slog.NewTextHandler(b.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	b.paired = daemon.NewDevices(b.roster, store, opts.identity, log)
+	if opts.keeper != nil {
+		b.paired.Rotates(opts.keeper)
+	}
 	b.paired.Listen(opts.listen)
 	b.streams = daemon.NewStreams()
 	path := filepath.Join(dir, "kithd.sock")

@@ -480,6 +480,12 @@ const (
 	// BackendServiceRemoveDeviceProcedure is the fully-qualified name of the BackendService's
 	// RemoveDevice RPC.
 	BackendServiceRemoveDeviceProcedure = "/backend.v1.BackendService/RemoveDevice"
+	// BackendServiceRotateDeviceProcedure is the fully-qualified name of the BackendService's
+	// RotateDevice RPC.
+	BackendServiceRotateDeviceProcedure = "/backend.v1.BackendService/RotateDevice"
+	// BackendServiceRotateBridgeProcedure is the fully-qualified name of the BackendService's
+	// RotateBridge RPC.
+	BackendServiceRotateBridgeProcedure = "/backend.v1.BackendService/RotateBridge"
 	// BackendServiceStartPairingProcedure is the fully-qualified name of the BackendService's
 	// StartPairing RPC.
 	BackendServiceStartPairingProcedure = "/backend.v1.BackendService/StartPairing"
@@ -948,6 +954,10 @@ type BackendServiceClient interface {
 	AddDevice(context.Context, *connect.Request[v1.AddDeviceRequest]) (*connect.Response[v1.AddDeviceResponse], error)
 	// RemoveDevice unpairs a device and closes its live connections.
 	RemoveDevice(context.Context, *connect.Request[v1.RemoveDeviceRequest]) (*connect.Response[v1.RemoveDeviceResponse], error)
+	// RotateDevice moves the calling device to a new key, signed by both keys.
+	RotateDevice(context.Context, *connect.Request[v1.RotateDeviceRequest]) (*connect.Response[v1.RotateDeviceResponse], error)
+	// RotateBridge moves this kithd to a new device key: over the socket only.
+	RotateBridge(context.Context, *connect.Request[v1.RotateBridgeRequest]) (*connect.Response[v1.RotateBridgeResponse], error)
 	// Pairing
 	// StartPairing makes a pairing token, reports the device that answers it and how
 	// the pairing ends; closing the stream ends the pairing.
@@ -1943,6 +1953,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("RemoveDevice")),
 			connect.WithClientOptions(opts...),
 		),
+		rotateDevice: connect.NewClient[v1.RotateDeviceRequest, v1.RotateDeviceResponse](
+			httpClient,
+			baseURL+BackendServiceRotateDeviceProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("RotateDevice")),
+			connect.WithClientOptions(opts...),
+		),
+		rotateBridge: connect.NewClient[v1.RotateBridgeRequest, v1.RotateBridgeResponse](
+			httpClient,
+			baseURL+BackendServiceRotateBridgeProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("RotateBridge")),
+			connect.WithClientOptions(opts...),
+		),
 		startPairing: connect.NewClient[v1.StartPairingRequest, v1.StartPairingResponse](
 			httpClient,
 			baseURL+BackendServiceStartPairingProcedure,
@@ -2139,6 +2161,8 @@ type backendServiceClient struct {
 	devices               *connect.Client[v1.DevicesRequest, v1.DevicesResponse]
 	addDevice             *connect.Client[v1.AddDeviceRequest, v1.AddDeviceResponse]
 	removeDevice          *connect.Client[v1.RemoveDeviceRequest, v1.RemoveDeviceResponse]
+	rotateDevice          *connect.Client[v1.RotateDeviceRequest, v1.RotateDeviceResponse]
+	rotateBridge          *connect.Client[v1.RotateBridgeRequest, v1.RotateBridgeResponse]
 	startPairing          *connect.Client[v1.StartPairingRequest, v1.StartPairingResponse]
 	confirmPairing        *connect.Client[v1.ConfirmPairingRequest, v1.ConfirmPairingResponse]
 	pair                  *connect.Client[v1.PairRequest, v1.PairResponse]
@@ -2951,6 +2975,16 @@ func (c *backendServiceClient) RemoveDevice(ctx context.Context, req *connect.Re
 	return c.removeDevice.CallUnary(ctx, req)
 }
 
+// RotateDevice calls backend.v1.BackendService.RotateDevice.
+func (c *backendServiceClient) RotateDevice(ctx context.Context, req *connect.Request[v1.RotateDeviceRequest]) (*connect.Response[v1.RotateDeviceResponse], error) {
+	return c.rotateDevice.CallUnary(ctx, req)
+}
+
+// RotateBridge calls backend.v1.BackendService.RotateBridge.
+func (c *backendServiceClient) RotateBridge(ctx context.Context, req *connect.Request[v1.RotateBridgeRequest]) (*connect.Response[v1.RotateBridgeResponse], error) {
+	return c.rotateBridge.CallUnary(ctx, req)
+}
+
 // StartPairing calls backend.v1.BackendService.StartPairing.
 func (c *backendServiceClient) StartPairing(ctx context.Context, req *connect.Request[v1.StartPairingRequest]) (*connect.ServerStreamForClient[v1.StartPairingResponse], error) {
 	return c.startPairing.CallServerStream(ctx, req)
@@ -3429,6 +3463,10 @@ type BackendServiceHandler interface {
 	AddDevice(context.Context, *connect.Request[v1.AddDeviceRequest]) (*connect.Response[v1.AddDeviceResponse], error)
 	// RemoveDevice unpairs a device and closes its live connections.
 	RemoveDevice(context.Context, *connect.Request[v1.RemoveDeviceRequest]) (*connect.Response[v1.RemoveDeviceResponse], error)
+	// RotateDevice moves the calling device to a new key, signed by both keys.
+	RotateDevice(context.Context, *connect.Request[v1.RotateDeviceRequest]) (*connect.Response[v1.RotateDeviceResponse], error)
+	// RotateBridge moves this kithd to a new device key: over the socket only.
+	RotateBridge(context.Context, *connect.Request[v1.RotateBridgeRequest]) (*connect.Response[v1.RotateBridgeResponse], error)
 	// Pairing
 	// StartPairing makes a pairing token, reports the device that answers it and how
 	// the pairing ends; closing the stream ends the pairing.
@@ -4420,6 +4458,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("RemoveDevice")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceRotateDeviceHandler := connect.NewUnaryHandler(
+		BackendServiceRotateDeviceProcedure,
+		svc.RotateDevice,
+		connect.WithSchema(backendServiceMethods.ByName("RotateDevice")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceRotateBridgeHandler := connect.NewUnaryHandler(
+		BackendServiceRotateBridgeProcedure,
+		svc.RotateBridge,
+		connect.WithSchema(backendServiceMethods.ByName("RotateBridge")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceStartPairingHandler := connect.NewServerStreamHandler(
 		BackendServiceStartPairingProcedure,
 		svc.StartPairing,
@@ -4774,6 +4824,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceAddDeviceHandler.ServeHTTP(w, r)
 		case BackendServiceRemoveDeviceProcedure:
 			backendServiceRemoveDeviceHandler.ServeHTTP(w, r)
+		case BackendServiceRotateDeviceProcedure:
+			backendServiceRotateDeviceHandler.ServeHTTP(w, r)
+		case BackendServiceRotateBridgeProcedure:
+			backendServiceRotateBridgeHandler.ServeHTTP(w, r)
 		case BackendServiceStartPairingProcedure:
 			backendServiceStartPairingHandler.ServeHTTP(w, r)
 		case BackendServiceConfirmPairingProcedure:
@@ -5435,6 +5489,14 @@ func (UnimplementedBackendServiceHandler) AddDevice(context.Context, *connect.Re
 
 func (UnimplementedBackendServiceHandler) RemoveDevice(context.Context, *connect.Request[v1.RemoveDeviceRequest]) (*connect.Response[v1.RemoveDeviceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RemoveDevice is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) RotateDevice(context.Context, *connect.Request[v1.RotateDeviceRequest]) (*connect.Response[v1.RotateDeviceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RotateDevice is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) RotateBridge(context.Context, *connect.Request[v1.RotateBridgeRequest]) (*connect.Response[v1.RotateBridgeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RotateBridge is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) StartPairing(context.Context, *connect.Request[v1.StartPairingRequest], *connect.ServerStream[v1.StartPairingResponse]) error {

@@ -184,6 +184,42 @@ aside, and the next start makes the store again from `devices-<hash>.toml`. Afte
 restore onto a new machine there is no such file, and the devices pin the old
 machine's key anyway: pair each one again.
 
+## Rotating a key
+
+A key you think was copied, or one you replace on a schedule, is rotated: the device
+keeps its name and what it is paired with, under a new key and ID. A lost key is not
+rotated: `kith devices remove` it and pair the device again.
+
+```sh
+kith devices rotate            # on a device: this machine's key as a client of its bridge
+kith devices rotate --bridge   # on a bridge's machine: kithd's own key
+```
+
+Each signs the move with the old key and the new one; a move missing either signature
+is refused by every bridge.
+
+- **A device.** It asks its bridge over its old key. The bridge lists it under its new
+  ID from then on, refuses the old key, and closes the old key's connections a second
+  after answering; every bridge of the mesh refuses the old key once the rotation
+  reaches it. Restart `kith-notify`, `kith-mcp` and the desktop window on the device:
+  until then they hold the old key. If the answer is lost on the way (the network
+  dropped just then), the device may be left with its old key refused and the new one
+  not kept: `kith join` the bridge again.
+- **A bridge.** kithd moves to the new key at once and prints its new recovery key: the
+  old one no longer restores it. For 30 days it answers anyone who still pins the old ID
+  with the old key, and tells them its new one: a device takes it into its
+  `device.toml` the next time `kith`, `kith-notify`, `kith-mcp` or the desktop window
+  starts there, and a bridge of the mesh the next time it syncs. A device that does not
+  start in those 30 days is refused, and says to `kith join` again. Only the latest old
+  key is kept, so rotating again within 30 days leaves a device that has not started
+  since the first rotation to join again.
+- **Removed meanwhile.** A device or bridge removed on one bridge while it rotates on
+  another stays removed: the removal takes the new key with it, on every bridge. So does
+  pairing the old key again after its rotation.
+
+If kithd stops between keeping its new key and writing the rotation, it writes the
+rotation at its next start, with both keys.
+
 ## Bridges in a mesh
 
 Two or more kithd (a home server and a laptop, say) can pair with each other as a

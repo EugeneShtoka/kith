@@ -30,15 +30,20 @@ const (
 	bridgePingWait = 10 * time.Second
 )
 
-// errNotTheBridge is a peer whose key is not the one pinned.
-var errNotTheBridge = errors.New("daemon: the address answered with another key than the bridge's")
+// errNotTheBridge is a peer whose key is not the one pinned. A bridge that rotated its
+// key answers on the old one for rotationGrace; past it, a device still pinning that
+// key joins again.
+var errNotTheBridge = errors.New("daemon: the address answered with another key than the bridge's " +
+	"(if the bridge rotated its key over 30 days ago, `kith join` it again)")
 
 // pinnedTLS is a device's half of the listener's mutual TLS: it presents cert and
-// takes the peer only if its key's ID is pin. No CA: the key is what is pinned, and
-// VerifyConnection runs on a resumed session too.
+// takes the peer only if its key's ID is pin, which it names as the server (so a
+// bridge that rotated from it answers as it a while). No CA: the key is what is
+// pinned, and VerifyConnection runs on a resumed session too.
 func pinnedTLS(cert tls.Certificate, pin devicekey.ID) *tls.Config {
 	return &tls.Config{
 		MinVersion:         tls.VersionTLS13,
+		ServerName:         pin.ServerName(),
 		Certificates:       []tls.Certificate{cert},
 		NextProtos:         []string{"h2", "http/1.1"},
 		InsecureSkipVerify: true, // #nosec G402 -- the key is pinned in VerifyConnection, not a CA's word

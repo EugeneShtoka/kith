@@ -94,8 +94,8 @@ func (k *keyring) seal(state *crdt.State, signer crypto.Signer, self devicekey.I
 }
 
 // current is the epoch this replica writes under as of state: the latest by (number,
-// maker) whose key it holds, made by a bridge still in the mesh after every bridge
-// removal state holds, at a context state holds (so it can wrap it for a bridge that
+// maker) whose key it holds, made by a bridge still in the mesh (under its key then, or
+// one it rotated to) after every bridge removal state holds, at a context state holds (so it can wrap it for a bridge that
 // joins, wrapFor). Two bridges that made one at once both stand; writers converge on
 // the later. One it has sealed maxSeals ops under is used up: seal makes the next,
 // never falling back to an older one the others have moved on from.
@@ -104,8 +104,8 @@ func (k *keyring) current(state crdt.State, roster map[devicekey.ID]crdt.Member)
 	found := false
 	for e := range k.keys {
 		ctx, ok := k.contextOf(e)
-		maker := roster[e.Maker]
-		if !ok || maker.Removed || maker.Role != crdt.RoleBridge || !holds(state, ctx) || !state.Since(ctx) {
+		now, live := crdt.Successor(roster, e.Maker)
+		if !ok || !live || roster[now].Role != crdt.RoleBridge || !holds(state, ctx) || !state.Since(ctx) {
 			continue
 		}
 		if !found || e.After(best) {

@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"maps"
 	mrand "math/rand/v2"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -52,7 +53,7 @@ const (
 // same epoch.
 func TestEveryReplicaConvergesOverAnyInterleaving(t *testing.T) {
 	t.Parallel()
-	runModel(t, false)
+	runModel(t, false, false)
 }
 
 // TestSealedOpsHoldOverAnyInterleaving is step 5a's failure review: the class test's
@@ -66,15 +67,30 @@ func TestEveryReplicaConvergesOverAnyInterleaving(t *testing.T) {
 // position moved back through a merge): those are step 4's, and stay the class test's.
 func TestSealedOpsHoldOverAnyInterleaving(t *testing.T) {
 	t.Parallel()
-	runModel(t, true)
+	runModel(t, true, false)
 }
 
-func runModel(t *testing.T, sealing bool) {
+// TestKeyRotationsHoldOverAnyInterleaving is step 8's failure review: the sealing
+// review's generator, and what it never made of rotations. A bridge rotates a device's
+// key while another removes that device, or rotates it too, before they sync; a bridge
+// rotates its own key, at times while another removes its old one, and a peer that has
+// not heard of it yet syncs with it as the old key (as kithd answers on it by SNI); a
+// rotation signed by one key only is handed on as if relayed; and a bridge's old key
+// writes once it holds its own rotation. It holds the sealing review's invariants, and:
+// no op of a rotated-out key written after its rotation is ever taken, every member
+// holding a rotation refuses the old key, and once settled a new key whose old one was
+// removed concurrently stands nowhere, nor do both of two rotations of one key.
+func TestKeyRotationsHoldOverAnyInterleaving(t *testing.T) {
+	t.Parallel()
+	runModel(t, true, true)
+}
+
+func runModel(t *testing.T, sealing, rotating bool) {
 	for seed := range uint64(modelSeeds) {
 		t.Run(fmt.Sprint(seed), func(t *testing.T) {
 			t.Parallel()
 			m := newModel(t, seed)
-			m.sealing = sealing
+			m.sealing, m.rotating = sealing, rotating
 			for range modelSteps {
 				m.step()
 			}
@@ -117,6 +133,11 @@ type modelReplica struct {
 	store *Store
 	skew  time.Duration // its clock less the model's
 	reads replicaReads  // its cache, and what the model knows of it
+	// was is the key it rotated from (none: it has not), wasID that key's ID, and
+	// wasSeq the last op that key wrote: kithd answers as it to a peer pinning it.
+	was    *ecdsa.PrivateKey
+	wasID  devicekey.ID
+	wasSeq uint64
 }
 
 type model struct {
@@ -140,11 +161,23 @@ type model struct {
 	forger   int
 	forkSeq  uint64
 	dormant  int
-	// sealing turns on what only the sealing review generates; joined is whether a
-	// bridge joined mid-run.
-	sealing, joined bool
+	// sealing turns on what only the sealing review generates, rotating what only the
+	// rotation review does; joined is whether a bridge joined mid-run.
+	sealing, rotating, joined bool
+	// deviceKeys are the paired devices' keys, which sign their rotations; fall are the
+	// keys a rotation made whose old key was removed concurrently, and oneOf each pair
+	// of keys two concurrent rotations of one key made.
+	deviceKeys map[string]*ecdsa.PrivateKey
+	fall       []fall
+	oneOf      [][2]devicekey.ID
 	// rd is what the model knows of reads (reads_internal_test.go).
 	rd modelReads
+}
+
+// fall is a key a rotation made, and the removal of its old key concurrent with it.
+type fall struct {
+	key     devicekey.ID
+	removal crdt.Dot
 }
 
 // skews are the clock offsets a replica may run at: within the bound of every other,
@@ -153,9 +186,9 @@ var skews = []time.Duration{0, 0, 0, 20 * time.Second, -25 * time.Second, 45 * t
 
 func newModel(t *testing.T, seed uint64) *model {
 	m := &model{
-		t: t, ctx: t.Context(), rng: mrand.New(mrand.NewPCG(seed, 2)), log: slog.New(slog.DiscardHandler),
+		t: t, ctx: t.Context(), rng: mrand.New(mrand.NewPCG(seed, 2)), log: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
 		now: time.Now(), cut: map[[2]int]bool{}, replay: map[int][]*meshv1.SyncFrame{}, forger: -1, dormant: -1,
-		deviceIDs: map[string]bool{},
+		deviceIDs: map[string]bool{}, deviceKeys: map[string]*ecdsa.PrivateKey{},
 	}
 	n := 3 + m.rng.IntN(3)
 	for range n {
@@ -232,6 +265,9 @@ func (m *model) step() {
 	if m.sealing {
 		steps += 6
 	}
+	if m.rotating {
+		steps += 16
+	}
 	switch n := m.rng.IntN(steps); {
 	case n < 30:
 		m.write(m.rng.IntN(len(m.r)))
@@ -257,6 +293,8 @@ func (m *model) step() {
 		m.networkReport(m.rng.IntN(len(m.r)))
 	case n < 110:
 		m.openCache(m.rng.IntN(len(m.r))) // rebuilt under a mesh that holds positions
+	case n >= 136:
+		m.rotateKey()
 	case n >= 133:
 		m.rotate()
 	case n >= 130:
@@ -275,6 +313,7 @@ func (m *model) step() {
 	m.checkRemovedAreRefused()
 	m.checkEnvelopes()
 	m.checkRemovedReadNothingNew()
+	m.checkRotatedOutRefused()
 }
 
 // joinStep has a new bridge join the mesh through a member, once a run: it made a read
@@ -388,7 +427,7 @@ func (m *model) checkRemovedReadNothingNew() {
 			op := &s.state.RosterOps[k]
 			for _, w := range op.Writes {
 				var mem crdt.Member
-				if json.Unmarshal(w.Value, &mem) == nil && mem.Removed && mem.Role == crdt.RoleBridge {
+				if json.Unmarshal(w.Value, &mem) == nil && mem.Removed && mem.RotatedTo == "" && mem.Role == crdt.RoleBridge {
 					id := mustID(m.t, strings.TrimPrefix(w.Key, "roster/"))
 					removals[id] = append(removals[id], crdt.Dot{Origin: op.Origin, Seq: op.Seq})
 				}
@@ -397,7 +436,7 @@ func (m *model) checkRemovedReadNothingNew() {
 		s.mu.Unlock()
 	}
 	for d, gone := range m.r {
-		dots := removals[gone.id]
+		dots := append(slices.Clip(removals[gone.id]), removals[gone.wasID]...)
 		if len(dots) == 0 {
 			continue
 		}
@@ -534,8 +573,8 @@ func (m *model) write(i int) {
 	switch {
 	case n < 4 || (n < 7 && len(devices) == 0) || (n == 7 && len(unpaired) == 0) || (n == 10 && len(bridges) == 0):
 		m.devices++
-		_, id := newDeviceID(m.t)
-		m.deviceIDs[id] = true
+		key, id := newDeviceID(m.t)
+		m.deviceIDs[id], m.deviceKeys[id] = true, key
 		m.must(r.store.ChangeRoster(m.ctx, r.key, []domain.Device{{
 			ID: id, Name: fmt.Sprint("d", m.devices), Role: domain.RoleDevice, AddedAt: time.Unix(1_800_000_000, 0).UTC(), AddedBy: r.id.String(),
 		}}, nil))
@@ -678,15 +717,17 @@ func (m *model) exchange(i, j int, faults bool) {
 		return
 	}
 	a, b := m.r[i], m.r[j]
-	if a.store.stillPaired(b.id) != nil || b.store.stillPaired(a.id) != nil {
+	aID, bID := m.as(i, j), m.as(j, i)
+	if a.store.stillPaired(bID) != nil || b.store.stillPaired(aID) != nil {
 		return
 	}
+	ids := map[int]devicekey.ID{i: aID, j: bID}
 	ab, ba := make(chan *meshv1.SyncFrame, 1), make(chan *meshv1.SyncFrame, 1)
 	var hello sync.WaitGroup
 	var fromA crdt.Vector
 	var errB error
-	sb := syncing{signer: b.key, peer: a.id, frames: pipe{in: ab, out: ba}, log: m.log, told: newTold()}
-	sa := syncing{signer: a.key, peer: b.id, frames: pipe{in: ba, out: ab}, log: m.log, told: newTold()}
+	sb := syncing{signer: b.key, as: bID, peer: aID, frames: pipe{in: ab, out: ba}, log: m.log, told: newTold()}
+	sa := syncing{signer: a.key, as: aID, peer: bID, frames: pipe{in: ba, out: ab}, log: m.log, told: newTold()}
 	hello.Go(func() { fromA, errB = b.store.greet(m.ctx, sb, m.at(j)) })
 	fromB, errA := a.store.greet(m.ctx, sa, m.at(i))
 	hello.Wait()
@@ -695,11 +736,13 @@ func (m *model) exchange(i, j int, faults bool) {
 	}
 	toB, toA := &queue{}, &queue{}
 	sa.frames, sb.frames = toB, toA
-	for _, side := range []struct {
+	sides := []struct {
 		s      *Store
 		ss     syncing
 		theirs crdt.Vector
-	}{{a.store, sa, fromB}, {b.store, sb, fromA}} {
+	}{{a.store, sa, fromB}, {b.store, sb, fromA}}
+	for k := range sides {
+		side := &sides[k]
 		m.must(sendOps(side.ss.frames, side.s.headProofs(m.ctx, side.theirs)))
 		side.s.tellPeer(m.t, side.ss)
 		if _, err := side.s.sendMissing(m.ctx, side.ss.frames, side.theirs); err != nil {
@@ -727,7 +770,7 @@ func (m *model) exchange(i, j int, faults bool) {
 			f := end.in.frames[0]
 			end.in.frames = end.in.frames[1:]
 			if faults {
-				switch m.fault(end.from, end.to, f, end.in) {
+				switch m.fault(end.from, end.to, ids[end.from], f, end.in) {
 				case cutHere:
 					return
 				case passOn:
@@ -738,7 +781,7 @@ func (m *model) exchange(i, j int, faults bool) {
 			r := m.r[end.to]
 			before := m.dots(end.to)
 			var err error
-			end.snap, err = r.store.take(m.ctx, r.key, m.r[end.from].id, f, end.snap, end.back, m.log, m.at(end.to))
+			end.snap, err = r.store.take(m.ctx, end.ss.signer, ids[end.from], f, end.snap, end.back, m.log, m.at(end.to))
 			if errors.Is(err, errAhead) {
 				return // the session ends; the next sends the snapshot again
 			}
@@ -768,9 +811,9 @@ const (
 	cutHere             // the session ends here
 )
 
-// fault does what may go wrong with frame f on its way from replica from to replica
-// to, the rest of the session's frames in in.
-func (m *model) fault(from, to int, f *meshv1.SyncFrame, in *queue) fate {
+// fault does what may go wrong with frame f on its way from replica from (which said
+// it is peer) to replica to, the rest of the session's frames in in.
+func (m *model) fault(from, to int, peer devicekey.ID, f *meshv1.SyncFrame, in *queue) fate {
 	switch n := m.rng.IntN(100); {
 	case n < 3:
 		return cutHere
@@ -779,7 +822,7 @@ func (m *model) fault(from, to int, f *meshv1.SyncFrame, in *queue) fate {
 		ops := f.GetOps().GetOps()
 		part := &meshv1.SyncFrame{Frame: &meshv1.SyncFrame_Ops{Ops: &meshv1.Ops{Ops: ops[:m.rng.IntN(len(ops))]}}}
 		r := m.r[to]
-		_, err := r.store.take(m.ctx, r.key, m.r[from].id, part, nil, &queue{}, m.log, m.at(to))
+		_, err := r.store.take(m.ctx, r.key, peer, part, nil, &queue{}, m.log, m.at(to))
 		m.must(err)
 		m.restart(to)
 		return cutHere
@@ -948,6 +991,9 @@ func (m *model) settle() {
 		m.checkReadsSettled(members)
 	}
 	m.checkOneEpoch(members, m.quiesce)
+	if m.rotating {
+		m.checkRotationsSettled()
+	}
 }
 
 // forked reports whether a bridge of the mesh found the forger out (one removed itself

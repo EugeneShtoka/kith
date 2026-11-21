@@ -38,11 +38,15 @@ type Devices struct {
 
 	// mu guards the identity once had, the roster and the connections. Taken inside
 	// lmu, never the other way round.
-	mu     sync.Mutex
-	cert   *tls.Certificate
-	self   devicekey.ID
-	paired []pairedDevice
-	conns  map[devicekey.ID]map[*remoteConn]struct{}
+	mu   sync.Mutex
+	cert *tls.Certificate
+	self devicekey.ID
+	// keeper keeps kithd's key through a rotation (Rotates); rotated is the key it
+	// rotated from, read once, served to a client naming it until rotationGrace has passed.
+	keeper  KeyKeeper
+	rotated *rotatedKey
+	paired  []pairedDevice
+	conns   map[devicekey.ID]map[*remoteConn]struct{}
 	// tickets are the pairings open now; while there is one, an unpaired key is let
 	// in to call Pair alone, its connection held in joining.
 	tickets []*ticket
@@ -92,6 +96,11 @@ type RosterStore interface {
 	// sealing key and the addresses it is dialed at, signed by signer; this bridge's own
 	// takes the signer's and the store's. Another's gets a wrap of the epoch it writes under.
 	Bridge(ctx context.Context, signer crypto.Signer, d domain.Device, key, sealing []byte, addresses []string) error
+	// Rotate writes a device's move from the member from to key (PKIX), signed by both
+	// keys (rot), signed by signer, this bridge.
+	Rotate(ctx context.Context, signer crypto.Signer, from devicekey.ID, key []byte, rot devicekey.Rotation) error
+	// RotateSelf writes this bridge's move from its key old to next, signed by both.
+	RotateSelf(ctx context.Context, old, next crypto.Signer) error
 	// Sealing is this bridge's sealing key (X25519), which it pairs with when it joins a mesh.
 	Sealing() []byte
 	// PublishAccounts writes the accounts this bridge runs (bridge/<ID>/accounts),
@@ -147,6 +156,9 @@ type RosterStore interface {
 	// Sync runs one sync session of this bridge (signer, its device key) with the
 	// bridge peer over frames until either ends it; dialed is whether this side dialed.
 	Sync(ctx context.Context, signer crypto.Signer, peer devicekey.ID, dialed bool, frames MeshFrames, log *slog.Logger) error
+	// SyncAs is Sync saying it is as, the key this bridge rotated from, to a peer that
+	// reached it pinning that key; what it writes is still signer's.
+	SyncAs(ctx context.Context, signer crypto.Signer, as, peer devicekey.ID, dialed bool, frames MeshFrames, log *slog.Logger) error
 	// Join makes this bridge one of the mesh of sponsor, which has just confirmed its
 	// pairing, over frames: the mesh's members it admits from then on.
 	Join(ctx context.Context, self, sponsor devicekey.ID, signer crypto.Signer, frames MeshFrames) ([]domain.Device, error)
@@ -333,6 +345,9 @@ func (d *Devices) refreshLocked() (rosterRead, error) {
 		return r, err
 	}
 	if !slices.ContainsFunc(members, func(m domain.Device) bool { return m.ID == self.String() && m.Role == domain.RoleBridge }) {
+		if !slices.Contains(removed, self.String()) && d.finishRotationLocked(store, members) {
+			return d.refreshLocked()
+		}
 		if slices.Contains(removed, self.String()) {
 			return rosterRead{}, fmt.Errorf("daemon: %w", errOutOfMesh)
 		}
@@ -510,7 +525,7 @@ func (d *Devices) admit(id devicekey.ID, key []byte, c *remoteConn) bool {
 	case c.gone:
 		return false
 	case slices.ContainsFunc(d.paired, func(p pairedDevice) bool { return p.id == id }):
-		c.id, c.admitted = id, true
+		c.id, c.key, c.admitted = id, key, true
 		d.trackLocked(c)
 	case len(d.tickets) > 0:
 		c.id, c.key, c.admitted, c.onlyPairs = id, key, true, true
@@ -696,7 +711,8 @@ var errNotPaired = errors.New("daemon: this device is not paired")
 // tlsConfig is mutual TLS with the peer's key pinned: any certificate is asked for,
 // none is checked against a CA, and VerifyConnection admits only a paired key. It
 // runs on resumed sessions too, but tickets are off anyway, so nothing outlives an
-// unpairing.
+// unpairing. kithd answers as its key now, or as the key it rotated from to a client
+// naming that one (answerAs).
 func (d *Devices) tlsConfig(cert tls.Certificate) *tls.Config {
 	config := func(verify func(tls.ConnectionState) error) *tls.Config {
 		return &tls.Config{
@@ -716,7 +732,7 @@ func (d *Devices) tlsConfig(cert tls.Certificate) *tls.Config {
 		if !ok {
 			return config(refuse), nil
 		}
-		return config(func(state tls.ConnectionState) error {
+		conf := config(func(state tls.ConnectionState) error {
 			defer c.release()
 			id, err := devicekey.PeerID(state)
 			if err != nil {
@@ -731,7 +747,9 @@ func (d *Devices) tlsConfig(cert tls.Certificate) *tls.Config {
 				return errNotPaired
 			}
 			return nil
-		}), nil
+		})
+		conf.Certificates = []tls.Certificate{d.answerAs(hello.ServerName, c)}
+		return conf, nil
 	}
 	return base
 }

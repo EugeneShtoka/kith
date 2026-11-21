@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"errors"
 	"flag"
@@ -652,6 +653,47 @@ func deviceIdentity(storage domain.Storage, allowFile bool) func() (tls.Certific
 	}
 }
 
+// pairedDevices is the roster of devices paired with kithd, listening where cfg says
+// from when Serve runs, its key kept through a rotation.
+func pairedDevices(backend served, cfg config.Config, log *slog.Logger) *daemon.Devices {
+	paired := daemon.NewDevices(backend.storage.DevicesPath(), backend.mesh.open, deviceIdentity(backend.storage, cfg.AllowTokenFile), log)
+	paired.Rotates(deviceKeys{storage: backend.storage, allowFile: cfg.AllowTokenFile})
+	paired.Listen(cfg.Remote.Listen)
+	return paired
+}
+
+// deviceKeys keeps kithd's device key through a rotation: the key in "device", the one
+// it rotated from, with when, in "device-rotated".
+type deviceKeys struct {
+	storage   domain.Storage
+	allowFile bool
+}
+
+func (k deviceKeys) Rotated() (*ecdsa.PrivateKey, time.Time, error) {
+	key, at, err := keystore.FindRotatedKey(keystore.DeviceStore(k.storage, "device-rotated"), k.allowFile)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("the key kithd rotated from: %w", err)
+	}
+	return key, at, nil
+}
+
+func (k deviceKeys) Rotate(next *ecdsa.PrivateKey, at time.Time) error {
+	current := keystore.DeviceStore(k.storage, "device")
+	key, err := keystore.FindDeviceKey(current, k.allowFile)
+	if err != nil {
+		return fmt.Errorf("its device key: %w", err)
+	}
+	if key != nil {
+		if err := keystore.KeepRotatedKey(keystore.DeviceStore(k.storage, "device-rotated"), k.allowFile, key, at); err != nil {
+			return fmt.Errorf("keep the key kithd rotates from: %w", err)
+		}
+	}
+	if err := keystore.KeepDeviceKey(current, k.allowFile, next); err != nil {
+		return fmt.Errorf("keep kithd's new device key: %w", err)
+	}
+	return nil
+}
+
 // meshFile is the instance's mesh store, sealed under the cache's key: opened when the
 // roster is first read, and again after a failure (a store that does not open keeps
 // kithd from listening, as a roster that does not read does), closed at exit.
@@ -846,8 +888,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		state.Report(daemon.StatusOf(m.Online(on)), t)
 		notifications.Synced(on, t)
 	})
-	paired := daemon.NewDevices(backend.storage.DevicesPath(), backend.mesh.open, deviceIdentity(backend.storage, cfg.AllowTokenFile), log)
-	paired.Listen(cfg.Remote.Listen) // from when Serve runs
+	paired := pairedDevices(backend, cfg, log)
 	return &workers{
 		notifications: notifications,
 		refresher:     refresher,
