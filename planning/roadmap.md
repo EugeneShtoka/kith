@@ -102,6 +102,19 @@ small and ships on its own.
 - **Creating a room from a script**: a `create_room` tool on kith-mcp and a
   `kith room new` command, both over kithd's existing `CreateRoom`, so a hook can open
   a group without the app.
+- **Rooms and senders by integer key in the cache.** `messages` keeps the network's
+  room and user IDs as text in every row (38 and 24 bytes on average), and again in
+  the indexes that lead with them; Telegram's and Slack's event IDs repeat the room ID
+  as their prefix. Measured 2026-11-21 on a 401 MB cache of 238k messages: 50 MB of
+  text, 32 MB of IDs and names in the rows, 20 MB of full-text index, so most of the
+  file is IDs and their index copies. `rooms` and a new senders table get integer
+  keys, and `messages`, its indexes and the tables keyed by message reference them;
+  `room_aliases` and `MergeRoom` move to the integer key. A **migration that keeps
+  every row**, never the rebuild: the cache holds history the networks no longer
+  return. It must be a no-op on a new file, as every migration is, and an older
+  binary opening the migrated cache rebuilds it (docs/database.md), so the release
+  says not to go back, and the copy kept aside is checked before the upgrade.
+  `sender_name` stays: it names a sender who is no member of the room.
 
 ### Remote clients
 
