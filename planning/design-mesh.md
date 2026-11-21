@@ -1,12 +1,12 @@
 # Design: the mesh CRDT, what is left (Phase 2b of design-clients.md)
 
-Status: steps 1–7 built (#407, #422, #424, #427, #609 for 5a, then steps 5 to 7):
+Status: steps 1–8 built (#407, #422, #424, #427, #609 for 5a, then steps 5 to 8):
 bridges pair and sync, the roster is kept as signed ops, a WhatsApp DM known by its LID
 joins its number's room, read positions cross bridges, every op is sealed, the config's
-shared keys cross, and so do drafts and verdicts. How that works is in `internal/mesh`
-and [docs/remote.md](../docs/remote.md). This file holds the step still to build: key
-rotation; the Config, Drafts and Verdicts sections stay as their design. Failover
-between bridges stays Phase 3.
+shared keys cross, so do drafts and verdicts, and keys rotate. How that works is in
+`internal/mesh` and [docs/remote.md](../docs/remote.md). The Config, Drafts, Verdicts
+and Key rotation sections stay as their design, with what was built otherwise noted.
+Failover between bridges stays Phase 3.
 
 ## What is left to cross
 
@@ -185,6 +185,35 @@ the new one otherwise; every dialing client sends its pinned ID as SNI (`<id>.ki
 and on connecting with the old ID it reads the roster and rewrites the pin in
 `device.toml`. A lost key is not rotated: remove the device and pair again.
 
+As built (step 8):
+
+- **The rotation is two roster writes in one op**: the old entry removed with
+  `rotated_to` naming the new one, and the new entry carrying the rotation (the old key
+  and both signatures, `devicekey.Rotation`), which every replica checks. A device's is
+  written by its bridge; a bridge's own by its new key, which the roster admits as the
+  op's signer only through that rotation, while the old key is a bridge as of the op.
+- **A removal wins over a rotation**: a plain removal of the old key beats the
+  rotation's removal whatever the clocks, and a new key whose old entry does not stand as
+  rotated to it is read as removed (`crdt.settle`), along a chain of rotations too. So a
+  removal concurrent with a rotation takes the new key along, one of two concurrent
+  rotations of a key stands, and the old key paired again takes the new one down.
+- **Sealing**: a rotation is no removal for epochs (`State.Since`), and an epoch made by
+  a key rotated to a member that stands still serves (`crdt.Successor`). When no epoch
+  serves at a bridge's rotation, its old key makes one first, so the others take its
+  record before they know the new key (`Store.RotateSelf`); a record signed by a
+  rotated-out key is never taken.
+- **A peer pinning the old key** reaches the bridge by SNI and is told it is the old key
+  (`Store.SyncAs`); everything written in that session is still the new key's. kithd
+  keeps one old key (`<instance>|device-rotated`, with when), for 30 days (the horizon).
+- **Clients follow at start**: `kith`, `kith-notify`, `kith-mcp` and the relay ask the
+  bridge its ID over the pinned connection before they dial (`daemon.FollowRotation`)
+  and rewrite `device.toml` when it differs; one that has not started for 30 days is
+  refused, the refusal saying to join again.
+- **Left as is**: a device's rotation whose answer is lost leaves the device to join
+  again (it keeps the new key only once the bridge answered); a device's other clients
+  hold the old key until restarted; a bridge rotating twice within 30 days strands a
+  device that has not started since the first.
+
 ## Plan
 
 Each PR lands working. A pure package lands with its first caller (`deadcode`).
@@ -212,7 +241,7 @@ Each PR lands working. A pure package lands with its first caller (`deadcode`).
    (merges writers): a filter firing on both bridges for one message, a release
    concurrent with a move, a retag (`domain.Retagged`) concurrent with a move under the
    old name.
-- **8. feat: keys rotate.** `kith devices rotate`, the rotation op, a bridge answering on
+- **8. feat: keys rotate** (built). `kith devices rotate`, the rotation op, a bridge answering on
    its old key by SNI for the horizon, clients rewriting their pin. **Failure review**
    (enforces scope): a rotation signed by one key only, a rotated-out key connecting
    after the rotation arrived, a rotation concurrent with the device's removal, a client

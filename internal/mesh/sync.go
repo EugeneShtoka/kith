@@ -120,12 +120,19 @@ func (s *Store) Sync(ctx context.Context, signer crypto.Signer, peer devicekey.I
 	if err != nil {
 		return fmt.Errorf("mesh: %w", err)
 	}
+	return s.SyncAs(ctx, signer, self, peer, dialed, frames, log)
+}
+
+// SyncAs is Sync saying it is as, the key this bridge rotated from, to a peer that
+// reached it pinning that key (and so learns the rotation from it); what it writes
+// and wraps is still signer's.
+func (s *Store) SyncAs(ctx context.Context, signer crypto.Signer, as, peer devicekey.ID, dialed bool, frames Frames, log *slog.Logger) error {
 	ctx, end := context.WithCancelCause(ctx)
 	defer end(nil)
 	if perr := s.stillPaired(peer); perr != nil {
 		return perr
 	}
-	ss := syncing{signer: signer, peer: peer, frames: frames, log: log, told: newTold()}
+	ss := syncing{signer: signer, as: as, peer: peer, frames: frames, log: log, told: newTold()}
 	theirs, err := s.greet(ctx, ss, time.Now())
 	if err != nil {
 		return err
@@ -136,7 +143,7 @@ func (s *Store) Sync(ctx context.Context, signer crypto.Signer, peer devicekey.I
 	if len(theirs) > 0 {
 		dialer := peer
 		if dialed {
-			dialer = self
+			dialer = as
 		}
 		release, cerr := s.claim(peer, dialer, end)
 		if cerr != nil {
@@ -176,6 +183,7 @@ func receiving(ctx context.Context, frames Frames) (in <-chan *meshv1.SyncFrame,
 // syncing is what serve needs of one sync stream.
 type syncing struct {
 	signer crypto.Signer
+	as     devicekey.ID // the bridge it says it is: signer's, or the key it rotated from
 	peer   devicekey.ID
 	frames Frames
 	log    *slog.Logger
@@ -366,11 +374,7 @@ func (s *Store) stillPaired(peer devicekey.ID) error {
 // is returned, and kept as what it said last; its epoch records are taken. now is this
 // bridge's clock.
 func (s *Store) greet(ctx context.Context, ss syncing, now time.Time) (crdt.Vector, error) {
-	self, err := devicekey.IDOf(ss.signer.Public())
-	if err != nil {
-		return nil, fmt.Errorf("mesh: %w", err)
-	}
-	if err = ss.frames.Send(helloFrame(self, now, s.vector(), s.tell(ss))); err != nil {
+	if err := ss.frames.Send(helloFrame(ss.as, now, s.vector(), s.tell(ss))); err != nil {
 		return nil, fmt.Errorf("mesh: say hello: %w", err)
 	}
 	theirs, gap, epochs, err := readHello(ss.frames, ss.peer, now)

@@ -290,19 +290,20 @@ func (f serverFrames) Receive() (*meshv1.SyncFrame, error) {
 }
 
 // bridgePeer is the gate in front of Sync: the bridge a request came from, if it came
-// over [remote] listen from a key the roster lists as a bridge. The socket, a device,
-// and a key let in only to pair are refused.
-func (d *Devices) bridgePeer(ctx context.Context) (devicekey.ID, error) {
+// over [remote] listen from a key the roster lists as a bridge, and whether kithd
+// answered it as the key it rotated from. The socket, a device, and a key let in only
+// to pair are refused.
+func (d *Devices) bridgePeer(ctx context.Context) (devicekey.ID, bool, error) {
 	c, ok := ctx.Value(peerKey{}).(*remoteConn)
 	if !ok {
-		return devicekey.ID{}, errSyncOverSocket
+		return devicekey.ID{}, false, errSyncOverSocket
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if !c.onlyPairs && slices.ContainsFunc(d.paired, func(p pairedDevice) bool { return p.id == c.id && p.Role == domain.RoleBridge }) {
-		return c.id, nil
+		return c.id, c.asRotated, nil
 	}
-	return devicekey.ID{}, errNotMeshBridge
+	return devicekey.ID{}, false, errNotMeshBridge
 }
 
 // meshService serves MeshService on the listener's mux.
@@ -313,9 +314,11 @@ type meshService struct {
 
 var _ meshv1connect.MeshServiceHandler = meshService{}
 
-// Sync is a member bridge's sync session, behind bridgePeer.
+// Sync is a member bridge's sync session, behind bridgePeer. A bridge that dialed this
+// one pinning the key it rotated from is told it is that key, and so learns the
+// rotation.
 func (m meshService) Sync(ctx context.Context, st *connect.BidiStream[meshv1.SyncRequest, meshv1.SyncResponse]) error {
-	peer, err := m.devices.bridgePeer(ctx)
+	peer, asRotated, err := m.devices.bridgePeer(ctx)
 	if err != nil {
 		return connect.NewError(connect.CodePermissionDenied, err)
 	}
@@ -323,7 +326,17 @@ func (m meshService) Sync(ctx context.Context, st *connect.BidiStream[meshv1.Syn
 	if err != nil {
 		return connect.NewError(connect.CodeUnavailable, err)
 	}
-	if err := store.Sync(ctx, signer, peer, false, serverFrames{st}, m.log); err != nil {
+	sync := store.Sync
+	if asRotated {
+		was, ok := m.devices.rotatedID()
+		if !ok {
+			return connect.NewError(connect.CodeUnavailable, errors.New("daemon: the key this bridge rotated from is past its grace"))
+		}
+		sync = func(ctx context.Context, signer crypto.Signer, peer devicekey.ID, dialed bool, frames MeshFrames, log *slog.Logger) error {
+			return store.SyncAs(ctx, signer, was, peer, dialed, frames, log)
+		}
+	}
+	if err := sync(ctx, signer, peer, false, serverFrames{st}, m.log); err != nil {
 		return connect.NewError(connect.CodeAborted, err)
 	}
 	return nil

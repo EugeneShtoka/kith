@@ -10,6 +10,7 @@ import (
 	"cmp"
 	"context"
 	"crypto"
+	"crypto/sha256"
 	"crypto/x509"
 	"database/sql"
 	"errors"
@@ -652,7 +653,8 @@ func (s *Store) rosterWrites(signer crypto.Signer, origin devicekey.ID, set []do
 		}
 		m := crdt.Member{Name: d.Name, Role: crdt.Role(d.Role), AddedAt: d.AddedAt, AddedBy: d.AddedBy}
 		if was, ok := roster[id]; ok && !was.Removed {
-			m.Key, m.Sealing, m.Addresses = was.Key, was.Sealing, was.Addresses // a rename keeps a bridge's keys and addresses
+			// A rename keeps a bridge's keys and addresses, and the rotation that made the entry.
+			m.Key, m.Sealing, m.Addresses, m.Rotated = was.Key, was.Sealing, was.Addresses, was.Rotated
 		}
 		if id == origin {
 			if m.Key, err = x509.MarshalPKIXPublicKey(signer.Public()); err != nil {
@@ -707,9 +709,17 @@ func (s *Store) Bridge(ctx context.Context, signer crypto.Signer, d domain.Devic
 		}
 		sealing = s.keys.public()
 	}
-	value, err := crdt.Member{
+	m := crdt.Member{
 		Key: key, Sealing: sealing, Name: d.Name, Role: crdt.RoleBridge, Addresses: addresses, AddedAt: d.AddedAt, AddedBy: d.AddedBy,
-	}.Encode()
+	}
+	roster, err := s.state.Roster()
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	if was := roster[id]; !was.Removed && bytes.Equal(was.Key, key) {
+		m.Rotated = was.Rotated // the entry a rotation made, readdressed
+	}
+	value, err := m.Encode()
 	if err != nil {
 		return fmt.Errorf("mesh: %w", err)
 	}
@@ -717,6 +727,78 @@ func (s *Store) Bridge(ctx context.Context, signer crypto.Signer, d domain.Devic
 		return err
 	}
 	return s.wrapCurrentLocked(ctx, signer, origin, id)
+}
+
+// Rotate writes a device's move from the member from to the key rot was signed for
+// (PKIX), signed by both keys (rot), signed by signer, a bridge of the roster: from's
+// entry removed as rotated to the new key's, which takes its name, role and when and by
+// whom it was added.
+func (s *Store) Rotate(ctx context.Context, signer crypto.Signer, from devicekey.ID, key []byte, rot devicekey.Rotation) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.rotateLocked(ctx, signer, from, key, rot)
+}
+
+// RotateSelf moves this bridge from its key old to next as Rotate moves a device,
+// written by next, carrying its addresses and sealing key on. The op is sealed under an
+// epoch the others can open before they know next: when none serves, old makes one
+// first, whose record they take as a bridge's they know.
+func (s *Store) RotateSelf(ctx context.Context, old, next crypto.Signer) error {
+	from, err := devicekey.IDOf(old.Public())
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	rot, key, err := devicekey.Rotate(old, next)
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	roster, err := s.state.Roster()
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	keys := s.keys.clone()
+	if e, ok := keys.current(s.state, roster); !ok || keys.keys[e].seals >= maxSeals {
+		if _, err := keys.make(s.state, roster, old, from); err != nil {
+			return err
+		}
+		if err := s.keepKeysLocked(ctx, keys); err != nil {
+			return err
+		}
+	}
+	return s.rotateLocked(ctx, next, from, key, rot)
+}
+
+func (s *Store) rotateLocked(ctx context.Context, signer crypto.Signer, from devicekey.ID, key []byte, rot devicekey.Rotation) error {
+	origin, err := devicekey.IDOf(signer.Public())
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	if signed, verr := rot.Verify(key); verr != nil || signed != from {
+		return fmt.Errorf("mesh: rotate %s: %w", from, devicekey.ErrBadRotation)
+	}
+	to := devicekey.ID(sha256.Sum256(key))
+	roster, err := s.state.Roster()
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	old, ok := roster[from]
+	if !ok || old.Removed {
+		return fmt.Errorf("%w: %s", errNotAMember, from)
+	}
+	made := old
+	made.Key, made.Rotated = key, &rot
+	old.Removed, old.RotatedTo = true, to.String()
+	gone, err := old.Encode()
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	value, err := made.Encode()
+	if err != nil {
+		return fmt.Errorf("mesh: %w", err)
+	}
+	return s.writeLocked(ctx, signer, origin, []crdt.Write{{Key: crdt.RosterKey(from), Value: gone}, {Key: crdt.RosterKey(to), Value: value}})
 }
 
 // wrapCurrentLocked adds a wrap for the bridge to of the epoch this replica (self)

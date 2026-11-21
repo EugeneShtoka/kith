@@ -20,7 +20,7 @@ kith import [--config path] network [account]
 kith ignore [--config path] mxid
 kith unignore [--config path] mxid
 kith ignored [--config path]
-kith devices [--config path] [add id [name] | remove id|name | id | recovery-key]
+kith devices [--config path] [add id [name] | remove id|name | id | recovery-key | rotate [--bridge]]
 kith pair [--config path] [name]
 kith join [--config path] [--name name] [--bridge] uri
 kith mesh [--config path]
@@ -201,6 +201,7 @@ kith devices [--config path] add id [name]
 kith devices [--config path] remove id|name
 kith devices [--config path] id
 kith devices [--config path] recovery-key
+kith devices [--config path] rotate [--bridge]
 ```
 
 The devices paired with this config's kithd, which it serves over `[remote] listen`
@@ -213,8 +214,10 @@ first time, to paste into `kith devices add` on another machine's kithd; it need
 daemon. `recovery-key` prints kithd's [recovery key](remote.md#kithds-recovery-key),
 to write down, and its device ID. It reads kithd's key from the keyring on kithd's own
 machine and needs no daemon; on a machine that only dials a bridge elsewhere it has
-nothing to show. An ID is taken in any case, with or without its dashes. Each but `id`
-and `recovery-key` starts kithd if it isn't running.
+nothing to show. `rotate` gives this machine a new device key as a client of the bridge
+it joined, and `rotate --bridge` gives kithd on this machine a new one and prints its new
+recovery key ([remote.md](remote.md#rotating-a-key)). An ID is taken in any case, with or
+without its dashes. Each but `id` and `recovery-key` starts kithd if it isn't running.
 
 ### kith pair
 

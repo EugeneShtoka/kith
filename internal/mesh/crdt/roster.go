@@ -30,7 +30,9 @@ const (
 // Sealing is the X25519 key content keys are wrapped to (EpochRecord), apart from the
 // key it signs with; a thin device has none, holding no content key. A bridge's
 // Addresses are where it is dialed (its [remote] listen); a bridge that only dials has
-// none. A removed member stays listed as removed.
+// none. A removed member stays listed as removed. Rotated is the rotation that made
+// the entry, signed by the key it replaced and its own; RotatedTo, on the removed entry
+// of that replaced key, names the entry it made (Settle).
 type Member struct {
 	Key       []byte    `json:"key,omitempty"`
 	Sealing   []byte    `json:"sealing,omitempty"`
@@ -40,6 +42,9 @@ type Member struct {
 	AddedAt   time.Time `json:"added_at"`
 	AddedBy   string    `json:"added_by"`
 	Removed   bool      `json:"removed,omitempty"`
+
+	Rotated   *devicekey.Rotation `json:"rotated,omitempty"`
+	RotatedTo string              `json:"rotated_to,omitempty"`
 }
 
 // Encode is the member as a roster write's value.
@@ -113,17 +118,25 @@ func (s State) rosterAt(op Op) map[devicekey.ID]Member {
 		}
 		out[id] = members[resolve(live, members)]
 	}
+	settle(out)
 	return out
 }
 
 // resolve is which of a roster entry's concurrent writes stands: a removal wins
-// (removing is the safer error; re-pair), and between two of a kind the later by
-// (clock, origin). Every replica resolves the same writes alike.
+// (removing is the safer error; re-pair), a plain one over a rotation's, and between
+// two of a kind the later by (clock, origin). Every replica resolves the same writes
+// alike.
 func resolve(live []Entry, members []Member) int {
 	best := 0
 	for i := 1; i < len(live); i++ {
 		if members[i].Removed != members[best].Removed {
 			if members[i].Removed {
+				best = i
+			}
+			continue
+		}
+		if plain, was := members[i].RotatedTo == "", members[best].RotatedTo == ""; members[i].Removed && plain != was {
+			if plain {
 				best = i
 			}
 			continue
@@ -164,6 +177,18 @@ func readRosterWrite(w Write) (devicekey.ID, Member, error) {
 		return devicekey.ID{}, Member{}, fmt.Errorf("%w: %s: role %q", ErrBadWrite, w.Key, m.Role)
 	case m.Role == RoleBridge && !m.Removed && len(m.Key) == 0:
 		return devicekey.ID{}, Member{}, fmt.Errorf("%w: %s: a bridge with no key", ErrBadWrite, w.Key)
+	case m.RotatedTo != "" && !m.Removed, m.Rotated != nil && len(m.Key) == 0:
+		return devicekey.ID{}, Member{}, fmt.Errorf("%w: %s: a rotation's entries out of shape", ErrBadWrite, w.Key)
+	}
+	if m.RotatedTo != "" {
+		if _, err := devicekey.ParseID(m.RotatedTo); err != nil {
+			return devicekey.ID{}, Member{}, fmt.Errorf("%w: %s: %w", ErrBadWrite, w.Key, err)
+		}
+	}
+	if m.Rotated != nil {
+		if _, err := m.Rotated.Verify(m.Key); err != nil {
+			return devicekey.ID{}, Member{}, fmt.Errorf("%w: %s: %w", ErrBadWrite, w.Key, err)
+		}
 	}
 	if len(m.Sealing) > 0 {
 		if _, err := SealingKey(m.Sealing); err != nil {
@@ -231,5 +256,48 @@ func (s State) Roster() (map[devicekey.ID]Member, error) {
 			out[id] = members[resolve(entries, members)]
 		}
 	}
+	settle(out)
 	return out, nil
+}
+
+// settle removes each entry a rotation made whose replaced key's entry does not stand
+// as rotated to it, nor that one's in turn: a removal of the old key concurrent with the
+// rotation won (resolve), or another rotation of it did, and the removal takes the new
+// key along; so does the old key paired again (removing is the safer error). Every
+// replica holding the same writes settles them alike.
+func settle(roster map[devicekey.ID]Member) {
+	var falls func(id devicekey.ID, depth int) bool
+	falls = func(id devicekey.ID, depth int) bool {
+		m := roster[id]
+		if m.Rotated == nil {
+			return false
+		}
+		from := devicekey.ID(sha256.Sum256(m.Rotated.From))
+		old, ok := roster[from]
+		return !ok || depth >= len(roster) || !old.Removed || old.RotatedTo != id.String() || falls(from, depth+1)
+	}
+	for id := range roster {
+		if m := roster[id]; !m.Removed && falls(id, 0) {
+			m.Removed = true
+			roster[id] = m
+		}
+	}
+}
+
+// Successor is the member that holds id's place now: id itself while it stands, else
+// the entry its rotation made, followed on; false when that chain ends in a removal.
+func Successor(roster map[devicekey.ID]Member, id devicekey.ID) (devicekey.ID, bool) {
+	for range len(roster) + 1 {
+		m, ok := roster[id]
+		switch {
+		case !ok:
+			return devicekey.ID{}, false
+		case !m.Removed:
+			return id, true
+		case m.RotatedTo == "":
+			return devicekey.ID{}, false
+		}
+		id, _ = devicekey.ParseID(m.RotatedTo) // readRosterWrite checked it
+	}
+	return devicekey.ID{}, false
 }

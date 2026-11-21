@@ -281,19 +281,25 @@ func SealingKey(raw []byte) (*ecdh.PublicKey, error) {
 }
 
 // SignerOf is the member that signed op as of op's own context (the roster it is judged
-// by): one whose entry carries a sealing key wrote it sealed, so an op of its taken
-// without its envelope was stripped of it on the way.
-func (s State) SignerOf(op Op) Member { return s.rosterAt(op)[op.Origin] }
+// by), or the new key of the bridge's rotation op writes: one whose entry carries a
+// sealing key wrote it sealed, so an op of its taken without its envelope was stripped
+// of it on the way.
+func (s State) SignerOf(op Op) Member {
+	writes, _ := readWrites(op) // none when they do not read: the roster's member, if any
+	m, _ := s.signerOf(op, writes)
+	return m
+}
 
 // Since reports whether ctx (an epoch's context) covers every removal of a bridge the
 // state's roster holds: an epoch made before one is known to the bridge removed, and
-// nothing is sealed under it once the removal is known.
+// nothing is sealed under it once the removal is known. A rotation's is none: the
+// replica holding the epoch's keys goes on under its new key.
 func (s State) Since(ctx []Dot) bool {
 	op := Op{Context: ctx}
 	for i := range s.RosterOps {
 		o := &s.RosterOps[i]
 		for _, w := range o.Writes {
-			if _, m, err := readRosterWrite(w); err == nil && m.Removed && m.Role == RoleBridge &&
+			if _, m, err := readRosterWrite(w); err == nil && m.Removed && m.RotatedTo == "" && m.Role == RoleBridge &&
 				!covers(op, Dot{Origin: o.Origin, Seq: o.Seq}) {
 				return false
 			}

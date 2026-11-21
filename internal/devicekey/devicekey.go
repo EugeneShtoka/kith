@@ -47,6 +47,11 @@ func grouped(plain string) string {
 	return b.String()
 }
 
+// ServerName is the ID as a TLS server name, which a client dialing the device it pins
+// sends: the ID in lower case without dashes (one DNS label), under .kith. A bridge that
+// rotated its key answers one naming its old ID with that key, for a while.
+func (id ID) ServerName() string { return strings.ToLower(encoding.EncodeToString(id[:])) + ".kith" }
+
 // ErrNotAnID is text that does not read as a device ID.
 var ErrNotAnID = errors.New("not a device ID")
 
@@ -97,6 +102,32 @@ func Marshal(key *ecdsa.PrivateKey) ([]byte, error) {
 		return nil, fmt.Errorf("devicekey: encode: %w", err)
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: pemType, Bytes: der}), nil
+}
+
+// rotatedHeader is the PEM header MarshalRotated writes the time in.
+const rotatedHeader = "Rotated-At"
+
+// MarshalRotated writes a key as Marshal does, with when it was rotated out (at),
+// which RotatedAt reads; Parse reads the key.
+func MarshalRotated(key *ecdsa.PrivateKey, at time.Time) ([]byte, error) {
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("devicekey: encode: %w", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: pemType, Headers: map[string]string{rotatedHeader: at.UTC().Format(time.RFC3339)}, Bytes: der}), nil
+}
+
+// RotatedAt is when the key MarshalRotated wrote as text was rotated out.
+func RotatedAt(text []byte) (time.Time, error) {
+	block, _ := pem.Decode(text)
+	if block == nil {
+		return time.Time{}, errors.New("devicekey: not a PEM private key")
+	}
+	at, err := time.Parse(time.RFC3339, block.Headers[rotatedHeader])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("devicekey: when the key was rotated out: %w", err)
+	}
+	return at, nil
 }
 
 // Parse reads a key Marshal wrote; anything else (another curve, another kind of key)

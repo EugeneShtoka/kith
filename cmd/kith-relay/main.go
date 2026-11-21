@@ -174,6 +174,9 @@ func loadBridged(path string, b config.Bridge) (at kithdAt, runtimeDir, configFi
 	if err != nil {
 		return kithdAt{}, "", "", fmt.Errorf("dialing bridge %s: %w", b.Name, err)
 	}
+	if b, err = daemon.FollowRotation(context.Background(), cert, config.DevicePath(path), b); err != nil {
+		return kithdAt{}, "", "", fmt.Errorf("following bridge %s's new key: %w", b.Name, err)
+	}
 	at, err = bridged(cert, b)
 	if err != nil {
 		return kithdAt{}, "", "", err
