@@ -282,6 +282,9 @@ func (s *Store) sealSnapshotLocked(ctx context.Context, signer crypto.Signer) (*
 			return nil, err
 		}
 	}
+	if werr := keys.wrapRecovery(s.state, signer, maker); werr != nil {
+		return nil, werr
+	}
 	plain, err := proto.Marshal(snapshotFrame(s.state.Snapshot(s.clock)))
 	if err != nil {
 		return nil, fmt.Errorf("mesh: seal a snapshot: %w", err)

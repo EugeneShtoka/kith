@@ -502,6 +502,12 @@ const (
 	// BackendServiceAddMailboxProcedure is the fully-qualified name of the BackendService's AddMailbox
 	// RPC.
 	BackendServiceAddMailboxProcedure = "/backend.v1.BackendService/AddMailbox"
+	// BackendServiceMakeMeshRecoveryKeyProcedure is the fully-qualified name of the BackendService's
+	// MakeMeshRecoveryKey RPC.
+	BackendServiceMakeMeshRecoveryKeyProcedure = "/backend.v1.BackendService/MakeMeshRecoveryKey"
+	// BackendServiceRecoverMeshProcedure is the fully-qualified name of the BackendService's
+	// RecoverMesh RPC.
+	BackendServiceRecoverMeshProcedure = "/backend.v1.BackendService/RecoverMesh"
 )
 
 // BackendServiceClient is a client for the backend.v1.BackendService service.
@@ -980,6 +986,11 @@ type BackendServiceClient interface {
 	// AddMailbox pairs this kithd with a mailbox and adds it to the mesh: over the
 	// socket only.
 	AddMailbox(context.Context, *connect.Request[v1.AddMailboxRequest]) (*connect.ServerStreamForClient[v1.AddMailboxResponse], error)
+	// MakeMeshRecoveryKey makes a recovery key for the mesh: over the socket only.
+	MakeMeshRecoveryKey(context.Context, *connect.Request[v1.MakeMeshRecoveryKeyRequest]) (*connect.Response[v1.MakeMeshRecoveryKeyResponse], error)
+	// RecoverMesh starts the mesh anew from a mailbox, with its recovery key: over the
+	// socket only.
+	RecoverMesh(context.Context, *connect.Request[v1.RecoverMeshRequest]) (*connect.Response[v1.RecoverMeshResponse], error)
 }
 
 // NewBackendServiceClient constructs a client for the backend.v1.BackendService service. By
@@ -2007,6 +2018,18 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("AddMailbox")),
 			connect.WithClientOptions(opts...),
 		),
+		makeMeshRecoveryKey: connect.NewClient[v1.MakeMeshRecoveryKeyRequest, v1.MakeMeshRecoveryKeyResponse](
+			httpClient,
+			baseURL+BackendServiceMakeMeshRecoveryKeyProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("MakeMeshRecoveryKey")),
+			connect.WithClientOptions(opts...),
+		),
+		recoverMesh: connect.NewClient[v1.RecoverMeshRequest, v1.RecoverMeshResponse](
+			httpClient,
+			baseURL+BackendServiceRecoverMeshProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("RecoverMesh")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -2181,6 +2204,8 @@ type backendServiceClient struct {
 	joinMesh              *connect.Client[v1.JoinMeshRequest, v1.JoinMeshResponse]
 	meshStatus            *connect.Client[v1.MeshStatusRequest, v1.MeshStatusResponse]
 	addMailbox            *connect.Client[v1.AddMailboxRequest, v1.AddMailboxResponse]
+	makeMeshRecoveryKey   *connect.Client[v1.MakeMeshRecoveryKeyRequest, v1.MakeMeshRecoveryKeyResponse]
+	recoverMesh           *connect.Client[v1.RecoverMeshRequest, v1.RecoverMeshResponse]
 }
 
 // Rooms calls backend.v1.BackendService.Rooms.
@@ -3028,6 +3053,16 @@ func (c *backendServiceClient) AddMailbox(ctx context.Context, req *connect.Requ
 	return c.addMailbox.CallServerStream(ctx, req)
 }
 
+// MakeMeshRecoveryKey calls backend.v1.BackendService.MakeMeshRecoveryKey.
+func (c *backendServiceClient) MakeMeshRecoveryKey(ctx context.Context, req *connect.Request[v1.MakeMeshRecoveryKeyRequest]) (*connect.Response[v1.MakeMeshRecoveryKeyResponse], error) {
+	return c.makeMeshRecoveryKey.CallUnary(ctx, req)
+}
+
+// RecoverMesh calls backend.v1.BackendService.RecoverMesh.
+func (c *backendServiceClient) RecoverMesh(ctx context.Context, req *connect.Request[v1.RecoverMeshRequest]) (*connect.Response[v1.RecoverMeshResponse], error) {
+	return c.recoverMesh.CallUnary(ctx, req)
+}
+
 // BackendServiceHandler is an implementation of the backend.v1.BackendService service.
 type BackendServiceHandler interface {
 	// Room
@@ -3504,6 +3539,11 @@ type BackendServiceHandler interface {
 	// AddMailbox pairs this kithd with a mailbox and adds it to the mesh: over the
 	// socket only.
 	AddMailbox(context.Context, *connect.Request[v1.AddMailboxRequest], *connect.ServerStream[v1.AddMailboxResponse]) error
+	// MakeMeshRecoveryKey makes a recovery key for the mesh: over the socket only.
+	MakeMeshRecoveryKey(context.Context, *connect.Request[v1.MakeMeshRecoveryKeyRequest]) (*connect.Response[v1.MakeMeshRecoveryKeyResponse], error)
+	// RecoverMesh starts the mesh anew from a mailbox, with its recovery key: over the
+	// socket only.
+	RecoverMesh(context.Context, *connect.Request[v1.RecoverMeshRequest]) (*connect.Response[v1.RecoverMeshResponse], error)
 }
 
 // NewBackendServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -4527,6 +4567,18 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("AddMailbox")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceMakeMeshRecoveryKeyHandler := connect.NewUnaryHandler(
+		BackendServiceMakeMeshRecoveryKeyProcedure,
+		svc.MakeMeshRecoveryKey,
+		connect.WithSchema(backendServiceMethods.ByName("MakeMeshRecoveryKey")),
+		connect.WithHandlerOptions(opts...),
+	)
+	backendServiceRecoverMeshHandler := connect.NewUnaryHandler(
+		BackendServiceRecoverMeshProcedure,
+		svc.RecoverMesh,
+		connect.WithSchema(backendServiceMethods.ByName("RecoverMesh")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/backend.v1.BackendService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case BackendServiceRoomsProcedure:
@@ -4867,6 +4919,10 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceMeshStatusHandler.ServeHTTP(w, r)
 		case BackendServiceAddMailboxProcedure:
 			backendServiceAddMailboxHandler.ServeHTTP(w, r)
+		case BackendServiceMakeMeshRecoveryKeyProcedure:
+			backendServiceMakeMeshRecoveryKeyHandler.ServeHTTP(w, r)
+		case BackendServiceRecoverMeshProcedure:
+			backendServiceRecoverMeshHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -5550,4 +5606,12 @@ func (UnimplementedBackendServiceHandler) MeshStatus(context.Context, *connect.R
 
 func (UnimplementedBackendServiceHandler) AddMailbox(context.Context, *connect.Request[v1.AddMailboxRequest], *connect.ServerStream[v1.AddMailboxResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.AddMailbox is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) MakeMeshRecoveryKey(context.Context, *connect.Request[v1.MakeMeshRecoveryKeyRequest]) (*connect.Response[v1.MakeMeshRecoveryKeyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MakeMeshRecoveryKey is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) RecoverMesh(context.Context, *connect.Request[v1.RecoverMeshRequest]) (*connect.Response[v1.RecoverMeshResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.RecoverMesh is not implemented"))
 }

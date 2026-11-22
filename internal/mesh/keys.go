@@ -2,6 +2,7 @@ package mesh
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/ecdh"
@@ -86,7 +87,8 @@ func (k *keyring) open(envelope []byte) (crdt.Op, error) {
 
 // seal seals op, written by self and applied to state, under the epoch it writes
 // under (current), made first when none serves; a roster op state keeps gets its
-// envelope too, so a snapshot carries it.
+// envelope too, so a snapshot carries it. Every epoch held, the one made too, is
+// wrapped for the mesh's recovery keys (wrapRecovery).
 func (k *keyring) seal(state *crdt.State, signer crypto.Signer, self devicekey.ID, op *crdt.Op) error {
 	roster, err := state.Roster()
 	if err != nil {
@@ -97,6 +99,9 @@ func (k *keyring) seal(state *crdt.State, signer crypto.Signer, self devicekey.I
 		if e, err = k.make(*state, roster, signer, self); err != nil {
 			return err
 		}
+	}
+	if werr := k.wrapRecovery(*state, signer, self); werr != nil {
+		return werr
 	}
 	held := k.keys[e]
 	if op.Sealed, err = crdt.Seal(*op, e, held.key); err != nil {
@@ -160,6 +165,53 @@ func (k *keyring) make(state crdt.State, roster map[devicekey.ID]crdt.Member, si
 	k.add(rec)
 	k.keys[e], k.touched[e] = epochKey{key: key}, true
 	return e, nil
+}
+
+// wrapRecovery wraps each epoch this replica holds the key of for each recovery key of
+// state that no record of the epoch wraps it for yet, in one record per epoch signed by
+// self: epochs made before a recovery key was written, or concurrently with it, so a
+// mailbox's envelopes and snapshots under them open with it too.
+func (k *keyring) wrapRecovery(state crdt.State, signer crypto.Signer, self devicekey.ID) error {
+	pubs := state.RecoveryKeys()
+	if len(pubs) == 0 {
+		return nil
+	}
+	wrapped := map[crdt.Epoch]map[devicekey.ID]bool{}
+	for h := range k.records {
+		e := k.records[h].Epoch
+		for _, w := range k.records[h].Wraps {
+			if wrapped[e] == nil {
+				wrapped[e] = map[devicekey.ID]bool{}
+			}
+			wrapped[e][w.To] = true
+		}
+	}
+	for _, e := range slices.SortedFunc(maps.Keys(k.keys), func(a, b crdt.Epoch) int {
+		return cmp.Or(cmp.Compare(a.Number, b.Number), bytes.Compare(a.Maker[:], b.Maker[:]))
+	}) {
+		ctx, known := k.contextOf(e)
+		if !known {
+			continue
+		}
+		rec := crdt.EpochRecord{Epoch: e, Context: ctx, Signer: self}
+		for _, pub := range pubs {
+			if id := crdt.RecoveryID(pub); !wrapped[e][id] {
+				w, err := crdt.WrapKey(e, k.keys[e].key, id, pub)
+				if err != nil {
+					return fmt.Errorf("mesh: %w", err)
+				}
+				rec.Wraps = append(rec.Wraps, w)
+			}
+		}
+		if len(rec.Wraps) == 0 {
+			continue
+		}
+		if err := rec.Sign(signer); err != nil {
+			return fmt.Errorf("mesh: %w", err)
+		}
+		k.add(rec)
+	}
+	return nil
 }
 
 // contextOf is the context epoch e was made at, as its maker's record says (another's,

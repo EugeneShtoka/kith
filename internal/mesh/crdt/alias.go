@@ -47,6 +47,9 @@ func readWrite(origin devicekey.ID, w Write) error {
 	if verdict, err := readVerdictWrite(w); verdict {
 		return err
 	}
+	if recovery, err := readRecoveryWrite(w); recovery {
+		return err
+	}
 	return readAccountsWrite(origin, w)
 }
 

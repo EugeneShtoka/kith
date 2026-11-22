@@ -168,6 +168,12 @@ type RosterStore interface {
 	// SyncMailbox runs one session of this bridge (signer; as, the key the session
 	// was authenticated as) with the mailbox over frames until either ends it.
 	SyncMailbox(ctx context.Context, signer crypto.Signer, as, mailbox devicekey.ID, frames MeshFrames, log *slog.Logger) error
+	// NewRecoveryKey makes a recovery key for the mesh and writes its public half,
+	// signed by signer; it returns the key as written down.
+	NewRecoveryKey(ctx context.Context, signer crypto.Signer) (string, error)
+	// Recover starts the mesh anew on this bridge (signer) from what the mailbox holds
+	// over frames, opened with secret, the mesh's recovery key.
+	Recover(ctx context.Context, signer crypto.Signer, secret []byte, mailbox devicekey.ID, frames MeshFrames) (domain.MeshRecovered, error)
 	// Connected reports whether a sync stream with peer is open.
 	Connected(peer devicekey.ID) bool
 	// Changed is closed after the store's next commit.

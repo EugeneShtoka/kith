@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
 	"time"
 
@@ -15,18 +16,42 @@ import (
 	"github.com/EugeneShtoka/kith/internal/human"
 )
 
-const meshUsage = "usage: kith mesh [--config path]"
+const meshUsage = "usage: kith mesh [--config path] [recovery-key | recover]"
 
 // runMesh is `kith mesh`: this bridge's mesh as it sees it: the other bridges, the
 // accounts each runs, when each was last heard, how far behind it is, its clock's gap,
-// the mesh store's size, and each mailbox.
+// the mesh store's size, and each mailbox. `kith mesh recovery-key` makes the mesh's
+// recovery key; `kith mesh recover` starts the mesh anew from a mailbox with it.
 func runMesh(args []string) error {
 	fs := flag.NewFlagSet("mesh", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parse mesh flags: %w", err)
 	}
-	if fs.NArg() != 0 {
+	switch {
+	case fs.NArg() == 1 && fs.Arg(0) == "recovery-key":
+		return withDevices(*configPath, func(ctx context.Context, b *daemon.Remote) error {
+			return makeMeshRecoveryKey(ctx, b, os.Stdout)
+		})
+	case fs.NArg() == 1 && fs.Arg(0) == "recover":
+		ask := terminalAsk()
+		if ask == nil {
+			return errors.New("mesh recover: type the recovery key at a terminal")
+		}
+		typed, err := ask("The mesh's recovery key")
+		if err != nil {
+			return fmt.Errorf("mesh recover: %w", err)
+		}
+		// No deadline: the mailbox may hold weeks of changes to bring back.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+		at, err := reachHere(ctx, *configPath)
+		if err != nil || at.backend == nil {
+			return err
+		}
+		defer at.backend.Stop()
+		return recoverMesh(ctx, at.backend, typed, os.Stdout)
+	case fs.NArg() != 0:
 		return errors.New(meshUsage)
 	}
 	return withDevices(*configPath, func(ctx context.Context, b *daemon.Remote) error {
@@ -74,6 +99,43 @@ func showMesh(out io.Writer, st domain.MeshStatus, now time.Time) {
 		writeMailbox(&b, &st.Mailboxes[i], now)
 	}
 	_, _ = io.WriteString(out, b.String())
+}
+
+// makeMeshRecoveryKey has b make a recovery key for its mesh, and shows it.
+func makeMeshRecoveryKey(ctx context.Context, b *daemon.Remote, out io.Writer) error {
+	key, err := b.MakeMeshRecoveryKey(ctx)
+	if err != nil {
+		return fmt.Errorf("mesh recovery-key: %w", err)
+	}
+	_, err = fmt.Fprintf(out, "The mesh's recovery key:\n\n  %s\n\n"+
+		"Keep it on paper or in a password manager: kith keeps no copy, and this is the one time it is shown. "+
+		"If every bridge is lost, a new kithd paired with the mailbox (`kith mailbox add`) brings the mesh back with "+
+		"`kith mesh recover`. Making another replaces it; this one still opens what was sealed until then.\n", key)
+	if err != nil {
+		return fmt.Errorf("mesh recovery-key: %w", err)
+	}
+	return nil
+}
+
+// recoverMesh has b start its mesh anew from its mailbox with key, and says what came
+// back.
+func recoverMesh(ctx context.Context, b *daemon.Remote, key string, out io.Writer) error {
+	got, mailbox, err := b.RecoverMesh(ctx, key)
+	if err != nil {
+		return fmt.Errorf("mesh recover: %w", err)
+	}
+	var s strings.Builder
+	fmt.Fprintf(&s, "Recovered %d keys (read positions, drafts, config, verdicts…) from the mailbox %s. This bridge now starts the mesh.\n", got.Keys, mailbox)
+	if len(got.Members) > 0 {
+		s.WriteString("The old mesh's members are listed as removed here; pair each again (`kith pair`, `kith join --bridge`):\n")
+	}
+	for _, d := range got.Members {
+		fmt.Fprintf(&s, "  %s (%s), %s\n", deviceLabel(d), d.ID, d.Role)
+	}
+	if _, err := io.WriteString(out, s.String()); err != nil {
+		return fmt.Errorf("mesh recover: %w", err)
+	}
+	return nil
 }
 
 // writeMailbox says how a mailbox stands: where it is dialed, when it was heard, its

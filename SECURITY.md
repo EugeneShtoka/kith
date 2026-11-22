@@ -185,6 +185,13 @@ It is built on the assumption that whoever runs it reads nothing it holds.
 - **Its store.** `mailbox.db` in its folder, encrypted under a key derived from its own
   device key (`key.pem`, `0600`); neither holds anything of the mesh's but what is
   above.
+- **The recovery key** (`kith mesh recovery-key`): 32 random bytes, shown once and kept
+  by no part of kith; an X25519 key derived from them is wrapped for in every epoch, so
+  whoever holds it opens everything any mailbox holds of the mesh, past and future.
+  Only its public half is in the mesh. It is a random key, not a passphrase: whoever
+  runs the mailbox cannot try guesses at it offline. It is shown and used over kithd's
+  socket only, never over `[remote] listen`. Recovering checks what it opens as any
+  bridge checks a peer's: a snapshot counts only if its maker, a bridge, signed it.
 
 ## The desktop window
 

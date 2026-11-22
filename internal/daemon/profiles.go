@@ -89,7 +89,7 @@ var reaches = map[string]profileReach{
 	// and PersonCard's room by admitNamed.
 	"People": passes, "PersonCard": passes, "SetPersonField": passes, "PersonKeys": passes,
 	"StartPairing": passes, "ConfirmPairing": passes, "Pair": passes,
-	"JoinMesh": passes, "MeshStatus": passes, "AddMailbox": passes,
+	"JoinMesh": passes, "MeshStatus": passes, "AddMailbox": passes, "MakeMeshRecoveryKey": passes, "RecoverMesh": passes,
 }
 
 // profileGate is the server's interceptor: it refuses a profile the config does not

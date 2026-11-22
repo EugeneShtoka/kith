@@ -89,8 +89,9 @@ func (s *Store) Serve(ctx context.Context, self, peer devicekey.ID, frames Frame
 }
 
 // Session is a sync session of the mailbox with a bridge past the Hellos, as Serve runs
-// it: how far the bridge holds each origin (sent), what it has been told otherwise,
-// and a snapshot it is leaving, gathered so far.
+// it: how far the bridge holds each origin (sent), what it has been told otherwise, a
+// snapshot it is leaving, gathered so far, and whether it was passed all the mailbox
+// held when the session began.
 type Session struct {
 	s         *Store
 	peer      devicekey.ID
@@ -98,6 +99,7 @@ type Session struct {
 	sent      map[devicekey.ID]uint64
 	told      told
 	gathering *meshv1.SealedSnapshot
+	caughtUp  bool
 }
 
 // hold tracks a session of peer's, so a revocation ends it.
@@ -165,7 +167,9 @@ func (s *Store) Greet(ctx context.Context, self, peer devicekey.ID, frames Frame
 }
 
 // Pass sends the bridge what it has not been told: records, forks and other bridges'
-// wants, then what it lacks.
+// wants, then what it lacks. The first ends with an Ack (the mailbox's vector), which
+// says the bridge has now been passed all the mailbox held: a bridge recovering a mesh
+// reads to there.
 func (x *Session) Pass(ctx context.Context) error {
 	s, peer, frames, t := x.s, x.peer, x.frames, &x.told
 	order, records := s.sortedRecords()
@@ -218,6 +222,10 @@ func (x *Session) Pass(ctx context.Context) error {
 		return err
 	}
 	x.sent = upTo
+	if !x.caughtUp {
+		x.caughtUp = true
+		return x.ack()
+	}
 	return nil
 }
 
@@ -225,7 +233,7 @@ func (x *Session) Pass(ctx context.Context) error {
 // kept, then acknowledged; epoch records kept, and its wants; what it says of who is
 // admitted; its Ack (how far it holds each origin).
 func (x *Session) Take(ctx context.Context, f *meshv1.SyncFrame, now time.Time) error {
-	s, peer, frames, sent := x.s, x.peer, x.frames, x.sent
+	s, peer, sent := x.s, x.peer, x.sent
 	switch {
 	case f.GetEnvelopes() != nil:
 		if err := s.put(ctx, f.GetEnvelopes().GetEnvelopes(), now); err != nil {
@@ -262,15 +270,20 @@ func (x *Session) Take(ctx context.Context, f *meshv1.SyncFrame, now time.Time) 
 	default:
 		return fmt.Errorf("%w: a frame out of place", errProtocol)
 	}
-	s.mu.Lock()
-	vector := s.vectorLocked()
-	s.mu.Unlock()
+	return x.ack()
+}
+
+// ack sends the bridge the mailbox's vector: what it holds, durably.
+func (x *Session) ack() error {
+	x.s.mu.Lock()
+	vector := x.s.vectorLocked()
+	x.s.mu.Unlock()
 	ack := &meshv1.Ack{}
 	for _, origin := range slices.SortedFunc(maps.Keys(vector), byOrigin) {
 		h := vector[origin]
 		ack.Vector = append(ack.Vector, &meshv1.Head{Origin: bytes.Clone(origin[:]), Seq: h.Seq, Hash: bytes.Clone(h.Hash[:])})
 	}
-	if err := frames.Send(&meshv1.SyncFrame{Frame: &meshv1.SyncFrame_Ack{Ack: ack}}); err != nil {
+	if err := x.frames.Send(&meshv1.SyncFrame{Frame: &meshv1.SyncFrame_Ack{Ack: ack}}); err != nil {
 		return fmt.Errorf("mailbox: acknowledge: %w", err)
 	}
 	return nil

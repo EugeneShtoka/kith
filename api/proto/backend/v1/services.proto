@@ -2508,6 +2508,31 @@ message AddMailboxRequest {
   string name = 2;
 }
 
+// MakeMeshRecoveryKeyRequest asks this kithd, over its socket, for a new recovery key of
+// its mesh.
+message MakeMeshRecoveryKeyRequest {}
+
+// MakeMeshRecoveryKeyResponse is the key as the person writes it down: shown once, kept
+// nowhere by kith.
+message MakeMeshRecoveryKeyResponse {
+  string key = 1;
+}
+
+// RecoverMeshRequest has this kithd, paired with a mailbox alone, start a mesh anew from
+// what the mailbox holds, opened with key (a mesh recovery key, as written down).
+message RecoverMeshRequest {
+  string key = 1;
+}
+
+// RecoverMeshResponse is what was brought back: how many keys (read positions, drafts,
+// config, verdicts…), the old mesh's members, now removed, to pair again, and the
+// mailbox it came from.
+message RecoverMeshResponse {
+  int32 keys = 1;
+  repeated Device members = 2;
+  string mailbox = 3;
+}
+
 // AddMailboxResponse is one frame: the six digits this bridge worked out, then the
 // outcome, which ends the stream.
 message AddMailboxResponse {
@@ -3019,4 +3044,9 @@ service BackendService {
   // AddMailbox pairs this kithd with a mailbox and adds it to the mesh: over the
   // socket only.
   rpc AddMailbox(AddMailboxRequest) returns (stream AddMailboxResponse);
+  // MakeMeshRecoveryKey makes a recovery key for the mesh: over the socket only.
+  rpc MakeMeshRecoveryKey(MakeMeshRecoveryKeyRequest) returns (MakeMeshRecoveryKeyResponse);
+  // RecoverMesh starts the mesh anew from a mailbox, with its recovery key: over the
+  // socket only.
+  rpc RecoverMesh(RecoverMeshRequest) returns (RecoverMeshResponse);
 }

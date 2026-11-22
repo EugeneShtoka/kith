@@ -207,6 +207,7 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	"backend.v1.PairRequest.role": notARoom, "backend.v1.PairRequest.addresses": notARoom,
 	"backend.v1.JoinMeshRequest.uri": notARoom, "backend.v1.JoinMeshRequest.name": notARoom,
 	"backend.v1.AddMailboxRequest.uri": notARoom, "backend.v1.AddMailboxRequest.name": notARoom,
+	"backend.v1.RecoverMeshRequest.key": notARoom,
 }
 
 // roomless are requests no field of which names a room, classified whole: an account's
