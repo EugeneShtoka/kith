@@ -223,8 +223,9 @@ Two things need looking after, and the `nix` CI job (`make nix-check`) fails whe
 either goes stale:
 
 - **`vendorHash`** in `packaging/nix/package.nix` is the hash of the Go modules
-  `go.mod` names. It changes with every dependency bump, Dependabot's included. On a
-  mismatch the job's log shows the right value as `got:`; paste it in. Locally,
+  `go.mod` names. It changes with every dependency bump. On a Dependabot PR the
+  `vendor-hash` workflow commits the new value; otherwise, on a mismatch the job's log
+  shows the right value as `got:`; paste it in. Locally,
   `make nix-check` builds the flake when nix is installed and is skipped otherwise.
 - **`flake.lock`** pins nixpkgs, so users get the Go and toolchain the flake was
   tested with. Refresh it with `nix flake update`, and let the job build it.

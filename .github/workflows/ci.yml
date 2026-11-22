@@ -7,6 +7,8 @@ on:
     branches: [main]
   # Lets release.yml run these same gates on the tagged commit.
   workflow_call:
+  # Lets vendor-hash.yml run them on the commit it pushes to a Dependabot PR.
+  workflow_dispatch:
 
 permissions:
   contents: read
