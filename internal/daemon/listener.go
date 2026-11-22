@@ -151,9 +151,11 @@ type remoteConn struct {
 	slot    func()
 
 	id       devicekey.ID
-	key      []byte // the public key (PKIX) of a key let in to pair
+	key      []byte // the public key (PKIX) the peer presented
 	admitted bool
-	gone     bool
+	// asRotated is a connection kithd answered as the key it rotated from (answerAs).
+	asRotated bool
+	gone      bool
 	// onlyPairs is a key let in, unpaired, to answer a pairing: it may call Pair alone.
 	onlyPairs bool
 }

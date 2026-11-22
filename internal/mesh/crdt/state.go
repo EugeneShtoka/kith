@@ -3,6 +3,7 @@ package crdt
 import (
 	"bytes"
 	"cmp"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,16 +76,7 @@ func (s State) take(op Op) (State, error) {
 	if err != nil {
 		return s, err
 	}
-	var roster map[devicekey.ID]Member
-	if len(s.RosterOps) == 0 {
-		if op.Seq != 1 || len(op.Context) > 0 {
-			return s, ErrNotAMember
-		}
-		roster = writes // the genesis: its signer adds itself
-	} else {
-		roster = s.rosterAt(op)
-	}
-	signer, ok := roster[op.Origin]
+	signer, ok := s.signerOf(op, writes)
 	if !ok || signer.Removed || signer.Role != RoleBridge {
 		return s, ErrNotAMember
 	}
@@ -124,9 +116,35 @@ func compareDots(a, b Dot) int {
 	return cmp.Or(bytes.Compare(a.Origin[:], b.Origin[:]), cmp.Compare(a.Seq, b.Seq))
 }
 
+// signerOf is the member that signed op, given its roster writes: on a state with no
+// roster yet the genesis, its signer adding itself; else the roster as of op's context
+// has it, or op is a bridge's rotation written by its new key, whose replaced key was
+// a bridge there.
+func (s State) signerOf(op Op, writes map[devicekey.ID]Member) (Member, bool) {
+	if len(s.RosterOps) == 0 {
+		if op.Seq != 1 || len(op.Context) > 0 {
+			return Member{}, false
+		}
+		m, ok := writes[op.Origin]
+		return m, ok
+	}
+	roster := s.rosterAt(op)
+	if m, ok := roster[op.Origin]; ok {
+		return m, true
+	}
+	m, ok := writes[op.Origin]
+	if !ok || m.Rotated == nil {
+		return Member{}, false
+	}
+	from := devicekey.ID(sha256.Sum256(m.Rotated.From))
+	old := roster[from]
+	return m, !old.Removed && old.Role == RoleBridge && writes[from].RotatedTo == op.Origin.String()
+}
+
 // readWrites checks every write op makes, and is the roster entries among them: a
-// key written twice, a key of a kind no replica keeps, or a value that does not read
-// refuses the op.
+// key written twice, a key of a kind no replica keeps, a value that does not read, or
+// half a rotation (a key's entry removed as rotated, without the entry of the same role
+// it names made by that rotation in the same op) refuses the op.
 func readWrites(op Op) (map[devicekey.ID]Member, error) {
 	roster := map[devicekey.ID]Member{}
 	keys := make(map[string]bool, len(op.Writes))
@@ -145,6 +163,16 @@ func readWrites(op Op) (map[devicekey.ID]Member, error) {
 		}
 		if err := readWrite(op.Origin, w); err != nil {
 			return nil, err
+		}
+	}
+	for id := range roster {
+		old := roster[id]
+		if old.RotatedTo == "" {
+			continue
+		}
+		to, _ := devicekey.ParseID(old.RotatedTo) // readRosterWrite checked it
+		if made := roster[to]; made.Rotated == nil || devicekey.ID(sha256.Sum256(made.Rotated.From)) != id || made.Role != old.Role {
+			return nil, fmt.Errorf("%w: %s: half a rotation", ErrBadWrite, RosterKey(id))
 		}
 	}
 	return roster, nil

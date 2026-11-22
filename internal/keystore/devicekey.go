@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/zalando/go-keyring"
 
@@ -111,22 +112,49 @@ func createDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) {
 // FindDeviceKey is the device key st keeps, as LoadOrCreateDeviceKey would read it,
 // or nil when none is kept yet; it makes none.
 func FindDeviceKey(st Store, allowFile bool) (*ecdsa.PrivateKey, error) {
+	text, where, err := findKeyText(st, allowFile)
+	if err != nil || text == nil {
+		return nil, err
+	}
+	return parseDeviceKey(text, where)
+}
+
+// FindRotatedKey is the key st keeps as rotated out (KeepRotatedKey), and when; nil
+// when none is kept.
+func FindRotatedKey(st Store, allowFile bool) (*ecdsa.PrivateKey, time.Time, error) {
+	text, where, err := findKeyText(st, allowFile)
+	if err != nil || text == nil {
+		return nil, time.Time{}, err
+	}
+	key, err := parseDeviceKey(text, where)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	at, err := devicekey.RotatedAt(text)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("keystore: %s: %w", where, err)
+	}
+	return key, at, nil
+}
+
+// findKeyText is the key st keeps as text, and where it is kept; nil when none is.
+func findKeyText(st Store, allowFile bool) ([]byte, string, error) {
 	existing, err := Get(st.Service, st.Account)
 	switch {
 	case err == nil:
-		return parseDeviceKey([]byte(existing), "keyring account "+st.Account)
+		return []byte(existing), "keyring account " + st.Account, nil
 	case errors.Is(err, ErrKeyringNotAnswering):
-		return nil, err
+		return nil, "", err
 	case !allowFile && errors.Is(err, keyring.ErrNotFound):
-		return nil, nil
+		return nil, "", nil
 	case !allowFile:
-		return nil, ErrNoSecretStore
+		return nil, "", ErrNoSecretStore
 	}
 	blob, found, err := ReadOwnerOnly(st.File, "a device key")
 	if err != nil || !found {
-		return nil, err
+		return nil, "", err
 	}
-	return parseDeviceKey(blob, st.File)
+	return blob, st.File, nil
 }
 
 // KeepDeviceKey keeps key as st's device key, in place of any kept: in the keyring, or
@@ -136,7 +164,20 @@ func KeepDeviceKey(st Store, allowFile bool, key *ecdsa.PrivateKey) error {
 	if err != nil {
 		return fmt.Errorf("keystore: %w", err)
 	}
-	_, err = Set(st.Service, st.Account, string(text))
+	return keepKeyText(st, allowFile, text)
+}
+
+// KeepRotatedKey keeps key as st's, rotated out at at, as KeepDeviceKey keeps a key.
+func KeepRotatedKey(st Store, allowFile bool, key *ecdsa.PrivateKey, at time.Time) error {
+	text, err := devicekey.MarshalRotated(key, at)
+	if err != nil {
+		return fmt.Errorf("keystore: %w", err)
+	}
+	return keepKeyText(st, allowFile, text)
+}
+
+func keepKeyText(st Store, allowFile bool, text []byte) error {
+	_, err := Set(st.Service, st.Account, string(text))
 	switch {
 	case err == nil && allowFile:
 		// A file kept while there was no keyring is read whenever there is none again.

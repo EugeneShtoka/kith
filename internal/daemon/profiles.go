@@ -84,7 +84,7 @@ var reaches = map[string]profileReach{
 	// profile reads and sets the same settings, none of which names a room
 	// (configsettings.go leaves out every list of places).
 	"ConfigSettings": passes, "SetConfigSetting": passes, "ConfigConflicts": passes, "KeepConfigValue": passes,
-	"Devices": passes, "AddDevice": passes, "RemoveDevice": passes,
+	"Devices": passes, "AddDevice": passes, "RemoveDevice": passes, "RotateDevice": passes, "RotateBridge": passes,
 	// The phonebook: people, not rooms; whom the profile hides is judged by the handlers,
 	// and PersonCard's room by admitNamed.
 	"People": passes, "PersonCard": passes, "SetPersonField": passes, "PersonKeys": passes,

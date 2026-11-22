@@ -79,3 +79,28 @@ func RememberBridge(path string, inv pairing.Invite) (config.Bridge, error) {
 	}
 	return entry, nil
 }
+
+// RepinBridge rewrites the pin of the [[bridge]] whose ID is from, in the device file at
+// path, to to: the bridge rotated its key. It returns the entry as written.
+func RepinBridge(path string, from, to devicekey.ID) (config.Bridge, error) {
+	was, err := config.LoadDevice(path)
+	if err != nil {
+		return config.Bridge{}, fmt.Errorf("the device file: %w", err)
+	}
+	now := was.Clone()
+	i := slices.IndexFunc(now.Bridges, func(b config.Bridge) bool {
+		id, perr := devicekey.ParseID(b.ID)
+		return perr == nil && id == from
+	})
+	if i < 0 {
+		return config.Bridge{}, fmt.Errorf("the device file names no bridge %s", from)
+	}
+	now.Bridges[i].ID = to.String()
+	if err := ValidateDevice(now); err != nil {
+		return config.Bridge{}, fmt.Errorf("the device file: %w", err)
+	}
+	if _, err := config.UpdateDevice(path, was, now); err != nil {
+		return config.Bridge{}, fmt.Errorf("write the device file: %w", err)
+	}
+	return now.Bridges[i], nil
+}

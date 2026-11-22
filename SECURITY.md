@@ -144,7 +144,11 @@ threat model:
   device that every peer must pair again. kithd's key can be written out as a recovery
   key ([docs/remote.md](docs/remote.md#kithds-recovery-key)): only by `kith devices recovery-key` on kithd's own machine,
   reading the keyring there; no RPC carries it, over the socket or the network. A
-  backup holds no device key. The device list holds no secrets, but it
+  backup holds no device key. A rotation (`kith devices rotate`) is signed by the old
+  key and the new one, and refused anywhere without both; a rotated bridge keeps its
+  old key (`<instance>|device-rotated`) and answers with it, for 30 days, only a client
+  whose TLS server name names that key's ID. A removal concurrent with a rotation takes
+  the new key too. The device list holds no secrets, but it
   is the authorization: it is written `0600`, atomically, and a list that does not
   read keeps kithd from listening at all.
 

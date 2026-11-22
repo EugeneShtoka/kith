@@ -2289,6 +2289,28 @@ message RemoveDeviceRequest {
 
 message RemoveDeviceResponse {}
 
+// RotateDeviceRequest moves the calling device to a new key: key is the new key (PKIX),
+// from_sig and to_sig the old key's and the new key's signatures over the move
+// (devicekey.Rotation). Over [remote] listen only, as the old key.
+message RotateDeviceRequest {
+  bytes key = 1;
+  bytes from_sig = 2;
+  bytes to_sig = 3;
+}
+
+// RotateDeviceResponse is the device as listed under its new key.
+message RotateDeviceResponse {
+  Device device = 1;
+}
+
+message RotateBridgeRequest {}
+
+// RotateBridgeResponse is kithd's device ID before and after the rotation.
+message RotateBridgeResponse {
+  string was = 1;
+  string id = 2;
+}
+
 // ── Pairing ──
 
 // StartPairingRequest opens a pairing on a device kithd trusts; name, when set, is
@@ -2938,6 +2960,10 @@ service BackendService {
   rpc AddDevice(AddDeviceRequest) returns (AddDeviceResponse);
   // RemoveDevice unpairs a device and closes its live connections.
   rpc RemoveDevice(RemoveDeviceRequest) returns (RemoveDeviceResponse);
+  // RotateDevice moves the calling device to a new key, signed by both keys.
+  rpc RotateDevice(RotateDeviceRequest) returns (RotateDeviceResponse);
+  // RotateBridge moves this kithd to a new device key: over the socket only.
+  rpc RotateBridge(RotateBridgeRequest) returns (RotateBridgeResponse);
   // Pairing
   // StartPairing makes a pairing token, reports the device that answers it and how
   // the pairing ends; closing the stream ends the pairing.

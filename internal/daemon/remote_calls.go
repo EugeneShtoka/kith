@@ -1164,6 +1164,19 @@ func (r *Remote) RemoveDevice(ctx context.Context, id string) error {
 	return err
 }
 
+// RotateDevice moves this device to the key key (PKIX), signed by both keys (rot): it
+// must be called as the old key.
+func (r *Remote) RotateDevice(ctx context.Context, key []byte, rot devicekey.Rotation) (domain.Device, error) {
+	resp, err := call(ctx, "rotate this device's key", r.c.RotateDevice, &v1.RotateDeviceRequest{Key: key, FromSig: rot.FromSig, ToSig: rot.ToSig})
+	return pc.ProtoToDevice(resp.GetDevice()), err
+}
+
+// RotateBridge moves kithd to a new device key; was and id are its old ID and its new.
+func (r *Remote) RotateBridge(ctx context.Context) (was, id string, err error) {
+	resp, err := call(ctx, "rotate the bridge's key", r.c.RotateBridge, &v1.RotateBridgeRequest{})
+	return resp.GetWas(), resp.GetId(), err
+}
+
 // StartPairing opens a pairing for a device listed as name ("" leaves it to the
 // device): ticket is called with what the device needs, pending with the device that
 // answers; it returns how the pairing ended. Canceling ctx ends it unconfirmed.
