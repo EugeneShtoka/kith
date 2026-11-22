@@ -2,7 +2,7 @@
 	daemon-status daemon-logs daemon-restart daemon-stop \
 	test lint fmt fmt-check fix vuln secrets pin-check unit-check arch-check mod-check release-check \
 	proto-check docs-check nix-check hooks check coverage coverage-check tools pins-outdated \
-	compile cross ci-parity ensure-tools vet script-check quick test-quick arch-quick \
+	compile cross ci-parity ensure-tools vet script-check quick test-quick test-model arch-quick \
 	proto emoji dict-manifest freq-manifest model-manifest keys-doc build-signal signal-check desktop-check
 
 # goolm = mautrix's pure-Go E2EE (no libolm/cgo). Also set in .golangci.yml,
@@ -165,6 +165,11 @@ endif
 # -count=1: never serve cached results. The profile feeds coverage-gate.
 test:
 	$(TEST_ENV) go test -race -count=1 -coverprofile=$(COVERPROFILE) $(TEST_PKGS)
+
+# The mesh's model tests (its failure reviews) without the race detector, all their
+# seeds: under -race `test` runs fewer, to fit go test's ten minutes.
+test-model:
+	$(TEST_ENV) go test -count=1 ./internal/mesh/...
 
 # The pre-push gate's tests: no race detector, and from Go's test cache, so a package
 # whose code and tests did not change is not run again. CI runs `test`.
@@ -373,7 +378,7 @@ quick: mod-check compile test-quick lint fmt-check secrets pin-check unit-check 
 
 # Every CI gate, with CI's tools (ci-parity-check.sh holds the two lists equal).
 # Non-mutating. CHECK_STRICT=1 also fails what would be skipped here.
-check: mod-check compile test coverage-gate cross lint fmt-check vuln secrets pin-check unit-check \
+check: mod-check compile test test-model coverage-gate cross lint fmt-check vuln secrets pin-check unit-check \
 	arch-check ci-parity script-check release-check proto-check docs-check desktop-check nix-check
 
 # ── Deploy ───────────────────────────────────────────────────────────────────

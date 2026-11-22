@@ -72,6 +72,10 @@ jobs:
       - name: Modules are tidy and verified, and every package builds as released
         run: make mod-check compile
 
+      # All the model's seeds; the race run (test) takes fewer.
+      - name: The mesh's model tests without the race detector
+        run: make test-model
+
   # Race detector and a coverage profile, split over parallel runners by package group
   # (TEST_GROUP in the Makefile): the three slowest packages on their own, the network
   # adapters in two groups, and the rest. One job's 15 minutes held them all before, and
