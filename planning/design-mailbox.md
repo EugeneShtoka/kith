@@ -1,10 +1,11 @@
 # Design: the mailbox, a mesh peer that cannot read (an addition to Phase 2b)
 
 Status: proposed 2026-11-01; its questions (at the end) all decided by 2026-11-18. Step 5a
-(sealed ops) comes before mesh step 5, and the mailbox itself (step 9) after step 8. It adds to
-[design-mesh.md](design-mesh.md), which it does not change except where
-[What steps 5–8 must not assume](#what-steps-58-must-not-assume) says so. Nothing here is
-built yet.
+(sealed ops, #609) and step 9 (the mailbox) are built; step 10 (a recovery key) is next. It
+adds to [design-mesh.md](design-mesh.md), which it does not change except where
+[What steps 5–8 must not assume](#what-steps-58-must-not-assume) says so. The sections
+below stay as the design; [As built (step 9)](#as-built-step-9) records where the mailbox
+differs or adds to it.
 
 ## Goal
 
@@ -282,6 +283,54 @@ without reading them. A later design can add:
   device little or no history (Signal gives none, WhatsApp a limited window).
 
 Nothing in the mesh depends on it.
+
+## As built (step 9)
+
+- **One binary, one file.** `kith-mailbox serve` keeps envelopes, sealed snapshots (each
+  whole, as the frame that carries it), epoch records and admission in one SQLite store
+  (`mailbox.db`, encrypted under a key derived from its device key `key.pem`); no blob
+  folder. `internal/mailbox` is its store and its half of a session; it reads only an
+  envelope's clear origin and seq, a snapshot's maker and vector, and a record's wraps.
+- **The protocol** is the mesh's, raised to 3: a bridge of protocol 2 would refuse a
+  roster naming a mailbox. A mailbox's Hello carries `MailboxState` (snapshot due, store
+  size); envelopes cross alone (`Envelopes`, forks flagged), snapshots as
+  `SealedSnapshot` a box per frame, who is admitted as `Admission`.
+- **Blind vectors.** A bridge tells a mailbox seqs only, in its Hello and its Acks: the
+  hash of an op's body would let whoever runs it confirm a guess at what the op says.
+  The mailbox's own vector carries envelope hashes, which a bridge checks at the
+  mailbox's head and answers with its own envelope where they differ: that is how both
+  halves of a fork reach one mailbox, which then tells every bridge of both.
+- **Sealed snapshots** are the snapshot's own frame, length-prefixed, padded and cut
+  into boxes of at most 1 MiB, each head (the additional data) naming the maker, a
+  random snapshot ID, the box's place and the epoch; the maker signs the maker, the
+  clear vector and every box. A bridge refuses one whose signature is not its maker's,
+  a bridge of its roster (or of the snapshot's, when it does not know the maker yet): a
+  removed bridge still holds old content keys, so the boxes alone prove nothing. Each box
+  counts as a seal under the epoch, and sealing one makes an epoch when none serves.
+- **What the mailbox sends a bridge behind it** is, for each origin it cannot fill with
+  envelopes, the kept snapshot that brings it furthest there, then the next, each once a
+  session: snapshots of two makers may each cover what the other does not.
+- **Admission is state, not requests.** Pairing by hand (`kith-mailbox pair`, then `kith
+  mailbox add` on the bridge, six digits) admits a key; after that, each session a bridge
+  says which keys are bridges of its roster and which were removed, after what it
+  leaves, and again when that changes. A key never revoked is admitted on an admitted
+  bridge's word; a revoked one only by pairing it again, so a bridge that has not heard
+  of a removal cannot let the key back in. The word is the TLS-authenticated session's,
+  not a signed `Revoke`. Revoking a key cuts its sessions and drops the snapshots it made,
+  which the bridges would refuse while the mailbox went on counting what they cover.
+  The admission list is in the store, not a file.
+- **Wants cross a mailbox.** A bridge's epochs whose key it lacks are kept per bridge
+  and passed to the others (`Epochs.for`), and the wrap one makes goes back through it.
+- **A rotated bridge** the mailbox does not know yet syncs once as the key it rotated
+  from (kithd keeps it 30 days), which tells the mailbox of the new key.
+- **The mailbox's clock** is logged when it is off, and decides only what it keeps.
+- **Each bridge lists the mailbox itself** (`kith mailbox add` there) unless it meets one
+  that did: the entry is a roster write like any other.
+- **Left:** envelopes or a snapshot waiting for a key are tried again within a session
+  (the model's sessions never overlap, so a key arriving mid-session is not generated;
+  the next session sends them again regardless); a mailbox that loses everything while
+  the last copy of an op is on a revoked bridge loses it for the mesh (a revoked key may
+  not even leave; the review generated this only before leaving came before admitting).
 
 ## Plan
 

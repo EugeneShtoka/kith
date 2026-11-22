@@ -162,6 +162,12 @@ type RosterStore interface {
 	// Join makes this bridge one of the mesh of sponsor, which has just confirmed its
 	// pairing, over frames: the mesh's members it admits from then on.
 	Join(ctx context.Context, self, sponsor devicekey.ID, signer crypto.Signer, frames MeshFrames) ([]domain.Device, error)
+	// AddMailbox writes the entry of the mailbox d names, dialed at addresses, signed by
+	// signer.
+	AddMailbox(ctx context.Context, signer crypto.Signer, d domain.Device, addresses []string) error
+	// SyncMailbox runs one session of this bridge (signer; as, the key the session
+	// was authenticated as) with the mailbox over frames until either ends it.
+	SyncMailbox(ctx context.Context, signer crypto.Signer, as, mailbox devicekey.ID, frames MeshFrames, log *slog.Logger) error
 	// Connected reports whether a sync stream with peer is open.
 	Connected(peer devicekey.ID) bool
 	// Changed is closed after the store's next commit.
@@ -513,8 +519,8 @@ func (d *Devices) cutLocked(id devicekey.ID) {
 	delete(d.conns, id)
 }
 
-// admit takes a connection whose handshake shows id, if id is paired, tracking it
-// under id: in one step with Remove's, so no connection is admitted after its device
+// admit takes a connection whose handshake shows id, if id is paired (a mailbox never
+// connects: the bridges dial it), tracking it under id: in one step with Remove's, so no connection is admitted after its device
 // was removed and missed by the cut. While a pairing is open, any other key is let in
 // to answer it and nothing else (pairingGate), its public key (key, PKIX) kept for a
 // bridge's roster entry.
@@ -524,7 +530,7 @@ func (d *Devices) admit(id devicekey.ID, key []byte, c *remoteConn) bool {
 	switch {
 	case c.gone:
 		return false
-	case slices.ContainsFunc(d.paired, func(p pairedDevice) bool { return p.id == id }):
+	case slices.ContainsFunc(d.paired, func(p pairedDevice) bool { return p.id == id && p.Role != domain.RoleMailbox }):
 		c.id, c.key, c.admitted = id, key, true
 		d.trackLocked(c)
 	case len(d.tickets) > 0:
@@ -799,9 +805,9 @@ func readRoster(path string) ([]pairedDevice, []byte, error) {
 			return nil, nil, fmt.Errorf("daemon: the device roster %s: %w", path, err)
 		}
 		switch e.Role {
-		case "", domain.RoleDevice, domain.RoleBridge:
+		case "", domain.RoleDevice, domain.RoleBridge, domain.RoleMailbox:
 		default:
-			return nil, nil, fmt.Errorf("daemon: the device roster %s: %s has role %q, not device or bridge", path, cmp.Or(e.Name, e.ID), e.Role)
+			return nil, nil, fmt.Errorf("daemon: the device roster %s: %s has role %q, not device, bridge or mailbox", path, cmp.Or(e.Name, e.ID), e.Role)
 		}
 		for _, p := range out {
 			if p.id == id || (e.Name != "" && p.Name == e.Name) {

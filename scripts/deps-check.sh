@@ -42,6 +42,7 @@ check ./cmd/kith-notify "$drawing" "kith-notify is headless: it draws nothing"
 check ./cmd/kith-relay "$daemon_only" "it forwards to the daemon, never reading the cache"
 check ./cmd/kith-relay "$models" "model work runs in the daemon"
 check ./cmd/kith-relay "$drawing" "kith-relay is headless: the window draws"
+check ./cmd/kith-mailbox "^$mod/internal/(db|matrix|session|modelsetup|mesh|daemon)$" "a mailbox holds no replica and opens nothing it keeps"
 
 (( status == 0 )) && echo "deps-check: OK"
 exit $status

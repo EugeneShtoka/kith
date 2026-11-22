@@ -26,6 +26,7 @@ buildGoModule (finalAttrs: {
     "cmd/kithd"
     "cmd/kith-mcp"
     "cmd/kith-notify"
+    "cmd/kith-mailbox"
   ];
 
   # goolm selects mautrix's pure-Go E2EE; without it the build needs libolm and cgo.

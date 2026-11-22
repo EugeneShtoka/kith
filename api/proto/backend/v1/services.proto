@@ -2479,6 +2479,42 @@ message MeshStatusResponse {
   repeated MeshAccount accounts = 4;
   repeated MeshPeer peers = 5;
   repeated string addresses = 6;
+  repeated MeshMailbox mailboxes = 7;
+}
+
+// MeshMailbox is a mailbox of the mesh: its roster entry and the addresses it is
+// dialed at; when this bridge last heard it (unset: never), how many ops of each origin
+// this bridge holds that it does not, whether a sync stream is open with it, and its
+// store's size as it said last.
+message MeshMailbox {
+  Device mailbox = 1;
+  repeated string addresses = 2;
+  google.protobuf.Timestamp heard = 3;
+  repeated MeshLag lag = 4;
+  bool connected = 5;
+  uint64 store_bytes = 6;
+}
+
+// MeshLag is how many ops of origin (a device ID) a peer lacks.
+message MeshLag {
+  string origin = 1;
+  uint64 ops = 2;
+}
+
+// AddMailboxRequest has this kithd pair with the mailbox whose pairing uri
+// (kith://pair?…, from kith-mailbox pair) carries, and add it to the mesh as name.
+message AddMailboxRequest {
+  string uri = 1;
+  string name = 2;
+}
+
+// AddMailboxResponse is one frame: the six digits this bridge worked out, then the
+// outcome, which ends the stream.
+message AddMailboxResponse {
+  oneof event {
+    string digits = 1;
+    PairingOutcome outcome = 2;
+  }
 }
 
 // MeshPeer is another bridge: its roster entry, the addresses it is dialed at (none: it
@@ -2980,4 +3016,7 @@ service BackendService {
   // MeshStatus is this bridge's view of its mesh: its peers, the accounts each runs,
   // when each was last heard, lag, clock gaps and the store's size.
   rpc MeshStatus(MeshStatusRequest) returns (MeshStatusResponse);
+  // AddMailbox pairs this kithd with a mailbox and adds it to the mesh: over the
+  // socket only.
+  rpc AddMailbox(AddMailboxRequest) returns (stream AddMailboxResponse);
 }

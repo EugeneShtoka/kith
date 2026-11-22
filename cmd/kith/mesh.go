@@ -19,7 +19,7 @@ const meshUsage = "usage: kith mesh [--config path]"
 
 // runMesh is `kith mesh`: this bridge's mesh as it sees it: the other bridges, the
 // accounts each runs, when each was last heard, how far behind it is, its clock's gap,
-// and the mesh store's size.
+// the mesh store's size, and each mailbox.
 func runMesh(args []string) error {
 	fs := flag.NewFlagSet("mesh", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to config file (default: XDG config dir)")
@@ -70,7 +70,33 @@ func showMesh(out io.Writer, st domain.MeshStatus, now time.Time) {
 		}
 		writeAccounts(&b, p.Accounts)
 	}
+	for i := range st.Mailboxes {
+		writeMailbox(&b, &st.Mailboxes[i], now)
+	}
 	_, _ = io.WriteString(out, b.String())
+}
+
+// writeMailbox says how a mailbox stands: where it is dialed, when it was heard, its
+// store's size, and how many changes of each origin it lacks of those this bridge holds.
+func writeMailbox(b *strings.Builder, mb *domain.MeshMailbox, now time.Time) {
+	fmt.Fprintf(b, "\nMailbox %s (%s)\n", deviceLabel(mb.Mailbox), mb.Mailbox.ID)
+	fmt.Fprintf(b, "  dialed at %s\n", strings.Join(mb.Addresses, ", "))
+	if mb.Heard.IsZero() {
+		b.WriteString("  never heard\n")
+		return
+	}
+	state := "not connected"
+	if mb.Connected {
+		state = "connected"
+	}
+	fmt.Fprintf(b, "  %s; heard %s ago; holds %s\n", state, human.Duration(now.Sub(mb.Heard).Truncate(time.Second)),
+		sizeText(int64(min(mb.StoreBytes, 1<<62)))) // #nosec G115 -- clamped
+	if len(mb.Lag) == 0 {
+		b.WriteString("  holds every change this bridge does\n")
+	}
+	for _, l := range mb.Lag {
+		fmt.Fprintf(b, "  lacks %d changes of %s\n", l.Ops, l.Origin)
+	}
 }
 
 // writeAddresses says where a bridge is dialed.

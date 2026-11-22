@@ -24,6 +24,7 @@ kith devices [--config path] [add id [name] | remove id|name | id | recovery-key
 kith pair [--config path] [name]
 kith join [--config path] [--name name] [--bridge] uri
 kith mesh [--config path]
+kith mailbox add [--config path] [--name name] uri
 kith config [--config path] conflicts | keep key n
 ```
 
@@ -264,7 +265,20 @@ This bridge's mesh as it sees it: its ID, where it is dialed, the accounts it ru
 the size of its mesh store; then each other bridge with the same, whether a sync
 stream is open with it, when it was last heard, how many changes it has not
 acknowledged, and how far its clock is off this one's. A bridge found to have signed
-two different changes under one number is named, and removed.
+two different changes under one number is named, and removed. Then each mailbox:
+where it is dialed, when it was last heard, its store's size, and how many changes of
+each bridge it lacks.
+
+### kith mailbox add
+
+```sh
+kith mailbox add [--config path] [--name name] 'kith://pair?…'
+```
+
+Pairs this machine's kithd with a mailbox: the line is the one `kith-mailbox pair`
+shows. Both show six digits; once they are confirmed at the mailbox, the mailbox is
+written into the mesh as `name` (default `mailbox`) and every bridge that hears of it
+dials it ([remote.md](remote.md#a-mailbox-for-bridges-that-never-meet)).
 
 ### kith config
 
@@ -427,6 +441,26 @@ restarts.
 | `--log-level level` | How much to log: `debug`, `info`, `warn` or `error`. Overrides `KITH_LOG_LEVEL` and `[log] level`. |
 | `--log-file file` | Log to the journal, or to this file when there is none, instead of stderr. `kith` passes it when it starts kith-notify without systemd. |
 | `--version` | Print version information and exit. |
+
+## kith-mailbox
+
+```text
+kith-mailbox serve [--dir dir] [--listen addr]...
+kith-mailbox pair --addr host:port... [--dir dir]
+kith-mailbox --version
+```
+
+A mailbox for a mesh's bridges ([remote.md](remote.md#a-mailbox-for-bridges-that-never-meet)),
+run on a machine of its own. `serve` runs it until stopped (SIGINT or SIGTERM);
+`pair` opens a pairing for ten minutes, shows the `kith mailbox add` line to run on a
+bridge, then the six digits once the bridge answers, and asks whether the bridge shows
+the same.
+
+| Flag | Meaning |
+| --- | --- |
+| `--dir dir` | Where it keeps its key (`key.pem`) and store (`mailbox.db`); default `$XDG_DATA_HOME/kith-mailbox`. |
+| `--listen addr` | An address to listen on, `host:port`; repeat for more. Default `:7444`. |
+| `--addr host:port` | Where the bridges dial it, carried in the pairing line; repeat for more. |
 
 ## kith-mcp
 

@@ -8,6 +8,8 @@ option go_package = "github.com/EugeneShtoka/kith/internal/api/mesh/v1;meshv1";
 // only, and only to a connection authenticated as a member bridge
 // (planning/design-mesh.md). Each bridge dials every member bridge that has addresses;
 // one stream carries both directions, since often only one side can dial the other.
+// kith-mailbox serves it too, to the bridges it admits: a store that passes on what one
+// bridge leaves to the others, sealed, and reads none of it (planning/design-mailbox.md).
 service MeshService {
   // Sync is one sync session: a Hello each way, then each side sends the ops the other
   // lacks (or a snapshot, when it no longer keeps them), then every op it commits
@@ -33,26 +35,42 @@ message SyncFrame {
     Snapshot snapshot = 3;
     Ack ack = 4;
     Epochs epochs = 5;
+    Envelopes envelopes = 6;
+    SealedSnapshot sealed_snapshot = 7;
+    Admission admission = 8;
   }
 }
 
 // Hello is each side's first frame: its device ID, its wall clock (Unix
 // milliseconds), its version vector, the protocol it speaks and the epoch records it
 // holds. A peer whose clock is more than 60 seconds off is refused, the gap named.
+// A mailbox's says so (mailbox): its vector holds, per origin, the envelopes it keeps
+// up to seq and the hash of the envelope at seq, and its clock is only logged.
 message Hello {
   bytes replica = 1;
   int64 wall_ms = 2;
   repeated Head vector = 3;
   uint32 protocol = 4;
   Epochs epochs = 5;
+  MailboxState mailbox = 6;
+}
+
+// MailboxState is what a mailbox says of its store: whether it wants a bridge to leave
+// a sealed snapshot (it holds none, or more than 30 days or 64 MiB of envelopes past
+// its newest), and its size in bytes.
+message MailboxState {
+  bool snapshot_due = 1;
+  uint64 store_bytes = 2;
 }
 
 // Epochs are epoch records the sender holds that the receiver may not, and the epochs
 // whose content key the sender lacks though it holds ops sealed under them: a bridge
-// holding the key answers with a wrap for it.
+// holding the key answers with a wrap for it. A mailbox passes on another bridge's
+// wants, naming that bridge (for), and the wrap goes to it.
 message Epochs {
   repeated EpochRecord records = 1;
   repeated Epoch want = 2;
+  bytes for = 3;
 }
 
 // EpochRecord is an epoch's content key wrapped for bridges, as its signer wrote it:
@@ -115,7 +133,38 @@ message Entry {
   uint64 clock = 5;
 }
 
-// Ack is the receiver's version vector after it applied a batch.
+// Ack is the receiver's version vector after it applied a batch; a mailbox's, after it
+// stored one durably.
 message Ack {
   repeated Head vector = 1;
+}
+
+// Envelopes are ops as a mailbox holds them: their envelopes alone (Op.sealed), each
+// origin's in seq order. forks marks two or more envelopes a mailbox holds under one
+// dot, sent to every bridge whatever it holds.
+message Envelopes {
+  repeated bytes envelopes = 1;
+  bool forks = 2;
+}
+
+// SealedSnapshot is a bridge's snapshot as a mailbox keeps it, in chunks: the boxes
+// in any chunk; the maker's device ID, the vector it covers (seqs, no hashes) and the
+// maker's signature over all of it with the last. Each box holds part of the snapshot
+// (a Snapshot frame, whole), padded, sealed under a content key; a box's head names
+// the snapshot, its place in it and the epoch.
+message SealedSnapshot {
+  repeated bytes boxes = 1;
+  bytes maker = 2;
+  repeated Head vector = 3;
+  bytes sig = 4;
+  bool last = 5;
+}
+
+// Admission is what a bridge tells a mailbox of who may sync with it: every bridge of
+// its roster (admit) and every bridge removed from it (revoke). A key revoked is
+// admitted again only by pairing it with the mailbox again, so a bridge that has not
+// heard of a removal does not let the key back in.
+message Admission {
+  repeated bytes admit = 1;
+  repeated bytes revoke = 2;
 }

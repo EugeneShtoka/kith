@@ -499,6 +499,9 @@ const (
 	// BackendServiceMeshStatusProcedure is the fully-qualified name of the BackendService's MeshStatus
 	// RPC.
 	BackendServiceMeshStatusProcedure = "/backend.v1.BackendService/MeshStatus"
+	// BackendServiceAddMailboxProcedure is the fully-qualified name of the BackendService's AddMailbox
+	// RPC.
+	BackendServiceAddMailboxProcedure = "/backend.v1.BackendService/AddMailbox"
 )
 
 // BackendServiceClient is a client for the backend.v1.BackendService service.
@@ -974,6 +977,9 @@ type BackendServiceClient interface {
 	// MeshStatus is this bridge's view of its mesh: its peers, the accounts each runs,
 	// when each was last heard, lag, clock gaps and the store's size.
 	MeshStatus(context.Context, *connect.Request[v1.MeshStatusRequest]) (*connect.Response[v1.MeshStatusResponse], error)
+	// AddMailbox pairs this kithd with a mailbox and adds it to the mesh: over the
+	// socket only.
+	AddMailbox(context.Context, *connect.Request[v1.AddMailboxRequest]) (*connect.ServerStreamForClient[v1.AddMailboxResponse], error)
 }
 
 // NewBackendServiceClient constructs a client for the backend.v1.BackendService service. By
@@ -1995,6 +2001,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("MeshStatus")),
 			connect.WithClientOptions(opts...),
 		),
+		addMailbox: connect.NewClient[v1.AddMailboxRequest, v1.AddMailboxResponse](
+			httpClient,
+			baseURL+BackendServiceAddMailboxProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("AddMailbox")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -2168,6 +2180,7 @@ type backendServiceClient struct {
 	pair                  *connect.Client[v1.PairRequest, v1.PairResponse]
 	joinMesh              *connect.Client[v1.JoinMeshRequest, v1.JoinMeshResponse]
 	meshStatus            *connect.Client[v1.MeshStatusRequest, v1.MeshStatusResponse]
+	addMailbox            *connect.Client[v1.AddMailboxRequest, v1.AddMailboxResponse]
 }
 
 // Rooms calls backend.v1.BackendService.Rooms.
@@ -3010,6 +3023,11 @@ func (c *backendServiceClient) MeshStatus(ctx context.Context, req *connect.Requ
 	return c.meshStatus.CallUnary(ctx, req)
 }
 
+// AddMailbox calls backend.v1.BackendService.AddMailbox.
+func (c *backendServiceClient) AddMailbox(ctx context.Context, req *connect.Request[v1.AddMailboxRequest]) (*connect.ServerStreamForClient[v1.AddMailboxResponse], error) {
+	return c.addMailbox.CallServerStream(ctx, req)
+}
+
 // BackendServiceHandler is an implementation of the backend.v1.BackendService service.
 type BackendServiceHandler interface {
 	// Room
@@ -3483,6 +3501,9 @@ type BackendServiceHandler interface {
 	// MeshStatus is this bridge's view of its mesh: its peers, the accounts each runs,
 	// when each was last heard, lag, clock gaps and the store's size.
 	MeshStatus(context.Context, *connect.Request[v1.MeshStatusRequest]) (*connect.Response[v1.MeshStatusResponse], error)
+	// AddMailbox pairs this kithd with a mailbox and adds it to the mesh: over the
+	// socket only.
+	AddMailbox(context.Context, *connect.Request[v1.AddMailboxRequest], *connect.ServerStream[v1.AddMailboxResponse]) error
 }
 
 // NewBackendServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -4500,6 +4521,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("MeshStatus")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceAddMailboxHandler := connect.NewServerStreamHandler(
+		BackendServiceAddMailboxProcedure,
+		svc.AddMailbox,
+		connect.WithSchema(backendServiceMethods.ByName("AddMailbox")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/backend.v1.BackendService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case BackendServiceRoomsProcedure:
@@ -4838,6 +4865,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceJoinMeshHandler.ServeHTTP(w, r)
 		case BackendServiceMeshStatusProcedure:
 			backendServiceMeshStatusHandler.ServeHTTP(w, r)
+		case BackendServiceAddMailboxProcedure:
+			backendServiceAddMailboxHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -5517,4 +5546,8 @@ func (UnimplementedBackendServiceHandler) JoinMesh(context.Context, *connect.Req
 
 func (UnimplementedBackendServiceHandler) MeshStatus(context.Context, *connect.Request[v1.MeshStatusRequest]) (*connect.Response[v1.MeshStatusResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.MeshStatus is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) AddMailbox(context.Context, *connect.Request[v1.AddMailboxRequest], *connect.ServerStream[v1.AddMailboxResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.AddMailbox is not implemented"))
 }

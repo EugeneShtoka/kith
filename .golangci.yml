@@ -528,6 +528,24 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/human"
             - "github.com/EugeneShtoka/kith/internal/mesh/crdt"
             - "github.com/EugeneShtoka/kith/internal/sealeddb"
+            # A sealed snapshot seals the snapshot's own frame; a mailbox session compares
+            # what it told of admission.
+            - "google.golang.org/protobuf"
+
+        # kith-mailbox's store and its half of a session: what bridges leave, kept and
+        # passed on. It reads only the clear fields of what it holds (crdt's envelope and
+        # record readers), and holds no replica (deps-check keeps the mesh store out).
+        mailbox-is-blind:
+          files:
+            - "**/internal/mailbox/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/api/mesh/v1"
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
+            - "github.com/EugeneShtoka/kith/internal/mesh/crdt"
+            - "github.com/EugeneShtoka/kith/internal/sealeddb"
+            - "google.golang.org/protobuf"
 
         # Encrypted SQLite for the network stores that act as the account: a leaf over
         # ncruces' SQLite (WebAssembly, pure Go) and its Adiantum VFS.
@@ -936,6 +954,24 @@ linters:
           deny:
             - pkg: "github.com/EugeneShtoka/kith/internal/signalhelper"
               desc: "kithd never links libsignal: kith-signal does, in a process of its own"
+
+        # A mailbox: its store, the mesh's wire and the pairing a bridge answers, over a
+        # listener of its own. Its tests run bridges' mesh stores against it.
+        mailbox-main-wiring:
+          files:
+            - "**/cmd/kith-mailbox/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "connectrpc.com/connect"
+            - "github.com/adrg/xdg"
+            - "github.com/EugeneShtoka/kith/internal/api/backend/v1"
+            - "github.com/EugeneShtoka/kith/internal/api/mesh/v1"
+            - "github.com/EugeneShtoka/kith/internal/buildinfo"
+            - "github.com/EugeneShtoka/kith/internal/devicekey"
+            - "github.com/EugeneShtoka/kith/internal/human"
+            - "github.com/EugeneShtoka/kith/internal/mailbox"
+            - "github.com/EugeneShtoka/kith/internal/pairing"
 
         # Talks only to the daemon; never opens the single-writer cache itself.
         mcp-main-wiring:

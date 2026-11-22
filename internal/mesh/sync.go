@@ -29,8 +29,9 @@ type Frames = interface {
 }
 
 // protocol is the sync protocol this kith speaks; a peer speaking another is refused.
-// 2: ops carry their envelopes, and epoch records cross.
-const protocol = 2
+// 2: ops carry their envelopes, and epoch records cross. 3: the roster may list a
+// mailbox, which a bridge of protocol 2 would refuse to read (mailbox.Protocol).
+const protocol = 3
 
 // The pace of a session.
 const (
@@ -247,6 +248,16 @@ func (s *Store) wantLocked() []crdt.Epoch {
 			}
 		}
 	}
+	for _, env := range s.sealedHeld {
+		if e, err := crdt.SealedEpoch(env); err == nil && !s.holdsKey(e) {
+			seen[e] = true
+		}
+	}
+	if boxes := s.heldSnapshot.GetBoxes(); len(boxes) > 0 {
+		if e, err := crdt.SnapshotEpoch(boxes[0]); err == nil && !s.holdsKey(e) {
+			seen[e] = true
+		}
+	}
 	return slices.SortedFunc(maps.Keys(seen), func(a, b crdt.Epoch) int {
 		return cmp.Or(cmp.Compare(a.Number, b.Number), bytes.Compare(a.Maker[:], b.Maker[:]))
 	})
@@ -260,8 +271,9 @@ func (s *Store) holdsKey(e crdt.Epoch) bool {
 
 // takeEpochs takes what the peer said of its keyring: each record a bridge of the
 // roster signed, the content key of each wrap for this replica, and for each epoch the
-// peer lacks, a wrap of it for the peer (keyring.wrapFor). It returns why any record was
-// not taken. The ops held back are tried again with the next frame, or tick.
+// peer lacks, a wrap of it for the peer (keyring.wrapFor), or for the bridge a mailbox
+// passed the wants on for. It returns why any record was not taken. The ops held back
+// are tried again with the next frame, or tick.
 func (s *Store) takeEpochs(ctx context.Context, signer crypto.Signer, peer devicekey.ID, e *meshv1.Epochs) ([]error, error) {
 	self, err := devicekey.IDOf(signer.Public())
 	if err != nil {
@@ -275,6 +287,12 @@ func (s *Store) takeEpochs(ctx context.Context, signer crypto.Signer, peer devic
 	}
 	keys := s.keys.clone()
 	var refused []error
+	if wanting := e.GetFor(); len(wanting) > 0 {
+		if len(wanting) != len(devicekey.ID{}) {
+			return nil, fmt.Errorf("%w: wants for no bridge", errProtocol)
+		}
+		peer = devicekey.ID(wanting)
+	}
 	for _, w := range e.GetRecords() {
 		r, err := crdt.ParseEpochRecord(w.GetBody(), w.GetSig())
 		if err == nil {
@@ -617,15 +635,8 @@ func sendOps(frames Frames, ops []crdt.Op) error {
 // sendSnapshot sends snap in chunks of frameItems: the entries, then the roster's ops,
 // then the vector and clock with the last.
 func sendSnapshot(frames Frames, snap crdt.Snapshot) error {
-	var entries []*meshv1.Entry
-	for key, es := range snap.Entries {
-		for _, e := range es {
-			entries = append(entries, &meshv1.Entry{
-				Key: key, Value: e.Value, Origin: bytes.Clone(e.Dot.Origin[:]), Seq: e.Dot.Seq, Clock: uint64(e.Clock),
-			})
-		}
-	}
-	roster := wireOps(snap.RosterOps)
+	whole := snapshotFrame(snap)
+	entries, roster := whole.GetEntries(), whole.GetRoster()
 	for {
 		chunk := &meshv1.Snapshot{}
 		n := min(len(entries), frameItems)

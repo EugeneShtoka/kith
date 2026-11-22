@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/EugeneShtoka/kith/internal/devicekey"
 )
@@ -72,12 +73,20 @@ func Seal(op Op, epoch Epoch, key []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	head := sealedHead(op.Origin, op.Seq, epoch)
-	plain := appendBytes(appendBytes(nil, op.Body()), op.Sig)
-	plain = append(plain, make([]byte, (padBlock-len(plain)%padBlock)%padBlock)...)
+	return sealBox(aead, sealedHead(op.Origin, op.Seq, epoch), pad(appendBytes(appendBytes(nil, op.Body()), op.Sig)))
+}
+
+// pad is plain padded with zeros to a multiple of padBlock.
+func pad(plain []byte) []byte {
+	return append(plain, make([]byte, (padBlock-len(plain)%padBlock)%padBlock)...)
+}
+
+// sealBox is head, a random nonce, and plain sealed by aead with head as additional
+// data.
+func sealBox(aead cipher.AEAD, head, plain []byte) ([]byte, error) {
 	nonce := make([]byte, nonceLen)
 	if _, err := rand.Read(nonce); err != nil {
-		return nil, fmt.Errorf("crdt: seal an op: %w", err)
+		return nil, fmt.Errorf("crdt: seal: %w", err)
 	}
 	return aead.Seal(append(head, nonce...), nonce, plain, head), nil
 }
@@ -91,28 +100,66 @@ func SealedEpoch(envelope []byte) (Epoch, error) {
 // Unseal checks that envelope, opened with key, is op's: named by op's origin and seq,
 // and holding exactly its body and signature.
 func Unseal(envelope []byte, key []byte, op Op) error {
-	origin, seq, _, head, err := readSealed(envelope)
+	got, err := Open(envelope, key)
 	if err != nil {
 		return err
 	}
-	if origin != op.Origin || seq != op.Seq {
-		return fmt.Errorf("%w: it names %s's op %d", ErrBadSeal, origin, seq)
+	if got.Origin != op.Origin || got.Seq != op.Seq {
+		return fmt.Errorf("%w: it names %s's op %d", ErrBadSeal, got.Origin, got.Seq)
 	}
-	aead, err := gcm(key)
-	if err != nil {
-		return err
-	}
-	nonce := envelope[len(head) : len(head)+nonceLen]
-	plain, err := aead.Open(nil, nonce, envelope[len(head)+nonceLen:], head)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrBadSeal, err)
-	}
-	r := bodyReader{rest: plain}
-	body, sig := r.field(), r.field()
-	if r.bad || !bytes.Equal(body, op.Body()) || !bytes.Equal(sig, op.Sig) {
+	if !bytes.Equal(got.Body(), op.Body()) || !bytes.Equal(got.Sig, op.Sig) {
 		return fmt.Errorf("%w: it holds another op", ErrBadSeal)
 	}
 	return nil
+}
+
+// Open is the op envelope holds, opened with key: the op its clear origin and seq
+// name, with its signature, and the envelope kept as its own. How a bridge reads what
+// a mailbox passes on, which is envelopes alone.
+func Open(envelope []byte, key []byte) (Op, error) {
+	origin, seq, _, head, err := readSealed(envelope)
+	if err != nil {
+		return Op{}, err
+	}
+	plain, err := openBox(envelope, head, key)
+	if err != nil {
+		return Op{}, err
+	}
+	r := bodyReader{rest: plain}
+	body, sig := r.field(), r.field()
+	if r.bad {
+		return Op{}, fmt.Errorf("%w: it holds no op", ErrBadSeal)
+	}
+	op, err := ParseOp(body, sig)
+	if err != nil {
+		return Op{}, fmt.Errorf("%w: %w", ErrBadSeal, err)
+	}
+	if op.Origin != origin || op.Seq != seq {
+		return Op{}, fmt.Errorf("%w: it holds %s's op %d", ErrBadSeal, op.Origin, op.Seq)
+	}
+	op.Sealed = envelope
+	return op, nil
+}
+
+// SealedDot is the dot an envelope names in the clear: all a mailbox reads of one.
+func SealedDot(envelope []byte) (Dot, error) {
+	origin, seq, _, _, err := readSealed(envelope)
+	return Dot{Origin: origin, Seq: seq}, err
+}
+
+// openBox opens the AES-256-GCM box that follows head (the bytes it binds) and its
+// nonce in sealed, with key.
+func openBox(sealed, head, key []byte) ([]byte, error) {
+	aead, err := gcm(key)
+	if err != nil {
+		return nil, err
+	}
+	nonce := sealed[len(head) : len(head)+nonceLen]
+	plain, err := aead.Open(nil, nonce, sealed[len(head)+nonceLen:], head)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrBadSeal, err)
+	}
+	return plain, nil
 }
 
 // readSealed reads an envelope's clear fields, and its head: the bytes the box binds.
@@ -146,6 +193,154 @@ func gcm(key []byte) (cipher.AEAD, error) {
 		return nil, fmt.Errorf("crdt: a content key: %w", err)
 	}
 	return aead, nil
+}
+
+// ── Sealed snapshots ──
+
+// snapshotFormat starts every box of a sealed snapshot, and its signed digest.
+const (
+	snapshotFormat = "kith mesh snapshot 1\n"
+	snapshotSigned = "kith mesh sealed snapshot 1\n"
+)
+
+// snapshotIDLen is a sealed snapshot's random name, which every box of it carries: a
+// box of another snapshot does not open in its place.
+const snapshotIDLen = 16
+
+// snapshotPiece is how much of a snapshot one box holds: a multiple of padBlock that
+// keeps a box, head and tag included, within MaxOpSize.
+const snapshotPiece = MaxOpSize - padBlock
+
+// Why a sealed snapshot does not open.
+var ErrBadSnapshotSeal = errors.New("crdt: a sealed snapshot does not open")
+
+// SealSnapshot is plain (a snapshot, encoded) sealed by maker under the content key of
+// epoch: length-prefixed, padded to a multiple of 4 KiB and cut into boxes of at most
+// MaxOpSize. Each box's head (its additional data) names the maker, the snapshot, the
+// box's place among how many, and the epoch, so boxes do not open moved, dropped or
+// taken from another snapshot.
+func SealSnapshot(plain []byte, maker devicekey.ID, epoch Epoch, key []byte) ([][]byte, error) {
+	aead, err := gcm(key)
+	if err != nil {
+		return nil, err
+	}
+	id := make([]byte, snapshotIDLen)
+	if _, err := rand.Read(id); err != nil {
+		return nil, fmt.Errorf("crdt: seal a snapshot: %w", err)
+	}
+	whole := pad(appendBytes(nil, plain))
+	count := (len(whole) + snapshotPiece - 1) / snapshotPiece
+	boxes := make([][]byte, 0, count)
+	for i := range count {
+		piece := whole[i*snapshotPiece : min(len(whole), (i+1)*snapshotPiece)]
+		box, err := sealBox(aead, snapshotHead(maker, id, uint64(i), uint64(count), epoch), piece) // #nosec G115 -- a count of boxes
+		if err != nil {
+			return nil, err
+		}
+		boxes = append(boxes, box)
+	}
+	return boxes, nil
+}
+
+// SnapshotEpoch is the epoch a sealed snapshot's box names.
+func SnapshotEpoch(box []byte) (Epoch, error) {
+	h, err := readSnapshotHead(box)
+	return h.epoch, err
+}
+
+// OpenSnapshot is what SealSnapshot sealed in boxes, made by maker, opened with key:
+// every box of one snapshot, in order, none missing.
+func OpenSnapshot(boxes [][]byte, maker devicekey.ID, key []byte) ([]byte, error) {
+	var whole []byte
+	var first snapshotHeader
+	for i, box := range boxes {
+		h, err := readSnapshotHead(box)
+		if err != nil {
+			return nil, err
+		}
+		if i == 0 {
+			first = h
+		}
+		if h.maker != maker || h.id != first.id || h.epoch != first.epoch || h.count != uint64(len(boxes)) || h.index != uint64(i) { // #nosec G115 -- a count of boxes
+			return nil, fmt.Errorf("%w: box %d is not its %d of %d", ErrBadSnapshotSeal, i, i+1, len(boxes))
+		}
+		piece, err := openBox(box, h.head, key)
+		if err != nil {
+			return nil, fmt.Errorf("%w: box %d: %w", ErrBadSnapshotSeal, i, err)
+		}
+		whole = append(whole, piece...)
+	}
+	r := bodyReader{rest: whole}
+	plain := r.field()
+	if r.bad || len(boxes) == 0 {
+		return nil, fmt.Errorf("%w: it holds no snapshot", ErrBadSnapshotSeal)
+	}
+	return plain, nil
+}
+
+// snapshotHeader is a box's clear head, read.
+type snapshotHeader struct {
+	maker        devicekey.ID
+	id           [snapshotIDLen]byte
+	index, count uint64
+	epoch        Epoch
+	head         []byte
+}
+
+func snapshotHead(maker devicekey.ID, id []byte, index, count uint64, epoch Epoch) []byte {
+	b := append(append([]byte(snapshotFormat), maker[:]...), id...)
+	b = binary.AppendUvarint(binary.AppendUvarint(b, index), count)
+	return appendEpoch(b, epoch)
+}
+
+func readSnapshotHead(box []byte) (snapshotHeader, error) {
+	rest, ok := bytes.CutPrefix(box, []byte(snapshotFormat))
+	if !ok {
+		return snapshotHeader{}, fmt.Errorf("%w: a box does not read", ErrBadSnapshotSeal)
+	}
+	r := bodyReader{rest: rest}
+	h := snapshotHeader{maker: devicekey.ID(r.take(idLen)), id: [snapshotIDLen]byte(r.take(snapshotIDLen))}
+	h.index, h.count, h.epoch = r.uvarint(), r.uvarint(), r.epoch()
+	if r.bad || len(r.rest) < nonceLen {
+		return snapshotHeader{}, fmt.Errorf("%w: a box does not read", ErrBadSnapshotSeal)
+	}
+	h.head = box[:len(box)-len(r.rest)]
+	return h, nil
+}
+
+// SnapshotDigest is what a sealed snapshot's maker signs: the maker, the vector it
+// covers in the clear (seqs, by origin), and every box.
+func SnapshotDigest(maker devicekey.ID, vector []Dot, boxes [][]byte) [sha256.Size]byte {
+	h := sha256.New()
+	h.Write([]byte(snapshotSigned))
+	h.Write(maker[:])
+	sorted := slices.SortedFunc(slices.Values(vector), compareDots)
+	h.Write(binary.AppendUvarint(nil, uint64(len(sorted))))
+	for _, d := range sorted {
+		h.Write(d.Origin[:])
+		h.Write(binary.AppendUvarint(nil, d.Seq))
+	}
+	h.Write(binary.AppendUvarint(nil, uint64(len(boxes))))
+	for _, b := range boxes {
+		h.Write(appendBytes(nil, b))
+	}
+	var out [sha256.Size]byte
+	h.Sum(out[:0])
+	return out
+}
+
+// SignSnapshot signs a sealed snapshot's digest with its maker's device key.
+func SignSnapshot(key crypto.Signer, digest [sha256.Size]byte) ([]byte, error) {
+	sig, err := key.Sign(rand.Reader, digest[:], crypto.SHA256)
+	if err != nil {
+		return nil, fmt.Errorf("crdt: sign a snapshot: %w", err)
+	}
+	return sig, nil
+}
+
+// VerifySnapshot checks a sealed snapshot's signature against key, its maker's (PKIX).
+func VerifySnapshot(key []byte, digest [sha256.Size]byte, sig []byte) error {
+	return verify(key, digest, sig)
 }
 
 // ── Epoch records ──

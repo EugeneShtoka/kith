@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	meshv1 "github.com/EugeneShtoka/kith/internal/api/mesh/v1"
 	"github.com/EugeneShtoka/kith/internal/devicekey"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/mesh/crdt"
@@ -139,6 +140,13 @@ type Store struct {
 	// the future. Retried after every change; lost with the process, as a peer sends
 	// them again.
 	held []crdt.Op
+	// sealedHeld are envelopes a mailbox passed on, sealed under an epoch whose key is
+	// not held yet, and heldSnapshot a sealed snapshot it sent likewise: opened once
+	// the key arrives, lost with the process, as the mailbox sends them again.
+	sealedHeld   [][]byte
+	heldSnapshot *meshv1.SealedSnapshot
+	// mailboxBytes is each mailbox's store size, as it said last.
+	mailboxBytes map[devicekey.ID]uint64
 	// changed is closed after every commit, and replaced.
 	changed chan struct{}
 	// sessions are the open sync streams, one per peer.
@@ -249,7 +257,7 @@ func (s *Store) Close() error {
 // load lays out a new store, or reads what one holds.
 func (s *Store) load(ctx context.Context) error {
 	s.changed, s.sessions = make(chan struct{}), map[devicekey.ID]*session{}
-	s.peers, s.forked = map[devicekey.ID]peer{}, map[devicekey.ID]bool{}
+	s.peers, s.forked, s.mailboxBytes = map[devicekey.ID]peer{}, map[devicekey.ID]bool{}, map[devicekey.ID]uint64{}
 	var version int
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return fmt.Errorf("read the version: %w", err)

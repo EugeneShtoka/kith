@@ -285,6 +285,48 @@ kith mesh   # the other bridges: where each is dialed, the accounts it runs, las
   number (its key copied, or a store restored from an old backup while it kept writing)
   is named in the log and in `kith mesh`, and removed from the mesh; pair it again.
 
+## A mailbox for bridges that never meet
+
+Bridges sync only while they reach each other. Two that are never on at the same time,
+a desktop used by day and a laptop at night, say, would never converge. A **mailbox**
+is a store both can always reach: each bridge leaves its changes there and picks the
+others' up. It holds them sealed, so whoever runs it reads none of them
+([SECURITY.md](../SECURITY.md#a-mailbox)).
+
+On a machine that is always on (a VPS, a home server), run `kith-mailbox` (a release
+archive of its own, or `make build-mailbox` from a clone):
+
+```sh
+kith-mailbox serve --listen :7444   # keeps its key and store in $XDG_DATA_HOME/kith-mailbox (--dir)
+```
+
+and open that port to the bridges. It speaks TLS with a key of its own, which the
+bridges pin as they pin each other's. To pair a bridge with it, run on the mailbox's
+machine
+
+```sh
+kith-mailbox pair --addr mailbox.example.net:7444   # where the bridges dial it; repeat --addr for more
+```
+
+which shows a `kith mailbox add '…'` line. Run that line on the bridge's machine
+(`--name` names the mailbox in the mesh). Both show six digits; answer `y` at the mailbox
+if they match. The bridge writes the mailbox into the mesh, and every bridge that hears
+of it dials it, backing off as for a bridge. The mailbox admits the mesh's other bridges
+as the paired one tells it of them; a bridge that never meets the one that added it
+hears of the mailbox only by `kith mailbox add` there too (another `kith-mailbox pair`).
+
+- **What it keeps.** Each change until a snapshot covers it and it has been held 30
+  days, and the newest snapshot of each bridge that no other covers. A bridge leaves a
+  snapshot when the mailbox holds none, or more than 30 days or 64 MiB of changes past
+  its newest. A bridge away longer than 30 days catches up from it.
+- **`kith mesh`** lists each mailbox: when it was last heard, its store's size, and how
+  many changes of each bridge it lacks of those this bridge holds. A mailbox holding
+  fewer of this bridge's changes than it did before (lost, rolled back, or withheld) is
+  said in the log; the next sync fills it again.
+- **Removing.** `kith devices remove <mailbox>` stops every bridge dialing it. Removing
+  a bridge revokes its key at every mailbox the others reach; a key revoked is admitted
+  again only by pairing it again. Two mailboxes may be listed; each is independent.
+
 ## Using a bridge
 
 A machine whose `device.toml` names a `[[bridge]]` dials it: `kith`, `kith-notify`,
