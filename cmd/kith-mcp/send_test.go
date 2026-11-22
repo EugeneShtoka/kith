@@ -664,3 +664,36 @@ func TestTwoSessionsShareOneCooldown(t *testing.T) {
 		t.Errorf("outcomes %v, want one sent and one scheduled", got)
 	}
 }
+
+// An @ and a member's name, by kithd's name for them or the network's, goes out as a
+// mention of them, sent or drafted, the longest name winning; an @ inside a word or
+// running on into one does not.
+func TestAtANameMentionsThePerson(t *testing.T) {
+	t.Parallel()
+
+	text := "@Dana Levi and @lee: mail x@dan.org, not @danny"
+	want := []domain.Mention{{UserID: "matrix:@dana:x", Name: "@Dana Levi"}, {UserID: "matrix:@lee:x", Name: "@lee"}}
+	members := map[domain.RoomID][]domain.Member{mx + "!open:x": {
+		{UserID: "matrix:@dana:x", DisplayName: "dana", KnownAs: "Dana Levi", ShownAs: "Dana"},
+		{UserID: "matrix:@lee:x", DisplayName: "lee"},
+		{UserID: "matrix:@dan:x", DisplayName: "dan"},
+		{UserID: "matrix:@other:x", DisplayName: "Dana"},
+	}}
+	for _, send := range [][]string{{"space:Work"}, nil} {
+		f := twoRooms()
+		f.members = members
+		s := newWriter(t, f, shareAll, send)
+		call(t, s, "send_message", map[string]any{"room": "Standup", "text": text})
+
+		got := f.drafts[mx+"!open:x"].Mentions
+		if send != nil {
+			if len(f.sent) != 1 {
+				t.Fatalf("sent = %+v, want the message", f.sent)
+			}
+			got = f.sent[0].LiveMentions()
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("send %v: mentions = %+v, want %+v", send, got, want)
+		}
+	}
+}

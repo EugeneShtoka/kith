@@ -234,6 +234,7 @@ type reader interface {
 	CachedTimeline(ctx context.Context, roomID domain.RoomID) ([]domain.Message, error)
 	SearchMessages(ctx context.Context, req domain.SearchRequest) ([]domain.SearchHit, error)
 	SearchSenders(ctx context.Context, rooms domain.RoomSet, limit int) ([]domain.Member, error)
+	MentionCandidates(ctx context.Context, roomID domain.RoomID, limit int) ([]domain.Member, error)
 	RoomsWith(ctx context.Context, userIDs []string, rooms domain.RoomSet, limit int) ([]domain.Room, error)
 	MessagesAround(ctx context.Context, roomID domain.RoomID, event domain.EventID, before, after int) ([]domain.Message, error)
 	RoomEncryption(ctx context.Context, roomIDs []domain.RoomID) (map[domain.RoomID]bool, error)
