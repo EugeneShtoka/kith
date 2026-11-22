@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
@@ -113,31 +114,52 @@ func TestARoomListNeverHoldsASpace(t *testing.T) {
 // A rooms refresh and a spaces refresh asked together share one listing.
 func TestRoomsAndSpacesShareOneListing(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	h := &listingServer{gate: make(chan struct{}), asked: make(chan struct{}, 4)}
-	b := serving(t, h, testCache(t))
+	cache := testCache(t)
+	// In a bubble with the homeserver in memory, synctest.Wait sees the rooms refresh
+	// waiting on the spaces' listing before the listing ends.
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		h := &listingServer{gate: make(chan struct{}), asked: make(chan struct{}, 4), creates: map[string]int{}}
+		client, err := mautrix.NewClient("http://hs.invalid", id.UserID("@me:x"), "token")
+		if err != nil {
+			t.Fatal(err)
+		}
+		client.Client = &http.Client{Transport: handlerTransport{h}}
+		b := newBackend(cache)
+		b.client = client
 
-	var wg sync.WaitGroup
-	var rooms []domain.Room
-	var spaces []domain.Space
-	var roomsErr, spacesErr error
-	wg.Go(func() { spaces, spacesErr = b.RefreshSpaces(ctx) })
-	<-h.asked // the spaces refresh is listing
-	wg.Go(func() { rooms, roomsErr = b.RefreshRooms(ctx) })
-	close(h.gate)
-	wg.Wait()
-	if roomsErr != nil || spacesErr != nil {
-		t.Fatalf("errors: %v, %v", roomsErr, spacesErr)
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.joined != 1 {
-		t.Errorf("/joined_rooms asked %d times, want once", h.joined)
-	}
-	onlyChat(t, "rooms", rooms)
-	if len(spaces) != 1 || spaces[0].ID != mx+"!work:x" {
-		t.Errorf("spaces = %+v, want Work", spaces)
-	}
+		var wg sync.WaitGroup
+		var rooms []domain.Room
+		var spaces []domain.Space
+		var roomsErr, spacesErr error
+		wg.Go(func() { spaces, spacesErr = b.RefreshSpaces(ctx) })
+		<-h.asked // the spaces refresh is listing
+		wg.Go(func() { rooms, roomsErr = b.RefreshRooms(ctx) })
+		synctest.Wait()
+		close(h.gate)
+		wg.Wait()
+		if roomsErr != nil || spacesErr != nil {
+			t.Fatalf("errors: %v, %v", roomsErr, spacesErr)
+		}
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if h.joined != 1 {
+			t.Errorf("/joined_rooms asked %d times, want once", h.joined)
+		}
+		onlyChat(t, "rooms", rooms)
+		if len(spaces) != 1 || spaces[0].ID != mx+"!work:x" {
+			t.Errorf("spaces = %+v, want Work", spaces)
+		}
+	})
+}
+
+// handlerTransport answers each request from h, in the caller's goroutine.
+type handlerTransport struct{ h http.Handler }
+
+func (tr handlerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	tr.h.ServeHTTP(rec, r)
+	return rec.Result(), nil
 }
 
 // A room's type is read once: it never changes.

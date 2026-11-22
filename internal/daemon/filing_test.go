@@ -375,6 +375,12 @@ func walkFiling(t *testing.T, seed uint64, steps int) {
 	go func() { _ = watching.Start(t.Context()) }()
 	defer watching.Stop()
 	h.waitAttached(1)
+	// Attached counts no config stream: a filing before it subscribes is never heard.
+	for deadline := time.Now().Add(settle); h.streams.ConfigSubscribers() == 0; time.Sleep(time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("ConfigChanged never subscribed")
+		}
+	}
 	for range rng.IntN(4) {
 		v := domain.TagVerdict{Room: rooms[rng.IntN(len(rooms))].ID, Tag: cfg.Tags[rng.IntN(len(cfg.Tags))].Name,
 			Rule: domain.MoveFirstMessage, Filter: "crypto", At: time.Now()}
