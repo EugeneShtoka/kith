@@ -208,7 +208,7 @@ func loadBridged(ctx context.Context, log *slog.Logger, path string, b config.Br
 	if b, err = daemon.FollowRotation(ctx, cert, config.DevicePath(path), b); err != nil {
 		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("following bridge %s's new key: %w", b.Name, err)
 	}
-	dial, err := daemon.BridgeDialer(cert, b)
+	dial, err := daemon.BridgeDialer(ctx, storage, cert, b)
 	if err != nil {
 		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("dialing bridge %s: %w", b.Name, err)
 	}

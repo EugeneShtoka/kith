@@ -210,7 +210,7 @@ func loadBridged(path string, b config.Bridge) (config.Config, domain.Storage, *
 	if b, err = daemon.FollowRotation(ctx, cert, config.DevicePath(path), b); err != nil {
 		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("following bridge %s's new key: %w", b.Name, err)
 	}
-	r, err := daemon.AttachBridge(ctx, cert, b, bridgeWait)
+	r, err := daemon.AttachBridge(ctx, storage, cert, b, bridgeWait)
 	if err != nil {
 		return config.Config{}, domain.Storage{}, nil, fmt.Errorf("dialing bridge %s: %w", b.Name, err)
 	}

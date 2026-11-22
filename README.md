@@ -155,7 +155,7 @@ Install a package, or build from source:
 
 ```sh
 make deploy      # from a clone: enable and start the daemon under systemd
-                 # (a package: systemctl --user enable --now kithd kith-notify)
+                 # (a package: systemctl --user enable --now kithd kith-notify kith-proxy)
 kith             # attach and go
 ```
 

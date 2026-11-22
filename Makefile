@@ -1,4 +1,4 @@
-.PHONY: build build-tui build-daemon build-mcp build-notify build-relay build-mailbox run run-daemon install deploy undeploy \
+.PHONY: build build-tui build-daemon build-mcp build-notify build-relay build-proxy build-mailbox run run-daemon install deploy undeploy \
 	daemon-status daemon-logs daemon-restart daemon-stop \
 	test lint fmt fmt-check fix vuln secrets pin-check unit-check arch-check mod-check release-check \
 	proto-check docs-check nix-check hooks check coverage coverage-check tools pins-outdated \
@@ -58,7 +58,7 @@ cross:
 	done
 
 # The client needs the daemon (no in-process fallback), so build both by default.
-build: build-tui build-daemon build-mcp build-notify build-relay
+build: build-tui build-daemon build-mcp build-notify build-relay build-proxy
 
 build-tui:
 	$(GOBUILD) -o kith ./cmd/kith/
@@ -80,6 +80,10 @@ build-notify:
 # The desktop window's link to kithd; desktop/ runs ./kith-relay when not packaged.
 build-relay:
 	$(GOBUILD) -o kith-relay ./cmd/kith-relay/
+
+# This machine's link to the bridge it joined, which every client here dials.
+build-proxy:
+	$(GOBUILD) -o kith-proxy ./cmd/kith-proxy/
 
 # A mailbox for a mesh, run on a machine of its own (docs/remote.md).
 build-mailbox:
@@ -390,6 +394,7 @@ BINDIR  ?= $(PREFIX)/bin
 UNITDIR ?= $(HOME)/.config/systemd/user
 UNIT    := kithd.service
 NOTIFY_UNIT := kith-notify.service
+PROXY_UNIT  := kith-proxy.service
 APPDIR  ?= $(HOME)/.local/share/applications
 DESKTOP := kith.desktop
 
@@ -404,17 +409,20 @@ PLIST_LOG   := kithd.log
 NOTIFY_PLIST_SRC   := packaging/macos/io.github.eugeneshtoka.kith-notify.plist
 NOTIFY_PLIST_LABEL := io.github.eugeneshtoka.kith-notify
 NOTIFY_PLIST       := $(LAUNCHAGENTDIR)/$(NOTIFY_PLIST_LABEL).plist
+PROXY_PLIST_SRC    := packaging/macos/io.github.eugeneshtoka.kith-proxy.plist
+PROXY_PLIST_LABEL  := io.github.eugeneshtoka.kith-proxy
+PROXY_PLIST        := $(LAUNCHAGENTDIR)/$(PROXY_PLIST_LABEL).plist
 
 install: build
 	@set -eu; \
 	if { [ -d "$(BINDIR)" ] && [ -w "$(BINDIR)" ]; } || mkdir -p "$(BINDIR)" 2>/dev/null; then SUDO=""; \
 	else SUDO="sudo"; echo "==> $(BINDIR) is not writable — installing the binaries with sudo"; sudo mkdir -p "$(BINDIR)"; fi; \
-	for b in kith kithd kith-mcp kith-notify; do $$SUDO install -m755 "$$b" "$(BINDIR)/$$b"; done; \
-	echo "==> binaries -> $(BINDIR)/kith, $(BINDIR)/kithd, $(BINDIR)/kith-mcp, $(BINDIR)/kith-notify"
+	for b in kith kithd kith-mcp kith-notify kith-proxy; do $$SUDO install -m755 "$$b" "$(BINDIR)/$$b"; done; \
+	echo "==> binaries -> $(BINDIR)/kith, $(BINDIR)/kithd, $(BINDIR)/kith-mcp, $(BINDIR)/kith-notify, $(BINDIR)/kith-proxy"
 ifeq ($(HAVE_SYSTEMCTL),yes)
 	@bash scripts/render-units.sh "$(BINDIR)" "$(UNITDIR)"
 	@systemctl --user daemon-reload
-	@echo "==> units    -> $(UNITDIR)/$(UNIT), $(UNITDIR)/$(NOTIFY_UNIT)  (ExecStart=$(BINDIR)/…)"
+	@echo "==> units    -> $(UNITDIR)/$(UNIT), $(UNITDIR)/$(NOTIFY_UNIT), $(UNITDIR)/$(PROXY_UNIT)  (ExecStart=$(BINDIR)/…)"
 else ifeq ($(UNAME_S),Darwin)
 	@echo "==> no systemd on macOS — \`make deploy\` installs a LaunchAgent instead"
 else
@@ -447,8 +455,9 @@ deploy: install
 	sockdir="$$rt/kith"; \
 	marker=$$(mktemp "$${TMPDIR:-/tmp}/kith-deploy.XXXXXX"); \
 	trap 'rm -f "$$marker"' EXIT; \
-	systemctl --user enable "$(UNIT)" "$(NOTIFY_UNIT)" >/dev/null; \
+	systemctl --user enable "$(UNIT)" "$(NOTIFY_UNIT)" "$(PROXY_UNIT)" >/dev/null; \
 	systemctl --user restart "$(UNIT)"; \
+	systemctl --user restart "$(PROXY_UNIT)" || echo "!!  $(PROXY_UNIT) did not start: clients here dial the bridge themselves. See: journalctl --user -u $(PROXY_UNIT)"; \
 	systemctl --user restart "$(NOTIFY_UNIT)" || echo "!!  $(NOTIFY_UNIT) did not start: no desktop notifications. See: journalctl --user -u $(NOTIFY_UNIT)"; \
 	sock=""; \
 	i=0; while [ $$i -lt 240 ]; do \
@@ -486,13 +495,16 @@ deploy: install
 	    -e 's|kithd.log|$(PLIST_LOG)|' \
 	    "$(PLIST_SRC)" > "$(PLIST)"; \
 	sed -e 's|PATH="|PATH="$(BINDIR):|' "$(NOTIFY_PLIST_SRC)" > "$(NOTIFY_PLIST)"; \
-	chmod 0644 "$(PLIST)" "$(NOTIFY_PLIST)"; \
+	sed -e 's|PATH="|PATH="$(BINDIR):|' "$(PROXY_PLIST_SRC)" > "$(PROXY_PLIST)"; \
+	chmod 0644 "$(PLIST)" "$(NOTIFY_PLIST)" "$(PROXY_PLIST)"; \
 	uid=$$(id -u); \
 	launchctl bootout "gui/$$uid/$(PLIST_LABEL)" 2>/dev/null || true; \
 	launchctl bootstrap "gui/$$uid" "$(PLIST)"; \
 	launchctl bootout "gui/$$uid/$(NOTIFY_PLIST_LABEL)" 2>/dev/null || true; \
 	launchctl bootstrap "gui/$$uid" "$(NOTIFY_PLIST)"; \
-	echo "==> LaunchAgents -> $(PLIST), $(NOTIFY_PLIST)"; \
+	launchctl bootout "gui/$$uid/$(PROXY_PLIST_LABEL)" 2>/dev/null || true; \
+	launchctl bootstrap "gui/$$uid" "$(PROXY_PLIST)"; \
+	echo "==> LaunchAgents -> $(PLIST), $(NOTIFY_PLIST), $(PROXY_PLIST)"; \
 	echo "    log: ~/Library/Logs/$(PLIST_LOG)"; \
 	echo "    run the client: $(BINDIR)/kith"; \
 	echo "    no saved session yet? $(BINDIR)/kith login"
@@ -502,14 +514,14 @@ deploy: install
 	@echo "    run the daemon under your own supervisor, e.g.  $(BINDIR)/kithd"
 endif
 
-# Stop/disable kithd and kith-notify and remove what `install` wrote.
+# Stop/disable kithd, kith-notify and kith-proxy and remove what `install` wrote.
 # The matrix: and tg: associations are removed only where they still name kith.desktop.
 # Config, cache, crypto store and keyring session are kept.
 undeploy:
 	@set -eu; \
 	if [ "$(HAVE_SYSTEMCTL)" = yes ]; then \
-	  systemctl --user disable --now "$(UNIT)" "$(NOTIFY_UNIT)" 2>/dev/null || true; \
-	  rm -f "$(UNITDIR)/$(UNIT)" "$(UNITDIR)/$(NOTIFY_UNIT)"; \
+	  systemctl --user disable --now "$(UNIT)" "$(NOTIFY_UNIT)" "$(PROXY_UNIT)" 2>/dev/null || true; \
+	  rm -f "$(UNITDIR)/$(UNIT)" "$(UNITDIR)/$(NOTIFY_UNIT)" "$(UNITDIR)/$(PROXY_UNIT)"; \
 	  for f in "$(UNITDIR)"/kithd-?*.service "$(UNITDIR)"/kith-notify-?*.service; do \
 	    head -n1 "$$f" 2>/dev/null | grep -q '^# Written by kith for its config' || continue; \
 	    u=$$(basename "$$f"); \
@@ -518,11 +530,11 @@ undeploy:
 	    echo "==> stopped and removed $$u, which kith wrote for its own config"; \
 	  done; \
 	  systemctl --user daemon-reload; \
-	  echo "==> removed $(UNITDIR)/$(UNIT), $(UNITDIR)/$(NOTIFY_UNIT)"; \
+	  echo "==> removed $(UNITDIR)/$(UNIT), $(UNITDIR)/$(NOTIFY_UNIT), $(UNITDIR)/$(PROXY_UNIT)"; \
 	fi; \
 	if [ "$(UNAME_S)" = Darwin ]; then \
 	  uid=$$(id -u); \
-	  for p in "$(LAUNCHAGENTDIR)"/io.github.eugeneshtoka.kithd*.plist "$(LAUNCHAGENTDIR)"/io.github.eugeneshtoka.kith-notify*.plist; do \
+	  for p in "$(LAUNCHAGENTDIR)"/io.github.eugeneshtoka.kithd*.plist "$(LAUNCHAGENTDIR)"/io.github.eugeneshtoka.kith-notify*.plist "$(LAUNCHAGENTDIR)"/io.github.eugeneshtoka.kith-proxy.plist; do \
 	    [ -e "$$p" ] || continue; \
 	    label=$$(basename "$$p" .plist); \
 	    launchctl bootout "gui/$$uid/$$label" 2>/dev/null || true; \
@@ -530,10 +542,10 @@ undeploy:
 	    echo "==> removed LaunchAgent $$label"; \
 	  done; \
 	fi; \
-	if [ -e "$(BINDIR)/kith" ] || [ -e "$(BINDIR)/kithd" ] || [ -e "$(BINDIR)/kith-mcp" ] || [ -e "$(BINDIR)/kith-notify" ]; then \
+	if [ -e "$(BINDIR)/kith" ] || [ -e "$(BINDIR)/kithd" ] || [ -e "$(BINDIR)/kith-mcp" ] || [ -e "$(BINDIR)/kith-notify" ] || [ -e "$(BINDIR)/kith-proxy" ]; then \
 	  if [ -w "$(BINDIR)" ]; then SUDO=""; else SUDO="sudo"; fi; \
-	  $$SUDO rm -f "$(BINDIR)/kith" "$(BINDIR)/kithd" "$(BINDIR)/kith-mcp" "$(BINDIR)/kith-notify"; \
-	  echo "==> removed $(BINDIR)/kith, $(BINDIR)/kithd, $(BINDIR)/kith-mcp, $(BINDIR)/kith-notify"; \
+	  $$SUDO rm -f "$(BINDIR)/kith" "$(BINDIR)/kithd" "$(BINDIR)/kith-mcp" "$(BINDIR)/kith-notify" "$(BINDIR)/kith-proxy"; \
+	  echo "==> removed $(BINDIR)/kith, $(BINDIR)/kithd, $(BINDIR)/kith-mcp, $(BINDIR)/kith-notify, $(BINDIR)/kith-proxy"; \
 	fi; \
 	if [ "$(UNAME_S)" != Darwin ]; then \
 	  rm -f "$(APPDIR)/$(DESKTOP)"; \

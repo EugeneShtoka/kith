@@ -8,14 +8,14 @@ post_install() {
       kith login      # store the session in the Secret Service keyring
       systemctl --user daemon-reload
       systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
-      systemctl --user enable --now kithd kith-notify
+      systemctl --user enable --now kithd kith-notify kith-proxy
     Guide: /usr/share/doc/kith/docs/getting-started.md
 NOTE
 }
 
 post_upgrade() {
 	cat <<'NOTE'
-==> kith: restart the daemon and kith-notify so they run the new binaries:
-      systemctl --user restart kithd kith-notify
+==> kith: restart the daemon, kith-notify and kith-proxy so they run the new binaries:
+      systemctl --user restart kithd kith-notify kith-proxy
 NOTE
 }

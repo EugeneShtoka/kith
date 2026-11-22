@@ -181,7 +181,7 @@ func (d device) kithdFor(header http.Header) (profiled, error) {
 		return profiled{}, connect.NewError(connect.CodePermissionDenied, errors.New("a command runs in a profile, and none was named"))
 	}
 	return profiled{
-		client:  backendv1connect.NewBackendServiceClient(d.at.client, d.at.scheme+"://kithd"),
+		client:  backendv1connect.NewBackendServiceClient(d.at.Client, d.at.Scheme+"://kithd"),
 		profile: profile, at: d.at,
 	}, nil
 }
@@ -205,7 +205,7 @@ func request[T any](p profiled, msg *T) *connect.Request[T] {
 func (d device) roomOf(ctx context.Context, p profiled, id string) (domain.ServedRoom, error) {
 	res, err := p.client.Rail(ctx, request(p, &backendv1.RailRequest{}))
 	if err != nil {
-		return domain.ServedRoom{}, p.at.failure(err)
+		return domain.ServedRoom{}, p.at.Failure(err)
 	}
 	rail := protoconv.ProtoToRail(res.Msg)
 	i := slices.IndexFunc(rail.Rooms, func(r domain.ServedRoom) bool { return r.Facts.ID == id && id != "" })
@@ -297,7 +297,7 @@ func (c *commandRun) prepare(ctx context.Context, event string, link int) (*devi
 	}
 	selves, err := c.kithd.client.Selves(ctx, request(c.kithd, &backendv1.SelvesRequest{}))
 	if err != nil {
-		return nil, c.kithd.at.failure(err)
+		return nil, c.kithd.at.Failure(err)
 	}
 	ctxOf := scriptContext{run: c, event: event, link: link, selves: selves.Msg.GetIds()}
 	for _, need := range needs {
@@ -386,7 +386,7 @@ func (s *scriptContext) readShown(ctx context.Context) error {
 	c := s.run
 	res, err := c.kithd.client.CachedTimeline(ctx, request(c.kithd, &backendv1.CachedTimelineRequest{RoomId: c.room.Facts.ID}))
 	if err != nil {
-		return c.kithd.at.failure(err)
+		return c.kithd.at.Failure(err)
 	}
 	all := protoconv.ProtoToMessages(res.Msg.GetMessages())
 	for i := range all {
@@ -412,7 +412,7 @@ func (c *commandRun) message(ctx context.Context, room domain.RoomID, event stri
 		return nil, nil
 	}
 	if err != nil {
-		return nil, c.kithd.at.failure(err)
+		return nil, c.kithd.at.Failure(err)
 	}
 	m := protoconv.ProtoToMessage(res.Msg.GetMessage())
 	if m.RoomID != room {

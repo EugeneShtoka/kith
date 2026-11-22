@@ -376,6 +376,14 @@ beside it. With several `[[bridge]]` entries the first is dialed.
   bridge's config's; the one in use is this machine's (`device.toml`). The window
   says which bridge it is connected to, and, if the bridge no longer has this device
   paired, says the bridge refused it until it is paired again.
+- **One link per machine: `kith-proxy`.** Run as a user service
+  (`systemctl --user enable --now kith-proxy`, or `io.github.eugeneshtoka.kith-proxy.plist`
+  on macOS), it dials the bridge with this machine's device key and serves the clients
+  here on a socket in the runtime directory that only you can open. Each client dials
+  it when that socket answers as the client starts, and the bridge itself when it does
+  not, so a machine without it works as before. Through it the bridge sees one client
+  per machine. A client started while it ran goes on dialing its socket: restart the
+  clients if you stop it for good. On a machine that joined no bridge it exits at once.
 
 ## Reaching a bridge from outside its network
 
