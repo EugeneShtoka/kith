@@ -84,6 +84,39 @@ func TestTwoBridgesMeetThroughARunningMailbox(t *testing.T) {
 	waitFor(t, "a's read at b", func() bool { return slices.Contains(b.store.Reads(), read) })
 }
 
+// The mailbox keeps its key: opened again in the same folder, it has the same ID, and
+// its store opens under the key derived from it.
+func TestTheMailboxKeepsItsKeyAcrossARestart(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	first, err := open(t.Context(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cerr := first.store.Close(); cerr != nil {
+		t.Fatal(cerr)
+	}
+	again, err := open(t.Context(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = again.store.Close() })
+	if again.self != first.self {
+		t.Errorf("the mailbox is %s after a restart, was %s", again.self, first.self)
+	}
+}
+
+// kith-mailbox pair asks for where bridges dial it, and refuses an address they cannot.
+func TestPairRefusesAnAddressNoBridgeCanDial(t *testing.T) {
+	t.Parallel()
+	if err := runPair(nil); err == nil || err.Error() != usage {
+		t.Errorf("pair with no --addr: %v, want the usage", err)
+	}
+	if err := runPair([]string{"--addr", "mailbox.example"}); err == nil || !strings.HasPrefix(err.Error(), "--addr: ") {
+		t.Errorf("pair --addr with no port: %v, want it refused", err)
+	}
+}
+
 // bridge is a kithd's mesh store and key.
 type bridge struct {
 	key   *ecdsa.PrivateKey
