@@ -441,8 +441,8 @@ endif
 #  - import only *set* session vars: importing an unset one clears it in the manager.
 #  - restart, not start, so the new binary runs.
 #  - the socket is named by the config's instance, so wait for any socket newer than a marker.
-#    Not the Signal helper's (signal-*.sock), which kithd also makes there: it says
-#    nothing of whether clients can connect.
+#    Not the Signal helper's (signal-*.sock), which kithd also makes there, nor
+#    kith-proxy's (*-proxy.sock): they say nothing of whether kithd came up.
 #    `activating` (auto-restart) is not failure: don't send users to re-login,
 #    which costs the device its E2EE identity.
 ifeq ($(HAVE_SYSTEMCTL),yes)
@@ -461,7 +461,7 @@ deploy: install
 	systemctl --user restart "$(NOTIFY_UNIT)" || echo "!!  $(NOTIFY_UNIT) did not start: no desktop notifications. See: journalctl --user -u $(NOTIFY_UNIT)"; \
 	sock=""; \
 	i=0; while [ $$i -lt 240 ]; do \
-	  sock=$$(find "$$sockdir" -maxdepth 1 -type s -newer "$$marker" ! -name 'signal-*' 2>/dev/null | head -n 1); \
+	  sock=$$(find "$$sockdir" -maxdepth 1 -type s -newer "$$marker" ! -name 'signal-*' ! -name '*-proxy.sock' 2>/dev/null | head -n 1); \
 	  [ -n "$$sock" ] && break; \
 	  case "$$(systemctl --user is-active "$(UNIT)" 2>/dev/null)" in \
 	    failed|inactive) break ;; \
