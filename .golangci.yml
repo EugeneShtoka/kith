@@ -547,6 +547,16 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/sealeddb"
             - "google.golang.org/protobuf"
 
+        # kith-proxy's store of one bridge's answers: a cache over sealeddb, opaque to
+        # what it keeps, linking no network, no mesh and no session.
+        clientstore-is-a-cache:
+          files:
+            - "**/internal/clientstore/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/sealeddb"
+
         # Encrypted SQLite for the network stores that act as the account: a leaf over
         # ncruces' SQLite (WebAssembly, pure Go) and its Adiantum VFS.
         sealeddb-is-a-leaf:
@@ -1054,12 +1064,17 @@ linters:
             - "!$test"
           allow:
             - "$gostd"
+            - "connectrpc.com/connect"
+            - "google.golang.org/protobuf"
+            - "github.com/EugeneShtoka/kith/internal/api/backend/v1"
             - "github.com/EugeneShtoka/kith/internal/buildinfo"
+            # Its store of the bridge's answers, answering while the bridge is out of reach.
+            - "github.com/EugeneShtoka/kith/internal/clientstore"
             - "github.com/EugeneShtoka/kith/internal/config"
             - "github.com/EugeneShtoka/kith/internal/daemon"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/logging"
-            # This machine's device key, to dial the bridge.
+            # This machine's device key, to dial the bridge; the store's key.
             - "github.com/EugeneShtoka/kith/internal/keystore"
             - "github.com/EugeneShtoka/kith/internal/setup"
 
@@ -1156,6 +1171,8 @@ linters:
         # keystore's are session's own, moved beneath it: sentinels (a keyring not
         # answering) and file errors that name the file, shown as they are.
         - github.com/EugeneShtoka/kith/internal/keystore
+        # clientstore's name the store and what of it failed ("clientstore: keep ...").
+        - github.com/EugeneShtoka/kith/internal/clientstore
 
     misspell:
       locale: US

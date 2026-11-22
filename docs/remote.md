@@ -384,6 +384,19 @@ beside it. With several `[[bridge]]` entries the first is dialed.
   not, so a machine without it works as before. Through it the bridge sees one client
   per machine. A client started while it ran goes on dialing its socket: restart the
   clients if you stop it for good. On a machine that joined no bridge it exits at once.
+- **Reading offline.** `kith-proxy` keeps a copy of what the bridge answers, sealed with a
+  key of its own in the keyring (`proxy-<instance>.db` in the data directory, one per
+  machine): every profile's rooms, rail, unread counts and the settings the clients
+  start with, and each room's newest messages (as many as kithd's cache gives a room
+  on entry, 2000), kept current by the bridge's streams. Once the bridge has not
+  answered for 10 seconds, the clients here read that copy: the rooms open, the
+  timeline shows what was held, and anything that needs the bridge (sending, history
+  older than the copy, search, a person's card) fails as it does with the bridge out
+  of reach. Once the bridge has answered again for 5 seconds, the clients are switched
+  back and read everything from it again. A profile is answered offline only from the
+  rooms the bridge last listed for it. The copy is deleted when the bridge refuses
+  this device's key and when this machine leaves the bridge; without a keyring there
+  is no copy, and the proxy only forwards.
 
 ## Reaching a bridge from outside its network
 

@@ -4,8 +4,6 @@
 package session
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -103,7 +101,7 @@ var ErrCorruptPickleKey = errors.New("session: the pickle key in the keyring is 
 // LoadOrCreatePickleKey returns the E2EE crypto store key, generating it on first use.
 // It lives only in the keyring.
 func LoadOrCreatePickleKey(st Store) ([]byte, error) {
-	return loadOrCreateKey(st.Service, st.Account+"|pickle", ErrCorruptPickleKey,
+	return keystore.LoadOrCreateKey(st.Service, st.Account+"|pickle", ErrCorruptPickleKey,
 		"restore it, or delete it together with the crypto store, log in again and restore your keys from backup")
 }
 
@@ -115,46 +113,8 @@ var ErrCorruptStoreKey = errors.New("session: a network store's key in the keyri
 // "messenger") of instance is encrypted with, generating it on first use. It lives
 // only in the keyring; without one there is no key, and the store stays closed.
 func LoadOrCreateStoreKey(service, instance, name string) ([]byte, error) {
-	return loadOrCreateKey(service, instance+"|"+name+"-store", ErrCorruptStoreKey,
+	return keystore.LoadOrCreateKey(service, instance+"|"+name+"-store", ErrCorruptStoreKey,
 		"restore it, or delete it together with the store and link the account again")
-}
-
-// loadOrCreateKey returns the 32-byte key in the keyring entry (service, acct), making
-// and keeping one when there is none. One that is not a key is corrupt, reported with
-// advice and never replaced; no keyring is ErrNoSecretStore, never a key kept elsewhere.
-// A key is made only when the keyring answered that there is none: one that did not
-// answer is ErrKeyringNotAnswering. A key made but not yet kept is not used; if the
-// keyring keeps it later, the next call reads it.
-func loadOrCreateKey(service, acct string, corrupt error, advice string) ([]byte, error) {
-	switch existing, err := keystore.Get(service, acct); {
-	case err == nil:
-		key, derr := base64.StdEncoding.DecodeString(existing)
-		if derr == nil && len(key) == pickleKeyLen {
-			return key, nil
-		}
-		return nil, fmt.Errorf("%w (service %q, account %q): %s", corrupt, service, acct, advice)
-	case errors.Is(err, keyring.ErrNotFound):
-	case errors.Is(err, ErrKeyringNotAnswering):
-		return nil, err
-	default:
-		return nil, ErrNoSecretStore
-	}
-	key := make([]byte, pickleKeyLen)
-	if _, err := rand.Read(key); err != nil {
-		return nil, fmt.Errorf("session: generate a key: %w", err)
-	}
-	encoded := base64.StdEncoding.EncodeToString(key)
-	kept, err := keystore.Set(service, acct, encoded)
-	switch {
-	case errors.Is(err, ErrKeyringNotAnswering):
-		return nil, err
-	case err != nil:
-		return nil, ErrNoSecretStore
-	}
-	if key, err = base64.StdEncoding.DecodeString(kept); err != nil {
-		return nil, fmt.Errorf("session: the key just kept: %w", err)
-	}
-	return key, nil
 }
 
 // Secret reads a named secret (e.g. an API key) under service, falling back to the
