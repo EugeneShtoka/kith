@@ -210,6 +210,7 @@ func (w *world) holds(room, body string) bool {
 var events = []event{
 	{"a message in !a", func(_ *testing.T, w *world) { w.f.say("!a", "new in a") }},
 	{"a message in !c", func(_ *testing.T, w *world) { w.f.say("!c", "new in c") }},
+	{"a message of my own in !b, from another device", func(_ *testing.T, w *world) { w.f.post("!b", "mine") }},
 	{"an edit in !b", func(_ *testing.T, w *world) { w.f.edit("!b", "edited b") }},
 	{"!a moves from Home to Work", func(_ *testing.T, w *world) { w.f.move("!a", "Home", "Work") }},
 	{"!b leaves Work", func(_ *testing.T, w *world) { w.f.move("!b", "Work", "Home") }},

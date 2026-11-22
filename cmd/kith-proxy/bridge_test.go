@@ -72,8 +72,19 @@ func (f *fakeBridge) listen() <-chan struct{} {
 	return f.bell
 }
 
-// say is a message in room.
+// say is a message in room from someone else, which counts as unread.
 func (f *fakeBridge) say(room, body string) {
+	f.post(room, body)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.unread[room]++
+	f.unreadV++
+	f.ring()
+}
+
+// post is a message in room that counts as nothing unread: one of your own, sent from
+// another device. Only the room's last message moves.
+func (f *fakeBridge) post(room, body string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.ids++
@@ -83,8 +94,6 @@ func (f *fakeBridge) say(room, body string) {
 	}
 	f.msgs[room] = append(f.msgs[room], m)
 	f.changes = append(f.changes, m)
-	f.unread[room]++
-	f.unreadV++
 	f.ring()
 }
 

@@ -274,7 +274,8 @@ func (s *syncer) read(ctx context.Context, profile string) error {
 }
 
 // messages writes the bridge's Messages stream into the store from where it stood. A
-// stream that cannot resume (read_again) has every room filled again.
+// stream that cannot resume (read_again) has every room filled again and every
+// profile's answers read again.
 func (s *syncer) messages(ctx context.Context, _ string) error {
 	epoch, change, err := s.store.Position(ctx, messagesStream)
 	if err != nil {
@@ -288,9 +289,11 @@ func (s *syncer) messages(ctx context.Context, _ string) error {
 	for st.Receive() {
 		m := st.Msg()
 		if m.GetReadAgain() {
+			// What the stream skipped may have moved any answer, not only the rooms'.
 			if err := s.store.Unfill(ctx); err != nil {
 				return err
 			}
+			s.markDirtyAll(ctx)
 		}
 		var rows []clientstore.Message
 		room := ""
