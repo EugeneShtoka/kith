@@ -1,0 +1,78 @@
+name: Dependabot vendorHash
+
+# A Dependabot bump of go.mod changes packaging/nix/package.nix's vendorHash, which
+# Dependabot does not know about, so the flake stayed broken until the weekly build
+# found it. This builds the flake on such a PR and, when only the hash is stale,
+# commits the one nix reports to the PR's branch.
+on:
+  pull_request:
+    branches: [main]
+    paths: [go.mod, go.sum]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  # Builds the PR's code, so it holds no write access.
+  hash:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      got: ${{ steps.build.outputs.got }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+
+      - name: Build the Nix flake
+        id: build
+        env:
+          REQUIRE_NIX: "1"
+        run: |
+          set -euo pipefail
+          if make nix-check 2>&1 | tee build.log; then
+            exit 0
+          fi
+          got=$(grep -oP 'got:\s+\Ksha256-[A-Za-z0-9+/]{43}=' build.log | head -n1 || true)
+          if [ -z "$got" ]; then
+            echo "::error::the flake fails for a reason other than vendorHash"
+            exit 1
+          fi
+          echo "got=$got" >> "$GITHUB_OUTPUT"
+
+  commit:
+    needs: hash
+    if: needs.hash.outputs.got != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # push the hash to the PR's branch
+      actions: write # dispatch CI on it
+    steps:
+      # Keeps its credentials: the push below needs them. Nothing from the PR runs here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      # A push made with GITHUB_TOKEN starts no workflow, so ci-ok would never report on
+      # the new head; a workflow_dispatch is the one event it may start.
+      - name: Commit the hash and run CI on it
+        env:
+          GOT: ${{ needs.hash.outputs.got }}
+          BRANCH: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sed -i "s|vendorHash = \"sha256-[^\"]*\"|vendorHash = \"$GOT\"|" packaging/nix/package.nix
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am "deps: vendorHash for this bump"
+          # Not forced: if Dependabot moved the branch meanwhile, its new run takes over.
+          git push origin "HEAD:refs/heads/$BRANCH"
+          gh workflow run ci.yml --ref "$BRANCH"
