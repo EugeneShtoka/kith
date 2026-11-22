@@ -458,15 +458,6 @@ func (s *Store) Holds(ctx context.Context, profile, room string) (bool, error) {
 	return n > 0, nil
 }
 
-// HasSet reports whether the store holds a set for profile at all.
-func (s *Store) HasSet(ctx context.Context, profile string) (bool, error) {
-	var n int
-	if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM answers WHERE method = 'Rooms' AND profile = ?", profile).Scan(&n); err != nil {
-		return false, fmt.Errorf("clientstore: %s's rooms: %w", profile, err)
-	}
-	return n > 0, nil
-}
-
 // Position is where the stream named stream stood with the bridge; "" when nowhere.
 func (s *Store) Position(ctx context.Context, stream string) (epoch string, change int64, err error) {
 	err = s.db.QueryRowContext(ctx, "SELECT epoch, change FROM positions WHERE stream = ?", stream).Scan(&epoch, &change)
@@ -477,11 +468,6 @@ func (s *Store) Position(ctx context.Context, stream string) (epoch string, chan
 		return "", 0, fmt.Errorf("clientstore: where %s stood: %w", stream, err)
 	}
 	return epoch, change, nil
-}
-
-// PutPosition keeps where the stream named stream stands with the bridge.
-func (s *Store) PutPosition(ctx context.Context, stream, epoch string, change int64) error {
-	return s.tx(ctx, func(tx *sql.Tx) error { return putPosition(ctx, tx, stream, epoch, change) })
 }
 
 func putPosition(ctx context.Context, tx *sql.Tx, stream, epoch string, change int64) error {
