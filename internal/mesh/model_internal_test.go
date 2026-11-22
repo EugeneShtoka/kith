@@ -29,11 +29,9 @@ import (
 	"github.com/EugeneShtoka/kith/internal/sealeddb"
 )
 
-// The model's size: runs of modelSteps steps over three to five replicas, one per seed.
-const (
-	modelSeeds = 16
-	modelSteps = 120
-)
+// The model's size: runs of modelSteps steps over three to five replicas, one per seed
+// (modelSeeds, fewer under the race detector).
+const modelSteps = 120
 
 // TestEveryReplicaConvergesOverAnyInterleaving is the mesh's class test (Plan step 2's
 // failure review). Its generator interleaves writes on every replica (devices paired
