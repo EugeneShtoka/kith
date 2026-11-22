@@ -143,7 +143,7 @@ window.
 
 ## What the store holds
 
-**One store per machine and bridge, shared by every profile** (decision 4). What is the
+**One store per machine, shared by every profile** (decision 4). What is the
 same in every profile is kept once per room; each profile keeps only what scopes it.
 
 - **Per room, once**: its messages (each as the bridge's cache last sent it,
@@ -171,7 +171,9 @@ network IDs appear once each. kithd's cache gets the same as a roadmap item of i
 by a migration that keeps every row.
 
 **Bounds** (decision 5): **text 1 GB, previews 256 MB**, each trimmed oldest first by
-message time across all rooms. Both are defaults, set per machine in `device.toml`:
+message time across all rooms. Both are defaults, set in both files as `[gui.theme]` is:
+`config.toml` for every device (a shared key, crossing the mesh as step 5's shared
+config does), and `device.toml` for this one, key by key over it:
 
 ```toml
 [cache]
@@ -179,8 +181,7 @@ text_max_mb = 1024
 previews_max_mb = 256
 ```
 
-A per-machine setting, never a shared mesh key (step 5's `config.Local` sorts only
-`config.toml`). 0 keeps the default. Text counts the rows and the full-text index
+0 or unset keeps the default (in `device.toml`, the config's value). Text counts the rows and the full-text index
 together. Trimmed rows free pages, and the file is rewritten at open by the cache's own
 rule (a fifth free and at least 32 MiB, docs/database.md, The file).
 
@@ -192,10 +193,11 @@ and the room it joined is filled again.
 
 ## Where it lives
 
-- **The file** is `proxy-<hash>.db` in the data dir of this machine's client storage
-  (`setup.ClientStorage`), `<hash>` naming the bridge's device ID as `domain.AccountKey`
-  names an account. The proxy holds an exclusive lock on it: one writer per file
-  (decision 7).
+- **The file** is `proxy-<instance>.db` in the data dir of this machine's client storage
+  (`setup.ClientStorage`): one per machine, whatever bridge it reads. It records the ID
+  of the bridge it was filled from; a store filled from another bridge (this machine
+  joined a new one) is deleted and filled again. The proxy holds an exclusive lock on
+  it: one writer per file (decision 7).
 - **Sealed** like the cache and the mesh store: `internal/sealeddb` (Adiantum, every page
   and the log encrypted), owner-only.
 - **Its key** is one 32-byte key per machine in this machine's keyring
@@ -319,17 +321,20 @@ when kithd is not reachable.
 
 Phase 3 gives the proxy a `[[bridge]]` list in priority order. For the store:
 
-- **A store per bridge**, as the file is named by the bridge. Positions are per bridge
-  too: a change number means nothing at another bridge (each numbers its own cache).
-  Failing over to a bridge whose store is empty fills it as at first start, and the
-  clients read from the store of the bridge last live until it is.
-- **A client on several bridges** (design-mesh.md decision 6) reads each room from its
-  bridge's store, as `Rooms` named it; the proxy merges the profile's set across them.
+- **Still one store.** Positions are per bridge: a change number means nothing at
+  another bridge (each numbers its own cache), so the store keeps one position per
+  bridge in its list and resumes each from its own. Messages are rows by room and
+  event ID whichever bridge sent them, so failing over refills nothing a bridge before
+  it already sent; the store records every bridge of the list, and is deleted only for
+  one outside it (the machine joined elsewhere).
+- **A client on several bridges** (design-mesh.md decision 6) reads each room from the
+  one store, as the bridge whose `Rooms` named it sent it; the proxy merges the
+  profile's set across them.
 - **A bridge that is this machine's own kithd** is in the list too, and its rooms are
   not stored (decision 1).
 - **A bridge whose key rotated** (step 8, #623) is the same bridge: the proxy follows it
-  at start as every client does (`daemon.FollowRotation`), and renames the file and
-  moves the position to the new ID when it rewrites its pin.
+  at start as every client does (`daemon.FollowRotation`), and moves the position and
+  the recorded ID to the new key when it rewrites its pin.
 
 ## If a client were a replica
 
@@ -382,7 +387,8 @@ from them, and later changes must keep:
    store is kept and still answers offline. Joining again (`kith join`) writes a new
    `[[bridge]]` entry; the old one's store goes with it (decision 8) and the new one
    fills from scratch.
-5. **`device.toml` stays out of the mesh.** The store's bounds are this machine's.
+5. **`device.toml` stays out of the mesh.** The store's bounds in `config.toml` cross it as
+   every shared key does; `device.toml`'s over them are this machine's alone.
 6. **An older bridge does not skip what it does not know.** Each new key kind and each
    new role goes with a higher protocol version in Hello, which refuses the session
    rather than wedging the origin (`offer`, `internal/mesh/replica.go`). The store adds
@@ -437,12 +443,15 @@ Taken 2026-11-21, from the review page (2026-11-19) and the session of 2026-11-2
    kithd in a client-only mode.
 3. **A cache of the bridge's answers**, not a mesh replica. design-mesh.md decision 8
    (h2c) waits for whatever first puts a replica beside its bridge.
-4. **One store per machine and bridge, shared by every profile.** Messages, the search
+4. **One store per machine, shared by every profile.** Messages, the search
    index, previews, read positions, unread counts and reads made offline once per room;
    each profile keeps its room set and rail; the proxy refuses offline what a profile's
-   set does not hold. Rejected: a store per profile (a room in two profiles kept twice).
+   set does not hold. Rejected: a store per profile (a room in two profiles kept twice);
+   a store per bridge (a second file for nothing: positions per bridge do the same,
+   2026-11-22).
 5. **Text 1 GB of all history, previews 256 MB**, oldest trimmed first, both defaults
-   in `device.toml` `[cache]`. Rejected: 500 messages per room, none older than two
+   in `[cache]`, set in `config.toml` for every device and in `device.toml` per device
+   over it (2026-11-22). Rejected: 500 messages per room, none older than two
    weeks, 256 MiB in all (quiet rooms open empty offline).
 6. **The bridge scales previews**: `LoadImageRequest` gains `max_side`; a 320 px JPEG,
    about 20 KB. Rejected: the networks' own thumbnails (only WhatsApp and Matrix have
@@ -469,7 +478,7 @@ Each PR lands working, with a failure review as above.
   machine. **Failure review**: concurrent (many clients' streams through one proxy, the
   bridge going and coming).
 - **Step 2, feat: the proxy holds its bridge's answers.** `internal/clientstore` (the
-  sealed file per bridge, integer keys, its key in the keyring, its own change
+  sealed file per machine, integer keys, its key in the keyring, its own change
   numbering, the lock), the depguard rule and the key helper in `internal/keystore`; the
   proxy's own `Messages`, `UnreadStream`, `Reactions` and `Invites` streams; every
   profile's room set and rail; the listed answers kept as forwarded; rooms filled newest
@@ -478,7 +487,7 @@ Each PR lands working, with a failure review as above.
   **Failure review**: caches a derived result, enforces scope, concurrent.
 - **Step 3, feat: all history and offline search.** `CachedTimeline`'s `before` and
   `limit`; the fill back to the oldest the bridge holds; the text bound and its
-  `device.toml` key; the full-text index and `SearchMessages`/`SearchSenders` answered
+  `[cache]` key in both files; the full-text index and `SearchMessages`/`SearchSenders` answered
   held; stale rooms after `read_again` and `CHANGE_NAMES`; the rewrite at open.
   **Failure review**: caches a derived result (fills, trims, search), enforces scope
   (search).
@@ -490,5 +499,5 @@ Each PR lands working, with a failure review as above.
   unread refused offline; kithd's receipt never behind the network's. **Failure
   review**: merges writers.
 - **With Phase 3 (step 1b): the proxy fails over.** The `[[bridge]]` list in the proxy, a
-  store per bridge, this machine's own kithd not stored, the store moved on a rotation.
+  position per bridge in the one store, this machine's own kithd not stored, the store moved on a rotation.
   **Failure review**: merges writers, as above.
