@@ -92,7 +92,7 @@ Search matches terms, not meaning. The tool description tells the assistant to r
 | Parameter | Meaning |
 | --- | --- |
 | `room` | The room's ID or name |
-| `text` | The message, exactly as it should appear; nothing is added to it. Every dash longer than a hyphen (—, ―, – or ‒) is written as a hyphen (-), whether the message is sent or drafted |
+| `text` | The message, exactly as it should appear; nothing is added to it. Every dash longer than a hyphen (—, ―, – or ‒) is written as a hyphen (-), whether the message is sent or drafted. `@` and a member's name, as kithd names them or as their network does (`@Dana Levi`), mentions that person, the longest name winning, and their network notifies them as it would for a mention typed in kith |
 | `thread` | Optional: write into this thread, named by its root or any message in it |
 | `reply_to` | Optional: the event ID of the message this answers. A reply to a message in a thread goes into that thread |
 | `at` | Optional: send it at this time instead of now, RFC 3339 with its offset (`2026-10-12T09:00:00+03:00`). The daemon's send-later queue sends it, and the client lists it under `:scheduled` until then |

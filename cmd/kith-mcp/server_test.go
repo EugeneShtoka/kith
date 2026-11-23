@@ -65,6 +65,12 @@ type fake struct {
 
 	// verdicts is the tag verdicts the daemon gives: what filters moved rooms into.
 	verdicts []domain.TagVerdict
+	// members is each room's people, as kithd names them.
+	members map[domain.RoomID][]domain.Member
+}
+
+func (f *fake) MentionCandidates(_ context.Context, room domain.RoomID, _ int) ([]domain.Member, error) {
+	return f.members[room], nil
 }
 
 func (f *fake) LoadImage(_ context.Context, _ domain.RoomID, event domain.EventID) ([]byte, error) {
