@@ -4,7 +4,7 @@ What is left of the client topology begun 2026-10-24. Built: profiles, replay, r
 clients, bridges pairing in a mesh (its remaining steps are in
 [design-mesh.md](design-mesh.md)), and the desktop client; how they work is in
 [ARCHITECTURE.md](../ARCHITECTURE.md) and [docs/remote.md](../docs/remote.md). This file
-holds what follows: failover between bridges (Phase 3), the desktop's partial cache, an
+holds what follows: failover between bridges (Phase 3), the client's local store, an
 Android client (Phase 5), and an optional bridge on the phone (Phase 6).
 
 ## The invariant that shapes everything
@@ -23,9 +23,11 @@ history, assist, kith-mcp, scheduled sends and replay after failover all run on
 it. A device-only cache would make each of those wait for a device to be awake,
 and make every device download everything.
 
-**Each device keeps a partial cache** (not built yet): its profile's rooms and a recent
-window, for offline reading and instant start. Scrollback beyond it comes from the
-bridge. A device holding one is a replica of the mesh, syncing through its bridge.
+**Each client machine keeps a local store** (not built yet): a cache of its bridge's
+answers and of every room's history, kept by a proxy every client on the machine dials,
+for offline reading, offline search and instant start. History past what the bridge's
+cache holds comes from the bridge. The machine stays a thin device of the mesh, not a
+replica ([design-desktop-cache.md](design-desktop-cache.md)).
 
 ## Topology: one architecture, N:M
 
@@ -336,8 +338,8 @@ As of 2026-10-24, from each product's public site and documentation.
    "scheduled queue migrates between devices" problem. Transient failover gaps
    (3–5s) buffer and flush on reconnect; not considered offline.
 
-4. **The message cache stays on the bridge.** Devices keep a partial cache of
-   their profile's rooms. Rejected: moving the cache to devices, which would stop
+4. **The message cache stays on the bridge.** Client machines keep a cache of their
+   bridge's answers (design-desktop-cache.md). Rejected: moving the cache to devices, which would stop
    everything kithd does with no client open.
 
 5. **Bridge selection is pinned priority with fallback.** Not latency-measured.
@@ -379,11 +381,10 @@ bridges: steps 5–8 of [design-mesh.md](design-mesh.md).
 - A client on several bridges showing everything its profile defines across them
   (design-mesh.md decision 6).
 
-**The desktop's partial cache.** Offline reading and instant start in the desktop
-client. Its design is reopened (2026-11-19) and gets a design and planning phase of its
-own before any build: how it relates to a kithd cache on the same machine comes first.
-The draft and the answers given so far are in
-[design-desktop-cache.md](design-desktop-cache.md).
+**The client's local store.** Offline reading, offline search and instant start for
+every client on a machine that reads a bridge elsewhere, through a proxy each of them
+dials. Designed 2026-11-21: [design-desktop-cache.md](design-desktop-cache.md). Phase 3's
+failover is built into that proxy once it exists.
 
 **Phase 5 — Android client.** Kotlin app, woken by UnifiedPush: the push sink in
 `notify` POSTs encrypted wakes to each profile's endpoints. Local SQLite cache for
