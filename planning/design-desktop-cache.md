@@ -363,7 +363,7 @@ the code as it stands, with mesh step 5a (sealed ops, #609).
 ## What steps 5–8 must not assume
 
 Steps 5 (config, #613), 6 (drafts, #616), 7 (verdicts, #619) and 8 (key
-rotation, #623) are built, and the mailbox (step 9, #624) after them. What the store relies on
+rotation, #623) are built, and the mailbox (steps 9 and 10, #624 and #625) after them. What the store relies on
 from them, and later changes must keep:
 
 1. **A client reads the merged state through kithd's calls.** Config through `Device`,
