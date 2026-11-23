@@ -1678,6 +1678,10 @@ message StatusResponse {
   // backup_warning is set while the scheduled backups go to a folder that does not keep
   // them, unless it was dismissed for that folder (DismissBackupWarning).
   BackupWarning backup_warning = 6;
+  // held_since is set only by kith-proxy while the bridge is out of reach and it
+  // answers from its store: when it last heard the bridge, which is how current what
+  // a client is shown is. Unset when the answers come from kithd itself.
+  google.protobuf.Timestamp held_since = 7;
 }
 
 // BackupWarning is a folder kithd's scheduled backups go to that does not keep them:

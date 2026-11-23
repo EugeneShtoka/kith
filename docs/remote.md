@@ -393,7 +393,10 @@ beside it. With several `[[bridge]]` entries the first is dialed.
   timeline shows what was held, and anything that needs the bridge (sending, history
   older than the copy, search, a person's card) fails as it does with the bridge out
   of reach. Once the bridge has answered again for 5 seconds, the clients are switched
-  back and read everything from it again. A profile is answered offline only from the
+  back and read everything from it again. While offline the window says "Offline:
+  showing what this device held at" and when it last heard the bridge, the terminal
+  client's status line says "offline · as of" that time, and kith-mcp adds a note
+  saying so to every answer. A profile is answered offline only from the
   rooms the bridge last listed for it. The copy is deleted when the bridge refuses
   this device's key and when this machine leaves the bridge; without a keyring there
   is no copy, and the proxy only forwards.

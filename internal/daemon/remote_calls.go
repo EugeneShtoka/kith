@@ -880,6 +880,19 @@ func (r *Remote) Status(ctx context.Context) (ready bool, syncedAt time.Time, la
 	return resp.GetReady(), syncedAt, resp.GetLastError(), nil
 }
 
+// HeldSince is Status's held_since (api.Held): set only by kith-proxy answering from its
+// store.
+func (r *Remote) HeldSince(ctx context.Context) (time.Time, error) {
+	resp, err := call(ctx, "status", r.c.Status, &v1.StatusRequest{})
+	if err != nil {
+		return time.Time{}, err
+	}
+	if ts := resp.GetHeldSince(); ts != nil {
+		return ts.AsTime().Local(), nil
+	}
+	return time.Time{}, nil
+}
+
 // BackupWarning is Status's warning about the backups folder (api.BackupWarnings).
 func (r *Remote) BackupWarning(ctx context.Context) (dir, why string, err error) {
 	resp, err := call(ctx, "status", r.c.Status, &v1.StatusRequest{})
