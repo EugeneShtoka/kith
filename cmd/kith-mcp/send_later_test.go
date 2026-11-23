@@ -77,7 +77,9 @@ func TestASendOutsideWorkingHoursWaitsForThem(t *testing.T) {
 	if why, _ := out["reason"].(string); !strings.Contains(why, "working hours") {
 		t.Errorf("reason = %q, want it to name the working hours", why)
 	}
-	call(t, s, "send_message", map[string]any{"room": "Standup", "text": "in an hour", "at": now.Add(time.Hour).Format(time.RFC3339)})
+	// Halfway to midnight is later today whatever the hour; an hour ahead may be tomorrow.
+	laterToday := now.Add(tomorrow.Sub(now) / 2).Format(time.RFC3339Nano)
+	call(t, s, "send_message", map[string]any{"room": "Standup", "text": "later today", "at": laterToday})
 	if len(f.queued) != 2 || !f.queued[1].At.Equal(tomorrow) {
 		t.Errorf("a later send inside today: queued %+v, want it moved to %s", f.queued, tomorrow)
 	}

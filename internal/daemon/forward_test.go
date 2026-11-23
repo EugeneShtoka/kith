@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -123,9 +124,21 @@ func TestABridgesRefusalReachesAClientThroughTheProxy(t *testing.T) {
 	serveProxy(t, storage, up)
 
 	client := backendv1connect.NewBackendServiceClient(daemon.Dial(storage.ProxySocketPath()), "http://kithd")
-	_, err = client.Status(t.Context(), connect.NewRequest(&v1.StatusRequest{}))
+	// A refusal can meet the connection's reset before its alert, which says nothing of
+	// the key (Upstream.refused): the alert comes on a later attempt, and is kept after.
+	deadline := time.Now().Add(settle)
+	for {
+		_, err = client.Status(t.Context(), connect.NewRequest(&v1.StatusRequest{}))
+		if connect.CodeOf(err) == connect.CodePermissionDenied || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 	if connect.CodeOf(err) != connect.CodePermissionDenied || !strings.Contains(err.Error(), "bridge home refused this device") {
 		t.Errorf("Status through the proxy of a key the bridge refuses = %v, want permission denied naming bridge home", err)
+	}
+	if _, err = client.Status(t.Context(), connect.NewRequest(&v1.StatusRequest{})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Errorf("Status again after the refusal = %v, want it still permission denied", err)
 	}
 }
 

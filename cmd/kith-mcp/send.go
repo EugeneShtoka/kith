@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/EugeneShtoka/kith/internal/agent"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -37,9 +39,10 @@ var errLaterOnlyWhereSent = errors.New("a message is sent later only where you m
 	"this room is drafted into, so nothing was scheduled. Write it now as a draft, or tell them")
 
 // aim is where in a room a message goes: a thread root and a message it answers,
-// either empty.
+// either empty; mentions are the people it names (mentionsIn).
 type aim struct {
 	thread, replyTo domain.EventID
+	mentions        []domain.Mention
 }
 
 // errElsewhere refuses to add to a draft answering another message: the words would
@@ -86,6 +89,7 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 	if err != nil {
 		return nil, err
 	}
+	target.mentions = s.mentionsIn(ctx, room.ID, text)
 	// No other session decides between the cooldown read and the send's record.
 	release, err := s.ledger.Exclusive(ctx)
 	if err != nil {
@@ -152,8 +156,8 @@ func sendTime(at string, now time.Time) (time.Time, error) {
 // why then.
 func (s *server) sendLater(ctx context.Context, room domain.Room, text string, target aim, at time.Time, why string) (any, error) {
 	if _, err := s.backend.Schedule(ctx, domain.ScheduledMessage{
-		RoomID: room.ID, Body: text, TxnID: domain.NewTxnID(), At: at, Written: time.Now().UTC(),
-		ThreadRoot: target.thread, ReplyTo: target.replyTo,
+		RoomID: room.ID, Body: text, Mentions: target.mentions, TxnID: domain.NewTxnID(), At: at,
+		Written: time.Now().UTC(), ThreadRoot: target.thread, ReplyTo: target.replyTo,
 	}); err != nil {
 		return nil, fmt.Errorf("scheduling it: %w", err)
 	}
@@ -185,6 +189,54 @@ func (s *server) aimIn(ctx context.Context, room domain.Room, thread, replyTo st
 		out.thread = root
 	}
 	return out, nil
+}
+
+// mentionsIn are the room's people text names as @name, by any name they go by here
+// (kithd's, as the room shows it, or the network's), the longest name at each @. The
+// mention's name keeps its @, so the text goes out as written and each network turns
+// it into its own mention. A failed read sends the text as it is.
+func (s *server) mentionsIn(ctx context.Context, room domain.RoomID, text string) []domain.Mention {
+	if !strings.Contains(text, "@") {
+		return nil
+	}
+	members, err := s.backend.MentionCandidates(ctx, room, 0)
+	if err != nil {
+		s.log.Warn("reading the room's members failed; @names go out as text", "room", room, "err", err)
+		return nil
+	}
+	var out []domain.Mention
+	for at := strings.IndexByte(text, '@'); at >= 0; {
+		best, who := "", ""
+		if at == 0 || !wordRune(text[:at], true) {
+			for _, m := range members {
+				for _, name := range []string{m.ShownAs, m.KnownAs, m.DisplayName} {
+					rest, ok := strings.CutPrefix(text[at+1:], name)
+					if ok && name != "" && len(name) > len(best) && (rest == "" || !wordRune(rest, false)) {
+						best, who = name, m.UserID
+					}
+				}
+			}
+		}
+		if best != "" {
+			out = append(out, domain.Mention{UserID: who, Name: "@" + best})
+		}
+		next := strings.IndexByte(text[at+1:], '@')
+		if next < 0 {
+			break
+		}
+		at += 1 + next
+	}
+	return out
+}
+
+// wordRune reports whether the last (or first) rune of s is a letter or digit: a name
+// that runs on into more of a word is not the name.
+func wordRune(s string, last bool) bool {
+	r, _ := utf8.DecodeRuneInString(s)
+	if last {
+		r, _ = utf8.DecodeLastRuneInString(s)
+	}
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 // messageIn is the cached message with this event ID in room.
@@ -289,7 +341,8 @@ func (s *server) hoursNameAPlace() bool {
 // sendNow posts the message. A failure goes to the daemon's queue under the same txn ID
 // (no duplicate); a draft is the last resort.
 func (s *server) sendNow(ctx context.Context, room domain.Room, text string, target aim) (any, error) {
-	draft := domain.Draft{Body: text, TxnID: domain.NewTxnID(), ThreadRoot: target.thread, ReplyTo: target.replyTo}
+	draft := domain.Draft{Body: text, Mentions: target.mentions, TxnID: domain.NewTxnID(),
+		ThreadRoot: target.thread, ReplyTo: target.replyTo}
 	sendErr := s.backend.Send(ctx, room.ID, draft)
 	if sendErr == nil {
 		return s.wrote(room, agent.Sent, text, time.Time{}, "")
@@ -298,8 +351,8 @@ func (s *server) sendNow(ctx context.Context, room domain.Room, text string, tar
 	s.log.Warn("send failed; queueing", "room", room.ID, "err", sendErr)
 	now := time.Now().UTC()
 	_, queueErr := s.backend.Schedule(ctx, domain.ScheduledMessage{
-		RoomID: room.ID, Body: text, TxnID: draft.TxnID, At: now, Written: now,
-		ThreadRoot: target.thread, ReplyTo: target.replyTo,
+		RoomID: room.ID, Body: text, Mentions: target.mentions, TxnID: draft.TxnID, At: now,
+		Written: now, ThreadRoot: target.thread, ReplyTo: target.replyTo,
 	})
 	if queueErr == nil {
 		return s.wrote(room, agent.Queued, text, time.Time{}, "the homeserver would not take it yet; the daemon is retrying it")
@@ -389,6 +442,7 @@ func (s *server) appendDraft(ctx context.Context, room domain.Room, text string,
 		body = held.Body + "\n\n" + text
 	}
 	held.RoomID, held.Body = room.ID, body
+	held.Mentions = slices.Concat(held.Mentions, target.mentions)
 	held.Author, held.Updated = s.whoever(), time.Now()
 	saved, err = s.backend.ReplaceDraft(ctx, held, over)
 	if err != nil {
