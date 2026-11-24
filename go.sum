@@ -4,8 +4,8 @@
 4d63.com/gochecknoglobals v0.2.2/go.mod h1:lLxwTQjL5eIesRbvnzIP3jZtG140FnTdz+AlMa+ogt0=
 c2sp.org/CCTV/age v0.0.0-20260829155415-4448f2097b2d h1:Blprhc2SbChNZtWcU+BLTM4YdoqYAS9V7cJgOwJKyAs=
 c2sp.org/CCTV/age v0.0.0-20260829155415-4448f2097b2d/go.mod h1:SrHC2C7r5GkDk8R+NFVzYy/sdj0Ypg9htaPXQq5Cqeo=
-charm.land/bubbletea/v2 v2.1.2-0.20261109105522-e4d617e7e0c0 h1:W9WQEOVw3BvdrfUYvSECr5nHhX+NnDtkhxyUMnPKG9Q=
-charm.land/bubbletea/v2 v2.1.2-0.20261109105522-e4d617e7e0c0/go.mod h1:xWHeyxIX9/wiFU2kgPW04ojOZyTzrWf+8lGjUCaftiU=
+charm.land/bubbletea/v2 v2.1.2 h1:vB3XAcHhLB2gR3HOHpwO3lHB3nbvaowIgL3e5x/DUZo=
+charm.land/bubbletea/v2 v2.1.2/go.mod h1:xWHeyxIX9/wiFU2kgPW04ojOZyTzrWf+8lGjUCaftiU=
 charm.land/lipgloss/v2 v2.1.0 h1:RLCNLhSQST+NPOmvUSbRWZ3UFOXsf3ZXFmJ5E/2tHEU=
 charm.land/lipgloss/v2 v2.1.0/go.mod h1:wwfOgrNqUA9yjL8nmG6BIO0qQnmkEgJ8ISptbme83gI=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
