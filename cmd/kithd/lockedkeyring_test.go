@@ -19,7 +19,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
-// lockedChildEnv holds the instance directory TestALockedKeyringIsNotAskedToUnlockOnRetries
+// lockedChildEnv holds the instance directory TestALockedKeyringIsNeverAskedToUnlock
 // runs its child on; the child reads the keyring through go-keyring's real Secret
 // Service client, so TestMain leaves it unmocked.
 const lockedChildEnv = "KITH_TEST_LOCKED_KEYRING"
@@ -142,11 +142,12 @@ func privateBus(t *testing.T) string {
 	return strings.TrimSpace(address)
 }
 
-// kithd started while the keyring is locked asks it to unlock once, on its first try,
-// and on its retries only reads whether it is still locked: every Unlock with no display
-// to prompt on cost gnome-keyring a file descriptor, until after some 1000 retries it
-// stopped answering anyone. Once the keyring is unlocked the next retry opens the cache.
-func TestALockedKeyringIsNotAskedToUnlockOnRetries(t *testing.T) {
+// kithd started while the keyring is locked never asks it to unlock: its first try and
+// its retries only read whether it is still locked, saying the cache is locked meanwhile.
+// Every Unlock with no display to prompt on cost gnome-keyring a file descriptor, until
+// after some 1000 retries it stopped answering anyone. Once the keyring is unlocked the
+// next retry opens the cache.
+func TestALockedKeyringIsNeverAskedToUnlock(t *testing.T) {
 	if dir := os.Getenv(lockedChildEnv); dir != "" {
 		lockedKeyringChild(t, dir)
 		return
@@ -161,7 +162,7 @@ func TestALockedKeyringIsNotAskedToUnlockOnRetries(t *testing.T) {
 	if err = lock.Release(); err != nil { // the child holds it, as kithd
 		t.Fatal(err)
 	}
-	service := &secrets{locked: true, unlockedAt: 2, key: base64.StdEncoding.EncodeToString(key), asked: make(chan string, 64)}
+	service := &secrets{locked: true, unlockedAt: 3, key: base64.StdEncoding.EncodeToString(key), asked: make(chan string, 64)}
 	for path, ifaces := range map[dbus.ObjectPath][]string{
 		"/org/freedesktop/secrets": {"org.freedesktop.Secret.Service", "org.freedesktop.DBus.Properties"},
 		secretsLogin:               {"org.freedesktop.Secret.Collection", "org.freedesktop.DBus.Properties"},
@@ -180,7 +181,7 @@ func TestALockedKeyringIsNotAskedToUnlockOnRetries(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
-	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestALockedKeyringIsNotAskedToUnlockOnRetries$", "-test.v") // #nosec G204 -- this test's own binary
+	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestALockedKeyringIsNeverAskedToUnlock$", "-test.v") // #nosec G204 -- this test's own binary
 	child.Env = append(os.Environ(), lockedChildEnv+"="+storage.DataDir, "DBUS_SESSION_BUS_ADDRESS="+address)
 	var report strings.Builder
 	child.Stdout, child.Stderr = &report, &report
@@ -202,8 +203,17 @@ func TestALockedKeyringIsNotAskedToUnlockOnRetries(t *testing.T) {
 		}
 		return ""
 	}
-	if what := next(); what != "unlock" {
-		t.Fatalf("kithd's first try did %q; want it to ask the keyring to unlock, once", what)
+	if what := next(); what != "locked?" {
+		t.Fatalf("kithd's first try asked a locked keyring to %s; want it only to read whether it is locked", what)
+	}
+	const says = "the cache is locked: unlock the keyring"
+	waitingSays(t, storage, says)
+	socket, err := daemon.SocketPath(storage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, said, statusErr := daemon.NewRemote(socket).Status(ctx); said != says {
+		t.Errorf("while the keyring is locked kithd says %q (%v); want %q", said, statusErr, says)
 	}
 	for range 2 {
 		if what := next(); what != "locked?" {
