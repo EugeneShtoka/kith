@@ -455,8 +455,9 @@ kith-proxy [--config path] [--version]
 
 On a machine that joined a bridge, the link every client here dials
 ([remote.md](remote.md#using-a-bridge)): it forwards their calls to the bridge with
-this machine's device key. Its systemd user unit `kith-proxy.service` starts it at
-login. It exits at once when `device.toml` names no `[[bridge]]`, and when another
+this machine's device key, and while the bridge is out of reach answers them from the
+copy of its answers it keeps ([remote.md](remote.md#using-a-bridge), Reading offline).
+Its systemd user unit `kith-proxy.service` starts it at login. It exits at once when `device.toml` names no `[[bridge]]`, and when another
 runs for the same config.
 
 | Flag | Meaning |

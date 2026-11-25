@@ -147,16 +147,43 @@ func (s *server) run(t *tool, raw json.RawMessage) any {
 		s.hiddenErr = err
 	}
 	result, err := t.run(s, ctx, raw)
-	if err != nil {
+	var out map[string]any
+	switch c, ok := result.(toolContent); {
+	case err != nil:
 		// The assistant reads the reason; the log keeps it for the person. Tool errors name
 		// rooms and scope, never message text.
 		s.log.Warn("tool call failed", "tool", t.name, "err", err)
-		return toolError(err)
+		out = toolError(err)
+	case ok:
+		out = map[string]any(c)
+	default:
+		out = asJSON(result)
 	}
-	if c, ok := result.(toolContent); ok {
-		return map[string]any(c)
+	return s.heldNote(ctx, out)
+}
+
+// held is a daemon that can say its answers come from kith-proxy's store (api.Held,
+// which daemon.Remote is).
+type held interface {
+	HeldSince(ctx context.Context) (time.Time, error)
+}
+
+// heldNote adds to out, while kith-proxy answers from its store with the bridge out of
+// reach, a note saying so and as of when: the assistant must not take it as current.
+func (s *server) heldNote(ctx context.Context, out map[string]any) map[string]any {
+	src, ok := s.backend.(held)
+	if !ok {
+		return out
 	}
-	return asJSON(result)
+	since, err := src.HeldSince(ctx)
+	if err != nil || since.IsZero() {
+		return out
+	}
+	items, _ := out["content"].([]any)
+	out["content"] = append(items, map[string]any{"type": "text", "text": fmt.Sprintf(
+		"Offline: the bridge is out of reach, so this is what this device held as of %s. "+
+			"Anything newer, and sending, wait until it is back.", since.Format("2006-01-02 15:04 MST"))})
+	return out
 }
 
 // schema builds the object schemas below, all of the same shape.

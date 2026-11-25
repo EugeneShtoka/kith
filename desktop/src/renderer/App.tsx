@@ -1364,6 +1364,14 @@ function Banner({ link, status, bridge }: { link: Link; status: StatusResponse |
         </p>
       );
     case "attached":
+      // kith-proxy answers from its store while the bridge is out of reach.
+      if (status?.heldSince) {
+        return (
+          <p className="banner waiting">
+            Offline: showing what this device held at {when.format(timestampDate(status.heldSince))}.
+          </p>
+        );
+      }
       return null;
   }
 }

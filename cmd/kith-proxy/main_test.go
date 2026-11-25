@@ -66,12 +66,70 @@ func ended(t *testing.T, done <-chan error) error {
 }
 
 // On a machine that joined no bridge there is nothing to forward: run returns at once,
-// listening nowhere.
+// listening nowhere, and deletes the store of a bridge it left.
 func TestNoBridgeJoinedIsNothingToDo(t *testing.T) {
 	path := clientConfig(t)
+	storage, _, err := setup.ClientStorage(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(storage.DataDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(storage.ProxyStorePath(), []byte("left behind"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	done, _ := runs(t, path)
 	if err := ended(t, done); err != nil {
 		t.Errorf("run() with no bridge joined = %v, want nil", err)
+	}
+	if _, err := os.Stat(storage.ProxyStorePath()); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the store of a bridge this machine left: %v, want it deleted", err)
+	}
+}
+
+// The store is the bridge's it was filled from: opened for another bridge it is made
+// anew; for the bridge it was filled from, or one whose key was rotated as the proxy
+// started (pinned), it keeps what it holds.
+func TestTheStoreIsOneBridges(t *testing.T) {
+	storage, _, err := setup.ClientStorage(clientConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(storage.DataDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	holds := func(id, pinned string) bool {
+		t.Helper()
+		s, err := openStore(t.Context(), storage, id, pinned)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = s.Close() }()
+		_, ok, err := s.Answer(t.Context(), "Rooms", "Home", emptyKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ok {
+			if err := s.PutAnswer(t.Context(), "Rooms", "Home", emptyKey, []byte("x")); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return ok
+	}
+	for _, step := range []struct {
+		name, id, pinned string
+		want             bool
+	}{
+		{"first opened", "B1", "B1", false},
+		{"opened again", "B1", "B1", true},
+		{"the bridge rotated to B2 as it started", "B2", "B1", true},
+		{"opened for B2 since", "B2", "B2", true},
+		{"joined another bridge", "C1", "C1", false},
+	} {
+		if got := holds(step.id, step.pinned); got != step.want {
+			t.Errorf("%s: kept what it held = %v, want %v", step.name, got, step.want)
+		}
 	}
 }
 

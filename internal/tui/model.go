@@ -779,7 +779,7 @@ func (m Model) Init() tea.Cmd {
 		m.listenReactionsCmd(), m.listenInvitesCmd(), m.listenActivityCmd(),
 		m.listenFollowCmd(), m.listenChangesCmd(), m.listenConfigCmd(),
 		m.loadDraftsCmd(),
-		m.loadVerdictsCmd(), m.loadAccountStatesCmd(), m.loadBackupWarningCmd(),
+		m.loadVerdictsCmd(), m.loadAccountStatesCmd(), m.loadBackupWarningCmd(), m.loadHeldCmd(),
 		m.readDNDCmd(), m.pollTickCmd(), m.refusalsCmd(),
 		m.listenAttachedCmd(),
 		m.lastMessagesCmd(),
@@ -1077,6 +1077,9 @@ func (m Model) handleHousekeepingMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return answered(m.handleAccountStates(msg))
 	case backupWarningMsg:
 		return answered(m.handleBackupWarning(msg))
+	case heldMsg:
+		m.link.heldSince = msg.since
+		return answered(m, nil)
 	case playerTickMsg:
 		// Forces the repaint that moves the playback bar.
 		return answered(m.handlePlayerTick())

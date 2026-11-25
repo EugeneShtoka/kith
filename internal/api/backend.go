@@ -435,6 +435,14 @@ type BackupWarnings interface {
 	DismissBackupWarning(ctx context.Context, dir string) error
 }
 
+// Held is whether what the daemon answers is a store's copy, kept while the bridge is
+// out of reach (kith-proxy), and as of when.
+type Held interface {
+	// HeldSince is when the bridge last answered, while the answers are held; zero while
+	// they come from kithd itself.
+	HeldSince(ctx context.Context) (time.Time, error)
+}
+
 // Maintenance is operations on the stores only the process owning them can
 // perform.
 type Maintenance interface {
