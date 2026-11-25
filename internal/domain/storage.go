@@ -135,6 +135,12 @@ func (s Storage) ProxySocketPath() string {
 	return filepath.Join(s.RuntimeDir, s.Instance+"-proxy.sock")
 }
 
+// ProxyStorePath is kith-proxy's store of the bridge's answers (clientstore): one per
+// machine, whatever bridge it reads.
+func (s Storage) ProxyStorePath() string {
+	return filepath.Join(s.DataDir, "proxy-"+s.Instance+".db")
+}
+
 // ProxyLockPath is kith-proxy's single-instance lock, beside its socket.
 func (s Storage) ProxyLockPath() string {
 	return filepath.Join(s.RuntimeDir, s.Instance+"-proxy.lock")

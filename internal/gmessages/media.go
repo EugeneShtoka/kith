@@ -122,7 +122,7 @@ func (a *Adapter) LoadImage(ctx context.Context, room domain.RoomID, event domai
 	}
 	var data []byte
 	err = a.guard("downloading an attachment", func() error {
-		body, opened := client.DownloadMedia(src.ID, src.Key)
+		body, opened := client.DownloadMedia(ctx, src.ID, src.Key)
 		if opened != nil {
 			return opened //nolint:wrapcheck // wrapped below
 		}
@@ -181,7 +181,7 @@ func (a *Adapter) SendFile(ctx context.Context, room domain.RoomID, path, name, 
 	}
 	var media *gmproto.MediaContent
 	err = a.guard("uploading a file", func() (err error) {
-		media, err = client.UploadMedia(data, name, fileMedia(name, data))
+		media, err = client.UploadMedia(ctx, data, name, fileMedia(name, data))
 		return err //nolint:wrapcheck // wrapped below
 	})
 	if err != nil {

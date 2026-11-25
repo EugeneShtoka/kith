@@ -352,6 +352,51 @@ func text(t *testing.T, body map[string]any) string {
 	return out
 }
 
+// heldFake is the daemon as kith-proxy answers while the bridge is out of reach.
+type heldFake struct {
+	*fake
+	since time.Time
+}
+
+func (h heldFake) HeldSince(context.Context) (time.Time, error) { return h.since, nil }
+
+// While kith-proxy answers from its store, every answer says so and as of when, after
+// what it answers; answered by kithd itself, it says nothing more.
+func TestHeldAnswersSayTheyAreHeld(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 11, 23, 14, 2, 0, 0, time.UTC)
+	encoded, err := json.Marshal(map[string]any{"name": "list_rooms"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name    string
+		backend daemonCalls
+		want    int
+	}{
+		{"held", heldFake{fake: twoRooms(), since: at}, 2},
+		{"live", heldFake{fake: twoRooms()}, 1},
+		{"kithd's own", twoRooms(), 1},
+	} {
+		s := &server{backend: tc.backend, scope: shareAll, log: logging.Discard()}
+		result, rpcErr := s.call(encoded)
+		if rpcErr != nil {
+			t.Fatalf("%s: %+v", tc.name, rpcErr)
+		}
+		blocks, _ := result.(map[string]any)["content"].([]any)
+		if len(blocks) != tc.want {
+			t.Errorf("%s: %d content blocks, want %d", tc.name, len(blocks), tc.want)
+			continue
+		}
+		if tc.want == 2 {
+			note, _ := blocks[1].(map[string]any)["text"].(string)
+			if !strings.Contains(note, "Offline") || !strings.Contains(note, "2026-11-23 14:02") {
+				t.Errorf("held note = %q, want it to say offline as of 2026-11-23 14:02", note)
+			}
+		}
+	}
+}
+
 func TestHandshakeAndToolList(t *testing.T) {
 	t.Parallel()
 

@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/EugeneShtoka/kith/internal/buildinfo"
+	"github.com/EugeneShtoka/kith/internal/clientstore"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -66,13 +68,17 @@ func run(ctx context.Context, log *slog.Logger, configPath string) error {
 	if err != nil {
 		return err
 	}
-	if !joined {
-		log.Info("this machine joined no bridge: kith-proxy has nothing to forward")
-		return nil
-	}
 	storage, allowFile, err := setup.ClientStorage(path)
 	if err != nil {
 		return err
+	}
+	if !joined {
+		// A machine that left its bridge keeps nothing it read from it (decision 8).
+		if rerr := clientstore.Remove(storage.ProxyStorePath()); rerr != nil {
+			return rerr
+		}
+		log.Info("this machine joined no bridge: kith-proxy has nothing to forward")
+		return nil
 	}
 	lock, held, err := daemon.AcquireProxy(storage)
 	if err != nil {
@@ -97,6 +103,7 @@ func serve(ctx context.Context, log *slog.Logger, path string, b config.Bridge, 
 	if err != nil {
 		return fmt.Errorf("dialing bridge %s: %w", b.Name, err)
 	}
+	pinned := b.ID
 	// shortcut: a key the bridge rotates while this runs is followed at the next start,
 	// as kith-notify's is; the bridge answers on the old one for 30 days meanwhile.
 	if b, err = daemon.FollowRotation(ctx, cert, config.DevicePath(path), b); err != nil {
@@ -106,25 +113,90 @@ func serve(ctx context.Context, log *slog.Logger, path string, b config.Bridge, 
 	if err != nil {
 		return fmt.Errorf("dialing bridge %s: %w", b.Name, err)
 	}
+	store, err := openStore(ctx, storage, b.ID, pinned)
+	if err != nil {
+		log.Warn("no store of the bridge's answers: kith-proxy only forwards", "err", err)
+	}
 	ln, err := lock.Listen(ctx)
 	if err != nil {
+		closeStore(store, log)
 		return fmt.Errorf("kith-proxy's socket: %w", err)
 	}
-	mux := http.NewServeMux()
-	daemon.HandleBackend(mux, up.Forward(log))
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: readHeaderTimeout}
+	p := newProxy(ctx, up, store, storage.ProxyStorePath(), log)
+	runCtx, stopRun := context.WithCancel(ctx)
+	ran := make(chan struct{})
+	go func() { defer close(ran); p.run(runCtx) }()
+	srv := &http.Server{Handler: p.handler(), ReadHeaderTimeout: readHeaderTimeout}
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(ln) }()
-	log.Info("forwarding to the bridge", "bridge", b.Name, "socket", lock.Socket())
+	log.Info("serving this machine's clients", "bridge", b.Name, "socket", lock.Socket(), "store", store != nil)
+	var serveErr error
 	select {
 	case err := <-served:
-		return fmt.Errorf("serve: %w", err)
+		serveErr = fmt.Errorf("serve: %w", err)
 	case <-ctx.Done():
+		// Each client's streams end with it. A client chose the proxy as it started, so
+		// it reopens them on this socket: answered again once the proxy is restarted, as
+		// a unit restart or a deploy does, and unavailable until the client restarts if
+		// it never is.
+		_ = srv.Close() // ignored: Serve's own error says the same
+		<-served
 	}
-	// Each client's streams end with it. A client chose the proxy as it started, so it
-	// reopens them on this socket: answered again once the proxy is restarted, as a unit
-	// restart or a deploy does, and unavailable until the client restarts if it never is.
-	_ = srv.Close() // ignored: Serve's own error says the same
-	<-served
-	return nil
+	stopRun()
+	<-ran
+	if !p.gone.Load() {
+		closeStore(store, log)
+	}
+	return serveErr
+}
+
+// bridgeKey keeps the ID of the bridge a store was filled from.
+const bridgeKey = "bridge"
+
+// errCorruptStoreKey is a keyring entry that is not the store's key.
+var errCorruptStoreKey = errors.New("kith-proxy: the store's key in the keyring is corrupt")
+
+// openStore opens this machine's store of the bridge whose ID is id, sealed with a key
+// of its own in the keyring. A store filled from another bridge is deleted and made
+// again; one filled from pinned, which the bridge rotated away from as this started,
+// is the same bridge's.
+func openStore(ctx context.Context, storage domain.Storage, id, pinned string) (*clientstore.Store, error) {
+	path := storage.ProxyStorePath()
+	key, err := keystore.LoadOrCreateKey(storage.KeyringService, storage.Instance+"|proxy-store", errCorruptStoreKey,
+		"delete it together with "+path+", which is filled again")
+	if err != nil {
+		return nil, fmt.Errorf("the store's key: %w", err)
+	}
+	store, err := clientstore.Open(ctx, path, key)
+	if err != nil {
+		return nil, err
+	}
+	was, err := store.Meta(ctx, bridgeKey)
+	if err != nil {
+		_ = store.Close() // the read failure is the report
+		return nil, err
+	}
+	if was != "" && was != id && was != pinned {
+		_ = store.Close() // deleted next
+		if rerr := clientstore.Remove(path); rerr != nil {
+			return nil, rerr
+		}
+		if store, err = clientstore.Open(ctx, path, key); err != nil {
+			return nil, err
+		}
+	}
+	if err := store.PutMeta(ctx, bridgeKey, id); err != nil {
+		_ = store.Close() // the write failure is the report
+		return nil, err
+	}
+	return store, nil
+}
+
+func closeStore(store *clientstore.Store, log *slog.Logger) {
+	if store == nil {
+		return
+	}
+	if err := store.Close(); err != nil {
+		log.Warn("closing the store", "err", err)
+	}
 }

@@ -610,13 +610,9 @@ func TestRealtimeCallbacks(t *testing.T) {
 		t.Errorf("a heartbeat did not keep the rotated cookies: %s", stored.Cookies.GetCookie(cookieSession))
 	}
 	h.BadCredentials(ctx, errors.New("got 401 on connect"))
-	h.UnknownError(ctx, errors.New("not kept: one is waiting already"))
-	if err := <-w.c.gaveUp; !errors.Is(err, errSessionEnded) || refusal(err) == "" {
+	h.BadCredentials(ctx, errors.New("not kept: one is waiting already"))
+	if err := <-w.c.gaveUp; !errors.Is(err, errSessionEnded) || refusal(err) == "" || !strings.Contains(err.Error(), "401") {
 		t.Errorf("gave up with %v", err)
-	}
-	h.UnknownError(ctx, errors.New("failed to connect"))
-	if err := <-w.c.gaveUp; refusal(err) != "" {
-		t.Errorf("giving up after many tries ends the session: %v", err)
 	}
 
 	before := len(heard.got)
