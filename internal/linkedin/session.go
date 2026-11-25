@@ -151,7 +151,8 @@ func parsePaste(paste string) (pasted, error) {
 	}
 	cookies = unquote(strings.TrimSpace(cookies))
 	cookies = gState.ReplaceAllString(cookies, "")
-	if cookies == "" {
+	// No "=" is no cookie: linkedingo now takes a bare token as one with no value.
+	if !strings.Contains(cookies, "=") {
 		return pasted{}, errNoCookies
 	}
 	jar, err := linkedingo.NewJarFromCookieHeader(cookies)

@@ -286,7 +286,6 @@ func (a *Adapter) handlers(c *conn) linkedingo.Handlers {
 			})
 		},
 		BadCredentials: func(_ context.Context, err error) { gaveUp(fmt.Errorf("%w (%w)", errSessionEnded, err)) },
-		UnknownError:   func(_ context.Context, err error) { gaveUp(err) },
 	}
 }
 
