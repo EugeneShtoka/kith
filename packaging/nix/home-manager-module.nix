@@ -1,5 +1,6 @@
-# home-manager module: kith for one user, with its daemon and kith-notify (its desktop
-# notifications) started in that user's session. Import it from the flake:
+# home-manager module: kith for one user, with its daemon, kith-notify (its desktop
+# notifications) and kith-proxy (a joined machine's link to its bridge) started in that
+# user's session. Import it from the flake:
 # inputs.kith.homeManagerModules.default
 #
 #   programs.kith.enable = true;
@@ -23,6 +24,7 @@ let
   wants = {
     "systemd/user/default.target.wants/kithd.service".source = "${units}/kithd.service";
     "systemd/user/default.target.wants/kith-notify.service".source = "${units}/kith-notify.service";
+    "systemd/user/default.target.wants/kith-proxy.service".source = "${units}/kith-proxy.service";
   };
 in
 {
@@ -37,7 +39,7 @@ in
     daemon.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Start kithd and kith-notify in this user's session (systemd on Linux, launchd on macOS).";
+      description = "Start kithd, kith-notify and kith-proxy in this user's session (systemd on Linux, launchd on macOS).";
     };
   };
 
@@ -48,6 +50,7 @@ in
         xdg.configFile = {
           "systemd/user/kithd.service".source = "${units}/kithd.service";
           "systemd/user/kith-notify.service".source = "${units}/kith-notify.service";
+          "systemd/user/kith-proxy.service".source = "${units}/kith-proxy.service";
         }
         // lib.optionalAttrs cfg.daemon.enable wants;
       })
@@ -71,6 +74,16 @@ in
             KeepAlive.SuccessfulExit = false;
             ThrottleInterval = 5;
             StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/kith-notify.log";
+          };
+        };
+        launchd.agents.kith-proxy = {
+          enable = true;
+          config = {
+            ProgramArguments = [ "${pkg}/bin/kith-proxy" ];
+            RunAtLoad = true;
+            KeepAlive.SuccessfulExit = false;
+            ThrottleInterval = 5;
+            StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/kith-proxy.log";
           };
         };
       })

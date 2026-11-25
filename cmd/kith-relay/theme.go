@@ -29,7 +29,7 @@ const themePalette = 128
 
 // kithdBackend is kithd at, as a BackendService client.
 func (d device) kithdBackend() backendv1connect.BackendServiceClient {
-	return backendv1connect.NewBackendServiceClient(d.at.client, d.at.scheme+"://kithd")
+	return backendv1connect.NewBackendServiceClient(d.at.Client, d.at.Scheme+"://kithd")
 }
 
 // Theme answers the theme as it now resolves, both files read again.
@@ -111,7 +111,7 @@ func (d device) writeSharedTheme(ctx context.Context, revision string, writes []
 	backend := d.kithdBackend()
 	got, err := backend.GetConfig(ctx, connect.NewRequest(&backendv1.GetConfigRequest{}))
 	if err != nil {
-		return d.at.failure(err)
+		return d.at.Failure(err)
 	}
 	cfg, err := config.Decode(got.Msg.GetConfig())
 	if err == nil {
@@ -125,15 +125,15 @@ func (d device) writeSharedTheme(ctx context.Context, revision string, writes []
 	}
 	_, err = backend.UpdateConfig(ctx, connect.NewRequest(&backendv1.UpdateConfigRequest{BaseRevision: revision, Config: config.Encode(cfg)}))
 	if err != nil {
-		return d.at.failure(err)
+		return d.at.Failure(err)
 	}
 	return nil
 }
 
 // configName is how a failure names kithd's config.
 func (d device) configName() string {
-	if d.at.bridge != "" {
-		return "the config of bridge " + d.at.bridge
+	if d.at.Bridge != "" {
+		return "the config of bridge " + d.at.Bridge
 	}
 	return d.configPath
 }
@@ -144,7 +144,7 @@ func (d device) theme(ctx context.Context) (*devicev1.ThemeResponse, error) {
 	backend := d.kithdBackend()
 	got, err := backend.GetConfig(ctx, connect.NewRequest(&backendv1.GetConfigRequest{}))
 	if err != nil {
-		return nil, d.at.failure(err)
+		return nil, d.at.Failure(err)
 	}
 	cfg, err := config.Decode(got.Msg.GetConfig())
 	if err == nil {
@@ -159,7 +159,7 @@ func (d device) theme(ctx context.Context) (*devicev1.ThemeResponse, error) {
 	}
 	accounts, err := backend.Accounts(ctx, connect.NewRequest(&backendv1.AccountsRequest{}))
 	if err != nil {
-		return nil, d.at.failure(err)
+		return nil, d.at.Failure(err)
 	}
 	themes, err := config.LoadGUIThemes(config.GUIThemesDir(d.configPath))
 	if err == nil {

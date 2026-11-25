@@ -164,7 +164,7 @@ func loadAccount(log *slog.Logger, configPath string) (at kithdAt, runtimeDir, c
 // loadBridged is loadAccount for a device that joined the bridge b: this machine's
 // storage and device key, as every client of b here finds them (setup.ClientStorage).
 // The bridge is not asked for anything yet: until it answers, the window's calls are
-// unavailable, and it tries again.
+// unavailable, and it tries again. They go through kith-proxy when it answers here.
 func loadBridged(path string, b config.Bridge) (at kithdAt, runtimeDir, configFile string, err error) {
 	storage, allowFile, err := setup.ClientStorage(path)
 	if err != nil {
@@ -180,6 +180,9 @@ func loadBridged(path string, b config.Bridge) (at kithdAt, runtimeDir, configFi
 	at, err = bridged(cert, b)
 	if err != nil {
 		return kithdAt{}, "", "", err
+	}
+	if daemon.ProxyAnswers(context.Background(), storage) {
+		at.Upstream = daemon.ProxyUpstream(storage.ProxySocketPath(), b.Name)
 	}
 	at.keyring = storage.KeyringService
 	return at, storage.RuntimeDir, path, nil

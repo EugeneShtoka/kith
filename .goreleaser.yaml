@@ -94,6 +94,24 @@ builds:
     goos: [linux, darwin, freebsd] # windows: see the WINDOWS slot at the end of builds
     goarch: [amd64, arm64]
 
+  # A machine's link to the bridge it joined, which every client there dials. Same
+  # archive, beside the clients that dial it.
+  - id: kith-proxy
+    main: ./cmd/kith-proxy
+    binary: kith-proxy
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -tags=goolm
+    ldflags:
+      - -s -w
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Version={{.Version}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Commit={{.ShortCommit}}
+      - -X github.com/EugeneShtoka/kith/internal/buildinfo.Date={{.Date}}
+    goos: [linux, darwin, freebsd] # windows: see the WINDOWS slot at the end of builds
+    goarch: [amd64, arm64]
+
   # The desktop window's link to kithd. In no archive or package of its own: the
   # release's desktop job (release.yml) bundles this build into the desktop's deb, rpm
   # and zip, so the relay a window runs is the one built from its tag.
@@ -144,7 +162,7 @@ builds:
 
 archives:
   - id: default
-    ids: [kith, kithd, kith-mcp, kith-notify]
+    ids: [kith, kithd, kith-mcp, kith-notify, kith-proxy]
     name_template: >-
       kith_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     formats: [tar.gz]
@@ -156,12 +174,14 @@ archives:
       # already running before any client starts.
       - packaging/systemd/kithd.service
       - packaging/systemd/kith-notify.service
+      - packaging/systemd/kith-proxy.service
       # The matrix: link handler, and macOS's counterpart of the unit. The Homebrew
       # cask points its caveats at the plist inside the staged archive, and the
       # kith-bin AUR package installs the desktop entry from here.
       - packaging/desktop/kith.desktop
       - packaging/macos/io.github.eugeneshtoka.kithd.plist
       - packaging/macos/io.github.eugeneshtoka.kith-notify.plist
+      - packaging/macos/io.github.eugeneshtoka.kith-proxy.plist
       # The Signal helper, beside kithd, which looks for it there. Built with cgo by
       # signal.yml for Linux only; the glob matches nothing for other platforms.
       - src: "build/signal/kith-signal-{{ .Os }}_{{ .Arch }}/kith-signal*"
@@ -206,7 +226,7 @@ source:
 nfpms:
   - id: packages
     package_name: kith
-    ids: [kith, kithd, kith-mcp, kith-notify]
+    ids: [kith, kithd, kith-mcp, kith-notify, kith-proxy]
     formats: [deb, rpm, apk, archlinux]
     # Each format's own naming (kith_1.2.3_amd64.deb, kith-1.2.3-1.x86_64.rpm,
     # kith_1.2.3_x86_64.apk, kith-1.2.3-1-x86_64.pkg.tar.zst), which is what the
@@ -231,6 +251,9 @@ nfpms:
         file_info: { mode: 0644 }
       - src: build/packaging/systemd/kith-notify.service
         dst: /usr/lib/systemd/user/kith-notify.service
+        file_info: { mode: 0644 }
+      - src: build/packaging/systemd/kith-proxy.service
+        dst: /usr/lib/systemd/user/kith-proxy.service
         file_info: { mode: 0644 }
       - src: packaging/desktop/kith.desktop
         dst: /usr/share/applications/kith.desktop
@@ -365,8 +388,8 @@ aurs:
     install: packaging/arch/kith.install
     # The archive's units say %h/.local/bin; the same rewrite as scripts/render-units.sh.
     package: |-
-      install -Dm755 kith kithd kith-mcp kith-notify kith-signal -t "${pkgdir}/usr/bin/"
-      for unit in kithd.service kith-notify.service; do
+      install -Dm755 kith kithd kith-mcp kith-notify kith-proxy kith-signal -t "${pkgdir}/usr/bin/"
+      for unit in kithd.service kith-notify.service kith-proxy.service; do
         bin="${unit%.service}"
         sed "s|^ExecStart=[^ ]*/${bin}|ExecStart=/usr/bin/${bin}|" "packaging/systemd/${unit}" > "${unit}"
         install -Dm644 "${unit}" "${pkgdir}/usr/lib/systemd/user/${unit}"
@@ -403,12 +426,12 @@ aur_sources:
       export GOFLAGS='-tags=goolm -buildmode=pie -trimpath -mod=readonly -modcacherw'
       _pkg=github.com/EugeneShtoka/kith/internal/buildinfo
       _date=$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y-%m-%dT%H:%M:%SZ)
-      for _cmd in kith kithd kith-mcp kith-notify; do
+      for _cmd in kith kithd kith-mcp kith-notify kith-proxy; do
         go build -ldflags "-X ${_pkg}.Version=${pkgver} -X ${_pkg}.Date=${_date}" -o "build/${_cmd}" "./cmd/${_cmd}"
       done
     package: |-
       cd "${pkgname}-${pkgver}"
-      install -Dm755 build/kith build/kithd build/kith-mcp build/kith-notify -t "${pkgdir}/usr/bin/"
+      install -Dm755 build/kith build/kithd build/kith-mcp build/kith-notify build/kith-proxy -t "${pkgdir}/usr/bin/"
       bash scripts/render-units.sh /usr/bin "${pkgdir}/usr/lib/systemd/user"
       install -Dm644 packaging/desktop/kith.desktop -t "${pkgdir}/usr/share/applications/"
       install -Dm644 LICENSE -t "${pkgdir}/usr/share/licenses/${pkgname}/"
@@ -429,7 +452,7 @@ aur_sources:
 homebrew_casks:
   - name: kith
     ids: [default]
-    binaries: [kith, kithd, kith-mcp, kith-notify]
+    binaries: [kith, kithd, kith-mcp, kith-notify, kith-proxy]
     homepage: https://github.com/EugeneShtoka/kith
     description: Terminal chat client for Matrix, WhatsApp, Telegram and Slack, with a sync daemon, pure-Go E2EE and an MCP server
     license: AGPL-3.0-or-later
@@ -449,16 +472,18 @@ homebrew_casks:
       post:
         install: |
           if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/kith", "#{staged_path}/kithd", "#{staged_path}/kith-mcp", "#{staged_path}/kith-notify"]
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/kith", "#{staged_path}/kithd", "#{staged_path}/kith-mcp", "#{staged_path}/kith-notify", "#{staged_path}/kith-proxy"]
           end
     uninstall:
-      launchctl: [io.github.eugeneshtoka.kithd, io.github.eugeneshtoka.kith-notify]
+      launchctl: [io.github.eugeneshtoka.kithd, io.github.eugeneshtoka.kith-notify, io.github.eugeneshtoka.kith-proxy]
     zap:
       trash:
         - ~/Library/LaunchAgents/io.github.eugeneshtoka.kithd.plist
         - ~/Library/LaunchAgents/io.github.eugeneshtoka.kith-notify.plist
+        - ~/Library/LaunchAgents/io.github.eugeneshtoka.kith-proxy.plist
         - ~/Library/Logs/kithd.log
         - ~/Library/Logs/kith-notify.log
+        - ~/Library/Logs/kith-proxy.log
         - ~/Library/Caches/kith
     caveats: |
       kith needs its daemon, kithd, running. On macOS nothing starts it for you
@@ -470,7 +495,9 @@ homebrew_casks:
         launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.eugeneshtoka.kithd.plist
 
       kith-notify runs the notification command ([notifications] command) here;
-      load it the same way, from io.github.eugeneshtoka.kith-notify.plist.
+      load it the same way, from io.github.eugeneshtoka.kith-notify.plist. On a
+      machine that joined a bridge elsewhere, load io.github.eugeneshtoka.kith-proxy.plist
+      too: every client here then reaches the bridge through it.
 
       After an upgrade: launchctl kickstart -k gui/$(id -u)/io.github.eugeneshtoka.kithd
       Log: ~/Library/Logs/kithd.log
@@ -548,11 +575,12 @@ release:
   prerelease: auto # tags like v0.1.0-rc1 are marked prerelease automatically.
   footer: |
     ---
-    **Install.** Every package contains the same four binaries: `kith` (the
+    **Install.** Every package contains the same five binaries: `kith` (the
     client), `kithd` (the daemon that owns the session — required, the client has
     no in-process fallback), `kith-notify` (shows the daemon's desktop
-    notifications; `kith` starts it) and `kith-mcp` (the optional MCP server for AI
-    assistants).
+    notifications; `kith` starts it), `kith-proxy` (on a machine that joined a
+    bridge elsewhere, the link every client there dials) and `kith-mcp` (the
+    optional MCP server for AI assistants).
     The Linux ones, except Alpine's, also carry `kith-signal`, the Signal helper
     kithd runs for Signal accounts (it needs glibc 2.35 or newer).
 
@@ -573,7 +601,7 @@ release:
     kith login
     systemctl --user daemon-reload
     systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
-    systemctl --user enable --now kithd kith-notify
+    systemctl --user enable --now kithd kith-notify kith-proxy
     ```
 
     From a tarball, install the binaries and the units yourself (kithd's sandbox
@@ -581,8 +609,8 @@ release:
 
     ```sh
     tar xzf kith_*_linux_amd64.tar.gz
-    install -Dm755 kith kithd kith-mcp kith-notify -t ~/.local/bin/
-    install -Dm644 packaging/systemd/kithd.service packaging/systemd/kith-notify.service -t ~/.config/systemd/user/
+    install -Dm755 kith kithd kith-mcp kith-notify kith-proxy -t ~/.local/bin/
+    install -Dm644 packaging/systemd/kithd.service packaging/systemd/kith-notify.service packaging/systemd/kith-proxy.service -t ~/.config/systemd/user/
     ```
 
     On macOS the daemon runs as a LaunchAgent (`packaging/macos/`, see the cask's

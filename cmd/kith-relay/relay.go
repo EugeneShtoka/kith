@@ -6,18 +6,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"maps"
-	"net"
 	"net/http"
-	"net/http/httputil"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
@@ -33,22 +28,12 @@ import (
 	"github.com/EugeneShtoka/kith/internal/setup"
 )
 
-// kithdAt is where the relay reaches kithd: the local one's socket, or the bridge this
-// device joined, over pinned mutual TLS with this device's key (daemon.DialBridge).
+// kithdAt is where the relay reaches kithd (daemon.Upstream), and what the window is
+// told of it.
 type kithdAt struct {
-	client *http.Client
-	// scheme is what client is asked for: TLS to a bridge, plain over the socket.
-	scheme string
-	// socket is the local kithd's socket, bridge the joined bridge's name; one is "".
+	daemon.Upstream
+	// socket is the local kithd's socket; "" for a bridge.
 	socket string
-	bridge string
-	// refused is the bridge having refused this device's key, until it answers again. In
-	// TLS 1.3 a server judges the client's key once the client's handshake is done, so
-	// its refusal is an alert where the first answer would come; a request can meet the
-	// connection reset first instead, and a bridge bounds the handshakes each address may
-	// start, dropping the rest before it reads the key. Neither says anything of the key,
-	// so the window is told the last verdict. Nil for the local kithd.
-	refused *atomic.Bool
 	// id is the ID of the key a bridge is dialed with, as it pins this device; "" for
 	// the local kithd.
 	id string
@@ -59,12 +44,12 @@ type kithdAt struct {
 
 // local is the kithd whose socket is socket.
 func local(socket string) kithdAt {
-	return kithdAt{client: daemon.Dial(socket), scheme: "http", socket: socket}
+	return kithdAt{Upstream: daemon.LocalUpstream(socket), socket: socket}
 }
 
 // bridged is the bridge b, reached as the device whose certificate is cert.
 func bridged(cert tls.Certificate, b config.Bridge) (kithdAt, error) {
-	client, err := daemon.DialBridge(cert, b)
+	up, err := daemon.BridgeUpstream(cert, b)
 	if err != nil {
 		return kithdAt{}, fmt.Errorf("dialing bridge %s: %w", b.Name, err)
 	}
@@ -72,152 +57,16 @@ func bridged(cert tls.Certificate, b config.Bridge) (kithdAt, error) {
 	if err != nil {
 		return kithdAt{}, fmt.Errorf("dialing bridge %s: %w", b.Name, err)
 	}
-	refused := new(atomic.Bool)
-	client.Transport = heard{RoundTripper: client.Transport, refused: refused}
-	return kithdAt{client: client, scheme: "https", bridge: b.Name, refused: refused, id: id.String()}, nil
+	return kithdAt{Upstream: up, id: id.String()}, nil
 }
 
-// heard forgets a bridge's refusal once it answers: an answer comes only through a
-// handshake that took this device's key.
-type heard struct {
-	http.RoundTripper
-	refused *atomic.Bool
-}
-
-func (h heard) RoundTrip(r *http.Request) (*http.Response, error) {
-	res, err := h.RoundTripper.RoundTrip(r)
-	if err != nil {
-		return nil, fmt.Errorf("reaching the bridge: %w", err)
-	}
-	h.refused.Store(false)
-	return res, nil
-}
-
-// failure is err, met reaching kithd, as the window reads it: kithd's own answer keeps
-// its code; a bridge refusing this device's key (a TLS alert from it), now or last time
-// and not answering since, is permission denied, saying so; anything else is kithd not
-// reachable, unavailable, which the window tries again.
-func (at kithdAt) failure(err error) *connect.Error {
-	var alert *net.OpError
-	if at.bridge != "" && (at.refused.Load() || errors.As(err, &alert) && alert.Op == "remote error") {
-		at.refused.Store(true)
-		return connect.NewError(connect.CodePermissionDenied, fmt.Errorf(
-			"bridge %s refused this device's key; it is not paired there (kith pair there, kith join here): %w", at.bridge, err))
-	}
-	if ce := new(connect.Error); errors.As(err, &ce) {
-		return ce
-	}
-	return connect.NewError(connect.CodeUnavailable, err)
-}
-
-// newHandler serves what the window may reach: BackendService, forwarded to kithd at,
-// and DeviceService, answered here. Each of BackendService's methods is a path of its
-// own, so anything else (another service, a path that cleans to one) is refused and the
-// relay lends its reach to nothing else of kithd's.
+// newHandler serves what the window may reach: BackendService, forwarded to kithd at
+// (daemon.HandleBackend), and DeviceService, answered here.
 func newHandler(at kithdAt, configPath string, runs *commandRuns, log *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
-	proxy := forward(at, log)
-	methods := backendv1.File_backend_v1_services_proto.Services().ByName("BackendService").Methods()
-	for i := range methods.Len() {
-		mux.Handle("POST /"+backendv1connect.BackendServiceName+"/"+string(methods.Get(i).Name()), proxy)
-	}
+	daemon.HandleBackend(mux, at.Forward(log))
 	mux.Handle(devicev1connect.NewDeviceServiceHandler(device{at: at, configPath: configPath, runs: runs}))
 	return mux
-}
-
-// forward proxies to kithd at, flushing each stream frame as it comes: the window's
-// streams are live. kithd unreachable is answered as failure reads it, in the protocol
-// the window asked in; kithd gone mid-stream, or a bridge's connection found dead by its
-// PING, cuts the window's stream, which it reopens.
-func forward(at kithdAt, log *slog.Logger) http.Handler {
-	errs := connect.NewErrorWriter()
-	proxy := &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) {
-			r.Out.URL.Scheme = at.scheme
-			r.Out.URL.Host = "kithd"
-		},
-		Transport:     at.client.Transport,
-		FlushInterval: -1,
-		ErrorLog:      slog.NewLogLogger(log.Handler(), slog.LevelWarn),
-		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			log.Warn("kithd did not answer", "method", r.URL.Path, "err", err)
-			if werr := errs.Write(w, r, at.failure(err)); werr != nil {
-				w.WriteHeader(http.StatusBadGateway)
-			}
-		},
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// kithd answers a stream with its headers as it opens, which can be before the
-		// window's request is all read. An HTTP/1.1 server otherwise consumes the rest of
-		// a request's body before it writes the response: the headers would wait on the
-		// request's end, and that read races the copy forwarding the body to kithd, which
-		// then cuts the stream.
-		if err := http.NewResponseController(w).EnableFullDuplex(); err != nil {
-			log.Warn("cannot read a request while answering it; a stream may be cut", "err", err)
-		}
-		body := &heldBody{body: r.Body}
-		r.Body = body
-		defer body.end()
-		proxy.ServeHTTP(w, r)
-	})
-}
-
-// errHandled is a request's body read after its handler returned.
-var errHandled = errors.New("kith-relay: the request was already answered")
-
-// heldBody is a request's body read only while its handler runs, and to its end. A
-// full-duplex server whose handler left the body unread reads it to its end itself, as
-// it closes it once the handler returned, and reaching the end starts its own read of
-// the connection while it already reads the next request, which it does not survive. A
-// round trip that failed before sending the body (a bridge refusing the connection)
-// leaves it unread, and a transport may go on reading it after its round trip ended
-// (net/http allows it).
-type heldBody struct {
-	mu    sync.Mutex
-	body  io.ReadCloser
-	ended bool
-}
-
-func (b *heldBody) Read(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.ended {
-		return 0, errHandled
-	}
-	n, err := b.body.Read(p)
-	switch {
-	case err == nil:
-		return n, nil
-	case errors.Is(err, io.EOF):
-		return n, io.EOF
-	default:
-		return n, fmt.Errorf("reading the request: %w", err)
-	}
-}
-
-func (b *heldBody) Close() error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.ended {
-		return nil // the server closes the body itself
-	}
-	if err := b.body.Close(); err != nil {
-		return fmt.Errorf("closing the request: %w", err)
-	}
-	return nil
-}
-
-// unreadBound is how much of a request end reads that the transport left unread, as the
-// server itself would after its handler: a window's requests are one message each.
-const unreadBound = 256 << 10
-
-// end waits out a read in progress and reads what is left of the request; no read
-// after it reaches the request.
-func (b *heldBody) end() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.ended = true
-	_, _ = io.CopyN(io.Discard, b.body, unreadBound) // its error is the request's end, or a cut the server sees itself
 }
 
 // device answers DeviceService: where kithd is, and the profiles as the config and the
@@ -240,7 +89,7 @@ func (d device) Device(ctx context.Context, _ *connect.Request[devicev1.DeviceRe
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
 	}
 	return connect.NewResponse(&devicev1.DeviceResponse{
-		Socket: d.at.socket, Bridge: d.at.bridge, Profile: spelled(profiles, dev.ProfileInUse), Profiles: profiles,
+		Socket: d.at.socket, Bridge: d.at.Bridge, Profile: spelled(profiles, dev.ProfileInUse), Profiles: profiles,
 	}), nil
 }
 
@@ -669,8 +518,8 @@ func (d device) profileNames(ctx context.Context) ([]string, error) {
 	profiles, err := setup.Profiles(cfg)
 	if err != nil {
 		read := d.configPath
-		if d.at.bridge != "" {
-			read = "the config of bridge " + d.at.bridge
+		if d.at.Bridge != "" {
+			read = "the config of bridge " + d.at.Bridge
 		}
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("reading %s: %w", read, err))
 	}
@@ -683,21 +532,21 @@ func (d device) profileNames(ctx context.Context) ([]string, error) {
 
 // config is kithd's config: the bridge's, read through it (GetConfig), or the file here.
 func (d device) config(ctx context.Context) (config.Config, error) {
-	if d.at.bridge == "" {
+	if d.at.Bridge == "" {
 		cfg, err := config.Load(d.configPath)
 		if err != nil {
 			return config.Config{}, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("reading %s: %w", d.configPath, err))
 		}
 		return cfg, nil
 	}
-	res, err := backendv1connect.NewBackendServiceClient(d.at.client, d.at.scheme+"://kithd").
+	res, err := backendv1connect.NewBackendServiceClient(d.at.Client, d.at.Scheme+"://kithd").
 		GetConfig(ctx, connect.NewRequest(&backendv1.GetConfigRequest{}))
 	if err != nil {
-		return config.Config{}, d.at.failure(err)
+		return config.Config{}, d.at.Failure(err)
 	}
 	cfg, err := config.Decode(res.Msg.GetConfig())
 	if err != nil {
-		return config.Config{}, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("the config of bridge %s: %w", d.at.bridge, err))
+		return config.Config{}, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("the config of bridge %s: %w", d.at.Bridge, err))
 	}
 	return cfg, nil
 }

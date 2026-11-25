@@ -26,6 +26,7 @@ buildGoModule (finalAttrs: {
     "cmd/kithd"
     "cmd/kith-mcp"
     "cmd/kith-notify"
+    "cmd/kith-proxy"
     "cmd/kith-mailbox"
   ];
 
@@ -79,6 +80,7 @@ buildGoModule (finalAttrs: {
     + lib.optionalString stdenv.hostPlatform.isDarwin ''
       install -Dm644 packaging/macos/io.github.eugeneshtoka.kithd.plist -t "$out/share/kith/"
       install -Dm644 packaging/macos/io.github.eugeneshtoka.kith-notify.plist -t "$out/share/kith/"
+      install -Dm644 packaging/macos/io.github.eugeneshtoka.kith-proxy.plist -t "$out/share/kith/"
     '';
 
   meta = {
