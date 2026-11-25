@@ -21,6 +21,18 @@ fi
 
 buf lint
 
+# The backend's wire against the commit it merges into (buf.yaml's breaking rules say
+# why): PROTO_BREAKING_AGAINST, a pull request's base in CI, origin/main otherwise.
+against=${PROTO_BREAKING_AGAINST:-origin/main}
+if git rev-parse --verify --quiet "$against^{commit}" >/dev/null; then
+	buf breaking --against "$(git rev-parse --git-common-dir)#ref=$against"
+elif [ "${PROTO_CHECK_REQUIRED:-}" = 1 ]; then
+	echo "proto-check: $against is not in this clone, and the breaking check is required here" >&2
+	exit 1
+else
+	echo "proto-check: breaking check SKIPPED — $against is not in this clone"
+fi
+
 # The generator and the runtime the generated code imports must be one version.
 generator=$(sed -nE 's/^ *"@bufbuild\/protoc-gen-es": *"([^"]+)".*/\1/p' tools/protoc-gen-es/package.json)
 runtime=$(sed -nE 's/^ *"@bufbuild\/protobuf": *"([^"]+)".*/\1/p' desktop/package.json)

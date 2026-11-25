@@ -4,3 +4,17 @@ modules:
 lint:
   use:
     - STANDARD
+# A client may run another build than the kithd it dials (the Android app, a laptop
+# beside a bridge on a server), so the backend's wire stays readable by an older
+# client: JSON too, which the desktop speaks. A field or enum value goes by reserving
+# its number and name. The device, mesh and signal services are spoken only between
+# processes of one build, or version themselves (the mesh).
+breaking:
+  use:
+    - WIRE_JSON
+    - RPC_NO_DELETE
+    - PACKAGE_SERVICE_NO_DELETE
+  ignore:
+    - api/proto/device
+    - api/proto/mesh
+    - api/proto/signal

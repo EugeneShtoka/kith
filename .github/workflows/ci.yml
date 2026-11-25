@@ -287,6 +287,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The base commit, for buf breaking.
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
@@ -297,9 +299,12 @@ jobs:
         with:
           node-version: "24"
 
-      # Lints, generates into a scratch dir and compares file by file, so a new
-      # (untracked) generated file fails it too.
-      - name: Schema lints and generated code is in sync with api/proto
+      # Lints, checks the backend's wire against the base (buf breaking), generates
+      # into a scratch dir and compares file by file, so a new (untracked) generated
+      # file fails it too.
+      - name: Schema lints, keeps its wire and generated code is in sync with api/proto
+        env:
+          PROTO_BREAKING_AGAINST: ${{ github.event.pull_request.base.sha || 'origin/main' }}
         run: make proto-check
 
   # markdownlint-cli2 from tools/markdownlint's lock.

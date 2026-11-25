@@ -252,6 +252,13 @@ make proto   # buf lint + buf generate: Go into internal/api, TypeScript into de
 A change to the wire breaks the desktop's build in the same PR, as it would the TUI's:
 clients and kithd ship together.
 
+A client may still run another build than the kithd it dials (the Android app, a
+laptop beside a bridge on a server), so the backend service's wire stays readable by
+an older one, in JSON too. `make proto-check` runs `buf breaking` against `origin/main`
+(CI: the pull request's base): a field or enum value goes by reserving its number and
+name (`reserved 3; reserved "role";`), and is never renamed or retyped; an RPC is not
+deleted. The device, mesh and signal services are left out.
+
 Commit the generated code with the schema change. Domain↔proto conversion lives in
 one place, `internal/api/backend/v1/protoconv`; add the mapping there and a round-trip
 test beside it.
