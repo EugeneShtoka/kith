@@ -32,6 +32,8 @@ func (a *Adapter) goCatchUp(ctx context.Context, w *workspace) {
 		a.listEveryone(ctx, w)
 		if err := a.catchUp(ctx, w); err != nil {
 			a.log.Warn("catch up failed", "account", w.account.Name, "err", err)
+		} else {
+			a.beat(w.account, domain.HeardCaughtUp)
 		}
 		w.filesReread.Do(func() { a.refetchFileMessages(ctx, w) })
 	}()

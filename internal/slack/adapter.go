@@ -54,6 +54,8 @@ type Adapter struct {
 
 	// onStatus hears an account's state change (see OnStatus).
 	onStatus func(domain.AccountStatus)
+	// onHeard hears an account's evidence of being alive and caught up (see OnHeard).
+	onHeard func(domain.Heard)
 	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
 	onRoomsChanged func()
 	// onCached hears each message cached, onChanged each room whose cached messages
@@ -131,6 +133,16 @@ func New(cache *db.Cache, secrets Secrets, accounts []Account, log *slog.Logger)
 
 // Network is Slack.
 func (a *Adapter) Network() domain.Protocol { return domain.ProtocolSlack }
+
+// OnHeard sets who hears each workspace's websocket answering a ping (its hello and
+// each pong), and its history caught up after connecting. Set before Start.
+func (a *Adapter) OnHeard(heard func(domain.Heard)) { a.onHeard = heard }
+
+func (a *Adapter) beat(account Account, kind domain.HeardKind) {
+	if a.onHeard != nil {
+		a.onHeard(domain.Heard{Network: domain.ProtocolSlack, Account: account.Name, Kind: kind, At: time.Now()})
+	}
+}
 
 // OnStatus sets who hears an account's state change, with a detail for the person
 // (empty when none). Set before Start.

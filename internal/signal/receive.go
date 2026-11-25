@@ -168,6 +168,8 @@ func (a *Adapter) take(ctx context.Context, h *helper, ev *signalv1.EventsRespon
 		return a.takeVote(ctx, self, e.Vote)
 	case *signalv1.EventsResponse_PollEnd:
 		return a.takePollEnd(ctx, self, e.PollEnd)
+	case *signalv1.EventsResponse_QueueEmpty:
+		a.caughtUp(self)
 	case *signalv1.EventsResponse_Receipt:
 		// Someone got or read the account's messages: kith shows no receipts yet.
 	}

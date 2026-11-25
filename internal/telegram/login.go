@@ -150,7 +150,7 @@ func (a *Adapter) login(ctx context.Context, account Account, app App, talk api.
 	storage := newLoginSession()
 	updates := tg.NewUpdateDispatcher()
 	scanned := qrlogin.OnLoginToken(updates)
-	client := dial(app, storage, updates)
+	client := dial(app, storage, updates, nil)
 	var end api.LoginEnd
 	err := client.Run(ctx, func(ctx context.Context) error {
 		user, err := scanIn(ctx, client, scanned, talk)

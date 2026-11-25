@@ -1682,6 +1682,19 @@ message StatusResponse {
   // answers from its store: when it last heard the bridge, which is how current what
   // a client is shown is. Unset when the answers come from kithd itself.
   google.protobuf.Timestamp held_since = 7;
+  // version is kithd's (`kithd --version`'s first line), so a client can tell two
+  // bridges apart in what they serve.
+  string version = 8;
+  // priority is this bridge's standby priority, higher first; 0 is none, always active
+  // (design-failover.md, call 3). Always 0 until standby bridges are built.
+  int32 priority = 9;
+}
+
+message BeatRequest {}
+
+// BeatResponse is one heartbeat: the bridge's whole status.
+message BeatResponse {
+  StatusResponse status = 1;
 }
 
 // BackupWarning is a folder kithd's scheduled backups go to that does not keep them:
@@ -1724,6 +1737,17 @@ message NetworkStatus {
   string detail = 4;
   // When it last went online; unset before.
   google.protobuf.Timestamp online_at = 5;
+  // The latest evidence the network answered (design-clients.md, Heartbeat per
+  // network): it is alive while this is within its network's window. Unset before any.
+  google.protobuf.Timestamp alive_at = 6;
+  // What was queued for it has drained since it last went online.
+  bool caught_up = 7;
+  // Stuck for a reason every bridge shares (Google Messages' phone not answering), so
+  // another bridge would fare no better: it counts as held.
+  bool not_ours = 8;
+  // Matrix only: this device cross-signed and holding the key backup's key or room
+  // keys, or no cross-signing to verify against.
+  bool keys_ready = 9;
 }
 
 message SelvesRequest {}
@@ -2902,6 +2926,9 @@ service BackendService {
   // Maintenance
   // Status reports whether the daemon is ready to serve, and why not if it isn't.
   rpc Status(StatusRequest) returns (StatusResponse);
+  // Beat is the bridge's heartbeat: its whole status at once, then every 30 s and on
+  // any account's change. A client calls the bridge stale after 90 s without one.
+  rpc Beat(BeatRequest) returns (stream BeatResponse);
   // DismissBackupWarning stops the backup folder warning for that folder, on this
   // machine, for good; another folder warns again.
   rpc DismissBackupWarning(DismissBackupWarningRequest) returns (DismissBackupWarningResponse);

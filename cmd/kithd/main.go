@@ -565,7 +565,6 @@ func serve(
 		return fmt.Errorf("open socket: %w", err)
 	}
 	defer func() { _ = ln.Close() }() // Serve's shutdown already closed it
-
 	w, err := newWorkers(log, cfg, backend)
 	if err != nil {
 		return err
@@ -609,6 +608,7 @@ func serve(
 		CheckConfig:   backend.checkConfig,
 		Config:        cfgFile,
 		Paired:        w.paired,
+		Version:       buildinfo.Short(),
 	})
 	// Cancel (not backend.Stop) and join: a sync still decrypting needs the store, and
 	// when Serve failed the parent ctx is still live.
@@ -851,7 +851,7 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 	refresher.UseLogger(log)
 	// Readiness is "what the daemon started with has synced", not "socket open": a cold
 	// cache looks like no rooms.
-	state := daemon.NewState()
+	state := heartbeat(log, backend, streams, notifications)
 	for _, n := range backend.networks {
 		n.OnStatus(func(s domain.AccountStatus) {
 			backend.ForgetMe() // who you are on it may have changed with it
@@ -882,12 +882,6 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		refresher.Changed()
 		backups.Soon()
 	})
-	// A sync means the account is online as of the sync's time, and is the catch-up
-	// notifications wait for.
-	m.OnSynced(func(on domain.RoomOwner, t time.Time) {
-		state.Report(daemon.StatusOf(m.Online(on)), t)
-		notifications.Synced(on, t)
-	})
 	paired := pairedDevices(backend, cfg, log)
 	return &workers{
 		notifications: notifications,
@@ -900,6 +894,36 @@ func newWorkers(log *slog.Logger, cfg config.Config, backend served) (*workers, 
 		languages:     languages,
 		backupWarning: warnAboutBackups(log, backend.storage, cfg, streams),
 	}, nil
+}
+
+// heartbeat is the daemon's State with each network's evidence of being alive wired
+// in; a change that held reads sends the beat at once.
+func heartbeat(log *slog.Logger, backend served, streams *daemon.Streams, notifications *daemon.Notifications) *daemon.State {
+	state := daemon.NewState()
+	state.UseLogger(log)
+	heard := func(h domain.Heard) {
+		if state.Heard(h) {
+			streams.AccountsChanged() // the beat goes out at once
+		}
+	}
+	for _, n := range backend.networks {
+		if h, ok := n.(hearer); ok {
+			h.OnHeard(heard)
+		}
+	}
+	m := backend.matrix
+	// A sync means the account is online as of the sync's time, and is the catch-up
+	// notifications wait for. It is also Matrix's heartbeat: alive as of it, and caught
+	// up, since the first sync after connecting is the catch-up.
+	m.OnSynced(func(on domain.RoomOwner, t time.Time) {
+		online := m.Online(on)
+		state.Report(daemon.StatusOf(online), t)
+		heard(domain.Heard{Network: domain.ProtocolMatrix, Account: online.Account, Kind: domain.HeardAlive, At: t})
+		heard(domain.Heard{Network: domain.ProtocolMatrix, Account: online.Account, Kind: domain.HeardCaughtUp, At: t})
+		notifications.Synced(on, t)
+	})
+	state.UseKeys(m.KeysReady)
+	return state
 }
 
 // useCache wires notifications and the cache together, before any network writes:

@@ -75,6 +75,7 @@ var (
 		configChecker
 		route.LinkFollower
 		route.Merger
+		hearer
 	} = (*whatsapp.Adapter)(nil)
 
 	_ interface {
@@ -98,6 +99,7 @@ var (
 		route.Threads
 		route.SignOuter
 		configChecker
+		hearer
 	} = (*slack.Adapter)(nil)
 
 	_ interface {
@@ -129,6 +131,7 @@ var (
 		roomsRewriter
 		cacheWriter
 		route.LinkFollower
+		hearer
 	} = (*telegram.Adapter)(nil)
 
 	// Messenger: threads, people, messages, history, reading, sending, editing and
@@ -156,6 +159,7 @@ var (
 		configChecker
 		roomsRewriter
 		cacheWriter
+		hearer
 	} = (*meta.Adapter)(nil)
 
 	// LinkedIn: conversations, people, messages, reading, sending, editing, deleting,
@@ -182,6 +186,7 @@ var (
 		configChecker
 		roomsRewriter
 		cacheWriter
+		hearer
 	} = (*linkedin.Adapter)(nil)
 
 	// Google Messages: conversations, people, messages, history paging, reading, sending,
@@ -201,6 +206,7 @@ var (
 		configChecker
 		roomsRewriter
 		cacheWriter
+		hearer
 	} = (*gmessages.Adapter)(nil)
 
 	// Signal: kith-signal kept running, accounts linked and signed out, messages
@@ -234,6 +240,7 @@ var (
 		cacheWriter
 		route.LinkFollower
 		route.Blocker
+		hearer
 	} = (*signal.Adapter)(nil)
 
 	// Instagram: signed in by cookies, the inbox and messages received, text sent,
@@ -260,5 +267,6 @@ var (
 		configChecker
 		roomsRewriter
 		cacheWriter
+		hearer
 	} = (*instagram.Adapter)(nil)
 )

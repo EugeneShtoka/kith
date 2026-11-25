@@ -234,6 +234,7 @@ func (a *Adapter) connect(ctx context.Context, c *conn, client *libgm.Client) {
 		// The session is saved from libgm's events (a refreshed token), on the goroutine
 		// that changes it, never from here.
 		a.session(c.account, Connected, "")
+		a.polling(c)
 		go a.sync(ctx, c)
 		go a.sendOwed(ctx, c)
 		var err error
@@ -330,13 +331,16 @@ func (a *Adapter) react(ctx context.Context, c *conn, client *libgm.Client, evt 
 		a.session(c.account, Connecting, reconnecting)
 	case *events.ListenRecovered:
 		a.session(c.account, Connected, "")
+		a.polling(c)
 	case *events.PhoneRespondingAgain:
 		c.silent.Store(false)
 		a.session(c.account, Connected, "")
+		a.polling(c)
 		go a.backfill(ctx, c)
 	case *events.PhoneNotResponding:
 		c.silent.Store(true)
 		a.session(c.account, Connected, phoneSilent)
+		a.beat(c.account, domain.HeardNotOurs)
 	case *events.ListenFatalError:
 		gaveUp(e.Error)
 	case *events.PingFailed:
@@ -368,6 +372,7 @@ func (a *Adapter) alert(ctx context.Context, c *conn, client *libgm.Client, kind
 	case gmproto.AlertType_BROWSER_ACTIVE:
 		c.inactive.Store(false)
 		a.session(c.account, Connected, "")
+		a.polling(c)
 		a.keep(c)
 		go a.sync(ctx, c) // active again: what came meanwhile is on the phone
 	case gmproto.AlertType_BROWSER_INACTIVE:

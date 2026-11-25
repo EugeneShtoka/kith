@@ -181,3 +181,28 @@ func (b *InProc) redecrypt(ctx context.Context, mach *crypto.OlmMachine, evt *ev
 	msg.Late = true
 	emit(&b.out, b.out.msgs, msg)
 }
+
+// keysReady is KeysReady for this account. A device whose cross-signing cannot be read
+// is not ready. A restore by recovery key or passphrase imports room keys without
+// keeping the backup's key, so holding room keys counts as restored.
+func (b *InProc) keysReady(ctx context.Context) bool {
+	helper := b.cryptoHelper()
+	if helper == nil {
+		return true
+	}
+	mach := helper.Machine()
+	hasKeys, verified, err := mach.GetOwnVerificationStatus(ctx)
+	switch {
+	case err != nil:
+		return false
+	case !hasKeys:
+		return true
+	case !verified:
+		return false
+	}
+	if secret, gerr := mach.CryptoStore.GetSecret(ctx, id.SecretMegolmBackupV1); gerr == nil && secret != "" {
+		return true
+	}
+	held, err := holdsRoomKeys(ctx, mach.CryptoStore)
+	return err == nil && held
+}

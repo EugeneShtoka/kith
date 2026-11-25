@@ -64,6 +64,8 @@ type Daemon struct {
 	// Log receives every failed call with procedure and reason, so a failure a client
 	// only counted reaches the journal.
 	Log *slog.Logger
+	// Version is kithd's build (buildinfo.Short), which Status and Beat carry.
+	Version string
 }
 
 // missing names the parts d lacks.

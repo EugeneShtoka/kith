@@ -57,6 +57,7 @@ type Adapter struct {
 	// onStatus hears an account's state change; said is each account's last, so a state
 	// is said once, not again on every config re-read.
 	onStatus func(domain.AccountStatus)
+	onHeard  func(domain.Heard)
 	saidMu   sync.Mutex
 	said     map[string]domain.AccountStatus
 	// onRoomsChanged hears an account's rooms being rewritten; onCached each live message
@@ -120,6 +121,17 @@ func (a *Adapter) Network() domain.Protocol { return domain.ProtocolInstagram }
 // OnStatus sets who hears an account's state change, with a detail for the person
 // (empty when none). Set before Start.
 func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
+
+// OnHeard sets who hears each account's socket answering, which instameow's own
+// keep-alive ends by disconnecting, and its changes caught up after connecting. Set
+// before Start.
+func (a *Adapter) OnHeard(heard func(domain.Heard)) { a.onHeard = heard }
+
+func (a *Adapter) beat(account Account, kind domain.HeardKind) {
+	if a.onHeard != nil {
+		a.onHeard(domain.Heard{Network: domain.ProtocolInstagram, Account: account.Name, Kind: kind, At: time.Now()})
+	}
+}
 
 // OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
 // before Start.

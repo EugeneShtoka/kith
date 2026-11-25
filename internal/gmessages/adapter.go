@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/util"
 
@@ -55,6 +56,8 @@ type Adapter struct {
 
 	// onStatus hears an account's state change (see OnStatus).
 	onStatus func(domain.AccountStatus)
+	// onHeard hears an account's evidence of being alive and caught up (see OnHeard).
+	onHeard func(domain.Heard)
 	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
 	onRoomsChanged func()
 	// onCached hears each live message cached, onChanged each room whose cached messages
@@ -124,6 +127,27 @@ func (a *Adapter) Network() domain.Protocol { return domain.ProtocolGMessages }
 // OnStatus sets who hears an account's state change, with a detail for the person
 // (empty when none). Set before Start.
 func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
+
+// OnHeard sets who hears each account's long poll open, which libgm says only when it
+// fails, caught up while the phone answers, and the phone not answering: the same on
+// every bridge. Set before Start.
+func (a *Adapter) OnHeard(heard func(domain.Heard)) { a.onHeard = heard }
+
+func (a *Adapter) beat(account Account, kind domain.HeardKind) {
+	if a.onHeard != nil {
+		a.onHeard(domain.Heard{Network: domain.ProtocolGMessages, Account: account.Name, Kind: kind, At: time.Now()})
+	}
+}
+
+// polling says c's long poll is open and, unless its phone is silent, the phone
+// answering and the account caught up.
+func (a *Adapter) polling(c *conn) {
+	a.beat(c.account, domain.HeardAnswering)
+	if !c.silent.Load() {
+		a.beat(c.account, domain.HeardOurs)
+		a.beat(c.account, domain.HeardCaughtUp)
+	}
+}
 
 // OnRoomsChanged sets who hears an account's rooms being rewritten in the cache. Set
 // before Start.

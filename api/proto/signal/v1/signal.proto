@@ -129,8 +129,13 @@ message EventsResponse {
     History history = 14;
     Vote vote = 15;
     PollEnd poll_end = 16;
+    QueueEmpty queue_empty = 17;
   }
 }
+
+// QueueEmpty is Signal's queue for this device drained since it connected: kithd has
+// kept everything sent while it was away (the heartbeat's caught up).
+message QueueEmpty {}
 
 // History is part of a chat's history, from the archive the phone transfers when this
 // device is linked: history, not news. A chat's history may come in several parts.

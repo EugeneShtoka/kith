@@ -24,6 +24,7 @@ kith devices [--config path] [add id [name] | remove id|name | id | recovery-key
 kith pair [--config path] [name]
 kith join [--config path] [--name name] [--bridge] uri
 kith mesh [--config path] [recovery-key | recover]
+kith status [--config path]
 kith mailbox add [--config path] [--name name] uri
 kith config [--config path] conflicts | keep key n
 ```
@@ -273,6 +274,20 @@ each bridge it lacks.
 recover`, on a new kithd paired with the mailbox alone, asks for it and starts a mesh
 anew from what the mailbox holds
 ([remote.md](remote.md#a-recovery-key-for-the-mesh)).
+
+### kith status
+
+```sh
+kith status [--config path]
+```
+
+kithd's version, then each network account as **held** or **stuck**, when its network
+last answered, and why: an account is held while it is online, caught up since it
+connected, and has answered within its network's window (90 s, or 3 min for Telegram,
+LinkedIn and Google Messages); a Matrix account also needs this device verified and its
+keys restored. One stuck for a reason every bridge shares (Google Messages' phone not
+answering) counts as held. This is what kithd's heartbeat (`Beat`) tells clients, every
+30 s and on any change ([design-failover.md](../planning/design-failover.md), step 1).
 
 ### kith mailbox add
 

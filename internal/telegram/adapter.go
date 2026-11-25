@@ -51,6 +51,7 @@ type Adapter struct {
 	reads *readstate.Owed[int] // read through, a message number
 
 	onStatus       func(domain.AccountStatus)
+	onHeard        func(domain.Heard)
 	onRoomsChanged func()
 
 	mu       sync.Mutex
@@ -148,6 +149,17 @@ func (a *Adapter) OnRoomsChanged(changed func()) { a.onRoomsChanged = changed }
 
 // OnStatus sets a callback for account state changes. Set before Start.
 func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
+
+// OnHeard sets who hears each account's connection answering, which gotd says when
+// its ping goes unanswered by dropping and remaking it, and its updates caught up
+// after connecting. Set before Start.
+func (a *Adapter) OnHeard(heard func(domain.Heard)) { a.onHeard = heard }
+
+func (a *Adapter) beat(account Account, kind domain.HeardKind) {
+	if a.onHeard != nil {
+		a.onHeard(domain.Heard{Network: domain.ProtocolTelegram, Account: account.Name, Kind: kind, At: time.Now()})
+	}
+}
 
 // session reports an account's state.
 func (a *Adapter) session(account Account, phase domain.AccountPhase, detail string) {

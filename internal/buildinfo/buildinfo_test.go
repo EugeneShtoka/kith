@@ -44,3 +44,13 @@ func TestVersionFallsBackToDev(t *testing.T) {
 		t.Fatalf("version(nil) = %q, want dev", v)
 	}
 }
+
+func TestShortIsVersionAndShortCommit(t *testing.T) {
+	origV, origC := Version, Commit
+	t.Cleanup(func() { Version, Commit = origV, origC })
+
+	Version, Commit = "dev", "0123456789abcdef0123"
+	if got := Short(); got != "dev 0123456789ab" {
+		t.Errorf("Short() = %q, want %q", got, "dev 0123456789ab")
+	}
+}

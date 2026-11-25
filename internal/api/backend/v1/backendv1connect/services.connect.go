@@ -360,6 +360,8 @@ const (
 	BackendServiceCancelVerificationProcedure = "/backend.v1.BackendService/CancelVerification"
 	// BackendServiceStatusProcedure is the fully-qualified name of the BackendService's Status RPC.
 	BackendServiceStatusProcedure = "/backend.v1.BackendService/Status"
+	// BackendServiceBeatProcedure is the fully-qualified name of the BackendService's Beat RPC.
+	BackendServiceBeatProcedure = "/backend.v1.BackendService/Beat"
 	// BackendServiceDismissBackupWarningProcedure is the fully-qualified name of the BackendService's
 	// DismissBackupWarning RPC.
 	BackendServiceDismissBackupWarningProcedure = "/backend.v1.BackendService/DismissBackupWarning"
@@ -840,6 +842,9 @@ type BackendServiceClient interface {
 	// Maintenance
 	// Status reports whether the daemon is ready to serve, and why not if it isn't.
 	Status(context.Context, *connect.Request[v1.StatusRequest]) (*connect.Response[v1.StatusResponse], error)
+	// Beat is the bridge's heartbeat: its whole status at once, then every 30 s and on
+	// any account's change. A client calls the bridge stale after 90 s without one.
+	Beat(context.Context, *connect.Request[v1.BeatRequest]) (*connect.ServerStreamForClient[v1.BeatResponse], error)
 	// DismissBackupWarning stops the backup folder warning for that folder, on this
 	// machine, for good; another folder warns again.
 	DismissBackupWarning(context.Context, *connect.Request[v1.DismissBackupWarningRequest]) (*connect.Response[v1.DismissBackupWarningResponse], error)
@@ -1718,6 +1723,12 @@ func NewBackendServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(backendServiceMethods.ByName("Status")),
 			connect.WithClientOptions(opts...),
 		),
+		beat: connect.NewClient[v1.BeatRequest, v1.BeatResponse](
+			httpClient,
+			baseURL+BackendServiceBeatProcedure,
+			connect.WithSchema(backendServiceMethods.ByName("Beat")),
+			connect.WithClientOptions(opts...),
+		),
 		dismissBackupWarning: connect.NewClient[v1.DismissBackupWarningRequest, v1.DismissBackupWarningResponse](
 			httpClient,
 			baseURL+BackendServiceDismissBackupWarningProcedure,
@@ -2154,6 +2165,7 @@ type backendServiceClient struct {
 	confirmSAS            *connect.Client[v1.ConfirmSASRequest, v1.ConfirmSASResponse]
 	cancelVerification    *connect.Client[v1.CancelVerificationRequest, v1.CancelVerificationResponse]
 	status                *connect.Client[v1.StatusRequest, v1.StatusResponse]
+	beat                  *connect.Client[v1.BeatRequest, v1.BeatResponse]
 	dismissBackupWarning  *connect.Client[v1.DismissBackupWarningRequest, v1.DismissBackupWarningResponse]
 	selves                *connect.Client[v1.SelvesRequest, v1.SelvesResponse]
 	directory             *connect.Client[v1.DirectoryRequest, v1.DirectoryResponse]
@@ -2803,6 +2815,11 @@ func (c *backendServiceClient) Status(ctx context.Context, req *connect.Request[
 	return c.status.CallUnary(ctx, req)
 }
 
+// Beat calls backend.v1.BackendService.Beat.
+func (c *backendServiceClient) Beat(ctx context.Context, req *connect.Request[v1.BeatRequest]) (*connect.ServerStreamForClient[v1.BeatResponse], error) {
+	return c.beat.CallServerStream(ctx, req)
+}
+
 // DismissBackupWarning calls backend.v1.BackendService.DismissBackupWarning.
 func (c *backendServiceClient) DismissBackupWarning(ctx context.Context, req *connect.Request[v1.DismissBackupWarningRequest]) (*connect.Response[v1.DismissBackupWarningResponse], error) {
 	return c.dismissBackupWarning.CallUnary(ctx, req)
@@ -3393,6 +3410,9 @@ type BackendServiceHandler interface {
 	// Maintenance
 	// Status reports whether the daemon is ready to serve, and why not if it isn't.
 	Status(context.Context, *connect.Request[v1.StatusRequest]) (*connect.Response[v1.StatusResponse], error)
+	// Beat is the bridge's heartbeat: its whole status at once, then every 30 s and on
+	// any account's change. A client calls the bridge stale after 90 s without one.
+	Beat(context.Context, *connect.Request[v1.BeatRequest], *connect.ServerStream[v1.BeatResponse]) error
 	// DismissBackupWarning stops the backup folder warning for that folder, on this
 	// machine, for good; another folder warns again.
 	DismissBackupWarning(context.Context, *connect.Request[v1.DismissBackupWarningRequest]) (*connect.Response[v1.DismissBackupWarningResponse], error)
@@ -4267,6 +4287,12 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 		connect.WithSchema(backendServiceMethods.ByName("Status")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backendServiceBeatHandler := connect.NewServerStreamHandler(
+		BackendServiceBeatProcedure,
+		svc.Beat,
+		connect.WithSchema(backendServiceMethods.ByName("Beat")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backendServiceDismissBackupWarningHandler := connect.NewUnaryHandler(
 		BackendServiceDismissBackupWarningProcedure,
 		svc.DismissBackupWarning,
@@ -4819,6 +4845,8 @@ func NewBackendServiceHandler(svc BackendServiceHandler, opts ...connect.Handler
 			backendServiceCancelVerificationHandler.ServeHTTP(w, r)
 		case BackendServiceStatusProcedure:
 			backendServiceStatusHandler.ServeHTTP(w, r)
+		case BackendServiceBeatProcedure:
+			backendServiceBeatHandler.ServeHTTP(w, r)
 		case BackendServiceDismissBackupWarningProcedure:
 			backendServiceDismissBackupWarningHandler.ServeHTTP(w, r)
 		case BackendServiceSelvesProcedure:
@@ -5406,6 +5434,10 @@ func (UnimplementedBackendServiceHandler) CancelVerification(context.Context, *c
 
 func (UnimplementedBackendServiceHandler) Status(context.Context, *connect.Request[v1.StatusRequest]) (*connect.Response[v1.StatusResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Status is not implemented"))
+}
+
+func (UnimplementedBackendServiceHandler) Beat(context.Context, *connect.Request[v1.BeatRequest], *connect.ServerStream[v1.BeatResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("backend.v1.BackendService.Beat is not implemented"))
 }
 
 func (UnimplementedBackendServiceHandler) DismissBackupWarning(context.Context, *connect.Request[v1.DismissBackupWarningRequest]) (*connect.Response[v1.DismissBackupWarningResponse], error) {
