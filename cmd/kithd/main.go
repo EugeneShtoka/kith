@@ -1086,6 +1086,12 @@ func waitForCache(ctx context.Context, log *slog.Logger, lock *daemon.Lock, stor
 			return nil, nil
 		case <-time.After(delay):
 		}
+		// A retry only reads whether the keyring is locked: reading the key asks it to
+		// unlock, and a prompt with no display costs gnome-keyring a file descriptor,
+		// every retry, until it stops answering (keystore.Locked).
+		if locked, lerr := keystore.Locked(); lerr == nil && locked {
+			continue
+		}
 		cache, err := tryCache(ctx, storage)
 		var still *cacheLocked
 		if !errors.As(err, &still) {

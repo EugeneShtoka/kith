@@ -569,6 +569,8 @@ linters:
             - "github.com/EugeneShtoka/kith/internal/devicekey"
             - "github.com/EugeneShtoka/kith/internal/domain"
             - "github.com/EugeneShtoka/kith/internal/keystore"
+            # Only to read whether the Secret Service is locked, which go-keyring cannot.
+            - "github.com/godbus/dbus/v5"
             - "github.com/zalando/go-keyring"
 
         session-is-a-leaf:

@@ -23,9 +23,14 @@ import (
 )
 
 // TestMain keeps tests off the system keyring: an in-memory one stands in, holding a
-// Matrix session and the network stores' keys for the test's life.
+// Matrix session and the network stores' keys for the test's life. The session bus is
+// none, as kithd reads from it whether the keyring is locked; a child of
+// TestALockedKeyringIsNotAskedToUnlockOnRetries keeps both real, on its private bus.
 func TestMain(m *testing.M) {
-	keyring.MockInit()
+	if os.Getenv(lockedChildEnv) == "" {
+		keyring.MockInit()
+		_ = os.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent")
+	}
 	os.Exit(m.Run())
 }
 
