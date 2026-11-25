@@ -1344,3 +1344,50 @@ func pairingOutcome(op string, pb v1.PairingOutcome) (domain.PairingOutcome, err
 	}
 	return o, nil
 }
+
+// FilingPlaces is where room can be filed (its spaces, then the tags filed by hand, each
+// saying whether it holds the room), and whether filingSpaces matched any space.
+func (r *Remote) FilingPlaces(ctx context.Context, roomID domain.RoomID, filingSpaces []string) ([]domain.FilingPlace, bool, error) {
+	resp, err := call(ctx, "filing places", r.c.FilingPlaces,
+		&v1.FilingPlacesRequest{RoomId: string(roomID), FilingSpaces: filingSpaces})
+	places := make([]domain.FilingPlace, 0, len(resp.GetPlaces()))
+	for _, p := range resp.GetPlaces() {
+		places = append(places, domain.FilingPlace{Space: domain.SpaceID(p.GetSpace()), Tag: p.GetTag(), Label: p.GetLabel(), In: p.GetIn()})
+	}
+	return places, !resp.GetUnmatched(), err
+}
+
+// FileRoom files room into (true) or out of (false) tags and spaces, answering what came
+// of each space and of the archive and releases.
+func (r *Remote) FileRoom(ctx context.Context, roomID domain.RoomID, tags map[string]bool, spaces map[domain.SpaceID]bool) (*v1.FileRoomResponse, error) {
+	msg := &v1.FileRoomRequest{RoomId: string(roomID)}
+	for tag, in := range tags {
+		msg.Tags = append(msg.Tags, &v1.TagFiling{Tag: tag, In: in})
+	}
+	for space, in := range spaces {
+		msg.Spaces = append(msg.Spaces, &v1.SpaceFiling{SpaceId: string(space), In: in})
+	}
+	return call(ctx, "file room", r.c.FileRoom, msg)
+}
+
+// SetRoomName names room in [[display.name]]; an empty name takes it away.
+func (r *Remote) SetRoomName(ctx context.Context, roomID domain.RoomID, name string) error {
+	_, err := call(ctx, "name room", r.c.SetRoomName, &v1.SetRoomNameRequest{RoomId: string(roomID), Name: name})
+	return err
+}
+
+// Identities is the config's [[display.identity]] people.
+func (r *Remote) Identities(ctx context.Context) ([]config.Identity, error) {
+	resp, err := call(ctx, "identities", r.c.Identities, &v1.IdentitiesRequest{})
+	out := make([]config.Identity, 0, len(resp.GetIdentities()))
+	for _, id := range resp.GetIdentities() {
+		out = append(out, config.Identity{Alias: id.GetAlias(), Color: id.GetColor(), IDs: id.GetIds(), Picture: id.GetPicture()})
+	}
+	return out, err
+}
+
+// SetIdentity makes account id one of the person alias, with their color and picture.
+func (r *Remote) SetIdentity(ctx context.Context, id, alias, color, picture string) error {
+	_, err := call(ctx, "set identity", r.c.SetIdentity, &v1.SetIdentityRequest{Id: id, Alias: alias, Color: color, Picture: picture})
+	return err
+}
