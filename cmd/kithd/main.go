@@ -1011,7 +1011,12 @@ type cacheLocked struct {
 	err error
 }
 
-func (e *cacheLocked) Error() string { return e.why + " (" + e.err.Error() + ")" }
+func (e *cacheLocked) Error() string {
+	if e.err == nil {
+		return e.why
+	}
+	return e.why + " (" + e.err.Error() + ")"
+}
 func (e *cacheLocked) Unwrap() error { return e.err }
 
 // cacheKey is the key storage's cache is encrypted under, in its keyring, made on
@@ -1027,6 +1032,12 @@ func cacheKey(storage domain.Storage) ([]byte, error) {
 // tryCache opens the cache under its key in the keyring. A keyring that cannot be
 // read, or a key that does not open the cache, is cacheLocked.
 func tryCache(ctx context.Context, storage domain.Storage) (*db.Cache, error) {
+	// Only read whether the keyring is locked: reading the key asks it to unlock, and a
+	// prompt with no display costs gnome-keyring a file descriptor every try, until it
+	// stops answering (keystore.Locked).
+	if locked, lerr := keystore.Locked(); lerr == nil && locked {
+		return nil, &cacheLocked{why: "the cache is locked: unlock the keyring"}
+	}
 	key, err := cacheKey(storage)
 	switch {
 	case errors.Is(err, session.ErrKeyringNotAnswering):
@@ -1085,12 +1096,6 @@ func waitForCache(ctx context.Context, log *slog.Logger, lock *daemon.Lock, stor
 		case <-ctx.Done():
 			return nil, nil
 		case <-time.After(delay):
-		}
-		// A retry only reads whether the keyring is locked: reading the key asks it to
-		// unlock, and a prompt with no display costs gnome-keyring a file descriptor,
-		// every retry, until it stops answering (keystore.Locked).
-		if locked, lerr := keystore.Locked(); lerr == nil && locked {
-			continue
 		}
 		cache, err := tryCache(ctx, storage)
 		var still *cacheLocked
