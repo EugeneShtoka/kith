@@ -14,7 +14,7 @@ tool (
 )
 
 require (
-	charm.land/bubbletea/v2 v2.1.2-0.20261109105522-e4d617e7e0c0
+	charm.land/bubbletea/v2 v2.1.2
 	charm.land/lipgloss/v2 v2.1.0
 	connectrpc.com/connect v1.21.1
 	filippo.io/age v1.3.2
