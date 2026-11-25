@@ -28,6 +28,22 @@ type state struct {
 	held  bool
 	since time.Time     // when held began
 	turn  chan struct{} // closed at the next switch
+	// heard is when the bridge last answered: how current what the store answers is.
+	heard time.Time
+}
+
+// hear records the bridge answering at t.
+func (s *state) hear(t time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.heard = t
+}
+
+// heardAt is when the bridge last answered; zero when never.
+func (s *state) heardAt() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.heard
 }
 
 func newState(held bool, now time.Time) *state {

@@ -39,12 +39,33 @@ func newProxy(ctx context.Context, up daemon.Upstream, store *clientstore.Store,
 	// client starting offline is answered, and one starting online is switched over in
 	// liveAfter.
 	heldNow := false
+	var heard time.Time
 	if store != nil {
 		names, err := knownProfiles(ctx, store)
 		heldNow = err == nil && len(names) > 0
+		if v, merr := store.Meta(ctx, heardKey); merr == nil && v != "" {
+			heard, _ = time.Parse(time.RFC3339Nano, v) // one unreadable is heard never
+		}
 	}
 	p.state = newState(heldNow, time.Now())
+	p.state.hear(heard)
 	return p
+}
+
+const (
+	// heardKey keeps when the bridge last answered, so a proxy started offline says how
+	// current its store is.
+	heardKey = "heard"
+	// keepHeardEvery is how often that is written while the bridge answers; going held
+	// writes it at once.
+	keepHeardEvery = time.Minute
+)
+
+// keepHeard writes when the bridge last answered into the store.
+func (p *proxy) keepHeard(ctx context.Context, t time.Time) {
+	if err := p.store.PutMeta(ctx, heardKey, t.UTC().Format(time.RFC3339Nano)); err != nil {
+		p.log.Debug("keeping when the bridge last answered", "err", err)
+	}
 }
 
 // handler serves BackendService (daemon.HandleBackend): each call forwarded or held as
@@ -53,7 +74,7 @@ func (p *proxy) handler() http.Handler {
 	forward := p.up.Forward(p.log)
 	fromStore := http.NotFoundHandler()
 	if p.store != nil {
-		_, fromStore = backendv1connect.NewBackendServiceHandler(&held{store: p.store},
+		_, fromStore = backendv1connect.NewBackendServiceHandler(&held{store: p.store, heard: p.state.heardAt},
 			connect.WithInterceptors(offline, offlineStreams{}))
 	}
 	mux := http.NewServeMux()
@@ -88,6 +109,7 @@ func (p *proxy) run(ctx context.Context) {
 // a machine unpaired keeps nothing it was unpaired from; stop then ends the syncer.
 func (p *proxy) watch(ctx context.Context, stop context.CancelFunc) {
 	var h hysteresis
+	var kept time.Time
 	t := time.NewTicker(probeEvery)
 	defer t.Stop()
 	for {
@@ -103,7 +125,18 @@ func (p *proxy) watch(ctx context.Context, stop context.CancelFunc) {
 		}
 		isHeld, _ := p.state.now()
 		now := time.Now()
-		p.state.set(h.heard(err == nil, now, isHeld), now)
+		if err == nil {
+			p.state.hear(now)
+			if now.Sub(kept) >= keepHeardEvery {
+				p.keepHeard(ctx, now)
+				kept = now
+			}
+		}
+		held := h.heard(err == nil, now, isHeld)
+		if held && !isHeld && !p.state.heardAt().IsZero() {
+			p.keepHeard(ctx, p.state.heardAt())
+		}
+		p.state.set(held, now)
 		select {
 		case <-ctx.Done():
 			return

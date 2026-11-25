@@ -1,9 +1,12 @@
 package tui
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/domain"
 )
@@ -36,6 +39,35 @@ func TestLosingTheDaemonIsOnScreen(t *testing.T) {
 	}
 	if badge := back.connectionBadge(); badge != "" {
 		t.Errorf("connectionBadge() = %q once reattached, want empty", badge)
+	}
+}
+
+// heldBackend answers as kith-proxy does while the bridge is out of reach.
+type heldBackend struct {
+	apitest.Nop
+	since time.Time
+}
+
+func (b heldBackend) HeldSince(context.Context) (time.Time, error) { return b.since, nil }
+
+// While kith-proxy answers from its store, the status bar says the window is offline
+// and as of when; answers from kithd again, it says nothing.
+func TestHeldAnswersAreOnScreen(t *testing.T) {
+	t.Parallel()
+
+	at := time.Date(2026, 11, 23, 14, 2, 0, 0, time.Local)
+	m := attachable(t)
+	m.backend = heldBackend{since: at}
+	held := update(t, m, m.loadHeldCmd()())
+	badge := stripStyles(held.connectionBadge())
+	if !strings.Contains(badge, "offline") || !strings.Contains(badge, "Nov 23 14:02") {
+		t.Errorf("connectionBadge() held = %q, want it to say offline as of Nov 23 14:02", badge)
+	}
+
+	held.backend = heldBackend{}
+	live := update(t, held, held.loadHeldCmd()())
+	if badge := live.connectionBadge(); badge != "" {
+		t.Errorf("connectionBadge() once live = %q, want empty", badge)
 	}
 }
 

@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
 	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
@@ -28,6 +30,9 @@ var errOffline = errors.New("kith-proxy: the bridge is out of reach, and this de
 type held struct {
 	backendv1connect.UnimplementedBackendServiceHandler
 	store *clientstore.Store
+	// heard is when the bridge last answered, which Status says as held_since; nil or
+	// zero says nothing.
+	heard func() time.Time
 }
 
 // offline turns every call held does not answer into unavailable, which clients retry.
@@ -201,8 +206,18 @@ func (h *held) PersonVerdicts(ctx context.Context, r *connect.Request[v1.PersonV
 	return answer[v1.PersonVerdictsRequest, v1.PersonVerdictsResponse](ctx, h, "PersonVerdicts", r)
 }
 
+// Status is the bridge's last, saying the answers are held and since when.
 func (h *held) Status(ctx context.Context, r *connect.Request[v1.StatusRequest]) (*connect.Response[v1.StatusResponse], error) {
-	return answer[v1.StatusRequest, v1.StatusResponse](ctx, h, "Status", r)
+	res, err := answer[v1.StatusRequest, v1.StatusResponse](ctx, h, "Status", r)
+	if err != nil {
+		return nil, err
+	}
+	if h.heard != nil {
+		if t := h.heard(); !t.IsZero() {
+			res.Msg.HeldSince = timestamppb.New(t)
+		}
+	}
+	return res, nil
 }
 
 func (h *held) CachedReactions(ctx context.Context, r *connect.Request[v1.CachedReactionsRequest]) (*connect.Response[v1.CachedReactionsResponse], error) {

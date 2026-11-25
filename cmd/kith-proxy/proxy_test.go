@@ -395,6 +395,14 @@ func TestAClientIsSwitchedBetweenTheBridgeAndTheStore(t *testing.T) {
 	if !first.GetReadAgain() || first.GetEpoch() != w.store.Epoch() {
 		t.Errorf("the held stream's first frame = %v, want read again in the store's epoch %s", first, w.store.Epoch())
 	}
+	status, err := c.Status(t.Context(), connect.NewRequest(&v1.StatusRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if since := status.Msg.GetHeldSince().AsTime(); status.Msg.GetHeldSince() == nil ||
+		since.After(ended) || ended.Sub(since) > probeEvery+probeWait {
+		t.Errorf("held Status's held_since = %v, want when the bridge last answered, just before %v", status.Msg.GetHeldSince(), ended)
+	}
 	if _, ferr := c.CachedTimeline(t.Context(), connect.NewRequest(&v1.CachedTimelineRequest{RoomId: "!a"})); ferr != nil {
 		t.Errorf("CachedTimeline held = %v", ferr)
 	}
@@ -413,6 +421,9 @@ func TestAClientIsSwitchedBetweenTheBridgeAndTheStore(t *testing.T) {
 	live, err := openResumed(t, c, first.GetEpoch(), first.GetChange(), 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if status, err := c.Status(t.Context(), connect.NewRequest(&v1.StatusRequest{})); err != nil || status.Msg.GetHeldSince() != nil {
+		t.Errorf("Status live = %v, %v; want no held_since", status, err)
 	}
 	if m := live.Msg(); !m.GetReadAgain() || m.GetEpoch() != w.f.epoch {
 		t.Errorf("the stream reopened live = %v, want read again in the bridge's epoch", m)
@@ -436,6 +447,28 @@ func openResumed(t *testing.T, c backendv1connect.BackendServiceClient, epoch st
 		time.Sleep(200 * time.Millisecond)
 	}
 	return nil, fmt.Errorf("no stream from %s/%d answered within %s", epoch, change, d)
+}
+
+// A proxy started with the bridge out of reach answers from its store at once, and
+// says as of when it last heard the bridge, before it went out of reach.
+func TestAProxyStartedOfflineSaysHowCurrentItsStoreIs(t *testing.T) {
+	t.Parallel()
+	w := newWorld(t)
+	eventually(t, settle, "the store settled", func() error { return heldSame(t.Context(), w) })
+	w.sp.stop()
+	heard := w.sp.p.state.heardAt()
+	w.r.setDown(true)
+	sp := serveProxyOf(t, w.r, w.store, w.path, true)
+	if held, _ := sp.p.state.now(); !held {
+		t.Fatal("a proxy started offline over a store that holds a profile is not held")
+	}
+	status, err := sp.client().Status(t.Context(), connect.NewRequest(&v1.StatusRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := status.Msg.GetHeldSince().AsTime(); status.Msg.GetHeldSince() == nil || got.After(heard) || heard.Sub(got) > keepHeardEvery {
+		t.Errorf("held_since after a restart offline = %v, want within %s before %v", status.Msg.GetHeldSince(), keepHeardEvery, heard)
+	}
 }
 
 // Held or live by the bridge's answers: held only once it has not answered for
