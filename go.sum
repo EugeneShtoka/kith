@@ -4,8 +4,8 @@
 4d63.com/gochecknoglobals v0.2.2/go.mod h1:lLxwTQjL5eIesRbvnzIP3jZtG140FnTdz+AlMa+ogt0=
 c2sp.org/CCTV/age v0.0.0-20260829155415-4448f2097b2d h1:Blprhc2SbChNZtWcU+BLTM4YdoqYAS9V7cJgOwJKyAs=
 c2sp.org/CCTV/age v0.0.0-20260829155415-4448f2097b2d/go.mod h1:SrHC2C7r5GkDk8R+NFVzYy/sdj0Ypg9htaPXQq5Cqeo=
-charm.land/bubbletea/v2 v2.1.2-0.20261109105522-e4d617e7e0c0 h1:W9WQEOVw3BvdrfUYvSECr5nHhX+NnDtkhxyUMnPKG9Q=
-charm.land/bubbletea/v2 v2.1.2-0.20261109105522-e4d617e7e0c0/go.mod h1:xWHeyxIX9/wiFU2kgPW04ojOZyTzrWf+8lGjUCaftiU=
+charm.land/bubbletea/v2 v2.1.2 h1:vB3XAcHhLB2gR3HOHpwO3lHB3nbvaowIgL3e5x/DUZo=
+charm.land/bubbletea/v2 v2.1.2/go.mod h1:xWHeyxIX9/wiFU2kgPW04ojOZyTzrWf+8lGjUCaftiU=
 charm.land/lipgloss/v2 v2.1.1 h1:F+vKWis9Kz3MFRsbICSDFtT1ZwVL+8f+36Dtg+OpKwc=
 charm.land/lipgloss/v2 v2.1.1/go.mod h1:k79y/56yThpkJvbwyrcHr8MyZF42e84Q5fW9Ibu6LFc=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
@@ -416,8 +416,8 @@ github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
 github.com/gordonklaus/ineffassign v0.2.0 h1:Uths4KnmwxNJNzq87fwQQDDnbNb7De00VOk9Nu0TySs=
 github.com/gordonklaus/ineffassign v0.2.0/go.mod h1:TIpymnagPSexySzs7F9FnO1XFTy8IT3a59vmZp5Y9Lw=
-github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg=
-github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
+github.com/gorilla/websocket v1.5.4-0.20240701034025-d67f41855da4 h1:PYKzliEgITjLJoJqbV90S0YRaG8LNAsICH6fp6MApC0=
+github.com/gorilla/websocket v1.5.4-0.20240701034025-d67f41855da4/go.mod h1:r4w70xmWCQKmi1ONH4KIaBptdivuRPyosB9RmPlGEwA=
 github.com/gostaticanalysis/analysisutil v0.7.1 h1:ZMCjoue3DtDWQ5WyU16YbjbQEQ3VuzwxALrpYd+HeKk=
 github.com/gostaticanalysis/analysisutil v0.7.1/go.mod h1:v21E3hY37WKMGSnbsw2S/ojApNWb6C1//mXO48CXbVc=
 github.com/gostaticanalysis/comment v1.4.2/go.mod h1:KLUTGDv6HOCotCH8h2erHKmpci2ZoR8VPu34YA2uzdM=

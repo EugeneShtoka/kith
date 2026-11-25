@@ -1,0 +1,29 @@
+# kith-proxy, as a systemd *user* unit: on a machine that joined a bridge elsewhere
+# (`kith join`), the one link every client here (kith, kith-mcp, kith-notify, the
+# desktop) has to it. A client dials it when its socket answers as the client starts,
+# and the bridge itself otherwise. On a machine that joined no bridge it exits at once.
+#
+# Install:
+#   install -Dm644 packaging/systemd/kith-proxy.service ~/.config/systemd/user/kith-proxy.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now kith-proxy
+
+[Unit]
+Description=kith proxy (this machine's link to its bridge)
+Documentation=https://github.com/EugeneShtoka/kith
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/kith-proxy
+# No bridge joined, or a second one for the same config (lock held), exits 0, which
+# must not be retried.
+Restart=on-failure
+RestartSec=5s
+# D-Bus for the keyring holding this machine's device key. Import with:
+#   systemctl --user import-environment DBUS_SESSION_BUS_ADDRESS
+PassEnvironment=DBUS_SESSION_BUS_ADDRESS
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

@@ -6,7 +6,8 @@ if command -v systemctl >/dev/null 2>&1; then
 	cat <<'NOTE'
 
 kith is installed: kith (client), kithd (daemon), kith-notify (desktop
-notifications), kith-mcp (MCP server).
+notifications), kith-proxy (a joined machine's link to its bridge),
+kith-mcp (MCP server).
 
 Set it up as your own user, not root:
 
@@ -14,17 +15,18 @@ Set it up as your own user, not root:
   kith login               # store the session in the keyring (Secret Service)
   systemctl --user daemon-reload
   systemctl --user import-environment WAYLAND_DISPLAY DISPLAY DBUS_SESSION_BUS_ADDRESS
-  systemctl --user enable --now kithd kith-notify
+  systemctl --user enable --now kithd kith-notify kith-proxy
 
 Upgrading? Restart them so they run the new binaries:
 
-  systemctl --user restart kithd kith-notify
+  systemctl --user restart kithd kith-notify kith-proxy
 NOTE
 else
 	cat <<'NOTE'
 
 kith is installed: kith (client), kithd (daemon), kith-notify (desktop
-notifications), kith-mcp (MCP server).
+notifications), kith-proxy (a joined machine's link to its bridge),
+kith-mcp (MCP server).
 
 This system has no systemd, so the bundled user units will not be used. As your
 own user, not root:

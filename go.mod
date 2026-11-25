@@ -14,7 +14,7 @@ tool (
 )
 
 require (
-	charm.land/bubbletea/v2 v2.1.2-0.20261109105522-e4d617e7e0c0
+	charm.land/bubbletea/v2 v2.1.2
 	charm.land/lipgloss/v2 v2.1.1
 	connectrpc.com/connect v1.21.1
 	filippo.io/age v1.3.2
@@ -69,7 +69,7 @@ require (
 	github.com/go-faster/yaml v0.4.6 // indirect
 	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/gorilla/websocket v1.5.4-0.20240701034025-d67f41855da4 // indirect
 	github.com/gotd/ige v0.3.0 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
 	github.com/gtank/ristretto255 v0.2.0 // indirect

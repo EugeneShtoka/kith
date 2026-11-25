@@ -19,6 +19,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/devicekey"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // overTLS has a daemon also serve addr over TLS as the bridge whose key is kithd, to the
@@ -65,14 +66,14 @@ func TestABridgeIsReachedPastAddressesThatAreNotIt(t *testing.T) {
 
 	nobody := freeAddr(t, "127.0.0.1")
 	b := config.Bridge{Name: "home", ID: pin, Addresses: []string{nobody, other.addr, addr}}
-	r, err := daemon.AttachBridge(t.Context(), certOf(t, laptop), b, settle)
+	r, err := daemon.AttachBridge(t.Context(), domain.Storage{}, certOf(t, laptop), b, settle)
 	if err != nil {
 		t.Fatalf("AttachBridge() = %v, want the third address", err)
 	}
 	t.Cleanup(r.Stop)
 
 	b.Addresses = []string{nobody, other.addr}
-	_, err = daemon.AttachBridge(t.Context(), certOf(t, laptop), b, 500*time.Millisecond)
+	_, err = daemon.AttachBridge(t.Context(), domain.Storage{}, certOf(t, laptop), b, 500*time.Millisecond)
 	if err == nil || !strings.Contains(err.Error(), "another key") {
 		t.Fatalf("AttachBridge() past no address of the bridge = %v, want it to name the other key", err)
 	}
@@ -92,7 +93,7 @@ func TestAClientOverTLSResumesAcrossABridgeRestart(t *testing.T) {
 	}
 	run := serve()
 	b := config.Bridge{Name: "home", ID: idOf(t, bridgeKey).String(), Addresses: []string{addr}}
-	client, err := daemon.AttachBridge(t.Context(), certOf(t, laptop), b, settle)
+	client, err := daemon.AttachBridge(t.Context(), domain.Storage{}, certOf(t, laptop), b, settle)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +197,7 @@ func TestAClientFindsASilentConnectionDeadAndResumes(t *testing.T) {
 		cache.serves, overTLS(t, addr, bridgeKey, laptop))
 	network := newDimmer(t, addr)
 	b := config.Bridge{Name: "home", ID: idOf(t, bridgeKey).String(), Addresses: []string{network.addr()}}
-	client, err := daemon.AttachBridge(t.Context(), certOf(t, laptop), b, settle)
+	client, err := daemon.AttachBridge(t.Context(), domain.Storage{}, certOf(t, laptop), b, settle)
 	if err != nil {
 		t.Fatal(err)
 	}

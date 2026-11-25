@@ -19,13 +19,14 @@ buildGoModule (finalAttrs: {
   # The NAR hash of `go mod vendor` for go.mod/go.sum. It changes whenever they do:
   # after a dependency bump, build once, and nix prints the right value as `got:`.
   # See docs/packaging.md, "Nix".
-  vendorHash = "sha256-ZgGZqKxBr2DCheeA2Up44TDvsjGV1bzD1+Ec4tH6Hts=";
+  vendorHash = "sha256-TkSqhNZ9mrYIlCazRiYCoFIfMZ+mo+/pxmH6TmUDpCw=";
 
   subPackages = [
     "cmd/kith"
     "cmd/kithd"
     "cmd/kith-mcp"
     "cmd/kith-notify"
+    "cmd/kith-proxy"
     "cmd/kith-mailbox"
   ];
 
@@ -79,6 +80,7 @@ buildGoModule (finalAttrs: {
     + lib.optionalString stdenv.hostPlatform.isDarwin ''
       install -Dm644 packaging/macos/io.github.eugeneshtoka.kithd.plist -t "$out/share/kith/"
       install -Dm644 packaging/macos/io.github.eugeneshtoka.kith-notify.plist -t "$out/share/kith/"
+      install -Dm644 packaging/macos/io.github.eugeneshtoka.kith-proxy.plist -t "$out/share/kith/"
     '';
 
   meta = {

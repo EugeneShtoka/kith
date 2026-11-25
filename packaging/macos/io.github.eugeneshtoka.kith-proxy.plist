@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  kith-proxy as a launchd LaunchAgent (macOS counterpart of kith-proxy.service): on a
+  machine that joined a bridge elsewhere, the one link every client here has to it. On
+  one that joined no bridge it exits at once.
+
+  Install:
+    mkdir -p ~/Library/LaunchAgents ~/Library/Logs
+    cp io.github.eugeneshtoka.kith-proxy.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.eugeneshtoka.kith-proxy.plist
+
+  Remove:
+    launchctl bootout gui/$(id -u)/io.github.eugeneshtoka.kith-proxy
+    rm ~/Library/LaunchAgents/io.github.eugeneshtoka.kith-proxy.plist
+
+  Runs via /bin/sh so $HOME and PATH (Homebrew or ~/.local/bin) expand.
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>io.github.eugeneshtoka.kith-proxy</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/sh</string>
+		<string>-c</string>
+		<string>PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; exec kith-proxy 2&gt;&gt;"$HOME/Library/Logs/kith-proxy.log"</string>
+	</array>
+
+	<key>RunAtLoad</key>
+	<true/>
+
+	<!-- Exit 0 means no bridge joined, or another instance holds the lock: do not restart. -->
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>ThrottleInterval</key>
+	<integer>5</integer>
+</dict>
+</plist>

@@ -368,6 +368,8 @@ bridges: steps 5–8 of [design-mesh.md](design-mesh.md).
 
 **Phase 3 — multi-bridge failover.**
 
+Built by the steps of [design-failover.md](design-failover.md).
+
 - Bridge heartbeat RPC: one beat every 30 s, per account alive-as-of and caught up, by
   [Heartbeat per network](#heartbeat-per-network).
 - Client-side bridge roster, pinned priority, failover on disconnect / stale

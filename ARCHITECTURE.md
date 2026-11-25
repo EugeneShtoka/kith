@@ -79,6 +79,8 @@ cmd/kith-notify       → shows the notifications the daemon publishes to its pr
 cmd/kith-relay        → the desktop window's link to the daemon: forwards BackendService
         │              to its socket, or to the [[bridge]] this device joined over
         │              pinned mutual TLS, and answers DeviceService (desktop/, Electron)
+cmd/kith-proxy        → a joined machine's one link to its bridge: forwards BackendService
+        │              for every client there that finds its socket answering
         │
 internal/tui        → presentation (Bubble Tea models, overlays, pickers)
         │              talks to the world through the api.Backend interface

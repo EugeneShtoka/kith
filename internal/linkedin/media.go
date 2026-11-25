@@ -152,7 +152,7 @@ func (a *Adapter) SendFile(ctx context.Context, roomID domain.RoomID, path, name
 	var sent *linkedingo.MessageSentResponse
 	err = a.ask(ctx, "sending a file", func(ctx context.Context) (err error) {
 		sent, err = client.SendMessage(ctx, conversationURN(c.profile, thread),
-			linkedingo.SendMessageBody{Text: caption}, []linkedingo.SendRenderContent{render(urn, name, mimeType, len(data))}, newToken())
+			linkedingo.SendMessageBody{Text: caption}, []linkedingo.SendRenderContent{render(urn, name, mimeType, len(data))}, newToken(), "")
 		return err //nolint:wrapcheck // wrapped below
 	})
 	if err != nil {

@@ -1,6 +1,6 @@
 # Command-line reference
 
-This page lists every flag and subcommand of `kith`, `kithd`, `kith-notify` and `kith-mcp`, the
+This page lists every flag and subcommand of `kith`, `kithd`, `kith-notify`, `kith-proxy` and `kith-mcp`, the
 environment variables they read, and the Makefile targets you use to install and run
 them.
 
@@ -447,6 +447,23 @@ restarts.
 | `--log-file file` | Log to the journal, or to this file when there is none, instead of stderr. `kith` passes it when it starts kith-notify without systemd. |
 | `--version` | Print version information and exit. |
 
+## kith-proxy
+
+```text
+kith-proxy [--config path] [--version]
+```
+
+On a machine that joined a bridge, the link every client here dials
+([remote.md](remote.md#using-a-bridge)): it forwards their calls to the bridge with
+this machine's device key. Its systemd user unit `kith-proxy.service` starts it at
+login. It exits at once when `device.toml` names no `[[bridge]]`, and when another
+runs for the same config.
+
+| Flag | Meaning |
+| --- | --- |
+| `--config path` | Config file whose `device.toml` names the bridge, and whose storage holds this machine's files. |
+| `--version` | Print version information and exit. |
+
 ## kith-mailbox
 
 ```text
@@ -537,10 +554,10 @@ targets (`test`, `lint`, `check`, …) are covered in
 
 | Target | What it does |
 | --- | --- |
-| `make build` | Build `./kith`, `./kithd`, `./kith-mcp` and `./kith-notify` in the repository root. |
-| `make install` | Build, then install the binaries to `$(BINDIR)`, the systemd user units (`kithd.service`, `kith-notify.service`) to `~/.config/systemd/user/`, and the `matrix:` / `tg:` / `whatsapp:` handler to `~/.local/share/applications/`. It starts nothing. |
+| `make build` | Build `./kith`, `./kithd`, `./kith-mcp`, `./kith-notify`, `./kith-relay` and `./kith-proxy` in the repository root. |
+| `make install` | Build, then install the binaries to `$(BINDIR)`, the systemd user units (`kithd.service`, `kith-notify.service`, `kith-proxy.service`) to `~/.config/systemd/user/`, and the `matrix:` / `tg:` / `whatsapp:` handler to `~/.local/share/applications/`. It starts nothing. |
 | `make deploy` | `install`, then import the desktop environment variables, enable and restart both units, and wait for the daemon's socket. |
-| `make undeploy` | Stop and disable `kithd.service` and `kith-notify.service`, remove them and every `kithd-<instance>.service` and `kith-notify-<instance>.service` kith wrote for a config of its own, the `kith`, `kithd`, `kith-mcp` and `kith-notify` binaries, the desktop entry, and the `matrix:` / `tg:` / `whatsapp:` handler associations if they still name kith. Config, cache, crypto store and keyring are left alone. |
+| `make undeploy` | Stop and disable `kithd.service`, `kith-notify.service` and `kith-proxy.service`, remove them and every `kithd-<instance>.service` and `kith-notify-<instance>.service` kith wrote for a config of its own, the `kith`, `kithd`, `kith-mcp`, `kith-notify` and `kith-proxy` binaries, the desktop entry, and the `matrix:` / `tg:` / `whatsapp:` handler associations if they still name kith. Config, cache, crypto store and keyring are left alone. |
 | `make daemon-status` | `systemctl --user status` for `kithd.service`. |
 | `make daemon-logs` | Print that unit's last 100 journal lines. |
 | `make daemon-restart` | Restart that unit, for example after an upgrade. |

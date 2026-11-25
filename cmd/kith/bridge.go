@@ -73,7 +73,7 @@ func attachBridge(ctx context.Context, path string, b config.Bridge, timeout tim
 	if b, err = daemon.FollowRotation(ctx, cert, device, b); err != nil {
 		return failed, fmt.Errorf("follow the bridge's new key: %w", err)
 	}
-	backend, err := daemon.AttachBridge(ctx, cert, b, timeout)
+	backend, err := daemon.AttachBridge(ctx, storage, cert, b, timeout)
 	if err != nil {
 		return failed, fmt.Errorf("attach to kithd: %w", err)
 	}

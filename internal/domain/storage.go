@@ -129,6 +129,17 @@ func (s Storage) NotifierLockPath() string {
 	return filepath.Join(s.RuntimeDir, s.Instance+"-notify.lock")
 }
 
+// ProxySocketPath is kith-proxy's socket, where every client on this machine reaches
+// the bridge it joined.
+func (s Storage) ProxySocketPath() string {
+	return filepath.Join(s.RuntimeDir, s.Instance+"-proxy.sock")
+}
+
+// ProxyLockPath is kith-proxy's single-instance lock, beside its socket.
+func (s Storage) ProxyLockPath() string {
+	return filepath.Join(s.RuntimeDir, s.Instance+"-proxy.lock")
+}
+
 // LogPath is where a program of this instance logs when it logs to a file.
 func (s Storage) LogPath(program string) string { return filepath.Join(s.StateDir, program+".log") }
 

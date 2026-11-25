@@ -32,7 +32,7 @@ func (d device) WriteAccount(ctx context.Context, req *connect.Request[devicev1.
 		var got *connect.Response[backendv1.GetConfigResponse]
 		got, err = backend.GetConfig(ctx, connect.NewRequest(&backendv1.GetConfigRequest{}))
 		if err != nil {
-			return nil, d.at.failure(err)
+			return nil, d.at.Failure(err)
 		}
 		cfg, derr := config.Decode(got.Msg.GetConfig())
 		if derr != nil {
@@ -47,7 +47,7 @@ func (d device) WriteAccount(ctx context.Context, req *connect.Request[devicev1.
 		}
 	}
 	if err != nil {
-		return nil, d.at.failure(err)
+		return nil, d.at.Failure(err)
 	}
 	return connect.NewResponse(&devicev1.WriteAccountResponse{}), nil
 }

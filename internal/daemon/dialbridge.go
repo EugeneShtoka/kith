@@ -11,6 +11,7 @@ import (
 
 	"github.com/EugeneShtoka/kith/internal/config"
 	"github.com/EugeneShtoka/kith/internal/devicekey"
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // bridgeBaseURL addresses Connect requests to a bridge; the host is ignored, the
@@ -94,10 +95,11 @@ func NewBridgeRemote(cert tls.Certificate, pin devicekey.ID, addrs []string) *Re
 }
 
 // AttachBridge returns a client of the bridge b once it reports ready, as the device whose
-// certificate is cert: b's addresses in order, the first answering with b's key. It never
-// starts a daemon; one that does not answer is waited for until timeout.
-func AttachBridge(ctx context.Context, cert tls.Certificate, b config.Bridge, timeout time.Duration) (*Remote, error) {
-	dial, err := BridgeDialer(cert, b)
+// certificate is cert: through kith-proxy when it answers on this machine (storage's),
+// else b's addresses in order, the first answering with b's key. It never starts a
+// daemon; one that does not answer is waited for until timeout.
+func AttachBridge(ctx context.Context, storage domain.Storage, cert tls.Certificate, b config.Bridge, timeout time.Duration) (*Remote, error) {
+	dial, err := BridgeDialer(ctx, storage, cert, b)
 	if err != nil {
 		return nil, err
 	}
@@ -109,14 +111,37 @@ func AttachBridge(ctx context.Context, cert tls.Certificate, b config.Bridge, ti
 }
 
 // BridgeDialer makes Remotes for the bridge b ([[bridge]]) as the device whose certificate
-// is cert, each new one as NewBridgeRemote makes it; an error when b's ID is not one.
-func BridgeDialer(cert tls.Certificate, b config.Bridge) (func() *Remote, error) {
+// is cert: of kith-proxy's socket when it answers now (ProxyAnswers), else each new one
+// as NewBridgeRemote makes it; an error when b's ID is not one.
+func BridgeDialer(ctx context.Context, storage domain.Storage, cert tls.Certificate, b config.Bridge) (func() *Remote, error) {
 	pin, err := bridgePin(b)
 	if err != nil {
 		return nil, err
 	}
+	if ProxyAnswers(ctx, storage) {
+		return func() *Remote { return NewRemote(storage.ProxySocketPath()) }, nil
+	}
 	return func() *Remote { return NewBridgeRemote(cert, pin, b.Addresses) }, nil
 }
+
+// ProxyAnswers is whether kith-proxy listens on this machine for storage
+// (storage.ProxySocketPath). A client of the bridge asks once, as it starts: a machine
+// with no proxy running dials the bridge itself, as before there was one.
+func ProxyAnswers(ctx context.Context, storage domain.Storage) bool {
+	if storage.RuntimeDir == "" {
+		return false
+	}
+	c, err := (&net.Dialer{Timeout: proxyDialTimeout}).DialContext(ctx, "unix", storage.ProxySocketPath())
+	if err != nil {
+		return false
+	}
+	_ = c.Close() // only its answering was asked
+	return true
+}
+
+// proxyDialTimeout bounds asking whether kith-proxy answers: a local socket answers at
+// once or not at all.
+const proxyDialTimeout = time.Second
 
 // DialBridge returns an HTTP client that reaches the bridge b ([[bridge]]) as the device
 // whose certificate is cert, as a Remote for it does: b's addresses in order, the first
