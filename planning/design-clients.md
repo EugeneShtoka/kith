@@ -69,7 +69,7 @@ Each bridge costs linked-device slots per network. Reality:
 Signal / GM apps as master, kith-on-Android as a *linked* device alongside the
 master app:
 
-- WA: probably works (different app ID) — needs verifying before Phase 5
+- WA: probably works (different app ID) — needs verifying before Phase 6
 - Signal: same uncertainty as WA
 - GM: a web session paired with the same phone's GM app, and only while it is the
   active one; unverified
@@ -412,14 +412,17 @@ question.
    other options; the live relay in [design-mailbox.md](design-mailbox.md) stays an idea
    for a paid tier.
 3. **WhatsApp-on-Android alongside the official app.** Needs verifying before
-   Phase 5. Can kith-on-Android register as a WA linked device while the official
+   Phase 6 (the client, Phase 5, dials a bridge elsewhere:
+   [design-android.md](design-android.md)). Can kith-on-Android register as a WA linked device while the official
    WA app is master on the same phone? Spike.
 4. ~~**Push payload policy.**~~ *Decided 2026-11-18:* wake only. No room ID and no
    badge count: the push carrier would see them, and the app syncs from the bridge over
    TLS right after waking.
 5. **Credentials on Android.** The Linux keyring holds them today, and the desktop's
    relay uses it; Android has Keystore. It needs the equivalent of
-   `internal/session`'s pickle-key story.
+   `internal/session`'s pickle-key story. For the client (Phase 5) the only credential
+   is its device key, a P-256 key Keystore holds ([design-android.md](design-android.md));
+   a bridge on the phone (Phase 6) still needs this answered.
 6. ~~**Heartbeat semantics.**~~ *Decided 2026-11-19:* the
    [Heartbeat per network](#heartbeat-per-network) table as proposed, LinkedIn and
    Messenger/Instagram measured when Phase 3 is built; healthy is every logged-in
