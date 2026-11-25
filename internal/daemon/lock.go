@@ -27,10 +27,23 @@ func Acquire(storage domain.Storage) (lock *Lock, held bool, err error) {
 	if err != nil {
 		return nil, false, err
 	}
+	return acquire(storage.LockPath(), socket)
+}
+
+// AcquireProxy takes the exclusive lock for the instance's kith-proxy, as Acquire does
+// kithd's; its socket is storage.ProxySocketPath.
+func AcquireProxy(storage domain.Storage) (lock *Lock, held bool, err error) {
+	if _, err := SocketPath(storage); err != nil {
+		return nil, false, err
+	}
+	return acquire(storage.ProxyLockPath(), storage.ProxySocketPath())
+}
+
+// acquire takes the lock at path for the socket beside it.
+func acquire(path, socket string) (lock *Lock, held bool, err error) {
 	if mkerr := makeSocketDir(filepath.Dir(socket)); mkerr != nil {
 		return nil, false, mkerr
 	}
-	path := storage.LockPath()
 	fl := flock.New(path)
 	held, err = fl.TryLock()
 	if err != nil {

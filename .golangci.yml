@@ -1045,6 +1045,24 @@ linters:
             # A login's QR step encoded as the TUI's qrtext encodes it, for the window to draw.
             - "rsc.io/qr"
 
+        # A joined machine's link to its bridge: it forwards the wire, as kith-relay does,
+        # and no daemon-side package (deps-check holds it to that at any depth). Tests
+        # stub the keyring (go-keyring's mock) and call through the wire.
+        proxy-main-wiring:
+          files:
+            - "**/cmd/kith-proxy/**"
+            - "!$test"
+          allow:
+            - "$gostd"
+            - "github.com/EugeneShtoka/kith/internal/buildinfo"
+            - "github.com/EugeneShtoka/kith/internal/config"
+            - "github.com/EugeneShtoka/kith/internal/daemon"
+            - "github.com/EugeneShtoka/kith/internal/domain"
+            - "github.com/EugeneShtoka/kith/internal/logging"
+            # This machine's device key, to dial the bridge.
+            - "github.com/EugeneShtoka/kith/internal/keystore"
+            - "github.com/EugeneShtoka/kith/internal/setup"
+
         # The Signal helper's main: the helper and, built with the signal tag, Signal.
         signal-main-wiring:
           files:

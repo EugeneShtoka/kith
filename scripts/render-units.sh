@@ -18,7 +18,7 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 src="$here/packaging/systemd"
 
 mkdir -p "$outdir"
-for unit in kithd.service kith-notify.service; do
+for unit in kithd.service kith-notify.service kith-proxy.service; do
 	bin=${unit%.service}
 	sed "s|^ExecStart=[^ ]*/$bin|ExecStart=$bindir/$bin|" "$src/$unit" >"$outdir/$unit.tmp"
 	if ! grep -q "^ExecStart=$bindir/$bin\( \|$\)" "$outdir/$unit.tmp"; then
