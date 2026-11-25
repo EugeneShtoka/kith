@@ -82,7 +82,7 @@ func (a *Adapter) Send(ctx context.Context, room domain.RoomID, draft domain.Dra
 	}
 	var sent *linkedingo.MessageSentResponse
 	err = a.ask(ctx, "sending a message", func(ctx context.Context) (err error) {
-		sent, err = client.SendMessage(ctx, conversationURN(c.profile, thread), body, render, token)
+		sent, err = client.SendMessage(ctx, conversationURN(c.profile, thread), body, render, token, "")
 		return err //nolint:wrapcheck // wrapped below
 	})
 	if err != nil {
