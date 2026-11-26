@@ -42,9 +42,10 @@ questions 2, 6 and 9). This file is how it gets built, against the code as of
   devices it admits. So a client
   joined to one bridge can find and dial the others with the key it has.
 
-## Calls for Eugene
+## Calls
 
-Each has a recommendation; the plan below assumes it.
+Decided 2026-11-25: 2, 3 and 5 as recommended, 7 with every hold time a setting; 1, 4
+and 6 left on the recommendation (6's #632 has merged).
 
 1. **The beat is a stream.** `Beat` (server stream on BackendService) sends the bridge's
    whole status every 30 s and at once on any account's change. The proxy holds one per
@@ -84,7 +85,10 @@ Each has a recommendation; the plan below assumes it.
    room and event ID; clients keep reading the proxy's numbering and never see a
    failover. *Rejected:* failing over in a forwarding-only proxy (it would have to
    renumber, or send every client `read_again` at each failover).
-7. **Hold times.** A client fails over at once on a dropped connection and after 90 s
+7. **Hold times, each a setting** (Eugene, 2026-11-25): `[failover]` in `config.toml`,
+   for every device, and in `device.toml` over it, as `[gui]` is: `stale_after`,
+   `move_back_after`, `stand_down_after`, `take_over_after`, `standby_connect_every`.
+   Their defaults: a client fails over at once on a dropped connection and after 90 s
    without a beat; it moves back up to a higher bridge after that bridge has held the
    account for 2 min. A standby bridge stands an account down after a higher bridge has
    held it for 2 min, and takes it over after 5 min with no higher bridge holding it.
@@ -200,7 +204,8 @@ and gets a failure review (CONTRIBUTING.md) before it is done.
 
 ### Step 5, feat: the proxy fails over
 
-- The `[[bridge]]` list filled from the roster (call 4); the proxy dials every bridge's
+- The `[[bridge]]` list filled from the roster (call 4), and the client half of
+  `[failover]` (call 7); the proxy dials every bridge's
   `Beat`, and serves each account's rooms from the bridge where it is active (call 2),
   which while no bridge has a priority is the first in the list that holds it.
 - On a switch: `Messages` resumed at the new bridge from the time last heard (step 3),
@@ -223,7 +228,7 @@ and gets a failure review (CONTRIBUTING.md) before it is done.
 
 ### Step 6, feat: standby bridges
 
-- `[bridge] priority` (call 3); kithd dials each higher bridge's `Beat` over the mesh's
+- `[bridge] priority` (call 3) and the standby half of `[failover]` (call 7); kithd dials each higher bridge's `Beat` over the mesh's
   addresses and connects only the accounts none of them holds (call 2), with the hold
   times of call 7. A standby account connects once a day until caught up.
 - `kith status` and the settings say which accounts are on standby and which bridge
