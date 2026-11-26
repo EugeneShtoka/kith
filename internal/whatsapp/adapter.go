@@ -48,7 +48,8 @@ type Adapter struct {
 
 	onRoomsChanged func()
 	onStatus       func(domain.AccountStatus)
-	// See OnRoomsChanged, OnStatus and OnCached.
+	onHeard        func(domain.Heard)
+	// See OnRoomsChanged, OnStatus, OnHeard and OnCached.
 	onCached  func(domain.Message)
 	onChanged func(domain.RoomID)
 
@@ -167,6 +168,16 @@ func (a *Adapter) Network() domain.Protocol { return domain.ProtocolWhatsApp }
 // OnStatus sets the callback for an account's connection changes, with a
 // user-facing detail (may be empty). Set before Start.
 func (a *Adapter) OnStatus(changed func(domain.AccountStatus)) { a.onStatus = changed }
+
+// OnHeard sets who hears each account's keep-alive answering or not, and its queue
+// drained after connecting. Set before Start.
+func (a *Adapter) OnHeard(heard func(domain.Heard)) { a.onHeard = heard }
+
+func (a *Adapter) beat(account Account, kind domain.HeardKind, at time.Time) {
+	if a.onHeard != nil {
+		a.onHeard(domain.Heard{Network: domain.ProtocolWhatsApp, Account: account.Name, Kind: kind, At: at})
+	}
+}
 
 func (a *Adapter) link(account Account, phase domain.AccountPhase, detail string) {
 	if a.onStatus != nil {
@@ -324,6 +335,20 @@ func (a *Adapter) handle(account Account, client *whatsmeow.Client, evt any) {
 		delete(a.clients, account.Digits)
 		a.mu.Unlock()
 		a.link(account, Unlinked, "the phone unlinked kith; run `kith login whatsapp "+account.Name+"` again")
+	}
+	a.heardIn(account, evt)
+}
+
+// heardIn reports what evt says of the account's keep-alive and queue: answering from
+// its connect until whatsmeow says it timed out, and drained once the offline sync is.
+func (a *Adapter) heardIn(account Account, evt any) {
+	switch e := evt.(type) {
+	case *events.Connected, *events.KeepAliveRestored:
+		a.beat(account, domain.HeardAnswering, time.Now())
+	case *events.KeepAliveTimeout:
+		a.beat(account, domain.HeardSilent, e.LastSuccess)
+	case *events.OfflineSyncCompleted:
+		a.beat(account, domain.HeardCaughtUp, time.Now())
 	}
 }
 

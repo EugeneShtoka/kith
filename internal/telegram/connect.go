@@ -10,6 +10,8 @@ import (
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // Reconnect backoff for a stopped client, doubling from firstRetry to lastRetry.
@@ -57,7 +59,7 @@ func (a *Adapter) connect(ctx context.Context, account Account, creds Credential
 	for wait := firstRetry; ; wait = min(2*wait, lastRetry) {
 		storage := &keptSession{a: a, account: account, gen: gen, creds: creds}
 		live := a.liveFor(account)
-		if a.connectOnce(ctx, account, gen, dial(creds.App, storage, live.manager), live) {
+		if a.connectOnce(ctx, account, gen, dial(creds.App, storage, live.manager, a.pinged(account)), live) {
 			return
 		}
 		select {
@@ -88,6 +90,8 @@ func (a *Adapter) connectOnce(ctx context.Context, account Account, gen int, cli
 		go a.backfill(ctx, account, self.ID, rooms) // ends with the connection
 		return live.run(ctx, client, self.ID, func() {
 			a.session(account, Connected, "")
+			a.beat(account, domain.HeardAnswering)
+			a.beat(account, domain.HeardCaughtUp)
 			go a.sendOwed(ctx, self.ID) // reads made here while Telegram was away
 			go a.RefreshBlocklist(ctx)
 		})

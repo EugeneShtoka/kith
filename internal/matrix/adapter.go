@@ -99,6 +99,20 @@ func (m *Adapter) Online(on domain.RoomOwner) domain.AccountStatus {
 	return domain.AccountStatus{Network: domain.ProtocolMatrix, Phase: domain.AccountOnline}
 }
 
+// KeysReady says whether the account named account could decrypt what it is sent:
+// this device cross-signed and holding the key backup's key or room keys restored, or
+// the account with no cross-signing, so nothing to verify against or restore
+// (design-failover.md, step 1).
+// Encryption off is ready. It reads only the local crypto store.
+func (m *Adapter) KeysReady(ctx context.Context, account string) bool {
+	for _, r := range m.runnersNow() {
+		if r.account().Name == account {
+			return r.keysReady(ctx)
+		}
+	}
+	return false
+}
+
 // runnersNow is the configured accounts' runners, in config order.
 func (m *Adapter) runnersNow() []*runner {
 	m.mu.Lock()

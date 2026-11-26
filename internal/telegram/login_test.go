@@ -158,7 +158,7 @@ func newFakeTelegram(t *testing.T) *fakeTelegram {
 }
 
 // dial is a client of the fake Telegram.
-func (f *fakeTelegram) dial(app App, storage session.Storage, handler telegram.UpdateHandler) *telegram.Client {
+func (f *fakeTelegram) dial(app App, storage session.Storage, handler telegram.UpdateHandler, _ func(telegram.ConnectionState)) *telegram.Client {
 	return telegram.NewClient(app.ID, app.Hash, telegram.Options{
 		PublicKeys: f.cluster.Keys(), Resolver: f.cluster.Resolver(), DCList: f.cluster.List(),
 		SessionStorage: storage, UpdateHandler: handler,
@@ -342,7 +342,7 @@ func TestAnEndedSessionLogsTheAccountOut(t *testing.T) {
 	gen := a.signIns[home.Name]
 	a.conns[home.Name].cancel()
 	a.mu.Unlock()
-	if done := a.connectOnce(ctx, home, gen, f.dial(creds.App, &keptSession{a: a, account: home, gen: gen, creds: creds}, a.liveFor(home).manager), a.liveFor(home)); !done {
+	if done := a.connectOnce(ctx, home, gen, f.dial(creds.App, &keptSession{a: a, account: home, gen: gen, creds: creds}, a.liveFor(home).manager, nil), a.liveFor(home)); !done {
 		t.Fatal("an ended session is tried again")
 	}
 	if s, said := heard.of("home"); s != LoggedOut || said == "" {

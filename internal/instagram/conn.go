@@ -40,6 +40,8 @@ type conn struct {
 	session *Session
 	client  *instameow.Client
 	kept    time.Time
+	// drainTo is the change the connection must reach to have caught up, 0 once it has.
+	drainTo int64
 	// inbox is what the connection knows of its threads and people (inbox.go).
 	inbox *inbox
 	// sweeper keeps the inbox's pictures, people its threads' people's (picturesLater).
@@ -141,6 +143,8 @@ func (c *conn) handle(ctx context.Context, evt slidetypes.ClientEvent) error {
 		c.a.takeTyping(c, e)
 	case *slidetypes.Connected:
 		c.a.status(c.account, Connected, "")
+		c.a.beat(c.account, domain.HeardAnswering)
+		c.drainFrom(e.SubscribedSeqID, e.LatestSeqID)
 	case *slidetypes.Disconnected:
 		if dgw.IsUnauthorized(e.Error) {
 			c.a.status(c.account, SignedOut, "Instagram ended the session; run `kith login instagram "+c.account.Name+"`")
@@ -155,8 +159,37 @@ func (c *conn) handle(ctx context.Context, evt slidetypes.ClientEvent) error {
 		}
 	case *slidetypes.SeqIDUpdate:
 		c.keep(e.SeqID, e.Timestamp, false)
+		c.drained(e.SeqID)
 	}
 	return nil
+}
+
+// drainFrom starts a connection subscribed from change from while the latest is latest:
+// caught up at once when nothing is between them, else once drained reaches latest.
+func (c *conn) drainFrom(from, latest int64) {
+	c.mu.Lock()
+	c.drainTo = 0
+	if from < latest {
+		c.drainTo = latest
+	}
+	c.mu.Unlock()
+	if from >= latest {
+		c.a.beat(c.account, domain.HeardCaughtUp)
+	}
+}
+
+// drained takes the changes up to at, which catches the account up once at reaches
+// what drainFrom set.
+func (c *conn) drained(at int64) {
+	c.mu.Lock()
+	done := c.drainTo != 0 && at >= c.drainTo
+	if done {
+		c.drainTo = 0
+	}
+	c.mu.Unlock()
+	if done {
+		c.a.beat(c.account, domain.HeardCaughtUp)
+	}
 }
 
 // keep writes the session (the client's cookies as they rotated, the seq ID) to the

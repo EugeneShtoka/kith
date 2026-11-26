@@ -5,6 +5,8 @@ import (
 	"time"
 
 	slackgo "github.com/slack-go/slack"
+
+	"github.com/EugeneShtoka/kith/internal/domain"
 )
 
 // Live events come over the web client's websocket (RTM) on the same session.
@@ -83,10 +85,10 @@ func (a *Adapter) onEvent(ctx context.Context, w *workspace, ev slackgo.RTMEvent
 	case *slackgo.UserTypingEvent:
 		a.onTyping(w, e)
 	case *slackgo.ConnectedEvent:
+		a.onConnected(ctx, w)
+	case *slackgo.LatencyReport:
 		if a.current(w) {
-			a.session(w.account, Connected, "")
-			a.goCatchUp(ctx, w) // what was said while not connected
-			go a.sendOwed(context.WithoutCancel(ctx), w)
+			a.beat(w.account, domain.HeardAlive)
 		}
 	case *slackgo.ConnectionErrorEvent:
 		a.log.Warn("Slack's websocket dropped", "account", w.account.Name, "err", e.ErrorObj)
@@ -112,6 +114,17 @@ func (a *Adapter) onEvent(ctx context.Context, w *workspace, ev slackgo.RTMEvent
 		a.onUnmapped(ctx, w, e.Raw)
 	}
 	return true
+}
+
+// onConnected takes w's hello: online and answering, then what was said meanwhile.
+func (a *Adapter) onConnected(ctx context.Context, w *workspace) {
+	if !a.current(w) {
+		return
+	}
+	a.session(w.account, Connected, "")
+	a.beat(w.account, domain.HeardAlive)
+	a.goCatchUp(ctx, w) // what was said while not connected
+	go a.sendOwed(context.WithoutCancel(ctx), w)
 }
 
 // onAnyMarked moves the read position of a channel, DM or group DM that was read.

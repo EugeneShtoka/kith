@@ -126,6 +126,46 @@ and gets a failure review (CONTRIBUTING.md) before it is done.
   before its drain, a keep-alive answered on a connection already replaced, a quiet
   account.
 
+**As built** (2026-11-25):
+
+- **Two kinds of alive.** Only Matrix (each `/sync`), Slack (each pong, `LatencyReport`)
+  and LinkedIn (each realtime `Heartbeat`) hand kith one event per answer. whatsmeow,
+  signalmeow, gotd, libgm, messagix and instameow say only when their keep-alive *fails*,
+  and reconnect on their own; for them an adapter reports `HeardAnswering` when it
+  connects and `HeardSilent` (with the last answer) when the library says so, and the
+  account is alive at any moment in between. A silence whose last answer is from before
+  the account last went offline is an earlier connection's, heard late, and ignored.
+- **Caught up**, per network: Matrix the first sync; WhatsApp `OfflineSyncCompleted`;
+  Signal `QueueEmpty`, which the helper now forwards (`signal.v1.QueueEmpty`, so helper
+  and kithd must be the same build); Slack the catch-up fetch finishing; LinkedIn the
+  sync-token listing; Messenger messagix's connect, which comes after its first sync;
+  Instagram the changes taken reaching the latest sequence ID there was at connect;
+  Google Messages the long poll open with the phone answering. **Telegram** counts as
+  caught up when gotd's update manager starts, before its `getDifference` returns: gotd
+  has no hook for that.
+- **not_ours** is only Google Messages' phone (`PhoneNotResponding`). A network down for
+  everyone is not told apart from one down for this bridge.
+- **keys_ready**: cross-signed and holding the backup key *or room keys* (a restore by
+  recovery key or passphrase imports keys without keeping the backup key), or no
+  cross-signing at all. A device with keys only from its own sends counts as ready.
+- **version** is `buildinfo.Short`: the version and the commit's first 12 characters,
+  since every local build is "dev".
+- **Measuring**: an `alive gaps` line per account per hour in kithd's log
+  (`longest`, `window`). It measures only the three networks with an event per answer;
+  for Messenger and Instagram there is nothing to measure, since messagix and instameow
+  report no answer, only a dropped socket, so their 90 s stands for a silence the
+  library has already turned into a reconnect.
+- **Held** is computed by whoever reads the status (`daemon.NetworkStatus.Held`) against
+  its own clock; a client whose clock is off a remote bridge's by more than a window
+  misjudges it. Step 5 should judge a beat by when it arrived.
+- **Failure review**: `TestStateHeldFollowsItsConnection` walks every sequence of five
+  steps (12 kinds) from four named starts against a model that tracks connections, not
+  times; each guard in `State` was removed in turn and the test caught it. Left: a
+  caught-up from an earlier connection arriving after the next connect (adapters order
+  their own events, and none sends one late that we know of), and a quiet account that
+  is actually broken on an answering-kind network (the library's own keep-alive is
+  trusted).
+
 ### Step 2, fix: a notification's ID is its message's
 
 - The notice ID is the message's event ID, and its revision for an edit that raises one;

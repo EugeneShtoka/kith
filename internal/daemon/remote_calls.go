@@ -916,13 +916,28 @@ func (r *Remote) Networks(ctx context.Context) ([]NetworkStatus, error) {
 	}
 	rows := make([]NetworkStatus, 0, len(resp.GetNetworks()))
 	for _, n := range resp.GetNetworks() {
-		row := NetworkStatus{Network: n.GetNetwork(), Account: n.GetAccount(), Phase: protoToPhase(n.GetPhase()), Detail: n.GetDetail()}
+		row := NetworkStatus{
+			Network: n.GetNetwork(), Account: n.GetAccount(), Phase: protoToPhase(n.GetPhase()), Detail: n.GetDetail(),
+			CaughtUp: n.GetCaughtUp(), NotOurs: n.GetNotOurs(), KeysReady: n.GetKeysReady(),
+		}
 		if ts := n.GetOnlineAt(); ts != nil {
 			row.At = ts.AsTime().Local()
+		}
+		if ts := n.GetAliveAt(); ts != nil {
+			row.AliveAt = ts.AsTime().Local()
 		}
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+// Version is the daemon's build, as Status gives it.
+func (r *Remote) Version(ctx context.Context) (string, error) {
+	resp, err := call(ctx, "status", r.c.Status, &v1.StatusRequest{})
+	if err != nil {
+		return "", err
+	}
+	return resp.GetVersion(), nil
 }
 
 // AccountStates is Networks as the networks report them (api.AccountStates).

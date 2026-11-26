@@ -49,3 +49,14 @@ func String(name string) string {
 	}
 	return out
 }
+
+// Short is this build in one line: its version and, when known, its commit, since
+// every local build's version is "dev".
+func Short() string {
+	bi, _ := debug.ReadBuildInfo()
+	out := version(bi)
+	if c := injectedOr(Commit, bi, "vcs.revision"); c != "" {
+		out += " " + c[:min(len(c), 12)]
+	}
+	return out
+}

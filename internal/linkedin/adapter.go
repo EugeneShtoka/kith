@@ -54,6 +54,8 @@ type Adapter struct {
 
 	// onStatus hears an account's state change (see OnStatus).
 	onStatus func(domain.AccountStatus)
+	// onHeard hears an account's evidence of being alive and caught up (see OnHeard).
+	onHeard func(domain.Heard)
 	// onRoomsChanged hears an account's rooms being rewritten (see OnRoomsChanged).
 	onRoomsChanged func()
 	// onCached hears each live message cached, onChanged each room whose cached messages
@@ -156,6 +158,16 @@ func (a *Adapter) CheckConfig(_ context.Context, cfg config.Config) error {
 		records = append(records, domain.AccountRecord{Name: account.Name, Key: account.Name})
 	}
 	return domain.CheckAccounts(cfg.LinkedIn.Table(), records) //nolint:wrapcheck // names the record itself
+}
+
+// OnHeard sets who hears each account's realtime heartbeats and its conversations
+// caught up after connecting (the sync-token listing). Set before Start.
+func (a *Adapter) OnHeard(heard func(domain.Heard)) { a.onHeard = heard }
+
+func (a *Adapter) beat(account Account, kind domain.HeardKind) {
+	if a.onHeard != nil {
+		a.onHeard(domain.Heard{Network: domain.ProtocolLinkedIn, Account: account.Name, Kind: kind, At: time.Now()})
+	}
 }
 
 func (a *Adapter) session(account Account, phase domain.AccountPhase, detail string) {

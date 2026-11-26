@@ -57,6 +57,11 @@ type (
 	}
 	// roomsStaler learns of room changes the cache lacks until refreshed (Matrix's sync).
 	roomsStaler interface{ OnRoomsStale(stale func()) }
+	// hearer reports each account's evidence of being alive and caught up (the
+	// heartbeat). Matrix's is its sync, heard through OnSynced.
+	hearer interface {
+		OnHeard(heard func(domain.Heard))
+	}
 )
 
 // checkConfig refuses a config kithd would not run: one setup or any network refuses.

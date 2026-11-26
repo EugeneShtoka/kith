@@ -300,7 +300,7 @@ func TestManyChatsAreReadPageByPage(t *testing.T) {
 	// Generous: the fake's handshake is slow under -race; this only bounds a hang.
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
-	client := f.dial(testApp, newLoginSession(), nil)
+	client := f.dial(testApp, newLoginSession(), nil, nil)
 	var got []dialog
 	err := client.Run(ctx, func(ctx context.Context) error {
 		var err error

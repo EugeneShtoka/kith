@@ -260,10 +260,16 @@ func (a *Adapter) handlers(c *conn) linkedingo.Handlers {
 		}
 	}
 	return linkedingo.Handlers{
-		Heartbeat: func(context.Context) { heard("a heartbeat", func() { a.keepCookies(c) }) },
+		Heartbeat: func(context.Context) {
+			heard("a heartbeat", func() {
+				a.beat(c.account, domain.HeardAlive)
+				a.keepCookies(c)
+			})
+		},
 		ClientConnection: func(ctx context.Context, cc *linkedingo.ClientConnection) {
 			heard("connecting", func() {
 				a.session(c.account, Connected, "")
+				a.beat(c.account, domain.HeardAlive)
 				a.keepCookies(c)
 				go a.sync(context.WithoutCancel(ctx), c, cc.SessID.String())
 				go a.sendOwed(c)

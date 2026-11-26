@@ -914,23 +914,66 @@ func (s *server) CancelVerification(ctx context.Context, r *req[v1.CancelVerific
 // ── Maintenance ──
 
 // Status answers before the daemon is ready: clients poll it while waiting.
-func (s *server) Status(_ context.Context, _ *req[v1.StatusRequest]) (*resp[v1.StatusResponse], error) {
+func (s *server) Status(ctx context.Context, _ *req[v1.StatusRequest]) (*resp[v1.StatusResponse], error) {
+	return connect.NewResponse(s.status(ctx)), nil
+}
+
+func (s *server) status(ctx context.Context) *v1.StatusResponse {
 	ready, syncedAt, lastErr := s.State.Snapshot()
-	out := &v1.StatusResponse{Ready: ready, LastError: lastErr}
+	out := &v1.StatusResponse{Ready: ready, LastError: lastErr, Version: s.Version}
 	if !syncedAt.IsZero() {
 		out.SyncedAt = timestamppb.New(syncedAt)
 	}
-	for _, n := range s.State.Networks() {
-		row := &v1.NetworkStatus{Network: n.Network, Account: n.Account, Phase: phaseToProto(n.Phase), Detail: n.Detail}
+	for _, n := range s.State.Networks(ctx, time.Now()) {
+		row := &v1.NetworkStatus{
+			Network: n.Network, Account: n.Account, Phase: phaseToProto(n.Phase), Detail: n.Detail,
+			CaughtUp: n.CaughtUp, NotOurs: n.NotOurs, KeysReady: n.KeysReady,
+		}
 		if !n.At.IsZero() {
 			row.OnlineAt = timestamppb.New(n.At)
+		}
+		if !n.AliveAt.IsZero() {
+			row.AliveAt = timestamppb.New(n.AliveAt)
 		}
 		out.Networks = append(out.Networks, row)
 	}
 	if dir, why := s.BackupWarning.Current(); dir != "" {
 		out.BackupWarning = &v1.BackupWarning{Dir: dir, Why: why}
 	}
-	return connect.NewResponse(out), nil
+	return out
+}
+
+// beatEvery is how often Beat sends the status when nothing changed (design-clients.md,
+// Heartbeat per network).
+const beatEvery = 30 * time.Second
+
+// Beat sends the status at once, then every beatEvery and whenever an account changed.
+func (s *server) Beat(ctx context.Context, _ *req[v1.BeatRequest], st *connect.ServerStream[v1.BeatResponse]) error {
+	id, changes := s.Streams.changes.subscribeWith(subBuffer)
+	defer s.Streams.changes.release(id)
+	tick := time.NewTicker(beatEvery)
+	defer tick.Stop()
+	for {
+		if err := st.Send(&v1.BeatResponse{Status: s.status(ctx)}); err != nil {
+			return rpcErr(fmt.Errorf("send a beat: %w", err))
+		}
+	beat:
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case c, ok := <-changes:
+				if !ok {
+					return nil
+				}
+				if c.what == domain.ChangeAccounts {
+					break beat
+				}
+			case <-tick.C:
+				break beat
+			}
+		}
+	}
 }
 
 // DismissBackupWarning stops the backup folder warning for the folder named.

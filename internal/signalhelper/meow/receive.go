@@ -121,6 +121,8 @@ func (a *account) handle(ctx context.Context, evt events.SignalEvent) {
 			read.Messages = append(read.Messages, &signalv1.ReadMessage{Author: m.GetSenderAci(), Sent: m.GetTimestamp()})
 		}
 		a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_Read{Read: read}})
+	case *events.QueueEmpty:
+		a.deliver(&signalv1.EventsResponse{Event: &signalv1.EventsResponse_QueueEmpty{QueueEmpty: &signalv1.QueueEmpty{}}})
 	case *events.ContactList:
 		contacts := &signalv1.Contacts{}
 		for _, r := range e.Contacts {

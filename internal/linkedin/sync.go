@@ -35,7 +35,11 @@ func (a *Adapter) sync(ctx context.Context, c *conn, session string) {
 	c.mu.Lock()
 	client, done, first := c.client, c.synced == session && session != "", c.session.SyncToken == ""
 	c.mu.Unlock()
-	if client == nil || done || c.closed() {
+	if client == nil || c.closed() {
+		return
+	}
+	if done {
+		a.beat(c.account, domain.HeardCaughtUp) // a reconnect of a session listed already
 		return
 	}
 	ctx, cancel := context.WithTimeout(a.withLog(ctx), syncSpan)
@@ -60,6 +64,7 @@ func (a *Adapter) sync(ctx context.Context, c *conn, session string) {
 	c.synced = session
 	c.mu.Unlock()
 	a.keepCookies(c) // the new sync token
+	a.beat(c.account, domain.HeardCaughtUp)
 }
 
 // hasRooms reports whether the cache holds any of c's conversations.

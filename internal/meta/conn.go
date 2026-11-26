@@ -297,6 +297,8 @@ func (a *Adapter) react(c *conn, evt any) {
 	switch e := evt.(type) {
 	case *messagix.ConnectedEvent, *messagix.ReconnectedEvent:
 		a.session(c.account, Connected, "")
+		a.beat(c.account, domain.HeardAnswering)
+		a.beat(c.account, domain.HeardCaughtUp)
 		go a.sendOwed(c)
 		go a.connectE2EE(context.Background(), c)
 	case *messagix.TransientDisconnectEvent:

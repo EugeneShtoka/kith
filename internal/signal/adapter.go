@@ -73,6 +73,7 @@ type Adapter struct {
 	// onStatus hears an account's state change (see OnStatus); said is each account's
 	// last, so a state is said once, not again on every config re-read.
 	onStatus func(domain.AccountStatus)
+	onHeard  func(domain.Heard)
 	saidMu   sync.Mutex
 	said     map[string]domain.AccountStatus
 	// onRoomsChanged hears the account's rooms being rewritten; onCached each live
@@ -340,6 +341,7 @@ func (a *Adapter) announce(account Account, h *helper, down string, failed bool)
 		switch s := h.stateOf(aci); s.state {
 		case signalv1.Connection_STATE_CONNECTED:
 			a.status(account, Linked, "")
+			a.beat(account, domain.HeardAnswering)
 			go a.picturesLater(aci)
 		case signalv1.Connection_STATE_LOGGED_OUT:
 			a.status(account, Unlinked, "unlinked from the phone; run `kith login signal "+account.Name+"` to link again")
@@ -347,6 +349,26 @@ func (a *Adapter) announce(account Account, h *helper, down string, failed bool)
 			a.status(account, Connecting, "reconnecting to Signal: "+s.detail)
 		default:
 			a.status(account, Connecting, "connecting to Signal")
+		}
+	}
+}
+
+// OnHeard sets who hears each account's websocket answering, which signalmeow says
+// only by reconnecting when its ping goes unanswered, and Signal's queue drained after
+// connecting. Set before Start.
+func (a *Adapter) OnHeard(heard func(domain.Heard)) { a.onHeard = heard }
+
+func (a *Adapter) beat(account Account, kind domain.HeardKind) {
+	if a.onHeard != nil {
+		a.onHeard(domain.Heard{Network: domain.ProtocolSignal, Account: account.Name, Kind: kind, At: time.Now()})
+	}
+}
+
+// caughtUp says the account linked to aci drained Signal's queue.
+func (a *Adapter) caughtUp(aci string) {
+	for _, account := range a.accountsNow() {
+		if linked, ok, err := a.linkedTo(account.Name); err == nil && ok && linked == aci {
+			a.beat(account, domain.HeardCaughtUp)
 		}
 	}
 }

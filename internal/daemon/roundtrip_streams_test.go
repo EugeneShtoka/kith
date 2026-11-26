@@ -9,7 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
+
 	"github.com/EugeneShtoka/kith/internal/api"
+	v1 "github.com/EugeneShtoka/kith/internal/api/backend/v1"
+	"github.com/EugeneShtoka/kith/internal/api/backend/v1/backendv1connect"
 	"github.com/EugeneShtoka/kith/internal/apitest"
 	"github.com/EugeneShtoka/kith/internal/daemon"
 	"github.com/EugeneShtoka/kith/internal/domain"
@@ -213,5 +217,37 @@ func TestAConfigChangeReachesEveryWindow(t *testing.T) {
 			t.Fatal("the change never reached the other window")
 		}
 		read.Revision = rev
+	}
+}
+
+// Beat sends the whole status as soon as it opens, with kithd's version, and again at
+// once when an account's evidence changes what held reads, without waiting the 30 s.
+func TestBeatSendsTheStatusAtOnceAndOnAChange(t *testing.T) {
+	t.Parallel()
+	h := serve(t, &fakeBackend{Nop: apitest.Nop{}}, func(d *daemon.Daemon) { d.Version = "dev 0123456789ab" })
+	c := backendv1connect.NewBackendServiceClient(daemon.Dial(h.path), "http://kithd")
+	ctx, cancel := context.WithTimeout(t.Context(), settle)
+	defer cancel()
+	st, err := c.Beat(ctx, connect.NewRequest(&v1.BeatRequest{}))
+	if err != nil {
+		t.Fatalf("open the beat: %v", err)
+	}
+	if !st.Receive() {
+		t.Fatalf("no first beat: %v", st.Err())
+	}
+	if got := st.Msg().GetStatus().GetVersion(); got != "dev 0123456789ab" {
+		t.Errorf("the beat's version = %q, want kithd's", got)
+	}
+	at := time.Now()
+	h.state.Report(daemon.NetworkStatus{Network: "Signal", Account: "home", Phase: daemon.PhaseOnline}, at)
+	if h.state.Heard(domain.Heard{Network: domain.ProtocolSignal, Account: "home", Kind: domain.HeardCaughtUp, At: at}) {
+		h.streams.AccountsChanged() // as kithd does on a change Heard reports
+	}
+	if !st.Receive() {
+		t.Fatalf("no beat after the change: %v", st.Err())
+	}
+	rows := st.Msg().GetStatus().GetNetworks()
+	if len(rows) != 1 || !rows[0].GetCaughtUp() {
+		t.Errorf("the beat after the change has %v, want home caught up", rows)
 	}
 }
