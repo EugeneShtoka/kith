@@ -227,7 +227,9 @@ What follows from the table:
   standby and the client's choice go per account (open question 9, decided 2026-11-19):
   each account is active on the highest-priority bridge where it is alive, a standby
   bridge connects only the accounts stuck on every bridge above it, and a client takes
-  each account's rooms from the bridge where that account is active.
+  each account's rooms from the bridge where that account is active. *Amended
+  2026-11-25:* that per-account rule applies always, not only when no bridge is healthy
+  ([design-failover.md](design-failover.md), call 2).
 
 ## Push notifications
 
@@ -443,4 +445,5 @@ question.
    highest-priority bridge where it is alive; a standby bridge connects only the accounts
    stuck on every bridge above it; a client takes each account from the bridge where it
    is active. Rejected: choosing one bridge (most accounts alive, or the higher one with
-   the rest shown as stuck).
+   the rest shown as stuck). *Amended 2026-11-25:* this per-account rule is the only
+   rule, healthy bridge or not ([design-failover.md](design-failover.md), call 2).
