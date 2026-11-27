@@ -269,7 +269,7 @@ Of the rooms the assistant may write to, a room that `send` names is **sent to**
 
 ### `cooldown`: stopping a runaway
 
-Around each message that goes out to a room, sent or scheduled, that room rests for `cooldown`. A message inside a rest is **scheduled for the first time clear of every rest**, so messages sent in a burst go out a cooldown apart, in order. The working hours still apply to that time. The answer comes back at once: `scheduled`, with `at` (when it goes out) and a `reason` naming the cooldown. `"0"` turns the cooldown off.
+Around each message that goes out to a room, sent or scheduled, that room rests for `cooldown`. A message inside a rest is **scheduled for the first time clear of every rest**, so messages sent in a burst go out a cooldown apart, in order. The working hours still apply to that time, unless the time was asked for (`at`). The answer comes back at once: `scheduled`, with `at` (when it goes out) and a `reason` naming the cooldown. `"0"` turns the cooldown off.
 
 `queue_limit` (10 by default) is how many messages may wait to go out to one room. A message that would wait past it is **drafted instead**, or refused if it carries an `at`, and the answer says why. A loop sends its next message within milliseconds, so it fills the queue, and from then on what it writes lands in the composer. `0` lets no message wait, so nothing is scheduled. A message that can go now is never held back by a full queue.
 
@@ -285,7 +285,7 @@ match = "space:Family"
 when  = "08:00-22:00"
 ```
 
-A send to a room outside its working hours is **scheduled for when they next open**, and the answer says so: `scheduled`, with a `reason` naming the working hours and the time it goes out. A later send (`at`) that falls outside them moves to the next opening too. Drafts are not held back: a person still presses send.
+A send to a room outside its working hours is **scheduled for when they next open**, and the answer says so: `scheduled`, with a `reason` naming the working hours and the time it goes out. A later send (`at`) keeps the time asked for even outside them: you chose it. The answer then notes that it falls outside the working hours, and the assistant is asked to tell you, in case you did not mean it. The cooldown still moves it. Drafts are not held back: a person still presses send.
 
 - The **narrowest entry naming the room** is its hours (a room over its space, a space over an entry with no `match`), the first of equals. A room that no entry names may be sent to any time, so an entry with no `match` is the default for every room.
 - `when` is a daily window on this machine's clock; an end before the start runs past midnight, and those small hours belong to the day the window opened on. `days` are the days it opens on (`mon` to `sun`), every day when empty.

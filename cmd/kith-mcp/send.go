@@ -428,8 +428,9 @@ func (s *server) howToWrite(ctx context.Context, room domain.Room, urgent bool) 
 }
 
 // within moves a send at later (zero: now) to the first time a cooldown away from every
-// other message to the room and inside its working hours, and says why; anything else
-// stays as it is.
+// other message to the room and, for a send now, inside its working hours, and says why;
+// anything else stays as it is. A time asked for is theirs to choose: outside the hours it
+// is kept, with a note saying so.
 func (c writeChoice) within(later time.Time) (time.Time, string) {
 	if !c.send {
 		return later, ""
@@ -450,7 +451,7 @@ func (c writeChoice) within(later time.Time) (time.Time, string) {
 				at, moved = out.Add(c.cooldown), true
 			}
 		}
-		if c.hours == nil {
+		if c.hours == nil || !later.IsZero() {
 			break
 		}
 		from := at.Local() // the hours are on this machine's clock
@@ -458,6 +459,10 @@ func (c writeChoice) within(later time.Time) (time.Time, string) {
 			closed = "it is outside this room's working hours ([agent.write] hours), so it waits for them to open; "
 			at, moved = opens, true
 		}
+	}
+	if !later.IsZero() && c.hours != nil && !c.hours.Covers(at.Local()) {
+		closed = "note: that is outside this room's working hours ([agent.write] hours), and it goes then as asked; " +
+			"tell them, in case they did not mean it; "
 	}
 	if rest == "" && closed == "" {
 		return later, ""

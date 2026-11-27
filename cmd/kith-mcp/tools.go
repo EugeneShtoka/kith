@@ -67,7 +67,8 @@ func (s *server) writePolicy() string {
 	if send := listed(s.send); send != "" {
 		b.WriteString(" Of those, rooms matching " + send + " are sent to (one inside a room's cooldown is scheduled for when it ends, and drafted once too many wait); the rest are drafted.")
 		if len(s.hours) > 0 {
-			b.WriteString(" A send outside the room's working hours is scheduled for when they next open, unless you pass urgent.")
+			b.WriteString(" A send outside the room's working hours is scheduled for when they next open, unless you pass urgent; " +
+				"a time you pass as at is kept even outside them, and the answer notes it.")
 		}
 	} else {
 		b.WriteString(" Nothing is sent unreviewed: every message you write becomes a draft.")
