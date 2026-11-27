@@ -22,6 +22,7 @@ import (
 // homeserver does: a message that landed once under one is not counted again. A
 // message's during runs as its first send is on the wire: another client acting on it.
 type scriptedSender struct {
+	noFiles
 	mu        sync.Mutex
 	scripts   map[string][]string
 	sent      map[string]int

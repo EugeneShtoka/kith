@@ -57,8 +57,8 @@ func TestALaterSendIsRefusedWhereItWouldBeDrafted(t *testing.T) {
 	}
 }
 
-// Outside the room's working hours a send, and a later send, waits for them to open,
-// saying why; urgent sends it now; inside them it goes now.
+// Outside the room's working hours a send waits for them to open, saying why; a time
+// asked for is kept, with a note; urgent sends it now; inside them it goes now.
 func TestASendOutsideWorkingHoursWaitsForThem(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
@@ -78,10 +78,13 @@ func TestASendOutsideWorkingHoursWaitsForThem(t *testing.T) {
 		t.Errorf("reason = %q, want it to name the working hours", why)
 	}
 	// Halfway to midnight is later today whatever the hour; an hour ahead may be tomorrow.
-	laterToday := now.Add(tomorrow.Sub(now) / 2).Format(time.RFC3339Nano)
-	call(t, s, "send_message", map[string]any{"room": "Standup", "text": "later today", "at": laterToday})
-	if len(f.queued) != 2 || !f.queued[1].At.Equal(tomorrow) {
-		t.Errorf("a later send inside today: queued %+v, want it moved to %s", f.queued, tomorrow)
+	laterToday := now.Add(tomorrow.Sub(now) / 2).Truncate(time.Second)
+	out = call(t, s, "send_message", map[string]any{"room": "Standup", "text": "later today", "at": laterToday.Format(time.RFC3339)})
+	if len(f.queued) != 2 || !f.queued[1].At.Equal(laterToday) {
+		t.Errorf("a later send inside today: queued %+v, want it kept at %s", f.queued, laterToday)
+	}
+	if why, _ := out["reason"].(string); !strings.Contains(why, "outside this room's working hours") {
+		t.Errorf("reason = %q, want it to note the working hours", why)
 	}
 	if out := call(t, s, "send_message", map[string]any{"room": "Standup", "text": "fire", "urgent": true}); out["action"] != agent.Sent || len(f.sent) != 1 {
 		t.Errorf("urgent: %v, sent %d; want it sent now", out["action"], len(f.sent))

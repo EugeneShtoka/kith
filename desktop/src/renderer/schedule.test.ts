@@ -99,4 +99,16 @@ describe("the queue as listed", () => {
     expect(all[1]?.summary).toMatch(/\(overdue\) — x{47}…$/);
     expect(all[2]?.summary).toMatch(/^unsent since /);
   });
+
+  it("names a queued file, its caption after it", () => {
+    const file = create(ScheduledMessageSchema, {
+      id: "f",
+      roomId: "!a",
+      fileName: "photo.jpg",
+      atMs: at(new Date(2026, 8, 1, 15, 0)),
+      writtenMs: at(new Date(2026, 8, 1, 13, 0)),
+    });
+    expect(rows([file], "", now)[0]?.summary).toMatch(/ — \[photo\.jpg\]$/);
+    expect(rows([{ ...file, body: "the view" }], "", now)[0]?.summary).toMatch(/ — \[photo\.jpg\] the view$/);
+  });
 });

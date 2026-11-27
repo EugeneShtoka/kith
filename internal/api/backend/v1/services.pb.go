@@ -18871,8 +18871,10 @@ type ScheduledMessage struct {
 	TxnId string `protobuf:"bytes,10,opt,name=txn_id,json=txnId,proto3" json:"txn_id,omitempty"`
 	// refused is why the network refused it for good: it waits, unsent, to be retried or
 	// canceled. failing is why its last try failed while it is retried.
-	Refused       string `protobuf:"bytes,11,opt,name=refused,proto3" json:"refused,omitempty"`
-	Failing       string `protobuf:"bytes,12,opt,name=failing,proto3" json:"failing,omitempty"`
+	Refused string `protobuf:"bytes,11,opt,name=refused,proto3" json:"refused,omitempty"`
+	Failing string `protobuf:"bytes,12,opt,name=failing,proto3" json:"failing,omitempty"`
+	// file_name is the name of a file it sends, body its caption; "" for a message.
+	FileName      string `protobuf:"bytes,13,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -18991,10 +18993,21 @@ func (x *ScheduledMessage) GetFailing() string {
 	return ""
 }
 
+func (x *ScheduledMessage) GetFileName() string {
+	if x != nil {
+		return x.FileName
+	}
+	return ""
+}
+
 type ScheduleRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// message carries everything but the id, which the daemon assigns.
-	Message       *ScheduledMessage `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	Message *ScheduledMessage `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	// upload_id, when set, is a complete upload (StartUpload, PutUpload) the message
+	// sends as a file under message.file_name, its body the caption. kithd keeps the
+	// file until it is sent or canceled.
+	UploadId      string `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -19034,6 +19047,13 @@ func (x *ScheduleRequest) GetMessage() *ScheduledMessage {
 		return x.Message
 	}
 	return nil
+}
+
+func (x *ScheduleRequest) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
 }
 
 type ScheduleResponse struct {
@@ -22911,7 +22931,7 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x05value\x18\x03 \x01(\v2\x17.backend.v1.ConfigValueR\x05value\"k\n" +
 	"\x18SetConfigSettingResponse\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\tR\brevision\x123\n" +
-	"\asetting\x18\x02 \x01(\v2\x19.backend.v1.ConfigSettingR\asetting\"\xd1\x02\n" +
+	"\asetting\x18\x02 \x01(\v2\x19.backend.v1.ConfigSettingR\asetting\"\xee\x02\n" +
 	"\x10ScheduledMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x12\n" +
@@ -22927,9 +22947,11 @@ const file_backend_v1_services_proto_rawDesc = "" +
 	"\x06txn_id\x18\n" +
 	" \x01(\tR\x05txnId\x12\x18\n" +
 	"\arefused\x18\v \x01(\tR\arefused\x12\x18\n" +
-	"\afailing\x18\f \x01(\tR\afailing\"I\n" +
+	"\afailing\x18\f \x01(\tR\afailing\x12\x1b\n" +
+	"\tfile_name\x18\r \x01(\tR\bfileName\"f\n" +
 	"\x0fScheduleRequest\x126\n" +
-	"\amessage\x18\x01 \x01(\v2\x1c.backend.v1.ScheduledMessageR\amessage\"\"\n" +
+	"\amessage\x18\x01 \x01(\v2\x1c.backend.v1.ScheduledMessageR\amessage\x12\x1b\n" +
+	"\tupload_id\x18\x02 \x01(\tR\buploadId\"\"\n" +
 	"\x10ScheduleResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x1a\n" +
 	"\x18ScheduledMessagesRequest\"U\n" +
