@@ -559,7 +559,7 @@ func (s *server) readRoom(ctx context.Context, raw json.RawMessage) (any, error)
 		if root != "" && msgs[i].ID != root && msgs[i].ThreadRoot != root {
 			continue
 		}
-		out = append(out, s.view(msgs[i], false))
+		out = append(out, s.view(room, msgs[i], false))
 	}
 	if len(out) > limit {
 		out = out[len(out)-limit:]
@@ -660,7 +660,7 @@ func (s *server) shapeHits(ctx context.Context, hits []domain.SearchHit) []hitVi
 			Sender: hits[i].Sender, Name: cmp.Or(hits[i].SenderKnownAs, hits[i].SenderName),
 			Sent:    hits[i].Timestamp.Format(time.RFC3339),
 			Snippet: snippet,
-			Link:    s.link(hits[i].RoomID, hits[i].EventID),
+			Link:    s.link(room, hits[i].EventID),
 		})
 	}
 	return out
@@ -694,7 +694,7 @@ func (s *server) readAround(ctx context.Context, raw json.RawMessage) (any, erro
 	s.knowWebs(ctx, room.ID)
 	out := make([]messageView, 0, len(msgs))
 	for i := range msgs {
-		out = append(out, s.view(msgs[i], false))
+		out = append(out, s.view(room, msgs[i], false))
 	}
 	return map[string]any{
 		"room":     roomView{ID: string(room.ID), Name: room.DisplayName()},

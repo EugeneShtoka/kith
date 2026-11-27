@@ -748,8 +748,8 @@ stop = []
 #
 # [agent] links is the link each message the assistant reads carries: "native" opens it
 # in its network's apps where the network has a message link (matrix.to for Matrix,
-# t.me/c for a Telegram channel or supergroup, a Slack workspace's archives) and in
-# kith elsewhere; "kith" is kith's own link (kith:…) on every message.
+# t.me/<username> or t.me/c for a Telegram channel or supergroup, a Slack workspace's
+# archives) and in kith elsewhere; "kith" is kith's own link (kith:…) on every message.
 [agent]
 links = "native"
 
