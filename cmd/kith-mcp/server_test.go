@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -58,8 +59,10 @@ type fake struct {
 	sendErr  error
 	queueErr error
 	sent     []domain.Draft
-	queued   []domain.ScheduledMessage
-	drafts   map[domain.RoomID]domain.StoredDraft
+	// filesSent is each file sent: its bytes as sent, under its name, with its caption.
+	filesSent []sentFile
+	queued    []domain.ScheduledMessage
+	drafts    map[domain.RoomID]domain.StoredDraft
 	// threadDrafts are the threads' drafts, by root.
 	threadDrafts map[domain.EventID]domain.StoredDraft
 
@@ -88,6 +91,24 @@ func (f *fake) Send(_ context.Context, room domain.RoomID, draft domain.Draft) e
 	}
 	draft.Body = string(room) + " " + draft.Body
 	f.sent = append(f.sent, draft)
+	return nil
+}
+
+type sentFile struct {
+	room                domain.RoomID
+	data                []byte
+	name, caption, path string
+}
+
+func (f *fake) SendFile(_ context.Context, room domain.RoomID, path, name, caption string) error {
+	if f.sendErr != nil {
+		return f.sendErr
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	f.filesSent = append(f.filesSent, sentFile{room: room, data: data, name: name, caption: caption, path: path})
 	return nil
 }
 

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -16,6 +18,7 @@ import (
 	"github.com/EugeneShtoka/kith/internal/agent"
 	"github.com/EugeneShtoka/kith/internal/domain"
 	"github.com/EugeneShtoka/kith/internal/human"
+	"github.com/EugeneShtoka/kith/internal/media"
 )
 
 // draftCap stops a never-sending loop from growing a draft forever.
@@ -31,6 +34,10 @@ type writeArgs struct {
 	At string `json:"at"`
 	// Urgent sends it outside the room's working hours too.
 	Urgent bool `json:"urgent"`
+	// Edit is one of the account's own messages that text replaces.
+	Edit string `json:"edit"`
+	// File is a file on this machine to send, text its caption.
+	File string `json:"file"`
 }
 
 // errLaterOnlyWhereSent refuses a delayed send to a draft-only room: a draft is
@@ -73,7 +80,7 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 	room, err := roomNamed(readable, in.Room)
 	if err != nil {
 		if errors.Is(err, errNoSuchRoom) {
-			s.recordUnseenRoom(ctx, in.Room, text)
+			s.recordUnseenRoom(ctx, in.Room, in.logged(text))
 			if !s.readScope().Shares() {
 				// The same whatever room was named, so it reveals nothing.
 				return nil, fmt.Errorf("nothing was written: %w", errNothingShared)
@@ -83,9 +90,13 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 	}
 	// Read scope, then write scope; `send` cannot widen either.
 	if refused := s.writable(ctx, room); refused != nil {
-		return nil, s.refuse(room, text, refused)
+		return nil, s.refuse(room, in.logged(text), refused)
 	}
 	target, err := s.aimIn(ctx, room, in.Thread, in.ReplyTo)
+	if err != nil {
+		return nil, err
+	}
+	edited, err := s.editedIn(ctx, room, in.Edit)
 	if err != nil {
 		return nil, err
 	}
@@ -96,9 +107,16 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 		return nil, fmt.Errorf("refusing to send what cannot be recorded: %w", err)
 	}
 	defer release()
-	decision, err := s.howToWrite(ctx, room, in.Urgent)
+	// An edit adds no message, so it waits for no working hours.
+	decision, err := s.howToWrite(ctx, room, in.Urgent || in.Edit != "")
 	if err != nil {
 		return nil, err
+	}
+	switch {
+	case in.Edit != "":
+		return s.editBy(ctx, decision, room, text, edited, target.mentions)
+	case in.File != "":
+		return s.sendFile(ctx, decision, room, in.File, text, in.logged(text))
 	}
 	return s.writeBy(ctx, decision, room, text, target, later)
 }
@@ -127,13 +145,137 @@ func (s *server) writeBy(ctx context.Context, decision writeChoice, room domain.
 }
 
 // checked returns the text with long dashes made hyphens, and when it goes (zero: now).
+// An edit or a file takes only room and text (and a file urgent); a file needs no text.
 func (in writeArgs) checked(now time.Time) (string, time.Time, error) {
 	text := shortDashes.Replace(strings.TrimSpace(in.Text))
-	if text == "" {
+	in.Edit, in.File = strings.TrimSpace(in.Edit), strings.TrimSpace(in.File)
+	aimed := in.Thread != "" || in.ReplyTo != "" || in.At != ""
+	switch {
+	case in.Edit != "" && (aimed || in.File != "" || in.Urgent):
+		return "", time.Time{}, errors.New("an edit replaces the message where it is, now: pass only room, edit and text")
+	case in.Edit != "" && text == "":
+		return "", time.Time{}, errors.New("an empty edit would delete the message, and nothing here deletes; pass the new text")
+	case in.File != "" && aimed:
+		return "", time.Time{}, errors.New("a file goes now, to the room's main timeline: thread, reply_to and at are not for files")
+	case in.File != "":
+		return text, time.Time{}, sendable(in.File)
+	case text == "":
 		return "", time.Time{}, errors.New("send_message needs something to say")
 	}
 	later, err := sendTime(in.At, now)
 	return text, later, err
+}
+
+// logged is what the ledger records of text: with the file sent, not only its caption.
+func (in writeArgs) logged(text string) string {
+	if in.File == "" {
+		return text
+	}
+	return strings.TrimSpace("[" + in.File + "] " + text)
+}
+
+// sendable refuses a path that is not an absolute path to a file.
+func sendable(path string) error {
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("file %q is not an absolute path; pass the whole path", path)
+	}
+	info, err := os.Stat(path)
+	switch {
+	case err != nil:
+		return fmt.Errorf("file %q cannot be read: %w", path, err)
+	case !info.Mode().IsRegular():
+		return fmt.Errorf("%q is not a file", path)
+	}
+	return nil
+}
+
+// editedIn is the cached message in room an edit replaces (none for no edit), which must
+// be the account's own: no network lets anyone edit what another person said.
+func (s *server) editedIn(ctx context.Context, room domain.Room, event string) (domain.Message, error) {
+	if event = strings.TrimSpace(event); event == "" {
+		return domain.Message{}, nil
+	}
+	msg, err := s.messageIn(ctx, room, event)
+	if err != nil {
+		return domain.Message{}, err
+	}
+	if msg.Sender == "" || !slices.Contains(s.selves, msg.Sender) {
+		return domain.Message{}, fmt.Errorf("%s is not this account's own message (\"mine\"); only those can be edited", event)
+	}
+	return msg, nil
+}
+
+// editBy replaces one of the account's own messages: at once in a room that is sent to
+// (an edit adds no message, so no cooldown), else as an edit waiting in its composer.
+func (s *server) editBy(ctx context.Context, decision writeChoice, room domain.Room, text string, msg domain.Message, mentions []domain.Mention) (any, error) {
+	if !decision.send {
+		return s.draftEdit(ctx, room, text, msg, mentions, decision.reason)
+	}
+	if err := s.backend.Send(ctx, room.ID, domain.Draft{Body: text, Mentions: mentions, Edits: msg.ID}); err != nil {
+		s.log.Warn("edit failed", "room", room.ID, "err", err)
+		return nil, errors.New("the network did not take the edit, so the message is as it was. Tell them, or try again")
+	}
+	return s.wrote(room, agent.Edited, text, time.Time{}, "replaced "+string(msg.ID))
+}
+
+// errComposerHeld refuses an edit draft over words already in the composer.
+var errComposerHeld = errors.New("that composer already holds a draft, and an edit would take its place, " +
+	"so nothing was written. Tell them; it can go in once that draft is sent or cleared")
+
+// draftEdit leaves the edit in the composer of the message's timeline, as if they had
+// started correcting it there; only an empty composer takes it.
+func (s *server) draftEdit(ctx context.Context, room domain.Room, text string, msg domain.Message, mentions []domain.Mention, why string) (any, error) {
+	held, err := s.draftIn(ctx, room.ID, msg.ThreadRoot)
+	if err != nil {
+		return nil, err
+	}
+	if !held.Empty() {
+		return nil, s.refuse(room, text, errComposerHeld)
+	}
+	over := held
+	held.Body, held.Mentions, held.Editing = text, mentions, msg.ID
+	held.Author, held.Updated = s.whoever(), time.Now()
+	saved, err := s.backend.ReplaceDraft(ctx, held, over)
+	switch {
+	case err != nil:
+		return nil, fmt.Errorf("writing the draft: %w", err)
+	case !saved:
+		return nil, s.refuse(room, text, errDraftChanging)
+	}
+	return s.wrote(room, agent.Drafted, text, time.Time{}, why+"; it waits there as an edit of "+string(msg.ID))
+}
+
+// Files refused: a composer holds no file, nothing schedules one, and a picture whose
+// metadata cannot be removed does not go out unreviewed.
+var (
+	errFileOnlyWhereSent = errors.New("a file is sent only where you may send; a composer cannot hold one, so nothing was written")
+	errFileWaits         = errors.New("a file goes now or not at all, and nothing was sent")
+	errFileMetadata      = errors.New("the picture carries where and when it was taken, which cannot be removed from " +
+		"this format (HEIC), so it was not sent. Tell them, or send a JPEG or PNG instead")
+)
+
+// sendFile sends a file on this machine now, captioned with text, anonymized as the
+// client is by default: under a neutral name, a picture without its metadata.
+func (s *server) sendFile(ctx context.Context, decision writeChoice, room domain.Room, path, caption, logged string) (any, error) {
+	if !decision.send {
+		return nil, s.refuse(room, logged, fmt.Errorf("%w (%s)", errFileOnlyWhereSent, decision.reason))
+	}
+	if later, why := decision.within(time.Time{}); !later.IsZero() {
+		return nil, s.refuse(room, logged, fmt.Errorf("%w: %s", errFileWaits, strings.TrimSuffix(why, "; ")))
+	}
+	clean, what, err := media.Strip(path, "")
+	if err != nil {
+		return nil, fmt.Errorf("reading the file: %w", err)
+	}
+	defer media.Unstrip(clean, path)
+	if what == media.Kept {
+		return nil, s.refuse(room, logged, errFileMetadata)
+	}
+	if err := s.backend.SendFile(ctx, room.ID, clean, domain.SentName(path), caption); err != nil {
+		s.log.Warn("file send failed", "room", room.ID, "err", err)
+		return nil, errors.New("the file did not go out, and nothing was sent. Tell them, or try again")
+	}
+	return s.wrote(room, agent.Sent, logged, time.Time{}, "")
 }
 
 // sendTime is when a message goes: zero for now, else the given time, which must be

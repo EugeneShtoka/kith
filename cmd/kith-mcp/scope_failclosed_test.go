@@ -129,12 +129,13 @@ func someEntries(rng *rand.Rand) []string {
 }
 
 // decisions is what a server decides per fixture room: read, write, and post without
-// review now (not waiting for working hours).
-type decisions struct{ read, write, send map[domain.RoomID]bool }
+// review now (not waiting for working hours), and so when urgent (as every edit is).
+type decisions struct{ read, write, send, urgent map[domain.RoomID]bool }
 
 func decide(t *testing.T, s *server, rooms []domain.Room) decisions {
 	t.Helper()
-	d := decisions{read: map[domain.RoomID]bool{}, write: map[domain.RoomID]bool{}, send: map[domain.RoomID]bool{}}
+	d := decisions{read: map[domain.RoomID]bool{}, write: map[domain.RoomID]bool{}, send: map[domain.RoomID]bool{},
+		urgent: map[domain.RoomID]bool{}}
 	for i := range rooms {
 		room := rooms[i]
 		ctx := withCallMemo(context.Background())
@@ -142,6 +143,9 @@ func decide(t *testing.T, s *server, rooms []domain.Room) decisions {
 		d.write[room.ID] = s.writable(ctx, room) == nil
 		if choice, err := s.howToWrite(ctx, room, false); err == nil {
 			d.send[room.ID] = choice.send && (choice.hours == nil || choice.hours.Covers(time.Now()))
+		}
+		if choice, err := s.howToWrite(ctx, room, true); err == nil {
+			d.urgent[room.ID] = choice.send
 		}
 	}
 	return d
@@ -240,6 +244,7 @@ func neverWidens(t *testing.T, label string, read, write domain.ModelScope, send
 				{"read", healthy.read[room.ID], got.read[room.ID]},
 				{"write", healthy.write[room.ID], got.write[room.ID]},
 				{"send unreviewed", healthy.send[room.ID], got.send[room.ID]},
+				{"send urgent or edit unreviewed", healthy.urgent[room.ID], got.urgent[room.ID]},
 			} {
 				if c.under && !c.ok {
 					t.Fatalf("%s, spaces failing=%v, encryption failing=%v, verdicts failing=%v: %s %s "+

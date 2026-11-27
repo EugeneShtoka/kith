@@ -97,6 +97,8 @@ Search matches terms, not meaning. The tool description tells the assistant to r
 | `reply_to` | Optional: the event ID of the message this answers. A reply to a message in a thread goes into that thread |
 | `at` | Optional: send it at this time instead of now, RFC 3339 with its offset (`2026-10-12T09:00:00+03:00`). The daemon's send-later queue sends it, and the client lists it under `:scheduled` until then |
 | `urgent` | Optional: send it even outside the room's [working hours](#working-hours-when-it-may-send). The assistant is told to pass it only when you said the message is urgent or must go now |
+| `edit` | Optional: the event ID of one of your own messages that `text` replaces. Takes only `room` and `text` |
+| `file` | Optional: the absolute path of a file on the machine kith-mcp runs on, to send; `text`, if given, is its caption. Not with `thread`, `reply_to`, `at` or `edit` |
 
 A `thread` or `reply_to` must be a message of that room's cached history, or nothing is written: an event of any other room is not found, whatever room it is in. **A drafted thread reply stays in its thread.** Each thread has a draft of its own, apart from the room's: the assistant's words go into the draft of the thread they are aimed at, or the room's for none, and you find them when you open that thread. An empty draft takes their reply target. A draft that already answers a message keeps it: words answering another message are refused and recorded, and your draft is untouched.
 
@@ -111,10 +113,15 @@ A `thread` or `reply_to` must be a message of that room's cached history, or not
 | `sent` | Posted to the room |
 | `queued` | The homeserver refused it for now; the daemon is retrying it |
 | `drafted` | Left in that room's composer for you to send, or not |
+| `edited` | One of your messages was replaced |
 
 The answer includes a `reason` whenever the result was not a plain send. The assistant is told to pass the outcome on to you rather than assume a message went out.
 
-**Nothing can edit or delete.** kith-mcp can add to a conversation, but it cannot change or remove anything that was already said, including its own messages.
+**An edit changes only your own messages.** `edit` names a message of that room's cached history that you sent (`mine` in what the read tools return); anyone else's, or one of another room, is refused and nothing is written. The write scope and `send` list decide as for a new message: a room that is sent to takes the edit at once, without waiting for the cooldown or working hours, since it adds no message; any other writable room gets it as an edit waiting in the composer of that message's timeline, as if you had started correcting it, but only when that composer is empty. Your draft is never replaced by one.
+
+**A file is only ever sent.** A composer cannot hold a file and nothing schedules one, so a file goes now or not at all: a room drafted into refuses it, and so does a room resting from the cooldown or outside its working hours (unless `urgent`); each refusal is recorded with the file's path. It goes as the client sends with `[display.media] anonymize` on, whatever that setting says: under a neutral name (`photo.jpg`, `document.pdf`), and a JPEG, PNG or WebP picture as a copy without where and when it was taken. A HEIC picture, whose metadata kith cannot remove, is refused. The file can be any file kith-mcp can read, as the words of a message can be anything the assistant can read; your write scope is what bounds where either goes.
+
+**Nothing can delete.** kith-mcp can add to a conversation and correct your own messages, but it cannot remove anything that was already said.
 
 ## Scope: where the assistant may read and write
 
