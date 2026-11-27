@@ -25,7 +25,36 @@ type recordingSender struct {
 	sent  []domain.Draft
 	rooms []domain.RoomID
 	fail  error
+	// files is each file sent: its bytes and name, the caption as its draft's body.
+	files []sentFile
 }
+
+type sentFile struct{ data, name string }
+
+func (r *recordingSender) SendFile(_ context.Context, roomID domain.RoomID, path, name, caption string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.fail != nil {
+		return r.fail
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	r.rooms = append(r.rooms, roomID)
+	r.sent = append(r.sent, domain.Draft{Body: caption})
+	r.files = append(r.files, sentFile{data: string(data), name: name})
+	return nil
+}
+
+// noFiles makes a sender or queue of messages only.
+type noFiles struct{}
+
+func (noFiles) SendFile(context.Context, domain.RoomID, string, string, string) error {
+	return errors.New("sends no files")
+}
+
+func (noFiles) Keep(string) (string, error) { return "", errors.New("keeps no files") }
 
 func (r *recordingSender) Send(_ context.Context, roomID domain.RoomID, draft domain.Draft) error {
 	r.mu.Lock()
@@ -265,6 +294,7 @@ func TestAMessageThatCouldNotBeSavedIsNotQueued(t *testing.T) {
 // flakyQueue is a Queue whose Save can be made to fail, to reach the ordering claim()
 // enforces.
 type flakyQueue struct {
+	noFiles
 	mu       sync.Mutex
 	onDisk   []domain.ScheduledMessage
 	failSave error
@@ -484,6 +514,7 @@ func TestStopWaitsForAPassThatIsAlreadySending(t *testing.T) {
 
 // blockingSender parks inside Send until released.
 type blockingSender struct {
+	noFiles
 	once    sync.Once
 	entered chan struct{}
 	release chan struct{}
@@ -497,6 +528,7 @@ func (b *blockingSender) Send(context.Context, domain.RoomID, domain.Draft) erro
 
 // gatedQueue's first Save parks until released, to order two writers.
 type gatedQueue struct {
+	noFiles
 	mu    sync.Mutex
 	queue []domain.ScheduledMessage
 

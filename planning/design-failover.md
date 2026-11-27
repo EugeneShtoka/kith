@@ -137,7 +137,9 @@ and gets a failure review (CONTRIBUTING.md) before it is done.
   the account last went offline is an earlier connection's, heard late, and ignored.
 - **Caught up**, per network: Matrix the first sync; WhatsApp `OfflineSyncCompleted`;
   Signal `QueueEmpty`, which the helper now forwards (`signal.v1.QueueEmpty`, so helper
-  and kithd must be the same build); Slack the catch-up fetch finishing; LinkedIn the
+  and kithd must be the same build), kept until logged out: signalmeow sends it once the
+  signed-in socket is up, which can be before it says connected (both sockets), and not
+  again when only the other socket reconnects (found live 2026-11-27); Slack the catch-up fetch finishing; LinkedIn the
   sync-token listing; Messenger messagix's connect, which comes after its first sync;
   Instagram the changes taken reaching the latest sequence ID there was at connect;
   Google Messages the long poll open with the phone answering. **Telegram** counts as

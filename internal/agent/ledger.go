@@ -26,6 +26,7 @@ const (
 	Queued    = "queued"    // the homeserver refused it; the daemon's queue retries
 	Scheduled = "scheduled" // queued to send later
 	Drafted   = "drafted"   // left in the room's composer
+	Edited    = "edited"    // replaced one of the account's own messages
 	Refused   = "refused"   // outside [agent.read]/[agent.write]; nothing was written
 )
 

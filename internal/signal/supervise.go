@@ -55,6 +55,11 @@ type helper struct {
 	mu      sync.Mutex
 	devices map[string]bool
 	states  map[string]connState
+	// drained are the ACIs whose queue Signal said was empty since this helper started.
+	// signalmeow says so once its signed-in socket is up, which can be before it says
+	// connected (that waits for both sockets), and not again when only the other
+	// reconnects.
+	drained map[string]bool
 }
 
 func (h *helper) has(aci string) bool {
@@ -74,6 +79,19 @@ func (h *helper) remove(aci string) {
 	defer h.mu.Unlock()
 	delete(h.devices, aci)
 	delete(h.states, aci)
+	delete(h.drained, aci)
+}
+
+func (h *helper) drain(aci string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.drained[aci] = true
+}
+
+func (h *helper) isDrained(aci string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.drained[aci]
 }
 
 // noStoreKey is why the helper is not run without the store's key.
@@ -222,7 +240,7 @@ func (a *Adapter) runHelper(ctx context.Context, ln *net.UnixListener) error {
 		}
 		return fmt.Errorf("kith-signal did not start: %w", err)
 	}
-	h := &helper{client: client, devices: map[string]bool{}, states: map[string]connState{}}
+	h := &helper{client: client, devices: map[string]bool{}, states: map[string]connState{}, drained: map[string]bool{}}
 	for _, d := range resp.Msg.GetDevices() {
 		h.devices[d.GetAci()] = true
 	}

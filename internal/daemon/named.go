@@ -137,7 +137,8 @@ var namedFields = map[protoreflect.FullName]nameKind{
 	"backend.v1.PutUploadRequest.upload_id": notARoom, "backend.v1.SavePictureRequest.upload_id": notARoom,
 	"backend.v1.SetIdentityRequest.id": notARoom, "backend.v1.SetIdentityRequest.alias": notARoom,
 	"backend.v1.SetIdentityRequest.color": notARoom, "backend.v1.SetIdentityRequest.picture": notARoom,
-	"backend.v1.SendFileRequest.upload_id": notARoom,
+	"backend.v1.SendFileRequest.upload_id": notARoom, "backend.v1.ScheduleRequest.upload_id": notARoom,
+	"backend.v1.ScheduledMessage.file_name": notARoom,
 	// A sender's color slot in the room the request names.
 	"backend.v1.SenderSlot.key": notARoom,
 	// Search terms and people; the rooms searched are narrowed.
