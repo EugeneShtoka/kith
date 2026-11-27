@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -338,5 +339,50 @@ func TestTheMarkKeysOnRoomAndThreadRows(t *testing.T) {
 				t.Errorf("%s: status %q, want it to say %q", tc.name, m.status(), tc.status)
 			}
 		}
+	}
+}
+
+// A thread holding a draft is listed beneath its room, marked, and opens from its row: the
+// room's ✎ alone does not say where the draft is.
+func TestADraftedThreadIsListedUnderItsRoom(t *testing.T) {
+	t.Parallel()
+
+	m, b := drafting(t)
+	b.load = []domain.StoredDraft{{
+		RoomID: mx + "!b:x", ThreadRoot: mx + "$root", Body: "in the thread", Author: "claude-code", Updated: time.Now(),
+	}}
+	next, cmd := asModel(m.Update(changedMsg{change: domain.ChangeDrafts}))
+	m = deliver(t, next, cmd)
+	m.focus = paneRooms
+
+	frame := stripStyles(m.View().Content)
+	if !strings.Contains(frame, mark+" an older thread "+draftMark) {
+		t.Fatalf("the drafted thread is not listed, marked, under its room:\n%s", frame)
+	}
+
+	m, _ = m.selectRoom(m.filteredRooms()[1])
+	m, _ = m.stepRow(1)
+	if m.rows.cursor != mx+"$root" {
+		t.Fatalf("cursor thread = %q, want the drafted thread's row", m.rows.cursor)
+	}
+	m, _ = m.openSelectedRoom()
+	if m.rows.opening != mx+"$root" {
+		t.Errorf("opening = %q, want the drafted thread", m.rows.opening)
+	}
+}
+
+// Under never, a drafted thread gets no row either: the room's ✎ still marks it.
+func TestADraftedThreadIsNotListedUnderNever(t *testing.T) {
+	t.Parallel()
+
+	m, b := drafting(t)
+	m.prefs.device.Threads.InRoomList = config.ThreadsNever
+	b.load = []domain.StoredDraft{{RoomID: mx + "!b:x", ThreadRoot: mx + "$root", Body: "in the thread", Updated: time.Now()}}
+	next, cmd := asModel(m.Update(changedMsg{change: domain.ChangeDrafts}))
+	m = deliver(t, next, cmd)
+	m.focus = paneRooms
+
+	if frame := stripStyles(m.View().Content); strings.Contains(frame, mark) {
+		t.Errorf("a thread row is listed under never:\n%s", frame)
 	}
 }

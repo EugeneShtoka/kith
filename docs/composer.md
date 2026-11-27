@@ -179,6 +179,7 @@ To save attachments other people sent, use `s` and `S` on the timeline. The [usa
 - Each thread keeps a draft of its own, apart from the room's. Entering a thread puts the room's draft aside and shows the thread's; leaving it brings the room's back.
 - Any number of kith windows can be open on an account, in terminals and the desktop. Each writes a draft over the version it last read: when two wrote one draft at once, both are kept, the other's words after yours, and the window says so; a window where you have typed nothing unsaved takes another's draft as soon as it is written. [kith-mcp](mcp.md) only ever adds to a draft: its words go after yours, and a draft sent or cleared while it was writing does not come back. A draft you only visit is not written, so it keeps who drafted it.
 - Rooms that hold a draft, their own or in one of their threads, are marked `✎` after their name in the room list.
+- A thread holding a draft is listed as a row beneath its room, marked `✎` too: `enter` on it opens the thread at the draft. `[display.threads] in_room_list = "never"` lists none.
 - The rail has a **Drafts** group that collects them.
 - `s d` in the room list moves rooms with drafts to the top.
 - A draft restored from disk shows who wrote it and how long ago, for example `✎ drafted 2h ago` or `✎ drafted by claude-code 5m ago`, until you type in it. Drafts written by an assistant through [kith-mcp](mcp.md) appear this way.
