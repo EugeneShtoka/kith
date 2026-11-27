@@ -138,6 +138,21 @@ func (m Model) threadsUnder(room domain.Room, mode string) []domain.ThreadUnread
 	if mode != config.ThreadsAll {
 		known = nil
 	}
+	// A thread holding a draft is listed too, so the draft is a row away rather than somewhere
+	// up the scrollback.
+	for _, root := range m.draftedThreads(room.ID) {
+		if listed[root] || slices.ContainsFunc(known, func(t domain.Thread) bool { return t.Root == root }) {
+			continue
+		}
+		listed[root] = true
+		row := domain.ThreadUnread{Root: root}
+		if room.ID == m.openRoom {
+			if pinned, ok := m.pinnedThreadRow(root); ok {
+				row = pinned
+			}
+		}
+		out = append(out, row)
+	}
 	if room.ID == m.openRoom {
 		for _, root := range []domain.EventID{m.thread.root, m.rows.cursor} {
 			if root == "" || listed[root] || slices.ContainsFunc(known, func(t domain.Thread) bool { return t.Root == root }) {
