@@ -252,6 +252,7 @@ type writer interface {
 	Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error
 	SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error
 	Schedule(ctx context.Context, msg domain.ScheduledMessage) (string, error)
+	ScheduleFile(ctx context.Context, msg domain.ScheduledMessage, path string) (string, error)
 	Drafts(ctx context.Context) ([]domain.StoredDraft, error)
 	ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (bool, error)
 }

@@ -46,10 +46,12 @@ var errLaterOnlyWhereSent = errors.New("a message is sent later only where you m
 	"this room is drafted into, so nothing was scheduled. Write it now as a draft, or tell them")
 
 // aim is where in a room a message goes: a thread root and a message it answers,
-// either empty; mentions are the people it names (mentionsIn).
+// either empty; mentions are the people it names (mentionsIn). For a file, file is the
+// copy to send, name what it goes under and caption its words.
 type aim struct {
-	thread, replyTo domain.EventID
-	mentions        []domain.Mention
+	thread, replyTo     domain.EventID
+	mentions            []domain.Mention
+	file, name, caption string
 }
 
 // errElsewhere refuses to add to a draft answering another message: the words would
@@ -116,7 +118,7 @@ func (s *server) sendMessage(ctx context.Context, raw json.RawMessage) (any, err
 	case in.Edit != "":
 		return s.editBy(ctx, decision, room, text, edited, target.mentions)
 	case in.File != "":
-		return s.sendFile(ctx, decision, room, in.File, text, in.logged(text))
+		return s.sendFile(ctx, decision, room, in.File, text, in.logged(text), later)
 	}
 	return s.writeBy(ctx, decision, room, text, target, later)
 }
@@ -145,7 +147,7 @@ func (s *server) writeBy(ctx context.Context, decision writeChoice, room domain.
 }
 
 // checked returns the text with long dashes made hyphens, and when it goes (zero: now).
-// An edit or a file takes only room and text (and a file urgent); a file needs no text.
+// An edit takes only room and text; a file no thread or reply_to, and needs no text.
 func (in writeArgs) checked(now time.Time) (string, time.Time, error) {
 	text := shortDashes.Replace(strings.TrimSpace(in.Text))
 	in.Edit, in.File = strings.TrimSpace(in.Edit), strings.TrimSpace(in.File)
@@ -155,10 +157,12 @@ func (in writeArgs) checked(now time.Time) (string, time.Time, error) {
 		return "", time.Time{}, errors.New("an edit replaces the message where it is, now: pass only room, edit and text")
 	case in.Edit != "" && text == "":
 		return "", time.Time{}, errors.New("an empty edit would delete the message, and nothing here deletes; pass the new text")
-	case in.File != "" && aimed:
-		return "", time.Time{}, errors.New("a file goes now, to the room's main timeline: thread, reply_to and at are not for files")
+	case in.File != "" && (in.Thread != "" || in.ReplyTo != ""):
+		return "", time.Time{}, errors.New("a file goes to the room's main timeline: thread and reply_to are not for files")
 	case in.File != "":
-		return text, time.Time{}, sendable(in.File)
+		if err := sendable(in.File); err != nil {
+			return "", time.Time{}, err
+		}
 	case text == "":
 		return "", time.Time{}, errors.New("send_message needs something to say")
 	}
@@ -245,24 +249,18 @@ func (s *server) draftEdit(ctx context.Context, room domain.Room, text string, m
 	return s.wrote(room, agent.Drafted, text, time.Time{}, why+"; it waits there as an edit of "+string(msg.ID))
 }
 
-// Files refused: a composer holds no file, nothing schedules one, and a picture whose
-// metadata cannot be removed does not go out unreviewed.
+// Files refused: a composer holds no file, and a picture whose metadata cannot be
+// removed does not go out unreviewed.
 var (
-	errFileOnlyWhereSent = errors.New("a file is sent only where you may send; a composer cannot hold one, so nothing was written")
-	errFileWaits         = errors.New("a file goes now or not at all, and nothing was sent")
+	errFileOnlyWhereSent = errors.New("a file cannot wait in a composer, so nothing was written")
 	errFileMetadata      = errors.New("the picture carries where and when it was taken, which cannot be removed from " +
 		"this format (HEIC), so it was not sent. Tell them, or send a JPEG or PNG instead")
 )
 
-// sendFile sends a file on this machine now, captioned with text, anonymized as the
-// client is by default: under a neutral name, a picture without its metadata.
-func (s *server) sendFile(ctx context.Context, decision writeChoice, room domain.Room, path, caption, logged string) (any, error) {
-	if !decision.send {
-		return nil, s.refuse(room, logged, fmt.Errorf("%w (%s)", errFileOnlyWhereSent, decision.reason))
-	}
-	if later, why := decision.within(time.Time{}); !later.IsZero() {
-		return nil, s.refuse(room, logged, fmt.Errorf("%w: %s", errFileWaits, strings.TrimSuffix(why, "; ")))
-	}
+// sendFile sends, schedules or refuses a file on this machine as a message would be
+// sent, scheduled or drafted, anonymized as the client is by default: under a neutral
+// name, a picture without its metadata. logged is what the ledger records.
+func (s *server) sendFile(ctx context.Context, decision writeChoice, room domain.Room, path, caption, logged string, later time.Time) (any, error) {
 	clean, what, err := media.Strip(path, "")
 	if err != nil {
 		return nil, fmt.Errorf("reading the file: %w", err)
@@ -271,11 +269,7 @@ func (s *server) sendFile(ctx context.Context, decision writeChoice, room domain
 	if what == media.Kept {
 		return nil, s.refuse(room, logged, errFileMetadata)
 	}
-	if err := s.backend.SendFile(ctx, room.ID, clean, domain.SentName(path), caption); err != nil {
-		s.log.Warn("file send failed", "room", room.ID, "err", err)
-		return nil, errors.New("the file did not go out, and nothing was sent. Tell them, or try again")
-	}
-	return s.wrote(room, agent.Sent, logged, time.Time{}, "")
+	return s.writeBy(ctx, decision, room, logged, aim{file: clean, name: domain.SentName(path), caption: caption}, later)
 }
 
 // sendTime is when a message goes: zero for now, else the given time, which must be
@@ -297,10 +291,7 @@ func sendTime(at string, now time.Time) (time.Time, error) {
 // sendLater hands the message to the daemon's queue for its time; why, when set, says
 // why then.
 func (s *server) sendLater(ctx context.Context, room domain.Room, text string, target aim, at time.Time, why string) (any, error) {
-	if _, err := s.backend.Schedule(ctx, domain.ScheduledMessage{
-		RoomID: room.ID, Body: text, Mentions: target.mentions, TxnID: domain.NewTxnID(), At: at,
-		Written: time.Now().UTC(), ThreadRoot: target.thread, ReplyTo: target.replyTo,
-	}); err != nil {
+	if err := s.queue(ctx, room, text, target, domain.NewTxnID(), at); err != nil {
 		return nil, fmt.Errorf("scheduling it: %w", err)
 	}
 	return s.wrote(room, agent.Scheduled, text, at, why+"it goes out at "+at.Local().Format(time.RFC3339)+"; the daemon sends it, and the client lists it under :scheduled until then")
@@ -485,22 +476,43 @@ func (s *server) hoursNameAPlace() bool {
 func (s *server) sendNow(ctx context.Context, room domain.Room, text string, target aim) (any, error) {
 	draft := domain.Draft{Body: text, Mentions: target.mentions, TxnID: domain.NewTxnID(),
 		ThreadRoot: target.thread, ReplyTo: target.replyTo}
-	sendErr := s.backend.Send(ctx, room.ID, draft)
+	var sendErr error
+	if target.file != "" {
+		sendErr = s.backend.SendFile(ctx, room.ID, target.file, target.name, target.caption)
+	} else {
+		sendErr = s.backend.Send(ctx, room.ID, draft)
+	}
 	if sendErr == nil {
 		return s.wrote(room, agent.Sent, text, time.Time{}, "")
 	}
 	// The daemon's error stays in the log; the assistant gets what happened, not internals.
 	s.log.Warn("send failed; queueing", "room", room.ID, "err", sendErr)
 	now := time.Now().UTC()
-	_, queueErr := s.backend.Schedule(ctx, domain.ScheduledMessage{
-		RoomID: room.ID, Body: text, Mentions: target.mentions, TxnID: draft.TxnID, At: now,
-		Written: now, ThreadRoot: target.thread, ReplyTo: target.replyTo,
-	})
+	queueErr := s.queue(ctx, room, text, target, draft.TxnID, now)
 	if queueErr == nil {
 		return s.wrote(room, agent.Queued, text, time.Time{}, "the homeserver would not take it yet; the daemon is retrying it")
 	}
 	s.log.Warn("queueing failed; drafting", "room", room.ID, "err", queueErr)
 	return s.draftFor(ctx, room, text, "the send failed and the queue would not take it either", target)
+}
+
+// queue hands the daemon's queue the message, or the file, to send at at.
+func (s *server) queue(ctx context.Context, room domain.Room, text string, target aim, txn string, at time.Time) error {
+	msg := domain.ScheduledMessage{
+		RoomID: room.ID, Body: text, Mentions: target.mentions, TxnID: txn, At: at,
+		Written: time.Now().UTC(), ThreadRoot: target.thread, ReplyTo: target.replyTo,
+	}
+	var err error
+	if target.file == "" {
+		_, err = s.backend.Schedule(ctx, msg)
+	} else {
+		msg.Body, msg.Mentions, msg.FileName = target.caption, nil, target.name
+		_, err = s.backend.ScheduleFile(ctx, msg, target.file)
+	}
+	if err != nil {
+		return fmt.Errorf("the daemon's queue: %w", err)
+	}
+	return nil
 }
 
 // draftAttempts bounds rebuilds when someone wrote the draft between read and write;
@@ -525,6 +537,9 @@ var (
 // written only over the draft it was built on, so words saved in between (the TUI's
 // debounced save) are kept and it is rebuilt on them.
 func (s *server) draftFor(ctx context.Context, room domain.Room, text, why string, target aim) (any, error) {
+	if target.file != "" {
+		return nil, s.refuse(room, text, fmt.Errorf("%w; it would have: %s", errFileOnlyWhereSent, why))
+	}
 	pause := draftBackoff
 	for attempt := range draftAttempts {
 		if attempt > 0 {

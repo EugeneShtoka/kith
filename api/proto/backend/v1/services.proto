@@ -2244,11 +2244,17 @@ message ScheduledMessage {
   // canceled. failing is why its last try failed while it is retried.
   string refused = 11;
   string failing = 12;
+  // file_name is the name of a file it sends, body its caption; "" for a message.
+  string file_name = 13;
 }
 
 message ScheduleRequest {
   // message carries everything but the id, which the daemon assigns.
   ScheduledMessage message = 1;
+  // upload_id, when set, is a complete upload (StartUpload, PutUpload) the message
+  // sends as a file under message.file_name, its body the caption. kithd keeps the
+  // file until it is sent or canceled.
+  string upload_id = 2;
 }
 
 message ScheduleResponse {

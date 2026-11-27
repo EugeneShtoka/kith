@@ -433,6 +433,7 @@ func ScheduledToProto(queue []domain.ScheduledMessage) []*v1.ScheduledMessage {
 			WrittenMs:  m.Written.UTC().UnixMilli(),
 			Refused:    m.Refused,
 			Failing:    m.Failing,
+			FileName:   m.FileName,
 		})
 	}
 	return out
@@ -455,6 +456,7 @@ func ProtoToScheduled(pb *v1.ScheduledMessage) domain.ScheduledMessage {
 		At:         time.UnixMilli(pb.GetAtMs()).UTC(),
 		Refused:    pb.GetRefused(),
 		Failing:    pb.GetFailing(),
+		FileName:   pb.GetFileName(),
 	}
 	if ms := pb.GetWrittenMs(); ms != 0 {
 		msg.Written = time.UnixMilli(ms).UTC()

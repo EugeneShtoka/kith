@@ -144,3 +144,15 @@ func TestSummaryCutsWholeCharacters(t *testing.T) {
 		t.Errorf("a short body should be kept whole, got %q", short)
 	}
 }
+
+// A queued file is named in the summary, its caption after it.
+func TestSummaryNamesAFile(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)
+	for body, want := range map[string]string{"": "— [photo.jpg]", "the view": "— [photo.jpg] the view"} {
+		got := ScheduledMessage{FileName: "photo.jpg", Body: body, At: now.Add(time.Hour), Written: now}.Summary(now)
+		if !strings.HasSuffix(got, want) {
+			t.Errorf("summary = %q, want it to end %q", got, want)
+		}
+	}
+}

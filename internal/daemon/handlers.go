@@ -1214,13 +1214,25 @@ func (s *server) CheckConfig(ctx context.Context, r *req[v1.CheckConfigRequest])
 // ── Schedule ──
 
 // Schedule assigns the ID: it is the cancel handle, and a client-chosen one could collide.
+// A message naming an upload sends that file, under the name asked for or its own.
 func (s *server) Schedule(_ context.Context, r *req[v1.ScheduleRequest]) (*resp[v1.ScheduleResponse], error) {
 	msg := pc.ProtoToScheduled(r.Msg.GetMessage())
 	msg.ID = newScheduleID()
 	if msg.Written.IsZero() {
 		msg.Written = time.Now().UTC()
 	}
-	id, err := s.Scheduler.Add(msg)
+	upload := r.Msg.GetUploadId()
+	if upload == "" {
+		id, err := s.Scheduler.Add(msg)
+		return reply(&v1.ScheduleResponse{Id: id}, err)
+	}
+	path, own, done, err := s.Uploads.take(upload)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
+	msg.FileName = cmp.Or(msg.FileName, own)
+	id, err := s.Scheduler.AddFile(msg, path)
 	return reply(&v1.ScheduleResponse{Id: id}, err)
 }
 

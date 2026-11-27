@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -155,36 +157,65 @@ func TestAFileIsSentAnonymized(t *testing.T) {
 	}
 }
 
-// A file is never left waiting: a room drafted into, or one resting from a message
-// just sent, refuses it, recorded, and nothing goes out.
-func TestAFileThatCannotGoNowIsRefused(t *testing.T) {
-	t.Parallel()
-	path := filepath.Join(t.TempDir(), "notes.txt")
-	if err := os.WriteFile(path, []byte("hi"), 0o600); err != nil {
+// A file that cannot go now waits in the daemon's queue as a message would: asked
+// for later, inside the room's cooldown, or after a failed send. Only a room drafted
+// into refuses it, recorded, since a composer cannot hold a file.
+func TestAFileThatCannotGoNowIsQueued(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "IMG_2041 Haifa.JPG")
+	if err := os.WriteFile(path, jpegWithComment("at home"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	at := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
 	for _, tc := range []struct {
 		name string
 		send []string
-		rest bool
+		args map[string]any
+		// first sends a message before, failSend fails the send.
+		first, failSend bool
+		want            string
 	}{
-		{"drafted room", nil, false},
-		{"resting room", []string{"group"}, true},
+		{"drafted room", nil, nil, false, false, agent.Refused},
+		{"asked for later", []string{"group"}, map[string]any{"at": at.Format(time.RFC3339)}, false, false, agent.Scheduled},
+		{"resting room", []string{"group"}, nil, true, false, agent.Scheduled},
+		{"failed send", []string{"group"}, nil, false, true, agent.Queued},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			f := twoRooms()
 			s := newWriter(t, f, shareAll, tc.send)
-			if tc.rest {
+			if tc.first {
 				call(t, s, "send_message", map[string]any{"room": "Standup", "text": "first"})
 			}
-			callErr(t, s, "send_message", map[string]any{"room": "Standup", "file": path})
-			if len(f.filesSent) != 0 || len(f.drafts) != 0 {
-				t.Fatalf("files %+v drafts %+v: want nothing", f.filesSent, f.drafts)
+			if tc.failSend {
+				f.sendErr = errors.New("homeserver down")
+			}
+			args := map[string]any{"room": "Standup", "file": path, "text": "the view"}
+			maps.Copy(args, tc.args)
+			if tc.want == agent.Refused {
+				callErr(t, s, "send_message", args)
+			} else if out := call(t, s, "send_message", args); out["action"] != tc.want {
+				t.Fatalf("action = %v, want %q", out["action"], tc.want)
 			}
 			ledger := entries(t, s)
-			if last := ledger[len(ledger)-1]; last.Outcome != agent.Refused || !strings.Contains(last.Text, path) {
-				t.Fatalf("ledger = %+v, want the refusal recorded with the file's path", ledger)
+			if last := ledger[len(ledger)-1]; last.Outcome != tc.want || !strings.Contains(last.Text, path) {
+				t.Fatalf("ledger = %+v, want %s recorded with the file's path", ledger, tc.want)
+			}
+			if len(f.filesSent) != 0 || len(f.drafts) != 0 {
+				t.Fatalf("files %+v drafts %+v: want nothing sent or drafted", f.filesSent, f.drafts)
+			}
+			if tc.want == agent.Refused {
+				if len(f.queued) != 0 {
+					t.Fatalf("queued %+v in a room drafted into", f.queued)
+				}
+				return
+			}
+			got := f.queued[len(f.queued)-1]
+			if got.FileName != "photo.jpg" || got.Body != "the view" || got.KeptFile == "" ||
+				strings.Contains(got.KeptFile, "at home") {
+				t.Fatalf("queued %+v: want the picture without its metadata, as photo.jpg captioned \"the view\"", got)
+			}
+			if tc.args != nil && !got.At.Equal(at) {
+				t.Errorf("queued for %v, want %v", got.At, at)
 			}
 		})
 	}

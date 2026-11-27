@@ -212,7 +212,8 @@ export interface Row {
 /** rowOf is one queued message as the TUI's list says it. */
 export function rowOf(m: ScheduledMessage, now: Date): Row {
   const at = new Date(Number(m.atMs));
-  const body = clipped(m.body.trim(), 48);
+  const said = m.fileName === "" ? m.body : `[${m.fileName}] ${m.body}`;
+  const body = clipped(said.trim(), 48);
   const when = dayAndTime(at);
   const summary =
     m.atMs <= m.writtenMs

@@ -311,8 +311,9 @@ var tools = []tool{
 			"To correct one of the account's own messages (\"mine\"), pass it as edit with the whole new text: " +
 			"sent rooms take the edit at once, drafted rooms get it as an edit waiting in the composer. " +
 			"To send a file from this machine, pass its path as file, with text as an optional caption; " +
-			"a file is only ever sent, so a room you would draft into refuses it, and it goes under a " +
-			"neutral name with a picture's location and camera data removed.",
+			"it is sent or scheduled as a message would be, but a room you would draft into refuses it " +
+			"(a composer cannot hold a file), and it goes under a neutral name with a picture's location " +
+			"and camera data removed.",
 		schema: schema(map[string]any{
 			"room": str("the room's ID, or its name as shown in the client"),
 			"text": str("the message, exactly as it should appear, except that every long dash (— or –) is written as a hyphen (-). " +
@@ -329,7 +330,7 @@ var tools = []tool{
 			"edit": str("optional: the event ID of one of the account's own messages that text replaces. " +
 				"Takes only room and text"),
 			"file": str("optional: the absolute path of a file on this machine to send; text, if given, is its caption. " +
-				"Not with thread, reply_to, at or edit"),
+				"Not with thread, reply_to or edit"),
 		}, "room"),
 		run: (*server).sendMessage,
 	},

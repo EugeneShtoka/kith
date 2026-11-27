@@ -112,6 +112,21 @@ func (f *fake) SendFile(_ context.Context, room domain.RoomID, path, name, capti
 	return nil
 }
 
+// ScheduleFile queues msg with the bytes of the file at path, read now: the copy is
+// gone once the call returns.
+func (f *fake) ScheduleFile(_ context.Context, msg domain.ScheduledMessage, path string) (string, error) {
+	if f.queueErr != nil {
+		return "", f.queueErr
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	msg.KeptFile = string(data)
+	f.queued = append(f.queued, msg)
+	return "q1", nil
+}
+
 func (f *fake) Schedule(_ context.Context, msg domain.ScheduledMessage) (string, error) {
 	if f.queueErr != nil {
 		return "", f.queueErr
