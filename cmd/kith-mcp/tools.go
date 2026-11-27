@@ -386,7 +386,7 @@ func attachmentOf(m *domain.Media) *attachmentView {
 	return &attachmentView{Kind: string(m.Type), Name: m.Name, Mime: m.Mime, Size: m.Size}
 }
 
-func (s *server) view(msg domain.Message, withRoom bool) messageView {
+func (s *server) view(room domain.Room, msg domain.Message, withRoom bool) messageView {
 	// Mentions name people as everyone else is named here: as kithd names them.
 	body, _ := domain.ResolveMentions(msg.Body, msg.Mentions, func(mn domain.Mention, words string) string {
 		return cmp.Or(mn.KnownAs, mn.Known, words)
@@ -401,7 +401,7 @@ func (s *server) view(msg domain.Message, withRoom bool) messageView {
 		Thread:     string(msg.ThreadRoot),
 		ReplyTo:    string(msg.ReplyTo),
 		Attachment: attachmentOf(msg.Media),
-		Link:       s.link(msg.RoomID, msg.ID),
+		Link:       s.link(room, msg.ID),
 	}
 	if withRoom {
 		out.Room = string(msg.RoomID)
@@ -413,11 +413,11 @@ func (s *server) view(msg domain.Message, withRoom bool) messageView {
 }
 
 // link is the link to event in room, as `[agent] links` asks.
-func (s *server) link(room domain.RoomID, event domain.EventID) string {
+func (s *server) link(room domain.Room, event domain.EventID) string {
 	if s.kithLinks {
-		return domain.KithLink(room, event)
+		return domain.KithLink(room.ID, event)
 	}
-	return domain.MessageLink(room, event, s.webs[domain.OwnerOf(room)])
+	return domain.MessageLink(room, event, s.webs[domain.OwnerOf(room.ID)])
 }
 
 // knowWebs asks the daemon for the accounts' web addresses when a Slack room among
