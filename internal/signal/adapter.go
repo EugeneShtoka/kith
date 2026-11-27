@@ -342,6 +342,9 @@ func (a *Adapter) announce(account Account, h *helper, down string, failed bool)
 		case signalv1.Connection_STATE_CONNECTED:
 			a.status(account, Linked, "")
 			a.beat(account, domain.HeardAnswering)
+			if h.isDrained(aci) {
+				a.beat(account, domain.HeardCaughtUp)
+			}
 			go a.picturesLater(aci)
 		case signalv1.Connection_STATE_LOGGED_OUT:
 			a.status(account, Unlinked, "unlinked from the phone; run `kith login signal "+account.Name+"` to link again")

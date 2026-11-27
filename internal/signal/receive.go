@@ -169,6 +169,7 @@ func (a *Adapter) take(ctx context.Context, h *helper, ev *signalv1.EventsRespon
 	case *signalv1.EventsResponse_PollEnd:
 		return a.takePollEnd(ctx, self, e.PollEnd)
 	case *signalv1.EventsResponse_QueueEmpty:
+		h.drain(self)
 		a.caughtUp(self)
 	case *signalv1.EventsResponse_Receipt:
 		// Someone got or read the account's messages: kith shows no receipts yet.
@@ -585,6 +586,9 @@ func (h *helper) setState(aci string, state signalv1.Connection_State, detail st
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.states[aci] = connState{state, detail}
+	if state == signalv1.Connection_STATE_LOGGED_OUT {
+		delete(h.drained, aci) // linked again, its queue is a new one
+	}
 }
 
 func (h *helper) stateOf(aci string) connState {

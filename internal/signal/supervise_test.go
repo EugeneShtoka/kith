@@ -387,6 +387,8 @@ type rig struct {
 
 	mu       sync.Mutex
 	statuses []domain.AccountStatus
+	// trail is every status and heartbeat evidence, in the order the adapter said them.
+	trail []any
 }
 
 // newRig installs the fake helper in mode, with devices linked in its store and the
@@ -462,6 +464,12 @@ func newRigPrepared(t *testing.T, mode, devices, linkedTo string, events []*sign
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		r.statuses = append(r.statuses, s)
+		r.trail = append(r.trail, s)
+	})
+	r.a.OnHeard(func(h domain.Heard) {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		r.trail = append(r.trail, h)
 	})
 	r.a.UseConfig(context.Background(), config.Config{Signal: config.Signal{Accounts: []config.SignalAccount{{Name: "phone"}}}})
 	ctx, cancel := context.WithCancel(context.Background())
