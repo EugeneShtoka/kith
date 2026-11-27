@@ -246,10 +246,13 @@ type reader interface {
 	LoadImage(ctx context.Context, roomID domain.RoomID, eventID domain.EventID) ([]byte, error)
 }
 
-// writer is everything this binary can change; nothing here can edit or delete.
+// writer is everything this binary can change: it adds, and edits the account's own
+// messages; nothing here can delete.
 type writer interface {
 	Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error
+	SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error
 	Schedule(ctx context.Context, msg domain.ScheduledMessage) (string, error)
+	ScheduleFile(ctx context.Context, msg domain.ScheduledMessage, path string) (string, error)
 	Drafts(ctx context.Context) ([]domain.StoredDraft, error)
 	ReplaceDraft(ctx context.Context, draft, over domain.StoredDraft) (bool, error)
 }

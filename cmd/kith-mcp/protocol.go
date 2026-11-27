@@ -92,7 +92,8 @@ list_rooms marks those rooms writable. A room outside it is refused. Where you m
 send_message either sends or leaves a draft in the room's composer, and which of those it
 does is decided by the person's configuration — not by you, and not by anything you can
 pass. Its answer names what happened; repeat that to them rather than assuming a
-message went out. Nothing here can edit or delete anything that was already said.`
+message went out. send_message can also replace one of the account's own messages
+(edit) or send a file on this machine (file); nothing here can delete anything.`
 
 func content(text string) map[string]any {
 	return map[string]any{

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ import (
 // queue single-writer.
 type Sender interface {
 	Send(ctx context.Context, roomID domain.RoomID, draft domain.Draft) error
+	SendFile(ctx context.Context, roomID domain.RoomID, path, name, caption string) error
 }
 
 // Queue is the durable store, declared here so the wire package clients link does not
@@ -25,6 +27,8 @@ type Sender interface {
 type Queue interface {
 	Load() ([]domain.ScheduledMessage, error)
 	Save(queue []domain.ScheduledMessage) error
+	// Keep moves a file a message will send into the queue's keeping, returning where.
+	Keep(path string) (string, error)
 }
 
 // Scheduler owns the pending-send queue: the file, the timer and the sending.
@@ -172,11 +176,31 @@ func (s *Scheduler) Add(msg domain.ScheduledMessage) (string, error) {
 	return msg.ID, nil
 }
 
+// AddFile queues msg to send the file at staged (an upload's) as a file, kept by the
+// queue until it is sent or canceled. A message already queued under its transaction
+// ID keeps the copy it has.
+func (s *Scheduler) AddFile(msg domain.ScheduledMessage, staged string) (string, error) {
+	kept, err := s.store.Keep(staged)
+	if err != nil {
+		return "", fmt.Errorf("daemon: %w", err)
+	}
+	msg.KeptFile = kept
+	id, err := s.Add(msg)
+	if err != nil || id != msg.ID {
+		_ = os.Remove(kept) // not queued; the next start sweeps it if this fails
+	}
+	return id, err
+}
+
 // Cancel drops one pending message, answering whether it was still waiting. One already
 // gone (sent, being sent, or canceled elsewhere) is not an error.
 func (s *Scheduler) Cancel(id string) (bool, error) {
 	s.mu.Lock()
-	waiting := slices.ContainsFunc(s.queue, func(q domain.ScheduledMessage) bool { return q.ID == id })
+	at := slices.IndexFunc(s.queue, func(q domain.ScheduledMessage) bool { return q.ID == id })
+	var file string
+	if at >= 0 {
+		file = s.queue[at].KeptFile
+	}
 	s.queue = withoutID(s.queue, id)
 	delete(s.held, id)
 	delete(s.failed, id)
@@ -186,6 +210,8 @@ func (s *Scheduler) Cancel(id string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("daemon: save schedule: %w", err)
 	}
+	dropFile(file)
+	waiting := at >= 0
 	s.rearm()
 	return waiting, nil
 }
@@ -334,15 +360,20 @@ func (s *Scheduler) sendAll(ctx context.Context, sending []domain.ScheduledMessa
 			unsent = append(unsent, msg)
 			continue
 		}
-		err := s.sender.Send(ctx, msg.RoomID, domain.Draft{
-			Body:       msg.Body,
-			Emote:      msg.Emote,
-			ThreadRoot: msg.ThreadRoot,
-			ReplyTo:    msg.ReplyTo,
-			Mentions:   msg.Mentions,
-			// The same txn ID on every try makes a retry idempotent.
-			TxnID: msg.TxnID,
-		})
+		var err error
+		if msg.KeptFile != "" {
+			err = s.sender.SendFile(ctx, msg.RoomID, msg.KeptFile, msg.FileName, msg.Body)
+		} else {
+			err = s.sender.Send(ctx, msg.RoomID, domain.Draft{
+				Body:       msg.Body,
+				Emote:      msg.Emote,
+				ThreadRoot: msg.ThreadRoot,
+				ReplyTo:    msg.ReplyTo,
+				Mentions:   msg.Mentions,
+				// The same txn ID on every try makes a retry idempotent.
+				TxnID: msg.TxnID,
+			})
+		}
 		if err != nil && refusedForGood(err) {
 			// Retrying cannot help: kept, marked, for its author to retry or cancel.
 			msg.Refused = err.Error()
@@ -362,8 +393,16 @@ func (s *Scheduler) sendAll(ctx context.Context, sending []domain.ScheduledMessa
 		if line := s.noteSuccess(msg); line != "" {
 			s.report(slog.LevelInfo, line)
 		}
+		dropFile(msg.KeptFile)
 	}
 	return unsent, refused
+}
+
+// dropFile removes a kept file once its message is sent or canceled; "" is none.
+func dropFile(path string) {
+	if path != "" {
+		_ = os.Remove(path) // best effort: the next start sweeps what is left
+	}
 }
 
 // refusedForGood reports a send no retry can change: the network refused it, or the

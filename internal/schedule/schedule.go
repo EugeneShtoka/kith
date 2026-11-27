@@ -5,8 +5,10 @@ package schedule
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -46,6 +48,9 @@ type entry struct {
 	Written string `toml:"written"`
 	// Refused is why the network refused it for good; it waits to be retried.
 	Refused string `toml:"refused,omitempty"`
+	// File is the kept file it sends (Keep), FileName the name it goes under.
+	File     string `toml:"file,omitempty"`
+	FileName string `toml:"file_name,omitempty"`
 }
 
 type mention struct {
@@ -77,7 +82,61 @@ func (s *Store) Load() ([]domain.ScheduledMessage, error) {
 	if len(bad) > 0 {
 		return out, fmt.Errorf("schedule: %s: %w", s.path, errors.Join(bad...))
 	}
+	s.sweep(out)
 	return out, nil
+}
+
+// files is the folder of the files queued messages send, beside the queue: the uploads
+// folder they arrive in is emptied on every start.
+func (s *Store) files() string { return s.path + ".files" }
+
+// sweep removes the kept files no queued message sends: one sent or canceled by a
+// daemon that stopped before removing it.
+func (s *Store) sweep(queue []domain.ScheduledMessage) {
+	kept, _ := os.ReadDir(s.files()) // none kept is nothing to sweep
+	for _, f := range kept {
+		path := filepath.Join(s.files(), f.Name())
+		if !slices.ContainsFunc(queue, func(m domain.ScheduledMessage) bool { return m.KeptFile == path }) {
+			_ = os.Remove(path) // best effort: the next start tries again
+		}
+	}
+}
+
+// Keep moves the file at path into the queue's own folder and returns where it is now;
+// across file systems it is copied, and path is the caller's to remove.
+func (s *Store) Keep(path string) (string, error) {
+	if err := os.MkdirAll(s.files(), 0o700); err != nil {
+		return "", fmt.Errorf("schedule: create %s: %w", s.files(), err)
+	}
+	dst, err := os.CreateTemp(s.files(), "file-*")
+	if err != nil {
+		return "", fmt.Errorf("schedule: keep a file: %w", err)
+	}
+	kept := dst.Name()
+	if err = os.Rename(path, kept); err != nil {
+		err = copyInto(dst, path)
+	}
+	if cerr := dst.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = os.Remove(kept) // cleanup on the error path; err is the report
+		return "", fmt.Errorf("schedule: keep a file: %w", err)
+	}
+	return kept, nil
+}
+
+// copyInto copies the file at path into dst.
+func copyInto(dst *os.File, path string) error {
+	src, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return fmt.Errorf("open: %w", err)
+	}
+	defer func() { _ = src.Close() }() // read only
+	if _, err = io.Copy(dst, src); err != nil {
+		return fmt.Errorf("copy: %w", err)
+	}
+	return nil
 }
 
 func (e entry) decode() (domain.ScheduledMessage, error) {
@@ -116,6 +175,8 @@ func (e entry) decode() (domain.ScheduledMessage, error) {
 		At:         at.UTC(),
 		Written:    written.UTC(),
 		Refused:    e.Refused,
+		KeptFile:   e.File,
+		FileName:   e.FileName,
 	}, nil
 }
 
@@ -141,6 +202,8 @@ func (s *Store) Save(queue []domain.ScheduledMessage) error {
 			At:         msg.At.UTC().Format(time.RFC3339),
 			Written:    msg.Written.UTC().Format(time.RFC3339),
 			Refused:    msg.Refused,
+			File:       msg.KeptFile,
+			FileName:   msg.FileName,
 		})
 	}
 

@@ -97,6 +97,8 @@ Search matches terms, not meaning. The tool description tells the assistant to r
 | `reply_to` | Optional: the event ID of the message this answers. A reply to a message in a thread goes into that thread |
 | `at` | Optional: send it at this time instead of now, RFC 3339 with its offset (`2026-10-12T09:00:00+03:00`). The daemon's send-later queue sends it, and the client lists it under `:scheduled` until then |
 | `urgent` | Optional: send it even outside the room's [working hours](#working-hours-when-it-may-send). The assistant is told to pass it only when you said the message is urgent or must go now |
+| `edit` | Optional: the event ID of one of your own messages that `text` replaces. Takes only `room` and `text` |
+| `file` | Optional: the absolute path of a file on the machine kith-mcp runs on, to send; `text`, if given, is its caption. Not with `thread`, `reply_to` or `edit` |
 
 A `thread` or `reply_to` must be a message of that room's cached history, or nothing is written: an event of any other room is not found, whatever room it is in. **A drafted thread reply stays in its thread.** Each thread has a draft of its own, apart from the room's: the assistant's words go into the draft of the thread they are aimed at, or the room's for none, and you find them when you open that thread. An empty draft takes their reply target. A draft that already answers a message keeps it: words answering another message are refused and recorded, and your draft is untouched.
 
@@ -111,10 +113,15 @@ A `thread` or `reply_to` must be a message of that room's cached history, or not
 | `sent` | Posted to the room |
 | `queued` | The homeserver refused it for now; the daemon is retrying it |
 | `drafted` | Left in that room's composer for you to send, or not |
+| `edited` | One of your messages was replaced |
 
 The answer includes a `reason` whenever the result was not a plain send. The assistant is told to pass the outcome on to you rather than assume a message went out.
 
-**Nothing can edit or delete.** kith-mcp can add to a conversation, but it cannot change or remove anything that was already said, including its own messages.
+**An edit changes only your own messages.** `edit` names a message of that room's cached history that you sent (`mine` in what the read tools return); anyone else's, or one of another room, is refused and nothing is written. The write scope and `send` list decide as for a new message: a room that is sent to takes the edit at once, without waiting for the cooldown or working hours, since it adds no message; any other writable room gets it as an edit waiting in the composer of that message's timeline, as if you had started correcting it, but only when that composer is empty. Your draft is never replaced by one.
+
+**A file is sent or scheduled, never drafted.** It goes as a message would: now, or at `at`, or, inside the room's cooldown or outside its working hours, when they allow, and a failed send goes to the retry queue. A scheduled file is uploaded to kithd when it is scheduled, kept beside the send-later queue until it goes out or you cancel it, and listed under `:scheduled` by its name and caption. A composer cannot hold a file, so a room drafted into refuses it, and so does a room whose queue is full; each refusal is recorded with the file's path. It goes as the client sends with `[display.media] anonymize` on, whatever that setting says: under a neutral name (`photo.jpg`, `document.pdf`), and a JPEG, PNG or WebP picture as a copy without where and when it was taken. A HEIC picture, whose metadata kith cannot remove, is refused. The file can be any file kith-mcp can read, as the words of a message can be anything the assistant can read; your write scope is what bounds where either goes.
+
+**Nothing can delete.** kith-mcp can add to a conversation and correct your own messages, but it cannot remove anything that was already said.
 
 ## Scope: where the assistant may read and write
 
@@ -262,7 +269,7 @@ Of the rooms the assistant may write to, a room that `send` names is **sent to**
 
 ### `cooldown`: stopping a runaway
 
-Around each message that goes out to a room, sent or scheduled, that room rests for `cooldown`. A message inside a rest is **scheduled for the first time clear of every rest**, so messages sent in a burst go out a cooldown apart, in order. The working hours still apply to that time. The answer comes back at once: `scheduled`, with `at` (when it goes out) and a `reason` naming the cooldown. `"0"` turns the cooldown off.
+Around each message that goes out to a room, sent or scheduled, that room rests for `cooldown`. A message inside a rest is **scheduled for the first time clear of every rest**, so messages sent in a burst go out a cooldown apart, in order. The working hours still apply to that time, unless the time was asked for (`at`). The answer comes back at once: `scheduled`, with `at` (when it goes out) and a `reason` naming the cooldown. `"0"` turns the cooldown off.
 
 `queue_limit` (10 by default) is how many messages may wait to go out to one room. A message that would wait past it is **drafted instead**, or refused if it carries an `at`, and the answer says why. A loop sends its next message within milliseconds, so it fills the queue, and from then on what it writes lands in the composer. `0` lets no message wait, so nothing is scheduled. A message that can go now is never held back by a full queue.
 
@@ -278,7 +285,7 @@ match = "space:Family"
 when  = "08:00-22:00"
 ```
 
-A send to a room outside its working hours is **scheduled for when they next open**, and the answer says so: `scheduled`, with a `reason` naming the working hours and the time it goes out. A later send (`at`) that falls outside them moves to the next opening too. Drafts are not held back: a person still presses send.
+A send to a room outside its working hours is **scheduled for when they next open**, and the answer says so: `scheduled`, with a `reason` naming the working hours and the time it goes out. A later send (`at`) keeps the time asked for even outside them: you chose it. The answer then notes that it falls outside the working hours, and the assistant is asked to tell you, in case you did not mean it. The cooldown still moves it. Drafts are not held back: a person still presses send.
 
 - The **narrowest entry naming the room** is its hours (a room over its space, a space over an entry with no `match`), the first of equals. A room that no entry names may be sent to any time, so an entry with no `match` is the default for every room.
 - `when` is a daily window on this machine's clock; an end before the start runs past midnight, and those small hours belong to the day the window opened on. `days` are the days it opens on (`mon` to `sun`), every day when empty.

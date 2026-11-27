@@ -27,6 +27,10 @@ type ScheduledMessage struct {
 	Refused string
 	// Failing is why its last try failed while it is being retried; listed, not kept.
 	Failing string
+	// FileName is the name a file it sends goes under, Body its caption; "" for a
+	// message. KeptFile is kithd's own copy of that file, which never leaves kithd.
+	FileName string
+	KeptFile string
 }
 
 // Overdue reports whether the send time has passed at now.
@@ -107,7 +111,11 @@ func (s ScheduledMessage) Summary(now time.Time) string {
 
 // SummaryWith is Summary with the body passed through wrap for styling.
 func (s ScheduledMessage) SummaryWith(now time.Time, wrap func(string) string) string {
-	body := wrap(clipGraphemes(strings.TrimSpace(s.Body), summaryLength))
+	said := s.Body
+	if s.FileName != "" {
+		said = "[" + s.FileName + "] " + said
+	}
+	body := wrap(clipGraphemes(strings.TrimSpace(said), summaryLength))
 	when := s.At.Local().Format("Mon 15:04")
 	switch {
 	case s.Immediate():

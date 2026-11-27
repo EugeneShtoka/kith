@@ -1130,6 +1130,18 @@ func (r *Remote) Schedule(ctx context.Context, msg domain.ScheduledMessage) (str
 	return resp.GetId(), err
 }
 
+// ScheduleFile queues the file at path, on this machine, to send as msg says (its body
+// the caption, its FileName the name): the bytes go to kithd now, as SendFile's do.
+func (r *Remote) ScheduleFile(ctx context.Context, msg domain.ScheduledMessage, path string) (string, error) {
+	id, err := r.upload(ctx, path)
+	if err != nil {
+		return "", fmt.Errorf("schedule file: %w", err)
+	}
+	resp, err := call(ctx, "schedule file", r.c.Schedule,
+		&v1.ScheduleRequest{Message: pc.ScheduledToProto([]domain.ScheduledMessage{msg})[0], UploadId: id})
+	return resp.GetId(), err
+}
+
 // ScheduledMessages is the whole queue, soonest first.
 func (r *Remote) ScheduledMessages(ctx context.Context) ([]domain.ScheduledMessage, error) {
 	resp, err := call(ctx, "list scheduled messages", r.c.ScheduledMessages, &v1.ScheduledMessagesRequest{})
