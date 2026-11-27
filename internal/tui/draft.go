@@ -228,6 +228,27 @@ func (m Model) hasDraft(id domain.RoomID) bool {
 	return roomDrafted(m.drafts, id)
 }
 
+// draftedThreads are the room's threads holding a draft, in place order.
+func (m Model) draftedThreads(id domain.RoomID) []domain.EventID {
+	var roots []domain.EventID
+	for at := range m.drafts {
+		if at.room == id && at.thread != "" {
+			roots = append(roots, at.thread)
+		}
+	}
+	slices.Sort(roots)
+	return roots
+}
+
+// threadDrafted reports whether a thread holds an unsent message.
+func (m Model) threadDrafted(id domain.RoomID, root domain.EventID) bool {
+	if id == m.openRoom && root == m.thread.root && m.compose.input != "" {
+		return true
+	}
+	_, ok := m.drafts[place{room: id, thread: root}]
+	return ok
+}
+
 // roomDrafted reports whether drafts holds one of room's, in any of its places.
 func roomDrafted(drafts map[place]draft, room domain.RoomID) bool {
 	for at := range drafts {

@@ -180,8 +180,11 @@ func (m Model) roomListLine(r roomRow, inner int, selected, active bool) string 
 		if r.thread.Unread > 0 {
 			badge = fmt.Sprintf("●%d", r.thread.Unread)
 		}
-		return m.listRow(rowLabel{lead: m.prefs.device.Threads.RowMark(), name: m.threadRowLabel(r.thread), color: tint},
-			badge, r.thread.Mentions > 0, inner, selected, active)
+		label := rowLabel{lead: m.prefs.device.Threads.RowMark(), name: m.threadRowLabel(r.thread), color: tint}
+		if m.threadDrafted(r.room.ID, r.thread.Root) {
+			label.trail = draftMark
+		}
+		return m.listRow(label, badge, r.thread.Mentions > 0, inner, selected, active)
 	}
 	label := rowLabel{name: m.roomLabelHere(r.room), color: tint}
 	if person, ok := m.roomPerson(r.room); ok {
